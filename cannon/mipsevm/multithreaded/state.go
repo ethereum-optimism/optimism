@@ -9,63 +9,9 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 )
-
-// SERIALIZED_THREAD_SIZE is the size of a serialized ThreadState object
-const SERIALIZED_THREAD_SIZE = 166
-
-// THREAD_WITNESS_SIZE is the size of a thread witness encoded in bytes.
-//
-//	It consists of the active thread serialized and concatenated with the
-//	32 byte hash onion of the active thread stack without the active thread
-const THREAD_WITNESS_SIZE = SERIALIZED_THREAD_SIZE + 32
-
-// The empty thread root - keccak256(bytes32(0) ++ bytes32(0))
-var EmptyThreadsRoot common.Hash = common.HexToHash("0xad3228b676f7d3cd4284a5443f17f1962b36e491b30a40b2405849e597ba5fb5")
-
-type ThreadState struct {
-	ThreadId         uint32             `json:"threadId"`
-	ExitCode         uint8              `json:"exit"`
-	Exited           bool               `json:"exited"`
-	FutexAddr        uint32             `json:"futexAddr"`
-	FutexVal         uint32             `json:"futexVal"`
-	FutexTimeoutStep uint64             `json:"futexTimeoutStep"`
-	Cpu              mipsevm.CpuScalars `json:"cpu"`
-	Registers        [32]uint32         `json:"registers"`
-}
-
-func (t *ThreadState) serializeThread() []byte {
-	out := make([]byte, 0, SERIALIZED_THREAD_SIZE)
-
-	out = binary.BigEndian.AppendUint32(out, t.ThreadId)
-	out = append(out, t.ExitCode)
-	out = mipsevm.AppendBoolToWitness(out, t.Exited)
-	out = binary.BigEndian.AppendUint32(out, t.FutexAddr)
-	out = binary.BigEndian.AppendUint32(out, t.FutexVal)
-	out = binary.BigEndian.AppendUint64(out, t.FutexTimeoutStep)
-
-	out = binary.BigEndian.AppendUint32(out, t.Cpu.PC)
-	out = binary.BigEndian.AppendUint32(out, t.Cpu.NextPC)
-	out = binary.BigEndian.AppendUint32(out, t.Cpu.LO)
-	out = binary.BigEndian.AppendUint32(out, t.Cpu.HI)
-
-	for _, r := range t.Registers {
-		out = binary.BigEndian.AppendUint32(out, r)
-	}
-
-	return out
-}
-
-func computeThreadRoot(prevStackRoot common.Hash, threadToPush *ThreadState) common.Hash {
-	hashedThread := crypto.Keccak256Hash(threadToPush.serializeThread())
-
-	var hashData []byte
-	hashData = append(hashData, prevStackRoot[:]...)
-	hashData = append(hashData, hashedThread[:]...)
-
-	return crypto.Keccak256Hash(hashData)
-}
 
 // STATE_WITNESS_SIZE is the size of the state witness encoding in bytes.
 const STATE_WITNESS_SIZE = 163
@@ -100,10 +46,10 @@ type State struct {
 	StepsSinceLastContextSwitch uint64 `json:"stepsSinceLastContextSwitch"`
 	Wakeup                      uint32 `json:"wakeup"`
 
-	TraverseRight    bool          `json:"traverseRight"`
-	LeftThreadStack  []ThreadState `json:"leftThreadStack"`
-	RightThreadStack []ThreadState `json:"rightThreadStack"`
-	NextThreadId     uint32        `json:"nextThreadId"`
+	TraverseRight    bool           `json:"traverseRight"`
+	LeftThreadStack  []*ThreadState `json:"leftThreadStack"`
+	RightThreadStack []*ThreadState `json:"rightThreadStack"`
+	NextThreadId     uint32         `json:"nextThreadId"`
 
 	// LastHint is optional metadata, and not part of the VM state itself.
 	// It is used to remember the last pre-image hint,
@@ -116,23 +62,10 @@ type State struct {
 	LastHint hexutil.Bytes `json:"lastHint,omitempty"`
 }
 
+var _ mipsevm.FPVMState = (*State)(nil)
+
 func CreateEmptyState() *State {
-	initThreadId := uint32(0)
-	initThread := ThreadState{
-		ThreadId: initThreadId,
-		ExitCode: 0,
-		Exited:   false,
-		Cpu: mipsevm.CpuScalars{
-			PC:     0,
-			NextPC: 0,
-			LO:     0,
-			HI:     0,
-		},
-		FutexAddr:        ^uint32(0),
-		FutexVal:         0,
-		FutexTimeoutStep: 0,
-		Registers:        [32]uint32{},
-	}
+	initThread := CreateEmptyThread()
 
 	return &State{
 		Memory:           memory.NewMemory(),
@@ -140,11 +73,11 @@ func CreateEmptyState() *State {
 		ExitCode:         0,
 		Exited:           false,
 		Step:             0,
-		Wakeup:           ^uint32(0),
+		Wakeup:           exec.FutexEmptyAddr,
 		TraverseRight:    false,
-		LeftThreadStack:  []ThreadState{initThread},
-		RightThreadStack: []ThreadState{},
-		NextThreadId:     initThreadId + 1,
+		LeftThreadStack:  []*ThreadState{initThread},
+		RightThreadStack: []*ThreadState{},
+		NextThreadId:     initThread.ThreadId + 1,
 	}
 }
 
@@ -166,11 +99,11 @@ func (s *State) getCurrentThread() *ThreadState {
 		panic("Active thread stack is empty")
 	}
 
-	return &activeStack[activeStackSize-1]
+	return activeStack[activeStackSize-1]
 }
 
-func (s *State) getActiveThreadStack() []ThreadState {
-	var activeStack []ThreadState
+func (s *State) getActiveThreadStack() []*ThreadState {
+	var activeStack []*ThreadState
 	if s.TraverseRight {
 		activeStack = s.RightThreadStack
 	} else {
@@ -188,23 +121,13 @@ func (s *State) getLeftThreadStackRoot() common.Hash {
 	return s.calculateThreadStackRoot(s.LeftThreadStack)
 }
 
-func (s *State) calculateThreadStackRoot(stack []ThreadState) common.Hash {
+func (s *State) calculateThreadStackRoot(stack []*ThreadState) common.Hash {
 	curRoot := EmptyThreadsRoot
 	for _, thread := range stack {
-		curRoot = computeThreadRoot(curRoot, &thread)
+		curRoot = computeThreadRoot(curRoot, thread)
 	}
 
 	return curRoot
-}
-
-func (s *State) PreemptThread() {
-	// TODO(CP-903)
-	panic("Not Implemented")
-}
-
-func (s *State) PushThread(thread *ThreadState) {
-	// TODO(CP-903)
-	panic("Not Implemented")
 }
 
 func (s *State) GetPC() uint32 {
@@ -215,6 +138,10 @@ func (s *State) GetPC() uint32 {
 func (s *State) GetRegisters() *[32]uint32 {
 	activeThread := s.getCurrentThread()
 	return &activeThread.Registers
+}
+
+func (s *State) getCpu() *mipsevm.CpuScalars {
+	return &s.getCurrentThread().Cpu
 }
 
 func (s *State) GetExitCode() uint8 { return s.ExitCode }
@@ -253,6 +180,29 @@ func (s *State) EncodeWitness() ([]byte, common.Hash) {
 	out = binary.BigEndian.AppendUint32(out, s.NextThreadId)
 
 	return out, stateHashFromWitness(out)
+}
+
+func (s *State) EncodeThreadProof() []byte {
+	activeStack := s.getActiveThreadStack()
+	threadCount := len(activeStack)
+	if threadCount == 0 {
+		panic("Invalid empty thread stack")
+	}
+
+	activeThread := activeStack[threadCount-1]
+	otherThreads := activeStack[:threadCount-1]
+	threadBytes := activeThread.serializeThread()
+	otherThreadsWitness := s.calculateThreadStackRoot(otherThreads)
+
+	out := make([]byte, 0, THREAD_WITNESS_SIZE)
+	out = append(out, threadBytes[:]...)
+	out = append(out, otherThreadsWitness[:]...)
+
+	return out
+}
+
+func (s *State) threadCount() int {
+	return len(s.LeftThreadStack) + len(s.RightThreadStack)
 }
 
 type StateWitness []byte

@@ -236,9 +236,11 @@ func UseFaultProofs() bool {
 }
 
 func UseL2OO() bool {
-	return os.Getenv("OP_E2E_USE_L2OO") == "true"
+	return (os.Getenv("OP_E2E_USE_L2OO") == "true" ||
+		os.Getenv("DEVNET_L2OO") == "true")
 }
 
 func UsePlasma() bool {
-	return os.Getenv("OP_E2E_USE_PLASMA") == "true"
+	return (os.Getenv("OP_E2E_USE_PLASMA") == "true" ||
+		os.Getenv("DEVNET_PLASMA") == "true")
 }

@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	engine2 "github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
@@ -32,7 +33,7 @@ import (
 )
 
 func newSpanChannelOut(t StatefulTesting, e e2eutils.SetupData) derive.ChannelOut {
-	channelOut, err := derive.NewSpanChannelOut(e.RollupCfg.Genesis.L2Time, e.RollupCfg.L2ChainID, 128_000, derive.Zlib)
+	channelOut, err := derive.NewSpanChannelOut(e.RollupCfg.Genesis.L2Time, e.RollupCfg.L2ChainID, 128_000, derive.Zlib, rollup.NewChainSpec(e.RollupCfg))
 	require.NoError(t, err)
 	return channelOut
 }
@@ -65,7 +66,7 @@ func TestSyncBatchType(t *testing.T) {
 func DerivationWithFlakyL1RPC(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = deltaTimeOffset
+	applyDeltaTimeOffset(dp, deltaTimeOffset)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LevelError) // mute all the temporary derivation errors that we forcefully create
 	_, _, miner, sequencer, _, verifier, _, batcher := setupReorgTestActors(t, dp, sd, log)
@@ -105,7 +106,7 @@ func DerivationWithFlakyL1RPC(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 func FinalizeWhileSyncing(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = deltaTimeOffset
+	applyDeltaTimeOffset(dp, deltaTimeOffset)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LevelError) // mute all the temporary derivation errors that we forcefully create
 	_, _, miner, sequencer, _, verifier, _, batcher := setupReorgTestActors(t, dp, sd, log)
@@ -181,7 +182,7 @@ func TestBackupUnsafe(gt *testing.T) {
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	minTs := hexutil.Uint64(0)
 	// Activate Delta hardfork
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
+	applyDeltaTimeOffset(dp, &minTs)
 	dp.DeployConfig.L2BlockTime = 2
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlInfo)
@@ -342,7 +343,7 @@ func TestBackupUnsafeReorgForkChoiceInputError(gt *testing.T) {
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	minTs := hexutil.Uint64(0)
 	// Activate Delta hardfork
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
+	applyDeltaTimeOffset(dp, &minTs)
 	dp.DeployConfig.L2BlockTime = 2
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlInfo)
@@ -475,7 +476,7 @@ func TestBackupUnsafeReorgForkChoiceNotInputError(gt *testing.T) {
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	minTs := hexutil.Uint64(0)
 	// Activate Delta hardfork
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
+	applyDeltaTimeOffset(dp, &minTs)
 	dp.DeployConfig.L2BlockTime = 2
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlInfo)
@@ -892,7 +893,7 @@ func TestInvalidPayloadInSpanBatch(gt *testing.T) {
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	minTs := hexutil.Uint64(0)
 	// Activate Delta hardfork
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
+	applyDeltaTimeOffset(dp, &minTs)
 	dp.DeployConfig.L2BlockTime = 2
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LevelInfo)
@@ -997,7 +998,7 @@ func TestSpanBatchAtomicity_Consolidation(gt *testing.T) {
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	minTs := hexutil.Uint64(0)
 	// Activate Delta hardfork
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
+	applyDeltaTimeOffset(dp, &minTs)
 	dp.DeployConfig.L2BlockTime = 2
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LevelInfo)
@@ -1058,7 +1059,7 @@ func TestSpanBatchAtomicity_ForceAdvance(gt *testing.T) {
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	minTs := hexutil.Uint64(0)
 	// Activate Delta hardfork
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
+	applyDeltaTimeOffset(dp, &minTs)
 	dp.DeployConfig.L2BlockTime = 2
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LevelInfo)

@@ -30,7 +30,7 @@ func SendDepositTx(t *testing.T, cfg SystemConfig, l1Client *ethclient.Client, l
 
 	// Find deposit contract
 	depositContract, err := bindings.NewOptimismPortal(cfg.L1Deployments.OptimismPortalProxy, l1Client)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// Finally send TX
 	// Add 10% padding for the L1 gas limit because the estimation process can be affected by the 1559 style cost scale
@@ -38,13 +38,15 @@ func SendDepositTx(t *testing.T, cfg SystemConfig, l1Client *ethclient.Client, l
 	tx, err := transactions.PadGasEstimate(l1Opts, 1.1, func(opts *bind.TransactOpts) (*types.Transaction, error) {
 		return depositContract.DepositTransaction(opts, l2Opts.ToAddr, l2Opts.Value, l2Opts.GasLimit, l2Opts.IsCreation, l2Opts.Data)
 	})
-	require.Nil(t, err, "with deposit tx")
+	require.NoError(t, err, "with deposit tx")
+	t.Logf("SendDepositTx: transaction sent: %v", tx.Hash())
 
 	// Wait for transaction on L1
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	l1Receipt, err := wait.ForReceiptOK(ctx, l1Client, tx.Hash())
-	require.Nil(t, err, "Waiting for deposit tx on L1")
+	require.NoError(t, err, "Waiting for deposit tx on L1")
+	t.Logf("SendDepositTx: included on L1")
 
 	// Wait for transaction to be included on L2
 	reconstructedDep, err := derive.UnmarshalDepositLogEvent(l1Receipt.Logs[0])
@@ -52,6 +54,7 @@ func SendDepositTx(t *testing.T, cfg SystemConfig, l1Client *ethclient.Client, l
 	tx = types.NewTx(reconstructedDep)
 	l2Receipt, err := wait.ForReceipt(ctx, l2Client, tx.Hash(), l2Opts.ExpectedStatus)
 	require.NoError(t, err, "Waiting for deposit tx on L2")
+	t.Logf("SendDepositTx: arrived on L2")
 	return l2Receipt
 }
 
@@ -143,4 +146,15 @@ func defaultTxOpts() *TxOpts {
 		Data:           nil,
 		ExpectedStatus: types.ReceiptStatusSuccessful,
 	}
+}
+
+// calcGasFees determines the actual cost of the transaction given a specific base fee
+// This does not include the L1 data fee charged from L2 transactions.
+func calcGasFees(gasUsed uint64, gasTipCap *big.Int, gasFeeCap *big.Int, baseFee *big.Int) *big.Int {
+	x := new(big.Int).Add(gasTipCap, baseFee)
+	// If tip + basefee > gas fee cap, clamp it to the gas fee cap
+	if x.Cmp(gasFeeCap) > 0 {
+		x = gasFeeCap
+	}
+	return x.Mul(x, new(big.Int).SetUint64(gasUsed))
 }

@@ -21,12 +21,6 @@ fi
 
 cleanup() {
   trap
-  # Restore the original script from the backup
-  if [ -f "$DEPLOY_SCRIPT.bak" ]; then
-    cp "$DEPLOY_SCRIPT.bak" "$DEPLOY_SCRIPT"
-    rm "$DEPLOY_SCRIPT.bak"
-  fi
-
   if [ -f "snapshots/state-diff/Deploy.json" ]; then
     rm "snapshots/state-diff/Deploy.json"
   fi
@@ -53,17 +47,7 @@ if [ ! -f "snapshots/state-diff/Deploy.json" ]; then
   touch snapshots/state-diff/Deploy.json;
 fi
 
-DEPLOY_SCRIPT="./scripts/deploy/Deploy.s.sol"
 conditionally_start_docker
-
-# Create a backup
-cp $DEPLOY_SCRIPT $DEPLOY_SCRIPT.bak
-
-# Replace mustGetAddress by getAddress in Deploy.s.sol
-# This is needed because the Kontrol deployment is only a partial
-# version of the full Optimism deployment. Since not all the components
-# of the system are deployed, we'd get some reverts on the `mustGetAddress` functions
-awk '{gsub(/mustGetAddress/, "getAddress")}1' $DEPLOY_SCRIPT > temp && mv temp $DEPLOY_SCRIPT
 
 CONTRACT_NAMES=deployments/kontrol.json
 SCRIPT_SIG="runKontrolDeployment()"

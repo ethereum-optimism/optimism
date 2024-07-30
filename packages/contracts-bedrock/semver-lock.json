@@ -64,8 +64,8 @@
     "sourceCodeHash": "0x3a725791a0f5ed84dc46dcdae26f6170a759b2fe3dc360d704356d088b76cfd6"
   },
   "src/L2/CrossL2Inbox.sol": {
-    "initCodeHash": "0x074af4b17cfdd1d1dafaaccb79d68ab4ceef50d35dc205aeeedc265e11ae2a92",
-    "sourceCodeHash": "0x5b4355b060e8e5ab81047e5f3d093869c2be7bae14a48a0e5ddf6872a219faf2"
+    "initCodeHash": "0xde09fc5ef326a19c5e7542ad9756cc8bc68d857ea3009125c429228dd12ae664",
+    "sourceCodeHash": "0xabd5b4557e9152f26ac70ed8d0e2eb85503861b86b718af5c273752147e6c015"
   },
   "src/L2/GasPriceOracle.sol": {
     "initCodeHash": "0xb16f1e370e58c7693fd113a21a1b1e7ccebc03d4f1e5a76786fc27847ef51ead",
@@ -124,8 +124,12 @@
     "sourceCodeHash": "0x3ff4a3f21202478935412d47fd5ef7f94a170402ddc50e5c062013ce5544c83f"
   },
   "src/cannon/MIPS.sol": {
-    "initCodeHash": "0xe2cfbfa5d8587a6c3cf52686e29fb0d07e2764af0ef728825529f42ebdeacb5d",
-    "sourceCodeHash": "0x231f42a05f0c8e5784eb112518afca0bb16a3689f317ce021b8390a0aa70377b"
+    "initCodeHash": "0x644a4167210bee38884419c2af618f3cf9533f959bda41aad3cfed4b6f325b1b",
+    "sourceCodeHash": "0xe28a16aad04ebcadba631a1920cac6e492c18f0d866836610be22779f3f04bfc"
+  },
+  "src/cannon/MIPS2.sol": {
+    "initCodeHash": "0xe496b3d41f51ae6cc6e7d4fb00ca0851b0e77f9b324420f88c09385ea85b1685",
+    "sourceCodeHash": "0xce3bacc0e571fa3a63b61dde8b7aeadefa65e02bbb6de0177222d539c6721c92"
   },
   "src/cannon/PreimageOracle.sol": {
     "initCodeHash": "0xe5db668fe41436f53995e910488c7c140766ba8745e19743773ebab508efd090",

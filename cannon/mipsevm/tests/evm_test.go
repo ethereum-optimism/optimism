@@ -2,7 +2,6 @@ package tests
 
 import (
 	"bytes"
-	"debug/elf"
 	"io"
 	"os"
 	"path"
@@ -17,7 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 )
@@ -64,7 +63,7 @@ func TestEVM(t *testing.T) {
 			// set the return address ($ra) to jump into when test completes
 			state.Registers[31] = testutil.EndAddr
 
-			goState := singlethreaded.NewInstrumentedState(state, oracle, os.Stdout, os.Stderr)
+			goState := singlethreaded.NewInstrumentedState(state, oracle, os.Stdout, os.Stderr, nil)
 
 			for i := 0; i < 1000; i++ {
 				curStep := goState.GetState().GetStep()
@@ -101,6 +100,60 @@ func TestEVM(t *testing.T) {
 	}
 }
 
+func TestEVM_CloneFlags(t *testing.T) {
+	//contracts, addrs := testContractsSetup(t)
+	//var tracer vm.EVMLogger
+
+	cases := []struct {
+		name  string
+		flags uint32
+		valid bool
+	}{
+		{"the supported flags bitmask", exec.ValidCloneFlags, true},
+		{"no flags", 0, false},
+		{"all flags", ^uint32(0), false},
+		{"all unsupported flags", ^uint32(exec.ValidCloneFlags), false},
+		{"a few supported flags", exec.CloneFs | exec.CloneSysvsem, false},
+		{"one supported flag", exec.CloneFs, false},
+		{"mixed supported and unsupported flags", exec.CloneFs | exec.CloneParentSettid, false},
+		{"a single unsupported flag", exec.CloneUntraced, false},
+		{"multiple unsupported flags", exec.CloneUntraced | exec.CloneParentSettid, false},
+	}
+
+	const insn = uint32(0x00_00_00_0C) // syscall instruction
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			state := multithreaded.CreateEmptyState()
+			state.Memory.SetMemory(state.GetPC(), insn)
+			state.GetRegisters()[2] = exec.SysClone // Set syscall number
+			state.GetRegisters()[4] = tt.flags      // Set first argument
+			//curStep := state.Step
+
+			us := multithreaded.NewInstrumentedState(state, nil, os.Stdout, os.Stderr, nil)
+			if !tt.valid {
+				// The VM should exit
+				_, err := us.Step(true)
+				require.NoError(t, err)
+				require.Equal(t, true, us.GetState().GetExited())
+				require.Equal(t, uint8(mipsevm.VMStatusPanic), us.GetState().GetExitCode())
+			} else {
+				/*stepWitness*/ _, err := us.Step(true)
+				require.NoError(t, err)
+			}
+
+			// TODO: Validate EVM execution once onchain implementation is ready
+			//evm := testutil.NewMIPSEVM(contracts, addrs)
+			//evm.SetTracer(tracer)
+			//testutil.LogStepFailureAtCleanup(t, evm)
+			//
+			//evmPost := evm.Step(t, stepWitness, curStep, singlethreaded.GetStateHashFn())
+			//goPost, _ := us.GetState().EncodeWitness()
+			//require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
+			//	"mipsevm produced different state than EVM")
+		})
+	}
+}
+
 func TestEVMSingleStep(t *testing.T) {
 	contracts, addrs := testContractsSetup(t)
 	var tracer vm.EVMLogger
@@ -123,7 +176,7 @@ func TestEVMSingleStep(t *testing.T) {
 			state.Memory.SetMemory(tt.pc, tt.insn)
 			curStep := state.Step
 
-			us := singlethreaded.NewInstrumentedState(state, nil, os.Stdout, os.Stderr)
+			us := singlethreaded.NewInstrumentedState(state, nil, os.Stdout, os.Stderr, nil)
 			stepWitness, err := us.Step(true)
 			require.NoError(t, err)
 
@@ -303,7 +356,7 @@ func TestEVMSysWriteHint(t *testing.T) {
 			state.Memory.SetMemory(0, insn)
 			curStep := state.Step
 
-			us := singlethreaded.NewInstrumentedState(state, &oracle, os.Stdout, os.Stderr)
+			us := singlethreaded.NewInstrumentedState(state, &oracle, os.Stdout, os.Stderr, nil)
 			stepWitness, err := us.Step(true)
 			require.NoError(t, err)
 			require.Equal(t, tt.expectedHints, oracle.hints)
@@ -347,7 +400,7 @@ func TestEVMFault(t *testing.T) {
 			// set the return address ($ra) to jump into when test completes
 			state.Registers[31] = testutil.EndAddr
 
-			us := singlethreaded.NewInstrumentedState(state, nil, os.Stdout, os.Stderr)
+			us := singlethreaded.NewInstrumentedState(state, nil, os.Stdout, os.Stderr, nil)
 			require.Panics(t, func() { _, _ = us.Step(true) })
 
 			insnProof := initialState.Memory.MerkleProof(0)
@@ -374,18 +427,9 @@ func TestHelloEVM(t *testing.T) {
 	evm.SetTracer(tracer)
 	testutil.LogStepFailureAtCleanup(t, evm)
 
-	elfProgram, err := elf.Open("../../example/bin/hello.elf")
-	require.NoError(t, err, "open ELF file")
-
-	state, err := program.LoadELF(elfProgram, singlethreaded.CreateInitialState)
-	require.NoError(t, err, "load ELF into state")
-
-	err = program.PatchGo(elfProgram, state)
-	require.NoError(t, err, "apply Go runtime patches")
-	require.NoError(t, program.PatchStack(state), "add initial stack")
-
+	state := testutil.LoadELFProgram(t, "../../example/bin/hello.elf", singlethreaded.CreateInitialState, true)
 	var stdOutBuf, stdErrBuf bytes.Buffer
-	goState := singlethreaded.NewInstrumentedState(state, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
+	goState := singlethreaded.NewInstrumentedState(state, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr), nil)
 
 	start := time.Now()
 	for i := 0; i < 400_000; i++ {
@@ -425,20 +469,11 @@ func TestClaimEVM(t *testing.T) {
 	evm.SetTracer(tracer)
 	testutil.LogStepFailureAtCleanup(t, evm)
 
-	elfProgram, err := elf.Open("../../example/bin/claim.elf")
-	require.NoError(t, err, "open ELF file")
-
-	state, err := program.LoadELF(elfProgram, singlethreaded.CreateInitialState)
-	require.NoError(t, err, "load ELF into state")
-
-	err = program.PatchGo(elfProgram, state)
-	require.NoError(t, err, "apply Go runtime patches")
-	require.NoError(t, program.PatchStack(state), "add initial stack")
-
+	state := testutil.LoadELFProgram(t, "../../example/bin/claim.elf", singlethreaded.CreateInitialState, true)
 	oracle, expectedStdOut, expectedStdErr := testutil.ClaimTestOracle(t)
 
 	var stdOutBuf, stdErrBuf bytes.Buffer
-	goState := singlethreaded.NewInstrumentedState(state, oracle, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
+	goState := singlethreaded.NewInstrumentedState(state, oracle, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr), nil)
 
 	for i := 0; i < 2000_000; i++ {
 		curStep := goState.GetState().GetStep()

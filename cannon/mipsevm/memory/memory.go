@@ -21,6 +21,8 @@ const (
 	PageKeyMask  = MaxPageCount - 1
 )
 
+const MEM_PROOF_SIZE = 28 * 32
+
 func HashPair(left, right [32]byte) [32]byte {
 	out := crypto.Keccak256Hash(left[:], right[:])
 	//fmt.Printf("0x%x 0x%x -> 0x%x\n", left, right, out)
@@ -129,7 +131,7 @@ func (m *Memory) MerkleizeSubtree(gindex uint64) [32]byte {
 	return r
 }
 
-func (m *Memory) MerkleProof(addr uint32) (out [28 * 32]byte) {
+func (m *Memory) MerkleProof(addr uint32) (out [MEM_PROOF_SIZE]byte) {
 	proof := m.traverseBranch(1, addr, 0)
 	// encode the proof
 	for i := 0; i < 28; i++ {
@@ -335,5 +337,3 @@ func (m *Memory) Usage() string {
 	// KiB, MiB, GiB, TiB, ...
 	return fmt.Sprintf("%.1f %ciB", float64(total)/float64(div), "KMGTPE"[exp])
 }
-
-type MemTracker func(addr uint32)

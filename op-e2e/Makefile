@@ -36,6 +36,10 @@ test-fault-proofs: pre-test
 	$(go_test) $(go_test_flags) ./faultproofs
 .PHONY: test-faultproofs
 
+test-devnet: pre-test
+	$(go_test) $(go_test_flags) ./devnet
+.PHONY: test-devnet
+
 cannon-prestate:
 	make -C .. cannon-prestate
 .PHONY: cannon-prestate
