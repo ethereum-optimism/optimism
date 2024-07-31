@@ -3,10 +3,16 @@ pragma solidity 0.8.15;
 
 // Testing utilities
 import { CommonTest } from "test/setup/CommonTest.sol";
+import "src/libraries/Predeploys.sol";
+import "src/governance/GovernanceDelegation.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol";
 
-contract GovernanceToken_Test is CommonTest {
+contract GovernanceTokenInterop_Test is CommonTest {
     address owner;
     address rando;
+
+    event DelegationCreated(address indexed account, Delegation delegation);
+    event DelegateVotesChanged(address indexed delegate, uint256 previousBalance, uint256 newBalance);
 
     /// @dev Sets up the test suite.
     function setUp() public virtual override {
@@ -165,5 +171,27 @@ contract GovernanceToken_Test is CommonTest {
 
         // Allowances have updated.
         assertEq(governanceToken.allowance(rando, owner), 50);
+    }
+
+    /// @dev Tests that `delegate` correctly delegates and emits event.
+    function test_delegate_succeeds() external {
+        // Mint 100 tokens to rando.
+        vm.prank(owner);
+        governanceToken.mint(rando, 100);
+
+        // Rando approves owner to spend 100 tokens.
+        vm.prank(rando);
+        vm.expectEmit(true, true, true, true);
+        emit DelegateVotesChanged(owner, 0, 100);
+        vm.expectEmit(true, true, true, true);
+        emit DelegationCreated(
+            rando, Delegation({ allowanceType: AllowanceType.Relative, delegatee: owner, amount: 1e4 })
+        );
+        governanceToken.delegate(owner);
+    }
+
+    /// @dev Tests that `delegateBySig` correctly delegates and emits event.
+    function test_delegateBySig_succeeds() external {
+        // TODO
     }
 }
