@@ -121,7 +121,7 @@ library MIPSSyscalls {
     uint32 internal constant CLONE_NEWUTS = 0x4000000;
     uint32 internal constant CLONE_NEWIPC = 0x8000000;
     uint32 internal constant VALID_SYS_CLONE_FLAGS =
-        CLONE_FS | CLONE_FILES | CLONE_SIGHAND | CLONE_SYSVSEM | CLONE_THREAD;
+        CLONE_VM | CLONE_FS | CLONE_FILES | CLONE_SIGHAND | CLONE_SYSVSEM | CLONE_THREAD;
 
     /// @notice Extract syscall num and arguments from registers.
     /// @param _registers The cpu registers.
