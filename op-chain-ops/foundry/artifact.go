@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/holiman/uint256"
@@ -26,6 +25,7 @@ type Artifact struct {
 	StorageLayout    solc.StorageLayout
 	DeployedBytecode DeployedBytecode
 	Bytecode         Bytecode
+	Metadata         Metadata
 }
 
 func (a *Artifact) UnmarshalJSON(data []byte) error {
@@ -42,6 +42,7 @@ func (a *Artifact) UnmarshalJSON(data []byte) error {
 	a.StorageLayout = artifact.StorageLayout
 	a.DeployedBytecode = artifact.DeployedBytecode
 	a.Bytecode = artifact.Bytecode
+	a.Metadata = artifact.Metadata
 	return nil
 }
 
@@ -51,6 +52,7 @@ func (a Artifact) MarshalJSON() ([]byte, error) {
 		StorageLayout:    a.StorageLayout,
 		DeployedBytecode: a.DeployedBytecode,
 		Bytecode:         a.Bytecode,
+		Metadata:         a.Metadata,
 	}
 	return json.Marshal(artifact)
 }
@@ -62,6 +64,41 @@ type artifactMarshaling struct {
 	StorageLayout    solc.StorageLayout `json:"storageLayout"`
 	DeployedBytecode DeployedBytecode   `json:"deployedBytecode"`
 	Bytecode         Bytecode           `json:"bytecode"`
+	Metadata         Metadata           `json:"metadata"`
+}
+
+// Metadata is the subset of metadata in a foundry contract artifact that we use in OP-Stack tooling.
+type Metadata struct {
+	Compiler struct {
+		Version string `json:"version"`
+	} `json:"compiler"`
+
+	Settings struct {
+		// Not all settings affect the tooling.
+		// E.g. remappings are ignored when determining the input to a contract,
+		// as the details about each of the dependencies are included anyway.
+
+		// Optimizer settings affect the compiler output, but can be arbitrary.
+		// We load them opaquely, to include it in the hash of what we run.
+		Optimizer json.RawMessage `json:"optimizer"`
+		// Metadata is loaded opaquely, similar to the Optimizer, to include in hashing.
+		// E.g. the bytecode-hash contract suffix as setting is enabled/disabled in here.
+		Metadata json.RawMessage `json:"metadata"`
+		// Map of full contract path to compiled contract name.
+		CompilationTarget map[string]string `json:"compilationTarget"`
+		// EVM version affects output, and hence included.
+		EVMVersion string `json:"evmVersion"`
+	} `json:"settings"`
+
+	Sources map[string]ContractSource `json:"sources"`
+}
+
+// ContractSource represents a JSON value in the "sources" map of a contract metadata dump.
+// This uniquely identifies the source code of the contract.
+type ContractSource struct {
+	Keccak256 common.Hash `json:"keccak256"`
+	URLs      []string    `json:"urls"`
+	License   string      `json:"license"`
 }
 
 // DeployedBytecode represents the deployed bytecode section of the solc compiler output.
@@ -130,8 +167,7 @@ func (d *ForgeAllocs) UnmarshalJSON(b []byte) error {
 }
 
 func LoadForgeAllocs(allocsPath string) (*ForgeAllocs, error) {
-	path := filepath.Join(allocsPath)
-	f, err := os.OpenFile(path, os.O_RDONLY, 0644)
+	f, err := os.OpenFile(allocsPath, os.O_RDONLY, 0644)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open forge allocs %q: %w", path, err)
 	}
@@ -141,4 +177,17 @@ func LoadForgeAllocs(allocsPath string) (*ForgeAllocs, error) {
 		return nil, fmt.Errorf("failed to json-decode forge allocs %q: %w", path, err)
 	}
 	return &out, nil
+}
+
+func WriteForgeAllocs(allocsPath string, allocs *ForgeAllocs) error {
+	f, err := os.OpenFile(allocsPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to open file %q to write forge allocs to: %w", allocsPath, err)
+	}
+	defer f.Close()
+	enc := json.NewEncoder(f)
+	if err := enc.Encode(allocs); err != nil {
+		return fmt.Errorf("failed to write forge allocs to file %q: %w", allocsPath, err)
+	}
+	return nil
 }
