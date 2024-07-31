@@ -16,7 +16,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/host/flags"
 	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
 	"github.com/ethereum-optimism/optimism/op-program/host/prefetcher"
-	oppio "github.com/ethereum-optimism/optimism/op-program/io"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -54,8 +53,8 @@ func Main(logger log.Logger, cfg *config.Config) error {
 func FaultProofProgram(ctx context.Context, logger log.Logger, cfg *config.Config) error {
 	var (
 		serverErr chan error
-		pClientRW oppio.FileChannel
-		hClientRW oppio.FileChannel
+		pClientRW preimage.FileChannel
+		hClientRW preimage.FileChannel
 	)
 	defer func() {
 		if pClientRW != nil {
@@ -73,13 +72,13 @@ func FaultProofProgram(ctx context.Context, logger log.Logger, cfg *config.Confi
 		}
 	}()
 	// Setup client I/O for preimage oracle interaction
-	pClientRW, pHostRW, err := oppio.CreateBidirectionalChannel()
+	pClientRW, pHostRW, err := preimage.CreateBidirectionalChannel()
 	if err != nil {
 		return fmt.Errorf("failed to create preimage pipe: %w", err)
 	}
 
 	// Setup client I/O for hint comms
-	hClientRW, hHostRW, err := oppio.CreateBidirectionalChannel()
+	hClientRW, hHostRW, err := preimage.CreateBidirectionalChannel()
 	if err != nil {
 		return fmt.Errorf("failed to create hints pipe: %w", err)
 	}
@@ -120,7 +119,7 @@ func FaultProofProgram(ctx context.Context, logger log.Logger, cfg *config.Confi
 // This method will block until both the hinter and preimage handlers complete.
 // If either returns an error both handlers are stopped.
 // The supplied preimageChannel and hintChannel will be closed before this function returns.
-func PreimageServer(ctx context.Context, logger log.Logger, cfg *config.Config, preimageChannel oppio.FileChannel, hintChannel oppio.FileChannel) error {
+func PreimageServer(ctx context.Context, logger log.Logger, cfg *config.Config, preimageChannel preimage.FileChannel, hintChannel preimage.FileChannel) error {
 	var serverDone chan error
 	var hinterDone chan error
 	defer func() {
