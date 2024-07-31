@@ -144,7 +144,6 @@ func (r *Runner) runOnce(ctx context.Context, traceType types.TraceType, client 
 		return fmt.Errorf("failed to execute trace provider: %w", err)
 	}
 	if hash[0] != mipsevm.VMStatusValid {
-		r.m.RecordInvalid(traceType)
 		return fmt.Errorf("%w: %v", ErrUnexpectedStatusCode, hash)
 	}
 	return nil
