@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity ^0.8.0;
 
 import { ERC20Votes } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol";
 import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
@@ -42,35 +42,39 @@ enum Op {
     SUBTRACT
 }
 
+/// @notice Thrown when the caller is not the GovernanceToken contract.
+error NotGovernanceToken();
+
+/// @notice Thrown when the number of delegations exceeds the maximum allowed.
+error LimitExceeded(uint256 length, uint256 maxLength);
+
+/// @notice Thrown when the provided numerator is zero.
+error InvalidNumeratorZero();
+
+/// @notice Thrown when the sum of the numerators exceeds the denominator.
+error NumeratorSumExceedsDenominator(uint256 numerator, uint96 denominator);
+
+/// @notice The provided delegatee list is not sorted or contains duplicates.
+error DuplicateOrUnsortedDelegatees(address delegatee);
+
+/// @notice Thrown when a block number is not yet mined.
+error BlockNotYetMined(uint256 blockNumber);
+
 /// @custom:predeploy 0x4200000000000000000000000000000000000043
 /// @title GovernanceDelegation
 /// @notice A contract that allows delegation of votes to other accounts. It is used to implement advanced delegation
 ///         functionality in the Optimism Governance system. It provides a way to migrate accounts from the Governance
 ///         token to the GovernanceDelegation contract, and delegate votes to other accounts using advanced delegations.
 contract GovernanceDelegation {
-    /// @notice Thrown when the caller is not the GovernanceToken contract.
-    error NotGovernanceToken();
-
-    /// @notice Thrown when the number of delegations exceeds the maximum allowed.
-    error LimitExceeded(uint256 length, uint256 maxLength);
-
-    /// @notice Thrown when the provided numerator is zero.
-    error InvalidNumeratorZero();
-
-    /// @notice Thrown when the sum of the numerators exceeds the denominator.
-    error NumeratorSumExceedsDenominator(uint256 numerator, uint96 denominator);
-
-    /// @notice The provided delegatee list is not sorted or contains duplicates.
-    error DuplicateOrUnsortedDelegatees(address delegatee);
-
-    /// @notice Thrown when a block number is not yet mined.
-    error BlockNotYetMined(uint256 blockNumber);
-
     /// @notice The maximum number of delegations allowed.
     uint256 public constant MAX_DELEGATIONS = 20;
 
     /// @notice The denominator used for relative delegations.
     uint96 public constant DENOMINATOR = 10_000;
+
+    /// @notice Semantic version.
+    /// @custom:semver 1.0.0-beta.1
+    string public constant version = "1.0.0-beta.1";
 
     /// @notice Flags to indicate if a account has been migrated to the GovernanceDelegation contract.
     mapping(address => bool) public migrated;

@@ -1,0 +1,30 @@
+[
+  {
+    "bytes": "32",
+    "label": "migrated",
+    "offset": 0,
+    "slot": "0",
+    "type": "mapping(address => bool)"
+  },
+  {
+    "bytes": "32",
+    "label": "delegations",
+    "offset": 0,
+    "slot": "1",
+    "type": "mapping(address => struct Delegation[])"
+  },
+  {
+    "bytes": "32",
+    "label": "_checkpoints",
+    "offset": 0,
+    "slot": "2",
+    "type": "mapping(address => struct ERC20Votes.Checkpoint[])"
+  },
+  {
+    "bytes": "32",
+    "label": "_totalSupplyCheckpoints",
+    "offset": 0,
+    "slot": "3",
+    "type": "struct ERC20Votes.Checkpoint[]"
+  }
+]

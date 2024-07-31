@@ -96,7 +96,6 @@ contract Setup {
     L1Block l1Block = L1Block(Predeploys.L1_BLOCK_ATTRIBUTES);
     LegacyMessagePasser legacyMessagePasser = LegacyMessagePasser(Predeploys.LEGACY_MESSAGE_PASSER);
     GovernanceToken governanceToken = GovernanceToken(Predeploys.GOVERNANCE_TOKEN);
-    GovernanceDelegation governanceDelegation = GovernanceDelegation(Predeploys.GOVERNANCE_DELEGATION);
     WETH weth = WETH(payable(Predeploys.WETH));
     SuperchainWETH superchainWeth = SuperchainWETH(payable(Predeploys.SUPERCHAIN_WETH));
     ETHLiquidity ethLiquidity = ETHLiquidity(Predeploys.ETH_LIQUIDITY);
@@ -214,6 +213,7 @@ contract Setup {
         labelPredeploy(Predeploys.GAS_PRICE_ORACLE);
         labelPredeploy(Predeploys.LEGACY_MESSAGE_PASSER);
         labelPredeploy(Predeploys.GOVERNANCE_TOKEN);
+        labelPredeploy(Predeploys.GOVERNANCE_DELEGATION);
         labelPredeploy(Predeploys.EAS);
         labelPredeploy(Predeploys.SCHEMA_REGISTRY);
         labelPredeploy(Predeploys.WETH);
