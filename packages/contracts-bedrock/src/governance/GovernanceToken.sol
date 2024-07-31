@@ -62,7 +62,7 @@ contract GovernanceToken is ERC20Burnable, ERC20Votes, Ownable {
     /// @return         The delegatee of the given account.
     function delegates(address _account) public view override(ERC20Votes) returns (address) {
         if (_migrated(_account)) {
-            return GovernanceDelegation(Predeploys.GOVERNANCE_DELEGATION).delegates(_account)[0].delegatee;
+            return GovernanceDelegation(Predeploys.GOVERNANCE_DELEGATION).delegates(_account);
         } else {
             return super.delegates(_account);
         }

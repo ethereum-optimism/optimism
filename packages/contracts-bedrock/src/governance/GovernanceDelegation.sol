@@ -67,7 +67,7 @@ contract GovernanceDelegation {
     error BlockNotYetMined(uint256 blockNumber);
 
     /// @notice The maximum number of delegations allowed.
-    uint256 public constant MAX_DELEGATIONS = 100;
+    uint256 public constant MAX_DELEGATIONS = 20;
 
     /// @notice The denominator used for relative delegations.
     uint96 public constant DENOMINATOR = 10_000;
@@ -76,7 +76,7 @@ contract GovernanceDelegation {
     mapping(address => bool) public migrated;
 
     /// @notice Delegations for an account.
-    mapping(address => Delegation[]) internal _delegations;
+    mapping(address => Delegation[]) internal delegations;
 
     /// @notice Checkpoints of votes for an account.
     mapping(address => ERC20Votes.Checkpoint[]) internal _checkpoints;
@@ -84,10 +84,7 @@ contract GovernanceDelegation {
     /// @notice Checkpoints of total supply.
     ERC20Votes.Checkpoint[] internal _totalSupplyCheckpoints;
 
-    /// @notice Emitted when a delegation is created.
-    event DelegationCreated(address indexed account, Delegation delegation);
-
-    /// @notice Emitted when multiple delegations are created.
+    /// @notice Emitted when delegations are created.
     event DelegationsCreated(address indexed account, Delegation[] delegations);
 
     /// @notice Emitted when a user's voting power changes.
@@ -119,8 +116,8 @@ contract GovernanceDelegation {
 
     /// @notice Returns the delegatee with the most voting power for a given account.
     /// @param _account The account to get the delegatee for.
-    function delegates(address _account) public view returns (Delegation[] memory) {
-        return _delegations[_account];
+    function delegates(address _account) public view returns (address) {
+        return delegations[_account][0].delegatee;
     }
 
     /// @notice Returns the number of votes for a given account.
@@ -154,7 +151,7 @@ contract GovernanceDelegation {
         Delegation[] memory delegation = new Delegation[](1);
         delegation[0] = _delegation;
         _delegate(msg.sender, delegation);
-        emit DelegationCreated(msg.sender, _delegation);
+        emit DelegationsCreated(msg.sender, delegation);
     }
 
     /// @notice Apply a basic delegation from `_delegator` to `_delegatee`.
@@ -178,7 +175,7 @@ contract GovernanceDelegation {
 
         _delegate(_delegator, delegation);
 
-        emit DelegationCreated(_delegator, delegation[0]);
+        emit DelegationsCreated(_delegator, delegation);
     }
 
     /// @notice Apply multiple delegations.
@@ -230,7 +227,7 @@ contract GovernanceDelegation {
         }
 
         // Calculate adjustments for old delegatee set, if it exists.
-        Delegation[] memory _oldDelegations = delegates(_delegator);
+        Delegation[] memory _oldDelegations = delegations[_delegator];
         uint256 _oldDelegateLength = _oldDelegations.length;
 
         DelegationAdjustment[] memory _old = new DelegationAdjustment[](_oldDelegateLength);
@@ -260,18 +257,18 @@ contract GovernanceDelegation {
 
             // replace existing delegatees in storage
             if (i < _oldDelegateLength) {
-                _delegations[_delegator][i] = _newDelegations[i];
+                delegations[_delegator][i] = _newDelegations[i];
             }
             // or add new delegatees
             else {
-                _delegations[_delegator].push(_newDelegations[i]);
+                delegations[_delegator].push(_newDelegations[i]);
             }
             _lastDelegatee = _newDelegations[i].delegatee;
         }
         // remove any remaining old delegatees
         if (_oldDelegateLength > _newDelegationsLength) {
             for (uint256 i = _newDelegationsLength; i < _oldDelegateLength; i++) {
-                _delegations[_delegator].pop();
+                delegations[_delegator].pop();
             }
         }
         // TODO: event below.
@@ -393,10 +390,10 @@ contract GovernanceDelegation {
     /// @param _account The account to migrate.
     function _migrate(address _account) internal {
         // Get the number of checkpoints.
-        uint32 numCheckpoints = ERC20Votes(Predeploys.GOVERNANCE_TOKEN).numCheckpoints(_account);
+        uint32 _numCheckpoints = ERC20Votes(Predeploys.GOVERNANCE_TOKEN).numCheckpoints(_account);
 
         // Itereate over the checkpoints and store them.
-        for (uint32 i; i < numCheckpoints;) {
+        for (uint32 i; i < _numCheckpoints;) {
             ERC20Votes.Checkpoint memory checkpoint = ERC20Votes(Predeploys.GOVERNANCE_TOKEN).checkpoints(_account, i);
             _checkpoints[_account].push(checkpoint);
             unchecked {
@@ -464,32 +461,32 @@ contract GovernanceDelegation {
         }
 
         // finally, calculate delegatee vote changes and create checkpoints accordingly
-        uint256 _fromLength = _delegations[_from].length;
+        uint256 _fromLength = delegations[_from].length;
         DelegationAdjustment[] memory delegationAdjustmentsFrom = new DelegationAdjustment[](_fromLength);
         // We'll need to adjust the delegatee votes for both "_from" and "_to" delegatee sets.
         if (_fromLength > 0) {
             uint256 _fromVotes = ERC20Votes(Predeploys.GOVERNANCE_TOKEN).balanceOf(_from);
-            DelegationAdjustment[] memory from = calculateWeightDistribution(_delegations[_from], _fromVotes + _amount);
-            DelegationAdjustment[] memory fromNew = calculateWeightDistribution(_delegations[_from], _fromVotes);
+            DelegationAdjustment[] memory from = calculateWeightDistribution(delegations[_from], _fromVotes + _amount);
+            DelegationAdjustment[] memory fromNew = calculateWeightDistribution(delegations[_from], _fromVotes);
             for (uint256 i; i < _fromLength; i++) {
                 delegationAdjustmentsFrom[i] = DelegationAdjustment({
-                    delegatee: _delegations[_from][i].delegatee,
+                    delegatee: delegations[_from][i].delegatee,
                     amount: from[i].amount - fromNew[i].amount
                 });
             }
         }
 
-        uint256 _toLength = _delegations[_to].length;
+        uint256 _toLength = delegations[_to].length;
         DelegationAdjustment[] memory delegationAdjustmentsTo = new DelegationAdjustment[](_toLength);
         if (_toLength > 0) {
             uint256 _toVotes = ERC20Votes(Predeploys.GOVERNANCE_TOKEN).balanceOf(_to);
-            DelegationAdjustment[] memory to = calculateWeightDistribution(_delegations[_to], _toVotes - _amount);
-            DelegationAdjustment[] memory toNew = calculateWeightDistribution(_delegations[_to], _toVotes);
+            DelegationAdjustment[] memory to = calculateWeightDistribution(delegations[_to], _toVotes - _amount);
+            DelegationAdjustment[] memory toNew = calculateWeightDistribution(delegations[_to], _toVotes);
 
             for (uint256 i; i < _toLength; i++) {
                 delegationAdjustmentsTo[i] = (
                     DelegationAdjustment({
-                        delegatee: _delegations[_to][i].delegatee,
+                        delegatee: delegations[_to][i].delegatee,
                         amount: toNew[i].amount - to[i].amount
                     })
                 );
@@ -529,18 +526,18 @@ contract GovernanceDelegation {
     }
 
     /// @notice Adds two numbers.
-    /// @param a The first number.
-    /// @param b The second number.
+    /// @param _a The first number.
+    /// @param _b The second number.
     /// @return  The sum of the two numbers.
-    function _add(uint256 a, uint256 b) internal pure returns (uint256) {
-        return a + b;
+    function _add(uint256 _a, uint256 _b) internal pure returns (uint256) {
+        return _a + _b;
     }
 
     /// @notice Subtracts two numbers.
-    /// @param a The first number.
-    /// @param b The second number.
+    /// @param _a The first number.
+    /// @param _b The second number.
     /// @return  The difference of the two numbers.
-    function _subtract(uint256 a, uint256 b) internal pure returns (uint256) {
-        return a - b;
+    function _subtract(uint256 _a, uint256 _b) internal pure returns (uint256) {
+        return _a - _b;
     }
 }
