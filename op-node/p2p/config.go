@@ -128,6 +128,7 @@ type Config struct {
 
 	EnableReqRespSync   bool
 	SyncOnlyReqToStatic bool
+	SyncStaleThreshold  int
 
 	EnablePingService bool
 }
