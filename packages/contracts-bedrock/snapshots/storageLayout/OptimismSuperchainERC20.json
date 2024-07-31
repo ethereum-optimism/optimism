@@ -1,16 +1,30 @@
 [
   {
+    "bytes": "20",
+    "label": "_remoteToken",
+    "offset": 0,
+    "slot": "0",
+    "type": "address"
+  },
+  {
     "bytes": "32",
     "label": "_name",
     "offset": 0,
-    "slot": "0",
+    "slot": "1",
     "type": "string"
   },
   {
     "bytes": "32",
     "label": "_symbol",
     "offset": 0,
-    "slot": "1",
+    "slot": "2",
     "type": "string"
+  },
+  {
+    "bytes": "1",
+    "label": "_decimals",
+    "offset": 0,
+    "slot": "3",
+    "type": "uint8"
   }
 ]

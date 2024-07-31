@@ -10,6 +10,8 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { stdStorage, StdStorage } from "forge-std/Test.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { IL2ToL2CrossDomainMessenger } from "src/L2/IL2ToL2CrossDomainMessenger.sol";
+import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import { Initializable } from "@solady/utils/Initializable.sol";
 
 // Target contract
 import {
@@ -32,11 +34,33 @@ contract OptimismSuperchainERC20Test is Test {
     address internal constant BRIDGE = Predeploys.L2_STANDARD_BRIDGE;
     address internal constant MESSENGER = Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER;
 
+    OptimismSuperchainERC20 public superchainERC20Impl;
     OptimismSuperchainERC20 public superchainERC20;
 
     /// @notice Sets up the test suite.
     function setUp() public {
-        superchainERC20 = new OptimismSuperchainERC20(REMOTE_TOKEN, NAME, SYMBOL, DECIMALS);
+        superchainERC20Impl = new OptimismSuperchainERC20();
+        superchainERC20 = _deploySuperchainERC20Proxy(REMOTE_TOKEN, NAME, SYMBOL, DECIMALS);
+    }
+
+    /// @notice Helper function to deploy a proxy of the OptimismSuperchainERC20 contract.
+    function _deploySuperchainERC20Proxy(
+        address _remoteToken,
+        string memory _name,
+        string memory _symbol,
+        uint8 _decimals
+    )
+        internal
+        returns (OptimismSuperchainERC20)
+    {
+        return OptimismSuperchainERC20(
+            address(
+                new ERC1967Proxy(
+                    address(superchainERC20Impl),
+                    abi.encodeCall(OptimismSuperchainERC20.initialize, (_remoteToken, _name, _symbol, _decimals))
+                )
+            )
+        );
     }
 
     /// @notice Helper function to setup a mock and expect a call to it.
@@ -45,12 +69,28 @@ contract OptimismSuperchainERC20Test is Test {
         vm.expectCall(_receiver, _calldata);
     }
 
-    /// @notice Test that the bridge's constructor sets the correct values.
-    function test_constructor_succeeds() public view {
+    /// @notice Test that the contract's `initializer` sets the correct values.
+    function test_initializer_succeeds() public view {
         assertEq(superchainERC20.name(), NAME);
         assertEq(superchainERC20.symbol(), SYMBOL);
         assertEq(superchainERC20.decimals(), DECIMALS);
-        assertEq(superchainERC20.REMOTE_TOKEN(), REMOTE_TOKEN);
+        assertEq(superchainERC20.remoteToken(), REMOTE_TOKEN);
+    }
+
+    /// @notice Tests the `initialize` function reverts when the contract is already initialized.
+    function testFuzz_initializer_reverts(
+        address _remoteToken,
+        string memory _name,
+        string memory _symbol,
+        uint8 _decimals
+    )
+        public
+    {
+        // Expect the revert with `InvalidInitialization` selector
+        vm.expectRevert(Initializable.InvalidInitialization.selector);
+
+        // Call the `initialize` function again
+        superchainERC20.initialize(_remoteToken, _name, _symbol, _decimals);
     }
 
     /// @notice Tests the `mint` function reverts when the caller is not the bridge.
@@ -307,25 +347,25 @@ contract OptimismSuperchainERC20Test is Test {
 
     /// @notice Tests the `decimals` function always returns the correct value.
     function testFuzz_decimals_succeeds(uint8 _decimals) public {
-        OptimismSuperchainERC20 _newSuperchainERC20 = new OptimismSuperchainERC20(REMOTE_TOKEN, NAME, SYMBOL, _decimals);
+        OptimismSuperchainERC20 _newSuperchainERC20 = _deploySuperchainERC20Proxy(REMOTE_TOKEN, NAME, SYMBOL, _decimals);
         assertEq(_newSuperchainERC20.decimals(), _decimals);
     }
 
     /// @notice Tests the `REMOTE_TOKEN` function always returns the correct value.
     function testFuzz_remoteToken_succeeds(address _remoteToken) public {
-        OptimismSuperchainERC20 _newSuperchainERC20 = new OptimismSuperchainERC20(_remoteToken, NAME, SYMBOL, DECIMALS);
-        assertEq(_newSuperchainERC20.REMOTE_TOKEN(), _remoteToken);
+        OptimismSuperchainERC20 _newSuperchainERC20 = _deploySuperchainERC20Proxy(_remoteToken, NAME, SYMBOL, DECIMALS);
+        assertEq(_newSuperchainERC20.remoteToken(), _remoteToken);
     }
 
     /// @notice Tests the `name` function always returns the correct value.
     function testFuzz_name_succeeds(string memory _name) public {
-        OptimismSuperchainERC20 _newSuperchainERC20 = new OptimismSuperchainERC20(REMOTE_TOKEN, _name, SYMBOL, DECIMALS);
+        OptimismSuperchainERC20 _newSuperchainERC20 = _deploySuperchainERC20Proxy(REMOTE_TOKEN, _name, SYMBOL, DECIMALS);
         assertEq(_newSuperchainERC20.name(), _name);
     }
 
     /// @notice Tests the `symbol` function always returns the correct value.
     function testFuzz_symbol_succeeds(string memory _symbol) public {
-        OptimismSuperchainERC20 _newSuperchainERC20 = new OptimismSuperchainERC20(REMOTE_TOKEN, NAME, _symbol, DECIMALS);
+        OptimismSuperchainERC20 _newSuperchainERC20 = _deploySuperchainERC20Proxy(REMOTE_TOKEN, NAME, _symbol, DECIMALS);
         assertEq(_newSuperchainERC20.symbol(), _symbol);
     }
 

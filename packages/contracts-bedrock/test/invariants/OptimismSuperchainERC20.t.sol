@@ -117,6 +117,9 @@ contract OptimismSuperchainERC20_SendSucceeds_Invariant is Test {
     /// @notice Starting balance of the contract.
     uint256 internal constant STARTING_BALANCE = type(uint256).max;
 
+    /// @notice The OptimismSuperchainERC20 contract implementation.
+    address internal optimismSuperchainERC20Impl;
+
     /// @notice The OptimismSuperchainERC20_User actor.
     OptimismSuperchainERC20_User internal actor;
 
@@ -129,8 +132,13 @@ contract OptimismSuperchainERC20_SendSucceeds_Invariant is Test {
         address _impl = _setImplementationCode(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
         _setProxyCode(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, _impl);
 
-        // Create a new OptimismSuperchainERC20
-        optimismSuperchainERC20 = new OptimismSuperchainERC20(address(0x123), "Supertoken", "SUP", 18);
+        // Create a new OptimismSuperchainERC20 implementation.
+        optimismSuperchainERC20Impl = address(new OptimismSuperchainERC20());
+
+        // Deploy the OptimismSuperchainERC20 contract.
+        address _proxy = address(0x123456);
+        _setProxyCode(_proxy, optimismSuperchainERC20Impl);
+        optimismSuperchainERC20 = OptimismSuperchainERC20(_proxy);
 
         // Create a new OptimismSuperchainERC20_User actor.
         actor = new OptimismSuperchainERC20_User(vm, optimismSuperchainERC20, STARTING_BALANCE);
@@ -156,7 +164,7 @@ contract OptimismSuperchainERC20_SendSucceeds_Invariant is Test {
 
     /// @notice Sets the bytecode in the proxy address.
     function _setProxyCode(address _addr, address _impl) internal {
-        bytes memory code = vm.getDeployedCode("Proxy.sol:Proxy");
+        bytes memory code = vm.getDeployedCode("universal/Proxy.sol:Proxy");
         vm.etch(_addr, code);
         EIP1967Helper.setAdmin(_addr, Predeploys.PROXY_ADMIN);
         EIP1967Helper.setImplementation(_addr, _impl);

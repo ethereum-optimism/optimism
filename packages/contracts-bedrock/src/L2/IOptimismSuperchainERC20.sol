@@ -51,4 +51,7 @@ interface IOptimismSuperchainERC20 {
     /// @param _to      Address to relay tokens to.
     /// @param _amount  Amount of tokens to relay.
     function relayERC20(address _from, address _to, uint256 _amount) external;
+
+    /// @notice Returns the address of the corresponding remote token.
+    function remoteToken() external view returns (address);
 }

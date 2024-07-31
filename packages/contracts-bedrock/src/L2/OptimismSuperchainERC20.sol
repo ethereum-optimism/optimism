@@ -6,6 +6,7 @@ import { ERC20 } from "@solady/tokens/ERC20.sol";
 import { IL2ToL2CrossDomainMessenger } from "src/L2/IL2ToL2CrossDomainMessenger.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Initializable } from "@solady/utils/Initializable.sol";
 
 /// @notice Thrown when attempting to relay a message and the function caller (msg.sender) is not
 /// L2ToL2CrossDomainMessenger.
@@ -29,7 +30,7 @@ error ZeroAddress();
 ///         token, turning it fungible and interoperable across the superchain. Likewise, it also enables the inverse
 ///         conversion path.
 ///         Moreover, it builds on top of the L2ToL2CrossDomainMessenger for both replay protection and domain binding.
-contract OptimismSuperchainERC20 is IOptimismSuperchainERC20, ERC20, ISemver {
+contract OptimismSuperchainERC20 is IOptimismSuperchainERC20, ERC20, ISemver, Initializable {
     /// @notice Address of the L2ToL2CrossDomainMessenger Predeploy.
     address internal constant MESSENGER = Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER;
 
@@ -37,16 +38,16 @@ contract OptimismSuperchainERC20 is IOptimismSuperchainERC20, ERC20, ISemver {
     address internal constant BRIDGE = Predeploys.L2_STANDARD_BRIDGE;
 
     /// @notice Address of the corresponding version of this token on the remote chain.
-    address public immutable REMOTE_TOKEN;
-
-    /// @notice Decimals of the token
-    uint8 private immutable DECIMALS;
+    address private _remoteToken;
 
     /// @notice Name of the token
     string private _name;
 
     /// @notice Symbol of the token
     string private _symbol;
+
+    /// @notice Decimals of the token
+    uint8 private _decimals;
 
     /// @notice A modifier that only allows the bridge to call
     modifier onlyBridge() {
@@ -58,15 +59,29 @@ contract OptimismSuperchainERC20 is IOptimismSuperchainERC20, ERC20, ISemver {
     /// @custom:semver 1.0.0-beta.1
     string public constant version = "1.0.0-beta.1";
 
-    /// @param _remoteToken     Address of the corresponding remote token.
-    /// @param _tokenName       ERC20 name.
-    /// @param _tokenSymbol     ERC20 symbol.
-    /// @param _decimals        ERC20 decimals.
-    constructor(address _remoteToken, string memory _tokenName, string memory _tokenSymbol, uint8 _decimals) {
-        REMOTE_TOKEN = _remoteToken;
-        DECIMALS = _decimals;
-        _name = _tokenName;
-        _symbol = _tokenSymbol;
+    /// @notice Constructs the OptimismSuperchainERC20 contract.
+    constructor() {
+        _disableInitializers();
+    }
+
+    /// @notice Initializes the contract.
+    /// @param __remoteToken    Address of the corresponding remote token.
+    /// @param __name           ERC20 name.
+    /// @param __symbol         ERC20 symbol.
+    /// @param __decimals       ERC20 decimals.
+    function initialize(
+        address __remoteToken,
+        string memory __name,
+        string memory __symbol,
+        uint8 __decimals
+    )
+        external
+        initializer
+    {
+        _remoteToken = __remoteToken;
+        _name = __name;
+        _symbol = __symbol;
+        _decimals = __decimals;
     }
 
     /// @notice Allows the L2StandardBridge to mint tokens.
@@ -125,14 +140,9 @@ contract OptimismSuperchainERC20 is IOptimismSuperchainERC20, ERC20, ISemver {
         emit RelayedERC20(_from, _to, _amount, _source);
     }
 
-    /// @notice Returns the number of decimals used to get its user representation.
-    /// For example, if `decimals` equals `2`, a balance of `505` tokens should
-    /// be displayed to a user as `5.05` (`505 / 10 ** 2`).
-    /// NOTE: This information is only used for _display_ purposes: it in
-    /// no way affects any of the arithmetic of the contract, including
-    /// {IERC20-balanceOf} and {IERC20-transfer}.
-    function decimals() public view override returns (uint8) {
-        return DECIMALS;
+    /// @notice Returns the address of the corresponding remote token.
+    function remoteToken() public view override returns (address) {
+        return _remoteToken;
     }
 
     /// @notice Returns the name of the token.
@@ -143,6 +153,16 @@ contract OptimismSuperchainERC20 is IOptimismSuperchainERC20, ERC20, ISemver {
     /// @notice Returns the symbol of the token.
     function symbol() public view virtual override returns (string memory) {
         return _symbol;
+    }
+
+    /// @notice Returns the number of decimals used to get its user representation.
+    /// For example, if `decimals` equals `2`, a balance of `505` tokens should
+    /// be displayed to a user as `5.05` (`505 / 10 ** 2`).
+    /// NOTE: This information is only used for _display_ purposes: it in
+    /// no way affects any of the arithmetic of the contract, including
+    /// {IERC20-balanceOf} and {IERC20-transfer}.
+    function decimals() public view override returns (uint8) {
+        return _decimals;
     }
 
     /// @notice ERC165 interface check function.
