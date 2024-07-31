@@ -73,7 +73,7 @@ WORKDIR /opt/optimism
 COPY --from=manifests /tmp/manifests  ./
 COPY *.json ./
 
-RUN pnpm install:ci
+RUN pnpm install
 
 COPY ./packages ./packages
 
