@@ -110,7 +110,7 @@ regen=
 #################################
 # Temporarily unexecuted tests
 # "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused0" \
-# "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused1" \ -- This one is executed below.
+# "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused1(" \
 # "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused2" \
 # "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused3" \
 # "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused4" \
