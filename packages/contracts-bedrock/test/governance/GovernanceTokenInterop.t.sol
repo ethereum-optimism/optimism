@@ -3,13 +3,13 @@ pragma solidity 0.8.15;
 
 // Testing utilities
 import { CommonTest } from "test/setup/CommonTest.sol";
-import "src/governance/GovernanceDelegation.sol";
+import { IGovernanceDelegation } from "src/governance/IGovernanceDelegation.sol";
 
 contract GovernanceTokenInterop_Test is CommonTest {
     address owner;
     address rando;
 
-    event DelegationCreated(address indexed account, Delegation delegation);
+    event DelegationCreated(address indexed account, IGovernanceDelegation.Delegation delegation);
     event DelegateVotesChanged(address indexed delegate, uint256 previousBalance, uint256 newBalance);
 
     /// @dev Sets up the test suite.
@@ -179,11 +179,16 @@ contract GovernanceTokenInterop_Test is CommonTest {
 
         // Rando approves owner to spend 100 tokens.
         vm.prank(rando);
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit(address(governanceToken));
         emit DelegateVotesChanged(owner, 0, 100);
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit(address(governanceToken));
         emit DelegationCreated(
-            rando, Delegation({ allowanceType: AllowanceType.Relative, delegatee: owner, amount: 1e4 })
+            rando,
+            IGovernanceDelegation.Delegation({
+                allowanceType: IGovernanceDelegation.AllowanceType.Relative,
+                delegatee: owner,
+                amount: 1e4
+            })
         );
         governanceToken.delegate(owner);
     }

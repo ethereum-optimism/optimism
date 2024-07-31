@@ -1,46 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity 0.8.25;
 
 import { ERC20Votes } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol";
 import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-
-/// @notice Allowance type of a delegation.
-/// @param Absolute The amount of votes delegated is fixed.
-/// @param Relative The amount of votes delegated is relative to the total amount of votes the delegator has.
-enum AllowanceType {
-    Absolute,
-    Relative
-}
-
-/// @notice Delegation of voting power.
-/// @param delegatee              The address to delegate to.
-/// @param allowanceType          Type of allowance.
-/// @param amount                 Amount of votes delegated. If `allowanceType` is Relative, `amount` acts
-///                               as a numerator and `DENOMINATOR` as a denominator. For example, 100% of allowance
-///                               corresponds to 1e4. Otherwise, this is the exact amount of votes delegated.
-struct Delegation {
-    AllowanceType allowanceType;
-    address delegatee;
-    uint256 amount;
-}
-
-/// @notice Adjustment of delegation.
-/// @param delegatee              The address to delegate to.
-/// @param amount                 Amount of votes delegated.
-struct DelegationAdjustment {
-    address delegatee;
-    uint208 amount;
-}
-
-/// @notice Operations for delegation adjustments.
-/// @param ADD      Add votes to the delegatee.
-/// @param SUBTRACT Subtract votes from the delegatee.
-enum Op {
-    ADD,
-    SUBTRACT
-}
+import { IGovernanceDelegation } from "src/governance/IGovernanceDelegation.sol";
 
 /// @notice Thrown when the caller is not the GovernanceToken contract.
 error NotGovernanceToken();
@@ -65,7 +30,7 @@ error BlockNotYetMined(uint256 blockNumber);
 /// @notice A contract that allows delegation of votes to other accounts. It is used to implement advanced delegation
 ///         functionality in the Optimism Governance system. It provides a way to migrate accounts from the Governance
 ///         token to the GovernanceDelegation contract, and delegate votes to other accounts using advanced delegations.
-contract GovernanceDelegation {
+contract GovernanceDelegation is IGovernanceDelegation {
     /// @notice The maximum number of delegations allowed.
     uint256 public constant MAX_DELEGATIONS = 20;
 
@@ -80,7 +45,7 @@ contract GovernanceDelegation {
     mapping(address => bool) public migrated;
 
     /// @notice Delegations for an account.
-    mapping(address => Delegation[]) internal delegations;
+    mapping(address => Delegation[]) public delegations;
 
     /// @notice Checkpoints of votes for an account.
     mapping(address => ERC20Votes.Checkpoint[]) internal _checkpoints;
@@ -357,7 +322,7 @@ contract GovernanceDelegation {
         Delegation[] memory _delegations,
         uint256 _amount
     )
-        public
+        internal
         pure
         returns (DelegationAdjustment[] memory)
     {

@@ -1,31 +1,26 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity 0.8.15;
 
 import "forge-std/Test.sol";
 
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import "src/governance/GovernanceDelegation.sol";
+import "src/governance/IGovernanceDelegation.sol";
 
 contract GovernanceDelegation_Test is CommonTest {
     address owner;
     address rando;
 
-    /// @dev GovernanceDelegation contract instance.
-    GovernanceDelegation governanceDelegation;
-
-    event DelegationCreated(address indexed account, Delegation delegation);
+    // Can't get events from GovernanceDelegation as it's using 0.8.25
+    event DelegationsCreated(address indexed account, IGovernanceDelegation.Delegation[] delegations);
     event DelegateVotesChanged(address indexed delegate, uint256 previousBalance, uint256 newBalance);
 
     /// @dev Sets up the test suite.
     function setUp() public virtual override {
+        super.enableInterop();
         super.setUp();
         owner = governanceToken.owner();
         rando = makeAddr("rando");
-
-        // Deploy the GovernanceDelegation contract
-        vm.etch(Predeploys.GOVERNANCE_DELEGATION, address(new GovernanceDelegation()).code);
-        governanceDelegation = GovernanceDelegation(Predeploys.GOVERNANCE_DELEGATION);
     }
 
     /// @dev Tests that the constructor sets the correct initial state.
@@ -37,7 +32,13 @@ contract GovernanceDelegation_Test is CommonTest {
         assertEq(governanceToken.totalSupply(), 0);
     }
 
-    function assertEq(Delegation[] memory a, Delegation[] memory b) public {
+    function assertEq(
+        IGovernanceDelegation.Delegation[] memory a,
+        IGovernanceDelegation.Delegation[] memory b
+    )
+        internal
+        pure
+    {
         assertEq(a.length, b.length, "length mismatch");
         for (uint256 i = 0; i < a.length; i++) {
             assertEq(a[i].delegatee, b[i].delegatee, "delegatee mismatch");
@@ -46,8 +47,14 @@ contract GovernanceDelegation_Test is CommonTest {
         }
     }
 
-    function assertCorrectVotes(Delegation[] memory _delegations, uint256 _amount) internal {
-        DelegationAdjustment[] memory _votes = governanceDelegation.calculateWeightDistribution(_delegations, _amount);
+    function assertCorrectVotes(
+        IGovernanceDelegation.Delegation[] memory _delegations,
+        uint256 _amount
+    )
+        internal
+        view
+    {
+        IGovernanceDelegation.DelegationAdjustment[] memory _votes = calculateWeightDistribution(_delegations, _amount);
         uint256 _totalWeight = 0;
         for (uint256 i = 0; i < _delegations.length; i++) {
             uint256 _expectedVoteWeight = _delegations[i].delegatee == address(0) ? 0 : _votes[i].amount;
@@ -61,8 +68,15 @@ contract GovernanceDelegation_Test is CommonTest {
         assertLe(_totalWeight, _amount, "incorrect total weight");
     }
 
-    function assertCorrectPastVotes(Delegation[] memory _delegations, uint256 _amount, uint256 _timepoint) internal {
-        DelegationAdjustment[] memory _votes = governanceDelegation.calculateWeightDistribution(_delegations, _amount);
+    function assertCorrectPastVotes(
+        IGovernanceDelegation.Delegation[] memory _delegations,
+        uint256 _amount,
+        uint256 _timepoint
+    )
+        internal
+        view
+    {
+        IGovernanceDelegation.DelegationAdjustment[] memory _votes = calculateWeightDistribution(_delegations, _amount);
         uint256 _totalWeight = 0;
         for (uint256 i = 0; i < _delegations.length; i++) {
             uint256 _expectedVoteWeight = _votes[i].amount;
@@ -76,26 +90,69 @@ contract GovernanceDelegation_Test is CommonTest {
         assertLe(_totalWeight, _amount, "incorrect total weight");
     }
 
-    function _createSingleFullDelegation(address _delegatee) internal view returns (Delegation[] memory) {
-        Delegation[] memory delegations = new Delegation[](1);
-        delegations[0] = Delegation(AllowanceType.Relative, _delegatee, governanceDelegation.DENOMINATOR());
+    /// @dev Copied from GovernanceDelegation
+    function calculateWeightDistribution(
+        IGovernanceDelegation.Delegation[] memory _delegations,
+        uint256 _amount
+    )
+        internal
+        view
+        returns (IGovernanceDelegation.DelegationAdjustment[] memory)
+    {
+        uint256 _delegationsLength = _delegations.length;
+        IGovernanceDelegation.DelegationAdjustment[] memory _delegationAdjustments =
+            new IGovernanceDelegation.DelegationAdjustment[](_delegationsLength);
+
+        // For relative delegations, keep track of total numerator to ensure it doesn't exceed DENOMINATOR
+        uint256 _totalNumerator;
+
+        // Iterate through partial delegations to calculate vote weight
+        for (uint256 i; i < _delegationsLength; i++) {
+            if (_delegations[i].allowanceType == IGovernanceDelegation.AllowanceType.Relative) {
+                require(_delegations[i].amount != 0);
+
+                _delegationAdjustments[i] = IGovernanceDelegation.DelegationAdjustment(
+                    _delegations[i].delegatee,
+                    uint208(_amount * _delegations[i].amount / governanceDelegation.DENOMINATOR())
+                );
+                _totalNumerator += _delegations[i].amount;
+
+                require(_totalNumerator <= governanceDelegation.DENOMINATOR());
+            } else {
+                _delegationAdjustments[i] = IGovernanceDelegation.DelegationAdjustment(
+                    _delegations[i].delegatee, uint208(_delegations[i].amount)
+                );
+            }
+        }
+        return _delegationAdjustments;
+    }
+
+    function _createSingleFullDelegation(address _delegatee)
+        internal
+        view
+        returns (IGovernanceDelegation.Delegation[] memory)
+    {
+        IGovernanceDelegation.Delegation[] memory delegations = new IGovernanceDelegation.Delegation[](1);
+        delegations[0] = IGovernanceDelegation.Delegation(
+            IGovernanceDelegation.AllowanceType.Relative, _delegatee, governanceDelegation.DENOMINATOR()
+        );
         return delegations;
     }
 
     function _expectEmitDelegateVotesChangedEvents(
         uint256 _amount,
         uint256 _toExistingBalance,
-        Delegation[] memory _fromDelegations,
-        Delegation[] memory _toDelegations
+        IGovernanceDelegation.Delegation[] memory _fromDelegations,
+        IGovernanceDelegation.Delegation[] memory _toDelegations
     )
         internal
     {
-        DelegationAdjustment[] memory _fromVotes =
-            governanceDelegation.calculateWeightDistribution(_fromDelegations, _amount);
-        DelegationAdjustment[] memory _toInitialVotes =
-            governanceDelegation.calculateWeightDistribution(_toDelegations, _toExistingBalance);
-        DelegationAdjustment[] memory _toVotes =
-            governanceDelegation.calculateWeightDistribution(_toDelegations, _amount + _toExistingBalance);
+        IGovernanceDelegation.DelegationAdjustment[] memory _fromVotes =
+            calculateWeightDistribution(_fromDelegations, _amount);
+        IGovernanceDelegation.DelegationAdjustment[] memory _toInitialVotes =
+            calculateWeightDistribution(_toDelegations, _toExistingBalance);
+        IGovernanceDelegation.DelegationAdjustment[] memory _toVotes =
+            calculateWeightDistribution(_toDelegations, _amount + _toExistingBalance);
 
         uint256 i;
         uint256 j;
@@ -155,57 +212,16 @@ contract GovernanceDelegation_Test is CommonTest {
         vm.prank(owner);
         governanceToken.mint(rando, _amount);
 
-        Delegation[] memory delegations = new Delegation[](1);
-        delegations[0] = Delegation(AllowanceType.Relative, _delegatee, _numerator);
+        IGovernanceDelegation.Delegation[] memory delegations = new IGovernanceDelegation.Delegation[](1);
+        delegations[0] =
+            IGovernanceDelegation.Delegation(IGovernanceDelegation.AllowanceType.Relative, _delegatee, _numerator);
 
         vm.prank(rando);
         governanceDelegation.delegate(delegations[0]);
 
         // assertEq(governanceDelegation.delegates(rando), delegations);
-        // DelegationAdjustment[] memory adjustments =
-        //     governanceDelegation.calculateWeightDistribution(delegations, _amount);
-        // assertEq(governanceDelegation.getVotes(_delegatee), adjustments[0].amount);
-    }
-
-    function test_gas() public {
-        // vm.assume(_delegatee != address(0));
-
-        // _numerator = uint96(bound(_numerator, 1, governanceDelegation.DENOMINATOR()));
-        // _amount = bound(_amount, 0, type(uint208).max);
-
-        vm.prank(owner);
-        governanceToken.mint(owner, 100 ether);
-
-        for (uint256 i = 1; i < 10; i++) {
-            Delegation[] memory delegations = new Delegation[](i - 1);
-            for (uint256 j = 1; j < i; j++) {
-                delegations[j - 1] = Delegation(AllowanceType.Relative, address(uint160(j)), 1000);
-            }
-
-            uint256 gasBefore = gasleft();
-            vm.prank(rando);
-            governanceDelegation.delegateBatched(delegations);
-            uint256 gasAfter = gasleft();
-
-            console.log("Gas used delegate: %d", gasBefore - gasAfter);
-
-            gasBefore = gasleft();
-            vm.prank(owner);
-            governanceToken.transfer(rando, 10000);
-            gasAfter = gasleft();
-
-            console.log("Gas used transfer: %d", gasBefore - gasAfter);
-        }
-
-        // Delegation[] memory delegations = new Delegation[](1);
-        // delegations[0] = Delegation(AllowanceType.Relative, _delegatee, _numerator);
-
-        // vm.prank(rando);
-        // governanceDelegation.delegate(delegations[0]);
-
-        // assertEq(governanceDelegation.delegates(rando), delegations);
-        // DelegationAdjustment[] memory adjustments =
-        //     governanceDelegation.calculateWeightDistribution(delegations, _amount);
+        // IGovernanceDelegation.DelegationAdjustment[] memory adjustments =
+        //     calculateWeightDistribution(delegations, _amount);
         // assertEq(governanceDelegation.getVotes(_delegatee), adjustments[0].amount);
     }
 }

@@ -4,7 +4,7 @@ pragma solidity 0.8.15;
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { ERC20Votes } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { GovernanceDelegation } from "src/governance/GovernanceDelegation.sol";
+import { IGovernanceDelegation } from "src/governance/IGovernanceDelegation.sol";
 import { GovernanceToken } from "src/governance/GovernanceToken.sol";
 
 contract GovernanceTokenInterop is GovernanceToken {
@@ -14,7 +14,7 @@ contract GovernanceTokenInterop is GovernanceToken {
     /// @return         The checkpoint at the given position.
     function checkpoints(address _account, uint32 _pos) public view override(ERC20Votes) returns (Checkpoint memory) {
         if (_migrated(_account)) {
-            return GovernanceDelegation(Predeploys.GOVERNANCE_DELEGATION).checkpoints(_account)[_pos];
+            return IGovernanceDelegation(Predeploys.GOVERNANCE_DELEGATION).checkpoints(_account)[_pos];
         } else {
             return super.checkpoints(_account, _pos);
         }
@@ -25,7 +25,7 @@ contract GovernanceTokenInterop is GovernanceToken {
     /// @return         The number of checkpoints for the given account.
     function numCheckpoints(address _account) public view override(ERC20Votes) returns (uint32) {
         if (_migrated(_account)) {
-            return GovernanceDelegation(Predeploys.GOVERNANCE_DELEGATION).numCheckpoints(_account);
+            return IGovernanceDelegation(Predeploys.GOVERNANCE_DELEGATION).numCheckpoints(_account);
         } else {
             return super.numCheckpoints(_account);
         }
@@ -38,7 +38,7 @@ contract GovernanceTokenInterop is GovernanceToken {
     /// @return         The delegatee of the given account.
     function delegates(address _account) public view override(ERC20Votes) returns (address) {
         if (_migrated(_account)) {
-            return GovernanceDelegation(Predeploys.GOVERNANCE_DELEGATION).delegates(_account);
+            return IGovernanceDelegation(Predeploys.GOVERNANCE_DELEGATION).delegates(_account);
         } else {
             return super.delegates(_account);
         }
@@ -49,7 +49,7 @@ contract GovernanceTokenInterop is GovernanceToken {
     /// @return         The number of votes for the given account.
     function getVotes(address _account) public view override(ERC20Votes) returns (uint256) {
         if (_migrated(_account)) {
-            return GovernanceDelegation(Predeploys.GOVERNANCE_DELEGATION).getVotes(_account);
+            return IGovernanceDelegation(Predeploys.GOVERNANCE_DELEGATION).getVotes(_account);
         } else {
             return super.getVotes(_account);
         }
@@ -61,7 +61,7 @@ contract GovernanceTokenInterop is GovernanceToken {
     /// @return         The number of votes for the given account and block number.
     function getPastVotes(address _account, uint256 _blockNumber) public view override(ERC20Votes) returns (uint256) {
         if (_migrated(_account)) {
-            return GovernanceDelegation(Predeploys.GOVERNANCE_DELEGATION).getPastVotes(_account, _blockNumber);
+            return IGovernanceDelegation(Predeploys.GOVERNANCE_DELEGATION).getPastVotes(_account, _blockNumber);
         } else {
             return super.getPastVotes(_account, _blockNumber);
         }
@@ -71,7 +71,7 @@ contract GovernanceTokenInterop is GovernanceToken {
     /// @param _blockNumber The block number to get the total supply.
     /// @return         The total supply of the token for the given block.
     function getPastTotalSupply(uint256 _blockNumber) public view override(ERC20Votes) returns (uint256) {
-        return GovernanceDelegation(Predeploys.GOVERNANCE_DELEGATION).getPastTotalSupply(_blockNumber);
+        return IGovernanceDelegation(Predeploys.GOVERNANCE_DELEGATION).getPastTotalSupply(_blockNumber);
     }
 
     /// @notice Delegates votes from the `_delegator` to `_delegatee`.
@@ -79,7 +79,7 @@ contract GovernanceTokenInterop is GovernanceToken {
     /// @param _delegatee The account to delegate votes to.
     function _delegate(address _delegator, address _delegatee) internal override(ERC20Votes) {
         // GovernanceDelegation will migrate account if necessary.
-        GovernanceDelegation(Predeploys.GOVERNANCE_DELEGATION).delegateFromToken(_delegator, _delegatee);
+        IGovernanceDelegation(Predeploys.GOVERNANCE_DELEGATION).delegateFromToken(_delegator, _delegatee);
     }
 
     /// @notice Callback called after a token transfer. Forwards to the GovernanceDelegation contract,
@@ -88,14 +88,14 @@ contract GovernanceTokenInterop is GovernanceToken {
     /// @param to     The account receiving tokens.
     /// @param amount The amount of tokens being transfered.
     function _afterTokenTransfer(address from, address to, uint256 amount) internal override(GovernanceToken) {
-        GovernanceDelegation(Predeploys.GOVERNANCE_DELEGATION).afterTokenTransfer(from, to, amount);
+        IGovernanceDelegation(Predeploys.GOVERNANCE_DELEGATION).afterTokenTransfer(from, to, amount);
     }
 
     /// @notice Determines whether an account has been migrated.
     /// @param _account The account to check if it has been migrated.
     /// @return         True if the given account has been migrated, and false otherwise.
     function _migrated(address _account) internal view returns (bool) {
-        return GovernanceDelegation(Predeploys.GOVERNANCE_DELEGATION).migrated(_account);
+        return IGovernanceDelegation(Predeploys.GOVERNANCE_DELEGATION).migrated(_account);
     }
 
     /// @notice Internal mint function.
