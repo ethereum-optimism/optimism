@@ -109,7 +109,7 @@ pattern for each new implementation contract:
     1. Call `_disableInitializers()` to ensure the implementation contract cannot be initialized.
     2. Set any immutables.
 
-Because `reinitializer(uint64 version)` is not used, the process for upgrading the implementation is:
+Because `reinitializer(uint64 version)` is not used, the process for upgrading the implementation is to atomically:
 1. Upgrade the implementation to the `StorageSetter` contract.
 2. Use that to set the initialized slot (typically slot 0) to zero.
 3. Upgrade the implementation to the desired new implementation and `initialize` it.
