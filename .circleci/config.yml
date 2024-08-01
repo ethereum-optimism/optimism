@@ -1157,8 +1157,13 @@ jobs:
             nvm install
             nvm use && node --version && npm --version
       - run:
-          name: Install just
-          command: apt install just
+          name: Install Rust
+          command: |
+            curl https://sh.rustup.rs -sSf | sh
+      - run:
+          name: Install Just
+          command: |
+            cargo install just
       - run:
           name: Install pnpm
           command: |
