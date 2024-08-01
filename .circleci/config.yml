@@ -1157,6 +1157,9 @@ jobs:
             nvm install
             nvm use && node --version && npm --version
       - run:
+          name: Install just
+          command: apt install just
+      - run:
           name: Install pnpm
           command: |
             npm i pnpm --global
