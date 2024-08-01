@@ -39,7 +39,7 @@ make cannon
 # Note:
 #  - The L2 RPC is an archive L2 node on OP goerli.
 #  - The L1 RPC is a non-archive RPC, also change `--l1.rpckind` to reflect the correct L1 RPC type.
-./cannon/bin/cannon run \
+./bin/cannon run \
     --pprof.cpu \
     --info-at '%10000000' \
     --proof-at '=<TRACE_INDEX>' \
@@ -50,7 +50,7 @@ make cannon
     --input <PRESTATE> \
     --output temp/cannon/stop-state.json \
     -- \
-    ./op-program/bin/op-program \
+    ../op-program/bin/op-program \
     --network goerli \
     --l1 <L1_URL> \
     --l2 <L2_URL> \
