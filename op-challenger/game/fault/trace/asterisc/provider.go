@@ -35,12 +35,12 @@ type AsteriscTraceProvider struct {
 	lastStep uint64
 }
 
-func NewTraceProvider(logger log.Logger, m vm.Metricer, cfg vm.VmConfig, prestateProvider types.PrestateProvider, asteriscPrestate string, localInputs utils.LocalGameInputs, dir string, gameDepth types.Depth) *AsteriscTraceProvider {
+func NewTraceProvider(logger log.Logger, m vm.Metricer, cfg vm.Config, vmCfg vm.VmConfig, prestateProvider types.PrestateProvider, asteriscPrestate string, localInputs utils.LocalGameInputs, dir string, gameDepth types.Depth) *AsteriscTraceProvider {
 	return &AsteriscTraceProvider{
 		logger:           logger,
 		dir:              dir,
 		prestate:         asteriscPrestate,
-		generator:        vm.NewExecutor(logger, m, cfg, asteriscPrestate, localInputs),
+		generator:        vm.NewExecutor(logger, m, cfg, vmCfg, asteriscPrestate, localInputs),
 		gameDepth:        gameDepth,
 		preimageLoader:   utils.NewPreimageLoader(kvstore.NewDiskKV(vm.PreimageDir(dir)).Get),
 		PrestateProvider: prestateProvider,
@@ -177,7 +177,7 @@ func NewTraceProviderForTest(logger log.Logger, m vm.Metricer, cfg *config.Confi
 		logger:         logger,
 		dir:            dir,
 		prestate:       cfg.AsteriscAbsolutePreState,
-		generator:      vm.NewExecutor(logger, m, vm.NewOpProgramVmConfig(cfg.Asterisc), cfg.AsteriscAbsolutePreState, localInputs),
+		generator:      vm.NewExecutor(logger, m, cfg.Asterisc, vm.NewOpProgramVmConfig(&cfg.Asterisc), cfg.AsteriscAbsolutePreState, localInputs),
 		gameDepth:      gameDepth,
 		preimageLoader: utils.NewPreimageLoader(kvstore.NewDiskKV(vm.PreimageDir(dir)).Get),
 	}

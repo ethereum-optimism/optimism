@@ -20,26 +20,29 @@ type Metricer interface {
 }
 
 type Config struct {
-	VmType           types.TraceType
+	// VM Configuration
+	VmType       types.TraceType
+	VmBin        string // Path to the vm executable to run when generating trace data
+	SnapshotFreq uint   // Frequency of snapshots to create when executing (in VM instructions)
+	InfoFreq     uint   // Frequency of progress log messages (in VM instructions)
+
+	// Host Configuration
 	L1               string
 	L1Beacon         string
 	L2               string
-	VmBin            string // Path to the vm executable to run when generating trace data
 	Server           string // Path to the executable that provides the pre-image oracle server
 	Network          string
 	RollupConfigPath string
 	L2GenesisPath    string
-	SnapshotFreq     uint // Frequency of snapshots to create when executing (in VM instructions)
-	InfoFreq         uint // Frequency of progress log messages (in VM instructions)
 }
 
 type VmConfig interface {
-	Cfg() Config
 	FillHostCommand(args []string, dataDir string, inputs utils.LocalGameInputs) ([]string, error)
 }
 
 type Executor struct {
-	cfg              VmConfig
+	cfg              Config
+	vmCfg            VmConfig
 	logger           log.Logger
 	metrics          Metricer
 	absolutePreState string
@@ -48,9 +51,10 @@ type Executor struct {
 	cmdExecutor      CmdExecutor
 }
 
-func NewExecutor(logger log.Logger, m Metricer, cfg VmConfig, prestate string, inputs utils.LocalGameInputs) *Executor {
+func NewExecutor(logger log.Logger, m Metricer, cfg Config, vmConfig VmConfig, prestate string, inputs utils.LocalGameInputs) *Executor {
 	return &Executor{
 		cfg:              cfg,
+		vmCfg:            vmConfig,
 		logger:           logger,
 		metrics:          m,
 		inputs:           inputs,
@@ -82,17 +86,18 @@ func (e *Executor) DoGenerateProof(ctx context.Context, dir string, begin uint64
 		"--input", start,
 		"--output", lastGeneratedState,
 		"--meta", "",
-		"--info-at", "%" + strconv.FormatUint(uint64(e.cfg.Cfg().InfoFreq), 10),
+		"--info-at", "%" + strconv.FormatUint(uint64(e.cfg.InfoFreq), 10),
 		"--proof-at", "=" + strconv.FormatUint(end, 10),
 		"--proof-fmt", filepath.Join(proofDir, "%d.json.gz"),
-		"--snapshot-at", "%" + strconv.FormatUint(uint64(e.cfg.Cfg().SnapshotFreq), 10),
+		"--snapshot-at", "%" + strconv.FormatUint(uint64(e.cfg.SnapshotFreq), 10),
 		"--snapshot-fmt", filepath.Join(snapshotDir, "%d.json.gz"),
 	}
 	if end < math.MaxUint64 {
 		args = append(args, "--stop-at", "="+strconv.FormatUint(end+1, 10))
 	}
 	args = append(args, extraVmArgs...)
-	args, err = e.cfg.FillHostCommand(args, dataDir, e.inputs)
+	args = append(args, "--")
+	args, err = e.vmCfg.FillHostCommand(args, dataDir, e.inputs)
 	if err != nil {
 		return err
 	}
@@ -106,9 +111,9 @@ func (e *Executor) DoGenerateProof(ctx context.Context, dir string, begin uint64
 	if err := os.MkdirAll(proofDir, 0755); err != nil {
 		return fmt.Errorf("could not create proofs directory %v: %w", proofDir, err)
 	}
-	e.logger.Info("Generating trace", "proof", end, "cmd", e.cfg.Cfg().VmBin, "args", strings.Join(args, ", "))
+	e.logger.Info("Generating trace", "proof", end, "cmd", e.cfg.VmBin, "args", strings.Join(args, ", "))
 	execStart := time.Now()
-	err = e.cmdExecutor(ctx, e.logger.New("proof", end), e.cfg.Cfg().VmBin, args...)
-	e.metrics.RecordVmExecutionTime(e.cfg.Cfg().VmType.String(), time.Since(execStart))
+	err = e.cmdExecutor(ctx, e.logger.New("proof", end), e.cfg.VmBin, args...)
+	e.metrics.RecordVmExecutionTime(e.cfg.VmType.String(), time.Since(execStart))
 	return err
 }

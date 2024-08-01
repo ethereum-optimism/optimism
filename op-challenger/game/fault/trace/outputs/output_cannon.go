@@ -21,7 +21,8 @@ import (
 func NewOutputCannonTraceAccessor(
 	logger log.Logger,
 	m metrics.Metricer,
-	cfg vm.VmConfig,
+	cfg vm.Config,
+	vmCfg vm.VmConfig,
 	l2Client utils.L2HeaderSource,
 	prestateProvider types.PrestateProvider,
 	cannonPrestate string,
@@ -40,7 +41,7 @@ func NewOutputCannonTraceAccessor(
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch cannon local inputs: %w", err)
 		}
-		provider := cannon.NewTraceProvider(logger, m, cfg, prestateProvider, cannonPrestate, localInputs, subdir, depth)
+		provider := cannon.NewTraceProvider(logger, m, cfg, vmCfg, prestateProvider, cannonPrestate, localInputs, subdir, depth)
 		return provider, nil
 	}
 

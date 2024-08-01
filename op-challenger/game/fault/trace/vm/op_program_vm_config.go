@@ -7,19 +7,27 @@ import (
 )
 
 type OpProgramVmConfig struct {
-	Config
+	L1               string
+	L1Beacon         string
+	L2               string
+	Server           string // Path to the executable that provides the pre-image oracle server
+	Network          string
+	RollupConfigPath string
+	L2GenesisPath    string
 }
 
 var _ VmConfig = (*OpProgramVmConfig)(nil)
 
-func NewOpProgramVmConfig(vmConfig Config) *OpProgramVmConfig {
+func NewOpProgramVmConfig(cfg *Config) *OpProgramVmConfig {
 	return &OpProgramVmConfig{
-		vmConfig,
+		L1:               cfg.L1,
+		L1Beacon:         cfg.L1Beacon,
+		L2:               cfg.L2,
+		Server:           cfg.Server,
+		Network:          cfg.Network,
+		RollupConfigPath: cfg.RollupConfigPath,
+		L2GenesisPath:    cfg.L2GenesisPath,
 	}
-}
-
-func (s *OpProgramVmConfig) Cfg() Config {
-	return s.Config
 }
 
 func (s *OpProgramVmConfig) FillHostCommand(args []string, dataDir string, inputs utils.LocalGameInputs) ([]string, error) {
@@ -29,10 +37,10 @@ func (s *OpProgramVmConfig) FillHostCommand(args []string, dataDir string, input
 
 	args = append(args,
 		"--",
-		s.Cfg().Server, "--server",
-		"--l1", s.Cfg().L1,
-		"--l1.beacon", s.Cfg().L1Beacon,
-		"--l2", s.Cfg().L2,
+		s.Server, "--server",
+		"--l1", s.L1,
+		"--l1.beacon", s.L1Beacon,
+		"--l2", s.L2,
 		"--datadir", dataDir,
 		"--l1.head", inputs.L1Head.Hex(),
 		"--l2.head", inputs.L2Head.Hex(),

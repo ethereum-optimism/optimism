@@ -26,12 +26,11 @@ func TestKonaFillHostCommand(t *testing.T) {
 		L2Claim:       common.Hash{0x44},
 		L2BlockNumber: big.NewInt(3333),
 	}
-	vmConfig := NewKonaVmConfig(cfg)
+	vmConfig := NewKonaVmConfig(&cfg)
 
 	args, err := vmConfig.FillHostCommand([]string{}, dir, inputs)
 	require.NoError(t, err)
 
-	require.True(t, slices.Contains(args, "--"))
 	require.True(t, slices.Contains(args, "--server"))
 	require.True(t, slices.Contains(args, "--l1-node-address"))
 	require.True(t, slices.Contains(args, "--l1-beacon-address"))
