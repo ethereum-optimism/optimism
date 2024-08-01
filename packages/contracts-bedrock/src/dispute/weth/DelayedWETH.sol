@@ -85,7 +85,8 @@ contract DelayedWETH is OwnableUpgradeable, WETH98, IDelayedWETH, ISemver {
     function recover(uint256 _wad) external {
         require(msg.sender == owner(), "DelayedWETH: not owner");
         uint256 amount = _wad < address(this).balance ? _wad : address(this).balance;
-        payable(msg.sender).transfer(amount);
+        (bool success,) = payable(msg.sender).call{ value: amount }(hex"");
+        require(success, "DelayedWETH: recover failed");
     }
 
     /// @inheritdoc IDelayedWETH

@@ -15,7 +15,7 @@ contract DeploymentSummary is DeploymentSummaryCode {
     address internal constant addressManagerAddress = 0x50EEf481cae4250d252Ae577A09bF514f224C6C4;
     address internal constant anchorStateRegistryAddress = 0xE2a80256d1dAFe06683F231F8e9561639Aa0e9b9;
     address internal constant anchorStateRegistryProxyAddress = 0xd6EAF4c146261653EE059077B78ED088Add54309;
-    address internal constant delayedWETHAddress = 0x49BBFf1629824A1e7993Ab5c17AFa45D24AB28c9;
+    address internal constant delayedWETHAddress = 0x90b505357aFad15A1fb8F1098B3295b7cfac1c24;
     address internal constant delayedWETHProxyAddress = 0xEF179756ea6525AFade217cA5aB0b1b5CfE0fd92;
     address internal constant disputeGameFactoryAddress = 0x20B168142354Cee65a32f6D8cf3033E592299765;
     address internal constant disputeGameFactoryProxyAddress = 0x5207CfA0166E8de0FCdFd78B4d17b68587bE306d;
@@ -698,7 +698,7 @@ contract DeploymentSummary is DeploymentSummaryCode {
         value = hex"000000000000000000000000000000000000000000000000000000000000000e";
         vm.store(systemOwnerSafeAddress, slot, value);
         slot = hex"360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc";
-        value = hex"00000000000000000000000049bbff1629824a1e7993ab5c17afa45d24ab28c9";
+        value = hex"00000000000000000000000090b505357afad15a1fb8f1098b3295b7cfac1c24";
         vm.store(delayedWETHProxyAddress, slot, value);
         slot = hex"0000000000000000000000000000000000000000000000000000000000000000";
         value = hex"0000000000000000000000000000000000000000000000000000000000000001";
