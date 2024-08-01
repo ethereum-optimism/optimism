@@ -1,6 +1,10 @@
 package testutil
 
-import "math/rand"
+import (
+	"math/rand"
+
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+)
 
 func RandomRegisters(seed int64) [32]uint32 {
 	r := rand.New(rand.NewSource(seed))
@@ -9,4 +13,10 @@ func RandomRegisters(seed int64) [32]uint32 {
 		registers[i] = r.Uint32()
 	}
 	return registers
+}
+
+func CopyRegisters(state mipsevm.FPVMState) *[32]uint32 {
+	copy := new([32]uint32)
+	*copy = *state.GetRegisters()
+	return copy
 }

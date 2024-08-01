@@ -2,7 +2,6 @@ package testutil
 
 import (
 	"debug/elf"
-	"testing"
 
 	"github.com/stretchr/testify/require"
 
@@ -10,7 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 )
 
-func LoadELFProgram[T mipsevm.FPVMState](t *testing.T, name string, initState program.CreateInitialFPVMState[T], doPatchGo bool) T {
+func LoadELFProgram[T mipsevm.FPVMState](t require.TestingT, name string, initState program.CreateInitialFPVMState[T], doPatchGo bool) T {
 	elfProgram, err := elf.Open(name)
 	require.NoError(t, err, "open ELF file")
 
