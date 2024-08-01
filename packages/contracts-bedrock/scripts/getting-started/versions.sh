@@ -37,6 +37,7 @@ ver_foundry=$(versionFoundry "$(forge --version)")
 ver_make=$(version "$(make --version)")
 ver_jq=$(version "$(jq --version)")
 ver_direnv=$(version "$(direnv --version)")
+ver_just=$(version "$(just --version)")
 
 # Print versions
 echo "Dependency | Minimum         | Actual"
@@ -48,3 +49,4 @@ echo "foundry      0.2.0 (a5efe4f)  $ver_foundry"
 echo "make         3                $ver_make"
 echo "jq           1.6              $ver_jq"
 echo "direnv       2                $ver_direnv"
+echo "just         1.29.1           $ver_just"

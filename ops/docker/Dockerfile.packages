@@ -17,7 +17,7 @@ FROM alpine:3.16 as manifests
 RUN apk add coreutils
 
 WORKDIR /tmp
-COPY pnpm-lock.yaml pnpm-workspace.yaml .nvmrc package.json ./src/
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json versions.json ./src/
 COPY packages src/packages/
 RUN mkdir manifests && \
   cd src && \
@@ -26,9 +26,7 @@ RUN mkdir manifests && \
   # pnpm-lock.yaml
   cp pnpm-lock.yaml ../manifests/ && \
   # pnpm-workspace.yaml
-  cp pnpm-workspace.yaml ../manifests/ && \
-  # .nvmrc
-  cp .nvmrc ../manifests/
+  cp pnpm-workspace.yaml ../manifests/
 
 FROM us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest as foundry
 # bullseye-slim is debian based
@@ -49,12 +47,7 @@ RUN apt-get update && apt-get install -y \
   gcc \
   musl-dev \
   bash \
-  # the following 4 deps are needed for node-hid
-  # which is a deep sub dependency of ethers to install
-  # correctly
-  pkg-config \
-  libusb-1.0-0-dev \
-  libudev-dev \
+  just \
   --no-install-recommends
 
 COPY /ops/docker/oplabs.crt /usr/local/share/ca-certificates/oplabs.crt
