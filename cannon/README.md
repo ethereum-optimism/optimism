@@ -44,11 +44,8 @@ make cannon
     --info-at '%10000000' \
     --proof-at '=<TRACE_INDEX>' \
     --stop-at '=<STOP_INDEX>' \
-    --proof-fmt 'temp/cannon/proofs/%d.json' \
     --snapshot-at '%1000000000' \
-    --snapshot-fmt 'temp/cannon/snapshots/%d.json.gz' \
-    --input <PRESTATE> \
-    --output temp/cannon/stop-state.json \
+    --input ./state.json \
     -- \
     ../op-program/bin/op-program \
     --network goerli \
@@ -59,7 +56,7 @@ make cannon
     --l2.head <L2_HEAD> \
     --l2.blocknumber <L2_BLOCK_NUMBER> \
     --l2.outputroot <L2_OUTPUT_ROOT>
-    --datadir temp/cannon/preimages \
+    --datadir /tmp/fpp-database \
     --log.format terminal \
     --server
 
