@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"strings"
 	"testing"
 	"time"
 
@@ -48,6 +49,7 @@ func TestEVM(t *testing.T) {
 			oracle := testutil.SelectOracleFixture(t, f.Name())
 			// Short-circuit early for exit_group.bin
 			exitGroup := f.Name() == "exit_group.bin"
+			expectPanic := strings.HasSuffix(f.Name(), "panic.bin")
 
 			evm := testutil.NewMIPSEVM(contracts, addrs)
 			evm.SetTracer(tracer)
@@ -65,6 +67,17 @@ func TestEVM(t *testing.T) {
 			state.Registers[31] = testutil.EndAddr
 
 			goState := singlethreaded.NewInstrumentedState(state, oracle, os.Stdout, os.Stderr, nil)
+
+			// Catch panics and check if they are expected
+			defer func() {
+				if r := recover(); r != nil {
+					if expectPanic {
+						// Success
+					} else {
+						t.Errorf("unexpected panic: %v", r)
+					}
+				}
+			}()
 
 			for i := 0; i < 1000; i++ {
 				curStep := goState.GetState().GetStep()

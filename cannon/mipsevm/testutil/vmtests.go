@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"strings"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -32,6 +33,7 @@ func RunVMTests_OpenMips[T mipsevm.FPVMState](t *testing.T, stateFactory StateFa
 			oracle := SelectOracleFixture(t, f.Name())
 			// Short-circuit early for exit_group.bin
 			exitGroup := f.Name() == "exit_group.bin"
+			expectPanic := strings.HasSuffix(f.Name(), "panic.bin")
 
 			// TODO: currently tests are compiled as flat binary objects
 			// We can use more standard tooling to compile them to ELF files and get remove maketests.py
@@ -50,6 +52,17 @@ func RunVMTests_OpenMips[T mipsevm.FPVMState](t *testing.T, stateFactory StateFa
 			state.GetRegisters()[31] = EndAddr
 
 			us := vmFactory(state, oracle, os.Stdout, os.Stderr, CreateLogger())
+
+			// Catch panics and check if they are expected
+			defer func() {
+				if r := recover(); r != nil {
+					if expectPanic {
+						// Success
+					} else {
+						t.Errorf("unexpected panic: %v", r)
+					}
+				}
+			}()
 
 			for i := 0; i < 1000; i++ {
 				if us.GetState().GetPC() == EndAddr {
