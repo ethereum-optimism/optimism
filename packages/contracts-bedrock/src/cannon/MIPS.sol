@@ -262,8 +262,13 @@ contract MIPS is ISemver {
                     revert(ptr, 0x04)
                 }
 
+                // Compiler should have done this already
+                if iszero(eq(mload(m), add(m, 32))) {
+                    // expected registers offset check
+                    revert(0, 0)
+                }
+
                 // Unpack register calldata into memory
-                mstore(m, add(m, 32)) // offset to registers
                 m := add(m, 32)
                 for { let i := 0 } lt(i, 32) { i := add(i, 1) } { c, m := putField(c, m, 4) }
             }
