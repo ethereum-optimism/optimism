@@ -227,7 +227,10 @@ library MIPSInstructions {
                 }
                 // srav
                 else if (_fun == 0x07) {
-                    return signExtend(_rt >> _rs, 32 - _rs);
+                    // shamt here is different than the typical shamt which comes from the
+                    // instruction itself, here it comes from the rs register
+                    uint32 shamt = _rs & 0x1F;
+                    return signExtend(_rt >> shamt, 32 - shamt);
                 }
                 // functs in range [0x8, 0x1b] are handled specially by other functions
                 // Explicitly enumerate each funct in range to reduce code diff against Go Vm

@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { MIPS } from "src/cannon/MIPS.sol";
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
+import { MIPSInstructions } from "src/cannon/libraries/MIPSInstructions.sol";
 import "src/dispute/lib/Types.sol";
 
 contract MIPS_Test is CommonTest {
@@ -1437,15 +1438,46 @@ contract MIPS_Test is CommonTest {
     function test_srav_succeeds() external {
         uint32 insn = encodespec(0xa, 0x9, 0x8, 7); // srav t0, t1, t2
         (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
-        state.registers[9] = 0x20_00; // t1
-        state.registers[10] = 4; // t2
+        state.registers[9] = 0xdeafbeef; // t1
+        state.registers[10] = 12; // t2
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
         expect.pc = state.nextPC;
         expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
-        expect.registers[8] = state.registers[9] >> state.registers[10]; // t0
+        expect.registers[8] = 0xfffdeafb; // t0
+        expect.registers[9] = state.registers[9];
+        expect.registers[10] = state.registers[10];
+
+        bytes memory enc = encodeState(state);
+        bytes32 postState = mips.step(enc, proof, 0);
+        assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    /// @notice Tests that the SRAV instruction succeeds when it includes extra bits in the shift
+    ///         amount beyond the lower 5 bits that are actually used for the shift. Extra bits
+    ///         need to be ignored but the instruction should still succeed.
+    /// @param _rs Value to set in the shift register $rs.
+    function testFuzz_srav_withExtraBits_succeeds(uint32 _rs) external {
+        // Assume
+        // Force _rs to have more than 5 bits set.
+        _rs = uint32(bound(uint256(_rs), 0x20, type(uint32).max));
+
+        uint32 insn = encodespec(0xa, 0x9, 0x8, 7); // srav t0, t1, t2
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        state.registers[9] = 0xdeadbeef; // t1
+        state.registers[10] = _rs; // t2
+
+        // Calculate shamt
+        uint32 shamt = state.registers[10] & 0x1F;
+
+        MIPS.State memory expect;
+        expect.memRoot = state.memRoot;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
+        expect.step = state.step + 1;
+        expect.registers[8] = MIPSInstructions.signExtend(state.registers[9] >> shamt, 32 - shamt); // t0
         expect.registers[9] = state.registers[9];
         expect.registers[10] = state.registers[10];
 
