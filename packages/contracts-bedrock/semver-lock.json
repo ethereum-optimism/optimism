@@ -71,6 +71,10 @@
     "initCodeHash": "0xde09fc5ef326a19c5e7542ad9756cc8bc68d857ea3009125c429228dd12ae664",
     "sourceCodeHash": "0xabd5b4557e9152f26ac70ed8d0e2eb85503861b86b718af5c273752147e6c015"
   },
+  "src/L2/ETHLiquidity.sol": {
+    "initCodeHash": "0x98177562fca0de0dfea5313c9acefe2fdbd73dee5ce6c1232055601f208f0177",
+    "sourceCodeHash": "0x6dc23ceeed5a63fdc98ba8e5099df1822f3eeaa8c82afb1fa3235ff68a37b274"
+  },
   "src/L2/GasPriceOracle.sol": {
     "initCodeHash": "0xb16f1e370e58c7693fd113a21a1b1e7ccebc03d4f1e5a76786fc27847ef51ead",
     "sourceCodeHash": "0x5529ee28aae94904a1c08a8b188f51a39a0f51fbd3b43f1abd4fee7bba57998c"
@@ -110,6 +114,10 @@
   "src/L2/SequencerFeeVault.sol": {
     "initCodeHash": "0xb94145f571e92ee615c6fe903b6568e8aac5fe760b6b65148ffc45d2fb0f5433",
     "sourceCodeHash": "0x8f2a54104e5e7105ba03ba37e3ef9b6684a447245f0e0b787ba4cca12957b97c"
+  },
+  "src/L2/SuperchainWETH.sol": {
+    "initCodeHash": "0x52e302ac749e6a519829e0fb01075638e481e7f010a6438088486a7a4be4601b",
+    "sourceCodeHash": "0x7c93752288f4414777e01c2962aee929a28aef2c1fccdfeba456f22df0f9aa39"
   },
   "src/L2/WETH.sol": {
     "initCodeHash": "0xde72ae96910e95249623c2d695749847e4c4adeaf96a7a35033afd77318a528a",

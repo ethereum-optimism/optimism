@@ -245,6 +245,8 @@ contract L2Genesis is Deployer {
         if (cfg.useInterop()) {
             setCrossL2Inbox(); // 22
             setL2ToL2CrossDomainMessenger(); // 23
+            setSuperchainWETH(); // 24
+            setETHLiquidity(); // 25
         }
     }
 
@@ -473,6 +475,19 @@ contract L2Genesis is Deployer {
     ///         This contract has no initializer.
     function setL2ToL2CrossDomainMessenger() internal {
         _setImplementationCode(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+    }
+
+    /// @notice This predeploy is following the safety invariant #1.
+    ///         This contract has no initializer.
+    function setETHLiquidity() internal {
+        _setImplementationCode(Predeploys.ETH_LIQUIDITY);
+        vm.deal(Predeploys.ETH_LIQUIDITY, type(uint248).max);
+    }
+
+    /// @notice This predeploy is following the safety invariant #1.
+    ///         This contract has no initializer.
+    function setSuperchainWETH() internal {
+        _setImplementationCode(Predeploys.SUPERCHAIN_WETH);
     }
 
     /// @notice Sets all the preinstalls.
