@@ -43,7 +43,7 @@ kontrol-summary:
   ./test/kontrol/scripts/make-summary-deployment.sh
 
 kontrol-summary-fp:
-  KONTROL_FP_DEPLOYMENT=true just kontrol-summary
+  KONTROL_FP_DEPLOYMENT=true ./test/kontrol/scripts/make-summary-deployment.sh
 
 snapshots-abi-storage:
   go run ./scripts/autogen/generate-snapshots .
