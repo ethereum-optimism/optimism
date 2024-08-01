@@ -64,13 +64,6 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
     /// @param id Encoded Identifier of the message.
     event ExecutingMessage(bytes32 indexed msgHash, Identifier id);
 
-    /// @notice Enforces that cross domain message sender and source are set. Reverts if not.
-    ///         Used to differentiate between 0 and nil in transient storage.
-    modifier notEntered() {
-        if (TransientContext.callDepth() == 0) revert NotEntered();
-        _;
-    }
-
     /// @notice Returns the origin address of the Identifier. If not entered, reverts.
     /// @return Origin address of the Identifier.
     function origin() external view notEntered returns (address) {
@@ -114,10 +107,8 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
         payable
         reentrantAware
     {
-        if (_id.timestamp > block.timestamp) revert InvalidTimestamp();
-        if (!IDependencySet(Predeploys.L1_BLOCK_ATTRIBUTES).isInDependencySet(_id.chainId)) {
-            revert InvalidChainId();
-        }
+        // Check the Identifier.
+        _storeIdentifier(_id);
 
         // Store the Identifier in transient storage.
         _storeIdentifier(_id);
@@ -129,6 +120,23 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
         if (!success) revert TargetCallFailed();
 
         emit ExecutingMessage(keccak256(_message), _id);
+    }
+
+    /// @notice Validates a cross chain from on the destination chain. This function is useful
+    ///         for applications that understand the schema of the _message payload and want to
+    ///         process it in a custom way.
+    function validateMessage(Identifier calldata _id, bytes memory _message) external nonReentrant {
+        // Check the Identifier.
+        _checkIdentifier(_id);
+
+        emit ExecutingMessage(keccak256(_message), _id);
+    }
+
+    function _checkIdentifier(Identifier calldata _id) internal view {
+        if (_id.timestamp > block.timestamp) revert InvalidTimestamp();
+        if (!IDependencySet(Predeploys.L1_BLOCK_ATTRIBUTES).isInDependencySet(_id.chainId)) {
+            revert InvalidChainId();
+        }
     }
 
     /// @notice Stores the Identifier in transient storage.

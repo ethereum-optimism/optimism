@@ -61,10 +61,56 @@ library TransientContext {
 /// @notice Reentrancy-aware modifier for transient storage, which increments and
 ///         decrements the call depth when entering and exiting a function.
 contract TransientReentrancyAware {
+    /// @notice Thrown when a non-written transient storage slot is attempted to be read from.
+    error NotEntered();
+
+    /// @notice Thrown when a reentrant call is detected.
+    error ReentrantCall();
+
+    /// @notice Storage slot for `entered` value.
+    ///         Equal to bytes32(uint256(keccak256("l2tol2crossdomainmessenger.entered")) - 1)
+    bytes32 internal constant ENTERED_SLOT = 0xf53fc38c5e461bdcbbeb47887fecf014abd399293109cd50f65e5f9078cfd025;
+
     /// @notice Modifier to make a function reentrancy-aware.
     modifier reentrantAware() {
         TransientContext.increment();
         _;
         TransientContext.decrement();
+    }
+
+    /// @notice Enforces that a function cannot be re-entered.
+    modifier nonReentrant() {
+        if (_entered()) revert ReentrantCall();
+        assembly {
+            tstore(ENTERED_SLOT, 1)
+        }
+        _;
+        assembly {
+            tstore(ENTERED_SLOT, 0)
+        }
+    }
+
+    /// @notice Enforces that cross domain message sender and source are set. Reverts if not.
+    ///         Used to differentiate between 0 and nil in transient storage.
+    modifier notEntered() {
+        if (TransientContext.callDepth() == 0) revert NotEntered();
+        _;
+    }
+
+    /// @notice Enforces that cross domain message sender and source are set. Reverts if not.
+    ///         Used to differentiate between 0 and nil in transient storage.
+    modifier onlyEntered() {
+        if (!_entered()) revert NotEntered();
+        _;
+    }
+
+    /// @notice Retrieves whether the contract is currently entered or not.
+    /// @return True if the contract is entered, and false otherwise.
+    function _entered() internal view returns (bool) {
+        uint256 value;
+        assembly {
+            value := tload(ENTERED_SLOT)
+        }
+        return value != 0;
     }
 }
