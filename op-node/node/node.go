@@ -16,7 +16,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
-	"github.com/ethereum-optimism/optimism/op-service/wsutil"
 	"github.com/r3labs/sse"
 
 	"github.com/hashicorp/go-multierror"
@@ -91,7 +90,6 @@ type OpNode struct {
 
 	httpEventStream       *sse.Server
 	httpEventStreamServer *httputil.HTTPServer
-	webSocketServer       *wsutil.WSServer
 }
 
 // The OpNode handles incoming gossip
@@ -442,9 +440,6 @@ func (n *OpNode) initRPCServer(cfg *Config) error {
 
 func (n *OpNode) initHTTPEventStreamServer(cfg *Config) error {
 
-	wss := wsutil.NewWebSocketServer()
-	wss.Start()
-
 	server := sse.New()
 	server.AutoReplay = false
 	server.AutoStream = false
@@ -453,7 +448,6 @@ func (n *OpNode) initHTTPEventStreamServer(cfg *Config) error {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/events", server.HTTPHandler)
-	mux.HandleFunc("/ws", wss.HTTPHandler)
 	addr := net.JoinHostPort(cfg.RPC.ListenAddr, strconv.Itoa(cfg.RPC.ListenPort+1))
 
 	var err error
@@ -463,7 +457,6 @@ func (n *OpNode) initHTTPEventStreamServer(cfg *Config) error {
 	}
 	n.log.Info("Started HTTP event stream server", "addr", addr)
 	n.httpEventStream = server
-	n.webSocketServer = wss
 
 	return nil
 }
@@ -777,12 +770,6 @@ func (n *OpNode) Stop(ctx context.Context) error {
 	if n.httpEventStreamServer != nil {
 		if err := n.httpEventStreamServer.Stop(ctx); err != nil {
 			result = multierror.Append(result, fmt.Errorf("failed to close http event stream server: %w", err))
-		}
-	}
-
-	if n.webSocketServer != nil {
-		if err := n.webSocketServer.Stop(ctx); err != nil {
-			result = multierror.Append(result, fmt.Errorf("failed to close ws event stream server: %w", err))
 		}
 	}
 
