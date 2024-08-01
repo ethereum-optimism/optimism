@@ -446,6 +446,9 @@ func (n *OpNode) initHTTPEventStreamServer(cfg *Config) error {
 	wss.Start()
 
 	server := sse.New()
+	server.AutoReplay = false
+	server.AutoStream = false
+	server.EventTTL = time.Second * 6
 	server.CreateStream("payload_attributes")
 
 	mux := http.NewServeMux()
