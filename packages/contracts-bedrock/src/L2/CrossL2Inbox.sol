@@ -56,13 +56,13 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
     bytes32 internal constant CHAINID_SLOT = 0x6e0446e8b5098b8c8193f964f1b567ec3a2bdaeba33d36acb85c1f1d3f92d313;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.2
-    string public constant version = "1.0.0-beta.2";
+    /// @custom:semver 1.0.0-beta.3
+    string public constant version = "1.0.0-beta.3";
 
     /// @notice Emitted when a cross chain message is being executed.
-    /// @param encodedId Encoded Identifier of the message.
-    /// @param message   Message payload being executed.
-    event ExecutingMessage(bytes encodedId, bytes message);
+    /// @param msgHash Hash of message payload being executed.
+    /// @param id Encoded Identifier of the message.
+    event ExecutingMessage(bytes32 indexed msgHash, Identifier id);
 
     /// @notice Enforces that cross domain message sender and source are set. Reverts if not.
     ///         Used to differentiate between 0 and nil in transient storage.
@@ -128,7 +128,7 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
         // Revert if the target call failed.
         if (!success) revert TargetCallFailed();
 
-        emit ExecutingMessage(abi.encode(_id), _message);
+        emit ExecutingMessage(keccak256(_message), _id);
     }
 
     /// @notice Stores the Identifier in transient storage.

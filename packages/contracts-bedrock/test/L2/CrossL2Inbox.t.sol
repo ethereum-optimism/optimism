@@ -102,7 +102,7 @@ contract CrossL2InboxTest is Test {
 
         // Look for the emit ExecutingMessage event
         vm.expectEmit(Predeploys.CROSS_L2_INBOX);
-        emit CrossL2Inbox.ExecutingMessage(abi.encode(_id), _message);
+        emit CrossL2Inbox.ExecutingMessage(keccak256(_message), _id);
 
         // Call the executeMessage function
         crossL2Inbox.executeMessage{ value: _value }({ _id: _id, _target: _target, _message: _message });
