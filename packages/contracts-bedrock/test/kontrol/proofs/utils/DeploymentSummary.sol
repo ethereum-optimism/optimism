@@ -31,7 +31,7 @@ contract DeploymentSummary is DeploymentSummaryCode {
     address internal constant optimismMintableERC20FactoryAddress = 0x39Aea2Dd53f2d01c15877aCc2791af6BDD7aD567;
     address internal constant optimismMintableERC20FactoryProxyAddress = 0x20A42a5a785622c6Ba2576B2D6e924aA82BFA11D;
     address internal constant optimismPortalAddress = 0xbdD90485FCbcac869D5b5752179815a3103d8131;
-    address internal constant optimismPortal2Address = 0xfcbb237388CaF5b08175C9927a37aB6450acd535;
+    address internal constant optimismPortal2Address = 0x542e5F5d3934b6A8A8B4219cbc99D3D87a7137E1;
     address internal constant optimismPortalProxyAddress = 0x978e3286EB805934215a88694d80b09aDed68D90;
     address internal constant preimageOracleAddress = 0x3bd7E801E51d48c5d94Ea68e8B801DFFC275De75;
     address internal constant protocolVersionsAddress = 0xfbfD64a6C0257F613feFCe050Aa30ecC3E3d7C3F;
