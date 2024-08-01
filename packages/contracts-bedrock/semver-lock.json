@@ -104,8 +104,8 @@
     "sourceCodeHash": "0x1f14aafab2cb15970cccedb461b72218fca8afa6ffd0ac696a9e28ff1415a068"
   },
   "src/L2/OptimismSuperchainERC20.sol": {
-    "initCodeHash": "0x3ca4452dc167b6705a017016c9f1bf7f765cf871efdac56707735d6b9354d5e8",
-    "sourceCodeHash": "0x99861db89dde9af91df484816d35b4fd29b612d08cb6ef242699f627756602c4"
+    "initCodeHash": "0xbfa1d35644a8b97c657101289e64b92b8faeed0b0090195eb871da2de4583bb3",
+    "sourceCodeHash": "0x56bed1f02792ef9513fe209552e964c983a8f29dbcb2b8a76910fdae929f30ff"
   },
   "src/L2/SequencerFeeVault.sol": {
     "initCodeHash": "0xb94145f571e92ee615c6fe903b6568e8aac5fe760b6b65148ffc45d2fb0f5433",

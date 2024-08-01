@@ -11,7 +11,7 @@ import { stdStorage, StdStorage } from "forge-std/Test.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { IL2ToL2CrossDomainMessenger } from "src/L2/IL2ToL2CrossDomainMessenger.sol";
 import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import { Initializable } from "@solady/utils/Initializable.sol";
+import { Initializable } from "@openzeppelin/contracts-v5/proxy/utils/Initializable.sol";
 
 // Target contract
 import {

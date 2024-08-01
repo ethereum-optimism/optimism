@@ -119,22 +119,22 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "__remoteToken",
+        "name": "_remoteToken",
         "type": "address"
       },
       {
         "internalType": "string",
-        "name": "__name",
+        "name": "_name",
         "type": "string"
       },
       {
         "internalType": "string",
-        "name": "__symbol",
+        "name": "_symbol",
         "type": "string"
       },
       {
         "internalType": "uint8",
-        "name": "__decimals",
+        "name": "_decimals",
         "type": "uint8"
       }
     ],

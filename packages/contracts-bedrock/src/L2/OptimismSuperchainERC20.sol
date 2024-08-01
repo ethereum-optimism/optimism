@@ -6,7 +6,7 @@ import { ERC20 } from "@solady/tokens/ERC20.sol";
 import { IL2ToL2CrossDomainMessenger } from "src/L2/IL2ToL2CrossDomainMessenger.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { Initializable } from "@solady/utils/Initializable.sol";
+import { Initializable } from "@openzeppelin/contracts-v5/proxy/utils/Initializable.sol";
 
 /// @notice Thrown when attempting to relay a message and the function caller (msg.sender) is not
 /// L2ToL2CrossDomainMessenger.
@@ -37,17 +37,29 @@ contract OptimismSuperchainERC20 is IOptimismSuperchainERC20, ERC20, ISemver, In
     /// @notice Address of the StandardBridge Predeploy.
     address internal constant BRIDGE = Predeploys.L2_STANDARD_BRIDGE;
 
-    /// @notice Address of the corresponding version of this token on the remote chain.
-    address private _remoteToken;
+    /// @notice Storage slot that the OptimismSuperchainERC20Metadata struct is stored at.
+    bytes32 internal constant OPTIMISM_SUPERCHAIN_ERC20_METADATA_SLOT =
+        bytes32(uint256(keccak256("optimismSuperchainERC20Metadata")) - 1);
 
-    /// @notice Name of the token
-    string private _name;
+    /// @notice Storage struct for the OptimismSuperchainERC20 metadata.
+    struct OptimismSuperchainERC20Metadata {
+        /// @notice Address of the corresponding version of this token on the remote chain.
+        address remoteToken;
+        /// @notice Name of the token
+        string name;
+        /// @notice Symbol of the token
+        string symbol;
+        /// @notice Decimals of the token
+        uint8 decimals;
+    }
 
-    /// @notice Symbol of the token
-    string private _symbol;
-
-    /// @notice Decimals of the token
-    uint8 private _decimals;
+    /// @notice Returns the storage for the OptimismSuperchainERC20Metadata.
+    function _getMetadataStorage() private pure returns (OptimismSuperchainERC20Metadata storage _storage) {
+        bytes32 _slot = OPTIMISM_SUPERCHAIN_ERC20_METADATA_SLOT;
+        assembly {
+            _storage.slot := _slot
+        }
+    }
 
     /// @notice A modifier that only allows the bridge to call
     modifier onlyBridge() {
@@ -65,23 +77,24 @@ contract OptimismSuperchainERC20 is IOptimismSuperchainERC20, ERC20, ISemver, In
     }
 
     /// @notice Initializes the contract.
-    /// @param __remoteToken    Address of the corresponding remote token.
-    /// @param __name           ERC20 name.
-    /// @param __symbol         ERC20 symbol.
-    /// @param __decimals       ERC20 decimals.
+    /// @param _remoteToken    Address of the corresponding remote token.
+    /// @param _name           ERC20 name.
+    /// @param _symbol         ERC20 symbol.
+    /// @param _decimals       ERC20 decimals.
     function initialize(
-        address __remoteToken,
-        string memory __name,
-        string memory __symbol,
-        uint8 __decimals
+        address _remoteToken,
+        string memory _name,
+        string memory _symbol,
+        uint8 _decimals
     )
         external
         initializer
     {
-        _remoteToken = __remoteToken;
-        _name = __name;
-        _symbol = __symbol;
-        _decimals = __decimals;
+        OptimismSuperchainERC20Metadata storage _storage = _getMetadataStorage();
+        _storage.remoteToken = _remoteToken;
+        _storage.name = _name;
+        _storage.symbol = _symbol;
+        _storage.decimals = _decimals;
     }
 
     /// @notice Allows the L2StandardBridge to mint tokens.
@@ -140,19 +153,19 @@ contract OptimismSuperchainERC20 is IOptimismSuperchainERC20, ERC20, ISemver, In
         emit RelayedERC20(_from, _to, _amount, _source);
     }
 
-    /// @notice Returns the address of the corresponding remote token.
+    /// @notice Returns the address of the corresponding version of this token on the remote chain.
     function remoteToken() public view override returns (address) {
-        return _remoteToken;
+        return _getMetadataStorage().remoteToken;
     }
 
     /// @notice Returns the name of the token.
     function name() public view virtual override returns (string memory) {
-        return _name;
+        return _getMetadataStorage().name;
     }
 
     /// @notice Returns the symbol of the token.
     function symbol() public view virtual override returns (string memory) {
-        return _symbol;
+        return _getMetadataStorage().symbol;
     }
 
     /// @notice Returns the number of decimals used to get its user representation.
@@ -162,7 +175,7 @@ contract OptimismSuperchainERC20 is IOptimismSuperchainERC20, ERC20, ISemver, In
     /// no way affects any of the arithmetic of the contract, including
     /// {IERC20-balanceOf} and {IERC20-transfer}.
     function decimals() public view override returns (uint8) {
-        return _decimals;
+        return _getMetadataStorage().decimals;
     }
 
     /// @notice ERC165 interface check function.
