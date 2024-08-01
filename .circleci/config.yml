@@ -1159,7 +1159,7 @@ jobs:
       - run:
           name: Install Rust
           command: |
-            curl https://sh.rustup.rs -sSf | sh
+            curl https://sh.rustup.rs -sSf | sh -s -- -y
       - run:
           name: Install Just
           command: |
