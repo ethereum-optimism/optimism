@@ -98,6 +98,14 @@ contract MIPS is ISemver {
             from, to := copyMem(from, to, 8) // step
             from := add(from, 32) // offset to registers
 
+            // Verify that the value of exited is valid (0 or 1)
+            if gt(exited, 1) {
+                // revert InvalidExitedValue();
+                let ptr := mload(0x40)
+                mstore(ptr, shl(224, 0x0136cc76))
+                revert(ptr, 0x04)
+            }
+
             // Copy registers
             for { let i := 0 } lt(i, 32) { i := add(i, 1) } { from, to := copyMem(from, to, 4) }
 
@@ -243,7 +251,16 @@ contract MIPS is ISemver {
                 c, m := putField(c, m, 4) // heap
                 c, m := putField(c, m, 1) // exitCode
                 c, m := putField(c, m, 1) // exited
+                let exited := mload(sub(m, 32))
                 c, m := putField(c, m, 8) // step
+
+                // Verify that the value of exited is valid (0 or 1)
+                if gt(exited, 1) {
+                    // revert InvalidExitedValue();
+                    let ptr := mload(0x40)
+                    mstore(ptr, shl(224, 0x0136cc76))
+                    revert(ptr, 0x04)
+                }
 
                 // Unpack register calldata into memory
                 mstore(m, add(m, 32)) // offset to registers

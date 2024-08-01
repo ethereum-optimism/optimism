@@ -48,3 +48,6 @@ error InsufficientBond();
 
 /// @notice Thrown when a bond transfer fails.
 error BondTransferFailed();
+
+/// @notice Thrown when the value of the exited boolean is not 0 or 1.
+error InvalidExitedValue();

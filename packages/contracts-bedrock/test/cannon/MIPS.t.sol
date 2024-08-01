@@ -5,6 +5,7 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 import { MIPS } from "src/cannon/MIPS.sol";
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
 import { MIPSInstructions } from "src/cannon/libraries/MIPSInstructions.sol";
+import { InvalidExitedValue } from "src/cannon/libraries/CannonErrors.sol";
 import "src/dispute/lib/Types.sol";
 
 contract MIPS_Test is CommonTest {
@@ -57,6 +58,30 @@ contract MIPS_Test is CommonTest {
 
         bytes32 postState = mips.step(encodeState(state), proof, 0);
         assertNotEq(postState, bytes32(0));
+    }
+
+    /// @notice Tests that the mips step function fails when the value of the exited field is
+    ///         invalid (anything greater than 1).
+    /// @param _exited Value to set the exited field to.
+    function testFuzz_step_invalidExitedValue_fails(uint8 _exited) external {
+        // Assume
+        // Make sure the value of _exited is invalid.
+        _exited = uint8(bound(uint256(_exited), 2, type(uint8).max));
+
+        // Rest of this stuff doesn't matter very much, just setting up some state to edit.
+        // Here just using the parameters for the ADD test below.
+        uint32 insn = encodespec(17, 18, 8, 0x20);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+
+        // Compute the encoded state and manipulate it.
+        bytes memory enc = encodeState(state);
+        assembly {
+            mstore8(add(add(enc, 0x20), 89), _exited)
+        }
+
+        // Call the step function and expect a revert.
+        vm.expectRevert(InvalidExitedValue.selector);
+        mips.step(enc, proof, 0);
     }
 
     function test_add_succeeds() external {
