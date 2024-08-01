@@ -541,17 +541,19 @@ func (d *L2InitializationConfig) Check(log log.Logger) error {
 // A production L2 deployment does not utilize this configuration,
 // except of a L1BlockTime sanity-check (set this to 12 for L1 Ethereum).
 type DevL1DeployConfig struct {
-	L1BlockTime                 uint64         `json:"l1BlockTime"`
-	L1GenesisBlockTimestamp     hexutil.Uint64 `json:"l1GenesisBlockTimestamp"`
-	L1GenesisBlockNonce         hexutil.Uint64 `json:"l1GenesisBlockNonce"`
-	L1GenesisBlockGasLimit      hexutil.Uint64 `json:"l1GenesisBlockGasLimit"`
-	L1GenesisBlockDifficulty    *hexutil.Big   `json:"l1GenesisBlockDifficulty"`
-	L1GenesisBlockMixHash       common.Hash    `json:"l1GenesisBlockMixHash"`
-	L1GenesisBlockCoinbase      common.Address `json:"l1GenesisBlockCoinbase"`
-	L1GenesisBlockNumber        hexutil.Uint64 `json:"l1GenesisBlockNumber"`
-	L1GenesisBlockGasUsed       hexutil.Uint64 `json:"l1GenesisBlockGasUsed"`
-	L1GenesisBlockParentHash    common.Hash    `json:"l1GenesisBlockParentHash"`
-	L1GenesisBlockBaseFeePerGas *hexutil.Big   `json:"l1GenesisBlockBaseFeePerGas"`
+	L1BlockTime                 uint64          `json:"l1BlockTime"`
+	L1GenesisBlockTimestamp     hexutil.Uint64  `json:"l1GenesisBlockTimestamp"`
+	L1GenesisBlockNonce         hexutil.Uint64  `json:"l1GenesisBlockNonce"`
+	L1GenesisBlockGasLimit      hexutil.Uint64  `json:"l1GenesisBlockGasLimit"`
+	L1GenesisBlockDifficulty    *hexutil.Big    `json:"l1GenesisBlockDifficulty"`
+	L1GenesisBlockMixHash       common.Hash     `json:"l1GenesisBlockMixHash"`
+	L1GenesisBlockCoinbase      common.Address  `json:"l1GenesisBlockCoinbase"`
+	L1GenesisBlockNumber        hexutil.Uint64  `json:"l1GenesisBlockNumber"`
+	L1GenesisBlockGasUsed       hexutil.Uint64  `json:"l1GenesisBlockGasUsed"`
+	L1GenesisBlockParentHash    common.Hash     `json:"l1GenesisBlockParentHash"`
+	L1GenesisBlockBaseFeePerGas *hexutil.Big    `json:"l1GenesisBlockBaseFeePerGas"`
+	L1GenesisBlockExcessBlobGas *hexutil.Uint64 `json:"l1GenesisBlockExcessBlobGas,omitempty"` // EIP-4844
+	L1GenesisBlockBlobGasUsed   *hexutil.Uint64 `json:"l1GenesisBlockblobGasUsed,omitempty"`   // EIP-4844
 }
 
 // SuperchainL1DeployConfig configures parameters of the superchain-wide deployed contracts to L1.

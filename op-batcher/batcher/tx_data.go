@@ -15,6 +15,7 @@ import (
 // different channels.
 type txData struct {
 	frames []frameData
+	asBlob bool // indicates whether this should be sent as blob
 }
 
 func singleFrameTxData(frame frameData) txData {
