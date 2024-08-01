@@ -22,74 +22,291 @@ contract DeployConfig is Script {
 
     string internal _json;
 
-    address public finalSystemOwner;
-    address public superchainConfigGuardian;
-    uint256 public l1ChainID;
-    uint256 public l2ChainID;
-    uint256 public l2BlockTime;
-    uint256 public l2GenesisDeltaTimeOffset;
-    uint256 public l2GenesisEcotoneTimeOffset;
-    uint256 public l2GenesisFjordTimeOffset;
-    uint256 public maxSequencerDrift;
-    uint256 public sequencerWindowSize;
-    uint256 public channelTimeout;
-    address public p2pSequencerAddress;
-    address public batchInboxAddress;
-    address public batchSenderAddress;
-    uint256 public l2OutputOracleSubmissionInterval;
-    int256 internal _l2OutputOracleStartingTimestamp;
-    uint256 public l2OutputOracleStartingBlockNumber;
-    address public l2OutputOracleProposer;
-    address public l2OutputOracleChallenger;
-    uint256 public finalizationPeriodSeconds;
-    bool public fundDevAccounts;
-    address public proxyAdminOwner;
-    address public baseFeeVaultRecipient;
-    uint256 public baseFeeVaultMinimumWithdrawalAmount;
-    uint256 public baseFeeVaultWithdrawalNetwork;
-    address public l1FeeVaultRecipient;
-    uint256 public l1FeeVaultMinimumWithdrawalAmount;
-    uint256 public l1FeeVaultWithdrawalNetwork;
-    address public sequencerFeeVaultRecipient;
-    uint256 public sequencerFeeVaultMinimumWithdrawalAmount;
-    uint256 public sequencerFeeVaultWithdrawalNetwork;
-    string public governanceTokenName;
-    string public governanceTokenSymbol;
-    address public governanceTokenOwner;
-    uint256 public l2GenesisBlockGasLimit;
-    uint32 public basefeeScalar;
-    uint32 public blobbasefeeScalar;
-    bool public enableGovernance;
-    uint256 public eip1559Denominator;
-    uint256 public eip1559Elasticity;
-    uint256 public faultGameAbsolutePrestate;
-    uint256 public faultGameGenesisBlock;
-    bytes32 public faultGameGenesisOutputRoot;
-    uint256 public faultGameMaxDepth;
-    uint256 public faultGameSplitDepth;
-    uint256 public faultGameClockExtension;
-    uint256 public faultGameMaxClockDuration;
-    uint256 public faultGameWithdrawalDelay;
-    uint256 public preimageOracleMinProposalSize;
-    uint256 public preimageOracleChallengePeriod;
-    uint256 public systemConfigStartBlock;
-    uint256 public requiredProtocolVersion;
-    uint256 public recommendedProtocolVersion;
-    uint256 public proofMaturityDelaySeconds;
-    uint256 public disputeGameFinalityDelaySeconds;
-    uint256 public respectedGameType;
-    bool public useFaultProofs;
-    bool public usePlasma;
-    string public daCommitmentType;
-    uint256 public daChallengeWindow;
-    uint256 public daResolveWindow;
-    uint256 public daBondSize;
-    uint256 public daResolverRefundPercentage;
+    function basefeeScalar() public returns (uint32 out_) {
+        return uint32(_readOr(_json, "$.gasPriceOracleBaseFeeScalar", 1368));
+    }
 
-    bool public useCustomGasToken;
-    address public customGasTokenAddress;
+    function baseFeeVaultMinimumWithdrawalAmount() public returns (uint256 out_) {
+        return stdJson.readUint(_json, "$.baseFeeVaultMinimumWithdrawalAmount");
+    }
 
-    bool public useInterop;
+    function baseFeeVaultRecipient() public returns (address out_) {
+        return stdJson.readAddress(_json, "$.baseFeeVaultRecipient");
+    }
+
+    function baseFeeVaultWithdrawalNetwork() public returns (uint256 out_) {
+        return stdJson.readUint(_json, "$.baseFeeVaultWithdrawalNetwork");
+    }
+
+    function batchInboxAddress() public returns (address out_) {
+        return stdJson.readAddress(_json, "$.batchInboxAddress");
+    }
+
+    function batchSenderAddress() public returns (address out_) {
+        return stdJson.readAddress(_json, "$.batchSenderAddress");
+    }
+
+    function blobbasefeeScalar() public returns (uint32 out_) {
+        return uint32(_readOr(_json, "$.gasPriceOracleBlobBaseFeeScalar", 810949));
+    }
+
+    function channelTimeout() public returns (uint256 out_) {
+        return stdJson.readUint(_json, "$.channelTimeout");
+    }
+
+    function customGasTokenAddress() public returns (address out_) {
+        if (overrideUseInteropSet) return overrideCustomGasTokenAddress;
+        return _readOr(_json, "$.customGasTokenAddress", address(0));
+    }
+
+    function daBondSize() public returns (uint256 out_) {
+        return _readOr(_json, "$.daBondSize", 1000000000);
+    }
+
+    function daChallengeWindow() public returns (uint256 out_) {
+        return _readOr(_json, "$.daChallengeWindow", 1000);
+    }
+
+    function daCommitmentType() public returns (string out_) {
+        return _readOr(_json, "$.daCommitmentType", "KeccakCommitment");
+    }
+
+    function daResolverRefundPercentage() public returns (uint256 out_) {
+        return _readOr(_json, "$.daResolverRefundPercentage", 0);
+    }
+
+    function daResolveWindow() public returns (uint256 out_) {
+        return _readOr(_json, "$.daResolveWindow", 1000);
+    }
+
+    function disputeGameFinalityDelaySeconds() public returns (uint256 out_) {
+        return _readOr(_json, "$.disputeGameFinalityDelaySeconds", 0);
+    }
+
+    function eip1559Denominator() public returns (uint256 out_) {
+        return stdJson.readUint(_json, "$.eip1559Denominator");
+    }
+
+    function eip1559Elasticity() public returns (uint256 out_) {
+        return stdJson.readUint(_json, "$.eip1559Elasticity");
+    }
+
+    function enableGovernance() public returns (bool out_) {
+        return stdJson.readBool(_json, "$.enableGovernance");
+    }
+
+    function faultGameAbsolutePrestate() public returns (uint256 out_) {
+        return stdJson.readUint(_json, "$.faultGameAbsolutePrestate");
+    }
+
+    function faultGameClockExtension() public returns (uint256 out_) {
+        return stdJson.readUint(_json, "$.faultGameClockExtension");
+    }
+
+    function faultGameGenesisBlock() public returns (uint256 out_) {
+        return stdJson.readUint(_json, "$.faultGameGenesisBlock");
+    }
+
+    function faultGameGenesisOutputRoot() public returns (bytes32 out_) {
+        return stdJson.readBytes32(_json, "$.faultGameGenesisOutputRoot");
+    }
+
+    function faultGameMaxClockDuration() public returns (uint256 out_) {
+        return stdJson.readUint(_json, "$.faultGameMaxClockDuration");
+    }
+
+    function faultGameMaxDepth() public returns (uint256 out_) {
+        return stdJson.readUint(_json, "$.faultGameMaxDepth");
+    }
+
+    function faultGameSplitDepth() public returns (uint256 out_) {
+        return stdJson.readUint(_json, "$.faultGameSplitDepth");
+    }
+
+    function faultGameWithdrawalDelay() public returns (uint256 out_) {
+        return stdJson.readUint(_json, "$.faultGameWithdrawalDelay");
+    }
+
+    function finalizationPeriodSeconds() public returns (uint256 out_) {
+        return stdJson.readUint(_json, "$.finalizationPeriodSeconds");
+    }
+
+    function finalSystemOwner() public returns (address out_) {
+        return stdJson.readAddress(_json, "$.finalSystemOwner");
+    }
+
+    bool internal overrideFundDevAccountsSet;
+    bool internal overrideFundDevAccountsValue;
+
+    function fundDevAccounts() public returns (bool out_) {
+        if (overrideFundDevAccountsSet) return overrideFundDevAccountsValue;
+        return _readOr(_json, "$.fundDevAccounts", false);
+    }
+
+    function governanceTokenName() public returns (string out_) {
+        return stdJson.readString(_json, "$.governanceTokenName");
+    }
+
+    function governanceTokenOwner() public returns (address out_) {
+        return stdJson.readAddress(_json, "$.governanceTokenOwner");
+    }
+
+    function governanceTokenSymbol() public returns (string out_) {
+        return stdJson.readString(_json, "$.governanceTokenSymbol");
+    }
+
+    function l1ChainID() public returns (uint256 out_) {
+        return stdJson.readUint(_json, "$.l1ChainID");
+    }
+
+    function l1FeeVaultMinimumWithdrawalAmount() public returns (uint256 out_) {
+        return stdJson.readUint(_json, "$.l1FeeVaultMinimumWithdrawalAmount");
+    }
+
+    function l1FeeVaultRecipient() public returns (address out_) {
+        return stdJson.readAddress(_json, "$.l1FeeVaultRecipient");
+    }
+
+    function l1FeeVaultWithdrawalNetwork() public returns (uint256 out_) {
+        return stdJson.readUint(_json, "$.l1FeeVaultWithdrawalNetwork");
+    }
+
+    function l2BlockTime() public returns (uint256 out_) {
+        return stdJson.readUint(_json, "$.l2BlockTime");
+    }
+
+    function l2ChainID() public returns (uint256 out_) {
+        return stdJson.readUint(_json, "$.l2ChainID");
+    }
+
+    function l2GenesisBlockGasLimit() public returns (uint256 out_) {
+        return stdJson.readUint(_json, "$.l2GenesisBlockGasLimit");
+    }
+
+    function l2GenesisDeltaTimeOffset() public returns (uint256 out_) {
+        return _readOr(_json, "$.l2GenesisDeltaTimeOffset", NULL_OFFSET);
+    }
+
+    function l2GenesisEcotoneTimeOffset() public returns (uint256 out_) {
+        return _readOr(_json, "$.l2GenesisEcotoneTimeOffset", NULL_OFFSET);
+    }
+
+    function l2GenesisFjordTimeOffset() public returns (uint256 out_) {
+        return _readOr(_json, "$.l2GenesisFjordTimeOffset", NULL_OFFSET);
+    }
+
+    function l2OutputOracleChallenger() public returns (address out_) {
+        return stdJson.readAddress(_json, "$.l2OutputOracleChallenger");
+    }
+
+    function l2OutputOracleProposer() public returns (address out_) {
+        return stdJson.readAddress(_json, "$.l2OutputOracleProposer");
+    }
+
+    function l2OutputOracleStartingBlockNumber() public returns (uint256 out_) {
+        return stdJson.readUint(_json, "$.l2OutputOracleStartingBlockNumber");
+    }
+
+    function _l2OutputOracleStartingTimestamp() internal returns (int256 out_) {
+        return stdJson.readInt(_json, "$.l2OutputOracleStartingTimestamp");
+    }
+
+    function l2OutputOracleSubmissionInterval() public returns (uint256 out_) {
+        return stdJson.readUint(_json, "$.l2OutputOracleSubmissionInterval");
+    }
+
+    function maxSequencerDrift() public returns (uint256 out_) {
+        return stdJson.readUint(_json, "$.maxSequencerDrift");
+    }
+
+    function p2pSequencerAddress() public returns (address out_) {
+        return stdJson.readAddress(_json, "$.p2pSequencerAddress");
+    }
+
+    function preimageOracleChallengePeriod() public returns (uint256 out_) {
+        return stdJson.readUint(_json, "$.preimageOracleChallengePeriod");
+    }
+
+    function preimageOracleMinProposalSize() public returns (uint256 out_) {
+        return stdJson.readUint(_json, "$.preimageOracleMinProposalSize");
+    }
+
+    function proofMaturityDelaySeconds() public returns (uint256 out_) {
+        return _readOr(_json, "$.proofMaturityDelaySeconds", 0);
+    }
+
+    function proxyAdminOwner() public returns (address out_) {
+        return stdJson.readAddress(_json, "$.proxyAdminOwner");
+    }
+
+    function recommendedProtocolVersion() public returns (uint256 out_) {
+        return stdJson.readUint(_json, "$.recommendedProtocolVersion");
+    }
+
+    function requiredProtocolVersion() public returns (uint256 out_) {
+        return stdJson.readUint(_json, "$.requiredProtocolVersion");
+    }
+
+    function respectedGameType() public returns (uint256 out_) {
+        return _readOr(_json, "$.respectedGameType", 0);
+    }
+
+    function sequencerFeeVaultMinimumWithdrawalAmount() public returns (uint256 out_) {
+        return stdJson.readUint(_json, "$.sequencerFeeVaultMinimumWithdrawalAmount");
+    }
+
+    function sequencerFeeVaultRecipient() public returns (address out_) {
+        return stdJson.readAddress(_json, "$.sequencerFeeVaultRecipient");
+    }
+
+    function sequencerFeeVaultWithdrawalNetwork() public returns (uint256 out_) {
+        return stdJson.readUint(_json, "$.sequencerFeeVaultWithdrawalNetwork");
+    }
+
+    function sequencerWindowSize() public returns (uint256 out_) {
+        return stdJson.readUint(_json, "$.sequencerWindowSize");
+    }
+
+    function superchainConfigGuardian() public returns (address out_) {
+        return stdJson.readAddress(_json, "$.superchainConfigGuardian");
+    }
+
+    function systemConfigStartBlock() public returns (uint256 out_) {
+        return stdJson.readUint(_json, "$.systemConfigStartBlock");
+    }
+
+    bool internal overrideUseCustomGasTokenSet;
+    bool internal overrideUseCustomGasTokenValue;
+    address internal overrideCustomGasTokenAddress;
+
+    function useCustomGasToken() public returns (bool out_) {
+        if (overrideUseCustomGasTokenSet) return overrideUseCustomGasTokenValue;
+        return _readOr(_json, "$.useCustomGasToken", false);
+    }
+
+    bool internal overrideUseFaultProofsSet;
+    bool internal overrideUseFaultProofsValue;
+
+    function useFaultProofs() public returns (bool out_) {
+        if (overrideUseFaultProofsSet) return overrideUseFaultProofsValue;
+        return _readOr(_json, "$.useFaultProofs", false);
+    }
+
+    bool internal overrideUseInteropSet;
+    bool internal overrideUseInteropValue;
+
+    function useInterop() public returns (bool out_) {
+        if (overrideUseInteropSet) return overrideUseInteropValue;
+        return _readOr(_json, "$.useInterop", false);
+    }
+
+    bool internal overrideUsePlasmaSet;
+    bool internal overrideUsePlasmaValue;
+
+    function usePlasma() public returns (bool out_) {
+        if (overrideUsePlasmaSet) return overrideUsePlasmaValue;
+        return _readOr(_json, "$.usePlasma", false);
+    }
 
     function read(string memory _path) public {
         console.log("DeployConfig: reading file %s", _path);
@@ -98,82 +315,6 @@ contract DeployConfig is Script {
         } catch {
             require(false, string.concat("Cannot find deploy config file at ", _path));
         }
-
-        finalSystemOwner = stdJson.readAddress(_json, "$.finalSystemOwner");
-        superchainConfigGuardian = stdJson.readAddress(_json, "$.superchainConfigGuardian");
-        l1ChainID = stdJson.readUint(_json, "$.l1ChainID");
-        l2ChainID = stdJson.readUint(_json, "$.l2ChainID");
-        l2BlockTime = stdJson.readUint(_json, "$.l2BlockTime");
-
-        l2GenesisDeltaTimeOffset = _readOr(_json, "$.l2GenesisDeltaTimeOffset", NULL_OFFSET);
-        l2GenesisEcotoneTimeOffset = _readOr(_json, "$.l2GenesisEcotoneTimeOffset", NULL_OFFSET);
-        l2GenesisFjordTimeOffset = _readOr(_json, "$.l2GenesisFjordTimeOffset", NULL_OFFSET);
-
-        maxSequencerDrift = stdJson.readUint(_json, "$.maxSequencerDrift");
-        sequencerWindowSize = stdJson.readUint(_json, "$.sequencerWindowSize");
-        channelTimeout = stdJson.readUint(_json, "$.channelTimeout");
-        p2pSequencerAddress = stdJson.readAddress(_json, "$.p2pSequencerAddress");
-        batchInboxAddress = stdJson.readAddress(_json, "$.batchInboxAddress");
-        batchSenderAddress = stdJson.readAddress(_json, "$.batchSenderAddress");
-        l2OutputOracleSubmissionInterval = stdJson.readUint(_json, "$.l2OutputOracleSubmissionInterval");
-        _l2OutputOracleStartingTimestamp = stdJson.readInt(_json, "$.l2OutputOracleStartingTimestamp");
-        l2OutputOracleStartingBlockNumber = stdJson.readUint(_json, "$.l2OutputOracleStartingBlockNumber");
-        l2OutputOracleProposer = stdJson.readAddress(_json, "$.l2OutputOracleProposer");
-        l2OutputOracleChallenger = stdJson.readAddress(_json, "$.l2OutputOracleChallenger");
-        finalizationPeriodSeconds = stdJson.readUint(_json, "$.finalizationPeriodSeconds");
-        fundDevAccounts = _readOr(_json, "$.fundDevAccounts", false);
-        proxyAdminOwner = stdJson.readAddress(_json, "$.proxyAdminOwner");
-        baseFeeVaultRecipient = stdJson.readAddress(_json, "$.baseFeeVaultRecipient");
-        baseFeeVaultMinimumWithdrawalAmount = stdJson.readUint(_json, "$.baseFeeVaultMinimumWithdrawalAmount");
-        baseFeeVaultWithdrawalNetwork = stdJson.readUint(_json, "$.baseFeeVaultWithdrawalNetwork");
-        l1FeeVaultRecipient = stdJson.readAddress(_json, "$.l1FeeVaultRecipient");
-        l1FeeVaultMinimumWithdrawalAmount = stdJson.readUint(_json, "$.l1FeeVaultMinimumWithdrawalAmount");
-        l1FeeVaultWithdrawalNetwork = stdJson.readUint(_json, "$.l1FeeVaultWithdrawalNetwork");
-        sequencerFeeVaultRecipient = stdJson.readAddress(_json, "$.sequencerFeeVaultRecipient");
-        sequencerFeeVaultMinimumWithdrawalAmount = stdJson.readUint(_json, "$.sequencerFeeVaultMinimumWithdrawalAmount");
-        sequencerFeeVaultWithdrawalNetwork = stdJson.readUint(_json, "$.sequencerFeeVaultWithdrawalNetwork");
-        governanceTokenName = stdJson.readString(_json, "$.governanceTokenName");
-        governanceTokenSymbol = stdJson.readString(_json, "$.governanceTokenSymbol");
-        governanceTokenOwner = stdJson.readAddress(_json, "$.governanceTokenOwner");
-        l2GenesisBlockGasLimit = stdJson.readUint(_json, "$.l2GenesisBlockGasLimit");
-        basefeeScalar = uint32(_readOr(_json, "$.gasPriceOracleBaseFeeScalar", 1368));
-        blobbasefeeScalar = uint32(_readOr(_json, "$.gasPriceOracleBlobBaseFeeScalar", 810949));
-
-        enableGovernance = stdJson.readBool(_json, "$.enableGovernance");
-        eip1559Denominator = stdJson.readUint(_json, "$.eip1559Denominator");
-        eip1559Elasticity = stdJson.readUint(_json, "$.eip1559Elasticity");
-        systemConfigStartBlock = stdJson.readUint(_json, "$.systemConfigStartBlock");
-        requiredProtocolVersion = stdJson.readUint(_json, "$.requiredProtocolVersion");
-        recommendedProtocolVersion = stdJson.readUint(_json, "$.recommendedProtocolVersion");
-
-        useFaultProofs = _readOr(_json, "$.useFaultProofs", false);
-        proofMaturityDelaySeconds = _readOr(_json, "$.proofMaturityDelaySeconds", 0);
-        disputeGameFinalityDelaySeconds = _readOr(_json, "$.disputeGameFinalityDelaySeconds", 0);
-        respectedGameType = _readOr(_json, "$.respectedGameType", 0);
-
-        faultGameAbsolutePrestate = stdJson.readUint(_json, "$.faultGameAbsolutePrestate");
-        faultGameMaxDepth = stdJson.readUint(_json, "$.faultGameMaxDepth");
-        faultGameSplitDepth = stdJson.readUint(_json, "$.faultGameSplitDepth");
-        faultGameClockExtension = stdJson.readUint(_json, "$.faultGameClockExtension");
-        faultGameMaxClockDuration = stdJson.readUint(_json, "$.faultGameMaxClockDuration");
-        faultGameGenesisBlock = stdJson.readUint(_json, "$.faultGameGenesisBlock");
-        faultGameGenesisOutputRoot = stdJson.readBytes32(_json, "$.faultGameGenesisOutputRoot");
-        faultGameWithdrawalDelay = stdJson.readUint(_json, "$.faultGameWithdrawalDelay");
-
-        preimageOracleMinProposalSize = stdJson.readUint(_json, "$.preimageOracleMinProposalSize");
-        preimageOracleChallengePeriod = stdJson.readUint(_json, "$.preimageOracleChallengePeriod");
-
-        usePlasma = _readOr(_json, "$.usePlasma", false);
-        daCommitmentType = _readOr(_json, "$.daCommitmentType", "KeccakCommitment");
-        daChallengeWindow = _readOr(_json, "$.daChallengeWindow", 1000);
-        daResolveWindow = _readOr(_json, "$.daResolveWindow", 1000);
-        daBondSize = _readOr(_json, "$.daBondSize", 1000000000);
-        daResolverRefundPercentage = _readOr(_json, "$.daResolverRefundPercentage", 0);
-
-        useCustomGasToken = _readOr(_json, "$.useCustomGasToken", false);
-        customGasTokenAddress = _readOr(_json, "$.customGasTokenAddress", address(0));
-
-        useInterop = _readOr(_json, "$.useInterop", false);
     }
 
     function fork() public view returns (Fork fork_) {
@@ -204,7 +345,8 @@ contract DeployConfig is Script {
     }
 
     function l2OutputOracleStartingTimestamp() public returns (uint256) {
-        if (_l2OutputOracleStartingTimestamp < 0) {
+        int256 timestamp = _l2OutputOracleStartingTimestamp();
+        if (timestamp < 0) {
             bytes32 tag = l1StartingBlockTag();
             string[] memory cmd = new string[](3);
             cmd[0] = Executables.bash;
@@ -213,41 +355,46 @@ contract DeployConfig is Script {
             bytes memory res = Process.run(cmd);
             return stdJson.readUint(string(res), "");
         }
-        return uint256(_l2OutputOracleStartingTimestamp);
+        return uint256(timestamp);
     }
 
     /// @notice Allow the `usePlasma` config to be overridden in testing environments
     function setUsePlasma(bool _usePlasma) public {
-        usePlasma = _usePlasma;
+        overrideUsePlasmaSet = true;
+        overrideUsePlasmaValue = _usePlasma;
     }
 
     /// @notice Allow the `useFaultProofs` config to be overridden in testing environments
     function setUseFaultProofs(bool _useFaultProofs) public {
-        useFaultProofs = _useFaultProofs;
+        overrideUseFaultProofsSet = true;
+        overrideUseFaultProofsValue = _useFaultProofs;
     }
 
     /// @notice Allow the `useInterop` config to be overridden in testing environments
     function setUseInterop(bool _useInterop) public {
-        useInterop = _useInterop;
+        overrideUseInteropSet = true;
+        overrideUseInteropValue = _useInterop;
     }
 
     /// @notice Allow the `fundDevAccounts` config to be overridden.
     function setFundDevAccounts(bool _fundDevAccounts) public {
-        fundDevAccounts = _fundDevAccounts;
+        overrideFundDevAccountsSet = true;
+        overrideFundDevAccountsValue = _fundDevAccounts;
     }
 
     /// @notice Allow the `useCustomGasToken` config to be overridden in testing environments
     function setUseCustomGasToken(address _token) public {
-        useCustomGasToken = true;
-        customGasTokenAddress = _token;
+        overrideUseCustomGasTokenSet = true;
+        overrideUseCustomGasTokenValue = true;
+        overrideCustomGasTokenAddress = _token;
     }
 
     function latestGenesisFork() internal view returns (Fork) {
-        if (l2GenesisFjordTimeOffset == 0) {
+        if (l2GenesisFjordTimeOffset() == 0) {
             return Fork.FJORD;
-        } else if (l2GenesisEcotoneTimeOffset == 0) {
+        } else if (l2GenesisEcotoneTimeOffset() == 0) {
             return Fork.ECOTONE;
-        } else if (l2GenesisDeltaTimeOffset == 0) {
+        } else if (l2GenesisDeltaTimeOffset() == 0) {
             return Fork.DELTA;
         }
         revert("DeployConfig: no supported fork active at genesis");
