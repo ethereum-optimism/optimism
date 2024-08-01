@@ -108,7 +108,7 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
         reentrantAware
     {
         // Check the Identifier.
-        _storeIdentifier(_id);
+        _checkIdentifier(_id);
 
         // Store the Identifier in transient storage.
         _storeIdentifier(_id);
