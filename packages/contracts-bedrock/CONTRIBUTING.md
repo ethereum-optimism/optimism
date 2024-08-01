@@ -52,7 +52,8 @@ The best place to begin contributing is by looking through the issues with the `
 
 Optimism's smart contracts are written in Solidity and we use [foundry](https://github.com/foundry-rs/foundry) as our development framework. To get started, you'll need to install several dependencies:
 1. [pnpm](https://pnpm.io)
-  1. Make sure to `pnpm install`
+1. [just](https://github.com/casey/just)
+  1. Make sure to `just install`
 1. [foundry](https://getfoundry.sh)
   1. Foundry is built with [rust](https://www.rust-lang.org/tools/install), and this project uses a pinned version of foundry. Install the rust toolchain with `rustup`.
   1. Make sure to install the version of foundry used by `ci-builder`, defined in the `versions.json` file in the root of this repo under the `foundry` key. Once you have `foundryup` installed, there is a helper to do this: `pnpm install:foundry`
@@ -61,20 +62,20 @@ Optimism's smart contracts are written in Solidity and we use [foundry](https://
 
 Our [Style Guide](STYLE_GUIDE.md) contains information about the project structure, syntax preferences, naming conventions, and more. Please take a look at it before submitting a PR, and let us know if you spot inconsistencies!
 
-Once you've read the styleguide and are ready to work on your PR, there are a plethora of useful `pnpm` scripts to know about that will help you with development:
-1. `pnpm build` Builds the smart contracts.
-1. `pnpm test` Runs the full `forge` test suite.
-1  `pnpm gas-snapshot` Generates the gas snapshot for the smart contracts.
-1. `pnpm semver-lock` Generates the semver lockfile.
-1. `pnpm storage-snapshot` Generates the storage lockfile.
-1. `pnpm autogen:invariant-docs` Generates the invariant test documentation.
-1. `pnpm clean` Removes all build artifacts for `forge` and `go` compilations.
-1. `pnpm validate-spacers` Validates the positions of the storage slot spacers.
-1. `pnpm validate-deploy-configs` Validates the deployment configurations in `deploy-config`
-1. `pnpm slither` Runs the slither static analysis tool on the smart contracts.
-1. `pnpm lint` Runs the linter on the smart contracts and scripts.
-1. `pnpm pre-pr` Runs most checks, generators, and linters prior to a PR. For most PRs, this is sufficient to pass CI if everything is in order.
-1. `pnpm pre-pr:full` Runs all checks, generators, and linters prior to a PR.
+Once you've read the styleguide and are ready to work on your PR, there are a plethora of useful `just` scripts to know about that will help you with development:
+1. `just build` Builds the smart contracts.
+1. `just test` Runs the full `forge` test suite.
+1  `just gas-snapshot` Generates the gas snapshot for the smart contracts.
+1. `just semver-lock` Generates the semver lockfile.
+1. `just storage-snapshot` Generates the storage lockfile.
+1. `just autogen-invariant-docs` Generates the invariant test documentation.
+1. `just clean` Removes all build artifacts for `forge` and `go` compilations.
+1. `just validate-spacers` Validates the positions of the storage slot spacers.
+1. `just validate-deploy-configs` Validates the deployment configurations in `deploy-config`
+1. `just slither` Runs the slither static analysis tool on the smart contracts.
+1. `just lint` Runs the linter on the smart contracts and scripts.
+1. `just pre-pr` Runs most checks, generators, and linters prior to a PR. For most PRs, this is sufficient to pass CI if everything is in order.
+1. `just pre-pr-full` Runs all checks, generators, and linters prior to a PR.
 
 ### Improving The Documentation
 
@@ -90,11 +91,11 @@ To deploy the smart contracts on a local devnet, run `make devnet-up` in the mon
 
 In order to make sure that we don't accidentally overwrite storage slots, contract storage layouts are checked to make sure spacing is correct.
 
-This uses the `.storage-layout` file to check contract spacing. Run `pnpm validate-spacers` to check the spacing of all contracts.
+This uses the `.storage-layout` file to check contract spacing. Run `just validate-spacers` to check the spacing of all contracts.
 
 #### Gas Snapshots
 
-We use forge's `gas-snapshot` subcommand to produce a gas snapshot for most tests within our suite. CI will check that the gas snapshot has been updated properly when it runs, so make sure to run `pnpm gas-snapshot`!
+We use forge's `gas-snapshot` subcommand to produce a gas snapshot for most tests within our suite. CI will check that the gas snapshot has been updated properly when it runs, so make sure to run `just gas-snapshot`!
 
 #### Semver Locking
 
@@ -102,4 +103,4 @@ Many of our smart contracts are semantically versioned. To make sure that change
 
 #### Storage Snapshots
 
-Due to the many proxied contracts in Optimism's protocol, we automate tracking the diff to storage layouts of the contracts in the project. This is to ensure that we don't break a proxy by upgrading its implementation to a contract with a different storage layout. To generate the storage lockfile, run `pnpm storage-snapshot`.
+Due to the many proxied contracts in Optimism's protocol, we automate tracking the diff to storage layouts of the contracts in the project. This is to ensure that we don't break a proxy by upgrading its implementation to a contract with a different storage layout. To generate the storage lockfile, run `just storage-snapshot`.
