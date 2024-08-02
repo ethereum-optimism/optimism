@@ -58,6 +58,13 @@ get_log_results(){
     mv results.tar.gz "$RESULTS_LOG"
   else
     docker cp "$CONTAINER_NAME:/home/user/workspace/results.tar.gz" "$RESULTS_LOG"
+    # Check if kontrol_prove_report.xml exists in the container and copy it out if it does
+    if docker exec "$CONTAINER_NAME" test -f /home/user/workspace/kontrol_prove_report.xml; then
+      docker cp "$CONTAINER_NAME:/home/user/workspace/kontrol_prove_report.xml" "$LOG_PATH/kontrol_prove_report.xml"
+      notif "Copied kontrol_prove_report.xml to $LOG_PATH"
+    else
+      notif "kontrol_prove_report.xml not found in container"
+    fi
     tar -xzf "$RESULTS_LOG" > /dev/null 2>&1
   fi
   if [ -f "$RESULTS_LOG" ]; then
@@ -203,7 +210,6 @@ elif [ ${results[0]} -ne 0 ]; then
 elif [ ${results[1]} -ne 0 ]; then
   echo "Kontrol Prove Failed"
   exit 2
-  # Handle failure
 else
   echo "Kontrol Passed"
 fi
