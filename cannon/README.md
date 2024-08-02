@@ -37,7 +37,7 @@ make cannon
 # it runs as sub-process to provide the pre-image data.
 #
 # Note:
-#  - The L2 RPC is an archive L2 node on OP goerli.
+#  - The L2 RPC is an archive L2 node on OP MAINNET.
 #  - The L1 RPC is a non-archive RPC, also change `--l1.rpckind` to reflect the correct L1 RPC type.
 ./bin/cannon run \
     --pprof.cpu \
