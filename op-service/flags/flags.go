@@ -11,12 +11,14 @@ import (
 )
 
 const (
-	RollupConfigFlagName    = "rollup.config"
-	NetworkFlagName         = "network"
-	CanyonOverrideFlagName  = "override.canyon"
-	DeltaOverrideFlagName   = "override.delta"
-	EcotoneOverrideFlagName = "override.ecotone"
-	FjordOverrideFlagName   = "override.fjord"
+	RollupConfigFlagName     = "rollup.config"
+	NetworkFlagName          = "network"
+	CanyonOverrideFlagName   = "override.canyon"
+	DeltaOverrideFlagName    = "override.delta"
+	EcotoneOverrideFlagName  = "override.ecotone"
+	FjordOverrideFlagName    = "override.fjord"
+	GraniteOverrideFlagName  = "override.granite"
+	HoloceneOverrideFlagName = "override.holocene"
 )
 
 func CLIFlags(envPrefix string, category string) []cli.Flag {
@@ -46,6 +48,20 @@ func CLIFlags(envPrefix string, category string) []cli.Flag {
 			Name:     FjordOverrideFlagName,
 			Usage:    "Manually specify the Fjord fork timestamp, overriding the bundled setting",
 			EnvVars:  opservice.PrefixEnvVar(envPrefix, "OVERRIDE_FJORD"),
+			Hidden:   false,
+			Category: category,
+		},
+		&cli.Uint64Flag{
+			Name:     GraniteOverrideFlagName,
+			Usage:    "Manually specify the Granite fork timestamp, overriding the bundled setting",
+			EnvVars:  opservice.PrefixEnvVar(envPrefix, "OVERRIDE_GRANITE"),
+			Hidden:   false,
+			Category: category,
+		},
+		&cli.Uint64Flag{
+			Name:     HoloceneOverrideFlagName,
+			Usage:    "Manually specify the Holocene fork timestamp, overriding the bundled setting",
+			EnvVars:  opservice.PrefixEnvVar(envPrefix, "OVERRIDE_HOLOCENE"),
 			Hidden:   false,
 			Category: category,
 		},
