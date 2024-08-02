@@ -228,7 +228,7 @@ Parameters to be replaced are:
 - **repository**: The repository for the proof execution.
 
 Artifacts are produced after execution is finished and posted to the summary page. Two artifacts are expected:
-- `kontrol_prove_report.xml` -- This is a Kontrol Generated Report.
+- `kontrol_prove_report.xml` -- This is a Kontrol Generated JUnit XML Report containing results and performance data.
 - `Kontrol Results Folder.zip` -- This contains artifacts produced by kontrol during execution. This is expected on pass or failure of a proof run.
 
 To Fetch the artifacts of the execution from KaaS, you can either manually navigate to the summary page using the 'Details' link. Or you can use the GH API to pull the artifacts.
