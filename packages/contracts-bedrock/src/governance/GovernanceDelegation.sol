@@ -123,7 +123,7 @@ contract GovernanceDelegation is IGovernanceDelegation {
 
     /// @notice Apply a delegation.
     /// @param _delegation         The delegeation to apply.
-    function delegate(Delegation calldata _delegation) external migrate(msg.sender) {
+    function delegate(Delegation calldata _delegation) external {
         Delegation[] memory delegation = new Delegation[](1);
         delegation[0] = _delegation;
         _delegate(msg.sender, delegation);
@@ -133,15 +133,7 @@ contract GovernanceDelegation is IGovernanceDelegation {
     /// @notice Apply a basic delegation from `_delegator` to `_delegatee`.
     /// @param _delegator          The address delegating.
     /// @param _delegatee          The address to delegate to.
-    function delegateFromToken(
-        address _delegator,
-        address _delegatee
-    )
-        external
-        onlyToken
-        migrate(_delegator)
-        migrate(_delegatee)
-    {
+    function delegateFromToken(address _delegator, address _delegatee) external onlyToken {
         Delegation[] memory delegation = new Delegation[](1);
         delegation[0] = Delegation({
             delegatee: _delegatee,
@@ -156,8 +148,7 @@ contract GovernanceDelegation is IGovernanceDelegation {
 
     /// @notice Apply multiple delegations.
     /// @param _newDelegations The delegations to apply.
-    function delegateBatched(Delegation[] calldata _newDelegations) external migrate(msg.sender) {
-        // TODO: migration inside the _delegate??
+    function delegateBatched(Delegation[] calldata _newDelegations) external {
         _delegate(msg.sender, _newDelegations);
         emit DelegationsCreated(msg.sender, _newDelegations);
     }
@@ -196,7 +187,7 @@ contract GovernanceDelegation is IGovernanceDelegation {
     /// @notice Delegate `_delegator`'s voting units to delegations specified in `_newDelegations`.
     /// @param _delegator         The delegator to delegate votes from.
     /// @param _newDelegations    The delegations to delegate votes to.
-    function _delegate(address _delegator, Delegation[] memory _newDelegations) internal virtual {
+    function _delegate(address _delegator, Delegation[] memory _newDelegations) internal virtual migrate(_delegator) {
         uint256 _newDelegationsLength = _newDelegations.length;
         if (_newDelegationsLength > MAX_DELEGATIONS) {
             revert LimitExceeded(_newDelegationsLength, MAX_DELEGATIONS);
@@ -330,7 +321,6 @@ contract GovernanceDelegation is IGovernanceDelegation {
         uint256 _amount
     )
         internal
-        pure
         returns (DelegationAdjustment[] memory)
     {
         uint256 _delegationsLength = _delegationSet.length;
@@ -341,6 +331,8 @@ contract GovernanceDelegation is IGovernanceDelegation {
 
         // Iterate through partial delegations to calculate vote weight
         for (uint256 i; i < _delegationsLength; i++) {
+            if (!migrated[_delegationSet[i].delegatee]) _migrate(_delegationSet[i].delegatee);
+
             if (_delegationSet[i].allowanceType == AllowanceType.Relative) {
                 if (_delegationSet[i].amount == 0) {
                     revert InvalidNumeratorZero();
