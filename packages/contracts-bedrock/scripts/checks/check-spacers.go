@@ -106,7 +106,7 @@ func main() {
 			return nil
 		}
 
-		raw, err := ioutil.ReadFile(path)
+		raw, err := os.ReadFile(path)
 		if err != nil {
 			return err
 		}
