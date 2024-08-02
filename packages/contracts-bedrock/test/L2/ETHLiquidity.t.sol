@@ -57,6 +57,7 @@ contract ETHLiquidity_Test is CommonTest {
     function testFuzz_burn_fromUnauthorizedCaller_fails(uint256 _amount, address _caller) public {
         // Assume
         vm.assume(_caller != address(superchainWeth));
+        vm.assume(_caller != address(ethLiquidity));
         _amount = bound(_amount, 0, type(uint248).max - 1);
 
         // Arrange
