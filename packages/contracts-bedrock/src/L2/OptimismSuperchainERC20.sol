@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import { IOptimismSuperchainERC20 } from "src/L2/IOptimismSuperchainERC20.sol";
+import { IOptimismSuperchainERC20Extension } from "src/L2/IOptimismSuperchainERC20.sol";
 import { ERC20 } from "@solady/tokens/ERC20.sol";
 import { IL2ToL2CrossDomainMessenger } from "src/L2/IL2ToL2CrossDomainMessenger.sol";
 import { ISemver } from "src/universal/ISemver.sol";
@@ -30,7 +30,7 @@ error ZeroAddress();
 ///         token, turning it fungible and interoperable across the superchain. Likewise, it also enables the inverse
 ///         conversion path.
 ///         Moreover, it builds on top of the L2ToL2CrossDomainMessenger for both replay protection and domain binding.
-contract OptimismSuperchainERC20 is IOptimismSuperchainERC20, ERC20, ISemver, Initializable {
+contract OptimismSuperchainERC20 is IOptimismSuperchainERC20Extension, ERC20, ISemver, Initializable {
     /// @notice Address of the L2ToL2CrossDomainMessenger Predeploy.
     address internal constant MESSENGER = Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER;
 
@@ -38,8 +38,9 @@ contract OptimismSuperchainERC20 is IOptimismSuperchainERC20, ERC20, ISemver, In
     address internal constant BRIDGE = Predeploys.L2_STANDARD_BRIDGE;
 
     /// @notice Storage slot that the OptimismSuperchainERC20Metadata struct is stored at.
+    ///         Equal to bytes32(uint256(keccak256("optimismSuperchainERC20.metadata")) - 1)
     bytes32 internal constant OPTIMISM_SUPERCHAIN_ERC20_METADATA_SLOT =
-        bytes32(uint256(keccak256("optimismSuperchainERC20Metadata")) - 1);
+        0x855c1a66176fd0f9748c66fe1bc8b9d3fecd35483489d9732ff7da2063f518b3;
 
     /// @notice Storage struct for the OptimismSuperchainERC20 metadata.
     struct OptimismSuperchainERC20Metadata {
@@ -55,9 +56,8 @@ contract OptimismSuperchainERC20 is IOptimismSuperchainERC20, ERC20, ISemver, In
 
     /// @notice Returns the storage for the OptimismSuperchainERC20Metadata.
     function _getMetadataStorage() private pure returns (OptimismSuperchainERC20Metadata storage _storage) {
-        bytes32 _slot = OPTIMISM_SUPERCHAIN_ERC20_METADATA_SLOT;
         assembly {
-            _storage.slot := _slot
+            _storage.slot := OPTIMISM_SUPERCHAIN_ERC20_METADATA_SLOT
         }
     }
 
@@ -150,7 +150,7 @@ contract OptimismSuperchainERC20 is IOptimismSuperchainERC20, ERC20, ISemver, In
 
         _mint(_to, _amount);
 
-        emit RelayedERC20(_from, _to, _amount, _source);
+        emit RelayERC20(_from, _to, _amount, _source);
     }
 
     /// @notice Returns the address of the corresponding version of this token on the remote chain.
@@ -182,6 +182,6 @@ contract OptimismSuperchainERC20 is IOptimismSuperchainERC20, ERC20, ISemver, In
     /// @param _interfaceId Interface ID to check.
     /// @return Whether or not the interface is supported by this contract.
     function supportsInterface(bytes4 _interfaceId) external pure virtual returns (bool) {
-        return _interfaceId == type(IOptimismSuperchainERC20).interfaceId;
+        return _interfaceId == type(IOptimismSuperchainERC20Extension).interfaceId;
     }
 }

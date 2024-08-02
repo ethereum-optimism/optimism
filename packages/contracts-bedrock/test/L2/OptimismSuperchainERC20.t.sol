@@ -16,12 +16,13 @@ import { Initializable } from "@openzeppelin/contracts-v5/proxy/utils/Initializa
 // Target contract
 import {
     OptimismSuperchainERC20,
-    IOptimismSuperchainERC20,
+    IOptimismSuperchainERC20Extension,
     CallerNotL2ToL2CrossDomainMessenger,
     InvalidCrossDomainSender,
     OnlyBridge,
     ZeroAddress
 } from "src/L2/OptimismSuperchainERC20.sol";
+import { ISuperchainERC20Extensions } from "src/L2/ISuperchainERC20.sol";
 
 /// @title OptimismSuperchainERC20Test
 /// @notice Contract for testing the OptimismSuperchainERC20 contract.
@@ -131,7 +132,7 @@ contract OptimismSuperchainERC20Test is Test {
 
         // Look for the emit of the `Mint` event
         vm.expectEmit(true, true, true, true, address(superchainERC20));
-        emit IOptimismSuperchainERC20.Mint(_to, _amount);
+        emit IOptimismSuperchainERC20Extension.Mint(_to, _amount);
 
         // Call the `mint` function with the bridge caller
         vm.prank(BRIDGE);
@@ -184,7 +185,7 @@ contract OptimismSuperchainERC20Test is Test {
 
         // Look for the emit of the `Burn` event
         vm.expectEmit(true, true, true, true, address(superchainERC20));
-        emit IOptimismSuperchainERC20.Burn(_from, _amount);
+        emit IOptimismSuperchainERC20Extension.Burn(_from, _amount);
 
         // Call the `burn` function with the bridge caller
         vm.prank(BRIDGE);
@@ -226,7 +227,7 @@ contract OptimismSuperchainERC20Test is Test {
 
         // Look for the emit of the `SendERC20` event
         vm.expectEmit(true, true, true, true, address(superchainERC20));
-        emit IOptimismSuperchainERC20.SendERC20(_sender, _to, _amount, _chainId);
+        emit ISuperchainERC20Extensions.SendERC20(_sender, _to, _amount, _chainId);
 
         // Mock the call over the `sendMessage` function and expect it to be called properly
         bytes memory _message = abi.encodeCall(superchainERC20.relayERC20, (_sender, _to, _amount));
@@ -305,7 +306,7 @@ contract OptimismSuperchainERC20Test is Test {
         superchainERC20.relayERC20({ _from: ZERO_ADDRESS, _to: ZERO_ADDRESS, _amount: _amount });
     }
 
-    /// @notice Tests the `relayERC20` mints the proper amount and emits the `RelayedERC20` event.
+    /// @notice Tests the `relayERC20` mints the proper amount and emits the `RelayERC20` event.
     function testFuzz_relayERC20_succeeds(address _from, address _to, uint256 _amount, uint256 _source) public {
         vm.assume(_from != ZERO_ADDRESS);
         vm.assume(_to != ZERO_ADDRESS);
@@ -332,9 +333,9 @@ contract OptimismSuperchainERC20Test is Test {
         vm.expectEmit(true, true, true, true, address(superchainERC20));
         emit IERC20.Transfer(ZERO_ADDRESS, _to, _amount);
 
-        // Look for the emit of the `RelayedERC20` event
+        // Look for the emit of the `RelayERC20` event
         vm.expectEmit(true, true, true, true, address(superchainERC20));
-        emit IOptimismSuperchainERC20.RelayedERC20(_from, _to, _amount, _source);
+        emit ISuperchainERC20Extensions.RelayERC20(_from, _to, _amount, _source);
 
         // Call the `relayERC20` function with the messenger caller
         vm.prank(MESSENGER);
@@ -371,13 +372,13 @@ contract OptimismSuperchainERC20Test is Test {
 
     /// @notice Tests that the `supportsInterface` function returns true for the `IOptimismSuperchainERC20` interface.
     function test_supportInterface_succeeds() public view {
-        assertTrue(superchainERC20.supportsInterface(type(IOptimismSuperchainERC20).interfaceId));
+        assertTrue(superchainERC20.supportsInterface(type(IOptimismSuperchainERC20Extension).interfaceId));
     }
 
     /// @notice Tests that the `supportsInterface` function returns false for any other interface than the
     /// `IOptimismSuperchainERC20` one.
     function testFuzz_supportInterface_returnFalse(bytes4 _interfaceId) public view {
-        vm.assume(_interfaceId != type(IOptimismSuperchainERC20).interfaceId);
+        vm.assume(_interfaceId != type(IOptimismSuperchainERC20Extension).interfaceId);
         assertFalse(superchainERC20.supportsInterface(_interfaceId));
     }
 }
