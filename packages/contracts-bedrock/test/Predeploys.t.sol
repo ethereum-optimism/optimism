@@ -79,8 +79,10 @@ contract PredeploysTest is CommonTest {
 
         for (uint256 i = 0; i < count; i++) {
             address addr = address(prefix | uint160(i));
+            if (!Predeploys.isSupportedPredeploy(addr, false)) continue;
+
             bytes memory code = addr.code;
-            assertTrue(code.length > 0);
+            assertTrue(code.length > 0, "predeploy must have code");
 
             address implAddr = Predeploys.predeployToCodeNamespace(addr);
 

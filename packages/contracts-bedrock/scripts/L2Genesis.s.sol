@@ -468,12 +468,9 @@ contract L2Genesis is Deployer {
             return;
         }
 
-        address impl = _setImplementationCode(Predeploys.GOVERNANCE_DELEGATION);
-        vm.etch(Predeploys.GOVERNANCE_DELEGATION, impl.code);
-
-        /// Reset so its not included state dump
-        vm.etch(impl, "");
-        vm.resetNonce(impl);
+        console.log("Setting %s implementation at: %s", "GovernanceDelegation", Predeploys.GOVERNANCE_DELEGATION);
+        string memory cname = Predeploys.getName(Predeploys.GOVERNANCE_DELEGATION);
+        vm.etch(Predeploys.GOVERNANCE_DELEGATION, vm.getDeployedCode(string.concat(cname, ".sol:", cname)));
     }
 
     /// @notice This predeploy is following the safety invariant #1.

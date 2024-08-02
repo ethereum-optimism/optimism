@@ -8,10 +8,10 @@
   },
   {
     "bytes": "32",
-    "label": "delegations",
+    "label": "_delegations",
     "offset": 0,
     "slot": "1",
-    "type": "mapping(address => struct Delegation[])"
+    "type": "mapping(address => struct IGovernanceDelegation.Delegation[])"
   },
   {
     "bytes": "32",

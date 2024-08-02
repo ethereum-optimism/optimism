@@ -50,6 +50,9 @@ interface IGovernanceDelegation {
     /// @return DENOMINATOR The denominator for relative delegations.
     function DENOMINATOR() external view returns (uint96);
 
+    /// @notice Returns the version of the contract.
+    function version() external view returns (string memory);
+
     /// @notice Returns the migration status of an account.
     /// @param _account The account to check the migration status.
     /// @return _status True if the account has been migrated, false otherwise.
