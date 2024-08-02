@@ -232,7 +232,7 @@ Artifacts are produced after execution is finished and posted to the summary pag
 - `Kontrol Results Folder.zip` -- This contains artifacts produced by kontrol during execution. This is expected on pass or failure of a proof run.
 
 To Fetch the artifacts of the execution from KaaS, you can either manually navigate to the summary page using the 'Details' link. Or you can use the GitHub API to pull the artifacts.
-Method 1: `gh` tool
+Method 1: GitHub's `gh` CLI tool
 - gh run download RUN_ID
 
 Method 2: [Github API](https://docs.github.com/en/rest/actions/artifacts?apiVersion=2022-11-28)
