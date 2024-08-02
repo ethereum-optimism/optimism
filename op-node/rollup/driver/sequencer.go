@@ -29,6 +29,12 @@ type L1OriginSelectorIface interface {
 type SequencerMetrics interface {
 	RecordSequencerInconsistentL1Origin(from eth.BlockID, to eth.BlockID)
 	RecordSequencerReset()
+	CountSequencedTxsBySource(count int, source string)
+	RecordBuilderRequestTime(duration time.Duration)
+	RecordBuilderRequestFail()
+	RecordSequencerProfit(profit float64, source string)
+	RecordSequencerPayloadInserted(source string)
+	RecordPayloadGas(gas float64, source string)
 }
 
 // Sequencer implements the sequencing interface of the driver: it starts and completes block building jobs.

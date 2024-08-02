@@ -15,6 +15,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
+const (
+	SequencerSourceBuilder = "builder"
+	SequencerSourceEngine  = "engine"
+)
+
 // isDepositTx checks an opaqueTx to determine if it is a Deposit Transaction
 // It has to return an error in the case the transaction is empty
 func isDepositTx(opaqueTx eth.Data) (bool, error) {
@@ -139,7 +144,9 @@ func getPayloadWithBuilderPayload(ctx context.Context, log log.Logger, eng ExecE
 	// start the payload request to builder api
 
 	go func() {
+		start := time.Now()
 		payload, profit, err := builder.GetPayload(ctxTimeout, l2head, log)
+		metrics.RecordBuilderRequestTime(time.Since(start))
 		if err != nil {
 			log.Warn("failed to get payload from builder", "error", err.Error())
 			cancel()
@@ -153,12 +160,15 @@ func getPayloadWithBuilderPayload(ctx context.Context, log log.Logger, eng ExecE
 	// select the payload from builder if possible
 	select {
 	case <-ctxTimeout.Done():
+		metrics.RecordBuilderRequestFail()
+		metrics.RecordSequencerProfit(0, SequencerSourceEngine)
 		log.Warn("builder request failed", "error", ctxTimeout.Err())
 		return envelope, nil, nil, err
 	case result := <-ch:
 		log.Info("received payload from builder", "hash", result.envelope.ExecutionPayload.BlockHash.String(), "number", uint64(result.envelope.ExecutionPayload.BlockNumber))
 		// HACK: Dirty hack to get the parent beacon block root from the engine payload. this should be filled from the payload attributes.
 		result.envelope.ParentBeaconBlockRoot = envelope.ParentBeaconBlockRoot
+		metrics.RecordSequencerProfit(float64(result.profit.Int64()), SequencerSourceBuilder)
 		return envelope, result.envelope, result.profit, err
 	}
 }
@@ -177,6 +187,7 @@ func confirmPayload(
 	sequencerConductor conductor.SequencerConductor,
 	builderClient BuilderClient,
 	l2head eth.L2BlockRef,
+	metrics Metrics,
 ) (out *eth.ExecutionPayloadEnvelope, errTyp BlockInsertionErrType, err error) {
 	var engineEnvelope *eth.ExecutionPayloadEnvelope
 	var builderEnvelope *eth.ExecutionPayloadEnvelope
@@ -190,7 +201,7 @@ func confirmPayload(
 			"parent", engineEnvelope.ExecutionPayload.ParentHash,
 			"txs", len(engineEnvelope.ExecutionPayload.Transactions))
 	} else {
-		engineEnvelope, builderEnvelope, _, err = getPayloadWithBuilderPayload(ctx, log, eng, payloadInfo, l2head, builderClient, nil)
+		engineEnvelope, builderEnvelope, _, err = getPayloadWithBuilderPayload(ctx, log, eng, payloadInfo, l2head, builderClient, metrics)
 	}
 	if err != nil {
 		// even if it is an input-error (unknown payload ID), it is temporary, since we will re-attempt the full payload building, not just the retrieval of the payload.
@@ -200,12 +211,16 @@ func confirmPayload(
 	if builderEnvelope != nil {
 		errTyp, err := insertPayload(ctx, log, eng, fc, updateSafe, agossip, sequencerConductor, builderEnvelope)
 		if err == nil {
+			metrics.RecordSequencerPayloadInserted(SequencerSourceBuilder)
+			metrics.RecordPayloadGas(float64(builderEnvelope.ExecutionPayload.GasUsed), SequencerSourceBuilder)
 			log.Info("succeessfully inserted payload from builder")
 			return builderEnvelope, errTyp, err
 		}
 		log.Error("failed to insert payload from builder", "errType", errTyp, "error", err)
 	}
 
+	metrics.RecordSequencerPayloadInserted(SequencerSourceEngine)
+	metrics.RecordPayloadGas(float64(engineEnvelope.ExecutionPayload.GasUsed), SequencerSourceEngine)
 	errType, err := insertPayload(ctx, log, eng, fc, updateSafe, agossip, sequencerConductor, engineEnvelope)
 	return engineEnvelope, errType, err
 }
