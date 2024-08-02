@@ -467,22 +467,13 @@ contract L2Genesis is Deployer {
             console.log("Governance not enabled, skipping setting GovernanceDelegation");
             return;
         }
-
-        string memory cname = Predeploys.getName(Predeploys.GOVERNANCE_DELEGATION);
-        address impl = Predeploys.predeployToCodeNamespace(Predeploys.GOVERNANCE_DELEGATION);
-        bytes memory code = vm.getCode(string.concat(cname, ".sol:", cname));
-
-        address delegation;
-        assembly {
-            delegation := create(0, add(code, 0x20), mload(code))
-        }
-
-        console.log("Setting %s implementation at: %s", cname, impl);
-        vm.etch(impl, delegation.code);
+        
+        address impl = _setImplementationCode(Predeploys.GOVERNANCE_DELEGATION);
+        vm.etch(Predeploys.GOVERNANCE_DELEGATION, impl.code);
 
         /// Reset so its not included state dump
-        vm.etch(delegation, "");
-        vm.resetNonce(delegation);
+        vm.etch(impl, "");
+        vm.resetNonce(impl);
     }
 
     /// @notice This predeploy is following the safety invariant #1.

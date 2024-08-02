@@ -55,6 +55,11 @@ interface IGovernanceDelegation {
     /// @return _status True if the account has been migrated, false otherwise.
     function migrated(address _account) external view returns (bool _status);
 
+    /// @notice Returns the delegations for a given account.
+    /// @param _account The account to get the delegations for.
+    /// @return _delegations The delegations.
+    function delegations(address _account) external view returns (Delegation[] memory _delegations);
+
     /// @notice Returns the checkpoints for a given account.
     /// @param _account The account to get the checkpoints for.
     /// @return _checkpoints The checkpoints.

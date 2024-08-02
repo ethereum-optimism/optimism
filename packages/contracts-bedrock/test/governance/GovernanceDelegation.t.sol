@@ -219,9 +219,9 @@ contract GovernanceDelegation_Test is CommonTest {
         vm.prank(rando);
         governanceDelegation.delegate(delegations[0]);
 
-        // assertEq(governanceDelegation.delegates(rando), delegations);
-        // IGovernanceDelegation.DelegationAdjustment[] memory adjustments =
-        //     calculateWeightDistribution(delegations, _amount);
-        // assertEq(governanceDelegation.getVotes(_delegatee), adjustments[0].amount);
+        assertEq(governanceDelegation.delegations(rando), delegations);
+        IGovernanceDelegation.DelegationAdjustment[] memory adjustments =
+            calculateWeightDistribution(delegations, _amount);
+        assertEq(governanceDelegation.getVotes(_delegatee), adjustments[0].amount);
     }
 }
