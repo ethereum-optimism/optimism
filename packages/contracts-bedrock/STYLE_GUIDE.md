@@ -107,7 +107,7 @@ pattern for each new implementation contract:
 2. Include a function `initialize` with the modifier `initializer()`.
 3. In the `constructor`:
     1. Call `_disableInitializers()` to ensure the implementation contract cannot be initialized.
-    2. Set any immutables.
+    2. Set any immutables. However, we generally prefer to not use immutables to ensure the same implementation contracts can be used for all chains, and to allow chain operators to dynamically configure parameters
 
 Because `reinitializer(uint64 version)` is not used, the process for upgrading the implementation is to atomically:
 1. Upgrade the implementation to the `StorageSetter` contract.
