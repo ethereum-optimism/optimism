@@ -78,7 +78,7 @@ func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Cl
 		PollInterval:           time.Second,
 		NetworkTimeout:         time.Second,
 		ProposalInterval:       cfg.ProposalInterval,
-		ProposalRetryInterval:  cfg.ProposalRetryInterval,
+		OutputRetryInterval:    cfg.ProposalRetryInterval,
 		L2OutputOracleAddr:     cfg.OutputOracleAddr,
 		DisputeGameFactoryAddr: cfg.DisputeGameFactoryAddr,
 		DisputeGameType:        cfg.DisputeGameType,

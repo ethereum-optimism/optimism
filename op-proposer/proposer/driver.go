@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-proposer/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
@@ -37,6 +38,11 @@ type L1Client interface {
 	// CallContract executes an Ethereum contract call with the specified data as the
 	// input.
 	CallContract(ctx context.Context, call ethereum.CallMsg, blockNumber *big.Int) ([]byte, error)
+}
+
+type L2OOContract interface {
+	Version(*bind.CallOpts) (string, error)
+	NextBlockNumber(*bind.CallOpts) (*big.Int, error)
 }
 
 type RollupClient interface {
@@ -68,7 +74,7 @@ type L2OutputSubmitter struct {
 	mutex   sync.Mutex
 	running bool
 
-	l2ooContract *bindings.L2OutputOracleCaller
+	l2ooContract L2OOContract
 	l2ooABI      *abi.ABI
 
 	dgfContract *bindings.DisputeGameFactoryCaller
@@ -453,34 +459,19 @@ func (l *L2OutputSubmitter) waitNodeSync() error {
 func (l *L2OutputSubmitter) loopL2OO(ctx context.Context) {
 	ticker := time.NewTicker(l.Cfg.PollInterval)
 	defer ticker.Stop()
-
-	retryOutputProposal := false
-	retryTicker := time.NewTicker(l.Cfg.ProposalRetryInterval)
-	defer retryTicker.Stop()
-
-	proposeOutput := func() bool {
-		output, shouldPropose, err := l.FetchNextOutputInfo(ctx)
-		if err != nil || !shouldPropose {
-			retryTicker.Reset(l.Cfg.ProposalRetryInterval)
-			return true
-		}
-		err = l.proposeOutput(ctx, output)
-		if err != nil {
-			retryTicker.Reset(l.Cfg.ProposalRetryInterval)
-			return true
-		}
-		return false
-	}
-
 	for {
 		select {
 		case <-ticker.C:
-			retryOutputProposal = proposeOutput()
-		case <-retryTicker.C:
-			if retryOutputProposal {
-				l.Log.Info("retrying output proposal")
-				retryOutputProposal = proposeOutput()
+			output, shouldPropose, err := retry.Do2(ctx, 10, &retry.FixedStrategy{Dur: l.Cfg.OutputRetryInterval}, func() (*eth.OutputResponse, bool, error) {
+				ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+				defer cancel()
+				return l.FetchNextOutputInfo(ctx)
+			})
+			if err != nil || !shouldPropose {
+				break
 			}
+
+			l.proposeOutput(ctx, output)
 		case <-l.done:
 			return
 		}
@@ -490,48 +481,33 @@ func (l *L2OutputSubmitter) loopL2OO(ctx context.Context) {
 func (l *L2OutputSubmitter) loopDGF(ctx context.Context) {
 	ticker := time.NewTicker(l.Cfg.ProposalInterval)
 	defer ticker.Stop()
-
-	retryOutputProposal := false
-	retryTicker := time.NewTicker(l.Cfg.ProposalRetryInterval)
-	defer retryTicker.Stop()
-
-	proposeOutput := func() bool {
-		blockNumber, err := l.FetchCurrentBlockNumber(ctx)
-		if err != nil {
-			retryTicker.Reset(l.Cfg.ProposalRetryInterval)
-			return true
-		}
-
-		output, shouldPropose, err := l.FetchOutput(ctx, blockNumber)
-		if err != nil || !shouldPropose {
-			retryTicker.Reset(l.Cfg.ProposalRetryInterval)
-			return true
-		}
-
-		err = l.proposeOutput(ctx, output)
-		if err != nil {
-			retryTicker.Reset(l.Cfg.ProposalRetryInterval)
-			return true
-		}
-		return false
-	}
-
 	for {
 		select {
 		case <-ticker.C:
-			retryOutputProposal = proposeOutput()
-		case <-retryTicker.C:
-			if retryOutputProposal {
-				l.Log.Info("retrying output proposal")
-				retryOutputProposal = proposeOutput()
+			blockNumber, err := retry.Do(ctx, 10, &retry.FixedStrategy{Dur: l.Cfg.OutputRetryInterval}, func() (*big.Int, error) {
+				return l.FetchCurrentBlockNumber(ctx)
+			})
+			if err != nil {
+				break
 			}
+
+			output, shouldPropose, err := retry.Do2(ctx, 10, &retry.FixedStrategy{Dur: l.Cfg.OutputRetryInterval}, func() (*eth.OutputResponse, bool, error) {
+				ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+				defer cancel()
+				return l.FetchOutput(ctx, blockNumber)
+			})
+			if err != nil || !shouldPropose {
+				break
+			}
+
+			l.proposeOutput(ctx, output)
 		case <-l.done:
 			return
 		}
 	}
 }
 
-func (l *L2OutputSubmitter) proposeOutput(ctx context.Context, output *eth.OutputResponse) error {
+func (l *L2OutputSubmitter) proposeOutput(ctx context.Context, output *eth.OutputResponse) {
 	cCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
 
@@ -541,8 +517,7 @@ func (l *L2OutputSubmitter) proposeOutput(ctx context.Context, output *eth.Outpu
 			"l1blocknum", output.Status.CurrentL1.Number,
 			"l1blockhash", output.Status.CurrentL1.Hash,
 			"l1head", output.Status.HeadL1.Number)
-		return err
+		return
 	}
 	l.Metr.RecordL2BlocksProposed(output.BlockRef)
-	return nil
 }

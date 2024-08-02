@@ -32,8 +32,8 @@ type ProposerConfig struct {
 	PollInterval   time.Duration
 	NetworkTimeout time.Duration
 
-	// How frequently to retry a proposal if one fails
-	ProposalRetryInterval time.Duration
+	// How frequently to retry fetching an output if one fails
+	OutputRetryInterval time.Duration
 
 	// How frequently to post L2 outputs when the DisputeGameFactory is configured
 	ProposalInterval time.Duration
@@ -92,7 +92,7 @@ func (ps *ProposerService) initFromCLIConfig(ctx context.Context, version string
 	ps.initMetrics(cfg)
 
 	ps.PollInterval = cfg.PollInterval
-	ps.ProposalRetryInterval = cfg.ProposalRetryInterval
+	ps.OutputRetryInterval = cfg.OutputRetryInterval
 	ps.NetworkTimeout = cfg.TxMgrConfig.NetworkTimeout
 	ps.AllowNonFinalized = cfg.AllowNonFinalized
 	ps.WaitNodeSync = cfg.WaitNodeSync
