@@ -68,6 +68,9 @@ contract Bytes_slice_Test is Test {
     /// @notice Tests that the `slice` function correctly updates the free memory pointer depending
     ///         on the length of the slice.
     function testFuzz_slice_memorySafety_succeeds(bytes memory _input, uint256 _start, uint256 _length) public {
+        _start = bound(_start, 0, _input.length - 1);
+        _length = bound(_length, 0, _input.length - _start);
+
         // The start should never be more than the length of the input bytes array - 1
         vm.assume(_start < _input.length);
         // The length should never be more than the length of the input bytes array - the starting
@@ -145,6 +148,9 @@ contract Bytes_slice_TestFail is Test {
     /// @notice Tests that, when given a start index `n` that is greater than
     ///         `type(uint256).max - n`, the `slice` function reverts.
     function testFuzz_slice_rangeOverflows_reverts(bytes memory _input, uint256 _start, uint256 _length) public {
+        _length = bound(_length, 0, _input.length);
+        _start = bound(_start, type(uint256).max - _length, type(uint256).max);
+
         // Ensure that `_length` is a realistic length of a slice. This is to make sure
         // we revert on the correct require statement.
         vm.assume(_length < _input.length);
