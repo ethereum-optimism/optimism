@@ -48,7 +48,7 @@ make cannon
     --input ./state.json \
     -- \
     ../op-program/bin/op-program \
-    --network goerli \
+    --network op-mainnet \
     --l1 <L1_URL> \
     --l2 <L2_URL> \
     --l1.head <L1_HEAD> \
