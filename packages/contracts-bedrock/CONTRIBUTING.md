@@ -82,7 +82,7 @@ Documentation improvements are more than welcome! If you see a typo or feel that
 
 ### Deploying on Devnet
 
-To deploy the smart contracts on a local devnet, run `make devnet-up` in the monorepo root. For more information on the local devnet, see [devnet.md](../../specs/meta/devnet.md).
+To deploy the smart contracts on a local devnet, run `make devnet-up` in the monorepo root. For more information on the local devnet, see [dev-node](https://docs.optimism.io/chain/testing/dev-node).
 
 ### Tools
 
