@@ -445,17 +445,20 @@ func (n *OpNode) initHTTPEventStreamServer(cfg *Config) error {
 
 	server := sse.New()
 	server.AutoReplay = false
-	server.AutoStream = false
-	server.EventTTL = time.Second * 6
 	server.CreateStream("payload_attributes")
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/events", server.HTTPHandler)
-	mux.HandleFunc("/events2", evSrv.StreamEvents)
 	addr := net.JoinHostPort(cfg.RPC.ListenAddr, strconv.Itoa(cfg.RPC.ListenPort+1))
 
 	var err error
-	n.httpEventStreamServer, err = httputil.StartHTTPServer(addr, mux)
+	timeouts := httputil.HTTPTimeouts{
+		ReadTimeout:       httputil.DefaultTimeouts.ReadTimeout,
+		ReadHeaderTimeout: httputil.DefaultTimeouts.ReadHeaderTimeout,
+		WriteTimeout:      0,
+		IdleTimeout:       0,
+	}
+	n.httpEventStreamServer, err = httputil.StartHTTPServer(addr, mux, httputil.WithTimeouts(timeouts))
 	if err != nil {
 		return fmt.Errorf("failed to start http event stream server: %w", err)
 	}
