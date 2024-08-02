@@ -20,7 +20,7 @@ func FuzzStateSyscallCloneST(f *testing.F) {
 		goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(),
 			WithPC(pc), WithNextPC(nextPC), WithStep(step), WithPreimageOffset(preimageOffset))
 		state := goVm.GetState()
-		state.GetRegisters()[2] = exec.SysClone
+		state.GetRegistersMutable()[2] = exec.SysClone
 
 		state.GetMemory().SetMemory(pc, syscallInsn)
 		preStateRoot := state.GetMemory().MerkleRoot()
@@ -39,7 +39,7 @@ func FuzzStateSyscallCloneST(f *testing.F) {
 		require.Equal(t, uint8(0), state.GetExitCode())
 		require.Equal(t, false, state.GetExited())
 		require.Equal(t, preStateRoot, state.GetMemory().MerkleRoot())
-		require.Equal(t, expectedRegisters, state.GetRegisters())
+		require.Equal(t, expectedRegisters, state.GetRegistersMutable())
 		require.Equal(t, step+1, state.GetStep())
 		require.Equal(t, common.Hash{}, state.GetPreimageKey())
 		require.Equal(t, preimageOffset, state.GetPreimageOffset())

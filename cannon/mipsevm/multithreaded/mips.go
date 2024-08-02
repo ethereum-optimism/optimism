@@ -16,7 +16,7 @@ import (
 func (m *InstrumentedState) handleSyscall() error {
 	thread := m.state.GetCurrentThread()
 
-	syscallNum, a0, a1, a2, a3 := exec.GetSyscallArgs(m.state.GetRegisters())
+	syscallNum, a0, a1, a2, a3 := exec.GetSyscallArgs(m.state.GetRegistersMutable())
 	v0 := uint32(0)
 	v1 := uint32(0)
 
@@ -264,7 +264,7 @@ func (m *InstrumentedState) mipsStep() error {
 	}
 
 	// Exec the rest of the step logic
-	return exec.ExecMipsCoreStepLogic(m.state.getCpuMutable(), m.state.GetRegisters(), m.state.Memory, insn, opcode, fun, m.memoryTracker, m.stackTracker)
+	return exec.ExecMipsCoreStepLogic(m.state.getCpuMutable(), m.state.GetRegistersMutable(), m.state.Memory, insn, opcode, fun, m.memoryTracker, m.stackTracker)
 }
 
 func (m *InstrumentedState) onWaitComplete(thread *ThreadState, isTimedOut bool) {

@@ -68,7 +68,7 @@ func TestEVM(t *testing.T) {
 				require.NoError(t, err, "load program into state")
 
 				// set the return address ($ra) to jump into when test completes
-				state.GetRegisters()[31] = testutil.EndAddr
+				state.GetRegistersMutable()[31] = testutil.EndAddr
 
 				// Catch panics and check if they are expected
 				defer func() {
@@ -192,10 +192,10 @@ func TestEVM_MMap(t *testing.T) {
 				state := goVm.GetState()
 
 				state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
-				*state.GetRegisters() = testutil.RandomRegisters(77)
-				state.GetRegisters()[2] = exec.SysMmap
-				state.GetRegisters()[4] = c.address
-				state.GetRegisters()[5] = c.size
+				*state.GetRegistersMutable() = testutil.RandomRegisters(77)
+				state.GetRegistersMutable()[2] = exec.SysMmap
+				state.GetRegistersMutable()[4] = c.address
+				state.GetRegistersMutable()[5] = c.size
 				step := state.GetStep()
 
 				expectedRegisters := testutil.CopyRegisters(state)
@@ -221,7 +221,7 @@ func TestEVM_MMap(t *testing.T) {
 				// Check expectations
 				require.Equal(t, step+1, state.GetStep())
 				require.Equal(t, expectedHeap, state.GetHeap())
-				require.Equal(t, expectedRegisters, state.GetRegisters())
+				require.Equal(t, expectedRegisters, state.GetRegistersMutable())
 				require.Equal(t, expectedMemoryRoot, state.GetMemory().MerkleRoot())
 				require.Equal(t, common.Hash{}, state.GetPreimageKey())
 				require.Equal(t, uint32(0), state.GetPreimageOffset())
@@ -401,10 +401,10 @@ func TestEVMSysWriteHint(t *testing.T) {
 				oracle := hintTrackingOracle{}
 				goVm := v.VMFactory(&oracle, os.Stdout, os.Stderr, testutil.CreateLogger(), WithLastHint(tt.lastHint))
 				state := goVm.GetState()
-				state.GetRegisters()[2] = exec.SysWrite
-				state.GetRegisters()[4] = exec.FdHintWrite
-				state.GetRegisters()[5] = uint32(tt.memOffset)
-				state.GetRegisters()[6] = uint32(tt.bytesToWrite)
+				state.GetRegistersMutable()[2] = exec.SysWrite
+				state.GetRegistersMutable()[4] = exec.FdHintWrite
+				state.GetRegistersMutable()[5] = uint32(tt.memOffset)
+				state.GetRegistersMutable()[6] = uint32(tt.bytesToWrite)
 
 				err := state.GetMemory().SetMemoryRange(uint32(tt.memOffset), bytes.NewReader(tt.hintData))
 				require.NoError(t, err)
@@ -454,7 +454,7 @@ func TestEVMFault(t *testing.T) {
 				state := goVm.GetState()
 				state.GetMemory().SetMemory(0, tt.insn)
 				// set the return address ($ra) to jump into when test completes
-				state.GetRegisters()[31] = testutil.EndAddr
+				state.GetRegistersMutable()[31] = testutil.EndAddr
 
 				require.Panics(t, func() { _, _ = goVm.Step(true) })
 

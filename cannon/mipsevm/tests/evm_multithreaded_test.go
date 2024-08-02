@@ -39,8 +39,8 @@ func TestEVM_CloneFlags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			state := multithreaded.CreateEmptyState()
 			state.Memory.SetMemory(state.GetPC(), insn)
-			state.GetRegisters()[2] = exec.SysClone // Set syscall number
-			state.GetRegisters()[4] = tt.flags      // Set first argument
+			state.GetRegistersMutable()[2] = exec.SysClone // Set syscall number
+			state.GetRegistersMutable()[4] = tt.flags      // Set first argument
 			curStep := state.Step
 
 			var err error

@@ -125,7 +125,7 @@ func (s *State) GetPC() uint32 { return s.Cpu.PC }
 
 func (s *State) GetCpu() mipsevm.CpuScalars { return s.Cpu }
 
-func (s *State) GetRegisters() *[32]uint32 { return &s.Registers }
+func (s *State) GetRegistersMutable() *[32]uint32 { return &s.Registers }
 
 func (s *State) GetExitCode() uint8 { return s.ExitCode }
 

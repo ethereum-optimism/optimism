@@ -25,8 +25,8 @@ type FPVMState interface {
 	// GetCpu returns the currently active cpu scalars, including the program counter
 	GetCpu() CpuScalars
 
-	// GetRegisters returns the currently active registers
-	GetRegisters() *[32]uint32
+	// GetRegistersMutable returns a pointer to the currently active registers
+	GetRegistersMutable() *[32]uint32
 
 	// GetStep returns the current VM step
 	GetStep() uint64
