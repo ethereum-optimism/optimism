@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"math"
@@ -121,11 +122,13 @@ func EncodePreimageOracleInput(t *testing.T, wit *mipsevm.StepWitness, localCont
 		}
 		preimage := localOracle.GetPreimage(preimage.Keccak256Key(wit.PreimageKey).PreimageKey())
 		precompile := common.BytesToAddress(preimage[:20])
-		callInput := preimage[20:]
+		requiredGas := binary.BigEndian.Uint64(preimage[20:28])
+		callInput := preimage[28:]
 		input, err := oracle.ABI.Pack(
 			"loadPrecompilePreimagePart",
 			new(big.Int).SetUint64(uint64(wit.PreimageOffset)),
 			precompile,
+			requiredGas,
 			callInput,
 		)
 		require.NoError(t, err)

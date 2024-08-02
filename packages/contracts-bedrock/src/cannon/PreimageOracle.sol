@@ -27,10 +27,12 @@ contract PreimageOracle is IPreimageOracle, ISemver {
     uint256 public constant KECCAK_TREE_DEPTH = 16;
     /// @notice The maximum number of keccak blocks that can fit into the merkle tree.
     uint256 public constant MAX_LEAF_COUNT = 2 ** KECCAK_TREE_DEPTH - 1;
+    /// @notice The reserved gas for precompile call setup.
+    uint256 public constant PRECOMPILE_CALL_RESERVED_GAS = 100_000;
 
     /// @notice The semantic version of the Preimage Oracle contract.
-    /// @custom:semver 1.0.1
-    string public constant version = "1.0.1";
+    /// @custom:semver 1.1.1
+    string public constant version = "1.1.1";
 
     ////////////////////////////////////////////////////////////////
     //                 Authorized Preimage Parts                  //
@@ -332,7 +334,14 @@ contract PreimageOracle is IPreimageOracle, ISemver {
     }
 
     /// @inheritdoc IPreimageOracle
-    function loadPrecompilePreimagePart(uint256 _partOffset, address _precompile, bytes calldata _input) external {
+    function loadPrecompilePreimagePart(
+        uint256 _partOffset,
+        address _precompile,
+        uint64 _requiredGas,
+        bytes calldata _input
+    )
+        external
+    {
         bytes32 res;
         bytes32 key;
         bytes32 part;
@@ -341,21 +350,32 @@ contract PreimageOracle is IPreimageOracle, ISemver {
             // we leave solidity slots 0x40 and 0x60 untouched, and everything after as scratch-memory.
             let ptr := 0x80
 
-            // copy precompile address and input into memory
-            // len(sig) + len(_partOffset) + address-offset-in-slot
-            calldatacopy(ptr, 48, 20)
-            calldatacopy(add(20, ptr), _input.offset, _input.length)
+            // copy precompile address, requiredGas, and input into memory to compute the key
+            mstore(ptr, shl(96, _precompile))
+            mstore(add(ptr, 20), shl(192, _requiredGas))
+            calldatacopy(add(28, ptr), _input.offset, _input.length)
             // compute the hash
-            let h := keccak256(ptr, add(20, _input.length))
+            let h := keccak256(ptr, add(28, _input.length))
             // mask out prefix byte, replace with type 6 byte
             key := or(and(h, not(shl(248, 0xFF))), shl(248, 0x06))
 
+            // Check if the precompile call has at least the required gas.
+            // This assumes there are no further memory expansion costs until after the staticall on the precompile
+            // Also assumes that the gas expended in setting up the staticcall is less than PRECOMPILE_CALL_RESERVED_GAS
+            // require(gas() >= (requiredGas * 64 / 63) + reservedGas)
+            if lt(mul(gas(), 63), add(mul(_requiredGas, 64), mul(PRECOMPILE_CALL_RESERVED_GAS, 63))) {
+                // Store "NotEnoughGas()"
+                mstore(0, 0xdd629f86)
+                revert(0x1c, 4)
+            }
+
             // Call the precompile to get the result.
+            // SAFETY: Given the above gas check, the staticall cannot fail due to insufficient gas.
             res :=
                 staticcall(
                     gas(), // forward all gas
                     _precompile,
-                    add(20, ptr), // input ptr
+                    add(28, ptr), // input ptr
                     _input.length,
                     0x0, // Unused as we don't copy anything
                     0x00 // don't copy anything

@@ -670,7 +670,7 @@ func (g *OutputGameHelper) UploadPreimage(ctx context.Context, data *types.Preim
 	g.Require.NoError(err)
 }
 
-func (g *OutputGameHelper) oracle(ctx context.Context) *contracts.PreimageOracleContract {
+func (g *OutputGameHelper) oracle(ctx context.Context) contracts.PreimageOracleContract {
 	oracle, err := g.Game.GetOracle(ctx)
 	g.Require.NoError(err, "Failed to create oracle contract")
 	return oracle

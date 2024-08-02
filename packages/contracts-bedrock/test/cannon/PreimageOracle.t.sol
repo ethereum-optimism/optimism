@@ -178,8 +178,9 @@ contract PreimageOracle_Test is Test {
         bytes memory input = hex"deadbeef";
         uint256 offset = 0;
         address precompile = address(bytes20(uint160(0x02))); // sha256
-        bytes32 key = precompilePreimageKey(precompile, input);
-        oracle.loadPrecompilePreimagePart(offset, precompile, input);
+        uint64 gas = 72;
+        bytes32 key = precompilePreimageKey(precompile, gas, input);
+        oracle.loadPrecompilePreimagePart(offset, precompile, gas, input);
 
         bytes32 part = oracle.preimageParts(key, offset);
         // size prefix - 1-byte result + 32-byte sha return data
@@ -203,8 +204,9 @@ contract PreimageOracle_Test is Test {
         bytes memory input = hex"deadbeef";
         uint256 offset = 9;
         address precompile = address(bytes20(uint160(0x02))); // sha256
-        bytes32 key = precompilePreimageKey(precompile, input);
-        oracle.loadPrecompilePreimagePart(offset, precompile, input);
+        uint64 gas = 72;
+        bytes32 key = precompilePreimageKey(precompile, gas, input);
+        oracle.loadPrecompilePreimagePart(offset, precompile, gas, input);
 
         bytes32 part = oracle.preimageParts(key, offset);
         // 32-byte sha return data
@@ -224,8 +226,9 @@ contract PreimageOracle_Test is Test {
         bytes memory input = new bytes(193); // invalid input to induce a failed precompile call
         uint256 offset = 0;
         address precompile = address(bytes20(uint160(0x08))); // bn256Pairing
-        bytes32 key = precompilePreimageKey(precompile, input);
-        oracle.loadPrecompilePreimagePart(offset, precompile, input);
+        uint64 gas = 72;
+        bytes32 key = precompilePreimageKey(precompile, gas, input);
+        oracle.loadPrecompilePreimagePart(offset, precompile, gas, input);
 
         bytes32 part = oracle.preimageParts(key, offset);
         // size prefix - 1-byte result + 0-byte sha return data
@@ -249,8 +252,9 @@ contract PreimageOracle_Test is Test {
         bytes memory input = hex"deadbeef";
         uint256 offset = 41; // 8-byte prefix + 1-byte result + 32-byte sha return data
         address precompile = address(bytes20(uint160(0x02))); // sha256
+        uint64 gas = 72;
         vm.expectRevert(PartOffsetOOB.selector);
-        oracle.loadPrecompilePreimagePart(offset, precompile, input);
+        oracle.loadPrecompilePreimagePart(offset, precompile, gas, input);
     }
 
     /// @notice Tests that a global precompile result cannot be set with an out-of-bounds offset.
@@ -258,8 +262,34 @@ contract PreimageOracle_Test is Test {
         bytes memory input = hex"deadbeef";
         uint256 offset = 42;
         address precompile = address(bytes20(uint160(0x02))); // sha256
+        uint64 gas = 72;
         vm.expectRevert(PartOffsetOOB.selector);
-        oracle.loadPrecompilePreimagePart(offset, precompile, input);
+        oracle.loadPrecompilePreimagePart(offset, precompile, gas, input);
+    }
+
+    /// @notice Tests that a global precompile load succeeds on a variety of gas inputs.
+    function testFuzz_loadPrecompilePreimagePart_withVaryingGas_succeeds(uint64 _gas) public {
+        uint64 requiredGas = 100_000;
+        bytes memory input = hex"deadbeef";
+        address precompile = address(uint160(0xdeadbeef));
+        vm.mockCall(precompile, input, hex"abba");
+        uint256 offset = 0;
+        uint64 minGas = uint64(bound(_gas, requiredGas * 3, 20_000_000));
+        vm.expectCallMinGas(precompile, 0, requiredGas, input);
+        oracle.loadPrecompilePreimagePart{ gas: minGas }(offset, precompile, requiredGas, input);
+    }
+
+    /// @notice Tests that a global precompile load succeeds on insufficient gas.
+    function test_loadPrecompilePreimagePart_withInsufficientGas_reverts() public {
+        uint64 requiredGas = 1_000_000;
+        bytes memory input = hex"deadbeef";
+        uint256 offset = 0;
+        address precompile = address(uint160(0xdeadbeef));
+        // This gas is sufficient to reach the gas checks in `loadPrecompilePreimagePart` but not enough to pass those
+        // checks
+        uint64 insufficientGas = requiredGas * 63 / 64;
+        vm.expectRevert(NotEnoughGas.selector);
+        oracle.loadPrecompilePreimagePart{ gas: insufficientGas }(offset, precompile, requiredGas, input);
     }
 }
 
@@ -1374,9 +1404,9 @@ function _setStatusByte(bytes32 _hash, uint8 _status) pure returns (bytes32 out_
 }
 
 /// @notice Computes a precompile key for a given precompile address and input.
-function precompilePreimageKey(address _precompile, bytes memory _input) pure returns (bytes32 key_) {
-    bytes memory p = abi.encodePacked(_precompile, _input);
-    uint256 sz = 20 + _input.length;
+function precompilePreimageKey(address _precompile, uint64 _gas, bytes memory _input) pure returns (bytes32 key_) {
+    bytes memory p = abi.encodePacked(_precompile, _gas, _input);
+    uint256 sz = 20 + 8 + _input.length;
     assembly {
         let h := keccak256(add(0x20, p), sz)
         // Mask out prefix byte, replace with type 6 byte
