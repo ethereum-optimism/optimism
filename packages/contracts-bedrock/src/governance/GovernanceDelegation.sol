@@ -135,11 +135,8 @@ contract GovernanceDelegation is IGovernanceDelegation {
     /// @param _delegatee          The address to delegate to.
     function delegateFromToken(address _delegator, address _delegatee) external onlyToken {
         Delegation[] memory delegation = new Delegation[](1);
-        delegation[0] = Delegation({
-            delegatee: _delegatee,
-            allowanceType: AllowanceType.Relative,
-            amount: 1e4 // 100%
-         });
+        delegation[0] =
+            Delegation({ delegatee: _delegatee, allowanceType: AllowanceType.Relative, amount: DENOMINATOR });
 
         _delegate(_delegator, delegation);
 
