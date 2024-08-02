@@ -1,85 +1,52 @@
-# This Dockerfile builds all the dependencies needed by the monorepo, and should
-# be used to build any of the follow-on services
-#
-
-# Stage 0 (named `manifests`) collects
-# dependency manifest files (`package.json` and `pnpm-lock.yaml`) which are then
-# used by stage 1 to install these dependencies
-# development. The only reason we need a separate stage just for collecting the
-# dependency manifests is that Docker's `COPY` command still does not allow
-# copying based on a glob pattern (see this GitHub issue for more details
-# https://github.com/moby/moby/issues/15858). Being able to copy only manifests
-# into stage 1 (the `COPY --from=manifests` statement) is important to maximize
-# Docker build cache hit rate. `alpine` is chosen as the base image for the
-# first stage because it's the smallest image that have access to the `cp
-# --parents -t` command (by installing the `coreutils` package).
-FROM alpine:3.16 as manifests
-RUN apk add coreutils
-
-WORKDIR /tmp
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json versions.json ./src/
-COPY packages src/packages/
-RUN mkdir manifests && \
-  cd src && \
-  # copy package.json recursively
-  find . -name 'package.json' | xargs cp --parents -t ../manifests/ && \
-  # pnpm-lock.yaml
-  cp pnpm-lock.yaml ../manifests/ && \
-  # pnpm-workspace.yaml
-  cp pnpm-workspace.yaml ../manifests/
+# This Dockerfile builds all the dependencies needed by the smart-contracts, excluding Go and Python.
 
 FROM us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest as foundry
-# bullseye-slim is debian based
-# we use it rather than alpine because it's not much
-# bigger and alpine is often missing packages for node applications
-# alpine is not officially supported by node.js
-FROM node:20.8.1-bullseye-slim as base
+
+# Historically the contracts-bedrock was on the node image based on Debian 11 (bullseye),
+# for Node / PNPM compatibility reasons.
+# We no longer use Node JS, but continue to use the same Debian version for compatibility.
+FROM debian:bullseye-slim as base
 
 # Base: install deps
 RUN apt-get update && apt-get install -y \
   curl \
   jq \
-  python3 \
   ca-certificates \
   git \
-  g++ \
   make \
-  gcc \
-  musl-dev \
   bash \
-  just \
   --no-install-recommends
 
 COPY /ops/docker/oplabs.crt /usr/local/share/ca-certificates/oplabs.crt
 RUN chmod 644 /usr/local/share/ca-certificates/oplabs.crt \
   && update-ca-certificates
 
-RUN npm install pnpm --global
+# Note: "just" is only available on Debian 13. Instead, pull it from the foundry image.
+COPY --from=foundry /usr/local/bin/just /usr/local/bin/just
 
 COPY --from=foundry /usr/local/bin/forge /usr/local/bin/forge
 COPY --from=foundry /usr/local/bin/cast /usr/local/bin/cast
 
 WORKDIR /opt/optimism
 
-# Copy manifest files into the image in
-# preparation for `pnpm install`.
-COPY --from=manifests /tmp/manifests  ./
-COPY *.json ./
-
-RUN pnpm install --frozen-lockfile
-
+COPY ./versions.json ./versions.json
 COPY ./packages ./packages
 
 COPY .git/ ./.git
 COPY .gitmodules ./.gitmodules
 RUN git submodule update --init --recursive
 
+# Not to be confused with OP, this is a OnePassword CLI tool.
 COPY --from=1password/op:2 /usr/local/bin/op /usr/local/bin/op
 
-RUN pnpm build
-
-ENTRYPOINT ["pnpm", "run"]
+# prebuild the smart-contracts for the convenience of the user
+RUN cd packages/contracts-bedrock && just build
 
 FROM base as contracts-bedrock
 WORKDIR /opt/optimism/packages/contracts-bedrock
+
+# Set "just" as entrypoint, so the default args (the Dockerfile CMD)
+# are passed in to it. This was previously "pnpm run" + "deploy".
+ENTRYPOINT ["just"]
+
 CMD ["deploy"]
