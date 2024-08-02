@@ -287,7 +287,7 @@ contract GovernanceDelegation_Init is CommonTest {
     }
 }
 
-contract GovernanceDelegation_Test is GovernanceDelegation_Init {
+contract GovernanceDelegation_Delegate_Test is GovernanceDelegation_Init {
     /// @dev Tests that the constructor sets the correct initial state.
     function test_constructor_succeeds() external view {
         assertEq(governanceToken.owner(), owner);
@@ -297,13 +297,7 @@ contract GovernanceDelegation_Test is GovernanceDelegation_Init {
         assertEq(governanceToken.totalSupply(), 0);
     }
 
-    function testFuzz_delegates_single_non_zero_address(
-        address _delegatee,
-        uint96 _numerator,
-        uint256 _amount
-    )
-        public
-    {
+    function testFuzz_delegate_singleAddress_succeeds(address _delegatee, uint96 _numerator, uint256 _amount) public {
         vm.assume(_delegatee != address(0));
 
         _numerator = uint96(bound(_numerator, 1, governanceDelegation.DENOMINATOR()));
@@ -325,7 +319,7 @@ contract GovernanceDelegation_Test is GovernanceDelegation_Init {
         assertEq(governanceDelegation.getVotes(_delegatee), adjustments[0].amount);
     }
 
-    function testFuzz_DelegatesOnlyToZeroAddress(address _actor, uint96 _numerator, uint256 _amount) public {
+    function testFuzz_delegate_zeroAddress_succeeds(address _actor, uint96 _numerator, uint256 _amount) public {
         vm.assume(_actor != address(0));
         address _delegatee = address(0);
         _numerator = uint96(bound(_numerator, 1, governanceDelegation.DENOMINATOR()));
@@ -344,57 +338,7 @@ contract GovernanceDelegation_Test is GovernanceDelegation_Init {
         assertEq(governanceDelegation.getVotes(_delegatee), 0);
     }
 
-    function testFuzz_DelegatesToTwoAddresses(
-        address _actor,
-        address _delegatee1,
-        address _delegatee2,
-        uint256 _amount,
-        uint96 _numerator1,
-        uint96 _numerator2
-    )
-        public
-    {
-        vm.assume(_actor != address(0));
-        vm.assume(_delegatee1 != address(0));
-        vm.assume(_delegatee2 != address(0));
-        vm.assume(_delegatee1 < _delegatee2);
-        _amount = bound(_amount, 0, type(uint208).max);
-        _numerator1 = uint96(bound(_numerator1, 1, governanceDelegation.DENOMINATOR() - 1));
-        _numerator2 = uint96(bound(_numerator2, 1, governanceDelegation.DENOMINATOR() - _numerator1));
-
-        vm.prank(owner);
-        governanceToken.mint(_actor, _amount);
-
-        IGovernanceDelegation.Delegation[] memory delegations = new IGovernanceDelegation.Delegation[](2);
-        delegations[0] =
-            IGovernanceDelegation.Delegation(IGovernanceDelegation.AllowanceType.Relative, _delegatee1, _numerator1);
-        delegations[1] =
-            IGovernanceDelegation.Delegation(IGovernanceDelegation.AllowanceType.Relative, _delegatee2, _numerator2);
-
-        vm.prank(_actor);
-        governanceDelegation.delegateBatched(delegations);
-
-        assertEq(governanceDelegation.delegations(_actor), delegations);
-        assertCorrectVotes(delegations, _amount);
-    }
-
-    function testFuzz_DelegatesToNAddresses(address _actor, uint256 _amount, uint256 _n, uint256 _seed) public {
-        vm.assume(_actor != address(0));
-        _amount = bound(_amount, 0, type(uint208).max);
-        _n = bound(_n, 1, governanceDelegation.MAX_DELEGATIONS());
-        IGovernanceDelegation.Delegation[] memory delegations = _createValidPartialDelegation(_n, _seed);
-
-        vm.prank(owner);
-        governanceToken.mint(_actor, _amount);
-
-        vm.prank(_actor);
-        governanceDelegation.delegateBatched(delegations);
-
-        assertEq(governanceDelegation.delegations(_actor), delegations);
-        assertCorrectVotes(delegations, _amount);
-    }
-
-    function testFuzz_DelegatesToNAddressesAndThenDelegatesToOtherAddresses(
+    function testFuzz_delegateBatched_multipleAddresses_succeeds(
         address _actor,
         uint256 _amount,
         uint256 _n,
@@ -414,10 +358,31 @@ contract GovernanceDelegation_Test is GovernanceDelegation_Init {
         governanceDelegation.delegateBatched(delegations);
 
         assertEq(governanceDelegation.delegations(_actor), delegations);
-        IGovernanceDelegation.Delegation[] memory newDelegations = _createValidPartialDelegation( /* setting n to 0 here
-            means seed
-            will
-      generate random n */ 0, uint256(keccak256(abi.encode(_seed))));
+        assertCorrectVotes(delegations, _amount);
+    }
+
+    function testFuzz_delegateBatched_multipleAddressesDouble_succeeds(
+        address _actor,
+        uint256 _amount,
+        uint256 _n,
+        uint256 _seed
+    )
+        public
+    {
+        vm.assume(_actor != address(0));
+        _amount = bound(_amount, 0, type(uint208).max);
+        _n = bound(_n, 1, governanceDelegation.MAX_DELEGATIONS());
+        IGovernanceDelegation.Delegation[] memory delegations = _createValidPartialDelegation(_n, _seed);
+
+        vm.prank(owner);
+        governanceToken.mint(_actor, _amount);
+
+        vm.prank(_actor);
+        governanceDelegation.delegateBatched(delegations);
+
+        assertEq(governanceDelegation.delegations(_actor), delegations);
+        IGovernanceDelegation.Delegation[] memory newDelegations =
+            _createValidPartialDelegation(0, uint256(keccak256(abi.encode(_seed))));
 
         vm.prank(_actor);
         governanceDelegation.delegateBatched(newDelegations);
@@ -691,8 +656,8 @@ contract GovernanceDelegation_Test is GovernanceDelegation_Init {
     }
 }
 
-contract GovernanceDelegation_TestFail is GovernanceDelegation_Init {
-    function testFuzz_RevertIf_DelegationArrayIncludesDuplicates(
+contract GovernanceDelegation_Delegate_TestFail is GovernanceDelegation_Init {
+    function testFuzz_delegateBatched_duplicates_reverts(
         address _actor,
         address _delegatee,
         uint256 _amount,
@@ -720,41 +685,7 @@ contract GovernanceDelegation_TestFail is GovernanceDelegation_Init {
         governanceDelegation.delegateBatched(delegations);
     }
 
-    function testFuzz_RevertIf_DelegationArrayNumeratorsSumToGreaterThanDenominator(
-        address _actor,
-        address _delegatee1,
-        address _delegatee2,
-        uint256 _amount,
-        uint96 _numerator1,
-        uint96 _numerator2
-    )
-        public
-    {
-        vm.assume(_actor != address(0));
-        vm.assume(_delegatee1 != address(0));
-        vm.assume(_delegatee2 != address(0));
-        vm.assume(_delegatee1 < _delegatee2);
-        _amount = bound(_amount, 0, type(uint208).max);
-        _numerator1 = uint96(bound(_numerator1, 1, governanceDelegation.DENOMINATOR()));
-        _numerator2 = uint96(
-            bound(_numerator2, governanceDelegation.DENOMINATOR() - _numerator1 + 1, type(uint96).max - _numerator1)
-        );
-
-        vm.prank(owner);
-        governanceToken.mint(_actor, _amount);
-
-        IGovernanceDelegation.Delegation[] memory delegations = new IGovernanceDelegation.Delegation[](2);
-        delegations[0] =
-            IGovernanceDelegation.Delegation(IGovernanceDelegation.AllowanceType.Relative, _delegatee1, _numerator1);
-        delegations[1] =
-            IGovernanceDelegation.Delegation(IGovernanceDelegation.AllowanceType.Relative, _delegatee2, _numerator2);
-
-        vm.expectRevert();
-        vm.prank(_actor);
-        governanceDelegation.delegateBatched(delegations);
-    }
-
-    function testFuzz_RevertIf_DelegationNumeratorTooLarge(
+    function testFuzz_delegate_numeratorExceed_reverts(
         address _actor,
         address _delegatee,
         uint256 _amount,
@@ -777,80 +708,7 @@ contract GovernanceDelegation_TestFail is GovernanceDelegation_Init {
         vm.stopPrank();
     }
 
-    function testFuzz_RevertIf_LimitExceeded(
-        address _actor,
-        uint256 _amount,
-        uint256 _numOfDelegatees,
-        uint256 _seed
-    )
-        public
-    {
-        vm.assume(_actor != address(0));
-        _amount = bound(_amount, 0, type(uint208).max);
-        _numOfDelegatees = bound(
-            _numOfDelegatees, governanceDelegation.MAX_DELEGATIONS() + 1, governanceDelegation.MAX_DELEGATIONS() + 500
-        );
-        IGovernanceDelegation.Delegation[] memory delegations = _createValidPartialDelegation(_numOfDelegatees, _seed);
-
-        vm.prank(owner);
-        governanceToken.mint(_actor, _amount);
-
-        vm.expectRevert(
-            abi.encodeWithSelector(LimitExceeded.selector, _numOfDelegatees, governanceDelegation.MAX_DELEGATIONS())
-        );
-        vm.prank(_actor);
-        governanceDelegation.delegateBatched(delegations);
-    }
-
-    function testFuzz_RevertIf_DuplicateOrUnsortedDelegatees(
-        address _actor,
-        uint256 _amount,
-        uint256 _numOfDelegatees,
-        address _replacedDelegatee,
-        uint256 _seed
-    )
-        public
-    {
-        vm.assume(_actor != address(0));
-        _amount = bound(_amount, 0, type(uint208).max);
-        _numOfDelegatees = bound(_numOfDelegatees, 2, governanceDelegation.MAX_DELEGATIONS());
-        IGovernanceDelegation.Delegation[] memory delegations = _createValidPartialDelegation(_numOfDelegatees, _seed);
-        address lastDelegatee = delegations[delegations.length - 1].delegatee;
-        vm.assume(_replacedDelegatee <= lastDelegatee);
-        delegations[delegations.length - 1].delegatee = _replacedDelegatee;
-
-        vm.prank(owner);
-        governanceToken.mint(_actor, _amount);
-
-        vm.expectRevert(abi.encodeWithSelector(DuplicateOrUnsortedDelegatees.selector, _replacedDelegatee));
-        vm.prank(_actor);
-        governanceDelegation.delegateBatched(delegations);
-    }
-
-    function testFuzz_RevertIf_InvalidNumeratorZero(
-        address _actor,
-        uint256 _amount,
-        uint256 _delegationIndex,
-        uint256 _seed
-    )
-        public
-    {
-        vm.assume(_actor != address(0));
-        _amount = bound(_amount, 0, type(uint208).max);
-        IGovernanceDelegation.Delegation[] memory delegations = _createValidPartialDelegation(0, _seed);
-        _delegationIndex = bound(_delegationIndex, 0, delegations.length - 1);
-
-        delegations[_delegationIndex].amount = 0;
-
-        vm.prank(owner);
-        governanceToken.mint(_actor, _amount);
-
-        vm.expectRevert(InvalidNumeratorZero.selector);
-        vm.prank(_actor);
-        governanceDelegation.delegateBatched(delegations);
-    }
-
-    function testFuzz_RevertIf_NumeratorSumExceedsDenominator(
+    function testFuzz_delegateBatched_multipleNumeratorExceed_reverts(
         address _actor,
         uint256 _amount,
         uint256 _delegationIndex,
@@ -882,5 +740,82 @@ contract GovernanceDelegation_TestFail is GovernanceDelegation_Init {
         );
         vm.prank(_actor);
         governanceDelegation.delegateBatched(delegations);
+    }
+
+    function testFuzz_delegateBatched_limitExceed_reverts(
+        address _actor,
+        uint256 _amount,
+        uint256 _numOfDelegatees,
+        uint256 _seed
+    )
+        public
+    {
+        vm.assume(_actor != address(0));
+        _amount = bound(_amount, 0, type(uint208).max);
+        _numOfDelegatees = bound(
+            _numOfDelegatees, governanceDelegation.MAX_DELEGATIONS() + 1, governanceDelegation.MAX_DELEGATIONS() + 500
+        );
+        IGovernanceDelegation.Delegation[] memory delegations = _createValidPartialDelegation(_numOfDelegatees, _seed);
+
+        vm.prank(owner);
+        governanceToken.mint(_actor, _amount);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(LimitExceeded.selector, _numOfDelegatees, governanceDelegation.MAX_DELEGATIONS())
+        );
+        vm.prank(_actor);
+        governanceDelegation.delegateBatched(delegations);
+    }
+
+    function testFuzz_delegateBatched_unsorted_reverts(
+        address _actor,
+        uint256 _amount,
+        uint256 _numOfDelegatees,
+        address _replacedDelegatee,
+        uint256 _seed
+    )
+        public
+    {
+        vm.assume(_actor != address(0));
+        _amount = bound(_amount, 0, type(uint208).max);
+        _numOfDelegatees = bound(_numOfDelegatees, 2, governanceDelegation.MAX_DELEGATIONS());
+        IGovernanceDelegation.Delegation[] memory delegations = _createValidPartialDelegation(_numOfDelegatees, _seed);
+        address lastDelegatee = delegations[delegations.length - 1].delegatee;
+        vm.assume(_replacedDelegatee <= lastDelegatee);
+        delegations[delegations.length - 1].delegatee = _replacedDelegatee;
+
+        vm.prank(owner);
+        governanceToken.mint(_actor, _amount);
+
+        vm.expectRevert(abi.encodeWithSelector(DuplicateOrUnsortedDelegatees.selector, _replacedDelegatee));
+        vm.prank(_actor);
+        governanceDelegation.delegateBatched(delegations);
+    }
+
+    function testFuzz_delegate_zeroNumerator_reverts(
+        address _actor,
+        uint256 _amount,
+        uint256 _delegationIndex,
+        uint256 _seed
+    )
+        public
+    {
+        vm.assume(_actor != address(0));
+        _amount = bound(_amount, 0, type(uint208).max);
+        IGovernanceDelegation.Delegation[] memory delegations = _createValidPartialDelegation(0, _seed);
+        _delegationIndex = bound(_delegationIndex, 0, delegations.length - 1);
+
+        delegations[_delegationIndex].amount = 0;
+
+        vm.prank(owner);
+        governanceToken.mint(_actor, _amount);
+
+        vm.expectRevert(InvalidNumeratorZero.selector);
+        vm.prank(_actor);
+        governanceDelegation.delegateBatched(delegations);
+
+        vm.expectRevert(InvalidNumeratorZero.selector);
+        vm.prank(_actor);
+        governanceDelegation.delegate(delegations[_delegationIndex]);
     }
 }
