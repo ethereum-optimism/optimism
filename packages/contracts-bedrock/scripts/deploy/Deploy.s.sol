@@ -664,15 +664,19 @@ contract Deploy is Deployer {
         );
 
         if (cfg.useInterop()) {
-            addr_ = address(new OptimismPortalInterop{ salt: _implSalt() }({
-                _proofMaturityDelaySeconds: cfg.proofMaturityDelaySeconds(),
-                _disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds()
-            }));
+            addr_ = address(
+                new OptimismPortalInterop{ salt: _implSalt() }({
+                    _proofMaturityDelaySeconds: cfg.proofMaturityDelaySeconds(),
+                    _disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds()
+                })
+            );
         } else {
-            addr_ = address(new OptimismPortal2{ salt: _implSalt() }({
-                _proofMaturityDelaySeconds: cfg.proofMaturityDelaySeconds(),
-                _disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds()
-            }));
+            addr_ = address(
+                new OptimismPortal2{ salt: _implSalt() }({
+                    _proofMaturityDelaySeconds: cfg.proofMaturityDelaySeconds(),
+                    _disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds()
+                })
+            );
         }
 
         save("OptimismPortal2", addr_);

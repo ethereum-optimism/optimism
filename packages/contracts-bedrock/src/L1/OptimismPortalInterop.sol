@@ -15,7 +15,12 @@ contract OptimismPortalInterop is OptimismPortal2 {
     /// @notice Thrown when a non-depositor account attempts update static configuration.
     error Unauthorized();
 
-    constructor(uint256 _proofMaturityDelaySeconds, uint256 _disputeGameFinalityDelaySeconds) OptimismPortal2(_proofMaturityDelaySeconds, _disputeGameFinalityDelaySeconds) {}
+    constructor(
+        uint256 _proofMaturityDelaySeconds,
+        uint256 _disputeGameFinalityDelaySeconds
+    )
+        OptimismPortal2(_proofMaturityDelaySeconds, _disputeGameFinalityDelaySeconds)
+    { }
 
     /// @custom:semver +interop
     function version() public pure override returns (string memory) {
