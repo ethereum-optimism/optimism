@@ -47,9 +47,9 @@ var nextFork = map[ForkName]ForkName{
 	Canyon:   Delta,
 	Delta:    Ecotone,
 	Ecotone:  Fjord,
-	Fjord:    Interop,
-	Granite:  Granite,
-	Holocene: Holocene,
+	Fjord:    Granite,
+	Granite:  Holocene,
+	Holocene: Interop,
 	Interop:  None,
 }
 
