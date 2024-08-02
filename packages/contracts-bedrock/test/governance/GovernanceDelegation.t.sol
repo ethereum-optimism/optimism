@@ -364,8 +364,10 @@ contract GovernanceDelegation_Delegate_Test is GovernanceDelegation_Init {
             IGovernanceDelegation.AllowanceType.Relative, _delegatee, governanceDelegation.DENOMINATOR()
         );
 
-        vm.expectEmit(address(governanceDelegation));
-        emit DelegateVotesChanged(_delegatee, 0, _amount);
+        if (_amount != 0) {
+            vm.expectEmit(address(governanceDelegation));
+            emit DelegateVotesChanged(_delegatee, 0, _amount);
+        }
 
         vm.expectEmit(address(governanceDelegation));
         emit DelegationsCreated(rando, delegations);
