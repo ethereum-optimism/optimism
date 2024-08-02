@@ -231,7 +231,7 @@ Artifacts are produced after execution is finished and posted to the summary pag
 - `kontrol_prove_report.xml` -- This is a Kontrol Generated JUnit XML Report containing results and performance data.
 - `Kontrol Results Folder.zip` -- This contains artifacts produced by kontrol during execution. This is expected on pass or failure of a proof run.
 
-To Fetch the artifacts of the execution from KaaS, you can either manually navigate to the summary page using the 'Details' link. Or you can use the GH API to pull the artifacts.
+To Fetch the artifacts of the execution from KaaS, you can either manually navigate to the summary page using the 'Details' link. Or you can use the GitHub API to pull the artifacts.
 Method 1: `gh` tool
 - gh run download RUN_ID
 
