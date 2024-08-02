@@ -6800,6 +6800,32 @@
         "chainId": 31337,
         "forkId": 0
       },
+      "data": "0x493f862b",
+      "deployedCode": "0x",
+      "initialized": true,
+      "kind": "StaticCall",
+      "newBalance": 0,
+      "oldBalance": 0,
+      "reverted": false,
+      "storageAccesses": [
+        {
+          "account": "0x9568d36E291c2C4c34fa5593fcE73715abEf6F9c",
+          "isWrite": false,
+          "newValue": "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "previousValue": "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "reverted": false,
+          "slot": "0x0000000000000000000000000000000000000000000000000000000000000049"
+        }
+      ],
+      "value": 0
+    },
+    {
+      "accessor": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
+      "account": "0x9568d36E291c2C4c34fa5593fcE73715abEf6F9c",
+      "chainInfo": {
+        "chainId": 31337,
+        "forkId": 0
+      },
       "data": "0xbf653a5c",
       "deployedCode": "0x",
       "initialized": true,

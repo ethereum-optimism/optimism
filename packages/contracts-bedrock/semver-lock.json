@@ -44,8 +44,8 @@
     "sourceCodeHash": "0x9af4d957b9d554b9926ad27572766d6f22c515f1ed6f620389b32c46ebce4c7b"
   },
   "src/L1/OptimismPortalInterop.sol": {
-    "initCodeHash": "0x4ab4c99bd776d1817f7475161db0ce47e735a91bb9fb486338238aa762fe0909",
-    "sourceCodeHash": "0x49ae32c402536774928116b833e2256741dbbdf99900ea5df159efab684d1008"
+    "initCodeHash": "0x8646e278e86229d26963b067eafde7ab22bc4aef0b994e9aab26c2d359e640ab",
+    "sourceCodeHash": "0xa74b629aae223a66de61c02e97811ae5e9ec6b6c356badddc6d5eec68bebd645"
   },
   "src/L1/ProtocolVersions.sol": {
     "initCodeHash": "0x72cd467e8bcf019c02675d72ab762e088bcc9cc0f1a4e9f587fa4589f7fdd1b8",
