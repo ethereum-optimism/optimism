@@ -9,15 +9,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
+	"github.com/ethereum-optimism/optimism/op-supervisor/config"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/log"
 )
-
-// TODO(optimism#11032) Make these configurable and a sensible default
-const epochPollInterval = 30 * time.Second
-const pollInterval = 2 * time.Second
-const trustRpc = false
-const rpcKind = sources.RPCKindStandard
 
 type Metrics interface {
 	caching.Metrics
@@ -36,9 +31,9 @@ type ChainMonitor struct {
 	headMonitor *HeadMonitor
 }
 
-func NewChainMonitor(ctx context.Context, logger log.Logger, m Metrics, chainID types.ChainID, rpc string, client client.RPC, store Storage) (*ChainMonitor, error) {
+func NewChainMonitor(ctx context.Context, logger log.Logger, m Metrics, chainID types.ChainID, rpc string, client client.RPC, store Storage, cfg config.ChainMonitorConfig) (*ChainMonitor, error) {
 	logger = logger.New("chainID", chainID)
-	cl, err := newClient(ctx, logger, m, rpc, client, pollInterval, trustRpc, rpcKind)
+	cl, err := newClient(ctx, logger, m, rpc, client, cfg.PollInterval, cfg.ShouldTrustRpc, cfg.RpcKind)
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +48,7 @@ func NewChainMonitor(ctx context.Context, logger log.Logger, m Metrics, chainID 
 
 	unsafeProcessors := []HeadProcessor{unsafeBlockProcessor}
 	callback := newHeadUpdateProcessor(logger, unsafeProcessors, nil, nil)
-	headMonitor := NewHeadMonitor(logger, epochPollInterval, cl, callback)
+	headMonitor := NewHeadMonitor(logger, cfg.EpochPollInterval, cl, callback)
 
 	return &ChainMonitor{
 		log:         logger,

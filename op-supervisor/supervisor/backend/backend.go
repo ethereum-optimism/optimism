@@ -72,7 +72,7 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger, m Metrics, cfg
 	chainMonitors := make([]*source.ChainMonitor, 0, len(cfg.L2RPCs))
 	for chainID, rpc := range chainRPCs {
 		cm := newChainMetrics(chainID, m)
-		monitor, err := source.NewChainMonitor(ctx, logger, cm, chainID, rpc, chainClients[chainID], chainsDB)
+		monitor, err := source.NewChainMonitor(ctx, logger, cm, chainID, rpc, chainClients[chainID], chainsDB, cfg.ChainMonitorConfig)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create monitor for rpc %v: %w", rpc, err)
 		}

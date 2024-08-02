@@ -2,11 +2,13 @@ package config
 
 import (
 	"errors"
+	"time"
 
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
 
 var (
@@ -25,8 +27,18 @@ type Config struct {
 	// MockRun runs the service with a mock backend
 	MockRun bool
 
-	L2RPCs  []string
+	// TODO(protocol-quest#288): configure list of chains and their RPC endpoints / potential alternative data sources
+	L2RPCs             []string
+	ChainMonitorConfig ChainMonitorConfig
+
 	Datadir string
+}
+
+type ChainMonitorConfig struct {
+	EpochPollInterval time.Duration
+	PollInterval      time.Duration
+	ShouldTrustRpc    bool
+	RpcKind           sources.RPCProviderKind
 }
 
 func (c *Config) Check() error {
@@ -54,5 +66,11 @@ func NewConfig(l2RPCs []string, datadir string) *Config {
 		MockRun:       false,
 		L2RPCs:        l2RPCs,
 		Datadir:       datadir,
+		ChainMonitorConfig: ChainMonitorConfig{
+			EpochPollInterval: 30 * time.Second,
+			PollInterval:      2 * time.Second,
+			ShouldTrustRpc:    false,
+			RpcKind:           sources.RPCKindStandard,
+		},
 	}
 }
