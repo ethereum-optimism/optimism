@@ -124,6 +124,7 @@ func DefaultSystemConfig(t testing.TB) SystemConfig {
 		L1InfoPredeployAddress: predeploys.L1BlockAddr,
 		JWTFilePath:            writeDefaultJWT(t),
 		JWTSecret:              testingJWTSecret,
+		L1FinalizedDistance:    8, // Short, for faster tests.
 		BlobsPath:              t.TempDir(),
 		Nodes: map[string]*rollupNode.Config{
 			RoleSeq: {
@@ -238,6 +239,9 @@ type SystemConfig struct {
 	JWTSecret   [32]byte
 
 	BlobsPath string
+
+	// L1FinalizedDistance is the distance from the L1 head that L1 blocks will be artificially finalized on.
+	L1FinalizedDistance uint64
 
 	Premine        map[common.Address]*big.Int
 	Nodes          map[string]*rollupNode.Config // Per node config. Don't use populate rollup.Config
@@ -614,7 +618,8 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	sys.L1BeaconAPIAddr = beaconApiAddr
 
 	// Initialize nodes
-	l1Node, l1Backend, err := geth.InitL1(cfg.DeployConfig.L1ChainID, cfg.DeployConfig.L1BlockTime, l1Genesis, c,
+	l1Node, l1Backend, err := geth.InitL1(cfg.DeployConfig.L1ChainID,
+		cfg.DeployConfig.L1BlockTime, cfg.L1FinalizedDistance, l1Genesis, c,
 		path.Join(cfg.BlobsPath, "l1_el"), bcn, cfg.GethOptions[RoleL1]...)
 	if err != nil {
 		return nil, err
