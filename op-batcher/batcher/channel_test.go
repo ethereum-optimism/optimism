@@ -122,7 +122,7 @@ func TestChannel_NextTxData_singleFrameTx(t *testing.T) {
 	const n = 6
 	lgr := testlog.Logger(t, log.LevelWarn)
 	ch, err := newChannel(lgr, metrics.NoopMetrics, ChannelConfig{
-		MultiFrameTxs:   false,
+		UseBlobs:        false,
 		TargetNumFrames: n,
 		CompressorConfig: compressor.Config{
 			CompressionAlgo: derive.Zlib,
@@ -163,7 +163,7 @@ func TestChannel_NextTxData_multiFrameTx(t *testing.T) {
 	const n = 6
 	lgr := testlog.Logger(t, log.LevelWarn)
 	ch, err := newChannel(lgr, metrics.NoopMetrics, ChannelConfig{
-		MultiFrameTxs:   true,
+		UseBlobs:        true,
 		TargetNumFrames: n,
 		CompressorConfig: compressor.Config{
 			CompressionAlgo: derive.Zlib,

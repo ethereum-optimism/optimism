@@ -22,7 +22,7 @@ module PAUSABILITY-LEMMAS
 
 ## Arithmetic
 
-Lemmas on arithmetic reasoning. Specifically, on: cancellativity, inequalites in which the two sides are of different signs; and the rounding-up mechanism of the Solidity compiler (expressed through `notMaxUInt5 &Int ( X +Int 31 )`, which rounds up `X` to the nearest multiple of 32).
+Lemmas on arithmetic reasoning. Specifically, on: cancellativity, inequalities in which the two sides are of different signs; and the rounding-up mechanism of the Solidity compiler (expressed through `notMaxUInt5 &Int ( X +Int 31 )`, which rounds up `X` to the nearest multiple of 32).
 
 ```k
     // Cancellativity #1
@@ -202,17 +202,17 @@ The summary lemma is as follows, with commentary inlined:
        // Various well-formedness constraints. In particular, the maxBytesLength-related ones are present to
        // remove various chops that would otherwise creep into the execution, and are reasonable since byte
        // arrays in actual programs would never reach that size.
-       andBool 0 <=Int PCOUNT
-       andBool 0 <=Int LENGTH andBool LENGTH <Int maxBytesLength
-       andBool 0 <=Int SRC    andBool SRC    <Int maxBytesLength
-       andBool 0 <=Int DEST   andBool DEST   <Int maxBytesLength
-       andBool #sizeWordStack(WS) <=Int 1015
-
-       andBool SRC +Int LENGTH <=Int DEST // No overlap between source and destination
-       andBool DEST <=Int lengthBytes(LM) // Destination starts within current memory
+       andThenBool 0 <=Int PCOUNT
+       andThenBool 0 <=Int LENGTH andThenBool LENGTH <Int maxBytesLength
+       andThenBool 0 <=Int SRC    andThenBool SRC    <Int maxBytesLength
+       andThenBool 0 <=Int DEST   andThenBool DEST   <Int maxBytesLength
+       andThenBool #sizeWordStack(WS) <=Int 1015
+       andThenBool SRC +Int LENGTH <=Int DEST // No overlap between source and destination
+       andThenBool DEST <=Int lengthBytes(LM) // Destination starts within current memory
+       andThenBool PCOUNT +Int 51 <Int lengthBytes(JUMPDESTS) // We're not look outside of the JUMPDESTs bytearray
        // All JUMPDESTs in the program are valid
-       andBool (PCOUNT +Int 2) in JUMPDESTS andBool (PCOUNT +Int 32) in JUMPDESTS andBool (PCOUNT +Int 51) in JUMPDESTS
-       andBool PCOUNT +Int 51 <Int 2 ^Int 16  // and fit into two bytes
+       andThenBool JUMPDESTS[PCOUNT +Int 2] ==Int 1 andThenBool JUMPDESTS[PCOUNT +Int 32] ==Int 1 andThenBool JUMPDESTS[PCOUNT +Int 51] ==Int 1
+       andThenBool PCOUNT +Int 51 <Int 2 ^Int 16  // and fit into two bytes
       [priority(30), concrete(JUMPDESTS, PROGRAM, PCOUNT), preserves-definedness]
 
 endmodule

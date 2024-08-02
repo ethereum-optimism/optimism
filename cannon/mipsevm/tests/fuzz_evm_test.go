@@ -47,7 +47,7 @@ func FuzzStateSyscallBrk(f *testing.F) {
 		expectedRegisters := state.Registers
 		expectedRegisters[2] = 0x4000_0000
 
-		goState := singlethreaded.NewInstrumentedState(state, nil, os.Stdout, os.Stderr)
+		goState := singlethreaded.NewInstrumentedState(state, nil, os.Stdout, os.Stderr, nil)
 		stepWitness, err := goState.Step(true)
 		require.NoError(t, err)
 		require.False(t, stepWitness.HasPreimage())
@@ -98,7 +98,7 @@ func FuzzStateSyscallClone(f *testing.F) {
 		expectedRegisters := state.Registers
 		expectedRegisters[2] = 0x1
 
-		goState := singlethreaded.NewInstrumentedState(state, nil, os.Stdout, os.Stderr)
+		goState := singlethreaded.NewInstrumentedState(state, nil, os.Stdout, os.Stderr, nil)
 		stepWitness, err := goState.Step(true)
 		require.NoError(t, err)
 		require.False(t, stepWitness.HasPreimage())
@@ -147,7 +147,7 @@ func FuzzStateSyscallMmap(f *testing.F) {
 		preStateRoot := state.Memory.MerkleRoot()
 		preStateRegisters := state.Registers
 
-		goState := singlethreaded.NewInstrumentedState(state, nil, os.Stdout, os.Stderr)
+		goState := singlethreaded.NewInstrumentedState(state, nil, os.Stdout, os.Stderr, nil)
 		stepWitness, err := goState.Step(true)
 		require.NoError(t, err)
 		require.False(t, stepWitness.HasPreimage())
@@ -210,7 +210,7 @@ func FuzzStateSyscallExitGroup(f *testing.F) {
 		preStateRoot := state.Memory.MerkleRoot()
 		preStateRegisters := state.Registers
 
-		goState := singlethreaded.NewInstrumentedState(state, nil, os.Stdout, os.Stderr)
+		goState := singlethreaded.NewInstrumentedState(state, nil, os.Stdout, os.Stderr, nil)
 		stepWitness, err := goState.Step(true)
 		require.NoError(t, err)
 		require.False(t, stepWitness.HasPreimage())
@@ -259,7 +259,7 @@ func FuzzStateSyscallFcntl(f *testing.F) {
 		preStateRoot := state.Memory.MerkleRoot()
 		preStateRegisters := state.Registers
 
-		goState := singlethreaded.NewInstrumentedState(state, nil, os.Stdout, os.Stderr)
+		goState := singlethreaded.NewInstrumentedState(state, nil, os.Stdout, os.Stderr, nil)
 		stepWitness, err := goState.Step(true)
 		require.NoError(t, err)
 		require.False(t, stepWitness.HasPreimage())
@@ -330,7 +330,7 @@ func FuzzStateHintRead(f *testing.F) {
 		expectedRegisters[2] = count
 
 		oracle := testutil.StaticOracle(t, preimageData) // only used for hinting
-		goState := singlethreaded.NewInstrumentedState(state, oracle, os.Stdout, os.Stderr)
+		goState := singlethreaded.NewInstrumentedState(state, oracle, os.Stdout, os.Stderr, nil)
 		stepWitness, err := goState.Step(true)
 		require.NoError(t, err)
 		require.False(t, stepWitness.HasPreimage())
@@ -391,7 +391,7 @@ func FuzzStatePreimageRead(f *testing.F) {
 		}
 		oracle := testutil.StaticOracle(t, preimageData)
 
-		goState := singlethreaded.NewInstrumentedState(state, oracle, os.Stdout, os.Stderr)
+		goState := singlethreaded.NewInstrumentedState(state, oracle, os.Stdout, os.Stderr, nil)
 		stepWitness, err := goState.Step(true)
 		require.NoError(t, err)
 		require.True(t, stepWitness.HasPreimage())
@@ -458,7 +458,7 @@ func FuzzStateHintWrite(f *testing.F) {
 		expectedRegisters[2] = count
 
 		oracle := testutil.StaticOracle(t, preimageData) // only used for hinting
-		goState := singlethreaded.NewInstrumentedState(state, oracle, os.Stdout, os.Stderr)
+		goState := singlethreaded.NewInstrumentedState(state, oracle, os.Stdout, os.Stderr, nil)
 		stepWitness, err := goState.Step(true)
 		require.NoError(t, err)
 		require.False(t, stepWitness.HasPreimage())
@@ -514,7 +514,7 @@ func FuzzStatePreimageWrite(f *testing.F) {
 		expectedRegisters[2] = count
 
 		oracle := testutil.StaticOracle(t, preimageData)
-		goState := singlethreaded.NewInstrumentedState(state, oracle, os.Stdout, os.Stderr)
+		goState := singlethreaded.NewInstrumentedState(state, oracle, os.Stdout, os.Stderr, nil)
 		stepWitness, err := goState.Step(true)
 		require.NoError(t, err)
 		require.False(t, stepWitness.HasPreimage())

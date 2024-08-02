@@ -38,5 +38,4 @@ flag_management:
           target: 100%
     - name: bedrock-go-tests
     - name: contracts-tests
-    - name: chain-mon-tests
     - name: sdk-tests

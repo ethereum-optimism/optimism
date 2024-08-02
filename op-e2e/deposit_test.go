@@ -20,7 +20,7 @@ func TestMintOnRevertedDeposit(t *testing.T) {
 	cfg := DefaultSystemConfig(t)
 	delete(cfg.Nodes, "verifier")
 	sys, err := cfg.Start(t)
-	require.Nil(t, err, "Error starting up system")
+	require.NoError(t, err, "Error starting up system")
 	defer sys.Close()
 
 	l1Client := sys.Clients["l1"]
@@ -29,13 +29,13 @@ func TestMintOnRevertedDeposit(t *testing.T) {
 	// create signer
 	aliceKey := cfg.Secrets.Alice
 	opts, err := bind.NewKeyedTransactorWithChainID(aliceKey, cfg.L1ChainIDBig())
-	require.Nil(t, err)
+	require.NoError(t, err)
 	fromAddr := opts.From
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	startBalance, err := l2Verif.BalanceAt(ctx, fromAddr, nil)
 	cancel()
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
 	startNonce, err := l2Verif.NonceAt(ctx, fromAddr, nil)
@@ -56,7 +56,7 @@ func TestMintOnRevertedDeposit(t *testing.T) {
 	ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
 	endBalance, err := wait.ForBalanceChange(ctx, l2Verif, fromAddr, startBalance)
 	cancel()
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
 	toAddrBalance, err := l2Verif.BalanceAt(ctx, toAddr, nil)
@@ -81,14 +81,14 @@ func TestDepositTxCreateContract(t *testing.T) {
 	delete(cfg.Nodes, "verifier")
 
 	sys, err := cfg.Start(t)
-	require.Nil(t, err, "Error starting up system")
+	require.NoError(t, err, "Error starting up system")
 	defer sys.Close()
 
 	l1Client := sys.Clients["l1"]
 	l2Client := sys.Clients["sequencer"]
 
 	opts, err := bind.NewKeyedTransactorWithChainID(cfg.Secrets.Alice, cfg.L1ChainIDBig())
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// Simple constructor that is prefixed to the actual contract code
 	// Results in the contract code being returned as the code for the new contract

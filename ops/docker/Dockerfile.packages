@@ -17,7 +17,7 @@ FROM alpine:3.16 as manifests
 RUN apk add coreutils
 
 WORKDIR /tmp
-COPY pnpm-lock.yaml pnpm-workspace.yaml .nvmrc package.json .pnpmfile.cjs ./src/
+COPY pnpm-lock.yaml pnpm-workspace.yaml .nvmrc package.json ./src/
 COPY packages src/packages/
 RUN mkdir manifests && \
   cd src && \
@@ -28,9 +28,7 @@ RUN mkdir manifests && \
   # pnpm-workspace.yaml
   cp pnpm-workspace.yaml ../manifests/ && \
   # .nvmrc
-  cp .nvmrc ../manifests/ && \
-  # .pnpmfile.cjs
-  cp .pnpmfile.cjs ../manifests/
+  cp .nvmrc ../manifests/
 
 FROM us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest as foundry
 # bullseye-slim is debian based
@@ -75,7 +73,7 @@ WORKDIR /opt/optimism
 COPY --from=manifests /tmp/manifests  ./
 COPY *.json ./
 
-RUN pnpm install:ci
+RUN pnpm install --frozen-lockfile
 
 COPY ./packages ./packages
 
@@ -88,39 +86,6 @@ COPY --from=1password/op:2 /usr/local/bin/op /usr/local/bin/op
 RUN pnpm build
 
 ENTRYPOINT ["pnpm", "run"]
-
-FROM base as chain-mon
-WORKDIR /opt/optimism/packages/chain-mon
-
-# TODO keeping the rest of these here for now because they are being used
-# but we should really delete them we only need one image
-FROM base as balance-mon
-WORKDIR /opt/optimism/packages/chain-mon/internal
-CMD ["start:balance-mon"]
-
-from base as fault-mon
-WORKDIR /opt/optimism/packages/chain-mon/
-CMD ["start:fault-mon"]
-
-from base as multisig-mon
-WORKDIR /opt/optimism/packages/internal/multisig-mon
-CMD ["start:multisig-mon"]
-
-FROM base as replica-mon
-WORKDIR /opt/optimism/packages/chain-mon/contrib
-CMD ["start:replica-mon"]
-
-FROM base as wallet-mon
-WORKDIR /opt/optimism/packages/chain-mon/contrib
-CMD ["start:wallet-mon"]
-
-FROM base as wd-mon
-WORKDIR /opt/optimism/packages/chain-mon/
-CMD ["start:wd-mon"]
-
-FROM base as faultproof-wd-mon
-WORKDIR /opt/optimism/packages/chain-mon/
-CMD ["start:faultproof-wd-mon"]
 
 FROM base as contracts-bedrock
 WORKDIR /opt/optimism/packages/contracts-bedrock

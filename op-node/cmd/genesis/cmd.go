@@ -1,21 +1,20 @@
 package genesis
 
 import (
-	"context"
 	"errors"
 	"fmt"
-	"math/big"
+	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/retry"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/urfave/cli/v2"
-
-	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethclient"
 )
 
 var (
@@ -79,7 +78,6 @@ var Subcommands = cli.Commands{
 		Usage: "Generates a L1 genesis state file",
 		Flags: l1Flags,
 		Action: func(ctx *cli.Context) error {
-
 			deployConfig := ctx.String(deployConfigFlag.Name)
 			config, err := genesis.NewDeployConfig(deployConfig)
 			if err != nil {
@@ -98,7 +96,9 @@ var Subcommands = cli.Commands{
 				config.SetDeployments(deployments)
 			}
 
-			if err := config.Check(); err != nil {
+			cfg := oplog.DefaultCLIConfig()
+			logger := oplog.NewLogger(ctx.App.Writer, cfg)
+			if err := config.Check(logger); err != nil {
 				return fmt.Errorf("deploy config at %s invalid: %w", deployConfig, err)
 			}
 
@@ -133,8 +133,11 @@ var Subcommands = cli.Commands{
 			"or it can be provided as a JSON file.",
 		Flags: l2Flags,
 		Action: func(ctx *cli.Context) error {
+			cfg := oplog.DefaultCLIConfig()
+			logger := oplog.NewLogger(ctx.App.Writer, cfg)
+
 			deployConfig := ctx.Path(deployConfigFlag.Name)
-			log.Info("Deploy config", "path", deployConfig)
+			logger.Info("Deploy config", "path", deployConfig)
 			config, err := genesis.NewDeployConfig(deployConfig)
 			if err != nil {
 				return err
@@ -165,29 +168,26 @@ var Subcommands = cli.Commands{
 				return fmt.Errorf("cannot dial %s: %w", l1RPC, err)
 			}
 
-			funcDef := "startBlock()"
-			funcHash := crypto.Keccak256Hash([]byte(funcDef))
-			msg := ethereum.CallMsg{
-				To:   &config.SystemConfigProxy,
-				Data: funcHash[:4], // hardcode the 4byte sig
-			}
-			result, err := client.CallContract(context.Background(), msg, nil)
+			caller := batching.NewMultiCaller(client.Client(), batching.DefaultBatchSize)
+			sysCfg := NewSystemConfigContract(caller, config.SystemConfigProxy)
+			startBlock, err := sysCfg.StartBlock(ctx.Context)
 			if err != nil {
-				return fmt.Errorf("failed to fetch startBlock from SystemConfig contract: %w", err)
+				return fmt.Errorf("failed to fetch startBlock from SystemConfig: %w", err)
 			}
 
-			l1StartBlockNum := new(big.Int).SetBytes(result)
-			l1StartBlock, err := client.BlockByNumber(context.Background(), l1StartBlockNum)
+			logger.Info("Using L1 Start Block", "number", startBlock)
+			// retry because local devnet can experience a race condition where L1 geth isn't ready yet
+			l1StartBlock, err := retry.Do(ctx.Context, 24, retry.Fixed(1*time.Second), func() (*types.Block, error) { return client.BlockByNumber(ctx.Context, startBlock) })
 			if err != nil {
-				return fmt.Errorf("cannot fetch block by number: %w", err)
+				return fmt.Errorf("fetching start block by number: %w", err)
 			}
+			logger.Info("Fetched L1 Start Block", "hash", l1StartBlock.Hash().Hex())
 
-			// Sanity check the config
-			if err := config.Check(); err != nil {
+			// Sanity check the config. Do this after filling in the L1StartingBlockTag
+			// if it is not defined.
+			if err := config.Check(logger); err != nil {
 				return err
 			}
-
-			log.Info("Using L1 Start Block", "number", l1StartBlock.Number(), "hash", l1StartBlock.Hash().Hex())
 
 			// Build the L2 genesis block
 			l2Genesis, err := genesis.BuildL2Genesis(config, l2Allocs, l1StartBlock)

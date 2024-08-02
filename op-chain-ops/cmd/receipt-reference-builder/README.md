@@ -34,6 +34,6 @@ This tool is designed with a static range of blocks in mind, the size of which i
 
 To maximize parallel efficiency, a higher number of `-workers` can utilize more RPC requests per second. Additionally `-batch-size` can be increased to group more RPC requests together per network exchange. I am using 5 workers with 100 requests per batch.
 
-To avoid wasteful abandon of work already done, errors which are encountered by workers are noted, but do not stop the aggregation process. Jobs which fail are reinserted into the work queue with no maximum retry, and workers back off when encountering failures. This is all to allow an RPC endpoint to become temporarily unavailalbe while letting aggregation stay persistent.
+To avoid wasteful abandon of work already done, errors which are encountered by workers are noted, but do not stop the aggregation process. Jobs which fail are reinserted into the work queue with no maximum retry, and workers back off when encountering failures. This is all to allow an RPC endpoint to become temporarily unavailable while letting aggregation stay persistent.
 
 Even at high speed, collecting this much data can take several hours. You may benefit from planning a collection of smaller-sized runs, merging them with the `merge` subcommand as they become available.

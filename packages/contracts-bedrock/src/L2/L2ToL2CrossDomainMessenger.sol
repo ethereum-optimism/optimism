@@ -60,8 +60,8 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver {
     uint16 public constant messageVersion = uint16(0);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.1
-    string public constant version = "1.0.0-beta.1";
+    /// @custom:semver 1.0.0-beta.2
+    string public constant version = "1.0.0-beta.2";
 
     /// @notice Mapping of message hashes to boolean receipt values. Note that a message will only be present in this
     ///         mapping if it has successfully been relayed on this chain, and can therefore not be relayed again.
@@ -71,10 +71,6 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver {
     ///         which will insert the message version into the nonce to give you the actual nonce to be used for the
     ///         message.
     uint240 internal msgNonce;
-
-    /// @notice Emitted whenever a message is sent to the other chain.
-    /// @param data Encoded data of the message that was sent.
-    event SentMessage(bytes data) anonymous;
 
     /// @notice Emitted whenever a message is successfully relayed on this chain.
     /// @param messageHash Hash of the message that was relayed.
@@ -134,7 +130,9 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver {
             L2ToL2CrossDomainMessenger.relayMessage,
             (_destination, block.chainid, messageNonce(), msg.sender, _target, _message)
         );
-        emit SentMessage(data);
+        assembly {
+            log0(add(data, 0x20), mload(data))
+        }
         msgNonce++;
     }
 

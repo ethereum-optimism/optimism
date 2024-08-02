@@ -49,8 +49,8 @@ type PlasmaParam func(p *e2eutils.TestParams)
 func NewL2PlasmaDA(t Testing, params ...PlasmaParam) *L2PlasmaDA {
 	p := &e2eutils.TestParams{
 		MaxSequencerDrift:   40,
-		SequencerWindowSize: 120,
-		ChannelTimeout:      120,
+		SequencerWindowSize: 12,
+		ChannelTimeout:      12,
 		L1BlockTime:         12,
 		UsePlasma:           true,
 	}
@@ -81,7 +81,7 @@ func NewL2PlasmaDA(t Testing, params ...PlasmaParam) *L2PlasmaDA {
 
 	daMgr := plasma.NewPlasmaDAWithStorage(log, plasmaCfg, storage, &plasma.NoopMetrics{})
 
-	sequencer := NewL2Sequencer(t, log, l1F, nil, daMgr, engCl, sd.RollupCfg, 0)
+	sequencer := NewL2Sequencer(t, log, l1F, miner.BlobStore(), daMgr, engCl, sd.RollupCfg, 0)
 	miner.ActL1SetFeeRecipient(common.Address{'A'})
 	sequencer.ActL2PipelineFull(t)
 
@@ -139,7 +139,7 @@ func (a *L2PlasmaDA) NewVerifier(t Testing) *L2Verifier {
 
 	daMgr := plasma.NewPlasmaDAWithStorage(a.log, a.plasmaCfg, a.storage, &plasma.NoopMetrics{})
 
-	verifier := NewL2Verifier(t, a.log, l1F, nil, daMgr, engCl, a.sd.RollupCfg, &sync.Config{}, safedb.Disabled)
+	verifier := NewL2Verifier(t, a.log, l1F, a.miner.BlobStore(), daMgr, engCl, a.sd.RollupCfg, &sync.Config{}, safedb.Disabled)
 
 	return verifier
 }
@@ -453,10 +453,6 @@ func TestPlasma_SequencerStalledMultiChallenges(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	a := NewL2PlasmaDA(t)
 
-	// generate some initial L1 blocks.
-	a.ActL1Blocks(t, 5)
-	a.sequencer.ActL1HeadSignal(t)
-
 	// create a new tx on l2 and commit it to l1
 	a.ActNewL2Tx(t)
 
@@ -489,7 +485,7 @@ func TestPlasma_SequencerStalledMultiChallenges(gt *testing.T) {
 	})
 
 	// include it in L1
-	a.miner.ActL1StartBlock(120)(t)
+	a.miner.ActL1StartBlock(12)(t)
 	a.miner.ActL1IncludeTx(a.dp.Addresses.Batcher)(t)
 	a.miner.ActL1EndBlock(t)
 

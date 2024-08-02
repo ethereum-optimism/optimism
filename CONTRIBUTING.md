@@ -39,7 +39,7 @@ Interactions within this repository are subject to a [Code of Conduct](https://g
 
 #### `node`
 
-Make sure to use the version of `node` specified within [`.nvmrc`](..nvmrc).
+Make sure to use the version of `node` specified within [`.nvmrc`](./.nvmrc).
 You can use [`nvm`](https://github.com/nvm-sh/nvm) to manage multiple versions of Node.js on your machine and automatically switch to the correct version when you enter this repository.
 
 #### `foundry`

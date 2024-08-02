@@ -46,8 +46,11 @@ func entrypoint(ctx *cli.Context) error {
 		return err
 	}
 
+	cfg := oplog.DefaultCLIConfig()
+	logger := oplog.NewLogger(ctx.App.Writer, cfg)
+
 	// Check the config, no need to call `CheckAddresses()`
-	if err := config.Check(); err != nil {
+	if err := config.Check(logger); err != nil {
 		return err
 	}
 

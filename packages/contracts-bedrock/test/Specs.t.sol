@@ -10,6 +10,7 @@ import { OptimismPortalInterop } from "src/L1/OptimismPortalInterop.sol";
 import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { DataAvailabilityChallenge } from "src/L1/DataAvailabilityChallenge.sol";
+import { OPStackManager } from "src/L1/OPStackManager.sol";
 import { ForgeArtifacts, Abi, AbiEntry } from "scripts/ForgeArtifacts.sol";
 
 /// @title Specification_Test
@@ -347,6 +348,12 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("respectedGameTypeUpdatedAt()") });
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("proofSubmitters(bytes32,uint256)") });
         _addSpec({ _name: "OptimismPortal2", _sel: _getSel("numProofSubmitters(bytes32)") });
+        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("balance()") });
+        _addSpec({
+            _name: "OptimismPortal2",
+            _sel: _getSel("depositERC20Transaction(address,uint256,uint256,uint64,bool,bytes)")
+        });
+        _addSpec({ _name: "OptimismPortal2", _sel: _getSel("setGasPayingToken(address,uint8,bytes32,bytes32)") });
 
         // ProtocolVersions
         _addSpec({ _name: "ProtocolVersions", _sel: _getSel("RECOMMENDED_SLOT()") });
@@ -780,6 +787,10 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "WETH98", _sel: _getSel("transfer(address,uint256)") });
         _addSpec({ _name: "WETH98", _sel: _getSel("transferFrom(address,address,uint256)") });
         _addSpec({ _name: "WETH98", _sel: _getSel("withdraw(uint256)") });
+
+        // OPStackManager
+        _addSpec({ _name: "OPStackManager", _sel: _getSel("version()") });
+        _addSpec({ _name: "OPStackManager", _sel: OPStackManager.deploy.selector });
 
         // DeputyGuardianModule
         _addSpec({

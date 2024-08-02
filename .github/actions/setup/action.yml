@@ -19,7 +19,7 @@ runs:
 
     - name: Install node dependencies
       shell: bash
-      run: pnpm install:ci
+      run: pnpm install --frozen-lockfile
     - name: Derive appropriate SHAs for base and head for `nx affected` commands
       uses: nrwl/nx-set-shas@v3
       with:
