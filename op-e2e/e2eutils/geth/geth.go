@@ -22,7 +22,7 @@ import (
 	_ "github.com/ethereum/go-ethereum/eth/tracers/native"
 )
 
-func InitL1(chainID uint64, blockTime uint64, genesis *core.Genesis, c clock.Clock, blobPoolDir string, beaconSrv Beacon, opts ...GethOption) (*node.Node, *eth.Ethereum, error) {
+func InitL1(chainID uint64, blockTime uint64, finalizedDistance uint64, genesis *core.Genesis, c clock.Clock, blobPoolDir string, beaconSrv Beacon, opts ...GethOption) (*node.Node, *eth.Ethereum, error) {
 	ethConfig := &ethconfig.Config{
 		NetworkId: chainID,
 		Genesis:   genesis,
@@ -51,12 +51,11 @@ func InitL1(chainID uint64, blockTime uint64, genesis *core.Genesis, c clock.Clo
 
 	// Instead of running a whole beacon node, we run this fake-proof-of-stake sidecar that sequences L1 blocks using the Engine API.
 	l1Node.RegisterLifecycle(&fakePoS{
-		clock:     c,
-		eth:       l1Eth,
-		log:       log.Root(), // geth logger is global anyway. Would be nice to replace with a local logger though.
-		blockTime: blockTime,
-		// for testing purposes we make it really fast, otherwise we don't see it finalize in short tests
-		finalizedDistance: 8,
+		clock:             c,
+		eth:               l1Eth,
+		log:               log.Root(), // geth logger is global anyway. Would be nice to replace with a local logger though.
+		blockTime:         blockTime,
+		finalizedDistance: finalizedDistance,
 		safeDistance:      4,
 		engineAPI:         catalyst.NewConsensusAPI(l1Eth),
 		beacon:            beaconSrv,
