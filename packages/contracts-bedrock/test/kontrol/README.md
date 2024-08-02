@@ -197,7 +197,7 @@ KaaS (Kontrol as a Service) is a service provided by Runtime Verification Inc. I
 
 To use KaaS, you need a Runtime Verification assigned token that provides access to run compute jobs under the RV Org. Additionally, if you want to receive status updates on the pass/fail of compute executions, you must provide a Fine-Grained token with the necessary statuses permissions to RV.
 
-A workflow in CircleCI is configured within [.circleci/config.yml](../../../../.circleci/config.yml) and calls on the Github API to execute in the KaaS compute ecosystem. CircleCI must be/is configured with the RV provided Secrets to execute compute jobs in KaaS.
+A workflow in CircleCI is configured within [.circleci/config.yml](../../../../.circleci/config.yml) and calls on the Github API to execute in the KaaS compute ecosystem. CircleCI is configured with the RV provided Secrets to execute compute jobs in KaaS.
 
 Running `pnpm run test:kontrol` can run a similar environment locally, allowing for reproducing CI tests.
 
