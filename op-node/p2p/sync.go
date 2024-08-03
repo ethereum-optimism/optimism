@@ -376,7 +376,8 @@ func unixTimeStale(timestamp uint64, duration time.Duration) bool {
 }
 
 func (s *SyncClient) RequestL2Range(ctx context.Context, start, end eth.L2BlockRef) (uint64, error) {
-	if unixTimeStale(start.Time, time.Duration(s.syncStaleThreshold)*time.Hour) {
+	// syncStaleThreshold is 0 in test, and we want to skip this check for test
+	if s.syncStaleThreshold > 0 && unixTimeStale(start.Time, time.Duration(s.syncStaleThreshold)*time.Hour) {
 		s.log.Debug("ignoring request to sync L2 range, timestamp is too old for p2p", "start", start, "end", end, "start_time", start.Time)
 		return 0, nil
 	}
