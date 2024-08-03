@@ -211,7 +211,7 @@ contract Deploy is Deployer {
 
     /// @notice Make a call from the Safe contract to an arbitrary address with arbitrary data
     function _callViaSafe(Safe _safe, address _target, bytes memory _data) internal {
-        // This is the signature format used the caller is also the signer.
+        // This is the signature format used when the caller is also the signer.
         bytes memory signature = abi.encodePacked(uint256(uint160(msg.sender)), bytes32(0), uint8(1));
 
         _safe.execTransaction({
@@ -455,8 +455,8 @@ contract Deploy is Deployer {
         console.log("Deploying safe: %s with salt %s", _name, vm.toString(salt));
         (SafeProxyFactory safeProxyFactory, Safe safeSingleton) = _getSafeFactory();
 
-        address[] memory expandedOwners = new address[](_owners.length + 1);
         if (_keepDeployer) {
+            address[] memory expandedOwners = new address[](_owners.length + 1);
             // By always adding msg.sender first we know that the previousOwner will be SENTINEL_OWNERS, which makes it
             // easier to call removeOwner later.
             expandedOwners[0] = msg.sender;

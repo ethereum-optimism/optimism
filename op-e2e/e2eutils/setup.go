@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/stretchr/testify/require"
 
@@ -63,7 +64,8 @@ func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
 	deployConfig.UsePlasma = tp.UsePlasma
 	ApplyDeployConfigForks(deployConfig)
 
-	require.NoError(t, deployConfig.Check())
+	logger := log.NewLogger(log.DiscardHandler())
+	require.NoError(t, deployConfig.Check(logger))
 	require.Equal(t, addresses.Batcher, deployConfig.BatchSenderAddress)
 	require.Equal(t, addresses.Proposer, deployConfig.L2OutputOracleProposer)
 	require.Equal(t, addresses.SequencerP2P, deployConfig.P2PSequencerAddress)
@@ -105,7 +107,8 @@ func Ether(v uint64) *big.Int {
 func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *SetupData {
 	deployConf := deployParams.DeployConfig.Copy()
 	deployConf.L1GenesisBlockTimestamp = hexutil.Uint64(time.Now().Unix())
-	require.NoError(t, deployConf.Check())
+	logger := log.NewLogger(log.DiscardHandler())
+	require.NoError(t, deployConf.Check(logger))
 
 	l1Deployments := config.L1Deployments.Copy()
 	require.NoError(t, l1Deployments.Check(deployConf))
@@ -233,9 +236,11 @@ func UseFaultProofs() bool {
 }
 
 func UseL2OO() bool {
-	return os.Getenv("OP_E2E_USE_L2OO") == "true"
+	return (os.Getenv("OP_E2E_USE_L2OO") == "true" ||
+		os.Getenv("DEVNET_L2OO") == "true")
 }
 
 func UsePlasma() bool {
-	return os.Getenv("OP_E2E_USE_PLASMA") == "true"
+	return (os.Getenv("OP_E2E_USE_PLASMA") == "true" ||
+		os.Getenv("DEVNET_PLASMA") == "true")
 }

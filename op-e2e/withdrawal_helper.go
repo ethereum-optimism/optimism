@@ -3,6 +3,7 @@ package op_e2e
 import (
 	"context"
 	"crypto/ecdsa"
+	"errors"
 	"math/big"
 	"testing"
 	"time"
@@ -10,6 +11,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
+
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
@@ -27,6 +30,8 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient/gethclient"
 	"github.com/stretchr/testify/require"
 )
+
+const SolErrClaimAlreadyResolved = "0xf1a94581"
 
 type ClientProvider interface {
 	NodeClient(name string) *ethclient.Client
@@ -100,15 +105,15 @@ func ProveWithdrawal(t *testing.T, cfg SystemConfig, clients ClientProvider, l2N
 	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	defer cancel()
 
-	l1Client := clients.NodeClient("l1")
+	l1Client := clients.NodeClient(RoleL1)
 	var blockNumber uint64
 	var err error
 	if e2eutils.UseFaultProofs() {
 		blockNumber, err = wait.ForGamePublished(ctx, l1Client, config.L1Deployments.OptimismPortalProxy, config.L1Deployments.DisputeGameFactoryProxy, l2WithdrawalReceipt.BlockNumber)
-		require.Nil(t, err)
+		require.NoError(t, err)
 	} else {
 		blockNumber, err = wait.ForOutputRootPublished(ctx, l1Client, config.L1Deployments.L2OutputOracleProxy, l2WithdrawalReceipt.BlockNumber)
-		require.Nil(t, err)
+		require.NoError(t, err)
 	}
 
 	receiptCl := clients.NodeClient(l2NodeName)
@@ -119,25 +124,25 @@ func ProveWithdrawal(t *testing.T, cfg SystemConfig, clients ClientProvider, l2N
 	defer cancel()
 	// Get the latest header
 	header, err := receiptCl.HeaderByNumber(ctx, new(big.Int).SetUint64(blockNumber))
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	oracle, err := bindings.NewL2OutputOracleCaller(config.L1Deployments.L2OutputOracleProxy, l1Client)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	factory, err := bindings.NewDisputeGameFactoryCaller(config.L1Deployments.DisputeGameFactoryProxy, l1Client)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	portal2, err := bindingspreview.NewOptimismPortal2Caller(config.L1Deployments.OptimismPortalProxy, l1Client)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	params, err := ProveWithdrawalParameters(context.Background(), proofCl, receiptCl, blockCl, l2WithdrawalReceipt.TxHash, header, oracle, factory, portal2)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	portal, err := bindings.NewOptimismPortal(config.L1Deployments.OptimismPortalProxy, l1Client)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	opts, err := bind.NewKeyedTransactorWithChainID(ethPrivKey, cfg.L1ChainIDBig())
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// Prove withdrawal
 	tx, err := portal.ProveWithdrawalTransaction(
@@ -154,11 +159,11 @@ func ProveWithdrawal(t *testing.T, cfg SystemConfig, clients ClientProvider, l2N
 		params.OutputRootProof,
 		params.WithdrawalProof,
 	)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// Ensure that our withdrawal was proved successfully
 	proveReceipt, err := geth.WaitForTransaction(tx.Hash(), l1Client, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
-	require.Nil(t, err, "prove withdrawal")
+	require.NoError(t, err, "prove withdrawal")
 	require.Equal(t, types.ReceiptStatusSuccessful, proveReceipt.Status)
 	return params, proveReceipt
 }
@@ -186,60 +191,81 @@ func FinalizeWithdrawal(t *testing.T, cfg SystemConfig, l1Client *ethclient.Clie
 	}
 
 	opts, err := bind.NewKeyedTransactorWithChainID(privKey, cfg.L1ChainIDBig())
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	var resolveClaimReceipt *types.Receipt
 	var resolveReceipt *types.Receipt
 	if e2eutils.UseFaultProofs() {
 		portal2, err := bindingspreview.NewOptimismPortal2(config.L1Deployments.OptimismPortalProxy, l1Client)
-		require.Nil(t, err)
+		require.NoError(t, err)
 
 		wdHash, err := wd.Hash()
-		require.Nil(t, err)
+		require.NoError(t, err)
 
 		game, err := portal2.ProvenWithdrawals(&bind.CallOpts{}, wdHash, opts.From)
-		require.Nil(t, err)
+		require.NoError(t, err)
 		require.NotNil(t, game, "withdrawal should be proven")
 
 		caller := batching.NewMultiCaller(l1Client.Client(), batching.DefaultBatchSize)
 		gameContract, err := contracts.NewFaultDisputeGameContract(context.Background(), metrics.NoopContractMetrics, game.DisputeGameProxy, caller)
-		require.Nil(t, err)
+		require.NoError(t, err)
 
 		timedCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		require.NoError(t, wait.For(timedCtx, time.Second, func() (bool, error) {
 			err := gameContract.CallResolveClaim(context.Background(), 0)
-			t.Logf("Could not resolve dispute game claim: %v", err)
+			if err != nil {
+				t.Logf("Could not resolve dispute game claim: %v", err)
+			}
 			return err == nil, nil
 		}))
 
+		t.Log("FinalizeWithdrawal: resolveClaim...")
 		tx, err := gameContract.ResolveClaimTx(0)
 		require.NoError(t, err, "create resolveClaim tx")
-		_, resolveClaimReceipt = transactions.RequireSendTx(t, ctx, l1Client, tx, privKey)
+		_, resolveClaimReceipt, err = transactions.SendTx(ctx, l1Client, tx, privKey)
+		var rsErr *wait.ReceiptStatusError
+		if errors.As(err, &rsErr) && rsErr.TxTrace.Output.String() == SolErrClaimAlreadyResolved {
+			t.Logf("resolveClaim failed (tx: %s) because claim got already resolved", resolveClaimReceipt.TxHash)
+		} else {
+			require.NoError(t, err)
+		}
 
+		t.Log("FinalizeWithdrawal: resolve...")
 		tx, err = gameContract.ResolveTx()
 		require.NoError(t, err, "create resolve tx")
-		_, resolveReceipt = transactions.RequireSendTx(t, ctx, l1Client, tx, privKey)
+		_, resolveReceipt = transactions.RequireSendTx(t, ctx, l1Client, tx, privKey, transactions.WithReceiptStatusIgnore())
+		if resolveReceipt.Status == types.ReceiptStatusFailed {
+			t.Logf("resolve failed (tx: %s)! But game may have resolved already. Checking now...", resolveReceipt.TxHash)
+			// it may have failed because someone else front-ran this by calling `resolve()` first.
+			status, err := gameContract.GetStatus(ctx)
+			require.NoError(t, err)
+			require.Equal(t, gameTypes.GameStatusDefenderWon, status, "game must have resolved with defender won")
+			t.Logf("resolve was not needed, the game was already resolved")
+		}
 	}
 
 	if e2eutils.UseFaultProofs() {
+		t.Log("FinalizeWithdrawal: waiting for successful withdrawal check...")
 		err := wait.ForWithdrawalCheck(ctx, l1Client, wd, config.L1Deployments.OptimismPortalProxy, opts.From)
-		require.Nil(t, err)
+		require.NoError(t, err)
 	} else {
+		t.Log("FinalizeWithdrawal: waiting for finalization...")
 		err := wait.ForFinalizationPeriod(ctx, l1Client, withdrawalProofReceipt.BlockNumber, config.L1Deployments.L2OutputOracleProxy)
-		require.Nil(t, err)
+		require.NoError(t, err)
 	}
 
 	portal, err := bindings.NewOptimismPortal(config.L1Deployments.OptimismPortalProxy, l1Client)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// Finalize withdrawal
+	t.Log("FinalizeWithdrawal: finalizing withdrawal...")
 	tx, err := portal.FinalizeWithdrawalTransaction(opts, wd.WithdrawalTransaction())
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// Ensure that our withdrawal was finalized successfully
 	finalizeReceipt, err := wait.ForReceiptOK(ctx, l1Client, tx.Hash())
-	require.Nil(t, err, "finalize withdrawal")
+	require.NoError(t, err, "finalize withdrawal")
 	require.Equal(t, types.ReceiptStatusSuccessful, finalizeReceipt.Status)
 	return finalizeReceipt, resolveClaimReceipt, resolveReceipt
 }

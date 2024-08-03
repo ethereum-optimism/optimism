@@ -204,12 +204,7 @@ func registerAsterisc(
 	selective bool,
 	claimants []common.Address,
 ) error {
-	var prestateSource PrestateSource
-	if cfg.AsteriscAbsolutePreStateBaseURL != nil {
-		prestateSource = prestates.NewMultiPrestateProvider(cfg.AsteriscAbsolutePreStateBaseURL, filepath.Join(cfg.Datadir, "asterisc-prestates"))
-	} else {
-		prestateSource = prestates.NewSinglePrestateSource(cfg.AsteriscAbsolutePreState)
-	}
+	prestateSource := prestates.NewPrestateSource(cfg.AsteriscAbsolutePreStateBaseURL, cfg.AsteriscAbsolutePreState, filepath.Join(cfg.Datadir, "asterisc-prestates"))
 	prestateProviderCache := prestates.NewPrestateProviderCache(m, fmt.Sprintf("prestates-%v", gameType), func(prestateHash common.Hash) (faultTypes.PrestateProvider, error) {
 		prestatePath, err := prestateSource.PrestatePath(prestateHash)
 		if err != nil {
@@ -297,12 +292,7 @@ func registerCannon(
 	selective bool,
 	claimants []common.Address,
 ) error {
-	var prestateSource PrestateSource
-	if cfg.CannonAbsolutePreStateBaseURL != nil {
-		prestateSource = prestates.NewMultiPrestateProvider(cfg.CannonAbsolutePreStateBaseURL, filepath.Join(cfg.Datadir, "cannon-prestates"))
-	} else {
-		prestateSource = prestates.NewSinglePrestateSource(cfg.CannonAbsolutePreState)
-	}
+	prestateSource := prestates.NewPrestateSource(cfg.CannonAbsolutePreStateBaseURL, cfg.CannonAbsolutePreState, filepath.Join(cfg.Datadir, "cannon-prestates"))
 	prestateProviderCache := prestates.NewPrestateProviderCache(m, fmt.Sprintf("prestates-%v", gameType), func(prestateHash common.Hash) (faultTypes.PrestateProvider, error) {
 		prestatePath, err := prestateSource.PrestatePath(prestateHash)
 		if err != nil {

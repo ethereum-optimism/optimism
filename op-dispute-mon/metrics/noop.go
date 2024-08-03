@@ -38,6 +38,8 @@ func (*NoopMetricsImpl) RecordOutputFetchTime(_ float64) {}
 
 func (*NoopMetricsImpl) RecordGameAgreement(_ GameAgreementStatus, _ int) {}
 
+func (*NoopMetricsImpl) RecordLatestValidProposalL2Block(_ uint64) {}
+
 func (*NoopMetricsImpl) RecordLatestProposals(_, _ uint64) {}
 
 func (*NoopMetricsImpl) RecordIgnoredGames(_ int) {}

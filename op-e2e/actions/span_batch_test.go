@@ -40,7 +40,7 @@ func TestDropSpanBatchBeforeHardfork(gt *testing.T) {
 	}
 	dp := e2eutils.MakeDeployParams(t, p)
 	// do not activate Delta hardfork for verifier
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = nil
+	applyDeltaTimeOffset(dp, nil)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LevelError)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
@@ -131,7 +131,7 @@ func TestHardforkMiddleOfSpanBatch(gt *testing.T) {
 
 	// Activate HF in the middle of the first epoch
 	deltaOffset := hexutil.Uint64(6)
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = &deltaOffset
+	applyDeltaTimeOffset(dp, &deltaOffset)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LevelError)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
@@ -239,7 +239,7 @@ func TestAcceptSingularBatchAfterHardfork(gt *testing.T) {
 	dp := e2eutils.MakeDeployParams(t, p)
 
 	// activate Delta hardfork for verifier.
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
+	applyDeltaTimeOffset(dp, &minTs)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LevelError)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
@@ -325,7 +325,7 @@ func TestMixOfBatchesAfterHardfork(gt *testing.T) {
 	dp := e2eutils.MakeDeployParams(t, p)
 
 	// Activate Delta hardfork for verifier.
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
+	applyDeltaTimeOffset(dp, &minTs)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LevelError)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
@@ -415,7 +415,7 @@ func TestSpanBatchEmptyChain(gt *testing.T) {
 	dp := e2eutils.MakeDeployParams(t, p)
 	minTs := hexutil.Uint64(0)
 	// Activate Delta hardfork
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
+	applyDeltaTimeOffset(dp, &minTs)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LevelError)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
@@ -478,7 +478,7 @@ func TestSpanBatchLowThroughputChain(gt *testing.T) {
 	dp := e2eutils.MakeDeployParams(t, p)
 	minTs := hexutil.Uint64(0)
 	// Activate Delta hardfork
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
+	applyDeltaTimeOffset(dp, &minTs)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LevelError)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
@@ -592,7 +592,7 @@ func TestBatchEquivalence(gt *testing.T) {
 	// Delta activated deploy config
 	dp := e2eutils.MakeDeployParams(t, p)
 	minTs := hexutil.Uint64(0)
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
+	applyDeltaTimeOffset(dp, &minTs)
 	sdDeltaActivated := e2eutils.Setup(t, dp, defaultAlloc)
 
 	// Delta deactivated deploy config

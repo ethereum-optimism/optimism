@@ -206,7 +206,7 @@ jobs:
             - "node_modules"
       - run:
           name: Install dependencies
-          command: pnpm install:ci:offline
+          command: pnpm install
       - run:
           name: print forge version
           command: forge --version
@@ -579,7 +579,8 @@ jobs:
       # populate node modules from the cache
       - run:
           name: Install dependencies
-          command: pnpm install:ci
+          command: pnpm install
+          working_directory: packages/contracts-bedrock
       - run:
           name: forge version
           command: forge --version
@@ -687,47 +688,13 @@ jobs:
       - attach_workspace: { at: "." }
       - run:
           name: Install dependencies
-          command: pnpm install:ci
+          command: pnpm install
       - check-changed:
           patterns: contracts-bedrock
       - run:
           name: validate spacers
           command: pnpm validate-spacers
           working_directory: packages/contracts-bedrock
-
-  js-lint-test:
-    parameters:
-      package_name:
-        description: Package name
-        type: string
-      dependencies:
-        description: Regex matching dependent packages
-        type: string
-        default: this-package-does-not-exist
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: large
-    steps:
-      - checkout
-      - attach_workspace: { at: "." }
-      - restore_cache:
-          name: Restore PNPM Package Cache
-          keys:
-            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
-      - check-changed:
-          patterns: <<parameters.package_name>>,<<parameters.dependencies>>
-      # populate node modules from the cache
-      - run:
-          name: Install dependencies
-          command: pnpm install:ci
-      - run:
-          name: Lint
-          command: pnpm lint && git diff --exit-code
-          working_directory: packages/<<parameters.package_name>>
-      - run:
-          name: Test
-          command: pnpm test
-          working_directory: packages/<<parameters.package_name>>
 
   todo-issues:
     machine:
@@ -1166,6 +1133,10 @@ jobs:
             tar -xzvf geth-alltools-linux-amd64-1.13.14-2bd6bd01.tar.gz
             sudo cp geth-alltools-linux-amd64-1.13.14-2bd6bd01/* /usr/local/bin
       - run:
+          name: Install eth2-testnet-genesis
+          command: |
+            go install -v github.com/protolambda/eth2-testnet-genesis@$(jq -r .eth2_testnet_genesis < versions.json)
+      - run:
           name: foundryup
           command: |
             curl -L https://foundry.paradigm.xyz | bash
@@ -1219,14 +1190,16 @@ jobs:
             docker tag "$IMAGE_BASE_PREFIX/op-challenger:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op-challenger:devnet"
             docker tag "$IMAGE_BASE_PREFIX/da-server:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/da-server:devnet"
       - run:
-          name: pnpm i
+          name: pnpm install and build
           command: |
-            pnpm i && pnpm build
+            pnpm install && pnpm build
       - run:
           name: Bring up the stack
           command: |
             # Specify like this to avoid a forced rebuild of the contracts + devnet L1
             PYTHONPATH=./bedrock-devnet python3 ./bedrock-devnet/main.py --monorepo-dir=.
+            echo "Waiting for 10 seconds to give the devnet time to settle in..."
+            sleep 10
       - run:
           name: Test the stack
           command: make devnet-test
@@ -1244,6 +1217,16 @@ jobs:
           name: Dump l1 logs
           command: |
             docker logs ops-bedrock-l1-1 || echo "No logs."
+          when: on_fail
+      - run:
+          name: Dump l1-bn logs
+          command: |
+            docker logs ops-bedrock-l1-bn-1 || echo "No logs."
+          when: on_fail
+      - run:
+          name: Dump l1-vc logs
+          command: |
+            docker logs ops-bedrock-l1-vc-1 || echo "No logs."
           when: on_fail
       - run:
           name: Dump op-batcher logs
@@ -1532,12 +1515,6 @@ workflows:
       - contracts-bedrock-validate-spaces:
           requires:
             - pnpm-monorepo
-      - js-lint-test:
-          name: chain-mon-tests
-          package_name: chain-mon
-          dependencies: "(contracts-bedrock|sdk)"
-          requires:
-            - pnpm-monorepo
       - semgrep-scan
       - go-mod-download
       - fuzz-golang:
@@ -1764,7 +1741,7 @@ workflows:
           type: approval
           filters:
             tags:
-              only: /^(da-server|chain-mon|ci-builder(-rust)?|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
+              only: /^(da-server|ci-builder(-rust)?|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
       - docker-build:
@@ -1962,22 +1939,6 @@ workflows:
           op_component: op-supervisor
           requires:
             - op-supervisor-docker-release
-      - docker-build:
-          name: chain-mon-docker-release
-          filters:
-            tags:
-              only: /^chain-mon\/v.*/
-            branches:
-              ignore: /.*/
-          docker_name: chain-mon
-          docker_tags: <<pipeline.git.revision>>,latest
-          publish: true
-          release: true
-          resource_class: xlarge
-          context:
-            - oplabs-gcr-release
-          requires:
-            - hold
       - docker-build:
           name: ci-builder-docker-release
           filters:
@@ -2206,20 +2167,10 @@ workflows:
           requires:
             - op-supervisor-docker-publish
       - docker-build:
-          name: chain-mon-docker-publish
-          docker_name: chain-mon
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          resource_class: xlarge
-          publish: true
-          context:
-            - oplabs-gcr
-            - slack
-      - docker-build:
           name: contracts-bedrock-docker-publish
           docker_name: contracts-bedrock
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           resource_class: xlarge
-          requires: [ 'chain-mon-docker-publish' ] # use the cached base image
           publish: true
           context:
             - oplabs-gcr

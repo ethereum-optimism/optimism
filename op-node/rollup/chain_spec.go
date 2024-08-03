@@ -35,6 +35,8 @@ const (
 	Delta    ForkName = "delta"
 	Ecotone  ForkName = "ecotone"
 	Fjord    ForkName = "fjord"
+	Granite  ForkName = "granite"
+	Holocene ForkName = "holocene"
 	Interop  ForkName = "interop"
 	None     ForkName = "none"
 )
@@ -45,7 +47,9 @@ var nextFork = map[ForkName]ForkName{
 	Canyon:   Delta,
 	Delta:    Ecotone,
 	Ecotone:  Fjord,
-	Fjord:    Interop,
+	Fjord:    Granite,
+	Granite:  Holocene,
+	Holocene: Interop,
 	Interop:  None,
 }
 
@@ -125,6 +129,12 @@ func (s *ChainSpec) CheckForkActivation(log log.Logger, block eth.L2BlockRef) {
 		if s.config.IsFjord(block.Time) {
 			s.currentFork = Fjord
 		}
+		if s.config.IsGranite(block.Time) {
+			s.currentFork = Fjord
+		}
+		if s.config.IsHolocene(block.Time) {
+			s.currentFork = Fjord
+		}
 		if s.config.IsInterop(block.Time) {
 			s.currentFork = Interop
 		}
@@ -145,6 +155,10 @@ func (s *ChainSpec) CheckForkActivation(log log.Logger, block eth.L2BlockRef) {
 		foundActivationBlock = s.config.IsEcotoneActivationBlock(block.Time)
 	case Fjord:
 		foundActivationBlock = s.config.IsFjordActivationBlock(block.Time)
+	case Granite:
+		foundActivationBlock = s.config.IsGraniteActivationBlock(block.Time)
+	case Holocene:
+		foundActivationBlock = s.config.IsHoloceneActivationBlock(block.Time)
 	case Interop:
 		foundActivationBlock = s.config.IsInteropActivationBlock(block.Time)
 	}

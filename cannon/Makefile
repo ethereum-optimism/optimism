@@ -22,7 +22,10 @@ clean:
 elf:
 	make -C ./example elf
 
-test: elf
+contract:
+	cd ../packages/contracts-bedrock && forge build
+
+test: elf contract
 	go test -v ./...
 
 fuzz:

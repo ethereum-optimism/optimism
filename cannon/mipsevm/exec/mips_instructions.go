@@ -22,7 +22,7 @@ func ExecMipsCoreStepLogic(cpu *mipsevm.CpuScalars, registers *[32]uint32, memor
 		}
 		// Take top 4 bits of the next PC (its 256 MB region), and concatenate with the 26-bit offset
 		target := (cpu.NextPC & 0xF0000000) | ((insn & 0x03FFFFFF) << 2)
-		stackTracker.PushStack(target)
+		stackTracker.PushStack(cpu.PC, target)
 		return HandleJump(cpu, registers, linkReg, target)
 	}
 

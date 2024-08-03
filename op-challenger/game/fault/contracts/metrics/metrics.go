@@ -4,7 +4,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const ConstractSubsystem = "contracts"
+const ContractsSubsystem = "contracts"
 
 type EndTimer func()
 
@@ -28,7 +28,7 @@ func MakeContractMetrics(ns string, factory Factory) *ContractMetrics {
 	return &ContractMetrics{
 		ContractRequestsTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: ns,
-			Subsystem: ConstractSubsystem,
+			Subsystem: ContractsSubsystem,
 			Name:      "requests_total",
 			Help:      "Total requests to the contracts",
 		}, []string{
@@ -36,7 +36,7 @@ func MakeContractMetrics(ns string, factory Factory) *ContractMetrics {
 		}),
 		ContractRequestDurationSeconds: factory.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: ns,
-			Subsystem: ConstractSubsystem,
+			Subsystem: ContractsSubsystem,
 			Name:      "requests_duration_seconds",
 			Help:      "Histogram of contract request durations",
 		}, []string{

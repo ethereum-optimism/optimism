@@ -8,11 +8,13 @@ const (
 	// data availability types
 	CalldataType DataAvailabilityType = "calldata"
 	BlobsType    DataAvailabilityType = "blobs"
+	AutoType     DataAvailabilityType = "auto"
 )
 
 var DataAvailabilityTypes = []DataAvailabilityType{
 	CalldataType,
 	BlobsType,
+	AutoType,
 }
 
 func (kind DataAvailabilityType) String() string {

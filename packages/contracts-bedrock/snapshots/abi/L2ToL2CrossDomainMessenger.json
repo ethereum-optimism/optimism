@@ -171,19 +171,6 @@
     "type": "event"
   },
   {
-    "anonymous": true,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "bytes",
-        "name": "data",
-        "type": "bytes"
-      }
-    ],
-    "name": "SentMessage",
-    "type": "event"
-  },
-  {
     "inputs": [],
     "name": "CrossL2InboxOriginNotL2ToL2CrossDomainMessenger",
     "type": "error"

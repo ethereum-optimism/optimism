@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/client/l1"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
 	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
-	"github.com/ethereum-optimism/optimism/op-program/io"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -29,10 +28,10 @@ func TestServerMode(t *testing.T) {
 	cfg.DataDir = dir
 	cfg.ServerMode = true
 
-	preimageServer, preimageClient, err := io.CreateBidirectionalChannel()
+	preimageServer, preimageClient, err := preimage.CreateBidirectionalChannel()
 	require.NoError(t, err)
 	defer preimageClient.Close()
-	hintServer, hintClient, err := io.CreateBidirectionalChannel()
+	hintServer, hintClient, err := preimage.CreateBidirectionalChannel()
 	require.NoError(t, err)
 	defer hintClient.Close()
 	logger := testlog.Logger(t, log.LevelTrace)

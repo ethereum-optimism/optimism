@@ -86,6 +86,7 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		DeltaTime:              chConfig.DeltaTime,
 		EcotoneTime:            chConfig.EcotoneTime,
 		FjordTime:              chConfig.FjordTime,
+		GraniteTime:            chConfig.GraniteTime,
 		BatchInboxAddress:      common.Address(chConfig.BatchInboxAddr),
 		DepositContractAddress: common.Address(addrs.OptimismPortalProxy),
 		L1SystemConfigAddress:  common.Address(addrs.SystemConfigProxy),
