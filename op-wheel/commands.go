@@ -229,8 +229,8 @@ func rollupFromGethConfig(cfg *params.ChainConfig) *rollup.Config {
 		RegolithTime: cfg.RegolithTime,
 		CanyonTime:   cfg.CanyonTime,
 		EcotoneTime:  cfg.EcotoneTime,
-		//TODO: GraniteTime:  cfg.GraniteTime,
-		InteropTime: cfg.InteropTime,
+		GraniteTime:  cfg.GraniteTime,
+		InteropTime:  cfg.InteropTime,
 	}
 }
 

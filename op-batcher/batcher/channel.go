@@ -134,8 +134,8 @@ func (s *channel) updateInclusionBlocks() {
 func (s *channel) isTimedOut() bool {
 	// Update min/max inclusion blocks for timeout check
 	s.updateInclusionBlocks()
-	// TODO: The use of the shorter ChannelTimeout here may cause the batcher to believe the channel timed out
-	// when it was valid. It would then resubmit the blocks needlessly.
+	// Prior to the granite hard fork activating, the use of the shorter ChannelTimeout here may cause the batcher
+	// to believe the channel timed out when it was valid. It would then resubmit the blocks needlessly.
 	// This wastes batcher funds but doesn't cause any problems for the chain progressing safe head.
 	return s.maxInclusionBlock-s.minInclusionBlock >= s.cfg.ChannelTimeout
 }
