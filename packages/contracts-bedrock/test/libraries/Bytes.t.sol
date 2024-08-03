@@ -67,14 +67,15 @@ contract Bytes_slice_Test is Test {
 
     /// @notice Tests that the `slice` function correctly updates the free memory pointer depending
     ///         on the length of the slice.
+    ///         The calls to `bound` are to reduce the number of times that `assume` is triggered.
     function testFuzz_slice_memorySafety_succeeds(bytes memory _input, uint256 _start, uint256 _length) public {
-        _start = bound(_start, 0, _input.length - 1);
-        _length = bound(_length, 0, _input.length - _start);
-
         // The start should never be more than the length of the input bytes array - 1
+        _start = bound(_start, 0, _input.length - 1);
         vm.assume(_start < _input.length);
+
         // The length should never be more than the length of the input bytes array - the starting
         // slice index.
+        _length = bound(_length, 0, _input.length - _start);
         vm.assume(_length <= _input.length - _start);
 
         // Grab the free memory pointer before the slice operation
@@ -147,14 +148,15 @@ contract Bytes_slice_TestFail is Test {
 
     /// @notice Tests that, when given a start index `n` that is greater than
     ///         `type(uint256).max - n`, the `slice` function reverts.
+    ///         The calls to `bound` are to reduce the number of times that `assume` is triggered.
     function testFuzz_slice_rangeOverflows_reverts(bytes memory _input, uint256 _start, uint256 _length) public {
-        _length = bound(_length, 0, _input.length);
-        _start = bound(_start, type(uint256).max - _length, type(uint256).max);
-
         // Ensure that `_length` is a realistic length of a slice. This is to make sure
         // we revert on the correct require statement.
+        _length = bound(_length, 0, _input.length == 0 ? 0 : _input.length - 1);
         vm.assume(_length < _input.length);
+
         // Ensure that `_start` will overflow if `_length` is added to it.
+        _start = bound(_start, type(uint256).max - _length, type(uint256).max);
         vm.assume(_start > type(uint256).max - _length);
 
         vm.expectRevert("slice_overflow");
