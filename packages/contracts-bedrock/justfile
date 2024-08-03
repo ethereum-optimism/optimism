@@ -75,23 +75,17 @@ pre-pr: clean build-go-ffi build pre-pr-no-build
 
 pre-pr-full: test validate-deploy-configs validate-spacers pre-pr
 
-lint-ts-check:
-  npx eslint --max-warnings=0 .
-
 lint-forge-tests-check:
   go run ./scripts/checks/names
 
 lint-contracts-check:
   forge fmt --check
 
-lint-check: lint-contracts-check lint-ts-check
-
-lint-ts-fix:
-  npx eslint --fix .
+lint-check: lint-contracts-check
 
 lint-contracts-fix:
   forge fmt
 
-lint-fix: lint-contracts-fix lint-ts-fix
+lint-fix: lint-contracts-fix
 
 lint: lint-fix lint-check
