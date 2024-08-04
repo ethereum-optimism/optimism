@@ -38,7 +38,7 @@ type CannonTraceProvider struct {
 	lastStep uint64
 }
 
-func NewTraceProvider(logger log.Logger, m vm.Metricer, cfg vm.Config, vmCfg vm.VmConfig, prestateProvider types.PrestateProvider, prestate string, localInputs utils.LocalGameInputs, dir string, gameDepth types.Depth) *CannonTraceProvider {
+func NewTraceProvider(logger log.Logger, m vm.Metricer, cfg vm.Config, vmCfg vm.OracleServerExecutor, prestateProvider types.PrestateProvider, prestate string, localInputs utils.LocalGameInputs, dir string, gameDepth types.Depth) *CannonTraceProvider {
 	return &CannonTraceProvider{
 		logger:           logger,
 		dir:              dir,
@@ -181,7 +181,7 @@ func NewTraceProviderForTest(logger log.Logger, m vm.Metricer, cfg *config.Confi
 		logger:         logger,
 		dir:            dir,
 		prestate:       cfg.CannonAbsolutePreState,
-		generator:      vm.NewExecutor(logger, m, cfg.Cannon, vm.NewOpProgramVmConfig(&cfg.Cannon), cfg.CannonAbsolutePreState, localInputs),
+		generator:      vm.NewExecutor(logger, m, cfg.Cannon, vm.NewOpProgramVmConfig(), cfg.CannonAbsolutePreState, localInputs),
 		gameDepth:      gameDepth,
 		preimageLoader: utils.NewPreimageLoader(kvstore.NewDiskKV(vm.PreimageDir(dir)).Get),
 	}

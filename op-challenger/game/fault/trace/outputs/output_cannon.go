@@ -22,7 +22,7 @@ func NewOutputCannonTraceAccessor(
 	logger log.Logger,
 	m metrics.Metricer,
 	cfg vm.Config,
-	vmCfg vm.VmConfig,
+	vmCfg vm.OracleServerExecutor,
 	l2Client utils.L2HeaderSource,
 	prestateProvider types.PrestateProvider,
 	cannonPrestate string,

@@ -26,9 +26,9 @@ func TestKonaFillHostCommand(t *testing.T) {
 		L2Claim:       common.Hash{0x44},
 		L2BlockNumber: big.NewInt(3333),
 	}
-	vmConfig := NewKonaVmConfig(&cfg)
+	vmConfig := NewKonaVmConfig()
 
-	args, err := vmConfig.FillHostCommand([]string{}, dir, inputs)
+	args, err := vmConfig.OracleCommand(cfg, []string{}, dir, inputs)
 	require.NoError(t, err)
 
 	require.True(t, slices.Contains(args, "--server"))

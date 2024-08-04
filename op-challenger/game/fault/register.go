@@ -75,25 +75,25 @@ func RegisterGameTypes(
 	syncValidator := newSyncStatusValidator(rollupClient)
 
 	if cfg.TraceTypeEnabled(faultTypes.TraceTypeCannon) {
-		vmConfig := vm.NewOpProgramVmConfig(&cfg.Cannon)
+		vmConfig := vm.NewOpProgramVmConfig()
 		if err := registerCannon(faultTypes.CannonGameType, registry, oracles, ctx, systemClock, l1Clock, logger, m, cfg, vmConfig, syncValidator, rollupClient, txSender, gameFactory, caller, l2Client, l1HeaderSource, selective, claimants); err != nil {
 			return nil, fmt.Errorf("failed to register cannon game type: %w", err)
 		}
 	}
 	if cfg.TraceTypeEnabled(faultTypes.TraceTypePermissioned) {
-		vmConfig := vm.NewOpProgramVmConfig(&cfg.Cannon)
+		vmConfig := vm.NewOpProgramVmConfig()
 		if err := registerCannon(faultTypes.PermissionedGameType, registry, oracles, ctx, systemClock, l1Clock, logger, m, cfg, vmConfig, syncValidator, rollupClient, txSender, gameFactory, caller, l2Client, l1HeaderSource, selective, claimants); err != nil {
 			return nil, fmt.Errorf("failed to register permissioned cannon game type: %w", err)
 		}
 	}
 	if cfg.TraceTypeEnabled(faultTypes.TraceTypeAsterisc) {
-		vmConfig := vm.NewOpProgramVmConfig(&cfg.Asterisc)
+		vmConfig := vm.NewOpProgramVmConfig()
 		if err := registerAsterisc(faultTypes.AsteriscGameType, registry, oracles, ctx, systemClock, l1Clock, logger, m, cfg, vmConfig, syncValidator, rollupClient, txSender, gameFactory, caller, l2Client, l1HeaderSource, selective, claimants); err != nil {
 			return nil, fmt.Errorf("failed to register asterisc game type: %w", err)
 		}
 	}
 	if cfg.TraceTypeEnabled(faultTypes.TraceTypeAsteriscKona) {
-		vmConfig := vm.NewKonaVmConfig(&cfg.Asterisc)
+		vmConfig := vm.NewKonaVmConfig()
 		if err := registerAsterisc(faultTypes.AsteriscKonaGameType, registry, oracles, ctx, systemClock, l1Clock, logger, m, cfg, vmConfig, syncValidator, rollupClient, txSender, gameFactory, caller, l2Client, l1HeaderSource, selective, claimants); err != nil {
 			return nil, fmt.Errorf("failed to register asterisc kona game type: %w", err)
 		}
@@ -204,7 +204,7 @@ func registerAsterisc(
 	logger log.Logger,
 	m metrics.Metricer,
 	cfg *config.Config,
-	vmCfg vm.VmConfig,
+	vmCfg vm.OracleServerExecutor,
 	syncValidator SyncValidator,
 	rollupClient outputs.OutputRollupClient,
 	txSender TxSender,
@@ -298,7 +298,7 @@ func registerCannon(
 	logger log.Logger,
 	m metrics.Metricer,
 	cfg *config.Config,
-	vmCfg vm.VmConfig,
+	vmCfg vm.OracleServerExecutor,
 	syncValidator SyncValidator,
 	rollupClient outputs.OutputRollupClient,
 	txSender TxSender,

@@ -36,13 +36,13 @@ type Config struct {
 	L2GenesisPath    string
 }
 
-type VmConfig interface {
-	FillHostCommand(args []string, dataDir string, inputs utils.LocalGameInputs) ([]string, error)
+type OracleServerExecutor interface {
+	OracleCommand(cfg Config, args []string, dataDir string, inputs utils.LocalGameInputs) ([]string, error)
 }
 
 type Executor struct {
 	cfg              Config
-	vmCfg            VmConfig
+	oracleServer     OracleServerExecutor
 	logger           log.Logger
 	metrics          Metricer
 	absolutePreState string
@@ -51,10 +51,10 @@ type Executor struct {
 	cmdExecutor      CmdExecutor
 }
 
-func NewExecutor(logger log.Logger, m Metricer, cfg Config, vmConfig VmConfig, prestate string, inputs utils.LocalGameInputs) *Executor {
+func NewExecutor(logger log.Logger, m Metricer, cfg Config, oracleServer OracleServerExecutor, prestate string, inputs utils.LocalGameInputs) *Executor {
 	return &Executor{
 		cfg:              cfg,
-		vmCfg:            vmConfig,
+		oracleServer:     oracleServer,
 		logger:           logger,
 		metrics:          m,
 		inputs:           inputs,
@@ -97,7 +97,7 @@ func (e *Executor) DoGenerateProof(ctx context.Context, dir string, begin uint64
 	}
 	args = append(args, extraVmArgs...)
 	args = append(args, "--")
-	args, err = e.vmCfg.FillHostCommand(args, dataDir, e.inputs)
+	args, err = e.oracleServer.OracleCommand(e.cfg, args, dataDir, e.inputs)
 	if err != nil {
 		return err
 	}
