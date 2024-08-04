@@ -15,7 +15,6 @@ func NewOpProgramVmConfig() *OpProgramVmConfig {
 
 func (s *OpProgramVmConfig) OracleCommand(cfg Config, dataDir string, inputs utils.LocalGameInputs) ([]string, error) {
 	args := []string{
-		"--",
 		cfg.Server, "--server",
 		"--l1", cfg.L1,
 		"--l1.beacon", cfg.L1Beacon,
