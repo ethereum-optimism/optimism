@@ -28,7 +28,7 @@ func TestKonaFillHostCommand(t *testing.T) {
 	}
 	vmConfig := NewKonaVmConfig()
 
-	args, err := vmConfig.OracleCommand(cfg, []string{}, dir, inputs)
+	args, err := vmConfig.OracleCommand(cfg, dir, inputs)
 	require.NoError(t, err)
 
 	require.True(t, slices.Contains(args, "--server"))

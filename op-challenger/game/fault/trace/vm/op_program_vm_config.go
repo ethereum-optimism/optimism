@@ -1,8 +1,6 @@
 package vm
 
 import (
-	"errors"
-
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 )
 
@@ -15,12 +13,8 @@ func NewOpProgramVmConfig() *OpProgramVmConfig {
 	return &OpProgramVmConfig{}
 }
 
-func (s *OpProgramVmConfig) OracleCommand(cfg Config, args []string, dataDir string, inputs utils.LocalGameInputs) ([]string, error) {
-	if args == nil {
-		return nil, errors.New("args is nil")
-	}
-
-	args = append(args,
+func (s *OpProgramVmConfig) OracleCommand(cfg Config, dataDir string, inputs utils.LocalGameInputs) ([]string, error) {
+	args := []string{
 		"--",
 		cfg.Server, "--server",
 		"--l1", cfg.L1,
@@ -32,7 +26,7 @@ func (s *OpProgramVmConfig) OracleCommand(cfg Config, args []string, dataDir str
 		"--l2.outputroot", inputs.L2OutputRoot.Hex(),
 		"--l2.claim", inputs.L2Claim.Hex(),
 		"--l2.blocknumber", inputs.L2BlockNumber.Text(10),
-	)
+	}
 	if cfg.Network != "" {
 		args = append(args, "--network", cfg.Network)
 	}

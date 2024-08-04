@@ -42,7 +42,7 @@ func TestOpProgramFillHostCommand(t *testing.T) {
 	t.Run("NoExtras", func(t *testing.T) {
 		vmConfig := NewOpProgramVmConfig()
 
-		args, err := vmConfig.OracleCommand(cfg, []string{}, dir, inputs)
+		args, err := vmConfig.OracleCommand(cfg, dir, inputs)
 		require.NoError(t, err)
 
 		validateStandard(t, args)
@@ -52,7 +52,7 @@ func TestOpProgramFillHostCommand(t *testing.T) {
 		cfg.Network = "op-test"
 		vmConfig := NewOpProgramVmConfig()
 
-		args, err := vmConfig.OracleCommand(cfg, []string{}, dir, inputs)
+		args, err := vmConfig.OracleCommand(cfg, dir, inputs)
 		require.NoError(t, err)
 
 		validateStandard(t, args)
@@ -63,7 +63,7 @@ func TestOpProgramFillHostCommand(t *testing.T) {
 		cfg.RollupConfigPath = "rollup.config"
 		vmConfig := NewOpProgramVmConfig()
 
-		args, err := vmConfig.OracleCommand(cfg, []string{}, dir, inputs)
+		args, err := vmConfig.OracleCommand(cfg, dir, inputs)
 		require.NoError(t, err)
 
 		validateStandard(t, args)
@@ -74,7 +74,7 @@ func TestOpProgramFillHostCommand(t *testing.T) {
 		cfg.L2GenesisPath = "l2.genesis"
 		vmConfig := NewOpProgramVmConfig()
 
-		args, err := vmConfig.OracleCommand(cfg, []string{}, dir, inputs)
+		args, err := vmConfig.OracleCommand(cfg, dir, inputs)
 		require.NoError(t, err)
 
 		validateStandard(t, args)
@@ -87,7 +87,7 @@ func TestOpProgramFillHostCommand(t *testing.T) {
 		cfg.L2GenesisPath = "l2.genesis"
 		vmConfig := NewOpProgramVmConfig()
 
-		args, err := vmConfig.OracleCommand(cfg, []string{}, dir, inputs)
+		args, err := vmConfig.OracleCommand(cfg, dir, inputs)
 		require.NoError(t, err)
 
 		validateStandard(t, args)

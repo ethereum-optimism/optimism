@@ -17,16 +17,13 @@ func NewKonaVmConfig() *KonaVmConfig {
 	return &KonaVmConfig{}
 }
 
-func (s *KonaVmConfig) OracleCommand(cfg Config, args []string, dataDir string, inputs utils.LocalGameInputs) ([]string, error) {
-	if args == nil {
-		return nil, errors.New("args is nil")
-	}
+func (s *KonaVmConfig) OracleCommand(cfg Config, dataDir string, inputs utils.LocalGameInputs) ([]string, error) {
 	if cfg.Network == "" {
 		return nil, errors.New("network is not defined")
 	}
 
 	chainCfg := chaincfg.ChainByName(cfg.Network)
-	args = append(args,
+	return []string{
 		cfg.Server, "--server",
 		"--l1-node-address", cfg.L1,
 		"--l1-beacon-address", cfg.L1Beacon,
@@ -38,6 +35,5 @@ func (s *KonaVmConfig) OracleCommand(cfg Config, args []string, dataDir string, 
 		"--l2-output-root", inputs.L2OutputRoot.Hex(),
 		"--l2-claim", inputs.L2Claim.Hex(),
 		"--l2-block-number", inputs.L2BlockNumber.Text(10),
-	)
-	return args, nil
+	}, nil
 }

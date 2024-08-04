@@ -37,7 +37,7 @@ type Config struct {
 }
 
 type OracleServerExecutor interface {
-	OracleCommand(cfg Config, args []string, dataDir string, inputs utils.LocalGameInputs) ([]string, error)
+	OracleCommand(cfg Config, dataDir string, inputs utils.LocalGameInputs) ([]string, error)
 }
 
 type Executor struct {
@@ -97,10 +97,11 @@ func (e *Executor) DoGenerateProof(ctx context.Context, dir string, begin uint64
 	}
 	args = append(args, extraVmArgs...)
 	args = append(args, "--")
-	args, err = e.oracleServer.OracleCommand(e.cfg, args, dataDir, e.inputs)
+	oracleArgs, err := e.oracleServer.OracleCommand(e.cfg, dataDir, e.inputs)
 	if err != nil {
 		return err
 	}
+	args = append(args, oracleArgs...)
 
 	if err := os.MkdirAll(snapshotDir, 0755); err != nil {
 		return fmt.Errorf("could not create snapshot directory %v: %w", snapshotDir, err)
