@@ -82,6 +82,7 @@ func (br *BootstrapClient) BootInfo() *BootInfo {
 		}
 	}
 
+	rollupConfig.ChannelTimeout = 50
 	return &BootInfo{
 		L1Head:             l1Head,
 		L2OutputRoot:       l2OutputRoot,

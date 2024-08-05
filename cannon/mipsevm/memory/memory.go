@@ -323,8 +323,12 @@ func (m *Memory) ReadMemoryRange(addr uint32, count uint32) io.Reader {
 	return &memReader{m: m, addr: addr, count: count}
 }
 
+func (m *Memory) UsageRaw() uint64 {
+	return uint64(len(m.pages)) * PageSize
+}
+
 func (m *Memory) Usage() string {
-	total := uint64(len(m.pages)) * PageSize
+	total := m.UsageRaw()
 	const unit = 1024
 	if total < unit {
 		return fmt.Sprintf("%d B", total)

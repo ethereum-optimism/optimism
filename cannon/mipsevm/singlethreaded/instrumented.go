@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
 type InstrumentedState struct {
@@ -109,6 +110,7 @@ func (m *InstrumentedState) GetState() mipsevm.FPVMState {
 func (m *InstrumentedState) GetDebugInfo() *mipsevm.DebugInfo {
 	return &mipsevm.DebugInfo{
 		Pages:               m.state.Memory.PageCount(),
+		MemoryUsed:          hexutil.Uint64(m.state.Memory.UsageRaw()),
 		NumPreimageRequests: m.preimageOracle.NumPreimageRequests(),
 		TotalPreimageSize:   m.preimageOracle.TotalPreimageSize(),
 	}
