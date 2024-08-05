@@ -79,6 +79,8 @@ func RunVMTests_OpenMips[T mipsevm.FPVMState](t *testing.T, stateFactory StateFa
 				require.NotEqual(t, uint32(EndAddr), us.GetState().GetPC(), "must not reach end")
 				require.True(t, us.GetState().GetExited(), "must set exited state")
 				require.Equal(t, uint8(1), us.GetState().GetExitCode(), "must exit with 1")
+			} else if expectPanic {
+				require.NotEqual(t, uint32(EndAddr), us.GetState().GetPC(), "must not reach end")
 			} else {
 				require.Equal(t, uint32(EndAddr), us.GetState().GetPC(), "must reach end")
 				done, result := state.GetMemory().GetMemory(BaseAddrEnd+4), state.GetMemory().GetMemory(BaseAddrEnd+8)

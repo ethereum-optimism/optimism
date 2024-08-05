@@ -103,6 +103,8 @@ func TestEVM(t *testing.T) {
 				require.NotEqual(t, uint32(testutil.EndAddr), goState.GetState().GetPC(), "must not reach end")
 				require.True(t, goState.GetState().GetExited(), "must set exited state")
 				require.Equal(t, uint8(1), goState.GetState().GetExitCode(), "must exit with 1")
+			} else if expectPanic {
+				require.NotEqual(t, uint32(testutil.EndAddr), state.Cpu.PC, "must not reach end")
 			} else {
 				require.Equal(t, uint32(testutil.EndAddr), state.Cpu.PC, "must reach end")
 				// inspect test result

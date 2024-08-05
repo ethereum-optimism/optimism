@@ -27,7 +27,7 @@ contract DeploymentSummary is DeploymentSummaryCode {
     address internal constant l1StandardBridgeProxyAddress = 0x20A42a5a785622c6Ba2576B2D6e924aA82BFA11D;
     address internal constant l2OutputOracleAddress = 0x19652082F846171168Daf378C4fD3ee85a0D4A60;
     address internal constant l2OutputOracleProxyAddress = 0x39Af23E00F1e662025aA01b0cEdA19542B78DF99;
-    address internal constant mipsAddress = 0x3629E5c6FCCaA06C25aD8Fe5c9de82d7A39E9Df8;
+    address internal constant mipsAddress = 0x2875d50F393FfE847bFD3D517E80097b87f10928;
     address internal constant optimismMintableERC20FactoryAddress = 0x39Aea2Dd53f2d01c15877aCc2791af6BDD7aD567;
     address internal constant optimismMintableERC20FactoryProxyAddress = 0xc7B87b2b892EA5C3CfF47168881FE168C00377FB;
     address internal constant optimismPortalAddress = 0xbdD90485FCbcac869D5b5752179815a3103d8131;

@@ -140,6 +140,18 @@ contract MIPS_Test is CommonTest {
         mips.step(encodedState, proof, 0);
     }
 
+    function test_add_shamtNotZero_fails() external {
+        uint32 insn = encodespec(17, 18, 8, 0x20); // add t0, s1, s2
+        insn |= 0x1F << 6;
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        state.registers[17] = 12;
+        state.registers[18] = 20;
+        bytes memory encodedState = encodeState(state);
+
+        vm.expectRevert("MIPS: shamt not zero");
+        mips.step(encodedState, proof, 0);
+    }
+
     function test_addu_succeeds() external {
         uint32 insn = encodespec(17, 18, 8, 0x21); // addu t0, s1, s2
         (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
@@ -187,6 +199,18 @@ contract MIPS_Test is CommonTest {
 
         bytes32 postState = mips.step(encodedState, proof, 0);
         assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    function test_addu_shamtNotZero_fails() external {
+        uint32 insn = encodespec(17, 18, 8, 0x21); // addu t0, s1, s2
+        insn |= 0x1F << 6;
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        state.registers[17] = 12;
+        state.registers[18] = 20;
+        bytes memory encodedState = encodeState(state);
+
+        vm.expectRevert("MIPS: shamt not zero");
+        mips.step(encodedState, proof, 0);
     }
 
     function test_addi_succeeds() external {
@@ -371,6 +395,18 @@ contract MIPS_Test is CommonTest {
         mips.step(encodedState, proof, 0);
     }
 
+    function test_sub_shamtNotZero_fails() external {
+        uint32 insn = encodespec(17, 18, 8, 0x22); // sub t0, s1, s2
+        insn |= 0x1F << 6;
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        state.registers[17] = 20;
+        state.registers[18] = 12;
+        bytes memory encodedState = encodeState(state);
+
+        vm.expectRevert("MIPS: shamt not zero");
+        mips.step(encodedState, proof, 0);
+    }
+
     function test_subu_succeeds() external {
         uint32 insn = encodespec(17, 18, 8, 0x23); // subu t0, s1, s2
         (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
@@ -420,6 +456,18 @@ contract MIPS_Test is CommonTest {
         assertEq(postState, outputState(expect), "unexpected post state");
     }
 
+    function test_subu_shamtNotZero_fails() external {
+        uint32 insn = encodespec(17, 18, 8, 0x23); // subu t0, s1, s2
+        insn |= 0x1F << 6;
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        state.registers[17] = 20;
+        state.registers[18] = 12;
+        bytes memory encodedState = encodeState(state);
+
+        vm.expectRevert("MIPS: shamt not zero");
+        mips.step(encodedState, proof, 0);
+    }
+
     function test_and_succeeds() external {
         uint32 insn = encodespec(17, 18, 8, 0x24); // and t0, s1, s2
         (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
@@ -438,6 +486,18 @@ contract MIPS_Test is CommonTest {
 
         bytes32 postState = mips.step(encodedState, proof, 0);
         assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    function test_and_shamtNotZero_fails() external {
+        uint32 insn = encodespec(17, 18, 8, 0x24); // and t0, s1, s2
+        insn |= 0x1F << 6;
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        state.registers[17] = 1200;
+        state.registers[18] = 490;
+        bytes memory encodedState = encodeState(state);
+
+        vm.expectRevert("MIPS: shamt not zero");
+        mips.step(encodedState, proof, 0);
     }
 
     function test_andi_succeeds() external {
@@ -480,6 +540,18 @@ contract MIPS_Test is CommonTest {
         assertEq(postState, outputState(expect), "unexpected post state");
     }
 
+    function test_or_shamtNotZero_fails() external {
+        uint32 insn = encodespec(17, 18, 8, 0x25); // or t0, s1, s2
+        insn |= 0x1F << 6;
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        state.registers[17] = 1200;
+        state.registers[18] = 490;
+        bytes memory encodedState = encodeState(state);
+
+        vm.expectRevert("MIPS: shamt not zero");
+        mips.step(encodedState, proof, 0);
+    }
+
     function test_ori_succeeds() external {
         uint16 imm = 40;
         uint32 insn = encodeitype(0xd, 17, 8, imm); // ori t0, s1, 40
@@ -518,6 +590,18 @@ contract MIPS_Test is CommonTest {
 
         bytes32 postState = mips.step(encodedState, proof, 0);
         assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    function test_xor_shamtNotZero_fails() external {
+        uint32 insn = encodespec(17, 18, 8, 0x26); // xor t0, s1, s2
+        insn |= 0x1F << 6;
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        state.registers[17] = 1200;
+        state.registers[18] = 490;
+        bytes memory encodedState = encodeState(state);
+
+        vm.expectRevert("MIPS: shamt not zero");
+        mips.step(encodedState, proof, 0);
     }
 
     function test_xori_succeeds() external {
@@ -560,6 +644,18 @@ contract MIPS_Test is CommonTest {
         assertEq(postState, outputState(expect), "unexpected post state");
     }
 
+    function test_nor_shamtNotZero_fails() external {
+        uint32 insn = encodespec(17, 18, 8, 0x27); // nor t0, s1, s2
+        insn |= 0x1F << 6;
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        state.registers[17] = 1200;
+        state.registers[18] = 490;
+        bytes memory encodedState = encodeState(state);
+
+        vm.expectRevert("MIPS: shamt not zero");
+        mips.step(encodedState, proof, 0);
+    }
+
     function test_slt_succeeds() external {
         uint32 insn = encodespec(17, 18, 8, 0x2a); // slt t0, s1, s2
         (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
@@ -589,6 +685,18 @@ contract MIPS_Test is CommonTest {
         assertEq(postState, outputState(expect), "unexpected post state");
     }
 
+    function test_slt_shamtNotZero_fails() external {
+        uint32 insn = encodespec(17, 18, 8, 0x2a); // slt t0, s1, s2
+        insn |= 0x1F << 6;
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        state.registers[17] = 0xFF_FF_FF_FE; // -2
+        state.registers[18] = 5;
+        bytes memory encodedState = encodeState(state);
+
+        vm.expectRevert("MIPS: shamt not zero");
+        mips.step(encodedState, proof, 0);
+    }
+
     function test_sltu_succeeds() external {
         uint32 insn = encodespec(17, 18, 8, 0x2b); // sltu t0, s1, s2
         (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
@@ -607,6 +715,18 @@ contract MIPS_Test is CommonTest {
 
         bytes32 postState = mips.step(encodedState, proof, 0);
         assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    function test_sltu_shamtNotZero_fails() external {
+        uint32 insn = encodespec(17, 18, 8, 0x2b); // sltu t0, s1, s2
+        insn |= 0x1F << 6;
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        state.registers[17] = 1200;
+        state.registers[18] = 490;
+        bytes memory encodedState = encodeState(state);
+
+        vm.expectRevert("MIPS: shamt not zero");
+        mips.step(encodedState, proof, 0);
     }
 
     function test_lb_succeeds() external {
@@ -975,6 +1095,31 @@ contract MIPS_Test is CommonTest {
         assertEq(postState, outputState(expect), "unexpected post state");
     }
 
+    function test_mflo_shamtNotZero_fails() external {
+        uint32 insn = encodespec(0x0, 0x0, 0x8, 0x12); // mflo $t0
+        insn |= 0x1F << 6;
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+
+        vm.expectRevert("MIPS: shamt not zero");
+        mips.step(encodeState(state), proof, 0);
+    }
+
+    function test_mflo_rtNotZero_fails() external {
+        uint32 insn = encodespec(0x0, 0x1, 0x8, 0x12); // mflo $t0
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+
+        vm.expectRevert("MIPS: rt not zero");
+        mips.step(encodeState(state), proof, 0);
+    }
+
+    function test_mflo_rsNotZero_fails() external {
+        uint32 insn = encodespec(0x1, 0x0, 0x8, 0x12); // mflo $t0
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+
+        vm.expectRevert("MIPS: rs not zero");
+        mips.step(encodeState(state), proof, 0);
+    }
+
     function test_mfhi_succeeds() external {
         uint32 insn = encodespec(0x0, 0x0, 0x8, 0x10); // mfhi $t0
         (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
@@ -990,6 +1135,31 @@ contract MIPS_Test is CommonTest {
 
         bytes32 postState = mips.step(encodeState(state), proof, 0);
         assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    function test_mfhi_shamtNotZero_fails() external {
+        uint32 insn = encodespec(0x0, 0x0, 0x8, 0x10); // mfhi $t0
+        insn |= 0x1F << 6;
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+
+        vm.expectRevert("MIPS: shamt not zero");
+        mips.step(encodeState(state), proof, 0);
+    }
+
+    function test_mfhi_rtNotZero_fails() external {
+        uint32 insn = encodespec(0x0, 0x1, 0x8, 0x10); // mfhi $t0
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+
+        vm.expectRevert("MIPS: rt not zero");
+        mips.step(encodeState(state), proof, 0);
+    }
+
+    function test_mfhi_rsNotZero_fails() external {
+        uint32 insn = encodespec(0x1, 0x0, 0x8, 0x10); // mfhi $t0
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+
+        vm.expectRevert("MIPS: rs not zero");
+        mips.step(encodeState(state), proof, 0);
     }
 
     function test_mthi_succeeds() external {
@@ -1009,6 +1179,31 @@ contract MIPS_Test is CommonTest {
         assertEq(postState, outputState(expect), "unexpected post state");
     }
 
+    function test_mthi_shamtNotZero_fails() external {
+        uint32 insn = encodespec(0x8, 0x0, 0x0, 0x11); // mthi $t0
+        insn |= 0x1F << 6;
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+
+        vm.expectRevert("MIPS: shamt not zero");
+        mips.step(encodeState(state), proof, 0);
+    }
+
+    function test_mthi_rtNotZero_fails() external {
+        uint32 insn = encodespec(0x8, 0x1, 0x0, 0x11); // mthi $t0
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+
+        vm.expectRevert("MIPS: rt not zero");
+        mips.step(encodeState(state), proof, 0);
+    }
+
+    function test_mthi_rdNotZero_fails() external {
+        uint32 insn = encodespec(0x8, 0x0, 0x1, 0x11); // mthi $t0
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+
+        vm.expectRevert("MIPS: rd not zero");
+        mips.step(encodeState(state), proof, 0);
+    }
+
     function test_mtlo_succeeds() external {
         uint32 insn = encodespec(0x8, 0x0, 0x0, 0x13); // mtlo $t0
         (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
@@ -1024,6 +1219,31 @@ contract MIPS_Test is CommonTest {
 
         bytes32 postState = mips.step(encodeState(state), proof, 0);
         assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    function test_mtlo_shamtNotZero_fails() external {
+        uint32 insn = encodespec(0x8, 0x0, 0x0, 0x13); // mtlo $t0
+        insn |= 0x1F << 6;
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+
+        vm.expectRevert("MIPS: shamt not zero");
+        mips.step(encodeState(state), proof, 0);
+    }
+
+    function test_mtlo_rtNotZero_fails() external {
+        uint32 insn = encodespec(0x8, 0x1, 0x0, 0x13); // mtlo $t0
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+
+        vm.expectRevert("MIPS: rt not zero");
+        mips.step(encodeState(state), proof, 0);
+    }
+
+    function test_mtlo_rdNotZero_fails() external {
+        uint32 insn = encodespec(0x8, 0x0, 0x1, 0x13); // mtlo $t0
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+
+        vm.expectRevert("MIPS: rd not zero");
+        mips.step(encodeState(state), proof, 0);
     }
 
     function test_mul_succeeds() external {
@@ -1066,6 +1286,25 @@ contract MIPS_Test is CommonTest {
         assertEq(postState, outputState(expect), "unexpected post state");
     }
 
+    function test_mult_shamtNotZero_fails() external {
+        uint32 insn = encodespec(0x9, 0xa, 0x0, 0x18); // mult t1, t2
+        insn |= 0x1F << 6;
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        state.registers[9] = 0x0F_FF_00_00; // t1
+        state.registers[10] = 100; // t2
+
+        vm.expectRevert("MIPS: shamt not zero");
+        mips.step(encodeState(state), proof, 0);
+    }
+
+    function test_mult_rdNotZero_fails() external {
+        uint32 insn = encodespec(0x9, 0xa, 0x1, 0x18); // mult t1, t2
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+
+        vm.expectRevert("MIPS: rd not zero");
+        mips.step(encodeState(state), proof, 0);
+    }
+
     function test_multu_succeeds() external {
         uint32 insn = encodespec(0x9, 0xa, 0x0, 0x19); // multu t1, t2
         (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
@@ -1085,6 +1324,25 @@ contract MIPS_Test is CommonTest {
         bytes memory enc = encodeState(state);
         bytes32 postState = mips.step(enc, proof, 0);
         assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    function test_multu_shamtNotZero_fails() external {
+        uint32 insn = encodespec(0x9, 0xa, 0x0, 0x19); // multu t1, t2
+        insn |= 0x1F << 6;
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        state.registers[9] = 0x0F_FF_00_00; // t1
+        state.registers[10] = 100; // t2
+
+        vm.expectRevert("MIPS: shamt not zero");
+        mips.step(encodeState(state), proof, 0);
+    }
+
+    function test_multu_rdNotZero_fails() external {
+        uint32 insn = encodespec(0x9, 0xa, 0x1, 0x19); // multu t1, t2
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+
+        vm.expectRevert("MIPS: rd not zero");
+        mips.step(encodeState(state), proof, 0);
     }
 
     function test_div_succeeds() external {
@@ -1108,6 +1366,27 @@ contract MIPS_Test is CommonTest {
         assertEq(postState, outputState(expect), "unexpected post state");
     }
 
+    function test_div_rdNotZero_fails() external {
+        uint32 insn = encodespec(0x9, 0xa, 0x1, 0x1a); // div t1, t2
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        state.registers[9] = 5; // t1
+        state.registers[10] = 2; // t2
+
+        vm.expectRevert("MIPS: rd not zero");
+        mips.step(encodeState(state), proof, 0);
+    }
+
+    function test_div_shamtNotZero_fails() external {
+        uint32 insn = encodespec(0x9, 0xa, 0x0, 0x1a); // div t1, t2
+        insn |= 0x1F << 6;
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        state.registers[9] = 5; // t1
+        state.registers[10] = 2; // t2
+
+        vm.expectRevert("MIPS: shamt not zero");
+        mips.step(encodeState(state), proof, 0);
+    }
+
     function test_divu_succeeds() external {
         uint32 insn = encodespec(0x9, 0xa, 0x0, 0x1b); // divu t1, t2
         (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
@@ -1127,6 +1406,27 @@ contract MIPS_Test is CommonTest {
         bytes memory enc = encodeState(state);
         bytes32 postState = mips.step(enc, proof, 0);
         assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    function test_divu_rdNotZero_fails() external {
+        uint32 insn = encodespec(0x9, 0xa, 0x1, 0x1b); // divu t1, t2
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        state.registers[9] = 5; // t1
+        state.registers[10] = 2; // t2
+
+        vm.expectRevert("MIPS: rd not zero");
+        mips.step(encodeState(state), proof, 0);
+    }
+
+    function test_divu_shamtNotZero_fails() external {
+        uint32 insn = encodespec(0x9, 0xa, 0x0, 0x1b); // divu t1, t2
+        insn |= 0x1F << 6;
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        state.registers[9] = 5; // t1
+        state.registers[10] = 2; // t2
+
+        vm.expectRevert("MIPS: shamt not zero");
+        mips.step(encodeState(state), proof, 0);
     }
 
     function test_div_byZero_fails() external {
@@ -1345,6 +1645,31 @@ contract MIPS_Test is CommonTest {
         assertEq(postState, outputState(expect), "unexpected post state");
     }
 
+    function test_jr_shamtNotZero_fails() external {
+        uint32 insn = encodespec(0x8, 0, 0, 0x8); // jr t0
+        insn |= 0x1F << 6;
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+
+        vm.expectRevert("MIPS: shamt not zero");
+        mips.step(encodeState(state), proof, 0);
+    }
+
+    function test_jr_rtNotZero_fails() external {
+        uint32 insn = encodespec(0x8, 0x1, 0, 0x8); // jr t0
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+
+        vm.expectRevert("MIPS: rt not zero");
+        mips.step(encodeState(state), proof, 0);
+    }
+
+    function test_jr_rdNotZero_fails() external {
+        uint32 insn = encodespec(0x8, 0, 0x1, 0x8); // jr t0
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+
+        vm.expectRevert("MIPS: rd not zero");
+        mips.step(encodeState(state), proof, 0);
+    }
+
     function test_jalr_succeeds() external {
         uint16 tgt = 0x34;
         uint32 insn = encodespec(0x8, 0, 0x9, 0x9); // jalr t1, t0
@@ -1361,6 +1686,23 @@ contract MIPS_Test is CommonTest {
 
         bytes32 postState = mips.step(encodeState(state), proof, 0);
         assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    function test_jalr_shamtNotZero_fails() external {
+        uint32 insn = encodespec(0x8, 0, 0x9, 0x9); // jalr t1, t0
+        insn |= 0x1F << 6;
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+
+        vm.expectRevert("MIPS: shamt not zero");
+        mips.step(encodeState(state), proof, 0);
+    }
+
+    function test_jalr_rtNotZero_fails() external {
+        uint32 insn = encodespec(0x8, 0x1, 0x9, 0x9); // jalr t1, t0
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+
+        vm.expectRevert("MIPS: rt not zero");
+        mips.step(encodeState(state), proof, 0);
     }
 
     function test_sll_succeeds() external {
@@ -1382,6 +1724,16 @@ contract MIPS_Test is CommonTest {
         assertEq(postState, outputState(expect), "unexpected post state");
     }
 
+    function test_sll_rsNotZero_fails() external {
+        uint8 shiftamt = 4;
+        uint32 insn = encodespec(0x1, 0x9, 0x8, uint16(shiftamt) << 6); // sll t0, t1, 3
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        state.registers[9] = 0x20; // t1
+
+        vm.expectRevert("MIPS: rs not zero");
+        mips.step(encodeState(state), proof, 0);
+    }
+
     function test_srl_succeeds() external {
         uint8 shiftamt = 4;
         uint32 insn = encodespec(0x0, 0x9, 0x8, uint16(shiftamt) << 6 | 2); // srl t0, t1, 3
@@ -1399,6 +1751,16 @@ contract MIPS_Test is CommonTest {
         bytes memory enc = encodeState(state);
         bytes32 postState = mips.step(enc, proof, 0);
         assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    function test_srl_rsNotZero_fails() external {
+        uint8 shiftamt = 4;
+        uint32 insn = encodespec(0x1, 0x9, 0x8, uint16(shiftamt) << 6 | 2); // srl t0, t1, 3
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        state.registers[9] = 0x20; // t1
+
+        vm.expectRevert("MIPS: rs not zero");
+        mips.step(encodeState(state), proof, 0);
     }
 
     function test_sra_succeeds() external {
@@ -1525,6 +1887,14 @@ contract MIPS_Test is CommonTest {
 
         bytes32 postState = mips.step(encodedState, proof, 0);
         assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    function test_lui_rsNotZero_fails() external {
+        uint32 insn = encodeitype(0xf, 0x1, 0x8, 0x4); // lui $t0, 0x04
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+
+        vm.expectRevert("MIPS: rs not zero");
+        mips.step(encodeState(state), proof, 0);
     }
 
     function test_clo_succeeds() external {
