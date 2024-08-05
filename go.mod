@@ -11,7 +11,7 @@ require (
 	github.com/crate-crypto/go-kzg-4844 v0.7.0
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0
 	github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3
-	github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20240801182704-4810f97b7ee9
+	github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20240803025447-c92ef420eec2
 	github.com/ethereum/go-ethereum v1.13.15
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/golang/snappy v0.0.5-0.20220116011046-fa5810519dcb
@@ -228,7 +228,7 @@ require (
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
 
-replace github.com/ethereum/go-ethereum => github.com/ethereum-optimism/op-geth v1.101315.3-rc.1.0.20240803014139-d1cd7d82217d
+replace github.com/ethereum/go-ethereum => github.com/ethereum-optimism/op-geth v1.101316.0-rc.1
 
 //replace github.com/ethereum/go-ethereum v1.13.9 => ../op-geth
 
