@@ -77,8 +77,11 @@ func (s *ChainSpec) MaxChannelBankSize(t uint64) uint64 {
 }
 
 // ChannelTimeout returns the channel timeout constant.
-func (s *ChainSpec) ChannelTimeout() uint64 {
-	return s.config.ChannelTimeout
+func (s *ChainSpec) ChannelTimeout(t uint64) uint64 {
+	if s.config.IsGranite(t) {
+		return s.config.ChannelTimeoutGranite
+	}
+	return s.config.ChannelTimeoutBedrock
 }
 
 // MaxRLPBytesPerChannel returns the maximum amount of bytes that will be read from
@@ -130,10 +133,10 @@ func (s *ChainSpec) CheckForkActivation(log log.Logger, block eth.L2BlockRef) {
 			s.currentFork = Fjord
 		}
 		if s.config.IsGranite(block.Time) {
-			s.currentFork = Fjord
+			s.currentFork = Granite
 		}
 		if s.config.IsHolocene(block.Time) {
-			s.currentFork = Fjord
+			s.currentFork = Holocene
 		}
 		if s.config.IsInterop(block.Time) {
 			s.currentFork = Interop
