@@ -3,6 +3,7 @@ package actions
 import (
 	"context"
 	"crypto/ecdsa"
+	"encoding/binary"
 	"math/big"
 	"time"
 
@@ -208,18 +209,12 @@ func toCallArg(msg ethereum.CallMsg) interface{} {
 
 func (p *L2Proposer) fetchNextOutput(t Testing) (*eth.OutputResponse, bool, error) {
 	if e2eutils.UseFaultProofs() {
-		blockNumber, err := p.driver.FetchCurrentBlockNumber(t.Ctx())
+		output, err := p.driver.FetchDGFOutput(t.Ctx())
 		if err != nil {
 			return nil, false, err
 		}
-
-		output, _, err := p.driver.FetchOutput(t.Ctx(), blockNumber)
-		if err != nil {
-			return nil, false, err
-		}
-
 		encodedBlockNumber := make([]byte, 32)
-		copy(encodedBlockNumber[32-len(blockNumber.Bytes()):], blockNumber.Bytes())
+		binary.BigEndian.PutUint64(encodedBlockNumber[24:], output.BlockRef.Number)
 		game, err := p.disputeGameFactory.Games(&bind.CallOpts{}, p.driver.Cfg.DisputeGameType, output.OutputRoot, encodedBlockNumber)
 		if err != nil {
 			return nil, false, err
@@ -230,7 +225,7 @@ func (p *L2Proposer) fetchNextOutput(t Testing) (*eth.OutputResponse, bool, erro
 
 		return output, true, nil
 	} else {
-		return p.driver.FetchNextOutputInfo(t.Ctx())
+		return p.driver.FetchL2OOOutput(t.Ctx())
 	}
 }
 

@@ -41,8 +41,8 @@ var (
 	}
 	PollIntervalFlag = &cli.DurationFlag{
 		Name:    "poll-interval",
-		Usage:   "How frequently to poll L2 for new blocks",
-		Value:   6 * time.Second,
+		Usage:   "How frequently to poll L2 for new blocks (legacy L2OO)",
+		Value:   12 * time.Second,
 		EnvVars: prefixEnvVars("POLL_INTERVAL"),
 	}
 	AllowNonFinalizedFlag = &cli.BoolFlag{
@@ -62,8 +62,8 @@ var (
 	}
 	OutputRetryIntervalFlag = &cli.DurationFlag{
 		Name:    "output-retry-interval",
-		Usage:   "Interval between retrying output fetch if one fails",
-		Value:   time.Minute,
+		Usage:   "Interval between retrying output fetching (DGF)",
+		Value:   12 * time.Second,
 		EnvVars: prefixEnvVars("OUTPUT_RETRY_INTERVAL"),
 	}
 	DisputeGameTypeFlag = &cli.UintFlag{
