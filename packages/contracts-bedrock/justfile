@@ -50,7 +50,7 @@ snapshots-abi-storage:
 
 snapshots: build snapshots-no-build
 
-snapshots-no-build: snapshots-abi-storage kontrol-summary kontrol-summary-fp
+snapshots-no-build: snapshots-abi-storage kontrol-summary-fp kontrol-summary
 
 snapshots-check:
   ./scripts/checks/check-snapshots.sh
@@ -67,7 +67,7 @@ validate-spacers-no-build:
 validate-spacers: build validate-spacers-no-build
 
 clean:
-  rm -rf ./artifacts ./forge-artifacts ./cache ./tsconfig.tsbuildinfo ./tsconfig.build.tsbuildinfo ./scripts/go-ffi/go-ffi ./.testdata ./deployments/hardhat/*
+  rm -rf ./artifacts ./forge-artifacts ./cache ./scripts/go-ffi/go-ffi ./.testdata ./deployments/hardhat/*
 
 pre-pr-no-build: gas-snapshot-no-build snapshots-no-build semver-lock autogen-invariant-docs lint
 
