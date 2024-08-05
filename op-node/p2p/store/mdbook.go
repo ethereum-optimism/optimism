@@ -89,6 +89,8 @@ func (m *metadataBook) SetPeerMetadata(id peer.ID, md PeerMetadata) (PeerMetadat
 	rec := newMetadataRecord()
 	rec.PeerMetadata = md
 	rec.SetLastUpdated(m.book.clock.Now())
+	m.book.Lock()
+	defer m.book.Unlock()
 	v, err := m.book.SetRecord(id, rec)
 	return v.PeerMetadata, err
 }

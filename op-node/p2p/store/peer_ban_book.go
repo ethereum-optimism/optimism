@@ -80,6 +80,8 @@ func (d *peerBanBook) SetPeerBanExpiration(id peer.ID, expirationTime time.Time)
 	if expirationTime == (time.Time{}) {
 		return d.book.deleteRecord(id)
 	}
+	d.book.Lock()
+	defer d.book.Unlock()
 	_, err := d.book.SetRecord(id, peerBanUpdate(expirationTime))
 	return err
 }

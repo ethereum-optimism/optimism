@@ -80,13 +80,6 @@ func (d *recordsBook[K, V]) startGC() {
 	startGc(d.ctx, d.log, d.clock, &d.bgTasks, d.prune)
 }
 
-func (d *recordsBook[K, V]) GetRecord(key K) (V, error) {
-	d.RLock()
-	defer d.RUnlock()
-	rec, err := d.getRecord(key)
-	return rec, err
-}
-
 func (d *recordsBook[K, V]) dsKey(key K) ds.Key {
 	return d.dsBaseKey.Child(d.dsEntryKey(key))
 }
@@ -100,6 +93,9 @@ func (d *recordsBook[K, V]) deleteRecord(key K) error {
 	return fmt.Errorf("failed to delete entry with key %v: %w", key, err)
 }
 
+// You must read lock the recordsBook before calling this, and only unlock when you have extracted
+// the values you want from the value of type V. There's no way to conveniently pass an extractor
+// function parameterized on V here without breaking this out into a top-level function.
 func (d *recordsBook[K, V]) getRecord(key K) (v V, err error) {
 	if val, ok := d.cache.Get(key); ok {
 		if d.hasExpired(val) {
@@ -120,13 +116,14 @@ func (d *recordsBook[K, V]) getRecord(key K) (v V, err error) {
 	if d.hasExpired(v) {
 		return v, UnknownRecordErr
 	}
+	// This is safe with a read lock as it's self-synchronized.
 	d.cache.Add(key, v)
 	return v, nil
 }
 
+// You should lock the records book before calling this, and unlock it when you copy any values out
+// of the returned value.
 func (d *recordsBook[K, V]) SetRecord(key K, diff recordDiff[V]) (V, error) {
-	d.Lock()
-	defer d.Unlock()
 	rec, err := d.getRecord(key)
 	if err == UnknownRecordErr { // instantiate new record if it does not exist yet
 		rec = d.newRecord()

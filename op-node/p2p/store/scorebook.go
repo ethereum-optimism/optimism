@@ -70,6 +70,8 @@ func (d *scoreBook) startGC() {
 }
 
 func (d *scoreBook) GetPeerScores(id peer.ID) (PeerScores, error) {
+	d.book.RWMutex.RLock()
+	defer d.book.RWMutex.RUnlock()
 	record, err := d.book.getRecord(id)
 	if err == UnknownRecordErr {
 		return PeerScores{}, nil // return zeroed scores by default
@@ -89,6 +91,8 @@ func (d *scoreBook) GetPeerScore(id peer.ID) (float64, error) {
 }
 
 func (d *scoreBook) SetScore(id peer.ID, diff ScoreDiff) (PeerScores, error) {
+	d.book.Lock()
+	defer d.book.Unlock()
 	v, err := d.book.SetRecord(id, diff)
 	return v.PeerScores, err
 }

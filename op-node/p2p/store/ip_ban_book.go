@@ -84,6 +84,9 @@ func (d *ipBanBook) SetIPBanExpiration(ip net.IP, expirationTime time.Time) erro
 	if expirationTime == (time.Time{}) {
 		return d.book.deleteRecord(ip.To16().String())
 	}
+	// Should these move up to include the delete?
+	d.book.Lock()
+	defer d.book.Unlock()
 	_, err := d.book.SetRecord(ip.To16().String(), ipBanUpdate(expirationTime))
 	return err
 }
