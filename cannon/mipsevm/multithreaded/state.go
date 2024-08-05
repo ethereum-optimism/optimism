@@ -133,7 +133,7 @@ func (s *State) GetCpu() mipsevm.CpuScalars {
 	return activeThread.Cpu
 }
 
-func (s *State) getCpuMutable() *mipsevm.CpuScalars {
+func (s *State) getCpuRef() *mipsevm.CpuScalars {
 	return &s.GetCurrentThread().Cpu
 }
 
