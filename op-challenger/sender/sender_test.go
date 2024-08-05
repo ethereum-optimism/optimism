@@ -3,7 +3,6 @@ package sender
 import (
 	"context"
 	"fmt"
-	"math/big"
 	"sync"
 	"testing"
 	"time"
@@ -13,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
 )
@@ -171,43 +171,7 @@ func (s *stubTxMgr) BlockNumber(_ context.Context) (uint64, error) {
 	panic("unsupported")
 }
 
-func (s *stubTxMgr) GetMinBaseFee() *big.Int {
-	panic("unimplemented")
-}
-
-func (s *stubTxMgr) SetMinBaseFee(*big.Int) {
-	panic("unimplemented")
-}
-
-func (s *stubTxMgr) GetPriorityFee() *big.Int {
-	panic("unimplemented")
-}
-
-func (s *stubTxMgr) SetPriorityFee(*big.Int) {
-	panic("unimplemented")
-}
-
-func (s *stubTxMgr) GetMinBlobFee() *big.Int {
-	panic("unimplemented")
-}
-
-func (s *stubTxMgr) SetMinBlobFee(*big.Int) {
-	panic("unimplemented")
-}
-
-func (s *stubTxMgr) GetFeeThreshold() *big.Int {
-	panic("unimplemented")
-}
-
-func (s *stubTxMgr) SetFeeThreshold(*big.Int) {
-	panic("unimplemented")
-}
-
-func (s *stubTxMgr) GetBumpFeeRetryTime() time.Duration {
-	panic("unimplemented")
-}
-
-func (s *stubTxMgr) SetBumpFeeRetryTime(time.Duration) {
+func (s *stubTxMgr) API() rpc.API {
 	panic("unimplemented")
 }
 

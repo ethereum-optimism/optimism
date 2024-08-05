@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
@@ -74,43 +75,7 @@ func (f fakeTxMgr) IsClosed() bool {
 	return false
 }
 
-func (f fakeTxMgr) GetMinBaseFee() *big.Int {
-	panic("unimplemented")
-}
-
-func (f fakeTxMgr) SetMinBaseFee(*big.Int) {
-	panic("unimplemented")
-}
-
-func (f fakeTxMgr) GetPriorityFee() *big.Int {
-	panic("unimplemented")
-}
-
-func (f fakeTxMgr) SetPriorityFee(*big.Int) {
-	panic("unimplemented")
-}
-
-func (f fakeTxMgr) GetMinBlobFee() *big.Int {
-	panic("unimplemented")
-}
-
-func (f fakeTxMgr) SetMinBlobFee(*big.Int) {
-	panic("unimplemented")
-}
-
-func (f fakeTxMgr) GetFeeThreshold() *big.Int {
-	panic("unimplemented")
-}
-
-func (f fakeTxMgr) SetFeeThreshold(*big.Int) {
-	panic("unimplemented")
-}
-
-func (f fakeTxMgr) GetBumpFeeRetryTime() time.Duration {
-	panic("unimplemented")
-}
-
-func (f fakeTxMgr) SetBumpFeeRetryTime(time.Duration) {
+func (f fakeTxMgr) API() rpc.API {
 	panic("unimplemented")
 }
 

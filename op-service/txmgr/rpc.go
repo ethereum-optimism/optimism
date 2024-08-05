@@ -5,84 +5,50 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rpc"
 )
 
-func NewTxmgrApi(txmgr TxManager, m metrics.RPCMetricer, l log.Logger) rpc.API {
-	return rpc.API{
-		Namespace: "txmgr",
-		Service: &TxmgrApi{
-			mgr: txmgr,
-			m:   m,
-			l:   l,
-		},
-	}
-}
-
-type TxmgrApi struct {
-	mgr TxManager
-	m   metrics.RPCMetricer
+type SimpleTxmgrAPI struct {
+	mgr *SimpleTxManager
 	l   log.Logger
 }
 
-func (t *TxmgrApi) GetMinBaseFee(ctx context.Context) *big.Int {
-	recordDur := t.m.RecordRPCServerRequest("txmgr_getMinBaseFee")
-	defer recordDur()
-	return t.mgr.GetMinBaseFee()
+func (a *SimpleTxmgrAPI) GetMinBaseFee(ctx context.Context) *big.Int {
+	return a.mgr.GetMinBaseFee()
 }
 
-func (t *TxmgrApi) SetMinBaseFee(ctx context.Context, val *big.Int) {
-	recordDur := t.m.RecordRPCServerRequest("txmgr_setMinBaseFee")
-	defer recordDur()
-	t.mgr.SetMinBaseFee(val)
+func (a *SimpleTxmgrAPI) SetMinBaseFee(ctx context.Context, val *big.Int) {
+	a.mgr.SetMinBaseFee(val)
 }
 
-func (t *TxmgrApi) GetPriorityFee(ctx context.Context) *big.Int {
-	recordDur := t.m.RecordRPCServerRequest("txmgr_getPriorityFee")
-	defer recordDur()
-	return t.mgr.GetPriorityFee()
+func (a *SimpleTxmgrAPI) GetPriorityFee(ctx context.Context) *big.Int {
+	return a.mgr.GetPriorityFee()
 }
 
-func (t *TxmgrApi) SetPriorityFee(ctx context.Context, val *big.Int) {
-	recordDur := t.m.RecordRPCServerRequest("txmgr_setPriorityFee")
-	defer recordDur()
-	t.mgr.SetPriorityFee(val)
+func (a *SimpleTxmgrAPI) SetPriorityFee(ctx context.Context, val *big.Int) {
+	a.mgr.SetPriorityFee(val)
 }
 
-func (t *TxmgrApi) GetMinBlobFee(ctx context.Context) *big.Int {
-	recordDur := t.m.RecordRPCServerRequest("txmgr_getMinBlobFee")
-	defer recordDur()
-	return t.mgr.GetMinBlobFee()
+func (a *SimpleTxmgrAPI) GetMinBlobFee(ctx context.Context) *big.Int {
+	return a.mgr.GetMinBlobFee()
 }
 
-func (t *TxmgrApi) SetMinBlobFee(ctx context.Context, val *big.Int) {
-	recordDur := t.m.RecordRPCServerRequest("txmgr_setMinBlobFee")
-	defer recordDur()
-	t.mgr.SetMinBlobFee(val)
+func (a *SimpleTxmgrAPI) SetMinBlobFee(ctx context.Context, val *big.Int) {
+	a.mgr.SetMinBlobFee(val)
 }
 
-func (t *TxmgrApi) GetFeeThreshold(ctx context.Context) *big.Int {
-	recordDur := t.m.RecordRPCServerRequest("txmgr_getFeeThreshold")
-	defer recordDur()
-	return t.mgr.GetFeeThreshold()
+func (a *SimpleTxmgrAPI) GetFeeThreshold(ctx context.Context) *big.Int {
+	return a.mgr.GetFeeThreshold()
 }
 
-func (t *TxmgrApi) SetFeeThreshold(ctx context.Context, val *big.Int) {
-	recordDur := t.m.RecordRPCServerRequest("txmgr_setFeeThreshold")
-	defer recordDur()
-	t.mgr.SetFeeThreshold(val)
+func (a *SimpleTxmgrAPI) SetFeeThreshold(ctx context.Context, val *big.Int) {
+	a.mgr.SetFeeThreshold(val)
 }
 
-func (t *TxmgrApi) GetBumpFeeRetryTime(ctx context.Context) time.Duration {
-	recordDur := t.m.RecordRPCServerRequest("txmgr_getBumpFeeRetryTime")
-	defer recordDur()
-	return t.mgr.GetBumpFeeRetryTime()
+func (a *SimpleTxmgrAPI) GetBumpFeeRetryTime(ctx context.Context) time.Duration {
+	return a.mgr.GetBumpFeeRetryTime()
 }
 
-func (t *TxmgrApi) SetBumpFeeRetryTime(ctx context.Context, val time.Duration) {
-	recordDur := t.m.RecordRPCServerRequest("txmgr_setBumpFeeRetryTime")
-	defer recordDur()
-	t.mgr.SetBumpFeeRetryTime(val)
+func (a *SimpleTxmgrAPI) SetBumpFeeRetryTime(ctx context.Context, val time.Duration) {
+	a.mgr.SetBumpFeeRetryTime(val)
 }

@@ -337,11 +337,11 @@ func NewConfig(cfg CLIConfig, l log.Logger) (Config, error) {
 		return Config{}, fmt.Errorf("invalid min tip cap: %w", err)
 	}
 
-	return Config{
+	res := Config{
 		Backend:                   l1,
 		ResubmissionTimeout:       cfg.ResubmissionTimeout,
-		FeeLimitMultiplier:        cfg.FeeLimitMultiplier,
 		FeeLimitThreshold:         feeLimitThreshold,
+		FeeLimitMultiplier:        cfg.FeeLimitMultiplier,
 		MinBaseFee:                minBaseFee,
 		MinTipCap:                 minTipCap,
 		MinBlobTxFee:              defaultMinBlobTxFee,
@@ -354,7 +354,9 @@ func NewConfig(cfg CLIConfig, l log.Logger) (Config, error) {
 		SafeAbortNonceTooLowCount: cfg.SafeAbortNonceTooLowCount,
 		Signer:                    signerFactory(chainID),
 		From:                      from,
-	}, nil
+	}
+
+	return res, nil
 }
 
 // Config houses parameters for altering the behavior of a SimpleTxManager.

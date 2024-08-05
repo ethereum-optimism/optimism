@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/holiman/uint256"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -69,20 +70,8 @@ type TxManager interface {
 	// BlockNumber returns the most recent block number from the underlying network.
 	BlockNumber(ctx context.Context) (uint64, error)
 
-	GetMinBaseFee() *big.Int
-	SetMinBaseFee(*big.Int)
-
-	GetPriorityFee() *big.Int
-	SetPriorityFee(*big.Int)
-
-	GetMinBlobFee() *big.Int
-	SetMinBlobFee(*big.Int)
-
-	GetFeeThreshold() *big.Int
-	SetFeeThreshold(*big.Int)
-
-	GetBumpFeeRetryTime() time.Duration
-	SetBumpFeeRetryTime(time.Duration)
+	// API returns an rpc api interface which can be customized for each TxManager implementation
+	API() rpc.API
 
 	// Close the underlying connection
 	Close()
@@ -125,8 +114,8 @@ type ETHBackend interface {
 // SimpleTxManager is a implementation of TxManager that performs linear fee
 // bumping of a tx until it confirms.
 type SimpleTxManager struct {
-	cfg     Config     // embed the config directly
-	cfgLock sync.Mutex // protects values that can be changed at runtime via rpc
+	cfg     Config       // embed the config directly
+	cfgLock sync.RWMutex // protects values that can be changed at runtime via rpc
 
 	name    string
 	chainID *big.Int
@@ -173,6 +162,16 @@ func (m *SimpleTxManager) From() common.Address {
 
 func (m *SimpleTxManager) BlockNumber(ctx context.Context) (uint64, error) {
 	return m.backend.BlockNumber(ctx)
+}
+
+func (m *SimpleTxManager) API() rpc.API {
+	return rpc.API{
+		Namespace: "txmgr",
+		Service: &SimpleTxmgrAPI{
+			mgr: m,
+			l:   m.l,
+		},
+	}
 }
 
 // Close closes the underlying connection, and sets the closed flag.
@@ -334,8 +333,8 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 }
 
 func (m *SimpleTxManager) GetMinBaseFee() *big.Int {
-	m.cfgLock.Lock()
-	defer m.cfgLock.Unlock()
+	m.cfgLock.RLock()
+	defer m.cfgLock.RUnlock()
 	return m.cfg.MinBaseFee
 }
 
@@ -343,11 +342,12 @@ func (m *SimpleTxManager) SetMinBaseFee(val *big.Int) {
 	m.cfgLock.Lock()
 	defer m.cfgLock.Unlock()
 	m.cfg.MinBaseFee = val
+	m.l.Info("txmgr config val changed: SetMinBaseFee", "newVal", val.String())
 }
 
 func (m *SimpleTxManager) GetPriorityFee() *big.Int {
-	m.cfgLock.Lock()
-	defer m.cfgLock.Unlock()
+	m.cfgLock.RLock()
+	defer m.cfgLock.RUnlock()
 	return m.cfg.MinTipCap
 }
 
@@ -355,11 +355,12 @@ func (m *SimpleTxManager) SetPriorityFee(val *big.Int) {
 	m.cfgLock.Lock()
 	defer m.cfgLock.Unlock()
 	m.cfg.MinTipCap = val
+	m.l.Info("txmgr config val changed: SetPriorityFee", "newVal", val.String())
 }
 
 func (m *SimpleTxManager) GetMinBlobFee() *big.Int {
-	m.cfgLock.Lock()
-	defer m.cfgLock.Unlock()
+	m.cfgLock.RLock()
+	defer m.cfgLock.RUnlock()
 	return m.cfg.MinBlobTxFee
 }
 
@@ -367,11 +368,12 @@ func (m *SimpleTxManager) SetMinBlobFee(val *big.Int) {
 	m.cfgLock.Lock()
 	defer m.cfgLock.Unlock()
 	m.cfg.MinBlobTxFee = val
+	m.l.Info("txmgr config val changed: SetMinBlobFee", "newVal", val.String())
 }
 
 func (m *SimpleTxManager) GetFeeLimitMultiplier() uint64 {
-	m.cfgLock.Lock()
-	defer m.cfgLock.Unlock()
+	m.cfgLock.RLock()
+	defer m.cfgLock.RUnlock()
 	return m.cfg.FeeLimitMultiplier
 }
 
@@ -379,11 +381,12 @@ func (m *SimpleTxManager) SetFeeLimitMultiplier(val uint64) {
 	m.cfgLock.Lock()
 	defer m.cfgLock.Unlock()
 	m.cfg.FeeLimitMultiplier = val
+	m.l.Info("txmgr config val changed: SetFeeLimitMultiplier", "newVal", val)
 }
 
 func (m *SimpleTxManager) GetFeeThreshold() *big.Int {
-	m.cfgLock.Lock()
-	defer m.cfgLock.Unlock()
+	m.cfgLock.RLock()
+	defer m.cfgLock.RUnlock()
 	return m.cfg.FeeLimitThreshold
 }
 
@@ -391,11 +394,12 @@ func (m *SimpleTxManager) SetFeeThreshold(val *big.Int) {
 	m.cfgLock.Lock()
 	defer m.cfgLock.Unlock()
 	m.cfg.FeeLimitThreshold = val
+	m.l.Info("txmgr config val changed: SetFeeThreshold", "newVal", val.String())
 }
 
 func (m *SimpleTxManager) GetBumpFeeRetryTime() time.Duration {
-	m.cfgLock.Lock()
-	defer m.cfgLock.Unlock()
+	m.cfgLock.RLock()
+	defer m.cfgLock.RUnlock()
 	return m.cfg.ResubmissionTimeout
 }
 
@@ -403,6 +407,7 @@ func (m *SimpleTxManager) SetBumpFeeRetryTime(val time.Duration) {
 	m.cfgLock.Lock()
 	defer m.cfgLock.Unlock()
 	m.cfg.ResubmissionTimeout = val
+	m.l.Info("txmgr config val changed: SetBumpFeeRetryTime", "newVal", val.String())
 }
 
 // MakeSidecar builds & returns the BlobTxSidecar and corresponding blob hashes from the raw blob
@@ -507,9 +512,7 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 	// Immediately publish a transaction before starting the resubmission loop
 	tx = publishAndWait(tx, false)
 
-	m.cfgLock.Lock()
-	resubmissionTimeout := m.cfg.ResubmissionTimeout
-	m.cfgLock.Unlock()
+	resubmissionTimeout := m.GetBumpFeeRetryTime()
 	ticker := time.NewTicker(resubmissionTimeout)
 	defer ticker.Stop()
 
@@ -858,10 +861,10 @@ func (m *SimpleTxManager) SuggestGasPriceCaps(ctx context.Context) (*big.Int, *b
 // checkLimits checks that the tip and baseFee have not increased by more than the configured multipliers
 // if FeeLimitThreshold is specified in config, any increase which stays under the threshold are allowed
 func (m *SimpleTxManager) checkLimits(tip, baseFee, bumpedTip, bumpedFee *big.Int) (errs error) {
-	m.cfgLock.Lock()
+	m.cfgLock.RLock()
 	threshold := m.cfg.FeeLimitThreshold
 	feeLimitMultiplier := m.cfg.FeeLimitMultiplier
-	m.cfgLock.Unlock()
+	m.cfgLock.RUnlock()
 
 	limit := big.NewInt(int64(feeLimitMultiplier))
 	maxTip := new(big.Int).Mul(tip, limit)
