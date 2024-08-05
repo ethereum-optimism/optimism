@@ -67,8 +67,8 @@ func (d *peerBanBook) startGC() {
 
 func (d *peerBanBook) GetPeerBanExpiration(id peer.ID) (time.Time, error) {
 	rec, err := d.book.getRecord(id)
-	if err == UnknownRecordErr {
-		return time.Time{}, UnknownBanErr
+	if err == ErrUnknownRecord {
+		return time.Time{}, ErrUnknownBan
 	}
 	if err != nil {
 		return time.Time{}, err
