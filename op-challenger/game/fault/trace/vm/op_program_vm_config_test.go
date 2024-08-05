@@ -27,7 +27,6 @@ func TestOpProgramFillHostCommand(t *testing.T) {
 	}
 
 	validateStandard := func(t *testing.T, args []string) {
-		require.True(t, slices.Contains(args, "--"))
 		require.True(t, slices.Contains(args, "--server"))
 		require.True(t, slices.Contains(args, "--l1"))
 		require.True(t, slices.Contains(args, "--l1.beacon"))
@@ -41,9 +40,9 @@ func TestOpProgramFillHostCommand(t *testing.T) {
 	}
 
 	t.Run("NoExtras", func(t *testing.T) {
-		vmConfig := NewOpProgramVmConfig(cfg)
+		vmConfig := NewOpProgramVmConfig()
 
-		args, err := vmConfig.FillHostCommand([]string{}, dir, inputs)
+		args, err := vmConfig.OracleCommand(cfg, dir, inputs)
 		require.NoError(t, err)
 
 		validateStandard(t, args)
@@ -51,9 +50,9 @@ func TestOpProgramFillHostCommand(t *testing.T) {
 
 	t.Run("WithNetwork", func(t *testing.T) {
 		cfg.Network = "op-test"
-		vmConfig := NewOpProgramVmConfig(cfg)
+		vmConfig := NewOpProgramVmConfig()
 
-		args, err := vmConfig.FillHostCommand([]string{}, dir, inputs)
+		args, err := vmConfig.OracleCommand(cfg, dir, inputs)
 		require.NoError(t, err)
 
 		validateStandard(t, args)
@@ -62,9 +61,9 @@ func TestOpProgramFillHostCommand(t *testing.T) {
 
 	t.Run("WithRollupConfigPath", func(t *testing.T) {
 		cfg.RollupConfigPath = "rollup.config"
-		vmConfig := NewOpProgramVmConfig(cfg)
+		vmConfig := NewOpProgramVmConfig()
 
-		args, err := vmConfig.FillHostCommand([]string{}, dir, inputs)
+		args, err := vmConfig.OracleCommand(cfg, dir, inputs)
 		require.NoError(t, err)
 
 		validateStandard(t, args)
@@ -73,9 +72,9 @@ func TestOpProgramFillHostCommand(t *testing.T) {
 
 	t.Run("WithL2GenesisPath", func(t *testing.T) {
 		cfg.L2GenesisPath = "l2.genesis"
-		vmConfig := NewOpProgramVmConfig(cfg)
+		vmConfig := NewOpProgramVmConfig()
 
-		args, err := vmConfig.FillHostCommand([]string{}, dir, inputs)
+		args, err := vmConfig.OracleCommand(cfg, dir, inputs)
 		require.NoError(t, err)
 
 		validateStandard(t, args)
@@ -86,9 +85,9 @@ func TestOpProgramFillHostCommand(t *testing.T) {
 		cfg.Network = "op-test"
 		cfg.RollupConfigPath = "rollup.config"
 		cfg.L2GenesisPath = "l2.genesis"
-		vmConfig := NewOpProgramVmConfig(cfg)
+		vmConfig := NewOpProgramVmConfig()
 
-		args, err := vmConfig.FillHostCommand([]string{}, dir, inputs)
+		args, err := vmConfig.OracleCommand(cfg, dir, inputs)
 		require.NoError(t, err)
 
 		validateStandard(t, args)

@@ -9,36 +9,25 @@ import (
 )
 
 type KonaVmConfig struct {
-	Config
 }
 
-var _ VmConfig = (*KonaVmConfig)(nil)
+var _ OracleServerExecutor = (*KonaVmConfig)(nil)
 
-func NewKonaVmConfig(vmConfig Config) *KonaVmConfig {
-	return &KonaVmConfig{
-		vmConfig,
-	}
+func NewKonaVmConfig() *KonaVmConfig {
+	return &KonaVmConfig{}
 }
 
-func (s *KonaVmConfig) Cfg() Config {
-	return s.Config
-}
-
-func (s *KonaVmConfig) FillHostCommand(args []string, dataDir string, inputs utils.LocalGameInputs) ([]string, error) {
-	if args == nil {
-		return nil, errors.New("args is nil")
-	}
-	if s.Network == "" {
-		return nil, errors.New("Network is not defined")
+func (s *KonaVmConfig) OracleCommand(cfg Config, dataDir string, inputs utils.LocalGameInputs) ([]string, error) {
+	if cfg.Network == "" {
+		return nil, errors.New("network is not defined")
 	}
 
-	chainCfg := chaincfg.ChainByName(s.Network)
-	args = append(args,
-		"--",
-		s.Cfg().Server, "--server",
-		"--l1-node-address", s.Cfg().L1,
-		"--l1-beacon-address", s.Cfg().L1Beacon,
-		"--l2-node-address", s.Cfg().L2,
+	chainCfg := chaincfg.ChainByName(cfg.Network)
+	return []string{
+		cfg.Server, "--server",
+		"--l1-node-address", cfg.L1,
+		"--l1-beacon-address", cfg.L1Beacon,
+		"--l2-node-address", cfg.L2,
 		"--data-dir", dataDir,
 		"--l2-chain-id", strconv.FormatUint(chainCfg.ChainID, 10),
 		"--l1-head", inputs.L1Head.Hex(),
@@ -46,6 +35,5 @@ func (s *KonaVmConfig) FillHostCommand(args []string, dataDir string, inputs uti
 		"--l2-output-root", inputs.L2OutputRoot.Hex(),
 		"--l2-claim", inputs.L2Claim.Hex(),
 		"--l2-block-number", inputs.L2BlockNumber.Text(10),
-	)
-	return args, nil
+	}, nil
 }
