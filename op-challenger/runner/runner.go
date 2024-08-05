@@ -169,11 +169,21 @@ func (r *Runner) createGameInputs(ctx context.Context, client *sources.RollupCli
 	if status.SafeL2.Number == 0 {
 		return utils.LocalGameInputs{}, errors.New("safe head is 0")
 	}
-	claimOutput, err := client.OutputAtBlock(ctx, status.SafeL2.Number)
+	blockNumber := status.SafeL2.Number
+	// When possible, execute the first block in the submitted batch
+	if status.SafeL1.Number > 0 {
+		priorSafeHead, err := client.SafeHeadAtL1Block(ctx, status.SafeL1.Number-1)
+		if err != nil {
+			r.log.Warn("Failed to get prior safe head", "err", err)
+		} else if priorSafeHead.SafeHead.Number != 0 { // Sanity check to avoid trying to execute genesis
+			blockNumber = priorSafeHead.SafeHead.Number + 1
+		}
+	}
+	claimOutput, err := client.OutputAtBlock(ctx, blockNumber)
 	if err != nil {
 		return utils.LocalGameInputs{}, fmt.Errorf("failed to get claim output: %w", err)
 	}
-	parentOutput, err := client.OutputAtBlock(ctx, status.SafeL2.Number-1)
+	parentOutput, err := client.OutputAtBlock(ctx, blockNumber-1)
 	if err != nil {
 		return utils.LocalGameInputs{}, fmt.Errorf("failed to get claim output: %w", err)
 	}
@@ -182,7 +192,7 @@ func (r *Runner) createGameInputs(ctx context.Context, client *sources.RollupCli
 		L2Head:        parentOutput.BlockRef.Hash,
 		L2OutputRoot:  common.Hash(parentOutput.OutputRoot),
 		L2Claim:       common.Hash(claimOutput.OutputRoot),
-		L2BlockNumber: new(big.Int).SetUint64(status.SafeL2.Number),
+		L2BlockNumber: new(big.Int).SetUint64(blockNumber),
 	}
 	return localInputs, nil
 }
