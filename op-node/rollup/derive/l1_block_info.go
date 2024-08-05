@@ -293,6 +293,11 @@ func (info *L1BlockInfo) unmarshalDepositsComplete(data []byte) error {
 	return nil
 }
 
+func DepositCompletedFromBytes(rollupCfg *rollup.Config, l2BlockTime uint64, data []byte) (*L1BlockInfo, error) {
+	var info L1BlockInfo
+	return &info, info.unmarshalDepositsComplete(data)
+}
+
 // L1InfoDeposit creates a L1 Info deposit transaction based on the L1 block,
 // and the L2 block-height difference with the start of the epoch.
 func L1InfoDeposit(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNumber uint64, block eth.BlockInfo, l2BlockTime uint64, isDeposit bool) (*types.DepositTx, error) {
@@ -372,7 +377,19 @@ func L1InfoDepositBytes(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNu
 }
 
 func DepositsCompleteDeposit(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNumber uint64, block eth.BlockInfo, l2BlockTime uint64) (*types.DepositTx, error) {
-	var data []byte
+	l1BlockInfo := L1BlockInfo{
+		Number:         block.NumberU64(),
+		Time:           block.Time(),
+		BaseFee:        block.BaseFee(),
+		BlockHash:      block.Hash(),
+		SequenceNumber: seqNumber,
+		BatcherAddr:    sysCfg.BatcherAddr,
+		IsDeposit:      false,
+	}
+	data, err := l1BlockInfo.marshalDepositsComplete()
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal Bedrock l1 block info: %w", err)
+	}
 	source := L1InfoDepositSource{
 		L1BlockHash: block.Hash(),
 		SeqNumber:   seqNumber,
@@ -400,12 +417,12 @@ func DepositsCompleteDeposit(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, 
 func DepositsCompleteBytes(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNumber uint64, l1Info eth.BlockInfo, l2BlockTime uint64) ([]byte, error) {
 	dep, err := DepositsCompleteDeposit(rollupCfg, sysCfg, seqNumber, l1Info, l2BlockTime)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create L1 info tx: %w", err)
+		return nil, fmt.Errorf("failed to create DepositsComplete tx: %w", err)
 	}
-	l1Tx := types.NewTx(dep)
-	opaqueL1Tx, err := l1Tx.MarshalBinary()
+	depositsCompleteTx := types.NewTx(dep)
+	opaqueDepositsCompleteTx, err := depositsCompleteTx.MarshalBinary()
 	if err != nil {
-		return nil, fmt.Errorf("failed to encode L1 info tx: %w", err)
+		return nil, fmt.Errorf("failed to encode DepositsComplete tx: %w", err)
 	}
-	return opaqueL1Tx, nil
+	return opaqueDepositsCompleteTx, nil
 }
