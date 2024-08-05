@@ -49,16 +49,12 @@ type scoreBook struct {
 	book *recordsBook[peer.ID, *scoreRecord]
 }
 
-func newScoreRecord() *scoreRecord {
-	return new(scoreRecord)
-}
-
 func peerIDKey(id peer.ID) ds.Key {
 	return ds.NewKey(base32.RawStdEncoding.EncodeToString([]byte(id)))
 }
 
 func newScoreBook(ctx context.Context, logger log.Logger, clock clock.Clock, store ds.Batching, retain time.Duration) (*scoreBook, error) {
-	book, err := newRecordsBook[peer.ID, *scoreRecord](ctx, logger, clock, store, scoreCacheSize, retain, scoresBase, newScoreRecord, peerIDKey)
+	book, err := newRecordsBook[peer.ID, *scoreRecord](ctx, logger, clock, store, scoreCacheSize, retain, scoresBase, genNew, peerIDKey)
 	if err != nil {
 		return nil, err
 	}

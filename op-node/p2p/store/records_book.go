@@ -32,6 +32,10 @@ type recordDiff[V record] interface {
 
 var UnknownRecordErr = errors.New("unknown record")
 
+func genNew[T any]() *T {
+	return new(T)
+}
+
 // recordsBook is a generic K-V store to embed in the extended-peerstore.
 // It prunes old entries to keep the store small.
 // The recordsBook can be wrapped to customize typing more.
