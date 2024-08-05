@@ -71,8 +71,8 @@ func (d *ipBanBook) startGC() {
 
 func (d *ipBanBook) GetIPBanExpiration(ip net.IP) (time.Time, error) {
 	rec, err := d.book.getRecord(ip.To16().String())
-	if err == UnknownRecordErr {
-		return time.Time{}, UnknownBanErr
+	if err == ErrUnknownRecord {
+		return time.Time{}, ErrUnknownBan
 	}
 	if err != nil {
 		return time.Time{}, err
