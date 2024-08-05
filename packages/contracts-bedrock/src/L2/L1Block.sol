@@ -57,6 +57,9 @@ contract L1Block is ISemver, IGasToken {
     /// @notice The latest L1 blob base fee.
     uint256 public blobBaseFee;
 
+    /// @notice The isDeposit flag.
+    bool public isDeposit;
+
     /// @custom:semver 1.4.1-beta.1
     function version() public pure virtual returns (string memory) {
         return "1.4.1-beta.1";
@@ -87,6 +90,11 @@ contract L1Block is ISemver, IGasToken {
         return token != Constants.ETHER;
     }
 
+    function isDeposit() returns (bool _isDeposit) external view {
+        require(msg.sender == CROSS_L2_INBOX, "L1Block: only the CrossL2Inbox can check if it is a deposit");
+        returns isDeposit;
+    }
+
     /// @custom:legacy
     /// @notice Updates the L1 block values.
     /// @param _number         L1 blocknumber.
@@ -97,6 +105,7 @@ contract L1Block is ISemver, IGasToken {
     /// @param _batcherHash    Versioned hash to authenticate batcher by.
     /// @param _l1FeeOverhead  L1 fee overhead.
     /// @param _l1FeeScalar    L1 fee scalar.
+    /// @param _isDeposit      isDeposit flag
     function setL1BlockValues(
         uint64 _number,
         uint64 _timestamp,
@@ -105,7 +114,8 @@ contract L1Block is ISemver, IGasToken {
         uint64 _sequenceNumber,
         bytes32 _batcherHash,
         uint256 _l1FeeOverhead,
-        uint256 _l1FeeScalar
+        uint256 _l1FeeScalar,
+        bool _isDeposit
     )
         external
     {
@@ -119,6 +129,7 @@ contract L1Block is ISemver, IGasToken {
         batcherHash = _batcherHash;
         l1FeeOverhead = _l1FeeOverhead;
         l1FeeScalar = _l1FeeScalar;
+        isDeposit = _isDeposit;
     }
 
     /// @notice Updates the L1 block values for an Ecotone upgraded chain.
@@ -133,7 +144,8 @@ contract L1Block is ISemver, IGasToken {
     ///   7. _blobBaseFee        L1 blob base fee.
     ///   8. _hash               L1 blockhash.
     ///   9. _batcherHash        Versioned hash to authenticate batcher by.
-    function setL1BlockValuesEcotone() external {
+    ///   10. _isDeposit         isDeposit flag
+    function setL1BlockValuesInterop() external {
         address depositor = DEPOSITOR_ACCOUNT();
         assembly {
             // Revert if the caller is not the depositor account.
@@ -149,6 +161,7 @@ contract L1Block is ISemver, IGasToken {
             sstore(blobBaseFee.slot, calldataload(68)) // uint256
             sstore(hash.slot, calldataload(100)) // bytes32
             sstore(batcherHash.slot, calldataload(132)) // bytes32
+            sstore(isDeposit.slot, calldataload(133)) // boolean
         }
     }
 
@@ -161,5 +174,11 @@ contract L1Block is ISemver, IGasToken {
         GasPayingToken.set({ _token: _token, _decimals: _decimals, _name: _name, _symbol: _symbol });
 
         emit GasPayingTokenSet({ token: _token, decimals: _decimals, name: _name, symbol: _symbol });
+    }
+
+    /// @notice Resets the isDeposit flag.
+    function depositsComplete() external {
+        if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
+        isDeposit = false;
     }
 }

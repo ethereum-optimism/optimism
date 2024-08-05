@@ -116,14 +116,27 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		upgradeTxs = append(upgradeTxs, fjord...)
 	}
 
-	l1InfoTx, err := L1InfoDepositBytes(ba.rollupCfg, sysConfig, seqNumber, l1Info, nextL2Time)
+	var hasDeposits = len(depositTxs) > 0
+	l1InfoTx, err := L1InfoDepositBytes(ba.rollupCfg, sysConfig, seqNumber, l1Info, nextL2Time, hasDeposits)
 	if err != nil {
 		return nil, NewCriticalError(fmt.Errorf("failed to create l1InfoTx: %w", err))
 	}
 
-	txs := make([]hexutil.Bytes, 0, 1+len(depositTxs)+len(upgradeTxs))
+	var txsLen = 1 + len(depositTxs) + len(upgradeTxs)
+	if hasDeposits {
+		txsLen += 1 // for the isDeposit resetting tx
+	}
+	txs := make([]hexutil.Bytes, 0, txsLen)
 	txs = append(txs, l1InfoTx)
 	txs = append(txs, depositTxs...)
+	if hasDeposits {
+		depositsCompleteTx, err := DepositsCompleteBytes(ba.rollupCfg, sysConfig, seqNumber, l1Info, nextL2Time)
+		if err != nil {
+			return nil, NewCriticalError(fmt.Errorf("failed to create depositsCompleteTx: %w", err))
+		}
+		// after all the deposits have been processed, we need to include the isDeposit resetting tx
+		txs = append(txs, depositsCompleteTx)
+	}
 	txs = append(txs, upgradeTxs...)
 
 	var withdrawals *types.Withdrawals

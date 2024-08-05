@@ -29,6 +29,9 @@ error InvalidChainId();
 /// @notice Thrown when trying to execute a cross chain message and the target call fails.
 error TargetCallFailed();
 
+/// @notice Thrown when trying to execute a cross chain message on a deposit transaction.
+error NoExecutingDeposits();
+
 /// @custom:proxied
 /// @custom:predeploy 0x4200000000000000000000000000000000000022
 /// @title CrossL2Inbox
@@ -114,6 +117,9 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
         payable
         reentrantAware
     {
+        // We need to know if this is being called on a depositTx
+        if (L1_BLOCK.isDeposit()) revert NoExecutingDeposits();
+
         if (_id.timestamp > block.timestamp) revert InvalidTimestamp();
         if (!IDependencySet(Predeploys.L1_BLOCK_ATTRIBUTES).isInDependencySet(_id.chainId)) {
             revert InvalidChainId();
