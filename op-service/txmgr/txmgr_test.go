@@ -45,7 +45,7 @@ func testSendState() *SendState {
 
 // testHarness houses the necessary resources to test the SimpleTxManager.
 type testHarness struct {
-	cfg       Config
+	cfg       *Config
 	mgr       *SimpleTxManager
 	backend   *mockBackend
 	gasPricer *gasPricer
@@ -53,7 +53,7 @@ type testHarness struct {
 
 // newTestHarnessWithConfig initializes a testHarness with a specific
 // configuration.
-func newTestHarnessWithConfig(t *testing.T, cfg Config) *testHarness {
+func newTestHarnessWithConfig(t *testing.T, cfg *Config) *testHarness {
 	g := newGasPricer(3)
 	backend := newMockBackend(g)
 	cfg.Backend = backend
@@ -105,7 +105,7 @@ func (h testHarness) createBlobTxCandidate() TxCandidate {
 	}
 }
 
-func configWithNumConfs(numConfirmations uint64) Config {
+func configWithNumConfs(numConfirmations uint64) *Config {
 	cfg := Config{
 		ReceiptQueryInterval:      50 * time.Millisecond,
 		NumConfirmations:          numConfirmations,
@@ -121,7 +121,7 @@ func configWithNumConfs(numConfirmations uint64) Config {
 	cfg.FeeLimitMultiplier.Store(5)
 	cfg.MinBlobTxFee.Store(defaultMinBlobTxFee)
 
-	return cfg
+	return &cfg
 }
 
 type gasPricer struct {
@@ -859,7 +859,11 @@ func TestManagerErrsOnZeroCLIConfs(t *testing.T) {
 func TestManagerErrsOnZeroConfs(t *testing.T) {
 	t.Parallel()
 
-	_, err := NewSimpleTxManagerFromConfig("TEST", testlog.Logger(t, log.LevelCrit), &metrics.NoopTxMetrics{}, Config{})
+	cfg := Config{
+		NumConfirmations: 0,
+	}
+
+	_, err := NewSimpleTxManagerFromConfig("TEST", testlog.Logger(t, log.LevelCrit), &metrics.NoopTxMetrics{}, &cfg)
 	require.Error(t, err)
 }
 
@@ -962,7 +966,7 @@ func TestWaitMinedReturnsReceiptAfterFailure(t *testing.T) {
 	cfg.MinBlobTxFee.Store(defaultMinBlobTxFee)
 
 	mgr := &SimpleTxManager{
-		cfg:     cfg,
+		cfg:     &cfg,
 		name:    "TEST",
 		backend: &borkedBackend,
 		l:       testlog.Logger(t, log.LevelCrit),
@@ -1003,7 +1007,7 @@ func doGasPriceIncrease(t *testing.T, txTipCap, txFeeCap, newTip, newBaseFee int
 	cfg.MinBlobTxFee.Store(defaultMinBlobTxFee)
 
 	mgr := &SimpleTxManager{
-		cfg:     cfg,
+		cfg:     &cfg,
 		name:    "TEST",
 		backend: &borkedBackend,
 		l:       testlog.Logger(t, log.LevelCrit),
@@ -1177,7 +1181,7 @@ func testIncreaseGasPriceLimit(t *testing.T, lt gasPriceLimitTest) {
 	cfg.MinBlobTxFee.Store(defaultMinBlobTxFee)
 
 	mgr := &SimpleTxManager{
-		cfg:     cfg,
+		cfg:     &cfg,
 		name:    "TEST",
 		backend: &borkedBackend,
 		l:       testlog.Logger(t, log.LevelCrit),

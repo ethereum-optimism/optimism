@@ -22,7 +22,7 @@ func TestTxmgrRPC(t *testing.T) {
 	cfg.MinBlobTxFee.Store(minBlobFee)
 	cfg.FeeLimitThreshold.Store(feeThreshold)
 
-	h := newTestHarnessWithConfig(t, cfg)
+	h := newTestHarnessWithConfig(t, &cfg)
 
 	appVersion := "test"
 	server := oprpc.NewServer(

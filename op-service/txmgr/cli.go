@@ -291,23 +291,23 @@ func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 	}
 }
 
-func NewConfig(cfg CLIConfig, l log.Logger) (Config, error) {
+func NewConfig(cfg CLIConfig, l log.Logger) (*Config, error) {
 	if err := cfg.Check(); err != nil {
-		return Config{}, fmt.Errorf("invalid config: %w", err)
+		return nil, fmt.Errorf("invalid config: %w", err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.NetworkTimeout)
 	defer cancel()
 	l1, err := ethclient.DialContext(ctx, cfg.L1RPCURL)
 	if err != nil {
-		return Config{}, fmt.Errorf("could not dial eth client: %w", err)
+		return nil, fmt.Errorf("could not dial eth client: %w", err)
 	}
 
 	ctx, cancel = context.WithTimeout(context.Background(), cfg.NetworkTimeout)
 	defer cancel()
 	chainID, err := l1.ChainID(ctx)
 	if err != nil {
-		return Config{}, fmt.Errorf("could not dial fetch L1 chain ID: %w", err)
+		return nil, fmt.Errorf("could not dial fetch L1 chain ID: %w", err)
 	}
 
 	// Allow backwards compatible ways of specifying the HD path
@@ -320,22 +320,22 @@ func NewConfig(cfg CLIConfig, l log.Logger) (Config, error) {
 
 	signerFactory, from, err := opcrypto.SignerFactoryFromConfig(l, cfg.PrivateKey, cfg.Mnemonic, hdPath, cfg.SignerCLIConfig)
 	if err != nil {
-		return Config{}, fmt.Errorf("could not init signer: %w", err)
+		return nil, fmt.Errorf("could not init signer: %w", err)
 	}
 
 	feeLimitThreshold, err := eth.GweiToWei(cfg.FeeLimitThresholdGwei)
 	if err != nil {
-		return Config{}, fmt.Errorf("invalid fee limit threshold: %w", err)
+		return nil, fmt.Errorf("invalid fee limit threshold: %w", err)
 	}
 
 	minBaseFee, err := eth.GweiToWei(cfg.MinBaseFeeGwei)
 	if err != nil {
-		return Config{}, fmt.Errorf("invalid min base fee: %w", err)
+		return nil, fmt.Errorf("invalid min base fee: %w", err)
 	}
 
 	minTipCap, err := eth.GweiToWei(cfg.MinTipCapGwei)
 	if err != nil {
-		return Config{}, fmt.Errorf("invalid min tip cap: %w", err)
+		return nil, fmt.Errorf("invalid min tip cap: %w", err)
 	}
 
 	res := Config{
@@ -358,7 +358,7 @@ func NewConfig(cfg CLIConfig, l log.Logger) (Config, error) {
 	res.MinTipCap.Store(minTipCap)
 	res.MinBlobTxFee.Store(defaultMinBlobTxFee)
 
-	return res, nil
+	return &res, nil
 }
 
 // Config houses parameters for altering the behavior of a SimpleTxManager.
