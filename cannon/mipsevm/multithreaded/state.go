@@ -215,7 +215,7 @@ func (s *State) EncodeThreadProof() []byte {
 	return out
 }
 
-func (s *State) threadCount() int {
+func (s *State) ThreadCount() int {
 	return len(s.LeftThreadStack) + len(s.RightThreadStack)
 }
 
