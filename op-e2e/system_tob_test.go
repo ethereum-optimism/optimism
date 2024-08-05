@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
+	"math"
 	"math/big"
 	"math/rand"
 	"testing"
@@ -19,10 +20,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/bindings"
 	bindingspreview "github.com/ethereum-optimism/optimism/op-node/bindings/preview"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/fuzzerutils"
 	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -41,17 +42,16 @@ func TestGasPriceOracleFeeUpdates(t *testing.T) {
 	defer ctxCancel()
 
 	InitParallel(t)
-	// Define our values to set in the GasPriceOracle (we set them high to see if it can lock L2 or stop bindings
-	// from updating the prices once again.
-	overheadValue := new(big.Int).Set(abi.MaxUint256)
-	// Ensure the most significant byte is 0x00
-	scalarValue := new(big.Int).Rsh(new(big.Int).Set(abi.MaxUint256), 8)
+	maxScalars := eth.EcotoneScalars{
+		BaseFeeScalar:     math.MaxUint32,
+		BlobBaseFeeScalar: math.MaxUint32,
+	}
 	var cancel context.CancelFunc
 
 	// Create our system configuration for L1/L2 and start it
 	cfg := DefaultSystemConfig(t)
 	sys, err := cfg.Start(t)
-	require.Nil(t, err, "Error starting up system")
+	require.NoError(t, err, "Error starting up system")
 	defer sys.Close()
 
 	// Obtain our sequencer, verifier, and transactor keypair.
@@ -62,66 +62,61 @@ func TestGasPriceOracleFeeUpdates(t *testing.T) {
 
 	// Bind to the SystemConfig & GasPriceOracle contracts
 	sysconfig, err := legacybindings.NewSystemConfig(cfg.L1Deployments.SystemConfigProxy, l1Client)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	gpoContract, err := legacybindings.NewGasPriceOracleCaller(predeploys.GasPriceOracleAddr, l2Seq)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// Obtain our signer.
 	opts, err := bind.NewKeyedTransactorWithChainID(ethPrivKey, cfg.L1ChainIDBig())
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// Define our L1 transaction timeout duration.
 	txTimeoutDuration := 10 * time.Duration(cfg.DeployConfig.L1BlockTime) * time.Second
 
 	// Update the gas config, wait for it to show up on L2, & verify that it was set as intended
 	opts.Context, cancel = context.WithTimeout(ctx, txTimeoutDuration)
-	tx, err := sysconfig.SetGasConfig(opts, overheadValue, scalarValue)
+	tx, err := sysconfig.SetGasConfigEcotone(opts, maxScalars.BaseFeeScalar, maxScalars.BlobBaseFeeScalar)
 	cancel()
-	require.Nil(t, err, "sending overhead update tx")
+	require.NoError(t, err, "SetGasConfigEcotone update tx")
 
 	receipt, err := wait.ForReceiptOK(ctx, l1Client, tx.Hash())
-	require.Nil(t, err, "Waiting for sysconfig set gas config update tx")
+	require.NoError(t, err, "Waiting for sysconfig set gas config update tx")
 
 	_, err = geth.WaitForL1OriginOnL2(sys.RollupConfig, receipt.BlockNumber.Uint64(), l2Seq, txTimeoutDuration)
 	require.NoError(t, err, "waiting for L2 block to include the sysconfig update")
 
-	gpoOverhead, err := gpoContract.Overhead(&bind.CallOpts{})
-	require.Nil(t, err, "reading gpo overhead")
-	gpoScalar, err := gpoContract.Scalar(&bind.CallOpts{})
-	require.Nil(t, err, "reading gpo scalar")
+	baseFeeScalar, err := gpoContract.BaseFeeScalar(&bind.CallOpts{})
+	require.NoError(t, err, "reading base fee scalar")
+	require.Equal(t, baseFeeScalar, maxScalars.BaseFeeScalar)
 
-	if gpoOverhead.Cmp(overheadValue) != 0 {
-		t.Errorf("overhead that was found (%v) is not what was set (%v)", gpoOverhead, overheadValue)
-	}
-	if gpoScalar.Cmp(scalarValue) != 0 {
-		t.Errorf("scalar that was found (%v) is not what was set (%v)", gpoScalar, scalarValue)
-	}
+	blobBaseFeeScalar, err := gpoContract.BlobBaseFeeScalar(&bind.CallOpts{})
+	require.NoError(t, err, "reading blob base fee scalar")
+	require.Equal(t, blobBaseFeeScalar, maxScalars.BlobBaseFeeScalar)
 
 	// Now modify the scalar value & ensure that the gas params can be modified
-	scalarValue = big.NewInt(params.Ether)
+	normalScalars := eth.EcotoneScalars{
+		BaseFeeScalar:     1e6,
+		BlobBaseFeeScalar: 1e6,
+	}
 
 	opts.Context, cancel = context.WithTimeout(context.Background(), txTimeoutDuration)
-	tx, err = sysconfig.SetGasConfig(opts, overheadValue, scalarValue)
+	tx, err = sysconfig.SetGasConfigEcotone(opts, normalScalars.BaseFeeScalar, normalScalars.BlobBaseFeeScalar)
 	cancel()
-	require.Nil(t, err, "sending overhead update tx")
+	require.NoError(t, err, "SetGasConfigEcotone update tx")
 
 	receipt, err = wait.ForReceiptOK(ctx, l1Client, tx.Hash())
-	require.Nil(t, err, "Waiting for sysconfig set gas config update tx")
+	require.NoError(t, err, "Waiting for sysconfig set gas config update tx")
 
 	_, err = geth.WaitForL1OriginOnL2(sys.RollupConfig, receipt.BlockNumber.Uint64(), l2Seq, txTimeoutDuration)
 	require.NoError(t, err, "waiting for L2 block to include the sysconfig update")
 
-	gpoOverhead, err = gpoContract.Overhead(&bind.CallOpts{})
-	require.Nil(t, err, "reading gpo overhead")
-	gpoScalar, err = gpoContract.Scalar(&bind.CallOpts{})
-	require.Nil(t, err, "reading gpo scalar")
+	baseFeeScalar, err = gpoContract.BaseFeeScalar(&bind.CallOpts{})
+	require.NoError(t, err, "reading base fee scalar")
+	require.Equal(t, baseFeeScalar, normalScalars.BaseFeeScalar)
 
-	if gpoOverhead.Cmp(overheadValue) != 0 {
-		t.Errorf("overhead that was found (%v) is not what was set (%v)", gpoOverhead, overheadValue)
-	}
-	if gpoScalar.Cmp(scalarValue) != 0 {
-		t.Errorf("scalar that was found (%v) is not what was set (%v)", gpoScalar, scalarValue)
-	}
+	blobBaseFeeScalar, err = gpoContract.BlobBaseFeeScalar(&bind.CallOpts{})
+	require.NoError(t, err, "reading blob base fee scalar")
+	require.Equal(t, blobBaseFeeScalar, normalScalars.BlobBaseFeeScalar)
 }
 
 // TestL2SequencerRPCDepositTx checks that the L2 sequencer will not accept DepositTx type transactions.
