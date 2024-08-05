@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"sync/atomic"
 	"time"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
@@ -339,12 +340,6 @@ func NewConfig(cfg CLIConfig, l log.Logger) (Config, error) {
 
 	res := Config{
 		Backend:                   l1,
-		ResubmissionTimeout:       cfg.ResubmissionTimeout,
-		FeeLimitThreshold:         feeLimitThreshold,
-		FeeLimitMultiplier:        cfg.FeeLimitMultiplier,
-		MinBaseFee:                minBaseFee,
-		MinTipCap:                 minTipCap,
-		MinBlobTxFee:              defaultMinBlobTxFee,
 		ChainID:                   chainID,
 		TxSendTimeout:             cfg.TxSendTimeout,
 		TxNotInMempoolTimeout:     cfg.TxNotInMempoolTimeout,
@@ -356,6 +351,13 @@ func NewConfig(cfg CLIConfig, l log.Logger) (Config, error) {
 		From:                      from,
 	}
 
+	res.ResubmissionTimeout.Store(int64(cfg.ResubmissionTimeout))
+	res.FeeLimitThreshold.Store(feeLimitThreshold)
+	res.FeeLimitMultiplier.Store(cfg.FeeLimitMultiplier)
+	res.MinBaseFee.Store(minBaseFee)
+	res.MinTipCap.Store(minTipCap)
+	res.MinBlobTxFee.Store(defaultMinBlobTxFee)
+
 	return res, nil
 }
 
@@ -366,23 +368,23 @@ type Config struct {
 	// published transaction has been mined, the new tx with a bumped gas
 	// price will be published. Only one publication at MaxGasPrice will be
 	// attempted.
-	ResubmissionTimeout time.Duration
+	ResubmissionTimeout atomic.Int64
 
 	// The multiplier applied to fee suggestions to put a hard limit on fee increases.
-	FeeLimitMultiplier uint64
+	FeeLimitMultiplier atomic.Uint64
 
 	// Minimum threshold (in Wei) at which the FeeLimitMultiplier takes effect.
 	// On low-fee networks, like test networks, this allows for arbitrary fee bumps
 	// below this threshold.
-	FeeLimitThreshold *big.Int
+	FeeLimitThreshold atomic.Pointer[big.Int]
 
 	// Minimum base fee (in Wei) to assume when determining tx fees.
-	MinBaseFee *big.Int
+	MinBaseFee atomic.Pointer[big.Int]
 
 	// Minimum tip cap (in Wei) to enforce when determining tx fees.
-	MinTipCap *big.Int
+	MinTipCap atomic.Pointer[big.Int]
 
-	MinBlobTxFee *big.Int
+	MinBlobTxFee atomic.Pointer[big.Int]
 
 	// ChainID is the chain ID of the L1 chain.
 	ChainID *big.Int
@@ -418,7 +420,7 @@ type Config struct {
 	From   common.Address
 }
 
-func (m Config) Check() error {
+func (m *Config) Check() error {
 	if m.Backend == nil {
 		return errors.New("must provide the Backend")
 	}
@@ -428,14 +430,16 @@ func (m Config) Check() error {
 	if m.NetworkTimeout == 0 {
 		return errors.New("must provide NetworkTimeout")
 	}
-	if m.FeeLimitMultiplier == 0 {
+	if m.FeeLimitMultiplier.Load() == 0 {
 		return errors.New("must provide FeeLimitMultiplier")
 	}
-	if m.MinBaseFee != nil && m.MinTipCap != nil && m.MinBaseFee.Cmp(m.MinTipCap) == -1 {
+	minBaseFee := m.MinBaseFee.Load()
+	minTipCap := m.MinTipCap.Load()
+	if minBaseFee != nil && minTipCap != nil && minBaseFee.Cmp(minTipCap) == -1 {
 		return fmt.Errorf("minBaseFee smaller than minTipCap, have %v < %v",
-			m.MinBaseFee, m.MinTipCap)
+			minBaseFee, minTipCap)
 	}
-	if m.ResubmissionTimeout == 0 {
+	if m.ResubmissionTimeout.Load() == 0 {
 		return errors.New("must provide ResubmissionTimeout")
 	}
 	if m.ReceiptQueryInterval == 0 {

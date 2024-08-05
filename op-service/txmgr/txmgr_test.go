@@ -106,19 +106,22 @@ func (h testHarness) createBlobTxCandidate() TxCandidate {
 }
 
 func configWithNumConfs(numConfirmations uint64) Config {
-	return Config{
-		ResubmissionTimeout:       time.Second,
+	cfg := Config{
 		ReceiptQueryInterval:      50 * time.Millisecond,
 		NumConfirmations:          numConfirmations,
 		SafeAbortNonceTooLowCount: 3,
-		FeeLimitMultiplier:        5,
-		MinBlobTxFee:              defaultMinBlobTxFee,
 		TxNotInMempoolTimeout:     1 * time.Hour,
 		Signer: func(ctx context.Context, from common.Address, tx *types.Transaction) (*types.Transaction, error) {
 			return tx, nil
 		},
 		From: common.Address{},
 	}
+
+	cfg.ResubmissionTimeout.Store(int64(time.Second))
+	cfg.FeeLimitMultiplier.Store(5)
+	cfg.MinBlobTxFee.Store(defaultMinBlobTxFee)
+
+	return cfg
 }
 
 type gasPricer struct {
@@ -950,14 +953,16 @@ func TestWaitMinedReturnsReceiptAfterFailure(t *testing.T) {
 
 	var borkedBackend failingBackend
 
+	cfg := Config{
+		ReceiptQueryInterval:      50 * time.Millisecond,
+		NumConfirmations:          1,
+		SafeAbortNonceTooLowCount: 3,
+	}
+	cfg.ResubmissionTimeout.Store(int64(time.Second))
+	cfg.MinBlobTxFee.Store(defaultMinBlobTxFee)
+
 	mgr := &SimpleTxManager{
-		cfg: Config{
-			ResubmissionTimeout:       time.Second,
-			ReceiptQueryInterval:      50 * time.Millisecond,
-			NumConfirmations:          1,
-			SafeAbortNonceTooLowCount: 3,
-			MinBlobTxFee:              defaultMinBlobTxFee,
-		},
+		cfg:     cfg,
 		name:    "TEST",
 		backend: &borkedBackend,
 		l:       testlog.Logger(t, log.LevelCrit),
@@ -984,19 +989,21 @@ func doGasPriceIncrease(t *testing.T, txTipCap, txFeeCap, newTip, newBaseFee int
 		returnSuccessHeader: true,
 	}
 
-	mgr := &SimpleTxManager{
-		cfg: Config{
-			ResubmissionTimeout:       time.Second,
-			ReceiptQueryInterval:      50 * time.Millisecond,
-			NumConfirmations:          1,
-			SafeAbortNonceTooLowCount: 3,
-			FeeLimitMultiplier:        5,
-			MinBlobTxFee:              defaultMinBlobTxFee,
-			Signer: func(ctx context.Context, from common.Address, tx *types.Transaction) (*types.Transaction, error) {
-				return tx, nil
-			},
-			From: common.Address{},
+	cfg := Config{
+		ReceiptQueryInterval:      50 * time.Millisecond,
+		NumConfirmations:          1,
+		SafeAbortNonceTooLowCount: 3,
+		Signer: func(ctx context.Context, from common.Address, tx *types.Transaction) (*types.Transaction, error) {
+			return tx, nil
 		},
+		From: common.Address{},
+	}
+	cfg.ResubmissionTimeout.Store(int64(time.Second))
+	cfg.FeeLimitMultiplier.Store(5)
+	cfg.MinBlobTxFee.Store(defaultMinBlobTxFee)
+
+	mgr := &SimpleTxManager{
+		cfg:     cfg,
 		name:    "TEST",
 		backend: &borkedBackend,
 		l:       testlog.Logger(t, log.LevelCrit),
@@ -1155,20 +1162,22 @@ func testIncreaseGasPriceLimit(t *testing.T, lt gasPriceLimitTest) {
 		returnSuccessHeader: true,
 	}
 
-	mgr := &SimpleTxManager{
-		cfg: Config{
-			ResubmissionTimeout:       time.Second,
-			ReceiptQueryInterval:      50 * time.Millisecond,
-			NumConfirmations:          1,
-			SafeAbortNonceTooLowCount: 3,
-			FeeLimitMultiplier:        5,
-			FeeLimitThreshold:         lt.thr,
-			MinBlobTxFee:              defaultMinBlobTxFee,
-			Signer: func(ctx context.Context, from common.Address, tx *types.Transaction) (*types.Transaction, error) {
-				return tx, nil
-			},
-			From: common.Address{},
+	cfg := Config{
+		ReceiptQueryInterval:      50 * time.Millisecond,
+		NumConfirmations:          1,
+		SafeAbortNonceTooLowCount: 3,
+		Signer: func(ctx context.Context, from common.Address, tx *types.Transaction) (*types.Transaction, error) {
+			return tx, nil
 		},
+		From: common.Address{},
+	}
+	cfg.ResubmissionTimeout.Store(int64(time.Second))
+	cfg.FeeLimitMultiplier.Store(5)
+	cfg.FeeLimitThreshold.Store(lt.thr)
+	cfg.MinBlobTxFee.Store(defaultMinBlobTxFee)
+
+	mgr := &SimpleTxManager{
+		cfg:     cfg,
 		name:    "TEST",
 		backend: &borkedBackend,
 		l:       testlog.Logger(t, log.LevelCrit),
@@ -1322,8 +1331,8 @@ func TestMinFees(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			require := require.New(t)
 			conf := configWithNumConfs(1)
-			conf.MinBaseFee = tt.minBaseFee
-			conf.MinTipCap = tt.minTipCap
+			conf.MinBaseFee.Store(tt.minBaseFee)
+			conf.MinTipCap.Store(tt.minTipCap)
 			h := newTestHarnessWithConfig(t, conf)
 
 			tip, baseFee, _, err := h.mgr.SuggestGasPriceCaps(context.TODO())

@@ -114,8 +114,7 @@ type ETHBackend interface {
 // SimpleTxManager is a implementation of TxManager that performs linear fee
 // bumping of a tx until it confirms.
 type SimpleTxManager struct {
-	cfg     Config       // embed the config directly
-	cfgLock sync.RWMutex // protects values that can be changed at runtime via rpc
+	cfg Config // embed the config directly
 
 	name    string
 	chainID *big.Int
@@ -333,80 +332,56 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 }
 
 func (m *SimpleTxManager) GetMinBaseFee() *big.Int {
-	m.cfgLock.RLock()
-	defer m.cfgLock.RUnlock()
-	return m.cfg.MinBaseFee
+	return m.cfg.MinBaseFee.Load()
 }
 
 func (m *SimpleTxManager) SetMinBaseFee(val *big.Int) {
-	m.cfgLock.Lock()
-	defer m.cfgLock.Unlock()
-	m.cfg.MinBaseFee = val
+	m.cfg.MinBaseFee.Store(val)
 	m.l.Info("txmgr config val changed: SetMinBaseFee", "newVal", val.String())
 }
 
 func (m *SimpleTxManager) GetPriorityFee() *big.Int {
-	m.cfgLock.RLock()
-	defer m.cfgLock.RUnlock()
-	return m.cfg.MinTipCap
+	return m.cfg.MinTipCap.Load()
 }
 
 func (m *SimpleTxManager) SetPriorityFee(val *big.Int) {
-	m.cfgLock.Lock()
-	defer m.cfgLock.Unlock()
-	m.cfg.MinTipCap = val
+	m.cfg.MinTipCap.Store(val)
 	m.l.Info("txmgr config val changed: SetPriorityFee", "newVal", val.String())
 }
 
 func (m *SimpleTxManager) GetMinBlobFee() *big.Int {
-	m.cfgLock.RLock()
-	defer m.cfgLock.RUnlock()
-	return m.cfg.MinBlobTxFee
+	return m.cfg.MinBlobTxFee.Load()
 }
 
 func (m *SimpleTxManager) SetMinBlobFee(val *big.Int) {
-	m.cfgLock.Lock()
-	defer m.cfgLock.Unlock()
-	m.cfg.MinBlobTxFee = val
+	m.cfg.MinBlobTxFee.Store(val)
 	m.l.Info("txmgr config val changed: SetMinBlobFee", "newVal", val.String())
 }
 
 func (m *SimpleTxManager) GetFeeLimitMultiplier() uint64 {
-	m.cfgLock.RLock()
-	defer m.cfgLock.RUnlock()
-	return m.cfg.FeeLimitMultiplier
+	return m.cfg.FeeLimitMultiplier.Load()
 }
 
 func (m *SimpleTxManager) SetFeeLimitMultiplier(val uint64) {
-	m.cfgLock.Lock()
-	defer m.cfgLock.Unlock()
-	m.cfg.FeeLimitMultiplier = val
+	m.cfg.FeeLimitMultiplier.Store(val)
 	m.l.Info("txmgr config val changed: SetFeeLimitMultiplier", "newVal", val)
 }
 
 func (m *SimpleTxManager) GetFeeThreshold() *big.Int {
-	m.cfgLock.RLock()
-	defer m.cfgLock.RUnlock()
-	return m.cfg.FeeLimitThreshold
+	return m.cfg.FeeLimitThreshold.Load()
 }
 
 func (m *SimpleTxManager) SetFeeThreshold(val *big.Int) {
-	m.cfgLock.Lock()
-	defer m.cfgLock.Unlock()
-	m.cfg.FeeLimitThreshold = val
+	m.cfg.FeeLimitThreshold.Store(val)
 	m.l.Info("txmgr config val changed: SetFeeThreshold", "newVal", val.String())
 }
 
 func (m *SimpleTxManager) GetBumpFeeRetryTime() time.Duration {
-	m.cfgLock.RLock()
-	defer m.cfgLock.RUnlock()
-	return m.cfg.ResubmissionTimeout
+	return time.Duration(m.cfg.ResubmissionTimeout.Load())
 }
 
 func (m *SimpleTxManager) SetBumpFeeRetryTime(val time.Duration) {
-	m.cfgLock.Lock()
-	defer m.cfgLock.Unlock()
-	m.cfg.ResubmissionTimeout = val
+	m.cfg.ResubmissionTimeout.Store(int64(val))
 	m.l.Info("txmgr config val changed: SetBumpFeeRetryTime", "newVal", val.String())
 }
 
@@ -836,10 +811,8 @@ func (m *SimpleTxManager) SuggestGasPriceCaps(ctx context.Context) (*big.Int, *b
 	m.metr.RecordTipCap(tip)
 
 	// Enforce minimum base fee and tip cap
-	m.cfgLock.Lock()
-	minTipCap := m.cfg.MinTipCap
-	minBaseFee := m.cfg.MinBaseFee
-	m.cfgLock.Unlock()
+	minTipCap := m.cfg.MinTipCap.Load()
+	minBaseFee := m.cfg.MinBaseFee.Load()
 
 	if minTipCap != nil && tip.Cmp(minTipCap) == -1 {
 		m.l.Debug("Enforcing min tip cap", "minTipCap", minTipCap, "origTipCap", tip)
@@ -861,10 +834,8 @@ func (m *SimpleTxManager) SuggestGasPriceCaps(ctx context.Context) (*big.Int, *b
 // checkLimits checks that the tip and baseFee have not increased by more than the configured multipliers
 // if FeeLimitThreshold is specified in config, any increase which stays under the threshold are allowed
 func (m *SimpleTxManager) checkLimits(tip, baseFee, bumpedTip, bumpedFee *big.Int) (errs error) {
-	m.cfgLock.RLock()
-	threshold := m.cfg.FeeLimitThreshold
-	feeLimitMultiplier := m.cfg.FeeLimitMultiplier
-	m.cfgLock.RUnlock()
+	threshold := m.cfg.FeeLimitThreshold.Load()
+	feeLimitMultiplier := m.cfg.FeeLimitMultiplier.Load()
 
 	limit := big.NewInt(int64(feeLimitMultiplier))
 	maxTip := new(big.Int).Mul(tip, limit)
@@ -890,10 +861,8 @@ func (m *SimpleTxManager) checkLimits(tip, baseFee, bumpedTip, bumpedFee *big.In
 func (m *SimpleTxManager) checkBlobFeeLimits(blobBaseFee, bumpedBlobFee *big.Int) error {
 	// If below threshold, don't apply multiplier limit. Note we use same threshold parameter here
 	// used for non-blob fee limiting.
-	m.cfgLock.Lock()
-	feeLimitThreshold := m.cfg.FeeLimitThreshold
-	feeLimitMultiplier := m.cfg.FeeLimitMultiplier
-	m.cfgLock.Unlock()
+	feeLimitThreshold := m.cfg.FeeLimitThreshold.Load()
+	feeLimitMultiplier := m.cfg.FeeLimitMultiplier.Load()
 
 	if thr := feeLimitThreshold; thr != nil && thr.Cmp(bumpedBlobFee) == 1 {
 		return nil

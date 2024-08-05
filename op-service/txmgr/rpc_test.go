@@ -16,12 +16,12 @@ func TestTxmgrRPC(t *testing.T) {
 	minBlobFee := big.NewInt(3000)
 	feeThreshold := big.NewInt(4000)
 
-	cfg := Config{
-		MinBaseFee:        minBaseFee,
-		MinTipCap:         priorityFee,
-		MinBlobTxFee:      minBlobFee,
-		FeeLimitThreshold: feeThreshold,
-	}
+	cfg := Config{}
+	cfg.MinBaseFee.Store(minBaseFee)
+	cfg.MinTipCap.Store(priorityFee)
+	cfg.MinBlobTxFee.Store(minBlobFee)
+	cfg.FeeLimitThreshold.Store(feeThreshold)
+
 	h := newTestHarnessWithConfig(t, cfg)
 
 	appVersion := "test"
