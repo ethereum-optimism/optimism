@@ -1,7 +1,6 @@
 package tests
 
 import (
-	"math/rand"
 	"os"
 	"testing"
 
@@ -35,11 +34,10 @@ func TestEVM_CloneFlags(t *testing.T) {
 		{"multiple unsupported flags", exec.CloneUntraced | exec.CloneParentSettid, false},
 	}
 
-	const insn = uint32(0x00_00_00_0C) // syscall instruction
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			state := multithreaded.CreateEmptyState()
-			state.Memory.SetMemory(state.GetPC(), insn)
+			state.Memory.SetMemory(state.GetPC(), syscallInsn)
 			state.GetRegistersRef()[2] = exec.SysClone // Set syscall number
 			state.GetRegistersRef()[4] = tt.flags      // Set first argument
 			curStep := state.Step
@@ -86,7 +84,6 @@ func TestEVM_CloneSuccessful(t *testing.T) {
 		{"traverse right", true},
 	}
 
-	const insn = uint32(0x00_00_00_0C) // syscall instruction
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			stackPtr := uint32(100)
@@ -109,7 +106,7 @@ func TestEVM_CloneSuccessful(t *testing.T) {
 			state.GetCurrentThread().Cpu.NextPC = pc + 4
 			state.GetCurrentThread().Cpu.HI = hi
 			state.GetCurrentThread().Cpu.LO = lo
-			state.Memory.SetMemory(state.GetPC(), insn)
+			state.Memory.SetMemory(state.GetPC(), syscallInsn)
 			*state.GetRegistersRef() = RandomRegisters(1)
 			state.GetRegistersRef()[2] = exec.SysClone        // the syscall number
 			state.GetRegistersRef()[4] = exec.ValidCloneFlags // a0 - first argument, clone flags
@@ -180,12 +177,51 @@ func TestEVM_CloneSuccessful(t *testing.T) {
 	}
 }
 
-// TODO - cut this in favor of testutil randomization tools
-func RandomRegisters(seed int64) [32]uint32 {
-	r := rand.New(rand.NewSource(seed))
-	var registers [32]uint32
-	for i := 0; i < 32; i++ {
-		registers[i] = r.Uint32()
+func TestEVM_GetTID(t *testing.T) {
+	var tracer *tracing.Hooks
+	contracts := testutil.TestContractsSetup(t, testutil.MipsMultithreaded)
+	cases := []struct {
+		name     string
+		threadId uint32
+	}{
+		{"zero", 0},
+		{"non-zero", 11},
 	}
-	return registers
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			state := multithreaded.CreateEmptyState()
+			state.GetCurrentThread().ThreadId = tt.threadId
+			state.Memory.SetMemory(state.GetPC(), syscallInsn)
+			*state.GetRegistersRef() = RandomRegisters(int64(tt.threadId))
+			state.GetRegistersRef()[2] = exec.SysGetTID // Set syscall number
+			curStep := state.Step
+
+			nextPC := state.GetCpu().NextPC
+			expectedRegisters := testutil.CopyRegisters(state)
+			expectedRegisters[2] = tt.threadId // tid return value
+			expectedRegisters[7] = 0           // no error
+
+			var err error
+			var stepWitness *mipsevm.StepWitness
+			us := multithreaded.NewInstrumentedState(state, nil, os.Stdout, os.Stderr, nil)
+			stepWitness, err = us.Step(true)
+			require.NoError(t, err)
+
+			// Validate post-state
+			require.Equal(t, 1, state.ThreadCount())
+			require.Equal(t, expectedRegisters, state.GetRegistersRef())
+			require.Equal(t, nextPC, state.GetPC())
+			require.Equal(t, nextPC+4, state.GetCpu().NextPC)
+
+			evm := testutil.NewMIPSEVM(contracts)
+			evm.SetTracer(tracer)
+			testutil.LogStepFailureAtCleanup(t, evm)
+
+			evmPost := evm.Step(t, stepWitness, curStep, multithreaded.GetStateHashFn())
+			goPost, _ := us.GetState().EncodeWitness()
+			require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
+				"mipsevm produced different state than EVM")
+		})
+	}
 }
