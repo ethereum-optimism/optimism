@@ -17,6 +17,6 @@ func RandomRegisters(seed int64) [32]uint32 {
 
 func CopyRegisters(state mipsevm.FPVMState) *[32]uint32 {
 	copy := new([32]uint32)
-	*copy = *state.GetRegistersMutable()
+	*copy = *state.GetRegistersRef()
 	return copy
 }

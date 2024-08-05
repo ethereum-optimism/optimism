@@ -31,7 +31,7 @@ func FuzzStateSyscallBrk(f *testing.F) {
 				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(),
 					WithPC(pc), WithNextPC(nextPC), WithStep(step), WithPreimageOffset(preimageOffset))
 				state := goVm.GetState()
-				state.GetRegistersMutable()[2] = exec.SysBrk
+				state.GetRegistersRef()[2] = exec.SysBrk
 				state.GetMemory().SetMemory(pc, syscallInsn)
 
 				preStateRoot := state.GetMemory().MerkleRoot()
@@ -50,7 +50,7 @@ func FuzzStateSyscallBrk(f *testing.F) {
 				require.Equal(t, uint8(0), state.GetExitCode())
 				require.Equal(t, false, state.GetExited())
 				require.Equal(t, preStateRoot, state.GetMemory().MerkleRoot())
-				require.Equal(t, expectedRegisters, state.GetRegistersMutable())
+				require.Equal(t, expectedRegisters, state.GetRegistersRef())
 				require.Equal(t, step+1, state.GetStep())
 				require.Equal(t, common.Hash{}, state.GetPreimageKey())
 				require.Equal(t, preimageOffset, state.GetPreimageOffset())
@@ -80,10 +80,10 @@ func FuzzStateSyscallMmap(f *testing.F) {
 				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(),
 					WithStep(step), WithHeap(heap))
 				state := goVm.GetState()
-				*state.GetRegistersMutable() = testutil.RandomRegisters(seed)
-				state.GetRegistersMutable()[2] = exec.SysMmap
-				state.GetRegistersMutable()[4] = addr
-				state.GetRegistersMutable()[5] = siz
+				*state.GetRegistersRef() = testutil.RandomRegisters(seed)
+				state.GetRegistersRef()[2] = exec.SysMmap
+				state.GetRegistersRef()[4] = addr
+				state.GetRegistersRef()[5] = siz
 				state.GetMemory().SetMemory(0, syscallInsn)
 
 				preStateRoot := state.GetMemory().MerkleRoot()
@@ -127,7 +127,7 @@ func FuzzStateSyscallMmap(f *testing.F) {
 				require.Equal(t, expectedHeap, state.GetHeap())
 				require.Equal(t, uint8(0), state.GetExitCode())
 				require.Equal(t, false, state.GetExited())
-				require.Equal(t, expectedRegisters, state.GetRegistersMutable())
+				require.Equal(t, expectedRegisters, state.GetRegistersRef())
 
 				evm := testutil.NewMIPSEVM(v.Contracts)
 				evmPost := evm.Step(t, stepWitness, step, v.StateHashFn)
@@ -149,8 +149,8 @@ func FuzzStateSyscallExitGroup(f *testing.F) {
 				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(),
 					WithPC(pc), WithNextPC(nextPC), WithStep(step))
 				state := goVm.GetState()
-				state.GetRegistersMutable()[2] = exec.SysExitGroup
-				state.GetRegistersMutable()[4] = uint32(exitCode)
+				state.GetRegistersRef()[2] = exec.SysExitGroup
+				state.GetRegistersRef()[4] = uint32(exitCode)
 				state.GetMemory().SetMemory(pc, syscallInsn)
 
 				preStateRoot := state.GetMemory().MerkleRoot()
@@ -168,7 +168,7 @@ func FuzzStateSyscallExitGroup(f *testing.F) {
 				require.Equal(t, uint8(exitCode), state.GetExitCode())
 				require.Equal(t, true, state.GetExited())
 				require.Equal(t, preStateRoot, state.GetMemory().MerkleRoot())
-				require.Equal(t, preStateRegisters, state.GetRegistersMutable())
+				require.Equal(t, preStateRegisters, state.GetRegistersRef())
 				require.Equal(t, step+1, state.GetStep())
 				require.Equal(t, common.Hash{}, state.GetPreimageKey())
 				require.Equal(t, uint32(0), state.GetPreimageOffset())
@@ -192,9 +192,9 @@ func FuzzStateSyscallFcntl(f *testing.F) {
 				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(),
 					WithStep(step))
 				state := goVm.GetState()
-				state.GetRegistersMutable()[2] = exec.SysFcntl
-				state.GetRegistersMutable()[4] = fd
-				state.GetRegistersMutable()[5] = cmd
+				state.GetRegistersRef()[2] = exec.SysFcntl
+				state.GetRegistersRef()[4] = fd
+				state.GetRegistersRef()[5] = cmd
 				state.GetMemory().SetMemory(0, syscallInsn)
 
 				preStateRoot := state.GetMemory().MerkleRoot()
@@ -226,12 +226,12 @@ func FuzzStateSyscallFcntl(f *testing.F) {
 						expectedRegisters[2] = 0xFF_FF_FF_FF
 						expectedRegisters[7] = exec.MipsEBADF
 					}
-					require.Equal(t, expectedRegisters, state.GetRegistersMutable())
+					require.Equal(t, expectedRegisters, state.GetRegistersRef())
 				} else {
 					expectedRegisters := preStateRegisters
 					expectedRegisters[2] = 0xFF_FF_FF_FF
 					expectedRegisters[7] = exec.MipsEINVAL
-					require.Equal(t, expectedRegisters, state.GetRegistersMutable())
+					require.Equal(t, expectedRegisters, state.GetRegistersRef())
 				}
 
 				evm := testutil.NewMIPSEVM(v.Contracts)
@@ -257,10 +257,10 @@ func FuzzStateHintRead(f *testing.F) {
 				goVm := v.VMFactory(oracle, os.Stdout, os.Stderr, testutil.CreateLogger(),
 					WithStep(step), WithPreimageKey(preimageKey))
 				state := goVm.GetState()
-				state.GetRegistersMutable()[2] = exec.SysRead
-				state.GetRegistersMutable()[4] = exec.FdHintRead
-				state.GetRegistersMutable()[5] = addr
-				state.GetRegistersMutable()[6] = count
+				state.GetRegistersRef()[2] = exec.SysRead
+				state.GetRegistersRef()[4] = exec.FdHintRead
+				state.GetRegistersRef()[5] = addr
+				state.GetRegistersRef()[6] = count
 				state.GetMemory().SetMemory(0, syscallInsn)
 
 				preStatePreimageKey := state.GetPreimageKey()
@@ -282,7 +282,7 @@ func FuzzStateHintRead(f *testing.F) {
 				require.Equal(t, preStateRoot, state.GetMemory().MerkleRoot())
 				require.Equal(t, uint64(1), state.GetStep())
 				require.Equal(t, preStatePreimageKey, state.GetPreimageKey())
-				require.Equal(t, expectedRegisters, state.GetRegistersMutable())
+				require.Equal(t, expectedRegisters, state.GetRegistersRef())
 
 				evm := testutil.NewMIPSEVM(v.Contracts)
 				evmPost := evm.Step(t, stepWitness, step, v.StateHashFn)
@@ -310,10 +310,10 @@ func FuzzStatePreimageRead(f *testing.F) {
 				goVm := v.VMFactory(oracle, os.Stdout, os.Stderr, testutil.CreateLogger(),
 					WithStep(step), WithPreimageKey(preimageKey), WithPreimageOffset(preimageOffset))
 				state := goVm.GetState()
-				state.GetRegistersMutable()[2] = exec.SysRead
-				state.GetRegistersMutable()[4] = exec.FdPreimageRead
-				state.GetRegistersMutable()[5] = addr
-				state.GetRegistersMutable()[6] = count
+				state.GetRegistersRef()[2] = exec.SysRead
+				state.GetRegistersRef()[4] = exec.FdPreimageRead
+				state.GetRegistersRef()[5] = addr
+				state.GetRegistersRef()[6] = count
 				state.GetMemory().SetMemory(0, syscallInsn)
 
 				preStatePreimageKey := state.GetPreimageKey()
@@ -371,10 +371,10 @@ func FuzzStateHintWrite(f *testing.F) {
 				goVm := v.VMFactory(oracle, os.Stdout, os.Stderr, testutil.CreateLogger(),
 					WithStep(step), WithPreimageKey(preimageKey))
 				state := goVm.GetState()
-				state.GetRegistersMutable()[2] = exec.SysWrite
-				state.GetRegistersMutable()[4] = exec.FdHintWrite
-				state.GetRegistersMutable()[5] = addr
-				state.GetRegistersMutable()[6] = count
+				state.GetRegistersRef()[2] = exec.SysWrite
+				state.GetRegistersRef()[4] = exec.FdHintWrite
+				state.GetRegistersRef()[5] = addr
+				state.GetRegistersRef()[6] = count
 
 				// Set random data at the target memory range
 				randBytes, err := randomBytes(randSeed, count)
@@ -403,7 +403,7 @@ func FuzzStateHintWrite(f *testing.F) {
 				require.Equal(t, preStateRoot, state.GetMemory().MerkleRoot())
 				require.Equal(t, uint64(1), state.GetStep())
 				require.Equal(t, preStatePreimageKey, state.GetPreimageKey())
-				require.Equal(t, expectedRegisters, state.GetRegistersMutable())
+				require.Equal(t, expectedRegisters, state.GetRegistersRef())
 
 				evm := testutil.NewMIPSEVM(v.Contracts)
 				evmPost := evm.Step(t, stepWitness, step, v.StateHashFn)
@@ -428,10 +428,10 @@ func FuzzStatePreimageWrite(f *testing.F) {
 				goVm := v.VMFactory(oracle, os.Stdout, os.Stderr, testutil.CreateLogger(),
 					WithStep(step), WithPreimageKey(preimageKey), WithPreimageOffset(128))
 				state := goVm.GetState()
-				state.GetRegistersMutable()[2] = exec.SysWrite
-				state.GetRegistersMutable()[4] = exec.FdPreimageWrite
-				state.GetRegistersMutable()[5] = addr
-				state.GetRegistersMutable()[6] = count
+				state.GetRegistersRef()[2] = exec.SysWrite
+				state.GetRegistersRef()[4] = exec.FdPreimageWrite
+				state.GetRegistersRef()[5] = addr
+				state.GetRegistersRef()[6] = count
 				state.GetMemory().SetMemory(0, syscallInsn)
 
 				preStateRoot := state.GetMemory().MerkleRoot()
@@ -456,7 +456,7 @@ func FuzzStatePreimageWrite(f *testing.F) {
 				require.Equal(t, preStateRoot, state.GetMemory().MerkleRoot())
 				require.Equal(t, uint64(1), state.GetStep())
 				require.Equal(t, uint32(0), state.GetPreimageOffset())
-				require.Equal(t, expectedRegisters, state.GetRegistersMutable())
+				require.Equal(t, expectedRegisters, state.GetRegistersRef())
 
 				evm := testutil.NewMIPSEVM(v.Contracts)
 				evmPost := evm.Step(t, stepWitness, step, v.StateHashFn)

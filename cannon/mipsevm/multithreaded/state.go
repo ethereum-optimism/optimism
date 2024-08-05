@@ -137,7 +137,7 @@ func (s *State) getCpuMutable() *mipsevm.CpuScalars {
 	return &s.GetCurrentThread().Cpu
 }
 
-func (s *State) GetRegistersMutable() *[32]uint32 {
+func (s *State) GetRegistersRef() *[32]uint32 {
 	activeThread := s.GetCurrentThread()
 	return &activeThread.Registers
 }
