@@ -216,7 +216,7 @@ func FjordSystemConfig(t *testing.T, fjordTimeOffset *hexutil.Uint64) SystemConf
 }
 
 func GraniteSystemConfig(t *testing.T, graniteTimeOffset *hexutil.Uint64) SystemConfig {
-	cfg := EcotoneSystemConfig(t, &genesisTime)
+	cfg := FjordSystemConfig(t, &genesisTime)
 	cfg.DeployConfig.L2GenesisGraniteTimeOffset = graniteTimeOffset
 	return cfg
 }
