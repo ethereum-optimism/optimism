@@ -69,21 +69,21 @@ contract Bytes_slice_Test is Test {
     ///         on the length of the slice.
     ///         The calls to `bound` are to reduce the number of times that `assume` is triggered.
     function testFuzz_slice_memorySafety_succeeds(bytes memory _input, uint256 _start, uint256 _length) public {
+        vm.assume(_input.length > 0);
+
         // The start should never be more than the length of the input bytes array - 1
         _start = bound(_start, 0, _input.length - 1);
-        vm.assume(_start < _input.length);
 
         // The length should never be more than the length of the input bytes array - the starting
         // slice index.
         _length = bound(_length, 0, _input.length - _start);
-        vm.assume(_length <= _input.length - _start);
 
         // Grab the free memory pointer before the slice operation
         uint64 initPtr;
         assembly {
             initPtr := mload(0x40)
         }
-        uint64 expectedPtr = uint64(initPtr + 0x20 + ((_length + 0x1f) & ~uint256(0x1f)));
+        uint64 expectedPtr = uint64((initPtr + 0x20 + _length + 0x1f) & ~uint256(0x1f));
 
         // Ensure that all memory outside of the expected range is safe.
         vm.expectSafeMemory(initPtr, expectedPtr);
@@ -111,7 +111,7 @@ contract Bytes_slice_Test is Test {
             // Note that we use a slightly less efficient, but equivalent method of rounding
             // up `_length` to the next multiple of 32 than is used in the `slice` function.
             // This is to diff test the method used in `slice`.
-            uint64 _expectedPtr = uint64(initPtr + 0x20 + (((_length + 0x1F) >> 5) << 5));
+            uint64 _expectedPtr = uint64(((initPtr + 0x20 + _length + 0x1F) >> 5) << 5);
             assertEq(finalPtr, _expectedPtr);
 
             // Sanity check for equivalence of the rounding methods.
