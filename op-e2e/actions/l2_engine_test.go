@@ -47,13 +47,14 @@ func TestL2EngineAPI(gt *testing.T) {
 	chainA, _ := core.GenerateChain(sd.L2Cfg.Config, genesisBlock, consensus, db, 1, func(i int, gen *core.BlockGen) {
 		gen.SetCoinbase(common.Address{'A'})
 	})
-	payloadA, err := eth.BlockAsPayload(chainA[0], sd.RollupCfg.CanyonTime)
+	blockA := chainA[0]
+	payloadA, err := eth.BlockAsPayload(blockA, sd.RollupCfg.CanyonTime)
 	require.NoError(t, err)
 
 	// apply the payload
-	status, err := l2Cl.NewPayload(t.Ctx(), payloadA, nil)
+	status, err := l2Cl.NewPayload(t.Ctx(), payloadA, blockA.BeaconRoot())
 	require.NoError(t, err)
-	require.Equal(t, status.Status, eth.ExecutionValid)
+	require.Equal(t, eth.ExecutionValid, status.Status)
 	require.Equal(t, genesisBlock.Hash(), engine.l2Chain.CurrentBlock().Hash(), "processed payloads are not immediately canonical")
 
 	// recognize the payload as canonical
@@ -63,20 +64,21 @@ func TestL2EngineAPI(gt *testing.T) {
 		FinalizedBlockHash: genesisBlock.Hash(),
 	}, nil)
 	require.NoError(t, err)
-	require.Equal(t, fcRes.PayloadStatus.Status, eth.ExecutionValid)
+	require.Equal(t, eth.ExecutionValid, fcRes.PayloadStatus.Status)
 	require.Equal(t, payloadA.BlockHash, engine.l2Chain.CurrentBlock().Hash(), "now payload A is canonical")
 
 	// build an alternative block
 	chainB, _ := core.GenerateChain(sd.L2Cfg.Config, genesisBlock, consensus, db, 1, func(i int, gen *core.BlockGen) {
 		gen.SetCoinbase(common.Address{'B'})
 	})
-	payloadB, err := eth.BlockAsPayload(chainB[0], sd.RollupCfg.CanyonTime)
+	blockB := chainB[0]
+	payloadB, err := eth.BlockAsPayload(blockB, sd.RollupCfg.CanyonTime)
 	require.NoError(t, err)
 
 	// apply the payload
-	status, err = l2Cl.NewPayload(t.Ctx(), payloadB, nil)
+	status, err = l2Cl.NewPayload(t.Ctx(), payloadB, blockB.BeaconRoot())
 	require.NoError(t, err)
-	require.Equal(t, status.Status, eth.ExecutionValid)
+	require.Equal(t, eth.ExecutionValid, status.Status)
 	require.Equal(t, payloadA.BlockHash, engine.l2Chain.CurrentBlock().Hash(), "processed payloads are not immediately canonical")
 
 	// reorg block A in favor of block B
@@ -86,7 +88,7 @@ func TestL2EngineAPI(gt *testing.T) {
 		FinalizedBlockHash: genesisBlock.Hash(),
 	}, nil)
 	require.NoError(t, err)
-	require.Equal(t, fcRes.PayloadStatus.Status, eth.ExecutionValid)
+	require.Equal(t, eth.ExecutionValid, fcRes.PayloadStatus.Status)
 	require.Equal(t, payloadB.BlockHash, engine.l2Chain.CurrentBlock().Hash(), "now payload B is canonical")
 }
 
