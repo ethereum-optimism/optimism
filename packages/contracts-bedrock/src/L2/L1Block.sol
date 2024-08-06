@@ -22,6 +22,12 @@ contract L1Block is ISemver, IGasToken {
         addr_ = Constants.DEPOSITOR_ACCOUNT;
     }
 
+    address public constant CROSS_L2_INBOX = address(0x4200000000000000000000000000000000000022);
+
+    // TODO(disco): check slot
+    /// @notice The isDeposit flag.
+    bool internal isDepositTransaction;
+
     /// @notice The latest L1 block number known by the L2 system.
     uint64 public number;
 
@@ -57,9 +63,6 @@ contract L1Block is ISemver, IGasToken {
     /// @notice The latest L1 blob base fee.
     uint256 public blobBaseFee;
 
-    /// @notice The isDeposit flag.
-    bool public isDeposit;
-
     /// @custom:semver 1.4.1-beta.1
     function version() public pure virtual returns (string memory) {
         return "1.4.1-beta.1";
@@ -90,9 +93,10 @@ contract L1Block is ISemver, IGasToken {
         return token != Constants.ETHER;
     }
 
-    function isDeposit() returns (bool _isDeposit) external view {
+    // TODO(disco): natspec
+    function isDeposit() external view returns (bool _isDeposit) {
         require(msg.sender == CROSS_L2_INBOX, "L1Block: only the CrossL2Inbox can check if it is a deposit");
-        _isDeposit = isDeposit;
+        _isDeposit = isDepositTransaction;
     }
 
     /// @custom:legacy
@@ -129,13 +133,15 @@ contract L1Block is ISemver, IGasToken {
         batcherHash = _batcherHash;
         l1FeeOverhead = _l1FeeOverhead;
         l1FeeScalar = _l1FeeScalar;
-        isDeposit = _isDeposit;
+        isDepositTransaction = _isDeposit;
     }
 
-    // TODO natspec
+    // TODO(disco) natspec
     function setL1BlockValuesIsthmus() external {
-        isDeposit = true;
-        setL1BlockValuesEcotone(); // Internally call the Ecotone function
+        isDepositTransaction = true;
+        // TODO(disco): need to check calldata is proxied here, otherwise we might need to do an assembly low-level call
+        // here
+        setL1BlockValuesEcotone();
     }
 
     /// @notice Updates the L1 block values for an Ecotone upgraded chain.
@@ -183,6 +189,6 @@ contract L1Block is ISemver, IGasToken {
     /// @notice Resets the isDeposit flag.
     function depositsComplete() external {
         if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
-        isDeposit = false;
+        isDepositTransaction = false;
     }
 }
