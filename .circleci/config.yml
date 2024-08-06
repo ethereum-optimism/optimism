@@ -137,7 +137,7 @@ jobs:
       - run:
           name: build Cannon example binaries
           command: make elf # only compile ELF binaries with Go, we do not have MIPS GCC for creating the debug-dumps.
-          working_directory: cannon/example
+          working_directory: cannon/testdata/example
       - run:
           name: Cannon Go lint
           command: |
