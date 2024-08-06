@@ -68,8 +68,8 @@ contract TransientReentrancyAware {
     error ReentrantCall();
 
     /// @notice Storage slot for `entered` value.
-    ///         Equal to bytes32(uint256(keccak256("l2tol2crossdomainmessenger.entered")) - 1)
-    bytes32 internal constant ENTERED_SLOT = 0xf53fc38c5e461bdcbbeb47887fecf014abd399293109cd50f65e5f9078cfd025;
+    ///         Equal to bytes32(uint256(keccak256("transientreentrancyaware.entered")) - 1)
+    bytes32 internal constant ENTERED_SLOT = 0xf13569814868ede994184d5a425471fb19e869768a33421cb701a2ba3d420c0a;
 
     /// @notice Modifier to make a function reentrancy-aware.
     modifier reentrantAware() {
@@ -105,12 +105,11 @@ contract TransientReentrancyAware {
     }
 
     /// @notice Retrieves whether the contract is currently entered or not.
-    /// @return True if the contract is entered, and false otherwise.
-    function _entered() internal view returns (bool) {
-        uint256 value;
+    /// @return entered_ True if the contract is entered, and false otherwise.
+    function _entered() internal view returns (bool entered_) {
         assembly {
-            value := tload(ENTERED_SLOT)
+            let value := tload(ENTERED_SLOT)
+            entered_ := gt(value, 0)
         }
-        return value != 0;
     }
 }

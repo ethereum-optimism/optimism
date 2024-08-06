@@ -125,11 +125,11 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
     /// @notice Validates a cross chain from on the destination chain. This function is useful
     ///         for applications that understand the schema of the _message payload and want to
     ///         process it in a custom way.
-    function validateMessage(Identifier calldata _id, bytes memory _message) external nonReentrant {
+    function validateMessage(Identifier calldata _id, bytes32 _msgHash) external {
         // Check the Identifier.
         _checkIdentifier(_id);
 
-        emit ExecutingMessage(keccak256(_message), _id);
+        emit ExecutingMessage(_msgHash, _id);
     }
 
     function _checkIdentifier(Identifier calldata _id) internal view {
