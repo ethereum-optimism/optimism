@@ -122,9 +122,12 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
         emit ExecutingMessage(keccak256(_message), _id);
     }
 
-    /// @notice Validates a cross chain from on the destination chain. This function is useful
+    /// @notice Validates a cross chain message on the destination chain
+    ///         and emits an ExecutingMessage event. This function is useful
     ///         for applications that understand the schema of the _message payload and want to
     ///         process it in a custom way.
+    /// @param _id      Identifier of the message.
+    /// @param _msgHash Hash of the message payload to call target with.
     function validateMessage(Identifier calldata _id, bytes32 _msgHash) external {
         // Check the Identifier.
         _checkIdentifier(_id);
@@ -132,6 +135,10 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
         emit ExecutingMessage(_msgHash, _id);
     }
 
+    /// @notice Validates that for a given cross chain message identifier,
+    ///         it's timestamp is not in the future and the source chainId
+    ///         is in the destination chain's dependency set.
+    /// @param _id Identifier of the message.
     function _checkIdentifier(Identifier calldata _id) internal view {
         if (_id.timestamp > block.timestamp) revert InvalidTimestamp();
         if (!IDependencySet(Predeploys.L1_BLOCK_ATTRIBUTES).isInDependencySet(_id.chainId)) {
