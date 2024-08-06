@@ -53,6 +53,9 @@ type CLIConfig struct {
 	// ProposalInterval is the delay between submitting L2 output proposals when the DGFAddress is set.
 	ProposalInterval time.Duration
 
+	// OutputRetryInterval is the delay between retrying output fetch if one fails.
+	OutputRetryInterval time.Duration
+
 	// DisputeGameType is the type of dispute game to create when submitting an output proposal.
 	DisputeGameType uint32
 
@@ -110,6 +113,7 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		PprofConfig:                  oppprof.ReadCLIConfig(ctx),
 		DGFAddress:                   ctx.String(flags.DisputeGameFactoryAddressFlag.Name),
 		ProposalInterval:             ctx.Duration(flags.ProposalIntervalFlag.Name),
+		OutputRetryInterval:          ctx.Duration(flags.OutputRetryIntervalFlag.Name),
 		DisputeGameType:              uint32(ctx.Uint(flags.DisputeGameTypeFlag.Name)),
 		ActiveSequencerCheckDuration: ctx.Duration(flags.ActiveSequencerCheckDurationFlag.Name),
 		WaitNodeSync:                 ctx.Bool(flags.WaitNodeSyncFlag.Name),
