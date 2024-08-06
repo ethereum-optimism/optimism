@@ -45,11 +45,11 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 	}
 
 	var plasma *PlasmaConfig
-	if chConfig.Plasma != nil {
+	if chConfig.AltDA != nil {
 		plasma = &PlasmaConfig{
-			DAChallengeAddress: common.Address(*chConfig.Plasma.DAChallengeAddress),
-			DAChallengeWindow:  *chConfig.Plasma.DAChallengeWindow,
-			DAResolveWindow:    *chConfig.Plasma.DAResolveWindow,
+			DAChallengeAddress: common.Address(*chConfig.AltDA.DAChallengeAddress),
+			DAChallengeWindow:  *chConfig.AltDA.DAChallengeWindow,
+			DAResolveWindow:    *chConfig.AltDA.DAResolveWindow,
 		}
 	}
 
