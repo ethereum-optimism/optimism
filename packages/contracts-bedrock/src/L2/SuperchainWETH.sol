@@ -65,13 +65,13 @@ contract SuperchainWETH is WETH98, ISuperchainERC20Extensions, ISemver {
         }
 
         // Get source chain ID.
-        uint256 _source = messenger.crossDomainMessageSource();
+        uint256 source = messenger.crossDomainMessageSource();
 
         // Mint to user's balance.
         _mint(dst, wad);
 
         // Emit event.
-        emit RelayERC20(from, dst, wad, _source);
+        emit RelayERC20(from, dst, wad, source);
     }
 
     /// @notice Mints WETH to an address.

@@ -38,11 +38,12 @@ contract OptimismSuperchainERC20 is IOptimismSuperchainERC20Extension, ERC20, IS
     address internal constant BRIDGE = Predeploys.L2_STANDARD_BRIDGE;
 
     /// @notice Storage slot that the OptimismSuperchainERC20Metadata struct is stored at.
-    ///         Equal to bytes32(uint256(keccak256("optimismSuperchainERC20.metadata")) - 1)
+    /// keccak256(abi.encode(uint256(keccak256("optimismSuperchainERC20.metadata")) - 1)) & ~bytes32(uint256(0xff));
     bytes32 internal constant OPTIMISM_SUPERCHAIN_ERC20_METADATA_SLOT =
-        0x855c1a66176fd0f9748c66fe1bc8b9d3fecd35483489d9732ff7da2063f518b3;
+        0x07f04e84143df95a6373fcf376312ae41da81a193a3089073a54f47a74d8fb00;
 
     /// @notice Storage struct for the OptimismSuperchainERC20 metadata.
+    /// @custom:storage-location erc7201:optimismSuperchainERC20.metadata
     struct OptimismSuperchainERC20Metadata {
         /// @notice Address of the corresponding version of this token on the remote chain.
         address remoteToken;
@@ -146,11 +147,12 @@ contract OptimismSuperchainERC20 is IOptimismSuperchainERC20Extension, ERC20, IS
         if (IL2ToL2CrossDomainMessenger(MESSENGER).crossDomainMessageSender() != address(this)) {
             revert InvalidCrossDomainSender();
         }
-        uint256 _source = IL2ToL2CrossDomainMessenger(MESSENGER).crossDomainMessageSource();
+
+        uint256 source = IL2ToL2CrossDomainMessenger(MESSENGER).crossDomainMessageSource();
 
         _mint(_to, _amount);
 
-        emit RelayERC20(_from, _to, _amount, _source);
+        emit RelayERC20(_from, _to, _amount, source);
     }
 
     /// @notice Returns the address of the corresponding version of this token on the remote chain.

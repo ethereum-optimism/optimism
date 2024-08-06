@@ -56,6 +56,7 @@ contract OptimismSuperchainERC20Test is Test {
     {
         return OptimismSuperchainERC20(
             address(
+                // TODO: Use the SuperchainERC20 Beacon Proxy
                 new ERC1967Proxy(
                     address(superchainERC20Impl),
                     abi.encodeCall(OptimismSuperchainERC20.initialize, (_remoteToken, _name, _symbol, _decimals))
