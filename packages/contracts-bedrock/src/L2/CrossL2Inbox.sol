@@ -17,6 +17,11 @@ interface IDependencySet {
     function isInDependencySet(uint256 _chainId) external view returns (bool);
 }
 
+// TODO(disco):
+interface IL1Block {
+    function isDeposit() external view returns (bool);
+}
+
 /// @notice Thrown when a non-written transient storage slot is attempted to be read from.
 error NotEntered();
 
@@ -118,7 +123,7 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
         reentrantAware
     {
         // We need to know if this is being called on a depositTx
-        if (L1_BLOCK.isDeposit()) revert NoExecutingDeposits();
+        if (IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isDeposit()) revert NoExecutingDeposits();
 
         if (_id.timestamp > block.timestamp) revert InvalidTimestamp();
         if (!IDependencySet(Predeploys.L1_BLOCK_ATTRIBUTES).isInDependencySet(_id.chainId)) {
