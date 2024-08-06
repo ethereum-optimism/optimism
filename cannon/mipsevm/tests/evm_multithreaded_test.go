@@ -34,27 +34,29 @@ func TestEVM_SysClone_FlagHandling(t *testing.T) {
 		{"multiple unsupported flags", exec.CloneUntraced | exec.CloneParentSettid, false},
 	}
 
-	for _, tt := range cases {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
 			state := multithreaded.CreateEmptyState()
 			state.Memory.SetMemory(state.GetPC(), syscallInsn)
 			state.GetRegistersRef()[2] = exec.SysClone // Set syscall number
-			state.GetRegistersRef()[4] = tt.flags      // Set first argument
+			state.GetRegistersRef()[4] = c.flags       // Set first argument
 			curStep := state.Step
 
 			var err error
 			var stepWitness *mipsevm.StepWitness
 			us := multithreaded.NewInstrumentedState(state, nil, os.Stdout, os.Stderr, nil)
-			if !tt.valid {
+			if !c.valid {
 				// The VM should exit
 				stepWitness, err = us.Step(true)
 				require.NoError(t, err)
+				require.Equal(t, curStep+1, state.GetStep())
 				require.Equal(t, true, us.GetState().GetExited())
 				require.Equal(t, uint8(mipsevm.VMStatusPanic), us.GetState().GetExitCode())
 				require.Equal(t, 1, state.ThreadCount())
 			} else {
 				stepWitness, err = us.Step(true)
 				require.NoError(t, err)
+				require.Equal(t, curStep+1, state.GetStep())
 				require.Equal(t, false, us.GetState().GetExited())
 				require.Equal(t, uint8(0), us.GetState().GetExitCode())
 				require.Equal(t, 2, state.ThreadCount())
@@ -84,15 +86,15 @@ func TestEVM_SysClone_Successful(t *testing.T) {
 		{"traverse right", true},
 	}
 
-	for _, tt := range cases {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
 			stackPtr := uint32(100)
 			pc := uint32(200)
 			hi := uint32(300)
 			lo := uint32(400)
 
 			state := multithreaded.CreateEmptyState()
-			if tt.traverseRight {
+			if c.traverseRight {
 				// Reorganize threads
 				state.RightThreadStack = []*multithreaded.ThreadState{multithreaded.CreateEmptyThread()}
 				state.LeftThreadStack = []*multithreaded.ThreadState{}
@@ -130,7 +132,7 @@ func TestEVM_SysClone_Successful(t *testing.T) {
 			require.NoError(t, err)
 
 			var activeStack, inactiveStack []*multithreaded.ThreadState
-			if tt.traverseRight {
+			if c.traverseRight {
 				activeStack = state.RightThreadStack
 				inactiveStack = state.LeftThreadStack
 			} else {
@@ -138,8 +140,9 @@ func TestEVM_SysClone_Successful(t *testing.T) {
 				inactiveStack = state.RightThreadStack
 			}
 
+			require.Equal(t, curStep+1, state.GetStep())
 			// Check a new thread was added where we expect
-			require.Equal(t, tt.traverseRight, state.TraverseRight)
+			require.Equal(t, c.traverseRight, state.TraverseRight)
 			require.Equal(t, 2, state.ThreadCount())
 			require.Equal(t, 2, len(activeStack))
 			require.Equal(t, 0, len(inactiveStack))
@@ -188,20 +191,20 @@ func TestEVM_SysGetTID(t *testing.T) {
 		{"non-zero", 11},
 	}
 
-	for _, tt := range cases {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
 			state := multithreaded.CreateEmptyState()
-			state.GetCurrentThread().ThreadId = tt.threadId
+			state.GetCurrentThread().ThreadId = c.threadId
 			state.Memory.SetMemory(state.GetPC(), syscallInsn)
-			*state.GetRegistersRef() = RandomRegisters(int64(tt.threadId))
+			*state.GetRegistersRef() = RandomRegisters(int64(c.threadId))
 			state.GetRegistersRef()[2] = exec.SysGetTID // Set syscall number
 			curStep := state.Step
 
 			// Set up post-state expectations
 			nextPC := state.GetCpu().NextPC
 			expectedRegisters := testutil.CopyRegisters(state)
-			expectedRegisters[2] = tt.threadId // tid return value
-			expectedRegisters[7] = 0           // no error
+			expectedRegisters[2] = c.threadId // tid return value
+			expectedRegisters[7] = 0          // no error
 
 			// State transition
 			var err error
@@ -211,6 +214,7 @@ func TestEVM_SysGetTID(t *testing.T) {
 			require.NoError(t, err)
 
 			// Validate post-state
+			require.Equal(t, curStep+1, state.GetStep())
 			require.Equal(t, 1, state.ThreadCount())
 			require.Equal(t, expectedRegisters, state.GetRegistersRef())
 			require.Equal(t, nextPC, state.GetPC())
@@ -239,18 +243,18 @@ func TestEVM_SysExit(t *testing.T) {
 		{"two threads ", 2},
 	}
 
-	for _, tt := range cases {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
 			exitCode := uint8(3)
 			state := multithreaded.CreateEmptyState()
-			for i := 0; i < tt.threadCount-1; i++ {
+			for i := 0; i < c.threadCount-1; i++ {
 				newThread := multithreaded.CreateEmptyThread()
 				newThread.ThreadId = uint32(i + 1)
 				state.LeftThreadStack = append(state.LeftThreadStack, newThread)
 			}
 
 			state.Memory.SetMemory(state.GetPC(), syscallInsn)
-			*state.GetRegistersRef() = RandomRegisters(int64(tt.threadCount))
+			*state.GetRegistersRef() = RandomRegisters(int64(c.threadCount))
 			state.GetRegistersRef()[2] = exec.SysExit     // Set syscall number
 			state.GetRegistersRef()[4] = uint32(exitCode) // The first argument (exit code)
 			curStep := state.Step
@@ -269,13 +273,14 @@ func TestEVM_SysExit(t *testing.T) {
 
 			// Validate post-state
 			thread := state.GetCurrentThread()
-			require.Equal(t, tt.threadCount, state.ThreadCount())
+			require.Equal(t, curStep+1, state.GetStep())
+			require.Equal(t, c.threadCount, state.ThreadCount())
 			require.Equal(t, expectedRegisters, state.GetRegistersRef())
 			require.Equal(t, pc, state.GetPC())
 			require.Equal(t, nextPC, state.GetCpu().NextPC)
 			require.Equal(t, true, thread.Exited)
 			require.Equal(t, exitCode, thread.ExitCode)
-			if tt.threadCount == 1 {
+			if c.threadCount == 1 {
 				// If we exit the last thread, the whole process should exit
 				require.Equal(t, true, state.Exited)
 				require.Equal(t, exitCode, state.ExitCode)
@@ -294,4 +299,106 @@ func TestEVM_SysExit(t *testing.T) {
 				"mipsevm produced different state than EVM")
 		})
 	}
+}
+
+func TestEVM_PopExitedThread(t *testing.T) {
+	var tracer *tracing.Hooks
+	contracts := testutil.TestContractsSetup(t, testutil.MipsMultithreaded)
+	cases := []struct {
+		name                   string
+		traverseRight          bool
+		activeStackThreadCount int
+	}{
+		{"traverse right, pop last thread", true, 1},
+		{"traverse right, pop penultimate thread", true, 2},
+		{"traverse left, pop last thread", false, 1},
+		{"traverse left, pop penultimate thread", false, 2},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			var state *multithreaded.State
+			if c.traverseRight {
+				state = setupThreads(c.traverseRight, c.activeStackThreadCount, 1)
+			} else {
+				state = setupThreads(c.traverseRight, 1, c.activeStackThreadCount)
+			}
+			threadToPop := state.GetCurrentThread()
+			threadToPop.Exited = true
+			threadToPop.ExitCode = 1
+
+			// Record current state, expectations
+			curStep := state.Step
+			initThreadCount := state.ThreadCount()
+			shouldChangeDirections := c.activeStackThreadCount == 1
+			postShouldTraverseRight := c.traverseRight && !shouldChangeDirections || !c.traverseRight && shouldChangeDirections
+			// Sanity check
+			require.Equal(t, c.activeStackThreadCount+1, initThreadCount)
+			require.Equal(t, c.traverseRight, state.TraverseRight)
+
+			// State transition
+			var err error
+			var stepWitness *mipsevm.StepWitness
+			us := multithreaded.NewInstrumentedState(state, nil, os.Stdout, os.Stderr, nil)
+			stepWitness, err = us.Step(true)
+			require.NoError(t, err)
+
+			// Validate post-state
+			require.Equal(t, curStep+1, state.GetStep())
+			require.Equal(t, initThreadCount-1, state.ThreadCount())
+			require.False(t, checkStateContainsThread(state, threadToPop.ThreadId))
+			require.Equal(t, postShouldTraverseRight, state.TraverseRight)
+
+			evm := testutil.NewMIPSEVM(contracts)
+			evm.SetTracer(tracer)
+			testutil.LogStepFailureAtCleanup(t, evm)
+
+			evmPost := evm.Step(t, stepWitness, curStep, multithreaded.GetStateHashFn())
+			goPost, _ := us.GetState().EncodeWitness()
+			require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
+				"mipsevm produced different state than EVM")
+		})
+	}
+}
+
+func setupThreads(traverseRight bool, rightThreadCount, leftThreadCount int) *multithreaded.State {
+	state := multithreaded.CreateEmptyState()
+	var leftThreads, rightThreads []*multithreaded.ThreadState
+
+	tid := uint32(0)
+	for i := 0; i < rightThreadCount; i++ {
+		thread := multithreaded.CreateEmptyThread()
+		thread.ThreadId = tid
+		rightThreads = append(rightThreads, thread)
+		tid++
+	}
+
+	for i := 0; i < leftThreadCount; i++ {
+		thread := multithreaded.CreateEmptyThread()
+		thread.ThreadId = tid
+		leftThreads = append(leftThreads, thread)
+		tid++
+	}
+
+	state.LeftThreadStack = leftThreads
+	state.RightThreadStack = rightThreads
+	state.TraverseRight = traverseRight
+
+	return state
+}
+
+func checkStateContainsThread(state *multithreaded.State, threadId uint32) bool {
+	for i := 0; i < len(state.RightThreadStack); i++ {
+		if state.RightThreadStack[i].ThreadId == threadId {
+			return true
+		}
+	}
+
+	for i := 0; i < len(state.LeftThreadStack); i++ {
+		if state.LeftThreadStack[i].ThreadId == threadId {
+			return true
+		}
+	}
+
+	return false
 }
