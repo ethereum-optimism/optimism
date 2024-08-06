@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -373,7 +374,7 @@ func Run(ctx *cli.Context) error {
 		debugProgram = ctx.Bool(RunDebugFlag.Name)
 		if debugProgram {
 			if metaPath := ctx.Path(RunMetaFlag.Name); metaPath == "" {
-				return fmt.Errorf("cannot enable debug mode without a metadata file")
+				return errors.New("cannot enable debug mode without a metadata file")
 			}
 			if err := cannon.InitDebug(); err != nil {
 				return fmt.Errorf("failed to initialize debug mode: %w", err)
