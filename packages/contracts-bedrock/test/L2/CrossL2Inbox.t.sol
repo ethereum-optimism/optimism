@@ -101,7 +101,7 @@ contract CrossL2InboxTest is Test {
         vm.expectCall({ callee: _target, msgValue: _value, data: _message });
 
         // Look for the emit ExecutingMessage event
-        vm.expectEmit(true, false, false, true, Predeploys.CROSS_L2_INBOX);
+        vm.expectEmit(true, true, true, true, Predeploys.CROSS_L2_INBOX);
         emit CrossL2Inbox.ExecutingMessage(keccak256(_message), _id);
 
         // Call the executeMessage function
@@ -283,7 +283,7 @@ contract CrossL2InboxTest is Test {
         });
 
         // Look for the emit ExecutingMessage event
-        vm.expectEmit(true, false, false, true, Predeploys.CROSS_L2_INBOX);
+        vm.expectEmit(true, true, true, true, Predeploys.CROSS_L2_INBOX);
         emit CrossL2Inbox.ExecutingMessage(_messageHash, _id);
 
         // Call the validateMessage function
