@@ -102,13 +102,13 @@ func (m *InstrumentedState) handleSyscall() error {
 		// args: a0 = addr, a1 = op, a2 = val, a3 = timeout
 		switch a1 {
 		case exec.FutexWaitPrivate:
-			thread.FutexAddr = a0
 			m.memoryTracker.TrackMemAccess(a0)
 			mem := m.state.Memory.GetMemory(a0)
 			if mem != a2 {
 				v0 = exec.SysErrorSignal
 				v1 = exec.MipsEAGAIN
 			} else {
+				thread.FutexAddr = a0
 				thread.FutexVal = a2
 				if a3 == 0 {
 					thread.FutexTimeoutStep = exec.FutexNoTimeout

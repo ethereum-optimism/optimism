@@ -361,6 +361,88 @@ func TestEVM_PopExitedThread(t *testing.T) {
 	}
 }
 
+func TestEVM_SysFutex_WaitPrivate(t *testing.T) {
+	var tracer *tracing.Hooks
+	contracts := testutil.TestContractsSetup(t, testutil.MipsMultithreaded)
+	cases := []struct {
+		name        string
+		address     uint32
+		targetValue uint32
+		actualValue uint32
+		timeout     uint32
+	}{
+		{"successful wait, no timeout", 0x1234, 0x01, 0x01, 0},
+		{"memory mismatch, no timeout", 0x1200, 0x01, 0x02, 0},
+		{"successful wait w timeout", 0x1234, 0x01, 0x01, 1000000},
+		{"memory mismatch w timeout", 0x1200, 0x01, 0x02, 2000000},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			step := uint64(999)
+			state := multithreaded.CreateEmptyState()
+			state.Step = step
+			state.Memory.SetMemory(state.GetPC(), syscallInsn)
+			state.Memory.SetMemory(c.address, c.actualValue)
+			*state.GetRegistersRef() = RandomRegisters(11)
+			state.GetRegistersRef()[2] = exec.SysFutex // Set syscall number
+			state.GetRegistersRef()[4] = c.address
+			state.GetRegistersRef()[5] = exec.FutexWaitPrivate
+			state.GetRegistersRef()[6] = c.targetValue
+			state.GetRegistersRef()[7] = c.timeout
+
+			// Set up post-state expectations
+			shouldFail := c.targetValue != c.actualValue
+			shouldSetTimeout := !shouldFail && c.timeout != 0
+			expectedRegisters := testutil.CopyRegisters(state)
+			nextPC := state.GetCpu().PC // PC should not update on success, updates happen when wait completes
+			if shouldFail {
+				nextPC = state.GetCpu().NextPC
+				expectedRegisters[2] = exec.SysErrorSignal
+				expectedRegisters[7] = exec.MipsEAGAIN
+			}
+
+			// State transition
+			var err error
+			var stepWitness *mipsevm.StepWitness
+			us := multithreaded.NewInstrumentedState(state, nil, os.Stdout, os.Stderr, nil)
+			stepWitness, err = us.Step(true)
+			require.NoError(t, err)
+
+			// Validate post-state
+			require.Equal(t, step+1, state.GetStep())
+			require.Equal(t, expectedRegisters, state.GetRegistersRef())
+			require.Equal(t, nextPC, state.GetPC())
+			require.Equal(t, nextPC+4, state.GetCpu().NextPC)
+			// Check thread state
+			require.Equal(t, 1, state.ThreadCount())
+			thread := state.GetCurrentThread()
+			if shouldFail {
+				require.Equal(t, exec.FutexEmptyAddr, thread.FutexAddr)
+				require.Equal(t, uint64(0), thread.FutexTimeoutStep)
+				require.Equal(t, uint32(0), thread.FutexVal)
+			} else {
+				require.Equal(t, c.address, thread.FutexAddr)
+				require.Equal(t, c.targetValue, thread.FutexVal)
+				if shouldSetTimeout {
+					require.Equal(t, step+exec.FutexTimeoutSteps+1, thread.FutexTimeoutStep)
+				} else {
+					require.Equal(t, exec.FutexNoTimeout, thread.FutexTimeoutStep)
+				}
+			}
+
+			evm := testutil.NewMIPSEVM(contracts)
+			evm.SetTracer(tracer)
+			testutil.LogStepFailureAtCleanup(t, evm)
+
+			evmPost := evm.Step(t, stepWitness, step, multithreaded.GetStateHashFn())
+			goPost, _ := us.GetState().EncodeWitness()
+			require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
+				"mipsevm produced different state than EVM")
+		})
+	}
+}
+
 func setupThreads(traverseRight bool, rightThreadCount, leftThreadCount int) *multithreaded.State {
 	state := multithreaded.CreateEmptyState()
 	var leftThreads, rightThreads []*multithreaded.ThreadState
