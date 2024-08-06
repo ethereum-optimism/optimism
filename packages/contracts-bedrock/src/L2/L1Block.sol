@@ -92,7 +92,7 @@ contract L1Block is ISemver, IGasToken {
 
     function isDeposit() returns (bool _isDeposit) external view {
         require(msg.sender == CROSS_L2_INBOX, "L1Block: only the CrossL2Inbox can check if it is a deposit");
-        returns isDeposit;
+        _isDeposit = isDeposit;
     }
 
     /// @custom:legacy
@@ -145,7 +145,7 @@ contract L1Block is ISemver, IGasToken {
     ///   8. _hash               L1 blockhash.
     ///   9. _batcherHash        Versioned hash to authenticate batcher by.
     ///   10. _isDeposit         isDeposit flag
-    function setL1BlockValuesInterop() external {
+    function setL1BlockValuesIsthmus() external {
         address depositor = DEPOSITOR_ACCOUNT();
         assembly {
             // Revert if the caller is not the depositor account.
@@ -162,6 +162,8 @@ contract L1Block is ISemver, IGasToken {
             sstore(hash.slot, calldataload(100)) // bytes32
             sstore(batcherHash.slot, calldataload(132)) // bytes32
             sstore(isDeposit.slot, calldataload(133)) // boolean
+            // TODO ^ not sure we can just add a boolean as the last slot
+            // (could not find how to client-side test this)
         }
     }
 

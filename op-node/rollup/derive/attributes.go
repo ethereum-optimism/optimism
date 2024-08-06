@@ -122,21 +122,19 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		return nil, NewCriticalError(fmt.Errorf("failed to create l1InfoTx: %w", err))
 	}
 
-	var txsLen = 1 + len(depositTxs) + len(upgradeTxs)
-	if hasDeposits {
-		txsLen += 1 // for the isDeposit resetting tx
-	}
-	txs := make([]hexutil.Bytes, 0, txsLen)
-	txs = append(txs, l1InfoTx)
-	txs = append(txs, depositTxs...)
-	if hasDeposits {
+	var postDeposits []hexutil.Bytes
+	if ba.rollupCfg.IsInteropActivationBlock(nextL2Time) && hasDeposits {
 		depositsCompleteTx, err := DepositsCompleteBytes(ba.rollupCfg, sysConfig, seqNumber, l1Info, nextL2Time)
 		if err != nil {
 			return nil, NewCriticalError(fmt.Errorf("failed to create depositsCompleteTx: %w", err))
 		}
-		// after all the deposits have been processed, we need to include the isDeposit resetting tx
-		txs = append(txs, depositsCompleteTx)
+		postDeposits = append(postDeposits, depositsCompleteTx)
 	}
+
+	txs := make([]hexutil.Bytes, 0, 1+len(depositTxs)+len(postDeposits)+len(upgradeTxs))
+	txs = append(txs, l1InfoTx)
+	txs = append(txs, depositTxs...)
+	txs = append(txs, postDeposits...)
 	txs = append(txs, upgradeTxs...)
 
 	var withdrawals *types.Withdrawals

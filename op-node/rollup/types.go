@@ -489,6 +489,7 @@ func (c *Config) IsHoloceneActivationBlock(l2BlockTime uint64) bool {
 		!c.IsHolocene(l2BlockTime-c.BlockTime)
 }
 
+// TODO rename to IsIsthmusActivationBlock (this will require quite a bit of renaming)
 func (c *Config) IsInteropActivationBlock(l2BlockTime uint64) bool {
 	return c.IsInterop(l2BlockTime) &&
 		l2BlockTime >= c.BlockTime &&
