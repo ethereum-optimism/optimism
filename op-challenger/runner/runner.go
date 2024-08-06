@@ -15,7 +15,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/prestates"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
@@ -130,12 +129,8 @@ func (r *Runner) runOnce(ctx context.Context, traceType types.TraceType, client 
 	if err != nil {
 		return err
 	}
-	prestateSource := prestates.NewPrestateSource(
-		r.cfg.CannonAbsolutePreStateBaseURL,
-		r.cfg.CannonAbsolutePreState,
-		filepath.Join(dir, "prestates"))
 	logger := r.log.New("l1", localInputs.L1Head, "l2", localInputs.L2Head, "l2Block", localInputs.L2BlockNumber, "claim", localInputs.L2Claim, "type", traceType)
-	provider, err := createTraceProvider(logger, r.m, r.cfg, prestateSource, prestateHash, traceType, localInputs, dir)
+	provider, err := createTraceProvider(logger, r.m, r.cfg, prestateHash, traceType, localInputs, dir)
 	if err != nil {
 		return fmt.Errorf("failed to create trace provider: %w", err)
 	}
@@ -202,6 +197,9 @@ func (r *Runner) getPrestateHash(ctx context.Context, traceType types.TraceType,
 	gameImplAddr, err := gameFactory.GetGameImpl(ctx, traceType.GameType())
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to load game impl: %w", err)
+	}
+	if gameImplAddr == (common.Address{}) {
+		return common.Hash{}, nil // No prestate is set, will only work if a single prestate is specified
 	}
 	gameImpl, err := contracts.NewFaultDisputeGameContract(ctx, r.m, gameImplAddr, caller)
 	if err != nil {
