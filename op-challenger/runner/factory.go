@@ -32,11 +32,17 @@ func createTraceProvider(
 
 	switch traceType {
 	case types.TraceTypeCannon:
+		vmConfig := vm.NewOpProgramVmConfig()
 		prestateProvider := cannon.NewPrestateProvider(prestate)
-		return cannon.NewTraceProvider(logger, m, cfg.Cannon, prestateProvider, prestate, localInputs, dir, 42), nil
+		return cannon.NewTraceProvider(logger, m, cfg.Cannon, vmConfig, prestateProvider, prestate, localInputs, dir, 42), nil
 	case types.TraceTypeAsterisc:
+		vmConfig := vm.NewOpProgramVmConfig()
 		prestateProvider := asterisc.NewPrestateProvider(prestate)
-		return asterisc.NewTraceProvider(logger, m, cfg.Asterisc, prestateProvider, prestate, localInputs, dir, 42), nil
+		return asterisc.NewTraceProvider(logger, m, cfg.Asterisc, vmConfig, prestateProvider, prestate, localInputs, dir, 42), nil
+	case types.TraceTypeAsteriscKona:
+		vmConfig := vm.NewKonaVmConfig()
+		prestateProvider := asterisc.NewPrestateProvider(prestate)
+		return asterisc.NewTraceProvider(logger, m, cfg.Asterisc, vmConfig, prestateProvider, prestate, localInputs, dir, 42), nil
 	}
 	return nil, errors.New("invalid trace type")
 }
