@@ -59,7 +59,8 @@ func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
 	deployConfig := config.DeployConfig.Copy()
 	deployConfig.MaxSequencerDrift = tp.MaxSequencerDrift
 	deployConfig.SequencerWindowSize = tp.SequencerWindowSize
-	deployConfig.ChannelTimeout = tp.ChannelTimeout
+	deployConfig.ChannelTimeoutBedrock = tp.ChannelTimeout
+	deployConfig.ChannelTimeoutGranite = tp.ChannelTimeout
 	deployConfig.L1BlockTime = tp.L1BlockTime
 	deployConfig.UsePlasma = tp.UsePlasma
 	ApplyDeployConfigForks(deployConfig)
@@ -173,7 +174,8 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		BlockTime:              deployConf.L2BlockTime,
 		MaxSequencerDrift:      deployConf.MaxSequencerDrift,
 		SeqWindowSize:          deployConf.SequencerWindowSize,
-		ChannelTimeout:         deployConf.ChannelTimeout,
+		ChannelTimeoutBedrock:  deployConf.ChannelTimeoutBedrock,
+		ChannelTimeoutGranite:  deployConf.ChannelTimeoutGranite,
 		L1ChainID:              new(big.Int).SetUint64(deployConf.L1ChainID),
 		L2ChainID:              new(big.Int).SetUint64(deployConf.L2ChainID),
 		BatchInboxAddress:      deployConf.BatchInboxAddress,
@@ -184,6 +186,7 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		DeltaTime:              deployConf.DeltaTime(uint64(deployConf.L1GenesisBlockTimestamp)),
 		EcotoneTime:            deployConf.EcotoneTime(uint64(deployConf.L1GenesisBlockTimestamp)),
 		FjordTime:              deployConf.FjordTime(uint64(deployConf.L1GenesisBlockTimestamp)),
+		GraniteTime:            deployConf.GraniteTime(uint64(deployConf.L1GenesisBlockTimestamp)),
 		InteropTime:            deployConf.InteropTime(uint64(deployConf.L1GenesisBlockTimestamp)),
 		PlasmaConfig:           pcfg,
 	}
@@ -214,7 +217,8 @@ func SystemConfigFromDeployConfig(deployConfig *genesis.DeployConfig) eth.System
 }
 
 func ApplyDeployConfigForks(deployConfig *genesis.DeployConfig) {
-	isFjord := os.Getenv("OP_E2E_USE_FJORD") == "true"
+	isGranite := os.Getenv("OP_E2E_USE_GRANITE") == "true"
+	isFjord := isGranite || os.Getenv("OP_E2E_USE_FJORD") == "true"
 	isEcotone := isFjord || os.Getenv("OP_E2E_USE_ECOTONE") == "true"
 	isDelta := isEcotone || os.Getenv("OP_E2E_USE_DELTA") == "true"
 	if isDelta {
@@ -225,6 +229,9 @@ func ApplyDeployConfigForks(deployConfig *genesis.DeployConfig) {
 	}
 	if isFjord {
 		deployConfig.L2GenesisFjordTimeOffset = new(hexutil.Uint64)
+	}
+	if isGranite {
+		deployConfig.L2GenesisGraniteTimeOffset = new(hexutil.Uint64)
 	}
 	// Canyon and lower is activated by default
 	deployConfig.L2GenesisCanyonTimeOffset = new(hexutil.Uint64)

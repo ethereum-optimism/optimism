@@ -102,13 +102,13 @@ type ScoreDiff interface {
 	Apply(score *scoreRecord)
 }
 
-var UnknownBanErr = errors.New("unknown ban")
+var ErrUnknownBan = errors.New("unknown ban")
 
 type PeerBanStore interface {
 	// SetPeerBanExpiration create the peer ban with expiration time.
 	// If expiry == time.Time{} then the ban is deleted.
 	SetPeerBanExpiration(id peer.ID, expiry time.Time) error
-	// GetPeerBanExpiration gets the peer ban expiration time, or UnknownBanErr error if none exists.
+	// GetPeerBanExpiration gets the peer ban expiration time, or ErrUnknownBan error if none exists.
 	GetPeerBanExpiration(id peer.ID) (time.Time, error)
 }
 
@@ -116,7 +116,7 @@ type IPBanStore interface {
 	// SetIPBanExpiration create the IP ban with expiration time.
 	// If expiry == time.Time{} then the ban is deleted.
 	SetIPBanExpiration(ip net.IP, expiry time.Time) error
-	// GetIPBanExpiration gets the IP ban expiration time, or UnknownBanErr error if none exists.
+	// GetIPBanExpiration gets the IP ban expiration time, or ErrUnknownBan error if none exists.
 	GetIPBanExpiration(ip net.IP) (time.Time, error)
 }
 

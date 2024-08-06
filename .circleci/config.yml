@@ -3,7 +3,7 @@ version: 2.1
 parameters:
   ci_builder_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:v0.49.0
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:v0.50.0
   ci_builder_rust_image:
     type: string
     default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder-rust:latest
@@ -249,22 +249,26 @@ jobs:
             - ".devnet/allocs-l2-delta.json"
             - ".devnet/allocs-l2-ecotone.json"
             - ".devnet/allocs-l2-fjord.json"
+            - ".devnet/allocs-l2-granite.json"
             - ".devnet/addresses.json"
             - ".devnet-l2oo/allocs-l1.json"
             - ".devnet-l2oo/addresses.json"
             - ".devnet-l2oo/allocs-l2-delta.json"
             - ".devnet-l2oo/allocs-l2-ecotone.json"
             - ".devnet-l2oo/allocs-l2-fjord.json"
+            - ".devnet-l2oo/allocs-l2-granite.json"
             - ".devnet-plasma/allocs-l1.json"
             - ".devnet-plasma/addresses.json"
             - ".devnet-plasma/allocs-l2-delta.json"
             - ".devnet-plasma/allocs-l2-ecotone.json"
             - ".devnet-plasma/allocs-l2-fjord.json"
+            - ".devnet-plasma/allocs-l2-granite.json"
             - ".devnet-plasma-generic/allocs-l1.json"
             - ".devnet-plasma-generic/addresses.json"
             - ".devnet-plasma-generic/allocs-l2-delta.json"
             - ".devnet-plasma-generic/allocs-l2-ecotone.json"
             - ".devnet-plasma-generic/allocs-l2-fjord.json"
+            - ".devnet-plasma-generic/allocs-l2-granite.json"
             - "packages/contracts-bedrock/deploy-config/devnetL1.json"
             - "packages/contracts-bedrock/deployments/devnetL1"
       - notify-failures-on-develop
@@ -891,6 +895,7 @@ jobs:
             cp /tmp/workspace/.devnet<<parameters.variant>>/allocs-l2-delta.json .devnet/allocs-l2-delta.json
             cp /tmp/workspace/.devnet<<parameters.variant>>/allocs-l2-ecotone.json .devnet/allocs-l2-ecotone.json
             cp /tmp/workspace/.devnet<<parameters.variant>>/allocs-l2-fjord.json .devnet/allocs-l2-fjord.json
+            cp /tmp/workspace/.devnet<<parameters.variant>>/allocs-l2-granite.json .devnet/allocs-l2-granite.json
             cp /tmp/workspace/.devnet<<parameters.variant>>/allocs-l1.json .devnet/allocs-l1.json
             cp /tmp/workspace/.devnet<<parameters.variant>>/addresses.json .devnet/addresses.json
             cp /tmp/workspace/packages/contracts-bedrock/deploy-config/devnetL1.json packages/contracts-bedrock/deploy-config/devnetL1.json
@@ -1078,6 +1083,7 @@ jobs:
             - ".devnet/allocs-l2-delta.json"
             - ".devnet/allocs-l2-ecotone.json"
             - ".devnet/allocs-l2-fjord.json"
+            - ".devnet/allocs-l2-granite.json"
             - ".devnet/allocs-l1.json"
             - ".devnet/addresses.json"
             - "packages/contracts-bedrock/deploy-config/devnetL1.json"

@@ -60,7 +60,9 @@ func NewOpGeth(t testing.TB, ctx context.Context, cfg *SystemConfig) (*OpGeth, e
 
 	var allocsMode genesis.L2AllocsMode
 	allocsMode = genesis.L2AllocsDelta
-	if fjordTime := cfg.DeployConfig.FjordTime(l1Block.Time()); fjordTime != nil && *fjordTime <= 0 {
+	if graniteTime := cfg.DeployConfig.GraniteTime(l1Block.Time()); graniteTime != nil && *graniteTime <= 0 {
+		allocsMode = genesis.L2AllocsGranite
+	} else if fjordTime := cfg.DeployConfig.FjordTime(l1Block.Time()); fjordTime != nil && *fjordTime <= 0 {
 		allocsMode = genesis.L2AllocsFjord
 	} else if ecotoneTime := cfg.DeployConfig.EcotoneTime(l1Block.Time()); ecotoneTime != nil && *ecotoneTime <= 0 {
 		allocsMode = genesis.L2AllocsEcotone

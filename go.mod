@@ -11,7 +11,7 @@ require (
 	github.com/crate-crypto/go-kzg-4844 v0.7.0
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0
 	github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3
-	github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20240717194452-c01722001e88
+	github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20240803025447-c92ef420eec2
 	github.com/ethereum/go-ethereum v1.13.15
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/golang/snappy v0.0.5-0.20220116011046-fa5810519dcb
@@ -44,9 +44,9 @@ require (
 	github.com/urfave/cli/v2 v2.27.3
 	golang.org/x/crypto v0.25.0
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56
-	golang.org/x/sync v0.7.0
+	golang.org/x/sync v0.8.0
 	golang.org/x/term v0.22.0
-	golang.org/x/time v0.5.0
+	golang.org/x/time v0.6.0
 )
 
 require (
@@ -228,7 +228,7 @@ require (
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
 
-replace github.com/ethereum/go-ethereum => github.com/ethereum-optimism/op-geth v1.101315.3-rc.1
+replace github.com/ethereum/go-ethereum => github.com/ethereum-optimism/op-geth v1.101315.3-rc.2
 
 //replace github.com/ethereum/go-ethereum v1.13.9 => ../op-geth
 
@@ -236,3 +236,7 @@ replace github.com/ethereum/go-ethereum => github.com/ethereum-optimism/op-geth 
 
 // This release keeps breaking Go builds. Stop that.
 exclude github.com/kataras/iris/v12 v12.2.0-beta5
+
+exclude github.com/kataras/iris/v12 v12.2.0
+
+exclude github.com/kataras/iris/v12 v12.2.11

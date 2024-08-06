@@ -185,9 +185,15 @@ func (bs *BatcherService) initRollupConfig(ctx context.Context) error {
 }
 
 func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
+	channelTimeout := bs.RollupConfig.ChannelTimeoutBedrock
+	// Use lower channel timeout if granite is scheduled.
+	// Ensures channels are restricted to the tighter timeout even if granite hasn't activated yet
+	if bs.RollupConfig.GraniteTime != nil {
+		channelTimeout = bs.RollupConfig.ChannelTimeoutGranite
+	}
 	cc := ChannelConfig{
 		SeqWindowSize:      bs.RollupConfig.SeqWindowSize,
-		ChannelTimeout:     bs.RollupConfig.ChannelTimeout,
+		ChannelTimeout:     channelTimeout,
 		MaxChannelDuration: cfg.MaxChannelDuration,
 		MaxFrameSize:       cfg.MaxL1TxSize - 1, // account for version byte prefix; reset for blobs
 		TargetNumFrames:    cfg.TargetNumFrames,

@@ -30,7 +30,7 @@ type recordDiff[V record] interface {
 	Apply(v V)
 }
 
-var UnknownRecordErr = errors.New("unknown record")
+var ErrUnknownRecord = errors.New("unknown record")
 
 // recordsBook is a generic K-V store to embed in the extended-peerstore.
 // It prunes old entries to keep the store small.
@@ -103,13 +103,13 @@ func (d *recordsBook[K, V]) deleteRecord(key K) error {
 func (d *recordsBook[K, V]) getRecord(key K) (v V, err error) {
 	if val, ok := d.cache.Get(key); ok {
 		if d.hasExpired(val) {
-			return v, UnknownRecordErr
+			return v, ErrUnknownRecord
 		}
 		return val, nil
 	}
 	data, err := d.store.Get(d.ctx, d.dsKey(key))
 	if errors.Is(err, ds.ErrNotFound) {
-		return v, UnknownRecordErr
+		return v, ErrUnknownRecord
 	} else if err != nil {
 		return v, fmt.Errorf("failed to load value of key %v: %w", key, err)
 	}
@@ -118,7 +118,7 @@ func (d *recordsBook[K, V]) getRecord(key K) (v V, err error) {
 		return v, fmt.Errorf("invalid value for key %v: %w", key, err)
 	}
 	if d.hasExpired(v) {
-		return v, UnknownRecordErr
+		return v, ErrUnknownRecord
 	}
 	d.cache.Add(key, v)
 	return v, nil
@@ -128,7 +128,7 @@ func (d *recordsBook[K, V]) SetRecord(key K, diff recordDiff[V]) (V, error) {
 	d.Lock()
 	defer d.Unlock()
 	rec, err := d.getRecord(key)
-	if err == UnknownRecordErr { // instantiate new record if it does not exist yet
+	if err == ErrUnknownRecord { // instantiate new record if it does not exist yet
 		rec = d.newRecord()
 	} else if err != nil {
 		return d.newRecord(), err
