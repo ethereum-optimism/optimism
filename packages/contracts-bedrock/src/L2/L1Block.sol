@@ -132,6 +132,13 @@ contract L1Block is ISemver, IGasToken {
         isDeposit = _isDeposit;
     }
 
+    // TODO natspec
+    function setL1BlockValuesIsthmus() external {
+        isDeposit = true;
+        setL1BlockValuesEcotone(calldata);
+        // TODO ^ this is an example... we might need to do an assembly low-level call here
+    }
+
     /// @notice Updates the L1 block values for an Ecotone upgraded chain.
     /// Params are packed and passed in as raw msg.data instead of ABI to reduce calldata size.
     /// Params are expected to be in the following order:
@@ -144,8 +151,7 @@ contract L1Block is ISemver, IGasToken {
     ///   7. _blobBaseFee        L1 blob base fee.
     ///   8. _hash               L1 blockhash.
     ///   9. _batcherHash        Versioned hash to authenticate batcher by.
-    ///   10. _isDeposit         isDeposit flag
-    function setL1BlockValuesIsthmus() external {
+    function setL1BlockValuesEcotone() external {
         address depositor = DEPOSITOR_ACCOUNT();
         assembly {
             // Revert if the caller is not the depositor account.
@@ -161,9 +167,6 @@ contract L1Block is ISemver, IGasToken {
             sstore(blobBaseFee.slot, calldataload(68)) // uint256
             sstore(hash.slot, calldataload(100)) // bytes32
             sstore(batcherHash.slot, calldataload(132)) // bytes32
-            sstore(isDeposit.slot, calldataload(133)) // boolean
-            // TODO ^ not sure we can just add a boolean as the last slot
-            // (could not find how to client-side test this)
         }
     }
 

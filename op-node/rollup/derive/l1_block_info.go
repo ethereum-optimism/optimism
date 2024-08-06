@@ -24,9 +24,7 @@ const (
 	L1InfoArguments            = 8
 	L1InfoBedrockLen           = 4 + 32*L1InfoArguments
 	L1InfoEcotoneLen           = 4 + 32*5 // after Ecotone upgrade, args are packed into 5 32-byte slots
-	// TODO ^ we need to add space for the isDeposit flag here
-	// or should we create a new Len var for this?
-	DepositsCompleteLen = 4 // only the selector
+	DepositsCompleteLen        = 4        // only the selector
 )
 
 var (
@@ -60,8 +58,6 @@ type L1BlockInfo struct {
 	BlobBaseFee       *big.Int // added by Ecotone upgrade
 	BaseFeeScalar     uint32   // added by Ecotone upgrade
 	BlobBaseFeeScalar uint32   // added by Ecotone upgrade
-
-	IsDeposit bool // added by Interop upgrade
 }
 
 // Bedrock Binary Format
@@ -167,8 +163,6 @@ func (info *L1BlockInfo) unmarshalBinaryBedrock(data []byte) error {
 // | 32      | BatcherHash              |
 // +---------+--------------------------+
 
-// TODO: should we duplicate this function?
-// or can we extend it somehow to only add the isDeposit flag at the end
 func (info *L1BlockInfo) marshalBinaryEcotone() ([]byte, error) {
 	w := bytes.NewBuffer(make([]byte, 0, L1InfoEcotoneLen))
 	if err := solabi.WriteSignature(w, L1InfoFuncEcotoneBytes4); err != nil {
@@ -206,7 +200,6 @@ func (info *L1BlockInfo) marshalBinaryEcotone() ([]byte, error) {
 	if err := solabi.WriteAddress(w, info.BatcherAddr); err != nil {
 		return nil, err
 	}
-	// TODO: add isDeposit flag here
 	return w.Bytes(), nil
 }
 
@@ -248,7 +241,6 @@ func (info *L1BlockInfo) unmarshalBinaryEcotone(data []byte) error {
 	if info.BatcherAddr, err = solabi.ReadAddress(r); err != nil {
 		return err
 	}
-	// TODO unmarshall isDeposit flag here
 	if !solabi.EmptyReader(r) {
 		return errors.New("too many bytes")
 	}
@@ -300,7 +292,7 @@ func DepositCompletedFromBytes(rollupCfg *rollup.Config, l2BlockTime uint64, dat
 
 // L1InfoDeposit creates a L1 Info deposit transaction based on the L1 block,
 // and the L2 block-height difference with the start of the epoch.
-func L1InfoDeposit(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNumber uint64, block eth.BlockInfo, l2BlockTime uint64, isDeposit bool) (*types.DepositTx, error) {
+func L1InfoDeposit(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNumber uint64, block eth.BlockInfo, l2BlockTime uint64) (*types.DepositTx, error) {
 	l1BlockInfo := L1BlockInfo{
 		Number:         block.NumberU64(),
 		Time:           block.Time(),
@@ -308,7 +300,6 @@ func L1InfoDeposit(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNumber 
 		BlockHash:      block.Hash(),
 		SequenceNumber: seqNumber,
 		BatcherAddr:    sysCfg.BatcherAddr,
-		IsDeposit:      isDeposit,
 	}
 	var data []byte
 	if isEcotoneButNotFirstBlock(rollupCfg, l2BlockTime) {
@@ -363,8 +354,8 @@ func L1InfoDeposit(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNumber 
 }
 
 // L1InfoDepositBytes returns a serialized L1-info attributes transaction.
-func L1InfoDepositBytes(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNumber uint64, l1Info eth.BlockInfo, l2BlockTime uint64, isDeposit bool) ([]byte, error) {
-	dep, err := L1InfoDeposit(rollupCfg, sysCfg, seqNumber, l1Info, l2BlockTime, isDeposit)
+func L1InfoDepositBytes(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNumber uint64, l1Info eth.BlockInfo, l2BlockTime uint64) ([]byte, error) {
+	dep, err := L1InfoDeposit(rollupCfg, sysCfg, seqNumber, l1Info, l2BlockTime)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create L1 info tx: %w", err)
 	}
@@ -384,7 +375,6 @@ func DepositsCompleteDeposit(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, 
 		BlockHash:      block.Hash(),
 		SequenceNumber: seqNumber,
 		BatcherAddr:    sysCfg.BatcherAddr,
-		IsDeposit:      false,
 	}
 	data, err := l1BlockInfo.marshalDepositsComplete()
 	if err != nil {
@@ -403,7 +393,7 @@ func DepositsCompleteDeposit(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, 
 		Mint:                nil,
 		Value:               big.NewInt(0),
 		Gas:                 50_000,
-		IsSystemTransaction: true,
+		IsSystemTransaction: false,
 		Data:                data,
 	}
 	// With the regolith fork we disable the IsSystemTx functionality, and allocate real gas
