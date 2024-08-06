@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"fmt"
 	"os"
 	"testing"
 
@@ -305,24 +306,20 @@ func TestEVM_PopExitedThread(t *testing.T) {
 	var tracer *tracing.Hooks
 	contracts := testutil.TestContractsSetup(t, testutil.MipsMultithreaded)
 	cases := []struct {
-		name                   string
-		traverseRight          bool
-		activeStackThreadCount int
+		name                         string
+		traverseRight                bool
+		activeStackThreadCount       int
+		expectTraverseRightPostState bool
 	}{
-		{"traverse right, pop last thread", true, 1},
-		{"traverse right, pop penultimate thread", true, 2},
-		{"traverse left, pop last thread", false, 1},
-		{"traverse left, pop penultimate thread", false, 2},
+		{name: "traverse right", traverseRight: true, activeStackThreadCount: 2, expectTraverseRightPostState: true},
+		{name: "traverse right, switch directions", traverseRight: true, activeStackThreadCount: 1, expectTraverseRightPostState: false},
+		{name: "traverse left", traverseRight: false, activeStackThreadCount: 2, expectTraverseRightPostState: false},
+		{name: "traverse left, switch directions", traverseRight: false, activeStackThreadCount: 1, expectTraverseRightPostState: true},
 	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			var state *multithreaded.State
-			if c.traverseRight {
-				state = setupThreads(c.traverseRight, c.activeStackThreadCount, 1)
-			} else {
-				state = setupThreads(c.traverseRight, 1, c.activeStackThreadCount)
-			}
+			state := setupThreads(c.traverseRight, c.activeStackThreadCount, 1)
 			threadToPop := state.GetCurrentThread()
 			threadToPop.Exited = true
 			threadToPop.ExitCode = 1
@@ -330,8 +327,6 @@ func TestEVM_PopExitedThread(t *testing.T) {
 			// Record current state, expectations
 			curStep := state.Step
 			initThreadCount := state.ThreadCount()
-			shouldChangeDirections := c.activeStackThreadCount == 1
-			postShouldTraverseRight := c.traverseRight && !shouldChangeDirections || !c.traverseRight && shouldChangeDirections
 			// Sanity check
 			require.Equal(t, c.activeStackThreadCount+1, initThreadCount)
 			require.Equal(t, c.traverseRight, state.TraverseRight)
@@ -347,7 +342,7 @@ func TestEVM_PopExitedThread(t *testing.T) {
 			require.Equal(t, curStep+1, state.GetStep())
 			require.Equal(t, initThreadCount-1, state.ThreadCount())
 			require.False(t, checkStateContainsThread(state, threadToPop.ThreadId))
-			require.Equal(t, postShouldTraverseRight, state.TraverseRight)
+			require.Equal(t, c.expectTraverseRightPostState, state.TraverseRight)
 
 			evm := testutil.NewMIPSEVM(contracts)
 			evm.SetTracer(tracer)
@@ -443,28 +438,153 @@ func TestEVM_SysFutex_WaitPrivate(t *testing.T) {
 	}
 }
 
-func setupThreads(traverseRight bool, rightThreadCount, leftThreadCount int) *multithreaded.State {
+func TestEVM_HandleWaitingThread(t *testing.T) {
+	var tracer *tracing.Hooks
+	contracts := testutil.TestContractsSetup(t, testutil.MipsMultithreaded)
+	cases := []struct {
+		name            string
+		step            uint64
+		activeStackSize int
+		otherStackSize  int
+		futexAddr       uint32
+		targetValue     uint32
+		actualValue     uint32
+		timeoutStep     uint64
+		shouldWakeup    bool
+		shouldTimeout   bool
+	}{
+		{name: "Preempt, no timeout #1", step: 100, activeStackSize: 1, otherStackSize: 0, futexAddr: 0x100, targetValue: 0x01, actualValue: 0x01, timeoutStep: exec.FutexNoTimeout, shouldWakeup: false},
+		{name: "Preempt, no timeout #2", step: 100, activeStackSize: 1, otherStackSize: 1, futexAddr: 0x100, targetValue: 0x01, actualValue: 0x01, timeoutStep: exec.FutexNoTimeout, shouldWakeup: false},
+		{name: "Preempt, no timeout #3", step: 100, activeStackSize: 2, otherStackSize: 1, futexAddr: 0x100, targetValue: 0x01, actualValue: 0x01, timeoutStep: exec.FutexNoTimeout, shouldWakeup: false},
+		{name: "Preempt, with timeout #1", step: 100, activeStackSize: 2, otherStackSize: 1, futexAddr: 0x100, targetValue: 0x01, actualValue: 0x01, timeoutStep: 101, shouldWakeup: false},
+		{name: "Preempt, with timeout #2", step: 100, activeStackSize: 2, otherStackSize: 1, futexAddr: 0x100, targetValue: 0x01, actualValue: 0x01, timeoutStep: 150, shouldWakeup: false},
+		{name: "Wakeup, no timeout #1", step: 100, activeStackSize: 1, otherStackSize: 0, futexAddr: 0x100, targetValue: 0x01, actualValue: 0x02, timeoutStep: exec.FutexNoTimeout, shouldWakeup: true},
+		{name: "Wakeup, no timeout #2", step: 100, activeStackSize: 2, otherStackSize: 1, futexAddr: 0x100, targetValue: 0x01, actualValue: 0x02, timeoutStep: exec.FutexNoTimeout, shouldWakeup: true},
+		{name: "Wakeup with timeout #1", step: 100, activeStackSize: 2, otherStackSize: 1, futexAddr: 0x100, targetValue: 0x01, actualValue: 0x02, timeoutStep: 100, shouldWakeup: true, shouldTimeout: true},
+		{name: "Wakeup with timeout #2", step: 100, activeStackSize: 2, otherStackSize: 1, futexAddr: 0x100, targetValue: 0x02, actualValue: 0x02, timeoutStep: 100, shouldWakeup: true, shouldTimeout: true},
+		{name: "Wakeup with timeout #3", step: 100, activeStackSize: 2, otherStackSize: 1, futexAddr: 0x100, targetValue: 0x02, actualValue: 0x02, timeoutStep: 50, shouldWakeup: true, shouldTimeout: true},
+	}
+
+	for _, c := range cases {
+		for _, traverseRight := range []bool{true, false} {
+			testName := fmt.Sprintf("%v (traverseRight=%v)", c.name, traverseRight)
+			t.Run(testName, func(t *testing.T) {
+				// Sanity check
+				if !c.shouldWakeup && c.shouldTimeout {
+					require.Fail(t, "Invalid test case - cannot expect a timeout with no wakeup")
+				}
+
+				state := setupThreads(traverseRight, c.activeStackSize, c.otherStackSize)
+				state.Step = c.step
+				*state.GetRegistersRef() = RandomRegisters(99)
+				activeThread := state.GetCurrentThread()
+				activeThread.FutexAddr = c.futexAddr
+				activeThread.FutexVal = c.targetValue
+				activeThread.FutexTimeoutStep = c.timeoutStep
+				state.GetMemory().SetMemory(c.futexAddr, c.actualValue)
+
+				// Set up post-state expectations
+				postStep := c.step + 1
+				nextPC := state.GetCpu().PC
+				expectedRegisters := testutil.CopyRegisters(state)
+				expectedTraverseRight := traverseRight
+				var expectedRStackSize, expectedLStackSize int
+				expectedFutexAddr, expectedFutexVal, expectedTimeoutStep := c.futexAddr, c.targetValue, c.timeoutStep
+				if c.shouldWakeup {
+					// We complete the wait operation by clearing the futex, updating the pc, setting return values
+					expectedFutexAddr = exec.FutexEmptyAddr
+					expectedFutexVal = 0
+					expectedTimeoutStep = 0
+					nextPC = state.GetCpu().NextPC
+					if c.shouldTimeout {
+						expectedRegisters[2] = exec.SysErrorSignal
+						expectedRegisters[7] = exec.MipsETIMEDOUT
+					} else {
+						expectedRegisters[2] = 0 // return value
+						expectedRegisters[7] = 0 // no error
+					}
+					if traverseRight {
+						expectedRStackSize = c.activeStackSize
+						expectedLStackSize = c.otherStackSize
+					} else {
+						expectedRStackSize = c.otherStackSize
+						expectedLStackSize = c.activeStackSize
+					}
+				} else {
+					// Otherwise we preempt
+					if traverseRight {
+						expectedRStackSize = c.activeStackSize - 1
+						expectedLStackSize = c.otherStackSize + 1
+						expectedTraverseRight = expectedRStackSize > 0
+					} else {
+						expectedRStackSize = c.otherStackSize + 1
+						expectedLStackSize = c.activeStackSize - 1
+						expectedTraverseRight = expectedLStackSize == 0
+					}
+				}
+
+				// State transition
+				var err error
+				var stepWitness *mipsevm.StepWitness
+				us := multithreaded.NewInstrumentedState(state, nil, os.Stdout, os.Stderr, nil)
+				stepWitness, err = us.Step(true)
+				require.NoError(t, err)
+
+				// Validate post-state
+				require.Equal(t, postStep, state.GetStep())
+				require.Equal(t, c.activeStackSize+c.otherStackSize, state.ThreadCount())
+				require.Equal(t, expectedTraverseRight, state.TraverseRight)
+				require.Equal(t, expectedRStackSize, len(state.RightThreadStack))
+				require.Equal(t, expectedLStackSize, len(state.LeftThreadStack))
+				require.Equal(t, nextPC, state.GetPC())
+				require.Equal(t, nextPC+4, state.GetCpu().NextPC)
+				// Check thread
+				require.Equal(t, expectedFutexAddr, activeThread.FutexAddr)
+				require.Equal(t, expectedFutexVal, activeThread.FutexVal)
+				require.Equal(t, expectedTimeoutStep, activeThread.FutexTimeoutStep)
+				require.Equal(t, expectedRegisters, &activeThread.Registers)
+
+				evm := testutil.NewMIPSEVM(contracts)
+				evm.SetTracer(tracer)
+				testutil.LogStepFailureAtCleanup(t, evm)
+
+				evmPost := evm.Step(t, stepWitness, c.step, multithreaded.GetStateHashFn())
+				goPost, _ := us.GetState().EncodeWitness()
+				require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
+					"mipsevm produced different state than EVM")
+			})
+
+		}
+	}
+}
+
+func setupThreads(traverseRight bool, activeStackSize, otherStackSize int) *multithreaded.State {
 	state := multithreaded.CreateEmptyState()
-	var leftThreads, rightThreads []*multithreaded.ThreadState
+	var activeStack, otherStack []*multithreaded.ThreadState
 
 	tid := uint32(0)
-	for i := 0; i < rightThreadCount; i++ {
+	for i := 0; i < activeStackSize; i++ {
 		thread := multithreaded.CreateEmptyThread()
 		thread.ThreadId = tid
-		rightThreads = append(rightThreads, thread)
+		activeStack = append(activeStack, thread)
 		tid++
 	}
 
-	for i := 0; i < leftThreadCount; i++ {
+	for i := 0; i < otherStackSize; i++ {
 		thread := multithreaded.CreateEmptyThread()
 		thread.ThreadId = tid
-		leftThreads = append(leftThreads, thread)
+		otherStack = append(otherStack, thread)
 		tid++
 	}
 
-	state.LeftThreadStack = leftThreads
-	state.RightThreadStack = rightThreads
 	state.TraverseRight = traverseRight
+	if traverseRight {
+		state.RightThreadStack = activeStack
+		state.LeftThreadStack = otherStack
+	} else {
+		state.LeftThreadStack = activeStack
+		state.RightThreadStack = otherStack
+	}
 
 	return state
 }
