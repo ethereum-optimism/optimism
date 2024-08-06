@@ -14,7 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 )
 
-func TestEVM_CloneFlags(t *testing.T) {
+func TestEVM_SysClone_FlagHandling(t *testing.T) {
 	contracts := testutil.TestContractsSetup(t, testutil.MipsMultithreaded)
 	var tracer *tracing.Hooks
 
@@ -72,7 +72,7 @@ func TestEVM_CloneFlags(t *testing.T) {
 	}
 }
 
-func TestEVM_CloneSuccessful(t *testing.T) {
+func TestEVM_SysClone_Successful(t *testing.T) {
 	contracts := testutil.TestContractsSetup(t, testutil.MipsMultithreaded)
 	var tracer *tracing.Hooks
 
@@ -177,7 +177,7 @@ func TestEVM_CloneSuccessful(t *testing.T) {
 	}
 }
 
-func TestEVM_GetTID(t *testing.T) {
+func TestEVM_SysGetTID(t *testing.T) {
 	var tracer *tracing.Hooks
 	contracts := testutil.TestContractsSetup(t, testutil.MipsMultithreaded)
 	cases := []struct {
@@ -197,11 +197,13 @@ func TestEVM_GetTID(t *testing.T) {
 			state.GetRegistersRef()[2] = exec.SysGetTID // Set syscall number
 			curStep := state.Step
 
+			// Set up post-state expectations
 			nextPC := state.GetCpu().NextPC
 			expectedRegisters := testutil.CopyRegisters(state)
 			expectedRegisters[2] = tt.threadId // tid return value
 			expectedRegisters[7] = 0           // no error
 
+			// State transition
 			var err error
 			var stepWitness *mipsevm.StepWitness
 			us := multithreaded.NewInstrumentedState(state, nil, os.Stdout, os.Stderr, nil)
@@ -213,6 +215,74 @@ func TestEVM_GetTID(t *testing.T) {
 			require.Equal(t, expectedRegisters, state.GetRegistersRef())
 			require.Equal(t, nextPC, state.GetPC())
 			require.Equal(t, nextPC+4, state.GetCpu().NextPC)
+
+			evm := testutil.NewMIPSEVM(contracts)
+			evm.SetTracer(tracer)
+			testutil.LogStepFailureAtCleanup(t, evm)
+
+			evmPost := evm.Step(t, stepWitness, curStep, multithreaded.GetStateHashFn())
+			goPost, _ := us.GetState().EncodeWitness()
+			require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
+				"mipsevm produced different state than EVM")
+		})
+	}
+}
+
+func TestEVM_SysExit(t *testing.T) {
+	var tracer *tracing.Hooks
+	contracts := testutil.TestContractsSetup(t, testutil.MipsMultithreaded)
+	cases := []struct {
+		name        string
+		threadCount int
+	}{
+		{"one thread", 1},
+		{"two threads ", 2},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			exitCode := uint8(3)
+			state := multithreaded.CreateEmptyState()
+			for i := 0; i < tt.threadCount-1; i++ {
+				newThread := multithreaded.CreateEmptyThread()
+				newThread.ThreadId = uint32(i + 1)
+				state.LeftThreadStack = append(state.LeftThreadStack, newThread)
+			}
+
+			state.Memory.SetMemory(state.GetPC(), syscallInsn)
+			*state.GetRegistersRef() = RandomRegisters(int64(tt.threadCount))
+			state.GetRegistersRef()[2] = exec.SysExit     // Set syscall number
+			state.GetRegistersRef()[4] = uint32(exitCode) // The first argument (exit code)
+			curStep := state.Step
+
+			// Set up post-state expectations
+			pc := state.GetCpu().PC
+			nextPC := state.GetCpu().NextPC
+			expectedRegisters := testutil.CopyRegisters(state) // No change
+
+			// State transition
+			var err error
+			var stepWitness *mipsevm.StepWitness
+			us := multithreaded.NewInstrumentedState(state, nil, os.Stdout, os.Stderr, nil)
+			stepWitness, err = us.Step(true)
+			require.NoError(t, err)
+
+			// Validate post-state
+			thread := state.GetCurrentThread()
+			require.Equal(t, tt.threadCount, state.ThreadCount())
+			require.Equal(t, expectedRegisters, state.GetRegistersRef())
+			require.Equal(t, pc, state.GetPC())
+			require.Equal(t, nextPC, state.GetCpu().NextPC)
+			require.Equal(t, true, thread.Exited)
+			require.Equal(t, exitCode, thread.ExitCode)
+			if tt.threadCount == 1 {
+				// If we exit the last thread, the whole process should exit
+				require.Equal(t, true, state.Exited)
+				require.Equal(t, exitCode, state.ExitCode)
+			} else {
+				require.Equal(t, false, state.Exited)
+				require.Equal(t, uint8(0), state.ExitCode)
+			}
 
 			evm := testutil.NewMIPSEVM(contracts)
 			evm.SetTracer(tracer)
