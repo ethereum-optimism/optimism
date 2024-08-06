@@ -7,6 +7,7 @@ import { IL2ToL2CrossDomainMessenger } from "src/L2/IL2ToL2CrossDomainMessenger.
 import { ISemver } from "src/universal/ISemver.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Initializable } from "@openzeppelin/contracts-v5/proxy/utils/Initializable.sol";
+import { ERC165 } from "@openzeppelin/contracts-v5/utils/introspection/ERC165.sol";
 
 /// @notice Thrown when attempting to relay a message and the function caller (msg.sender) is not
 /// L2ToL2CrossDomainMessenger.
@@ -30,7 +31,7 @@ error ZeroAddress();
 ///         token, turning it fungible and interoperable across the superchain. Likewise, it also enables the inverse
 ///         conversion path.
 ///         Moreover, it builds on top of the L2ToL2CrossDomainMessenger for both replay protection and domain binding.
-contract OptimismSuperchainERC20 is IOptimismSuperchainERC20Extension, ERC20, ISemver, Initializable {
+contract OptimismSuperchainERC20 is IOptimismSuperchainERC20Extension, ERC20, ISemver, Initializable, ERC165 {
     /// @notice Address of the L2ToL2CrossDomainMessenger Predeploy.
     address internal constant MESSENGER = Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER;
 
@@ -183,7 +184,8 @@ contract OptimismSuperchainERC20 is IOptimismSuperchainERC20Extension, ERC20, IS
     /// @notice ERC165 interface check function.
     /// @param _interfaceId Interface ID to check.
     /// @return Whether or not the interface is supported by this contract.
-    function supportsInterface(bytes4 _interfaceId) external pure virtual returns (bool) {
-        return _interfaceId == type(IOptimismSuperchainERC20Extension).interfaceId;
+    function supportsInterface(bytes4 _interfaceId) public view virtual override returns (bool) {
+        return
+            _interfaceId == type(IOptimismSuperchainERC20Extension).interfaceId || super.supportsInterface(_interfaceId);
     }
 }

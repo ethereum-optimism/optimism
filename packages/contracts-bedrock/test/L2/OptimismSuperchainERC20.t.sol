@@ -6,12 +6,11 @@ import { Test } from "forge-std/Test.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { stdStorage, StdStorage } from "forge-std/Test.sol";
-import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { IERC20 } from "@openzeppelin/contracts-v5/token/ERC20/IERC20.sol";
 import { IL2ToL2CrossDomainMessenger } from "src/L2/IL2ToL2CrossDomainMessenger.sol";
-import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import { ERC1967Proxy } from "@openzeppelin/contracts-v5/proxy/ERC1967/ERC1967Proxy.sol";
 import { Initializable } from "@openzeppelin/contracts-v5/proxy/utils/Initializable.sol";
+import { IERC165 } from "@openzeppelin/contracts-v5/utils/introspection/IERC165.sol";
 
 // Target contract
 import {
@@ -373,12 +372,14 @@ contract OptimismSuperchainERC20Test is Test {
 
     /// @notice Tests that the `supportsInterface` function returns true for the `IOptimismSuperchainERC20` interface.
     function test_supportInterface_succeeds() public view {
+        assertTrue(superchainERC20.supportsInterface(type(IERC165).interfaceId));
         assertTrue(superchainERC20.supportsInterface(type(IOptimismSuperchainERC20Extension).interfaceId));
     }
 
     /// @notice Tests that the `supportsInterface` function returns false for any other interface than the
     /// `IOptimismSuperchainERC20` one.
     function testFuzz_supportInterface_returnFalse(bytes4 _interfaceId) public view {
+        vm.assume(_interfaceId != type(IERC165).interfaceId);
         vm.assume(_interfaceId != type(IOptimismSuperchainERC20Extension).interfaceId);
         assertFalse(superchainERC20.supportsInterface(_interfaceId));
     }
