@@ -39,6 +39,7 @@ type Metricer interface {
 	RecordGameMove()
 	RecordGameL2Challenge()
 	RecordVmExecutionTime(vmType string, t time.Duration)
+	RecordVmMemoryUsed(vmType string, memoryUsed uint64)
 	RecordClaimResolutionTime(t float64)
 	RecordGameActTime(t float64)
 
@@ -52,6 +53,8 @@ type Metricer interface {
 
 	RecordGameUpdateScheduled()
 	RecordGameUpdateCompleted()
+
+	RecordLargePreimageCount(count int)
 
 	IncActiveExecutors()
 	DecActiveExecutors()
@@ -81,6 +84,7 @@ type Metrics struct {
 
 	preimageChallenged      prometheus.Counter
 	preimageChallengeFailed prometheus.Counter
+	preimageCount           prometheus.Gauge
 
 	highestActedL1Block prometheus.Gauge
 
@@ -91,6 +95,7 @@ type Metrics struct {
 	claimResolutionTime prometheus.Histogram
 	gameActTime         prometheus.Histogram
 	vmExecutionTime     *prometheus.HistogramVec
+	vmMemoryUsed        *prometheus.HistogramVec
 
 	trackedGames  prometheus.GaugeVec
 	inflightGames prometheus.Gauge
@@ -173,6 +178,13 @@ func NewMetrics() *Metrics {
 				[]float64{1.0, 10.0},
 				prometheus.ExponentialBuckets(30.0, 2.0, 14)...),
 		}, []string{"vm"}),
+		vmMemoryUsed: factory.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: Namespace,
+			Name:      "vm_memory_used",
+			Help:      "Memory used (in bytes) to execute the fault proof VM",
+			// 100MiB increments from 0 to 1.5GiB
+			Buckets: prometheus.LinearBuckets(0, 1024*1024*100, 15),
+		}, []string{"vm"}),
 		bondClaimFailures: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: Namespace,
 			Name:      "claim_failures",
@@ -192,6 +204,11 @@ func NewMetrics() *Metrics {
 			Namespace: Namespace,
 			Name:      "preimage_challenge_failed",
 			Help:      "Number of preimage challenges that failed",
+		}),
+		preimageCount: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "preimage_count",
+			Help:      "Number of large preimage proposals being tracked by the challenger",
 		}),
 		trackedGames: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
@@ -261,6 +278,10 @@ func (m *Metrics) RecordPreimageChallengeFailed() {
 	m.preimageChallengeFailed.Add(1)
 }
 
+func (m *Metrics) RecordLargePreimageCount(count int) {
+	m.preimageCount.Set(float64(count))
+}
+
 func (m *Metrics) RecordBondClaimFailed() {
 	m.bondClaimFailures.Add(1)
 }
@@ -271,6 +292,10 @@ func (m *Metrics) RecordBondClaimed(amount uint64) {
 
 func (m *Metrics) RecordVmExecutionTime(vmType string, dur time.Duration) {
 	m.vmExecutionTime.WithLabelValues(vmType).Observe(dur.Seconds())
+}
+
+func (m *Metrics) RecordVmMemoryUsed(vmType string, memoryUsed uint64) {
+	m.vmMemoryUsed.WithLabelValues(vmType).Observe(float64(memoryUsed))
 }
 
 func (m *Metrics) RecordClaimResolutionTime(t float64) {

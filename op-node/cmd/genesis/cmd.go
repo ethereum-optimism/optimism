@@ -1,34 +1,27 @@
 package genesis
 
 import (
-	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"math/big"
-	"os"
+	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/retry"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/urfave/cli/v2"
-
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethclient"
 )
 
 var (
 	l1RPCFlag = &cli.StringFlag{
-		Name:  "l1-rpc",
-		Usage: "RPC URL for an Ethereum L1 node. Cannot be used with --l1-starting-block",
-	}
-	l1StartingBlockFlag = &cli.PathFlag{
-		Name:  "l1-starting-block",
-		Usage: "Path to a JSON file containing the L1 starting block. Overrides the need for using an L1 RPC to fetch the block. Cannot be used with --l1-rpc",
+		Name:     "l1-rpc",
+		Usage:    "RPC URL for an Ethereum L1 node",
+		Required: true,
 	}
 	deployConfigFlag = &cli.PathFlag{
 		Name:     "deploy-config",
@@ -71,7 +64,6 @@ var (
 
 	l2Flags = []cli.Flag{
 		l1RPCFlag,
-		l1StartingBlockFlag,
 		deployConfigFlag,
 		l2AllocsFlag,
 		l1DeploymentsFlag,
@@ -86,14 +78,14 @@ var Subcommands = cli.Commands{
 		Usage: "Generates a L1 genesis state file",
 		Flags: l1Flags,
 		Action: func(ctx *cli.Context) error {
-			deployConfig := ctx.String("deploy-config")
+			deployConfig := ctx.String(deployConfigFlag.Name)
 			config, err := genesis.NewDeployConfig(deployConfig)
 			if err != nil {
 				return err
 			}
 
 			var deployments *genesis.L1Deployments
-			if l1Deployments := ctx.String("l1-deployments"); l1Deployments != "" {
+			if l1Deployments := ctx.String(l1DeploymentsFlag.Name); l1Deployments != "" {
 				deployments, err = genesis.NewL1Deployments(l1Deployments)
 				if err != nil {
 					return err
@@ -104,7 +96,9 @@ var Subcommands = cli.Commands{
 				config.SetDeployments(deployments)
 			}
 
-			if err := config.Check(); err != nil {
+			cfg := oplog.DefaultCLIConfig()
+			logger := oplog.NewLogger(ctx.App.Writer, cfg)
+			if err := config.Check(logger); err != nil {
 				return fmt.Errorf("deploy config at %s invalid: %w", deployConfig, err)
 			}
 
@@ -114,7 +108,7 @@ var Subcommands = cli.Commands{
 			}
 
 			var dump *foundry.ForgeAllocs
-			if l1Allocs := ctx.String("l1-allocs"); l1Allocs != "" {
+			if l1Allocs := ctx.String(l1AllocsFlag.Name); l1Allocs != "" {
 				dump, err = foundry.LoadForgeAllocs(l1Allocs)
 				if err != nil {
 					return err
@@ -126,7 +120,7 @@ var Subcommands = cli.Commands{
 				return err
 			}
 
-			return jsonutil.WriteJSON(ctx.String("outfile.l1"), l1Genesis, 0o666)
+			return jsonutil.WriteJSON(ctx.String(outfileL1Flag.Name), l1Genesis, 0o666)
 		},
 	},
 	{
@@ -139,23 +133,18 @@ var Subcommands = cli.Commands{
 			"or it can be provided as a JSON file.",
 		Flags: l2Flags,
 		Action: func(ctx *cli.Context) error {
-			deployConfig := ctx.Path("deploy-config")
-			log.Info("Deploy config", "path", deployConfig)
+			cfg := oplog.DefaultCLIConfig()
+			logger := oplog.NewLogger(ctx.App.Writer, cfg)
+
+			deployConfig := ctx.Path(deployConfigFlag.Name)
+			logger.Info("Deploy config", "path", deployConfig)
 			config, err := genesis.NewDeployConfig(deployConfig)
 			if err != nil {
 				return err
 			}
 
-			l1Deployments := ctx.Path("l1-deployments")
-			l1StartBlockPath := ctx.Path("l1-starting-block")
-			l1RPC := ctx.String("l1-rpc")
-
-			if l1StartBlockPath == "" && l1RPC == "" {
-				return errors.New("must specify either --l1-starting-block or --l1-rpc")
-			}
-			if l1StartBlockPath != "" && l1RPC != "" {
-				return errors.New("cannot specify both --l1-starting-block and --l1-rpc")
-			}
+			l1Deployments := ctx.Path(l1DeploymentsFlag.Name)
+			l1RPC := ctx.String(l1RPCFlag.Name)
 
 			deployments, err := genesis.NewL1Deployments(l1Deployments)
 			if err != nil {
@@ -163,15 +152,8 @@ var Subcommands = cli.Commands{
 			}
 			config.SetDeployments(deployments)
 
-			var l1StartBlock *types.Block
-			if l1StartBlockPath != "" {
-				if l1StartBlock, err = readBlockJSON(l1StartBlockPath); err != nil {
-					return fmt.Errorf("cannot read L1 starting block at %s: %w", l1StartBlockPath, err)
-				}
-			}
-
 			var l2Allocs *foundry.ForgeAllocs
-			if l2AllocsPath := ctx.String("l2-allocs"); l2AllocsPath != "" {
+			if l2AllocsPath := ctx.String(l2AllocsFlag.Name); l2AllocsPath != "" {
 				l2Allocs, err = foundry.LoadForgeAllocs(l2AllocsPath)
 				if err != nil {
 					return err
@@ -180,44 +162,32 @@ var Subcommands = cli.Commands{
 				return errors.New("missing l2-allocs")
 			}
 
-			if l1RPC != "" {
-				client, err := ethclient.Dial(l1RPC)
-				if err != nil {
-					return fmt.Errorf("cannot dial %s: %w", l1RPC, err)
-				}
-
-				if config.L1StartingBlockTag == nil {
-					l1StartBlock, err = client.BlockByNumber(context.Background(), nil)
-					if err != nil {
-						return fmt.Errorf("cannot fetch latest block: %w", err)
-					}
-					tag := rpc.BlockNumberOrHashWithHash(l1StartBlock.Hash(), true)
-					config.L1StartingBlockTag = (*genesis.MarshalableRPCBlockNumberOrHash)(&tag)
-				} else if config.L1StartingBlockTag.BlockHash != nil {
-					l1StartBlock, err = client.BlockByHash(context.Background(), *config.L1StartingBlockTag.BlockHash)
-					if err != nil {
-						return fmt.Errorf("cannot fetch block by hash: %w", err)
-					}
-				} else if config.L1StartingBlockTag.BlockNumber != nil {
-					l1StartBlock, err = client.BlockByNumber(context.Background(), big.NewInt(config.L1StartingBlockTag.BlockNumber.Int64()))
-					if err != nil {
-						return fmt.Errorf("cannot fetch block by number: %w", err)
-					}
-				}
+			// Retrieve SystemConfig.startBlock()
+			client, err := ethclient.Dial(l1RPC)
+			if err != nil {
+				return fmt.Errorf("cannot dial %s: %w", l1RPC, err)
 			}
 
-			// Ensure that there is a starting L1 block
-			if l1StartBlock == nil {
-				return errors.New("no starting L1 block")
+			caller := batching.NewMultiCaller(client.Client(), batching.DefaultBatchSize)
+			sysCfg := NewSystemConfigContract(caller, config.SystemConfigProxy)
+			startBlock, err := sysCfg.StartBlock(ctx.Context)
+			if err != nil {
+				return fmt.Errorf("failed to fetch startBlock from SystemConfig: %w", err)
 			}
+
+			logger.Info("Using L1 Start Block", "number", startBlock)
+			// retry because local devnet can experience a race condition where L1 geth isn't ready yet
+			l1StartBlock, err := retry.Do(ctx.Context, 24, retry.Fixed(1*time.Second), func() (*types.Block, error) { return client.BlockByNumber(ctx.Context, startBlock) })
+			if err != nil {
+				return fmt.Errorf("fetching start block by number: %w", err)
+			}
+			logger.Info("Fetched L1 Start Block", "hash", l1StartBlock.Hash().Hex())
 
 			// Sanity check the config. Do this after filling in the L1StartingBlockTag
 			// if it is not defined.
-			if err := config.Check(); err != nil {
+			if err := config.Check(logger); err != nil {
 				return err
 			}
-
-			log.Info("Using L1 Start Block", "number", l1StartBlock.Number(), "hash", l1StartBlock.Hash().Hex())
 
 			// Build the L2 genesis block
 			l2Genesis, err := genesis.BuildL2Genesis(config, l2Allocs, l1StartBlock)
@@ -234,62 +204,10 @@ var Subcommands = cli.Commands{
 				return fmt.Errorf("generated rollup config does not pass validation: %w", err)
 			}
 
-			if err := jsonutil.WriteJSON(ctx.String("outfile.l2"), l2Genesis, 0o666); err != nil {
+			if err := jsonutil.WriteJSON(ctx.String(outfileL2Flag.Name), l2Genesis, 0o666); err != nil {
 				return err
 			}
-			return jsonutil.WriteJSON(ctx.String("outfile.rollup"), rollupConfig, 0o666)
+			return jsonutil.WriteJSON(ctx.String(outfileRollupFlag.Name), rollupConfig, 0o666)
 		},
 	},
-}
-
-// rpcBlock represents the JSON serialization of a block from an Ethereum RPC.
-type rpcBlock struct {
-	Hash         common.Hash         `json:"hash"`
-	Transactions []rpcTransaction    `json:"transactions"`
-	UncleHashes  []common.Hash       `json:"uncles"`
-	Withdrawals  []*types.Withdrawal `json:"withdrawals,omitempty"`
-}
-
-// rpcTransaction represents the JSON serialization of a transaction from an Ethereum RPC.
-type rpcTransaction struct {
-	tx *types.Transaction
-	txExtraInfo
-}
-
-// txExtraInfo includes extra information about a transaction that is returned from
-// and Ethereum RPC endpoint.
-type txExtraInfo struct {
-	BlockNumber *string         `json:"blockNumber,omitempty"`
-	BlockHash   *common.Hash    `json:"blockHash,omitempty"`
-	From        *common.Address `json:"from,omitempty"`
-}
-
-// readBlockJSON will read a JSON file from disk containing a serialized block.
-// This logic can break if the block format changes but there is no modular way
-// to turn a block into JSON in go-ethereum.
-func readBlockJSON(path string) (*types.Block, error) {
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("block file at %s not found: %w", path, err)
-	}
-
-	var header types.Header
-	if err := json.Unmarshal(raw, &header); err != nil {
-		return nil, fmt.Errorf("cannot unmarshal block: %w", err)
-	}
-
-	var body rpcBlock
-	if err := json.Unmarshal(raw, &body); err != nil {
-		return nil, err
-	}
-
-	if len(body.UncleHashes) > 0 {
-		return nil, fmt.Errorf("cannot unmarshal block with uncles")
-	}
-
-	txs := make([]*types.Transaction, len(body.Transactions))
-	for i, tx := range body.Transactions {
-		txs[i] = tx.tx
-	}
-	return types.NewBlockWithHeader(&header).WithBody(txs, nil).WithWithdrawals(body.Withdrawals), nil
 }

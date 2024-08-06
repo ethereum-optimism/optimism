@@ -43,8 +43,10 @@ func WriteJSON[X any](outputPath string, value X, perm os.FileMode) error {
 		if err != nil {
 			return fmt.Errorf("failed to open output file: %w", err)
 		}
-		// Ensure we close the stream even if failures occur.
-		defer f.Close()
+		// Ensure we close the stream without renaming even if failures occur.
+		defer func() {
+			_ = f.Abort()
+		}()
 		out = f
 		// Closing the file causes it to be renamed to the final destination
 		// so make sure we handle any errors it returns

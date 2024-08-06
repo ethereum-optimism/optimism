@@ -12,11 +12,18 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
+)
+
+const (
+	debugFilename = "debug-info.json"
 )
 
 type Metricer interface {
 	RecordVmExecutionTime(vmType string, t time.Duration)
+	RecordVmMemoryUsed(vmType string, memoryUsed uint64)
 }
 
 type Config struct {
@@ -25,6 +32,7 @@ type Config struct {
 	VmBin        string // Path to the vm executable to run when generating trace data
 	SnapshotFreq uint   // Frequency of snapshots to create when executing (in VM instructions)
 	InfoFreq     uint   // Frequency of progress log messages (in VM instructions)
+	DebugInfo    bool
 
 	// Host Configuration
 	L1               string
@@ -95,6 +103,9 @@ func (e *Executor) DoGenerateProof(ctx context.Context, dir string, begin uint64
 	if end < math.MaxUint64 {
 		args = append(args, "--stop-at", "="+strconv.FormatUint(end+1, 10))
 	}
+	if e.cfg.DebugInfo {
+		args = append(args, "--debug-info", filepath.Join(dataDir, debugFilename))
+	}
 	args = append(args, extraVmArgs...)
 	args = append(args, "--")
 	oracleArgs, err := e.oracleServer.OracleCommand(e.cfg, dataDir, e.inputs)
@@ -116,5 +127,16 @@ func (e *Executor) DoGenerateProof(ctx context.Context, dir string, begin uint64
 	execStart := time.Now()
 	err = e.cmdExecutor(ctx, e.logger.New("proof", end), e.cfg.VmBin, args...)
 	e.metrics.RecordVmExecutionTime(e.cfg.VmType.String(), time.Since(execStart))
+	if e.cfg.DebugInfo && err == nil {
+		if info, err := jsonutil.LoadJSON[debugInfo](filepath.Join(dataDir, debugFilename)); err != nil {
+			e.logger.Warn("Failed to load debug metrics", "err", err)
+		} else {
+			e.metrics.RecordVmMemoryUsed(e.cfg.VmType.String(), uint64(info.MemoryUsed))
+		}
+	}
 	return err
+}
+
+type debugInfo struct {
+	MemoryUsed hexutil.Uint64 `json:"memory_used"`
 }

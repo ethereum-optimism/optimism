@@ -370,7 +370,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
 
         // If the remaining clock time has less than `CLOCK_EXTENSION` seconds remaining, grant the potential
         // grandchild's clock `CLOCK_EXTENSION` seconds. This is to ensure that, even if a player has to inherit another
-        // team's clock to counter a freeloader claim, they will always have enough time to to respond. This extension
+        // team's clock to counter a freeloader claim, they will always have enough time to respond. This extension
         // is bounded by the depth of the tree. If the potential grandchild is an execution trace bisection root, the
         // clock extension is doubled. This is to allow for extra time for the off-chain challenge agent to generate
         // the initial instruction trace on the native FPVM.

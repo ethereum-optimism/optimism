@@ -11,15 +11,17 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/stretchr/testify/require"
 )
 
 //go:embed test_data
@@ -49,8 +51,8 @@ func TestGet(t *testing.T) {
 
 	t.Run("ProofAfterEndOfTrace", func(t *testing.T) {
 		provider, generator := setupWithTestData(t, dataDir, prestate)
-		generator.finalState = &mipsevm.State{
-			Memory: &mipsevm.Memory{},
+		generator.finalState = &singlethreaded.State{
+			Memory: &memory.Memory{},
 			Step:   10,
 			Exited: true,
 		}
@@ -105,8 +107,8 @@ func TestGetStepData(t *testing.T) {
 	t.Run("GenerateProof", func(t *testing.T) {
 		dataDir, prestate := setupTestData(t)
 		provider, generator := setupWithTestData(t, dataDir, prestate)
-		generator.finalState = &mipsevm.State{
-			Memory: &mipsevm.Memory{},
+		generator.finalState = &singlethreaded.State{
+			Memory: &memory.Memory{},
 			Step:   10,
 			Exited: true,
 		}
@@ -131,8 +133,8 @@ func TestGetStepData(t *testing.T) {
 	t.Run("ProofAfterEndOfTrace", func(t *testing.T) {
 		dataDir, prestate := setupTestData(t)
 		provider, generator := setupWithTestData(t, dataDir, prestate)
-		generator.finalState = &mipsevm.State{
-			Memory: &mipsevm.Memory{},
+		generator.finalState = &singlethreaded.State{
+			Memory: &memory.Memory{},
 			Step:   10,
 			Exited: true,
 		}
@@ -157,8 +159,8 @@ func TestGetStepData(t *testing.T) {
 	t.Run("ReadLastStepFromDisk", func(t *testing.T) {
 		dataDir, prestate := setupTestData(t)
 		provider, initGenerator := setupWithTestData(t, dataDir, prestate)
-		initGenerator.finalState = &mipsevm.State{
-			Memory: &mipsevm.Memory{},
+		initGenerator.finalState = &singlethreaded.State{
+			Memory: &memory.Memory{},
 			Step:   10,
 			Exited: true,
 		}
@@ -175,8 +177,8 @@ func TestGetStepData(t *testing.T) {
 		require.Contains(t, initGenerator.generated, 7000, "should have tried to generate the proof")
 
 		provider, generator := setupWithTestData(t, dataDir, prestate)
-		generator.finalState = &mipsevm.State{
-			Memory: &mipsevm.Memory{},
+		generator.finalState = &singlethreaded.State{
+			Memory: &memory.Memory{},
 			Step:   10,
 			Exited: true,
 		}
@@ -247,7 +249,7 @@ func setupWithTestData(t *testing.T, dataDir string, prestate string) (*CannonTr
 
 type stubGenerator struct {
 	generated  []int // Using int makes assertions easier
-	finalState *mipsevm.State
+	finalState *singlethreaded.State
 	proof      *utils.ProofData
 }
 

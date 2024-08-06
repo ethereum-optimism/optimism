@@ -33,7 +33,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
@@ -225,8 +224,7 @@ func TestSystemE2EDencunAtGenesis(t *testing.T) {
 	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
-	genesisActivation := hexutil.Uint64(0)
-	cfg.DeployConfig.L1CancunTimeOffset = &genesisActivation
+	cfg.DeployConfig.L1CancunTimeOffset = &genesisTime
 
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
@@ -245,9 +243,7 @@ func TestSystemE2EDencunAtGenesisWithBlobs(t *testing.T) {
 	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
-	// cancun is on from genesis:
-	genesisActivation := hexutil.Uint64(0)
-	cfg.DeployConfig.L1CancunTimeOffset = &genesisActivation // i.e. turn cancun on at genesis time + 0
+	cfg.DeployConfig.L1CancunTimeOffset = &genesisTime
 
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
@@ -795,7 +791,7 @@ func TestSystemP2PAltSync(t *testing.T) {
 			},
 		},
 	}
-	configureL1(syncNodeCfg, sys.EthInstances["l1"])
+	configureL1(syncNodeCfg, sys.EthInstances["l1"], sys.L1BeaconEndpoint())
 	syncerL2Engine, _, err := geth.InitL2("syncer", big.NewInt(int64(cfg.DeployConfig.L2ChainID)), sys.L2GenesisCfg, cfg.JWTFilePath)
 	require.NoError(t, err)
 	require.NoError(t, syncerL2Engine.Start())
@@ -1041,17 +1037,6 @@ func TestL1InfoContract(t *testing.T) {
 	checkInfoList("On verifier with state", l1InfosFromVerifierState)
 }
 
-// calcGasFees determines the actual cost of the transaction given a specific base fee
-// This does not include the L1 data fee charged from L2 transactions.
-func calcGasFees(gasUsed uint64, gasTipCap *big.Int, gasFeeCap *big.Int, baseFee *big.Int) *big.Int {
-	x := new(big.Int).Add(gasTipCap, baseFee)
-	// If tip + basefee > gas fee cap, clamp it to the gas fee cap
-	if x.Cmp(gasFeeCap) > 0 {
-		x = gasFeeCap
-	}
-	return x.Mul(x, new(big.Int).SetUint64(gasUsed))
-}
-
 // TestWithdrawals checks that a deposit and then withdrawal execution succeeds. It verifies the
 // balance changes on L1 and L2 and has to include gas fees in the balance checks.
 // It does not check that the withdrawal can be executed prior to the end of the finality period.
@@ -1060,105 +1045,13 @@ func TestWithdrawals(t *testing.T) {
 
 	cfg := DefaultSystemConfig(t)
 	cfg.DeployConfig.FinalizationPeriodSeconds = 2 // 2s finalization period
+	cfg.L1FinalizedDistance = 2                    // Finalize quick, don't make the proposer wait too long
 
 	sys, err := cfg.Start(t)
-	require.Nil(t, err, "Error starting up system")
+	require.NoError(t, err, "Error starting up system")
 	defer sys.Close()
 
-	l1Client := sys.Clients["l1"]
-	l2Seq := sys.Clients["sequencer"]
-	l2Verif := sys.Clients["verifier"]
-
-	// Transactor Account
-	ethPrivKey := cfg.Secrets.Alice
-	fromAddr := crypto.PubkeyToAddress(ethPrivKey.PublicKey)
-
-	// Create L1 signer
-	opts, err := bind.NewKeyedTransactorWithChainID(ethPrivKey, cfg.L1ChainIDBig())
-	require.Nil(t, err)
-
-	// Start L2 balance
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	startBalanceBeforeDeposit, err := l2Verif.BalanceAt(ctx, fromAddr, nil)
-	require.Nil(t, err)
-
-	// Send deposit tx
-	mintAmount := big.NewInt(1_000_000_000_000)
-	opts.Value = mintAmount
-	SendDepositTx(t, cfg, l1Client, l2Verif, opts, func(l2Opts *DepositTxOpts) {
-		l2Opts.Value = common.Big0
-	})
-
-	// Confirm L2 balance
-	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	endBalanceAfterDeposit, err := wait.ForBalanceChange(ctx, l2Verif, fromAddr, startBalanceBeforeDeposit)
-	require.Nil(t, err)
-
-	diff := new(big.Int)
-	diff = diff.Sub(endBalanceAfterDeposit, startBalanceBeforeDeposit)
-	require.Equal(t, mintAmount, diff, "Did not get expected balance change after mint")
-
-	// Start L2 balance for withdrawal
-	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	startBalanceBeforeWithdrawal, err := l2Seq.BalanceAt(ctx, fromAddr, nil)
-	require.Nil(t, err)
-
-	withdrawAmount := big.NewInt(500_000_000_000)
-	tx, receipt := SendWithdrawal(t, cfg, l2Seq, ethPrivKey, func(opts *WithdrawalTxOpts) {
-		opts.Value = withdrawAmount
-		opts.VerifyOnClients(l2Verif)
-	})
-
-	// Verify L2 balance after withdrawal
-	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	header, err := l2Verif.HeaderByNumber(ctx, receipt.BlockNumber)
-	require.Nil(t, err)
-
-	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	endBalanceAfterWithdrawal, err := wait.ForBalanceChange(ctx, l2Seq, fromAddr, startBalanceBeforeWithdrawal)
-	require.Nil(t, err)
-
-	// Take fee into account
-	diff = new(big.Int).Sub(startBalanceBeforeWithdrawal, endBalanceAfterWithdrawal)
-	fees := calcGasFees(receipt.GasUsed, tx.GasTipCap(), tx.GasFeeCap(), header.BaseFee)
-	fees = fees.Add(fees, receipt.L1Fee)
-	diff = diff.Sub(diff, fees)
-	require.Equal(t, withdrawAmount, diff)
-
-	// Take start balance on L1
-	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	startBalanceBeforeFinalize, err := l1Client.BalanceAt(ctx, fromAddr, nil)
-	require.Nil(t, err)
-
-	proveReceipt, finalizeReceipt, resolveClaimReceipt, resolveReceipt := ProveAndFinalizeWithdrawal(t, cfg, sys, "verifier", ethPrivKey, receipt)
-
-	// Verify balance after withdrawal
-	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	endBalanceAfterFinalize, err := wait.ForBalanceChange(ctx, l1Client, fromAddr, startBalanceBeforeFinalize)
-	require.Nil(t, err)
-
-	// Ensure that withdrawal - gas fees are added to the L1 balance
-	// Fun fact, the fee is greater than the withdrawal amount
-	// NOTE: The gas fees include *both* the ProveWithdrawalTransaction and FinalizeWithdrawalTransaction transactions.
-	diff = new(big.Int).Sub(endBalanceAfterFinalize, startBalanceBeforeFinalize)
-	proveFee := new(big.Int).Mul(new(big.Int).SetUint64(proveReceipt.GasUsed), proveReceipt.EffectiveGasPrice)
-	finalizeFee := new(big.Int).Mul(new(big.Int).SetUint64(finalizeReceipt.GasUsed), finalizeReceipt.EffectiveGasPrice)
-	fees = new(big.Int).Add(proveFee, finalizeFee)
-	if e2eutils.UseFaultProofs() {
-		resolveClaimFee := new(big.Int).Mul(new(big.Int).SetUint64(resolveClaimReceipt.GasUsed), resolveClaimReceipt.EffectiveGasPrice)
-		resolveFee := new(big.Int).Mul(new(big.Int).SetUint64(resolveReceipt.GasUsed), resolveReceipt.EffectiveGasPrice)
-		fees = new(big.Int).Add(fees, resolveClaimFee)
-		fees = new(big.Int).Add(fees, resolveFee)
-	}
-	withdrawAmount = withdrawAmount.Sub(withdrawAmount, fees)
-	require.Equal(t, withdrawAmount, diff)
+	RunWithdrawalsTest(t, sys)
 }
 
 type stateGetterAdapter struct {
@@ -1181,35 +1074,23 @@ func (sga *stateGetterAdapter) GetState(addr common.Address, key common.Hash) co
 func TestFees(t *testing.T) {
 	t.Run("pre-regolith", func(t *testing.T) {
 		InitParallel(t)
-		cfg := DefaultSystemConfig(t)
+		cfg := RegolithSystemConfig(t, nil)
 		cfg.DeployConfig.L1GenesisBlockBaseFeePerGas = (*hexutil.Big)(big.NewInt(7))
 
-		cfg.DeployConfig.L2GenesisRegolithTimeOffset = nil
-		cfg.DeployConfig.L2GenesisCanyonTimeOffset = nil
-		cfg.DeployConfig.L2GenesisDeltaTimeOffset = nil
-		cfg.DeployConfig.L2GenesisEcotoneTimeOffset = nil
 		testFees(t, cfg)
 	})
 	t.Run("regolith", func(t *testing.T) {
 		InitParallel(t)
-		cfg := DefaultSystemConfig(t)
+		cfg := RegolithSystemConfig(t, &genesisTime)
 		cfg.DeployConfig.L1GenesisBlockBaseFeePerGas = (*hexutil.Big)(big.NewInt(7))
 
-		cfg.DeployConfig.L2GenesisRegolithTimeOffset = new(hexutil.Uint64)
-		cfg.DeployConfig.L2GenesisCanyonTimeOffset = nil
-		cfg.DeployConfig.L2GenesisDeltaTimeOffset = nil
-		cfg.DeployConfig.L2GenesisEcotoneTimeOffset = nil
 		testFees(t, cfg)
 	})
 	t.Run("ecotone", func(t *testing.T) {
 		InitParallel(t)
-		cfg := DefaultSystemConfig(t)
+		cfg := EcotoneSystemConfig(t, &genesisTime)
 		cfg.DeployConfig.L1GenesisBlockBaseFeePerGas = (*hexutil.Big)(big.NewInt(7))
 
-		cfg.DeployConfig.L2GenesisRegolithTimeOffset = new(hexutil.Uint64)
-		cfg.DeployConfig.L2GenesisCanyonTimeOffset = new(hexutil.Uint64)
-		cfg.DeployConfig.L2GenesisDeltaTimeOffset = new(hexutil.Uint64)
-		cfg.DeployConfig.L2GenesisEcotoneTimeOffset = new(hexutil.Uint64)
 		testFees(t, cfg)
 	})
 	t.Run("fjord", func(t *testing.T) {
@@ -1414,15 +1295,12 @@ func testFees(t *testing.T, cfg SystemConfig) {
 func StopStartBatcher(t *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	InitParallel(t)
 
-	cfg := DefaultSystemConfig(t)
-	cfg.DeployConfig.L2GenesisDeltaTimeOffset = deltaTimeOffset
+	cfg := DeltaSystemConfig(t, deltaTimeOffset)
 	sys, err := cfg.Start(t)
 	require.NoError(t, err, "Error starting up system")
 	defer sys.Close()
 
-	rollupRPCClient, err := rpc.DialContext(context.Background(), sys.RollupNodes["verifier"].HTTPEndpoint())
-	require.NoError(t, err)
-	rollupClient := sources.NewRollupClient(client.NewBaseRPCClient(rollupRPCClient))
+	rollupClient := sys.RollupClient("verifier")
 
 	l2Seq := sys.Clients["sequencer"]
 	l2Verif := sys.Clients["verifier"]
@@ -1456,8 +1334,9 @@ func StopStartBatcher(t *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	require.NoError(t, err)
 	require.Greater(t, newSeqStatus.SafeL2.Number, seqStatus.SafeL2.Number, "Safe chain did not advance")
 
+	driver := sys.BatchSubmitter.TestDriver()
 	// stop the batch submission
-	err = sys.BatchSubmitter.Driver().StopBatchSubmitting(context.Background())
+	err = driver.StopBatchSubmitting(context.Background())
 	require.NoError(t, err)
 
 	// wait for any old safe blocks being submitted / derived
@@ -1477,7 +1356,7 @@ func StopStartBatcher(t *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	require.Equal(t, newSeqStatus.SafeL2.Number, seqStatus.SafeL2.Number, "Safe chain advanced while batcher was stopped")
 
 	// start the batch submission
-	err = sys.BatchSubmitter.Driver().StartBatchSubmitting()
+	err = driver.StartBatchSubmitting()
 	require.NoError(t, err)
 	time.Sleep(safeBlockInclusionDuration)
 
@@ -1519,7 +1398,8 @@ func TestBatcherMultiTx(t *testing.T) {
 	require.NoError(t, err)
 
 	// start batch submission
-	err = sys.BatchSubmitter.Driver().StartBatchSubmitting()
+	driver := sys.BatchSubmitter.TestDriver()
+	err = driver.StartBatchSubmitting()
 	require.NoError(t, err)
 
 	totalTxCount := 0

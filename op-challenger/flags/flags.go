@@ -553,6 +553,7 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 			L2GenesisPath:    ctx.String(CannonL2GenesisFlag.Name),
 			SnapshotFreq:     ctx.Uint(CannonSnapshotFreqFlag.Name),
 			InfoFreq:         ctx.Uint(CannonInfoFreqFlag.Name),
+			DebugInfo:        true,
 		},
 		CannonAbsolutePreState:        ctx.String(CannonPreStateFlag.Name),
 		CannonAbsolutePreStateBaseURL: cannonPrestatesURL,

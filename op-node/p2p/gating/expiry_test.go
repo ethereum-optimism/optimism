@@ -47,7 +47,7 @@ func TestExpiryConnectionGater_InterceptPeerDial(t *testing.T) {
 	t.Run("unknown expiring ban", func(t *testing.T) {
 		_, mockExpiryStore, mockGater, gater := expiryTestSetup(t)
 		mockGater.EXPECT().InterceptPeerDial(mallory).Return(true)
-		mockExpiryStore.EXPECT().GetPeerBanExpiration(mallory).Return(time.Time{}, store.UnknownBanErr)
+		mockExpiryStore.EXPECT().GetPeerBanExpiration(mallory).Return(time.Time{}, store.ErrUnknownBan)
 		allow := gater.InterceptPeerDial(mallory)
 		require.True(t, allow)
 	})
@@ -68,7 +68,7 @@ func TestExpiryConnectionGater_InterceptAddrDial(t *testing.T) {
 	t.Run("expired IP ban", func(t *testing.T) {
 		cl, mockExpiryStore, mockGater, gater := expiryTestSetup(t)
 		mockGater.EXPECT().InterceptAddrDial(mallory, addr).Return(true)
-		mockExpiryStore.EXPECT().GetPeerBanExpiration(mallory).Return(time.Time{}, store.UnknownBanErr)
+		mockExpiryStore.EXPECT().GetPeerBanExpiration(mallory).Return(time.Time{}, store.ErrUnknownBan)
 		mockExpiryStore.EXPECT().GetIPBanExpiration(ip.To4()).Return(cl.Now().Add(-time.Second), nil)
 		mockExpiryStore.EXPECT().SetIPBanExpiration(ip.To4(), time.Time{}).Return(nil)
 		allow := gater.InterceptAddrDial(mallory, addr)
@@ -77,7 +77,7 @@ func TestExpiryConnectionGater_InterceptAddrDial(t *testing.T) {
 	t.Run("active IP ban", func(t *testing.T) {
 		cl, mockExpiryStore, mockGater, gater := expiryTestSetup(t)
 		mockGater.EXPECT().InterceptAddrDial(mallory, addr).Return(true)
-		mockExpiryStore.EXPECT().GetPeerBanExpiration(mallory).Return(time.Time{}, store.UnknownBanErr)
+		mockExpiryStore.EXPECT().GetPeerBanExpiration(mallory).Return(time.Time{}, store.ErrUnknownBan)
 		mockExpiryStore.EXPECT().GetIPBanExpiration(ip.To4()).Return(cl.Now().Add(time.Second), nil)
 		allow := gater.InterceptAddrDial(mallory, addr)
 		require.False(t, allow)
@@ -85,8 +85,8 @@ func TestExpiryConnectionGater_InterceptAddrDial(t *testing.T) {
 	t.Run("unknown IP ban expiry", func(t *testing.T) {
 		_, mockExpiryStore, mockGater, gater := expiryTestSetup(t)
 		mockGater.EXPECT().InterceptAddrDial(mallory, addr).Return(true)
-		mockExpiryStore.EXPECT().GetPeerBanExpiration(mallory).Return(time.Time{}, store.UnknownBanErr)
-		mockExpiryStore.EXPECT().GetIPBanExpiration(ip.To4()).Return(time.Time{}, store.UnknownBanErr)
+		mockExpiryStore.EXPECT().GetPeerBanExpiration(mallory).Return(time.Time{}, store.ErrUnknownBan)
+		mockExpiryStore.EXPECT().GetIPBanExpiration(ip.To4()).Return(time.Time{}, store.ErrUnknownBan)
 		allow := gater.InterceptAddrDial(mallory, addr)
 		require.True(t, allow)
 	})
@@ -165,7 +165,7 @@ func TestExpiryConnectionGater_InterceptAccept(t *testing.T) {
 	t.Run("unknown expiry", func(t *testing.T) {
 		_, mockExpiryStore, mockGater, gater := expiryTestSetup(t)
 		mockGater.EXPECT().InterceptAccept(mas).Return(true)
-		mockExpiryStore.EXPECT().GetIPBanExpiration(ip.To4()).Return(time.Time{}, store.UnknownBanErr)
+		mockExpiryStore.EXPECT().GetIPBanExpiration(ip.To4()).Return(time.Time{}, store.ErrUnknownBan)
 		allow := gater.InterceptAccept(mas)
 		require.True(t, allow)
 	})
@@ -201,7 +201,7 @@ func TestExpiryConnectionGater_InterceptSecured(t *testing.T) {
 	t.Run("unknown expiry", func(t *testing.T) {
 		_, mockExpiryStore, mockGater, gater := expiryTestSetup(t)
 		mockGater.EXPECT().InterceptSecured(network.DirInbound, mallory, mas).Return(true)
-		mockExpiryStore.EXPECT().GetPeerBanExpiration(mallory).Return(time.Time{}, store.UnknownBanErr)
+		mockExpiryStore.EXPECT().GetPeerBanExpiration(mallory).Return(time.Time{}, store.ErrUnknownBan)
 		allow := gater.InterceptSecured(network.DirInbound, mallory, mas)
 		require.True(t, allow)
 	})

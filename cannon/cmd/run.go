@@ -13,11 +13,12 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/pkg/profile"
 	"github.com/urfave/cli/v2"
 
-	"github.com/pkg/profile"
-
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
@@ -350,12 +351,12 @@ func Run(ctx *cli.Context) error {
 	snapshotAt := ctx.Generic(RunSnapshotAtFlag.Name).(*StepMatcherFlag).Matcher()
 	infoAt := ctx.Generic(RunInfoAtFlag.Name).(*StepMatcherFlag).Matcher()
 
-	var meta *mipsevm.Metadata
+	var meta *program.Metadata
 	if metaPath := ctx.Path(RunMetaFlag.Name); metaPath == "" {
 		l.Info("no metadata file specified, defaulting to empty metadata")
-		meta = &mipsevm.Metadata{Symbols: nil} // provide empty metadata by default
+		meta = &program.Metadata{Symbols: nil} // provide empty metadata by default
 	} else {
-		if m, err := jsonutil.LoadJSON[mipsevm.Metadata](metaPath); err != nil {
+		if m, err := jsonutil.LoadJSON[program.Metadata](metaPath); err != nil {
 			return fmt.Errorf("failed to load metadata: %w", err)
 		} else {
 			meta = m
@@ -365,7 +366,7 @@ func Run(ctx *cli.Context) error {
 	var vm mipsevm.FPVM
 	var debugProgram bool
 	if vmType == cannonVMType {
-		cannon, err := mipsevm.NewInstrumentedStateFromFile(ctx.Path(RunInputFlag.Name), po, outLog, errLog)
+		cannon, err := singlethreaded.NewInstrumentedStateFromFile(ctx.Path(RunInputFlag.Name), po, outLog, errLog, meta)
 		if err != nil {
 			return err
 		}
@@ -374,7 +375,7 @@ func Run(ctx *cli.Context) error {
 			if metaPath := ctx.Path(RunMetaFlag.Name); metaPath == "" {
 				return fmt.Errorf("cannot enable debug mode without a metadata file")
 			}
-			if err := cannon.InitDebug(meta); err != nil {
+			if err := cannon.InitDebug(); err != nil {
 				return fmt.Errorf("failed to initialize debug mode: %w", err)
 			}
 		}
@@ -395,9 +396,6 @@ func Run(ctx *cli.Context) error {
 
 	state := vm.GetState()
 	startStep := state.GetStep()
-
-	// avoid symbol lookups every instruction by preparing a matcher func
-	sleepCheck := meta.SymbolMatcher("runtime.notesleep")
 
 	for !state.GetExited() {
 		step := state.GetStep()
@@ -420,8 +418,9 @@ func Run(ctx *cli.Context) error {
 			)
 		}
 
-		if sleepCheck(state.GetPC()) { // don't loop forever when we get stuck because of an unexpected bad program
-			return fmt.Errorf("got stuck in Go sleep at step %d", step)
+		if vm.CheckInfiniteLoop() {
+			// don't loop forever when we get stuck because of an unexpected bad program
+			return fmt.Errorf("detected an infinite loop at step %d", step)
 		}
 
 		if stopAt(state) {
@@ -446,7 +445,7 @@ func Run(ctx *cli.Context) error {
 				Pre:       witness.StateHash,
 				Post:      postStateHash,
 				StateData: witness.State,
-				ProofData: witness.MemProof,
+				ProofData: witness.ProofData,
 			}
 			if witness.HasPreimage() {
 				proof.OracleKey = witness.PreimageKey[:]

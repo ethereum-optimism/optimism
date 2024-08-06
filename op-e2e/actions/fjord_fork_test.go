@@ -34,6 +34,8 @@ func TestFjordNetworkUpgradeTransactions(gt *testing.T) {
 	genesisBlock := hexutil.Uint64(0)
 	fjordOffset := hexutil.Uint64(2)
 
+	log := testlog.Logger(t, log.LvlDebug)
+
 	dp.DeployConfig.L1CancunTimeOffset = &genesisBlock // can be removed once Cancun on L1 is the default
 
 	// Activate all forks at genesis, and schedule Fjord the block after
@@ -42,10 +44,9 @@ func TestFjordNetworkUpgradeTransactions(gt *testing.T) {
 	dp.DeployConfig.L2GenesisDeltaTimeOffset = &genesisBlock
 	dp.DeployConfig.L2GenesisEcotoneTimeOffset = &genesisBlock
 	dp.DeployConfig.L2GenesisFjordTimeOffset = &fjordOffset
-	require.NoError(t, dp.DeployConfig.Check(), "must have valid config")
+	require.NoError(t, dp.DeployConfig.Check(log), "must have valid config")
 
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
-	log := testlog.Logger(t, log.LvlDebug)
 	_, _, _, sequencer, engine, verifier, _, _ := setupReorgTestActors(t, dp, sd, log)
 	ethCl := engine.EthClient()
 

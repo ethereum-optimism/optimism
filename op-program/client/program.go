@@ -16,7 +16,6 @@ import (
 	cldr "github.com/ethereum-optimism/optimism/op-program/client/driver"
 	"github.com/ethereum-optimism/optimism/op-program/client/l1"
 	"github.com/ethereum-optimism/optimism/op-program/client/l2"
-	oppio "github.com/ethereum-optimism/optimism/op-program/io"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -78,15 +77,15 @@ func runDerivation(logger log.Logger, cfg *rollup.Config, l2Cfg *params.ChainCon
 	return claim.ValidateClaim(logger, l2ClaimBlockNum, eth.Bytes32(l2Claim), l2Source)
 }
 
-func CreateHinterChannel() oppio.FileChannel {
+func CreateHinterChannel() preimage.FileChannel {
 	r := os.NewFile(HClientRFd, "preimage-hint-read")
 	w := os.NewFile(HClientWFd, "preimage-hint-write")
-	return oppio.NewReadWritePair(r, w)
+	return preimage.NewReadWritePair(r, w)
 }
 
 // CreatePreimageChannel returns a FileChannel for the preimage oracle in a detached context
-func CreatePreimageChannel() oppio.FileChannel {
+func CreatePreimageChannel() preimage.FileChannel {
 	r := os.NewFile(PClientRFd, "preimage-oracle-read")
 	w := os.NewFile(PClientWFd, "preimage-oracle-write")
-	return oppio.NewReadWritePair(r, w)
+	return preimage.NewReadWritePair(r, w)
 }

@@ -2,7 +2,7 @@ package backend
 
 import (
 	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -45,4 +45,4 @@ func (c *chainMetrics) RecordDBSearchEntriesRead(count int64) {
 }
 
 var _ caching.Metrics = (*chainMetrics)(nil)
-var _ db.Metrics = (*chainMetrics)(nil)
+var _ logs.Metrics = (*chainMetrics)(nil)

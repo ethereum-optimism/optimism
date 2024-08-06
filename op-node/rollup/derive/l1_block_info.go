@@ -30,6 +30,7 @@ var (
 	L1InfoFuncEcotoneBytes4 = crypto.Keccak256([]byte(L1InfoFuncEcotoneSignature))[:4]
 	L1InfoDepositerAddress  = common.HexToAddress("0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001")
 	L1BlockAddress          = predeploys.L1BlockAddr
+	ErrInvalidFormat        = errors.New("invalid ecotone l1 block info format")
 )
 
 const (
@@ -45,7 +46,7 @@ type L1BlockInfo struct {
 	// Not strictly a piece of L1 information. Represents the number of L2 blocks since the start of the epoch,
 	// i.e. when the actual L1 info was first introduced.
 	SequenceNumber uint64
-	// BatcherHash version 0 is just the address with 0 padding to the left.
+	// BatcherAddr version 0 is just the address with 0 padding to the left.
 	BatcherAddr common.Address
 
 	L1FeeOverhead eth.Bytes32 // ignored after Ecotone upgrade
@@ -210,19 +211,19 @@ func (info *L1BlockInfo) unmarshalBinaryEcotone(data []byte) error {
 		return err
 	}
 	if err := binary.Read(r, binary.BigEndian, &info.BaseFeeScalar); err != nil {
-		return fmt.Errorf("invalid ecotone l1 block info format")
+		return ErrInvalidFormat
 	}
 	if err := binary.Read(r, binary.BigEndian, &info.BlobBaseFeeScalar); err != nil {
-		return fmt.Errorf("invalid ecotone l1 block info format")
+		return ErrInvalidFormat
 	}
 	if err := binary.Read(r, binary.BigEndian, &info.SequenceNumber); err != nil {
-		return fmt.Errorf("invalid ecotone l1 block info format")
+		return ErrInvalidFormat
 	}
 	if err := binary.Read(r, binary.BigEndian, &info.Time); err != nil {
-		return fmt.Errorf("invalid ecotone l1 block info format")
+		return ErrInvalidFormat
 	}
 	if err := binary.Read(r, binary.BigEndian, &info.Number); err != nil {
-		return fmt.Errorf("invalid ecotone l1 block info format")
+		return ErrInvalidFormat
 	}
 	if info.BaseFee, err = solabi.ReadUint256(r); err != nil {
 		return err

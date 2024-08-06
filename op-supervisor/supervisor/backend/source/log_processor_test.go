@@ -2,21 +2,25 @@ package source
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
+	supTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 )
+
+var logProcessorChainID = supTypes.ChainIDFromUInt64(4)
 
 func TestLogProcessor(t *testing.T) {
 	ctx := context.Background()
 	block1 := eth.L1BlockRef{Number: 100, Hash: common.Hash{0x11}, Time: 1111}
 	t.Run("NoOutputWhenLogsAreEmpty", func(t *testing.T) {
 		store := &stubLogStorage{}
-		processor := newLogProcessor(store)
+		processor := newLogProcessor(logProcessorChainID, store)
 
 		err := processor.ProcessLogs(ctx, block1, ethTypes.Receipts{})
 		require.NoError(t, err)
@@ -50,7 +54,7 @@ func TestLogProcessor(t *testing.T) {
 			},
 		}
 		store := &stubLogStorage{}
-		processor := newLogProcessor(store)
+		processor := newLogProcessor(logProcessorChainID, store)
 
 		err := processor.ProcessLogs(ctx, block1, rcpts)
 		require.NoError(t, err)
@@ -141,7 +145,10 @@ type stubLogStorage struct {
 	logs []storedLog
 }
 
-func (s *stubLogStorage) AddLog(logHash types.TruncatedHash, block eth.BlockID, timestamp uint64, logIdx uint32, execMsg *types.ExecutingMessage) error {
+func (s *stubLogStorage) AddLog(chainID supTypes.ChainID, logHash types.TruncatedHash, block eth.BlockID, timestamp uint64, logIdx uint32, execMsg *types.ExecutingMessage) error {
+	if logProcessorChainID != chainID {
+		return fmt.Errorf("chain id mismatch, expected %v but got %v", logProcessorChainID, chainID)
+	}
 	s.logs = append(s.logs, storedLog{
 		block:     block,
 		timestamp: timestamp,

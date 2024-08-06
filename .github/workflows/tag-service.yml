@@ -21,7 +21,6 @@ on:
           - ci-builder
           - ci-builder-rust
           - op-heartbeat
-          - chain-mon
           - op-node
           - op-batcher
           - op-proposer

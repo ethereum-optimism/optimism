@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/log"
@@ -48,17 +49,29 @@ func (los *L1OriginSelector) FindL1Origin(ctx context.Context, l2Head eth.L2Bloc
 	log := los.log.New("current", currentOrigin, "current_time", currentOrigin.Time,
 		"l2_head", l2Head, "l2_head_time", l2Head.Time, "max_seq_drift", msd)
 
+	seqDrift := l2Head.Time + los.cfg.BlockTime - currentOrigin.Time
+
 	// If we are past the sequencer depth, we may want to advance the origin, but need to still
 	// check the time of the next origin.
-	pastSeqDrift := l2Head.Time+los.cfg.BlockTime > currentOrigin.Time+msd
+	pastSeqDrift := seqDrift > msd
 	if pastSeqDrift {
 		log.Warn("Next L2 block time is past the sequencer drift + current origin time")
+		seqDrift = msd
 	}
+
+	// Calculate the maximum time we can spend attempting to fetch the next L1 origin block.
+	// Time spent fetching this information is time not spent building the next L2 block, so
+	// we generally prioritize keeping this value small, allowing for a nonzero failure rate.
+	// As the next L2 block time approaches the max sequencer drift, increase our tolerance for
+	// slower L1 fetches in order to avoid falling too far behind.
+	fetchTimeout := time.Second + (9*time.Second*time.Duration(seqDrift))/time.Duration(msd)
+	fetchCtx, cancel := context.WithTimeout(ctx, fetchTimeout)
+	defer cancel()
 
 	// Attempt to find the next L1 origin block, where the next origin is the immediate child of
 	// the current origin block.
 	// The L1 source can be shimmed to hide new L1 blocks and enforce a sequencer confirmation distance.
-	nextOrigin, err := los.l1.L1BlockRefByNumber(ctx, currentOrigin.Number+1)
+	nextOrigin, err := los.l1.L1BlockRefByNumber(fetchCtx, currentOrigin.Number+1)
 	if err != nil {
 		if pastSeqDrift {
 			return eth.L1BlockRef{}, fmt.Errorf("cannot build next L2 block past current L1 origin %s by more than sequencer time drift, and failed to find next L1 origin: %w", currentOrigin, err)

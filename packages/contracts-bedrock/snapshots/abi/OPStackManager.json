@@ -1,0 +1,121 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_l2ChainId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint32",
+        "name": "_basefeeScalar",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint32",
+        "name": "_blobBasefeeScalar",
+        "type": "uint32"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "proxyAdminOwner",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "systemConfigOwner",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "batcher",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "unsafeBlockSigner",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "proposer",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "challenger",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct OPStackManager.Roles",
+        "name": "_roles",
+        "type": "tuple"
+      }
+    ],
+    "name": "deploy",
+    "outputs": [
+      {
+        "internalType": "contract SystemConfig",
+        "name": "systemConfig_",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "version",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "l2ChainId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "contract SystemConfig",
+        "name": "systemConfig",
+        "type": "address"
+      }
+    ],
+    "name": "Deployed",
+    "type": "event"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "reason",
+        "type": "string"
+      }
+    ],
+    "name": "DeploymentFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidChainId",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotImplemented",
+    "type": "error"
+  }
+]

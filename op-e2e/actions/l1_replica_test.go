@@ -1,14 +1,15 @@
 package actions
 
 import (
+	"encoding/binary"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/beacon"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/triedb"
 	"github.com/ethereum/go-ethereum/triedb/hashdb"
@@ -55,6 +56,7 @@ func TestL1Replica_ActL1RPCFail(gt *testing.T) {
 func TestL1Replica_ActL1Sync(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	dp.DeployConfig.L1CancunTimeOffset = nil
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 	genesisBlock := sd.L1Cfg.ToBlock()
@@ -63,13 +65,17 @@ func TestL1Replica_ActL1Sync(gt *testing.T) {
 	tdb := triedb.NewDatabase(db, &triedb.Config{HashDB: hashdb.Defaults})
 	sd.L1Cfg.MustCommit(db, tdb)
 
-	chainA, _ := core.GenerateChain(sd.L1Cfg.Config, genesisBlock, consensus, db, 10, func(n int, g *core.BlockGen) {
-		g.SetCoinbase(common.Address{'A'})
-	})
+	gen := func(s string) func(n int, g *core.BlockGen) {
+		return func(n int, g *core.BlockGen) {
+			root := crypto.Keccak256Hash([]byte(s),
+				binary.BigEndian.AppendUint64(nil, uint64(n)))
+			g.SetParentBeaconRoot(root)
+		}
+	}
+
+	chainA, _ := core.GenerateChain(sd.L1Cfg.Config, genesisBlock, consensus, db, 10, gen("A"))
 	chainA = append(append([]*types.Block{}, genesisBlock), chainA...)
-	chainB, _ := core.GenerateChain(sd.L1Cfg.Config, chainA[3], consensus, db, 10, func(n int, g *core.BlockGen) {
-		g.SetCoinbase(common.Address{'B'})
-	})
+	chainB, _ := core.GenerateChain(sd.L1Cfg.Config, chainA[3], consensus, db, 10, gen("B"))
 	chainB = append(append([]*types.Block{}, chainA[:4]...), chainB...)
 	require.NotEqual(t, chainA[9], chainB[9], "need different chains")
 	canonL1 := func(blocks []*types.Block) func(num uint64) *types.Block {

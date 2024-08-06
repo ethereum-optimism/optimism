@@ -173,6 +173,8 @@ type Metricer interface {
 
 	RecordGameAgreement(status GameAgreementStatus, count int)
 
+	RecordLatestValidProposalL2Block(latestValid uint64)
+
 	RecordLatestProposals(latestValid, latestInvalid uint64)
 
 	RecordIgnoredGames(count int)
@@ -215,11 +217,12 @@ type Metrics struct {
 
 	lastOutputFetch prometheus.Gauge
 
-	gamesAgreement  prometheus.GaugeVec
-	latestProposals prometheus.GaugeVec
-	ignoredGames    prometheus.Gauge
-	failedGames     prometheus.Gauge
-	l2Challenges    prometheus.GaugeVec
+	gamesAgreement             prometheus.GaugeVec
+	latestValidProposalL2Block prometheus.Gauge
+	latestProposals            prometheus.GaugeVec
+	ignoredGames               prometheus.Gauge
+	failedGames                prometheus.Gauge
+	l2Challenges               prometheus.GaugeVec
 
 	requiredCollateral  prometheus.GaugeVec
 	availableCollateral prometheus.GaugeVec
@@ -332,6 +335,11 @@ func NewMetrics() *Metrics {
 			"completion",
 			"result_correctness",
 			"root_agreement",
+		}),
+		latestValidProposalL2Block: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "latest_valid_proposal_l2_block",
+			Help:      "L2 block number proposed by the latest game with a valid root claim",
 		}),
 		latestProposals: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
@@ -493,6 +501,10 @@ func (m *Metrics) RecordOutputFetchTime(timestamp float64) {
 
 func (m *Metrics) RecordGameAgreement(status GameAgreementStatus, count int) {
 	m.gamesAgreement.WithLabelValues(labelValuesFor(status)...).Set(float64(count))
+}
+
+func (m *Metrics) RecordLatestValidProposalL2Block(latestValid uint64) {
+	m.latestValidProposalL2Block.Set(float64(latestValid))
 }
 
 func (m *Metrics) RecordLatestProposals(latestValid, latestInvalid uint64) {

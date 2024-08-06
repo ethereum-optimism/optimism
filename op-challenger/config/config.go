@@ -145,6 +145,7 @@ func NewConfig(
 			L2:           l2EthRpc,
 			SnapshotFreq: DefaultCannonSnapshotFreq,
 			InfoFreq:     DefaultCannonInfoFreq,
+			DebugInfo:    true,
 		},
 		Asterisc: vm.Config{
 			VmType:       types.TraceTypeAsterisc,

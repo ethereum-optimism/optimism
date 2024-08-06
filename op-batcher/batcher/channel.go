@@ -134,6 +134,9 @@ func (s *channel) updateInclusionBlocks() {
 func (s *channel) isTimedOut() bool {
 	// Update min/max inclusion blocks for timeout check
 	s.updateInclusionBlocks()
+	// Prior to the granite hard fork activating, the use of the shorter ChannelTimeout here may cause the batcher
+	// to believe the channel timed out when it was valid. It would then resubmit the blocks needlessly.
+	// This wastes batcher funds but doesn't cause any problems for the chain progressing safe head.
 	return s.maxInclusionBlock-s.minInclusionBlock >= s.cfg.ChannelTimeout
 }
 
@@ -160,21 +163,21 @@ func (s *channel) ID() derive.ChannelID {
 // NextTxData should only be called after HasTxData returned true.
 func (s *channel) NextTxData() txData {
 	nf := s.cfg.MaxFramesPerTx()
-	txdata := txData{frames: make([]frameData, 0, nf)}
+	txdata := txData{frames: make([]frameData, 0, nf), asBlob: s.cfg.UseBlobs}
 	for i := 0; i < nf && s.channelBuilder.HasFrame(); i++ {
 		frame := s.channelBuilder.NextFrame()
 		txdata.frames = append(txdata.frames, frame)
 	}
 
 	id := txdata.ID().String()
-	s.log.Debug("returning next tx data", "id", id, "num_frames", len(txdata.frames))
+	s.log.Debug("returning next tx data", "id", id, "num_frames", len(txdata.frames), "as_blob", txdata.asBlob)
 	s.pendingTransactions[id] = txdata
 
 	return txdata
 }
 
 func (s *channel) HasTxData() bool {
-	if s.IsFull() || !s.cfg.MultiFrameTxs {
+	if s.IsFull() || !s.cfg.UseBlobs {
 		return s.channelBuilder.HasFrame()
 	}
 	// collect enough frames if channel is not full yet

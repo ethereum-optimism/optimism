@@ -23,3 +23,10 @@ func prepChainDir(chainID types.ChainID, datadir string) (string, error) {
 	}
 	return dir, nil
 }
+
+func prepDataDir(datadir string) error {
+	if err := os.MkdirAll(datadir, 0755); err != nil {
+		return fmt.Errorf("failed to create data directory %v: %w", datadir, err)
+	}
+	return nil
+}

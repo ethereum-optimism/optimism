@@ -390,7 +390,7 @@ type Config struct {
 	// This is intended to be used for network requests that can be replayed.
 	NetworkTimeout time.Duration
 
-	// RequireQueryInterval is the interval at which the tx manager will
+	// ReceiptQueryInterval is the interval at which the tx manager will
 	// query the backend to check for confirmations after a tx at a
 	// specific gas price has been published.
 	ReceiptQueryInterval time.Duration

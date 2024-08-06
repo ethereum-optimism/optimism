@@ -10,6 +10,7 @@ This directory contains documentation for all defined invariant tests within `co
 - [Burn.Eth](./Burn.Eth.md)
 - [Burn.Gas](./Burn.Gas.md)
 - [CrossDomainMessenger](./CrossDomainMessenger.md)
+- [ETHLiquidity](./ETHLiquidity.md)
 - [Encoding](./Encoding.md)
 - [FaultDisputeGame](./FaultDisputeGame.md)
 - [Hashing](./Hashing.md)
@@ -19,6 +20,7 @@ This directory contains documentation for all defined invariant tests within `co
 - [OptimismPortal2](./OptimismPortal2.md)
 - [ResourceMetering](./ResourceMetering.md)
 - [SafeCall](./SafeCall.md)
+- [SuperchainWETH](./SuperchainWETH.md)
 - [SystemConfig](./SystemConfig.md)
 <!-- END autoTOC -->
 
