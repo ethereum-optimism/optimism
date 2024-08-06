@@ -508,13 +508,6 @@ func (l *L2OutputSubmitter) loopDGF(ctx context.Context) {
 	for {
 		select {
 		case <-ticker.C:
-			// prioritize quit signal
-			select {
-			case <-l.done:
-				return
-			default:
-			}
-
 			var (
 				output *eth.OutputResponse
 				err    error
@@ -523,6 +516,12 @@ func (l *L2OutputSubmitter) loopDGF(ctx context.Context) {
 			// larger than the interval at which to retry proposing on a failed attempt,
 			// we want to keep retrying getting the output proposal until we succeed.
 			for output == nil || err != nil {
+				select {
+				case <-l.done:
+					return
+				default:
+				}
+
 				output, err = l.FetchDGFOutput(ctx)
 				if err != nil {
 					l.Log.Warn("Error getting DGF output, retrying...", "err", err)
