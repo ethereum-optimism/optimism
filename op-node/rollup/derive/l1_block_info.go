@@ -228,27 +228,21 @@ func marshalBinaryEcotoneOrIsthmus(info *L1BlockInfo, isIsthmus ...bool) ([]byte
 }
 
 func (info *L1BlockInfo) unmarshalBinaryIsthmus(data []byte) error {
-	return unmarshalBinaryEcotoneAndIsthmus(info, data, true)
+	return unmarshalBinaryWithSignatureAndData(info, L1InfoFuncIsthmusBytes4, data)
 }
 func (info *L1BlockInfo) unmarshalBinaryEcotone(data []byte) error {
-	return unmarshalBinaryEcotoneAndIsthmus(info, data)
+	return unmarshalBinaryWithSignatureAndData(info, L1InfoFuncEcotoneBytes4, data)
 }
 
-func unmarshalBinaryEcotoneAndIsthmus(info *L1BlockInfo, data []byte, isIsthmus ...bool) error {
+func unmarshalBinaryWithSignatureAndData(info *L1BlockInfo, signature []byte, data []byte) error {
 	if len(data) != L1InfoEcotoneLen {
 		return fmt.Errorf("data is unexpected length: %d", len(data))
 	}
 	r := bytes.NewReader(data)
 
 	var err error
-	if isIsthmus != nil && isIsthmus[0] {
-		if _, err := solabi.ReadAndValidateSignature(r, L1InfoFuncIsthmusBytes4); err != nil {
-			return err
-		}
-	} else {
-		if _, err := solabi.ReadAndValidateSignature(r, L1InfoFuncEcotoneBytes4); err != nil {
-			return err
-		}
+	if _, err := solabi.ReadAndValidateSignature(r, signature); err != nil {
+		return err
 	}
 	if err := binary.Read(r, binary.BigEndian, &info.BaseFeeScalar); err != nil {
 		return ErrInvalidFormat
