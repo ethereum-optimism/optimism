@@ -172,8 +172,8 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         });
     }
 
-    /// @dev Tests that the constructor of the `FaultDisputeGame` reverts when clock extension is greater than the
-    ///      max clock duration.
+    /// @dev Tests that the constructor of the `FaultDisputeGame` reverts when clock extension * 2 is greater than
+    ///      the max clock duration.
     function testFuzz_constructor_clockExtensionTooLong_reverts(
         uint64 _maxClockDuration,
         uint64 _clockExtension
@@ -182,8 +182,11 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     {
         AlphabetVM alphabetVM = new AlphabetVM(absolutePrestate, new PreimageOracle(0, 0));
 
-        _maxClockDuration = uint64(bound(_maxClockDuration, 0, type(uint64).max - 1));
-        _clockExtension = uint64(bound(_clockExtension, _maxClockDuration + 1, type(uint64).max));
+        // Force the clock extension * 2 to be greater than the max clock duration, but keep things within
+        // bounds of the uint64 type.
+        _maxClockDuration = uint64(bound(_maxClockDuration, 0, type(uint64).max / 2 - 1));
+        _clockExtension = uint64(bound(_clockExtension, _maxClockDuration / 2 + 1, type(uint64).max / 2));
+
         vm.expectRevert(InvalidClockExtension.selector);
         new FaultDisputeGame({
             _gameType: GAME_TYPE,

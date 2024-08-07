@@ -69,8 +69,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     uint256 internal constant HEADER_BLOCK_NUMBER_INDEX = 8;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.2.0
-    string public constant version = "1.2.0";
+    /// @custom:semver 1.2.1
+    string public constant version = "1.2.1";
 
     /// @notice The starting timestamp of the game
     Timestamp public createdAt;
@@ -148,6 +148,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
 
         // The clock extension may not be greater than the max clock duration.
         if (_clockExtension.raw() > _maxClockDuration.raw()) revert InvalidClockExtension();
+
+        // The worst-case clock extension may not be greater than the max clock duration.
+        if (_clockExtension.raw() * 2 > _maxClockDuration.raw()) revert InvalidClockExtension();
 
         // Set up initial game state.
         GAME_TYPE = _gameType;
