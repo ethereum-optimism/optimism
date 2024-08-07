@@ -72,7 +72,6 @@ Once you've read the styleguide and are ready to work on your PR, there are a pl
 1. `just clean` Removes all build artifacts for `forge` and `go` compilations.
 1. `just validate-spacers` Validates the positions of the storage slot spacers.
 1. `just validate-deploy-configs` Validates the deployment configurations in `deploy-config`
-1. `just slither` Runs the slither static analysis tool on the smart contracts.
 1. `just lint` Runs the linter on the smart contracts and scripts.
 1. `just pre-pr` Runs most checks, generators, and linters prior to a PR. For most PRs, this is sufficient to pass CI if everything is in order.
 1. `just pre-pr-full` Runs all checks, generators, and linters prior to a PR.
