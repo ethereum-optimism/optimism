@@ -218,6 +218,7 @@ func FjordSystemConfig(t *testing.T, fjordTimeOffset *hexutil.Uint64) SystemConf
 func GraniteSystemConfig(t *testing.T, graniteTimeOffset *hexutil.Uint64) SystemConfig {
 	cfg := FjordSystemConfig(t, &genesisTime)
 	cfg.DeployConfig.L2GenesisGraniteTimeOffset = graniteTimeOffset
+	cfg.DeployConfig.ChannelTimeoutGranite = 20
 	return cfg
 }
 
