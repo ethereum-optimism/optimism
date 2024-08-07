@@ -64,21 +64,21 @@ func TestLogProcessor(t *testing.T) {
 				block:     block1.ID(),
 				timestamp: block1.Time,
 				logIdx:    0,
-				logHash:   logToHash(rcpts[0].Logs[0]),
+				logHash:   logToLogHash(rcpts[0].Logs[0]),
 				execMsg:   nil,
 			},
 			{
 				block:     block1.ID(),
 				timestamp: block1.Time,
 				logIdx:    0,
-				logHash:   logToHash(rcpts[0].Logs[1]),
+				logHash:   logToLogHash(rcpts[0].Logs[1]),
 				execMsg:   nil,
 			},
 			{
 				block:     block1.ID(),
 				timestamp: block1.Time,
 				logIdx:    0,
-				logHash:   logToHash(rcpts[1].Logs[0]),
+				logHash:   logToLogHash(rcpts[1].Logs[0]),
 				execMsg:   nil,
 			},
 		}
@@ -98,14 +98,14 @@ func TestLogProcessor(t *testing.T) {
 			},
 		}
 		execMsg := backendTypes.ExecutingMessage{
-			Chain:     2,
+			Chain:     4,
 			BlockNum:  6,
 			LogIdx:    8,
 			Timestamp: 10,
 			Hash:      backendTypes.TruncatedHash{0xaa},
 		}
 		store := &stubLogStorage{}
-		processor := newLogProcessor(supTypes.ChainID{2}, store)
+		processor := newLogProcessor(supTypes.ChainID{4}, store)
 		processor.eventDecoder = EventDecoderFn(func(l *ethTypes.Log) (backendTypes.ExecutingMessage, error) {
 			require.Equal(t, rcpts[0].Logs[0], l)
 			return execMsg, nil
@@ -118,7 +118,7 @@ func TestLogProcessor(t *testing.T) {
 				block:     block1.ID(),
 				timestamp: block1.Time,
 				logIdx:    0,
-				logHash:   logToHash(rcpts[0].Logs[0]),
+				logHash:   logToLogHash(rcpts[0].Logs[0]),
 				execMsg:   &execMsg,
 			},
 		}
@@ -160,9 +160,9 @@ func TestToLogHash(t *testing.T) {
 		func(l *ethTypes.Log) { l.Index = 98 },
 		func(l *ethTypes.Log) { l.Removed = true },
 	}
-	refHash := logToHash(mkLog())
+	refHash := logToLogHash(mkLog())
 	// The log hash is stored in the database so test that it matches the actual value.
-	// If this changes compatibility with existing databases may be affected
+	// If this changes, compatibility with existing databases may be affected
 	expectedRefHash := backendTypes.TruncateHash(common.HexToHash("0x4e1dc08fddeb273275f787762cdfe945cf47bb4e80a1fabbc7a825801e81b73f"))
 	require.Equal(t, expectedRefHash, refHash, "reference hash changed, check that database compatibility is not broken")
 
@@ -170,14 +170,14 @@ func TestToLogHash(t *testing.T) {
 	for i, mod := range relevantMods {
 		l := mkLog()
 		mod(l)
-		hash := logToHash(l)
+		hash := logToLogHash(l)
 		require.NotEqualf(t, refHash, hash, "expected relevant modification %v to affect the hash but it did not", i)
 	}
 	// Check that the hash is not changed when any data it should not include changes
 	for i, mod := range irrelevantMods {
 		l := mkLog()
 		mod(l)
-		hash := logToHash(l)
+		hash := logToLogHash(l)
 		require.Equal(t, refHash, hash, "expected irrelevant modification %v to not affect the hash but it did", i)
 	}
 }

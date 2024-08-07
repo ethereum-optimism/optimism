@@ -24,22 +24,23 @@ func TestDecodeExecutingMessageEvent(t *testing.T) {
 		BlockNum:  12345,
 		LogIdx:    98,
 		Timestamp: 9578295,
-		Hash:      backendTypes.TruncateHash(payloadHash),
 	}
 	contractIdent := contractIdentifier{
 		Origin:      common.Address{0xbb, 0xcc},
-		BlockNumber: new(big.Int).SetUint64(expected.BlockNum),
-		LogIndex:    new(big.Int).SetUint64(uint64(expected.LogIdx)),
-		Timestamp:   new(big.Int).SetUint64(expected.Timestamp),
 		ChainId:     new(big.Int).SetUint64(uint64(expected.Chain)),
+		BlockNumber: new(big.Int).SetUint64(expected.BlockNum),
+		Timestamp:   new(big.Int).SetUint64(expected.Timestamp),
+		LogIndex:    new(big.Int).SetUint64(uint64(expected.LogIdx)),
 	}
+	expected.Hash = payloadHashToLogHash(payloadHash, contractIdent.Origin)
 	abi := snapshots.LoadCrossL2InboxABI()
-	validData, err := abi.Events[eventExecutingMessage].Inputs.Pack(contractIdent, payload)
+	validData, err := abi.Events[eventExecutingMessage].Inputs.Pack(payloadHash, contractIdent)
 	require.NoError(t, err)
 	createValidLog := func() *ethTypes.Log {
+		//protoHack := bytes.Repeat([]byte{0x00}, 32*5)
 		return &ethTypes.Log{
 			Address: predeploys.CrossL2InboxAddr,
-			Topics:  []common.Hash{abi.Events[eventExecutingMessage].ID},
+			Topics:  []common.Hash{abi.Events[eventExecutingMessage].ID, payloadHash},
 			Data:    validData,
 		}
 	}
