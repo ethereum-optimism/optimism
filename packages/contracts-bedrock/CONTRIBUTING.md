@@ -91,7 +91,7 @@ To deploy the smart contracts on a local devnet, run `make devnet-up` in the mon
 
 In order to make sure that we don't accidentally overwrite storage slots, contract storage layouts are checked to make sure spacing is correct.
 
-This uses the `.storage-layout` file to check contract spacing. Run `just validate-spacers` to check the spacing of all contracts.
+This uses the `snapshots/storageLayout` directory to check contract spacing. Run `just validate-spacers` to check the spacing of all contracts.
 
 #### Gas Snapshots
 
