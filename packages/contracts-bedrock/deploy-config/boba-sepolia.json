@@ -43,6 +43,7 @@
   "gasPriceOracleOverhead": 2100,
   "gasPriceOracleScalar": 1000000,
 
+  "enableGovernance": false,
   "governanceTokenSymbol": "OP",
   "governanceTokenName": "Optimism",
   "governanceTokenOwner": "0x0000000000000000000000000000000000000000",
@@ -60,5 +61,21 @@
   "recommendedProtocolVersion": "0x0000000000000000000000000000000000000000000000000000000000000000",
 
   "l2GenesisRegolithTimeOffset": "0x0",
-  "l2GenesisCanyonTimeOffset": "0x0"
+  "l2GenesisCanyonTimeOffset": "0x0",
+
+  "systemConfigStartBlock": 5669592,
+
+  "faultGameAbsolutePrestate": "0x0398e9d1f3bd09cb54d49276bd7f3337fd7e9bf9d75038ceaecdef1e9ad0abf8",
+  "faultGameMaxDepth": 73,
+  "faultGameClockExtension": 10800,
+  "faultGameMaxClockDuration": 302400,
+  "faultGameGenesisBlock": 8515831,
+  "faultGameGenesisOutputRoot": "0x87d724ad1668b86c08608a022fc09366329a7a3545e47fe678b3c69ead6a91f8",
+  "faultGameSplitDepth": 30,
+  "faultGameWithdrawalDelay": 604800,
+  "preimageOracleMinProposalSize": 126000,
+  "preimageOracleChallengePeriod": 86400,
+  "proofMaturityDelaySeconds": 604800,
+  "disputeGameFinalityDelaySeconds": 302400,
+  "respectedGameType": 0
 }

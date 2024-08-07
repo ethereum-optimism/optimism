@@ -58,10 +58,8 @@ contract Deploy is Deployer {
             bytes(_hardhatDeploymentPath).length > 0,
             "Deploy: must set HARDHAT_DEPLOYMENT_PATH to filesystem path of hardhat deployment files"
         );
-
-        string memory _contractPath = string.concat(_hardhatDeploymentPath, "/", _contractName, ".json");
-        string memory _contractJson = vm.readFile(_contractPath);
-        bytes memory _contractAddress = stdJson.parseRaw(_contractJson, ".address");
+        string memory _contractJson = vm.readFile(_hardhatDeploymentPath);
+        bytes memory _contractAddress = stdJson.parseRaw(_contractJson, string(abi.encodePacked(".", _contractName)));
         _proxyAddress = bytesToAddress(_contractAddress);
     }
 
