@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { ISemver } from "src/universal/ISemver.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { GasPayingToken, IGasToken } from "src/libraries/GasPayingToken.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
 import "src/libraries/L1BlockErrors.sol";
 
 /// @custom:proxied
@@ -21,8 +22,6 @@ contract L1Block is ISemver, IGasToken {
     function DEPOSITOR_ACCOUNT() public pure returns (address addr_) {
         addr_ = Constants.DEPOSITOR_ACCOUNT;
     }
-
-    address public constant CROSS_L2_INBOX = address(0x4200000000000000000000000000000000000022);
 
     // TODO(disco): check slot
     /// @notice The isDeposit flag.
@@ -95,7 +94,7 @@ contract L1Block is ISemver, IGasToken {
 
     // TODO(disco): natspec
     function isDeposit() external view returns (bool _isDeposit) {
-        if (msg.sender != CROSS_L2_INBOX) revert NotCrossL2Inbox();
+        if (msg.sender != Predeploys.CROSS_L2_INBOX) revert NotCrossL2Inbox();
         _isDeposit = isDepositTransaction;
     }
 
@@ -139,9 +138,29 @@ contract L1Block is ISemver, IGasToken {
     // TODO(disco) natspec
     function setL1BlockValuesIsthmus() external {
         isDepositTransaction = true;
-        // TODO(disco): need to check calldata is proxied here, otherwise we might need to do an assembly low-level call
-        // here
-        setL1BlockValuesEcotone();
+
+        // Capture and adjust calldata
+        bytes memory callData;
+        assembly {
+            // Allocate memory for calldata
+            let size := calldatasize()
+            callData := mload(0x40) // allocate free memory pointer
+            mstore(0x40, add(callData, add(size, 0x20))) // update free memory pointer
+            mstore(callData, sub(size, 4)) // set the size of the data minus the function selector
+            calldatacopy(add(callData, 0x20), 4, sub(size, 4)) // copy the calldata to the allocated memory, skipping
+                // the selector
+        }
+
+        (bool success,) = address(this).call(
+            abi.encodePacked(
+                this.setL1BlockValuesEcotone.selector,
+                callData // Skip the selector of setL1BlockValuesIsthmus
+            )
+        );
+
+        if (!success) {
+            revert("L1Block: failed to set L1 block values");
+        }
     }
 
     /// @notice Updates the L1 block values for an Ecotone upgraded chain.
@@ -175,6 +194,7 @@ contract L1Block is ISemver, IGasToken {
         }
     }
 
+    // TODO(disco): Natspec
     /// @notice Resets the isDeposit flag.
     function depositsComplete() external {
         if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
