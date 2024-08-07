@@ -57,7 +57,7 @@ func TestAbsolutePreStateCommitment(t *testing.T) {
 			ExitCode:  0,
 			Exited:    false,
 			Step:      0,
-			Registers: [32]uint32{},
+			Registers: [32]uint64{},
 		}
 		_, expected := state.EncodeWitness()
 		require.Equal(t, expected, actual)

@@ -1,0 +1,23 @@
+set positional-arguments := true
+
+help:
+  just --list
+
+# Build the MIPS64 test case assembler image
+build-image:
+  #!/bin/bash
+  docker build -f builder.dockerfile -t mips-test-builder:local .
+
+# Assemble the test cases
+make-tests *args='':
+  #!/bin/bash
+  if [ ! "$(docker images -q mips-test-builder:local 2> /dev/null)" ]; then
+    just build-image
+  fi
+
+  docker run \
+    --rm \
+    --platform linux/amd64 \
+    -v `pwd`/:/workdir \
+    -w="/workdir" \
+    mips-test-builder:local bash make_tests.sh {{args}}

@@ -16,13 +16,13 @@ func (m *InstrumentedState) handleSyscall() error {
 	thread := m.state.getCurrentThread()
 
 	syscallNum, a0, a1, a2, a3 := exec.GetSyscallArgs(m.state.GetRegisters())
-	v0 := uint32(0)
-	v1 := uint32(0)
+	v0 := uint64(0)
+	v1 := uint64(0)
 
 	//fmt.Printf("syscall: %d\n", syscallNum)
 	switch syscallNum {
 	case exec.SysMmap:
-		var newHeap uint32
+		var newHeap uint64
 		v0, v1, newHeap = exec.HandleSysMmap(a0, a1, m.state.Heap)
 		m.state.Heap = newHeap
 	case exec.SysBrk:
@@ -73,13 +73,13 @@ func (m *InstrumentedState) handleSyscall() error {
 		m.state.ExitCode = uint8(a0)
 		return nil
 	case exec.SysRead:
-		var newPreimageOffset uint32
+		var newPreimageOffset uint64
 		v0, v1, newPreimageOffset = exec.HandleSysRead(a0, a1, a2, m.state.PreimageKey, m.state.PreimageOffset, m.preimageOracle, m.state.Memory, m.memoryTracker)
 		m.state.PreimageOffset = newPreimageOffset
 	case exec.SysWrite:
 		var newLastHint hexutil.Bytes
 		var newPreimageKey common.Hash
-		var newPreimageOffset uint32
+		var newPreimageOffset uint64
 		v0, v1, newLastHint, newPreimageKey, newPreimageOffset = exec.HandleSysWrite(a0, a1, a2, m.state.LastHint, m.state.PreimageKey, m.state.PreimageOffset, m.preimageOracle, m.state.Memory, m.memoryTracker, m.stdOut, m.stdErr)
 		m.state.LastHint = newLastHint
 		m.state.PreimageKey = newPreimageKey
@@ -103,7 +103,7 @@ func (m *InstrumentedState) handleSyscall() error {
 		case exec.FutexWaitPrivate:
 			thread.FutexAddr = a0
 			m.memoryTracker.TrackMemAccess(a0)
-			mem := m.state.Memory.GetMemory(a0)
+			mem := m.state.Memory.GetDoubleWord(a0)
 			if mem != a2 {
 				v0 = exec.SysErrorSignal
 				v1 = exec.MipsEAGAIN
@@ -225,7 +225,7 @@ func (m *InstrumentedState) mipsStep() error {
 			return nil
 		} else {
 			m.memoryTracker.TrackMemAccess(thread.FutexAddr)
-			mem := m.state.Memory.GetMemory(thread.FutexAddr)
+			mem := m.state.Memory.GetDoubleWord(thread.FutexAddr)
 			if thread.FutexVal == mem {
 				// still got expected value, continue sleeping, try next thread.
 				m.preemptThread(thread)
@@ -273,8 +273,8 @@ func (m *InstrumentedState) onWaitComplete(thread *ThreadState, isTimedOut bool)
 	thread.FutexTimeoutStep = 0
 
 	// Complete the FUTEX_WAIT syscall
-	v0 := uint32(0)
-	v1 := uint32(0)
+	v0 := uint64(0)
+	v1 := uint64(0)
 	if isTimedOut {
 		v0 = exec.SysErrorSignal
 		v1 = exec.MipsETIMEDOUT

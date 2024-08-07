@@ -23,7 +23,7 @@ const syscallInsn = uint32(0x00_00_00_0c)
 
 func FuzzStateSyscallBrk(f *testing.F) {
 	contracts, addrs := testContractsSetup(f)
-	f.Fuzz(func(t *testing.T, pc uint32, step uint64, preimageOffset uint32) {
+	f.Fuzz(func(t *testing.T, pc uint64, step uint64, preimageOffset uint64) {
 		pc = pc & 0xFF_FF_FF_FC // align PC
 		nextPC := pc + 4
 		state := &singlethreaded.State{
@@ -37,7 +37,7 @@ func FuzzStateSyscallBrk(f *testing.F) {
 			ExitCode:       0,
 			Exited:         false,
 			Memory:         memory.NewMemory(),
-			Registers:      [32]uint32{2: exec.SysBrk},
+			Registers:      [32]uint64{2: exec.SysBrk},
 			Step:           step,
 			PreimageKey:    common.Hash{},
 			PreimageOffset: preimageOffset,
@@ -75,7 +75,7 @@ func FuzzStateSyscallBrk(f *testing.F) {
 
 func FuzzStateSyscallClone(f *testing.F) {
 	contracts, addrs := testContractsSetup(f)
-	f.Fuzz(func(t *testing.T, pc uint32, step uint64, preimageOffset uint32) {
+	f.Fuzz(func(t *testing.T, pc uint64, step uint64, preimageOffset uint64) {
 		pc = pc & 0xFF_FF_FF_FC // align PC
 		nextPC := pc + 4
 		state := &singlethreaded.State{
@@ -89,7 +89,7 @@ func FuzzStateSyscallClone(f *testing.F) {
 			ExitCode:       0,
 			Exited:         false,
 			Memory:         memory.NewMemory(),
-			Registers:      [32]uint32{2: exec.SysClone},
+			Registers:      [32]uint64{2: exec.SysClone},
 			Step:           step,
 			PreimageOffset: preimageOffset,
 		}
@@ -127,7 +127,7 @@ func FuzzStateSyscallClone(f *testing.F) {
 func FuzzStateSyscallMmap(f *testing.F) {
 	contracts, addrs := testContractsSetup(f)
 	step := uint64(0)
-	f.Fuzz(func(t *testing.T, addr uint32, siz uint32, heap uint32) {
+	f.Fuzz(func(t *testing.T, addr uint64, siz uint64, heap uint64) {
 		state := &singlethreaded.State{
 			Cpu: mipsevm.CpuScalars{
 				PC:     0,
@@ -139,7 +139,7 @@ func FuzzStateSyscallMmap(f *testing.F) {
 			ExitCode:       0,
 			Exited:         false,
 			Memory:         memory.NewMemory(),
-			Registers:      [32]uint32{2: exec.SysMmap, 4: addr, 5: siz},
+			Registers:      [32]uint64{2: exec.SysMmap, 4: addr, 5: siz},
 			Step:           step,
 			PreimageOffset: 0,
 		}
@@ -188,7 +188,7 @@ func FuzzStateSyscallMmap(f *testing.F) {
 
 func FuzzStateSyscallExitGroup(f *testing.F) {
 	contracts, addrs := testContractsSetup(f)
-	f.Fuzz(func(t *testing.T, exitCode uint8, pc uint32, step uint64) {
+	f.Fuzz(func(t *testing.T, exitCode uint8, pc uint64, step uint64) {
 		pc = pc & 0xFF_FF_FF_FC // align PC
 		nextPC := pc + 4
 		state := &singlethreaded.State{
@@ -202,7 +202,7 @@ func FuzzStateSyscallExitGroup(f *testing.F) {
 			ExitCode:       0,
 			Exited:         false,
 			Memory:         memory.NewMemory(),
-			Registers:      [32]uint32{2: exec.SysExitGroup, 4: uint32(exitCode)},
+			Registers:      [32]uint64{2: exec.SysExitGroup, 4: uint64(exitCode)},
 			Step:           step,
 			PreimageOffset: 0,
 		}
@@ -239,7 +239,7 @@ func FuzzStateSyscallExitGroup(f *testing.F) {
 func FuzzStateSyscallFcntl(f *testing.F) {
 	contracts, addrs := testContractsSetup(f)
 	step := uint64(0)
-	f.Fuzz(func(t *testing.T, fd uint32, cmd uint32) {
+	f.Fuzz(func(t *testing.T, fd uint64, cmd uint64) {
 		state := &singlethreaded.State{
 			Cpu: mipsevm.CpuScalars{
 				PC:     0,
@@ -251,7 +251,7 @@ func FuzzStateSyscallFcntl(f *testing.F) {
 			ExitCode:       0,
 			Exited:         false,
 			Memory:         memory.NewMemory(),
-			Registers:      [32]uint32{2: exec.SysFcntl, 4: fd, 5: cmd},
+			Registers:      [32]uint64{2: exec.SysFcntl, 4: fd, 5: cmd},
 			Step:           step,
 			PreimageOffset: 0,
 		}
@@ -305,7 +305,7 @@ func FuzzStateSyscallFcntl(f *testing.F) {
 func FuzzStateHintRead(f *testing.F) {
 	contracts, addrs := testContractsSetup(f)
 	step := uint64(0)
-	f.Fuzz(func(t *testing.T, addr uint32, count uint32) {
+	f.Fuzz(func(t *testing.T, addr uint64, count uint64) {
 		preimageData := []byte("hello world")
 		state := &singlethreaded.State{
 			Cpu: mipsevm.CpuScalars{
@@ -318,7 +318,7 @@ func FuzzStateHintRead(f *testing.F) {
 			ExitCode:       0,
 			Exited:         false,
 			Memory:         memory.NewMemory(),
-			Registers:      [32]uint32{2: exec.SysRead, 4: exec.FdHintRead, 5: addr, 6: count},
+			Registers:      [32]uint64{2: exec.SysRead, 4: exec.FdHintRead, 5: addr, 6: count},
 			Step:           step,
 			PreimageKey:    preimage.Keccak256Key(crypto.Keccak256Hash(preimageData)).PreimageKey(),
 			PreimageOffset: 0,
@@ -358,9 +358,9 @@ func FuzzStateHintRead(f *testing.F) {
 func FuzzStatePreimageRead(f *testing.F) {
 	contracts, addrs := testContractsSetup(f)
 	step := uint64(0)
-	f.Fuzz(func(t *testing.T, addr uint32, count uint32, preimageOffset uint32) {
+	f.Fuzz(func(t *testing.T, addr uint64, count uint64, preimageOffset uint64) {
 		preimageData := []byte("hello world")
-		if preimageOffset >= uint32(len(preimageData)) {
+		if preimageOffset >= uint64(len(preimageData)) {
 			t.SkipNow()
 		}
 		state := &singlethreaded.State{
@@ -374,7 +374,7 @@ func FuzzStatePreimageRead(f *testing.F) {
 			ExitCode:       0,
 			Exited:         false,
 			Memory:         memory.NewMemory(),
-			Registers:      [32]uint32{2: exec.SysRead, 4: exec.FdPreimageRead, 5: addr, 6: count},
+			Registers:      [32]uint64{2: exec.SysRead, 4: exec.FdPreimageRead, 5: addr, 6: count},
 			Step:           step,
 			PreimageKey:    preimage.Keccak256Key(crypto.Keccak256Hash(preimageData)).PreimageKey(),
 			PreimageOffset: preimageOffset,
@@ -386,8 +386,8 @@ func FuzzStatePreimageRead(f *testing.F) {
 		if writeLen > 4 {
 			writeLen = 4
 		}
-		if preimageOffset+writeLen > uint32(8+len(preimageData)) {
-			writeLen = uint32(8+len(preimageData)) - preimageOffset
+		if preimageOffset+writeLen > uint64(8+len(preimageData)) {
+			writeLen = uint64(8+len(preimageData)) - preimageOffset
 		}
 		oracle := testutil.StaticOracle(t, preimageData)
 
@@ -425,7 +425,7 @@ func FuzzStatePreimageRead(f *testing.F) {
 func FuzzStateHintWrite(f *testing.F) {
 	contracts, addrs := testContractsSetup(f)
 	step := uint64(0)
-	f.Fuzz(func(t *testing.T, addr uint32, count uint32, randSeed int64) {
+	f.Fuzz(func(t *testing.T, addr uint64, count uint64, randSeed int64) {
 		preimageData := []byte("hello world")
 		state := &singlethreaded.State{
 			Cpu: mipsevm.CpuScalars{
@@ -438,7 +438,7 @@ func FuzzStateHintWrite(f *testing.F) {
 			ExitCode:       0,
 			Exited:         false,
 			Memory:         memory.NewMemory(),
-			Registers:      [32]uint32{2: exec.SysWrite, 4: exec.FdHintWrite, 5: addr, 6: count},
+			Registers:      [32]uint64{2: exec.SysWrite, 4: exec.FdHintWrite, 5: addr, 6: count},
 			Step:           step,
 			PreimageKey:    preimage.Keccak256Key(crypto.Keccak256Hash(preimageData)).PreimageKey(),
 			PreimageOffset: 0,
@@ -486,7 +486,7 @@ func FuzzStateHintWrite(f *testing.F) {
 func FuzzStatePreimageWrite(f *testing.F) {
 	contracts, addrs := testContractsSetup(f)
 	step := uint64(0)
-	f.Fuzz(func(t *testing.T, addr uint32, count uint32) {
+	f.Fuzz(func(t *testing.T, addr uint64, count uint64) {
 		preimageData := []byte("hello world")
 		state := &singlethreaded.State{
 			Cpu: mipsevm.CpuScalars{
@@ -499,7 +499,7 @@ func FuzzStatePreimageWrite(f *testing.F) {
 			ExitCode:       0,
 			Exited:         false,
 			Memory:         memory.NewMemory(),
-			Registers:      [32]uint32{2: exec.SysWrite, 4: exec.FdPreimageWrite, 5: addr, 6: count},
+			Registers:      [32]uint64{2: exec.SysWrite, 4: exec.FdPreimageWrite, 5: addr, 6: count},
 			Step:           0,
 			PreimageKey:    preimage.Keccak256Key(crypto.Keccak256Hash(preimageData)).PreimageKey(),
 			PreimageOffset: 128,
@@ -539,7 +539,7 @@ func FuzzStatePreimageWrite(f *testing.F) {
 	})
 }
 
-func randomBytes(seed int64, length uint32) ([]byte, error) {
+func randomBytes(seed int64, length uint64) ([]byte, error) {
 	r := rand.New(rand.NewSource(seed))
 	randBytes := make([]byte, length)
 	if _, err := r.Read(randBytes); err != nil {

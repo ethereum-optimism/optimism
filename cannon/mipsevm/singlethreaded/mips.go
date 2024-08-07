@@ -10,13 +10,13 @@ import (
 func (m *InstrumentedState) handleSyscall() error {
 	syscallNum, a0, a1, a2, _ := exec.GetSyscallArgs(&m.state.Registers)
 
-	v0 := uint32(0)
-	v1 := uint32(0)
+	v0 := uint64(0)
+	v1 := uint64(0)
 
 	//fmt.Printf("syscall: %d\n", syscallNum)
 	switch syscallNum {
 	case exec.SysMmap:
-		var newHeap uint32
+		var newHeap uint64
 		v0, v1, newHeap = exec.HandleSysMmap(a0, a1, m.state.Heap)
 		m.state.Heap = newHeap
 	case exec.SysBrk:
@@ -28,13 +28,13 @@ func (m *InstrumentedState) handleSyscall() error {
 		m.state.ExitCode = uint8(a0)
 		return nil
 	case exec.SysRead:
-		var newPreimageOffset uint32
+		var newPreimageOffset uint64
 		v0, v1, newPreimageOffset = exec.HandleSysRead(a0, a1, a2, m.state.PreimageKey, m.state.PreimageOffset, m.preimageOracle, m.state.Memory, m.memoryTracker)
 		m.state.PreimageOffset = newPreimageOffset
 	case exec.SysWrite:
 		var newLastHint hexutil.Bytes
 		var newPreimageKey common.Hash
-		var newPreimageOffset uint32
+		var newPreimageOffset uint64
 		v0, v1, newLastHint, newPreimageKey, newPreimageOffset = exec.HandleSysWrite(a0, a1, a2, m.state.LastHint, m.state.PreimageKey, m.state.PreimageOffset, m.preimageOracle, m.state.Memory, m.memoryTracker, m.stdOut, m.stdErr)
 		m.state.LastHint = newLastHint
 		m.state.PreimageKey = newPreimageKey

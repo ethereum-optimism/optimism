@@ -1,10 +1,10 @@
 package mipsevm
 
 type CpuScalars struct {
-	PC     uint32 `json:"pc"`
-	NextPC uint32 `json:"nextPC"`
-	LO     uint32 `json:"lo"`
-	HI     uint32 `json:"hi"`
+	PC     uint64 `json:"pc"`
+	NextPC uint64 `json:"nextPC"`
+	LO     uint64 `json:"lo"`
+	HI     uint64 `json:"hi"`
 }
 
 const (

@@ -9,13 +9,13 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 )
 
-const HEAP_START = 0x05000000
+const HEAP_START = 0x10_00_00_00_00_00_00_00
 
-type CreateInitialFPVMState[T mipsevm.FPVMState] func(pc, heapStart uint32) T
+type CreateInitialFPVMState[T mipsevm.FPVMState] func(pc, heapStart uint64) T
 
 func LoadELF[T mipsevm.FPVMState](f *elf.File, initState CreateInitialFPVMState[T]) (T, error) {
 	var empty T
-	s := initState(uint32(f.Entry), HEAP_START)
+	s := initState(uint64(f.Entry), HEAP_START)
 
 	for i, prog := range f.Progs {
 		if prog.Type == 0x70000003 { // MIPS_ABIFLAGS
@@ -35,13 +35,10 @@ func LoadELF[T mipsevm.FPVMState](f *elf.File, initState CreateInitialFPVMState[
 			}
 		}
 
-		if prog.Vaddr+prog.Memsz >= uint64(1<<32) {
-			return empty, fmt.Errorf("program %d out of 32-bit mem range: %x - %x (size: %x)", i, prog.Vaddr, prog.Vaddr+prog.Memsz, prog.Memsz)
-		}
 		if prog.Vaddr+prog.Memsz >= HEAP_START {
 			return empty, fmt.Errorf("program %d overlaps with heap: %x - %x (size: %x). The heap start offset must be reconfigured", i, prog.Vaddr, prog.Vaddr+prog.Memsz, prog.Memsz)
 		}
-		if err := s.GetMemory().SetMemoryRange(uint32(prog.Vaddr), r); err != nil {
+		if err := s.GetMemory().SetMemoryRange(uint64(prog.Vaddr), r); err != nil {
 			return empty, fmt.Errorf("failed to read program segment %d: %w", i, err)
 		}
 	}

@@ -43,7 +43,7 @@ test:
   li $t0, 8
   li $a2, 4
 $writeloop:
-  li $v0, 4004
+  li $v0, 5001
   syscall
   addiu $a1, $a1, 4
   addiu $t0, $t0, -1
@@ -55,14 +55,14 @@ $writeloop:
   li $a0, 5
   li $a1, 0x31000000
   li $a2, 4
-  li $v0, 4003
+  li $v0, 5000
   syscall
   li $a1, 0x31000004
-  li $v0, 4003
+  li $v0, 5000
   syscall
 # read the 1 byte precompile status and 3 bytes of return data
   li $a1, 0x31000008
-  li $v0, 4003
+  li $v0, 5000
   syscall
   nop
 
