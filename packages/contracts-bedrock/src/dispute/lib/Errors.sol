@@ -94,6 +94,9 @@ error InvalidSplitDepth();
 /// @notice Thrown on deployment if the max clock duration is less than or equal to the clock extension.
 error InvalidClockExtension();
 
+/// @notice Thrown on deployment if the PreimageOracle challenge period is too high.
+error InvalidChallengePeriod();
+
 /// @notice Thrown on deployment if the max depth is greater than `LibPosition.`
 error MaxDepthTooLarge();
 

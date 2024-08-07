@@ -20,6 +20,14 @@ contract PreimageOracle_Test is Test {
         vm.label(address(oracle), "PreimageOracle");
     }
 
+    /// @notice Tests that the challenge period cannot be made too large.
+    /// @param _challengePeriod The challenge period to test.
+    function testFuzz_constructor_challengePeriodTooLarge_reverts(uint256 _challengePeriod) public {
+        _challengePeriod = bound(_challengePeriod, uint256(type(uint64).max) + 1, type(uint256).max);
+        vm.expectRevert("challenge period too large");
+        new PreimageOracle(0, _challengePeriod);
+    }
+
     /// @notice Test the pre-image key computation with a known pre-image.
     function test_keccak256PreimageKey_succeeds() public pure {
         bytes memory preimage = hex"deadbeef";

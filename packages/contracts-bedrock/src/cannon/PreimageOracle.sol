@@ -92,6 +92,11 @@ contract PreimageOracle is IPreimageOracle, ISemver {
         MIN_LPP_SIZE_BYTES = _minProposalSize;
         CHALLENGE_PERIOD = _challengePeriod;
 
+        // Make sure challenge period fits within uint64 so that it can safely be used within the
+        // FaultDisputeGame contract to compute clock extensions. Adding this check is simpler than
+        // changing the existing contract ABI.
+        require(_challengePeriod <= type(uint64).max, "challenge period too large");
+
         // Compute hashes in empty sparse Merkle tree. The first hash is not set, and kept as zero as the identity.
         for (uint256 height = 0; height < KECCAK_TREE_DEPTH - 1; height++) {
             zeroHashes[height + 1] = keccak256(abi.encodePacked(zeroHashes[height], zeroHashes[height]));

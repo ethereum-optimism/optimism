@@ -4,6 +4,10 @@ pragma solidity 0.8.15;
 /// @title IPreimageOracle
 /// @notice Interface for a preimage oracle.
 interface IPreimageOracle {
+    /// @notice Returns the length of the large preimage proposal challenge period.
+    /// @return challengePeriod_ The length of the challenge period in seconds.
+    function challengePeriod() external view returns (uint256 challengePeriod_);
+
     /// @notice Reads a preimage from the oracle.
     /// @param _key The key of the preimage to read.
     /// @param _offset The offset of the preimage to read.
