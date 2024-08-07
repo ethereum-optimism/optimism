@@ -135,8 +135,7 @@ contract L1Block is ISemver, IGasToken {
     // TODO natspec
     function setL1BlockValuesIsthmus() external {
         isDeposit = true;
-        setL1BlockValuesEcotone(calldata);
-        // TODO ^ this is an example... we might need to do an assembly low-level call here
+        setL1BlockValuesEcotone(); // Internally call the Ecotone function
     }
 
     /// @notice Updates the L1 block values for an Ecotone upgraded chain.
@@ -151,7 +150,7 @@ contract L1Block is ISemver, IGasToken {
     ///   7. _blobBaseFee        L1 blob base fee.
     ///   8. _hash               L1 blockhash.
     ///   9. _batcherHash        Versioned hash to authenticate batcher by.
-    function setL1BlockValuesEcotone() external {
+    function setL1BlockValuesEcotone() public {
         address depositor = DEPOSITOR_ACCOUNT();
         assembly {
             // Revert if the caller is not the depositor account.
