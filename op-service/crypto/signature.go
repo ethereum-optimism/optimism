@@ -91,6 +91,7 @@ func SignerFactoryFromConfig(l log.Logger, privateKey, mnemonic, hdPath string, 
 				return nil, common.Address{}, fmt.Errorf("failed to parse the private key: %w", err)
 			}
 		}
+		privKey.PublicKey.Curve = crypto.S256()
 		fromAddress = crypto.PubkeyToAddress(privKey.PublicKey)
 		signer = func(chainID *big.Int) SignerFn {
 			s := PrivateKeySignerFn(privKey, chainID)
