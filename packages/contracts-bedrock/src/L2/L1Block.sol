@@ -61,7 +61,7 @@ contract L1Block is ISemver, IGasToken {
     /// @notice Storage slot that the isDeposit is stored at.
     ///         This is a custom slot that is not part of the standard storage layout.
     /// keccak256(abi.encode(uint256(keccak256("l1Block.identifier.isDeposit")) - 1)) & ~bytes32(uint256(0xff))
-    uint256 internal constant IS_DEPOSIT_SLOT = 0x921bd3a089295c6e5540e8fba8195448d253efd6f2e3e495b499b627dc36a300;
+    uint256 internal constant _IS_DEPOSIT_SLOT = 0x921bd3a089295c6e5540e8fba8195448d253efd6f2e3e495b499b627dc36a300;
 
     /// @custom:semver 1.5.1-beta.1
     function version() public pure virtual returns (string memory) {
@@ -98,7 +98,7 @@ contract L1Block is ISemver, IGasToken {
     function isDeposit() external view returns (bool isDeposit_) {
         if (msg.sender != Predeploys.CROSS_L2_INBOX) revert NotCrossL2Inbox();
         assembly {
-            isDeposit_ := sload(IS_DEPOSIT_SLOT)
+            isDeposit_ := sload(_IS_DEPOSIT_SLOT)
         }
     }
 
@@ -141,7 +141,7 @@ contract L1Block is ISemver, IGasToken {
     function setL1BlockValuesIsthmus() external {
         // Set the isDeposit flag to true.
         assembly {
-            sstore(IS_DEPOSIT_SLOT, 1)
+            sstore(_IS_DEPOSIT_SLOT, 1)
         }
 
         setL1BlockValuesEcotone();
@@ -185,7 +185,7 @@ contract L1Block is ISemver, IGasToken {
 
         // Set the isDeposit flag to false.
         assembly {
-            sstore(IS_DEPOSIT_SLOT, 0)
+            sstore(_IS_DEPOSIT_SLOT, 0)
         }
     }
 
