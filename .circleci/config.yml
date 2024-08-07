@@ -1165,7 +1165,8 @@ jobs:
       - run:
           name: Install Just
           command: |
-            curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
+            curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to $HOME/bin
+            echo 'export PATH="${PATH}:$HOME/bin"' >> $BASH_ENV
       - run:
           name: Install pnpm
           command: |
