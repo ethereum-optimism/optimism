@@ -164,21 +164,33 @@ func (info *L1BlockInfo) unmarshalBinaryBedrock(data []byte) error {
 // | 32      | BlockHash                |
 // | 32      | BatcherHash              |
 // +---------+--------------------------+
+
 func (info *L1BlockInfo) marshalBinaryIsthmus() ([]byte, error) {
-	// Isthmus is the same as Ecotone
-	out, err := info.marshalBinaryEcotone()
+	out, err := marshalBinaryEcotoneOrIsthmus(info, true)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal Isthmus l1 block info: %w", err)
+	}
+	return out, nil
+}
+
+func (info *L1BlockInfo) marshalBinaryEcotone() ([]byte, error) {
+	out, err := marshalBinaryEcotoneOrIsthmus(info, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal Ecotone l1 block info: %w", err)
 	}
-	// replace the first 4 bytes of the signature with L1InfoFuncIsthmusBytes4
-	copy(out[:4], L1InfoFuncIsthmusBytes4) // CHECK: is this correct? or is it too nasty?
 	return out, nil
-
 }
-func (info *L1BlockInfo) marshalBinaryEcotone() ([]byte, error) {
-	w := bytes.NewBuffer(make([]byte, 0, L1InfoEcotoneLen))
-	if err := solabi.WriteSignature(w, L1InfoFuncEcotoneBytes4); err != nil {
-		return nil, err
+
+func marshalBinaryEcotoneOrIsthmus(info *L1BlockInfo, isIsthmus ...bool) ([]byte, error) {
+	w := bytes.NewBuffer(make([]byte, 0, L1InfoEcotoneLen)) // Ecotone and Isthmus have the same length
+	if isIsthmus != nil && isIsthmus[0] {
+		if err := solabi.WriteSignature(w, L1InfoFuncIsthmusBytes4); err != nil {
+			return nil, err
+		}
+	} else {
+		if err := solabi.WriteSignature(w, L1InfoFuncEcotoneBytes4); err != nil {
+			return nil, err
+		}
 	}
 	if err := binary.Write(w, binary.BigEndian, info.BaseFeeScalar); err != nil {
 		return nil, err
@@ -216,14 +228,13 @@ func (info *L1BlockInfo) marshalBinaryEcotone() ([]byte, error) {
 }
 
 func (info *L1BlockInfo) unmarshalBinaryIsthmus(data []byte) error {
-	return info.unmarshalBinaryEcotoneAndIsthmus(data, true)
+	return unmarshalBinaryEcotoneAndIsthmus(info, data, true)
 }
 func (info *L1BlockInfo) unmarshalBinaryEcotone(data []byte) error {
-	return info.unmarshalBinaryEcotoneAndIsthmus(data)
+	return unmarshalBinaryEcotoneAndIsthmus(info, data)
 }
 
-// optional isIsthmus flag
-func (info *L1BlockInfo) unmarshalBinaryEcotoneAndIsthmus(data []byte, isIsthmus ...bool) error {
+func unmarshalBinaryEcotoneAndIsthmus(info *L1BlockInfo, data []byte, isIsthmus ...bool) error {
 	if len(data) != L1InfoEcotoneLen {
 		return fmt.Errorf("data is unexpected length: %d", len(data))
 	}
@@ -288,11 +299,12 @@ func isInteropButNotFirstBlock(rollupCfg *rollup.Config, l2BlockTime uint64) boo
 // L1BlockInfoFromBytes is the inverse of L1InfoDeposit, to see where the L2 chain is derived from
 func L1BlockInfoFromBytes(rollupCfg *rollup.Config, l2BlockTime uint64, data []byte) (*L1BlockInfo, error) {
 	var info L1BlockInfo
-	if isEcotoneButNotFirstBlock(rollupCfg, l2BlockTime) {
-		return &info, info.unmarshalBinaryEcotone(data)
-	}
+	// Important, this should be ordered from most recent to oldest
 	if isInteropButNotFirstBlock(rollupCfg, l2BlockTime) {
 		return &info, info.unmarshalBinaryIsthmus(data)
+	}
+	if isEcotoneButNotFirstBlock(rollupCfg, l2BlockTime) {
+		return &info, info.unmarshalBinaryEcotone(data)
 	}
 	return &info, info.unmarshalBinaryBedrock(data)
 }
@@ -310,7 +322,7 @@ func L1InfoDeposit(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNumber 
 	}
 	var data []byte
 
-	if isEcotoneButNotFirstBlock(rollupCfg, l2BlockTime) {
+	if isInteropButNotFirstBlock(rollupCfg, l2BlockTime) {
 		l1BlockInfo.BlobBaseFee = block.BlobBaseFee()
 		if l1BlockInfo.BlobBaseFee == nil {
 			// The L2 spec states to use the MIN_BLOB_GASPRICE from EIP-4844 if not yet active on L1.
@@ -322,16 +334,16 @@ func L1InfoDeposit(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNumber 
 		}
 		l1BlockInfo.BlobBaseFeeScalar = scalars.BlobBaseFeeScalar
 		l1BlockInfo.BaseFeeScalar = scalars.BaseFeeScalar
-		if isInteropButNotFirstBlock(rollupCfg, l2BlockTime) {
-			out, err := l1BlockInfo.marshalBinaryIsthmus()
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal Isthmus l1 block info: %w", err)
-			}
-			data = out
-		} else {
+		if isEcotoneButNotFirstBlock(rollupCfg, l2BlockTime) {
 			out, err := l1BlockInfo.marshalBinaryEcotone()
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal Ecotone l1 block info: %w", err)
+			}
+			data = out
+		} else {
+			out, err := l1BlockInfo.marshalBinaryIsthmus()
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal Isthmus l1 block info: %w", err)
 			}
 			data = out
 		}
