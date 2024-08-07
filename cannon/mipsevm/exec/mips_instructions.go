@@ -161,7 +161,7 @@ func ExecuteMipsInstruction(insn, opcode, fun, rs, rt, mem uint64) uint64 {
 			return SignExtend((rt&0xFFFFFFFF)>>(rs&0x1F), 32)
 		case 0x07: // srav
 			return SignExtend((rt&0xFFFFFFFF)>>rs, 32-rs)
-		// MIPS32 functs in range [0x8, 0x1f] are handled specially by other functions
+		// functs in range [0x8, 0x1f] are handled specially by other functions
 		case 0x08: // jr
 			return rs
 		case 0x09: // jalr
@@ -379,17 +379,17 @@ func HandleBranch(cpu *mipsevm.CpuScalars, registers *[32]uint64, opcode, insn, 
 		rt := registers[rtReg]
 		shouldBranch = (rs == rt && opcode == 4) || (rs != rt && opcode == 5)
 	} else if opcode == 6 {
-		shouldBranch = int32(rs) <= 0 // blez
+		shouldBranch = int64(rs) <= 0 // blez
 	} else if opcode == 7 {
-		shouldBranch = int32(rs) > 0 // bgtz
+		shouldBranch = int64(rs) > 0 // bgtz
 	} else if opcode == 1 {
 		// regimm
 		rtv := (insn >> 16) & 0x1F
 		if rtv == 0 { // bltz
-			shouldBranch = int32(rs) < 0
+			shouldBranch = int64(rs) < 0
 		}
 		if rtv == 1 { // bgez
-			shouldBranch = int32(rs) >= 0
+			shouldBranch = int64(rs) >= 0
 		}
 	}
 

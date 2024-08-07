@@ -44,7 +44,7 @@ const (
 	SysReadlink      = 5087
 	SysReadlinkAt    = 5257
 	SysIoctl         = 5015
-	SysEpollCreate1  = 5207
+	SysEpollCreate1  = 5285
 	SysPipe2         = 5287
 	SysEpollCtl      = 5208
 	SysEpollPwait    = 5272

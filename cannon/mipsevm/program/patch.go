@@ -38,7 +38,7 @@ func PatchGo(f *elf.File, st mipsevm.FPVMState) error {
 			"flag.init",
 			// We need to patch this out, we don't pass float64nan because we don't support floats
 			"runtime.check":
-			// MIPS32 patch: ret (pseudo instruction)
+			// MIPS64 patch: ret (pseudo instruction)
 			// 03e00008 = jr $ra = ret (pseudo instruction)
 			// 00000000 = nop (executes with delay-slot, but does nothing)
 			if err := st.GetMemory().SetMemoryRange(uint64(s.Value), bytes.NewReader([]byte{

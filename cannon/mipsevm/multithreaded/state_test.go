@@ -60,19 +60,19 @@ func TestState_EncodeWitness(t *testing.T) {
 		expectedWitness := make(StateWitness, STATE_WITNESS_SIZE)
 		setWitnessField(expectedWitness, MEMROOT_WITNESS_OFFSET, memRoot[:])
 		setWitnessField(expectedWitness, PREIMAGE_KEY_WITNESS_OFFSET, preimageKey[:])
-		setWitnessField(expectedWitness, PREIMAGE_OFFSET_WITNESS_OFFSET, []byte{0, 0, 0, byte(preimageOffset)})
-		setWitnessField(expectedWitness, HEAP_WITNESS_OFFSET, []byte{0, 0, 0, byte(heap)})
+		setWitnessField(expectedWitness, PREIMAGE_OFFSET_WITNESS_OFFSET, []byte{0, 0, 0, 0, 0, 0, 0, byte(preimageOffset)})
+		setWitnessField(expectedWitness, HEAP_WITNESS_OFFSET, []byte{0, 0, 0, 0, 0, 0, 0, byte(heap)})
 		setWitnessField(expectedWitness, EXITCODE_WITNESS_OFFSET, []byte{c.exitCode})
 		if c.exited {
 			setWitnessField(expectedWitness, EXITED_WITNESS_OFFSET, []byte{1})
 		}
 		setWitnessField(expectedWitness, STEP_WITNESS_OFFSET, []byte{0, 0, 0, 0, 0, 0, 0, byte(step)})
 		setWitnessField(expectedWitness, STEPS_SINCE_CONTEXT_SWITCH_WITNESS_OFFSET, []byte{0, 0, 0, 0, 0, 0, 0, byte(stepsSinceContextSwitch)})
-		setWitnessField(expectedWitness, WAKEUP_WITNESS_OFFSET, []byte{0xFF, 0xFF, 0xFF, 0xFF})
+		setWitnessField(expectedWitness, WAKEUP_WITNESS_OFFSET, []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF})
 		setWitnessField(expectedWitness, TRAVERSE_RIGHT_WITNESS_OFFSET, []byte{0})
 		setWitnessField(expectedWitness, LEFT_THREADS_ROOT_WITNESS_OFFSET, leftStackRoot[:])
 		setWitnessField(expectedWitness, RIGHT_THREADS_ROOT_WITNESS_OFFSET, rightStackRoot[:])
-		setWitnessField(expectedWitness, THREAD_ID_WITNESS_OFFSET, []byte{0, 0, 0, 1})
+		setWitnessField(expectedWitness, THREAD_ID_WITNESS_OFFSET, []byte{0, 0, 0, 0, 0, 0, 0, 1})
 
 		// Validate witness
 		actualWitness, actualStateHash := state.EncodeWitness()
