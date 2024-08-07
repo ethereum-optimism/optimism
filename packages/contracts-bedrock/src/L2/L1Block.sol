@@ -59,13 +59,13 @@ contract L1Block is ISemver, IGasToken {
     uint256 public blobBaseFee;
 
     /// @notice Storage slot that the isDeposit is stored at.
-    /// @dev This is a custom slot that is not part of the standard storage layout.
+    ///         This is a custom slot that is not part of the standard storage layout.
     /// keccak256(abi.encode(uint256(keccak256("l1Block.identifier.isDeposit")) - 1)) & ~bytes32(uint256(0xff))
     uint256 internal constant IS_DEPOSIT_SLOT = 0x921bd3a089295c6e5540e8fba8195448d253efd6f2e3e495b499b627dc36a300;
 
-    /// @custom:semver 1.4.1-beta.1
+    /// @custom:semver 1.5.1-beta.1
     function version() public pure virtual returns (string memory) {
-        return "1.4.1-beta.1";
+        return "1.5.1-beta.1";
     }
 
     /// @notice Returns the gas paying token, its decimals, name and symbol.
@@ -94,7 +94,7 @@ contract L1Block is ISemver, IGasToken {
     }
 
     /// @notice Returns whether the call was triggered from a a deposit or not.
-    /// @dev This function is only callable by the CrossL2Inbox contract.
+    /// @notice This function is only callable by the CrossL2Inbox contract.
     function isDeposit() external view returns (bool isDeposit_) {
         if (msg.sender != Predeploys.CROSS_L2_INBOX) revert NotCrossL2Inbox();
         assembly {
@@ -137,7 +137,7 @@ contract L1Block is ISemver, IGasToken {
     }
 
     /// @notice Updates the `isDeposit` flag and sets the L1 block values for an Isthmus upgraded chain.
-    /// @dev It updates the L1 block values through the `setL1BlockValuesEcotone` function.
+    ///         It updates the L1 block values through the `setL1BlockValuesEcotone` function.
     function setL1BlockValuesIsthmus() external {
         // Set the isDeposit flag to true.
         assembly {
@@ -179,8 +179,7 @@ contract L1Block is ISemver, IGasToken {
     }
 
     /// @notice Resets the isDeposit flag.
-    /// @dev Only callable by the depositor account.
-    /// @dev Should be called after the deposits are complete.
+    ///  Should only be called by the depositor account after the deposits are complete.
     function depositsComplete() external {
         if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
 

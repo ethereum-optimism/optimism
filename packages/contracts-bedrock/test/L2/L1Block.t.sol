@@ -25,30 +25,6 @@ contract L1BlockTest is CommonTest {
     }
 }
 
-contract L1BlockIsDeposit_Test is L1BlockTest {
-    /// @dev Tests that `isDeposit` reverts if the caller is not the cross L2 inbox.
-    function test_isDeposit_notCrossL2Inbox_reverts(address _caller) external {
-        vm.assume(_caller != Predeploys.CROSS_L2_INBOX);
-        vm.expectRevert(NotCrossL2Inbox.selector);
-        l1Block.isDeposit();
-    }
-
-    /// @dev Tests that `isDeposit` always returns the correct value.
-    function test_isDeposit_succeeds() external {
-        // Assert is false if the value is not updated
-        vm.prank(Predeploys.CROSS_L2_INBOX);
-        assertEq(l1Block.isDeposit(), false);
-
-        /// @dev Assuming that `setL1BlockValuesIsthmus` will set the proper value. That function is tested as well
-        vm.prank(depositor);
-        l1Block.setL1BlockValuesIsthmus();
-
-        // Assert is true if the value is updated
-        vm.prank(Predeploys.CROSS_L2_INBOX);
-        assertEq(l1Block.isDeposit(), true);
-    }
-}
-
 contract L1BlockBedrock_Test is L1BlockTest {
     // @dev Tests that `setL1BlockValues` updates the values correctly.
     function testFuzz_updatesValues_succeeds(
@@ -311,5 +287,29 @@ contract L1BlockCustomGasToken_Test is L1BlockTest {
     function test_setGasPayingToken_isDepositor_reverts() external {
         vm.expectRevert(NotDepositor.selector);
         l1Block.setGasPayingToken(address(this), 18, "Test", "TST");
+    }
+}
+
+contract L1BlockIsDeposit_Test is L1BlockTest {
+    /// @dev Tests that `isDeposit` reverts if the caller is not the cross L2 inbox.
+    function test_isDeposit_notCrossL2Inbox_reverts(address _caller) external {
+        vm.assume(_caller != Predeploys.CROSS_L2_INBOX);
+        vm.expectRevert(NotCrossL2Inbox.selector);
+        l1Block.isDeposit();
+    }
+
+    /// @dev Tests that `isDeposit` always returns the correct value.
+    function test_isDeposit_succeeds() external {
+        // Assert is false if the value is not updated
+        vm.prank(Predeploys.CROSS_L2_INBOX);
+        assertEq(l1Block.isDeposit(), false);
+
+        /// @dev Assuming that `setL1BlockValuesIsthmus` will set the proper value. That function is tested as well
+        vm.prank(depositor);
+        l1Block.setL1BlockValuesIsthmus();
+
+        // Assert is true if the value is updated
+        vm.prank(Predeploys.CROSS_L2_INBOX);
+        assertEq(l1Block.isDeposit(), true);
     }
 }
