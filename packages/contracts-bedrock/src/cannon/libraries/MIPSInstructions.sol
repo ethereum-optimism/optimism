@@ -194,9 +194,8 @@ library MIPSInstructions {
             // Check for zero rs.
             if (
                 // SLL, SRL, SRA
-                func == 0x00 || func == 0x02 || func == 0x03
                 // MFHI, MFLO
-                || func == 0x10 || func == 0x12
+                func == 0x00 || func == 0x02 || func == 0x03 || func == 0x10 || func == 0x12
             ) {
                 require(rs == 0, "MIPS: rs not zero");
             }
@@ -204,9 +203,8 @@ library MIPSInstructions {
             // Check for zero rt.
             if (
                 // JR, JALR
-                func == 0x08 || func == 0x09
                 // MFHI, MFLO, MTHI, MTLO
-                || (func >= 0x10 && func <= 0x13)
+                func == 0x08 || func == 0x09 || (func >= 0x10 && func <= 0x13)
             ) {
                 require(rt == 0, "MIPS: rt not zero");
             }
@@ -214,11 +212,9 @@ library MIPSInstructions {
             // Check for zero rd.
             if (
                 // JR
-                func == 0x08
                 // MTHI, MTLO
-                || func == 0x11 || func == 0x13
                 // MULT, MULTU, DIV, DIVU
-                || (func >= 0x18 && func <= 0x1B)
+                func == 0x08 || func == 0x11 || func == 0x13 || (func >= 0x18 && func <= 0x1B)
             ) {
                 require(rd == 0, "MIPS: rd not zero");
             }
@@ -226,17 +222,13 @@ library MIPSInstructions {
             // Check for zero shamt.
             if (
                 // JR, JALR
-                func == 0x08 || func == 0x09
                 // SYNC
-                || func == 0x0F
                 // MFHI, MFLO, MTHI, MTLO
-                || (func >= 0x10 && func <= 0x13)
                 // MULT, MULTU, DIV, DIVU
-                || (func >= 0x18 && func <= 0x1B)
                 // ADD, ADDU, SUB, SUBU, AND, OR, XOR, NOR
-                || (func >= 0x20 && func <= 0x27)
                 // SLT, SLTU
-                || func == 0x2A || func == 0x2B
+                func == 0x08 || func == 0x09 || func == 0x0F || (func >= 0x10 && func <= 0x13)
+                    || (func >= 0x18 && func <= 0x1B) || (func >= 0x20 && func <= 0x27) || func == 0x2A || func == 0x2B
             ) {
                 require(shamt == 0, "MIPS: shamt not zero");
             }

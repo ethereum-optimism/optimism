@@ -69,8 +69,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     uint256 internal constant HEADER_BLOCK_NUMBER_INDEX = 8;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.2.1
-    string public constant version = "1.2.1";
+    /// @custom:semver 1.3.0
+    string public constant version = "1.3.0";
 
     /// @notice The starting timestamp of the game
     Timestamp public createdAt;
@@ -463,6 +463,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
             // We add the index at depth + 1 to the starting block number to get the disputed L2
             // block number.
             uint256 l2Number = startingOutputRoot.l2BlockNumber + disputedPos.traceIndex(SPLIT_DEPTH) + 1;
+
+            // Choose the minimum between the `l2BlockNumber` claim and the bisected-to L2 block number.
+            l2Number = l2Number < l2BlockNumber() ? l2Number : l2BlockNumber();
 
             oracle.loadLocalData(_ident, uuid.raw(), bytes32(l2Number << 0xC0), 8, _partOffset);
         } else if (_ident == LocalPreimageKey.CHAIN_ID) {

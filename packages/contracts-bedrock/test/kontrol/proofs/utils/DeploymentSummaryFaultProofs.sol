@@ -27,13 +27,13 @@ contract DeploymentSummaryFaultProofs is DeploymentSummaryFaultProofsCode {
     address internal constant l1StandardBridgeProxyAddress = 0x20A42a5a785622c6Ba2576B2D6e924aA82BFA11D;
     address internal constant l2OutputOracleAddress = 0x19652082F846171168Daf378C4fD3ee85a0D4A60;
     address internal constant l2OutputOracleProxyAddress = 0x39Af23E00F1e662025aA01b0cEdA19542B78DF99;
-    address internal constant mipsAddress = 0xfc0E48bB2bDa4158Bc6F0809ac65F8C17750a57C;
+    address internal constant mipsAddress = 0x96A4FAe2Ef523cecC7E4a202Cdc1D5FD25f76484;
     address internal constant optimismMintableERC20FactoryAddress = 0x39Aea2Dd53f2d01c15877aCc2791af6BDD7aD567;
     address internal constant optimismMintableERC20FactoryProxyAddress = 0xc7B87b2b892EA5C3CfF47168881FE168C00377FB;
     address internal constant optimismPortalAddress = 0xbdD90485FCbcac869D5b5752179815a3103d8131;
     address internal constant optimismPortal2Address = 0xae5DadFc48928543f706a9E6Ce25c682aaD2b63b;
     address internal constant optimismPortalProxyAddress = 0x1c23A6d89F95ef3148BCDA8E242cAb145bf9c0E4;
-    address internal constant preimageOracleAddress = 0xbc8Fd6DC3e97736bBdcdB65E92378FBc0a2dD484;
+    address internal constant preimageOracleAddress = 0xC8B5749cEFfbC5F70E7C48f9a464883289574D99;
     address internal constant protocolVersionsAddress = 0xfbfD64a6C0257F613feFCe050Aa30ecC3E3d7C3F;
     address internal constant protocolVersionsProxyAddress = 0x4C52a6277b1B84121b3072C0c92b6Be0b7CC10F1;
     address internal constant proxyAdminAddress = 0x62c20Aa1e0272312BC100b4e23B4DC1Ed96dD7D1;

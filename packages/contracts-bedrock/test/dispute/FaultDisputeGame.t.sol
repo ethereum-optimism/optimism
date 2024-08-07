@@ -1711,6 +1711,70 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         }
     }
 
+    /// @dev Tests that the L2 block number claim is favored over the bisected-to block when adding data
+    ///
+    function test_addLocalData_l2BlockNumberExtension_succeeds() public {
+        // Deploy a new dispute game with a L2 block number claim of 8. This is directly in the middle of
+        // the leaves in our output bisection test tree, at SPLIT_DEPTH = 2 ** 2
+        FaultDisputeGame game = FaultDisputeGame(
+            address(disputeGameFactory.create(GAME_TYPE, Claim.wrap(bytes32(uint256(0xFF))), abi.encode(uint256(8))))
+        );
+
+        // Get a claim below the split depth so that we can add local data for an execution trace subgame.
+        {
+            Claim disputed;
+            Position parent;
+            Position pos;
+
+            for (uint256 i; i < 4; i++) {
+                (,,,,, parent,) = game.claimData(i);
+                pos = parent.move(true);
+                uint256 bond = game.getRequiredBond(pos);
+
+                (,,,, disputed,,) = game.claimData(i);
+                if (i == 0) {
+                    game.attack{ value: bond }(disputed, i, Claim.wrap(bytes32(i)));
+                } else {
+                    game.defend{ value: bond }(disputed, i, Claim.wrap(bytes32(i)));
+                }
+            }
+            (,,,,, parent,) = game.claimData(4);
+            pos = parent.move(true);
+            uint256 lastBond = game.getRequiredBond(pos);
+            (,,,, disputed,,) = game.claimData(4);
+            game.defend{ value: lastBond }(disputed, 4, _changeClaimStatus(ROOT_CLAIM, VMStatuses.INVALID));
+        }
+
+        // Expected start/disputed claims
+        bytes32 startingClaim = bytes32(uint256(3));
+        Position startingPos = LibPosition.wrap(4, 14);
+        bytes32 disputedClaim = bytes32(uint256(0xFF));
+        Position disputedPos = LibPosition.wrap(0, 0);
+
+        // Expected local data. This should be `l2BlockNumber`, and not the actual bisected-to block,
+        // as we choose the minimum between the two.
+        bytes32 expectedNumber = bytes32(uint256(8 << 0xC0));
+        uint256 expectedLen = 8;
+        uint256 l2NumberIdent = LocalPreimageKey.DISPUTED_L2_BLOCK_NUMBER;
+
+        // Compute the preimage key for the local data
+        bytes32 localContext = keccak256(abi.encode(startingClaim, startingPos, disputedClaim, disputedPos));
+        bytes32 rawKey = keccak256(abi.encode(l2NumberIdent | (1 << 248), address(game), localContext));
+        bytes32 key = bytes32((uint256(rawKey) & ~uint256(0xFF << 248)) | (1 << 248));
+
+        IPreimageOracle oracle = IPreimageOracle(address(game.vm().oracle()));
+        game.addLocalData(l2NumberIdent, 5, 0);
+
+        (bytes32 dat, uint256 datLen) = oracle.readPreimage(key, 0);
+        assertEq(dat >> 0xC0, bytes32(expectedLen));
+        assertEq(datLen, expectedLen + 8);
+
+        game.addLocalData(l2NumberIdent, 5, 8);
+        (dat, datLen) = oracle.readPreimage(key, 8);
+        assertEq(dat, expectedNumber);
+        assertEq(datLen, expectedLen);
+    }
+
     /// @dev Static unit test asserting that resolveClaim isn't possible if there's time
     ///      left for a counter.
     function test_resolution_lastSecondDisputes_succeeds() public {
