@@ -95,7 +95,7 @@ contract L1Block is ISemver, IGasToken {
 
     // TODO(disco): natspec
     function isDeposit() external view returns (bool _isDeposit) {
-        require(msg.sender == CROSS_L2_INBOX, "L1Block: only the CrossL2Inbox can check if it is a deposit");
+        if (msg.sender != CROSS_L2_INBOX) revert NotCrossL2Inbox();
         _isDeposit = isDepositTransaction;
     }
 
@@ -175,6 +175,12 @@ contract L1Block is ISemver, IGasToken {
         }
     }
 
+    /// @notice Resets the isDeposit flag.
+    function depositsComplete() external {
+        if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
+        isDepositTransaction = false;
+    }
+
     /// @notice Sets the gas paying token for the L2 system. Can only be called by the special
     ///         depositor account. This function is not called on every L2 block but instead
     ///         only called by specially crafted L1 deposit transactions.
@@ -184,11 +190,5 @@ contract L1Block is ISemver, IGasToken {
         GasPayingToken.set({ _token: _token, _decimals: _decimals, _name: _name, _symbol: _symbol });
 
         emit GasPayingTokenSet({ token: _token, decimals: _decimals, name: _name, symbol: _symbol });
-    }
-
-    /// @notice Resets the isDeposit flag.
-    function depositsComplete() external {
-        if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
-        isDepositTransaction = false;
     }
 }
