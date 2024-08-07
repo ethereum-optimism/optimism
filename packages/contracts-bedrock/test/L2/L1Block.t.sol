@@ -34,26 +34,18 @@ contract L1BlockIsDeposit_Test is L1BlockTest {
     }
 
     /// @dev Tests that `isDeposit` always returns the correct value.
-    function test_isDeposit_succeeds(bool _isDeposit) external {
+    function test_isDeposit_succeeds() external {
+        // Assert is false if the value is not updated
         vm.prank(Predeploys.CROSS_L2_INBOX);
         assertEq(l1Block.isDeposit(), false);
 
-        /// @dev Assuming that `setL1BlockValues` will set the proper value. That function is tested as well
+        /// @dev Assuming that `setL1BlockValuesIsthmus` will set the proper value. That function is tested as well
         vm.prank(depositor);
-        l1Block.setL1BlockValues({
-            _number: type(uint64).max,
-            _timestamp: type(uint64).max,
-            _basefee: type(uint256).max,
-            _hash: keccak256(abi.encode(1)),
-            _sequenceNumber: type(uint64).max,
-            _batcherHash: bytes32(type(uint256).max),
-            _l1FeeOverhead: type(uint256).max,
-            _l1FeeScalar: type(uint256).max,
-            _isDeposit: _isDeposit
-        });
+        l1Block.setL1BlockValuesIsthmus();
 
+        // Assert is true if the value is updated
         vm.prank(Predeploys.CROSS_L2_INBOX);
-        assertEq(l1Block.isDeposit(), _isDeposit);
+        assertEq(l1Block.isDeposit(), true);
     }
 }
 
@@ -73,7 +65,7 @@ contract L1BlockBedrock_Test is L1BlockTest {
         external
     {
         vm.prank(depositor);
-        l1Block.setL1BlockValues(n, t, b, h, s, bt, fo, fs, d);
+        l1Block.setL1BlockValues(n, t, b, h, s, bt, fo, fs);
         assertEq(l1Block.number(), n);
         assertEq(l1Block.timestamp(), t);
         assertEq(l1Block.basefee(), b);
@@ -82,9 +74,6 @@ contract L1BlockBedrock_Test is L1BlockTest {
         assertEq(l1Block.batcherHash(), bt);
         assertEq(l1Block.l1FeeOverhead(), fo);
         assertEq(l1Block.l1FeeScalar(), fs);
-
-        vm.prank(Predeploys.CROSS_L2_INBOX);
-        assertEq(l1Block.isDeposit(), d);
     }
 
     /// @dev Tests that `setL1BlockValues` can set max values.
@@ -98,8 +87,7 @@ contract L1BlockBedrock_Test is L1BlockTest {
             _sequenceNumber: type(uint64).max,
             _batcherHash: bytes32(type(uint256).max),
             _l1FeeOverhead: type(uint256).max,
-            _l1FeeScalar: type(uint256).max,
-            _isDeposit: true
+            _l1FeeScalar: type(uint256).max
         });
     }
 
@@ -114,8 +102,7 @@ contract L1BlockBedrock_Test is L1BlockTest {
             _sequenceNumber: type(uint64).max,
             _batcherHash: bytes32(type(uint256).max),
             _l1FeeOverhead: type(uint256).max,
-            _l1FeeScalar: type(uint256).max,
-            _isDeposit: true
+            _l1FeeScalar: type(uint256).max
         });
     }
 }
@@ -272,17 +259,7 @@ contract L1BlockDepositsComplete_Test is L1BlockTest {
     function test_depositsComplete_succeeds() external {
         // Set the `isDeposit` flag to true
         vm.prank(depositor);
-        l1Block.setL1BlockValues({
-            _number: type(uint64).max,
-            _timestamp: type(uint64).max,
-            _basefee: type(uint256).max,
-            _hash: keccak256(abi.encode(1)),
-            _sequenceNumber: type(uint64).max,
-            _batcherHash: bytes32(type(uint256).max),
-            _l1FeeOverhead: type(uint256).max,
-            _l1FeeScalar: type(uint256).max,
-            _isDeposit: true
-        });
+        l1Block.setL1BlockValuesIsthmus();
 
         // Assert that the `isDeposit` flag was properly set to true
         vm.prank(Predeploys.CROSS_L2_INBOX);

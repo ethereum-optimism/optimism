@@ -23,10 +23,6 @@ contract L1Block is ISemver, IGasToken {
         addr_ = Constants.DEPOSITOR_ACCOUNT;
     }
 
-    // TODO(disco): check slot
-    /// @notice The isDeposit flag.
-    bool internal isDepositTransaction;
-
     /// @notice The latest L1 block number known by the L2 system.
     uint64 public number;
 
@@ -61,6 +57,10 @@ contract L1Block is ISemver, IGasToken {
 
     /// @notice The latest L1 blob base fee.
     uint256 public blobBaseFee;
+
+    // TODO(disco): update proxy slot
+    /// @notice The isDeposit flag.
+    bool private isDepositTransaction;
 
     /// @custom:semver 1.4.1-beta.1
     function version() public pure virtual returns (string memory) {
@@ -108,7 +108,6 @@ contract L1Block is ISemver, IGasToken {
     /// @param _batcherHash    Versioned hash to authenticate batcher by.
     /// @param _l1FeeOverhead  L1 fee overhead.
     /// @param _l1FeeScalar    L1 fee scalar.
-    /// @param _isDeposit      isDeposit flag
     function setL1BlockValues(
         uint64 _number,
         uint64 _timestamp,
@@ -117,8 +116,7 @@ contract L1Block is ISemver, IGasToken {
         uint64 _sequenceNumber,
         bytes32 _batcherHash,
         uint256 _l1FeeOverhead,
-        uint256 _l1FeeScalar,
-        bool _isDeposit
+        uint256 _l1FeeScalar
     )
         external
     {
@@ -132,7 +130,6 @@ contract L1Block is ISemver, IGasToken {
         batcherHash = _batcherHash;
         l1FeeOverhead = _l1FeeOverhead;
         l1FeeScalar = _l1FeeScalar;
-        isDepositTransaction = _isDeposit;
     }
 
     // TODO(disco) natspec
