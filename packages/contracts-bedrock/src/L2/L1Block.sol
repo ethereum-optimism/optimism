@@ -138,29 +138,7 @@ contract L1Block is ISemver, IGasToken {
     // TODO(disco) natspec
     function setL1BlockValuesIsthmus() external {
         isDepositTransaction = true;
-
-        // Capture and adjust calldata
-        bytes memory callData;
-        assembly {
-            // Allocate memory for calldata
-            let size := calldatasize()
-            callData := mload(0x40) // allocate free memory pointer
-            mstore(0x40, add(callData, add(size, 0x20))) // update free memory pointer
-            mstore(callData, sub(size, 4)) // set the size of the data minus the function selector
-            calldatacopy(add(callData, 0x20), 4, sub(size, 4)) // copy the calldata to the allocated memory, skipping
-                // the selector
-        }
-
-        (bool success,) = address(this).call(
-            abi.encodePacked(
-                this.setL1BlockValuesEcotone.selector,
-                callData // Skip the selector of setL1BlockValuesIsthmus
-            )
-        );
-
-        if (!success) {
-            revert("L1Block: failed to set L1 block values");
-        }
+        setL1BlockValuesEcotone();
     }
 
     /// @notice Updates the L1 block values for an Ecotone upgraded chain.
