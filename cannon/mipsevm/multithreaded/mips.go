@@ -149,6 +149,7 @@ func (m *InstrumentedState) handleSyscall() error {
 	case exec.SysSigaltstack:
 	case exec.SysRtSigaction:
 	case exec.SysPrlimit64:
+	case exec.SysGetRLimit:
 	case exec.SysClose:
 	case exec.SysPread64:
 	case exec.SysFstat64:

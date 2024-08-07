@@ -51,7 +51,7 @@ func ExecMipsCoreStepLogic(cpu *mipsevm.CpuScalars, registers *[32]uint64, memor
 			// SignExtImm
 			rt = SignExtend(insn&0xFFFF, 16)
 		}
-	} else if opcode >= 0x28 || opcode == 0x22 || opcode == 0x26 || opcode == 0x1A || opcode == 0x1B {
+	} else if opcode >= 0x27 || opcode == 0x22 || opcode == 0x26 || opcode == 0x1A || opcode == 0x1B {
 		// store rt value with store
 		rt = registers[rtReg]
 
@@ -63,7 +63,7 @@ func ExecMipsCoreStepLogic(cpu *mipsevm.CpuScalars, registers *[32]uint64, memor
 		return HandleBranch(cpu, registers, opcode, insn, rtReg, rs)
 	}
 
-	storeAddr := uint64(0xFF_FF_FF_FF_FF_FF_FF_FF)
+	storeAddr := ^uint64(0)
 	// memory fetch (all I-type)
 	// we do the load for stores also
 	mem := uint64(0)
@@ -114,7 +114,7 @@ func ExecMipsCoreStepLogic(cpu *mipsevm.CpuScalars, registers *[32]uint64, memor
 	}
 
 	// write memory
-	if storeAddr != 0xFF_FF_FF_FF_FF_FF_FF_FF {
+	if storeAddr != ^uint64(0) {
 		memTracker.TrackMemAccess(storeAddr)
 		memory.SetDoubleWord(storeAddr, val)
 	}
@@ -281,7 +281,7 @@ func ExecuteMipsInstruction(insn, opcode, fun, rs, rt, mem uint64) uint64 {
 		case 0x22: // lwl
 			val := mem << ((rs & 3) * 8)
 			mask := uint64(uint32(0xFFFFFFFF) << ((rs & 3) * 8))
-			return SignExtend((rt & ^mask)|val, 32)
+			return SignExtend(((rt & ^mask)|val)&0xFFFFFFFF, 32)
 		case 0x23: // lw
 			return SignExtend((mem>>(32-((rs&0x4)<<3)))&0xFFFFFFFF, 32)
 		case 0x24: // lbu
@@ -291,7 +291,7 @@ func ExecuteMipsInstruction(insn, opcode, fun, rs, rt, mem uint64) uint64 {
 		case 0x26: //  lwr
 			val := mem >> (24 - (rs&3)*8)
 			mask := uint64(uint32(0xFFFFFFFF) >> (24 - (rs&3)*8))
-			return SignExtend((rt & ^mask)|val, 32)
+			return SignExtend(((rt & ^mask)|val)&0xFFFFFFFF, 32)
 		case 0x28: //  sb
 			val := (rt & 0xFF) << (56 - (rs&7)*8)
 			mask := 0xFFFFFFFFFFFFFFFF ^ uint64(0xFF<<(56-(rs&7)*8))
@@ -319,7 +319,10 @@ func ExecuteMipsInstruction(insn, opcode, fun, rs, rt, mem uint64) uint64 {
 		case 0x30: //  ll
 			return SignExtend((mem>>(32-((rs&0x4)<<3)))&0xFFFFFFFF, 32)
 		case 0x38: //  sc
-			return rt
+			sl := 32 - ((rs & 0x4) << 3)
+			val := (rt & 0xFFFFFFFF) << sl
+			mask := 0xFFFFFFFFFFFFFFFF ^ uint64(0xFFFFFFFF<<sl)
+			return (mem & mask) | val
 		// MIPS64
 		case 0x1A: // ldl
 			sl := (rs & 0x7) << 3
@@ -348,9 +351,15 @@ func ExecuteMipsInstruction(insn, opcode, fun, rs, rt, mem uint64) uint64 {
 		case 0x37: // ld
 			return mem
 		case 0x3C: // scd
-			return rt
+			sl := (rs & 0x7) << 3
+			val := rt << sl
+			mask := uint64(0xFFFFFFFFFFFFFFFF) << sl
+			return (mem & ^mask) | val
 		case 0x3F: // sd
-			return rt
+			sl := (rs & 0x7) << 3
+			val := rt << sl
+			mask := uint64(0xFFFFFFFFFFFFFFFF) << sl
+			return (mem & ^mask) | val
 		default:
 			panic(fmt.Sprintf("invalid instruction: %x", insn))
 		}

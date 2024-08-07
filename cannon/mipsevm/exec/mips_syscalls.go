@@ -37,6 +37,7 @@ const (
 	SysSigaltstack   = 5129
 	SysRtSigaction   = 5013
 	SysPrlimit64     = 5297
+	SysGetRLimit     = 5095
 	SysClose         = 5003
 	SysPread64       = 5016
 	SysFstat64       = 5005

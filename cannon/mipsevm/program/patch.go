@@ -3,7 +3,6 @@ package program
 import (
 	"bytes"
 	"debug/elf"
-	"encoding/binary"
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
@@ -67,9 +66,7 @@ func PatchStack(st mipsevm.FPVMState) error {
 	st.GetRegisters()[29] = sp
 
 	storeMem := func(addr uint64, v uint64) {
-		var dat [8]byte
-		binary.BigEndian.PutUint64(dat[:], v)
-		_ = st.GetMemory().SetMemoryRange(addr, bytes.NewReader(dat[:]))
+		st.GetMemory().SetDoubleWord(addr, v)
 	}
 
 	// init argc, argv, aux on stack
