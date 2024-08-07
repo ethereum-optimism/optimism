@@ -18,7 +18,7 @@ func TestGetUnknownIPBan(t *testing.T) {
 	book := createMemoryIPBanBook(t)
 	defer book.Close()
 	exp, err := book.GetIPBanExpiration(net.IPv4(1, 2, 3, 4))
-	require.Same(t, UnknownBanErr, err)
+	require.Same(t, ErrUnknownBan, err)
 	require.Equal(t, time.Time{}, exp)
 }
 

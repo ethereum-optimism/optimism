@@ -427,7 +427,7 @@ func TestHelloEVM(t *testing.T) {
 	evm.SetTracer(tracer)
 	testutil.LogStepFailureAtCleanup(t, evm)
 
-	state := testutil.LoadELFProgram(t, "../../example/bin/hello.elf", singlethreaded.CreateInitialState, true)
+	state := testutil.LoadELFProgram(t, "../../testdata/example/bin/hello.elf", singlethreaded.CreateInitialState, true)
 	var stdOutBuf, stdErrBuf bytes.Buffer
 	goState := singlethreaded.NewInstrumentedState(state, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr), nil)
 
@@ -469,7 +469,7 @@ func TestClaimEVM(t *testing.T) {
 	evm.SetTracer(tracer)
 	testutil.LogStepFailureAtCleanup(t, evm)
 
-	state := testutil.LoadELFProgram(t, "../../example/bin/claim.elf", singlethreaded.CreateInitialState, true)
+	state := testutil.LoadELFProgram(t, "../../testdata/example/bin/claim.elf", singlethreaded.CreateInitialState, true)
 	oracle, expectedStdOut, expectedStdErr := testutil.ClaimTestOracle(t)
 
 	var stdOutBuf, stdErrBuf bytes.Buffer

@@ -26,6 +26,7 @@ const (
 	CannonGameType       GameType = 0
 	PermissionedGameType GameType = 1
 	AsteriscGameType     GameType = 2
+	AsteriscKonaGameType GameType = 3
 	FastGameType         GameType = 254
 	AlphabetGameType     GameType = 255
 	UnknownGameType      GameType = math.MaxUint32
@@ -43,6 +44,8 @@ func (t GameType) String() string {
 		return "permissioned"
 	case AsteriscGameType:
 		return "asterisc"
+	case AsteriscKonaGameType:
+		return "asterisc-kona"
 	case FastGameType:
 		return "fast"
 	case AlphabetGameType:
@@ -59,6 +62,7 @@ const (
 	TraceTypeFast         TraceType = "fast"
 	TraceTypeCannon       TraceType = "cannon"
 	TraceTypeAsterisc     TraceType = "asterisc"
+	TraceTypeAsteriscKona TraceType = "asterisc-kona"
 	TraceTypePermissioned TraceType = "permissioned"
 )
 

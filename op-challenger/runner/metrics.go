@@ -17,10 +17,13 @@ type Metrics struct {
 	factory  opmetrics.Factory
 	*contractMetrics.ContractMetrics
 
-	vmExecutionTime *prometheus.HistogramVec
-	successTotal    *prometheus.CounterVec
-	failuresTotal   *prometheus.CounterVec
-	invalidTotal    *prometheus.CounterVec
+	vmExecutionTime     *prometheus.HistogramVec
+	vmLastExecutionTime *prometheus.GaugeVec
+	vmMemoryUsed        *prometheus.HistogramVec
+	vmLastMemoryUsed    *prometheus.GaugeVec
+	successTotal        *prometheus.CounterVec
+	failuresTotal       *prometheus.CounterVec
+	invalidTotal        *prometheus.CounterVec
 }
 
 var _ Metricer = (*Metrics)(nil)
@@ -47,6 +50,23 @@ func NewMetrics() *Metrics {
 				[]float64{1.0, 10.0},
 				prometheus.ExponentialBuckets(30.0, 2.0, 14)...),
 		}, []string{"vm"}),
+		vmLastExecutionTime: factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "vm_last_execution_time",
+			Help:      "Time (in seconds) taken for the last execution of the fault proof VM",
+		}, []string{"vm"}),
+		vmMemoryUsed: factory.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: Namespace,
+			Name:      "vm_memory_used",
+			Help:      "Memory used (in bytes) to execute the fault proof VM",
+			// 100MiB increments from 0 to 1.5GiB
+			Buckets: prometheus.LinearBuckets(0, 1024*1024*100, 15),
+		}, []string{"vm"}),
+		vmLastMemoryUsed: factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "vm_last_memory_used",
+			Help:      "Memory used (in bytes) for the last execution of the fault proof VM",
+		}, []string{"vm"}),
 		successTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: Namespace,
 			Name:      "success_total",
@@ -70,7 +90,14 @@ func (m *Metrics) Registry() *prometheus.Registry {
 }
 
 func (m *Metrics) RecordVmExecutionTime(vmType string, dur time.Duration) {
-	m.vmExecutionTime.WithLabelValues(vmType).Observe(dur.Seconds())
+	val := dur.Seconds()
+	m.vmExecutionTime.WithLabelValues(vmType).Observe(val)
+	m.vmLastExecutionTime.WithLabelValues(vmType).Set(val)
+}
+
+func (m *Metrics) RecordVmMemoryUsed(vmType string, memoryUsed uint64) {
+	m.vmMemoryUsed.WithLabelValues(vmType).Observe(float64(memoryUsed))
+	m.vmLastMemoryUsed.WithLabelValues(vmType).Set(float64(memoryUsed))
 }
 
 func (m *Metrics) RecordSuccess(vmType types.TraceType) {

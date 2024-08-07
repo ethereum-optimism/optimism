@@ -71,7 +71,7 @@ func (d *scoreBook) startGC() {
 
 func (d *scoreBook) GetPeerScores(id peer.ID) (PeerScores, error) {
 	record, err := d.book.getRecord(id)
-	if err == UnknownRecordErr {
+	if err == ErrUnknownRecord {
 		return PeerScores{}, nil // return zeroed scores by default
 	}
 	if err != nil {

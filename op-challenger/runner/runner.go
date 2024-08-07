@@ -15,7 +15,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/prestates"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
@@ -130,12 +129,8 @@ func (r *Runner) runOnce(ctx context.Context, traceType types.TraceType, client 
 	if err != nil {
 		return err
 	}
-	prestateSource := prestates.NewPrestateSource(
-		r.cfg.CannonAbsolutePreStateBaseURL,
-		r.cfg.CannonAbsolutePreState,
-		filepath.Join(dir, "prestates"))
 	logger := r.log.New("l1", localInputs.L1Head, "l2", localInputs.L2Head, "l2Block", localInputs.L2BlockNumber, "claim", localInputs.L2Claim, "type", traceType)
-	provider, err := createTraceProvider(logger, r.m, r.cfg, prestateSource, prestateHash, traceType, localInputs, dir)
+	provider, err := createTraceProvider(logger, r.m, r.cfg, prestateHash, traceType, localInputs, dir)
 	if err != nil {
 		return fmt.Errorf("failed to create trace provider: %w", err)
 	}
@@ -169,11 +164,21 @@ func (r *Runner) createGameInputs(ctx context.Context, client *sources.RollupCli
 	if status.SafeL2.Number == 0 {
 		return utils.LocalGameInputs{}, errors.New("safe head is 0")
 	}
-	claimOutput, err := client.OutputAtBlock(ctx, status.SafeL2.Number)
+	blockNumber := status.SafeL2.Number
+	// When possible, execute the first block in the submitted batch
+	if status.SafeL1.Number > 0 {
+		priorSafeHead, err := client.SafeHeadAtL1Block(ctx, status.SafeL1.Number-1)
+		if err != nil {
+			r.log.Warn("Failed to get prior safe head", "err", err)
+		} else if priorSafeHead.SafeHead.Number != 0 { // Sanity check to avoid trying to execute genesis
+			blockNumber = priorSafeHead.SafeHead.Number + 1
+		}
+	}
+	claimOutput, err := client.OutputAtBlock(ctx, blockNumber)
 	if err != nil {
 		return utils.LocalGameInputs{}, fmt.Errorf("failed to get claim output: %w", err)
 	}
-	parentOutput, err := client.OutputAtBlock(ctx, status.SafeL2.Number-1)
+	parentOutput, err := client.OutputAtBlock(ctx, blockNumber-1)
 	if err != nil {
 		return utils.LocalGameInputs{}, fmt.Errorf("failed to get claim output: %w", err)
 	}
@@ -182,7 +187,7 @@ func (r *Runner) createGameInputs(ctx context.Context, client *sources.RollupCli
 		L2Head:        parentOutput.BlockRef.Hash,
 		L2OutputRoot:  common.Hash(parentOutput.OutputRoot),
 		L2Claim:       common.Hash(claimOutput.OutputRoot),
-		L2BlockNumber: new(big.Int).SetUint64(status.SafeL2.Number),
+		L2BlockNumber: new(big.Int).SetUint64(blockNumber),
 	}
 	return localInputs, nil
 }
@@ -192,6 +197,9 @@ func (r *Runner) getPrestateHash(ctx context.Context, traceType types.TraceType,
 	gameImplAddr, err := gameFactory.GetGameImpl(ctx, traceType.GameType())
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to load game impl: %w", err)
+	}
+	if gameImplAddr == (common.Address{}) {
+		return common.Hash{}, nil // No prestate is set, will only work if a single prestate is specified
 	}
 	gameImpl, err := contracts.NewFaultDisputeGameContract(ctx, r.m, gameImplAddr, caller)
 	if err != nil {

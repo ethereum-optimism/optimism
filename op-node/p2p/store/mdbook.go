@@ -69,7 +69,7 @@ func (m *metadataBook) startGC() {
 func (m *metadataBook) GetPeerMetadata(id peer.ID) (PeerMetadata, error) {
 	record, err := m.book.getRecord(id)
 	// If the record is not found, return an empty PeerMetadata
-	if err == UnknownRecordErr {
+	if err == ErrUnknownRecord {
 		return PeerMetadata{}, nil
 	}
 	if err != nil {

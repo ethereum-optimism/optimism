@@ -197,29 +197,36 @@ func (dp *DerivationPipeline) initialReset(ctx context.Context, resetL2Safe eth.
 	dp.log.Info("Rewinding derivation-pipeline L1 traversal to handle reset")
 
 	dp.metrics.RecordPipelineReset()
+	spec := rollup.NewChainSpec(dp.rollupCfg)
 
 	// Walk back L2 chain to find the L1 origin that is old enough to start buffering channel data from.
 	pipelineL2 := resetL2Safe
 	l1Origin := resetL2Safe.L1Origin
+
+	pipelineOrigin, err := dp.l1Fetcher.L1BlockRefByHash(ctx, l1Origin.Hash)
+	if err != nil {
+		return NewTemporaryError(fmt.Errorf("failed to fetch the new L1 progress: origin: %s; err: %w", pipelineL2.L1Origin, err))
+	}
+
 	for {
 		afterL2Genesis := pipelineL2.Number > dp.rollupCfg.Genesis.L2.Number
 		afterL1Genesis := pipelineL2.L1Origin.Number > dp.rollupCfg.Genesis.L1.Number
-		afterChannelTimeout := pipelineL2.L1Origin.Number+dp.rollupCfg.ChannelTimeout > l1Origin.Number
+		afterChannelTimeout := pipelineL2.L1Origin.Number+spec.ChannelTimeout(pipelineOrigin.Time) > l1Origin.Number
 		if afterL2Genesis && afterL1Genesis && afterChannelTimeout {
 			parent, err := dp.l2.L2BlockRefByHash(ctx, pipelineL2.ParentHash)
 			if err != nil {
 				return NewResetError(fmt.Errorf("failed to fetch L2 parent block %s", pipelineL2.ParentID()))
 			}
 			pipelineL2 = parent
+			pipelineOrigin, err = dp.l1Fetcher.L1BlockRefByHash(ctx, pipelineL2.L1Origin.Hash)
+			if err != nil {
+				return NewTemporaryError(fmt.Errorf("failed to fetch the new L1 progress: origin: %s; err: %w", pipelineL2.L1Origin, err))
+			}
 		} else {
 			break
 		}
 	}
 
-	pipelineOrigin, err := dp.l1Fetcher.L1BlockRefByHash(ctx, pipelineL2.L1Origin.Hash)
-	if err != nil {
-		return NewTemporaryError(fmt.Errorf("failed to fetch the new L1 progress: origin: %s; err: %w", pipelineL2.L1Origin, err))
-	}
 	sysCfg, err := dp.l2.SystemConfigByL2Hash(ctx, pipelineL2.Hash)
 	if err != nil {
 		return NewTemporaryError(fmt.Errorf("failed to fetch L1 config of L2 block %s: %w", pipelineL2.ID(), err))

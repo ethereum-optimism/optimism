@@ -3,6 +3,7 @@ package multithreaded
 import (
 	"io"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
@@ -106,6 +107,7 @@ func (m *InstrumentedState) GetState() mipsevm.FPVMState {
 func (m *InstrumentedState) GetDebugInfo() *mipsevm.DebugInfo {
 	return &mipsevm.DebugInfo{
 		Pages:               m.state.Memory.PageCount(),
+		MemoryUsed:          hexutil.Uint64(m.state.Memory.UsageRaw()),
 		NumPreimageRequests: m.preimageOracle.NumPreimageRequests(),
 		TotalPreimageSize:   m.preimageOracle.TotalPreimageSize(),
 	}
