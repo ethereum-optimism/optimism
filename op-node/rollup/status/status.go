@@ -1,7 +1,6 @@
 package status
 
 import (
-	"fmt"
 	"sync"
 	"sync/atomic"
 
@@ -87,7 +86,7 @@ func (st *StatusTracker) OnEvent(ev event.Event) bool {
 			if st.data.HeadL1.Number >= x.L1Unsafe.Number {
 				st.metrics.RecordL1ReorgDepth(st.data.HeadL1.Number - x.L1Unsafe.Number)
 			} else {
-				panic(fmt.Sprintf("L1 http-poll-interval too long. Currently missing %d L1 blocks.", x.L1Unsafe.Number - st.data.HeadL1.Number - 1))
+				st.log.Warn("L1 http-poll-interval too long. Block head is missing")
 			}
 			// New L1 block is not the same as the current head or a single step linear extension.
 			// This could either be a long L1 extension, or a reorg, or we simply missed a head update.
