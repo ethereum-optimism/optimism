@@ -17,6 +17,12 @@ interface IDependencySet {
     function isInDependencySet(uint256 _chainId) external view returns (bool);
 }
 
+/// @notice Thrown when the caller is not DEPOSITOR_ACCOUNT when calling `setInteropStart()`
+error OnlyDepositorAccount();
+
+/// @notice Thrown when attempting to set interop start when it's already set.
+error InteropStartAlreadySet();
+
 /// @notice Thrown when a non-written transient storage slot is attempted to be read from.
 error NotEntered();
 
@@ -59,6 +65,10 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
     ///         Equal to bytes32(uint256(keccak256("crossl2inbox.identifier.chainid")) - 1)
     bytes32 internal constant CHAINID_SLOT = 0x6e0446e8b5098b8c8193f964f1b567ec3a2bdaeba33d36acb85c1f1d3f92d313;
 
+    /// @notice The address that represents the system caller responsible for L1 attributes
+    ///         transactions.
+    address internal constant DEPOSITOR_ACCOUNT = 0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAd0001;
+
     /// @notice Semantic version.
     /// @custom:semver 1.0.0-beta.4
     string public constant version = "1.0.0-beta.4";
@@ -68,9 +78,16 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
     /// @param id Encoded Identifier of the message.
     event ExecutingMessage(bytes32 indexed msgHash, Identifier id);
 
-    constructor(uint256 _interopStart) {
+    function setInteropStart() external {
+        // Check that caller is the DEPOSITOR_ACCOUNT
+        if (msg.sender != DEPOSITOR_ACCOUNT) revert OnlyDepositorAccount();
+
+        // Check that it has not been set already
+        if (interopStart() != 0) revert InteropStartAlreadySet();
+
+        // Set Interop Start to block.timestamp
         assembly {
-            sstore(INTEROP_START_SLOT, _interopStart)
+            sstore(INTEROP_START_SLOT, timestamp())
         }
     }
 

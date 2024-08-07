@@ -9,15 +9,21 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { TransientContext } from "src/libraries/TransientContext.sol";
 
 // Target contracts
-import { CrossL2Inbox, NotEntered, InvalidTimestamp, InvalidChainId, TargetCallFailed } from "src/L2/CrossL2Inbox.sol";
+import {
+    CrossL2Inbox,
+    NotEntered,
+    InvalidTimestamp,
+    InvalidChainId,
+    TargetCallFailed,
+    OnlyDepositorAccount,
+    InteropStartAlreadySet
+} from "src/L2/CrossL2Inbox.sol";
 import { ICrossL2Inbox } from "src/L2/ICrossL2Inbox.sol";
 
 /// @title CrossL2InboxWithModifiableTransientStorage
 /// @dev CrossL2Inbox contract with methods to modify the transient storage.
 ///      This is used to test the transient storage of CrossL2Inbox.
 contract CrossL2InboxWithModifiableTransientStorage is CrossL2Inbox {
-    constructor(uint256 _interopStart) CrossL2Inbox(_interopStart) { }
-
     /// @dev Increments call depth in transient storage.
     function increment() external {
         TransientContext.increment();
@@ -61,37 +67,61 @@ contract CrossL2InboxTest is Test {
     bytes4 constant L1BlockIsInDependencySetSelector = bytes4(keccak256("isInDependencySet(uint256)"));
 
     /// @dev Storage slot that the interop start timestamp is stored at.
+    ///      Equal to bytes32(uint256(keccak256("crossl2inbox.interopstart.origin")) - 1)
     bytes32 internal constant INTEROP_START_SLOT = bytes32(uint256(keccak256("crossl2inbox.interopstart.origin")) - 1);
-
-    /// @dev Interop start timestamp
-    uint256 INTEROP_START = 420;
 
     /// @dev CrossL2Inbox contract instance.
     CrossL2Inbox crossL2Inbox;
 
+    /// @dev The address that represents the system caller responsible for L1 attributes
+    ///         transactions.
+    address internal constant DEPOSITOR_ACCOUNT = 0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAd0001;
+
     /// @dev Sets up the test suite.
     function setUp() public {
         // Deploy the L2ToL2CrossDomainMessenger contract
-        // Note, vm.etch does not transfer storage state to the target address so the INTEROP_START_SLOT holds 0 until
-        // explictly set
-        vm.etch(Predeploys.CROSS_L2_INBOX, address(new CrossL2InboxWithModifiableTransientStorage(0)).code);
-
-        // Set interop start
-        vm.store(Predeploys.CROSS_L2_INBOX, INTEROP_START_SLOT, bytes32(INTEROP_START));
-
-        // Set timestamp to be after interop start
-        vm.warp(INTEROP_START + 1);
-
+        vm.etch(Predeploys.CROSS_L2_INBOX, address(new CrossL2InboxWithModifiableTransientStorage()).code);
         crossL2Inbox = CrossL2Inbox(Predeploys.CROSS_L2_INBOX);
     }
 
-    /// @dev Tests that INTEROP_START is set correctly at deployment
-    function test_interopStart_initialized() external {
-        // deploy cross l2 inbox
-        CrossL2Inbox testInbox = new CrossL2InboxWithModifiableTransientStorage(INTEROP_START);
+    /// @dev Tests that the setInteropStart function updates the INTEROP_START_SLOT storage slot correctly
+    function testFuzz_setInteropStart_succeeds(uint256 time) external {
+        // Jump to time.
+        vm.warp(time);
 
-        assertEq(testInbox.interopStart(), INTEROP_START);
-        assertEq(uint256(vm.load(address(testInbox), INTEROP_START_SLOT)), INTEROP_START);
+        // Impersonate the depositor account.
+        vm.prank(DEPOSITOR_ACCOUNT);
+
+        // Set interop start.
+        crossL2Inbox.setInteropStart();
+
+        // Check that the storage slot was set correctly and the public getter function returns the right value.
+        assertEq(crossL2Inbox.interopStart(), time);
+        assertEq(uint256(vm.load(address(crossL2Inbox), INTEROP_START_SLOT)), time);
+    }
+
+    /// @dev Tests that the setInteropStart function reverts when the caller is not the DEPOSITOR_ACCOUNT.
+    function test_setInteropStart_notDepositorAccount_reverts() external {
+        // Expect revert with OnlyDepositorAccount selector
+        vm.expectRevert(OnlyDepositorAccount.selector);
+
+        // Call setInteropStart function
+        crossL2Inbox.setInteropStart();
+    }
+
+    /// @dev Tests that the setInteropStart function reverts if called when already set
+    function test_setInteropStart_interopStartAlreadySet_reverts() external {
+        // Impersonate the depositor account.
+        vm.startPrank(DEPOSITOR_ACCOUNT);
+
+        // Call setInteropStart function
+        crossL2Inbox.setInteropStart();
+
+        // Expect revert with InteropStartAlreadySet selector if called a second time
+        vm.expectRevert(InteropStartAlreadySet.selector);
+
+        // Call setInteropStart function again
+        crossL2Inbox.setInteropStart();
     }
 
     /// @dev Tests that the `executeMessage` function succeeds.
@@ -104,9 +134,8 @@ contract CrossL2InboxTest is Test {
         external
         payable
     {
-        // Ensure that the id's timestamp is valid (less than or equal to the current block timestamp and greater than
-        // or equal to INTEROP_START)
-        _id.timestamp = bound(_id.timestamp, INTEROP_START, block.timestamp);
+        // Ensure that the id's timestamp is valid (less than or equal to the current block timestamp)
+        _id.timestamp = bound(_id.timestamp, 0, block.timestamp);
 
         // Ensure that the target call is payable if value is sent
         if (_value > 0) assumePayable(_target);
@@ -160,10 +189,9 @@ contract CrossL2InboxTest is Test {
         external
         payable
     {
-        // Ensure that the id's timestamp is valid (less than or equal to the current block timestamp and greater than
-        // or equal to INTEROP_START)
-        _id1.timestamp = bound(_id1.timestamp, INTEROP_START, block.timestamp);
-        _id2.timestamp = bound(_id2.timestamp, INTEROP_START, block.timestamp);
+        // Ensure that the ids' timestamp are valid (less than or equal to the current block timestamp)
+        _id1.timestamp = bound(_id1.timestamp, 0, block.timestamp);
+        _id2.timestamp = bound(_id2.timestamp, 0, block.timestamp);
 
         // Ensure that id1's chain ID is in the dependency set
         vm.mockCall({
@@ -241,8 +269,17 @@ contract CrossL2InboxTest is Test {
     )
         external
     {
+        // interop start timestamp
+        uint256 interopStartTime = 420;
+
+        // Set interop start
+        vm.store(address(crossL2Inbox), INTEROP_START_SLOT, bytes32(uint256(interopStartTime)));
+
+        // Set timestamp to be after interop start
+        vm.warp(interopStartTime + 1);
+
         // Ensure that the id's timestamp is invalid (less than interopStart)
-        _id.timestamp = bound(_id.timestamp, 0, INTEROP_START - 1);
+        _id.timestamp = bound(_id.timestamp, 0, crossL2Inbox.interopStart() - 1);
 
         // Ensure that the contract has enough balance to send with value
         vm.deal(address(this), _value);
@@ -264,9 +301,8 @@ contract CrossL2InboxTest is Test {
     )
         external
     {
-        // Ensure that the id's timestamp is valid (less than or equal to the current block timestamp and greater than
-        // or equal to INTEROP_START)
-        _id.timestamp = bound(_id.timestamp, INTEROP_START, block.timestamp);
+        // Ensure that the id's timestamp is valid (less than or equal to the current block timestamp)
+        _id.timestamp = bound(_id.timestamp, 0, block.timestamp);
 
         // Ensure that the chain ID is NOT in the dependency set
         vm.mockCall({
@@ -294,9 +330,8 @@ contract CrossL2InboxTest is Test {
     )
         external
     {
-        // Ensure that the id's timestamp is valid (less than or equal to the current block timestamp and greater than
-        // or equal to INTEROP_START)
-        _id.timestamp = bound(_id.timestamp, INTEROP_START, block.timestamp);
+        // Ensure that the id's timestamp is valid (less than or equal to the current block timestamp)
+        _id.timestamp = bound(_id.timestamp, 0, block.timestamp);
 
         // Ensure that the target call is payable if value is sent
         if (_value > 0) assumePayable(_target);
@@ -325,9 +360,8 @@ contract CrossL2InboxTest is Test {
     }
 
     function testFuzz_validateMessage_succeeds(ICrossL2Inbox.Identifier memory _id, bytes32 _messageHash) external {
-        // Ensure that the id's timestamp is valid (less than or equal to the current block timestamp and greater than
-        // or equal to INTEROP_START)
-        _id.timestamp = bound(_id.timestamp, INTEROP_START, block.timestamp);
+        // Ensure that the id's timestamp is valid (less than or equal to the current block timestamp)
+        _id.timestamp = bound(_id.timestamp, 1, block.timestamp);
 
         // Ensure that the chain ID is in the dependency set
         vm.mockCall({
@@ -370,8 +404,17 @@ contract CrossL2InboxTest is Test {
     )
         external
     {
+        // interop start timestamp
+        uint256 interopStartTime = 420;
+
+        // Set interop start
+        vm.store(address(crossL2Inbox), INTEROP_START_SLOT, bytes32(uint256(interopStartTime)));
+
+        // Set timestamp to be after interop start
+        vm.warp(interopStartTime + 1);
+
         // Ensure that the id's timestamp is invalid (less than interopStart)
-        _id.timestamp = bound(_id.timestamp, 0, INTEROP_START - 1);
+        _id.timestamp = bound(_id.timestamp, 0, crossL2Inbox.interopStart() - 1);
 
         // Expect a revert with the InvalidTimestamp selector
         vm.expectRevert(InvalidTimestamp.selector);
@@ -388,9 +431,8 @@ contract CrossL2InboxTest is Test {
     )
         external
     {
-        // Ensure that the id's timestamp is valid (less than or equal to the current block timestamp and greater than
-        // or equal to INTEROP_START)
-        _id.timestamp = bound(_id.timestamp, INTEROP_START, block.timestamp);
+        // Ensure that the timestamp is valid (less than or equal to the current block timestamp)
+        _id.timestamp = bound(_id.timestamp, 0, block.timestamp);
 
         // Ensure that the chain ID is NOT in the dependency set.
         vm.mockCall({
