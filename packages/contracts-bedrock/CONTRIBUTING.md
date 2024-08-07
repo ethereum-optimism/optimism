@@ -102,4 +102,4 @@ Many of our smart contracts are semantically versioned. To make sure that change
 
 #### Storage Snapshots
 
-Due to the many proxied contracts in Optimism's protocol, we automate tracking the diff to storage layouts of the contracts in the project. This is to ensure that we don't break a proxy by upgrading its implementation to a contract with a different storage layout. To generate the storage lockfile, run `just storage-snapshot`.
+Due to the many proxied contracts in Optimism's protocol, we automate tracking the diff to storage layouts of the contracts in the project. This is to ensure that we don't break a proxy by upgrading its implementation to a contract with a different storage layout. To generate the storage lockfile, run `just snapshots`.
