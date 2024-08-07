@@ -32,7 +32,7 @@ contract PreimageOracle is IPreimageOracle, ISemver {
 
     /// @notice The semantic version of the Preimage Oracle contract.
     /// @custom:semver 1.1.1
-    string public constant version = "1.1.1";
+    string public constant version = "1.1.2";
 
     ////////////////////////////////////////////////////////////////
     //                 Authorized Preimage Parts                  //
@@ -133,7 +133,7 @@ contract PreimageOracle is IPreimageOracle, ISemver {
         key_ = PreimageKeyLib.localizeIdent(_ident, _localContext);
 
         // Revert if the given part offset is not within bounds.
-        if (_partOffset > _size + 8 || _size > 32) {
+        if (_partOffset >= _size + 8 || _size > 32) {
             revert PartOffsetOOB();
         }
 

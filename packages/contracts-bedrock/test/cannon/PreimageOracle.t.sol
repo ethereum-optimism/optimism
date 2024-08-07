@@ -92,8 +92,8 @@ contract PreimageOracle_Test is Test {
     {
         // Bound the size to [0, 32]
         size = bound(size, 0, 32);
-        // Bound the part offset to [0, size + 8]
-        partOffset = bound(partOffset, 0, size + 8);
+        // Bound the part offset to [0, size + 8)
+        partOffset = bound(partOffset, 0, size + 7);
 
         // Load the local data into the preimage oracle under the test contract's context.
         bytes32 contextKey = oracle.loadLocalData(ident, localContext, word, uint8(size), uint8(partOffset));
