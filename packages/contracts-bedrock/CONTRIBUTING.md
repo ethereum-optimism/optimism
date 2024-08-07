@@ -95,7 +95,7 @@ This uses the `.storage-layout` file to check contract spacing. Run `just valida
 
 #### Gas Snapshots
 
-We use forge's `gas-snapshot` subcommand to produce a gas snapshot for most tests within our suite. CI will check that the gas snapshot has been updated properly when it runs, so make sure to run `just gas-snapshot`!
+We use forge's `gas-snapshot` subcommand to produce a gas snapshot for tests in `Benchmark.t.sol`. CI will check that the gas snapshot has been updated properly when it runs, so make sure to run `just gas-snapshot`!
 
 #### Semver Locking
 
