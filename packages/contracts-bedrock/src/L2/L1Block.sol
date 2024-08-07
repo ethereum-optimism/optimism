@@ -58,9 +58,10 @@ contract L1Block is ISemver, IGasToken {
     /// @notice The latest L1 blob base fee.
     uint256 public blobBaseFee;
 
-    // TODO(disco): update proxy slot
-    /// @notice The isDeposit flag.
-    bool private isDepositTransaction;
+    /// @notice Storage slot that the isDeposit is stored at.
+    /// @dev This is a custom slot that is not part of the standard storage layout.
+    /// keccak256(abi.encode(uint256(keccak256("l1Block.identifier.isDeposit")) - 1)) & ~bytes32(uint256(0xff))
+    uint256 internal constant IS_DEPOSIT_SLOT = 0x921bd3a089295c6e5540e8fba8195448d253efd6f2e3e495b499b627dc36a300;
 
     /// @custom:semver 1.4.1-beta.1
     function version() public pure virtual returns (string memory) {
@@ -95,7 +96,9 @@ contract L1Block is ISemver, IGasToken {
     // TODO(disco): natspec
     function isDeposit() external view returns (bool _isDeposit) {
         if (msg.sender != Predeploys.CROSS_L2_INBOX) revert NotCrossL2Inbox();
-        _isDeposit = isDepositTransaction;
+        assembly {
+            _isDeposit := sload(IS_DEPOSIT_SLOT)
+        }
     }
 
     /// @custom:legacy
@@ -134,7 +137,11 @@ contract L1Block is ISemver, IGasToken {
 
     // TODO(disco) natspec
     function setL1BlockValuesIsthmus() external {
-        isDepositTransaction = true;
+        // Set the isDeposit flag to true.
+        assembly {
+            sstore(IS_DEPOSIT_SLOT, 1)
+        }
+
         setL1BlockValuesEcotone();
     }
 
@@ -173,7 +180,11 @@ contract L1Block is ISemver, IGasToken {
     /// @notice Resets the isDeposit flag.
     function depositsComplete() external {
         if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
-        isDepositTransaction = false;
+
+        // Set the isDeposit flag to false.
+        assembly {
+            sstore(IS_DEPOSIT_SLOT, 0)
+        }
     }
 
     /// @notice Sets the gas paying token for the L2 system. Can only be called by the special
