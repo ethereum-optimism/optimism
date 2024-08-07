@@ -1,4 +1,4 @@
-package plasma
+package altda
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-plasma/bindings"
+	"github.com/ethereum-optimism/optimism/op-alt-da/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -47,7 +47,7 @@ type DAStorage interface {
 // HeadSignalFn is the callback function to accept head-signals without a context.
 type HeadSignalFn func(eth.L1BlockRef)
 
-// Config is the relevant subset of rollup config for plasma DA.
+// Config is the relevant subset of rollup config for AltDA.
 type Config struct {
 	// Required for filtering contract events
 	DAChallengeContractAddress common.Address
@@ -77,13 +77,13 @@ type DA struct {
 	finalizedHeadSignalHandler HeadSignalFn
 }
 
-// NewPlasmaDA creates a new PlasmaDA instance with the given log and CLIConfig.
-func NewPlasmaDA(log log.Logger, cli CLIConfig, cfg Config, metrics Metricer) *DA {
-	return NewPlasmaDAWithStorage(log, cfg, cli.NewDAClient(), metrics)
+// NewAltDA creates a new AltDA instance with the given log and CLIConfig.
+func NewAltDA(log log.Logger, cli CLIConfig, cfg Config, metrics Metricer) *DA {
+	return NewAltDAWithStorage(log, cfg, cli.NewDAClient(), metrics)
 }
 
-// NewPlasmaDAWithStorage creates a new PlasmaDA instance with the given log and DAStorage interface.
-func NewPlasmaDAWithStorage(log log.Logger, cfg Config, storage DAStorage, metrics Metricer) *DA {
+// NewAltDAWithStorage creates a new AltDA instance with the given log and DAStorage interface.
+func NewAltDAWithStorage(log log.Logger, cfg Config, storage DAStorage, metrics Metricer) *DA {
 	return &DA{
 		log:     log,
 		cfg:     cfg,
@@ -93,9 +93,9 @@ func NewPlasmaDAWithStorage(log log.Logger, cfg Config, storage DAStorage, metri
 	}
 }
 
-// NewPlasmaDAWithState creates a plasma storage from initial state used for testing in isolation.
+// NewAltDAWithState creates an AltDA storage from initial state used for testing in isolation.
 // We pass the L1Fetcher to each method so it is kept in sync with the conf depth of the pipeline.
-func NewPlasmaDAWithState(log log.Logger, cfg Config, storage DAStorage, metrics Metricer, state *State) *DA {
+func NewAltDAWithState(log log.Logger, cfg Config, storage DAStorage, metrics Metricer, state *State) *DA {
 	return &DA{
 		log:     log,
 		cfg:     cfg,
@@ -143,12 +143,12 @@ func (d *DA) Finalize(l1Finalized eth.L1BlockRef) {
 	d.metrics.RecordChallengesHead("finalized", d.finalizedHead.Number)
 
 	// Record and Log the latest L1 finalized head
-	d.log.Info("received l1 finalized signal, forwarding plasma finalization to finalizedHeadSignalHandler",
+	d.log.Info("received l1 finalized signal, forwarding altDA finalization to finalizedHeadSignalHandler",
 		"l1", l1Finalized,
-		"plasma", d.finalizedHead)
+		"altDA", d.finalizedHead)
 
 	// execute the handler function if set
-	// the handler function is called with the plasma finalized head
+	// the handler function is called with the altDA finalized head
 	if d.finalizedHeadSignalHandler == nil {
 		d.log.Warn("finalized head signal handler not set")
 		return
@@ -277,7 +277,7 @@ func (d *DA) AdvanceChallengeOrigin(ctx context.Context, l1 L1Fetcher, block eth
 	// set and record the new challenge origin
 	d.challengeOrigin = block
 	d.metrics.RecordChallengesHead("latest", d.challengeOrigin.Number)
-	d.log.Info("processed plasma challenge origin", "origin", block)
+	d.log.Info("processed altDA challenge origin", "origin", block)
 	return nil
 }
 
@@ -299,7 +299,7 @@ func (d *DA) AdvanceCommitmentOrigin(ctx context.Context, l1 L1Fetcher, block et
 	// set and record the new commitment origin
 	d.commitmentOrigin = block
 	d.metrics.RecordChallengesHead("latest", d.challengeOrigin.Number)
-	d.log.Info("processed plasma l1 origin", "origin", block, "finalized", d.finalizedHead.ID(), "l1-finalize", d.l1FinalizedHead.ID())
+	d.log.Info("processed altDA l1 origin", "origin", block, "finalized", d.finalizedHead.ID(), "l1-finalize", d.l1FinalizedHead.ID())
 
 	return nil
 }

@@ -7,12 +7,12 @@ import (
 	"math"
 	"time"
 
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-node/flags"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
-	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -74,8 +74,8 @@ type Config struct {
 	ConductorRpc        string
 	ConductorRpcTimeout time.Duration
 
-	// Plasma DA config
-	Plasma plasma.CLIConfig
+	// AltDA config
+	AltDA altda.CLIConfig
 }
 
 type RPCConfig struct {
@@ -171,10 +171,10 @@ func (cfg *Config) Check() error {
 			return fmt.Errorf("sequencer must be enabled when conductor is enabled")
 		}
 	}
-	if err := cfg.Plasma.Check(); err != nil {
-		return fmt.Errorf("plasma config error: %w", err)
+	if err := cfg.AltDA.Check(); err != nil {
+		return fmt.Errorf("altDA config error: %w", err)
 	}
-	if cfg.Plasma.Enabled {
+	if cfg.AltDA.Enabled {
 		log.Warn("Alt-DA Mode is a Beta feature of the MIT licensed OP Stack.  While it has received initial review from core contributors, it is still undergoing testing, and may have bugs or other issues.")
 	}
 	return nil

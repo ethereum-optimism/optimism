@@ -1,4 +1,4 @@
-package plasma
+package altda
 
 import (
 	"github.com/ethereum-optimism/optimism/op-service/metrics"

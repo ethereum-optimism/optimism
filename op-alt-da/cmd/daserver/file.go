@@ -6,7 +6,7 @@ import (
 	"os"
 	"path"
 
-	plasma "github.com/ethereum-optimism/optimism/op-plasma"
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 )
 
 type FileStore struct {
@@ -23,7 +23,7 @@ func (s *FileStore) Get(ctx context.Context, key []byte) ([]byte, error) {
 	data, err := os.ReadFile(s.fileName(key))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, plasma.ErrNotFound
+			return nil, altda.ErrNotFound
 		}
 		return nil, err
 	}

@@ -80,7 +80,7 @@ contract DeployConfig is Script {
     uint256 public disputeGameFinalityDelaySeconds;
     uint256 public respectedGameType;
     bool public useFaultProofs;
-    bool public usePlasma;
+    bool public useAltDA;
     string public daCommitmentType;
     uint256 public daChallengeWindow;
     uint256 public daResolveWindow;
@@ -165,7 +165,7 @@ contract DeployConfig is Script {
         preimageOracleMinProposalSize = stdJson.readUint(_json, "$.preimageOracleMinProposalSize");
         preimageOracleChallengePeriod = stdJson.readUint(_json, "$.preimageOracleChallengePeriod");
 
-        usePlasma = _readOr(_json, "$.usePlasma", false);
+        useAltDA = _readOr(_json, "$.useAltDA", false);
         daCommitmentType = _readOr(_json, "$.daCommitmentType", "KeccakCommitment");
         daChallengeWindow = _readOr(_json, "$.daChallengeWindow", 1000);
         daResolveWindow = _readOr(_json, "$.daResolveWindow", 1000);
@@ -218,9 +218,9 @@ contract DeployConfig is Script {
         return uint256(_l2OutputOracleStartingTimestamp);
     }
 
-    /// @notice Allow the `usePlasma` config to be overridden in testing environments
-    function setUsePlasma(bool _usePlasma) public {
-        usePlasma = _usePlasma;
+    /// @notice Allow the `useAltDA` config to be overridden in testing environments
+    function setUseAltDA(bool _useAltDA) public {
+        useAltDA = _useAltDA;
     }
 
     /// @notice Allow the `useFaultProofs` config to be overridden in testing environments

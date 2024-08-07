@@ -18,6 +18,6 @@
 !/op-service
 !/op-supervisor
 !/op-wheel
-!/op-plasma
+!/op-alt-da
 !/go.mod
 !/go.sum

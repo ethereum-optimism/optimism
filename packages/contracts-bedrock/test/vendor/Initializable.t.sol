@@ -34,7 +34,7 @@ contract Initializer_Test is Bridge_Initializer {
     InitializeableContract[] contracts;
 
     function setUp() public override {
-        super.enablePlasma();
+        super.enableAltDA();
         // Run the `Bridge_Initializer`'s `setUp()` function.
         super.setUp();
 

@@ -5,7 +5,7 @@ import (
 
 	"github.com/urfave/cli/v2"
 
-	plasma "github.com/ethereum-optimism/optimism/op-plasma"
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/opio"
 )
@@ -25,9 +25,9 @@ func StartDAServer(cliCtx *cli.Context) error {
 	l := oplog.NewLogger(oplog.AppOut(cliCtx), logCfg)
 	oplog.SetGlobalLogHandler(l.Handler())
 
-	l.Info("Initializing Plasma DA server...")
+	l.Info("Initializing AltDA server...")
 
-	var store plasma.KVStore
+	var store altda.KVStore
 
 	if cfg.FileStoreEnabled() {
 		l.Info("Using file storage", "path", cfg.FileStoreDirPath)
@@ -41,7 +41,7 @@ func StartDAServer(cliCtx *cli.Context) error {
 		store = s3
 	}
 
-	server := plasma.NewDAServer(cliCtx.String(ListenAddrFlagName), cliCtx.Int(PortFlagName), store, l, cfg.UseGenericComm)
+	server := altda.NewDAServer(cliCtx.String(ListenAddrFlagName), cliCtx.Int(PortFlagName), store, l, cfg.UseGenericComm)
 
 	if err := server.Start(); err != nil {
 		return fmt.Errorf("failed to start the DA server")

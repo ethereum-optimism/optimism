@@ -6,6 +6,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/attributes"
@@ -19,7 +20,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sequencing"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/status"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
-	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -105,13 +105,13 @@ type Finalizer interface {
 	event.Deriver
 }
 
-type PlasmaIface interface {
-	// Notify L1 finalized head so plasma finality is always behind L1
+type AltDAIface interface {
+	// Notify L1 finalized head so AltDA finality is always behind L1
 	Finalize(ref eth.L1BlockRef)
 	// Set the engine finalization signal callback
-	OnFinalizedHeadSignal(f plasma.HeadSignalFn)
+	OnFinalizedHeadSignal(f altda.HeadSignalFn)
 
-	derive.PlasmaInputFetcher
+	derive.AltDAInputFetcher
 }
 
 type SyncStatusTracker interface {
@@ -164,7 +164,7 @@ func NewDriver(
 	safeHeadListener rollup.SafeHeadListener,
 	syncCfg *sync.Config,
 	sequencerConductor conductor.SequencerConductor,
-	plasma PlasmaIface,
+	altDA AltDAIface,
 ) *Driver {
 	driverCtx, driverCancel := context.WithCancel(context.Background())
 
@@ -200,8 +200,8 @@ func NewDriver(
 	sys.Register("cl-sync", clSync, opts)
 
 	var finalizer Finalizer
-	if cfg.PlasmaEnabled() {
-		finalizer = finality.NewPlasmaFinalizer(driverCtx, log, cfg, l1, plasma)
+	if cfg.AltDAEnabled() {
+		finalizer = finality.NewAltDAFinalizer(driverCtx, log, cfg, l1, altDA)
 	} else {
 		finalizer = finality.NewFinalizer(driverCtx, log, cfg, l1)
 	}
@@ -210,7 +210,7 @@ func NewDriver(
 	sys.Register("attributes-handler",
 		attributes.NewAttributesHandler(log, cfg, driverCtx, l2), opts)
 
-	derivationPipeline := derive.NewDerivationPipeline(log, cfg, verifConfDepth, l1Blobs, plasma, l2, metrics)
+	derivationPipeline := derive.NewDerivationPipeline(log, cfg, verifConfDepth, l1Blobs, altDA, l2, metrics)
 
 	sys.Register("pipeline",
 		derive.NewPipelineDeriver(driverCtx, derivationPipeline), opts)
