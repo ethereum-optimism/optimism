@@ -93,11 +93,12 @@ contract L1Block is ISemver, IGasToken {
         return token != Constants.ETHER;
     }
 
-    // TODO(disco): natspec
-    function isDeposit() external view returns (bool _isDeposit) {
+    /// @notice Returns whether the call was triggered from a a deposit or not.
+    /// @dev This function is only callable by the CrossL2Inbox contract.
+    function isDeposit() external view returns (bool isDeposit_) {
         if (msg.sender != Predeploys.CROSS_L2_INBOX) revert NotCrossL2Inbox();
         assembly {
-            _isDeposit := sload(IS_DEPOSIT_SLOT)
+            isDeposit_ := sload(IS_DEPOSIT_SLOT)
         }
     }
 
@@ -135,7 +136,8 @@ contract L1Block is ISemver, IGasToken {
         l1FeeScalar = _l1FeeScalar;
     }
 
-    // TODO(disco) natspec
+    /// @notice Updates the `isDeposit` flag and sets the L1 block values for an Isthmus upgraded chain.
+    /// @dev It updates the L1 block values through the `setL1BlockValuesEcotone` function.
     function setL1BlockValuesIsthmus() external {
         // Set the isDeposit flag to true.
         assembly {
@@ -176,8 +178,9 @@ contract L1Block is ISemver, IGasToken {
         }
     }
 
-    // TODO(disco): Natspec
     /// @notice Resets the isDeposit flag.
+    /// @dev Only callable by the depositor account.
+    /// @dev Should be called after the deposits are complete.
     function depositsComplete() external {
         if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
 
