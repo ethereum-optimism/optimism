@@ -188,9 +188,10 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 	channelTimeout := bs.RollupConfig.ChannelTimeoutBedrock
 	// Use lower channel timeout if granite is scheduled.
 	// Ensures channels are restricted to the tighter timeout even if granite hasn't activated yet
-	if bs.RollupConfig.GraniteTime != nil {
-		channelTimeout = bs.RollupConfig.ChannelTimeoutGranite
-	}
+	// if bs.RollupConfig.GraniteTime != nil {
+	// 	channelTimeout = bs.RollupConfig.ChannelTimeoutGranite
+	// }
+	// PATCH: keep using old channel timeout
 	cc := ChannelConfig{
 		SeqWindowSize:      bs.RollupConfig.SeqWindowSize,
 		ChannelTimeout:     channelTimeout,

@@ -156,6 +156,10 @@ func (co *SingularChannelOut) AddSingularBatch(batch *SingularBatch, _ uint64) e
 
 	// avoid using io.Copy here, because we need all or nothing
 	_, err := co.compress.Write(buf.Bytes())
+	if err == nil {
+		// PATCH: always flush singular batches
+		err = co.compress.Flush()
+	}
 	return err
 }
 
