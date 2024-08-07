@@ -82,11 +82,11 @@ func (st *StatusTracker) OnEvent(ev event.Event) bool {
 			// We got a new L1 block whose parent hash is the same as the current L1 head. Means we're
 			// dealing with a linear extension (new block is the immediate child of the old one).
 			st.log.Debug("L1 head moved forward", "l1_head", x.L1Unsafe)
+		} else if st.data.HeadL1.Number < x.L1Unsafe.Number {
+			st.log.Warn("L1 http-poll-interval too long. Block head is missing")
 		} else {
 			if st.data.HeadL1.Number >= x.L1Unsafe.Number {
 				st.metrics.RecordL1ReorgDepth(st.data.HeadL1.Number - x.L1Unsafe.Number)
-			} else {
-				st.log.Warn("L1 http-poll-interval too long. Block head is missing")
 			}
 			// New L1 block is not the same as the current head or a single step linear extension.
 			// This could either be a long L1 extension, or a reorg, or we simply missed a head update.
