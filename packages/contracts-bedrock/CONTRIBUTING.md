@@ -67,7 +67,7 @@ Once you've read the styleguide and are ready to work on your PR, there are a pl
 1. `just test` Runs the full `forge` test suite.
 1  `just gas-snapshot` Generates the gas snapshot for the smart contracts.
 1. `just semver-lock` Generates the semver lockfile.
-1. `just storage-snapshot` Generates the storage lockfile.
+1. `just snapshots` Generates the storage and ABI snapshots.
 1. `just autogen-invariant-docs` Generates the invariant test documentation.
 1. `just clean` Removes all build artifacts for `forge` and `go` compilations.
 1. `just validate-spacers` Validates the positions of the storage slot spacers.
