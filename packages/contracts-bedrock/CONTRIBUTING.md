@@ -62,7 +62,8 @@ Optimism's smart contracts are written in Solidity and we use [foundry](https://
 
 Our [Style Guide](STYLE_GUIDE.md) contains information about the project structure, syntax preferences, naming conventions, and more. Please take a look at it before submitting a PR, and let us know if you spot inconsistencies!
 
-Once you've read the styleguide and are ready to work on your PR, there are a plethora of useful `just` scripts to know about that will help you with development:
+Once you've read the style guide and are ready to work on your PR, there are a plethora of useful `just` scripts to know about that will help you with development.
+You can run `just -l` to list them all, some of the key ones are:
 1. `just build` Builds the smart contracts.
 1. `just test` Runs the full `forge` test suite.
 1  `just gas-snapshot` Generates the gas snapshot for the smart contracts.
