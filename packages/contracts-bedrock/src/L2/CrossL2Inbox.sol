@@ -35,6 +35,10 @@ error TargetCallFailed();
 /// @notice The CrossL2Inbox is responsible for executing a cross chain message on the destination
 ///         chain. It is permissionless to execute a cross chain message on behalf of any user.
 contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
+    /// @notice Storage slot that the interop start timestamp is stored at.
+    ///         Equal to bytes32(uint256(keccak256("crossl2inbox.interopstart.origin")) - 1)
+    bytes32 internal constant INTEROP_START_SLOT = 0x58096a990e2f057a6e27c5d47ad94dd3c0c641469fd8ecef2b0608bb3c9e3a9d;
+
     /// @notice Transient storage slot that the origin for an Identifier is stored at.
     ///         Equal to bytes32(uint256(keccak256("crossl2inbox.identifier.origin")) - 1)
     bytes32 internal constant ORIGIN_SLOT = 0xd2b7c5071ec59eb3ff0017d703a8ea513a7d0da4779b0dbefe845808c300c815;
@@ -63,6 +67,20 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
     /// @param msgHash Hash of message payload being executed.
     /// @param id Encoded Identifier of the message.
     event ExecutingMessage(bytes32 indexed msgHash, Identifier id);
+
+    constructor(uint256 _interopStart) {
+        assembly {
+            sstore(INTEROP_START_SLOT, _interopStart)
+        }
+    }
+
+    /// @notice Returns the interop start timestamp.
+    /// @return interopStart_ interop start timestamp.
+    function interopStart() public view returns (uint256 interopStart_) {
+        assembly {
+            interopStart_ := sload(INTEROP_START_SLOT)
+        }
+    }
 
     /// @notice Returns the origin address of the Identifier. If not entered, reverts.
     /// @return Origin address of the Identifier.
@@ -140,7 +158,7 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
     ///         is in the destination chain's dependency set.
     /// @param _id Identifier of the message.
     function _checkIdentifier(Identifier calldata _id) internal view {
-        if (_id.timestamp > block.timestamp) revert InvalidTimestamp();
+        if (_id.timestamp > block.timestamp || _id.timestamp < interopStart()) revert InvalidTimestamp();
         if (!IDependencySet(Predeploys.L1_BLOCK_ATTRIBUTES).isInDependencySet(_id.chainId)) {
             revert InvalidChainId();
         }
