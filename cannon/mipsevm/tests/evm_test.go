@@ -103,7 +103,7 @@ func TestEVM(t *testing.T) {
 
 func TestEVM_CloneFlags(t *testing.T) {
 	//contracts, addrs := testContractsSetup(t)
-	//var tracer vm.EVMLogger
+	//var tracer *tracing.Hooks
 
 	cases := []struct {
 		name  string

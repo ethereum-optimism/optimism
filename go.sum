@@ -128,8 +128,8 @@ github.com/crate-crypto/go-kzg-4844 v1.0.0 h1:TsSgHwrkTKecKJ4kadtHi4b3xHW5dCFUDF
 github.com/crate-crypto/go-kzg-4844 v1.0.0/go.mod h1:1kMhvPgI0Ky3yIa+9lFySEBUBXkYxeOi8ZF1sYioxhc=
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
 github.com/cyberdelia/templates v0.0.0-20141128023046-ca7fffd4298c/go.mod h1:GyV+0YP4qX0UQ7r2MoYZ+AvYDp12OF5yg4q8rGnyNh4=
-github.com/danyalprout/op-geth v0.0.0-20240715021404-d0b4ec1dc999 h1:ZWJ74OGUWuLx334L1UhBvXMuzb0buYG1faQo5eHj04I=
-github.com/danyalprout/op-geth v0.0.0-20240715021404-d0b4ec1dc999/go.mod h1:drs67u+xoQGictymV0wE5fuoacXK7gXJCLSVRGPZr5s=
+github.com/danyalprout/op-geth v0.0.0-20240807015500-a6583532a8ad h1:ZxBWbeiFAUdOm6AaVaqr448IkZFPe4GlzdA53VvOC88=
+github.com/danyalprout/op-geth v0.0.0-20240807015500-a6583532a8ad/go.mod h1:Zn0xPY3I/xX3Bm51kjXz9VSd+2ai7bEslVEAFTdVcpM=
 github.com/davecgh/go-spew v0.0.0-20171005155431-ecdeabc65495/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
