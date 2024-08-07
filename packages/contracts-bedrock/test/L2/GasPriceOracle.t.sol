@@ -27,8 +27,6 @@ contract GasPriceOracle_Test is CommonTest {
     uint256 constant l1FeeScalar = 10;
     uint32 constant blobBaseFeeScalar = 15;
     uint32 constant baseFeeScalar = 20;
-    // TODO(disco): check
-    bool constant isDeposit = true;
 
     /// @dev Sets up the test suite.
     function setUp() public virtual override {
