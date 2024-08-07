@@ -23,14 +23,6 @@ lint-go-fix: ## Lints Go code with specific linters and fixes reported issues
 	golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 5m -e "errors.As" -e "errors.Is" ./... --fix
 .PHONY: lint-go-fix
 
-build-ts: submodules ## Builds TypeScript components
-	if [ -f "$$NVM_DIR/nvm.sh" ]; then \
-		. $$NVM_DIR/nvm.sh && nvm use; \
-	fi
-	pnpm install:ci
-	pnpm build
-.PHONY: build-ts
-
 ci-builder: ## Builds the CI builder Docker image
 	docker build -t ci-builder -f ops/docker/ci-builder/Dockerfile .
 .PHONY: ci-builder
@@ -207,7 +199,7 @@ test-unit: ## Runs unit tests for all components
 	make -C ./op-proposer test
 	make -C ./op-batcher test
 	make -C ./op-e2e test
-	pnpm test
+	(cd packages/contracts-bedrock && just test)
 .PHONY: test-unit
 
 # Remove the baseline-commit to generate a base reading & show all issues
