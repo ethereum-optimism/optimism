@@ -640,6 +640,63 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
         });
     }
 
+    /// @notice Tests that a proposal cannot be squeezed if the proposal has not been finalized.
+    function test_squeeze_notFinalized_reverts() public {
+        // Allocate the preimage data.
+        bytes memory data = new bytes(136);
+        for (uint256 i; i < data.length; i++) {
+            data[i] = 0xFF;
+        }
+
+        // Initialize the proposal.
+        oracle.initLPP{ value: oracle.MIN_BOND_SIZE() }(TEST_UUID, 0, uint32(data.length));
+
+        // Generate the padded input data.
+        // Since the data is 136 bytes, which is exactly one keccak block, we will add one extra
+        // keccak block of empty padding to the input data. We need to do this here because the
+        // addLeavesLPP function will normally perform this padding internally when _finalize is
+        // set to true but we're explicitly testing the case where _finalize is not true.
+        bytes memory paddedData = new bytes(136 * 2);
+        for (uint256 i; i < data.length; i++) {
+            paddedData[i] = data[i];
+        }
+
+        // Add the leaves to the tree (2 keccak blocks.)
+        LibKeccak.StateMatrix memory stateMatrix;
+        bytes32[] memory stateCommitments = _generateStateCommitments(stateMatrix, data);
+        oracle.addLeavesLPP(TEST_UUID, 0, paddedData, stateCommitments, false);
+
+        // Construct the leaf preimage data for the blocks added.
+        LibKeccak.StateMatrix memory matrix;
+        PreimageOracle.Leaf[] memory leaves = _generateLeaves(matrix, data);
+
+        // Create a proof array with 16 elements.
+        bytes32[] memory preProof = new bytes32[](16);
+        preProof[0] = _hashLeaf(leaves[1]);
+        bytes32[] memory postProof = new bytes32[](16);
+        postProof[0] = _hashLeaf(leaves[0]);
+        for (uint256 i = 1; i < preProof.length; i++) {
+            bytes32 zeroHash = oracle.zeroHashes(i);
+            preProof[i] = zeroHash;
+            postProof[i] = zeroHash;
+        }
+
+        // Warp past the challenge period.
+        vm.warp(block.timestamp + oracle.challengePeriod() + 1 seconds);
+
+        // Finalize the proposal.
+        vm.expectRevert(ActiveProposal.selector);
+        oracle.squeezeLPP({
+            _claimant: address(this),
+            _uuid: TEST_UUID,
+            _stateMatrix: _stateMatrixAtBlockIndex(data, 1),
+            _preState: leaves[0],
+            _preStateProof: preProof,
+            _postState: leaves[1],
+            _postStateProof: postProof
+        });
+    }
+
     /// @notice Tests that a proposal cannot be finalized until it has passed the challenge period.
     function test_squeeze_challengePeriodActive_reverts() public {
         // Allocate the preimage data.
@@ -795,7 +852,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
 
     /// @notice Tests that squeezing a large preimage proposal after the challenge period has passed always succeeds and
     ///         persists the correct data.
-    function testFuzz_squeeze_succeeds(uint256 _numBlocks, uint32 _partOffset) public {
+    function testFuzz_squeezeLPP_succeeds(uint256 _numBlocks, uint32 _partOffset) public {
         _numBlocks = bound(_numBlocks, 1, 2 ** 8);
         _partOffset = uint32(bound(_partOffset, 0, _numBlocks * LibKeccak.BLOCK_SIZE_BYTES + 8 - 1));
 

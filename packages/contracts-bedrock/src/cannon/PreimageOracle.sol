@@ -508,7 +508,7 @@ contract PreimageOracle is IPreimageOracle, ISemver {
             let inputPtr := add(input, 0x20)
 
             // The input length must be a multiple of 136 bytes
-            // The input lenth / 136 must be equal to the number of state commitments.
+            // The input length / 136 must be equal to the number of state commitments.
             if or(mod(inputLen, 136), iszero(eq(_stateCommitments.length, div(inputLen, 136)))) {
                 // Store "InvalidInputSize()" error selector
                 mstore(0x00, 0x7b1daf1)
@@ -676,6 +676,9 @@ contract PreimageOracle is IPreimageOracle, ISemver {
 
         // Check if the proposal was countered.
         if (metaData.countered()) revert BadProposal();
+
+        // Check if the proposal has been finalized at all.
+        if (metaData.timestamp() == 0) revert ActiveProposal();
 
         // Check if the challenge period has passed since the proposal was finalized.
         if (block.timestamp - metaData.timestamp() <= CHALLENGE_PERIOD) revert ActiveProposal();
