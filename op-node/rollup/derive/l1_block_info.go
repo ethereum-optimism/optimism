@@ -174,16 +174,16 @@ func (info *L1BlockInfo) marshalBinaryIsthmus() ([]byte, error) {
 }
 
 func (info *L1BlockInfo) marshalBinaryEcotone() ([]byte, error) {
-	out, err := marshalBinaryEcotoneOrIsthmus(info, true)
+	out, err := marshalBinaryEcotoneOrIsthmus(info, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal Ecotone l1 block info: %w", err)
 	}
 	return out, nil
 }
 
-func marshalBinaryEcotoneOrIsthmus(info *L1BlockInfo, isIsthmus ...bool) ([]byte, error) {
+func marshalBinaryEcotoneOrIsthmus(info *L1BlockInfo, isIsthmus bool) ([]byte, error) {
 	w := bytes.NewBuffer(make([]byte, 0, L1InfoEcotoneLen)) // Ecotone and Isthmus have the same length
-	if isIsthmus != nil && isIsthmus[0] {
+	if isIsthmus {
 		if err := solabi.WriteSignature(w, L1InfoFuncIsthmusBytes4); err != nil {
 			return nil, err
 		}
@@ -287,6 +287,11 @@ func isEcotoneButNotFirstBlock(rollupCfg *rollup.Config, l2BlockTime uint64) boo
 // isInteropButNotFirstBlock returns whether the specified block is subject to the Isthmus upgrade,
 // but is not the actiation block itself.
 func isInteropButNotFirstBlock(rollupCfg *rollup.Config, l2BlockTime uint64) bool {
+	// note from Proto:
+	// Since we use the pre-interop L1 tx one last time during the upgrade block,
+	// we must disallow the deposit-txs from using the CrossL2Inbox during this block.
+	// If the CrossL2Inbox does not exist yet, then it is safe,
+	// but we have to ensure that the spec and code puts any Interop upgrade-txs after the user deposits.
 	return rollupCfg.IsInterop(l2BlockTime) && !rollupCfg.IsInteropActivationBlock(l2BlockTime)
 }
 
@@ -316,7 +321,7 @@ func L1InfoDeposit(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNumber 
 	}
 	var data []byte
 
-	if isInteropButNotFirstBlock(rollupCfg, l2BlockTime) {
+	if isEcotoneButNotFirstBlock(rollupCfg, l2BlockTime) {
 		l1BlockInfo.BlobBaseFee = block.BlobBaseFee()
 		if l1BlockInfo.BlobBaseFee == nil {
 			// The L2 spec states to use the MIN_BLOB_GASPRICE from EIP-4844 if not yet active on L1.
@@ -328,16 +333,16 @@ func L1InfoDeposit(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNumber 
 		}
 		l1BlockInfo.BlobBaseFeeScalar = scalars.BlobBaseFeeScalar
 		l1BlockInfo.BaseFeeScalar = scalars.BaseFeeScalar
-		if isEcotoneButNotFirstBlock(rollupCfg, l2BlockTime) {
-			out, err := l1BlockInfo.marshalBinaryEcotone()
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal Ecotone l1 block info: %w", err)
-			}
-			data = out
-		} else {
+		if isInteropButNotFirstBlock(rollupCfg, l2BlockTime) {
 			out, err := l1BlockInfo.marshalBinaryIsthmus()
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal Isthmus l1 block info: %w", err)
+			}
+			data = out
+		} else {
+			out, err := l1BlockInfo.marshalBinaryEcotone()
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal Ecotone l1 block info: %w", err)
 			}
 			data = out
 		}
@@ -400,7 +405,7 @@ func DepositsCompleteDeposit(seqNumber uint64, block eth.BlockInfo) (*types.Depo
 		To:                  &L1BlockAddress,
 		Mint:                nil,
 		Value:               big.NewInt(0),
-		Gas:                 50_000,
+		Gas:                 50_000, // TODO: check how much gas is actually needed
 		IsSystemTransaction: false,
 		Data:                DepositsCompleteBytes4,
 	}
