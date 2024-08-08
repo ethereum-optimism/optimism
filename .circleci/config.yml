@@ -103,6 +103,13 @@ commands:
             pip3 install -r requirements.txt
             python3 main.py "<<parameters.patterns>>"
 
+  install-contracts-dependencies:
+    description: "Install the dependencies for the smart contracts"
+    steps:
+      - run:
+          command: just install
+          working_directory: packages/contracts-bedrock
+
   notify-failures-on-develop:
     description: "Notify Slack"
     parameters:
@@ -180,9 +187,7 @@ jobs:
       - run:
           name: "Check L1 geth version"
           command: ./ops/scripts/geth-version-checker.sh || (echo "geth version is wrong, update ci-builder"; false)
-      - run:
-          name: git submodules
-          command: make submodules
+      - install-contracts-dependencies
       - restore_cache:
           name: Restore PNPM Package Cache
           keys:
@@ -516,9 +521,7 @@ jobs:
     resource_class: xlarge
     steps:
       - checkout
-      - run:
-          name: git submodules
-          command: make submodules
+      - install-contracts-dependencies
       - check-changed:
           patterns: contracts-bedrock,op-node
       - run:
@@ -545,11 +548,13 @@ jobs:
     resource_class: xlarge
     steps:
       - checkout
-      - run:
-          name: git submodules
-          command: make submodules
       - check-changed:
           patterns: contracts-bedrock,op-node
+      - install-contracts-dependencies
+      - run:
+          name: print dependencies
+          command: just dep-status
+          working_directory: packages/contracts-bedrock
       - run:
           name: print forge version
           command: forge --version
@@ -561,6 +566,13 @@ jobs:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
           no_output_timeout: 15m
+      - run:
+          name: print failed test traces
+          command: just test-rerun
+          environment:
+            FOUNDRY_PROFILE: ci
+          working_directory: packages/contracts-bedrock
+          when: on_fail
 
   contracts-bedrock-checks:
     docker:
@@ -568,9 +580,7 @@ jobs:
     resource_class: xlarge
     steps:
       - checkout
-      - run:
-          name: git submodules
-          command: make submodules
+      - install-contracts-dependencies
       - restore_cache:
           name: Restore PNPM Package Cache
           keys:
@@ -1071,9 +1081,7 @@ jobs:
           key: gomod-{{ checksum "go.sum" }}
       - restore_cache:
           key: golang-build-cache
-      - run:
-          name: git submodules
-          command: make submodules
+      - install-contracts-dependencies
       - run:
           name: generate devnet allocs
           command: make devnet-allocs
@@ -1171,9 +1179,7 @@ jobs:
           name: Install pnpm
           command: |
             npm i pnpm --global
-      - run:
-          name: git submodules
-          command: make submodules
+      - install-contracts-dependencies
       - attach_workspace:
           at: "."
       - when:
@@ -1486,9 +1492,7 @@ jobs:
     resource_class: xlarge
     steps:
       - checkout
-      - run:
-          name: Checkout Submodule
-          command: make submodules
+      - install-contracts-dependencies
       - check-changed:
           no_go_deps: "true"
           patterns: contracts-bedrock/test/kontrol,contracts-bedrock/src/L1/OptimismPortal\.sol,contracts-bedrock/src/L1/OptimismPortal2\.sol,contracts-bedrock/src/L1/L1CrossDomainMessenger\.sol,contracts-bedrock/src/L1/L1ERC721Bridge\.sol,contracts-bedrock/src/L1/L1StandardBridge\.sol,contracts-bedrock/src/L1/ResourceMetering\.sol,contracts-bedrock/src/universal/StandardBridge\.sol,contracts-bedrock/src/universal/ERC721Bridge\.sol,contracts-bedrock/src/universal/CrossDomainMessenger\.sol
