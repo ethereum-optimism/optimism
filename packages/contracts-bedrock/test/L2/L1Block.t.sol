@@ -41,7 +41,7 @@ contract L1BlockBedrock_Test is L1BlockTest {
         external
     {
         vm.prank(depositor);
-        l1Block.setL1BlockValues(n, t, b, h, s, bt, fo, fs);
+        l1Block.setL1BlockValues(n, t, b, h, s, bt, fo, fs, d);
         assertEq(l1Block.number(), n);
         assertEq(l1Block.timestamp(), t);
         assertEq(l1Block.basefee(), b);
@@ -50,6 +50,7 @@ contract L1BlockBedrock_Test is L1BlockTest {
         assertEq(l1Block.batcherHash(), bt);
         assertEq(l1Block.l1FeeOverhead(), fo);
         assertEq(l1Block.l1FeeScalar(), fs);
+        assertEq(l1Block.isDeposit(), d);
     }
 
     /// @dev Tests that `setL1BlockValues` can set max values.
@@ -64,6 +65,7 @@ contract L1BlockBedrock_Test is L1BlockTest {
             _batcherHash: bytes32(type(uint256).max),
             _l1FeeOverhead: type(uint256).max,
             _l1FeeScalar: type(uint256).max
+            _isDeposit: type(bool).max
         });
     }
 
@@ -79,6 +81,7 @@ contract L1BlockBedrock_Test is L1BlockTest {
             _batcherHash: bytes32(type(uint256).max),
             _l1FeeOverhead: type(uint256).max,
             _l1FeeScalar: type(uint256).max
+            _isDeposit: type(bool).max
         });
     }
 }
