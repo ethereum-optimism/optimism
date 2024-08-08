@@ -136,7 +136,9 @@ contract L1Block is ISemver, IGasToken {
         batcherHash = _batcherHash;
         l1FeeOverhead = _l1FeeOverhead;
         l1FeeScalar = _l1FeeScalar;
-        isDeposit = _isDeposit;
+        assembly {
+            sstore(IS_DEPOSIT_SLOT, _isDeposit)
+        }
     }
 
     /// @notice Updates the `isDeposit` flag and sets the L1 block values for an Isthmus upgraded chain.
