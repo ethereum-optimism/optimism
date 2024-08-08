@@ -139,14 +139,9 @@ contract L1Block is ISemver, IGasToken {
         isDeposit = _isDeposit;
     }
 
-    // TODO natspec
-    function setL1BlockValuesIsthmus() external {
-        isDeposit = true;
-        setL1BlockValuesEcotone(); // Internally call the Ecotone function
-    }
-
     /// @notice Updates the `isDeposit` flag and sets the L1 block values for an Isthmus upgraded chain.
     ///         It updates the L1 block values through the `setL1BlockValuesEcotone` function.
+    ///         It forwards the calldata to the internally-used `setL1BlockValuesEcotone` function.
     function setL1BlockValuesIsthmus() external {
         // Set the isDeposit flag to true.
         assembly {
