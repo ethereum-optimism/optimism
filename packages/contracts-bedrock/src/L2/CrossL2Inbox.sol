@@ -17,6 +17,14 @@ interface IDependencySet {
     function isInDependencySet(uint256 _chainId) external view returns (bool);
 }
 
+/// @title IL1Block
+/// @notice Interface for L1Block with only `isDeposit()` method.
+interface IL1Block {
+    /// @notice Returns whether the call was triggered from a a deposit or not.
+    /// @return True if the current call was triggered by a deposit transaction, and false otherwise.
+    function isDeposit() external view returns (bool);
+}
+
 /// @notice Thrown when a non-written transient storage slot is attempted to be read from.
 error NotEntered();
 
@@ -59,8 +67,8 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
     bytes32 internal constant CHAINID_SLOT = 0x6e0446e8b5098b8c8193f964f1b567ec3a2bdaeba33d36acb85c1f1d3f92d313;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.3
-    string public constant version = "1.0.0-beta.3";
+    /// @custom:semver 1.1.0-beta.3
+    string public constant version = "1.1.0-beta.3";
 
     /// @notice Emitted when a cross chain message is being executed.
     /// @param msgHash Hash of message payload being executed.
@@ -118,7 +126,7 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
         reentrantAware
     {
         // We need to know if this is being called on a depositTx
-        if (L1_BLOCK.isDeposit()) revert NoExecutingDeposits();
+        if (IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isDeposit()) revert NoExecutingDeposits();
 
         if (_id.timestamp > block.timestamp) revert InvalidTimestamp();
         if (!IDependencySet(Predeploys.L1_BLOCK_ATTRIBUTES).isInDependencySet(_id.chainId)) {

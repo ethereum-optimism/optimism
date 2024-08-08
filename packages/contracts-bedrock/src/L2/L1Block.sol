@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { ISemver } from "src/universal/ISemver.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { GasPayingToken, IGasToken } from "src/libraries/GasPayingToken.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
 import "src/libraries/L1BlockErrors.sol";
 
 /// @custom:proxied
@@ -57,12 +58,14 @@ contract L1Block is ISemver, IGasToken {
     /// @notice The latest L1 blob base fee.
     uint256 public blobBaseFee;
 
-    /// @notice The isDeposit flag.
-    bool public isDeposit;
+    /// @notice Storage slot that the isDeposit is stored at.
+    ///         This is a custom slot that is not part of the standard storage layout.
+    /// keccak256(abi.encode(uint256(keccak256("l1Block.identifier.isDeposit")) - 1)) & ~bytes32(uint256(0xff))
+    uint256 internal constant IS_DEPOSIT_SLOT = 0x921bd3a089295c6e5540e8fba8195448d253efd6f2e3e495b499b627dc36a300;
 
-    /// @custom:semver 1.4.1-beta.1
+    /// @custom:semver 1.5.1-beta.1
     function version() public pure virtual returns (string memory) {
-        return "1.4.1-beta.1";
+        return "1.5.1-beta.1";
     }
 
     /// @notice Returns the gas paying token, its decimals, name and symbol.
@@ -90,9 +93,13 @@ contract L1Block is ISemver, IGasToken {
         return token != Constants.ETHER;
     }
 
-    function isDeposit() returns (bool _isDeposit) external view {
-        require(msg.sender == CROSS_L2_INBOX, "L1Block: only the CrossL2Inbox can check if it is a deposit");
-        _isDeposit = isDeposit;
+    /// @notice Returns whether the call was triggered from a a deposit or not.
+    /// @notice This function is only callable by the CrossL2Inbox contract.
+    function isDeposit() external view returns (bool isDeposit_) {
+        if (msg.sender != Predeploys.CROSS_L2_INBOX) revert NotCrossL2Inbox();
+        assembly {
+            isDeposit_ := sload(IS_DEPOSIT_SLOT)
+        }
     }
 
     /// @custom:legacy
@@ -138,6 +145,17 @@ contract L1Block is ISemver, IGasToken {
         setL1BlockValuesEcotone(); // Internally call the Ecotone function
     }
 
+    /// @notice Updates the `isDeposit` flag and sets the L1 block values for an Isthmus upgraded chain.
+    ///         It updates the L1 block values through the `setL1BlockValuesEcotone` function.
+    function setL1BlockValuesIsthmus() external {
+        // Set the isDeposit flag to true.
+        assembly {
+            sstore(IS_DEPOSIT_SLOT, 1)
+        }
+
+        setL1BlockValuesEcotone();
+    }
+
     /// @notice Updates the L1 block values for an Ecotone upgraded chain.
     /// Params are packed and passed in as raw msg.data instead of ABI to reduce calldata size.
     /// Params are expected to be in the following order:
@@ -166,6 +184,17 @@ contract L1Block is ISemver, IGasToken {
             sstore(blobBaseFee.slot, calldataload(68)) // uint256
             sstore(hash.slot, calldataload(100)) // bytes32
             sstore(batcherHash.slot, calldataload(132)) // bytes32
+        }
+    }
+
+    /// @notice Resets the isDeposit flag.
+    ///         Should only be called by the depositor account after the deposits are complete.
+    function depositsComplete() external {
+        if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
+
+        // Set the isDeposit flag to false.
+        assembly {
+            sstore(IS_DEPOSIT_SLOT, 0)
         }
     }
 

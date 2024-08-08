@@ -9,7 +9,15 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { TransientContext } from "src/libraries/TransientContext.sol";
 
 // Target contracts
-import { CrossL2Inbox, NotEntered, InvalidTimestamp, InvalidChainId, TargetCallFailed } from "src/L2/CrossL2Inbox.sol";
+import {
+    CrossL2Inbox,
+    IL1Block,
+    NotEntered,
+    NoExecutingDeposits,
+    InvalidTimestamp,
+    InvalidChainId,
+    TargetCallFailed
+} from "src/L2/CrossL2Inbox.sol";
 import { ICrossL2Inbox } from "src/L2/ICrossL2Inbox.sol";
 
 /// @title CrossL2InboxWithModifiableTransientStorage
@@ -84,6 +92,13 @@ contract CrossL2InboxTest is Test {
         // Ensure that the target call is payable if value is sent
         if (_value > 0) assumePayable(_target);
 
+        // Ensure is not a deposit transaction
+        vm.mockCall({
+            callee: Predeploys.L1_BLOCK_ATTRIBUTES,
+            data: abi.encodeWithSelector(IL1Block.isDeposit.selector),
+            returnData: abi.encode(false)
+        });
+
         // Ensure that the target call does not revert
         vm.mockCall({ callee: _target, msgValue: _value, data: _message, returnData: abi.encode(true) });
 
@@ -137,6 +152,13 @@ contract CrossL2InboxTest is Test {
         _id1.timestamp = bound(_id1.timestamp, 0, block.timestamp);
         _id2.timestamp = bound(_id2.timestamp, 0, block.timestamp);
 
+        // Ensure is not a deposit transaction
+        vm.mockCall({
+            callee: Predeploys.L1_BLOCK_ATTRIBUTES,
+            data: abi.encodeWithSelector(IL1Block.isDeposit.selector),
+            returnData: abi.encode(false)
+        });
+
         // Ensure that id1's chain ID is in the dependency set
         vm.mockCall({
             callee: Predeploys.L1_BLOCK_ATTRIBUTES,
@@ -181,6 +203,32 @@ contract CrossL2InboxTest is Test {
         assertEq(crossL2Inbox.chainId(), _id2.chainId);
     }
 
+    /// @dev Tests that the `executeMessage` function reverts if the transaction comes from a deposit.
+    function testFuzz_executeMessage_isDeposit_reverts(
+        ICrossL2Inbox.Identifier calldata _id,
+        address _target,
+        bytes calldata _message,
+        uint256 _value
+    )
+        external
+    {
+        // Ensure it is a deposit transaction
+        vm.mockCall({
+            callee: Predeploys.L1_BLOCK_ATTRIBUTES,
+            data: abi.encodeWithSelector(IL1Block.isDeposit.selector),
+            returnData: abi.encode(true)
+        });
+
+        // Ensure that the contract has enough balance to send with value
+        vm.deal(address(this), _value);
+
+        // Expect a revert with the NoExecutingDeposits selector
+        vm.expectRevert(NoExecutingDeposits.selector);
+
+        // Call the executeMessage function
+        crossL2Inbox.executeMessage{ value: _value }({ _id: _id, _target: _target, _message: _message });
+    }
+
     /// @dev Tests that the `executeMessage` function reverts when called with an identifier with an invalid timestamp.
     function testFuzz_executeMessage_invalidTimestamp_reverts(
         ICrossL2Inbox.Identifier calldata _id,
@@ -192,6 +240,13 @@ contract CrossL2InboxTest is Test {
     {
         // Ensure that the id's timestamp is invalid (greater than the current block timestamp)
         vm.assume(_id.timestamp > block.timestamp);
+
+        // Ensure is not a deposit transaction
+        vm.mockCall({
+            callee: Predeploys.L1_BLOCK_ATTRIBUTES,
+            data: abi.encodeWithSelector(IL1Block.isDeposit.selector),
+            returnData: abi.encode(false)
+        });
 
         // Ensure that the contract has enough balance to send with value
         vm.deal(address(this), _value);
@@ -215,6 +270,13 @@ contract CrossL2InboxTest is Test {
     {
         // Ensure that the id's timestamp is valid (less than or equal to the current block timestamp)
         _id.timestamp = bound(_id.timestamp, 0, block.timestamp);
+
+        // Ensure is not a deposit transaction
+        vm.mockCall({
+            callee: Predeploys.L1_BLOCK_ATTRIBUTES,
+            data: abi.encodeWithSelector(IL1Block.isDeposit.selector),
+            returnData: abi.encode(false)
+        });
 
         // Ensure that the chain ID is NOT in the dependency set
         vm.mockCall({
@@ -250,6 +312,13 @@ contract CrossL2InboxTest is Test {
 
         // Ensure that the target call reverts
         vm.mockCallRevert({ callee: _target, msgValue: _value, data: _message, revertData: abi.encode(false) });
+
+        // Ensure is not a deposit transaction
+        vm.mockCall({
+            callee: Predeploys.L1_BLOCK_ATTRIBUTES,
+            data: abi.encodeWithSelector(IL1Block.isDeposit.selector),
+            returnData: abi.encode(false)
+        });
 
         // Ensure that the chain ID is in the dependency set
         vm.mockCall({
