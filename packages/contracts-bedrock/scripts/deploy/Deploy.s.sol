@@ -386,8 +386,8 @@ contract Deploy is Deployer {
         deployL1ERC721Bridge();
         if (cfg.useFaultProofs() == false) {
             deployOptimismPortal();
-            deployL2OutputOracle();
         }
+        deployL2OutputOracle();
         // Fault proofs
         deployOptimismPortal2();
         deployDisputeGameFactory();
@@ -414,13 +414,10 @@ contract Deploy is Deployer {
         initializeL1ERC721Bridge();
         initializeOptimismMintableERC20Factory();
         initializeL1CrossDomainMessenger();
-        if (cfg.useFaultProofs() == false) {
-            initializeL2OutputOracle();
-        } else {
-            initializeDisputeGameFactory();
-            initializeDelayedWETH();
-            initializeAnchorStateRegistry();
-        }
+        initializeL2OutputOracle();
+        initializeDisputeGameFactory();
+        initializeDelayedWETH();
+        initializeAnchorStateRegistry();
     }
 
     /// @notice Add Plasma setup to the OP chain
