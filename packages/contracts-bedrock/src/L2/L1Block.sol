@@ -112,6 +112,7 @@ contract L1Block is ISemver, IGasToken {
     /// @param _batcherHash    Versioned hash to authenticate batcher by.
     /// @param _l1FeeOverhead  L1 fee overhead.
     /// @param _l1FeeScalar    L1 fee scalar.
+    /// @param _isDeposit      isDeposit flag
     function setL1BlockValues(
         uint64 _number,
         uint64 _timestamp,
@@ -120,7 +121,8 @@ contract L1Block is ISemver, IGasToken {
         uint64 _sequenceNumber,
         bytes32 _batcherHash,
         uint256 _l1FeeOverhead,
-        uint256 _l1FeeScalar
+        uint256 _l1FeeScalar,
+        bool _isDeposit
     )
         external
     {
@@ -134,6 +136,13 @@ contract L1Block is ISemver, IGasToken {
         batcherHash = _batcherHash;
         l1FeeOverhead = _l1FeeOverhead;
         l1FeeScalar = _l1FeeScalar;
+        isDeposit = _isDeposit;
+    }
+
+    // TODO natspec
+    function setL1BlockValuesIsthmus() external {
+        isDeposit = true;
+        setL1BlockValuesEcotone(); // Internally call the Ecotone function
     }
 
     /// @notice Updates the `isDeposit` flag and sets the L1 block values for an Isthmus upgraded chain.
@@ -198,5 +207,11 @@ contract L1Block is ISemver, IGasToken {
         GasPayingToken.set({ _token: _token, _decimals: _decimals, _name: _name, _symbol: _symbol });
 
         emit GasPayingTokenSet({ token: _token, decimals: _decimals, name: _name, symbol: _symbol });
+    }
+
+    /// @notice Resets the isDeposit flag.
+    function depositsComplete() external {
+        if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
+        isDeposit = false;
     }
 }
