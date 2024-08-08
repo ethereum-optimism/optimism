@@ -64,8 +64,8 @@ contract L1BlockBedrock_Test is L1BlockTest {
             _sequenceNumber: type(uint64).max,
             _batcherHash: bytes32(type(uint256).max),
             _l1FeeOverhead: type(uint256).max,
-            _l1FeeScalar: type(uint256).max
-            _isDeposit: type(bool).max
+            _l1FeeScalar: type(uint256).max,
+            _isDeposit: true
         });
     }
 
@@ -80,8 +80,8 @@ contract L1BlockBedrock_Test is L1BlockTest {
             _sequenceNumber: type(uint64).max,
             _batcherHash: bytes32(type(uint256).max),
             _l1FeeOverhead: type(uint256).max,
-            _l1FeeScalar: type(uint256).max
-            _isDeposit: type(bool).max
+            _l1FeeScalar: type(uint256).max,
+            _isDeposit: true
         });
     }
 }
