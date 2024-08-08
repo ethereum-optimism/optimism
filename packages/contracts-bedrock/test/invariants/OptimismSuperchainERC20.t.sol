@@ -13,11 +13,16 @@ import { IL2ToL2CrossDomainMessenger } from "src/L2/IL2ToL2CrossDomainMessenger.
 /// @title OptimismSuperchainERC20_User
 /// @notice Actor contract that interacts with the OptimismSuperchainERC20 contract.
 contract OptimismSuperchainERC20_User is StdUtils {
+    address public immutable receiver;
+
     /// @notice Cross domain message data.
     struct MessageData {
         bytes32 id;
         uint256 amount;
     }
+
+    uint256 public totalAmountSent;
+    uint256 public totalAmountRelayed;
 
     /// @notice Flag to indicate if the test has failed.
     bool public failed = false;
@@ -37,13 +42,14 @@ contract OptimismSuperchainERC20_User is StdUtils {
     /// @param _vm The Vm contract.
     /// @param _superchainERC20 The OptimismSuperchainERC20 contract.
     /// @param _balance The initial balance of the contract.
-    constructor(Vm _vm, OptimismSuperchainERC20 _superchainERC20, uint256 _balance) {
+    constructor(Vm _vm, OptimismSuperchainERC20 _superchainERC20, uint256 _balance, address _receiver) {
         vm = _vm;
         superchainERC20 = _superchainERC20;
 
         // Mint balance to this actor.
         vm.prank(Predeploys.L2_STANDARD_BRIDGE);
         superchainERC20.mint(address(this), _balance);
+        receiver = _receiver;
     }
 
     /// @notice Send ERC20 tokens to another chain.
@@ -60,8 +66,9 @@ contract OptimismSuperchainERC20_User is StdUtils {
         _amount = bound(_amount, 0, superchainERC20.balanceOf(address(this)));
 
         // Send the amount.
-        try superchainERC20.sendERC20(address(this), _amount, _chainId) {
+        try superchainERC20.sendERC20(receiver, _amount, _chainId) {
             // Success.
+            totalAmountSent += _amount;
         } catch {
             failed = true;
         }
@@ -99,8 +106,9 @@ contract OptimismSuperchainERC20_User is StdUtils {
         // Prank the relayERC20 function.
         // Balance will just go back to our own account.
         vm.prank(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
-        try superchainERC20.relayERC20(address(this), address(this), message.amount) {
+        try superchainERC20.relayERC20(address(this), receiver, message.amount) {
             // Success.
+            totalAmountRelayed += message.amount;
         } catch {
             failed = true;
         }
@@ -110,12 +118,12 @@ contract OptimismSuperchainERC20_User is StdUtils {
     }
 }
 
-/// @title OptimismSuperchainERC20_SendSucceeds_Invariant
+/// @title OptimismSuperchainERC20_Invariant
 /// @notice Invariant test that checks that sending OptimismSuperchainERC20 always succeeds if the actor has a
 ///         sufficient balance to do so and that the actor's balance does not increase out of nowhere.
-contract OptimismSuperchainERC20_SendSucceeds_Invariant is Test {
+contract OptimismSuperchainERC20_Invariant is Test {
     /// @notice Starting balance of the contract.
-    uint256 internal constant STARTING_BALANCE = type(uint256).max;
+    uint256 public constant STARTING_BALANCE = type(uint128).max;
 
     /// @notice The OptimismSuperchainERC20 contract implementation.
     address internal optimismSuperchainERC20Impl;
@@ -125,6 +133,9 @@ contract OptimismSuperchainERC20_SendSucceeds_Invariant is Test {
 
     /// @notice The OptimismSuperchainERC20 contract.
     OptimismSuperchainERC20 internal optimismSuperchainERC20;
+
+    /// @notice The address that will receive the tokens when relaying messages
+    address internal receiver = makeAddr("receiver");
 
     /// @notice Test setup.
     function setUp() public {
@@ -141,7 +152,7 @@ contract OptimismSuperchainERC20_SendSucceeds_Invariant is Test {
         optimismSuperchainERC20 = OptimismSuperchainERC20(_proxy);
 
         // Create a new OptimismSuperchainERC20_User actor.
-        actor = new OptimismSuperchainERC20_User(vm, optimismSuperchainERC20, STARTING_BALANCE);
+        actor = new OptimismSuperchainERC20_User(vm, optimismSuperchainERC20, STARTING_BALANCE, receiver);
 
         // Set the target contract.
         targetContract(address(actor));
@@ -152,6 +163,11 @@ contract OptimismSuperchainERC20_SendSucceeds_Invariant is Test {
         selectors[1] = actor.relayMessage.selector;
         FuzzSelector memory selector = FuzzSelector({ addr: address(actor), selectors: selectors });
         targetSelector(selector);
+
+        // Setup assertions
+        assert(optimismSuperchainERC20.balanceOf(address(actor)) == STARTING_BALANCE);
+        assert(optimismSuperchainERC20.balanceOf(address(receiver)) == 0);
+        assert(optimismSuperchainERC20.totalSupply() == STARTING_BALANCE);
     }
 
     /// @notice Sets the bytecode in the implementation address.
@@ -172,13 +188,38 @@ contract OptimismSuperchainERC20_SendSucceeds_Invariant is Test {
 
     /// @notice Invariant that checks that sending OptimismSuperchainERC20 always succeeds.
     /// @custom:invariant Calls to sendERC20 should always succeed as long as the actor has enough balance.
-    ///                   Actor's balance should also not increase out of nowhere.
+    ///                   Actor's balance should also not increase out of nowhere but instead should decrease by the
+    ///                   amount sent.
     function invariant_sendERC20_succeeds() public view {
         // Assert that the actor has not failed to send OptimismSuperchainERC20.
-        assertEq(actor.failed(), false);
+        assertTrue(!actor.failed());
 
-        // Assert that the actor's balance has not somehow increased.
-        assertLe(optimismSuperchainERC20.balanceOf(address(actor)), STARTING_BALANCE);
-        assertLe(optimismSuperchainERC20.totalSupply(), STARTING_BALANCE);
+        // Assert that the actor has sent more than or equal to the amount relayed.
+        assertTrue(actor.totalAmountSent() >= actor.totalAmountRelayed());
+
+        // Assert that the actor's balance has decreased by the amount sent.
+        assertEq(optimismSuperchainERC20.balanceOf(address(actor)), STARTING_BALANCE - actor.totalAmountSent());
+
+        // Assert that the total supply of the OptimismSuperchainERC20 contract has decreased by the amount unrelayed.
+        uint256 _unrelayedAmount = actor.totalAmountSent() - actor.totalAmountRelayed();
+        assertEq(optimismSuperchainERC20.totalSupply(), STARTING_BALANCE - _unrelayedAmount);
+    }
+
+    /// @notice Invariant that checks that relaying OptimismSuperchainERC20 always succeeds.
+    /// @custom:invariant Calls to relayERC20 should always succeeds when a message is received from another chain.
+    ///                   Actor's balance should only increase by the amount relayed.
+    function invariant_relayERC20_succeeds() public view {
+        // Assert that the actor has not failed to relay OptimismSuperchainERC20.
+        assertTrue(!actor.failed());
+
+        // Assert that the actor has sent more than or equal to the amount relayed.
+        assertTrue(actor.totalAmountSent() >= actor.totalAmountRelayed());
+
+        // Assert that the actor's balance has increased by the amount relayed.
+        assertEq(optimismSuperchainERC20.balanceOf(address(receiver)), actor.totalAmountRelayed());
+
+        // Assert that the total supply of the OptimismSuperchainERC20 contract has decreased by the amount unrelayed.
+        uint256 _unrelayedAmount = actor.totalAmountSent() - actor.totalAmountRelayed();
+        assertEq(optimismSuperchainERC20.totalSupply(), STARTING_BALANCE - _unrelayedAmount);
     }
 }
