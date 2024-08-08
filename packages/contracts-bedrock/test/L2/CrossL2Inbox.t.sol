@@ -15,7 +15,7 @@ import {
     InvalidTimestamp,
     InvalidChainId,
     TargetCallFailed,
-    OnlyDepositorAccount,
+    NotDepositor,
     InteropStartAlreadySet
 } from "src/L2/CrossL2Inbox.sol";
 import { ICrossL2Inbox } from "src/L2/ICrossL2Inbox.sol";
@@ -103,7 +103,7 @@ contract CrossL2InboxTest is Test {
     /// @dev Tests that the setInteropStart function reverts when the caller is not the DEPOSITOR_ACCOUNT.
     function test_setInteropStart_notDepositorAccount_reverts() external {
         // Expect revert with OnlyDepositorAccount selector
-        vm.expectRevert(OnlyDepositorAccount.selector);
+        vm.expectRevert(NotDepositor.selector);
 
         // Call setInteropStart function
         crossL2Inbox.setInteropStart();

@@ -18,7 +18,7 @@ interface IDependencySet {
 }
 
 /// @notice Thrown when the caller is not DEPOSITOR_ACCOUNT when calling `setInteropStart()`
-error OnlyDepositorAccount();
+error NotDepositor();
 
 /// @notice Thrown when attempting to set interop start when it's already set.
 error InteropStartAlreadySet();
@@ -80,7 +80,7 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
 
     function setInteropStart() external {
         // Check that caller is the DEPOSITOR_ACCOUNT
-        if (msg.sender != DEPOSITOR_ACCOUNT) revert OnlyDepositorAccount();
+        if (msg.sender != DEPOSITOR_ACCOUNT) revert NotDepositor();
 
         // Check that it has not been set already
         if (interopStart() != 0) revert InteropStartAlreadySet();
