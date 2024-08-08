@@ -95,7 +95,7 @@ func (o *OracleBackedL2Chain) GetHeaderByNumber(n uint64) *types.Header {
 }
 
 func (o *OracleBackedL2Chain) GetTd(hash common.Hash, number uint64) *big.Int {
-	// Difficulty is always 0 post-merge and bedrock starts post-merge so total difficulty also always 0
+	// Difficulty is always 0 post-merge and bedrock starts post-merge so total difficulty is also always 0
 	return common.Big0
 }
 
