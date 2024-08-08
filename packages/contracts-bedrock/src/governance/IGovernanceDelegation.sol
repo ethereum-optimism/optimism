@@ -63,10 +63,17 @@ interface IGovernanceDelegation {
     /// @return _delegations The delegations.
     function delegations(address _account) external view returns (Delegation[] memory _delegations);
 
-    /// @notice Returns the checkpoints for a given account.
-    /// @param _account The account to get the checkpoints for.
-    /// @return _checkpoints The checkpoints.
-    function checkpoints(address _account) external view returns (ERC20Votes.Checkpoint[] memory _checkpoints);
+    /// @notice Returns a checkpoint for a given account.
+    /// @param _account The account to get the checkpoint for.
+    /// @param _pos     The position of the checkpoint to get.
+    /// @return _checkpoint The checkpoint.
+    function checkpoints(
+        address _account,
+        uint32 _pos
+    )
+        external
+        view
+        returns (ERC20Votes.Checkpoint memory _checkpoint);
 
     /// @notice Returns the number of checkpoints for a account.
     /// @param _account The account to get the total supply checkpoints for.

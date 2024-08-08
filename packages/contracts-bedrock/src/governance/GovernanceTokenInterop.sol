@@ -14,7 +14,7 @@ contract GovernanceTokenInterop is GovernanceToken {
     /// @return         The checkpoint at the given position.
     function checkpoints(address _account, uint32 _pos) public view override(ERC20Votes) returns (Checkpoint memory) {
         if (_migrated(_account)) {
-            return IGovernanceDelegation(Predeploys.GOVERNANCE_DELEGATION).checkpoints(_account)[_pos];
+            return IGovernanceDelegation(Predeploys.GOVERNANCE_DELEGATION).checkpoints(_account, _pos);
         } else {
             return super.checkpoints(_account, _pos);
         }

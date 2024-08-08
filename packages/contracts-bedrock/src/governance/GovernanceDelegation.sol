@@ -76,11 +76,12 @@ contract GovernanceDelegation is IGovernanceDelegation {
         return _delegations[_account];
     }
 
-    /// @notice Returns the checkpoints for a given account.
-    /// @param _account The account to get the checkpoints for.
-    /// @return         The checkpoints.
-    function checkpoints(address _account) external view returns (ERC20Votes.Checkpoint[] memory) {
-        return _checkpoints[_account];
+    /// @notice Returns the checkpoint for a given account.
+    /// @param _account The account to get the checkpoint for.
+    /// @param _pos     The position to get the checkpoint for.
+    /// @return         The checkpoint.
+    function checkpoints(address _account, uint32 _pos) external view returns (ERC20Votes.Checkpoint memory) {
+        return _checkpoints[_account][_pos];
     }
 
     /// @notice Returns the number of checkpoints for a account.
@@ -412,15 +413,17 @@ contract GovernanceDelegation is IGovernanceDelegation {
     /// @param _to    The address of the destination account.
     /// @param _amount The amount of voting power to move.
     function _moveVotingPower(address _from, address _to, uint256 _amount) internal {
-        // skip from==to no-op, as the math would require special handling
-        if (_from == _to) {
+        // skip from == to or amount == 0 as no-op.
+        if (_from == _to || _amount == 0) {
             return;
         }
 
-        // update total supply checkpoints if mint/burn
+        // update total supply on mint
         if (_from == address(0)) {
             _writeCheckpoint(_totalSupplyCheckpoints, _add, _amount);
         }
+
+        // update total supply on burn
         if (_to == address(0)) {
             _writeCheckpoint(_totalSupplyCheckpoints, _subtract, _amount);
         }
