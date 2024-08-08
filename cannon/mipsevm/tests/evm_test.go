@@ -87,15 +87,15 @@ func TestEVM(t *testing.T) {
 					"mipsevm produced different state than EVM at step %d", state.Step)
 			}
 			if exitGroup {
-				require.NotEqual(t, uint32(testutil.EndAddr), goState.GetState().GetPC(), "must not reach end")
+				require.NotEqual(t, uint64(testutil.EndAddr), goState.GetState().GetPC(), "must not reach end")
 				require.True(t, goState.GetState().GetExited(), "must set exited state")
 				require.Equal(t, uint8(1), goState.GetState().GetExitCode(), "must exit with 1")
 			} else {
-				require.Equal(t, uint32(testutil.EndAddr), state.Cpu.PC, "must reach end")
+				require.Equal(t, uint64(testutil.EndAddr), state.Cpu.PC, "must reach end")
 				// inspect test result
-				done, result := state.Memory.GetMemory(testutil.BaseAddrEnd+4), state.Memory.GetMemory(testutil.BaseAddrEnd+8)
-				require.Equal(t, done, uint32(1), "must be done")
-				require.Equal(t, result, uint32(1), "must have success result")
+				done, result := uint64(state.Memory.GetMemory(testutil.BaseAddrEnd+4)), uint64(state.Memory.GetMemory(testutil.BaseAddrEnd+8))
+				require.Equal(t, done, uint64(1), "must be done")
+				require.Equal(t, result, uint64(1), "must have success result")
 			}
 		})
 	}
@@ -387,7 +387,7 @@ func TestEVMFault(t *testing.T) {
 		nextPC uint64
 		insn   uint32
 	}{
-		{"illegal instruction", 0, 0xFF_FF_FF_FF},
+		{"illegal instruction", 0, 0xbe_ef_be_ef},
 		{"branch in delay-slot", 8, 0x11_02_00_03},
 		{"jump in delay-slot", 8, 0x0c_00_00_0c},
 	}

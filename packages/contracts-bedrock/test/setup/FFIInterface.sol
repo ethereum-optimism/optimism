@@ -211,7 +211,7 @@ contract FFIInterface {
         return abi.decode(Process.run(cmds), (bytes32, bytes, bytes, bytes[]));
     }
 
-    function getCannonMemoryProof(uint32 pc, uint32 insn) external returns (bytes32, bytes memory) {
+    function getCannonMemoryProof(uint64 pc, uint64 insn) external returns (bytes32, bytes memory) {
         string[] memory cmds = new string[](5);
         cmds[0] = "scripts/go-ffi/go-ffi";
         cmds[1] = "diff";
@@ -224,10 +224,10 @@ contract FFIInterface {
     }
 
     function getCannonMemoryProof(
-        uint32 pc,
+        uint64 pc,
         uint32 insn,
-        uint32 memAddr,
-        uint32 memVal
+        uint64 memAddr,
+        uint64 memVal
     )
         external
         returns (bytes32, bytes memory)
@@ -246,10 +246,10 @@ contract FFIInterface {
     }
 
     function getCannonMemoryProofWrongLeaf(
-        uint32 pc,
+        uint64 pc,
         uint32 insn,
-        uint32 memAddr,
-        uint32 memVal
+        uint64 memAddr,
+        uint64 memVal
     )
         external
         returns (bytes32, bytes memory)

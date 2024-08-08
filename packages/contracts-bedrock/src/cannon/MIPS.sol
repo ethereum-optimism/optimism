@@ -26,32 +26,32 @@ import { MIPSMemory } from "src/cannon/libraries/MIPSMemory.sol";
 ///      MIPS linux kernel errors used by Go runtime
 contract MIPS is ISemver {
     /// @notice Stores the VM state.
-    ///         Total state size: 32 + 32 + 6 * 4 + 1 + 1 + 8 + 32 * 4 = 226 bytes
+    ///         Total state size: 32 + 32 + 6 * 8 + 1 + 1 + 8 + 32 * 8 = 378 bytes
     ///         If nextPC != pc + 4, then the VM is executing a branch/jump delay slot.
     struct State {
         bytes32 memRoot;
         bytes32 preimageKey;
-        uint32 preimageOffset;
-        uint32 pc;
-        uint32 nextPC;
-        uint32 lo;
-        uint32 hi;
-        uint32 heap;
+        uint64 preimageOffset;
+        uint64 pc;
+        uint64 nextPC;
+        uint64 lo;
+        uint64 hi;
+        uint64 heap;
         uint8 exitCode;
         bool exited;
         uint64 step;
-        uint32[32] registers;
+        uint64[32] registers;
     }
 
     /// @notice The semantic version of the MIPS contract.
-    /// @custom:semver 1.0.1
-    string public constant version = "1.1.0-beta.6";
+    /// @custom:semver 2.0.0-alpha.1
+    string public constant version = "2.0.0-alpha.1";
 
     /// @notice The preimage oracle contract.
     IPreimageOracle internal immutable ORACLE;
 
     // The offset of the start of proof calldata (_proof.offset) in the step() function
-    uint256 internal constant STEP_PROOF_OFFSET = 420;
+    uint256 internal constant STEP_PROOF_OFFSET = 548;
 
     /// @param _oracle The address of the preimage oracle contract.
     constructor(IPreimageOracle _oracle) {
@@ -85,12 +85,12 @@ contract MIPS is ISemver {
             // Copy state to free memory
             from, to := copyMem(from, to, 32) // memRoot
             from, to := copyMem(from, to, 32) // preimageKey
-            from, to := copyMem(from, to, 4) // preimageOffset
-            from, to := copyMem(from, to, 4) // pc
-            from, to := copyMem(from, to, 4) // nextPC
-            from, to := copyMem(from, to, 4) // lo
-            from, to := copyMem(from, to, 4) // hi
-            from, to := copyMem(from, to, 4) // heap
+            from, to := copyMem(from, to, 8) // preimageOffset
+            from, to := copyMem(from, to, 8) // pc
+            from, to := copyMem(from, to, 8) // nextPC
+            from, to := copyMem(from, to, 8) // lo
+            from, to := copyMem(from, to, 8) // hi
+            from, to := copyMem(from, to, 8) // heap
             let exitCode := mload(from)
             from, to := copyMem(from, to, 1) // exitCode
             let exited := mload(from)
@@ -99,7 +99,7 @@ contract MIPS is ISemver {
             from := add(from, 32) // offset to registers
 
             // Copy registers
-            for { let i := 0 } lt(i, 32) { i := add(i, 1) } { from, to := copyMem(from, to, 4) }
+            for { let i := 0 } lt(i, 32) { i := add(i, 1) } { from, to := copyMem(from, to, 8) }
 
             // Clean up end of memory
             mstore(to, 0)
@@ -140,10 +140,10 @@ contract MIPS is ISemver {
             }
 
             // Load the syscall numbers and args from the registers
-            (uint32 syscall_no, uint32 a0, uint32 a1, uint32 a2,) = sys.getSyscallArgs(state.registers);
+            (uint64 syscall_no, uint64 a0, uint64 a1, uint64 a2,) = sys.getSyscallArgs(state.registers);
 
-            uint32 v0 = 0;
-            uint32 v1 = 0;
+            uint64 v0 = 0;
+            uint64 v1 = 0;
 
             if (syscall_no == sys.SYS_MMAP) {
                 (v0, v1, state.heap) = sys.handleSysMmap(a0, a1, state.heap);
@@ -209,16 +209,12 @@ contract MIPS is ISemver {
                     // expected state mem offset check
                     revert(0, 0)
                 }
-                if iszero(eq(mload(0x40), shl(5, 48))) {
-                    // expected memory check
-                    revert(0, 0)
-                }
                 if iszero(eq(_stateData.offset, 132)) {
                     // 32*4+4=132 expected state data offset
                     revert(0, 0)
                 }
                 if iszero(eq(_proof.offset, STEP_PROOF_OFFSET)) {
-                    // 132+32+256=420 expected proof offset
+                    // 132+32+384=548 expected proof offset
                     revert(0, 0)
                 }
 
@@ -235,12 +231,12 @@ contract MIPS is ISemver {
                 let m := 0x80 // mem offset
                 c, m := putField(c, m, 32) // memRoot
                 c, m := putField(c, m, 32) // preimageKey
-                c, m := putField(c, m, 4) // preimageOffset
-                c, m := putField(c, m, 4) // pc
-                c, m := putField(c, m, 4) // nextPC
-                c, m := putField(c, m, 4) // lo
-                c, m := putField(c, m, 4) // hi
-                c, m := putField(c, m, 4) // heap
+                c, m := putField(c, m, 8) // preimageOffset
+                c, m := putField(c, m, 8) // pc
+                c, m := putField(c, m, 8) // nextPC
+                c, m := putField(c, m, 8) // lo
+                c, m := putField(c, m, 8) // hi
+                c, m := putField(c, m, 8) // heap
                 c, m := putField(c, m, 1) // exitCode
                 c, m := putField(c, m, 1) // exited
                 c, m := putField(c, m, 8) // step
@@ -248,7 +244,7 @@ contract MIPS is ISemver {
                 // Unpack register calldata into memory
                 mstore(m, add(m, 32)) // offset to registers
                 m := add(m, 32)
-                for { let i := 0 } lt(i, 32) { i := add(i, 1) } { c, m := putField(c, m, 4) }
+                for { let i := 0 } lt(i, 32) { i := add(i, 1) } { c, m := putField(c, m, 8) }
             }
 
             // Don't change state once exited
@@ -260,7 +256,7 @@ contract MIPS is ISemver {
 
             // instruction fetch
             uint256 insnProofOffset = MIPSMemory.memoryProofOffset(STEP_PROOF_OFFSET, 0);
-            (uint32 insn, uint32 opcode, uint32 fun) =
+            (uint32 insn, uint64 opcode, uint64 fun) =
                 ins.getInstructionDetails(state.pc, state.memRoot, insnProofOffset);
 
             // Handle syscall separately

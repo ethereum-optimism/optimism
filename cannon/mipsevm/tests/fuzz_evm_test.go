@@ -54,9 +54,9 @@ func FuzzStateSyscallBrk(f *testing.F) {
 
 		require.Equal(t, pc+4, state.Cpu.PC)
 		require.Equal(t, nextPC+4, state.Cpu.NextPC)
-		require.Equal(t, uint32(0), state.Cpu.LO)
-		require.Equal(t, uint32(0), state.Cpu.HI)
-		require.Equal(t, uint32(0), state.Heap)
+		require.Equal(t, uint64(0), state.Cpu.LO)
+		require.Equal(t, uint64(0), state.Cpu.HI)
+		require.Equal(t, uint64(0), state.Heap)
 		require.Equal(t, uint8(0), state.ExitCode)
 		require.Equal(t, false, state.Exited)
 		require.Equal(t, preStateRoot, state.Memory.MerkleRoot())
@@ -105,9 +105,9 @@ func FuzzStateSyscallClone(f *testing.F) {
 
 		require.Equal(t, pc+4, state.Cpu.PC)
 		require.Equal(t, nextPC+4, state.Cpu.NextPC)
-		require.Equal(t, uint32(0), state.Cpu.LO)
-		require.Equal(t, uint32(0), state.Cpu.HI)
-		require.Equal(t, uint32(0), state.Heap)
+		require.Equal(t, uint64(0), state.Cpu.LO)
+		require.Equal(t, uint64(0), state.Cpu.HI)
+		require.Equal(t, uint64(0), state.Heap)
 		require.Equal(t, uint8(0), state.ExitCode)
 		require.Equal(t, false, state.Exited)
 		require.Equal(t, preStateRoot, state.Memory.MerkleRoot())
@@ -152,16 +152,16 @@ func FuzzStateSyscallMmap(f *testing.F) {
 		require.NoError(t, err)
 		require.False(t, stepWitness.HasPreimage())
 
-		require.Equal(t, uint32(4), state.Cpu.PC)
-		require.Equal(t, uint32(8), state.Cpu.NextPC)
-		require.Equal(t, uint32(0), state.Cpu.LO)
-		require.Equal(t, uint32(0), state.Cpu.HI)
+		require.Equal(t, uint64(4), state.Cpu.PC)
+		require.Equal(t, uint64(8), state.Cpu.NextPC)
+		require.Equal(t, uint64(0), state.Cpu.LO)
+		require.Equal(t, uint64(0), state.Cpu.HI)
 		require.Equal(t, uint8(0), state.ExitCode)
 		require.Equal(t, false, state.Exited)
 		require.Equal(t, preStateRoot, state.Memory.MerkleRoot())
 		require.Equal(t, uint64(1), state.Step)
 		require.Equal(t, common.Hash{}, state.PreimageKey)
-		require.Equal(t, uint32(0), state.PreimageOffset)
+		require.Equal(t, uint64(0), state.PreimageOffset)
 		if addr == 0 {
 			expectedRegisters := preStateRegisters
 			expectedRegisters[2] = heap
@@ -170,12 +170,12 @@ func FuzzStateSyscallMmap(f *testing.F) {
 			if sizAlign&memory.PageAddrMask != 0 { // adjust size to align with page size
 				sizAlign = siz + memory.PageSize - (siz & memory.PageAddrMask)
 			}
-			require.Equal(t, uint32(heap+sizAlign), state.Heap)
+			require.Equal(t, uint64(heap+sizAlign), state.Heap)
 		} else {
 			expectedRegisters := preStateRegisters
 			expectedRegisters[2] = addr
 			require.Equal(t, expectedRegisters, state.Registers)
-			require.Equal(t, uint32(heap), state.Heap)
+			require.Equal(t, uint64(heap), state.Heap)
 		}
 
 		evm := testutil.NewMIPSEVM(contracts, addrs)
@@ -217,16 +217,16 @@ func FuzzStateSyscallExitGroup(f *testing.F) {
 
 		require.Equal(t, pc, state.Cpu.PC)
 		require.Equal(t, nextPC, state.Cpu.NextPC)
-		require.Equal(t, uint32(0), state.Cpu.LO)
-		require.Equal(t, uint32(0), state.Cpu.HI)
-		require.Equal(t, uint32(0), state.Heap)
+		require.Equal(t, uint64(0), state.Cpu.LO)
+		require.Equal(t, uint64(0), state.Cpu.HI)
+		require.Equal(t, uint64(0), state.Heap)
 		require.Equal(t, uint8(exitCode), state.ExitCode)
 		require.Equal(t, true, state.Exited)
 		require.Equal(t, preStateRoot, state.Memory.MerkleRoot())
 		require.Equal(t, preStateRegisters, state.Registers)
 		require.Equal(t, step+1, state.Step)
 		require.Equal(t, common.Hash{}, state.PreimageKey)
-		require.Equal(t, uint32(0), state.PreimageOffset)
+		require.Equal(t, uint64(0), state.PreimageOffset)
 
 		evm := testutil.NewMIPSEVM(contracts, addrs)
 		evmPost := evm.Step(t, stepWitness, step, singlethreaded.GetStateHashFn())
@@ -264,17 +264,17 @@ func FuzzStateSyscallFcntl(f *testing.F) {
 		require.NoError(t, err)
 		require.False(t, stepWitness.HasPreimage())
 
-		require.Equal(t, uint32(4), state.Cpu.PC)
-		require.Equal(t, uint32(8), state.Cpu.NextPC)
-		require.Equal(t, uint32(0), state.Cpu.LO)
-		require.Equal(t, uint32(0), state.Cpu.HI)
-		require.Equal(t, uint32(0), state.Heap)
+		require.Equal(t, uint64(4), state.Cpu.PC)
+		require.Equal(t, uint64(8), state.Cpu.NextPC)
+		require.Equal(t, uint64(0), state.Cpu.LO)
+		require.Equal(t, uint64(0), state.Cpu.HI)
+		require.Equal(t, uint64(0), state.Heap)
 		require.Equal(t, uint8(0), state.ExitCode)
 		require.Equal(t, false, state.Exited)
 		require.Equal(t, preStateRoot, state.Memory.MerkleRoot())
 		require.Equal(t, uint64(1), state.Step)
 		require.Equal(t, common.Hash{}, state.PreimageKey)
-		require.Equal(t, uint32(0), state.PreimageOffset)
+		require.Equal(t, uint64(0), state.PreimageOffset)
 		if cmd == 3 {
 			expectedRegisters := preStateRegisters
 			switch fd {
@@ -335,11 +335,11 @@ func FuzzStateHintRead(f *testing.F) {
 		require.NoError(t, err)
 		require.False(t, stepWitness.HasPreimage())
 
-		require.Equal(t, uint32(4), state.Cpu.PC)
-		require.Equal(t, uint32(8), state.Cpu.NextPC)
-		require.Equal(t, uint32(0), state.Cpu.LO)
-		require.Equal(t, uint32(0), state.Cpu.HI)
-		require.Equal(t, uint32(0), state.Heap)
+		require.Equal(t, uint64(4), state.Cpu.PC)
+		require.Equal(t, uint64(8), state.Cpu.NextPC)
+		require.Equal(t, uint64(0), state.Cpu.LO)
+		require.Equal(t, uint64(0), state.Cpu.HI)
+		require.Equal(t, uint64(0), state.Heap)
 		require.Equal(t, uint8(0), state.ExitCode)
 		require.Equal(t, false, state.Exited)
 		require.Equal(t, preStateRoot, state.Memory.MerkleRoot())
@@ -396,11 +396,11 @@ func FuzzStatePreimageRead(f *testing.F) {
 		require.NoError(t, err)
 		require.True(t, stepWitness.HasPreimage())
 
-		require.Equal(t, uint32(4), state.Cpu.PC)
-		require.Equal(t, uint32(8), state.Cpu.NextPC)
-		require.Equal(t, uint32(0), state.Cpu.LO)
-		require.Equal(t, uint32(0), state.Cpu.HI)
-		require.Equal(t, uint32(0), state.Heap)
+		require.Equal(t, uint64(4), state.Cpu.PC)
+		require.Equal(t, uint64(8), state.Cpu.NextPC)
+		require.Equal(t, uint64(0), state.Cpu.LO)
+		require.Equal(t, uint64(0), state.Cpu.HI)
+		require.Equal(t, uint64(0), state.Heap)
 		require.Equal(t, uint8(0), state.ExitCode)
 		require.Equal(t, false, state.Exited)
 		if writeLen > 0 {
@@ -519,16 +519,16 @@ func FuzzStatePreimageWrite(f *testing.F) {
 		require.NoError(t, err)
 		require.False(t, stepWitness.HasPreimage())
 
-		require.Equal(t, uint32(4), state.Cpu.PC)
-		require.Equal(t, uint32(8), state.Cpu.NextPC)
-		require.Equal(t, uint32(0), state.Cpu.LO)
-		require.Equal(t, uint32(0), state.Cpu.HI)
-		require.Equal(t, uint32(0), state.Heap)
+		require.Equal(t, uint64(4), state.Cpu.PC)
+		require.Equal(t, uint64(8), state.Cpu.NextPC)
+		require.Equal(t, uint64(0), state.Cpu.LO)
+		require.Equal(t, uint64(0), state.Cpu.HI)
+		require.Equal(t, uint64(0), state.Heap)
 		require.Equal(t, uint8(0), state.ExitCode)
 		require.Equal(t, false, state.Exited)
 		require.Equal(t, preStateRoot, state.Memory.MerkleRoot())
 		require.Equal(t, uint64(1), state.Step)
-		require.Equal(t, uint32(0), state.PreimageOffset)
+		require.Equal(t, uint64(0), state.PreimageOffset)
 		require.Equal(t, expectedRegisters, state.Registers)
 
 		evm := testutil.NewMIPSEVM(contracts, addrs)

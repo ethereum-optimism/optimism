@@ -35,7 +35,7 @@ contract MIPS_Test is CommonTest {
     }
 
     function test_step_abi_succeeds() external {
-        uint32[32] memory registers;
+        uint64[32] memory registers;
         registers[16] = 0xbfff0000;
         MIPS.State memory state = MIPS.State({
             memRoot: hex"30be14bdf94d7a93989a6263f1e116943dc052d584730cae844bf330dfddce2f",
@@ -60,7 +60,7 @@ contract MIPS_Test is CommonTest {
 
     function test_add_succeeds() external {
         uint32 insn = encodespec(17, 18, 8, 0x20); // add t0, s1, s2
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[17] = 12;
         state.registers[18] = 20;
         bytes memory encodedState = encodeState(state);
@@ -80,7 +80,7 @@ contract MIPS_Test is CommonTest {
 
     function test_addu_succeeds() external {
         uint32 insn = encodespec(17, 18, 8, 0x21); // addu t0, s1, s2
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[17] = 12;
         state.registers[18] = 20;
         bytes memory encodedState = encodeState(state);
@@ -101,7 +101,7 @@ contract MIPS_Test is CommonTest {
     function test_addi_succeeds() external {
         uint16 imm = 40;
         uint32 insn = encodeitype(0x8, 17, 8, imm); // addi t0, s1, 40
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[8] = 1; // t0
         state.registers[17] = 4; // s1
         bytes memory encodedState = encodeState(state);
@@ -121,7 +121,7 @@ contract MIPS_Test is CommonTest {
     function test_addiSign_succeeds() external {
         uint16 imm = 0xfffe; // -2
         uint32 insn = encodeitype(0x8, 17, 8, imm); // addi t0, s1, 40
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[8] = 1; // t0
         state.registers[17] = 2; // s1
         bytes memory encodedState = encodeState(state);
@@ -141,7 +141,7 @@ contract MIPS_Test is CommonTest {
     function test_addui_succeeds() external {
         uint16 imm = 40;
         uint32 insn = encodeitype(0x9, 17, 8, imm); // addui t0, s1, 40
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[8] = 1; // t0
         state.registers[17] = 4; // s1
         bytes memory encodedState = encodeState(state);
@@ -160,7 +160,7 @@ contract MIPS_Test is CommonTest {
 
     function test_sub_succeeds() external {
         uint32 insn = encodespec(17, 18, 8, 0x22); // sub t0, s1, s2
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[17] = 20;
         state.registers[18] = 12;
         bytes memory encodedState = encodeState(state);
@@ -180,7 +180,7 @@ contract MIPS_Test is CommonTest {
 
     function test_subu_succeeds() external {
         uint32 insn = encodespec(17, 18, 8, 0x23); // subu t0, s1, s2
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[17] = 20;
         state.registers[18] = 12;
         bytes memory encodedState = encodeState(state);
@@ -200,7 +200,7 @@ contract MIPS_Test is CommonTest {
 
     function test_and_succeeds() external {
         uint32 insn = encodespec(17, 18, 8, 0x24); // and t0, s1, s2
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[17] = 1200;
         state.registers[18] = 490;
         bytes memory encodedState = encodeState(state);
@@ -221,7 +221,7 @@ contract MIPS_Test is CommonTest {
     function test_andi_succeeds() external {
         uint16 imm = 40;
         uint32 insn = encodeitype(0xc, 17, 8, imm); // andi t0, s1, 40
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[8] = 1; // t0
         state.registers[17] = 4; // s1
         bytes memory encodedState = encodeState(state);
@@ -240,7 +240,7 @@ contract MIPS_Test is CommonTest {
 
     function test_or_succeeds() external {
         uint32 insn = encodespec(17, 18, 8, 0x25); // or t0, s1, s2
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[17] = 1200;
         state.registers[18] = 490;
         bytes memory encodedState = encodeState(state);
@@ -261,7 +261,7 @@ contract MIPS_Test is CommonTest {
     function test_ori_succeeds() external {
         uint16 imm = 40;
         uint32 insn = encodeitype(0xd, 17, 8, imm); // ori t0, s1, 40
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[8] = 1; // t0
         state.registers[17] = 4; // s1
         bytes memory encodedState = encodeState(state);
@@ -280,7 +280,7 @@ contract MIPS_Test is CommonTest {
 
     function test_xor_succeeds() external {
         uint32 insn = encodespec(17, 18, 8, 0x26); // xor t0, s1, s2
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[17] = 1200;
         state.registers[18] = 490;
         bytes memory encodedState = encodeState(state);
@@ -301,7 +301,7 @@ contract MIPS_Test is CommonTest {
     function test_xori_succeeds() external {
         uint16 imm = 40;
         uint32 insn = encodeitype(0xe, 17, 8, imm); // xori t0, s1, 40
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[8] = 1; // t0
         state.registers[17] = 4; // s1
         bytes memory encodedState = encodeState(state);
@@ -320,7 +320,7 @@ contract MIPS_Test is CommonTest {
 
     function test_nor_succeeds() external {
         uint32 insn = encodespec(17, 18, 8, 0x27); // nor t0, s1, s2
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[17] = 1200;
         state.registers[18] = 490;
         bytes memory encodedState = encodeState(state);
@@ -357,7 +357,7 @@ contract MIPS_Test is CommonTest {
         assertEq(postState, outputState(expect), "unexpected post state");
 
         // swap and check again
-        uint32 tmp = state.registers[17];
+        uint64 tmp = state.registers[17];
         state.registers[17] = state.registers[18];
         state.registers[18] = tmp;
         expect.registers[17] = state.registers[17];
@@ -369,7 +369,7 @@ contract MIPS_Test is CommonTest {
 
     function test_sltu_succeeds() external {
         uint32 insn = encodespec(17, 18, 8, 0x2b); // sltu t0, s1, s2
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[17] = 1200;
         state.registers[18] = 490;
         bytes memory encodedState = encodeState(state);
@@ -685,7 +685,7 @@ contract MIPS_Test is CommonTest {
     function test_movn_succeeds() external {
         // test mips mov instruction
         uint32 insn = encodespec(0x9, 0xa, 0x8, 0xb); // movn $t0, $t1, $t2
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[8] = 0xa; // t0
         state.registers[9] = 0xb; // t1
         state.registers[10] = 0x1; // t2
@@ -712,7 +712,7 @@ contract MIPS_Test is CommonTest {
     function test_movz_succeeds() external {
         // test mips mov instruction
         uint32 insn = encodespec(0x9, 0xa, 0x8, 0xa); // movz $t0, $t1, $t2
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[8] = 0xa; // t0
         state.registers[9] = 0xb; // t1
         state.registers[10] = 0x0; // t2
@@ -738,7 +738,7 @@ contract MIPS_Test is CommonTest {
 
     function test_mflo_succeeds() external {
         uint32 insn = encodespec(0x0, 0x0, 0x8, 0x12); // mflo $t0
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.lo = 0xdeadbeef;
 
         MIPS.State memory expect;
@@ -755,7 +755,7 @@ contract MIPS_Test is CommonTest {
 
     function test_mfhi_succeeds() external {
         uint32 insn = encodespec(0x0, 0x0, 0x8, 0x10); // mfhi $t0
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.hi = 0xdeadbeef;
 
         MIPS.State memory expect;
@@ -772,7 +772,7 @@ contract MIPS_Test is CommonTest {
 
     function test_mthi_succeeds() external {
         uint32 insn = encodespec(0x8, 0x0, 0x0, 0x11); // mthi $t0
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[8] = 0xdeadbeef; // t0
 
         MIPS.State memory expect;
@@ -789,7 +789,7 @@ contract MIPS_Test is CommonTest {
 
     function test_mtlo_succeeds() external {
         uint32 insn = encodespec(0x8, 0x0, 0x0, 0x13); // mtlo $t0
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[8] = 0xdeadbeef; // t0
 
         MIPS.State memory expect;
@@ -806,7 +806,7 @@ contract MIPS_Test is CommonTest {
 
     function test_mul_succeeds() external {
         uint32 insn = encodespec2(0x9, 0xa, 0x8, 0x2); // mul t0, t1, t2
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[9] = 5; // t1
         state.registers[10] = 2; // t2
 
@@ -825,7 +825,7 @@ contract MIPS_Test is CommonTest {
 
     function test_mult_succeeds() external {
         uint32 insn = encodespec(0x9, 0xa, 0x0, 0x18); // mult t1, t2
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[9] = 0x0F_FF_00_00; // t1
         state.registers[10] = 100; // t2
 
@@ -846,7 +846,7 @@ contract MIPS_Test is CommonTest {
 
     function test_multu_succeeds() external {
         uint32 insn = encodespec(0x9, 0xa, 0x0, 0x19); // multu t1, t2
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[9] = 0x0F_FF_00_00; // t1
         state.registers[10] = 100; // t2
 
@@ -867,7 +867,7 @@ contract MIPS_Test is CommonTest {
 
     function test_div_succeeds() external {
         uint32 insn = encodespec(0x9, 0xa, 0x0, 0x1a); // div t1, t2
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[9] = 5; // t1
         state.registers[10] = 2; // t2
 
@@ -888,7 +888,7 @@ contract MIPS_Test is CommonTest {
 
     function test_divu_succeeds() external {
         uint32 insn = encodespec(0x9, 0xa, 0x0, 0x1b); // divu t1, t2
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[9] = 5; // t1
         state.registers[10] = 2; // t2
 
@@ -909,7 +909,7 @@ contract MIPS_Test is CommonTest {
 
     function test_div_byZero_fails() external {
         uint32 insn = encodespec(0x9, 0xa, 0x0, 0x1a); // div t1, t2
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[9] = 5; // t1
         state.registers[10] = 0; // t2
 
@@ -919,7 +919,7 @@ contract MIPS_Test is CommonTest {
 
     function test_divu_byZero_fails() external {
         uint32 insn = encodespec(0x9, 0xa, 0x0, 0x1b); // divu t1, t2
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[9] = 5; // t1
         state.registers[10] = 0; // t2
 
@@ -930,7 +930,7 @@ contract MIPS_Test is CommonTest {
     function test_beq_succeeds() external {
         uint16 boff = 0x10;
         uint32 insn = encodeitype(0x4, 0x9, 0x8, boff); // beq $t0, $t1, 16
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[8] = 0xdeadbeef; // t0
         state.registers[9] = 0xdeadbeef; // t1
 
@@ -956,7 +956,7 @@ contract MIPS_Test is CommonTest {
     function test_bne_succeeds() external {
         uint16 boff = 0x10;
         uint32 insn = encodeitype(0x5, 0x9, 0x8, boff); // bne $t0, $t1, 16
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[8] = 0xdeadbeef; // t0
         state.registers[9] = 0xaa; // t1
 
@@ -975,7 +975,7 @@ contract MIPS_Test is CommonTest {
     function test_blez_succeeds() external {
         uint16 boff = 0x10;
         uint32 insn = encodeitype(0x6, 0x8, 0x0, boff); // blez $t0, 16
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[8] = 0; // t0
 
         MIPS.State memory expect;
@@ -992,7 +992,7 @@ contract MIPS_Test is CommonTest {
     function test_bgtz_succeeds() external {
         uint16 boff = 0xa0;
         uint32 insn = encodeitype(0x7, 0x8, 0x0, boff); // bgtz $t0, 0xa0
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[8] = 1; // t0
 
         MIPS.State memory expect;
@@ -1010,7 +1010,7 @@ contract MIPS_Test is CommonTest {
     function test_bltz_succeeds() external {
         uint16 boff = 0x10;
         uint32 insn = encodeitype(0x1, 0x8, 0x0, boff); // bltz $t0, 16
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x0, 0);
         state.registers[8] = 0xF0_00_00_00; // t0
 
         MIPS.State memory expect;
@@ -1027,7 +1027,7 @@ contract MIPS_Test is CommonTest {
     function test_bgez_succeeds() external {
         uint16 boff = 0x10;
         uint32 insn = encodeitype(0x1, 0x8, 0x1, boff); // bgez $t0, 16
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[8] = 0x00_00_00_01; // t0
 
         MIPS.State memory expect;
@@ -1044,7 +1044,7 @@ contract MIPS_Test is CommonTest {
     function test_jump_succeeds() external {
         uint32 label = 0x02_00_00_02; // set the 26th bit to assert no sign extension
         uint32 insn = uint32(0x08_00_00_00) | label; // j label
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
@@ -1060,7 +1060,7 @@ contract MIPS_Test is CommonTest {
         uint32 pcRegion1 = 0x10000000;
         uint32 label = 0x2;
         uint32 insn = uint32(0x08_00_00_00) | label; // j label
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(pcRegion1, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(pcRegion1, insn, 0x8, 0);
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
@@ -1076,7 +1076,7 @@ contract MIPS_Test is CommonTest {
     function test_jal_succeeds() external {
         uint32 label = 0x02_00_00_02; // set the 26th bit to assert no sign extension
         uint32 insn = uint32(0x0c_00_00_00) | label; // jal label
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
@@ -1093,7 +1093,7 @@ contract MIPS_Test is CommonTest {
         uint32 pcRegion1 = 0x10000000;
         uint32 label = 0x2;
         uint32 insn = uint32(0x0c_00_00_00) | label; // jal label
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(pcRegion1, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(pcRegion1, insn, 0x8, 0);
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
@@ -1109,7 +1109,7 @@ contract MIPS_Test is CommonTest {
     function test_jr_succeeds() external {
         uint16 tgt = 0x34;
         uint32 insn = encodespec(0x8, 0, 0, 0x8); // jr t0
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[8] = tgt;
 
         MIPS.State memory expect;
@@ -1126,7 +1126,7 @@ contract MIPS_Test is CommonTest {
     function test_jalr_succeeds() external {
         uint16 tgt = 0x34;
         uint32 insn = encodespec(0x8, 0, 0x9, 0x9); // jalr t1, t0
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[8] = tgt; // t0
 
         MIPS.State memory expect;
@@ -1144,7 +1144,7 @@ contract MIPS_Test is CommonTest {
     function test_sll_succeeds() external {
         uint8 shiftamt = 4;
         uint32 insn = encodespec(0x0, 0x9, 0x8, uint16(shiftamt) << 6); // sll t0, t1, 3
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[9] = 0x20; // t1
 
         MIPS.State memory expect;
@@ -1163,7 +1163,7 @@ contract MIPS_Test is CommonTest {
     function test_srl_succeeds() external {
         uint8 shiftamt = 4;
         uint32 insn = encodespec(0x0, 0x9, 0x8, uint16(shiftamt) << 6 | 2); // srl t0, t1, 3
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[9] = 0x20; // t1
 
         MIPS.State memory expect;
@@ -1182,7 +1182,7 @@ contract MIPS_Test is CommonTest {
     function test_sra_succeeds() external {
         uint8 shiftamt = 4;
         uint32 insn = encodespec(0x0, 0x9, 0x8, uint16(shiftamt) << 6 | 3); // sra t0, t1, 3
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[9] = 0x80_00_00_20; // t1
 
         MIPS.State memory expect;
@@ -1200,7 +1200,7 @@ contract MIPS_Test is CommonTest {
 
     function test_sllv_succeeds() external {
         uint32 insn = encodespec(0xa, 0x9, 0x8, 4); // sllv t0, t1, t2
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[9] = 0x20; // t1
         state.registers[10] = 4; // t2
 
@@ -1220,7 +1220,7 @@ contract MIPS_Test is CommonTest {
 
     function test_srlv_succeeds() external {
         uint32 insn = encodespec(0xa, 0x9, 0x8, 6); // srlv t0, t1, t2
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[9] = 0x20_00; // t1
         state.registers[10] = 4; // t2
 
@@ -1240,7 +1240,7 @@ contract MIPS_Test is CommonTest {
 
     function test_srav_succeeds() external {
         uint32 insn = encodespec(0xa, 0x9, 0x8, 7); // srav t0, t1, t2
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[9] = 0x20_00; // t1
         state.registers[10] = 4; // t2
 
@@ -1260,7 +1260,7 @@ contract MIPS_Test is CommonTest {
 
     function test_lui_succeeds() external {
         uint32 insn = encodeitype(0xf, 0x0, 0x8, 0x4); // lui $t0, 0x04
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         bytes memory encodedState = encodeState(state);
 
         MIPS.State memory expect;
@@ -1276,7 +1276,7 @@ contract MIPS_Test is CommonTest {
 
     function test_clo_succeeds() external {
         uint32 insn = encodespec2(0x9, 0x0, 0x8, 0x21); // clo t0, t1
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[9] = 0xFF_00_00_00; // t1
 
         MIPS.State memory expect;
@@ -1293,7 +1293,7 @@ contract MIPS_Test is CommonTest {
 
     function test_clz_succeeds() external {
         uint32 insn = encodespec2(0x9, 0x0, 0x8, 0x20); // clz t0, t1
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[9] = 0x00_00_F0_00; // t1
 
         MIPS.State memory expect;
@@ -1309,14 +1309,14 @@ contract MIPS_Test is CommonTest {
     }
 
     function test_preimage_read_succeeds() external {
-        uint32 pc = 0x0;
+        uint64 pc = 0x0;
         uint32 insn = 0x0000000c; // syscall
-        uint32 a1 = 0x4;
-        uint32 a1_val = 0x0000abba;
+        uint64 a1 = 0x8;
+        uint64 a1_val = 0x0000abba;
         (bytes32 memRoot, bytes memory proof) = ffi.getCannonMemoryProof(pc, insn, a1, a1_val);
 
-        uint32[32] memory registers;
-        registers[2] = 4003; // read syscall
+        uint64[32] memory registers;
+        registers[2] = 5000; // read syscall
         registers[4] = 5; // fd
         registers[5] = a1; // addr
         registers[6] = 4; // count
@@ -1364,8 +1364,8 @@ contract MIPS_Test is CommonTest {
         uint32 a1_val = 0x0000abba;
         (bytes32 memRoot, bytes memory proof) = ffi.getCannonMemoryProof(pc, insn, a1, a1_val);
 
-        uint32[32] memory registers;
-        registers[2] = 4004; // write syscall
+        uint64[32] memory registers;
+        registers[2] = 5001; // write syscall
         registers[4] = 6; // fd
         registers[5] = a1; // addr
         registers[6] = 4; // count
@@ -1406,7 +1406,7 @@ contract MIPS_Test is CommonTest {
         MIPS.State memory state;
         state.memRoot = memRoot;
         state.nextPC = 4;
-        state.registers[2] = 4090; // mmap syscall
+        state.registers[2] = 5009; // mmap syscall
         state.registers[4] = 0x0; // a0
         state.registers[5] = 4095; // a1
         bytes memory encodedState = encodeState(state);
@@ -1428,8 +1428,8 @@ contract MIPS_Test is CommonTest {
 
     function test_brk_succeeds() external {
         uint32 insn = 0x0000000c; // syscall
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
-        state.registers[2] = 4045; // brk syscall
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
+        state.registers[2] = 5012; // brk syscall
         state.registers[4] = 0xdead;
         bytes memory encodedState = encodeState(state);
 
@@ -1447,8 +1447,8 @@ contract MIPS_Test is CommonTest {
 
     function test_clone_succeeds() external {
         uint32 insn = 0x0000000c; // syscall
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
-        state.registers[2] = 4120; // clone syscall
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
+        state.registers[2] = 5055; // clone syscall
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
@@ -1464,8 +1464,8 @@ contract MIPS_Test is CommonTest {
 
     function test_exit_succeeds() external {
         uint32 insn = 0x0000000c; // syscall
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
-        state.registers[2] = 4246; // exit_group syscall
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
+        state.registers[2] = 5205; // exit_group syscall
         state.registers[4] = 0x5; // a0
 
         MIPS.State memory expect;
@@ -1484,8 +1484,8 @@ contract MIPS_Test is CommonTest {
 
     function test_fcntl_succeeds() external {
         uint32 insn = 0x0000000c; // syscall
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
-        state.registers[2] = 4055; // fcntl syscall
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
+        state.registers[2] = 5070; // fcntl syscall
         state.registers[4] = 0x0; // a0
         state.registers[5] = 0x3; // a1
 
@@ -1510,7 +1510,7 @@ contract MIPS_Test is CommonTest {
 
     function test_prestate_exited_succeeds() external {
         uint32 insn = 0x0000000c; // syscall
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.exited = true;
 
         bytes memory enc = encodeState(state);
@@ -1534,7 +1534,7 @@ contract MIPS_Test is CommonTest {
 
     function test_invalid_root_fails() external {
         uint32 insn = 0x0000000c; // syscall
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[2] = 4246; // exit_group syscall
         state.registers[4] = 0x5; // a0
 
@@ -1555,7 +1555,7 @@ contract MIPS_Test is CommonTest {
         uint32 pc = 0;
         MIPS.State memory state;
         bytes memory proof;
-        (state.memRoot, proof) = ffi.getCannonMemoryProofWrongLeaf(pc, insn, 0x4, 0);
+        (state.memRoot, proof) = ffi.getCannonMemoryProofWrongLeaf(pc, insn, 0x8, 0);
         state.pc = pc;
         state.nextPC = pc + 4;
         state.registers[2] = 4246; // exit_group syscall
@@ -1568,7 +1568,7 @@ contract MIPS_Test is CommonTest {
     function test_jump_inDelaySlot_fails() external {
         uint16 label = 0x2;
         uint32 insn = uint32(0x08_00_00_00) | label; // j label
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.nextPC = 0xa;
 
         vm.expectRevert("jump in delay slot");
@@ -1578,7 +1578,7 @@ contract MIPS_Test is CommonTest {
     function test_branch_inDelaySlot_fails() external {
         uint16 boff = 0x10;
         uint32 insn = encodeitype(0x4, 0x9, 0x8, boff); // beq $t0, $t1, 16
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x8, 0);
         state.registers[8] = 0xdeadbeef; // t0
         state.registers[9] = 0xdeadbeef; // t1
         state.nextPC = 0xa;
@@ -1629,16 +1629,16 @@ contract MIPS_Test is CommonTest {
         bytes memory enc = encodeState(state);
         VMStatus status = vmStatus(state);
         assembly {
-            out_ := keccak256(add(enc, 0x20), 226)
+            out_ := keccak256(add(enc, 0x20), 378)
             out_ := or(and(not(shl(248, 0xFF)), out_), shl(248, status))
         }
     }
 
     function constructMIPSState(
-        uint32 pc,
+        uint64 pc,
         uint32 insn,
-        uint32 addr,
-        uint32 val
+        uint64 addr,
+        uint64 val
     )
         internal
         returns (MIPS.State memory state, bytes memory proof)

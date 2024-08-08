@@ -14,45 +14,45 @@ import { VMStatuses } from "src/dispute/lib/Types.sol";
 ///         It differs from MIPS.sol in that it supports multi-threading.
 contract MIPS2 is ISemver {
     /// @notice The thread context.
-    ///         Total state size: 4 + 1 + 1 + 4 + 4 + 8 + 4 + 4 + 4 + 4 + 32 * 4 = 166 bytes
+    ///         Total state size: 8 + 1 + 1 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 32 * 8 = 322 bytes
     struct ThreadState {
         // metadata
-        uint32 threadID;
+        uint64 threadID;
         uint8 exitCode;
         bool exited;
         // state
-        uint32 futexAddr;
-        uint32 futexVal;
+        uint64 futexAddr;
+        uint64 futexVal;
         uint64 futexTimeoutStep;
-        uint32 pc;
-        uint32 nextPC;
-        uint32 lo;
-        uint32 hi;
-        uint32[32] registers;
+        uint64 pc;
+        uint64 nextPC;
+        uint64 lo;
+        uint64 hi;
+        uint64[32] registers;
     }
 
     /// @notice Stores the VM state.
-    ///         Total state size: 32 + 32 + 4 + 4 + 1 + 1 + 8 + 8 + 4 + 1 + 32 + 32 + 4 = 163 bytes
+    ///         Total state size: 32 + 32 + 8 + 8 + 1 + 1 + 8 + 8 + 8 + 1 + 32 + 32 + 8 = 179 bytes
     ///         If nextPC != pc + 4, then the VM is executing a branch/jump delay slot.
     struct State {
         bytes32 memRoot;
         bytes32 preimageKey;
-        uint32 preimageOffset;
-        uint32 heap;
+        uint64 preimageOffset;
+        uint64 heap;
         uint8 exitCode;
         bool exited;
         uint64 step;
         uint64 stepsSinceLastContextSwitch;
-        uint32 wakeup;
+        uint64 wakeup;
         bool traverseRight;
         bytes32 leftThreadStack;
         bytes32 rightThreadStack;
-        uint32 nextThreadID;
+        uint64 nextThreadID;
     }
 
     /// @notice The semantic version of the MIPS2 contract.
-    /// @custom:semver 0.0.2-beta
-    string public constant version = "1.0.0-beta.3";
+    /// @custom:semver 2.0.0-alpha.1
+    string public constant version = "2.0.0-alpha.1";
 
     /// @notice The preimage oracle contract.
     IPreimageOracle internal immutable ORACLE;
@@ -127,17 +127,17 @@ contract MIPS2 is ISemver {
                 let m := STATE_MEM_OFFSET // mem offset
                 c, m := putField(c, m, 32) // memRoot
                 c, m := putField(c, m, 32) // preimageKey
-                c, m := putField(c, m, 4) // preimageOffset
-                c, m := putField(c, m, 4) // heap
+                c, m := putField(c, m, 8) // preimageOffset
+                c, m := putField(c, m, 8) // heap
                 c, m := putField(c, m, 1) // exitCode
                 c, m := putField(c, m, 1) // exited
                 c, m := putField(c, m, 8) // step
                 c, m := putField(c, m, 8) // stepsSinceLastContextSwitch
-                c, m := putField(c, m, 4) // wakeup
+                c, m := putField(c, m, 8) // wakeup
                 c, m := putField(c, m, 1) // traverseRight
                 c, m := putField(c, m, 32) // leftThreadStack
                 c, m := putField(c, m, 32) // rightThreadStack
-                c, m := putField(c, m, 4) // nextThreadID
+                c, m := putField(c, m, 8) // nextThreadID
             }
 
             if (state.exited) {
@@ -188,7 +188,9 @@ contract MIPS2 is ISemver {
                     return onWaitComplete(state, thread, true);
                 } else {
                     uint32 mem = MIPSMemory.readMem(
-                        state.memRoot, thread.futexAddr & 0xFFffFFfc, MIPSMemory.memoryProofOffset(MEM_PROOF_OFFSET, 1)
+                        state.memRoot,
+                        thread.futexAddr & 0xFFFFFFFFFFFFFFF8,
+                        MIPSMemory.memoryProofOffset(MEM_PROOF_OFFSET, 1)
                     );
                     if (thread.futexVal == mem) {
                         // still got expected value, continue sleeping, try next thread.
@@ -210,7 +212,7 @@ contract MIPS2 is ISemver {
 
             // instruction fetch
             uint256 insnProofOffset = MIPSMemory.memoryProofOffset(MEM_PROOF_OFFSET, 0);
-            (uint32 insn, uint32 opcode, uint32 fun) =
+            (uint32 insn, uint64 opcode, uint64 fun) =
                 ins.getInstructionDetails(thread.pc, state.memRoot, insnProofOffset);
 
             // Handle syscall separately
@@ -247,10 +249,10 @@ contract MIPS2 is ISemver {
             }
 
             // Load the syscall numbers and args from the registers
-            (uint32 syscall_no, uint32 a0, uint32 a1, uint32 a2, uint32 a3) = sys.getSyscallArgs(thread.registers);
+            (uint64 syscall_no, uint64 a0, uint64 a1, uint64 a2, uint64 a3) = sys.getSyscallArgs(thread.registers);
             // Syscalls that are unimplemented but known return with v0=0 and v1=0
-            uint32 v0 = 0;
-            uint32 v1 = 0;
+            uint64 v0 = 0;
+            uint64 v1 = 0;
 
             if (syscall_no == sys.SYS_MMAP) {
                 (v0, v1, state.heap) = sys.handleSysMmap(a0, a1, state.heap);
@@ -339,8 +341,8 @@ contract MIPS2 is ISemver {
                 // args: a0 = addr, a1 = op, a2 = val, a3 = timeout
                 if (a1 == sys.FUTEX_WAIT_PRIVATE) {
                     thread.futexAddr = a0;
-                    uint32 mem = MIPSMemory.readMem(
-                        state.memRoot, a0 & 0xFFffFFfc, MIPSMemory.memoryProofOffset(MEM_PROOF_OFFSET, 1)
+                    uint64 mem = MIPSMemory.readMemDoubleword(
+                        state.memRoot, a0 & 0xFFFFFFFFFFFFFFF8, MIPSMemory.memoryProofOffset(MEM_PROOF_OFFSET, 1)
                     );
                     if (mem != a2) {
                         v0 = sys.SYS_ERROR_SIGNAL;
@@ -479,19 +481,19 @@ contract MIPS2 is ISemver {
             // Copy state to free memory
             from, to := copyMem(from, to, 32) // memRoot
             from, to := copyMem(from, to, 32) // preimageKey
-            from, to := copyMem(from, to, 4) // preimageOffset
-            from, to := copyMem(from, to, 4) // heap
+            from, to := copyMem(from, to, 8) // preimageOffset
+            from, to := copyMem(from, to, 8) // heap
             let exitCode := mload(from)
             from, to := copyMem(from, to, 1) // exitCode
             let exited := mload(from)
             from, to := copyMem(from, to, 1) // exited
             from, to := copyMem(from, to, 8) // step
             from, to := copyMem(from, to, 8) // stepsSinceLastContextSwitch
-            from, to := copyMem(from, to, 4) // wakeup
+            from, to := copyMem(from, to, 8) // wakeup
             from, to := copyMem(from, to, 1) // traverseRight
             from, to := copyMem(from, to, 32) // leftThreadStack
             from, to := copyMem(from, to, 32) // rightThreadStack
-            from, to := copyMem(from, to, 4) // nextThreadID
+            from, to := copyMem(from, to, 8) // nextThreadID
 
             // Clean up end of memory
             mstore(to, 0)
@@ -551,9 +553,9 @@ contract MIPS2 is ISemver {
         _thread.futexTimeoutStep = 0;
 
         // Complete the FUTEX_WAIT syscall
-        uint32 v0 = _isTimedOut ? sys.SYS_ERROR_SIGNAL : 0;
+        uint64 v0 = _isTimedOut ? sys.SYS_ERROR_SIGNAL : 0;
         // set errno
-        uint32 v1 = _isTimedOut ? sys.ETIMEDOUT : 0;
+        uint64 v1 = _isTimedOut ? sys.ETIMEDOUT : 0;
         st.CpuScalars memory cpu = getCpuScalars(_thread);
         sys.handleSyscallUpdates(cpu, _thread.registers, v0, v1);
         setStateCpuScalars(_thread, cpu);
@@ -645,19 +647,19 @@ contract MIPS2 is ISemver {
             let to := start
 
             // Copy state to free memory
-            from, to := copyMem(from, to, 4) // threadID
+            from, to := copyMem(from, to, 8) // threadID
             from, to := copyMem(from, to, 1) // exitCode
             from, to := copyMem(from, to, 1) // exited
-            from, to := copyMem(from, to, 4) // futexAddr
-            from, to := copyMem(from, to, 4) // futexVal
+            from, to := copyMem(from, to, 8) // futexAddr
+            from, to := copyMem(from, to, 8) // futexVal
             from, to := copyMem(from, to, 8) // futexTimeoutStep
-            from, to := copyMem(from, to, 4) // pc
-            from, to := copyMem(from, to, 4) // nextPC
-            from, to := copyMem(from, to, 4) // lo
-            from, to := copyMem(from, to, 4) // hi
+            from, to := copyMem(from, to, 8) // pc
+            from, to := copyMem(from, to, 8) // nextPC
+            from, to := copyMem(from, to, 8) // lo
+            from, to := copyMem(from, to, 8) // hi
             from := mload(from) // offset to registers
             // Copy registers
-            for { let i := 0 } lt(i, 32) { i := add(i, 1) } { from, to := copyMem(from, to, 4) }
+            for { let i := 0 } lt(i, 32) { i := add(i, 1) } { from, to := copyMem(from, to, 8) }
 
             // Clean up end of memory
             mstore(to, 0)
@@ -706,19 +708,19 @@ contract MIPS2 is ISemver {
 
                 let c := THREAD_PROOF_OFFSET
                 let m := _thread
-                c, m := putField(c, m, 4) // threadID
+                c, m := putField(c, m, 8) // threadID
                 c, m := putField(c, m, 1) // exitCode
                 c, m := putField(c, m, 1) // exited
-                c, m := putField(c, m, 4) // futexAddr
-                c, m := putField(c, m, 4) // futexVal
+                c, m := putField(c, m, 8) // futexAddr
+                c, m := putField(c, m, 8) // futexVal
                 c, m := putField(c, m, 8) // futexTimeoutStep
-                c, m := putField(c, m, 4) // pc
-                c, m := putField(c, m, 4) // nextPC
-                c, m := putField(c, m, 4) // lo
-                c, m := putField(c, m, 4) // hi
+                c, m := putField(c, m, 8) // pc
+                c, m := putField(c, m, 8) // nextPC
+                c, m := putField(c, m, 8) // lo
+                c, m := putField(c, m, 8) // hi
                 m := mload(m) // offset to registers
                 // Unpack register calldata into memory
-                for { let i := 0 } lt(i, 32) { i := add(i, 1) } { c, m := putField(c, m, 4) }
+                for { let i := 0 } lt(i, 32) { i := add(i, 1) } { c, m := putField(c, m, 8) }
             }
         }
     }

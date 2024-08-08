@@ -364,22 +364,22 @@ func DiffTestUtils() {
 		if len(args) != 3 && len(args) != 5 {
 			panic("Error: cannonMemoryProofWithProof requires 2 or 4 arguments")
 		}
-		pc, err := strconv.ParseUint(args[1], 10, 32)
+		pc, err := strconv.ParseUint(args[1], 10, 64)
 		checkErr(err, "Error decoding addr")
 		insn, err := strconv.ParseUint(args[2], 10, 32)
 		checkErr(err, "Error decoding insn")
-		mem.SetMemory(uint32(pc), uint32(insn))
+		mem.SetMemory(uint64(pc), uint32(insn))
 
-		var insnProof, memProof [896]byte
+		var insnProof, memProof [1920]byte
 		if len(args) == 5 {
-			memAddr, err := strconv.ParseUint(args[3], 10, 32)
+			memAddr, err := strconv.ParseUint(args[3], 10, 64)
 			checkErr(err, "Error decoding memAddr")
-			memValue, err := strconv.ParseUint(args[4], 10, 32)
+			memValue, err := strconv.ParseUint(args[4], 10, 64)
 			checkErr(err, "Error decoding memValue")
-			mem.SetMemory(uint32(memAddr), uint32(memValue))
-			memProof = mem.MerkleProof(uint32(memAddr))
+			mem.SetDoubleWord(uint64(memAddr), uint64(memValue))
+			memProof = mem.MerkleProof(uint64(memAddr))
 		}
-		insnProof = mem.MerkleProof(uint32(pc))
+		insnProof = mem.MerkleProof(uint64(pc))
 
 		output := struct {
 			MemRoot common.Hash
@@ -397,22 +397,22 @@ func DiffTestUtils() {
 		if len(args) != 5 {
 			panic("Error: cannonMemoryProofWrongLeaf requires 4 arguments")
 		}
-		pc, err := strconv.ParseUint(args[1], 10, 32)
+		pc, err := strconv.ParseUint(args[1], 10, 64)
 		checkErr(err, "Error decoding addr")
 		insn, err := strconv.ParseUint(args[2], 10, 32)
 		checkErr(err, "Error decoding insn")
-		mem.SetMemory(uint32(pc), uint32(insn))
+		mem.SetMemory(uint64(pc), uint32(insn))
 
-		var insnProof, memProof [896]byte
-		memAddr, err := strconv.ParseUint(args[3], 10, 32)
+		var insnProof, memProof [1920]byte
+		memAddr, err := strconv.ParseUint(args[3], 10, 64)
 		checkErr(err, "Error decoding memAddr")
-		memValue, err := strconv.ParseUint(args[4], 10, 32)
+		memValue, err := strconv.ParseUint(args[4], 10, 64)
 		checkErr(err, "Error decoding memValue")
-		mem.SetMemory(uint32(memAddr), uint32(memValue))
+		mem.SetDoubleWord(uint64(memAddr), uint64(memValue))
 
 		// Compute a valid proof for the root, but for the wrong leaves.
-		memProof = mem.MerkleProof(uint32(memAddr + 32))
-		insnProof = mem.MerkleProof(uint32(pc + 32))
+		memProof = mem.MerkleProof(uint64(memAddr + 32))
+		insnProof = mem.MerkleProof(uint64(pc + 32))
 
 		output := struct {
 			MemRoot common.Hash
