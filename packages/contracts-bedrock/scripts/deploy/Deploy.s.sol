@@ -382,16 +382,18 @@ contract Deploy is Deployer {
         deploySystemConfig();
         deployL1StandardBridge();
         deployL1ERC721Bridge();
-        deployOptimismPortal();
-        deployL2OutputOracle();
-
-        // Fault proofs
-        deployOptimismPortal2();
-        deployDisputeGameFactory();
-        deployDelayedWETH();
-        deployPreimageOracle();
-        deployMips();
-        deployAnchorStateRegistry();
+        if (cfg.useFaultProofs() == false) {
+            deployOptimismPortal();
+            deployL2OutputOracle();
+        } else {
+            // Fault proofs
+            deployOptimismPortal2();
+            deployDisputeGameFactory();
+            deployDelayedWETH();
+            deployPreimageOracle();
+            deployMips();
+            deployAnchorStateRegistry();
+        }
     }
 
     /// @notice Initialize all of the implementations
@@ -411,10 +413,13 @@ contract Deploy is Deployer {
         initializeL1ERC721Bridge();
         initializeOptimismMintableERC20Factory();
         initializeL1CrossDomainMessenger();
-        initializeL2OutputOracle();
-        initializeDisputeGameFactory();
-        initializeDelayedWETH();
-        initializeAnchorStateRegistry();
+        if (cfg.useFaultProofs() == false) {
+            initializeL2OutputOracle();
+        } else {
+            initializeDisputeGameFactory();
+            initializeDelayedWETH();
+            initializeAnchorStateRegistry();
+        }
     }
 
     /// @notice Add Plasma setup to the OP chain
