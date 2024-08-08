@@ -67,8 +67,8 @@ contract CrossL2InboxTest is Test {
     bytes4 constant L1BlockIsInDependencySetSelector = bytes4(keccak256("isInDependencySet(uint256)"));
 
     /// @dev Storage slot that the interop start timestamp is stored at.
-    ///      Equal to bytes32(uint256(keccak256("crossl2inbox.interopstart.origin")) - 1)
-    bytes32 internal constant INTEROP_START_SLOT = bytes32(uint256(keccak256("crossl2inbox.interopstart.origin")) - 1);
+    ///      Equal to bytes32(uint256(keccak256("crossl2inbox.interopstart")) - 1)
+    bytes32 internal constant INTEROP_START_SLOT = bytes32(uint256(keccak256("crossl2inbox.interopstart")) - 1);
 
     /// @dev CrossL2Inbox contract instance.
     CrossL2Inbox crossL2Inbox;

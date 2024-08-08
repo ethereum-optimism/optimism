@@ -42,8 +42,8 @@ error TargetCallFailed();
 ///         chain. It is permissionless to execute a cross chain message on behalf of any user.
 contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
     /// @notice Storage slot that the interop start timestamp is stored at.
-    ///         Equal to bytes32(uint256(keccak256("crossl2inbox.interopstart.origin")) - 1)
-    bytes32 internal constant INTEROP_START_SLOT = 0x58096a990e2f057a6e27c5d47ad94dd3c0c641469fd8ecef2b0608bb3c9e3a9d;
+    ///         Equal to bytes32(uint256(keccak256("crossl2inbox.interopstart")) - 1)
+    bytes32 internal constant INTEROP_START_SLOT = 0x5c769ee0ee8887661922049dc52480bb60322d765161507707dd9b190af5c149;
 
     /// @notice Transient storage slot that the origin for an Identifier is stored at.
     ///         Equal to bytes32(uint256(keccak256("crossl2inbox.identifier.origin")) - 1)
