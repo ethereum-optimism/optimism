@@ -20,14 +20,19 @@ import (
 const (
 	L1InfoFuncBedrockSignature = "setL1BlockValues(uint64,uint64,uint256,bytes32,uint64,bytes32,uint256,uint256)"
 	L1InfoFuncEcotoneSignature = "setL1BlockValuesEcotone()"
+	L1InfoFuncIsthmusSignature = "setL2BlockValuesIsthmus()"
+	DepositsCompleteSignature  = "depositsComplete()"
 	L1InfoArguments            = 8
 	L1InfoBedrockLen           = 4 + 32*L1InfoArguments
 	L1InfoEcotoneLen           = 4 + 32*5 // after Ecotone upgrade, args are packed into 5 32-byte slots
+	DepositsCompleteLen        = 4        // only the selector
 )
 
 var (
 	L1InfoFuncBedrockBytes4 = crypto.Keccak256([]byte(L1InfoFuncBedrockSignature))[:4]
 	L1InfoFuncEcotoneBytes4 = crypto.Keccak256([]byte(L1InfoFuncEcotoneSignature))[:4]
+	L1InfoFuncIsthmusBytes4 = crypto.Keccak256([]byte(L1InfoFuncIsthmusSignature))[:4]
+	DepositsCompleteBytes4  = crypto.Keccak256([]byte(DepositsCompleteSignature))[:4]
 	L1InfoDepositerAddress  = common.HexToAddress("0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001")
 	L1BlockAddress          = predeploys.L1BlockAddr
 	ErrInvalidFormat        = errors.New("invalid ecotone l1 block info format")
@@ -144,7 +149,7 @@ func (info *L1BlockInfo) unmarshalBinaryBedrock(data []byte) error {
 	return nil
 }
 
-// Ecotone Binary Format
+// Isthmus & Ecotone Binary Format
 // +---------+--------------------------+
 // | Bytes   | Field                    |
 // +---------+--------------------------+
@@ -160,10 +165,32 @@ func (info *L1BlockInfo) unmarshalBinaryBedrock(data []byte) error {
 // | 32      | BatcherHash              |
 // +---------+--------------------------+
 
+func (info *L1BlockInfo) marshalBinaryIsthmus() ([]byte, error) {
+	out, err := marshalBinaryEcotoneOrIsthmus(info, true)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal Isthmus l1 block info: %w", err)
+	}
+	return out, nil
+}
+
 func (info *L1BlockInfo) marshalBinaryEcotone() ([]byte, error) {
-	w := bytes.NewBuffer(make([]byte, 0, L1InfoEcotoneLen))
-	if err := solabi.WriteSignature(w, L1InfoFuncEcotoneBytes4); err != nil {
-		return nil, err
+	out, err := marshalBinaryEcotoneOrIsthmus(info, true)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal Ecotone l1 block info: %w", err)
+	}
+	return out, nil
+}
+
+func marshalBinaryEcotoneOrIsthmus(info *L1BlockInfo, isIsthmus ...bool) ([]byte, error) {
+	w := bytes.NewBuffer(make([]byte, 0, L1InfoEcotoneLen)) // Ecotone and Isthmus have the same length
+	if isIsthmus != nil && isIsthmus[0] {
+		if err := solabi.WriteSignature(w, L1InfoFuncIsthmusBytes4); err != nil {
+			return nil, err
+		}
+	} else {
+		if err := solabi.WriteSignature(w, L1InfoFuncEcotoneBytes4); err != nil {
+			return nil, err
+		}
 	}
 	if err := binary.Write(w, binary.BigEndian, info.BaseFeeScalar); err != nil {
 		return nil, err
@@ -200,14 +227,21 @@ func (info *L1BlockInfo) marshalBinaryEcotone() ([]byte, error) {
 	return w.Bytes(), nil
 }
 
+func (info *L1BlockInfo) unmarshalBinaryIsthmus(data []byte) error {
+	return unmarshalBinaryWithSignatureAndData(info, L1InfoFuncIsthmusBytes4, data)
+}
 func (info *L1BlockInfo) unmarshalBinaryEcotone(data []byte) error {
+	return unmarshalBinaryWithSignatureAndData(info, L1InfoFuncEcotoneBytes4, data)
+}
+
+func unmarshalBinaryWithSignatureAndData(info *L1BlockInfo, signature []byte, data []byte) error {
 	if len(data) != L1InfoEcotoneLen {
 		return fmt.Errorf("data is unexpected length: %d", len(data))
 	}
 	r := bytes.NewReader(data)
 
 	var err error
-	if _, err := solabi.ReadAndValidateSignature(r, L1InfoFuncEcotoneBytes4); err != nil {
+	if _, err := solabi.ReadAndValidateSignature(r, signature); err != nil {
 		return err
 	}
 	if err := binary.Read(r, binary.BigEndian, &info.BaseFeeScalar); err != nil {
@@ -250,9 +284,19 @@ func isEcotoneButNotFirstBlock(rollupCfg *rollup.Config, l2BlockTime uint64) boo
 	return rollupCfg.IsEcotone(l2BlockTime) && !rollupCfg.IsEcotoneActivationBlock(l2BlockTime)
 }
 
+// isInteropButNotFirstBlock returns whether the specified block is subject to the Isthmus upgrade,
+// but is not the actiation block itself.
+func isInteropButNotFirstBlock(rollupCfg *rollup.Config, l2BlockTime uint64) bool {
+	return rollupCfg.IsInterop(l2BlockTime) && !rollupCfg.IsInteropActivationBlock(l2BlockTime)
+}
+
 // L1BlockInfoFromBytes is the inverse of L1InfoDeposit, to see where the L2 chain is derived from
 func L1BlockInfoFromBytes(rollupCfg *rollup.Config, l2BlockTime uint64, data []byte) (*L1BlockInfo, error) {
 	var info L1BlockInfo
+	// Important, this should be ordered from most recent to oldest
+	if isInteropButNotFirstBlock(rollupCfg, l2BlockTime) {
+		return &info, info.unmarshalBinaryIsthmus(data)
+	}
 	if isEcotoneButNotFirstBlock(rollupCfg, l2BlockTime) {
 		return &info, info.unmarshalBinaryEcotone(data)
 	}
@@ -271,7 +315,8 @@ func L1InfoDeposit(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNumber 
 		BatcherAddr:    sysCfg.BatcherAddr,
 	}
 	var data []byte
-	if isEcotoneButNotFirstBlock(rollupCfg, l2BlockTime) {
+
+	if isInteropButNotFirstBlock(rollupCfg, l2BlockTime) {
 		l1BlockInfo.BlobBaseFee = block.BlobBaseFee()
 		if l1BlockInfo.BlobBaseFee == nil {
 			// The L2 spec states to use the MIN_BLOB_GASPRICE from EIP-4844 if not yet active on L1.
@@ -283,11 +328,19 @@ func L1InfoDeposit(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNumber 
 		}
 		l1BlockInfo.BlobBaseFeeScalar = scalars.BlobBaseFeeScalar
 		l1BlockInfo.BaseFeeScalar = scalars.BaseFeeScalar
-		out, err := l1BlockInfo.marshalBinaryEcotone()
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal Ecotone l1 block info: %w", err)
+		if isEcotoneButNotFirstBlock(rollupCfg, l2BlockTime) {
+			out, err := l1BlockInfo.marshalBinaryEcotone()
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal Ecotone l1 block info: %w", err)
+			}
+			data = out
+		} else {
+			out, err := l1BlockInfo.marshalBinaryIsthmus()
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal Isthmus l1 block info: %w", err)
+			}
+			data = out
 		}
-		data = out
 	} else {
 		l1BlockInfo.L1FeeOverhead = sysCfg.Overhead
 		l1BlockInfo.L1FeeScalar = sysCfg.Scalar
@@ -334,4 +387,35 @@ func L1InfoDepositBytes(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNu
 		return nil, fmt.Errorf("failed to encode L1 info tx: %w", err)
 	}
 	return opaqueL1Tx, nil
+}
+
+func DepositsCompleteDeposit(seqNumber uint64, block eth.BlockInfo) (*types.DepositTx, error) {
+	source := L1InfoDepositSource{
+		L1BlockHash: block.Hash(),
+		SeqNumber:   seqNumber,
+	}
+	out := &types.DepositTx{
+		SourceHash:          source.SourceHash(),
+		From:                L1InfoDepositerAddress,
+		To:                  &L1BlockAddress,
+		Mint:                nil,
+		Value:               big.NewInt(0),
+		Gas:                 50_000,
+		IsSystemTransaction: false,
+		Data:                DepositsCompleteBytes4,
+	}
+	return out, nil
+}
+
+func DepositsCompleteBytes(seqNumber uint64, l1Info eth.BlockInfo) ([]byte, error) {
+	dep, err := DepositsCompleteDeposit(seqNumber, l1Info)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create DepositsComplete tx: %w", err)
+	}
+	depositsCompleteTx := types.NewTx(dep)
+	opaqueDepositsCompleteTx, err := depositsCompleteTx.MarshalBinary()
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode DepositsComplete tx: %w", err)
+	}
+	return opaqueDepositsCompleteTx, nil
 }
