@@ -568,7 +568,7 @@ jobs:
           no_output_timeout: 15m
       - run:
           name: print failed test traces
-          command: forge test --rurun -vvv
+          command: forge test --rerun -vvv
           when: on_fail
 
   contracts-bedrock-checks:
