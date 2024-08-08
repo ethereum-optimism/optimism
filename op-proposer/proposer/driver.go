@@ -178,6 +178,13 @@ func (l *L2OutputSubmitter) StartL2OutputSubmitting() error {
 	}
 	l.running = true
 
+	if l.Cfg.WaitNodeSync {
+		err := l.waitNodeSync()
+		if err != nil {
+			return fmt.Errorf("error waiting for node sync: %w", err)
+		}
+	}
+
 	l.wg.Add(1)
 	go l.loop()
 
@@ -428,14 +435,6 @@ func (l *L2OutputSubmitter) sendTransaction(ctx context.Context, output *eth.Out
 func (l *L2OutputSubmitter) loop() {
 	defer l.wg.Done()
 	ctx := l.ctx
-
-	if l.Cfg.WaitNodeSync {
-		err := l.waitNodeSync()
-		if err != nil {
-			l.Log.Error("Error waiting for node sync", "err", err)
-			return
-		}
-	}
 
 	if l.dgfContract == nil {
 		l.loopL2OO(ctx)

@@ -361,7 +361,7 @@ to reduce the overhead of maintaining multiple ways to set up the state as well 
 
 The L1 contract addresses are held in `deployments/hardhat/.deploy` and the L2 test state is held in a `.testdata` directory. The L1 addresses are used to create the L2 state
 and it is possible for stale addresses to be pulled into the L2 state, causing tests to fail. Stale addresses may happen if the order of the L1 deployments happen differently
-since some contracts are deployed using `CREATE`. Run `pnpm clean` and rerun the tests if they are failing for an unknown reason.
+since some contracts are deployed using `CREATE`. Run `just clean` and rerun the tests if they are failing for an unknown reason.
 
 ### Static Analysis
 
