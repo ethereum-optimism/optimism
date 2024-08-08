@@ -15,6 +15,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+// should be run with CGO_ENABLED=0
+
 func TestSignerFactoryFromMnemonic(t *testing.T) {
 	mnemonic := "test test test test test test test test test test test junk"
 	hdPath := "m/44'/60'/0'/0/1"
