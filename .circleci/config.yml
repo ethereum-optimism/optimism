@@ -551,7 +551,7 @@ jobs:
       - check-changed:
           patterns: contracts-bedrock,op-node
       - install-contracts-dependencies
-      -run:
+      - run:
           name: print dependencies
           command: just status
           working_directory: packages/contracts-bedrock
