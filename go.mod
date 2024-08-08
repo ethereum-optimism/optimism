@@ -233,7 +233,7 @@ require (
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
 
-replace github.com/ethereum/go-ethereum => github.com/mdehoog/op-geth v0.0.0-20240807213307-e1892f9b50ee
+replace github.com/ethereum/go-ethereum => github.com/mdehoog/op-geth v0.0.0-20240808212856-7cee17323f63
 
 //replace github.com/ethereum/go-ethereum => ../op-geth
 // replace github.com/ethereum-optimism/superchain-registry/superchain => ../superchain-registry/superchain
