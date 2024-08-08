@@ -22,6 +22,7 @@ contract GovernanceDelegation_Init is CommonTest {
     error InvalidNumeratorZero();
     error NumeratorSumExceedsDenominator(uint256 numerator, uint96 denominator);
     error DuplicateOrUnsortedDelegatees(address delegatee);
+    error BlockNotYetMined(uint256 blockNumber);
 
     /// @dev Sets up the test suite.
     function setUp() public virtual override {
@@ -231,15 +232,6 @@ contract GovernanceDelegation_Init is CommonTest {
 }
 
 contract GovernanceDelegation_Delegate_Test is GovernanceDelegation_Init {
-    /// @dev Tests that the constructor sets the correct initial state.
-    function test_constructor_succeeds() external view {
-        assertEq(governanceToken.owner(), owner);
-        assertEq(governanceToken.name(), "Optimism");
-        assertEq(governanceToken.symbol(), "OP");
-        assertEq(governanceToken.decimals(), 18);
-        assertEq(governanceToken.totalSupply(), 0);
-    }
-
     function testFuzz_delegate_singleAddress_succeeds(address _delegatee, uint96 _numerator, uint256 _amount) public {
         vm.assume(_delegatee != address(0));
 
@@ -668,5 +660,99 @@ contract GovernanceDelegation_Delegate_TestFail is GovernanceDelegation_Init {
     }
 }
 
+contract GovernanceDelegation_Getters_Test is GovernanceDelegation_Init {
+    /// @dev Tests that the constructor sets the correct initial state.
+    function test_constructor_succeeds() external view {
+        assertEq(governanceToken.owner(), owner);
+        assertEq(governanceToken.name(), "Optimism");
+        assertEq(governanceToken.symbol(), "OP");
+        assertEq(governanceToken.decimals(), 18);
+        assertEq(governanceToken.totalSupply(), 0);
+    }
+
+    function testFuzz_getters_migrate_succeeds(uint256 _amount) public {
+        _amount = bound(_amount, 1, type(uint208).max);
+
+        assertEq(governanceDelegation.delegations(rando).length, 0);
+        vm.expectRevert();
+        governanceDelegation.checkpoints(rando, 0);
+        assertEq(governanceDelegation.numCheckpoints(rando), 0);
+        vm.expectRevert();
+        assertEq(governanceDelegation.delegates(rando), address(0));
+        assertEq(governanceDelegation.getVotes(rando), 0);
+        assertEq(governanceDelegation.getPastVotes(rando, block.timestamp - 1), 0);
+        assertEq(governanceDelegation.getPastTotalSupply(block.timestamp - 1), 0);
+        assertFalse(governanceDelegation.migrated(rando));
+
+        // migrates user and creates delegation
+        vm.prank(rando);
+        governanceToken.delegate(rando);
+
+        vm.prank(owner);
+        governanceToken.mint(rando, _amount);
+
+        vm.roll(block.timestamp + 1);
+
+        assertEq(
+            uint8(governanceDelegation.delegations(rando)[0].allowanceType),
+            uint8(IGovernanceDelegation.AllowanceType.Relative)
+        );
+        assertEq(governanceDelegation.delegations(rando)[0].delegatee, rando);
+        assertEq(governanceDelegation.delegations(rando)[0].amount, governanceDelegation.DENOMINATOR());
+        assertEq(governanceDelegation.checkpoints(rando, 0).fromBlock, block.timestamp);
+        assertEq(governanceDelegation.checkpoints(rando, 0).votes, _amount);
+        assertEq(governanceDelegation.numCheckpoints(rando), 1);
+        assertEq(governanceDelegation.delegates(rando), rando);
+        assertEq(governanceDelegation.getVotes(rando), _amount);
+        assertEq(governanceDelegation.getPastVotes(rando, block.timestamp), _amount);
+        assertEq(governanceDelegation.getPastTotalSupply(block.timestamp), _amount);
+        assertTrue(governanceDelegation.migrated(rando));
+
+        assertEq(governanceToken.checkpoints(rando, 0).fromBlock, block.timestamp);
+        assertEq(governanceToken.checkpoints(rando, 0).votes, _amount);
+        assertEq(governanceToken.numCheckpoints(rando), 1);
+        assertEq(governanceToken.delegates(rando), rando);
+        assertEq(governanceToken.getVotes(rando), _amount);
+        assertEq(governanceToken.getPastVotes(rando, block.timestamp), _amount);
+        assertEq(governanceToken.getPastTotalSupply(block.timestamp), _amount);
+    }
+}
+
+contract GovernanceDelegation_Getters_TestFail is GovernanceDelegation_Init {
+    function testFuzz_getPastVotes_blockNotYetMined_reverts(uint256 _amount) public {
+        _amount = bound(_amount, 1, type(uint208).max);
+
+        vm.prank(rando);
+        governanceToken.delegate(rando);
+
+        vm.prank(owner);
+        governanceToken.mint(rando, _amount);
+
+        vm.expectRevert(abi.encodeWithSelector(BlockNotYetMined.selector, block.timestamp));
+        governanceDelegation.getPastVotes(rando, block.timestamp);
+
+        vm.roll(block.timestamp + 1);
+
+        assertEq(governanceDelegation.getPastVotes(rando, block.timestamp), _amount);
+    }
+
+    function testFuzz_getPastTotalSupply_blockNotYetMined_reverts(uint256 _amount) public {
+        _amount = bound(_amount, 1, type(uint208).max);
+
+        vm.prank(rando);
+        governanceToken.delegate(rando);
+
+        vm.prank(owner);
+        governanceToken.mint(rando, _amount);
+
+        vm.expectRevert(abi.encodeWithSelector(BlockNotYetMined.selector, block.timestamp));
+        governanceDelegation.getPastTotalSupply(block.timestamp);
+
+        vm.roll(block.timestamp + 1);
+
+        assertEq(governanceDelegation.getPastTotalSupply(block.timestamp), _amount);
+    }
+}
+
 // TODO:
-// - getters
+// - _totalSupplyCheckpoints migrate
