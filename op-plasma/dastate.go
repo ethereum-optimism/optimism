@@ -47,7 +47,7 @@ func challengeKey(comm CommitmentData, inclusionBlockNumber uint64) string {
 
 // State tracks the commitment and their challenges in order of l1 inclusion.
 // Commitments and Challenges are tracked in L1 inclusion order. They are tracked in two separate queues for Active and Expired commitments.
-// When commitments are moved to Expired, if there is an active challenge, the DA Manager is informed that a commitment became invalid.
+// When commitments are moved to Expired, if there is an active challenge, the DA Manager is informed that a commitment has become invalid.
 // Challenges and Commitments can be pruned when they are beyond a certain block number (e.g. when they are finalized).
 // In the special case of a L2 reorg, challenges are still tracked but commitments are removed.
 // This will allow the plasma fetcher to find the expired challenge.
