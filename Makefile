@@ -137,18 +137,17 @@ reproducible-prestate:   ## Builds reproducible-prestate binary
 	make -C ./op-program reproducible-prestate
 .PHONY: reproducible-prestate
 
-# Checks if prestate outputs are missing
-cannon-prestate: op-program/bin/prestate-proof.json
-.PHONY: cannon-prestate
+# Include any files required for the devnet to build and run. This appears to be the only one that's actually needed.
+DEVNET_CANNON_PRESTATE_FILES := op-program/bin/prestate-proof.json
 
-op-program/bin/prestate-proof.json:
-	make generate-cannon-prestates
+$(DEVNET_CANNON_PRESTATE_FILES):
+	make cannon-prestate
 
-generate-cannon-prestates: op-program cannon ## Generates prestate using cannon and op-program
+cannon-prestate: op-program cannon ## Generates prestate using cannon and op-program
 	./cannon/bin/cannon load-elf --path op-program/bin/op-program-client.elf --out op-program/bin/prestate.json --meta op-program/bin/meta.json
 	./cannon/bin/cannon run --proof-at '=0' --stop-at '=1' --input op-program/bin/prestate.json --meta op-program/bin/meta.json --proof-fmt 'op-program/bin/%d.json' --output ""
 	mv op-program/bin/0.json op-program/bin/prestate-proof.json
-.PHONY: generate-cannon-prestates
+.PHONY: cannon-prestate
 
 mod-tidy: ## Cleans up unused dependencies in Go modules
 	# Below GOPRIVATE line allows mod-tidy to be run immediately after
@@ -168,7 +167,7 @@ nuke: clean devnet-clean ## Completely clean the project directory
 .PHONY: nuke
 
 ## Prepares for running a local devnet
-pre-devnet: submodules cannon-prestate
+pre-devnet: submodules $(DEVNET_CANNON_PRESTATE_FILES)
 	@if ! [ -x "$(command -v geth)" ]; then \
 		make install-geth; \
 	fi
