@@ -233,7 +233,7 @@ require (
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
 
-replace github.com/ethereum/go-ethereum => github.com/danyalprout/op-geth v0.0.0-20240808225554-9b527a803378
+replace github.com/ethereum/go-ethereum v1.14.7 => github.com/ethereum-optimism/op-geth v1.101407.0-rc.1
 
 //replace github.com/ethereum/go-ethereum v1.13.9 => ../op-geth
 
@@ -245,5 +245,3 @@ exclude github.com/kataras/iris/v12 v12.2.0-beta5
 exclude github.com/kataras/iris/v12 v12.2.0
 
 exclude github.com/kataras/iris/v12 v12.2.11
-
-//replace github.com/ethereum/go-ethereum v1.14.7 => github.com/ethereum-optimism/op-geth 9b527a80337845133052c6208aaa6b134935069d
