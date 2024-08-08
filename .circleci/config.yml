@@ -184,9 +184,9 @@ jobs:
     resource_class: xlarge
     steps:
       - checkout
-      - run:
-          name: "Check L1 geth version"
-          command: ./ops/scripts/geth-version-checker.sh || (echo "geth version is wrong, update ci-builder"; false)
+#      - run:  # temporarily disabled, to update ci-builder.
+#          name: "Check L1 geth version"
+#          command: ./ops/scripts/geth-version-checker.sh || (echo "geth version is wrong, update ci-builder"; false)
       - install-contracts-dependencies
       - restore_cache:
           name: Restore PNPM Package Cache
