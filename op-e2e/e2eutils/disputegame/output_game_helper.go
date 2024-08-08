@@ -14,10 +14,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
-	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-service/errutil"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
@@ -651,23 +649,9 @@ func (g *OutputGameHelper) WaitForPreimageInOracle(ctx context.Context, data *ty
 
 func (g *OutputGameHelper) UploadPreimage(ctx context.Context, data *types.PreimageOracleData, privateKey *ecdsa.PrivateKey) {
 	oracle := g.oracle(ctx)
-	boundOracle, err := bindings.NewPreimageOracle(oracle.Addr(), g.Client)
-	g.Require.NoError(err)
-	var tx *gethtypes.Transaction
-	switch data.OracleKey[0] {
-	case byte(preimage.PrecompileKeyType):
-		tx, err = boundOracle.LoadPrecompilePreimagePart(
-			g.Opts,
-			new(big.Int).SetUint64(uint64(data.OracleOffset)),
-			data.GetPrecompileAddress(),
-			data.GetPrecompileInput(),
-		)
-	default:
-		tx, err = boundOracle.LoadKeccak256PreimagePart(g.Opts, new(big.Int).SetUint64(uint64(data.OracleOffset)), data.GetPreimageWithoutSize())
-	}
-	g.Require.NoError(err, "Failed to load preimage part")
-	_, err = wait.ForReceiptOK(ctx, g.Client, tx.Hash())
-	g.Require.NoError(err)
+	tx, err := oracle.AddGlobalDataTx(data)
+	g.Require.NoError(err, "Failed to create preimage upload tx")
+	transactions.RequireSendTx(g.T, ctx, g.Client, tx, g.PrivKey)
 }
 
 func (g *OutputGameHelper) oracle(ctx context.Context) contracts.PreimageOracleContract {
