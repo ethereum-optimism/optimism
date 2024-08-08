@@ -89,8 +89,10 @@ func (d *recordsBook[K, V]) dsKey(key K) ds.Key {
 }
 
 func (d *recordsBook[K, V]) deleteRecord(key K) error {
-	d.cache.Remove(key)
+	// If access to this isn't synchronized, removing from the cache first can result in the stored
+	// item being cached again before it is deleted.
 	err := d.store.Delete(d.ctx, d.dsKey(key))
+	d.cache.Remove(key)
 	if err == nil || errors.Is(err, ds.ErrNotFound) {
 		return nil
 	}
