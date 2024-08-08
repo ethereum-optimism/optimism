@@ -206,9 +206,4 @@ contract L1Block is ISemver, IGasToken {
         emit GasPayingTokenSet({ token: _token, decimals: _decimals, name: _name, symbol: _symbol });
     }
 
-    /// @notice Resets the isDeposit flag.
-    function depositsComplete() external {
-        if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
-        isDeposit = false;
-    }
 }
