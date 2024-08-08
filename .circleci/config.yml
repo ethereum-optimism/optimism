@@ -569,6 +569,8 @@ jobs:
       - run:
           name: print failed test traces
           command: just test-rerun
+          environment:
+            FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
           when: on_fail
 
