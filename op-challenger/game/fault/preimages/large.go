@@ -101,7 +101,7 @@ func NewUUID(sender common.Address, data *types.PreimageOracleData) *big.Int {
 	return hash.Big()
 }
 
-// splitChunks splits the preimage data into chunks of size [MaxChunkSize] (except the last chunk).
+// splitCalls splits the preimage data into chunks of size [MaxChunkSize] (except the last chunk).
 // It also returns the state matrix and the data for the squeeze call if possible.
 func (p *LargePreimageUploader) splitCalls(data *types.PreimageOracleData) (*matrix.StateMatrix, []keccakTypes.InputData, error) {
 	// Split the preimage data into chunks of size [MaxChunkSize] (except the last chunk).

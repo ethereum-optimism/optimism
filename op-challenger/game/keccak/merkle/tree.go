@@ -66,7 +66,7 @@ func (m *BinaryMerkleTree) RootHash() (rootHash common.Hash) {
 	return m.Root.Label
 }
 
-// walkDownToMaxLeaf walks down the tree to the max leaf node.
+// walkDownToLeafCount walks down the tree to the max leaf node.
 func (m *BinaryMerkleTree) walkDownToLeafCount(subtreeLeafCount uint64) *merkleNode {
 	maxSubtreeLeafCount := uint64(MaxLeafCount) + 1
 	levelNode := m.Root
