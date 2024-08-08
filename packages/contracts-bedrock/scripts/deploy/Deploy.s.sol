@@ -343,13 +343,15 @@ contract Deploy is Deployer {
         deployImplementations();
         initializeImplementations();
 
-        setAlphabetFaultGameImplementation({ _allowUpgrade: false });
-        setFastFaultGameImplementation({ _allowUpgrade: false });
-        setCannonFaultGameImplementation({ _allowUpgrade: false });
-        setPermissionedCannonFaultGameImplementation({ _allowUpgrade: false });
+        if (cfg.useFaultProofs()) {
+            setAlphabetFaultGameImplementation({ _allowUpgrade: false });
+            setFastFaultGameImplementation({ _allowUpgrade: false });
+            setCannonFaultGameImplementation({ _allowUpgrade: false });
+            setPermissionedCannonFaultGameImplementation({ _allowUpgrade: false });
 
-        transferDisputeGameFactoryOwnership();
-        transferDelayedWETHOwnership();
+            transferDisputeGameFactoryOwnership();
+            transferDelayedWETHOwnership();
+        }
     }
 
     /// @notice Deploy all of the proxies
@@ -385,15 +387,14 @@ contract Deploy is Deployer {
         if (cfg.useFaultProofs() == false) {
             deployOptimismPortal();
             deployL2OutputOracle();
-        } else {
-            // Fault proofs
-            deployOptimismPortal2();
-            deployDisputeGameFactory();
-            deployDelayedWETH();
-            deployPreimageOracle();
-            deployMips();
-            deployAnchorStateRegistry();
         }
+        // Fault proofs
+        deployOptimismPortal2();
+        deployDisputeGameFactory();
+        deployDelayedWETH();
+        deployPreimageOracle();
+        deployMips();
+        deployAnchorStateRegistry();
     }
 
     /// @notice Initialize all of the implementations
