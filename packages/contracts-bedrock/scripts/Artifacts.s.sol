@@ -114,6 +114,8 @@ abstract contract Artifacts {
             return payable(Predeploys.L2_TO_L1_MESSAGE_PASSER);
         } else if (digest == keccak256(bytes("L2StandardBridge"))) {
             return payable(Predeploys.L2_STANDARD_BRIDGE);
+        } else if (digest == keccak256(bytes("L2StandardBridgeInterop"))) {
+            return payable(Predeploys.L2_STANDARD_BRIDGE);
         } else if (digest == keccak256(bytes("L2ERC721Bridge"))) {
             return payable(Predeploys.L2_ERC721_BRIDGE);
         } else if (digest == keccak256(bytes("SequencerFeeWallet"))) {
