@@ -3,6 +3,7 @@ package geth
 import (
 	"fmt"
 	"math/big"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum/go-ethereum/cmd/utils"
@@ -33,6 +34,14 @@ func InitL1(chainID uint64, blockTime uint64, finalizedDistance uint64, genesis 
 			PriceBump: blobpool.DefaultConfig.PriceBump,
 		},
 		StateScheme: rawdb.HashScheme,
+		Miner: miner.Config{
+			PendingFeeRecipient: common.Address{},
+			ExtraData:           nil,
+			GasCeil:             0,
+			GasPrice:            nil,
+			// enough to build blocks within 1 second, but high enough to avoid unnecessary test CPU cycles.
+			Recommit: time.Millisecond * 400,
+		},
 	}
 	nodeConfig := &node.Config{
 		Name:        "l1-geth",
@@ -88,11 +97,12 @@ func InitL2(name string, l2ChainID *big.Int, genesis *core.Genesis, jwtPath stri
 		Genesis:     genesis,
 		StateScheme: rawdb.HashScheme,
 		Miner: miner.Config{
-			Etherbase: common.Address{},
-			ExtraData: nil,
-			GasCeil:   0,
-			GasPrice:  nil,
-			Recommit:  0,
+			PendingFeeRecipient: common.Address{},
+			ExtraData:           nil,
+			GasCeil:             0,
+			GasPrice:            nil,
+			// enough to build blocks within 1 second, but high enough to avoid unnecessary test CPU cycles.
+			Recommit: time.Millisecond * 400,
 		},
 	}
 	nodeConfig := defaultNodeConfig(fmt.Sprintf("l2-geth-%v", name), jwtPath)
