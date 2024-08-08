@@ -129,7 +129,7 @@ func (d *recordsBook[K, V]) getRecord(key K) (v V, err error) {
 
 // You should lock the records book before calling this, and unlock it when you copy any values out
 // of the returned value.
-func (d *recordsBook[K, V]) SetRecord(key K, diff recordDiff[V]) (V, error) {
+func (d *recordsBook[K, V]) setRecord(key K, diff recordDiff[V]) (V, error) {
 	rec, err := d.getRecord(key)
 	if err == UnknownRecordErr { // instantiate new record if it does not exist yet
 		rec = d.newRecord()

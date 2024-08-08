@@ -62,6 +62,8 @@ func (d *peerBanBook) startGC() {
 }
 
 func (d *peerBanBook) GetPeerBanExpiration(id peer.ID) (time.Time, error) {
+	d.book.RLock()
+	defer d.book.RUnlock()
 	rec, err := d.book.getRecord(id)
 	if err == UnknownRecordErr {
 		return time.Time{}, UnknownBanErr
@@ -78,7 +80,7 @@ func (d *peerBanBook) SetPeerBanExpiration(id peer.ID, expirationTime time.Time)
 	if expirationTime == (time.Time{}) {
 		return d.book.deleteRecord(id)
 	}
-	_, err := d.book.SetRecord(id, peerBanUpdate(expirationTime))
+	_, err := d.book.setRecord(id, peerBanUpdate(expirationTime))
 	return err
 }
 

@@ -66,6 +66,8 @@ func (d *ipBanBook) startGC() {
 }
 
 func (d *ipBanBook) GetIPBanExpiration(ip net.IP) (time.Time, error) {
+	d.book.RLock()
+	defer d.book.RUnlock()
 	rec, err := d.book.getRecord(ip.To16().String())
 	if err == UnknownRecordErr {
 		return time.Time{}, UnknownBanErr
@@ -82,7 +84,7 @@ func (d *ipBanBook) SetIPBanExpiration(ip net.IP, expirationTime time.Time) erro
 	if expirationTime == (time.Time{}) {
 		return d.book.deleteRecord(ip.To16().String())
 	}
-	_, err := d.book.SetRecord(ip.To16().String(), ipBanUpdate(expirationTime))
+	_, err := d.book.setRecord(ip.To16().String(), ipBanUpdate(expirationTime))
 	return err
 }
 

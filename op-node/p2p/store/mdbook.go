@@ -67,6 +67,8 @@ func (m *metadataBook) startGC() {
 }
 
 func (m *metadataBook) GetPeerMetadata(id peer.ID) (PeerMetadata, error) {
+	m.book.RLock()
+	defer m.book.RUnlock()
 	record, err := m.book.getRecord(id)
 	// If the record is not found, return an empty PeerMetadata
 	if err == UnknownRecordErr {
@@ -91,7 +93,7 @@ func (m *metadataBook) SetPeerMetadata(id peer.ID, md PeerMetadata) (PeerMetadat
 	rec.SetLastUpdated(m.book.clock.Now())
 	m.book.Lock()
 	defer m.book.Unlock()
-	v, err := m.book.SetRecord(id, rec)
+	v, err := m.book.setRecord(id, rec)
 	return v.PeerMetadata, err
 }
 
