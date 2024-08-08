@@ -138,7 +138,7 @@ reproducible-prestate:   ## Builds reproducible-prestate binary
 .PHONY: reproducible-prestate
 
 # Include any files required for the devnet to build and run. This appears to be the only one that's actually needed.
-DEVNET_CANNON_PRESTATE_FILES := op-program/bin/prestate-proof.json
+DEVNET_CANNON_PRESTATE_FILES := op-program/bin/prestate-proof.json op-program/bin/prestate.json
 
 $(DEVNET_CANNON_PRESTATE_FILES):
 	make cannon-prestate
