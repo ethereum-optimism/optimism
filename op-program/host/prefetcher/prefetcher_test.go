@@ -84,7 +84,7 @@ func TestFetchL1Transactions(t *testing.T) {
 
 		storeBlock(t, kv, block, rcpts)
 
-		// Check the data is available (note the oracle does not know about the block, only the kvstore does)
+		// Check the data is available (note that oracle does not know about the block, only the kvstore does)
 		oracle := l1.NewPreimageOracle(asOracleFn(t, prefetcher), asHinter(t, prefetcher))
 		header, txs := oracle.TransactionsByBlockHash(hash)
 		require.EqualValues(t, hash, header.Hash())
@@ -113,7 +113,7 @@ func TestFetchL1Receipts(t *testing.T) {
 		prefetcher, _, _, _, kv := createPrefetcher(t)
 		storeBlock(t, kv, block, receipts)
 
-		// Check the data is available (note the oracle does not know about the block, only the kvstore does)
+		// Check the data is available (note that oracle does not know about the block, only the kvstore does)
 		oracle := l1.NewPreimageOracle(asOracleFn(t, prefetcher), asHinter(t, prefetcher))
 		header, actualReceipts := oracle.ReceiptsByBlockHash(hash)
 		require.EqualValues(t, hash, header.Hash())
