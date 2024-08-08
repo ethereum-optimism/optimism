@@ -68,8 +68,8 @@
     "sourceCodeHash": "0x3a725791a0f5ed84dc46dcdae26f6170a759b2fe3dc360d704356d088b76cfd6"
   },
   "src/L2/CrossL2Inbox.sol": {
-    "initCodeHash": "0x318b1e98f1686920e3d309390983454685aa84ed997598ead1b4c1a1938206c4",
-    "sourceCodeHash": "0xb0d2d5944f11bdf44cb6a16a9b00ab76a9b9f5ab2abb081781fb1c27927eb5ab"
+    "initCodeHash": "0x80124454d2127d5ff340b0ef048be6d5bf5984e84c75021b6a1ffa81703a2503",
+    "sourceCodeHash": "0xfb26fc80fbc7febdc91ac73ea91ceb479b238e0e81804a0a21192d78c261a755"
   },
   "src/L2/ETHLiquidity.sol": {
     "initCodeHash": "0x98177562fca0de0dfea5313c9acefe2fdbd73dee5ce6c1232055601f208f0177",
@@ -108,8 +108,8 @@
     "sourceCodeHash": "0x8388b9b8075f31d580fed815b66b45394e40fb1a63cd8cda2272d2c390fc908c"
   },
   "src/L2/L2ToL2CrossDomainMessenger.sol": {
-    "initCodeHash": "0xda499b71aec14976b8e133fad9ece083805f5ff520f0e88f89232fd837451954",
-    "sourceCodeHash": "0x7a9cddf5b54ac72457231f0c09b8e88398202ac29125cd63318b8389c81e119b"
+    "initCodeHash": "0xe390be1390edc38fd879d7620538560076d7fcf3ef9debce327a1877d96d3ff0",
+    "sourceCodeHash": "0x20f77dc5a02869c6885b73347fa9e7d2bbc4eaf8a2313f7e7435e456001f7a75"
   },
   "src/L2/SequencerFeeVault.sol": {
     "initCodeHash": "0xb94145f571e92ee615c6fe903b6568e8aac5fe760b6b65148ffc45d2fb0f5433",

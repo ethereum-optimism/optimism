@@ -3,7 +3,7 @@
 set -euo pipefail
 
 # Generate the snapshots
-pnpm snapshots
+just snapshots
 
 # Check if the generated `snapshots` or `test/kontrol` files are different from the committed versions
 if git diff --exit-code snapshots test/kontrol > /dev/null; then
