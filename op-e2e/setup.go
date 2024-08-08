@@ -216,7 +216,7 @@ func FjordSystemConfig(t *testing.T, fjordTimeOffset *hexutil.Uint64) SystemConf
 }
 
 func GraniteSystemConfig(t *testing.T, graniteTimeOffset *hexutil.Uint64) SystemConfig {
-	cfg := EcotoneSystemConfig(t, &genesisTime)
+	cfg := FjordSystemConfig(t, &genesisTime)
 	cfg.DeployConfig.L2GenesisGraniteTimeOffset = graniteTimeOffset
 	return cfg
 }
@@ -845,14 +845,15 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	var proposerCLIConfig *l2os.CLIConfig
 	if e2eutils.UseFaultProofs() {
 		proposerCLIConfig = &l2os.CLIConfig{
-			L1EthRpc:          sys.EthInstances[RoleL1].WSEndpoint(),
-			RollupRpc:         sys.RollupNodes[RoleSeq].HTTPEndpoint(),
-			DGFAddress:        config.L1Deployments.DisputeGameFactoryProxy.Hex(),
-			ProposalInterval:  6 * time.Second,
-			DisputeGameType:   254, // Fast game type
-			PollInterval:      50 * time.Millisecond,
-			TxMgrConfig:       newTxMgrConfig(sys.EthInstances[RoleL1].WSEndpoint(), cfg.Secrets.Proposer),
-			AllowNonFinalized: cfg.NonFinalizedProposals,
+			L1EthRpc:            sys.EthInstances[RoleL1].WSEndpoint(),
+			RollupRpc:           sys.RollupNodes[RoleSeq].HTTPEndpoint(),
+			DGFAddress:          config.L1Deployments.DisputeGameFactoryProxy.Hex(),
+			ProposalInterval:    6 * time.Second,
+			DisputeGameType:     254, // Fast game type
+			PollInterval:        50 * time.Millisecond,
+			OutputRetryInterval: 10 * time.Millisecond,
+			TxMgrConfig:         newTxMgrConfig(sys.EthInstances[RoleL1].WSEndpoint(), cfg.Secrets.Proposer),
+			AllowNonFinalized:   cfg.NonFinalizedProposals,
 			LogConfig: oplog.CLIConfig{
 				Level:  log.LvlInfo,
 				Format: oplog.FormatText,
@@ -860,12 +861,13 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		}
 	} else {
 		proposerCLIConfig = &l2os.CLIConfig{
-			L1EthRpc:          sys.EthInstances[RoleL1].WSEndpoint(),
-			RollupRpc:         sys.RollupNodes[RoleSeq].HTTPEndpoint(),
-			L2OOAddress:       config.L1Deployments.L2OutputOracleProxy.Hex(),
-			PollInterval:      50 * time.Millisecond,
-			TxMgrConfig:       newTxMgrConfig(sys.EthInstances[RoleL1].WSEndpoint(), cfg.Secrets.Proposer),
-			AllowNonFinalized: cfg.NonFinalizedProposals,
+			L1EthRpc:            sys.EthInstances[RoleL1].WSEndpoint(),
+			RollupRpc:           sys.RollupNodes[RoleSeq].HTTPEndpoint(),
+			L2OOAddress:         config.L1Deployments.L2OutputOracleProxy.Hex(),
+			PollInterval:        50 * time.Millisecond,
+			OutputRetryInterval: 10 * time.Millisecond,
+			TxMgrConfig:         newTxMgrConfig(sys.EthInstances[RoleL1].WSEndpoint(), cfg.Secrets.Proposer),
+			AllowNonFinalized:   cfg.NonFinalizedProposals,
 			LogConfig: oplog.CLIConfig{
 				Level:  log.LvlInfo,
 				Format: oplog.FormatText,

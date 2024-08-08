@@ -233,9 +233,10 @@ require (
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
 
-replace github.com/ethereum/go-ethereum => github.com/mdehoog/op-geth v0.0.0-20240808212856-7cee17323f63
+replace github.com/ethereum/go-ethereum => github.com/danyalprout/op-geth v0.0.0-20240808225554-9b527a803378
 
-//replace github.com/ethereum/go-ethereum => ../op-geth
+//replace github.com/ethereum/go-ethereum v1.13.9 => ../op-geth
+
 // replace github.com/ethereum-optimism/superchain-registry/superchain => ../superchain-registry/superchain
 
 // This release keeps breaking Go builds. Stop that.
@@ -244,3 +245,5 @@ exclude github.com/kataras/iris/v12 v12.2.0-beta5
 exclude github.com/kataras/iris/v12 v12.2.0
 
 exclude github.com/kataras/iris/v12 v12.2.11
+
+//replace github.com/ethereum/go-ethereum v1.14.7 => github.com/ethereum-optimism/op-geth 9b527a80337845133052c6208aaa6b134935069d

@@ -5,8 +5,8 @@
   "license": "MIT",
   "scripts": {
     "clean": "rm -rf node_modules packages/**/node_modules",
-    "build": "cd packages/contracts-bedrock && pnpm build",
-    "test": "cd packages/contracts-bedrock && pnpm test",
+    "build": "cd packages/contracts-bedrock && just build",
+    "test": "cd packages/contracts-bedrock && just test",
     "issues": "./ops/scripts/todo-checker.sh",
     "lint:shellcheck": "find . -type f -name '*.sh' -not -path '*/node_modules/*' -not -path './packages/contracts-bedrock/lib/*' -not -path './packages/contracts-bedrock/kout*/*' -exec sh -c 'echo \"Checking $1\"; shellcheck \"$1\"' _ {} \\;",
     "install:foundry": "curl -L https://foundry.paradigm.xyz | bash && pnpm update:foundry",

@@ -27,7 +27,8 @@ bytecode_hash = 'none'
 build_info_path = 'artifacts/build-info'
 ast = true
 evm_version = "cancun"
-ignored_error_codes = ["transient-storage", "code-size", "init-code-size"]
+# 5159 error code is selfdestruct error code
+ignored_error_codes = ["transient-storage", "code-size", "init-code-size", 5159]
 
 # We set the gas limit to max int64 to avoid running out of gas during testing, since the default
 # gas limit is 1B and some of our tests require more gas than that, such as `test_callWithMinGas_noLeakageLow_succeeds`.

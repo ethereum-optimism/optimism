@@ -103,6 +103,13 @@ commands:
             pip3 install -r requirements.txt
             python3 main.py "<<parameters.patterns>>"
 
+  install-contracts-dependencies:
+    description: "Install the dependencies for the smart contracts"
+    steps:
+      - run:
+          command: just install
+          working_directory: packages/contracts-bedrock
+
   notify-failures-on-develop:
     description: "Notify Slack"
     parameters:
@@ -137,7 +144,7 @@ jobs:
       - run:
           name: build Cannon example binaries
           command: make elf # only compile ELF binaries with Go, we do not have MIPS GCC for creating the debug-dumps.
-          working_directory: cannon/example
+          working_directory: cannon/testdata/example
       - run:
           name: Cannon Go lint
           command: |
@@ -179,10 +186,8 @@ jobs:
       - checkout
       - run:
           name: "Check L1 geth version"
-          command: ./ops/scripts/geth-version-checker.sh && (echo "Geth versions match, not installing geth..."; true) || (echo "Versions do not match, installing geth!"; go install -v github.com/ethereum/go-ethereum/cmd/geth@$(jq -r .geth < versions.json); echo "Installed geth!"; true)
-      - run:
-          name: git submodules
-          command: make submodules
+          command: ./ops/scripts/geth-version-checker.sh || (echo "geth version is wrong, update ci-builder"; false)
+      - install-contracts-dependencies
       - restore_cache:
           name: Restore PNPM Package Cache
           keys:
@@ -516,9 +521,7 @@ jobs:
     resource_class: xlarge
     steps:
       - checkout
-      - run:
-          name: git submodules
-          command: make submodules
+      - install-contracts-dependencies
       - check-changed:
           patterns: contracts-bedrock,op-node
       - run:
@@ -528,7 +531,7 @@ jobs:
       # We do not use the pre-built contracts becuase forge coverage uses different optimizer settings
       - run:
           name: test and generate coverage
-          command: pnpm coverage:lcov
+          command: just coverage-lcov
           no_output_timeout: 18m
           environment:
             FOUNDRY_PROFILE: ci
@@ -545,22 +548,31 @@ jobs:
     resource_class: xlarge
     steps:
       - checkout
-      - run:
-          name: git submodules
-          command: make submodules
       - check-changed:
           patterns: contracts-bedrock,op-node
+      - install-contracts-dependencies
+      - run:
+          name: print dependencies
+          command: just dep-status
+          working_directory: packages/contracts-bedrock
       - run:
           name: print forge version
           command: forge --version
           working_directory: packages/contracts-bedrock
       - run:
           name: run tests
-          command: pnpm test
+          command: just test
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
           no_output_timeout: 15m
+      - run:
+          name: print failed test traces
+          command: just test-rerun
+          environment:
+            FOUNDRY_PROFILE: ci
+          working_directory: packages/contracts-bedrock
+          when: on_fail
 
   contracts-bedrock-checks:
     docker:
@@ -568,9 +580,7 @@ jobs:
     resource_class: xlarge
     steps:
       - checkout
-      - run:
-          name: git submodules
-          command: make submodules
+      - install-contracts-dependencies
       - restore_cache:
           name: Restore PNPM Package Cache
           keys:
@@ -589,12 +599,9 @@ jobs:
           name: forge version
           command: forge --version
       - run:
-          # The solc warnings check must be the first step to build the contracts, that way the
-          # warnings are output here. On subsequent runs, forge will read artifacts from the cache
-          # so warnings would not occur.
           name: solc warnings check
           command: |
-            forge build --deny-warnings || echo "export SOLC_WARNINGS_CHECK=1" >> "$BASH_ENV"
+            forge build --force --deny-warnings || echo "export SOLC_WARNINGS_CHECK=1" >> "$BASH_ENV"
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
@@ -602,22 +609,22 @@ jobs:
         # Semver lock must come second because one of the later steps may modify the cache & force a contracts rebuild.
           name: semver lock
           command: |
-            pnpm semver-lock
+            just semver-lock
             git diff --exit-code semver-lock.json || echo "export SEMVER_LOCK_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
           name: check deploy configs
-          command: pnpm validate-deploy-configs || echo "export DEPLOY_CONFIGS_STATUS=1" >> "$BASH_ENV"
+          command: just validate-deploy-configs || echo "export DEPLOY_CONFIGS_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
           name: lint
           command: |
-            pnpm lint:check || echo "export LINT_STATUS=1" >> "$BASH_ENV"
+            just lint-check || echo "export LINT_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
           name: gas snapshot
           command: |
-            pnpm gas-snapshot --check || echo "export GAS_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
+            just gas-snapshot-check || echo "export GAS_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
@@ -625,13 +632,13 @@ jobs:
       - run:
           name: invariant docs
           command: |
-            pnpm autogen:invariant-docs
+            just autogen-invariant-docs
             git diff --exit-code ./invariant-docs/*.md || echo "export INVARIANT_DOCS_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
           name: snapshots
           command: |
-            pnpm snapshots:check || echo "export SNAPSHOTS_STATUS=1" >> "$BASH_ENV"
+            just snapshots-check || echo "export SNAPSHOTS_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
           name: size check
@@ -697,7 +704,7 @@ jobs:
           patterns: contracts-bedrock
       - run:
           name: validate spacers
-          command: pnpm validate-spacers
+          command: just validate-spacers
           working_directory: packages/contracts-bedrock
 
   todo-issues:
@@ -756,7 +763,7 @@ jobs:
       - checkout
       - run:
           name: "Check L1 geth version"
-          command: ./ops/scripts/geth-version-checker.sh && (echo "Geth versions match, not installing geth..."; true) || (echo "Versions do not match, installing geth!"; go install -v github.com/ethereum/go-ethereum/cmd/geth@$(jq -r .geth < versions.json); echo "Installed geth!"; true)
+          command: ./ops/scripts/geth-version-checker.sh || (echo "geth version is wrong, update ci-builder"; false)
 
   go-lint:
     docker:
@@ -1071,9 +1078,7 @@ jobs:
           key: gomod-{{ checksum "go.sum" }}
       - restore_cache:
           key: golang-build-cache
-      - run:
-          name: git submodules
-          command: make submodules
+      - install-contracts-dependencies
       - run:
           name: generate devnet allocs
           command: make devnet-allocs
@@ -1163,12 +1168,15 @@ jobs:
             nvm install
             nvm use && node --version && npm --version
       - run:
+          name: Install Just
+          command: |
+            curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to $HOME/bin
+            echo 'export PATH="${PATH}:$HOME/bin"' >> $BASH_ENV
+      - run:
           name: Install pnpm
           command: |
             npm i pnpm --global
-      - run:
-          name: git submodules
-          command: make submodules
+      - install-contracts-dependencies
       - attach_workspace:
           at: "."
       - when:
@@ -1481,9 +1489,7 @@ jobs:
     resource_class: xlarge
     steps:
       - checkout
-      - run:
-          name: Checkout Submodule
-          command: make submodules
+      - install-contracts-dependencies
       - check-changed:
           no_go_deps: "true"
           patterns: contracts-bedrock/test/kontrol,contracts-bedrock/src/L1/OptimismPortal\.sol,contracts-bedrock/src/L1/OptimismPortal2\.sol,contracts-bedrock/src/L1/L1CrossDomainMessenger\.sol,contracts-bedrock/src/L1/L1ERC721Bridge\.sol,contracts-bedrock/src/L1/L1StandardBridge\.sol,contracts-bedrock/src/L1/ResourceMetering\.sol,contracts-bedrock/src/universal/StandardBridge\.sol,contracts-bedrock/src/universal/ERC721Bridge\.sol,contracts-bedrock/src/universal/CrossDomainMessenger\.sol
@@ -1491,7 +1497,7 @@ jobs:
           docker_layer_caching: true
       - run:
           name: Run Kontrol Tests
-          command: pnpm test:kontrol
+          command: just test-kontrol
           working_directory: ./packages/contracts-bedrock
       - store_artifacts:
           path: ./packages/contracts-bedrock/test/kontrol/logs/kontrol-results_latest.tar.gz
