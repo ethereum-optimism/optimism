@@ -553,7 +553,7 @@ jobs:
       - install-contracts-dependencies
       - run:
           name: print dependencies
-          command: just status
+          command: just dep-status
           working_directory: packages/contracts-bedrock
       - run:
           name: print forge version

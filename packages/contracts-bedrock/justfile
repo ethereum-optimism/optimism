@@ -1,7 +1,7 @@
 prebuild:
   ./scripts/checks/check-foundry-install.sh
 
-status:
+dep-status:
   git submodule status
 
 install:
