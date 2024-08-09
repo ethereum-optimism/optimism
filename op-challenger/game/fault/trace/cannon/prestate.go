@@ -41,3 +41,7 @@ func (p *CannonPrestateProvider) AbsolutePreStateCommitment(_ context.Context) (
 	p.prestateCommitment = hash
 	return hash, nil
 }
+
+func (p *CannonPrestateProvider) PrestatePath() string {
+	return p.prestate
+}

@@ -8,16 +8,16 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 )
 
-type KonaVmConfig struct {
+type KonaServerExecutor struct {
 }
 
-var _ OracleServerExecutor = (*KonaVmConfig)(nil)
+var _ OracleServerExecutor = (*KonaServerExecutor)(nil)
 
-func NewKonaVmConfig() *KonaVmConfig {
-	return &KonaVmConfig{}
+func NewKonaServerExecutor() *KonaServerExecutor {
+	return &KonaServerExecutor{}
 }
 
-func (s *KonaVmConfig) OracleCommand(cfg Config, dataDir string, inputs utils.LocalGameInputs) ([]string, error) {
+func (s *KonaServerExecutor) OracleCommand(cfg Config, dataDir string, inputs utils.LocalGameInputs) ([]string, error) {
 	if cfg.Network == "" {
 		return nil, errors.New("network is not defined")
 	}
