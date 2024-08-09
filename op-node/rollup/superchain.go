@@ -71,15 +71,9 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 			L2Time:       chConfig.Genesis.L2Time,
 			SystemConfig: genesisSysConfig,
 		},
-		// The below chain parameters can be different per OP-Stack chain,
-		// therefore they are read from the superchain-registry configs.
-		// Note: hardcoded values are not yet represented in the registry but should be
-		// soon, then will be read and set in the same fashion.
 		BlockTime:              chConfig.BlockTime,
-		MaxSequencerDrift:      600,
+		MaxSequencerDrift:      chConfig.MaxSequencerDrift,
 		SeqWindowSize:          chConfig.SequencerWindowSize,
-		ChannelTimeoutBedrock:  300,
-		ChannelTimeoutGranite:  50,
 		L1ChainID:              new(big.Int).SetUint64(superChain.Config.L1.ChainID),
 		L2ChainID:              new(big.Int).SetUint64(chConfig.ChainID),
 		RegolithTime:           &regolithTime,
@@ -92,6 +86,13 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		DepositContractAddress: common.Address(addrs.OptimismPortalProxy),
 		L1SystemConfigAddress:  common.Address(addrs.SystemConfigProxy),
 		PlasmaConfig:           plasma,
+	}
+
+	if chConfig.ChannelTimeoutBedrock != nil {
+		cfg.ChannelTimeoutBedrock = *chConfig.ChannelTimeoutBedrock
+	}
+	if chConfig.ChannelTimeoutGranite != nil {
+		cfg.ChannelTimeoutBedrock = *chConfig.ChannelTimeoutGranite
 	}
 
 	if superChain.Config.ProtocolVersionsAddr != nil { // Set optional protocol versions address
