@@ -8,14 +8,14 @@ import (
 )
 
 var (
-	emptyBlob       kzg4844.Blob
+	emptyBlob       *kzg4844.Blob
 	emptyBlobCommit kzg4844.Commitment
 	emptyBlobProof  kzg4844.Proof
 )
 
 func init() {
 	var err error
-	emptyBlob = kzg4844.Blob{}
+	emptyBlob = &kzg4844.Blob{}
 	emptyBlobCommit, err = kzg4844.BlobToCommitment(emptyBlob)
 	if err != nil {
 		panic("failed to create empty blob commitment: " + err.Error())
@@ -30,7 +30,7 @@ func init() {
 // https://github.com/ethereum/go-ethereum/commit/2a6beb6a39d7cb3c5906dd4465d65da6efcc73cd
 func CreateEmptyBlobTx(withSidecar bool, chainID uint64) *types.BlobTx {
 	sidecar := &types.BlobTxSidecar{
-		Blobs:       []kzg4844.Blob{emptyBlob},
+		Blobs:       []kzg4844.Blob{*emptyBlob},
 		Commitments: []kzg4844.Commitment{emptyBlobCommit},
 		Proofs:      []kzg4844.Proof{emptyBlobProof},
 	}

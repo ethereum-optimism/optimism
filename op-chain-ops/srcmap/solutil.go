@@ -3,7 +3,6 @@ package srcmap
 import (
 	"fmt"
 	"io"
-	"math/big"
 	"os"
 	"strconv"
 	"strings"
@@ -192,20 +191,6 @@ type SourceMapTracer struct {
 	out     io.Writer
 }
 
-func (s *SourceMapTracer) CaptureTxStart(gasLimit uint64) {}
-
-func (s *SourceMapTracer) CaptureTxEnd(restGas uint64) {}
-
-func (s *SourceMapTracer) CaptureStart(env *vm.EVM, from common.Address, to common.Address, create bool, input []byte, gas uint64, value *big.Int) {
-}
-
-func (s *SourceMapTracer) CaptureEnd(output []byte, gasUsed uint64, err error) {}
-
-func (s *SourceMapTracer) CaptureEnter(typ vm.OpCode, from common.Address, to common.Address, input []byte, gas uint64, value *big.Int) {
-}
-
-func (s *SourceMapTracer) CaptureExit(output []byte, gasUsed uint64, err error) {}
-
 func (s *SourceMapTracer) info(codeAddr *common.Address, pc uint64) string {
 	info := "non-contract"
 	if codeAddr != nil {
@@ -243,5 +228,3 @@ func (s *SourceMapTracer) CaptureFault(pc uint64, op vm.OpCode, gas, cost uint64
 		fmt.Fprintf(s.out, "%3d: %x\n", -i, stack[len(stack)-1-i].Bytes32())
 	}
 }
-
-var _ vm.EVMLogger = (*SourceMapTracer)(nil)
