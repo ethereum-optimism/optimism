@@ -54,7 +54,7 @@ library ForgeArtifacts {
     }
 
     /// @notice Returns the storage layout for a deployed contract.
-    function getStorageLayout(string memory _name) public returns (string memory layout_) {
+    function getStorageLayout(string memory _name) internal returns (string memory layout_) {
         string[] memory cmd = new string[](3);
         cmd[0] = Executables.bash;
         cmd[1] = "-c";
@@ -64,7 +64,7 @@ library ForgeArtifacts {
     }
 
     /// @notice Returns the abi from a the forge artifact
-    function getAbi(string memory _name) public returns (string memory abi_) {
+    function getAbi(string memory _name) internal returns (string memory abi_) {
         string[] memory cmd = new string[](3);
         cmd[0] = Executables.bash;
         cmd[1] = "-c";
