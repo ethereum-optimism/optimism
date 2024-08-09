@@ -374,9 +374,9 @@ func DiffTestUtils() {
 		if len(args) == 5 {
 			memAddr, err := strconv.ParseUint(args[3], 10, 64)
 			checkErr(err, "Error decoding memAddr")
-			memValue, err := strconv.ParseUint(args[4], 10, 64)
+			memValue, err := strconv.ParseUint(args[4], 10, 32)
 			checkErr(err, "Error decoding memValue")
-			mem.SetDoubleWord(uint64(memAddr), uint64(memValue))
+			mem.SetMemory(uint64(memAddr), uint32(memValue))
 			memProof = mem.MerkleProof(uint64(memAddr))
 		}
 		insnProof = mem.MerkleProof(uint64(pc))

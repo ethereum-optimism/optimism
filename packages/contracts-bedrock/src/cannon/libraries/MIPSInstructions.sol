@@ -193,7 +193,7 @@ library MIPSInstructions {
                     case 0x8 { _fun := 0x20 }
                     // addiu
                     case 0x9 { _fun := 0x21 }
-                    // stli
+                    // slti
                     case 0xA { _fun := 0x2A }
                     // sltiu
                     case 0xB { _fun := 0x2B }
@@ -459,9 +459,9 @@ library MIPSInstructions {
                 }
                 //  lwr
                 else if (_opcode == 0x26) {
-                    uint64 val = _mem >> (24 - (_rs & 3) * 8);
-                    uint64 mask = WORD_MASK >> (24 - (_rs & 3) * 8);
-                    return signExtend((_rt & ~mask) | val, 32);
+                    uint64 val = _mem >> (24 - ((_rs & 3) * 8));
+                    uint64 mask = WORD_MASK >> (24 - ((_rs & 3) * 8));
+                    return signExtend(((_rt & ~mask) | val) & WORD_MASK, 32);
                 }
                 //  sb
                 else if (_opcode == 0x28) {
