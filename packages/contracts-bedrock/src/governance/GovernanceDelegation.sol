@@ -4,6 +4,7 @@ pragma solidity 0.8.25;
 import { ERC20Votes } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol";
 import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
+import { EnumerableMap } from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { IGovernanceDelegation } from "src/governance/IGovernanceDelegation.sol";
 
@@ -25,12 +26,17 @@ error DuplicateOrUnsortedDelegatees(address delegatee);
 /// @notice Thrown when a block number is not yet mined.
 error BlockNotYetMined(uint256 blockNumber);
 
+/// @notice Thrown when trying to access an out of range index.
+error OutOfRangeAccess();
+
 /// @custom:predeploy 0x4200000000000000000000000000000000000043
 /// @title GovernanceDelegation
 /// @notice A contract that allows delegation of votes to other accounts. It is used to implement advanced delegation
 ///         functionality in the Optimism Governance system. It provides a way to migrate accounts from the Governance
 ///         token to the GovernanceDelegation contract, and delegate votes to other accounts using advanced delegations.
 contract GovernanceDelegation is IGovernanceDelegation {
+    using EnumerableMap for EnumerableMap.AddressToUintMap;
+
     /// @notice The maximum number of delegations allowed.
     uint256 public constant MAX_DELEGATIONS = 20;
 
@@ -53,6 +59,9 @@ contract GovernanceDelegation is IGovernanceDelegation {
     /// @notice Checkpoints of total supply.
     ERC20Votes.Checkpoint[] internal _totalSupplyCheckpoints;
 
+    /// @notice Store temporary delegation adjusments.
+    EnumerableMap.AddressToUintMap private _adjustments;
+
     /// @notice Emitted when delegations are created.
     event DelegationsCreated(address indexed account, Delegation[] delegations);
 
@@ -65,7 +74,9 @@ contract GovernanceDelegation is IGovernanceDelegation {
     }
 
     modifier onlyToken() {
-        if (msg.sender != Predeploys.GOVERNANCE_TOKEN) revert NotGovernanceToken();
+        if (msg.sender != Predeploys.GOVERNANCE_TOKEN) {
+            revert NotGovernanceToken();
+        }
         _;
     }
 
@@ -201,123 +212,93 @@ contract GovernanceDelegation is IGovernanceDelegation {
             revert LimitExceeded(_newDelegationsLength, MAX_DELEGATIONS);
         }
 
-        // Calculate adjustments for old delegatee set, if it exists.
         Delegation[] memory _oldDelegations = _delegations[_delegator];
-        uint256 _oldDelegateLength = _oldDelegations.length;
+        uint256 _oldDelegationsLength = _oldDelegations.length;
 
-        DelegationAdjustment[] memory _old = new DelegationAdjustment[](_oldDelegateLength);
         uint256 _delegatorVotes = ERC20Votes(Predeploys.GOVERNANCE_TOKEN).balanceOf(_delegator);
-        if (_oldDelegateLength > 0) {
-            _old = calculateWeightDistribution(_oldDelegations, _delegatorVotes);
-        }
 
-        // Calculate adjustments for new delegatee set.
-        DelegationAdjustment[] memory _new = calculateWeightDistribution(_newDelegations, _delegatorVotes);
+        // Net the old and new delegations and create checkpoints.
+        _createCheckpoints(
+            calculateWeightDistribution(_oldDelegations, _delegatorVotes),
+            calculateWeightDistribution(_newDelegations, _delegatorVotes)
+        );
 
-        // Now we want a collated list of all delegatee changes, combining the old subtractions with the new additions.
-        // Ideally we'd like to process this only once.
-        _aggregateDelegationAdjustmentsAndCreateCheckpoints(_old, _new);
-
-        // The rest of this method body replaces in storage the old delegatees with the new ones.
-        // keep track of last delegatee to ensure ordering / uniqueness:
+        // Store the last delegatee to check for sorting and uniqueness.
         address _lastDelegatee;
 
+        // Store new delegations.
         for (uint256 i; i < _newDelegationsLength; i++) {
-            // check sorting and uniqueness
+            // Check sorting and uniqueness of delegatees.
             if (i == 0 && _newDelegations[i].delegatee == address(0)) {
                 // zero delegation is allowed if in 0th position
             } else if (_newDelegations[i].delegatee <= _lastDelegatee) {
                 revert DuplicateOrUnsortedDelegatees(_newDelegations[i].delegatee);
             }
 
-            // replace existing delegatees in storage
-            if (i < _oldDelegateLength) {
+            // Add new delegations by either updating or pushing.
+            if (i < _oldDelegationsLength) {
                 _delegations[_delegator][i] = _newDelegations[i];
-            }
-            // or add new delegatees
-            else {
+            } else {
                 _delegations[_delegator].push(_newDelegations[i]);
             }
+
             _lastDelegatee = _newDelegations[i].delegatee;
         }
-        // remove any remaining old delegatees
-        if (_oldDelegateLength > _newDelegationsLength) {
-            for (uint256 i = _newDelegationsLength; i < _oldDelegateLength; i++) {
+        // Remove any old delegations.
+        if (_oldDelegationsLength > _newDelegationsLength) {
+            for (uint256 i = _newDelegationsLength; i < _oldDelegationsLength; i++) {
                 _delegations[_delegator].pop();
             }
         }
-        // TODO: event below.
+
         // emit DelegateChanged(_delegator, _oldDelegations, _newDelegations);
     }
 
-    /// @notice Calculate the delegation adjusments and checkpoints given an old and new delegation set.
+    /// @notice Aggregates delegation adjustments and creates checkpoints.
     /// @param _old The old delegation set.
     /// @param _new The new delegation set.
-    function _aggregateDelegationAdjustmentsAndCreateCheckpoints(
-        DelegationAdjustment[] memory _old,
-        DelegationAdjustment[] memory _new
-    )
-        internal
-    {
-        // start with ith member of _old and jth member of _new.
-        // If they are the same delegatee, combine them, check if result is 0, and iterate i and j.
-        // If _old[i] > _new[j], add _new[j] to the final array and iterate j. If _new[j] > _old[i], add _old[i] and
-        // iterate
-        // i.
-        uint256 i;
-        uint256 j;
-        uint256 _oldLength = _old.length;
-        uint256 _newLength = _new.length;
-        while (i < _oldLength || j < _newLength) {
-            DelegationAdjustment memory _delegationAdjustment;
-            Op _op;
+    function _createCheckpoints(DelegationAdjustment[] memory _old, DelegationAdjustment[] memory _new) internal {
+        for (uint256 i; i < _old.length; i++) {
+            bytes32 packed = _pack_28_4(bytes28(uint224(_old[i].amount)), bytes4(bytes1(uint8(Op.SUBTRACT))));
+            _adjustments.set(_old[i].delegatee, uint256(packed));
+        }
 
-            // same address is present in both arrays
-            if (i < _oldLength && j < _newLength && _old[i].delegatee == _new[j].delegatee) {
-                // combine, checkpoint, and iterate
-                _delegationAdjustment.delegatee = _old[i].delegatee;
-                if (_old[i].amount != _new[j].amount) {
-                    if (_old[i].amount > _new[j].amount) {
-                        _op = Op.SUBTRACT;
-                        _delegationAdjustment.amount = _old[i].amount - _new[j].amount;
-                    } else {
-                        _op = Op.ADD;
-                        _delegationAdjustment.amount = _new[j].amount - _old[i].amount;
-                    }
+        for (uint256 i; i < _new.length; i++) {
+            address delegatee = _new[i].delegatee;
+            if (delegatee == address(0)) continue;
+
+            uint256 amount = _new[i].amount;
+
+            if (_adjustments.contains(delegatee)) {
+                uint256 oldAmount = _adjustments.get(delegatee);
+
+                if (oldAmount > amount) {
+                    bytes32 packed =
+                        _pack_28_4(bytes28(uint224(oldAmount - amount)), bytes4(bytes1(uint8(Op.SUBTRACT))));
+                    amount = uint256(packed);
+                } else {
+                    bytes32 packed = _pack_28_4(bytes28(uint224(amount - oldAmount)), bytes4(bytes1(uint8(Op.ADD))));
+                    amount = uint256(packed);
                 }
-                i++;
-                j++;
-            } else if (
-                j == _newLength // if we've exhausted the new array, we can just checkpoint the old values
-                    || (i != _oldLength && _old[i].delegatee < _new[j].delegatee) // or, if the ith old delegatee is next in
-                    // line
-            ) {
-                // skip if 0...
-                _delegationAdjustment.delegatee = _old[i].delegatee;
-                if (_old[i].amount != 0) {
-                    _op = Op.SUBTRACT;
-                    _delegationAdjustment.amount = _old[i].amount;
-                }
-                i++;
             } else {
-                // skip if 0...
-                _delegationAdjustment.delegatee = _new[j].delegatee;
-                if (_new[j].amount != 0) {
-                    _op = Op.ADD;
-                    _delegationAdjustment.amount = _new[j].amount;
-                }
-                j++;
+                bytes32 packed = _pack_28_4(bytes28(uint224(amount)), bytes4(bytes1(uint8(Op.ADD))));
+                amount = uint256(packed);
             }
 
-            if (_delegationAdjustment.amount != 0 && _delegationAdjustment.delegatee != address(0)) {
-                (uint256 oldValue, uint256 newValue) = _writeCheckpoint(
-                    _checkpoints[_delegationAdjustment.delegatee],
-                    _op == Op.ADD ? _add : _subtract,
-                    _delegationAdjustment.amount
-                );
+            _adjustments.set(delegatee, amount);
+        }
 
-                emit DelegateVotesChanged(_delegationAdjustment.delegatee, oldValue, newValue);
-            }
+        uint256 _adjustmentsLength = _adjustments.length();
+
+        for (uint256 i; i < _adjustmentsLength; i++) {
+            (address delegatee, uint256 packed) = _adjustments.at(i);
+            uint256 amount = uint224(_extract_32_28(bytes32(packed), 0));
+            Op op = Op(uint8(bytes1(_extract_32_4(bytes32(packed), 28))));
+
+            (uint256 oldValue, uint256 newValue) =
+                _writeCheckpoint(_checkpoints[delegatee], op == Op.ADD ? _add : _subtract, amount);
+
+            emit DelegateVotesChanged(delegatee, oldValue, newValue);
         }
     }
 
@@ -339,7 +320,9 @@ contract GovernanceDelegation is IGovernanceDelegation {
 
         // Iterate through partial delegations to calculate vote weight
         for (uint256 i; i < _delegationsLength; i++) {
-            if (!migrated[_delegationSet[i].delegatee]) _migrate(_delegationSet[i].delegatee);
+            if (!migrated[_delegationSet[i].delegatee]) {
+                _migrate(_delegationSet[i].delegatee);
+            }
 
             if (_delegationSet[i].allowanceType == AllowanceType.Relative) {
                 if (_delegationSet[i].amount == 0) {
@@ -347,7 +330,7 @@ contract GovernanceDelegation is IGovernanceDelegation {
                 }
 
                 _delegationAdjustments[i] = DelegationAdjustment(
-                    _delegationSet[i].delegatee, uint208(_amount * _delegationSet[i].amount / DENOMINATOR)
+                    _delegationSet[i].delegatee, uint208((_amount * _delegationSet[i].amount) / DENOMINATOR)
                 );
                 _totalNumerator += _delegationSet[i].amount;
 
@@ -470,7 +453,7 @@ contract GovernanceDelegation is IGovernanceDelegation {
                 );
             }
         }
-        _aggregateDelegationAdjustmentsAndCreateCheckpoints(delegationAdjustmentsFrom, delegationAdjustmentsTo);
+        _createCheckpoints(delegationAdjustmentsFrom, delegationAdjustmentsTo);
     }
 
     /// @notice Writes a checkpoint with `_delta` and `op` to `_ckpts`.
@@ -517,5 +500,27 @@ contract GovernanceDelegation is IGovernanceDelegation {
     /// @return  The difference of the two numbers.
     function _subtract(uint256 _a, uint256 _b) internal pure returns (uint256) {
         return _a - _b;
+    }
+
+    function _extract_32_4(bytes32 _self, uint8 _offset) internal pure returns (bytes4 _result) {
+        if (_offset > 28) revert OutOfRangeAccess();
+        assembly ("memory-safe") {
+            _result := and(shl(mul(8, _offset), _self), shl(224, not(0)))
+        }
+    }
+
+    function _pack_28_4(bytes28 _left, bytes4 _right) internal pure returns (bytes32 _result) {
+        assembly ("memory-safe") {
+            _left := and(_left, shl(32, not(0)))
+            _right := and(_right, shl(224, not(0)))
+            _result := or(_left, shr(224, _right))
+        }
+    }
+
+    function _extract_32_28(bytes32 _self, uint8 _offset) internal pure returns (bytes28 _result) {
+        if (_offset > 4) revert OutOfRangeAccess();
+        assembly ("memory-safe") {
+            _result := and(shl(mul(8, _offset), _self), shl(32, not(0)))
+        }
     }
 }
