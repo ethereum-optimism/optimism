@@ -47,12 +47,16 @@ func PatchGo(f *elf.File, st mipsevm.FPVMState) error {
 			})); err != nil {
 				return fmt.Errorf("failed to patch Go runtime.gcenable: %w", err)
 			}
+		case "runtime.MemProfileRate":
+			if err := st.GetMemory().SetMemoryRange(uint32(s.Value), bytes.NewReader(make([]byte, 4))); err != nil { // disable mem profiling, to avoid a lot of unnecessary floating point ops
+				return err
+			}
 		}
 	}
 	return nil
 }
 
-// TODO(cp-903) Consider setting envar "GODEBUG=memprofilerate=0" for go programs to disable memprofiling
+// TODO(cp-903) Consider setting envar "GODEBUG=memprofilerate=0" for go programs to disable memprofiling, instead of patching it out in PatchGo()
 func PatchStack(st mipsevm.FPVMState) error {
 	// setup stack pointer
 	sp := uint32(0x7f_ff_d0_00)
