@@ -62,9 +62,9 @@ library Sort {
 
 library SafeTestLib {
     /// @dev The address of foundry's VM contract
-    address constant internal VM_ADDR = 0x7109709ECfa91a80626fF3989D68f67F5b1DD12D;
+    address internal constant VM_ADDR = 0x7109709ECfa91a80626fF3989D68f67F5b1DD12D;
     /// @dev The address of the first owner in the linked list of owners
-    address constant internal SENTINEL_OWNERS = address(0x1);
+    address internal constant SENTINEL_OWNERS = address(0x1);
 
     /// @dev Get the address from a private key
     function getAddr(uint256 pk) internal pure returns (address) {
