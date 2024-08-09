@@ -30,7 +30,7 @@ type recordDiff[V record] interface {
 	Apply(v V)
 }
 
-var UnknownRecordErr = errors.New("unknown record")
+var errUnknownRecord = errors.New("unknown record")
 
 func genNew[T any]() *T {
 	return new(T)
@@ -38,7 +38,7 @@ func genNew[T any]() *T {
 
 // recordsBook is a generic K-V store to embed in the extended-peerstore.
 // It prunes old entries to keep the store small.
-// The recordsBook can be wrapped to customize typing more.
+// The recordsBook can be wrapped to customize typing and introduce synchronization.
 type recordsBook[K ~string, V record] struct {
 	ctx          context.Context
 	cancelFn     context.CancelFunc
@@ -51,7 +51,6 @@ type recordsBook[K ~string, V record] struct {
 	dsBaseKey    ds.Key
 	dsEntryKey   func(K) ds.Key
 	recordExpiry time.Duration // pruning is disabled if this is 0
-	sync.RWMutex
 }
 
 func newRecordsBook[K ~string, V record](ctx context.Context, logger log.Logger, clock clock.Clock, store ds.Batching, cacheSize int, recordExpiry time.Duration,
@@ -105,13 +104,13 @@ func (d *recordsBook[K, V]) deleteRecord(key K) error {
 func (d *recordsBook[K, V]) getRecord(key K) (v V, err error) {
 	if val, ok := d.cache.Get(key); ok {
 		if d.hasExpired(val) {
-			return v, UnknownRecordErr
+			return v, errUnknownRecord
 		}
 		return val, nil
 	}
 	data, err := d.store.Get(d.ctx, d.dsKey(key))
 	if errors.Is(err, ds.ErrNotFound) {
-		return v, UnknownRecordErr
+		return v, errUnknownRecord
 	} else if err != nil {
 		return v, fmt.Errorf("failed to load value of key %v: %w", key, err)
 	}
@@ -120,7 +119,7 @@ func (d *recordsBook[K, V]) getRecord(key K) (v V, err error) {
 		return v, fmt.Errorf("invalid value for key %v: %w", key, err)
 	}
 	if d.hasExpired(v) {
-		return v, UnknownRecordErr
+		return v, errUnknownRecord
 	}
 	// This is safe with a read lock as it's self-synchronized.
 	d.cache.Add(key, v)
@@ -131,7 +130,7 @@ func (d *recordsBook[K, V]) getRecord(key K) (v V, err error) {
 // of the returned value.
 func (d *recordsBook[K, V]) setRecord(key K, diff recordDiff[V]) (V, error) {
 	rec, err := d.getRecord(key)
-	if err == UnknownRecordErr { // instantiate new record if it does not exist yet
+	if err == errUnknownRecord { // instantiate new record if it does not exist yet
 		rec = d.newRecord()
 	} else if err != nil {
 		return d.newRecord(), err

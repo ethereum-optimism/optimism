@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/clock"
@@ -46,6 +47,7 @@ func (p ipBanUpdate) Apply(rec *ipBanRecord) {
 }
 
 type ipBanBook struct {
+	mu   sync.RWMutex
 	book *recordsBook[string, *ipBanRecord]
 }
 
@@ -66,10 +68,10 @@ func (d *ipBanBook) startGC() {
 }
 
 func (d *ipBanBook) GetIPBanExpiration(ip net.IP) (time.Time, error) {
-	d.book.RLock()
-	defer d.book.RUnlock()
+	d.mu.RLock()
+	defer d.mu.RUnlock()
 	rec, err := d.book.getRecord(ip.To16().String())
-	if err == UnknownRecordErr {
+	if err == errUnknownRecord {
 		return time.Time{}, UnknownBanErr
 	}
 	if err != nil {
@@ -79,8 +81,8 @@ func (d *ipBanBook) GetIPBanExpiration(ip net.IP) (time.Time, error) {
 }
 
 func (d *ipBanBook) SetIPBanExpiration(ip net.IP, expirationTime time.Time) error {
-	d.book.Lock()
-	defer d.book.Unlock()
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	if expirationTime == (time.Time{}) {
 		return d.book.deleteRecord(ip.To16().String())
 	}
