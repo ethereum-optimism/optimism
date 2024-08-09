@@ -4,7 +4,6 @@ on:
 
 jobs:
   handle-proof-runner:
-    if: github.event.deployment.environment == 'runtimeverification/proof-runner'
     runs-on: ubuntu-latest
     steps:
     - name: Check Deployment Status
