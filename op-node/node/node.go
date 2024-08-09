@@ -15,7 +15,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
-	"github.com/ethereum-optimism/optimism/op-service/events"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	"github.com/r3labs/sse"
 
@@ -91,7 +90,6 @@ type OpNode struct {
 
 	httpEventStream       *sse.Server
 	httpEventStreamServer *httputil.HTTPServer
-	eventServer           *events.Server
 }
 
 // The OpNode handles incoming gossip
@@ -441,14 +439,12 @@ func (n *OpNode) initRPCServer(cfg *Config) error {
 }
 
 func (n *OpNode) initHTTPEventStreamServer(cfg *Config) error {
-	evSrv := events.NewServer()
-
-	server := sse.New()
-	server.AutoReplay = false
-	server.CreateStream("payload_attributes")
+	eventStream := sse.New()
+	eventStream.AutoReplay = false
+	eventStream.CreateStream("payload_attributes")
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/events", server.HTTPHandler)
+	mux.HandleFunc("/events", eventStream.HTTPHandler)
 	addr := net.JoinHostPort(cfg.RPC.ListenAddr, strconv.Itoa(cfg.RPC.ListenPort+1))
 
 	var err error
@@ -463,8 +459,7 @@ func (n *OpNode) initHTTPEventStreamServer(cfg *Config) error {
 		return fmt.Errorf("failed to start http event stream server: %w", err)
 	}
 	n.log.Info("Started HTTP event stream server", "addr", addr)
-	n.httpEventStream = server
-	n.eventServer = evSrv
+	n.httpEventStream = eventStream
 
 	return nil
 }
@@ -630,7 +625,6 @@ func (n *OpNode) PublishL2Attributes(ctx context.Context, attrs *derive.Attribut
 	}
 	n.log.Info("Publishing execution payload attributes on event stream", "attrs", builderAttrs, "json", string(jsonBytes))
 	n.httpEventStream.Publish("payload_attributes", &sse.Event{Data: jsonBytes})
-	n.eventServer.Publish(attrs)
 	return nil
 }
 
