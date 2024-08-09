@@ -59,7 +59,7 @@ contract SafeCall_Test is Test {
     }
 
     /// @dev Tests that `call` succeeds.
-    function testFuzz_call_succeeds(address from, address to, uint256 gas, uint64 value, bytes memory data) external {
+    function testFuzz_call_succeeds(address from, address to, uint256 gas, uint64 value, bytes memory data) public {
         assumeNot(from);
         assumeNot(to);
 
@@ -80,6 +80,17 @@ contract SafeCall_Test is Test {
             assertEq(from.balance, balancesBefore[0] - value, "from balance not drained");
             assertEq(to.balance, balancesBefore[1] + value, "to balance received");
         }
+    }
+
+    // Hardcoded test case that failed in https://app.circleci.com/pipelines/github/ethereum-optimism/optimism/60939/workflows/1580c398-a3c2-4168-960e-c84e7ccd8598/jobs/2555194
+    function testDebug() public {
+        testFuzz_call_succeeds(
+            0x000000000000000000000000000000000000142E,
+            0x5F65cD7D792E9746EF82929D60de9a1C526f93A5,
+            4285,
+            434,
+            bytes.concat(hex"00000000000000000000000000000000000000000000000000000000000022e8")
+        );
     }
 
     /// @dev Tests that `callWithMinGas` succeeds with enough gas.
