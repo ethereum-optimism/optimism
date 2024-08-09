@@ -16,6 +16,7 @@ const (
 	UserDepositSourceDomain    = 0
 	L1InfoDepositSourceDomain  = 1
 	UpgradeDepositSourceDomain = 2
+	DepositSourceDomain        = 3
 )
 
 func (dep *UserDepositSource) SourceHash() common.Hash {
@@ -61,5 +62,22 @@ func (dep *UpgradeDepositSource) SourceHash() common.Hash {
 	var domainInput [32 * 2]byte
 	binary.BigEndian.PutUint64(domainInput[32-8:32], UpgradeDepositSourceDomain)
 	copy(domainInput[32:], intentHash[:])
+	return crypto.Keccak256Hash(domainInput[:])
+}
+
+// Used for DepositsComplete/ResetDeposits post-deposits transactions.
+// TODO ^ set correct naming
+type DepositSource struct {
+	L1BlockHash common.Hash
+}
+
+func (dep *DepositSource) SourceHash() common.Hash {
+	var input [32 * 2]byte
+	copy(input[:32], dep.L1BlockHash[:])
+	depositIDHash := crypto.Keccak256Hash(input[:])
+
+	var domainInput [32 * 2]byte
+	binary.BigEndian.PutUint64(domainInput[32-8:32], DepositSourceDomain)
+	copy(domainInput[32:], depositIDHash[:])
 	return crypto.Keccak256Hash(domainInput[:])
 }
