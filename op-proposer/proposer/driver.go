@@ -270,17 +270,46 @@ func (l *L2OutputSubmitter) FetchL2OOOutput(ctx context.Context) (*eth.OutputRes
 }
 
 // FetchDGFOutput gets the next output proposal for the DGF.
+// It returns the output to propose, and whether the proposal should be submitted at all.
 // The passed context is expected to be a lifecycle context. A network timeout
 // context will be derived from it.
-func (l *L2OutputSubmitter) FetchDGFOutput(ctx context.Context) (*eth.OutputResponse, error) {
+func (l *L2OutputSubmitter) FetchDGFOutput(ctx context.Context) (*eth.OutputResponse, bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, l.Cfg.NetworkTimeout)
 	defer cancel()
 
-	blockNum, err := l.FetchCurrentBlockNumber(ctx)
+	shouldPropose := false
+
+	gameCount, err := l.dgfContract.GameCount(&bind.CallOpts{Context: ctx})
 	if err != nil {
-		return nil, err
+		l.Log.Warn("Could not query DisputeGameFactory.gameCount(), sending a proposal immediately")
+		shouldPropose = true
+	} else {
+		latestGameIndex := new(big.Int).Sub(gameCount, big.NewInt(1))
+		latestGame, err := l.dgfContract.GameAtIndex(&bind.CallOpts{Context: ctx}, latestGameIndex)
+		if err != nil {
+			l.Log.Warn(fmt.Sprintf(
+				"Could not query DisputeGameFactory.GameAtIndex(%d), sending a proposal immediately",
+				latestGameIndex.Int64()))
+			shouldPropose = true
+		} else {
+			timeSinceLastGame := time.Since(time.Unix(int64(latestGame.Timestamp), 0))
+			if timeSinceLastGame > l.Cfg.ProposalInterval {
+				shouldPropose = true
+				l.Log.Info(fmt.Sprintf("More than %f seconds since last game, sending a proposal now", timeSinceLastGame.Seconds()))
+			}
+		}
 	}
-	return l.FetchOutput(ctx, blockNum)
+
+	if shouldPropose {
+		blockNum, err := l.FetchCurrentBlockNumber(ctx)
+		if err != nil {
+			return nil, false, err
+		}
+		output, err := l.FetchOutput(ctx, blockNum)
+		return output, true, err
+	}
+
+	return nil, false, nil
 }
 
 // FetchCurrentBlockNumber gets the current block number from the [L2OutputSubmitter]'s [RollupClient]. If the `AllowNonFinalized` configuration
@@ -502,67 +531,31 @@ func (l *L2OutputSubmitter) loopL2OO(ctx context.Context) {
 // proposal interval after the first tick to maintain that interval going forward.
 func (l *L2OutputSubmitter) loopDGF(ctx context.Context) {
 	defer l.Log.Info("loopDGF returning")
-
-	// The default behavior is to immediately send a proposal on startup.
-	// For example if we cannot infer when the last game was created.
-	timeToWaitUntilNextProposal := time.Duration(0)
-
-	gameCount, err := l.dgfContract.GameCount(&bind.CallOpts{Context: ctx})
-	if err != nil {
-		l.Log.Warn("Could not query DisputeGameFactory.gameCount(), sending a proposal immediately")
-	} else {
-		latestGameIndex := new(big.Int).Sub(gameCount, big.NewInt(1))
-		latestGame, err := l.dgfContract.GameAtIndex(&bind.CallOpts{Context: ctx}, latestGameIndex)
-		if err != nil {
-			l.Log.Warn(fmt.Sprintf(
-				"Could not query DisputeGameFactory.GameAtIndex(%d), sending a proposal immediately",
-				latestGameIndex.Int64()))
-		} else {
-			timeSinceLastGame := time.Since(time.Unix(int64(latestGame.Timestamp), 0))
-			diff := l.Cfg.ProposalInterval - timeSinceLastGame
-			if diff > 0 {
-				// Only set a positive duration if we arent already more than a proposal interval behind
-				timeToWaitUntilNextProposal = diff
-				l.Log.Info(fmt.Sprintf("Waiting %f seconds before sending first proposal", timeToWaitUntilNextProposal.Seconds()))
-			} else {
-				l.Log.Info("Time since last game >= proposal interval, sending a proposal immediately")
-			}
-		}
-	}
-
-	startUpTick := true
-	ticker := time.NewTicker(timeToWaitUntilNextProposal)
+	ticker := time.NewTicker(l.Cfg.PollInterval)
 	defer ticker.Stop()
-
 	for {
 		select {
 		case <-ticker.C:
-			var (
-				output *eth.OutputResponse
-				err    error
-			)
-			// A note on retrying: because the proposal interval is usually much
-			// larger than the interval at which to retry proposing on a failed attempt,
-			// we want to keep retrying getting the output proposal until we succeed.
-			for output == nil || err != nil {
-				select {
-				case <-l.done:
-					return
-				default:
-				}
+			// prioritize quit signal
+			select {
+			case <-l.done:
+				return
+			default:
+			}
 
-				output, err = l.FetchDGFOutput(ctx)
-				if err != nil {
-					l.Log.Warn("Error getting DGF output, retrying...", "err", err)
-					time.Sleep(l.Cfg.OutputRetryInterval)
-				}
+			// A note on retrying: the outer ticker already runs on a short
+			// poll interval, which has a default value of 6 seconds. So no
+			// retry logic is needed around output fetching here.
+			output, shouldPropose, err := l.FetchDGFOutput(ctx)
+			if err != nil {
+				l.Log.Warn("Error getting DGF output", "err", err)
+				continue
+			} else if !shouldPropose {
+				// debug logging already in FetchDGFOutput
+				continue
 			}
 
 			l.proposeOutput(ctx, output)
-			if startUpTick {
-				ticker.Reset(l.Cfg.ProposalInterval)
-				startUpTick = false
-			}
 		case <-l.done:
 			return
 		}
