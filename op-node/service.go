@@ -111,6 +111,8 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		ConductorRpcTimeout: ctx.Duration(flags.ConductorRpcTimeoutFlag.Name),
 
 		Plasma: plasma.ReadCLIConfig(ctx),
+
+		PublishPayloadAttributes: ctx.Bool(flags.SequencerPublishPayloadAttributes.Name),
 	}
 
 	if err := cfg.LoadPersisted(log); err != nil {
