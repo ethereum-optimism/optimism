@@ -1,6 +1,8 @@
 package testutils
 
 import (
+	"time"
+
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -54,6 +56,27 @@ func (t *TestDerivationMetrics) RecordFrame() {
 }
 
 func (n *TestDerivationMetrics) RecordDerivedBatches(batchType string) {
+}
+
+func (n *TestDerivationMetrics) CountSequencedTxsBySource(count int, source string) {
+}
+
+func (n *TestDerivationMetrics) RecordBuilderRequestTime(duration time.Duration) {
+}
+
+func (n *TestDerivationMetrics) RecordBuilderRequestFail() {
+}
+
+func (n *TestDerivationMetrics) RecordBuilderRequestTimeout() {
+}
+
+func (n *TestDerivationMetrics) RecordSequencerProfit(profit float64, source string) {
+}
+
+func (n *TestDerivationMetrics) RecordSequencerPayloadInserted(source string) {
+}
+
+func (n *TestDerivationMetrics) RecordPayloadGas(gas float64, source string) {
 }
 
 type TestRPCMetrics struct{}
