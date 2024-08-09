@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/big"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/builder"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
@@ -45,12 +45,6 @@ type ExecEngine interface {
 	L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error)
 }
 
-type IBuilderClient interface {
-	Enabled() bool
-	Timeout() time.Duration
-	GetPayload(ctx context.Context, ref eth.L2BlockRef, log log.Logger) (*eth.ExecutionPayloadEnvelope, *big.Int, error)
-}
-
 type EngineController struct {
 	engine     ExecEngine // Underlying execution engine RPC
 	log        log.Logger
@@ -82,25 +76,25 @@ type EngineController struct {
 	buildingSafe bool
 	safeAttrs    *AttributesWithParent
 
-	builderClient IBuilderClient
+	payloadBuilder builder.PayloadBuilder
 }
 
-func NewEngineController(engine ExecEngine, log log.Logger, metrics Metrics, rollupCfg *rollup.Config, syncMode sync.Mode, builderClient IBuilderClient) *EngineController {
+func NewEngineController(engine ExecEngine, log log.Logger, metrics Metrics, rollupCfg *rollup.Config, syncMode sync.Mode, payloadBuilder builder.PayloadBuilder) *EngineController {
 	syncStatus := syncStatusCL
 	if syncMode == sync.ELSync {
 		syncStatus = syncStatusWillStartEL
 	}
 
 	return &EngineController{
-		engine:        engine,
-		log:           log,
-		metrics:       metrics,
-		chainSpec:     rollup.NewChainSpec(rollupCfg),
-		rollupCfg:     rollupCfg,
-		syncMode:      syncMode,
-		syncStatus:    syncStatus,
-		clock:         clock.SystemClock,
-		builderClient: builderClient,
+		engine:         engine,
+		log:            log,
+		metrics:        metrics,
+		chainSpec:      rollup.NewChainSpec(rollupCfg),
+		rollupCfg:      rollupCfg,
+		syncMode:       syncMode,
+		syncStatus:     syncStatus,
+		clock:          clock.SystemClock,
+		payloadBuilder: payloadBuilder,
 	}
 }
 
@@ -266,7 +260,7 @@ func (e *EngineController) ConfirmPayload(ctx context.Context, agossip async.Asy
 	}
 	// Update the safe head if the payload is built with the last attributes in the batch.
 	updateSafe := e.buildingSafe && e.safeAttrs != nil && e.safeAttrs.IsLastInSpan
-	envelope, errTyp, err := confirmPayload(ctx, e.log, e.engine, fc, e.buildingInfo, updateSafe, agossip, sequencerConductor, e.builderClient, e.buildingOnto, e.metrics)
+	envelope, errTyp, err := confirmPayload(ctx, e.log, e.engine, fc, e.buildingInfo, updateSafe, agossip, sequencerConductor, e.payloadBuilder, e.buildingOnto, e.metrics)
 	if err != nil {
 		return nil, errTyp, fmt.Errorf("failed to complete building on top of L2 chain %s, id: %s, error (%d): %w", e.buildingOnto, e.buildingInfo.ID, errTyp, err)
 	}

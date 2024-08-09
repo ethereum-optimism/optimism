@@ -46,6 +46,7 @@ type Metricer interface {
 	RecordUnsafePayloadsBuffer(length uint64, memSize uint64, next eth.BlockID)
 	RecordDerivedBatches(batchType string)
 	CountSequencedTxs(count int)
+	CountSequencedTxsBySource(count int, source string)
 	RecordL1ReorgDepth(d uint64)
 	RecordSequencerInconsistentL1Origin(from eth.BlockID, to eth.BlockID)
 	RecordSequencerReset()
@@ -72,6 +73,14 @@ type Metricer interface {
 	RecordDial(allow bool)
 	RecordAccept(allow bool)
 	ReportProtocolVersions(local, engine, recommended, required params.ProtocolVersion)
+
+	// Builder Metrics
+	RecordBuilderRequestTime(duration time.Duration)
+	RecordBuilderRequestFail()
+	RecordBuilderRequestTimeout()
+	RecordSequencerProfit(profit float64, source string)
+	RecordSequencerPayloadInserted(source string)
+	RecordPayloadGas(gas float64, source string)
 }
 
 // Metrics tracks all the metrics for the op-node.

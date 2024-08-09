@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/builder"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -124,7 +125,7 @@ func startPayload(ctx context.Context, eng ExecEngine, fc eth.ForkchoiceState, a
 }
 
 // makes parallel request to builder and engine to get the payload
-func getPayloadWithBuilderPayload(ctx context.Context, log log.Logger, eng ExecEngine, payloadInfo eth.PayloadInfo, l2head eth.L2BlockRef, builder IBuilderClient, metrics Metrics) (
+func getPayloadWithBuilderPayload(ctx context.Context, log log.Logger, eng ExecEngine, payloadInfo eth.PayloadInfo, l2head eth.L2BlockRef, builder builder.PayloadBuilder, metrics Metrics) (
 	*eth.ExecutionPayloadEnvelope, *eth.ExecutionPayloadEnvelope, error) {
 	// if builder is not enabled, return early with default path.
 	if !builder.Enabled() {
@@ -194,7 +195,7 @@ func confirmPayload(
 	updateSafe bool,
 	agossip async.AsyncGossiper,
 	sequencerConductor conductor.SequencerConductor,
-	builderClient IBuilderClient,
+	builderClient builder.PayloadBuilder,
 	l2head eth.L2BlockRef,
 	metrics Metrics,
 ) (out *eth.ExecutionPayloadEnvelope, errTyp BlockInsertionErrType, err error) {
