@@ -14,10 +14,6 @@ import (
 
 var OPStackSupport = params.ProtocolVersionV0{Build: [8]byte{}, Major: 7, Minor: 0, Patch: 0, PreRelease: 0}.Encode()
 
-const (
-	pgnSepolia = 58008
-)
-
 // LoadOPStackRollupConfig loads the rollup configuration of the requested chain ID from the superchain-registry.
 // Some chains may require a SystemConfigProvider to retrieve any values not part of the registry.
 func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
@@ -97,10 +93,6 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 
 	if superChain.Config.ProtocolVersionsAddr != nil { // Set optional protocol versions address
 		cfg.ProtocolVersionsAddress = common.Address(*superChain.Config.ProtocolVersionsAddr)
-	}
-	if chainID == pgnSepolia {
-		cfg.MaxSequencerDrift = 1000
-		cfg.SeqWindowSize = 7200
 	}
 	return cfg, nil
 }
