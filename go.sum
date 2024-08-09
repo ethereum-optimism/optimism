@@ -174,8 +174,6 @@ github.com/elastic/gosigar v0.14.2 h1:Dg80n8cr90OZ7x+bAax/QjoW/XqTI11RmA79ZwIm9/
 github.com/elastic/gosigar v0.14.2/go.mod h1:iXRIGg2tLnu7LBdpqzyQfGDEidKCfWcCMS0WKyPWoMs=
 github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3 h1:RWHKLhCrQThMfch+QJ1Z8veEq5ZO3DfIhZ7xgRP9WTc=
 github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3/go.mod h1:QziizLAiF0KqyLdNJYD7O5cpDlaFMNZzlxYNcWsJUxs=
-github.com/ethereum-optimism/op-geth v1.101407.0-rc.1 h1:bE6V8GG46s7IX2s7prH26sKcVwW0/FbId3CEe5GYulQ=
-github.com/ethereum-optimism/op-geth v1.101407.0-rc.1/go.mod h1:Zn0xPY3I/xX3Bm51kjXz9VSd+2ai7bEslVEAFTdVcpM=
 github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20240803025447-c92ef420eec2 h1:ySJykDUyb8RbcfLL3pz0Cs5Ji6NMVT7kmAY634DOCoE=
 github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20240803025447-c92ef420eec2/go.mod h1:zy9f3TNPS7pwW4msMitF83fp0Wf452tZ6+Fg6d4JyXM=
 github.com/ethereum/c-kzg-4844 v1.0.0 h1:0X1LBXxaEtYD9xsyj9B9ctQEZIpnvVDeoBx8aHEwTNA=
