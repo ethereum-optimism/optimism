@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"os"
 
+	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/eth/tracers/logger"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
@@ -122,6 +123,6 @@ func (d *testChain) GetHeader(h common.Hash, n uint64) *types.Header {
 	}
 }
 
-func MarkdownTracer() vm.EVMLogger {
-	return logger.NewMarkdownLogger(&logger.Config{}, os.Stdout)
+func MarkdownTracer() *tracing.Hooks {
+	return logger.NewMarkdownLogger(&logger.Config{}, os.Stdout).Hooks()
 }

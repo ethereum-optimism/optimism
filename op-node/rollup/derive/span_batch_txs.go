@@ -424,7 +424,7 @@ func (sbtx *spanBatchTxs) AddTxs(txs [][]byte, chainID *big.Int) error {
 	totalBlockTxCount := uint64(len(txs))
 	offset := sbtx.totalBlockTxCount
 	for idx := 0; idx < int(totalBlockTxCount); idx++ {
-		var tx types.Transaction
+		tx := &types.Transaction{}
 		if err := tx.UnmarshalBinary(txs[idx]); err != nil {
 			return errors.New("failed to decode tx")
 		}

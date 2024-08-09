@@ -207,10 +207,13 @@ func (s *L1Miner) ActL1EndBlock(t Testing) {
 	s.l1Building = false
 	s.l1BuildingHeader.GasUsed = s.l1BuildingHeader.GasLimit - uint64(*s.l1GasPool)
 	s.l1BuildingHeader.Root = s.l1BuildingState.IntermediateRoot(s.l1Cfg.Config.IsEIP158(s.l1BuildingHeader.Number))
-	block := types.NewBlock(s.l1BuildingHeader, s.l1Transactions, nil, s.l1Receipts, trie.NewStackTrie(nil))
+
+	var withdrawals []*types.Withdrawal
 	if s.l1Cfg.Config.IsShanghai(s.l1BuildingHeader.Number, s.l1BuildingHeader.Time) {
-		block = block.WithWithdrawals(make([]*types.Withdrawal, 0))
+		withdrawals = make([]*types.Withdrawal, 0)
 	}
+
+	block := types.NewBlock(s.l1BuildingHeader, &types.Body{Transactions: s.l1Transactions, Withdrawals: withdrawals}, s.l1Receipts, trie.NewStackTrie(nil))
 	if s.l1Cfg.Config.IsCancun(s.l1BuildingHeader.Number, s.l1BuildingHeader.Time) {
 		parent := s.l1Chain.GetHeaderByHash(s.l1BuildingHeader.ParentHash)
 		var (

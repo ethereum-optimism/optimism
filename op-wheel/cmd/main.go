@@ -31,9 +31,9 @@ func main() {
 		oplog.SetGlobalLogHandler(log.NewTerminalHandlerWithLevel(os.Stdout, lvl, true))
 		return nil
 	}
-	app.Action = cli.ActionFunc(func(c *cli.Context) error {
+	app.Action = func(c *cli.Context) error {
 		return errors.New("see 'cheat' and 'engine' subcommands and --help")
-	})
+	}
 	app.Writer = os.Stdout
 	app.ErrWriter = os.Stderr
 	app.Commands = []*cli.Command{
