@@ -164,33 +164,25 @@ func (info *L1BlockInfo) unmarshalBinaryBedrock(data []byte) error {
 // | 32      | BlockHash                |
 // | 32      | BatcherHash              |
 // +---------+--------------------------+
-
-func (info *L1BlockInfo) marshalBinaryIsthmus() ([]byte, error) {
-	out, err := marshalBinaryEcotoneOrIsthmus(info, true)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal Isthmus l1 block info: %w", err)
-	}
-	return out, nil
-}
-
+// Marshal Ecotone and Isthmus
 func (info *L1BlockInfo) marshalBinaryEcotone() ([]byte, error) {
-	out, err := marshalBinaryEcotoneOrIsthmus(info, false)
+	out, err := marshalBinaryWithSignature(info, L1InfoFuncEcotoneBytes4)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal Ecotone l1 block info: %w", err)
 	}
 	return out, nil
 }
-
-func marshalBinaryEcotoneOrIsthmus(info *L1BlockInfo, isIsthmus bool) ([]byte, error) {
+func (info *L1BlockInfo) marshalBinaryIsthmus() ([]byte, error) {
+	out, err := marshalBinaryWithSignature(info, L1InfoFuncIsthmusBytes4)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal Isthmus l1 block info: %w", err)
+	}
+	return out, nil
+}
+func marshalBinaryWithSignature(info *L1BlockInfo, signature []byte) ([]byte, error) {
 	w := bytes.NewBuffer(make([]byte, 0, L1InfoEcotoneLen)) // Ecotone and Isthmus have the same length
-	if isIsthmus {
-		if err := solabi.WriteSignature(w, L1InfoFuncIsthmusBytes4); err != nil {
-			return nil, err
-		}
-	} else {
-		if err := solabi.WriteSignature(w, L1InfoFuncEcotoneBytes4); err != nil {
-			return nil, err
-		}
+	if err := solabi.WriteSignature(w, signature); err != nil {
+		return nil, err
 	}
 	if err := binary.Write(w, binary.BigEndian, info.BaseFeeScalar); err != nil {
 		return nil, err
@@ -227,13 +219,13 @@ func marshalBinaryEcotoneOrIsthmus(info *L1BlockInfo, isIsthmus bool) ([]byte, e
 	return w.Bytes(), nil
 }
 
-func (info *L1BlockInfo) unmarshalBinaryIsthmus(data []byte) error {
-	return unmarshalBinaryWithSignatureAndData(info, L1InfoFuncIsthmusBytes4, data)
-}
+// Unmarshal Ecotone and Isthmus
 func (info *L1BlockInfo) unmarshalBinaryEcotone(data []byte) error {
 	return unmarshalBinaryWithSignatureAndData(info, L1InfoFuncEcotoneBytes4, data)
 }
-
+func (info *L1BlockInfo) unmarshalBinaryIsthmus(data []byte) error {
+	return unmarshalBinaryWithSignatureAndData(info, L1InfoFuncIsthmusBytes4, data)
+}
 func unmarshalBinaryWithSignatureAndData(info *L1BlockInfo, signature []byte, data []byte) error {
 	if len(data) != L1InfoEcotoneLen {
 		return fmt.Errorf("data is unexpected length: %d", len(data))

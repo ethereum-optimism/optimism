@@ -186,7 +186,7 @@ contract L1Block is ISemver, IGasToken {
 
     /// @notice Resets the isDeposit flag.
     ///         Should only be called by the depositor account after the deposits are complete.
-    function depositsComplete() external {
+    function depositsComplete() external { // TODO modify spec or modify functionNaming
         if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
 
         // Set the isDeposit flag to false.
