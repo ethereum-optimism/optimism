@@ -12,7 +12,7 @@ import {
     InvalidLegacyAddress,
     InvalidSuperchainAddress,
     InvalidTokenPair,
-    IOptimismMintableERC20Factory,
+    IOptimismERC20Factory,
     MintableAndBurnable
 } from "src/L2/L2StandardBridgeInterop.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
@@ -47,9 +47,7 @@ contract L2StandardBridgeInterop_Test is Bridge_Initializer {
     /// @notice Mock factory deployment
     function _mockDeployments(address _factory, address _token, address _deployed) internal {
         _mockAndExpect(
-            _factory,
-            abi.encodeWithSelector(IOptimismMintableERC20Factory.deployments.selector, _token),
-            abi.encode(_deployed)
+            _factory, abi.encodeWithSelector(IOptimismERC20Factory.deployments.selector, _token), abi.encode(_deployed)
         );
     }
 }

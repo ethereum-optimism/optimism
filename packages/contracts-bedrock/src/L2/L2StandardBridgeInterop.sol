@@ -5,6 +5,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { L2StandardBridge } from "src/L2/L2StandardBridge.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import { IOptimismERC20Factory } from "src/L2/IOptimismERC20Factory.sol";
 
 /// @notice Thrown when the decimals of the tokens are not the same.
 error InvalidDecimals();
@@ -17,16 +18,6 @@ error InvalidSuperchainAddress();
 
 /// @notice Thrown when the remote addresses of the tokens are not the same.
 error InvalidTokenPair();
-
-// TODO: Use OptimismMintableERC20Factory contract instead of interface
-interface IOptimismMintableERC20Factory {
-    function deployments(address) external view returns (address);
-}
-
-// TODO: Move to a separate file
-interface ISuperchainERC20Factory {
-    function deployments(address) external view returns (address);
-}
 
 // TODO: Use an existing interface with `mint` and `burn`?
 interface MintableAndBurnable is IERC20 {
@@ -82,12 +73,12 @@ contract L2StandardBridgeInterop is L2StandardBridge {
     function _validateFactories(address _legacyAddr, address _superAddr) internal view {
         // 2. Valid legacy check
         address _legacyRemoteToken =
-            IOptimismMintableERC20Factory(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY).deployments(_legacyAddr);
+            IOptimismERC20Factory(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY).deployments(_legacyAddr);
         if (_legacyRemoteToken == address(0)) revert InvalidLegacyAddress();
 
         // 3. Valid SuperchainERC20 check
         address _superRemoteToken =
-            ISuperchainERC20Factory(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY).deployments(_superAddr);
+            IOptimismERC20Factory(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY).deployments(_superAddr);
         if (_superRemoteToken == address(0)) revert InvalidSuperchainAddress();
 
         // 4. Same remote address check
