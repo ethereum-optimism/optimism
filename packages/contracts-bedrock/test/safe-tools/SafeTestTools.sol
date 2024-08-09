@@ -54,7 +54,7 @@ struct SafeInstance {
 
 library Sort {
     /// @dev Sorts an array of addresses in place
-    function sort(address[] memory arr) public pure returns (address[] memory) {
+    function sort(address[] memory arr) internal pure returns (address[] memory) {
         LibSort.sort(arr);
         return arr;
     }
