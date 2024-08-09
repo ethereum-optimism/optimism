@@ -26,9 +26,6 @@ error DuplicateOrUnsortedDelegatees(address delegatee);
 /// @notice Thrown when a block number is not yet mined.
 error BlockNotYetMined(uint256 blockNumber);
 
-/// @notice Thrown when trying to access an out of range index.
-error OutOfRangeAccess();
-
 /// @custom:predeploy 0x4200000000000000000000000000000000000043
 /// @title GovernanceDelegation
 /// @notice A contract that allows delegation of votes to other accounts. It is used to implement advanced delegation
@@ -157,11 +154,8 @@ contract GovernanceDelegation is IGovernanceDelegation {
     /// @param _delegatee          The address to delegate to.
     function delegateFromToken(address _delegator, address _delegatee) external onlyToken {
         Delegation[] memory delegation = new Delegation[](1);
-        delegation[0] =
-            Delegation({ delegatee: _delegatee, allowanceType: AllowanceType.Relative, amount: DENOMINATOR });
-
+        delegation[0] = Delegation(AllowanceType.Relative, _delegatee, DENOMINATOR);
         _delegate(_delegator, delegation);
-
         emit DelegationsCreated(_delegator, delegation);
     }
 
@@ -193,20 +187,32 @@ contract GovernanceDelegation is IGovernanceDelegation {
     /// GovernanceDelegation contract.
     /// @param _accounts The accounts to migrate.
     function migrateAccounts(address[] calldata _accounts) external {
-        for (uint256 i; i < _accounts.length;) {
+        for (uint256 i; i < _accounts.length; i++) {
             address _account = _accounts[i];
             if (!migrated[_account]) _migrate(_account);
-
-            unchecked {
-                i++;
-            }
         }
+    }
+
+    /// @notice Migrate the delegation state of accounts from the token.
+    /// @param _account The account to migrate.
+    function _migrate(address _account) internal {
+        // Get the number of checkpoints.
+        uint32 _numCheckpoints = ERC20Votes(Predeploys.GOVERNANCE_TOKEN).numCheckpoints(_account);
+
+        // Itereate over the checkpoints and store them.
+        for (uint32 i; i < _numCheckpoints; i++) {
+            ERC20Votes.Checkpoint memory checkpoint = ERC20Votes(Predeploys.GOVERNANCE_TOKEN).checkpoints(_account, i);
+            _checkpoints[_account].push(checkpoint);
+        }
+
+        // Set migrated flag
+        migrated[_account] = true;
     }
 
     /// @notice Delegate `_delegator`'s voting units to delegations specified in `_newDelegations`.
     /// @param _delegator         The delegator to delegate votes from.
     /// @param _newDelegations    The delegations to delegate votes to.
-    function _delegate(address _delegator, Delegation[] memory _newDelegations) internal virtual migrate(_delegator) {
+    function _delegate(address _delegator, Delegation[] memory _newDelegations) internal migrate(_delegator) {
         uint256 _newDelegationsLength = _newDelegations.length;
         if (_newDelegationsLength > MAX_DELEGATIONS) {
             revert LimitExceeded(_newDelegationsLength, MAX_DELEGATIONS);
@@ -345,23 +351,55 @@ contract GovernanceDelegation is IGovernanceDelegation {
         return _delegationAdjustments;
     }
 
-    /// @notice Migrate an account to the GovernanceDelegation contract.
-    /// @param _account The account to migrate.
-    function _migrate(address _account) internal {
-        // Get the number of checkpoints.
-        uint32 _numCheckpoints = ERC20Votes(Predeploys.GOVERNANCE_TOKEN).numCheckpoints(_account);
+    /// @notice Moves voting power from `_src` to `_dst` by `_amount`.
+    /// @param _from    The address of the source account.
+    /// @param _to    The address of the destination account.
+    /// @param _amount The amount of voting power to move.
+    function _moveVotingPower(address _from, address _to, uint256 _amount) internal {
+        // Skip when addresses are equal or amount is zero.
+        if (_from == _to || _amount == 0) {
+            return;
+        }
 
-        // Itereate over the checkpoints and store them.
-        for (uint32 i; i < _numCheckpoints;) {
-            ERC20Votes.Checkpoint memory checkpoint = ERC20Votes(Predeploys.GOVERNANCE_TOKEN).checkpoints(_account, i);
-            _checkpoints[_account].push(checkpoint);
-            unchecked {
-                ++i;
+        // Increase total supply checkpoint for mint
+        if (_from == address(0)) {
+            _writeCheckpoint(_totalSupplyCheckpoints, _add, _amount);
+        }
+
+        // Decrease total supply checkpoint for burn
+        if (_to == address(0)) {
+            _writeCheckpoint(_totalSupplyCheckpoints, _subtract, _amount);
+        }
+
+        // Create checkpoints for the `from` delegatees.
+        uint256 _fromLength = _delegations[_from].length;
+        if (_fromLength > 0) {
+            uint256 _fromVotes = ERC20Votes(Predeploys.GOVERNANCE_TOKEN).balanceOf(_from);
+            DelegationAdjustment[] memory from = calculateWeightDistribution(_delegations[_from], _fromVotes + _amount);
+            DelegationAdjustment[] memory fromNew = calculateWeightDistribution(_delegations[_from], _fromVotes);
+            for (uint256 i; i < _fromLength; i++) {
+                (uint256 oldValue, uint256 newValue) = _writeCheckpoint(
+                    _checkpoints[_delegations[_from][i].delegatee], _subtract, from[i].amount - fromNew[i].amount
+                );
+
+                emit DelegateVotesChanged(_delegations[_from][i].delegatee, oldValue, newValue);
             }
         }
 
-        // Set migrated flag
-        migrated[_account] = true;
+        // Create checkpoints for the `to` delegatees.
+        uint256 _toLength = _delegations[_to].length;
+        if (_toLength > 0) {
+            uint256 _toVotes = ERC20Votes(Predeploys.GOVERNANCE_TOKEN).balanceOf(_to);
+            DelegationAdjustment[] memory to = calculateWeightDistribution(_delegations[_to], _toVotes - _amount);
+            DelegationAdjustment[] memory toNew = calculateWeightDistribution(_delegations[_to], _toVotes);
+
+            for (uint256 i; i < _toLength; i++) {
+                (uint256 oldValue, uint256 newValue) =
+                    _writeCheckpoint(_checkpoints[_delegations[_to][i].delegatee], _add, toNew[i].amount - to[i].amount);
+
+                emit DelegateVotesChanged(_delegations[_to][i].delegatee, oldValue, newValue);
+            }
+        }
     }
 
     /// @notice Returns the checkpoints for a given token and account.
@@ -399,61 +437,6 @@ contract GovernanceDelegation is IGovernanceDelegation {
         }
 
         return high == 0 ? 0 : _ckpts[high - 1].votes;
-    }
-
-    /// @notice Moves voting power from `_src` to `_dst` by `_amount`.
-    /// @param _from    The address of the source account.
-    /// @param _to    The address of the destination account.
-    /// @param _amount The amount of voting power to move.
-    function _moveVotingPower(address _from, address _to, uint256 _amount) internal {
-        // skip from == to or amount == 0 as no-op.
-        if (_from == _to || _amount == 0) {
-            return;
-        }
-
-        // update total supply on mint
-        if (_from == address(0)) {
-            _writeCheckpoint(_totalSupplyCheckpoints, _add, _amount);
-        }
-
-        // update total supply on burn
-        if (_to == address(0)) {
-            _writeCheckpoint(_totalSupplyCheckpoints, _subtract, _amount);
-        }
-
-        // finally, calculate delegatee vote changes and create checkpoints accordingly
-        uint256 _fromLength = _delegations[_from].length;
-        DelegationAdjustment[] memory delegationAdjustmentsFrom = new DelegationAdjustment[](_fromLength);
-        // We'll need to adjust the delegatee votes for both "_from" and "_to" delegatee sets.
-        if (_fromLength > 0) {
-            uint256 _fromVotes = ERC20Votes(Predeploys.GOVERNANCE_TOKEN).balanceOf(_from);
-            DelegationAdjustment[] memory from = calculateWeightDistribution(_delegations[_from], _fromVotes + _amount);
-            DelegationAdjustment[] memory fromNew = calculateWeightDistribution(_delegations[_from], _fromVotes);
-            for (uint256 i; i < _fromLength; i++) {
-                delegationAdjustmentsFrom[i] = DelegationAdjustment({
-                    delegatee: _delegations[_from][i].delegatee,
-                    amount: from[i].amount - fromNew[i].amount
-                });
-            }
-        }
-
-        uint256 _toLength = _delegations[_to].length;
-        DelegationAdjustment[] memory delegationAdjustmentsTo = new DelegationAdjustment[](_toLength);
-        if (_toLength > 0) {
-            uint256 _toVotes = ERC20Votes(Predeploys.GOVERNANCE_TOKEN).balanceOf(_to);
-            DelegationAdjustment[] memory to = calculateWeightDistribution(_delegations[_to], _toVotes - _amount);
-            DelegationAdjustment[] memory toNew = calculateWeightDistribution(_delegations[_to], _toVotes);
-
-            for (uint256 i; i < _toLength; i++) {
-                delegationAdjustmentsTo[i] = (
-                    DelegationAdjustment({
-                        delegatee: _delegations[_to][i].delegatee,
-                        amount: toNew[i].amount - to[i].amount
-                    })
-                );
-            }
-        }
-        _createCheckpoints(delegationAdjustmentsFrom, delegationAdjustmentsTo);
     }
 
     /// @notice Writes a checkpoint with `_delta` and `op` to `_ckpts`.
@@ -503,7 +486,6 @@ contract GovernanceDelegation is IGovernanceDelegation {
     }
 
     function _extract_32_4(bytes32 _self, uint8 _offset) internal pure returns (bytes4 _result) {
-        if (_offset > 28) revert OutOfRangeAccess();
         assembly ("memory-safe") {
             _result := and(shl(mul(8, _offset), _self), shl(224, not(0)))
         }
@@ -518,7 +500,6 @@ contract GovernanceDelegation is IGovernanceDelegation {
     }
 
     function _extract_32_28(bytes32 _self, uint8 _offset) internal pure returns (bytes28 _result) {
-        if (_offset > 4) revert OutOfRangeAccess();
         assembly ("memory-safe") {
             _result := and(shl(mul(8, _offset), _self), shl(32, not(0)))
         }
