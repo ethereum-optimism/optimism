@@ -269,8 +269,9 @@ func (l *L2OutputSubmitter) FetchL2OOOutput(ctx context.Context) (*eth.OutputRes
 	return output, true, nil
 }
 
-// FetchDGFOutput gets the next output proposal for the DGF.
-// It returns the output to propose, and whether the proposal should be submitted at all.
+// FetchDGFOutput queries the DGF for the latest game and infers whether it is time to make another proposal
+// If necessary, it gets the next output proposal for the DGF, and returns it along with
+// a boolean for whether the proposal should be submitted at all.
 // The passed context is expected to be a lifecycle context. A network timeout
 // context will be derived from it.
 func (l *L2OutputSubmitter) FetchDGFOutput(ctx context.Context) (*eth.OutputResponse, bool, error) {
