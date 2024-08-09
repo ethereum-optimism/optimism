@@ -189,37 +189,17 @@ jobs:
           command: ./ops/scripts/geth-version-checker.sh || (echo "geth version is wrong, update ci-builder"; false)
       - install-contracts-dependencies
       - restore_cache:
-          name: Restore PNPM Package Cache
-          keys:
-            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
-      - restore_cache:
           name: Restore Go modules cache
           key: gomod-{{ checksum "go.sum" }}
-      # Fetch node_modules into the pnpm store
-      # This will cache node_modules based on pnpm-lock so other steps can instantly install them with `pnpm install --prefer-offline`
-      # --prefer-offline installs node_modules instantly by just reading from cache if it exists rather than fetching from network
-      # when installing node_modules pnpm simply adds symlinks instead of copying the files which is why it is pretty much instant to run --prefer-offline
-      # this allows a caching strategy of only checking pnpm-lockfile so we don't have to keep it in sync with our packages
-      # For more information see https://pnpm.io/cli/fetch
-      - run:
-          name: Fetch dependencies
-          command: pnpm fetch --frozen-lockfile --prefer-offline
-      - save_cache:
-          name: Save PNPM Package Cache
-          key: pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
-          paths:
-            - "node_modules"
-      - run:
-          name: Install dependencies
-          command: pnpm install
       - run:
           name: print forge version
           command: forge --version
       - run:
-          name: Build monorepo
+          name: Build contracts
           environment:
             FOUNDRY_PROFILE: ci
-          command: pnpm build
+          command: just build
+          working_directory: packages/contracts-bedrock
       - run:
           name: Generate L2OO allocs
           command: DEVNET_L2OO="true" make devnet-allocs
@@ -244,12 +224,9 @@ jobs:
       - persist_to_workspace:
           root: "."
           paths:
-            - "packages/**/dist"
             - "packages/contracts-bedrock/cache"
             - "packages/contracts-bedrock/artifacts"
             - "packages/contracts-bedrock/forge-artifacts"
-            - "packages/contracts-bedrock/tsconfig.tsbuildinfo"
-            - "packages/contracts-bedrock/tsconfig.build.tsbuildinfo"
             - ".devnet/allocs-l1.json"
             - ".devnet/allocs-l2-delta.json"
             - ".devnet/allocs-l2-ecotone.json"
@@ -580,21 +557,12 @@ jobs:
     resource_class: xlarge
     steps:
       - checkout
-      - install-contracts-dependencies
-      - restore_cache:
-          name: Restore PNPM Package Cache
-          keys:
-            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - attach_workspace: { at: "." }
+      - install-contracts-dependencies
       - check-changed:
           patterns: contracts-bedrock,op-node
       - setup_remote_docker:
           docker_layer_caching: true
-      # populate node modules from the cache
-      - run:
-          name: Install dependencies
-          command: pnpm install
-          working_directory: packages/contracts-bedrock
       - run:
           name: forge version
           command: forge --version
@@ -692,14 +660,7 @@ jobs:
     resource_class: medium
     steps:
       - checkout
-      - restore_cache:
-          name: Restore PNPM Package Cache
-          keys:
-            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - attach_workspace: { at: "." }
-      - run:
-          name: Install dependencies
-          command: pnpm install
       - check-changed:
           patterns: contracts-bedrock
       - run:
@@ -1157,25 +1118,10 @@ jobs:
             source $HOME/.bashrc
             forge --version
       - run:
-          name: Install NVM
-          command: |
-            curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-            source ~/.bashrc
-            nvm --version
-      - run:
-          name: Install Node
-          command: |
-            nvm install
-            nvm use && node --version && npm --version
-      - run:
           name: Install Just
           command: |
             curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to $HOME/bin
             echo 'export PATH="${PATH}:$HOME/bin"' >> $BASH_ENV
-      - run:
-          name: Install pnpm
-          command: |
-            npm i pnpm --global
       - install-contracts-dependencies
       - attach_workspace:
           at: "."
@@ -1204,9 +1150,9 @@ jobs:
             docker tag "$IMAGE_BASE_PREFIX/op-challenger:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op-challenger:devnet"
             docker tag "$IMAGE_BASE_PREFIX/da-server:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/da-server:devnet"
       - run:
-          name: pnpm install and build
-          command: |
-            pnpm install && pnpm build
+          name: Build contracts
+          working_directory: packages/contracts-bedrock
+          command: just build
       - run:
           name: Bring up the stack
           command: |
