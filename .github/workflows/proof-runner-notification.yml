@@ -1,7 +1,6 @@
 name: Handle Proof Runner Deployment Status
 on:
-  deployment_status:
-
+  status
 jobs:
   handle-proof-runner:
     runs-on: ubuntu-latest
