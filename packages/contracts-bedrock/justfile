@@ -17,7 +17,7 @@ autogen-invariant-docs:
   go run ./scripts/autogen/generate-invariant-docs .
 
 test: build-go-ffi
-  forge test
+  forge test -vvv
 
 test-kontrol:
   ./test/kontrol/scripts/run-kontrol.sh script
