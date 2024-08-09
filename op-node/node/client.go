@@ -19,7 +19,7 @@ import (
 
 type L2EndpointSetup interface {
 	// Setup a RPC client to a L2 execution engine to process rollup blocks with.
-	Setup(ctx context.Context, log log.Logger, rollupCfg *rollup.Config) (cl client.RPC, rpcCfg *sources.EngineClientConfig, bCfg *sources.BuilderAPIConfig, err error)
+	Setup(ctx context.Context, log log.Logger, rollupCfg *rollup.Config) (cl client.RPC, rpcCfg *sources.EngineClientConfig, err error)
 	Check() error
 }
 
@@ -47,8 +47,6 @@ type L2EndpointConfig struct {
 	// JWT secrets for L2 Engine API authentication during HTTP or initial Websocket communication.
 	// Any value for an IPC connection.
 	L2EngineJWTSecret [32]byte
-
-	L2BuilderAddr string
 }
 
 var _ L2EndpointSetup = (*L2EndpointConfig)(nil)
@@ -61,9 +59,9 @@ func (cfg *L2EndpointConfig) Check() error {
 	return nil
 }
 
-func (cfg *L2EndpointConfig) Setup(ctx context.Context, log log.Logger, rollupCfg *rollup.Config) (client.RPC, *sources.EngineClientConfig, *sources.BuilderAPIConfig, error) {
+func (cfg *L2EndpointConfig) Setup(ctx context.Context, log log.Logger, rollupCfg *rollup.Config) (client.RPC, *sources.EngineClientConfig, error) {
 	if err := cfg.Check(); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 	auth := rpc.WithHTTPAuth(gn.NewJWTAuth(cfg.L2EngineJWTSecret))
 	opts := []client.RPCOption{
@@ -72,14 +70,10 @@ func (cfg *L2EndpointConfig) Setup(ctx context.Context, log log.Logger, rollupCf
 	}
 	l2Node, err := client.NewRPC(ctx, log, cfg.L2EngineAddr, opts...)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
-	bCfg := &sources.BuilderAPIConfig{
-		Endpoint: cfg.L2BuilderAddr,
-	}
-
-	return l2Node, sources.EngineClientDefaultConfig(rollupCfg), bCfg, nil
+	return l2Node, sources.EngineClientDefaultConfig(rollupCfg), nil
 }
 
 // PreparedL2Endpoints enables testing with in-process pre-setup RPC connections to L2 engines
@@ -96,8 +90,8 @@ func (p *PreparedL2Endpoints) Check() error {
 
 var _ L2EndpointSetup = (*PreparedL2Endpoints)(nil)
 
-func (p *PreparedL2Endpoints) Setup(ctx context.Context, log log.Logger, rollupCfg *rollup.Config) (client.RPC, *sources.EngineClientConfig, *sources.BuilderAPIConfig, error) {
-	return p.Client, sources.EngineClientDefaultConfig(rollupCfg), sources.BuilderAPIDefaultConfig(), nil
+func (p *PreparedL2Endpoints) Setup(ctx context.Context, log log.Logger, rollupCfg *rollup.Config) (client.RPC, *sources.EngineClientConfig, error) {
+	return p.Client, sources.EngineClientDefaultConfig(rollupCfg), nil
 }
 
 type L1EndpointConfig struct {

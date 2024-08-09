@@ -110,6 +110,10 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		ConductorRpc:        ctx.String(flags.ConductorRpcFlag.Name),
 		ConductorRpcTimeout: ctx.Duration(flags.ConductorRpcTimeoutFlag.Name),
 
+		BuilderEnabled:  ctx.Bool(flags.BuilderEnabledFlag.Name),
+		BuilderEndpoint: ctx.String(flags.BuilderEndpointFlag.Name),
+		BuilderTimeout:  ctx.Duration(flags.BuilderRequestTimeoutFlag.Name),
+
 		Plasma: plasma.ReadCLIConfig(ctx),
 	}
 
@@ -174,12 +178,9 @@ func NewL2EndpointConfig(ctx *cli.Context, log log.Logger) (*node.L2EndpointConf
 		}
 	}
 
-	l2builderAddr := ctx.String(flags.BuilderAPIAddr.Name)
-
 	return &node.L2EndpointConfig{
 		L2EngineAddr:      l2Addr,
 		L2EngineJWTSecret: secret,
-		L2BuilderAddr:     l2builderAddr,
 	}, nil
 }
 

@@ -1,4 +1,4 @@
-package sources
+package node
 
 import (
 	"context"
@@ -28,17 +28,8 @@ var (
 const PathGetPayload = "/eth/v1/builder/payload"
 
 type BuilderAPIConfig struct {
-	Enabled  bool
 	Timeout  time.Duration
 	Endpoint string
-}
-
-func BuilderAPIDefaultConfig() *BuilderAPIConfig {
-	return &BuilderAPIConfig{
-		Enabled:  false,
-		Timeout:  500 * time.Millisecond,
-		Endpoint: "",
-	}
 }
 
 type BuilderAPIClient struct {
@@ -47,8 +38,12 @@ type BuilderAPIClient struct {
 	httpClient *client.BasicHTTPClient
 }
 
-func NewBuilderAPIClient(log log.Logger, config *BuilderAPIConfig) *BuilderAPIClient {
-	httpClient := client.NewBasicHTTPClient(config.Endpoint, log)
+func NewBuilderClient(log log.Logger, endpoint string, timeout time.Duration) *BuilderAPIClient {
+	httpClient := client.NewBasicHTTPClient(endpoint, log)
+	config := &BuilderAPIConfig{
+		Timeout:  timeout,
+		Endpoint: endpoint,
+	}
 
 	return &BuilderAPIClient{
 		httpClient: httpClient,
@@ -58,7 +53,7 @@ func NewBuilderAPIClient(log log.Logger, config *BuilderAPIConfig) *BuilderAPICl
 }
 
 func (s *BuilderAPIClient) Enabled() bool {
-	return s.config.Enabled
+	return true
 }
 
 func (s *BuilderAPIClient) Timeout() time.Duration {
