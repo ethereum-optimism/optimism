@@ -461,15 +461,47 @@ func (l *L2OutputSubmitter) sendTransaction(ctx context.Context, output *eth.Out
 }
 
 // loop is responsible for creating & submitting the next outputs
+// The loop regularly polls the L2 chain to infer whether to make the next proposal.
 func (l *L2OutputSubmitter) loop() {
 	defer l.wg.Done()
 	ctx := l.ctx
+	ticker := time.NewTicker(l.Cfg.PollInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			// prioritize quit signal
+			select {
+			case <-l.done:
+				return
+			default:
+			}
 
-	if l.dgfContract == nil {
-		l.loopL2OO(ctx)
-	} else {
-		l.loopDGF(ctx)
+			// A note on retrying: the outer ticker already runs on a short
+			// poll interval, which has a default value of 6 seconds. So no
+			// retry logic is needed around output fetching here.
+			var output *eth.OutputResponse
+			var shouldPropose bool
+			var err error
+			if l.dgfContract == nil {
+				output, shouldPropose, err = l.FetchL2OOOutput(ctx)
+			} else {
+				output, shouldPropose, err = l.FetchDGFOutput(ctx)
+			}
+			if err != nil {
+				l.Log.Warn("Error getting DGF output", "err", err)
+				continue
+			} else if !shouldPropose {
+				// debug logging already in FetchDGFOutput
+				continue
+			}
+
+			l.proposeOutput(ctx, output)
+		case <-l.done:
+			return
+		}
 	}
+
 }
 
 func (l *L2OutputSubmitter) waitNodeSync() error {
@@ -487,79 +519,6 @@ func (l *L2OutputSubmitter) waitNodeSync() error {
 	}
 
 	return dial.WaitRollupSync(l.ctx, l.Log, rollupClient, l1head, time.Second*12)
-}
-
-// The loopL2OO regularly polls the L2OO for the next block to propose,
-// and if the current finalized (or safe) block is past that next block, it
-// proposes it.
-func (l *L2OutputSubmitter) loopL2OO(ctx context.Context) {
-	defer l.Log.Info("loopL2OO returning")
-	ticker := time.NewTicker(l.Cfg.PollInterval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			// prioritize quit signal
-			select {
-			case <-l.done:
-				return
-			default:
-			}
-
-			// A note on retrying: the outer ticker already runs on a short
-			// poll interval, which has a default value of 6 seconds. So no
-			// retry logic is needed around output fetching here.
-			output, shouldPropose, err := l.FetchL2OOOutput(ctx)
-			if err != nil {
-				l.Log.Warn("Error getting L2OO output", "err", err)
-				continue
-			} else if !shouldPropose {
-				// debug logging already in FetchL2OOOutput
-				continue
-			}
-
-			l.proposeOutput(ctx, output)
-		case <-l.done:
-			return
-		}
-	}
-}
-
-// The loopDGF proposes a new output every proposal interval.
-// It uses an internal ticker, initialised on startup such that the next proposal
-// is triggered one interval after the latest game recored in the DGF, and then reset to the
-// proposal interval after the first tick to maintain that interval going forward.
-func (l *L2OutputSubmitter) loopDGF(ctx context.Context) {
-	defer l.Log.Info("loopDGF returning")
-	ticker := time.NewTicker(l.Cfg.PollInterval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			// prioritize quit signal
-			select {
-			case <-l.done:
-				return
-			default:
-			}
-
-			// A note on retrying: the outer ticker already runs on a short
-			// poll interval, which has a default value of 6 seconds. So no
-			// retry logic is needed around output fetching here.
-			output, shouldPropose, err := l.FetchDGFOutput(ctx)
-			if err != nil {
-				l.Log.Warn("Error getting DGF output", "err", err)
-				continue
-			} else if !shouldPropose {
-				// debug logging already in FetchDGFOutput
-				continue
-			}
-
-			l.proposeOutput(ctx, output)
-		case <-l.done:
-			return
-		}
-	}
 }
 
 func (l *L2OutputSubmitter) proposeOutput(ctx context.Context, output *eth.OutputResponse) {
