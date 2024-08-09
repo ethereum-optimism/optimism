@@ -9,11 +9,11 @@ import (
 type VMType string
 
 var cannonVMType VMType = "cannon"
-var mtVMType VMType = "mt"
+var mtVMType VMType = "cannon-mt"
 
 var VMTypeFlag = &cli.StringFlag{
 	Name:     "type",
-	Usage:    "VM type to create state for. Options are 'cannon' (default), 'mt'",
+	Usage:    "VM type to create state for. Options are 'cannon' (default), 'cannon-mt'",
 	Value:    "cannon",
 	Required: false,
 }
