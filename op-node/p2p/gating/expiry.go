@@ -61,7 +61,7 @@ func (g *ExpiryConnectionGater) UnblockPeer(p peer.ID) error {
 func (g *ExpiryConnectionGater) peerBanExpiryCheck(p peer.ID) (allow bool) {
 	// if the peer is blocked, check if it's time to unblock
 	expiry, err := g.store.GetPeerBanExpiration(p)
-	if errors.Is(err, store.UnknownBanErr) {
+	if errors.Is(err, store.ErrUnknownBan) {
 		return true // peer is allowed if it has not been banned
 	}
 	if err != nil {
@@ -88,7 +88,7 @@ func (g *ExpiryConnectionGater) addrBanExpiryCheck(ma multiaddr.Multiaddr) (allo
 	}
 	// if just the IP is blocked, check if it's time to unblock
 	expiry, err := g.store.GetIPBanExpiration(ip)
-	if errors.Is(err, store.UnknownBanErr) {
+	if errors.Is(err, store.ErrUnknownBan) {
 		return true // IP is allowed if it has not been banned
 	}
 	if err != nil {

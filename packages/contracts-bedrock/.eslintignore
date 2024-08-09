@@ -1,9 +1,0 @@
-# Deps and test files
-lib
-
-# build output
-artifacts
-forge-artifacts
-cache
-coverage*
-deployments

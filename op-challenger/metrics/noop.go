@@ -40,6 +40,7 @@ func (*NoopMetricsImpl) RecordBondClaimFailed()   {}
 func (*NoopMetricsImpl) RecordBondClaimed(uint64) {}
 
 func (*NoopMetricsImpl) RecordVmExecutionTime(_ string, _ time.Duration) {}
+func (*NoopMetricsImpl) RecordVmMemoryUsed(_ string, _ uint64)           {}
 func (*NoopMetricsImpl) RecordClaimResolutionTime(t float64)             {}
 func (*NoopMetricsImpl) RecordGameActTime(t float64)                     {}
 

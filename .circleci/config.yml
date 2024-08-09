@@ -3,7 +3,7 @@ version: 2.1
 parameters:
   ci_builder_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:v0.49.0
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:v0.50.0
   ci_builder_rust_image:
     type: string
     default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder-rust:latest
@@ -137,7 +137,7 @@ jobs:
       - run:
           name: build Cannon example binaries
           command: make elf # only compile ELF binaries with Go, we do not have MIPS GCC for creating the debug-dumps.
-          working_directory: cannon/example
+          working_directory: cannon/testdata/example
       - run:
           name: Cannon Go lint
           command: |
@@ -249,22 +249,26 @@ jobs:
             - ".devnet/allocs-l2-delta.json"
             - ".devnet/allocs-l2-ecotone.json"
             - ".devnet/allocs-l2-fjord.json"
+            - ".devnet/allocs-l2-granite.json"
             - ".devnet/addresses.json"
             - ".devnet-l2oo/allocs-l1.json"
             - ".devnet-l2oo/addresses.json"
             - ".devnet-l2oo/allocs-l2-delta.json"
             - ".devnet-l2oo/allocs-l2-ecotone.json"
             - ".devnet-l2oo/allocs-l2-fjord.json"
+            - ".devnet-l2oo/allocs-l2-granite.json"
             - ".devnet-plasma/allocs-l1.json"
             - ".devnet-plasma/addresses.json"
             - ".devnet-plasma/allocs-l2-delta.json"
             - ".devnet-plasma/allocs-l2-ecotone.json"
             - ".devnet-plasma/allocs-l2-fjord.json"
+            - ".devnet-plasma/allocs-l2-granite.json"
             - ".devnet-plasma-generic/allocs-l1.json"
             - ".devnet-plasma-generic/addresses.json"
             - ".devnet-plasma-generic/allocs-l2-delta.json"
             - ".devnet-plasma-generic/allocs-l2-ecotone.json"
             - ".devnet-plasma-generic/allocs-l2-fjord.json"
+            - ".devnet-plasma-generic/allocs-l2-granite.json"
             - "packages/contracts-bedrock/deploy-config/devnetL1.json"
             - "packages/contracts-bedrock/deployments/devnetL1"
       - notify-failures-on-develop
@@ -524,7 +528,7 @@ jobs:
       # We do not use the pre-built contracts becuase forge coverage uses different optimizer settings
       - run:
           name: test and generate coverage
-          command: pnpm coverage:lcov
+          command: just coverage-lcov
           no_output_timeout: 18m
           environment:
             FOUNDRY_PROFILE: ci
@@ -552,7 +556,7 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: run tests
-          command: pnpm test
+          command: just test
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
@@ -598,22 +602,22 @@ jobs:
         # Semver lock must come second because one of the later steps may modify the cache & force a contracts rebuild.
           name: semver lock
           command: |
-            pnpm semver-lock
+            just semver-lock
             git diff --exit-code semver-lock.json || echo "export SEMVER_LOCK_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
           name: check deploy configs
-          command: pnpm validate-deploy-configs || echo "export DEPLOY_CONFIGS_STATUS=1" >> "$BASH_ENV"
+          command: just validate-deploy-configs || echo "export DEPLOY_CONFIGS_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
           name: lint
           command: |
-            pnpm lint:check || echo "export LINT_STATUS=1" >> "$BASH_ENV"
+            just lint-check || echo "export LINT_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
           name: gas snapshot
           command: |
-            pnpm gas-snapshot --check || echo "export GAS_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
+            just gas-snapshot-check || echo "export GAS_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
@@ -621,13 +625,13 @@ jobs:
       - run:
           name: invariant docs
           command: |
-            pnpm autogen:invariant-docs
+            just autogen-invariant-docs
             git diff --exit-code ./invariant-docs/*.md || echo "export INVARIANT_DOCS_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
           name: snapshots
           command: |
-            pnpm snapshots:check || echo "export SNAPSHOTS_STATUS=1" >> "$BASH_ENV"
+            just snapshots-check || echo "export SNAPSHOTS_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
           name: size check
@@ -693,7 +697,7 @@ jobs:
           patterns: contracts-bedrock
       - run:
           name: validate spacers
-          command: pnpm validate-spacers
+          command: just validate-spacers
           working_directory: packages/contracts-bedrock
 
   todo-issues:
@@ -891,6 +895,7 @@ jobs:
             cp /tmp/workspace/.devnet<<parameters.variant>>/allocs-l2-delta.json .devnet/allocs-l2-delta.json
             cp /tmp/workspace/.devnet<<parameters.variant>>/allocs-l2-ecotone.json .devnet/allocs-l2-ecotone.json
             cp /tmp/workspace/.devnet<<parameters.variant>>/allocs-l2-fjord.json .devnet/allocs-l2-fjord.json
+            cp /tmp/workspace/.devnet<<parameters.variant>>/allocs-l2-granite.json .devnet/allocs-l2-granite.json
             cp /tmp/workspace/.devnet<<parameters.variant>>/allocs-l1.json .devnet/allocs-l1.json
             cp /tmp/workspace/.devnet<<parameters.variant>>/addresses.json .devnet/addresses.json
             cp /tmp/workspace/packages/contracts-bedrock/deploy-config/devnetL1.json packages/contracts-bedrock/deploy-config/devnetL1.json
@@ -1078,6 +1083,7 @@ jobs:
             - ".devnet/allocs-l2-delta.json"
             - ".devnet/allocs-l2-ecotone.json"
             - ".devnet/allocs-l2-fjord.json"
+            - ".devnet/allocs-l2-granite.json"
             - ".devnet/allocs-l1.json"
             - ".devnet/addresses.json"
             - "packages/contracts-bedrock/deploy-config/devnetL1.json"
@@ -1156,6 +1162,11 @@ jobs:
           command: |
             nvm install
             nvm use && node --version && npm --version
+      - run:
+          name: Install Just
+          command: |
+            curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to $HOME/bin
+            echo 'export PATH="${PATH}:$HOME/bin"' >> $BASH_ENV
       - run:
           name: Install pnpm
           command: |
@@ -1485,7 +1496,7 @@ jobs:
           docker_layer_caching: true
       - run:
           name: Run Kontrol Tests
-          command: pnpm test:kontrol
+          command: just test-kontrol
           working_directory: ./packages/contracts-bedrock
       - store_artifacts:
           path: ./packages/contracts-bedrock/test/kontrol/logs/kontrol-results_latest.tar.gz

@@ -133,6 +133,7 @@ contract SuperchainWETH_Test is CommonTest {
         public
     {
         // Assume
+        vm.assume(_chainId != block.chainid);
         _amount = bound(_amount, 0, type(uint248).max - 1);
 
         // Arrange
@@ -169,6 +170,7 @@ contract SuperchainWETH_Test is CommonTest {
     /// @param _chainId The chain ID to send the WETH to.
     function testFuzz_sendERC20_sufficientFromCustomGasTokenChain_succeeds(uint256 _amount, uint256 _chainId) public {
         // Assume
+        vm.assume(_chainId != block.chainid);
         _amount = bound(_amount, 0, type(uint248).max - 1);
 
         // Arrange
@@ -204,6 +206,7 @@ contract SuperchainWETH_Test is CommonTest {
     /// @param _chainId The chain ID to send the WETH to.
     function testFuzz_sendERC20_insufficientBalance_fails(uint256 _amount, uint256 _chainId) public {
         // Assume
+        vm.assume(_chainId != block.chainid);
         _amount = bound(_amount, 0, type(uint248).max - 1);
 
         // Arrange

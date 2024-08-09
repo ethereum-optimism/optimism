@@ -321,8 +321,8 @@ Use the env var `DEPLOY_CONFIG_PATH` to use a particular deploy config file at r
 
 The script will read the latest active fork from the deploy config and the L2 genesis allocs generated will be
 compatible with this fork. The automatically detected fork can be overwritten by setting the environment variable
-`FORK` either to the lower-case fork name (currently `delta`, `ecotone`, or `fjord`) or to `latest`, which will select
-the latest fork available (currently `fjord`).
+`FORK` either to the lower-case fork name (currently `delta`, `ecotone`, `fjord`, or `granite`) or to `latest`, which
+will select the latest fork available (currently `granite`).
 
 By default, the script will dump the L2 genesis allocs of the detected or selected fork only, to the file at `STATE_DUMP_PATH`.
 The optional environment variable `OUTPUT_MODE` allows to modify this behavior by setting it to one of the following values:
@@ -361,7 +361,7 @@ to reduce the overhead of maintaining multiple ways to set up the state as well 
 
 The L1 contract addresses are held in `deployments/hardhat/.deploy` and the L2 test state is held in a `.testdata` directory. The L1 addresses are used to create the L2 state
 and it is possible for stale addresses to be pulled into the L2 state, causing tests to fail. Stale addresses may happen if the order of the L1 deployments happen differently
-since some contracts are deployed using `CREATE`. Run `pnpm clean` and rerun the tests if they are failing for an unknown reason.
+since some contracts are deployed using `CREATE`. Run `just clean` and rerun the tests if they are failing for an unknown reason.
 
 ### Static Analysis
 

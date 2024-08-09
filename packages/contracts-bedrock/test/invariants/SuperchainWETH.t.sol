@@ -87,6 +87,9 @@ contract SuperchainWETH_User is StdUtils {
         // Bound send amount to our WETH balance.
         _amount = bound(_amount, 0, weth.balanceOf(address(this)));
 
+        // Prevent receiving chain ID from being the same as the current chain ID.
+        _chainId = _chainId == block.chainid ? _chainId + 1 : _chainId;
+
         // Send the amount.
         try weth.sendERC20(address(this), _amount, _chainId) {
             // Success.

@@ -42,7 +42,8 @@ func randConfig() *Config {
 		BlockTime:              2,
 		MaxSequencerDrift:      100,
 		SeqWindowSize:          2,
-		ChannelTimeout:         123,
+		ChannelTimeoutBedrock:  123,
+		ChannelTimeoutGranite:  45,
 		L1ChainID:              big.NewInt(900),
 		L2ChainID:              big.NewInt(901),
 		BatchInboxAddress:      randAddr(),
@@ -233,6 +234,15 @@ func TestActivations(t *testing.T) {
 			},
 		},
 		{
+			name: "Granite",
+			setUpgradeTime: func(t *uint64, c *Config) {
+				c.GraniteTime = t
+			},
+			checkEnabled: func(t uint64, c *Config) bool {
+				return c.IsGranite(t)
+			},
+		},
+		{
 			name: "Interop",
 			setUpgradeTime: func(t *uint64, c *Config) {
 				c.InteropTime = t
@@ -366,8 +376,27 @@ func TestConfig_Check(t *testing.T) {
 			expectedErr: ErrBlockTimeZero,
 		},
 		{
-			name:        "ChannelTimeoutZero",
-			modifier:    func(cfg *Config) { cfg.ChannelTimeout = 0 },
+			name:        "ChannelTimeoutBedrockZero",
+			modifier:    func(cfg *Config) { cfg.ChannelTimeoutBedrock = 0 },
+			expectedErr: ErrMissingChannelTimeout,
+		},
+		{
+			name:        "ChannelTimeoutGraniteZeroNotEnabled",
+			modifier:    func(cfg *Config) { cfg.ChannelTimeoutGranite = 0 },
+			expectedErr: nil,
+		},
+		{
+			name: "ChannelTimeoutGraniteZeroEnabled",
+			modifier: func(cfg *Config) {
+				genesis := uint64(0)
+				cfg.ChannelTimeoutGranite = 0
+				cfg.RegolithTime = &genesis
+				cfg.CanyonTime = &genesis
+				cfg.DeltaTime = &genesis
+				cfg.EcotoneTime = &genesis
+				cfg.FjordTime = &genesis
+				cfg.GraniteTime = &genesis
+			},
 			expectedErr: ErrMissingChannelTimeout,
 		},
 		{
@@ -466,7 +495,7 @@ func TestConfig_Check(t *testing.T) {
 			cfg := randConfig()
 			test.modifier(cfg)
 			err := cfg.Check()
-			assert.Same(t, err, test.expectedErr)
+			assert.ErrorIs(t, err, test.expectedErr)
 		})
 	}
 

@@ -5,7 +5,7 @@ cache
 venv
 .idea
 *.log
-example/bin
+testdata/example/bin
 contracts/out
 state.json
 *.json

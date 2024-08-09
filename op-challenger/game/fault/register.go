@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/prestates"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	keccakTypes "github.com/ethereum-optimism/optimism/op-challenger/game/keccak/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler"
@@ -74,18 +75,27 @@ func RegisterGameTypes(
 	syncValidator := newSyncStatusValidator(rollupClient)
 
 	if cfg.TraceTypeEnabled(faultTypes.TraceTypeCannon) {
-		if err := registerCannon(faultTypes.CannonGameType, registry, oracles, ctx, systemClock, l1Clock, logger, m, cfg, syncValidator, rollupClient, txSender, gameFactory, caller, l2Client, l1HeaderSource, selective, claimants); err != nil {
+		vmConfig := vm.NewOpProgramVmConfig()
+		if err := registerCannon(faultTypes.CannonGameType, registry, oracles, ctx, systemClock, l1Clock, logger, m, cfg, vmConfig, syncValidator, rollupClient, txSender, gameFactory, caller, l2Client, l1HeaderSource, selective, claimants); err != nil {
 			return nil, fmt.Errorf("failed to register cannon game type: %w", err)
 		}
 	}
 	if cfg.TraceTypeEnabled(faultTypes.TraceTypePermissioned) {
-		if err := registerCannon(faultTypes.PermissionedGameType, registry, oracles, ctx, systemClock, l1Clock, logger, m, cfg, syncValidator, rollupClient, txSender, gameFactory, caller, l2Client, l1HeaderSource, selective, claimants); err != nil {
+		vmConfig := vm.NewOpProgramVmConfig()
+		if err := registerCannon(faultTypes.PermissionedGameType, registry, oracles, ctx, systemClock, l1Clock, logger, m, cfg, vmConfig, syncValidator, rollupClient, txSender, gameFactory, caller, l2Client, l1HeaderSource, selective, claimants); err != nil {
 			return nil, fmt.Errorf("failed to register permissioned cannon game type: %w", err)
 		}
 	}
 	if cfg.TraceTypeEnabled(faultTypes.TraceTypeAsterisc) {
-		if err := registerAsterisc(faultTypes.AsteriscGameType, registry, oracles, ctx, systemClock, l1Clock, logger, m, cfg, syncValidator, rollupClient, txSender, gameFactory, caller, l2Client, l1HeaderSource, selective, claimants); err != nil {
+		vmConfig := vm.NewOpProgramVmConfig()
+		if err := registerAsterisc(faultTypes.AsteriscGameType, registry, oracles, ctx, systemClock, l1Clock, logger, m, cfg, vmConfig, syncValidator, rollupClient, txSender, gameFactory, caller, l2Client, l1HeaderSource, selective, claimants); err != nil {
 			return nil, fmt.Errorf("failed to register asterisc game type: %w", err)
+		}
+	}
+	if cfg.TraceTypeEnabled(faultTypes.TraceTypeAsteriscKona) {
+		vmConfig := vm.NewKonaVmConfig()
+		if err := registerAsterisc(faultTypes.AsteriscKonaGameType, registry, oracles, ctx, systemClock, l1Clock, logger, m, cfg, vmConfig, syncValidator, rollupClient, txSender, gameFactory, caller, l2Client, l1HeaderSource, selective, claimants); err != nil {
+			return nil, fmt.Errorf("failed to register asterisc kona game type: %w", err)
 		}
 	}
 	if cfg.TraceTypeEnabled(faultTypes.TraceTypeFast) {
@@ -194,6 +204,7 @@ func registerAsterisc(
 	logger log.Logger,
 	m metrics.Metricer,
 	cfg *config.Config,
+	vmCfg vm.OracleServerExecutor,
 	syncValidator SyncValidator,
 	rollupClient outputs.OutputRollupClient,
 	txSender TxSender,
@@ -249,7 +260,7 @@ func registerAsterisc(
 			if err != nil {
 				return nil, fmt.Errorf("failed to get asterisc prestate: %w", err)
 			}
-			accessor, err := outputs.NewOutputAsteriscTraceAccessor(logger, m, cfg.Asterisc, l2Client, prestateProvider, asteriscPrestate, rollupClient, dir, l1HeadID, splitDepth, prestateBlock, poststateBlock)
+			accessor, err := outputs.NewOutputAsteriscTraceAccessor(logger, m, cfg.Asterisc, vmCfg, l2Client, prestateProvider, asteriscPrestate, rollupClient, dir, l1HeadID, splitDepth, prestateBlock, poststateBlock)
 			if err != nil {
 				return nil, err
 			}
@@ -282,6 +293,7 @@ func registerCannon(
 	logger log.Logger,
 	m metrics.Metricer,
 	cfg *config.Config,
+	vmCfg vm.OracleServerExecutor,
 	syncValidator SyncValidator,
 	rollupClient outputs.OutputRollupClient,
 	txSender TxSender,
@@ -311,7 +323,6 @@ func registerCannon(
 		}
 
 		cannonPrestateProvider, err := prestateProviderCache.GetOrCreate(requiredPrestatehash)
-
 		if err != nil {
 			return nil, fmt.Errorf("required prestate %v not available for game %v: %w", requiredPrestatehash, game.Proxy, err)
 		}
@@ -339,7 +350,7 @@ func registerCannon(
 			if err != nil {
 				return nil, fmt.Errorf("failed to get cannon prestate: %w", err)
 			}
-			accessor, err := outputs.NewOutputCannonTraceAccessor(logger, m, cfg.Cannon, l2Client, prestateProvider, cannonPrestate, rollupClient, dir, l1HeadID, splitDepth, prestateBlock, poststateBlock)
+			accessor, err := outputs.NewOutputCannonTraceAccessor(logger, m, cfg.Cannon, vmCfg, l2Client, prestateProvider, cannonPrestate, rollupClient, dir, l1HeadID, splitDepth, prestateBlock, poststateBlock)
 			if err != nil {
 				return nil, err
 			}

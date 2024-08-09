@@ -68,7 +68,7 @@ func (d *peerBanBook) GetPeerBanExpiration(id peer.ID) (time.Time, error) {
 	defer d.mu.RUnlock()
 	rec, err := d.book.getRecord(id)
 	if err == errUnknownRecord {
-		return time.Time{}, UnknownBanErr
+		return time.Time{}, ErrUnknownBan
 	}
 	if err != nil {
 		return time.Time{}, err

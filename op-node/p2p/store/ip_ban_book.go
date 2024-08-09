@@ -72,7 +72,7 @@ func (d *ipBanBook) GetIPBanExpiration(ip net.IP) (time.Time, error) {
 	defer d.mu.RUnlock()
 	rec, err := d.book.getRecord(ip.To16().String())
 	if err == errUnknownRecord {
-		return time.Time{}, UnknownBanErr
+		return time.Time{}, ErrUnknownBan
 	}
 	if err != nil {
 		return time.Time{}, err
