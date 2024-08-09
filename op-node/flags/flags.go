@@ -65,13 +65,6 @@ var (
 		Destination: new(string),
 		Category:    RollupCategory,
 	}
-	BuilderAPIAddr = &cli.StringFlag{
-		Name:     "l2.builder",
-		Usage:    "Address of Builder API HTTP endpoint to use.",
-		Required: false,
-		EnvVars:  prefixEnvVars("L2_BUILDER_API"),
-		Category: RollupCategory,
-	}
 	BeaconAddr = &cli.StringFlag{
 		Name:     "l1.beacon",
 		Usage:    "Address of L1 Beacon-node HTTP endpoint to use.",
@@ -364,6 +357,29 @@ var (
 		Value:    time.Second * 1,
 		Category: SequencerCategory,
 	}
+	BuilderEnabledFlag = &cli.BoolFlag{
+		Name:     "l2.builder.enabled",
+		Usage:    "Enable the Builder API client",
+		Required: false,
+		EnvVars:  prefixEnvVars("L2_BUILDER_ENABLED"),
+		Value:    false,
+		Category: SequencerCategory,
+	}
+	BuilderEndpointFlag = &cli.StringFlag{
+		Name:     "l2.builder.endpoint",
+		Usage:    "Address of Builder API HTTP endpoint to use.",
+		Required: false,
+		EnvVars:  prefixEnvVars("L2_BUILDER_ENDPOINT"),
+		Category: SequencerCategory,
+	}
+	BuilderRequestTimeoutFlag = &cli.DurationFlag{
+		Name:     "l2.builder.timeout",
+		Usage:    "Timeout for requests to the Builder API.",
+		Required: false,
+		EnvVars:  prefixEnvVars("L2_BUILDER_TIMEOUT"),
+		Value:    time.Millisecond * 500,
+		Category: SequencerCategory,
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -373,7 +389,9 @@ var requiredFlags = []cli.Flag{
 }
 
 var optionalFlags = []cli.Flag{
-	BuilderAPIAddr,
+	BuilderEnabledFlag,
+	BuilderEndpointFlag,
+	BuilderRequestTimeoutFlag,
 	BeaconAddr,
 	BeaconHeader,
 	BeaconFallbackAddrs,

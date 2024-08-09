@@ -32,6 +32,7 @@ type SequencerMetrics interface {
 	CountSequencedTxsBySource(count int, source string)
 	RecordBuilderRequestTime(duration time.Duration)
 	RecordBuilderRequestFail()
+	RecordBuilderRequestTimeout()
 	RecordSequencerProfit(profit float64, source string)
 	RecordSequencerPayloadInserted(source string)
 	RecordPayloadGas(gas float64, source string)

@@ -45,8 +45,9 @@ type ExecEngine interface {
 	L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error)
 }
 
-type BuilderClient interface {
+type IBuilderClient interface {
 	Enabled() bool
+	Timeout() time.Duration
 	GetPayload(ctx context.Context, ref eth.L2BlockRef, log log.Logger) (*eth.ExecutionPayloadEnvelope, *big.Int, error)
 }
 
@@ -81,10 +82,10 @@ type EngineController struct {
 	buildingSafe bool
 	safeAttrs    *AttributesWithParent
 
-	builderClient BuilderClient
+	builderClient IBuilderClient
 }
 
-func NewEngineController(engine ExecEngine, log log.Logger, metrics Metrics, rollupCfg *rollup.Config, syncMode sync.Mode, builderClient BuilderClient) *EngineController {
+func NewEngineController(engine ExecEngine, log log.Logger, metrics Metrics, rollupCfg *rollup.Config, syncMode sync.Mode, builderClient IBuilderClient) *EngineController {
 	syncStatus := syncStatusCL
 	if syncMode == sync.ELSync {
 		syncStatus = syncStatusWillStartEL

@@ -7,6 +7,7 @@ import (
 	"io"
 	"math/big"
 	"net/http"
+	"time"
 
 	builderSpec "github.com/attestantio/go-builder-client/spec"
 	consensusspec "github.com/attestantio/go-eth2-client/spec"
@@ -28,12 +29,14 @@ const PathGetPayload = "/eth/v1/builder/payload"
 
 type BuilderAPIConfig struct {
 	Enabled  bool
+	Timeout  time.Duration
 	Endpoint string
 }
 
 func BuilderAPIDefaultConfig() *BuilderAPIConfig {
 	return &BuilderAPIConfig{
 		Enabled:  false,
+		Timeout:  500 * time.Millisecond,
 		Endpoint: "",
 	}
 }
@@ -56,6 +59,10 @@ func NewBuilderAPIClient(log log.Logger, config *BuilderAPIConfig) *BuilderAPICl
 
 func (s *BuilderAPIClient) Enabled() bool {
 	return s.config.Enabled
+}
+
+func (s *BuilderAPIClient) Timeout() time.Duration {
+	return s.config.Timeout
 }
 
 type httpErrorResp struct {
