@@ -52,6 +52,7 @@ library MIPSInstructions {
         uint64 _fun
     )
         internal
+        pure
         returns (bytes32 newMemRoot_)
     {
         unchecked {
@@ -182,6 +183,7 @@ library MIPSInstructions {
         uint64 _mem
     )
         internal
+        pure
         returns (uint64 out_)
     {
         unchecked {

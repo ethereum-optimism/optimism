@@ -61,7 +61,7 @@ contract MIPS2 is ISemver {
     uint256 internal constant THREAD_PROOF_OFFSET = 356;
 
     // The offset of the start of proof calldata (_memProof.offset) in the step() function
-    uint256 internal constant MEM_PROOF_OFFSET = THREAD_PROOF_OFFSET + 166 + 32;
+    uint256 internal constant MEM_PROOF_OFFSET = THREAD_PROOF_OFFSET + 322 + 32;
 
     // The empty thread root - keccak256(bytes32(0) ++ bytes32(0))
     bytes32 internal constant EMPTY_THREAD_ROOT = hex"ad3228b676f7d3cd4284a5443f17f1962b36e491b30a40b2405849e597ba5fb5";
@@ -187,7 +187,7 @@ contract MIPS2 is ISemver {
                     // timeout! Allow execution
                     return onWaitComplete(state, thread, true);
                 } else {
-                    uint32 mem = MIPSMemory.readMem(
+                    uint64 mem = MIPSMemory.readMemDoubleword(
                         state.memRoot,
                         thread.futexAddr & 0xFFFFFFFFFFFFFFF8,
                         MIPSMemory.memoryProofOffset(MEM_PROOF_OFFSET, 1)
@@ -694,7 +694,7 @@ contract MIPS2 is ISemver {
             s := calldatasize()
         }
         // verify we have enough calldata
-        require(s >= (THREAD_PROOF_OFFSET + 166), "insufficient calldata for thread witness");
+        require(s >= (THREAD_PROOF_OFFSET + 322), "insufficient calldata for thread witness");
 
         unchecked {
             assembly {
@@ -730,9 +730,9 @@ contract MIPS2 is ISemver {
         uint256 s = 0;
         assembly {
             s := calldatasize()
-            innerThreadRoot_ := calldataload(add(THREAD_PROOF_OFFSET, 166))
+            innerThreadRoot_ := calldataload(add(THREAD_PROOF_OFFSET, 322))
         }
         // verify we have enough calldata
-        require(s >= (THREAD_PROOF_OFFSET + 198), "insufficient calldata for thread witness"); // 166 + 32
+        require(s >= (THREAD_PROOF_OFFSET + 354), "insufficient calldata for thread witness"); // 322 + 32
     }
 }

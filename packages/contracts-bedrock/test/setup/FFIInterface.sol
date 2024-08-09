@@ -245,6 +245,28 @@ contract FFIInterface {
         return (memRoot, proof);
     }
 
+    function getCannonMemoryProofDoubleWord(
+        uint64 pc,
+        uint32 insn,
+        uint64 memAddr,
+        uint64 memVal
+    )
+        external
+        returns (bytes32, bytes memory)
+    {
+        string[] memory cmds = new string[](7);
+        cmds[0] = "scripts/go-ffi/go-ffi";
+        cmds[1] = "diff";
+        cmds[2] = "cannonMemoryProofDoubleWord";
+        cmds[3] = vm.toString(pc);
+        cmds[4] = vm.toString(insn);
+        cmds[5] = vm.toString(memAddr);
+        cmds[6] = vm.toString(memVal);
+        bytes memory result = Process.run(cmds);
+        (bytes32 memRoot, bytes memory proof) = abi.decode(result, (bytes32, bytes));
+        return (memRoot, proof);
+    }
+
     function getCannonMemoryProofWrongLeaf(
         uint64 pc,
         uint32 insn,

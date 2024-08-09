@@ -391,6 +391,39 @@ func DiffTestUtils() {
 		packed, err := cannonMemoryProofArgs.Pack(&output)
 		checkErr(err, "Error encoding output")
 		fmt.Print(hexutil.Encode(packed[32:]))
+	case "cannonMemoryProofDoubleWord":
+		// <pc, insn, [memAddr, memValue]>
+		mem := memory.NewMemory()
+		if len(args) != 3 && len(args) != 5 {
+			panic("Error: cannonMemoryProofWithProof requires 2 or 4 arguments")
+		}
+		pc, err := strconv.ParseUint(args[1], 10, 64)
+		checkErr(err, "Error decoding addr")
+		insn, err := strconv.ParseUint(args[2], 10, 32)
+		checkErr(err, "Error decoding insn")
+		mem.SetMemory(uint64(pc), uint32(insn))
+
+		var insnProof, memProof [1920]byte
+		if len(args) == 5 {
+			memAddr, err := strconv.ParseUint(args[3], 10, 64)
+			checkErr(err, "Error decoding memAddr")
+			memValue, err := strconv.ParseUint(args[4], 10, 64)
+			checkErr(err, "Error decoding memValue")
+			mem.SetDoubleWord(uint64(memAddr), uint64(memValue))
+			memProof = mem.MerkleProof(uint64(memAddr))
+		}
+		insnProof = mem.MerkleProof(uint64(pc))
+
+		output := struct {
+			MemRoot common.Hash
+			Proof   []byte
+		}{
+			MemRoot: mem.MerkleRoot(),
+			Proof:   append(insnProof[:], memProof[:]...),
+		}
+		packed, err := cannonMemoryProofArgs.Pack(&output)
+		checkErr(err, "Error encoding output")
+		fmt.Print(hexutil.Encode(packed[32:]))
 	case "cannonMemoryProofWrongLeaf":
 		// <pc, insn, memAddr, memValue>
 		mem := memory.NewMemory()
