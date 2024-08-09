@@ -1,0 +1,23 @@
+name: Handle Proof Runner Deployment Status
+
+on:
+  deployment_status:
+
+jobs:
+  handle-proof-runner:
+    if: github.event.deployment.environment == 'runtimeverification/proof-runner'
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check Deployment Status
+      run: |
+        echo "Deployment Status: ${{ github.event.deployment_status.state }}"
+        if [[ "${{ github.event.deployment_status.state }}" == "success" ]]; then
+          echo "Proof Runner deployment was successful!"
+          # Add your steps to handle a successful deployment
+        elif [[ "${{ github.event.deployment_status.state }}" == "failure" ]]; then
+          echo "Proof Runner deployment failed!"
+          # Add your steps to handle a failed deployment
+        else
+          echo "Proof Runner deployment is in progress!"
+          # Add your steps to handle in-progress deployment
+        fi
