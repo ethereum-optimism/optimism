@@ -656,7 +656,7 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "GovernanceDelegation", _sel: _getSel("version()") });
         _addSpec({ _name: "GovernanceDelegation", _sel: _getSel("migrated(address)") });
         _addSpec({ _name: "GovernanceDelegation", _sel: _getSel("delegations(address)") });
-        _addSpec({ _name: "GovernanceDelegation", _sel: _getSel("checkpoints(address)") });
+        _addSpec({ _name: "GovernanceDelegation", _sel: _getSel("checkpoints(address,uint32)") });
         _addSpec({ _name: "GovernanceDelegation", _sel: _getSel("numCheckpoints(address)") });
         _addSpec({ _name: "GovernanceDelegation", _sel: _getSel("delegates(address)") });
         _addSpec({ _name: "GovernanceDelegation", _sel: _getSel("getVotes(address)") });
@@ -674,7 +674,7 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "IGovernanceDelegation", _sel: _getSel("version()") });
         _addSpec({ _name: "IGovernanceDelegation", _sel: _getSel("migrated(address)") });
         _addSpec({ _name: "IGovernanceDelegation", _sel: _getSel("delegations(address)") });
-        _addSpec({ _name: "IGovernanceDelegation", _sel: _getSel("checkpoints(address)") });
+        _addSpec({ _name: "IGovernanceDelegation", _sel: _getSel("checkpoints(address,uint32)") });
         _addSpec({ _name: "IGovernanceDelegation", _sel: _getSel("numCheckpoints(address)") });
         _addSpec({ _name: "IGovernanceDelegation", _sel: _getSel("delegates(address)") });
         _addSpec({ _name: "IGovernanceDelegation", _sel: _getSel("getVotes(address)") });

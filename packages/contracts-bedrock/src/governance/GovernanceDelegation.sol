@@ -69,6 +69,16 @@ contract GovernanceDelegation is IGovernanceDelegation {
         _;
     }
 
+    /// @notice Stores the total supply checkpoints.
+    /// @param __checkpoints The total supply checkpoints to set.
+    constructor(ERC20Votes.Checkpoint[] memory __checkpoints) {
+        uint256 _checkpointsLength = __checkpoints.length;
+
+        for (uint32 i; i < _checkpointsLength; i++) {
+            _totalSupplyCheckpoints.push(__checkpoints[i]);
+        }
+    }
+
     /// @notice Returns the delegations for a given account.
     /// @param _account The account to get the delegations for.
     /// @return         The delegations.

@@ -9,11 +9,13 @@ contract GovernanceTokenInterop_Test is CommonTest {
     address owner;
     address rando;
 
-    event DelegationCreated(address indexed account, IGovernanceDelegation.Delegation delegation);
+    // Can't get events and errors from GovernanceDelegation as it's using 0.8.25
+    event DelegationsCreated(address indexed account, IGovernanceDelegation.Delegation[] delegations);
     event DelegateVotesChanged(address indexed delegate, uint256 previousBalance, uint256 newBalance);
 
     /// @dev Sets up the test suite.
     function setUp() public virtual override {
+        super.enableInterop();
         super.setUp();
         owner = governanceToken.owner();
         rando = makeAddr("rando");
@@ -177,19 +179,15 @@ contract GovernanceTokenInterop_Test is CommonTest {
         vm.prank(owner);
         governanceToken.mint(rando, 100);
 
+        IGovernanceDelegation.Delegation[] memory delegations = new IGovernanceDelegation.Delegation[](1);
+        delegations[0] = IGovernanceDelegation.Delegation(IGovernanceDelegation.AllowanceType.Relative, owner, 1e4);
+
         // Rando approves owner to spend 100 tokens.
         vm.prank(rando);
-        vm.expectEmit(address(governanceToken));
+        vm.expectEmit(address(governanceDelegation));
         emit DelegateVotesChanged(owner, 0, 100);
-        vm.expectEmit(address(governanceToken));
-        emit DelegationCreated(
-            rando,
-            IGovernanceDelegation.Delegation({
-                allowanceType: IGovernanceDelegation.AllowanceType.Relative,
-                delegatee: owner,
-                amount: 1e4
-            })
-        );
+        vm.expectEmit(address(governanceDelegation));
+        emit DelegationsCreated(rando, delegations);
         governanceToken.delegate(owner);
     }
 

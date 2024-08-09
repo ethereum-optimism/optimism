@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 import "forge-std/Test.sol";
+import { StdCheats } from "forge-std/StdCheats.sol";
 
 import { ERC20Votes } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol";
 
@@ -670,51 +671,49 @@ contract GovernanceDelegation_Getters_Test is GovernanceDelegation_Init {
         assertEq(governanceToken.totalSupply(), 0);
     }
 
-    function testFuzz_getters_migrate_succeeds(uint256 _amount) public {
-        _amount = bound(_amount, 1, type(uint208).max);
+    function testFuzz_getters_migrate_succeeds(uint32 _fromBlock, uint224 _votes) public {
+        _fromBlock = uint32(bound(_fromBlock, 1, type(uint32).max - 1));
 
-        assertEq(governanceDelegation.delegations(rando).length, 0);
-        vm.expectRevert();
-        governanceDelegation.checkpoints(rando, 0);
-        assertEq(governanceDelegation.numCheckpoints(rando), 0);
-        vm.expectRevert();
-        assertEq(governanceDelegation.delegates(rando), address(0));
-        assertEq(governanceDelegation.getVotes(rando), 0);
-        assertEq(governanceDelegation.getPastVotes(rando, block.timestamp - 1), 0);
-        assertEq(governanceDelegation.getPastTotalSupply(block.timestamp - 1), 0);
-        assertFalse(governanceDelegation.migrated(rando));
-
-        // migrates user and creates delegation
-        vm.prank(rando);
-        governanceToken.delegate(rando);
-
-        vm.prank(owner);
-        governanceToken.mint(rando, _amount);
-
-        vm.roll(block.timestamp + 1);
-
-        assertEq(
-            uint8(governanceDelegation.delegations(rando)[0].allowanceType),
-            uint8(IGovernanceDelegation.AllowanceType.Relative)
+        // _delegates
+        vm.store(address(governanceToken), keccak256(abi.encode(rando, uint256(7))), bytes32(bytes20(uint160(rando))));
+        // _checkpoints
+        vm.store(address(governanceToken), keccak256(abi.encode(rando, uint256(8))), bytes32(uint256(1)));
+        vm.store(
+            address(governanceToken),
+            keccak256(abi.encode(keccak256(abi.encode(rando, uint256(8))))),
+            bytes32(abi.encodePacked(_votes, _fromBlock))
         );
-        assertEq(governanceDelegation.delegations(rando)[0].delegatee, rando);
-        assertEq(governanceDelegation.delegations(rando)[0].amount, governanceDelegation.DENOMINATOR());
-        assertEq(governanceDelegation.checkpoints(rando, 0).fromBlock, block.timestamp);
-        assertEq(governanceDelegation.checkpoints(rando, 0).votes, _amount);
-        assertEq(governanceDelegation.numCheckpoints(rando), 1);
-        assertEq(governanceDelegation.delegates(rando), rando);
-        assertEq(governanceDelegation.getVotes(rando), _amount);
-        assertEq(governanceDelegation.getPastVotes(rando, block.timestamp), _amount);
-        assertEq(governanceDelegation.getPastTotalSupply(block.timestamp), _amount);
-        assertTrue(governanceDelegation.migrated(rando));
+        // _totalSupplyCheckpoints
+        vm.store(address(governanceToken), keccak256(abi.encode(uint256(9))), bytes32(uint256(1)));
+        vm.store(
+            address(governanceToken),
+            keccak256(abi.encode(keccak256(abi.encode(uint256(9))))),
+            bytes32(abi.encodePacked(_votes, _fromBlock))
+        );
 
-        assertEq(governanceToken.checkpoints(rando, 0).fromBlock, block.timestamp);
-        assertEq(governanceToken.checkpoints(rando, 0).votes, _amount);
-        assertEq(governanceToken.numCheckpoints(rando), 1);
-        assertEq(governanceToken.delegates(rando), rando);
-        assertEq(governanceToken.getVotes(rando), _amount);
-        assertEq(governanceToken.getPastVotes(rando, block.timestamp), _amount);
-        assertEq(governanceToken.getPastTotalSupply(block.timestamp), _amount);
+        vm.roll(_fromBlock + 1);
+
+        ERC20Votes.Checkpoint[] memory _checkpoints = new ERC20Votes.Checkpoint[](1);
+        _checkpoints[0] = ERC20Votes.Checkpoint(_fromBlock, _votes);
+
+        StdCheats.deployCodeTo(
+            "GovernanceDelegation.sol:GovernanceDelegation", abi.encode(_checkpoints), Predeploys.GOVERNANCE_DELEGATION
+        );
+
+        address[] memory accounts = new address[](1);
+        accounts[0] = rando;
+        governanceDelegation.migrateAccounts(accounts);
+
+        // delegations are not migrated
+        vm.expectRevert();
+        governanceDelegation.delegates(rando);
+        assertEq(governanceDelegation.checkpoints(rando, 0).fromBlock, _fromBlock);
+        assertEq(governanceDelegation.checkpoints(rando, 0).votes, _votes);
+        assertEq(governanceDelegation.numCheckpoints(rando), 1);
+        assertEq(governanceDelegation.getVotes(rando), _votes);
+        assertEq(governanceDelegation.getPastVotes(rando, _fromBlock), _votes);
+        assertEq(governanceDelegation.getPastTotalSupply(_fromBlock), _votes);
+        assertTrue(governanceDelegation.migrated(rando));
     }
 }
 
