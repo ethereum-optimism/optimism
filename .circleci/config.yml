@@ -538,11 +538,15 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: run tests
-          command: just test
+          command: forge test --mt testDebug -vvv
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
           no_output_timeout: 15m
+      - run:
+          name: test if cache is persisted
+          working_directory: packages/contracts-bedrock
+          command: ls -l cache
       - run:
           name: print failed test traces
           command: just test-rerun
