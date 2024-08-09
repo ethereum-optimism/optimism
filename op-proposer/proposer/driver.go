@@ -496,14 +496,44 @@ func (l *L2OutputSubmitter) loopL2OO(ctx context.Context) {
 	}
 }
 
-// The loopDGF proposes a new output every proposal interval. It does _not_ query
-// the DGF for when to next propose, as the DGF doesn't have the concept of a
-// proposal interval, like in the L2OO case. For this reason, it has to keep track
-// of the interval itself, for which it uses an internal ticker.
+// The loopDGF proposes a new output every proposal interval.
+// It uses an internal ticker, initialised on startup such that the next proposal
+// is triggered one interval after the latest game recored in the DGF, and then reset to the
+// proposal interval after the first tick to maintain that interval going forward.
 func (l *L2OutputSubmitter) loopDGF(ctx context.Context) {
 	defer l.Log.Info("loopDGF returning")
-	ticker := time.NewTicker(l.Cfg.ProposalInterval)
+
+	// The default behavior is to immediately send a proposal on startup.
+	// For example if we cannot infer when the last game was created.
+	timeToWaitUntilNextProposal := time.Duration(0)
+
+	gameCount, err := l.dgfContract.GameCount(&bind.CallOpts{Context: ctx})
+	if err != nil {
+		l.Log.Warn("Could not query DisputeGameFactory.gameCount(), sending a proposal immediately")
+	} else {
+		latestGameIndex := new(big.Int).Sub(gameCount, big.NewInt(1))
+		latestGame, err := l.dgfContract.GameAtIndex(&bind.CallOpts{Context: ctx}, latestGameIndex)
+		if err != nil {
+			l.Log.Warn(fmt.Sprintf(
+				"Could not query DisputeGameFactory.GameAtIndex(%d), sending a proposal immediately",
+				latestGameIndex.Int64()))
+		} else {
+			timeSinceLastGame := time.Since(time.Unix(int64(latestGame.Timestamp), 0))
+			diff := l.Cfg.ProposalInterval - timeSinceLastGame
+			if diff > 0 {
+				// Only set a positive duration if we arent already more than a proposal interval behind
+				timeToWaitUntilNextProposal = diff
+				l.Log.Info(fmt.Sprintf("Waiting %f seconds before sending first proposal", timeToWaitUntilNextProposal.Seconds()))
+			} else {
+				l.Log.Info("Time since last game >= proposal interval, sending a proposal immediately")
+			}
+		}
+	}
+
+	startUpTick := true
+	ticker := time.NewTicker(timeToWaitUntilNextProposal)
 	defer ticker.Stop()
+
 	for {
 		select {
 		case <-ticker.C:
@@ -529,6 +559,10 @@ func (l *L2OutputSubmitter) loopDGF(ctx context.Context) {
 			}
 
 			l.proposeOutput(ctx, output)
+			if startUpTick {
+				ticker.Reset(l.Cfg.ProposalInterval)
+				startUpTick = false
+			}
 		case <-l.done:
 			return
 		}
