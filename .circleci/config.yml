@@ -432,9 +432,9 @@ jobs:
             - run:
                 name: Sign
                 command: |
-                  git clone https://github.com/ethereum-optimism/binary_signer
-                  cd binary_signer/signer
-                  git checkout tags/v1.0.3
+                  VER=$(jq -r .binary_signer < versions.json)
+                  wget -O - "https://github.com/ethereum-optimism/binary_signer/archive/refs/tags/v${VER}.tar.gz" | tar xz
+                  cd "binary_signer-${VER}/signer"
 
                   IMAGE_PATH="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>:<<pipeline.git.revision>>"
                   echo $IMAGE_PATH
@@ -1091,19 +1091,17 @@ jobs:
       - run:
           name: Install latest golang
           command: |
-            wget https://go.dev/dl/go1.21.1.linux-amd64.tar.gz
+            VER=$(jq -r .go < versions.json)
             sudo rm -rf /usr/local/go
-            sudo tar -C /usr/local -xzf go1.21.1.linux-amd64.tar.gz
+            wget "https://go.dev/dl/go${VER}.linux-amd64.tar.gz" -O - | sudo tar -C /usr/local -xz
             export PATH=$PATH:/usr/local/go/bin
             go version
       - run:
           name: Install Geth
           command: |
-            wget https://gethstore.blob.core.windows.net/builds/geth-alltools-linux-amd64-1.13.14-2bd6bd01.tar.gz
-            # geth only provides md5 sums sadly
-            echo '76a04354dba9980fcbc35bece2957b30 geth-alltools-linux-amd64-1.13.14-2bd6bd01.tar.gz' | md5sum -c -
-            tar -xzvf geth-alltools-linux-amd64-1.13.14-2bd6bd01.tar.gz
-            sudo cp geth-alltools-linux-amd64-1.13.14-2bd6bd01/* /usr/local/bin
+            VER=$(jq -r .geth_release < versions.json)
+            wget "https://gethstore.blob.core.windows.net/builds/geth-alltools-linux-amd64-${VER}.tar.gz" -O - | tar xz
+            sudo cp "geth-alltools-linux-amd64-${VER}"/* /usr/local/bin
       - run:
           name: Install eth2-testnet-genesis
           command: |
