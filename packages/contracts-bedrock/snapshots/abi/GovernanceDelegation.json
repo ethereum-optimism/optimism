@@ -1,5 +1,28 @@
 [
   {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint32",
+            "name": "fromBlock",
+            "type": "uint32"
+          },
+          {
+            "internalType": "uint224",
+            "name": "votes",
+            "type": "uint224"
+          }
+        ],
+        "internalType": "struct ERC20Votes.Checkpoint[]",
+        "name": "__checkpoints",
+        "type": "tuple[]"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
     "inputs": [],
     "name": "DENOMINATOR",
     "outputs": [
@@ -54,6 +77,11 @@
         "internalType": "address",
         "name": "_account",
         "type": "address"
+      },
+      {
+        "internalType": "uint32",
+        "name": "_pos",
+        "type": "uint32"
       }
     ],
     "name": "checkpoints",
@@ -71,9 +99,9 @@
             "type": "uint224"
           }
         ],
-        "internalType": "struct ERC20Votes.Checkpoint[]",
+        "internalType": "struct ERC20Votes.Checkpoint",
         "name": "",
-        "type": "tuple[]"
+        "type": "tuple"
       }
     ],
     "stateMutability": "view",
