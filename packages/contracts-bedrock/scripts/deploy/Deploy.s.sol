@@ -200,10 +200,12 @@ contract Deploy is Deployer {
         address safeSingleton = 0xd9Db270c1B5E3Bd161E8c8503c55cEABeE709552;
 
         safeProxyFactory.code.length == 0
-            ? safeProxyFactory_ = new SafeProxyFactory()
+            ? safeProxyFactory_ = new SafeProxyFactory{ salt: _implSalt() }()
             : safeProxyFactory_ = SafeProxyFactory(safeProxyFactory);
 
-        safeSingleton.code.length == 0 ? safeSingleton_ = new Safe() : safeSingleton_ = Safe(payable(safeSingleton));
+        safeSingleton.code.length == 0
+            ? safeSingleton_ = new Safe{ salt: _implSalt() }()
+            : safeSingleton_ = Safe(payable(safeSingleton));
 
         save("SafeProxyFactory", address(safeProxyFactory_));
         save("SafeSingleton", address(safeSingleton_));
