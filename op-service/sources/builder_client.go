@@ -8,10 +8,9 @@ import (
 	"math/big"
 	"net/http"
 
-	"github.com/attestantio/go-eth2-client/spec"
-	"github.com/attestantio/go-eth2-client/spec/bellatrix"
-	"github.com/attestantio/go-eth2-client/spec/capella"
-	"github.com/attestantio/go-eth2-client/spec/deneb"
+	builderSpec "github.com/attestantio/go-builder-client/spec"
+	consensusspec "github.com/attestantio/go-eth2-client/spec"
+
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
@@ -28,11 +27,13 @@ var (
 const PathGetPayload = "/eth/v1/builder/payload"
 
 type BuilderAPIConfig struct {
+	Enabled  bool
 	Endpoint string
 }
 
 func BuilderAPIDefaultConfig() *BuilderAPIConfig {
 	return &BuilderAPIConfig{
+		Enabled:  false,
 		Endpoint: "",
 	}
 }
@@ -54,7 +55,7 @@ func NewBuilderAPIClient(log log.Logger, config *BuilderAPIConfig) *BuilderAPICl
 }
 
 func (s *BuilderAPIClient) Enabled() bool {
-	return s.config.Endpoint != ""
+	return s.config.Enabled
 }
 
 type httpErrorResp struct {
@@ -62,63 +63,8 @@ type httpErrorResp struct {
 	Message string `json:"message"`
 }
 
-type VersionedExecutionPayload struct {
-	Version   spec.DataVersion
-	Bellatrix *bellatrix.ExecutionPayload
-	Capella   *capella.ExecutionPayload
-	Deneb     *deneb.ExecutionPayload
-}
-
-type versionJSON struct {
-	Version spec.DataVersion `json:"version"`
-}
-
-type bellatrixVersionedExecutionPayloadJSON struct {
-	Data *bellatrix.ExecutionPayload `json:"data"`
-}
-
-type capellaVersionedExecutionPayloadJSON struct {
-	Data *capella.ExecutionPayload `json:"data"`
-}
-
-type denebVersionedExecutionPayloadJSON struct {
-	Data *deneb.ExecutionPayload `json:"data"`
-}
-
-func (v *VersionedExecutionPayload) UnmarshalJSON(input []byte) error {
-	var metadata versionJSON
-	if err := json.Unmarshal(input, &metadata); err != nil {
-		return errors.Wrap(err, "invalid JSON")
-	}
-	v.Version = metadata.Version
-	switch v.Version {
-	case spec.DataVersionBellatrix:
-		var data bellatrixVersionedExecutionPayloadJSON
-		if err := json.Unmarshal(input, &data); err != nil {
-			return errors.Wrap(err, "invalid JSON")
-		}
-		v.Bellatrix = data.Data
-	case spec.DataVersionCapella:
-		var data capellaVersionedExecutionPayloadJSON
-		if err := json.Unmarshal(input, &data); err != nil {
-			return errors.Wrap(err, "invalid JSON")
-		}
-		v.Capella = data.Data
-	case spec.DataVersionDeneb:
-		var data denebVersionedExecutionPayloadJSON
-		if err := json.Unmarshal(input, &data); err != nil {
-			return errors.Wrap(err, "invalid JSON")
-		}
-		v.Deneb = data.Data
-	default:
-		return fmt.Errorf("unsupported data version %v", metadata.Version)
-	}
-
-	return nil
-}
-
 func (s *BuilderAPIClient) GetPayload(ctx context.Context, ref eth.L2BlockRef, log log.Logger) (*eth.ExecutionPayloadEnvelope, *big.Int, error) {
-	responsePayload := new(VersionedExecutionPayload)
+	responsePayload := new(builderSpec.VersionedSubmitBlockRequest)
 	slot := ref.Number + 1
 	parentHash := ref.Hash
 	url := fmt.Sprintf("%s/%d/%s", PathGetPayload, slot, parentHash.String())
@@ -144,31 +90,32 @@ func (s *BuilderAPIClient) GetPayload(ctx context.Context, ref eth.L2BlockRef, l
 		return nil, nil, err
 	}
 
-	// TODO: Get profit from response
-	profit := common.Big0
-
-	return versionedExecutionPayloadToExecutionPayloadEnvelope(responsePayload), profit, nil
-}
-
-func reverse(src []byte) []byte {
-	dst := make([]byte, len(src))
-	copy(dst, src)
-	for i := len(dst)/2 - 1; i >= 0; i-- {
-		opp := len(dst) - 1 - i
-		dst[i], dst[opp] = dst[opp], dst[i]
+	if responsePayload.Version != consensusspec.DataVersionDeneb {
+		return nil, nil, fmt.Errorf("unsupported data version %v", responsePayload.Version)
 	}
-	return dst
+
+	profit := responsePayload.Deneb.Message.Value.ToBig()
+	envelope, err := versionedExecutionPayloadToExecutionPayloadEnvelope(responsePayload)
+	if err != nil {
+		return nil, nil, err
+	}
+	return envelope, profit, nil
 }
 
-func versionedExecutionPayloadToExecutionPayloadEnvelope(request *VersionedExecutionPayload) *eth.ExecutionPayloadEnvelope {
-	txs := make([]eth.Data, len(request.Deneb.Transactions))
+func versionedExecutionPayloadToExecutionPayloadEnvelope(resp *builderSpec.VersionedSubmitBlockRequest) (*eth.ExecutionPayloadEnvelope, error) {
+	if resp.Version != consensusspec.DataVersionDeneb {
+		return nil, fmt.Errorf("unsupported data version %v", resp.Version)
+	}
 
-	for i, tx := range request.Deneb.Transactions {
+	payload := resp.Deneb.ExecutionPayload
+	txs := make([]eth.Data, len(payload.Transactions))
+
+	for i, tx := range payload.Transactions {
 		txs[i] = eth.Data(tx)
 	}
 
-	withdrawals := make([]*types.Withdrawal, len(request.Deneb.Withdrawals))
-	for i, withdrawal := range request.Deneb.Withdrawals {
+	withdrawals := make([]*types.Withdrawal, len(payload.Withdrawals))
+	for i, withdrawal := range payload.Withdrawals {
 		withdrawals[i] = &types.Withdrawal{
 			Index:     uint64(withdrawal.Index),
 			Validator: uint64(withdrawal.ValidatorIndex),
@@ -179,30 +126,30 @@ func versionedExecutionPayloadToExecutionPayloadEnvelope(request *VersionedExecu
 
 	ws := types.Withdrawals(withdrawals)
 
-	blobGasUsed := eth.Uint64Quantity(request.Deneb.BlobGasUsed)
-	excessBlobGas := eth.Uint64Quantity(request.Deneb.ExcessBlobGas)
+	blobGasUsed := eth.Uint64Quantity(payload.BlobGasUsed)
+	excessBlobGas := eth.Uint64Quantity(payload.ExcessBlobGas)
 
-	payload := &eth.ExecutionPayloadEnvelope{
+	envelope := &eth.ExecutionPayloadEnvelope{
 		ExecutionPayload: &eth.ExecutionPayload{
-			ParentHash:    common.Hash(request.Deneb.ParentHash),
-			FeeRecipient:  common.Address(request.Deneb.FeeRecipient),
-			StateRoot:     eth.Bytes32(request.Deneb.StateRoot),
-			ReceiptsRoot:  eth.Bytes32(request.Deneb.ReceiptsRoot),
-			LogsBloom:     eth.Bytes256(request.Deneb.LogsBloom),
-			PrevRandao:    eth.Bytes32(request.Deneb.PrevRandao),
-			BlockNumber:   eth.Uint64Quantity(request.Deneb.BlockNumber),
-			GasLimit:      eth.Uint64Quantity(request.Deneb.GasLimit),
-			GasUsed:       eth.Uint64Quantity(request.Deneb.GasUsed),
-			Timestamp:     eth.Uint64Quantity(request.Deneb.Timestamp),
-			ExtraData:     eth.BytesMax32(request.Deneb.ExtraData),
-			BaseFeePerGas: hexutil.U256(*request.Deneb.BaseFeePerGas),
-			BlockHash:     common.BytesToHash(request.Deneb.BlockHash[:]),
+			ParentHash:    common.Hash(payload.ParentHash),
+			FeeRecipient:  common.Address(payload.FeeRecipient),
+			StateRoot:     eth.Bytes32(payload.StateRoot),
+			ReceiptsRoot:  eth.Bytes32(payload.ReceiptsRoot),
+			LogsBloom:     eth.Bytes256(payload.LogsBloom),
+			PrevRandao:    eth.Bytes32(payload.PrevRandao),
+			BlockNumber:   eth.Uint64Quantity(payload.BlockNumber),
+			GasLimit:      eth.Uint64Quantity(payload.GasLimit),
+			GasUsed:       eth.Uint64Quantity(payload.GasUsed),
+			Timestamp:     eth.Uint64Quantity(payload.Timestamp),
+			ExtraData:     eth.BytesMax32(payload.ExtraData),
+			BaseFeePerGas: hexutil.U256(*payload.BaseFeePerGas),
+			BlockHash:     common.BytesToHash(payload.BlockHash[:]),
 			Transactions:  txs,
 			Withdrawals:   &ws,
 			BlobGasUsed:   &blobGasUsed,
 			ExcessBlobGas: &excessBlobGas,
 		},
-		ParentBeaconBlockRoot: nil, // OP-Stack ecotone upgrade related field. Not needed for PoC.
+		ParentBeaconBlockRoot: nil,
 	}
-	return payload
+	return envelope, nil
 }
