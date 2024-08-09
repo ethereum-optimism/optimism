@@ -26,7 +26,7 @@ This directory contains documentation for all defined invariant tests within `co
 
 ## Usage
 
-To auto-generate documentation for invariant tests, run `pnpm autogen:invariant-docs`.
+To auto-generate documentation for invariant tests, run `just autogen-invariant-docs`.
 
 ## Documentation Standard
 
