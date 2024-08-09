@@ -186,7 +186,10 @@ contract L2Genesis is Deployer {
     ///         The Proxy bytecode should be set. All proxied predeploys should have
     ///         the 1967 admin slot set to the ProxyAdmin predeploy. All defined predeploys
     ///         should have their implementations set.
-    ///         Warning: the predeploy accounts have contract code, but 0 nonce value.
+    ///         Warning: the predeploy accounts have contract code, but 0 nonce value, contrary
+    ///         to the expected nonce of 1 per EIP-161. This is because the legacy go genesis
+    //          script didn't set the nonce and we didn't want to change that behavior when
+    ///         migrating genesis generation to Solidity.
     function setPredeployProxies() public {
         console.log("Setting Predeploy proxies");
         bytes memory code = vm.getDeployedCode("Proxy.sol:Proxy");
