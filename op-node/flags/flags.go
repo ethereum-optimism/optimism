@@ -26,7 +26,8 @@ const (
 	OperationsCategory = "4. LOGGING, METRICS, DEBUGGING, AND API"
 	P2PCategory        = "5. PEER-TO-PEER"
 	PlasmaCategory     = "6. PLASMA (EXPERIMENTAL)"
-	MiscCategory       = "7. MISC"
+	BuilderCategory    = "7. BUILDER"
+	MiscCategory       = "8. MISC"
 )
 
 func init() {
@@ -363,14 +364,14 @@ var (
 		Required: false,
 		EnvVars:  prefixEnvVars("L2_BUILDER_ENABLED"),
 		Value:    false,
-		Category: SequencerCategory,
+		Category: BuilderCategory,
 	}
 	BuilderEndpointFlag = &cli.StringFlag{
 		Name:     "l2.builder.endpoint",
 		Usage:    "Address of Builder API HTTP endpoint to use.",
 		Required: false,
 		EnvVars:  prefixEnvVars("L2_BUILDER_ENDPOINT"),
-		Category: SequencerCategory,
+		Category: BuilderCategory,
 	}
 	BuilderRequestTimeoutFlag = &cli.DurationFlag{
 		Name:     "l2.builder.timeout",
@@ -378,7 +379,7 @@ var (
 		Required: false,
 		EnvVars:  prefixEnvVars("L2_BUILDER_TIMEOUT"),
 		Value:    time.Millisecond * 500,
-		Category: SequencerCategory,
+		Category: BuilderCategory,
 	}
 )
 
