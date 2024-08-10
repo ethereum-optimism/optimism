@@ -248,9 +248,9 @@ func ExecuteMipsInstruction(insn, opcode, fun, rs, rt, mem uint64) uint64 {
 			return uint64(int64(rt) >> ((insn >> 6) & 0x1f))
 		case 0x3C: // dsll32
 			return rt << (((insn >> 6) & 0x1f) + 32)
-		case 0x3E: // dsll32
+		case 0x3E: // dsrl32
 			return rt >> (((insn >> 6) & 0x1f) + 32)
-		case 0x3F: // dsll32
+		case 0x3F: // dsra32
 			return uint64(int64(rt) >> (((insn >> 6) & 0x1f) + 32))
 		default:
 			panic(fmt.Sprintf("invalid instruction: %x", insn))
@@ -315,7 +315,7 @@ func ExecuteMipsInstruction(insn, opcode, fun, rs, rt, mem uint64) uint64 {
 			sl := 24 - ((rs & 3) << 3)
 			val := ((rt & 0xFFFFFFFF) << sl) << (32 - ((rs & 0x4) << 3))
 			mask := uint64(uint32(0xFFFFFFFF)<<sl) << (32 - ((rs & 0x4) << 3))
-			return (mem & ^mask) | val
+			return (mem & ^mask) | (val & mask)
 		case 0x30: //  ll
 			return SignExtend((mem>>(32-((rs&0x4)<<3)))&0xFFFFFFFF, 32)
 		case 0x38: //  sc

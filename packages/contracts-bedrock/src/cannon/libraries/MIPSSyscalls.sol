@@ -9,15 +9,15 @@ import { PreimageKeyLib } from "src/cannon/PreimageKeyLib.sol";
 library MIPSSyscalls {
     struct SysReadParams {
         /// @param _a0 The file descriptor.
-        uint32 a0;
+        uint64 a0;
         /// @param _a1 The memory location where data should be read to.
-        uint32 a1;
+        uint64 a1;
         /// @param _a2 The number of bytes to read from the file
-        uint32 a2;
+        uint64 a2;
         /// @param _preimageKey The key of the preimage to read.
         bytes32 preimageKey;
         /// @param _preimageOffset The offset of the preimage to read.
-        uint32 preimageOffset;
+        uint64 preimageOffset;
         /// @param _localContext The local context for the preimage key.
         bytes32 localContext;
         /// @param _oracle The address of the preimage oracle.
@@ -28,54 +28,53 @@ library MIPSSyscalls {
         bytes32 memRoot;
     }
 
-    uint32 internal constant SYS_MMAP = 4090;
-    uint32 internal constant SYS_BRK = 4045;
-    uint32 internal constant SYS_CLONE = 4120;
-    uint32 internal constant SYS_EXIT_GROUP = 4246;
-    uint32 internal constant SYS_READ = 4003;
-    uint32 internal constant SYS_WRITE = 4004;
-    uint32 internal constant SYS_FCNTL = 4055;
-    uint32 internal constant SYS_EXIT = 4001;
-    uint32 internal constant SYS_SCHED_YIELD = 4162;
-    uint32 internal constant SYS_GETTID = 4222;
-    uint32 internal constant SYS_FUTEX = 4238;
-    uint32 internal constant SYS_OPEN = 4005;
-    uint32 internal constant SYS_NANOSLEEP = 4166;
+    uint32 internal constant SYS_MMAP = 5009;
+    uint32 internal constant SYS_BRK = 5012;
+    uint32 internal constant SYS_CLONE = 5055;
+    uint32 internal constant SYS_EXIT_GROUP = 5205;
+    uint32 internal constant SYS_READ = 5000;
+    uint32 internal constant SYS_WRITE = 5001;
+    uint32 internal constant SYS_FCNTL = 5070;
+    uint32 internal constant SYS_EXIT = 5058;
+    uint32 internal constant SYS_SCHED_YIELD = 5023;
+    uint32 internal constant SYS_GETTID = 5178;
+    uint32 internal constant SYS_FUTEX = 5194;
+    uint32 internal constant SYS_OPEN = 5002;
+    uint32 internal constant SYS_NANOSLEEP = 5034;
     // unused syscalls
-    uint32 internal constant SYS_CLOCK_GETTIME = 4263;
-    uint32 internal constant SYS_GET_AFFINITY = 4240;
-    uint32 internal constant SYS_GETAFFINITY = 4240;
-    uint32 internal constant SYS_MADVISE = 4218;
-    uint32 internal constant SYS_RTSIGPROCMASK = 4195;
-    uint32 internal constant SYS_SIGALTSTACK = 4206;
-    uint32 internal constant SYS_RTSIGACTION = 4194;
-    uint32 internal constant SYS_PRLIMIT64 = 4338;
-    uint32 internal constant SYS_CLOSE = 4006;
-    uint32 internal constant SYS_PREAD64 = 4200;
-    uint32 internal constant SYS_FSTAT64 = 4215;
-    uint32 internal constant SYS_OPENAT = 4288;
-    uint32 internal constant SYS_READLINK = 4085;
-    uint32 internal constant SYS_READLINKAT = 4298;
-    uint32 internal constant SYS_IOCTL = 4054;
-    uint32 internal constant SYS_EPOLLCREATE1 = 4326;
-    uint32 internal constant SYS_PIPE2 = 4328;
-    uint32 internal constant SYS_EPOLLCTL = 4249;
-    uint32 internal constant SYS_EPOLLPWAIT = 4313;
-    uint32 internal constant SYS_GETRANDOM = 4353;
-    uint32 internal constant SYS_UNAME = 4122;
-    uint32 internal constant SYS_STAT64 = 4213;
-    uint32 internal constant SYS_GETUID = 4024;
-    uint32 internal constant SYS_GETGID = 4047;
-    uint32 internal constant SYS_LLSEEK = 4140;
-    uint32 internal constant SYS_MINCORE = 4217;
-    uint32 internal constant SYS_TGKILL = 4266;
+    uint32 internal constant SYS_CLOCK_GETTIME = 5222;
+    uint32 internal constant SYS_GET_AFFINITY = 5196;
+    uint32 internal constant SYS_MADVISE = 5027;
+    uint32 internal constant SYS_RTSIGPROCMASK = 5014;
+    uint32 internal constant SYS_SIGALTSTACK = 5129;
+    uint32 internal constant SYS_RTSIGACTION = 5013;
+    uint32 internal constant SYS_PRLIMIT64 = 5297;
+    uint32 internal constant SYS_CLOSE = 5003;
+    uint32 internal constant SYS_PREAD64 = 5016;
+    uint32 internal constant SYS_FSTAT64 = 5005;
+    uint32 internal constant SYS_OPENAT = 5247;
+    uint32 internal constant SYS_READLINK = 5087;
+    uint32 internal constant SYS_READLINKAT = 5257;
+    uint32 internal constant SYS_IOCTL = 5015;
+    uint32 internal constant SYS_EPOLLCREATE1 = 5285;
+    uint32 internal constant SYS_PIPE2 = 5287;
+    uint32 internal constant SYS_EPOLLCTL = 5208;
+    uint32 internal constant SYS_EPOLLPWAIT = 5272;
+    uint32 internal constant SYS_GETRANDOM = 5313;
+    uint32 internal constant SYS_UNAME = 5061;
+    uint32 internal constant SYS_STAT64 = 5004;
+    uint32 internal constant SYS_GETUID = 5100;
+    uint32 internal constant SYS_GETGID = 5102;
+    uint32 internal constant SYS_LLSEEK = 5008;
+    uint32 internal constant SYS_MINCORE = 5026;
+    uint32 internal constant SYS_TGKILL = 5225;
     // profiling-related syscalls - ignored
-    uint32 internal constant SYS_SETITIMER = 4104;
-    uint32 internal constant SYS_TIMERCREATE = 4257;
-    uint32 internal constant SYS_TIMERSETTIME = 4258;
-    uint32 internal constant SYS_TIMERDELETE = 4261;
-    uint32 internal constant SYS_CLOCKGETTIME = 4263;
-    uint32 internal constant SYS_MUNMAP = 4091;
+    uint32 internal constant SYS_SETITIMER = 5036;
+    uint32 internal constant SYS_TIMERCREATE = 5216;
+    uint32 internal constant SYS_TIMERSETTIME = 5217;
+    uint32 internal constant SYS_TIMERDELETE = 5220;
+    uint32 internal constant SYS_CLOCKGETTIME = 5222;
+    uint32 internal constant SYS_MUNMAP = 5011;
 
     uint32 internal constant FD_STDIN = 0;
     uint32 internal constant FD_STDOUT = 1;
@@ -85,7 +84,7 @@ library MIPSSyscalls {
     uint32 internal constant FD_PREIMAGE_READ = 5;
     uint32 internal constant FD_PREIMAGE_WRITE = 6;
 
-    uint32 internal constant SYS_ERROR_SIGNAL = 0xFF_FF_FF_FF;
+    uint64 internal constant SYS_ERROR_SIGNAL = 0xFF_FF_FF_FF_FF_FF_FF_FF;
     uint32 internal constant EBADF = 0x9;
     uint32 internal constant EINVAL = 0x16;
     uint32 internal constant EAGAIN = 0xb;
@@ -95,7 +94,7 @@ library MIPSSyscalls {
     uint32 internal constant FUTEX_WAKE_PRIVATE = 129;
     uint32 internal constant FUTEX_TIMEOUT_STEPS = 10000;
     uint64 internal constant FUTEX_NO_TIMEOUT = type(uint64).max;
-    uint32 internal constant FUTEX_EMPTY_ADDR = 0xFF_FF_FF_FF;
+    uint64 internal constant FUTEX_EMPTY_ADDR = 0xFF_FF_FF_FF_FF_FF_FF_FF;
 
     uint32 internal constant SCHED_QUANTUM = 100_000;
     /// @notice Start of the data segment.
@@ -130,10 +129,10 @@ library MIPSSyscalls {
     /// @return a1_ The second argument available to the syscall operation.
     /// @return a2_ The third argument available to the syscall operation.
     /// @return a3_ The fourth argument available to the syscall operation.
-    function getSyscallArgs(uint32[32] memory _registers)
+    function getSyscallArgs(uint64[32] memory _registers)
         internal
         pure
-        returns (uint32 sysCallNum_, uint32 a0_, uint32 a1_, uint32 a2_, uint32 a3_)
+        returns (uint64 sysCallNum_, uint64 a0_, uint64 a1_, uint64 a2_, uint64 a3_)
     {
         unchecked {
             sysCallNum_ = _registers[2];
@@ -155,19 +154,19 @@ library MIPSSyscalls {
     /// @return v1_ Unused error code (0)
     /// @return newHeap_ The new value for the heap, may be unchanged
     function handleSysMmap(
-        uint32 _a0,
-        uint32 _a1,
-        uint32 _heap
+        uint64 _a0,
+        uint64 _a1,
+        uint64 _heap
     )
         internal
         pure
-        returns (uint32 v0_, uint32 v1_, uint32 newHeap_)
+        returns (uint64 v0_, uint64 v1_, uint64 newHeap_)
     {
         unchecked {
-            v1_ = uint32(0);
+            v1_ = uint64(0);
             newHeap_ = _heap;
 
-            uint32 sz = _a1;
+            uint64 sz = _a1;
             if (sz & 4095 != 0) {
                 // adjust size to align with page size
                 sz += 4096 - (sz & 4095);
@@ -192,11 +191,11 @@ library MIPSSyscalls {
     function handleSysRead(SysReadParams memory _args)
         internal
         view
-        returns (uint32 v0_, uint32 v1_, uint32 newPreimageOffset_, bytes32 newMemRoot_)
+        returns (uint64 v0_, uint64 v1_, uint64 newPreimageOffset_, bytes32 newMemRoot_)
     {
         unchecked {
-            v0_ = uint32(0);
-            v1_ = uint32(0);
+            v0_ = uint64(0);
+            v1_ = uint64(0);
             newMemRoot_ = _args.memRoot;
             newPreimageOffset_ = _args.preimageOffset;
 
@@ -209,7 +208,8 @@ library MIPSSyscalls {
             else if (_args.a0 == FD_PREIMAGE_READ) {
                 // verify proof is correct, and get the existing memory.
                 // mask the addr to align it to 4 bytes
-                uint32 mem = MIPSMemory.readMem(_args.memRoot, _args.a1 & 0xFFffFFfc, _args.proofOffset);
+                uint64 mem =
+                    MIPSMemory.readMemDoubleword(_args.memRoot, _args.a1 & 0xFFFFFFFFFFFFFFF8, _args.proofOffset);
                 // If the preimage key is a local key, localize it in the context of the caller.
                 if (uint8(_args.preimageKey[0]) == 1) {
                     _args.preimageKey = PreimageKeyLib.localize(_args.preimageKey, _args.localContext);
@@ -218,27 +218,27 @@ library MIPSSyscalls {
 
                 // Transform data for writing to memory
                 // We use assembly for more precise ops, and no var count limit
-                uint32 a1 = _args.a1;
-                uint32 a2 = _args.a2;
+                uint64 a1 = _args.a1;
+                uint64 a2 = _args.a2;
                 assembly {
-                    let alignment := and(a1, 3) // the read might not start at an aligned address
-                    let space := sub(4, alignment) // remaining space in memory word
+                    let alignment := and(a1, 7) // the read might not start at an aligned address
+                    let space := sub(8, alignment) // remaining space in memory word
                     if lt(space, datLen) { datLen := space } // if less space than data, shorten data
                     if lt(a2, datLen) { datLen := a2 } // if requested to read less, read less
                     dat := shr(sub(256, mul(datLen, 8)), dat) // right-align data
-                    dat := shl(mul(sub(sub(4, datLen), alignment), 8), dat) // position data to insert into memory
+                    dat := shl(mul(sub(sub(8, datLen), alignment), 8), dat) // position data to insert into memory
                     // word
-                    let mask := sub(shl(mul(sub(4, alignment), 8), 1), 1) // mask all bytes after start
-                    let suffixMask := sub(shl(mul(sub(sub(4, alignment), datLen), 8), 1), 1) // mask of all bytes
+                    let mask := sub(shl(mul(sub(8, alignment), 8), 1), 1) // mask all bytes after start
+                    let suffixMask := sub(shl(mul(sub(sub(8, alignment), datLen), 8), 1), 1) // mask of all bytes
                     // starting from end, maybe none
                     mask := and(mask, not(suffixMask)) // reduce mask to just cover the data we insert
                     mem := or(and(mem, not(mask)), dat) // clear masked part of original memory, and insert data
                 }
 
                 // Write memory back
-                newMemRoot_ = MIPSMemory.writeMem(_args.a1 & 0xFFffFFfc, _args.proofOffset, mem);
+                newMemRoot_ = MIPSMemory.writeMemDoubleword(_args.a1 & 0xFFFFFFFFFFFFFFF8, _args.proofOffset, mem);
                 newPreimageOffset_ += uint32(datLen);
-                v0_ = uint32(datLen);
+                v0_ = uint64(datLen);
             }
             // hint response
             else if (_args.a0 == FD_HINT_READ) {
@@ -246,7 +246,7 @@ library MIPSSyscalls {
                 // The result is ignored anyway
                 v0_ = _args.a2;
             } else {
-                v0_ = 0xFFffFFff;
+                v0_ = 0xFFffFFffFFffFFff;
                 v1_ = EBADF;
             }
 
@@ -267,23 +267,23 @@ library MIPSSyscalls {
     /// @return newPreimageKey_ The new preimageKey.
     /// @return newPreimageOffset_ The new preimageOffset.
     function handleSysWrite(
-        uint32 _a0,
-        uint32 _a1,
-        uint32 _a2,
+        uint64 _a0,
+        uint64 _a1,
+        uint64 _a2,
         bytes32 _preimageKey,
-        uint32 _preimageOffset,
+        uint64 _preimageOffset,
         uint256 _proofOffset,
         bytes32 _memRoot
     )
         internal
         pure
-        returns (uint32 v0_, uint32 v1_, bytes32 newPreimageKey_, uint32 newPreimageOffset_)
+        returns (uint64 v0_, uint64 v1_, bytes32 newPreimageKey_, uint64 newPreimageOffset_)
     {
         unchecked {
             // args: _a0 = fd, _a1 = addr, _a2 = count
             // returns: v0_ = written, v1_ = err code
-            v0_ = uint32(0);
-            v1_ = uint32(0);
+            v0_ = uint64(0);
+            v1_ = uint64(0);
             newPreimageKey_ = _preimageKey;
             newPreimageOffset_ = _preimageOffset;
 
@@ -293,14 +293,14 @@ library MIPSSyscalls {
             // pre-image oracle
             else if (_a0 == FD_PREIMAGE_WRITE) {
                 // mask the addr to align it to 4 bytes
-                uint32 mem = MIPSMemory.readMem(_memRoot, _a1 & 0xFFffFFfc, _proofOffset);
+                uint64 mem = MIPSMemory.readMemDoubleword(_memRoot, _a1 & 0xFFFFFFFFFFFFFFF8, _proofOffset);
                 bytes32 key = _preimageKey;
 
                 // Construct pre-image key from memory
                 // We use assembly for more precise ops, and no var count limit
                 assembly {
-                    let alignment := and(_a1, 3) // the read might not start at an aligned address
-                    let space := sub(4, alignment) // remaining space in memory word
+                    let alignment := and(_a1, 7) // the read might not start at an aligned address
+                    let space := sub(8, alignment) // remaining space in memory word
                     if lt(space, _a2) { _a2 := space } // if less space than data, shorten data
                     key := shl(mul(_a2, 8), key) // shift key, make space for new info
                     let mask := sub(shl(mul(_a2, 8), 1), 1) // mask for extracting value from memory
@@ -313,7 +313,7 @@ library MIPSSyscalls {
                 newPreimageOffset_ = 0; // reset offset, to read new pre-image data from the start
                 v0_ = _a2;
             } else {
-                v0_ = 0xFFffFFff;
+                v0_ = 0xFFffFFffFFffFFff;
                 v1_ = EBADF;
             }
 
@@ -327,10 +327,10 @@ library MIPSSyscalls {
     /// @param _a1 The control command.
     /// @param v0_ The file status flag (only supported command is F_GETFL), or -1 on error.
     /// @param v1_ An error number, or 0 if there is no error.
-    function handleSysFcntl(uint32 _a0, uint32 _a1) internal pure returns (uint32 v0_, uint32 v1_) {
+    function handleSysFcntl(uint64 _a0, uint64 _a1) internal pure returns (uint64 v0_, uint64 v1_) {
         unchecked {
-            v0_ = uint32(0);
-            v1_ = uint32(0);
+            v0_ = uint64(0);
+            v1_ = uint64(0);
 
             // args: _a0 = fd, _a1 = cmd
             if (_a1 == 3) {
@@ -340,11 +340,11 @@ library MIPSSyscalls {
                 } else if (_a0 == FD_STDOUT || _a0 == FD_STDERR || _a0 == FD_PREIMAGE_WRITE || _a0 == FD_HINT_WRITE) {
                     v0_ = 1; // O_WRONLY
                 } else {
-                    v0_ = 0xFFffFFff;
+                    v0_ = 0xFFffFFffFFffFFff;
                     v1_ = EBADF;
                 }
             } else {
-                v0_ = 0xFFffFFff;
+                v0_ = 0xFFffFFffFFffFFff;
                 v1_ = EINVAL; // cmd not recognized by this kernel
             }
 
@@ -354,9 +354,9 @@ library MIPSSyscalls {
 
     function handleSyscallUpdates(
         st.CpuScalars memory _cpu,
-        uint32[32] memory _registers,
-        uint32 _v0,
-        uint32 _v1
+        uint64[32] memory _registers,
+        uint64 _v0,
+        uint64 _v1
     )
         internal
         pure
