@@ -382,9 +382,7 @@ contract Deploy is Deployer {
         deploySystemConfig();
         deployL1StandardBridge();
         deployL1ERC721Bridge();
-        if (cfg.useFaultProofs() == false) {
-            deployOptimismPortal();
-        }
+        deployOptimismPortal();
         deployL2OutputOracle();
         // Fault proofs
         deployOptimismPortal2();
@@ -642,7 +640,9 @@ contract Deploy is Deployer {
     /// @notice Deploy the OptimismPortal
     function deployOptimismPortal() public broadcast returns (address addr_) {
         console.log("Deploying OptimismPortal implementation");
-        require(cfg.useInterop() == false, "Deploy: Cannot use interop without fault proofs");
+        if (cfg.useInterop()) {
+            console.log("Attempting to deploy OptimismPortal with interop, this config is a noop");
+        }
         addr_ = address(new OptimismPortal{ salt: _implSalt() }());
         save("OptimismPortal", addr_);
         console.log("OptimismPortal deployed at %s", addr_);
