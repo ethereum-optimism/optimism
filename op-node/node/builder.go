@@ -91,12 +91,16 @@ func (s *BuilderAPIClient) GetPayload(ctx context.Context, ref eth.L2BlockRef, l
 		return nil, nil, fmt.Errorf("unsupported data version %v", responsePayload.Version)
 	}
 
-	profit := responsePayload.Deneb.Message.Value.ToBig()
+	profit, err := responsePayload.Value()
+	if err != nil {
+		return nil, nil, err
+	}
+
 	envelope, err := versionedExecutionPayloadToExecutionPayloadEnvelope(responsePayload)
 	if err != nil {
 		return nil, nil, err
 	}
-	return envelope, profit, nil
+	return envelope, profit.ToBig(), nil
 }
 
 func versionedExecutionPayloadToExecutionPayloadEnvelope(resp *builderSpec.VersionedSubmitBlockRequest) (*eth.ExecutionPayloadEnvelope, error) {
