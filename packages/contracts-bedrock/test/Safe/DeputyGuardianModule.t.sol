@@ -239,9 +239,10 @@ contract DeputyGuardianModule_NoPortalCollisions_Test is DeputyGuardianModule_Te
     /// @dev tests that no function selectors in the L1 contracts collide with the OptimismPortal2 functions called by
     ///      the DeputyGuardianModule.
     function test_noPortalCollisions_succeeds() external {
-        string[] memory excludes = new string[](2);
+        string[] memory excludes = new string[](3);
         excludes[0] = "src/L1/OptimismPortal2.sol";
         excludes[1] = "src/dispute/lib/*";
+        excludes[2] = "src/L1/OptimismPortalInterop.sol";
         Abi[] memory abis = ForgeArtifacts.getContractFunctionAbis("src/{L1,dispute,universal}", excludes);
         for (uint256 i; i < abis.length; i++) {
             for (uint256 j; j < abis[i].entries.length; j++) {
