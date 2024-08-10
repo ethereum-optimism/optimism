@@ -18,11 +18,6 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/pkg/errors"
-)
-
-var (
-	errHTTPErrorResponse = errors.New("HTTP error response")
 )
 
 const PathGetPayload = "/eth/v1/builder/payload"
@@ -85,7 +80,7 @@ func (s *BuilderAPIClient) GetPayload(ctx context.Context, ref eth.L2BlockRef, l
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, nil, errHTTPErrorResponse
+		return nil, nil, fmt.Errorf("HTTP error response: %v", resp.Status)
 	}
 
 	if err := json.Unmarshal(bodyBytes, responsePayload); err != nil {
