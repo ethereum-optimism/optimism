@@ -343,15 +343,13 @@ contract Deploy is Deployer {
         deployImplementations();
         initializeImplementations();
 
-        if (cfg.useFaultProofs()) {
-            setAlphabetFaultGameImplementation({ _allowUpgrade: false });
-            setFastFaultGameImplementation({ _allowUpgrade: false });
-            setCannonFaultGameImplementation({ _allowUpgrade: false });
-            setPermissionedCannonFaultGameImplementation({ _allowUpgrade: false });
+        setAlphabetFaultGameImplementation({ _allowUpgrade: false });
+        setFastFaultGameImplementation({ _allowUpgrade: false });
+        setCannonFaultGameImplementation({ _allowUpgrade: false });
+        setPermissionedCannonFaultGameImplementation({ _allowUpgrade: false });
 
-            transferDisputeGameFactoryOwnership();
-            transferDelayedWETHOwnership();
-        }
+        transferDisputeGameFactoryOwnership();
+        transferDelayedWETHOwnership();
     }
 
     /// @notice Deploy all of the proxies
