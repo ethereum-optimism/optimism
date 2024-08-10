@@ -3,6 +3,7 @@ package testutils
 import (
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -73,7 +74,7 @@ func (n *TestDerivationMetrics) RecordBuilderRequestTimeout() {
 func (n *TestDerivationMetrics) RecordSequencerProfit(profit float64, source string) {
 }
 
-func (n *TestDerivationMetrics) RecordSequencerPayloadInserted(source string) {
+func (n *TestDerivationMetrics) RecordSequencerPayloadInserted(source metrics.PayloadSource) {
 }
 
 func (n *TestDerivationMetrics) RecordPayloadGas(gas float64, source string) {

@@ -10,15 +10,11 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
+	opMetrics "github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/builder"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-)
-
-const (
-	PayloadSourceBuilder = "builder"
-	PayloadSourceEngine  = "engine"
 )
 
 // isDepositTx checks an opaqueTx to determine if it is a Deposit Transaction
@@ -166,7 +162,7 @@ func getPayloadWithBuilderPayload(ctx context.Context, log log.Logger, eng ExecE
 	select {
 	case <-ctxTimeout.Done():
 		metrics.RecordBuilderRequestTimeout()
-		metrics.RecordSequencerProfit(0, PayloadSourceEngine)
+		metrics.RecordSequencerProfit(0, opMetrics.PayloadSourceEngine)
 		log.Warn("builder request timed out", "error", ctxTimeout.Err())
 		return envelope, nil, ctxTimeout.Err()
 	case result := <-ch:
@@ -178,7 +174,7 @@ func getPayloadWithBuilderPayload(ctx context.Context, log log.Logger, eng ExecE
 		log.Info("received payload from builder", "hash", result.envelope.ExecutionPayload.BlockHash.String(), "number", uint64(result.envelope.ExecutionPayload.BlockNumber))
 		// TODO: ParentBeaconBlockRoot should have been delivered by the builder. Revisit when the builder API spec supports BeaconRoot.
 		result.envelope.ParentBeaconBlockRoot = envelope.ParentBeaconBlockRoot
-		metrics.RecordSequencerProfit(float64(result.profit.Int64()), PayloadSourceBuilder)
+		metrics.RecordSequencerProfit(float64(result.profit.Int64()), opMetrics.PayloadSourceBuilder)
 		return envelope, result.envelope, nil
 	}
 }
@@ -221,16 +217,16 @@ func confirmPayload(
 	if builderEnvelope != nil {
 		errTyp, err := insertPayload(ctx, log, eng, fc, updateSafe, agossip, sequencerConductor, builderEnvelope)
 		if err == nil {
-			metrics.RecordSequencerPayloadInserted(PayloadSourceBuilder)
-			metrics.RecordPayloadGas(float64(builderEnvelope.ExecutionPayload.GasUsed), PayloadSourceBuilder)
+			metrics.RecordSequencerPayloadInserted(opMetrics.PayloadSourceBuilder)
+			metrics.RecordPayloadGas(float64(builderEnvelope.ExecutionPayload.GasUsed), opMetrics.PayloadSourceBuilder)
 			log.Info("succeessfully inserted payload from builder")
 			return builderEnvelope, errTyp, err
 		}
 		log.Error("failed to insert payload from builder", "errType", errTyp, "error", err)
 	}
 
-	metrics.RecordSequencerPayloadInserted(PayloadSourceEngine)
-	metrics.RecordPayloadGas(float64(engineEnvelope.ExecutionPayload.GasUsed), PayloadSourceEngine)
+	metrics.RecordSequencerPayloadInserted(opMetrics.PayloadSourceEngine)
+	metrics.RecordPayloadGas(float64(engineEnvelope.ExecutionPayload.GasUsed), opMetrics.PayloadSourceEngine)
 	errType, err := insertPayload(ctx, log, eng, fc, updateSafe, agossip, sequencerConductor, engineEnvelope)
 	return engineEnvelope, errType, err
 }

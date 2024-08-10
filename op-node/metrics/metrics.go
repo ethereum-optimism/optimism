@@ -28,6 +28,13 @@ import (
 
 const Namespace = "op_node"
 
+type PayloadSource string
+
+const (
+	PayloadSourceEngine  = "engine"
+	PayloadSourceBuilder = "builder"
+)
+
 type Metricer interface {
 	RecordInfo(version string)
 	RecordUp()
@@ -78,8 +85,8 @@ type Metricer interface {
 	RecordBuilderRequestTime(duration time.Duration)
 	RecordBuilderRequestFail()
 	RecordBuilderRequestTimeout()
-	RecordSequencerProfit(profit float64, source string)
-	RecordSequencerPayloadInserted(source string)
+	RecordSequencerProfit(profit float64, source PayloadSource)
+	RecordSequencerPayloadInserted(source PayloadSource)
 	RecordPayloadGas(gas float64, source string)
 }
 
@@ -631,12 +638,12 @@ func (m *Metrics) RecordBuilderRequestTimeout() {
 }
 
 // RecordSequencerProfit measures the profit made by the sequencer by source: engine and external builders.
-func (m *Metrics) RecordSequencerProfit(profit float64, source string) {
-	m.SequencerProfit.WithLabelValues(source).Set(profit)
+func (m *Metrics) RecordSequencerProfit(profit float64, source PayloadSource) {
+	m.SequencerProfit.WithLabelValues(string(source)).Set(profit)
 }
 
-func (m *Metrics) RecordSequencerPayloadInserted(source string) {
-	m.SequencerPayloadInserted.WithLabelValues(source).Inc()
+func (m *Metrics) RecordSequencerPayloadInserted(source PayloadSource) {
+	m.SequencerPayloadInserted.WithLabelValues(string(source)).Inc()
 }
 
 func (m *Metrics) RecordPayloadGas(gas float64, source string) {
@@ -821,10 +828,10 @@ func (n *noopMetricer) RecordBuilderRequestFail() {
 func (n *noopMetricer) RecordBuilderRequestTimeout() {
 }
 
-func (n *noopMetricer) RecordSequencerProfit(profit float64, source string) {
+func (n *noopMetricer) RecordSequencerProfit(profit float64, source PayloadSource) {
 }
 
-func (n *noopMetricer) RecordSequencerPayloadInserted(source string) {
+func (n *noopMetricer) RecordSequencerPayloadInserted(source PayloadSource) {
 }
 
 func (m *noopMetricer) RecordPayloadGas(gas float64, source string) {

@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
@@ -33,8 +34,8 @@ type SequencerMetrics interface {
 	RecordBuilderRequestTime(duration time.Duration)
 	RecordBuilderRequestFail()
 	RecordBuilderRequestTimeout()
-	RecordSequencerProfit(profit float64, source string)
-	RecordSequencerPayloadInserted(source string)
+	RecordSequencerProfit(profit float64, source metrics.PayloadSource)
+	RecordSequencerPayloadInserted(source metrics.PayloadSource)
 	RecordPayloadGas(gas float64, source string)
 }
 
