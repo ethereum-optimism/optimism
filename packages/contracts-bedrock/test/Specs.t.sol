@@ -272,7 +272,10 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "OptimismPortal", _sel: _getSel("setGasPayingToken(address,uint8,bytes32,bytes32)") });
 
         // OptimismPortalInterop
-        _addSpec({ _name: "OptimismPortalInterop", _sel: _getSel("depositTransaction(address,uint256,uint64,bool,bytes)") });
+        _addSpec({
+            _name: "OptimismPortalInterop",
+            _sel: _getSel("depositTransaction(address,uint256,uint64,bool,bytes)")
+        });
         _addSpec({ _name: "OptimismPortalInterop", _sel: _getSel("donateETH()") });
         _addSpec({
             _name: "OptimismPortalInterop",
@@ -291,7 +294,11 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "OptimismPortalInterop", _sel: _getSel("minimumGasLimit(uint64)") });
         _addSpec({ _name: "OptimismPortalInterop", _sel: _getSel("params()") });
         _addSpec({ _name: "OptimismPortalInterop", _sel: _getSel("paused()") });
-        _addSpec({ _name: "OptimismPortalInterop", _sel: OptimismPortal2.proveWithdrawalTransaction.selector, _pausable: true });
+        _addSpec({
+            _name: "OptimismPortalInterop",
+            _sel: OptimismPortal2.proveWithdrawalTransaction.selector,
+            _pausable: true
+        });
         _addSpec({ _name: "OptimismPortalInterop", _sel: _getSel("provenWithdrawals(bytes32,address)") });
         _addSpec({ _name: "OptimismPortalInterop", _sel: _getSel("superchainConfig()") });
         _addSpec({ _name: "OptimismPortalInterop", _sel: _getSel("systemConfig()") });
@@ -299,10 +306,17 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "OptimismPortalInterop", _sel: _getSel("disputeGameFactory()") });
         _addSpec({ _name: "OptimismPortalInterop", _sel: _getSel("disputeGameBlacklist(address)") });
         _addSpec({ _name: "OptimismPortalInterop", _sel: _getSel("respectedGameType()") });
-        // Comment out the auth to not disturb the testDeputyGuardianAuth test. This code is not meant to run in production,
+        // Comment out the auth to not disturb the testDeputyGuardianAuth test. This code is not meant to run in
+        // production,
         // and will be merged into the OptimismPortal2 contract itself in the future.
-        _addSpec({ _name: "OptimismPortalInterop", _sel: _getSel("blacklistDisputeGame(address)") /*, _auth: Role.GUARDIAN*/ });
-        _addSpec({ _name: "OptimismPortalInterop", _sel: _getSel("setRespectedGameType(uint32)") /*, _auth: Role.GUARDIAN*/ });
+        _addSpec({
+            _name: "OptimismPortalInterop",
+            _sel: _getSel("blacklistDisputeGame(address)") /*, _auth: Role.GUARDIAN*/
+        });
+        _addSpec({
+            _name: "OptimismPortalInterop",
+            _sel: _getSel("setRespectedGameType(uint32)") /*, _auth: Role.GUARDIAN*/
+        });
         _addSpec({ _name: "OptimismPortalInterop", _sel: _getSel("checkWithdrawal(bytes32,address)") });
         _addSpec({ _name: "OptimismPortalInterop", _sel: _getSel("proofMaturityDelaySeconds()") });
         _addSpec({ _name: "OptimismPortalInterop", _sel: _getSel("disputeGameFinalityDelaySeconds()") });
