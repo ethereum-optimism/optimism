@@ -125,8 +125,7 @@ type Metrics struct {
 	SequencerBuilderRequestErrors          prometheus.Counter
 	SequencerBuilderRequestTimeouts        prometheus.Counter
 
-	SequencerProfit      *prometheus.GaugeVec
-	SequencerProfitTotal *prometheus.CounterVec
+	SequencerProfit *prometheus.GaugeVec
 
 	SequencerPayloadInserted *prometheus.CounterVec
 	SequencerPayloadGas      *prometheus.GaugeVec
@@ -424,13 +423,6 @@ func NewMetrics(procName string) *Metrics {
 		}, []string{
 			"source",
 		}),
-		SequencerProfitTotal: factory.NewCounterVec(prometheus.CounterOpts{
-			Namespace: ns,
-			Name:      "sequencer_profit_total",
-			Help:      "Total sequencer profit by source.",
-		}, []string{
-			"source",
-		}),
 		SequencerPayloadInserted: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: ns,
 			Name:      "sequencer_payload_inserted",
@@ -641,7 +633,6 @@ func (m *Metrics) RecordBuilderRequestTimeout() {
 // RecordSequencerProfit measures the profit made by the sequencer by source: engine and external builders.
 func (m *Metrics) RecordSequencerProfit(profit float64, source string) {
 	m.SequencerProfit.WithLabelValues(source).Set(profit)
-	m.SequencerProfitTotal.WithLabelValues(source).Add(profit)
 }
 
 func (m *Metrics) RecordSequencerPayloadInserted(source string) {
