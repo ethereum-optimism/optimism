@@ -41,7 +41,7 @@ gas-snapshot-no-build:
   forge snapshot --match-contract GasBenchMark
 
 statediff:
-  ./scripts/statediff.sh && git diff --exit-code
+  ./scripts/utils/statediff.sh && git diff --exit-code
 
 gas-snapshot: build-go-ffi gas-snapshot-no-build
 
@@ -65,7 +65,7 @@ snapshots-check:
   ./scripts/checks/check-snapshots.sh
 
 semver-lock:
-  forge script scripts/SemverLock.s.sol
+  forge script scripts/autogen/SemverLock.s.sol
 
 validate-deploy-configs:
   ./scripts/checks/check-deploy-configs.sh

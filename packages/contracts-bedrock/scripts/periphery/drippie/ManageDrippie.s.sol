@@ -11,7 +11,7 @@ import { LibDataTypes as GelatoDataTypes } from "gelato/libraries/LibDataTypes.s
 import { LibTaskId as GelatoTaskId } from "gelato/libraries/LibTaskId.sol";
 import { GelatoBytes } from "gelato/vendor/gelato/GelatoBytes.sol";
 
-import { Config } from "scripts/Config.sol";
+import { Config } from "scripts/libraries/Config.sol";
 import { Artifacts } from "scripts/Artifacts.s.sol";
 import { DrippieConfig } from "scripts/periphery/drippie/DrippieConfig.s.sol";
 
