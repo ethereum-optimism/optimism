@@ -217,11 +217,10 @@ func confirmPayload(
 			"txs", len(engineEnvelope.ExecutionPayload.Transactions))
 	} else {
 		engineEnvelope, builderPayload, err = getPayloadWithBuilderPayload(ctx, log, eng, payloadInfo, l2head, builderClient, metrics)
-	}
-
-	if err != nil {
-		// even if it is an input-error (unknown payload ID), it is temporary, since we will re-attempt the full payload building, not just the retrieval of the payload.
-		return nil, BlockInsertTemporaryErr, fmt.Errorf("failed to get execution payload from engine: %w", err)
+		if err != nil {
+			// even if it is an input-error (unknown payload ID), it is temporary, since we will re-attempt the full payload building, not just the retrieval of the payload.
+			return nil, BlockInsertTemporaryErr, fmt.Errorf("failed to get execution payload from engine: %w", err)
+		}
 	}
 
 	engineValue := WeiToGwei(engineEnvelope.BlockValue)
