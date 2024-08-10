@@ -120,6 +120,23 @@ func startPayload(ctx context.Context, eng ExecEngine, fc eth.ForkchoiceState, a
 	}
 }
 
+type PayloadRequestResult struct {
+	envelope *eth.ExecutionPayloadEnvelope
+	profit   *big.Int
+	error    error
+}
+
+func requestPayloadFromBuilder(ctx context.Context, builder builder.PayloadBuilder, l2head eth.L2BlockRef, log log.Logger, metrics Metrics, results chan<- *PayloadRequestResult) {
+	start := time.Now()
+	payload, profit, err := builder.GetPayload(ctx, l2head, log)
+	metrics.RecordBuilderRequestTime(time.Since(start))
+	if err != nil {
+		results <- &PayloadRequestResult{error: err}
+		return
+	}
+	results <- &PayloadRequestResult{envelope: payload, profit: profit}
+}
+
 // makes parallel request to builder and engine to get the payload
 func getPayloadWithBuilderPayload(ctx context.Context, log log.Logger, eng ExecEngine, payloadInfo eth.PayloadInfo, l2head eth.L2BlockRef, builder builder.PayloadBuilder, metrics Metrics) (
 	*eth.ExecutionPayloadEnvelope, *eth.ExecutionPayloadEnvelope, error) {
@@ -138,20 +155,8 @@ func getPayloadWithBuilderPayload(ctx context.Context, log log.Logger, eng ExecE
 		error    error
 	}
 
-	ch := make(chan *result, 1)
-
-	// start the payload request to builder api
-	go func() {
-		start := time.Now()
-		payload, profit, err := builder.GetPayload(ctxTimeout, l2head, log)
-		metrics.RecordBuilderRequestTime(time.Since(start))
-		if err != nil {
-			ch <- &result{error: err}
-			return
-		}
-		ch <- &result{envelope: payload, profit: profit}
-	}()
-
+	results := make(chan *PayloadRequestResult, 1)
+	go requestPayloadFromBuilder(ctxTimeout, builder, l2head, log, metrics, results)
 	envelope, err := eng.GetPayload(ctx, payloadInfo)
 	if err != nil {
 		log.Error("failed to get payload from engine", "error", err.Error())
@@ -165,7 +170,7 @@ func getPayloadWithBuilderPayload(ctx context.Context, log log.Logger, eng ExecE
 		metrics.RecordSequencerProfit(0, opMetrics.PayloadSourceEngine)
 		log.Warn("builder request timed out", "error", ctxTimeout.Err())
 		return envelope, nil, ctxTimeout.Err()
-	case result := <-ch:
+	case result := <-results:
 		if result.error != nil {
 			metrics.RecordBuilderRequestFail()
 			log.Warn("failed to get payload from builder", "error", err.Error())
