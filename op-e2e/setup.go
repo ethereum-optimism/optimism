@@ -270,6 +270,9 @@ type SystemConfig struct {
 	// If the proposer can make proposals for L2 blocks derived from L1 blocks which are not finalized on L1 yet.
 	NonFinalizedProposals bool
 
+	// Explicitly disable proposer, for tests that don't want dispute games automatically created
+	DisableProposer bool
+
 	// Explicitly disable batcher, for tests that rely on unsafe L2 payloads
 	DisableBatcher bool
 
@@ -878,8 +881,10 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	if err != nil {
 		return nil, fmt.Errorf("unable to setup l2 output submitter: %w", err)
 	}
-	if err := proposer.Start(context.Background()); err != nil {
-		return nil, fmt.Errorf("unable to start l2 output submitter: %w", err)
+	if !cfg.DisableProposer {
+		if err := proposer.Start(context.Background()); err != nil {
+			return nil, fmt.Errorf("unable to start l2 output submitter: %w", err)
+		}
 	}
 	sys.L2OutputSubmitter = proposer
 
