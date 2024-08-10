@@ -251,7 +251,7 @@ graph LR
 OP Stack smart contracts are published to NPM and can be installed via:
 
 ```sh
-npm install @eth-optimism/contracts-bedrock.
+npm install @eth-optimism/contracts-bedrock
 ```
 
 Refer to the [Optimism Developer Docs](https://docs.optimism.io/builders/dapp-developers/contracts/system-contracts#using-system-contracts-in-solidity) for additional information about how to use this package.
