@@ -3,7 +3,6 @@ package builder
 import (
 	"context"
 	"errors"
-	"math/big"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -13,13 +12,13 @@ import (
 type PayloadBuilder interface {
 	Enabled() bool
 	Timeout() time.Duration
-	GetPayload(ctx context.Context, ref eth.L2BlockRef, log log.Logger) (*eth.ExecutionPayloadEnvelope, *big.Int, error)
+	GetPayload(ctx context.Context, ref eth.L2BlockRef, log log.Logger) (*eth.ExecutionPayloadEnvelope, error)
 }
 
 type NoOpBuilder struct{}
 
-func (n *NoOpBuilder) GetPayload(_ context.Context, _ eth.L2BlockRef, _ log.Logger) (*eth.ExecutionPayloadEnvelope, *big.Int, error) {
-	return nil, nil, errors.New("Builder not enabled")
+func (n *NoOpBuilder) GetPayload(_ context.Context, _ eth.L2BlockRef, _ log.Logger) (*eth.ExecutionPayloadEnvelope, error) {
+	return nil, errors.New("Builder not enabled")
 }
 
 func (n *NoOpBuilder) Enabled() bool {

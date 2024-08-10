@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/big"
 	"time"
 
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/holiman/uint256"
 
 	opMetrics "github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/async"
@@ -123,32 +123,18 @@ func startPayload(ctx context.Context, eng ExecEngine, fc eth.ForkchoiceState, a
 type PayloadRequestResult struct {
 	success  bool
 	envelope *eth.ExecutionPayloadEnvelope
-	profit   *big.Int
 	error    error
 }
 
 func requestPayloadFromBuilder(ctx context.Context, builder builder.PayloadBuilder, l2head eth.L2BlockRef, log log.Logger, metrics Metrics, results chan<- *PayloadRequestResult) {
 	start := time.Now()
-	payload, profit, err := builder.GetPayload(ctx, l2head, log)
+	payload, err := builder.GetPayload(ctx, l2head, log)
 	metrics.RecordBuilderRequestTime(time.Since(start))
 	if err != nil {
 		results <- &PayloadRequestResult{success: false, error: err}
 		return
 	}
-	results <- &PayloadRequestResult{success: true, envelope: payload, profit: profit}
-}
-
-func calculateBlockValue(envelope *eth.ExecutionPayloadEnvelope) (*big.Int, error) {
-	total := new(big.Int)
-	for _, data := range envelope.ExecutionPayload.Transactions {
-		var tx types.Transaction
-		if err := tx.UnmarshalBinary(data); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal transaction: %w", err)
-		}
-		cost := new(big.Int).Mul(tx.GasPrice(), new(big.Int).SetUint64(tx.Gas()))
-		total.Add(total, cost)
-	}
-	return total, nil
+	results <- &PayloadRequestResult{success: true, envelope: payload}
 }
 
 // makes parallel request to builder and engine to get the payload
@@ -191,6 +177,16 @@ func getPayloadWithBuilderPayload(ctx context.Context, log log.Logger, eng ExecE
 	}
 }
 
+func WeiToGwei(v *eth.Uint256Quantity) uint64 {
+	if v == nil {
+		return 0
+	}
+	gweiPerEth := uint256.NewInt(1e9)
+	copied := uint256.NewInt(0).Set((*uint256.Int)(v))
+	copied.Div(copied, gweiPerEth)
+	return uint64(copied.Uint64())
+}
+
 // confirmPayload ends an execution payload building process in the provided Engine, and persists the payload as the canonical head.
 // If updateSafe is true, then the payload will also be recognized as safe-head at the same time.
 // The severity of the error is distinguished to determine whether the payload was valid and can become canonical.
@@ -228,16 +224,14 @@ func confirmPayload(
 		return nil, BlockInsertTemporaryErr, fmt.Errorf("failed to get execution payload from engine: %w", err)
 	}
 
-	engineProfit, blockValueError := calculateBlockValue(engineEnvelope)
-	if blockValueError != nil {
-		log.Error("failed to calculate block value", "error", err)
-	}
-
-	if builderPayload.success && engineProfit != nil {
-		if engineProfit.Cmp(builderPayload.profit) <= 0 {
+	engineValue := WeiToGwei(engineEnvelope.BlockValue)
+	if builderPayload.success {
+		builderValue := WeiToGwei(builderPayload.envelope.BlockValue)
+		// TODO: boost factor for payload value
+		if builderValue > engineValue {
 			errTyp, err := insertPayload(ctx, log, eng, fc, updateSafe, agossip, sequencerConductor, builderPayload.envelope)
 			if errTyp == BlockInsertOK {
-				metrics.RecordSequencerProfit(float64(builderPayload.profit.Uint64()), opMetrics.PayloadSourceBuilder)
+				metrics.RecordSequencerProfit(float64(builderValue), opMetrics.PayloadSourceBuilder)
 				metrics.RecordSequencerPayloadInserted(opMetrics.PayloadSourceBuilder)
 				metrics.RecordPayloadGas(float64(builderPayload.envelope.ExecutionPayload.GasUsed), opMetrics.PayloadSourceBuilder)
 				log.Info("succeessfully inserted payload from builder")
@@ -247,7 +241,7 @@ func confirmPayload(
 		}
 	}
 
-	metrics.RecordSequencerProfit(float64(engineProfit.Uint64()), opMetrics.PayloadSourceBuilder)
+	metrics.RecordSequencerProfit(float64(engineValue), opMetrics.PayloadSourceBuilder)
 	metrics.RecordSequencerPayloadInserted(opMetrics.PayloadSourceEngine)
 	metrics.RecordPayloadGas(float64(engineEnvelope.ExecutionPayload.GasUsed), opMetrics.PayloadSourceEngine)
 	errType, err := insertPayload(ctx, log, eng, fc, updateSafe, agossip, sequencerConductor, engineEnvelope)

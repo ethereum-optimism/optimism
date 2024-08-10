@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math/big"
 	"net/http"
 	"time"
 
@@ -15,7 +14,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -60,7 +58,7 @@ type httpErrorResp struct {
 	Message string `json:"message"`
 }
 
-func (s *BuilderAPIClient) GetPayload(ctx context.Context, ref eth.L2BlockRef, log log.Logger) (*eth.ExecutionPayloadEnvelope, *big.Int, error) {
+func (s *BuilderAPIClient) GetPayload(ctx context.Context, ref eth.L2BlockRef, log log.Logger) (*eth.ExecutionPayloadEnvelope, error) {
 	responsePayload := new(builderSpec.VersionedSubmitBlockRequest)
 	slot := ref.Number + 1
 	parentHash := ref.Hash
@@ -68,7 +66,7 @@ func (s *BuilderAPIClient) GetPayload(ctx context.Context, ref eth.L2BlockRef, l
 	header := http.Header{"Accept": {"application/json"}}
 	resp, err := s.httpClient.Get(ctx, url, nil, header)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	defer resp.Body.Close()
@@ -76,34 +74,29 @@ func (s *BuilderAPIClient) GetPayload(ctx context.Context, ref eth.L2BlockRef, l
 	bodyBytes, err := io.ReadAll(resp.Body)
 
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, nil, fmt.Errorf("HTTP error response: %v", resp.Status)
+		return nil, fmt.Errorf("HTTP error response: %v", resp.Status)
 	}
 
 	if err := json.Unmarshal(bodyBytes, responsePayload); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	if responsePayload.Version != consensusspec.DataVersionDeneb {
-		return nil, nil, fmt.Errorf("unsupported data version %v", responsePayload.Version)
+		return nil, fmt.Errorf("unsupported data version %v", responsePayload.Version)
 	}
 
-	profit, err := responsePayload.Value()
+	envelope, err := s.versionedExecutionPayloadToExecutionPayloadEnvelope(responsePayload)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-
-	envelope, err := versionedExecutionPayloadToExecutionPayloadEnvelope(responsePayload)
-	if err != nil {
-		return nil, nil, err
-	}
-	return envelope, profit.ToBig(), nil
+	return envelope, nil
 }
 
-func versionedExecutionPayloadToExecutionPayloadEnvelope(resp *builderSpec.VersionedSubmitBlockRequest) (*eth.ExecutionPayloadEnvelope, error) {
+func (s *BuilderAPIClient) versionedExecutionPayloadToExecutionPayloadEnvelope(resp *builderSpec.VersionedSubmitBlockRequest) (*eth.ExecutionPayloadEnvelope, error) {
 	if resp.Version != consensusspec.DataVersionDeneb {
 		return nil, fmt.Errorf("unsupported data version %v", resp.Version)
 	}
@@ -130,6 +123,14 @@ func versionedExecutionPayloadToExecutionPayloadEnvelope(resp *builderSpec.Versi
 	blobGasUsed := eth.Uint64Quantity(payload.BlobGasUsed)
 	excessBlobGas := eth.Uint64Quantity(payload.ExcessBlobGas)
 
+	var blockValue *eth.Uint256Quantity
+	v, err := resp.Value()
+	if err != nil {
+		s.log.Error("Failed to get block value", "err", err)
+	} else {
+		*blockValue = eth.Uint256Quantity(*v)
+	}
+
 	envelope := &eth.ExecutionPayloadEnvelope{
 		ExecutionPayload: &eth.ExecutionPayload{
 			ParentHash:    common.Hash(payload.ParentHash),
@@ -143,7 +144,7 @@ func versionedExecutionPayloadToExecutionPayloadEnvelope(resp *builderSpec.Versi
 			GasUsed:       eth.Uint64Quantity(payload.GasUsed),
 			Timestamp:     eth.Uint64Quantity(payload.Timestamp),
 			ExtraData:     eth.BytesMax32(payload.ExtraData),
-			BaseFeePerGas: hexutil.U256(*payload.BaseFeePerGas),
+			BaseFeePerGas: eth.Uint256Quantity(*payload.BaseFeePerGas),
 			BlockHash:     common.BytesToHash(payload.BlockHash[:]),
 			Transactions:  txs,
 			Withdrawals:   &ws,
@@ -151,6 +152,7 @@ func versionedExecutionPayloadToExecutionPayloadEnvelope(resp *builderSpec.Versi
 			ExcessBlobGas: &excessBlobGas,
 		},
 		ParentBeaconBlockRoot: nil,
+		BlockValue:            blockValue,
 	}
 	return envelope, nil
 }
