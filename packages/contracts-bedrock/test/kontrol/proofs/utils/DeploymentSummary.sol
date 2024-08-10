@@ -31,7 +31,7 @@ contract DeploymentSummary is DeploymentSummaryCode {
     address internal constant optimismMintableERC20FactoryAddress = 0x39Aea2Dd53f2d01c15877aCc2791af6BDD7aD567;
     address internal constant optimismMintableERC20FactoryProxyAddress = 0xc7B87b2b892EA5C3CfF47168881FE168C00377FB;
     address internal constant optimismPortalAddress = 0xbdD90485FCbcac869D5b5752179815a3103d8131;
-    address internal constant optimismPortal2Address = 0x542e5F5d3934b6A8A8B4219cbc99D3D87a7137E1;
+    address internal constant optimismPortal2Address = 0xae5DadFc48928543f706a9E6Ce25c682aaD2b63b;
     address internal constant optimismPortalProxyAddress = 0x1c23A6d89F95ef3148BCDA8E242cAb145bf9c0E4;
     address internal constant preimageOracleAddress = 0x3bd7E801E51d48c5d94Ea68e8B801DFFC275De75;
     address internal constant protocolVersionsAddress = 0xfbfD64a6C0257F613feFCe050Aa30ecC3E3d7C3F;
@@ -44,8 +44,6 @@ contract DeploymentSummary is DeploymentSummaryCode {
     address internal constant systemConfigAddress = 0x67866A5052E5302aaD08e9f352331fd8622eB6DC;
     address internal constant systemConfigProxyAddress = 0x0c8b5822b6e02CDa722174F19A1439A7495a3fA6;
     address internal constant systemOwnerSafeAddress = 0x7C0c8a15773ED7B50E7c738D1aF4c5e3a2b210BD;
-    address internal constant acc32Address = 0x357A483a8923686E7fA454Ee93bbc11aFB114743;
-    address internal constant acc33Address = 0xb6b1579AA54e2F61e621a40d5F2704D717B3544F;
 
     function recreateDeployment() public {
         bytes32 slot;
@@ -748,19 +746,5 @@ contract DeploymentSummary is DeploymentSummaryCode {
         slot = hex"0000000000000000000000000000000000000000000000000000000000000000";
         value = hex"0000000000000000000000000000000000000000000000000000000000000001";
         vm.store(anchorStateRegistryProxyAddress, slot, value);
-        vm.etch(acc32Address, acc32Code);
-        slot = hex"ffdfc1249c027f9191656349feb0761381bb32c9f557e01f419fd08754bf5a1b";
-        value = hex"000000000000000000000000357a483a8923686e7fa454ee93bbc11afb114743";
-        vm.store(disputeGameFactoryProxyAddress, slot, value);
-        vm.etch(acc33Address, acc33Code);
-        slot = hex"4d5a9bd2e41301728d41c8e705190becb4e74abe869f75bdb405b63716a35f9e";
-        value = hex"000000000000000000000000b6b1579aa54e2f61e621a40d5f2704d717b3544f";
-        vm.store(disputeGameFactoryProxyAddress, slot, value);
-        slot = hex"0000000000000000000000000000000000000000000000000000000000000033";
-        value = hex"0000000000000000000000007c0c8a15773ed7b50e7c738d1af4c5e3a2b210bd";
-        vm.store(disputeGameFactoryProxyAddress, slot, value);
-        slot = hex"0000000000000000000000000000000000000000000000000000000000000033";
-        value = hex"0000000000000000000000007c0c8a15773ed7b50e7c738d1af4c5e3a2b210bd";
-        vm.store(delayedWETHProxyAddress, slot, value);
     }
 }
