@@ -5,10 +5,9 @@ import { Constants } from "src/libraries/Constants.sol";
 import { OptimismPortalInterop as OptimismPortal } from "src/L1/OptimismPortalInterop.sol";
 import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { SystemConfig } from "src/L1/SystemConfig.sol";
+import { SystemConfig, ResourceMetering, Storage } from "src/L1/SystemConfig.sol";
 import { ConfigType } from "src/L2/L1BlockInterop.sol";
 import { StaticConfig } from "src/libraries/StaticConfig.sol";
-import { Storage } from "src/libraries/Storage.sol";
 
 /// @title SystemConfigInterop
 /// @notice The SystemConfig contract is used to manage configuration of an Optimism network.
@@ -23,14 +22,49 @@ contract SystemConfigInterop is SystemConfig {
     bytes32 internal constant REMOVE_DEPENDENCY_ROLE_HOLDER_SLOT =
         bytes32(uint256(keccak256("systemconfig.removedependencyrole")) - 1);
 
-    /// @notice Storage slot where the foundation multisig address is stored
-    bytes32 internal constant FOUNDATION_MULTISIG_SLOT =
-        bytes32(uint256(keccak256("systemconfig.foundationmultisig")) - 1);
+    /// @notice Storage slot where the dependency manager address is stored
+    bytes32 internal constant DEPENDENCY_MANAGER_SLOT =
+        bytes32(uint256(keccak256("systemconfig.dependencymanager")) - 1);
 
     /// @notice Initializer.
-    /// @param _foundationMultisig The Foundation's multisig address
-    function initialize(address _foundationMultisig) external initializer {
-        Storage.setAddress(FOUNDATION_MULTISIG_SLOT, _foundationMultisig);
+    /// @param _owner             Initial owner of the contract.
+    /// @param _basefeeScalar     Initial basefee scalar value.
+    /// @param _blobbasefeeScalar Initial blobbasefee scalar value.
+    /// @param _batcherHash       Initial batcher hash.
+    /// @param _gasLimit          Initial gas limit.
+    /// @param _unsafeBlockSigner Initial unsafe block signer address.
+    /// @param _config            Initial ResourceConfig.
+    /// @param _batchInbox        Batch inbox address. An identifier for the op-node to find
+    ///                           canonical data.
+    /// @param _addresses         Set of L1 contract addresses. These should be the proxies.
+    /// @param _dependencyManager The addressed allowed to modify dependency role holders
+    function initialize(
+        address _owner,
+        uint32 _basefeeScalar,
+        uint32 _blobbasefeeScalar,
+        bytes32 _batcherHash,
+        uint64 _gasLimit,
+        address _unsafeBlockSigner,
+        ResourceMetering.ResourceConfig memory _config,
+        address _batchInbox,
+        SystemConfig.Addresses memory _addresses,
+        address _dependencyManager
+    )
+        external
+        initializer
+    {
+        initialize({
+            _owner: _owner,
+            _basefeeScalar: _basefeeScalar,
+            _blobbasefeeScalar: _blobbasefeeScalar,
+            _batcherHash: _batcherHash,
+            _gasLimit: _gasLimit,
+            _unsafeBlockSigner: _unsafeBlockSigner,
+            _config: _config,
+            _batchInbox: _batchInbox,
+            _addresses: _addresses
+        });
+        Storage.setAddress(DEPENDENCY_MANAGER_SLOT, _dependencyManager);
     }
 
     /// @custom:semver +interop
@@ -92,22 +126,22 @@ contract SystemConfigInterop is SystemConfig {
         );
     }
 
-    /// @notice Sets the address that can call addDependency. Can only be called by the foundation multisig.
+    /// @notice Sets the address that can call addDependency. Can only be called by the dependency manager.
     /// @param _addDependencyRoleHolder New address authorized to call addDependency
     function setAddDependencyRoleHolder(address _addDependencyRoleHolder) external {
         require(
-            msg.sender == Storage.getAddress(FOUNDATION_MULTISIG_SLOT),
-            "SystemConfig: caller is not foundation multisig address"
+            msg.sender == Storage.getAddress(DEPENDENCY_MANAGER_SLOT),
+            "SystemConfig: caller is not the dependency manager address"
         );
         Storage.setAddress(ADD_DEPENDENCY_ROLE_HOLDER_SLOT, _addDependencyRoleHolder);
     }
 
-    /// @notice Sets the address that can call removeDependency. Can only be called by the foundation multisig.
+    /// @notice Sets the address that can call removeDependency. Can only be called by the dependency manager.
     /// @param _removeDependencyRoleHolder New address authorized to call removeDependency
     function setRemoveDependencyRoleHolder(address _removeDependencyRoleHolder) external {
         require(
-            msg.sender == Storage.getAddress(FOUNDATION_MULTISIG_SLOT),
-            "SystemConfig: caller is not foundation multisig address"
+            msg.sender == Storage.getAddress(DEPENDENCY_MANAGER_SLOT),
+            "SystemConfig: caller is not the dependency manager address"
         );
         Storage.setAddress(REMOVE_DEPENDENCY_ROLE_HOLDER_SLOT, _removeDependencyRoleHolder);
     }
@@ -122,8 +156,8 @@ contract SystemConfigInterop is SystemConfig {
         return Storage.getAddress(REMOVE_DEPENDENCY_ROLE_HOLDER_SLOT);
     }
 
-    /// @notice getter for the foundation multisig address
-    function foundationMultisig() external view returns (address) {
-        return Storage.getAddress(FOUNDATION_MULTISIG_SLOT);
+    /// @notice getter for the dependency manager address
+    function dependencyManager() external view returns (address) {
+        return Storage.getAddress(DEPENDENCY_MANAGER_SLOT);
     }
 }

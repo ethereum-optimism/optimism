@@ -103,8 +103,8 @@ contract SystemConfigInterop_Test is CommonTest {
 
     /// @dev Tests that the addDependencyRole holder can be set.
     function testFuzz_setAddDependencyRoleHolder_succeeds(address _addDependencyRoleHolder) public {
-        // Impersonate the foundation multisig
-        vm.prank(_systemConfigInterop().foundationMultisig());
+        // Impersonate the dependency manager
+        vm.prank(_systemConfigInterop().dependencyManager());
 
         // Call setAddDependencyRoleHolder
         _systemConfigInterop().setAddDependencyRoleHolder(_addDependencyRoleHolder);
@@ -113,12 +113,12 @@ contract SystemConfigInterop_Test is CommonTest {
         assertEq(_systemConfigInterop().addDependencyRoleHolder(), _addDependencyRoleHolder);
     }
 
-    /// @dev Tests that an address different from the foundation multisig cannot set the addDependencyRole holder
+    /// @dev Tests that an address different from the dependency manager cannot set the addDependencyRole holder
     function testFuzz_setAddDependencyRoleHolder_notFoundationMultisig_reverts(address _addDependencyRoleHolder)
         public
     {
-        // Expect revert with exact string error since caller is not foundation multisig
-        vm.expectRevert("SystemConfig: caller is not foundation multisig address");
+        // Expect revert with exact string error since caller is not dependency manager
+        vm.expectRevert("SystemConfig: caller is not the dependency manager address");
 
         // Call setAddDependencyRoleHolder
         _systemConfigInterop().setAddDependencyRoleHolder(_addDependencyRoleHolder);
@@ -126,8 +126,8 @@ contract SystemConfigInterop_Test is CommonTest {
 
     /// @dev Tests that the removeDependencyRole holder can be set.
     function testFuzz_setRemoveDependencyRoleHolder_succeeds(address _removeDependencyRoleHolder) public {
-        // Impersonate the foundation multisig
-        vm.prank(_systemConfigInterop().foundationMultisig());
+        // Impersonate the dependency manager
+        vm.prank(_systemConfigInterop().dependencyManager());
 
         // Call setRemoveDependencyRoleHolder
         _systemConfigInterop().setRemoveDependencyRoleHolder(_removeDependencyRoleHolder);
@@ -136,12 +136,12 @@ contract SystemConfigInterop_Test is CommonTest {
         assertEq(_systemConfigInterop().removeDependencyRoleHolder(), _removeDependencyRoleHolder);
     }
 
-    /// @dev Tests that an address different from the foundation multisig cannot set the removeDependencyRole holder
+    /// @dev Tests that an address different from the dependency manager cannot set the removeDependencyRole holder
     function testFuzz_setRemoveDependencyRoleHolder_notFoundationMultisig_reverts(address _removeDependencyRoleHolder)
         public
     {
-        // Expect revert with exact string error since caller is not foundation multisig
-        vm.expectRevert("SystemConfig: caller is not foundation multisig address");
+        // Expect revert with exact string error since caller is not dependency manager
+        vm.expectRevert("SystemConfig: caller is not the dependency manager address");
 
         // Call setRemoveDependencyRoleHolder
         _systemConfigInterop().setRemoveDependencyRoleHolder(_removeDependencyRoleHolder);
