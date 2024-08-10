@@ -121,6 +121,7 @@ func startPayload(ctx context.Context, eng ExecEngine, fc eth.ForkchoiceState, a
 }
 
 type PayloadRequestResult struct {
+	success  bool
 	envelope *eth.ExecutionPayloadEnvelope
 	profit   *big.Int
 	error    error
@@ -131,15 +132,28 @@ func requestPayloadFromBuilder(ctx context.Context, builder builder.PayloadBuild
 	payload, profit, err := builder.GetPayload(ctx, l2head, log)
 	metrics.RecordBuilderRequestTime(time.Since(start))
 	if err != nil {
-		results <- &PayloadRequestResult{error: err}
+		results <- &PayloadRequestResult{success: false, error: err}
 		return
 	}
-	results <- &PayloadRequestResult{envelope: payload, profit: profit}
+	results <- &PayloadRequestResult{success: true, envelope: payload, profit: profit}
+}
+
+func calculateBlockValue(envelope *eth.ExecutionPayloadEnvelope) (*big.Int, error) {
+	total := new(big.Int)
+	for _, data := range envelope.ExecutionPayload.Transactions {
+		var tx types.Transaction
+		if err := tx.UnmarshalBinary(data); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal transaction: %w", err)
+		}
+		cost := new(big.Int).Mul(tx.GasPrice(), new(big.Int).SetUint64(tx.Gas()))
+		total.Add(total, cost)
+	}
+	return total, nil
 }
 
 // makes parallel request to builder and engine to get the payload
 func getPayloadWithBuilderPayload(ctx context.Context, log log.Logger, eng ExecEngine, payloadInfo eth.PayloadInfo, l2head eth.L2BlockRef, builder builder.PayloadBuilder, metrics Metrics) (
-	*eth.ExecutionPayloadEnvelope, *eth.ExecutionPayloadEnvelope, error) {
+	*eth.ExecutionPayloadEnvelope, *PayloadRequestResult, error) {
 	// if builder is not enabled, return early with default path.
 	if !builder.Enabled() {
 		payload, err := eng.GetPayload(ctx, payloadInfo)
@@ -149,14 +163,9 @@ func getPayloadWithBuilderPayload(ctx context.Context, log log.Logger, eng ExecE
 	log.Debug("requesting payload from builder", l2head.String(), "payloadInfo", payloadInfo)
 	ctxTimeout, cancel := context.WithTimeout(ctx, builder.Timeout())
 	defer cancel()
-	type result struct {
-		envelope *eth.ExecutionPayloadEnvelope
-		profit   *big.Int
-		error    error
-	}
 
-	results := make(chan *PayloadRequestResult, 1)
-	go requestPayloadFromBuilder(ctxTimeout, builder, l2head, log, metrics, results)
+	result := make(chan *PayloadRequestResult, 1)
+	go requestPayloadFromBuilder(ctxTimeout, builder, l2head, log, metrics, result)
 	envelope, err := eng.GetPayload(ctx, payloadInfo)
 	if err != nil {
 		log.Error("failed to get payload from engine", "error", err.Error())
@@ -167,20 +176,18 @@ func getPayloadWithBuilderPayload(ctx context.Context, log log.Logger, eng ExecE
 	select {
 	case <-ctxTimeout.Done():
 		metrics.RecordBuilderRequestTimeout()
-		metrics.RecordSequencerProfit(0, opMetrics.PayloadSourceEngine)
 		log.Warn("builder request timed out", "error", ctxTimeout.Err())
-		return envelope, nil, ctxTimeout.Err()
-	case result := <-results:
-		if result.error != nil {
+		return envelope, &PayloadRequestResult{success: false, error: ctxTimeout.Err()}, nil
+	case builderPayload := <-result:
+		if builderPayload.error != nil {
 			metrics.RecordBuilderRequestFail()
 			log.Warn("failed to get payload from builder", "error", err.Error())
-			return envelope, nil, result.error
+			return envelope, builderPayload, nil
 		}
-		log.Info("received payload from builder", "hash", result.envelope.ExecutionPayload.BlockHash.String(), "number", uint64(result.envelope.ExecutionPayload.BlockNumber))
+		log.Info("received payload from builder", "hash", builderPayload.envelope.ExecutionPayload.BlockHash.String(), "number", uint64(builderPayload.envelope.ExecutionPayload.BlockNumber))
 		// TODO: ParentBeaconBlockRoot should have been delivered by the builder. Revisit when the builder API spec supports BeaconRoot.
-		result.envelope.ParentBeaconBlockRoot = envelope.ParentBeaconBlockRoot
-		metrics.RecordSequencerProfit(float64(result.profit.Int64()), opMetrics.PayloadSourceBuilder)
-		return envelope, result.envelope, nil
+		builderPayload.envelope.ParentBeaconBlockRoot = envelope.ParentBeaconBlockRoot
+		return envelope, builderPayload, nil
 	}
 }
 
@@ -199,9 +206,10 @@ func confirmPayload(
 	builderClient builder.PayloadBuilder,
 	l2head eth.L2BlockRef,
 	metrics Metrics,
-) (out *eth.ExecutionPayloadEnvelope, errTyp BlockInsertionErrType, err error) {
+) (*eth.ExecutionPayloadEnvelope, BlockInsertionErrType, error) {
 	var engineEnvelope *eth.ExecutionPayloadEnvelope
-	var builderEnvelope *eth.ExecutionPayloadEnvelope
+	var builderPayload *PayloadRequestResult
+	var err error
 	// if the payload is available from the async gossiper, it means it was not yet imported, so we reuse it
 	if cached := agossip.Get(); cached != nil {
 		engineEnvelope = cached
@@ -212,24 +220,34 @@ func confirmPayload(
 			"parent", engineEnvelope.ExecutionPayload.ParentHash,
 			"txs", len(engineEnvelope.ExecutionPayload.Transactions))
 	} else {
-		engineEnvelope, builderEnvelope, err = getPayloadWithBuilderPayload(ctx, log, eng, payloadInfo, l2head, builderClient, metrics)
+		engineEnvelope, builderPayload, err = getPayloadWithBuilderPayload(ctx, log, eng, payloadInfo, l2head, builderClient, metrics)
 	}
+
 	if err != nil {
 		// even if it is an input-error (unknown payload ID), it is temporary, since we will re-attempt the full payload building, not just the retrieval of the payload.
 		return nil, BlockInsertTemporaryErr, fmt.Errorf("failed to get execution payload from engine: %w", err)
 	}
 
-	if builderEnvelope != nil {
-		errTyp, err := insertPayload(ctx, log, eng, fc, updateSafe, agossip, sequencerConductor, builderEnvelope)
-		if err == nil {
-			metrics.RecordSequencerPayloadInserted(opMetrics.PayloadSourceBuilder)
-			metrics.RecordPayloadGas(float64(builderEnvelope.ExecutionPayload.GasUsed), opMetrics.PayloadSourceBuilder)
-			log.Info("succeessfully inserted payload from builder")
-			return builderEnvelope, errTyp, err
-		}
-		log.Error("failed to insert payload from builder", "errType", errTyp, "error", err)
+	engineProfit, blockValueError := calculateBlockValue(engineEnvelope)
+	if blockValueError != nil {
+		log.Error("failed to calculate block value", "error", err)
 	}
 
+	if builderPayload.success && engineProfit != nil {
+		if engineProfit.Cmp(builderPayload.profit) <= 0 {
+			errTyp, err := insertPayload(ctx, log, eng, fc, updateSafe, agossip, sequencerConductor, builderPayload.envelope)
+			if errTyp == BlockInsertOK {
+				metrics.RecordSequencerProfit(float64(builderPayload.profit.Uint64()), opMetrics.PayloadSourceBuilder)
+				metrics.RecordSequencerPayloadInserted(opMetrics.PayloadSourceBuilder)
+				metrics.RecordPayloadGas(float64(builderPayload.envelope.ExecutionPayload.GasUsed), opMetrics.PayloadSourceBuilder)
+				log.Info("succeessfully inserted payload from builder")
+				return builderPayload.envelope, errTyp, err
+			}
+			log.Error("failed to insert payload from builder", "errType", errTyp, "error", err)
+		}
+	}
+
+	metrics.RecordSequencerProfit(float64(engineProfit.Uint64()), opMetrics.PayloadSourceBuilder)
 	metrics.RecordSequencerPayloadInserted(opMetrics.PayloadSourceEngine)
 	metrics.RecordPayloadGas(float64(engineEnvelope.ExecutionPayload.GasUsed), opMetrics.PayloadSourceEngine)
 	errType, err := insertPayload(ctx, log, eng, fc, updateSafe, agossip, sequencerConductor, engineEnvelope)
