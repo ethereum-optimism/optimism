@@ -12,9 +12,7 @@ volumes:
   da_data:
   op_log:
 
-
 services:
-
   l1:
     build:
       context: .
@@ -34,8 +32,8 @@ services:
     depends_on:
       - l1
     build:
-        context: .
-        dockerfile: l1-lighthouse.Dockerfile
+      context: .
+      dockerfile: l1-lighthouse.Dockerfile
     ports:
       - "9000:9000"
       - "5052:5052"
@@ -56,8 +54,8 @@ services:
       - l1
       - l1-bn
     build:
-        context: .
-        dockerfile: l1-lighthouse.Dockerfile
+      context: .
+      dockerfile: l1-lighthouse.Dockerfile
     volumes:
       - "l1_vc_data:/db"
       - "${PWD}/beacon-data/data/keys:/validator_setup/validators"
@@ -82,7 +80,7 @@ services:
       - "l2_data:/db"
       - "${PWD}/../.devnet/genesis-l2.json:/genesis.json"
       - "${PWD}/test-jwt-secret.txt:/config/jwt-secret.txt"
-    entrypoint:  # pass the L2 specific flags by overriding the entry-point and adding extra arguments
+    entrypoint: # pass the L2 specific flags by overriding the entry-point and adding extra arguments
       - "/bin/sh"
       - "/entrypoint.sh"
     environment:
@@ -259,7 +257,7 @@ services:
     image: grafana/grafana:11.1.0
     restart: unless-stopped
     env_file:
-      -  grafana.env
+      - grafana.env
     volumes:
       - ./monitoring/grafana/provisioning/:/etc/grafana/provisioning/:ro
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
@@ -270,8 +268,8 @@ services:
   prometheus:
     image: prom/prometheus:latest
     restart: unless-stopped
-    env_file:
-      - .env
+    # env_file:
+    # - .env
     volumes:
       - ./monitoring/prometheus:/etc/prometheus
       # - prometheus_data:/prometheus
