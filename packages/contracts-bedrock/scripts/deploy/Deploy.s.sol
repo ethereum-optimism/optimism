@@ -1449,6 +1449,7 @@ contract Deploy is Deployer {
         DelayedWETH weth = DelayedWETH(mustGetAddress("DelayedWETHProxy"));
 
         Claim outputAbsolutePrestate = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
+        PreimageOracle fastOracle = new PreimageOracle(cfg.preimageOracleMinProposalSize(), 0);
         _setFaultGameImplementation({
             _factory: factory,
             _allowUpgrade: _allowUpgrade,
@@ -1457,7 +1458,7 @@ contract Deploy is Deployer {
                 weth: weth,
                 gameType: GameTypes.FAST,
                 absolutePrestate: outputAbsolutePrestate,
-                faultVm: IBigStepper(new AlphabetVM(outputAbsolutePrestate, PreimageOracle(mustGetAddress("PreimageOracle")))),
+                faultVm: IBigStepper(new AlphabetVM(outputAbsolutePrestate, fastOracle)),
                 // The max depth for the alphabet trace is always 3. Add 1 because split depth is fully inclusive.
                 maxGameDepth: cfg.faultGameSplitDepth() + 3 + 1,
                 maxClockDuration: Duration.wrap(0) // Resolvable immediately
