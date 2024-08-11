@@ -71,13 +71,13 @@ contract SystemConfigInterop_Test is CommonTest {
             )
         );
 
-        vm.prank(_systemConfigInterop().addDependencyRoleHolder());
+        vm.prank(_systemConfigInterop().dependencyManager());
         _systemConfigInterop().addDependency(_chainId);
     }
 
-    /// @dev Tests that adding a dependency as not the owner reverts.
-    function testFuzz_addDependency_notOwner_reverts(uint256 _chainId) public {
-        vm.expectRevert("SystemConfig: caller is not add dependency role address");
+    /// @dev Tests that adding a dependency as not the dependency manager reverts.
+    function testFuzz_addDependency_notDependencyManager_reverts(uint256 _chainId) public {
+        vm.expectRevert("SystemConfig: caller is not the dependency manager");
         _systemConfigInterop().addDependency(_chainId);
     }
 
@@ -91,60 +91,14 @@ contract SystemConfigInterop_Test is CommonTest {
             )
         );
 
-        vm.prank(_systemConfigInterop().removeDependencyRoleHolder());
+        vm.prank(_systemConfigInterop().dependencyManager());
         _systemConfigInterop().removeDependency(_chainId);
     }
 
-    /// @dev Tests that removing a dependency as not the owner reverts.
-    function testFuzz_removeDependency_notOwner_reverts(uint256 _chainId) public {
-        vm.expectRevert("SystemConfig: caller is not remove dependency role address");
+    /// @dev Tests that removing a dependency as not the dependency manager reverts.
+    function testFuzz_removeDependency_notDependencyManager_reverts(uint256 _chainId) public {
+        vm.expectRevert("SystemConfig: caller is not the dependency manager");
         _systemConfigInterop().removeDependency(_chainId);
-    }
-
-    /// @dev Tests that the addDependencyRole holder can be set.
-    function testFuzz_setAddDependencyRoleHolder_succeeds(address _addDependencyRoleHolder) public {
-        // Impersonate the dependency manager
-        vm.prank(_systemConfigInterop().dependencyManager());
-
-        // Call setAddDependencyRoleHolder
-        _systemConfigInterop().setAddDependencyRoleHolder(_addDependencyRoleHolder);
-
-        // Ensure it was set correctly
-        assertEq(_systemConfigInterop().addDependencyRoleHolder(), _addDependencyRoleHolder);
-    }
-
-    /// @dev Tests that an address different from the dependency manager cannot set the addDependencyRole holder
-    function testFuzz_setAddDependencyRoleHolder_notFoundationMultisig_reverts(address _addDependencyRoleHolder)
-        public
-    {
-        // Expect revert with exact string error since caller is not dependency manager
-        vm.expectRevert("SystemConfig: caller is not the dependency manager address");
-
-        // Call setAddDependencyRoleHolder
-        _systemConfigInterop().setAddDependencyRoleHolder(_addDependencyRoleHolder);
-    }
-
-    /// @dev Tests that the removeDependencyRole holder can be set.
-    function testFuzz_setRemoveDependencyRoleHolder_succeeds(address _removeDependencyRoleHolder) public {
-        // Impersonate the dependency manager
-        vm.prank(_systemConfigInterop().dependencyManager());
-
-        // Call setRemoveDependencyRoleHolder
-        _systemConfigInterop().setRemoveDependencyRoleHolder(_removeDependencyRoleHolder);
-
-        // Ensure it was set correctly
-        assertEq(_systemConfigInterop().removeDependencyRoleHolder(), _removeDependencyRoleHolder);
-    }
-
-    /// @dev Tests that an address different from the dependency manager cannot set the removeDependencyRole holder
-    function testFuzz_setRemoveDependencyRoleHolder_notFoundationMultisig_reverts(address _removeDependencyRoleHolder)
-        public
-    {
-        // Expect revert with exact string error since caller is not dependency manager
-        vm.expectRevert("SystemConfig: caller is not the dependency manager address");
-
-        // Call setRemoveDependencyRoleHolder
-        _systemConfigInterop().setRemoveDependencyRoleHolder(_removeDependencyRoleHolder);
     }
 
     /// @dev Helper to clean storage and then initialize the system config with an arbitrary gas token address.

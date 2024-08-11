@@ -14,14 +14,6 @@ import { StaticConfig } from "src/libraries/StaticConfig.sol";
 ///         All configuration is stored on L1 and picked up by L2 as part of the derviation of
 ///         the L2 chain.
 contract SystemConfigInterop is SystemConfig {
-    /// @notice Storage slot where the address authorized to call `addDependency` is stored
-    bytes32 internal constant ADD_DEPENDENCY_ROLE_HOLDER_SLOT =
-        bytes32(uint256(keccak256("systemconfig.adddependencyrole")) - 1);
-
-    /// @notice Storage slot where the address authorized to call `removeDependency` is stored
-    bytes32 internal constant REMOVE_DEPENDENCY_ROLE_HOLDER_SLOT =
-        bytes32(uint256(keccak256("systemconfig.removedependencyrole")) - 1);
-
     /// @notice Storage slot where the dependency manager address is stored
     bytes32 internal constant DEPENDENCY_MANAGER_SLOT =
         bytes32(uint256(keccak256("systemconfig.dependencymanager")) - 1);
@@ -37,7 +29,7 @@ contract SystemConfigInterop is SystemConfig {
     /// @param _batchInbox        Batch inbox address. An identifier for the op-node to find
     ///                           canonical data.
     /// @param _addresses         Set of L1 contract addresses. These should be the proxies.
-    /// @param _dependencyManager The addressed allowed to modify dependency role holders
+    /// @param _dependencyManager The addressed allowed to add/remove from the dependency set
     function initialize(
         address _owner,
         uint32 _basefeeScalar,
@@ -101,59 +93,28 @@ contract SystemConfigInterop is SystemConfig {
         }
     }
 
-    /// @notice Adds a chain to the interop dependency set. Can only be called by the add dependency role address.
+    /// @notice Adds a chain to the interop dependency set. Can only be called by the dependency manager.
     /// @param _chainId Chain ID of chain to add.
     function addDependency(uint256 _chainId) external {
         require(
-            msg.sender == Storage.getAddress(ADD_DEPENDENCY_ROLE_HOLDER_SLOT),
-            "SystemConfig: caller is not add dependency role address"
+            msg.sender == Storage.getAddress(DEPENDENCY_MANAGER_SLOT),
+            "SystemConfig: caller is not the dependency manager"
         );
         OptimismPortal(payable(optimismPortal())).setConfig(
             ConfigType.ADD_DEPENDENCY, StaticConfig.encodeAddDependency(_chainId)
         );
     }
 
-    /// @notice Removes a chain from the interop dependency set. Can only be called by the remove dependency role
-    /// address.
+    /// @notice Removes a chain from the interop dependency set. Can only be called by the dependency manager
     /// @param _chainId Chain ID of the chain to remove.
     function removeDependency(uint256 _chainId) external {
         require(
-            msg.sender == Storage.getAddress(REMOVE_DEPENDENCY_ROLE_HOLDER_SLOT),
-            "SystemConfig: caller is not remove dependency role address"
+            msg.sender == Storage.getAddress(DEPENDENCY_MANAGER_SLOT),
+            "SystemConfig: caller is not the dependency manager"
         );
         OptimismPortal(payable(optimismPortal())).setConfig(
             ConfigType.REMOVE_DEPENDENCY, StaticConfig.encodeRemoveDependency(_chainId)
         );
-    }
-
-    /// @notice Sets the address that can call addDependency. Can only be called by the dependency manager.
-    /// @param _addDependencyRoleHolder New address authorized to call addDependency
-    function setAddDependencyRoleHolder(address _addDependencyRoleHolder) external {
-        require(
-            msg.sender == Storage.getAddress(DEPENDENCY_MANAGER_SLOT),
-            "SystemConfig: caller is not the dependency manager address"
-        );
-        Storage.setAddress(ADD_DEPENDENCY_ROLE_HOLDER_SLOT, _addDependencyRoleHolder);
-    }
-
-    /// @notice Sets the address that can call removeDependency. Can only be called by the dependency manager.
-    /// @param _removeDependencyRoleHolder New address authorized to call removeDependency
-    function setRemoveDependencyRoleHolder(address _removeDependencyRoleHolder) external {
-        require(
-            msg.sender == Storage.getAddress(DEPENDENCY_MANAGER_SLOT),
-            "SystemConfig: caller is not the dependency manager address"
-        );
-        Storage.setAddress(REMOVE_DEPENDENCY_ROLE_HOLDER_SLOT, _removeDependencyRoleHolder);
-    }
-
-    /// @notice getter for the sole address authorized to call addDependency
-    function addDependencyRoleHolder() external view returns (address) {
-        return Storage.getAddress(ADD_DEPENDENCY_ROLE_HOLDER_SLOT);
-    }
-
-    /// @notice getter for the sole address authorized to call removeDependency
-    function removeDependencyRoleHolder() external view returns (address) {
-        return Storage.getAddress(REMOVE_DEPENDENCY_ROLE_HOLDER_SLOT);
     }
 
     /// @notice getter for the dependency manager address

@@ -35,7 +35,8 @@ contract Specification_Test is CommonTest {
         DISPUTEGAMEFACTORYOWNER,
         DELAYEDWETHOWNER,
         COUNCILSAFE,
-        COUNCILSAFEOWNER
+        COUNCILSAFEOWNER,
+        DEPENDENCYMANAGER
     }
 
     /// @notice Represents the specification of a function.
@@ -528,11 +529,18 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "SystemConfigInterop", _sel: _getSel("basefeeScalar()") });
         _addSpec({ _name: "SystemConfigInterop", _sel: _getSel("blobbasefeeScalar()") });
         _addSpec({ _name: "SystemConfigInterop", _sel: _getSel("maximumGasLimit()") });
-        _addSpec({ _name: "SystemConfigInterop", _sel: _getSel("addDependency(uint256)"), _auth: Role.SYSTEMCONFIGOWNER });
+        _addSpec({ _name: "SystemConfigInterop", _sel: _getSel("addDependency(uint256)"), _auth: Role.DEPENDENCYMANAGER });
         _addSpec({
             _name: "SystemConfigInterop",
             _sel: _getSel("removeDependency(uint256)"),
-            _auth: Role.SYSTEMCONFIGOWNER
+            _auth: Role.DEPENDENCYMANAGER
+        });
+        _addSpec({ _name: "SystemConfigInterop", _sel: _getSel("dependencyManager()") });
+        _addSpec({
+            _name: "SystemConfigInterop",
+            _sel: _getSel(
+                "initialize(address,uint32,uint32,bytes32,uint64,address,(uint32,uint8,uint8,uint32,uint32,uint128),address,(address,address,address,address,address,address,address),address)"
+            )
         });
 
         // ProxyAdmin
