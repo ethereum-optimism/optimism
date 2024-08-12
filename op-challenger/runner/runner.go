@@ -164,18 +164,15 @@ func (r *Runner) createGameInputs(ctx context.Context, client *sources.RollupCli
 	if status.FinalizedL2.Number == 0 {
 		return utils.LocalGameInputs{}, errors.New("safe head is 0")
 	}
-	blockNumber, err := r.findL2BlockNumberToDispute(ctx, client, status.FinalizedL1.Number, status.FinalizedL2.Number)
+	l1Head := status.FinalizedL1
+	if status.FinalizedL1.Number > status.CurrentL1.Number {
+		// Restrict the L1 head to a block that has actually be processed by op-node.
+		// This only matters if op-node is behind and hasn't processed all finalized L1 blocks yet.
+		l1Head = status.CurrentL1
+	}
+	blockNumber, err := r.findL2BlockNumberToDispute(ctx, client, l1Head.Number, status.FinalizedL2.Number)
 	if err != nil {
 		return utils.LocalGameInputs{}, fmt.Errorf("failed to find l2 block number to dispute: %w", err)
-	}
-	// When possible, execute the first block in the submitted batch
-	if status.FinalizedL1.Number > 0 {
-		priorSafeHead, err := client.SafeHeadAtL1Block(ctx, status.FinalizedL1.Number-32)
-		if err != nil {
-			r.log.Warn("Failed to get prior safe head", "err", err)
-		} else if priorSafeHead.SafeHead.Number != 0 { // Sanity check to avoid trying to execute genesis
-			blockNumber = priorSafeHead.SafeHead.Number + 1
-		}
 	}
 	claimOutput, err := client.OutputAtBlock(ctx, blockNumber)
 	if err != nil {
@@ -186,7 +183,7 @@ func (r *Runner) createGameInputs(ctx context.Context, client *sources.RollupCli
 		return utils.LocalGameInputs{}, fmt.Errorf("failed to get claim output: %w", err)
 	}
 	localInputs := utils.LocalGameInputs{
-		L1Head:        status.FinalizedL1.Hash,
+		L1Head:        l1Head.Hash,
 		L2Head:        parentOutput.BlockRef.Hash,
 		L2OutputRoot:  common.Hash(parentOutput.OutputRoot),
 		L2Claim:       common.Hash(claimOutput.OutputRoot),
