@@ -107,20 +107,22 @@ func setup(t *testing.T, testName string) (*L2OutputSubmitter, *mockRollupEndpoi
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	l2ooContract := new(MockL2OOContract)
+
 	l2OutputSubmitter := L2OutputSubmitter{
-		DriverSetup:  setup,
-		done:         make(chan struct{}),
-		l2ooContract: l2ooContract,
-
-		l2ooABI: parsed,
-		ctx:     ctx,
-		cancel:  cancel,
+		DriverSetup: setup,
+		done:        make(chan struct{}),
+		l2ooABI:     parsed,
+		ctx:         ctx,
+		cancel:      cancel,
 	}
-
+	var mockDGFContract *MockDGFContract
+	var mockL2OOContract *MockL2OOContract
 	if testName == "DGF" {
-		mockDGFContract := new(MockDGFContract)
+		mockDGFContract = new(MockDGFContract)
 		l2OutputSubmitter.dgfContract = mockDGFContract
+	} else {
+		mockL2OOContract = new(MockL2OOContract)
+		l2OutputSubmitter.l2ooContract = mockL2OOContract
 	}
 
 	txmgr.On("BlockNumber", mock.Anything).Return(uint64(100), nil).Once()
@@ -133,7 +135,7 @@ func setup(t *testing.T, testName string) (*L2OutputSubmitter, *mockRollupEndpoi
 			close(l2OutputSubmitter.done)
 		})
 
-	return &l2OutputSubmitter, ep, l2ooContract, mockDGFContract, txmgr, logs
+	return &l2OutputSubmitter, ep, mockL2OOContract, mockDGFContract, txmgr, logs
 }
 
 func TestL2OutputSubmitter_OutputRetry(t *testing.T) {
