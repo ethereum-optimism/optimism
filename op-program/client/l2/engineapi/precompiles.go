@@ -51,6 +51,9 @@ type PrecompileOracle interface {
 
 func CreatePrecompileOverrides(precompileOracle PrecompileOracle) vm.PrecompileOverrides {
 	return func(rules params.Rules, orig vm.PrecompiledContract, address common.Address) vm.PrecompiledContract {
+		if orig == nil { // Only override existing contracts. Never introduce a precompile that is not there.
+			return nil
+		}
 		// NOTE: Ignoring chain rules for now. We assume that precompile behavior won't change for the foreseeable future
 		switch address {
 		case ecrecoverPrecompileAddress:
