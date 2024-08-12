@@ -21,7 +21,7 @@ func RandomSingularBatch(rng *rand.Rand, txCount int, chainID *big.Int) *Singula
 		if err != nil {
 			panic("tx Marshal binary" + err.Error())
 		}
-		txsEncoded = append(txsEncoded, hexutil.Bytes(txEncoded))
+		txsEncoded = append(txsEncoded, txEncoded)
 	}
 	return &SingularBatch{
 		ParentHash:   testutils.RandomHash(rng),

@@ -10,6 +10,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/stretchr/testify/require"
 
@@ -40,7 +41,7 @@ func TestEVM(t *testing.T) {
 	require.NoError(t, err)
 
 	contracts, addrs := testContractsSetup(t)
-	var tracer vm.EVMLogger // no-tracer by default, but test_util.MarkdownTracer
+	var tracer *tracing.Hooks // no-tracer by default, but test_util.MarkdownTracer
 
 	for _, f := range testFiles {
 		t.Run(f.Name(), func(t *testing.T) {
@@ -102,7 +103,7 @@ func TestEVM(t *testing.T) {
 
 func TestEVM_CloneFlags(t *testing.T) {
 	//contracts, addrs := testContractsSetup(t)
-	//var tracer vm.EVMLogger
+	//var tracer *tracing.Hooks
 
 	cases := []struct {
 		name  string
@@ -156,7 +157,7 @@ func TestEVM_CloneFlags(t *testing.T) {
 
 func TestEVMSingleStep(t *testing.T) {
 	contracts, addrs := testContractsSetup(t)
-	var tracer vm.EVMLogger
+	var tracer *tracing.Hooks
 
 	cases := []struct {
 		name   string
@@ -194,7 +195,7 @@ func TestEVMSingleStep(t *testing.T) {
 
 func TestEVMSysWriteHint(t *testing.T) {
 	contracts, addrs := testContractsSetup(t)
-	var tracer vm.EVMLogger
+	var tracer *tracing.Hooks
 
 	cases := []struct {
 		name          string
@@ -375,7 +376,7 @@ func TestEVMSysWriteHint(t *testing.T) {
 
 func TestEVMFault(t *testing.T) {
 	contracts, addrs := testContractsSetup(t)
-	var tracer vm.EVMLogger // no-tracer by default, but see test_util.MarkdownTracer
+	var tracer *tracing.Hooks // no-tracer by default, but see test_util.MarkdownTracer
 	sender := common.Address{0x13, 0x37}
 
 	env, evmState := testutil.NewEVMEnv(contracts, addrs)
@@ -422,7 +423,7 @@ func TestEVMFault(t *testing.T) {
 
 func TestHelloEVM(t *testing.T) {
 	contracts, addrs := testContractsSetup(t)
-	var tracer vm.EVMLogger // no-tracer by default, but see test_util.MarkdownTracer
+	var tracer *tracing.Hooks // no-tracer by default, but see test_util.MarkdownTracer
 	evm := testutil.NewMIPSEVM(contracts, addrs)
 	evm.SetTracer(tracer)
 	testutil.LogStepFailureAtCleanup(t, evm)
@@ -464,7 +465,7 @@ func TestHelloEVM(t *testing.T) {
 
 func TestClaimEVM(t *testing.T) {
 	contracts, addrs := testContractsSetup(t)
-	var tracer vm.EVMLogger // no-tracer by default, but see test_util.MarkdownTracer
+	var tracer *tracing.Hooks // no-tracer by default, but see test_util.MarkdownTracer
 	evm := testutil.NewMIPSEVM(contracts, addrs)
 	evm.SetTracer(tracer)
 	testutil.LogStepFailureAtCleanup(t, evm)

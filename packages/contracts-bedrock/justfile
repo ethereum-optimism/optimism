@@ -1,6 +1,12 @@
 prebuild:
   ./scripts/checks/check-foundry-install.sh
 
+dep-status:
+  git submodule status
+
+install:
+  forge install
+
 build: prebuild
   forge build
 
@@ -15,6 +21,9 @@ test: build-go-ffi
 
 test-kontrol:
   ./test/kontrol/scripts/run-kontrol.sh script
+
+test-rerun: build-go-ffi
+  forge test --rerun -vvv
 
 genesis:
   forge script scripts/L2Genesis.s.sol:L2Genesis --sig 'runWithStateDump()'

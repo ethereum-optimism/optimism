@@ -298,7 +298,7 @@ func processBlockRange(
 		// process each transaction in the block
 		for j := 0; j < len(b.Transactions); j++ {
 			tx := b.Transactions[j]
-			ok, err := checkTransaction(ctx, c, *tx, log)
+			ok, err := checkTransaction(ctx, c, tx, log)
 			if err != nil {
 				log.Error("Failed to Check Tx", "Err", err)
 				return []result{}, err
@@ -346,8 +346,8 @@ func batchBlockByNumber(ctx context.Context, c *ethclient.Client, blockNumbers [
 }
 
 // checkTransaction will check if a transaction is a user deposit, and not initiated by the system address
-func checkTransaction(ctx context.Context, c *ethclient.Client, tx types.Transaction, log log.Logger) (bool, error) {
-	from, err := types.Sender(types.LatestSignerForChainID(tx.ChainId()), &tx)
+func checkTransaction(ctx context.Context, c *ethclient.Client, tx *types.Transaction, log log.Logger) (bool, error) {
+	from, err := types.Sender(types.LatestSignerForChainID(tx.ChainId()), tx)
 	if err != nil {
 		log.Error("Failed to Get Sender", "Err", err)
 		return false, err
@@ -355,7 +355,7 @@ func checkTransaction(ctx context.Context, c *ethclient.Client, tx types.Transac
 	// we are filtering for deposit transactions which are not system transactions
 	if tx.Type() == depositType &&
 		from != systemAddress {
-		log.Info("Got Transaction", "From", from, "Nonce", *tx.EffectiveNonce(), "Type", tx.Type())
+		log.Info("Got Transaction", "From", from, "Nonce", tx.EffectiveNonce(), "Type", tx.Type())
 		return true, nil
 	}
 	return false, nil

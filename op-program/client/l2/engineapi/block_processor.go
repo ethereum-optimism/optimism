@@ -124,7 +124,11 @@ func (b *BlockProcessor) AddTx(tx *types.Transaction) error {
 }
 
 func (b *BlockProcessor) Assemble() (*types.Block, error) {
-	return b.dataProvider.Engine().FinalizeAndAssemble(b.dataProvider, b.header, b.state, b.transactions, nil, b.receipts, nil)
+	body := types.Body{
+		Transactions: b.transactions,
+	}
+
+	return b.dataProvider.Engine().FinalizeAndAssemble(b.dataProvider, b.header, b.state, &body, b.receipts)
 }
 
 func (b *BlockProcessor) Commit() error {

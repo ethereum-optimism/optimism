@@ -23,14 +23,6 @@ lint-go-fix: ## Lints Go code with specific linters and fixes reported issues
 	golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 5m -e "errors.As" -e "errors.Is" ./... --fix
 .PHONY: lint-go-fix
 
-build-ts: submodules ## Builds TypeScript components
-	if [ -f "$$NVM_DIR/nvm.sh" ]; then \
-		. $$NVM_DIR/nvm.sh && nvm use; \
-	fi
-	pnpm install:ci
-	pnpm build
-.PHONY: build-ts
-
 ci-builder: ## Builds the CI builder Docker image
 	docker build -t ci-builder -f ops/docker/ci-builder/Dockerfile .
 .PHONY: ci-builder
@@ -137,10 +129,22 @@ reproducible-prestate:   ## Builds reproducible-prestate binary
 	make -C ./op-program reproducible-prestate
 .PHONY: reproducible-prestate
 
+# Include any files required for the devnet to build and run. This appears to be the only one that's actually needed.
+DEVNET_CANNON_PRESTATE_FILES := op-program/bin/prestate-proof.json op-program/bin/prestate.json
+
+$(DEVNET_CANNON_PRESTATE_FILES):
+	make cannon-prestate
+
 cannon-prestate: op-program cannon ## Generates prestate using cannon and op-program
 	./cannon/bin/cannon load-elf --path op-program/bin/op-program-client.elf --out op-program/bin/prestate.json --meta op-program/bin/meta.json
 	./cannon/bin/cannon run --proof-at '=0' --stop-at '=1' --input op-program/bin/prestate.json --meta op-program/bin/meta.json --proof-fmt 'op-program/bin/%d.json' --output ""
 	mv op-program/bin/0.json op-program/bin/prestate-proof.json
+.PHONY: cannon-prestate
+
+cannon-prestate-mt: op-program cannon ## Generates prestate using cannon and op-program in the multithreaded cannon format
+	./cannon/bin/cannon load-elf --type mt --path op-program/bin/op-program-client.elf --out op-program/bin/prestate-mt.json --meta op-program/bin/meta-mt.json
+	./cannon/bin/cannon run --type mt --proof-at '=0' --stop-at '=1' --input op-program/bin/prestate-mt.json --meta op-program/bin/meta-mt.json --proof-fmt 'op-program/bin/%d-mt.json' --output ""
+	mv op-program/bin/0-mt.json op-program/bin/prestate-proof-mt.json
 .PHONY: cannon-prestate
 
 mod-tidy: ## Cleans up unused dependencies in Go modules
@@ -160,15 +164,13 @@ nuke: clean devnet-clean ## Completely clean the project directory
 	git clean -Xdf
 .PHONY: nuke
 
-pre-devnet: submodules ## Prepares for running a local devnet
+## Prepares for running a local devnet
+pre-devnet: submodules $(DEVNET_CANNON_PRESTATE_FILES)
 	@if ! [ -x "$(command -v geth)" ]; then \
 		make install-geth; \
 	fi
 	@if ! [ -x "$(command -v eth2-testnet-genesis)" ]; then \
 		make install-eth2-testnet-genesis; \
-	fi
-	@if [ ! -e op-program/bin ]; then \
-		make cannon-prestate; \
 	fi
 .PHONY: pre-devnet
 
@@ -207,7 +209,7 @@ test-unit: ## Runs unit tests for all components
 	make -C ./op-proposer test
 	make -C ./op-batcher test
 	make -C ./op-e2e test
-	pnpm test
+	(cd packages/contracts-bedrock && just test)
 .PHONY: test-unit
 
 # Remove the baseline-commit to generate a base reading & show all issues
