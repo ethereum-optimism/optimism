@@ -1,6 +1,6 @@
-## Step 4: Deploy the Smart Contract
+## Deploy the Smart Contract
 
-With a few adjustments to the deploy.py script, we can easily deploy our newly created smart contract.
+With a few adjustments to the `deploy.py` script, we can easily deploy our newly created smart contract.
 
 First, we need to configure the script to connect to our L1 and L2 networks:
 
@@ -14,13 +14,13 @@ assert(l2.is_connected)
 l2.middleware_onion.inject(geth_poa_middleware, layer = 0)
 ```
 
-Next, we load the contract using the loadContract function:
+Next, we load the contract using the `loadContract()` function:
 
 ```solidity
 TC = loadContract(w3, "TestCounter", path_prefix + "test/TestCounter.sol")
 ```
 
-Here "path_prefix" indicates where the contract is located.
+Here `path_prefix` indicates where the contract is located.
 
 After loading the contract, we can deploy it as follows:
 
@@ -34,13 +34,13 @@ tcAddr = deploy2("TestCounter", TC.constructor(ha1Addr), 0)
 ```
 
 The constructor of our smart contract takes an address as an argument. Therefore, we pass the address of
-HybridAccount.1, which, along with other necessary contracts, is deployed as shown above.
+`HybridAccount.1`, which, along with other necessary contracts, is deployed as shown above.
 
 ## Additional Examples
-The documentation above was precisely written for the addition of two numbers. \
-The ``hybrid-compute `` folder contains more examples that can be used and experimented with.
 
-Let's integrate them into our `server-loop`
+The documentation above was precisely written for the addition of two numbers. The `hybrid-compute/` folder contains more examples that can be used and experimented with.
+
+Let's integrate them into our `server-loop`:
 
 ```python
   def server_loop():
@@ -62,3 +62,4 @@ Let's integrate them into our `server-loop`
     server.register_function(offchain_getprice, selector("getprice(string)"))
 ```
 
+You've now reached the end of this tutorial! These examples aim to demonstrate the different functions and best practices you should keep in mind as you develop your own efficient, flexible smart contracts with Hybrid Compute.

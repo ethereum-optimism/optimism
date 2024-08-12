@@ -1,11 +1,10 @@
-## Step 1: Writing the offchain handler
+# Write the Offchain Handler
 
-The first step is to write our ``offchain handler.`` This handler is responsible for receiving requests from the bundler
-along with their payloads and returning the appropriate responses.
+The first step is to write our *offchain handler*. This handler is responsible for receiving requests from the bundler along with their payloads and returning the appropriate responses.
 
-Let's begin with a simple example where the handler receives two numbers. It will perform both addition and subtraction
-on these numbers. If the result of the subtraction results in an overflow (i.e., the first number is greater than the
-second), the handler will respond with an underflow error.
+## Simple Example
+
+Let's begin with a simple example where the handler receives two numbers. It will perform both addition and subtraction on these numbers. If the result of the subtraction results in an overflow (i.e. the first number is greater than the second), the handler will respond with an underflow error.
 
 ```python
 from web3 import Web3
@@ -37,14 +36,14 @@ def offchain_addsub2(sk, src_addr, src_nonce, oo_nonce, payload, *args):
     return gen_response(req, err_code, resp)
 ```
 
-First things first, we initialize an ``err_code`` and a resp object with values in case of an exception:
+First, we initialize an `err_code` and a `resp` object with values in case of an exception:
 
 ``` python
 err_code = 1
 resp = Web3.to_bytes(text="unknown error")
 ```
 
-In the try-block we parse the request with the help of this function:
+In the `try-block` we can parse the request with the help of this function:
 
 ```python
 def parse_req(sk, src_addr, src_nonce, oo_nonce, payload):
@@ -57,7 +56,7 @@ def parse_req(sk, src_addr, src_nonce, oo_nonce, payload):
     return req
 ```
 
-and decode the ``reqBytes`` to an array of ``[uin32, uint32]`` since we want to receive two numbers.
+We can also decode the `reqBytes` to an array of `[uin32, uint32]` since we want to receive two numbers.
 
 ``` python
 dec = ethabi.decode(['uint32', 'uint32'], req['reqBytes'])
@@ -69,18 +68,14 @@ Now we can perform our custom logic on the received values:
 if dec[0] >= dec[1]:
 ```
 
-When the calculation was successful, we overwrite the previously created err_code and resp variables with successful
-values:
+Assuming a successful calculation, we overwrite the previously created `err_code` and `resp` variables with successful values:
 
 ```python
 resp = ethabi.encode(['uint256', 'uint256'], [s, d])
 err_code = 0
 ```
 
-As we decoded the ``reqBytes`` by letting the decode function know that we want to receive two numbers by giving it an
-array
-of ``['uin32', 'uint32']``, we let the encode function know, on how we want to decode both numbers. In this case
-with ``['uint256', 'uint256']``.
+Note that, similarly to passing in two `uint32`s to the `decode()` function, we let the `encode()` function know to decode two `uint256`s.
 
 In case of an underflow error, we encode a string containing a text to let the user know what happened:
 
@@ -153,6 +148,5 @@ def gen_response(req, err_code, resp_payload):
     })
 ```
 
-With that settled, we have successfuly implemented a function, which can receive a request from the bundler, perform
-some calculation with its payload and return a response.
 
+We no have successfuly implemented a function which can receive a request from the bundler, perform some calculation with its payload, and return a response.
