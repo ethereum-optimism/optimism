@@ -137,18 +137,11 @@ reproducible-prestate:   ## Builds reproducible-prestate binary
 	make -C ./op-program reproducible-prestate
 .PHONY: reproducible-prestate
 
-# Checks if prestate outputs are missing
-cannon-prestate: op-program/bin/prestate-proof.json
-.PHONY: cannon-prestate
-
-op-program/bin/prestate-proof.json:
-	make generate-cannon-prestates
-
-generate-cannon-prestates: op-program cannon ## Generates prestate using cannon and op-program
+cannon-prestate: op-program cannon ## Generates prestate using cannon and op-program
 	./cannon/bin/cannon load-elf --path op-program/bin/op-program-client.elf --out op-program/bin/prestate.json --meta op-program/bin/meta.json
 	./cannon/bin/cannon run --proof-at '=0' --stop-at '=1' --input op-program/bin/prestate.json --meta op-program/bin/meta.json --proof-fmt 'op-program/bin/%d.json' --output ""
 	mv op-program/bin/0.json op-program/bin/prestate-proof.json
-.PHONY: generate-cannon-prestates
+.PHONY: cannon-prestate
 
 mod-tidy: ## Cleans up unused dependencies in Go modules
 	# Below GOPRIVATE line allows mod-tidy to be run immediately after
@@ -167,13 +160,15 @@ nuke: clean devnet-clean ## Completely clean the project directory
 	git clean -Xdf
 .PHONY: nuke
 
-## Prepares for running a local devnet
-pre-devnet: submodules cannon-prestate
+pre-devnet: submodules ## Prepares for running a local devnet
 	@if ! [ -x "$(command -v geth)" ]; then \
 		make install-geth; \
 	fi
 	@if ! [ -x "$(command -v eth2-testnet-genesis)" ]; then \
 		make install-eth2-testnet-genesis; \
+	fi
+	@if [ ! -e op-program/bin ]; then \
+		make cannon-prestate; \
 	fi
 .PHONY: pre-devnet
 

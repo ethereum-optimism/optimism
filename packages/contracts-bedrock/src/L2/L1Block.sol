@@ -138,6 +138,7 @@ contract L1Block is ISemver, IGasToken {
 
     /// @notice Updates the `isDeposit` flag and sets the L1 block values for an Isthmus upgraded chain.
     ///         It updates the L1 block values through the `setL1BlockValuesEcotone` function.
+    ///         It forwards the calldata to the internally-used `setL1BlockValuesEcotone` function.
     function setL1BlockValuesIsthmus() external {
         // Set the isDeposit flag to true.
         assembly {

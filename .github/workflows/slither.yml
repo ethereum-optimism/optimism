@@ -15,13 +15,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Workaround to prevent slither-action from trying to install JS deps.
-      # Without this step, it detects the `package.json`, and since there is no
-      # lockfile it defaults `npm install` which fails due to the preinstall
-      # script to enforce pnpm. https://github.com/crytic/slither-action/issues/44#issuecomment-1338183656
-      - name: Remove package.json
-        run: rm packages/contracts-bedrock/package.json
-
       - name: Run Slither
         uses: crytic/slither-action@v0.4.0
         id: slither

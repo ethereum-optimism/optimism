@@ -383,71 +383,101 @@ contract MIPS2 is ISemver {
                 v1 = sys.EBADF;
             } else if (syscall_no == sys.SYS_CLOCK_GETTIME) {
                 // ignored
-            } else if (syscall_no == sys.SYS_GET_AFFINITY) {
-                // ignored
-            } else if (syscall_no == sys.SYS_MADVISE) {
-                // ignored
-            } else if (syscall_no == sys.SYS_RTSIGPROCMASK) {
-                // ignored
-            } else if (syscall_no == sys.SYS_SIGALTSTACK) {
-                // ignored
-            } else if (syscall_no == sys.SYS_RTSIGACTION) {
-                // ignored
-            } else if (syscall_no == sys.SYS_PRLIMIT64) {
-                // ignored
-            } else if (syscall_no == sys.SYS_CLOSE) {
-                // ignored
-            } else if (syscall_no == sys.SYS_PREAD64) {
-                // ignored
-            } else if (syscall_no == sys.SYS_FSTAT64) {
-                // ignored
-            } else if (syscall_no == sys.SYS_OPENAT) {
-                // ignored
-            } else if (syscall_no == sys.SYS_READLINK) {
-                // ignored
-            } else if (syscall_no == sys.SYS_READLINKAT) {
-                // ignored
-            } else if (syscall_no == sys.SYS_IOCTL) {
-                // ignored
-            } else if (syscall_no == sys.SYS_EPOLLCREATE1) {
-                // ignored
-            } else if (syscall_no == sys.SYS_PIPE2) {
-                // ignored
-            } else if (syscall_no == sys.SYS_EPOLLCTL) {
-                // ignored
-            } else if (syscall_no == sys.SYS_EPOLLPWAIT) {
-                // ignored
-            } else if (syscall_no == sys.SYS_GETRANDOM) {
-                // ignored
-            } else if (syscall_no == sys.SYS_UNAME) {
-                // ignored
-            } else if (syscall_no == sys.SYS_STAT64) {
-                // ignored
-            } else if (syscall_no == sys.SYS_GETUID) {
-                // ignored
-            } else if (syscall_no == sys.SYS_GETGID) {
-                // ignored
-            } else if (syscall_no == sys.SYS_LLSEEK) {
-                // ignored
-            } else if (syscall_no == sys.SYS_MINCORE) {
-                // ignored
-            } else if (syscall_no == sys.SYS_TGKILL) {
-                // ignored
-            } else if (syscall_no == sys.SYS_SETITIMER) {
-                // ignored
-            } else if (syscall_no == sys.SYS_TIMERCREATE) {
-                // ignored
-            } else if (syscall_no == sys.SYS_TIMERSETTIME) {
-                // ignored
-            } else if (syscall_no == sys.SYS_TIMERDELETE) {
-                // ignored
-            } else if (syscall_no == sys.SYS_CLOCKGETTIME) {
-                // ignored
-            } else if (syscall_no == sys.SYS_MUNMAP) {
-                // ignored
-            } else {
-                revert("MIPS2: unimplemented syscall");
             }
+            else if (syscall_no == sys.SYS_GET_AFFINITY) {
+                // ignored
+            }
+            else if (syscall_no == sys.SYS_MADVISE) {
+                // ignored
+            }
+            else if (syscall_no == sys.SYS_RTSIGPROCMASK) {
+                // ignored
+            }
+            else if (syscall_no == sys.SYS_SIGALTSTACK) {
+                // ignored
+            }
+            else if (syscall_no == sys.SYS_RTSIGACTION) {
+                // ignored
+            }
+            else if (syscall_no == sys.SYS_PRLIMIT64) {
+                // ignored
+            }
+            else if (syscall_no == sys.SYS_CLOSE) {
+                // ignored
+            }
+            else if (syscall_no == sys.SYS_PREAD64) {
+                // ignored
+            }
+            else if (syscall_no == sys.SYS_FSTAT64) {
+                // ignored
+            }
+            else if (syscall_no == sys.SYS_OPENAT) {
+                // ignored
+            }
+            else if (syscall_no == sys.SYS_READLINK) {
+                // ignored
+            }
+            else if (syscall_no == sys.SYS_READLINKAT) {
+                // ignored
+            }
+            else if (syscall_no == sys.SYS_IOCTL) {
+                // ignored
+            }
+            else if (syscall_no == sys.SYS_EPOLLCREATE1) {
+                // ignored
+            }
+            else if (syscall_no == sys.SYS_PIPE2) {
+                // ignored
+            }
+            else if (syscall_no == sys.SYS_EPOLLCTL) {
+                // ignored
+            }
+            else if (syscall_no == sys.SYS_EPOLLPWAIT) {
+                // ignored
+            }
+            else if (syscall_no == sys.SYS_GETRANDOM) {
+                // ignored
+            }
+            else if (syscall_no == sys.SYS_UNAME) {
+                // ignored
+            }
+            else if (syscall_no == sys.SYS_STAT64) {
+                // ignored
+            }
+            else if (syscall_no == sys.SYS_GETUID) {
+                // ignored
+            }
+            else if (syscall_no == sys.SYS_GETGID) {
+                // ignored
+            }
+            else if (syscall_no == sys.SYS_LLSEEK) {
+                // ignored
+            }
+            else if (syscall_no == sys.SYS_MINCORE) {
+                // ignored
+            }
+            else if (syscall_no == sys.SYS_TGKILL) {
+                // ignored
+            }
+            else if (syscall_no == sys.SYS_SETITIMER) {
+                // ignored
+            }
+            else if (syscall_no == sys.SYS_TIMERCREATE) {
+                // ignored
+            }
+            else if (syscall_no == sys.SYS_TIMERSETTIME) {
+                // ignored
+            }
+            else if (syscall_no == sys.SYS_TIMERDELETE) {
+                // ignored
+            }
+            else if (syscall_no == sys.SYS_CLOCKGETTIME) {
+                // ignored
+            }
+            else if (syscall_no == sys.SYS_MUNMAP) {
+                // ignored
+            }
+            else revert("MIPS2: unimplemented syscall");
 
             st.CpuScalars memory cpu = getCpuScalars(thread);
             sys.handleSyscallUpdates(cpu, thread.registers, v0, v1);

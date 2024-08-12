@@ -116,7 +116,8 @@ contract DrippieConfig is Script, Artifacts {
                 abi.decode(checkparams, (CheckSecrets.Params));
             } else if (strcmp(dripcheck, "CheckTrue")) {
                 // No parameters to decode.
-            } else {
+            }
+            else {
                 console.log("ERROR: unknown drip configuration %s", dripcheck);
                 revert UnknownDripCheck(dripcheck);
             }
