@@ -8,10 +8,9 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Constants } from "src/libraries/Constants.sol";
 
-// Target contract
+// Target contract dependencies
 import { L1Block } from "src/L2/L1Block.sol";
-import { NotDepositor, NotCrossL2Inbox } from "src/libraries/L1BlockErrors.sol";
-import { Predeploys } from "src/libraries/Predeploys.sol";
+import "src/libraries/L1BlockErrors.sol";
 
 contract L1BlockTest is CommonTest {
     address depositor;
