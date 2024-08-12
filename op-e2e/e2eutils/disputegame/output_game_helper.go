@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 	"math/big"
+	"strings"
 	"testing"
 	"time"
 
@@ -584,7 +585,11 @@ func (g *OutputGameHelper) StepFails(ctx context.Context, claimIdx int64, isAtta
 	_, _, err = transactions.SendTx(ctx, g.Client, candidate, g.PrivKey, transactions.WithReceiptFail())
 	err = errutil.TryAddRevertReason(err)
 	g.Require.Error(err, "Transaction should fail")
-	g.Require.Contains(err.Error(), "0xfb4e40dd", "Revert reason should be abi encoded ValidStep()")
+	validStepErr := "0xfb4e40dd"
+	invalidPrestateErr := "0x696550ff"
+	if !strings.Contains(err.Error(), validStepErr) && !strings.Contains(err.Error(), invalidPrestateErr) {
+		g.Require.Failf("Revert reason should be abi encoded ValidStep() or InvalidPrestate() but was: %v", err.Error())
+	}
 }
 
 // ResolveClaim resolves a single subgame
@@ -647,7 +652,7 @@ func (g *OutputGameHelper) WaitForPreimageInOracle(ctx context.Context, data *ty
 	g.Require.NoErrorf(err, "Did not find preimage (%v) in oracle", common.Bytes2Hex(data.OracleKey))
 }
 
-func (g *OutputGameHelper) UploadPreimage(ctx context.Context, data *types.PreimageOracleData, privateKey *ecdsa.PrivateKey) {
+func (g *OutputGameHelper) UploadPreimage(ctx context.Context, data *types.PreimageOracleData) {
 	oracle := g.oracle(ctx)
 	tx, err := oracle.AddGlobalDataTx(data)
 	g.Require.NoError(err, "Failed to create preimage upload tx")
