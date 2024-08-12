@@ -88,7 +88,7 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		cfg.ChannelTimeoutBedrock = *chConfig.ChannelTimeoutBedrock
 	}
 	if chConfig.ChannelTimeoutGranite != nil {
-		cfg.ChannelTimeoutBedrock = *chConfig.ChannelTimeoutGranite
+		cfg.ChannelTimeoutGranite = *chConfig.ChannelTimeoutGranite
 	}
 
 	if superChain.Config.ProtocolVersionsAddr != nil { // Set optional protocol versions address

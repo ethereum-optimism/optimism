@@ -397,7 +397,7 @@ func TestConfig_Check(t *testing.T) {
 				cfg.FjordTime = &genesis
 				cfg.GraniteTime = &genesis
 			},
-			expectedErr: ErrMissingChannelTimeoutBedrock,
+			expectedErr: ErrMissingChannelTimeoutGranite,
 		},
 		{
 			name:        "SeqWindowSizeZero",
