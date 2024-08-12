@@ -753,7 +753,7 @@ type LegacyDeployConfig struct {
 	DeploymentWaitConfirmations int `json:"deploymentWaitConfirmations"`
 
 	UnusedChannelTimeout        uint64 `json:"channelTimeout,omitempty"`
-	UnusedChannelTimeoutBedrock uint64 `json:"channelTimeoutGranite,omitempty"`
+	UnusedChannelTimeoutGranite uint64 `json:"channelTimeoutGranite,omitempty"`
 }
 
 // DeployConfig represents the deployment configuration for an OP Stack chain.
