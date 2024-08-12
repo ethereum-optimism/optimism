@@ -126,14 +126,18 @@ func (e *Executor) DoGenerateProof(ctx context.Context, dir string, begin uint64
 	e.logger.Info("Generating trace", "proof", end, "cmd", e.cfg.VmBin, "args", strings.Join(args, ", "))
 	execStart := time.Now()
 	err = e.cmdExecutor(ctx, e.logger.New("proof", end), e.cfg.VmBin, args...)
-	e.metrics.RecordVmExecutionTime(e.cfg.VmType.String(), time.Since(execStart))
+	execTime := time.Since(execStart)
+	memoryUsed := "unknown"
+	e.metrics.RecordVmExecutionTime(e.cfg.VmType.String(), execTime)
 	if e.cfg.DebugInfo && err == nil {
 		if info, err := jsonutil.LoadJSON[debugInfo](filepath.Join(dataDir, debugFilename)); err != nil {
 			e.logger.Warn("Failed to load debug metrics", "err", err)
 		} else {
 			e.metrics.RecordVmMemoryUsed(e.cfg.VmType.String(), uint64(info.MemoryUsed))
+			memoryUsed = fmt.Sprintf("%d", uint64(info.MemoryUsed))
 		}
 	}
+	e.logger.Info("VM execution complete", "time", execTime, "memory", memoryUsed)
 	return err
 }
 
