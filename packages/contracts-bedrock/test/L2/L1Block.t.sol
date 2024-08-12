@@ -35,8 +35,7 @@ contract L1BlockBedrock_Test is L1BlockTest {
         uint64 s,
         bytes32 bt,
         uint256 fo,
-        uint256 fs,
-        bool d
+        uint256 fs
     )
         external
     {
@@ -124,15 +123,15 @@ contract L1BlockSetL1BlockValuesIsthmus_Test is L1BlockTest {
         assertEq(l1Block.isDeposit(), true);
 
         // Assert `setL1BlockValuesEcotone` was properly called, forwarding the calldata to it
-        assertEq(l1Block.baseFeeScalar(), baseFeeScalar, "1");
-        assertEq(l1Block.blobBaseFeeScalar(), blobBaseFeeScalar, "2");
-        assertEq(l1Block.sequenceNumber(), sequenceNumber, "3");
-        assertEq(l1Block.timestamp(), timestamp, "4");
-        assertEq(l1Block.number(), number, "5");
-        assertEq(l1Block.basefee(), baseFee, "6");
-        assertEq(l1Block.blobBaseFee(), blobBaseFee, "7");
-        assertEq(l1Block.hash(), hash, "8");
-        assertEq(l1Block.batcherHash(), batcherHash, "9");
+        assertEq(l1Block.baseFeeScalar(), baseFeeScalar, "base fee scalar not properly set");
+        assertEq(l1Block.blobBaseFeeScalar(), blobBaseFeeScalar, "blob base fee scalar not properly set");
+        assertEq(l1Block.sequenceNumber(), sequenceNumber, "sequence number not properly set");
+        assertEq(l1Block.timestamp(), timestamp, "timestamp not properly set");
+        assertEq(l1Block.number(), number, "number not properly set");
+        assertEq(l1Block.basefee(), baseFee, "base fee not properly set");
+        assertEq(l1Block.blobBaseFee(), blobBaseFee, "blob base fee not properly set");
+        assertEq(l1Block.hash(), hash, "hash not properly set");
+        assertEq(l1Block.batcherHash(), batcherHash, "batcher hash not properly set");
     }
 }
 
