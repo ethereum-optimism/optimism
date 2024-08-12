@@ -298,22 +298,27 @@ func (l *L2OutputSubmitter) FetchDGFOutput(ctx context.Context) (*eth.OutputResp
 		return nil, false, err
 	}
 
-	latestGameIndex := new(big.Int).Sub(gameCount, big.NewInt(1))
-	latestGame, err := l.dgfContract.GameAtIndex(callOpts, latestGameIndex)
-	if err != nil {
-		l.Log.Warn(fmt.Sprintf(
-			"Could not query DisputeGameFactory.GameAtIndex(%d)",
-			latestGameIndex.Int64()), "err", err)
-		return nil, false, err
-	}
+	if gameCount.Cmp(big.NewInt(0)) == 1 {
+		// If there is at least one game, ensure
+		// enough time has lapsed that we need to make another proposal.
+		// If there is not yet any game, a proposal will be made.
+		latestGameIndex := new(big.Int).Sub(gameCount, big.NewInt(1))
+		latestGame, err := l.dgfContract.GameAtIndex(callOpts, latestGameIndex)
+		if err != nil {
+			l.Log.Warn(fmt.Sprintf(
+				"Could not query DisputeGameFactory.GameAtIndex(%d)",
+				latestGameIndex.Int64()), "err", err)
+			return nil, false, err
+		}
 
-	timeSinceLastGame := time.Since(time.Unix(int64(latestGame.Timestamp), 0))
-	if timeSinceLastGame <= l.Cfg.ProposalInterval {
-		l.Log.Info("Duration since last game not past proposal interval", "duration", timeSinceLastGame)
-		return nil, false, nil
-	}
+		timeSinceLastGame := time.Since(time.Unix(int64(latestGame.Timestamp), 0))
+		if timeSinceLastGame <= l.Cfg.ProposalInterval {
+			l.Log.Info("Duration since last game not past proposal interval", "duration", timeSinceLastGame)
+			return nil, false, nil
+		}
 
-	l.Log.Info("Duration since last game past proposal interval, submitting proposal now", "duration", timeSinceLastGame)
+		l.Log.Info("Duration since last game past proposal interval, submitting proposal now", "duration", timeSinceLastGame)
+	}
 
 	blockNum, err := l.FetchCurrentBlockNumber(ctx)
 	if err != nil {
