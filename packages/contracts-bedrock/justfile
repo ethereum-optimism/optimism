@@ -1,6 +1,12 @@
 prebuild:
   ./scripts/checks/check-foundry-install.sh
 
+dep-status:
+  git submodule status
+
+install:
+  forge install
+
 build: prebuild
   forge build
 
@@ -15,6 +21,9 @@ test: build-go-ffi
 
 test-kontrol:
   ./test/kontrol/scripts/run-kontrol.sh script
+
+test-rerun: build-go-ffi
+  forge test --rerun -vvv
 
 genesis:
   forge script scripts/L2Genesis.s.sol:L2Genesis --sig 'runWithStateDump()'
@@ -32,7 +41,7 @@ gas-snapshot-no-build:
   forge snapshot --match-contract GasBenchMark
 
 statediff:
-  ./scripts/statediff.sh && git diff --exit-code
+  ./scripts/utils/statediff.sh && git diff --exit-code
 
 gas-snapshot: build-go-ffi gas-snapshot-no-build
 
@@ -56,7 +65,7 @@ snapshots-check:
   ./scripts/checks/check-snapshots.sh
 
 semver-lock:
-  forge script scripts/SemverLock.s.sol
+  forge script scripts/autogen/SemverLock.s.sol
 
 validate-deploy-configs:
   ./scripts/checks/check-deploy-configs.sh

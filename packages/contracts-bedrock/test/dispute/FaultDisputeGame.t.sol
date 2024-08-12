@@ -870,7 +870,6 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         (,,,, disputed,,) = gameProxy.claimData(5);
         gameProxy.attack{ value: _getRequiredBond(5) }(disputed, 5, _dummyClaim());
         (,,,, disputed,,) = gameProxy.claimData(6);
-        bytes memory _dummyClaimData = abi.encode(gasleft(), gasleft());
         gameProxy.defend{ value: _getRequiredBond(6) }(disputed, 6, postState_);
         (,,,, disputed,,) = gameProxy.claimData(7);
 

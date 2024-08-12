@@ -5,12 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"math/big"
 	"path/filepath"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 
@@ -132,6 +135,82 @@ func TestPrecompiles(t *testing.T) {
 			runCannon(t, ctx, sys, inputs, "sequencer")
 		})
 	}
+}
+
+func TestGranitePrecompiles(t *testing.T) {
+	op_e2e.InitParallel(t, op_e2e.UsesCannon)
+	ctx := context.Background()
+	genesisTime := hexutil.Uint64(0)
+	cfg := op_e2e.GraniteSystemConfig(t, &genesisTime)
+	// We don't need a verifier - just the sequencer is enough
+	delete(cfg.Nodes, "verifier")
+	// Use a small sequencer window size to avoid test timeout while waiting for empty blocks
+	// But not too small to ensure that our claim and subsequent state change is published
+	cfg.DeployConfig.SequencerWindowSize = 16
+
+	sys, err := cfg.Start(t)
+	require.Nil(t, err, "Error starting up system")
+	defer sys.Close()
+
+	log := testlog.Logger(t, log.LevelInfo)
+	log.Info("genesis", "l2", sys.RollupConfig.Genesis.L2, "l1", sys.RollupConfig.Genesis.L1, "l2_time", sys.RollupConfig.Genesis.L2Time)
+
+	l1Client := sys.Clients["l1"]
+	l2Seq := sys.Clients["sequencer"]
+	rollupRPCClient, err := rpc.DialContext(context.Background(), sys.RollupNodes["sequencer"].HTTPEndpoint())
+	require.Nil(t, err)
+	rollupClient := sources.NewRollupClient(client.NewBaseRPCClient(rollupRPCClient))
+
+	aliceKey := cfg.Secrets.Alice
+
+	t.Log("Capture current L2 head as agreed starting point")
+	latestBlock, err := l2Seq.BlockByNumber(ctx, nil)
+	require.NoError(t, err)
+	agreedL2Output, err := rollupClient.OutputAtBlock(ctx, latestBlock.NumberU64())
+	require.NoError(t, err, "could not retrieve l2 agreed block")
+	l2Head := agreedL2Output.BlockRef.Hash
+	l2OutputRoot := agreedL2Output.OutputRoot
+
+	precompile := common.BytesToAddress([]byte{0x08})
+	input := make([]byte, 113_000)
+	tx := types.MustSignNewTx(aliceKey, types.LatestSignerForChainID(cfg.L2ChainIDBig()), &types.DynamicFeeTx{
+		ChainID:   cfg.L2ChainIDBig(),
+		Nonce:     0,
+		GasTipCap: big.NewInt(1 * params.GWei),
+		GasFeeCap: big.NewInt(10 * params.GWei),
+		Gas:       25_000_000,
+		To:        &precompile,
+		Value:     big.NewInt(0),
+		Data:      input,
+	})
+	err = l2Seq.SendTransaction(ctx, tx)
+	require.NoError(t, err, "Should send bn256Pairing transaction")
+	// Expect a successful receipt to retrieve the EVM call trace so we can inspect the revert reason
+	receipt, err := wait.ForReceiptMaybe(ctx, l2Seq, tx.Hash(), types.ReceiptStatusSuccessful, false)
+	require.NotNil(t, err)
+	require.Contains(t, err.Error(), "bad elliptic curve pairing input size")
+
+	t.Logf("Transaction hash %v", tx.Hash())
+	t.Log("Determine L2 claim")
+	l2ClaimBlockNumber := receipt.BlockNumber
+	l2Output, err := rollupClient.OutputAtBlock(ctx, l2ClaimBlockNumber.Uint64())
+	require.NoError(t, err, "could not get expected output")
+	l2Claim := l2Output.OutputRoot
+
+	t.Log("Determine L1 head that includes all batches required for L2 claim block")
+	require.NoError(t, wait.ForSafeBlock(ctx, rollupClient, l2ClaimBlockNumber.Uint64()))
+	l1HeadBlock, err := l1Client.BlockByNumber(ctx, nil)
+	require.NoError(t, err, "get l1 head block")
+	l1Head := l1HeadBlock.Hash()
+
+	inputs := utils.LocalGameInputs{
+		L1Head:        l1Head,
+		L2Head:        l2Head,
+		L2Claim:       common.Hash(l2Claim),
+		L2OutputRoot:  common.Hash(l2OutputRoot),
+		L2BlockNumber: l2ClaimBlockNumber,
+	}
+	runCannon(t, ctx, sys, inputs, "sequencer")
 }
 
 func runCannon(t *testing.T, ctx context.Context, sys *op_e2e.System, inputs utils.LocalGameInputs, l2Node string, extraVmArgs ...string) {

@@ -62,7 +62,7 @@ func newMiniL2BlockWithNumberParentAndL1Information(numTx int, l2Number *big.Int
 		Difficulty: common.Big0,
 		Number:     big.NewInt(l1Number),
 		Time:       blockTime,
-	}, nil, nil, nil, trie.NewStackTrie(nil))
+	}, nil, nil, trie.NewStackTrie(nil))
 	l1InfoTx, err := derive.L1InfoDeposit(&defaultTestRollupConfig, eth.SystemConfig{}, 0, eth.BlockToInfo(l1Block), blockTime)
 	if err != nil {
 		panic(err)
@@ -77,7 +77,7 @@ func newMiniL2BlockWithNumberParentAndL1Information(numTx int, l2Number *big.Int
 	return types.NewBlock(&types.Header{
 		Number:     l2Number,
 		ParentHash: parent,
-	}, txs, nil, nil, trie.NewStackTrie(nil))
+	}, &types.Body{Transactions: txs}, nil, trie.NewStackTrie(nil))
 }
 
 // addTooManyBlocks adds blocks to the channel until it hits an error,

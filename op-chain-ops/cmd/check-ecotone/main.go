@@ -271,7 +271,8 @@ func check4844Precompile(ctx context.Context, env *actionEnv) error {
 		return fmt.Errorf("failed to compute commitment: %w", err)
 	}
 	point := kzg4844.Point{}
-	proof, claim, err := kzg4844.ComputeProof(kzg4844.Blob(x), point)
+	blob := kzg4844.Blob(x)
+	proof, claim, err := kzg4844.ComputeProof(&blob, point)
 	if err != nil {
 		return fmt.Errorf("failed to compute proof: %w", err)
 	}

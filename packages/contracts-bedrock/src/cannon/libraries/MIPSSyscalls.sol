@@ -99,7 +99,7 @@ library MIPSSyscalls {
 
     uint32 internal constant SCHED_QUANTUM = 100_000;
     /// @notice Start of the data segment.
-    uint32 public constant BRK_START = 0x40000000;
+    uint32 internal constant BRK_START = 0x40000000;
 
     // SYS_CLONE flags
     uint32 internal constant CLONE_VM = 0x100;
