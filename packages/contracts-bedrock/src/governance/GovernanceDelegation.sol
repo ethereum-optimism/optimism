@@ -59,8 +59,8 @@ contract GovernanceDelegation is IGovernanceDelegation {
     /// @notice Store temporary delegation adjusments.
     EnumerableMap.AddressToUintMap private _adjustments;
 
-    /// @notice Emitted when delegations are created.
-    event DelegationsCreated(address indexed account, Delegation[] delegations);
+    /// @notice Emitted when an account's delegations are changed.
+    event DelegationsChanged(address indexed account, Delegation[] oldDelegations, Delegation[] newDelegations);
 
     /// @notice Emitted when a user's voting power changes.
     event DelegateVotesChanged(address indexed delegate, uint256 previousBalance, uint256 newBalance);
@@ -146,7 +146,6 @@ contract GovernanceDelegation is IGovernanceDelegation {
         Delegation[] memory delegation = new Delegation[](1);
         delegation[0] = _delegation;
         _delegate(msg.sender, delegation);
-        emit DelegationsCreated(msg.sender, delegation);
     }
 
     /// @notice Apply a basic delegation from `_delegator` to `_delegatee`.
@@ -156,14 +155,12 @@ contract GovernanceDelegation is IGovernanceDelegation {
         Delegation[] memory delegation = new Delegation[](1);
         delegation[0] = Delegation(AllowanceType.Relative, _delegatee, DENOMINATOR);
         _delegate(_delegator, delegation);
-        emit DelegationsCreated(_delegator, delegation);
     }
 
     /// @notice Apply multiple delegations.
     /// @param _newDelegations The delegations to apply.
     function delegateBatched(Delegation[] calldata _newDelegations) external {
         _delegate(msg.sender, _newDelegations);
-        emit DelegationsCreated(msg.sender, _newDelegations);
     }
 
     /// @notice Callback called after token transfer in the GovernanceToken contract.
@@ -225,8 +222,8 @@ contract GovernanceDelegation is IGovernanceDelegation {
 
         // Net the old and new delegations and create checkpoints.
         _createCheckpoints(
-            calculateWeightDistribution(_oldDelegations, _delegatorVotes),
-            calculateWeightDistribution(_newDelegations, _delegatorVotes)
+            _calculateWeightDistribution(_oldDelegations, _delegatorVotes),
+            _calculateWeightDistribution(_newDelegations, _delegatorVotes)
         );
 
         // Store the last delegatee to check for sorting and uniqueness.
@@ -257,7 +254,7 @@ contract GovernanceDelegation is IGovernanceDelegation {
             }
         }
 
-        // emit DelegateChanged(_delegator, _oldDelegations, _newDelegations);
+        emit DelegationsChanged(_delegator, _oldDelegations, _newDelegations);
     }
 
     /// @notice Aggregates delegation adjustments and creates checkpoints.
@@ -265,44 +262,36 @@ contract GovernanceDelegation is IGovernanceDelegation {
     /// @param _new The new delegation set.
     function _createCheckpoints(DelegationAdjustment[] memory _old, DelegationAdjustment[] memory _new) internal {
         for (uint256 i; i < _old.length; i++) {
-            bytes32 packed = _pack_28_4(bytes28(uint224(_old[i].amount)), bytes4(bytes1(uint8(Op.SUBTRACT))));
-            _adjustments.set(_old[i].delegatee, uint256(packed));
+            _adjustments.set(_old[i].delegatee, uint256(_old[i].amount));
         }
 
         for (uint256 i; i < _new.length; i++) {
             address delegatee = _new[i].delegatee;
             if (delegatee == address(0)) continue;
 
+            Op op = Op.ADD;
             uint256 amount = _new[i].amount;
 
+            // Any duplicate delegations will revert in `_delegate`.
             if (_adjustments.contains(delegatee)) {
                 uint256 oldAmount = _adjustments.get(delegatee);
-
-                if (oldAmount > amount) {
-                    bytes32 packed =
-                        _pack_28_4(bytes28(uint224(oldAmount - amount)), bytes4(bytes1(uint8(Op.SUBTRACT))));
-                    amount = uint256(packed);
-                } else {
-                    bytes32 packed = _pack_28_4(bytes28(uint224(amount - oldAmount)), bytes4(bytes1(uint8(Op.ADD))));
-                    amount = uint256(packed);
-                }
-            } else {
-                bytes32 packed = _pack_28_4(bytes28(uint224(amount)), bytes4(bytes1(uint8(Op.ADD))));
-                amount = uint256(packed);
+                (amount, op) = oldAmount > amount ? (oldAmount - amount, Op.SUBTRACT) : (amount - oldAmount, Op.ADD);
+                _adjustments.remove(delegatee);
             }
 
-            _adjustments.set(delegatee, amount);
+            (uint256 oldValue, uint256 newValue) =
+                _writeCheckpoint(_checkpoints[delegatee], op == Op.ADD ? _add : _subtract, amount);
+
+            emit DelegateVotesChanged(delegatee, oldValue, newValue);
         }
 
         uint256 _adjustmentsLength = _adjustments.length();
 
         for (uint256 i; i < _adjustmentsLength; i++) {
-            (address delegatee, uint256 packed) = _adjustments.at(i);
-            uint256 amount = uint224(_extract_32_28(bytes32(packed), 0));
-            Op op = Op(uint8(bytes1(_extract_32_4(bytes32(packed), 28))));
+            (address delegatee, uint256 amount) = _adjustments.at(i);
+            (uint256 oldValue, uint256 newValue) = _writeCheckpoint(_checkpoints[delegatee], _subtract, amount);
 
-            (uint256 oldValue, uint256 newValue) =
-                _writeCheckpoint(_checkpoints[delegatee], op == Op.ADD ? _add : _subtract, amount);
+            _adjustments.remove(delegatee);
 
             emit DelegateVotesChanged(delegatee, oldValue, newValue);
         }
@@ -311,7 +300,7 @@ contract GovernanceDelegation is IGovernanceDelegation {
     /// @notice Calculate the weight distribution for a list of delegations.
     /// @param _delegationSet The delegations to calculate the weight distribution for.
     /// @param _amount        The sum of vote amounts to calculate the weight distribution for.
-    function calculateWeightDistribution(
+    function _calculateWeightDistribution(
         Delegation[] memory _delegationSet,
         uint256 _amount
     )
@@ -375,8 +364,8 @@ contract GovernanceDelegation is IGovernanceDelegation {
         uint256 _fromLength = _delegations[_from].length;
         if (_fromLength > 0) {
             uint256 _fromVotes = ERC20Votes(Predeploys.GOVERNANCE_TOKEN).balanceOf(_from);
-            DelegationAdjustment[] memory from = calculateWeightDistribution(_delegations[_from], _fromVotes + _amount);
-            DelegationAdjustment[] memory fromNew = calculateWeightDistribution(_delegations[_from], _fromVotes);
+            DelegationAdjustment[] memory from = _calculateWeightDistribution(_delegations[_from], _fromVotes + _amount);
+            DelegationAdjustment[] memory fromNew = _calculateWeightDistribution(_delegations[_from], _fromVotes);
             for (uint256 i; i < _fromLength; i++) {
                 (uint256 oldValue, uint256 newValue) = _writeCheckpoint(
                     _checkpoints[_delegations[_from][i].delegatee], _subtract, from[i].amount - fromNew[i].amount
@@ -390,8 +379,8 @@ contract GovernanceDelegation is IGovernanceDelegation {
         uint256 _toLength = _delegations[_to].length;
         if (_toLength > 0) {
             uint256 _toVotes = ERC20Votes(Predeploys.GOVERNANCE_TOKEN).balanceOf(_to);
-            DelegationAdjustment[] memory to = calculateWeightDistribution(_delegations[_to], _toVotes - _amount);
-            DelegationAdjustment[] memory toNew = calculateWeightDistribution(_delegations[_to], _toVotes);
+            DelegationAdjustment[] memory to = _calculateWeightDistribution(_delegations[_to], _toVotes - _amount);
+            DelegationAdjustment[] memory toNew = _calculateWeightDistribution(_delegations[_to], _toVotes);
 
             for (uint256 i; i < _toLength; i++) {
                 (uint256 oldValue, uint256 newValue) =
