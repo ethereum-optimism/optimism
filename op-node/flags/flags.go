@@ -224,7 +224,7 @@ var (
 		Value:    4,
 		Category: SequencerCategory,
 	}
-	SequencerPublishPayloadAttributes = &cli.BoolFlag{
+	SequencerPublishAttributesFlag = &cli.BoolFlag{
 		Name:    "sequencer.publish-attributes",
 		Usage:   "Publish payload attributes to the event feed",
 		EnvVars: prefixEnvVars("SEQUENCER_PUBLISH_ATTRIBUTES"),
@@ -391,7 +391,7 @@ var optionalFlags = []cli.Flag{
 	SequencerStoppedFlag,
 	SequencerMaxSafeLagFlag,
 	SequencerL1Confs,
-	SequencerPublishPayloadAttributes,
+	SequencerPublishAttributesFlag,
 	L1EpochPollIntervalFlag,
 	RuntimeConfigReloadIntervalFlag,
 	RPCEnableAdmin,
