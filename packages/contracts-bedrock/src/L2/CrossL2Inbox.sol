@@ -175,7 +175,7 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
     ///         is in the destination chain's dependency set.
     /// @param _id Identifier of the message.
     function _checkIdentifier(Identifier calldata _id) internal view {
-        if (_id.timestamp > block.timestamp || _id.timestamp < interopStart()) revert InvalidTimestamp();
+        if (_id.timestamp > block.timestamp || _id.timestamp <= interopStart()) revert InvalidTimestamp();
         if (!IDependencySet(Predeploys.L1_BLOCK_ATTRIBUTES).isInDependencySet(_id.chainId)) {
             revert InvalidChainId();
         }
