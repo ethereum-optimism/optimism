@@ -288,8 +288,8 @@ func (l *L2OutputSubmitter) FetchDGFOutput(ctx context.Context) (*eth.OutputResp
 	latestGame, err := l.dgfContract.GameAtIndex(&bind.CallOpts{Context: ctx}, latestGameIndex)
 	if err != nil {
 		l.Log.Warn(fmt.Sprintf(
-			"Could not query DisputeGameFactory.GameAtIndex(%d)", "err", err,
-			latestGameIndex.Int64(), err))
+			"Could not query DisputeGameFactory.GameAtIndex(%d)",
+			latestGameIndex.Int64()), "err", err)
 		return nil, false, err
 	}
 
