@@ -218,7 +218,6 @@ func FjordSystemConfig(t *testing.T, fjordTimeOffset *hexutil.Uint64) SystemConf
 func GraniteSystemConfig(t *testing.T, graniteTimeOffset *hexutil.Uint64) SystemConfig {
 	cfg := FjordSystemConfig(t, &genesisTime)
 	cfg.DeployConfig.L2GenesisGraniteTimeOffset = graniteTimeOffset
-	cfg.DeployConfig.ChannelTimeoutGranite = 20
 	return cfg
 }
 
@@ -595,8 +594,6 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 			BlockTime:               cfg.DeployConfig.L2BlockTime,
 			MaxSequencerDrift:       cfg.DeployConfig.MaxSequencerDrift,
 			SeqWindowSize:           cfg.DeployConfig.SequencerWindowSize,
-			ChannelTimeoutBedrock:   cfg.DeployConfig.ChannelTimeoutBedrock,
-			ChannelTimeoutGranite:   cfg.DeployConfig.ChannelTimeoutGranite,
 			L1ChainID:               cfg.L1ChainIDBig(),
 			L2ChainID:               cfg.L2ChainIDBig(),
 			BatchInboxAddress:       cfg.DeployConfig.BatchInboxAddress,

@@ -362,7 +362,6 @@ func DeepReorg(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	sd, dp, miner, sequencer, seqEngine, verifier, verifierEng, batcher := setupReorgTest(t, &e2eutils.TestParams{
 		MaxSequencerDrift:   40,
 		SequencerWindowSize: 20,
-		ChannelTimeout:      120,
 		L1BlockTime:         4,
 	}, deltaTimeOffset)
 	minerCl := miner.L1Client(t, sd.RollupCfg)
@@ -797,7 +796,6 @@ func SyncAfterReorg(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	testingParams := e2eutils.TestParams{
 		MaxSequencerDrift:   60,
 		SequencerWindowSize: 4,
-		ChannelTimeout:      2,
 		L1BlockTime:         12,
 	}
 	sd, dp, miner, sequencer, seqEngine, verifier, _, batcher := setupReorgTest(t, &testingParams, deltaTimeOffset)

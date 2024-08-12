@@ -448,10 +448,6 @@ type L2CoreDeployConfig struct {
 	MaxSequencerDrift uint64 `json:"maxSequencerDrift"`
 	// SequencerWindowSize is the number of L1 blocks per sequencing window.
 	SequencerWindowSize uint64 `json:"sequencerWindowSize"`
-	// ChannelTimeoutBedrock is the number of L1 blocks that a frame stays valid when included in L1.
-	ChannelTimeoutBedrock uint64 `json:"channelTimeout"`
-	// ChannelTimeoutGranite is the number of L1 blocks that a frame stays valid when included in L1 after granite.
-	ChannelTimeoutGranite uint64 `json:"channelTimeoutGranite,omitempty"`
 	// BatchInboxAddress is the L1 account that batches are sent to.
 	BatchInboxAddress common.Address `json:"batchInboxAddress"`
 
@@ -475,9 +471,6 @@ func (d *L2CoreDeployConfig) Check(log log.Logger) error {
 	}
 	if d.SequencerWindowSize == 0 {
 		return fmt.Errorf("%w: SequencerWindowSize cannot be 0", ErrInvalidDeployConfig)
-	}
-	if d.ChannelTimeoutBedrock == 0 {
-		return fmt.Errorf("%w: ChannelTimeout cannot be 0", ErrInvalidDeployConfig)
 	}
 	if d.BatchInboxAddress == (common.Address{}) {
 		return fmt.Errorf("%w: BatchInboxAddress cannot be address(0)", ErrInvalidDeployConfig)
@@ -548,9 +541,6 @@ type L2InitializationConfig struct {
 func (d *L2InitializationConfig) Check(log log.Logger) error {
 	if err := checkConfigBundle(d, log); err != nil {
 		return err
-	}
-	if d.ChannelTimeoutGranite == 0 && d.L2GenesisGraniteTimeOffset != nil {
-		return fmt.Errorf("%w: ChannelTimeoutGranite cannot be 0", ErrInvalidDeployConfig)
 	}
 	return nil
 }
@@ -761,6 +751,9 @@ type LegacyDeployConfig struct {
 	// DeploymentWaitConfirmations is the number of confirmations to wait during
 	// deployment. This is DEPRECATED and should be removed in a future PR.
 	DeploymentWaitConfirmations int `json:"deploymentWaitConfirmations"`
+
+	UnusedChannelTimeout        uint64 `json:"channelTimeout,omitempty"`
+	UnusedChannelTimeoutBedrock uint64 `json:"channelTimeoutGranite,omitempty"`
 }
 
 // DeployConfig represents the deployment configuration for an OP Stack chain.
@@ -821,9 +814,6 @@ func (d *DeployConfig) Check(log log.Logger) error {
 	// L2 block time must always be smaller than L1 block time
 	if d.L1BlockTime < d.L2BlockTime {
 		return fmt.Errorf("L2 block time (%d) is larger than L1 block time (%d)", d.L2BlockTime, d.L1BlockTime)
-	}
-	if d.ChannelTimeoutGranite == 0 && d.L2GenesisGraniteTimeOffset != nil {
-		return fmt.Errorf("%w: ChannelTimeoutGranite cannot be 0", ErrInvalidDeployConfig)
 	}
 	return checkConfigBundle(d, log)
 }
@@ -889,8 +879,6 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 		BlockTime:              d.L2BlockTime,
 		MaxSequencerDrift:      d.MaxSequencerDrift,
 		SeqWindowSize:          d.SequencerWindowSize,
-		ChannelTimeoutBedrock:  d.ChannelTimeoutBedrock,
-		ChannelTimeoutGranite:  d.ChannelTimeoutGranite,
 		L1ChainID:              new(big.Int).SetUint64(d.L1ChainID),
 		L2ChainID:              new(big.Int).SetUint64(d.L2ChainID),
 		BatchInboxAddress:      d.BatchInboxAddress,

@@ -45,7 +45,6 @@ type DeployParams struct {
 type TestParams struct {
 	MaxSequencerDrift   uint64
 	SequencerWindowSize uint64
-	ChannelTimeout      uint64
 	L1BlockTime         uint64
 	UsePlasma           bool
 }
@@ -59,8 +58,6 @@ func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
 	deployConfig := config.DeployConfig.Copy()
 	deployConfig.MaxSequencerDrift = tp.MaxSequencerDrift
 	deployConfig.SequencerWindowSize = tp.SequencerWindowSize
-	deployConfig.ChannelTimeoutBedrock = tp.ChannelTimeout
-	deployConfig.ChannelTimeoutGranite = tp.ChannelTimeout
 	deployConfig.L1BlockTime = tp.L1BlockTime
 	deployConfig.UsePlasma = tp.UsePlasma
 	ApplyDeployConfigForks(deployConfig)
@@ -174,8 +171,6 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		BlockTime:              deployConf.L2BlockTime,
 		MaxSequencerDrift:      deployConf.MaxSequencerDrift,
 		SeqWindowSize:          deployConf.SequencerWindowSize,
-		ChannelTimeoutBedrock:  deployConf.ChannelTimeoutBedrock,
-		ChannelTimeoutGranite:  deployConf.ChannelTimeoutGranite,
 		L1ChainID:              new(big.Int).SetUint64(deployConf.L1ChainID),
 		L2ChainID:              new(big.Int).SetUint64(deployConf.L2ChainID),
 		BatchInboxAddress:      deployConf.BatchInboxAddress,

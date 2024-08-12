@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
+	"github.com/ethereum-optimism/optimism/op-node/params"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
@@ -185,11 +186,11 @@ func (bs *BatcherService) initRollupConfig(ctx context.Context) error {
 }
 
 func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
-	channelTimeout := bs.RollupConfig.ChannelTimeoutBedrock
+	channelTimeout := params.ChannelTimeoutBedrock
 	// Use lower channel timeout if granite is scheduled.
 	// Ensures channels are restricted to the tighter timeout even if granite hasn't activated yet
 	if bs.RollupConfig.GraniteTime != nil {
-		channelTimeout = bs.RollupConfig.ChannelTimeoutGranite
+		channelTimeout = params.ChannelTimeoutGranite
 	}
 	cc := ChannelConfig{
 		SeqWindowSize:      bs.RollupConfig.SeqWindowSize,
