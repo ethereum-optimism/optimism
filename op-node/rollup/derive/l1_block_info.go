@@ -387,7 +387,7 @@ func L1InfoDepositBytes(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNu
 }
 
 func DepositsCompleteDeposit(seqNumber uint64, block eth.BlockInfo) (*types.DepositTx, error) {
-	source := DepositSource{
+	source := AfterForceIncludeSource{
 		L1BlockHash: block.Hash(),
 	}
 	out := &types.DepositTx{
