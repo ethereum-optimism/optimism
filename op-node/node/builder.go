@@ -123,12 +123,12 @@ func (s *BuilderAPIClient) versionedExecutionPayloadToExecutionPayloadEnvelope(r
 	blobGasUsed := eth.Uint64Quantity(payload.BlobGasUsed)
 	excessBlobGas := eth.Uint64Quantity(payload.ExcessBlobGas)
 
-	var blockValue *eth.Uint256Quantity
+	var blockValue eth.Uint256Quantity
 	v, err := resp.Value()
 	if err != nil {
 		s.log.Error("Failed to get block value", "err", err)
 	} else {
-		*blockValue = eth.Uint256Quantity(*v)
+		blockValue = eth.Uint256Quantity(*v)
 	}
 
 	envelope := &eth.ExecutionPayloadEnvelope{
@@ -152,7 +152,7 @@ func (s *BuilderAPIClient) versionedExecutionPayloadToExecutionPayloadEnvelope(r
 			ExcessBlobGas: &excessBlobGas,
 		},
 		ParentBeaconBlockRoot: nil,
-		BlockValue:            blockValue,
+		BlockValue:            &blockValue,
 	}
 	return envelope, nil
 }

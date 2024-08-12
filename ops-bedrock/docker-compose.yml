@@ -65,10 +65,13 @@ services:
         ipv4_address: "10.5.0.200"
 
   op-node:
+    build:
+      context: ../
+      dockerfile: ops/docker/op-stack-go/Dockerfile
+      target: op-node-target
     depends_on:
       - l1
       - l2
-    image: jinmel/op-node:pbs
     command: >
       op-node
       --l1=ws://l1:8546
@@ -97,7 +100,8 @@ services:
       --safedb.path=/db
       --plasma.enabled=${PLASMA_ENABLED}
       --plasma.da-server=http://da-server:3100
-      --l2.builder=http://builder-op-geth:28545
+      --l2.builder.enabled=true
+      --l2.builder.endpoint=http://builder-op-geth:28545
     ports:
       - "7545:8545"
       - "9003:9003"
@@ -295,6 +299,9 @@ services:
         ipv4_address: 10.5.0.123
 
   builder-op-geth:
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile.l2
     image: jinmel/builder:latest # NOTE: Replace with the builder image
     ports:
       - "5545:8545"
@@ -317,9 +324,8 @@ services:
       - "--builder.beacon_endpoints=http://builder-op-node:9546"
       - "--builder.local_relay"
       - "--builder.seconds_in_slot=2"
-      - "--builder.block_resubmit_interval=200ms"
+      - "--builder.block_resubmit_interval=500ms"
       - "--builder.submission_offset=1s"
-      - "--verbosity=5"
     environment:
       GETH_MINER_RECOMMIT: 100ms
       BUILDER_TX_SIGNING_KEY: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"

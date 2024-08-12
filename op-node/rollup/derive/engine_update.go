@@ -167,7 +167,7 @@ func getPayloadWithBuilderPayload(ctx context.Context, log log.Logger, eng ExecE
 	case builderPayload := <-result:
 		if builderPayload.error != nil {
 			metrics.RecordBuilderRequestFail()
-			log.Warn("failed to get payload from builder", "error", err.Error())
+			log.Warn("failed to get payload from builder", "error", builderPayload.error)
 			return envelope, builderPayload, nil
 		}
 		log.Info("received payload from builder", "hash", builderPayload.envelope.ExecutionPayload.BlockHash.String(), "number", uint64(builderPayload.envelope.ExecutionPayload.BlockNumber))
@@ -224,10 +224,11 @@ func confirmPayload(
 	}
 
 	engineBid := WeiToGwei(engineEnvelope.BlockValue)
-	if builderPayload.success {
+	if builderPayload != nil && builderPayload.success {
 		builderBid := WeiToGwei(builderPayload.envelope.BlockValue)
 		// TODO: boost factor for payload value
-		if builderBid > engineBid {
+		log.Info("Block value", "builderBid", builderBid, "engineBid", engineBid)
+		if builderBid >= engineBid {
 			log.Debug("trying to insert builder payload as it has higher bid than engine payload", "builderBid", builderBid, "engineBid", engineBid)
 			errTyp, err := insertPayload(ctx, log, eng, fc, updateSafe, agossip, sequencerConductor, builderPayload.envelope)
 			if errTyp == BlockInsertOK {
