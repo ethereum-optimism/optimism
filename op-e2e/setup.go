@@ -165,7 +165,7 @@ func DefaultSystemConfig(t testing.TB) SystemConfig {
 			RoleVerif:  testlog.Logger(t, log.LevelInfo).New("role", RoleVerif),
 			RoleSeq:    testlog.Logger(t, log.LevelInfo).New("role", RoleSeq),
 			"batcher":  testlog.Logger(t, log.LevelInfo).New("role", "batcher"),
-			"proposer": testlog.Logger(t, log.LevelCrit).New("role", "proposer"),
+			"proposer": testlog.Logger(t, log.LevelInfo).New("role", "proposer"),
 		},
 		GethOptions:            map[string][]geth.GethOption{},
 		P2PTopology:            nil, // no P2P connectivity by default
@@ -845,15 +845,14 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	var proposerCLIConfig *l2os.CLIConfig
 	if e2eutils.UseFaultProofs() {
 		proposerCLIConfig = &l2os.CLIConfig{
-			L1EthRpc:            sys.EthInstances[RoleL1].WSEndpoint(),
-			RollupRpc:           sys.RollupNodes[RoleSeq].HTTPEndpoint(),
-			DGFAddress:          config.L1Deployments.DisputeGameFactoryProxy.Hex(),
-			ProposalInterval:    6 * time.Second,
-			DisputeGameType:     254, // Fast game type
-			PollInterval:        50 * time.Millisecond,
-			OutputRetryInterval: 10 * time.Millisecond,
-			TxMgrConfig:         newTxMgrConfig(sys.EthInstances[RoleL1].WSEndpoint(), cfg.Secrets.Proposer),
-			AllowNonFinalized:   cfg.NonFinalizedProposals,
+			L1EthRpc:          sys.EthInstances[RoleL1].WSEndpoint(),
+			RollupRpc:         sys.RollupNodes[RoleSeq].HTTPEndpoint(),
+			DGFAddress:        config.L1Deployments.DisputeGameFactoryProxy.Hex(),
+			ProposalInterval:  6 * time.Second,
+			DisputeGameType:   254, // Fast game type
+			PollInterval:      50 * time.Millisecond,
+			TxMgrConfig:       newTxMgrConfig(sys.EthInstances[RoleL1].WSEndpoint(), cfg.Secrets.Proposer),
+			AllowNonFinalized: cfg.NonFinalizedProposals,
 			LogConfig: oplog.CLIConfig{
 				Level:  log.LvlInfo,
 				Format: oplog.FormatText,
@@ -861,13 +860,12 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		}
 	} else {
 		proposerCLIConfig = &l2os.CLIConfig{
-			L1EthRpc:            sys.EthInstances[RoleL1].WSEndpoint(),
-			RollupRpc:           sys.RollupNodes[RoleSeq].HTTPEndpoint(),
-			L2OOAddress:         config.L1Deployments.L2OutputOracleProxy.Hex(),
-			PollInterval:        50 * time.Millisecond,
-			OutputRetryInterval: 10 * time.Millisecond,
-			TxMgrConfig:         newTxMgrConfig(sys.EthInstances[RoleL1].WSEndpoint(), cfg.Secrets.Proposer),
-			AllowNonFinalized:   cfg.NonFinalizedProposals,
+			L1EthRpc:          sys.EthInstances[RoleL1].WSEndpoint(),
+			RollupRpc:         sys.RollupNodes[RoleSeq].HTTPEndpoint(),
+			L2OOAddress:       config.L1Deployments.L2OutputOracleProxy.Hex(),
+			PollInterval:      50 * time.Millisecond,
+			TxMgrConfig:       newTxMgrConfig(sys.EthInstances[RoleL1].WSEndpoint(), cfg.Secrets.Proposer),
+			AllowNonFinalized: cfg.NonFinalizedProposals,
 			LogConfig: oplog.CLIConfig{
 				Level:  log.LvlInfo,
 				Format: oplog.FormatText,

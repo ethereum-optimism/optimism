@@ -53,9 +53,6 @@ type CLIConfig struct {
 	// ProposalInterval is the delay between submitting L2 output proposals when the DGFAddress is set.
 	ProposalInterval time.Duration
 
-	// OutputRetryInterval is the delay between retrying output fetch if one fails.
-	OutputRetryInterval time.Duration
-
 	// DisputeGameType is the type of dispute game to create when submitting an output proposal.
 	DisputeGameType uint32
 
