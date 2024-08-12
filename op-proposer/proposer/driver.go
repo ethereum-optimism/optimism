@@ -44,6 +44,16 @@ type L2OOContract interface {
 	NextBlockNumber(*bind.CallOpts) (*big.Int, error)
 }
 
+type DGFContract interface {
+	GameCount(*bind.CallOpts) (*big.Int, error)
+	GameAtIndex(*bind.CallOpts, *big.Int) (struct {
+		GameType  uint32
+		Timestamp uint64
+		Proxy     common.Address
+	}, error)
+	InitBonds(*bind.CallOpts, uint32) (*big.Int, error)
+}
+
 type RollupClient interface {
 	SyncStatus(ctx context.Context) (*eth.SyncStatus, error)
 	OutputAtBlock(ctx context.Context, blockNum uint64) (*eth.OutputResponse, error)
@@ -76,7 +86,7 @@ type L2OutputSubmitter struct {
 	l2ooContract L2OOContract
 	l2ooABI      *abi.ABI
 
-	dgfContract *bindings.DisputeGameFactoryCaller
+	dgfContract DGFContract
 	dgfABI      *abi.ABI
 }
 
@@ -275,17 +285,21 @@ func (l *L2OutputSubmitter) FetchL2OOOutput(ctx context.Context) (*eth.OutputRes
 // The passed context is expected to be a lifecycle context. A network timeout
 // context will be derived from it.
 func (l *L2OutputSubmitter) FetchDGFOutput(ctx context.Context) (*eth.OutputResponse, bool, error) {
-	ctx, cancel := context.WithTimeout(ctx, l.Cfg.NetworkTimeout)
+	cCtx, cancel := context.WithTimeout(ctx, l.Cfg.NetworkTimeout)
 	defer cancel()
+	callOpts := &bind.CallOpts{
+		From:    l.Txmgr.From(),
+		Context: cCtx,
+	}
 
-	gameCount, err := l.dgfContract.GameCount(&bind.CallOpts{Context: ctx})
+	gameCount, err := l.dgfContract.GameCount(callOpts)
 	if err != nil {
 		l.Log.Warn("Could not query DisputeGameFactory.gameCount()", "err", err)
 		return nil, false, err
 	}
 
 	latestGameIndex := new(big.Int).Sub(gameCount, big.NewInt(1))
-	latestGame, err := l.dgfContract.GameAtIndex(&bind.CallOpts{Context: ctx}, latestGameIndex)
+	latestGame, err := l.dgfContract.GameAtIndex(callOpts, latestGameIndex)
 	if err != nil {
 		l.Log.Warn(fmt.Sprintf(
 			"Could not query DisputeGameFactory.GameAtIndex(%d)",
