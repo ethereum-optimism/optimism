@@ -36,26 +36,28 @@ type L1OriginSelector interface {
 // CLSync holds on to a queue of received unsafe payloads,
 // and tries to apply them to the tip of the chain when requested to.
 type CLSync struct {
-	log              log.Logger
-	cfg              *rollup.Config
-	metrics          Metrics
-	ec               Engine
-	n                Network
-	l1OriginSelector L1OriginSelector
-	attrBuilder      *derive.FetchingAttributesBuilder
-	unsafePayloads   *PayloadsQueue // queue of unsafe payloads, ordered by ascending block number, may have gaps and duplicates
+	log               log.Logger
+	cfg               *rollup.Config
+	metrics           Metrics
+	ec                Engine
+	n                 Network
+	l1OriginSelector  L1OriginSelector
+	attrBuilder       *derive.FetchingAttributesBuilder
+	unsafePayloads    *PayloadsQueue // queue of unsafe payloads, ordered by ascending block number, may have gaps and duplicates
+	publishAttributes bool
 }
 
-func NewCLSync(log log.Logger, cfg *rollup.Config, metrics Metrics, ec Engine, n Network, l1Origin L1OriginSelector, attrBuilder *derive.FetchingAttributesBuilder) *CLSync {
+func NewCLSync(log log.Logger, cfg *rollup.Config, metrics Metrics, ec Engine, n Network, l1Origin L1OriginSelector, attrBuilder *derive.FetchingAttributesBuilder, publishAttributes bool) *CLSync {
 	return &CLSync{
-		log:              log,
-		cfg:              cfg,
-		metrics:          metrics,
-		ec:               ec,
-		n:                n,
-		l1OriginSelector: l1Origin,
-		attrBuilder:      attrBuilder,
-		unsafePayloads:   NewPayloadsQueue(log, maxUnsafePayloadsMemory, payloadMemSize),
+		log:               log,
+		cfg:               cfg,
+		metrics:           metrics,
+		ec:                ec,
+		n:                 n,
+		l1OriginSelector:  l1Origin,
+		attrBuilder:       attrBuilder,
+		unsafePayloads:    NewPayloadsQueue(log, maxUnsafePayloadsMemory, payloadMemSize),
+		publishAttributes: publishAttributes,
 	}
 }
 
@@ -132,10 +134,14 @@ func (eq *CLSync) Proceed(ctx context.Context) error {
 		eq.unsafePayloads.Pop()
 		return err
 	}
-	err = eq.PublishAttributes(ctx, ref)
-	if err != nil {
-		eq.log.Warn("Error publishing L2 attributes", "err", err)
+
+	if eq.publishAttributes {
+		err = eq.PublishAttributes(ctx, ref)
+		if err != nil {
+			eq.log.Warn("Error publishing L2 attributes", "err", err)
+		}
 	}
+
 	eq.unsafePayloads.Pop()
 	eq.log.Trace("Executed unsafe payload", "hash", ref.Hash, "number", ref.Number, "timestamp", ref.Time, "l1Origin", ref.L1Origin)
 	return nil
@@ -163,10 +169,8 @@ func (eq *CLSync) PublishAttributes(ctx context.Context, l2head eth.L2BlockRef) 
 		IsLastInSpan: false,
 	}
 
-	log.Info("Publishing L2 attributes", "attrs", withParent)
 	err = eq.n.PublishL2Attributes(ctx, withParent)
 	if err != nil {
-		eq.log.Error("Error publishing L2 attributes", "err", err)
 		return err
 	}
 

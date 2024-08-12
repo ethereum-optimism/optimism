@@ -342,7 +342,14 @@ func (s *Driver) eventLoop() {
 				if err := s.engineController.InsertUnsafePayload(s.driverCtx, envelope, ref); err != nil {
 					s.log.Warn("Failed to insert unsafe payload for EL sync", "id", envelope.ExecutionPayload.ID(), "err", err)
 				}
-				s.PublishL2Attributes(s.driverCtx, ref)
+
+				if s.driverConfig.SequencerPublishAttributes {
+					s.log.Info("Publishing L2 attributes", "unsafe_head", ref)
+					err := s.PublishL2Attributes(s.driverCtx, ref)
+					if err != nil {
+						s.log.Error("Error publishing L2 attributes", "err", err)
+					}
+				}
 			}
 		case newL1Head := <-s.l1HeadSig:
 			s.l1State.HandleNewL1HeadBlock(newL1Head)
@@ -491,10 +498,8 @@ func (d *Driver) PublishL2Attributes(ctx context.Context, l2head eth.L2BlockRef)
 		Parent:       l2head,
 		IsLastInSpan: false,
 	}
-	log.Info("Publishing L2 attributes", "attrs", withParent)
 	err = d.network.PublishL2Attributes(ctx, withParent)
 	if err != nil {
-		d.log.Error("Error publishing L2 attributes", "err", err)
 		return err
 	}
 

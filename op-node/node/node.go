@@ -614,9 +614,6 @@ func (n *OpNode) PublishL2Payload(ctx context.Context, envelope *eth.ExecutionPa
 }
 
 func (n *OpNode) PublishL2Attributes(ctx context.Context, attrs *derive.AttributesWithParent) error {
-	for i, tx := range attrs.Attributes.Transactions {
-		n.log.Info("Transaction", "index", i, "tx", tx)
-	}
 	builderAttrs := attrs.ToBuilderPayloadAttributes()
 	jsonBytes, err := json.Marshal(builderAttrs)
 	if err != nil {

@@ -160,7 +160,7 @@ func NewDriver(
 	verifConfDepth := NewConfDepth(driverCfg.VerifierConfDepth, l1State.L1Head, l1)
 	engine := derive.NewEngineController(l2, log, metrics, cfg, syncCfg.SyncMode)
 	attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1, l2)
-	clSync := clsync.NewCLSync(log, cfg, metrics, engine, network, findL1Origin, attrBuilder)
+	clSync := clsync.NewCLSync(log, cfg, metrics, engine, network, findL1Origin, attrBuilder, driverCfg.SequencerPublishAttributes)
 
 	var finalizer Finalizer
 	if cfg.PlasmaEnabled() {
