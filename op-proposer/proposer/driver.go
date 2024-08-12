@@ -280,7 +280,7 @@ func (l *L2OutputSubmitter) FetchDGFOutput(ctx context.Context) (*eth.OutputResp
 
 	gameCount, err := l.dgfContract.GameCount(&bind.CallOpts{Context: ctx})
 	if err != nil {
-		l.Log.Warn("Could not query DisputeGameFactory.gameCount(): %s", err)
+		l.Log.Warn("Could not query DisputeGameFactory.gameCount()", "err", err)
 		return nil, false, err
 	}
 
@@ -288,7 +288,7 @@ func (l *L2OutputSubmitter) FetchDGFOutput(ctx context.Context) (*eth.OutputResp
 	latestGame, err := l.dgfContract.GameAtIndex(&bind.CallOpts{Context: ctx}, latestGameIndex)
 	if err != nil {
 		l.Log.Warn(fmt.Sprintf(
-			"Could not query DisputeGameFactory.GameAtIndex(%d): %s",
+			"Could not query DisputeGameFactory.GameAtIndex(%d)", "err", err,
 			latestGameIndex.Int64(), err))
 		return nil, false, err
 	}
@@ -303,10 +303,15 @@ func (l *L2OutputSubmitter) FetchDGFOutput(ctx context.Context) (*eth.OutputResp
 
 	blockNum, err := l.FetchCurrentBlockNumber(ctx)
 	if err != nil {
+		l.Log.Warn("Could not fetch current block number", "err", err)
 		return nil, false, err
 	}
 	output, err := l.FetchOutput(ctx, blockNum)
-	return output, true, err
+	l.Log.Warn("Could not fetch output at current block number", "err", err, "blockNum", blockNum)
+	if err != nil {
+		return nil, false, err
+	}
+	return output, true, nil
 
 }
 
