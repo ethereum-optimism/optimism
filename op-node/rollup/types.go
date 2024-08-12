@@ -18,7 +18,8 @@ import (
 
 var (
 	ErrBlockTimeZero                 = errors.New("block time cannot be 0")
-	ErrMissingChannelTimeout         = errors.New("channel timeout must be set, this should cover at least a L1 block time")
+	ErrMissingChannelTimeoutBedrock  = errors.New("bedrock channel timeout must be set, this should cover at least a L1 block time")
+	ErrMissingChannelTimeoutGranite  = errors.New("granite channel timeout must be set")
 	ErrInvalidGraniteChannelTimeout  = errors.New("channel timeout granite must be less than channel timeout")
 	ErrInvalidSeqWindowSize          = errors.New("sequencing window size must at least be 2")
 	ErrInvalidMaxSeqDrift            = errors.New("maximum sequencer drift must be greater than 0")
@@ -270,11 +271,11 @@ func (cfg *Config) Check() error {
 		return ErrBlockTimeZero
 	}
 	if cfg.ChannelTimeoutBedrock == 0 {
-		return ErrMissingChannelTimeout
+		return ErrMissingChannelTimeoutBedrock
 	}
 	if cfg.GraniteTime != nil {
 		if cfg.ChannelTimeoutGranite == 0 {
-			return ErrMissingChannelTimeout
+			return ErrMissingChannelTimeoutGranite
 		}
 		if cfg.ChannelTimeoutGranite > cfg.ChannelTimeoutBedrock {
 			return ErrInvalidGraniteChannelTimeout

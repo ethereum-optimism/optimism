@@ -378,7 +378,7 @@ func TestConfig_Check(t *testing.T) {
 		{
 			name:        "ChannelTimeoutBedrockZero",
 			modifier:    func(cfg *Config) { cfg.ChannelTimeoutBedrock = 0 },
-			expectedErr: ErrMissingChannelTimeout,
+			expectedErr: ErrMissingChannelTimeoutBedrock,
 		},
 		{
 			name:        "ChannelTimeoutGraniteZeroNotEnabled",
@@ -397,7 +397,7 @@ func TestConfig_Check(t *testing.T) {
 				cfg.FjordTime = &genesis
 				cfg.GraniteTime = &genesis
 			},
-			expectedErr: ErrMissingChannelTimeout,
+			expectedErr: ErrMissingChannelTimeoutBedrock,
 		},
 		{
 			name:        "SeqWindowSizeZero",
