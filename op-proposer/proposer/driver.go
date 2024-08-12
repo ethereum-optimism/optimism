@@ -294,21 +294,17 @@ func (l *L2OutputSubmitter) FetchDGFOutput(ctx context.Context) (*eth.OutputResp
 
 	gameCount, err := l.dgfContract.GameCount(callOpts)
 	if err != nil {
-		l.Log.Warn("Could not query DisputeGameFactory.gameCount()", "err", err)
-		return nil, false, err
+		return nil, false, fmt.Errorf("could not query DisputeGameFactory.gameCount(): %w", err)
 	}
 
-	if gameCount.Cmp(common.Big0) != 0 {
+	if gameCount.Sign() == 1 {
 		// If there is at least one game, ensure
 		// enough time has lapsed that we need to make another proposal.
 
 		latestGameIndex := new(big.Int).Sub(gameCount, big.NewInt(1))
 		latestGame, err := l.dgfContract.GameAtIndex(callOpts, latestGameIndex)
 		if err != nil {
-			l.Log.Warn(fmt.Sprintf(
-				"Could not query DisputeGameFactory.GameAtIndex(%d)",
-				latestGameIndex.Int64()), "err", err)
-			return nil, false, err
+			return nil, false, fmt.Errorf("could not query DisputeGameFactory.GameAtIndex(%d): %w", latestGameIndex, err)
 		}
 
 		timeSinceLastGame := time.Since(time.Unix(int64(latestGame.Timestamp), 0))
@@ -330,14 +326,12 @@ func (l *L2OutputSubmitter) FetchDGFOutput(ctx context.Context) (*eth.OutputResp
 	// Fetch the current L2 heads
 	currentBlockNumber, err := l.FetchCurrentBlockNumber(ctx)
 	if err != nil {
-		l.Log.Warn("Could not fetch current block number", "err", err)
-		return nil, false, err
+		return nil, false, fmt.Errorf("could not fetch current block number: %w", err)
 	}
 
 	output, err := l.FetchOutput(ctx, currentBlockNumber)
 	if err != nil {
-		l.Log.Warn("Could not fetch output at current block number", "err", err, "blockNum", currentBlockNumber)
-		return nil, false, err
+		return nil, false, fmt.Errorf("could not fetch output at current block number %d: %w", currentBlockNumber, err)
 	}
 
 	return output, true, nil
