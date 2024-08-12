@@ -72,7 +72,6 @@ func (s *channel) TxFailed(id string) {
 // resubmitted.
 // This function may reset the pending channel if the pending channel has timed out.
 func (s *channel) TxConfirmed(id string, inclusionBlock eth.BlockID) (bool, []*types.Block) {
-	s.metr.RecordBatchTxSubmitted()
 	s.log.Debug("marked transaction as confirmed", "id", id, "block", inclusionBlock)
 	if _, ok := s.pendingTransactions[id]; !ok {
 		s.log.Warn("unknown transaction marked as confirmed", "id", id, "block", inclusionBlock)
