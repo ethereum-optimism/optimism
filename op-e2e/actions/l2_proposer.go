@@ -209,8 +209,8 @@ func toCallArg(msg ethereum.CallMsg) interface{} {
 
 func (p *L2Proposer) fetchNextOutput(t Testing) (*eth.OutputResponse, bool, error) {
 	if e2eutils.UseFaultProofs() {
-		output, err := p.driver.FetchDGFOutput(t.Ctx())
-		if err != nil {
+		output, shouldPropose, err := p.driver.FetchDGFOutput(t.Ctx())
+		if err != nil || !shouldPropose {
 			return nil, false, err
 		}
 		encodedBlockNumber := make([]byte, 32)

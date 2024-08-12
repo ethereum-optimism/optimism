@@ -113,7 +113,6 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		PprofConfig:                  oppprof.ReadCLIConfig(ctx),
 		DGFAddress:                   ctx.String(flags.DisputeGameFactoryAddressFlag.Name),
 		ProposalInterval:             ctx.Duration(flags.ProposalIntervalFlag.Name),
-		OutputRetryInterval:          ctx.Duration(flags.OutputRetryIntervalFlag.Name),
 		DisputeGameType:              uint32(ctx.Uint(flags.DisputeGameTypeFlag.Name)),
 		ActiveSequencerCheckDuration: ctx.Duration(flags.ActiveSequencerCheckDurationFlag.Name),
 		WaitNodeSync:                 ctx.Bool(flags.WaitNodeSyncFlag.Name),
