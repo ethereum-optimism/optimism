@@ -104,42 +104,6 @@ contract MIPS_Test is CommonTest {
         assertEq(postState, outputState(expect), "unexpected post state");
     }
 
-    /// @notice Tests that add overflow triggers a revert.
-    /// @param _rs The first operand.
-    /// @param _rt The second operand.
-    function testFuzz_add_overflow_fails(int32 _rs, int32 _rt) external {
-        // Force overflow.
-        _rs = int32(bound(int256(_rs), int256(1), int256(type(int32).max)));
-        _rt = int32(bound(int256(_rt), int256(type(int32).max) - int256(_rs) + 1, int256(type(int32).max)));
-
-        uint32 insn = encodespec(17, 18, 8, 0x20); // add t0, s1, s2
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
-        state.registers[17] = uint32(_rs);
-        state.registers[18] = uint32(_rt);
-        bytes memory encodedState = encodeState(state);
-
-        vm.expectRevert("MIPS: add overflow");
-        mips.step(encodedState, proof, 0);
-    }
-
-    /// @notice Tests that add underflow triggers a revert.
-    /// @param _rs The first operand.
-    /// @param _rt The second operand.
-    function testFuzz_add_underflow_fails(int32 _rs, int32 _rt) external {
-        // Force underflow.
-        _rs = int32(bound(int256(_rs), int256(type(int32).min), int256(-1)));
-        _rt = int32(bound(int256(_rt), int256(type(int32).min), int256(type(int32).min) - int256(_rs) - 1));
-
-        uint32 insn = encodespec(17, 18, 8, 0x20); // add t0, s1, s2
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
-        state.registers[17] = uint32(_rs);
-        state.registers[18] = uint32(_rt);
-        bytes memory encodedState = encodeState(state);
-
-        vm.expectRevert("MIPS: add underflow");
-        mips.step(encodedState, proof, 0);
-    }
-
     function test_add_shamtNotZero_fails() external {
         uint32 insn = encodespec(17, 18, 8, 0x20); // add t0, s1, s2
         insn |= 0x1F << 6;
@@ -167,35 +131,6 @@ contract MIPS_Test is CommonTest {
         expect.registers[8] = state.registers[17] + state.registers[18]; // t0
         expect.registers[17] = state.registers[17];
         expect.registers[18] = state.registers[18];
-
-        bytes32 postState = mips.step(encodedState, proof, 0);
-        assertEq(postState, outputState(expect), "unexpected post state");
-    }
-
-    /// @notice Tests that addu overflow does not trigger a revert.
-    /// @param _rs The first operand.
-    /// @param _rt The second operand.
-    function testFuzz_addu_overflow_succeeds(uint32 _rs, uint32 _rt) external {
-        // Force overflow.
-        _rs = uint32(bound(_rs, 1, type(uint32).max));
-        _rt = uint32(bound(_rt, type(uint32).max - _rs + 1, type(uint32).max));
-
-        uint32 insn = encodespec(17, 18, 8, 0x21); // addu t0, s1, s2
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
-        state.registers[17] = _rs;
-        state.registers[18] = _rt;
-        bytes memory encodedState = encodeState(state);
-
-        MIPS.State memory expect;
-        unchecked {
-            expect.memRoot = state.memRoot;
-            expect.pc = state.nextPC;
-            expect.nextPC = state.nextPC + 4;
-            expect.step = state.step + 1;
-            expect.registers[8] = state.registers[17] + state.registers[18]; // t0
-            expect.registers[17] = state.registers[17];
-            expect.registers[18] = state.registers[18];
-        }
 
         bytes32 postState = mips.step(encodedState, proof, 0);
         assertEq(postState, outputState(expect), "unexpected post state");
@@ -231,42 +166,6 @@ contract MIPS_Test is CommonTest {
 
         bytes32 postState = mips.step(encodedState, proof, 0);
         assertEq(postState, outputState(expect), "unexpected post state");
-    }
-
-    /// @notice Tests that the addi overflow triggers a revert.
-    /// @param _rs The first operand.
-    /// @param _imm Immediate value.
-    function testFuzz_addi_overflow_fails(int32 _rs, int16 _imm) external {
-        // Force overflow.
-        _imm = int16(bound(int256(_imm), int256(1), int256(type(int16).max)));
-        _rs = int32(bound(int256(_rs), int256(type(int32).max) - int256(_imm) + 1, int256(type(int32).max)));
-
-        uint32 insn = encodeitype(0x8, 17, 8, uint16(_imm)); // addi t0, s1, _imm
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
-        state.registers[8] = 1; // t0
-        state.registers[17] = uint32(_rs); // s1
-        bytes memory encodedState = encodeState(state);
-
-        vm.expectRevert("MIPS: add overflow");
-        mips.step(encodedState, proof, 0);
-    }
-
-    /// @notice Tests that addi underflow triggers a reverts.
-    /// @param _rs The first operand.
-    /// @param _imm Immediate value.
-    function testFuzz_addi_underflow_fails(int32 _rs, int16 _imm) external {
-        // Force underflow.
-        _rs = int32(bound(int256(_rs), int256(type(int32).min), int256(type(int32).min) + int256(type(int16).max) - 2));
-        _imm = int16(bound(int256(_imm), int256(type(int16).min), int256(type(int32).min) - int256(_rs) - 1));
-
-        uint32 insn = encodeitype(0x8, 17, 8, uint16(_imm)); // addi t0, s1, _imm
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
-        state.registers[8] = 1; // t0
-        state.registers[17] = uint32(_rs); // s1
-        bytes memory encodedState = encodeState(state);
-
-        vm.expectRevert("MIPS: add underflow");
-        mips.step(encodedState, proof, 0);
     }
 
     function test_addiSign_succeeds() external {
@@ -309,34 +208,6 @@ contract MIPS_Test is CommonTest {
         assertEq(postState, outputState(expect), "unexpected post state");
     }
 
-    /// @notice Tests that the addui overflow does not trigger a revert.
-    /// @param _rs The first operand.
-    /// @param _imm Immediate value.
-    function testFuzz_addui_overflow_succeeds(int32 _rs, int16 _imm) external {
-        // Force overflow.
-        _imm = int16(bound(int256(_imm), int256(1), int256(type(int16).max)));
-        _rs = int32(bound(int256(_rs), int256(type(int32).max) - int256(_imm) + 1, int256(type(int32).max)));
-
-        uint32 insn = encodeitype(0x9, 17, 8, uint16(_imm)); // addui t0, s1, _imm
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
-        state.registers[8] = 1; // t0
-        state.registers[17] = uint32(_rs); // s1
-        bytes memory encodedState = encodeState(state);
-
-        MIPS.State memory expect;
-        unchecked {
-            expect.memRoot = state.memRoot;
-            expect.pc = state.nextPC;
-            expect.nextPC = state.nextPC + 4;
-            expect.step = state.step + 1;
-            expect.registers[8] = uint32(state.registers[17]) + uint16(_imm);
-            expect.registers[17] = uint32(state.registers[17]);
-        }
-
-        bytes32 postState = mips.step(encodedState, proof, 0);
-        assertEq(postState, outputState(expect), "unexpected post state");
-    }
-
     function test_sub_succeeds() external {
         uint32 insn = encodespec(17, 18, 8, 0x22); // sub t0, s1, s2
         (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
@@ -355,44 +226,6 @@ contract MIPS_Test is CommonTest {
 
         bytes32 postState = mips.step(encodedState, proof, 0);
         assertEq(postState, outputState(expect), "unexpected post state");
-    }
-
-    /// @notice Tests that the sub overflow triggers a revert.
-    /// @param _rs The first operand.
-    /// @param _rt The second operand.
-    function testFuzz_sub_overflow_fails(int32 _rs, int32 _rt) external {
-        // Force overflow.
-        _rs = int32(bound(int256(_rs), int256(1), int256(type(int32).max)));
-        _rt = int32(bound(int256(_rt), int256(type(int32).min), int256(_rs) - int256(type(int32).max) - 1));
-
-        uint32 insn = encodespec(17, 18, 8, 0x22); // sub t0, s1, s2
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
-        state.registers[17] = uint32(_rs);
-        state.registers[18] = uint32(_rt);
-        bytes memory encodedState = encodeState(state);
-
-        vm.expectRevert("MIPS: sub overflow");
-        mips.step(encodedState, proof, 0);
-    }
-
-    /// @notice Tests that the sub underflow triggers a revert.
-    /// @param _rs The first operand.
-    /// @param _rt The second operand.
-    function testFuzz_sub_underflow_fails(int32 _rs, int32 _rt) external {
-        // Force underflow.
-        // Minimum value for int32 is -2^31 but the maximum value is 2^31 - 1. We therefore cannot
-        // trigger an underflow for any number >= -1 because -1 - (2^31 - 1) = -2^31.
-        _rs = int32(bound(int256(_rs), int256(type(int32).min), int256(-2)));
-        _rt = int32(bound(int256(_rt), int256(type(int32).max) + 2 + int256(_rs), int256(type(int32).max)));
-
-        uint32 insn = encodespec(17, 18, 8, 0x22); // sub t0, s1, s2
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
-        state.registers[17] = uint32(_rs);
-        state.registers[18] = uint32(_rt);
-        bytes memory encodedState = encodeState(state);
-
-        vm.expectRevert("MIPS: sub underflow");
-        mips.step(encodedState, proof, 0);
     }
 
     function test_sub_shamtNotZero_fails() external {
@@ -422,35 +255,6 @@ contract MIPS_Test is CommonTest {
         expect.registers[8] = state.registers[17] - state.registers[18]; // t0
         expect.registers[17] = state.registers[17];
         expect.registers[18] = state.registers[18];
-
-        bytes32 postState = mips.step(encodedState, proof, 0);
-        assertEq(postState, outputState(expect), "unexpected post state");
-    }
-
-    /// @notice Tests that subu overflow does not trigger a revert.
-    /// @param _rs The first operand.
-    /// @param _rt The second operand.
-    function testFuzz_subu_underflow_succeeds(uint32 _rs, uint32 _rt) external {
-        // Force underflow.
-        _rs = uint32(bound(_rs, 0, type(uint32).max - 1));
-        _rt = uint32(bound(_rt, type(uint32).max - _rs, type(uint32).max));
-
-        uint32 insn = encodespec(17, 18, 8, 0x23); // subu t0, s1, s2
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
-        state.registers[17] = _rs;
-        state.registers[18] = _rt;
-        bytes memory encodedState = encodeState(state);
-
-        MIPS.State memory expect;
-        unchecked {
-            expect.memRoot = state.memRoot;
-            expect.pc = state.nextPC;
-            expect.nextPC = state.nextPC + 4;
-            expect.step = state.step + 1;
-            expect.registers[8] = state.registers[17] - state.registers[18]; // t0
-            expect.registers[17] = state.registers[17];
-            expect.registers[18] = state.registers[18];
-        }
 
         bytes32 postState = mips.step(encodedState, proof, 0);
         assertEq(postState, outputState(expect), "unexpected post state");

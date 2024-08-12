@@ -240,29 +240,11 @@ func ExecuteMipsInstruction(insn, opcode, fun, rs, rt, mem uint32) uint32 {
 			return rs
 		// The rest includes transformed R-type arith imm instructions
 		case 0x20: // add
-			intRs := int32(rs)
-			intRt := int32(rt)
-			intRes := intRs + intRt
-			if intRs > 0 && intRt > 0 && intRes <= 0 {
-				panic("MIPS: add overflow")
-			}
-			if intRs < 0 && intRt < 0 && intRes >= 0 {
-				panic("MIPS: add underflow")
-			}
-			return uint32(intRes)
+			return rs + rt
 		case 0x21: // addu
 			return rs + rt
 		case 0x22: // sub
-			intRs := int32(rs)
-			intRt := int32(rt)
-			intRes := intRs - intRt
-			if intRs > 0 && intRt < 0 && intRes < 0 {
-				panic("MIPS: sub overflow")
-			}
-			if intRs < 0 && intRt > 0 && intRes > 0 {
-				panic("MIPS: sub underflow")
-			}
-			return uint32(intRes)
+			return rs - rt
 		case 0x23: // subu
 			return rs - rt
 		case 0x24: // and

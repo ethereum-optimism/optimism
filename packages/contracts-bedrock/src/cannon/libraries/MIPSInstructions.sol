@@ -364,12 +364,7 @@ library MIPSInstructions {
                 // The rest includes transformed R-type arith imm instructions
                 // add
                 else if (_fun == 0x20) {
-                    int32 rs = int32(_rs);
-                    int32 rt = int32(_rt);
-                    int32 res = rs + rt;
-                    require(!(rs > 0 && rt > 0 && res <= 0), "MIPS: add overflow");
-                    require(!(rs < 0 && rt < 0 && res >= 0), "MIPS: add underflow");
-                    return uint32(res);
+                    return (_rs + _rt);
                 }
                 // addu
                 else if (_fun == 0x21) {
@@ -377,12 +372,7 @@ library MIPSInstructions {
                 }
                 // sub
                 else if (_fun == 0x22) {
-                    int32 rs = int32(_rs);
-                    int32 rt = int32(_rt);
-                    int32 res = rs - rt;
-                    require(!(rs > 0 && rt < 0 && res <= 0), "MIPS: sub overflow");
-                    require(!(rs < 0 && rt > 0 && res >= 0), "MIPS: sub underflow");
-                    return uint32(res);
+                    return (_rs - _rt);
                 }
                 // subu
                 else if (_fun == 0x23) {
