@@ -109,10 +109,10 @@ func (s *L1Miner) ActL1StartBlock(timeDelta uint64) Action {
 			context := core.NewEVMBlockContext(header, s.l1Chain, nil, s.l1Chain.Config(), statedb)
 			// NOTE: Unlikely to be needed for the beacon block root, but we setup any precompile overrides anyways for forwards-compatibility
 			var precompileOverrides vm.PrecompileOverrides
-			if vmConfig := s.l1Chain.GetVMConfig(); vmConfig != nil && vmConfig.OptimismPrecompileOverrides != nil {
-				precompileOverrides = vmConfig.OptimismPrecompileOverrides
+			if vmConfig := s.l1Chain.GetVMConfig(); vmConfig != nil && vmConfig.PrecompileOverrides != nil {
+				precompileOverrides = vmConfig.PrecompileOverrides
 			}
-			vmenv := vm.NewEVM(context, vm.TxContext{}, statedb, s.l1Chain.Config(), vm.Config{OptimismPrecompileOverrides: precompileOverrides})
+			vmenv := vm.NewEVM(context, vm.TxContext{}, statedb, s.l1Chain.Config(), vm.Config{PrecompileOverrides: precompileOverrides})
 			core.ProcessBeaconBlockRoot(*header.ParentBeaconRoot, vmenv, statedb)
 		}
 
