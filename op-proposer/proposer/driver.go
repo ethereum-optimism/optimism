@@ -490,10 +490,10 @@ func (l *L2OutputSubmitter) loop() {
 				output, shouldPropose, err = l.FetchDGFOutput(ctx)
 			}
 			if err != nil {
-				l.Log.Warn("Error getting DGF output", "err", err)
+				l.Log.Warn("Error getting output", "err", err)
 				continue
 			} else if !shouldPropose {
-				// debug logging already in FetchDGFOutput
+				// debug logging already in Fetch(DGF|L2OO)Output
 				continue
 			}
 
