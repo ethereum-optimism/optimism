@@ -38,6 +38,7 @@ func main() {
 			Name:        "doc",
 			Subcommands: doc.NewSubcommands(metrics.NewMetrics("default")),
 		},
+		BackTestCommand,
 	}
 
 	ctx := opio.WithInterruptBlocker(context.Background())
