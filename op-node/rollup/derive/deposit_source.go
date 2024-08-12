@@ -67,7 +67,7 @@ func (dep *UpgradeDepositSource) SourceHash() common.Hash {
 
 // Used for DepositsComplete/ResetDeposits post-deposits transactions.
 // TODO ^ set correct naming
-type DepositSource struct {
+type AfterForceIncludeSource struct {
 	L1BlockHash common.Hash
 }
 

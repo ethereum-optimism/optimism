@@ -52,8 +52,7 @@ contract GasPriceOracleBedrock_Test is GasPriceOracle_Test {
             _sequenceNumber: sequenceNumber,
             _batcherHash: batcherHash,
             _l1FeeOverhead: l1FeeOverhead,
-            _l1FeeScalar: l1FeeScalar,
-            _isDeposit: false
+            _l1FeeScalar: l1FeeScalar
         });
     }
 
