@@ -6,6 +6,27 @@ import { ERC20Votes } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20
 /// @title IGovernanceDelegation
 /// @notice Interface for the GovernanceDelegation contract.
 interface IGovernanceDelegation {
+    /// @notice Thrown when the caller is not the GovernanceToken contract.
+    error NotGovernanceToken();
+
+    /// @notice Thrown when the number of delegations exceeds the maximum allowed.
+    error LimitExceeded(uint256 length, uint256 maxLength);
+
+    /// @notice Thrown when the provided amount (numerator or voting power) is zero.
+    error InvalidAmountZero();
+
+    /// @notice Thrown when the sum of the numerators exceeds the denominator.
+    error NumeratorSumExceedsDenominator(uint256 numerator, uint96 denominator);
+
+    /// @notice Thrown when the type of delegations are not the same.
+    error InconsistentType();
+
+    /// @notice The provided delegatee list is not sorted or contains duplicates.
+    error DuplicateOrUnsortedDelegatees(address delegatee);
+
+    /// @notice Thrown when a block number is not yet mined.
+    error BlockNotYetMined(uint256 blockNumber);
+
     /// @notice Allowance type of a delegation.
     /// @param Absolute The amount of votes delegated is fixed.
     /// @param Relative The amount of votes delegated is relative to the total amount of votes the delegator has.

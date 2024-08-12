@@ -8,24 +8,6 @@ import { EnumerableMap } from "@openzeppelin/contracts/utils/structs/EnumerableM
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { IGovernanceDelegation } from "src/governance/IGovernanceDelegation.sol";
 
-/// @notice Thrown when the caller is not the GovernanceToken contract.
-error NotGovernanceToken();
-
-/// @notice Thrown when the number of delegations exceeds the maximum allowed.
-error LimitExceeded(uint256 length, uint256 maxLength);
-
-/// @notice Thrown when the provided numerator is zero.
-error InvalidNumeratorZero();
-
-/// @notice Thrown when the sum of the numerators exceeds the denominator.
-error NumeratorSumExceedsDenominator(uint256 numerator, uint96 denominator);
-
-/// @notice The provided delegatee list is not sorted or contains duplicates.
-error DuplicateOrUnsortedDelegatees(address delegatee);
-
-/// @notice Thrown when a block number is not yet mined.
-error BlockNotYetMined(uint256 blockNumber);
-
 /// @custom:predeploy 0x4200000000000000000000000000000000000043
 /// @title GovernanceDelegation
 /// @notice A contract that allows delegation of votes to other accounts. It is used to implement advanced delegation
@@ -261,11 +243,13 @@ contract GovernanceDelegation is IGovernanceDelegation {
     /// @param _old The old delegation set.
     /// @param _new The new delegation set.
     function _createCheckpoints(DelegationAdjustment[] memory _old, DelegationAdjustment[] memory _new) internal {
-        for (uint256 i; i < _old.length; i++) {
+        uint256 _oldLength = _old.length;
+        for (uint256 i; i < _oldLength; i++) {
             _adjustments.set(_old[i].delegatee, uint256(_old[i].amount));
         }
 
-        for (uint256 i; i < _new.length; i++) {
+        uint256 _newLength = _new.length;
+        for (uint256 i; i < _newLength; i++) {
             address delegatee = _new[i].delegatee;
             if (delegatee == address(0)) continue;
 
@@ -286,7 +270,6 @@ contract GovernanceDelegation is IGovernanceDelegation {
         }
 
         uint256 _adjustmentsLength = _adjustments.length();
-
         for (uint256 i; i < _adjustmentsLength; i++) {
             (address delegatee, uint256 amount) = _adjustments.at(i);
             (uint256 oldValue, uint256 newValue) = _writeCheckpoint(_checkpoints[delegatee], _subtract, amount);
@@ -299,10 +282,10 @@ contract GovernanceDelegation is IGovernanceDelegation {
 
     /// @notice Calculate the weight distribution for a list of delegations.
     /// @param _delegationSet The delegations to calculate the weight distribution for.
-    /// @param _amount        The sum of vote amounts to calculate the weight distribution for.
+    /// @param _balance       The available voting power balance of the delegator.
     function _calculateWeightDistribution(
         Delegation[] memory _delegationSet,
-        uint256 _amount
+        uint256 _balance
     )
         internal
         returns (DelegationAdjustment[] memory)
@@ -311,31 +294,33 @@ contract GovernanceDelegation is IGovernanceDelegation {
         DelegationAdjustment[] memory _delegationAdjustments = new DelegationAdjustment[](_delegationsLength);
 
         // For relative delegations, keep track of total numerator to ensure it doesn't exceed DENOMINATOR
-        uint256 _totalNumerator;
+        uint256 _total;
+        AllowanceType _type;
 
-        // Iterate through partial delegations to calculate vote weight
+        // Iterate through partial delegations to calculate delegation adjustments.
         for (uint256 i; i < _delegationsLength; i++) {
-            if (!migrated[_delegationSet[i].delegatee]) {
-                _migrate(_delegationSet[i].delegatee);
+            address delegatee = _delegationSet[i].delegatee;
+            uint256 amount = _delegationSet[i].amount;
+
+            if (!migrated[delegatee]) {
+                _migrate(delegatee);
             }
+
+            if (amount == 0) revert InvalidAmountZero();
+            if (i > 0 && _delegationSet[i].allowanceType != _type) revert InconsistentType();
 
             if (_delegationSet[i].allowanceType == AllowanceType.Relative) {
-                if (_delegationSet[i].amount == 0) {
-                    revert InvalidNumeratorZero();
-                }
-
-                _delegationAdjustments[i] = DelegationAdjustment(
-                    _delegationSet[i].delegatee, uint208((_amount * _delegationSet[i].amount) / DENOMINATOR)
-                );
-                _totalNumerator += _delegationSet[i].amount;
-
-                if (_totalNumerator > DENOMINATOR) {
-                    revert NumeratorSumExceedsDenominator(_totalNumerator, DENOMINATOR);
-                }
+                _delegationAdjustments[i] = DelegationAdjustment(delegatee, uint208((_balance * amount) / DENOMINATOR));
+                _total += amount;
+                if (_total > DENOMINATOR) revert NumeratorSumExceedsDenominator(_total, DENOMINATOR);
             } else {
-                _delegationAdjustments[i] =
-                    DelegationAdjustment(_delegationSet[i].delegatee, uint208(_delegationSet[i].amount));
+                amount = _balance < amount ? _balance : amount;
+                _delegationAdjustments[i] = DelegationAdjustment(delegatee, uint208(amount));
+                _balance -= amount;
+                if (_balance == 0) break;
             }
+
+            _type = _delegationSet[i].allowanceType;
         }
         return _delegationAdjustments;
     }

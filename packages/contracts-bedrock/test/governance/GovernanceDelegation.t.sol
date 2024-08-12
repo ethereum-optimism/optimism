@@ -14,16 +14,12 @@ contract GovernanceDelegation_Init is CommonTest {
     address owner;
     address rando;
 
-    // Can't get events and errors from GovernanceDelegation as it's using 0.8.25
-    event DelegationsCreated(address indexed account, IGovernanceDelegation.Delegation[] delegations);
+    event DelegationsChanged(
+        address indexed account,
+        IGovernanceDelegation.Delegation[] oldDelegations,
+        IGovernanceDelegation.Delegation[] newDelegations
+    );
     event DelegateVotesChanged(address indexed delegate, uint256 previousBalance, uint256 newBalance);
-
-    error NotGovernanceToken();
-    error LimitExceeded(uint256 length, uint256 maxLength);
-    error InvalidNumeratorZero();
-    error NumeratorSumExceedsDenominator(uint256 numerator, uint96 denominator);
-    error DuplicateOrUnsortedDelegatees(address delegatee);
-    error BlockNotYetMined(uint256 blockNumber);
 
     /// @dev Sets up the test suite.
     function setUp() public virtual override {
@@ -248,7 +244,7 @@ contract GovernanceDelegation_Delegate_Test is GovernanceDelegation_Init {
 
         _expectEmitDelegateVotesChangedEvents(_amount, new IGovernanceDelegation.Delegation[](0), delegations);
         vm.expectEmit(address(governanceDelegation));
-        emit DelegationsCreated(rando, delegations);
+        emit DelegationsChanged(rando, new IGovernanceDelegation.Delegation[](0), delegations);
         vm.prank(rando);
         governanceDelegation.delegate(delegations[0]);
 
@@ -272,7 +268,7 @@ contract GovernanceDelegation_Delegate_Test is GovernanceDelegation_Init {
             IGovernanceDelegation.Delegation(IGovernanceDelegation.AllowanceType.Relative, _delegatee, _numerator);
 
         vm.expectEmit(address(governanceDelegation));
-        emit DelegationsCreated(_actor, delegations);
+        emit DelegationsChanged(_actor, new IGovernanceDelegation.Delegation[](0), delegations);
         vm.prank(_actor);
         governanceDelegation.delegate(delegations[0]);
 
@@ -298,7 +294,7 @@ contract GovernanceDelegation_Delegate_Test is GovernanceDelegation_Init {
 
         _expectEmitDelegateVotesChangedEvents(_amount, new IGovernanceDelegation.Delegation[](0), delegations);
         vm.expectEmit(address(governanceDelegation));
-        emit DelegationsCreated(_actor, delegations);
+        emit DelegationsChanged(_actor, new IGovernanceDelegation.Delegation[](0), delegations);
         vm.prank(_actor);
         governanceDelegation.delegateBatched(delegations);
 
@@ -324,7 +320,7 @@ contract GovernanceDelegation_Delegate_Test is GovernanceDelegation_Init {
 
         _expectEmitDelegateVotesChangedEvents(_amount, new IGovernanceDelegation.Delegation[](0), delegations);
         vm.expectEmit(address(governanceDelegation));
-        emit DelegationsCreated(_actor, delegations);
+        emit DelegationsChanged(_actor, new IGovernanceDelegation.Delegation[](0), delegations);
         vm.prank(_actor);
         governanceDelegation.delegateBatched(delegations);
 
@@ -334,7 +330,7 @@ contract GovernanceDelegation_Delegate_Test is GovernanceDelegation_Init {
 
         _expectEmitDelegateVotesChangedEvents(_amount, delegations, newDelegations);
         vm.expectEmit(address(governanceDelegation));
-        emit DelegationsCreated(_actor, newDelegations);
+        emit DelegationsChanged(_actor, delegations, newDelegations);
         vm.prank(_actor);
         governanceDelegation.delegateBatched(newDelegations);
 
@@ -365,7 +361,7 @@ contract GovernanceDelegation_Delegate_Test is GovernanceDelegation_Init {
         }
 
         vm.expectEmit(address(governanceDelegation));
-        emit DelegationsCreated(rando, delegations);
+        emit DelegationsChanged(rando, new IGovernanceDelegation.Delegation[](0), delegations);
 
         vm.prank(address(governanceToken));
         governanceDelegation.delegateFromToken(rando, _delegatee);
@@ -556,7 +552,9 @@ contract GovernanceDelegation_Delegate_TestFail is GovernanceDelegation_Init {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                NumeratorSumExceedsDenominator.selector, sumOfNumerators, governanceDelegation.DENOMINATOR()
+                IGovernanceDelegation.NumeratorSumExceedsDenominator.selector,
+                sumOfNumerators,
+                governanceDelegation.DENOMINATOR()
             )
         );
         vm.prank(_actor);
@@ -582,7 +580,9 @@ contract GovernanceDelegation_Delegate_TestFail is GovernanceDelegation_Init {
         governanceToken.mint(_actor, _amount);
 
         vm.expectRevert(
-            abi.encodeWithSelector(LimitExceeded.selector, _numOfDelegatees, governanceDelegation.MAX_DELEGATIONS())
+            abi.encodeWithSelector(
+                IGovernanceDelegation.LimitExceeded.selector, _numOfDelegatees, governanceDelegation.MAX_DELEGATIONS()
+            )
         );
         vm.prank(_actor);
         governanceDelegation.delegateBatched(delegations);
@@ -608,7 +608,9 @@ contract GovernanceDelegation_Delegate_TestFail is GovernanceDelegation_Init {
         vm.prank(owner);
         governanceToken.mint(_actor, _amount);
 
-        vm.expectRevert(abi.encodeWithSelector(DuplicateOrUnsortedDelegatees.selector, _replacedDelegatee));
+        vm.expectRevert(
+            abi.encodeWithSelector(IGovernanceDelegation.DuplicateOrUnsortedDelegatees.selector, _replacedDelegatee)
+        );
         vm.prank(_actor);
         governanceDelegation.delegateBatched(delegations);
     }
@@ -631,11 +633,11 @@ contract GovernanceDelegation_Delegate_TestFail is GovernanceDelegation_Init {
         vm.prank(owner);
         governanceToken.mint(_actor, _amount);
 
-        vm.expectRevert(InvalidNumeratorZero.selector);
+        vm.expectRevert(IGovernanceDelegation.InvalidAmountZero.selector);
         vm.prank(_actor);
         governanceDelegation.delegateBatched(delegations);
 
-        vm.expectRevert(InvalidNumeratorZero.selector);
+        vm.expectRevert(IGovernanceDelegation.InvalidAmountZero.selector);
         vm.prank(_actor);
         governanceDelegation.delegate(delegations[_delegationIndex]);
     }
@@ -648,7 +650,7 @@ contract GovernanceDelegation_Delegate_TestFail is GovernanceDelegation_Init {
         vm.prank(owner);
         governanceToken.mint(rando, _amount);
 
-        vm.expectRevert(NotGovernanceToken.selector);
+        vm.expectRevert(IGovernanceDelegation.NotGovernanceToken.selector);
         governanceDelegation.delegateFromToken(rando, _delegatee);
 
         assertEq(governanceDelegation.delegations(rando), new IGovernanceDelegation.Delegation[](0));
@@ -656,7 +658,7 @@ contract GovernanceDelegation_Delegate_TestFail is GovernanceDelegation_Init {
     }
 
     function testFuzz_aferTokenTransfer_onlyToken_reverts(address _from, address _to, uint256 _amount) public {
-        vm.expectRevert(NotGovernanceToken.selector);
+        vm.expectRevert(IGovernanceDelegation.NotGovernanceToken.selector);
         governanceDelegation.afterTokenTransfer(_from, _to, _amount);
     }
 }
@@ -727,7 +729,7 @@ contract GovernanceDelegation_Getters_TestFail is GovernanceDelegation_Init {
         vm.prank(owner);
         governanceToken.mint(rando, _amount);
 
-        vm.expectRevert(abi.encodeWithSelector(BlockNotYetMined.selector, block.timestamp));
+        vm.expectRevert(abi.encodeWithSelector(IGovernanceDelegation.BlockNotYetMined.selector, block.timestamp));
         governanceDelegation.getPastVotes(rando, block.timestamp);
 
         vm.roll(block.timestamp + 1);
@@ -744,7 +746,7 @@ contract GovernanceDelegation_Getters_TestFail is GovernanceDelegation_Init {
         vm.prank(owner);
         governanceToken.mint(rando, _amount);
 
-        vm.expectRevert(abi.encodeWithSelector(BlockNotYetMined.selector, block.timestamp));
+        vm.expectRevert(abi.encodeWithSelector(IGovernanceDelegation.BlockNotYetMined.selector, block.timestamp));
         governanceDelegation.getPastTotalSupply(block.timestamp);
 
         vm.roll(block.timestamp + 1);
