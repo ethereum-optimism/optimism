@@ -5,6 +5,7 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 import { MIPS } from "src/cannon/MIPS.sol";
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
 import { MIPSInstructions } from "src/cannon/libraries/MIPSInstructions.sol";
+import { MIPSSyscalls as sys } from "src/cannon/libraries/MIPSSyscalls.sol";
 import { InvalidExitedValue } from "src/cannon/libraries/CannonErrors.sol";
 import "src/dispute/lib/Types.sol";
 
@@ -1478,6 +1479,64 @@ contract MIPS_Test is CommonTest {
         expect.registers[2] = 0; // return old heap
         expect.registers[4] = 0x0; // a0
         expect.registers[5] = 4095; // a1
+
+        bytes32 postState = mips.step(encodedState, proof, 0);
+        assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    function test_mmap_succeeds_justWithinMemLimit() external {
+        uint32 insn = 0x0000000c; // syscall
+        (bytes32 memRoot, bytes memory proof) = ffi.getCannonMemoryProof(0, insn);
+
+        MIPS.State memory state;
+        state.memRoot = memRoot;
+        state.nextPC = 4;
+        state.heap = sys.HEAP_END - 4096; // Set up to increase heap to its limit
+        state.registers[2] = 4090; // mmap syscall
+        state.registers[4] = 0x0; // a0
+        state.registers[5] = 4095; // a1
+        bytes memory encodedState = encodeState(state);
+
+        MIPS.State memory expect;
+        expect.memRoot = state.memRoot;
+        // assert page allocation is aligned to 4k
+        expect.step = state.step + 1;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
+        expect.heap = sys.HEAP_END;
+        expect.registers[2] = state.heap; // Return the old heap value
+        expect.registers[7] = 0; // No error
+        expect.registers[4] = state.registers[4]; // a0
+        expect.registers[5] = state.registers[5]; // a1
+
+        bytes32 postState = mips.step(encodedState, proof, 0);
+        assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    function test_mmap_fails() external {
+        uint32 insn = 0x0000000c; // syscall
+        (bytes32 memRoot, bytes memory proof) = ffi.getCannonMemoryProof(0, insn);
+
+        MIPS.State memory state;
+        state.memRoot = memRoot;
+        state.nextPC = 4;
+        state.heap = sys.HEAP_END - 4096; // Set up to increase heap beyond its limit
+        state.registers[2] = 4090; // mmap syscall
+        state.registers[4] = 0x0; // a0
+        state.registers[5] = 4097; // a1
+        bytes memory encodedState = encodeState(state);
+
+        MIPS.State memory expect;
+        expect.memRoot = state.memRoot;
+        // assert page allocation is aligned to 4k
+        expect.step = state.step + 1;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
+        expect.heap = state.heap;
+        expect.registers[2] = sys.SYS_ERROR_SIGNAL; // signal an stdError
+        expect.registers[7] = sys.EINVAL; // Return error value
+        expect.registers[4] = state.registers[4]; // a0
+        expect.registers[5] = state.registers[5]; // a1
 
         bytes32 postState = mips.step(encodedState, proof, 0);
         assertEq(postState, outputState(expect), "unexpected post state");
