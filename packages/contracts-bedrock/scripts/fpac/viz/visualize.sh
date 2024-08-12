@@ -8,6 +8,6 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DIR="${DIR%/*}"
 cd "$DIR"
 
-forge script scripts/FaultDisputeGameViz.s.sol \
+forge script scripts/fpac/viz/FaultDisputeGameViz.s.sol \
   --sig "remote(address)" "$FAULT_GAME_ADDRESS" \
   --fork-url "$RPC"

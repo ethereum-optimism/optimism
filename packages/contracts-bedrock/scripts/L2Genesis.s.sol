@@ -5,7 +5,7 @@ import { Script } from "forge-std/Script.sol";
 import { console2 as console } from "forge-std/console2.sol";
 import { Deployer } from "scripts/deploy/Deployer.sol";
 
-import { Config, OutputMode, OutputModeUtils, Fork, ForkUtils, LATEST_FORK } from "scripts/Config.sol";
+import { Config, OutputMode, OutputModeUtils, Fork, ForkUtils, LATEST_FORK } from "scripts/libraries/Config.sol";
 import { Artifacts } from "scripts/Artifacts.s.sol";
 import { DeployConfig } from "scripts/deploy/DeployConfig.s.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
