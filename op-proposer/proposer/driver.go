@@ -298,10 +298,10 @@ func (l *L2OutputSubmitter) FetchDGFOutput(ctx context.Context) (*eth.OutputResp
 		return nil, false, err
 	}
 
-	if gameCount.Cmp(big.NewInt(0)) == 1 {
+	if gameCount.Cmp(common.Big0) != 0 {
 		// If there is at least one game, ensure
 		// enough time has lapsed that we need to make another proposal.
-		// If there is not yet any game, a proposal will be made.
+
 		latestGameIndex := new(big.Int).Sub(gameCount, big.NewInt(1))
 		latestGame, err := l.dgfContract.GameAtIndex(callOpts, latestGameIndex)
 		if err != nil {
@@ -318,20 +318,29 @@ func (l *L2OutputSubmitter) FetchDGFOutput(ctx context.Context) (*eth.OutputResp
 		}
 
 		l.Log.Info("Duration since last game past proposal interval, submitting proposal now", "duration", timeSinceLastGame)
+	} else {
+		// If there is not yet any game, wait one interval
+		// and then proceed with making a proposal.
+		// This is to prevent the submitter attempting to
+		// submit too soon after the AnchorStateRegistry is
+		// deployed (mostly only an issue in tests).
+		time.Sleep(l.Cfg.ProposalInterval)
 	}
 
-	blockNum, err := l.FetchCurrentBlockNumber(ctx)
+	// Fetch the current L2 heads
+	currentBlockNumber, err := l.FetchCurrentBlockNumber(ctx)
 	if err != nil {
 		l.Log.Warn("Could not fetch current block number", "err", err)
 		return nil, false, err
 	}
-	output, err := l.FetchOutput(ctx, blockNum)
-	l.Log.Warn("Could not fetch output at current block number", "err", err, "blockNum", blockNum)
+
+	output, err := l.FetchOutput(ctx, currentBlockNumber)
 	if err != nil {
+		l.Log.Warn("Could not fetch output at current block number", "err", err, "blockNum", currentBlockNumber)
 		return nil, false, err
 	}
-	return output, true, nil
 
+	return output, true, nil
 }
 
 // FetchCurrentBlockNumber gets the current block number from the [L2OutputSubmitter]'s [RollupClient]. If the `AllowNonFinalized` configuration
