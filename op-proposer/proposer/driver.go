@@ -462,6 +462,7 @@ func (l *L2OutputSubmitter) sendTransaction(ctx context.Context, output *eth.Out
 // The loop regularly polls the L2 chain to infer whether to make the next proposal.
 func (l *L2OutputSubmitter) loop() {
 	defer l.wg.Done()
+	defer l.Log.Info("loop returning")
 	ctx := l.ctx
 	ticker := time.NewTicker(l.Cfg.PollInterval)
 	defer ticker.Stop()
