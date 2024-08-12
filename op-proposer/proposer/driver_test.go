@@ -117,8 +117,9 @@ func setup(t *testing.T, testName string) (*L2OutputSubmitter, *mockRollupEndpoi
 		ctx:     ctx,
 		cancel:  cancel,
 	}
-	mockDGFContract := new(MockDGFContract)
+
 	if testName == "DGF" {
+		mockDGFContract := new(MockDGFContract)
 		l2OutputSubmitter.dgfContract = mockDGFContract
 	}
 
