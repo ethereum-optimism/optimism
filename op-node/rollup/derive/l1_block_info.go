@@ -20,7 +20,7 @@ import (
 const (
 	L1InfoFuncBedrockSignature = "setL1BlockValues(uint64,uint64,uint256,bytes32,uint64,bytes32,uint256,uint256)"
 	L1InfoFuncEcotoneSignature = "setL1BlockValuesEcotone()"
-	L1InfoFuncIsthmusSignature = "setL2BlockValuesIsthmus()"
+	L1InfoFuncIsthmusSignature = "setL1BlockValuesIsthmus()"
 	DepositsCompleteSignature  = "depositsComplete()"
 	L1InfoArguments            = 8
 	L1InfoBedrockLen           = 4 + 32*L1InfoArguments
