@@ -120,7 +120,7 @@ func setup(t *testing.T, testName string) (*L2OutputSubmitter, *mockRollupEndpoi
 	}
 	mockDGFContract := new(MockDGFContract)
 	if testName == "DGF" {
-		l2OutputSubmitter.dgfContract = &MockDGFContract{}
+		l2OutputSubmitter.dgfContract = mockDGFContract
 	}
 
 	txmgr.On("BlockNumber", mock.Anything).Return(uint64(100), nil).Once()
@@ -170,7 +170,7 @@ func TestL2OutputSubmitter_OutputRetry(t *testing.T) {
 				l2ooContract.On("NextBlockNumber", mock.AnythingOfType("*bind.CallOpts")).Return(big.NewInt(42), nil).Times(numFails + 1)
 			} else {
 				dgfContract.On("GameCount", mock.AnythingOfType("*bind.CallOpts")).Return(big.NewInt(99), nil).Times(numFails + 1)
-				dgfContract.On("GameAtIndex", mock.AnythingOfType("*bind.CallOpts"), big.NewInt(99)).Return(struct {
+				dgfContract.On("GameAtIndex", mock.AnythingOfType("*bind.CallOpts"), mock.Anything).Return(struct {
 					GameType  uint32
 					Timestamp uint64
 					Proxy     common.Address
