@@ -225,6 +225,12 @@ var (
 		Value:    4,
 		Category: SequencerCategory,
 	}
+	SequencerPublishPayloadAttributes = &cli.BoolFlag{
+		Name:    "sequencer.publish-attributes",
+		Usage:   "Publish payload attributes to the event feed",
+		EnvVars: prefixEnvVars("SEQUENCER_PUBLISH_ATTRIBUTES"),
+		Value:   false,
+	}
 	L1EpochPollIntervalFlag = &cli.DurationFlag{
 		Name:     "l1.epoch-poll-interval",
 		Usage:    "Poll interval for retrieving new L1 epoch updates such as safe and finalized block changes. Disabled if 0 or negative.",
@@ -412,6 +418,7 @@ var optionalFlags = []cli.Flag{
 	SequencerStoppedFlag,
 	SequencerMaxSafeLagFlag,
 	SequencerL1Confs,
+	SequencerPublishPayloadAttributes,
 	L1EpochPollIntervalFlag,
 	RuntimeConfigReloadIntervalFlag,
 	RPCEnableAdmin,

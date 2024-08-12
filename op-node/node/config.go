@@ -81,6 +81,9 @@ type Config struct {
 
 	// Plasma DA config
 	Plasma plasma.CLIConfig
+
+	// Publish Attributes
+	PublishPayloadAttributes bool
 }
 
 type RPCConfig struct {
