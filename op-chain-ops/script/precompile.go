@@ -33,8 +33,17 @@ func b32(v uint64) []byte {
 	return out
 }
 
-// pad to multiple of 32 bytes
-func pad32(data []byte) []byte {
+// leftPad32 to multiple of 32 bytes
+func leftPad32(data []byte) []byte {
+	out := bytes.Clone(data)
+	if len(out)%32 == 0 {
+		return out
+	}
+	return append(make([]byte, 32-(len(out)%32)), out...)
+}
+
+// rightPad32 to multiple of 32 bytes
+func rightPad32(data []byte) []byte {
 	out := bytes.Clone(data)
 	if len(out)%32 == 0 {
 		return out
@@ -452,7 +461,7 @@ func encodeRevert(outErr error) ([]byte, error) {
 	out = append(out, revertSelector...)              // selector
 	out = append(out, b32(0x20)...)                   // offset to string
 	out = append(out, b32(uint64(len(outErrStr)))...) // length of string
-	out = append(out, pad32(outErrStr)...)            // the error message string
+	out = append(out, rightPad32(outErrStr)...)       // the error message string
 	return out, vm.ErrExecutionReverted               // Geth EVM will pick this up as a revert with return-data
 }
 
