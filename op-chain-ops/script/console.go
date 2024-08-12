@@ -7,13 +7,11 @@ import (
 
 type ConsolePrecompile struct {
 	logger log.Logger
-	sender common.Address
+	sender func() common.Address
 }
 
 func (c *ConsolePrecompile) log(ctx ...any) {
-	// frame := c.h.CurrentCall()
-	// sender := frame.Sender
-	sender := c.sender
+	sender := c.sender()
 
 	// Log the sender, since the self-address is always equal to the ConsoleAddr
 	c.logger.With("sender", sender).Info("console", ctx...)
