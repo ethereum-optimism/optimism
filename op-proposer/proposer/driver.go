@@ -278,39 +278,36 @@ func (l *L2OutputSubmitter) FetchDGFOutput(ctx context.Context) (*eth.OutputResp
 	ctx, cancel := context.WithTimeout(ctx, l.Cfg.NetworkTimeout)
 	defer cancel()
 
-	shouldPropose := false
-
 	gameCount, err := l.dgfContract.GameCount(&bind.CallOpts{Context: ctx})
 	if err != nil {
-		l.Log.Warn("Could not query DisputeGameFactory.gameCount(), sending a proposal immediately")
-		shouldPropose = true
-	} else {
-		latestGameIndex := new(big.Int).Sub(gameCount, big.NewInt(1))
-		latestGame, err := l.dgfContract.GameAtIndex(&bind.CallOpts{Context: ctx}, latestGameIndex)
-		if err != nil {
-			l.Log.Warn(fmt.Sprintf(
-				"Could not query DisputeGameFactory.GameAtIndex(%d), sending a proposal immediately",
-				latestGameIndex.Int64()))
-			shouldPropose = true
-		} else {
-			timeSinceLastGame := time.Since(time.Unix(int64(latestGame.Timestamp), 0))
-			if timeSinceLastGame > l.Cfg.ProposalInterval {
-				shouldPropose = true
-				l.Log.Info(fmt.Sprintf("More than %f seconds since last game, sending a proposal now", timeSinceLastGame.Seconds()))
-			}
-		}
+		l.Log.Warn("Could not query DisputeGameFactory.gameCount(): %s", err)
+		return nil, false, err
 	}
 
-	if shouldPropose {
-		blockNum, err := l.FetchCurrentBlockNumber(ctx)
-		if err != nil {
-			return nil, false, err
-		}
-		output, err := l.FetchOutput(ctx, blockNum)
-		return output, true, err
+	latestGameIndex := new(big.Int).Sub(gameCount, big.NewInt(1))
+	latestGame, err := l.dgfContract.GameAtIndex(&bind.CallOpts{Context: ctx}, latestGameIndex)
+	if err != nil {
+		l.Log.Warn(fmt.Sprintf(
+			"Could not query DisputeGameFactory.GameAtIndex(%d): %s",
+			latestGameIndex.Int64(), err))
+		return nil, false, err
 	}
 
-	return nil, false, nil
+	timeSinceLastGame := time.Since(time.Unix(int64(latestGame.Timestamp), 0))
+	if timeSinceLastGame <= l.Cfg.ProposalInterval {
+		l.Log.Info("Duration since last game not past proposal interval", "duration", timeSinceLastGame)
+		return nil, false, nil
+	}
+
+	l.Log.Info("Duration since last game past proposal interval, submitting proposal now", "duration", timeSinceLastGame)
+
+	blockNum, err := l.FetchCurrentBlockNumber(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+	output, err := l.FetchOutput(ctx, blockNum)
+	return output, true, err
+
 }
 
 // FetchCurrentBlockNumber gets the current block number from the [L2OutputSubmitter]'s [RollupClient]. If the `AllowNonFinalized` configuration
