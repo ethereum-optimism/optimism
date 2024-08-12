@@ -122,9 +122,6 @@ library MIPSInstructions {
                 }
             }
 
-            // Verify that the instruction is properly encoded.
-            checkZeroEncoding(_insn);
-
             // ALU
             // Note: swr outputs more than 4 bytes without the mask 0xffFFffFF
             uint32 val = executeMipsInstruction(_insn, _opcode, _fun, rs, rt, mem) & 0xffFFffFF;
@@ -170,73 +167,6 @@ library MIPSInstructions {
             handleRd(_cpu, _registers, rdReg, val, true);
 
             return newMemRoot_;
-        }
-    }
-
-    /// @notice Checks if an instruction is properly encoded with zeroes in the right places as per
-    ///         the MIPS instruction encoding rules defined in the MIPS specification. Reverts if
-    ///         the instruction is not properly encoded. Proper encoding is generally not harmful
-    ///         but can potentially have side-effects for specific opcodes.
-    /// @param _insn Encoded instruction to check.
-    function checkZeroEncoding(uint32 _insn) internal pure {
-        // Pick out the opcode and function code.
-        uint8 opcode = uint8(_insn >> 26);
-        uint8 func = uint8(_insn & 0x3F);
-
-        // Pick out the registers.
-        uint8 rs = uint8((_insn >> 21) & 0x1F);
-        uint8 rt = uint8((_insn >> 16) & 0x1F);
-        uint8 rd = uint8((_insn >> 11) & 0x1F);
-        uint8 shamt = uint8((_insn >> 6) & 0x1F);
-
-        // Checks for R-type instructions.
-        if (opcode == 0x00) {
-            // Check for zero rs.
-            if (
-                // SLL, SRL, SRA
-                // MFHI, MFLO
-                func == 0x00 || func == 0x02 || func == 0x03 || func == 0x10 || func == 0x12
-            ) {
-                require(rs == 0, "MIPS: rs not zero");
-            }
-
-            // Check for zero rt.
-            if (
-                // JR, JALR
-                // MFHI, MFLO, MTHI, MTLO
-                func == 0x08 || func == 0x09 || (func >= 0x10 && func <= 0x13)
-            ) {
-                require(rt == 0, "MIPS: rt not zero");
-            }
-
-            // Check for zero rd.
-            if (
-                // JR
-                // MTHI, MTLO
-                // MULT, MULTU, DIV, DIVU
-                func == 0x08 || func == 0x11 || func == 0x13 || (func >= 0x18 && func <= 0x1B)
-            ) {
-                require(rd == 0, "MIPS: rd not zero");
-            }
-
-            // Check for zero shamt.
-            if (
-                // JR, JALR
-                // SYNC
-                // MFHI, MFLO, MTHI, MTLO
-                // MULT, MULTU, DIV, DIVU
-                // ADD, ADDU, SUB, SUBU, AND, OR, XOR, NOR
-                // SLT, SLTU
-                func == 0x08 || func == 0x09 || func == 0x0F || (func >= 0x10 && func <= 0x13)
-                    || (func >= 0x18 && func <= 0x1B) || (func >= 0x20 && func <= 0x27) || func == 0x2A || func == 0x2B
-            ) {
-                require(shamt == 0, "MIPS: shamt not zero");
-            }
-        }
-
-        // Check for zero rs in LUI.
-        if (opcode == 0x0F) {
-            require(rs == 0, "MIPS: rs not zero");
         }
     }
 

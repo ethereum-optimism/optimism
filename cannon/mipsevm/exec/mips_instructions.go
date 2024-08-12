@@ -78,9 +78,6 @@ func ExecMipsCoreStepLogic(cpu *mipsevm.CpuScalars, registers *[32]uint32, memor
 		}
 	}
 
-	// Verify that the instruction is properly encoded.
-	CheckZeroEncoding(insn)
-
 	// ALU
 	val := ExecuteMipsInstruction(insn, opcode, fun, rs, rt, mem)
 
@@ -121,56 +118,6 @@ func ExecMipsCoreStepLogic(cpu *mipsevm.CpuScalars, registers *[32]uint32, memor
 
 	// write back the value to destination register
 	return HandleRd(cpu, registers, rdReg, val, true)
-}
-
-func CheckZeroEncoding(insn uint32) {
-	// Pick out the opcode and function code.
-	opcode := uint8(insn >> 26)
-	funcCode := uint8(insn & 0x3F)
-
-	// Pick out the registers.
-	rs := uint8((insn >> 21) & 0x1F)
-	rt := uint8((insn >> 16) & 0x1F)
-	rd := uint8((insn >> 11) & 0x1F)
-	shamt := uint8((insn >> 6) & 0x1F)
-
-	// Checks for R-type instructions.
-	if opcode == 0x00 {
-		// Check for zero rs.
-		if funcCode == 0x00 || funcCode == 0x02 || funcCode == 0x03 || funcCode == 0x10 || funcCode == 0x12 {
-			if rs != 0 {
-				panic("rs not zero")
-			}
-		}
-
-		// Check for zero rt.
-		if funcCode == 0x08 || funcCode == 0x09 || (funcCode >= 0x10 && funcCode <= 0x13) {
-			if rt != 0 {
-				panic("rt not zero")
-			}
-		}
-
-		// Check for zero rd.
-		if funcCode == 0x08 || funcCode == 0x11 || funcCode == 0x13 || (funcCode >= 0x18 && funcCode <= 0x1B) {
-			if rd != 0 {
-				panic("rd not zero")
-			}
-		}
-
-		// Check for zero shamt.
-		if funcCode == 0x08 || funcCode == 0x09 || funcCode == 0x0F || (funcCode >= 0x10 && funcCode <= 0x13) || (funcCode >= 0x18 && funcCode <= 0x1B) || (funcCode >= 0x20 && funcCode <= 0x27) || funcCode == 0x2A || funcCode == 0x2B {
-			if shamt != 0 {
-				panic("shamt not zero")
-			}
-		}
-	}
-
-	// Check for zero rs in LUI.
-	if opcode == 0x0F {
-		if rs != 0 {
-			panic("rs not zero")
-		}
-	}
 }
 
 func ExecuteMipsInstruction(insn, opcode, fun, rs, rt, mem uint32) uint32 {
