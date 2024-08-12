@@ -42,12 +42,12 @@ type CLSync struct {
 	ec                Engine
 	n                 Network
 	l1OriginSelector  L1OriginSelector
-	attrBuilder       *derive.FetchingAttributesBuilder
+	attrBuilder       derive.AttributesBuilder
 	unsafePayloads    *PayloadsQueue // queue of unsafe payloads, ordered by ascending block number, may have gaps and duplicates
 	publishAttributes bool
 }
 
-func NewCLSync(log log.Logger, cfg *rollup.Config, metrics Metrics, ec Engine, n Network, l1Origin L1OriginSelector, attrBuilder *derive.FetchingAttributesBuilder, publishAttributes bool) *CLSync {
+func NewCLSync(log log.Logger, cfg *rollup.Config, metrics Metrics, ec Engine, n Network, l1Origin L1OriginSelector, attrBuilder derive.AttributesBuilder, publishAttributes bool) *CLSync {
 	return &CLSync{
 		log:               log,
 		cfg:               cfg,
