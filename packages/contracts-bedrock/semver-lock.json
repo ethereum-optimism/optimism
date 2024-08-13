@@ -111,13 +111,17 @@
     "initCodeHash": "0xe390be1390edc38fd879d7620538560076d7fcf3ef9debce327a1877d96d3ff0",
     "sourceCodeHash": "0x20f77dc5a02869c6885b73347fa9e7d2bbc4eaf8a2313f7e7435e456001f7a75"
   },
+  "src/L2/OptimismSuperchainERC20.sol": {
+    "initCodeHash": "0xd49214518ea1a30a43fac09f28b2cee9be570894a500cef342762c9820a070b0",
+    "sourceCodeHash": "0x6943d40010dcbd1d51dc3668d0a154fbb1568ea49ebcf3aa039d65ef6eab321b"
+  },
   "src/L2/SequencerFeeVault.sol": {
     "initCodeHash": "0xb94145f571e92ee615c6fe903b6568e8aac5fe760b6b65148ffc45d2fb0f5433",
     "sourceCodeHash": "0x8f2a54104e5e7105ba03ba37e3ef9b6684a447245f0e0b787ba4cca12957b97c"
   },
   "src/L2/SuperchainWETH.sol": {
-    "initCodeHash": "0x52e302ac749e6a519829e0fb01075638e481e7f010a6438088486a7a4be4601b",
-    "sourceCodeHash": "0x7c93752288f4414777e01c2962aee929a28aef2c1fccdfeba456f22df0f9aa39"
+    "initCodeHash": "0x599e948350c70d699f8a8be945abffd126097de97fade056d29767128320fe75",
+    "sourceCodeHash": "0x3df29ee1321418914d88ce303b521bf8267ef234b919870b26639d08d7f806bd"
   },
   "src/L2/WETH.sol": {
     "initCodeHash": "0xde72ae96910e95249623c2d695749847e4c4adeaf96a7a35033afd77318a528a",
