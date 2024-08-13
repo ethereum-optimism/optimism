@@ -151,6 +151,7 @@ func (s *BuilderAPIClient) versionedExecutionPayloadToExecutionPayloadEnvelope(r
 			BlobGasUsed:   &blobGasUsed,
 			ExcessBlobGas: &excessBlobGas,
 		},
+		// ParentBeaconBlockRoot will be filled by the engine payload.
 		ParentBeaconBlockRoot: nil,
 		BlockValue:            &blockValue,
 	}
