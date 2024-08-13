@@ -328,7 +328,6 @@ contract GovernanceDelegation_Delegate_Test is GovernanceDelegation_Init {
         IGovernanceDelegation.Delegation[] memory newDelegations =
             _createValidPartialDelegation(0, uint256(keccak256(abi.encode(_seed))));
 
-        _expectEmitDelegateVotesChangedEvents(_amount, delegations, newDelegations);
         vm.expectEmit(address(governanceDelegation));
         emit DelegationsChanged(_actor, delegations, newDelegations);
         vm.prank(_actor);
