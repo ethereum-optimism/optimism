@@ -11,6 +11,7 @@ import (
 	builderSpec "github.com/attestantio/go-builder-client/spec"
 	consensusspec "github.com/attestantio/go-eth2-client/spec"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup/builder"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
@@ -21,8 +22,9 @@ import (
 const PathGetPayload = "/eth/v1/builder/payload"
 
 type BuilderAPIConfig struct {
-	Timeout  time.Duration
-	Endpoint string
+	Timeout            time.Duration
+	Endpoint           string
+	BuilderBoostFactor uint64
 }
 
 type BuilderAPIClient struct {
@@ -31,11 +33,14 @@ type BuilderAPIClient struct {
 	httpClient *client.BasicHTTPClient
 }
 
-func NewBuilderClient(log log.Logger, endpoint string, timeout time.Duration) *BuilderAPIClient {
+var _ builder.PayloadBuilder = &BuilderAPIClient{}
+
+func NewBuilderClient(log log.Logger, endpoint string, timeout time.Duration, builderBoostFactor uint64) *BuilderAPIClient {
 	httpClient := client.NewBasicHTTPClient(endpoint, log)
 	config := &BuilderAPIConfig{
-		Timeout:  timeout,
-		Endpoint: endpoint,
+		Timeout:            timeout,
+		Endpoint:           endpoint,
+		BuilderBoostFactor: builderBoostFactor,
 	}
 
 	return &BuilderAPIClient{
@@ -51,6 +56,10 @@ func (s *BuilderAPIClient) Enabled() bool {
 
 func (s *BuilderAPIClient) Timeout() time.Duration {
 	return s.config.Timeout
+}
+
+func (s *BuilderAPIClient) BuilderBoostFactor() uint64 {
+	return s.config.BuilderBoostFactor
 }
 
 type httpErrorResp struct {
