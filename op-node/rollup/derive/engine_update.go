@@ -223,22 +223,16 @@ func confirmPayload(
 		}
 	}
 
-	engineValue := uint256.Int(*engineEnvelope.BlockValue)
 	if builderPayload != nil && builderPayload.success {
-		builderValue := uint256.Int(*builderPayload.envelope.BlockValue)
-		builderValueBoost := uint256.NewInt(0).Mul(&builderValue, uint256.NewInt(uint64(builderClient.BuilderBoostFactor())))
-		if builderValueBoost.Cmp(&engineValue) >= 0 {
-			log.Debug("trying to insert builder payload as it has higher bid than engine payload", "builderBid", builderValue, "engineBid", engineValue)
-			errTyp, err := insertPayload(ctx, log, eng, fc, updateSafe, agossip, sequencerConductor, builderPayload.envelope)
-			if errTyp == BlockInsertOK {
-				metrics.RecordSequencerProfit(float64(WeiToGwei(builderPayload.envelope.BlockValue)), opMetrics.PayloadSourceBuilder)
-				metrics.RecordSequencerPayloadInserted(opMetrics.PayloadSourceBuilder)
-				metrics.RecordPayloadGas(float64(builderPayload.envelope.ExecutionPayload.GasUsed), opMetrics.PayloadSourceBuilder)
-				log.Info("succeessfully inserted payload from builder")
-				return builderPayload.envelope, errTyp, err
-			}
-			log.Error("failed to insert payload from builder", "errType", errTyp, "error", err)
+		errTyp, err := insertPayload(ctx, log, eng, fc, updateSafe, agossip, sequencerConductor, builderPayload.envelope)
+		if errTyp == BlockInsertOK {
+			metrics.RecordSequencerProfit(float64(WeiToGwei(builderPayload.envelope.BlockValue)), opMetrics.PayloadSourceBuilder)
+			metrics.RecordSequencerPayloadInserted(opMetrics.PayloadSourceBuilder)
+			metrics.RecordPayloadGas(float64(builderPayload.envelope.ExecutionPayload.GasUsed), opMetrics.PayloadSourceBuilder)
+			log.Info("succeessfully inserted payload from builder")
+			return builderPayload.envelope, errTyp, err
 		}
+		log.Error("failed to insert payload from builder", "errType", errTyp, "error", err)
 	}
 
 	metrics.RecordSequencerProfit(float64(WeiToGwei(engineEnvelope.BlockValue)), opMetrics.PayloadSourceEngine)
