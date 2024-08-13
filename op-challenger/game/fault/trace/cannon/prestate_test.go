@@ -9,9 +9,9 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm32"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm32/memory"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm32/singlethreaded"
 )
 
 func newCannonPrestateProvider(dataDir string, prestate string) *CannonPrestateProvider {
@@ -47,7 +47,7 @@ func TestAbsolutePreStateCommitment(t *testing.T) {
 			Memory:         memory.NewMemory(),
 			PreimageKey:    common.HexToHash("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"),
 			PreimageOffset: 0,
-			Cpu: mipsevm.CpuScalars{
+			Cpu: mipsevm32.CpuScalars{
 				PC:     0,
 				NextPC: 1,
 				LO:     0,
@@ -57,7 +57,7 @@ func TestAbsolutePreStateCommitment(t *testing.T) {
 			ExitCode:  0,
 			Exited:    false,
 			Step:      0,
-			Registers: [32]uint64{},
+			Registers: [32]uint32{},
 		}
 		_, expected := state.EncodeWitness()
 		require.Equal(t, expected, actual)

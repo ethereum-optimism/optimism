@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm64/multithreaded"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/urfave/cli/v2"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm32/singlethreaded"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
 
@@ -26,10 +26,15 @@ var (
 	}
 )
 
+type WitnessEncoder interface {
+	// EncodeWitness returns the witness for the current state and the state hash
+	EncodeWitness() (witness []byte, hash common.Hash)
+}
+
 func Witness(ctx *cli.Context) error {
 	input := ctx.Path(WitnessInputFlag.Name)
 	output := ctx.Path(WitnessOutputFlag.Name)
-	var state mipsevm.FPVMState
+	var state WitnessEncoder
 	if vmType, err := vmTypeFromString(ctx); err != nil {
 		return err
 	} else if vmType == cannonVMType {

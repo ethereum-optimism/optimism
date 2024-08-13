@@ -1,25 +1,24 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
+	"github.com/ethereum-optimism/optimism/cannon/logutil"
+	program32 "github.com/ethereum-optimism/optimism/cannon/mipsevm32/program"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm64/multithreaded"
+	program64 "github.com/ethereum-optimism/optimism/cannon/mipsevm64/program"
+	"github.com/ethereum-optimism/optimism/cannon/run"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/pkg/profile"
 	"github.com/urfave/cli/v2"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm32/singlethreaded"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
@@ -115,142 +114,20 @@ var (
 	OutFilePerm = os.FileMode(0o755)
 )
 
-type Proof struct {
-	Step uint64 `json:"step"`
-
-	Pre  common.Hash `json:"pre"`
-	Post common.Hash `json:"post"`
-
-	StateData hexutil.Bytes `json:"state-data"`
-	ProofData hexutil.Bytes `json:"proof-data"`
-
-	OracleKey    hexutil.Bytes `json:"oracle-key,omitempty"`
-	OracleValue  hexutil.Bytes `json:"oracle-value,omitempty"`
-	OracleOffset uint64        `json:"oracle-offset,omitempty"`
+type VM interface {
+	CheckInfiniteLoop() bool
+	Step(proof bool) (*run.StepWitness, error)
+	GetStep() uint64
+	GetDebugInfo() *run.DebugInfo
+	Traceback()
+	LastPreimage() (preimageKey [32]byte, preimage []byte, preimageOffset uint64)
+	EncodeWitness() (witness []byte, hash common.Hash)
+	GetExited() bool
+	GetExitCode() uint8
+	InfoLogVars() []interface{}
+	GetPC() uint64
+	WriteState(path string, perm os.FileMode) error
 }
-
-type rawHint string
-
-func (rh rawHint) Hint() string {
-	return string(rh)
-}
-
-type rawKey [32]byte
-
-func (rk rawKey) PreimageKey() [32]byte {
-	return rk
-}
-
-type ProcessPreimageOracle struct {
-	pCl      *preimage.OracleClient
-	hCl      *preimage.HintWriter
-	cmd      *exec.Cmd
-	waitErr  chan error
-	cancelIO context.CancelCauseFunc
-}
-
-const clientPollTimeout = time.Second * 15
-
-func NewProcessPreimageOracle(name string, args []string, stdout log.Logger, stderr log.Logger) (*ProcessPreimageOracle, error) {
-	if name == "" {
-		return &ProcessPreimageOracle{}, nil
-	}
-
-	pClientRW, pOracleRW, err := preimage.CreateBidirectionalChannel()
-	if err != nil {
-		return nil, err
-	}
-	hClientRW, hOracleRW, err := preimage.CreateBidirectionalChannel()
-	if err != nil {
-		return nil, err
-	}
-
-	cmd := exec.Command(name, args...) // nosemgrep
-	cmd.Stdout = &mipsevm.LoggingWriter{Log: stdout}
-	cmd.Stderr = &mipsevm.LoggingWriter{Log: stderr}
-	cmd.ExtraFiles = []*os.File{
-		hOracleRW.Reader(),
-		hOracleRW.Writer(),
-		pOracleRW.Reader(),
-		pOracleRW.Writer(),
-	}
-
-	// Note that the client file descriptors are not closed when the pre-image server exits.
-	// So we use the FilePoller to ensure that we don't get stuck in a blocking read/write.
-	ctx, cancelIO := context.WithCancelCause(context.Background())
-	preimageClientIO := preimage.NewFilePoller(ctx, pClientRW, clientPollTimeout)
-	hostClientIO := preimage.NewFilePoller(ctx, hClientRW, clientPollTimeout)
-	out := &ProcessPreimageOracle{
-		pCl:      preimage.NewOracleClient(preimageClientIO),
-		hCl:      preimage.NewHintWriter(hostClientIO),
-		cmd:      cmd,
-		waitErr:  make(chan error),
-		cancelIO: cancelIO,
-	}
-	return out, nil
-}
-
-func (p *ProcessPreimageOracle) Hint(v []byte) {
-	if p.hCl == nil { // no hint processor
-		return
-	}
-	p.hCl.Hint(rawHint(v))
-}
-
-func (p *ProcessPreimageOracle) GetPreimage(k [32]byte) []byte {
-	if p.pCl == nil {
-		panic("no pre-image retriever available")
-	}
-	return p.pCl.Get(rawKey(k))
-}
-
-func (p *ProcessPreimageOracle) Start() error {
-	if p.cmd == nil {
-		return nil
-	}
-	err := p.cmd.Start()
-	go p.wait()
-	return err
-}
-
-func (p *ProcessPreimageOracle) Close() error {
-	if p.cmd == nil {
-		return nil
-	}
-	// Give the pre-image server time to exit cleanly before killing it.
-	time.Sleep(time.Second * 1)
-	_ = p.cmd.Process.Signal(os.Interrupt)
-	return <-p.waitErr
-}
-
-func (p *ProcessPreimageOracle) wait() {
-	err := p.cmd.Wait()
-	var waitErr error
-	if err, ok := err.(*exec.ExitError); !ok || !err.Success() {
-		waitErr = err
-	}
-	p.cancelIO(fmt.Errorf("%w: pre-image server has exited", waitErr))
-	p.waitErr <- waitErr
-	close(p.waitErr)
-}
-
-type StepFn func(proof bool) (*mipsevm.StepWitness, error)
-
-func Guard(proc *os.ProcessState, fn StepFn) StepFn {
-	return func(proof bool) (*mipsevm.StepWitness, error) {
-		wit, err := fn(proof)
-		if err != nil {
-			if proc.Exited() {
-				return nil, fmt.Errorf("pre-image server exited with code %d, resulting in err %w", proc.ExitCode(), err)
-			} else {
-				return nil, err
-			}
-		}
-		return wit, nil
-	}
-}
-
-var _ mipsevm.PreimageOracle = (*ProcessPreimageOracle)(nil)
 
 func Run(ctx *cli.Context) error {
 	if ctx.Bool(RunPProfCPU.Name) {
@@ -263,8 +140,8 @@ func Run(ctx *cli.Context) error {
 	}
 
 	guestLogger := Logger(os.Stderr, log.LevelInfo)
-	outLog := &mipsevm.LoggingWriter{Log: guestLogger.With("module", "guest", "stream", "stdout")}
-	errLog := &mipsevm.LoggingWriter{Log: guestLogger.With("module", "guest", "stream", "stderr")}
+	outLog := &logutil.LoggingWriter{Log: guestLogger.With("module", "guest", "stream", "stdout")}
+	errLog := &logutil.LoggingWriter{Log: guestLogger.With("module", "guest", "stream", "stderr")}
 
 	l := Logger(os.Stderr, log.LevelInfo).With("module", "vm")
 
@@ -321,7 +198,7 @@ func Run(ctx *cli.Context) error {
 
 	poOut := Logger(os.Stdout, log.LevelInfo).With("module", "host")
 	poErr := Logger(os.Stderr, log.LevelInfo).With("module", "host")
-	po, err := NewProcessPreimageOracle(args[0], args[1:], poOut, poErr)
+	po, err := run.NewProcessPreimageOracle(args[0], args[1:], poOut, poErr)
 	if err != nil {
 		return fmt.Errorf("failed to create pre-image oracle process: %w", err)
 	}
@@ -339,22 +216,22 @@ func Run(ctx *cli.Context) error {
 	snapshotAt := ctx.Generic(RunSnapshotAtFlag.Name).(*StepMatcherFlag).Matcher()
 	infoAt := ctx.Generic(RunInfoAtFlag.Name).(*StepMatcherFlag).Matcher()
 
-	var meta *program.Metadata
-	if metaPath := ctx.Path(RunMetaFlag.Name); metaPath == "" {
-		l.Info("no metadata file specified, defaulting to empty metadata")
-		meta = &program.Metadata{Symbols: nil} // provide empty metadata by default
-	} else {
-		if m, err := jsonutil.LoadJSON[program.Metadata](metaPath); err != nil {
-			return fmt.Errorf("failed to load metadata: %w", err)
-		} else {
-			meta = m
-		}
-	}
-
-	var vm mipsevm.FPVM
+	var vm VM
 	var debugProgram bool
 	if vmType == cannonVMType {
 		l.Info("Using cannon VM")
+		var meta *program32.Metadata
+		if metaPath := ctx.Path(RunMetaFlag.Name); metaPath == "" {
+			l.Info("no metadata file specified, defaulting to empty metadata")
+			meta = &program32.Metadata{Symbols: nil} // provide empty metadata by default
+		} else {
+			if m, err := jsonutil.LoadJSON[program32.Metadata](metaPath); err != nil {
+				return fmt.Errorf("failed to load metadata: %w", err)
+			} else {
+				meta = m
+			}
+		}
+
 		cannon, err := singlethreaded.NewInstrumentedStateFromFile(ctx.Path(RunInputFlag.Name), po, outLog, errLog, meta)
 		if err != nil {
 			return err
@@ -371,6 +248,17 @@ func Run(ctx *cli.Context) error {
 		vm = cannon
 	} else if vmType == mtVMType {
 		l.Info("Using cannon multithreaded VM")
+		var meta *program64.Metadata
+		if metaPath := ctx.Path(RunMetaFlag.Name); metaPath == "" {
+			l.Info("no metadata file specified, defaulting to empty metadata")
+			meta = &program64.Metadata{Symbols: nil} // provide empty metadata by default
+		} else {
+			if m, err := jsonutil.LoadJSON[program64.Metadata](metaPath); err != nil {
+				return fmt.Errorf("failed to load metadata: %w", err)
+			} else {
+				meta = m
+			}
+		}
 		cannon, err := multithreaded.NewInstrumentedStateFromFile(ctx.Path(RunInputFlag.Name), po, outLog, errLog, l)
 		if err != nil {
 			return err
@@ -392,35 +280,29 @@ func Run(ctx *cli.Context) error {
 	proofFmt := ctx.String(RunProofFmtFlag.Name)
 	snapshotFmt := ctx.String(RunSnapshotFmtFlag.Name)
 
-	stepFn := vm.Step
-	if po.cmd != nil {
-		stepFn = Guard(po.cmd.ProcessState, stepFn)
-	}
+	stepFn := po.GuardStep(vm.Step)
 
 	start := time.Now()
 
-	state := vm.GetState()
-	startStep := state.GetStep()
+	//state := vm.GetState()
+	startStep := vm.GetStep()
 
-	for !state.GetExited() {
-		step := state.GetStep()
+	for !vm.GetExited() {
+		step := vm.GetStep()
 		if step%100 == 0 { // don't do the ctx err check (includes lock) too often
 			if err := ctx.Context.Err(); err != nil {
 				return err
 			}
 		}
 
-		if infoAt(state) {
+		if infoAt(vm) {
 			delta := time.Since(start)
-			l.Info("processing",
+			fields := []interface{}{
 				"step", step,
-				"pc", mipsevm.HexU32(state.GetPC()),
-				"insn", mipsevm.HexU32(state.GetMemory().GetMemory(state.GetPC())),
-				"ips", float64(step-startStep)/(float64(delta)/float64(time.Second)),
-				"pages", state.GetMemory().PageCount(),
-				"mem", state.GetMemory().Usage(),
-				"name", meta.LookupSymbol(state.GetPC()),
-			)
+				"ips", float64(step-startStep) / (float64(delta) / float64(time.Second)),
+			}
+			fields = append(fields, vm.InfoLogVars()...)
+			l.Info("processing", fields...)
 		}
 
 		if vm.CheckInfiniteLoop() {
@@ -428,24 +310,24 @@ func Run(ctx *cli.Context) error {
 			return fmt.Errorf("detected an infinite loop at step %d", step)
 		}
 
-		if stopAt(state) {
+		if stopAt(vm) {
 			l.Info("Reached stop at")
 			break
 		}
 
-		if snapshotAt(state) {
-			if err := jsonutil.WriteJSON(fmt.Sprintf(snapshotFmt, step), state, OutFilePerm); err != nil {
+		if snapshotAt(vm) {
+			if err := vm.WriteState(fmt.Sprintf(snapshotFmt, step), OutFilePerm); err != nil {
 				return fmt.Errorf("failed to write state snapshot: %w", err)
 			}
 		}
 
-		if proofAt(state) {
+		if proofAt(vm) {
 			witness, err := stepFn(true)
 			if err != nil {
-				return fmt.Errorf("failed at proof-gen step %d (PC: %08x): %w", step, state.GetPC(), err)
+				return fmt.Errorf("failed at proof-gen step %d (PC: %08x): %w", step, vm.GetPC(), err)
 			}
-			_, postStateHash := state.EncodeWitness()
-			proof := &Proof{
+			_, postStateHash := vm.EncodeWitness()
+			proof := &run.Proof{
 				Step:      step,
 				Pre:       witness.StateHash,
 				Post:      postStateHash,
@@ -463,7 +345,7 @@ func Run(ctx *cli.Context) error {
 		} else {
 			_, err = stepFn(false)
 			if err != nil {
-				return fmt.Errorf("failed at step %d (PC: %08x): %w", step, state.GetPC(), err)
+				return fmt.Errorf("failed at step %d (PC: %08x): %w", step, vm.GetPC(), err)
 			}
 		}
 
@@ -486,12 +368,12 @@ func Run(ctx *cli.Context) error {
 			}
 		}
 	}
-	l.Info("Execution stopped", "exited", state.GetExited(), "code", state.GetExitCode())
+	l.Info("Execution stopped", "exited", vm.GetExited(), "code", vm.GetExitCode())
 	if debugProgram {
 		vm.Traceback()
 	}
 
-	if err := jsonutil.WriteJSON(ctx.Path(RunOutputFlag.Name), state, OutFilePerm); err != nil {
+	if err := vm.WriteState(ctx.Path(RunOutputFlag.Name), OutFilePerm); err != nil {
 		return fmt.Errorf("failed to write state output: %w", err)
 	}
 	if debugInfoFile := ctx.Path(RunDebugInfoFlag.Name); debugInfoFile != "" {

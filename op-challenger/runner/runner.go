@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/cannon/vmstatus"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
@@ -138,7 +138,7 @@ func (r *Runner) runOnce(ctx context.Context, traceType types.TraceType, client 
 	if err != nil {
 		return fmt.Errorf("failed to execute trace provider: %w", err)
 	}
-	if hash[0] != mipsevm.VMStatusValid {
+	if hash[0] != vmstatus.VMStatusValid {
 		return fmt.Errorf("%w: %v", ErrUnexpectedStatusCode, hash)
 	}
 	return nil

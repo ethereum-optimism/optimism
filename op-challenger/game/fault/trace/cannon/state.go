@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm32/singlethreaded"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 )
 
