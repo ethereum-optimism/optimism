@@ -620,7 +620,7 @@ func (n *OpNode) PublishL2Attributes(ctx context.Context, attrs *derive.Attribut
 		n.log.Warn("failed to marshal payload attributes", "err", err)
 		return err
 	}
-	n.log.Info("Publishing execution payload attributes on event stream", "attrs", builderAttrs, "json", string(jsonBytes))
+	n.log.Debug("Publishing execution payload attributes on event stream", "attrs", builderAttrs, "json", string(jsonBytes))
 	n.httpEventStream.Publish("payload_attributes", &sse.Event{Data: jsonBytes})
 	return nil
 }
