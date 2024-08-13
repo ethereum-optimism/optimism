@@ -19,7 +19,7 @@ import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { Types } from "scripts/Types.sol";
+import { Types } from "scripts/libraries/Types.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { ISystemConfigV0 } from "scripts/interfaces/ISystemConfigV0.sol";
 import { console2 as console } from "forge-std/console2.sol";

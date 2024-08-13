@@ -2,9 +2,9 @@ package cmd
 
 import (
 	"io"
+	"log/slog"
 	"os"
 
-	"golang.org/x/exp/slog"
 	"golang.org/x/term"
 
 	"github.com/ethereum/go-ethereum/log"

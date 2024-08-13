@@ -42,18 +42,16 @@ func verifyCodeHashMatches(t Testing, client *ethclient.Client, address common.A
 func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
-	genesisBlock := hexutil.Uint64(0)
 	ecotoneOffset := hexutil.Uint64(4)
 
 	log := testlog.Logger(t, log.LevelDebug)
 
-	dp.DeployConfig.L1CancunTimeOffset = &genesisBlock // can be removed once Cancun on L1 is the default
-
+	require.Zero(t, *dp.DeployConfig.L1CancunTimeOffset)
 	// Activate all forks at genesis, and schedule Ecotone the block after
-	dp.DeployConfig.L2GenesisRegolithTimeOffset = &genesisBlock
-	dp.DeployConfig.L2GenesisCanyonTimeOffset = &genesisBlock
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = &genesisBlock
 	dp.DeployConfig.L2GenesisEcotoneTimeOffset = &ecotoneOffset
+	dp.DeployConfig.L2GenesisFjordTimeOffset = nil
+	dp.DeployConfig.L2GenesisGraniteTimeOffset = nil
+	// New forks have to be added here...
 	require.NoError(t, dp.DeployConfig.Check(log), "must have valid config")
 
 	sd := e2eutils.Setup(t, dp, defaultAlloc)

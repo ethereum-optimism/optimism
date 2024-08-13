@@ -66,7 +66,7 @@ func (p *PreimageOracle) BlockByHash(blockHash common.Hash) *types.Block {
 	header := p.headerByBlockHash(blockHash)
 	txs := p.LoadTransactions(blockHash, header.TxHash)
 
-	return types.NewBlockWithHeader(header).WithBody(txs, nil)
+	return types.NewBlockWithHeader(header).WithBody(types.Body{Transactions: txs})
 }
 
 func (p *PreimageOracle) LoadTransactions(blockHash common.Hash, txHash common.Hash) []*types.Transaction {

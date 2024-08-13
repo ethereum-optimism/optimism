@@ -4,10 +4,10 @@ pragma solidity 0.8.15;
 import { Script } from "forge-std/Script.sol";
 import { console2 as console } from "forge-std/console2.sol";
 import { stdJson } from "forge-std/StdJson.sol";
-import { Executables } from "scripts/Executables.sol";
+import { Executables } from "scripts/libraries/Executables.sol";
 import { Process } from "scripts/libraries/Process.sol";
-import { Chains } from "scripts/Chains.sol";
-import { Config, Fork, ForkUtils } from "scripts/Config.sol";
+import { Chains } from "scripts/libraries/Chains.sol";
+import { Config, Fork, ForkUtils } from "scripts/libraries/Config.sol";
 
 /// @title DeployConfig
 /// @notice Represents the configuration required to deploy the system. It is expected
