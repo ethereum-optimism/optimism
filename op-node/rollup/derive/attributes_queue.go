@@ -57,6 +57,7 @@ func (a *AttributesWithParent) ToBuilderPayloadAttributes() (*BuilderPayloadAttr
 		ParentBeaconBlockRoot: a.Attributes.ParentBeaconBlockRoot,
 		Transactions:          transactions,
 		GasLimit:              uint64(*a.Attributes.GasLimit),
+		NoTxPool:              a.Attributes.NoTxPool,
 	}, nil
 }
 
