@@ -6,7 +6,7 @@ pragma solidity ^0.8.0;
 ///         determine if a ERC20 contract is deployed by a factory.
 interface IOptimismERC20Factory {
     /// @notice Checks if a ERC20 token is deployed by the factory.
-    /// @param _token The address of the ERC20 token to check the deployment.
+    /// @param _localToken The address of the ERC20 token to check the deployment.
     /// @return _remoteToken The address of the remote token if it is deployed or `address(0)` if not.
-    function deployments(address _token) external view returns (address _remoteToken);
+    function deployments(address _localToken) external view returns (address _remoteToken);
 }
