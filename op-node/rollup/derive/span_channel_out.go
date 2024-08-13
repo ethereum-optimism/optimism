@@ -99,8 +99,7 @@ func (co *SpanChannelOut) Reset() error {
 	co.rlp[1].Reset()
 	co.lastCompressedRLPSize = 0
 	co.compressor.Reset()
-	// TODO: resetSpanBatch
-	co.spanBatch = NewSpanBatch(co.spanBatch.GenesisTimestamp, co.spanBatch.ChainID)
+	co.resetSpanBatch()
 	// setting the new randomID is the only part of the reset that can fail
 	return co.setRandomID()
 }

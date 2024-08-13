@@ -46,6 +46,7 @@ func testSystem4844E2E(t *testing.T, multiBlob bool, daType batcherFlags.DataAva
 
 	cfg := EcotoneSystemConfig(t, &genesisTime)
 	cfg.DataAvailabilityType = daType
+	cfg.BatcherBatchType = derive.SpanBatchType
 	cfg.DeployConfig.L1GenesisBlockBaseFeePerGas = (*hexutil.Big)(big.NewInt(7000))
 
 	const maxBlobs = 6
