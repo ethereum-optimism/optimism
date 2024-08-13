@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"sync"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/clock"
@@ -46,15 +47,12 @@ func (p peerBanUpdate) Apply(rec *peerBanRecord) {
 }
 
 type peerBanBook struct {
+	mu   sync.RWMutex
 	book *recordsBook[peer.ID, *peerBanRecord]
 }
 
-func newPeerBanRecord() *peerBanRecord {
-	return new(peerBanRecord)
-}
-
 func newPeerBanBook(ctx context.Context, logger log.Logger, clock clock.Clock, store ds.Batching) (*peerBanBook, error) {
-	book, err := newRecordsBook[peer.ID, *peerBanRecord](ctx, logger, clock, store, peerBanCacheSize, peerBanRecordExpiration, peerBanExpirationsBase, newPeerBanRecord, peerIDKey)
+	book, err := newRecordsBook[peer.ID, *peerBanRecord](ctx, logger, clock, store, peerBanCacheSize, peerBanRecordExpiration, peerBanExpirationsBase, genNew, peerIDKey)
 	if err != nil {
 		return nil, err
 	}
@@ -66,9 +64,11 @@ func (d *peerBanBook) startGC() {
 }
 
 func (d *peerBanBook) GetPeerBanExpiration(id peer.ID) (time.Time, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
 	rec, err := d.book.getRecord(id)
-	if err == UnknownRecordErr {
-		return time.Time{}, UnknownBanErr
+	if err == errUnknownRecord {
+		return time.Time{}, ErrUnknownBan
 	}
 	if err != nil {
 		return time.Time{}, err
@@ -77,10 +77,12 @@ func (d *peerBanBook) GetPeerBanExpiration(id peer.ID) (time.Time, error) {
 }
 
 func (d *peerBanBook) SetPeerBanExpiration(id peer.ID, expirationTime time.Time) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	if expirationTime == (time.Time{}) {
 		return d.book.deleteRecord(id)
 	}
-	_, err := d.book.SetRecord(id, peerBanUpdate(expirationTime))
+	_, err := d.book.setRecord(id, peerBanUpdate(expirationTime))
 	return err
 }
 

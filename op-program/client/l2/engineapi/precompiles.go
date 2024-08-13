@@ -50,17 +50,20 @@ type PrecompileOracle interface {
 }
 
 func CreatePrecompileOverrides(precompileOracle PrecompileOracle) vm.PrecompileOverrides {
-	return func(rules params.Rules, orig vm.PrecompiledContract, address common.Address) (vm.PrecompiledContract, bool) {
+	return func(rules params.Rules, orig vm.PrecompiledContract, address common.Address) vm.PrecompiledContract {
+		if orig == nil { // Only override existing contracts. Never introduce a precompile that is not there.
+			return nil
+		}
 		// NOTE: Ignoring chain rules for now. We assume that precompile behavior won't change for the foreseeable future
 		switch address {
 		case ecrecoverPrecompileAddress:
-			return &ecrecoverOracle{Orig: orig, Oracle: precompileOracle}, true
+			return &ecrecoverOracle{Orig: orig, Oracle: precompileOracle}
 		case bn256PairingPrecompileAddress:
-			return &bn256PairingOracle{Orig: orig, Oracle: precompileOracle}, true
+			return &bn256PairingOracle{Orig: orig, Oracle: precompileOracle}
 		case kzgPointEvaluationPrecompileAddress:
-			return &kzgPointEvaluationOracle{Orig: orig, Oracle: precompileOracle}, true
+			return &kzgPointEvaluationOracle{Orig: orig, Oracle: precompileOracle}
 		default:
-			return nil, false
+			return orig
 		}
 	}
 }

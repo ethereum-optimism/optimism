@@ -184,6 +184,7 @@ func RegolithSystemConfig(t *testing.T, regolithTimeOffset *hexutil.Uint64) Syst
 	cfg.DeployConfig.L2GenesisDeltaTimeOffset = nil
 	cfg.DeployConfig.L2GenesisEcotoneTimeOffset = nil
 	cfg.DeployConfig.L2GenesisFjordTimeOffset = nil
+	cfg.DeployConfig.L2GenesisGraniteTimeOffset = nil
 	// ADD NEW FORKS HERE!
 	return cfg
 }
@@ -211,6 +212,13 @@ func EcotoneSystemConfig(t *testing.T, ecotoneTimeOffset *hexutil.Uint64) System
 func FjordSystemConfig(t *testing.T, fjordTimeOffset *hexutil.Uint64) SystemConfig {
 	cfg := EcotoneSystemConfig(t, &genesisTime)
 	cfg.DeployConfig.L2GenesisFjordTimeOffset = fjordTimeOffset
+	return cfg
+}
+
+func GraniteSystemConfig(t *testing.T, graniteTimeOffset *hexutil.Uint64) SystemConfig {
+	cfg := FjordSystemConfig(t, &genesisTime)
+	cfg.DeployConfig.L2GenesisGraniteTimeOffset = graniteTimeOffset
+	cfg.DeployConfig.ChannelTimeoutGranite = 20
 	return cfg
 }
 
@@ -540,7 +548,9 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	l1Block := l1Genesis.ToBlock()
 	var allocsMode genesis.L2AllocsMode
 	allocsMode = genesis.L2AllocsDelta
-	if fjordTime := cfg.DeployConfig.FjordTime(l1Block.Time()); fjordTime != nil && *fjordTime <= 0 {
+	if graniteTime := cfg.DeployConfig.GraniteTime(l1Block.Time()); graniteTime != nil && *graniteTime <= 0 {
+		allocsMode = genesis.L2AllocsGranite
+	} else if fjordTime := cfg.DeployConfig.FjordTime(l1Block.Time()); fjordTime != nil && *fjordTime <= 0 {
 		allocsMode = genesis.L2AllocsFjord
 	} else if ecotoneTime := cfg.DeployConfig.EcotoneTime(l1Block.Time()); ecotoneTime != nil && *ecotoneTime <= 0 {
 		allocsMode = genesis.L2AllocsEcotone
@@ -585,7 +595,8 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 			BlockTime:               cfg.DeployConfig.L2BlockTime,
 			MaxSequencerDrift:       cfg.DeployConfig.MaxSequencerDrift,
 			SeqWindowSize:           cfg.DeployConfig.SequencerWindowSize,
-			ChannelTimeout:          cfg.DeployConfig.ChannelTimeout,
+			ChannelTimeoutBedrock:   cfg.DeployConfig.ChannelTimeoutBedrock,
+			ChannelTimeoutGranite:   cfg.DeployConfig.ChannelTimeoutGranite,
 			L1ChainID:               cfg.L1ChainIDBig(),
 			L2ChainID:               cfg.L2ChainIDBig(),
 			BatchInboxAddress:       cfg.DeployConfig.BatchInboxAddress,
@@ -596,6 +607,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 			DeltaTime:               cfg.DeployConfig.DeltaTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 			EcotoneTime:             cfg.DeployConfig.EcotoneTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 			FjordTime:               cfg.DeployConfig.FjordTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
+			GraniteTime:             cfg.DeployConfig.GraniteTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 			InteropTime:             cfg.DeployConfig.InteropTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 			ProtocolVersionsAddress: cfg.L1Deployments.ProtocolVersionsProxy,
 		}
@@ -834,14 +846,15 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	var proposerCLIConfig *l2os.CLIConfig
 	if e2eutils.UseFaultProofs() {
 		proposerCLIConfig = &l2os.CLIConfig{
-			L1EthRpc:          sys.EthInstances[RoleL1].WSEndpoint(),
-			RollupRpc:         sys.RollupNodes[RoleSeq].HTTPEndpoint(),
-			DGFAddress:        config.L1Deployments.DisputeGameFactoryProxy.Hex(),
-			ProposalInterval:  6 * time.Second,
-			DisputeGameType:   254, // Fast game type
-			PollInterval:      50 * time.Millisecond,
-			TxMgrConfig:       newTxMgrConfig(sys.EthInstances[RoleL1].WSEndpoint(), cfg.Secrets.Proposer),
-			AllowNonFinalized: cfg.NonFinalizedProposals,
+			L1EthRpc:            sys.EthInstances[RoleL1].WSEndpoint(),
+			RollupRpc:           sys.RollupNodes[RoleSeq].HTTPEndpoint(),
+			DGFAddress:          config.L1Deployments.DisputeGameFactoryProxy.Hex(),
+			ProposalInterval:    6 * time.Second,
+			DisputeGameType:     254, // Fast game type
+			PollInterval:        50 * time.Millisecond,
+			OutputRetryInterval: 10 * time.Millisecond,
+			TxMgrConfig:         newTxMgrConfig(sys.EthInstances[RoleL1].WSEndpoint(), cfg.Secrets.Proposer),
+			AllowNonFinalized:   cfg.NonFinalizedProposals,
 			LogConfig: oplog.CLIConfig{
 				Level:  log.LvlInfo,
 				Format: oplog.FormatText,
@@ -849,12 +862,13 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		}
 	} else {
 		proposerCLIConfig = &l2os.CLIConfig{
-			L1EthRpc:          sys.EthInstances[RoleL1].WSEndpoint(),
-			RollupRpc:         sys.RollupNodes[RoleSeq].HTTPEndpoint(),
-			L2OOAddress:       config.L1Deployments.L2OutputOracleProxy.Hex(),
-			PollInterval:      50 * time.Millisecond,
-			TxMgrConfig:       newTxMgrConfig(sys.EthInstances[RoleL1].WSEndpoint(), cfg.Secrets.Proposer),
-			AllowNonFinalized: cfg.NonFinalizedProposals,
+			L1EthRpc:            sys.EthInstances[RoleL1].WSEndpoint(),
+			RollupRpc:           sys.RollupNodes[RoleSeq].HTTPEndpoint(),
+			L2OOAddress:         config.L1Deployments.L2OutputOracleProxy.Hex(),
+			PollInterval:        50 * time.Millisecond,
+			OutputRetryInterval: 10 * time.Millisecond,
+			TxMgrConfig:         newTxMgrConfig(sys.EthInstances[RoleL1].WSEndpoint(), cfg.Secrets.Proposer),
+			AllowNonFinalized:   cfg.NonFinalizedProposals,
 			LogConfig: oplog.CLIConfig{
 				Level:  log.LvlInfo,
 				Format: oplog.FormatText,

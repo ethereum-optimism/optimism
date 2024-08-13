@@ -260,6 +260,14 @@ func applyOverrides(ctx *cli.Context, rollupConfig *rollup.Config) {
 		fjord := ctx.Uint64(opflags.FjordOverrideFlagName)
 		rollupConfig.FjordTime = &fjord
 	}
+	if ctx.IsSet(opflags.GraniteOverrideFlagName) {
+		granite := ctx.Uint64(opflags.GraniteOverrideFlagName)
+		rollupConfig.GraniteTime = &granite
+	}
+	if ctx.IsSet(opflags.HoloceneOverrideFlagName) {
+		holocene := ctx.Uint64(opflags.HoloceneOverrideFlagName)
+		rollupConfig.HoloceneTime = &holocene
+	}
 }
 
 func NewSyncConfig(ctx *cli.Context, log log.Logger) (*sync.Config, error) {

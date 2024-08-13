@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/stretchr/testify/require"
 
@@ -33,7 +34,7 @@ func NewMIPSEVM(artifacts *Artifacts, addrs *Addresses) *MIPSEVM {
 	return &MIPSEVM{env, evmState, addrs, nil, artifacts, math.MaxUint64, nil}
 }
 
-func (m *MIPSEVM) SetTracer(tracer vm.EVMLogger) {
+func (m *MIPSEVM) SetTracer(tracer *tracing.Hooks) {
 	m.env.Config.Tracer = tracer
 }
 

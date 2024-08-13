@@ -74,7 +74,7 @@ func (o *OracleKeyValueStore) Delete(key []byte) error {
 	panic("not supported")
 }
 
-func (o *OracleKeyValueStore) Stat(property string) (string, error) {
+func (o *OracleKeyValueStore) Stat() (string, error) {
 	panic("not supported")
 }
 

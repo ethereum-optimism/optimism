@@ -61,10 +61,55 @@ library TransientContext {
 /// @notice Reentrancy-aware modifier for transient storage, which increments and
 ///         decrements the call depth when entering and exiting a function.
 contract TransientReentrancyAware {
+    /// @notice Thrown when a non-written transient storage slot is attempted to be read from.
+    error NotEntered();
+
+    /// @notice Thrown when a reentrant call is detected.
+    error ReentrantCall();
+
+    /// @notice Storage slot for `entered` value.
+    ///         Equal to bytes32(uint256(keccak256("transientreentrancyaware.entered")) - 1)
+    bytes32 internal constant ENTERED_SLOT = 0xf13569814868ede994184d5a425471fb19e869768a33421cb701a2ba3d420c0a;
+
     /// @notice Modifier to make a function reentrancy-aware.
     modifier reentrantAware() {
         TransientContext.increment();
         _;
         TransientContext.decrement();
+    }
+
+    /// @notice Enforces that a function cannot be re-entered.
+    modifier nonReentrant() {
+        if (_entered()) revert ReentrantCall();
+        assembly {
+            tstore(ENTERED_SLOT, 1)
+        }
+        _;
+        assembly {
+            tstore(ENTERED_SLOT, 0)
+        }
+    }
+
+    /// @notice Enforces that cross domain message sender and source are set. Reverts if not.
+    ///         Used to differentiate between 0 and nil in transient storage.
+    modifier notEntered() {
+        if (TransientContext.callDepth() == 0) revert NotEntered();
+        _;
+    }
+
+    /// @notice Enforces that cross domain message sender and source are set. Reverts if not.
+    ///         Used to differentiate between 0 and nil in transient storage.
+    modifier onlyEntered() {
+        if (!_entered()) revert NotEntered();
+        _;
+    }
+
+    /// @notice Retrieves whether the contract is currently entered or not.
+    /// @return entered_ True if the contract is entered, and false otherwise.
+    function _entered() internal view returns (bool entered_) {
+        assembly {
+            let value := tload(ENTERED_SLOT)
+            entered_ := gt(value, 0)
+        }
     }
 }

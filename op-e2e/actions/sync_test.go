@@ -243,12 +243,12 @@ func TestBackupUnsafe(gt *testing.T) {
 				To:        &dp.Addresses.Bob,
 				Value:     e2eutils.Ether(2),
 			})
-			block = block.WithBody([]*types.Transaction{block.Transactions()[0], validTx}, []*types.Header{})
+			block = block.WithBody(types.Body{Transactions: []*types.Transaction{block.Transactions()[0], validTx}})
 		}
 		if i == 3 {
 			// Make block B3 as an invalid block
 			invalidTx := testutils.RandomTx(rng, big.NewInt(100), signer)
-			block = block.WithBody([]*types.Transaction{block.Transactions()[0], invalidTx}, []*types.Header{})
+			block = block.WithBody(types.Body{Transactions: []*types.Transaction{block.Transactions()[0], invalidTx}})
 		}
 		// Add A1, B2, B3, B4, B5 into the channel
 		err = channelOut.AddBlock(sd.RollupCfg, block)
@@ -404,12 +404,12 @@ func TestBackupUnsafeReorgForkChoiceInputError(gt *testing.T) {
 				To:        &dp.Addresses.Bob,
 				Value:     e2eutils.Ether(2),
 			})
-			block = block.WithBody([]*types.Transaction{block.Transactions()[0], validTx}, []*types.Header{})
+			block = block.WithBody(types.Body{Transactions: []*types.Transaction{block.Transactions()[0], validTx}})
 		}
 		if i == 3 {
 			// Make block B3 as an invalid block
 			invalidTx := testutils.RandomTx(rng, big.NewInt(100), signer)
-			block = block.WithBody([]*types.Transaction{block.Transactions()[0], invalidTx}, []*types.Header{})
+			block = block.WithBody(types.Body{Transactions: []*types.Transaction{block.Transactions()[0], invalidTx}})
 		}
 		// Add A1, B2, B3, B4, B5 into the channel
 		err = channelOut.AddBlock(sd.RollupCfg, block)
@@ -537,12 +537,12 @@ func TestBackupUnsafeReorgForkChoiceNotInputError(gt *testing.T) {
 				To:        &dp.Addresses.Bob,
 				Value:     e2eutils.Ether(2),
 			})
-			block = block.WithBody([]*types.Transaction{block.Transactions()[0], validTx}, []*types.Header{})
+			block = block.WithBody(types.Body{Transactions: []*types.Transaction{block.Transactions()[0], validTx}})
 		}
 		if i == 3 {
 			// Make block B3 as an invalid block
 			invalidTx := testutils.RandomTx(rng, big.NewInt(100), signer)
-			block = block.WithBody([]*types.Transaction{block.Transactions()[0], invalidTx}, []*types.Header{})
+			block = block.WithBody(types.Body{Transactions: []*types.Transaction{block.Transactions()[0], invalidTx}})
 		}
 		// Add A1, B2, B3, B4, B5 into the channel
 		err = channelOut.AddBlock(sd.RollupCfg, block)
@@ -919,7 +919,7 @@ func TestInvalidPayloadInSpanBatch(gt *testing.T) {
 		if i == 8 {
 			// Make block A8 as an invalid block
 			invalidTx := testutils.RandomTx(rng, big.NewInt(100), signer)
-			block = block.WithBody([]*types.Transaction{block.Transactions()[0], invalidTx}, []*types.Header{})
+			block = block.WithBody(types.Body{Transactions: []*types.Transaction{block.Transactions()[0], invalidTx}})
 		}
 		// Add A1 ~ A12 into the channel
 		err = channelOut.AddBlock(sd.RollupCfg, block)
@@ -968,7 +968,7 @@ func TestInvalidPayloadInSpanBatch(gt *testing.T) {
 				Data:      data,
 			})
 			// Create valid new block B1 at the same height as A1
-			block = block.WithBody([]*types.Transaction{block.Transactions()[0], tx}, []*types.Header{})
+			block = block.WithBody(types.Body{Transactions: []*types.Transaction{block.Transactions()[0], tx}})
 		}
 		// Add B1, A2 ~ A12 into the channel
 		err = channelOut.AddBlock(sd.RollupCfg, block)

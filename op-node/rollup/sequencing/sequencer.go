@@ -268,6 +268,7 @@ func (d *Sequencer) onBuildSealed(x engine.BuildSealedEvent) {
 	if err := d.conductor.CommitUnsafePayload(ctx, x.Envelope); err != nil {
 		d.emitter.Emit(rollup.EngineTemporaryErrorEvent{
 			Err: fmt.Errorf("failed to commit unsafe payload to conductor: %w", err)})
+		return
 	}
 
 	// begin gossiping as soon as possible
@@ -524,6 +525,11 @@ func (d *Sequencer) startBuildingBlock() {
 	if d.rollupCfg.IsFjordActivationBlock(uint64(attrs.Timestamp)) {
 		attrs.NoTxPool = true
 		d.log.Info("Sequencing Fjord upgrade block")
+	}
+
+	// For the Fjord activation block we shouldn't include any sequencer transactions.
+	if d.rollupCfg.IsGraniteActivationBlock(uint64(attrs.Timestamp)) {
+		d.log.Info("Sequencing Granite upgrade block")
 	}
 
 	d.log.Debug("prepared attributes for new block",

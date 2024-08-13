@@ -2,14 +2,14 @@
 pragma solidity 0.8.15;
 
 import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
-import { Executables } from "scripts/Executables.sol";
+import { Executables } from "scripts/libraries/Executables.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
-import { ForgeArtifacts } from "scripts/ForgeArtifacts.sol";
+import { ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
 import { Process } from "scripts/libraries/Process.sol";
 import "src/L1/ProtocolVersions.sol";
 import "src/dispute/lib/Types.sol";
@@ -360,7 +360,8 @@ contract Initializer_Test is Bridge_Initializer {
         // Ensure that all L1, L2 `Initializable` contracts are accounted for, in addition to
         // OptimismMintableERC20FactoryImpl, OptimismMintableERC20FactoryProxy, OptimismPortal2,
         // DisputeGameFactoryImpl, DisputeGameFactoryProxy, DelayedWETHImpl, DelayedWETHProxy.
-        assertEq(_getNumInitializable() + 1, contracts.length);
+        // Omitting OptimismSuperchainERC20 due to using OZ v5 Initializable.
+        assertEq(_getNumInitializable(), contracts.length);
 
         // Attempt to re-initialize all contracts within the `contracts` array.
         for (uint256 i; i < contracts.length; i++) {

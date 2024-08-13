@@ -44,18 +44,18 @@ import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 import { ProtocolVersions, ProtocolVersion } from "src/L1/ProtocolVersions.sol";
 import { StorageSetter } from "src/universal/StorageSetter.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { Chains } from "scripts/Chains.sol";
-import { Config } from "scripts/Config.sol";
+import { Chains } from "scripts/libraries/Chains.sol";
+import { Config } from "scripts/libraries/Config.sol";
 
 import { IBigStepper } from "src/dispute/interfaces/IBigStepper.sol";
 import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
 import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 import "src/dispute/lib/Types.sol";
-import { ChainAssertions } from "scripts/ChainAssertions.sol";
-import { Types } from "scripts/Types.sol";
+import { ChainAssertions } from "scripts/deploy/ChainAssertions.sol";
+import { Types } from "scripts/libraries/Types.sol";
 import { LibStateDiff } from "scripts/libraries/LibStateDiff.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
-import { ForgeArtifacts } from "scripts/ForgeArtifacts.sol";
+import { ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
 import { Process } from "scripts/libraries/Process.sol";
 
 /// @title Deploy

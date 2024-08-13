@@ -55,51 +55,66 @@ graph LR
         L1StandardBridge(<a href="https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/L1/L1StandardBridge.sol">L1StandardBridge</a>)
         L1ERC721Bridge(<a href="https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/L1/L1ERC721Bridge.sol">L1ERC721Bridge</a>)
         L1CrossDomainMessenger(<a href="https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/L1/L1CrossDomainMessenger.sol">L1CrossDomainMessenger</a>)
-        L2OutputOracle(<a href="https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/L1/L2OutputOracle.sol">L2OutputOracle</a>)
         OptimismPortal(<a href="https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/L1/OptimismPortal.sol">OptimismPortal</a>)
         SuperchainConfig(<a href="https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/L1/SuperchainConfig.sol">SuperchainConfig</a>)
         SystemConfig(<a href="https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/L1/SystemConfig.sol">SystemConfig</a>)
+        DisputeGameFactory(<a href="https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/dispute/DisputeGameFactory.sol">DisputeGameFactory</a>)
+        FaultDisputeGame(<a href="https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/dispute/FaultDisputeGame.sol">FaultDisputeGame</a>)
+        AnchorStateRegistry(<a href="https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/dispute/AnchorStateRegistry.sol">AnchorStateRegistry</a>)
+        DelayedWETH(<a href="https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/dispute/weth/DelayedWETH.sol">DelayedWETH</a>)
     end
 
-    subgraph "User Interactions"
+    subgraph "User Interactions (Permissionless)"
         Users(Users)
+        Challengers(Challengers)
     end
 
     subgraph "System Interactions"
-        Batcher(Batcher)
-        Proposer(Proposer)
         Guardian(Guardian)
+        Batcher(Batcher)
     end
 
     subgraph "Layer 2 Interactions"
         L2Nodes(Layer 2 Nodes)
     end
 
-    Batcher -->|publish transaction batches| BatchDataEOA
-    Proposer -->|propose state outputs| L2OutputOracle
-    Guardian -->|remove invalid state outputs| L2OutputOracle
-
-    ExternalERC20 <-->|mint/burn/transfer| L1StandardBridge
-    ExternalERC721 <-->|mint/burn/transfer| L1ERC721Bridge
-
-    L1StandardBridge <-->|send/receive message| L1CrossDomainMessenger
-    L1ERC721Bridge <-->|send/receive message| L1CrossDomainMessenger
-    L1CrossDomainMessenger <-->|package/send/receive message| OptimismPortal
-    L1StandardBridge -.->|query pause state| SuperchainConfig
-    L1ERC721Bridge -.->|query pause state| SuperchainConfig
-    L1CrossDomainMessenger -.->|query pause state| SuperchainConfig
-    OptimismPortal -.->|query pause state| SuperchainConfig
-
-    OptimismPortal -.->|query config| SystemConfig
-    OptimismPortal -.->|query proposed states| L2OutputOracle
-
-    Users <-->|deposit/withdraw ETH/ERC20| L1StandardBridge
-    Users <-->|deposit/withdraw ERC721| L1ERC721Bridge
-    Users -->|prove/execute withdrawal transactions| OptimismPortal
-
     L2Nodes -.->|fetch transaction batches| BatchDataEOA
-    L2Nodes -.->|verify output roots| L2OutputOracle
     L2Nodes -.->|fetch deposit events| OptimismPortal
+
+    Batcher -->|publish transaction batches| BatchDataEOA
+
+    ExternalERC20 <-->|mint/burn/transfer tokens| L1StandardBridge
+    ExternalERC721 <-->|mint/burn/transfer tokens| L1ERC721Bridge
+
+    L1StandardBridge <-->|send/receive messages| L1CrossDomainMessenger
+    L1StandardBridge -.->|query pause state| SuperchainConfig
+
+    L1ERC721Bridge <-->|send/receive messages| L1CrossDomainMessenger
+    L1ERC721Bridge -.->|query pause state| SuperchainConfig
+
+    L1CrossDomainMessenger <-->|send/receive messages| OptimismPortal
+    L1CrossDomainMessenger -.->|query pause state| SuperchainConfig
+
+    OptimismPortal -.->|query pause state| SuperchainConfig
+    OptimismPortal -.->|query config| SystemConfig
+    OptimismPortal -.->|query state proposals| DisputeGameFactory
+
+    DisputeGameFactory -->|generate instances| FaultDisputeGame
+
+    FaultDisputeGame -->|store bonds| DelayedWETH
+    FaultDisputeGame -->|query/update anchor states| AnchorStateRegistry
+
+    Users <-->|deposit/withdraw ETH/ERC20s| L1StandardBridge
+    Users <-->|deposit/withdraw ERC721s| L1ERC721Bridge
+    Users -->|prove/execute withdrawals| OptimismPortal
+
+    Challengers -->|propose output roots| DisputeGameFactory
+    Challengers -->|verify/challenge/defend proposals| FaultDisputeGame
+
+    Guardian -->|pause/unpause| SuperchainConfig
+    Guardian -->|safety net actions| OptimismPortal
+    Guardian -->|safety net actions| DisputeGameFactory
+    Guardian -->|safety net actions| DelayedWETH
 
     classDef extContracts stroke:#ff9,stroke-width:2px;
     classDef l1Contracts stroke:#bbf,stroke-width:2px;
@@ -108,10 +123,10 @@ graph LR
     classDef systemUser stroke:#f9a,stroke-width:2px;
     classDef l2Nodes stroke:#333,stroke-width:2px
     class ExternalERC20,ExternalERC721 extContracts;
-    class L1StandardBridge,L1ERC721Bridge,L1CrossDomainMessenger,L2OutputOracle,OptimismPortal,SuperchainConfig,SystemConfig l1Contracts;
+    class L1StandardBridge,L1ERC721Bridge,L1CrossDomainMessenger,OptimismPortal,SuperchainConfig,SystemConfig,DisputeGameFactory,FaultDisputeGame,DelayedWETH,AnchorStateRegistry l1Contracts;
     class BatchDataEOA l1EOA;
-    class Users userInt;
-    class Batcher,Proposer,Guardian systemUser;
+    class Users,Challengers userInt;
+    class Batcher,Guardian systemUser;
     class L2Nodes l2Nodes;
 ```
 
@@ -236,7 +251,7 @@ graph LR
 OP Stack smart contracts are published to NPM and can be installed via:
 
 ```sh
-npm install @eth-optimism/contracts-bedrock.
+npm install @eth-optimism/contracts-bedrock
 ```
 
 Refer to the [Optimism Developer Docs](https://docs.optimism.io/builders/dapp-developers/contracts/system-contracts#using-system-contracts-in-solidity) for additional information about how to use this package.
@@ -321,8 +336,8 @@ Use the env var `DEPLOY_CONFIG_PATH` to use a particular deploy config file at r
 
 The script will read the latest active fork from the deploy config and the L2 genesis allocs generated will be
 compatible with this fork. The automatically detected fork can be overwritten by setting the environment variable
-`FORK` either to the lower-case fork name (currently `delta`, `ecotone`, or `fjord`) or to `latest`, which will select
-the latest fork available (currently `fjord`).
+`FORK` either to the lower-case fork name (currently `delta`, `ecotone`, `fjord`, or `granite`) or to `latest`, which
+will select the latest fork available (currently `granite`).
 
 By default, the script will dump the L2 genesis allocs of the detected or selected fork only, to the file at `STATE_DUMP_PATH`.
 The optional environment variable `OUTPUT_MODE` allows to modify this behavior by setting it to one of the following values:
@@ -361,7 +376,7 @@ to reduce the overhead of maintaining multiple ways to set up the state as well 
 
 The L1 contract addresses are held in `deployments/hardhat/.deploy` and the L2 test state is held in a `.testdata` directory. The L1 addresses are used to create the L2 state
 and it is possible for stale addresses to be pulled into the L2 state, causing tests to fail. Stale addresses may happen if the order of the L1 deployments happen differently
-since some contracts are deployed using `CREATE`. Run `pnpm clean` and rerun the tests if they are failing for an unknown reason.
+since some contracts are deployed using `CREATE`. Run `just clean` and rerun the tests if they are failing for an unknown reason.
 
 ### Static Analysis
 

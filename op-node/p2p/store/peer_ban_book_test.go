@@ -17,7 +17,7 @@ func TestGetUnknownPeerBan(t *testing.T) {
 	book := createMemoryPeerBanBook(t)
 	defer book.Close()
 	exp, err := book.GetPeerBanExpiration("a")
-	require.Same(t, UnknownBanErr, err)
+	require.Same(t, ErrUnknownBan, err)
 	require.Equal(t, time.Time{}, exp)
 }
 
