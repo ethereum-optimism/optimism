@@ -75,11 +75,13 @@ type Metadata struct {
 		Version string `json:"version"`
 	} `json:"compiler"`
 
-	Settings struct {
-		// Not all settings affect the tooling.
-		// E.g. remappings are ignored when determining the input to a contract,
-		// as the details about each of the dependencies are included anyway.
+	Language string `json:"language"`
 
+	Output json.RawMessage `json:"output"`
+
+	Settings struct {
+		// Remappings of the contract imports
+		Remappings json.RawMessage `json:"remappings"`
 		// Optimizer settings affect the compiler output, but can be arbitrary.
 		// We load them opaquely, to include it in the hash of what we run.
 		Optimizer json.RawMessage `json:"optimizer"`
@@ -90,9 +92,13 @@ type Metadata struct {
 		CompilationTarget map[string]string `json:"compilationTarget"`
 		// EVM version affects output, and hence included.
 		EVMVersion string `json:"evmVersion"`
+		// Libraries data
+		Libraries json.RawMessage `json:"libraries"`
 	} `json:"settings"`
 
 	Sources map[string]ContractSource `json:"sources"`
+
+	Version int `json:"version"`
 }
 
 // ContractSource represents a JSON value in the "sources" map of a contract metadata dump.

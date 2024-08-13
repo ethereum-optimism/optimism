@@ -1,4 +1,4 @@
-package foundry
+package op_e2e
 
 import (
 	"errors"
@@ -8,12 +8,13 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
 func TestArtifacts(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelWarn) // lower this log level to get verbose test dump of all artifacts
-	af := OpenArtifactsDir("./testdata/forge-artifacts")
+	af := foundry.OpenArtifactsDir("../packages/contracts-bedrock/forge-artifacts")
 	artifacts, err := af.ListArtifacts()
 	require.NoError(t, err)
 	require.NotEmpty(t, artifacts)
@@ -24,7 +25,7 @@ func TestArtifacts(t *testing.T) {
 		for _, contract := range contracts {
 			artifact, err := af.ReadArtifact(name, contract)
 			if err != nil {
-				if errors.Is(err, ErrLinkingUnsupported) {
+				if errors.Is(err, foundry.ErrLinkingUnsupported) {
 					logger.Info("linking not supported", "name", name, "contract", contract, "err", err)
 					continue
 				}
