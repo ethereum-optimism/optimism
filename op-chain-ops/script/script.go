@@ -2,6 +2,8 @@ package script
 
 import (
 	"encoding/binary"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"math/big"
 
@@ -24,11 +26,30 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 )
 
+// Prank represents an active prank task for the next sub-call.
+type Prank struct {
+	// Sender overrides msg.sender
+	Sender *common.Address
+	// Origin overrides tx.origin (set to actual origin if not part of the prank)
+	Origin *common.Address
+	// PrevOrigin is the tx.origin to restore after the prank
+	PrevOrigin common.Address
+	// Repeat is true if the prank persists after returning from a sub-call
+	Repeat bool
+	// A Prank may be a broadcast also.
+	Broadcast bool
+}
+
 // CallFrame encodes the scope context of the current call
 type CallFrame struct {
 	Depth  int
 	Opener vm.OpCode
 	Ctx    *vm.ScopeContext
+
+	// Prank overrides the msg.sender, and optionally the origin.
+	// Forge script does not support nested pranks on the same call-depth.
+	// Pranks can also be broadcasting.
+	Prank *Prank
 }
 
 // Host is an EVM executor that runs Forge scripts.
@@ -45,14 +66,25 @@ type Host struct {
 	console    *Precompile[*ConsolePrecompile]
 
 	callStack []CallFrame
+
+	// serializerStates are in-progress JSON payloads by name,
+	// for the serializeX family of cheat codes, see:
+	// https://book.getfoundry.sh/cheatcodes/serialize-json
+	serializerStates map[string]json.RawMessage
+
+	envVars map[string]string
+	labels  map[common.Address]string
 }
 
 // NewHost creates a Host that can load contracts from the given Artifacts FS,
 // and with an EVM initialized to the given executionContext.
 func NewHost(logger log.Logger, fs *foundry.ArtifactsFS, executionContext Context) *Host {
 	h := &Host{
-		log: logger,
-		af:  fs,
+		log:              logger,
+		af:               fs,
+		serializerStates: make(map[string]json.RawMessage),
+		envVars:          make(map[string]string),
+		labels:           make(map[common.Address]string),
 	}
 
 	// Init a default chain config, with all the mainnet L1 forks activated
@@ -239,6 +271,21 @@ func (h *Host) onFault(pc uint64, op byte, gas, cost uint64, scope tracing.OpCon
 func (h *Host) unwindCallstack(depth int) {
 	// pop the callstack until the depth matches
 	for len(h.callStack) > 0 && h.callStack[len(h.callStack)-1].Depth > depth {
+		// unset the prank, if the parent call-frame had set up a prank that does not repeat
+		if len(h.callStack) > 1 {
+			parentCallFrame := h.callStack[len(h.callStack)-2]
+			if parentCallFrame.Prank != nil {
+				// While going back to the parent, restore the tx.origin.
+				// It will later be re-applied on sub-calls if the prank persists (if Repeat == true).
+				if parentCallFrame.Prank.Origin != nil {
+					h.env.TxContext.Origin = parentCallFrame.Prank.PrevOrigin
+				}
+				if !parentCallFrame.Prank.Repeat {
+					parentCallFrame.Prank = nil
+				}
+			}
+		}
+		// Now pop the call-frame
 		h.callStack[len(h.callStack)-1] = CallFrame{} // don't hold on to the underlying call-frame resources
 		h.callStack = h.callStack[:len(h.callStack)-1]
 	}
@@ -256,6 +303,18 @@ func (h *Host) onOpcode(pc uint64, op byte, gas, cost uint64, scope tracing.OpCo
 			Opener: vm.OpCode(op),
 			Ctx:    scopeCtx,
 		})
+		// apply prank, if parent call-frame set up a prank
+		if len(h.callStack) > 1 {
+			parentCallFrame := h.callStack[len(h.callStack)-2]
+			if parentCallFrame.Prank != nil {
+				if parentCallFrame.Prank.Sender != nil {
+					scopeCtx.Contract.CallerAddress = *parentCallFrame.Prank.Sender
+				}
+				if parentCallFrame.Prank.Origin != nil {
+					h.env.TxContext.Origin = *parentCallFrame.Prank.Origin
+				}
+			}
+		}
 	}
 	// Sanity check that top of the call-stack matches the scope context now
 	if len(h.callStack) == 0 || h.callStack[len(h.callStack)-1].Ctx != scopeCtx {
@@ -306,4 +365,97 @@ func (h *Host) SelfAddress() common.Address {
 		return common.Address{}
 	}
 	return cf.Ctx.Address()
+}
+
+// Prank applies a prank to the current call-frame.
+// Any sub-call will apply the prank to their frame context.
+func (h *Host) Prank(msgSender *common.Address, txOrigin *common.Address, repeat bool, broadcast bool) error {
+	if len(h.callStack) == 0 {
+		h.log.Warn("no call stack")
+		return nil // cannot prank while not in a call.
+	}
+	cf := &h.callStack[len(h.callStack)-1]
+	if cf.Prank != nil {
+		if cf.Prank.Broadcast && !broadcast {
+			return errors.New("you have an active broadcast; broadcasting and pranks are not compatible")
+		}
+		if !cf.Prank.Broadcast && broadcast {
+			return errors.New("you have an active prank; broadcasting and pranks are not compatible")
+		}
+	}
+	cf.Prank = &Prank{
+		Sender:     msgSender,
+		Origin:     txOrigin,
+		PrevOrigin: h.env.TxContext.Origin,
+		Repeat:     repeat,
+		Broadcast:  broadcast,
+	}
+	return nil
+}
+
+// StopPrank disables the current prank. Any sub-call will not be pranked.
+func (h *Host) StopPrank(broadcast bool) error {
+	if len(h.callStack) == 0 {
+		return nil
+	}
+	cf := &h.callStack[len(h.callStack)-1]
+	if cf.Prank == nil {
+		if broadcast {
+			return errors.New("no broadcast in progress to stop")
+		}
+		return nil
+	}
+	if cf.Prank.Broadcast && !broadcast {
+		// stopPrank on active broadcast is silent and no-op
+		return nil
+	}
+	if !cf.Prank.Broadcast && broadcast {
+		return errors.New("no broadcast in progress to stop")
+	}
+	cf.Prank = nil
+	return nil
+}
+
+func (h *Host) CallerMode() CallerMode {
+	if len(h.callStack) == 0 {
+		return CallerModeNone
+	}
+	cf := &h.callStack[len(h.callStack)-1]
+	if cf.Prank != nil {
+		if cf.Prank.Broadcast {
+			if cf.Prank.Repeat {
+				return CallerModeRecurrentBroadcast
+			}
+			return CallerModeBroadcast
+		}
+		if cf.Prank.Repeat {
+			return CallerModeRecurrentPrank
+		}
+		return CallerModePrank
+	}
+	return CallerModeNone
+}
+
+type CallerMode uint8
+
+func (cm CallerMode) Big() *big.Int {
+	return big.NewInt(int64(cm))
+}
+
+// CallerMode matches the CallerMode forge cheatcode enum.
+const (
+	CallerModeNone CallerMode = iota
+	CallerModeBroadcast
+	CallerModeRecurrentBroadcast
+	CallerModePrank
+	CallerModeRecurrentPrank
+)
+
+func (h *Host) GetEnvVar(key string) (value string, ok bool) {
+	value, ok = h.envVars[key]
+	return
+}
+
+func (h *Host) SetEnvVar(key string, value string) {
+	h.envVars[key] = value
 }

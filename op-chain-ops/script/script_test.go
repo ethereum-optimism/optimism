@@ -25,6 +25,7 @@ func TestScript(t *testing.T) {
 
 	require.NoError(t, h.EnableCheats())
 
+	h.SetEnvVar("EXAMPLE_BOOL", "true")
 	input := bytes4("run()")
 	returnData, _, err := h.Call(scriptContext.sender, addr, input[:], DefaultFoundryGasLimit, uint256.NewInt(0))
 	require.NoError(t, err, "call failed: %x", string(returnData))
