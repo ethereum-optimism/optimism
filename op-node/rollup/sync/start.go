@@ -54,6 +54,10 @@ var TooDeepReorgErr = errors.New("reorg is too deep")
 
 const MaxReorgSeqWindows = 5
 
+// recoverTimeGapLargerThan is the time between unsafe head and finalized head
+// after which resyncing is highly undesirable. This may happen after EL sync completes.
+const recoverTimeGapLargerThan = 7 * 24 * 60 * 60
+
 type FindHeadsResult struct {
 	Unsafe    eth.L2BlockRef
 	Safe      eth.L2BlockRef
@@ -113,6 +117,25 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 
 	lgr.Info("Loaded current L2 heads", "unsafe", result.Unsafe, "safe", result.Safe, "finalized", result.Finalized,
 		"unsafe_origin", result.Unsafe.L1Origin, "safe_origin", result.Safe.L1Origin)
+
+	// Check if the execution engine completed sync, but left the forkchoice finalized & safe heads at genesis.
+	// This is the equivalent of the "syncStatusFinishedELButNotFinalized" post-processing in the engine controller.
+	if result.Finalized.Hash == cfg.Genesis.L2.Hash &&
+		result.Safe.Hash == cfg.Genesis.L2.Hash &&
+		result.Unsafe.Number > cfg.Genesis.L2.Number &&
+		result.Unsafe.Time > cfg.Genesis.L2Time+recoverTimeGapLargerThan {
+		lgr.Warn("Attempting recovery from sync state without finality.", "head", result.Unsafe)
+		return &FindHeadsResult{Unsafe: result.Unsafe, Safe: result.Unsafe, Finalized: result.Unsafe}, nil
+	}
+
+	// Check if the execution engine corrupted, and forkchoice is ahead of the remaining chain:
+	// in this case we must go back to the prior head, to reprocess the pruned finalized/safe data.
+	if result.Unsafe.Number < result.Finalized.Number || result.Unsafe.Number < result.Safe.Number {
+		lgr.Error("Unsafe head is behind known finalized/safe blocks, "+
+			"execution-engine chain must have been rewound without forkchoice update. Attempting recovery now.",
+			"unsafe_head", result.Unsafe, "safe_head", result.Safe, "finalized_head", result.Finalized)
+		return &FindHeadsResult{Unsafe: result.Unsafe, Safe: result.Unsafe, Finalized: result.Unsafe}, nil
+	}
 
 	// Remember original unsafe block to determine reorg depth
 	prevUnsafe := result.Unsafe
