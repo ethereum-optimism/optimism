@@ -52,7 +52,7 @@ func TestPingService(t *testing.T) {
 	})
 
 	trace := make(chan string)
-	srv := NewPingService(log, pingFn, peersFn, fakeClock, func(work string) {
+	srv := newTracedPingService(log, pingFn, peersFn, fakeClock, func(work string) {
 		trace <- work
 	})
 

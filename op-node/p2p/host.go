@@ -287,7 +287,6 @@ func (conf *Config) Host(log log.Logger, reporter metrics.Reporter, metrics Host
 			},
 			h.Network().Peers,
 			clock.SystemClock,
-			nil,
 		)
 	}
 
