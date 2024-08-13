@@ -308,10 +308,10 @@ contract GovernanceDelegation is IGovernanceDelegation {
                 _migrate(delegatee);
             }
 
-            if (amount == 0) revert InvalidAmountZero();
             if (i > 0 && _delegationSet[i].allowanceType != _type) revert InconsistentType();
 
             if (_delegationSet[i].allowanceType == AllowanceType.Relative) {
+                if (amount == 0) revert InvalidAmountZero();
                 _delegationAdjustments[i] = DelegationAdjustment(delegatee, uint208((_balance * amount) / DENOMINATOR));
                 _total += amount;
                 if (_total > DENOMINATOR) revert NumeratorSumExceedsDenominator(_total, DENOMINATOR);
