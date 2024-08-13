@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
 	"github.com/stretchr/testify/require"
 )
@@ -46,6 +48,14 @@ type stubLogStore struct {
 	closestBlockNumber uint64
 	closestBlockErr    error
 	rewoundTo          uint64
+}
+
+func (s *stubLogStore) Contains(blockNum uint64, logIdx uint32, loghash types.TruncatedHash) (bool, entrydb.EntryIdx, error) {
+	panic("not supported")
+}
+
+func (s *stubLogStore) LastCheckpointBehind(entrydb.EntryIdx) (*logs.Iterator, error) {
+	panic("not supported")
 }
 
 func (s *stubLogStore) ClosestBlockInfo(blockNum uint64) (uint64, types.TruncatedHash, error) {

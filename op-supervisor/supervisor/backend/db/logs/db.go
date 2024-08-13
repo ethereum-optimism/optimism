@@ -202,29 +202,42 @@ func (db *DB) ClosestBlockInfo(blockNum uint64) (uint64, types.TruncatedHash, er
 	return checkpoint.blockNum, entry.hash, nil
 }
 
+// Get returns the truncated hash of the log at the specified blockNum and logIdx,
+// or an error if the log is not found.
+func (db *DB) Get(blockNum uint64, logiIdx uint32) (types.TruncatedHash, error) {
+	db.rwLock.RLock()
+	defer db.rwLock.RUnlock()
+	hash, _, err := db.findLogInfo(blockNum, logiIdx)
+	return hash, err
+}
+
 // Contains return true iff the specified logHash is recorded in the specified blockNum and logIdx.
-// logIdx is the index of the log in the array of all logs the block.
+// If the log is found, the entry index of the log is returned, too.
+// logIdx is the index of the log in the array of all logs in the block.
 // This can be used to check the validity of cross-chain interop events.
-func (db *DB) Contains(blockNum uint64, logIdx uint32, logHash types.TruncatedHash) (bool, error) {
+func (db *DB) Contains(blockNum uint64, logIdx uint32, logHash types.TruncatedHash) (bool, entrydb.EntryIdx, error) {
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
 	db.log.Trace("Checking for log", "blockNum", blockNum, "logIdx", logIdx, "hash", logHash)
 
-	evtHash, _, err := db.findLogInfo(blockNum, logIdx)
+	evtHash, iter, err := db.findLogInfo(blockNum, logIdx)
 	if errors.Is(err, ErrNotFound) {
 		// Did not find a log at blockNum and logIdx
-		return false, nil
+		return false, 0, nil
 	} else if err != nil {
-		return false, err
+		return false, 0, err
 	}
 	db.log.Trace("Found initiatingEvent", "blockNum", blockNum, "logIdx", logIdx, "hash", evtHash)
 	// Found the requested block and log index, check if the hash matches
-	return evtHash == logHash, nil
+	if evtHash == logHash {
+		return true, iter.Index(), nil
+	}
+	return false, 0, nil
 }
 
 // Executes checks if the log identified by the specific block number and log index, has an ExecutingMessage associated
 // with it that needs to be checked as part of interop validation.
-// logIdx is the index of the log in the array of all logs the block.
+// logIdx is the index of the log in the array of all logs in the block.
 // Returns the ExecutingMessage if it exists, or ExecutingMessage{} if the log is found but has no ExecutingMessage.
 // Returns ErrNotFound if the specified log does not exist in the database.
 func (db *DB) Executes(blockNum uint64, logIdx uint32) (types.ExecutingMessage, error) {
@@ -241,7 +254,7 @@ func (db *DB) Executes(blockNum uint64, logIdx uint32) (types.ExecutingMessage, 
 	return execMsg, nil
 }
 
-func (db *DB) findLogInfo(blockNum uint64, logIdx uint32) (types.TruncatedHash, *iterator, error) {
+func (db *DB) findLogInfo(blockNum uint64, logIdx uint32) (types.TruncatedHash, *Iterator, error) {
 	entryIdx, err := db.searchCheckpoint(blockNum, logIdx)
 	if errors.Is(err, io.EOF) {
 		// Did not find a checkpoint to start reading from so the log cannot be present.
@@ -277,7 +290,7 @@ func (db *DB) findLogInfo(blockNum uint64, logIdx uint32) (types.TruncatedHash, 
 	}
 }
 
-func (db *DB) newIterator(startCheckpointEntry entrydb.EntryIdx) (*iterator, error) {
+func (db *DB) newIterator(startCheckpointEntry entrydb.EntryIdx) (*Iterator, error) {
 	checkpoint, err := db.readSearchCheckpoint(startCheckpointEntry)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read search checkpoint entry %v: %w", startCheckpointEntry, err)
@@ -315,7 +328,7 @@ func (db *DB) newIterator(startCheckpointEntry entrydb.EntryIdx) (*iterator, err
 		}
 		startLogCtx = initEvt.preContext(startLogCtx)
 	}
-	i := &iterator{
+	i := &Iterator{
 		db: db,
 		// +2 to skip the initial search checkpoint and the canonical hash event after it
 		nextEntryIdx: startIdx,
@@ -475,6 +488,19 @@ func (db *DB) Rewind(headBlockNum uint64) error {
 		return fmt.Errorf("failed to find new last entry context: %w", err)
 	}
 	return nil
+}
+
+func (db *DB) LastCheckpointBehind(entryIdx entrydb.EntryIdx) (*Iterator, error) {
+	for attempts := 0; attempts < searchCheckpointFrequency; attempts++ {
+		// attempt to read the index entry as a search checkpoint
+		_, err := db.readSearchCheckpoint(entryIdx)
+		if err == nil {
+			return db.newIterator(entryIdx)
+		}
+		// reverse if we haven't found it yet
+		entryIdx -= 1
+	}
+	return nil, fmt.Errorf("failed to find a search checkpoint in the last %v entries", searchCheckpointFrequency)
 }
 
 func (db *DB) readSearchCheckpoint(entryIdx entrydb.EntryIdx) (searchCheckpoint, error) {

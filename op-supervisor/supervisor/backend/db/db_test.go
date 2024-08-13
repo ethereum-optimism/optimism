@@ -4,6 +4,9 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/heads"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
 	backendTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/stretchr/testify/require"
@@ -49,9 +52,21 @@ func TestChainsDB_Rewind(t *testing.T) {
 
 type stubHeadStorage struct{}
 
+func (s *stubHeadStorage) Apply(heads.Operation) error {
+	panic("not implemented")
+}
+
+func (s *stubHeadStorage) Current() *heads.Heads {
+	panic("not implemented")
+}
+
 type stubLogDB struct {
 	addLogCalls  int
 	headBlockNum uint64
+}
+
+func (s *stubLogDB) LastCheckpointBehind(entrydb.EntryIdx) (*logs.Iterator, error) {
+	panic("not implemented")
 }
 
 func (s *stubLogDB) ClosestBlockInfo(_ uint64) (uint64, backendTypes.TruncatedHash, error) {
@@ -61,6 +76,10 @@ func (s *stubLogDB) ClosestBlockInfo(_ uint64) (uint64, backendTypes.TruncatedHa
 func (s *stubLogDB) AddLog(logHash backendTypes.TruncatedHash, block eth.BlockID, timestamp uint64, logIdx uint32, execMsg *backendTypes.ExecutingMessage) error {
 	s.addLogCalls++
 	return nil
+}
+
+func (s *stubLogDB) Contains(blockNum uint64, logIdx uint32, loghash backendTypes.TruncatedHash) (bool, entrydb.EntryIdx, error) {
+	panic("not implemented")
 }
 
 func (s *stubLogDB) Rewind(newHeadBlockNum uint64) error {
