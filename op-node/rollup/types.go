@@ -21,6 +21,7 @@ var (
 	ErrMissingChannelTimeout         = errors.New("channel timeout must be set, this should cover at least a L1 block time")
 	ErrInvalidGraniteChannelTimeout  = errors.New("channel timeout granite must be less than channel timeout")
 	ErrInvalidSeqWindowSize          = errors.New("sequencing window size must at least be 2")
+	ErrInvalidMaxSeqDrift            = errors.New("maximum sequencer drift must be greater than 0")
 	ErrMissingGenesisL1Hash          = errors.New("genesis L1 hash cannot be empty")
 	ErrMissingGenesisL2Hash          = errors.New("genesis L2 hash cannot be empty")
 	ErrGenesisHashesSame             = errors.New("achievement get! rollup inception: L1 and L2 genesis cannot be the same")
@@ -281,6 +282,9 @@ func (cfg *Config) Check() error {
 	}
 	if cfg.SeqWindowSize < 2 {
 		return ErrInvalidSeqWindowSize
+	}
+	if cfg.MaxSequencerDrift == 0 {
+		return ErrInvalidMaxSeqDrift
 	}
 	if cfg.Genesis.L1.Hash == (common.Hash{}) {
 		return ErrMissingGenesisL1Hash
