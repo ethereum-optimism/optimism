@@ -70,8 +70,8 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
     address internal constant DEPOSITOR_ACCOUNT = 0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAd0001;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.4
-    string public constant version = "1.0.0-beta.4";
+    /// @custom:semver 1.0.0-beta.5
+    string public constant version = "1.0.0-beta.5";
 
     /// @notice Emitted when a cross chain message is being executed.
     /// @param msgHash Hash of message payload being executed.
