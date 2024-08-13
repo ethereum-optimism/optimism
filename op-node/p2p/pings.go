@@ -45,9 +45,8 @@ func NewPingService(
 	log log.Logger,
 	ping PingFn,
 	peers PeersFn,
-	clock clock.Clock,
 ) *PingService {
-	return newTracedPingService(log, ping, peers, clock, nil)
+	return newTracedPingService(log, ping, peers, clock.SystemClock, nil)
 }
 
 func newTracedPingService(
