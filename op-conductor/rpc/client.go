@@ -102,6 +102,11 @@ func (c *APIClient) Resume(ctx context.Context) error {
 	return c.c.CallContext(ctx, nil, prefixRPC("resume"))
 }
 
+// Stop implements API.
+func (c *APIClient) Stop(ctx context.Context) error {
+	return c.c.CallContext(ctx, nil, prefixRPC("stop"))
+}
+
 // TransferLeader implements API.
 func (c *APIClient) TransferLeader(ctx context.Context) error {
 	return c.c.CallContext(ctx, nil, prefixRPC("transferLeader"))
