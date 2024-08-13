@@ -91,7 +91,10 @@ func (s *Server) StreamEvents(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) sendPayloadAttributes(ctx context.Context, w http.ResponseWriter, flusher http.Flusher, attrs *derive.AttributesWithParent) error {
-	builderAttrs := attrs.ToBuilderPayloadAttributes()
+	builderAttrs, err := attrs.ToBuilderPayloadAttributes()
+	if err != nil {
+		return err
+	}
 	jsonBytes, err := json.Marshal(builderAttrs)
 	if err != nil {
 		return err

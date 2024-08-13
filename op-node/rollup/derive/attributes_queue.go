@@ -36,11 +36,14 @@ type AttributesWithParent struct {
 	IsLastInSpan bool
 }
 
-func (a *AttributesWithParent) ToBuilderPayloadAttributes() *BuilderPayloadAttributes {
+func (a *AttributesWithParent) ToBuilderPayloadAttributes() (*BuilderPayloadAttributes, error) {
 	transactions := make([]*types.Transaction, len(a.Attributes.Transactions))
 	for i, txBytes := range a.Attributes.Transactions {
 		var ttx types.Transaction
-		ttx.UnmarshalBinary(txBytes)
+		err := ttx.UnmarshalBinary(txBytes)
+		if err != nil {
+			return nil, err
+		}
 		transactions[i] = &ttx
 	}
 
@@ -54,7 +57,7 @@ func (a *AttributesWithParent) ToBuilderPayloadAttributes() *BuilderPayloadAttri
 		ParentBeaconBlockRoot: a.Attributes.ParentBeaconBlockRoot,
 		Transactions:          transactions,
 		GasLimit:              uint64(*a.Attributes.GasLimit),
-	}
+	}, nil
 }
 
 type BuilderPayloadAttributes struct {

@@ -614,7 +614,11 @@ func (n *OpNode) PublishL2Payload(ctx context.Context, envelope *eth.ExecutionPa
 }
 
 func (n *OpNode) PublishL2Attributes(ctx context.Context, attrs *derive.AttributesWithParent) error {
-	builderAttrs := attrs.ToBuilderPayloadAttributes()
+	builderAttrs, err := attrs.ToBuilderPayloadAttributes()
+	if err != nil {
+		n.log.Warn("failed to convert attributes to builder attributes", "err", err)
+		return err
+	}
 	jsonBytes, err := json.Marshal(builderAttrs)
 	if err != nil {
 		n.log.Warn("failed to marshal payload attributes", "err", err)
