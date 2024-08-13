@@ -384,7 +384,6 @@ contract Deploy is Deployer {
         deployL1ERC721Bridge();
         deployOptimismPortal();
         deployL2OutputOracle();
-
         // Fault proofs
         deployOptimismPortal2();
         deployDisputeGameFactory();
@@ -642,10 +641,9 @@ contract Deploy is Deployer {
     function deployOptimismPortal() public broadcast returns (address addr_) {
         console.log("Deploying OptimismPortal implementation");
         if (cfg.useInterop()) {
-            addr_ = address(new OptimismPortalInterop{ salt: _implSalt() }());
-        } else {
-            addr_ = address(new OptimismPortal{ salt: _implSalt() }());
+            console.log("Attempting to deploy OptimismPortal with interop, this config is a noop");
         }
+        addr_ = address(new OptimismPortal{ salt: _implSalt() }());
         save("OptimismPortal", addr_);
         console.log("OptimismPortal deployed at %s", addr_);
 
@@ -666,22 +664,31 @@ contract Deploy is Deployer {
             uint32(cfg.respectedGameType()) == cfg.respectedGameType(), "Deploy: respectedGameType must fit into uint32"
         );
 
-        OptimismPortal2 portal = new OptimismPortal2{ salt: _implSalt() }({
-            _proofMaturityDelaySeconds: cfg.proofMaturityDelaySeconds(),
-            _disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds()
-        });
+        if (cfg.useInterop()) {
+            addr_ = address(
+                new OptimismPortalInterop{ salt: _implSalt() }({
+                    _proofMaturityDelaySeconds: cfg.proofMaturityDelaySeconds(),
+                    _disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds()
+                })
+            );
+        } else {
+            addr_ = address(
+                new OptimismPortal2{ salt: _implSalt() }({
+                    _proofMaturityDelaySeconds: cfg.proofMaturityDelaySeconds(),
+                    _disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds()
+                })
+            );
+        }
 
-        save("OptimismPortal2", address(portal));
-        console.log("OptimismPortal2 deployed at %s", address(portal));
+        save("OptimismPortal2", addr_);
+        console.log("OptimismPortal2 deployed at %s", addr_);
 
         // Override the `OptimismPortal2` contract to the deployed implementation. This is necessary
         // to check the `OptimismPortal2` implementation alongside dependent contracts, which
         // are always proxies.
         Types.ContractSet memory contracts = _proxiesUnstrict();
-        contracts.OptimismPortal2 = address(portal);
+        contracts.OptimismPortal2 = addr_;
         ChainAssertions.checkOptimismPortal2({ _contracts: contracts, _cfg: cfg, _isProxy: false });
-
-        addr_ = address(portal);
     }
 
     /// @notice Deploy the L2OutputOracle
