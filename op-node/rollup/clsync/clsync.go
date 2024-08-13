@@ -3,6 +3,7 @@ package clsync
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"time"
 
@@ -150,8 +151,7 @@ func (eq *CLSync) Proceed(ctx context.Context) error {
 func (eq *CLSync) PublishAttributes(ctx context.Context, l2head eth.L2BlockRef) error {
 	l1Origin, err := eq.l1OriginSelector.FindL1Origin(ctx, l2head)
 	if err != nil {
-		eq.log.Error("Error finding next L1 Origin", "err", err)
-		return err
+		return fmt.Errorf("error finding next L1 Origin: %w", err)
 	}
 
 	fetchCtx, cancel := context.WithTimeout(ctx, time.Millisecond*500)
@@ -159,8 +159,7 @@ func (eq *CLSync) PublishAttributes(ctx context.Context, l2head eth.L2BlockRef) 
 
 	attrs, err := eq.attrBuilder.PreparePayloadAttributes(fetchCtx, l2head, l1Origin.ID())
 	if err != nil {
-		eq.log.Error("Error preparing payload attributes", "err", err)
-		return err
+		return fmt.Errorf("error preparing payload attributes: %w", err)
 	}
 
 	withParent := &derive.AttributesWithParent{
