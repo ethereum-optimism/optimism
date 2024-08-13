@@ -431,7 +431,7 @@ contract GovernanceDelegation_Delegate_Test is GovernanceDelegation_Init {
     }
 }
 
-contract GovernanceDelegation_DelegateRelative_TestFail is GovernanceDelegation_Init {
+contract GovernanceDelegation_Delegate_TestFail is GovernanceDelegation_Init {
     function testFuzz_delegateBatched_duplicatesRelative_reverts(
         address _actor,
         address _delegatee,
@@ -788,6 +788,3 @@ contract GovernanceDelegation_Getters_TestFail is GovernanceDelegation_Init {
         assertEq(governanceDelegation.getPastTotalSupply(block.timestamp), _amount);
     }
 }
-
-// TODO:
-// - _totalSupplyCheckpoints migrate

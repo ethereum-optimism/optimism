@@ -36,11 +36,11 @@ interface IGovernanceDelegation {
     }
 
     /// @notice Delegation of voting power.
-    /// @param delegatee              The address to delegate to.
-    /// @param allowanceType          Type of allowance.
-    /// @param amount                 Amount of votes delegated. If `allowanceType` is Relative, `amount` acts
-    ///                               as a numerator and `DENOMINATOR` as a denominator. For example, 100% of allowance
-    ///                               corresponds to 1e4. Otherwise, this is the exact amount of votes delegated.
+    /// @param delegatee The address to delegate to.
+    /// @param allowanceType Type of allowance.
+    /// @param amount Amount of votes delegated. If `allowanceType` is Relative, `amount` acts
+    ///               as a numerator and `DENOMINATOR` as a denominator. For example, 100% of allowance
+    ///               corresponds to 1e4. Otherwise, this is the exact amount of votes delegated.
     struct Delegation {
         AllowanceType allowanceType;
         address delegatee;
@@ -48,15 +48,15 @@ interface IGovernanceDelegation {
     }
 
     /// @notice Adjustment of delegation.
-    /// @param delegatee              The address to delegate to.
-    /// @param amount                 Amount of votes delegated.
+    /// @param delegatee The address to delegate to.
+    /// @param amount Amount of votes delegated.
     struct DelegationAdjustment {
         address delegatee;
         uint208 amount;
     }
 
     /// @notice Operations for delegation adjustments.
-    /// @param ADD      Add votes to the delegatee.
+    /// @param ADD Add votes to the delegatee.
     /// @param SUBTRACT Subtract votes from the delegatee.
     enum Op {
         ADD,
@@ -86,7 +86,7 @@ interface IGovernanceDelegation {
 
     /// @notice Returns a checkpoint for a given account.
     /// @param _account The account to get the checkpoint for.
-    /// @param _pos     The position of the checkpoint to get.
+    /// @param _pos The position of the checkpoint to get.
     /// @return _checkpoint The checkpoint.
     function checkpoints(
         address _account,
@@ -123,12 +123,12 @@ interface IGovernanceDelegation {
     function getPastTotalSupply(uint256 _blockNumber) external view returns (uint256 _totalSupply);
 
     /// @notice Apply a delegation.
-    /// @param _delegation         The delegeation to apply.
+    /// @param _delegation The delegeation to apply.
     function delegate(Delegation calldata _delegation) external;
 
     /// @notice Apply a basic delegation from `_delegator` to `_delegatee`.
-    /// @param _delegator          The address delegating.
-    /// @param _delegatee          The address to delegate to.
+    /// @param _delegator The address delegating.
+    /// @param _delegatee The address to delegate to.
     function delegateFromToken(address _delegator, address _delegatee) external;
 
     /// @notice Apply multiple delegations.
@@ -136,13 +136,13 @@ interface IGovernanceDelegation {
     function delegateBatched(Delegation[] calldata _delegations) external;
 
     /// @notice Callback called after token transfer in the GovernanceToken contract.
-    /// @param _from   The account sending tokens.
-    /// @param _to     The account receiving tokens.
+    /// @param _from The account sending tokens.
+    /// @param _to The account receiving tokens.
     /// @param _amount The amount of tokens being transfered.
     function afterTokenTransfer(address _from, address _to, uint256 _amount) external;
 
     /// @notice Migrate accounts' delegation state from the GovernanceToken contract to the
-    /// GovernanceDelegation contract.
+    ///         GovernanceDelegation contract.
     /// @param _accounts The accounts to migrate.
     function migrateAccounts(address[] calldata _accounts) external;
 }

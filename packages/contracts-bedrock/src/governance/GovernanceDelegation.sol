@@ -16,7 +16,7 @@ import { IGovernanceDelegation } from "src/governance/IGovernanceDelegation.sol"
 contract GovernanceDelegation is IGovernanceDelegation {
     using EnumerableMap for EnumerableMap.AddressToUintMap;
 
-    /// @notice The maximum number of delegations allowed.
+    /// @notice The maximum number of partial delegations allowed for each account.
     uint256 public constant MAX_DELEGATIONS = 20;
 
     /// @notice The denominator used for relative delegations.
@@ -27,13 +27,13 @@ contract GovernanceDelegation is IGovernanceDelegation {
     string public constant version = "1.0.0-beta.1";
 
     /// @notice Flags to indicate if a account has been migrated to the GovernanceDelegation contract.
-    mapping(address => bool) public migrated;
+    mapping(address account => bool migrated) public migrated;
 
     /// @notice Delegations for an account.
-    mapping(address => Delegation[]) internal _delegations;
+    mapping(address account => Delegation[] delegations) internal _delegations;
 
     /// @notice Checkpoints of votes for an account.
-    mapping(address => ERC20Votes.Checkpoint[]) internal _checkpoints;
+    mapping(address account => ERC20Votes.Checkpoint[] checkpoints) internal _checkpoints;
 
     /// @notice Checkpoints of total supply.
     ERC20Votes.Checkpoint[] internal _totalSupplyCheckpoints;
@@ -42,16 +42,25 @@ contract GovernanceDelegation is IGovernanceDelegation {
     EnumerableMap.AddressToUintMap private _adjustments;
 
     /// @notice Emitted when an account's delegations are changed.
+    /// @param account The accounnt which delegations have been changed.
+    /// @param oldDelegations The previous set of delegations.
+    /// @param newDelegations The new set of delegations.
     event DelegationsChanged(address indexed account, Delegation[] oldDelegations, Delegation[] newDelegations);
 
     /// @notice Emitted when a user's voting power changes.
+    /// @param delegate The delegate for which voting power has been updated.
+    /// @param previousBalance The previous voting power balance.
+    /// @param newBalance The new voting power balance.
     event DelegateVotesChanged(address indexed delegate, uint256 previousBalance, uint256 newBalance);
 
+    /// @notice Migrates an account if it hasn't been migrated yet.
+    /// @param _account Account to migrate
     modifier migrate(address _account) {
         if (!migrated[_account]) _migrate(_account);
         _;
     }
 
+    /// @notice Restricts a function to only be callable by the governance token.
     modifier onlyToken() {
         if (msg.sender != Predeploys.GOVERNANCE_TOKEN) {
             revert NotGovernanceToken();
@@ -59,7 +68,7 @@ contract GovernanceDelegation is IGovernanceDelegation {
         _;
     }
 
-    /// @notice Stores the total supply checkpoints.
+    /// @notice Stores the total supply checkpoints, which MUST be obtained from the governance token.
     /// @param __checkpoints The total supply checkpoints to set.
     constructor(ERC20Votes.Checkpoint[] memory __checkpoints) {
         uint256 _checkpointsLength = __checkpoints.length;
@@ -71,83 +80,90 @@ contract GovernanceDelegation is IGovernanceDelegation {
 
     /// @notice Returns the delegations for a given account.
     /// @param _account The account to get the delegations for.
-    /// @return         The delegations.
     function delegations(address _account) external view returns (Delegation[] memory) {
         return _delegations[_account];
     }
 
     /// @notice Returns the checkpoint for a given account.
     /// @param _account The account to get the checkpoint for.
-    /// @param _pos     The position to get the checkpoint for.
-    /// @return         The checkpoint.
-    function checkpoints(address _account, uint32 _pos) external view returns (ERC20Votes.Checkpoint memory) {
+    /// @param _pos The position to get the checkpoint for.
+    /// @return _checkpoint The checkpoint for the account and position.
+    function checkpoints(
+        address _account,
+        uint32 _pos
+    )
+        external
+        view
+        returns (ERC20Votes.Checkpoint memory _checkpoint)
+    {
         return _checkpoints[_account][_pos];
     }
 
     /// @notice Returns the number of checkpoints for a account.
-    /// @param _account The account to get the total supply checkpoints for.
-    /// @return         The total supply checkpoints.
-    function numCheckpoints(address _account) external view returns (uint32) {
+    /// @param _account The account to get the the checkpoints for.
+    /// @return _number The number of checkpoints.
+    function numCheckpoints(address _account) external view returns (uint32 _number) {
         return SafeCast.toUint32(_checkpoints[_account].length);
     }
 
-    /// @notice Returns the delegatee with the most voting power for a given account.
+    /// @notice Returns the first delegatee of an account (sorted).
     /// @param _account The account to get the delegatee for.
-    function delegates(address _account) public view returns (address) {
+    /// @param _delegatee The delegatee of the account
+    function delegates(address _account) public view returns (address _delegatee) {
         return _delegations[_account][0].delegatee;
     }
 
     /// @notice Returns the number of votes for a given account.
-    /// @param _account     The account to get the number of votes for.
-    /// @return             The number of votes.
-    function getVotes(address _account) external view returns (uint256) {
+    /// @param _account The account to get the number of votes for.
+    /// @return _votes The number of votes for the account.
+    function getVotes(address _account) external view returns (uint256 _votes) {
         uint256 pos = _checkpoints[_account].length;
         return pos == 0 ? 0 : _checkpoints[_account][pos - 1].votes;
     }
 
     /// @notice Returns the number of votes for `_account` at the end of `_blockNumber`.
-    /// @param _account     The address of the account to get the number of votes for.
+    /// @param _account The address of the account to get the number of votes for.
     /// @param _blockNumber The block number to get the number of votes for.
-    /// @return             The number of votes.
-    function getPastVotes(address _account, uint256 _blockNumber) external view returns (uint256) {
+    /// @return _votes The number of votes for the account.
+    function getPastVotes(address _account, uint256 _blockNumber) external view returns (uint256 _votes) {
         if (_blockNumber >= block.number) revert BlockNotYetMined(_blockNumber);
         return _checkpointsLookup(_checkpoints[_account], _blockNumber);
     }
 
     /// @notice Returns the total supply at a block.
     /// @param _blockNumber The block number to get the total supply.
-    /// @return         The total supply of the token for the given block.
-    function getPastTotalSupply(uint256 _blockNumber) external view returns (uint256) {
+    /// @return _totalSupply The total supply of the token for the given block.
+    function getPastTotalSupply(uint256 _blockNumber) external view returns (uint256 _totalSupply) {
         if (_blockNumber >= block.number) revert BlockNotYetMined(_blockNumber);
         return _checkpointsLookup(_totalSupplyCheckpoints, _blockNumber);
     }
 
-    /// @notice Apply a delegation.
-    /// @param _delegation         The delegeation to apply.
+    /// @notice Applies a single delegation, overriding any previous delegations.
+    /// @param _delegation The delegeation to apply.
     function delegate(Delegation calldata _delegation) external {
         Delegation[] memory delegation = new Delegation[](1);
         delegation[0] = _delegation;
         _delegate(msg.sender, delegation);
     }
 
-    /// @notice Apply a basic delegation from `_delegator` to `_delegatee`.
-    /// @param _delegator          The address delegating.
-    /// @param _delegatee          The address to delegate to.
+    /// @notice Apply a basic delegation from `_delegator` to `_delegatee`. Only callable by governance token.
+    /// @param _delegator The address delegating.
+    /// @param _delegatee The address to delegate to.
     function delegateFromToken(address _delegator, address _delegatee) external onlyToken {
         Delegation[] memory delegation = new Delegation[](1);
         delegation[0] = Delegation(AllowanceType.Relative, _delegatee, DENOMINATOR);
         _delegate(_delegator, delegation);
     }
 
-    /// @notice Apply multiple delegations.
+    /// @notice Apply multiple delegations, overriding any previous delegations.
     /// @param _newDelegations The delegations to apply.
     function delegateBatched(Delegation[] calldata _newDelegations) external {
         _delegate(msg.sender, _newDelegations);
     }
 
-    /// @notice Callback called after token transfer in the GovernanceToken contract.
-    /// @param _from   The account sending tokens.
-    /// @param _to     The account receiving tokens.
+    /// @notice Callback called after a governance token transfer.
+    /// @param _from The account sending tokens.
+    /// @param _to The account receiving tokens.
     /// @param _amount The amount of tokens being transfered.
     function afterTokenTransfer(
         address _from,
@@ -162,8 +178,7 @@ contract GovernanceDelegation is IGovernanceDelegation {
         _moveVotingPower(_from, _to, _amount);
     }
 
-    /// @notice Migrate accounts' delegation state from the GovernanceToken contract to the
-    /// GovernanceDelegation contract.
+    /// @notice Migrate accounts' delegation state from the governance token to the this contract.
     /// @param _accounts The accounts to migrate.
     function migrateAccounts(address[] calldata _accounts) external {
         for (uint256 i; i < _accounts.length; i++) {
@@ -172,7 +187,7 @@ contract GovernanceDelegation is IGovernanceDelegation {
         }
     }
 
-    /// @notice Migrate the delegation state of accounts from the token.
+    /// @notice Migrate the delegation state of an account form the token.
     /// @param _account The account to migrate.
     function _migrate(address _account) internal {
         // Get the number of checkpoints.
@@ -189,8 +204,8 @@ contract GovernanceDelegation is IGovernanceDelegation {
     }
 
     /// @notice Delegate `_delegator`'s voting units to delegations specified in `_newDelegations`.
-    /// @param _delegator         The delegator to delegate votes from.
-    /// @param _newDelegations    The delegations to delegate votes to.
+    /// @param _delegator The delegator to delegate votes from.
+    /// @param _newDelegations The delegations to delegate votes to.
     function _delegate(address _delegator, Delegation[] memory _newDelegations) internal migrate(_delegator) {
         uint256 _newDelegationsLength = _newDelegations.length;
         if (_newDelegationsLength > MAX_DELEGATIONS) {
@@ -284,7 +299,7 @@ contract GovernanceDelegation is IGovernanceDelegation {
 
     /// @notice Calculate the weight distribution for a list of delegations.
     /// @param _delegationSet The delegations to calculate the weight distribution for.
-    /// @param _balance       The available voting power balance of the delegator.
+    /// @param _balance The available voting power balance of the delegator.
     function _calculateWeightDistribution(
         Delegation[] memory _delegationSet,
         uint256 _balance
@@ -328,8 +343,8 @@ contract GovernanceDelegation is IGovernanceDelegation {
     }
 
     /// @notice Moves voting power from `_src` to `_dst` by `_amount`.
-    /// @param _from    The address of the source account.
-    /// @param _to    The address of the destination account.
+    /// @param _from The address of the source account.
+    /// @param _to The address of the destination account.
     /// @param _amount The amount of voting power to move.
     function _moveVotingPower(address _from, address _to, uint256 _amount) internal {
         // Skip when addresses are equal or amount is zero.
@@ -416,9 +431,9 @@ contract GovernanceDelegation is IGovernanceDelegation {
     }
 
     /// @notice Writes a checkpoint with `_delta` and `op` to `_ckpts`.
-    /// @param _ckpts      The checkpoints to write to.
-    /// @param _op         The operation to perform.
-    /// @param _delta      The amount to add or subtract.
+    /// @param _ckpts The checkpoints to write to.
+    /// @param _op The operation to perform.
+    /// @param _delta The amount to add or subtract.
     /// @return _oldWeight The old weight.
     /// @return _newWeight The new weight.
     function _writeCheckpoint(
@@ -459,25 +474,5 @@ contract GovernanceDelegation is IGovernanceDelegation {
     /// @return  The difference of the two numbers.
     function _subtract(uint256 _a, uint256 _b) internal pure returns (uint256) {
         return _a - _b;
-    }
-
-    function _extract_32_4(bytes32 _self, uint8 _offset) internal pure returns (bytes4 _result) {
-        assembly ("memory-safe") {
-            _result := and(shl(mul(8, _offset), _self), shl(224, not(0)))
-        }
-    }
-
-    function _pack_28_4(bytes28 _left, bytes4 _right) internal pure returns (bytes32 _result) {
-        assembly ("memory-safe") {
-            _left := and(_left, shl(32, not(0)))
-            _right := and(_right, shl(224, not(0)))
-            _result := or(_left, shr(224, _right))
-        }
-    }
-
-    function _extract_32_28(bytes32 _self, uint8 _offset) internal pure returns (bytes28 _result) {
-        assembly ("memory-safe") {
-            _result := and(shl(mul(8, _offset), _self), shl(32, not(0)))
-        }
     }
 }
