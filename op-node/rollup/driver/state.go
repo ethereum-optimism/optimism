@@ -454,7 +454,6 @@ func (s *SyncDeriver) SyncStep() {
 	// Upon the pending-safe signal the attributes deriver can then ask the pipeline
 	// to generate new attributes, if no attributes are known already.
 	s.Emitter.Emit(engine.PendingSafeRequestEvent{})
-	return
 }
 
 // ResetDerivationPipeline forces a reset of the derivation pipeline.
