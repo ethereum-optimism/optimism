@@ -405,10 +405,10 @@ func Rewind(ctx context.Context, lgr log.Logger, client *sources.EngineAPIClient
 
 	// when rewinding, don't increase unsafe/finalized tags
 	toSafe, toFinalized := toUnsafe, toUnsafe
-	if safe.Number.Uint64() < to {
+	if safe != nil && safe.Number.Uint64() < to {
 		toSafe = eth.HeaderBlockID(safe)
 	}
-	if finalized.Number.Uint64() < to {
+	if finalized != nil && finalized.Number.Uint64() < to {
 		toFinalized = eth.HeaderBlockID(finalized)
 	}
 
