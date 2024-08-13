@@ -162,6 +162,7 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 	require.Equal(t, 2, len(membership.Servers), "Expected 2 members in cluster after removal")
 	require.NotContains(t, memberIDs(membership), fid, "Expected follower to be removed from cluster")
 
+	// Testing the stop api
 	t.Log("Testing Stop API")
 	err = c1.client.Stop(ctx)
 	require.NoError(t, err)
