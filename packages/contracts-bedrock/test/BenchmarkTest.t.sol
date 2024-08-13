@@ -9,6 +9,7 @@ import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { Types } from "src/libraries/Types.sol";
+import { L1BlockInterop } from "src/L2/L1BlockInterop.sol";
 
 // Free function for setting the prevBaseFee param in the OptimismPortal.
 function setPrevBaseFee(Vm _vm, address _op, uint128 _prevBaseFee) {
@@ -207,5 +208,37 @@ contract GasBenchMark_L2OutputOracle is CommonTest {
 
     function test_proposeL2Output_benchmark() external {
         l2OutputOracle.proposeL2Output(nonZeroHash, nextBlockNumber, 0, 0);
+    }
+}
+
+contract GasBenchMark_L1BlockInterop is CommonTest {
+    L1BlockInterop l1BlockInterop;
+    address depositor;
+    bytes setValuesEcotoneCalldata;
+
+    function setUp() public override {
+        super.setUp();
+        depositor = l1Block.DEPOSITOR_ACCOUNT();
+        l1BlockInterop = new L1BlockInterop();
+        setValuesEcotoneCalldata = abi.encodePacked(
+            type(uint32).max,
+            type(uint32).max,
+            type(uint64).max,
+            type(uint64).max,
+            type(uint64).max,
+            type(uint256).max,
+            type(uint256).max,
+            keccak256(abi.encode(1)),
+            bytes32(type(uint256).max)
+        );
+        vm.startPrank(depositor);
+    }
+
+    function test_setL1BlockValuesEcotone_benchmark() external {
+        address(l1BlockInterop).call(abi.encodeWithSelector(l1BlockInterop.setL1BlockValuesEcotone.selector));
+    }
+
+    function test_setL1BlockValuesIsthmus_benchmark() external {
+        address(l1BlockInterop).call(abi.encodeWithSelector(l1BlockInterop.setL1BlockValuesIsthmus.selector));
     }
 }
