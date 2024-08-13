@@ -108,7 +108,7 @@ library Predeploys {
         if (_addr == WETH) return "WETH";
         if (_addr == L2_CROSS_DOMAIN_MESSENGER) return "L2CrossDomainMessenger";
         if (_addr == GAS_PRICE_ORACLE) return "GasPriceOracle";
-        if (_addr == L2_STANDARD_BRIDGE) return "L2StandardBridgeInterop";
+        if (_addr == L2_STANDARD_BRIDGE) return "L2StandardBridge";
         if (_addr == SEQUENCER_FEE_WALLET) return "SequencerFeeVault";
         if (_addr == OPTIMISM_MINTABLE_ERC20_FACTORY) return "OptimismMintableERC20Factory";
         if (_addr == L1_BLOCK_NUMBER) return "L1BlockNumber";
