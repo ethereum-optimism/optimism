@@ -69,9 +69,8 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 
 	err = c1.client.Stop(ctx)
 	require.NoError(t, err)
-	active, err = c1.client.Active(ctx)
-	require.NoError(t, err)
-	require.False(t, active, "Expected conductor to be stopped")
+	_, err = c1.client.Active(ctx)
+	require.Error(t, err, "Expected conductor to fail to get active status after stop")
 
 	t.Log("Testing LeaderWithID")
 	leader1, err := c1.client.LeaderWithID(ctx)
