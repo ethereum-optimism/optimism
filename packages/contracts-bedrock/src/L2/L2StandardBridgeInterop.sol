@@ -11,15 +11,17 @@ import { IOptimismERC20Factory } from "src/L2/IOptimismERC20Factory.sol";
 error InvalidDecimals();
 
 /// @notice Thrown when the legacy address is not found in the OptimismMintableERC20Factory.
-error InvalidLegacyAddress();
+error InvalidLegacyERC20Address();
 
 /// @notice Thrown when the SuperchainERC20 address is not found in the SuperchainERC20Factory.
-error InvalidSuperchainAddress();
+error InvalidSuperchainERC20Address();
 
 /// @notice Thrown when the remote addresses of the tokens are not the same.
 error InvalidTokenPair();
 
-// TODO: Use an existing interface with `mint` and `burn`?
+/// TODO: Define a better naming convention for this interface.
+/// @notice Interface for minting and burning tokens in the L2StandardBridge.
+///         Used for StandardL2ERC20, OptimismMintableERC20 and OptimismSuperchainERC20.
 interface MintableAndBurnable is IERC20 {
     function mint(address, uint256) external;
     function burn(address, uint256) external;
@@ -38,6 +40,12 @@ contract L2StandardBridgeInterop is L2StandardBridge {
     /// @param caller The caller of the conversion.
     /// @param amount The amount of tokens being converted.
     event Converted(address indexed from, address indexed to, address indexed caller, uint256 amount);
+
+    /// @notice Semantic version.
+    /// @custom:semver +interop
+    function version() public pure override returns (string memory) {
+        return string.concat(super.version(), "+interop");
+    }
 
     /// @notice Converts `amount` of `from` token to `to` token.
     /// @param _from The token being converted from.
@@ -74,12 +82,12 @@ contract L2StandardBridgeInterop is L2StandardBridge {
         // 2. Valid legacy check
         address _legacyRemoteToken =
             IOptimismERC20Factory(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY).deployments(_legacyAddr);
-        if (_legacyRemoteToken == address(0)) revert InvalidLegacyAddress();
+        if (_legacyRemoteToken == address(0)) revert InvalidLegacyERC20Address();
 
         // 3. Valid SuperchainERC20 check
         address _superRemoteToken =
             IOptimismERC20Factory(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY).deployments(_superAddr);
-        if (_superRemoteToken == address(0)) revert InvalidSuperchainAddress();
+        if (_superRemoteToken == address(0)) revert InvalidSuperchainERC20Address();
 
         // 4. Same remote address check
         if (_legacyRemoteToken != _superRemoteToken) revert InvalidTokenPair();

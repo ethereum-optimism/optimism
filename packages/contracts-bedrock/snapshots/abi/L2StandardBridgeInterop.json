@@ -329,7 +329,7 @@
         "type": "string"
       }
     ],
-    "stateMutability": "view",
+    "stateMutability": "pure",
     "type": "function"
   },
   {
@@ -678,12 +678,12 @@
   },
   {
     "inputs": [],
-    "name": "InvalidLegacyAddress",
+    "name": "InvalidLegacyERC20Address",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "InvalidSuperchainAddress",
+    "name": "InvalidSuperchainERC20Address",
     "type": "error"
   },
   {

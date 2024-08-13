@@ -9,8 +9,8 @@ import { console2 } from "forge-std/console2.sol";
 import {
     L2StandardBridgeInterop,
     InvalidDecimals,
-    InvalidLegacyAddress,
-    InvalidSuperchainAddress,
+    InvalidLegacyERC20Address,
+    InvalidSuperchainERC20Address,
     InvalidTokenPair,
     IOptimismERC20Factory,
     MintableAndBurnable
@@ -25,6 +25,12 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 contract L2StandardBridgeInterop_Test is Bridge_Initializer {
     /// @notice Emitted when a conversion is made.
     event Converted(address indexed from, address indexed to, address indexed caller, uint256 amount);
+
+    /// @notice Test setup.
+    function setUp() public virtual override {
+        super.enableInterop();
+        super.setUp();
+    }
 
     /// @notice Helper function to setup a mock and expect a call to it.
     function _mockAndExpect(address _receiver, bytes memory _calldata, bytes memory _returned) internal {
@@ -97,23 +103,23 @@ contract L2StandardBridgeInterop_LegacyToSuper_Test is L2StandardBridgeInterop_T
         l2StandardBridge.convert(_from, _to, _amount);
     }
 
-    /// @notice Test that the `convert` function with an invalid legacy address reverts
-    function testFuzz_convert_invalidLegacyAddress_reverts(address _from, address _to, uint256 _amount) public {
+    /// @notice Test that the `convert` function with an invalid legacy ERC20 address reverts
+    function testFuzz_convert_invalidLegacyERC20Address_reverts(address _from, address _to, uint256 _amount) public {
         // Arrange
         _setUpLegacyToSuper(_from, _to);
 
         // Mock the legacy factory to return address(0)
         _mockDeployments(address(l2OptimismMintableERC20Factory), _from, address(0));
 
-        // Expect the revert with `InvalidLegacyAddress` selector
-        vm.expectRevert(InvalidLegacyAddress.selector);
+        // Expect the revert with `InvalidLegacyERC20Address` selector
+        vm.expectRevert(InvalidLegacyERC20Address.selector);
 
         // Act
         l2StandardBridge.convert(_from, _to, _amount);
     }
 
-    /// @notice Test that the `convert` function with an invalid superchain address reverts
-    function testFuzz_convert_invalidSuperchainAddress_reverts(
+    /// @notice Test that the `convert` function with an invalid superchain ERC20 address reverts
+    function testFuzz_convert_invalidSuperchainERC20Address_reverts(
         address _from,
         address _to,
         uint256 _amount,
@@ -133,8 +139,8 @@ contract L2StandardBridgeInterop_LegacyToSuper_Test is L2StandardBridgeInterop_T
         // Mock the superchain factory to return address(0)
         _mockDeployments(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY, _to, address(0));
 
-        // Expect the revert with `InvalidSuperchainAddress` selector
-        vm.expectRevert(InvalidSuperchainAddress.selector);
+        // Expect the revert with `InvalidSuperchainERC20Address` selector
+        vm.expectRevert(InvalidSuperchainERC20Address.selector);
 
         // Act
         l2StandardBridge.convert(_from, _to, _amount);
@@ -246,23 +252,23 @@ contract L2StandardBridgeInterop_SuperToLegacy_Test is L2StandardBridgeInterop_T
         l2StandardBridge.convert(_from, _to, _amount);
     }
 
-    /// @notice Test that the `convert` function with an invalid legacy address reverts
-    function testFuzz_convert_invalidLegacyAddress_reverts(address _from, address _to, uint256 _amount) public {
+    /// @notice Test that the `convert` function with an invalid legacy ERC20 address reverts
+    function testFuzz_convert_invalidLegacyERC20Address_reverts(address _from, address _to, uint256 _amount) public {
         // Arrange
         _setUpSuperToLegacy(_from, _to);
 
         // Mock the legacy factory to return address(0)
         _mockDeployments(address(l2OptimismMintableERC20Factory), _to, address(0));
 
-        // Expect the revert with `InvalidLegacyAddress` selector
-        vm.expectRevert(InvalidLegacyAddress.selector);
+        // Expect the revert with `InvalidLegacyERC20Address` selector
+        vm.expectRevert(InvalidLegacyERC20Address.selector);
 
         // Act
         l2StandardBridge.convert(_from, _to, _amount);
     }
 
-    /// @notice Test that the `convert` function with an invalid superchain address reverts
-    function testFuzz_convert_invalidSuperchainAddress_reverts(
+    /// @notice Test that the `convert` function with an invalid superchain ERC20 address reverts
+    function testFuzz_convert_invalidSuperchainERC20Address_reverts(
         address _from,
         address _to,
         uint256 _amount,
@@ -282,8 +288,8 @@ contract L2StandardBridgeInterop_SuperToLegacy_Test is L2StandardBridgeInterop_T
         // Mock the superchain factory to return address(0)
         _mockDeployments(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY, _from, address(0));
 
-        // Expect the revert with `InvalidSuperchainAddress` selector
-        vm.expectRevert(InvalidSuperchainAddress.selector);
+        // Expect the revert with `InvalidSuperchainERC20Address` selector
+        vm.expectRevert(InvalidSuperchainERC20Address.selector);
 
         // Act
         l2StandardBridge.convert(_from, _to, _amount);

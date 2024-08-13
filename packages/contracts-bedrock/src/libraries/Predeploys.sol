@@ -95,6 +95,7 @@ library Predeploys {
     /// @notice Address of the ETHLiquidity predeploy.
     address internal constant ETH_LIQUIDITY = 0x4200000000000000000000000000000000000025;
 
+    /// TODO: Add correct predeploy address for OptimismSuperchainERC20Factory
     /// @notice Address of the OptimismSuperchainERC20Factory predeploy.
     address internal constant OPTIMISM_SUPERCHAIN_ERC20_FACTORY = 0x4200000000000000000000000000000000000026;
 
@@ -107,7 +108,7 @@ library Predeploys {
         if (_addr == WETH) return "WETH";
         if (_addr == L2_CROSS_DOMAIN_MESSENGER) return "L2CrossDomainMessenger";
         if (_addr == GAS_PRICE_ORACLE) return "GasPriceOracle";
-        if (_addr == L2_STANDARD_BRIDGE) return "L2StandardBridgeInterop";
+        if (_addr == L2_STANDARD_BRIDGE) return "L2StandardBridge";
         if (_addr == SEQUENCER_FEE_WALLET) return "SequencerFeeVault";
         if (_addr == OPTIMISM_MINTABLE_ERC20_FACTORY) return "OptimismMintableERC20Factory";
         if (_addr == L1_BLOCK_NUMBER) return "L1BlockNumber";

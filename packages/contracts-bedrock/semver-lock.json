@@ -100,8 +100,12 @@
     "sourceCodeHash": "0xb0806d362ba5cc39acfb09e0606059a2b10a7c1d5bc1f86cd4561fd24f7dcada"
   },
   "src/L2/L2StandardBridge.sol": {
-    "initCodeHash": "0xb6af582e9edaae531d48559b7cd0ca5813a112361ea19b8cb46292726ad88d40",
-    "sourceCodeHash": "0xb4a9f333f04008f610eb55fa6ff7e610bab340d53156cb50ec65a575c9576b0e"
+    "initCodeHash": "0xfbfc7bd101022024b94114c26128c6028c25dec07e8d40fdcfdb180c0ba6ddee",
+    "sourceCodeHash": "0xb1a5fb22b124e8fa8eb5bae4b8e0770abbdbebe32be00480317cf4aaada28ed3"
+  },
+  "src/L2/L2StandardBridgeInterop.sol": {
+    "initCodeHash": "0xd7f85eef12b60211104cddbd86d9f458cd31a0ba74f382404799bcf86ef003ba",
+    "sourceCodeHash": "0x00f415380689a5ee1762e93b032d5c3de2fcddb36b0a068cb5616f7e8001ddc0"
   },
   "src/L2/L2ToL1MessagePasser.sol": {
     "initCodeHash": "0x08bbede75cd6dfd076903b8f04d24f82fa7881576c135825098778632e37eebc",
