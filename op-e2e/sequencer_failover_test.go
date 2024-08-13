@@ -49,8 +49,8 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 	sort.Strings(ids)
 	require.Equal(t, []string{Sequencer1Name, Sequencer2Name, Sequencer3Name}, ids, "Expected all sequencers to be in cluster")
 
-	// Test Active & Pause & Resume
-	t.Log("Testing Active & Pause & Resume")
+	// Test Active & Pause & Resume & Stop
+	t.Log("Testing Active & Pause & Resume & Stop")
 	active, err := c1.client.Active(ctx)
 	require.NoError(t, err)
 	require.True(t, active, "Expected conductor to be active")
@@ -66,6 +66,12 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 	active, err = c1.client.Active(ctx)
 	require.NoError(t, err)
 	require.True(t, active, "Expected conductor to be active")
+
+	err = c1.client.Stop(ctx)
+	require.NoError(t, err)
+	active, err = c1.client.Active(ctx)
+	require.NoError(t, err)
+	require.False(t, active, "Expected conductor to be stopped")
 
 	t.Log("Testing LeaderWithID")
 	leader1, err := c1.client.LeaderWithID(ctx)
