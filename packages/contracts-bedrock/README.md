@@ -291,6 +291,7 @@ the names of the contracts and the values are the addresses the contract was dep
 The `DEPLOY_CONFIG_PATH` is a filepath to a deploy config file, see the `deploy-config` directory for examples and the
 [DeployConfig](https://github.com/ethereum-optimism/optimism/blob/develop/op-chain-ops/genesis/config.go) definition for
 descriptions of the values.
+If you are following the official deployment tutorial, please make sure to use the `getting-started.json` file.
 
 ```bash
 DEPLOYMENT_OUTFILE=deployments/artifact.json \
