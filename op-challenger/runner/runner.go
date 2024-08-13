@@ -161,18 +161,18 @@ func (r *Runner) createGameInputs(ctx context.Context, client *sources.RollupCli
 		return utils.LocalGameInputs{}, fmt.Errorf("failed to get rollup sync status: %w", err)
 	}
 
-	if status.SafeL2.Number == 0 {
+	if status.FinalizedL2.Number == 0 {
 		return utils.LocalGameInputs{}, errors.New("safe head is 0")
 	}
-	blockNumber := status.SafeL2.Number
-	// When possible, execute the first block in the submitted batch
-	if status.SafeL1.Number > 0 {
-		priorSafeHead, err := client.SafeHeadAtL1Block(ctx, status.SafeL1.Number-1)
-		if err != nil {
-			r.log.Warn("Failed to get prior safe head", "err", err)
-		} else if priorSafeHead.SafeHead.Number != 0 { // Sanity check to avoid trying to execute genesis
-			blockNumber = priorSafeHead.SafeHead.Number + 1
-		}
+	l1Head := status.FinalizedL1
+	if status.FinalizedL1.Number > status.CurrentL1.Number {
+		// Restrict the L1 head to a block that has actually be processed by op-node.
+		// This only matters if op-node is behind and hasn't processed all finalized L1 blocks yet.
+		l1Head = status.CurrentL1
+	}
+	blockNumber, err := r.findL2BlockNumberToDispute(ctx, client, l1Head.Number, status.FinalizedL2.Number)
+	if err != nil {
+		return utils.LocalGameInputs{}, fmt.Errorf("failed to find l2 block number to dispute: %w", err)
 	}
 	claimOutput, err := client.OutputAtBlock(ctx, blockNumber)
 	if err != nil {
@@ -183,13 +183,39 @@ func (r *Runner) createGameInputs(ctx context.Context, client *sources.RollupCli
 		return utils.LocalGameInputs{}, fmt.Errorf("failed to get claim output: %w", err)
 	}
 	localInputs := utils.LocalGameInputs{
-		L1Head:        status.HeadL1.Hash,
+		L1Head:        l1Head.Hash,
 		L2Head:        parentOutput.BlockRef.Hash,
 		L2OutputRoot:  common.Hash(parentOutput.OutputRoot),
 		L2Claim:       common.Hash(claimOutput.OutputRoot),
 		L2BlockNumber: new(big.Int).SetUint64(blockNumber),
 	}
 	return localInputs, nil
+}
+
+func (r *Runner) findL2BlockNumberToDispute(ctx context.Context, client *sources.RollupClient, l1HeadNum uint64, l2BlockNum uint64) (uint64, error) {
+	// Try to find a L1 block prior to the batch that make l2BlockNum safe
+	// Limits how far back we search to 10 * 32 blocks
+	const skipSize = uint64(32)
+	for i := 0; i < 10; i++ {
+		if l1HeadNum < skipSize {
+			// Too close to genesis, give up and just use the original block
+			r.log.Info("Failed to find prior batch.")
+			return l2BlockNum, nil
+		}
+		l1HeadNum -= skipSize
+		priorSafeHead, err := client.SafeHeadAtL1Block(ctx, l1HeadNum)
+		if err != nil {
+			return 0, fmt.Errorf("failed to get prior safe head at L1 block %v: %w", l1HeadNum, err)
+		}
+		if priorSafeHead.SafeHead.Number < l2BlockNum {
+			// We walked back far enough to be before the batch that included l2BlockNum
+			// So use the first block after the prior safe head as the disputed block.
+			// It must be the first block in a batch.
+			return priorSafeHead.SafeHead.Number + 1, nil
+		}
+	}
+	r.log.Warn("Failed to find prior batch", "l2BlockNum", l2BlockNum, "earliestCheckL1Block", l1HeadNum)
+	return l2BlockNum, nil
 }
 
 func (r *Runner) getPrestateHash(ctx context.Context, traceType types.TraceType, caller *batching.MultiCaller) (common.Hash, error) {
