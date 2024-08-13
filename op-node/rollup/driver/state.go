@@ -420,6 +420,9 @@ func (s *SyncDeriver) onResetEvent(x rollup.ResetEvent) {
 func (s *SyncDeriver) SyncStep() {
 	s.Log.Debug("Sync process step")
 
+	// Drain errors are safe to ignore:
+	// it only errors on executor context-timeout,
+	// i.e. when we are shutting down and not processing events anymore.
 	if err := s.Drain(); err != nil {
 		return
 	}
