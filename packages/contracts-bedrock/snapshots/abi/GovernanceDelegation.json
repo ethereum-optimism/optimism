@@ -100,7 +100,7 @@
           }
         ],
         "internalType": "struct ERC20Votes.Checkpoint",
-        "name": "",
+        "name": "_checkpoint",
         "type": "tuple"
       }
     ],
@@ -197,7 +197,7 @@
     "outputs": [
       {
         "internalType": "address",
-        "name": "",
+        "name": "_delegatee",
         "type": "address"
       }
     ],
@@ -252,7 +252,7 @@
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "",
+        "name": "_totalSupply",
         "type": "uint256"
       }
     ],
@@ -276,7 +276,7 @@
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "",
+        "name": "_votes",
         "type": "uint256"
       }
     ],
@@ -295,7 +295,7 @@
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "",
+        "name": "_votes",
         "type": "uint256"
       }
     ],
@@ -319,7 +319,7 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "",
+        "name": "account",
         "type": "address"
       }
     ],
@@ -327,7 +327,7 @@
     "outputs": [
       {
         "internalType": "bool",
-        "name": "",
+        "name": "migrated",
         "type": "bool"
       }
     ],
@@ -346,7 +346,7 @@
     "outputs": [
       {
         "internalType": "uint32",
-        "name": "",
+        "name": "_number",
         "type": "uint32"
       }
     ],
@@ -420,11 +420,34 @@
         ],
         "indexed": false,
         "internalType": "struct IGovernanceDelegation.Delegation[]",
-        "name": "delegations",
+        "name": "oldDelegations",
+        "type": "tuple[]"
+      },
+      {
+        "components": [
+          {
+            "internalType": "enum IGovernanceDelegation.AllowanceType",
+            "name": "allowanceType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "delegatee",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
+          }
+        ],
+        "indexed": false,
+        "internalType": "struct IGovernanceDelegation.Delegation[]",
+        "name": "newDelegations",
         "type": "tuple[]"
       }
     ],
-    "name": "DelegationsCreated",
+    "name": "DelegationsChanged",
     "type": "event"
   },
   {
@@ -451,7 +474,12 @@
   },
   {
     "inputs": [],
-    "name": "InvalidNumeratorZero",
+    "name": "InconsistentType",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidAmountZero",
     "type": "error"
   },
   {

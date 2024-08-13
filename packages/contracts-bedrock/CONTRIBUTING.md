@@ -65,7 +65,7 @@ Once you've read the style guide and are ready to work on your PR, there are a p
 You can run `just -l` to list them all, some of the key ones are:
 1. `just build` Builds the smart contracts.
 1. `just test` Runs the full `forge` test suite.
-1  `just gas-snapshot` Generates the gas snapshot for the smart contracts.
+1. `just gas-snapshot` Generates the gas snapshot for the smart contracts.
 1. `just semver-lock` Generates the semver lockfile.
 1. `just snapshots` Generates the storage and ABI snapshots.
 1. `just autogen-invariant-docs` Generates the invariant test documentation.

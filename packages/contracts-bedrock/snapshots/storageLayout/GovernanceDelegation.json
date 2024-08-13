@@ -26,5 +26,12 @@
     "offset": 0,
     "slot": "3",
     "type": "struct ERC20Votes.Checkpoint[]"
+  },
+  {
+    "bytes": "96",
+    "label": "_adjustments",
+    "offset": 0,
+    "slot": "4",
+    "type": "struct EnumerableMap.AddressToUintMap"
   }
 ]
