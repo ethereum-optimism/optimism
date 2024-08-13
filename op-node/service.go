@@ -85,6 +85,10 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 			ListenPort:  ctx.Int(flags.RPCListenPort.Name),
 			EnableAdmin: ctx.Bool(flags.RPCEnableAdmin.Name),
 		},
+		EventStream: node.EventStreamConfig{
+			ListenAddr: ctx.String(flags.EventStreamListenAddr.Name),
+			ListenPort: ctx.Int(flags.EventStreamListenPort.Name),
+		},
 		Metrics: node.MetricsConfig{
 			Enabled:    ctx.Bool(flags.MetricsEnabledFlag.Name),
 			ListenAddr: ctx.String(flags.MetricsAddrFlag.Name),

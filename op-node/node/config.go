@@ -33,6 +33,8 @@ type Config struct {
 
 	RPC RPCConfig
 
+	EventStream EventStreamConfig
+
 	P2P p2p.SetupP2P
 
 	Metrics MetricsConfig
@@ -85,6 +87,11 @@ type RPCConfig struct {
 	ListenAddr  string
 	ListenPort  int
 	EnableAdmin bool
+}
+
+type EventStreamConfig struct {
+	ListenAddr string
+	ListenPort int
 }
 
 func (cfg *RPCConfig) HttpEndpoint() string {

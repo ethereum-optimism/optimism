@@ -139,6 +139,20 @@ var (
 		EnvVars:  prefixEnvVars("RPC_ADMIN_STATE"),
 		Category: OperationsCategory,
 	}
+	EventStreamListenAddr = &cli.StringFlag{
+		Name:     "eventstream.addr",
+		Usage:    "Event stream listening address",
+		EnvVars:  prefixEnvVars("EVENTSTREAM_ADDR"),
+		Value:    "127.0.0.1",
+		Category: OperationsCategory,
+	}
+	EventStreamListenPort = &cli.IntFlag{
+		Name:     "eventstream.port",
+		Usage:    "Event stream listening port",
+		EnvVars:  prefixEnvVars("EVENTSTREAM_PORT"),
+		Value:    9546,
+		Category: OperationsCategory,
+	}
 	L1TrustRPC = &cli.BoolFlag{
 		Name:     "l1.trustrpc",
 		Usage:    "Trust the L1 RPC, sync faster at risk of malicious/buggy RPC providing bad or inconsistent L1 data",

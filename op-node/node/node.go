@@ -445,7 +445,7 @@ func (n *OpNode) initHTTPEventStreamServer(cfg *Config) error {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/events", eventStream.HTTPHandler)
-	addr := net.JoinHostPort(cfg.RPC.ListenAddr, strconv.Itoa(cfg.RPC.ListenPort+1))
+	addr := net.JoinHostPort(cfg.EventStream.ListenAddr, strconv.Itoa(cfg.EventStream.ListenPort))
 
 	var err error
 	timeouts := httputil.HTTPTimeouts{
