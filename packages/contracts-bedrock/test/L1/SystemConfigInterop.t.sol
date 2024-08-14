@@ -14,7 +14,7 @@ import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { SystemConfigInterop } from "src/L1/SystemConfigInterop.sol";
 import { OptimismPortalInterop } from "src/L1/OptimismPortalInterop.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { ConfigType } from "src/L2/L1BlockInterop.sol";
+import { ConfigType } from "src/L2/L1BlockIsthmus.sol";
 
 contract SystemConfigInterop_Test is CommonTest {
     /// @notice Marked virtual to be overridden in
