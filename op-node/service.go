@@ -114,6 +114,10 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		ConductorRpc:        ctx.String(flags.ConductorRpcFlag.Name),
 		ConductorRpcTimeout: ctx.Duration(flags.ConductorRpcTimeoutFlag.Name),
 
+		BuilderEnabled:  ctx.Bool(flags.BuilderEnabledFlag.Name),
+		BuilderEndpoint: ctx.String(flags.BuilderEndpointFlag.Name),
+		BuilderTimeout:  ctx.Duration(flags.BuilderRequestTimeoutFlag.Name),
+
 		Plasma: plasma.ReadCLIConfig(ctx),
 
 		PublishPayloadAttributes: ctx.Bool(flags.SequencerPublishAttributesFlag.Name),

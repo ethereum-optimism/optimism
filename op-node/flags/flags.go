@@ -26,7 +26,8 @@ const (
 	OperationsCategory = "4. LOGGING, METRICS, DEBUGGING, AND API"
 	P2PCategory        = "5. PEER-TO-PEER"
 	PlasmaCategory     = "6. PLASMA (EXPERIMENTAL)"
-	MiscCategory       = "7. MISC"
+	BuilderCategory    = "7. BUILDER"
+	MiscCategory       = "8. MISC"
 )
 
 func init() {
@@ -377,6 +378,29 @@ var (
 		Value:    time.Second * 1,
 		Category: SequencerCategory,
 	}
+	BuilderEnabledFlag = &cli.BoolFlag{
+		Name:     "l2.builder.enabled",
+		Usage:    "Enable the Builder API client",
+		Required: false,
+		EnvVars:  prefixEnvVars("L2_BUILDER_ENABLED"),
+		Value:    false,
+		Category: BuilderCategory,
+	}
+	BuilderEndpointFlag = &cli.StringFlag{
+		Name:     "l2.builder.endpoint",
+		Usage:    "Address of Builder API HTTP endpoint to use.",
+		Required: false,
+		EnvVars:  prefixEnvVars("L2_BUILDER_ENDPOINT"),
+		Category: BuilderCategory,
+	}
+	BuilderRequestTimeoutFlag = &cli.DurationFlag{
+		Name:     "l2.builder.timeout",
+		Usage:    "Timeout for requests to the Builder API.",
+		Required: false,
+		EnvVars:  prefixEnvVars("L2_BUILDER_TIMEOUT"),
+		Value:    time.Millisecond * 500,
+		Category: BuilderCategory,
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -386,6 +410,9 @@ var requiredFlags = []cli.Flag{
 }
 
 var optionalFlags = []cli.Flag{
+	BuilderEnabledFlag,
+	BuilderEndpointFlag,
+	BuilderRequestTimeoutFlag,
 	BeaconAddr,
 	BeaconHeader,
 	BeaconFallbackAddrs,
