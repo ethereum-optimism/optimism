@@ -55,7 +55,7 @@ interface IGovernanceDelegation {
     /// @param amount Amount of votes delegated.
     struct DelegationAdjustment {
         address delegatee;
-        uint208 amount;
+        uint256 amount;
     }
 
     /// @notice Returns the maximum number of delegations per delegator.

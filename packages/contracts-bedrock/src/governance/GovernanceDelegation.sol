@@ -71,6 +71,7 @@ contract GovernanceDelegation is IGovernanceDelegation {
 
     /// @notice Stores the latest total supply checkpoint.
     constructor() {
+        // Casting is safe as they are already part of the token's state.
         _totalSupplyCheckpoints.push(
             ERC20Votes.Checkpoint({
                 fromBlock: uint32(block.number - 1),
@@ -214,9 +215,10 @@ contract GovernanceDelegation is IGovernanceDelegation {
             revert LimitExceeded(_newDelegationsLength, MAX_DELEGATIONS);
         }
 
+        // Get current delegations.
         Delegation[] memory _oldDelegations = _delegations[_delegator];
-        uint256 _oldDelegationsLength = _oldDelegations.length;
 
+        // Get current voting power.
         uint256 _delegatorVotes = ERC20Votes(Predeploys.GOVERNANCE_TOKEN).balanceOf(_delegator);
 
         // Net the old and new delegations and create checkpoints.
@@ -227,6 +229,8 @@ contract GovernanceDelegation is IGovernanceDelegation {
 
         // Store the last delegatee to check for sorting and uniqueness.
         address _lastDelegatee;
+
+        uint256 _oldDelegationsLength = _oldDelegations.length;
 
         // Store new delegations.
         for (uint256 i; i < _newDelegationsLength; i++) {
@@ -262,7 +266,7 @@ contract GovernanceDelegation is IGovernanceDelegation {
     function _createCheckpoints(DelegationAdjustment[] memory _old, DelegationAdjustment[] memory _new) internal {
         uint256 _oldLength = _old.length;
         for (uint256 i; i < _oldLength; i++) {
-            _adjustments.set(_old[i].delegatee, uint256(_old[i].amount));
+            _adjustments.set(_old[i].delegatee, _old[i].amount);
         }
 
         uint256 _newLength = _new.length;
@@ -327,12 +331,12 @@ contract GovernanceDelegation is IGovernanceDelegation {
 
             if (_delegationSet[i].allowanceType == AllowanceType.Relative) {
                 if (amount == 0) revert InvalidAmountZero();
-                _delegationAdjustments[i] = DelegationAdjustment(delegatee, uint208((_balance * amount) / DENOMINATOR));
+                _delegationAdjustments[i] = DelegationAdjustment(delegatee, (_balance * amount) / DENOMINATOR);
                 _total += amount;
                 if (_total > DENOMINATOR) revert NumeratorSumExceedsDenominator(_total, DENOMINATOR);
             } else {
                 amount = _balance < amount ? _balance : amount;
-                _delegationAdjustments[i] = DelegationAdjustment(delegatee, uint208(amount));
+                _delegationAdjustments[i] = DelegationAdjustment(delegatee, amount);
                 _balance -= amount;
                 if (_balance == 0) break;
             }
