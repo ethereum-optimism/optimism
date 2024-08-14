@@ -14,7 +14,7 @@ func TestCaptureLogger(t *testing.T) {
 	lgr.Info(msg, "a", 1)
 	msgFilter := testlog.NewMessageFilter(msg)
 	rec := logs.FindLog(msgFilter)
-	require.Equal(t, msg, rec.Message)
+	require.Equal(t, msg, rec.Record.Message)
 	require.EqualValues(t, 1, rec.AttrValue("a"))
 
 	lgr.Debug("bug")
@@ -52,9 +52,37 @@ func TestCaptureLoggerAttributesFilter(t *testing.T) {
 	attrFilter := testlog.NewAttributesFilter("a", "random")
 
 	rec := logs.FindLog(msgFilter, attrFilter)
-	require.Equal(t, msg, rec.Message)
+	require.Equal(t, msg, rec.Record.Message)
 	require.EqualValues(t, "random", rec.AttrValue("a"))
 
 	recs := logs.FindLogs(msgFilter, attrFilter)
 	require.Len(t, recs, 1)
+}
+
+func TestCaptureLoggerNested(t *testing.T) {
+	lgrInner, logs := testlog.CaptureLogger(t, log.LevelInfo)
+
+	lgrInner.Info("hi", "a", "test")
+
+	lgrChildX := lgrInner.With("name", "childX")
+	lgrChildX.Info("hello", "b", "42")
+
+	lgrChildY := lgrInner.With("name", "childY")
+	lgrChildY.Info("hola", "c", "7")
+
+	lgrInner.Info("hello universe", "greeting", "from Inner")
+
+	lgrChildX.Info("hello world", "greeting", "from X")
+
+	require.Len(t, logs.FindLogs(testlog.NewAttributesFilter("name", "childX")), 2, "X logged twice")
+	require.Len(t, logs.FindLogs(testlog.NewAttributesFilter("name", "childY")), 1, "Y logged once")
+
+	require.Len(t, logs.FindLogs(
+		testlog.NewAttributesContainsFilter("greeting", "from")), 2, "two greetings")
+	require.Len(t, logs.FindLogs(
+		testlog.NewAttributesContainsFilter("greeting", "from"),
+		testlog.NewAttributesFilter("name", "childX")), 1, "only one greeting from X")
+
+	require.Len(t, logs.FindLogs(
+		testlog.NewAttributesFilter("a", "test")), 1, "root logger logged 'a' once")
 }
