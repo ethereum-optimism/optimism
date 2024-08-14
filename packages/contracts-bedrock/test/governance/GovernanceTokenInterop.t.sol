@@ -9,8 +9,11 @@ contract GovernanceTokenInterop_Test is CommonTest {
     address owner;
     address rando;
 
-    // Can't get events and errors from GovernanceDelegation as it's using 0.8.25
-    event DelegationsCreated(address indexed account, IGovernanceDelegation.Delegation[] delegations);
+    event DelegationsChanged(
+        address indexed account,
+        IGovernanceDelegation.Delegation[] oldDelegations,
+        IGovernanceDelegation.Delegation[] newDelegations
+    );
     event DelegateVotesChanged(address indexed delegate, uint256 previousBalance, uint256 newBalance);
 
     /// @dev Sets up the test suite.
@@ -187,7 +190,7 @@ contract GovernanceTokenInterop_Test is CommonTest {
         vm.expectEmit(address(governanceDelegation));
         emit DelegateVotesChanged(owner, 0, 100);
         vm.expectEmit(address(governanceDelegation));
-        emit DelegationsCreated(rando, delegations);
+        emit DelegationsChanged(rando, new IGovernanceDelegation.Delegation[](0), delegations);
         governanceToken.delegate(owner);
     }
 

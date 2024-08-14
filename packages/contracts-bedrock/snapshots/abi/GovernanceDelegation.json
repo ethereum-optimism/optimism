@@ -462,6 +462,11 @@
     "type": "error"
   },
   {
+    "inputs": [],
+    "name": "CheckpointOverflow",
+    "type": "error"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
