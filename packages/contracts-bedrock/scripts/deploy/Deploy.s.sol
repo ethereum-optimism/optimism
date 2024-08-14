@@ -289,11 +289,11 @@ contract Deploy is Deployer {
         console.log("deployed Safe!");
         setupSuperchain();
         console.log("set up superchain!");
-        if (cfg.usePlasma()) {
+        if (cfg.useAltDA()) {
             bytes32 typeHash = keccak256(bytes(cfg.daCommitmentType()));
             bytes32 keccakHash = keccak256(bytes("KeccakCommitment"));
             if (typeHash == keccakHash) {
-                setupOpPlasma();
+                setupOpAltDA();
             }
         }
         setupOpChain();
@@ -416,9 +416,9 @@ contract Deploy is Deployer {
         initializeAnchorStateRegistry();
     }
 
-    /// @notice Add Plasma setup to the OP chain
-    function setupOpPlasma() public {
-        console.log("Deploying OP Plasma");
+    /// @notice Add AltDA setup to the OP chain
+    function setupOpAltDA() public {
+        console.log("Deploying OP AltDA");
         deployDataAvailabilityChallengeProxy();
         deployDataAvailabilityChallenge();
         initializeDataAvailabilityChallenge();

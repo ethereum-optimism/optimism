@@ -8,10 +8,10 @@ import (
 
 	"github.com/urfave/cli/v2"
 
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
@@ -104,7 +104,7 @@ type CLIConfig struct {
 	MetricsConfig opmetrics.CLIConfig
 	PprofConfig   oppprof.CLIConfig
 	RPC           oprpc.CLIConfig
-	PlasmaDA      plasma.CLIConfig
+	AltDA         altda.CLIConfig
 }
 
 func (c *CLIConfig) Check() error {
@@ -192,6 +192,6 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		MetricsConfig:                opmetrics.ReadCLIConfig(ctx),
 		PprofConfig:                  oppprof.ReadCLIConfig(ctx),
 		RPC:                          oprpc.ReadCLIConfig(ctx),
-		PlasmaDA:                     plasma.ReadCLIConfig(ctx),
+		AltDA:                        altda.ReadCLIConfig(ctx),
 	}
 }

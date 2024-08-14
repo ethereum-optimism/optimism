@@ -13,7 +13,7 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 
 contract DataAvailabilityChallengeTest is CommonTest {
     function setUp() public virtual override {
-        super.enablePlasma();
+        super.enableAltDA();
         super.setUp();
     }
 

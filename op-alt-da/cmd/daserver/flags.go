@@ -21,7 +21,7 @@ const (
 	GenericCommFlagName       = "generic-commitment"
 )
 
-const EnvVarPrefix = "OP_PLASMA_DA_SERVER"
+const EnvVarPrefix = "OP_ALTDA_SERVER"
 
 func prefixEnvVars(name string) []string {
 	return opservice.PrefixEnvVar(EnvVarPrefix, name)

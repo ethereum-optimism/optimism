@@ -27,8 +27,8 @@ FORKS = ["delta", "ecotone", "fjord", "granite"]
 # Global environment variables
 DEVNET_NO_BUILD = os.getenv('DEVNET_NO_BUILD') == "true"
 DEVNET_L2OO = os.getenv('DEVNET_L2OO') == "true"
-DEVNET_PLASMA = os.getenv('DEVNET_PLASMA') == "true"
-GENERIC_PLASMA = os.getenv('GENERIC_PLASMA') == "true"
+DEVNET_ALTDA = os.getenv('DEVNET_ALTDA') == "true"
+GENERIC_ALTDA = os.getenv('GENERIC_ALTDA') == "true"
 
 class Bunch:
     def __init__(self, **kwds):
@@ -123,9 +123,9 @@ def init_devnet_l1_deploy_config(paths, update_timestamp=False):
         deploy_config['l1GenesisBlockTimestamp'] = '{:#x}'.format(int(time.time()))
     if DEVNET_L2OO:
         deploy_config['useFaultProofs'] = False
-    if DEVNET_PLASMA:
-        deploy_config['usePlasma'] = True
-    if GENERIC_PLASMA:
+    if DEVNET_ALTDA:
+        deploy_config['useAltDA'] = True
+    if GENERIC_ALTDA:
         deploy_config['daCommitmentType'] = "GenericCommitment"
     write_json(paths.devnet_config_path, deploy_config)
 
@@ -175,7 +175,7 @@ def devnet_deploy(paths):
         log.info('L1 genesis already generated.')
     else:
         log.info('Generating L1 genesis.')
-        if not os.path.exists(paths.allocs_l1_path) or DEVNET_L2OO or DEVNET_PLASMA:
+        if not os.path.exists(paths.allocs_l1_path) or DEVNET_L2OO or DEVNET_ALTDA:
             # If this is a devnet variant then we need to generate the allocs
             # file here always. This is because CI will run devnet-allocs
             # without setting the appropriate env var which means the allocs will be wrong.
@@ -267,19 +267,19 @@ def devnet_deploy(paths):
         docker_env['DG_TYPE'] = '254'
         docker_env['PROPOSAL_INTERVAL'] = '12s'
 
-    if DEVNET_PLASMA:
-        docker_env['PLASMA_ENABLED'] = 'true'
+    if DEVNET_ALTDA:
+        docker_env['ALTDA_ENABLED'] = 'true'
         docker_env['DA_TYPE'] = 'calldata'
     else:
-        docker_env['PLASMA_ENABLED'] = 'false'
+        docker_env['ALTDA_ENABLED'] = 'false'
         docker_env['DA_TYPE'] = 'blobs'
 
-    if GENERIC_PLASMA:
-        docker_env['PLASMA_GENERIC_DA'] = 'true'
-        docker_env['PLASMA_DA_SERVICE'] = 'true'
+    if GENERIC_ALTDA:
+        docker_env['ALTDA_GENERIC_DA'] = 'true'
+        docker_env['ALTDA_SERVICE'] = 'true'
     else:
-        docker_env['PLASMA_GENERIC_DA'] = 'false'
-        docker_env['PLASMA_DA_SERVICE'] = 'false'
+        docker_env['ALTDA_GENERIC_DA'] = 'false'
+        docker_env['ALTDA_SERVICE'] = 'false'
 
     # Bring up the rest of the services.
     log.info('Bringing up `op-node`, `op-proposer` and `op-batcher`.')
@@ -291,7 +291,7 @@ def devnet_deploy(paths):
         run_command(['docker', 'compose', 'up', '-d', 'op-challenger'], cwd=paths.ops_bedrock_dir, env=docker_env)
 
     # Optionally bring up Alt-DA Mode components.
-    if DEVNET_PLASMA:
+    if DEVNET_ALTDA:
         log.info('Bringing up `da-server`, `sentinel`.') # TODO(10141): We don't have public sentinel images yet
         run_command(['docker', 'compose', 'up', '-d', 'da-server'], cwd=paths.ops_bedrock_dir, env=docker_env)
 

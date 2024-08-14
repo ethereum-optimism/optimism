@@ -7,8 +7,8 @@ import (
 	"math/rand"
 	"testing"
 
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
@@ -35,13 +35,13 @@ func (m *MockFinalitySignal) ExpectFinalized(blockRef eth.L1BlockRef) {
 	m.On("OnFinalized", blockRef).Once()
 }
 
-// TestPlasmaDataSource verifies that commitments are correctly read from l1 and then
-// forwarded to the Plasma DA to return the correct inputs in the iterator.
+// TestAltDADataSource verifies that commitments are correctly read from l1 and then
+// forwarded to the AltDA to return the correct inputs in the iterator.
 // First it generates some L1 refs containing a random number of commitments, challenges
 // the first 4 commitments then generates enough blocks to expire the challenge.
 // Then it simulates rederiving while verifying it does skip the expired input until the next
 // challenge expires.
-func TestPlasmaDataSource(t *testing.T) {
+func TestAltDADataSource(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelDebug)
 	ctx := context.Background()
 
@@ -49,16 +49,16 @@ func TestPlasmaDataSource(t *testing.T) {
 
 	l1F := &testutils.MockL1Source{}
 
-	storage := plasma.NewMockDAClient(logger)
+	storage := altda.NewMockDAClient(logger)
 
-	pcfg := plasma.Config{
+	pcfg := altda.Config{
 		ChallengeWindow: 90, ResolveWindow: 90,
 	}
-	metrics := &plasma.NoopMetrics{}
+	metrics := &altda.NoopMetrics{}
 
-	daState := plasma.NewState(logger, metrics, pcfg)
+	daState := altda.NewState(logger, metrics, pcfg)
 
-	da := plasma.NewPlasmaDAWithState(logger, pcfg, storage, metrics, daState)
+	da := altda.NewAltDAWithState(logger, pcfg, storage, metrics, daState)
 
 	finalitySignal := &MockFinalitySignal{}
 	da.OnFinalizedHeadSignal(finalitySignal.OnFinalized)
@@ -88,15 +88,15 @@ func TestPlasmaDataSource(t *testing.T) {
 		BlockTime:         1,
 		SeqWindowSize:     20,
 		BatchInboxAddress: batcherInbox,
-		PlasmaConfig: &rollup.PlasmaConfig{
+		AltDAConfig: &rollup.AltDAConfig{
 			DAChallengeWindow: pcfg.ChallengeWindow,
 			DAResolveWindow:   pcfg.ResolveWindow,
-			CommitmentType:    plasma.KeccakCommitmentString,
+			CommitmentType:    altda.KeccakCommitmentString,
 		},
 	}
 	// keep track of random input data to validate against
 	var inputs [][]byte
-	var comms []plasma.CommitmentData
+	var comms []altda.CommitmentData
 	var inclusionBlocks []eth.L1BlockRef
 
 	signer := cfg.L1Signer()
@@ -128,8 +128,8 @@ func TestPlasmaDataSource(t *testing.T) {
 			// mock input commitments in l1 transactions
 			input := testutils.RandomData(rng, 2000)
 			comm, _ := storage.SetInput(ctx, input)
-			// plasma da tests are designed for keccak256 commitments, so we type assert here
-			kComm := comm.(plasma.Keccak256Commitment)
+			// altDA tests are designed for keccak256 commitments, so we type assert here
+			kComm := comm.(altda.Keccak256Commitment)
 			inputs = append(inputs, input)
 			comms = append(comms, kComm)
 			inclusionBlocks = append(inclusionBlocks, ref)
@@ -231,8 +231,8 @@ func TestPlasmaDataSource(t *testing.T) {
 				// mock input commitments in l1 transactions
 				input := testutils.RandomData(rng, 2000)
 				comm, _ := storage.SetInput(ctx, input)
-				// plasma da tests are designed for keccak256 commitments, so we type assert here
-				kComm := comm.(plasma.Keccak256Commitment)
+				// altDA tests are designed for keccak256 commitments, so we type assert here
+				kComm := comm.(altda.Keccak256Commitment)
 				inputs = append(inputs, input)
 				comms = append(comms, kComm)
 
@@ -283,7 +283,7 @@ func TestPlasmaDataSource(t *testing.T) {
 }
 
 // This tests makes sure the pipeline returns a temporary error if data is not found.
-func TestPlasmaDataSourceStall(t *testing.T) {
+func TestAltDADataSourceStall(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelDebug)
 	ctx := context.Background()
 
@@ -291,17 +291,17 @@ func TestPlasmaDataSourceStall(t *testing.T) {
 
 	l1F := &testutils.MockL1Source{}
 
-	storage := plasma.NewMockDAClient(logger)
+	storage := altda.NewMockDAClient(logger)
 
-	pcfg := plasma.Config{
+	pcfg := altda.Config{
 		ChallengeWindow: 90, ResolveWindow: 90,
 	}
 
-	metrics := &plasma.NoopMetrics{}
+	metrics := &altda.NoopMetrics{}
 
-	daState := plasma.NewState(logger, metrics, pcfg)
+	daState := altda.NewState(logger, metrics, pcfg)
 
-	da := plasma.NewPlasmaDAWithState(logger, pcfg, storage, metrics, daState)
+	da := altda.NewAltDAWithState(logger, pcfg, storage, metrics, daState)
 
 	finalitySignal := &MockFinalitySignal{}
 	da.OnFinalizedHeadSignal(finalitySignal.OnFinalized)
@@ -331,10 +331,10 @@ func TestPlasmaDataSourceStall(t *testing.T) {
 		BlockTime:         1,
 		SeqWindowSize:     20,
 		BatchInboxAddress: batcherInbox,
-		PlasmaConfig: &rollup.PlasmaConfig{
+		AltDAConfig: &rollup.AltDAConfig{
 			DAChallengeWindow: pcfg.ChallengeWindow,
 			DAResolveWindow:   pcfg.ResolveWindow,
-			CommitmentType:    plasma.KeccakCommitmentString,
+			CommitmentType:    altda.KeccakCommitmentString,
 		},
 	}
 
@@ -410,9 +410,9 @@ func TestPlasmaDataSourceStall(t *testing.T) {
 	l1F.AssertExpectations(t)
 }
 
-// TestPlasmaDataSourceInvalidData tests that the pipeline skips invalid data and continues
+// TestAltDADataSourceInvalidData tests that the pipeline skips invalid data and continues
 // this includes invalid commitments and oversized inputs.
-func TestPlasmaDataSourceInvalidData(t *testing.T) {
+func TestAltDADataSourceInvalidData(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelDebug)
 	ctx := context.Background()
 
@@ -420,13 +420,13 @@ func TestPlasmaDataSourceInvalidData(t *testing.T) {
 
 	l1F := &testutils.MockL1Source{}
 
-	storage := plasma.NewMockDAClient(logger)
+	storage := altda.NewMockDAClient(logger)
 
-	pcfg := plasma.Config{
+	pcfg := altda.Config{
 		ChallengeWindow: 90, ResolveWindow: 90,
 	}
 
-	da := plasma.NewPlasmaDAWithStorage(logger, pcfg, storage, &plasma.NoopMetrics{})
+	da := altda.NewAltDAWithStorage(logger, pcfg, storage, &altda.NoopMetrics{})
 
 	// Create rollup genesis and config
 	l1Time := uint64(2)
@@ -453,10 +453,10 @@ func TestPlasmaDataSourceInvalidData(t *testing.T) {
 		BlockTime:         1,
 		SeqWindowSize:     20,
 		BatchInboxAddress: batcherInbox,
-		PlasmaConfig: &rollup.PlasmaConfig{
+		AltDAConfig: &rollup.AltDAConfig{
 			DAChallengeWindow: pcfg.ChallengeWindow,
 			DAResolveWindow:   pcfg.ResolveWindow,
-			CommitmentType:    plasma.KeccakCommitmentString,
+			CommitmentType:    altda.KeccakCommitmentString,
 		},
 	}
 
@@ -474,7 +474,7 @@ func TestPlasmaDataSourceInvalidData(t *testing.T) {
 	}
 	l1F.ExpectFetchReceipts(ref.Hash, nil, types.Receipts{}, nil)
 	// mock input commitments in l1 transactions with an oversized input
-	input := testutils.RandomData(rng, plasma.MaxInputSize+1)
+	input := testutils.RandomData(rng, altda.MaxInputSize+1)
 	comm, _ := storage.SetInput(ctx, input)
 
 	tx1, err := types.SignNewTx(batcherPriv, signer, &types.DynamicFeeTx{
