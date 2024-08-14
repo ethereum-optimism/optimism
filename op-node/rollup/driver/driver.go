@@ -109,6 +109,7 @@ type SequencerIface interface {
 type Network interface {
 	// PublishL2Payload is called by the driver whenever there is a new payload to publish, synchronously with the driver main loop.
 	PublishL2Payload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error
+	PublishL2Attributes(ctx context.Context, attrs *derive.AttributesWithParent) error
 }
 
 type AltSync interface {
@@ -160,8 +161,8 @@ func NewDriver(
 	findL1Origin := NewL1OriginSelector(log, cfg, sequencerConfDepth)
 	verifConfDepth := NewConfDepth(driverCfg.VerifierConfDepth, l1State.L1Head, l1)
 	engine := derive.NewEngineController(l2, log, metrics, cfg, syncCfg.SyncMode, builder)
-	clSync := clsync.NewCLSync(log, cfg, metrics, engine)
-
+	attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1, l2)
+	clSync := clsync.NewCLSync(log, cfg, metrics, engine, network, findL1Origin, attrBuilder, driverCfg.SequencerPublishAttributes)
 	var finalizer Finalizer
 	if cfg.PlasmaEnabled() {
 		finalizer = finality.NewPlasmaFinalizer(log, cfg, l1, engine, plasma)
@@ -172,7 +173,6 @@ func NewDriver(
 	attributesHandler := attributes.NewAttributesHandler(log, cfg, engine, l2)
 	derivationPipeline := derive.NewDerivationPipeline(log, cfg, verifConfDepth, l1Blobs, plasma, l2, engine,
 		metrics, syncCfg, safeHeadListener, finalizer, attributesHandler)
-	attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1, l2)
 	meteredEngine := NewMeteredEngine(cfg, engine, metrics, log) // Only use the metered engine in the sequencer b/c it records sequencing metrics.
 	sequencer := NewSequencer(log, cfg, meteredEngine, attrBuilder, findL1Origin, metrics)
 	driverCtx, driverCancel := context.WithCancel(context.Background())
@@ -208,5 +208,7 @@ func NewDriver(
 		altSync:            altSync,
 		asyncGossiper:      asyncGossiper,
 		sequencerConductor: sequencerConductor,
+		l1OriginSelector:   findL1Origin,
+		attrBuilder:        attrBuilder,
 	}
 }

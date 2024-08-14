@@ -85,6 +85,10 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 			ListenPort:  ctx.Int(flags.RPCListenPort.Name),
 			EnableAdmin: ctx.Bool(flags.RPCEnableAdmin.Name),
 		},
+		EventStream: node.EventStreamConfig{
+			ListenAddr: ctx.String(flags.EventStreamListenAddr.Name),
+			ListenPort: ctx.Int(flags.EventStreamListenPort.Name),
+		},
 		Metrics: node.MetricsConfig{
 			Enabled:    ctx.Bool(flags.MetricsEnabledFlag.Name),
 			ListenAddr: ctx.String(flags.MetricsAddrFlag.Name),
@@ -115,6 +119,8 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		BuilderTimeout:  ctx.Duration(flags.BuilderRequestTimeoutFlag.Name),
 
 		Plasma: plasma.ReadCLIConfig(ctx),
+
+		PublishPayloadAttributes: ctx.Bool(flags.SequencerPublishAttributesFlag.Name),
 	}
 
 	if err := cfg.LoadPersisted(log); err != nil {
@@ -194,11 +200,12 @@ func NewConfigPersistence(ctx *cli.Context) node.ConfigPersistence {
 
 func NewDriverConfig(ctx *cli.Context) *driver.Config {
 	return &driver.Config{
-		VerifierConfDepth:   ctx.Uint64(flags.VerifierL1Confs.Name),
-		SequencerConfDepth:  ctx.Uint64(flags.SequencerL1Confs.Name),
-		SequencerEnabled:    ctx.Bool(flags.SequencerEnabledFlag.Name),
-		SequencerStopped:    ctx.Bool(flags.SequencerStoppedFlag.Name),
-		SequencerMaxSafeLag: ctx.Uint64(flags.SequencerMaxSafeLagFlag.Name),
+		VerifierConfDepth:          ctx.Uint64(flags.VerifierL1Confs.Name),
+		SequencerConfDepth:         ctx.Uint64(flags.SequencerL1Confs.Name),
+		SequencerEnabled:           ctx.Bool(flags.SequencerEnabledFlag.Name),
+		SequencerStopped:           ctx.Bool(flags.SequencerStoppedFlag.Name),
+		SequencerMaxSafeLag:        ctx.Uint64(flags.SequencerMaxSafeLagFlag.Name),
+		SequencerPublishAttributes: ctx.Bool(flags.SequencerPublishAttributesFlag.Name),
 	}
 }
 

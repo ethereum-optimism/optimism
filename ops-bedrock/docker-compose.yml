@@ -11,7 +11,15 @@ volumes:
   challenger_data:
   da_data:
   op_log:
+  builder_data:
 
+networks:
+  custom_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.5.0.0/16
+          gateway: 10.5.0.1
 
 services:
 
@@ -29,6 +37,8 @@ services:
       - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
     environment:
       GETH_MINER_RECOMMIT: 100ms
+    networks:
+      - custom_net
 
   l2:
     build:
@@ -45,18 +55,20 @@ services:
       - "/bin/sh"
       - "/entrypoint.sh"
       - "--authrpc.jwtsecret=/config/test-jwt-secret.txt"
+      - "--nat=extip:10.5.0.200"
+      - "--nodekeyhex=e8e00ec43b690f02844ed9b062decc3d613323cd136cf3bfbd30f1635698e5e4"
+      - "--rollup.disabletxpoolgossip"
     environment:
       GETH_MINER_RECOMMIT: 100ms
+    networks:
+      custom_net:
+        ipv4_address: "10.5.0.200"
 
   op-node:
     depends_on:
       - l1
       - l2
-    build:
-      context: ../
-      dockerfile: ops/docker/op-stack-go/Dockerfile
-      target: op-node-target
-    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-node:devnet
+    image: jinmel/op-node:pbs
     command: >
       op-node
       --l1=ws://l1:8546
@@ -76,6 +88,7 @@ services:
       --p2p.ban.peers=true
       --snapshotlog.file=/op_log/snapshot.log
       --p2p.priv.path=/config/p2p-node-key.txt
+      --p2p.advertise.ip=10.5.0.5
       --metrics.enabled
       --metrics.addr=0.0.0.0
       --metrics.port=7300
@@ -85,6 +98,7 @@ services:
       --plasma.enabled=${PLASMA_ENABLED}
       --plasma.da-service=${PLASMA_DA_SERVICE}
       --plasma.da-server=http://da-server:3100
+      --l2.builder=http://builder-op-geth:28545
     ports:
       - "7545:8545"
       - "9003:9003"
@@ -97,6 +111,9 @@ services:
       - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
       - "${PWD}/../.devnet/rollup.json:/rollup.json"
       - op_log:/op_log
+    networks:
+      custom_net:
+        ipv4_address: 10.5.0.5
 
   op-proposer:
     depends_on:
@@ -127,6 +144,8 @@ services:
       OP_PROPOSER_METRICS_ENABLED: "true"
       OP_PROPOSER_ALLOW_NON_FINALIZED: "true"
       OP_PROPOSER_RPC_ENABLE_ADMIN: "true"
+    networks:
+      - custom_net
 
   op-batcher:
     depends_on:
@@ -159,6 +178,8 @@ services:
       OP_BATCHER_PLASMA_ENABLED: "${PLASMA_ENABLED}"
       OP_BATCHER_PLASMA_DA_SERVICE: "${PLASMA_DA_SERVICE}"
       OP_BATCHER_PLASMA_DA_SERVER: "http://da-server:3100"
+    networks:
+      - custom_net
 
   op-challenger:
     depends_on:
@@ -193,6 +214,8 @@ services:
       OP_CHALLENGER_MNEMONIC: test test test test test test test test test test test junk
       OP_CHALLENGER_HD_PATH: "m/44'/60'/0'/0/4"
       OP_CHALLENGER_NUM_CONFIRMATIONS: 1
+    networks:
+      - custom_net
 
   da-server:
     image: us-docker.pkg.dev/oplabs-tools-artifacts/images/da-server:devnet
@@ -236,3 +259,71 @@ services:
       - "${PWD}/../.devnet/:/usr/share/nginx/html/:ro"
     security_opt:
       - "no-new-privileges:true"
+    networks:
+      - custom_net
+
+  builder-op-node:
+    build:
+      context: ../
+      dockerfile: ops/docker/op-stack-go/Dockerfile
+      target: op-node-target
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-node:devnet
+    depends_on:
+      - l1
+      - builder-op-geth
+    command: >
+      op-node
+      --l1=ws://l1:8546
+      --l2=http://builder-op-geth:8551
+      --l2.jwt-secret=/config/test-jwt-secret.txt
+      --rollup.config=/rollup.json
+      --p2p.listen.ip=0.0.0.0
+      --p2p.listen.tcp=9003
+      --p2p.listen.udp=9003
+      --p2p.scoring.peers=light
+      --p2p.ban.peers=true
+      --p2p.bootnodes=enr:-J24QGG7tyXLYkko-b6VwT1tI23jesehLEjMS_Dv8OepXrNPd3DObDrHAYpwDJLh-Go95HclbPVdm91oEDXfhE5ZUPaGAY5jmAZxgmlkgnY0gmlwhAoFAAWHb3BzdGFja4OFBwCJc2VjcDI1NmsxoQNNEvj5nPIMVFBRRvGU95BqlwRDrY_8aua6eTI_sV_yKIN0Y3CCIyuDdWRwgiMr
+      --rpc.addr=0.0.0.0
+      --rpc.port=9545
+      --syncmode=consensus-layer
+    volumes:
+      - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
+      - "${PWD}/../.devnet/rollup.json:/rollup.json"
+    ports:
+      - 9546:9546
+    networks:
+      custom_net:
+        ipv4_address: 10.5.0.123
+
+  builder-op-geth:
+    image: jinmel/builder:latest # NOTE: Replace with the builder image
+    ports:
+      - "5545:8545"
+    volumes:
+      - "builder_data:/db"
+      - "${PWD}/../.devnet/genesis-l2.json:/genesis.json"
+      - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
+      - "${PWD}/entrypoint-l2.sh:/entrypoint.sh"
+    entrypoint:  # pass the L2 specific flags by overriding the entry-point and adding extra arguments
+      - "/bin/sh"
+      - "/entrypoint.sh"
+      - "--authrpc.jwtsecret=/config/test-jwt-secret.txt"
+      - "--http.api=web3,debug,eth,txpool,net,engine"
+      - "--syncmode=full"
+      - "--gcmode=archive"
+      - "--bootnodes=enode://e42b01e82d3cf3e43bf8709509baf2043923f998693b405f67c7643950c904391bb58e363ac48e9b7137cb5491b6fa359e4d4b95caaa0ef3570073332e09f659@10.5.0.200:30303"
+      - "--nat=extip:10.5.0.201"
+      - "--rollup.disabletxpoolgossip"
+      - "--builder"
+      - "--builder.beacon_endpoints=http://builder-op-node:9546"
+      - "--builder.local_relay"
+      - "--builder.seconds_in_slot=2"
+      - "--builder.block_resubmit_interval=200ms"
+      - "--builder.submission_offset=1s"
+      - "--verbosity=5"
+    environment:
+      GETH_MINER_RECOMMIT: 100ms
+      BUILDER_TX_SIGNING_KEY: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+    networks:
+      custom_net:
+        ipv4_address: "10.5.0.201"

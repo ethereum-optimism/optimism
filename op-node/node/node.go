@@ -2,9 +2,13 @@ package node
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net"
+	"net/http"
+	"strconv"
 	"sync/atomic"
 	"time"
 
@@ -13,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
+	"github.com/r3labs/sse"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -83,6 +88,9 @@ type OpNode struct {
 	// cancels execution prematurely, e.g. to halt. This may be nil.
 	cancel context.CancelCauseFunc
 	halted atomic.Bool
+
+	httpEventStream       *sse.Server
+	httpEventStreamServer *httputil.HTTPServer
 }
 
 // The OpNode handles incoming gossip
@@ -148,6 +156,10 @@ func (n *OpNode) init(ctx context.Context, cfg *Config, snapshotLog log.Logger) 
 	if err := n.initMetricsServer(cfg); err != nil {
 		return fmt.Errorf("failed to init the metrics server: %w", err)
 	}
+	if err := n.initHTTPEventStreamServer(cfg); err != nil {
+		return fmt.Errorf("failed to init the HTTP event stream server: %w", err)
+	}
+
 	n.metrics.RecordInfo(n.appVersion)
 	n.metrics.RecordUp()
 	n.initHeartbeat(cfg)
@@ -432,6 +444,32 @@ func (n *OpNode) initRPCServer(cfg *Config) error {
 	return nil
 }
 
+func (n *OpNode) initHTTPEventStreamServer(cfg *Config) error {
+	eventStream := sse.New()
+	eventStream.AutoReplay = false
+	eventStream.CreateStream("payload_attributes")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/events", eventStream.HTTPHandler)
+	addr := net.JoinHostPort(cfg.EventStream.ListenAddr, strconv.Itoa(cfg.EventStream.ListenPort))
+
+	var err error
+	timeouts := httputil.HTTPTimeouts{
+		ReadTimeout:       httputil.DefaultTimeouts.ReadTimeout,
+		ReadHeaderTimeout: httputil.DefaultTimeouts.ReadHeaderTimeout,
+		WriteTimeout:      0,
+		IdleTimeout:       0,
+	}
+	n.httpEventStreamServer, err = httputil.StartHTTPServer(addr, mux, httputil.WithTimeouts(timeouts))
+	if err != nil {
+		return fmt.Errorf("failed to start http event stream server: %w", err)
+	}
+	n.log.Info("Started HTTP event stream server", "addr", addr)
+	n.httpEventStream = eventStream
+
+	return nil
+}
+
 func (n *OpNode) initMetricsServer(cfg *Config) error {
 	if !cfg.Metrics.Enabled {
 		n.log.Info("metrics disabled")
@@ -581,6 +619,22 @@ func (n *OpNode) PublishL2Payload(ctx context.Context, envelope *eth.ExecutionPa
 	return nil
 }
 
+func (n *OpNode) PublishL2Attributes(ctx context.Context, attrs *derive.AttributesWithParent) error {
+	builderAttrs, err := attrs.ToBuilderPayloadAttributes()
+	if err != nil {
+		n.log.Warn("failed to convert attributes to builder attributes", "err", err)
+		return err
+	}
+	jsonBytes, err := json.Marshal(builderAttrs)
+	if err != nil {
+		n.log.Warn("failed to marshal payload attributes", "err", err)
+		return err
+	}
+	n.log.Debug("Publishing execution payload attributes on event stream", "attrs", builderAttrs, "json", string(jsonBytes))
+	n.httpEventStream.Publish("payload_attributes", &sse.Event{Data: jsonBytes})
+	return nil
+}
+
 func (n *OpNode) OnUnsafeL2Payload(ctx context.Context, from peer.ID, envelope *eth.ExecutionPayloadEnvelope) error {
 	// ignore if it's from ourselves
 	if n.p2pNode != nil && from == n.p2pNode.Host().ID() {
@@ -721,6 +775,11 @@ func (n *OpNode) Stop(ctx context.Context) error {
 	if n.metricsSrv != nil {
 		if err := n.metricsSrv.Stop(ctx); err != nil {
 			result = multierror.Append(result, fmt.Errorf("failed to close metrics server: %w", err))
+		}
+	}
+	if n.httpEventStreamServer != nil {
+		if err := n.httpEventStreamServer.Stop(ctx); err != nil {
+			result = multierror.Append(result, fmt.Errorf("failed to close http event stream server: %w", err))
 		}
 	}
 
