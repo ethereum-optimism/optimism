@@ -232,6 +232,18 @@ contract GasBenchMark_L1Block is CommonTest {
         );
         vm.startPrank(depositor);
     }
+}
+
+contract GasBenchMark_L1Block_SetValuesEcotone is GasBenchMark_L1Block {
+    function test_setL1BlockValuesEcotone_benchmark() external {
+        address(l1Block).call(abi.encodePacked(setValuesEcotoneCalldata));
+    }
+}
+
+contract GasBenchMark_L1Block_SetValuesEcotone_Warm is GasBenchMark_L1Block {
+    function setUp() public virtual override {
+        address(l1Block).call(abi.encodePacked(setValuesEcotoneCalldata));
+    }
 
     function test_setL1BlockValuesEcotone_benchmark() external {
         address(l1Block).call(abi.encodePacked(setValuesEcotoneCalldata));
@@ -256,20 +268,42 @@ contract GasBenchMark_L1BlockIsthmus is GasBenchMark_L1Block {
             bytes32(type(uint256).max)
         );
     }
+}
+
+contract GasBenchMark_L1BlockIsthmus_SetValuesIsthmus is GasBenchMark_L1BlockIsthmus {
+    function test_setL1BlockValuesIsthmus_benchmark() external {
+        address(l1BlockIsthmus).call(
+            abi.encodePacked(l1BlockIsthmus.setL1BlockValuesIsthmus.selector, setValuesEcotoneCalldata)
+        );
+    }
+}
+
+contract GasBenchMark_L1BlockIsthmus_SetValuesIsthmus_Warm is GasBenchMark_L1BlockIsthmus {
+    function setUp() public virtual override {
+        address(l1BlockIsthmus).call(
+            abi.encodePacked(l1BlockIsthmus.setL1BlockValuesIsthmus.selector, setValuesEcotoneCalldata)
+        );
+    }
 
     function test_setL1BlockValuesIsthmus_benchmark() external {
         address(l1BlockIsthmus).call(
-            abi.encodePacked(l1BlockIsthmus.setL1BlockValuesEcotone.selector, setValuesEcotoneCalldata)
+            abi.encodePacked(l1BlockIsthmus.setL1BlockValuesIsthmus.selector, setValuesEcotoneCalldata)
         );
     }
 }
 
 contract GasBenchMark_L1BlockIsthmus_DepositsComplete is GasBenchMark_L1BlockIsthmus {
+    function test_depositsComplete_benchmark() external {
+        address(l1BlockIsthmus).call(abi.encodeWithSelector(l1BlockIsthmus.depositsComplete.selector));
+    }
+}
+
+contract GasBenchMark_L1BlockIsthmus_DepositsComplete_Warm is GasBenchMark_L1BlockIsthmus {
     function setUp() public virtual override {
         super.setUp();
         // Set the isDeposit flag to true so then we can benchmark when it is reset.
         address(l1BlockIsthmus).call(
-            abi.encodePacked(l1BlockIsthmus.setL1BlockValuesEcotone.selector, setValuesEcotoneCalldata)
+            abi.encodePacked(l1BlockIsthmus.setL1BlockValuesIsthmus.selector, setValuesEcotoneCalldata)
         );
     }
 
