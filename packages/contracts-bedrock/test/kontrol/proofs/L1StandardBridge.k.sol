@@ -69,5 +69,8 @@ contract L1StandardBridgeKontrol is DeploymentSummary, KontrolUtils {
         vm.prank(address(l1standardBridge.messenger()));
         vm.expectRevert("StandardBridge: paused");
         l1standardBridge.finalizeBridgeETH(_from, _to, _amount, _extraData);
+
+        // Intentionally fail the proof.
+        vm.assertTrue(false);
     }
 }
