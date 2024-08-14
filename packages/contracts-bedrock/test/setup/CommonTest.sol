@@ -147,6 +147,7 @@ contract CommonTest is Test, Setup, Events {
             revert("CommonTest: Cannot enable interop after deployment. Consider overriding `setUp`.");
         }
 
+        useFaultProofs = true;
         useInteropOverride = true;
     }
 }

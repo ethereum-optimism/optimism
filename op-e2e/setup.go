@@ -288,6 +288,12 @@ type SystemConfig struct {
 	// whether to actually use BatcherMaxL1TxSizeBytes for blobs, insteaf of max blob size
 	BatcherUseMaxTxSizeForBlobs bool
 
+	// Singular (0) or span batches (1)
+	BatcherBatchType uint
+
+	// If >0, limits the number of blocks per span batch
+	BatcherMaxBlocksPerSpanBatch int
+
 	// SupportL1TimeTravel determines if the L1 node supports quickly skipping forward in time
 	SupportL1TimeTravel bool
 
@@ -884,10 +890,6 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	}
 	sys.L2OutputSubmitter = proposer
 
-	var batchType uint = derive.SingularBatchType
-	if cfg.DeployConfig.L2GenesisDeltaTimeOffset != nil && *cfg.DeployConfig.L2GenesisDeltaTimeOffset == hexutil.Uint64(0) {
-		batchType = derive.SpanBatchType
-	}
 	// batcher defaults if unset
 	batcherMaxL1TxSizeBytes := cfg.BatcherMaxL1TxSizeBytes
 	if batcherMaxL1TxSizeBytes == 0 {
@@ -921,10 +923,11 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 			Level:  log.LevelInfo,
 			Format: oplog.FormatText,
 		},
-		Stopped:              sys.Cfg.DisableBatcher, // Batch submitter may be enabled later
-		BatchType:            batchType,
-		DataAvailabilityType: sys.Cfg.DataAvailabilityType,
-		CompressionAlgo:      compressionAlgo,
+		Stopped:               sys.Cfg.DisableBatcher, // Batch submitter may be enabled later
+		BatchType:             cfg.BatcherBatchType,
+		MaxBlocksPerSpanBatch: cfg.BatcherMaxBlocksPerSpanBatch,
+		DataAvailabilityType:  sys.Cfg.DataAvailabilityType,
+		CompressionAlgo:       compressionAlgo,
 	}
 	// Batch Submitter
 	batcher, err := bss.BatcherServiceFromCLIConfig(context.Background(), "0.0.1", batcherCLIConfig, sys.Cfg.Loggers["batcher"])

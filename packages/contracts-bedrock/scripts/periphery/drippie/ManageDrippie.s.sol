@@ -12,7 +12,6 @@ import { LibTaskId as GelatoTaskId } from "gelato/libraries/LibTaskId.sol";
 import { GelatoBytes } from "gelato/vendor/gelato/GelatoBytes.sol";
 
 import { Config } from "scripts/libraries/Config.sol";
-import { Artifacts } from "scripts/Artifacts.s.sol";
 import { DrippieConfig } from "scripts/periphery/drippie/DrippieConfig.s.sol";
 
 import { Drippie } from "src/periphery/drippie/Drippie.sol";
@@ -20,7 +19,7 @@ import { IDripCheck } from "src/periphery/drippie/IDripCheck.sol";
 
 /// @title ManageDrippie
 /// @notice Script for managing drips in the Drippie contract.
-contract ManageDrippie is Script, Artifacts {
+contract ManageDrippie is Script {
     /// @notice Struct that contains the data for a Gelato task.
     struct GelatoTaskData {
         address taskCreator;
@@ -41,8 +40,7 @@ contract ManageDrippie is Script, Artifacts {
     }
 
     /// @notice Sets up the deployment script.
-    function setUp() public override {
-        Artifacts.setUp();
+    function setUp() public {
         cfg = new DrippieConfig(Config.deployConfigPath());
         console.log("Config path: %s", Config.deployConfigPath());
     }
@@ -94,7 +92,7 @@ contract ManageDrippie is Script, Artifacts {
                 _config: Drippie.DripConfig({
                     reentrant: false,
                     interval: drip.interval,
-                    dripcheck: IDripCheck(mustGetAddress(drip.dripcheck)),
+                    dripcheck: IDripCheck(cfg.mustGetDripCheck(drip.dripcheck)),
                     checkparams: drip.checkparams,
                     actions: actions
                 })

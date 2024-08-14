@@ -56,6 +56,9 @@ type CLIConfig struct {
 	// If using blobs, this setting is ignored and the max blob size is used.
 	MaxL1TxSize uint64
 
+	// Maximum number of blocks to add to a span batch. Default is 0 - no maximum.
+	MaxBlocksPerSpanBatch int
+
 	// The target number of frames to create per channel. Controls number of blobs
 	// per blob tx, if using Blob DA.
 	TargetNumFrames int
@@ -173,6 +176,7 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		MaxPendingTransactions:       ctx.Uint64(flags.MaxPendingTransactionsFlag.Name),
 		MaxChannelDuration:           ctx.Uint64(flags.MaxChannelDurationFlag.Name),
 		MaxL1TxSize:                  ctx.Uint64(flags.MaxL1TxSizeBytesFlag.Name),
+		MaxBlocksPerSpanBatch:        ctx.Int(flags.MaxBlocksPerSpanBatch.Name),
 		TargetNumFrames:              ctx.Int(flags.TargetNumFramesFlag.Name),
 		ApproxComprRatio:             ctx.Float64(flags.ApproxComprRatioFlag.Name),
 		Compressor:                   ctx.String(flags.CompressorFlag.Name),
