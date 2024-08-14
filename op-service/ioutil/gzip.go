@@ -40,16 +40,20 @@ func (g *gzipWriteCloser) Close() error {
 // OpenDecompressed opens a reader for the specified file and automatically gzip decompresses the content
 // if the filename ends with .gz
 func OpenDecompressed(path string) (io.ReadCloser, error) {
-	var r io.ReadCloser
 	r, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
 	if IsGzip(path) {
-		r, err = gzip.NewReader(r)
+		gr, err := gzip.NewReader(r)
 		if err != nil {
+			r.Close()
 			return nil, fmt.Errorf("failed to create gzip reader: %w", err)
 		}
+		return &gzipReadCloser{
+			ReadCloser: gr,
+			closer:     r,
+		}, nil
 	}
 	return r, nil
 }
