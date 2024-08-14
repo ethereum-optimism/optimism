@@ -74,6 +74,7 @@ func NewPrecompile[E any](e E) (*Precompile[E], error) {
 	return out, nil
 }
 
+// setupMethods iterates through all exposed methods of val, and sets them all up as ABI methods.
 func (p *Precompile[E]) setupMethods(val *reflect.Value) error {
 	typ := val.Type()
 	methodCount := val.NumMethod()
@@ -89,6 +90,8 @@ func (p *Precompile[E]) setupMethods(val *reflect.Value) error {
 	return nil
 }
 
+// setupMethod takes a method definition, attached to selfVal,
+// and builds an ABI method to handle the input decoding and output encoding around the inner Go function.
 func (p *Precompile[E]) setupMethod(selfVal *reflect.Value, methodDef *reflect.Method) error {
 	methodName := methodDef.Name
 
@@ -260,6 +263,10 @@ type ABIInt256 big.Int
 
 var abiInt256Type = typeFor[ABIInt256]()
 
+// goTypeToSolidityType converts a Go type to the solidity ABI type definition.
+// The "internalType" is a quirk of the Geth ABI utils, for nested structures.
+// Unfortunately we have to convert to string, not directly to ABI type structure,
+// as it is the only way to initialize Geth ABI types.
 func goTypeToSolidityType(typ reflect.Type) (typeDef, internalType string, err error) {
 	switch typ.Kind() {
 	case reflect.Int, reflect.Uint:
@@ -340,6 +347,8 @@ func (p *Precompile[E]) setupFields(val *reflect.Value) error {
 		if !fieldTyp.IsExported() {
 			continue
 		}
+		// With the "evm" struct tag set to "-", exposed fields can explicitly be ignored,
+		// and will not be translated into getter functions on the precompile or further exposed.
 		if tag, ok := fieldTyp.Tag.Lookup("evm"); ok && tag == "-" {
 			continue
 		}
@@ -372,13 +381,15 @@ func (p *Precompile[E]) setupStructField(fieldDef *reflect.StructField, fieldVal
 	if lo := strings.ToLower(abiFunctionName[:1]); lo != abiFunctionName[:1] {
 		abiFunctionName = lo + abiFunctionName[1:]
 	}
-
+	// The ABI signature of public fields in solidity is simply a getter function of the same name.
+	// The return type is not part of the ABI signature. So we just append "()" to turn it into a function.
 	methodSig := abiFunctionName + "()"
 	byte4Sig := bytes4(methodSig)
 	if m, ok := p.abiMethods[byte4Sig]; ok {
 		return fmt.Errorf("struct field %s conflicts with existing ABI method %s (Go: %s), signature: %x",
 			fieldDef.Name, m.abiSignature, m.goName, byte4Sig)
 	}
+	// Determine the type to ABI-encode the Go field value into
 	abiTyp, err := goTypeToABIType(fieldDef.Type)
 	if err != nil {
 		return fmt.Errorf("failed to determine ABI type of struct field of type %s: %w", fieldDef.Type, err)
@@ -389,6 +400,7 @@ func (p *Precompile[E]) setupStructField(fieldDef *reflect.StructField, fieldVal
 			Type: abiTyp,
 		},
 	}
+	// Create the getter ABI method, that will take the field value, encode it, and return it.
 	fn := func(input []byte) ([]byte, error) {
 		if len(input) != 0 { // 4 byte selector is already trimmed
 			return nil, fmt.Errorf("unexpected input: %x", input)
@@ -407,10 +419,13 @@ func (p *Precompile[E]) setupStructField(fieldDef *reflect.StructField, fieldVal
 	return nil
 }
 
+// RequiredGas is part of the vm.PrecompiledContract interface, and all system precompiles use 0 gas.
 func (p *Precompile[E]) RequiredGas(input []byte) uint64 {
 	return 0
 }
 
+// Run implements the vm.PrecompiledContract interface.
+// This takes the ABI calldata, finds the applicable method by selector, and then runs that method with the data.
 func (p *Precompile[E]) Run(input []byte) ([]byte, error) {
 	if len(input) < 4 {
 		return encodeRevert(fmt.Errorf("expected at least 4 bytes, but got '%x'", input))
@@ -428,16 +443,17 @@ func (p *Precompile[E]) Run(input []byte) ([]byte, error) {
 	return out, nil
 }
 
+// revertSelector is the ABI signature of a default error type in solidity.
 var revertSelector = crypto.Keccak256([]byte("Error(string)"))[:4]
 
 func encodeRevert(outErr error) ([]byte, error) {
 	outErrStr := []byte(outErr.Error())
 	out := make([]byte, 0, 4+32*2+len(outErrStr)+32)
-	out = append(out, revertSelector...)
-	out = append(out, b32(0x20)...)
-	out = append(out, b32(uint64(len(outErrStr)))...)
-	out = append(out, pad32(outErrStr)...)
-	return out, vm.ErrExecutionReverted // Geth EVM will pick this up as a revert with return-data
+	out = append(out, revertSelector...)              // selector
+	out = append(out, b32(0x20)...)                   // offset to string
+	out = append(out, b32(uint64(len(outErrStr)))...) // length of string
+	out = append(out, pad32(outErrStr)...)            // the error message string
+	return out, vm.ErrExecutionReverted               // Geth EVM will pick this up as a revert with return-data
 }
 
 // typeFor returns the [Type] that represents the type argument T.
