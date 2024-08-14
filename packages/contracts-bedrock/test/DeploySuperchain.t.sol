@@ -11,7 +11,7 @@ contract DeploySuperchain_Test is Test {
     DeploySuperchain deploySuperchain;
 
     // Define a default input struct for testing.
-    DeploySuperchain.Input input  = DeploySuperchain.Input({
+    DeploySuperchain.Input input = DeploySuperchain.Input({
         roles: DeploySuperchain.Roles({
             proxyAdminOwner: makeAddr("defaultProxyAdminOwner"),
             protocolVersionsOwner: makeAddr("defaultProtocolVersionsOwner"),
@@ -30,12 +30,12 @@ contract DeploySuperchain_Test is Test {
         return ProtocolVersion.unwrap(_pv);
     }
 
-    function test_run_withInputStruct_succeeds(DeploySuperchain.Input memory _input) public {
+    function test_runWithoutIO_succeeds(DeploySuperchain.Input memory _input) public {
         vm.assume(_input.roles.proxyAdminOwner != address(0));
         vm.assume(_input.roles.protocolVersionsOwner != address(0));
         vm.assume(_input.roles.guardian != address(0));
 
-        DeploySuperchain.Output memory output = deploySuperchain.run(_input);
+        DeploySuperchain.Output memory output = deploySuperchain.runWithoutIO(_input);
 
         // We assert on the inputs only, as the outputs are asserts on via require statements directly in the script.
         assertEq(address(output.superchainProxyAdmin.owner()), _input.roles.proxyAdminOwner, "100");
@@ -46,23 +46,23 @@ contract DeploySuperchain_Test is Test {
         assertEq(unwrap(output.protocolVersionsProxy.recommended()), unwrap(_input.recommendedProtocolVersion), "600");
     }
 
-    function test_run_withInputStructAndZeroAddressRoles_reverts() public {
+    function test_runWithoutIOAndZeroAddressRoles_reverts() public {
         // Snapshot the state so we can revert to the default `input` struct between assertions.
         uint256 snapshotId = vm.snapshot();
 
         // Assert over each role being set to the zero address.
         input.roles.proxyAdminOwner = address(0);
         vm.expectRevert("zero address: proxyAdminOwner");
-        deploySuperchain.run(input);
+        deploySuperchain.runWithoutIO(input);
 
         vm.revertTo(snapshotId);
         input.roles.protocolVersionsOwner = address(0);
         vm.expectRevert("zero address: protocolVersionsOwner");
-        deploySuperchain.run(input);
+        deploySuperchain.runWithoutIO(input);
 
         vm.revertTo(snapshotId);
         input.roles.guardian = address(0);
         vm.expectRevert("zero address: guardian");
-        deploySuperchain.run(input);
+        deploySuperchain.runWithoutIO(input);
     }
 }

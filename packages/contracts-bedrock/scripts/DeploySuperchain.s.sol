@@ -9,6 +9,8 @@ import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
 import { Proxy } from "src/universal/Proxy.sol";
 
 /// @notice Deploys the Superchain contracts that can be shared by many chains.
+/// We intentionally use the terms "Input" and "Output" to clearly distinguish this script from the
+/// existing ones that use terms of "Config" and "Artifacts".
 contract DeploySuperchain is Script {
     struct Roles {
         address proxyAdminOwner;
@@ -31,7 +33,16 @@ contract DeploySuperchain is Script {
         ProtocolVersions protocolVersionsProxy;
     }
 
-    function run(Input memory _input) public returns (Output memory output_) {
+    /// @notice This entrypoint is for end-users to deploy from an input file and write to an output file.
+    function run(string memory _infile) public returns (Output memory output_, string memory outfile_) {
+        Input memory _input = parseInputFile(_infile);
+        output_ = runWithoutIO(_input);
+        outfile_ = writeOutputFile(_infile, _input, output_);
+        require(false, "run is not implemented");
+    }
+
+    /// @notice This entrypoint is useful for e2e testing purposes, and doesn't use any file I/O.
+    function runWithoutIO(Input memory _input) public returns (Output memory output_) {
         // Validate inputs.
         require(_input.roles.proxyAdminOwner != address(0), "zero address: proxyAdminOwner");
         require(_input.roles.protocolVersionsOwner != address(0), "zero address: protocolVersionsOwner");
@@ -95,5 +106,31 @@ contract DeploySuperchain is Script {
                 require(addresses[i] != addresses[j], err);
             }
         }
+    }
+
+    /// @notice This method is public for testing purposes, but there isn't a need for users to call this method
+    /// directly.
+    function parseInputFile(string memory _infile) public pure returns (Input memory input_) {
+        _infile;
+        input_;
+        require(false, "parseInputFile is not implemented");
+    }
+
+    /// @notice Writes an output file, where the filename is based on the input filename, e.g. an input file of
+    /// `DeploySuperchain.in.toml` results in an output file of `DeploySuperchain.out.toml`.
+    function writeOutputFile(
+        string memory _infile,
+        Input memory _input,
+        Output memory _output
+    )
+        internal
+        pure
+        returns (string memory outfile_)
+    {
+        _infile;
+        _input;
+        _output;
+        outfile_;
+        require(false, "writeOutputFile not implemented");
     }
 }
