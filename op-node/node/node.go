@@ -401,7 +401,7 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 
 	var payloadBuilder builder.PayloadBuilder = &builder.NoOpBuilder{}
 	if cfg.BuilderEnabled {
-		payloadBuilder = NewBuilderClient(n.log, cfg.BuilderEndpoint, cfg.BuilderTimeout)
+		payloadBuilder = NewBuilderClient(n.log, &cfg.Rollup, cfg.BuilderEndpoint, cfg.BuilderTimeout)
 	}
 
 	// if plasma is not explicitly activated in the node CLI, the config + any error will be ignored.
@@ -630,7 +630,7 @@ func (n *OpNode) PublishL2Attributes(ctx context.Context, attrs *derive.Attribut
 		n.log.Warn("failed to marshal payload attributes", "err", err)
 		return err
 	}
-	n.log.Debug("Publishing execution payload attributes on event stream", "attrs", builderAttrs, "json", string(jsonBytes))
+	n.log.Info("Publishing execution payload attributes on event stream", "attrs", builderAttrs)
 	n.httpEventStream.Publish("payload_attributes", &sse.Event{Data: jsonBytes})
 	return nil
 }

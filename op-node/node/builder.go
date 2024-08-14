@@ -11,6 +11,7 @@ import (
 	builderSpec "github.com/attestantio/go-builder-client/spec"
 	consensusspec "github.com/attestantio/go-eth2-client/spec"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
@@ -28,10 +29,11 @@ type BuilderAPIConfig struct {
 type BuilderAPIClient struct {
 	log        log.Logger
 	config     *BuilderAPIConfig
+	rollupCfg  *rollup.Config
 	httpClient *client.BasicHTTPClient
 }
 
-func NewBuilderClient(log log.Logger, endpoint string, timeout time.Duration) *BuilderAPIClient {
+func NewBuilderClient(log log.Logger, rollupCfg *rollup.Config, endpoint string, timeout time.Duration) *BuilderAPIClient {
 	httpClient := client.NewBasicHTTPClient(endpoint, log)
 	config := &BuilderAPIConfig{
 		Timeout:  timeout,
@@ -41,6 +43,7 @@ func NewBuilderClient(log log.Logger, endpoint string, timeout time.Duration) *B
 	return &BuilderAPIClient{
 		httpClient: httpClient,
 		config:     config,
+		rollupCfg:  rollupCfg,
 		log:        log,
 	}
 }
@@ -120,8 +123,12 @@ func (s *BuilderAPIClient) versionedExecutionPayloadToExecutionPayloadEnvelope(r
 
 	ws := types.Withdrawals(withdrawals)
 
-	blobGasUsed := eth.Uint64Quantity(payload.BlobGasUsed)
-	excessBlobGas := eth.Uint64Quantity(payload.ExcessBlobGas)
+	var blobGasUsed *eth.Uint64Quantity
+	var excessBlobGas *eth.Uint64Quantity
+	if s.rollupCfg.IsEcotone(payload.Timestamp) {
+		blobGasUsed = (*eth.Uint64Quantity)(&payload.BlobGasUsed)
+		excessBlobGas = (*eth.Uint64Quantity)(&payload.ExcessBlobGas)
+	}
 
 	var blockValue eth.Uint256Quantity
 	v, err := resp.Value()
@@ -148,8 +155,8 @@ func (s *BuilderAPIClient) versionedExecutionPayloadToExecutionPayloadEnvelope(r
 			BlockHash:     common.BytesToHash(payload.BlockHash[:]),
 			Transactions:  txs,
 			Withdrawals:   &ws,
-			BlobGasUsed:   &blobGasUsed,
-			ExcessBlobGas: &excessBlobGas,
+			BlobGasUsed:   blobGasUsed,
+			ExcessBlobGas: excessBlobGas,
 		},
 		// ParentBeaconBlockRoot will be filled by the engine payload.
 		ParentBeaconBlockRoot: nil,
