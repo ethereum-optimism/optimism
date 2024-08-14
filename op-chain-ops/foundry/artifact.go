@@ -1,10 +1,11 @@
 package foundry
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/holiman/uint256"
@@ -26,6 +27,7 @@ type Artifact struct {
 	StorageLayout    solc.StorageLayout
 	DeployedBytecode DeployedBytecode
 	Bytecode         Bytecode
+	Metadata         Metadata
 }
 
 func (a *Artifact) UnmarshalJSON(data []byte) error {
@@ -42,6 +44,7 @@ func (a *Artifact) UnmarshalJSON(data []byte) error {
 	a.StorageLayout = artifact.StorageLayout
 	a.DeployedBytecode = artifact.DeployedBytecode
 	a.Bytecode = artifact.Bytecode
+	a.Metadata = artifact.Metadata
 	return nil
 }
 
@@ -51,6 +54,7 @@ func (a Artifact) MarshalJSON() ([]byte, error) {
 		StorageLayout:    a.StorageLayout,
 		DeployedBytecode: a.DeployedBytecode,
 		Bytecode:         a.Bytecode,
+		Metadata:         a.Metadata,
 	}
 	return json.Marshal(artifact)
 }
@@ -62,22 +66,83 @@ type artifactMarshaling struct {
 	StorageLayout    solc.StorageLayout `json:"storageLayout"`
 	DeployedBytecode DeployedBytecode   `json:"deployedBytecode"`
 	Bytecode         Bytecode           `json:"bytecode"`
+	Metadata         Metadata           `json:"metadata"`
+}
+
+// Metadata is the subset of metadata in a foundry contract artifact that we use in OP-Stack tooling.
+type Metadata struct {
+	Compiler struct {
+		Version string `json:"version"`
+	} `json:"compiler"`
+
+	Language string `json:"language"`
+
+	Output json.RawMessage `json:"output"`
+
+	Settings struct {
+		// Remappings of the contract imports
+		Remappings json.RawMessage `json:"remappings"`
+		// Optimizer settings affect the compiler output, but can be arbitrary.
+		// We load them opaquely, to include it in the hash of what we run.
+		Optimizer json.RawMessage `json:"optimizer"`
+		// Metadata is loaded opaquely, similar to the Optimizer, to include in hashing.
+		// E.g. the bytecode-hash contract suffix as setting is enabled/disabled in here.
+		Metadata json.RawMessage `json:"metadata"`
+		// Map of full contract path to compiled contract name.
+		CompilationTarget map[string]string `json:"compilationTarget"`
+		// EVM version affects output, and hence included.
+		EVMVersion string `json:"evmVersion"`
+		// Libraries data
+		Libraries json.RawMessage `json:"libraries"`
+	} `json:"settings"`
+
+	Sources map[string]ContractSource `json:"sources"`
+
+	Version int `json:"version"`
+}
+
+// ContractSource represents a JSON value in the "sources" map of a contract metadata dump.
+// This uniquely identifies the source code of the contract.
+type ContractSource struct {
+	Keccak256 common.Hash `json:"keccak256"`
+	URLs      []string    `json:"urls"`
+	License   string      `json:"license"`
+}
+
+var ErrLinkingUnsupported = errors.New("cannot load bytecode with linking placeholders")
+
+// LinkableBytecode is not purely hex, it returns an ErrLinkingUnsupported error when
+// input contains __$aaaaaaa$__ style linking placeholders.
+// See https://docs.soliditylang.org/en/latest/using-the-compiler.html#library-linking
+// In practice this is only used by test contracts to link in large test libraries.
+type LinkableBytecode []byte
+
+func (lb *LinkableBytecode) UnmarshalJSON(data []byte) error {
+	if bytes.Contains(data, []byte("__$")) {
+		return ErrLinkingUnsupported
+	}
+	return (*hexutil.Bytes)(lb).UnmarshalJSON(data)
+}
+
+func (lb LinkableBytecode) MarshalText() ([]byte, error) {
+	return (hexutil.Bytes)(lb).MarshalText()
 }
 
 // DeployedBytecode represents the deployed bytecode section of the solc compiler output.
 type DeployedBytecode struct {
-	SourceMap           string          `json:"sourceMap"`
-	Object              hexutil.Bytes   `json:"object"`
-	LinkReferences      json.RawMessage `json:"linkReferences"`
-	ImmutableReferences json.RawMessage `json:"immutableReferences,omitempty"`
+	SourceMap           string           `json:"sourceMap"`
+	Object              LinkableBytecode `json:"object"`
+	LinkReferences      json.RawMessage  `json:"linkReferences"`
+	ImmutableReferences json.RawMessage  `json:"immutableReferences,omitempty"`
 }
 
 // Bytecode represents the bytecode section of the solc compiler output.
 type Bytecode struct {
-	SourceMap           string          `json:"sourceMap"`
-	Object              hexutil.Bytes   `json:"object"`
-	LinkReferences      json.RawMessage `json:"linkReferences"`
-	ImmutableReferences json.RawMessage `json:"immutableReferences,omitempty"`
+	SourceMap string `json:"sourceMap"`
+	// not purely hex, can contain __$aaaaaaa$__ style linking placeholders
+	Object              LinkableBytecode `json:"object"`
+	LinkReferences      json.RawMessage  `json:"linkReferences"`
+	ImmutableReferences json.RawMessage  `json:"immutableReferences,omitempty"`
 }
 
 // ReadArtifact will read an artifact from disk given a path.
@@ -130,15 +195,14 @@ func (d *ForgeAllocs) UnmarshalJSON(b []byte) error {
 }
 
 func LoadForgeAllocs(allocsPath string) (*ForgeAllocs, error) {
-	path := filepath.Join(allocsPath)
-	f, err := os.OpenFile(path, os.O_RDONLY, 0644)
+	f, err := os.OpenFile(allocsPath, os.O_RDONLY, 0644)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open forge allocs %q: %w", path, err)
+		return nil, fmt.Errorf("failed to open forge allocs %q: %w", allocsPath, err)
 	}
 	defer f.Close()
 	var out ForgeAllocs
 	if err := json.NewDecoder(f).Decode(&out); err != nil {
-		return nil, fmt.Errorf("failed to json-decode forge allocs %q: %w", path, err)
+		return nil, fmt.Errorf("failed to json-decode forge allocs %q: %w", allocsPath, err)
 	}
 	return &out, nil
 }
