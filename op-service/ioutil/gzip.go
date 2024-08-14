@@ -102,7 +102,10 @@ func IsGzip(path string) bool {
 
 func CompressByFileType(file string, out io.WriteCloser) io.WriteCloser {
 	if IsGzip(file) {
-		return gzip.NewWriter(out)
+		return &gzipWriteCloser{
+			WriteCloser: gzip.NewWriter(out),
+			closer:      out,
+		}
 	}
 	return out
 }
