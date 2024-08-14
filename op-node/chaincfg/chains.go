@@ -31,6 +31,7 @@ var L2ChainIDToNetworkDisplayName = func() map[string]string {
 	return out
 }()
 
+// AvailabelNewtorks 는 network configuration 섹션을 리턴
 // AvailableNetworks returns the selection of network configurations that is available by default.
 func AvailableNetworks() []string {
 	var networks []string
