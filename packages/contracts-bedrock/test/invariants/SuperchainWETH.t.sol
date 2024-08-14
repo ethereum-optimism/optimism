@@ -103,7 +103,7 @@ contract SuperchainWETH_User is StdUtils {
     }
 
     /// @notice Relay a message from another chain.
-    function relayMessage() public {
+    function relayMessage(uint256 _source) public {
         // Make sure there are unrelayed messages.
         if (unrelayed.length == 0) {
             return;
@@ -120,10 +120,17 @@ contract SuperchainWETH_User is StdUtils {
             abi.encode(address(weth))
         );
 
+        // Simulate the cross-domain message source to any chain.
+        vm.mockCall(
+            Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
+            abi.encodeCall(IL2ToL2CrossDomainMessenger.crossDomainMessageSource, ()),
+            abi.encode(_source)
+        );
+
         // Prank the relayERC20 function.
         // Balance will just go back to our own account.
         vm.prank(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
-        try weth.relayERC20(address(this), message.amount) {
+        try weth.relayERC20(address(this), address(this), message.amount) {
             // Success.
         } catch {
             failed = true;
