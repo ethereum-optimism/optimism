@@ -381,14 +381,6 @@ var (
 		Value:    time.Millisecond * 500,
 		Category: BuilderCategory,
 	}
-	BuilderBoostFactorFlag = &cli.Uint64Flag{
-		Name:     "l2.builder.boost-factor",
-		Usage:    "Boost factor for builder payloads. Compares builderBlockValue * boost against engineBlockValue. Higher value will result in more priority for the builder payloads.",
-		Required: false,
-		EnvVars:  prefixEnvVars("L2_BUILDER_BOOST_FACTOR"),
-		Value:    1,
-		Category: BuilderCategory,
-	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -401,7 +393,6 @@ var optionalFlags = []cli.Flag{
 	BuilderEnabledFlag,
 	BuilderEndpointFlag,
 	BuilderRequestTimeoutFlag,
-	BuilderBoostFactorFlag,
 	BeaconAddr,
 	BeaconHeader,
 	BeaconFallbackAddrs,
