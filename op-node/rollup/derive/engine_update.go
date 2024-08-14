@@ -229,6 +229,7 @@ func confirmPayload(
 			metrics.RecordSequencerProfit(float64(WeiToGwei(builderPayload.envelope.BlockValue)), opMetrics.PayloadSourceBuilder)
 			metrics.RecordSequencerPayloadInserted(opMetrics.PayloadSourceBuilder)
 			metrics.RecordPayloadGas(float64(builderPayload.envelope.ExecutionPayload.GasUsed), opMetrics.PayloadSourceBuilder)
+			metrics.CountSequencedTxsBySource(len(builderPayload.envelope.ExecutionPayload.Transactions), opMetrics.PayloadSourceBuilder)
 			log.Info("succeessfully inserted payload from builder")
 			return builderPayload.envelope, errTyp, err
 		}
@@ -238,6 +239,7 @@ func confirmPayload(
 	metrics.RecordSequencerProfit(float64(WeiToGwei(engineEnvelope.BlockValue)), opMetrics.PayloadSourceEngine)
 	metrics.RecordSequencerPayloadInserted(opMetrics.PayloadSourceEngine)
 	metrics.RecordPayloadGas(float64(engineEnvelope.ExecutionPayload.GasUsed), opMetrics.PayloadSourceEngine)
+	metrics.CountSequencedTxsBySource(len(engineEnvelope.ExecutionPayload.Transactions), opMetrics.PayloadSourceEngine)
 	errType, err := insertPayload(ctx, log, eng, fc, updateSafe, agossip, sequencerConductor, engineEnvelope)
 	return engineEnvelope, errType, err
 }
