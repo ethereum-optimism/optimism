@@ -54,9 +54,12 @@ var TooDeepReorgErr = errors.New("reorg is too deep")
 
 const MaxReorgSeqWindows = 5
 
-// recoverTimeGapLargerThan is the time between unsafe head and finalized head
-// after which resyncing is highly undesirable. This may happen after EL sync completes.
-const recoverTimeGapLargerThan = 7 * 24 * 60 * 60
+// RecoverMinSeqWindows is the number of sequence windows
+// between the unsafe head L1 origin, and the finalized block, while finality is still at genesis,
+// that need to elapse to heuristically recover from a missing forkchoice state.
+// Note that in healthy node circumstances finality should have been forced a long time ago,
+// since blocks are force-inserted after a full sequence window.
+const RecoverMinSeqWindows = 14
 
 type FindHeadsResult struct {
 	Unsafe    eth.L2BlockRef
@@ -123,7 +126,7 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 	if result.Finalized.Hash == cfg.Genesis.L2.Hash &&
 		result.Safe.Hash == cfg.Genesis.L2.Hash &&
 		result.Unsafe.Number > cfg.Genesis.L2.Number &&
-		result.Unsafe.Time > cfg.Genesis.L2Time+recoverTimeGapLargerThan {
+		result.Unsafe.L1Origin.Number > cfg.Genesis.L1.Number+(RecoverMinSeqWindows*cfg.SeqWindowSize) {
 		lgr.Warn("Attempting recovery from sync state without finality.", "head", result.Unsafe)
 		return &FindHeadsResult{Unsafe: result.Unsafe, Safe: result.Unsafe, Finalized: result.Unsafe}, nil
 	}
