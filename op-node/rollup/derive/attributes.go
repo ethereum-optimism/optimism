@@ -122,6 +122,8 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 	}
 
 	var afterForceIncludeTxs []hexutil.Bytes
+	// TODO I'm usure if this needs to be only done AFTER interop is enabled, but not on the same block.
+	// This is similar to what Proto mentioned about blocking the ExecutingMessages on the same block as the interop activation.
 	if ba.rollupCfg.IsInterop(nextL2Time) {
 		depositsCompleteTx, err := DepositsCompleteBytes(seqNumber, l1Info)
 		if err != nil {

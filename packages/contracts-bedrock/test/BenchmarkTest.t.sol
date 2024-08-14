@@ -310,4 +310,8 @@ contract GasBenchMark_L1BlockIsthmus_DepositsComplete_Warm is GasBenchMark_L1Blo
     function test_depositsComplete_benchmark() external {
         address(l1BlockIsthmus).call(abi.encodeWithSelector(l1BlockIsthmus.depositsComplete.selector));
     }
+
+    function test_depositsComplete_benchmark() external {
+        address(l1BlockInterop).call(abi.encodeWithSelector(l1BlockInterop.depositsComplete.selector));
+    }
 }

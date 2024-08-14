@@ -391,12 +391,14 @@ func DepositsCompleteDeposit(seqNumber uint64, block eth.BlockInfo) (*types.Depo
 		L1BlockHash: block.Hash(),
 	}
 	out := &types.DepositTx{
-		SourceHash:          source.SourceHash(),
-		From:                L1InfoDepositerAddress,
-		To:                  &L1BlockAddress,
-		Mint:                nil,
-		Value:               big.NewInt(0),
-		Gas:                 50_000, // TODO: check how much gas is actually needed
+		SourceHash: source.SourceHash(),
+		From:       L1InfoDepositerAddress,
+		To:         &L1BlockAddress,
+		Mint:       nil,
+		Value:      big.NewInt(0),
+		// We set the gas limit to 50k to ensure that the L1 Attributes Transaction does not run out of gas.
+		// see `test_depositsComplete_benchmark` at: `/packages/contracts-bedrock/test/BenchmarkTest.t.sol`
+		Gas:                 50_000,
 		IsSystemTransaction: false,
 		Data:                DepositsCompleteBytes4,
 	}
