@@ -13,6 +13,7 @@ import (
 type conductor interface {
 	Pause(ctx context.Context) error
 	Resume(ctx context.Context) error
+	Stop(ctx context.Context) error
 	Paused() bool
 	Stopped() bool
 	SequencerHealthy(ctx context.Context) bool
@@ -113,6 +114,11 @@ func (api *APIBackend) Pause(ctx context.Context) error {
 // Resume implements API.
 func (api *APIBackend) Resume(ctx context.Context) error {
 	return api.con.Resume(ctx)
+}
+
+// Stop implements API.
+func (api *APIBackend) Stop(ctx context.Context) error {
+	return api.con.Stop(ctx)
 }
 
 // TransferLeader implements API. With Raft implementation, a successful call does not mean that leadership transfer is complete
