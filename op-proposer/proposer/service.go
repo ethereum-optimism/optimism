@@ -253,6 +253,7 @@ func (ps *ProposerService) initRPCServer(cfg *CLIConfig) error {
 	if cfg.RPCConfig.EnableAdmin {
 		adminAPI := rpc.NewAdminAPI(ps.driver, ps.Metrics, ps.Log)
 		server.AddAPI(rpc.GetAdminAPI(adminAPI))
+		server.AddAPI(ps.TxManager.API())
 		ps.Log.Info("Admin RPC enabled")
 	}
 	ps.Log.Info("Starting JSON-RPC server")
