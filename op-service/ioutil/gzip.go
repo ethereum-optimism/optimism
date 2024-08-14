@@ -9,6 +9,18 @@ import (
 	"strings"
 )
 
+// gzipReadCloser is a struct that closes both the gzip.Reader and the underlying io.Closer.
+type gzipReadCloser struct {
+	io.ReadCloser
+	closer io.Closer
+}
+
+// gzipWriteCloser is a struct that closes both the gzip.Writer and the underlying io.Closer.
+type gzipWriteCloser struct {
+	io.WriteCloser
+	closer io.Closer
+}
+
 // OpenDecompressed opens a reader for the specified file and automatically gzip decompresses the content
 // if the filename ends with .gz
 func OpenDecompressed(path string) (io.ReadCloser, error) {
