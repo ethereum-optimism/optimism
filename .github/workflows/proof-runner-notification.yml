@@ -11,8 +11,8 @@ jobs:
     - name: Generate Slack Payload
       run: |
         echo '{
-          "Kontrol Status": "${{ github.event.state }}",
-          "CI Run Link": "${{ github.event.target_url }}"
+          "kontrol_status": "${{ github.event.state }}",
+          "ci_run_link": "${{ github.event.target_url }}"
         }' > payload.json
     - name: Send Status Check to Slack
       uses: slackapi/slack-github-action@v1.26.0
