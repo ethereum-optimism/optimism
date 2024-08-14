@@ -3,7 +3,6 @@ pragma solidity 0.8.15;
 
 // Target contract is imported by the `Bridge_Initializer`
 import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
-import { console2 } from "forge-std/console2.sol";
 
 // Target contract dependencies
 import {
@@ -56,6 +55,15 @@ contract L2StandardBridgeInterop_Test is Bridge_Initializer {
             _factory, abi.encodeWithSelector(IOptimismERC20Factory.deployments.selector, _token), abi.encode(_deployed)
         );
     }
+
+    /// @notice Assume a valid address for fuzzing
+    function _assumeAddress(address _address) internal {
+        vm.assume(
+            _address.code.length == 0 // No accounts with code
+                && _address != CONSOLE // The console has no code but behaves like a contract
+                && uint160(_address) > 9 // No precompiles (or zero address)
+        );
+    }
 }
 
 /// @notice Test suite when converting from a legacy token to a SuperchainERC20 token
@@ -63,8 +71,8 @@ contract L2StandardBridgeInterop_LegacyToSuper_Test is L2StandardBridgeInterop_T
     /// @notice Set up the test for converting from a legacy token to a SuperchainERC20 token
     function _setUpLegacyToSuper(address _from, address _to) internal {
         // Assume
-        vm.assume(_from != console2.CONSOLE_ADDRESS);
-        vm.assume(_to != console2.CONSOLE_ADDRESS);
+        _assumeAddress(_from);
+        _assumeAddress(_to);
 
         // Mock same decimals
         _mockDecimals(_from, 18);
@@ -86,8 +94,8 @@ contract L2StandardBridgeInterop_LegacyToSuper_Test is L2StandardBridgeInterop_T
         public
     {
         // Assume
-        vm.assume(_from != console2.CONSOLE_ADDRESS);
-        vm.assume(_to != console2.CONSOLE_ADDRESS);
+        _assumeAddress(_from);
+        _assumeAddress(_to);
         vm.assume(_decimalsFrom != _decimalsTo);
         vm.assume(_from != _to);
 
@@ -216,8 +224,8 @@ contract L2StandardBridgeInterop_SuperToLegacy_Test is L2StandardBridgeInterop_T
     /// @notice Set up the test for converting from a SuperchainERC20 token to a legacy token
     function _setUpSuperToLegacy(address _from, address _to) internal {
         // Assume
-        vm.assume(_from != console2.CONSOLE_ADDRESS);
-        vm.assume(_to != console2.CONSOLE_ADDRESS);
+        _assumeAddress(_from);
+        _assumeAddress(_to);
 
         // Mock same decimals
         _mockDecimals(_from, 18);
@@ -235,8 +243,8 @@ contract L2StandardBridgeInterop_SuperToLegacy_Test is L2StandardBridgeInterop_T
         public
     {
         // Assume
-        vm.assume(_from != console2.CONSOLE_ADDRESS);
-        vm.assume(_to != console2.CONSOLE_ADDRESS);
+        _assumeAddress(_from);
+        _assumeAddress(_to);
         vm.assume(_decimalsFrom != _decimalsTo);
         vm.assume(_from != _to);
 
