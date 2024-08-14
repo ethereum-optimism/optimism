@@ -1443,12 +1443,22 @@ jobs:
           docker_layer_caching: true
       - run:
           name: Run Kontrol Tests
-          command: just test-kontrol
+          command: |
+            curl -X POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $RV_COMPUTE_TOKEN" \
+              https://api.github.com/repos/runtimeverification/optimism-ci/actions/workflows/optimism-ci.yaml/dispatches \
+              -d '{
+                "ref": "master",
+                "inputs": {
+                  "branch_name": "<<pipeline.git.branch>>",
+                  "extra_args": "script",
+                  "statuses_sha": "<< pipeline.git.revision >>",
+                  "org": "ethereum-optimism",
+                  "repository": "optimism"
+                }
+              }'
           working_directory: ./packages/contracts-bedrock
-      - store_artifacts:
-          path: ./packages/contracts-bedrock/test/kontrol/logs/kontrol-results_latest.tar.gz
-      - store_test_results:
-          path: ./packages/contracts-bedrock
       - notify-failures-on-develop
 
 workflows:
@@ -1990,6 +2000,7 @@ workflows:
       - kontrol-tests:
           context:
             - slack
+            - runtimeverification
 
   scheduled-docker-publish:
     when:
