@@ -13,6 +13,8 @@ contract SafeCall_Test is Test {
     function assumeNot(address _addr) internal {
         vm.assume(_addr.balance == 0);
         vm.assume(_addr != address(this));
+        vm.assume(uint256(uint160(_addr)) > uint256(256)); // TODO temp fix until new forge-std release with modern
+            // precompiles: https://github.com/foundry-rs/forge-std/pull/594
         assumeAddressIsNot(_addr, StdCheatsSafe.AddressType.ForgeAddress, StdCheatsSafe.AddressType.Precompile);
     }
 

@@ -101,7 +101,8 @@ func DefaultSystemConfig(t testing.TB) SystemConfig {
 	deployConfig := config.DeployConfig.Copy()
 	deployConfig.L1GenesisBlockTimestamp = hexutil.Uint64(time.Now().Unix())
 	e2eutils.ApplyDeployConfigForks(deployConfig)
-	require.NoError(t, deployConfig.Check(), "Deploy config is invalid, do you need to run make devnet-allocs?")
+	require.NoError(t, deployConfig.Check(testlog.Logger(t, log.LevelInfo)),
+		"Deploy config is invalid, do you need to run make devnet-allocs?")
 	l1Deployments := config.L1Deployments.Copy()
 	require.NoError(t, l1Deployments.Check(deployConfig))
 
@@ -123,6 +124,7 @@ func DefaultSystemConfig(t testing.TB) SystemConfig {
 		L1InfoPredeployAddress: predeploys.L1BlockAddr,
 		JWTFilePath:            writeDefaultJWT(t),
 		JWTSecret:              testingJWTSecret,
+		L1FinalizedDistance:    8, // Short, for faster tests.
 		BlobsPath:              t.TempDir(),
 		Nodes: map[string]*rollupNode.Config{
 			RoleSeq: {
@@ -182,6 +184,7 @@ func RegolithSystemConfig(t *testing.T, regolithTimeOffset *hexutil.Uint64) Syst
 	cfg.DeployConfig.L2GenesisDeltaTimeOffset = nil
 	cfg.DeployConfig.L2GenesisEcotoneTimeOffset = nil
 	cfg.DeployConfig.L2GenesisFjordTimeOffset = nil
+	cfg.DeployConfig.L2GenesisGraniteTimeOffset = nil
 	// ADD NEW FORKS HERE!
 	return cfg
 }
@@ -212,6 +215,13 @@ func FjordSystemConfig(t *testing.T, fjordTimeOffset *hexutil.Uint64) SystemConf
 	return cfg
 }
 
+func GraniteSystemConfig(t *testing.T, graniteTimeOffset *hexutil.Uint64) SystemConfig {
+	cfg := FjordSystemConfig(t, &genesisTime)
+	cfg.DeployConfig.L2GenesisGraniteTimeOffset = graniteTimeOffset
+	cfg.DeployConfig.ChannelTimeoutGranite = 20
+	return cfg
+}
+
 func writeDefaultJWT(t testing.TB) string {
 	// Sadly the geth node config cannot load JWT secret from memory, it has to be a file
 	jwtPath := path.Join(t.TempDir(), "jwt_secret")
@@ -237,6 +247,9 @@ type SystemConfig struct {
 	JWTSecret   [32]byte
 
 	BlobsPath string
+
+	// L1FinalizedDistance is the distance from the L1 head that L1 blocks will be artificially finalized on.
+	L1FinalizedDistance uint64
 
 	Premine        map[common.Address]*big.Int
 	Nodes          map[string]*rollupNode.Config // Per node config. Don't use populate rollup.Config
@@ -274,6 +287,12 @@ type SystemConfig struct {
 
 	// whether to actually use BatcherMaxL1TxSizeBytes for blobs, insteaf of max blob size
 	BatcherUseMaxTxSizeForBlobs bool
+
+	// Singular (0) or span batches (1)
+	BatcherBatchType uint
+
+	// If >0, limits the number of blocks per span batch
+	BatcherMaxBlocksPerSpanBatch int
 
 	// SupportL1TimeTravel determines if the L1 node supports quickly skipping forward in time
 	SupportL1TimeTravel bool
@@ -507,7 +526,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		c = sys.TimeTravelClock
 	}
 
-	if err := cfg.DeployConfig.Check(); err != nil {
+	if err := cfg.DeployConfig.Check(testlog.Logger(t, log.LevelInfo)); err != nil {
 		return nil, err
 	}
 
@@ -535,7 +554,9 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	l1Block := l1Genesis.ToBlock()
 	var allocsMode genesis.L2AllocsMode
 	allocsMode = genesis.L2AllocsDelta
-	if fjordTime := cfg.DeployConfig.FjordTime(l1Block.Time()); fjordTime != nil && *fjordTime <= 0 {
+	if graniteTime := cfg.DeployConfig.GraniteTime(l1Block.Time()); graniteTime != nil && *graniteTime <= 0 {
+		allocsMode = genesis.L2AllocsGranite
+	} else if fjordTime := cfg.DeployConfig.FjordTime(l1Block.Time()); fjordTime != nil && *fjordTime <= 0 {
 		allocsMode = genesis.L2AllocsFjord
 	} else if ecotoneTime := cfg.DeployConfig.EcotoneTime(l1Block.Time()); ecotoneTime != nil && *ecotoneTime <= 0 {
 		allocsMode = genesis.L2AllocsEcotone
@@ -580,7 +601,8 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 			BlockTime:               cfg.DeployConfig.L2BlockTime,
 			MaxSequencerDrift:       cfg.DeployConfig.MaxSequencerDrift,
 			SeqWindowSize:           cfg.DeployConfig.SequencerWindowSize,
-			ChannelTimeout:          cfg.DeployConfig.ChannelTimeout,
+			ChannelTimeoutBedrock:   cfg.DeployConfig.ChannelTimeoutBedrock,
+			ChannelTimeoutGranite:   cfg.DeployConfig.ChannelTimeoutGranite,
 			L1ChainID:               cfg.L1ChainIDBig(),
 			L2ChainID:               cfg.L2ChainIDBig(),
 			BatchInboxAddress:       cfg.DeployConfig.BatchInboxAddress,
@@ -591,6 +613,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 			DeltaTime:               cfg.DeployConfig.DeltaTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 			EcotoneTime:             cfg.DeployConfig.EcotoneTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 			FjordTime:               cfg.DeployConfig.FjordTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
+			GraniteTime:             cfg.DeployConfig.GraniteTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 			InteropTime:             cfg.DeployConfig.InteropTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 			ProtocolVersionsAddress: cfg.L1Deployments.ProtocolVersionsProxy,
 		}
@@ -613,7 +636,8 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	sys.L1BeaconAPIAddr = beaconApiAddr
 
 	// Initialize nodes
-	l1Node, l1Backend, err := geth.InitL1(cfg.DeployConfig.L1ChainID, cfg.DeployConfig.L1BlockTime, l1Genesis, c,
+	l1Node, l1Backend, err := geth.InitL1(cfg.DeployConfig.L1ChainID,
+		cfg.DeployConfig.L1BlockTime, cfg.L1FinalizedDistance, l1Genesis, c,
 		path.Join(cfg.BlobsPath, "l1_el"), bcn, cfg.GethOptions[RoleL1]...)
 	if err != nil {
 		return nil, err
@@ -828,14 +852,15 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	var proposerCLIConfig *l2os.CLIConfig
 	if e2eutils.UseFaultProofs() {
 		proposerCLIConfig = &l2os.CLIConfig{
-			L1EthRpc:          sys.EthInstances[RoleL1].WSEndpoint(),
-			RollupRpc:         sys.RollupNodes[RoleSeq].HTTPEndpoint(),
-			DGFAddress:        config.L1Deployments.DisputeGameFactoryProxy.Hex(),
-			ProposalInterval:  6 * time.Second,
-			DisputeGameType:   254, // Fast game type
-			PollInterval:      50 * time.Millisecond,
-			TxMgrConfig:       newTxMgrConfig(sys.EthInstances[RoleL1].WSEndpoint(), cfg.Secrets.Proposer),
-			AllowNonFinalized: cfg.NonFinalizedProposals,
+			L1EthRpc:            sys.EthInstances[RoleL1].WSEndpoint(),
+			RollupRpc:           sys.RollupNodes[RoleSeq].HTTPEndpoint(),
+			DGFAddress:          config.L1Deployments.DisputeGameFactoryProxy.Hex(),
+			ProposalInterval:    6 * time.Second,
+			DisputeGameType:     254, // Fast game type
+			PollInterval:        50 * time.Millisecond,
+			OutputRetryInterval: 10 * time.Millisecond,
+			TxMgrConfig:         newTxMgrConfig(sys.EthInstances[RoleL1].WSEndpoint(), cfg.Secrets.Proposer),
+			AllowNonFinalized:   cfg.NonFinalizedProposals,
 			LogConfig: oplog.CLIConfig{
 				Level:  log.LvlInfo,
 				Format: oplog.FormatText,
@@ -843,12 +868,13 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		}
 	} else {
 		proposerCLIConfig = &l2os.CLIConfig{
-			L1EthRpc:          sys.EthInstances[RoleL1].WSEndpoint(),
-			RollupRpc:         sys.RollupNodes[RoleSeq].HTTPEndpoint(),
-			L2OOAddress:       config.L1Deployments.L2OutputOracleProxy.Hex(),
-			PollInterval:      50 * time.Millisecond,
-			TxMgrConfig:       newTxMgrConfig(sys.EthInstances[RoleL1].WSEndpoint(), cfg.Secrets.Proposer),
-			AllowNonFinalized: cfg.NonFinalizedProposals,
+			L1EthRpc:            sys.EthInstances[RoleL1].WSEndpoint(),
+			RollupRpc:           sys.RollupNodes[RoleSeq].HTTPEndpoint(),
+			L2OOAddress:         config.L1Deployments.L2OutputOracleProxy.Hex(),
+			PollInterval:        50 * time.Millisecond,
+			OutputRetryInterval: 10 * time.Millisecond,
+			TxMgrConfig:         newTxMgrConfig(sys.EthInstances[RoleL1].WSEndpoint(), cfg.Secrets.Proposer),
+			AllowNonFinalized:   cfg.NonFinalizedProposals,
 			LogConfig: oplog.CLIConfig{
 				Level:  log.LvlInfo,
 				Format: oplog.FormatText,
@@ -864,10 +890,6 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	}
 	sys.L2OutputSubmitter = proposer
 
-	var batchType uint = derive.SingularBatchType
-	if cfg.DeployConfig.L2GenesisDeltaTimeOffset != nil && *cfg.DeployConfig.L2GenesisDeltaTimeOffset == hexutil.Uint64(0) {
-		batchType = derive.SpanBatchType
-	}
 	// batcher defaults if unset
 	batcherMaxL1TxSizeBytes := cfg.BatcherMaxL1TxSizeBytes
 	if batcherMaxL1TxSizeBytes == 0 {
@@ -901,10 +923,11 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 			Level:  log.LevelInfo,
 			Format: oplog.FormatText,
 		},
-		Stopped:              sys.Cfg.DisableBatcher, // Batch submitter may be enabled later
-		BatchType:            batchType,
-		DataAvailabilityType: sys.Cfg.DataAvailabilityType,
-		CompressionAlgo:      compressionAlgo,
+		Stopped:               sys.Cfg.DisableBatcher, // Batch submitter may be enabled later
+		BatchType:             cfg.BatcherBatchType,
+		MaxBlocksPerSpanBatch: cfg.BatcherMaxBlocksPerSpanBatch,
+		DataAvailabilityType:  sys.Cfg.DataAvailabilityType,
+		CompressionAlgo:       compressionAlgo,
 	}
 	// Batch Submitter
 	batcher, err := bss.BatcherServiceFromCLIConfig(context.Background(), "0.0.1", batcherCLIConfig, sys.Cfg.Loggers["batcher"])

@@ -6,9 +6,11 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 )
 
@@ -84,7 +86,7 @@ func TestState_EncodeWitness(t *testing.T) {
 }
 
 func TestState_JSONCodec(t *testing.T) {
-	elfProgram, err := elf.Open("../../example/bin/hello.elf")
+	elfProgram, err := elf.Open("../../testdata/example/bin/hello.elf")
 	require.NoError(t, err, "open ELF file")
 	state, err := program.LoadELF(elfProgram, CreateInitialState)
 	require.NoError(t, err, "load ELF into state")
@@ -126,4 +128,94 @@ func TestState_EmptyThreadsRoot(t *testing.T) {
 	expectedEmptyRoot := crypto.Keccak256Hash(data[:])
 
 	require.Equal(t, expectedEmptyRoot, EmptyThreadsRoot)
+}
+
+func TestState_EncodeThreadProof_SingleThread(t *testing.T) {
+	state := CreateEmptyState()
+	// Set some fields on the active thread
+	activeThread := state.getCurrentThread()
+	activeThread.Cpu.PC = 4
+	activeThread.Cpu.NextPC = 8
+	activeThread.Cpu.HI = 11
+	activeThread.Cpu.LO = 22
+	for i := 0; i < 32; i++ {
+		activeThread.Registers[i] = uint32(i)
+	}
+
+	expectedProof := append([]byte{}, activeThread.serializeThread()[:]...)
+	expectedProof = append(expectedProof, EmptyThreadsRoot[:]...)
+
+	actualProof := state.EncodeThreadProof()
+	require.Equal(t, THREAD_WITNESS_SIZE, len(actualProof))
+	require.Equal(t, expectedProof, actualProof)
+}
+
+func TestState_EncodeThreadProof_MultipleThreads(t *testing.T) {
+	state := CreateEmptyState()
+	// Add some more threads
+	require.Equal(t, state.TraverseRight, false, "sanity check")
+	state.LeftThreadStack = append(state.LeftThreadStack, CreateEmptyThread())
+	state.LeftThreadStack = append(state.LeftThreadStack, CreateEmptyThread())
+	require.Equal(t, 3, len(state.LeftThreadStack), "sanity check")
+
+	// Set some fields on our threads
+	for i := 0; i < 3; i++ {
+		curThread := state.LeftThreadStack[i]
+		curThread.Cpu.PC = uint32(4 * i)
+		curThread.Cpu.NextPC = curThread.Cpu.PC + 4
+		curThread.Cpu.HI = uint32(11 + i)
+		curThread.Cpu.LO = uint32(22 + i)
+		for j := 0; j < 32; j++ {
+			curThread.Registers[j] = uint32(j + i)
+		}
+	}
+
+	expectedRoot := EmptyThreadsRoot
+	for i := 0; i < 2; i++ {
+		curThread := state.LeftThreadStack[i]
+		hashedThread := crypto.Keccak256Hash(curThread.serializeThread())
+
+		// root = prevRoot ++ hash(curRoot)
+		hashData := append([]byte{}, expectedRoot[:]...)
+		hashData = append(hashData, hashedThread[:]...)
+		expectedRoot = crypto.Keccak256Hash(hashData)
+	}
+
+	expectedProof := append([]byte{}, state.getCurrentThread().serializeThread()[:]...)
+	expectedProof = append(expectedProof, expectedRoot[:]...)
+
+	actualProof := state.EncodeThreadProof()
+	require.Equal(t, THREAD_WITNESS_SIZE, len(actualProof))
+	require.Equal(t, expectedProof, actualProof)
+}
+
+func TestState_EncodeThreadProof_EmptyThreadStackPanic(t *testing.T) {
+	cases := []struct {
+		name          string
+		wakeupAddr    uint32
+		traverseRight bool
+	}{
+		{"traverse left during wakeup traversal", uint32(99), false},
+		{"traverse left during normal traversal", exec.FutexEmptyAddr, false},
+		{"traverse right during wakeup traversal", uint32(99), true},
+		{"traverse right during normal traversal", exec.FutexEmptyAddr, true},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			// Set up invalid state where the active stack is empty
+			state := CreateEmptyState()
+			state.Wakeup = c.wakeupAddr
+			state.TraverseRight = c.traverseRight
+			if c.traverseRight {
+				state.LeftThreadStack = []*ThreadState{CreateEmptyThread()}
+				state.RightThreadStack = []*ThreadState{}
+			} else {
+				state.LeftThreadStack = []*ThreadState{}
+				state.RightThreadStack = []*ThreadState{CreateEmptyThread()}
+			}
+
+			assert.PanicsWithValue(t, "Invalid empty thread stack", func() { state.EncodeThreadProof() })
+		})
+	}
 }

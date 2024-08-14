@@ -120,9 +120,9 @@
   },
   {
     "bytes": "32",
-    "label": "spacer_61_0_32",
+    "label": "_balance",
     "offset": 0,
     "slot": "61",
-    "type": "bytes32"
+    "type": "uint256"
   }
 ]

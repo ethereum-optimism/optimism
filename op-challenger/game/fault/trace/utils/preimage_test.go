@@ -63,15 +63,15 @@ func TestPreimageLoader_SimpleTypes(t *testing.T) {
 }
 
 func TestPreimageLoader_BlobPreimage(t *testing.T) {
-	blob := testBlob()
-	commitment, err := kzg4844.BlobToCommitment(kzg4844.Blob(blob))
+	blob := kzg4844.Blob(testBlob())
+	commitment, err := kzg4844.BlobToCommitment(&blob)
 	require.NoError(t, err)
 
 	fieldIndex := uint64(24)
 	elementData := blob[fieldIndex<<5 : (fieldIndex+1)<<5]
 	var point kzg4844.Point
 	new(big.Int).SetUint64(fieldIndex).FillBytes(point[:])
-	kzgProof, claim, err := kzg4844.ComputeProof(kzg4844.Blob(blob), point)
+	kzgProof, claim, err := kzg4844.ComputeProof(&blob, point)
 	require.NoError(t, err)
 	elementDataWithLengthPrefix := make([]byte, len(elementData)+lengthPrefixSize)
 	binary.BigEndian.PutUint64(elementDataWithLengthPrefix[:lengthPrefixSize], uint64(len(elementData)))
@@ -129,7 +129,7 @@ func TestPreimageLoader_BlobPreimage(t *testing.T) {
 	t.Run("Valid", func(t *testing.T) {
 		kv := kvstore.NewMemKV()
 		loader := NewPreimageLoader(kv.Get)
-		storeBlob(t, kv, gokzg4844.KZGCommitment(commitment), blob)
+		storeBlob(t, kv, gokzg4844.KZGCommitment(commitment), gokzg4844.Blob(blob))
 		actual, err := loader.LoadPreimage(proof)
 		require.NoError(t, err)
 

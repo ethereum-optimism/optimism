@@ -10,6 +10,7 @@ This directory contains documentation for all defined invariant tests within `co
 - [Burn.Eth](./Burn.Eth.md)
 - [Burn.Gas](./Burn.Gas.md)
 - [CrossDomainMessenger](./CrossDomainMessenger.md)
+- [ETHLiquidity](./ETHLiquidity.md)
 - [Encoding](./Encoding.md)
 - [FaultDisputeGame](./FaultDisputeGame.md)
 - [Hashing](./Hashing.md)
@@ -17,14 +18,16 @@ This directory contains documentation for all defined invariant tests within `co
 - [L2OutputOracle](./L2OutputOracle.md)
 - [OptimismPortal](./OptimismPortal.md)
 - [OptimismPortal2](./OptimismPortal2.md)
+- [OptimismSuperchainERC20](./OptimismSuperchainERC20.md)
 - [ResourceMetering](./ResourceMetering.md)
 - [SafeCall](./SafeCall.md)
+- [SuperchainWETH](./SuperchainWETH.md)
 - [SystemConfig](./SystemConfig.md)
 <!-- END autoTOC -->
 
 ## Usage
 
-To auto-generate documentation for invariant tests, run `pnpm autogen:invariant-docs`.
+To auto-generate documentation for invariant tests, run `just autogen-invariant-docs`.
 
 ## Documentation Standard
 

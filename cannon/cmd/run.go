@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
@@ -24,13 +25,6 @@ import (
 )
 
 var (
-	RunType = &cli.StringFlag{
-		Name:  "type",
-		Usage: "VM type to run. Options are 'cannon' (default)",
-		Value: "cannon",
-		// TODO(client-pod#903): This should be required once we have additional vm types
-		Required: false,
-	}
 	RunInputFlag = &cli.PathFlag{
 		Name:      "input",
 		Usage:     "path of input JSON state. Stdin if left empty.",
@@ -258,20 +252,14 @@ func Guard(proc *os.ProcessState, fn StepFn) StepFn {
 
 var _ mipsevm.PreimageOracle = (*ProcessPreimageOracle)(nil)
 
-type VMType string
-
-var cannonVMType VMType = "cannon"
-
 func Run(ctx *cli.Context) error {
 	if ctx.Bool(RunPProfCPU.Name) {
 		defer profile.Start(profile.NoShutdownHook, profile.ProfilePath("."), profile.CPUProfile).Stop()
 	}
 
-	var vmType VMType
-	if vmTypeStr := ctx.String(RunType.Name); vmTypeStr == string(cannonVMType) {
-		vmType = cannonVMType
-	} else {
-		return fmt.Errorf("unknown VM type %q", vmType)
+	vmType, err := vmTypeFromString(ctx)
+	if err != nil {
+		return err
 	}
 
 	guestLogger := Logger(os.Stderr, log.LevelInfo)
@@ -366,7 +354,24 @@ func Run(ctx *cli.Context) error {
 	var vm mipsevm.FPVM
 	var debugProgram bool
 	if vmType == cannonVMType {
-		cannon, err := singlethreaded.NewInstrumentedStateFromFile(ctx.Path(RunInputFlag.Name), po, outLog, errLog)
+		l.Info("Using cannon VM")
+		cannon, err := singlethreaded.NewInstrumentedStateFromFile(ctx.Path(RunInputFlag.Name), po, outLog, errLog, meta)
+		if err != nil {
+			return err
+		}
+		debugProgram = ctx.Bool(RunDebugFlag.Name)
+		if debugProgram {
+			if metaPath := ctx.Path(RunMetaFlag.Name); metaPath == "" {
+				return fmt.Errorf("cannot enable debug mode without a metadata file")
+			}
+			if err := cannon.InitDebug(); err != nil {
+				return fmt.Errorf("failed to initialize debug mode: %w", err)
+			}
+		}
+		vm = cannon
+	} else if vmType == mtVMType {
+		l.Info("Using cannon multithreaded VM")
+		cannon, err := multithreaded.NewInstrumentedStateFromFile(ctx.Path(RunInputFlag.Name), po, outLog, errLog, l)
 		if err != nil {
 			return err
 		}
@@ -397,9 +402,6 @@ func Run(ctx *cli.Context) error {
 	state := vm.GetState()
 	startStep := state.GetStep()
 
-	// avoid symbol lookups every instruction by preparing a matcher func
-	sleepCheck := meta.SymbolMatcher("runtime.notesleep")
-
 	for !state.GetExited() {
 		step := state.GetStep()
 		if step%100 == 0 { // don't do the ctx err check (includes lock) too often
@@ -421,8 +423,9 @@ func Run(ctx *cli.Context) error {
 			)
 		}
 
-		if sleepCheck(state.GetPC()) { // don't loop forever when we get stuck because of an unexpected bad program
-			return fmt.Errorf("got stuck in Go sleep at step %d", step)
+		if vm.CheckInfiniteLoop() {
+			// don't loop forever when we get stuck because of an unexpected bad program
+			return fmt.Errorf("detected an infinite loop at step %d", step)
 		}
 
 		if stopAt(state) {
@@ -505,7 +508,7 @@ var RunCommand = &cli.Command{
 	Description: "Run VM step(s) and generate proof data to replicate onchain. See flags to match when to output a proof, a snapshot, or to stop early.",
 	Action:      Run,
 	Flags: []cli.Flag{
-		RunType,
+		VMTypeFlag,
 		RunInputFlag,
 		RunOutputFlag,
 		RunProofAtFlag,

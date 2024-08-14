@@ -66,7 +66,7 @@
   "eip1559Denominator": 250,
   "eip1559DenominatorCanyon": 250,
   "systemConfigStartBlock": 4071248,
-  "faultGameAbsolutePrestate": "0x03e69d3de5155f4a80da99dd534561cbddd4f9dd56c9ecc704d6886625711d2b",
+  "faultGameAbsolutePrestate": "0x0385c3f8ee78491001d92b90b07d0cf387b7b52ab9b83b4d87c994e92cf823ba",
   "faultGameMaxDepth": 73,
   "faultGameClockExtension": 3600,
   "faultGameMaxClockDuration": 14400,

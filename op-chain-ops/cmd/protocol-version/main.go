@@ -3,11 +3,11 @@ package main
 import (
 	"encoding/hex"
 	"fmt"
+	"log/slog"
 	"os"
 
 	"github.com/mattn/go-isatty"
 	"github.com/urfave/cli/v2"
-	"golang.org/x/exp/slog"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"

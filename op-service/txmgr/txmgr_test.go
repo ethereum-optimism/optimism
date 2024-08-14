@@ -564,7 +564,7 @@ func TestTxMgr_CraftBlobTx(t *testing.T) {
 
 	// verify the blobs
 	for i := range sidecar.Blobs {
-		require.NoError(t, kzg4844.VerifyBlobProof(sidecar.Blobs[i], sidecar.Commitments[i], sidecar.Proofs[i]))
+		require.NoError(t, kzg4844.VerifyBlobProof(&sidecar.Blobs[i], sidecar.Commitments[i], sidecar.Proofs[i]))
 	}
 	b1 := eth.Blob(sidecar.Blobs[0])
 	d1, err := b1.ToData()
@@ -1322,7 +1322,7 @@ func TestMinFees(t *testing.T) {
 			conf.MinTipCap = tt.minTipCap
 			h := newTestHarnessWithConfig(t, conf)
 
-			tip, baseFee, _, err := h.mgr.suggestGasPriceCaps(context.TODO())
+			tip, baseFee, _, err := h.mgr.SuggestGasPriceCaps(context.TODO())
 			require.NoError(err)
 
 			if tt.expectMinBaseFee {

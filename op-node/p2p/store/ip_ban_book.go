@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/clock"
@@ -46,11 +47,8 @@ func (p ipBanUpdate) Apply(rec *ipBanRecord) {
 }
 
 type ipBanBook struct {
+	mu   sync.RWMutex
 	book *recordsBook[string, *ipBanRecord]
-}
-
-func newIPBanRecord() *ipBanRecord {
-	return new(ipBanRecord)
 }
 
 func ipKey(ip string) ds.Key {
@@ -58,7 +56,7 @@ func ipKey(ip string) ds.Key {
 }
 
 func newIPBanBook(ctx context.Context, logger log.Logger, clock clock.Clock, store ds.Batching) (*ipBanBook, error) {
-	book, err := newRecordsBook[string, *ipBanRecord](ctx, logger, clock, store, ipBanCacheSize, ipBanRecordExpiration, ipBanExpirationsBase, newIPBanRecord, ipKey)
+	book, err := newRecordsBook[string, *ipBanRecord](ctx, logger, clock, store, ipBanCacheSize, ipBanRecordExpiration, ipBanExpirationsBase, genNew, ipKey)
 	if err != nil {
 		return nil, err
 	}
@@ -70,9 +68,11 @@ func (d *ipBanBook) startGC() {
 }
 
 func (d *ipBanBook) GetIPBanExpiration(ip net.IP) (time.Time, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
 	rec, err := d.book.getRecord(ip.To16().String())
-	if err == UnknownRecordErr {
-		return time.Time{}, UnknownBanErr
+	if err == errUnknownRecord {
+		return time.Time{}, ErrUnknownBan
 	}
 	if err != nil {
 		return time.Time{}, err
@@ -81,10 +81,12 @@ func (d *ipBanBook) GetIPBanExpiration(ip net.IP) (time.Time, error) {
 }
 
 func (d *ipBanBook) SetIPBanExpiration(ip net.IP, expirationTime time.Time) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	if expirationTime == (time.Time{}) {
 		return d.book.deleteRecord(ip.To16().String())
 	}
-	_, err := d.book.SetRecord(ip.To16().String(), ipBanUpdate(expirationTime))
+	_, err := d.book.setRecord(ip.To16().String(), ipBanUpdate(expirationTime))
 	return err
 }
 

@@ -52,8 +52,8 @@ The directory is structured as follows
 ### Installation
 
 1. `cd` to the root of this repo.
-2. Install Foundry by running `pnpm install:foundry`. This installs `foundryup`, the foundry toolchain installer, then installs the required foundry version.
-3. Install Kontrol by running `pnpm install:kontrol`. This installs `kup`, the package manager for RV tools, then installs the required kontrol version.
+2. Install Foundry by running `just install-foundry`. This installs `foundryup`, the foundry toolchain installer, then installs the required foundry version.
+3. Install Kontrol by running `just install-kontrol`. This installs `kup`, the package manager for RV tools, then installs the required kontrol version.
 4. Install Docker.
 
 ## Usage

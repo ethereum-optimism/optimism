@@ -281,7 +281,13 @@ contract ArtifactResourceMetering_Test is Test {
 
     /// @dev Generates a CSV file. No more than the L1 block gas limit should
     ///      be supplied to the `meter` function to avoid long execution time.
+    ///      This test is skipped because there is no need to run it every time.
+    ///      It generates a CSV file on disk that can be used to analyze the
+    ///      gas usage and cost of the `ResourceMetering` contract. The next time
+    ///      that the gas usage needs to be analyzed, the skip may be removed.
     function test_meter_generateArtifact_succeeds() external {
+        vm.skip({ skipTest: true });
+
         vm.writeLine(
             outfile,
             "prevBaseFee,prevBoughtGas,prevBlockNumDiff,l1BaseFee,requestedGas,gasConsumed,ethPrice,usdCost,success"

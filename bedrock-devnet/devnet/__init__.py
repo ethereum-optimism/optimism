@@ -22,7 +22,7 @@ parser.add_argument('--allocs', help='Only create the allocs and exit', type=boo
 log = logging.getLogger()
 
 # Global constants
-FORKS = ["delta", "ecotone", "fjord"]
+FORKS = ["delta", "ecotone", "fjord", "granite"]
 
 # Global environment variables
 DEVNET_NO_BUILD = os.getenv('DEVNET_NO_BUILD') == "true"
@@ -269,8 +269,10 @@ def devnet_deploy(paths):
 
     if DEVNET_PLASMA:
         docker_env['PLASMA_ENABLED'] = 'true'
+        docker_env['DA_TYPE'] = 'calldata'
     else:
         docker_env['PLASMA_ENABLED'] = 'false'
+        docker_env['DA_TYPE'] = 'blobs'
 
     if GENERIC_PLASMA:
         docker_env['PLASMA_GENERIC_DA'] = 'true'
@@ -278,7 +280,6 @@ def devnet_deploy(paths):
     else:
         docker_env['PLASMA_GENERIC_DA'] = 'false'
         docker_env['PLASMA_DA_SERVICE'] = 'false'
-
 
     # Bring up the rest of the services.
     log.info('Bringing up `op-node`, `op-proposer` and `op-batcher`.')

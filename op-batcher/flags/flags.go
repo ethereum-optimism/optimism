@@ -76,6 +76,11 @@ var (
 		Value:   120_000, // will be overwritten to max for blob da-type
 		EnvVars: prefixEnvVars("MAX_L1_TX_SIZE_BYTES"),
 	}
+	MaxBlocksPerSpanBatch = &cli.IntFlag{
+		Name:    "max-blocks-per-span-batch",
+		Usage:   "Maximum number of blocks to add to a span batch. Default is 0 - no maximum.",
+		EnvVars: prefixEnvVars("MAX_BLOCKS_PER_SPAN_BATCH"),
+	}
 	TargetNumFramesFlag = &cli.IntFlag{
 		Name:    "target-num-frames",
 		Usage:   "The target number of frames to create per channel. Controls number of blobs per blob tx, if using Blob DA.",
@@ -169,6 +174,7 @@ var optionalFlags = []cli.Flag{
 	MaxPendingTransactionsFlag,
 	MaxChannelDurationFlag,
 	MaxL1TxSizeBytesFlag,
+	MaxBlocksPerSpanBatch,
 	TargetNumFramesFlag,
 	ApproxComprRatioFlag,
 	CompressorFlag,

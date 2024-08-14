@@ -67,7 +67,7 @@ func NewOracleBackedL2Chain(logger log.Logger, oracle Oracle, precompileOracle e
 		blocks:     make(map[common.Hash]*types.Block),
 		db:         NewOracleBackedDB(oracle),
 		vmCfg: vm.Config{
-			OptimismPrecompileOverrides: engineapi.CreatePrecompileOverrides(precompileOracle),
+			PrecompileOverrides: engineapi.CreatePrecompileOverrides(precompileOracle),
 		},
 	}, nil
 }

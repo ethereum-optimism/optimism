@@ -1,17 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { IFaucetAuthModule } from "./authmodules/IFaucetAuthModule.sol";
-import { SafeCall } from "../../libraries/SafeCall.sol";
-
-/// @title  SafeSend
-/// @notice Sends ETH to a recipient account without triggering any code.
-contract SafeSend {
-    /// @param _recipient Account to send ETH to.
-    constructor(address payable _recipient) payable {
-        selfdestruct(_recipient);
-    }
-}
+import { IFaucetAuthModule } from "src/periphery/faucet/authmodules/IFaucetAuthModule.sol";
+import { SafeCall } from "src/libraries/SafeCall.sol";
+import { SafeSend } from "src/universal/SafeSend.sol";
 
 /// @title  Faucet
 /// @notice Faucet contract that drips ETH to users.

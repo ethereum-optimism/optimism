@@ -19,7 +19,9 @@ import (
 var (
 	ErrBlockTimeZero                 = errors.New("block time cannot be 0")
 	ErrMissingChannelTimeout         = errors.New("channel timeout must be set, this should cover at least a L1 block time")
+	ErrInvalidGraniteChannelTimeout  = errors.New("channel timeout granite must be less than channel timeout")
 	ErrInvalidSeqWindowSize          = errors.New("sequencing window size must at least be 2")
+	ErrInvalidMaxSeqDrift            = errors.New("maximum sequencer drift must be greater than 0")
 	ErrMissingGenesisL1Hash          = errors.New("genesis L1 hash cannot be empty")
 	ErrMissingGenesisL2Hash          = errors.New("genesis L2 hash cannot be empty")
 	ErrGenesisHashesSame             = errors.New("achievement get! rollup inception: L1 and L2 genesis cannot be the same")
@@ -81,7 +83,8 @@ type Config struct {
 	// Number of epochs (L1 blocks) per sequencing window, including the epoch L1 origin block itself
 	SeqWindowSize uint64 `json:"seq_window_size"`
 	// Number of L1 blocks between when a channel can be opened and when it must be closed by.
-	ChannelTimeout uint64 `json:"channel_timeout"`
+	ChannelTimeoutBedrock uint64 `json:"channel_timeout"`
+	ChannelTimeoutGranite uint64 `json:"channel_timeout_granite"`
 	// Required to verify L1 signatures
 	L1ChainID *big.Int `json:"l1_chain_id"`
 	// Required to identify the L2 network and create p2p signatures unique for this chain.
@@ -108,6 +111,14 @@ type Config struct {
 	// FjordTime sets the activation time of the Fjord network upgrade.
 	// Active if FjordTime != nil && L2 block timestamp >= *FjordTime, inactive otherwise.
 	FjordTime *uint64 `json:"fjord_time,omitempty"`
+
+	// GraniteTime sets the activation time of the Granite network upgrade.
+	// Active if GraniteTime != nil && L2 block timestamp >= *GraniteTime, inactive otherwise.
+	GraniteTime *uint64 `json:"granite_time,omitempty"`
+
+	// HoloceneTime sets the activation time of the Holocene network upgrade.
+	// Active if HoloceneTime != nil && L2 block timestamp >= *HoloceneTime, inactive otherwise.
+	HoloceneTime *uint64 `json:"holocene_time,omitempty"`
 
 	// InteropTime sets the activation time for an experimental feature-set, activated like a hardfork.
 	// Active if InteropTime != nil && L2 block timestamp >= *InteropTime, inactive otherwise.
@@ -258,11 +269,22 @@ func (cfg *Config) Check() error {
 	if cfg.BlockTime == 0 {
 		return ErrBlockTimeZero
 	}
-	if cfg.ChannelTimeout == 0 {
+	if cfg.ChannelTimeoutBedrock == 0 {
 		return ErrMissingChannelTimeout
+	}
+	if cfg.GraniteTime != nil {
+		if cfg.ChannelTimeoutGranite == 0 {
+			return ErrMissingChannelTimeout
+		}
+		if cfg.ChannelTimeoutGranite > cfg.ChannelTimeoutBedrock {
+			return ErrInvalidGraniteChannelTimeout
+		}
 	}
 	if cfg.SeqWindowSize < 2 {
 		return ErrInvalidSeqWindowSize
+	}
+	if cfg.MaxSequencerDrift == 0 {
+		return ErrInvalidMaxSeqDrift
 	}
 	if cfg.Genesis.L1.Hash == (common.Hash{}) {
 		return ErrMissingGenesisL1Hash
@@ -320,6 +342,12 @@ func (cfg *Config) Check() error {
 		return err
 	}
 	if err := checkFork(cfg.EcotoneTime, cfg.FjordTime, Ecotone, Fjord); err != nil {
+		return err
+	}
+	if err := checkFork(cfg.FjordTime, cfg.GraniteTime, Fjord, Granite); err != nil {
+		return err
+	}
+	if err := checkFork(cfg.GraniteTime, cfg.HoloceneTime, Granite, Holocene); err != nil {
 		return err
 	}
 
@@ -410,12 +438,14 @@ func (c *Config) IsFjord(timestamp uint64) bool {
 	return c.FjordTime != nil && timestamp >= *c.FjordTime
 }
 
-// IsFjordActivationBlock returns whether the specified block is the first block subject to the
-// Fjord upgrade.
-func (c *Config) IsFjordActivationBlock(l2BlockTime uint64) bool {
-	return c.IsFjord(l2BlockTime) &&
-		l2BlockTime >= c.BlockTime &&
-		!c.IsFjord(l2BlockTime-c.BlockTime)
+// IsGranite returns true if the Granite hardfork is active at or past the given timestamp.
+func (c *Config) IsGranite(timestamp uint64) bool {
+	return c.GraniteTime != nil && timestamp >= *c.GraniteTime
+}
+
+// IsHolocene returns true if the Holocene hardfork is active at or past the given timestamp.
+func (c *Config) IsHolocene(timestamp uint64) bool {
+	return c.HoloceneTime != nil && timestamp >= *c.HoloceneTime
 }
 
 // IsInterop returns true if the Interop hardfork is active at or past the given timestamp.
@@ -447,6 +477,30 @@ func (c *Config) IsEcotoneActivationBlock(l2BlockTime uint64) bool {
 	return c.IsEcotone(l2BlockTime) &&
 		l2BlockTime >= c.BlockTime &&
 		!c.IsEcotone(l2BlockTime-c.BlockTime)
+}
+
+// IsFjordActivationBlock returns whether the specified block is the first block subject to the
+// Fjord upgrade.
+func (c *Config) IsFjordActivationBlock(l2BlockTime uint64) bool {
+	return c.IsFjord(l2BlockTime) &&
+		l2BlockTime >= c.BlockTime &&
+		!c.IsFjord(l2BlockTime-c.BlockTime)
+}
+
+// IsGraniteActivationBlock returns whether the specified block is the first block subject to the
+// Granite upgrade.
+func (c *Config) IsGraniteActivationBlock(l2BlockTime uint64) bool {
+	return c.IsGranite(l2BlockTime) &&
+		l2BlockTime >= c.BlockTime &&
+		!c.IsGranite(l2BlockTime-c.BlockTime)
+}
+
+// IsHoloceneActivationBlock returns whether the specified block is the first block subject to the
+// Holocene upgrade.
+func (c *Config) IsHoloceneActivationBlock(l2BlockTime uint64) bool {
+	return c.IsHolocene(l2BlockTime) &&
+		l2BlockTime >= c.BlockTime &&
+		!c.IsHolocene(l2BlockTime-c.BlockTime)
 }
 
 func (c *Config) IsInteropActivationBlock(l2BlockTime uint64) bool {
@@ -564,6 +618,8 @@ func (c *Config) Description(l2Chains map[string]string) string {
 	banner += fmt.Sprintf("  - Delta: %s\n", fmtForkTimeOrUnset(c.DeltaTime))
 	banner += fmt.Sprintf("  - Ecotone: %s\n", fmtForkTimeOrUnset(c.EcotoneTime))
 	banner += fmt.Sprintf("  - Fjord: %s\n", fmtForkTimeOrUnset(c.FjordTime))
+	banner += fmt.Sprintf("  - Granite: %s\n", fmtForkTimeOrUnset(c.GraniteTime))
+	banner += fmt.Sprintf("  - Holocene: %s\n", fmtForkTimeOrUnset(c.HoloceneTime))
 	banner += fmt.Sprintf("  - Interop: %s\n", fmtForkTimeOrUnset(c.InteropTime))
 	// Report the protocol version
 	banner += fmt.Sprintf("Node supports up to OP-Stack Protocol Version: %s\n", OPStackSupport)
@@ -598,6 +654,8 @@ func (c *Config) LogDescription(log log.Logger, l2Chains map[string]string) {
 		"delta_time", fmtForkTimeOrUnset(c.DeltaTime),
 		"ecotone_time", fmtForkTimeOrUnset(c.EcotoneTime),
 		"fjord_time", fmtForkTimeOrUnset(c.FjordTime),
+		"granite_time", fmtForkTimeOrUnset(c.GraniteTime),
+		"holocene_time", fmtForkTimeOrUnset(c.HoloceneTime),
 		"interop_time", fmtForkTimeOrUnset(c.InteropTime),
 		"plasma_mode", c.PlasmaConfig != nil,
 	)

@@ -8,7 +8,7 @@ import (
 )
 
 func (m *InstrumentedState) handleSyscall() error {
-	syscallNum, a0, a1, a2 := exec.GetSyscallArgs(&m.state.Registers)
+	syscallNum, a0, a1, a2, _ := exec.GetSyscallArgs(&m.state.Registers)
 
 	v0 := uint32(0)
 	v1 := uint32(0)
@@ -20,7 +20,7 @@ func (m *InstrumentedState) handleSyscall() error {
 		v0, v1, newHeap = exec.HandleSysMmap(a0, a1, m.state.Heap)
 		m.state.Heap = newHeap
 	case exec.SysBrk:
-		v0 = 0x40000000
+		v0 = exec.BrkStart
 	case exec.SysClone: // clone (not supported)
 		v0 = 1
 	case exec.SysExitGroup:

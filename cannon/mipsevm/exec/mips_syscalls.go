@@ -11,16 +11,65 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 )
 
+// Syscall codes
 const (
-	SysMmap      = 4090
-	SysBrk       = 4045
-	SysClone     = 4120
-	SysExitGroup = 4246
-	SysRead      = 4003
-	SysWrite     = 4004
-	SysFcntl     = 4055
+	SysMmap       = 4090
+	SysMunmap     = 4091
+	SysBrk        = 4045
+	SysClone      = 4120
+	SysExitGroup  = 4246
+	SysRead       = 4003
+	SysWrite      = 4004
+	SysFcntl      = 4055
+	SysExit       = 4001
+	SysSchedYield = 4162
+	SysGetTID     = 4222
+	SysFutex      = 4238
+	SysOpen       = 4005
+	SysNanosleep  = 4166
 )
 
+// Noop Syscall codes
+const (
+	SysGetAffinity   = 4240
+	SysMadvise       = 4218
+	SysRtSigprocmask = 4195
+	SysSigaltstack   = 4206
+	SysRtSigaction   = 4194
+	SysPrlimit64     = 4338
+	SysClose         = 4006
+	SysPread64       = 4200
+	SysFstat64       = 4215
+	SysOpenAt        = 4288
+	SysReadlink      = 4085
+	SysReadlinkAt    = 4298
+	SysIoctl         = 4054
+	SysEpollCreate1  = 4326
+	SysPipe2         = 4328
+	SysEpollCtl      = 4249
+	SysEpollPwait    = 4313
+	SysGetRandom     = 4353
+	SysUname         = 4122
+	SysStat64        = 4213
+	SysGetuid        = 4024
+	SysGetgid        = 4047
+	SysLlseek        = 4140
+	SysMinCore       = 4217
+	SysTgkill        = 4266
+)
+
+// Profiling-related syscalls
+// Should be able to ignore if we patch out prometheus calls and disable memprofiling
+// TODO(cp-903) - Update patching for mt-cannon so that these can be ignored
+const (
+	SysSetITimer    = 4104
+	SysTimerCreate  = 4257
+	SysTimerSetTime = 4258
+	SysTimerDelete  = 4261
+	SysClockGetTime = 4263
+)
+
+// File descriptors
 const (
 	FdStdin         = 0
 	FdStdout        = 1
@@ -31,19 +80,70 @@ const (
 	FdPreimageWrite = 6
 )
 
+// Errors
 const (
-	MipsEBADF  = 0x9
-	MipsEINVAL = 0x16
+	SysErrorSignal = ^uint32(0)
+	MipsEBADF      = 0x9
+	MipsEINVAL     = 0x16
+	MipsEAGAIN     = 0xb
+	MipsETIMEDOUT  = 0x91
 )
 
-func GetSyscallArgs(registers *[32]uint32) (syscallNum, a0, a1, a2 uint32) {
+// SysFutex-related constants
+const (
+	FutexWaitPrivate  = 128
+	FutexWakePrivate  = 129
+	FutexTimeoutSteps = 10_000
+	FutexNoTimeout    = ^uint64(0)
+	FutexEmptyAddr    = ^uint32(0)
+)
+
+// SysClone flags
+// Handling is meant to support go runtime use cases
+// Pulled from: https://github.com/golang/go/blob/go1.21.3/src/runtime/os_linux.go#L124-L158
+const (
+	CloneVm            = 0x100
+	CloneFs            = 0x200
+	CloneFiles         = 0x400
+	CloneSighand       = 0x800
+	ClonePtrace        = 0x2000
+	CloneVfork         = 0x4000
+	CloneParent        = 0x8000
+	CloneThread        = 0x10000
+	CloneNewns         = 0x20000
+	CloneSysvsem       = 0x40000
+	CloneSettls        = 0x80000
+	CloneParentSettid  = 0x100000
+	CloneChildCleartid = 0x200000
+	CloneUntraced      = 0x800000
+	CloneChildSettid   = 0x1000000
+	CloneStopped       = 0x2000000
+	CloneNewuts        = 0x4000000
+	CloneNewipc        = 0x8000000
+
+	ValidCloneFlags = CloneVm |
+		CloneFs |
+		CloneFiles |
+		CloneSighand |
+		CloneSysvsem |
+		CloneThread
+)
+
+// Other constants
+const (
+	SchedQuantum = 100_000
+	BrkStart     = 0x40000000
+)
+
+func GetSyscallArgs(registers *[32]uint32) (syscallNum, a0, a1, a2, a3 uint32) {
 	syscallNum = registers[2] // v0
 
 	a0 = registers[4]
 	a1 = registers[5]
 	a2 = registers[6]
+	a3 = registers[7]
 
-	return syscallNum, a0, a1, a2
+	return syscallNum, a0, a1, a2, a3
 }
 
 func HandleSysMmap(a0, a1, heap uint32) (v0, v1, newHeap uint32) {

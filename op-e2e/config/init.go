@@ -5,12 +5,11 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
-
-	"golang.org/x/exp/slog"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
@@ -121,6 +120,7 @@ func init() {
 		}
 		l2Allocs[mode] = allocs
 	}
+	mustL2Allocs(genesis.L2AllocsGranite)
 	mustL2Allocs(genesis.L2AllocsFjord)
 	mustL2Allocs(genesis.L2AllocsEcotone)
 	mustL2Allocs(genesis.L2AllocsDelta)

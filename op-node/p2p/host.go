@@ -280,10 +280,13 @@ func (conf *Config) Host(log log.Logger, reporter metrics.Reporter, metrics Host
 	}
 
 	if conf.EnablePingService {
-		out.pinging = NewPingService(log,
+		out.pinging = NewPingService(
+			log,
 			func(ctx context.Context, peerID peer.ID) <-chan ping.Result {
 				return ping.Ping(ctx, h, peerID)
-			}, h.Network().Peers, clock.SystemClock)
+			},
+			h.Network().Peers,
+		)
 	}
 
 	out.initStaticPeers()

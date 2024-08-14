@@ -2,6 +2,7 @@ package devnet
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -10,7 +11,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slog"
 )
 
 func TestDevnet(t *testing.T) {

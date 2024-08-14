@@ -75,7 +75,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
             L2ToL2CrossDomainMessengerWithModifiableTransientStorage(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
     }
 
-    /// @dev Tests that `sendMessage` succeeds and emits the correct SentMessage event.
+    /// @dev Tests that `sendMessage` succeeds and emits the correct event.
     function testFuzz_sendMessage_succeeds(
         uint256 _destination,
         address _target,
@@ -106,11 +106,11 @@ contract L2ToL2CrossDomainMessengerTest is Test {
             _message: _message
         });
 
-        // Check that the SentMessage event was emitted with the correct parameters
+        // Check that the event was emitted with the correct parameters
         Vm.Log[] memory logs = vm.getRecordedLogs();
         assertEq(logs.length, 1);
         assertEq(
-            abi.decode(logs[0].data, (bytes)),
+            logs[0].data,
             abi.encodeCall(
                 L2ToL2CrossDomainMessenger.relayMessage,
                 (_destination, block.chainid, messageNonce, address(this), _target, _message)
