@@ -57,6 +57,7 @@ func TestL2Sequencer_SequencerDrift(gt *testing.T) {
 	p := &e2eutils.TestParams{
 		MaxSequencerDrift:   20, // larger than L1 block time we simulate in this test (12)
 		SequencerWindowSize: 24,
+		ChannelTimeout:      20,
 		L1BlockTime:         12,
 	}
 	dp := e2eutils.MakeDeployParams(t, p)

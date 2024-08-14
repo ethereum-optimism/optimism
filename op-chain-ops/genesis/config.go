@@ -448,6 +448,8 @@ type L2CoreDeployConfig struct {
 	MaxSequencerDrift uint64 `json:"maxSequencerDrift"`
 	// SequencerWindowSize is the number of L1 blocks per sequencing window.
 	SequencerWindowSize uint64 `json:"sequencerWindowSize"`
+	// ChannelTimeoutBedrock is the number of L1 blocks that a frame stays valid when included in L1.
+	ChannelTimeoutBedrock uint64 `json:"channelTimeout"`
 	// BatchInboxAddress is the L1 account that batches are sent to.
 	BatchInboxAddress common.Address `json:"batchInboxAddress"`
 
@@ -471,6 +473,9 @@ func (d *L2CoreDeployConfig) Check(log log.Logger) error {
 	}
 	if d.SequencerWindowSize == 0 {
 		return fmt.Errorf("%w: SequencerWindowSize cannot be 0", ErrInvalidDeployConfig)
+	}
+	if d.ChannelTimeoutBedrock == 0 {
+		return fmt.Errorf("%w: ChannelTimeout cannot be 0", ErrInvalidDeployConfig)
 	}
 	if d.BatchInboxAddress == (common.Address{}) {
 		return fmt.Errorf("%w: BatchInboxAddress cannot be address(0)", ErrInvalidDeployConfig)
@@ -752,7 +757,6 @@ type LegacyDeployConfig struct {
 	// deployment. This is DEPRECATED and should be removed in a future PR.
 	DeploymentWaitConfirmations int `json:"deploymentWaitConfirmations"`
 
-	UnusedChannelTimeout        uint64 `json:"channelTimeout,omitempty"`
 	UnusedChannelTimeoutGranite uint64 `json:"channelTimeoutGranite,omitempty"`
 }
 
@@ -879,6 +883,7 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 		BlockTime:              d.L2BlockTime,
 		MaxSequencerDrift:      d.MaxSequencerDrift,
 		SeqWindowSize:          d.SequencerWindowSize,
+		ChannelTimeoutBedrock:  d.ChannelTimeoutBedrock,
 		L1ChainID:              new(big.Int).SetUint64(d.L1ChainID),
 		L2ChainID:              new(big.Int).SetUint64(d.L2ChainID),
 		BatchInboxAddress:      d.BatchInboxAddress,

@@ -42,6 +42,7 @@ func randConfig() *Config {
 		BlockTime:              2,
 		MaxSequencerDrift:      100,
 		SeqWindowSize:          2,
+		ChannelTimeoutBedrock:  123,
 		L1ChainID:              big.NewInt(900),
 		L2ChainID:              big.NewInt(901),
 		BatchInboxAddress:      randAddr(),
@@ -372,6 +373,11 @@ func TestConfig_Check(t *testing.T) {
 			name:        "BlockTimeZero",
 			modifier:    func(cfg *Config) { cfg.BlockTime = 0 },
 			expectedErr: ErrBlockTimeZero,
+		},
+		{
+			name:        "ChannelTimeoutBedrockZero",
+			modifier:    func(cfg *Config) { cfg.ChannelTimeoutBedrock = 0 },
+			expectedErr: ErrMissingChannelTimeout,
 		},
 		{
 			name:        "SeqWindowSizeZero",

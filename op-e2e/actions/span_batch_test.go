@@ -35,6 +35,7 @@ func TestDropSpanBatchBeforeHardfork(gt *testing.T) {
 	p := &e2eutils.TestParams{
 		MaxSequencerDrift:   20, // larger than L1 block time we simulate in this test (12)
 		SequencerWindowSize: 24,
+		ChannelTimeout:      20,
 		L1BlockTime:         12,
 	}
 	dp := e2eutils.MakeDeployParams(t, p)
@@ -123,6 +124,7 @@ func TestHardforkMiddleOfSpanBatch(gt *testing.T) {
 	p := &e2eutils.TestParams{
 		MaxSequencerDrift:   20, // larger than L1 block time we simulate in this test (12)
 		SequencerWindowSize: 24,
+		ChannelTimeout:      20,
 		L1BlockTime:         12,
 	}
 	dp := e2eutils.MakeDeployParams(t, p)
@@ -235,6 +237,7 @@ func TestAcceptSingularBatchAfterHardfork(gt *testing.T) {
 	p := &e2eutils.TestParams{
 		MaxSequencerDrift:   20, // larger than L1 block time we simulate in this test (12)
 		SequencerWindowSize: 24,
+		ChannelTimeout:      20,
 		L1BlockTime:         12,
 	}
 	minTs := hexutil.Uint64(0)
@@ -320,6 +323,7 @@ func TestMixOfBatchesAfterHardfork(gt *testing.T) {
 	p := &e2eutils.TestParams{
 		MaxSequencerDrift:   20, // larger than L1 block time we simulate in this test (12)
 		SequencerWindowSize: 24,
+		ChannelTimeout:      20,
 		L1BlockTime:         12,
 	}
 	minTs := hexutil.Uint64(0)
@@ -410,6 +414,7 @@ func TestSpanBatchEmptyChain(gt *testing.T) {
 	p := &e2eutils.TestParams{
 		MaxSequencerDrift:   20,
 		SequencerWindowSize: 24,
+		ChannelTimeout:      20,
 		L1BlockTime:         12,
 	}
 	dp := e2eutils.MakeDeployParams(t, p)
@@ -472,6 +477,7 @@ func TestSpanBatchLowThroughputChain(gt *testing.T) {
 	p := &e2eutils.TestParams{
 		MaxSequencerDrift:   20,
 		SequencerWindowSize: 24,
+		ChannelTimeout:      20,
 		L1BlockTime:         12,
 	}
 	dp := e2eutils.MakeDeployParams(t, p)
@@ -585,6 +591,7 @@ func TestBatchEquivalence(gt *testing.T) {
 	p := &e2eutils.TestParams{
 		MaxSequencerDrift:   20, // larger than L1 block time we simulate in this test (12)
 		SequencerWindowSize: 24,
+		ChannelTimeout:      20,
 		L1BlockTime:         12,
 	}
 	// Delta activated deploy config

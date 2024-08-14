@@ -82,7 +82,7 @@ func (s *ChainSpec) ChannelTimeout(t uint64) uint64 {
 	if s.config.IsGranite(t) {
 		return params.ChannelTimeoutGranite
 	}
-	return params.ChannelTimeoutBedrock
+	return s.config.ChannelTimeoutBedrock
 }
 
 // MaxRLPBytesPerChannel returns the maximum amount of bytes that will be read from

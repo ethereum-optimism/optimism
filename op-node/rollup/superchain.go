@@ -78,6 +78,7 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		BlockTime:              chConfig.BlockTime,
 		MaxSequencerDrift:      600,
 		SeqWindowSize:          chConfig.SequencerWindowSize,
+		ChannelTimeoutBedrock:  300,
 		L1ChainID:              new(big.Int).SetUint64(superChain.Config.L1.ChainID),
 		L2ChainID:              new(big.Int).SetUint64(chConfig.ChainID),
 		RegolithTime:           &regolithTime,

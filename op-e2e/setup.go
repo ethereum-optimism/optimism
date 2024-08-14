@@ -594,6 +594,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 			BlockTime:               cfg.DeployConfig.L2BlockTime,
 			MaxSequencerDrift:       cfg.DeployConfig.MaxSequencerDrift,
 			SeqWindowSize:           cfg.DeployConfig.SequencerWindowSize,
+			ChannelTimeoutBedrock:   cfg.DeployConfig.ChannelTimeoutBedrock,
 			L1ChainID:               cfg.L1ChainIDBig(),
 			L2ChainID:               cfg.L2ChainIDBig(),
 			BatchInboxAddress:       cfg.DeployConfig.BatchInboxAddress,

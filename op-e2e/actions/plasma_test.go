@@ -50,6 +50,7 @@ func NewL2PlasmaDA(t Testing, params ...PlasmaParam) *L2PlasmaDA {
 	p := &e2eutils.TestParams{
 		MaxSequencerDrift:   40,
 		SequencerWindowSize: 12,
+		ChannelTimeout:      12,
 		L1BlockTime:         12,
 		UsePlasma:           true,
 	}

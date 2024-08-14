@@ -18,6 +18,7 @@ import (
 
 var (
 	ErrBlockTimeZero                 = errors.New("block time cannot be 0")
+	ErrMissingChannelTimeout         = errors.New("channel timeout must be set, this should cover at least a L1 block time")
 	ErrInvalidSeqWindowSize          = errors.New("sequencing window size must at least be 2")
 	ErrMissingGenesisL1Hash          = errors.New("genesis L1 hash cannot be empty")
 	ErrMissingGenesisL2Hash          = errors.New("genesis L2 hash cannot be empty")
@@ -79,6 +80,8 @@ type Config struct {
 	MaxSequencerDrift uint64 `json:"max_sequencer_drift,omitempty"`
 	// Number of epochs (L1 blocks) per sequencing window, including the epoch L1 origin block itself
 	SeqWindowSize uint64 `json:"seq_window_size"`
+	// Number of L1 blocks between when a channel can be opened and when it must be closed by.
+	ChannelTimeoutBedrock uint64 `json:"channel_timeout"`
 	// Required to verify L1 signatures
 	L1ChainID *big.Int `json:"l1_chain_id"`
 	// Required to identify the L2 network and create p2p signatures unique for this chain.
@@ -262,6 +265,9 @@ func (cfg *Config) CheckL2GenesisBlockHash(ctx context.Context, client L2Client)
 func (cfg *Config) Check() error {
 	if cfg.BlockTime == 0 {
 		return ErrBlockTimeZero
+	}
+	if cfg.ChannelTimeoutBedrock == 0 {
+		return ErrMissingChannelTimeout
 	}
 	if cfg.SeqWindowSize < 2 {
 		return ErrInvalidSeqWindowSize

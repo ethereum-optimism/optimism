@@ -76,6 +76,7 @@ func NormalBatcher(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	p := &e2eutils.TestParams{
 		MaxSequencerDrift:   20, // larger than L1 block time we simulate in this test (12)
 		SequencerWindowSize: 24,
+		ChannelTimeout:      20,
 		L1BlockTime:         12,
 	}
 	dp := e2eutils.MakeDeployParams(t, p)
@@ -379,6 +380,7 @@ func ExtendedTimeWithoutL1Batches(gt *testing.T, deltaTimeOffset *hexutil.Uint64
 	p := &e2eutils.TestParams{
 		MaxSequencerDrift:   20, // larger than L1 block time we simulate in this test (12)
 		SequencerWindowSize: 24,
+		ChannelTimeout:      20,
 		L1BlockTime:         12,
 	}
 	dp := e2eutils.MakeDeployParams(t, p)
@@ -434,6 +436,7 @@ func BigL2Txs(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	p := &e2eutils.TestParams{
 		MaxSequencerDrift:   100,
 		SequencerWindowSize: 1000,
+		ChannelTimeout:      200, // give enough space to buffer large amounts of data before submitting it
 		L1BlockTime:         12,
 	}
 	dp := e2eutils.MakeDeployParams(t, p)
