@@ -9,7 +9,7 @@ import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { Types } from "src/libraries/Types.sol";
-import { L1BlockInterop } from "src/L2/L1BlockInterop.sol";
+import { L1BlockIsthmus } from "src/L2/L1BlockIsthmus.sol";
 
 // Free function for setting the prevBaseFee param in the OptimismPortal.
 function setPrevBaseFee(Vm _vm, address _op, uint128 _prevBaseFee) {
@@ -211,16 +211,15 @@ contract GasBenchMark_L2OutputOracle is CommonTest {
     }
 }
 
-contract GasBenchMark_L1BlockInterop is CommonTest {
-    L1BlockInterop l1BlockInterop;
+contract GasBenchMark_L1Block is CommonTest {
     address depositor;
     bytes setValuesEcotoneCalldata;
 
-    function setUp() public override {
+    function setUp() public virtual override {
         super.setUp();
         depositor = l1Block.DEPOSITOR_ACCOUNT();
-        l1BlockInterop = new L1BlockInterop();
         setValuesEcotoneCalldata = abi.encodePacked(
+            bytes4(keccak256("setL1BlockValuesEcotone()")),
             type(uint32).max,
             type(uint32).max,
             type(uint64).max,
@@ -233,12 +232,82 @@ contract GasBenchMark_L1BlockInterop is CommonTest {
         );
         vm.startPrank(depositor);
     }
+}
+
+contract GasBenchMark_L1Block_SetValuesEcotone is GasBenchMark_L1Block {
+    function test_setL1BlockValuesEcotone_benchmark() external {
+        address(l1Block).call(abi.encodePacked(setValuesEcotoneCalldata));
+    }
+}
+
+contract GasBenchMark_L1Block_SetValuesEcotone_Warm is GasBenchMark_L1Block {
+    function setUp() public virtual override {
+        address(l1Block).call(abi.encodePacked(setValuesEcotoneCalldata));
+    }
 
     function test_setL1BlockValuesEcotone_benchmark() external {
-        address(l1BlockInterop).call(abi.encodeWithSelector(l1BlockInterop.setL1BlockValuesEcotone.selector));
+        address(l1Block).call(abi.encodePacked(setValuesEcotoneCalldata));
+    }
+}
+
+contract GasBenchMark_L1BlockIsthmus is GasBenchMark_L1Block {
+    L1BlockIsthmus l1BlockIsthmus;
+
+    function setUp() public virtual override {
+        super.setUp();
+        l1BlockIsthmus = new L1BlockIsthmus();
+        setValuesEcotoneCalldata = abi.encodePacked(
+            type(uint32).max,
+            type(uint32).max,
+            type(uint64).max,
+            type(uint64).max,
+            type(uint64).max,
+            type(uint256).max,
+            type(uint256).max,
+            keccak256(abi.encode(1)),
+            bytes32(type(uint256).max)
+        );
+    }
+}
+
+contract GasBenchMark_L1BlockIsthmus_SetValuesIsthmus is GasBenchMark_L1BlockIsthmus {
+    function test_setL1BlockValuesIsthmus_benchmark() external {
+        address(l1BlockIsthmus).call(
+            abi.encodePacked(l1BlockIsthmus.setL1BlockValuesIsthmus.selector, setValuesEcotoneCalldata)
+        );
+    }
+}
+
+contract GasBenchMark_L1BlockIsthmus_SetValuesIsthmus_Warm is GasBenchMark_L1BlockIsthmus {
+    function setUp() public virtual override {
+        address(l1BlockIsthmus).call(
+            abi.encodePacked(l1BlockIsthmus.setL1BlockValuesIsthmus.selector, setValuesEcotoneCalldata)
+        );
     }
 
     function test_setL1BlockValuesIsthmus_benchmark() external {
-        address(l1BlockInterop).call(abi.encodeWithSelector(l1BlockInterop.setL1BlockValuesIsthmus.selector));
+        address(l1BlockIsthmus).call(
+            abi.encodePacked(l1BlockIsthmus.setL1BlockValuesIsthmus.selector, setValuesEcotoneCalldata)
+        );
+    }
+}
+
+contract GasBenchMark_L1BlockIsthmus_DepositsComplete is GasBenchMark_L1BlockIsthmus {
+    function test_depositsComplete_benchmark() external {
+        address(l1BlockIsthmus).call(abi.encodeWithSelector(l1BlockIsthmus.depositsComplete.selector));
+    }
+}
+
+contract GasBenchMark_L1BlockIsthmus_DepositsComplete_Warm is GasBenchMark_L1BlockIsthmus {
+    function setUp() public virtual override {
+        super.setUp();
+        // Set the isDeposit flag to true so then we can benchmark when it is reset.
+        address(l1BlockIsthmus).call(
+            abi.encodePacked(l1BlockIsthmus.setL1BlockValuesIsthmus.selector, setValuesEcotoneCalldata)
+        );
+    }
+
+    function test_depositsComplete_benchmark() external {
+        address(l1BlockIsthmus).call(abi.encodeWithSelector(l1BlockIsthmus.depositsComplete.selector));
     }
 }
