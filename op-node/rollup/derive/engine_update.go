@@ -222,24 +222,30 @@ func confirmPayload(
 			return nil, BlockInsertTemporaryErr, fmt.Errorf("failed to get execution payload from engine: %w", err)
 		}
 	}
-
-	if builderPayload != nil && builderPayload.success {
-		errTyp, err := insertPayload(ctx, log, eng, fc, updateSafe, agossip, sequencerConductor, builderPayload.envelope)
-		if errTyp == BlockInsertOK {
-			metrics.RecordSequencerProfit(float64(WeiToGwei(builderPayload.envelope.BlockValue)), opMetrics.PayloadSourceBuilder)
-			metrics.RecordSequencerPayloadInserted(opMetrics.PayloadSourceBuilder)
-			metrics.RecordPayloadGas(float64(builderPayload.envelope.ExecutionPayload.GasUsed), opMetrics.PayloadSourceBuilder)
-			metrics.CountSequencedTxsBySource(len(builderPayload.envelope.ExecutionPayload.Transactions), opMetrics.PayloadSourceBuilder)
-			log.Info("succeessfully inserted payload from builder")
-			return builderPayload.envelope, errTyp, err
-		}
-		log.Error("failed to insert payload from builder", "errType", errTyp, "error", err)
-	}
-
 	metrics.RecordSequencerProfit(float64(WeiToGwei(engineEnvelope.BlockValue)), opMetrics.PayloadSourceEngine)
-	metrics.RecordSequencerPayloadInserted(opMetrics.PayloadSourceEngine)
 	metrics.RecordPayloadGas(float64(engineEnvelope.ExecutionPayload.GasUsed), opMetrics.PayloadSourceEngine)
 	metrics.CountSequencedTxsBySource(len(engineEnvelope.ExecutionPayload.Transactions), opMetrics.PayloadSourceEngine)
+
+	if builderPayload != nil && builderPayload.success {
+		if builderPayload.envelope.ExecutionPayload.GasUsed >= engineEnvelope.ExecutionPayload.GasUsed {
+			log.Info("builder payload has higher gas usage than engine payload", "builder_gas", builderPayload.envelope.ExecutionPayload.GasUsed, "engine_gas", engineEnvelope.ExecutionPayload.GasUsed)
+			metrics.RecordSequencerProfit(float64(WeiToGwei(builderPayload.envelope.BlockValue)), opMetrics.PayloadSourceBuilder)
+			metrics.RecordPayloadGas(float64(builderPayload.envelope.ExecutionPayload.GasUsed), opMetrics.PayloadSourceBuilder)
+			metrics.CountSequencedTxsBySource(len(builderPayload.envelope.ExecutionPayload.Transactions), opMetrics.PayloadSourceBuilder)
+
+			errTyp, err := insertPayload(ctx, log, eng, fc, updateSafe, agossip, sequencerConductor, builderPayload.envelope)
+			if errTyp == BlockInsertOK {
+				metrics.RecordSequencerPayloadInserted(opMetrics.PayloadSourceBuilder)
+				log.Info("succeessfully inserted payload from builder")
+				return builderPayload.envelope, errTyp, err
+			}
+			log.Error("failed to insert payload from builder", "errType", errTyp, "error", err)
+		} else {
+			log.Warn("builder payload has lower gas usage than engine payload", "builder_gas", builderPayload.envelope.ExecutionPayload.GasUsed, "engine_gas", engineEnvelope.ExecutionPayload.GasUsed)
+		}
+	}
+
+	metrics.RecordSequencerPayloadInserted(opMetrics.PayloadSourceEngine)
 	errType, err := insertPayload(ctx, log, eng, fc, updateSafe, agossip, sequencerConductor, engineEnvelope)
 	return engineEnvelope, errType, err
 }

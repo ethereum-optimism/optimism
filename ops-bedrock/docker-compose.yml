@@ -327,6 +327,7 @@ services:
       - "--builder.seconds_in_slot=2"
       - "--builder.block_resubmit_interval=200ms"
       - "--builder.submission_offset=1s"
+      - "--builder.algotype=greedy"
     environment:
       GETH_MINER_RECOMMIT: 100ms
       BUILDER_TX_SIGNING_KEY: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
