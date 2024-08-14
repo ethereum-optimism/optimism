@@ -190,6 +190,7 @@ func NewDriver(
 		sequencerActive:    make(chan chan bool, 10),
 		sequencerNotifs:    sequencerStateListener,
 		config:             cfg,
+		spec:               rollup.NewChainSpec(cfg),
 		syncCfg:            syncCfg,
 		driverConfig:       driverCfg,
 		driverCtx:          driverCtx,
