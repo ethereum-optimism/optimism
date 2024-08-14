@@ -172,8 +172,8 @@
     "sourceCodeHash": "0xb1e22abf844715243a065ead50cab02e53303c5464b2857a8ee667f8d49d4d12"
   },
   "src/governance/GovernanceDelegation.sol": {
-    "initCodeHash": "0x2ea7860cbac6dd8f59a35166e105db0dadea563cd4a1d6314c715f0212290203",
-    "sourceCodeHash": "0xe761fe272350684345e1601d55a9e9487f692fc6e3ba97b52fa7d265a80cbd85"
+    "initCodeHash": "0x22150854d52a1f1fd84453620e20c094ddb6db0402b2ef300622e20bec792511",
+    "sourceCodeHash": "0x14031f4aea774be06776f701a4089050bd4257a0ec4bf9feafccd8d38e9340c6"
   },
   "src/legacy/DeployerWhitelist.sol": {
     "initCodeHash": "0x8de80fb23b26dd9d849f6328e56ea7c173cd9e9ce1f05c9beea559d1720deb3d",

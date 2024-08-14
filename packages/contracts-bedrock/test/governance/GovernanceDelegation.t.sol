@@ -707,34 +707,27 @@ contract GovernanceDelegation_Getters_Test is GovernanceDelegation_Init {
         assertEq(governanceToken.totalSupply(), 0);
     }
 
-    function testFuzz_getters_migrate_succeeds(uint32 _fromBlock, uint224 _votes) public {
-        _fromBlock = uint32(bound(_fromBlock, 1, type(uint32).max - 1));
+    function testFuzz_getters_migrate_succeeds(uint224 _votes) public {
+        vm.assume(_votes != 0);
 
-        // _delegates
-        vm.store(address(governanceToken), keccak256(abi.encode(rando, uint256(7))), bytes32(bytes20(uint160(rando))));
-        // _checkpoints
-        vm.store(address(governanceToken), keccak256(abi.encode(rando, uint256(8))), bytes32(uint256(1)));
+        StdCheats.deployCodeTo("GovernanceToken.sol:GovernanceToken", "", Predeploys.GOVERNANCE_TOKEN);
+
+        vm.prank(rando);
+        governanceToken.delegate(rando);
+        governanceToken.mint(rando, _votes);
+
+        // simulate constructor to set _totalSupplyCheckpoints
+        vm.store(address(governanceDelegation), keccak256(abi.encode(uint256(3))), bytes32(uint256(1)));
         vm.store(
-            address(governanceToken),
-            keccak256(abi.encode(keccak256(abi.encode(rando, uint256(8))))),
-            bytes32(abi.encodePacked(_votes, _fromBlock))
-        );
-        // _totalSupplyCheckpoints
-        vm.store(address(governanceToken), keccak256(abi.encode(uint256(9))), bytes32(uint256(1)));
-        vm.store(
-            address(governanceToken),
-            keccak256(abi.encode(keccak256(abi.encode(uint256(9))))),
-            bytes32(abi.encodePacked(_votes, _fromBlock))
+            address(governanceDelegation),
+            keccak256(abi.encode(keccak256(abi.encode(uint256(3))))),
+            bytes32(abi.encodePacked(_votes, uint32(block.number)))
         );
 
-        vm.roll(_fromBlock + 1);
+        vm.roll(block.number + 1);
 
-        ERC20Votes.Checkpoint[] memory _checkpoints = new ERC20Votes.Checkpoint[](1);
-        _checkpoints[0] = ERC20Votes.Checkpoint(_fromBlock, _votes);
-
-        StdCheats.deployCodeTo(
-            "GovernanceDelegation.sol:GovernanceDelegation", abi.encode(_checkpoints), Predeploys.GOVERNANCE_DELEGATION
-        );
+        StdCheats.deployCodeTo("GovernanceDelegation.sol:GovernanceDelegation", "", Predeploys.GOVERNANCE_DELEGATION);
+        StdCheats.deployCodeTo("GovernanceTokenInterop.sol:GovernanceTokenInterop", "", Predeploys.GOVERNANCE_TOKEN);
 
         address[] memory accounts = new address[](1);
         accounts[0] = rando;
@@ -743,12 +736,12 @@ contract GovernanceDelegation_Getters_Test is GovernanceDelegation_Init {
         // delegations are not migrated
         vm.expectRevert();
         governanceDelegation.delegates(rando);
-        assertEq(governanceDelegation.checkpoints(rando, 0).fromBlock, _fromBlock);
+        assertEq(governanceDelegation.checkpoints(rando, 0).fromBlock, block.number - 1);
         assertEq(governanceDelegation.checkpoints(rando, 0).votes, _votes);
         assertEq(governanceDelegation.numCheckpoints(rando), 1);
         assertEq(governanceDelegation.getVotes(rando), _votes);
-        assertEq(governanceDelegation.getPastVotes(rando, _fromBlock), _votes);
-        assertEq(governanceDelegation.getPastTotalSupply(_fromBlock), _votes);
+        assertEq(governanceDelegation.getPastVotes(rando, block.number - 1), _votes);
+        assertEq(governanceDelegation.getPastTotalSupply(block.number - 1), _votes);
         assertTrue(governanceDelegation.migrated(rando));
     }
 }

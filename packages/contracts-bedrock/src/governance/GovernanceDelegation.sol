@@ -69,14 +69,14 @@ contract GovernanceDelegation is IGovernanceDelegation {
         _;
     }
 
-    /// @notice Stores the total supply checkpoints, which MUST be obtained from the governance token.
-    /// @param __checkpoints The total supply checkpoints to set.
-    constructor(ERC20Votes.Checkpoint[] memory __checkpoints) {
-        uint256 _checkpointsLength = __checkpoints.length;
-
-        for (uint32 i; i < _checkpointsLength; i++) {
-            _totalSupplyCheckpoints.push(__checkpoints[i]);
-        }
+    /// @notice Stores the latest total supply checkpoint.
+    constructor() {
+        _totalSupplyCheckpoints.push(
+            ERC20Votes.Checkpoint({
+                fromBlock: uint32(block.number - 1),
+                votes: uint224(ERC20Votes(Predeploys.GOVERNANCE_TOKEN).getPastTotalSupply(block.number - 1))
+            })
+        );
     }
 
     /// @notice Returns the delegations for a given account.
@@ -188,16 +188,17 @@ contract GovernanceDelegation is IGovernanceDelegation {
         }
     }
 
-    /// @notice Migrate the delegation state of an account form the token.
+    /// @notice Migrate the latest delegation state of an account form the token.
     /// @param _account The account to migrate.
     function _migrate(address _account) internal {
         // Get the number of checkpoints.
         uint32 _numCheckpoints = ERC20Votes(Predeploys.GOVERNANCE_TOKEN).numCheckpoints(_account);
 
-        // Itereate over the checkpoints and store them.
-        for (uint32 i; i < _numCheckpoints; i++) {
-            ERC20Votes.Checkpoint memory checkpoint = ERC20Votes(Predeploys.GOVERNANCE_TOKEN).checkpoints(_account, i);
-            _checkpoints[_account].push(checkpoint);
+        if (_numCheckpoints > 0) {
+            // Store the latest checkpoint.
+            _checkpoints[_account].push(
+                ERC20Votes(Predeploys.GOVERNANCE_TOKEN).checkpoints(_account, _numCheckpoints - 1)
+            );
         }
 
         // Set migrated flag
