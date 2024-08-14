@@ -2,6 +2,7 @@ package driver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	gosync "sync"
 	"time"
@@ -420,20 +421,30 @@ func (s *SyncDeriver) onResetEvent(x rollup.ResetEvent) {
 func (s *SyncDeriver) SyncStep() {
 	s.Log.Debug("Sync process step")
 
-	// Drain errors are safe to ignore:
-	// it only errors on executor context-timeout,
-	// i.e. when we are shutting down and not processing events anymore.
-	if err := s.Drain(); err != nil {
+	drain := func() (ok bool) {
+		if err := s.Drain(); err != nil {
+			if errors.Is(err, context.Canceled) {
+				return false
+			} else {
+				s.Emitter.Emit(rollup.CriticalErrorEvent{
+					Err: fmt.Errorf("unexpected error on SyncStep event Drain: %w", err)})
+				return false
+			}
+		}
+		return true
+	}
+
+	if !drain() {
 		return
 	}
 
 	s.Emitter.Emit(engine.TryBackupUnsafeReorgEvent{})
-	if err := s.Drain(); err != nil {
+	if !drain() {
 		return
 	}
 
 	s.Emitter.Emit(engine.TryUpdateEngineEvent{})
-	if err := s.Drain(); err != nil {
+	if !drain() {
 		return
 	}
 
