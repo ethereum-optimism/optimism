@@ -101,7 +101,8 @@ services:
       --plasma.enabled=${PLASMA_ENABLED}
       --plasma.da-service=${PLASMA_DA_SERVICE}
       --plasma.da-server=http://da-server:3100
-      --l2.builder=http://builder-op-geth:28545
+      --l2.builder.enabled=true
+      --l2.builder.endpoint=http://builder-op-geth:28545
     ports:
       - "7545:8545"
       - "9003:9003"
@@ -289,6 +290,9 @@ services:
       --rpc.addr=0.0.0.0
       --rpc.port=9545
       --syncmode=consensus-layer
+      --sequencer.publish-attributes=true
+      --eventstream.addr=0.0.0.0
+      --eventstream.port=9546
     volumes:
       - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
       - "${PWD}/../.devnet/rollup.json:/rollup.json"
