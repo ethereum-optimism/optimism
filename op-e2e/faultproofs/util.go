@@ -54,8 +54,8 @@ func StartFaultDisputeSystem(t *testing.T, opts ...faultDisputeConfigOpts) (*op_
 	cfg.DeployConfig.SequencerWindowSize = 4
 	cfg.DeployConfig.FinalizationPeriodSeconds = 2
 	cfg.SupportL1TimeTravel = true
-	cfg.DeployConfig.L2OutputOracleSubmissionInterval = 1
-	cfg.NonFinalizedProposals = true // Submit output proposals asap
+	// Disable proposer creating fast games automatically - required games are manually created
+	cfg.DisableProposer = true
 	for _, opt := range opts {
 		opt(&cfg)
 	}
