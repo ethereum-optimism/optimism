@@ -73,6 +73,7 @@ type Driver struct {
 
 	// Rollup config: rollup chain configuration
 	config *rollup.Config
+	spec   *rollup.ChainSpec
 
 	sequencerConductor conductor.SequencerConductor
 
@@ -492,6 +493,28 @@ func (d *Driver) PublishL2Attributes(ctx context.Context, l2head eth.L2BlockRef)
 		d.log.Error("Error preparing payload attributes", "err", err)
 		return err
 	}
+
+	// If our next L2 block timestamp is beyond the Sequencer drift threshold, then we must produce
+	// empty blocks (other than the L1 info deposit and any user deposits). We handle this by
+	// setting NoTxPool to true, which will cause the Sequencer to not include any transactions
+	// from the transaction pool.
+	attrs.NoTxPool = uint64(attrs.Timestamp) > l1Origin.Time+d.spec.MaxSequencerDrift(l1Origin.Time)
+
+	// For the Ecotone activation block we shouldn't include any sequencer transactions.
+	if d.config.IsEcotoneActivationBlock(uint64(attrs.Timestamp)) {
+		attrs.NoTxPool = true
+		d.log.Info("Sequencing Ecotone upgrade block")
+	}
+
+	// For the Fjord activation block we shouldn't include any sequencer transactions.
+	if d.config.IsFjordActivationBlock(uint64(attrs.Timestamp)) {
+		attrs.NoTxPool = true
+		d.log.Info("Sequencing Fjord upgrade block")
+	}
+
+	d.log.Debug("prepared attributes for new block",
+		"num", l2head.Number+1, "time", uint64(attrs.Timestamp),
+		"origin", l1Origin, "origin_time", l1Origin.Time, "noTxPool", attrs.NoTxPool)
 
 	withParent := &derive.AttributesWithParent{
 		Attributes:   attrs,
