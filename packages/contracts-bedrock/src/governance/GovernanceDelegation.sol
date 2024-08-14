@@ -7,6 +7,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { EnumerableMap } from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { IGovernanceDelegation } from "src/governance/IGovernanceDelegation.sol";
+import { SafeMath } from "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 /// @custom:predeploy 0x4200000000000000000000000000000000000043
 /// @title GovernanceDelegation
@@ -268,18 +269,18 @@ contract GovernanceDelegation is IGovernanceDelegation {
             address delegatee = _new[i].delegatee;
             if (delegatee == address(0)) continue;
 
-            Op op = Op.ADD;
+            function(uint256, uint256) view returns (bool, uint256) op = SafeMath.tryAdd;
             uint256 amount = _new[i].amount;
 
             // Any duplicate delegations will revert in `_delegate`.
             if (_adjustments.contains(delegatee)) {
                 uint256 oldAmount = _adjustments.get(delegatee);
-                (amount, op) = oldAmount > amount ? (oldAmount - amount, Op.SUBTRACT) : (amount - oldAmount, Op.ADD);
+                (amount, op) =
+                    oldAmount > amount ? (oldAmount - amount, SafeMath.trySub) : (amount - oldAmount, SafeMath.tryAdd);
                 _adjustments.remove(delegatee);
             }
 
-            (uint256 oldValue, uint256 newValue) =
-                _writeCheckpoint(_checkpoints[delegatee], op == Op.ADD ? _add : _subtract, amount);
+            (uint256 oldValue, uint256 newValue) = _writeCheckpoint(_checkpoints[delegatee], op, amount);
 
             emit DelegateVotesChanged(delegatee, oldValue, newValue);
         }
@@ -287,7 +288,7 @@ contract GovernanceDelegation is IGovernanceDelegation {
         uint256 _adjustmentsLength = _adjustments.length();
         for (uint256 i; i < _adjustmentsLength; i++) {
             (address delegatee, uint256 amount) = _adjustments.at(0);
-            (uint256 oldValue, uint256 newValue) = _writeCheckpoint(_checkpoints[delegatee], _subtract, amount);
+            (uint256 oldValue, uint256 newValue) = _writeCheckpoint(_checkpoints[delegatee], SafeMath.trySub, amount);
 
             _adjustments.remove(delegatee);
 
@@ -309,7 +310,7 @@ contract GovernanceDelegation is IGovernanceDelegation {
         DelegationAdjustment[] memory _delegationAdjustments = new DelegationAdjustment[](_delegationsLength);
 
         // For relative delegations, keep track of total numerator to ensure it doesn't exceed DENOMINATOR
-        uint256 _total;
+        uint256 _total = 0;
         AllowanceType _type;
 
         // Iterate through partial delegations to calculate delegation adjustments.
@@ -352,12 +353,12 @@ contract GovernanceDelegation is IGovernanceDelegation {
 
         // Increase total supply checkpoint for mint
         if (_from == address(0)) {
-            _writeCheckpoint(_totalSupplyCheckpoints, _add, _amount);
+            _writeCheckpoint(_totalSupplyCheckpoints, SafeMath.tryAdd, _amount);
         }
 
         // Decrease total supply checkpoint for burn
         if (_to == address(0)) {
-            _writeCheckpoint(_totalSupplyCheckpoints, _subtract, _amount);
+            _writeCheckpoint(_totalSupplyCheckpoints, SafeMath.trySub, _amount);
         }
 
         // Create checkpoints for the `from` delegatees.
@@ -368,7 +369,7 @@ contract GovernanceDelegation is IGovernanceDelegation {
             DelegationAdjustment[] memory fromNew = _calculateWeightDistribution(_delegations[_from], _fromVotes);
             for (uint256 i; i < _fromLength; i++) {
                 (uint256 oldValue, uint256 newValue) = _writeCheckpoint(
-                    _checkpoints[_delegations[_from][i].delegatee], _subtract, from[i].amount - fromNew[i].amount
+                    _checkpoints[_delegations[_from][i].delegatee], SafeMath.trySub, from[i].amount - fromNew[i].amount
                 );
 
                 emit DelegateVotesChanged(_delegations[_from][i].delegatee, oldValue, newValue);
@@ -383,8 +384,9 @@ contract GovernanceDelegation is IGovernanceDelegation {
             DelegationAdjustment[] memory toNew = _calculateWeightDistribution(_delegations[_to], _toVotes);
 
             for (uint256 i; i < _toLength; i++) {
-                (uint256 oldValue, uint256 newValue) =
-                    _writeCheckpoint(_checkpoints[_delegations[_to][i].delegatee], _add, toNew[i].amount - to[i].amount);
+                (uint256 oldValue, uint256 newValue) = _writeCheckpoint(
+                    _checkpoints[_delegations[_to][i].delegatee], SafeMath.tryAdd, toNew[i].amount - to[i].amount
+                );
 
                 emit DelegateVotesChanged(_delegations[_to][i].delegatee, oldValue, newValue);
             }
@@ -436,15 +438,17 @@ contract GovernanceDelegation is IGovernanceDelegation {
     /// @return _newWeight The new weight.
     function _writeCheckpoint(
         ERC20Votes.Checkpoint[] storage _ckpts,
-        function(uint256, uint256) view returns (uint256) _op,
+        function(uint256, uint256) view returns (bool, uint256) _op,
         uint256 _delta
     )
         private
         returns (uint256 _oldWeight, uint256 _newWeight)
     {
         uint256 pos = _ckpts.length;
+        bool noOverflow = true;
         _oldWeight = pos == 0 ? 0 : _ckpts[pos - 1].votes;
-        _newWeight = _op(_oldWeight, _delta);
+        (noOverflow, _newWeight) = _op(_oldWeight, _delta);
+        if (!noOverflow) revert CheckpointOverflow();
 
         if (pos > 0 && _ckpts[pos - 1].fromBlock == block.number) {
             _ckpts[pos - 1].votes = SafeCast.toUint224(_newWeight);
@@ -456,21 +460,5 @@ contract GovernanceDelegation is IGovernanceDelegation {
                 })
             );
         }
-    }
-
-    /// @notice Adds two numbers.
-    /// @param _a The first number.
-    /// @param _b The second number.
-    /// @return  The sum of the two numbers.
-    function _add(uint256 _a, uint256 _b) internal pure returns (uint256) {
-        return _a + _b;
-    }
-
-    /// @notice Subtracts two numbers.
-    /// @param _a The first number.
-    /// @param _b The second number.
-    /// @return  The difference of the two numbers.
-    function _subtract(uint256 _a, uint256 _b) internal pure returns (uint256) {
-        return _a - _b;
     }
 }

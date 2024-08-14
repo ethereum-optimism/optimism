@@ -27,6 +27,9 @@ interface IGovernanceDelegation {
     /// @notice Thrown when a block number is not yet mined.
     error BlockNotYetMined(uint256 blockNumber);
 
+    /// @notice Thrown when a new checkpoint overflows.
+    error CheckpointOverflow();
+
     /// @notice Allowance type of a delegation.
     /// @param Absolute The amount of votes delegated is fixed.
     /// @param Relative The amount of votes delegated is relative to the total amount of votes the delegator has.
@@ -53,14 +56,6 @@ interface IGovernanceDelegation {
     struct DelegationAdjustment {
         address delegatee;
         uint208 amount;
-    }
-
-    /// @notice Operations for delegation adjustments.
-    /// @param ADD Add votes to the delegatee.
-    /// @param SUBTRACT Subtract votes from the delegatee.
-    enum Op {
-        ADD,
-        SUBTRACT
     }
 
     /// @notice Returns the maximum number of delegations per delegator.

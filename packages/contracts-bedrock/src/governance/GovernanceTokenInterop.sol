@@ -92,9 +92,9 @@ contract GovernanceTokenInterop is GovernanceToken {
     }
 
     /// @notice Determines whether an account has been migrated.
+    ///         True if the given account has been migrated, and false otherwise.
     /// @param _account The account to check if it has been migrated.
-    /// @return _migrated True if the given account has been migrated, and false otherwise.
-    function _migrated(address _account) internal view returns (bool _migrated) {
+    function _migrated(address _account) internal view returns (bool) {
         return IGovernanceDelegation(Predeploys.GOVERNANCE_DELEGATION).migrated(_account);
     }
 
