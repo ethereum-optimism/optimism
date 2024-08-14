@@ -22,10 +22,19 @@ contract DeploySuperchainInput {
         ProtocolVersion recommendedProtocolVersion;
     }
 
-    Input internal input;
+    // The data from the input struct gets stored in individual variables to make them accessible in
+    // a stronger type-safe manner (as opposed to a single struct getter where the caller may
+    // inadvertently transpose two addresses, for example) without the need for defining getters for
+    // each field.
     bool internal inputSet = false;
+    Input internal input;
 
-    // -------- Load inputs --------
+    address public proxyAdminOwner;
+    address public protocolVersionsOwner;
+    address public guardian;
+    bool public paused;
+    ProtocolVersion public requiredProtocolVersion;
+    ProtocolVersion public recommendedProtocolVersion;
 
     function loadInput(string memory _infile) public {
         _infile;
@@ -36,43 +45,26 @@ contract DeploySuperchainInput {
 
     function loadInput(Input memory _input) public {
         require(!inputSet, "DeploySuperchainInput: input already set");
-        input = _input;
-    }
 
-    // -------- Getter methods for inputs --------
+        // All assertions on inputs happen here. You cannot set any inputs unless they're all valid.
+        require(input.roles.proxyAdminOwner != address(0), "DeploySuperchainInput: empty proxyAdminOwner");
+        require(input.roles.protocolVersionsOwner != address(0), "DeploySuperchainInput: empty protocolVersionsOwner");
+        require(input.roles.guardian != address(0), "DeploySuperchainInput: empty guardian");
+
+        inputSet = true;
+        input = _input;
+
+        proxyAdminOwner = _input.roles.proxyAdminOwner;
+        protocolVersionsOwner = _input.roles.protocolVersionsOwner;
+        guardian = _input.roles.guardian;
+        paused = _input.paused;
+        requiredProtocolVersion = _input.requiredProtocolVersion;
+        recommendedProtocolVersion = _input.recommendedProtocolVersion;
+    }
 
     function inputs() public view returns (Input memory) {
         require(inputSet, "DeploySuperchainInput: input not set");
         return input;
-    }
-
-    function proxyAdminOwner() public view returns (address out) {
-        out = input.roles.proxyAdminOwner;
-        require(out != address(0), "DeploySuperchainInput: proxyAdminOwner not set");
-    }
-
-    function protocolVersionsOwner() public view returns (address out) {
-        out = input.roles.protocolVersionsOwner;
-        require(out != address(0), "DeploySuperchainInput: protocolVersionsOwner not set");
-    }
-
-    function guardian() public view returns (address out) {
-        out = input.roles.guardian;
-        require(out != address(0), "DeploySuperchainInput: guardian not set");
-    }
-
-    function paused() public view returns (bool out) {
-        out = input.paused;
-    }
-
-    function requiredProtocolVersion() public view returns (ProtocolVersion out) {
-        out = input.requiredProtocolVersion;
-        require(ProtocolVersion.unwrap(out) != 0, "DeploySuperchainInput: requiredProtocolVersion not set");
-    }
-
-    function recommendedProtocolVersion() public view returns (ProtocolVersion out) {
-        out = input.recommendedProtocolVersion;
-        require(ProtocolVersion.unwrap(out) != 0, "DeploySuperchainInput: recommendedProtocolVersion not set");
     }
 }
 
@@ -85,15 +77,29 @@ contract DeploySuperchainOutput {
         ProtocolVersions protocolVersionsProxy;
     }
 
-    Output internal output;
+    // The data from the output struct gets stored in individual variables to make them accessible
+    // in a stronger type-safe manner (as opposed to a single struct getter where the caller may
+    // inadvertently transpose two addresses, for example) without the need for defining getters for
+    // each field.
     bool internal outputSet = false;
+    Output internal output;
 
-    // -------- Save outputs --------
+    ProxyAdmin public superchainProxyAdmin;
+    SuperchainConfig public superchainConfigImpl;
+    SuperchainConfig public superchainConfigProxy;
+    ProtocolVersions public protocolVersionsImpl;
+    ProtocolVersions public protocolVersionsProxy;
 
     function saveOutput(Output memory _output) public {
         require(!outputSet, "DeploySuperchainOutput: output already set");
-        output = _output;
         outputSet = true;
+
+        output = _output;
+        superchainProxyAdmin = _output.superchainProxyAdmin;
+        superchainConfigImpl = _output.superchainConfigImpl;
+        superchainConfigProxy = _output.superchainConfigProxy;
+        protocolVersionsImpl = _output.protocolVersionsImpl;
+        protocolVersionsProxy = _output.protocolVersionsProxy;
     }
 
     function writeOutput(string memory _outfile) public view {
@@ -102,35 +108,9 @@ contract DeploySuperchainOutput {
         require(false, "DeploySuperchainOutput: saveOutput not implemented");
     }
 
-    // -------- Getter methods for outputs --------
     function outputs() public view returns (Output memory) {
         require(outputSet, "DeploySuperchainOutput: output not set");
         return output;
-    }
-
-    function superchainProxyAdmin() public view returns (ProxyAdmin out) {
-        out = output.superchainProxyAdmin;
-        require(address(out) != address(0), "DeploySuperchainOutput: superchainProxyAdmin not set");
-    }
-
-    function superchainConfigImpl() public view returns (SuperchainConfig out) {
-        out = output.superchainConfigImpl;
-        require(address(out) != address(0), "DeploySuperchainOutput: superchainConfigImpl not set");
-    }
-
-    function superchainConfigProxy() public view returns (SuperchainConfig out) {
-        out = output.superchainConfigProxy;
-        require(address(out) != address(0), "DeploySuperchainOutput: superchainConfigProxy not set");
-    }
-
-    function protocolVersionsImpl() public view returns (ProtocolVersions out) {
-        out = output.protocolVersionsImpl;
-        require(address(out) != address(0), "DeploySuperchainOutput: protocolVersionsImpl not set");
-    }
-
-    function protocolVersionsProxy() public view returns (ProtocolVersions out) {
-        out = output.protocolVersionsProxy;
-        require(address(out) != address(0), "DeploySuperchainOutput: protocolVersionsProxy not set");
     }
 }
 
@@ -138,45 +118,35 @@ contract DeploySuperchainOutput {
 /// We intentionally use the terms "Input" and "Output" to clearly distinguish this script from the
 /// existing ones that use terms of "Config" and "Artifacts".
 contract DeploySuperchain is Script {
-    DeploySuperchainInput dsi;
-    DeploySuperchainOutput dso;
-
     function toAddress(address _sender, string memory _identifier) public pure returns (address) {
         return address(uint160(uint256(keccak256(abi.encode(_sender, _identifier)))));
     }
 
-    function init() internal {
-        // Deploy the input and output contracts.
-        // This function is a no-op on subsequent calls.
-        if (address(dsi) == address(0)) {
-            dsi = DeploySuperchainInput(toAddress(msg.sender, "optimism.DeploySuperchainInput"));
-            dso = DeploySuperchainOutput(toAddress(msg.sender, "optimism.DeploySuperchainOutput"));
-            vm.etch(address(dsi), type(DeploySuperchainInput).runtimeCode);
-            vm.etch(address(dso), type(DeploySuperchainOutput).runtimeCode);
-        }
-    }
-
     /// @notice This entrypoint is for end-users to deploy from an input file and write to an output file.
     function run(string memory _infile) public {
-        init();
+        // Using fileIO, so deploy the IO helper contracts.
+        DeploySuperchainInput dsi = DeploySuperchainInput(toAddress(msg.sender, "optimism.DeploySuperchainInput"));
+        DeploySuperchainOutput dso = DeploySuperchainOutput(toAddress(msg.sender, "optimism.DeploySuperchainOutput"));
+        vm.etch(address(dsi), type(DeploySuperchainInput).runtimeCode);
+        vm.etch(address(dso), type(DeploySuperchainOutput).runtimeCode);
+
+        // Parse the input file using the DeploySuperchainInput contract.
         dsi.loadInput(_infile);
 
-        runWithoutIO(dsi.inputs());
+        // Run the deployment script.
+        // This also writes the output to the DeploySuperchainOutput contract.
+        runWithoutIO(dsi, dso);
 
+        // Request a file to be written with the output data.
         string memory outfile = "";
         dso.writeOutput(outfile);
         require(false, "DeploySuperchain: run is not implemented");
     }
 
     /// @notice This entrypoint is useful for e2e testing purposes, and doesn't use any file I/O.
-    function runWithoutIO(DeploySuperchainInput.Input memory _input) public {
-        init();
-        dsi.loadInput(_input);
-
-        // Validate inputs.
-        require(_input.roles.proxyAdminOwner != address(0), "zero address: proxyAdminOwner");
-        require(_input.roles.protocolVersionsOwner != address(0), "zero address: protocolVersionsOwner");
-        require(_input.roles.guardian != address(0), "zero address: guardian");
+    function runWithoutIO(DeploySuperchainInput _dsi, DeploySuperchainOutput _dso) public {
+        // Retrieve the input data from the input contract. This reverts if the input is not set.
+        DeploySuperchainInput.Input memory input = _dsi.inputs();
 
         // Initialize the output struct.
         DeploySuperchainOutput.Output memory output;
@@ -200,7 +170,7 @@ contract DeploySuperchain is Script {
         output.superchainProxyAdmin.upgradeAndCall(
             payable(address(output.superchainConfigProxy)),
             address(output.superchainConfigImpl),
-            abi.encodeCall(SuperchainConfig.initialize, (_input.roles.guardian, _input.paused))
+            abi.encodeCall(SuperchainConfig.initialize, (input.roles.guardian, input.paused))
         );
 
         output.protocolVersionsProxy = ProtocolVersions(address(new Proxy(address(output.superchainProxyAdmin))));
@@ -210,12 +180,12 @@ contract DeploySuperchain is Script {
             address(output.protocolVersionsImpl),
             abi.encodeCall(
                 ProtocolVersions.initialize,
-                (_input.roles.protocolVersionsOwner, _input.requiredProtocolVersion, _input.recommendedProtocolVersion)
+                (input.roles.protocolVersionsOwner, input.requiredProtocolVersion, input.recommendedProtocolVersion)
             )
         );
 
         // Transfer ownership of the ProxyAdmin from the deployer to the specified owner.
-        output.superchainProxyAdmin.transferOwnership(_input.roles.proxyAdminOwner);
+        output.superchainProxyAdmin.transferOwnership(input.roles.proxyAdminOwner);
 
         vm.stopBroadcast();
 
@@ -241,6 +211,6 @@ contract DeploySuperchain is Script {
         }
 
         // Deploy successful, save off output.
-        dso.saveOutput(output);
+        _dso.saveOutput(output);
     }
 }
