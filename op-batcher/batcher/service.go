@@ -192,13 +192,14 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 		channelTimeout = bs.RollupConfig.ChannelTimeoutGranite
 	}
 	cc := ChannelConfig{
-		SeqWindowSize:      bs.RollupConfig.SeqWindowSize,
-		ChannelTimeout:     channelTimeout,
-		MaxChannelDuration: cfg.MaxChannelDuration,
-		MaxFrameSize:       cfg.MaxL1TxSize - 1, // account for version byte prefix; reset for blobs
-		TargetNumFrames:    cfg.TargetNumFrames,
-		SubSafetyMargin:    cfg.SubSafetyMargin,
-		BatchType:          cfg.BatchType,
+		SeqWindowSize:         bs.RollupConfig.SeqWindowSize,
+		ChannelTimeout:        channelTimeout,
+		MaxChannelDuration:    cfg.MaxChannelDuration,
+		MaxFrameSize:          cfg.MaxL1TxSize - 1, // account for version byte prefix; reset for blobs
+		MaxBlocksPerSpanBatch: cfg.MaxBlocksPerSpanBatch,
+		TargetNumFrames:       cfg.TargetNumFrames,
+		SubSafetyMargin:       cfg.SubSafetyMargin,
+		BatchType:             cfg.BatchType,
 	}
 
 	switch cfg.DataAvailabilityType {
