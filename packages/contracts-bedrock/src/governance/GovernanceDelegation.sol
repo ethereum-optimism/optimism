@@ -286,15 +286,13 @@ contract GovernanceDelegation is IGovernanceDelegation {
 
         uint256 _adjustmentsLength = _adjustments.length();
         for (uint256 i; i < _adjustmentsLength; i++) {
-            (address delegatee, uint256 amount) = _adjustments.at(i);
+            (address delegatee, uint256 amount) = _adjustments.at(0);
             (uint256 oldValue, uint256 newValue) = _writeCheckpoint(_checkpoints[delegatee], _subtract, amount);
 
-            delete _adjustments._inner._values[bytes32(uint256(uint160(delegatee)))];
+            _adjustments.remove(delegatee);
 
             emit DelegateVotesChanged(delegatee, oldValue, newValue);
         }
-
-        delete _adjustments._inner._keys;
     }
 
     /// @notice Calculate the weight distribution for a list of delegations.

@@ -84,17 +84,17 @@ contract GovernanceTokenInterop is GovernanceToken {
 
     /// @notice Callback called after a token transfer. Forwards to the GovernanceDelegation contract,
     ///         independently of whether the account has been migrated.
-    /// @param from   The account sending tokens.
-    /// @param to     The account receiving tokens.
-    /// @param amount The amount of tokens being transfered.
-    function _afterTokenTransfer(address from, address to, uint256 amount) internal override(GovernanceToken) {
-        IGovernanceDelegation(Predeploys.GOVERNANCE_DELEGATION).afterTokenTransfer(from, to, amount);
+    /// @param _from The account sending tokens.
+    /// @param _to The account receiving tokens.
+    /// @param _amount The amount of tokens being transfered.
+    function _afterTokenTransfer(address _from, address _to, uint256 _amount) internal override(GovernanceToken) {
+        IGovernanceDelegation(Predeploys.GOVERNANCE_DELEGATION).afterTokenTransfer(_from, _to, _amount);
     }
 
     /// @notice Determines whether an account has been migrated.
     /// @param _account The account to check if it has been migrated.
-    /// @return         True if the given account has been migrated, and false otherwise.
-    function _migrated(address _account) internal view returns (bool) {
+    /// @return _migrated True if the given account has been migrated, and false otherwise.
+    function _migrated(address _account) internal view returns (bool _migrated) {
         return IGovernanceDelegation(Predeploys.GOVERNANCE_DELEGATION).migrated(_account);
     }
 
