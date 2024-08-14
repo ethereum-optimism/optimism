@@ -8,13 +8,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-proposer/contracts"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-proposer/bindings"
 	"github.com/ethereum-optimism/optimism/op-proposer/metrics"
@@ -37,6 +39,8 @@ type L1Client interface {
 	// CallContract executes an Ethereum contract call with the specified data as the
 	// input.
 	CallContract(ctx context.Context, call ethereum.CallMsg, blockNumber *big.Int) ([]byte, error)
+
+	Client() *rpc.Client
 }
 
 type L2OOContract interface {
@@ -45,13 +49,9 @@ type L2OOContract interface {
 }
 
 type DGFContract interface {
-	GameCount(*bind.CallOpts) (*big.Int, error)
-	GameAtIndex(*bind.CallOpts, *big.Int) (struct {
-		GameType  uint32
-		Timestamp uint64
-		Proxy     common.Address
-	}, error)
-	InitBonds(*bind.CallOpts, uint32) (*big.Int, error)
+	Version(ctx context.Context) (string, error)
+	HasProposedSince(ctx context.Context, proposer common.Address, cutoff time.Time, gameType uint32) (uint64, bool, time.Time, error)
+	ProposalTx(ctx context.Context, gameType uint32, outputRoot common.Hash, l2BlockNum uint64) (txmgr.TxCandidate, error)
 }
 
 type RollupClient interface {
@@ -87,7 +87,6 @@ type L2OutputSubmitter struct {
 	l2ooABI      *abi.ABI
 
 	dgfContract DGFContract
-	dgfABI      *abi.ABI
 }
 
 // NewL2OutputSubmitter creates a new L2 Output Submitter
@@ -145,26 +144,17 @@ func newL2OOSubmitter(ctx context.Context, cancel context.CancelFunc, setup Driv
 }
 
 func newDGFSubmitter(ctx context.Context, cancel context.CancelFunc, setup DriverSetup) (*L2OutputSubmitter, error) {
-	dgfCaller, err := bindings.NewDisputeGameFactoryCaller(*setup.Cfg.DisputeGameFactoryAddr, setup.L1Client)
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("failed to create DGF at address %s: %w", setup.Cfg.DisputeGameFactoryAddr, err)
-	}
+	caller := batching.NewMultiCaller(setup.L1Client.Client(), batching.DefaultBatchSize)
+	dgfCaller := contracts.NewDisputeGameFactory(*setup.Cfg.DisputeGameFactoryAddr, caller)
 
 	cCtx, cCancel := context.WithTimeout(ctx, setup.Cfg.NetworkTimeout)
 	defer cCancel()
-	version, err := dgfCaller.Version(&bind.CallOpts{Context: cCtx})
+	version, err := dgfCaller.Version(cCtx)
 	if err != nil {
 		cancel()
 		return nil, err
 	}
 	log.Info("Connected to DisputeGameFactory", "address", setup.Cfg.DisputeGameFactoryAddr, "version", version)
-
-	parsed, err := bindings.DisputeGameFactoryMetaData.GetAbi()
-	if err != nil {
-		cancel()
-		return nil, err
-	}
 
 	return &L2OutputSubmitter{
 		DriverSetup: setup,
@@ -173,7 +163,6 @@ func newDGFSubmitter(ctx context.Context, cancel context.CancelFunc, setup Drive
 		cancel:      cancel,
 
 		dgfContract: dgfCaller,
-		dgfABI:      parsed,
 	}, nil
 }
 
@@ -287,40 +276,26 @@ func (l *L2OutputSubmitter) FetchL2OOOutput(ctx context.Context) (*eth.OutputRes
 func (l *L2OutputSubmitter) FetchDGFOutput(ctx context.Context) (*eth.OutputResponse, bool, error) {
 	cCtx, cancel := context.WithTimeout(ctx, l.Cfg.NetworkTimeout)
 	defer cancel()
-	callOpts := &bind.CallOpts{
-		From:    l.Txmgr.From(),
-		Context: cCtx,
-	}
 
-	gameCount, err := l.dgfContract.GameCount(callOpts)
+	cutoff := time.Now().Add(-l.Cfg.ProposalInterval)
+	gameCount, hasProposed, proposalTime, err := l.dgfContract.HasProposedSince(cCtx, l.Txmgr.From(), cutoff, l.Cfg.DisputeGameType)
 	if err != nil {
-		return nil, false, fmt.Errorf("could not query DisputeGameFactory.gameCount(): %w", err)
+		return nil, false, fmt.Errorf("could not check for recent proposal: %w", err)
 	}
 
-	if gameCount.Sign() == 1 {
-		// If there is at least one game, ensure
-		// enough time has lapsed that we need to make another proposal.
-
-		latestGameIndex := new(big.Int).Sub(gameCount, big.NewInt(1))
-		latestGame, err := l.dgfContract.GameAtIndex(callOpts, latestGameIndex)
-		if err != nil {
-			return nil, false, fmt.Errorf("could not query DisputeGameFactory.GameAtIndex(%d): %w", latestGameIndex, err)
-		}
-
-		timeSinceLastGame := time.Since(time.Unix(int64(latestGame.Timestamp), 0))
-		if timeSinceLastGame <= l.Cfg.ProposalInterval {
-			l.Log.Info("Duration since last game not past proposal interval", "duration", timeSinceLastGame)
-			return nil, false, nil
-		}
-
-		l.Log.Info("Duration since last game past proposal interval, submitting proposal now", "duration", timeSinceLastGame)
-	} else {
+	if hasProposed {
+		l.Log.Info("Duration since last game not past proposal interval", "duration", time.Since(proposalTime))
+		return nil, false, nil
+	}
+	if gameCount == 0 {
 		// If there is not yet any game, wait one interval
 		// and then proceed with making a proposal.
 		// This is to prevent the submitter attempting to
 		// submit too soon after the AnchorStateRegistry is
 		// deployed (mostly only an issue in tests).
 		time.Sleep(l.Cfg.ProposalInterval)
+	} else {
+		l.Log.Info("Duration since last game past proposal interval, submitting proposal now", "duration", time.Since(proposalTime))
 	}
 
 	// Fetch the current L2 heads
@@ -391,21 +366,8 @@ func proposeL2OutputTxData(abi *abi.ABI, output *eth.OutputResponse) ([]byte, er
 		new(big.Int).SetUint64(output.Status.CurrentL1.Number))
 }
 
-func (l *L2OutputSubmitter) ProposeL2OutputDGFTxData(output *eth.OutputResponse) ([]byte, *big.Int, error) {
-	bond, err := l.dgfContract.InitBonds(&bind.CallOpts{}, l.Cfg.DisputeGameType)
-	if err != nil {
-		return nil, nil, err
-	}
-	data, err := proposeL2OutputDGFTxData(l.dgfABI, l.Cfg.DisputeGameType, output)
-	if err != nil {
-		return nil, nil, err
-	}
-	return data, bond, err
-}
-
-// proposeL2OutputDGFTxData creates the transaction data for the DisputeGameFactory's `create` function
-func proposeL2OutputDGFTxData(abi *abi.ABI, gameType uint32, output *eth.OutputResponse) ([]byte, error) {
-	return abi.Pack("create", gameType, output.OutputRoot, math.U256Bytes(new(big.Int).SetUint64(output.BlockRef.Number)))
+func (l *L2OutputSubmitter) ProposeL2OutputDGFTxCandidate(ctx context.Context, output *eth.OutputResponse) (txmgr.TxCandidate, error) {
+	return l.dgfContract.ProposalTx(ctx, l.Cfg.DisputeGameType, common.Hash(output.OutputRoot), output.BlockRef.Number)
 }
 
 // We wait until l1head advances beyond blocknum. This is used to make sure proposal tx won't
@@ -446,16 +408,11 @@ func (l *L2OutputSubmitter) sendTransaction(ctx context.Context, output *eth.Out
 	l.Log.Info("Proposing output root", "output", output.OutputRoot, "block", output.BlockRef)
 	var receipt *types.Receipt
 	if l.Cfg.DisputeGameFactoryAddr != nil {
-		data, bond, err := l.ProposeL2OutputDGFTxData(output)
+		candidate, err := l.ProposeL2OutputDGFTxCandidate(ctx, output)
 		if err != nil {
 			return err
 		}
-		receipt, err = l.Txmgr.Send(ctx, txmgr.TxCandidate{
-			TxData:   data,
-			To:       l.Cfg.DisputeGameFactoryAddr,
-			GasLimit: 0,
-			Value:    bond,
-		})
+		receipt, err = l.Txmgr.Send(ctx, candidate)
 		if err != nil {
 			return err
 		}

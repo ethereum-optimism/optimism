@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	txmgrmocks "github.com/ethereum-optimism/optimism/op-service/txmgr/mocks"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -37,31 +38,21 @@ func (m *MockL2OOContract) NextBlockNumber(opts *bind.CallOpts) (*big.Int, error
 	return args.Get(0).(*big.Int), args.Error(1)
 }
 
-type MockDGFContract struct {
-	mock.Mock
+type StubDGFContract struct {
+	hasProposedCount int
 }
 
-func (m *MockDGFContract) GameCount(opts *bind.CallOpts) (*big.Int, error) {
-	args := m.Called(opts)
-	return args.Get(0).(*big.Int), args.Error(1)
+func (m *StubDGFContract) HasProposedSince(ctx context.Context, proposer common.Address, cutoff time.Time, gameType uint32) (uint64, bool, time.Time, error) {
+	m.hasProposedCount++
+	return 99, false, time.Unix(1000, 0), nil
 }
 
-func (m *MockDGFContract) GameAtIndex(opts *bind.CallOpts, idx *big.Int) (struct {
-	GameType  uint32
-	Timestamp uint64
-	Proxy     common.Address
-}, error) {
-	args := m.Called(opts)
-	return args.Get(0).(struct {
-		GameType  uint32
-		Timestamp uint64
-		Proxy     common.Address
-	}), args.Error(1)
+func (m *StubDGFContract) ProposalTx(ctx context.Context, gameType uint32, outputRoot common.Hash, l2BlockNum uint64) (txmgr.TxCandidate, error) {
+	panic("not implemented")
 }
 
-func (m *MockDGFContract) InitBonds(opts *bind.CallOpts, arg0 uint32) (*big.Int, error) {
-	args := m.Called(opts)
-	return args.Get(0).(*big.Int), args.Error(1)
+func (m *StubDGFContract) Version(ctx context.Context) (string, error) {
+	panic("not implemented")
 }
 
 type mockRollupEndpointProvider struct {
@@ -81,7 +72,7 @@ func (p *mockRollupEndpointProvider) RollupClient(context.Context) (dial.RollupC
 
 func (p *mockRollupEndpointProvider) Close() {}
 
-func setup(t *testing.T, testName string) (*L2OutputSubmitter, *mockRollupEndpointProvider, *MockL2OOContract, *MockDGFContract, *txmgrmocks.TxManager, *testlog.CapturingHandler) {
+func setup(t *testing.T, testName string) (*L2OutputSubmitter, *mockRollupEndpointProvider, *MockL2OOContract, *StubDGFContract, *txmgrmocks.TxManager, *testlog.CapturingHandler) {
 	ep := newEndpointProvider()
 
 	l2OutputOracleAddr := common.HexToAddress("0x3F8A862E63E759a77DA22d384027D21BF096bA9E")
@@ -115,10 +106,10 @@ func setup(t *testing.T, testName string) (*L2OutputSubmitter, *mockRollupEndpoi
 		ctx:         ctx,
 		cancel:      cancel,
 	}
-	var mockDGFContract *MockDGFContract
+	var mockDGFContract *StubDGFContract
 	var mockL2OOContract *MockL2OOContract
 	if testName == "DGF" {
-		mockDGFContract = new(MockDGFContract)
+		mockDGFContract = new(StubDGFContract)
 		l2OutputSubmitter.dgfContract = mockDGFContract
 	} else {
 		mockL2OOContract = new(MockL2OOContract)
@@ -146,6 +137,7 @@ func TestL2OutputSubmitter_OutputRetry(t *testing.T) {
 		{name: "DGF"},
 	}
 
+	proposerAddr := common.Address{0xab}
 	const numFails = 3
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -166,17 +158,10 @@ func TestL2OutputSubmitter_OutputRetry(t *testing.T) {
 				nil,
 			)
 
-			txmgr.On("From").Return(common.Address{}).Times(numFails + 1)
+			txmgr.On("From").Return(proposerAddr).Times(numFails + 1)
 
 			if tt.name == "L2OO" {
 				l2ooContract.On("NextBlockNumber", mock.AnythingOfType("*bind.CallOpts")).Return(big.NewInt(42), nil).Times(numFails + 1)
-			} else {
-				dgfContract.On("GameCount", mock.AnythingOfType("*bind.CallOpts")).Return(big.NewInt(99), nil).Times(numFails + 1)
-				dgfContract.On("GameAtIndex", mock.AnythingOfType("*bind.CallOpts"), mock.Anything).Return(struct {
-					GameType  uint32
-					Timestamp uint64
-					Proxy     common.Address
-				}{0, uint64(time.Now().Unix()), common.Address{}}, nil).Times(numFails + 1)
 			}
 			ps.wg.Add(1)
 			ps.loop()
@@ -185,7 +170,7 @@ func TestL2OutputSubmitter_OutputRetry(t *testing.T) {
 			if tt.name == "L2OO" {
 				l2ooContract.AssertExpectations(t)
 			} else {
-				dgfContract.AssertExpectations(t)
+				require.Equal(t, numFails+1, dgfContract.hasProposedCount)
 			}
 
 			require.Len(t, logs.FindLogs(testlog.NewMessageContainsFilter("Error getting output")), numFails)

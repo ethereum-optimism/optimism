@@ -244,8 +244,9 @@ func (p *L2Proposer) ActMakeProposalTx(t Testing) {
 
 	var txData []byte
 	if e2eutils.UseFaultProofs() {
-		txData, _, err = p.driver.ProposeL2OutputDGFTxData(output)
+		tx, err := p.driver.ProposeL2OutputDGFTxCandidate(context.Background(), output)
 		require.NoError(t, err)
+		txData = tx.TxData
 	} else {
 		txData, err = p.driver.ProposeL2OutputTxData(output)
 		require.NoError(t, err)
