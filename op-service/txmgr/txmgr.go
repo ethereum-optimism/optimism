@@ -337,7 +337,7 @@ func (m *SimpleTxManager) GetMinBaseFee() *big.Int {
 
 func (m *SimpleTxManager) SetMinBaseFee(val *big.Int) {
 	m.cfg.MinBaseFee.Store(val)
-	m.l.Info("txmgr config val changed: SetMinBaseFee", "newVal", val.String())
+	m.l.Info("txmgr config val changed: SetMinBaseFee", "newVal", val)
 }
 
 func (m *SimpleTxManager) GetPriorityFee() *big.Int {
@@ -346,7 +346,7 @@ func (m *SimpleTxManager) GetPriorityFee() *big.Int {
 
 func (m *SimpleTxManager) SetPriorityFee(val *big.Int) {
 	m.cfg.MinTipCap.Store(val)
-	m.l.Info("txmgr config val changed: SetPriorityFee", "newVal", val.String())
+	m.l.Info("txmgr config val changed: SetPriorityFee", "newVal", val)
 }
 
 func (m *SimpleTxManager) GetMinBlobFee() *big.Int {
@@ -355,7 +355,7 @@ func (m *SimpleTxManager) GetMinBlobFee() *big.Int {
 
 func (m *SimpleTxManager) SetMinBlobFee(val *big.Int) {
 	m.cfg.MinBlobTxFee.Store(val)
-	m.l.Info("txmgr config val changed: SetMinBlobFee", "newVal", val.String())
+	m.l.Info("txmgr config val changed: SetMinBlobFee", "newVal", val)
 }
 
 func (m *SimpleTxManager) GetFeeLimitMultiplier() uint64 {
@@ -373,7 +373,7 @@ func (m *SimpleTxManager) GetFeeThreshold() *big.Int {
 
 func (m *SimpleTxManager) SetFeeThreshold(val *big.Int) {
 	m.cfg.FeeLimitThreshold.Store(val)
-	m.l.Info("txmgr config val changed: SetFeeThreshold", "newVal", val.String())
+	m.l.Info("txmgr config val changed: SetFeeThreshold", "newVal", val)
 }
 
 func (m *SimpleTxManager) GetBumpFeeRetryTime() time.Duration {
@@ -382,7 +382,7 @@ func (m *SimpleTxManager) GetBumpFeeRetryTime() time.Duration {
 
 func (m *SimpleTxManager) SetBumpFeeRetryTime(val time.Duration) {
 	m.cfg.ResubmissionTimeout.Store(int64(val))
-	m.l.Info("txmgr config val changed: SetBumpFeeRetryTime", "newVal", val.String())
+	m.l.Info("txmgr config val changed: SetBumpFeeRetryTime", "newVal", val)
 }
 
 // MakeSidecar builds & returns the BlobTxSidecar and corresponding blob hashes from the raw blob
@@ -864,7 +864,7 @@ func (m *SimpleTxManager) checkBlobFeeLimits(blobBaseFee, bumpedBlobFee *big.Int
 	feeLimitThreshold := m.cfg.FeeLimitThreshold.Load()
 	feeLimitMultiplier := m.cfg.FeeLimitMultiplier.Load()
 
-	if thr := feeLimitThreshold; thr != nil && thr.Cmp(bumpedBlobFee) == 1 {
+	if feeLimitThreshold != nil && feeLimitThreshold.Cmp(bumpedBlobFee) == 1 {
 		return nil
 	}
 	maxBlobFee := new(big.Int).Mul(m.calcBlobFeeCap(blobBaseFee), big.NewInt(int64(feeLimitMultiplier)))
