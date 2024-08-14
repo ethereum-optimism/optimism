@@ -9,7 +9,7 @@ import (
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 
-	plasma "github.com/ethereum-optimism/optimism/op-plasma"
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 )
 
 type S3Config struct {
@@ -43,7 +43,7 @@ func (s *S3Store) Get(ctx context.Context, key []byte) ([]byte, error) {
 	if err != nil {
 		errResponse := minio.ToErrorResponse(err)
 		if errResponse.Code == "NoSuchKey" {
-			return nil, plasma.ErrNotFound
+			return nil, altda.ErrNotFound
 		}
 		return nil, err
 	}

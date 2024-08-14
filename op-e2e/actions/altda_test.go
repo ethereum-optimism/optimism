@@ -12,25 +12,25 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
+	"github.com/ethereum-optimism/optimism/op-alt-da/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
-	plasma "github.com/ethereum-optimism/optimism/op-plasma"
-	"github.com/ethereum-optimism/optimism/op-plasma/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
 // Devnet allocs should have alt-da mode enabled for these tests to pass
 
-// L2PlasmaDA is a test harness for manipulating plasma DA state.
-type L2PlasmaDA struct {
+// L2AltDA is a test harness for manipulating AltDA state.
+type L2AltDA struct {
 	log        log.Logger
-	storage    *plasma.DAErrFaker
-	daMgr      *plasma.DA
-	plasmaCfg  plasma.Config
+	storage    *altda.DAErrFaker
+	daMgr      *altda.DA
+	altDACfg   altda.Config
 	contract   *bindings.DataAvailabilityChallenge
 	batcher    *L2Batcher
 	sequencer  *L2Sequencer
@@ -44,15 +44,15 @@ type L2PlasmaDA struct {
 	lastCommBn uint64
 }
 
-type PlasmaParam func(p *e2eutils.TestParams)
+type AltDAParam func(p *e2eutils.TestParams)
 
-func NewL2PlasmaDA(t Testing, params ...PlasmaParam) *L2PlasmaDA {
+func NewL2AltDA(t Testing, params ...AltDAParam) *L2AltDA {
 	p := &e2eutils.TestParams{
 		MaxSequencerDrift:   40,
 		SequencerWindowSize: 12,
 		ChannelTimeout:      12,
 		L1BlockTime:         12,
-		UsePlasma:           true,
+		UseAltDA:            true,
 	}
 	for _, apply := range params {
 		apply(p)
@@ -62,7 +62,7 @@ func NewL2PlasmaDA(t Testing, params ...PlasmaParam) *L2PlasmaDA {
 	dp := e2eutils.MakeDeployParams(t, p)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 
-	require.True(t, sd.RollupCfg.PlasmaEnabled())
+	require.True(t, sd.RollupCfg.AltDAEnabled())
 
 	miner := NewL1Miner(t, log, sd.L1Cfg)
 	l1Client := miner.EthClient()
@@ -71,21 +71,21 @@ func NewL2PlasmaDA(t Testing, params ...PlasmaParam) *L2PlasmaDA {
 	engine := NewL2Engine(t, log, sd.L2Cfg, sd.RollupCfg.Genesis.L1, jwtPath)
 	engCl := engine.EngineClient(t, sd.RollupCfg)
 
-	storage := &plasma.DAErrFaker{Client: plasma.NewMockDAClient(log)}
+	storage := &altda.DAErrFaker{Client: altda.NewMockDAClient(log)}
 
 	l1F, err := sources.NewL1Client(miner.RPCClient(), log, nil, sources.L1ClientDefaultConfig(sd.RollupCfg, false, sources.RPCKindBasic))
 	require.NoError(t, err)
 
-	plasmaCfg, err := sd.RollupCfg.GetOPPlasmaConfig()
+	altDACfg, err := sd.RollupCfg.GetOPAltDAConfig()
 	require.NoError(t, err)
 
-	daMgr := plasma.NewPlasmaDAWithStorage(log, plasmaCfg, storage, &plasma.NoopMetrics{})
+	daMgr := altda.NewAltDAWithStorage(log, altDACfg, storage, &altda.NoopMetrics{})
 
 	sequencer := NewL2Sequencer(t, log, l1F, miner.BlobStore(), daMgr, engCl, sd.RollupCfg, 0)
 	miner.ActL1SetFeeRecipient(common.Address{'A'})
 	sequencer.ActL2PipelineFull(t)
 
-	batcher := NewL2Batcher(log, sd.RollupCfg, PlasmaBatcherCfg(dp, storage), sequencer.RollupClient(), l1Client, engine.EthClient(), engCl)
+	batcher := NewL2Batcher(log, sd.RollupCfg, AltDABatcherCfg(dp, storage), sequencer.RollupClient(), l1Client, engine.EthClient(), engCl)
 
 	addresses := e2eutils.CollectAddresses(sd, dp)
 	cl := engine.EthClient()
@@ -98,22 +98,22 @@ func NewL2PlasmaDA(t Testing, params ...PlasmaParam) *L2PlasmaDA {
 	alice := NewCrossLayerUser(log, dp.Secrets.Alice, rand.New(rand.NewSource(0xa57b)))
 	alice.L2.SetUserEnv(l2UserEnv)
 
-	contract, err := bindings.NewDataAvailabilityChallenge(sd.RollupCfg.PlasmaConfig.DAChallengeAddress, l1Client)
+	contract, err := bindings.NewDataAvailabilityChallenge(sd.RollupCfg.AltDAConfig.DAChallengeAddress, l1Client)
 	require.NoError(t, err)
 
 	challengeWindow, err := contract.ChallengeWindow(nil)
 	require.NoError(t, err)
-	require.Equal(t, plasmaCfg.ChallengeWindow, challengeWindow.Uint64())
+	require.Equal(t, altDACfg.ChallengeWindow, challengeWindow.Uint64())
 
 	resolveWindow, err := contract.ResolveWindow(nil)
 	require.NoError(t, err)
-	require.Equal(t, plasmaCfg.ResolveWindow, resolveWindow.Uint64())
+	require.Equal(t, altDACfg.ResolveWindow, resolveWindow.Uint64())
 
-	return &L2PlasmaDA{
+	return &L2AltDA{
 		log:       log,
 		storage:   storage,
 		daMgr:     daMgr,
-		plasmaCfg: plasmaCfg,
+		altDACfg:  altDACfg,
 		contract:  contract,
 		batcher:   batcher,
 		sequencer: sequencer,
@@ -126,25 +126,25 @@ func NewL2PlasmaDA(t Testing, params ...PlasmaParam) *L2PlasmaDA {
 	}
 }
 
-func (a *L2PlasmaDA) StorageClient() *plasma.DAErrFaker {
+func (a *L2AltDA) StorageClient() *altda.DAErrFaker {
 	return a.storage
 }
 
-func (a *L2PlasmaDA) NewVerifier(t Testing) *L2Verifier {
+func (a *L2AltDA) NewVerifier(t Testing) *L2Verifier {
 	jwtPath := e2eutils.WriteDefaultJWT(t)
 	engine := NewL2Engine(t, a.log, a.sd.L2Cfg, a.sd.RollupCfg.Genesis.L1, jwtPath)
 	engCl := engine.EngineClient(t, a.sd.RollupCfg)
 	l1F, err := sources.NewL1Client(a.miner.RPCClient(), a.log, nil, sources.L1ClientDefaultConfig(a.sd.RollupCfg, false, sources.RPCKindBasic))
 	require.NoError(t, err)
 
-	daMgr := plasma.NewPlasmaDAWithStorage(a.log, a.plasmaCfg, a.storage, &plasma.NoopMetrics{})
+	daMgr := altda.NewAltDAWithStorage(a.log, a.altDACfg, a.storage, &altda.NoopMetrics{})
 
 	verifier := NewL2Verifier(t, a.log, l1F, a.miner.BlobStore(), daMgr, engCl, a.sd.RollupCfg, &sync.Config{}, safedb.Disabled)
 
 	return verifier
 }
 
-func (a *L2PlasmaDA) ActSequencerIncludeTx(t Testing) {
+func (a *L2AltDA) ActSequencerIncludeTx(t Testing) {
 	a.alice.L2.ActResetTxOpts(t)
 	a.alice.L2.ActSetTxToAddr(&a.dp.Addresses.Bob)(t)
 	a.alice.L2.ActMakeTx(t)
@@ -156,7 +156,7 @@ func (a *L2PlasmaDA) ActSequencerIncludeTx(t Testing) {
 	a.sequencer.ActL2EndBlock(t)
 }
 
-func (a *L2PlasmaDA) ActNewL2Tx(t Testing) {
+func (a *L2AltDA) ActNewL2Tx(t Testing) {
 	a.ActSequencerIncludeTx(t)
 
 	a.batcher.ActL2BatchBuffer(t)
@@ -173,17 +173,17 @@ func (a *L2PlasmaDA) ActNewL2Tx(t Testing) {
 	a.lastCommBn = a.miner.l1Chain.CurrentBlock().Number.Uint64()
 }
 
-func (a *L2PlasmaDA) ActDeleteLastInput(t Testing) {
+func (a *L2AltDA) ActDeleteLastInput(t Testing) {
 	require.NoError(t, a.storage.Client.DeleteData(a.lastComm))
 }
 
-func (a *L2PlasmaDA) ActChallengeLastInput(t Testing) {
+func (a *L2AltDA) ActChallengeLastInput(t Testing) {
 	a.ActChallengeInput(t, a.lastComm, a.lastCommBn)
 
 	a.log.Info("challenged last input", "block", a.lastCommBn)
 }
 
-func (a *L2PlasmaDA) ActChallengeInput(t Testing, comm []byte, bn uint64) {
+func (a *L2AltDA) ActChallengeInput(t Testing, comm []byte, bn uint64) {
 	bondValue, err := a.contract.BondSize(&bind.CallOpts{})
 	require.NoError(t, err)
 
@@ -209,15 +209,15 @@ func (a *L2PlasmaDA) ActChallengeInput(t Testing, comm []byte, bn uint64) {
 	a.miner.ActL1EndBlock(t)
 }
 
-func (a *L2PlasmaDA) ActExpireLastInput(t Testing) {
-	reorgWindow := a.plasmaCfg.ResolveWindow + a.plasmaCfg.ChallengeWindow
+func (a *L2AltDA) ActExpireLastInput(t Testing) {
+	reorgWindow := a.altDACfg.ResolveWindow + a.altDACfg.ChallengeWindow
 	for a.miner.l1Chain.CurrentBlock().Number.Uint64() <= a.lastCommBn+reorgWindow {
 		a.miner.ActL1StartBlock(12)(t)
 		a.miner.ActL1EndBlock(t)
 	}
 }
 
-func (a *L2PlasmaDA) ActResolveInput(t Testing, comm []byte, input []byte, bn uint64) {
+func (a *L2AltDA) ActResolveInput(t Testing, comm []byte, input []byte, bn uint64) {
 	txOpts, err := bind.NewKeyedTransactorWithChainID(a.dp.Secrets.Alice, a.sd.L1Cfg.Config.ChainID)
 	require.NoError(t, err)
 
@@ -229,22 +229,22 @@ func (a *L2PlasmaDA) ActResolveInput(t Testing, comm []byte, input []byte, bn ui
 	a.miner.ActL1EndBlock(t)
 }
 
-func (a *L2PlasmaDA) ActResolveLastChallenge(t Testing) {
+func (a *L2AltDA) ActResolveLastChallenge(t Testing) {
 	// remove derivation byte prefix
-	input, err := a.storage.GetInput(t.Ctx(), plasma.Keccak256Commitment(a.lastComm[1:]))
+	input, err := a.storage.GetInput(t.Ctx(), altda.Keccak256Commitment(a.lastComm[1:]))
 	require.NoError(t, err)
 
 	a.ActResolveInput(t, a.lastComm, input, a.lastCommBn)
 }
 
-func (a *L2PlasmaDA) ActL1Blocks(t Testing, n uint64) {
+func (a *L2AltDA) ActL1Blocks(t Testing, n uint64) {
 	for i := uint64(0); i < n; i++ {
 		a.miner.ActL1StartBlock(12)(t)
 		a.miner.ActL1EndBlock(t)
 	}
 }
 
-func (a *L2PlasmaDA) GetLastTxBlock(t Testing) *types.Block {
+func (a *L2AltDA) GetLastTxBlock(t Testing) *types.Block {
 	rcpt, err := a.engine.EthClient().TransactionReceipt(t.Ctx(), a.alice.L2.lastTxHash)
 	require.NoError(t, err)
 	blk, err := a.engine.EthClient().BlockByHash(t.Ctx(), rcpt.BlockHash)
@@ -252,7 +252,7 @@ func (a *L2PlasmaDA) GetLastTxBlock(t Testing) *types.Block {
 	return blk
 }
 
-func (a *L2PlasmaDA) ActL1Finalized(t Testing) {
+func (a *L2AltDA) ActL1Finalized(t Testing) {
 	latest := a.miner.l1Chain.CurrentBlock().Number.Uint64()
 	a.miner.ActL1Safe(t, latest)
 	a.miner.ActL1Finalize(t, latest)
@@ -260,13 +260,13 @@ func (a *L2PlasmaDA) ActL1Finalized(t Testing) {
 }
 
 // Commitment is challenged but never resolved, chain reorgs when challenge window expires.
-func TestPlasma_ChallengeExpired(gt *testing.T) {
-	if !e2eutils.UsePlasma() {
-		gt.Skip("Plasma is not enabled")
+func TestAltDA_ChallengeExpired(gt *testing.T) {
+	if !e2eutils.UseAltDA() {
+		gt.Skip("AltDA is not enabled")
 	}
 
 	t := NewDefaultTesting(gt)
-	harness := NewL2PlasmaDA(t)
+	harness := NewL2AltDA(t)
 
 	// generate enough initial l1 blocks to have a finalized head.
 	harness.ActL1Blocks(t, 5)
@@ -288,7 +288,7 @@ func TestPlasma_ChallengeExpired(gt *testing.T) {
 	// catch up the sequencer derivation pipeline with the new l1 blocks.
 	harness.sequencer.ActL2PipelineFull(t)
 
-	// the L1 finalized signal should trigger plasma to finalize the engine queue.
+	// the L1 finalized signal should trigger altDA to finalize the engine queue.
 	harness.ActL1Finalized(t)
 
 	// move one more block for engine controller to update.
@@ -320,13 +320,13 @@ func TestPlasma_ChallengeExpired(gt *testing.T) {
 
 // Commitment is challenged after sequencer derived the chain but data disappears. A verifier
 // derivation pipeline stalls until the challenge is resolved and then resumes with data from the contract.
-func TestPlasma_ChallengeResolved(gt *testing.T) {
-	if !e2eutils.UsePlasma() {
-		gt.Skip("Plasma is not enabled")
+func TestAltDA_ChallengeResolved(gt *testing.T) {
+	if !e2eutils.UseAltDA() {
+		gt.Skip("AltDA is not enabled")
 	}
 
 	t := NewDefaultTesting(gt)
-	harness := NewL2PlasmaDA(t)
+	harness := NewL2AltDA(t)
 
 	// include a new l2 transaction, submitting an input commitment to the l1.
 	harness.ActNewL2Tx(t)
@@ -368,13 +368,13 @@ func TestPlasma_ChallengeResolved(gt *testing.T) {
 }
 
 // DA storage service goes offline while sequencer keeps making blocks. When storage comes back online, it should be able to catch up.
-func TestPlasma_StorageError(gt *testing.T) {
-	if !e2eutils.UsePlasma() {
-		gt.Skip("Plasma is not enabled")
+func TestAltDA_StorageError(gt *testing.T) {
+	if !e2eutils.UseAltDA() {
+		gt.Skip("AltDA is not enabled")
 	}
 
 	t := NewDefaultTesting(gt)
-	harness := NewL2PlasmaDA(t)
+	harness := NewL2AltDA(t)
 
 	// include a new l2 transaction, submitting an input commitment to the l1.
 	harness.ActNewL2Tx(t)
@@ -397,13 +397,13 @@ func TestPlasma_StorageError(gt *testing.T) {
 
 // L1 chain reorgs a resolved challenge so it expires instead causing
 // the l2 chain to reorg as well.
-func TestPlasma_ChallengeReorg(gt *testing.T) {
-	if !e2eutils.UsePlasma() {
-		gt.Skip("Plasma is not enabled")
+func TestAltDA_ChallengeReorg(gt *testing.T) {
+	if !e2eutils.UseAltDA() {
+		gt.Skip("AltDA is not enabled")
 	}
 
 	t := NewDefaultTesting(gt)
-	harness := NewL2PlasmaDA(t)
+	harness := NewL2AltDA(t)
 
 	// New L2 tx added to a batch and committed to L1
 	harness.ActNewL2Tx(t)
@@ -445,20 +445,20 @@ func TestPlasma_ChallengeReorg(gt *testing.T) {
 
 // Sequencer stalls as data is not available, batcher keeps posting, untracked commitments are
 // challenged and resolved, then sequencer resumes and catches up.
-func TestPlasma_SequencerStalledMultiChallenges(gt *testing.T) {
-	if !e2eutils.UsePlasma() {
-		gt.Skip("Plasma is not enabled")
+func TestAltDA_SequencerStalledMultiChallenges(gt *testing.T) {
+	if !e2eutils.UseAltDA() {
+		gt.Skip("AltDA is not enabled")
 	}
 
 	t := NewDefaultTesting(gt)
-	a := NewL2PlasmaDA(t)
+	a := NewL2AltDA(t)
 
 	// create a new tx on l2 and commit it to l1
 	a.ActNewL2Tx(t)
 
 	// keep track of the related commitment
 	comm1 := a.lastComm
-	input1, err := a.storage.GetInput(t.Ctx(), plasma.Keccak256Commitment(comm1[1:]))
+	input1, err := a.storage.GetInput(t.Ctx(), altda.Keccak256Commitment(comm1[1:]))
 	bn1 := a.lastCommBn
 	require.NoError(t, err)
 
@@ -507,7 +507,7 @@ func TestPlasma_SequencerStalledMultiChallenges(gt *testing.T) {
 
 	// keep track of the second commitment
 	comm2 := a.lastComm
-	_, err = a.storage.GetInput(t.Ctx(), plasma.Keccak256Commitment(comm2[1:]))
+	_, err = a.storage.GetInput(t.Ctx(), altda.Keccak256Commitment(comm2[1:]))
 	require.NoError(t, err)
 	a.lastCommBn = a.miner.l1Chain.CurrentBlock().Number.Uint64()
 
@@ -539,14 +539,14 @@ func TestPlasma_SequencerStalledMultiChallenges(gt *testing.T) {
 	require.Equal(t, unsafeBlk.Hash(), safeBlk.Hash())
 }
 
-// Verify that finalization happens based on plasma DA windows.
+// Verify that finalization happens based on altDA windows.
 // based on l2_batcher_test.go L2Finalization
-func TestPlasma_Finalization(gt *testing.T) {
-	if !e2eutils.UsePlasma() {
-		gt.Skip("Plasma is not enabled")
+func TestAltDA_Finalization(gt *testing.T) {
+	if !e2eutils.UseAltDA() {
+		gt.Skip("AltDA is not enabled")
 	}
 	t := NewDefaultTesting(gt)
-	a := NewL2PlasmaDA(t)
+	a := NewL2AltDA(t)
 
 	// build L1 block #1
 	a.ActL1Blocks(t, 1)
@@ -617,9 +617,9 @@ func TestPlasma_Finalization(gt *testing.T) {
 	require.Equal(t, uint64(0), a.sequencer.SyncStatus().FinalizedL2.Number)
 
 	// expire the challenge window so these blocks can no longer be challenged
-	a.ActL1Blocks(t, a.plasmaCfg.ChallengeWindow)
+	a.ActL1Blocks(t, a.altDACfg.ChallengeWindow)
 
-	// advance derivation and finalize plasma via the L1 signal
+	// advance derivation and finalize altDA via the L1 signal
 	a.sequencer.ActL2PipelineFull(t)
 	a.ActL1Finalized(t)
 	a.sequencer.ActL2PipelineFull(t) // finality event needs to be processed

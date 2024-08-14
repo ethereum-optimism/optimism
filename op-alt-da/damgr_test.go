@@ -1,4 +1,4 @@
-package plasma
+package altda
 
 import (
 	"context"
@@ -248,7 +248,7 @@ func TestAdvanceChallengeOrigin(t *testing.T) {
 
 	state := NewState(logger, &NoopMetrics{}, pcfg)
 
-	da := NewPlasmaDAWithState(logger, pcfg, storage, &NoopMetrics{}, state)
+	da := NewAltDAWithState(logger, pcfg, storage, &NoopMetrics{}, state)
 
 	receipts := types.Receipts{&types.Receipt{
 		Type:   2,

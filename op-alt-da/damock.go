@@ -1,4 +1,4 @@
-package plasma
+package altda
 
 import (
 	"context"
@@ -75,27 +75,27 @@ func (f *DAErrFaker) ActSetPreImageFail() {
 	f.setInputErr = errors.New("set input failed")
 }
 
-var Disabled = &PlasmaDisabled{}
+var Disabled = &AltDADisabled{}
 
-var ErrNotEnabled = errors.New("plasma not enabled")
+var ErrNotEnabled = errors.New("altDA not enabled")
 
-// PlasmaDisabled is a noop plasma DA implementation for stubbing.
-type PlasmaDisabled struct{}
+// AltDADisabled is a noop AltDA implementation for stubbing.
+type AltDADisabled struct{}
 
-func (d *PlasmaDisabled) GetInput(ctx context.Context, l1 L1Fetcher, commitment CommitmentData, blockId eth.L1BlockRef) (eth.Data, error) {
+func (d *AltDADisabled) GetInput(ctx context.Context, l1 L1Fetcher, commitment CommitmentData, blockId eth.L1BlockRef) (eth.Data, error) {
 	return nil, ErrNotEnabled
 }
 
-func (d *PlasmaDisabled) Reset(ctx context.Context, base eth.L1BlockRef, baseCfg eth.SystemConfig) error {
+func (d *AltDADisabled) Reset(ctx context.Context, base eth.L1BlockRef, baseCfg eth.SystemConfig) error {
 	return io.EOF
 }
 
-func (d *PlasmaDisabled) Finalize(ref eth.L1BlockRef) {
+func (d *AltDADisabled) Finalize(ref eth.L1BlockRef) {
 }
 
-func (d *PlasmaDisabled) OnFinalizedHeadSignal(f HeadSignalFn) {
+func (d *AltDADisabled) OnFinalizedHeadSignal(f HeadSignalFn) {
 }
 
-func (d *PlasmaDisabled) AdvanceL1Origin(ctx context.Context, l1 L1Fetcher, blockId eth.BlockID) error {
+func (d *AltDADisabled) AdvanceL1Origin(ctx context.Context, l1 L1Fetcher, blockId eth.BlockID) error {
 	return ErrNotEnabled
 }

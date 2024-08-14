@@ -65,7 +65,7 @@
   "disputeGameFinalityDelaySeconds": 6,
   "respectedGameType": 254,
   "useFaultProofs": true,
-  "usePlasma": false,
+  "useAltDA": false,
   "daCommitmentType": "KeccakCommitment",
   "daChallengeWindow": 16,
   "daResolveWindow": 16,

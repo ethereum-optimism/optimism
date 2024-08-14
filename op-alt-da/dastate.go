@@ -1,4 +1,4 @@
-package plasma
+package altda
 
 import (
 	"errors"
@@ -50,7 +50,7 @@ func challengeKey(comm CommitmentData, inclusionBlockNumber uint64) string {
 // When commitments are moved to Expired, if there is an active challenge, the DA Manager is informed that a commitment became invalid.
 // Challenges and Commitments can be pruned when they are beyond a certain block number (e.g. when they are finalized).
 // In the special case of a L2 reorg, challenges are still tracked but commitments are removed.
-// This will allow the plasma fetcher to find the expired challenge.
+// This will allow the altDA fetcher to find the expired challenge.
 type State struct {
 	commitments          []Commitment          // commitments where the challenge/resolve period has not expired yet
 	expiredCommitments   []Commitment          // commitments where the challenge/resolve period has expired but not finalized

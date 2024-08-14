@@ -2617,7 +2617,7 @@
         "chainId": 31337,
         "forkId": 0
       },
-      "data": "0x7277e7c9",
+      "data": "0x08e0e2bb",
       "deployedCode": "0x",
       "initialized": true,
       "kind": "StaticCall",

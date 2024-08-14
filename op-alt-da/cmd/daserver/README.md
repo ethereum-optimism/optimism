@@ -1,4 +1,4 @@
-# Plasma DA Server
+# AltDA Server
 
 ## Introduction
 

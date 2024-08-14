@@ -5,48 +5,48 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
-	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
-type PlasmaBackend interface {
-	// Finalize notifies the L1 finalized head so plasma finality is always behind L1.
+type AltDABackend interface {
+	// Finalize notifies the L1 finalized head so AltDA finality is always behind L1.
 	Finalize(ref eth.L1BlockRef)
 	// OnFinalizedHeadSignal sets the engine finalization signal callback.
-	OnFinalizedHeadSignal(f plasma.HeadSignalFn)
+	OnFinalizedHeadSignal(f altda.HeadSignalFn)
 }
 
-// PlasmaFinalizer is a special type of Finalizer, wrapping a regular Finalizer,
+// AltDAFinalizer is a special type of Finalizer, wrapping a regular Finalizer,
 // but overriding the finality signal handling:
-// it proxies L1 finality signals to the plasma backend,
+// it proxies L1 finality signals to the AltDA backend,
 // and relies on the backend to then signal when finality is really applicable.
-type PlasmaFinalizer struct {
+type AltDAFinalizer struct {
 	*Finalizer
-	backend PlasmaBackend
+	backend AltDABackend
 }
 
-func NewPlasmaFinalizer(ctx context.Context, log log.Logger, cfg *rollup.Config,
+func NewAltDAFinalizer(ctx context.Context, log log.Logger, cfg *rollup.Config,
 	l1Fetcher FinalizerL1Interface,
-	backend PlasmaBackend) *PlasmaFinalizer {
+	backend AltDABackend) *AltDAFinalizer {
 
 	inner := NewFinalizer(ctx, log, cfg, l1Fetcher)
 
-	// In alt-da mode, the finalization signal is proxied through the plasma manager.
+	// In alt-da mode, the finalization signal is proxied through the AltDA manager.
 	// Finality signal will come from the DA contract or L1 finality whichever is last.
-	// The plasma module will then call the inner.Finalize function when applicable.
+	// The AltDA module will then call the inner.Finalize function when applicable.
 	backend.OnFinalizedHeadSignal(func(ref eth.L1BlockRef) {
 		inner.OnEvent(FinalizeL1Event{FinalizedL1: ref})
 	})
 
-	return &PlasmaFinalizer{
+	return &AltDAFinalizer{
 		Finalizer: inner,
 		backend:   backend,
 	}
 }
 
-func (fi *PlasmaFinalizer) OnEvent(ev event.Event) bool {
+func (fi *AltDAFinalizer) OnEvent(ev event.Event) bool {
 	switch x := ev.(type) {
 	case FinalizeL1Event:
 		fi.backend.Finalize(x.FinalizedL1)
