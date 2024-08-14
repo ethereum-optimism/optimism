@@ -57,7 +57,7 @@ contract L2StandardBridgeInterop_Test is Bridge_Initializer {
     }
 
     /// @notice Assume a valid address for fuzzing
-    function _assumeAddress(address _address) internal {
+    function _assumeAddress(address _address) internal view {
         vm.assume(
             _address.code.length == 0 // No accounts with code
                 && _address != CONSOLE // The console has no code but behaves like a contract
