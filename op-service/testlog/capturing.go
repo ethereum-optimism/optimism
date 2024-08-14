@@ -17,20 +17,13 @@ type CapturedAttributes struct {
 // Attrs calls f on each Attr in the [CapturedAttributes].
 // Iteration stops if f returns false.
 func (r *CapturedAttributes) Attrs(f func(slog.Attr) bool) {
-	searching := true
-	if r.Parent != nil {
-		r.Parent.Attrs(func(a slog.Attr) bool {
-			searching = f(a)
-			return searching
-		})
-	}
-	if !searching { // if the parent attributes context traversal found it already, then don't traverse the remainder
-		return
-	}
 	for _, a := range r.Attributes {
 		if !f(a) {
 			return
 		}
+	}
+	if r.Parent != nil {
+		r.Parent.Attrs(f)
 	}
 }
 
@@ -45,16 +38,16 @@ type CapturedRecord struct {
 // Iteration stops if f returns false.
 func (r *CapturedRecord) Attrs(f func(slog.Attr) bool) {
 	searching := true
-	if r.Parent != nil {
-		r.Parent.Attrs(func(a slog.Attr) bool {
-			searching = f(a)
-			return searching
-		})
-	}
-	if !searching { // if the parent attributes context traversal found it already, then don't traverse the remainder
+	r.Record.Attrs(func(a slog.Attr) bool {
+		searching = f(a)
+		return searching
+	})
+	if !searching { // if we found it already, then don't traverse the remainder
 		return
 	}
-	r.Record.Attrs(f)
+	if r.Parent != nil {
+		r.Parent.Attrs(f)
+	}
 }
 
 // CapturingHandler provides a log handler that captures all log records and optionally forwards them to a delegate.
