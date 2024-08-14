@@ -59,7 +59,7 @@ func (co *SpanChannelOut) setRandomID() error {
 
 type SpanChannelOutOption func(co *SpanChannelOut)
 
-func SCOWithMaxBlocksPerSpanBatch(maxBlock int) SpanChannelOutOption {
+func WithMaxBlocksPerSpanBatch(maxBlock int) SpanChannelOutOption {
 	return func(co *SpanChannelOut) {
 		co.maxBlocksPerSpanBatch = maxBlock
 	}
@@ -197,7 +197,7 @@ func (co *SpanChannelOut) AddSingularBatch(batch *SingularBatch, seqNum uint64) 
 
 	// if the channel is now full, either return the compressed data, or the compressed previous data
 	if err := co.FullErr(); err != nil {
-		// if it's the first batch of the channel, it *must* fit in
+		// if it's the first singular batch/block of the channel, it *must* fit in
 		if co.sealedRLPBytes == 0 && co.spanBatch.GetBlockCount() == 1 {
 			return nil
 		}

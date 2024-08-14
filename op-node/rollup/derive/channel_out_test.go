@@ -410,7 +410,7 @@ func TestSpanChannelOut_MaxBlocksPerSpanBatch(t *testing.T) {
 func testSpanChannelOut_MaxBlocksPerSpanBatch(t *testing.T, tt maxBlocksTest) {
 	l1Origin := eth.L1BlockRef{Number: rollupCfg.Genesis.L1.Number + 42_000, Hash: common.Hash{0xde, 0xad, 0x42}}
 	l2SafeHead := eth.L2BlockRef{Number: rollupCfg.Genesis.L2Time + 40_000}
-	cout, bs := SpanChannelAndBatches(t, tt.outputSize, tt.numBatches, Brotli, SCOWithMaxBlocksPerSpanBatch(tt.maxBlocks))
+	cout, bs := SpanChannelAndBatches(t, tt.outputSize, tt.numBatches, Brotli, WithMaxBlocksPerSpanBatch(tt.maxBlocks))
 	for i, b := range bs {
 		b.EpochNum = rollup.Epoch(l1Origin.Number)
 		b.EpochHash = l1Origin.Hash

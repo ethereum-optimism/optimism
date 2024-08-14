@@ -291,7 +291,7 @@ type SystemConfig struct {
 	// Singular (0) or span batches (1)
 	BatcherBatchType uint
 
-	// If 0, limits the number of blocks per span batch
+	// If >0, limits the number of blocks per span batch
 	BatcherMaxBlocksPerSpanBatch int
 
 	// SupportL1TimeTravel determines if the L1 node supports quickly skipping forward in time

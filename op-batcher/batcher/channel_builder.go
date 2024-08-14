@@ -97,7 +97,7 @@ func NewChannelBuilder(cfg ChannelConfig, rollupCfg rollup.Config, latestL1Origi
 		co, err = derive.NewSpanChannelOut(
 			rollupCfg.Genesis.L2Time, rollupCfg.L2ChainID,
 			cfg.CompressorConfig.TargetOutputSize, cfg.CompressorConfig.CompressionAlgo,
-			chainSpec, derive.SCOWithMaxBlocksPerSpanBatch(cfg.MaxBlocksPerSpanBatch))
+			chainSpec, derive.WithMaxBlocksPerSpanBatch(cfg.MaxBlocksPerSpanBatch))
 	} else {
 		co, err = derive.NewSingularChannelOut(c, chainSpec)
 	}
