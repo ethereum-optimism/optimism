@@ -60,7 +60,6 @@ func OpenDecompressed(path string) (io.ReadCloser, error) {
 
 // OpenCompressed opens a file for writing and automatically compresses the content if the filename ends with .gz
 func OpenCompressed(file string, flag int, perm os.FileMode) (io.WriteCloser, error) {
-	var out io.WriteCloser
 	out, err := os.OpenFile(file, flag, perm)
 	if err != nil {
 		return nil, err
