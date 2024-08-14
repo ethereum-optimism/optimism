@@ -38,7 +38,7 @@ contract DeploySuperchain is Script {
         Input memory _input = parseInputFile(_infile);
         output_ = runWithoutIO(_input);
         outfile_ = writeOutputFile(_infile, _input, output_);
-        require(false, "run is not implemented");
+        require(false, "DeploySuperchain: run is not implemented");
     }
 
     /// @notice This entrypoint is useful for e2e testing purposes, and doesn't use any file I/O.
@@ -113,7 +113,7 @@ contract DeploySuperchain is Script {
     function parseInputFile(string memory _infile) public pure returns (Input memory input_) {
         _infile;
         input_;
-        require(false, "parseInputFile is not implemented");
+        require(false, "DeploySuperchain: parseInputFile is not implemented");
     }
 
     /// @notice Writes an output file, where the filename is based on the input filename, e.g. an input file of
@@ -131,6 +131,6 @@ contract DeploySuperchain is Script {
         _input;
         _output;
         outfile_;
-        require(false, "writeOutputFile not implemented");
+        require(false, "DeploySuperchain: writeOutputFile not implemented");
     }
 }
