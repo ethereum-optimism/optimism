@@ -4,14 +4,19 @@ on:
 jobs:
   handle-proof-runner:
     runs-on: ubuntu-latest
+    if: >-
+      github.event.state == 'error' ||
+      github.event.state == 'failure'
     steps:
     - name: Generate Slack Payload
       run: |
-        echo '{"Check Status": "${{ github.event.state }}"}' > payload.json
-
+        echo '{
+          "Kontrol Status": "${{ github.event.state }}",
+          "CI Run Link": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        }' > payload.json
     - name: Send Status Check to Slack
       uses: slackapi/slack-github-action@v1.26.0
       with:
         payload-file-path: "./payload.json"
       env:
-        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_KONTROL_WEBHOOK_URL }}
