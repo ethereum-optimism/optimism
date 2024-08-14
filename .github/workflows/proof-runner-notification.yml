@@ -12,7 +12,7 @@ jobs:
       run: |
         echo '{
           "Kontrol Status": "${{ github.event.state }}",
-          "CI Run Link": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          "CI Run Link": "${{ github.event.target_url }}"
         }' > payload.json
     - name: Send Status Check to Slack
       uses: slackapi/slack-github-action@v1.26.0
