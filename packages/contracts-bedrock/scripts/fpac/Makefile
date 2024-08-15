@@ -28,4 +28,4 @@ deploy-fresh: cannon-prestate # Deploy a fresh version of the FPAC contracts. Pa
 # TODO: Convert this whole file to a justfile
 .PHONY: deploy-upgrade
 deploy-upgrade: cannon-prestate # Deploy upgraded FP contracts. Pass `--broadcast` to send to the network.
-	forge script FPACOPS2.s.sol --sig "deployFPAC2(address,address,address,address)" $(proxy-admin) $(system-owner-safe) $(superchain-config-proxy) $(dispute-game-factory-proxy) --chain $(chain) -vvv $(args)
+	forge script FPACOPS2.s.sol --sig "deployFPAC2(address,address,address,address,address)" $(proxy-admin) $(system-owner-safe) $(superchain-config-proxy) $(dispute-game-factory-proxy) $(anchor-state-registry-proxy) --chain $(chain) -vvv $(args)

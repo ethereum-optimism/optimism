@@ -18,18 +18,21 @@ contract FPACOPS2 is Deploy, StdAssertions {
     //                        ENTRYPOINTS                         //
     ////////////////////////////////////////////////////////////////
 
-    /// @notice Deploys an updated FP system with new FaultDisputeGame contracts, new DelayedWETH,
-    ///         and a new AnchorStateRegistry. Does not deploy a new DisputeGameFactory. System
-    ///         Owner is responsible for updating implementations inside of DGF later.
+    /// @notice Deploys an updated FP system with new FaultDisputeGame contracts and new
+    ///         DelayedWETH contracts. Deploys a new implementation of the
+    ///         AnchorStateRegistry. Does not deploy a new DisputeGameFactory. System
+    ///         Owner is responsible for updating implementations later.
     /// @param _proxyAdmin Address of the ProxyAdmin contract to transfer ownership to.
     /// @param _systemOwnerSafe Address of the SystemOwner.
     /// @param _superchainConfigProxy Address of the SuperchainConfig proxy contract.
     /// @param _disputeGameFactoryProxy Address of the DisputeGameFactory proxy contract.
+    /// @param _anchorStateRegistryProxy Address of the AnchorStateRegistry proxy contract.
     function deployFPAC2(
         address _proxyAdmin,
         address _systemOwnerSafe,
         address _superchainConfigProxy,
-        address _disputeGameFactoryProxy
+        address _disputeGameFactoryProxy,
+        address _anchorStateRegistryProxy
     )
         public
     {
@@ -40,11 +43,11 @@ contract FPACOPS2 is Deploy, StdAssertions {
         prankDeployment("SystemOwnerSafe", msg.sender);
         prankDeployment("SuperchainConfigProxy", _superchainConfigProxy);
         prankDeployment("DisputeGameFactoryProxy", _disputeGameFactoryProxy);
+        prankDeployment("AnchorStateRegistryProxy", _anchorStateRegistryProxy);
 
         // Deploy the proxies.
         deployERC1967Proxy("DelayedWETHProxy");
         deployERC1967Proxy("PermissionedDelayedWETHProxy");
-        deployERC1967Proxy("AnchorStateRegistryProxy");
 
         // Deploy implementations.
         deployDelayedWETH();
@@ -55,16 +58,14 @@ contract FPACOPS2 is Deploy, StdAssertions {
         // Initialize the proxies.
         initializeDelayedWETHProxy();
         initializePermissionedDelayedWETHProxy();
-        initializeAnchorStateRegistryProxy();
 
         // Deploy the new game implementations.
         deployCannonDisputeGame();
         deployPermissionedDisputeGame();
 
-        // Transfer ownership of DelayedWETH and AnchorStateRegistry to ProxyAdmin.
+        // Transfer ownership of DelayedWETH to ProxyAdmin.
         transferWethOwnershipFinal({ _proxyAdmin: _proxyAdmin, _systemOwnerSafe: _systemOwnerSafe });
         transferPermissionedWETHOwnershipFinal({ _proxyAdmin: _proxyAdmin, _systemOwnerSafe: _systemOwnerSafe });
-        transferAnchorStateOwnershipFinal({ _proxyAdmin: _proxyAdmin });
 
         // Run post-deployment assertions.
         postDeployAssertions({ _proxyAdmin: _proxyAdmin, _systemOwnerSafe: _systemOwnerSafe });
@@ -149,34 +150,6 @@ contract FPACOPS2 is Deploy, StdAssertions {
         );
     }
 
-    /// @notice Initializes the AnchorStateRegistry proxy.
-    function initializeAnchorStateRegistryProxy() internal broadcast {
-        console.log("Initializing AnchorStateRegistryProxy with AnchorStateRegistry.");
-
-        AnchorStateRegistry.StartingAnchorRoot[] memory roots = new AnchorStateRegistry.StartingAnchorRoot[](2);
-        roots[0] = AnchorStateRegistry.StartingAnchorRoot({
-            gameType: GameTypes.CANNON,
-            outputRoot: OutputRoot({
-                root: Hash.wrap(cfg.faultGameGenesisOutputRoot()),
-                l2BlockNumber: cfg.faultGameGenesisBlock()
-            })
-        });
-        roots[1] = AnchorStateRegistry.StartingAnchorRoot({
-            gameType: GameTypes.PERMISSIONED_CANNON,
-            outputRoot: OutputRoot({
-                root: Hash.wrap(cfg.faultGameGenesisOutputRoot()),
-                l2BlockNumber: cfg.faultGameGenesisBlock()
-            })
-        });
-
-        address asrProxy = mustGetAddress("AnchorStateRegistryProxy");
-        address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
-        Proxy(payable(asrProxy)).upgradeToAndCall(
-            mustGetAddress("AnchorStateRegistry"),
-            abi.encodeCall(AnchorStateRegistry.initialize, (roots, SuperchainConfig(superchainConfigProxy)))
-        );
-    }
-
     /// @notice Transfers admin rights of the `DelayedWETHProxy` to the `ProxyAdmin` and sets the
     ///         `DelayedWETH` owner to the `SystemOwnerSafe`.
     function transferWethOwnershipFinal(address _proxyAdmin, address _systemOwnerSafe) internal broadcast {
@@ -204,17 +177,6 @@ contract FPACOPS2 is Deploy, StdAssertions {
 
         // Transfer the admin rights of the DelayedWETHProxy to the ProxyAdmin.
         Proxy prox = Proxy(payable(address(weth)));
-        prox.changeAdmin(_proxyAdmin);
-    }
-
-    /// @notice Transfers admin rights of the `AnchorStateRegistryProxy` to the `ProxyAdmin`.
-    function transferAnchorStateOwnershipFinal(address _proxyAdmin) internal broadcast {
-        console.log("Transferring ownership of AnchorStateRegistry");
-
-        AnchorStateRegistry asr = AnchorStateRegistry(mustGetAddress("AnchorStateRegistryProxy"));
-
-        // Transfer the admin rights of the AnchorStateRegistryProxy to the ProxyAdmin.
-        Proxy prox = Proxy(payable(address(asr)));
         prox.changeAdmin(_proxyAdmin);
     }
 
@@ -251,14 +213,8 @@ contract FPACOPS2 is Deploy, StdAssertions {
         MIPS mips = MIPS(mustGetAddress("Mips"));
         assertEq(address(mips.oracle()), address(oracle));
 
-        // Verify AnchorStateRegistry configuration.
+        // Grab ASR
         AnchorStateRegistry asr = AnchorStateRegistry(mustGetAddress("AnchorStateRegistryProxy"));
-        (Hash root1, uint256 l2BlockNumber1) = asr.anchors(GameTypes.CANNON);
-        (Hash root2, uint256 l2BlockNumber2) = asr.anchors(GameTypes.PERMISSIONED_CANNON);
-        assertEq(root1.raw(), cfg.faultGameGenesisOutputRoot());
-        assertEq(root2.raw(), cfg.faultGameGenesisOutputRoot());
-        assertEq(l2BlockNumber1, cfg.faultGameGenesisBlock());
-        assertEq(l2BlockNumber2, cfg.faultGameGenesisBlock());
 
         // Verify FaultDisputeGame configuration.
         address gameAddr = mustGetAddress("CannonFaultDisputeGame");
