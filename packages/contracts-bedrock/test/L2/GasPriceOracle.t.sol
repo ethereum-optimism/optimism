@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 // Testing utilities
 import { CommonTest } from "test/setup/CommonTest.sol";
-import { Fork } from "scripts/Config.sol";
+import { Fork } from "scripts/libraries/Config.sol";
 
 // Libraries
 import { Encoding } from "src/libraries/Encoding.sol";

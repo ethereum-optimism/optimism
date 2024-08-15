@@ -14,10 +14,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -47,7 +47,7 @@ type TestParams struct {
 	SequencerWindowSize uint64
 	ChannelTimeout      uint64
 	L1BlockTime         uint64
-	UsePlasma           bool
+	UseAltDA            bool
 }
 
 func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
@@ -62,7 +62,7 @@ func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
 	deployConfig.ChannelTimeoutBedrock = tp.ChannelTimeout
 	deployConfig.ChannelTimeoutGranite = tp.ChannelTimeout
 	deployConfig.L1BlockTime = tp.L1BlockTime
-	deployConfig.UsePlasma = tp.UsePlasma
+	deployConfig.UseAltDA = tp.UseAltDA
 	ApplyDeployConfigForks(deployConfig)
 
 	logger := log.NewLogger(log.DiscardHandler())
@@ -148,13 +148,13 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		l2Genesis.Alloc[addr] = val
 	}
 
-	var pcfg *rollup.PlasmaConfig
-	if deployConf.UsePlasma {
-		pcfg = &rollup.PlasmaConfig{
+	var pcfg *rollup.AltDAConfig
+	if deployConf.UseAltDA {
+		pcfg = &rollup.AltDAConfig{
 			DAChallengeAddress: l1Deployments.DataAvailabilityChallengeProxy,
 			DAChallengeWindow:  deployConf.DAChallengeWindow,
 			DAResolveWindow:    deployConf.DAResolveWindow,
-			CommitmentType:     plasma.KeccakCommitmentString,
+			CommitmentType:     altda.KeccakCommitmentString,
 		}
 	}
 
@@ -188,7 +188,7 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		FjordTime:              deployConf.FjordTime(uint64(deployConf.L1GenesisBlockTimestamp)),
 		GraniteTime:            deployConf.GraniteTime(uint64(deployConf.L1GenesisBlockTimestamp)),
 		InteropTime:            deployConf.InteropTime(uint64(deployConf.L1GenesisBlockTimestamp)),
-		PlasmaConfig:           pcfg,
+		AltDAConfig:            pcfg,
 	}
 
 	require.NoError(t, rollupCfg.Check())
@@ -247,7 +247,7 @@ func UseL2OO() bool {
 		os.Getenv("DEVNET_L2OO") == "true")
 }
 
-func UsePlasma() bool {
-	return (os.Getenv("OP_E2E_USE_PLASMA") == "true" ||
-		os.Getenv("DEVNET_PLASMA") == "true")
+func UseAltDA() bool {
+	return (os.Getenv("OP_E2E_USE_ALTDA") == "true" ||
+		os.Getenv("DEVNET_ALTDA") == "true")
 }

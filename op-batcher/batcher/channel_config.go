@@ -29,6 +29,9 @@ type ChannelConfig struct {
 	SubSafetyMargin uint64
 	// The maximum byte-size a frame can have.
 	MaxFrameSize uint64
+	// MaxBlocksPerSpanBatch is the maximum number of blocks to add to a span batch.
+	// A value of 0 disables a maximum.
+	MaxBlocksPerSpanBatch int
 
 	// Target number of frames to create per channel.
 	// For blob transactions, this controls the number of blobs to target adding

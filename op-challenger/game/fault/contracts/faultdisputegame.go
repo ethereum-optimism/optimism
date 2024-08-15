@@ -307,7 +307,7 @@ func (f *FaultDisputeGameContractLatest) ClaimCreditTx(ctx context.Context, reci
 	call := f.contract.Call(methodClaimCredit, recipient)
 	_, err := f.multiCaller.SingleCall(ctx, rpcblock.Latest, call)
 	if err != nil {
-		return txmgr.TxCandidate{}, fmt.Errorf("%w: %v", ErrSimulationFailed, err.Error())
+		return txmgr.TxCandidate{}, fmt.Errorf("%w: %w", ErrSimulationFailed, err)
 	}
 	return call.ToTxCandidate()
 }

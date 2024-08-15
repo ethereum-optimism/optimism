@@ -16,7 +16,8 @@ import (
 // RandomL2Block returns a random block whose first transaction is a random pre-Ecotone upgrade
 // L1 Info Deposit transaction.
 func RandomL2Block(rng *rand.Rand, txCount int, t time.Time) (*types.Block, []*types.Receipt) {
-	l1Block := types.NewBlock(testutils.RandomHeader(rng), nil, nil, nil, trie.NewStackTrie(nil))
+	body := types.Body{}
+	l1Block := types.NewBlock(testutils.RandomHeader(rng), &body, nil, trie.NewStackTrie(nil))
 	rollupCfg := rollup.Config{}
 	if testutils.RandomBool(rng) {
 		t := uint64(0)
@@ -45,5 +46,5 @@ func RandomL2BlockWithChainIdAndTime(rng *rand.Rand, txCount int, chainId *big.I
 	for i := 0; i < txCount; i++ {
 		txs = append(txs, testutils.RandomTx(rng, big.NewInt(int64(rng.Uint32())), signer))
 	}
-	return block.WithBody(txs, nil)
+	return block.WithBody(types.Body{Transactions: txs})
 }

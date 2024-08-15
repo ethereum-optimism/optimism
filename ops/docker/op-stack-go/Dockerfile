@@ -98,7 +98,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build cd op-conductor && make op-c
   GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE  VERSION="$OP_CONDUCTOR_VERSION"
 
 FROM --platform=$BUILDPLATFORM builder AS da-server-builder
-RUN --mount=type=cache,target=/root/.cache/go-build cd op-plasma && make da-server  \
+RUN --mount=type=cache,target=/root/.cache/go-build cd op-alt-da && make da-server  \
   GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE
 
 FROM --platform=$BUILDPLATFORM builder AS op-supervisor-builder
@@ -153,7 +153,7 @@ COPY --from=op-conductor-builder /app/op-conductor/bin/op-conductor /usr/local/b
 CMD ["op-conductor"]
 
 FROM --platform=$TARGETPLATFORM $TARGET_BASE_IMAGE AS da-server-target
-COPY --from=da-server-builder /app/op-plasma/bin/da-server /usr/local/bin/
+COPY --from=da-server-builder /app/op-alt-da/bin/da-server /usr/local/bin/
 CMD ["da-server"]
 
 FROM --platform=$TARGETPLATFORM $TARGET_BASE_IMAGE AS op-supervisor-target

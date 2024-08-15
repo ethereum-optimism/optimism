@@ -153,9 +153,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 3.11.0-beta.1
+    /// @custom:semver 3.11.0-beta.2
     function version() public pure virtual returns (string memory) {
-        return "3.11.0-beta.1";
+        return "3.11.0-beta.2";
     }
 
     /// @notice Constructs the OptimismPortal contract.
@@ -300,23 +300,17 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         Claim outputRoot = gameProxy.rootClaim();
 
         // The game type of the dispute game must be the respected game type.
-        require(gameType.raw() == respectedGameType.raw(), "OptimismPortal: invalid game type");
+        if (gameType.raw() != respectedGameType.raw()) revert InvalidGameType();
 
         // Verify that the output root can be generated with the elements in the proof.
-        require(
-            outputRoot.raw() == Hashing.hashOutputRootProof(_outputRootProof),
-            "OptimismPortal: invalid output root proof"
-        );
+        if (outputRoot.raw() != Hashing.hashOutputRootProof(_outputRootProof)) revert InvalidProof();
 
         // Load the ProvenWithdrawal into memory, using the withdrawal hash as a unique identifier.
         bytes32 withdrawalHash = Hashing.hashWithdrawal(_tx);
 
         // We do not allow for proving withdrawals against dispute games that have resolved against the favor
         // of the root claim.
-        require(
-            gameProxy.status() != GameStatus.CHALLENGER_WINS,
-            "OptimismPortal: cannot prove against invalid dispute games"
-        );
+        if (gameProxy.status() == GameStatus.CHALLENGER_WINS) revert InvalidDisputeGame();
 
         // Compute the storage slot of the withdrawal hash in the L2ToL1MessagePasser contract.
         // Refer to the Solidity documentation for more information on how storage layouts are
@@ -332,15 +326,14 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         // on L2. If this is true, under the assumption that the SecureMerkleTrie does not have
         // bugs, then we know that this withdrawal was actually triggered on L2 and can therefore
         // be relayed on L1.
-        require(
+        if (
             SecureMerkleTrie.verifyInclusionProof({
                 _key: abi.encode(storageKey),
                 _value: hex"01",
                 _proof: _withdrawalProof,
                 _root: _outputRootProof.messagePasserStorageRoot
-            }),
-            "OptimismPortal: invalid withdrawal inclusion proof"
-        );
+            }) == false
+        ) revert InvalidMerkleProof();
 
         // Designate the withdrawalHash as proven by storing the `disputeGameProxy` & `timestamp` in the
         // `provenWithdrawals` mapping. A `withdrawalHash` can only be proven once unless the dispute game it proved
@@ -631,15 +624,12 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         IDisputeGame disputeGameProxy = provenWithdrawal.disputeGameProxy;
 
         // The dispute game must not be blacklisted.
-        require(!disputeGameBlacklist[disputeGameProxy], "OptimismPortal: dispute game has been blacklisted");
+        if (disputeGameBlacklist[disputeGameProxy]) revert Blacklisted();
 
         // A withdrawal can only be finalized if it has been proven. We know that a withdrawal has
         // been proven at least once when its timestamp is non-zero. Unproven withdrawals will have
         // a timestamp of zero.
-        require(
-            provenWithdrawal.timestamp != 0,
-            "OptimismPortal: withdrawal has not been proven by proof submitter address yet"
-        );
+        if (provenWithdrawal.timestamp == 0) revert Unproven();
 
         uint64 createdAt = disputeGameProxy.createdAt().raw();
 
@@ -660,15 +650,12 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         // A proven withdrawal must wait until the dispute game it was proven against has been
         // resolved in favor of the root claim (the output proposal). This is to prevent users
         // from finalizing withdrawals proven against non-finalized output roots.
-        require(
-            disputeGameProxy.status() == GameStatus.DEFENDER_WINS,
-            "OptimismPortal: output proposal has not been validated"
-        );
+        if (disputeGameProxy.status() != GameStatus.DEFENDER_WINS) revert ProposalNotValidated();
 
         // The game type of the dispute game must be the respected game type. This was also checked in
         // `proveWithdrawalTransaction`, but we check it again in case the respected game type has changed since
         // the withdrawal was proven.
-        require(disputeGameProxy.gameType().raw() == respectedGameType.raw(), "OptimismPortal: invalid game type");
+        if (disputeGameProxy.gameType().raw() != respectedGameType.raw()) revert InvalidGameType();
 
         // The game must have been created after `respectedGameTypeUpdatedAt`. This is to prevent users from creating
         // invalid disputes against a deployed game type while the off-chain challenge agents are not watching.
@@ -686,7 +673,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         );
 
         // Check that this withdrawal has not already been finalized, this is replay protection.
-        require(!finalizedWithdrawals[_withdrawalHash], "OptimismPortal: withdrawal has already been finalized");
+        if (finalizedWithdrawals[_withdrawalHash]) revert AlreadyFinalized();
     }
 
     /// @notice External getter for the number of proof submitters for a withdrawal hash.

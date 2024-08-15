@@ -39,3 +39,7 @@ func (p *AsteriscPreStateProvider) AbsolutePreStateCommitment(_ context.Context)
 	p.prestateCommitment = state.StateHash
 	return state.StateHash, nil
 }
+
+func (p *AsteriscPreStateProvider) PrestatePath() string {
+	return p.prestate
+}

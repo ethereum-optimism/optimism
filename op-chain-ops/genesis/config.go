@@ -17,8 +17,8 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -491,10 +491,10 @@ func (d *L2CoreDeployConfig) Check(log log.Logger) error {
 	return nil
 }
 
-// PlasmaDeployConfig configures optional Alt-DA and Plasma functionality.
-type PlasmaDeployConfig struct {
-	// UsePlasma is a flag that indicates if the system is using op-plasma
-	UsePlasma bool `json:"usePlasma"`
+// AltDADeployConfig configures optional AltDA functionality.
+type AltDADeployConfig struct {
+	// UseAltDA is a flag that indicates if the system is using op-alt-da
+	UseAltDA bool `json:"useAltDA"`
 	// DACommitmentType specifies the allowed commitment
 	DACommitmentType string `json:"daCommitmentType"`
 	// DAChallengeWindow represents the block interval during which the availability of a data commitment can be challenged.
@@ -508,15 +508,15 @@ type PlasmaDeployConfig struct {
 	DAResolverRefundPercentage uint64 `json:"daResolverRefundPercentage"`
 }
 
-var _ ConfigChecker = (*PlasmaDeployConfig)(nil)
+var _ ConfigChecker = (*AltDADeployConfig)(nil)
 
-func (d *PlasmaDeployConfig) Check(log log.Logger) error {
-	if d.UsePlasma {
-		if !(d.DACommitmentType == plasma.KeccakCommitmentString || d.DACommitmentType == plasma.GenericCommitmentString) {
+func (d *AltDADeployConfig) Check(log log.Logger) error {
+	if d.UseAltDA {
+		if !(d.DACommitmentType == altda.KeccakCommitmentString || d.DACommitmentType == altda.GenericCommitmentString) {
 			return fmt.Errorf("%w: DACommitmentType must be either KeccakCommitment or GenericCommitment", ErrInvalidDeployConfig)
 		}
 		// only enforce challenge and resolve window if using alt-da mode with Keccak Commitments
-		if d.DACommitmentType != plasma.GenericCommitmentString {
+		if d.DACommitmentType != altda.GenericCommitmentString {
 			if d.DAChallengeWindow == 0 {
 				return fmt.Errorf("%w: DAChallengeWindow cannot be 0 when using alt-da mode with Keccak Commitments", ErrInvalidDeployConfig)
 			}
@@ -542,7 +542,7 @@ type L2InitializationConfig struct {
 	EIP1559DeployConfig
 	UpgradeScheduleDeployConfig
 	L2CoreDeployConfig
-	PlasmaDeployConfig
+	AltDADeployConfig
 }
 
 func (d *L2InitializationConfig) Check(log log.Logger) error {
@@ -719,7 +719,7 @@ type L1DependenciesConfig struct {
 // DependencyContext is the contextual configuration needed to verify the L1 dependencies,
 // used by DeployConfig.CheckAddresses.
 type DependencyContext struct {
-	UsePlasma        bool
+	UseAltDA         bool
 	DACommitmentType string
 }
 
@@ -740,9 +740,9 @@ func (d *L1DependenciesConfig) CheckAddresses(dependencyContext DependencyContex
 		return fmt.Errorf("%w: OptimismPortalProxy cannot be address(0)", ErrInvalidDeployConfig)
 	}
 
-	if dependencyContext.UsePlasma && dependencyContext.DACommitmentType == plasma.KeccakCommitmentString && d.DAChallengeProxy == (common.Address{}) {
+	if dependencyContext.UseAltDA && dependencyContext.DACommitmentType == altda.KeccakCommitmentString && d.DAChallengeProxy == (common.Address{}) {
 		return fmt.Errorf("%w: DAChallengeContract cannot be address(0) when using alt-da mode", ErrInvalidDeployConfig)
-	} else if dependencyContext.UsePlasma && dependencyContext.DACommitmentType == plasma.GenericCommitmentString && d.DAChallengeProxy != (common.Address{}) {
+	} else if dependencyContext.UseAltDA && dependencyContext.DACommitmentType == altda.GenericCommitmentString && d.DAChallengeProxy != (common.Address{}) {
 		return fmt.Errorf("%w: DAChallengeContract must be address(0) when using generic commitments in alt-da mode", ErrInvalidDeployConfig)
 	}
 	return nil
@@ -834,7 +834,7 @@ func (d *DeployConfig) Check(log log.Logger) error {
 // circular dependency that should be resolved in the future.
 func (d *DeployConfig) CheckAddresses() error {
 	return d.L1DependenciesConfig.CheckAddresses(DependencyContext{
-		UsePlasma:        d.UsePlasma,
+		UseAltDA:         d.UseAltDA,
 		DACommitmentType: d.DACommitmentType,
 	})
 }
@@ -858,9 +858,9 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 	if d.SystemConfigProxy == (common.Address{}) {
 		return nil, errors.New("SystemConfigProxy cannot be address(0)")
 	}
-	var plasma *rollup.PlasmaConfig
-	if d.UsePlasma {
-		plasma = &rollup.PlasmaConfig{
+	var altDA *rollup.AltDAConfig
+	if d.UseAltDA {
+		altDA = &rollup.AltDAConfig{
 			CommitmentType:     d.DACommitmentType,
 			DAChallengeAddress: d.DAChallengeProxy,
 			DAChallengeWindow:  d.DAChallengeWindow,
@@ -903,7 +903,7 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 		FjordTime:              d.FjordTime(l1StartBlock.Time()),
 		GraniteTime:            d.GraniteTime(l1StartBlock.Time()),
 		InteropTime:            d.InteropTime(l1StartBlock.Time()),
-		PlasmaConfig:           plasma,
+		AltDAConfig:            altDA,
 	}, nil
 }
 
@@ -987,7 +987,7 @@ func (d *L1Deployments) Check(deployConfig *DeployConfig) error {
 				name == "DisputeGameFactoryProxy") {
 			continue
 		}
-		if !deployConfig.UsePlasma &&
+		if !deployConfig.UseAltDA &&
 			(name == "DataAvailabilityChallenge" ||
 				name == "DataAvailabilityChallengeProxy") {
 			continue

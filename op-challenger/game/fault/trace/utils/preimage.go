@@ -89,7 +89,8 @@ func (l *PreimageLoader) loadBlobPreimage(proof *ProofData) (*types.PreimageOrac
 	// Compute the KZG proof for the required field element
 	var point kzg4844.Point
 	new(big.Int).SetUint64(requiredFieldElement).FillBytes(point[:])
-	kzgProof, claim, err := kzg4844.ComputeProof(kzg4844.Blob(blob), point)
+	data := kzg4844.Blob(blob)
+	kzgProof, claim, err := kzg4844.ComputeProof(&data, point)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute kzg proof: %w", err)
 	}

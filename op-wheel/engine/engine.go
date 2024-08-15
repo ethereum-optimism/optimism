@@ -44,7 +44,7 @@ func getBlock(ctx context.Context, client client.RPC, method string, tag string)
 	if err != nil {
 		return nil, err
 	}
-	return types.NewBlockWithHeader(&bl.Header).WithBody(bl.Transactions, nil), nil
+	return types.NewBlockWithHeader(&bl.Header).WithBody(types.Body{Transactions: bl.Transactions}), nil
 }
 
 func getHeader(ctx context.Context, client client.RPC, method string, tag string) (*types.Header, error) {
@@ -405,10 +405,10 @@ func Rewind(ctx context.Context, lgr log.Logger, client *sources.EngineAPIClient
 
 	// when rewinding, don't increase unsafe/finalized tags
 	toSafe, toFinalized := toUnsafe, toUnsafe
-	if safe.Number.Uint64() < to {
+	if safe != nil && safe.Number.Uint64() < to {
 		toSafe = eth.HeaderBlockID(safe)
 	}
-	if finalized.Number.Uint64() < to {
+	if finalized != nil && finalized.Number.Uint64() < to {
 		toFinalized = eth.HeaderBlockID(finalized)
 	}
 

@@ -13,6 +13,7 @@ optimizer_runs = 999999
 remappings = [
   '@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts',
   '@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts',
+  '@openzeppelin/contracts-v5/=lib/openzeppelin-contracts-v5/contracts',
   '@rari-capital/solmate/=lib/solmate',
   '@lib-keccak/=lib/lib-keccak/contracts/lib',
   '@solady/=lib/solady/src',
@@ -27,7 +28,8 @@ bytecode_hash = 'none'
 build_info_path = 'artifacts/build-info'
 ast = true
 evm_version = "cancun"
-ignored_error_codes = ["transient-storage", "code-size", "init-code-size"]
+# 5159 error code is selfdestruct error code
+ignored_error_codes = ["transient-storage", "code-size", "init-code-size", 5159]
 
 # We set the gas limit to max int64 to avoid running out of gas during testing, since the default
 # gas limit is 1B and some of our tests require more gas than that, such as `test_callWithMinGas_noLeakageLow_succeeds`.

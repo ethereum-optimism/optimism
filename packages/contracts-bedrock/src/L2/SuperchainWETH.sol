@@ -45,7 +45,7 @@ contract SuperchainWETH is WETH98, ISuperchainERC20Extensions, ISemver {
         IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).sendMessage({
             _destination: chainId,
             _target: address(this),
-            _message: abi.encodeCall(this.relayERC20, (dst, wad))
+            _message: abi.encodeCall(this.relayERC20, (msg.sender, dst, wad))
         });
 
         // Emit event.
@@ -53,7 +53,7 @@ contract SuperchainWETH is WETH98, ISuperchainERC20Extensions, ISemver {
     }
 
     /// @inheritdoc ISuperchainERC20Extensions
-    function relayERC20(address dst, uint256 wad) external {
+    function relayERC20(address from, address dst, uint256 wad) external {
         // Receive message from other chain.
         IL2ToL2CrossDomainMessenger messenger = IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
         if (msg.sender != address(messenger)) revert Unauthorized();
@@ -64,11 +64,14 @@ contract SuperchainWETH is WETH98, ISuperchainERC20Extensions, ISemver {
             ETHLiquidity(Predeploys.ETH_LIQUIDITY).mint(wad);
         }
 
+        // Get source chain ID.
+        uint256 source = messenger.crossDomainMessageSource();
+
         // Mint to user's balance.
         _mint(dst, wad);
 
         // Emit event.
-        emit RelayERC20(dst, wad);
+        emit RelayERC20(from, dst, wad, source);
     }
 
     /// @notice Mints WETH to an address.
