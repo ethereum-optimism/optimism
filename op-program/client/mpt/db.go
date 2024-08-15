@@ -51,10 +51,6 @@ func (p DB) Compact(start []byte, limit []byte) error {
 	return nil // no-op
 }
 
-func (p DB) NewSnapshot() (ethdb.Snapshot, error) {
-	panic("not supported")
-}
-
 func (p DB) Close() error {
 	return nil
 }
