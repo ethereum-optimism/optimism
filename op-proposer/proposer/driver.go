@@ -50,7 +50,7 @@ type L2OOContract interface {
 
 type DGFContract interface {
 	Version(ctx context.Context) (string, error)
-	HasProposedSince(ctx context.Context, proposer common.Address, cutoff time.Time, gameType uint32) (uint64, bool, time.Time, error)
+	HasProposedSince(ctx context.Context, proposer common.Address, cutoff time.Time, gameType uint32) (bool, time.Time, error)
 	ProposalTx(ctx context.Context, gameType uint32, outputRoot common.Hash, l2BlockNum uint64) (txmgr.TxCandidate, error)
 }
 
@@ -278,30 +278,26 @@ func (l *L2OutputSubmitter) FetchDGFOutput(ctx context.Context) (*eth.OutputResp
 	defer cancel()
 
 	cutoff := time.Now().Add(-l.Cfg.ProposalInterval)
-	gameCount, hasProposed, proposalTime, err := l.dgfContract.HasProposedSince(cCtx, l.Txmgr.From(), cutoff, l.Cfg.DisputeGameType)
+	proposedRecently, proposalTime, err := l.dgfContract.HasProposedSince(cCtx, l.Txmgr.From(), cutoff, l.Cfg.DisputeGameType)
 	if err != nil {
 		return nil, false, fmt.Errorf("could not check for recent proposal: %w", err)
 	}
 
-	if hasProposed {
+	if proposedRecently {
 		l.Log.Info("Duration since last game not past proposal interval", "duration", time.Since(proposalTime))
 		return nil, false, nil
 	}
-	if gameCount == 0 {
-		// If there is not yet any game, wait one interval
-		// and then proceed with making a proposal.
-		// This is to prevent the submitter attempting to
-		// submit too soon after the AnchorStateRegistry is
-		// deployed (mostly only an issue in tests).
-		time.Sleep(l.Cfg.ProposalInterval)
-	} else {
-		l.Log.Info("Duration since last game past proposal interval, submitting proposal now", "duration", time.Since(proposalTime))
-	}
+	l.Log.Info("No proposals found for at least proposal interval, submitting proposal now", "proposalInterval", l.Cfg.ProposalInterval)
 
 	// Fetch the current L2 heads
 	currentBlockNumber, err := l.FetchCurrentBlockNumber(ctx)
 	if err != nil {
 		return nil, false, fmt.Errorf("could not fetch current block number: %w", err)
+	}
+
+	if currentBlockNumber == 0 {
+		l.Log.Info("Skipping proposal for genesis block")
+		return nil, false, nil
 	}
 
 	output, err := l.FetchOutput(ctx, currentBlockNumber)

@@ -27,7 +27,7 @@ const (
 type gameMetadata struct {
 	GameType  uint32
 	Timestamp time.Time
-	Proxy     common.Address
+	Address   common.Address
 	Proposer  common.Address
 }
 
@@ -55,30 +55,33 @@ func (f *DisputeGameFactory) Version(ctx context.Context) (string, error) {
 	return result.GetString(0), nil
 }
 
-func (f *DisputeGameFactory) HasProposedSince(ctx context.Context, proposer common.Address, cutoff time.Time, gameType uint32) (uint64, bool, time.Time, error) {
+// HasProposedSince attempts to find a game with the specified game type created by the specified proposer after the
+// given cut off time. If one is found, returns true and the time the game was created at.
+// If no matching proposal is found, returns false, time.Time{}, nil
+func (f *DisputeGameFactory) HasProposedSince(ctx context.Context, proposer common.Address, cutoff time.Time, gameType uint32) (bool, time.Time, error) {
 	gameCount, err := f.gameCount(ctx)
 	if err != nil {
-		return 0, false, time.Time{}, fmt.Errorf("failed to get dispute game count: %w", err)
+		return false, time.Time{}, fmt.Errorf("failed to get dispute game count: %w", err)
 	}
 	if gameCount == 0 {
-		return 0, false, time.Time{}, nil
+		return false, time.Time{}, nil
 	}
 	for idx := gameCount - 1; ; idx-- {
 		game, err := f.gameAtIndex(ctx, idx)
 		if err != nil {
-			return 0, false, time.Time{}, fmt.Errorf("failed to get dispute game %d: %w", idx, err)
+			return false, time.Time{}, fmt.Errorf("failed to get dispute game %d: %w", idx, err)
 		}
 		if game.Timestamp.Before(cutoff) {
 			// Reached a game that is before the expected cutoff, so we haven't found a suitable proposal
-			return gameCount, false, time.Time{}, nil
+			return false, time.Time{}, nil
 		}
 		if game.GameType == gameType && game.Proposer == proposer {
 			// Found a matching proposal
-			return gameCount, true, game.Timestamp, nil
+			return true, game.Timestamp, nil
 		}
 		if idx == 0 { // Need to check here rather than in the for condition to avoid underflow
 			// Checked every game and didn't find a match
-			return gameCount, false, time.Time{}, nil
+			return false, time.Time{}, nil
 		}
 	}
 }
@@ -113,9 +116,9 @@ func (f *DisputeGameFactory) gameAtIndex(ctx context.Context, idx uint64) (gameM
 	}
 	gameType := result.GetUint32(0)
 	timestamp := result.GetUint64(1)
-	proxy := result.GetAddress(2)
+	address := result.GetAddress(2)
 
-	gameContract := batching.NewBoundContract(f.gameABI, proxy)
+	gameContract := batching.NewBoundContract(f.gameABI, address)
 	result, err = f.caller.SingleCall(ctx, rpcblock.Latest, gameContract.Call(methodClaim, big.NewInt(0)))
 	if err != nil {
 		return gameMetadata{}, fmt.Errorf("failed to load root claim of game %v: %w", idx, err)
@@ -126,7 +129,7 @@ func (f *DisputeGameFactory) gameAtIndex(ctx context.Context, idx uint64) (gameM
 	return gameMetadata{
 		GameType:  gameType,
 		Timestamp: time.Unix(int64(timestamp), 0),
-		Proxy:     proxy,
+		Address:   address,
 		Proposer:  claimant,
 	}, nil
 }

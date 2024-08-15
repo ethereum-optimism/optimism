@@ -42,16 +42,16 @@ type StubDGFContract struct {
 	hasProposedCount int
 }
 
-func (m *StubDGFContract) HasProposedSince(ctx context.Context, proposer common.Address, cutoff time.Time, gameType uint32) (uint64, bool, time.Time, error) {
+func (m *StubDGFContract) HasProposedSince(_ context.Context, _ common.Address, _ time.Time, _ uint32) (bool, time.Time, error) {
 	m.hasProposedCount++
-	return 99, false, time.Unix(1000, 0), nil
+	return false, time.Unix(1000, 0), nil
 }
 
-func (m *StubDGFContract) ProposalTx(ctx context.Context, gameType uint32, outputRoot common.Hash, l2BlockNum uint64) (txmgr.TxCandidate, error) {
+func (m *StubDGFContract) ProposalTx(_ context.Context, _ uint32, _ common.Hash, _ uint64) (txmgr.TxCandidate, error) {
 	panic("not implemented")
 }
 
-func (m *StubDGFContract) Version(ctx context.Context) (string, error) {
+func (m *StubDGFContract) Version(_ context.Context) (string, error) {
 	panic("not implemented")
 }
 
