@@ -3,6 +3,7 @@ package ioutil
 import (
 	"compress/gzip"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -17,7 +18,7 @@ type gzipReadCloser struct {
 
 // Close closes both the gzip.Reader and the underlying reader.
 func (g *gzipReadCloser) Close() error {
-    return errors.Join(g.ReadCloser.Close(), g.closer.Close())
+	return errors.Join(g.ReadCloser.Close(), g.closer.Close())
 }
 
 // gzipWriteCloser is a struct that closes both the gzip.Writer and the underlying io.Closer.
@@ -28,10 +29,7 @@ type gzipWriteCloser struct {
 
 // Close closes both the gzip.Writer and the underlying writer.
 func (g *gzipWriteCloser) Close() error {
-	if err := g.WriteCloser.Close(); err != nil {
-		return err
-	}
-	return g.closer.Close()
+	return errors.Join(g.WriteCloser.Close(), g.closer.Close())
 }
 
 // OpenDecompressed opens a reader for the specified file and automatically gzip decompresses the content
