@@ -138,7 +138,7 @@ func TestEVMSingleStep(t *testing.T) {
 		for _, tt := range cases {
 			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
 			t.Run(testName, func(t *testing.T) {
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), WithPC(tt.pc), WithNextPC(tt.nextPC))
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithPC(tt.pc), testutil.WithNextPC(tt.nextPC))
 				state := goVm.GetState()
 				state.GetMemory().SetMemory(tt.pc, tt.insn)
 				curStep := state.GetStep()
@@ -186,7 +186,7 @@ func TestEVM_MMap(t *testing.T) {
 		for _, c := range cases {
 			testName := fmt.Sprintf("%v (%v)", c.name, v.Name)
 			t.Run(testName, func(t *testing.T) {
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), WithHeap(c.heap))
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithHeap(c.heap))
 				state := goVm.GetState()
 
 				state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
@@ -397,7 +397,7 @@ func TestEVMSysWriteHint(t *testing.T) {
 			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
 			t.Run(testName, func(t *testing.T) {
 				oracle := hintTrackingOracle{}
-				goVm := v.VMFactory(&oracle, os.Stdout, os.Stderr, testutil.CreateLogger(), WithLastHint(tt.lastHint))
+				goVm := v.VMFactory(&oracle, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithLastHint(tt.lastHint))
 				state := goVm.GetState()
 				state.GetRegistersRef()[2] = exec.SysWrite
 				state.GetRegistersRef()[4] = exec.FdHintWrite
@@ -448,7 +448,7 @@ func TestEVMFault(t *testing.T) {
 				env, evmState := testutil.NewEVMEnv(v.Contracts)
 				env.Config.Tracer = tracer
 
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), WithNextPC(tt.nextPC))
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithNextPC(tt.nextPC))
 				state := goVm.GetState()
 				state.GetMemory().SetMemory(0, tt.insn)
 				// set the return address ($ra) to jump into when test completes

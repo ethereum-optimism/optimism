@@ -29,7 +29,7 @@ func FuzzStateSyscallBrk(f *testing.F) {
 				nextPC := pc + 4
 
 				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(),
-					WithPC(pc), WithNextPC(nextPC), WithStep(step), WithPreimageOffset(preimageOffset))
+					testutil.WithPC(pc), testutil.WithNextPC(nextPC), testutil.WithStep(step), testutil.WithPreimageOffset(preimageOffset))
 				state := goVm.GetState()
 				state.GetRegistersRef()[2] = exec.SysBrk
 				state.GetMemory().SetMemory(pc, syscallInsn)
@@ -78,7 +78,7 @@ func FuzzStateSyscallMmap(f *testing.F) {
 			t.Run(v.Name, func(t *testing.T) {
 				step := uint64(0)
 				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(),
-					WithStep(step), WithHeap(heap))
+					testutil.WithStep(step), testutil.WithHeap(heap))
 				state := goVm.GetState()
 				*state.GetRegistersRef() = testutil.RandomRegisters(seed)
 				state.GetRegistersRef()[2] = exec.SysMmap
@@ -147,7 +147,7 @@ func FuzzStateSyscallExitGroup(f *testing.F) {
 				pc = pc & 0xFF_FF_FF_FC // align PC
 				nextPC := pc + 4
 				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(),
-					WithPC(pc), WithNextPC(nextPC), WithStep(step))
+					testutil.WithPC(pc), testutil.WithNextPC(nextPC), testutil.WithStep(step))
 				state := goVm.GetState()
 				state.GetRegistersRef()[2] = exec.SysExitGroup
 				state.GetRegistersRef()[4] = uint32(exitCode)
@@ -190,7 +190,7 @@ func FuzzStateSyscallFcntl(f *testing.F) {
 			t.Run(v.Name, func(t *testing.T) {
 				step := uint64(0)
 				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(),
-					WithStep(step))
+					testutil.WithStep(step))
 				state := goVm.GetState()
 				state.GetRegistersRef()[2] = exec.SysFcntl
 				state.GetRegistersRef()[4] = fd
@@ -255,7 +255,7 @@ func FuzzStateHintRead(f *testing.F) {
 				oracle := testutil.StaticOracle(t, preimageData) // only used for hinting
 
 				goVm := v.VMFactory(oracle, os.Stdout, os.Stderr, testutil.CreateLogger(),
-					WithStep(step), WithPreimageKey(preimageKey))
+					testutil.WithStep(step), testutil.WithPreimageKey(preimageKey))
 				state := goVm.GetState()
 				state.GetRegistersRef()[2] = exec.SysRead
 				state.GetRegistersRef()[4] = exec.FdHintRead
@@ -308,7 +308,7 @@ func FuzzStatePreimageRead(f *testing.F) {
 				oracle := testutil.StaticOracle(t, preimageData)
 
 				goVm := v.VMFactory(oracle, os.Stdout, os.Stderr, testutil.CreateLogger(),
-					WithStep(step), WithPreimageKey(preimageKey), WithPreimageOffset(preimageOffset))
+					testutil.WithStep(step), testutil.WithPreimageKey(preimageKey), testutil.WithPreimageOffset(preimageOffset))
 				state := goVm.GetState()
 				state.GetRegistersRef()[2] = exec.SysRead
 				state.GetRegistersRef()[4] = exec.FdPreimageRead
@@ -369,7 +369,7 @@ func FuzzStateHintWrite(f *testing.F) {
 				oracle := testutil.StaticOracle(t, preimageData) // only used for hinting
 
 				goVm := v.VMFactory(oracle, os.Stdout, os.Stderr, testutil.CreateLogger(),
-					WithStep(step), WithPreimageKey(preimageKey))
+					testutil.WithStep(step), testutil.WithPreimageKey(preimageKey))
 				state := goVm.GetState()
 				state.GetRegistersRef()[2] = exec.SysWrite
 				state.GetRegistersRef()[4] = exec.FdHintWrite
@@ -426,7 +426,7 @@ func FuzzStatePreimageWrite(f *testing.F) {
 				oracle := testutil.StaticOracle(t, preimageData)
 
 				goVm := v.VMFactory(oracle, os.Stdout, os.Stderr, testutil.CreateLogger(),
-					WithStep(step), WithPreimageKey(preimageKey), WithPreimageOffset(128))
+					testutil.WithStep(step), testutil.WithPreimageKey(preimageKey), testutil.WithPreimageOffset(128))
 				state := goVm.GetState()
 				state.GetRegistersRef()[2] = exec.SysWrite
 				state.GetRegistersRef()[4] = exec.FdPreimageWrite

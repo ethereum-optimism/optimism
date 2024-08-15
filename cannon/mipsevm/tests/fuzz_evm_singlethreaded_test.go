@@ -18,7 +18,7 @@ func FuzzStateSyscallCloneST(f *testing.F) {
 		pc = pc & 0xFF_FF_FF_FC // align PC
 		nextPC := pc + 4
 		goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(),
-			WithPC(pc), WithNextPC(nextPC), WithStep(step), WithPreimageOffset(preimageOffset))
+			testutil.WithPC(pc), testutil.WithNextPC(nextPC), testutil.WithStep(step), testutil.WithPreimageOffset(preimageOffset))
 		state := goVm.GetState()
 		state.GetRegistersRef()[2] = exec.SysClone
 
