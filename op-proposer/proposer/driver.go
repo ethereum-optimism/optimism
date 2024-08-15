@@ -141,11 +141,9 @@ func newL2OOSubmitter(ctx context.Context, cancel context.CancelFunc, setup Driv
 }
 
 func newDGFSubmitter(ctx context.Context, cancel context.CancelFunc, setup DriverSetup) (*L2OutputSubmitter, error) {
-	dgfCaller := contracts.NewDisputeGameFactory(*setup.Cfg.DisputeGameFactoryAddr, setup.Multicaller)
+	dgfCaller := contracts.NewDisputeGameFactory(*setup.Cfg.DisputeGameFactoryAddr, setup.Multicaller, setup.Cfg.NetworkTimeout)
 
-	cCtx, cCancel := context.WithTimeout(ctx, setup.Cfg.NetworkTimeout)
-	defer cCancel()
-	version, err := dgfCaller.Version(cCtx)
+	version, err := dgfCaller.Version(ctx)
 	if err != nil {
 		cancel()
 		return nil, err
@@ -270,11 +268,8 @@ func (l *L2OutputSubmitter) FetchL2OOOutput(ctx context.Context) (*eth.OutputRes
 // The passed context is expected to be a lifecycle context. A network timeout
 // context will be derived from it.
 func (l *L2OutputSubmitter) FetchDGFOutput(ctx context.Context) (*eth.OutputResponse, bool, error) {
-	cCtx, cancel := context.WithTimeout(ctx, l.Cfg.NetworkTimeout)
-	defer cancel()
-
 	cutoff := time.Now().Add(-l.Cfg.ProposalInterval)
-	proposedRecently, proposalTime, err := l.dgfContract.HasProposedSince(cCtx, l.Txmgr.From(), cutoff, l.Cfg.DisputeGameType)
+	proposedRecently, proposalTime, err := l.dgfContract.HasProposedSince(ctx, l.Txmgr.From(), cutoff, l.Cfg.DisputeGameType)
 	if err != nil {
 		return nil, false, fmt.Errorf("could not check for recent proposal: %w", err)
 	}
@@ -359,7 +354,9 @@ func proposeL2OutputTxData(abi *abi.ABI, output *eth.OutputResponse) ([]byte, er
 }
 
 func (l *L2OutputSubmitter) ProposeL2OutputDGFTxCandidate(ctx context.Context, output *eth.OutputResponse) (txmgr.TxCandidate, error) {
-	return l.dgfContract.ProposalTx(ctx, l.Cfg.DisputeGameType, common.Hash(output.OutputRoot), output.BlockRef.Number)
+	cCtx, cancel := context.WithTimeout(ctx, l.Cfg.NetworkTimeout)
+	defer cancel()
+	return l.dgfContract.ProposalTx(cCtx, l.Cfg.DisputeGameType, common.Hash(output.OutputRoot), output.BlockRef.Number)
 }
 
 // We wait until l1head advances beyond blocknum. This is used to make sure proposal tx won't

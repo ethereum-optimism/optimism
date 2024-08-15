@@ -221,6 +221,6 @@ func setupDisputeGameFactoryTest(t *testing.T) (*batchingTest.AbiBasedRpc, *Disp
 
 	stubRpc := batchingTest.NewAbiBasedRpc(t, factoryAddr, fdgAbi)
 	caller := batching.NewMultiCaller(stubRpc, batching.DefaultBatchSize)
-	factory := NewDisputeGameFactory(factoryAddr, caller)
+	factory := NewDisputeGameFactory(factoryAddr, caller, time.Minute)
 	return stubRpc, factory
 }

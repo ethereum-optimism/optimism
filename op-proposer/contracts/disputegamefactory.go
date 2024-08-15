@@ -32,23 +32,27 @@ type gameMetadata struct {
 }
 
 type DisputeGameFactory struct {
-	caller   *batching.MultiCaller
-	contract *batching.BoundContract
-	gameABI  *abi.ABI
+	caller         *batching.MultiCaller
+	contract       *batching.BoundContract
+	gameABI        *abi.ABI
+	networkTimeout time.Duration
 }
 
-func NewDisputeGameFactory(addr common.Address, caller *batching.MultiCaller) *DisputeGameFactory {
+func NewDisputeGameFactory(addr common.Address, caller *batching.MultiCaller, networkTimeout time.Duration) *DisputeGameFactory {
 	factoryABI := snapshots.LoadDisputeGameFactoryABI()
 	gameABI := snapshots.LoadFaultDisputeGameABI()
 	return &DisputeGameFactory{
-		caller:   caller,
-		contract: batching.NewBoundContract(factoryABI, addr),
-		gameABI:  gameABI,
+		caller:         caller,
+		contract:       batching.NewBoundContract(factoryABI, addr),
+		gameABI:        gameABI,
+		networkTimeout: networkTimeout,
 	}
 }
 
 func (f *DisputeGameFactory) Version(ctx context.Context) (string, error) {
-	result, err := f.caller.SingleCall(ctx, rpcblock.Latest, f.contract.Call(methodVersion))
+	cCtx, cancel := context.WithTimeout(ctx, f.networkTimeout)
+	defer cancel()
+	result, err := f.caller.SingleCall(cCtx, rpcblock.Latest, f.contract.Call(methodVersion))
 	if err != nil {
 		return "", fmt.Errorf("failed to get version: %w", err)
 	}
@@ -87,7 +91,9 @@ func (f *DisputeGameFactory) HasProposedSince(ctx context.Context, proposer comm
 }
 
 func (f *DisputeGameFactory) ProposalTx(ctx context.Context, gameType uint32, outputRoot common.Hash, l2BlockNum uint64) (txmgr.TxCandidate, error) {
-	result, err := f.caller.SingleCall(ctx, rpcblock.Latest, f.contract.Call(methodInitBonds, gameType))
+	cCtx, cancel := context.WithTimeout(ctx, f.networkTimeout)
+	defer cancel()
+	result, err := f.caller.SingleCall(cCtx, rpcblock.Latest, f.contract.Call(methodInitBonds, gameType))
 	if err != nil {
 		return txmgr.TxCandidate{}, fmt.Errorf("failed to fetch init bond: %w", err)
 	}
@@ -102,7 +108,9 @@ func (f *DisputeGameFactory) ProposalTx(ctx context.Context, gameType uint32, ou
 }
 
 func (f *DisputeGameFactory) gameCount(ctx context.Context) (uint64, error) {
-	result, err := f.caller.SingleCall(ctx, rpcblock.Latest, f.contract.Call(methodGameCount))
+	cCtx, cancel := context.WithTimeout(ctx, f.networkTimeout)
+	defer cancel()
+	result, err := f.caller.SingleCall(cCtx, rpcblock.Latest, f.contract.Call(methodGameCount))
 	if err != nil {
 		return 0, fmt.Errorf("failed to load game count: %w", err)
 	}
@@ -110,7 +118,9 @@ func (f *DisputeGameFactory) gameCount(ctx context.Context) (uint64, error) {
 }
 
 func (f *DisputeGameFactory) gameAtIndex(ctx context.Context, idx uint64) (gameMetadata, error) {
-	result, err := f.caller.SingleCall(ctx, rpcblock.Latest, f.contract.Call(methodGameAtIndex, new(big.Int).SetUint64(idx)))
+	cCtx, cancel := context.WithTimeout(ctx, f.networkTimeout)
+	defer cancel()
+	result, err := f.caller.SingleCall(cCtx, rpcblock.Latest, f.contract.Call(methodGameAtIndex, new(big.Int).SetUint64(idx)))
 	if err != nil {
 		return gameMetadata{}, fmt.Errorf("failed to load game %v: %w", idx, err)
 	}
@@ -119,7 +129,9 @@ func (f *DisputeGameFactory) gameAtIndex(ctx context.Context, idx uint64) (gameM
 	address := result.GetAddress(2)
 
 	gameContract := batching.NewBoundContract(f.gameABI, address)
-	result, err = f.caller.SingleCall(ctx, rpcblock.Latest, gameContract.Call(methodClaim, big.NewInt(0)))
+	cCtx, cancel = context.WithTimeout(ctx, f.networkTimeout)
+	defer cancel()
+	result, err = f.caller.SingleCall(cCtx, rpcblock.Latest, gameContract.Call(methodClaim, big.NewInt(0)))
 	if err != nil {
 		return gameMetadata{}, fmt.Errorf("failed to load root claim of game %v: %w", idx, err)
 	}
