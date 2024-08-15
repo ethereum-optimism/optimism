@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -92,6 +93,7 @@ func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Cl
 		Cfg:            proposerConfig,
 		Txmgr:          fakeTxMgr{from: crypto.PubkeyToAddress(cfg.ProposerKey.PublicKey)},
 		L1Client:       l1,
+		Multicaller:    batching.NewMultiCaller(l1.Client(), batching.DefaultBatchSize),
 		RollupProvider: rollupProvider,
 	}
 
@@ -244,8 +246,9 @@ func (p *L2Proposer) ActMakeProposalTx(t Testing) {
 
 	var txData []byte
 	if e2eutils.UseFaultProofs() {
-		txData, _, err = p.driver.ProposeL2OutputDGFTxData(output)
+		tx, err := p.driver.ProposeL2OutputDGFTxCandidate(context.Background(), output)
 		require.NoError(t, err)
+		txData = tx.TxData
 	} else {
 		txData, err = p.driver.ProposeL2OutputTxData(output)
 		require.NoError(t, err)
