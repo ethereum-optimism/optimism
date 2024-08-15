@@ -61,10 +61,7 @@ func OpenDecompressed(path string) (io.ReadCloser, error) {
 			r.Close()
 			return nil, fmt.Errorf("failed to create gzip reader: %w", err)
 		}
-		return &WrappedReadCloser{
-			ReadCloser: gr,
-			closer:     r,
-		}, nil
+		return NewWrappedReadCloser(gr, r), nil
 	}
 	return r, nil
 }
@@ -112,10 +109,7 @@ func IsGzip(path string) bool {
 
 func CompressByFileType(file string, out io.WriteCloser) io.WriteCloser {
 	if IsGzip(file) {
-		return &WrappedWriteCloser{
-			WriteCloser: gzip.NewWriter(out),
-			closer:      out,
-		}
+		return NewWrappedWriteCloser(gzip.NewWriter(out), out)
 	}
 	return out
 }
