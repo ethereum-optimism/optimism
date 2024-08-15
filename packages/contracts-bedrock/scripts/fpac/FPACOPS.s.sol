@@ -92,6 +92,8 @@ contract FPACOPS is Deploy, StdAssertions {
 
     function initializeAnchorStateRegistryProxy() internal broadcast {
         console.log("Initializing AnchorStateRegistryProxy with AnchorStateRegistry.");
+        address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
+        SuperchainConfig superchainConfig = SuperchainConfig(superchainConfigProxy);
 
         AnchorStateRegistry.StartingAnchorRoot[] memory roots = new AnchorStateRegistry.StartingAnchorRoot[](2);
         roots[0] = AnchorStateRegistry.StartingAnchorRoot({
@@ -111,7 +113,8 @@ contract FPACOPS is Deploy, StdAssertions {
 
         address asrProxy = mustGetAddress("AnchorStateRegistryProxy");
         Proxy(payable(asrProxy)).upgradeToAndCall(
-            mustGetAddress("AnchorStateRegistry"), abi.encodeCall(AnchorStateRegistry.initialize, (roots))
+            mustGetAddress("AnchorStateRegistry"),
+            abi.encodeCall(AnchorStateRegistry.initialize, (roots, superchainConfig))
         );
     }
 

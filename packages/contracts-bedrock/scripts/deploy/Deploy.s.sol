@@ -990,6 +990,7 @@ contract Deploy is Deployer {
         console.log("Upgrading and initializing AnchorStateRegistry proxy");
         address anchorStateRegistryProxy = mustGetAddress("AnchorStateRegistryProxy");
         address anchorStateRegistry = mustGetAddress("AnchorStateRegistry");
+        SuperchainConfig superchainConfig = SuperchainConfig(mustGetAddress("SuperchainConfigProxy"));
 
         AnchorStateRegistry.StartingAnchorRoot[] memory roots = new AnchorStateRegistry.StartingAnchorRoot[](5);
         roots[0] = AnchorStateRegistry.StartingAnchorRoot({
@@ -1031,7 +1032,7 @@ contract Deploy is Deployer {
         _upgradeAndCallViaSafe({
             _proxy: payable(anchorStateRegistryProxy),
             _implementation: anchorStateRegistry,
-            _innerCallData: abi.encodeCall(AnchorStateRegistry.initialize, (roots))
+            _innerCallData: abi.encodeCall(AnchorStateRegistry.initialize, (roots, superchainConfig))
         });
 
         string memory version = AnchorStateRegistry(payable(anchorStateRegistryProxy)).version();

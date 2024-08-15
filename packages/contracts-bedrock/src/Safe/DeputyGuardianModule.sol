@@ -4,11 +4,13 @@ pragma solidity 0.8.15;
 import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
 
+import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
 import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { Unauthorized } from "src/libraries/PortalErrors.sol";
+import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
 
 import "src/dispute/lib/Types.sol";
 
@@ -43,8 +45,8 @@ contract DeputyGuardianModule is ISemver {
     address internal immutable DEPUTY_GUARDIAN;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.1.0
-    string public constant version = "1.1.0";
+    /// @custom:semver 2.0.0-beta.1
+    string public constant version = "2.0.0-beta.1";
 
     // Constructor to initialize the Safe and baseModule instances
     constructor(Safe _safe, SuperchainConfig _superchainConfig, address _deputyGuardian) {
@@ -106,6 +108,22 @@ contract DeputyGuardianModule is ISemver {
             revert ExecutionFailed(string(returnData));
         }
         emit Unpaused();
+    }
+
+    /// @notice Calls the Security Council Safe's `execTransactionFromModuleReturnData()`, with the arguments
+    ///      necessary to call `setAnchorState()` on the `AnchorStateRegistry` contract.
+    ///      Only the deputy guardian can call this function.
+    /// @param _registry The `AnchorStateRegistry` contract instance.
+    /// @param _game The `IFaultDisputeGame` contract instance.
+    function setAnchorState(AnchorStateRegistry _registry, IFaultDisputeGame _game) external {
+        _onlyDeputyGuardian();
+
+        bytes memory data = abi.encodeCall(AnchorStateRegistry.setAnchorState, (_game));
+        (bool success, bytes memory returnData) =
+            SAFE.execTransactionFromModuleReturnData(address(_registry), 0, data, Enum.Operation.Call);
+        if (!success) {
+            revert ExecutionFailed(string(returnData));
+        }
     }
 
     /// @notice Calls the Security Council Safe's `execTransactionFromModuleReturnData()`, with the arguments

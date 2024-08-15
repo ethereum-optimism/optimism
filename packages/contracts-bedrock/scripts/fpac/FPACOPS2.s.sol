@@ -170,8 +170,10 @@ contract FPACOPS2 is Deploy, StdAssertions {
         });
 
         address asrProxy = mustGetAddress("AnchorStateRegistryProxy");
+        address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
         Proxy(payable(asrProxy)).upgradeToAndCall(
-            mustGetAddress("AnchorStateRegistry"), abi.encodeCall(AnchorStateRegistry.initialize, (roots))
+            mustGetAddress("AnchorStateRegistry"),
+            abi.encodeCall(AnchorStateRegistry.initialize, (roots, SuperchainConfig(superchainConfigProxy)))
         );
     }
 

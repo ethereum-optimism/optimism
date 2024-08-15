@@ -128,8 +128,8 @@
     "sourceCodeHash": "0xbe200a6cb297a3ca1a7d174a9c886e3f17eb8edf617ad014a2ac4f6c2e2ac7f1"
   },
   "src/Safe/DeputyGuardianModule.sol": {
-    "initCodeHash": "0x433eb7488e613a51c7ff05a76bbecf47f5beac8b8614f5c50001f99e39ae7ed2",
-    "sourceCodeHash": "0x5b415dc432a83fb1d5c41585539245997c62acb6bd77c489bf57e9b59be5f983"
+    "initCodeHash": "0x23ecfc6ff42575058b51b3bde8449f62ee929fd5881f707a904fa3eb8f628053",
+    "sourceCodeHash": "0x904ff08bf288dc257501dc0a60539791c7a2dc5fba508a3523521c39009e7d5e"
   },
   "src/Safe/LivenessGuard.sol": {
     "initCodeHash": "0xf54289de5cef7ba0044e0d63310937fa231d6528aac91e13e531c845af42afac",
@@ -152,8 +152,8 @@
     "sourceCodeHash": "0xb1f0d6f26c2e6a2c3b635eaf8f327e91a8d22ef7479b1ebb93427b88f73ed163"
   },
   "src/dispute/AnchorStateRegistry.sol": {
-    "initCodeHash": "0x0305c21e50829b9e07d43358d8c2c82f1449534c90d4391400d46e76d0503a49",
-    "sourceCodeHash": "0x56b069b33d080c2a45ee6fd340e5c5824ab4dc866eadb5b481b9026ebb12aa7c"
+    "initCodeHash": "0x92aa16ad6c88b8c2842fea07ec69afe45e7d0dcb49cdfad7ce4693e03c3bbc47",
+    "sourceCodeHash": "0x0383f33a1cbf41ceb010a1bf79ddd14880f55c13512e4704f82d5587fff16826"
   },
   "src/dispute/DisputeGameFactory.sol": {
     "initCodeHash": "0x7a7cb8f2c95df2f9afb3ce9eaefe4a6f997ccce7ed8ffda5d425a65a2474a792",
