@@ -18,7 +18,7 @@ import (
 var factoryAddr = common.Address{0xff, 0xff}
 var proposerAddr = common.Address{0xaa, 0xbb}
 
-func TestHashProposedSince(t *testing.T) {
+func TestHasProposedSince(t *testing.T) {
 	cutOffTime := time.Unix(1000, 0)
 
 	t.Run("NoProposals", func(t *testing.T) {

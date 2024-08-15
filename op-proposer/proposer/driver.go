@@ -275,7 +275,7 @@ func (l *L2OutputSubmitter) FetchDGFOutput(ctx context.Context) (*eth.OutputResp
 	}
 
 	if proposedRecently {
-		l.Log.Info("Duration since last game not past proposal interval", "duration", time.Since(proposalTime))
+		l.Log.Debug("Duration since last game not past proposal interval", "duration", time.Since(proposalTime))
 		return nil, false, nil
 	}
 	l.Log.Info("No proposals found for at least proposal interval, submitting proposal now", "proposalInterval", l.Cfg.ProposalInterval)
