@@ -10,14 +10,14 @@ import (
 	"strings"
 )
 
-// gzipReadCloser is a struct that closes both the gzip.Reader and the underlying io.Closer.
-type gzipReadCloser struct {
+// WrappedReadCloser is a struct that closes both the gzip.Reader and the underlying io.Closer.
+type WrappedReadCloser struct {
 	io.ReadCloser
 	closer io.Closer
 }
 
 // Close closes both the gzip.Reader and the underlying reader.
-func (g *gzipReadCloser) Close() error {
+func (g *WrappedReadCloser) Close() error {
 	return errors.Join(g.ReadCloser.Close(), g.closer.Close())
 }
 
@@ -45,7 +45,7 @@ func OpenDecompressed(path string) (io.ReadCloser, error) {
 			r.Close()
 			return nil, fmt.Errorf("failed to create gzip reader: %w", err)
 		}
-		return &gzipReadCloser{
+		return &WrappedReadCloser{
 			ReadCloser: gr,
 			closer:     r,
 		}, nil
