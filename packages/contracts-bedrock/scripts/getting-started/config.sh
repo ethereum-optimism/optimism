@@ -5,6 +5,9 @@
 # need to have the getting-started.json committed to the repo since it's an
 # invalid JSON file when not filled in, which is annoying.
 
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+CONTRACTS_BASE=$(dirname "$(dirname "$SCRIPT_DIR")")
+
 reqenv() {
     if [ -z "${!1}" ]; then
         echo "Error: environment variable '$1' is undefined"
@@ -80,6 +83,9 @@ config=$(cat << EOL
   "l2GenesisBlockGasLimit": "0x1c9c380",
   "l2GenesisBlockBaseFeePerGas": "0x3b9aca00",
   "l2GenesisRegolithTimeOffset": "0x0",
+  "l2GenesisCanyonTimeOffset": "0x0",
+  "l2GenesisDeltaTimeOffset": "0x0",
+  "l2GenesisEcotoneTimeOffset": "0x0",
 
   "eip1559Denominator": 50,
   "eip1559DenominatorCanyon": 250,
@@ -110,4 +116,4 @@ EOL
 )
 
 # Write the config file
-echo "$config" > deploy-config/getting-started.json
+echo "$config" > "$CONTRACTS_BASE/deploy-config/getting-started.json"
