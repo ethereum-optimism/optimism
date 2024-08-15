@@ -8,21 +8,19 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-proposer/bindings"
 	"github.com/ethereum-optimism/optimism/op-proposer/contracts"
+	"github.com/ethereum-optimism/optimism/op-proposer/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/dial"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rpc"
-
-	"github.com/ethereum-optimism/optimism/op-proposer/bindings"
-	"github.com/ethereum-optimism/optimism/op-proposer/metrics"
-	"github.com/ethereum-optimism/optimism/op-service/dial"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
 var (
@@ -39,8 +37,6 @@ type L1Client interface {
 	// CallContract executes an Ethereum contract call with the specified data as the
 	// input.
 	CallContract(ctx context.Context, call ethereum.CallMsg, blockNumber *big.Int) ([]byte, error)
-
-	Client() *rpc.Client
 }
 
 type L2OOContract interface {
@@ -60,11 +56,12 @@ type RollupClient interface {
 }
 
 type DriverSetup struct {
-	Log      log.Logger
-	Metr     metrics.Metricer
-	Cfg      ProposerConfig
-	Txmgr    txmgr.TxManager
-	L1Client L1Client
+	Log         log.Logger
+	Metr        metrics.Metricer
+	Cfg         ProposerConfig
+	Txmgr       txmgr.TxManager
+	L1Client    L1Client
+	Multicaller *batching.MultiCaller
 
 	// RollupProvider's RollupClient() is used to retrieve output roots from
 	RollupProvider dial.RollupProvider
@@ -144,8 +141,7 @@ func newL2OOSubmitter(ctx context.Context, cancel context.CancelFunc, setup Driv
 }
 
 func newDGFSubmitter(ctx context.Context, cancel context.CancelFunc, setup DriverSetup) (*L2OutputSubmitter, error) {
-	caller := batching.NewMultiCaller(setup.L1Client.Client(), batching.DefaultBatchSize)
-	dgfCaller := contracts.NewDisputeGameFactory(*setup.Cfg.DisputeGameFactoryAddr, caller)
+	dgfCaller := contracts.NewDisputeGameFactory(*setup.Cfg.DisputeGameFactoryAddr, setup.Multicaller)
 
 	cCtx, cCancel := context.WithTimeout(ctx, setup.Cfg.NetworkTimeout)
 	defer cCancel()
