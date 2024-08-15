@@ -31,4 +31,4 @@ make test-http
 If you encounter errors:
 * ensure you have the latest version of foundry installed: `just update-foundry`
 * try deleting the `packages/contracts-bedrock/forge-artifacts` directory
-* try `forge clean && rm -rf lib && forge install` within directory `packages/contracts-bedrock`
+* try `forge clean && rm -rf lib && forge install` within the `packages/contracts-bedrock` directory
