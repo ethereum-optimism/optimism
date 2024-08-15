@@ -183,7 +183,7 @@ This project uses two different [`foundry.toml` profiles](../../foundry.toml), `
 - `kdeploy`: Used by [`make-summary-deployment.sh`](./scripts/make-summary-deployment.sh) to generate the [`DeploymentSummary.sol`](./proofs/utils/DeploymentSummary.sol) contract based on execution of the [`KontrolDeployment.sol`](./deployment/KontrolDeployment.sol) contract using Foundry's state diff recording cheatcodes.
   This is where all necessary [`src/L1`](../../src/L1) files are compiled with their bytecode saved into the [`DeploymentSummaryCode.sol`](./proofs/utils/DeploymentSummaryCode.sol) file, which is inherited by `DeploymentSummary`.
 
-- `kprove`: Used by the [`run-kontrol.sh`](./scrpts/run-kontrol.sh) script to execute proofs, which can be run once a `DeploymentSummary.sol` contract is present. This profile's `src` and `script` paths point to a test folder because we only want to compile what is in the `test/kontrol/proofs` folder, since that folder contains all bytecode and proofs.
+- `kprove`: Used by the [`run-kontrol.sh`](./scripts/run-kontrol.sh) script to execute proofs, which can be run once a `DeploymentSummary.sol` contract is present. This profile's `src` and `script` paths point to a test folder because we only want to compile what is in the `test/kontrol/proofs` folder, since that folder contains all bytecode and proofs.
 
 The `make-summary-deployment.sh` scripts saves off the generated JSON state diff to `snapshots/state-diff/Kontrol-Deploy.json`, and is run as part of the `snapshots` script in `package.json`.
 Therefore, the snapshots CI check will fail if the committed Kontrol state diff is out of sync.
