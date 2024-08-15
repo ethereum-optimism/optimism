@@ -12,9 +12,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
+//go:generate ./testdata/generate.sh
+
 func TestScript(t *testing.T) {
 	logger, captLog := testlog.CaptureLogger(t, log.LevelInfo)
-	af := foundry.OpenArtifactsDir("../../packages/contracts-bedrock/forge-artifacts")
+	af := foundry.OpenArtifactsDir("./testdata/test-artifacts")
 
 	scriptContext := DefaultContext
 	h := NewHost(logger, af, scriptContext)
