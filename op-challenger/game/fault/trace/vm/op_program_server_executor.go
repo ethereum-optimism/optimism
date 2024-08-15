@@ -4,16 +4,16 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 )
 
-type OpProgramVmConfig struct {
+type OpProgramServerExecutor struct {
 }
 
-var _ OracleServerExecutor = (*OpProgramVmConfig)(nil)
+var _ OracleServerExecutor = (*OpProgramServerExecutor)(nil)
 
-func NewOpProgramVmConfig() *OpProgramVmConfig {
-	return &OpProgramVmConfig{}
+func NewOpProgramServerExecutor() *OpProgramServerExecutor {
+	return &OpProgramServerExecutor{}
 }
 
-func (s *OpProgramVmConfig) OracleCommand(cfg Config, dataDir string, inputs utils.LocalGameInputs) ([]string, error) {
+func (s *OpProgramServerExecutor) OracleCommand(cfg Config, dataDir string, inputs utils.LocalGameInputs) ([]string, error) {
 	args := []string{
 		cfg.Server, "--server",
 		"--l1", cfg.L1,
