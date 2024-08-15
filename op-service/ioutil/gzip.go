@@ -21,14 +21,14 @@ func (g *WrappedReadCloser) Close() error {
 	return errors.Join(g.ReadCloser.Close(), g.closer.Close())
 }
 
-// gzipWriteCloser is a struct that closes both the gzip.Writer and the underlying io.Closer.
-type gzipWriteCloser struct {
+// WrappedWriteCloser is a struct that closes both the gzip.Writer and the underlying io.Closer.
+type WrappedWriteCloser struct {
 	io.WriteCloser
 	closer io.Closer
 }
 
 // Close closes both the gzip.Writer and the underlying writer.
-func (g *gzipWriteCloser) Close() error {
+func (g *WrappedWriteCloser) Close() error {
 	return errors.Join(g.WriteCloser.Close(), g.closer.Close())
 }
 
@@ -96,7 +96,7 @@ func IsGzip(path string) bool {
 
 func CompressByFileType(file string, out io.WriteCloser) io.WriteCloser {
 	if IsGzip(file) {
-		return &gzipWriteCloser{
+		return &WrappedWriteCloser{
 			WriteCloser: gzip.NewWriter(out),
 			closer:      out,
 		}
