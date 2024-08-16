@@ -83,7 +83,7 @@
     "initCodeHash": "0xfd099da051edf13b147f4382ab4bed9db546d0c48157736ba298fb7e178b20d9",
     "sourceCodeHash": "0x24db623574743432626ed0d7dd938bbd2149b570a00328c772debd7eb179ff1d"
   },
-  "src/L2/L1BlockInterop.sol": {
+  "src/L2/L1BlockIsthmus.sol": {
     "initCodeHash": "0x6833a323934b3be1e5a5c7491c652b6e90bc5102416ddbb255b5f65aa6d5d4a1",
     "sourceCodeHash": "0xd8ec2f814690d1ffd55e5b8496bca5a179d6d1772d61f71cdf8296c9058dc2c6"
   },
