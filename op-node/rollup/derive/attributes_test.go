@@ -164,6 +164,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		require.Equal(t, eth.Bytes32(l1Info.InfoMixDigest), attrs.PrevRandao)
 		require.Equal(t, predeploys.SequencerFeeVaultAddr, attrs.SuggestedFeeRecipient)
 		require.Equal(t, len(l2Txs), len(attrs.Transactions), "Expected txs to equal l1 info tx + user deposit txs")
+		require.Equal(t, l2Txs, attrs.Transactions)
 		require.True(t, attrs.NoTxPool)
 	})
 	t.Run("same origin again", func(t *testing.T) {
