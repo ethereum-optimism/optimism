@@ -15,8 +15,9 @@ import { StaticConfig } from "src/libraries/StaticConfig.sol";
 ///         the L2 chain.
 contract SystemConfigInterop is SystemConfig {
     /// @notice Storage slot where the dependency manager address is stored
+    /// @dev    Equal to bytes32(uint256(keccak256("systemconfig.dependencymanager")) - 1)
     bytes32 internal constant DEPENDENCY_MANAGER_SLOT =
-        bytes32(uint256(keccak256("systemconfig.dependencymanager")) - 1);
+        0x1708e077affb93e89be2665fb0fb72581be66f84dc00d25fed755ae911905b1c;
 
     /// @notice Initializer.
     /// @param _owner             Initial owner of the contract.
