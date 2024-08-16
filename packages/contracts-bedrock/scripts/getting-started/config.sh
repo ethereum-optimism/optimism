@@ -104,8 +104,18 @@ cat << EOL > tmp_config.json
 EOL
 
 # Append conditional environment variables with their corresponding default values
+# Activate granite fork
 if [ -n "${GRANITE_TIME_OFFSET}" ]; then
-    append_with_default "l2GenesisGraniteTimeOffset" "GRANITE_TIME_OFFSET" "0x0"
+    append_with_default "L2GenesisGraniteTimeOffset" "GRANITE_TIME_OFFSET" "0x0"
+fi
+# Activate holocene fork
+if [ -n "${HOLOCENE_TIME_OFFSET}" ]; then
+    append_with_default "l2GenesisHoloceneTimeOffset" "HOLOCENE_TIME_OFFSET" "0x0"
+fi
+
+# Activate the interop fork
+if [ -n "${INTEROP_TIME_OFFSET}" ]; then
+    append_with_default "l2GenesisInteropTimeOffset" "INTEROP_TIME_OFFSET" "0x0"
 fi
 
 # Already forked updates
@@ -135,6 +145,6 @@ cat << EOL >> tmp_config.json
   "preimageOracleChallengePeriod": 86400
 }
 EOL
-
+cat tmp_config.json
 # Write the final config file
 mv tmp_config.json "$CONTRACTS_BASE/deploy-config/getting-started.json"
