@@ -164,23 +164,7 @@ func (eq *CLSync) PublishAttributes(ctx context.Context, l2head eth.L2BlockRef) 
 		return fmt.Errorf("error preparing payload attributes: %w", err)
 	}
 
-	// If our next L2 block timestamp is beyond the Sequencer drift threshold, then we must produce
-	// empty blocks (other than the L1 info deposit and any user deposits). We handle this by
-	// setting NoTxPool to true, which will cause the Sequencer to not include any transactions
-	// from the transaction pool.
-	attrs.NoTxPool = uint64(attrs.Timestamp) > l1Origin.Time+eq.spec.MaxSequencerDrift(l1Origin.Time)
-
-	// For the Ecotone activation block we shouldn't include any sequencer transactions.
-	if eq.cfg.IsEcotoneActivationBlock(uint64(attrs.Timestamp)) {
-		attrs.NoTxPool = true
-		eq.log.Info("Sequencing Ecotone upgrade block")
-	}
-
-	// For the Fjord activation block we shouldn't include any sequencer transactions.
-	if eq.cfg.IsFjordActivationBlock(uint64(attrs.Timestamp)) {
-		attrs.NoTxPool = true
-		eq.log.Info("Sequencing Fjord upgrade block")
-	}
+	derive.SetNoTxPool(eq.cfg, eq.spec, attrs, l1Origin, l2head)
 
 	eq.log.Debug("prepared attributes for new block",
 		"num", l2head.Number+1, "time", uint64(attrs.Timestamp),
