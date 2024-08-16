@@ -40,16 +40,16 @@ reqenv "L1_BLOCK_TIME"
 reqenv "L2_BLOCK_TIME"
 
 # Get the finalized block timestamp and hash
-#block=$(cast block finalized --rpc-url "$L1_RPC_URL")
-#timestamp=$(echo "$block" | awk '/timestamp/ { print $2 }')
-#blockhash=$(echo "$block" | awk '/hash/ { print $2 }')
+block=$(cast block finalized --rpc-url "$L1_RPC_URL")
+timestamp=$(echo "$block" | awk '/timestamp/ { print $2 }')
+blockhash=$(echo "$block" | awk '/hash/ { print $2 }')
 
 # Start generating the config file in a temporary file
 
-  #"l1StartingBlockTag": "$blockhash",
 cat << EOL > tmp_config.json
 {
 
+ "l1StartingBlockTag": "$blockhash",
 
   "l1ChainID": $L1_CHAIN_ID,
   "l2ChainID": $L2_CHAIN_ID,
