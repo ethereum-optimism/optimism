@@ -10,10 +10,10 @@ type FPVMState interface {
 	GetMemory() *memory.Memory
 
 	// GetPC returns the currently executing program counter
-	GetPC() uint32
+	GetPC() uint64
 
 	// GetRegisters returns the currently active registers
-	GetRegisters() *[32]uint32
+	GetRegisters() *[32]uint64
 
 	// GetStep returns the current VM step
 	GetStep() uint64
@@ -39,7 +39,7 @@ type FPVM interface {
 	CheckInfiniteLoop() bool
 
 	// LastPreimage returns the last preimage accessed by the VM
-	LastPreimage() (preimageKey [32]byte, preimage []byte, preimageOffset uint32)
+	LastPreimage() (preimageKey [32]byte, preimage []byte, preimageOffset uint64)
 
 	// Traceback prints a traceback of the program to the console
 	Traceback()

@@ -83,7 +83,7 @@ func (m *InstrumentedState) Step(proof bool) (wit *mipsevm.StepWitness, err erro
 		memProof := m.memoryTracker.MemProof()
 		wit.ProofData = append(wit.ProofData, memProof[:]...)
 		lastPreimageKey, lastPreimage, lastPreimageOffset := m.preimageOracle.LastPreimage()
-		if lastPreimageOffset != ^uint32(0) {
+		if lastPreimageOffset != ^uint64(0) {
 			wit.PreimageOffset = lastPreimageOffset
 			wit.PreimageKey = lastPreimageKey
 			wit.PreimageValue = lastPreimage
@@ -96,7 +96,7 @@ func (m *InstrumentedState) CheckInfiniteLoop() bool {
 	return false
 }
 
-func (m *InstrumentedState) LastPreimage() ([32]byte, []byte, uint32) {
+func (m *InstrumentedState) LastPreimage() ([32]byte, []byte, uint64) {
 	return m.preimageOracle.LastPreimage()
 }
 

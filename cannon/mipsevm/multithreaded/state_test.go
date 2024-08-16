@@ -37,9 +37,9 @@ func TestState_EncodeWitness(t *testing.T) {
 		{exited: true, exitCode: 3},
 	}
 
-	heap := uint32(12)
+	heap := uint64(12)
 	preimageKey := crypto.Keccak256Hash([]byte{1, 2, 3, 4})
-	preimageOffset := uint32(24)
+	preimageOffset := uint64(24)
 	step := uint64(33)
 	stepsSinceContextSwitch := uint64(123)
 	for _, c := range cases {
@@ -60,19 +60,19 @@ func TestState_EncodeWitness(t *testing.T) {
 		expectedWitness := make(StateWitness, STATE_WITNESS_SIZE)
 		setWitnessField(expectedWitness, MEMROOT_WITNESS_OFFSET, memRoot[:])
 		setWitnessField(expectedWitness, PREIMAGE_KEY_WITNESS_OFFSET, preimageKey[:])
-		setWitnessField(expectedWitness, PREIMAGE_OFFSET_WITNESS_OFFSET, []byte{0, 0, 0, byte(preimageOffset)})
-		setWitnessField(expectedWitness, HEAP_WITNESS_OFFSET, []byte{0, 0, 0, byte(heap)})
+		setWitnessField(expectedWitness, PREIMAGE_OFFSET_WITNESS_OFFSET, []byte{0, 0, 0, 0, 0, 0, 0, byte(preimageOffset)})
+		setWitnessField(expectedWitness, HEAP_WITNESS_OFFSET, []byte{0, 0, 0, 0, 0, 0, 0, byte(heap)})
 		setWitnessField(expectedWitness, EXITCODE_WITNESS_OFFSET, []byte{c.exitCode})
 		if c.exited {
 			setWitnessField(expectedWitness, EXITED_WITNESS_OFFSET, []byte{1})
 		}
 		setWitnessField(expectedWitness, STEP_WITNESS_OFFSET, []byte{0, 0, 0, 0, 0, 0, 0, byte(step)})
 		setWitnessField(expectedWitness, STEPS_SINCE_CONTEXT_SWITCH_WITNESS_OFFSET, []byte{0, 0, 0, 0, 0, 0, 0, byte(stepsSinceContextSwitch)})
-		setWitnessField(expectedWitness, WAKEUP_WITNESS_OFFSET, []byte{0xFF, 0xFF, 0xFF, 0xFF})
+		setWitnessField(expectedWitness, WAKEUP_WITNESS_OFFSET, []byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF})
 		setWitnessField(expectedWitness, TRAVERSE_RIGHT_WITNESS_OFFSET, []byte{0})
 		setWitnessField(expectedWitness, LEFT_THREADS_ROOT_WITNESS_OFFSET, leftStackRoot[:])
 		setWitnessField(expectedWitness, RIGHT_THREADS_ROOT_WITNESS_OFFSET, rightStackRoot[:])
-		setWitnessField(expectedWitness, THREAD_ID_WITNESS_OFFSET, []byte{0, 0, 0, 1})
+		setWitnessField(expectedWitness, THREAD_ID_WITNESS_OFFSET, []byte{0, 0, 0, 0, 0, 0, 0, 1})
 
 		// Validate witness
 		actualWitness, actualStateHash := state.EncodeWitness()
@@ -139,7 +139,7 @@ func TestState_EncodeThreadProof_SingleThread(t *testing.T) {
 	activeThread.Cpu.HI = 11
 	activeThread.Cpu.LO = 22
 	for i := 0; i < 32; i++ {
-		activeThread.Registers[i] = uint32(i)
+		activeThread.Registers[i] = uint64(i)
 	}
 
 	expectedProof := append([]byte{}, activeThread.serializeThread()[:]...)
@@ -161,12 +161,12 @@ func TestState_EncodeThreadProof_MultipleThreads(t *testing.T) {
 	// Set some fields on our threads
 	for i := 0; i < 3; i++ {
 		curThread := state.LeftThreadStack[i]
-		curThread.Cpu.PC = uint32(4 * i)
+		curThread.Cpu.PC = uint64(4 * i)
 		curThread.Cpu.NextPC = curThread.Cpu.PC + 4
-		curThread.Cpu.HI = uint32(11 + i)
-		curThread.Cpu.LO = uint32(22 + i)
+		curThread.Cpu.HI = uint64(11 + i)
+		curThread.Cpu.LO = uint64(22 + i)
 		for j := 0; j < 32; j++ {
-			curThread.Registers[j] = uint32(j + i)
+			curThread.Registers[j] = uint64(j + i)
 		}
 	}
 
@@ -192,12 +192,12 @@ func TestState_EncodeThreadProof_MultipleThreads(t *testing.T) {
 func TestState_EncodeThreadProof_EmptyThreadStackPanic(t *testing.T) {
 	cases := []struct {
 		name          string
-		wakeupAddr    uint32
+		wakeupAddr    uint64
 		traverseRight bool
 	}{
-		{"traverse left during wakeup traversal", uint32(99), false},
+		{"traverse left during wakeup traversal", uint64(99), false},
 		{"traverse left during normal traversal", exec.FutexEmptyAddr, false},
-		{"traverse right during wakeup traversal", uint32(99), true},
+		{"traverse right during wakeup traversal", uint64(99), true},
 		{"traverse right during normal traversal", exec.FutexEmptyAddr, true},
 	}
 

@@ -6,7 +6,7 @@
 
 test:
   # fcntl(0, 3)
-  li $v0, 4055
+  li $v0, 5070
   li $a0, 0x0
   li $a1, 0x3
   syscall

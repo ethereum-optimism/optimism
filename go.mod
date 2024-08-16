@@ -47,6 +47,7 @@ require (
 	golang.org/x/sync v0.8.0
 	golang.org/x/term v0.23.0
 	golang.org/x/time v0.6.0
+	lukechampine.com/uint128 v1.3.0
 )
 
 require (

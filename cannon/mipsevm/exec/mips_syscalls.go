@@ -13,60 +13,61 @@ import (
 
 // Syscall codes
 const (
-	SysMmap       = 4090
-	SysMunmap     = 4091
-	SysBrk        = 4045
-	SysClone      = 4120
-	SysExitGroup  = 4246
-	SysRead       = 4003
-	SysWrite      = 4004
-	SysFcntl      = 4055
-	SysExit       = 4001
-	SysSchedYield = 4162
-	SysGetTID     = 4222
-	SysFutex      = 4238
-	SysOpen       = 4005
-	SysNanosleep  = 4166
+	SysMmap       = 5009
+	SysMunmap     = 5011
+	SysBrk        = 5012
+	SysClone      = 5055
+	SysExitGroup  = 5205
+	SysRead       = 5000
+	SysWrite      = 5001
+	SysFcntl      = 5070
+	SysExit       = 5058
+	SysSchedYield = 5023
+	SysGetTID     = 5178
+	SysFutex      = 5194
+	SysOpen       = 5002
+	SysNanosleep  = 5034
 )
 
 // Noop Syscall codes
 const (
-	SysGetAffinity   = 4240
-	SysMadvise       = 4218
-	SysRtSigprocmask = 4195
-	SysSigaltstack   = 4206
-	SysRtSigaction   = 4194
-	SysPrlimit64     = 4338
-	SysClose         = 4006
-	SysPread64       = 4200
-	SysFstat64       = 4215
-	SysOpenAt        = 4288
-	SysReadlink      = 4085
-	SysReadlinkAt    = 4298
-	SysIoctl         = 4054
-	SysEpollCreate1  = 4326
-	SysPipe2         = 4328
-	SysEpollCtl      = 4249
-	SysEpollPwait    = 4313
-	SysGetRandom     = 4353
-	SysUname         = 4122
-	SysStat64        = 4213
-	SysGetuid        = 4024
-	SysGetgid        = 4047
-	SysLlseek        = 4140
-	SysMinCore       = 4217
-	SysTgkill        = 4266
+	SysGetAffinity   = 5196
+	SysMadvise       = 5027
+	SysRtSigprocmask = 5014
+	SysSigaltstack   = 5129
+	SysRtSigaction   = 5013
+	SysPrlimit64     = 5297
+	SysGetRLimit     = 5095
+	SysClose         = 5003
+	SysPread64       = 5016
+	SysFstat64       = 5005
+	SysOpenAt        = 5247
+	SysReadlink      = 5087
+	SysReadlinkAt    = 5257
+	SysIoctl         = 5015
+	SysEpollCreate1  = 5285
+	SysPipe2         = 5287
+	SysEpollCtl      = 5208
+	SysEpollPwait    = 5272
+	SysGetRandom     = 5313
+	SysUname         = 5061
+	SysStat64        = 5004
+	SysGetuid        = 5100
+	SysGetgid        = 5102
+	SysLlseek        = 5008
+	SysMinCore       = 5026
+	SysTgkill        = 5225
 )
 
 // Profiling-related syscalls
 // Should be able to ignore if we patch out prometheus calls and disable memprofiling
 // TODO(cp-903) - Update patching for mt-cannon so that these can be ignored
 const (
-	SysSetITimer    = 4104
-	SysTimerCreate  = 4257
-	SysTimerSetTime = 4258
-	SysTimerDelete  = 4261
-	SysClockGetTime = 4263
+	SysSetITimer    = 5036
+	SysTimerCreate  = 5216
+	SysTimerSetTime = 5217
+	SysTimerDelete  = 5220
+	SysClockGetTime = 5222
 )
 
 // File descriptors
@@ -82,7 +83,7 @@ const (
 
 // Errors
 const (
-	SysErrorSignal = ^uint32(0)
+	SysErrorSignal = ^uint64(0)
 	MipsEBADF      = 0x9
 	MipsEINVAL     = 0x16
 	MipsEAGAIN     = 0xb
@@ -95,7 +96,7 @@ const (
 	FutexWakePrivate  = 129
 	FutexTimeoutSteps = 10_000
 	FutexNoTimeout    = ^uint64(0)
-	FutexEmptyAddr    = ^uint32(0)
+	FutexEmptyAddr    = ^uint64(0)
 )
 
 // SysClone flags
@@ -135,7 +136,7 @@ const (
 	BrkStart     = 0x40000000
 )
 
-func GetSyscallArgs(registers *[32]uint32) (syscallNum, a0, a1, a2, a3 uint32) {
+func GetSyscallArgs(registers *[32]uint64) (syscallNum, a0, a1, a2, a3 uint64) {
 	syscallNum = registers[2] // v0
 
 	a0 = registers[4]
@@ -146,8 +147,8 @@ func GetSyscallArgs(registers *[32]uint32) (syscallNum, a0, a1, a2, a3 uint32) {
 	return syscallNum, a0, a1, a2, a3
 }
 
-func HandleSysMmap(a0, a1, heap uint32) (v0, v1, newHeap uint32) {
-	v1 = uint32(0)
+func HandleSysMmap(a0, a1, heap uint64) (v0, v1, newHeap uint64) {
+	v1 = uint64(0)
 	newHeap = heap
 
 	sz := a1
@@ -166,34 +167,34 @@ func HandleSysMmap(a0, a1, heap uint32) (v0, v1, newHeap uint32) {
 	return v0, v1, newHeap
 }
 
-func HandleSysRead(a0, a1, a2 uint32, preimageKey [32]byte, preimageOffset uint32, preimageReader PreimageReader, memory *memory.Memory, memTracker MemTracker) (v0, v1, newPreimageOffset uint32) {
+func HandleSysRead(a0, a1, a2 uint64, preimageKey [32]byte, preimageOffset uint64, preimageReader PreimageReader, memory *memory.Memory, memTracker MemTracker) (v0, v1, newPreimageOffset uint64) {
 	// args: a0 = fd, a1 = addr, a2 = count
 	// returns: v0 = read, v1 = err code
-	v0 = uint32(0)
-	v1 = uint32(0)
+	v0 = uint64(0)
+	v1 = uint64(0)
 	newPreimageOffset = preimageOffset
 
 	switch a0 {
 	case FdStdin:
 		// leave v0 and v1 zero: read nothing, no error
 	case FdPreimageRead: // pre-image oracle
-		effAddr := a1 & 0xFFffFFfc
+		effAddr := a1 & 0xFFFFFFFFFFFFFFF8
 		memTracker.TrackMemAccess(effAddr)
-		mem := memory.GetMemory(effAddr)
+		mem := memory.GetDoubleWord(effAddr)
 		dat, datLen := preimageReader.ReadPreimage(preimageKey, preimageOffset)
 		//fmt.Printf("reading pre-image data: addr: %08x, offset: %d, datLen: %d, data: %x, key: %s  count: %d\n", a1, m.state.PreimageOffset, datLen, dat[:datLen], m.state.PreimageKey, a2)
-		alignment := a1 & 3
-		space := 4 - alignment
+		alignment := a1 & 7
+		space := 8 - alignment
 		if space < datLen {
 			datLen = space
 		}
 		if a2 < datLen {
 			datLen = a2
 		}
-		var outMem [4]byte
-		binary.BigEndian.PutUint32(outMem[:], mem)
+		var outMem [8]byte
+		binary.BigEndian.PutUint64(outMem[:], mem)
 		copy(outMem[alignment:], dat[:datLen])
-		memory.SetMemory(effAddr, binary.BigEndian.Uint32(outMem[:]))
+		memory.SetDoubleWord(effAddr, binary.BigEndian.Uint64(outMem[:]))
 		newPreimageOffset += datLen
 		v0 = datLen
 		//fmt.Printf("read %d pre-image bytes, new offset: %d, eff addr: %08x mem: %08x\n", datLen, m.state.PreimageOffset, effAddr, outMem)
@@ -201,17 +202,17 @@ func HandleSysRead(a0, a1, a2 uint32, preimageKey [32]byte, preimageOffset uint3
 		// don't actually read into memory, just say we read it all, we ignore the result anyway
 		v0 = a2
 	default:
-		v0 = 0xFFffFFff
+		v0 = 0xFFffFFffFFffFFff
 		v1 = MipsEBADF
 	}
 
 	return v0, v1, newPreimageOffset
 }
 
-func HandleSysWrite(a0, a1, a2 uint32, lastHint hexutil.Bytes, preimageKey [32]byte, preimageOffset uint32, oracle mipsevm.PreimageOracle, memory *memory.Memory, memTracker MemTracker, stdOut, stdErr io.Writer) (v0, v1 uint32, newLastHint hexutil.Bytes, newPreimageKey common.Hash, newPreimageOffset uint32) {
+func HandleSysWrite(a0, a1, a2 uint64, lastHint hexutil.Bytes, preimageKey [32]byte, preimageOffset uint64, oracle mipsevm.PreimageOracle, memory *memory.Memory, memTracker MemTracker, stdOut, stdErr io.Writer) (v0, v1 uint64, newLastHint hexutil.Bytes, newPreimageKey common.Hash, newPreimageOffset uint64) {
 	// args: a0 = fd, a1 = addr, a2 = count
 	// returns: v0 = written, v1 = err code
-	v1 = uint32(0)
+	v1 = uint64(0)
 	newLastHint = lastHint
 	newPreimageKey = preimageKey
 	newPreimageOffset = preimageOffset
@@ -239,34 +240,34 @@ func HandleSysWrite(a0, a1, a2 uint32, lastHint hexutil.Bytes, preimageKey [32]b
 		newLastHint = lastHint
 		v0 = a2
 	case FdPreimageWrite:
-		effAddr := a1 & 0xFFffFFfc
+		effAddr := a1 & 0xFFFFFFFFFFFFFFF8
 		memTracker.TrackMemAccess(effAddr)
-		mem := memory.GetMemory(effAddr)
+		mem := memory.GetDoubleWord(effAddr)
 		key := preimageKey
-		alignment := a1 & 3
-		space := 4 - alignment
+		alignment := a1 & 7
+		space := 8 - alignment
 		if space < a2 {
 			a2 = space
 		}
 		copy(key[:], key[a2:])
-		var tmp [4]byte
-		binary.BigEndian.PutUint32(tmp[:], mem)
+		var tmp [8]byte
+		binary.BigEndian.PutUint64(tmp[:], mem)
 		copy(key[32-a2:], tmp[alignment:])
 		newPreimageKey = key
 		newPreimageOffset = 0
 		//fmt.Printf("updating pre-image key: %s\n", m.state.PreimageKey)
 		v0 = a2
 	default:
-		v0 = 0xFFffFFff
+		v0 = 0xFFffFFffFFffFFff
 		v1 = MipsEBADF
 	}
 
 	return v0, v1, newLastHint, newPreimageKey, newPreimageOffset
 }
 
-func HandleSysFcntl(a0, a1 uint32) (v0, v1 uint32) {
+func HandleSysFcntl(a0, a1 uint64) (v0, v1 uint64) {
 	// args: a0 = fd, a1 = cmd
-	v1 = uint32(0)
+	v1 = uint64(0)
 
 	if a1 == 3 { // F_GETFL: get file descriptor flags
 		switch a0 {
@@ -275,18 +276,18 @@ func HandleSysFcntl(a0, a1 uint32) (v0, v1 uint32) {
 		case FdStdout, FdStderr, FdPreimageWrite, FdHintWrite:
 			v0 = 1 // O_WRONLY
 		default:
-			v0 = 0xFFffFFff
+			v0 = 0xFFffFFffFFffFFff
 			v1 = MipsEBADF
 		}
 	} else {
-		v0 = 0xFFffFFff
+		v0 = 0xFFffFFffFFffFFff
 		v1 = MipsEINVAL // cmd not recognized by this kernel
 	}
 
 	return v0, v1
 }
 
-func HandleSyscallUpdates(cpu *mipsevm.CpuScalars, registers *[32]uint32, v0, v1 uint32) {
+func HandleSyscallUpdates(cpu *mipsevm.CpuScalars, registers *[32]uint64, v0, v1 uint64) {
 	registers[2] = v0
 	registers[7] = v1
 

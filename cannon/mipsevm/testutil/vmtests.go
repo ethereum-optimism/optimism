@@ -63,15 +63,15 @@ func RunVMTests_OpenMips[T mipsevm.FPVMState](t *testing.T, stateFactory StateFa
 			}
 
 			if exitGroup {
-				require.NotEqual(t, uint32(EndAddr), us.GetState().GetPC(), "must not reach end")
+				require.NotEqual(t, uint64(EndAddr), us.GetState().GetPC(), "must not reach end")
 				require.True(t, us.GetState().GetExited(), "must set exited state")
 				require.Equal(t, uint8(1), us.GetState().GetExitCode(), "must exit with 1")
 			} else {
-				require.Equal(t, uint32(EndAddr), us.GetState().GetPC(), "must reach end")
-				done, result := state.GetMemory().GetMemory(BaseAddrEnd+4), state.GetMemory().GetMemory(BaseAddrEnd+8)
+				require.Equal(t, uint64(EndAddr), us.GetState().GetPC(), "must reach end")
+				done, result := uint64(state.GetMemory().GetMemory(BaseAddrEnd+4)), uint64(state.GetMemory().GetMemory(BaseAddrEnd+8))
 				// inspect test result
-				require.Equal(t, done, uint32(1), "must be done")
-				require.Equal(t, result, uint32(1), "must have success result")
+				require.Equal(t, done, uint64(1), "must be done")
+				require.Equal(t, result, uint64(1), "must have success result")
 			}
 		})
 	}

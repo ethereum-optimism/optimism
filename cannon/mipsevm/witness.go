@@ -13,7 +13,7 @@ type StepWitness struct {
 
 	PreimageKey    [32]byte // zeroed when no pre-image is accessed
 	PreimageValue  []byte   // including the 8-byte length prefix
-	PreimageOffset uint32
+	PreimageOffset uint64
 }
 
 func (wit *StepWitness) HasPreimage() bool {

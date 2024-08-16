@@ -107,13 +107,13 @@ func TestEVM_CloneFlags(t *testing.T) {
 
 	cases := []struct {
 		name  string
-		flags uint32
+		flags uint64
 		valid bool
 	}{
 		{"the supported flags bitmask", exec.ValidCloneFlags, true},
 		{"no flags", 0, false},
-		{"all flags", ^uint32(0), false},
-		{"all unsupported flags", ^uint32(exec.ValidCloneFlags), false},
+		{"all flags", ^uint64(0), false},
+		{"all unsupported flags", ^uint64(exec.ValidCloneFlags), false},
 		{"a few supported flags", exec.CloneFs | exec.CloneSysvsem, false},
 		{"one supported flag", exec.CloneFs, false},
 		{"mixed supported and unsupported flags", exec.CloneFs | exec.CloneParentSettid, false},
@@ -161,8 +161,8 @@ func TestEVMSingleStep(t *testing.T) {
 
 	cases := []struct {
 		name   string
-		pc     uint32
-		nextPC uint32
+		pc     uint64
+		nextPC uint64
 		insn   uint32
 	}{
 		{"j MSB set target", 0, 4, 0x0A_00_00_02},                         // j 0x02_00_00_02
@@ -349,10 +349,10 @@ func TestEVMSysWriteHint(t *testing.T) {
 			state.LastHint = tt.lastHint
 			state.Registers[2] = exec.SysWrite
 			state.Registers[4] = exec.FdHintWrite
-			state.Registers[5] = uint32(tt.memOffset)
-			state.Registers[6] = uint32(tt.bytesToWrite)
+			state.Registers[5] = uint64(tt.memOffset)
+			state.Registers[6] = uint64(tt.bytesToWrite)
 
-			err := state.Memory.SetMemoryRange(uint32(tt.memOffset), bytes.NewReader(tt.hintData))
+			err := state.Memory.SetMemoryRange(uint64(tt.memOffset), bytes.NewReader(tt.hintData))
 			require.NoError(t, err)
 			state.Memory.SetMemory(0, insn)
 			curStep := state.Step
@@ -384,7 +384,7 @@ func TestEVMFault(t *testing.T) {
 
 	cases := []struct {
 		name   string
-		nextPC uint32
+		nextPC uint64
 		insn   uint32
 	}{
 		{"illegal instruction", 0, 0xFF_FF_FF_FF},

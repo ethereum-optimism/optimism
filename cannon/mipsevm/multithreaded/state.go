@@ -14,18 +14,18 @@ import (
 )
 
 // STATE_WITNESS_SIZE is the size of the state witness encoding in bytes.
-const STATE_WITNESS_SIZE = 163
+const STATE_WITNESS_SIZE = 179
 const (
 	MEMROOT_WITNESS_OFFSET                    = 0
 	PREIMAGE_KEY_WITNESS_OFFSET               = MEMROOT_WITNESS_OFFSET + 32
 	PREIMAGE_OFFSET_WITNESS_OFFSET            = PREIMAGE_KEY_WITNESS_OFFSET + 32
-	HEAP_WITNESS_OFFSET                       = PREIMAGE_OFFSET_WITNESS_OFFSET + 4
-	EXITCODE_WITNESS_OFFSET                   = HEAP_WITNESS_OFFSET + 4
+	HEAP_WITNESS_OFFSET                       = PREIMAGE_OFFSET_WITNESS_OFFSET + 8
+	EXITCODE_WITNESS_OFFSET                   = HEAP_WITNESS_OFFSET + 8
 	EXITED_WITNESS_OFFSET                     = EXITCODE_WITNESS_OFFSET + 1
 	STEP_WITNESS_OFFSET                       = EXITED_WITNESS_OFFSET + 1
 	STEPS_SINCE_CONTEXT_SWITCH_WITNESS_OFFSET = STEP_WITNESS_OFFSET + 8
 	WAKEUP_WITNESS_OFFSET                     = STEPS_SINCE_CONTEXT_SWITCH_WITNESS_OFFSET + 8
-	TRAVERSE_RIGHT_WITNESS_OFFSET             = WAKEUP_WITNESS_OFFSET + 4
+	TRAVERSE_RIGHT_WITNESS_OFFSET             = WAKEUP_WITNESS_OFFSET + 8
 	LEFT_THREADS_ROOT_WITNESS_OFFSET          = TRAVERSE_RIGHT_WITNESS_OFFSET + 1
 	RIGHT_THREADS_ROOT_WITNESS_OFFSET         = LEFT_THREADS_ROOT_WITNESS_OFFSET + 32
 	THREAD_ID_WITNESS_OFFSET                  = RIGHT_THREADS_ROOT_WITNESS_OFFSET + 32
@@ -35,21 +35,21 @@ type State struct {
 	Memory *memory.Memory `json:"memory"`
 
 	PreimageKey    common.Hash `json:"preimageKey"`
-	PreimageOffset uint32      `json:"preimageOffset"` // note that the offset includes the 8-byte length prefix
+	PreimageOffset uint64      `json:"preimageOffset"` // note that the offset includes the 8-byte length prefix
 
-	Heap uint32 `json:"heap"` // to handle mmap growth
+	Heap uint64 `json:"heap"` // to handle mmap growth
 
 	ExitCode uint8 `json:"exit"`
 	Exited   bool  `json:"exited"`
 
 	Step                        uint64 `json:"step"`
 	StepsSinceLastContextSwitch uint64 `json:"stepsSinceLastContextSwitch"`
-	Wakeup                      uint32 `json:"wakeup"`
+	Wakeup                      uint64 `json:"wakeup"`
 
 	TraverseRight    bool           `json:"traverseRight"`
 	LeftThreadStack  []*ThreadState `json:"leftThreadStack"`
 	RightThreadStack []*ThreadState `json:"rightThreadStack"`
-	NextThreadId     uint32         `json:"nextThreadId"`
+	NextThreadId     uint64         `json:"nextThreadId"`
 
 	// LastHint is optional metadata, and not part of the VM state itself.
 	// It is used to remember the last pre-image hint,
@@ -81,7 +81,7 @@ func CreateEmptyState() *State {
 	}
 }
 
-func CreateInitialState(pc, heapStart uint32) *State {
+func CreateInitialState(pc, heapStart uint64) *State {
 	state := CreateEmptyState()
 	currentThread := state.getCurrentThread()
 	currentThread.Cpu.PC = pc
@@ -130,12 +130,12 @@ func (s *State) calculateThreadStackRoot(stack []*ThreadState) common.Hash {
 	return curRoot
 }
 
-func (s *State) GetPC() uint32 {
+func (s *State) GetPC() uint64 {
 	activeThread := s.getCurrentThread()
 	return activeThread.Cpu.PC
 }
 
-func (s *State) GetRegisters() *[32]uint32 {
+func (s *State) GetRegisters() *[32]uint64 {
 	activeThread := s.getCurrentThread()
 	return &activeThread.Registers
 }
@@ -163,21 +163,21 @@ func (s *State) EncodeWitness() ([]byte, common.Hash) {
 	memRoot := s.Memory.MerkleRoot()
 	out = append(out, memRoot[:]...)
 	out = append(out, s.PreimageKey[:]...)
-	out = binary.BigEndian.AppendUint32(out, s.PreimageOffset)
-	out = binary.BigEndian.AppendUint32(out, s.Heap)
+	out = binary.BigEndian.AppendUint64(out, s.PreimageOffset)
+	out = binary.BigEndian.AppendUint64(out, s.Heap)
 	out = append(out, s.ExitCode)
 	out = mipsevm.AppendBoolToWitness(out, s.Exited)
 
 	out = binary.BigEndian.AppendUint64(out, s.Step)
 	out = binary.BigEndian.AppendUint64(out, s.StepsSinceLastContextSwitch)
-	out = binary.BigEndian.AppendUint32(out, s.Wakeup)
+	out = binary.BigEndian.AppendUint64(out, s.Wakeup)
 
 	leftStackRoot := s.getLeftThreadStackRoot()
 	rightStackRoot := s.getRightThreadStackRoot()
 	out = mipsevm.AppendBoolToWitness(out, s.TraverseRight)
 	out = append(out, (leftStackRoot)[:]...)
 	out = append(out, (rightStackRoot)[:]...)
-	out = binary.BigEndian.AppendUint32(out, s.NextThreadId)
+	out = binary.BigEndian.AppendUint64(out, s.NextThreadId)
 
 	return out, stateHashFromWitness(out)
 }

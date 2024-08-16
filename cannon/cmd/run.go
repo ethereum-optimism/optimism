@@ -126,7 +126,7 @@ type Proof struct {
 
 	OracleKey    hexutil.Bytes `json:"oracle-key,omitempty"`
 	OracleValue  hexutil.Bytes `json:"oracle-value,omitempty"`
-	OracleOffset uint32        `json:"oracle-offset,omitempty"`
+	OracleOffset uint64        `json:"oracle-offset,omitempty"`
 }
 
 type rawHint string
@@ -270,7 +270,7 @@ func Run(ctx *cli.Context) error {
 
 	stopAtAnyPreimage := false
 	var stopAtPreimageKeyPrefix []byte
-	stopAtPreimageOffset := uint32(0)
+	stopAtPreimageOffset := uint64(0)
 	if ctx.IsSet(RunStopAtPreimageFlag.Name) {
 		val := ctx.String(RunStopAtPreimageFlag.Name)
 		parts := strings.Split(val, "@")
@@ -279,11 +279,11 @@ func Run(ctx *cli.Context) error {
 		}
 		stopAtPreimageKeyPrefix = common.FromHex(parts[0])
 		if len(parts) == 2 {
-			x, err := strconv.ParseUint(parts[1], 10, 32)
+			x, err := strconv.ParseUint(parts[1], 10, 64)
 			if err != nil {
 				return fmt.Errorf("invalid preimage offset: %w", err)
 			}
-			stopAtPreimageOffset = uint32(x)
+			stopAtPreimageOffset = uint64(x)
 		}
 	} else {
 		switch ctx.String(RunStopAtPreimageTypeFlag.Name) {
@@ -468,7 +468,7 @@ func Run(ctx *cli.Context) error {
 		}
 
 		lastPreimageKey, lastPreimageValue, lastPreimageOffset := vm.LastPreimage()
-		if lastPreimageOffset != ^uint32(0) {
+		if lastPreimageOffset != ^uint64(0) {
 			if stopAtAnyPreimage {
 				l.Info("Stopping at preimage read")
 				break

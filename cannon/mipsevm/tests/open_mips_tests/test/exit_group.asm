@@ -6,7 +6,7 @@
 
 test:
   li $a0, 1
-  li $v0, 4246
+  li $v0, 5205
   syscall
 
   # Unreachable ....

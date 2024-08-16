@@ -9,19 +9,20 @@ import (
 	"sort"
 
 	"github.com/ethereum/go-ethereum/crypto"
+	u128 "lukechampine.com/uint128"
 )
 
 // Note: 2**12 = 4 KiB, the min phys page size in the Go runtime.
 const (
 	PageAddrSize = 12
-	PageKeySize  = 32 - PageAddrSize
+	PageKeySize  = 64 - PageAddrSize
 	PageSize     = 1 << PageAddrSize
 	PageAddrMask = PageSize - 1
 	MaxPageCount = 1 << PageKeySize
 	PageKeyMask  = MaxPageCount - 1
 )
 
-const MEM_PROOF_SIZE = 28 * 32
+const MEM_PROOF_SIZE = 60 * 32
 
 func HashPair(left, right [32]byte) [32]byte {
 	out := crypto.Keccak256Hash(left[:], right[:])
@@ -43,22 +44,22 @@ type Memory struct {
 	nodes map[uint64]*[32]byte
 
 	// pageIndex -> cached page
-	pages map[uint32]*CachedPage
+	pages map[uint64]*CachedPage
 
 	// Note: since we don't de-alloc pages, we don't do ref-counting.
 	// Once a page exists, it doesn't leave memory
 
 	// two caches: we often read instructions from one page, and do memory things with another page.
 	// this prevents map lookups each instruction
-	lastPageKeys [2]uint32
+	lastPageKeys [2]uint64
 	lastPage     [2]*CachedPage
 }
 
 func NewMemory() *Memory {
 	return &Memory{
 		nodes:        make(map[uint64]*[32]byte),
-		pages:        make(map[uint32]*CachedPage),
-		lastPageKeys: [2]uint32{^uint32(0), ^uint32(0)}, // default to invalid keys, to not match any pages
+		pages:        make(map[uint64]*CachedPage),
+		lastPageKeys: [2]uint64{^uint64(0), ^uint64(0)}, // default to invalid keys, to not match any pages
 	}
 }
 
@@ -66,7 +67,7 @@ func (m *Memory) PageCount() int {
 	return len(m.pages)
 }
 
-func (m *Memory) ForEachPage(fn func(pageIndex uint32, page *Page) error) error {
+func (m *Memory) ForEachPage(fn func(pageIndex uint64, page *Page) error) error {
 	for pageIndex, cachedPage := range m.pages {
 		if err := fn(pageIndex, cachedPage.Data); err != nil {
 			return err
@@ -75,7 +76,7 @@ func (m *Memory) ForEachPage(fn func(pageIndex uint32, page *Page) error) error 
 	return nil
 }
 
-func (m *Memory) Invalidate(addr uint32) {
+func (m *Memory) Invalidate(addr uint64) {
 	// addr must be aligned to 4 bytes
 	if addr&0x3 != 0 {
 		panic(fmt.Errorf("unaligned memory access: %x", addr))
@@ -93,7 +94,7 @@ func (m *Memory) Invalidate(addr uint32) {
 	}
 
 	// find the gindex of the first page covering the address
-	gindex := ((uint64(1) << 32) | uint64(addr)) >> PageAddrSize
+	gindex := u128.From64(1).Lsh(64).Or(u128.From64(addr)).Rsh(PageAddrSize).Big().Uint64()
 
 	for gindex > 0 {
 		m.nodes[gindex] = nil
@@ -103,23 +104,23 @@ func (m *Memory) Invalidate(addr uint32) {
 
 func (m *Memory) MerkleizeSubtree(gindex uint64) [32]byte {
 	l := uint64(bits.Len64(gindex))
-	if l > 28 {
+	if l > 60 {
 		panic("gindex too deep")
 	}
 	if l > PageKeySize {
 		depthIntoPage := l - 1 - PageKeySize
 		pageIndex := (gindex >> depthIntoPage) & PageKeyMask
-		if p, ok := m.pages[uint32(pageIndex)]; ok {
+		if p, ok := m.pages[uint64(pageIndex)]; ok {
 			pageGindex := (1 << depthIntoPage) | (gindex & ((1 << depthIntoPage) - 1))
 			return p.MerkleizeSubtree(pageGindex)
 		} else {
-			return zeroHashes[28-l] // page does not exist
+			return zeroHashes[60-l] // page does not exist
 		}
 	}
 	n, ok := m.nodes[gindex]
 	if !ok {
 		// if the node doesn't exist, the whole sub-tree is zeroed
-		return zeroHashes[28-l]
+		return zeroHashes[60-l]
 	}
 	if n != nil {
 		return *n
@@ -131,27 +132,27 @@ func (m *Memory) MerkleizeSubtree(gindex uint64) [32]byte {
 	return r
 }
 
-func (m *Memory) MerkleProof(addr uint32) (out [MEM_PROOF_SIZE]byte) {
+func (m *Memory) MerkleProof(addr uint64) (out [MEM_PROOF_SIZE]byte) {
 	proof := m.traverseBranch(1, addr, 0)
 	// encode the proof
-	for i := 0; i < 28; i++ {
+	for i := 0; i < 60; i++ {
 		copy(out[i*32:(i+1)*32], proof[i][:])
 	}
 	return out
 }
 
-func (m *Memory) traverseBranch(parent uint64, addr uint32, depth uint8) (proof [][32]byte) {
-	if depth == 32-5 {
-		proof = make([][32]byte, 0, 32-5+1)
+func (m *Memory) traverseBranch(parent uint64, addr uint64, depth uint8) (proof [][32]byte) {
+	if depth == 64-5 {
+		proof = make([][32]byte, 0, 64-5+1)
 		proof = append(proof, m.MerkleizeSubtree(parent))
 		return
 	}
-	if depth > 32-5 {
+	if depth > 64-5 {
 		panic("traversed too deep")
 	}
 	self := parent << 1
 	sibling := self | 1
-	if addr&(1<<(31-depth)) != 0 {
+	if addr&(1<<(63-depth)) != 0 {
 		self, sibling = sibling, self
 	}
 	proof = m.traverseBranch(self, addr, depth+1)
@@ -164,7 +165,7 @@ func (m *Memory) MerkleRoot() [32]byte {
 	return m.MerkleizeSubtree(1)
 }
 
-func (m *Memory) pageLookup(pageIndex uint32) (*CachedPage, bool) {
+func (m *Memory) pageLookup(pageIndex uint64) (*CachedPage, bool) {
 	// hit caches
 	if pageIndex == m.lastPageKeys[0] {
 		return m.lastPage[0], true
@@ -185,7 +186,7 @@ func (m *Memory) pageLookup(pageIndex uint32) (*CachedPage, bool) {
 	return p, ok
 }
 
-func (m *Memory) SetMemory(addr uint32, v uint32) {
+func (m *Memory) SetMemory(addr uint64, v uint32) {
 	// addr must be aligned to 4 bytes
 	if addr&0x3 != 0 {
 		panic(fmt.Errorf("unaligned memory access: %x", addr))
@@ -204,7 +205,26 @@ func (m *Memory) SetMemory(addr uint32, v uint32) {
 	binary.BigEndian.PutUint32(p.Data[pageAddr:pageAddr+4], v)
 }
 
-func (m *Memory) GetMemory(addr uint32) uint32 {
+func (m *Memory) SetDoubleWord(addr uint64, v uint64) {
+	// addr must be aligned to 8 bytes
+	if addr&0x7 != 0 {
+		panic(fmt.Errorf("unaligned memory access: %x", addr))
+	}
+
+	pageIndex := addr >> PageAddrSize
+	pageAddr := addr & PageAddrMask
+	p, ok := m.pageLookup(pageIndex)
+	if !ok {
+		// allocate the page if we have not already.
+		// Go may mmap relatively large ranges, but we only allocate the pages just in time.
+		p = m.AllocPage(pageIndex)
+	} else {
+		m.Invalidate(addr) // invalidate this branch of memory, now that the value changed
+	}
+	binary.BigEndian.PutUint64(p.Data[pageAddr:pageAddr+8], v)
+}
+
+func (m *Memory) GetMemory(addr uint64) uint32 {
 	// addr must be aligned to 4 bytes
 	if addr&0x3 != 0 {
 		panic(fmt.Errorf("unaligned memory access: %x", addr))
@@ -217,7 +237,20 @@ func (m *Memory) GetMemory(addr uint32) uint32 {
 	return binary.BigEndian.Uint32(p.Data[pageAddr : pageAddr+4])
 }
 
-func (m *Memory) AllocPage(pageIndex uint32) *CachedPage {
+func (m *Memory) GetDoubleWord(addr uint64) uint64 {
+	// addr must be aligned to 8 bytes
+	if addr&0x7 != 0 {
+		panic(fmt.Errorf("unaligned memory access: %x", addr))
+	}
+	p, ok := m.pageLookup(addr >> PageAddrSize)
+	if !ok {
+		return 0
+	}
+	pageAddr := addr & PageAddrMask
+	return binary.BigEndian.Uint64(p.Data[pageAddr : pageAddr+8])
+}
+
+func (m *Memory) AllocPage(pageIndex uint64) *CachedPage {
 	p := &CachedPage{Data: new(Page)}
 	m.pages[pageIndex] = p
 	// make nodes to root
@@ -230,7 +263,7 @@ func (m *Memory) AllocPage(pageIndex uint32) *CachedPage {
 }
 
 type pageEntry struct {
-	Index uint32 `json:"index"`
+	Index uint64 `json:"index"`
 	Data  *Page  `json:"data"`
 }
 
@@ -254,8 +287,8 @@ func (m *Memory) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	m.nodes = make(map[uint64]*[32]byte)
-	m.pages = make(map[uint32]*CachedPage)
-	m.lastPageKeys = [2]uint32{^uint32(0), ^uint32(0)}
+	m.pages = make(map[uint64]*CachedPage)
+	m.lastPageKeys = [2]uint64{^uint64(0), ^uint64(0)}
 	m.lastPage = [2]*CachedPage{nil, nil}
 	for i, p := range pages {
 		if _, ok := m.pages[p.Index]; ok {
@@ -266,7 +299,7 @@ func (m *Memory) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (m *Memory) SetMemoryRange(addr uint32, r io.Reader) error {
+func (m *Memory) SetMemoryRange(addr uint64, r io.Reader) error {
 	for {
 		pageIndex := addr >> PageAddrSize
 		pageAddr := addr & PageAddrMask
@@ -282,14 +315,14 @@ func (m *Memory) SetMemoryRange(addr uint32, r io.Reader) error {
 			}
 			return err
 		}
-		addr += uint32(n)
+		addr += uint64(n)
 	}
 }
 
 type memReader struct {
 	m     *Memory
-	addr  uint32
-	count uint32
+	addr  uint64
+	count uint64
 }
 
 func (r *memReader) Read(dest []byte) (n int, err error) {
@@ -303,7 +336,7 @@ func (r *memReader) Read(dest []byte) (n int, err error) {
 
 	pageIndex := r.addr >> PageAddrSize
 	start := r.addr & PageAddrMask
-	end := uint32(PageSize)
+	end := uint64(PageSize)
 
 	if pageIndex == (endAddr >> PageAddrSize) {
 		end = endAddr & PageAddrMask
@@ -314,12 +347,12 @@ func (r *memReader) Read(dest []byte) (n int, err error) {
 	} else {
 		n = copy(dest, make([]byte, end-start)) // default to zeroes
 	}
-	r.addr += uint32(n)
-	r.count -= uint32(n)
+	r.addr += uint64(n)
+	r.count -= uint64(n)
 	return n, nil
 }
 
-func (m *Memory) ReadMemoryRange(addr uint32, count uint32) io.Reader {
+func (m *Memory) ReadMemoryRange(addr uint64, count uint64) io.Reader {
 	return &memReader{m: m, addr: addr, count: count}
 }
 

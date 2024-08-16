@@ -5,7 +5,7 @@
     .ent    test
 
 test:
-  li $v0, 4090
+  li $v0, 5009
   lui $a0, 0x3000
   li $a1, 4096
   syscall

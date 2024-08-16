@@ -29,7 +29,7 @@ func TestStateHash(t *testing.T) {
 		{exited: true, exitCode: 3},
 	}
 
-	exitedOffset := 32*2 + 4*6
+	exitedOffset := 32*2 + 8*6
 	for _, c := range cases {
 		state := &State{
 			Memory:   memory.NewMemory(),
@@ -40,7 +40,7 @@ func TestStateHash(t *testing.T) {
 		actualWitness, actualStateHash := state.EncodeWitness()
 		require.Equal(t, len(actualWitness), STATE_WITNESS_SIZE, "Incorrect witness size")
 
-		expectedWitness := make(StateWitness, 226)
+		expectedWitness := make(StateWitness, 378)
 		memRoot := state.Memory.MerkleRoot()
 		copy(expectedWitness[:32], memRoot[:])
 		expectedWitness[exitedOffset] = c.exitCode

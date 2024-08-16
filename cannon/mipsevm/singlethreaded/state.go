@@ -14,24 +14,24 @@ import (
 )
 
 // STATE_WITNESS_SIZE is the size of the state witness encoding in bytes.
-const STATE_WITNESS_SIZE = 226
+const STATE_WITNESS_SIZE = 378
 
 type State struct {
 	Memory *memory.Memory `json:"memory"`
 
 	PreimageKey    common.Hash `json:"preimageKey"`
-	PreimageOffset uint32      `json:"preimageOffset"` // note that the offset includes the 8-byte length prefix
+	PreimageOffset uint64      `json:"preimageOffset"` // note that the offset includes the 8-byte length prefix
 
 	Cpu mipsevm.CpuScalars `json:"cpu"`
 
-	Heap uint32 `json:"heap"` // to handle mmap growth
+	Heap uint64 `json:"heap"` // to handle mmap growth
 
 	ExitCode uint8 `json:"exit"`
 	Exited   bool  `json:"exited"`
 
 	Step uint64 `json:"step"`
 
-	Registers [32]uint32 `json:"registers"`
+	Registers [32]uint64 `json:"registers"`
 
 	// LastHint is optional metadata, and not part of the VM state itself.
 	// It is used to remember the last pre-image hint,
@@ -55,7 +55,7 @@ func CreateEmptyState() *State {
 			HI:     0,
 		},
 		Heap:      0,
-		Registers: [32]uint32{},
+		Registers: [32]uint64{},
 		Memory:    memory.NewMemory(),
 		ExitCode:  0,
 		Exited:    false,
@@ -63,7 +63,7 @@ func CreateEmptyState() *State {
 	}
 }
 
-func CreateInitialState(pc, heapStart uint32) *State {
+func CreateInitialState(pc, heapStart uint64) *State {
 	state := CreateEmptyState()
 	state.Cpu.PC = pc
 	state.Cpu.NextPC = pc + 4
@@ -75,16 +75,16 @@ func CreateInitialState(pc, heapStart uint32) *State {
 type stateMarshaling struct {
 	Memory         *memory.Memory `json:"memory"`
 	PreimageKey    common.Hash    `json:"preimageKey"`
-	PreimageOffset uint32         `json:"preimageOffset"`
-	PC             uint32         `json:"pc"`
-	NextPC         uint32         `json:"nextPC"`
-	LO             uint32         `json:"lo"`
-	HI             uint32         `json:"hi"`
-	Heap           uint32         `json:"heap"`
+	PreimageOffset uint64         `json:"preimageOffset"`
+	PC             uint64         `json:"pc"`
+	NextPC         uint64         `json:"nextPC"`
+	LO             uint64         `json:"lo"`
+	HI             uint64         `json:"hi"`
+	Heap           uint64         `json:"heap"`
 	ExitCode       uint8          `json:"exit"`
 	Exited         bool           `json:"exited"`
 	Step           uint64         `json:"step"`
-	Registers      [32]uint32     `json:"registers"`
+	Registers      [32]uint64     `json:"registers"`
 	LastHint       hexutil.Bytes  `json:"lastHint,omitempty"`
 }
 
@@ -128,9 +128,9 @@ func (s *State) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (s *State) GetPC() uint32 { return s.Cpu.PC }
+func (s *State) GetPC() uint64 { return s.Cpu.PC }
 
-func (s *State) GetRegisters() *[32]uint32 { return &s.Registers }
+func (s *State) GetRegisters() *[32]uint64 { return &s.Registers }
 
 func (s *State) GetExitCode() uint8 { return s.ExitCode }
 
@@ -151,17 +151,17 @@ func (s *State) EncodeWitness() ([]byte, common.Hash) {
 	memRoot := s.Memory.MerkleRoot()
 	out = append(out, memRoot[:]...)
 	out = append(out, s.PreimageKey[:]...)
-	out = binary.BigEndian.AppendUint32(out, s.PreimageOffset)
-	out = binary.BigEndian.AppendUint32(out, s.Cpu.PC)
-	out = binary.BigEndian.AppendUint32(out, s.Cpu.NextPC)
-	out = binary.BigEndian.AppendUint32(out, s.Cpu.LO)
-	out = binary.BigEndian.AppendUint32(out, s.Cpu.HI)
-	out = binary.BigEndian.AppendUint32(out, s.Heap)
+	out = binary.BigEndian.AppendUint64(out, s.PreimageOffset)
+	out = binary.BigEndian.AppendUint64(out, s.Cpu.PC)
+	out = binary.BigEndian.AppendUint64(out, s.Cpu.NextPC)
+	out = binary.BigEndian.AppendUint64(out, s.Cpu.LO)
+	out = binary.BigEndian.AppendUint64(out, s.Cpu.HI)
+	out = binary.BigEndian.AppendUint64(out, s.Heap)
 	out = append(out, s.ExitCode)
 	out = mipsevm.AppendBoolToWitness(out, s.Exited)
 	out = binary.BigEndian.AppendUint64(out, s.Step)
 	for _, r := range s.Registers {
-		out = binary.BigEndian.AppendUint32(out, r)
+		out = binary.BigEndian.AppendUint64(out, r)
 	}
 	return out, stateHashFromWitness(out)
 }
@@ -186,7 +186,7 @@ func stateHashFromWitness(sw []byte) common.Hash {
 		panic("Invalid witness length")
 	}
 	hash := crypto.Keccak256Hash(sw)
-	offset := 32*2 + 4*6
+	offset := 32*2 + 8*6
 	exitCode := sw[offset]
 	exited := sw[offset+1]
 	status := mipsevm.VmStatus(exited == 1, exitCode)

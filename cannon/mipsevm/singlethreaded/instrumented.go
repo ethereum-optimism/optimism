@@ -30,7 +30,7 @@ var _ mipsevm.FPVM = (*InstrumentedState)(nil)
 func NewInstrumentedState(state *State, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, meta *program.Metadata) *InstrumentedState {
 	var sleepCheck program.SymbolMatcher
 	if meta == nil {
-		sleepCheck = func(addr uint32) bool { return false }
+		sleepCheck = func(addr uint64) bool { return false }
 	} else {
 		sleepCheck = meta.CreateSymbolMatcher("runtime.notesleep")
 	}
@@ -86,7 +86,7 @@ func (m *InstrumentedState) Step(proof bool) (wit *mipsevm.StepWitness, err erro
 		memProof := m.memoryTracker.MemProof()
 		wit.ProofData = append(wit.ProofData, memProof[:]...)
 		lastPreimageKey, lastPreimage, lastPreimageOffset := m.preimageOracle.LastPreimage()
-		if lastPreimageOffset != ^uint32(0) {
+		if lastPreimageOffset != ^uint64(0) {
 			wit.PreimageOffset = lastPreimageOffset
 			wit.PreimageKey = lastPreimageKey
 			wit.PreimageValue = lastPreimage
@@ -99,7 +99,7 @@ func (m *InstrumentedState) CheckInfiniteLoop() bool {
 	return m.sleepCheck(m.state.GetPC())
 }
 
-func (m *InstrumentedState) LastPreimage() ([32]byte, []byte, uint32) {
+func (m *InstrumentedState) LastPreimage() ([32]byte, []byte, uint64) {
 	return m.preimageOracle.LastPreimage()
 }
 
