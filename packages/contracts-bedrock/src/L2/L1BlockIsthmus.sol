@@ -21,7 +21,7 @@ enum ConfigType {
 /// @custom:proxied
 /// @custom:predeploy 0x4200000000000000000000000000000000000015
 /// @title L1BlockIsthmus
-/// @notice Interop extenstions of L1Block.
+/// @notice Isthmus extenstions of L1Block.
 contract L1BlockIsthmus is L1Block {
     using EnumerableSet for EnumerableSet.UintSet;
 
@@ -39,9 +39,9 @@ contract L1BlockIsthmus is L1Block {
     /// keccak256(abi.encode(uint256(keccak256("l1Block.identifier.isDeposit")) - 1)) & ~bytes32(uint256(0xff))
     uint256 internal constant IS_DEPOSIT_SLOT = 0x921bd3a089295c6e5540e8fba8195448d253efd6f2e3e495b499b627dc36a300;
 
-    /// @custom:semver +interop
+    /// @custom:semver +isthmus
     function version() public pure override returns (string memory) {
-        return string.concat(super.version(), "+interop");
+        return string.concat(super.version(), "+isthmus");
     }
 
     /// @notice Returns whether the call was triggered from a a deposit or not.
