@@ -145,6 +145,6 @@ cat << EOL >> tmp_config.json
   "preimageOracleChallengePeriod": 86400
 }
 EOL
-cat tmp_config.json
+
 # Write the final config file
 mv tmp_config.json "$CONTRACTS_BASE/deploy-config/getting-started.json"
