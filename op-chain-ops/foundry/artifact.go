@@ -5,17 +5,20 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
 	"os"
 	"strings"
 
 	"github.com/holiman/uint256"
 	"golang.org/x/exp/maps"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/solc"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
+
+	"github.com/ethereum-optimism/optimism/op-chain-ops/solc"
 )
 
 // Artifact represents a foundry compilation artifact.
@@ -160,6 +163,34 @@ func ReadArtifact(path string) (*Artifact, error) {
 
 type ForgeAllocs struct {
 	Accounts types.GenesisAlloc
+}
+
+// ForgeAllocs implements state.DumpAllocator, such that the EVM state can be dumped into it:
+// with a StateDB.DumpToCollector call.
+var _ state.DumpCollector = (*ForgeAllocs)(nil)
+
+func (d *ForgeAllocs) OnRoot(hash common.Hash) {
+	// Unlike the geth raw-state-dump, forge-allocs do not reference the state trie root.
+}
+
+func (d *ForgeAllocs) OnAccount(address *common.Address, account state.DumpAccount) {
+	if address == nil {
+		return
+	}
+	balance, ok := new(big.Int).SetString(account.Balance, 0)
+	if !ok {
+		panic("invalid balance")
+	}
+	storage := make(map[common.Hash]common.Hash, len(account.Storage))
+	for k, v := range account.Storage {
+		storage[k] = common.HexToHash(v)
+	}
+	d.Accounts[*address] = types.Account{
+		Code:    account.Code,
+		Storage: storage,
+		Balance: balance,
+		Nonce:   account.Nonce,
+	}
 }
 
 func (d *ForgeAllocs) Copy() *ForgeAllocs {
