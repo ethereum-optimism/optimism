@@ -29,7 +29,7 @@ type Oracle interface {
 	GetBlob(ref eth.L1BlockRef, blobHash eth.IndexedBlobHash) *eth.Blob
 
 	// Precompile retrieves the result and success indicator of a precompile call for the given input.
-	Precompile(precompileAddress common.Address, input []byte) ([]byte, bool)
+	Precompile(precompileAddress common.Address, input []byte, requiredGas uint64) ([]byte, bool)
 }
 
 // PreimageOracle implements Oracle using by interfacing with the pure preimage.Oracle
@@ -119,9 +119,10 @@ func (p *PreimageOracle) GetBlob(ref eth.L1BlockRef, blobHash eth.IndexedBlobHas
 	return &blob
 }
 
-func (p *PreimageOracle) Precompile(address common.Address, input []byte) ([]byte, bool) {
-	hintBytes := append(address.Bytes(), input...)
-	p.hint.Hint(PrecompileHint(hintBytes))
+func (p *PreimageOracle) Precompile(address common.Address, input []byte, requiredGas uint64) ([]byte, bool) {
+	hintBytes := append(address.Bytes(), binary.BigEndian.AppendUint64(nil, requiredGas)...)
+	hintBytes = append(hintBytes, input...)
+	p.hint.Hint(PrecompileHintV2(hintBytes))
 	key := preimage.PrecompileKey(crypto.Keccak256Hash(hintBytes))
 	result := p.oracle.Get(key)
 	if len(result) == 0 { // must contain at least the status code

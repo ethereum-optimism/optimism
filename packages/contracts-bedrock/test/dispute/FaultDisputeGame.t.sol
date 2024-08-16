@@ -45,7 +45,10 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
         // Set the extra data for the game creation
         extraData = abi.encode(l2BlockNumber);
 
-        AlphabetVM _vm = new AlphabetVM(absolutePrestate, new PreimageOracle(0, 0));
+        // Set preimage oracle challenge period to something arbitrary (4 seconds) just so we can
+        // actually test the clock extensions later on. This is not a realistic value.
+        PreimageOracle oracle = new PreimageOracle(0, 4);
+        AlphabetVM _vm = new AlphabetVM(absolutePrestate, oracle);
 
         // Deploy an implementation of the fault game
         gameImpl = new FaultDisputeGame({
@@ -128,12 +131,66 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         });
     }
 
+    /// @dev Tests that the constructor of the `FaultDisputeGame` reverts when the challenge period
+    //       of the preimage oracle being used by the game's VM is too large.
+    /// @param _challengePeriod The challenge period of the preimage oracle.
+    function testFuzz_constructor_oracleChallengePeriodTooLarge_reverts(uint256 _challengePeriod) public {
+        _challengePeriod = bound(_challengePeriod, uint256(type(uint64).max) + 1, type(uint256).max);
+
+        PreimageOracle oracle = new PreimageOracle(0, 0);
+        AlphabetVM alphabetVM = new AlphabetVM(absolutePrestate, oracle);
+
+        // PreimageOracle constructor will revert if the challenge period is too large, so we need
+        // to mock the call to pretend this is a bugged implementation where the challenge period
+        // is allowed to be too large.
+        vm.mockCall(
+            address(oracle), abi.encodeWithSelector(oracle.challengePeriod.selector), abi.encode(_challengePeriod)
+        );
+
+        vm.expectRevert(InvalidChallengePeriod.selector);
+        new FaultDisputeGame({
+            _gameType: GAME_TYPE,
+            _absolutePrestate: absolutePrestate,
+            _maxGameDepth: 2 ** 3,
+            _splitDepth: 2 ** 2,
+            _clockExtension: Duration.wrap(3 hours),
+            _maxClockDuration: Duration.wrap(3.5 days),
+            _vm: alphabetVM,
+            _weth: DelayedWETH(payable(address(0))),
+            _anchorStateRegistry: IAnchorStateRegistry(address(0)),
+            _l2ChainId: 10
+        });
+    }
+
     /// @dev Tests that the constructor of the `FaultDisputeGame` reverts when the `_splitDepth`
     ///      parameter is greater than or equal to the `MAX_GAME_DEPTH`
     function testFuzz_constructor_invalidSplitDepth_reverts(uint256 _splitDepth) public {
         AlphabetVM alphabetVM = new AlphabetVM(absolutePrestate, new PreimageOracle(0, 0));
 
-        _splitDepth = bound(_splitDepth, 2 ** 3, type(uint256).max);
+        uint256 maxGameDepth = 2 ** 3;
+        _splitDepth = bound(_splitDepth, maxGameDepth - 1, type(uint256).max);
+        vm.expectRevert(InvalidSplitDepth.selector);
+        new FaultDisputeGame({
+            _gameType: GAME_TYPE,
+            _absolutePrestate: absolutePrestate,
+            _maxGameDepth: maxGameDepth,
+            _splitDepth: _splitDepth,
+            _clockExtension: Duration.wrap(3 hours),
+            _maxClockDuration: Duration.wrap(3.5 days),
+            _vm: alphabetVM,
+            _weth: DelayedWETH(payable(address(0))),
+            _anchorStateRegistry: IAnchorStateRegistry(address(0)),
+            _l2ChainId: 10
+        });
+    }
+
+    /// @dev Tests that the constructor of the `FaultDisputeGame` reverts when the `_splitDepth`
+    ///      parameter is less than the minimum split depth (currently 2).
+    function testFuzz_constructor_lowSplitDepth_reverts(uint256 _splitDepth) public {
+        AlphabetVM alphabetVM = new AlphabetVM(absolutePrestate, new PreimageOracle(0, 0));
+
+        uint256 minSplitDepth = 2;
+        _splitDepth = bound(_splitDepth, 0, minSplitDepth - 1);
         vm.expectRevert(InvalidSplitDepth.selector);
         new FaultDisputeGame({
             _gameType: GAME_TYPE,
@@ -149,8 +206,8 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         });
     }
 
-    /// @dev Tests that the constructor of the `FaultDisputeGame` reverts when clock extension is greater than the
-    ///      max clock duration.
+    /// @dev Tests that the constructor of the `FaultDisputeGame` reverts when clock extension * 2 is greater than
+    ///      the max clock duration.
     function testFuzz_constructor_clockExtensionTooLong_reverts(
         uint64 _maxClockDuration,
         uint64 _clockExtension
@@ -159,8 +216,11 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     {
         AlphabetVM alphabetVM = new AlphabetVM(absolutePrestate, new PreimageOracle(0, 0));
 
-        _maxClockDuration = uint64(bound(_maxClockDuration, 0, type(uint64).max - 1));
-        _clockExtension = uint64(bound(_clockExtension, _maxClockDuration + 1, type(uint64).max));
+        // Force the clock extension * 2 to be greater than the max clock duration, but keep things within
+        // bounds of the uint64 type.
+        _maxClockDuration = uint64(bound(_maxClockDuration, 0, type(uint64).max / 2 - 1));
+        _clockExtension = uint64(bound(_clockExtension, _maxClockDuration / 2 + 1, type(uint64).max / 2));
+
         vm.expectRevert(InvalidClockExtension.selector);
         new FaultDisputeGame({
             _gameType: GAME_TYPE,
@@ -456,45 +516,124 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         assertEq(clock.raw(), LibClock.wrap(Duration.wrap(20), Timestamp.wrap(uint64(block.timestamp))).raw());
     }
 
-    /// @notice Static unit test that checks proper clock extension.
-    function test_move_clockExtensionCorrectness_succeeds() public {
+    /// @dev Tests that the standard clock extension is triggered for a move that is not the
+    ///      split depth or the max game depth.
+    function test_move_standardClockExtension_succeeds() public {
         (,,,,,, Clock clock) = gameProxy.claimData(0);
         assertEq(clock.raw(), LibClock.wrap(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp))).raw());
 
+        uint256 bond;
+        Claim disputed;
         Claim claim = _dummyClaim();
         uint256 splitDepth = gameProxy.splitDepth();
         uint64 halfGameDuration = gameProxy.maxClockDuration().raw();
         uint64 clockExtension = gameProxy.clockExtension().raw();
 
-        // Make an initial attack against the root claim with 1 second left on the clock. The grandchild should be
-        // allocated exactly `clockExtension` seconds remaining on their potential clock.
-        vm.warp(block.timestamp + halfGameDuration - 1 seconds);
-        uint256 bond = _getRequiredBond(0);
-        (,,,, Claim disputed,,) = gameProxy.claimData(0);
+        // Warp ahead so that the next move will trigger a clock extension. We warp to the very
+        // first timestamp where a clock extension should be triggered.
+        vm.warp(block.timestamp + halfGameDuration - clockExtension + 1 seconds);
+
+        // Execute a move that should cause a clock extension.
+        bond = _getRequiredBond(0);
+        (,,,, disputed,,) = gameProxy.claimData(0);
         gameProxy.attack{ value: bond }(disputed, 0, claim);
         (,,,,,, clock) = gameProxy.claimData(1);
+
+        // The clock should have been pushed back to the clock extension time.
         assertEq(clock.duration().raw(), halfGameDuration - clockExtension);
 
-        // Warp ahead to the last second of the root claim defender's clock, and bisect all the way down to the move
-        // above the `SPLIT_DEPTH`. This warp guarantees that all moves from here on out will have clock extensions.
-        vm.warp(block.timestamp + halfGameDuration - 1 seconds);
+        // Warp ahead again so that clock extensions will also trigger for the other team. Here we
+        // only warp to the clockExtension time because we'll be warping ahead by one second during
+        // each additional move.
+        vm.warp(block.timestamp + halfGameDuration - clockExtension);
+
+        // Work our way down to the split depth.
         for (uint256 i = 1; i < splitDepth - 2; i++) {
+            // Warp ahead by one second so that the next move will trigger a clock extension.
+            vm.warp(block.timestamp + 1 seconds);
+
+            // Execute a move that should cause a clock extension.
+            bond = _getRequiredBond(i);
+            (,,,, disputed,,) = gameProxy.claimData(i);
+            gameProxy.attack{ value: bond }(disputed, i, claim);
+            (,,,,,, clock) = gameProxy.claimData(i + 1);
+
+            // The clock should have been pushed back to the clock extension time.
+            assertEq(clock.duration().raw(), halfGameDuration - clockExtension);
+        }
+    }
+
+    function test_move_splitDepthClockExtension_succeeds() public {
+        (,,,,,, Clock clock) = gameProxy.claimData(0);
+        assertEq(clock.raw(), LibClock.wrap(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp))).raw());
+
+        uint256 bond;
+        Claim disputed;
+        Claim claim = _dummyClaim();
+        uint256 splitDepth = gameProxy.splitDepth();
+        uint64 halfGameDuration = gameProxy.maxClockDuration().raw();
+        uint64 clockExtension = gameProxy.clockExtension().raw();
+
+        // Work our way down to the split depth without moving ahead in time, we don't care about
+        // the exact clock here, just don't want take the clock below the clock extension time that
+        // we're trying to test here.
+        for (uint256 i = 0; i < splitDepth - 2; i++) {
             bond = _getRequiredBond(i);
             (,,,, disputed,,) = gameProxy.claimData(i);
             gameProxy.attack{ value: bond }(disputed, i, claim);
         }
 
-        // Warp ahead 1 seconds to have `clockExtension - 1 seconds` left on the next move's clock.
-        vm.warp(block.timestamp + 1 seconds);
+        // Warp ahead to the very first timestamp where a clock extension should be triggered.
+        vm.warp(block.timestamp + halfGameDuration - clockExtension * 2 + 1 seconds);
 
-        // The move above the split depth's grand child is the execution trace bisection root. The grandchild should
-        // be allocated `clockExtension * 2` seconds on their potential clock, if currently they have less than
-        // `clockExtension` seconds left.
+        // Execute a move that should cause a clock extension.
         bond = _getRequiredBond(splitDepth - 2);
         (,,,, disputed,,) = gameProxy.claimData(splitDepth - 2);
         gameProxy.attack{ value: bond }(disputed, splitDepth - 2, claim);
         (,,,,,, clock) = gameProxy.claimData(splitDepth - 1);
+
+        // The clock should have been pushed back to the clock extension time.
         assertEq(clock.duration().raw(), halfGameDuration - clockExtension * 2);
+    }
+
+    function test_move_maxGameDepthClockExtension_succeeds() public {
+        (,,,,,, Clock clock) = gameProxy.claimData(0);
+        assertEq(clock.raw(), LibClock.wrap(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp))).raw());
+
+        uint256 bond;
+        Claim disputed;
+        Claim claim = _dummyClaim();
+        uint256 splitDepth = gameProxy.splitDepth();
+        uint64 halfGameDuration = gameProxy.maxClockDuration().raw();
+        uint64 clockExtension = gameProxy.clockExtension().raw();
+
+        // Work our way down to the split depth without moving ahead in time, we don't care about
+        // the exact clock here, just don't want take the clock below the clock extension time that
+        // we're trying to test here.
+        for (uint256 i = 0; i < gameProxy.maxGameDepth() - 2; i++) {
+            bond = _getRequiredBond(i);
+            (,,,, disputed,,) = gameProxy.claimData(i);
+            gameProxy.attack{ value: bond }(disputed, i, claim);
+
+            // Change the claim status when we're crossing the split depth.
+            if (i == splitDepth - 2) {
+                claim = _changeClaimStatus(claim, VMStatuses.PANIC);
+            }
+        }
+
+        // Warp ahead to the very first timestamp where a clock extension should be triggered.
+        vm.warp(block.timestamp + halfGameDuration - (clockExtension + gameProxy.vm().oracle().challengePeriod()) + 1);
+
+        // Execute a move that should cause a clock extension.
+        bond = _getRequiredBond(gameProxy.maxGameDepth() - 2);
+        (,,,, disputed,,) = gameProxy.claimData(gameProxy.maxGameDepth() - 2);
+        gameProxy.attack{ value: bond }(disputed, gameProxy.maxGameDepth() - 2, claim);
+        (,,,,,, clock) = gameProxy.claimData(gameProxy.maxGameDepth() - 1);
+
+        // The clock should have been pushed back to the clock extension time.
+        assertEq(
+            clock.duration().raw(), halfGameDuration - (clockExtension + gameProxy.vm().oracle().challengePeriod())
+        );
     }
 
     /// @dev Tests that an identical claim cannot be made twice. The duplicate claim attempt should
@@ -1683,6 +1822,70 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
             assertEq(dat, data[i - 1]);
             assertEq(datLen, expectedLen);
         }
+    }
+
+    /// @dev Tests that the L2 block number claim is favored over the bisected-to block when adding data
+    ///
+    function test_addLocalData_l2BlockNumberExtension_succeeds() public {
+        // Deploy a new dispute game with a L2 block number claim of 8. This is directly in the middle of
+        // the leaves in our output bisection test tree, at SPLIT_DEPTH = 2 ** 2
+        FaultDisputeGame game = FaultDisputeGame(
+            address(disputeGameFactory.create(GAME_TYPE, Claim.wrap(bytes32(uint256(0xFF))), abi.encode(uint256(8))))
+        );
+
+        // Get a claim below the split depth so that we can add local data for an execution trace subgame.
+        {
+            Claim disputed;
+            Position parent;
+            Position pos;
+
+            for (uint256 i; i < 4; i++) {
+                (,,,,, parent,) = game.claimData(i);
+                pos = parent.move(true);
+                uint256 bond = game.getRequiredBond(pos);
+
+                (,,,, disputed,,) = game.claimData(i);
+                if (i == 0) {
+                    game.attack{ value: bond }(disputed, i, Claim.wrap(bytes32(i)));
+                } else {
+                    game.defend{ value: bond }(disputed, i, Claim.wrap(bytes32(i)));
+                }
+            }
+            (,,,,, parent,) = game.claimData(4);
+            pos = parent.move(true);
+            uint256 lastBond = game.getRequiredBond(pos);
+            (,,,, disputed,,) = game.claimData(4);
+            game.defend{ value: lastBond }(disputed, 4, _changeClaimStatus(ROOT_CLAIM, VMStatuses.INVALID));
+        }
+
+        // Expected start/disputed claims
+        bytes32 startingClaim = bytes32(uint256(3));
+        Position startingPos = LibPosition.wrap(4, 14);
+        bytes32 disputedClaim = bytes32(uint256(0xFF));
+        Position disputedPos = LibPosition.wrap(0, 0);
+
+        // Expected local data. This should be `l2BlockNumber`, and not the actual bisected-to block,
+        // as we choose the minimum between the two.
+        bytes32 expectedNumber = bytes32(uint256(8 << 0xC0));
+        uint256 expectedLen = 8;
+        uint256 l2NumberIdent = LocalPreimageKey.DISPUTED_L2_BLOCK_NUMBER;
+
+        // Compute the preimage key for the local data
+        bytes32 localContext = keccak256(abi.encode(startingClaim, startingPos, disputedClaim, disputedPos));
+        bytes32 rawKey = keccak256(abi.encode(l2NumberIdent | (1 << 248), address(game), localContext));
+        bytes32 key = bytes32((uint256(rawKey) & ~uint256(0xFF << 248)) | (1 << 248));
+
+        IPreimageOracle oracle = IPreimageOracle(address(game.vm().oracle()));
+        game.addLocalData(l2NumberIdent, 5, 0);
+
+        (bytes32 dat, uint256 datLen) = oracle.readPreimage(key, 0);
+        assertEq(dat >> 0xC0, bytes32(expectedLen));
+        assertEq(datLen, expectedLen + 8);
+
+        game.addLocalData(l2NumberIdent, 5, 8);
+        (dat, datLen) = oracle.readPreimage(key, 8);
+        assertEq(dat, expectedNumber);
+        assertEq(datLen, expectedLen);
     }
 
     /// @dev Static unit test asserting that resolveClaim isn't possible if there's time

@@ -41,7 +41,7 @@
   "requiredProtocolVersion": "0x0000000000000000000000000000000000000004000000000000000000000001",
   "recommendedProtocolVersion": "0x0000000000000000000000000000000000000004000000000000000000000001",
   "fundDevAccounts": false,
-  "faultGameAbsolutePrestate": "0x0385c3f8ee78491001d92b90b07d0cf387b7b52ab9b83b4d87c994e92cf823ba",
+  "faultGameAbsolutePrestate": "0x030de10d9da911a2b180ecfae2aeaba8758961fc28262ce989458c6f9a547922",
   "faultGameMaxDepth": 73,
   "faultGameClockExtension": 10800,
   "faultGameMaxClockDuration": 302400,

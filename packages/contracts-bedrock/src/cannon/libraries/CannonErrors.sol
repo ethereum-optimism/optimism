@@ -4,6 +4,9 @@ pragma solidity 0.8.15;
 /// @notice Thrown when a passed part offset is out of bounds.
 error PartOffsetOOB();
 
+/// @notice Thrown when insufficient gas is provided when loading precompile preimages.
+error NotEnoughGas();
+
 /// @notice Thrown when a merkle proof fails to verify.
 error InvalidProof();
 
@@ -37,6 +40,9 @@ error BadProposal();
 /// @notice Thrown when attempting to add leaves to a preimage proposal that has not been initialized.
 error NotInitialized();
 
+/// @notice Thrown when attempting to re-initialize an existing large preimage proposal.
+error AlreadyInitialized();
+
 /// @notice Thrown when the caller of a function is not an EOA.
 error NotEOA();
 
@@ -45,3 +51,6 @@ error InsufficientBond();
 
 /// @notice Thrown when a bond transfer fails.
 error BondTransferFailed();
+
+/// @notice Thrown when the value of the exited boolean is not 0 or 1.
+error InvalidExitedValue();

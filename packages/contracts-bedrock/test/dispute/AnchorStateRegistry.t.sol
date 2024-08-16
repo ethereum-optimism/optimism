@@ -5,7 +5,7 @@ import "src/dispute/lib/Types.sol";
 import "src/dispute/lib/Errors.sol";
 
 import { Test } from "forge-std/Test.sol";
-import { FaultDisputeGame_Init, _changeClaimStatus } from "test/dispute/FaultDisputeGame.t.sol";
+import { FaultDisputeGame_Init, IDisputeGame, _changeClaimStatus } from "test/dispute/FaultDisputeGame.t.sol";
 
 contract AnchorStateRegistry_Init is FaultDisputeGame_Init {
     function setUp() public virtual override {
@@ -124,12 +124,96 @@ contract AnchorStateRegistry_TryUpdateAnchorState_Test is AnchorStateRegistry_In
 
         // Try to update the anchor state.
         vm.prank(address(gameProxy));
-        vm.expectRevert("AnchorStateRegistry: fault dispute game not registered with factory");
+        vm.expectRevert(UnregisteredGame.selector);
         anchorStateRegistry.tryUpdateAnchorState();
 
         // Confirm that the anchor state has not updated.
         (Hash updatedRoot, uint256 updatedL2BlockNumber) = anchorStateRegistry.anchors(gameProxy.gameType());
         assertEq(updatedL2BlockNumber, l2BlockNumber);
         assertEq(updatedRoot.raw(), root.raw());
+    }
+
+    function test_setAnchorState_invalidGame_fails() public {
+        // Confirm that the anchor state is older than the game state.
+        (Hash root, uint256 l2BlockNumber) = anchorStateRegistry.anchors(gameProxy.gameType());
+        require(l2BlockNumber < gameProxy.l2BlockNumber(), "l2BlockNumber < gameProxy.l2BlockNumber()");
+
+        // Mock the state that we want.
+        vm.mockCall(
+            address(disputeGameFactory),
+            abi.encodeWithSelector(
+                disputeGameFactory.games.selector, gameProxy.gameType(), gameProxy.rootClaim(), gameProxy.extraData()
+            ),
+            abi.encode(address(0), 0)
+        );
+
+        // Try to update the anchor state.
+        vm.prank(superchainConfig.guardian());
+        vm.expectRevert(UnregisteredGame.selector);
+        anchorStateRegistry.setAnchorState(gameProxy);
+
+        // Confirm that the anchor state has not updated.
+        (Hash updatedRoot, uint256 updatedL2BlockNumber) = anchorStateRegistry.anchors(gameProxy.gameType());
+        assertEq(updatedL2BlockNumber, l2BlockNumber);
+        assertEq(updatedRoot.raw(), root.raw());
+    }
+
+    /// @dev Tests that setting the anchor state fails if the challenger wins.
+    function test_setAnchorState_challengerWins_fails() public {
+        (Hash root, uint256 l2BlockNumber) = anchorStateRegistry.anchors(gameProxy.gameType());
+
+        // Mock the state that we want.
+        vm.mockCall(
+            address(gameProxy),
+            abi.encodeWithSelector(gameProxy.status.selector),
+            abi.encode(GameStatus.CHALLENGER_WINS)
+        );
+
+        // Set the anchor state.
+        vm.prank(superchainConfig.guardian());
+        vm.expectRevert(InvalidGameStatus.selector);
+        anchorStateRegistry.setAnchorState(gameProxy);
+
+        // Confirm that the anchor state has not updated.
+        (Hash updatedRoot, uint256 updatedL2BlockNumber) = anchorStateRegistry.anchors(gameProxy.gameType());
+        assertEq(updatedL2BlockNumber, l2BlockNumber);
+        assertEq(updatedRoot.raw(), root.raw());
+    }
+
+    /// @dev Tests that setting the anchor state fails if the game is in progress.
+    function test_setAnchorState_gameInProgress_fails() public {
+        (Hash root, uint256 l2BlockNumber) = anchorStateRegistry.anchors(gameProxy.gameType());
+
+        // Mock the state that we want.
+        vm.mockCall(
+            address(gameProxy), abi.encodeWithSelector(gameProxy.status.selector), abi.encode(GameStatus.IN_PROGRESS)
+        );
+
+        // Set the anchor state.
+        vm.prank(superchainConfig.guardian());
+        vm.expectRevert(InvalidGameStatus.selector);
+        anchorStateRegistry.setAnchorState(gameProxy);
+
+        // Confirm that the anchor state has not updated.
+        (Hash updatedRoot, uint256 updatedL2BlockNumber) = anchorStateRegistry.anchors(gameProxy.gameType());
+        assertEq(updatedL2BlockNumber, l2BlockNumber);
+        assertEq(updatedRoot.raw(), root.raw());
+    }
+
+    /// @dev Tests that setting the anchor state succeeds.
+    function test_setAnchorState_succeeds() public {
+        // Mock the state that we want.
+        vm.mockCall(
+            address(gameProxy), abi.encodeWithSelector(gameProxy.status.selector), abi.encode(GameStatus.DEFENDER_WINS)
+        );
+
+        // Set the anchor state.
+        vm.prank(superchainConfig.guardian());
+        anchorStateRegistry.setAnchorState(gameProxy);
+
+        // Confirm that the anchor state has updated.
+        (Hash updatedRoot, uint256 updatedL2BlockNumber) = anchorStateRegistry.anchors(gameProxy.gameType());
+        assertEq(updatedL2BlockNumber, gameProxy.l2BlockNumber());
+        assertEq(updatedRoot.raw(), gameProxy.rootClaim().raw());
     }
 }

@@ -9,6 +9,7 @@ library Types {
         address L2OutputOracle;
         address DisputeGameFactory;
         address DelayedWETH;
+        address PermissionedDelayedWETH;
         address AnchorStateRegistry;
         address OptimismMintableERC20Factory;
         address OptimismPortal;
