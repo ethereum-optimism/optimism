@@ -1,6 +1,7 @@
 package types
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -24,11 +25,16 @@ func (a *AvailBlockRef) MarshalToBinary() ([]byte, error) {
 	if err != nil {
 		return []byte{}, fmt.Errorf("unable to covert the avail block referece into array of bytes and getting error:%w", err)
 	}
-	return ref_bytes, nil
+	hexBytes := hex.EncodeToString(ref_bytes)
+	return []byte(hexBytes), nil
 }
 
 func (a *AvailBlockRef) UnmarshalFromBinary(avail_blk_Ref []byte) error {
-	err := json.Unmarshal(avail_blk_Ref, a)
+	jsonBytes, err := hex.DecodeString(string(avail_blk_Ref))
+	if err != nil {
+		return fmt.Errorf("unable to decode hex string: %w", err)
+	}
+	err = json.Unmarshal(jsonBytes, a)
 	if err != nil {
 		return fmt.Errorf("unable to convert avail_blk_Ref bytes to AvailBlockRef Struct and getting error:%w", err)
 	}
