@@ -177,7 +177,7 @@ func getPayloadWithBuilderPayload(ctx context.Context, log log.Logger, eng ExecE
 	}
 }
 
-func WeiToGwei(v *eth.Uint256Quantity) uint64 {
+func weiToGwei(v *eth.Uint256Quantity) uint64 {
 	if v == nil {
 		return 0
 	}
@@ -222,14 +222,14 @@ func confirmPayload(
 			return nil, BlockInsertTemporaryErr, fmt.Errorf("failed to get execution payload from engine: %w", err)
 		}
 	}
-	metrics.RecordSequencerProfit(float64(WeiToGwei(engineEnvelope.BlockValue)), opMetrics.PayloadSourceEngine)
+	metrics.RecordSequencerProfit(float64(weiToGwei(engineEnvelope.BlockValue)), opMetrics.PayloadSourceEngine)
 	metrics.RecordPayloadGas(float64(engineEnvelope.ExecutionPayload.GasUsed), opMetrics.PayloadSourceEngine)
 	metrics.CountSequencedTxsBySource(len(engineEnvelope.ExecutionPayload.Transactions), opMetrics.PayloadSourceEngine)
 
 	if builderPayload != nil && builderPayload.success {
 		if builderPayload.envelope.ExecutionPayload.GasUsed >= engineEnvelope.ExecutionPayload.GasUsed {
 			log.Info("builder payload has higher gas usage than engine payload", "builder_gas", builderPayload.envelope.ExecutionPayload.GasUsed, "engine_gas", engineEnvelope.ExecutionPayload.GasUsed)
-			metrics.RecordSequencerProfit(float64(WeiToGwei(builderPayload.envelope.BlockValue)), opMetrics.PayloadSourceBuilder)
+			metrics.RecordSequencerProfit(float64(weiToGwei(builderPayload.envelope.BlockValue)), opMetrics.PayloadSourceBuilder)
 			metrics.RecordPayloadGas(float64(builderPayload.envelope.ExecutionPayload.GasUsed), opMetrics.PayloadSourceBuilder)
 			metrics.CountSequencedTxsBySource(len(builderPayload.envelope.ExecutionPayload.Transactions), opMetrics.PayloadSourceBuilder)
 
