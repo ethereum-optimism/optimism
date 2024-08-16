@@ -25,5 +25,7 @@ Please see the report for the specific details.
 | 2024-02 | Runtime Verification | Pausability               | [Kontrol Verification][kontrol]                                                                                                        |
 | 2024-02 | Cantina              | MCP L1                    | [2024_02-MCP_L1-Cantina.pdf](./2024_02-MCP_L1-Cantina.pdf)                                                                                                            |
 | 2024-03 | Sherlock             | MCP L1                    | [Sherlock Optimism Fault Proofs Contest](https://audits.sherlock.xyz/contests/205)                                                                                    |
+| 2024-08 | Cantina              | Fault proof MIPS          | [Base Fault Proof MIPS](./2024_08_report-cantinacode-coinbase-fault-proofs-mips.pdf)
+| 2024-08 | Spearbit             | Fault proof no-MIPS       | [Base Fault Proof No MIPS](./2024_08_report-cb-fault-proofs-non-mips.pdf)
 
 [kontrol]: https://github.com/ethereum-optimism/optimism/blob/876e16ad04968f0bb641eb76f98eb77e7e1a3e16/packages/contracts-bedrock/test/kontrol/README.md
