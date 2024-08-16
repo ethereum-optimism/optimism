@@ -150,3 +150,22 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		ParentBeaconBlockRoot: parentBeaconRoot,
 	}, nil
 }
+
+// Sets NoTxPool according to config and spec.
+func SetNoTxPool(config *rollup.Config, spec *rollup.ChainSpec, attrs *eth.PayloadAttributes, l1Origin eth.L1BlockRef, l2head eth.L2BlockRef) {
+	// If our next L2 block timestamp is beyond the Sequencer drift threshold, then we must produce
+	// empty blocks (other than the L1 info deposit and any user deposits). We handle this by
+	// setting NoTxPool to true, which will cause the Sequencer to not include any transactions
+	// from the transaction pool.
+	attrs.NoTxPool = uint64(attrs.Timestamp) > l1Origin.Time+spec.MaxSequencerDrift(l1Origin.Time)
+
+	// For the Ecotone activation block we shouldn't include any sequencer transactions.
+	if config.IsEcotoneActivationBlock(uint64(attrs.Timestamp)) {
+		attrs.NoTxPool = true
+	}
+
+	// For the Fjord activation block we shouldn't include any sequencer transactions.
+	if config.IsFjordActivationBlock(uint64(attrs.Timestamp)) {
+		attrs.NoTxPool = true
+	}
+}

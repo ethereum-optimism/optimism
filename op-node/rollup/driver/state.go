@@ -73,6 +73,7 @@ type Driver struct {
 
 	// Rollup config: rollup chain configuration
 	config *rollup.Config
+	spec   *rollup.ChainSpec
 
 	sequencerConductor conductor.SequencerConductor
 
@@ -492,6 +493,12 @@ func (d *Driver) PublishL2Attributes(ctx context.Context, l2head eth.L2BlockRef)
 		d.log.Error("Error preparing payload attributes", "err", err)
 		return err
 	}
+
+	derive.SetNoTxPool(d.config, d.spec, attrs, l1Origin, l2head)
+
+	d.log.Debug("prepared attributes for new block",
+		"num", l2head.Number+1, "time", uint64(attrs.Timestamp),
+		"origin", l1Origin, "origin_time", l1Origin.Time, "noTxPool", attrs.NoTxPool)
 
 	withParent := &derive.AttributesWithParent{
 		Attributes:   attrs,

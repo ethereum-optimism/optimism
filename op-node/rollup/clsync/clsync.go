@@ -39,6 +39,7 @@ type L1OriginSelector interface {
 type CLSync struct {
 	log               log.Logger
 	cfg               *rollup.Config
+	spec              *rollup.ChainSpec
 	metrics           Metrics
 	ec                Engine
 	n                 Network
@@ -52,6 +53,7 @@ func NewCLSync(log log.Logger, cfg *rollup.Config, metrics Metrics, ec Engine, n
 	return &CLSync{
 		log:               log,
 		cfg:               cfg,
+		spec:              rollup.NewChainSpec(cfg),
 		metrics:           metrics,
 		ec:                ec,
 		n:                 n,
@@ -161,6 +163,12 @@ func (eq *CLSync) PublishAttributes(ctx context.Context, l2head eth.L2BlockRef) 
 	if err != nil {
 		return fmt.Errorf("error preparing payload attributes: %w", err)
 	}
+
+	derive.SetNoTxPool(eq.cfg, eq.spec, attrs, l1Origin, l2head)
+
+	eq.log.Debug("prepared attributes for new block",
+		"num", l2head.Number+1, "time", uint64(attrs.Timestamp),
+		"origin", l1Origin, "origin_time", l1Origin.Time, "noTxPool", attrs.NoTxPool)
 
 	withParent := &derive.AttributesWithParent{
 		Attributes:   attrs,
