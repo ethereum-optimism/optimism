@@ -164,7 +164,6 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		require.Equal(t, eth.Bytes32(l1Info.InfoMixDigest), attrs.PrevRandao)
 		require.Equal(t, predeploys.SequencerFeeVaultAddr, attrs.SuggestedFeeRecipient)
 		require.Equal(t, len(l2Txs), len(attrs.Transactions), "Expected txs to equal l1 info tx + user deposit txs")
-		require.Equal(t, l2Txs, attrs.Transactions)
 		require.True(t, attrs.NoTxPool)
 	})
 	t.Run("same origin again", func(t *testing.T) {
@@ -195,6 +194,50 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		require.Equal(t, l1InfoTx, []byte(attrs.Transactions[0]))
 		require.True(t, attrs.NoTxPool)
 	})
+	t.Run("same origin with deposits on Isthmus", func(t *testing.T) {
+		rng := rand.New(rand.NewSource(1234))
+		l1Fetcher := &testutils.MockL1Source{}
+		defer l1Fetcher.AssertExpectations(t)
+		l2Parent := testutils.RandomL2BlockRef(rng)
+		l1CfgFetcher := &testutils.MockL2Client{}
+		l1CfgFetcher.ExpectSystemConfigByL2Hash(l2Parent.Hash, testSysCfg, nil)
+		defer l1CfgFetcher.AssertExpectations(t)
+		l1Info := testutils.RandomBlockInfo(rng)
+		l1Info.InfoParentHash = l2Parent.L1Origin.Hash
+		l1Info.InfoNum = l2Parent.L1Origin.Number + 1
+
+		receipts, depositTxs, err := makeReceipts(rng, l1Info.InfoHash, cfg.DepositContractAddress, []receiptData{
+			{goodReceipt: true, DepositLogs: []bool{true, false}},
+			{goodReceipt: true, DepositLogs: []bool{true}},
+			{goodReceipt: false, DepositLogs: []bool{true}},
+			{goodReceipt: false, DepositLogs: []bool{false}},
+		})
+		require.NoError(t, err)
+		usedDepositTxs, err := encodeDeposits(depositTxs)
+		require.NoError(t, err)
+
+		cfg.InteropTime = &zero64
+		epoch := l1Info.ID()
+		l1InfoTx, err := L1InfoDepositBytes(cfg, testSysCfg, 0, l1Info, 0)
+		require.NoError(t, err)
+
+		l2Txs := append(append(make([]eth.Data, 0), l1InfoTx), usedDepositTxs...)
+
+		l1Fetcher.ExpectFetchReceipts(epoch.Hash, l1Info, receipts, nil)
+		attrBuilder := NewFetchingAttributesBuilder(cfg, l1Fetcher, l1CfgFetcher)
+		attrs, err := attrBuilder.PreparePayloadAttributes(context.Background(), l2Parent, epoch)
+		require.NoError(t, err)
+		require.NotNil(t, attrs)
+		require.Equal(t, l2Parent.Time+cfg.BlockTime, uint64(attrs.Timestamp))
+		require.Equal(t, eth.Bytes32(l1Info.InfoMixDigest), attrs.PrevRandao)
+		require.Equal(t, predeploys.SequencerFeeVaultAddr, attrs.SuggestedFeeRecipient)
+		require.Equal(t, len(l2Txs), len(attrs.Transactions), "Expected txs to equal l1 info tx + user deposit txs")
+		require.Equal(t, l2Txs, attrs.Transactions)
+		require.True(t, attrs.NoTxPool)
+		depositsCompleteTx, err := DepositsCompleteBytes(l2Parent.SequenceNumber, l1Info)
+		require.Equal(t, l2Txs, append(attrs.Transactions, depositsCompleteTx))
+	})
+
 	// Test that the payload attributes builder changes the deposit format based on L2-time-based regolith activation
 	t.Run("regolith", func(t *testing.T) {
 		testCases := []struct {
