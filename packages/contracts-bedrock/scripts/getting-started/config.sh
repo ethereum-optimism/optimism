@@ -102,7 +102,7 @@ cat << EOL > tmp_config.json
 EOL
 
 # Append conditional environment variables with their corresponding default values
-append_with_default "l2GenesisGraniteTimeOffset" "GRANITE_TIME_OFFSET" "0x1"
+#append_with_default "l2GenesisGraniteTimeOffset" "GRANITE_TIME_OFFSET" "0x1"
 
 # Already forked updates
 append_with_default "l2GenesisFjordTimeOffset" "FJORD_TIME_OFFSET" "0x0"
