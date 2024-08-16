@@ -102,7 +102,7 @@ cat << EOL > tmp_config.json
 EOL
 
 # Append conditional environment variables with their corresponding default values
-if [ -z "$GRANITE_TIME_OFFSET" ] || [ "$GRANITE_TIME_OFFSET" == "None" ]; then
+if [ -z "$GRANITE_TIME_OFFSET" ] ; then
     append_with_default "l2GenesisGraniteTimeOffset" "GRANITE_TIME_OFFSET" "0x0"
 fi
 
