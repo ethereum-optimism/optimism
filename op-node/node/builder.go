@@ -9,7 +9,11 @@ import (
 	"time"
 
 	builderSpec "github.com/attestantio/go-builder-client/spec"
-	consensusspec "github.com/attestantio/go-eth2-client/spec"
+	"github.com/attestantio/go-eth2-client/spec"
+	"github.com/attestantio/go-eth2-client/spec/bellatrix"
+	"github.com/attestantio/go-eth2-client/spec/capella"
+	"github.com/attestantio/go-eth2-client/spec/deneb"
+	"github.com/holiman/uint256"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -62,7 +66,7 @@ type httpErrorResp struct {
 }
 
 func (s *BuilderAPIClient) GetPayload(ctx context.Context, ref eth.L2BlockRef, log log.Logger) (*eth.ExecutionPayloadEnvelope, error) {
-	responsePayload := new(builderSpec.VersionedSubmitBlockRequest)
+	submitBlockRequest := new(builderSpec.VersionedSubmitBlockRequest)
 	slot := ref.Number + 1
 	parentHash := ref.Hash
 	url := fmt.Sprintf("%s/%d/%s", PathGetPayload, slot, parentHash.String())
@@ -84,29 +88,90 @@ func (s *BuilderAPIClient) GetPayload(ctx context.Context, ref eth.L2BlockRef, l
 		return nil, fmt.Errorf("HTTP error response: %v", resp.Status)
 	}
 
-	if err := json.Unmarshal(bodyBytes, responsePayload); err != nil {
+	if err := json.Unmarshal(bodyBytes, submitBlockRequest); err != nil {
 		return nil, err
 	}
 
-	if responsePayload.Version != consensusspec.DataVersionDeneb {
-		return nil, fmt.Errorf("unsupported data version %v", responsePayload.Version)
+	// selects expected data version from the optimism version.
+	// Bedrock - Bellatrix
+	// Canyon - Capella
+	// Delta - Deneb
+	var expectedVersion spec.DataVersion
+	if s.rollupCfg.IsEcotone(ref.Time) {
+		expectedVersion = spec.DataVersionDeneb
+	} else if s.rollupCfg.IsCanyon(ref.Time) {
+		expectedVersion = spec.DataVersionCapella
+	} else {
+		expectedVersion = spec.DataVersionBellatrix
 	}
 
-	envelope, err := s.versionedExecutionPayloadToExecutionPayloadEnvelope(responsePayload)
+	if expectedVersion != submitBlockRequest.Version {
+		return nil, fmt.Errorf("expected version %s, got %s", expectedVersion, submitBlockRequest.Version)
+	}
+
+	envelope, err := getExecutionPayloadEnvelope(submitBlockRequest, ref)
 	if err != nil {
 		return nil, err
 	}
 	return envelope, nil
 }
 
-func (s *BuilderAPIClient) versionedExecutionPayloadToExecutionPayloadEnvelope(resp *builderSpec.VersionedSubmitBlockRequest) (*eth.ExecutionPayloadEnvelope, error) {
-	if resp.Version != consensusspec.DataVersionDeneb {
-		return nil, fmt.Errorf("unsupported data version %v", resp.Version)
+func getExecutionPayloadEnvelope(blockRequest *builderSpec.VersionedSubmitBlockRequest, ref eth.L2BlockRef) (*eth.ExecutionPayloadEnvelope, error) {
+	switch blockRequest.Version {
+	case spec.DataVersionBellatrix:
+		return bellatrixExecutionPayloadToExecutionPayload(blockRequest.Bellatrix.ExecutionPayload), nil
+	case spec.DataVersionCapella:
+		return capellaExecutionPayloadToExecutionPayload(blockRequest.Capella.ExecutionPayload), nil
+	case spec.DataVersionDeneb:
+		return denebExecutionPayloadToExecutionPayload(blockRequest.Deneb.ExecutionPayload), nil
+	default:
+		return nil, fmt.Errorf("unsupported version: %s", blockRequest.Version)
+	}
+}
+
+func reverse(src []byte) []byte {
+	dst := make([]byte, len(src))
+	copy(dst, src)
+	for i := len(dst)/2 - 1; i >= 0; i-- {
+		opp := len(dst) - 1 - i
+		dst[i], dst[opp] = dst[opp], dst[i]
+	}
+	return dst
+}
+
+func bellatrixExecutionPayloadToExecutionPayload(payload *bellatrix.ExecutionPayload) *eth.ExecutionPayloadEnvelope {
+	txs := make([]eth.Data, len(payload.Transactions))
+	for i, tx := range payload.Transactions {
+		txs[i] = eth.Data(tx)
 	}
 
-	payload := resp.Deneb.ExecutionPayload
-	txs := make([]eth.Data, len(payload.Transactions))
+	envelope := &eth.ExecutionPayloadEnvelope{
+		ExecutionPayload: &eth.ExecutionPayload{
+			ParentHash:    common.Hash(payload.ParentHash),
+			FeeRecipient:  common.Address(payload.FeeRecipient),
+			StateRoot:     eth.Bytes32(payload.StateRoot),
+			ReceiptsRoot:  eth.Bytes32(payload.ReceiptsRoot),
+			LogsBloom:     eth.Bytes256(payload.LogsBloom),
+			PrevRandao:    eth.Bytes32(payload.PrevRandao),
+			BlockNumber:   eth.Uint64Quantity(payload.BlockNumber),
+			GasLimit:      eth.Uint64Quantity(payload.GasLimit),
+			GasUsed:       eth.Uint64Quantity(payload.GasUsed),
+			Timestamp:     eth.Uint64Quantity(payload.Timestamp),
+			ExtraData:     eth.BytesMax32(payload.ExtraData),
+			BaseFeePerGas: eth.Uint256Quantity(*uint256.NewInt(0).SetBytes(reverse(payload.BaseFeePerGas[:]))),
+			BlockHash:     common.BytesToHash(payload.BlockHash[:]),
+			Transactions:  txs,
+			Withdrawals:   nil,
+			BlobGasUsed:   nil,
+			ExcessBlobGas: nil,
+		},
+		ParentBeaconBlockRoot: nil,
+	}
+	return envelope
+}
 
+func capellaExecutionPayloadToExecutionPayload(payload *capella.ExecutionPayload) *eth.ExecutionPayloadEnvelope {
+	txs := make([]eth.Data, len(payload.Transactions))
 	for i, tx := range payload.Transactions {
 		txs[i] = eth.Data(tx)
 	}
@@ -120,23 +185,49 @@ func (s *BuilderAPIClient) versionedExecutionPayloadToExecutionPayloadEnvelope(r
 			Amount:    uint64(withdrawal.Amount),
 		}
 	}
-
 	ws := types.Withdrawals(withdrawals)
 
-	var blobGasUsed *eth.Uint64Quantity
-	var excessBlobGas *eth.Uint64Quantity
-	if s.rollupCfg.IsEcotone(payload.Timestamp) {
-		blobGasUsed = (*eth.Uint64Quantity)(&payload.BlobGasUsed)
-		excessBlobGas = (*eth.Uint64Quantity)(&payload.ExcessBlobGas)
+	envelope := &eth.ExecutionPayloadEnvelope{
+		ExecutionPayload: &eth.ExecutionPayload{
+			ParentHash:    common.Hash(payload.ParentHash),
+			FeeRecipient:  common.Address(payload.FeeRecipient),
+			StateRoot:     eth.Bytes32(payload.StateRoot),
+			ReceiptsRoot:  eth.Bytes32(payload.ReceiptsRoot),
+			LogsBloom:     eth.Bytes256(payload.LogsBloom),
+			PrevRandao:    eth.Bytes32(payload.PrevRandao),
+			BlockNumber:   eth.Uint64Quantity(payload.BlockNumber),
+			GasLimit:      eth.Uint64Quantity(payload.GasLimit),
+			GasUsed:       eth.Uint64Quantity(payload.GasUsed),
+			Timestamp:     eth.Uint64Quantity(payload.Timestamp),
+			ExtraData:     eth.BytesMax32(payload.ExtraData),
+			BaseFeePerGas: eth.Uint256Quantity(*uint256.NewInt(0).SetBytes(reverse(payload.BaseFeePerGas[:]))),
+			BlockHash:     common.BytesToHash(payload.BlockHash[:]),
+			Transactions:  txs,
+			Withdrawals:   &ws,
+			BlobGasUsed:   nil,
+			ExcessBlobGas: nil,
+		},
+		ParentBeaconBlockRoot: nil,
+	}
+	return envelope
+}
+
+func denebExecutionPayloadToExecutionPayload(payload *deneb.ExecutionPayload) *eth.ExecutionPayloadEnvelope {
+	txs := make([]eth.Data, len(payload.Transactions))
+	for i, tx := range payload.Transactions {
+		txs[i] = eth.Data(tx)
 	}
 
-	var blockValue eth.Uint256Quantity
-	v, err := resp.Value()
-	if err != nil {
-		s.log.Error("Failed to get block value", "err", err)
-	} else {
-		blockValue = eth.Uint256Quantity(*v)
+	withdrawals := make([]*types.Withdrawal, len(payload.Withdrawals))
+	for i, withdrawal := range payload.Withdrawals {
+		withdrawals[i] = &types.Withdrawal{
+			Index:     uint64(withdrawal.Index),
+			Validator: uint64(withdrawal.ValidatorIndex),
+			Address:   common.BytesToAddress(withdrawal.Address[:]),
+			Amount:    uint64(withdrawal.Amount),
+		}
 	}
+	ws := types.Withdrawals(withdrawals)
 
 	envelope := &eth.ExecutionPayloadEnvelope{
 		ExecutionPayload: &eth.ExecutionPayload{
@@ -155,12 +246,10 @@ func (s *BuilderAPIClient) versionedExecutionPayloadToExecutionPayloadEnvelope(r
 			BlockHash:     common.BytesToHash(payload.BlockHash[:]),
 			Transactions:  txs,
 			Withdrawals:   &ws,
-			BlobGasUsed:   blobGasUsed,
-			ExcessBlobGas: excessBlobGas,
+			BlobGasUsed:   (*eth.Uint64Quantity)(&payload.BlobGasUsed),
+			ExcessBlobGas: (*eth.Uint64Quantity)(&payload.ExcessBlobGas),
 		},
-		// ParentBeaconBlockRoot will be filled by the engine payload.
 		ParentBeaconBlockRoot: nil,
-		BlockValue:            &blockValue,
 	}
-	return envelope, nil
+	return envelope
 }
