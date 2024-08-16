@@ -15,6 +15,19 @@ reqenv() {
     fi
 }
 
+append_with_default() {
+    json_key="$1"
+    env_var_name="$2"
+    default_value="$3"
+    var_value="${!env_var_name}"
+
+    if [ -z "$var_value" ] || [ "$var_value" == "None" ]; then
+        var_value="$default_value"
+    fi
+
+    echo "  \"$json_key\": \"$var_value\"," >> tmp_config.json
+}
+
 # Check required environment variables
 reqenv "GS_ADMIN_ADDRESS"
 reqenv "GS_BATCHER_ADDRESS"
@@ -31,8 +44,8 @@ block=$(cast block finalized --rpc-url "$L1_RPC_URL")
 timestamp=$(echo "$block" | awk '/timestamp/ { print $2 }')
 blockhash=$(echo "$block" | awk '/hash/ { print $2 }')
 
-# Generate the config file
-config=$(cat << EOL
+# Start generating the config file in a temporary file
+cat << EOL > tmp_config.json
 {
   "l1StartingBlockTag": "$blockhash",
 
@@ -82,19 +95,24 @@ config=$(cat << EOL
 
   "l2GenesisBlockGasLimit": "0x1c9c380",
   "l2GenesisBlockBaseFeePerGas": "0x3b9aca00",
-  "l2GenesisRegolithTimeOffset": "0x0",
-  "l2GenesisCanyonTimeOffset": "0x0",
-  "l2GenesisDeltaTimeOffset": "0x0",
-  "l2GenesisEcotoneTimeOffset": "0x0",
 
   "eip1559Denominator": 50,
   "eip1559DenominatorCanyon": 250,
   "eip1559Elasticity": 6,
+EOL
 
-  "l2GenesisEcotoneTimeOffset": "0x0",
-  "l2GenesisDeltaTimeOffset": "0x0",
-  "l2GenesisCanyonTimeOffset": "0x0",
+# Append conditional environment variables with their corresponding default values
+append_with_default "l2GenesisGraniteTimeOffset" "GRANITE_TIME_OFFSET" "0x1"
 
+# Already forked updates
+append_with_default "l2GenesisFjordTimeOffset" "FJORD_TIME_OFFSET" "0x0"
+append_with_default "l2GenesisRegolithTimeOffset" "REGOLITH_TIME_OFFSET" "0x0"
+append_with_default "l2GenesisEcotoneTimeOffset" "ECOTONE_TIME_OFFSET" "0x0"
+append_with_default "l2GenesisDeltaTimeOffset" "DELTA_TIME_OFFSET" "0x0"
+append_with_default "l2GenesisCanyonTimeOffset" "CANYON_TIME_OFFSET" "0x0"
+
+# Continue generating the config file
+cat << EOL >> tmp_config.json
   "systemConfigStartBlock": 0,
 
   "requiredProtocolVersion": "0x0000000000000000000000000000000000000000000000000000000000000000",
@@ -113,7 +131,6 @@ config=$(cat << EOL
   "preimageOracleChallengePeriod": 86400
 }
 EOL
-)
 
-# Write the config file
-echo "$config" > "$CONTRACTS_BASE/deploy-config/getting-started.json"
+# Write the final config file
+mv tmp_config.json "$CONTRACTS_BASE/deploy-config/getting-started.json"
