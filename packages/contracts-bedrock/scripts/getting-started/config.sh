@@ -106,7 +106,7 @@ EOL
 # Append conditional environment variables with their corresponding default values
 # Activate granite fork
 if [ -n "${GRANITE_TIME_OFFSET}" ]; then
-    append_with_default "L2GenesisGraniteTimeOffset" "GRANITE_TIME_OFFSET" "0x0"
+    append_with_default "l2GenesisGraniteTimeOffset" "GRANITE_TIME_OFFSET" "0x0"
 fi
 # Activate holocene fork
 if [ -n "${HOLOCENE_TIME_OFFSET}" ]; then
