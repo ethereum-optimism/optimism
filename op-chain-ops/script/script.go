@@ -22,6 +22,8 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/triedb"
+	"github.com/ethereum/go-ethereum/triedb/hashdb"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 )
@@ -125,7 +127,12 @@ func NewHost(logger log.Logger, fs *foundry.ArtifactsFS, executionContext Contex
 
 	// Create an in-memory database, to host our temporary script state changes
 	h.rawDB = rawdb.NewMemoryDatabase()
-	h.stateDB = state.NewDatabase(h.rawDB)
+	h.stateDB = state.NewDatabaseWithConfig(h.rawDB, &triedb.Config{
+		Preimages: true, // To be able to iterate the state we need the Preimages
+		IsVerkle:  false,
+		HashDB:    hashdb.Defaults,
+		PathDB:    nil,
+	})
 	var err error
 	h.state, err = state.New(types.EmptyRootHash, h.stateDB, nil)
 	if err != nil {

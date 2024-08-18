@@ -5,20 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math/big"
 	"os"
 	"strings"
 
-	"github.com/holiman/uint256"
-	"golang.org/x/exp/maps"
-
+	"github.com/ethereum-optimism/optimism/op-chain-ops/solc"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/types"
-
-	"github.com/ethereum-optimism/optimism/op-chain-ops/solc"
 )
 
 // Artifact represents a foundry compilation artifact.
@@ -159,81 +152,4 @@ func ReadArtifact(path string) (*Artifact, error) {
 		return nil, err
 	}
 	return &artifact, nil
-}
-
-type ForgeAllocs struct {
-	Accounts types.GenesisAlloc
-}
-
-// ForgeAllocs implements state.DumpAllocator, such that the EVM state can be dumped into it:
-// with a StateDB.DumpToCollector call.
-var _ state.DumpCollector = (*ForgeAllocs)(nil)
-
-func (d *ForgeAllocs) OnRoot(hash common.Hash) {
-	// Unlike the geth raw-state-dump, forge-allocs do not reference the state trie root.
-}
-
-func (d *ForgeAllocs) OnAccount(address *common.Address, account state.DumpAccount) {
-	if address == nil {
-		return
-	}
-	balance, ok := new(big.Int).SetString(account.Balance, 0)
-	if !ok {
-		panic("invalid balance")
-	}
-	storage := make(map[common.Hash]common.Hash, len(account.Storage))
-	for k, v := range account.Storage {
-		storage[k] = common.HexToHash(v)
-	}
-	d.Accounts[*address] = types.Account{
-		Code:    account.Code,
-		Storage: storage,
-		Balance: balance,
-		Nonce:   account.Nonce,
-	}
-}
-
-func (d *ForgeAllocs) Copy() *ForgeAllocs {
-	out := make(types.GenesisAlloc, len(d.Accounts))
-	maps.Copy(out, d.Accounts)
-	return &ForgeAllocs{Accounts: out}
-}
-
-func (d *ForgeAllocs) UnmarshalJSON(b []byte) error {
-	// forge, since integrating Alloy, likes to hex-encode everything.
-	type forgeAllocAccount struct {
-		Balance hexutil.U256                `json:"balance"`
-		Nonce   hexutil.Uint64              `json:"nonce"`
-		Code    hexutil.Bytes               `json:"code,omitempty"`
-		Storage map[common.Hash]common.Hash `json:"storage,omitempty"`
-	}
-	var allocs map[common.Address]forgeAllocAccount
-	if err := json.Unmarshal(b, &allocs); err != nil {
-		return err
-	}
-	d.Accounts = make(types.GenesisAlloc, len(allocs))
-	for addr, acc := range allocs {
-		acc := acc
-		d.Accounts[addr] = types.Account{
-			Code:       acc.Code,
-			Storage:    acc.Storage,
-			Balance:    (*uint256.Int)(&acc.Balance).ToBig(),
-			Nonce:      (uint64)(acc.Nonce),
-			PrivateKey: nil,
-		}
-	}
-	return nil
-}
-
-func LoadForgeAllocs(allocsPath string) (*ForgeAllocs, error) {
-	f, err := os.OpenFile(allocsPath, os.O_RDONLY, 0644)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open forge allocs %q: %w", allocsPath, err)
-	}
-	defer f.Close()
-	var out ForgeAllocs
-	if err := json.NewDecoder(f).Decode(&out); err != nil {
-		return nil, fmt.Errorf("failed to json-decode forge allocs %q: %w", allocsPath, err)
-	}
-	return &out, nil
 }
