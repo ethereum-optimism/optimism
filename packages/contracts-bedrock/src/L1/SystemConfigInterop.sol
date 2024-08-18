@@ -5,9 +5,11 @@ import { Constants } from "src/libraries/Constants.sol";
 import { OptimismPortalInterop as OptimismPortal } from "src/L1/OptimismPortalInterop.sol";
 import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { SystemConfig, ResourceMetering, Storage } from "src/L1/SystemConfig.sol";
+import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { ConfigType } from "src/L2/L1BlockInterop.sol";
 import { StaticConfig } from "src/libraries/StaticConfig.sol";
+import { ResourceMetering } from "src/L1/ResourceMetering.sol";
+import { Storage } from "src/libraries/Storage.sol";
 
 /// @title SystemConfigInterop
 /// @notice The SystemConfig contract is used to manage configuration of an Optimism network.
@@ -97,10 +99,7 @@ contract SystemConfigInterop is SystemConfig {
     /// @notice Adds a chain to the interop dependency set. Can only be called by the dependency manager.
     /// @param _chainId Chain ID of chain to add.
     function addDependency(uint256 _chainId) external {
-        require(
-            msg.sender == Storage.getAddress(DEPENDENCY_MANAGER_SLOT),
-            "SystemConfig: caller is not the dependency manager"
-        );
+        require(msg.sender == dependencyManager(), "SystemConfig: caller is not the dependency manager");
         OptimismPortal(payable(optimismPortal())).setConfig(
             ConfigType.ADD_DEPENDENCY, StaticConfig.encodeAddDependency(_chainId)
         );
@@ -109,17 +108,14 @@ contract SystemConfigInterop is SystemConfig {
     /// @notice Removes a chain from the interop dependency set. Can only be called by the dependency manager
     /// @param _chainId Chain ID of the chain to remove.
     function removeDependency(uint256 _chainId) external {
-        require(
-            msg.sender == Storage.getAddress(DEPENDENCY_MANAGER_SLOT),
-            "SystemConfig: caller is not the dependency manager"
-        );
+        require(msg.sender == dependencyManager(), "SystemConfig: caller is not the dependency manager");
         OptimismPortal(payable(optimismPortal())).setConfig(
             ConfigType.REMOVE_DEPENDENCY, StaticConfig.encodeRemoveDependency(_chainId)
         );
     }
 
     /// @notice getter for the dependency manager address
-    function dependencyManager() external view returns (address) {
+    function dependencyManager() public view returns (address) {
         return Storage.getAddress(DEPENDENCY_MANAGER_SLOT);
     }
 }
