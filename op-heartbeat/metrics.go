@@ -36,7 +36,7 @@ type metrics struct {
 
 type heartbeatEntry struct {
 	// Count number of heartbeats per interval, atomically updated
-	Count uint64
+	Count atomic.Uint64
 	// Changes once per heartbeat interval
 	Time time.Time
 }
@@ -89,7 +89,9 @@ func (m *metrics) RecordHeartbeat(payload heartbeat.Payload, ip string) {
 
 	key := fmt.Sprintf("%s;%s;%s", ip, version, chainID)
 	now := time.Now()
-	entry, ok, _ := m.heartbeatUsers.PeekOrAdd(key, &heartbeatEntry{Time: now, Count: 1})
+	hbe := &heartbeatEntry{Time: now}
+	hbe.Count.Store(1)
+	entry, ok, _ := m.heartbeatUsers.PeekOrAdd(key, hbe)
 	if !ok {
 		// if it's a new entry, observe it and exit.
 		m.sameIP.WithLabelValues(chainID, version).Observe(1)
@@ -99,12 +101,12 @@ func (m *metrics) RecordHeartbeat(payload heartbeat.Payload, ip string) {
 
 	if now.Sub(entry.Time) < MinHeartbeatInterval {
 		// if the span is still going, then add it up
-		atomic.AddUint64(&entry.Count, 1)
+		entry.Count.Add(1)
 	} else {
 		// if the span ended, then meter it, and reset it
-		m.sameIP.WithLabelValues(chainID, version).Observe(float64(atomic.LoadUint64(&entry.Count)))
+		m.sameIP.WithLabelValues(chainID, version).Observe(float64(entry.Count.Load()))
 		entry.Time = now
-		atomic.StoreUint64(&entry.Count, 1)
+		entry.Count.Store(1)
 
 		m.heartbeats.WithLabelValues(chainID, version).Inc()
 	}
