@@ -68,9 +68,12 @@ The tree has a fixed-depth of 27 levels, with leaf values of 32 bytes each.
 This spans the full 32-bit address space: `2**27 * 32 = 2**32`.
 Each leaf contains the memory at that part of the tree.
 
-The tree is efficiently allocated, since the root of fully zeroed sub-trees
-can be computed without actually creating the full-subtree: `zero_hash[d] = hash(zero_hash[d-1], zero_hash[d-1])`,
-until the base-case of `zero_hash[0] == bytes32(0)`.
+The tree's efficiency in allocation stems from the ability to compute the root hashes of fully zeroed sub-trees
+without the need to generate each sub-tree in its entirety.
+This is achieved by calculating: `zero_hash[d] = hash(zero_hash[d-1], zero_hash[d-1])`, recursively, where d represents the depth level of the tree,
+continuing this computation until reaching the base case where `zero_hash[0] == bytes32(0)`.
+This approach allows for quick and efficient validation and retrieval of zeroed memory sections,
+minimizing computational overhead and optimizing the tree's construction.
 
 Nodes in this memory tree are combined as: `out = keccak256(left ++ right)`, where `++` is concatenation,
 and `left` and `right` are the 32-byte outputs of the respective sub-trees or the leaf values themselves.
