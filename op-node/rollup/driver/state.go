@@ -224,6 +224,8 @@ func (s *Driver) eventLoop() {
 			altSyncTicker.Reset(syncCheckInterval)
 		}
 
+		// This select is excessively large and crosses multiple states and can cause starvation for
+		// example of the driverCtx. TODO: Check this assertion now it's been tidied up.
 		select {
 		case <-sequencerCh:
 			s.Emitter.Emit(sequencing.SequencerActionEvent{})

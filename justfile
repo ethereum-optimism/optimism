@@ -42,3 +42,6 @@ check-slither:
 
 upgrade-slither:
   jq '.slither = $v' --arg v $(just print-slither) <<<$(cat versions.json) > versions.json
+
+check:
+    go test -run @ ./...
