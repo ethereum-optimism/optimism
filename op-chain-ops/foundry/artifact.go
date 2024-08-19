@@ -8,14 +8,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/holiman/uint256"
-	"golang.org/x/exp/maps"
-
 	"github.com/ethereum-optimism/optimism/op-chain-ops/solc"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
 )
 
 // Artifact represents a foundry compilation artifact.
@@ -156,53 +152,4 @@ func ReadArtifact(path string) (*Artifact, error) {
 		return nil, err
 	}
 	return &artifact, nil
-}
-
-type ForgeAllocs struct {
-	Accounts types.GenesisAlloc
-}
-
-func (d *ForgeAllocs) Copy() *ForgeAllocs {
-	out := make(types.GenesisAlloc, len(d.Accounts))
-	maps.Copy(out, d.Accounts)
-	return &ForgeAllocs{Accounts: out}
-}
-
-func (d *ForgeAllocs) UnmarshalJSON(b []byte) error {
-	// forge, since integrating Alloy, likes to hex-encode everything.
-	type forgeAllocAccount struct {
-		Balance hexutil.U256                `json:"balance"`
-		Nonce   hexutil.Uint64              `json:"nonce"`
-		Code    hexutil.Bytes               `json:"code,omitempty"`
-		Storage map[common.Hash]common.Hash `json:"storage,omitempty"`
-	}
-	var allocs map[common.Address]forgeAllocAccount
-	if err := json.Unmarshal(b, &allocs); err != nil {
-		return err
-	}
-	d.Accounts = make(types.GenesisAlloc, len(allocs))
-	for addr, acc := range allocs {
-		acc := acc
-		d.Accounts[addr] = types.Account{
-			Code:       acc.Code,
-			Storage:    acc.Storage,
-			Balance:    (*uint256.Int)(&acc.Balance).ToBig(),
-			Nonce:      (uint64)(acc.Nonce),
-			PrivateKey: nil,
-		}
-	}
-	return nil
-}
-
-func LoadForgeAllocs(allocsPath string) (*ForgeAllocs, error) {
-	f, err := os.OpenFile(allocsPath, os.O_RDONLY, 0644)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open forge allocs %q: %w", allocsPath, err)
-	}
-	defer f.Close()
-	var out ForgeAllocs
-	if err := json.NewDecoder(f).Decode(&out); err != nil {
-		return nil, fmt.Errorf("failed to json-decode forge allocs %q: %w", allocsPath, err)
-	}
-	return &out, nil
 }
