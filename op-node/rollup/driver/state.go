@@ -536,10 +536,17 @@ func (s *Driver) checkForGapInUnsafeQueue(ctx context.Context) error {
 	// Check if we have missing blocks between the start and end. Request them if we do.
 	if end == (eth.L2BlockRef{}) {
 		s.log.Debug("requesting sync with open-end range", "start", start)
-		return s.altSync.RequestL2Range(ctx, start, eth.L2BlockRef{})
 	} else if end.Number > start.Number+1 {
-		s.log.Debug("requesting missing unsafe L2 block range", "start", start, "end", end, "size", end.Number-start.Number)
-		return s.altSync.RequestL2Range(ctx, start, end)
+		// TODO: Did I read this correctly? it's [start+1, end) right?
+		s.log.Debug(
+			"requesting missing unsafe L2 block range",
+			// TODO: Should this be start+1?
+			"start", start,
+			"end", end,
+			"size", end.Number-start.Number-1,
+		)
+	} else {
+		return nil
 	}
-	return nil
+	return s.altSync.RequestL2Range(ctx, start, end)
 }
