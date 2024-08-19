@@ -120,7 +120,7 @@ func TestChainsDB_UpdateCrossHeadsEOF(t *testing.T) {
 	// 3. update to the last successful safety check (25) without returning an error
 	err := db.UpdateCrossHeads(checker)
 	require.NoError(t, err)
-	require.Equal(t, entrydb.EntryIdx(20), checker.updated)
+	require.Equal(t, entrydb.EntryIdx(25), checker.updated)
 }
 
 func TestChainsDB_UpdateCrossHeadsError(t *testing.T) {
