@@ -677,6 +677,7 @@ func (s *SyncClient) doRequest(ctx context.Context, id peer.ID, expectedBlockNum
 	// Limit input, as well as output.
 	// Compression may otherwise continue to read ignored data for a small output,
 	// or output more data than desired (zip-bomb)
+	// TODO: This should error when exceeding the limit rather than io.EOF
 	r := io.LimitReader(str, maxGossipSize)
 	var result [1]byte
 	if _, err := io.ReadFull(r, result[:]); err != nil {
