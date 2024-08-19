@@ -51,7 +51,6 @@ func (d *forgeAllocsDump) OnRoot(hash common.Hash) {
 }
 
 func (d *forgeAllocsDump) OnAccount(address *common.Address, account state.DumpAccount) {
-	fmt.Printf("dumping %v %v\n", address, account)
 	if address == nil {
 		return
 	}
