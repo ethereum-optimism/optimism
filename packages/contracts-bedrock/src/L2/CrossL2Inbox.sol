@@ -78,6 +78,8 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
     /// @param id Encoded Identifier of the message.
     event ExecutingMessage(bytes32 indexed msgHash, Identifier id);
 
+    /// @notice Sets the Interop Start Timestamp for this chain. Can only be performed once and when the caller is the
+    /// DEPOSITOR_ACCOUNT.
     function setInteropStart() external {
         // Check that caller is the DEPOSITOR_ACCOUNT
         if (msg.sender != DEPOSITOR_ACCOUNT) revert NotDepositor();
