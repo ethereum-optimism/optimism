@@ -126,9 +126,9 @@ services:
       --pprof.enabled
       --rpc.enable-admin
       --safedb.path=/db
-      --plasma.enabled=${PLASMA_ENABLED}
-      --plasma.da-service=${PLASMA_DA_SERVICE}
-      --plasma.da-server=http://da-server:3100
+      --altda.enabled=${ALTDA_ENABLED}
+      --altda.da-service=${ALTDA_SERVICE}
+      --altda.da-server=http://da-server:3100
     ports:
       - "7545:8545"
       - "9003:9003"
@@ -200,9 +200,9 @@ services:
       OP_BATCHER_METRICS_ENABLED: "true"
       OP_BATCHER_RPC_ENABLE_ADMIN: "true"
       OP_BATCHER_BATCH_TYPE: 1
-      OP_BATCHER_PLASMA_ENABLED: "${PLASMA_ENABLED}"
-      OP_BATCHER_PLASMA_DA_SERVICE: "${PLASMA_DA_SERVICE}"
-      OP_BATCHER_PLASMA_DA_SERVER: "http://da-server:3100"
+      OP_BATCHER_ALTDA_ENABLED: "${ALTDA_ENABLED}"
+      OP_BATCHER_ALTDA_DA_SERVICE: "${ALTDA_SERVICE}"
+      OP_BATCHER_ALTDA_DA_SERVER: "http://da-server:3100"
       OP_BATCHER_DATA_AVAILABILITY_TYPE: "${DA_TYPE}"
 
   op-challenger:
@@ -251,7 +251,7 @@ services:
       --addr=0.0.0.0
       --port=3100
       --log.level=debug
-      --generic-commitment="${PLASMA_GENERIC_DA}"
+      --generic-commitment="${ALTDA_GENERIC_DA}"
     ports:
       - "3100:3100"
     volumes:

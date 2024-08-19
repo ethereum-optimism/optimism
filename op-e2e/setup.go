@@ -165,7 +165,7 @@ func DefaultSystemConfig(t testing.TB) SystemConfig {
 			RoleVerif:  testlog.Logger(t, log.LevelInfo).New("role", RoleVerif),
 			RoleSeq:    testlog.Logger(t, log.LevelInfo).New("role", RoleSeq),
 			"batcher":  testlog.Logger(t, log.LevelInfo).New("role", "batcher"),
-			"proposer": testlog.Logger(t, log.LevelCrit).New("role", "proposer"),
+			"proposer": testlog.Logger(t, log.LevelInfo).New("role", "proposer"),
 		},
 		GethOptions:            map[string][]geth.GethOption{},
 		P2PTopology:            nil, // no P2P connectivity by default
@@ -270,6 +270,9 @@ type SystemConfig struct {
 
 	// If the proposer can make proposals for L2 blocks derived from L1 blocks which are not finalized on L1 yet.
 	NonFinalizedProposals bool
+
+	// Explicitly disable proposer, for tests that don't want dispute games automatically created
+	DisableProposer bool
 
 	// Explicitly disable batcher, for tests that rely on unsafe L2 payloads
 	DisableBatcher bool
@@ -852,15 +855,14 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	var proposerCLIConfig *l2os.CLIConfig
 	if e2eutils.UseFaultProofs() {
 		proposerCLIConfig = &l2os.CLIConfig{
-			L1EthRpc:            sys.EthInstances[RoleL1].WSEndpoint(),
-			RollupRpc:           sys.RollupNodes[RoleSeq].HTTPEndpoint(),
-			DGFAddress:          config.L1Deployments.DisputeGameFactoryProxy.Hex(),
-			ProposalInterval:    6 * time.Second,
-			DisputeGameType:     254, // Fast game type
-			PollInterval:        50 * time.Millisecond,
-			OutputRetryInterval: 10 * time.Millisecond,
-			TxMgrConfig:         newTxMgrConfig(sys.EthInstances[RoleL1].WSEndpoint(), cfg.Secrets.Proposer),
-			AllowNonFinalized:   cfg.NonFinalizedProposals,
+			L1EthRpc:          sys.EthInstances[RoleL1].WSEndpoint(),
+			RollupRpc:         sys.RollupNodes[RoleSeq].HTTPEndpoint(),
+			DGFAddress:        config.L1Deployments.DisputeGameFactoryProxy.Hex(),
+			ProposalInterval:  6 * time.Second,
+			DisputeGameType:   254, // Fast game type
+			PollInterval:      50 * time.Millisecond,
+			TxMgrConfig:       newTxMgrConfig(sys.EthInstances[RoleL1].WSEndpoint(), cfg.Secrets.Proposer),
+			AllowNonFinalized: cfg.NonFinalizedProposals,
 			LogConfig: oplog.CLIConfig{
 				Level:  log.LvlInfo,
 				Format: oplog.FormatText,
@@ -868,13 +870,12 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		}
 	} else {
 		proposerCLIConfig = &l2os.CLIConfig{
-			L1EthRpc:            sys.EthInstances[RoleL1].WSEndpoint(),
-			RollupRpc:           sys.RollupNodes[RoleSeq].HTTPEndpoint(),
-			L2OOAddress:         config.L1Deployments.L2OutputOracleProxy.Hex(),
-			PollInterval:        50 * time.Millisecond,
-			OutputRetryInterval: 10 * time.Millisecond,
-			TxMgrConfig:         newTxMgrConfig(sys.EthInstances[RoleL1].WSEndpoint(), cfg.Secrets.Proposer),
-			AllowNonFinalized:   cfg.NonFinalizedProposals,
+			L1EthRpc:          sys.EthInstances[RoleL1].WSEndpoint(),
+			RollupRpc:         sys.RollupNodes[RoleSeq].HTTPEndpoint(),
+			L2OOAddress:       config.L1Deployments.L2OutputOracleProxy.Hex(),
+			PollInterval:      50 * time.Millisecond,
+			TxMgrConfig:       newTxMgrConfig(sys.EthInstances[RoleL1].WSEndpoint(), cfg.Secrets.Proposer),
+			AllowNonFinalized: cfg.NonFinalizedProposals,
 			LogConfig: oplog.CLIConfig{
 				Level:  log.LvlInfo,
 				Format: oplog.FormatText,
@@ -885,8 +886,10 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	if err != nil {
 		return nil, fmt.Errorf("unable to setup l2 output submitter: %w", err)
 	}
-	if err := proposer.Start(context.Background()); err != nil {
-		return nil, fmt.Errorf("unable to start l2 output submitter: %w", err)
+	if !cfg.DisableProposer {
+		if err := proposer.Start(context.Background()); err != nil {
+			return nil, fmt.Errorf("unable to start l2 output submitter: %w", err)
+		}
 	}
 	sys.L2OutputSubmitter = proposer
 

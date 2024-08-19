@@ -151,6 +151,7 @@ contract Deploy is Deployer {
             L2OutputOracle: mustGetAddress("L2OutputOracleProxy"),
             DisputeGameFactory: mustGetAddress("DisputeGameFactoryProxy"),
             DelayedWETH: mustGetAddress("DelayedWETHProxy"),
+            PermissionedDelayedWETH: mustGetAddress("PermissionedDelayedWETHProxy"),
             AnchorStateRegistry: mustGetAddress("AnchorStateRegistryProxy"),
             OptimismMintableERC20Factory: mustGetAddress("OptimismMintableERC20FactoryProxy"),
             OptimismPortal: mustGetAddress("OptimismPortalProxy"),
@@ -170,6 +171,7 @@ contract Deploy is Deployer {
             L2OutputOracle: getAddress("L2OutputOracleProxy"),
             DisputeGameFactory: getAddress("DisputeGameFactoryProxy"),
             DelayedWETH: getAddress("DelayedWETHProxy"),
+            PermissionedDelayedWETH: getAddress("PermissionedDelayedWETHProxy"),
             AnchorStateRegistry: getAddress("AnchorStateRegistryProxy"),
             OptimismMintableERC20Factory: getAddress("OptimismMintableERC20FactoryProxy"),
             OptimismPortal: getAddress("OptimismPortalProxy"),
@@ -289,11 +291,11 @@ contract Deploy is Deployer {
         console.log("deployed Safe!");
         setupSuperchain();
         console.log("set up superchain!");
-        if (cfg.usePlasma()) {
+        if (cfg.useAltDA()) {
             bytes32 typeHash = keccak256(bytes(cfg.daCommitmentType()));
             bytes32 keccakHash = keccak256(bytes("KeccakCommitment"));
             if (typeHash == keccakHash) {
-                setupOpPlasma();
+                setupOpAltDA();
             }
         }
         setupOpChain();
@@ -369,6 +371,7 @@ contract Deploy is Deployer {
         deployERC1967Proxy("DisputeGameFactoryProxy");
         deployERC1967Proxy("L2OutputOracleProxy");
         deployERC1967Proxy("DelayedWETHProxy");
+        deployERC1967Proxy("PermissionedDelayedWETHProxy");
         deployERC1967Proxy("AnchorStateRegistryProxy");
 
         transferAddressManagerOwnership(); // to the ProxyAdmin
@@ -413,12 +416,13 @@ contract Deploy is Deployer {
         initializeL2OutputOracle();
         initializeDisputeGameFactory();
         initializeDelayedWETH();
+        initializePermissionedDelayedWETH();
         initializeAnchorStateRegistry();
     }
 
-    /// @notice Add Plasma setup to the OP chain
-    function setupOpPlasma() public {
-        console.log("Deploying OP Plasma");
+    /// @notice Add AltDA setup to the OP chain
+    function setupOpAltDA() public {
+        console.log("Deploying OP AltDA");
         deployDataAvailabilityChallengeProxy();
         deployDataAvailabilityChallenge();
         initializeDataAvailabilityChallenge();
@@ -959,10 +963,34 @@ contract Deploy is Deployer {
         });
     }
 
+    function initializePermissionedDelayedWETH() public broadcast {
+        console.log("Upgrading and initializing permissioned DelayedWETH proxy");
+        address delayedWETHProxy = mustGetAddress("PermissionedDelayedWETHProxy");
+        address delayedWETH = mustGetAddress("DelayedWETH");
+        address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
+
+        _upgradeAndCallViaSafe({
+            _proxy: payable(delayedWETHProxy),
+            _implementation: delayedWETH,
+            _innerCallData: abi.encodeCall(DelayedWETH.initialize, (msg.sender, SuperchainConfig(superchainConfigProxy)))
+        });
+
+        string memory version = DelayedWETH(payable(delayedWETHProxy)).version();
+        console.log("DelayedWETH version: %s", version);
+
+        ChainAssertions.checkPermissionedDelayedWETH({
+            _contracts: _proxiesUnstrict(),
+            _cfg: cfg,
+            _isProxy: true,
+            _expectedOwner: msg.sender
+        });
+    }
+
     function initializeAnchorStateRegistry() public broadcast {
         console.log("Upgrading and initializing AnchorStateRegistry proxy");
         address anchorStateRegistryProxy = mustGetAddress("AnchorStateRegistryProxy");
         address anchorStateRegistry = mustGetAddress("AnchorStateRegistry");
+        SuperchainConfig superchainConfig = SuperchainConfig(mustGetAddress("SuperchainConfigProxy"));
 
         AnchorStateRegistry.StartingAnchorRoot[] memory roots = new AnchorStateRegistry.StartingAnchorRoot[](5);
         roots[0] = AnchorStateRegistry.StartingAnchorRoot({
@@ -1004,7 +1032,7 @@ contract Deploy is Deployer {
         _upgradeAndCallViaSafe({
             _proxy: payable(anchorStateRegistryProxy),
             _implementation: anchorStateRegistry,
-            _innerCallData: abi.encodeCall(AnchorStateRegistry.initialize, (roots))
+            _innerCallData: abi.encodeCall(AnchorStateRegistry.initialize, (roots, superchainConfig))
         });
 
         string memory version = AnchorStateRegistry(payable(anchorStateRegistryProxy)).version();
@@ -1348,6 +1376,25 @@ contract Deploy is Deployer {
         ChainAssertions.checkDelayedWETH({ _contracts: _proxies(), _cfg: cfg, _isProxy: true, _expectedOwner: safe });
     }
 
+    /// @notice Transfer ownership of the permissioned DelayedWETH contract to the final system owner
+    function transferPermissionedDelayedWETHOwnership() public broadcast {
+        console.log("Transferring permissioned DelayedWETH ownership to Safe");
+        DelayedWETH weth = DelayedWETH(mustGetAddress("PermissionedDelayedWETHProxy"));
+        address owner = weth.owner();
+
+        address safe = mustGetAddress("SystemOwnerSafe");
+        if (owner != safe) {
+            weth.transferOwnership(safe);
+            console.log("DelayedWETH ownership transferred to Safe at: %s", safe);
+        }
+        ChainAssertions.checkPermissionedDelayedWETH({
+            _contracts: _proxies(),
+            _cfg: cfg,
+            _isProxy: true,
+            _expectedOwner: safe
+        });
+    }
+
     /// @notice Loads the mips absolute prestate from the prestate-proof for devnets otherwise
     ///         from the config.
     function loadMipsAbsolutePrestate() internal returns (Claim mipsAbsolutePrestate_) {
@@ -1401,7 +1448,7 @@ contract Deploy is Deployer {
     function setPermissionedCannonFaultGameImplementation(bool _allowUpgrade) public broadcast {
         console.log("Setting Cannon PermissionedDisputeGame implementation");
         DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
-        DelayedWETH weth = DelayedWETH(mustGetAddress("DelayedWETHProxy"));
+        DelayedWETH weth = DelayedWETH(mustGetAddress("PermissionedDelayedWETHProxy"));
 
         // Set the Cannon FaultDisputeGame implementation in the factory.
         _setFaultGameImplementation({
@@ -1449,6 +1496,7 @@ contract Deploy is Deployer {
         DelayedWETH weth = DelayedWETH(mustGetAddress("DelayedWETHProxy"));
 
         Claim outputAbsolutePrestate = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
+        PreimageOracle fastOracle = new PreimageOracle(cfg.preimageOracleMinProposalSize(), 0);
         _setFaultGameImplementation({
             _factory: factory,
             _allowUpgrade: _allowUpgrade,
@@ -1457,7 +1505,7 @@ contract Deploy is Deployer {
                 weth: weth,
                 gameType: GameTypes.FAST,
                 absolutePrestate: outputAbsolutePrestate,
-                faultVm: IBigStepper(new AlphabetVM(outputAbsolutePrestate, PreimageOracle(mustGetAddress("PreimageOracle")))),
+                faultVm: IBigStepper(new AlphabetVM(outputAbsolutePrestate, fastOracle)),
                 // The max depth for the alphabet trace is always 3. Add 1 because split depth is fully inclusive.
                 maxGameDepth: cfg.faultGameSplitDepth() + 3 + 1,
                 maxClockDuration: Duration.wrap(0) // Resolvable immediately

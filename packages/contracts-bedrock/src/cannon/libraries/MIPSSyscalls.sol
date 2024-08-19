@@ -99,7 +99,8 @@ library MIPSSyscalls {
 
     uint32 internal constant SCHED_QUANTUM = 100_000;
     /// @notice Start of the data segment.
-    uint32 internal constant BRK_START = 0x40000000;
+    uint32 internal constant PROGRAM_BREAK = 0x40000000;
+    uint32 internal constant HEAP_END = 0x60000000;
 
     // SYS_CLONE flags
     uint32 internal constant CLONE_VM = 0x100;
@@ -175,6 +176,12 @@ library MIPSSyscalls {
             if (_a0 == 0) {
                 v0_ = _heap;
                 newHeap_ += sz;
+                // Fail if new heap exceeds memory limit, newHeap overflows to low memory, or sz overflows
+                if (newHeap_ > HEAP_END || newHeap_ < _heap || sz < _a1) {
+                    v0_ = SYS_ERROR_SIGNAL;
+                    v1_ = EINVAL;
+                    return (v0_, v1_, _heap);
+                }
             } else {
                 v0_ = _a0;
             }

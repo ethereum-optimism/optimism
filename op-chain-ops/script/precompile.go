@@ -33,8 +33,17 @@ func b32(v uint64) []byte {
 	return out
 }
 
-// pad to multiple of 32 bytes
-func pad32(data []byte) []byte {
+// leftPad32 to multiple of 32 bytes
+func leftPad32(data []byte) []byte {
+	out := bytes.Clone(data)
+	if len(out)%32 == 0 {
+		return out
+	}
+	return append(make([]byte, 32-(len(out)%32)), out...)
+}
+
+// rightPad32 to multiple of 32 bytes
+func rightPad32(data []byte) []byte {
 	out := bytes.Clone(data)
 	if len(out)%32 == 0 {
 		return out
@@ -90,6 +99,53 @@ func (p *Precompile[E]) setupMethods(val *reflect.Value) error {
 	return nil
 }
 
+// makeArgs infers a list of ABI types, from a list of Go arguments.
+func makeArgs(argCount int, getType func(i int) reflect.Type) (abi.Arguments, error) {
+	out := make(abi.Arguments, argCount)
+	for i := 0; i < argCount; i++ {
+		argType := getType(i)
+		abiTyp, err := goTypeToABIType(argType)
+		if err != nil {
+			return nil, fmt.Errorf("failed to determine ABI type of input arg %d: %w", i, err)
+		}
+		out[i] = abi.Argument{
+			Name: fmt.Sprintf("arg_%d", i),
+			Type: abiTyp,
+		}
+	}
+	return out, nil
+}
+
+// makeArgTypes turns a slice of ABI argument types into a slice of ABI stringified types
+func makeArgTypes(args abi.Arguments) []string {
+	out := make([]string, len(args))
+	for i := 0; i < len(args); i++ {
+		out[i] = args[i].Type.String()
+	}
+	return out
+}
+
+// makeArgAllocators returns a lice of Go object allocator functions, for each of the arguments.
+func makeArgAllocators(argCount int, getType func(i int) reflect.Type) []func() any {
+	out := make([]func() interface{}, argCount)
+	for i := 0; i < argCount; i++ {
+		argType := getType(i)
+		out[i] = func() interface{} {
+			return reflect.New(argType).Elem().Interface()
+		}
+	}
+	return out
+}
+
+// hasTrailingError checks if the last returned argument type, if any, is a Go error.
+func hasTrailingError(argCount int, getType func(i int) reflect.Type) bool {
+	if argCount == 0 {
+		return false
+	}
+	lastTyp := getType(argCount - 1)
+	return lastTyp.Kind() == reflect.Interface && lastTyp.Implements(typeFor[error]())
+}
+
 // setupMethod takes a method definition, attached to selfVal,
 // and builds an ABI method to handle the input decoding and output encoding around the inner Go function.
 func (p *Precompile[E]) setupMethod(selfVal *reflect.Value, methodDef *reflect.Method) error {
@@ -115,24 +171,14 @@ func (p *Precompile[E]) setupMethod(selfVal *reflect.Value, methodDef *reflect.M
 	if inArgCount < 0 {
 		return errors.New("expected method with receiver as first argument")
 	}
-	inArgs := make(abi.Arguments, inArgCount)
-	inArgTypes := make([]string, inArgCount)
-	inArgAllocators := make([]func() interface{}, inArgCount)
-	for i := 0; i < inArgCount; i++ {
-		argType := methodDef.Type.In(i + 1) // account for receiver
-		abiTyp, err := goTypeToABIType(argType)
-		if err != nil {
-			return fmt.Errorf("failed to determine ABI type of input arg %d: %w", i, err)
-		}
-		inArgs[i] = abi.Argument{
-			Name: fmt.Sprintf("in_%d", i),
-			Type: abiTyp,
-		}
-		inArgAllocators[i] = func() interface{} {
-			return reflect.New(argType).Elem().Interface()
-		}
-		inArgTypes[i] = abiTyp.String()
+	getInArg := func(i int) reflect.Type {
+		return methodDef.Type.In(i + 1) // +1 to account for the receiver
 	}
+	inArgs, err := makeArgs(inArgCount, getInArg)
+	if err != nil {
+		return fmt.Errorf("failed to preserve input args: %w", err)
+	}
+	inArgTypes := makeArgTypes(inArgs)
 	methodSig := fmt.Sprintf("%v(%v)", abiFunctionName, strings.Join(inArgTypes, ","))
 	byte4Sig := bytes4(methodSig)
 	if variantSuffix != "" {
@@ -148,35 +194,53 @@ func (p *Precompile[E]) setupMethod(selfVal *reflect.Value, methodDef *reflect.M
 
 	outArgCount := methodDef.Type.NumOut()
 	// A Go method may return an error, which we do not ABI-encode, but rather forward as revert.
-	errReturn := false
-	if outArgCount > 0 {
-		errIndex := outArgCount - 1
-		lastTyp := methodDef.Type.Out(errIndex)
-		if lastTyp.Kind() == reflect.Interface && lastTyp.Implements(typeFor[error]()) {
-			outArgCount -= 1
-			errReturn = true
-		}
-	}
-	// Prepare ABI definitions of return parameters.
-	outArgs := make(abi.Arguments, outArgCount)
-	for i := 0; i < outArgCount; i++ {
-		argType := methodDef.Type.Out(i)
-		abiTyp, err := goTypeToABIType(argType)
-		if err != nil {
-			return fmt.Errorf("failed to determine ABI type of output arg %d: %w", i, err)
-		}
-		outArgs[i] = abi.Argument{
-			Name: fmt.Sprintf("out_%d", i),
-			Type: abiTyp,
-		}
+	errReturn := hasTrailingError(outArgCount, methodDef.Type.Out)
+	if errReturn {
+		outArgCount -= 1
 	}
 
+	// Prepare ABI definitions of return parameters.
+	outArgs, err := makeArgs(outArgCount, methodDef.Type.Out)
+	if err != nil {
+		return fmt.Errorf("failed to prepare output arg types: %w", err)
+	}
+
+	inArgAllocators := makeArgAllocators(inArgCount, getInArg)
 	fn := makeFn(selfVal, &methodDef.Func, errReturn, inArgs, outArgs, inArgAllocators)
 
 	p.abiMethods[byte4Sig] = &precompileFunc{
 		goName:       methodName,
 		abiSignature: methodSig,
 		fn:           fn,
+	}
+	return nil
+}
+
+// abiToValues turns serialized ABI input data into values, which are written to the given dest slice.
+// The ABI decoding happens following the given args ABI type definitions.
+// Values are allocated with the given respective allocator functions.
+func abiToValues(args abi.Arguments, allocators []func() any, dest []reflect.Value, input []byte) error {
+	// sanity check that we have as many allocators as result destination slots
+	if len(allocators) != len(dest) {
+		return fmt.Errorf("have %d allocators, but %d destinations", len(allocators), len(dest))
+	}
+	// Unpack the ABI data into default Go types
+	inVals, err := args.UnpackValues(input)
+	if err != nil {
+		return fmt.Errorf("failed to decode input: %x\nerr: %w", input, err)
+	}
+	// Sanity check that the ABI util returned the expected number of inputs
+	if len(inVals) != len(allocators) {
+		return fmt.Errorf("expected %d args, got %d", len(allocators), len(inVals))
+	}
+	for i, inAlloc := range allocators {
+		argSrc := inVals[i]
+		argDest := inAlloc()
+		argDest, err = convertType(argSrc, argDest)
+		if err != nil {
+			return fmt.Errorf("failed to convert arg %d from Go type %T to %T: %w", i, argSrc, argDest, err)
+		}
+		dest[i] = reflect.ValueOf(argDest)
 	}
 	return nil
 }
@@ -189,26 +253,12 @@ func (p *Precompile[E]) setupMethod(selfVal *reflect.Value, methodDef *reflect.M
 // - and ABI encoding of outputs
 func makeFn(selfVal, methodVal *reflect.Value, errReturn bool, inArgs, outArgs abi.Arguments, inArgAllocators []func() any) func(input []byte) ([]byte, error) {
 	return func(input []byte) ([]byte, error) {
-		// Unpack the ABI data into default Go types
-		inVals, err := inArgs.UnpackValues(input)
-		if err != nil {
-			return nil, fmt.Errorf("failed to decode input: %x\nerr: %w", input, err)
-		}
-		// Sanity check that the ABI util returned the expected number of inputs
-		if len(inVals) != len(inArgAllocators) {
-			return nil, fmt.Errorf("expected %d args, got %d", len(inArgAllocators), len(inVals))
-		}
 		// Convert each default Go type into the expected opinionated Go type
-		callArgs := make([]reflect.Value, 0, 1+len(inArgAllocators))
-		callArgs = append(callArgs, *selfVal)
-		for i, inAlloc := range inArgAllocators {
-			argSrc := inVals[i]
-			argDest := inAlloc()
-			argDest, err = convertType(argSrc, argDest)
-			if err != nil {
-				return nil, fmt.Errorf("failed to convert arg %d from Go type %T to %T: %w", i, argSrc, argDest, err)
-			}
-			callArgs = append(callArgs, reflect.ValueOf(argDest))
+		callArgs := make([]reflect.Value, 1+len(inArgAllocators))
+		callArgs[0] = *selfVal
+		err := abiToValues(inArgs, inArgAllocators, callArgs[1:], input)
+		if err != nil {
+			return nil, err
 		}
 		// Call the precompile Go function
 		returnReflectVals := methodVal.Call(callArgs)
@@ -452,7 +502,7 @@ func encodeRevert(outErr error) ([]byte, error) {
 	out = append(out, revertSelector...)              // selector
 	out = append(out, b32(0x20)...)                   // offset to string
 	out = append(out, b32(uint64(len(outErrStr)))...) // length of string
-	out = append(out, pad32(outErrStr)...)            // the error message string
+	out = append(out, rightPad32(outErrStr)...)       // the error message string
 	return out, vm.ErrExecutionReverted               // Geth EVM will pick this up as a revert with return-data
 }
 

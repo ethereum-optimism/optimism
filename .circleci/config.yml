@@ -207,17 +207,17 @@ jobs:
           name: Copy L2OO allocs to .devnet-l2oo
           command: cp -r .devnet/ .devnet-l2oo/
       - run:
-          name: Generate Plasma allocs
-          command: DEVNET_PLASMA="true" make devnet-allocs
+          name: Generate AltDA allocs
+          command: DEVNET_ALTDA="true" make devnet-allocs
       - run:
-          name: Copy Plasma allocs to .devnet-plasma
-          command: cp -r .devnet/ .devnet-plasma/
+          name: Copy AltDA allocs to .devnet-altda
+          command: cp -r .devnet/ .devnet-altda/
       - run:
-          name: Generate Generic Plasma allocs
-          command: DEVNET_PLASMA="true" GENERIC_PLASMA="true" make devnet-allocs
+          name: Generate Generic AltDA allocs
+          command: DEVNET_ALTDA="true" GENERIC_ALTDA="true" make devnet-allocs
       - run:
-          name: Copy Plasma allocs to .devnet-plasma
-          command: cp -r .devnet/ .devnet-plasma-generic/
+          name: Copy AltDA allocs to .devnet-altda
+          command: cp -r .devnet/ .devnet-altda-generic/
       - run:
           name: Generate default allocs
           command: make devnet-allocs
@@ -239,18 +239,18 @@ jobs:
             - ".devnet-l2oo/allocs-l2-ecotone.json"
             - ".devnet-l2oo/allocs-l2-fjord.json"
             - ".devnet-l2oo/allocs-l2-granite.json"
-            - ".devnet-plasma/allocs-l1.json"
-            - ".devnet-plasma/addresses.json"
-            - ".devnet-plasma/allocs-l2-delta.json"
-            - ".devnet-plasma/allocs-l2-ecotone.json"
-            - ".devnet-plasma/allocs-l2-fjord.json"
-            - ".devnet-plasma/allocs-l2-granite.json"
-            - ".devnet-plasma-generic/allocs-l1.json"
-            - ".devnet-plasma-generic/addresses.json"
-            - ".devnet-plasma-generic/allocs-l2-delta.json"
-            - ".devnet-plasma-generic/allocs-l2-ecotone.json"
-            - ".devnet-plasma-generic/allocs-l2-fjord.json"
-            - ".devnet-plasma-generic/allocs-l2-granite.json"
+            - ".devnet-altda/allocs-l1.json"
+            - ".devnet-altda/addresses.json"
+            - ".devnet-altda/allocs-l2-delta.json"
+            - ".devnet-altda/allocs-l2-ecotone.json"
+            - ".devnet-altda/allocs-l2-fjord.json"
+            - ".devnet-altda/allocs-l2-granite.json"
+            - ".devnet-altda-generic/allocs-l1.json"
+            - ".devnet-altda-generic/addresses.json"
+            - ".devnet-altda-generic/allocs-l2-delta.json"
+            - ".devnet-altda-generic/allocs-l2-ecotone.json"
+            - ".devnet-altda-generic/allocs-l2-fjord.json"
+            - ".devnet-altda-generic/allocs-l2-granite.json"
             - "packages/contracts-bedrock/deploy-config/devnetL1.json"
             - "packages/contracts-bedrock/deployments/devnetL1"
       - notify-failures-on-develop
@@ -838,11 +838,11 @@ jobs:
                 command: echo 'export OP_E2E_USE_L2OO=true' >> $BASH_ENV
       - when:
           condition:
-            equal: ['-plasma', <<parameters.variant>>]
+            equal: ['-altda', <<parameters.variant>>]
           steps:
             - run:
-                name: Set OP_E2E_USE_PLASMA = true
-                command: echo 'export OP_E2E_USE_PLASMA=true' >> $BASH_ENV
+                name: Set OP_E2E_USE_ALTDA = true
+                command: echo 'export OP_E2E_USE_ALTDA=true' >> $BASH_ENV
       - check-changed:
           patterns: op-(.+),cannon,contracts-bedrock
       - run:
@@ -1067,26 +1067,26 @@ jobs:
       DEVNET_NO_BUILD: 'true'
       # Default value; Can be overridden.
       DEVNET_L2OO: 'false'
-      DEVNET_PLASMA: 'false'
+      DEVNET_ALTDA: 'false'
     steps:
       - checkout
       - when:
           condition:
-            equal: ['plasma', <<parameters.variant>>]
+            equal: ['altda', <<parameters.variant>>]
           steps:
             - run:
-                name: Set DEVNET_PLASMA = true
-                command: echo 'export DEVNET_PLASMA=true' >> $BASH_ENV
+                name: Set DEVNET_ALTDA = true
+                command: echo 'export DEVNET_ALTDA=true' >> $BASH_ENV
       - when:
           condition:
-            equal: ['plasma-generic', <<parameters.variant>>]
+            equal: ['altda-generic', <<parameters.variant>>]
           steps:
             - run:
-                name: Set DEVNET_PLASMA = true
-                command: echo 'export DEVNET_PLASMA=true' >> $BASH_ENV
+                name: Set DEVNET_ALTDA = true
+                command: echo 'export DEVNET_ALTDA=true' >> $BASH_ENV
             - run:
-                name: Set GENERIC_PLASMA = true
-                command: echo 'export GENERIC_PLASMA=true' >> $BASH_ENV
+                name: Set GENERIC_ALTDA = true
+                command: echo 'export GENERIC_ALTDA=true' >> $BASH_ENV
       - check-changed:
           patterns: op-(.+),packages,ops-bedrock,bedrock-devnet
       - run:
@@ -1443,12 +1443,22 @@ jobs:
           docker_layer_caching: true
       - run:
           name: Run Kontrol Tests
-          command: just test-kontrol
+          command: |
+            curl -X POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $RV_COMPUTE_TOKEN" \
+              https://api.github.com/repos/runtimeverification/optimism-ci/actions/workflows/optimism-ci.yaml/dispatches \
+              -d '{
+                "ref": "master",
+                "inputs": {
+                  "branch_name": "<<pipeline.git.branch>>",
+                  "extra_args": "script",
+                  "statuses_sha": "<< pipeline.git.revision >>",
+                  "org": "ethereum-optimism",
+                  "repository": "optimism"
+                }
+              }'
           working_directory: ./packages/contracts-bedrock
-      - store_artifacts:
-          path: ./packages/contracts-bedrock/test/kontrol/logs/kontrol-results_latest.tar.gz
-      - store_test_results:
-          path: ./packages/contracts-bedrock
       - notify-failures-on-develop
 
 workflows:
@@ -1566,7 +1576,7 @@ workflows:
           name: op-e2e-action-tests<< matrix.variant >>
           matrix:
             parameters:
-              variant: ["", "-l2oo", "-plasma"]
+              variant: ["", "-l2oo", "-altda"]
           module: op-e2e
           target: test-actions
           parallelism: 1
@@ -1611,7 +1621,7 @@ workflows:
             - op-e2e-HTTP-tests
             - op-e2e-fault-proof-tests
             - op-e2e-action-tests
-            - op-e2e-action-tests-plasma
+            - op-e2e-action-tests-altda
       - docker-build:
           name: op-node-docker-build
           docker_name: op-node
@@ -1668,7 +1678,7 @@ workflows:
       - devnet:
           matrix:
             parameters:
-              variant: ["default", "plasma", "plasma-generic"]
+              variant: ["default", "altda", "altda-generic"]
           requires:
             - pnpm-monorepo
             - op-batcher-docker-build
@@ -1990,6 +2000,7 @@ workflows:
       - kontrol-tests:
           context:
             - slack
+            - runtimeverification
 
   scheduled-docker-publish:
     when:

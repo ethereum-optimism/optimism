@@ -44,12 +44,12 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		return nil, fmt.Errorf("unable to retrieve deposit contract address")
 	}
 
-	var plasma *PlasmaConfig
-	if chConfig.Plasma != nil {
-		plasma = &PlasmaConfig{
-			DAChallengeAddress: common.Address(*chConfig.Plasma.DAChallengeAddress),
-			DAChallengeWindow:  *chConfig.Plasma.DAChallengeWindow,
-			DAResolveWindow:    *chConfig.Plasma.DAResolveWindow,
+	var altDA *AltDAConfig
+	if chConfig.AltDA != nil {
+		altDA = &AltDAConfig{
+			DAChallengeAddress: common.Address(*chConfig.AltDA.DAChallengeAddress),
+			DAChallengeWindow:  *chConfig.AltDA.DAChallengeWindow,
+			DAResolveWindow:    *chConfig.AltDA.DAResolveWindow,
 		}
 	}
 
@@ -87,7 +87,7 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		BatchInboxAddress:      common.Address(chConfig.BatchInboxAddr),
 		DepositContractAddress: common.Address(addrs.OptimismPortalProxy),
 		L1SystemConfigAddress:  common.Address(addrs.SystemConfigProxy),
-		PlasmaConfig:           plasma,
+		AltDAConfig:            altDA,
 	}
 
 	if superChain.Config.ProtocolVersionsAddr != nil { // Set optional protocol versions address

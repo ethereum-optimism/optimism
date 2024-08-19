@@ -52,7 +52,7 @@ type DerivationPipeline struct {
 	log       log.Logger
 	rollupCfg *rollup.Config
 	l1Fetcher L1Fetcher
-	plasma    PlasmaInputFetcher
+	altDA     AltDAInputFetcher
 
 	l2 L2Source
 
@@ -77,11 +77,11 @@ type DerivationPipeline struct {
 
 // NewDerivationPipeline creates a DerivationPipeline, to turn L1 data into L2 block-inputs.
 func NewDerivationPipeline(log log.Logger, rollupCfg *rollup.Config, l1Fetcher L1Fetcher, l1Blobs L1BlobsFetcher,
-	plasma PlasmaInputFetcher, l2Source L2Source, metrics Metrics) *DerivationPipeline {
+	altDA AltDAInputFetcher, l2Source L2Source, metrics Metrics) *DerivationPipeline {
 
 	// Pull stages
 	l1Traversal := NewL1Traversal(log, rollupCfg, l1Fetcher)
-	dataSrc := NewDataSourceFactory(log, rollupCfg, l1Fetcher, l1Blobs, plasma) // auxiliary stage for L1Retrieval
+	dataSrc := NewDataSourceFactory(log, rollupCfg, l1Fetcher, l1Blobs, altDA) // auxiliary stage for L1Retrieval
 	l1Src := NewL1Retrieval(log, dataSrc, l1Traversal)
 	frameQueue := NewFrameQueue(log, l1Src)
 	bank := NewChannelBank(log, rollupCfg, frameQueue, l1Fetcher, metrics)
@@ -93,13 +93,13 @@ func NewDerivationPipeline(log log.Logger, rollupCfg *rollup.Config, l1Fetcher L
 	// Reset from ResetEngine then up from L1 Traversal. The stages do not talk to each other during
 	// the ResetEngine, but after the ResetEngine, this is the order in which the stages could talk to each other.
 	// Note: The ResetEngine is the only reset that can fail.
-	stages := []ResettableStage{l1Traversal, l1Src, plasma, frameQueue, bank, chInReader, batchQueue, attributesQueue}
+	stages := []ResettableStage{l1Traversal, l1Src, altDA, frameQueue, bank, chInReader, batchQueue, attributesQueue}
 
 	return &DerivationPipeline{
 		log:       log,
 		rollupCfg: rollupCfg,
 		l1Fetcher: l1Fetcher,
-		plasma:    plasma,
+		altDA:     altDA,
 		resetting: 0,
 		stages:    stages,
 		metrics:   metrics,

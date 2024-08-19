@@ -23,6 +23,8 @@ type API interface {
 	Pause(ctx context.Context) error
 	// Resume resumes op-conductor.
 	Resume(ctx context.Context) error
+	// Stop stops op-conductor.
+	Stop(ctx context.Context) error
 	// Paused returns true if op-conductor is paused.
 	Paused(ctx context.Context) (bool, error)
 	// Stopped returns true if op-conductor is stopped.
