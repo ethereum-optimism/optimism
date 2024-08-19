@@ -62,7 +62,7 @@ func TestOriginSelectorAdvances(t *testing.T) {
 // The next L2 time is 24 which is before the next L1 block time. There
 // is no conf depth to stop the LOS from potentially selecting block `b`
 // but it should select block `a` because the L2 block time must be ahead
-// of the the timestamp of it's L1 origin.
+// of the timestamp of it's L1 origin.
 func TestOriginSelectorRespectsOriginTiming(t *testing.T) {
 	log := testlog.Logger(t, log.LevelCrit)
 	cfg := &rollup.Config{
@@ -100,7 +100,7 @@ func TestOriginSelectorRespectsOriginTiming(t *testing.T) {
 // will respect the confirmation depth requirement
 //
 // There are 2 L1 blocks at time 20 & 25. The L2 Head is at time 27.
-// The next L2 time is 29 which enough to normally select block `b`
+// The next L2 time is 29 which is enough to normally select block `b`
 // as the origin, however block `b` is the L1 Head & the sequencer
 // needs to wait until that block is confirmed enough before advancing.
 func TestOriginSelectorRespectsConfDepth(t *testing.T) {

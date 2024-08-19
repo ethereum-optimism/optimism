@@ -66,7 +66,7 @@ func NewDataSourceFactory(log log.Logger, cfg *rollup.Config, fetcher L1Fetcher,
 // OpenData returns the appropriate data source for the L1 block `ref`.
 func (ds *DataSourceFactory) OpenData(ctx context.Context, ref eth.L1BlockRef, batcherAddr common.Address) (DataIter, error) {
 	// Creates a data iterator from blob or calldata source so we can forward it to the altDA source
-	// if enabled as it still requires an L1 data source for fetching input commmitments.
+	// if enabled as it still requires an L1 data source for fetching input commitments.
 	var src DataIter
 	if ds.ecotoneTime != nil && ref.Time >= *ds.ecotoneTime {
 		if ds.blobsFetcher == nil {
