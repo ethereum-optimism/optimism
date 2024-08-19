@@ -340,13 +340,13 @@ func (m *SimpleTxManager) SetMinBaseFee(val *big.Int) {
 	m.l.Info("txmgr config val changed: SetMinBaseFee", "newVal", val)
 }
 
-func (m *SimpleTxManager) GetPriorityFee() *big.Int {
+func (m *SimpleTxManager) GetMinPriorityFee() *big.Int {
 	return m.cfg.MinTipCap.Load()
 }
 
-func (m *SimpleTxManager) SetPriorityFee(val *big.Int) {
+func (m *SimpleTxManager) SetMinPriorityFee(val *big.Int) {
 	m.cfg.MinTipCap.Store(val)
-	m.l.Info("txmgr config val changed: SetPriorityFee", "newVal", val)
+	m.l.Info("txmgr config val changed: SetMinPriorityFee", "newVal", val)
 }
 
 func (m *SimpleTxManager) GetMinBlobFee() *big.Int {

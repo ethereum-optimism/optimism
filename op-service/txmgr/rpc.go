@@ -21,12 +21,12 @@ func (a *SimpleTxmgrAPI) SetMinBaseFee(_ context.Context, val *big.Int) {
 	a.mgr.SetMinBaseFee(val)
 }
 
-func (a *SimpleTxmgrAPI) GetPriorityFee(_ context.Context) *big.Int {
-	return a.mgr.GetPriorityFee()
+func (a *SimpleTxmgrAPI) GetMinPriorityFee(_ context.Context) *big.Int {
+	return a.mgr.GetMinPriorityFee()
 }
 
-func (a *SimpleTxmgrAPI) SetPriorityFee(_ context.Context, val *big.Int) {
-	a.mgr.SetPriorityFee(val)
+func (a *SimpleTxmgrAPI) SetMinPriorityFee(_ context.Context, val *big.Int) {
+	a.mgr.SetMinPriorityFee(val)
 }
 
 func (a *SimpleTxmgrAPI) GetMinBlobFee(_ context.Context) *big.Int {
