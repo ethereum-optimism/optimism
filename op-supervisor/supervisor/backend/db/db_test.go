@@ -152,7 +152,7 @@ func TestChainsDB_UpdateCrossHeadsError(t *testing.T) {
 
 // setupStubbedForUpdateHeads sets up stubbed components for testing the UpdateCrossHeads method
 // it returns stubbed structs which are suitable for their interfaces, and can be modified before testing
-// TODO: the variables at the top of this funciton should be configurable by the caller.
+// TODO: the variables at the top of this function should be configurable by the caller.
 // this isn't an issue for now, as all tests can modify the stubbed components directly after calling this function.
 // but readability and maintainability would be improved by making this function more configurable.
 func setupStubbedForUpdateHeads(chainID types.ChainID) (*stubLogDB, *stubChecker, *heads.Heads) {
