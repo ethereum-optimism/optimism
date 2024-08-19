@@ -70,7 +70,7 @@ Each leaf contains the memory at that part of the tree.
 
 The tree's efficiency in allocation stems from the ability to compute the root hashes of fully zeroed sub-trees
 without the need to generate each sub-tree in its entirety.
-This is achieved by calculating: `zero_hash[d] = hash(zero_hash[d-1], zero_hash[d-1])`, recursively, where d represents the depth level of the tree,
+This is achieved by calculating: `zero_hash[d] = hash(zero_hash[d-1], zero_hash[d-1])`, recursively, where `d` represents the depth level of the tree,
 continuing this computation until reaching the base case where `zero_hash[0] == bytes32(0)`.
 This approach allows for quick and efficient validation and retrieval of zeroed memory sections,
 minimizing computational overhead and optimizing the tree's construction.
