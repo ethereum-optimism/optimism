@@ -20,7 +20,6 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 )
 
@@ -161,7 +160,6 @@ func TestEVMSingleStep(t *testing.T) {
 }
 
 func TestEVM_MMap(t *testing.T) {
-	contracts := testutil.TestContractsSetup(t, testutil.MipsSingleThreaded)
 	var tracer *tracing.Hooks
 
 	versions := GetMipsVersionTestCases(t)
@@ -233,11 +231,11 @@ func TestEVM_MMap(t *testing.T) {
 				require.Equal(t, uint8(0), state.GetExitCode())
 				require.Equal(t, hexutil.Bytes(nil), state.GetLastHint())
 
-				evm := testutil.NewMIPSEVM(contracts)
+				evm := testutil.NewMIPSEVM(v.Contracts)
 				evm.SetTracer(tracer)
 				testutil.LogStepFailureAtCleanup(t, evm)
 
-				evmPost := evm.Step(t, stepWitness, step, singlethreaded.GetStateHashFn())
+				evmPost := evm.Step(t, stepWitness, step, v.StateHashFn)
 				goPost, _ := goVm.GetState().EncodeWitness()
 				require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 					"mipsevm produced different state than EVM")
@@ -487,7 +485,7 @@ func TestHelloEVM(t *testing.T) {
 			testutil.LogStepFailureAtCleanup(t, evm)
 
 			var stdOutBuf, stdErrBuf bytes.Buffer
-			elfFile := "../../example/bin/hello.elf"
+			elfFile := "../../testdata/example/bin/hello.elf"
 			goVm := v.ElfVMFactory(t, elfFile, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr), testutil.CreateLogger())
 			state := goVm.GetState()
 
@@ -537,7 +535,7 @@ func TestClaimEVM(t *testing.T) {
 			oracle, expectedStdOut, expectedStdErr := testutil.ClaimTestOracle(t)
 
 			var stdOutBuf, stdErrBuf bytes.Buffer
-			elfFile := "../../example/bin/claim.elf"
+			elfFile := "../../testdata/example/bin/claim.elf"
 			goVm := v.ElfVMFactory(t, elfFile, oracle, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr), testutil.CreateLogger())
 			state := goVm.GetState()
 
