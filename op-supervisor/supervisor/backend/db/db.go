@@ -24,7 +24,8 @@ type LogStorage interface {
 	LatestBlockNum() uint64
 	ClosestBlockInfo(blockNum uint64) (uint64, backendTypes.TruncatedHash, error)
 	Contains(blockNum uint64, logIdx uint32, loghash backendTypes.TruncatedHash) (bool, entrydb.EntryIdx, error)
-	LastCheckpointBehind(entrydb.EntryIdx) (*logs.Iterator, error)
+	LastCheckpointBehind(entrydb.EntryIdx) (logs.Iterator, error)
+	NextExecutingMessage(logs.Iterator) (backendTypes.ExecutingMessage, error)
 }
 
 type HeadsStorage interface {
@@ -63,53 +64,60 @@ func (db *ChainsDB) UpdateCrossSafeHeads() error {
 	return db.UpdateCrossHeads(checker)
 }
 
+// UpdateCrossHeadsForChain updates the cross-head for a single chain.
+// the provided checker controls which heads are considered.
+// TODO: we should invert control and have the underlying logDB call their own update
+// for now, monolithic control is fine. There may be a stronger reason to refactor if the API needs it.
+func (db *ChainsDB) UpdateCrossHeadsForChain(chainID types.ChainID, checker SafetyChecker) error {
+	// start with the xsafe head of the chain
+	xHead := checker.CrossHeadForChain(chainID)
+	localHead := checker.LocalHeadForChain(chainID)
+	// get an iterator for the last checkpoint behind the x-head
+	i, err := db.logDBs[chainID].LastCheckpointBehind(xHead)
+	if err != nil {
+		return fmt.Errorf("failed to rewind cross-safe head for chain %v: %w", chainID, err)
+	}
+	// advance the logDB through all executing messages we can
+	// this loop will break:
+	// - when we reach the local head
+	// - when we reach a message that is not safe
+	// - if an error occurs
+	for {
+		exec, err := db.logDBs[chainID].NextExecutingMessage(i)
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return fmt.Errorf("failed to read next executing message for chain %v: %w", chainID, err)
+		}
+		// if we are now beyond the local head, stop
+		if i.Index() > localHead {
+			break
+		}
+		// use the checker to determine if this message is safe
+		safe := checker.Check(chainID, exec.BlockNum, exec.LogIdx, exec.Hash)
+		if !safe {
+			break
+		}
+		// if all is well, update the x-head to this point
+		xHead = i.Index()
+	}
+
+	// have the checker create an update to the x-head in question, and apply that update
+	err = db.heads.Apply(checker.Update(chainID, xHead))
+	if err != nil {
+		return fmt.Errorf("failed to update cross-head for chain %v: %w", chainID, err)
+	}
+	return nil
+}
+
 // UpdateCrossSafeHeads updates the cross-heads of all chains
 // based on the provided SafetyChecker. The SafetyChecker is used to determine
 // the safety of each log entry in the database, and the cross-head associated with it.
-// TODO: rather than make this monolithic across all chains, this should be broken up
-// allowing each chain to update on its own routine
 func (db *ChainsDB) UpdateCrossHeads(checker SafetyChecker) error {
 	currentHeads := db.heads.Current()
 	for chainID := range currentHeads.Chains {
-		// start with the xsafe head of the chain
-		xHead := checker.CrossHeadForChain(chainID)
-		// rewind the index to the last checkpoint and get the iterator
-		i, err := db.logDBs[chainID].LastCheckpointBehind(xHead)
-		if err != nil {
-			return fmt.Errorf("failed to rewind cross-safe head for chain %v: %w", chainID, err)
-		}
-		// play forward from this checkpoint, advancing the cross-safe head as far as possible
-		for {
-			_, _, _, err := i.NextLog()
-			if err == io.EOF {
-				break
-			} else if err != nil {
-				return fmt.Errorf("failed to read next log for chain %v: %w", chainID, err)
-			}
-			// if we've advanced past the local safety threshold, stop
-			if i.Index() > checker.LocalHeadForChain(chainID) {
-				break
-			}
-			// all non-executing messages are safe to advance
-			// executing messages are safe to advance once checked
-			em, err := i.ExecMessage()
-			if err != nil {
-				return fmt.Errorf("failed to get executing message for chain %v: %w", chainID, err)
-			} else if em != (backendTypes.ExecutingMessage{}) {
-				// if there is an executing message, check it
-				chainID := types.ChainIDFromUInt64(uint64(em.Chain))
-				safe := checker.Check(chainID, em.BlockNum, em.LogIdx, em.Hash)
-				if !safe {
-					break
-				}
-			}
-			// record the current index, as it is safe to advance to this point
-			xHead = i.Index()
-		}
-		// have the checker create an update to the x-head in question, and apply that update
-		err = db.heads.Apply(checker.Update(chainID, xHead))
-		if err != nil {
-			return fmt.Errorf("failed to update cross-head for chain %v: %w", chainID, err)
+		if err := db.UpdateCrossHeadsForChain(chainID, checker); err != nil {
+			return err
 		}
 	}
 	return nil

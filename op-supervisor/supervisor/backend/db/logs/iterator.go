@@ -9,7 +9,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
 )
 
-type Iterator struct {
+type Iterator interface {
+	NextLog() (blockNum uint64, logIdx uint32, evtHash types.TruncatedHash, outErr error)
+	Index() entrydb.EntryIdx
+	ExecMessage() (types.ExecutingMessage, error)
+}
+
+type iterator struct {
 	db           *DB
 	nextEntryIdx entrydb.EntryIdx
 
@@ -19,7 +25,7 @@ type Iterator struct {
 	entriesRead int64
 }
 
-func (i *Iterator) NextLog() (blockNum uint64, logIdx uint32, evtHash types.TruncatedHash, outErr error) {
+func (i *iterator) NextLog() (blockNum uint64, logIdx uint32, evtHash types.TruncatedHash, outErr error) {
 	for i.nextEntryIdx <= i.db.lastEntryIdx() {
 		entryIdx := i.nextEntryIdx
 		entry, err := i.db.store.Read(entryIdx)
@@ -63,11 +69,11 @@ func (i *Iterator) NextLog() (blockNum uint64, logIdx uint32, evtHash types.Trun
 	return
 }
 
-func (i *Iterator) Index() entrydb.EntryIdx {
+func (i *iterator) Index() entrydb.EntryIdx {
 	return i.nextEntryIdx - 1
 }
 
-func (i *Iterator) ExecMessage() (types.ExecutingMessage, error) {
+func (i *iterator) ExecMessage() (types.ExecutingMessage, error) {
 	if !i.hasExecMsg {
 		return types.ExecutingMessage{}, nil
 	}
@@ -80,7 +86,7 @@ func (i *Iterator) ExecMessage() (types.ExecutingMessage, error) {
 	return execMsg, nil
 }
 
-func (i *Iterator) readExecMessage(initEntryIdx entrydb.EntryIdx) (types.ExecutingMessage, error) {
+func (i *iterator) readExecMessage(initEntryIdx entrydb.EntryIdx) (types.ExecutingMessage, error) {
 	linkIdx := initEntryIdx + 1
 	if linkIdx%searchCheckpointFrequency == 0 {
 		linkIdx += 2 // skip the search checkpoint and canonical hash entries

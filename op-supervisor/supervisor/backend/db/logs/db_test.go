@@ -584,7 +584,7 @@ func requireExecutingMessage(t *testing.T, db *DB, blockNum uint64, logIdx uint3
 	require.NotZero(t, m.entriesReadForSearch, "Must read at least some entries to find the log")
 }
 
-func requireWrongHash(t *testing.T, db *DB, blockNum uint64, logIdx uint32, logHash common.Hash, execMsg types.ExecutingMessage) {
+func requireWrongHash(t *testing.T, db *DB, blockNum uint64, logIdx uint32, logHash common.Hash, _ types.ExecutingMessage) {
 	m, ok := db.m.(*stubMetrics)
 	require.True(t, ok, "Did not get the expected metrics type")
 	result, _, err := db.Contains(blockNum, logIdx, types.TruncateHash(logHash))

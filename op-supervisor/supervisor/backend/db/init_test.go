@@ -54,7 +54,7 @@ func (s *stubLogStore) Contains(blockNum uint64, logIdx uint32, loghash types.Tr
 	panic("not supported")
 }
 
-func (s *stubLogStore) LastCheckpointBehind(entrydb.EntryIdx) (*logs.Iterator, error) {
+func (s *stubLogStore) LastCheckpointBehind(entrydb.EntryIdx) (logs.Iterator, error) {
 	panic("not supported")
 }
 
@@ -63,6 +63,10 @@ func (s *stubLogStore) ClosestBlockInfo(blockNum uint64) (uint64, types.Truncate
 		return 0, types.TruncatedHash{}, s.closestBlockErr
 	}
 	return s.closestBlockNumber, types.TruncatedHash{}, nil
+}
+
+func (s *stubLogStore) NextExecutingMessage(logs.Iterator) (types.ExecutingMessage, error) {
+	panic("not supported")
 }
 
 func (s *stubLogStore) Rewind(headBlockNum uint64) error {

@@ -254,7 +254,7 @@ func (db *DB) Executes(blockNum uint64, logIdx uint32) (types.ExecutingMessage, 
 	return execMsg, nil
 }
 
-func (db *DB) findLogInfo(blockNum uint64, logIdx uint32) (types.TruncatedHash, *Iterator, error) {
+func (db *DB) findLogInfo(blockNum uint64, logIdx uint32) (types.TruncatedHash, Iterator, error) {
 	entryIdx, err := db.searchCheckpoint(blockNum, logIdx)
 	if errors.Is(err, io.EOF) {
 		// Did not find a checkpoint to start reading from so the log cannot be present.
@@ -290,7 +290,7 @@ func (db *DB) findLogInfo(blockNum uint64, logIdx uint32) (types.TruncatedHash, 
 	}
 }
 
-func (db *DB) newIterator(startCheckpointEntry entrydb.EntryIdx) (*Iterator, error) {
+func (db *DB) newIterator(startCheckpointEntry entrydb.EntryIdx) (*iterator, error) {
 	checkpoint, err := db.readSearchCheckpoint(startCheckpointEntry)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read search checkpoint entry %v: %w", startCheckpointEntry, err)
@@ -328,7 +328,7 @@ func (db *DB) newIterator(startCheckpointEntry entrydb.EntryIdx) (*Iterator, err
 		}
 		startLogCtx = initEvt.preContext(startLogCtx)
 	}
-	i := &Iterator{
+	i := &iterator{
 		db: db,
 		// +2 to skip the initial search checkpoint and the canonical hash event after it
 		nextEntryIdx: startIdx,
@@ -490,7 +490,33 @@ func (db *DB) Rewind(headBlockNum uint64) error {
 	return nil
 }
 
-func (db *DB) LastCheckpointBehind(entryIdx entrydb.EntryIdx) (*Iterator, error) {
+// NextExecutingMessage returns the next executing message in the log database.
+// it skips over any non-executing messages, and will return an error if encountered.
+// the iterator is modified in the process.
+func (db *DB) NextExecutingMessage(iter Iterator) (types.ExecutingMessage, error) {
+	db.rwLock.RLock()
+	defer db.rwLock.RUnlock()
+	// this for-loop will break:
+	// - when the iterator reaches the end of the log
+	// - when the iterator reaches an executing message
+	// - if an error occurs
+	for {
+		_, _, _, err := iter.NextLog()
+		if err != nil {
+			return types.ExecutingMessage{}, err
+		}
+		// if the log is not an executing message, both exec and err are empty
+		exec, err := iter.ExecMessage()
+		if err != nil {
+			return types.ExecutingMessage{}, fmt.Errorf("failed to get executing message: %w", err)
+		}
+		if exec != (types.ExecutingMessage{}) {
+			return exec, nil
+		}
+	}
+}
+
+func (db *DB) LastCheckpointBehind(entryIdx entrydb.EntryIdx) (Iterator, error) {
 	for attempts := 0; attempts < searchCheckpointFrequency; attempts++ {
 		// attempt to read the index entry as a search checkpoint
 		_, err := db.readSearchCheckpoint(entryIdx)
