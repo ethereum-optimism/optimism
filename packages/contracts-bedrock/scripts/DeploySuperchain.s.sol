@@ -216,10 +216,7 @@ contract DeploySuperchain is Script {
     // here and abstract that architectural detail away from the end user.
     function run(string memory _infile) public {
         // End-user without file IO, so etch the IO helper contracts.
-        DeploySuperchainInput dsi = DeploySuperchainInput(toIOAddress(msg.sender, "optimism.DeploySuperchainInput"));
-        DeploySuperchainOutput dso = DeploySuperchainOutput(toIOAddress(msg.sender, "optimism.DeploySuperchainOutput"));
-        vm.etch(address(dsi), type(DeploySuperchainInput).runtimeCode);
-        vm.etch(address(dso), type(DeploySuperchainOutput).runtimeCode);
+        (DeploySuperchainInput dsi, DeploySuperchainOutput dso) = etchIOContracts();
 
         // Load the input file into the input contract.
         dsi.loadInputFile(_infile);
@@ -236,10 +233,7 @@ contract DeploySuperchain is Script {
     // This entrypoint is for use with Solidity tests, where the input and outputs are structs.
     function run(DeploySuperchainInput.Input memory _input) public returns (DeploySuperchainOutput.Output memory) {
         // Solidity without file IO, so etch the IO helper contracts.
-        DeploySuperchainInput dsi = DeploySuperchainInput(toIOAddress(msg.sender, "optimism.DeploySuperchainInput"));
-        DeploySuperchainOutput dso = DeploySuperchainOutput(toIOAddress(msg.sender, "optimism.DeploySuperchainOutput"));
-        vm.etch(address(dsi), type(DeploySuperchainInput).runtimeCode);
-        vm.etch(address(dso), type(DeploySuperchainOutput).runtimeCode);
+        (DeploySuperchainInput dsi, DeploySuperchainOutput dso) = etchIOContracts();
 
         // Load the input struct into the input contract.
         dsi.loadInput(_input);
@@ -367,8 +361,19 @@ contract DeploySuperchain is Script {
     // The resulting used to etch the input and output contracts to a deterministic address based on
     // those two values, where the identifier represents the input or output contract, such as
     // `optimism.DeploySuperchainInput` or `optimism.DeployOPChainOutput`.
-    function toIOAddress(address _sender, string memory _identifier) public pure returns (address) {
+    function toIOAddress(address _sender, string memory _identifier) internal pure returns (address) {
         return address(uint160(uint256(keccak256(abi.encode(_sender, _identifier)))));
+    }
+
+    function etchIOContracts() internal returns (DeploySuperchainInput dsi_, DeploySuperchainOutput dso_) {
+        (dsi_, dso_) = getIOContracts();
+        vm.etch(address(dsi_), type(DeploySuperchainInput).runtimeCode);
+        vm.etch(address(dso_), type(DeploySuperchainOutput).runtimeCode);
+    }
+
+    function getIOContracts() public view returns (DeploySuperchainInput dsi_, DeploySuperchainOutput dso_) {
+        dsi_ = DeploySuperchainInput(toIOAddress(msg.sender, "optimism.DeploySuperchainInput"));
+        dso_ = DeploySuperchainOutput(toIOAddress(msg.sender, "optimism.DeploySuperchainOutput"));
     }
 
     function assertValidContractAddress(address _address) internal view {
@@ -376,9 +381,3 @@ contract DeploySuperchain is Script {
         require(_address.code.length > 0, "DeploySuperchain: no code");
     }
 }
-
-// function parseFilename(string memory _filename) public pure returns (string memory) {
-//         string[] memory fileParts = vm.split(_infile, ".");
-//         bool isValidFilename = fileParts.length == 3 && fileParts[1].eq("in") && fileParts[2].eq("toml");
-//         require(isValidFilename, "DeploySuperchain: invalid file name, must be of the form '*.in.toml'");
-// }

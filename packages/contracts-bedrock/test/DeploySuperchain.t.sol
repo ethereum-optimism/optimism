@@ -27,8 +27,7 @@ contract DeploySuperchain_Test is Test {
 
     function setUp() public {
         deploySuperchain = new DeploySuperchain();
-        dsi = DeploySuperchainInput(deploySuperchain.toIOAddress(address(this), "optimism.DeploySuperchainInput"));
-        dso = DeploySuperchainOutput(deploySuperchain.toIOAddress(address(this), "optimism.DeploySuperchainOutput"));
+        (dsi, dso) = deploySuperchain.getIOContracts();
     }
 
     function unwrap(ProtocolVersion _pv) internal pure returns (uint256) {
