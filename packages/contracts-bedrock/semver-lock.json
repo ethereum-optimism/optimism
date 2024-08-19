@@ -128,8 +128,8 @@
     "sourceCodeHash": "0xbe200a6cb297a3ca1a7d174a9c886e3f17eb8edf617ad014a2ac4f6c2e2ac7f1"
   },
   "src/Safe/DeputyGuardianModule.sol": {
-    "initCodeHash": "0x5e0e2089fa737bfeeeff66cb84f4c0a90cd42f9ef4d4814b4850094f48c2a391",
-    "sourceCodeHash": "0x6ad81146f59f35f17e1ea432e902de3ef6fc84a4aedcbe0593f5997af6835018"
+    "initCodeHash": "0xfe20f758f29c2ccef175aeac966183329440f838558d0d1529b9a895b2ac541c",
+    "sourceCodeHash": "0x6295b93d1adbfe9cdda1a5750aac97aabf34addf384dcdae86362ffa9e22e593"
   },
   "src/Safe/LivenessGuard.sol": {
     "initCodeHash": "0xf54289de5cef7ba0044e0d63310937fa231d6528aac91e13e531c845af42afac",
