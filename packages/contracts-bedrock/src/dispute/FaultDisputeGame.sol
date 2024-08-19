@@ -70,8 +70,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     uint256 internal constant HEADER_BLOCK_NUMBER_INDEX = 8;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.3.0
-    string public constant version = "1.3.0";
+    /// @custom:semver 1.3.0-rc.1
+    string public constant version = "1.3.0-rc.1";
 
     /// @notice The starting timestamp of the game
     Timestamp public createdAt;
