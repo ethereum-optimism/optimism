@@ -478,7 +478,7 @@ var (
 
 			metricsCfg := opmetrics.ReadCLIConfig(ctx)
 
-			return opservice.CloseAction(func(ctx context.Context, shutdown <-chan struct{}) error {
+			return opservice.CloseAction(ctx.Context, func(ctx context.Context) error {
 				registry := opmetrics.NewRegistry()
 				metrics := engine.NewMetrics("wheel", registry)
 				if metricsCfg.Enabled {
@@ -493,7 +493,7 @@ var (
 						}
 					}()
 				}
-				return engine.Auto(ctx, metrics, client, l, shutdown, settings)
+				return engine.Auto(ctx, metrics, client, l, settings)
 			})
 		}),
 	}

@@ -9,8 +9,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli/v2"
 
-	"github.com/ethereum-optimism/optimism/op-service/opio"
+	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 )
+
+var mockInterruptErr = errors.New("mock interrupt")
 
 type fakeLifecycle struct {
 	startCh, stopCh chan error
@@ -85,11 +87,14 @@ func TestLifecycleCmd(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 
 		// puppeteer system signal interrupts by hooking up the test signal channel as "blocker" for the app to use.
-		ctx = opio.WithBlocker(ctx, func(ctx context.Context) {
+		ctx = ctxinterrupt.WithWaiterFunc(ctx, func(ctx context.Context) (interrupt, ctxErr error) {
 			select {
 			case <-ctx.Done():
+				ctxErr = context.Cause(ctx)
 			case <-signalCh:
+				interrupt = mockInterruptErr
 			}
+			return
 		})
 		t.Cleanup(cancel)
 
@@ -124,7 +129,7 @@ func TestLifecycleCmd(t *testing.T) {
 		signalCh, _, _, _, resultCh, _ := appSetup(t)
 		signalCh <- struct{}{}
 		res := <-resultCh
-		require.ErrorIs(t, res, interruptErr)
+		require.ErrorIs(t, res, mockInterruptErr)
 		require.ErrorContains(t, res, "failed to setup")
 	})
 	t.Run("failed init", func(t *testing.T) {
@@ -142,7 +147,7 @@ func TestLifecycleCmd(t *testing.T) {
 		require.False(t, app.Stopped())
 		signalCh <- struct{}{}
 		res := <-resultCh
-		require.ErrorIs(t, res, interruptErr)
+		require.ErrorIs(t, res, mockInterruptErr)
 		require.ErrorContains(t, res, "failed to start")
 		require.True(t, app.Stopped())
 	})
@@ -178,7 +183,7 @@ func TestLifecycleCmd(t *testing.T) {
 		signalCh <- struct{}{} // start graceful shutdown
 		signalCh <- struct{}{} // interrupt before the shutdown process is allowed to complete
 		res := <-resultCh
-		require.ErrorIs(t, res, interruptErr)
+		require.ErrorIs(t, res, mockInterruptErr)
 		require.ErrorContains(t, res, "failed to stop")
 		require.True(t, app.Stopped()) // still fully closes, interrupts only accelerate shutdown where possible.
 	})

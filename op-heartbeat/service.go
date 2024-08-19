@@ -5,14 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"io"
 	"net"
 	"net/http"
-	"os"
-	"os/signal"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/urfave/cli/v2"
@@ -47,14 +45,9 @@ func Main(version string) func(ctx *cli.Context) error {
 			l.Crit("error starting application", "err", err)
 		}
 
-		doneCh := make(chan os.Signal, 1)
-		signal.Notify(doneCh, []os.Signal{
-			os.Interrupt,
-			os.Kill,
-			syscall.SIGTERM,
-			syscall.SIGQUIT,
-		}...)
-		<-doneCh
+		ctxinterrupt.Wait(cliCtx.Context)
+		// Possibly a better context here would be one that has an interrupt installed for forced
+		// shutdown as used elsewhere.
 		return srv.Stop(context.Background())
 	}
 }
