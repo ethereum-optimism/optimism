@@ -2,8 +2,9 @@ package ctxinterrupt
 
 import (
 	"context"
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestContextKeyIsUnique(t *testing.T) {

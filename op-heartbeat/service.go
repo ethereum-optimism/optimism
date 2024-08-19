@@ -5,13 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"io"
 	"net"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 
 	"github.com/urfave/cli/v2"
 
@@ -45,7 +46,7 @@ func Main(version string) func(ctx *cli.Context) error {
 			l.Crit("error starting application", "err", err)
 		}
 
-		ctxinterrupt.Wait(cliCtx.Context)
+		_ = ctxinterrupt.Wait(cliCtx.Context)
 		// Possibly a better context here would be one that has an interrupt installed for forced
 		// shutdown as used elsewhere.
 		return srv.Stop(context.Background())

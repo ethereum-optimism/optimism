@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"github.com/urfave/cli/v2"
-	"os"
 
 	"github.com/ethereum-optimism/optimism/cannon/cmd"
 )

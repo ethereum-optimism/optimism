@@ -2,8 +2,9 @@ package main
 
 import (
 	"context"
-	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"os"
+
+	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/urfave/cli/v2"
