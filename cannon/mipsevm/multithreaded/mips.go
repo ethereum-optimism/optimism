@@ -10,6 +10,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 )
 
 func (m *InstrumentedState) handleSyscall() error {
@@ -26,7 +27,7 @@ func (m *InstrumentedState) handleSyscall() error {
 		v0, v1, newHeap = exec.HandleSysMmap(a0, a1, m.state.Heap)
 		m.state.Heap = newHeap
 	case exec.SysBrk:
-		v0 = exec.BrkStart
+		v0 = program.PROGRAM_BREAK
 	case exec.SysClone: // clone
 		// a0 = flag bitmask, a1 = stack pointer
 		if exec.ValidCloneFlags != a0 {

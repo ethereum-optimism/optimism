@@ -12,23 +12,23 @@ import (
 // OpenDecompressed opens a reader for the specified file and automatically gzip decompresses the content
 // if the filename ends with .gz
 func OpenDecompressed(path string) (io.ReadCloser, error) {
-	var r io.ReadCloser
 	r, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
 	if IsGzip(path) {
-		r, err = gzip.NewReader(r)
+		gr, err := gzip.NewReader(r)
 		if err != nil {
+			r.Close()
 			return nil, fmt.Errorf("failed to create gzip reader: %w", err)
 		}
+		return NewWrappedReadCloser(gr, r), nil
 	}
 	return r, nil
 }
 
 // OpenCompressed opens a file for writing and automatically compresses the content if the filename ends with .gz
 func OpenCompressed(file string, flag int, perm os.FileMode) (io.WriteCloser, error) {
-	var out io.WriteCloser
 	out, err := os.OpenFile(file, flag, perm)
 	if err != nil {
 		return nil, err
@@ -70,7 +70,7 @@ func IsGzip(path string) bool {
 
 func CompressByFileType(file string, out io.WriteCloser) io.WriteCloser {
 	if IsGzip(file) {
-		return gzip.NewWriter(out)
+		return NewWrappedWriteCloser(gzip.NewWriter(out), out)
 	}
 	return out
 }

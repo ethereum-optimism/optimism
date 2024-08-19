@@ -1,6 +1,7 @@
 package l1
 
 import (
+	"encoding/binary"
 	"math/rand"
 	"testing"
 
@@ -99,18 +100,21 @@ func TestCachingOracle_Precompile(t *testing.T) {
 	oracle := NewCachingOracle(stub)
 
 	input := []byte{0x01, 0x02, 0x03, 0x04}
+	requiredGas := uint64(100)
 	output := []byte{0x0a, 0x0b, 0x0c, 0x0d}
 	addr := common.Address{0x1}
 
+	key := crypto.Keccak256Hash(append(append(addr.Bytes(), binary.BigEndian.AppendUint64(nil, requiredGas)...), input...))
+
 	// Initial call retrieves from the stub
-	stub.PcmpResults[crypto.Keccak256Hash(append(addr.Bytes(), input...))] = output
-	actualResult, actualStatus := oracle.Precompile(addr, input)
+	stub.PcmpResults[key] = output
+	actualResult, actualStatus := oracle.Precompile(addr, input, requiredGas)
 	require.True(t, actualStatus)
 	require.EqualValues(t, output, actualResult)
 
 	// Later calls should retrieve from cache
-	delete(stub.PcmpResults, crypto.Keccak256Hash(append(addr.Bytes(), input...)))
-	actualResult, actualStatus = oracle.Precompile(addr, input)
+	delete(stub.PcmpResults, key)
+	actualResult, actualStatus = oracle.Precompile(addr, input, requiredGas)
 	require.True(t, actualStatus)
 	require.EqualValues(t, output, actualResult)
 }

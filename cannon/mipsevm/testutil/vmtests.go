@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"strings"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -32,6 +33,7 @@ func RunVMTests_OpenMips[T mipsevm.FPVMState](t *testing.T, stateFactory StateFa
 			oracle := SelectOracleFixture(t, f.Name())
 			// Short-circuit early for exit_group.bin
 			exitGroup := f.Name() == "exit_group.bin"
+			expectPanic := strings.HasSuffix(f.Name(), "panic.bin")
 
 			// TODO: currently tests are compiled as flat binary objects
 			// We can use more standard tooling to compile them to ELF files and get remove maketests.py
@@ -51,6 +53,17 @@ func RunVMTests_OpenMips[T mipsevm.FPVMState](t *testing.T, stateFactory StateFa
 
 			us := vmFactory(state, oracle, os.Stdout, os.Stderr, CreateLogger())
 
+			// Catch panics and check if they are expected
+			defer func() {
+				if r := recover(); r != nil {
+					if expectPanic {
+						// Success
+					} else {
+						t.Errorf("unexpected panic: %v", r)
+					}
+				}
+			}()
+
 			for i := 0; i < 1000; i++ {
 				if us.GetState().GetPC() == EndAddr {
 					break
@@ -66,6 +79,8 @@ func RunVMTests_OpenMips[T mipsevm.FPVMState](t *testing.T, stateFactory StateFa
 				require.NotEqual(t, uint32(EndAddr), us.GetState().GetPC(), "must not reach end")
 				require.True(t, us.GetState().GetExited(), "must set exited state")
 				require.Equal(t, uint8(1), us.GetState().GetExitCode(), "must exit with 1")
+			} else if expectPanic {
+				require.NotEqual(t, uint32(EndAddr), us.GetState().GetPC(), "must not reach end")
 			} else {
 				require.Equal(t, uint32(EndAddr), us.GetState().GetPC(), "must reach end")
 				done, result := state.GetMemory().GetMemory(BaseAddrEnd+4), state.GetMemory().GetMemory(BaseAddrEnd+8)
@@ -78,7 +93,7 @@ func RunVMTests_OpenMips[T mipsevm.FPVMState](t *testing.T, stateFactory StateFa
 }
 
 func RunVMTest_Hello[T mipsevm.FPVMState](t *testing.T, initState program.CreateInitialFPVMState[T], vmFactory VMFactory[T], doPatchGo bool) {
-	state := LoadELFProgram(t, "../../example/bin/hello.elf", initState, doPatchGo)
+	state := LoadELFProgram(t, "../../testdata/example/bin/hello.elf", initState, doPatchGo)
 
 	var stdOutBuf, stdErrBuf bytes.Buffer
 	us := vmFactory(state, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr), CreateLogger())
@@ -99,7 +114,7 @@ func RunVMTest_Hello[T mipsevm.FPVMState](t *testing.T, initState program.Create
 }
 
 func RunVMTest_Claim[T mipsevm.FPVMState](t *testing.T, initState program.CreateInitialFPVMState[T], vmFactory VMFactory[T], doPatchGo bool) {
-	state := LoadELFProgram(t, "../../example/bin/claim.elf", initState, doPatchGo)
+	state := LoadELFProgram(t, "../../testdata/example/bin/claim.elf", initState, doPatchGo)
 
 	oracle, expectedStdOut, expectedStdErr := ClaimTestOracle(t)
 

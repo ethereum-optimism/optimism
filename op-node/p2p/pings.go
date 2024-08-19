@@ -41,7 +41,21 @@ type PingService struct {
 	wg sync.WaitGroup
 }
 
-func NewPingService(log log.Logger, ping PingFn, peers PeersFn, clock clock.Clock) *PingService {
+func NewPingService(
+	log log.Logger,
+	ping PingFn,
+	peers PeersFn,
+) *PingService {
+	return newTracedPingService(log, ping, peers, clock.SystemClock, nil)
+}
+
+func newTracedPingService(
+	log log.Logger,
+	ping PingFn,
+	peers PeersFn,
+	clock clock.Clock,
+	trace func(work string),
+) *PingService {
 	ctx, cancel := context.WithCancel(context.Background())
 	srv := &PingService{
 		ping:   ping,
@@ -50,6 +64,7 @@ func NewPingService(log log.Logger, ping PingFn, peers PeersFn, clock clock.Cloc
 		clock:  clock,
 		ctx:    ctx,
 		cancel: cancel,
+		trace:  trace,
 	}
 	srv.wg.Add(1)
 	go srv.pingPeersBackground()

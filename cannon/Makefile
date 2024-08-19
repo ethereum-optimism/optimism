@@ -20,7 +20,7 @@ clean:
 	rm -rf bin
 
 elf:
-	make -C ./example elf
+	make -C ./testdata/example elf
 
 contract:
 	cd ../packages/contracts-bedrock && forge build

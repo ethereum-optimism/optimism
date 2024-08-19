@@ -74,6 +74,24 @@
   {
     "inputs": [
       {
+        "internalType": "contract AnchorStateRegistry",
+        "name": "_registry",
+        "type": "address"
+      },
+      {
+        "internalType": "contract IFaultDisputeGame",
+        "name": "_game",
+        "type": "address"
+      }
+    ],
+    "name": "setAnchorState",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "contract OptimismPortal2",
         "name": "_portal",
         "type": "address"

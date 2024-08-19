@@ -14,7 +14,7 @@
 /op-heartbeat   @ethereum-optimism/go-reviewers
 /op-node        @ethereum-optimism/go-reviewers
 /op-node/rollup @protolambda @ajsutton
-/op-plasma      @ethereum-optimism/go-reviewers
+/op-alt-da      @ethereum-optimism/go-reviewers
 /op-preimage    @ethereum-optimism/go-reviewers
 /op-program     @ethereum-optimism/go-reviewers
 /op-proposer    @ethereum-optimism/go-reviewers

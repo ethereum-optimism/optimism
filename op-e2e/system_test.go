@@ -55,22 +55,27 @@ import (
 func TestSystemBatchType(t *testing.T) {
 	tests := []struct {
 		name string
-		f    func(gt *testing.T, deltaTimeOffset *hexutil.Uint64)
+		f    func(*testing.T, func(*SystemConfig))
 	}{
 		{"StopStartBatcher", StopStartBatcher},
 	}
 	for _, test := range tests {
 		test := test
 		t.Run(test.name+"_SingularBatch", func(t *testing.T) {
-			test.f(t, nil)
+			test.f(t, func(sc *SystemConfig) {
+				sc.BatcherBatchType = derive.SingularBatchType
+			})
 		})
-	}
-
-	deltaTimeOffset := hexutil.Uint64(0)
-	for _, test := range tests {
-		test := test
 		t.Run(test.name+"_SpanBatch", func(t *testing.T) {
-			test.f(t, &deltaTimeOffset)
+			test.f(t, func(sc *SystemConfig) {
+				sc.BatcherBatchType = derive.SpanBatchType
+			})
+		})
+		t.Run(test.name+"_SpanBatchMaxBlocks", func(t *testing.T) {
+			test.f(t, func(sc *SystemConfig) {
+				sc.BatcherBatchType = derive.SpanBatchType
+				sc.BatcherMaxBlocksPerSpanBatch = 2
+			})
 		})
 	}
 }
@@ -1292,10 +1297,11 @@ func testFees(t *testing.T, cfg SystemConfig) {
 	require.Equal(t, balanceDiff, totalFee, "balances should add up")
 }
 
-func StopStartBatcher(t *testing.T, deltaTimeOffset *hexutil.Uint64) {
+func StopStartBatcher(t *testing.T, cfgMod func(*SystemConfig)) {
 	InitParallel(t)
 
-	cfg := DeltaSystemConfig(t, deltaTimeOffset)
+	cfg := DefaultSystemConfig(t)
+	cfgMod(&cfg)
 	sys, err := cfg.Start(t)
 	require.NoError(t, err, "Error starting up system")
 	defer sys.Close()

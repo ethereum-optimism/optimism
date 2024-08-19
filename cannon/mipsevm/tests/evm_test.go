@@ -5,11 +5,13 @@ import (
 	"io"
 	"os"
 	"path"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/stretchr/testify/require"
 
@@ -17,6 +19,7 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 )
@@ -40,13 +43,14 @@ func TestEVM(t *testing.T) {
 	require.NoError(t, err)
 
 	contracts, addrs := testContractsSetup(t)
-	var tracer vm.EVMLogger // no-tracer by default, but test_util.MarkdownTracer
+	var tracer *tracing.Hooks // no-tracer by default, but test_util.MarkdownTracer
 
 	for _, f := range testFiles {
 		t.Run(f.Name(), func(t *testing.T) {
 			oracle := testutil.SelectOracleFixture(t, f.Name())
 			// Short-circuit early for exit_group.bin
 			exitGroup := f.Name() == "exit_group.bin"
+			expectPanic := strings.HasSuffix(f.Name(), "panic.bin")
 
 			evm := testutil.NewMIPSEVM(contracts, addrs)
 			evm.SetTracer(tracer)
@@ -64,6 +68,17 @@ func TestEVM(t *testing.T) {
 			state.Registers[31] = testutil.EndAddr
 
 			goState := singlethreaded.NewInstrumentedState(state, oracle, os.Stdout, os.Stderr, nil)
+
+			// Catch panics and check if they are expected
+			defer func() {
+				if r := recover(); r != nil {
+					if expectPanic {
+						// Success
+					} else {
+						t.Errorf("unexpected panic: %v", r)
+					}
+				}
+			}()
 
 			for i := 0; i < 1000; i++ {
 				curStep := goState.GetState().GetStep()
@@ -89,6 +104,8 @@ func TestEVM(t *testing.T) {
 				require.NotEqual(t, uint32(testutil.EndAddr), goState.GetState().GetPC(), "must not reach end")
 				require.True(t, goState.GetState().GetExited(), "must set exited state")
 				require.Equal(t, uint8(1), goState.GetState().GetExitCode(), "must exit with 1")
+			} else if expectPanic {
+				require.NotEqual(t, uint32(testutil.EndAddr), goState.GetState().GetPC(), "must not reach end")
 			} else {
 				require.Equal(t, uint32(testutil.EndAddr), state.Cpu.PC, "must reach end")
 				// inspect test result
@@ -102,7 +119,7 @@ func TestEVM(t *testing.T) {
 
 func TestEVM_CloneFlags(t *testing.T) {
 	//contracts, addrs := testContractsSetup(t)
-	//var tracer vm.EVMLogger
+	//var tracer *tracing.Hooks
 
 	cases := []struct {
 		name  string
@@ -156,7 +173,7 @@ func TestEVM_CloneFlags(t *testing.T) {
 
 func TestEVMSingleStep(t *testing.T) {
 	contracts, addrs := testContractsSetup(t)
-	var tracer vm.EVMLogger
+	var tracer *tracing.Hooks
 
 	cases := []struct {
 		name   string
@@ -192,9 +209,91 @@ func TestEVMSingleStep(t *testing.T) {
 	}
 }
 
+func TestEVM_MMap(t *testing.T) {
+	contracts, addrs := testContractsSetup(t)
+	var tracer *tracing.Hooks
+
+	cases := []struct {
+		name         string
+		heap         uint32
+		address      uint32
+		size         uint32
+		shouldFail   bool
+		expectedHeap uint32
+	}{
+		{name: "Increment heap by max value", heap: program.HEAP_START, address: 0, size: ^uint32(0), shouldFail: true},
+		{name: "Increment heap to 0", heap: program.HEAP_START, address: 0, size: ^uint32(0) - program.HEAP_START + 1, shouldFail: true},
+		{name: "Increment heap to previous page", heap: program.HEAP_START, address: 0, size: ^uint32(0) - program.HEAP_START - memory.PageSize + 1, shouldFail: true},
+		{name: "Increment max page size", heap: program.HEAP_START, address: 0, size: ^uint32(0) & ^uint32(memory.PageAddrMask), shouldFail: true},
+		{name: "Increment max page size from 0", heap: 0, address: 0, size: ^uint32(0) & ^uint32(memory.PageAddrMask), shouldFail: true},
+		{name: "Increment heap at limit", heap: program.HEAP_END, address: 0, size: 1, shouldFail: true},
+		{name: "Increment heap to limit", heap: program.HEAP_END - memory.PageSize, address: 0, size: 1, shouldFail: false, expectedHeap: program.HEAP_END},
+		{name: "Increment heap within limit", heap: program.HEAP_END - 2*memory.PageSize, address: 0, size: 1, shouldFail: false, expectedHeap: program.HEAP_END - memory.PageSize},
+		{name: "Request specific address", heap: program.HEAP_START, address: 0x50_00_00_00, size: 0, shouldFail: false, expectedHeap: program.HEAP_START},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			state := singlethreaded.CreateEmptyState()
+			state.Heap = c.heap
+			state.Memory.SetMemory(state.GetPC(), syscallInsn)
+			state.Registers = testutil.RandomRegisters(77)
+			state.Registers[2] = exec.SysMmap
+			state.Registers[4] = c.address
+			state.Registers[5] = c.size
+			step := state.Step
+
+			expectedRegisters := state.Registers
+			expectedHeap := state.Heap
+			expectedMemoryRoot := state.Memory.MerkleRoot()
+			if c.shouldFail {
+				expectedRegisters[2] = exec.SysErrorSignal
+				expectedRegisters[7] = exec.MipsEINVAL
+			} else {
+				expectedHeap = c.expectedHeap
+				if c.address == 0 {
+					expectedRegisters[2] = state.Heap
+					expectedRegisters[7] = 0
+				} else {
+					expectedRegisters[2] = c.address
+					expectedRegisters[7] = 0
+				}
+			}
+
+			us := singlethreaded.NewInstrumentedState(state, nil, os.Stdout, os.Stderr, nil)
+			stepWitness, err := us.Step(true)
+			require.NoError(t, err)
+
+			// Check expectations
+			require.Equal(t, step+1, state.Step)
+			require.Equal(t, expectedHeap, state.Heap)
+			require.Equal(t, expectedRegisters, state.Registers)
+			require.Equal(t, expectedMemoryRoot, state.Memory.MerkleRoot())
+			require.Equal(t, common.Hash{}, state.PreimageKey)
+			require.Equal(t, uint32(0), state.PreimageOffset)
+			require.Equal(t, uint32(4), state.Cpu.PC)
+			require.Equal(t, uint32(8), state.Cpu.NextPC)
+			require.Equal(t, uint32(0), state.Cpu.HI)
+			require.Equal(t, uint32(0), state.Cpu.LO)
+			require.Equal(t, false, state.Exited)
+			require.Equal(t, uint8(0), state.ExitCode)
+			require.Equal(t, hexutil.Bytes(nil), state.LastHint)
+
+			evm := testutil.NewMIPSEVM(contracts, addrs)
+			evm.SetTracer(tracer)
+			testutil.LogStepFailureAtCleanup(t, evm)
+
+			evmPost := evm.Step(t, stepWitness, step, singlethreaded.GetStateHashFn())
+			goPost, _ := us.GetState().EncodeWitness()
+			require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
+				"mipsevm produced different state than EVM")
+		})
+	}
+}
+
 func TestEVMSysWriteHint(t *testing.T) {
 	contracts, addrs := testContractsSetup(t)
-	var tracer vm.EVMLogger
+	var tracer *tracing.Hooks
 
 	cases := []struct {
 		name          string
@@ -375,7 +474,7 @@ func TestEVMSysWriteHint(t *testing.T) {
 
 func TestEVMFault(t *testing.T) {
 	contracts, addrs := testContractsSetup(t)
-	var tracer vm.EVMLogger // no-tracer by default, but see test_util.MarkdownTracer
+	var tracer *tracing.Hooks // no-tracer by default, but see test_util.MarkdownTracer
 	sender := common.Address{0x13, 0x37}
 
 	env, evmState := testutil.NewEVMEnv(contracts, addrs)
@@ -422,12 +521,12 @@ func TestEVMFault(t *testing.T) {
 
 func TestHelloEVM(t *testing.T) {
 	contracts, addrs := testContractsSetup(t)
-	var tracer vm.EVMLogger // no-tracer by default, but see test_util.MarkdownTracer
+	var tracer *tracing.Hooks // no-tracer by default, but see test_util.MarkdownTracer
 	evm := testutil.NewMIPSEVM(contracts, addrs)
 	evm.SetTracer(tracer)
 	testutil.LogStepFailureAtCleanup(t, evm)
 
-	state := testutil.LoadELFProgram(t, "../../example/bin/hello.elf", singlethreaded.CreateInitialState, true)
+	state := testutil.LoadELFProgram(t, "../../testdata/example/bin/hello.elf", singlethreaded.CreateInitialState, true)
 	var stdOutBuf, stdErrBuf bytes.Buffer
 	goState := singlethreaded.NewInstrumentedState(state, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr), nil)
 
@@ -464,12 +563,12 @@ func TestHelloEVM(t *testing.T) {
 
 func TestClaimEVM(t *testing.T) {
 	contracts, addrs := testContractsSetup(t)
-	var tracer vm.EVMLogger // no-tracer by default, but see test_util.MarkdownTracer
+	var tracer *tracing.Hooks // no-tracer by default, but see test_util.MarkdownTracer
 	evm := testutil.NewMIPSEVM(contracts, addrs)
 	evm.SetTracer(tracer)
 	testutil.LogStepFailureAtCleanup(t, evm)
 
-	state := testutil.LoadELFProgram(t, "../../example/bin/claim.elf", singlethreaded.CreateInitialState, true)
+	state := testutil.LoadELFProgram(t, "../../testdata/example/bin/claim.elf", singlethreaded.CreateInitialState, true)
 	oracle, expectedStdOut, expectedStdErr := testutil.ClaimTestOracle(t)
 
 	var stdOutBuf, stdErrBuf bytes.Buffer

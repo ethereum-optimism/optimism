@@ -115,6 +115,51 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "origin",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "blockNumber",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "logIndex",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "timestamp",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "chainId",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct ICrossL2Inbox.Identifier",
+        "name": "_id",
+        "type": "tuple"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "_msgHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "validateMessage",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "version",
     "outputs": [
@@ -186,6 +231,11 @@
   {
     "inputs": [],
     "name": "NotEntered",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ReentrantCall",
     "type": "error"
   },
   {

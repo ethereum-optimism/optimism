@@ -797,6 +797,7 @@ func setupFaultDisputeGameTest(t *testing.T, version contractVersion) (*batching
 	caller := batching.NewMultiCaller(stubRpc, batching.DefaultBatchSize)
 
 	stubRpc.SetResponse(fdgAddr, methodVersion, rpcblock.Latest, nil, []interface{}{version.version})
+	stubRpc.SetResponse(oracleAddr, methodVersion, rpcblock.Latest, nil, []interface{}{oracleLatest})
 	game, err := NewFaultDisputeGameContract(context.Background(), contractMetrics.NoopContractMetrics, fdgAddr, caller)
 	require.NoError(t, err)
 	return stubRpc, game

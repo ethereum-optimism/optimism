@@ -18,7 +18,7 @@ contract CommonTest is Test, Setup, Events {
 
     FFIInterface constant ffi = FFIInterface(address(uint160(uint256(keccak256(abi.encode("optimism.ffi"))))));
 
-    bool usePlasmaOverride;
+    bool useAltDAOverride;
     bool useFaultProofs;
     address customGasToken;
     bool useInteropOverride;
@@ -32,8 +32,8 @@ contract CommonTest is Test, Setup, Events {
         Setup.setUp();
 
         // Override the config after the deploy script initialized the config
-        if (usePlasmaOverride) {
-            deploy.cfg().setUsePlasma(true);
+        if (useAltDAOverride) {
+            deploy.cfg().setUseAltDA(true);
         }
         if (useFaultProofs) {
             deploy.cfg().setUseFaultProofs(true);
@@ -119,14 +119,14 @@ contract CommonTest is Test, Setup, Events {
         useFaultProofs = true;
     }
 
-    function enablePlasma() public {
+    function enableAltDA() public {
         // Check if the system has already been deployed, based off of the heuristic that alice and bob have not been
         // set by the `setUp` function yet.
         if (!(alice == address(0) && bob == address(0))) {
-            revert("CommonTest: Cannot enable plasma after deployment. Consider overriding `setUp`.");
+            revert("CommonTest: Cannot enable altda after deployment. Consider overriding `setUp`.");
         }
 
-        usePlasmaOverride = true;
+        useAltDAOverride = true;
     }
 
     function enableCustomGasToken(address _token) public {
@@ -147,6 +147,7 @@ contract CommonTest is Test, Setup, Events {
             revert("CommonTest: Cannot enable interop after deployment. Consider overriding `setUp`.");
         }
 
+        useFaultProofs = true;
         useInteropOverride = true;
     }
 }

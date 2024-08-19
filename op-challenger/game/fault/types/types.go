@@ -2,6 +2,7 @@ package types
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"math"
@@ -26,6 +27,7 @@ const (
 	CannonGameType       GameType = 0
 	PermissionedGameType GameType = 1
 	AsteriscGameType     GameType = 2
+	AsteriscKonaGameType GameType = 3
 	FastGameType         GameType = 254
 	AlphabetGameType     GameType = 255
 	UnknownGameType      GameType = math.MaxUint32
@@ -43,6 +45,8 @@ func (t GameType) String() string {
 		return "permissioned"
 	case AsteriscGameType:
 		return "asterisc"
+	case AsteriscKonaGameType:
+		return "asterisc-kona"
 	case FastGameType:
 		return "fast"
 	case AlphabetGameType:
@@ -59,6 +63,7 @@ const (
 	TraceTypeFast         TraceType = "fast"
 	TraceTypeCannon       TraceType = "cannon"
 	TraceTypeAsterisc     TraceType = "asterisc"
+	TraceTypeAsteriscKona TraceType = "asterisc-kona"
 	TraceTypePermissioned TraceType = "permissioned"
 )
 
@@ -145,8 +150,12 @@ func (p *PreimageOracleData) GetPrecompileAddress() common.Address {
 	return common.BytesToAddress(p.oracleData[8:28])
 }
 
+func (p *PreimageOracleData) GetPrecompileRequiredGas() uint64 {
+	return binary.BigEndian.Uint64(p.oracleData[28:36])
+}
+
 func (p *PreimageOracleData) GetPrecompileInput() []byte {
-	return p.oracleData[28:]
+	return p.oracleData[36:]
 }
 
 // NewPreimageOracleData creates a new [PreimageOracleData] instance.

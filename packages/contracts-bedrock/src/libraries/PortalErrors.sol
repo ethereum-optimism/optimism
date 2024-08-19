@@ -22,3 +22,19 @@ error CallPaused();
 error GasEstimation();
 /// @notice Error for when a method is being reentered.
 error NonReentrant();
+/// @notice Error for invalid proof.
+error InvalidProof();
+/// @notice Error for invalid game type.
+error InvalidGameType();
+/// @notice Error for an invalid dispute game.
+error InvalidDisputeGame();
+/// @notice Error for an invalid merkle proof.
+error InvalidMerkleProof();
+/// @notice Error for when a dispute game has been blacklisted.
+error Blacklisted();
+/// @notice Error for when trying to withdrawal without first proven.
+error Unproven();
+/// @notice Error for when a proposal is not validated.
+error ProposalNotValidated();
+/// @notice Error for when a withdrawal has already been finalized.
+error AlreadyFinalized();

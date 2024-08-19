@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
@@ -45,7 +46,7 @@ func FuzzStateSyscallBrk(f *testing.F) {
 		state.Memory.SetMemory(pc, syscallInsn)
 		preStateRoot := state.Memory.MerkleRoot()
 		expectedRegisters := state.Registers
-		expectedRegisters[2] = 0x4000_0000
+		expectedRegisters[2] = program.PROGRAM_BREAK
 
 		goState := singlethreaded.NewInstrumentedState(state, nil, os.Stdout, os.Stderr, nil)
 		stepWitness, err := goState.Step(true)
@@ -127,7 +128,14 @@ func FuzzStateSyscallClone(f *testing.F) {
 func FuzzStateSyscallMmap(f *testing.F) {
 	contracts, addrs := testContractsSetup(f)
 	step := uint64(0)
-	f.Fuzz(func(t *testing.T, addr uint32, siz uint32, heap uint32) {
+
+	// Add special cases for large memory allocation
+	f.Add(uint32(0), uint32(0x1000), uint32(program.HEAP_END), int64(1))
+	f.Add(uint32(0), uint32(1<<31), uint32(program.HEAP_START), int64(2))
+	// Check edge case - just within bounds
+	f.Add(uint32(0), uint32(0x1000), uint32(program.HEAP_END-4096), int64(3))
+
+	f.Fuzz(func(t *testing.T, addr uint32, siz uint32, heap uint32, seed int64) {
 		state := &singlethreaded.State{
 			Cpu: mipsevm.CpuScalars{
 				PC:     0,
@@ -139,11 +147,14 @@ func FuzzStateSyscallMmap(f *testing.F) {
 			ExitCode:       0,
 			Exited:         false,
 			Memory:         memory.NewMemory(),
-			Registers:      [32]uint32{2: exec.SysMmap, 4: addr, 5: siz},
+			Registers:      testutil.RandomRegisters(seed),
 			Step:           step,
 			PreimageOffset: 0,
 		}
 		state.Memory.SetMemory(0, syscallInsn)
+		state.Registers[2] = exec.SysMmap
+		state.Registers[4] = addr
+		state.Registers[5] = siz
 		preStateRoot := state.Memory.MerkleRoot()
 		preStateRegisters := state.Registers
 
@@ -152,31 +163,41 @@ func FuzzStateSyscallMmap(f *testing.F) {
 		require.NoError(t, err)
 		require.False(t, stepWitness.HasPreimage())
 
-		require.Equal(t, uint32(4), state.Cpu.PC)
-		require.Equal(t, uint32(8), state.Cpu.NextPC)
-		require.Equal(t, uint32(0), state.Cpu.LO)
-		require.Equal(t, uint32(0), state.Cpu.HI)
-		require.Equal(t, uint8(0), state.ExitCode)
-		require.Equal(t, false, state.Exited)
-		require.Equal(t, preStateRoot, state.Memory.MerkleRoot())
-		require.Equal(t, uint64(1), state.Step)
-		require.Equal(t, common.Hash{}, state.PreimageKey)
-		require.Equal(t, uint32(0), state.PreimageOffset)
+		var expectedHeap uint32
+		expectedRegisters := preStateRegisters
 		if addr == 0 {
-			expectedRegisters := preStateRegisters
-			expectedRegisters[2] = heap
-			require.Equal(t, expectedRegisters, state.Registers)
 			sizAlign := siz
 			if sizAlign&memory.PageAddrMask != 0 { // adjust size to align with page size
 				sizAlign = siz + memory.PageSize - (siz & memory.PageAddrMask)
 			}
-			require.Equal(t, uint32(heap+sizAlign), state.Heap)
+			newHeap := heap + sizAlign
+			if newHeap > program.HEAP_END || newHeap < heap || sizAlign < siz {
+				expectedHeap = heap
+				expectedRegisters[2] = exec.SysErrorSignal
+				expectedRegisters[7] = exec.MipsEINVAL
+			} else {
+				expectedRegisters[2] = heap
+				expectedRegisters[7] = 0 // no error
+				expectedHeap = heap + sizAlign
+			}
 		} else {
-			expectedRegisters := preStateRegisters
 			expectedRegisters[2] = addr
-			require.Equal(t, expectedRegisters, state.Registers)
-			require.Equal(t, uint32(heap), state.Heap)
+			expectedRegisters[7] = 0 // no error
+			expectedHeap = heap
 		}
+
+		require.Equal(t, uint32(4), state.Cpu.PC)
+		require.Equal(t, uint32(8), state.Cpu.NextPC)
+		require.Equal(t, uint32(0), state.Cpu.LO)
+		require.Equal(t, uint32(0), state.Cpu.HI)
+		require.Equal(t, preStateRoot, state.Memory.MerkleRoot())
+		require.Equal(t, uint64(1), state.Step)
+		require.Equal(t, common.Hash{}, state.PreimageKey)
+		require.Equal(t, uint32(0), state.PreimageOffset)
+		require.Equal(t, expectedHeap, state.Heap)
+		require.Equal(t, uint8(0), state.ExitCode)
+		require.Equal(t, false, state.Exited)
+		require.Equal(t, expectedRegisters, state.Registers)
 
 		evm := testutil.NewMIPSEVM(contracts, addrs)
 		evmPost := evm.Step(t, stepWitness, step, singlethreaded.GetStateHashFn())

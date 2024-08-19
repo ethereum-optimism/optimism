@@ -437,7 +437,7 @@ func (s *stubL1Source) BlockByNumber(_ context.Context, number *big.Int) (*types
 	if !ok {
 		return nil, errors.New("not found")
 	}
-	return (&types.Block{}).WithBody(txs, nil), nil
+	return (&types.Block{}).WithBody(types.Body{Transactions: txs}), nil
 }
 
 func (s *stubL1Source) TransactionReceipt(_ context.Context, txHash common.Hash) (*types.Receipt, error) {

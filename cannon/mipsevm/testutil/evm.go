@@ -1,17 +1,18 @@
 package testutil
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"math/big"
 	"os"
 
+	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/eth/tracers/logger"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/core"
@@ -77,7 +78,7 @@ func NewEVMEnv(artifacts *Artifacts, addrs *Addresses) (*vm.EVM, *state.StateDB)
 
 	var mipsCtorArgs [32]byte
 	copy(mipsCtorArgs[12:], addrs.Oracle[:])
-	mipsDeploy := append(hexutil.MustDecode(artifacts.MIPS.Bytecode.Object.String()), mipsCtorArgs[:]...)
+	mipsDeploy := append(bytes.Clone(artifacts.MIPS.Bytecode.Object), mipsCtorArgs[:]...)
 	startingGas := uint64(30_000_000)
 	_, deployedMipsAddr, leftOverGas, err := env.Create(vm.AccountRef(addrs.Sender), mipsDeploy, startingGas, common.U2560)
 	if err != nil {
@@ -122,6 +123,6 @@ func (d *testChain) GetHeader(h common.Hash, n uint64) *types.Header {
 	}
 }
 
-func MarkdownTracer() vm.EVMLogger {
-	return logger.NewMarkdownLogger(&logger.Config{}, os.Stdout)
+func MarkdownTracer() *tracing.Hooks {
+	return logger.NewMarkdownLogger(&logger.Config{}, os.Stdout).Hooks()
 }

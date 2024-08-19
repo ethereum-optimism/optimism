@@ -11,10 +11,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -65,7 +65,7 @@ type DriverSetup struct {
 	L1Client         L1Client
 	EndpointProvider dial.L2EndpointProvider
 	ChannelConfig    ChannelConfigProvider
-	PlasmaDA         *plasma.DAClient
+	AltDA            *altda.DAClient
 }
 
 // BatchSubmitter encapsulates a service responsible for submitting L2 tx
@@ -113,6 +113,13 @@ func (l *BatchSubmitter) StartBatchSubmitting() error {
 	l.killCtx, l.cancelKillCtx = context.WithCancel(context.Background())
 	l.clearState(l.shutdownCtx)
 	l.lastStoredBlock = eth.BlockID{}
+
+	if l.Config.WaitNodeSync {
+		err := l.waitNodeSync()
+		if err != nil {
+			return fmt.Errorf("error waiting for node sync: %w", err)
+		}
+	}
 
 	l.wg.Add(1)
 	go l.loop()
@@ -289,13 +296,6 @@ const (
 
 func (l *BatchSubmitter) loop() {
 	defer l.wg.Done()
-	if l.Config.WaitNodeSync {
-		err := l.waitNodeSync()
-		if err != nil {
-			l.Log.Error("Error waiting for node sync", "err", err)
-			return
-		}
-	}
 
 	receiptsCh := make(chan txmgr.TxReceipt[txRef])
 	queue := txmgr.NewQueue[txRef](l.killCtx, l.Txmgr, l.Config.MaxPendingTransactions)
@@ -569,17 +569,17 @@ func (l *BatchSubmitter) sendTransaction(ctx context.Context, txdata txData, que
 			l.Log.Crit("Unexpected number of frames in calldata tx", "num_frames", nf)
 		}
 		data := txdata.CallData()
-		// if plasma DA is enabled we post the txdata to the DA Provider and replace it with the commitment.
-		if l.Config.UsePlasma {
-			comm, err := l.PlasmaDA.SetInput(ctx, data)
+		// if AltDA is enabled we post the txdata to the DA Provider and replace it with the commitment.
+		if l.Config.UseAltDA {
+			comm, err := l.AltDA.SetInput(ctx, data)
 			if err != nil {
-				l.Log.Error("Failed to post input to Plasma DA", "error", err)
+				l.Log.Error("Failed to post input to Alt DA", "error", err)
 				// requeue frame if we fail to post to the DA Provider so it can be retried
 				l.recordFailedTx(txdata.ID(), err)
 				return nil
 			}
-			l.Log.Info("Set plasma input", "commitment", comm, "tx", txdata.ID())
-			// signal plasma commitment tx with TxDataVersion1
+			l.Log.Info("Set AltDA input", "commitment", comm, "tx", txdata.ID())
+			// signal AltDA commitment tx with TxDataVersion1
 			data = comm.TxData()
 		}
 		candidate = l.calldataTxCandidate(data)

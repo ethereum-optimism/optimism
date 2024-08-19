@@ -271,6 +271,67 @@ contract CrossL2InboxTest is Test {
         crossL2Inbox.executeMessage{ value: _value }({ _id: _id, _target: _target, _message: _message });
     }
 
+    function testFuzz_validateMessage_succeeds(ICrossL2Inbox.Identifier memory _id, bytes32 _messageHash) external {
+        // Ensure that the id's timestamp is valid (less than or equal to the current block timestamp)
+        _id.timestamp = bound(_id.timestamp, 1, block.timestamp);
+
+        // Ensure that the chain ID is in the dependency set
+        vm.mockCall({
+            callee: Predeploys.L1_BLOCK_ATTRIBUTES,
+            data: abi.encodeWithSelector(L1BlockIsInDependencySetSelector, _id.chainId),
+            returnData: abi.encode(true)
+        });
+
+        // Look for the emit ExecutingMessage event
+        vm.expectEmit(Predeploys.CROSS_L2_INBOX);
+        emit CrossL2Inbox.ExecutingMessage(_messageHash, _id);
+
+        // Call the validateMessage function
+        crossL2Inbox.validateMessage(_id, _messageHash);
+    }
+
+    /// @dev Tests that the `validateMessage` function reverts when called with an identifier with an invalid timestamp.
+    function testFuzz_validateMessage_invalidTimestamp_reverts(
+        ICrossL2Inbox.Identifier calldata _id,
+        bytes32 _messageHash
+    )
+        external
+    {
+        // Ensure that the id's timestamp is invalid (greater thsan the current block timestamp)
+        vm.assume(_id.timestamp > block.timestamp);
+
+        // Expect a revert with the InvalidTimestamp selector
+        vm.expectRevert(InvalidTimestamp.selector);
+
+        // Call the validateMessage function
+        crossL2Inbox.validateMessage(_id, _messageHash);
+    }
+
+    /// @dev Tests that the `validateMessage` function reverts when called with an identifier with a chain ID not in the
+    /// dependency set.
+    function testFuzz_validateMessage_invalidChainId_reverts(
+        ICrossL2Inbox.Identifier memory _id,
+        bytes32 _messageHash
+    )
+        external
+    {
+        // Ensure that the timestamp is valid (less than or equal to the current block timestamp)
+        _id.timestamp = bound(_id.timestamp, 0, block.timestamp);
+
+        // Ensure that the chain ID is NOT in the dependency set.
+        vm.mockCall({
+            callee: Predeploys.L1_BLOCK_ATTRIBUTES,
+            data: abi.encodeWithSelector(L1BlockIsInDependencySetSelector, _id.chainId),
+            returnData: abi.encode(false)
+        });
+
+        // Expect a revert with the InvalidChainId selector
+        vm.expectRevert(InvalidChainId.selector);
+
+        // Call the validateMessage function
+        crossL2Inbox.validateMessage(_id, _messageHash);
+    }
+
     /// @dev Tests that the `origin` function returns the correct value.
     function testFuzz_origin_succeeds(address _origin) external {
         // Increment the call depth to prevent NotEntered revert

@@ -60,7 +60,7 @@ type GameContract interface {
 	GetStatus(ctx context.Context) (gameTypes.GameStatus, error)
 	GetMaxGameDepth(ctx context.Context) (types.Depth, error)
 	GetMaxClockDuration(ctx context.Context) (time.Duration, error)
-	GetOracle(ctx context.Context) (*contracts.PreimageOracleContract, error)
+	GetOracle(ctx context.Context) (contracts.PreimageOracleContract, error)
 	GetL1Head(ctx context.Context) (common.Hash, error)
 }
 

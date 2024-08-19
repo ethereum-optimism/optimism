@@ -8,7 +8,7 @@ VERSIONS_FILE="${MONOREPO_BASE}/versions.json"
 if ! command -v forge &> /dev/null
 then
   # shellcheck disable=SC2006
-  echo "Is Foundry not installed? Consider installing via pnpm install:foundry" >&2
+  echo "Is Foundry not installed? Consider installing via just install-foundry" >&2
   exit 1
 fi
 
@@ -34,5 +34,5 @@ if [ "$INSTALLED_VERSION" = "$EXPECTED_VERSION" ]; then
 else
   echo "Mismatch between installed Foundry version ($INSTALLED_VERSION) and expected version ($EXPECTED_VERSION)."
   echo "Your version of Foundry may either not be up to date, or it could be a later version."
-  echo "Running pnpm update:foundry will install the expected version."
+  echo "Running just update-foundry will install the expected version."
 fi
