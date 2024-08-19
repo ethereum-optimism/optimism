@@ -647,9 +647,13 @@ func (oc *OpConductor) action() {
 
 	oc.log.Debug("exiting action with status and error", "status", status, "err", err)
 	if err != nil {
-		oc.log.Error("failed to execute step, queueing another one to retry", "err", err, "status", status)
-		time.Sleep(oc.retryBackoff())
-		oc.queueAction()
+		select {
+		case <-oc.shutdownCtx.Done():
+		case <-time.After(oc.retryBackoff()):
+			oc.log.Error("failed to execute step, queueing another one to retry", "err", err, "status", status)
+			time.Sleep(oc.retryBackoff())
+			oc.queueAction()
+		}
 		return
 	}
 
@@ -683,18 +687,27 @@ func (oc *OpConductor) transferLeader() error {
 }
 
 func (oc *OpConductor) stopSequencer() error {
-	oc.log.Info("stopping sequencer", "server", oc.cons.ServerID(), "leader", oc.leader.Load(), "healthy", oc.healthy.Load(), "active", oc.seqActive.Load())
+	oc.log.Info(
+		"stopping sequencer",
+		"server", oc.cons.ServerID(),
+		"leader", oc.leader.Load(),
+		"healthy", oc.healthy.Load(),
+		"active", oc.seqActive.Load())
 
-	_, err := oc.ctrl.StopSequencer(context.Background())
-	if err != nil {
-		if strings.Contains(err.Error(), driver.ErrSequencerAlreadyStopped.Error()) {
-			oc.log.Warn("sequencer already stopped.", "err", err)
+	// Getting stuck stopping a sequencer can't be good. Is it okay to fail to stop a sequencer on
+	// shutdown? From what I can tell it is.
+	latestHead, err := oc.ctrl.StopSequencer(oc.shutdownCtx)
+	if err == nil {
+		// None of the consensus state should have changed here so don't log it again.
+		oc.log.Info("stopped sequencer", "latestHead", latestHead)
+	} else {
+		if errors.Is(err, driver.ErrSequencerAlreadyStopped) {
+			oc.log.Warn("sequencer already stopped", "err", err)
 		} else {
 			return errors.Wrap(err, "failed to stop sequencer")
 		}
 	}
 	oc.metrics.RecordStopSequencer(err == nil)
-
 	oc.seqActive.Store(false)
 	return nil
 }
