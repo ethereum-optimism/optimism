@@ -103,7 +103,7 @@ func check(
 
 	// for the Check to be valid, the log must:
 	// exist at the blockNum and logIdx
-	// have a hash that matches the provided hash, and
+	// have a hash that matches the provided hash (implicit in the Contains call), and
 	// be less than or equal to the local head for the chain
 	exists, index, err := chainsDB.logDBs[chain].Contains(blockNum, logIdx, logHash)
 	if err != nil {

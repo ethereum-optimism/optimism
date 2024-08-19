@@ -33,6 +33,8 @@ type HeadsStorage interface {
 	Apply(op heads.Operation) error
 }
 
+// ChainsDB is a database that stores logs and heads for multiple chains.
+// it implements the ChainsStorage interface.
 type ChainsDB struct {
 	logDBs map[types.ChainID]LogStorage
 	heads  HeadsStorage
@@ -71,6 +73,7 @@ func (db *ChainsDB) UpdateCrossSafeHeads() error {
 func (db *ChainsDB) UpdateCrossHeadsForChain(chainID types.ChainID, checker SafetyChecker) error {
 	// start with the xsafe head of the chain
 	xHead := checker.CrossHeadForChain(chainID)
+	// advance as far as the local head
 	localHead := checker.LocalHeadForChain(chainID)
 	// get an iterator for the last checkpoint behind the x-head
 	i, err := db.logDBs[chainID].LastCheckpointBehind(xHead)
@@ -98,7 +101,7 @@ func (db *ChainsDB) UpdateCrossHeadsForChain(chainID types.ChainID, checker Safe
 		if !safe {
 			break
 		}
-		// if all is well, update the x-head to this point
+		// if all is well, prepare the x-head update to this point
 		xHead = i.Index()
 	}
 

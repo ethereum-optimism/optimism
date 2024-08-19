@@ -270,6 +270,7 @@ type stubLogDB struct {
 	lastCheckpointBehind *stubIterator
 	errOverload          error
 	errAfter             int
+	containsResponse     containsResponse
 }
 
 // stubbed LastCheckpointBehind returns a stubbed iterator which was passed in to the struct
@@ -300,8 +301,20 @@ func (s *stubLogDB) AddLog(logHash backendTypes.TruncatedHash, block eth.BlockID
 	return nil
 }
 
+type containsResponse struct {
+	contains bool
+	index    entrydb.EntryIdx
+	err      error
+}
+
+// stubbed Contains records the arguments passed to it
+// it returns the response set in the struct, or an empty response
 func (s *stubLogDB) Contains(blockNum uint64, logIdx uint32, loghash backendTypes.TruncatedHash) (bool, entrydb.EntryIdx, error) {
-	panic("not implemented")
+	if s.containsResponse != (containsResponse{}) {
+		return s.containsResponse.contains, s.containsResponse.index, s.containsResponse.err
+	} else {
+		return false, 0, nil
+	}
 }
 
 func (s *stubLogDB) Rewind(newHeadBlockNum uint64) error {
