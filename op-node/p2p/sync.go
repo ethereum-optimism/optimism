@@ -619,6 +619,9 @@ func (s *SyncClient) peerLoop(ctx context.Context, id peer.ID) {
 				// If we hit an error, then count it as many requests.
 				// We'd like to avoid making more requests for a while, so back off.
 				if err := rl.WaitN(ctx, clientErrRateCost); err != nil {
+					if ctx.Err() == nil {
+						log.Error("waiting to request blocks from peer", "err", err)
+					}
 					return
 				}
 			} else {
