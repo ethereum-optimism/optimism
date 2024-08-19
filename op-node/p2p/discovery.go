@@ -239,6 +239,10 @@ func FilterEnodes(log log.Logger, cfg *rollup.Config) func(node *enode.Node) boo
 // Nodes from the peerstore will be shuffled, unsuccessful connection attempts will cause peers to be avoided,
 // and only nodes with addresses (under TTL) will be connected to.
 func (n *NodeP2P) DiscoveryProcess(ctx context.Context, log log.Logger, cfg *rollup.Config, connectGoal uint) {
+	// This context is for anything that is scoped to the lifetime of this function (which it turns
+	// out is every use herein).
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	if n.dv5Udp == nil {
 		log.Warn("peer discovery is disabled")
 		return
@@ -274,23 +278,25 @@ func (n *NodeP2P) DiscoveryProcess(ctx context.Context, log log.Logger, cfg *rol
 	connAttempts := make(chan peer.ID, connectionBufferSize)
 	connectWorker := func(ctx context.Context) {
 		for {
-			id, ok := <-connAttempts
-			if !ok {
+			select {
+			case id, ok := <-connAttempts:
+				if !ok {
+					panic("this should not be closed, check for context completion instead")
+				}
+				addrs := n.Host().Peerstore().Addrs(id)
+				log.Info("attempting connection", "peer", id)
+				ctx, cancel := context.WithTimeout(ctx, time.Second*10)
+				err := n.Host().Connect(ctx, peer.AddrInfo{ID: id, Addrs: addrs})
+				cancel()
+				if err != nil {
+					log.Debug("failed connection attempt", "peer", id, "err", err)
+				}
+			case <-ctx.Done():
 				return
-			}
-			addrs := n.Host().Peerstore().Addrs(id)
-			log.Info("attempting connection", "peer", id)
-			ctx, cancel := context.WithTimeout(ctx, time.Second*10)
-			err := n.Host().Connect(ctx, peer.AddrInfo{ID: id, Addrs: addrs})
-			cancel()
-			if err != nil {
-				log.Debug("failed connection attempt", "peer", id, "err", err)
 			}
 		}
 	}
 
-	// stops all the workers when we are done
-	defer close(connAttempts)
 	// start workers to try connect to peers
 	for i := 0; i < connectionWorkerCount; i++ {
 		go connectWorker(ctx)
@@ -298,7 +304,6 @@ func (n *NodeP2P) DiscoveryProcess(ctx context.Context, log log.Logger, cfg *rol
 
 	// buffer discovered nodes, so don't stall on the dht iteration as much
 	randomNodesCh := make(chan *enode.Node, discoveredNodesBuffer)
-	defer close(randomNodesCh)
 	bufferNodes := func() {
 		for {
 			select {
