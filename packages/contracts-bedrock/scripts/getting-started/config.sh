@@ -26,8 +26,8 @@ reqenv "L2_CHAIN_ID"
 reqenv "L1_BLOCK_TIME"
 reqenv "L2_BLOCK_TIME"
 
-# Get the finalized block timestamp and hash
-block=$(cast block finalized --rpc-url "$L1_RPC_URL")
+# Get the latest block timestamp and hash
+block=$(cast block latest --rpc-url "$L1_RPC_URL")
 timestamp=$(echo "$block" | awk '/timestamp/ { print $2 }')
 blockhash=$(echo "$block" | awk '/hash/ { print $2 }')
 
