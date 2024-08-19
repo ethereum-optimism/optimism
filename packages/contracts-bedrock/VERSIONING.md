@@ -76,7 +76,7 @@ To accommodate this, once contract changes are ready for governance approval, th
 - Branch off of `develop` and create a branch named `proposal/op-contracts/vX.Y.Z`. Here, `X.Y.Z` is the new version of the monorepo release.
   - Using the `proposal/` prefix signals that this branch is for a governance proposal, and intentionally does not convey whether or not the proposal has passed.
 - Open a PR into the `proposal/op-contracts/vX.Y.Z` branch that removes the `-rc.1` suffixes from all contracts, and merge it into the `proposal/op-contracts/vX.Y.Z` branch.
-  - After merge, the new commit on the `proposal/op-contracts/vX.Y.Z` brach is the commit hash that will be tagged as `op-contracts/vX.Y.Z-rc.1`, used to deploy the contracts, and proposed to governance.
+  - After merge, the new commit on the `proposal/op-contracts/vX.Y.Z` branch is the commit hash that will be tagged as `op-contracts/vX.Y.Z-rc.1`, used to deploy the contracts, and proposed to governance.
   - Sometimes additional release candidates are needed before proposal—see [Additional Release Candidates](#additional-release-candidates) for more information on this flow.
 - Once the governance approval is posted, any lock on contracts on `develop` is released.
 - Once governance approves the proposal, merge the proposal branch into `develop` and set the version of all contracts to the appropriate `X.Y.Z` after considering any changes made to `develop` since the release candidate was created.
