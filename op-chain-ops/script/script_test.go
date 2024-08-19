@@ -32,4 +32,8 @@ func TestScript(t *testing.T) {
 	require.NotNil(t, captLog.FindLog(
 		testlog.NewAttributesFilter("p0", "sender nonce"),
 		testlog.NewAttributesFilter("p1", "1")))
+
+	require.NoError(t, h.cheatcodes.Precompile.DumpState("noop"))
+	// and a second time, to see if we can revisit the host state.
+	require.NoError(t, h.cheatcodes.Precompile.DumpState("noop"))
 }
