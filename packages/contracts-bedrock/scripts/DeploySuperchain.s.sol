@@ -176,6 +176,8 @@ contract DeploySuperchainOutput {
     }
 
     function checkOutput() public view {
+        // Assert that all addresses are non-zero and have code.
+        // We use LibString to avoid the need for adding cheatcodes to this contract.
         address[] memory addresses = new address[](5);
         addresses[0] = address(superchainProxyAdmin);
         addresses[1] = address(superchainConfigImpl);
@@ -183,17 +185,19 @@ contract DeploySuperchainOutput {
         addresses[3] = address(protocolVersionsImpl);
         addresses[4] = address(protocolVersionsProxy);
 
-        // We use LibString to avoid the need for adding cheatcodes to this contract.
         for (uint256 i = 0; i < addresses.length; i++) {
             address who = addresses[i];
-            require(who != address(0), string.concat("zero address at index ", LibString.toString(i)));
-            require(who.code.length > 0, string.concat("no code at ", LibString.toHexStringChecksummed(who)));
+            require(who != address(0), string.concat("check failed: zero address at index ", LibString.toString(i)));
+            require(
+                who.code.length > 0, string.concat("check failed: no code at ", LibString.toHexStringChecksummed(who))
+            );
         }
 
         // All addresses should be unique.
         for (uint256 i = 0; i < addresses.length; i++) {
             for (uint256 j = i + 1; j < addresses.length; j++) {
-                string memory err = string.concat("duplicates at: ", LibString.toString(i), ",", LibString.toString(j));
+                string memory err =
+                    string.concat("check failed: duplicates at ", LibString.toString(i), ",", LibString.toString(j));
                 require(addresses[i] != addresses[j], err);
             }
         }

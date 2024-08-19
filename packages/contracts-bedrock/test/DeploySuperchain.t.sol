@@ -10,6 +10,8 @@ import { DeploySuperchainInput, DeploySuperchain, DeploySuperchainOutput } from 
 /// @notice Deploys the Superchain contracts that can be shared by many chains.
 contract DeploySuperchain_Test is Test {
     DeploySuperchain deploySuperchain;
+    DeploySuperchainInput dsi;
+    DeploySuperchainOutput dso;
 
     // Define a default input struct for testing.
     DeploySuperchainInput.Input input = DeploySuperchainInput.Input({
@@ -25,6 +27,8 @@ contract DeploySuperchain_Test is Test {
 
     function setUp() public {
         deploySuperchain = new DeploySuperchain();
+        dsi = DeploySuperchainInput(deploySuperchain.toIOAddress(address(this), "optimism.DeploySuperchainInput"));
+        dso = DeploySuperchainOutput(deploySuperchain.toIOAddress(address(this), "optimism.DeploySuperchainOutput"));
     }
 
     function unwrap(ProtocolVersion _pv) internal pure returns (uint256) {
@@ -38,24 +42,48 @@ contract DeploySuperchain_Test is Test {
 
         DeploySuperchainOutput.Output memory output = deploySuperchain.run(_input);
 
-        // Assert the inputs were properly set.
-        assertEq(address(output.superchainProxyAdmin.owner()), _input.roles.proxyAdminOwner, "100");
-        assertEq(address(output.protocolVersionsProxy.owner()), _input.roles.protocolVersionsOwner, "200");
-        assertEq(address(output.superchainConfigProxy.guardian()), _input.roles.guardian, "300");
-        assertEq(output.superchainConfigProxy.paused(), _input.paused, "400");
-        assertEq(unwrap(output.protocolVersionsProxy.required()), unwrap(_input.requiredProtocolVersion), "500");
-        assertEq(unwrap(output.protocolVersionsProxy.recommended()), unwrap(_input.recommendedProtocolVersion), "600");
+        // Assert that individual input fields were properly set based on the input struct.
+        assertEq(_input.roles.proxyAdminOwner, dsi.proxyAdminOwner(), "100");
+        assertEq(_input.roles.protocolVersionsOwner, dsi.protocolVersionsOwner(), "200");
+        assertEq(_input.roles.guardian, dsi.guardian(), "300");
+        assertEq(_input.paused, dsi.paused(), "400");
+        assertEq(unwrap(_input.requiredProtocolVersion), unwrap(dsi.requiredProtocolVersion()), "500");
+        assertEq(unwrap(_input.recommendedProtocolVersion), unwrap(dsi.recommendedProtocolVersion()), "600");
+
+        // Assert that individual output fields were properly set based on the output struct.
+        assertEq(address(output.superchainProxyAdmin), address(dso.superchainProxyAdmin()), "700");
+        assertEq(address(output.superchainConfigImpl), address(dso.superchainConfigImpl()), "800");
+        assertEq(address(output.superchainConfigProxy), address(dso.superchainConfigProxy()), "900");
+        assertEq(address(output.protocolVersionsImpl), address(dso.protocolVersionsImpl()), "1000");
+        assertEq(address(output.protocolVersionsProxy), address(dso.protocolVersionsProxy()), "1100");
+
+        // Assert that the full input and output structs were properly set.
+        assertEq(keccak256(abi.encode(_input)), keccak256(abi.encode(DeploySuperchainInput(dsi).input())), "1200");
+        assertEq(keccak256(abi.encode(output)), keccak256(abi.encode(DeploySuperchainOutput(dso).output())), "1300");
+
+        // Assert inputs were properly passed through to the contract initializers.
+        assertEq(address(output.superchainProxyAdmin.owner()), _input.roles.proxyAdminOwner, "1400");
+        assertEq(address(output.protocolVersionsProxy.owner()), _input.roles.protocolVersionsOwner, "1500");
+        assertEq(address(output.superchainConfigProxy.guardian()), _input.roles.guardian, "1600");
+        assertEq(output.superchainConfigProxy.paused(), _input.paused, "1700");
+        assertEq(unwrap(output.protocolVersionsProxy.required()), unwrap(_input.requiredProtocolVersion), "1800");
+        assertEq(unwrap(output.protocolVersionsProxy.recommended()), unwrap(_input.recommendedProtocolVersion), "1900");
 
         // Architecture assertions.
         // We prank as the zero address due to the Proxy's `proxyCallIfNotAdmin` modifier.
         Proxy superchainConfigProxy = Proxy(payable(address(output.superchainConfigProxy)));
         Proxy protocolVersionsProxy = Proxy(payable(address(output.protocolVersionsProxy)));
-        vm.startPrank(address(0));
 
-        assertEq(superchainConfigProxy.implementation(), address(output.superchainConfigImpl), "700");
-        assertEq(protocolVersionsProxy.implementation(), address(output.protocolVersionsImpl), "800");
-        assertEq(superchainConfigProxy.admin(), protocolVersionsProxy.admin(), "900");
-        assertEq(superchainConfigProxy.admin(), address(output.superchainProxyAdmin), "1000");
+        vm.startPrank(address(0));
+        assertEq(superchainConfigProxy.implementation(), address(output.superchainConfigImpl), "900");
+        assertEq(protocolVersionsProxy.implementation(), address(output.protocolVersionsImpl), "1000");
+        assertEq(superchainConfigProxy.admin(), protocolVersionsProxy.admin(), "1100");
+        assertEq(superchainConfigProxy.admin(), address(output.superchainProxyAdmin), "1200");
+        vm.stopPrank();
+
+        // Ensure that `checkOutput` passes. This is called by the `run` function during execution,
+        // so this just acts as a sanity check. It reverts on failure.
+        dso.checkOutput();
     }
 
     function test_run_ZeroAddressRoles_reverts() public {
