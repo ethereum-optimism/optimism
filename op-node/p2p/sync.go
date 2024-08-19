@@ -656,8 +656,9 @@ func (r requestResultErr) ResultCode() byte {
 func (s *SyncClient) doRequest(ctx context.Context, id peer.ID, expectedBlockNum uint64) error {
 	// open stream to peer
 	reqCtx, reqCancel := context.WithTimeout(ctx, streamTimeout)
+	// Prevent memory leak to panic, since this function is wrapped by a panic handler.
+	defer reqCancel()
 	str, err := s.newStreamFn(reqCtx, id, s.payloadByNumber)
-	reqCancel()
 	if err != nil {
 		return fmt.Errorf("failed to open stream: %w", err)
 	}
