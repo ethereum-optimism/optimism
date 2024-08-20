@@ -1,0 +1,21 @@
+# Start from the official Golang image
+FROM golang:1.21-alpine AS builder
+
+# Set the working directory inside the container
+WORKDIR /app
+
+RUN apk add --no-cache git \
+  && git clone --depth=1 https://github.com/MariusVanDerWijden/tx-fuzz.git . \
+  && apk del git \
+  && cd cmd/livefuzzer \
+  && go build
+
+# Create a minimal image to run the binary
+FROM alpine:latest
+
+
+# Copy the binary from the builder stage
+COPY --from=builder /app/cmd/livefuzzer/livefuzzer /app/livefuzzer
+
+# Set the working directory
+WORKDIR /app
