@@ -3,7 +3,7 @@ global:
   evaluation_interval: 1s
 
 scrape_configs:
-  - job_name: "op-geth"
+  - job_name: "op-node"
     static_configs:
       - targets: ["host.docker.internal:7300"]
     metrics_path: /metrics

@@ -948,13 +948,13 @@
           "useBackend": false
         }
       ],
-      "title": "Sequencer Payload Gas",
+      "title": "Payload Gas",
       "transformations": [
         {
           "id": "renameByRegex",
           "options": {
             "regex": ".*source=\"([^\"]+)\".*",
-            "renamePattern": "Source: $1"
+            "renamePattern": "$1"
           }
         }
       ],
@@ -3169,7 +3169,7 @@
     "list": []
   },
   "time": {
-    "from": "now-30m",
+    "from": "now-15m",
     "to": "now"
   },
   "timepicker": {},
