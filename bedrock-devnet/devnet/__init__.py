@@ -31,6 +31,7 @@ DEVNET_NO_BUILD = os.getenv('DEVNET_NO_BUILD') == "true"
 DEVNET_L2OO = os.getenv('DEVNET_L2OO') == "true"
 DEVNET_PLASMA = os.getenv('DEVNET_PLASMA') == "true"
 DEVNET_BUILDER = os.getenv('DEVNET_BUILDER') == "true"
+DEVNET_LOAD_TEST = os.getenv('DEVNET_LOAD_TEST') == "true"
 GENERIC_PLASMA = os.getenv('GENERIC_PLASMA') == "true"
 
 class Bunch:
@@ -309,8 +310,9 @@ def devnet_deploy(paths):
         wait_up(5545)
         wait_for_rpc_server('127.0.0.1:5545')
 
-        log.info("Bringing up tx-fuzz")
-        run_command(['docker', 'compose', 'up', '-d', 'tx-fuzz'], cwd=paths.ops_bedrock_dir, env=docker_env)
+    if DEVNET_LOAD_TEST:
+        log.info("Bringing up `load-test`")
+        run_command(['docker', 'compose', 'up', '-d', 'load-test'], cwd=paths.ops_bedrock_dir, env=docker_env)
 
     # Fin.
     log.info('Devnet ready.')

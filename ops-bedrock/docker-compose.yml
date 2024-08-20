@@ -342,7 +342,7 @@ services:
       custom_net:
         ipv4_address: "10.5.0.201"
 
-  tx-fuzz:
+  load-test:
     depends_on:
       - l2
       - builder-op-geth
