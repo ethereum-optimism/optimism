@@ -43,7 +43,7 @@ contract DeployImplementationsInput {
     }
 
     function loadInput(Input memory _input) public {
-        require(!inputSet, "DeployImplementationsInput: Input already set");
+        require(!inputSet, "DeployImplementationsInput: input already set");
         require(
             _input.challengePeriodSeconds <= type(uint64).max, "DeployImplementationsInput: challenge period too large"
         );
@@ -59,7 +59,7 @@ contract DeployImplementationsInput {
     }
 
     function input() public view returns (Input memory) {
-        require(inputSet, "DeployImplementationsInput: Input not set");
+        require(inputSet, "DeployImplementationsInput: input not set");
         return inputs;
     }
 }
