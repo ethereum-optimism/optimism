@@ -107,15 +107,18 @@ EOL
 # Activate granite fork
 if [ -n "${GRANITE_TIME_OFFSET}" ]; then
     append_with_default "l2GenesisGraniteTimeOffset" "GRANITE_TIME_OFFSET" "0x0"
+    append_with_default "channelTimeoutGranite" "CHANNEL_TIMEOUT_GRANITE" "50"
 fi
 # Activate holocene fork
 if [ -n "${HOLOCENE_TIME_OFFSET}" ]; then
     append_with_default "l2GenesisHoloceneTimeOffset" "HOLOCENE_TIME_OFFSET" "0x0"
+    append_with_default "channelTimeoutHolocene" "CHANNEL_TIMEOUT_HOLOCENE" "50"
 fi
 
 # Activate the interop fork
 if [ -n "${INTEROP_TIME_OFFSET}" ]; then
     append_with_default "l2GenesisInteropTimeOffset" "INTEROP_TIME_OFFSET" "0x0"
+    append_with_default "channelTimeoutInterop" "CHANNEL_TIMEOUT_INTEROP" "50"
 fi
 
 # Already forked updates
