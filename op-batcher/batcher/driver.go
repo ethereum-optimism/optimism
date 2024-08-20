@@ -576,7 +576,7 @@ func (l *BatchSubmitter) sendTransaction(ctx context.Context, txdata txData, que
 				l.Log.Error("Failed to post input to Alt DA", "error", err)
 				// requeue frame if we fail to post to the DA Provider so it can be retried
 				l.recordFailedTx(txdata.ID(), err)
-				return nil
+				return err
 			}
 			l.Log.Info("Set AltDA input", "commitment", comm, "tx", txdata.ID())
 			// signal AltDA commitment tx with TxDataVersion1
