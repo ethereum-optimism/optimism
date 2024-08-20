@@ -13,7 +13,6 @@ RUN apk add --no-cache git \
 # Create a minimal image to run the binary
 FROM alpine:latest
 
-
 # Copy the binary from the builder stage
 COPY --from=builder /app/cmd/livefuzzer/livefuzzer /app/livefuzzer
 
