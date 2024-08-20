@@ -8,6 +8,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup/sequencing"
+
 	"github.com/hashicorp/go-multierror"
 	"github.com/libp2p/go-libp2p/core/peer"
 
@@ -448,10 +450,9 @@ func (n *OpNode) initHeartbeat(cfg *Config) {
 		return
 	}
 	var peerID string
-	if cfg.P2P.Disabled() {
+	if !n.p2pEnabled() {
 		peerID = "disabled"
 	} else {
-		// Is there a check for p2p enabled missing here? Is it implied that p2p is enabled if there's a heartbeat?
 		peerID = n.P2P().Host().ID().String()
 	}
 
@@ -650,9 +651,10 @@ func (n *OpNode) Stop(ctx context.Context) error {
 	}
 
 	// Stop sequencer and report last hash. l2Driver can be nil if we're cleaning up a failed init.
-	if n.l2Driver != nil && n.cfg.Driver.SequencerEnabled {
+	if n.l2Driver != nil {
 		latestHead, err := n.l2Driver.StopSequencer(ctx)
 		switch {
+		case errors.Is(err, sequencing.ErrSequencerNotEnabled):
 		case errors.Is(err, driver.ErrSequencerAlreadyStopped):
 			n.log.Info("stopping node: sequencer already stopped", "latestHead", latestHead)
 		case err == nil:
