@@ -30,6 +30,7 @@ log = logging.getLogger()
 DEVNET_NO_BUILD = os.getenv('DEVNET_NO_BUILD') == "true"
 DEVNET_L2OO = os.getenv('DEVNET_L2OO') == "true"
 DEVNET_PLASMA = os.getenv('DEVNET_PLASMA') == "true"
+DEVNET_BUILDER = os.getenv('DEVNET_BUILDER') == "true"
 GENERIC_PLASMA = os.getenv('GENERIC_PLASMA') == "true"
 
 class Bunch:
@@ -299,17 +300,19 @@ def devnet_deploy(paths):
         log.info('Bringing up `da-server`, `sentinel`.') # TODO(10141): We don't have public sentinel images yet
         run_command(['docker', 'compose', 'up', '-d', 'da-server'], cwd=paths.ops_bedrock_dir, env=docker_env)
 
-    log.info('Bringing up `builders`.')
-    run_command(['docker', 'compose', 'up', '-d', 'builder-op-node', 'builder-op-geth'],
-                cwd=paths.ops_bedrock_dir,
-                env=docker_env)
-    wait_up(5545)
-    wait_for_rpc_server('127.0.0.1:5545')
+    # Optionally bring up the builders.
+    if DEVNET_BUILDER:
+        log.info('Bringing up `builders`.')
+        run_command(['docker', 'compose', 'up', '-d', 'builder-op-node', 'builder-op-geth'],
+                    cwd=paths.ops_bedrock_dir,
+                    env=docker_env)
+        wait_up(5545)
+        wait_for_rpc_server('127.0.0.1:5545')
 
-    log.info("Bringing up tx-fuzz")
-    run_command(['docker', 'compose', 'up', '-d', 'tx-fuzz'], cwd=paths.ops_bedrock_dir, env=docker_env)
+        log.info("Bringing up tx-fuzz")
+        run_command(['docker', 'compose', 'up', '-d', 'tx-fuzz'], cwd=paths.ops_bedrock_dir, env=docker_env)
 
-      # Fin.
+    # Fin.
     log.info('Devnet ready.')
 
 def wait_for_rpc_server(url):
