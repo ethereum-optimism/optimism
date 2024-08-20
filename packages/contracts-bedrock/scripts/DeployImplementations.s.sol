@@ -4,10 +4,9 @@ pragma solidity 0.8.15;
 import { Script } from "forge-std/Script.sol";
 import { LibString } from "@solady/utils/LibString.sol";
 
-import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
-import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
 import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
+import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
 import { MIPS } from "src/cannon/MIPS.sol";
 
 import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
@@ -47,10 +46,10 @@ contract DeployImplementationsInput {
 
     function loadInput(Input memory _input) public {
         require(!inputSet, "DeployImplementationsInput: Input already set");
+        require(
+            _input.challengePeriodSeconds <= type(uint64).max, "DeployImplementationsInput: challenge period too large"
+        );
 
-        // TODO Add assertions on the input values.
-
-        // We now set all values in storage.
         inputSet = true;
         inputs = _input;
 
@@ -69,12 +68,10 @@ contract DeployImplementationsInput {
 
 contract DeployImplementationsOutput {
     struct Output {
-        DisputeGameFactory disputeGameFactoryImpl;
-        AnchorStateRegistry anchorStateRegistryImpl;
         DelayedWETH delayedWETHImpl;
-        PreimageOracle preimageOracleImpl;
-        MIPS mipsImpl;
         OptimismPortal2 optimismPortal2Impl;
+        PreimageOracle preimageOracleSingleton;
+        MIPS mipsSingleton;
         SystemConfig systemConfigImpl;
         L1CrossDomainMessenger l1CrossDomainMessengerImpl;
         L1ERC721Bridge l1ERC721BridgeImpl;
@@ -82,12 +79,10 @@ contract DeployImplementationsOutput {
         OptimismMintableERC20Factory optimismMintableERC20FactoryImpl;
     }
 
-    DisputeGameFactory public disputeGameFactoryImpl;
-    AnchorStateRegistry public anchorStateRegistryImpl;
-    DelayedWETH public delayedWETHImpl;
-    PreimageOracle public preimageOracleImpl;
-    MIPS public mipsImpl;
     OptimismPortal2 public optimismPortal2Impl;
+    DelayedWETH public delayedWETHImpl;
+    PreimageOracle public preimageOracleSingleton;
+    MIPS public mipsSingleton;
     SystemConfig public systemConfigImpl;
     L1CrossDomainMessenger public l1CrossDomainMessengerImpl;
     L1ERC721Bridge public l1ERC721BridgeImpl;
@@ -96,12 +91,10 @@ contract DeployImplementationsOutput {
 
     function set(bytes4 sel, address _addr) public {
         // forgefmt: disable-start
-        if (sel == this.disputeGameFactoryImpl.selector) disputeGameFactoryImpl = DisputeGameFactory(_addr);
-        else if (sel == this.anchorStateRegistryImpl.selector) anchorStateRegistryImpl = AnchorStateRegistry(_addr);
+        if (sel == this.optimismPortal2Impl.selector) optimismPortal2Impl = OptimismPortal2(payable(_addr));
         else if (sel == this.delayedWETHImpl.selector) delayedWETHImpl = DelayedWETH(payable(_addr));
-        else if (sel == this.preimageOracleImpl.selector) preimageOracleImpl = PreimageOracle(_addr);
-        else if (sel == this.mipsImpl.selector) mipsImpl = MIPS(_addr);
-        else if (sel == this.optimismPortal2Impl.selector) optimismPortal2Impl = OptimismPortal2(payable(_addr));
+        else if (sel == this.preimageOracleSingleton.selector) preimageOracleSingleton = PreimageOracle(_addr);
+        else if (sel == this.mipsSingleton.selector) mipsSingleton = MIPS(_addr);
         else if (sel == this.systemConfigImpl.selector) systemConfigImpl = SystemConfig(_addr);
         else if (sel == this.l1CrossDomainMessengerImpl.selector) l1CrossDomainMessengerImpl = L1CrossDomainMessenger(_addr);
         else if (sel == this.l1ERC721BridgeImpl.selector) l1ERC721BridgeImpl = L1ERC721Bridge(_addr);
@@ -118,12 +111,10 @@ contract DeployImplementationsOutput {
 
     function output() public view returns (Output memory) {
         return Output({
-            disputeGameFactoryImpl: disputeGameFactoryImpl,
-            anchorStateRegistryImpl: anchorStateRegistryImpl,
-            delayedWETHImpl: delayedWETHImpl,
-            preimageOracleImpl: preimageOracleImpl,
-            mipsImpl: mipsImpl,
             optimismPortal2Impl: optimismPortal2Impl,
+            delayedWETHImpl: delayedWETHImpl,
+            preimageOracleSingleton: preimageOracleSingleton,
+            mipsSingleton: mipsSingleton,
             systemConfigImpl: systemConfigImpl,
             l1CrossDomainMessengerImpl: l1CrossDomainMessengerImpl,
             l1ERC721BridgeImpl: l1ERC721BridgeImpl,
@@ -133,18 +124,16 @@ contract DeployImplementationsOutput {
     }
 
     function checkOutput() public view {
-        address[] memory addresses = new address[](11);
-        addresses[0] = address(disputeGameFactoryImpl);
-        addresses[1] = address(anchorStateRegistryImpl);
-        addresses[2] = address(delayedWETHImpl);
-        addresses[3] = address(preimageOracleImpl);
-        addresses[4] = address(mipsImpl);
-        addresses[5] = address(optimismPortal2Impl);
-        addresses[6] = address(systemConfigImpl);
-        addresses[7] = address(l1CrossDomainMessengerImpl);
-        addresses[8] = address(l1ERC721BridgeImpl);
-        addresses[9] = address(l1StandardBridgeImpl);
-        addresses[10] = address(optimismMintableERC20FactoryImpl);
+        address[] memory addresses = new address[](9);
+        addresses[0] = address(optimismPortal2Impl);
+        addresses[1] = address(delayedWETHImpl);
+        addresses[2] = address(preimageOracleSingleton);
+        addresses[3] = address(mipsSingleton);
+        addresses[4] = address(systemConfigImpl);
+        addresses[5] = address(l1CrossDomainMessengerImpl);
+        addresses[6] = address(l1ERC721BridgeImpl);
+        addresses[7] = address(l1StandardBridgeImpl);
+        addresses[8] = address(optimismMintableERC20FactoryImpl);
 
         for (uint256 i = 0; i < addresses.length; i++) {
             address who = addresses[i];
@@ -190,38 +179,24 @@ contract DeployImplementations is Script {
         require(_dsi.inputSet(), "DeployImplementations: Input not set");
 
         deploySystemConfigImpl(_dsi, _dso);
-
         deployL1CrossDomainMessengerImpl(_dsi, _dso);
-        deployOptimismMintableERC20FactoryImpl(_dsi, _dso);
-        deployL1StandardBridgeImpl(_dsi, _dso);
         deployL1ERC721BridgeImpl(_dsi, _dso);
-
+        deployL1StandardBridgeImpl(_dsi, _dso);
+        deployOptimismMintableERC20FactoryImpl(_dsi, _dso);
         deployOptimismPortalImpl(_dsi, _dso);
-        deployFaultProofImpls(_dsi, _dso);
+        deployDelayedWETHImpl(_dsi, _dso);
+        deployPreimageOracleSingleton(_dsi, _dso);
+        deployMipsSingleton(_dsi, _dso);
 
         _dso.checkOutput();
     }
 
     // -------- Deployment Steps --------
 
-    function deployFaultProofImpls(DeployImplementationsInput, DeployImplementationsOutput) public {
-        // TODO We skip fault proof deployments for now.
-    }
-
-    function deployOptimismPortalImpl(DeployImplementationsInput _dsi, DeployImplementationsOutput _dso) public {
-        uint256 proofMaturityDelaySeconds = _dsi.proofMaturityDelaySeconds();
-        uint256 disputeGameFinalityDelaySeconds = _dsi.disputeGameFinalityDelaySeconds();
-
-        vm.broadcast(msg.sender);
-        OptimismPortal2 optimismPortal2Impl =
-            new OptimismPortal2(proofMaturityDelaySeconds, disputeGameFinalityDelaySeconds);
-        vm.label(address(optimismPortal2Impl), "OptimismPortal2Impl");
-        _dso.set(_dso.optimismPortal2Impl.selector, address(optimismPortal2Impl));
-    }
-
     function deploySystemConfigImpl(DeployImplementationsInput, DeployImplementationsOutput _dso) public {
         vm.broadcast(msg.sender);
         SystemConfig systemConfigImpl = new SystemConfig();
+
         vm.label(address(systemConfigImpl), "systemConfigImpl");
         _dso.set(_dso.systemConfigImpl.selector, address(systemConfigImpl));
     }
@@ -229,6 +204,7 @@ contract DeployImplementations is Script {
     function deployL1CrossDomainMessengerImpl(DeployImplementationsInput, DeployImplementationsOutput _dso) public {
         vm.broadcast(msg.sender);
         L1CrossDomainMessenger l1CrossDomainMessengerImpl = new L1CrossDomainMessenger();
+
         vm.label(address(l1CrossDomainMessengerImpl), "L1CrossDomainMessengerImpl");
         _dso.set(_dso.l1CrossDomainMessengerImpl.selector, address(l1CrossDomainMessengerImpl));
     }
@@ -236,6 +212,7 @@ contract DeployImplementations is Script {
     function deployL1ERC721BridgeImpl(DeployImplementationsInput, DeployImplementationsOutput _dso) public {
         vm.broadcast(msg.sender);
         L1ERC721Bridge l1ERC721BridgeImpl = new L1ERC721Bridge();
+
         vm.label(address(l1ERC721BridgeImpl), "L1ERC721BridgeImpl");
         _dso.set(_dso.l1ERC721BridgeImpl.selector, address(l1ERC721BridgeImpl));
     }
@@ -243,6 +220,7 @@ contract DeployImplementations is Script {
     function deployL1StandardBridgeImpl(DeployImplementationsInput, DeployImplementationsOutput _dso) public {
         vm.broadcast(msg.sender);
         L1StandardBridge l1StandardBridgeImpl = new L1StandardBridge();
+
         vm.label(address(l1StandardBridgeImpl), "L1StandardBridgeImpl");
         _dso.set(_dso.l1StandardBridgeImpl.selector, address(l1StandardBridgeImpl));
     }
@@ -255,8 +233,74 @@ contract DeployImplementations is Script {
     {
         vm.broadcast(msg.sender);
         OptimismMintableERC20Factory optimismMintableERC20FactoryImpl = new OptimismMintableERC20Factory();
+
         vm.label(address(optimismMintableERC20FactoryImpl), "OptimismMintableERC20FactoryImpl");
         _dso.set(_dso.optimismMintableERC20FactoryImpl.selector, address(optimismMintableERC20FactoryImpl));
+    }
+
+    // The fault proofs contracts are configured as follows:
+    //   - DisputeGameFactory: Proxied, bespoke per chain.
+    //   - AnchorStateRegistry: Proxied, bespoke per chain.
+    //   - FaultDisputeGame: Not proxied, bespoke per chain.
+    //   - PermissionedDisputeGame: Not proxied, bespoke per chain.
+    //   - DelayedWETH: Proxied, shared by all standard chains.
+    //   - PreimageOracle: Not proxied, shared by all standard chains.
+    //   - MIPS: Not proxied, shared by all standard chains.
+    //   - OptimismPortal2: Proxied, shared by all standard chains.
+    //
+    // This script only deploys the shared contracts. The bespoke contracts are deployed by
+    // `DeployOPChain.s.sol`. When the shared contracts are proxied, we call the "implementations",
+    // and when they are not proxied, we call them "singletons". So here we deploy:
+    //
+    //   - OptimismPortal2 (implementation)
+    //   - DelayedWETH (implementation)
+    //   - PreimageOracle (singleton)
+    //   - MIPS (singleton)
+
+    function deployOptimismPortalImpl(DeployImplementationsInput _dsi, DeployImplementationsOutput _dso) public {
+        uint256 proofMaturityDelaySeconds = _dsi.proofMaturityDelaySeconds();
+        uint256 disputeGameFinalityDelaySeconds = _dsi.disputeGameFinalityDelaySeconds();
+
+        vm.broadcast(msg.sender);
+        OptimismPortal2 optimismPortal2Impl = new OptimismPortal2({
+            _proofMaturityDelaySeconds: proofMaturityDelaySeconds,
+            _disputeGameFinalityDelaySeconds: disputeGameFinalityDelaySeconds
+        });
+
+        vm.label(address(optimismPortal2Impl), "OptimismPortal2Impl");
+        _dso.set(_dso.optimismPortal2Impl.selector, address(optimismPortal2Impl));
+    }
+
+    function deployDelayedWETHImpl(DeployImplementationsInput _dsi, DeployImplementationsOutput _dso) public {
+        uint256 withdrawalDelaySeconds = _dsi.withdrawalDelaySeconds();
+
+        vm.broadcast(msg.sender);
+        DelayedWETH delayedWETHImpl = new DelayedWETH({ _delay: withdrawalDelaySeconds });
+
+        vm.label(address(delayedWETHImpl), "DelayedWETHImpl");
+        _dso.set(_dso.delayedWETHImpl.selector, address(delayedWETHImpl));
+    }
+
+    function deployPreimageOracleSingleton(DeployImplementationsInput _dsi, DeployImplementationsOutput _dso) public {
+        uint256 minProposalSizeBytes = _dsi.minProposalSizeBytes();
+        uint256 challengePeriodSeconds = _dsi.challengePeriodSeconds();
+
+        vm.broadcast(msg.sender);
+        PreimageOracle preimageOracleSingleton =
+            new PreimageOracle({ _minProposalSize: minProposalSizeBytes, _challengePeriod: challengePeriodSeconds });
+
+        vm.label(address(preimageOracleSingleton), "PreimageOracleSingleton");
+        _dso.set(_dso.preimageOracleSingleton.selector, address(preimageOracleSingleton));
+    }
+
+    function deployMipsSingleton(DeployImplementationsInput, DeployImplementationsOutput _dso) public {
+        IPreimageOracle preimageOracle = IPreimageOracle(_dso.preimageOracleSingleton());
+
+        vm.broadcast(msg.sender);
+        MIPS mipsSingleton = new MIPS(preimageOracle);
+
+        vm.label(address(mipsSingleton), "MIPSSingleton");
+        _dso.set(_dso.mipsSingleton.selector, address(mipsSingleton));
     }
 
     // -------- Utilities --------
