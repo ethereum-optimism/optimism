@@ -1,4 +1,6 @@
-FROM jinmel/builder:latest
+ARG BUILDER_IMAGE=flashbots/op-geth:latest
+
+FROM $BUILDER_IMAGE
 
 RUN apk add --no-cache jq
 

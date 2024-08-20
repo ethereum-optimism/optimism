@@ -308,6 +308,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.builder
+    args:
+      BUILDER_IMAGE: ${BUILDER_IMAGE:-flashbots/op-geth:latest}
     depends_on:
       - l1
       - l2
