@@ -305,18 +305,20 @@ services:
         ipv4_address: 10.5.0.123
 
   builder-op-geth:
+    build:
+      context: .
+      dockerfile: Dockerfile.builder
     depends_on:
       - l1
       - l2
       - op-node
-    image: jinmel/builder:latest # NOTE: Replace with the builder image
     ports:
       - "5545:8545"
     volumes:
       - "builder_data:/db"
       - "${PWD}/../.devnet/genesis-l2.json:/genesis.json"
       - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
-      - "${PWD}/entrypoint-l2.sh:/entrypoint.sh"
+      - "${PWD}/entrypoint-builder.sh:/entrypoint.sh"
     entrypoint:  # pass the L2 specific flags by overriding the entry-point and adding extra arguments
       - "/bin/sh"
       - "/entrypoint.sh"
@@ -329,11 +331,7 @@ services:
       - "--rollup.disabletxpoolgossip"
       - "--builder"
       - "--builder.beacon_endpoints=http://builder-op-node:9546"
-      - "--builder.local_relay"
-      - "--builder.seconds_in_slot=2"
-      - "--builder.block_resubmit_interval=200ms"
-      - "--builder.submission_offset=1s"
-      - "--builder.algotype=greedy"
+      - "--builder.block_retry_interval=200ms"
       - "--builder.block_time=2s"
     environment:
       GETH_MINER_RECOMMIT: 100ms
