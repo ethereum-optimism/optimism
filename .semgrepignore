@@ -18,6 +18,7 @@ tests/
 # Semgrep-action log folder
 .semgrep_logs/
 
+op-chain-ops/script/testdata
 
 packages/*/node_modules
 packages/*/test

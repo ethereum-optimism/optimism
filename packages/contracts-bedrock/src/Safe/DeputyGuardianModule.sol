@@ -45,8 +45,8 @@ contract DeputyGuardianModule is ISemver {
     address internal immutable DEPUTY_GUARDIAN;
 
     /// @notice Semantic version.
-    /// @custom:semver 2.0.0
-    string public constant version = "2.0.0";
+    /// @custom:semver 2.0.0-rc.1
+    string public constant version = "2.0.0-rc.1";
 
     // Constructor to initialize the Safe and baseModule instances
     constructor(Safe _safe, SuperchainConfig _superchainConfig, address _deputyGuardian) {

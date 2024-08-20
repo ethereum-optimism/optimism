@@ -11,16 +11,18 @@ import (
 )
 
 func TestTxmgrRPC(t *testing.T) {
-	minBaseFee := big.NewInt(1000)
-	priorityFee := big.NewInt(2000)
-	minBlobFee := big.NewInt(3000)
-	feeThreshold := big.NewInt(4000)
+	minBaseFeeInit := big.NewInt(1000)
+	minPriorityFeeInit := big.NewInt(2000)
+	minBlobFeeInit := big.NewInt(3000)
+	feeThresholdInit := big.NewInt(4000)
+	bumpFeeRetryTimeInit := int64(100)
 
 	cfg := Config{}
-	cfg.MinBaseFee.Store(minBaseFee)
-	cfg.MinTipCap.Store(priorityFee)
-	cfg.MinBlobTxFee.Store(minBlobFee)
-	cfg.FeeLimitThreshold.Store(feeThreshold)
+	cfg.MinBaseFee.Store(minBaseFeeInit)
+	cfg.MinTipCap.Store(minPriorityFeeInit)
+	cfg.MinBlobTxFee.Store(minBlobFeeInit)
+	cfg.FeeLimitThreshold.Store(feeThresholdInit)
+	cfg.ResubmissionTimeout.Store(bumpFeeRetryTimeInit)
 
 	h := newTestHarnessWithConfig(t, &cfg)
 
@@ -43,22 +45,30 @@ func TestTxmgrRPC(t *testing.T) {
 
 	type tcase struct {
 		rpcMethod string
-		value     *big.Int
+		initValue *big.Int
 	}
 
 	cases := []tcase{
-		{"MinBaseFee", big.NewInt(1001)},
-		{"PriorityFee", big.NewInt(2001)},
-		{"MinBlobFee", big.NewInt(3001)},
-		{"FeeThreshold", big.NewInt(4001)},
+		{"MinBaseFee", minBaseFeeInit},
+		{"MinPriorityFee", minPriorityFeeInit},
+		{"MinBlobFee", minBlobFeeInit},
+		{"FeeThreshold", feeThresholdInit},
+		{"BumpFeeRetryTime", big.NewInt(bumpFeeRetryTimeInit)},
 	}
 
 	for _, tc := range cases {
-		t.Run(tc.rpcMethod, func(t *testing.T) {
+		t.Run("Get|Set"+tc.rpcMethod, func(t *testing.T) {
 			var res *big.Int
-			require.NoError(t, rpcClient.Call(&res, "txmgr_set"+tc.rpcMethod, tc.value))
+
 			require.NoError(t, rpcClient.Call(&res, "txmgr_get"+tc.rpcMethod))
-			require.Equal(t, tc.value, res)
+			require.Equal(t, tc.initValue, res)
+
+			newVal := new(big.Int)
+			newVal.Add(tc.initValue, big.NewInt(1))
+
+			require.NoError(t, rpcClient.Call(&res, "txmgr_set"+tc.rpcMethod, newVal))
+			require.NoError(t, rpcClient.Call(&res, "txmgr_get"+tc.rpcMethod))
+			require.Equal(t, newVal, res)
 		})
 	}
 }
