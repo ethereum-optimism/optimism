@@ -97,7 +97,11 @@ func (db *ChainsDB) UpdateCrossHeadsForChain(chainID types.ChainID, checker Safe
 			break
 		}
 		// use the checker to determine if this message is safe
-		safe := checker.Check(chainID, exec.BlockNum, exec.LogIdx, exec.Hash)
+		safe := checker.Check(
+			types.ChainIDFromUInt64(uint64(exec.Chain)),
+			exec.BlockNum,
+			exec.LogIdx,
+			exec.Hash)
 		if !safe {
 			break
 		}

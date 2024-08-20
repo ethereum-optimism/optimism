@@ -516,12 +516,25 @@ func (db *DB) NextExecutingMessage(iter Iterator) (types.ExecutingMessage, error
 	}
 }
 
+// LastCheckpointBehind returns an iterator for the last checkpoint behind the specified entry index.
+// If the entry index is a search checkpoint, the iterator will start at that checkpoint.
+// After searching back long enough (the searchCheckpointFrequency), an error is returned,
+// as checkpoints are expected to be found within the frequency.
 func (db *DB) LastCheckpointBehind(entryIdx entrydb.EntryIdx) (Iterator, error) {
 	for attempts := 0; attempts < searchCheckpointFrequency; attempts++ {
 		// attempt to read the index entry as a search checkpoint
 		_, err := db.readSearchCheckpoint(entryIdx)
 		if err == nil {
 			return db.newIterator(entryIdx)
+		}
+		// ErrDataCorruption is the return value if the entry is not a search checkpoint
+		// if it's not that type of error, we should return it instead of continuing
+		if !errors.Is(err, ErrDataCorruption) {
+			return nil, err
+		}
+		// don't attempt to read behind the start of the data
+		if entryIdx == 0 {
+			break
 		}
 		// reverse if we haven't found it yet
 		entryIdx -= 1
