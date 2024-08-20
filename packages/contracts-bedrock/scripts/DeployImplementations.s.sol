@@ -16,9 +16,7 @@ import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
 
-/**
- * See DeploySuperchain.s.sol for detailed comments on the script architecture used here.
- */
+// See DeploySuperchain.s.sol for detailed comments on the script architecture used here.
 contract DeployImplementationsInput {
     struct Input {
         uint256 withdrawalDelaySeconds;
@@ -41,7 +39,7 @@ contract DeployImplementationsInput {
         _infile;
         Input memory parsedInput;
         loadInput(parsedInput);
-        require(false, "DeployImplementationsInput: loadInput is not implemented");
+        require(false, "DeployImplementationsInput: not implemented");
     }
 
     function loadInput(Input memory _input) public {
@@ -100,13 +98,13 @@ contract DeployImplementationsOutput {
         else if (sel == this.l1ERC721BridgeImpl.selector) l1ERC721BridgeImpl = L1ERC721Bridge(_addr);
         else if (sel == this.l1StandardBridgeImpl.selector) l1StandardBridgeImpl = L1StandardBridge(payable(_addr));
         else if (sel == this.optimismMintableERC20FactoryImpl.selector) optimismMintableERC20FactoryImpl = OptimismMintableERC20Factory(_addr);
-        else revert("DeployImplementationsOutput: Unknown selector");
+        else revert("DeployImplementationsOutput: unknown selector");
         // forgefmt: disable-end
     }
 
     function writeOutputFile(string memory _outfile) public pure {
         _outfile;
-        require(false, "DeployImplementationsOutput: saveOutput not implemented");
+        require(false, "DeployImplementationsOutput: not implemented");
     }
 
     function output() public view returns (Output memory) {
@@ -176,7 +174,7 @@ contract DeployImplementations is Script {
     }
 
     function run(DeployImplementationsInput _dsi, DeployImplementationsOutput _dso) public {
-        require(_dsi.inputSet(), "DeployImplementations: Input not set");
+        require(_dsi.inputSet(), "DeployImplementations: input not set");
 
         deploySystemConfigImpl(_dsi, _dso);
         deployL1CrossDomainMessengerImpl(_dsi, _dso);
