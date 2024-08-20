@@ -18,7 +18,6 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
-  "id": 4,
   "links": [],
   "panels": [
     {
@@ -909,32 +908,7 @@
             ]
           }
         },
-        "overrides": [
-          {
-            "__systemRef": "hideSeriesFrom",
-            "matcher": {
-              "id": "byNames",
-              "options": {
-                "mode": "exclude",
-                "names": [
-                              "{__name__=\"op_node_default_sequencer_payload_gas\", instance=\"host.docker.internal:7300\", job=\"op-geth\", source=\"engine\"}"
-                ],
-                "prefix": "All except:",
-                "readOnly": true
-              }
-            },
-            "properties": [
-              {
-                "id": "custom.hideFrom",
-                "value": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": true
-                }
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "gridPos": {
         "h": 7,
@@ -975,6 +949,15 @@
         }
       ],
       "title": "Sequencer Payload Gas",
+      "transformations": [
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": ".*source=\"([^\"]+)\".*",
+            "renamePattern": "Source: $1"
+          }
+        }
+      ],
       "type": "timeseries"
     },
     {
@@ -1075,6 +1058,15 @@
         }
       ],
       "title": "Transactions Sequenced Rate",
+      "transformations": [
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": ".*source=\"([^\"]+)\".*",
+            "renamePattern": "$1"
+          }
+        }
+      ],
       "type": "timeseries"
     },
     {
@@ -1478,6 +1470,15 @@
         }
       ],
       "title": "Sequencer Payloads Inserted Rate",
+      "transformations": [
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": ".*source=\"([^\"]+)\".*",
+            "renamePattern": "$1"
+          }
+        }
+      ],
       "type": "timeseries"
     },
     {
@@ -2096,7 +2097,9 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": ".*method=\"([^\"]+)\".*", "renamePattern": "$1" }
+            "regex": ".*method=\"([^\"]+)\".*",
+            "renamePattern": "$1"
+          }
         }
       ],
       "type": "timeseries"
@@ -2257,7 +2260,9 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": ".*method=\"([^\"]+)\".*", "renamePattern": "$1" }
+            "regex": ".*method=\"([^\"]+)\".*",
+            "renamePattern": "$1"
+          }
         }
       ],
       "type": "timeseries"
@@ -2310,7 +2315,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2409,7 +2415,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2463,7 +2470,9 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": ".*request=\"([^\"]+)\".*", "renamePattern": "$1" }
+            "regex": ".*request=\"([^\"]+)\".*",
+            "renamePattern": "$1"
+          }
         }
       ],
       "type": "timeseries"
@@ -2527,7 +2536,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2620,7 +2630,9 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": ".*method=\"([^\"]+)\".*", "renamePattern": "$1" }
+            "regex": ".*method=\"([^\"]+)\".*",
+            "renamePattern": "$1"
+          }
         }
       ],
       "type": "timeseries"
@@ -2684,7 +2696,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2795,7 +2808,9 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": ".*method=\"([^\"]+)\".*", "renamePattern": "$1" }
+            "regex": ".*method=\"([^\"]+)\".*",
+            "renamePattern": "$1"
+          }
         }
       ],
       "type": "timeseries"
@@ -2861,7 +2876,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2935,7 +2951,7 @@
         ]
       },
       "gridPos": {
-        "h": 7,
+        "h": 5,
         "w": 6,
         "x": 0,
         "y": 31
@@ -3092,7 +3108,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -3105,7 +3122,7 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 7,
+        "h": 5,
         "w": 6,
         "x": 6,
         "y": 31
@@ -3152,13 +3169,13 @@
     "list": []
   },
   "time": {
-    "from": "now-6h",
+    "from": "now-30m",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "L2 Builder",
+  "title": "L2<>L2 Proposer",
   "uid": "cduzajp4atslcc",
-  "version": 109,
+  "version": 1,
   "weekStart": ""
 }
