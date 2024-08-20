@@ -25,6 +25,7 @@ contract FPACOPS is Deploy, StdAssertions {
         // Deploy the proxies.
         deployERC1967Proxy("DisputeGameFactoryProxy");
         deployERC1967Proxy("DelayedWETHProxy");
+        deployERC1967Proxy("PermissionedDelayedWETHProxy");
         deployERC1967Proxy("AnchorStateRegistryProxy");
 
         // Deploy implementations.
@@ -40,6 +41,7 @@ contract FPACOPS is Deploy, StdAssertions {
         // Initialize the proxies.
         initializeDisputeGameFactoryProxy();
         initializeDelayedWETHProxy();
+        initializePermissionedDelayedWETHProxy();
         initializeAnchorStateRegistryProxy();
 
         // Deploy the Cannon Fault game implementation and set it as game ID = 0.
@@ -83,6 +85,18 @@ contract FPACOPS is Deploy, StdAssertions {
         console.log("Initializing DelayedWETHProxy with DelayedWETH.");
 
         address wethProxy = mustGetAddress("DelayedWETHProxy");
+        address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
+        Proxy(payable(wethProxy)).upgradeToAndCall(
+            mustGetAddress("DelayedWETH"),
+            abi.encodeCall(DelayedWETH.initialize, (msg.sender, SuperchainConfig(superchainConfigProxy)))
+        );
+    }
+
+    /// @notice Initializes the permissioned DelayedWETH proxy.
+    function initializePermissionedDelayedWETHProxy() internal broadcast {
+        console.log("Initializing permissioned DelayedWETHProxy with DelayedWETH.");
+
+        address wethProxy = mustGetAddress("PermissionedDelayedWETHProxy");
         address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
         Proxy(payable(wethProxy)).upgradeToAndCall(
             mustGetAddress("DelayedWETH"),
