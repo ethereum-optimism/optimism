@@ -109,20 +109,23 @@ func (bq *BatchQueue) NextBatch(ctx context.Context, parent eth.L2BlockRef) (*Si
 		}
 	}
 
-	// If the epoch is advanced, update bq.l1Blocks
-	// Advancing epoch must be done after the pipeline successfully apply the entire span batch to the chain.
-	// Because the span batch can be reverted during processing the batch, then we must preserve existing l1Blocks
-	// to verify the epochs of the next candidate batch.
-	if len(bq.l1Blocks) > 0 && parent.L1Origin.Number > bq.l1Blocks[0].Number {
-		for i, l1Block := range bq.l1Blocks {
-			if parent.L1Origin.Number == l1Block.Number {
-				bq.l1Blocks = bq.l1Blocks[i:]
-				bq.log.Debug("Advancing internal L1 blocks", "next_epoch", bq.l1Blocks[0].ID(), "next_epoch_time", bq.l1Blocks[0].Time)
-				break
+	trimL1Blocks := func() {
+		// If the epoch is advanced, update bq.l1Blocks
+		// Advancing epoch must be done after the pipeline successfully apply the entire span batch to the chain.
+		// Because the span batch can be reverted during processing the batch, then we must preserve existing l1Blocks
+		// to verify the epochs of the next candidate batch.
+		if len(bq.l1Blocks) > 0 && parent.L1Origin.Number > bq.l1Blocks[0].Number {
+			for i, l1Block := range bq.l1Blocks {
+				if parent.L1Origin.Number == l1Block.Number {
+					bq.l1Blocks = bq.l1Blocks[i:]
+					bq.log.Debug("Advancing internal L1 blocks", "next_epoch", bq.l1Blocks[0].ID(), "next_epoch_time", bq.l1Blocks[0].Time)
+					break
+				}
 			}
+			// If we can't find the origin of parent block, we have to advance bq.origin.
 		}
-		// If we can't find the origin of parent block, we have to advance bq.origin.
 	}
+	trimL1Blocks()
 
 	// Note: We use the origin that we will have to determine if it's behind. This is important
 	// because it's the future origin that gets saved into the l1Blocks array.
@@ -137,6 +140,11 @@ func (bq *BatchQueue) NextBatch(ctx context.Context, parent eth.L2BlockRef) (*Si
 		bq.origin = bq.prev.Origin()
 		if !originBehind {
 			bq.l1Blocks = append(bq.l1Blocks, bq.origin)
+			// Maintain the invariant:
+			// If every L2 block corresponding to single L1 block becomes safe, it will be popped from l1Blocks.
+			// The previous attempt to trim may not have found the parent origin in l1Blocks so couldn't trim
+			// But now that we have added a block, it might have been the one we were looking for so we should re-trim
+			trimL1Blocks() // See if we can find the parent origin in l1Blocks now
 		} else {
 			// This is to handle the special case of startup. At startup we call Reset & include
 			// the L1 origin. That is the only time where immediately after `Reset` is called
