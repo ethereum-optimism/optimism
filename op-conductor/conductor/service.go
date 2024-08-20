@@ -651,7 +651,6 @@ func (oc *OpConductor) action() {
 		case <-oc.shutdownCtx.Done():
 		case <-time.After(oc.retryBackoff()):
 			oc.log.Error("failed to execute step, queueing another one to retry", "err", err, "status", status)
-			time.Sleep(oc.retryBackoff())
 			oc.queueAction()
 		}
 		return
