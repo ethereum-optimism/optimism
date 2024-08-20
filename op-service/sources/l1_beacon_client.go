@@ -223,7 +223,7 @@ func (cl *L1BeaconClient) fetchSidecars(ctx context.Context, slot uint64, hashes
 	for i := 0; i < cl.pool.Len(); i++ {
 		f := cl.pool.Get()
 		resp, err := f.BeaconBlobSideCars(ctx, cl.cfg.FetchAllSidecars, slot, hashes)
-		if err != nil {
+		if err != nil || len(resp.Data) == 0 {
 			cl.pool.MoveToNext()
 			errs = append(errs, err)
 		} else {
