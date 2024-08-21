@@ -21,7 +21,11 @@ $ DEVNET_BUILDER=true make devnet-up
 To additionally enable load testing through [tx-fuzz](https://github.com/MariusVanDerWijden/tx-fuzz), you can run the following command:
 
 ```shell
+<<<<<<< HEAD
 $ DEVNET_LOAD_TEST=true DEVNET_BUILDER=true make devnet-up
+=======
+$ BUILDER_OP_GETH_IMAGE=<YOUR_OP_GETH_BUILDER_IMAGE> DEVNET_LOAD_TEST=true DEVNET_BUILDER=true make devnet-up
+>>>>>>> f5a6f4e3d (change flag name DEVNET_FUZZ to DEVNET_LOAD_TEST)
 ```
 
 If the BUILDER_OP_GETH_IMAGE is not set, the devnet will use the image from `flashbots/op-geth:latest`.
