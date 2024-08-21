@@ -101,11 +101,14 @@ func (su *SupervisorBackend) Start(ctx context.Context) error {
 	if !su.started.CompareAndSwap(false, true) {
 		return errors.New("already started")
 	}
+	// start chain monitors
 	for _, monitor := range su.chainMonitors {
 		if err := monitor.Start(); err != nil {
 			return fmt.Errorf("failed to start chain monitor: %w", err)
 		}
 	}
+	// start db maintenance loop
+	su.db.StartCrossHeadMaintenance(ctx)
 	return nil
 }
 

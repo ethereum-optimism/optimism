@@ -213,6 +213,10 @@ func (s *stubChecker) LocalHeadForChain(chainID types.ChainID) entrydb.EntryIdx 
 	return s.localHeadForChain
 }
 
+func (s *stubChecker) Name() string {
+	return "stubChecker"
+}
+
 func (s *stubChecker) CrossHeadForChain(chainID types.ChainID) entrydb.EntryIdx {
 	return s.crossHeadForChain
 }

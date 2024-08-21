@@ -1,9 +1,11 @@
 package db
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
@@ -11,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
 	backendTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 var (
@@ -57,6 +60,35 @@ func (db *ChainsDB) Resume() error {
 		}
 	}
 	return nil
+}
+
+// StartCrossHeadMaintenance starts a background process that maintains the cross-heads of the chains
+// for now it does not prevent multiple instances of this process from running
+func (db *ChainsDB) StartCrossHeadMaintenance(ctx context.Context) {
+	go func() {
+		// create three safety checkers, one for each safety level
+		unsafeChecker := NewSafetyChecker(Unsafe, *db)
+		safeChecker := NewSafetyChecker(Safe, *db)
+		finalizedChecker := NewSafetyChecker(Finalized, *db)
+		// run the maintenance loop every 10 seconds for now
+		ticker := time.NewTicker(time.Second * 10)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				for _, checker := range []SafetyChecker{
+					unsafeChecker,
+					safeChecker,
+					finalizedChecker} {
+					if err := db.UpdateCrossHeads(checker); err != nil {
+						log.Error("failed to update cross-heads", "err", err, "safety", checker.Name())
+						// we should consider exiting if an error is encountered, as the path forward is unclear
+					}
+				}
+			}
+		}
+	}()
 }
 
 // UpdateCrossSafeHeads updates the cross-heads of all chains
@@ -117,7 +149,7 @@ func (db *ChainsDB) UpdateCrossHeadsForChain(chainID types.ChainID, checker Safe
 	return nil
 }
 
-// UpdateCrossSafeHeads updates the cross-heads of all chains
+// UpdateCrossHeads updates the cross-heads of all chains
 // based on the provided SafetyChecker. The SafetyChecker is used to determine
 // the safety of each log entry in the database, and the cross-head associated with it.
 func (db *ChainsDB) UpdateCrossHeads(checker SafetyChecker) error {
