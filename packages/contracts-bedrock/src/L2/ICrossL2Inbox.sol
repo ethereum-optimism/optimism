@@ -13,6 +13,10 @@ interface ICrossL2Inbox {
         uint256 chainId;
     }
 
+    /// @notice Returns the interop start timestamp.
+    /// @return interopStart_ interop start timestamp.
+    function interopStart() external view returns (uint256 interopStart_);
+
     /// @notice Returns the origin address of the Identifier.
     /// @return _origin The origin address of the Identifier.
     function origin() external view returns (address _origin);
@@ -44,4 +48,12 @@ interface ICrossL2Inbox {
     )
         external
         payable;
+
+    /// @notice Validates a cross chain message on the destination chain
+    ///         and emits an ExecutingMessage event. This function is useful
+    ///         for applications that understand the schema of the _message payload and want to
+    ///         process it in a custom way.
+    /// @param _id      Identifier of the message.
+    /// @param _msgHash Hash of the message payload to call target with.
+    function validateMessage(Identifier calldata _id, bytes32 _msgHash) external;
 }
