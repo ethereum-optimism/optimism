@@ -63,3 +63,7 @@ func (m *StateMutatorMultiThreaded) SetPreimageOffset(val uint32) {
 func (m *StateMutatorMultiThreaded) SetStep(val uint64) {
 	m.state.Step = val
 }
+
+func (m *StateMutatorMultiThreaded) GetRegistersRef() *[32]uint32 {
+	return m.state.GetRegistersRef()
+}
