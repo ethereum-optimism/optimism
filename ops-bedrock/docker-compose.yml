@@ -344,7 +344,6 @@ services:
 
   load-test:
     depends_on:
-      - l2
       - builder-op-geth
     build:
       context: .
