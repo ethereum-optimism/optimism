@@ -8,8 +8,6 @@ services:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
     ports:
       - "9090:9090"
-    networks:
-      - custom_net
 
   grafana:
     image: grafana/grafana:latest
@@ -20,8 +18,6 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD}
     depends_on:
       - prometheus
-    networks:
-      - custom_net
     volumes:
       - grafana-data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning
@@ -30,6 +26,3 @@ services:
 volumes:
   grafana-data:
 
-networks:
-  custom_net:
-    driver: bridge
