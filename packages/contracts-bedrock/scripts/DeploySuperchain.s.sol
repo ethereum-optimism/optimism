@@ -2,13 +2,14 @@
 pragma solidity 0.8.15;
 
 import { Script } from "forge-std/Script.sol";
-import { LibString } from "@solady/utils/LibString.sol";
 
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { ProtocolVersions, ProtocolVersion } from "src/L1/ProtocolVersions.sol";
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
 import { Proxy } from "src/universal/Proxy.sol";
 
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+import { Solarray } from "scripts/libraries/Solarray.sol";
 /**
  * This comment block defines the requirements and rationale for the architecture used in this forge
  * script, along with other scripts that are being written as new Superchain-first deploy scripts to
@@ -176,31 +177,14 @@ contract DeploySuperchainOutput {
     }
 
     function checkOutput() public view {
-        // Assert that all addresses are non-zero and have code.
-        // We use LibString to avoid the need for adding cheatcodes to this contract.
-        address[] memory addresses = new address[](5);
-        addresses[0] = address(superchainProxyAdmin);
-        addresses[1] = address(superchainConfigImpl);
-        addresses[2] = address(superchainConfigProxy);
-        addresses[3] = address(protocolVersionsImpl);
-        addresses[4] = address(protocolVersionsProxy);
-
-        for (uint256 i = 0; i < addresses.length; i++) {
-            address who = addresses[i];
-            require(who != address(0), string.concat("check failed: zero address at index ", LibString.toString(i)));
-            require(
-                who.code.length > 0, string.concat("check failed: no code at ", LibString.toHexStringChecksummed(who))
-            );
-        }
-
-        // All addresses should be unique.
-        for (uint256 i = 0; i < addresses.length; i++) {
-            for (uint256 j = i + 1; j < addresses.length; j++) {
-                string memory err =
-                    string.concat("check failed: duplicates at ", LibString.toString(i), ",", LibString.toString(j));
-                require(addresses[i] != addresses[j], err);
-            }
-        }
+        address[] memory addrs = Solarray.addresses(
+            address(superchainProxyAdmin),
+            address(superchainConfigImpl),
+            address(superchainConfigProxy),
+            address(protocolVersionsImpl),
+            address(protocolVersionsProxy)
+        );
+        DeployUtils.assertValidContractAddresses(addrs);
     }
 }
 
@@ -300,8 +284,8 @@ contract DeploySuperchain is Script {
 
         ProxyAdmin superchainProxyAdmin = _dso.superchainProxyAdmin();
         SuperchainConfig superchainConfigImpl = _dso.superchainConfigImpl();
-        assertValidContractAddress(address(superchainProxyAdmin));
-        assertValidContractAddress(address(superchainConfigImpl));
+        DeployUtils.assertValidContractAddress(address(superchainProxyAdmin));
+        DeployUtils.assertValidContractAddress(address(superchainConfigImpl));
 
         vm.startBroadcast(msg.sender);
         SuperchainConfig superchainConfigProxy = SuperchainConfig(address(new Proxy(address(superchainProxyAdmin))));
@@ -325,8 +309,8 @@ contract DeploySuperchain is Script {
 
         ProxyAdmin superchainProxyAdmin = _dso.superchainProxyAdmin();
         ProtocolVersions protocolVersionsImpl = _dso.protocolVersionsImpl();
-        assertValidContractAddress(address(superchainProxyAdmin));
-        assertValidContractAddress(address(protocolVersionsImpl));
+        DeployUtils.assertValidContractAddress(address(superchainProxyAdmin));
+        DeployUtils.assertValidContractAddress(address(protocolVersionsImpl));
 
         vm.startBroadcast(msg.sender);
         ProtocolVersions protocolVersionsProxy = ProtocolVersions(address(new Proxy(address(superchainProxyAdmin))));
@@ -349,21 +333,13 @@ contract DeploySuperchain is Script {
         address proxyAdminOwner = _dsi.proxyAdminOwner();
 
         ProxyAdmin superchainProxyAdmin = _dso.superchainProxyAdmin();
-        assertValidContractAddress(address(superchainProxyAdmin));
+        DeployUtils.assertValidContractAddress(address(superchainProxyAdmin));
 
         vm.broadcast(msg.sender);
         superchainProxyAdmin.transferOwnership(proxyAdminOwner);
     }
 
     // -------- Utilities --------
-
-    // This takes a sender and an identifier and returns a deterministic address based on the two.
-    // The resulting used to etch the input and output contracts to a deterministic address based on
-    // those two values, where the identifier represents the input or output contract, such as
-    // `optimism.DeploySuperchainInput` or `optimism.DeployOPChainOutput`.
-    function toIOAddress(address _sender, string memory _identifier) internal pure returns (address) {
-        return address(uint160(uint256(keccak256(abi.encode(_sender, _identifier)))));
-    }
 
     function etchIOContracts() internal returns (DeploySuperchainInput dsi_, DeploySuperchainOutput dso_) {
         (dsi_, dso_) = getIOContracts();
@@ -372,12 +348,7 @@ contract DeploySuperchain is Script {
     }
 
     function getIOContracts() public view returns (DeploySuperchainInput dsi_, DeploySuperchainOutput dso_) {
-        dsi_ = DeploySuperchainInput(toIOAddress(msg.sender, "optimism.DeploySuperchainInput"));
-        dso_ = DeploySuperchainOutput(toIOAddress(msg.sender, "optimism.DeploySuperchainOutput"));
-    }
-
-    function assertValidContractAddress(address _address) internal view {
-        require(_address != address(0), "DeploySuperchain: zero address");
-        require(_address.code.length > 0, "DeploySuperchain: no code");
+        dsi_ = DeploySuperchainInput(DeployUtils.toIOAddress(msg.sender, "optimism.DeploySuperchainInput"));
+        dso_ = DeploySuperchainOutput(DeployUtils.toIOAddress(msg.sender, "optimism.DeploySuperchainOutput"));
     }
 }

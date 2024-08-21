@@ -2,7 +2,6 @@
 pragma solidity 0.8.15;
 
 import { Script } from "forge-std/Script.sol";
-import { LibString } from "@solady/utils/LibString.sol";
 
 import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
@@ -15,6 +14,9 @@ import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
+
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+import { Solarray } from "scripts/libraries/Solarray.sol";
 
 // See DeploySuperchain.s.sol for detailed comments on the script architecture used here.
 contract DeployImplementationsInput {
@@ -122,32 +124,18 @@ contract DeployImplementationsOutput {
     }
 
     function checkOutput() public view {
-        address[] memory addresses = new address[](9);
-        addresses[0] = address(optimismPortal2Impl);
-        addresses[1] = address(delayedWETHImpl);
-        addresses[2] = address(preimageOracleSingleton);
-        addresses[3] = address(mipsSingleton);
-        addresses[4] = address(systemConfigImpl);
-        addresses[5] = address(l1CrossDomainMessengerImpl);
-        addresses[6] = address(l1ERC721BridgeImpl);
-        addresses[7] = address(l1StandardBridgeImpl);
-        addresses[8] = address(optimismMintableERC20FactoryImpl);
-
-        for (uint256 i = 0; i < addresses.length; i++) {
-            address who = addresses[i];
-            require(who != address(0), string.concat("check failed: zero address at index ", LibString.toString(i)));
-            require(
-                who.code.length > 0, string.concat("check failed: no code at ", LibString.toHexStringChecksummed(who))
-            );
-        }
-
-        for (uint256 i = 0; i < addresses.length; i++) {
-            for (uint256 j = i + 1; j < addresses.length; j++) {
-                string memory err =
-                    string.concat("check failed: duplicates at ", LibString.toString(i), ",", LibString.toString(j));
-                require(addresses[i] != addresses[j], err);
-            }
-        }
+        address[] memory addrs = Solarray.addresses(
+            address(optimismPortal2Impl),
+            address(delayedWETHImpl),
+            address(preimageOracleSingleton),
+            address(mipsSingleton),
+            address(systemConfigImpl),
+            address(l1CrossDomainMessengerImpl),
+            address(l1ERC721BridgeImpl),
+            address(l1StandardBridgeImpl),
+            address(optimismMintableERC20FactoryImpl)
+        );
+        DeployUtils.assertValidContractAddresses(addrs);
     }
 }
 
@@ -303,10 +291,6 @@ contract DeployImplementations is Script {
 
     // -------- Utilities --------
 
-    function toIOAddress(address _sender, string memory _identifier) internal pure returns (address) {
-        return address(uint160(uint256(keccak256(abi.encode(_sender, _identifier)))));
-    }
-
     function etchIOContracts() internal returns (DeployImplementationsInput dsi_, DeployImplementationsOutput dso_) {
         (dsi_, dso_) = getIOContracts();
         vm.etch(address(dsi_), type(DeployImplementationsInput).runtimeCode);
@@ -314,12 +298,7 @@ contract DeployImplementations is Script {
     }
 
     function getIOContracts() public view returns (DeployImplementationsInput dsi_, DeployImplementationsOutput dso_) {
-        dsi_ = DeployImplementationsInput(toIOAddress(msg.sender, "optimism.DeployImplementationsInput"));
-        dso_ = DeployImplementationsOutput(toIOAddress(msg.sender, "optimism.DeployImplementationsOutput"));
-    }
-
-    function assertValidContractAddress(address _address) internal view {
-        require(_address != address(0), "DeployImplementations: zero address");
-        require(_address.code.length > 0, "DeployImplementations: no code");
+        dsi_ = DeployImplementationsInput(DeployUtils.toIOAddress(msg.sender, "optimism.DeployImplementationsInput"));
+        dso_ = DeployImplementationsOutput(DeployUtils.toIOAddress(msg.sender, "optimism.DeployImplementationsOutput"));
     }
 }
