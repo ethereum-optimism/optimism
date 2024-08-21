@@ -16,6 +16,7 @@ import (
 	"github.com/holiman/uint256"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/builder"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
@@ -35,6 +36,10 @@ type BuilderAPIClient struct {
 	config     *BuilderAPIConfig
 	rollupCfg  *rollup.Config
 	httpClient *client.BasicHTTPClient
+}
+
+type BuilderMetrics interface {
+	RecordBuilderPayloadBytes(num int)
 }
 
 func NewBuilderClient(log log.Logger, rollupCfg *rollup.Config, endpoint string, timeout time.Duration) *BuilderAPIClient {
@@ -60,12 +65,14 @@ func (s *BuilderAPIClient) Timeout() time.Duration {
 	return s.config.Timeout
 }
 
+var _ builder.PayloadBuilder = &BuilderAPIClient{}
+
 type httpErrorResp struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
 }
 
-func (s *BuilderAPIClient) GetPayload(ctx context.Context, ref eth.L2BlockRef, log log.Logger) (*eth.ExecutionPayloadEnvelope, error) {
+func (s *BuilderAPIClient) GetPayload(ctx context.Context, ref eth.L2BlockRef, log log.Logger, metrics builder.BuilderMetrics) (*eth.ExecutionPayloadEnvelope, error) {
 	submitBlockRequest := new(builderSpec.VersionedSubmitBlockRequest)
 	slot := ref.Number + 1
 	parentHash := ref.Hash
@@ -85,6 +92,7 @@ func (s *BuilderAPIClient) GetPayload(ctx context.Context, ref eth.L2BlockRef, l
 	}
 
 	if resp.StatusCode != http.StatusOK {
+		metrics.RecordBuilderPayloadBytes(len(bodyBytes))
 		var errResp httpErrorResp
 		if err := json.Unmarshal(bodyBytes, &errResp); err != nil {
 			log.Warn("failed to unmarshal error response", "error", err, "response", string(bodyBytes))

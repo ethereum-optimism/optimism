@@ -128,7 +128,7 @@ type PayloadRequestResult struct {
 
 func requestPayloadFromBuilder(ctx context.Context, builder builder.PayloadBuilder, l2head eth.L2BlockRef, log log.Logger, metrics Metrics, results chan<- *PayloadRequestResult) {
 	start := time.Now()
-	payload, err := builder.GetPayload(ctx, l2head, log)
+	payload, err := builder.GetPayload(ctx, l2head, log, metrics)
 	metrics.RecordBuilderRequestTime(time.Since(start))
 	if err != nil {
 		results <- &PayloadRequestResult{success: false, error: err}
