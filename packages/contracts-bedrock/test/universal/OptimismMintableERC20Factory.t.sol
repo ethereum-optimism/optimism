@@ -66,10 +66,10 @@ contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
         // Defaults to 18 decimals
         address local = _calculateTokenAddress(_remoteToken, _name, _symbol, 18);
 
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit(address(l2OptimismMintableERC20Factory));
         emit StandardL2TokenCreated(_remoteToken, local);
 
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit(address(l2OptimismMintableERC20Factory));
         emit OptimismMintableERC20Created(local, _remoteToken, _caller);
 
         // Act
@@ -98,10 +98,10 @@ contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
         // Arrange
         address local = _calculateTokenAddress(_remoteToken, _name, _symbol, _decimals);
 
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit(address(l2OptimismMintableERC20Factory));
         emit StandardL2TokenCreated(_remoteToken, local);
 
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit(address(l2OptimismMintableERC20Factory));
         emit OptimismMintableERC20Created(local, _remoteToken, _caller);
 
         // Act

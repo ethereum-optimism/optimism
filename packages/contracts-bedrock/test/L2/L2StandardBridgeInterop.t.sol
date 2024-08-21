@@ -57,12 +57,8 @@ contract L2StandardBridgeInterop_Test is Bridge_Initializer {
     }
 
     /// @notice Assume a valid address for fuzzing
-    function _assumeAddress(address _address) internal view {
-        vm.assume(
-            _address.code.length == 0 // No accounts with code
-                && _address != CONSOLE // The console has no code but behaves like a contract
-                && uint160(_address) > 9 // No precompiles (or zero address)
-        );
+    function _assumeAddress(address _address) internal {
+        assumeAddressIsNot(_address, AddressType.Precompile, AddressType.ForgeAddress);
     }
 }
 
@@ -206,7 +202,7 @@ contract L2StandardBridgeInterop_LegacyToSuper_Test is L2StandardBridgeInterop_T
         _mockDeployments(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY, _to, _remoteToken);
 
         // Expect the `Converted` event to be emitted
-        vm.expectEmit(true, true, true, true, address(l2StandardBridge));
+        vm.expectEmit(address(l2StandardBridge));
         emit Converted(_from, _to, _caller, _amount);
 
         // Mock and expect the `burn` and `mint` functions
@@ -355,7 +351,7 @@ contract L2StandardBridgeInterop_SuperToLegacy_Test is L2StandardBridgeInterop_T
         _mockDeployments(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY, _from, _remoteToken);
 
         // Expect the `Converted` event to be emitted
-        vm.expectEmit(true, true, true, true, address(l2StandardBridge));
+        vm.expectEmit(address(l2StandardBridge));
         emit Converted(_from, _to, _caller, _amount);
 
         // Mock and expect the `burn` and `mint` functions
