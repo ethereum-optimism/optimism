@@ -22,23 +22,37 @@
   },
   {
     "bytes": "20",
-    "label": "bridge",
+    "label": "spacer_1_0_20",
     "offset": 0,
     "slot": "1",
     "type": "address"
   },
   {
     "bytes": "32",
-    "label": "deployments",
+    "label": "deposits",
     "offset": 0,
     "slot": "2",
-    "type": "mapping(address => address)"
+    "type": "mapping(address => mapping(address => uint256))"
   },
   {
-    "bytes": "1536",
-    "label": "__gap",
+    "bytes": "20",
+    "label": "messenger",
     "offset": 0,
     "slot": "3",
-    "type": "uint256[48]"
+    "type": "contract CrossDomainMessenger"
+  },
+  {
+    "bytes": "20",
+    "label": "otherBridge",
+    "offset": 0,
+    "slot": "4",
+    "type": "contract StandardBridge"
+  },
+  {
+    "bytes": "1440",
+    "label": "__gap",
+    "offset": 0,
+    "slot": "5",
+    "type": "uint256[45]"
   }
 ]
