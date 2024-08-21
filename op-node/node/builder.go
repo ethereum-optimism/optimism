@@ -85,7 +85,12 @@ func (s *BuilderAPIClient) GetPayload(ctx context.Context, ref eth.L2BlockRef, l
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("HTTP error response: %v", resp.Status)
+		var errResp httpErrorResp
+		if err := json.Unmarshal(bodyBytes, &errResp); err != nil {
+			log.Warn("failed to unmarshal error response", "error", err, "response", string(bodyBytes))
+			return nil, fmt.Errorf("HTTP error response: %v", resp.Status)
+		}
+		return nil, fmt.Errorf("HTTP error response: %v", errResp.Message)
 	}
 
 	if err := json.Unmarshal(bodyBytes, submitBlockRequest); err != nil {
