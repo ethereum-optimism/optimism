@@ -100,7 +100,7 @@ func (c *ClaimHelper) RequireCorrectOutputRoot(ctx context.Context) {
 }
 
 func (c *ClaimHelper) RequireInvalidStatusCode() {
-	c.require.Equal(byte(mipsevm.VMStatusInvalid), c.claim[0], "should have had valid status code")
+	c.require.Equal(byte(mipsevm.VMStatusInvalid), c.claim[0], "should have had invalid status code")
 }
 
 func (c *ClaimHelper) Attack(ctx context.Context, value common.Hash, opts ...MoveOpt) *ClaimHelper {
