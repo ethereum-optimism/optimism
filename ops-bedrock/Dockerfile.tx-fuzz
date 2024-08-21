@@ -5,7 +5,7 @@ FROM golang:1.21-alpine AS builder
 WORKDIR /app
 
 RUN apk add --no-cache git \
-  && git clone --depth=1 https://github.com/MariusVanDerWijden/tx-fuzz.git . \
+  && git clone --depth=1 https://github.com/jinmel/tx-fuzz.git . \
   && apk del git \
   && cd cmd/livefuzzer \
   && go build
