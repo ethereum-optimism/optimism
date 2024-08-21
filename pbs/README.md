@@ -15,17 +15,13 @@ $ docker build . -t <YOUR_OP_GETH_BUILDER_IMAGE>
 Then you can run the devnet with the following command:
 
 ```shell
-$ DEVNET_BUILDER=true make devnet-up
+$ BUILDER_IMAGE=<YOUR_OP_GETH_BUILDER_IMAGE> DEVNET_BUILDER=true make devnet-up
 ```
 
 To additionally enable load testing through [tx-fuzz](https://github.com/MariusVanDerWijden/tx-fuzz), you can run the following command:
 
 ```shell
-<<<<<<< HEAD
-$ DEVNET_LOAD_TEST=true DEVNET_BUILDER=true make devnet-up
-=======
-$ BUILDER_OP_GETH_IMAGE=<YOUR_OP_GETH_BUILDER_IMAGE> DEVNET_LOAD_TEST=true DEVNET_BUILDER=true make devnet-up
->>>>>>> f5a6f4e3d (change flag name DEVNET_FUZZ to DEVNET_LOAD_TEST)
+$ BUILDER_IMAGE=<YOUR_OP_GETH_BUILDER_IMAGE> DEVNET_LOAD_TEST=true DEVNET_BUILDER=true make devnet-up
 ```
 
 If the BUILDER_OP_GETH_IMAGE is not set, the devnet will use the image from `flashbots/op-geth:latest`.
@@ -49,3 +45,13 @@ The op-geth builder requires the op-node to publish latest attributes as server 
 - `sequencer.publish-attributes`: Set to true to enable the sequencer to publish attributes to the event stream.
 - `eventstream.addr`: The address of the eventstream server.
 - `eventstream.port`: The port of the eventstream server.
+
+
+### builder-op-geth
+
+These are the builder flags to enable the builder service in op-geth:
+
+- `builder`: Enable the builder service.
+- `builder.beacon-endpoints`: The op-node address to get the payload attributes from. Should be set the the builder-op-node.
+- `builder.block_retry_interval`: The interval to retry building the payload.
+- `builder.block_timeout`: The timeout to build the payload.
