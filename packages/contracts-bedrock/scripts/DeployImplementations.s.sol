@@ -31,12 +31,6 @@ contract DeployImplementationsInput {
     bool public inputSet = false;
     Input internal inputs;
 
-    uint256 public withdrawalDelaySeconds;
-    uint256 public minProposalSizeBytes;
-    uint256 public challengePeriodSeconds;
-    uint256 public proofMaturityDelaySeconds;
-    uint256 public disputeGameFinalityDelaySeconds;
-
     function loadInputFile(string memory _infile) public {
         _infile;
         Input memory parsedInput;
@@ -52,17 +46,40 @@ contract DeployImplementationsInput {
 
         inputSet = true;
         inputs = _input;
+    }
 
-        withdrawalDelaySeconds = _input.withdrawalDelaySeconds;
-        minProposalSizeBytes = _input.minProposalSizeBytes;
-        challengePeriodSeconds = _input.challengePeriodSeconds;
-        proofMaturityDelaySeconds = _input.proofMaturityDelaySeconds;
-        disputeGameFinalityDelaySeconds = _input.disputeGameFinalityDelaySeconds;
+    function assertInputSet() internal view {
+        require(inputSet, "DeployImplementationsInput: input not set");
     }
 
     function input() public view returns (Input memory) {
-        require(inputSet, "DeployImplementationsInput: input not set");
+        assertInputSet();
         return inputs;
+    }
+
+    function withdrawalDelaySeconds() public view returns (uint256) {
+        assertInputSet();
+        return inputs.withdrawalDelaySeconds;
+    }
+
+    function minProposalSizeBytes() public view returns (uint256) {
+        assertInputSet();
+        return inputs.minProposalSizeBytes;
+    }
+
+    function challengePeriodSeconds() public view returns (uint256) {
+        assertInputSet();
+        return inputs.challengePeriodSeconds;
+    }
+
+    function proofMaturityDelaySeconds() public view returns (uint256) {
+        assertInputSet();
+        return inputs.proofMaturityDelaySeconds;
+    }
+
+    function disputeGameFinalityDelaySeconds() public view returns (uint256) {
+        assertInputSet();
+        return inputs.disputeGameFinalityDelaySeconds;
     }
 }
 
@@ -79,27 +96,19 @@ contract DeployImplementationsOutput {
         OptimismMintableERC20Factory optimismMintableERC20FactoryImpl;
     }
 
-    OptimismPortal2 public optimismPortal2Impl;
-    DelayedWETH public delayedWETHImpl;
-    PreimageOracle public preimageOracleSingleton;
-    MIPS public mipsSingleton;
-    SystemConfig public systemConfigImpl;
-    L1CrossDomainMessenger public l1CrossDomainMessengerImpl;
-    L1ERC721Bridge public l1ERC721BridgeImpl;
-    L1StandardBridge public l1StandardBridgeImpl;
-    OptimismMintableERC20Factory public optimismMintableERC20FactoryImpl;
+    Output internal outputs;
 
     function set(bytes4 sel, address _addr) public {
         // forgefmt: disable-start
-        if (sel == this.optimismPortal2Impl.selector) optimismPortal2Impl = OptimismPortal2(payable(_addr));
-        else if (sel == this.delayedWETHImpl.selector) delayedWETHImpl = DelayedWETH(payable(_addr));
-        else if (sel == this.preimageOracleSingleton.selector) preimageOracleSingleton = PreimageOracle(_addr);
-        else if (sel == this.mipsSingleton.selector) mipsSingleton = MIPS(_addr);
-        else if (sel == this.systemConfigImpl.selector) systemConfigImpl = SystemConfig(_addr);
-        else if (sel == this.l1CrossDomainMessengerImpl.selector) l1CrossDomainMessengerImpl = L1CrossDomainMessenger(_addr);
-        else if (sel == this.l1ERC721BridgeImpl.selector) l1ERC721BridgeImpl = L1ERC721Bridge(_addr);
-        else if (sel == this.l1StandardBridgeImpl.selector) l1StandardBridgeImpl = L1StandardBridge(payable(_addr));
-        else if (sel == this.optimismMintableERC20FactoryImpl.selector) optimismMintableERC20FactoryImpl = OptimismMintableERC20Factory(_addr);
+        if (sel == this.optimismPortal2Impl.selector) outputs.optimismPortal2Impl = OptimismPortal2(payable(_addr));
+        else if (sel == this.delayedWETHImpl.selector) outputs.delayedWETHImpl = DelayedWETH(payable(_addr));
+        else if (sel == this.preimageOracleSingleton.selector) outputs.preimageOracleSingleton = PreimageOracle(_addr);
+        else if (sel == this.mipsSingleton.selector) outputs.mipsSingleton = MIPS(_addr);
+        else if (sel == this.systemConfigImpl.selector) outputs.systemConfigImpl = SystemConfig(_addr);
+        else if (sel == this.l1CrossDomainMessengerImpl.selector) outputs.l1CrossDomainMessengerImpl = L1CrossDomainMessenger(_addr);
+        else if (sel == this.l1ERC721BridgeImpl.selector) outputs.l1ERC721BridgeImpl = L1ERC721Bridge(_addr);
+        else if (sel == this.l1StandardBridgeImpl.selector) outputs.l1StandardBridgeImpl = L1StandardBridge(payable(_addr));
+        else if (sel == this.optimismMintableERC20FactoryImpl.selector) outputs.optimismMintableERC20FactoryImpl = OptimismMintableERC20Factory(_addr);
         else revert("DeployImplementationsOutput: unknown selector");
         // forgefmt: disable-end
     }
@@ -110,32 +119,67 @@ contract DeployImplementationsOutput {
     }
 
     function output() public view returns (Output memory) {
-        return Output({
-            optimismPortal2Impl: optimismPortal2Impl,
-            delayedWETHImpl: delayedWETHImpl,
-            preimageOracleSingleton: preimageOracleSingleton,
-            mipsSingleton: mipsSingleton,
-            systemConfigImpl: systemConfigImpl,
-            l1CrossDomainMessengerImpl: l1CrossDomainMessengerImpl,
-            l1ERC721BridgeImpl: l1ERC721BridgeImpl,
-            l1StandardBridgeImpl: l1StandardBridgeImpl,
-            optimismMintableERC20FactoryImpl: optimismMintableERC20FactoryImpl
-        });
+        return outputs;
     }
 
     function checkOutput() public view {
         address[] memory addrs = Solarray.addresses(
-            address(optimismPortal2Impl),
-            address(delayedWETHImpl),
-            address(preimageOracleSingleton),
-            address(mipsSingleton),
-            address(systemConfigImpl),
-            address(l1CrossDomainMessengerImpl),
-            address(l1ERC721BridgeImpl),
-            address(l1StandardBridgeImpl),
-            address(optimismMintableERC20FactoryImpl)
+            address(outputs.optimismPortal2Impl),
+            address(outputs.delayedWETHImpl),
+            address(outputs.preimageOracleSingleton),
+            address(outputs.mipsSingleton),
+            address(outputs.systemConfigImpl),
+            address(outputs.l1CrossDomainMessengerImpl),
+            address(outputs.l1ERC721BridgeImpl),
+            address(outputs.l1StandardBridgeImpl),
+            address(outputs.optimismMintableERC20FactoryImpl)
         );
         DeployUtils.assertValidContractAddresses(addrs);
+    }
+
+    function optimismPortal2Impl() public view returns (OptimismPortal2) {
+        DeployUtils.assertValidContractAddress(address(outputs.optimismPortal2Impl));
+        return outputs.optimismPortal2Impl;
+    }
+
+    function delayedWETHImpl() public view returns (DelayedWETH) {
+        DeployUtils.assertValidContractAddress(address(outputs.delayedWETHImpl));
+        return outputs.delayedWETHImpl;
+    }
+
+    function preimageOracleSingleton() public view returns (PreimageOracle) {
+        DeployUtils.assertValidContractAddress(address(outputs.preimageOracleSingleton));
+        return outputs.preimageOracleSingleton;
+    }
+
+    function mipsSingleton() public view returns (MIPS) {
+        DeployUtils.assertValidContractAddress(address(outputs.mipsSingleton));
+        return outputs.mipsSingleton;
+    }
+
+    function systemConfigImpl() public view returns (SystemConfig) {
+        DeployUtils.assertValidContractAddress(address(outputs.systemConfigImpl));
+        return outputs.systemConfigImpl;
+    }
+
+    function l1CrossDomainMessengerImpl() public view returns (L1CrossDomainMessenger) {
+        DeployUtils.assertValidContractAddress(address(outputs.l1CrossDomainMessengerImpl));
+        return outputs.l1CrossDomainMessengerImpl;
+    }
+
+    function l1ERC721BridgeImpl() public view returns (L1ERC721Bridge) {
+        DeployUtils.assertValidContractAddress(address(outputs.l1ERC721BridgeImpl));
+        return outputs.l1ERC721BridgeImpl;
+    }
+
+    function l1StandardBridgeImpl() public view returns (L1StandardBridge) {
+        DeployUtils.assertValidContractAddress(address(outputs.l1StandardBridgeImpl));
+        return outputs.l1StandardBridgeImpl;
+    }
+
+    function optimismMintableERC20FactoryImpl() public view returns (OptimismMintableERC20Factory) {
+        DeployUtils.assertValidContractAddress(address(outputs.optimismMintableERC20FactoryImpl));
+        return outputs.optimismMintableERC20FactoryImpl;
     }
 }
 

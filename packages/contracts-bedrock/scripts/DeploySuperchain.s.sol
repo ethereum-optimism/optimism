@@ -56,6 +56,7 @@ import { Solarray } from "scripts/libraries/Solarray.sol";
  * Additionally, we intentionally use "Input" and "Output" terminology to clearly distinguish these
  * scripts from the existing ones that "Config" and "Artifacts" terminology.
  */
+
 contract DeploySuperchainInput {
     // The input struct contains all the input data required for the deployment.
     struct Input {
@@ -77,56 +78,77 @@ contract DeploySuperchainInput {
     bool public inputSet = false;
 
     // The full input struct is kept in storage. It is not exposed because the return type would be
-    // a tuple, but it's more convenient for the return type to be the struct itself. Therefore the
-    // struct is exposed via the `input()` getter method.
+    // a tuple, and it's more convenient for the return type to be the struct itself. Therefore the
+    // struct is exposed via the `input()` getter method below.
     Input internal inputs;
-
-    // And each field is exposed via it's own getter method. We can equivalently remove these
-    // storage variables and add getter methods that return the input struct fields directly, but
-    // that is more verbose with more boilerplate, especially for larger scripts with many inputs.
-    // Unlike the `input()` getter, these getters do not revert if the input is not set. The caller
-    // should check the `inputSet` value before calling any of these getters.
-    address public proxyAdminOwner;
-    address public protocolVersionsOwner;
-    address public guardian;
-    bool public paused;
-    ProtocolVersion public requiredProtocolVersion;
-    ProtocolVersion public recommendedProtocolVersion;
 
     // Load the input from a TOML file.
     function loadInputFile(string memory _infile) public {
         _infile;
         Input memory parsedInput;
         loadInput(parsedInput);
-        require(false, "DeploySuperchainInput: loadInput is not implemented");
+        require(false, "DeploySuperchainInput: not implemented");
     }
 
     // Load the input from a struct.
     function loadInput(Input memory _input) public {
         // As a defensive measure, we only allow inputs to be set once.
-        require(!inputSet, "DeploySuperchainInput: Input already set");
+        require(!inputSet, "DeploySuperchainInput: input already set");
 
         // All assertions on inputs happen here. You cannot set any inputs in Solidity unless
         // they're all valid. For Go testing, the input and outputs
-        require(_input.roles.proxyAdminOwner != address(0), "DeploySuperchainInput: Null proxyAdminOwner");
-        require(_input.roles.protocolVersionsOwner != address(0), "DeploySuperchainInput: Null protocolVersionsOwner");
-        require(_input.roles.guardian != address(0), "DeploySuperchainInput: Null guardian");
+        require(_input.roles.proxyAdminOwner != address(0), "DeploySuperchainInput: null proxyAdminOwner");
+        require(_input.roles.protocolVersionsOwner != address(0), "DeploySuperchainInput: null protocolVersionsOwner");
+        require(_input.roles.guardian != address(0), "DeploySuperchainInput: null guardian");
 
         // We now set all values in storage.
         inputSet = true;
         inputs = _input;
-
-        proxyAdminOwner = _input.roles.proxyAdminOwner;
-        protocolVersionsOwner = _input.roles.protocolVersionsOwner;
-        guardian = _input.roles.guardian;
-        paused = _input.paused;
-        requiredProtocolVersion = _input.requiredProtocolVersion;
-        recommendedProtocolVersion = _input.recommendedProtocolVersion;
     }
 
+    function assertInputSet() internal view {
+        require(inputSet, "DeploySuperchainInput: input not set");
+    }
+
+    // This exposes the full input data as a struct, and it reverts if the input has not been set.
     function input() public view returns (Input memory) {
-        require(inputSet, "DeploySuperchainInput: Input not set");
+        assertInputSet();
         return inputs;
+    }
+
+    // Each field of the input struct is exposed via it's own getter method. Using public storage
+    // variables here would be more verbose, but would also be more error-prone, as it would
+    // require the caller to remember to check the `inputSet` flag before accessing any of the
+    // fields. With getter methods, we can be sure that the input is set before accessing any field.
+
+    function proxyAdminOwner() public view returns (address) {
+        assertInputSet();
+        return inputs.roles.proxyAdminOwner;
+    }
+
+    function protocolVersionsOwner() public view returns (address) {
+        assertInputSet();
+        return inputs.roles.protocolVersionsOwner;
+    }
+
+    function guardian() public view returns (address) {
+        assertInputSet();
+        return inputs.roles.guardian;
+    }
+
+    function paused() public view returns (bool) {
+        assertInputSet();
+        return inputs.paused;
+    }
+
+    function requiredProtocolVersion() public view returns (ProtocolVersion) {
+        assertInputSet();
+        return inputs.requiredProtocolVersion;
+    }
+
+    function recommendedProtocolVersion() public view returns (ProtocolVersion) {
+        assertInputSet();
+        return inputs.recommendedProtocolVersion;
     }
 }
 
@@ -142,49 +164,66 @@ contract DeploySuperchainOutput {
 
     // We use a similar pattern as the input contract to expose outputs. Because outputs are set
     // individually, and deployment steps are modular and composable, we do not have an equivalent
-    // to the overall `input` and `inputSet` variables.
-    ProxyAdmin public superchainProxyAdmin;
-    SuperchainConfig public superchainConfigImpl;
-    SuperchainConfig public superchainConfigProxy;
-    ProtocolVersions public protocolVersionsImpl;
-    ProtocolVersions public protocolVersionsProxy;
+    // to the overall `inputSet` variable. However, we do hold everything in a struct, then
+    // similarly expose each field via a getter method. This getter method reverts if the output has
+    // not been set, ensuring that the caller cannot access any output fields until they have been set.
+    Output internal outputs;
 
     // This method lets each field be set individually. The selector of an output's getter method
     // is used to determine which field to set.
     function set(bytes4 sel, address _address) public {
-        if (sel == this.superchainProxyAdmin.selector) superchainProxyAdmin = ProxyAdmin(_address);
-        else if (sel == this.superchainConfigImpl.selector) superchainConfigImpl = SuperchainConfig(_address);
-        else if (sel == this.superchainConfigProxy.selector) superchainConfigProxy = SuperchainConfig(_address);
-        else if (sel == this.protocolVersionsImpl.selector) protocolVersionsImpl = ProtocolVersions(_address);
-        else if (sel == this.protocolVersionsProxy.selector) protocolVersionsProxy = ProtocolVersions(_address);
-        else revert("DeploySuperchainOutput: Unknown selector");
+        if (sel == this.superchainProxyAdmin.selector) outputs.superchainProxyAdmin = ProxyAdmin(_address);
+        else if (sel == this.superchainConfigImpl.selector) outputs.superchainConfigImpl = SuperchainConfig(_address);
+        else if (sel == this.superchainConfigProxy.selector) outputs.superchainConfigProxy = SuperchainConfig(_address);
+        else if (sel == this.protocolVersionsImpl.selector) outputs.protocolVersionsImpl = ProtocolVersions(_address);
+        else if (sel == this.protocolVersionsProxy.selector) outputs.protocolVersionsProxy = ProtocolVersions(_address);
+        else revert("DeploySuperchainOutput: unknown selector");
     }
 
     // Save the output to a TOML file.
     function writeOutputFile(string memory _outfile) public pure {
         _outfile;
-        require(false, "DeploySuperchainOutput: saveOutput not implemented");
+        require(false, "DeploySuperchainOutput: not implemented");
     }
 
     function output() public view returns (Output memory) {
-        return Output({
-            superchainProxyAdmin: superchainProxyAdmin,
-            superchainConfigImpl: superchainConfigImpl,
-            superchainConfigProxy: superchainConfigProxy,
-            protocolVersionsImpl: protocolVersionsImpl,
-            protocolVersionsProxy: protocolVersionsProxy
-        });
+        return outputs;
     }
 
     function checkOutput() public view {
         address[] memory addrs = Solarray.addresses(
-            address(superchainProxyAdmin),
-            address(superchainConfigImpl),
-            address(superchainConfigProxy),
-            address(protocolVersionsImpl),
-            address(protocolVersionsProxy)
+            address(outputs.superchainProxyAdmin),
+            address(outputs.superchainConfigImpl),
+            address(outputs.superchainConfigProxy),
+            address(outputs.protocolVersionsImpl),
+            address(outputs.protocolVersionsProxy)
         );
         DeployUtils.assertValidContractAddresses(addrs);
+    }
+
+    function superchainProxyAdmin() public view returns (ProxyAdmin) {
+        DeployUtils.assertValidContractAddress(address(outputs.superchainProxyAdmin));
+        return outputs.superchainProxyAdmin;
+    }
+
+    function superchainConfigImpl() public view returns (SuperchainConfig) {
+        DeployUtils.assertValidContractAddress(address(outputs.superchainConfigImpl));
+        return outputs.superchainConfigImpl;
+    }
+
+    function superchainConfigProxy() public view returns (SuperchainConfig) {
+        DeployUtils.assertValidContractAddress(address(outputs.superchainConfigProxy));
+        return outputs.superchainConfigProxy;
+    }
+
+    function protocolVersionsImpl() public view returns (ProtocolVersions) {
+        DeployUtils.assertValidContractAddress(address(outputs.protocolVersionsImpl));
+        return outputs.protocolVersionsImpl;
+    }
+
+    function protocolVersionsProxy() public view returns (ProtocolVersions) {
+        DeployUtils.assertValidContractAddress(address(outputs.protocolVersionsProxy));
+        return outputs.protocolVersionsProxy;
     }
 }
 
@@ -232,7 +271,7 @@ contract DeploySuperchain is Script {
     // This entrypoint is useful for testing purposes, as it doesn't use any file I/O.
     function run(DeploySuperchainInput _dsi, DeploySuperchainOutput _dso) public {
         // Verify that the input contract has been set.
-        require(_dsi.inputSet(), "DeploySuperchain: Input not set");
+        require(_dsi.inputSet(), "DeploySuperchain: input not set");
 
         // Deploy the proxy admin, with the owner set to the deployer.
         deploySuperchainProxyAdmin(_dsi, _dso);
@@ -278,14 +317,11 @@ contract DeploySuperchain is Script {
     }
 
     function deployAndInitializeSuperchainConfig(DeploySuperchainInput _dsi, DeploySuperchainOutput _dso) public {
-        require(_dsi.inputSet(), "DeploySuperchain: Input not set");
         address guardian = _dsi.guardian();
         bool paused = _dsi.paused();
 
         ProxyAdmin superchainProxyAdmin = _dso.superchainProxyAdmin();
         SuperchainConfig superchainConfigImpl = _dso.superchainConfigImpl();
-        DeployUtils.assertValidContractAddress(address(superchainProxyAdmin));
-        DeployUtils.assertValidContractAddress(address(superchainConfigImpl));
 
         vm.startBroadcast(msg.sender);
         SuperchainConfig superchainConfigProxy = SuperchainConfig(address(new Proxy(address(superchainProxyAdmin))));
@@ -301,16 +337,12 @@ contract DeploySuperchain is Script {
     }
 
     function deployAndInitializeProtocolVersions(DeploySuperchainInput _dsi, DeploySuperchainOutput _dso) public {
-        require(_dsi.inputSet(), "DeploySuperchain: Input not set");
-
         address protocolVersionsOwner = _dsi.protocolVersionsOwner();
         ProtocolVersion requiredProtocolVersion = _dsi.requiredProtocolVersion();
         ProtocolVersion recommendedProtocolVersion = _dsi.recommendedProtocolVersion();
 
         ProxyAdmin superchainProxyAdmin = _dso.superchainProxyAdmin();
         ProtocolVersions protocolVersionsImpl = _dso.protocolVersionsImpl();
-        DeployUtils.assertValidContractAddress(address(superchainProxyAdmin));
-        DeployUtils.assertValidContractAddress(address(protocolVersionsImpl));
 
         vm.startBroadcast(msg.sender);
         ProtocolVersions protocolVersionsProxy = ProtocolVersions(address(new Proxy(address(superchainProxyAdmin))));
@@ -329,7 +361,6 @@ contract DeploySuperchain is Script {
     }
 
     function transferProxyAdminOwnership(DeploySuperchainInput _dsi, DeploySuperchainOutput _dso) public {
-        require(_dsi.inputSet(), "DeploySuperchain: Input not set");
         address proxyAdminOwner = _dsi.proxyAdminOwner();
 
         ProxyAdmin superchainProxyAdmin = _dso.superchainProxyAdmin();
