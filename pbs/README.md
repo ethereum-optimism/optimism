@@ -24,7 +24,7 @@ To additionally enable load testing through [tx-fuzz](https://github.com/MariusV
 $ BUILDER_IMAGE=<YOUR_OP_GETH_BUILDER_IMAGE> DEVNET_LOAD_TEST=true DEVNET_BUILDER=true make devnet-up
 ```
 
-If the BUILDER_OP_GETH_IMAGE is not set, the devnet will use the image from `flashbots/op-geth:latest`.
+If the `BUILDER_IMAGE` is not set, the devnet will use the image from `flashbots/op-geth:latest`.
 
 ## Configuration
 
