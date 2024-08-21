@@ -274,6 +274,8 @@ services:
     image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-node:devnet
     depends_on:
       - l1
+      - l2
+      - op-node
       - builder-op-geth
     command: >
       op-node
@@ -303,6 +305,10 @@ services:
         ipv4_address: 10.5.0.123
 
   builder-op-geth:
+    depends_on:
+      - l1
+      - l2
+      - op-node
     image: jinmel/builder:latest # NOTE: Replace with the builder image
     ports:
       - "5545:8545"
@@ -335,3 +341,20 @@ services:
     networks:
       custom_net:
         ipv4_address: "10.5.0.201"
+
+  load-test:
+    depends_on:
+      - builder-op-geth
+    build:
+      context: .
+      dockerfile: Dockerfile.tx-fuzz
+    entrypoint:
+      - "/app/livefuzzer"
+      - "spam"
+      - "--seed=31337"
+      - "--slot-time=2s"
+      - "--sk=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+      - "--rpc=http://builder-op-geth:8545"
+    networks:
+      custom_net:
+        ipv4_address: 10.5.0.78
