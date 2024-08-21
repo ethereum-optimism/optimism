@@ -14,6 +14,7 @@ if [ ! -d "$GETH_CHAINDATA_DIR" ]; then
 	echo "Initializing genesis."
 	geth --verbosity="$VERBOSITY" init \
 		--datadir="$GETH_DATA_DIR" \
+		--state.scheme=hash \
 		"$GENESIS_FILE_PATH"
 else
 	echo "$GETH_CHAINDATA_DIR exists."
@@ -37,8 +38,8 @@ exec geth \
 	--ws.origins="*" \
 	--ws.api=debug,eth,txpool,net,engine \
 	--syncmode=full \
-  --nodiscover \
-  --maxpeers=0 \
+	--nodiscover \
+	--maxpeers=0 \
 	--networkid="$CHAIN_ID" \
 	--rpc.allow-unprotected-txs \
 	--authrpc.addr="0.0.0.0" \
@@ -46,6 +47,7 @@ exec geth \
 	--authrpc.vhosts="*" \
 	--authrpc.jwtsecret=/config/jwt-secret.txt \
 	--gcmode=archive \
+	--state.scheme=hash \
 	--metrics \
 	--metrics.addr=0.0.0.0 \
 	--metrics.port=6060 \

@@ -1,4 +1,4 @@
-FROM jinmel/op-geth:latest
+FROM us-docker.pkg.dev/oplabs-tools-artifacts/images/op-geth:optimism
 
 RUN apk add --no-cache jq
 
