@@ -24,8 +24,9 @@ const (
 	DepositsCompleteSignature  = "depositsComplete()"
 	L1InfoArguments            = 8
 	L1InfoBedrockLen           = 4 + 32*L1InfoArguments
-	L1InfoEcotoneLen           = 4 + 32*5 // after Ecotone upgrade, args are packed into 5 32-byte slots
-	DepositsCompleteLen        = 4        // only the selector
+	L1InfoEcotoneLen           = 4 + 32*5       // after Ecotone upgrade, args are packed into 5 32-byte slots
+	DepositsCompleteLen        = 4              // only the selector
+	DepositsCompleteGas        = uint64(15_000) // over estimated gas limit for DepositsComplete transaction
 )
 
 var (
@@ -400,7 +401,7 @@ func DepositsCompleteDeposit(seqNumber uint64, block eth.BlockInfo) (*types.Depo
 		// GasBenchMark_L1BlockIsthmus_DepositsComplete:test_depositsComplete_benchmark() (gas: 7768)
 		// GasBenchMark_L1BlockIsthmus_DepositsComplete_Warm:test_depositsComplete_benchmark() (gas: 5768)
 		// see `test_depositsComplete_benchmark` at: `/packages/contracts-bedrock/test/BenchmarkTest.t.sol`
-		Gas:                 15_000,
+		Gas:                 DepositsCompleteGas,
 		IsSystemTransaction: false,
 		Data:                DepositsCompleteBytes4,
 	}

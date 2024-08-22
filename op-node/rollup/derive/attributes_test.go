@@ -232,10 +232,12 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		require.Equal(t, l2Parent.Time+cfg.BlockTime, uint64(attrs.Timestamp))
 		require.Equal(t, eth.Bytes32(l1Info.InfoMixDigest), attrs.PrevRandao)
 		require.Equal(t, predeploys.SequencerFeeVaultAddr, attrs.SuggestedFeeRecipient)
-		require.Equal(t, len(l2Txs), len(attrs.Transactions), "Expected txs to equal l1 info tx + user deposit txs")
+		require.Equal(t, len(l2Txs), len(attrs.Transactions), "Expected txs to equal l1 info tx + user deposit txs + DepositsComplete")
 		require.Equal(t, l2Txs, attrs.Transactions)
+		require.Equal(t, DepositsCompleteBytes4, attrs.Transactions[1+len(depositTxs)][:4])
 		require.True(t, attrs.NoTxPool)
 		depositsCompleteTx, err := DepositsCompleteBytes(l2Parent.SequenceNumber, l1Info)
+		require.NoError(t, err)
 		require.Equal(t, l2Txs, append(attrs.Transactions, depositsCompleteTx))
 	})
 

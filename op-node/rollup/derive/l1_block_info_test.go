@@ -176,6 +176,8 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 		require.False(t, depTx.IsSystemTransaction)
 		require.Equal(t, depTx.Gas, uint64(RegolithSystemTxGas))
 		require.Equal(t, L1InfoEcotoneLen, len(depTx.Data))
+		require.Equal(t, L1InfoFuncEcotoneBytes4, depTx.Data[:4])
+		// should still send Ecotone signature since upgrade happens after deposits
 	})
 	t.Run("first-block isthmus", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
@@ -192,6 +194,7 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 		require.False(t, depTx.IsSystemTransaction)
 		require.Equal(t, depTx.Gas, uint64(RegolithSystemTxGas))
 		require.Equal(t, L1InfoBedrockLen, len(depTx.Data))
+		require.Equal(t, L1InfoFuncIsthmusBytes4, depTx.Data[:4])
 	})
 	t.Run("genesis-block isthmus", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
@@ -208,5 +211,32 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 		require.False(t, depTx.IsSystemTransaction)
 		require.Equal(t, depTx.Gas, uint64(RegolithSystemTxGas))
 		require.Equal(t, L1InfoEcotoneLen, len(depTx.Data))
+		require.Equal(t, L1InfoBedrockLen, len(depTx.Data))
+	})
+}
+
+func TestDepositsCompleteBytes(t *testing.T) {
+	randomSeqNr := func(rng *rand.Rand) uint64 {
+		return rng.Uint64()
+	}
+	t.Run("valid return bytes", func(t *testing.T) {
+		rng := rand.New(rand.NewSource(1234))
+		info := testutils.MakeBlockInfo(nil)(rng)
+		depTxByes, err := DepositsCompleteBytes(randomSeqNr(rng), info)
+		require.NoError(t, err)
+		require.Equal(t, depTxByes, DepositsCompleteBytes4)
+		require.Equal(t, DepositsCompleteLen, len(depTxByes))
+	})
+	t.Run("valid return Transaction", func(t *testing.T) {
+		rng := rand.New(rand.NewSource(1234))
+		info := testutils.MakeBlockInfo(nil)(rng)
+		depTx, err := DepositsCompleteDeposit(randomSeqNr(rng), info)
+		require.NoError(t, err)
+		require.Equal(t, depTx.Data, DepositsCompleteBytes4)
+		require.Equal(t, DepositsCompleteLen, len(depTx.Data))
+		require.Equal(t, DepositsCompleteGas, depTx.Gas)
+		require.False(t, depTx.IsSystemTransaction)
+		require.Equal(t, depTx.Value, big.NewInt(0))
+		require.Equal(t, depTx.From, L1InfoDepositerAddress)
 	})
 }
