@@ -195,7 +195,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		require.Equal(t, l1InfoTx, []byte(attrs.Transactions[0]))
 		require.True(t, attrs.NoTxPool)
 	})
-	t.Run("same origin with deposits on Isthmus", func(t *testing.T) {
+	t.Run("same origin with deposits on post-Isthmus", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
 		l1Fetcher := &testutils.MockL1Source{}
 		defer l1Fetcher.AssertExpectations(t)
@@ -217,7 +217,12 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		usedDepositTxs, err := encodeDeposits(depositTxs)
 		require.NoError(t, err)
 
+		// sets config to post-interop
+		cfg.RegolithTime = &zero64
+		cfg.EcotoneTime = &zero64
 		cfg.InteropTime = &zero64
+		cfg.BlockTime = 2
+
 		epoch := l1Info.ID()
 		l1InfoTx, err := L1InfoDepositBytes(cfg, testSysCfg, 0, l1Info, 0)
 		require.NoError(t, err)
