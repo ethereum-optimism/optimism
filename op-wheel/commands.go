@@ -62,7 +62,7 @@ var (
 	}
 	EngineJWT = &cli.StringFlag{
 		Name:    "engine.jwt-secret",
-		Usage:   "JWT secret used to authenticate Engine API communication with.",
+		Usage:   "JWT secret used to authenticate Engine API communication with. Takes precedence over engine.jwt-secret-path.",
 		EnvVars: prefixEnvVars("ENGINE_JWT_SECRET"),
 	}
 	EngineJWTPath = &cli.StringFlag{
@@ -182,22 +182,35 @@ func initLogger(ctx *cli.Context) log.Logger {
 }
 
 func initEngineRPC(ctx *cli.Context, lgr log.Logger) (client.RPC, error) {
-	var jwtString string
-	if ctx.IsSet(EngineJWT.Name) {
-		jwtString = ctx.String(EngineJWT.Name)
-	} else if ctx.IsSet(EngineJWTPath.Name) {
-		jwtData, err := os.ReadFile(ctx.String(EngineJWTPath.Name))
-		if err != nil {
-			return nil, fmt.Errorf("failed to read jwt: %w", err)
+	jwtString := ctx.String(EngineJWT.Name) // no IsSet check; allow empty value to be overridden
+	if jwtString == "" {
+		if ctx.IsSet(EngineJWTPath.Name) {
+			jwtData, err := os.ReadFile(ctx.String(EngineJWTPath.Name))
+			if err != nil {
+				return nil, fmt.Errorf("failed to read jwt: %w", err)
+			}
+			jwtString = string(jwtData)
+		} else {
+			return nil, errors.New("neither JWT secret string nor path provided")
 		}
-		jwtString = string(jwtData)
-	} else {
-		return nil, errors.New("neither JWT secret string nor path provided")
 	}
-	secret := common.HexToHash(strings.TrimSpace(jwtString))
+	secret, err := parseJWTSecret(jwtString)
+	if err != nil {
+		return nil, err
+	}
 	endpoint := ctx.String(EngineEndpoint.Name)
 	return client.NewRPC(ctx.Context, lgr, endpoint,
 		client.WithGethRPCOptions(rpc.WithHTTPAuth(node.NewJWTAuth(secret))))
+}
+
+func parseJWTSecret(v string) (common.Hash, error) {
+	v = strings.TrimSpace(v)
+	v = "0x" + strings.TrimPrefix(v, "0x") // ensure prefix is there
+	var out common.Hash
+	if err := out.UnmarshalText([]byte(v)); err != nil {
+		return common.Hash{}, fmt.Errorf("failed to parse JWT secret: %w", err)
+	}
+	return out, nil
 }
 
 func initVersionProvider(ctx *cli.Context, lgr log.Logger) (sources.EngineVersionProvider, error) {
