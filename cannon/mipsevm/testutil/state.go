@@ -157,6 +157,7 @@ func CreateExpectedState(fromState mipsevm.FPVMState) *ExpectedState {
 
 type StateValidationFlags int
 
+// TODO(cp-983) - Remove these validation hacks
 const (
 	SkipMemoryValidation StateValidationFlags = iota
 	SkipHintValidation

@@ -285,7 +285,7 @@ func FuzzStatePreimageRead(f *testing.F) {
 				require.NoError(t, err)
 				require.True(t, stepWitness.HasPreimage())
 
-				// TODO - Do stricter validation of expected memory
+				// TODO(cp-983) - Do stricter validation of expected memory
 				expected.Validate(t, state, testutil.SkipMemoryValidation)
 				if writeLen == 0 {
 					// With a non-zero writeLen, we may not modify memory because the length prefix is just writing zeroes
@@ -309,7 +309,7 @@ func FuzzStateHintWrite(f *testing.F) {
 			t.Run(v.Name, func(t *testing.T) {
 				preimageData := []byte("hello world")
 				preimageKey := preimage.Keccak256Key(crypto.Keccak256Hash(preimageData)).PreimageKey()
-				// TODO - use HintTrackingOracle
+				// TODO(cp-983) - use testutil.HintTrackingOracle, validate expected hints
 				oracle := testutil.StaticOracle(t, preimageData) // only used for hinting
 
 				goVm := v.VMFactory(oracle, os.Stdout, os.Stderr, testutil.CreateLogger(),
@@ -339,7 +339,7 @@ func FuzzStateHintWrite(f *testing.F) {
 				require.NoError(t, err)
 				require.False(t, stepWitness.HasPreimage())
 
-				// TODO - validate expected hints
+				// TODO(cp-983) - validate expected hints
 				expected.Validate(t, state, testutil.SkipHintValidation)
 
 				evm := testutil.NewMIPSEVM(v.Contracts)
@@ -388,7 +388,7 @@ func FuzzStatePreimageWrite(f *testing.F) {
 				require.NoError(t, err)
 				require.False(t, stepWitness.HasPreimage())
 
-				// TODO - validate preimage key
+				// TODO(cp-983) - validate preimage key
 				expected.Validate(t, state, testutil.SkipPreimageKeyValidation)
 
 				evm := testutil.NewMIPSEVM(v.Contracts)
