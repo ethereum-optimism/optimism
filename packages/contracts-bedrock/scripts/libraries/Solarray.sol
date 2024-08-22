@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-// A trimmed-down and formatted version of https://github.com/emo-eth.
+// A trimmed-down and formatted version of https://github.com/emo-eth/solarray.
 //
 // This is provided to provide better UX when generating and using arrays in tests and scripts,
 // since Solidity does not have great array UX.
