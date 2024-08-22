@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"strings"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -32,6 +33,7 @@ func RunVMTests_OpenMips[T mipsevm.FPVMState](t *testing.T, stateFactory StateFa
 			oracle := SelectOracleFixture(t, f.Name())
 			// Short-circuit early for exit_group.bin
 			exitGroup := f.Name() == "exit_group.bin"
+			expectPanic := strings.HasSuffix(f.Name(), "panic.bin")
 
 			// TODO: currently tests are compiled as flat binary objects
 			// We can use more standard tooling to compile them to ELF files and get remove maketests.py
@@ -47,9 +49,20 @@ func RunVMTests_OpenMips[T mipsevm.FPVMState](t *testing.T, stateFactory StateFa
 			require.NoError(t, err, "load program into state")
 
 			// set the return address ($ra) to jump into when test completes
-			state.GetRegisters()[31] = EndAddr
+			state.GetRegistersRef()[31] = EndAddr
 
 			us := vmFactory(state, oracle, os.Stdout, os.Stderr, CreateLogger())
+
+			// Catch panics and check if they are expected
+			defer func() {
+				if r := recover(); r != nil {
+					if expectPanic {
+						// Success
+					} else {
+						t.Errorf("unexpected panic: %v", r)
+					}
+				}
+			}()
 
 			for i := 0; i < 1000; i++ {
 				if us.GetState().GetPC() == EndAddr {
@@ -66,6 +79,8 @@ func RunVMTests_OpenMips[T mipsevm.FPVMState](t *testing.T, stateFactory StateFa
 				require.NotEqual(t, uint32(EndAddr), us.GetState().GetPC(), "must not reach end")
 				require.True(t, us.GetState().GetExited(), "must set exited state")
 				require.Equal(t, uint8(1), us.GetState().GetExitCode(), "must exit with 1")
+			} else if expectPanic {
+				require.NotEqual(t, uint32(EndAddr), us.GetState().GetPC(), "must not reach end")
 			} else {
 				require.Equal(t, uint32(EndAddr), us.GetState().GetPC(), "must reach end")
 				done, result := state.GetMemory().GetMemory(BaseAddrEnd+4), state.GetMemory().GetMemory(BaseAddrEnd+8)

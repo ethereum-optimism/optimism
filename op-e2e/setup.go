@@ -120,7 +120,7 @@ func DefaultSystemConfig(t testing.TB) SystemConfig {
 		Secrets:                secrets,
 		Premine:                premine,
 		DeployConfig:           deployConfig,
-		L1Deployments:          config.L1Deployments,
+		L1Deployments:          l1Deployments,
 		L1InfoPredeployAddress: predeploys.L1BlockAddr,
 		JWTFilePath:            writeDefaultJWT(t),
 		JWTSecret:              testingJWTSecret,
@@ -165,7 +165,7 @@ func DefaultSystemConfig(t testing.TB) SystemConfig {
 			RoleVerif:  testlog.Logger(t, log.LevelInfo).New("role", RoleVerif),
 			RoleSeq:    testlog.Logger(t, log.LevelInfo).New("role", RoleSeq),
 			"batcher":  testlog.Logger(t, log.LevelInfo).New("role", "batcher"),
-			"proposer": testlog.Logger(t, log.LevelCrit).New("role", "proposer"),
+			"proposer": testlog.Logger(t, log.LevelInfo).New("role", "proposer"),
 		},
 		GethOptions:            map[string][]geth.GethOption{},
 		P2PTopology:            nil, // no P2P connectivity by default
@@ -270,6 +270,9 @@ type SystemConfig struct {
 	// If the proposer can make proposals for L2 blocks derived from L1 blocks which are not finalized on L1 yet.
 	NonFinalizedProposals bool
 
+	// Explicitly disable proposer, for tests that don't want dispute games automatically created
+	DisableProposer bool
+
 	// Explicitly disable batcher, for tests that rely on unsafe L2 payloads
 	DisableBatcher bool
 
@@ -286,6 +289,12 @@ type SystemConfig struct {
 
 	// whether to actually use BatcherMaxL1TxSizeBytes for blobs, insteaf of max blob size
 	BatcherUseMaxTxSizeForBlobs bool
+
+	// Singular (0) or span batches (1)
+	BatcherBatchType uint
+
+	// If >0, limits the number of blocks per span batch
+	BatcherMaxBlocksPerSpanBatch int
 
 	// SupportL1TimeTravel determines if the L1 node supports quickly skipping forward in time
 	SupportL1TimeTravel bool
@@ -844,15 +853,14 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	var proposerCLIConfig *l2os.CLIConfig
 	if e2eutils.UseFaultProofs() {
 		proposerCLIConfig = &l2os.CLIConfig{
-			L1EthRpc:            sys.EthInstances[RoleL1].WSEndpoint(),
-			RollupRpc:           sys.RollupNodes[RoleSeq].HTTPEndpoint(),
-			DGFAddress:          config.L1Deployments.DisputeGameFactoryProxy.Hex(),
-			ProposalInterval:    6 * time.Second,
-			DisputeGameType:     254, // Fast game type
-			PollInterval:        50 * time.Millisecond,
-			OutputRetryInterval: 10 * time.Millisecond,
-			TxMgrConfig:         newTxMgrConfig(sys.EthInstances[RoleL1].WSEndpoint(), cfg.Secrets.Proposer),
-			AllowNonFinalized:   cfg.NonFinalizedProposals,
+			L1EthRpc:          sys.EthInstances[RoleL1].WSEndpoint(),
+			RollupRpc:         sys.RollupNodes[RoleSeq].HTTPEndpoint(),
+			DGFAddress:        config.L1Deployments.DisputeGameFactoryProxy.Hex(),
+			ProposalInterval:  6 * time.Second,
+			DisputeGameType:   254, // Fast game type
+			PollInterval:      50 * time.Millisecond,
+			TxMgrConfig:       newTxMgrConfig(sys.EthInstances[RoleL1].WSEndpoint(), cfg.Secrets.Proposer),
+			AllowNonFinalized: cfg.NonFinalizedProposals,
 			LogConfig: oplog.CLIConfig{
 				Level:  log.LvlInfo,
 				Format: oplog.FormatText,
@@ -860,13 +868,12 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		}
 	} else {
 		proposerCLIConfig = &l2os.CLIConfig{
-			L1EthRpc:            sys.EthInstances[RoleL1].WSEndpoint(),
-			RollupRpc:           sys.RollupNodes[RoleSeq].HTTPEndpoint(),
-			L2OOAddress:         config.L1Deployments.L2OutputOracleProxy.Hex(),
-			PollInterval:        50 * time.Millisecond,
-			OutputRetryInterval: 10 * time.Millisecond,
-			TxMgrConfig:         newTxMgrConfig(sys.EthInstances[RoleL1].WSEndpoint(), cfg.Secrets.Proposer),
-			AllowNonFinalized:   cfg.NonFinalizedProposals,
+			L1EthRpc:          sys.EthInstances[RoleL1].WSEndpoint(),
+			RollupRpc:         sys.RollupNodes[RoleSeq].HTTPEndpoint(),
+			L2OOAddress:       config.L1Deployments.L2OutputOracleProxy.Hex(),
+			PollInterval:      50 * time.Millisecond,
+			TxMgrConfig:       newTxMgrConfig(sys.EthInstances[RoleL1].WSEndpoint(), cfg.Secrets.Proposer),
+			AllowNonFinalized: cfg.NonFinalizedProposals,
 			LogConfig: oplog.CLIConfig{
 				Level:  log.LvlInfo,
 				Format: oplog.FormatText,
@@ -877,15 +884,13 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	if err != nil {
 		return nil, fmt.Errorf("unable to setup l2 output submitter: %w", err)
 	}
-	if err := proposer.Start(context.Background()); err != nil {
-		return nil, fmt.Errorf("unable to start l2 output submitter: %w", err)
+	if !cfg.DisableProposer {
+		if err := proposer.Start(context.Background()); err != nil {
+			return nil, fmt.Errorf("unable to start l2 output submitter: %w", err)
+		}
 	}
 	sys.L2OutputSubmitter = proposer
 
-	var batchType uint = derive.SingularBatchType
-	if cfg.DeployConfig.L2GenesisDeltaTimeOffset != nil && *cfg.DeployConfig.L2GenesisDeltaTimeOffset == hexutil.Uint64(0) {
-		batchType = derive.SpanBatchType
-	}
 	// batcher defaults if unset
 	batcherMaxL1TxSizeBytes := cfg.BatcherMaxL1TxSizeBytes
 	if batcherMaxL1TxSizeBytes == 0 {
@@ -919,10 +924,11 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 			Level:  log.LevelInfo,
 			Format: oplog.FormatText,
 		},
-		Stopped:              sys.Cfg.DisableBatcher, // Batch submitter may be enabled later
-		BatchType:            batchType,
-		DataAvailabilityType: sys.Cfg.DataAvailabilityType,
-		CompressionAlgo:      compressionAlgo,
+		Stopped:               sys.Cfg.DisableBatcher, // Batch submitter may be enabled later
+		BatchType:             cfg.BatcherBatchType,
+		MaxBlocksPerSpanBatch: cfg.BatcherMaxBlocksPerSpanBatch,
+		DataAvailabilityType:  sys.Cfg.DataAvailabilityType,
+		CompressionAlgo:       compressionAlgo,
 	}
 	// Batch Submitter
 	batcher, err := bss.BatcherServiceFromCLIConfig(context.Background(), "0.0.1", batcherCLIConfig, sys.Cfg.Loggers["batcher"])

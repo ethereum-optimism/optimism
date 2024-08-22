@@ -10,7 +10,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/hashicorp/raft"
-	boltdb "github.com/hashicorp/raft-boltdb"
+	boltdb "github.com/hashicorp/raft-boltdb/v2"
 	"github.com/pkg/errors"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"

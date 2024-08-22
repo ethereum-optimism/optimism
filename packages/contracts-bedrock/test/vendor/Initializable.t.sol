@@ -34,7 +34,7 @@ contract Initializer_Test is Bridge_Initializer {
     InitializeableContract[] contracts;
 
     function setUp() public override {
-        super.enablePlasma();
+        super.enableAltDA();
         // Run the `Bridge_Initializer`'s `setUp()` function.
         super.setUp();
 
@@ -285,6 +285,14 @@ contract Initializer_Test is Bridge_Initializer {
                 initializedSlotVal: deploy.loadInitializedSlot("L2StandardBridge")
             })
         );
+        // L2StandardBridgeInterop
+        contracts.push(
+            InitializeableContract({
+                target: address(l2StandardBridge),
+                initCalldata: abi.encodeCall(l2StandardBridge.initialize, (l1StandardBridge)),
+                initializedSlotVal: deploy.loadInitializedSlot("L2StandardBridgeInterop")
+            })
+        );
         // L1ERC721BridgeImpl
         contracts.push(
             InitializeableContract({
@@ -352,7 +360,8 @@ contract Initializer_Test is Bridge_Initializer {
         // Ensure that all L1, L2 `Initializable` contracts are accounted for, in addition to
         // OptimismMintableERC20FactoryImpl, OptimismMintableERC20FactoryProxy, OptimismPortal2,
         // DisputeGameFactoryImpl, DisputeGameFactoryProxy, DelayedWETHImpl, DelayedWETHProxy.
-        assertEq(_getNumInitializable() + 1, contracts.length);
+        // Omitting OptimismSuperchainERC20 due to using OZ v5 Initializable.
+        assertEq(_getNumInitializable(), contracts.length);
 
         // Attempt to re-initialize all contracts within the `contracts` array.
         for (uint256 i; i < contracts.length; i++) {

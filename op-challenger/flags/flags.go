@@ -381,7 +381,7 @@ func CheckRequired(ctx *cli.Context, traceTypes []types.TraceType) error {
 			}
 		case types.TraceTypeAlphabet, types.TraceTypeFast:
 		default:
-			return fmt.Errorf("invalid trace type. must be one of %v", types.TraceTypes)
+			return fmt.Errorf("invalid trace type %v. must be one of %v", traceType, types.TraceTypes)
 		}
 	}
 	return nil

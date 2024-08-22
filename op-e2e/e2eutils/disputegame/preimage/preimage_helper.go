@@ -33,11 +33,11 @@ type Helper struct {
 	require      *require.Assertions
 	client       *ethclient.Client
 	privKey      *ecdsa.PrivateKey
-	oracle       *contracts.PreimageOracleContract
+	oracle       contracts.PreimageOracleContract
 	uuidProvider atomic.Int64
 }
 
-func NewHelper(t *testing.T, privKey *ecdsa.PrivateKey, client *ethclient.Client, oracle *contracts.PreimageOracleContract) *Helper {
+func NewHelper(t *testing.T, privKey *ecdsa.PrivateKey, client *ethclient.Client, oracle contracts.PreimageOracleContract) *Helper {
 	return &Helper{
 		t:       t,
 		require: require.New(t),

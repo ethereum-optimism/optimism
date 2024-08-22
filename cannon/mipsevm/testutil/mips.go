@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"math"
@@ -29,9 +30,9 @@ type MIPSEVM struct {
 	lastStepInput []byte
 }
 
-func NewMIPSEVM(artifacts *Artifacts, addrs *Addresses) *MIPSEVM {
-	env, evmState := NewEVMEnv(artifacts, addrs)
-	return &MIPSEVM{env, evmState, addrs, nil, artifacts, math.MaxUint64, nil}
+func NewMIPSEVM(contracts *ContractMetadata) *MIPSEVM {
+	env, evmState := NewEVMEnv(contracts)
+	return &MIPSEVM{env, evmState, contracts.Addresses, nil, contracts.Artifacts, math.MaxUint64, nil}
 }
 
 func (m *MIPSEVM) SetTracer(tracer *tracing.Hooks) {
@@ -121,11 +122,13 @@ func EncodePreimageOracleInput(t *testing.T, wit *mipsevm.StepWitness, localCont
 		}
 		preimage := localOracle.GetPreimage(preimage.Keccak256Key(wit.PreimageKey).PreimageKey())
 		precompile := common.BytesToAddress(preimage[:20])
-		callInput := preimage[20:]
+		requiredGas := binary.BigEndian.Uint64(preimage[20:28])
+		callInput := preimage[28:]
 		input, err := oracle.ABI.Pack(
 			"loadPrecompilePreimagePart",
 			new(big.Int).SetUint64(uint64(wit.PreimageOffset)),
 			precompile,
+			requiredGas,
 			callInput,
 		)
 		require.NoError(t, err)

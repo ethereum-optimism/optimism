@@ -1,6 +1,7 @@
 package l2
 
 import (
+	"encoding/binary"
 	"math/big"
 	"testing"
 
@@ -38,6 +39,12 @@ var (
 	ecRecoverReturnValue      = []byte{0x1, 0x2}
 	bn256PairingReturnValue   = []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}
 	blobPrecompileReturnValue = common.FromHex("000000000000000000000000000000000000000000000000000000000000100073eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001")
+)
+
+var (
+	ecRecoverRequiredGas    uint64 = 3000
+	bn256PairingRequiredGas uint64 = 113000
+	kzgRequiredGas          uint64 = 50_000
 )
 
 func TestInitialState(t *testing.T) {
@@ -200,28 +207,32 @@ func TestGetHeaderByNumber(t *testing.T) {
 
 func TestPrecompileOracle(t *testing.T) {
 	tests := []struct {
-		name   string
-		input  []byte
-		target common.Address
-		result []byte
+		name        string
+		input       []byte
+		target      common.Address
+		requiredGas uint64
+		result      []byte
 	}{
 		{
-			name:   "EcRecover",
-			input:  ecRecoverInputData,
-			target: common.BytesToAddress([]byte{0x1}),
-			result: ecRecoverReturnValue,
+			name:        "EcRecover",
+			input:       ecRecoverInputData,
+			target:      common.BytesToAddress([]byte{0x1}),
+			requiredGas: ecRecoverRequiredGas,
+			result:      ecRecoverReturnValue,
 		},
 		{
-			name:   "Bn256Pairing",
-			input:  bn256PairingInputData,
-			target: common.BytesToAddress([]byte{0x8}),
-			result: bn256PairingReturnValue,
+			name:        "Bn256Pairing",
+			input:       bn256PairingInputData,
+			target:      common.BytesToAddress([]byte{0x8}),
+			requiredGas: bn256PairingRequiredGas,
+			result:      bn256PairingReturnValue,
 		},
 		{
-			name:   "KZGPointEvaluation",
-			input:  kzgInputData,
-			target: common.BytesToAddress([]byte{0xa}),
-			result: blobPrecompileReturnValue,
+			name:        "KZGPointEvaluation",
+			input:       kzgInputData,
+			target:      common.BytesToAddress([]byte{0xa}),
+			requiredGas: kzgRequiredGas,
+			result:      blobPrecompileReturnValue,
 		},
 	}
 
@@ -234,9 +245,11 @@ func TestPrecompileOracle(t *testing.T) {
 			chainCfg, blocks, oracle := setupOracle(t, blockCount, headBlockNumber, true)
 			head := blocks[headBlockNumber].Hash()
 			stubOutput := eth.OutputV0{BlockHash: head}
-			precompileOracle := new(l2test.StubPrecompileOracle)
+			precompileOracle := l2test.NewStubPrecompileOracle(t)
+			arg := append(test.target.Bytes(), binary.BigEndian.AppendUint64(nil, test.requiredGas)...)
+			arg = append(arg, test.input...)
 			precompileOracle.Results = map[common.Hash]l2test.PrecompileResult{
-				crypto.Keccak256Hash(append(test.target.Bytes(), test.input...)): {Result: test.result, Ok: true},
+				crypto.Keccak256Hash(arg): {Result: test.result, Ok: true},
 			}
 			chain, err := NewOracleBackedL2Chain(logger, oracle, precompileOracle, chainCfg, common.Hash(eth.OutputRoot(&stubOutput)))
 			require.NoError(t, err)
@@ -265,7 +278,7 @@ func setupOracleBackedChainWithLowerHead(t *testing.T, blockCount int, headBlock
 	chainCfg, blocks, oracle := setupOracle(t, blockCount, headBlockNumber, false)
 	head := blocks[headBlockNumber].Hash()
 	stubOutput := eth.OutputV0{BlockHash: head}
-	precompileOracle := new(l2test.StubPrecompileOracle)
+	precompileOracle := l2test.NewStubPrecompileOracle(t)
 	chain, err := NewOracleBackedL2Chain(logger, oracle, precompileOracle, chainCfg, common.Hash(eth.OutputRoot(&stubOutput)))
 	require.NoError(t, err)
 	return blocks, chain
