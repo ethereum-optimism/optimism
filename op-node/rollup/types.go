@@ -19,7 +19,6 @@ import (
 var (
 	ErrBlockTimeZero                 = errors.New("block time cannot be 0")
 	ErrMissingChannelTimeout         = errors.New("channel timeout must be set, this should cover at least a L1 block time")
-	ErrInvalidGraniteChannelTimeout  = errors.New("channel timeout granite must be less than channel timeout")
 	ErrInvalidSeqWindowSize          = errors.New("sequencing window size must at least be 2")
 	ErrInvalidMaxSeqDrift            = errors.New("maximum sequencer drift must be greater than 0")
 	ErrMissingGenesisL1Hash          = errors.New("genesis L1 hash cannot be empty")
@@ -84,7 +83,6 @@ type Config struct {
 	SeqWindowSize uint64 `json:"seq_window_size"`
 	// Number of L1 blocks between when a channel can be opened and when it must be closed by.
 	ChannelTimeoutBedrock uint64 `json:"channel_timeout"`
-	ChannelTimeoutGranite uint64 `json:"channel_timeout_granite"`
 	// Required to verify L1 signatures
 	L1ChainID *big.Int `json:"l1_chain_id"`
 	// Required to identify the L2 network and create p2p signatures unique for this chain.
@@ -257,14 +255,6 @@ func (cfg *Config) Check() error {
 	}
 	if cfg.ChannelTimeoutBedrock == 0 {
 		return ErrMissingChannelTimeout
-	}
-	if cfg.GraniteTime != nil {
-		if cfg.ChannelTimeoutGranite == 0 {
-			return ErrMissingChannelTimeout
-		}
-		if cfg.ChannelTimeoutGranite > cfg.ChannelTimeoutBedrock {
-			return ErrInvalidGraniteChannelTimeout
-		}
 	}
 	if cfg.SeqWindowSize < 2 {
 		return ErrInvalidSeqWindowSize
