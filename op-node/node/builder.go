@@ -43,10 +43,10 @@ type BuilderAPIClient struct {
 	domainBuilder phase0.Domain
 }
 
-func NewBuilderClient(log log.Logger, rollupCfg *rollup.Config, endpoint string, timeout time.Duration) *BuilderAPIClient {
+func NewBuilderClient(log log.Logger, rollupCfg *rollup.Config, endpoint string, timeout time.Duration) (*BuilderAPIClient, error) {
 	domainBuilder, err := computeDomain(ssz.DomainTypeAppBuilder, GenesisForkVersionMainnet, phase0.Root{}.String())
 	if err != nil {
-		log.Error("failed to compute domain", "error", err)
+		return nil, fmt.Errorf("failed to compute domain: %w", err)
 	}
 
 	httpClient := client.NewBasicHTTPClient(endpoint, log)
@@ -61,7 +61,7 @@ func NewBuilderClient(log log.Logger, rollupCfg *rollup.Config, endpoint string,
 		rollupCfg:     rollupCfg,
 		log:           log,
 		domainBuilder: domainBuilder,
-	}
+	}, nil
 }
 
 func (s *BuilderAPIClient) Enabled() bool {
