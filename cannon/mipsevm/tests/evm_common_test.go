@@ -204,7 +204,6 @@ func TestEVM_MMap(t *testing.T) {
 				state := goVm.GetState()
 
 				state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
-				*state.GetRegistersRef() = testutil.RandomRegisters(77)
 				state.GetRegistersRef()[2] = exec.SysMmap
 				state.GetRegistersRef()[4] = c.address
 				state.GetRegistersRef()[5] = c.size
