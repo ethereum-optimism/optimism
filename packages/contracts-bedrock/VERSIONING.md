@@ -72,7 +72,9 @@ For example, the [Fault Proofs governance proposal](https://gov.optimism.io/t/up
 
 To accommodate this, once contract changes are ready for governance approval, the release flow is:
 
-- On the `develop` branch, bump the version of all contracts to their respective `X.Y.Z-rc.n`. The `X.Y.Z` here refers to the contract-specific versions, so it differs per-contract. The `-rc.n` begins as `-rc.1` for all contracts. Any `-beta.n` and `+feature-name` identifiers are removed at this point.
+- On the `develop` branch, bump the version of all contracts to be included in this release to their respective `X.Y.Z-rc.n`. The `X.Y.Z` here refers to the contract-specific versions, so it differs per-contract. The `-rc.n` begins as `-rc.1` for all contracts.
+  - Any `-beta.n` and `+feature-name` identifiers are removed at this point.
+  - Contracts that are not included as part of this release are left untouched.
 - Branch off of `develop` and create a branch named `proposal/op-contracts/vX.Y.Z`. Here, `X.Y.Z` is the new version of the monorepo release.
   - Using the `proposal/` prefix signals that this branch is for a governance proposal, and intentionally does not convey whether or not the proposal has passed.
 - Open a PR into the `proposal/op-contracts/vX.Y.Z` branch that removes the `-rc.1` suffixes from all contracts, and merge it into the `proposal/op-contracts/vX.Y.Z` branch.
