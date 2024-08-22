@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -59,12 +60,16 @@ var (
 		Value:    "http://localhost:8551/",
 		EnvVars:  prefixEnvVars("ENGINE"),
 	}
+	EngineJWT = &cli.StringFlag{
+		Name:    "engine.jwt-secret",
+		Usage:   "JWT secret used to authenticate Engine API communication with.",
+		EnvVars: prefixEnvVars("ENGINE_JWT_SECRET"),
+	}
 	EngineJWTPath = &cli.StringFlag{
-		Name:      "engine.jwt-secret",
+		Name:      "engine.jwt-secret-path",
 		Usage:     "Path to JWT secret file used to authenticate Engine API communication with.",
-		Required:  true,
 		TakesFile: true,
-		EnvVars:   prefixEnvVars("ENGINE_JWT_SECRET"),
+		EnvVars:   prefixEnvVars("ENGINE_JWT_SECRET_PATH"),
 	}
 	EngineOpenEndpoint = &cli.StringFlag{
 		Name:    "engine.open",
@@ -116,7 +121,7 @@ var (
 
 func withEngineFlags(flags ...cli.Flag) []cli.Flag {
 	return append(append(flags,
-		EngineEndpoint, EngineJWTPath, EngineOpenEndpoint, EngineVersion),
+		EngineEndpoint, EngineJWT, EngineJWTPath, EngineOpenEndpoint, EngineVersion),
 		oplog.CLIFlags(envVarPrefix)...)
 }
 
@@ -177,11 +182,19 @@ func initLogger(ctx *cli.Context) log.Logger {
 }
 
 func initEngineRPC(ctx *cli.Context, lgr log.Logger) (client.RPC, error) {
-	jwtData, err := os.ReadFile(ctx.String(EngineJWTPath.Name))
-	if err != nil {
-		return nil, fmt.Errorf("failed to read jwt: %w", err)
+	var jwtString string
+	if ctx.IsSet(EngineJWT.Name) {
+		jwtString = ctx.String(EngineJWT.Name)
+	} else if ctx.IsSet(EngineJWTPath.Name) {
+		jwtData, err := os.ReadFile(ctx.String(EngineJWTPath.Name))
+		if err != nil {
+			return nil, fmt.Errorf("failed to read jwt: %w", err)
+		}
+		jwtString = string(jwtData)
+	} else {
+		return nil, errors.New("neither JWT secret string nor path provided")
 	}
-	secret := common.HexToHash(strings.TrimSpace(string(jwtData)))
+	secret := common.HexToHash(strings.TrimSpace(jwtString))
 	endpoint := ctx.String(EngineEndpoint.Name)
 	return client.NewRPC(ctx.Context, lgr, endpoint,
 		client.WithGethRPCOptions(rpc.WithHTTPAuth(node.NewJWTAuth(secret))))
