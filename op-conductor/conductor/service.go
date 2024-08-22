@@ -700,7 +700,7 @@ func (oc *OpConductor) stopSequencer() error {
 		// None of the consensus state should have changed here so don't log it again.
 		oc.log.Info("stopped sequencer", "latestHead", latestHead)
 	} else {
-		if errors.Is(err, driver.ErrSequencerAlreadyStopped) {
+		if strings.Contains(err.Error(), driver.ErrSequencerAlreadyStopped.Error()) {
 			oc.log.Warn("sequencer already stopped", "err", err)
 		} else {
 			return errors.Wrap(err, "failed to stop sequencer")
