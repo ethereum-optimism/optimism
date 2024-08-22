@@ -20,6 +20,7 @@ type SafetyChecker interface {
 	CrossHeadForChain(chainID types.ChainID) entrydb.EntryIdx
 	Check(chain types.ChainID, blockNum uint64, logIdx uint32, logHash backendTypes.TruncatedHash) bool
 	Update(chain types.ChainID, index entrydb.EntryIdx) heads.OperationFn
+	Name() string
 }
 
 // unsafeChecker is a SafetyChecker that uses the unsafe head as the view into the database
@@ -55,6 +56,19 @@ func NewSafetyChecker(t string, chainsDB ChainsDB) SafetyChecker {
 	default:
 		panic("unknown safety checker type")
 	}
+}
+
+// Name returns the safety checker type, using the same strings as the constants used in construction
+func (c *unsafeChecker) Name() string {
+	return Unsafe
+}
+
+func (c *safeChecker) Name() string {
+	return Safe
+}
+
+func (c *finalizedChecker) Name() string {
+	return Finalized
 }
 
 // LocalHeadForChain returns the local head for the given chain
