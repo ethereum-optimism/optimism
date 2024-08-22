@@ -16,6 +16,8 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/exp/maps"
+
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/batcher"
 	ds "github.com/ipfs/go-datastore"
 	dsSync "github.com/ipfs/go-datastore/sync"
@@ -772,10 +774,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	// Rollup nodes
 
 	// Ensure we are looping through the nodes in alphabetical order
-	ks := make([]string, 0, len(cfg.Nodes))
-	for k := range cfg.Nodes {
-		ks = append(ks, k)
-	}
+	ks := maps.Keys(cfg.Nodes)
 	// Sort strings in ascending alphabetical order
 	sort.Strings(ks)
 
