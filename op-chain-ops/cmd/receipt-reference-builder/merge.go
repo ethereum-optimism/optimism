@@ -3,7 +3,7 @@ package main
 import (
 	"errors"
 	"maps"
-	"sort"
+	"slices"
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
@@ -47,7 +47,15 @@ func merge(ctx *cli.Context) error {
 	}
 
 	// sort the aggregates by first block
-	sort.Sort(ByFirst(aggregates))
+	slices.SortFunc(aggregates, func(a, b aggregate) int {
+		if a.First < b.First {
+			return -1
+		} else if a.First > b.First {
+			return 1
+		} else {
+			return 0
+		}
+	})
 
 	// check that the block ranges don't have a gap
 	err := checkBlockRanges(aggregates)
@@ -72,12 +80,6 @@ func merge(ctx *cli.Context) error {
 
 	return nil
 }
-
-type ByFirst []aggregate
-
-func (a ByFirst) Len() int           { return len(a) }
-func (a ByFirst) Less(i, j int) bool { return a[i].First < a[j].First }
-func (a ByFirst) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
 // checkBlockRanges checks that the block ranges don't have a gap
 // this function assumes the aggregates are sorted by first block
