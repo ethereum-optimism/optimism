@@ -51,8 +51,8 @@ contract MIPS2 is ISemver {
     }
 
     /// @notice The semantic version of the MIPS2 contract.
-    /// @custom:semver 0.0.2-beta
-    string public constant version = "1.0.0-beta.3";
+    /// @custom:semver 1.0.0-beta.4
+    string public constant version = "1.0.0-beta.4";
 
     /// @notice The preimage oracle contract.
     IPreimageOracle internal immutable ORACLE;
@@ -256,7 +256,7 @@ contract MIPS2 is ISemver {
                 (v0, v1, state.heap) = sys.handleSysMmap(a0, a1, state.heap);
             } else if (syscall_no == sys.SYS_BRK) {
                 // brk: Returns a fixed address for the program break at 0x40000000
-                v0 = sys.BRK_START;
+                v0 = sys.PROGRAM_BREAK;
             } else if (syscall_no == sys.SYS_CLONE) {
                 if (sys.VALID_SYS_CLONE_FLAGS != a0) {
                     state.exited = true;

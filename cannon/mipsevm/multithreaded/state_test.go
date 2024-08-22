@@ -133,7 +133,7 @@ func TestState_EmptyThreadsRoot(t *testing.T) {
 func TestState_EncodeThreadProof_SingleThread(t *testing.T) {
 	state := CreateEmptyState()
 	// Set some fields on the active thread
-	activeThread := state.getCurrentThread()
+	activeThread := state.GetCurrentThread()
 	activeThread.Cpu.PC = 4
 	activeThread.Cpu.NextPC = 8
 	activeThread.Cpu.HI = 11
@@ -181,7 +181,7 @@ func TestState_EncodeThreadProof_MultipleThreads(t *testing.T) {
 		expectedRoot = crypto.Keccak256Hash(hashData)
 	}
 
-	expectedProof := append([]byte{}, state.getCurrentThread().serializeThread()[:]...)
+	expectedProof := append([]byte{}, state.GetCurrentThread().serializeThread()[:]...)
 	expectedProof = append(expectedProof, expectedRoot[:]...)
 
 	actualProof := state.EncodeThreadProof()

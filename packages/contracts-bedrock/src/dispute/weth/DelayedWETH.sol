@@ -21,8 +21,8 @@ import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 ///         Not the prettiest contract in the world, but it gets the job done.
 contract DelayedWETH is OwnableUpgradeable, WETH98, IDelayedWETH, ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 1.1.0-rc.1
+    string public constant version = "1.1.0-rc.1";
 
     /// @inheritdoc IDelayedWETH
     mapping(address => mapping(address => WithdrawalRequest)) public withdrawals;
@@ -85,7 +85,8 @@ contract DelayedWETH is OwnableUpgradeable, WETH98, IDelayedWETH, ISemver {
     function recover(uint256 _wad) external {
         require(msg.sender == owner(), "DelayedWETH: not owner");
         uint256 amount = _wad < address(this).balance ? _wad : address(this).balance;
-        payable(msg.sender).transfer(amount);
+        (bool success,) = payable(msg.sender).call{ value: amount }(hex"");
+        require(success, "DelayedWETH: recover failed");
     }
 
     /// @inheritdoc IDelayedWETH

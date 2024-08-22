@@ -507,7 +507,7 @@ func ensureOnlyOneLeader(t *testing.T, sys *System, conductors map[string]*condu
 }
 
 func memberIDs(membership *consensus.ClusterMembership) []string {
-	ids := make([]string, len(membership.Servers))
+	ids := make([]string, 0, len(membership.Servers))
 	for _, member := range membership.Servers {
 		ids = append(ids, member.ID)
 	}

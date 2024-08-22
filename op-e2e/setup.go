@@ -120,7 +120,7 @@ func DefaultSystemConfig(t testing.TB) SystemConfig {
 		Secrets:                secrets,
 		Premine:                premine,
 		DeployConfig:           deployConfig,
-		L1Deployments:          config.L1Deployments,
+		L1Deployments:          l1Deployments,
 		L1InfoPredeployAddress: predeploys.L1BlockAddr,
 		JWTFilePath:            writeDefaultJWT(t),
 		JWTSecret:              testingJWTSecret,

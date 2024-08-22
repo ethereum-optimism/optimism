@@ -70,7 +70,7 @@ type Config struct {
 	// Seconds per L2 block
 	BlockTime uint64 `json:"block_time"`
 	// Sequencer batches may not be more than MaxSequencerDrift seconds after
-	// the L1 timestamp of the sequencing window end.
+	// the L1 timestamp of their L1 origin time.
 	//
 	// Note: When L1 has many 1 second consecutive blocks, and L2 grows at fixed 2 seconds,
 	// the L2 time may still grow beyond this difference.

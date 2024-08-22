@@ -10,12 +10,13 @@ import (
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 )
 
 func (m *InstrumentedState) handleSyscall() error {
-	thread := m.state.getCurrentThread()
+	thread := m.state.GetCurrentThread()
 
-	syscallNum, a0, a1, a2, a3 := exec.GetSyscallArgs(m.state.GetRegisters())
+	syscallNum, a0, a1, a2, a3 := exec.GetSyscallArgs(m.state.GetRegistersRef())
 	v0 := uint32(0)
 	v1 := uint32(0)
 
@@ -26,7 +27,7 @@ func (m *InstrumentedState) handleSyscall() error {
 		v0, v1, newHeap = exec.HandleSysMmap(a0, a1, m.state.Heap)
 		m.state.Heap = newHeap
 	case exec.SysBrk:
-		v0 = exec.BrkStart
+		v0 = program.PROGRAM_BREAK
 	case exec.SysClone: // clone
 		// a0 = flag bitmask, a1 = stack pointer
 		if exec.ValidCloneFlags != a0 {
@@ -187,7 +188,7 @@ func (m *InstrumentedState) mipsStep() error {
 		return nil
 	}
 	m.state.Step += 1
-	thread := m.state.getCurrentThread()
+	thread := m.state.GetCurrentThread()
 
 	// During wakeup traversal, search for the first thread blocked on the wakeup address.
 	// Don't allow regular execution until we have found such a thread or else we have visited all threads.
@@ -263,7 +264,7 @@ func (m *InstrumentedState) mipsStep() error {
 	}
 
 	// Exec the rest of the step logic
-	return exec.ExecMipsCoreStepLogic(m.state.getCpu(), m.state.GetRegisters(), m.state.Memory, insn, opcode, fun, m.memoryTracker, m.stackTracker)
+	return exec.ExecMipsCoreStepLogic(m.state.getCpuRef(), m.state.GetRegistersRef(), m.state.Memory, insn, opcode, fun, m.memoryTracker, m.stackTracker)
 }
 
 func (m *InstrumentedState) onWaitComplete(thread *ThreadState, isTimedOut bool) {
