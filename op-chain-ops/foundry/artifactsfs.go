@@ -74,7 +74,10 @@ func (af *ArtifactsFS) ListContracts(name string) ([]string, error) {
 // ReadArtifact reads a specific JSON contract artifact from the FS.
 // The contract name may be suffixed by a solidity compiler version, e.g. "Owned.0.8.25".
 func (af *ArtifactsFS) ReadArtifact(name string, contract string) (*Artifact, error) {
-	artifactPath := path.Join(name+".sol", contract+".json")
+	if !strings.HasSuffix(name, ".sol") {
+		name += ".sol"
+	}
+	artifactPath := path.Join(name, contract+".json")
 	f, err := af.FS.Open(artifactPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open artifact %q: %w", artifactPath, err)
