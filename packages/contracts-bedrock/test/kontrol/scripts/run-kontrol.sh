@@ -116,33 +116,33 @@ regen=
 # Tests to symbolically execute #
 #################################
 # Temporarily unexecuted tests
-# "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused0" \
-# "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused1(" \
-# "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused2" \
-# "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused3" \
-# "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused4" \
-# "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused5" \
-# "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused6" \
-# "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused7" \
-# "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused8" \
-# "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused9" \
-# "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused10" \
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused0" \
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused1(" \
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused2" \
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused3" \
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused4" \
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused5" \
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused6" \
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused7" \
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused8" \
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused9" \
+# "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused10" \
 
 test_list=()
 if [ "$SCRIPT_TESTS" == true ]; then
   test_list=(
-    "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused0" \
-    "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused1(" \
-    "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused2" \
-    "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused3" \
-    "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused4" \
-    "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused5" \
-    "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused6" \
-    "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused7" \
-    "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused8" \
-    "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused9" \
-    "OptimismPortalKontrol.prove_proveWithdrawalTransaction_paused10" \
-    "OptimismPortalKontrol.prove_finalizeWithdrawalTransaction_paused" \
+    "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused0" \
+    "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused1(" \
+    "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused2" \
+    "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused3" \
+    "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused4" \
+    "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused5" \
+    "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused6" \
+    "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused7" \
+    "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused8" \
+    "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused9" \
+    "OptimismPortal2Kontrol.prove_proveWithdrawalTransaction_paused10" \
+    "OptimismPortal2Kontrol.prove_finalizeWithdrawalTransaction_paused" \
     "L1StandardBridgeKontrol.prove_finalizeBridgeERC20_paused" \
     "L1StandardBridgeKontrol.prove_finalizeBridgeETH_paused" \
     "L1ERC721BridgeKontrol.prove_finalizeBridgeERC721_paused" \

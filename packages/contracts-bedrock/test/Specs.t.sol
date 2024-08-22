@@ -35,7 +35,8 @@ contract Specification_Test is CommonTest {
         DISPUTEGAMEFACTORYOWNER,
         DELAYEDWETHOWNER,
         COUNCILSAFE,
-        COUNCILSAFEOWNER
+        COUNCILSAFEOWNER,
+        DEPENDENCYMANAGER
     }
 
     /// @notice Represents the specification of a function.
@@ -528,11 +529,18 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "SystemConfigInterop", _sel: _getSel("basefeeScalar()") });
         _addSpec({ _name: "SystemConfigInterop", _sel: _getSel("blobbasefeeScalar()") });
         _addSpec({ _name: "SystemConfigInterop", _sel: _getSel("maximumGasLimit()") });
-        _addSpec({ _name: "SystemConfigInterop", _sel: _getSel("addDependency(uint256)"), _auth: Role.SYSTEMCONFIGOWNER });
+        _addSpec({ _name: "SystemConfigInterop", _sel: _getSel("addDependency(uint256)"), _auth: Role.DEPENDENCYMANAGER });
         _addSpec({
             _name: "SystemConfigInterop",
             _sel: _getSel("removeDependency(uint256)"),
-            _auth: Role.SYSTEMCONFIGOWNER
+            _auth: Role.DEPENDENCYMANAGER
+        });
+        _addSpec({ _name: "SystemConfigInterop", _sel: _getSel("dependencyManager()") });
+        _addSpec({
+            _name: "SystemConfigInterop",
+            _sel: _getSel(
+                "initialize(address,uint32,uint32,bytes32,uint64,address,(uint32,uint8,uint8,uint32,uint32,uint128),address,(address,address,address,address,address,address,address),address)"
+            )
         });
 
         // ProxyAdmin
@@ -617,9 +625,11 @@ contract Specification_Test is CommonTest {
         // AnchorStateRegistry
         _addSpec({ _name: "AnchorStateRegistry", _sel: _getSel("anchors(uint32)") });
         _addSpec({ _name: "AnchorStateRegistry", _sel: _getSel("disputeGameFactory()") });
-        _addSpec({ _name: "AnchorStateRegistry", _sel: _getSel("initialize((uint32,(bytes32,uint256))[])") });
+        _addSpec({ _name: "AnchorStateRegistry", _sel: _getSel("initialize((uint32,(bytes32,uint256))[],address)") });
         _addSpec({ _name: "AnchorStateRegistry", _sel: _getSel("tryUpdateAnchorState()") });
+        _addSpec({ _name: "AnchorStateRegistry", _sel: _getSel("setAnchorState(address)"), _auth: Role.GUARDIAN });
         _addSpec({ _name: "AnchorStateRegistry", _sel: _getSel("version()") });
+        _addSpec({ _name: "AnchorStateRegistry", _sel: _getSel("superchainConfig()") });
 
         // PermissionedDisputeGame
         _addSpec({ _name: "PermissionedDisputeGame", _sel: _getSel("absolutePrestate()") });
@@ -826,6 +836,11 @@ contract Specification_Test is CommonTest {
             _sel: _getSel("setRespectedGameType(address,uint32)"),
             _auth: Role.DEPUTYGUARDIAN
         });
+        _addSpec({
+            _name: "DeputyGuardianModule",
+            _sel: _getSel("setAnchorState(address,address)"),
+            _auth: Role.DEPUTYGUARDIAN
+        });
         _addSpec({ _name: "DeputyGuardianModule", _sel: _getSel("pause()"), _auth: Role.DEPUTYGUARDIAN });
         _addSpec({ _name: "DeputyGuardianModule", _sel: _getSel("unpause()"), _auth: Role.DEPUTYGUARDIAN });
         _addSpec({ _name: "DeputyGuardianModule", _sel: _getSel("deputyGuardian()") });
@@ -940,11 +955,12 @@ contract Specification_Test is CommonTest {
     /// @notice Ensures that the DeputyGuardian is authorized to take all Guardian actions.
     function testDeputyGuardianAuth() public view {
         assertEq(specsByRole[Role.DEPUTYGUARDIAN].length, specsByRole[Role.GUARDIAN].length);
-        assertEq(specsByRole[Role.DEPUTYGUARDIAN].length, 4);
+        assertEq(specsByRole[Role.DEPUTYGUARDIAN].length, 5);
 
         mapping(bytes4 => Spec) storage dgmFuncSpecs = specs["DeputyGuardianModule"];
         mapping(bytes4 => Spec) storage superchainConfigFuncSpecs = specs["SuperchainConfig"];
         mapping(bytes4 => Spec) storage portal2FuncSpecs = specs["OptimismPortal2"];
+        mapping(bytes4 => Spec) storage anchorRegFuncSpecs = specs["AnchorStateRegistry"];
 
         // Ensure that for each of the DeputyGuardianModule's methods there is a corresponding method on another
         // system contract authed to the Guardian role.
@@ -959,5 +975,8 @@ contract Specification_Test is CommonTest {
 
         _assertRolesEq(dgmFuncSpecs[_getSel("setRespectedGameType(address,uint32)")].auth, Role.DEPUTYGUARDIAN);
         _assertRolesEq(portal2FuncSpecs[_getSel("setRespectedGameType(uint32)")].auth, Role.GUARDIAN);
+
+        _assertRolesEq(dgmFuncSpecs[_getSel("setAnchorState(address,address)")].auth, Role.DEPUTYGUARDIAN);
+        _assertRolesEq(anchorRegFuncSpecs[_getSel("setAnchorState(address)")].auth, Role.GUARDIAN);
     }
 }

@@ -13,6 +13,7 @@ const (
 	HintL1Receipts     = "l1-receipts"
 	HintL1Blob         = "l1-blob"
 	HintL1Precompile   = "l1-precompile"
+	HintL1PrecompileV2 = "l1-precompile-v2"
 )
 
 type BlockHeaderHint common.Hash
@@ -53,4 +54,12 @@ var _ preimage.Hint = PrecompileHint{}
 
 func (l PrecompileHint) Hint() string {
 	return HintL1Precompile + " " + hexutil.Encode(l)
+}
+
+type PrecompileHintV2 []byte
+
+var _ preimage.Hint = PrecompileHintV2{}
+
+func (l PrecompileHintV2) Hint() string {
+	return HintL1PrecompileV2 + " " + hexutil.Encode(l)
 }

@@ -64,7 +64,7 @@ func PatchStack(st mipsevm.FPVMState) error {
 	if err := st.GetMemory().SetMemoryRange(sp-4*memory.PageSize, bytes.NewReader(make([]byte, 5*memory.PageSize))); err != nil {
 		return fmt.Errorf("failed to allocate page for stack content")
 	}
-	st.GetRegisters()[29] = sp
+	st.GetRegistersRef()[29] = sp
 
 	storeMem := func(addr uint32, v uint32) {
 		var dat [4]byte

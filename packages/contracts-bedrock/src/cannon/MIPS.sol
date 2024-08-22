@@ -44,8 +44,8 @@ contract MIPS is ISemver {
     }
 
     /// @notice The semantic version of the MIPS contract.
-    /// @custom:semver 1.0.1
-    string public constant version = "1.1.0-beta.6";
+    /// @custom:semver 1.1.0-rc.1
+    string public constant version = "1.1.0-rc.1";
 
     /// @notice The preimage oracle contract.
     IPreimageOracle internal immutable ORACLE;
@@ -98,6 +98,14 @@ contract MIPS is ISemver {
             from, to := copyMem(from, to, 8) // step
             from := add(from, 32) // offset to registers
 
+            // Verify that the value of exited is valid (0 or 1)
+            if gt(exited, 1) {
+                // revert InvalidExitedValue();
+                let ptr := mload(0x40)
+                mstore(ptr, shl(224, 0x0136cc76))
+                revert(ptr, 0x04)
+            }
+
             // Copy registers
             for { let i := 0 } lt(i, 32) { i := add(i, 1) } { from, to := copyMem(from, to, 4) }
 
@@ -149,7 +157,7 @@ contract MIPS is ISemver {
                 (v0, v1, state.heap) = sys.handleSysMmap(a0, a1, state.heap);
             } else if (syscall_no == sys.SYS_BRK) {
                 // brk: Returns a fixed address for the program break at 0x40000000
-                v0 = sys.BRK_START;
+                v0 = sys.PROGRAM_BREAK;
             } else if (syscall_no == sys.SYS_CLONE) {
                 // clone (not supported) returns 1
                 v0 = 1;
@@ -243,10 +251,24 @@ contract MIPS is ISemver {
                 c, m := putField(c, m, 4) // heap
                 c, m := putField(c, m, 1) // exitCode
                 c, m := putField(c, m, 1) // exited
+                let exited := mload(sub(m, 32))
                 c, m := putField(c, m, 8) // step
 
+                // Verify that the value of exited is valid (0 or 1)
+                if gt(exited, 1) {
+                    // revert InvalidExitedValue();
+                    let ptr := mload(0x40)
+                    mstore(ptr, shl(224, 0x0136cc76))
+                    revert(ptr, 0x04)
+                }
+
+                // Compiler should have done this already
+                if iszero(eq(mload(m), add(m, 32))) {
+                    // expected registers offset check
+                    revert(0, 0)
+                }
+
                 // Unpack register calldata into memory
-                mstore(m, add(m, 32)) // offset to registers
                 m := add(m, 32)
                 for { let i := 0 } lt(i, 32) { i := add(i, 1) } { c, m := putField(c, m, 4) }
             }

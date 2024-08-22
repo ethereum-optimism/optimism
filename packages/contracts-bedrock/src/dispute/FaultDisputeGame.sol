@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
@@ -69,8 +70,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     uint256 internal constant HEADER_BLOCK_NUMBER_INDEX = 8;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.2.0
-    string public constant version = "1.2.0";
+    /// @custom:semver 1.3.0-rc.1
+    string public constant version = "1.3.0-rc.1";
 
     /// @notice The starting timestamp of the game
     Timestamp public createdAt;
@@ -136,11 +137,35 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     ) {
         // The max game depth may not be greater than `LibPosition.MAX_POSITION_BITLEN - 1`.
         if (_maxGameDepth > LibPosition.MAX_POSITION_BITLEN - 1) revert MaxDepthTooLarge();
-        // The split depth cannot be greater than or equal to the max game depth.
-        if (_splitDepth >= _maxGameDepth) revert InvalidSplitDepth();
-        // The clock extension may not be greater than the max clock duration.
-        if (_clockExtension.raw() > _maxClockDuration.raw()) revert InvalidClockExtension();
 
+        // The split depth plus one cannot be greater than or equal to the max game depth. We add
+        // an additional depth to the split depth to avoid a bug in trace ancestor lookup. We know
+        // that the case where the split depth is the max value for uint256 is equivalent to the
+        // second check though we do need to check it explicitly to avoid an overflow.
+        if (_splitDepth == type(uint256).max || _splitDepth + 1 >= _maxGameDepth) revert InvalidSplitDepth();
+
+        // The split depth cannot be 0 or 1 to stay in bounds of clock extension arithmetic.
+        if (_splitDepth < 2) revert InvalidSplitDepth();
+
+        // The PreimageOracle challenge period must fit into uint64 so we can safely use it here.
+        // Runtime check was added instead of changing the ABI since the contract is already
+        // deployed in production. We perform the same check within the PreimageOracle for the
+        // benefit of developers but also perform this check here defensively.
+        if (_vm.oracle().challengePeriod() > type(uint64).max) revert InvalidChallengePeriod();
+
+        // Determine the maximum clock extension which is either the split depth extension or the
+        // maximum game depth extension depending on the configuration of these contracts.
+        uint256 splitDepthExtension = uint256(_clockExtension.raw()) * 2;
+        uint256 maxGameDepthExtension = uint256(_clockExtension.raw()) + uint256(_vm.oracle().challengePeriod());
+        uint256 maxClockExtension = Math.max(splitDepthExtension, maxGameDepthExtension);
+
+        // The maximum clock extension must fit into a uint64.
+        if (maxClockExtension > type(uint64).max) revert InvalidClockExtension();
+
+        // The maximum clock extension may not be greater than the maximum clock duration.
+        if (uint64(maxClockExtension) > _maxClockDuration.raw()) revert InvalidClockExtension();
+
+        // Set up initial game state.
         GAME_TYPE = _gameType;
         ABSOLUTE_PRESTATE = _absolutePrestate;
         MAX_GAME_DEPTH = _maxGameDepth;
@@ -368,17 +393,29 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         //            seconds of time.
         if (nextDuration.raw() == MAX_CLOCK_DURATION.raw()) revert ClockTimeExceeded();
 
-        // If the remaining clock time has less than `CLOCK_EXTENSION` seconds remaining, grant the potential
-        // grandchild's clock `CLOCK_EXTENSION` seconds. This is to ensure that, even if a player has to inherit another
-        // team's clock to counter a freeloader claim, they will always have enough time to respond. This extension
-        // is bounded by the depth of the tree. If the potential grandchild is an execution trace bisection root, the
-        // clock extension is doubled. This is to allow for extra time for the off-chain challenge agent to generate
-        // the initial instruction trace on the native FPVM.
-        if (nextDuration.raw() > MAX_CLOCK_DURATION.raw() - CLOCK_EXTENSION.raw()) {
-            // If the potential grandchild is an execution trace bisection root, double the clock extension.
-            uint64 extensionPeriod =
-                nextPositionDepth == SPLIT_DEPTH - 1 ? CLOCK_EXTENSION.raw() * 2 : CLOCK_EXTENSION.raw();
-            nextDuration = Duration.wrap(MAX_CLOCK_DURATION.raw() - extensionPeriod);
+        // Clock extension is a mechanism that automatically extends the clock for a potential
+        // grandchild claim when there would be less than the clock extension time left if a player
+        // is forced to inherit another team's clock when countering a freeloader claim. Exact
+        // amount of clock extension time depends exactly where we are within the game.
+        uint64 actualExtension;
+        if (nextPositionDepth == MAX_GAME_DEPTH - 1) {
+            // If the next position is `MAX_GAME_DEPTH - 1` then we're about to execute a step. Our
+            // clock extension must therefore account for the LPP challenge period in addition to
+            // the standard clock extension.
+            actualExtension = CLOCK_EXTENSION.raw() + uint64(VM.oracle().challengePeriod());
+        } else if (nextPositionDepth == SPLIT_DEPTH - 1) {
+            // If the next position is `SPLIT_DEPTH - 1` then we're about to begin an execution
+            // trace bisection and we need to give extra time for the off-chain challenge agent to
+            // be able to generate the initial instruction trace on the native FPVM.
+            actualExtension = CLOCK_EXTENSION.raw() * 2;
+        } else {
+            // Otherwise, we just use the standard clock extension.
+            actualExtension = CLOCK_EXTENSION.raw();
+        }
+
+        // Check if we need to apply the clock extension.
+        if (nextDuration.raw() > MAX_CLOCK_DURATION.raw() - actualExtension) {
+            nextDuration = Duration.wrap(MAX_CLOCK_DURATION.raw() - actualExtension);
         }
 
         // Construct the next clock with the new duration and the current block timestamp.
@@ -451,6 +488,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
             // We add the index at depth + 1 to the starting block number to get the disputed L2
             // block number.
             uint256 l2Number = startingOutputRoot.l2BlockNumber + disputedPos.traceIndex(SPLIT_DEPTH) + 1;
+
+            // Choose the minimum between the `l2BlockNumber` claim and the bisected-to L2 block number.
+            l2Number = l2Number < l2BlockNumber() ? l2Number : l2BlockNumber();
 
             oracle.loadLocalData(_ident, uuid.raw(), bytes32(l2Number << 0xC0), 8, _partOffset);
         } else if (_ident == LocalPreimageKey.CHAIN_ID) {

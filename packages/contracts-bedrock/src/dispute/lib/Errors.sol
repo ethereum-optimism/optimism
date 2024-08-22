@@ -94,6 +94,9 @@ error InvalidSplitDepth();
 /// @notice Thrown on deployment if the max clock duration is less than or equal to the clock extension.
 error InvalidClockExtension();
 
+/// @notice Thrown on deployment if the PreimageOracle challenge period is too high.
+error InvalidChallengePeriod();
+
 /// @notice Thrown on deployment if the max depth is greater than `LibPosition.`
 error MaxDepthTooLarge();
 
@@ -123,3 +126,13 @@ error L2BlockNumberChallenged();
 
 /// @notice Thrown when an unauthorized address attempts to interact with the game.
 error BadAuth();
+
+////////////////////////////////////////////////////////////////
+//              `AnchorStateRegistry` Errors                  //
+////////////////////////////////////////////////////////////////
+
+/// @notice Thrown when attempting to set an anchor state using an unregistered game.
+error UnregisteredGame();
+
+/// @notice Thrown when attempting to set an anchor state using an invalid game result.
+error InvalidGameStatus();

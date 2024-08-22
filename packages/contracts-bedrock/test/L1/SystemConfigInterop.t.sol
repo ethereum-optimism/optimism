@@ -71,13 +71,13 @@ contract SystemConfigInterop_Test is CommonTest {
             )
         );
 
-        vm.prank(systemConfig.owner());
+        vm.prank(_systemConfigInterop().dependencyManager());
         _systemConfigInterop().addDependency(_chainId);
     }
 
-    /// @dev Tests that adding a dependency as not the owner reverts.
-    function testFuzz_addDependency_notOwner_reverts(uint256 _chainId) public {
-        vm.expectRevert("Ownable: caller is not the owner");
+    /// @dev Tests that adding a dependency as not the dependency manager reverts.
+    function testFuzz_addDependency_notDependencyManager_reverts(uint256 _chainId) public {
+        vm.expectRevert("SystemConfig: caller is not the dependency manager");
         _systemConfigInterop().addDependency(_chainId);
     }
 
@@ -91,13 +91,13 @@ contract SystemConfigInterop_Test is CommonTest {
             )
         );
 
-        vm.prank(systemConfig.owner());
+        vm.prank(_systemConfigInterop().dependencyManager());
         _systemConfigInterop().removeDependency(_chainId);
     }
 
-    /// @dev Tests that removing a dependency as not the owner reverts.
-    function testFuzz_removeDependency_notOwner_reverts(uint256 _chainId) public {
-        vm.expectRevert("Ownable: caller is not the owner");
+    /// @dev Tests that removing a dependency as not the dependency manager reverts.
+    function testFuzz_removeDependency_notDependencyManager_reverts(uint256 _chainId) public {
+        vm.expectRevert("SystemConfig: caller is not the dependency manager");
         _systemConfigInterop().removeDependency(_chainId);
     }
 

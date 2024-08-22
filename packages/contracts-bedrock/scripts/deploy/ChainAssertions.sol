@@ -208,6 +208,32 @@ library ChainAssertions {
         }
     }
 
+    /// @notice Asserts that the permissioned DelayedWETH is setup correctly
+    function checkPermissionedDelayedWETH(
+        Types.ContractSet memory _contracts,
+        DeployConfig _cfg,
+        bool _isProxy,
+        address _expectedOwner
+    )
+        internal
+        view
+    {
+        console.log("Running chain assertions on the permissioned DelayedWETH");
+        DelayedWETH weth = DelayedWETH(payable(_contracts.PermissionedDelayedWETH));
+
+        // Check that the contract is initialized
+        assertSlotValueIsOne({ _contractAddress: address(weth), _slot: 0, _offset: 0 });
+
+        if (_isProxy) {
+            require(weth.owner() == _expectedOwner);
+            require(weth.delay() == _cfg.faultGameWithdrawalDelay());
+            require(weth.config() == SuperchainConfig(_contracts.SuperchainConfig));
+        } else {
+            require(weth.owner() == _expectedOwner);
+            require(weth.delay() == _cfg.faultGameWithdrawalDelay());
+        }
+    }
+
     /// @notice Asserts that the L2OutputOracle is setup correctly
     function checkL2OutputOracle(
         Types.ContractSet memory _contracts,
