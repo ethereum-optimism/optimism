@@ -100,6 +100,10 @@ func (id *SourceID) UnmarshalText(data []byte) error {
 	return nil
 }
 
+// SourceMap is a util to map solidity deployed-bytecode positions
+// to source-file, line and column position data.
+// It is best used in combination with foundry.SourceMapFS to load the source-map.
+// The source-map functionality is tested as part of the FS.
 type SourceMap struct {
 	srcFs       fs.FS
 	srcIDToPath map[SourceID]string
