@@ -109,6 +109,10 @@ contract Setup {
     SuperchainWETH superchainWeth = SuperchainWETH(payable(Predeploys.SUPERCHAIN_WETH));
     ETHLiquidity ethLiquidity = ETHLiquidity(Predeploys.ETH_LIQUIDITY);
 
+    // TODO: Replace with OptimismSuperchainERC20Factory when updating pragmas
+    IOptimismERC20Factory l2OptimismSuperchainERC20Factory =
+        IOptimismERC20Factory(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY);
+
     /// @dev Deploys the Deploy contract without including its bytecode in the bytecode
     ///      of this contract by fetching the bytecode dynamically using `vm.getCode()`.
     ///      If the Deploy bytecode is included in this contract, then it will double
@@ -227,6 +231,8 @@ contract Setup {
         labelPredeploy(Predeploys.WETH);
         labelPredeploy(Predeploys.SUPERCHAIN_WETH);
         labelPredeploy(Predeploys.ETH_LIQUIDITY);
+        labelPredeploy(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY);
+        labelPredeploy(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON);
 
         // L2 Preinstalls
         labelPreinstall(Preinstalls.MultiCall3);

@@ -262,6 +262,8 @@ contract L2Genesis is Deployer {
             setL2ToL2CrossDomainMessenger(); // 23
             setSuperchainWETH(); // 24
             setETHLiquidity(); // 25
+            setOptimismSuperchainERC20Factory(); // 26
+            setOptimismSuperchainERC20Beacon(); // 27
         }
     }
 
@@ -511,6 +513,18 @@ contract L2Genesis is Deployer {
     ///         This contract has no initializer.
     function setSuperchainWETH() internal {
         _setImplementationCode(Predeploys.SUPERCHAIN_WETH);
+    }
+
+    /// @notice This predeploy is following the safety invariant #1.
+    ///         This contract has no initializer.
+    function setOptimismSuperchainERC20Factory() internal {
+        _setImplementationCode(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY);
+    }
+
+    /// @notice This predeploy is following the safety invariant #1.
+    ///         This contract has no initializer.
+    function setOptimismSuperchainERC20Beacon() internal {
+        _setImplementationCode(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON);
     }
 
     /// @notice Sets all the preinstalls.
