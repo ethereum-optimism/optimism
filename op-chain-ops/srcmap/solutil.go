@@ -114,6 +114,10 @@ type SourceMap struct {
 	Instr []InstrMapping
 }
 
+// Info translates a program-counter (execution position in the EVM bytecode)
+// into the source-code location that is being executed.
+// This location is the source file-path, the line number, and column number.
+// This may return an error, as the source-file is lazy-loaded to calculate the position data.
 func (s *SourceMap) Info(pc uint64) (source string, line uint32, col uint32, err error) {
 	instr := s.Instr[pc]
 	if instr.F < 0 || instr == (InstrMapping{}) {
@@ -146,6 +150,8 @@ func (s *SourceMap) Info(pc uint64) (source string, line uint32, col uint32, err
 	return
 }
 
+// FormattedInfo is a convenience method to run Info, and turn it into a formatted string.
+// Any error is turned into a string also, to make this simple to plug into logging.
 func (s *SourceMap) FormattedInfo(pc uint64) string {
 	f, l, c, err := s.Info(pc)
 	if err != nil {

@@ -32,6 +32,8 @@ type ArtifactsFS struct {
 	FS statDirFs
 }
 
+// ListArtifacts lists the artifacts. Each artifact matches a source-file name.
+// This name includes the extension, e.g. ".sol".
 func (af *ArtifactsFS) ListArtifacts() ([]string, error) {
 	entries, err := af.FS.ReadDir(".")
 	if err != nil {
@@ -39,17 +41,15 @@ func (af *ArtifactsFS) ListArtifacts() ([]string, error) {
 	}
 	out := make([]string, 0, len(entries))
 	for _, d := range entries {
-		if name := d.Name(); strings.HasSuffix(name, ".sol") {
-			out = append(out, strings.TrimSuffix(name, ".sol"))
-		}
+		out = append(out, d.Name())
 	}
 	return out, nil
 }
 
-// ListContracts lists the contracts of the named artifact.
-// E.g. "Owned" might list "Owned.0.8.15", "Owned.0.8.25", and "Owned".
+// ListContracts lists the contracts of the named artifact, including the file extension.
+// E.g. "Owned.sol" might list "Owned.0.8.15", "Owned.0.8.25", and "Owned".
 func (af *ArtifactsFS) ListContracts(name string) ([]string, error) {
-	f, err := af.FS.Open(name + ".sol")
+	f, err := af.FS.Open(name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open artifact %q: %w", name, err)
 	}
@@ -73,10 +73,9 @@ func (af *ArtifactsFS) ListContracts(name string) ([]string, error) {
 
 // ReadArtifact reads a specific JSON contract artifact from the FS.
 // The contract name may be suffixed by a solidity compiler version, e.g. "Owned.0.8.25".
+// The contract name does not include ".json", this is a detail internal to the artifacts.
+// The name of the artifact is the source-file name, this must include the suffix such as ".sol".
 func (af *ArtifactsFS) ReadArtifact(name string, contract string) (*Artifact, error) {
-	if !strings.HasSuffix(name, ".sol") {
-		name += ".sol"
-	}
 	artifactPath := path.Join(name, contract+".json")
 	f, err := af.FS.Open(artifactPath)
 	if err != nil {
