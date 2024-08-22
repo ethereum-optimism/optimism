@@ -29,7 +29,7 @@ type Lifecycle interface {
 // a shutdown when the Stop context is not expired.
 type LifecycleAction func(ctx *cli.Context, close context.CancelCauseFunc) (Lifecycle, error)
 
-var interruptErr = errors.New("interrupt signal")
+var errInterrupt = errors.New("interrupt signal")
 
 // LifecycleCmd turns a LifecycleAction into an CLI action,
 // by instrumenting it with CLI context and signal based termination.
