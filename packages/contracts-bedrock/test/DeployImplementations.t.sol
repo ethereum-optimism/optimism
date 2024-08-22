@@ -3,13 +3,202 @@ pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
 
+import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
+import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
+import { MIPS } from "src/cannon/MIPS.sol";
+
+import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
+import { SystemConfig } from "src/L1/SystemConfig.sol";
+import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
+import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
+import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
+import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
+
 import {
     DeployImplementationsInput,
     DeployImplementations,
     DeployImplementationsOutput
 } from "scripts/DeployImplementations.s.sol";
 
-/// @notice Deploys the Superchain contracts that can be shared by many chains.
+contract DeployImplementationsInput_Test is Test {
+    DeployImplementationsInput dsi;
+
+    DeployImplementationsInput.Input input = DeployImplementationsInput.Input({
+        withdrawalDelaySeconds: 100,
+        minProposalSizeBytes: 200,
+        challengePeriodSeconds: 300,
+        proofMaturityDelaySeconds: 400,
+        disputeGameFinalityDelaySeconds: 500
+    });
+
+    function setUp() public {
+        dsi = new DeployImplementationsInput();
+    }
+
+    function test_loadInput_succeeds() public {
+        dsi.loadInput(input);
+
+        assertTrue(dsi.inputSet(), "100");
+
+        // Compare the test input struct to the getter methods.
+        assertEq(input.withdrawalDelaySeconds, dsi.withdrawalDelaySeconds(), "200");
+        assertEq(input.minProposalSizeBytes, dsi.minProposalSizeBytes(), "300");
+        assertEq(input.challengePeriodSeconds, dsi.challengePeriodSeconds(), "400");
+        assertEq(input.proofMaturityDelaySeconds, dsi.proofMaturityDelaySeconds(), "500");
+        assertEq(input.disputeGameFinalityDelaySeconds, dsi.disputeGameFinalityDelaySeconds(), "600");
+
+        // Compare the test input struct to the `input` getter method.
+        assertEq(keccak256(abi.encode(input)), keccak256(abi.encode(dsi.input())), "800");
+    }
+
+    function test_getters_whenNotSet_revert() public {
+        bytes memory expectedErr = "DeployImplementationsInput: input not set";
+
+        vm.expectRevert(expectedErr);
+        dsi.withdrawalDelaySeconds();
+
+        vm.expectRevert(expectedErr);
+        dsi.minProposalSizeBytes();
+
+        vm.expectRevert(expectedErr);
+        dsi.challengePeriodSeconds();
+
+        vm.expectRevert(expectedErr);
+        dsi.proofMaturityDelaySeconds();
+
+        vm.expectRevert(expectedErr);
+        dsi.disputeGameFinalityDelaySeconds();
+    }
+}
+
+contract DeployImplementationsOutput_Test is Test {
+    DeployImplementationsOutput dso;
+
+    function setUp() public {
+        dso = new DeployImplementationsOutput();
+    }
+
+    function test_set_succeeds() public {
+        DeployImplementationsOutput.Output memory output = DeployImplementationsOutput.Output({
+            optimismPortal2Impl: OptimismPortal2(payable(makeAddr("optimismPortal2Impl"))),
+            delayedWETHImpl: DelayedWETH(payable(makeAddr("delayedWETHImpl"))),
+            preimageOracleSingleton: PreimageOracle(makeAddr("preimageOracleSingleton")),
+            mipsSingleton: MIPS(makeAddr("mipsSingleton")),
+            systemConfigImpl: SystemConfig(makeAddr("systemConfigImpl")),
+            l1CrossDomainMessengerImpl: L1CrossDomainMessenger(makeAddr("l1CrossDomainMessengerImpl")),
+            l1ERC721BridgeImpl: L1ERC721Bridge(makeAddr("l1ERC721BridgeImpl")),
+            l1StandardBridgeImpl: L1StandardBridge(payable(makeAddr("l1StandardBridgeImpl"))),
+            optimismMintableERC20FactoryImpl: OptimismMintableERC20Factory(makeAddr("optimismMintableERC20FactoryImpl"))
+        });
+
+        vm.etch(address(output.optimismPortal2Impl), hex"01");
+        vm.etch(address(output.delayedWETHImpl), hex"01");
+        vm.etch(address(output.preimageOracleSingleton), hex"01");
+        vm.etch(address(output.mipsSingleton), hex"01");
+        vm.etch(address(output.systemConfigImpl), hex"01");
+        vm.etch(address(output.l1CrossDomainMessengerImpl), hex"01");
+        vm.etch(address(output.l1ERC721BridgeImpl), hex"01");
+        vm.etch(address(output.l1StandardBridgeImpl), hex"01");
+        vm.etch(address(output.optimismMintableERC20FactoryImpl), hex"01");
+
+        dso.set(dso.optimismPortal2Impl.selector, address(output.optimismPortal2Impl));
+        dso.set(dso.delayedWETHImpl.selector, address(output.delayedWETHImpl));
+        dso.set(dso.preimageOracleSingleton.selector, address(output.preimageOracleSingleton));
+        dso.set(dso.mipsSingleton.selector, address(output.mipsSingleton));
+        dso.set(dso.systemConfigImpl.selector, address(output.systemConfigImpl));
+        dso.set(dso.l1CrossDomainMessengerImpl.selector, address(output.l1CrossDomainMessengerImpl));
+        dso.set(dso.l1ERC721BridgeImpl.selector, address(output.l1ERC721BridgeImpl));
+        dso.set(dso.l1StandardBridgeImpl.selector, address(output.l1StandardBridgeImpl));
+        dso.set(dso.optimismMintableERC20FactoryImpl.selector, address(output.optimismMintableERC20FactoryImpl));
+
+        assertEq(address(output.optimismPortal2Impl), address(dso.optimismPortal2Impl()), "100");
+        assertEq(address(output.delayedWETHImpl), address(dso.delayedWETHImpl()), "200");
+        assertEq(address(output.preimageOracleSingleton), address(dso.preimageOracleSingleton()), "300");
+        assertEq(address(output.mipsSingleton), address(dso.mipsSingleton()), "400");
+        assertEq(address(output.systemConfigImpl), address(dso.systemConfigImpl()), "500");
+        assertEq(address(output.l1CrossDomainMessengerImpl), address(dso.l1CrossDomainMessengerImpl()), "600");
+        assertEq(address(output.l1ERC721BridgeImpl), address(dso.l1ERC721BridgeImpl()), "700");
+        assertEq(address(output.l1StandardBridgeImpl), address(dso.l1StandardBridgeImpl()), "800");
+        assertEq(
+            address(output.optimismMintableERC20FactoryImpl), address(dso.optimismMintableERC20FactoryImpl()), "900"
+        );
+
+        assertEq(keccak256(abi.encode(output)), keccak256(abi.encode(dso.output())), "1000");
+    }
+
+    function test_getters_whenNotSet_revert() public {
+        bytes memory expectedErr = "DeployUtils: zero address";
+
+        vm.expectRevert(expectedErr);
+        dso.optimismPortal2Impl();
+
+        vm.expectRevert(expectedErr);
+        dso.delayedWETHImpl();
+
+        vm.expectRevert(expectedErr);
+        dso.preimageOracleSingleton();
+
+        vm.expectRevert(expectedErr);
+        dso.mipsSingleton();
+
+        vm.expectRevert(expectedErr);
+        dso.systemConfigImpl();
+
+        vm.expectRevert(expectedErr);
+        dso.l1CrossDomainMessengerImpl();
+
+        vm.expectRevert(expectedErr);
+        dso.l1ERC721BridgeImpl();
+
+        vm.expectRevert(expectedErr);
+        dso.l1StandardBridgeImpl();
+
+        vm.expectRevert(expectedErr);
+        dso.optimismMintableERC20FactoryImpl();
+    }
+
+    function test_getters_whenAddrHasNoCode_reverts() public {
+        address emptyAddr = makeAddr("emptyAddr");
+        bytes memory expectedErr = bytes(string.concat("DeployUtils: no code at ", vm.toString(emptyAddr)));
+
+        dso.set(dso.optimismPortal2Impl.selector, emptyAddr);
+        vm.expectRevert(expectedErr);
+        dso.optimismPortal2Impl();
+
+        dso.set(dso.delayedWETHImpl.selector, emptyAddr);
+        vm.expectRevert(expectedErr);
+        dso.delayedWETHImpl();
+
+        dso.set(dso.preimageOracleSingleton.selector, emptyAddr);
+        vm.expectRevert(expectedErr);
+        dso.preimageOracleSingleton();
+
+        dso.set(dso.mipsSingleton.selector, emptyAddr);
+        vm.expectRevert(expectedErr);
+        dso.mipsSingleton();
+
+        dso.set(dso.systemConfigImpl.selector, emptyAddr);
+        vm.expectRevert(expectedErr);
+        dso.systemConfigImpl();
+
+        dso.set(dso.l1CrossDomainMessengerImpl.selector, emptyAddr);
+        vm.expectRevert(expectedErr);
+        dso.l1CrossDomainMessengerImpl();
+
+        dso.set(dso.l1ERC721BridgeImpl.selector, emptyAddr);
+        vm.expectRevert(expectedErr);
+        dso.l1ERC721BridgeImpl();
+
+        dso.set(dso.l1StandardBridgeImpl.selector, emptyAddr);
+        vm.expectRevert(expectedErr);
+        dso.l1StandardBridgeImpl();
+
+        dso.set(dso.optimismMintableERC20FactoryImpl.selector, emptyAddr);
+        vm.expectRevert(expectedErr);
+        dso.optimismMintableERC20FactoryImpl();
+    }
+}
+
 contract DeployImplementations_Test is Test {
     DeployImplementations deployImplementations;
     DeployImplementationsInput dsi;
