@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	opparams "github.com/ethereum-optimism/optimism/op-node/params"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -758,6 +759,15 @@ type LegacyDeployConfig struct {
 	DeploymentWaitConfirmations int `json:"deploymentWaitConfirmations"`
 
 	UnusedChannelTimeoutGranite uint64 `json:"channelTimeoutGranite,omitempty"`
+}
+
+var _ ConfigChecker = (*LegacyDeployConfig)(nil)
+
+func (d *LegacyDeployConfig) Check(log log.Logger) error {
+	if d.UnusedChannelTimeoutGranite != 0 && d.UnusedChannelTimeoutGranite != opparams.ChannelTimeoutGranite {
+		return fmt.Errorf("%w: channelTimeoutGranite is no longer used. Only valid values are 0 or the protocol constant (%d)", ErrInvalidDeployConfig, opparams.ChannelTimeoutGranite)
+	}
+	return nil
 }
 
 // DeployConfig represents the deployment configuration for an OP Stack chain.
