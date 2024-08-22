@@ -20,7 +20,7 @@ func TestScript(t *testing.T) {
 
 	scriptContext := DefaultContext
 	h := NewHost(logger, af, scriptContext)
-	addr, err := h.LoadContract("ScriptExample.s", "ScriptExample")
+	addr, err := h.LoadContract("ScriptExample.s.sol", "ScriptExample")
 	require.NoError(t, err)
 
 	require.NoError(t, h.EnableCheats())
