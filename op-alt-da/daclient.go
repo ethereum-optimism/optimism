@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 )
 
 // ErrNotFound is returned when the server could not find the input.
@@ -23,10 +24,16 @@ type DAClient struct {
 	verify bool
 	// whether commitment is precomputable (only applicable to keccak256)
 	precompute bool
+	getTimeout time.Duration
+	putTimeout time.Duration
 }
 
 func NewDAClient(url string, verify bool, pc bool) *DAClient {
-	return &DAClient{url, verify, pc}
+	return &DAClient{
+		url:        url,
+		verify:     verify,
+		precompute: pc,
+	}
 }
 
 // GetInput returns the input data for the given encoded commitment bytes.
@@ -35,7 +42,8 @@ func (c *DAClient) GetInput(ctx context.Context, comm CommitmentData) ([]byte, e
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	client := &http.Client{Timeout: c.getTimeout}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +99,8 @@ func (c *DAClient) setInputWithCommit(ctx context.Context, comm CommitmentData, 
 		return fmt.Errorf("failed to create HTTP request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/octet-stream")
-	resp, err := http.DefaultClient.Do(req)
+	client := &http.Client{Timeout: c.putTimeout}
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
@@ -116,7 +125,8 @@ func (c *DAClient) setInput(ctx context.Context, img []byte) (CommitmentData, er
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/octet-stream")
-	resp, err := http.DefaultClient.Do(req)
+	client := &http.Client{Timeout: c.putTimeout}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
