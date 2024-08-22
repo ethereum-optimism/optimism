@@ -271,6 +271,18 @@ contract Deploy is Deployer {
         _run();
     }
 
+
+    // Deploy specific contracts for polymer
+    function deployPolymerL1Contracts() public {
+        console.log("Deploying a fresh OP Stack for only contracts which depend on polymer");
+        deploySafe("SystemOwnerSafe");
+        deployAddressManager();
+        deployProxyAdmin();
+        transferProxyAdminOwnership();
+        deployL2OutputOracle();
+        deployL2OutputOracleProxy();
+        initializeL2OutputOracle();
+    }
     function runWithStateDump() public {
         vm.chainId(cfg.l1ChainID());
         _run();
@@ -587,6 +599,7 @@ contract Deploy is Deployer {
 
         save(_name, address(proxy));
         console.log("   at %s", address(proxy));
+        console.log("with owner ", address(_proxyOwner));
         addr_ = address(proxy);
     }
 
@@ -682,6 +695,10 @@ contract Deploy is Deployer {
         ChainAssertions.checkOptimismPortal2({ _contracts: contracts, _cfg: cfg, _isProxy: false });
 
         addr_ = address(portal);
+    }
+
+    function deployL2OutputOracleProxy() public {
+        deployERC1967Proxy("L2OutputOracleProxy");
     }
 
     /// @notice Deploy the L2OutputOracle
@@ -1218,7 +1235,7 @@ contract Deploy is Deployer {
         console.log("L2OutputOracle version: %s", version);
 
         ChainAssertions.checkL2OutputOracle({
-            _contracts: _proxies(),
+            _contracts: _proxiesUnstrict(),
             _cfg: cfg,
             _l2OutputOracleStartingTimestamp: cfg.l2OutputOracleStartingTimestamp(),
             _isProxy: true
