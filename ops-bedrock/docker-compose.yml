@@ -240,7 +240,7 @@ services:
 
   da-server:
     platform: linux/amd64
-    image: ghcr.io/layr-labs/eigenda-proxy@sha256:c7aae98c0ed65763e0bfe9b2f41147123d6d576f435dcc2d0d8dbcbb03cdc205
+    image: ghcr.io/layr-labs/eigenda-proxy:v1.4.0
     environment:
       - EIGENDA_PROXY_ADDR=0.0.0.0
       - EIGENDA_PROXY_PORT=3100
