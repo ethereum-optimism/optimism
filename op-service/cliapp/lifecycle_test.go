@@ -124,7 +124,7 @@ func TestLifecycleCmd(t *testing.T) {
 		signalCh, _, _, _, resultCh, _ := appSetup(t)
 		signalCh <- struct{}{}
 		res := <-resultCh
-		require.ErrorIs(t, res, interruptErr)
+		require.ErrorIs(t, res, errInterrupt)
 		require.ErrorContains(t, res, "failed to setup")
 	})
 	t.Run("failed init", func(t *testing.T) {
@@ -142,7 +142,7 @@ func TestLifecycleCmd(t *testing.T) {
 		require.False(t, app.Stopped())
 		signalCh <- struct{}{}
 		res := <-resultCh
-		require.ErrorIs(t, res, interruptErr)
+		require.ErrorIs(t, res, errInterrupt)
 		require.ErrorContains(t, res, "failed to start")
 		require.True(t, app.Stopped())
 	})
@@ -178,7 +178,7 @@ func TestLifecycleCmd(t *testing.T) {
 		signalCh <- struct{}{} // start graceful shutdown
 		signalCh <- struct{}{} // interrupt before the shutdown process is allowed to complete
 		res := <-resultCh
-		require.ErrorIs(t, res, interruptErr)
+		require.ErrorIs(t, res, errInterrupt)
 		require.ErrorContains(t, res, "failed to stop")
 		require.True(t, app.Stopped()) // still fully closes, interrupts only accelerate shutdown where possible.
 	})

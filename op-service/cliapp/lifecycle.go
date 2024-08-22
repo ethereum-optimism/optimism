@@ -50,7 +50,7 @@ func LifecycleCmd(fn LifecycleAction) cli.ActionFunc {
 
 		go func() {
 			blockOnInterrupt(appCtx)
-			appCancel(interruptErr)
+			appCancel(errInterrupt)
 		}()
 
 		appLifecycle, err := fn(ctx, appCancel)
@@ -78,7 +78,7 @@ func LifecycleCmd(fn LifecycleAction) cli.ActionFunc {
 		stopCtx, stopCancel := context.WithCancelCause(hostCtx)
 		go func() {
 			blockOnInterrupt(stopCtx)
-			stopCancel(interruptErr)
+			stopCancel(errInterrupt)
 		}()
 
 		// Execute graceful stop.
