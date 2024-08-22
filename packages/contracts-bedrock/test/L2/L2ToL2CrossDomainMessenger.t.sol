@@ -130,7 +130,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
 
         // Call the sendMessage function with value to provoke revert
         (bool success,) = address(l2ToL2CrossDomainMessenger).call{ value: _value }(
-            abi.encodeWithSelector(l2ToL2CrossDomainMessenger.sendMessage.selector, _destination, _target, _message)
+            abi.encodeCall(l2ToL2CrossDomainMessenger.sendMessage, (_destination, _target, _message))
         );
 
         // Check that the function reverts
