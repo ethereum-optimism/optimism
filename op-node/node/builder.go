@@ -19,10 +19,10 @@ import (
 	"github.com/holiman/uint256"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/builder"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -43,8 +43,43 @@ type BuilderAPIClient struct {
 	domainBuilder phase0.Domain
 }
 
+func verifySignature(submission *builderSpec.VersionedSubmitBlockRequest, domainBuilder phase0.Domain) error {
+	bid, err := submission.BidTrace()
+	if err != nil {
+		return err
+	}
+
+	signature, err := submission.Signature()
+	if err != nil {
+		return err
+	}
+
+	builderPubKey := bid.BuilderPubkey
+
+	ok, err := ssz.VerifySignature(bid, domainBuilder, builderPubKey[:], signature[:])
+	if err != nil {
+		return err
+	}
+
+	if !ok {
+		return errors.New("invalid builder signature")
+	}
+	return nil
+}
+
+func computeDomain(domainType phase0.DomainType, forkVersionHex, genesisValidatorsRootHex string) (domain phase0.Domain, err error) {
+	genesisValidatorsRoot := phase0.Root(common.HexToHash(genesisValidatorsRootHex))
+	forkVersionBytes, err := hexutil.Decode(forkVersionHex)
+	if err != nil || len(forkVersionBytes) != 4 {
+		return domain, errors.New("invalid fork version")
+	}
+	var forkVersion [4]byte
+	copy(forkVersion[:], forkVersionBytes[:4])
+	return ssz.ComputeDomain(domainType, forkVersion, genesisValidatorsRoot), nil
+}
+
 func NewBuilderClient(log log.Logger, rollupCfg *rollup.Config, endpoint string, timeout time.Duration) *BuilderAPIClient {
-	domainBuilder, err := builder.ComputeDomain(ssz.DomainTypeAppBuilder, GenesisForkVersionMainnet, phase0.Root{}.String())
+	domainBuilder, err := computeDomain(ssz.DomainTypeAppBuilder, GenesisForkVersionMainnet, phase0.Root{}.String())
 	if err != nil {
 		log.Error("failed to compute domain", "error", err)
 	}
@@ -75,30 +110,6 @@ func (s *BuilderAPIClient) Timeout() time.Duration {
 type httpErrorResp struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
-}
-
-func verifySignature(submission *builderSpec.VersionedSubmitBlockRequest, domainBuilder phase0.Domain) error {
-	bid, err := submission.BidTrace()
-	if err != nil {
-		return err
-	}
-
-	signature, err := submission.Signature()
-	if err != nil {
-		return err
-	}
-
-	builderPubKey := bid.BuilderPubkey
-
-	ok, err := ssz.VerifySignature(bid, domainBuilder, builderPubKey[:], signature[:])
-	if err != nil {
-		return err
-	}
-
-	if !ok {
-		return errors.New("invalid builder signature")
-	}
-	return nil
 }
 
 func (s *BuilderAPIClient) GetPayload(ctx context.Context, ref eth.L2BlockRef, log log.Logger) (*eth.ExecutionPayloadEnvelope, error) {
