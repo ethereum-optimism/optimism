@@ -28,7 +28,7 @@ import (
 )
 
 const PathGetPayload = "/eth/v1/builder/payload"
-const GenesisForkVersionMainnet = "0x00000000"
+const GenesisForkVersionMainnet = "0x00000000" // NOTE: Optimism does not have any fork version. Use Mainnet fork version for now.
 
 type BuilderAPIConfig struct {
 	Timeout  time.Duration
