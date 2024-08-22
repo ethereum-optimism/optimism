@@ -5,7 +5,6 @@ import { Test } from "forge-std/Test.sol";
 
 import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
-import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
 import { MIPS } from "src/cannon/MIPS.sol";
 
 import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";

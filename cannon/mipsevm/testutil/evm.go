@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/eth/tracers/logger"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 
@@ -23,9 +24,50 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-// LoadArtifacts loads the Cannon contracts, from the contracts package.
-func LoadArtifacts() (*Artifacts, error) {
-	mips, err := foundry.ReadArtifact("../../../packages/contracts-bedrock/forge-artifacts/MIPS.sol/MIPS.json")
+type Artifacts struct {
+	MIPS   *foundry.Artifact
+	Oracle *foundry.Artifact
+}
+
+type Addresses struct {
+	MIPS         common.Address
+	Oracle       common.Address
+	Sender       common.Address
+	FeeRecipient common.Address
+}
+
+type ContractMetadata struct {
+	Artifacts *Artifacts
+	Addresses *Addresses
+}
+
+func TestContractsSetup(t require.TestingT, version MipsVersion) *ContractMetadata {
+	artifacts, err := loadArtifacts(version)
+	require.NoError(t, err)
+
+	addrs := &Addresses{
+		MIPS:         common.Address{0: 0xff, 19: 1},
+		Oracle:       common.Address{0: 0xff, 19: 2},
+		Sender:       common.Address{0x13, 0x37},
+		FeeRecipient: common.Address{0xaa},
+	}
+
+	return &ContractMetadata{Artifacts: artifacts, Addresses: addrs}
+}
+
+// loadArtifacts loads the Cannon contracts, from the contracts package.
+func loadArtifacts(version MipsVersion) (*Artifacts, error) {
+	var mipsMetadata string
+	switch version {
+	case MipsSingleThreaded:
+		mipsMetadata = "../../../packages/contracts-bedrock/forge-artifacts/MIPS.sol/MIPS.json"
+	case MipsMultithreaded:
+		mipsMetadata = "../../../packages/contracts-bedrock/forge-artifacts/MIPS2.sol/MIPS2.json"
+	default:
+		return nil, fmt.Errorf("Unknown MipsVersion supplied: %v", version)
+	}
+
+	mips, err := foundry.ReadArtifact(mipsMetadata)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load MIPS contract: %w", err)
 	}
@@ -41,19 +83,7 @@ func LoadArtifacts() (*Artifacts, error) {
 	}, nil
 }
 
-type Artifacts struct {
-	MIPS   *foundry.Artifact
-	Oracle *foundry.Artifact
-}
-
-type Addresses struct {
-	MIPS         common.Address
-	Oracle       common.Address
-	Sender       common.Address
-	FeeRecipient common.Address
-}
-
-func NewEVMEnv(artifacts *Artifacts, addrs *Addresses) (*vm.EVM, *state.StateDB) {
+func NewEVMEnv(contracts *ContractMetadata) (*vm.EVM, *state.StateDB) {
 	// Temporary hack until Cancun is activated on mainnet
 	cpy := *params.MainnetChainConfig
 	chainCfg := &cpy // don't modify the global chain config
@@ -74,20 +104,20 @@ func NewEVMEnv(artifacts *Artifacts, addrs *Addresses) (*vm.EVM, *state.StateDB)
 
 	env := vm.NewEVM(blockContext, vm.TxContext{}, state, chainCfg, vmCfg)
 	// pre-deploy the contracts
-	env.StateDB.SetCode(addrs.Oracle, artifacts.Oracle.DeployedBytecode.Object)
+	env.StateDB.SetCode(contracts.Addresses.Oracle, contracts.Artifacts.Oracle.DeployedBytecode.Object)
 
 	var mipsCtorArgs [32]byte
-	copy(mipsCtorArgs[12:], addrs.Oracle[:])
-	mipsDeploy := append(bytes.Clone(artifacts.MIPS.Bytecode.Object), mipsCtorArgs[:]...)
+	copy(mipsCtorArgs[12:], contracts.Addresses.Oracle[:])
+	mipsDeploy := append(bytes.Clone(contracts.Artifacts.MIPS.Bytecode.Object), mipsCtorArgs[:]...)
 	startingGas := uint64(30_000_000)
-	_, deployedMipsAddr, leftOverGas, err := env.Create(vm.AccountRef(addrs.Sender), mipsDeploy, startingGas, common.U2560)
+	_, deployedMipsAddr, leftOverGas, err := env.Create(vm.AccountRef(contracts.Addresses.Sender), mipsDeploy, startingGas, common.U2560)
 	if err != nil {
 		panic(fmt.Errorf("failed to deploy MIPS contract: %w. took %d gas", err, startingGas-leftOverGas))
 	}
-	addrs.MIPS = deployedMipsAddr
+	contracts.Addresses.MIPS = deployedMipsAddr
 
 	rules := env.ChainConfig().Rules(header.Number, true, header.Time)
-	env.StateDB.Prepare(rules, addrs.Sender, addrs.FeeRecipient, &addrs.MIPS, vm.ActivePrecompiles(rules), nil)
+	env.StateDB.Prepare(rules, contracts.Addresses.Sender, contracts.Addresses.FeeRecipient, &contracts.Addresses.MIPS, vm.ActivePrecompiles(rules), nil)
 	return env, state
 }
 

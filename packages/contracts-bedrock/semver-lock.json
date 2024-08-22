@@ -100,8 +100,12 @@
     "sourceCodeHash": "0xb0806d362ba5cc39acfb09e0606059a2b10a7c1d5bc1f86cd4561fd24f7dcada"
   },
   "src/L2/L2StandardBridge.sol": {
-    "initCodeHash": "0xb6af582e9edaae531d48559b7cd0ca5813a112361ea19b8cb46292726ad88d40",
-    "sourceCodeHash": "0xb4a9f333f04008f610eb55fa6ff7e610bab340d53156cb50ec65a575c9576b0e"
+    "initCodeHash": "0xfbfc7bd101022024b94114c26128c6028c25dec07e8d40fdcfdb180c0ba6ddee",
+    "sourceCodeHash": "0xb1a5fb22b124e8fa8eb5bae4b8e0770abbdbebe32be00480317cf4aaada28ed3"
+  },
+  "src/L2/L2StandardBridgeInterop.sol": {
+    "initCodeHash": "0xd7f85eef12b60211104cddbd86d9f458cd31a0ba74f382404799bcf86ef003ba",
+    "sourceCodeHash": "0x00f415380689a5ee1762e93b032d5c3de2fcddb36b0a068cb5616f7e8001ddc0"
   },
   "src/L2/L2ToL1MessagePasser.sol": {
     "initCodeHash": "0x08bbede75cd6dfd076903b8f04d24f82fa7881576c135825098778632e37eebc",
@@ -200,8 +204,8 @@
     "sourceCodeHash": "0x52737b23e99bf79dd2c23196b3298e80aa41f740efc6adc7916e696833eb546a"
   },
   "src/universal/OptimismMintableERC20Factory.sol": {
-    "initCodeHash": "0xf6f522681e7ae940cb778db68004f122b25194296a65bba7ad1d792bd593c4a6",
-    "sourceCodeHash": "0x9b8c73ea139f13028008eedef53a6b07576cd6b08979574e6dde3192656e9268"
+    "initCodeHash": "0x29a49fc387ad84f82199947e49a0d1960902f63492d974c26afd72372e748648",
+    "sourceCodeHash": "0xbc6cf74368c244bdea8ed64c501129d0b6d41db421dc91d1de051f7b505a4977"
   },
   "src/universal/OptimismMintableERC721.sol": {
     "initCodeHash": "0xb400f430acf4d65bee9635e4935a6e1e3a0284fc50aea40ad8b7818dc826f31c",
