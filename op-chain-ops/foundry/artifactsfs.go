@@ -33,7 +33,8 @@ type ArtifactsFS struct {
 }
 
 // ListArtifacts lists the artifacts. Each artifact matches a source-file name.
-// This name includes the extension, e.g. ".sol".
+// This name includes the extension, e.g. ".sol"
+// (no other artifact-types are supported at this time).
 func (af *ArtifactsFS) ListArtifacts() ([]string, error) {
 	entries, err := af.FS.ReadDir(".")
 	if err != nil {
@@ -41,7 +42,11 @@ func (af *ArtifactsFS) ListArtifacts() ([]string, error) {
 	}
 	out := make([]string, 0, len(entries))
 	for _, d := range entries {
-		out = append(out, d.Name())
+		// Some artifacts may be nested in directories not suffixed with ".sol"
+		// Nested artifacts, and non-solidity artifacts, are not supported.
+		if name := d.Name(); strings.HasSuffix(name, ".sol") {
+			out = append(out, d.Name())
+		}
 	}
 	return out, nil
 }
