@@ -15,7 +15,6 @@ import (
 // Syscall codes
 const (
 	SysMmap       = 4090
-	SysMunmap     = 4091
 	SysBrk        = 4045
 	SysClone      = 4120
 	SysExitGroup  = 4246
@@ -57,6 +56,7 @@ const (
 	SysLlseek        = 4140
 	SysMinCore       = 4217
 	SysTgkill        = 4266
+	SysMunmap        = 4091
 )
 
 // Profiling-related syscalls
@@ -69,6 +69,9 @@ const (
 	SysTimerDelete  = 4261
 	SysClockGetTime = 4263
 )
+
+var NoopSyscalls = []uint32{SysGetAffinity, SysMadvise, SysRtSigprocmask, SysSigaltstack, SysRtSigaction, SysPrlimit64, SysClose, SysPread64, SysFstat64, SysOpenAt, SysReadlink, SysReadlinkAt, SysIoctl, SysEpollCreate1, SysPipe2, SysEpollCtl, SysEpollPwait, SysGetRandom, SysUname, SysStat64, SysGetuid, SysGetgid, SysLlseek, SysMinCore, SysTgkill, SysMunmap, SysSetITimer, SysTimerCreate, SysTimerSetTime, SysTimerDelete, SysClockGetTime}
+var SupportedSyscalls = []uint32{SysMmap, SysBrk, SysClone, SysExitGroup, SysRead, SysWrite, SysFcntl, SysExit, SysSchedYield, SysGetTID, SysFutex, SysOpen, SysNanosleep}
 
 // File descriptors
 const (
