@@ -21,7 +21,8 @@ remappings = [
   'ds-test/=lib/forge-std/lib/ds-test/src',
   'safe-contracts/=lib/safe-contracts/contracts',
   'kontrol-cheatcodes/=lib/kontrol-cheatcodes/src',
-  'gelato/=lib/automate/contracts'
+  'gelato/=lib/automate/contracts',
+  'halmos-cheatcodes/=lib/halmos-cheatcodes/'
 ]
 extra_output = ['devdoc', 'userdoc', 'metadata', 'storageLayout']
 bytecode_hash = 'none'
@@ -102,3 +103,8 @@ script = 'test/kontrol/proofs'
 src = 'test/properties/medusa/'
 test = 'test/properties/medusa/'
 script = 'test/properties/medusa/'
+
+[profile.halmos]
+src = 'test/properties/halmos/'
+test = 'test/properties/halmos/'
+script = 'test/properties/halmos/'
