@@ -188,4 +188,26 @@ library Solarray {
         arr[9] = j;
         return arr;
     }
+
+    function extend(address[] memory arr1, address[] memory arr2) internal pure returns (address[] memory newArr) {
+        uint256 length1 = arr1.length;
+        uint256 length2 = arr2.length;
+        newArr = new address[](length1 + length2);
+        for (uint256 i = 0; i < length1;) {
+            newArr[i] = arr1[i];
+            unchecked {
+                ++i;
+            }
+        }
+        for (uint256 i = 0; i < arr2.length;) {
+            uint256 j;
+            unchecked {
+                j = i + length1;
+            }
+            newArr[j] = arr2[i];
+            unchecked {
+                ++i;
+            }
+        }
+    }
 }

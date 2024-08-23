@@ -96,7 +96,8 @@ contract DeploySuperchainInput {
         require(!inputSet, "DeploySuperchainInput: input already set");
 
         // All assertions on inputs happen here. You cannot set any inputs in Solidity unless
-        // they're all valid. For Go testing, the input and outputs
+        // they're all valid. For Go testing, the input and outputs are set individually by
+        // treating the input and output contracts as precompiles and intercepting calls to them.
         require(_input.roles.proxyAdminOwner != address(0), "DeploySuperchainInput: null proxyAdminOwner");
         require(_input.roles.protocolVersionsOwner != address(0), "DeploySuperchainInput: null protocolVersionsOwner");
         require(_input.roles.guardian != address(0), "DeploySuperchainInput: null guardian");
