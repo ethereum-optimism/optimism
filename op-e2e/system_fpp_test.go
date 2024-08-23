@@ -14,8 +14,11 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	cannontest "github.com/ethereum-optimism/optimism/cannon/mipsevm/tests"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
+	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-program/client/claim"
 	opp "github.com/ethereum-optimism/optimism/op-program/host"
 	oppconf "github.com/ethereum-optimism/optimism/op-program/host/config"
@@ -269,6 +272,7 @@ func testVerifyL2OutputRoot(t *testing.T, detached bool, spanBatchActivated bool
 		L2Claim:            common.Hash(l2Claim),
 		L2ClaimBlockNumber: l2ClaimBlockNumber,
 		Detached:           detached,
+		UseCannon:          true,
 	})
 }
 
@@ -279,6 +283,7 @@ type FaultProofProgramTestScenario struct {
 	L2Claim            common.Hash
 	L2ClaimBlockNumber uint64
 	Detached           bool
+	UseCannon          bool
 }
 
 // testFaultProofProgramScenario runs the fault proof program in several contexts, given a test scenario.
@@ -325,6 +330,64 @@ func testFaultProofProgramScenario(t *testing.T, ctx context.Context, sys *Syste
 	} else {
 		require.ErrorIs(t, err, claim.ErrClaimNotValid)
 	}
+
+	if s.UseCannon {
+		sys.Close()
+		t.Log("Running fault proof inside singlethreaded VM")
+		exitCode := RunOpProgramInVM(t, ctx, fppConfig.DataDir, s, sys, cannontest.SingleThreadElfVmFactory)
+		require.Zero(t, exitCode)
+	}
+}
+
+func RunOpProgramInVM(t *testing.T, ctx context.Context, preimageDir string, inputs *FaultProofProgramTestScenario, sys *System, vmFactory cannontest.ElfVMFactory) uint8 {
+	fppConfig := oppconf.NewConfig(sys.RollupConfig, sys.L2GenesisCfg.Config, inputs.L1Head, inputs.L2Head, inputs.L2OutputRoot, common.Hash(inputs.L2Claim), inputs.L2ClaimBlockNumber)
+	fppConfig.DataDir = preimageDir
+	fppConfig.ServerMode = true
+
+	opProgramELFFile := BuildOpProgramClientMips(t)
+
+	pClientRW, pOracleRW, err := preimage.CreateBidirectionalChannel()
+	require.NoError(t, err)
+	hClientRW, hOracleRW, err := preimage.CreateBidirectionalChannel()
+	require.NoError(t, err)
+	hinterChan := preimage.NewReadWritePair(hOracleRW.Reader(), hOracleRW.Writer())
+	preimageChan := preimage.NewReadWritePair(pOracleRW.Reader(), pOracleRW.Writer())
+
+	hostLog := testlog.Logger(t, log.LevelDebug)
+	serverErr := make(chan error, 1)
+	go func() {
+		err := opp.ChanneledServer(ctx, hostLog, fppConfig, preimageChan, hinterChan)
+		serverErr <- err
+		close(serverErr)
+		t.Errorf("op-program host channel closed! %v", err)
+	}()
+
+	clientPollTimeout := time.Second * 15
+	preimageClientIO := preimage.NewFilePoller(ctx, pClientRW, clientPollTimeout)
+	hostClientIO := preimage.NewFilePoller(ctx, hClientRW, clientPollTimeout)
+	oracle := &preimageOracle{pCl: preimage.NewOracleClient(preimageClientIO), hCl: preimage.NewHintWriter(hostClientIO)}
+
+	programLog := testlog.Logger(t, log.LevelDebug).With("module", "client")
+	outLog := &mipsevm.LoggingWriter{Log: programLog.With("stream", "stdout")}
+	errLog := &mipsevm.LoggingWriter{Log: programLog.With("stream", "stderr")}
+	vm := vmFactory(t, opProgramELFFile, oracle, outLog, errLog, programLog)
+
+	state := vm.GetState()
+	for !state.GetExited() {
+		step := state.GetStep()
+		_, err := vm.Step(false)
+		require.NoError(t, err, "vm step")
+		if step%1_000_000 == 0 {
+			require.NoError(t, ctx.Err())
+		}
+		if step%10_000_000 == 0 {
+			t.Logf("vm execution step=%d pc=%x pages=%d mem=%s", step, state.GetPC(),
+				state.GetMemory().PageCount(),
+				state.GetMemory().Usage())
+		}
+	}
+	t.Log("vm execution complete")
+	return vm.GetState().GetExitCode()
 }
 
 func waitForSafeHead(ctx context.Context, safeBlockNum uint64, rollupClient *sources.RollupClient) error {
@@ -339,4 +402,30 @@ func waitForSafeHead(ctx context.Context, safeBlockNum uint64, rollupClient *sou
 			return nil
 		}
 	}
+}
+
+type preimageOracle struct {
+	pCl *preimage.OracleClient
+	hCl *preimage.HintWriter
+}
+
+// TODO: factorize
+type rawHint string
+
+func (rh rawHint) Hint() string {
+	return string(rh)
+}
+
+type rawKey [32]byte
+
+func (rk rawKey) PreimageKey() [32]byte {
+	return rk
+}
+
+func (p *preimageOracle) Hint(v []byte) {
+	p.hCl.Hint(rawHint(v))
+}
+
+func (p *preimageOracle) GetPreimage(k [32]byte) []byte {
+	return p.pCl.Get(rawKey(k))
 }
