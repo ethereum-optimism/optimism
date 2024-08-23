@@ -8,9 +8,9 @@ import (
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
-	testutil3 "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
+	mttestutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
-	testutil2 "github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded/testutil"
+	sttestutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded/testutil"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 )
 
@@ -18,7 +18,7 @@ type VMFactory func(po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log
 
 func singleThreadedVmFactory(po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger, opts ...testutil.StateOption) mipsevm.FPVM {
 	state := singlethreaded.CreateEmptyState()
-	mutator := testutil2.NewStateMutatorSingleThreaded(state)
+	mutator := sttestutil.NewStateMutatorSingleThreaded(state)
 	for _, opt := range opts {
 		opt(mutator)
 	}
@@ -27,7 +27,7 @@ func singleThreadedVmFactory(po mipsevm.PreimageOracle, stdOut, stdErr io.Writer
 
 func multiThreadedVmFactory(po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger, opts ...testutil.StateOption) mipsevm.FPVM {
 	state := multithreaded.CreateEmptyState()
-	mutator := testutil3.NewStateMutatorMultiThreaded(state)
+	mutator := mttestutil.NewStateMutatorMultiThreaded(state)
 	for _, opt := range opts {
 		opt(mutator)
 	}
