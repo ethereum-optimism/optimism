@@ -69,4 +69,8 @@ type FPVM interface {
 
 	// GetDebugInfo returns debug information about the VM
 	GetDebugInfo() *DebugInfo
+
+	// LookupSymbol returns the symbol located at the specified address.
+	// May return an empty string if there's no symbol table available.
+	LookupSymbol(addr uint32) string
 }
