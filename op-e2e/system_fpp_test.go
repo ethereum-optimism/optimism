@@ -334,7 +334,8 @@ func testFaultProofProgramScenario(t *testing.T, ctx context.Context, sys *Syste
 	if s.UseCannon {
 		sys.Close()
 		t.Log("Running fault proof inside singlethreaded VM")
-		exitCode := RunOpProgramInVM(t, ctx, fppConfig.DataDir, s, sys, cannontest.SingleThreadElfVmFactory)
+		//exitCode := RunOpProgramInVM(t, ctx, fppConfig.DataDir, s, sys, cannontest.SingleThreadElfVmFactory)
+		exitCode := RunOpProgramInVM(t, ctx, fppConfig.DataDir, s, sys, cannontest.MultiThreadElfVmFactory)
 		require.Zero(t, exitCode)
 	}
 }
@@ -369,8 +370,11 @@ func RunOpProgramInVM(t *testing.T, ctx context.Context, preimageDir string, inp
 
 	programLog := testlog.Logger(t, log.LevelDebug).With("module", "client")
 	outLog := &mipsevm.LoggingWriter{Log: programLog.With("stream", "stdout")}
+	defer outLog.Flush()
 	errLog := &mipsevm.LoggingWriter{Log: programLog.With("stream", "stderr")}
+	defer errLog.Flush()
 	vm := vmFactory(t, opProgramELFFile, oracle, outLog, errLog, programLog)
+	defer vm.Traceback()
 
 	state := vm.GetState()
 	for !state.GetExited() {
