@@ -202,7 +202,7 @@ contract MIPS2 is ISemver {
                 }
             }
 
-            if (state.stepsSinceLastContextSwitch == sys.SCHED_QUANTUM) {
+            if (state.stepsSinceLastContextSwitch >= sys.SCHED_QUANTUM) {
                 preemptThread(state, thread);
                 return outputState();
             }

@@ -714,15 +714,64 @@ func TestEVM_SysOpen(t *testing.T) {
 		"mipsevm produced different state than EVM")
 }
 
+func TestEVM_SchedQuantumThreshold(t *testing.T) {
+	var tracer *tracing.Hooks
+	cases := []struct {
+		name                        string
+		stepsSinceLastContextSwitch uint64
+		shouldPreempt               bool
+	}{
+		{name: "just under threshold", stepsSinceLastContextSwitch: exec.SchedQuantum - 1},
+		{name: "at threshold", stepsSinceLastContextSwitch: exec.SchedQuantum, shouldPreempt: true},
+		{name: "beyond threshold", stepsSinceLastContextSwitch: exec.SchedQuantum + 1, shouldPreempt: true},
+	}
+
+	for i, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			goVm, state, contracts := setup(t, i*789)
+			// Setup basic getThreadId syscall instruction
+			state.Memory.SetMemory(state.GetPC(), syscallInsn)
+			state.GetRegistersRef()[2] = exec.SysGetTID // Set syscall number
+			state.StepsSinceLastContextSwitch = c.stepsSinceLastContextSwitch
+			step := state.Step
+
+			// Set up post-state expectations
+			expected := mttestutil.NewExpectedMTState(state)
+			if c.shouldPreempt {
+				expected.Step += 1
+				expected.ExpectPreemption(state)
+			} else {
+				expected.ExpectStep()
+				expected.ActiveThread().Registers[2] = state.GetCurrentThread().ThreadId
+				expected.ActiveThread().Registers[7] = 0
+			}
+
+			// State transition
+			var err error
+			var stepWitness *mipsevm.StepWitness
+			stepWitness, err = goVm.Step(true)
+			require.NoError(t, err)
+
+			// Validate post-state
+			expected.Validate(t, state)
+
+			evm := testutil.NewMIPSEVM(contracts)
+			evm.SetTracer(tracer)
+			testutil.LogStepFailureAtCleanup(t, evm)
+
+			evmPost := evm.Step(t, stepWitness, step, multithreaded.GetStateHashFn())
+			goPost, _ := goVm.GetState().EncodeWitness()
+			require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
+				"mipsevm produced different state than EVM")
+		})
+	}
+}
+
 func TestEVM_NoopInstruction(t *testing.T) {
 	t.Skip("TODO")
 }
 
-func TestEVM_QuantumHandling(t *testing.T) {
-	t.Skip("TODO")
-}
-
-func TestEVM_UnsupportedInstruction(t *testing.T) {
+func TestEVM_UnsupportedSyscall(t *testing.T) {
 	t.Skip("TODO")
 }
 
