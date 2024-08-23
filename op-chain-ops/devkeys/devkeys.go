@@ -16,33 +16,26 @@ const (
 	// DefaultKeyDomain is the domain for keys that get pre-funded in every chain.
 	// A 0 chain ID should be used for this domain.
 	DefaultKeyDomain Domain = 0
-	// L1OperatorKeyDomain is the domain for keys used in L1 ops
-	L1OperatorKeyDomain Domain = 1
-	// L1UserKeyDomain is the domain for pre-funded user accounts specific to L1
-	L1UserKeyDomain Domain = 2
+	// OperatorKeyDomain is the domain for keys used in operation of a chain.
+	// The key may be used on any chain, the chain ID represents the chain that operations are for.
+	OperatorKeyDomain Domain = 1
+	// UserKeyDomain is the domain for pre-funded user accounts specific to a single chain, not initially funded in other chains.
+	UserKeyDomain Domain = 2
 	// SuperchainKeyDomain is the domain for superchain contracts.
-	// The L1 chain ID should be used as chain ID for this domain.
+	// The chain ID that the SuperchainConfig is deployed on should be used as chain ID for this domain.
 	SuperchainKeyDomain Domain = 3
-	// L2OperatorKeyDomain is the domain for L2 operator keys
-	L2OperatorKeyDomain Domain = 4
-	// L2UserKeyDomain is the domain for pre-funded L2 user accounts specific to a single L2
-	L2UserKeyDomain Domain = 5
 )
 
 func (d Domain) String() string {
 	switch d {
 	case DefaultKeyDomain:
 		return "default"
-	case L1OperatorKeyDomain:
-		return "l1-operator"
-	case L1UserKeyDomain:
-		return "l1-user"
+	case OperatorKeyDomain:
+		return "operator"
+	case UserKeyDomain:
+		return "user"
 	case SuperchainKeyDomain:
 		return "superchain"
-	case L2OperatorKeyDomain:
-		return "l2-operator"
-	case L2UserKeyDomain:
-		return "l2-user"
 	default:
 		return fmt.Sprintf("unknown-domain-%d", uint64(d))
 	}
@@ -53,17 +46,31 @@ func (d Domain) String() string {
 type Role uint64
 
 const (
-	DeployerRole                   Role = 0
-	ProposerRole                   Role = 1
-	BatcherRole                    Role = 2
-	SequencerP2PRole               Role = 3
-	ChallengerRole                 Role = 4
-	ProxyAdminOwnerRole            Role = 5
-	SuperchainConfigGuardianRole   Role = 6
-	FinalSystemOwnerRole           Role = 7
-	BaseFeeVaultRecipientRole      Role = 8
-	L1FeeVaultRecipientRole        Role = 9
+	// DeployerRole is the deployer of contracts
+	DeployerRole Role = 0
+	// ProposerRole is the key used by op-proposer
+	ProposerRole Role = 1
+	// BatcherRole is the key used by op-batcher
+	BatcherRole Role = 2
+	// SequencerP2PRole is the key used to publish sequenced L2 blocks
+	SequencerP2PRole Role = 3
+	// ChallengerRole is the key used by op-challenger
+	ChallengerRole Role = 4
+	// L2ProxyAdminOwnerRole is the key that controls the ProxyAdmin predeploy in L2
+	L2ProxyAdminOwnerRole Role = 5
+	// SuperchainConfigGuardianRole is the Guardian of the SuperchainConfig
+	SuperchainConfigGuardianRole Role = 6
+	// L1ProxyAdminOwnerRole is the key that owns the ProxyAdmin on the L1 side of the deployment.
+	// This can be the ProxyAdmin of a L2 chain deployment, or a superchain deployment, depending on the domain.
+	L1ProxyAdminOwnerRole Role = 7
+	// BaseFeeVaultRecipientRole is the key that receives from the BaseFeeVault predeploy
+	BaseFeeVaultRecipientRole Role = 8
+	// L1FeeVaultRecipientRole is the key that receives from the L1FeeVault predeploy
+	L1FeeVaultRecipientRole Role = 9
+	// SequencerFeeVaultRecipientRole is the key that receives form the SequencerFeeVault predeploy
 	SequencerFeeVaultRecipientRole Role = 10
+	// DependencySetManagerRole is the key used to manage the dependency set of a superchain.
+	DependencySetManagerRole Role = 11
 )
 
 func (d Role) String() string {
@@ -78,18 +85,20 @@ func (d Role) String() string {
 		return "sequencer-p2p"
 	case ChallengerRole:
 		return "challenger"
-	case ProxyAdminOwnerRole:
-		return "proxy-admin-owner"
+	case L2ProxyAdminOwnerRole:
+		return "l2-proxy-admin-owner"
 	case SuperchainConfigGuardianRole:
 		return "superchain-config-guardian"
-	case FinalSystemOwnerRole:
-		return "final-system-owner"
+	case L1ProxyAdminOwnerRole:
+		return "l1-proxy-admin-owner"
 	case BaseFeeVaultRecipientRole:
 		return "base-fee-vault-recipient"
 	case L1FeeVaultRecipientRole:
 		return "l1-fee-vault-recipient"
 	case SequencerFeeVaultRecipientRole:
 		return "sequencer-fee-vault-recipient"
+	case DependencySetManagerRole:
+		return "dependency-set-manager"
 	default:
 		return fmt.Sprintf("unknown-role-%d", uint64(d))
 	}
