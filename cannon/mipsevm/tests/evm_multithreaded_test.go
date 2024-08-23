@@ -478,6 +478,154 @@ func TestEVM_HandleWaitingThread_NormalTraversal(t *testing.T) {
 	}
 }
 
+func TestEVM_SysFutex_WakePrivate(t *testing.T) {
+	var tracer *tracing.Hooks
+	cases := []struct {
+		name                   string
+		address                uint32
+		activeThreadCount      int
+		inactiveThreadCount    int
+		traverseRight          bool
+		expectTraverseRight    bool
+		expectSameActiveThread bool
+	}{
+		{name: "Traverse right", address: 0x6789, activeThreadCount: 2, inactiveThreadCount: 1, traverseRight: true, expectSameActiveThread: true},
+		{name: "Traverse right, no left threads", address: 0x6789, activeThreadCount: 2, inactiveThreadCount: 0, traverseRight: true, expectSameActiveThread: true},
+		{name: "Traverse left", address: 0x6789, activeThreadCount: 2, inactiveThreadCount: 1, traverseRight: false},
+		{name: "Traverse left, switch directions", address: 0x6789, activeThreadCount: 1, inactiveThreadCount: 1, traverseRight: false, expectTraverseRight: true, expectSameActiveThread: true},
+	}
+
+	for i, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			goVm, state, contracts := setup(t, i*1122)
+			mttestutil.SetupThreads(int64(i*2244), state, c.traverseRight, c.activeThreadCount, c.inactiveThreadCount)
+			step := state.Step
+
+			state.Memory.SetMemory(state.GetPC(), syscallInsn)
+			state.GetRegistersRef()[2] = exec.SysFutex // Set syscall number
+			state.GetRegistersRef()[4] = c.address
+			state.GetRegistersRef()[5] = exec.FutexWakePrivate
+
+			// Set up post-state expectations
+			expected := mttestutil.NewExpectedMTState(state)
+			expected.ExpectStep()
+			expected.ActiveThread().Registers[2] = 0
+			expected.ActiveThread().Registers[7] = 0
+			expected.Wakeup = c.address
+			expected.ExpectPreemption(state)
+			expected.TraverseRight = c.expectTraverseRight
+			if c.expectSameActiveThread {
+				// The preemption logic for this syscall is unusual because we do a normal preemption, then
+				// switch to traversing left when possible.  So we can, for example, preempt a thread moving it
+				// from the right stack to the left and then visit the same thread again on the left stack
+				expected.ActiveThreadId = state.GetCurrentThread().ThreadId
+			}
+
+			// State transition
+			var err error
+			var stepWitness *mipsevm.StepWitness
+			stepWitness, err = goVm.Step(true)
+			require.NoError(t, err)
+
+			// Validate post-state
+			expected.Validate(t, state)
+
+			evm := testutil.NewMIPSEVM(contracts)
+			evm.SetTracer(tracer)
+			testutil.LogStepFailureAtCleanup(t, evm)
+
+			evmPost := evm.Step(t, stepWitness, step, multithreaded.GetStateHashFn())
+			goPost, _ := goVm.GetState().EncodeWitness()
+			require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
+				"mipsevm produced different state than EVM")
+		})
+	}
+}
+
+func TestEVM_WakeupTraversalStep(t *testing.T) {
+	wakeupAddr := uint32(0x1234)
+	wakeupVal := uint32(0x999)
+	var tracer *tracing.Hooks
+	cases := []struct {
+		name              string
+		futexAddr         uint32
+		targetVal         uint32
+		traverseRight     bool
+		activeStackSize   int
+		otherStackSize    int
+		shouldClearWakeup bool
+		shouldWakeThread  bool
+	}{
+		{name: "Find match, preempt first thread", futexAddr: wakeupAddr, targetVal: wakeupVal, traverseRight: false, activeStackSize: 3, otherStackSize: 0, shouldClearWakeup: true},
+		{name: "Find match, wake first thread", futexAddr: wakeupAddr, targetVal: wakeupVal + 1, traverseRight: false, activeStackSize: 3, otherStackSize: 0, shouldClearWakeup: true, shouldWakeThread: true},
+		{name: "Find match, preempt last thread", futexAddr: wakeupAddr, targetVal: wakeupVal, traverseRight: true, activeStackSize: 1, otherStackSize: 2, shouldClearWakeup: true},
+		{name: "Find match, wake last thread", futexAddr: wakeupAddr, targetVal: wakeupVal + 1, traverseRight: true, activeStackSize: 1, otherStackSize: 2, shouldClearWakeup: true, shouldWakeThread: true},
+		{name: "Find match, preempt intermediate thread", futexAddr: wakeupAddr, targetVal: wakeupVal, traverseRight: false, activeStackSize: 2, otherStackSize: 2, shouldClearWakeup: true},
+		{name: "Find match, wake intermediate thread", futexAddr: wakeupAddr, targetVal: wakeupVal + 1, traverseRight: true, activeStackSize: 2, otherStackSize: 2, shouldClearWakeup: true, shouldWakeThread: true},
+		{name: "Complete traversal without match", futexAddr: wakeupAddr + 4, traverseRight: true, activeStackSize: 1, otherStackSize: 2, shouldClearWakeup: true},
+		{name: "Continue traversal", futexAddr: wakeupAddr + 4, traverseRight: true, activeStackSize: 2, otherStackSize: 2, shouldClearWakeup: false},
+		{name: "Continue traversal", futexAddr: wakeupAddr + 4, traverseRight: false, activeStackSize: 2, otherStackSize: 0, shouldClearWakeup: false},
+		{name: "Continue traversal", futexAddr: wakeupAddr + 4, traverseRight: false, activeStackSize: 1, otherStackSize: 0, shouldClearWakeup: false},
+	}
+
+	for i, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			goVm, state, contracts := setup(t, i*2000)
+			mttestutil.SetupThreads(int64(i*101), state, c.traverseRight, c.activeStackSize, c.otherStackSize)
+			step := state.Step
+
+			activeThread := state.GetCurrentThread()
+			activeThread.FutexAddr = c.futexAddr
+			activeThread.FutexVal = c.targetVal
+			activeThread.FutexTimeoutStep = exec.FutexNoTimeout
+			state.GetMemory().SetMemory(wakeupAddr, wakeupVal)
+
+			// Set up post-state expectations
+			expected := mttestutil.NewExpectedMTState(state)
+			expected.Step += 1
+			if c.shouldClearWakeup {
+				expected.Wakeup = exec.FutexEmptyAddr
+				if c.shouldWakeThread {
+					expected.ActiveThread().PC = state.GetCpu().NextPC
+					expected.ActiveThread().NextPC = state.GetCpu().NextPC + 4
+					expected.ActiveThread().FutexAddr = exec.FutexEmptyAddr
+					expected.ActiveThread().FutexVal = 0
+					expected.ActiveThread().FutexTimeoutStep = 0
+					expected.ActiveThread().Registers[2] = 0
+					expected.ActiveThread().Registers[7] = 0
+				} else {
+					expected.ExpectPreemption(state)
+				}
+			} else {
+				// Just preempt the curren thread
+				expected.ExpectPreemption(state)
+			}
+
+			// State transition
+			var err error
+			var stepWitness *mipsevm.StepWitness
+			stepWitness, err = goVm.Step(true)
+			require.NoError(t, err)
+
+			// Validate post-state
+			expected.Validate(t, state)
+
+			evm := testutil.NewMIPSEVM(contracts)
+			evm.SetTracer(tracer)
+			testutil.LogStepFailureAtCleanup(t, evm)
+
+			evmPost := evm.Step(t, stepWitness, step, multithreaded.GetStateHashFn())
+			goPost, _ := goVm.GetState().EncodeWitness()
+			require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
+				"mipsevm produced different state than EVM")
+		})
+	}
+}
+
+func TestEVM_QuantumHandling(t *testing.T) {
+	t.Skip("TODO")
+}
+
 func setup(t require.TestingT, randomSeed int) (mipsevm.FPVM, *multithreaded.State, *testutil.ContractMetadata) {
 	v := GetMultiThreadedTestCase(t)
 	vm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(randomSeed)))
