@@ -11,7 +11,7 @@ require (
 	github.com/crate-crypto/go-kzg-4844 v0.7.0
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0
 	github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3
-	github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20240803025447-c92ef420eec2
+	github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20240821192748-42bd03ba8313
 	github.com/ethereum/go-ethereum v1.13.15
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/golang/snappy v0.0.5-0.20220116011046-fa5810519dcb
@@ -215,7 +215,7 @@ require (
 	go.uber.org/mock v0.4.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
-	golang.org/x/mod v0.19.0 // indirect
+	golang.org/x/mod v0.20.0 // indirect
 	golang.org/x/net v0.27.0 // indirect
 	golang.org/x/sys v0.22.0 // indirect
 	golang.org/x/text v0.16.0 // indirect
@@ -228,7 +228,7 @@ require (
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
 
-replace github.com/ethereum/go-ethereum => github.com/ethereum-optimism/op-geth v1.101315.3-rc.2
+replace github.com/ethereum/go-ethereum => github.com/ethereum-optimism/op-geth v1.101315.3-granite-mainnet
 
 //replace github.com/ethereum/go-ethereum v1.13.9 => ../op-geth
 
