@@ -8,73 +8,124 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-// Domain separates the usage of development keys by broad kind of usage.
-// E.g. a general user account, a L1 thing, a superchain thing, a L2 thing, etc.
-type Domain uint64
+// UserKey identifies an account for any user, by index, not specific to any chain.
+type UserKey uint64
 
 const (
-	// DefaultKeyDomain is the domain for keys that get pre-funded in every chain.
-	// A 0 chain ID should be used for this domain.
-	DefaultKeyDomain Domain = 0
-	// OperatorKeyDomain is the domain for keys used in operation of a chain.
-	// The key may be used on any chain, the chain ID represents the chain that operations are for.
-	OperatorKeyDomain Domain = 1
-	// UserKeyDomain is the domain for pre-funded user accounts specific to a single chain, not initially funded in other chains.
-	UserKeyDomain Domain = 2
-	// SuperchainKeyDomain is the domain for superchain contracts.
-	// The chain ID that the SuperchainConfig is deployed on should be used as chain ID for this domain.
-	SuperchainKeyDomain Domain = 3
+	DefaultKey UserKey = 0
 )
 
-func (d Domain) String() string {
-	switch d {
-	case DefaultKeyDomain:
-		return "default"
-	case OperatorKeyDomain:
-		return "operator"
-	case UserKeyDomain:
-		return "user"
-	case SuperchainKeyDomain:
-		return "superchain"
-	default:
-		return fmt.Sprintf("unknown-domain-%d", uint64(d))
+var _ Key = DefaultKey
+
+func (k UserKey) HDPath() string {
+	return fmt.Sprintf("m/44'/60'/0'/0/%d", uint64(k))
+}
+
+func (k UserKey) String() string {
+	return fmt.Sprintf("user-key-%d", uint64(k))
+}
+
+// ChainUserKey is a user-key, but purpose-specific to a single chain.
+// ChainID == 0 results in deriving the same key as a regular UserKey for any chain.
+type ChainUserKey struct {
+	ChainID *big.Int
+	Index   uint64
+}
+
+var _ Key = ChainUserKey{}
+
+func (k ChainUserKey) HDPath() string {
+	return fmt.Sprintf("m/44'/60'/0'/%d/%d", k.ChainID, k.Index)
+}
+
+func (k ChainUserKey) String() string {
+	return fmt.Sprintf("user-key-chain(%d)-%d", k.ChainID, k.Index)
+}
+
+// ChainUserKeys is a helper method to not repeat chainID for every user key
+func ChainUserKeys(chainID *big.Int) func(index uint64) ChainUserKey {
+	return func(index uint64) ChainUserKey {
+		return ChainUserKey{ChainID: chainID, Index: index}
 	}
 }
 
-// Role separates the usage of development keys by exact role, within a Domain.
-// Some roles may not be applicable to every Domain, those can be ignored.
-type Role uint64
+// SuperchainOperatorRole identifies an account used in the operations of superchain contracts
+type SuperchainOperatorRole uint64
 
 const (
-	// DeployerRole is the deployer of contracts
-	DeployerRole Role = 0
-	// ProposerRole is the key used by op-proposer
-	ProposerRole Role = 1
-	// BatcherRole is the key used by op-batcher
-	BatcherRole Role = 2
-	// SequencerP2PRole is the key used to publish sequenced L2 blocks
-	SequencerP2PRole Role = 3
-	// ChallengerRole is the key used by op-challenger
-	ChallengerRole Role = 4
-	// L2ProxyAdminOwnerRole is the key that controls the ProxyAdmin predeploy in L2
-	L2ProxyAdminOwnerRole Role = 5
-	// SuperchainConfigGuardianRole is the Guardian of the SuperchainConfig
-	SuperchainConfigGuardianRole Role = 6
-	// L1ProxyAdminOwnerRole is the key that owns the ProxyAdmin on the L1 side of the deployment.
-	// This can be the ProxyAdmin of a L2 chain deployment, or a superchain deployment, depending on the domain.
-	L1ProxyAdminOwnerRole Role = 7
-	// BaseFeeVaultRecipientRole is the key that receives from the BaseFeeVault predeploy
-	BaseFeeVaultRecipientRole Role = 8
-	// L1FeeVaultRecipientRole is the key that receives from the L1FeeVault predeploy
-	L1FeeVaultRecipientRole Role = 9
-	// SequencerFeeVaultRecipientRole is the key that receives form the SequencerFeeVault predeploy
-	SequencerFeeVaultRecipientRole Role = 10
-	// DependencySetManagerRole is the key used to manage the dependency set of a superchain.
-	DependencySetManagerRole Role = 11
+	// SuperchainDeployerKey is the deployer of the superchain contracts.
+	SuperchainDeployerKey SuperchainOperatorRole = 0
+	// SuperchainConfigGuardianKey is the Guardian of the SuperchainConfig.
+	SuperchainConfigGuardianKey SuperchainOperatorRole = 1
+	// DependencySetManagerKey is the key used to manage the dependency set of a superchain.
+	DependencySetManagerKey SuperchainOperatorRole = 2
 )
 
-func (d Role) String() string {
-	switch d {
+func (role SuperchainOperatorRole) String() string {
+	switch role {
+	case SuperchainDeployerKey:
+		return "superchain-deployer"
+	case SuperchainConfigGuardianKey:
+		return "superchain-config-guardian"
+	case DependencySetManagerKey:
+		return "dependency-set-manager"
+	default:
+		return fmt.Sprintf("unknown-superchain-%d", uint64(role))
+	}
+}
+
+// SuperchainOperatorKey is an account specific to an OperationRole of a given OP-Stack chain.
+type SuperchainOperatorKey struct {
+	ChainID *big.Int
+	Role    SuperchainOperatorRole
+}
+
+var _ Key = SuperchainOperatorKey{}
+
+func (k SuperchainOperatorKey) HDPath() string {
+	return fmt.Sprintf("m/44'/60'/1'/%d/%d", k.ChainID, uint64(k.Role))
+}
+
+func (k SuperchainOperatorKey) String() string {
+	return fmt.Sprintf("superchain(%d)-%s", k.ChainID, k.Role)
+}
+
+// SuperchainOperatorKeys is a helper method to not repeat chainID on every operator role
+func SuperchainOperatorKeys(chainID *big.Int) func(role SuperchainOperatorRole) SuperchainOperatorKey {
+	return func(role SuperchainOperatorRole) SuperchainOperatorKey {
+		return SuperchainOperatorKey{ChainID: chainID, Role: role}
+	}
+}
+
+// ChainOperatorRole identifies an account for a specific OP-Stack chain operator role.
+type ChainOperatorRole uint64
+
+const (
+	// DeployerRole is the deployer of contracts for an OP-Stack chain
+	DeployerRole ChainOperatorRole = 0
+	// ProposerRole is the key used by op-proposer
+	ProposerRole ChainOperatorRole = 1
+	// BatcherRole is the key used by op-batcher
+	BatcherRole ChainOperatorRole = 2
+	// SequencerP2PRole is the key used to publish sequenced L2 blocks
+	SequencerP2PRole ChainOperatorRole = 3
+	// ChallengerRole is the key used by op-challenger
+	ChallengerRole ChainOperatorRole = 4
+	// L2ProxyAdminOwnerRole is the key that controls the ProxyAdmin predeploy in L2
+	L2ProxyAdminOwnerRole ChainOperatorRole = 5
+	// L1ProxyAdminOwnerRole is the key that owns the ProxyAdmin on the L1 side of the deployment.
+	// This can be the ProxyAdmin of a L2 chain deployment, or a superchain deployment, depending on the domain.
+	L1ProxyAdminOwnerRole ChainOperatorRole = 6
+	// BaseFeeVaultRecipientRole is the key that receives from the BaseFeeVault predeploy
+	BaseFeeVaultRecipientRole ChainOperatorRole = 7
+	// L1FeeVaultRecipientRole is the key that receives from the L1FeeVault predeploy
+	L1FeeVaultRecipientRole ChainOperatorRole = 8
+	// SequencerFeeVaultRecipientRole is the key that receives form the SequencerFeeVault predeploy
+	SequencerFeeVaultRecipientRole ChainOperatorRole = 9
+)
+
+func (role ChainOperatorRole) String() string {
+	switch role {
 	case DeployerRole:
 		return "deployer"
 	case ProposerRole:
@@ -87,8 +138,6 @@ func (d Role) String() string {
 		return "challenger"
 	case L2ProxyAdminOwnerRole:
 		return "l2-proxy-admin-owner"
-	case SuperchainConfigGuardianRole:
-		return "superchain-config-guardian"
 	case L1ProxyAdminOwnerRole:
 		return "l1-proxy-admin-owner"
 	case BaseFeeVaultRecipientRole:
@@ -97,29 +146,87 @@ func (d Role) String() string {
 		return "l1-fee-vault-recipient"
 	case SequencerFeeVaultRecipientRole:
 		return "sequencer-fee-vault-recipient"
-	case DependencySetManagerRole:
-		return "dependency-set-manager"
 	default:
-		return fmt.Sprintf("unknown-role-%d", uint64(d))
+		return fmt.Sprintf("unknown-operator-%d", uint64(role))
 	}
 }
 
-// DevSecrets selects a secret-key based on domain, chain and role.
+func (role ChainOperatorRole) Key(chainID *big.Int) *ChainOperatorKey {
+	return &ChainOperatorKey{
+		ChainID: chainID,
+		Role:    role,
+	}
+}
+
+// ChainOperatorKey is an account specific to an OperationRole of a given OP-Stack chain.
+type ChainOperatorKey struct {
+	ChainID *big.Int
+	Role    ChainOperatorRole
+}
+
+var _ Key = ChainOperatorKey{}
+
+func (k ChainOperatorKey) HDPath() string {
+	return fmt.Sprintf("m/44'/60'/2'/%d/%d", k.ChainID, uint64(k.Role))
+}
+
+func (k ChainOperatorKey) String() string {
+	return fmt.Sprintf("chain(%d)-%s", k.ChainID, k.Role)
+}
+
+// ChainOperatorKeys is a helper method to not repeat chainID on every operator role
+func ChainOperatorKeys(chainID *big.Int) func(ChainOperatorRole) ChainOperatorKey {
+	return func(role ChainOperatorRole) ChainOperatorKey {
+		return ChainOperatorKey{ChainID: chainID, Role: role}
+	}
+}
+
+// Key identifies an account, and produces an HD-Path to derive the secret-key from.
+//
+// We organize the dev keys with a mnemonic key-path structure as following:
+// BIP-44: `m / purpose' / coin_type' / account' / change / address_index`
+// purpose = standard secp256k1 usage (Eth2 BLS keys use different purpose data).
+// coin_type = chain type, set to 60' for ETH. See SLIP-0044.
+// account = for different identities, used here to separate domains:
+//
+//	domain 0: users
+//	domain 1: superchain operations
+//	domain 2: chain operations
+//
+// change = to separate external and internal addresses.
+//
+//	Used here for chain ID, may be 0 for user accounts (any-chain addresses).
+//
+// address_index = used here to separate roles.
+// The `'` char signifies BIP-32 hardened derivation.
+//
+// See:
+// https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki
+// https://github.com/satoshilabs/slips/blob/master/slip-0044.md
+// https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki
+type Key interface {
+	// HDPath produces the hierarchical derivation path to (re)create this key.
+	HDPath() string
+	// String describes the role of the key
+	String() string
+}
+
+// Secrets selects a secret-key based on a key.
 // This is meant for dev-purposes only.
 // Secret keys should not directly be exposed to live production services.
-type DevSecrets interface {
-	Secret(domain Domain, chain *big.Int, role Role) (*ecdsa.PrivateKey, error)
+type Secrets interface {
+	Secret(key Key) (*ecdsa.PrivateKey, error)
 }
 
-// DevAddresses selects an address based on domain, chain and role.
+// Addresses selects an address based on a key.
 // This interface is preferred in tools that do not directly rely on secret-key material.
-type DevAddresses interface {
-	// Address produces an address for the given domain/role.
-	Address(domain Domain, chain *big.Int, role Role) (common.Address, error)
+type Addresses interface {
+	// Address produces an address for the given key
+	Address(key Key) (common.Address, error)
 }
 
-// DevKeys is a joint interface of DevSecrets and DevAddresses
-type DevKeys interface {
-	DevSecrets
-	DevAddresses
+// Keys is a joint interface of Secrets and Addresses
+type Keys interface {
+	Secrets
+	Addresses
 }
