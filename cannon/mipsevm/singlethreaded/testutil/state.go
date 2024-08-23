@@ -1,6 +1,8 @@
 package testutil
 
 import (
+	"math/rand"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
@@ -10,6 +12,24 @@ import (
 
 type StateMutatorSingleThreaded struct {
 	state *singlethreaded.State
+}
+
+func (m *StateMutatorSingleThreaded) Randomize(randSeed int64) {
+	r := rand.New(rand.NewSource(randSeed))
+
+	pc := testutil.RandPC(r)
+	step := testutil.RandStep(r)
+
+	m.state.PreimageKey = testutil.RandHash(r)
+	m.state.PreimageOffset = r.Uint32()
+	m.state.Cpu.PC = pc
+	m.state.Cpu.NextPC = pc + 4
+	m.state.Cpu.HI = r.Uint32()
+	m.state.Cpu.LO = r.Uint32()
+	m.state.Heap = r.Uint32()
+	m.state.Step = step
+	m.state.LastHint = testutil.RandHint(r)
+	m.state.Registers = *testutil.RandRegisters(r)
 }
 
 var _ testutil.StateMutator = (*StateMutatorSingleThreaded)(nil)
@@ -60,8 +80,4 @@ func (m *StateMutatorSingleThreaded) SetPreimageOffset(val uint32) {
 
 func (m *StateMutatorSingleThreaded) SetStep(val uint64) {
 	m.state.Step = val
-}
-
-func (m *StateMutatorSingleThreaded) GetRegistersRef() *[32]uint32 {
-	return m.state.GetRegistersRef()
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
+	mttestutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 )
 
@@ -76,9 +77,7 @@ func TestEVM_SysClone_FlagHandling(t *testing.T) {
 }
 
 func TestEVM_SysClone_Successful(t *testing.T) {
-	contracts := testutil.TestContractsSetup(t, testutil.MipsMultithreaded)
 	var tracer *tracing.Hooks
-
 	cases := []struct {
 		name          string
 		traverseRight bool
@@ -87,49 +86,48 @@ func TestEVM_SysClone_Successful(t *testing.T) {
 		{"traverse right", true},
 	}
 
-	for _, c := range cases {
+	for i, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			stackPtr := uint32(100)
-			pc := uint32(200)
-			hi := uint32(300)
-			lo := uint32(400)
 
-			state := multithreaded.CreateEmptyState()
-			if c.traverseRight {
-				// Reorganize threads
-				state.RightThreadStack = []*multithreaded.ThreadState{multithreaded.CreateEmptyThread()}
-				state.LeftThreadStack = []*multithreaded.ThreadState{}
-				state.TraverseRight = true
-			} else {
-				// Sanity-check we are already traversing left
-				require.Equal(t, false, state.TraverseRight)
-			}
-
-			state.GetCurrentThread().Cpu.PC = pc
-			state.GetCurrentThread().Cpu.NextPC = pc + 4
-			state.GetCurrentThread().Cpu.HI = hi
-			state.GetCurrentThread().Cpu.LO = lo
+			goVm, state, contracts := setup(t, i)
+			mttestutil.InitializeSingleThread(i*333, state, c.traverseRight)
 			state.Memory.SetMemory(state.GetPC(), syscallInsn)
-			*state.GetRegistersRef() = RandomRegisters(1)
 			state.GetRegistersRef()[2] = exec.SysClone        // the syscall number
 			state.GetRegistersRef()[4] = exec.ValidCloneFlags // a0 - first argument, clone flags
 			state.GetRegistersRef()[5] = stackPtr             // a1 - the stack pointer
+			curStep := state.GetStep()
 
-			curStep := state.Step
-			origThread := state.GetCurrentThread()
-			origThreadExpectedRegisters := *testutil.CopyRegisters(state)
-			origThreadExpectedRegisters[2] = 1
-			origThreadExpectedRegisters[7] = 0
-			newThreadExpectedRegisters := *testutil.CopyRegisters(state)
-			newThreadExpectedRegisters[2] = 0
-			newThreadExpectedRegisters[7] = 0
-			newThreadExpectedRegisters[29] = stackPtr
+			// Sanity-check assumptions
+			require.Equal(t, uint32(1), state.NextThreadId)
+
+			// Setup expectations
+			expected := mttestutil.NewExpectedMTState(state)
+			expected.Step += 1
+			expectedNewThread := expected.ExpectNewThread()
+			expected.ActiveThreadId = expectedNewThread.ThreadId
+			expected.StepsSinceLastContextSwitch = 0
+			if c.traverseRight {
+				expected.RightStackSize += 1
+			} else {
+				expected.LeftStackSize += 1
+			}
+			// Original thread expectations
+			expected.PrestateActiveThread().PC = state.GetCpu().NextPC
+			expected.PrestateActiveThread().NextPC = state.GetCpu().NextPC + 4
+			expected.PrestateActiveThread().Registers[2] = 1
+			expected.PrestateActiveThread().Registers[7] = 0
+			// New thread expectations
+			expectedNewThread.PC = state.GetCpu().NextPC
+			expectedNewThread.NextPC = state.GetCpu().NextPC + 4
+			expectedNewThread.ThreadId = 1
+			expectedNewThread.Registers[2] = 0
+			expectedNewThread.Registers[7] = 0
+			expectedNewThread.Registers[29] = stackPtr
 
 			var err error
 			var stepWitness *mipsevm.StepWitness
-			us := multithreaded.NewInstrumentedState(state, nil, os.Stdout, os.Stderr, nil)
-
-			stepWitness, err = us.Step(true)
+			stepWitness, err = goVm.Step(true)
 			require.NoError(t, err)
 
 			var activeStack, inactiveStack []*multithreaded.ThreadState
@@ -141,40 +139,16 @@ func TestEVM_SysClone_Successful(t *testing.T) {
 				inactiveStack = state.RightThreadStack
 			}
 
-			require.Equal(t, curStep+1, state.GetStep())
-			// Check a new thread was added where we expect
-			require.Equal(t, c.traverseRight, state.TraverseRight)
-			require.Equal(t, 2, state.ThreadCount())
+			expected.Validate(t, state)
 			require.Equal(t, 2, len(activeStack))
 			require.Equal(t, 0, len(inactiveStack))
-			require.Equal(t, uint32(2), state.NextThreadId)
-
-			// Validate new thread
-			newThread := state.GetCurrentThread()
-			require.Equal(t, uint32(1), newThread.ThreadId)
-			require.Equal(t, pc+4, newThread.Cpu.PC)
-			require.Equal(t, pc+8, newThread.Cpu.NextPC)
-			require.Equal(t, hi, newThread.Cpu.HI)
-			require.Equal(t, lo, newThread.Cpu.LO)
-			require.Equal(t, false, newThread.Exited)
-			require.Equal(t, uint8(0), newThread.ExitCode)
-			require.Equal(t, exec.FutexEmptyAddr, newThread.FutexAddr)
-			require.Equal(t, uint32(0), newThread.FutexVal)
-			require.Equal(t, uint64(0), newThread.FutexTimeoutStep)
-			require.Equal(t, newThreadExpectedRegisters, newThread.Registers)
-
-			// Validate parent thread
-			require.Equal(t, uint32(0), origThread.ThreadId)
-			require.Equal(t, origThreadExpectedRegisters, origThread.Registers)
-			require.Equal(t, pc+4, newThread.Cpu.PC)
-			require.Equal(t, pc+8, newThread.Cpu.NextPC)
 
 			evm := testutil.NewMIPSEVM(contracts)
 			evm.SetTracer(tracer)
 			testutil.LogStepFailureAtCleanup(t, evm)
 
 			evmPost := evm.Step(t, stepWitness, curStep, multithreaded.GetStateHashFn())
-			goPost, _ := us.GetState().EncodeWitness()
+			goPost, _ := goVm.GetState().EncodeWitness()
 			require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 				"mipsevm produced different state than EVM")
 		})
@@ -183,7 +157,6 @@ func TestEVM_SysClone_Successful(t *testing.T) {
 
 func TestEVM_SysGetTID(t *testing.T) {
 	var tracer *tracing.Hooks
-	contracts := testutil.TestContractsSetup(t, testutil.MipsMultithreaded)
 	cases := []struct {
 		name     string
 		threadId uint32
@@ -192,41 +165,37 @@ func TestEVM_SysGetTID(t *testing.T) {
 		{"non-zero", 11},
 	}
 
-	for _, c := range cases {
+	for i, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			state := multithreaded.CreateEmptyState()
+			goVm, state, contracts := setup(t, i*789)
+			mttestutil.InitializeSingleThread(i*789, state, false)
+
 			state.GetCurrentThread().ThreadId = c.threadId
 			state.Memory.SetMemory(state.GetPC(), syscallInsn)
-			*state.GetRegistersRef() = RandomRegisters(int64(c.threadId))
 			state.GetRegistersRef()[2] = exec.SysGetTID // Set syscall number
-			curStep := state.Step
+			step := state.Step
 
 			// Set up post-state expectations
-			nextPC := state.GetCpu().NextPC
-			expectedRegisters := testutil.CopyRegisters(state)
-			expectedRegisters[2] = c.threadId // tid return value
-			expectedRegisters[7] = 0          // no error
+			expected := mttestutil.NewExpectedMTState(state)
+			expected.ExpectStep()
+			expected.ActiveThread().Registers[2] = c.threadId
+			expected.ActiveThread().Registers[7] = 0
 
 			// State transition
 			var err error
 			var stepWitness *mipsevm.StepWitness
-			us := multithreaded.NewInstrumentedState(state, nil, os.Stdout, os.Stderr, nil)
-			stepWitness, err = us.Step(true)
+			stepWitness, err = goVm.Step(true)
 			require.NoError(t, err)
 
 			// Validate post-state
-			require.Equal(t, curStep+1, state.GetStep())
-			require.Equal(t, 1, state.ThreadCount())
-			require.Equal(t, expectedRegisters, state.GetRegistersRef())
-			require.Equal(t, nextPC, state.GetPC())
-			require.Equal(t, nextPC+4, state.GetCpu().NextPC)
+			expected.Validate(t, state)
 
 			evm := testutil.NewMIPSEVM(contracts)
 			evm.SetTracer(tracer)
 			testutil.LogStepFailureAtCleanup(t, evm)
 
-			evmPost := evm.Step(t, stepWitness, curStep, multithreaded.GetStateHashFn())
-			goPost, _ := us.GetState().EncodeWitness()
+			evmPost := evm.Step(t, stepWitness, step, multithreaded.GetStateHashFn())
+			goPost, _ := goVm.GetState().EncodeWitness()
 			require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 				"mipsevm produced different state than EVM")
 		})
@@ -235,67 +204,55 @@ func TestEVM_SysGetTID(t *testing.T) {
 
 func TestEVM_SysExit(t *testing.T) {
 	var tracer *tracing.Hooks
-	contracts := testutil.TestContractsSetup(t, testutil.MipsMultithreaded)
 	cases := []struct {
-		name        string
-		threadCount int
+		name               string
+		threadCount        int
+		shouldExitGlobally bool
 	}{
-		{"one thread", 1},
-		{"two threads ", 2},
+		// If we exit the last thread, the whole process should exit
+		{name: "one thread", threadCount: 1, shouldExitGlobally: true},
+		{name: "two threads ", threadCount: 2},
+		{name: "three threads ", threadCount: 3},
 	}
 
-	for _, c := range cases {
+	for i, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			exitCode := uint8(3)
-			state := multithreaded.CreateEmptyState()
-			for i := 0; i < c.threadCount-1; i++ {
-				newThread := multithreaded.CreateEmptyThread()
-				newThread.ThreadId = uint32(i + 1)
-				state.LeftThreadStack = append(state.LeftThreadStack, newThread)
-			}
+
+			goVm, state, contracts := setup(t, i*133)
+			mttestutil.SetupThreads(int64(i*1111), state, i%2 == 0, c.threadCount, 0)
 
 			state.Memory.SetMemory(state.GetPC(), syscallInsn)
-			*state.GetRegistersRef() = RandomRegisters(int64(c.threadCount))
 			state.GetRegistersRef()[2] = exec.SysExit     // Set syscall number
 			state.GetRegistersRef()[4] = uint32(exitCode) // The first argument (exit code)
 			curStep := state.Step
 
-			// Set up post-state expectations
-			pc := state.GetCpu().PC
-			nextPC := state.GetCpu().NextPC
-			expectedRegisters := testutil.CopyRegisters(state) // No change
+			// Set up expectations
+			expected := mttestutil.NewExpectedMTState(state)
+			expected.Step += 1
+			expected.StepsSinceLastContextSwitch += 1
+			expected.ActiveThread().Exited = true
+			expected.ActiveThread().ExitCode = exitCode
+			if c.shouldExitGlobally {
+				expected.Exited = true
+				expected.ExitCode = exitCode
+			}
 
 			// State transition
 			var err error
 			var stepWitness *mipsevm.StepWitness
-			us := multithreaded.NewInstrumentedState(state, nil, os.Stdout, os.Stderr, nil)
-			stepWitness, err = us.Step(true)
+			stepWitness, err = goVm.Step(true)
 			require.NoError(t, err)
 
 			// Validate post-state
-			thread := state.GetCurrentThread()
-			require.Equal(t, curStep+1, state.GetStep())
-			require.Equal(t, c.threadCount, state.ThreadCount())
-			require.Equal(t, expectedRegisters, state.GetRegistersRef())
-			require.Equal(t, pc, state.GetPC())
-			require.Equal(t, nextPC, state.GetCpu().NextPC)
-			require.Equal(t, true, thread.Exited)
-			require.Equal(t, exitCode, thread.ExitCode)
-			if c.threadCount == 1 {
-				// If we exit the last thread, the whole process should exit
-				require.Equal(t, true, state.Exited)
-				require.Equal(t, exitCode, state.ExitCode)
-			} else {
-				require.Equal(t, false, state.Exited)
-				require.Equal(t, uint8(0), state.ExitCode)
-			}
+			expected.Validate(t, state)
 
 			evm := testutil.NewMIPSEVM(contracts)
 			evm.SetTracer(tracer)
 			testutil.LogStepFailureAtCleanup(t, evm)
 
 			evmPost := evm.Step(t, stepWitness, curStep, multithreaded.GetStateHashFn())
-			goPost, _ := us.GetState().EncodeWitness()
+			goPost, _ := goVm.GetState().EncodeWitness()
 			require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 				"mipsevm produced different state than EVM")
 		})
@@ -304,7 +261,6 @@ func TestEVM_SysExit(t *testing.T) {
 
 func TestEVM_PopExitedThread(t *testing.T) {
 	var tracer *tracing.Hooks
-	contracts := testutil.TestContractsSetup(t, testutil.MipsMultithreaded)
 	cases := []struct {
 		name                         string
 		traverseRight                bool
@@ -317,39 +273,46 @@ func TestEVM_PopExitedThread(t *testing.T) {
 		{name: "traverse left, switch directions", traverseRight: false, activeStackThreadCount: 1, expectTraverseRightPostState: true},
 	}
 
-	for _, c := range cases {
+	for i, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			state := setupThreads(c.traverseRight, c.activeStackThreadCount, 1)
+			goVm, state, contracts := setup(t, i*133)
+			mttestutil.SetupThreads(int64(i*222), state, c.traverseRight, c.activeStackThreadCount, 1)
+			step := state.Step
+
+			// Setup thread to be dropped
 			threadToPop := state.GetCurrentThread()
 			threadToPop.Exited = true
 			threadToPop.ExitCode = 1
 
-			// Record current state, expectations
-			curStep := state.Step
-			initThreadCount := state.ThreadCount()
-			// Sanity check
-			require.Equal(t, c.activeStackThreadCount+1, initThreadCount)
-			require.Equal(t, c.traverseRight, state.TraverseRight)
+			// Set up expectations
+			expected := mttestutil.NewExpectedMTState(state)
+			expected.Step += 1
+			expected.ActiveThreadId = mttestutil.FindNextThreadExcluding(state, threadToPop.ThreadId).ThreadId
+			expected.StepsSinceLastContextSwitch = 0
+			expected.ThreadCount -= 1
+			expected.TraverseRight = c.expectTraverseRightPostState
+			expected.Thread(threadToPop.ThreadId).Dropped = true
+			if c.traverseRight {
+				expected.RightStackSize -= 1
+			} else {
+				expected.LeftStackSize -= 1
+			}
 
 			// State transition
 			var err error
 			var stepWitness *mipsevm.StepWitness
-			us := multithreaded.NewInstrumentedState(state, nil, os.Stdout, os.Stderr, nil)
-			stepWitness, err = us.Step(true)
+			stepWitness, err = goVm.Step(true)
 			require.NoError(t, err)
 
 			// Validate post-state
-			require.Equal(t, curStep+1, state.GetStep())
-			require.Equal(t, initThreadCount-1, state.ThreadCount())
-			require.False(t, checkStateContainsThread(state, threadToPop.ThreadId))
-			require.Equal(t, c.expectTraverseRightPostState, state.TraverseRight)
+			expected.Validate(t, state)
 
 			evm := testutil.NewMIPSEVM(contracts)
 			evm.SetTracer(tracer)
 			testutil.LogStepFailureAtCleanup(t, evm)
 
-			evmPost := evm.Step(t, stepWitness, curStep, multithreaded.GetStateHashFn())
-			goPost, _ := us.GetState().EncodeWitness()
+			evmPost := evm.Step(t, stepWitness, step, multithreaded.GetStateHashFn())
+			goPost, _ := goVm.GetState().EncodeWitness()
 			require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 				"mipsevm produced different state than EVM")
 		})
@@ -358,89 +321,76 @@ func TestEVM_PopExitedThread(t *testing.T) {
 
 func TestEVM_SysFutex_WaitPrivate(t *testing.T) {
 	var tracer *tracing.Hooks
-	contracts := testutil.TestContractsSetup(t, testutil.MipsMultithreaded)
 	cases := []struct {
-		name        string
-		address     uint32
-		targetValue uint32
-		actualValue uint32
-		timeout     uint32
+		name             string
+		address          uint32
+		targetValue      uint32
+		actualValue      uint32
+		timeout          uint32
+		shouldFail       bool
+		shouldSetTimeout bool
 	}{
-		{"successful wait, no timeout", 0x1234, 0x01, 0x01, 0},
-		{"memory mismatch, no timeout", 0x1200, 0x01, 0x02, 0},
-		{"successful wait w timeout", 0x1234, 0x01, 0x01, 1000000},
-		{"memory mismatch w timeout", 0x1200, 0x01, 0x02, 2000000},
+		{name: "successful wait, no timeout", address: 0x1234, targetValue: 0x01, actualValue: 0x01},
+		{name: "memory mismatch, no timeout", address: 0x1200, targetValue: 0x01, actualValue: 0x02, shouldFail: true},
+		{name: "successful wait w timeout", address: 0x1234, targetValue: 0x01, actualValue: 0x01, timeout: 1000000, shouldSetTimeout: true},
+		{name: "memory mismatch w timeout", address: 0x1200, targetValue: 0x01, actualValue: 0x02, timeout: 2000000, shouldFail: true},
 	}
 
-	for _, c := range cases {
+	for i, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			step := uint64(999)
-			state := multithreaded.CreateEmptyState()
-			state.Step = step
+			goVm, state, contracts := setup(t, i*1234)
+			step := state.GetStep()
+
 			state.Memory.SetMemory(state.GetPC(), syscallInsn)
 			state.Memory.SetMemory(c.address, c.actualValue)
-			*state.GetRegistersRef() = RandomRegisters(11)
 			state.GetRegistersRef()[2] = exec.SysFutex // Set syscall number
 			state.GetRegistersRef()[4] = c.address
 			state.GetRegistersRef()[5] = exec.FutexWaitPrivate
 			state.GetRegistersRef()[6] = c.targetValue
 			state.GetRegistersRef()[7] = c.timeout
 
-			// Set up post-state expectations
-			shouldFail := c.targetValue != c.actualValue
-			shouldSetTimeout := !shouldFail && c.timeout != 0
-			expectedRegisters := testutil.CopyRegisters(state)
-			nextPC := state.GetCpu().PC // PC should not update on success, updates happen when wait completes
-			if shouldFail {
-				nextPC = state.GetCpu().NextPC
-				expectedRegisters[2] = exec.SysErrorSignal
-				expectedRegisters[7] = exec.MipsEAGAIN
+			// Setup expectations
+			expected := mttestutil.NewExpectedMTState(state)
+			expected.Step += 1
+			expected.StepsSinceLastContextSwitch += 1
+			if c.shouldFail {
+				expected.ActiveThread().PC = state.GetCpu().NextPC
+				expected.ActiveThread().NextPC = state.GetCpu().NextPC + 4
+				expected.ActiveThread().Registers[2] = exec.SysErrorSignal
+				expected.ActiveThread().Registers[7] = exec.MipsEAGAIN
+			} else {
+				// PC and return registers should not update on success, updates happen when wait completes
+				expected.ActiveThread().FutexAddr = c.address
+				expected.ActiveThread().FutexVal = c.targetValue
+				expected.ActiveThread().FutexTimeoutStep = exec.FutexNoTimeout
+				if c.shouldSetTimeout {
+					expected.ActiveThread().FutexTimeoutStep = step + exec.FutexTimeoutSteps + 1
+				}
 			}
 
 			// State transition
 			var err error
 			var stepWitness *mipsevm.StepWitness
-			us := multithreaded.NewInstrumentedState(state, nil, os.Stdout, os.Stderr, nil)
-			stepWitness, err = us.Step(true)
+			stepWitness, err = goVm.Step(true)
 			require.NoError(t, err)
 
 			// Validate post-state
-			require.Equal(t, step+1, state.GetStep())
-			require.Equal(t, expectedRegisters, state.GetRegistersRef())
-			require.Equal(t, nextPC, state.GetPC())
-			require.Equal(t, nextPC+4, state.GetCpu().NextPC)
-			// Check thread state
-			require.Equal(t, 1, state.ThreadCount())
-			thread := state.GetCurrentThread()
-			if shouldFail {
-				require.Equal(t, exec.FutexEmptyAddr, thread.FutexAddr)
-				require.Equal(t, uint64(0), thread.FutexTimeoutStep)
-				require.Equal(t, uint32(0), thread.FutexVal)
-			} else {
-				require.Equal(t, c.address, thread.FutexAddr)
-				require.Equal(t, c.targetValue, thread.FutexVal)
-				if shouldSetTimeout {
-					require.Equal(t, step+exec.FutexTimeoutSteps+1, thread.FutexTimeoutStep)
-				} else {
-					require.Equal(t, exec.FutexNoTimeout, thread.FutexTimeoutStep)
-				}
-			}
+			expected.Validate(t, state)
 
 			evm := testutil.NewMIPSEVM(contracts)
 			evm.SetTracer(tracer)
 			testutil.LogStepFailureAtCleanup(t, evm)
 
 			evmPost := evm.Step(t, stepWitness, step, multithreaded.GetStateHashFn())
-			goPost, _ := us.GetState().EncodeWitness()
+			goPost, _ := goVm.GetState().EncodeWitness()
 			require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 				"mipsevm produced different state than EVM")
 		})
 	}
 }
 
-func TestEVM_HandleWaitingThread(t *testing.T) {
+func TestEVM_HandleWaitingThread_NormalTraversal(t *testing.T) {
 	var tracer *tracing.Hooks
-	contracts := testutil.TestContractsSetup(t, testutil.MipsMultithreaded)
 	cases := []struct {
 		name            string
 		step            uint64
@@ -453,11 +403,11 @@ func TestEVM_HandleWaitingThread(t *testing.T) {
 		shouldWakeup    bool
 		shouldTimeout   bool
 	}{
-		{name: "Preempt, no timeout #1", step: 100, activeStackSize: 1, otherStackSize: 0, futexAddr: 0x100, targetValue: 0x01, actualValue: 0x01, timeoutStep: exec.FutexNoTimeout, shouldWakeup: false},
-		{name: "Preempt, no timeout #2", step: 100, activeStackSize: 1, otherStackSize: 1, futexAddr: 0x100, targetValue: 0x01, actualValue: 0x01, timeoutStep: exec.FutexNoTimeout, shouldWakeup: false},
-		{name: "Preempt, no timeout #3", step: 100, activeStackSize: 2, otherStackSize: 1, futexAddr: 0x100, targetValue: 0x01, actualValue: 0x01, timeoutStep: exec.FutexNoTimeout, shouldWakeup: false},
-		{name: "Preempt, with timeout #1", step: 100, activeStackSize: 2, otherStackSize: 1, futexAddr: 0x100, targetValue: 0x01, actualValue: 0x01, timeoutStep: 101, shouldWakeup: false},
-		{name: "Preempt, with timeout #2", step: 100, activeStackSize: 2, otherStackSize: 1, futexAddr: 0x100, targetValue: 0x01, actualValue: 0x01, timeoutStep: 150, shouldWakeup: false},
+		{name: "Preempt, no timeout #1", step: 100, activeStackSize: 1, otherStackSize: 0, futexAddr: 0x100, targetValue: 0x01, actualValue: 0x01, timeoutStep: exec.FutexNoTimeout},
+		{name: "Preempt, no timeout #2", step: 100, activeStackSize: 1, otherStackSize: 1, futexAddr: 0x100, targetValue: 0x01, actualValue: 0x01, timeoutStep: exec.FutexNoTimeout},
+		{name: "Preempt, no timeout #3", step: 100, activeStackSize: 2, otherStackSize: 1, futexAddr: 0x100, targetValue: 0x01, actualValue: 0x01, timeoutStep: exec.FutexNoTimeout},
+		{name: "Preempt, with timeout #1", step: 100, activeStackSize: 2, otherStackSize: 1, futexAddr: 0x100, targetValue: 0x01, actualValue: 0x01, timeoutStep: 101},
+		{name: "Preempt, with timeout #2", step: 100, activeStackSize: 1, otherStackSize: 1, futexAddr: 0x100, targetValue: 0x01, actualValue: 0x01, timeoutStep: 150},
 		{name: "Wakeup, no timeout #1", step: 100, activeStackSize: 1, otherStackSize: 0, futexAddr: 0x100, targetValue: 0x01, actualValue: 0x02, timeoutStep: exec.FutexNoTimeout, shouldWakeup: true},
 		{name: "Wakeup, no timeout #2", step: 100, activeStackSize: 2, otherStackSize: 1, futexAddr: 0x100, targetValue: 0x01, actualValue: 0x02, timeoutStep: exec.FutexNoTimeout, shouldWakeup: true},
 		{name: "Wakeup with timeout #1", step: 100, activeStackSize: 2, otherStackSize: 1, futexAddr: 0x100, targetValue: 0x01, actualValue: 0x02, timeoutStep: 100, shouldWakeup: true, shouldTimeout: true},
@@ -466,7 +416,7 @@ func TestEVM_HandleWaitingThread(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		for _, traverseRight := range []bool{true, false} {
+		for i, traverseRight := range []bool{true, false} {
 			testName := fmt.Sprintf("%v (traverseRight=%v)", c.name, traverseRight)
 			t.Run(testName, func(t *testing.T) {
 				// Sanity check
@@ -474,9 +424,10 @@ func TestEVM_HandleWaitingThread(t *testing.T) {
 					require.Fail(t, "Invalid test case - cannot expect a timeout with no wakeup")
 				}
 
-				state := setupThreads(traverseRight, c.activeStackSize, c.otherStackSize)
+				goVm, state, contracts := setup(t, i)
+				mttestutil.SetupThreads(int64(i*101), state, traverseRight, c.activeStackSize, c.otherStackSize)
 				state.Step = c.step
-				*state.GetRegistersRef() = RandomRegisters(99)
+
 				activeThread := state.GetCurrentThread()
 				activeThread.FutexAddr = c.futexAddr
 				activeThread.FutexVal = c.targetValue
@@ -484,72 +435,41 @@ func TestEVM_HandleWaitingThread(t *testing.T) {
 				state.GetMemory().SetMemory(c.futexAddr, c.actualValue)
 
 				// Set up post-state expectations
-				postStep := c.step + 1
-				nextPC := state.GetCpu().PC
-				expectedRegisters := testutil.CopyRegisters(state)
-				expectedTraverseRight := traverseRight
-				var expectedRStackSize, expectedLStackSize int
-				expectedFutexAddr, expectedFutexVal, expectedTimeoutStep := c.futexAddr, c.targetValue, c.timeoutStep
+				expected := mttestutil.NewExpectedMTState(state)
+				expected.Step += 1
 				if c.shouldWakeup {
-					// We complete the wait operation by clearing the futex, updating the pc, setting return values
-					expectedFutexAddr = exec.FutexEmptyAddr
-					expectedFutexVal = 0
-					expectedTimeoutStep = 0
-					nextPC = state.GetCpu().NextPC
+					expected.ActiveThread().FutexAddr = exec.FutexEmptyAddr
+					expected.ActiveThread().FutexVal = 0
+					expected.ActiveThread().FutexTimeoutStep = 0
+					// PC and return registers are updated onWaitComplete
+					expected.ActiveThread().PC = state.GetCpu().NextPC
+					expected.ActiveThread().NextPC = state.GetCpu().NextPC + 4
 					if c.shouldTimeout {
-						expectedRegisters[2] = exec.SysErrorSignal
-						expectedRegisters[7] = exec.MipsETIMEDOUT
+						expected.ActiveThread().Registers[2] = exec.SysErrorSignal
+						expected.ActiveThread().Registers[7] = exec.MipsETIMEDOUT
 					} else {
-						expectedRegisters[2] = 0 // return value
-						expectedRegisters[7] = 0 // no error
-					}
-					if traverseRight {
-						expectedRStackSize = c.activeStackSize
-						expectedLStackSize = c.otherStackSize
-					} else {
-						expectedRStackSize = c.otherStackSize
-						expectedLStackSize = c.activeStackSize
+						expected.ActiveThread().Registers[2] = 0
+						expected.ActiveThread().Registers[7] = 0
 					}
 				} else {
-					// Otherwise we preempt
-					if traverseRight {
-						expectedRStackSize = c.activeStackSize - 1
-						expectedLStackSize = c.otherStackSize + 1
-						expectedTraverseRight = expectedRStackSize > 0
-					} else {
-						expectedRStackSize = c.otherStackSize + 1
-						expectedLStackSize = c.activeStackSize - 1
-						expectedTraverseRight = expectedLStackSize == 0
-					}
+					expected.ExpectPreemption(state)
 				}
 
 				// State transition
 				var err error
 				var stepWitness *mipsevm.StepWitness
-				us := multithreaded.NewInstrumentedState(state, nil, os.Stdout, os.Stderr, nil)
-				stepWitness, err = us.Step(true)
+				stepWitness, err = goVm.Step(true)
 				require.NoError(t, err)
 
 				// Validate post-state
-				require.Equal(t, postStep, state.GetStep())
-				require.Equal(t, c.activeStackSize+c.otherStackSize, state.ThreadCount())
-				require.Equal(t, expectedTraverseRight, state.TraverseRight)
-				require.Equal(t, expectedRStackSize, len(state.RightThreadStack))
-				require.Equal(t, expectedLStackSize, len(state.LeftThreadStack))
-				require.Equal(t, nextPC, state.GetPC())
-				require.Equal(t, nextPC+4, state.GetCpu().NextPC)
-				// Check thread
-				require.Equal(t, expectedFutexAddr, activeThread.FutexAddr)
-				require.Equal(t, expectedFutexVal, activeThread.FutexVal)
-				require.Equal(t, expectedTimeoutStep, activeThread.FutexTimeoutStep)
-				require.Equal(t, expectedRegisters, &activeThread.Registers)
+				expected.Validate(t, state)
 
 				evm := testutil.NewMIPSEVM(contracts)
 				evm.SetTracer(tracer)
 				testutil.LogStepFailureAtCleanup(t, evm)
 
 				evmPost := evm.Step(t, stepWitness, c.step, multithreaded.GetStateHashFn())
-				goPost, _ := us.GetState().EncodeWitness()
+				goPost, _ := goVm.GetState().EncodeWitness()
 				require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 					"mipsevm produced different state than EVM")
 			})
@@ -558,49 +478,11 @@ func TestEVM_HandleWaitingThread(t *testing.T) {
 	}
 }
 
-func setupThreads(traverseRight bool, activeStackSize, otherStackSize int) *multithreaded.State {
-	state := multithreaded.CreateEmptyState()
-	var activeStack, otherStack []*multithreaded.ThreadState
+func setup(t require.TestingT, randomSeed int) (mipsevm.FPVM, *multithreaded.State, *testutil.ContractMetadata) {
+	v := GetMultiThreadedTestCase(t)
+	vm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(randomSeed)))
+	state := mttestutil.GetMtState(t, vm)
 
-	tid := uint32(0)
-	for i := 0; i < activeStackSize; i++ {
-		thread := multithreaded.CreateEmptyThread()
-		thread.ThreadId = tid
-		activeStack = append(activeStack, thread)
-		tid++
-	}
+	return vm, state, v.Contracts
 
-	for i := 0; i < otherStackSize; i++ {
-		thread := multithreaded.CreateEmptyThread()
-		thread.ThreadId = tid
-		otherStack = append(otherStack, thread)
-		tid++
-	}
-
-	state.TraverseRight = traverseRight
-	if traverseRight {
-		state.RightThreadStack = activeStack
-		state.LeftThreadStack = otherStack
-	} else {
-		state.LeftThreadStack = activeStack
-		state.RightThreadStack = otherStack
-	}
-
-	return state
-}
-
-func checkStateContainsThread(state *multithreaded.State, threadId uint32) bool {
-	for i := 0; i < len(state.RightThreadStack); i++ {
-		if state.RightThreadStack[i].ThreadId == threadId {
-			return true
-		}
-	}
-
-	for i := 0; i < len(state.LeftThreadStack); i++ {
-		if state.LeftThreadStack[i].ThreadId == threadId {
-			return true
-		}
-	}
-
-	return false
 }

@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
+	mttestutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 )
 
@@ -17,10 +17,7 @@ func FuzzStateSyscallCloneMT(f *testing.F) {
 	f.Fuzz(func(t *testing.T, nextThreadId, stackPtr uint32, seed int64) {
 		goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(seed))
 		state := goVm.GetState()
-		mtState, ok := state.(*multithreaded.State)
-		if !ok {
-			require.Fail(t, "Failed to cast FPVMState to multithreaded State type")
-		}
+		mtState := mttestutil.GetMtState(t, goVm)
 
 		mtState.NextThreadId = nextThreadId
 		state.GetRegistersRef()[2] = exec.SysClone
