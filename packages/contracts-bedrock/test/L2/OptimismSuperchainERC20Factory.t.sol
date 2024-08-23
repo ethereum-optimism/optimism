@@ -64,7 +64,7 @@ contract OptimismSuperchainERC20FactoryTest is Test {
         bytes32 salt = keccak256(abi.encode(_remoteToken, _name, _symbol, _decimals));
         address deployment = _calculateTokenAddress(salt, address(superchainERC20Factory));
 
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit(address(superchainERC20Factory));
         emit OptimismSuperchainERC20Factory.OptimismSuperchainERC20Created(deployment, _remoteToken, _caller);
 
         // Act
