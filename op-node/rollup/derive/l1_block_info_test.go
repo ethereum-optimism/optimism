@@ -135,10 +135,10 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 	t.Run("first-block ecotone", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
 		info := testutils.MakeBlockInfo(nil)(rng)
-		zero := uint64(2)
+		two := uint64(2)
 		rollupCfg := rollup.Config{
-			RegolithTime: &zero,
-			EcotoneTime:  &zero,
+			RegolithTime: &two,
+			EcotoneTime:  &two,
 			BlockTime:    2,
 		}
 		depTx, err := L1InfoDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, 2)
@@ -182,11 +182,11 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 	t.Run("first-block isthmus", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
 		info := testutils.MakeBlockInfo(nil)(rng)
-		zero := uint64(2)
+		two := uint64(2)
 		rollupCfg := rollup.Config{
-			RegolithTime: &zero,
-			EcotoneTime:  &zero,
-			InteropTime:  &zero,
+			RegolithTime: &two,
+			EcotoneTime:  &two,
+			InteropTime:  &two,
 			BlockTime:    2,
 		}
 		depTx, err := L1InfoDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, 2)
