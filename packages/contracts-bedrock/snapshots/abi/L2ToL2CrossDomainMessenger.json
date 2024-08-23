@@ -54,33 +54,40 @@
   {
     "inputs": [
       {
-        "internalType": "uint256",
-        "name": "_destination",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_source",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_nonce",
-        "type": "uint256"
-      },
-      {
-        "internalType": "address",
-        "name": "_sender",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_target",
-        "type": "address"
+        "components": [
+          {
+            "internalType": "address",
+            "name": "origin",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "blockNumber",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "logIndex",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "timestamp",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "chainId",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct ICrossL2Inbox.Identifier",
+        "name": "_id",
+        "type": "tuple"
       },
       {
         "internalType": "bytes",
-        "name": "_message",
+        "name": "_sentMessage",
         "type": "bytes"
       }
     ],
@@ -111,7 +118,7 @@
     "outputs": [
       {
         "internalType": "bytes32",
-        "name": "msgHash_",
+        "name": "",
         "type": "bytes32"
       }
     ],
@@ -155,6 +162,18 @@
     "inputs": [
       {
         "indexed": true,
+        "internalType": "uint256",
+        "name": "source",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "messageNonce",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
         "internalType": "bytes32",
         "name": "messageHash",
         "type": "bytes32"
@@ -168,6 +187,18 @@
     "inputs": [
       {
         "indexed": true,
+        "internalType": "uint256",
+        "name": "source",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "messageNonce",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
         "internalType": "bytes32",
         "name": "messageHash",
         "type": "bytes32"
@@ -177,8 +208,50 @@
     "type": "event"
   },
   {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "destination",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "target",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "messageNonce",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "sender",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes",
+        "name": "message",
+        "type": "bytes"
+      }
+    ],
+    "name": "SentMessage",
+    "type": "event"
+  },
+  {
     "inputs": [],
-    "name": "CrossL2InboxOriginNotL2ToL2CrossDomainMessenger",
+    "name": "EventPayloadNotSentMessage",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "IdOriginNotL2ToL2CrossDomainMessenger",
     "type": "error"
   },
   {
@@ -214,11 +287,6 @@
   {
     "inputs": [],
     "name": "ReentrantCall",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "RelayMessageCallerNotCrossL2Inbox",
     "type": "error"
   }
 ]
