@@ -237,6 +237,10 @@ func (s *stubChecker) Update(chain types.ChainID, index entrydb.EntryIdx) heads.
 	}
 }
 
+func (s *stubChecker) SafetyLevel() types.SafetyLevel {
+	return types.CrossSafe
+}
+
 type stubHeadStorage struct {
 	heads *heads.Heads
 }

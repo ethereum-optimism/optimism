@@ -91,6 +91,15 @@ func (db *ChainsDB) StartCrossHeadMaintenance(ctx context.Context) {
 	}()
 }
 
+// Check calls the underlying logDB to determine if the given log entry is safe with respect to the checker's criteria.
+func (db *ChainsDB) Check(chain types.ChainID, blockNum uint64, logIdx uint32, logHash backendTypes.TruncatedHash) (bool, entrydb.EntryIdx, error) {
+	logDB, ok := db.logDBs[chain]
+	if !ok {
+		return false, 0, fmt.Errorf("%w: %v", ErrUnknownChain, chain)
+	}
+	return logDB.Contains(blockNum, logIdx, logHash)
+}
+
 // UpdateCrossSafeHeads updates the cross-heads of all chains
 // this is an example of how to use the SafetyChecker to update the cross-heads
 func (db *ChainsDB) UpdateCrossSafeHeads() error {

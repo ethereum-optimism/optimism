@@ -21,6 +21,7 @@ type SafetyChecker interface {
 	Check(chain types.ChainID, blockNum uint64, logIdx uint32, logHash backendTypes.TruncatedHash) bool
 	Update(chain types.ChainID, index entrydb.EntryIdx) heads.OperationFn
 	Name() string
+	SafetyLevel() types.SafetyLevel
 }
 
 // unsafeChecker is a SafetyChecker that uses the unsafe head as the view into the database
@@ -39,7 +40,7 @@ type finalizedChecker struct {
 }
 
 // NewSafetyChecker creates a new SafetyChecker of the given type
-func NewSafetyChecker(t string, chainsDB ChainsDB) SafetyChecker {
+func NewSafetyChecker(t types.SafetyLevel, chainsDB ChainsDB) SafetyChecker {
 	switch t {
 	case Unsafe:
 		return &unsafeChecker{
@@ -103,6 +104,18 @@ func (c *safeChecker) CrossHeadForChain(chainID types.ChainID) entrydb.EntryIdx 
 func (c *finalizedChecker) CrossHeadForChain(chainID types.ChainID) entrydb.EntryIdx {
 	heads := c.chainsDB.heads.Current().Get(chainID)
 	return heads.CrossFinalized
+}
+
+func (c *unsafeChecker) SafetyLevel() types.SafetyLevel {
+	return types.CrossUnsafe
+}
+
+func (c *safeChecker) SafetyLevel() types.SafetyLevel {
+	return types.CrossSafe
+}
+
+func (c *finalizedChecker) SafetyLevel() types.SafetyLevel {
+	return types.CrossFinalized
 }
 
 // check checks if the log entry is safe, provided a local head for the chain

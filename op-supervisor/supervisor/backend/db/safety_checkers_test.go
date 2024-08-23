@@ -29,7 +29,7 @@ func TestHeadsForChain(t *testing.T) {
 	tcases := []struct {
 		name          string
 		chainID       types.ChainID
-		checkerType   string
+		checkerType   types.SafetyLevel
 		expectedLocal entrydb.EntryIdx
 		expectedCross entrydb.EntryIdx
 	}{
@@ -96,7 +96,7 @@ func TestCheck(t *testing.T) {
 
 	tcases := []struct {
 		name             string
-		checkerType      string
+		checkerType      types.SafetyLevel
 		chainID          types.ChainID
 		blockNum         uint64
 		logIdx           uint32

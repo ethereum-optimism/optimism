@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/heads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/source"
+	backendTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/frontend"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -134,8 +135,28 @@ func (su *SupervisorBackend) Close() error {
 }
 
 func (su *SupervisorBackend) CheckMessage(identifier types.Identifier, payloadHash common.Hash) (types.SafetyLevel, error) {
-	// TODO(protocol-quest#288): hook up to logdb lookup
-	return types.CrossUnsafe, nil
+	chainID := identifier.ChainID
+	blockNum := identifier.BlockNumber
+	logIdx := identifier.LogIndex
+	ok, i, err := su.db.Check(chainID, blockNum, uint32(logIdx), backendTypes.TruncateHash(payloadHash))
+	if err != nil {
+		return types.CrossUnsafe, fmt.Errorf("failed to check log: %w", err)
+	}
+	if !ok {
+		return types.CrossUnsafe, nil
+	}
+	safest := types.CrossUnsafe
+	// at this point we have the log entry, and we can check if it is safe by various criteria
+	for _, checker := range []db.SafetyChecker{
+		db.NewSafetyChecker(types.Unsafe, *su.db),
+		db.NewSafetyChecker(types.Safe, *su.db),
+		db.NewSafetyChecker(types.Finalized, *su.db),
+	} {
+		if i <= checker.CrossHeadForChain(chainID) {
+			safest = checker.SafetyLevel()
+		}
+	}
+	return safest, nil
 }
 
 func (su *SupervisorBackend) CheckBlock(chainID *hexutil.U256, blockHash common.Hash, blockNumber hexutil.Uint64) (types.SafetyLevel, error) {

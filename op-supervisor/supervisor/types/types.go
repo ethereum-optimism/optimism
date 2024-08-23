@@ -84,10 +84,12 @@ func (lvl *SafetyLevel) UnmarshalText(text []byte) error {
 }
 
 const (
-	Finalized   SafetyLevel = "finalized"
-	Safe        SafetyLevel = "safe"
-	CrossUnsafe SafetyLevel = "cross-unsafe"
-	Unsafe      SafetyLevel = "unsafe"
+	CrossFinalized SafetyLevel = "cross-finalized"
+	Finalized      SafetyLevel = "finalized"
+	CrossSafe      SafetyLevel = "cross-safe"
+	Safe           SafetyLevel = "safe"
+	CrossUnsafe    SafetyLevel = "cross-unsafe"
+	Unsafe         SafetyLevel = "unsafe"
 )
 
 type ChainID uint256.Int
