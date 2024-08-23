@@ -32,7 +32,7 @@ contract DeployOPChainInput {
         address challenger;
     }
 
-    // TODO fault proofs inputs
+    // TODO Add fault proofs inputs in a future PR.
     struct Input {
         Roles roles;
         uint32 basefeeScalar;
@@ -111,6 +111,11 @@ contract DeployOPChainInput {
     function blobBaseFeeScalar() public view returns (uint32) {
         assertInputSet();
         return inputs.blobBaseFeeScalar;
+    }
+
+    function l2ChainId() public view returns (uint256) {
+        assertInputSet();
+        return inputs.l2ChainId;
     }
 }
 
@@ -293,7 +298,7 @@ contract DeployOPChain is Script {
         return dso.output();
     }
 
-    function run(DeployOPChainInput _dsi, DeployOPChainOutput _dso) public {
+    function run(DeployOPChainInput _dsi, DeployOPChainOutput _dso) public view {
         require(_dsi.inputSet(), "DeployOPChain: input not set");
 
         // TODO call OP Stack Manager deploy method
