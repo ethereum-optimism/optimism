@@ -24,9 +24,13 @@ const (
 	DepositsCompleteSignature  = "depositsComplete()"
 	L1InfoArguments            = 8
 	L1InfoBedrockLen           = 4 + 32*L1InfoArguments
-	L1InfoEcotoneLen           = 4 + 32*5       // after Ecotone upgrade, args are packed into 5 32-byte slots
-	DepositsCompleteLen        = 4              // only the selector
-	DepositsCompleteGas        = uint64(15_000) // over estimated gas limit for DepositsComplete transaction
+	L1InfoEcotoneLen           = 4 + 32*5 // after Ecotone upgrade, args are packed into 5 32-byte slots
+	DepositsCompleteLen        = 4        // only the selector
+	// We set the gas limit to 15k to ensure that the DepositsComplete Transaction does not run out of gas.
+	// GasBenchMark_L1BlockIsthmus_DepositsComplete:test_depositsComplete_benchmark() (gas: 7768)
+	// GasBenchMark_L1BlockIsthmus_DepositsComplete_Warm:test_depositsComplete_benchmark() (gas: 5768)
+	// see `test_depositsComplete_benchmark` at: `/packages/contracts-bedrock/test/BenchmarkTest.t.sol`
+	DepositsCompleteGas = uint64(15_000)
 )
 
 var (
@@ -392,15 +396,11 @@ func DepositsCompleteDeposit(seqNumber uint64, block eth.BlockInfo) (*types.Depo
 		L1BlockHash: block.Hash(),
 	}
 	out := &types.DepositTx{
-		SourceHash: source.SourceHash(),
-		From:       L1InfoDepositerAddress,
-		To:         &L1BlockAddress,
-		Mint:       nil,
-		Value:      big.NewInt(0),
-		// We set the gas limit to 15k to ensure that the DepositsComplete Transaction does not run out of gas.
-		// GasBenchMark_L1BlockIsthmus_DepositsComplete:test_depositsComplete_benchmark() (gas: 7768)
-		// GasBenchMark_L1BlockIsthmus_DepositsComplete_Warm:test_depositsComplete_benchmark() (gas: 5768)
-		// see `test_depositsComplete_benchmark` at: `/packages/contracts-bedrock/test/BenchmarkTest.t.sol`
+		SourceHash:          source.SourceHash(),
+		From:                L1InfoDepositerAddress,
+		To:                  &L1BlockAddress,
+		Mint:                nil,
+		Value:               big.NewInt(0),
 		Gas:                 DepositsCompleteGas,
 		IsSystemTransaction: false,
 		Data:                DepositsCompleteBytes4,
