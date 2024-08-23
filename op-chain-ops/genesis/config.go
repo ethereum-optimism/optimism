@@ -394,6 +394,37 @@ func (d *UpgradeScheduleDeployConfig) InteropTime(genesisTime uint64) *uint64 {
 	return offsetToUpgradeTime(d.L2GenesisInteropTimeOffset, genesisTime)
 }
 
+func (d *UpgradeScheduleDeployConfig) AllocMode(genesisTime uint64) L2AllocsMode {
+
+	forks := d.forks()
+	for i := len(forks) - 1; i >= 0; i-- {
+		if forkTime := offsetToUpgradeTime(forks[i].L2GenesisTimeOffset, genesisTime); forkTime != nil && *forkTime == 0 {
+			return L2AllocsMode(forks[i].Name)
+		}
+		// the oldest L2AllocsMode is delta
+		if forks[i].Name == string(L2AllocsDelta) {
+			return L2AllocsDelta
+		}
+	}
+	panic("should never reach here")
+}
+
+type Fork struct {
+	L2GenesisTimeOffset *hexutil.Uint64
+	Name                string
+}
+
+func (d *UpgradeScheduleDeployConfig) forks() []Fork {
+	return []Fork{
+		{L2GenesisTimeOffset: d.L2GenesisRegolithTimeOffset, Name: "regolith"},
+		{L2GenesisTimeOffset: d.L2GenesisCanyonTimeOffset, Name: "canyon"},
+		{L2GenesisTimeOffset: d.L2GenesisDeltaTimeOffset, Name: string(L2AllocsDelta)},
+		{L2GenesisTimeOffset: d.L2GenesisEcotoneTimeOffset, Name: string(L2AllocsEcotone)},
+		{L2GenesisTimeOffset: d.L2GenesisFjordTimeOffset, Name: string(L2AllocsFjord)},
+		{L2GenesisTimeOffset: d.L2GenesisGraniteTimeOffset, Name: string(L2AllocsGranite)},
+	}
+}
+
 func (d *UpgradeScheduleDeployConfig) Check(log log.Logger) error {
 	// checkFork checks that fork A is before or at the same time as fork B
 	checkFork := func(a, b *hexutil.Uint64, aName, bName string) error {
@@ -411,20 +442,11 @@ func (d *UpgradeScheduleDeployConfig) Check(log log.Logger) error {
 		}
 		return nil
 	}
-	if err := checkFork(d.L2GenesisRegolithTimeOffset, d.L2GenesisCanyonTimeOffset, "regolith", "canyon"); err != nil {
-		return err
-	}
-	if err := checkFork(d.L2GenesisCanyonTimeOffset, d.L2GenesisDeltaTimeOffset, "canyon", "delta"); err != nil {
-		return err
-	}
-	if err := checkFork(d.L2GenesisDeltaTimeOffset, d.L2GenesisEcotoneTimeOffset, "delta", "ecotone"); err != nil {
-		return err
-	}
-	if err := checkFork(d.L2GenesisEcotoneTimeOffset, d.L2GenesisFjordTimeOffset, "ecotone", "fjord"); err != nil {
-		return err
-	}
-	if err := checkFork(d.L2GenesisFjordTimeOffset, d.L2GenesisGraniteTimeOffset, "fjord", "granite"); err != nil {
-		return err
+	forks := d.forks()
+	for i := 0; i < len(forks)-1; i++ {
+		if err := checkFork(forks[i].L2GenesisTimeOffset, forks[i+1].L2GenesisTimeOffset, forks[i].Name, forks[i+1].Name); err != nil {
+			return err
+		}
 	}
 	return nil
 }
