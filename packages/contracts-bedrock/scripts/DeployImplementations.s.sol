@@ -377,7 +377,7 @@ contract DeployImplementations is Script {
         vm.broadcast(msg.sender);
         SystemConfig systemConfigImpl = new SystemConfig();
 
-        vm.label(address(systemConfigImpl), "systemConfigImpl");
+        vm.label(address(systemConfigImpl), "SystemConfigImpl");
         _dso.set(_dso.systemConfigImpl.selector, address(systemConfigImpl));
     }
 
@@ -617,7 +617,7 @@ contract DeployImplementationsInterop is DeployImplementations {
         vm.broadcast(msg.sender);
         SystemConfigInterop systemConfigImpl = new SystemConfigInterop();
 
-        vm.label(address(systemConfigImpl), "systemConfigImpl");
+        vm.label(address(systemConfigImpl), "SystemConfigImpl");
         _dso.set(_dso.systemConfigImpl.selector, address(systemConfigImpl));
     }
 

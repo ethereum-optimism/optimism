@@ -26,6 +26,7 @@ import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { FeeVault } from "src/universal/FeeVault.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Process } from "scripts/libraries/Process.sol";
+import { SetPreinstalls } from "scripts/SetPreinstalls.s.sol";
 
 interface IInitializable {
     function initialize(address _addr) external;
@@ -120,6 +121,21 @@ contract L2Genesis is Deployer {
     /// @notice This is used by op-e2e to have a version of the L2 allocs for each upgrade.
     function runWithAllUpgrades() public {
         runWithOptions(OutputMode.ALL, LATEST_FORK, artifactDependencies());
+    }
+
+    /// @notice This is used by new experimental interop deploy tooling.
+    function runWithEnv() public {
+        //  The setUp() is skipped (since we insert a custom DeployConfig, and do not use Artifacts)
+        deployer = makeAddr("deployer");
+        runWithOptions(
+            OutputMode.NONE,
+            Config.fork(),
+            L1Dependencies({
+                l1CrossDomainMessengerProxy: payable(vm.envAddress("L2GENESIS_L1CrossDomainMessengerProxy")),
+                l1StandardBridgeProxy: payable(vm.envAddress("L2GENESIS_L1StandardBridgeProxy")),
+                l1ERC721BridgeProxy: payable(vm.envAddress("L2GENESIS_L1ERC721BridgeProxy"))
+            })
+        );
     }
 
     /// @notice This is used by foundry tests to enable the latest fork with the
@@ -506,30 +522,11 @@ contract L2Genesis is Deployer {
     }
 
     /// @notice Sets all the preinstalls.
-    ///         Warning: the creator-accounts of the preinstall contracts have 0 nonce values.
-    ///         When performing a regular user-initiated contract-creation of a preinstall,
-    ///         the creation will fail (but nonce will be bumped and not blocked).
-    ///         The preinstalls themselves are all inserted with a nonce of 1, reflecting regular user execution.
-    function setPreinstalls() internal {
-        _setPreinstallCode(Preinstalls.MultiCall3);
-        _setPreinstallCode(Preinstalls.Create2Deployer);
-        _setPreinstallCode(Preinstalls.Safe_v130);
-        _setPreinstallCode(Preinstalls.SafeL2_v130);
-        _setPreinstallCode(Preinstalls.MultiSendCallOnly_v130);
-        _setPreinstallCode(Preinstalls.SafeSingletonFactory);
-        _setPreinstallCode(Preinstalls.DeterministicDeploymentProxy);
-        _setPreinstallCode(Preinstalls.MultiSend_v130);
-        _setPreinstallCode(Preinstalls.Permit2);
-        _setPreinstallCode(Preinstalls.SenderCreator_v060); // ERC 4337 v0.6.0
-        _setPreinstallCode(Preinstalls.EntryPoint_v060); // ERC 4337 v0.6.0
-        _setPreinstallCode(Preinstalls.SenderCreator_v070); // ERC 4337 v0.7.0
-        _setPreinstallCode(Preinstalls.EntryPoint_v070); // ERC 4337 v0.7.0
-        _setPreinstallCode(Preinstalls.BeaconBlockRoots);
-        _setPreinstallCode(Preinstalls.CreateX);
-        // 4788 sender nonce must be incremented, since it's part of later upgrade-transactions.
-        // For the upgrade-tx to not create a contract that conflicts with an already-existing copy,
-        // the nonce must be bumped.
-        vm.setNonce(Preinstalls.BeaconBlockRootsSender, 1);
+    function setPreinstalls() public {
+        address tmpSetPreinstalls = address(uint160(uint256(keccak256("SetPreinstalls"))));
+        vm.etch(tmpSetPreinstalls, vm.getDeployedCode("SetPreinstalls.s.sol:SetPreinstalls"));
+        SetPreinstalls(tmpSetPreinstalls).setPreinstalls();
+        vm.etch(tmpSetPreinstalls, "");
     }
 
     /// @notice Activate Ecotone network upgrade.
@@ -554,17 +551,6 @@ contract L2Genesis is Deployer {
         console.log("Setting %s implementation at: %s", cname, impl);
         vm.etch(impl, vm.getDeployedCode(string.concat(cname, ".sol:", cname)));
         return impl;
-    }
-
-    /// @notice Sets the bytecode in state
-    function _setPreinstallCode(address _addr) internal {
-        string memory cname = Preinstalls.getName(_addr);
-        console.log("Setting %s preinstall code at: %s", cname, _addr);
-        vm.etch(_addr, Preinstalls.getDeployedCode(_addr, cfg.l2ChainID()));
-        // during testing in a shared L1/L2 account namespace some preinstalls may already have been inserted and used.
-        if (vm.getNonce(_addr) == 0) {
-            vm.setNonce(_addr, 1);
-        }
     }
 
     /// @notice Writes the genesis allocs, i.e. the state dump, to disk
