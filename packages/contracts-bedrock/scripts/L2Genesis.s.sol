@@ -122,6 +122,11 @@ contract L2Genesis is Deployer {
         runWithOptions(OutputMode.ALL, LATEST_FORK, artifactDependencies());
     }
 
+    /// @notice This is used by new experimental interop deploy tooling.
+    function runWithEnv() public {
+        runWithOptions(OutputMode.NONE, Config.fork(), artifactDependencies());
+    }
+
     /// @notice This is used by foundry tests to enable the latest fork with the
     ///         given L1 dependencies.
     function runWithLatestLocal(L1Dependencies memory _l1Dependencies) public {
@@ -510,7 +515,7 @@ contract L2Genesis is Deployer {
     ///         When performing a regular user-initiated contract-creation of a preinstall,
     ///         the creation will fail (but nonce will be bumped and not blocked).
     ///         The preinstalls themselves are all inserted with a nonce of 1, reflecting regular user execution.
-    function setPreinstalls() internal {
+    function setPreinstalls() public {
         _setPreinstallCode(Preinstalls.MultiCall3);
         _setPreinstallCode(Preinstalls.Create2Deployer);
         _setPreinstallCode(Preinstalls.Safe_v130);

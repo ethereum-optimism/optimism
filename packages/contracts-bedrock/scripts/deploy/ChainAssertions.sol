@@ -244,6 +244,9 @@ library ChainAssertions {
         internal
         view
     {
+        if(vm.envOr("EXPERIMENTAL_SKIP_L2OUTPUTORACLE", false)) {
+            return;
+        }
         console.log("Running chain assertions on the L2OutputOracle");
         L2OutputOracle oracle = L2OutputOracle(_contracts.L2OutputOracle);
 
