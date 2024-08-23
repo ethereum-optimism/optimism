@@ -59,6 +59,10 @@ const (
 	SuperchainConfigGuardianKey SuperchainOperatorRole = 1
 	// DependencySetManagerKey is the key used to manage the dependency set of a superchain.
 	DependencySetManagerKey SuperchainOperatorRole = 2
+	// SuperchainProxyAdminOwner is the key that owns the superchain ProxyAdmin
+	SuperchainProxyAdminOwner SuperchainOperatorRole = 3
+	// SuperchainFinalSystemOwner is the key that ownership is transferred to after deployment.
+	SuperchainFinalSystemOwner SuperchainOperatorRole = 4
 )
 
 func (role SuperchainOperatorRole) String() string {
