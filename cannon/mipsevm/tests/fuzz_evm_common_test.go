@@ -288,7 +288,8 @@ func FuzzStatePreimageRead(f *testing.F) {
 				// TODO(cp-983) - Do stricter validation of expected memory
 				expected.Validate(t, state, testutil.SkipMemoryValidation)
 				if writeLen == 0 {
-					// With a non-zero writeLen, we may not modify memory because the length prefix is just writing zeroes
+					// Note: We are not asserting a memory root change when writeLen > 0 because we may not necessarily
+					// modify memory - it's possible we just write the leading zero bytes of the length prefix
 					require.Equal(t, expected.MemoryRoot, common.Hash(state.GetMemory().MerkleRoot()))
 				}
 
