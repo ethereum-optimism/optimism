@@ -622,6 +622,10 @@ func TestEVM_WakeupTraversalStep(t *testing.T) {
 	}
 }
 
+func TestEVM_SysFutex_UnsupportedOp(t *testing.T) {
+	t.Skip("TODO")
+}
+
 func TestEVM_SysYield(t *testing.T) {
 	var tracer *tracing.Hooks
 	cases := []struct {
@@ -676,7 +680,49 @@ func TestEVM_SysYield(t *testing.T) {
 	}
 }
 
+func TestEVM_SysOpen(t *testing.T) {
+	var tracer *tracing.Hooks
+
+	goVm, state, contracts := setup(t, 5512)
+
+	state.Memory.SetMemory(state.GetPC(), syscallInsn)
+	state.GetRegistersRef()[2] = exec.SysOpen // Set syscall number
+	step := state.Step
+
+	// Set up post-state expectations
+	expected := mttestutil.NewExpectedMTState(state)
+	expected.ExpectStep()
+	expected.ActiveThread().Registers[2] = exec.SysErrorSignal
+	expected.ActiveThread().Registers[7] = exec.MipsEBADF
+
+	// State transition
+	var err error
+	var stepWitness *mipsevm.StepWitness
+	stepWitness, err = goVm.Step(true)
+	require.NoError(t, err)
+
+	// Validate post-state
+	expected.Validate(t, state)
+
+	evm := testutil.NewMIPSEVM(contracts)
+	evm.SetTracer(tracer)
+	testutil.LogStepFailureAtCleanup(t, evm)
+
+	evmPost := evm.Step(t, stepWitness, step, multithreaded.GetStateHashFn())
+	goPost, _ := goVm.GetState().EncodeWitness()
+	require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
+		"mipsevm produced different state than EVM")
+}
+
+func TestEVM_NoopInstruction(t *testing.T) {
+	t.Skip("TODO")
+}
+
 func TestEVM_QuantumHandling(t *testing.T) {
+	t.Skip("TODO")
+}
+
+func TestEVM_UnsupportedInstruction(t *testing.T) {
 	t.Skip("TODO")
 }
 
