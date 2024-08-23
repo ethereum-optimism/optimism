@@ -3,6 +3,7 @@ package node
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,6 +14,8 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
 	"github.com/attestantio/go-eth2-client/spec/deneb"
+	"github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/flashbots/go-boost-utils/ssz"
 	"github.com/holiman/uint256"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -20,11 +23,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 
 const PathGetPayload = "/eth/v1/builder/payload"
+const GenesisForkVersionMainnet = "0x00000000" // NOTE: Optimism does not have any fork version. Use Mainnet fork version for now.
 
 type BuilderAPIConfig struct {
 	Timeout  time.Duration
@@ -32,17 +37,19 @@ type BuilderAPIConfig struct {
 }
 
 type BuilderAPIClient struct {
-	log        log.Logger
-	config     *BuilderAPIConfig
-	rollupCfg  *rollup.Config
-	httpClient *client.BasicHTTPClient
+	log           log.Logger
+	config        *BuilderAPIConfig
+	rollupCfg     *rollup.Config
+	httpClient    *client.BasicHTTPClient
+	domainBuilder phase0.Domain
 }
 
-type BuilderMetrics interface {
-	RecordBuilderPayloadBytes(num int)
-}
+func NewBuilderClient(log log.Logger, rollupCfg *rollup.Config, endpoint string, timeout time.Duration) (*BuilderAPIClient, error) {
+	domainBuilder, err := computeDomain(ssz.DomainTypeAppBuilder, GenesisForkVersionMainnet, phase0.Root{}.String())
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute domain: %w", err)
+	}
 
-func NewBuilderClient(log log.Logger, rollupCfg *rollup.Config, endpoint string, timeout time.Duration) *BuilderAPIClient {
 	httpClient := client.NewBasicHTTPClient(endpoint, log)
 	config := &BuilderAPIConfig{
 		Timeout:  timeout,
@@ -50,11 +57,12 @@ func NewBuilderClient(log log.Logger, rollupCfg *rollup.Config, endpoint string,
 	}
 
 	return &BuilderAPIClient{
-		httpClient: httpClient,
-		config:     config,
-		rollupCfg:  rollupCfg,
-		log:        log,
-	}
+		httpClient:    httpClient,
+		config:        config,
+		rollupCfg:     rollupCfg,
+		log:           log,
+		domainBuilder: domainBuilder,
+	}, nil
 }
 
 func (s *BuilderAPIClient) Enabled() bool {
@@ -105,10 +113,14 @@ func (s *BuilderAPIClient) GetPayload(ctx context.Context, ref eth.L2BlockRef, l
 		return nil, err
 	}
 
+	if err := verifySignature(submitBlockRequest, s.domainBuilder); err != nil {
+		return nil, err
+	}
+
 	// selects expected data version from the optimism version.
 	// Bedrock - Bellatrix
 	// Canyon - Capella
-	// Delta - Deneb
+	// Ecotone - Deneb
 	var expectedVersion spec.DataVersion
 	if s.rollupCfg.IsEcotone(ref.Time) {
 		expectedVersion = spec.DataVersionDeneb
@@ -265,4 +277,37 @@ func denebExecutionPayloadToExecutionPayload(payload *deneb.ExecutionPayload) *e
 		ParentBeaconBlockRoot: nil,
 	}
 	return envelope
+}
+
+func verifySignature(submission *builderSpec.VersionedSubmitBlockRequest, domainBuilder phase0.Domain) error {
+	bid, err := submission.BidTrace()
+	if err != nil {
+		return err
+	}
+
+	signature, err := submission.Signature()
+	if err != nil {
+		return err
+	}
+
+	ok, err := ssz.VerifySignature(bid, domainBuilder, bid.BuilderPubkey[:], signature[:])
+	if err != nil {
+		return err
+	}
+
+	if !ok {
+		return errors.New("invalid builder signature")
+	}
+	return nil
+}
+
+func computeDomain(domainType phase0.DomainType, forkVersionHex, genesisValidatorsRootHex string) (domain phase0.Domain, err error) {
+	genesisValidatorsRoot := phase0.Root(common.HexToHash(genesisValidatorsRootHex))
+	forkVersionBytes, err := hexutil.Decode(forkVersionHex)
+	if err != nil || len(forkVersionBytes) != 4 {
+		return domain, errors.New("invalid fork version")
+	}
+	var forkVersion [4]byte
+	copy(forkVersion[:], forkVersionBytes[:4])
+	return ssz.ComputeDomain(domainType, forkVersion, genesisValidatorsRoot), nil
 }
