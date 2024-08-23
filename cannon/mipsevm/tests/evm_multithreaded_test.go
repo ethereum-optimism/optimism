@@ -622,6 +622,60 @@ func TestEVM_WakeupTraversalStep(t *testing.T) {
 	}
 }
 
+func TestEVM_SysYield(t *testing.T) {
+	var tracer *tracing.Hooks
+	cases := []struct {
+		name            string
+		traverseRight   bool
+		activeThreads   int
+		inactiveThreads int
+	}{
+		{name: "Last active thread", activeThreads: 1, inactiveThreads: 2},
+		{name: "Only thread", activeThreads: 1, inactiveThreads: 0},
+		{name: "Do not change directions", activeThreads: 2, inactiveThreads: 2},
+		{name: "Do not change directions", activeThreads: 3, inactiveThreads: 0},
+	}
+
+	for i, c := range cases {
+		for _, traverseRight := range []bool{true, false} {
+			testName := fmt.Sprintf("%v (traverseRight = %v)", c.name, traverseRight)
+			t.Run(testName, func(t *testing.T) {
+				goVm, state, contracts := setup(t, i*789)
+				mttestutil.SetupThreads(int64(i*3259), state, traverseRight, c.activeThreads, c.inactiveThreads)
+
+				state.Memory.SetMemory(state.GetPC(), syscallInsn)
+				state.GetRegistersRef()[2] = exec.SysSchedYield // Set syscall number
+				step := state.Step
+
+				// Set up post-state expectations
+				expected := mttestutil.NewExpectedMTState(state)
+				expected.ExpectStep()
+				expected.ExpectPreemption(state)
+				expected.PrestateActiveThread().Registers[2] = 0
+				expected.PrestateActiveThread().Registers[7] = 0
+
+				// State transition
+				var err error
+				var stepWitness *mipsevm.StepWitness
+				stepWitness, err = goVm.Step(true)
+				require.NoError(t, err)
+
+				// Validate post-state
+				expected.Validate(t, state)
+
+				evm := testutil.NewMIPSEVM(contracts)
+				evm.SetTracer(tracer)
+				testutil.LogStepFailureAtCleanup(t, evm)
+
+				evmPost := evm.Step(t, stepWitness, step, multithreaded.GetStateHashFn())
+				goPost, _ := goVm.GetState().EncodeWitness()
+				require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
+					"mipsevm produced different state than EVM")
+			})
+		}
+	}
+}
+
 func TestEVM_QuantumHandling(t *testing.T) {
 	t.Skip("TODO")
 }
