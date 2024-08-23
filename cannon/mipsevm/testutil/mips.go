@@ -43,6 +43,10 @@ func (m *MIPSEVM) SetLocalOracle(oracle mipsevm.PreimageOracle) {
 	m.localOracle = oracle
 }
 
+func (m *MIPSEVM) SetSourceMapTracer(t *testing.T, version MipsVersion) {
+	m.env.Config.Tracer = SourceMapTracer(t, version, m.artifacts.MIPS, m.artifacts.Oracle, m.addrs)
+}
+
 // Step is a pure function that computes the poststate from the VM state encoded in the StepWitness.
 func (m *MIPSEVM) Step(t *testing.T, stepWitness *mipsevm.StepWitness, step uint64, stateHashFn mipsevm.HashFn) []byte {
 	m.lastStep = step
