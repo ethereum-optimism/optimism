@@ -9,23 +9,19 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rpc"
-
-	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
-	"github.com/ethereum-optimism/optimism/op-service/client"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
 func setupAliceAccount(t *testing.T, cfg SystemConfig, sys *System, ethPrivKey *ecdsa.PrivateKey) {
-	l1Client := sys.Clients["l1"]
-	l2Verif := sys.Clients["verifier"]
+	l1Client := sys.NodeClient("l1")
+	l2Verif := sys.NodeClient("verifier")
 
 	// Send Transaction & wait for success
 	fromAddr := cfg.Secrets.Addresses().Alice
@@ -68,13 +64,12 @@ func TestBrotliBatcherFjord(t *testing.T) {
 	// set up batcher to use brotli
 	sys, err := cfg.Start(t, SystemConfigOption{"compressionAlgo", "brotli", nil})
 	require.Nil(t, err, "Error starting up system")
-	defer sys.Close()
 
 	log := testlog.Logger(t, log.LevelInfo)
 	log.Info("genesis", "l2", sys.RollupConfig.Genesis.L2, "l1", sys.RollupConfig.Genesis.L1, "l2_time", sys.RollupConfig.Genesis.L2Time)
 
-	l2Seq := sys.Clients["sequencer"]
-	l2Verif := sys.Clients["verifier"]
+	l2Seq := sys.NodeClient("sequencer")
+	l2Verif := sys.NodeClient("verifier")
 
 	// Transactor Account and set up the account
 	ethPrivKey := cfg.Secrets.Alice
@@ -101,9 +96,7 @@ func TestBrotliBatcherFjord(t *testing.T) {
 	require.Equal(t, verifBlock.ParentHash(), seqBlock.ParentHash(), "Verifier and sequencer blocks parent hashes not the same after including a batch tx")
 	require.Equal(t, verifBlock.Hash(), seqBlock.Hash(), "Verifier and sequencer blocks not the same after including a batch tx")
 
-	rollupRPCClient, err := rpc.DialContext(context.Background(), sys.RollupNodes["sequencer"].HTTPEndpoint())
-	require.NoError(t, err)
-	rollupClient := sources.NewRollupClient(client.NewBaseRPCClient(rollupRPCClient))
+	rollupClient := sys.RollupClient("sequencer")
 	// basic check that sync status works
 	seqStatus, err := rollupClient.SyncStatus(context.Background())
 	require.NoError(t, err)

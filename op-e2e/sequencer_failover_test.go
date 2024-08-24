@@ -100,8 +100,8 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 	nonvoter, err := retry.Do[*conductor](ctx, maxSetupRetries, retryStrategy, func() (*conductor, error) {
 		return setupConductor(
 			t, VerifierName, t.TempDir(),
-			sys.RollupEndpoint(Sequencer3Name),
-			sys.NodeEndpoint(Sequencer3Name),
+			sys.RollupEndpoint(Sequencer3Name).RPC(),
+			sys.NodeEndpoint(Sequencer3Name).RPC(),
 			findAvailablePort(t),
 			false,
 			*sys.RollupConfig,
@@ -223,7 +223,7 @@ func TestSequencerFailover_DisasterRecovery_OverrideLeader(t *testing.T) {
 	// Start sequencer with the overrideLeader flag set to true, should succeed
 	err = sys.RollupClient(Sequencer3Name).OverrideLeader(ctx)
 	require.NoError(t, err)
-	blk, err := sys.NodeClient(Sequencer3Name).BlockByNumber(ctx, nil)
+	blk, err := sys.NodeClient("Sequencer3Name").BlockByNumber(ctx, nil)
 	require.NoError(t, err)
 	err = sys.RollupClient(Sequencer3Name).StartSequencer(ctx, blk.Hash())
 	require.NoError(t, err)
