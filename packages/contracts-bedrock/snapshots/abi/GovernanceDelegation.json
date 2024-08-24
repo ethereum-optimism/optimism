@@ -301,25 +301,6 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "account",
-        "type": "address"
-      }
-    ],
-    "name": "migrated",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "migrated",
-        "type": "bool"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
         "name": "_account",
         "type": "address"
       }

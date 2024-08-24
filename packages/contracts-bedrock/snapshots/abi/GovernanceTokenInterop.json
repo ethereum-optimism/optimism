@@ -114,12 +114,12 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "_account",
+        "name": "account",
         "type": "address"
       },
       {
         "internalType": "uint32",
-        "name": "_pos",
+        "name": "pos",
         "type": "uint32"
       }
     ],
@@ -238,7 +238,7 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "_account",
+        "name": "account",
         "type": "address"
       }
     ],
@@ -257,7 +257,7 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "_blockNumber",
+        "name": "blockNumber",
         "type": "uint256"
       }
     ],
@@ -276,12 +276,12 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "_account",
+        "name": "account",
         "type": "address"
       },
       {
         "internalType": "uint256",
-        "name": "_blockNumber",
+        "name": "blockNumber",
         "type": "uint256"
       }
     ],
@@ -300,7 +300,7 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "_account",
+        "name": "account",
         "type": "address"
       }
     ],
@@ -336,6 +336,19 @@
         "type": "bool"
       }
     ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_delegator",
+        "type": "address"
+      }
+    ],
+    "name": "migrate",
+    "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -393,7 +406,7 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "_account",
+        "name": "account",
         "type": "address"
       }
     ],
