@@ -921,7 +921,7 @@ func (sys *System) TestAccount(idx int) *ecdsa.PrivateKey {
 
 func configureL1(rollupNodeCfg *rollupNode.Config, l1Node services.EthInstance, beaconEndpoint endpoint.RestHTTP) {
 	rollupNodeCfg.L1 = &rollupNode.L1EndpointConfig{
-		L1NodeAddr:       l1Node.UserRPC().RPC(),
+		L1NodeAddr:       endpoint.SelectRPC(EnvRPCPreference(), l1Node.UserRPC()),
 		L1TrustRPC:       false,
 		L1RPCKind:        sources.RPCKindStandard,
 		RateLimit:        0,
@@ -936,7 +936,7 @@ func configureL1(rollupNodeCfg *rollupNode.Config, l1Node services.EthInstance, 
 
 func configureL2(rollupNodeCfg *rollupNode.Config, l2Node services.EthInstance, jwtSecret [32]byte) {
 	rollupNodeCfg.L2 = &rollupNode.L2EndpointConfig{
-		L2EngineAddr:      l2Node.AuthRPC().RPC(),
+		L2EngineAddr:      endpoint.SelectRPC(EnvRPCPreference(), l2Node.AuthRPC()),
 		L2EngineJWTSecret: jwtSecret,
 	}
 }
@@ -959,7 +959,7 @@ func (sys *System) RollupClient(name string) *sources.RollupClient {
 	if ok {
 		return rollupClient
 	}
-	rpcClient := endpoint.DialRPC(EnvRPCPreference(name), sys.RollupEndpoint(name), func(v string) *rpc.Client {
+	rpcClient := endpoint.DialRPC(endpoint.PreferAnyRPC, sys.RollupEndpoint(name), func(v string) *rpc.Client {
 		logger := testlog.Logger(sys.t, log.LevelInfo).New("rollupClient", name)
 		cl, err := dial.DialRPCClientWithTimeout(context.Background(), 30*time.Second, logger, v)
 		require.NoError(sys.t, err, "failed to dial rollup instance %s", name)
@@ -975,7 +975,7 @@ func (sys *System) NodeClient(name string) *ethclient.Client {
 	if ok {
 		return nodeClient
 	}
-	rpcCl := endpoint.DialRPC(EnvRPCPreference(name), sys.NodeEndpoint(name), func(v string) *rpc.Client {
+	rpcCl := endpoint.DialRPC(endpoint.PreferAnyRPC, sys.NodeEndpoint(name), func(v string) *rpc.Client {
 		logger := testlog.Logger(sys.t, log.LevelInfo).New("node", name)
 		cl, err := dial.DialRPCClientWithTimeout(context.Background(), 30*time.Second, logger, v)
 		require.NoError(sys.t, err, "failed to dial eth node instance %s", name)
@@ -990,9 +990,9 @@ func (sys *System) NodeClient(name string) *ethclient.Client {
 // Some E2E tests are forced to run with HTTP,
 // since HTTP does not support subscriptions, which thus could affect functionality.
 // The alternative E2E tests are labeled "ws", but really just any transport here is the same.
-func EnvRPCPreference(name string) endpoint.RPCPreference {
+func EnvRPCPreference() endpoint.RPCPreference {
 	// L1 is a legacy exception; the System setup itself depends on RPC subscriptions.
-	if name != RoleL1 && os.Getenv("OP_E2E_USE_HTTP") == "true" {
+	if os.Getenv("OP_E2E_USE_HTTP") == "true" {
 		return endpoint.PreferHttpRPC
 	}
 	return endpoint.PreferAnyRPC

@@ -124,3 +124,15 @@ func DialRPC(preference RPCPreference, rpc RPC, dialer Dialer) *rpc.Client {
 	}
 	return dialer(rpc.RPC())
 }
+
+// SelectRPC selects an endpoint URL, based on preference.
+// For more optimal dialing, use DialRPC.
+func SelectRPC(preference RPCPreference, rpc RPC) string {
+	if v, ok := rpc.(HttpRPC); preference == PreferHttpRPC && ok {
+		return v.HttpRPC()
+	}
+	if v, ok := rpc.(WsRPC); preference == PreferWSRPC && ok {
+		return v.WsRPC()
+	}
+	return rpc.RPC()
+}
