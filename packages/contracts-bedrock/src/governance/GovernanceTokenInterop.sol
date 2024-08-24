@@ -2,18 +2,31 @@
 pragma solidity 0.8.15;
 
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { StorageSlot } from "@openzeppelin/contracts/utils/StorageSlot.sol";
 import { ERC20Votes } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { IGovernanceDelegation } from "src/governance/IGovernanceDelegation.sol";
 import { GovernanceToken } from "src/governance/GovernanceToken.sol";
 
 contract GovernanceTokenInterop is GovernanceToken {
+    /// @notice Migrates a delegator to the `GovernanceDelegation` contract.
+    /// @param _delegator The account to migrate.
+    function migrate(address _delegator) external {
+        address currentDelegatee = delegates(_delegator);
+        if (currentDelegatee != address(0)) {
+            // `_delegates` is private, so manually clear the value in the slot (7)
+            StorageSlot.getAddressSlot(keccak256(abi.encode(_delegator, 7))).value = address(0);
+            IGovernanceDelegation(Predeploys.GOVERNANCE_DELEGATION).delegateFromToken(_delegator, currentDelegatee);
+        }
+    }
+
     /// @notice Delegates votes from the `_delegator` to `_delegatee`.
     /// @param _delegator The account delegating votes.
     /// @param _delegatee The account to delegate votes to.
     function _delegate(address _delegator, address _delegatee) internal override(ERC20Votes) {
         // GovernanceDelegation will migrate account if necessary.
         IGovernanceDelegation(Predeploys.GOVERNANCE_DELEGATION).delegateFromToken(_delegator, _delegatee);
+        // TODO: what happens to the previous delegatee? shouldn't its voting power be updated?
     }
 
     /// @notice Callback called after a token transfer. Forwards to the GovernanceDelegation contract,

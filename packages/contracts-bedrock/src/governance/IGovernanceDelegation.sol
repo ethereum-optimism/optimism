@@ -87,9 +87,9 @@ interface IGovernanceDelegation {
         returns (ERC20Votes.Checkpoint memory _checkpoint);
 
     /// @notice Returns the number of checkpoints for a account.
-    /// @param _account The account to get the total supply checkpoints for.
-    /// @return _checkpoints The total supply checkpoints.
-    function numCheckpoints(address _account) external view returns (uint32 _checkpoints);
+    /// @param _account The account to get the the checkpoints for.
+    /// @return _number The number of checkpoints.
+    function numCheckpoints(address _account) external view returns (uint32 _number);
 
     /// @notice Returns the delegatee with the most voting power for a given account.
     /// @param _account The account to get the delegatee for.

@@ -7,6 +7,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { EnumerableMap } from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { IGovernanceDelegation } from "src/governance/IGovernanceDelegation.sol";
+import { IGovernanceTokenInterop } from "src/governance/IGovernanceTokenInterop.sol";
 import { SafeMath } from "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 /// @custom:predeploy 0x4200000000000000000000000000000000000043
@@ -199,7 +200,8 @@ contract GovernanceDelegation is IGovernanceDelegation {
             );
         }
 
-        // TODO: clear delegation state in token.
+        // Clear the delegation in the token.
+        IGovernanceTokenInterop(Predeploys.GOVERNANCE_TOKEN).migrate(_account);
     }
 
     /// @notice Helper to check if an account needs to be migrated.
