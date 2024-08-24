@@ -510,7 +510,7 @@ func TestMissingBatchE2E(t *testing.T) {
 	require.Equal(t, ethereum.NotFound, err, "Found transaction in verifier when it should not have been included")
 
 	// Wait a short time for the L2 reorg to occur on the sequencer as well.
-	err = waitForSafeHead(ctx, receipt.BlockNumber.Uint64(), seqRollupClient)
+	err = wait.ForSafeBlock(ctx, seqRollupClient, receipt.BlockNumber.Uint64())
 	require.Nil(t, err, "timeout waiting for L2 reorg on sequencer safe head")
 
 	// Assert that the reconciliation process did an L2 reorg on the sequencer to remove the invalid block

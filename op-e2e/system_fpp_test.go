@@ -16,6 +16,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-program/client/claim"
 	opp "github.com/ethereum-optimism/optimism/op-program/host"
 	oppconf "github.com/ethereum-optimism/optimism/op-program/host/config"
@@ -110,10 +111,10 @@ func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool, spanBatchActi
 	// Avoids flaky test by avoiding reorgs at epoch 0
 	t.Log("Wait for safe head to advance once for setup")
 	// Safe head doesn't exist at genesis. Wait for the first one before proceeding
-	require.NoError(t, waitForSafeHead(ctx, 1, rollupClient))
+	require.NoError(t, wait.ForSafeBlock(ctx, rollupClient, 1))
 	ss, err := l2Seq.BlockByNumber(ctx, big.NewInt(int64(rpc.SafeBlockNumber)))
 	require.NoError(t, err)
-	require.NoError(t, waitForSafeHead(ctx, ss.NumberU64()+cfg.DeployConfig.SequencerWindowSize+1, rollupClient))
+	require.NoError(t, wait.ForSafeBlock(ctx, rollupClient, ss.NumberU64()+cfg.DeployConfig.SequencerWindowSize+1))
 
 	t.Log("Sending transactions to setup existing state, prior to challenged period")
 	aliceKey := cfg.Secrets.Alice
@@ -121,7 +122,7 @@ func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool, spanBatchActi
 		opts.ToAddr = &cfg.Secrets.Addresses().Bob
 		opts.Value = big.NewInt(1_000)
 	})
-	require.NoError(t, waitForSafeHead(ctx, receipt.BlockNumber.Uint64(), rollupClient))
+	require.NoError(t, wait.ForSafeBlock(ctx, rollupClient, receipt.BlockNumber.Uint64()))
 
 	t.Logf("Capture current L2 head as agreed starting point. l2Head=%x l2BlockNumber=%v", receipt.BlockHash, receipt.BlockNumber)
 	agreedL2Output, err := rollupClient.OutputAtBlock(ctx, receipt.BlockNumber.Uint64())
@@ -147,7 +148,7 @@ func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool, spanBatchActi
 
 	// Wait for safe head to start advancing again when the sequencing window elapses, for at least three blocks
 	t.Log("Wait for safe head to advance after sequencing window elapses")
-	require.NoError(t, waitForSafeHead(ctx, safeBlock.NumberU64()+3, rollupClient))
+	require.NoError(t, wait.ForSafeBlock(ctx, rollupClient, safeBlock.NumberU64()+3))
 
 	// Use the 2nd empty block as our L2 claim block
 	t.Log("Determine L2 claim")
@@ -168,7 +169,7 @@ func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool, spanBatchActi
 		opts.Value = big.NewInt(1_000)
 		opts.Nonce = 1
 	})
-	require.NoError(t, waitForSafeHead(ctx, receipt.BlockNumber.Uint64(), rollupClient))
+	require.NoError(t, wait.ForSafeBlock(ctx, rollupClient, receipt.BlockNumber.Uint64()))
 
 	t.Log("Determine L1 head that includes batch after sequence of empty blocks")
 	l1HeadBlock, err := l1Client.BlockByNumber(ctx, nil)
@@ -251,7 +252,7 @@ func testVerifyL2OutputRoot(t *testing.T, detached bool, spanBatchActivated bool
 	l2Claim := l2Output.OutputRoot
 
 	t.Log("Determine L1 head that includes all batches required for L2 claim block")
-	require.NoError(t, waitForSafeHead(ctx, l2ClaimBlockNumber, rollupClient))
+	require.NoError(t, wait.ForSafeBlock(ctx, rollupClient, l2ClaimBlockNumber))
 	l1HeadBlock, err := l1Client.BlockByNumber(ctx, nil)
 	require.NoError(t, err, "get l1 head block")
 	l1Head := l1HeadBlock.Hash()
@@ -318,19 +319,5 @@ func testFaultProofProgramScenario(t *testing.T, ctx context.Context, sys *Syste
 		require.Error(t, err, "exit status 1")
 	} else {
 		require.ErrorIs(t, err, claim.ErrClaimNotValid)
-	}
-}
-
-func waitForSafeHead(ctx context.Context, safeBlockNum uint64, rollupClient *sources.RollupClient) error {
-	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
-	defer cancel()
-	for {
-		seqStatus, err := rollupClient.SyncStatus(ctx)
-		if err != nil {
-			return err
-		}
-		if seqStatus.SafeL2.Number >= safeBlockNum {
-			return nil
-		}
 	}
 }
