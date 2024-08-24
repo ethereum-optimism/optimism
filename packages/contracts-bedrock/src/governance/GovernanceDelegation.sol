@@ -27,9 +27,6 @@ contract GovernanceDelegation is IGovernanceDelegation {
     /// @custom:semver 1.0.0-beta.1
     string public constant version = "1.0.0-beta.1";
 
-    /// @notice Flags to indicate if a account has been migrated to the GovernanceDelegation contract.
-    mapping(address account => bool migrated) public migrated;
-
     /// @notice Delegations for an account.
     mapping(address account => Delegation[] delegations) internal _delegations;
 
@@ -54,10 +51,10 @@ contract GovernanceDelegation is IGovernanceDelegation {
     /// @param newBalance The new voting power balance.
     event DelegateVotesChanged(address indexed delegate, uint256 previousBalance, uint256 newBalance);
 
-    /// @notice Migrates an account if it hasn't been migrated yet.
+    /// @notice Migrate an account if necessary.
     /// @param _account Account to migrate
     modifier migrate(address _account) {
-        if (!migrated[_account]) _migrate(_account);
+        if (_needsMigration(_account)) _migrate(_account);
         _;
     }
 
@@ -185,7 +182,7 @@ contract GovernanceDelegation is IGovernanceDelegation {
     function migrateAccounts(address[] calldata _accounts) external {
         for (uint256 i; i < _accounts.length; i++) {
             address _account = _accounts[i];
-            if (!migrated[_account]) _migrate(_account);
+            if (_needsMigration(_account)) _migrate(_account);
         }
     }
 
@@ -202,8 +199,13 @@ contract GovernanceDelegation is IGovernanceDelegation {
             );
         }
 
-        // Set migrated flag
-        migrated[_account] = true;
+        // TODO: clear delegation state in token.
+    }
+
+    /// @notice Helper to check if an account needs to be migrated.
+    /// @param _account The account to check.
+    function _needsMigration(address _account) internal view returns (bool) {
+        return ERC20Votes(Predeploys.GOVERNANCE_TOKEN).delegates(_account) != address(0);
     }
 
     /// @notice Delegate `_delegator`'s voting units to delegations specified in `_newDelegations`.
@@ -237,7 +239,8 @@ contract GovernanceDelegation is IGovernanceDelegation {
             // Check sorting and uniqueness of delegatees.
             if (i == 0 && _newDelegations[i].delegatee == address(0)) {
                 // zero delegation is allowed if in 0th position
-            } else if (_newDelegations[i].delegatee <= _lastDelegatee) {
+            }
+            else if (_newDelegations[i].delegatee <= _lastDelegatee) {
                 revert DuplicateOrUnsortedDelegatees(_newDelegations[i].delegatee);
             }
 
@@ -323,7 +326,7 @@ contract GovernanceDelegation is IGovernanceDelegation {
             address delegatee = _delegationSet[i].delegatee;
             uint256 amount = _delegationSet[i].amount;
 
-            if (!migrated[delegatee]) {
+            if (_needsMigration(delegatee)) {
                 _migrate(delegatee);
             }
 

@@ -69,11 +69,6 @@ interface IGovernanceDelegation {
     /// @notice Returns the version of the contract.
     function version() external view returns (string memory);
 
-    /// @notice Returns the migration status of an account.
-    /// @param _account The account to check the migration status.
-    /// @return _status True if the account has been migrated, false otherwise.
-    function migrated(address _account) external view returns (bool _status);
-
     /// @notice Returns the delegations for a given account.
     /// @param _account The account to get the delegations for.
     /// @return _delegations The delegations.

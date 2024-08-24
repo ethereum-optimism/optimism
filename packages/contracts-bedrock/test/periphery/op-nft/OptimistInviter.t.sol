@@ -103,7 +103,9 @@ contract OptimistInviter_Initializer is Test {
 
     /// @notice Signs a claimable invite with the given private key and returns the signature using
     ///         correct EIP712 domain separator.
-    function _issueInviteAs(uint256 _privateKey)
+    function _issueInviteAs(
+        uint256 _privateKey
+    )
         internal
         returns (OptimistInviter.ClaimableInvite memory, bytes memory)
     {

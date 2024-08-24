@@ -130,7 +130,9 @@ library MIPSSyscalls {
     /// @return a1_ The second argument available to the syscall operation.
     /// @return a2_ The third argument available to the syscall operation.
     /// @return a3_ The fourth argument available to the syscall operation.
-    function getSyscallArgs(uint32[32] memory _registers)
+    function getSyscallArgs(
+        uint32[32] memory _registers
+    )
         internal
         pure
         returns (uint32 sysCallNum_, uint32 a0_, uint32 a1_, uint32 a2_, uint32 a3_)
@@ -195,7 +197,9 @@ library MIPSSyscalls {
     /// @return v1_ The error code, 0 if there is no error.
     /// @return newPreimageOffset_ The new value for the preimage offset.
     /// @return newMemRoot_ The new memory root.
-    function handleSysRead(SysReadParams memory _args)
+    function handleSysRead(
+        SysReadParams memory _args
+    )
         internal
         view
         returns (uint32 v0_, uint32 v1_, uint32 newPreimageOffset_, bytes32 newMemRoot_)
