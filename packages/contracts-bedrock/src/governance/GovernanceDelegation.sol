@@ -55,7 +55,7 @@ contract GovernanceDelegation is IGovernanceDelegation {
     /// @notice Migrate an account if necessary.
     /// @param _account Account to migrate
     modifier migrate(address _account) {
-        if (_needsMigration(_account)) _migrate(_account);
+        _migrate(_account);
         _;
     }
 
@@ -181,27 +181,17 @@ contract GovernanceDelegation is IGovernanceDelegation {
     /// @notice Migrate accounts' delegation state from the governance token to the this contract.
     /// @param _accounts The accounts to migrate.
     function migrateAccounts(address[] calldata _accounts) external {
-        for (uint256 i; i < _accounts.length; i++) {
-            address _account = _accounts[i];
-            if (_needsMigration(_account)) _migrate(_account);
+        uint256 _accountsLength = _accounts.length;
+        for (uint256 i; i < _accountsLength; i++) {
+            _migrate(_accounts[i]);
         }
     }
 
     /// @notice Migrate the latest delegation state of an account form the token.
     /// @param _account The account to migrate.
     function _migrate(address _account) internal {
-        // Get the number of checkpoints.
-        uint32 _numCheckpoints = ERC20Votes(Predeploys.GOVERNANCE_TOKEN).numCheckpoints(_account);
-
-        if (_numCheckpoints > 0) {
-            // Store the latest checkpoint.
-            _checkpoints[_account].push(
-                ERC20Votes(Predeploys.GOVERNANCE_TOKEN).checkpoints(_account, _numCheckpoints - 1)
-            );
-        }
-
         // Clear the delegation in the token.
-        IGovernanceTokenInterop(Predeploys.GOVERNANCE_TOKEN).migrate(_account);
+        if (_needsMigration(_account)) IGovernanceTokenInterop(Predeploys.GOVERNANCE_TOKEN).migrate(_account);
     }
 
     /// @notice Helper to check if an account needs to be migrated.
@@ -328,9 +318,8 @@ contract GovernanceDelegation is IGovernanceDelegation {
             address delegatee = _delegationSet[i].delegatee;
             uint256 amount = _delegationSet[i].amount;
 
-            if (_needsMigration(delegatee)) {
-                _migrate(delegatee);
-            }
+            // Migrate user if needed.
+            _migrate(delegatee);
 
             if (i > 0 && _delegationSet[i].allowanceType != _type) revert InconsistentType();
 
