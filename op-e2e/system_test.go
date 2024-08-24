@@ -40,6 +40,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
@@ -1598,13 +1599,13 @@ func TestRequiredProtocolVersionChangeAndHalt(t *testing.T) {
 	// Checking if the engine is down is not trivial in op-e2e.
 	// In op-geth we have halting tests covering the Engine API, in op-e2e we instead check if the API stops.
 	_, err = retry.Do(context.Background(), 10, retry.Fixed(time.Second*10), func() (struct{}, error) {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		_, err := sys.NodeClient("verifier").ChainID(ctx)
-		cancel()
-		if err != nil && !errors.Is(err, ctx.Err()) { // waiting for client to stop responding to chainID requests
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		available := client.IsURLAvailable(ctx, sys.NodeEndpoint("verifier").(endpoint.HttpRPC).HttpRPC())
+		if !available && ctx.Err() == nil { // waiting for client to stop responding to RPC requests (slow dials with timeout don't count)
 			return struct{}{}, nil
 		}
-		return struct{}{}, errors.New("verifier rollup node is not closed yet")
+		return struct{}{}, errors.New("verifier EL node is not closed yet")
 	})
 	require.NoError(t, err)
 	t.Log("verified that op-geth closed!")

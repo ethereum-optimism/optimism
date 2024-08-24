@@ -769,7 +769,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 			DGFAddress:        config.L1Deployments.DisputeGameFactoryProxy.Hex(),
 			ProposalInterval:  6 * time.Second,
 			DisputeGameType:   254, // Fast game type
-			PollInterval:      50 * time.Millisecond,
+			PollInterval:      500 * time.Millisecond,
 			TxMgrConfig:       newTxMgrConfig(sys.EthInstances[RoleL1].UserRPC().RPC(), cfg.Secrets.Proposer),
 			AllowNonFinalized: cfg.NonFinalizedProposals,
 			LogConfig: oplog.CLIConfig{
@@ -782,7 +782,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 			L1EthRpc:          sys.EthInstances[RoleL1].UserRPC().RPC(),
 			RollupRpc:         sys.RollupNodes[RoleSeq].UserRPC().RPC(),
 			L2OOAddress:       config.L1Deployments.L2OutputOracleProxy.Hex(),
-			PollInterval:      50 * time.Millisecond,
+			PollInterval:      500 * time.Millisecond,
 			TxMgrConfig:       newTxMgrConfig(sys.EthInstances[RoleL1].UserRPC().RPC(), cfg.Secrets.Proposer),
 			AllowNonFinalized: cfg.NonFinalizedProposals,
 			LogConfig: oplog.CLIConfig{
