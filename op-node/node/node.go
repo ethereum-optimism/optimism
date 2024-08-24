@@ -401,10 +401,7 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 
 	var payloadBuilder builder.PayloadBuilder = &builder.NoOpBuilder{}
 	if cfg.BuilderEnabled {
-		payloadBuilder, err = NewBuilderClient(n.log, &cfg.Rollup, cfg.BuilderEndpoint, cfg.BuilderTimeout)
-		if err != nil {
-			return fmt.Errorf("failed to create builder client: %w", err)
-		}
+		payloadBuilder = NewBuilderClient(n.log, &cfg.Rollup, cfg.BuilderEndpoint, cfg.BuilderTimeout)
 	}
 
 	// if plasma is not explicitly activated in the node CLI, the config + any error will be ignored.
