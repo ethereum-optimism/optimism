@@ -20,7 +20,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/client/claim"
 	opp "github.com/ethereum-optimism/optimism/op-program/host"
 	oppconf "github.com/ethereum-optimism/optimism/op-program/host/config"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
