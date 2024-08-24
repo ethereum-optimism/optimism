@@ -60,7 +60,7 @@ func testSystem4844E2E(t *testing.T, multiBlob bool, daType batcherFlags.DataAva
 	// front. This lets us test the ability for the batcher to clear out the incompatible
 	// transaction. The hook used here makes sure we make the jamming call before batch submission
 	// is started, as is required by the function.
-	jamChan := make(chan error)
+	var jamChan chan error
 	jamCtx, jamCancel := context.WithTimeout(context.Background(), 20*time.Second)
 	action := SystemConfigOption{
 		key: "beforeBatcherStart",
@@ -68,14 +68,17 @@ func testSystem4844E2E(t *testing.T, multiBlob bool, daType batcherFlags.DataAva
 			driver := s.BatchSubmitter.TestDriver()
 			err := driver.JamTxPool(jamCtx)
 			require.NoError(t, err)
+			jamChan = make(chan error)
 			go func() {
 				jamChan <- driver.WaitOnJammingTx(jamCtx)
 			}()
 		},
 	}
 	defer func() {
-		jamCancel()
-		require.NoError(t, <-jamChan, "jam tx error")
+		if jamChan != nil { // only check if we actually got to a successful batcher start
+			jamCancel()
+			require.NoError(t, <-jamChan, "jam tx error")
+		}
 	}()
 
 	sys, err := cfg.Start(t, action)

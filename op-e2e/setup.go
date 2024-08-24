@@ -394,6 +394,7 @@ func (sys *System) L1Slot(l1Timestamp uint64) uint64 {
 }
 
 func (sys *System) Close() {
+	sys.t.Log("CLOSING")
 	if !sys.closed.CompareAndSwap(false, true) {
 		// Already closed.
 		return
@@ -958,7 +959,7 @@ func (sys *System) RollupClient(name string) *sources.RollupClient {
 	if ok {
 		return rollupClient
 	}
-	rpcClient := endpoint.DialRPC(EnvRPCPreference(), sys.RollupEndpoint(name), func(v string) *rpc.Client {
+	rpcClient := endpoint.DialRPC(EnvRPCPreference(name), sys.RollupEndpoint(name), func(v string) *rpc.Client {
 		logger := testlog.Logger(sys.t, log.LevelInfo).New("rollupClient", name)
 		cl, err := dial.DialRPCClientWithTimeout(context.Background(), 30*time.Second, logger, v)
 		require.NoError(sys.t, err, "failed to dial rollup instance %s", name)
@@ -974,7 +975,7 @@ func (sys *System) NodeClient(name string) *ethclient.Client {
 	if ok {
 		return nodeClient
 	}
-	rpcCl := endpoint.DialRPC(EnvRPCPreference(), sys.NodeEndpoint(name), func(v string) *rpc.Client {
+	rpcCl := endpoint.DialRPC(EnvRPCPreference(name), sys.NodeEndpoint(name), func(v string) *rpc.Client {
 		logger := testlog.Logger(sys.t, log.LevelInfo).New("node", name)
 		cl, err := dial.DialRPCClientWithTimeout(context.Background(), 30*time.Second, logger, v)
 		require.NoError(sys.t, err, "failed to dial eth node instance %s", name)
@@ -989,8 +990,9 @@ func (sys *System) NodeClient(name string) *ethclient.Client {
 // Some E2E tests are forced to run with HTTP,
 // since HTTP does not support subscriptions, which thus could affect functionality.
 // The alternative E2E tests are labeled "ws", but really just any transport here is the same.
-func EnvRPCPreference() endpoint.RPCPreference {
-	if os.Getenv("OP_E2E_USE_HTTP") == "true" {
+func EnvRPCPreference(name string) endpoint.RPCPreference {
+	// L1 is a legacy exception; the System setup itself depends on RPC subscriptions.
+	if name != RoleL1 && os.Getenv("OP_E2E_USE_HTTP") == "true" {
 		return endpoint.PreferHttpRPC
 	}
 	return endpoint.PreferAnyRPC

@@ -13,6 +13,7 @@ import (
 )
 
 func TestArtifacts(t *testing.T) {
+	InitParallel(t)
 	logger := testlog.Logger(t, log.LevelWarn) // lower this log level to get verbose test dump of all artifacts
 	af := foundry.OpenArtifactsDir("../packages/contracts-bedrock/forge-artifacts")
 	artifacts, err := af.ListArtifacts()
