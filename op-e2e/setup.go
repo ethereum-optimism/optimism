@@ -607,6 +607,9 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	}
 
 	for name := range cfg.Nodes {
+		if name == RoleL1 {
+			return nil, fmt.Errorf("node name %s is reserved for L1 node", RoleL1)
+		}
 		var ethClient services.EthInstance
 		if cfg.ExternalL2Shim == "" {
 			l2Geth, err := geth.InitL2(name, l2Genesis, cfg.JWTFilePath, cfg.GethOptions[name]...)
@@ -638,9 +641,6 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	for name, nodeCfg := range cfg.Nodes {
 		configureL1(nodeCfg, sys.EthInstances[RoleL1], sys.L1BeaconEndpoint())
 		configureL2(nodeCfg, sys.EthInstances[name], cfg.JWTSecret)
-		if sys.RollupConfig.EcotoneTime != nil {
-			nodeCfg.Beacon = &rollupNode.L1BeaconEndpointConfig{BeaconAddr: sys.L1BeaconAPIAddr.RestHTTP()}
-		}
 	}
 
 	l1Client := sys.NodeClient(RoleL1)
