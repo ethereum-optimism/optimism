@@ -34,9 +34,10 @@ Run the `op-challenger` with:
 ```shell
 DISPUTE_GAME_FACTORY=$(jq -r .DisputeGameFactoryProxy .devnet/addresses.json)
 ./op-challenger/bin/op-challenger \
-  --trace-type cannon \
+  --trace-type cannon,fast \
+  --l1-beacon http://localhost:5052 \
   --l1-eth-rpc http://localhost:8545 \
-  --rollup-rpc http://localhost:9546 \
+  --rollup-rpc http://localhost:7545 \
   --game-factory-address $DISPUTE_GAME_FACTORY \
   --datadir temp/challenger-data \
   --cannon-rollup-config .devnet/rollup.json  \
@@ -154,7 +155,7 @@ If the game is resolved successfully, the result is printed.
 ```shell
 ./bin/op-challenger list-games \
   --l1-eth-rpc <L1_ETH_RPC> \
-  --network <Predefined_Network>
+  --game-factory-address <GAME_FACTORY_ADDRESS>
 ```
 
 Prints the games created by the game factory along with their current status.
