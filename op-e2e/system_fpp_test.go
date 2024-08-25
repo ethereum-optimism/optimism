@@ -20,8 +20,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/client/claim"
 	opp "github.com/ethereum-optimism/optimism/op-program/host"
 	oppconf "github.com/ethereum-optimism/optimism/op-program/host/config"
-	"github.com/ethereum-optimism/optimism/op-service/client"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
@@ -101,16 +99,13 @@ func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool, spanBatchActi
 
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
-	defer sys.Close()
 
 	log := testlog.Logger(t, log.LevelInfo)
 	log.Info("genesis", "l2", sys.RollupConfig.Genesis.L2, "l1", sys.RollupConfig.Genesis.L1, "l2_time", sys.RollupConfig.Genesis.L2Time)
 
-	l1Client := sys.Clients["l1"]
-	l2Seq := sys.Clients["sequencer"]
-	rollupRPCClient, err := rpc.DialContext(context.Background(), sys.RollupNodes["sequencer"].HTTPEndpoint())
-	require.Nil(t, err)
-	rollupClient := sources.NewRollupClient(client.NewBaseRPCClient(rollupRPCClient))
+	l1Client := sys.NodeClient("l1")
+	l2Seq := sys.NodeClient("sequencer")
+	rollupClient := sys.RollupClient("sequencer")
 
 	// Avoids flaky test by avoiding reorgs at epoch 0
 	t.Log("Wait for safe head to advance once for setup")
@@ -201,16 +196,14 @@ func testVerifyL2OutputRoot(t *testing.T, detached bool, spanBatchActivated bool
 
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
-	defer sys.Close()
 
 	log := testlog.Logger(t, log.LevelInfo)
 	log.Info("genesis", "l2", sys.RollupConfig.Genesis.L2, "l1", sys.RollupConfig.Genesis.L1, "l2_time", sys.RollupConfig.Genesis.L2Time)
 
-	l1Client := sys.Clients["l1"]
-	l2Seq := sys.Clients["sequencer"]
-	rollupRPCClient, err := rpc.DialContext(context.Background(), sys.RollupNodes["sequencer"].HTTPEndpoint())
-	require.Nil(t, err)
-	rollupClient := sources.NewRollupClient(client.NewBaseRPCClient(rollupRPCClient))
+	l1Client := sys.NodeClient("l1")
+	l2Seq := sys.NodeClient("sequencer")
+
+	rollupClient := sys.RollupClient("sequencer")
 
 	t.Log("Sending transactions to setup existing state, prior to challenged period")
 	aliceKey := cfg.Secrets.Alice
@@ -286,8 +279,8 @@ type FaultProofProgramTestScenario struct {
 func testFaultProofProgramScenario(t *testing.T, ctx context.Context, sys *System, s *FaultProofProgramTestScenario) {
 	preimageDir := t.TempDir()
 	fppConfig := oppconf.NewConfig(sys.RollupConfig, sys.L2GenesisCfg.Config, s.L1Head, s.L2Head, s.L2OutputRoot, common.Hash(s.L2Claim), s.L2ClaimBlockNumber)
-	fppConfig.L1URL = sys.NodeEndpoint("l1")
-	fppConfig.L2URL = sys.NodeEndpoint("sequencer")
+	fppConfig.L1URL = sys.NodeEndpoint("l1").RPC()
+	fppConfig.L2URL = sys.NodeEndpoint("sequencer").RPC()
 	fppConfig.DataDir = preimageDir
 	if s.Detached {
 		// When running in detached mode we need to compile the client executable since it will be called directly.
