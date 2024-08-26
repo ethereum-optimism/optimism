@@ -218,10 +218,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		require.NoError(t, err)
 
 		// sets config to post-interop
-		cfg.RegolithTime = &zero64
-		cfg.EcotoneTime = &zero64
-		cfg.InteropTime = &zero64
-		cfg.BlockTime = 2
+		cfg.AfterHardfork(rollup.Interop, 2)
 
 		epoch := l1Info.ID()
 		l1InfoTx, err := L1InfoDepositBytes(cfg, testSysCfg, 0, l1Info, 0)
