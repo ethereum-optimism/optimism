@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/setuputils"
 	"math/big"
 	"net"
 	"os"
@@ -67,7 +68,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
 const (
@@ -80,20 +80,6 @@ var (
 	testingJWTSecret = [32]byte{123}
 	genesisTime      = hexutil.Uint64(0)
 )
-
-func newTxMgrConfig(l1Addr string, privKey *ecdsa.PrivateKey) txmgr.CLIConfig {
-	return txmgr.CLIConfig{
-		L1RPCURL:                  l1Addr,
-		PrivateKey:                hexPriv(privKey),
-		NumConfirmations:          1,
-		SafeAbortNonceTooLowCount: 3,
-		FeeLimitMultiplier:        5,
-		ResubmissionTimeout:       3 * time.Second,
-		ReceiptQueryInterval:      50 * time.Millisecond,
-		NetworkTimeout:            2 * time.Second,
-		TxNotInMempoolTimeout:     2 * time.Minute,
-	}
-}
 
 func DefaultSystemConfig(t testing.TB) SystemConfig {
 	config.ExternalL2TestParms.SkipIfNecessary(t)
@@ -771,7 +757,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 			ProposalInterval:  6 * time.Second,
 			DisputeGameType:   254, // Fast game type
 			PollInterval:      500 * time.Millisecond,
-			TxMgrConfig:       newTxMgrConfig(sys.EthInstances[RoleL1].UserRPC().RPC(), cfg.Secrets.Proposer),
+			TxMgrConfig:       setuputils.NewTxMgrConfig(sys.EthInstances[RoleL1].UserRPC(), cfg.Secrets.Proposer),
 			AllowNonFinalized: cfg.NonFinalizedProposals,
 			LogConfig: oplog.CLIConfig{
 				Level:  log.LvlInfo,
@@ -784,7 +770,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 			RollupRpc:         sys.RollupNodes[RoleSeq].UserRPC().RPC(),
 			L2OOAddress:       config.L1Deployments.L2OutputOracleProxy.Hex(),
 			PollInterval:      500 * time.Millisecond,
-			TxMgrConfig:       newTxMgrConfig(sys.EthInstances[RoleL1].UserRPC().RPC(), cfg.Secrets.Proposer),
+			TxMgrConfig:       setuputils.NewTxMgrConfig(sys.EthInstances[RoleL1].UserRPC(), cfg.Secrets.Proposer),
 			AllowNonFinalized: cfg.NonFinalizedProposals,
 			LogConfig: oplog.CLIConfig{
 				Level:  log.LvlInfo,
@@ -831,7 +817,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		ApproxComprRatio:         0.4,
 		SubSafetyMargin:          4,
 		PollInterval:             50 * time.Millisecond,
-		TxMgrConfig:              newTxMgrConfig(sys.EthInstances[RoleL1].UserRPC().RPC(), cfg.Secrets.Batcher),
+		TxMgrConfig:              setuputils.NewTxMgrConfig(sys.EthInstances[RoleL1].UserRPC(), cfg.Secrets.Batcher),
 		LogConfig: oplog.CLIConfig{
 			Level:  log.LevelInfo,
 			Format: oplog.FormatText,
@@ -947,11 +933,6 @@ func (cfg SystemConfig) L1ChainIDBig() *big.Int {
 
 func (cfg SystemConfig) L2ChainIDBig() *big.Int {
 	return new(big.Int).SetUint64(cfg.DeployConfig.L2ChainID)
-}
-
-func hexPriv(in *ecdsa.PrivateKey) string {
-	b := e2eutils.EncodePrivKey(in)
-	return hexutil.Encode(b)
 }
 
 func (sys *System) RollupClient(name string) *sources.RollupClient {

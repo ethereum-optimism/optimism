@@ -1,16 +1,40 @@
 package interop
 
 import (
+	"context"
 	"os"
+	"path"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 
+	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
+	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/opnode"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/setuputils"
+	"github.com/ethereum-optimism/optimism/op-node/node"
+	"github.com/ethereum-optimism/optimism/op-node/p2p"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
+	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/ethereum-optimism/optimism/op-service/dial"
+	"github.com/ethereum-optimism/optimism/op-service/endpoint"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
@@ -18,7 +42,7 @@ func TestInterop(t *testing.T) {
 	rec := interopgen.InteropDevRecipe{
 		L1ChainID:        900100,
 		L2ChainIDs:       []uint64{900200, 900201},
-		GenesisTimestamp: uint64(1234567),
+		GenesisTimestamp: uint64(time.Now().Unix() + 3), // start chain in 3 seconds from now
 	}
 	hd, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	require.NoError(t, err)
@@ -37,85 +61,201 @@ func TestInterop(t *testing.T) {
 	_ = worldDeployment
 	_ = worldOutput
 
-	/* TODO: refactor E2E beacon setup
+	genesisTimestampL1 := worldOutput.L1.Genesis.Timestamp
+	blockTimeL1 := uint64(6)
+
 	// Create a fake Beacon node to hold on to blobs created by the L1 miner, and to serve them to L2
-	bcn := fakebeacon.NewBeacon(testlog.Logger(t, log.LevelInfo).New("role", "l1_cl"),
-		path.Join(cfg.BlobsPath, "l1_cl"), l1Genesis.Timestamp, cfg.DeployConfig.L1BlockTime)
+	blobPath := t.TempDir()
+	bcn := fakebeacon.NewBeacon(logger.New("role", "l1_cl"),
+		filepath.Join(blobPath, "l1_cl"), genesisTimestampL1, blockTimeL1)
 	t.Cleanup(func() {
 		_ = bcn.Close()
 	})
 	require.NoError(t, bcn.Start("127.0.0.1:0"))
 	beaconApiAddr := bcn.BeaconAddr()
 	require.NotEmpty(t, beaconApiAddr, "beacon API listener must be up")
-	sys.L1BeaconAPIAddr = beaconApiAddr
-	*/
 
-	/* TODO refactor E2E L1 EL setup
-	l1Node, l1Backend, err := geth.InitL1(cfg.DeployConfig.L1ChainID,
-		cfg.DeployConfig.L1BlockTime, cfg.L1FinalizedDistance, l1Genesis, c,
-		path.Join(cfg.BlobsPath, "l1_el"), bcn, cfg.GethOptions[RoleL1]...)
-	if err != nil {
-		return nil, err
-	}
-	sys.EthInstances[RoleL1] = &GethInstance{
-		Backend: l1Backend,
-		Node:    l1Node,
-	}
-	err = l1Node.Start()
-	if err != nil {
-		return nil, err
-	}
-	*/
+	l1FinalizedDistance := uint64(3)
+	l1Clock := clock.SystemClock
 
-	/* TODO refactor E2E L2 setup
-	node, backend, err := geth.InitL2(name, big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath, cfg.GethOptions[name]...)
-	if err != nil {
-		return nil, err
-	}
-	gethInst := &GethInstance{
-		Backend: backend,
-		Node:    node,
-	}
-	err = gethInst.Node.Start()
-	if err != nil {
-		return nil, err
-	}
-	*/
+	l1Geth, err := geth.InitL1(blockTimeL1, l1FinalizedDistance, worldOutput.L1.Genesis, l1Clock,
+		filepath.Join(blobPath, "l1_el"), bcn)
+	require.NoError(t, err)
+	require.NoError(t, l1Geth.Node.Start())
+	t.Cleanup(func() {
+		_ = l1Geth.Close()
+	})
 
-	/* TODO refactor op-e2e op-node setup
-	configureL1(nodeCfg, sys.EthInstances[RoleL1], sys.L1BeaconEndpoint())
-	configureL2(nodeCfg, sys.EthInstances[name], cfg.JWTSecret)
-	if sys.RollupConfig.EcotoneTime != nil {
-		nodeCfg.Beacon = &rollupNode.L1BeaconEndpointConfig{BeaconAddr: sys.L1BeaconAPIAddr}
-	}
+	for id, l2Out := range worldOutput.L2s {
+		logger := logger.New("role", "op-node-"+id)
+		jwtPath := writeDefaultJWT(t)
+		name := "l2-" + id
+		l2Geth, err := geth.InitL2(name, l2Out.Genesis, jwtPath)
+		require.NoError(t, err)
+		require.NoError(t, l2Geth.Node.Start())
+		t.Cleanup(func() {
+			_ = l2Geth.Close()
+		})
+		// TODO register the op-geth node
 
-	var cycle cliapp.Lifecycle
-	c.Cancel = func(errCause error) {
-		l.Warn("node requested early shutdown!", "err", errCause)
-		go func() {
-			postCtx, postCancel := context.WithCancel(context.Background())
-			postCancel() // don't allow the stopping to continue for longer than needed
-			if err := cycle.Stop(postCtx); err != nil {
+		seqP2PSecret, err := hd.Secret(devkeys.ChainOperatorKey{
+			ChainID: l2Out.Genesis.Config.ChainID,
+			Role:    devkeys.SequencerP2PRole,
+		})
+		require.NoError(t, err)
+
+		nodeCfg := &node.Config{
+			L1: &node.PreparedL1Endpoint{
+				Client: client.NewBaseRPCClient(
+					endpoint.DialRPC(endpoint.PreferAnyRPC,
+						l1Geth.UserRPC(), mustDial(t, logger))),
+				TrustRPC:        false,
+				RPCProviderKind: sources.RPCKindDebugGeth,
+			},
+			L2: &node.L2EndpointConfig{
+				// TODO refactoring this to a PreparedL2Endpoint,
+				//  with auth, to utilize in-process RPC would be very nice.
+				L2EngineAddr:      l2Geth.AuthRPC().RPC(),
+				L2EngineJWTSecret: testingJWTSecret,
+			},
+			Beacon: &node.L1BeaconEndpointConfig{
+				BeaconAddr: bcn.BeaconAddr(),
+			},
+			Driver: driver.Config{
+				SequencerEnabled: true,
+			},
+			Rollup: *l2Out.RollupCfg,
+			P2PSigner: &p2p.PreparedSigner{
+				Signer: p2p.NewLocalSigner(seqP2PSecret)},
+			RPC: node.RPCConfig{
+				ListenAddr:  "127.0.0.1",
+				ListenPort:  0,
+				EnableAdmin: true,
+			},
+			P2P:                         nil, // disabled P2P setup for now
+			L1EpochPollInterval:         time.Second * 2,
+			RuntimeConfigReloadInterval: 0,
+			Tracer:                      nil,
+			Sync: sync.Config{
+				SyncMode:                       sync.CLSync,
+				SkipSyncStartCheck:             false,
+				SupportsPostFinalizationELSync: false,
+			},
+			ConfigPersistence: node.DisabledConfigPersistence{},
+		}
+		opNode, err := opnode.NewOpnode(logger.New("service", "op-node"),
+			nodeCfg, func(err error) {
 				t.Error(err)
+			})
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel() // force-quit
+			_ = opNode.Stop(ctx)
+		})
+		// TODO register the op-node
+
+		// op-proposer
+		{
+			proposerSecret, err := hd.Secret(devkeys.ChainOperatorKey{
+				ChainID: l2Out.Genesis.Config.ChainID,
+				Role:    devkeys.ProposerRole,
+			})
+			require.NoError(t, err)
+			proposerCLIConfig := &l2os.CLIConfig{
+				L1EthRpc:          l1Geth.UserRPC().RPC(),
+				RollupRpc:         opNode.UserRPC().RPC(),
+				DGFAddress:        worldDeployment.L2s[id].DisputeGameFactoryProxy.Hex(),
+				ProposalInterval:  6 * time.Second,
+				DisputeGameType:   254, // Fast game type
+				PollInterval:      500 * time.Millisecond,
+				TxMgrConfig:       setuputils.NewTxMgrConfig(l1Geth.UserRPC(), proposerSecret),
+				AllowNonFinalized: false,
+				LogConfig: oplog.CLIConfig{
+					Level:  log.LvlInfo,
+					Format: oplog.FormatText,
+				},
 			}
-			l.Warn("closed op-node!")
-		}()
-	}
-	node, err := rollupNode.New(context.Background(), &c, l, "", metrics.NewMetrics(""))
-	if err != nil {
-		return nil, err
-	}
-	cycle = node
-	err = node.Start(context.Background())
-	if err != nil {
-		return nil, err
-	}
-	sys.RollupNodes[name] = node
-	*/
+			proposer, err := l2os.ProposerServiceFromCLIConfig(
+				context.Background(), "0.0.1", proposerCLIConfig,
+				logger.New("service", "proposer"))
+			require.NoError(t, err, "must start proposer")
+			require.NoError(t, proposer.Start(context.Background()))
+			t.Cleanup(func() {
+				ctx, cancel := context.WithCancel(context.Background())
+				cancel() // force-quit
+				_ = proposer.Stop(ctx)
+			})
+			// TODO register the proposer
+		}
 
-	// TODO op-proposer
-
-	// TODO op-batcher
+		// op-batcher
+		{
+			batcherSecret, err := hd.Secret(devkeys.ChainOperatorKey{
+				ChainID: l2Out.Genesis.Config.ChainID,
+				Role:    devkeys.BatcherRole,
+			})
+			require.NoError(t, err)
+			batcherCLIConfig := &bss.CLIConfig{
+				L1EthRpc:                 l1Geth.UserRPC().RPC(),
+				L2EthRpc:                 l2Geth.UserRPC().RPC(),
+				RollupRpc:                opNode.UserRPC().RPC(),
+				MaxPendingTransactions:   1,
+				MaxChannelDuration:       1,
+				MaxL1TxSize:              120_000,
+				TestUseMaxTxSizeForBlobs: false,
+				TargetNumFrames:          1,
+				ApproxComprRatio:         0.4,
+				SubSafetyMargin:          4,
+				PollInterval:             50 * time.Millisecond,
+				TxMgrConfig:              setuputils.NewTxMgrConfig(l1Geth.UserRPC(), batcherSecret),
+				LogConfig: oplog.CLIConfig{
+					Level:  log.LevelInfo,
+					Format: oplog.FormatText,
+				},
+				Stopped:               false,
+				BatchType:             derive.SpanBatchType,
+				MaxBlocksPerSpanBatch: 10,
+				DataAvailabilityType:  batcherFlags.CalldataType,
+				CompressionAlgo:       derive.Brotli,
+			}
+			// Batch Submitter
+			batcher, err := bss.BatcherServiceFromCLIConfig(
+				context.Background(), "0.0.1", batcherCLIConfig,
+				logger.New("service", "batcher"))
+			require.NoError(t, err)
+			require.NoError(t, err, "must start batcher")
+			require.NoError(t, batcher.Start(context.Background()))
+			t.Cleanup(func() {
+				ctx, cancel := context.WithCancel(context.Background())
+				cancel() // force-quit
+				_ = batcher.Stop(ctx)
+			})
+			// TODO register the op-batcher
+		}
+	}
 
 	// TODO op-supervisor
+
+	// TODO (placeholder) Let the system test-run for a bit
+	time.Sleep(time.Second * 30)
+}
+
+func mustDial(t *testing.T, logger log.Logger) func(v string) *rpc.Client {
+	return func(v string) *rpc.Client {
+		cl, err := dial.DialRPCClientWithTimeout(context.Background(), 30*time.Second, logger, v)
+		require.NoError(t, err, "failed to dial")
+		return cl
+	}
+}
+
+var testingJWTSecret = [32]byte{123}
+
+func writeDefaultJWT(t testing.TB) string {
+	// Sadly the geth node config cannot load JWT secret from memory, it has to be a file
+	jwtPath := path.Join(t.TempDir(), "jwt_secret")
+	if err := os.WriteFile(jwtPath, []byte(hexutil.Encode(testingJWTSecret[:])), 0o600); err != nil {
+		t.Fatalf("failed to prepare jwt file for geth: %v", err)
+	}
+	return jwtPath
 }
