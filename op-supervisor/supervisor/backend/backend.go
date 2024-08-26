@@ -159,7 +159,24 @@ func (su *SupervisorBackend) CheckMessage(identifier types.Identifier, payloadHa
 	return safest, nil
 }
 
+// TODO: this function ignores blockHash and assumes that the block in the db is the one we are looking for
 func (su *SupervisorBackend) CheckBlock(chainID *hexutil.U256, blockHash common.Hash, blockNumber hexutil.Uint64) (types.SafetyLevel, error) {
-	// TODO(protocol-quest#288): hook up to logdb lookup
-	return types.CrossUnsafe, nil
+	safest := types.CrossUnsafe
+	// find the first first log entry beyond the block number
+	// TODO: off by one error?
+	i, err := su.db.ScanBlock(types.ChainID(*chainID), uint64(blockNumber))
+	if err != nil {
+		return types.CrossUnsafe, fmt.Errorf("failed to scan block: %w", err)
+	}
+	// at this point we have the extent of the block, and we can check if it is safe by various criteria
+	for _, checker := range []db.SafetyChecker{
+		db.NewSafetyChecker(types.Unsafe, *su.db),
+		db.NewSafetyChecker(types.Safe, *su.db),
+		db.NewSafetyChecker(types.Finalized, *su.db),
+	} {
+		if i <= checker.CrossHeadForChain(types.ChainID(*chainID)) {
+			safest = checker.SafetyLevel()
+		}
+	}
+	return safest, nil
 }

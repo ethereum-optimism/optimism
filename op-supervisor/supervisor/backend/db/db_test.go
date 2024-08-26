@@ -286,6 +286,10 @@ func (s *stubLogDB) LastCheckpointBehind(entrydb.EntryIdx) (logs.Iterator, error
 	return s.lastCheckpointBehind, nil
 }
 
+func (s *stubLogDB) ClosestBlockIterator(blockNum uint64) (logs.Iterator, error) {
+	panic("not implemented")
+}
+
 func (s *stubLogDB) NextExecutingMessage(i logs.Iterator) (backendTypes.ExecutingMessage, error) {
 	// if error overload is set, return it to simulate a failure condition
 	if s.errOverload != nil && s.emIndex >= s.errAfter {

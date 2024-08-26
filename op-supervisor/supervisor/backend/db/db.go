@@ -26,6 +26,7 @@ type LogStorage interface {
 	Rewind(newHeadBlockNum uint64) error
 	LatestBlockNum() uint64
 	ClosestBlockInfo(blockNum uint64) (uint64, backendTypes.TruncatedHash, error)
+	ClosestBlockIterator(blockNum uint64) (logs.Iterator, error)
 	Contains(blockNum uint64, logIdx uint32, loghash backendTypes.TruncatedHash) (bool, entrydb.EntryIdx, error)
 	LastCheckpointBehind(entrydb.EntryIdx) (logs.Iterator, error)
 	NextExecutingMessage(logs.Iterator) (backendTypes.ExecutingMessage, error)
@@ -169,6 +170,35 @@ func (db *ChainsDB) UpdateCrossHeads(checker SafetyChecker) error {
 		}
 	}
 	return nil
+}
+
+// ScanBlock scans through the logs of the given chain starting from the given block number,
+// and returns the index of the first log entry beyond the target block number.
+func (db *ChainsDB) ScanBlock(chain types.ChainID, blockNum uint64) (entrydb.EntryIdx, error) {
+	logDB, ok := db.logDBs[chain]
+	if !ok {
+		return 0, fmt.Errorf("%w: %v", ErrUnknownChain, chain)
+	}
+	i, err := logDB.ClosestBlockIterator(blockNum)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get block iterator for chain %v: %w", chain, err)
+	}
+	ret := i.Index()
+	// scan through using the iterator until the block number exceeds the target
+	for {
+		bn, index, _, err := i.NextLog()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return 0, fmt.Errorf("failed to read next log entry for chain %v: %w", chain, err)
+		}
+		if bn > blockNum {
+			break
+		}
+		ret = entrydb.EntryIdx(index)
+	}
+	return ret, nil
 }
 
 // LatestBlockNum returns the latest block number that has been recorded to the logs db
