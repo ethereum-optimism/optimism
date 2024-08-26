@@ -395,18 +395,19 @@ func TestEVM_SysFutex_WaitPrivate(t *testing.T) {
 func TestEVM_SysFutex_WakePrivate(t *testing.T) {
 	var tracer *tracing.Hooks
 	cases := []struct {
-		name                   string
-		address                uint32
-		activeThreadCount      int
-		inactiveThreadCount    int
-		traverseRight          bool
-		expectTraverseRight    bool
-		expectSameActiveThread bool
+		name                string
+		address             uint32
+		activeThreadCount   int
+		inactiveThreadCount int
+		traverseRight       bool
+		expectTraverseRight bool
 	}{
-		{name: "Traverse right", address: 0x6789, activeThreadCount: 2, inactiveThreadCount: 1, traverseRight: true, expectSameActiveThread: true},
-		{name: "Traverse right, no left threads", address: 0x6789, activeThreadCount: 2, inactiveThreadCount: 0, traverseRight: true, expectSameActiveThread: true},
+		{name: "Traverse right", address: 0x6789, activeThreadCount: 2, inactiveThreadCount: 1, traverseRight: true},
+		{name: "Traverse right, no left threads", address: 0x6789, activeThreadCount: 2, inactiveThreadCount: 0, traverseRight: true},
+		{name: "Traverse right, single thread", address: 0x6789, activeThreadCount: 1, inactiveThreadCount: 0, traverseRight: true},
 		{name: "Traverse left", address: 0x6789, activeThreadCount: 2, inactiveThreadCount: 1, traverseRight: false},
-		{name: "Traverse left, switch directions", address: 0x6789, activeThreadCount: 1, inactiveThreadCount: 1, traverseRight: false, expectTraverseRight: true, expectSameActiveThread: true},
+		{name: "Traverse left, switch directions", address: 0x6789, activeThreadCount: 1, inactiveThreadCount: 1, traverseRight: false, expectTraverseRight: true},
+		{name: "Traverse left, single thread", address: 0x6789, activeThreadCount: 1, inactiveThreadCount: 0, traverseRight: false, expectTraverseRight: true},
 	}
 
 	for i, c := range cases {
@@ -428,10 +429,9 @@ func TestEVM_SysFutex_WakePrivate(t *testing.T) {
 			expected.Wakeup = c.address
 			expected.ExpectPreemption(state)
 			expected.TraverseRight = c.expectTraverseRight
-			if c.expectSameActiveThread {
-				// The preemption logic for this syscall is unusual because we do a normal preemption, then
-				// switch to traversing left when possible.  So we can, for example, preempt a thread moving it
-				// from the right stack to the left and then visit the same thread again on the left stack
+			if c.traverseRight != c.expectTraverseRight {
+				// If we preempt the current thread and then switch directions, the same
+				// thread will remain active
 				expected.ActiveThreadId = state.GetCurrentThread().ThreadId
 			}
 
