@@ -316,6 +316,7 @@ services:
       - op-node
     ports:
       - "5545:8545"
+      - "6063:6060"
     volumes:
       - "builder_data:/db"
       - "${PWD}/../.devnet/genesis-l2.json:/genesis.json"
@@ -335,6 +336,7 @@ services:
       - "--builder.beacon_endpoints=http://builder-op-node:9546"
       - "--builder.block_retry_interval=100ms"
       - "--builder.block_time=2s"
+      - "--metrics"
     environment:
       GETH_MINER_RECOMMIT: 100ms
       BUILDER_TX_SIGNING_KEY: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
