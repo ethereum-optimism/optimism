@@ -1040,6 +1040,8 @@ jobs:
               echo 'export EXPECTED_PRESTATE_HASH="0x030de10d9da911a2b180ecfae2aeaba8758961fc28262ce989458c6f9a547922"' >> $BASH_ENV
             elif [[ "<<parameters.version>>" == "1.3.1-rc.1" ]]; then
               echo 'export EXPECTED_PRESTATE_HASH="0x03e806a2859a875267a563462a06d4d1d1b455a9efee959a46e21e54b6caf69a"' >> $BASH_ENV
+            elif [[ "<<parameters.version>>" == "1.3.1-rc.2" ]]; then
+              echo 'export EXPECTED_PRESTATE_HASH="0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"' >> $BASH_ENV
             else
               echo "Unknown prestate version <<parameters.version>>"
               exit 1
@@ -2148,5 +2150,6 @@ workflows:
                 - "1.3.0-rc.2"
                 - "1.3.0-rc.3"
                 - "1.3.1-rc.1"
+                - "1.3.1-rc.2"
           context:
             slack
