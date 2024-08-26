@@ -100,8 +100,8 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 	nonvoter, err := retry.Do[*conductor](ctx, maxSetupRetries, retryStrategy, func() (*conductor, error) {
 		return setupConductor(
 			t, VerifierName, t.TempDir(),
-			sys.RollupEndpoint(Sequencer3Name),
-			sys.NodeEndpoint(Sequencer3Name),
+			sys.RollupEndpoint(Sequencer3Name).RPC(),
+			sys.NodeEndpoint(Sequencer3Name).RPC(),
 			findAvailablePort(t),
 			false,
 			*sys.RollupConfig,

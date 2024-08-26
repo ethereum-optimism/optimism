@@ -23,14 +23,10 @@ func TestStopStartSequencer(t *testing.T) {
 	cfg := DefaultSystemConfig(t)
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
-	defer sys.Close()
 
-	l2Seq := sys.Clients["sequencer"]
-	rollupNode := sys.RollupNodes["sequencer"]
+	l2Seq := sys.NodeClient("sequencer")
 
-	nodeRPC, err := rpc.DialContext(context.Background(), rollupNode.HTTPEndpoint())
-	require.Nil(t, err, "Error dialing node")
-	rollupClient := sources.NewRollupClient(client.NewBaseRPCClient(nodeRPC))
+	rollupClient := sys.RollupClient("sequencer")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -91,11 +87,10 @@ func TestPersistSequencerStateWhenChanged(t *testing.T) {
 
 	sys, err := cfg.Start(t)
 	require.NoError(t, err)
-	defer sys.Close()
 
 	assertPersistedSequencerState(t, stateFile, node.StateStarted)
 
-	rollupRPCClient, err := rpc.DialContext(ctx, sys.RollupNodes["sequencer"].HTTPEndpoint())
+	rollupRPCClient, err := rpc.DialContext(ctx, sys.RollupNodes["sequencer"].UserRPC().RPC())
 	require.Nil(t, err)
 	rollupClient := sources.NewRollupClient(client.NewBaseRPCClient(rollupRPCClient))
 
@@ -126,9 +121,8 @@ func TestLoadSequencerStateOnStarted_Stopped(t *testing.T) {
 
 	sys, err := cfg.Start(t)
 	require.NoError(t, err)
-	defer sys.Close()
 
-	rollupRPCClient, err := rpc.DialContext(ctx, sys.RollupNodes["sequencer"].HTTPEndpoint())
+	rollupRPCClient, err := rpc.DialContext(ctx, sys.RollupNodes["sequencer"].UserRPC().RPC())
 	require.Nil(t, err)
 	rollupClient := sources.NewRollupClient(client.NewBaseRPCClient(rollupRPCClient))
 
@@ -160,9 +154,8 @@ func TestLoadSequencerStateOnStarted_Started(t *testing.T) {
 
 	sys, err := cfg.Start(t)
 	require.NoError(t, err)
-	defer sys.Close()
 
-	rollupRPCClient, err := rpc.DialContext(ctx, sys.RollupNodes["sequencer"].HTTPEndpoint())
+	rollupRPCClient, err := rpc.DialContext(ctx, sys.RollupNodes["sequencer"].UserRPC().RPC())
 	require.Nil(t, err)
 	rollupClient := sources.NewRollupClient(client.NewBaseRPCClient(rollupRPCClient))
 
@@ -185,10 +178,9 @@ func TestPostUnsafePayload(t *testing.T) {
 
 	sys, err := cfg.Start(t)
 	require.NoError(t, err)
-	defer sys.Close()
 
-	l2Seq := sys.Clients["sequencer"]
-	l2Ver := sys.Clients["verifier"]
+	l2Seq := sys.NodeClient("sequencer")
+	l2Ver := sys.NodeClient("verifier")
 	rollupClient := sys.RollupClient("verifier")
 
 	require.NoError(t, wait.ForBlock(ctx, l2Seq, 2), "Chain did not advance after starting sequencer")

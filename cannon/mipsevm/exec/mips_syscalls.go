@@ -187,7 +187,7 @@ func HandleSysRead(a0, a1, a2 uint32, preimageKey [32]byte, preimageOffset uint3
 		memTracker.TrackMemAccess(effAddr)
 		mem := memory.GetMemory(effAddr)
 		dat, datLen := preimageReader.ReadPreimage(preimageKey, preimageOffset)
-		//fmt.Printf("reading pre-image data: addr: %08x, offset: %d, datLen: %d, data: %x, key: %s  count: %d\n", a1, m.state.PreimageOffset, datLen, dat[:datLen], m.state.PreimageKey, a2)
+		//fmt.Printf("reading pre-image data: addr: %08x, offset: %d, datLen: %d, data: %x, key: %s  count: %d\n", a1, preimageOffset, datLen, dat[:datLen], preimageKey, a2)
 		alignment := a1 & 3
 		space := 4 - alignment
 		if space < datLen {

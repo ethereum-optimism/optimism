@@ -30,9 +30,9 @@ type MIPSEVM struct {
 	lastStepInput []byte
 }
 
-func NewMIPSEVM(artifacts *Artifacts, addrs *Addresses) *MIPSEVM {
-	env, evmState := NewEVMEnv(artifacts, addrs)
-	return &MIPSEVM{env, evmState, addrs, nil, artifacts, math.MaxUint64, nil}
+func NewMIPSEVM(contracts *ContractMetadata) *MIPSEVM {
+	env, evmState := NewEVMEnv(contracts)
+	return &MIPSEVM{env, evmState, contracts.Addresses, nil, contracts.Artifacts, math.MaxUint64, nil}
 }
 
 func (m *MIPSEVM) SetTracer(tracer *tracing.Hooks) {
@@ -41,6 +41,10 @@ func (m *MIPSEVM) SetTracer(tracer *tracing.Hooks) {
 
 func (m *MIPSEVM) SetLocalOracle(oracle mipsevm.PreimageOracle) {
 	m.localOracle = oracle
+}
+
+func (m *MIPSEVM) SetSourceMapTracer(t *testing.T, version MipsVersion) {
+	m.env.Config.Tracer = SourceMapTracer(t, version, m.artifacts.MIPS, m.artifacts.Oracle, m.addrs)
 }
 
 // Step is a pure function that computes the poststate from the VM state encoded in the StepWitness.

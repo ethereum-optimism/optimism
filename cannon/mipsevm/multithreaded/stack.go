@@ -53,7 +53,7 @@ func (t *ThreadedStackTrackerImpl) Traceback() {
 }
 
 func (t *ThreadedStackTrackerImpl) getCurrentTracker() exec.TraceableStackTracker {
-	thread := t.state.getCurrentThread()
+	thread := t.state.GetCurrentThread()
 	tracker, exists := t.trackersByThreadId[thread.ThreadId]
 	if !exists {
 		tracker = exec.NewStackTrackerUnsafe(t.state, t.meta)
