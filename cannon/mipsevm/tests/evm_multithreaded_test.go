@@ -863,6 +863,7 @@ func TestEVM_WakeupTraversalStep(t *testing.T) {
 		{name: "Mismatched addr", futexAddr: wakeupAddr + 4, traverseRight: false, activeStackSize: 1, otherStackSize: 0, shouldPreempt: true},
 		{name: "Non-waiting thread", futexAddr: exec.FutexEmptyAddr, traverseRight: false, activeStackSize: 1, otherStackSize: 0, shouldPreempt: true},
 		{name: "Non-waiting thread", futexAddr: exec.FutexEmptyAddr, traverseRight: true, activeStackSize: 2, otherStackSize: 1, shouldPreempt: true},
+		{name: "Non-waiting thread, last thread", futexAddr: exec.FutexEmptyAddr, traverseRight: true, activeStackSize: 1, otherStackSize: 1, shouldPreempt: true, shouldClearWakeup: true},
 	}
 
 	for i, c := range cases {
