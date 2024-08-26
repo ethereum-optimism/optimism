@@ -70,9 +70,6 @@ const (
 	SysClockGetTime = 4263
 )
 
-var NoopSyscalls = []uint32{SysGetAffinity, SysMadvise, SysRtSigprocmask, SysSigaltstack, SysRtSigaction, SysPrlimit64, SysClose, SysPread64, SysFstat64, SysOpenAt, SysReadlink, SysReadlinkAt, SysIoctl, SysEpollCreate1, SysPipe2, SysEpollCtl, SysEpollPwait, SysGetRandom, SysUname, SysStat64, SysGetuid, SysGetgid, SysLlseek, SysMinCore, SysTgkill, SysMunmap, SysSetITimer, SysTimerCreate, SysTimerSetTime, SysTimerDelete, SysClockGetTime}
-var SupportedSyscalls = []uint32{SysMmap, SysBrk, SysClone, SysExitGroup, SysRead, SysWrite, SysFcntl, SysExit, SysSchedYield, SysGetTID, SysFutex, SysOpen, SysNanosleep}
-
 // File descriptors
 const (
 	FdStdin         = 0

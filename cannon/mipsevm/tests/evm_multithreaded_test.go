@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/maps"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
@@ -639,37 +640,43 @@ func TestEVM_SysOpen(t *testing.T) {
 		"mipsevm produced different state than EVM")
 }
 
+var NoopSyscalls = map[string]uint32{
+	"SysGetAffinity":   4240,
+	"SysMadvise":       4218,
+	"SysRtSigprocmask": 4195,
+	"SysSigaltstack":   4206,
+	"SysRtSigaction":   4194,
+	"SysPrlimit64":     4338,
+	"SysClose":         4006,
+	"SysPread64":       4200,
+	"SysFstat64":       4215,
+	"SysOpenAt":        4288,
+	"SysReadlink":      4085,
+	"SysReadlinkAt":    4298,
+	"SysIoctl":         4054,
+	"SysEpollCreate1":  4326,
+	"SysPipe2":         4328,
+	"SysEpollCtl":      4249,
+	"SysEpollPwait":    4313,
+	"SysGetRandom":     4353,
+	"SysUname":         4122,
+	"SysStat64":        4213,
+	"SysGetuid":        4024,
+	"SysGetgid":        4047,
+	"SysLlseek":        4140,
+	"SysMinCore":       4217,
+	"SysTgkill":        4266,
+	"SysMunmap":        4091,
+	"SysSetITimer":     4104,
+	"SysTimerCreate":   4257,
+	"SysTimerSetTime":  4258,
+	"SysTimerDelete":   4261,
+	"SysClockGetTime":  4263,
+}
+
 func TestEVM_NoopSyscall(t *testing.T) {
 	var tracer *tracing.Hooks
-	noops := map[string]uint32{
-		"SysGetAffinity":   4240,
-		"SysMadvise":       4218,
-		"SysRtSigprocmask": 4195,
-		"SysSigaltstack":   4206,
-		"SysRtSigaction":   4194,
-		"SysPrlimit64":     4338,
-		"SysClose":         4006,
-		"SysPread64":       4200,
-		"SysFstat64":       4215,
-		"SysOpenAt":        4288,
-		"SysReadlink":      4085,
-		"SysReadlinkAt":    4298,
-		"SysIoctl":         4054,
-		"SysEpollCreate1":  4326,
-		"SysPipe2":         4328,
-		"SysEpollCtl":      4249,
-		"SysEpollPwait":    4313,
-		"SysGetRandom":     4353,
-		"SysUname":         4122,
-		"SysStat64":        4213,
-		"SysGetuid":        4024,
-		"SysGetgid":        4047,
-		"SysLlseek":        4140,
-		"SysMinCore":       4217,
-		"SysTgkill":        4266,
-		"SysMunmap":        4091,
-	}
-	for noopName, noopVal := range noops {
+	for noopName, noopVal := range NoopSyscalls {
 		t.Run(noopName, func(t *testing.T) {
 			goVm, state, contracts := setup(t, int(noopVal))
 
@@ -708,10 +715,12 @@ func TestEVM_NoopSyscall(t *testing.T) {
 func TestEVM_UnsupportedSyscall(t *testing.T) {
 	var tracer *tracing.Hooks
 
+	var NoopSyscallNums = maps.Values(NoopSyscalls)
+	var SupportedSyscalls = []uint32{exec.SysMmap, exec.SysBrk, exec.SysClone, exec.SysExitGroup, exec.SysRead, exec.SysWrite, exec.SysFcntl, exec.SysExit, exec.SysSchedYield, exec.SysGetTID, exec.SysFutex, exec.SysOpen, exec.SysNanosleep}
 	unsupportedSyscalls := make([]uint32, 0, 400)
 	for i := 4000; i < 4400; i++ {
 		candidate := uint32(i)
-		if slices.Contains(exec.SupportedSyscalls, candidate) || slices.Contains(exec.NoopSyscalls, candidate) {
+		if slices.Contains(SupportedSyscalls, candidate) || slices.Contains(NoopSyscallNums, candidate) {
 			continue
 		}
 		unsupportedSyscalls = append(unsupportedSyscalls, candidate)
