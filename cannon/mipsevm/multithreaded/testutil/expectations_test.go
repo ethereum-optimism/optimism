@@ -12,7 +12,7 @@ import (
 
 type ExpectationMutator func(e *ExpectedMTState, st *multithreaded.State)
 
-func TestValidate(t *testing.T) {
+func TestValidate_shouldCatchMutations(t *testing.T) {
 	states := []*multithreaded.State{
 		RandomState(0),
 		RandomState(1),
@@ -137,6 +137,25 @@ func TestValidate(t *testing.T) {
 	}
 }
 
+func TestValidate_shouldPassUnchangedExpectations(t *testing.T) {
+	states := []*multithreaded.State{
+		RandomState(0),
+		RandomState(1),
+		RandomState(2),
+	}
+
+	for i, state := range states {
+		testName := fmt.Sprintf("State #%v", i)
+		t.Run(testName, func(t *testing.T) {
+			expected := NewExpectedMTState(state)
+
+			mockT := &MockTestingT{}
+			expected.Validate(mockT, state)
+			mockT.RequireNoFailure(t)
+		})
+	}
+}
+
 type MockTestingT struct {
 	errCount int
 }
@@ -153,4 +172,8 @@ func (m *MockTestingT) FailNow() {
 
 func (m *MockTestingT) RequireFailed(t require.TestingT) {
 	require.Greater(t, m.errCount, 0, "Should have tracked a failure")
+}
+
+func (m *MockTestingT) RequireNoFailure(t require.TestingT) {
+	require.Equal(t, m.errCount, 0, "Should not have tracked a failure")
 }
