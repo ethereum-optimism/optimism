@@ -544,6 +544,14 @@ func TestEVM_SysFutex_UnsupportedOp(t *testing.T) {
 }
 
 func TestEVM_SysYield(t *testing.T) {
+	runPreemptSyscall(t, "SysSchedYield", exec.SysSchedYield)
+}
+
+func TestEVM_SysNanosleep(t *testing.T) {
+	runPreemptSyscall(t, "SysNanosleep", exec.SysNanosleep)
+}
+
+func runPreemptSyscall(t *testing.T, syscallName string, syscallNum uint32) {
 	var tracer *tracing.Hooks
 	cases := []struct {
 		name            string
@@ -559,13 +567,13 @@ func TestEVM_SysYield(t *testing.T) {
 
 	for i, c := range cases {
 		for _, traverseRight := range []bool{true, false} {
-			testName := fmt.Sprintf("%v (traverseRight = %v)", c.name, traverseRight)
+			testName := fmt.Sprintf("%v: %v (traverseRight = %v)", syscallName, c.name, traverseRight)
 			t.Run(testName, func(t *testing.T) {
 				goVm, state, contracts := setup(t, i*789)
 				mttestutil.SetupThreads(int64(i*3259), state, traverseRight, c.activeThreads, c.inactiveThreads)
 
 				state.Memory.SetMemory(state.GetPC(), syscallInsn)
-				state.GetRegistersRef()[2] = exec.SysSchedYield // Set syscall number
+				state.GetRegistersRef()[2] = syscallNum // Set syscall number
 				step := state.Step
 
 				// Set up post-state expectations
