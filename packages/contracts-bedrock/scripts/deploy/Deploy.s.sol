@@ -30,6 +30,7 @@ import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC2
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { SystemConfigInterop } from "src/L1/SystemConfigInterop.sol";
+import { SystemConfigHolocene } from "src/L1/SystemConfigHolocene.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { DataAvailabilityChallenge } from "src/L1/DataAvailabilityChallenge.sol";
 import { Constants } from "src/libraries/Constants.sol";
@@ -827,7 +828,9 @@ contract Deploy is Deployer {
     /// @notice Deploy the SystemConfig
     function deploySystemConfig() public broadcast returns (address addr_) {
         console.log("Deploying SystemConfig implementation");
-        if (cfg.useInterop()) {
+        if (cfg.useHolocene()) {
+            addr_ = address(new SystemConfigHolocene{ salt: _implSalt() }());
+        } else if (cfg.useInterop()) {
             addr_ = address(new SystemConfigInterop{ salt: _implSalt() }());
         } else {
             addr_ = address(new SystemConfig{ salt: _implSalt() }());

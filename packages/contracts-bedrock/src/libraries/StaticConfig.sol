@@ -57,4 +57,44 @@ library StaticConfig {
     function decodeRemoveDependency(bytes memory _data) internal pure returns (uint256) {
         return abi.decode(_data, (uint256));
     }
+
+    /// @notice Encodes the static configuration data for setting batcher hash.
+    /// @param _batcherHash New batcher hash.
+    /// @return Encoded static configuration data.
+    function encodeSetBatcherHash(bytes32 _batcherHash) internal pure returns (bytes memory) {
+        return abi.encode(_batcherHash);
+    }
+
+    /// @notice Decodes the static configuration data for setting batcher hash.
+    /// @param _data Encoded static configuration data.
+    /// @return Decoded batcher hash to set.
+    function decodeSetBatcherHash(bytes memory _data) internal pure returns (bytes32) {
+        return abi.decode(_data, (bytes32));
+    }
+
+    /// @notice Encodes the static configuration data for setting the gas config as of the Ecotone upgrade.
+    /// @param _scalar   New scalar value.
+    function encodeSetGasConfigEcotone(uint256 _scalar) internal pure returns (bytes memory) {
+        return abi.encode(_scalar);
+    }
+
+    /// @notice Decodes the static configuration data for setting the gas config as of the Ecotone upgrade.
+    /// @param _data Encoded static configuration data.
+    /// @return Decoded gas config to set.
+    function decodeSetGasConfigEcotone(bytes memory _data) internal pure returns (uint256) {
+        return abi.decode(_data, (uint256));
+    }
+
+    /// @notice Encodes the static configuration data for setting the gas limit.
+    /// @param _gasLimit New gas limit.
+    function encodeSetGasLimit(uint64 _gasLimit) internal pure returns (bytes memory) {
+        return abi.encode(_gasLimit);
+    }
+
+    /// @notice Decodes the static configuration data for setting the gas limit.
+    /// @param _data Encoded static configuration data.
+    /// @return Decoded gas limit to set.
+    function decodeSetGasLimit(bytes memory _data) internal pure returns (uint64) {
+        return abi.decode(_data, (uint64));
+    }
 }

@@ -349,7 +349,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
 
     /// @notice Internal function for updating the batcher hash.
     /// @param _batcherHash New batcher hash.
-    function _setBatcherHash(bytes32 _batcherHash) internal {
+    function _setBatcherHash(bytes32 _batcherHash) internal virtual {
         batcherHash = _batcherHash;
 
         bytes memory data = abi.encode(_batcherHash);
@@ -387,7 +387,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     /// @notice Internal function for updating the fee scalars as of the Ecotone upgrade.
     /// @param _basefeeScalar     New basefeeScalar value.
     /// @param _blobbasefeeScalar New blobbasefeeScalar value.
-    function _setGasConfigEcotone(uint32 _basefeeScalar, uint32 _blobbasefeeScalar) internal {
+    function _setGasConfigEcotone(uint32 _basefeeScalar, uint32 _blobbasefeeScalar) internal virtual {
         basefeeScalar = _basefeeScalar;
         blobbasefeeScalar = _blobbasefeeScalar;
 
@@ -405,7 +405,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
 
     /// @notice Internal function for updating the L2 gas limit.
     /// @param _gasLimit New gas limit.
-    function _setGasLimit(uint64 _gasLimit) internal {
+    function _setGasLimit(uint64 _gasLimit) internal virtual {
         require(_gasLimit >= minimumGasLimit(), "SystemConfig: gas limit too low");
         require(_gasLimit <= maximumGasLimit(), "SystemConfig: gas limit too high");
         gasLimit = _gasLimit;

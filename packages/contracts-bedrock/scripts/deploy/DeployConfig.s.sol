@@ -91,6 +91,7 @@ contract DeployConfig is Script {
     address public customGasTokenAddress;
 
     bool public useInterop;
+    bool public useHolocene;
 
     function read(string memory _path) public {
         console.log("DeployConfig: reading file %s", _path);
@@ -176,6 +177,7 @@ contract DeployConfig is Script {
         customGasTokenAddress = _readOr(_json, "$.customGasTokenAddress", address(0));
 
         useInterop = _readOr(_json, "$.useInterop", false);
+        useHolocene = _readOr(_json, "$.useHolocene", false);
     }
 
     function fork() public view returns (Fork fork_) {

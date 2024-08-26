@@ -14,7 +14,10 @@ import "src/libraries/L1BlockErrors.sol";
 enum ConfigType {
     SET_GAS_PAYING_TOKEN,
     ADD_DEPENDENCY,
-    REMOVE_DEPENDENCY
+    REMOVE_DEPENDENCY,
+    SET_BATCHER_HASH,
+    SET_GAS_CONFIG_ECOTONE,
+    SET_GAS_LIMIT
 }
 
 /// @custom:proxied
@@ -56,7 +59,7 @@ contract L1BlockInterop is L1Block {
     ///         depositor account.
     /// @param _type  The type of configuration to set.
     /// @param _value The encoded value with which to set the configuration.
-    function setConfig(ConfigType _type, bytes calldata _value) external {
+    function setConfig(ConfigType _type, bytes calldata _value) external virtual {
         if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
 
         if (_type == ConfigType.SET_GAS_PAYING_TOKEN) {

@@ -356,7 +356,12 @@ contract L2Genesis is Deployer {
 
     /// @notice This predeploy is following the safety invariant #1.
     function setL1Block() public {
-        if (cfg.useInterop()) {
+        if (cfg.useHolocene()) {
+            string memory cname = "L1BlockHolocene";
+            address impl = Predeploys.predeployToCodeNamespace(Predeploys.L1_BLOCK_ATTRIBUTES);
+            console.log("Setting %s implementation at: %s", cname, impl);
+            vm.etch(impl, vm.getDeployedCode(string.concat(cname, ".sol:", cname)));
+        } else if (cfg.useInterop()) {
             string memory cname = "L1BlockInterop";
             address impl = Predeploys.predeployToCodeNamespace(Predeploys.L1_BLOCK_ATTRIBUTES);
             console.log("Setting %s implementation at: %s", cname, impl);
