@@ -143,6 +143,7 @@ func (m *InstrumentedState) handleSyscall() error {
 	case exec.SysOpen:
 		v0 = exec.SysErrorSignal
 		v1 = exec.MipsEBADF
+	case exec.SysMunmap:
 	case exec.SysGetAffinity:
 	case exec.SysMadvise:
 	case exec.SysRtSigprocmask:
@@ -173,7 +174,6 @@ func (m *InstrumentedState) handleSyscall() error {
 	case exec.SysTimerSetTime:
 	case exec.SysTimerDelete:
 	case exec.SysClockGetTime:
-	case exec.SysMunmap:
 	default:
 		m.Traceback()
 		panic(fmt.Sprintf("unrecognized syscall: %d", syscallNum))

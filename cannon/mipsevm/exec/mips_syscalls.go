@@ -31,6 +31,7 @@ const (
 
 // Noop Syscall codes
 const (
+	SysMunmap        = 4091
 	SysGetAffinity   = 4240
 	SysMadvise       = 4218
 	SysRtSigprocmask = 4195
@@ -56,7 +57,6 @@ const (
 	SysLlseek        = 4140
 	SysMinCore       = 4217
 	SysTgkill        = 4266
-	SysMunmap        = 4091
 )
 
 // Profiling-related syscalls
