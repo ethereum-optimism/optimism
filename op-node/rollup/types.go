@@ -506,7 +506,7 @@ func (c *Config) AtHardfork(hardfork ForkName) {
 		break
 	}
 }
-func (c *Config) AfterHardfork(hardfork ForkName, timestamp uint64) bool {
+func (c *Config) AfterHardfork(hardfork ForkName, timestamp uint64) {
 	c.AtHardfork(hardfork)
 	// required after hardfork time bump
 	c.BlockTime = timestamp

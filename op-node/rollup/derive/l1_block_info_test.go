@@ -41,6 +41,7 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 	randomSeqNr := func(rng *rand.Rand) uint64 {
 		return rng.Uint64()
 	}
+
 	// Go 1.18 will have native fuzzing for us to use, until then, we cover just the below cases
 	cases := []infoTest{
 		{"random", testutils.MakeBlockInfo(nil), randomL1Cfg, randomSeqNr},
@@ -109,10 +110,8 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 	t.Run("regolith", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
 		info := testutils.MakeBlockInfo(nil)(rng)
-		zero := uint64(0)
-		rollupCfg := rollup.Config{
-			RegolithTime: &zero,
-		}
+		rollupCfg := rollup.Config{}
+		rollupCfg.AtHardfork(rollup.Regolith)
 		depTx, err := L1InfoDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, 0)
 		require.NoError(t, err)
 		require.False(t, depTx.IsSystemTransaction)
@@ -121,11 +120,8 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 	t.Run("ecotone", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
 		info := testutils.MakeBlockInfo(nil)(rng)
-		zero := uint64(0)
-		rollupCfg := rollup.Config{
-			RegolithTime: &zero,
-			EcotoneTime:  &zero,
-		}
+		rollupCfg := rollup.Config{}
+		rollupCfg.AtHardfork(rollup.Ecotone)
 		depTx, err := L1InfoDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, 1)
 		require.NoError(t, err)
 		require.False(t, depTx.IsSystemTransaction)
@@ -135,12 +131,8 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 	t.Run("first-block ecotone", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
 		info := testutils.MakeBlockInfo(nil)(rng)
-		two := uint64(2)
-		rollupCfg := rollup.Config{
-			RegolithTime: &two,
-			EcotoneTime:  &two,
-			BlockTime:    2,
-		}
+		rollupCfg := rollup.Config{}
+		rollupCfg.AfterHardfork(rollup.Ecotone, 2)
 		depTx, err := L1InfoDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, 2)
 		require.NoError(t, err)
 		require.False(t, depTx.IsSystemTransaction)
@@ -150,12 +142,8 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 	t.Run("genesis-block ecotone", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
 		info := testutils.MakeBlockInfo(nil)(rng)
-		zero := uint64(0)
-		rollupCfg := rollup.Config{
-			RegolithTime: &zero,
-			EcotoneTime:  &zero,
-			BlockTime:    2,
-		}
+		rollupCfg := rollup.Config{}
+		rollupCfg.AfterHardfork(rollup.Ecotone, 2)
 		depTx, err := L1InfoDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, 0)
 		require.NoError(t, err)
 		require.False(t, depTx.IsSystemTransaction)
@@ -182,13 +170,8 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 	t.Run("first-block isthmus", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
 		info := testutils.MakeBlockInfo(nil)(rng)
-		two := uint64(2)
-		rollupCfg := rollup.Config{
-			RegolithTime: &two,
-			EcotoneTime:  &two,
-			InteropTime:  &two,
-			BlockTime:    2,
-		}
+		rollupCfg := rollup.Config{}
+		rollupCfg.AfterHardfork(rollup.Interop, 2)
 		depTx, err := L1InfoDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, 2)
 		require.NoError(t, err)
 		require.False(t, depTx.IsSystemTransaction)
@@ -199,13 +182,8 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 	t.Run("genesis-block isthmus", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
 		info := testutils.MakeBlockInfo(nil)(rng)
-		zero := uint64(0)
-		rollupCfg := rollup.Config{
-			RegolithTime: &zero,
-			EcotoneTime:  &zero,
-			InteropTime:  &zero,
-			BlockTime:    2,
-		}
+		rollupCfg := rollup.Config{}
+		rollupCfg.AfterHardfork(rollup.Interop, 2)
 		depTx, err := L1InfoDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, 0)
 		require.NoError(t, err)
 		require.False(t, depTx.IsSystemTransaction)
