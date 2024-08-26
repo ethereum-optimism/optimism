@@ -10,6 +10,8 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
 )
 
+// ExpectedMTState is a test utility that basically stores a copy of a state that can be explicitly mutated
+// to define an expected post-state.  The post-state is then validated with ExpectedMTState.Validate(t, postState)
 type ExpectedMTState struct {
 	PreimageKey    common.Hash
 	PreimageOffset uint32
