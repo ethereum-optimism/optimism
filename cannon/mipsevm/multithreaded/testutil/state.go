@@ -15,3 +15,10 @@ func GetMtState(t require.TestingT, vm mipsevm.FPVM) *multithreaded.State {
 	}
 	return mtState
 }
+
+func RandomState(seed int) *multithreaded.State {
+	state := multithreaded.CreateEmptyState()
+	mut := StateMutatorMultiThreaded{state}
+	mut.Randomize(int64(seed))
+	return state
+}

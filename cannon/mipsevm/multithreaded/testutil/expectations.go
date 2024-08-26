@@ -2,7 +2,6 @@ package testutil
 
 import (
 	"fmt"
-	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -149,8 +148,7 @@ func (e *ExpectedMTState) Thread(threadId uint32) *ExpectedThreadState {
 	return e.threadExpectations[threadId]
 }
 
-// TODO - should probably unit test some of these test utils...
-func (e *ExpectedMTState) Validate(t testing.TB, actualState *multithreaded.State) {
+func (e *ExpectedMTState) Validate(t require.TestingT, actualState *multithreaded.State) {
 	require.Equal(t, e.PreimageKey, actualState.GetPreimageKey(), fmt.Sprintf("Expect preimageKey = %v", e.PreimageKey))
 	require.Equal(t, e.PreimageOffset, actualState.GetPreimageOffset(), fmt.Sprintf("Expect preimageOffset = %v", e.PreimageOffset))
 	require.Equal(t, e.Heap, actualState.GetHeap(), fmt.Sprintf("Expect heap = 0x%x", e.Heap))
@@ -187,8 +185,9 @@ func (e *ExpectedMTState) Validate(t testing.TB, actualState *multithreaded.Stat
 	require.Equal(t, expectedThreadCount, actualState.ThreadCount(), "Thread expectations do not match thread count")
 }
 
-func (e *ExpectedMTState) validateThread(t testing.TB, et *ExpectedThreadState, actual *multithreaded.ThreadState, isActive bool) {
+func (e *ExpectedMTState) validateThread(t require.TestingT, et *ExpectedThreadState, actual *multithreaded.ThreadState, isActive bool) {
 	threadInfo := fmt.Sprintf("tid = %v, active = %v", actual.ThreadId, isActive)
+	require.Equal(t, et.ThreadId, actual.ThreadId, fmt.Sprintf("Expect ThreadId = 0x%x (%v)", et.ThreadId, threadInfo))
 	require.Equal(t, et.PC, actual.Cpu.PC, fmt.Sprintf("Expect PC = 0x%x (%v)", et.PC, threadInfo))
 	require.Equal(t, et.NextPC, actual.Cpu.NextPC, fmt.Sprintf("Expect nextPC = 0x%x (%v)", et.NextPC, threadInfo))
 	require.Equal(t, et.HI, actual.Cpu.HI, fmt.Sprintf("Expect HI = 0x%x (%v)", et.HI, threadInfo))
