@@ -626,7 +626,90 @@ func TestEVM_WakeupTraversalStep(t *testing.T) {
 }
 
 func TestEVM_SysFutex_UnsupportedOp(t *testing.T) {
-	t.Skip("TODO")
+	var tracer *tracing.Hooks
+
+	// From: https://github.com/torvalds/linux/blob/5be63fc19fcaa4c236b307420483578a56986a37/include/uapi/linux/futex.h
+	const FUTEX_PRIVATE_FLAG = 128
+	const FUTEX_WAIT = 0
+	const FUTEX_WAKE = 1
+	const FUTEX_FD = 2
+	const FUTEX_REQUEUE = 3
+	const FUTEX_CMP_REQUEUE = 4
+	const FUTEX_WAKE_OP = 5
+	const FUTEX_LOCK_PI = 6
+	const FUTEX_UNLOCK_PI = 7
+	const FUTEX_TRYLOCK_PI = 8
+	const FUTEX_WAIT_BITSET = 9
+	const FUTEX_WAKE_BITSET = 10
+	const FUTEX_WAIT_REQUEUE_PI = 11
+	const FUTEX_CMP_REQUEUE_PI = 12
+	const FUTEX_LOCK_PI2 = 13
+
+	unsupportedFutexOps := map[string]uint32{
+		"FUTEX_WAIT":                    FUTEX_WAIT,
+		"FUTEX_WAKE":                    FUTEX_WAKE,
+		"FUTEX_FD":                      FUTEX_FD,
+		"FUTEX_REQUEUE":                 FUTEX_REQUEUE,
+		"FUTEX_CMP_REQUEUE":             FUTEX_CMP_REQUEUE,
+		"FUTEX_WAKE_OP":                 FUTEX_WAKE_OP,
+		"FUTEX_LOCK_PI":                 FUTEX_LOCK_PI,
+		"FUTEX_UNLOCK_PI":               FUTEX_UNLOCK_PI,
+		"FUTEX_TRYLOCK_PI":              FUTEX_TRYLOCK_PI,
+		"FUTEX_WAIT_BITSET":             FUTEX_WAIT_BITSET,
+		"FUTEX_WAKE_BITSET":             FUTEX_WAKE_BITSET,
+		"FUTEX_WAIT_REQUEUE_PI":         FUTEX_WAIT_REQUEUE_PI,
+		"FUTEX_CMP_REQUEUE_PI":          FUTEX_CMP_REQUEUE_PI,
+		"FUTEX_LOCK_PI2":                FUTEX_LOCK_PI2,
+		"FUTEX_REQUEUE_PRIVATE":         (FUTEX_REQUEUE | FUTEX_PRIVATE_FLAG),
+		"FUTEX_CMP_REQUEUE_PRIVATE":     (FUTEX_CMP_REQUEUE | FUTEX_PRIVATE_FLAG),
+		"FUTEX_WAKE_OP_PRIVATE":         (FUTEX_WAKE_OP | FUTEX_PRIVATE_FLAG),
+		"FUTEX_LOCK_PI_PRIVATE":         (FUTEX_LOCK_PI | FUTEX_PRIVATE_FLAG),
+		"FUTEX_LOCK_PI2_PRIVATE":        (FUTEX_LOCK_PI2 | FUTEX_PRIVATE_FLAG),
+		"FUTEX_UNLOCK_PI_PRIVATE":       (FUTEX_UNLOCK_PI | FUTEX_PRIVATE_FLAG),
+		"FUTEX_TRYLOCK_PI_PRIVATE":      (FUTEX_TRYLOCK_PI | FUTEX_PRIVATE_FLAG),
+		"FUTEX_WAIT_BITSET_PRIVATE":     (FUTEX_WAIT_BITSET | FUTEX_PRIVATE_FLAG),
+		"FUTEX_WAKE_BITSET_PRIVATE":     (FUTEX_WAKE_BITSET | FUTEX_PRIVATE_FLAG),
+		"FUTEX_WAIT_REQUEUE_PI_PRIVATE": (FUTEX_WAIT_REQUEUE_PI | FUTEX_PRIVATE_FLAG),
+		"FUTEX_CMP_REQUEUE_PI_PRIVATE":  (FUTEX_CMP_REQUEUE_PI | FUTEX_PRIVATE_FLAG),
+	}
+
+	for name, op := range unsupportedFutexOps {
+		t.Run(name, func(t *testing.T) {
+			goVm, state, contracts := setup(t, int(op))
+			step := state.GetStep()
+
+			state.Memory.SetMemory(state.GetPC(), syscallInsn)
+			state.GetRegistersRef()[2] = exec.SysFutex // Set syscall number
+			state.GetRegistersRef()[5] = op
+
+			// Setup expectations
+			expected := mttestutil.NewExpectedMTState(state)
+			expected.Step += 1
+			expected.StepsSinceLastContextSwitch += 1
+			expected.ActiveThread().PC = state.GetCpu().NextPC
+			expected.ActiveThread().NextPC = state.GetCpu().NextPC + 4
+			expected.ActiveThread().Registers[2] = exec.SysErrorSignal
+			expected.ActiveThread().Registers[7] = exec.MipsEINVAL
+
+			// State transition
+			var err error
+			var stepWitness *mipsevm.StepWitness
+			stepWitness, err = goVm.Step(true)
+			require.NoError(t, err)
+
+			// Validate post-state
+			expected.Validate(t, state)
+
+			evm := testutil.NewMIPSEVM(contracts)
+			evm.SetTracer(tracer)
+			testutil.LogStepFailureAtCleanup(t, evm)
+
+			evmPost := evm.Step(t, stepWitness, step, multithreaded.GetStateHashFn())
+			goPost, _ := goVm.GetState().EncodeWitness()
+			require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
+				"mipsevm produced different state than EVM")
+		})
+	}
 }
 
 func TestEVM_SysYield(t *testing.T) {
