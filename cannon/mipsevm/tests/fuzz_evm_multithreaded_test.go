@@ -16,33 +16,51 @@ func FuzzStateSyscallCloneMT(f *testing.F) {
 	v := GetMultiThreadedTestCase(f)
 	f.Fuzz(func(t *testing.T, nextThreadId, stackPtr uint32, seed int64) {
 		goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(seed))
-		state := goVm.GetState()
-		mtState := mttestutil.GetMtState(t, goVm)
+		state := mttestutil.GetMtState(t, goVm)
+		// Update existing threads to avoid collision with nextThreadId
+		if mttestutil.FindThread(state, nextThreadId) != nil {
+			for i, t := range mttestutil.GetAllThreads(state) {
+				t.ThreadId = nextThreadId - uint32(i+1)
+			}
+		}
 
-		mtState.NextThreadId = nextThreadId
+		// Setup
+		state.NextThreadId = nextThreadId
+		state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
 		state.GetRegistersRef()[2] = exec.SysClone
 		state.GetRegistersRef()[4] = exec.ValidCloneFlags
 		state.GetRegistersRef()[5] = stackPtr
-		state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
 		step := state.GetStep()
 
-		expected := testutil.CreateExpectedState(state)
+		// Set up expectations
+		expected := mttestutil.NewExpectedMTState(state)
 		expected.Step += 1
-		expected.PC = state.GetCpu().NextPC
-		expected.NextPC = state.GetCpu().NextPC + 4
-		expected.Registers[2] = 0
-		expected.Registers[7] = 0
-		expected.Registers[29] = stackPtr
+		// Set original thread expectations
+		expected.PrestateActiveThread().PC = state.GetCpu().NextPC
+		expected.PrestateActiveThread().NextPC = state.GetCpu().NextPC + 4
+		expected.PrestateActiveThread().Registers[2] = nextThreadId
+		expected.PrestateActiveThread().Registers[7] = 0
+		// Set expectations for new, cloned thread
+		expected.ActiveThreadId = nextThreadId
+		epxectedNewThread := expected.ExpectNewThread()
+		epxectedNewThread.PC = state.GetCpu().NextPC
+		epxectedNewThread.NextPC = state.GetCpu().NextPC + 4
+		epxectedNewThread.Registers[2] = 0
+		epxectedNewThread.Registers[7] = 0
+		epxectedNewThread.Registers[29] = stackPtr
+		expected.NextThreadId = nextThreadId + 1
+		expected.StepsSinceLastContextSwitch = 0
+		if state.TraverseRight {
+			expected.RightStackSize += 1
+		} else {
+			expected.LeftStackSize += 1
+		}
 
 		stepWitness, err := goVm.Step(true)
 		require.NoError(t, err)
 		require.False(t, stepWitness.HasPreimage())
 
 		expected.Validate(t, state)
-		// Check mt-specific fields
-		newThread := mtState.GetCurrentThread()
-		require.Equal(t, nextThreadId, newThread.ThreadId)
-		require.Equal(t, nextThreadId+1, mtState.NextThreadId)
 
 		evm := testutil.NewMIPSEVM(v.Contracts)
 		evmPost := evm.Step(t, stepWitness, step, v.StateHashFn)

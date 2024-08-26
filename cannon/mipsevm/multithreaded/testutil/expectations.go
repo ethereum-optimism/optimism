@@ -175,26 +175,28 @@ func (e *ExpectedMTState) Validate(t testing.TB, actualState *multithreaded.Stat
 	expectedThreadCount := 0
 	for tid, exp := range e.threadExpectations {
 		actualThread := FindThread(actualState, tid)
+		isActive := tid == activeThread.ThreadId
 		if exp.Dropped {
 			require.Nil(t, actualThread, "Thread %v should have been dropped", tid)
 		} else {
 			require.NotNil(t, actualThread, "Could not find thread matching expected thread with id %v", tid)
-			e.validateThread(t, exp, actualThread)
+			e.validateThread(t, exp, actualThread, isActive)
 			expectedThreadCount++
 		}
 	}
 	require.Equal(t, expectedThreadCount, actualState.ThreadCount(), "Thread expectations do not match thread count")
 }
 
-func (e *ExpectedMTState) validateThread(t testing.TB, et *ExpectedThreadState, actual *multithreaded.ThreadState) {
-	require.Equal(t, et.PC, actual.Cpu.PC, fmt.Sprintf("Expect PC = 0x%x", et.PC))
-	require.Equal(t, et.NextPC, actual.Cpu.NextPC, fmt.Sprintf("Expect nextPC = 0x%x", et.NextPC))
-	require.Equal(t, et.HI, actual.Cpu.HI, fmt.Sprintf("Expect HI = 0x%x", et.HI))
-	require.Equal(t, et.LO, actual.Cpu.LO, fmt.Sprintf("Expect LO = 0x%x", et.LO))
-	require.Equal(t, et.Registers, actual.Registers, fmt.Sprintf("Expect registers = %v", et.Registers))
-	require.Equal(t, et.ExitCode, actual.ExitCode, fmt.Sprintf("Expect exitCode = %v", et.ExitCode))
-	require.Equal(t, et.Exited, actual.Exited, fmt.Sprintf("Expect exited = %v", et.Exited))
-	require.Equal(t, et.FutexAddr, actual.FutexAddr, fmt.Sprintf("Expect futexAddr = %v", et.FutexAddr))
-	require.Equal(t, et.FutexVal, actual.FutexVal, fmt.Sprintf("Expect futexVal = %v", et.FutexVal))
-	require.Equal(t, et.FutexTimeoutStep, actual.FutexTimeoutStep, fmt.Sprintf("Expect futexTimeoutStep = %v", et.FutexTimeoutStep))
+func (e *ExpectedMTState) validateThread(t testing.TB, et *ExpectedThreadState, actual *multithreaded.ThreadState, isActive bool) {
+	threadInfo := fmt.Sprintf("tid = %v, active = %v", actual.ThreadId, isActive)
+	require.Equal(t, et.PC, actual.Cpu.PC, fmt.Sprintf("Expect PC = 0x%x (%v)", et.PC, threadInfo))
+	require.Equal(t, et.NextPC, actual.Cpu.NextPC, fmt.Sprintf("Expect nextPC = 0x%x (%v)", et.NextPC, threadInfo))
+	require.Equal(t, et.HI, actual.Cpu.HI, fmt.Sprintf("Expect HI = 0x%x (%v)", et.HI, threadInfo))
+	require.Equal(t, et.LO, actual.Cpu.LO, fmt.Sprintf("Expect LO = 0x%x (%v)", et.LO, threadInfo))
+	require.Equal(t, et.Registers, actual.Registers, fmt.Sprintf("Expect registers to match (%v)", threadInfo))
+	require.Equal(t, et.ExitCode, actual.ExitCode, fmt.Sprintf("Expect exitCode = %v (%v)", et.ExitCode, threadInfo))
+	require.Equal(t, et.Exited, actual.Exited, fmt.Sprintf("Expect exited = %v (%v)", et.Exited, threadInfo))
+	require.Equal(t, et.FutexAddr, actual.FutexAddr, fmt.Sprintf("Expect futexAddr = %v (%v)", et.FutexAddr, threadInfo))
+	require.Equal(t, et.FutexVal, actual.FutexVal, fmt.Sprintf("Expect futexVal = %v (%v)", et.FutexVal, threadInfo))
+	require.Equal(t, et.FutexTimeoutStep, actual.FutexTimeoutStep, fmt.Sprintf("Expect futexTimeoutStep = %v (%v)", et.FutexTimeoutStep, threadInfo))
 }
