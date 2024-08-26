@@ -117,7 +117,7 @@ type ExpectedState struct {
 	MemoryRoot     common.Hash
 }
 
-func CreateExpectedState(fromState mipsevm.FPVMState) *ExpectedState {
+func NewExpectedState(fromState mipsevm.FPVMState) *ExpectedState {
 	return &ExpectedState{
 		PreimageKey:    fromState.GetPreimageKey(),
 		PreimageOffset: fromState.GetPreimageOffset(),

@@ -30,7 +30,7 @@ func FuzzStateSyscallBrk(f *testing.F) {
 				state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
 				step := state.GetStep()
 
-				expected := testutil.CreateExpectedState(state)
+				expected := testutil.NewExpectedState(state)
 				expected.Step += 1
 				expected.PC = state.GetCpu().NextPC
 				expected.NextPC = state.GetCpu().NextPC + 4
@@ -74,7 +74,7 @@ func FuzzStateSyscallMmap(f *testing.F) {
 				state.GetRegistersRef()[5] = siz
 				state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
 
-				expected := testutil.CreateExpectedState(state)
+				expected := testutil.NewExpectedState(state)
 				expected.Step += 1
 				expected.PC = state.GetCpu().NextPC
 				expected.NextPC = state.GetCpu().NextPC + 4
@@ -126,7 +126,7 @@ func FuzzStateSyscallExitGroup(f *testing.F) {
 				state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
 				step := state.GetStep()
 
-				expected := testutil.CreateExpectedState(state)
+				expected := testutil.NewExpectedState(state)
 				expected.Step += 1
 				expected.Exited = true
 				expected.ExitCode = exitCode
@@ -161,7 +161,7 @@ func FuzzStateSyscallFcntl(f *testing.F) {
 				state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
 				step := state.GetStep()
 
-				expected := testutil.CreateExpectedState(state)
+				expected := testutil.NewExpectedState(state)
 				expected.Step += 1
 				expected.PC = state.GetCpu().NextPC
 				expected.NextPC = state.GetCpu().NextPC + 4
@@ -217,7 +217,7 @@ func FuzzStateHintRead(f *testing.F) {
 				state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
 				step := state.GetStep()
 
-				expected := testutil.CreateExpectedState(state)
+				expected := testutil.NewExpectedState(state)
 				expected.Step += 1
 				expected.PC = state.GetCpu().NextPC
 				expected.NextPC = state.GetCpu().NextPC + 4
@@ -273,7 +273,7 @@ func FuzzStatePreimageRead(f *testing.F) {
 					writeLen = preimageDataLen - preimageOffset
 				}
 
-				expected := testutil.CreateExpectedState(state)
+				expected := testutil.NewExpectedState(state)
 				expected.Step += 1
 				expected.PC = state.GetCpu().NextPC
 				expected.NextPC = state.GetCpu().NextPC + 4
@@ -329,7 +329,7 @@ func FuzzStateHintWrite(f *testing.F) {
 				// Set instruction
 				state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
 
-				expected := testutil.CreateExpectedState(state)
+				expected := testutil.NewExpectedState(state)
 				expected.Step += 1
 				expected.PC = state.GetCpu().NextPC
 				expected.NextPC = state.GetCpu().NextPC + 4
@@ -377,7 +377,7 @@ func FuzzStatePreimageWrite(f *testing.F) {
 					count = sz
 				}
 
-				expected := testutil.CreateExpectedState(state)
+				expected := testutil.NewExpectedState(state)
 				expected.Step += 1
 				expected.PC = state.GetCpu().NextPC
 				expected.NextPC = state.GetCpu().NextPC + 4

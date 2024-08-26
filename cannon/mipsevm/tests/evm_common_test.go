@@ -146,7 +146,7 @@ func TestEVMSingleStep(t *testing.T) {
 				curStep := state.GetStep()
 
 				// Setup expectations
-				expected := testutil.CreateExpectedState(state)
+				expected := testutil.NewExpectedState(state)
 				expected.Step += 1
 				expected.PC = state.GetCpu().NextPC
 				expected.NextPC = tt.expectNextPC
@@ -209,7 +209,7 @@ func TestEVM_MMap(t *testing.T) {
 				state.GetRegistersRef()[5] = c.size
 				step := state.GetStep()
 
-				expected := testutil.CreateExpectedState(state)
+				expected := testutil.NewExpectedState(state)
 				expected.Step += 1
 				expected.PC = state.GetCpu().NextPC
 				expected.NextPC = state.GetCpu().NextPC + 4
@@ -422,7 +422,7 @@ func TestEVMSysWriteHint(t *testing.T) {
 				state.GetMemory().SetMemory(state.GetPC(), insn)
 				curStep := state.GetStep()
 
-				expected := testutil.CreateExpectedState(state)
+				expected := testutil.NewExpectedState(state)
 				expected.Step += 1
 				expected.PC = state.GetCpu().NextPC
 				expected.NextPC = state.GetCpu().NextPC + 4
