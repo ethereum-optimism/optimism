@@ -823,6 +823,11 @@ contract Specification_Test is CommonTest {
 
         // OPStackManager
         _addSpec({ _name: "OPStackManager", _sel: _getSel("version()") });
+        _addSpec({ _name: "OPStackManager", _sel: _getSel("releaseManager()") });
+        _addSpec({ _name: "OPStackManager", _sel: _getSel("latestVersion()") });
+        _addSpec({ _name: "OPStackManager", _sel: _getSel("implementations(string,string)") });
+        _addSpec({ _name: "OPStackManager", _sel: _getSel("systemConfigs(uint256)") });
+        _addSpec({ _name: "OPStackManager", _sel: OPStackManager.setRelease.selector });
         _addSpec({ _name: "OPStackManager", _sel: OPStackManager.deploy.selector });
 
         // DeputyGuardianModule
