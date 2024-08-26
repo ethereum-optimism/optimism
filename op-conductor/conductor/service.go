@@ -693,8 +693,14 @@ func (oc *OpConductor) stopSequencer() error {
 		"healthy", oc.healthy.Load(),
 		"active", oc.seqActive.Load())
 
-	// Getting stuck stopping a sequencer can't be good. Is it okay to fail to stop a sequencer on
-	// shutdown? From what I can tell it is.
+	// Quoting (@zhwrd): StopSequencer is called after conductor loses leadership. In the event that
+	// the StopSequencer call fails, it actually has little real consequences because the sequencer
+	// cant produce a block and gossip / commit it to the raft log (requires leadership). Once
+	// conductor comes back up it will check its leader and sequencer state and attempt to stop the
+	// sequencer again. So it is "okay" to fail to stop a sequencer, the state will eventually be
+	// rectified and we won't have two active sequencers that are actually producing blocks.
+	//
+	// To that end we allow to cancel the StopSequencer call if we're shutting down.
 	latestHead, err := oc.ctrl.StopSequencer(oc.shutdownCtx)
 	if err == nil {
 		// None of the consensus state should have changed here so don't log it again.
