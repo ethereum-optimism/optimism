@@ -6,10 +6,8 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/tracing"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
 
@@ -100,7 +98,7 @@ func TestEVM_SysClone_Successful(t *testing.T) {
 			state.GetRegistersRef()[2] = exec.SysClone        // the syscall number
 			state.GetRegistersRef()[4] = exec.ValidCloneFlags // a0 - first argument, clone flags
 			state.GetRegistersRef()[5] = stackPtr             // a1 - the stack pointer
-			curStep := state.GetStep()
+			step := state.GetStep()
 
 			// Sanity-check assumptions
 			require.Equal(t, uint32(1), state.NextThreadId)
@@ -146,15 +144,7 @@ func TestEVM_SysClone_Successful(t *testing.T) {
 			expected.Validate(t, state)
 			require.Equal(t, 2, len(activeStack))
 			require.Equal(t, 0, len(inactiveStack))
-
-			evm := testutil.NewMIPSEVM(contracts)
-			evm.SetTracer(tracer)
-			testutil.LogStepFailureAtCleanup(t, evm)
-
-			evmPost := evm.Step(t, stepWitness, curStep, multithreaded.GetStateHashFn())
-			goPost, _ := goVm.GetState().EncodeWitness()
-			require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
-				"mipsevm produced different state than EVM")
+			testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), contracts, tracer)
 		})
 	}
 }
@@ -193,15 +183,7 @@ func TestEVM_SysGetTID(t *testing.T) {
 
 			// Validate post-state
 			expected.Validate(t, state)
-
-			evm := testutil.NewMIPSEVM(contracts)
-			evm.SetTracer(tracer)
-			testutil.LogStepFailureAtCleanup(t, evm)
-
-			evmPost := evm.Step(t, stepWitness, step, multithreaded.GetStateHashFn())
-			goPost, _ := goVm.GetState().EncodeWitness()
-			require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
-				"mipsevm produced different state than EVM")
+			testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), contracts, tracer)
 		})
 	}
 }
@@ -229,7 +211,7 @@ func TestEVM_SysExit(t *testing.T) {
 			state.Memory.SetMemory(state.GetPC(), syscallInsn)
 			state.GetRegistersRef()[2] = exec.SysExit     // Set syscall number
 			state.GetRegistersRef()[4] = uint32(exitCode) // The first argument (exit code)
-			curStep := state.Step
+			step := state.Step
 
 			// Set up expectations
 			expected := mttestutil.NewExpectedMTState(state)
@@ -250,15 +232,7 @@ func TestEVM_SysExit(t *testing.T) {
 
 			// Validate post-state
 			expected.Validate(t, state)
-
-			evm := testutil.NewMIPSEVM(contracts)
-			evm.SetTracer(tracer)
-			testutil.LogStepFailureAtCleanup(t, evm)
-
-			evmPost := evm.Step(t, stepWitness, curStep, multithreaded.GetStateHashFn())
-			goPost, _ := goVm.GetState().EncodeWitness()
-			require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
-				"mipsevm produced different state than EVM")
+			testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), contracts, tracer)
 		})
 	}
 }
@@ -310,15 +284,7 @@ func TestEVM_PopExitedThread(t *testing.T) {
 
 			// Validate post-state
 			expected.Validate(t, state)
-
-			evm := testutil.NewMIPSEVM(contracts)
-			evm.SetTracer(tracer)
-			testutil.LogStepFailureAtCleanup(t, evm)
-
-			evmPost := evm.Step(t, stepWitness, step, multithreaded.GetStateHashFn())
-			goPost, _ := goVm.GetState().EncodeWitness()
-			require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
-				"mipsevm produced different state than EVM")
+			testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), contracts, tracer)
 		})
 	}
 }
@@ -380,15 +346,7 @@ func TestEVM_SysFutex_WaitPrivate(t *testing.T) {
 
 			// Validate post-state
 			expected.Validate(t, state)
-
-			evm := testutil.NewMIPSEVM(contracts)
-			evm.SetTracer(tracer)
-			testutil.LogStepFailureAtCleanup(t, evm)
-
-			evmPost := evm.Step(t, stepWitness, step, multithreaded.GetStateHashFn())
-			goPost, _ := goVm.GetState().EncodeWitness()
-			require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
-				"mipsevm produced different state than EVM")
+			testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), contracts, tracer)
 		})
 	}
 }
@@ -444,15 +402,7 @@ func TestEVM_SysFutex_WakePrivate(t *testing.T) {
 
 			// Validate post-state
 			expected.Validate(t, state)
-
-			evm := testutil.NewMIPSEVM(contracts)
-			evm.SetTracer(tracer)
-			testutil.LogStepFailureAtCleanup(t, evm)
-
-			evmPost := evm.Step(t, stepWitness, step, multithreaded.GetStateHashFn())
-			goPost, _ := goVm.GetState().EncodeWitness()
-			require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
-				"mipsevm produced different state than EVM")
+			testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), contracts, tracer)
 		})
 	}
 }
@@ -531,15 +481,7 @@ func TestEVM_SysFutex_UnsupportedOp(t *testing.T) {
 
 			// Validate post-state
 			expected.Validate(t, state)
-
-			evm := testutil.NewMIPSEVM(contracts)
-			evm.SetTracer(tracer)
-			testutil.LogStepFailureAtCleanup(t, evm)
-
-			evmPost := evm.Step(t, stepWitness, step, multithreaded.GetStateHashFn())
-			goPost, _ := goVm.GetState().EncodeWitness()
-			require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
-				"mipsevm produced different state than EVM")
+			testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), contracts, tracer)
 		})
 	}
 }
@@ -592,15 +534,7 @@ func runPreemptSyscall(t *testing.T, syscallName string, syscallNum uint32) {
 
 				// Validate post-state
 				expected.Validate(t, state)
-
-				evm := testutil.NewMIPSEVM(contracts)
-				evm.SetTracer(tracer)
-				testutil.LogStepFailureAtCleanup(t, evm)
-
-				evmPost := evm.Step(t, stepWitness, step, multithreaded.GetStateHashFn())
-				goPost, _ := goVm.GetState().EncodeWitness()
-				require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
-					"mipsevm produced different state than EVM")
+				testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), contracts, tracer)
 			})
 		}
 	}
@@ -629,15 +563,7 @@ func TestEVM_SysOpen(t *testing.T) {
 
 	// Validate post-state
 	expected.Validate(t, state)
-
-	evm := testutil.NewMIPSEVM(contracts)
-	evm.SetTracer(tracer)
-	testutil.LogStepFailureAtCleanup(t, evm)
-
-	evmPost := evm.Step(t, stepWitness, step, multithreaded.GetStateHashFn())
-	goPost, _ := goVm.GetState().EncodeWitness()
-	require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
-		"mipsevm produced different state than EVM")
+	testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), contracts, tracer)
 }
 
 var NoopSyscalls = map[string]uint32{
@@ -698,15 +624,7 @@ func TestEVM_NoopSyscall(t *testing.T) {
 
 			// Validate post-state
 			expected.Validate(t, state)
-
-			evm := testutil.NewMIPSEVM(contracts)
-			evm.SetTracer(tracer)
-			testutil.LogStepFailureAtCleanup(t, evm)
-
-			evmPost := evm.Step(t, stepWitness, step, multithreaded.GetStateHashFn())
-			goPost, _ := goVm.GetState().EncodeWitness()
-			require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
-				"mipsevm produced different state than EVM")
+			testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), contracts, tracer)
 		})
 
 	}
@@ -736,23 +654,7 @@ func TestEVM_UnsupportedSyscall(t *testing.T) {
 
 			// Set up post-state expectations
 			require.Panics(t, func() { _, _ = goVm.Step(true) })
-
-			insnProof := state.GetMemory().MerkleProof(state.GetPC())
-			encodedWitness, _ := state.EncodeWitness()
-			stepWitness := &mipsevm.StepWitness{
-				State:     encodedWitness,
-				ProofData: insnProof[:],
-			}
-			input := testutil.EncodeStepInput(t, stepWitness, mipsevm.LocalContext{}, contracts.Artifacts.MIPS)
-			startingGas := uint64(30_000_000)
-
-			env, evmState := testutil.NewEVMEnv(contracts)
-			env.Config.Tracer = tracer
-			sender := common.Address{0x13, 0x37}
-			_, _, err := env.Call(vm.AccountRef(sender), contracts.Addresses.MIPS, input, startingGas, common.U2560)
-			require.EqualValues(t, err, vm.ErrExecutionReverted)
-			logs := evmState.Logs()
-			require.Equal(t, 0, len(logs))
+			testutil.AssertEVMPanics(t, state, contracts, tracer)
 		})
 	}
 }
@@ -831,15 +733,7 @@ func TestEVM_NormalTraversalStep_HandleWaitingThread(t *testing.T) {
 
 				// Validate post-state
 				expected.Validate(t, state)
-
-				evm := testutil.NewMIPSEVM(contracts)
-				evm.SetTracer(tracer)
-				testutil.LogStepFailureAtCleanup(t, evm)
-
-				evmPost := evm.Step(t, stepWitness, c.step, multithreaded.GetStateHashFn())
-				goPost, _ := goVm.GetState().EncodeWitness()
-				require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
-					"mipsevm produced different state than EVM")
+				testutil.ValidateEVM(t, stepWitness, c.step, goVm, multithreaded.GetStateHashFn(), contracts, tracer)
 			})
 
 		}
@@ -907,15 +801,7 @@ func TestEVM_WakeupTraversalStep(t *testing.T) {
 
 			// Validate post-state
 			expected.Validate(t, state)
-
-			evm := testutil.NewMIPSEVM(contracts)
-			evm.SetTracer(tracer)
-			testutil.LogStepFailureAtCleanup(t, evm)
-
-			evmPost := evm.Step(t, stepWitness, step, multithreaded.GetStateHashFn())
-			goPost, _ := goVm.GetState().EncodeWitness()
-			require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
-				"mipsevm produced different state than EVM")
+			testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), contracts, tracer)
 		})
 	}
 }
@@ -961,15 +847,7 @@ func TestEVM_SchedQuantumThreshold(t *testing.T) {
 
 			// Validate post-state
 			expected.Validate(t, state)
-
-			evm := testutil.NewMIPSEVM(contracts)
-			evm.SetTracer(tracer)
-			testutil.LogStepFailureAtCleanup(t, evm)
-
-			evmPost := evm.Step(t, stepWitness, step, multithreaded.GetStateHashFn())
-			goPost, _ := goVm.GetState().EncodeWitness()
-			require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
-				"mipsevm produced different state than EVM")
+			testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), contracts, tracer)
 		})
 	}
 }
