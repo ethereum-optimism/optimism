@@ -153,12 +153,8 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 	t.Run("Isthmus", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
 		info := testutils.MakeBlockInfo(nil)(rng)
-		zero := uint64(0)
-		rollupCfg := rollup.Config{
-			RegolithTime: &zero,
-			EcotoneTime:  &zero,
-			InteropTime:  &zero,
-		}
+		rollupCfg := rollup.Config{}
+		rollupCfg.AtHardfork(rollup.Interop)
 		depTx, err := L1InfoDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, 1)
 		require.NoError(t, err)
 		require.False(t, depTx.IsSystemTransaction)
