@@ -159,6 +159,24 @@ func (su *SupervisorBackend) CheckMessage(identifier types.Identifier, payloadHa
 	return safest, nil
 }
 
+func (su *SupervisorBackend) CheckMessages(
+	messages []types.Message,
+	minSafety types.SafetyLevel) error {
+	for _, msg := range messages {
+		safety, err := su.CheckMessage(msg.Identifier, msg.PayloadHash)
+		if err != nil {
+			return fmt.Errorf("failed to check message: %w", err)
+		}
+		if !safety.AtLeastAsSafe(minSafety) {
+			return fmt.Errorf("message %v (safety level: %v) does not meet the minimum safety %v",
+				msg.Identifier,
+				safety,
+				minSafety)
+		}
+	}
+	return nil
+}
+
 // CheckBlock checks if the block is safe according to the safety level
 // The block is considered safe if all logs in the block are safe
 // this is decided by finding the last log in the block and
