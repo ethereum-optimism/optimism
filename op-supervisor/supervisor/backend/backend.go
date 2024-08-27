@@ -160,20 +160,16 @@ func (su *SupervisorBackend) CheckMessage(identifier types.Identifier, payloadHa
 }
 
 func (su *SupervisorBackend) CheckMessages(
-	identifiers []types.Identifier,
-	payloadHashes []common.Hash,
+	messages []types.Message,
 	minSafety types.SafetyLevel) error {
-	if len(identifiers) != len(payloadHashes) {
-		return errors.New("identifiers and payload hashes must be the same length")
-	}
-	for i, identifier := range identifiers {
-		safety, err := su.CheckMessage(identifier, payloadHashes[i])
+	for _, msg := range messages {
+		safety, err := su.CheckMessage(msg.Identifier, msg.PayloadHash)
 		if err != nil {
 			return fmt.Errorf("failed to check message: %w", err)
 		}
 		if !safety.AtLeastAsSafe(minSafety) {
 			return fmt.Errorf("message %v (safety level: %v) does not meet the minimum safety %v",
-				identifier,
+				msg.Identifier,
 				safety,
 				minSafety)
 		}

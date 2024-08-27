@@ -13,6 +13,11 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
+type Message struct {
+	Identifier  Identifier  `json:"identifier"`
+	PayloadHash common.Hash `json:"payloadHash"`
+}
+
 type Identifier struct {
 	Origin      common.Address
 	BlockNumber uint64
