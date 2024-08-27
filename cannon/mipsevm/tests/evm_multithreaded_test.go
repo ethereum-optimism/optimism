@@ -732,6 +732,61 @@ func TestEVM_NormalTraversalStep_HandleWaitingThread(t *testing.T) {
 	}
 }
 
+func TestEVM_NormalTraversal_Full(t *testing.T) {
+	var tracer *tracing.Hooks
+	cases := []struct {
+		name        string
+		threadCount int
+	}{
+		{"1 thread", 1},
+		{"2 threads", 2},
+		{"3 threads", 3},
+	}
+
+	for i, c := range cases {
+		for _, traverseRight := range []bool{true, false} {
+			testName := fmt.Sprintf("%v (traverseRight = %v)", c.name, traverseRight)
+			t.Run(testName, func(t *testing.T) {
+				// Setup
+				goVm, state, contracts := setup(t, i*789)
+				mttestutil.SetupThreads(int64(i*2947), state, traverseRight, c.threadCount, 0)
+				// Put threads into a waiting state so that we just traverse through them
+				for _, thread := range mttestutil.GetAllThreads(state) {
+					thread.FutexAddr = 0x04
+					thread.FutexTimeoutStep = exec.FutexNoTimeout
+				}
+				step := state.Step
+
+				initialState := mttestutil.NewExpectedMTState(state)
+
+				// Loop through all the threads to get back to the starting state
+				iterations := c.threadCount * 2
+				for i := 0; i < iterations; i++ {
+					// Set up post-state expectations
+					expected := mttestutil.NewExpectedMTState(state)
+					expected.Step += 1
+					expected.ExpectPreemption(state)
+
+					// State transition
+					var err error
+					var stepWitness *mipsevm.StepWitness
+					stepWitness, err = goVm.Step(true)
+					require.NoError(t, err)
+
+					// Validate post-state
+					expected.Validate(t, state)
+					testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), contracts, tracer)
+				}
+
+				// We should be back to the original state with only a few modifications
+				initialState.Step += uint64(iterations)
+				initialState.StepsSinceLastContextSwitch = 0
+				initialState.Validate(t, state)
+			})
+		}
+	}
+}
+
 func TestEVM_WakeupTraversalStep(t *testing.T) {
 	wakeupAddr := uint32(0x1234)
 	wakeupVal := uint32(0x999)
@@ -794,6 +849,59 @@ func TestEVM_WakeupTraversalStep(t *testing.T) {
 			// Validate post-state
 			expected.Validate(t, state)
 			testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), contracts, tracer)
+		})
+	}
+}
+
+func TestEVM_WakeupTraversal_Full(t *testing.T) {
+	var tracer *tracing.Hooks
+	cases := []struct {
+		name        string
+		threadCount int
+	}{
+		{"1 thread", 1},
+		{"2 threads", 2},
+		{"3 threads", 3},
+	}
+	for i, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			// Setup
+			goVm, state, contracts := setup(t, i*789)
+			mttestutil.SetupThreads(int64(i*2947), state, false, c.threadCount, 0)
+			state.Wakeup = 0x08
+			step := state.Step
+
+			initialState := mttestutil.NewExpectedMTState(state)
+
+			// Loop through all the threads to get back to the starting state
+			iterations := c.threadCount * 2
+			for i := 0; i < iterations; i++ {
+				// Set up post-state expectations
+				expected := mttestutil.NewExpectedMTState(state)
+				expected.Step += 1
+				expected.ExpectPreemption(state)
+
+				// State transition
+				var err error
+				var stepWitness *mipsevm.StepWitness
+				stepWitness, err = goVm.Step(true)
+				require.NoError(t, err)
+
+				// We should clear the wakeup on the last step
+				if i == iterations-1 {
+					expected.Wakeup = exec.FutexEmptyAddr
+				}
+
+				// Validate post-state
+				expected.Validate(t, state)
+				testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), contracts, tracer)
+			}
+
+			// We should be back to the original state with only a few modifications
+			initialState.Step += uint64(iterations)
+			initialState.StepsSinceLastContextSwitch = 0
+			initialState.Wakeup = exec.FutexEmptyAddr
+			initialState.Validate(t, state)
 		})
 	}
 }
