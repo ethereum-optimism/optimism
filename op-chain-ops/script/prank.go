@@ -2,6 +2,8 @@ package script
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"math/big"
@@ -203,6 +205,24 @@ type Broadcast struct {
 	GasUsed uint64         `json:"gasUsed"`
 	Type    BroadcastType  `json:"type"`
 	Nonce   uint64         `json:"nonce"` // pre-state nonce of From, before any increment (always 0 if create2)
+}
+
+// ID returns a hash that can be used to identify the broadcast.
+// This is used instead of the transaction hash since broadcasting
+// tools can change gas limits and other fields which would change
+// the resulting transaction hash.
+func (b Broadcast) ID() common.Hash {
+	h := sha256.New()
+	_, _ = h.Write(b.From[:])
+	_, _ = h.Write(b.To[:])
+	_, _ = h.Write(b.Input)
+	_, _ = h.Write(((*uint256.Int)(b.Value)).Bytes())
+	_, _ = h.Write(b.Salt[:])
+	nonce := make([]byte, 8)
+	binary.BigEndian.PutUint64(nonce, b.Nonce)
+	_, _ = h.Write(nonce)
+	sum := h.Sum(nil)
+	return common.BytesToHash(sum)
 }
 
 // NewBroadcast creates a Broadcast from a parent callframe, and the completed child callframe.
