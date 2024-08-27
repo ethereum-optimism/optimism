@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { L1BlockInterop, ConfigType } from "src/L2/L1BlockInterop.sol";
+import { L1Block, ConfigType } from "src/L2/L1Block.sol";
 import { StaticConfig } from "src/libraries/StaticConfig.sol";
 import "src/libraries/L1BlockErrors.sol";
 
 /// @custom:proxied
 /// @custom:predeploy 0x4200000000000000000000000000000000000015
 /// @title L1BlockHolocene
-/// @notice Interop extenstions of L1Block.
-contract L1BlockHolocene is L1BlockInterop {
+/// @notice Holocene extenstions of L1Block.
+contract L1BlockHolocene is L1Block {
     /// @notice Event emitted when a new batcher hash is set.
     event BatcherHashSet(bytes32 indexed batcherHash);
 
-    /// @notice Event emitted when a new ecotone gas config is set.
-    event GasConfigEcotoneSet(uint32 indexed blobBaseFeeScalar, uint32 indexed baseFeeScalar);
+    /// @notice Event emitted when new fee scalars are set.
+    event FeeScalarsSet(uint32 indexed blobBasefeeScalar, uint32 indexed basefeeScalar);
 
     /// @notice Event emitted when a new gas limit is set.
     event GasLimitSet(uint64 indexed gasLimit);
@@ -26,21 +26,17 @@ contract L1BlockHolocene is L1BlockInterop {
     ///         depositor account.
     /// @param _type  The type of configuration to set.
     /// @param _value The encoded value with which to set the configuration.
-    function setConfig(ConfigType _type, bytes calldata _value) external override {
+    function setConfig(ConfigType _type, bytes calldata _value) public override {
         if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
 
-        if (_type == ConfigType.SET_GAS_PAYING_TOKEN) {
-            _setGasPayingToken(_value);
-        } else if (_type == ConfigType.ADD_DEPENDENCY) {
-            _addDependency(_value);
-        } else if (_type == ConfigType.REMOVE_DEPENDENCY) {
-            _removeDependency(_value);
-        } else if (_type == ConfigType.SET_BATCHER_HASH) {
+        if (_type == ConfigType.SET_BATCHER_HASH) {
             _setBatcherHash(_value);
-        } else if (_type == ConfigType.SET_GAS_CONFIG_ECOTONE) {
-            _setGasConfigEcotone(_value);
+        } else if (_type == ConfigType.SET_FEE_SCALARS) {
+            _setFeeScalars(_value);
         } else if (_type == ConfigType.SET_GAS_LIMIT) {
             _setGasLimit(_value);
+        } else {
+            super.setConfig(_type, _value);
         }
     }
 
@@ -54,17 +50,17 @@ contract L1BlockHolocene is L1BlockInterop {
         emit BatcherHashSet(_batcherHash);
     }
 
-    /// @notice Internal method to set new gas config.
-    /// @param _value The encoded value with which to set the new batcher hash.
-    function _setGasConfigEcotone(bytes calldata _value) internal {
-        uint256 _scalar = StaticConfig.decodeSetGasConfigEcotone(_value);
+    /// @notice Internal method to set new fee scalars.
+    /// @param _value The encoded value with which to set the new fee scalars.
+    function _setFeeScalars(bytes calldata _value) internal {
+        uint256 _scalar = StaticConfig.decodeSetFeeScalars(_value);
 
-        (uint32 _blobBaseFeeScalar, uint32 _baseFeeScalar) = _decodeScalar(_scalar);
+        (uint32 _blobBasefeeScalar, uint32 _basefeeScalar) = _decodeScalar(_scalar);
 
-        blobBaseFeeScalar = _blobBaseFeeScalar;
-        baseFeeScalar = _baseFeeScalar;
+        blobBaseFeeScalar = _blobBasefeeScalar;
+        baseFeeScalar = _basefeeScalar;
 
-        emit GasConfigEcotoneSet(_blobBaseFeeScalar, _baseFeeScalar);
+        emit FeeScalarsSet(_blobBasefeeScalar, _basefeeScalar);
     }
 
     /// @notice Internal method to decode blobBaseFeeScalar and baseFeeScalar.
@@ -76,9 +72,9 @@ contract L1BlockHolocene is L1BlockInterop {
 
         require(0x01 == _scalar >> 248, "invalid _scalar");
 
-        uint32 _blobbasefeeScalar = uint32((_scalar >> 32) & 0xffffffff);
+        uint32 _blobBasefeeScalar = uint32((_scalar >> 32) & 0xffffffff);
         uint32 _basefeeScalar = uint32(_scalar & 0xffffffff);
-        return (_blobbasefeeScalar, _basefeeScalar);
+        return (_blobBasefeeScalar, _basefeeScalar);
     }
 
     /// @notice Internal method to set new gas limit.
@@ -109,12 +105,20 @@ contract L1BlockHolocene is L1BlockInterop {
             }
             // sequencenum (uint64)
             _sequenceNumber := shr(192, calldataload(4))
+        }
+
+        sequenceNumber = _sequenceNumber;
+
+        // for each L2 block, include only the sequence number, except for L2 blocks with sequencer #0,
+        // and they'd have all the L1 origin related attributes following the 0 sequence number.
+        if (_sequenceNumber != 0) return;
+
+        assembly {
             // number (uint64) and timestamp (uint64)
             sstore(number.slot, shr(128, calldataload(12)))
             sstore(basefee.slot, calldataload(28)) // uint256
             sstore(blobBaseFee.slot, calldataload(60)) // uint256
             sstore(hash.slot, calldataload(92)) // bytes32
         }
-        sequenceNumber = _sequenceNumber;
     }
 }

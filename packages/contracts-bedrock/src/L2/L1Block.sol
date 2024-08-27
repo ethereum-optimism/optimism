@@ -6,6 +6,19 @@ import { Constants } from "src/libraries/Constants.sol";
 import { GasPayingToken, IGasToken } from "src/libraries/GasPayingToken.sol";
 import "src/libraries/L1BlockErrors.sol";
 
+/// @notice Enum representing different types of configurations that can be set on L1Block.
+/// @custom:value SET_GAS_PAYING_TOKEN  Represents the config type for setting the gas paying token.
+/// @custom:value ADD_DEPENDENCY        Represents the config type for adding a chain to the interop dependency set.
+/// @custom:value REMOVE_DEPENDENCY     Represents the config type for removing a chain from the interop dependency set.
+enum ConfigType {
+    SET_GAS_PAYING_TOKEN,
+    ADD_DEPENDENCY,
+    REMOVE_DEPENDENCY,
+    SET_BATCHER_HASH,
+    SET_FEE_SCALARS,
+    SET_GAS_LIMIT
+}
+
 /// @custom:proxied
 /// @custom:predeploy 0x4200000000000000000000000000000000000015
 /// @title L1Block
@@ -162,4 +175,10 @@ contract L1Block is ISemver, IGasToken {
 
         emit GasPayingTokenSet({ token: _token, decimals: _decimals, name: _name, symbol: _symbol });
     }
+
+    /// @notice Sets static configuration options for the L2 system. Can only be called by the special
+    ///         depositor account.
+    /// @param _type  The type of configuration to set.
+    /// @param _value The encoded value with which to set the configuration.
+    function setConfig(ConfigType _type, bytes calldata _value) public virtual { }
 }

@@ -367,7 +367,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     /// @notice Internal function for updating the gas config.
     /// @param _overhead New overhead value.
     /// @param _scalar   New scalar value.
-    function _setGasConfig(uint256 _overhead, uint256 _scalar) internal {
+    function _setGasConfig(uint256 _overhead, uint256 _scalar) internal virtual {
         require((uint256(0xff) << 248) & _scalar == 0, "SystemConfig: scalar exceeds max.");
 
         overhead = _overhead;

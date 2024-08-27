@@ -72,16 +72,17 @@ library StaticConfig {
         return abi.decode(_data, (bytes32));
     }
 
-    /// @notice Encodes the static configuration data for setting the gas config as of the Ecotone upgrade.
+    /// @notice Encodes the static configuration data for setting the fee scalars.
     /// @param _scalar   New scalar value.
-    function encodeSetGasConfigEcotone(uint256 _scalar) internal pure returns (bytes memory) {
+    /// @return Encoded static configuration data.
+    function encodeSetFeeScalars(uint256 _scalar) internal pure returns (bytes memory) {
         return abi.encode(_scalar);
     }
 
-    /// @notice Decodes the static configuration data for setting the gas config as of the Ecotone upgrade.
+    /// @notice Decodes the static configuration data for setting the fee scalars.
     /// @param _data Encoded static configuration data.
-    /// @return Decoded gas config to set.
-    function decodeSetGasConfigEcotone(bytes memory _data) internal pure returns (uint256) {
+    /// @return Decoded fee scalars to set.
+    function decodeSetFeeScalars(bytes memory _data) internal pure returns (uint256) {
         return abi.decode(_data, (uint256));
     }
 
