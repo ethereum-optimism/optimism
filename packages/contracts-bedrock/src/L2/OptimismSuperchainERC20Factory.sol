@@ -18,7 +18,7 @@ contract OptimismSuperchainERC20Factory is IOptimismERC20Factory, ISemver {
     ///         This is used to keep track of the token deployments.
     mapping(address superchainToken => address remoteToken) public deployments;
 
-    /// @notice Emitted when a OptimismSuperchainERC20 is deployed.
+    /// @notice Emitted when an OptimismSuperchainERC20 is deployed.
     /// @param superchainToken  Address of the SuperchainERC20 deployment.
     /// @param remoteToken      Address of the corresponding token on the remote chain.
     /// @param deployer         Address of the account that deployed the token.
@@ -45,20 +45,16 @@ contract OptimismSuperchainERC20Factory is IOptimismERC20Factory, ISemver {
         external
         returns (address _superchainERC20)
     {
-        // Encode the `initialize` call data for the OptimismSuperchainERC20.
         bytes memory initCallData =
             abi.encodeCall(OptimismSuperchainERC20.initialize, (_remoteToken, _name, _symbol, _decimals));
 
-        // Encode the BeaconProxy creation code with the beacon contract address and the `initialize` call data.
         bytes memory creationCode = bytes.concat(
             type(BeaconProxy).creationCode, abi.encode(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON, initCallData)
         );
 
-        // Use CREATE3 for deterministic deployment.
         bytes32 salt = keccak256(abi.encode(_remoteToken, _name, _symbol, _decimals));
         _superchainERC20 = CREATE3.deploy({ salt: salt, creationCode: creationCode, value: 0 });
 
-        // Store OptimismSuperchainERC20 and remote token addresses
         deployments[_superchainERC20] = _remoteToken;
 
         emit OptimismSuperchainERC20Created(_superchainERC20, _remoteToken, msg.sender);
