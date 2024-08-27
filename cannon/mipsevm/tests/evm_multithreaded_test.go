@@ -132,16 +132,8 @@ func TestEVM_SysClone_Successful(t *testing.T) {
 			stepWitness, err = goVm.Step(true)
 			require.NoError(t, err)
 
-			var activeStack, inactiveStack []*multithreaded.ThreadState
-			if c.traverseRight {
-				activeStack = state.RightThreadStack
-				inactiveStack = state.LeftThreadStack
-			} else {
-				activeStack = state.LeftThreadStack
-				inactiveStack = state.RightThreadStack
-			}
-
 			expected.Validate(t, state)
+			activeStack, inactiveStack := mttestutil.GetThreadStacks(state)
 			require.Equal(t, 2, len(activeStack))
 			require.Equal(t, 0, len(inactiveStack))
 			testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), contracts, tracer)

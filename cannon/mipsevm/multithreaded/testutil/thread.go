@@ -153,3 +153,14 @@ func GetAllThreads(state *multithreaded.State) []*multithreaded.ThreadState {
 
 	return allThreads
 }
+
+func GetThreadStacks(state *multithreaded.State) (activeStack, inactiveStack []*multithreaded.ThreadState) {
+	if state.TraverseRight {
+		activeStack = state.RightThreadStack
+		inactiveStack = state.LeftThreadStack
+	} else {
+		activeStack = state.LeftThreadStack
+		inactiveStack = state.RightThreadStack
+	}
+	return activeStack, inactiveStack
+}
