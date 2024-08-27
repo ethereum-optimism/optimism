@@ -83,6 +83,22 @@ func (lvl *SafetyLevel) UnmarshalText(text []byte) error {
 	return nil
 }
 
+// AtLeastAsSafe returns true if the receiver is at least as safe as the other SafetyLevel.
+func (lvl *SafetyLevel) AtLeastAsSafe(min SafetyLevel) bool {
+	switch min {
+	case Invalid:
+		return true
+	case Unsafe:
+		return *lvl != Invalid
+	case Safe:
+		return *lvl == Safe || *lvl == Finalized
+	case Finalized:
+		return *lvl == Finalized
+	default:
+		return false
+	}
+}
+
 const (
 	CrossFinalized SafetyLevel = "cross-finalized"
 	Finalized      SafetyLevel = "finalized"

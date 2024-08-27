@@ -171,32 +171,14 @@ func (su *SupervisorBackend) CheckMessages(
 		if err != nil {
 			return fmt.Errorf("failed to check message: %w", err)
 		}
-		if !atLeastAsSafe(safety, minSafety) {
-			return fmt.Errorf("message %v is not safe: %v", identifier, safety)
+		if !safety.AtLeastAsSafe(minSafety) {
+			return fmt.Errorf("message %v (safety level: %v) does not meet the minimum safety %v",
+				identifier,
+				safety,
+				minSafety)
 		}
 	}
 	return nil
-}
-
-// TODO: Really this should be a method on types.SafetyLevel
-// for now it's easy to do this calculation here
-func atLeastAsSafe(safety, minSafety types.SafetyLevel) bool {
-	switch minSafety {
-	// If for some reason the minimum safety level is invalid, then nothing is unsafe by comparison
-	case types.Invalid:
-		return true
-	// Unsafe is the lowest safety level, so it is safe so long as it isn't invalid
-	case types.Unsafe:
-		return safety != types.Invalid
-	// Safe is satisfied by Safe or Finalized
-	case types.Safe:
-		return safety == types.Safe || safety == types.Finalized
-	// Finalized is only satisfied by Finalized
-	case types.Finalized:
-		return safety == types.Finalized
-	default:
-		return false
-	}
 }
 
 // CheckBlock checks if the block is safe according to the safety level
