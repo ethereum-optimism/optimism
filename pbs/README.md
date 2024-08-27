@@ -36,8 +36,6 @@ $ BUILDER_IMAGE=<YOUR_OP_GETH_BUILDER_IMAGE> DEVNET_BUILDER=true make devnet-up
 
 These are the configuration options to enable PBS for the devnet.
 
-Here is the prettified Markdown with fixed indents:
-
 ### Sequencer
 
 There are three flags that configure the sequencer to request payloads from the builder API endpoint:
