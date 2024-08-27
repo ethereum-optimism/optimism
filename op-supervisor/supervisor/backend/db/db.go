@@ -68,9 +68,9 @@ func (db *ChainsDB) Resume() error {
 func (db *ChainsDB) StartCrossHeadMaintenance(ctx context.Context) {
 	go func() {
 		// create three safety checkers, one for each safety level
-		unsafeChecker := NewSafetyChecker(Unsafe, *db)
-		safeChecker := NewSafetyChecker(Safe, *db)
-		finalizedChecker := NewSafetyChecker(Finalized, *db)
+		unsafeChecker := NewSafetyChecker(Unsafe, db)
+		safeChecker := NewSafetyChecker(Safe, db)
+		finalizedChecker := NewSafetyChecker(Finalized, db)
 		// run the maintenance loop every 10 seconds for now
 		ticker := time.NewTicker(time.Second * 10)
 		for {
@@ -104,7 +104,7 @@ func (db *ChainsDB) Check(chain types.ChainID, blockNum uint64, logIdx uint32, l
 // UpdateCrossSafeHeads updates the cross-heads of all chains
 // this is an example of how to use the SafetyChecker to update the cross-heads
 func (db *ChainsDB) UpdateCrossSafeHeads() error {
-	checker := NewSafetyChecker(Safe, *db)
+	checker := NewSafetyChecker(Safe, db)
 	return db.UpdateCrossHeads(checker)
 }
 

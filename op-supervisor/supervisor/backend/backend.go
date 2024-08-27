@@ -148,9 +148,9 @@ func (su *SupervisorBackend) CheckMessage(identifier types.Identifier, payloadHa
 	safest := types.CrossUnsafe
 	// at this point we have the log entry, and we can check if it is safe by various criteria
 	for _, checker := range []db.SafetyChecker{
-		db.NewSafetyChecker(types.Unsafe, *su.db),
-		db.NewSafetyChecker(types.Safe, *su.db),
-		db.NewSafetyChecker(types.Finalized, *su.db),
+		db.NewSafetyChecker(types.Unsafe, su.db),
+		db.NewSafetyChecker(types.Safe, su.db),
+		db.NewSafetyChecker(types.Finalized, su.db),
 	} {
 		if i <= checker.CrossHeadForChain(chainID) {
 			safest = checker.SafetyLevel()
@@ -173,9 +173,9 @@ func (su *SupervisorBackend) CheckBlock(chainID *hexutil.U256, blockHash common.
 	}
 	// at this point we have the extent of the block, and we can check if it is safe by various criteria
 	for _, checker := range []db.SafetyChecker{
-		db.NewSafetyChecker(types.Unsafe, *su.db),
-		db.NewSafetyChecker(types.Safe, *su.db),
-		db.NewSafetyChecker(types.Finalized, *su.db),
+		db.NewSafetyChecker(types.Unsafe, su.db),
+		db.NewSafetyChecker(types.Safe, su.db),
+		db.NewSafetyChecker(types.Finalized, su.db),
 	} {
 		if i <= checker.CrossHeadForChain(types.ChainID(*chainID)) {
 			safest = checker.SafetyLevel()
