@@ -7,6 +7,9 @@ import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
 import { MIPS } from "src/cannon/MIPS.sol";
 
+import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
+import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
+import { OPStackManager } from "src/L1/OPStackManager.sol";
 import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
@@ -28,7 +31,10 @@ contract DeployImplementationsInput_Test is Test {
         minProposalSizeBytes: 200,
         challengePeriodSeconds: 300,
         proofMaturityDelaySeconds: 400,
-        disputeGameFinalityDelaySeconds: 500
+        disputeGameFinalityDelaySeconds: 500,
+        release: "op-contracts/latest",
+        superchainConfigProxy: SuperchainConfig(makeAddr("superchainConfigProxy")),
+        protocolVersionsProxy: ProtocolVersions(makeAddr("protocolVersionsProxy"))
     });
 
     function setUp() public {
@@ -80,6 +86,7 @@ contract DeployImplementationsOutput_Test is Test {
 
     function test_set_succeeds() public {
         DeployImplementationsOutput.Output memory output = DeployImplementationsOutput.Output({
+            opsmSingleton: OPStackManager(makeAddr("opsmSingleton")),
             optimismPortal2Impl: OptimismPortal2(payable(makeAddr("optimismPortal2Impl"))),
             delayedWETHImpl: DelayedWETH(payable(makeAddr("delayedWETHImpl"))),
             preimageOracleSingleton: PreimageOracle(makeAddr("preimageOracleSingleton")),
@@ -91,6 +98,7 @@ contract DeployImplementationsOutput_Test is Test {
             optimismMintableERC20FactoryImpl: OptimismMintableERC20Factory(makeAddr("optimismMintableERC20FactoryImpl"))
         });
 
+        vm.etch(address(output.opsmSingleton), hex"01");
         vm.etch(address(output.optimismPortal2Impl), hex"01");
         vm.etch(address(output.delayedWETHImpl), hex"01");
         vm.etch(address(output.preimageOracleSingleton), hex"01");
@@ -101,6 +109,7 @@ contract DeployImplementationsOutput_Test is Test {
         vm.etch(address(output.l1StandardBridgeImpl), hex"01");
         vm.etch(address(output.optimismMintableERC20FactoryImpl), hex"01");
 
+        dso.set(dso.opsmSingleton.selector, address(output.opsmSingleton));
         dso.set(dso.optimismPortal2Impl.selector, address(output.optimismPortal2Impl));
         dso.set(dso.delayedWETHImpl.selector, address(output.delayedWETHImpl));
         dso.set(dso.preimageOracleSingleton.selector, address(output.preimageOracleSingleton));
@@ -111,6 +120,7 @@ contract DeployImplementationsOutput_Test is Test {
         dso.set(dso.l1StandardBridgeImpl.selector, address(output.l1StandardBridgeImpl));
         dso.set(dso.optimismMintableERC20FactoryImpl.selector, address(output.optimismMintableERC20FactoryImpl));
 
+        assertEq(address(output.opsmSingleton), address(dso.opsmSingleton()), "50");
         assertEq(address(output.optimismPortal2Impl), address(dso.optimismPortal2Impl()), "100");
         assertEq(address(output.delayedWETHImpl), address(dso.delayedWETHImpl()), "200");
         assertEq(address(output.preimageOracleSingleton), address(dso.preimageOracleSingleton()), "300");
@@ -210,7 +220,10 @@ contract DeployImplementations_Test is Test {
         minProposalSizeBytes: 200,
         challengePeriodSeconds: 300,
         proofMaturityDelaySeconds: 400,
-        disputeGameFinalityDelaySeconds: 500
+        disputeGameFinalityDelaySeconds: 500,
+        release: "op-contracts/latest",
+        superchainConfigProxy: SuperchainConfig(makeAddr("superchainConfigProxy")),
+        protocolVersionsProxy: ProtocolVersions(makeAddr("protocolVersionsProxy"))
     });
 
     function setUp() public {

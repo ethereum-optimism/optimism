@@ -88,9 +88,6 @@ contract OPStackManager is ISemver {
     /// @custom:semver 1.0.0-beta.2
     string public constant version = "1.0.0-beta.2";
 
-    /// @notice The user who can release new versions of the OP Stack contracts.
-    address public immutable releaseManager;
-
     /// @notice Address of the SuperchainConfig contract shared by all chains.
     SuperchainConfig public immutable superchainConfig;
 
@@ -98,7 +95,7 @@ contract OPStackManager is ISemver {
     ProtocolVersions public immutable protocolVersions;
 
     /// @notice The latest release of the OP Stack Manager, as a string of the format `op-contracts/vX.Y.Z`.
-    string public latestVersion;
+    string public latestRelease;
 
     /// @notice Maps a release version to a contract name to it's implementation data.
     mapping(string => mapping(string => Implementation)) public implementations;
@@ -139,22 +136,21 @@ contract OPStackManager is ISemver {
     /// focused on an OPSM version that unblocks interop, we are not proxying OPSM for simplicity.
     /// Later, we will `_disableInitializers` in the constructor and replace any constructor logic
     /// with an `initialize` function, which will be a breaking change to the OPSM interface.
-    constructor(SuperchainConfig _superchainConfig, ProtocolVersions _protocolVersions, address _releaseManager) {
+    constructor(SuperchainConfig _superchainConfig, ProtocolVersions _protocolVersions) {
         superchainConfig = _superchainConfig;
         protocolVersions = _protocolVersions;
-        releaseManager = _releaseManager;
     }
 
     /// @notice Callable by the OPSM owner to release a set of implementation contracts for a given
     /// release version. This must be called with `_isLatest` set to true before any chains can be deployed.
-    /// @param _version The release version to set implementations for, of the format `op-contracts/vX.Y.Z`.
+    /// @param _release The release version to set implementations for, of the format `op-contracts/vX.Y.Z`.
     /// @param _isLatest Whether the release version is the latest released version. This is
     /// significant because the latest version is used to deploy chains in the `deploy` function.
     /// @param _setters The set of implementations to set for the release version.
-    function setRelease(string memory _version, bool _isLatest, ImplementationSetter[] calldata _setters) external {
-        if (msg.sender != releaseManager) revert Unauthorized();
+    function setRelease(string memory _release, bool _isLatest, ImplementationSetter[] calldata _setters) external {
+        // TODO Add auth to this method.
 
-        if (_isLatest) latestVersion = _version;
+        if (_isLatest) latestRelease = _release;
 
         for (uint256 i = 0; i < _setters.length; i++) {
             ImplementationSetter calldata setter = _setters[i];
@@ -305,7 +301,7 @@ contract OPStackManager is ISemver {
 
     /// @notice Returns the implementation data for a contract name.
     function getLatestImplementation(string memory _name) internal view returns (Implementation storage) {
-        return implementations[latestVersion][_name];
+        return implementations[latestRelease][_name];
     }
 
     // -------- Initializer Encoding --------

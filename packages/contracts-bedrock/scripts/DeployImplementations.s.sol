@@ -8,6 +8,9 @@ import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
 import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
 import { MIPS } from "src/cannon/MIPS.sol";
 
+import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
+import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
+import { OPStackManager } from "src/L1/OPStackManager.sol";
 import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
@@ -26,6 +29,11 @@ contract DeployImplementationsInput {
         uint256 challengePeriodSeconds;
         uint256 proofMaturityDelaySeconds;
         uint256 disputeGameFinalityDelaySeconds;
+        // We also deploy OP Stack Manager here, which has a dependency on the prior step of deploying
+        // the superchain contracts.
+        string release; // The release version to set OPSM implementations for, of the format `op-contracts/vX.Y.Z`.
+        SuperchainConfig superchainConfigProxy;
+        ProtocolVersions protocolVersionsProxy;
     }
 
     bool public inputSet = false;
@@ -81,10 +89,26 @@ contract DeployImplementationsInput {
         assertInputSet();
         return inputs.disputeGameFinalityDelaySeconds;
     }
+
+    function release() public view returns (string memory) {
+        assertInputSet();
+        return inputs.release;
+    }
+
+    function superchainConfigProxy() public view returns (SuperchainConfig) {
+        assertInputSet();
+        return inputs.superchainConfigProxy;
+    }
+
+    function protocolVersionsProxy() public view returns (ProtocolVersions) {
+        assertInputSet();
+        return inputs.protocolVersionsProxy;
+    }
 }
 
 contract DeployImplementationsOutput {
     struct Output {
+        OPStackManager opsmSingleton;
         DelayedWETH delayedWETHImpl;
         OptimismPortal2 optimismPortal2Impl;
         PreimageOracle preimageOracleSingleton;
@@ -100,7 +124,8 @@ contract DeployImplementationsOutput {
 
     function set(bytes4 sel, address _addr) public {
         // forgefmt: disable-start
-        if (sel == this.optimismPortal2Impl.selector) outputs.optimismPortal2Impl = OptimismPortal2(payable(_addr));
+        if (sel == this.opsmSingleton.selector) outputs.opsmSingleton = OPStackManager(payable(_addr));
+        else if (sel == this.optimismPortal2Impl.selector) outputs.optimismPortal2Impl = OptimismPortal2(payable(_addr));
         else if (sel == this.delayedWETHImpl.selector) outputs.delayedWETHImpl = DelayedWETH(payable(_addr));
         else if (sel == this.preimageOracleSingleton.selector) outputs.preimageOracleSingleton = PreimageOracle(_addr);
         else if (sel == this.mipsSingleton.selector) outputs.mipsSingleton = MIPS(_addr);
@@ -124,6 +149,7 @@ contract DeployImplementationsOutput {
 
     function checkOutput() public view {
         address[] memory addrs = Solarray.addresses(
+            address(outputs.opsmSingleton),
             address(outputs.optimismPortal2Impl),
             address(outputs.delayedWETHImpl),
             address(outputs.preimageOracleSingleton),
@@ -135,6 +161,11 @@ contract DeployImplementationsOutput {
             address(outputs.optimismMintableERC20FactoryImpl)
         );
         DeployUtils.assertValidContractAddresses(addrs);
+    }
+
+    function opsmSingleton() public view returns (OPStackManager) {
+        DeployUtils.assertValidContractAddress(address(outputs.opsmSingleton));
+        return outputs.opsmSingleton;
     }
 
     function optimismPortal2Impl() public view returns (OptimismPortal2) {
@@ -208,6 +239,7 @@ contract DeployImplementations is Script {
     function run(DeployImplementationsInput _dsi, DeployImplementationsOutput _dso) public {
         require(_dsi.inputSet(), "DeployImplementations: input not set");
 
+        // Deploy the implementations.
         deploySystemConfigImpl(_dsi, _dso);
         deployL1CrossDomainMessengerImpl(_dsi, _dso);
         deployL1ERC721BridgeImpl(_dsi, _dso);
@@ -218,10 +250,55 @@ contract DeployImplementations is Script {
         deployPreimageOracleSingleton(_dsi, _dso);
         deployMipsSingleton(_dsi, _dso);
 
+        // Deploy the OP Stack Manager with the new implementations set.
+        deployOPStackManager(_dsi, _dso);
+
         _dso.checkOutput();
     }
 
     // -------- Deployment Steps --------
+
+    function deployOPStackManager(DeployImplementationsInput _dsi, DeployImplementationsOutput _dso) public {
+        SuperchainConfig superchainConfigProxy = _dsi.superchainConfigProxy();
+        ProtocolVersions protocolVersionsProxy = _dsi.protocolVersionsProxy();
+        string memory release = _dsi.release();
+
+        OPStackManager.ImplementationSetter[] memory setters = new OPStackManager.ImplementationSetter[](5);
+        setters[0] = OPStackManager.ImplementationSetter({
+            name: "L1ERC721Bridge",
+            info: OPStackManager.Implementation(makeAddr("l1ERC721Bridge"), L1ERC721Bridge.initialize.selector)
+        });
+        setters[1] = OPStackManager.ImplementationSetter({
+            name: "OptimismPortal",
+            info: OPStackManager.Implementation(makeAddr("optimismPortal"), OptimismPortal2.initialize.selector)
+        });
+        setters[2] = OPStackManager.ImplementationSetter({
+            name: "SystemConfig",
+            info: OPStackManager.Implementation(makeAddr("systemConfig"), SystemConfig.initialize.selector)
+        });
+        setters[3] = OPStackManager.ImplementationSetter({
+            name: "OptimismMintableERC20Factory",
+            info: OPStackManager.Implementation(
+                makeAddr("optimismMintableERC20Factory"), OptimismMintableERC20Factory.initialize.selector
+            )
+        });
+        setters[4] = OPStackManager.ImplementationSetter({
+            name: "L1CrossDomainMessenger",
+            info: OPStackManager.Implementation(
+                makeAddr("l1CrossDomainMessenger"), L1CrossDomainMessenger.initialize.selector
+            )
+        });
+
+        vm.broadcast(msg.sender);
+        OPStackManager opsmSingleton =
+            new OPStackManager({ _superchainConfig: superchainConfigProxy, _protocolVersions: protocolVersionsProxy });
+
+        vm.broadcast(msg.sender);
+        opsmSingleton.setRelease({ _release: release, _isLatest: true, _setters: setters });
+
+        vm.label(address(opsmSingleton), "OPStackManager");
+        _dso.set(_dso.opsmSingleton.selector, address(opsmSingleton));
+    }
 
     function deploySystemConfigImpl(DeployImplementationsInput, DeployImplementationsOutput _dso) public {
         vm.broadcast(msg.sender);
