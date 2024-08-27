@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sequencing"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/status"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
@@ -180,6 +181,11 @@ func NewDriver(
 	sys.AddTracer(event.NewMetricsTracer(metrics))
 
 	opts := event.DefaultRegisterOpts()
+
+	if cfg.InteropTime != nil {
+		interopDeriver := interop.NewInteropDeriver(log, cfg)
+		sys.Register("interop", interopDeriver, opts)
+	}
 
 	statusTracker := status.NewStatusTracker(log, metrics)
 	sys.Register("status", statusTracker, opts)

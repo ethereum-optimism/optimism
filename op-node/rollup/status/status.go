@@ -69,6 +69,10 @@ func (st *StatusTracker) OnEvent(ev event.Event) bool {
 	case engine.PendingSafeUpdateEvent:
 		st.data.UnsafeL2 = x.Unsafe
 		st.data.PendingSafeL2 = x.PendingSafe
+	case engine.CrossUnsafeUpdateEvent:
+		st.data.CrossUnsafeL2 = x.Ref
+	case engine.LocalSafeUpdateEvent:
+		st.data.LocalSafeL2 = x.Ref
 	case derive.DeriverL1StatusEvent:
 		st.data.CurrentL1 = x.Origin
 	case L1UnsafeEvent:
