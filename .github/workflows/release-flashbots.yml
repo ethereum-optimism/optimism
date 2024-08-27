@@ -55,7 +55,7 @@ jobs:
             GIT_DATE=$(git show -s --format='%ct') \
             IMAGE_TAGS=$(git rev-parse HEAD),latest,${{ steps.meta.outputs.tags }} \
             DOCKER_LABELS=${{ steps.meta.outputs.labels }} \
-            VERSION=${{ env.RELEASE_VERSION }}
+            VERSION=${{ env.RELEASE_VERSION }} \
             docker buildx bake \
             --progress plain \
             --push \
