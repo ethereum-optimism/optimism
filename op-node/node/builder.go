@@ -108,7 +108,7 @@ func (s *BuilderAPIClient) GetPayload(ctx context.Context, ref eth.L2BlockRef, l
 	// selects expected data version from the optimism version.
 	// Bedrock - Bellatrix
 	// Canyon - Capella
-	// Delta - Deneb
+	// Ecotone - Deneb
 	var expectedVersion spec.DataVersion
 	if s.rollupCfg.IsEcotone(ref.Time) {
 		expectedVersion = spec.DataVersionDeneb
