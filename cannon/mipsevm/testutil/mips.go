@@ -165,8 +165,8 @@ func ValidateEVM(t *testing.T, stepWitness *mipsevm.StepWitness, step uint64, go
 		"mipsevm produced different state than EVM")
 }
 
-// AssertEVMPanics runs a single evm step from an FPVM prestate and asserts that the VM panics
-func AssertEVMPanics(t *testing.T, state mipsevm.FPVMState, contracts *ContractMetadata, tracer *tracing.Hooks) {
+// AssertEVMReverts runs a single evm step from an FPVM prestate and asserts that the VM panics
+func AssertEVMReverts(t *testing.T, state mipsevm.FPVMState, contracts *ContractMetadata, tracer *tracing.Hooks) {
 	insnProof := state.GetMemory().MerkleProof(state.GetPC())
 	encodedWitness, _ := state.EncodeWitness()
 	stepWitness := &mipsevm.StepWitness{

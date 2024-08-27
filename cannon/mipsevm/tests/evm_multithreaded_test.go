@@ -654,7 +654,7 @@ func TestEVM_UnsupportedSyscall(t *testing.T) {
 
 			// Set up post-state expectations
 			require.Panics(t, func() { _, _ = goVm.Step(true) })
-			testutil.AssertEVMPanics(t, state, contracts, tracer)
+			testutil.AssertEVMReverts(t, state, contracts, tracer)
 		})
 	}
 }

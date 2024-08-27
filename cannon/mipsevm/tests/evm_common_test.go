@@ -447,7 +447,7 @@ func TestEVMFault(t *testing.T) {
 				state.GetRegistersRef()[31] = testutil.EndAddr
 
 				require.Panics(t, func() { _, _ = goVm.Step(true) })
-				testutil.AssertEVMPanics(t, state, v.Contracts, tracer)
+				testutil.AssertEVMReverts(t, state, v.Contracts, tracer)
 			})
 		}
 	}
