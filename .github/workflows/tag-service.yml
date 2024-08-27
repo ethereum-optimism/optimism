@@ -20,7 +20,6 @@ on:
         options:
           - ci-builder
           - ci-builder-rust
-          - op-heartbeat
           - op-node
           - op-batcher
           - op-proposer

@@ -69,7 +69,6 @@ The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vuln
 ├── <a href="./op-chain-ops">op-chain-ops</a>: State surgery utilities
 ├── <a href="./op-challenger">op-challenger</a>: Dispute game challenge agent
 ├── <a href="./op-e2e">op-e2e</a>: End-to-End testing of all bedrock components in Go
-├── <a href="./op-heartbeat">op-heartbeat</a>: Heartbeat monitor service
 ├── <a href="./op-node">op-node</a>: rollup consensus-layer client
 ├── <a href="./op-preimage">op-preimage</a>: Go bindings for Preimage Oracle
 ├── <a href="./op-program">op-program</a>: Fault proof program
@@ -118,11 +117,8 @@ The full set of components that have releases are:
 - `op-batcher`
 - `op-contracts`
 - `op-challenger`
-- `op-heartbeat`
 - `op-node`
 - `op-proposer`
-- `op-ufm`
-- `proxyd`
 
 All other components and packages should be considered development components only and do not have releases.
 

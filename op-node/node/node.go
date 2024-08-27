@@ -18,7 +18,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
-	"github.com/ethereum-optimism/optimism/op-node/heartbeat"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
@@ -26,7 +25,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
-	"github.com/ethereum-optimism/optimism/op-node/version"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
@@ -153,7 +151,6 @@ func (n *OpNode) init(ctx context.Context, cfg *Config) error {
 	}
 	n.metrics.RecordInfo(n.appVersion)
 	n.metrics.RecordUp()
-	n.initHeartbeat(cfg)
 	if err := n.initPProf(cfg); err != nil {
 		return fmt.Errorf("failed to init profiling: %w", err)
 	}
@@ -443,32 +440,6 @@ func (n *OpNode) initMetricsServer(cfg *Config) error {
 	n.log.Info("started metrics server", "addr", metricsSrv.Addr())
 	n.metricsSrv = metricsSrv
 	return nil
-}
-
-func (n *OpNode) initHeartbeat(cfg *Config) {
-	if !cfg.Heartbeat.Enabled {
-		return
-	}
-	var peerID string
-	if !n.p2pEnabled() {
-		peerID = "disabled"
-	} else {
-		peerID = n.P2P().Host().ID().String()
-	}
-
-	payload := &heartbeat.Payload{
-		Version: version.Version,
-		Meta:    version.Meta,
-		Moniker: cfg.Heartbeat.Moniker,
-		PeerID:  peerID,
-		ChainID: cfg.Rollup.L2ChainID.Uint64(),
-	}
-
-	go func(url string) {
-		if err := heartbeat.Beat(n.resourcesCtx, n.log, url, payload); err != nil {
-			log.Error("heartbeat goroutine crashed", "err", err)
-		}
-	}(cfg.Heartbeat.URL)
 }
 
 func (n *OpNode) initPProf(cfg *Config) error {

@@ -29,7 +29,7 @@ func TestHeadsForChain(t *testing.T) {
 	tcases := []struct {
 		name          string
 		chainID       types.ChainID
-		checkerType   string
+		checkerType   types.SafetyLevel
 		expectedLocal entrydb.EntryIdx
 		expectedCross entrydb.EntryIdx
 	}{
@@ -65,7 +65,7 @@ func TestHeadsForChain(t *testing.T) {
 
 	for _, c := range tcases {
 		t.Run(c.name, func(t *testing.T) {
-			checker := NewSafetyChecker(c.checkerType, *chainsDB)
+			checker := NewSafetyChecker(c.checkerType, chainsDB)
 			localHead := checker.LocalHeadForChain(c.chainID)
 			crossHead := checker.CrossHeadForChain(c.chainID)
 			require.Equal(t, c.expectedLocal, localHead)
@@ -96,7 +96,7 @@ func TestCheck(t *testing.T) {
 
 	tcases := []struct {
 		name             string
-		checkerType      string
+		checkerType      types.SafetyLevel
 		chainID          types.ChainID
 		blockNum         uint64
 		logIdx           uint32
@@ -199,7 +199,7 @@ func TestCheck(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			// rig the logStore to return the expected response
 			logDB.containsResponse = c.containsResponse
-			checker := NewSafetyChecker(c.checkerType, *chainsDB)
+			checker := NewSafetyChecker(c.checkerType, chainsDB)
 			r := checker.Check(c.chainID, c.blockNum, c.logIdx, c.loghash)
 			// confirm that the expected outcome is correct
 			require.Equal(t, c.expected, r)

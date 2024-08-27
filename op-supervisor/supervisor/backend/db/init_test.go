@@ -54,6 +54,10 @@ func (s *stubLogStore) Contains(blockNum uint64, logIdx uint32, loghash types.Tr
 	panic("not supported")
 }
 
+func (s *stubLogStore) ClosestBlockIterator(blockNum uint64) (logs.Iterator, error) {
+	panic("not supported")
+}
+
 func (s *stubLogStore) LastCheckpointBehind(entrydb.EntryIdx) (logs.Iterator, error) {
 	panic("not supported")
 }

@@ -54,8 +54,7 @@ type Config struct {
 	RuntimeConfigReloadInterval time.Duration
 
 	// Optional
-	Tracer    Tracer
-	Heartbeat HeartbeatConfig
+	Tracer Tracer
 
 	Sync sync.Config
 
@@ -104,12 +103,6 @@ func (m MetricsConfig) Check() error {
 	}
 
 	return nil
-}
-
-type HeartbeatConfig struct {
-	Enabled bool
-	Moniker string
-	URL     string
 }
 
 func (cfg *Config) LoadPersisted(log log.Logger) error {

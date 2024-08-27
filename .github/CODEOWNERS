@@ -11,7 +11,6 @@
 /op-challenger  @ethereum-optimism/go-reviewers
 /op-dispute-mon  @ethereum-optimism/go-reviewers
 /op-e2e         @ethereum-optimism/go-reviewers
-/op-heartbeat   @ethereum-optimism/go-reviewers
 /op-node        @ethereum-optimism/go-reviewers
 /op-node/rollup @protolambda @ajsutton
 /op-alt-da      @ethereum-optimism/go-reviewers
