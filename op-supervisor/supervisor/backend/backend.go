@@ -159,6 +159,46 @@ func (su *SupervisorBackend) CheckMessage(identifier types.Identifier, payloadHa
 	return safest, nil
 }
 
+func (su *SupervisorBackend) CheckMessages(
+	identifiers []types.Identifier,
+	payloadHashes []common.Hash,
+	minSafety types.SafetyLevel) error {
+	if len(identifiers) != len(payloadHashes) {
+		return errors.New("identifiers and payload hashes must be the same length")
+	}
+	for i, identifier := range identifiers {
+		safety, err := su.CheckMessage(identifier, payloadHashes[i])
+		if err != nil {
+			return fmt.Errorf("failed to check message: %w", err)
+		}
+		if !atLeastAsSafe(safety, minSafety) {
+			return fmt.Errorf("message %v is not safe: %v", identifier, safety)
+		}
+	}
+	return nil
+}
+
+// TODO: Really this should be a method on types.SafetyLevel
+// for now it's easy to do this calculation here
+func atLeastAsSafe(safety, minSafety types.SafetyLevel) bool {
+	switch minSafety {
+	// If for some reason the minimum safety level is invalid, then nothing is unsafe by comparison
+	case types.Invalid:
+		return true
+	// Unsafe is the lowest safety level, so it is safe so long as it isn't invalid
+	case types.Unsafe:
+		return safety != types.Invalid
+	// Safe is satisfied by Safe or Finalized
+	case types.Safe:
+		return safety == types.Safe || safety == types.Finalized
+	// Finalized is only satisfied by Finalized
+	case types.Finalized:
+		return safety == types.Finalized
+	default:
+		return false
+	}
+}
+
 // CheckBlock checks if the block is safe according to the safety level
 // The block is considered safe if all logs in the block are safe
 // this is decided by finding the last log in the block and
