@@ -26,6 +26,7 @@ type LogStorage interface {
 	Rewind(newHeadBlockNum uint64) error
 	LatestBlockNum() uint64
 	ClosestBlockInfo(blockNum uint64) (uint64, backendTypes.TruncatedHash, error)
+	ClosestBlockIterator(blockNum uint64) (logs.Iterator, error)
 	Contains(blockNum uint64, logIdx uint32, loghash backendTypes.TruncatedHash) (bool, entrydb.EntryIdx, error)
 	LastCheckpointBehind(entrydb.EntryIdx) (logs.Iterator, error)
 	NextExecutingMessage(logs.Iterator) (backendTypes.ExecutingMessage, error)
@@ -67,9 +68,9 @@ func (db *ChainsDB) Resume() error {
 func (db *ChainsDB) StartCrossHeadMaintenance(ctx context.Context) {
 	go func() {
 		// create three safety checkers, one for each safety level
-		unsafeChecker := NewSafetyChecker(Unsafe, *db)
-		safeChecker := NewSafetyChecker(Safe, *db)
-		finalizedChecker := NewSafetyChecker(Finalized, *db)
+		unsafeChecker := NewSafetyChecker(Unsafe, db)
+		safeChecker := NewSafetyChecker(Safe, db)
+		finalizedChecker := NewSafetyChecker(Finalized, db)
 		// run the maintenance loop every 10 seconds for now
 		ticker := time.NewTicker(time.Second * 10)
 		for {
@@ -91,10 +92,19 @@ func (db *ChainsDB) StartCrossHeadMaintenance(ctx context.Context) {
 	}()
 }
 
+// Check calls the underlying logDB to determine if the given log entry is safe with respect to the checker's criteria.
+func (db *ChainsDB) Check(chain types.ChainID, blockNum uint64, logIdx uint32, logHash backendTypes.TruncatedHash) (bool, entrydb.EntryIdx, error) {
+	logDB, ok := db.logDBs[chain]
+	if !ok {
+		return false, 0, fmt.Errorf("%w: %v", ErrUnknownChain, chain)
+	}
+	return logDB.Contains(blockNum, logIdx, logHash)
+}
+
 // UpdateCrossSafeHeads updates the cross-heads of all chains
 // this is an example of how to use the SafetyChecker to update the cross-heads
 func (db *ChainsDB) UpdateCrossSafeHeads() error {
-	checker := NewSafetyChecker(Safe, *db)
+	checker := NewSafetyChecker(Safe, db)
 	return db.UpdateCrossHeads(checker)
 }
 
@@ -160,6 +170,46 @@ func (db *ChainsDB) UpdateCrossHeads(checker SafetyChecker) error {
 		}
 	}
 	return nil
+}
+
+// LastLogInBlock scans through the logs of the given chain starting from the given block number,
+// and returns the index of the last log entry in that block.
+func (db *ChainsDB) LastLogInBlock(chain types.ChainID, blockNum uint64) (entrydb.EntryIdx, error) {
+	logDB, ok := db.logDBs[chain]
+	if !ok {
+		return 0, fmt.Errorf("%w: %v", ErrUnknownChain, chain)
+	}
+	iter, err := logDB.ClosestBlockIterator(blockNum)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get block iterator for chain %v: %w", chain, err)
+	}
+	ret := entrydb.EntryIdx(0)
+	// scan through using the iterator until the block number exceeds the target
+	for {
+		bn, index, _, err := iter.NextLog()
+		// if we have reached the end of the database, stop
+		if err == io.EOF {
+			break
+		}
+		// all other errors are fatal
+		if err != nil {
+			return 0, fmt.Errorf("failed to read next log entry for chain %v: %w", chain, err)
+		}
+		// if we are now beyond the target block, stop withour updating the return value
+		if bn > blockNum {
+			break
+		}
+		// only update the return value if the block number is the same
+		// it is possible the iterator started before the target block, or that the target block is not in the db
+		if bn == blockNum {
+			ret = entrydb.EntryIdx(index)
+		}
+	}
+	// if we never found the block, return an error
+	if ret == 0 {
+		return 0, fmt.Errorf("block %v not found in chain %v", blockNum, chain)
+	}
+	return ret, nil
 }
 
 // LatestBlockNum returns the latest block number that has been recorded to the logs db
