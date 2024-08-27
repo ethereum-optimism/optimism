@@ -3,15 +3,38 @@ pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
 
+import { Proxy } from "src/universal/Proxy.sol";
+import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
+
+import { L1ChugSplashProxy } from "src/legacy/L1ChugSplashProxy.sol";
+import { ResolvedDelegateProxy } from "src/legacy/ResolvedDelegateProxy.sol";
+import { AddressManager } from "src/legacy/AddressManager.sol";
+
+import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
+import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
+import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
+import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
+import { PermissionedDisputeGame } from "src/dispute/PermissionedDisputeGame.sol";
+
 import { OPStackManager } from "src/L1/OPStackManager.sol";
+import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
+import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
+import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
+import { SystemConfig } from "src/L1/SystemConfig.sol";
+import { ResourceMetering } from "src/L1/ResourceMetering.sol";
+import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
+import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
+import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
+import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
 
 // Exposes internal functions for testing.
 contract OPStackManager_Harness is OPStackManager {
     constructor(
-        address _releaseManager,
-        string memory _latestVersion
+        SuperchainConfig _superchainConfig,
+        ProtocolVersions _protocolVersions,
+        address _releaseManager
     )
-        OPStackManager(_releaseManager, _latestVersion)
+        OPStackManager(_superchainConfig, _protocolVersions, _releaseManager)
     { }
 
     function chainIdToBatchInboxAddress_exposed(uint256 l2ChainId) public pure returns (address) {
@@ -41,8 +64,52 @@ contract OPStackManager_Init is Test {
     OPStackManager.DeployInput deployInput =
         OPStackManager.DeployInput({ roles: roles, basefeeScalar: 100, blobBasefeeScalar: 200, l2ChainId: 300 });
 
+    OPStackManager.ImplementationSetter[] setters;
+
     function setUp() public {
-        opsm = new OPStackManager(releaseManager, latestVersion);
+        setters.push(
+            OPStackManager.ImplementationSetter({
+                name: "L1ERC721Bridge",
+                info: OPStackManager.Implementation(makeAddr("l1ERC721Bridge"), L1ERC721Bridge.initialize.selector)
+            })
+        );
+        setters.push(
+            OPStackManager.ImplementationSetter({
+                name: "OptimismPortal",
+                info: OPStackManager.Implementation(makeAddr("optimismPortal"), OptimismPortal2.initialize.selector)
+            })
+        );
+        setters.push(
+            OPStackManager.ImplementationSetter({
+                name: "SystemConfig",
+                info: OPStackManager.Implementation(makeAddr("systemConfig"), SystemConfig.initialize.selector)
+            })
+        );
+        setters.push(
+            OPStackManager.ImplementationSetter({
+                name: "OptimismMintableERC20Factory",
+                info: OPStackManager.Implementation(
+                    makeAddr("optimismMintableERC20Factory"), OptimismMintableERC20Factory.initialize.selector
+                )
+            })
+        );
+        setters.push(
+            OPStackManager.ImplementationSetter({
+                name: "L1CrossDomainMessenger",
+                info: OPStackManager.Implementation(
+                    makeAddr("l1CrossDomainMessenger"), L1CrossDomainMessenger.initialize.selector
+                )
+            })
+        );
+
+        opsm = new OPStackManager({
+            _superchainConfig: SuperchainConfig(makeAddr("superchainConfig")),
+            _protocolVersions: ProtocolVersions(makeAddr("protocolVersions")),
+            _releaseManager: releaseManager
+        });
+
+        vm.prank(releaseManager);
+        opsm.setRelease(latestVersion, true, setters);
     }
 }
 
@@ -58,16 +125,25 @@ contract OPStackManager_Deploy_Test is OPStackManager_Init {
         vm.expectRevert(OPStackManager.InvalidChainId.selector);
         opsm.deploy(deployInput);
     }
+
+    function test_deploy_succeeds() public {
+        opsm.deploy(deployInput);
+    }
 }
 
 // These tests use the harness which exposes internal functions for testing.
 contract OPStackManager_InternalMethods_Test is Test {
-    address releaseManager = makeAddr("releaseManager");
-    string latestVersion = "op-contracts/latest";
+    OPStackManager_Harness opsmHarness;
 
-    function test_calculatesBatchInboxAddress_succeeds() public {
-        OPStackManager_Harness opsmHarness = new OPStackManager_Harness(releaseManager, latestVersion);
+    function setUp() public {
+        opsmHarness = new OPStackManager_Harness({
+            _superchainConfig: SuperchainConfig(makeAddr("superchainConfig")),
+            _protocolVersions: ProtocolVersions(makeAddr("protocolVersions")),
+            _releaseManager: makeAddr("releaseManager")
+        });
+    }
 
+    function test_calculatesBatchInboxAddress_succeeds() public view {
         // These test vectors were calculated manually:
         //   1. Compute the bytes32 encoding of the chainId: bytes32(uint256(chainId));
         //   2. Hash it and manually take the first 19 bytes, and prefixed it with 0x00.
