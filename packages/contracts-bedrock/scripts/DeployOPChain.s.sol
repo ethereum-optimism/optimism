@@ -15,6 +15,7 @@ import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
 import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
 import { PermissionedDisputeGame } from "src/dispute/PermissionedDisputeGame.sol";
 
+import { OPStackManager } from "src/L1/OPStackManager.sol";
 import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
@@ -38,6 +39,7 @@ contract DeployOPChainInput {
         uint32 basefeeScalar;
         uint32 blobBaseFeeScalar;
         uint256 l2ChainId;
+        OPStackManager opsm;
     }
 
     bool public inputSet = false;
@@ -59,6 +61,8 @@ contract DeployOPChainInput {
         require(_input.roles.unsafeBlockSigner != address(0), "DeployOPChainInput: null unsafeBlockSigner");
         require(_input.roles.proposer != address(0), "DeployOPChainInput: null proposer");
         require(_input.roles.challenger != address(0), "DeployOPChainInput: null challenger");
+        require(_input.l2ChainId != 0 && _input.l2ChainId != block.chainid, "DeployOPChainInput: invalid l2ChainId");
+        require(address(_input.opsm) != address(0), "DeployOPChainInput: null opsm");
 
         inputSet = true;
         inputs = _input;
@@ -116,6 +120,11 @@ contract DeployOPChainInput {
     function l2ChainId() public view returns (uint256) {
         assertInputSet();
         return inputs.l2ChainId;
+    }
+
+    function opsm() public view returns (OPStackManager) {
+        assertInputSet();
+        return inputs.opsm;
     }
 }
 
@@ -300,8 +309,11 @@ contract DeployOPChain is Script {
 
     function run(DeployOPChainInput _dsi, DeployOPChainOutput _dso) public view {
         require(_dsi.inputSet(), "DeployOPChain: input not set");
+        OPStackManager opsm = _dsi.opsm();
+        opsm; // Silence unused variable warning.
 
         // TODO call OP Stack Manager deploy method
+        // opsm.deploy(...inputs...);
 
         _dso.checkOutput();
     }

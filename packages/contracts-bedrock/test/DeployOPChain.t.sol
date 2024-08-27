@@ -12,6 +12,7 @@ import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
 import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
 import { PermissionedDisputeGame } from "src/dispute/PermissionedDisputeGame.sol";
 
+import { OPStackManager } from "src/L1/OPStackManager.sol";
 import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
@@ -35,7 +36,8 @@ contract DeployOPChainInput_Test is Test {
         }),
         basefeeScalar: 100,
         blobBaseFeeScalar: 200,
-        l2ChainId: 300
+        l2ChainId: 300,
+        opsm: OPStackManager(makeAddr("opsm"))
     });
 
     function setUp() public {
@@ -57,6 +59,7 @@ contract DeployOPChainInput_Test is Test {
         assertEq(input.basefeeScalar, dsi.basefeeScalar(), "800");
         assertEq(input.blobBaseFeeScalar, dsi.blobBaseFeeScalar(), "900");
         assertEq(input.l2ChainId, dsi.l2ChainId(), "1000");
+        assertEq(address(input.opsm), address(dsi.opsm()), "1100");
 
         // Compare the test input struct to the `input` getter method.
         assertEq(keccak256(abi.encode(input)), keccak256(abi.encode(dsi.input())), "1100");
