@@ -4,6 +4,7 @@ import (
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/urfave/cli/v2"
 )
 
@@ -43,4 +44,5 @@ func init() {
 
 	Flags = append(Flags, oplog.CLIFlags(envPrefix)...)
 	Flags = append(Flags, opmetrics.CLIFlags(envPrefix)...)
+	Flags = append(Flags, oppprof.CLIFlags(envPrefix)...)
 }
