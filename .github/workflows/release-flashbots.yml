@@ -50,18 +50,19 @@ jobs:
           password: ${{ secrets.FLASHBOTS_DOCKERHUB_TOKEN }}
 
       - name: Build and push
-        env:
-          GIT_COMMIT: ${{ github.sha }}
-          GIT_DATE: ${{ github.event.head_commit.timestamp }}
-          IMAGE_TAGS: ${{ github.sha }},latest,${{ steps.meta.outputs.tags }}
-          DOCKER_LABELS: ${{ steps.meta.outputs.labels }}
-          VERSION: ${{ env.RELEASE_VERSION }}
-        run: |
-            docker buildx bake \
-            --progress plain \
-            --push \
-            -f docker-bake.hcl \
-            op-node
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          file: ops/docker/op-stack-go/Dockerfile
+          push: true
+          target: op-node-target
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            GIT_COMMIT=${{ github.sha }}
+            GIT_DATE=${{ github.event.head_commit.timestamp }}
+            OP_NODE_VERSION=${{ env.RELEASE_VERSION }}
 
   github-release:
     runs-on: ubuntu-latest
