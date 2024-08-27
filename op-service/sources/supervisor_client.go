@@ -31,3 +31,7 @@ func (cl *SupervisorClient) CheckBlock(ctx context.Context,
 	}
 	return result, nil
 }
+
+func (cl *SupervisorClient) Close() {
+	cl.client.Close()
+}

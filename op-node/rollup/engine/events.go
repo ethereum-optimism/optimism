@@ -335,11 +335,11 @@ func (d *EngDeriver) OnEvent(ev event.Event) bool {
 			d.ec.SetBackupUnsafeL2Head(d.ec.unsafeHead, false)
 		}
 		d.ec.SetUnsafeHead(x.Ref)
-		d.emitter.Emit(UnsafeUpdateEvent{Ref: x.Ref})
+		d.emitter.Emit(UnsafeUpdateEvent(x))
 	case UnsafeUpdateEvent:
 		// pre-interop everything that is local-unsafe is also immediately cross-unsafe.
 		if !d.cfg.IsInterop(x.Ref.Time) {
-			d.emitter.Emit(PromoteCrossUnsafeEvent{Ref: x.Ref})
+			d.emitter.Emit(PromoteCrossUnsafeEvent(x))
 		}
 		// Try to apply the forkchoice changes
 		d.emitter.Emit(TryUpdateEngineEvent{})
@@ -382,17 +382,11 @@ func (d *EngDeriver) OnEvent(ev event.Event) bool {
 		}
 	case PromoteLocalSafeEvent:
 		d.ec.SetLocalSafeHead(x.Ref)
-		d.emitter.Emit(LocalSafeUpdateEvent{
-			Ref:         x.Ref,
-			DerivedFrom: x.DerivedFrom,
-		})
+		d.emitter.Emit(LocalSafeUpdateEvent(x))
 	case LocalSafeUpdateEvent:
 		// pre-interop everything that is local-safe is also immediately cross-safe.
 		if !d.cfg.IsInterop(x.Ref.Time) {
-			d.emitter.Emit(PromoteSafeEvent{
-				Ref:         x.Ref,
-				DerivedFrom: x.DerivedFrom,
-			})
+			d.emitter.Emit(PromoteSafeEvent(x))
 		}
 	case PromoteSafeEvent:
 		d.ec.SetSafeHead(x.Ref)

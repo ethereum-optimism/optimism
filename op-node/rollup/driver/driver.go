@@ -156,6 +156,7 @@ func NewDriver(
 	cfg *rollup.Config,
 	l2 L2Chain,
 	l1 L1Chain,
+	supervisor interop.InteropBackend, // may be nil pre-interop.
 	l1Blobs derive.L1BlobsFetcher,
 	altSync AltSync,
 	network Network,
@@ -183,7 +184,7 @@ func NewDriver(
 	opts := event.DefaultRegisterOpts()
 
 	if cfg.InteropTime != nil {
-		interopDeriver := interop.NewInteropDeriver(log, cfg)
+		interopDeriver := interop.NewInteropDeriver(log, cfg, driverCtx, supervisor, l2)
 		sys.Register("interop", interopDeriver, opts)
 	}
 
