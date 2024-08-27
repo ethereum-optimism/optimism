@@ -172,31 +172,42 @@ func (db *ChainsDB) UpdateCrossHeads(checker SafetyChecker) error {
 	return nil
 }
 
-// ScanBlock scans through the logs of the given chain starting from the given block number,
-// and returns the index of the first log entry beyond the target block number.
-func (db *ChainsDB) ScanBlock(chain types.ChainID, blockNum uint64) (entrydb.EntryIdx, error) {
+// LastLogInBlock scans through the logs of the given chain starting from the given block number,
+// and returns the index of the last log entry in that block.
+func (db *ChainsDB) LastLogInBlock(chain types.ChainID, blockNum uint64) (entrydb.EntryIdx, error) {
 	logDB, ok := db.logDBs[chain]
 	if !ok {
 		return 0, fmt.Errorf("%w: %v", ErrUnknownChain, chain)
 	}
-	i, err := logDB.ClosestBlockIterator(blockNum)
+	iter, err := logDB.ClosestBlockIterator(blockNum)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get block iterator for chain %v: %w", chain, err)
 	}
-	ret := i.Index()
+	ret := entrydb.EntryIdx(0)
 	// scan through using the iterator until the block number exceeds the target
 	for {
-		bn, index, _, err := i.NextLog()
+		bn, index, _, err := iter.NextLog()
+		// if we have reached the end of the database, stop
 		if err == io.EOF {
 			break
 		}
+		// all other errors are fatal
 		if err != nil {
 			return 0, fmt.Errorf("failed to read next log entry for chain %v: %w", chain, err)
 		}
+		// if we are now beyond the target block, stop withour updating the return value
 		if bn > blockNum {
 			break
 		}
-		ret = entrydb.EntryIdx(index)
+		// only update the return value if the block number is the same
+		// it is possible the iterator started before the target block, or that the target block is not in the db
+		if bn == blockNum {
+			ret = entrydb.EntryIdx(index)
+		}
+	}
+	// if we never found the block, return an error
+	if ret == 0 {
+		return 0, fmt.Errorf("block %v not found in chain %v", blockNum, chain)
 	}
 	return ret, nil
 }

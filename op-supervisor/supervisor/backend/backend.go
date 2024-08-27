@@ -159,12 +159,15 @@ func (su *SupervisorBackend) CheckMessage(identifier types.Identifier, payloadHa
 	return safest, nil
 }
 
-// TODO: this function ignores blockHash and assumes that the block in the db is the one we are looking for
+// CheckBlock checks if the block is safe according to the safety level
+// The block is considered safe if all logs in the block are safe
+// this is decided by finding the last log in the block and
 func (su *SupervisorBackend) CheckBlock(chainID *hexutil.U256, blockHash common.Hash, blockNumber hexutil.Uint64) (types.SafetyLevel, error) {
+	// TODO(#11612): this function ignores blockHash and assumes that the block in the db is the one we are looking for
+	// In order to check block hash, the database must *always* insert a block hash checkpoint, which is not currently done
 	safest := types.CrossUnsafe
-	// find the first first log entry beyond the block number
-	// TODO: off by one error?
-	i, err := su.db.ScanBlock(types.ChainID(*chainID), uint64(blockNumber))
+	// find the last log index in the block
+	i, err := su.db.LastLogInBlock(types.ChainID(*chainID), uint64(blockNumber))
 	if err != nil {
 		return types.CrossUnsafe, fmt.Errorf("failed to scan block: %w", err)
 	}

@@ -52,6 +52,118 @@ func TestChainsDB_Rewind(t *testing.T) {
 	})
 }
 
+func TestChainsDB_LastLogInBlock(t *testing.T) {
+	// using a chainID of 1 for simplicity
+	chainID := types.ChainIDFromUInt64(1)
+	// get default stubbed components
+	logDB, _, h := setupStubbedForUpdateHeads(chainID)
+	logDB.nextLogs = []nextLogResponse{
+		{10, 1, backendTypes.TruncatedHash{}, nil},
+		{10, 2, backendTypes.TruncatedHash{}, nil},
+		{10, 3, backendTypes.TruncatedHash{}, nil},
+		{10, 4, backendTypes.TruncatedHash{}, nil},
+		{11, 5, backendTypes.TruncatedHash{}, nil},
+	}
+
+	// The ChainsDB is real, but uses only stubbed components
+	db := NewChainsDB(
+		map[types.ChainID]LogStorage{
+			chainID: logDB},
+		&stubHeadStorage{h})
+
+	// LastLogInBlock is expected to:
+	// 1. get a block iterator for block 10 (stubbed)
+	// 2. scan through the iterator until the block number exceeds the target (10)
+	// 3. return the index of the last log in the block (4)
+	index, err := db.LastLogInBlock(chainID, 10)
+	require.NoError(t, err)
+	require.Equal(t, entrydb.EntryIdx(4), index)
+}
+
+func TestChainsDB_LastLogInBlockEOF(t *testing.T) {
+	// using a chainID of 1 for simplicity
+	chainID := types.ChainIDFromUInt64(1)
+	// get default stubbed components
+	logDB, _, h := setupStubbedForUpdateHeads(chainID)
+	logDB.nextLogs = []nextLogResponse{
+		{10, 5, backendTypes.TruncatedHash{}, nil},
+		{10, 6, backendTypes.TruncatedHash{}, nil},
+		{10, 7, backendTypes.TruncatedHash{}, nil},
+		{10, 8, backendTypes.TruncatedHash{}, nil},
+		{10, 9, backendTypes.TruncatedHash{}, nil},
+		{10, 10, backendTypes.TruncatedHash{}, nil},
+	}
+
+	// The ChainsDB is real, but uses only stubbed components
+	db := NewChainsDB(
+		map[types.ChainID]LogStorage{
+			chainID: logDB},
+		&stubHeadStorage{h})
+
+	// LastLogInBlock is expected to:
+	// 1. get a block iterator for block 10 (stubbed)
+	// 2. scan through the iterator and never find the target block
+	// return an error
+	index, err := db.LastLogInBlock(chainID, 10)
+	require.NoError(t, err)
+	require.Equal(t, entrydb.EntryIdx(10), index)
+}
+
+func TestChainsDB_LastLogInBlockNotFound(t *testing.T) {
+	// using a chainID of 1 for simplicity
+	chainID := types.ChainIDFromUInt64(1)
+	// get default stubbed components
+	logDB, _, h := setupStubbedForUpdateHeads(chainID)
+	logDB.nextLogs = []nextLogResponse{
+		{100, 5, backendTypes.TruncatedHash{}, nil},
+		{100, 6, backendTypes.TruncatedHash{}, nil},
+		{100, 7, backendTypes.TruncatedHash{}, nil},
+		{101, 8, backendTypes.TruncatedHash{}, nil},
+		{101, 9, backendTypes.TruncatedHash{}, nil},
+		{101, 10, backendTypes.TruncatedHash{}, nil},
+	}
+
+	// The ChainsDB is real, but uses only stubbed components
+	db := NewChainsDB(
+		map[types.ChainID]LogStorage{
+			chainID: logDB},
+		&stubHeadStorage{h})
+
+	// LastLogInBlock is expected to:
+	// 1. get a block iterator for block 10 (stubbed)
+	// 2. scan through the iterator and never find the target block
+	// return an error
+	_, err := db.LastLogInBlock(chainID, 10)
+	require.ErrorContains(t, err, "block 10 not found")
+}
+
+func TestChainsDB_LastLogInBlockError(t *testing.T) {
+	// using a chainID of 1 for simplicity
+	chainID := types.ChainIDFromUInt64(1)
+	// get default stubbed components
+	logDB, _, h := setupStubbedForUpdateHeads(chainID)
+	logDB.nextLogs = []nextLogResponse{
+		{10, 1, backendTypes.TruncatedHash{}, nil},
+		{10, 2, backendTypes.TruncatedHash{}, nil},
+		{10, 3, backendTypes.TruncatedHash{}, nil},
+		{0, 0, backendTypes.TruncatedHash{}, fmt.Errorf("some error")},
+		{11, 5, backendTypes.TruncatedHash{}, nil},
+	}
+
+	// The ChainsDB is real, but uses only stubbed components
+	db := NewChainsDB(
+		map[types.ChainID]LogStorage{
+			chainID: logDB},
+		&stubHeadStorage{h})
+
+	// LastLogInBlock is expected to:
+	// 1. get a block iterator for block 10 (stubbed)
+	// 2. scan through the iterator and encounter an error
+	// return an error
+	_, err := db.LastLogInBlock(chainID, 10)
+	require.ErrorContains(t, err, "some error")
+}
+
 func TestChainsDB_UpdateCrossHeads(t *testing.T) {
 	// using a chainID of 1 for simplicity
 	chainID := types.ChainIDFromUInt64(1)
@@ -172,7 +284,7 @@ func setupStubbedForUpdateHeads(chainID types.ChainID) (*stubLogDB, *stubChecker
 	// set up stubbed logDB
 	logDB := &stubLogDB{}
 	// the log DB will start the iterator at the checkpoint index
-	logDB.lastCheckpointBehind = &stubIterator{checkpoint}
+	logDB.lastCheckpointBehind = &stubIterator{checkpoint, 0, nil}
 	// rig the log DB to return an error after a certain number of calls to NextExecutingMessage
 	logDB.errAfter = errAfter
 	// set up stubbed executing messages that the ChainsDB can pass to the checker
@@ -256,13 +368,27 @@ func (s *stubHeadStorage) Current() *heads.Heads {
 	return s.heads.Copy()
 }
 
+type nextLogResponse struct {
+	blockNum uint64
+	logIdx   uint32
+	evtHash  backendTypes.TruncatedHash
+	err      error
+}
 type stubIterator struct {
-	index entrydb.EntryIdx
+	index        entrydb.EntryIdx
+	nextLogIndex int
+	nextLogs     []nextLogResponse
 }
 
 func (s *stubIterator) NextLog() (uint64, uint32, backendTypes.TruncatedHash, error) {
-	panic("not implemented")
+	if s.nextLogIndex >= len(s.nextLogs) {
+		return 0, 0, backendTypes.TruncatedHash{}, io.EOF
+	}
+	r := s.nextLogs[s.nextLogIndex]
+	s.nextLogIndex++
+	return r.blockNum, r.logIdx, r.evtHash, r.err
 }
+
 func (s *stubIterator) Index() entrydb.EntryIdx {
 	return s.index
 }
@@ -275,6 +401,7 @@ type stubLogDB struct {
 	headBlockNum         uint64
 	emIndex              int
 	executingMessages    []*backendTypes.ExecutingMessage
+	nextLogs             []nextLogResponse
 	lastCheckpointBehind *stubIterator
 	errOverload          error
 	errAfter             int
@@ -287,7 +414,10 @@ func (s *stubLogDB) LastCheckpointBehind(entrydb.EntryIdx) (logs.Iterator, error
 }
 
 func (s *stubLogDB) ClosestBlockIterator(blockNum uint64) (logs.Iterator, error) {
-	panic("not implemented")
+	return &stubIterator{
+		index:    entrydb.EntryIdx(99),
+		nextLogs: s.nextLogs,
+	}, nil
 }
 
 func (s *stubLogDB) NextExecutingMessage(i logs.Iterator) (backendTypes.ExecutingMessage, error) {
