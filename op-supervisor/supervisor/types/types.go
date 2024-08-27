@@ -90,6 +90,7 @@ const (
 	Safe           SafetyLevel = "safe"
 	CrossUnsafe    SafetyLevel = "cross-unsafe"
 	Unsafe         SafetyLevel = "unsafe"
+	Invalid        SafetyLevel = "invalid"
 )
 
 type ChainID uint256.Int

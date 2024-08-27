@@ -140,10 +140,10 @@ func (su *SupervisorBackend) CheckMessage(identifier types.Identifier, payloadHa
 	logIdx := identifier.LogIndex
 	ok, i, err := su.db.Check(chainID, blockNum, uint32(logIdx), backendTypes.TruncateHash(payloadHash))
 	if err != nil {
-		return types.CrossUnsafe, fmt.Errorf("failed to check log: %w", err)
+		return types.Invalid, fmt.Errorf("failed to check log: %w", err)
 	}
 	if !ok {
-		return types.CrossUnsafe, nil
+		return types.Invalid, nil
 	}
 	safest := types.CrossUnsafe
 	// at this point we have the log entry, and we can check if it is safe by various criteria
@@ -169,7 +169,7 @@ func (su *SupervisorBackend) CheckBlock(chainID *hexutil.U256, blockHash common.
 	// find the last log index in the block
 	i, err := su.db.LastLogInBlock(types.ChainID(*chainID), uint64(blockNumber))
 	if err != nil {
-		return types.CrossUnsafe, fmt.Errorf("failed to scan block: %w", err)
+		return types.Invalid, fmt.Errorf("failed to scan block: %w", err)
 	}
 	// at this point we have the extent of the block, and we can check if it is safe by various criteria
 	for _, checker := range []db.SafetyChecker{
