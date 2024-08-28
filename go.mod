@@ -15,7 +15,7 @@ require (
 	github.com/crate-crypto/go-kzg-4844 v0.7.0
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0
 	github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3
-	github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20240828172013-3489b82901d0
+	github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20240828200800-1749565055b3
 	github.com/ethereum/go-ethereum v1.13.11
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/go-chi/chi/v5 v5.0.12
