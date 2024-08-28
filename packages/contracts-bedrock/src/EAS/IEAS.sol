@@ -161,7 +161,9 @@ interface IEAS {
     ///
     /// @param delegatedRequest The arguments of the delegated attestation request.
     /// @return The UID of the new attestation.
-    function attestByDelegation(DelegatedAttestationRequest calldata delegatedRequest)
+    function attestByDelegation(
+        DelegatedAttestationRequest calldata delegatedRequest
+    )
         external
         payable
         returns (bytes32);
@@ -204,7 +206,9 @@ interface IEAS {
     /// @param multiRequests The arguments of the multi attestation requests. The requests should be grouped by distinct
     ///        schema ids to benefit from the best batching optimization.
     /// @return The UIDs of the new attestations.
-    function multiAttest(MultiAttestationRequest[] calldata multiRequests)
+    function multiAttest(
+        MultiAttestationRequest[] calldata multiRequests
+    )
         external
         payable
         returns (bytes32[] memory);
@@ -248,7 +252,9 @@ interface IEAS {
     /// @param multiDelegatedRequests The arguments of the delegated multi attestation requests. The requests should be
     ///        grouped by distinct schema ids to benefit from the best batching optimization.
     /// @return The UIDs of the new attestations.
-    function multiAttestByDelegation(MultiDelegatedAttestationRequest[] calldata multiDelegatedRequests)
+    function multiAttestByDelegation(
+        MultiDelegatedAttestationRequest[] calldata multiDelegatedRequests
+    )
         external
         payable
         returns (bytes32[] memory);
@@ -348,7 +354,9 @@ interface IEAS {
     /// @param multiDelegatedRequests The arguments of the delegated multi revocation attestation requests. The requests
     /// should be
     ///        grouped by distinct schema ids to benefit from the best batching optimization.
-    function multiRevokeByDelegation(MultiDelegatedRevocationRequest[] calldata multiDelegatedRequests)
+    function multiRevokeByDelegation(
+        MultiDelegatedRevocationRequest[] calldata multiDelegatedRequests
+    )
         external
         payable;
 

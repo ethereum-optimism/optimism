@@ -71,7 +71,9 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, ISemver 
     }
 
     /// @inheritdoc IDisputeGameFactory
-    function gameAtIndex(uint256 _index)
+    function gameAtIndex(
+        uint256 _index
+    )
         external
         view
         returns (GameType gameType_, Timestamp timestamp_, IDisputeGame proxy_)

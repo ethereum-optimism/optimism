@@ -11,7 +11,9 @@ library LibStateDiff {
     /// @notice Accepts an array of AccountAccess structs from the Vm and encodes them as a json string.
     /// @param _accountAccesses Array of AccountAccess structs.
     /// @return serialized_ string
-    function encodeAccountAccesses(VmSafe.AccountAccess[] memory _accountAccesses)
+    function encodeAccountAccesses(
+        VmSafe.AccountAccess[] memory _accountAccesses
+    )
         internal
         returns (string memory serialized_)
     {
@@ -25,7 +27,9 @@ library LibStateDiff {
     /// @notice Turns an AccountAccess into a json serialized string
     /// @param _accountAccess The AccountAccess to serialize
     /// @return serialized_ The json serialized string
-    function serializeAccountAccess(VmSafe.AccountAccess memory _accountAccess)
+    function serializeAccountAccess(
+        VmSafe.AccountAccess memory _accountAccess
+    )
         internal
         returns (string memory serialized_)
     {
@@ -60,7 +64,9 @@ library LibStateDiff {
     /// @notice Turns an AccountAccessKind into a string.
     /// @param _kind The AccountAccessKind to serialize
     /// @return serialized_ The string representation of the AccountAccessKind
-    function serializeAccountAccessKind(VmSafe.AccountAccessKind _kind)
+    function serializeAccountAccessKind(
+        VmSafe.AccountAccessKind _kind
+    )
         internal
         pure
         returns (string memory serialized_)
@@ -85,7 +91,9 @@ library LibStateDiff {
     /// @notice Accepts an array of StorageAccess structs from the Vm and encodes each as a json string.
     /// @param _storageAccesses Array of StorageAccess structs.
     /// @return serialized_ The list of json serialized StorageAccess structs.
-    function serializeStorageAccesses(VmSafe.StorageAccess[] memory _storageAccesses)
+    function serializeStorageAccesses(
+        VmSafe.StorageAccess[] memory _storageAccesses
+    )
         internal
         returns (string[] memory serialized_)
     {
@@ -98,7 +106,9 @@ library LibStateDiff {
     /// @notice Turns a StorageAccess into a json serialized string
     /// @param _storageAccess The StorageAccess to serialize
     /// @return serialized_ The json serialized string
-    function serializeStorageAccess(VmSafe.StorageAccess memory _storageAccess)
+    function serializeStorageAccess(
+        VmSafe.StorageAccess memory _storageAccess
+    )
         internal
         returns (string memory serialized_)
     {

@@ -62,7 +62,9 @@ interface IDisputeGameFactory {
     /// @return timestamp_ The timestamp of the creation of the dispute game.
     /// @return proxy_ The clone of the `DisputeGame` created with the given parameters.
     ///         Returns `address(0)` if nonexistent.
-    function gameAtIndex(uint256 _index)
+    function gameAtIndex(
+        uint256 _index
+    )
         external
         view
         returns (GameType gameType_, Timestamp timestamp_, IDisputeGame proxy_);
