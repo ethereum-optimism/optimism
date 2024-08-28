@@ -29,6 +29,7 @@ DEVNET_NO_BUILD = os.getenv('DEVNET_NO_BUILD') == "true"
 DEVNET_L2OO = os.getenv('DEVNET_L2OO') == "true"
 DEVNET_ALTDA = os.getenv('DEVNET_ALTDA') == "true"
 GENERIC_ALTDA = os.getenv('GENERIC_ALTDA') == "true"
+DEVNET_MONITORING = os.getenv('DEVNET_MONITORING') == "true"
 
 class Bunch:
     def __init__(self, **kwds):
@@ -172,11 +173,6 @@ def devnet_l2_allocs(paths):
 # Bring up the devnet where the contracts are deployed to L1
 def devnet_deploy(paths):
 
-    log.info('Starting peripheral telemetry services.')
-    run_command(['docker', 'compose', 'up', '-d', 'prometheus', 'grafana', 'loki', 'promtail'], cwd=paths.ops_bedrock_dir, env={
-        'PWD': paths.ops_bedrock_dir
-    })
-
     if os.path.exists(paths.genesis_l1_path):
         log.info('L1 genesis already generated.')
     else:
@@ -207,6 +203,12 @@ def devnet_deploy(paths):
         run_command([
           'sh', 'l1-generate-beacon-genesis.sh',
         ], cwd=paths.ops_bedrock_dir)
+
+    if DEVNET_MONITORING:
+      log.info('Starting peripheral telemetry services.')
+      run_command(['docker', 'compose', 'up', '-d', 'prometheus', 'grafana', 'loki', 'promtail'], cwd=paths.ops_bedrock_dir, env={
+          'PWD': paths.ops_bedrock_dir
+      })
 
     log.info('Starting L1.')
     run_command(['docker', 'compose', 'up', '-d', 'l1', 'l1-bn', 'l1-vc'], cwd=paths.ops_bedrock_dir, env={
