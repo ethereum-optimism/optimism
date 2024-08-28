@@ -466,6 +466,75 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "SystemConfig", _sel: _getSel("blobbasefeeScalar()") });
         _addSpec({ _name: "SystemConfig", _sel: _getSel("maximumGasLimit()") });
 
+        // SystemConfigHolocene
+        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("UNSAFE_BLOCK_SIGNER_SLOT()") });
+        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("START_BLOCK_SLOT()") });
+        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("VERSION()") });
+        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("batcherHash()") });
+        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("gasLimit()") });
+        _addSpec({ _name: "SystemConfigHolocene", _sel: SystemConfig.initialize.selector });
+        _addSpec({ _name: "SystemConfigHolocene", _sel: SystemConfig.minimumGasLimit.selector });
+        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("overhead()") });
+        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("owner()") });
+        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("renounceOwnership()"), _auth: Role.SYSTEMCONFIGOWNER });
+        _addSpec({ _name: "SystemConfigHolocene", _sel: SystemConfig.resourceConfig.selector });
+        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("scalar()") });
+        _addSpec({
+            _name: "SystemConfigHolocene",
+            _sel: SystemConfig.setBatcherHash.selector,
+            _auth: Role.SYSTEMCONFIGOWNER
+        });
+        _addSpec({
+            _name: "SystemConfigHolocene",
+            _sel: SystemConfig.setGasConfig.selector,
+            _auth: Role.SYSTEMCONFIGOWNER
+        });
+        _addSpec({
+            _name: "SystemConfigHolocene",
+            _sel: SystemConfig.setGasLimit.selector,
+            _auth: Role.SYSTEMCONFIGOWNER
+        });
+        _addSpec({
+            _name: "SystemConfigHolocene",
+            _sel: SystemConfig.setUnsafeBlockSigner.selector,
+            _auth: Role.SYSTEMCONFIGOWNER
+        });
+        _addSpec({
+            _name: "SystemConfigHolocene",
+            _sel: _getSel("transferOwnership(address)"),
+            _auth: Role.SYSTEMCONFIGOWNER
+        });
+        _addSpec({ _name: "SystemConfigHolocene", _sel: SystemConfig.unsafeBlockSigner.selector });
+        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("version()") });
+        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("l1CrossDomainMessenger()") });
+        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("l1ERC721Bridge()") });
+        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("l1StandardBridge()") });
+        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("optimismPortal()") });
+        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("optimismMintableERC20Factory()") });
+        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("batchInbox()") });
+        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("startBlock()") });
+        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("L1_CROSS_DOMAIN_MESSENGER_SLOT()") });
+        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("L1_ERC_721_BRIDGE_SLOT()") });
+        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("L1_STANDARD_BRIDGE_SLOT()") });
+        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("OPTIMISM_PORTAL_SLOT()") });
+        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT()") });
+        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("BATCH_INBOX_SLOT()") });
+        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("gasPayingToken()") });
+        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("gasPayingTokenName()") });
+        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("gasPayingTokenSymbol()") });
+        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("isCustomGasToken()") });
+        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("DISPUTE_GAME_FACTORY_SLOT()") });
+        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("disputeGameFactory()") });
+        _addSpec({
+            _name: "SystemConfigHolocene",
+            _sel: _getSel("setGasConfigEcotone(uint32,uint32)"),
+            _auth: Role.SYSTEMCONFIGOWNER
+        });
+        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("basefeeScalar()") });
+        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("blobbasefeeScalar()") });
+        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("maximumGasLimit()") });
+        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("setFeeScalars(uint32,uint32)") });
+
         // SystemConfigInterop
         _addSpec({ _name: "SystemConfigInterop", _sel: _getSel("UNSAFE_BLOCK_SIGNER_SLOT()") });
         _addSpec({ _name: "SystemConfigInterop", _sel: _getSel("START_BLOCK_SLOT()") });
@@ -538,91 +607,6 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "SystemConfigInterop", _sel: _getSel("dependencyManager()") });
         _addSpec({
             _name: "SystemConfigInterop",
-            _sel: _getSel(
-                "initialize(address,uint32,uint32,bytes32,uint64,address,(uint32,uint8,uint8,uint32,uint32,uint128),address,(address,address,address,address,address,address,address),address)"
-            )
-        });
-
-        // SystemConfigHolocene
-        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("UNSAFE_BLOCK_SIGNER_SLOT()") });
-        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("START_BLOCK_SLOT()") });
-        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("VERSION()") });
-        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("batcherHash()") });
-        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("gasLimit()") });
-        _addSpec({ _name: "SystemConfigHolocene", _sel: SystemConfig.initialize.selector });
-        _addSpec({ _name: "SystemConfigHolocene", _sel: SystemConfig.minimumGasLimit.selector });
-        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("overhead()") });
-        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("owner()") });
-        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("renounceOwnership()"), _auth: Role.SYSTEMCONFIGOWNER });
-        _addSpec({ _name: "SystemConfigHolocene", _sel: SystemConfig.resourceConfig.selector });
-        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("scalar()") });
-        _addSpec({
-            _name: "SystemConfigHolocene",
-            _sel: SystemConfig.setBatcherHash.selector,
-            _auth: Role.SYSTEMCONFIGOWNER
-        });
-        _addSpec({
-            _name: "SystemConfigHolocene",
-            _sel: SystemConfig.setGasConfig.selector,
-            _auth: Role.SYSTEMCONFIGOWNER
-        });
-        _addSpec({
-            _name: "SystemConfigHolocene",
-            _sel: SystemConfig.setGasLimit.selector,
-            _auth: Role.SYSTEMCONFIGOWNER
-        });
-        _addSpec({
-            _name: "SystemConfigHolocene",
-            _sel: SystemConfig.setUnsafeBlockSigner.selector,
-            _auth: Role.SYSTEMCONFIGOWNER
-        });
-        _addSpec({
-            _name: "SystemConfigHolocene",
-            _sel: _getSel("transferOwnership(address)"),
-            _auth: Role.SYSTEMCONFIGOWNER
-        });
-        _addSpec({ _name: "SystemConfigHolocene", _sel: SystemConfig.unsafeBlockSigner.selector });
-        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("version()") });
-        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("l1CrossDomainMessenger()") });
-        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("l1ERC721Bridge()") });
-        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("l1StandardBridge()") });
-        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("optimismPortal()") });
-        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("optimismMintableERC20Factory()") });
-        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("batchInbox()") });
-        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("startBlock()") });
-        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("L1_CROSS_DOMAIN_MESSENGER_SLOT()") });
-        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("L1_ERC_721_BRIDGE_SLOT()") });
-        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("L1_STANDARD_BRIDGE_SLOT()") });
-        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("OPTIMISM_PORTAL_SLOT()") });
-        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT()") });
-        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("BATCH_INBOX_SLOT()") });
-        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("gasPayingToken()") });
-        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("gasPayingTokenName()") });
-        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("gasPayingTokenSymbol()") });
-        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("isCustomGasToken()") });
-        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("DISPUTE_GAME_FACTORY_SLOT()") });
-        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("disputeGameFactory()") });
-        _addSpec({
-            _name: "SystemConfigHolocene",
-            _sel: _getSel("setGasConfigEcotone(uint32,uint32)"),
-            _auth: Role.SYSTEMCONFIGOWNER
-        });
-        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("basefeeScalar()") });
-        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("blobbasefeeScalar()") });
-        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("maximumGasLimit()") });
-        _addSpec({
-            _name: "SystemConfigHolocene",
-            _sel: _getSel("addDependency(uint256)"),
-            _auth: Role.DEPENDENCYMANAGER
-        });
-        _addSpec({
-            _name: "SystemConfigHolocene",
-            _sel: _getSel("removeDependency(uint256)"),
-            _auth: Role.DEPENDENCYMANAGER
-        });
-        _addSpec({ _name: "SystemConfigHolocene", _sel: _getSel("dependencyManager()") });
-        _addSpec({
-            _name: "SystemConfigHolocene",
             _sel: _getSel(
                 "initialize(address,uint32,uint32,bytes32,uint64,address,(uint32,uint8,uint8,uint32,uint32,uint128),address,(address,address,address,address,address,address,address),address)"
             )
