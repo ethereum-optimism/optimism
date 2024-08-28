@@ -47,10 +47,6 @@ func PatchGo(f *elf.File, st mipsevm.FPVMState) error {
 			})); err != nil {
 				return fmt.Errorf("failed to patch Go runtime.gcenable: %w", err)
 			}
-		case "runtime.MemProfileRate":
-			if err := st.GetMemory().SetMemoryRange(uint32(s.Value), bytes.NewReader(make([]byte, 4))); err != nil { // disable mem profiling, to avoid a lot of unnecessary floating point ops
-				return err
-			}
 		}
 	}
 	return nil
@@ -73,7 +69,7 @@ func PatchStack(st mipsevm.FPVMState) error {
 
 	// init argc, argv, aux on stack
 	storeMem(sp+4*0, 1)       // argc = 1 (argument count)
-	storeMem(sp+4*1, sp+4*19) // argv[0]
+	storeMem(sp+4*1, sp+4*21) // argv[0]
 	storeMem(sp+4*2, 0)       // argv[1] = terminating
 	storeMem(sp+4*3, sp+4*14) // envp[0] = x (offset to first env var)
 	storeMem(sp+4*4, 0)       // envp[1] = terminating
@@ -86,12 +82,12 @@ func PatchStack(st mipsevm.FPVMState) error {
 	_ = st.GetMemory().SetMemoryRange(sp+4*10, bytes.NewReader([]byte("4;byfairdiceroll"))) // 16 bytes of "randomness"
 
 	// append 3 extra zero bytes to end at 4-byte alignment
-	envar := append([]byte("memprofilerate=0"), 0x0, 0x0, 0x0, 0x0)
+	envar := append([]byte("GODEBUG=memprofilerate=0"), 0x0, 0x0, 0x0, 0x0)
 	_ = st.GetMemory().SetMemoryRange(sp+4*14, bytes.NewReader(envar))
 
-	// 16 bytes for memprofilerate=0 + 4 null bytes
+	// 24 bytes for GODEBUG=memprofilerate=0 + 4 null bytes
 	programName := append([]byte("op-program"), 0x0)
-	_ = st.GetMemory().SetMemoryRange(sp+4*19, bytes.NewReader(programName))
+	_ = st.GetMemory().SetMemoryRange(sp+4*21, bytes.NewReader(programName))
 
 	return nil
 }

@@ -3,7 +3,6 @@ package main
 import (
 	"os"
 	"runtime"
-	"strings"
 )
 
 func main() {
@@ -17,13 +16,10 @@ func main() {
 	var memProfileRate bool
 	env := os.Environ()
 	for _, env := range env {
-		toks := strings.Split(env, "=")
-		if len(toks) != 2 {
+		if env != "GODEBUG=memprofilerate=0" {
 			panic("invalid envar")
 		}
-		if toks[0] == "memprofilerate" && toks[1] == "0" {
-			memProfileRate = true
-		}
+		memProfileRate = true
 	}
 	if !memProfileRate {
 		panic("memProfileRate env is not set")
