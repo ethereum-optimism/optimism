@@ -14,26 +14,26 @@ import (
 
 // CheckL1 will check that the versions of the contracts on L1 match the versions
 // in the superchain registry.
-func CheckL1(ctx context.Context, list *superchain.ImplementationList, backend bind.ContractBackend) error {
-	if err := CheckVersionedContract(ctx, list.L1CrossDomainMessenger, backend); err != nil {
+func CheckL1(ctx context.Context, addresses superchain.StandardContractAddresses, versions superchain.ContractVersions, backend bind.ContractBackend) error {
+	if err := CheckVersionedContract(ctx, addresses.L1CrossDomainMessenger, versions.L1CrossDomainMessenger, backend); err != nil {
 		return fmt.Errorf("L1CrossDomainMessenger: %w", err)
 	}
-	if err := CheckVersionedContract(ctx, list.L1ERC721Bridge, backend); err != nil {
+	if err := CheckVersionedContract(ctx, addresses.L1ERC721Bridge, versions.L1ERC721Bridge, backend); err != nil {
 		return fmt.Errorf("L1ERC721Bridge: %w", err)
 	}
-	if err := CheckVersionedContract(ctx, list.L1StandardBridge, backend); err != nil {
+	if err := CheckVersionedContract(ctx, addresses.L1StandardBridge, versions.L1StandardBridge, backend); err != nil {
 		return fmt.Errorf("L1StandardBridge: %w", err)
 	}
-	if err := CheckVersionedContract(ctx, list.L2OutputOracle, backend); err != nil {
+	if err := CheckVersionedContract(ctx, addresses.L2OutputOracle, versions.L2OutputOracle, backend); err != nil {
 		return fmt.Errorf("L2OutputOracle: %w", err)
 	}
-	if err := CheckVersionedContract(ctx, list.OptimismMintableERC20Factory, backend); err != nil {
+	if err := CheckVersionedContract(ctx, addresses.OptimismMintableERC20Factory, versions.OptimismMintableERC20Factory, backend); err != nil {
 		return fmt.Errorf("OptimismMintableERC20Factory: %w", err)
 	}
-	if err := CheckVersionedContract(ctx, list.OptimismPortal, backend); err != nil {
+	if err := CheckVersionedContract(ctx, addresses.OptimismPortal, versions.OptimismPortal, backend); err != nil {
 		return fmt.Errorf("OptimismPortal: %w", err)
 	}
-	if err := CheckVersionedContract(ctx, list.SystemConfig, backend); err != nil {
+	if err := CheckVersionedContract(ctx, addresses.SystemConfig, versions.SystemConfig, backend); err != nil {
 		return fmt.Errorf("SystemConfig: %w", err)
 	}
 	return nil
@@ -41,21 +41,24 @@ func CheckL1(ctx context.Context, list *superchain.ImplementationList, backend b
 
 // CheckVersionedContract will check that the version of the deployed contract matches
 // the artifact in the superchain registry.
-func CheckVersionedContract(ctx context.Context, contract superchain.VersionedContract, backend bind.ContractBackend) error {
-	addr := common.Address(contract.Address)
-	code, err := backend.CodeAt(ctx, addr, nil)
+func CheckVersionedContract(ctx context.Context, address, version string, backend bind.ContractBackend) error {
+	addr, err := common.NewMixedcaseAddressFromString(address)
+	if err != nil {
+		return err
+	}
+	code, err := backend.CodeAt(ctx, addr.Address(), nil)
 	if err != nil {
 		return err
 	}
 	if len(code) == 0 {
 		return fmt.Errorf("no code at %s", addr)
 	}
-	version, err := getVersion(ctx, addr, backend)
+	onchainVersion, err := getVersion(ctx, addr.Address(), backend)
 	if err != nil {
 		return err
 	}
-	if !cmpVersion(version, contract.Version) {
-		return fmt.Errorf("version mismatch: expected %s, got %s", contract.Version, version)
+	if !cmpVersion(onchainVersion, version) {
+		return fmt.Errorf("version mismatch: expected %s, got %s", version, onchainVersion)
 	}
 	return nil
 }

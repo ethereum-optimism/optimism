@@ -24,35 +24,9 @@ import (
 	"github.com/ethereum-optimism/superchain-registry/superchain"
 )
 
-func isAllowedChainID(chainId uint64) {
-	// TODO We panic if the chain ID does not correspond to the mainnet or sepolia versions
-	// of Metal, Mode, or Zora. This is because OP Sepolia is currently on FPAC, which corresponds
-	// to OptimismPortal v3.3.0. However, we do not want to upgrade other chains to that yet. A
-	// proper fix to op-upgrade to allow specifying the targets versions of contracts is a large
-	// change, and we might end up deprecating op-upgrade anyway. Therefore, we instead hardcode
-	// the chain IDs this script can be used for and panic if the chain ID is not one of them. This
-	// way it's not possible to erroneously upgrade a chain to an unexpected version.
-	//
-	// mainnet/metal: 1750
-	// mainnet/mode: 34443
-	// mainnet/zora: 7777777
-	// mainnet/base: 8453
-	// sepolia/metal: 1740
-	// sepolia/mode: 919
-	// sepolia/zora: 999999999
-	// sepolia/base: 84532
-	allowed := chainId == 1750 ||
-		chainId == 34443 ||
-		chainId == 7777777 ||
-		chainId == 1740 ||
-		chainId == 919 ||
-		chainId == 999999999 ||
-		chainId == 8453 ||
-		chainId == 84532
-	if !allowed {
-		panic(fmt.Sprintf("Chain ID %d is not allowed. We panic if the chain ID does not correspond to the mainnet or sepolia versions of Metal, Mode, or Zora. This is because OP Sepolia is currently on FPAC, which corresponds to OptimismPortal v3.3.0. However, we do not want to upgrade other chains to that yet. A proper fix to op-upgrade to allow specifying the targets versions of contracts is a large change, and we might end up deprecating op-upgrade anyway. Therefore, we instead hardcode the chain IDs this script can be used for and panic if the chain ID is not one of them. This way it's not possible to erroneously upgrade a chain to an unexpected version.", chainId))
-	}
-}
+var (
+	TARGET_RELEASE = "op-contracts/v1.3.0"
+)
 
 func main() {
 	color := isatty.IsTerminal(os.Stderr.Fd())
@@ -155,8 +129,6 @@ func entrypoint(ctx *cli.Context) error {
 	batch := safe.Batch{}
 
 	for _, chainConfig := range targets {
-		// Panic if this chain ID is not allowed. See comments in isAllowedChainID to learn more.
-		isAllowedChainID(chainConfig.ChainID)
 
 		name, _ := toDeployConfigName(chainConfig)
 		config, err := genesis.NewDeployConfigWithNetwork(name, deployConfig)
@@ -218,41 +190,44 @@ func entrypoint(ctx *cli.Context) error {
 		log.Info("OptimismPortal", "version", versions.OptimismPortal, "address", addresses.OptimismPortalProxy)
 		log.Info("SystemConfig", "version", versions.SystemConfig, "address", addresses.SystemConfigProxy)
 
-		implementations, ok := superchain.Implementations[l1ChainID.Uint64()]
+		superchainTarget := superchain.OPChains[chainConfig.ChainID].Superchain
 		if !ok {
-			return fmt.Errorf("no implementations for chain ID %d", l1ChainID.Uint64())
+			return fmt.Errorf("no implementations for chain ID %d", chainConfig.ChainID)
+		}
+		implementationAddresses, ok := superchain.Superchains[superchainTarget].Config.L1.ContractImplementations[TARGET_RELEASE]
+		if !ok {
+			return fmt.Errorf("implementation contract addresses missing in superchain registry for release: %s", TARGET_RELEASE)
+		}
+		contractVersions, ok := superchain.Superchains[superchainTarget].Config.L1.Versions[TARGET_RELEASE]
+		if !ok {
+			return fmt.Errorf("implementation contract versions missing in superchain registry for release: %s", TARGET_RELEASE)
 		}
 
 		// TODO This looks for the latest implementations defined for each contract, and for
 		// OptimismPortal that's the FPAC v3.3.0. However we do not want to upgrade other chains to
 		// that yet so we hardcode v2.5.0 which corresponds to the pre-FPAC op-contracts/v1.3.0 tag.
 		// See comments in isAllowedChainID to learn more.
-		targetUpgrade := superchain.SuperchainSemver[superchainName]
-		targetUpgrade.OptimismPortal = "2.5.0"
-
-		list, err := implementations.Resolve(targetUpgrade)
-		if err != nil {
-			return err
-		}
+		// targetUpgrade := superchain.SuperchainSemver[superchainName]
+		// targetUpgrade.OptimismPortal = "2.5.0"
 
 		log.Info("Upgrading to the following versions")
-		log.Info("L1CrossDomainMessenger", "version", list.L1CrossDomainMessenger.Version, "address", list.L1CrossDomainMessenger.Address)
-		log.Info("L1ERC721Bridge", "version", list.L1ERC721Bridge.Version, "address", list.L1ERC721Bridge.Address)
-		log.Info("L1StandardBridge", "version", list.L1StandardBridge.Version, "address", list.L1StandardBridge.Address)
-		log.Info("L2OutputOracle", "version", list.L2OutputOracle.Version, "address", list.L2OutputOracle.Address)
-		log.Info("OptimismMintableERC20Factory", "version", list.OptimismMintableERC20Factory.Version, "address", list.OptimismMintableERC20Factory.Address)
-		log.Info("OptimismPortal", "version", list.OptimismPortal.Version, "address", list.OptimismPortal.Address)
-		log.Info("SystemConfig", "version", list.SystemConfig.Version, "address", list.SystemConfig.Address)
+		log.Info("L1CrossDomainMessenger", "version", contractVersions.L1CrossDomainMessenger, "address", implementationAddresses.L1CrossDomainMessenger)
+		log.Info("L1ERC721Bridge", "version", contractVersions.L1ERC721Bridge, "address", implementationAddresses.L1ERC721Bridge)
+		log.Info("L1StandardBridge", "version", contractVersions.L1StandardBridge, "address", implementationAddresses.L1StandardBridge)
+		log.Info("L2OutputOracle", "version", contractVersions.L2OutputOracle, "address", implementationAddresses.L2OutputOracle)
+		log.Info("OptimismMintableERC20Factory", "version", contractVersions.OptimismMintableERC20Factory, "address", implementationAddresses.OptimismMintableERC20Factory)
+		log.Info("OptimismPortal", "version", contractVersions.OptimismPortal, "address", implementationAddresses.OptimismPortal)
+		log.Info("SystemConfig", "version", contractVersions.SystemConfig, "address", implementationAddresses.SystemConfig)
 
 		// Ensure that the superchain registry information is correct by checking the
 		// actual versions based on what the registry says is true.
-		if err := upgrades.CheckL1(ctx.Context, &list, clients.L1Client); err != nil {
+		if err := upgrades.CheckL1(ctx.Context, implementationAddresses, contractVersions, clients.L1Client); err != nil {
 			return fmt.Errorf("error checking L1: %w", err)
 		}
 
 		// Build the batch
 		// op-upgrade assumes a superchain config for L1 contract-implementations set.
-		if err := upgrades.L1(&batch, list, *addresses, config, chainConfig, sc, clients.L1Client); err != nil {
+		if err := upgrades.L1(&batch, implementationAddresses, *addresses, config, chainConfig, sc, clients.L1Client); err != nil {
 			return err
 		}
 	}
