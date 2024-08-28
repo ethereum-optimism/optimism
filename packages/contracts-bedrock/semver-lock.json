@@ -120,8 +120,8 @@
     "sourceCodeHash": "0x910d43a17800df64dbc104f69ef1f900ca761cec4949c01d1c1126fde5268349"
   },
   "src/L2/OptimismSuperchainERC20Beacon.sol": {
-    "initCodeHash": "0xc9893a1ba9b6354ccbdc96918510c9402a0934a59f0cc4a6165955a8e8ee1f7d",
-    "sourceCodeHash": "0xd069f4bddd08c1435d286819e1bb765648a5ad861fa327547f52de65a372769e"
+    "initCodeHash": "0x99ce8095b23c124850d866cbc144fee6cee05dbc6bb5d83acadfe00b90cf42c7",
+    "sourceCodeHash": "0x00eb41c15cf548dfb6425f317d85262c1edd5f1ad2386a6a76695781d158cf16"
   },
   "src/L2/OptimismSuperchainERC20Factory.sol": {
     "initCodeHash": "0x98011045722178751e4a1112892f7d9a11bc1f5e42ac18205b6d30a1f1476d24",

@@ -147,18 +147,18 @@ contract L2GenesisTest is Test {
         genesis.setPredeployProxies();
         genesis.writeGenesisAllocs(_path);
 
-        // 2 predeploys do not have proxies
-        assertEq(getCodeCount(_path, "Proxy.sol:Proxy"), Predeploys.PREDEPLOY_COUNT - 2);
+        // 3 predeploys do not have proxies
+        assertEq(getCodeCount(_path, "Proxy.sol:Proxy"), Predeploys.PREDEPLOY_COUNT - 3);
 
-        // 23 proxies have the implementation set if useInterop is true and 17 if useInterop is false
-        assertEq(getPredeployCountWithSlotSet(_path, Constants.PROXY_IMPLEMENTATION_ADDRESS), _useInterop ? 23 : 17);
+        // 22 proxies have the implementation set if useInterop is true and 17 if useInterop is false
+        assertEq(getPredeployCountWithSlotSet(_path, Constants.PROXY_IMPLEMENTATION_ADDRESS), _useInterop ? 22 : 17);
 
-        // All proxies except 2 have the proxy 1967 admin slot set to the proxy admin
+        // All proxies except 3 have the proxy 1967 admin slot set to the proxy admin
         assertEq(
             getPredeployCountWithSlotSetToValue(
                 _path, Constants.PROXY_OWNER_ADDRESS, bytes32(uint256(uint160(Predeploys.PROXY_ADMIN)))
             ),
-            Predeploys.PREDEPLOY_COUNT - 2
+            Predeploys.PREDEPLOY_COUNT - 3
         );
 
         // Also see Predeploys.t.test_predeploysSet_succeeds which uses L1Genesis for the CommonTest prestate.
@@ -185,7 +185,7 @@ contract L2GenesisTest is Test {
         genesis.writeGenesisAllocs(_path);
 
         uint256 expected = 0;
-        expected += 2048 - 2; // predeploy proxies
+        expected += 2048 - 3; // predeploy proxies
         expected += 21; // predeploy implementations (excl. legacy erc20-style eth and legacy message sender)
         expected += 256; // precompiles
         expected += 13; // preinstalls
