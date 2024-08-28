@@ -39,47 +39,10 @@
         "uid": "loki-datasource"
       },
       "gridPos": {
-        "h": 8,
-        "w": 24,
-        "x": 0,
-        "y": 1
-      },
-      "id": 30,
-      "options": {
-        "dedupStrategy": "none",
-        "enableLogDetails": true,
-        "prettifyLogMessage": false,
-        "showCommonLabels": false,
-        "showLabels": false,
-        "showTime": false,
-        "sortOrder": "Descending",
-        "wrapLogMessage": false
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "loki-datasource"
-          },
-          "editorMode": "builder",
-          "expr": "{container=\"ops-bedrock-da-server-1\"} |= ``",
-          "queryType": "range",
-          "refId": "A"
-        }
-      ],
-      "title": "eigenda-proxy logs",
-      "type": "logs"
-    },
-    {
-      "datasource": {
-        "type": "loki",
-        "uid": "loki-datasource"
-      },
-      "gridPos": {
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 9
+        "y": 1
       },
       "id": 24,
       "options": {
@@ -108,181 +71,42 @@
       "type": "logs"
     },
     {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki-datasource"
+      },
       "gridPos": {
-        "h": 1,
+        "h": 10,
         "w": 24,
         "x": 0,
-        "y": 19
+        "y": 11
       },
-      "id": 27,
-      "title": "EigenDA Proxy",
-      "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "ddshms3dlineoe"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 10,
-        "w": 12,
-        "x": 0,
-        "y": 20
-      },
-      "id": 28,
+      "id": 32,
       "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "ddshms3dlineoe"
-          },
-          "editorMode": "code",
-          "expr": "eigenda_proxy_default_rpc_server_requests_total{method=\"/put/\"}",
-          "instant": false,
-          "legendFormat": "{{__name__}}",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "/put requests total",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "ddshms3dlineoe"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 10,
-        "w": 12,
-        "x": 12,
-        "y": 20
-      },
-      "id": 29,
-      "options": {
-        "displayMode": "gradient",
-        "maxVizHeight": 300,
-        "minVizHeight": 16,
-        "minVizWidth": 8,
-        "namePlacement": "auto",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showUnfilled": true,
-        "sizing": "auto",
-        "valueMode": "color"
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": false,
+        "showTime": false,
+        "sortOrder": "Descending",
+        "wrapLogMessage": false
       },
       "pluginVersion": "11.1.0",
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "ddshms3dlineoe"
+            "type": "loki",
+            "uid": "loki-datasource"
           },
           "editorMode": "code",
-          "expr": "eigenda_proxy_default_rpc_server_request_duration_seconds_bucket{method=\"/put/\"}",
-          "format": "heatmap",
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
+          "expr": "{container=\"ops-bedrock-op-proposer-1\"}",
+          "queryType": "range",
           "refId": "A"
         }
       ],
-      "title": "/put requests duration",
-      "type": "bargauge"
+      "title": "Proposer Logs",
+      "type": "logs"
     },
     {
       "collapsed": false,
@@ -290,7 +114,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 30
+        "y": 21
       },
       "id": 14,
       "panels": [],
@@ -360,7 +184,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 31
+        "y": 22
       },
       "id": 20,
       "interval": "2s",
@@ -460,7 +284,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 31
+        "y": 22
       },
       "id": 19,
       "interval": "2s",
@@ -577,7 +401,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 39
+        "y": 30
       },
       "id": 17,
       "interval": "2s",
@@ -695,7 +519,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 39
+        "y": 30
       },
       "id": 16,
       "interval": "2s",
@@ -795,7 +619,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 47
+        "y": 38
       },
       "id": 18,
       "interval": "2s",
@@ -864,7 +688,7 @@
         "h": 12,
         "w": 12,
         "x": 12,
-        "y": 47
+        "y": 38
       },
       "id": 25,
       "interval": "2s",
@@ -914,7 +738,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 59
+        "y": 50
       },
       "id": 26,
       "panels": [],
@@ -985,7 +809,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 60
+        "y": 51
       },
       "id": 21,
       "interval": "2s",
@@ -1103,7 +927,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 60
+        "y": 51
       },
       "id": 15,
       "interval": "2s",
@@ -1238,7 +1062,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 68
+        "y": 59
       },
       "id": 23,
       "interval": "2s",
@@ -1339,7 +1163,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 68
+        "y": 59
       },
       "id": 22,
       "interval": "2s",
@@ -1382,7 +1206,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 76
+        "y": 67
       },
       "id": 6,
       "panels": [],
@@ -1420,7 +1244,7 @@
         "h": 4,
         "w": 5,
         "x": 0,
-        "y": 77
+        "y": 68
       },
       "id": 7,
       "options": {
@@ -1496,7 +1320,7 @@
         "h": 4,
         "w": 5,
         "x": 5,
-        "y": 77
+        "y": 68
       },
       "id": 10,
       "options": {
@@ -1572,7 +1396,7 @@
         "h": 4,
         "w": 5,
         "x": 10,
-        "y": 77
+        "y": 68
       },
       "id": 9,
       "options": {
@@ -1693,7 +1517,7 @@
         "h": 8,
         "w": 9,
         "x": 15,
-        "y": 77
+        "y": 68
       },
       "id": 13,
       "options": {
@@ -1745,7 +1569,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "red"
+                "color": "red",
+                "value": null
               },
               {
                 "color": "green",
@@ -1760,7 +1585,7 @@
         "h": 4,
         "w": 5,
         "x": 0,
-        "y": 81
+        "y": 72
       },
       "id": 8,
       "options": {
@@ -1820,7 +1645,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "red"
+                "color": "red",
+                "value": null
               },
               {
                 "color": "green",
@@ -1835,7 +1661,7 @@
         "h": 4,
         "w": 5,
         "x": 5,
-        "y": 81
+        "y": 72
       },
       "id": 11,
       "options": {
@@ -1895,7 +1721,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "red"
+                "color": "red",
+                "value": null
               },
               {
                 "color": "green",
@@ -1910,7 +1737,7 @@
         "h": 4,
         "w": 5,
         "x": 10,
-        "y": 81
+        "y": 72
       },
       "id": 12,
       "options": {
@@ -1961,7 +1788,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 85
+        "y": 76
       },
       "id": 5,
       "panels": [],
@@ -1984,7 +1811,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "red"
+                "color": "red",
+                "value": null
               },
               {
                 "color": "yellow",
@@ -2000,10 +1828,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 6,
+        "h": 3,
+        "w": 24,
         "x": 0,
-        "y": 86
+        "y": 77
       },
       "id": 3,
       "options": {
@@ -2056,6 +1884,87 @@
       "fieldConfig": {
         "defaults": {
           "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 4,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 24,
+        "x": 0,
+        "y": 80
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "text": {
+          "valueSize": 54
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.1.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ddshms3dlineoe"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "op_proposer_default_balance",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "Proposer Balance",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ddshms3dlineoe"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
             "mode": "palette-classic"
           },
           "custom": {
@@ -2095,7 +2004,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2121,9 +2031,9 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 9,
-        "x": 6,
-        "y": 86
+        "w": 12,
+        "x": 0,
+        "y": 83
       },
       "id": 1,
       "options": {
@@ -2208,7 +2118,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2234,9 +2145,9 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 9,
-        "x": 15,
-        "y": 86
+        "w": 12,
+        "x": 12,
+        "y": 83
       },
       "id": 2,
       "options": {
@@ -2271,88 +2182,9 @@
       ],
       "title": "Proposer Balance",
       "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "ddshms3dlineoe"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "decimals": 4,
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red"
-              },
-              {
-                "color": "yellow",
-                "value": 1
-              },
-              {
-                "color": "green",
-                "value": 1
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 0,
-        "y": 90
-      },
-      "id": 4,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false,
-        "text": {
-          "valueSize": 54
-        },
-        "textMode": "auto",
-        "wideLayout": true
-      },
-      "pluginVersion": "11.1.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "ddshms3dlineoe"
-          },
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "op_proposer_default_balance",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A",
-          "useBackend": false
-        }
-      ],
-      "title": "Proposer Balance",
-      "type": "stat"
     }
   ],
+  "refresh": "10s",
   "schemaVersion": 39,
   "tags": [],
   "templating": {
