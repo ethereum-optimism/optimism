@@ -591,3 +591,47 @@ func TestClaimEVM(t *testing.T) {
 		})
 	}
 }
+
+func TestEntryEVM(t *testing.T) {
+	var tracer *tracing.Hooks // no-tracer by default, but see test_util.MarkdownTracer
+	versions := GetMipsVersionTestCases(t)
+
+	for _, v := range versions {
+		t.Run(v.Name, func(t *testing.T) {
+			evm := testutil.NewMIPSEVM(v.Contracts)
+			evm.SetTracer(tracer)
+			testutil.LogStepFailureAtCleanup(t, evm)
+
+			var stdOutBuf, stdErrBuf bytes.Buffer
+			elfFile := "../../testdata/example/bin/entry.elf"
+			goVm := v.ElfVMFactory(t, elfFile, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr), testutil.CreateLogger())
+			state := goVm.GetState()
+
+			start := time.Now()
+			for i := 0; i < 400_000; i++ {
+				curStep := goVm.GetState().GetStep()
+				if goVm.GetState().GetExited() {
+					break
+				}
+				insn := state.GetMemory().GetMemory(state.GetPC())
+				if i%10_000 == 0 { // avoid spamming test logs, we are executing many steps
+					t.Logf("step: %4d pc: 0x%08x insn: 0x%08x", state.GetStep(), state.GetPC(), insn)
+				}
+
+				stepWitness, err := goVm.Step(true)
+				require.NoError(t, err)
+				evmPost := evm.Step(t, stepWitness, curStep, v.StateHashFn)
+				// verify the post-state matches.
+				goPost, _ := goVm.GetState().EncodeWitness()
+				require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
+					"mipsevm produced different state than EVM")
+			}
+			end := time.Now()
+			delta := end.Sub(start)
+			t.Logf("test took %s, %d instructions, %s per instruction", delta, state.GetStep(), delta/time.Duration(state.GetStep()))
+
+			require.True(t, state.GetExited(), "must complete program")
+			require.Equal(t, uint8(0), state.GetExitCode(), "exit with 0")
+		})
+	}
+}

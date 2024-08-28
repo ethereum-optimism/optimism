@@ -56,7 +56,6 @@ func PatchGo(f *elf.File, st mipsevm.FPVMState) error {
 	return nil
 }
 
-// TODO(cp-903) Consider setting envar "GODEBUG=memprofilerate=0" for go programs to disable memprofiling, instead of patching it out in PatchGo()
 func PatchStack(st mipsevm.FPVMState) error {
 	// setup stack pointer
 	sp := uint32(0x7f_ff_d0_00)
@@ -73,16 +72,24 @@ func PatchStack(st mipsevm.FPVMState) error {
 	}
 
 	// init argc, argv, aux on stack
-	storeMem(sp+4*1, 0x42)   // argc = 0 (argument count)
-	storeMem(sp+4*2, 0x35)   // argv[n] = 0 (terminating argv)
-	storeMem(sp+4*3, 0)      // envp[term] = 0 (no env vars)
-	storeMem(sp+4*4, 6)      // auxv[0] = _AT_PAGESZ = 6 (key)
-	storeMem(sp+4*5, 4096)   // auxv[1] = page size of 4 KiB (value) - (== minPhysPageSize)
-	storeMem(sp+4*6, 25)     // auxv[2] = AT_RANDOM
-	storeMem(sp+4*7, sp+4*9) // auxv[3] = address of 16 bytes containing random value
-	storeMem(sp+4*8, 0)      // auxv[term] = 0
+	storeMem(sp+4*0, 1)       // argc = 1 (argument count)
+	storeMem(sp+4*1, sp+4*20) // argv[0]
+	storeMem(sp+4*2, 0)       // argv[1] = terminating
+	storeMem(sp+4*3, sp+4*15) // envp[0] = 0 (no env vars)
+	storeMem(sp+4*4, 0)       // envp[1] = terminating
+	storeMem(sp+4*5, 6)       // auxv[0] = _AT_PAGESZ = 6 (key)
+	storeMem(sp+4*6, 4096)    // auxv[1] = page size of 4 KiB (value) - (== minPhysPageSize)
+	storeMem(sp+4*7, 25)      // auxv[2] = AT_RANDOM
+	storeMem(sp+4*8, sp+4*10) // auxv[3] = address of 16 bytes containing random value
+	storeMem(sp+4*9, 0)       // auxv[term] = 0
 
-	_ = st.GetMemory().SetMemoryRange(sp+4*9, bytes.NewReader([]byte("4;byfairdiceroll"))) // 16 bytes of "randomness"
+	_ = st.GetMemory().SetMemoryRange(sp+4*10, bytes.NewReader([]byte("4;byfairdiceroll"))) // 16 bytes of "randomness"
+
+	envar := append([]byte("memprofilerate=0"), 0x0)
+	_ = st.GetMemory().SetMemoryRange(sp+4*15, bytes.NewReader(envar))
+
+	programName := append([]byte("op-program"), 0x0)
+	_ = st.GetMemory().SetMemoryRange(sp+4*20, bytes.NewReader(programName))
 
 	return nil
 }
