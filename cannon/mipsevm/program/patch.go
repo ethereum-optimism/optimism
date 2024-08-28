@@ -75,7 +75,7 @@ func PatchStack(st mipsevm.FPVMState) error {
 	storeMem(sp+4*0, 1)       // argc = 1 (argument count)
 	storeMem(sp+4*1, sp+4*20) // argv[0]
 	storeMem(sp+4*2, 0)       // argv[1] = terminating
-	storeMem(sp+4*3, sp+4*15) // envp[0] = 0 (no env vars)
+	storeMem(sp+4*3, sp+4*15) // envp[0] = x (offset to first env var)
 	storeMem(sp+4*4, 0)       // envp[1] = terminating
 	storeMem(sp+4*5, 6)       // auxv[0] = _AT_PAGESZ = 6 (key)
 	storeMem(sp+4*6, 4096)    // auxv[1] = page size of 4 KiB (value) - (== minPhysPageSize)
