@@ -43,7 +43,7 @@ contract SystemConfigHolocene is SystemConfig {
         basefeeScalar = _basefeeScalar;
         blobbasefeeScalar = _blobBasefeeScalar;
 
-        uint256 _scalar = (uint256(0x01) << 248) | (uint256(_blobBasefeeScalar) << 32) | _basefeeScalar;
+        uint256 _scalar = StaticConfig.packScalar(_basefeeScalar, _blobBasefeeScalar);
         scalar = _scalar;
 
         OptimismPortal(payable(optimismPortal())).setConfig(

@@ -98,4 +98,23 @@ library StaticConfig {
     function decodeSetGasLimit(bytes memory _data) internal pure returns (uint64) {
         return abi.decode(_data, (uint64));
     }
+
+    /// @notice Packs _basefeeScalar and _blobBasefeeScalar into a single uint256
+    /// @param _basefeeScalar     New basefeeScalar value.
+    /// @param _blobBasefeeScalar New blobBasefeeScalar value.
+    /// @return Packed scalar as a uint256.
+    function packScalar(uint32 _basefeeScalar, uint32 _blobBasefeeScalar) internal pure returns (uint256) {
+        return (uint256(0x01) << 248) | (uint256(_blobBasefeeScalar) << 32) | _basefeeScalar;
+    }
+
+    /// @notice Unpacks _basefeeScalar and _blobBasefeeScalar from a single uint256
+    /// @param _scalar     Packs uint256 scalar.
+    /// @return Unpacked _basefeeScalar and _blobBasefeeScalar.
+    function unpackScalar(uint256 _scalar) internal pure returns (uint32, uint32) {
+        require(0x01 == _scalar >> 248, "invalid _scalar");
+
+        uint32 _blobBasefeeScalar = uint32((_scalar >> 32) & 0xffffffff);
+        uint32 _basefeeScalar = uint32(_scalar & 0xffffffff);
+        return (_basefeeScalar, _blobBasefeeScalar);
+    }
 }

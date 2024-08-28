@@ -55,26 +55,12 @@ contract L1BlockHolocene is L1Block {
     function _setFeeScalars(bytes calldata _value) internal {
         uint256 _scalar = StaticConfig.decodeSetFeeScalars(_value);
 
-        (uint32 _blobBasefeeScalar, uint32 _basefeeScalar) = _decodeScalar(_scalar);
+        (uint32 _basefeeScalar, uint32 _blobBasefeeScalar) = StaticConfig.unpackScalar(_scalar);
 
         blobBaseFeeScalar = _blobBasefeeScalar;
         baseFeeScalar = _basefeeScalar;
 
         emit FeeScalarsSet(_blobBasefeeScalar, _basefeeScalar);
-    }
-
-    /// @notice Internal method to decode blobBaseFeeScalar and baseFeeScalar.
-    /// @return Decoded blobBaseFeeScalar and baseFeeScalar.
-    function _decodeScalar(uint256 _scalar) internal pure returns (uint32, uint32) {
-        // _scalar is constructed as follows:
-        // uint256 _scalar = (uint256(0x01) << 248) | (uint256(_blobbasefeeScalar) << 32) | _basefeeScalar;
-        // where _blobbasefeeScalar and _basefeeScalar are both uint32.
-
-        require(0x01 == _scalar >> 248, "invalid _scalar");
-
-        uint32 _blobBasefeeScalar = uint32((_scalar >> 32) & 0xffffffff);
-        uint32 _basefeeScalar = uint32(_scalar & 0xffffffff);
-        return (_blobBasefeeScalar, _basefeeScalar);
     }
 
     /// @notice Internal method to set new gas limit.
