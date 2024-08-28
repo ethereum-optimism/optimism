@@ -87,7 +87,7 @@ contract DeployImplementationsOutput_Test is Test {
     function test_set_succeeds() public {
         DeployImplementationsOutput.Output memory output = DeployImplementationsOutput.Output({
             opsmSingleton: OPStackManager(makeAddr("opsmSingleton")),
-            optimismPortal2Impl: OptimismPortal2(payable(makeAddr("optimismPortal2Impl"))),
+            optimismPortalImpl: OptimismPortal2(payable(makeAddr("optimismPortalImpl"))),
             delayedWETHImpl: DelayedWETH(payable(makeAddr("delayedWETHImpl"))),
             preimageOracleSingleton: PreimageOracle(makeAddr("preimageOracleSingleton")),
             mipsSingleton: MIPS(makeAddr("mipsSingleton")),
@@ -99,7 +99,7 @@ contract DeployImplementationsOutput_Test is Test {
         });
 
         vm.etch(address(output.opsmSingleton), hex"01");
-        vm.etch(address(output.optimismPortal2Impl), hex"01");
+        vm.etch(address(output.optimismPortalImpl), hex"01");
         vm.etch(address(output.delayedWETHImpl), hex"01");
         vm.etch(address(output.preimageOracleSingleton), hex"01");
         vm.etch(address(output.mipsSingleton), hex"01");
@@ -110,7 +110,7 @@ contract DeployImplementationsOutput_Test is Test {
         vm.etch(address(output.optimismMintableERC20FactoryImpl), hex"01");
 
         dso.set(dso.opsmSingleton.selector, address(output.opsmSingleton));
-        dso.set(dso.optimismPortal2Impl.selector, address(output.optimismPortal2Impl));
+        dso.set(dso.optimismPortalImpl.selector, address(output.optimismPortalImpl));
         dso.set(dso.delayedWETHImpl.selector, address(output.delayedWETHImpl));
         dso.set(dso.preimageOracleSingleton.selector, address(output.preimageOracleSingleton));
         dso.set(dso.mipsSingleton.selector, address(output.mipsSingleton));
@@ -121,7 +121,7 @@ contract DeployImplementationsOutput_Test is Test {
         dso.set(dso.optimismMintableERC20FactoryImpl.selector, address(output.optimismMintableERC20FactoryImpl));
 
         assertEq(address(output.opsmSingleton), address(dso.opsmSingleton()), "50");
-        assertEq(address(output.optimismPortal2Impl), address(dso.optimismPortal2Impl()), "100");
+        assertEq(address(output.optimismPortalImpl), address(dso.optimismPortalImpl()), "100");
         assertEq(address(output.delayedWETHImpl), address(dso.delayedWETHImpl()), "200");
         assertEq(address(output.preimageOracleSingleton), address(dso.preimageOracleSingleton()), "300");
         assertEq(address(output.mipsSingleton), address(dso.mipsSingleton()), "400");
@@ -140,7 +140,7 @@ contract DeployImplementationsOutput_Test is Test {
         bytes memory expectedErr = "DeployUtils: zero address";
 
         vm.expectRevert(expectedErr);
-        dso.optimismPortal2Impl();
+        dso.optimismPortalImpl();
 
         vm.expectRevert(expectedErr);
         dso.delayedWETHImpl();
@@ -171,9 +171,9 @@ contract DeployImplementationsOutput_Test is Test {
         address emptyAddr = makeAddr("emptyAddr");
         bytes memory expectedErr = bytes(string.concat("DeployUtils: no code at ", vm.toString(emptyAddr)));
 
-        dso.set(dso.optimismPortal2Impl.selector, emptyAddr);
+        dso.set(dso.optimismPortalImpl.selector, emptyAddr);
         vm.expectRevert(expectedErr);
-        dso.optimismPortal2Impl();
+        dso.optimismPortalImpl();
 
         dso.set(dso.delayedWETHImpl.selector, emptyAddr);
         vm.expectRevert(expectedErr);
@@ -245,7 +245,7 @@ contract DeployImplementations_Test is Test {
         assertEq(_input.disputeGameFinalityDelaySeconds, dsi.disputeGameFinalityDelaySeconds(), "500");
 
         // Assert that individual output fields were properly set based on the output struct.
-        assertEq(address(output.optimismPortal2Impl), address(dso.optimismPortal2Impl()), "600");
+        assertEq(address(output.optimismPortalImpl), address(dso.optimismPortalImpl()), "600");
         assertEq(address(output.delayedWETHImpl), address(dso.delayedWETHImpl()), "700");
         assertEq(address(output.preimageOracleSingleton), address(dso.preimageOracleSingleton()), "800");
         assertEq(address(output.mipsSingleton), address(dso.mipsSingleton()), "900");
@@ -267,9 +267,9 @@ contract DeployImplementations_Test is Test {
         assertEq(output.delayedWETHImpl.delay(), _input.withdrawalDelaySeconds, "1700");
         assertEq(output.preimageOracleSingleton.challengePeriod(), _input.challengePeriodSeconds, "1800");
         assertEq(output.preimageOracleSingleton.minProposalSize(), _input.minProposalSizeBytes, "1900");
-        assertEq(output.optimismPortal2Impl.proofMaturityDelaySeconds(), _input.proofMaturityDelaySeconds, "2000");
+        assertEq(output.optimismPortalImpl.proofMaturityDelaySeconds(), _input.proofMaturityDelaySeconds, "2000");
         assertEq(
-            output.optimismPortal2Impl.disputeGameFinalityDelaySeconds(), _input.disputeGameFinalityDelaySeconds, "2100"
+            output.optimismPortalImpl.disputeGameFinalityDelaySeconds(), _input.disputeGameFinalityDelaySeconds, "2100"
         );
 
         // Architecture assertions.

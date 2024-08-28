@@ -3,6 +3,14 @@ pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
 
+import { DeploySuperchainInput, DeploySuperchain, DeploySuperchainOutput } from "scripts/DeploySuperchain.s.sol";
+import {
+    DeployImplementationsInput,
+    DeployImplementations,
+    DeployImplementationsOutput
+} from "scripts/DeployImplementations.s.sol";
+import { DeployOPChainInput, DeployOPChain, DeployOPChainOutput } from "scripts/DeployOPChain.s.sol";
+
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
 
 import { AddressManager } from "src/legacy/AddressManager.sol";
@@ -12,6 +20,8 @@ import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
 import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
 import { PermissionedDisputeGame } from "src/dispute/PermissionedDisputeGame.sol";
 
+import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
+import { ProtocolVersions, ProtocolVersion } from "src/L1/ProtocolVersions.sol";
 import { OPStackManager } from "src/L1/OPStackManager.sol";
 import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
@@ -19,8 +29,6 @@ import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
-
-import { DeployOPChainInput, DeployOPChain, DeployOPChainOutput } from "scripts/DeployOPChain.s.sol";
 
 contract DeployOPChainInput_Test is Test {
     DeployOPChainInput dsi;
@@ -305,5 +313,126 @@ contract DeployOPChainOutput_Test is Test {
         dso.set(dso.delayedWETHPermissionlessGameProxy.selector, emptyAddr);
         vm.expectRevert(expectedErr);
         dso.delayedWETHPermissionlessGameProxy();
+    }
+}
+
+// To mimic a production environment, we default to integration tests here that actually run the
+// DeploySuperchain and DeployImplementations scripts.
+contract DeployOPChain_Test is Test {
+    DeployOPChain deployOPChain;
+    DeployOPChainInput dsi;
+    DeployOPChainOutput dso;
+
+    // We define a default initial input struct for DeploySuperchain. The other input structs are
+    // dependent on the outputs of the previous scripts, so we initialize them here and populate
+    // the null values in the `setUp` method.assert
+    DeploySuperchainInput.Input deploySuperchainInput = DeploySuperchainInput.Input({
+        roles: DeploySuperchainInput.Roles({
+            proxyAdminOwner: makeAddr("defaultProxyAdminOwner"),
+            protocolVersionsOwner: makeAddr("defaultProtocolVersionsOwner"),
+            guardian: makeAddr("defaultGuardian")
+        }),
+        paused: false,
+        requiredProtocolVersion: ProtocolVersion.wrap(1),
+        recommendedProtocolVersion: ProtocolVersion.wrap(2)
+    });
+
+    DeployImplementationsInput.Input deployImplementationsInput = DeployImplementationsInput.Input({
+        withdrawalDelaySeconds: 100,
+        minProposalSizeBytes: 200,
+        challengePeriodSeconds: 300,
+        proofMaturityDelaySeconds: 400,
+        disputeGameFinalityDelaySeconds: 500,
+        release: "op-contracts/latest",
+        // These are set during `setUp` since they are outputs of the previous step.
+        superchainConfigProxy: SuperchainConfig(address(0)),
+        protocolVersionsProxy: ProtocolVersions(address(0))
+    });
+
+    DeployOPChainInput.Input deployOPChainInput = DeployOPChainInput.Input({
+        roles: DeployOPChainInput.Roles({
+            opChainProxyAdminOwner: makeAddr("defaultOPChainProxyAdminOwner"),
+            systemConfigOwner: makeAddr("defaultSystemConfigOwner"),
+            batcher: makeAddr("defaultBatcher"),
+            unsafeBlockSigner: makeAddr("defaultUnsafeBlockSigner"),
+            proposer: makeAddr("defaultProposer"),
+            challenger: makeAddr("defaultChallenger")
+        }),
+        basefeeScalar: 100,
+        blobBaseFeeScalar: 200,
+        l2ChainId: 300,
+        // This is set during `setUp` since it is an output of the previous step.
+        opsm: OPStackManager(address(0))
+    });
+
+    // Set during `setUp`.
+    DeployImplementationsOutput.Output deployImplementationsOutput;
+
+    function setUp() public {
+        // Initialize deploy scripts.
+        DeploySuperchain deploySuperchain = new DeploySuperchain();
+        DeployImplementations deployImplementations = new DeployImplementations();
+        deployOPChain = new DeployOPChain();
+        (dsi, dso) = deployOPChain.getIOContracts();
+
+        // Deploy the superchain contracts.
+        DeploySuperchainOutput.Output memory superchainOutput = deploySuperchain.run(deploySuperchainInput);
+
+        // Populate the input struct for DeployImplementations based on the output of DeploySuperchain.
+        deployImplementationsInput.superchainConfigProxy = superchainOutput.superchainConfigProxy;
+        deployImplementationsInput.protocolVersionsProxy = superchainOutput.protocolVersionsProxy;
+
+        // Deploy the implementations using the updated DeployImplementations input struct.
+        deployImplementationsOutput = deployImplementations.run(deployImplementationsInput);
+    }
+
+    function test_run_succeeds(DeployOPChainInput.Input memory _input) public {
+        _input.opsm = deployImplementationsOutput.opsmSingleton;
+
+        DeployOPChainOutput.Output memory output = deployOPChain.run(_input);
+
+        // TODO Add fault proof contract assertions below once OPSM fully supports them.
+
+        // Assert that individual input fields were properly set based on the input struct.
+        assertEq(_input.roles.opChainProxyAdminOwner, dsi.opChainProxyAdminOwner(), "100");
+        assertEq(_input.roles.systemConfigOwner, dsi.systemConfigOwner(), "200");
+        assertEq(_input.roles.batcher, dsi.batcher(), "300");
+        assertEq(_input.roles.unsafeBlockSigner, dsi.unsafeBlockSigner(), "400");
+        assertEq(_input.roles.proposer, dsi.proposer(), "500");
+        assertEq(_input.roles.challenger, dsi.challenger(), "600");
+        assertEq(_input.basefeeScalar, dsi.basefeeScalar(), "700");
+        assertEq(_input.blobBaseFeeScalar, dsi.blobBaseFeeScalar(), "800");
+        assertEq(_input.l2ChainId, dsi.l2ChainId(), "900");
+
+        // Assert that individual output fields were properly set based on the output struct.
+        assertEq(address(output.opChainProxyAdmin), address(dso.opChainProxyAdmin()), "1100");
+        assertEq(address(output.addressManager), address(dso.addressManager()), "1200");
+        assertEq(address(output.l1ERC721BridgeProxy), address(dso.l1ERC721BridgeProxy()), "1300");
+        assertEq(address(output.systemConfigProxy), address(dso.systemConfigProxy()), "1400");
+        assertEq(
+            address(output.optimismMintableERC20FactoryProxy), address(dso.optimismMintableERC20FactoryProxy()), "1500"
+        );
+        assertEq(address(output.l1StandardBridgeProxy), address(dso.l1StandardBridgeProxy()), "1600");
+        assertEq(address(output.l1CrossDomainMessengerProxy), address(dso.l1CrossDomainMessengerProxy()), "1700");
+        assertEq(address(output.optimismPortalProxy), address(dso.optimismPortalProxy()), "1800");
+
+        // Assert that the full input and output structs were properly set.
+        assertEq(keccak256(abi.encode(_input)), keccak256(abi.encode(DeployOPChainInput(dsi).input())), "1900");
+        assertEq(keccak256(abi.encode(output)), keccak256(abi.encode(DeployOPChainOutput(dso).output())), "2000");
+
+        // Assert inputs were properly passed through to the contract initializers.
+        assertEq(address(output.opChainProxyAdmin.owner()), _input.roles.opChainProxyAdminOwner, "2100");
+        assertEq(address(output.systemConfigProxy.owner()), _input.roles.systemConfigOwner, "2200");
+        address batcher = address(uint160(bytes20(output.systemConfigProxy.batcherHash())));
+        assertEq(batcher, _input.roles.batcher, "2300");
+        assertEq(address(output.systemConfigProxy.unsafeBlockSigner()), _input.roles.unsafeBlockSigner, "2400");
+        // assertEq(address(....proposer()), _input.roles.proposer, "2500"); // TODO once we deploy permissioned dispute
+        // game
+        // assertEq(address(....challenger()), _input.roles.challenger, "2600"); // TODO once we deploy permissioned
+        // dispute game
+
+        // Most architecture assertions are handled within the OP Stack Manager itself and therefore
+        // we only assert on the things that are not visible onchain.
+        // TODO add these assertions: AddressManager, Proxy, ProxyAdmin, etc.
     }
 }

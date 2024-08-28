@@ -110,7 +110,7 @@ contract DeployImplementationsOutput {
     struct Output {
         OPStackManager opsmSingleton;
         DelayedWETH delayedWETHImpl;
-        OptimismPortal2 optimismPortal2Impl;
+        OptimismPortal2 optimismPortalImpl;
         PreimageOracle preimageOracleSingleton;
         MIPS mipsSingleton;
         SystemConfig systemConfigImpl;
@@ -125,7 +125,7 @@ contract DeployImplementationsOutput {
     function set(bytes4 sel, address _addr) public {
         // forgefmt: disable-start
         if (sel == this.opsmSingleton.selector) outputs.opsmSingleton = OPStackManager(payable(_addr));
-        else if (sel == this.optimismPortal2Impl.selector) outputs.optimismPortal2Impl = OptimismPortal2(payable(_addr));
+        else if (sel == this.optimismPortalImpl.selector) outputs.optimismPortalImpl = OptimismPortal2(payable(_addr));
         else if (sel == this.delayedWETHImpl.selector) outputs.delayedWETHImpl = DelayedWETH(payable(_addr));
         else if (sel == this.preimageOracleSingleton.selector) outputs.preimageOracleSingleton = PreimageOracle(_addr);
         else if (sel == this.mipsSingleton.selector) outputs.mipsSingleton = MIPS(_addr);
@@ -150,7 +150,7 @@ contract DeployImplementationsOutput {
     function checkOutput() public view {
         address[] memory addrs = Solarray.addresses(
             address(outputs.opsmSingleton),
-            address(outputs.optimismPortal2Impl),
+            address(outputs.optimismPortalImpl),
             address(outputs.delayedWETHImpl),
             address(outputs.preimageOracleSingleton),
             address(outputs.mipsSingleton),
@@ -168,9 +168,9 @@ contract DeployImplementationsOutput {
         return outputs.opsmSingleton;
     }
 
-    function optimismPortal2Impl() public view returns (OptimismPortal2) {
-        DeployUtils.assertValidContractAddress(address(outputs.optimismPortal2Impl));
-        return outputs.optimismPortal2Impl;
+    function optimismPortalImpl() public view returns (OptimismPortal2) {
+        DeployUtils.assertValidContractAddress(address(outputs.optimismPortalImpl));
+        return outputs.optimismPortalImpl;
     }
 
     function delayedWETHImpl() public view returns (DelayedWETH) {
@@ -263,35 +263,35 @@ contract DeployImplementations is Script {
         ProtocolVersions protocolVersionsProxy = _dsi.protocolVersionsProxy();
         string memory release = _dsi.release();
 
+        vm.broadcast(msg.sender);
+        OPStackManager opsmSingleton =
+            new OPStackManager({ _superchainConfig: superchainConfigProxy, _protocolVersions: protocolVersionsProxy });
+
         OPStackManager.ImplementationSetter[] memory setters = new OPStackManager.ImplementationSetter[](5);
         setters[0] = OPStackManager.ImplementationSetter({
             name: "L1ERC721Bridge",
-            info: OPStackManager.Implementation(makeAddr("l1ERC721Bridge"), L1ERC721Bridge.initialize.selector)
+            info: OPStackManager.Implementation(address(_dso.l1ERC721BridgeImpl()), L1ERC721Bridge.initialize.selector)
         });
         setters[1] = OPStackManager.ImplementationSetter({
             name: "OptimismPortal",
-            info: OPStackManager.Implementation(makeAddr("optimismPortal"), OptimismPortal2.initialize.selector)
+            info: OPStackManager.Implementation(address(_dso.optimismPortalImpl()), OptimismPortal2.initialize.selector)
         });
         setters[2] = OPStackManager.ImplementationSetter({
             name: "SystemConfig",
-            info: OPStackManager.Implementation(makeAddr("systemConfig"), SystemConfig.initialize.selector)
+            info: OPStackManager.Implementation(address(_dso.systemConfigImpl()), SystemConfig.initialize.selector)
         });
         setters[3] = OPStackManager.ImplementationSetter({
             name: "OptimismMintableERC20Factory",
             info: OPStackManager.Implementation(
-                makeAddr("optimismMintableERC20Factory"), OptimismMintableERC20Factory.initialize.selector
+                address(_dso.optimismMintableERC20FactoryImpl()), OptimismMintableERC20Factory.initialize.selector
             )
         });
         setters[4] = OPStackManager.ImplementationSetter({
             name: "L1CrossDomainMessenger",
             info: OPStackManager.Implementation(
-                makeAddr("l1CrossDomainMessenger"), L1CrossDomainMessenger.initialize.selector
+                address(_dso.l1CrossDomainMessengerImpl()), L1CrossDomainMessenger.initialize.selector
             )
         });
-
-        vm.broadcast(msg.sender);
-        OPStackManager opsmSingleton =
-            new OPStackManager({ _superchainConfig: superchainConfigProxy, _protocolVersions: protocolVersionsProxy });
 
         vm.broadcast(msg.sender);
         opsmSingleton.setRelease({ _release: release, _isLatest: true, _setters: setters });
@@ -370,13 +370,13 @@ contract DeployImplementations is Script {
         uint256 disputeGameFinalityDelaySeconds = _dsi.disputeGameFinalityDelaySeconds();
 
         vm.broadcast(msg.sender);
-        OptimismPortal2 optimismPortal2Impl = new OptimismPortal2({
+        OptimismPortal2 optimismPortalImpl = new OptimismPortal2({
             _proofMaturityDelaySeconds: proofMaturityDelaySeconds,
             _disputeGameFinalityDelaySeconds: disputeGameFinalityDelaySeconds
         });
 
-        vm.label(address(optimismPortal2Impl), "OptimismPortal2Impl");
-        _dso.set(_dso.optimismPortal2Impl.selector, address(optimismPortal2Impl));
+        vm.label(address(optimismPortalImpl), "OptimismPortalImpl");
+        _dso.set(_dso.optimismPortalImpl.selector, address(optimismPortalImpl));
     }
 
     function deployDelayedWETHImpl(DeployImplementationsInput _dsi, DeployImplementationsOutput _dso) public {

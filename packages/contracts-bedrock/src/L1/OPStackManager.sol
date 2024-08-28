@@ -232,6 +232,19 @@ contract OPStackManager is ISemver {
         data = encodeL1CrossDomainMessengerInitializer(impl.initializer, output);
         upgradeAndCall(output.opChainProxyAdmin, address(output.l1CrossDomainMessengerProxy), impl.logic, data);
 
+        // -------- TODO: Placeholders --------
+        // For contracts we don't yet deploy, we set the outputs to  dummy proxies so they have code to pass assertions.
+        output.disputeGameFactoryProxy = DisputeGameFactory(deployProxy(l2ChainId, output.opChainProxyAdmin, "1"));
+        output.disputeGameFactoryImpl = DisputeGameFactory(deployProxy(l2ChainId, output.opChainProxyAdmin, "2"));
+        output.anchorStateRegistryProxy = AnchorStateRegistry(deployProxy(l2ChainId, output.opChainProxyAdmin, "3"));
+        output.anchorStateRegistryImpl = AnchorStateRegistry(deployProxy(l2ChainId, output.opChainProxyAdmin, "4"));
+        output.faultDisputeGame = FaultDisputeGame(deployProxy(l2ChainId, output.opChainProxyAdmin, "5"));
+        output.permissionedDisputeGame = PermissionedDisputeGame(deployProxy(l2ChainId, output.opChainProxyAdmin, "6"));
+        output.delayedWETHPermissionedGameProxy =
+            DelayedWETH(payable(deployProxy(l2ChainId, output.opChainProxyAdmin, "7")));
+        output.delayedWETHPermissionlessGameProxy =
+            DelayedWETH(payable(deployProxy(l2ChainId, output.opChainProxyAdmin, "8")));
+
         // -------- Finalize Deployment --------
         // Transfer ownership of the ProxyAdmin from this contract to the specified owner.
         output.opChainProxyAdmin.transferOwnership(_input.roles.opChainProxyAdminOwner);
