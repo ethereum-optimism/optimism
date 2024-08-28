@@ -29,9 +29,7 @@ func TestScript(t *testing.T) {
 	input := bytes4("run()")
 	returnData, _, err := h.Call(scriptContext.Sender, addr, input[:], DefaultFoundryGasLimit, uint256.NewInt(0))
 	require.NoError(t, err, "call failed: %x", string(returnData))
-	require.NotNil(t, captLog.FindLog(
-		testlog.NewAttributesFilter("p0", "sender nonce"),
-		testlog.NewAttributesFilter("p1", "1")))
+	require.NotNil(t, captLog.FindLog(testlog.NewMessageFilter("sender nonce 1")))
 
 	require.NoError(t, h.cheatcodes.Precompile.DumpState("noop"))
 	// and a second time, to see if we can revisit the host state.

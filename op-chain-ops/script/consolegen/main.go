@@ -71,7 +71,6 @@ import (
 			if p == "" {
 				continue
 			}
-			out.WriteString(fmt.Sprintf(`"p%d", `, i))
 			out.WriteString(prettyArg(fmt.Sprintf("p%d", i), p))
 			if i != len(params)-1 {
 				out.WriteString(", ")
