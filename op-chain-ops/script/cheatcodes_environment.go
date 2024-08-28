@@ -183,31 +183,26 @@ func (c *CheatCodesPrecompile) Coinbase(addr common.Address) {
 
 // Broadcast_afc98040 implements https://book.getfoundry.sh/cheatcodes/broadcast
 func (c *CheatCodesPrecompile) Broadcast_afc98040() error {
-	c.h.log.Info("broadcasting next call")
 	return c.h.Prank(nil, nil, false, true)
 }
 
 // Broadcast_e6962cdb implements https://book.getfoundry.sh/cheatcodes/broadcast
 func (c *CheatCodesPrecompile) Broadcast_e6962cdb(who common.Address) error {
-	c.h.log.Info("broadcasting next call", "who", who)
 	return c.h.Prank(&who, nil, false, true)
 }
 
 // StartBroadcast_7fb5297f implements https://book.getfoundry.sh/cheatcodes/start-broadcast
 func (c *CheatCodesPrecompile) StartBroadcast_7fb5297f() error {
-	c.h.log.Info("starting repeat-broadcast")
 	return c.h.Prank(nil, nil, true, true)
 }
 
 // StartBroadcast_7fec2a8d implements https://book.getfoundry.sh/cheatcodes/start-broadcast
 func (c *CheatCodesPrecompile) StartBroadcast_7fec2a8d(who common.Address) error {
-	c.h.log.Info("starting repeat-broadcast", "who", who)
 	return c.h.Prank(&who, nil, true, true)
 }
 
 // StopBroadcast implements https://book.getfoundry.sh/cheatcodes/stop-broadcast
 func (c *CheatCodesPrecompile) StopBroadcast() error {
-	c.h.log.Info("stopping repeat-broadcast")
 	return c.h.StopPrank(true)
 }
 
