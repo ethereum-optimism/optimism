@@ -25,7 +25,3 @@ scrape_configs:
   - job_name: "op-proposer"
     static_configs:
       - targets: ["op-proposer:7300"]
-
-  - job_name: "eigenda-proxy"
-    static_configs:
-      - targets: ["da-server:7300"]
