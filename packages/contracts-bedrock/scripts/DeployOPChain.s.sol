@@ -307,13 +307,66 @@ contract DeployOPChain is Script {
         return dso.output();
     }
 
-    function run(DeployOPChainInput _dsi, DeployOPChainOutput _dso) public view {
+    function run(DeployOPChainInput _dsi, DeployOPChainOutput _dso) public {
         require(_dsi.inputSet(), "DeployOPChain: input not set");
-        OPStackManager opsm = _dsi.opsm();
-        opsm; // Silence unused variable warning.
 
-        // TODO call OP Stack Manager deploy method
-        // opsm.deploy(...inputs...);
+        OPStackManager opsm = _dsi.opsm();
+
+        OPStackManager.Roles memory roles = OPStackManager.Roles({
+            opChainProxyAdminOwner: _dsi.opChainProxyAdminOwner(),
+            systemConfigOwner: _dsi.systemConfigOwner(),
+            batcher: _dsi.batcher(),
+            unsafeBlockSigner: _dsi.unsafeBlockSigner(),
+            proposer: _dsi.proposer(),
+            challenger: _dsi.challenger()
+        });
+        OPStackManager.DeployInput memory deployInput = OPStackManager.DeployInput({
+            roles: roles,
+            basefeeScalar: _dsi.basefeeScalar(),
+            blobBasefeeScalar: _dsi.blobBaseFeeScalar(),
+            l2ChainId: _dsi.l2ChainId()
+        });
+
+        vm.broadcast(msg.sender);
+        OPStackManager.DeployOutput memory deployOutput = opsm.deploy(deployInput);
+
+        vm.label(address(deployOutput.opChainProxyAdmin), "opChainProxyAdmin");
+        vm.label(address(deployOutput.addressManager), "addressManager");
+        vm.label(address(deployOutput.l1ERC721BridgeProxy), "l1ERC721BridgeProxy");
+        vm.label(address(deployOutput.systemConfigProxy), "systemConfigProxy");
+        vm.label(address(deployOutput.optimismMintableERC20FactoryProxy), "optimismMintableERC20FactoryProxy");
+        vm.label(address(deployOutput.l1StandardBridgeProxy), "l1StandardBridgeProxy");
+        vm.label(address(deployOutput.l1CrossDomainMessengerProxy), "l1CrossDomainMessengerProxy");
+        vm.label(address(deployOutput.optimismPortalProxy), "optimismPortalProxy");
+        vm.label(address(deployOutput.disputeGameFactoryProxy), "disputeGameFactoryProxy");
+        vm.label(address(deployOutput.disputeGameFactoryImpl), "disputeGameFactoryImpl");
+        vm.label(address(deployOutput.anchorStateRegistryProxy), "anchorStateRegistryProxy");
+        vm.label(address(deployOutput.anchorStateRegistryImpl), "anchorStateRegistryImpl");
+        vm.label(address(deployOutput.faultDisputeGame), "faultDisputeGame");
+        vm.label(address(deployOutput.permissionedDisputeGame), "permissionedDisputeGame");
+        vm.label(address(deployOutput.delayedWETHPermissionedGameProxy), "delayedWETHPermissionedGameProxy");
+        vm.label(address(deployOutput.delayedWETHPermissionlessGameProxy), "delayedWETHPermissionlessGameProxy");
+
+        _dso.set(_dso.opChainProxyAdmin.selector, address(deployOutput.opChainProxyAdmin));
+        _dso.set(_dso.addressManager.selector, address(deployOutput.addressManager));
+        _dso.set(_dso.l1ERC721BridgeProxy.selector, address(deployOutput.l1ERC721BridgeProxy));
+        _dso.set(_dso.systemConfigProxy.selector, address(deployOutput.systemConfigProxy));
+        _dso.set(
+            _dso.optimismMintableERC20FactoryProxy.selector, address(deployOutput.optimismMintableERC20FactoryProxy)
+        );
+        _dso.set(_dso.l1StandardBridgeProxy.selector, address(deployOutput.l1StandardBridgeProxy));
+        _dso.set(_dso.l1CrossDomainMessengerProxy.selector, address(deployOutput.l1CrossDomainMessengerProxy));
+        _dso.set(_dso.optimismPortalProxy.selector, address(deployOutput.optimismPortalProxy));
+        _dso.set(_dso.disputeGameFactoryProxy.selector, address(deployOutput.disputeGameFactoryProxy));
+        _dso.set(_dso.disputeGameFactoryImpl.selector, address(deployOutput.disputeGameFactoryImpl));
+        _dso.set(_dso.anchorStateRegistryProxy.selector, address(deployOutput.anchorStateRegistryProxy));
+        _dso.set(_dso.anchorStateRegistryImpl.selector, address(deployOutput.anchorStateRegistryImpl));
+        _dso.set(_dso.faultDisputeGame.selector, address(deployOutput.faultDisputeGame));
+        _dso.set(_dso.permissionedDisputeGame.selector, address(deployOutput.permissionedDisputeGame));
+        _dso.set(_dso.delayedWETHPermissionedGameProxy.selector, address(deployOutput.delayedWETHPermissionedGameProxy));
+        _dso.set(
+            _dso.delayedWETHPermissionlessGameProxy.selector, address(deployOutput.delayedWETHPermissionlessGameProxy)
+        );
 
         _dso.checkOutput();
     }
