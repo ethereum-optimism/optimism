@@ -68,7 +68,6 @@ EXCLUDE_FILES=(
     "ILegacyMintableERC20"
     "MintableAndBurnable"
     "IDisputeGameFactory"
-    "IAddressManager"
     "IWETH"
     "IDelayedWETH"
     "IAnchorStateRegistry"
