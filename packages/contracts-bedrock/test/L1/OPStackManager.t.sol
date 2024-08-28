@@ -63,6 +63,7 @@ contract OPStackManager_Init is Test {
     OPStackManager.ImplementationSetter[] setters;
 
     function setUp() public {
+        // TODO Test with DeployOPChain to use real implementations.
         setters.push(
             OPStackManager.ImplementationSetter({
                 name: "L1ERC721Bridge",
@@ -102,6 +103,8 @@ contract OPStackManager_Init is Test {
             _superchainConfig: SuperchainConfig(makeAddr("superchainConfig")),
             _protocolVersions: ProtocolVersions(makeAddr("protocolVersions"))
         });
+
+        opsm.setRelease("op-contracts/latest", true, setters);
     }
 }
 
@@ -119,9 +122,6 @@ contract OPStackManager_Deploy_Test is OPStackManager_Init {
     }
 
     function test_deploy_succeeds() public {
-        // Currently skipped because OPSM is not fully implemented yet, so the deploy method reverts.
-        // This is also why we don't yet use the DeployOPChain script here.
-        vm.skip(true);
         opsm.deploy(deployInput);
     }
 }
