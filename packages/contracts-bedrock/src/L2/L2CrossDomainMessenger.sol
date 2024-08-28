@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
+import { ICrossDomainMessenger } from "src/universal/interfaces/ICrossDomainMessenger.sol";
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { L2ToL1MessagePasser } from "src/L2/L2ToL1MessagePasser.sol";
 import { Constants } from "src/libraries/Constants.sol";
@@ -22,12 +23,12 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, ISemver {
 
     /// @notice Constructs the L2CrossDomainMessenger contract.
     constructor() CrossDomainMessenger() {
-        initialize({ _l1CrossDomainMessenger: CrossDomainMessenger(address(0)) });
+        initialize({ _l1CrossDomainMessenger: ICrossDomainMessenger(address(0)) });
     }
 
     /// @notice Initializer.
     /// @param _l1CrossDomainMessenger L1CrossDomainMessenger contract on the other network.
-    function initialize(CrossDomainMessenger _l1CrossDomainMessenger) public initializer {
+    function initialize(ICrossDomainMessenger _l1CrossDomainMessenger) public initializer {
         __CrossDomainMessenger_init({ _otherMessenger: _l1CrossDomainMessenger });
     }
 
@@ -35,7 +36,7 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, ISemver {
     ///         Public getter is legacy and will be removed in the future. Use `otherMessenger()` instead.
     /// @return L1CrossDomainMessenger contract.
     /// @custom:legacy
-    function l1CrossDomainMessenger() public view returns (CrossDomainMessenger) {
+    function l1CrossDomainMessenger() public view returns (ICrossDomainMessenger) {
         return otherMessenger;
     }
 

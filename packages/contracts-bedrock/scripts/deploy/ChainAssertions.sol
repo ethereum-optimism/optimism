@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
+import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
 import { DeployConfig } from "scripts/deploy/DeployConfig.s.sol";
 import { Deployer } from "scripts/deploy/Deployer.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
@@ -39,8 +40,8 @@ library ChainAssertions {
         view
     {
         console.log("Running post-deploy assertions");
-        ResourceMetering.ResourceConfig memory rcfg = SystemConfig(_prox.SystemConfig).resourceConfig();
-        ResourceMetering.ResourceConfig memory dflt = Constants.DEFAULT_RESOURCE_CONFIG();
+        IResourceMetering.ResourceConfig memory rcfg = SystemConfig(_prox.SystemConfig).resourceConfig();
+        IResourceMetering.ResourceConfig memory dflt = Constants.DEFAULT_RESOURCE_CONFIG();
         require(keccak256(abi.encode(rcfg)) == keccak256(abi.encode(dflt)));
 
         checkSystemConfig({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
@@ -67,7 +68,7 @@ library ChainAssertions {
         // Check that the contract is initialized
         assertSlotValueIsOne({ _contractAddress: address(config), _slot: 0, _offset: 0 });
 
-        ResourceMetering.ResourceConfig memory resourceConfig = config.resourceConfig();
+        IResourceMetering.ResourceConfig memory resourceConfig = config.resourceConfig();
 
         if (_isProxy) {
             require(config.owner() == _cfg.finalSystemOwner());
@@ -78,7 +79,7 @@ library ChainAssertions {
             require(config.unsafeBlockSigner() == _cfg.p2pSequencerAddress());
             require(config.scalar() >> 248 == 1);
             // Check _config
-            ResourceMetering.ResourceConfig memory rconfig = Constants.DEFAULT_RESOURCE_CONFIG();
+            IResourceMetering.ResourceConfig memory rconfig = Constants.DEFAULT_RESOURCE_CONFIG();
             require(resourceConfig.maxResourceLimit == rconfig.maxResourceLimit);
             require(resourceConfig.elasticityMultiplier == rconfig.elasticityMultiplier);
             require(resourceConfig.baseFeeMaxChangeDenominator == rconfig.baseFeeMaxChangeDenominator);

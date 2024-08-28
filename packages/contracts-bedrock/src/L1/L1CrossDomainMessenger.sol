@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
+import { ICrossDomainMessenger } from "src/universal/interfaces/ICrossDomainMessenger.sol";
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
@@ -52,7 +53,7 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
         superchainConfig = _superchainConfig;
         portal = _portal;
         systemConfig = _systemConfig;
-        __CrossDomainMessenger_init({ _otherMessenger: CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER) });
+        __CrossDomainMessenger_init({ _otherMessenger: ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER) });
     }
 
     /// @inheritdoc CrossDomainMessenger

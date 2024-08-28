@@ -61,7 +61,7 @@
     "name": "OTHER_MESSENGER",
     "outputs": [
       {
-        "internalType": "contract CrossDomainMessenger",
+        "internalType": "contract ICrossDomainMessenger",
         "name": "",
         "type": "address"
       }
@@ -218,7 +218,7 @@
     "name": "otherMessenger",
     "outputs": [
       {
-        "internalType": "contract CrossDomainMessenger",
+        "internalType": "contract ICrossDomainMessenger",
         "name": "",
         "type": "address"
       }

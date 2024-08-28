@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
+import { ISystemConfig } from "src/L1/interfaces/ISystemConfig.sol";
 import { Proxy } from "src/universal/Proxy.sol";
 import { Constants } from "src/libraries/Constants.sol";
 
@@ -27,7 +28,7 @@ contract SystemConfig_GasLimitBoundaries_Invariant is Test {
                     address(1), // unsafe block signer
                     Constants.DEFAULT_RESOURCE_CONFIG(),
                     address(0), // _batchInbox
-                    SystemConfig.Addresses({ // _addrs
+                    ISystemConfig.Addresses({ // _addrs
                         l1CrossDomainMessenger: address(0),
                         l1ERC721Bridge: address(0),
                         l1StandardBridge: address(0),

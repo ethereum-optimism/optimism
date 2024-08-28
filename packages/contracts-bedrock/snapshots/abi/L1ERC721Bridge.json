@@ -9,7 +9,7 @@
     "name": "MESSENGER",
     "outputs": [
       {
-        "internalType": "contract CrossDomainMessenger",
+        "internalType": "contract ICrossDomainMessenger",
         "name": "",
         "type": "address"
       }
@@ -22,7 +22,7 @@
     "name": "OTHER_BRIDGE",
     "outputs": [
       {
-        "internalType": "contract ERC721Bridge",
+        "internalType": "contract IERC721Bridge",
         "name": "",
         "type": "address"
       }
@@ -171,7 +171,7 @@
   {
     "inputs": [
       {
-        "internalType": "contract CrossDomainMessenger",
+        "internalType": "contract ICrossDomainMessenger",
         "name": "_messenger",
         "type": "address"
       },
@@ -191,7 +191,7 @@
     "name": "messenger",
     "outputs": [
       {
-        "internalType": "contract CrossDomainMessenger",
+        "internalType": "contract ICrossDomainMessenger",
         "name": "",
         "type": "address"
       }
@@ -204,7 +204,7 @@
     "name": "otherBridge",
     "outputs": [
       {
-        "internalType": "contract ERC721Bridge",
+        "internalType": "contract IERC721Bridge",
         "name": "",
         "type": "address"
       }

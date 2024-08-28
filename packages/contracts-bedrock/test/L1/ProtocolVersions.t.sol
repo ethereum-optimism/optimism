@@ -13,9 +13,10 @@ import { Proxy } from "src/universal/Proxy.sol";
 
 // Target contract
 import { ProtocolVersions, ProtocolVersion } from "src/L1/ProtocolVersions.sol";
+import { IProtocolVersions } from "src/L1/interfaces/IProtocolVersions.sol";
 
 contract ProtocolVersions_Init is CommonTest {
-    event ConfigUpdate(uint256 indexed version, ProtocolVersions.UpdateType indexed updateType, bytes data);
+    event ConfigUpdate(uint256 indexed version, IProtocolVersions.UpdateType indexed updateType, bytes data);
 
     ProtocolVersion required;
     ProtocolVersion recommended;
@@ -52,9 +53,9 @@ contract ProtocolVersions_Initialize_Test is ProtocolVersions_Init {
 
         // The order depends here
         vm.expectEmit(true, true, true, true, address(protocolVersions));
-        emit ConfigUpdate(0, ProtocolVersions.UpdateType.REQUIRED_PROTOCOL_VERSION, abi.encode(required));
+        emit ConfigUpdate(0, IProtocolVersions.UpdateType.REQUIRED_PROTOCOL_VERSION, abi.encode(required));
         vm.expectEmit(true, true, true, true, address(protocolVersions));
-        emit ConfigUpdate(0, ProtocolVersions.UpdateType.RECOMMENDED_PROTOCOL_VERSION, abi.encode(recommended));
+        emit ConfigUpdate(0, IProtocolVersions.UpdateType.RECOMMENDED_PROTOCOL_VERSION, abi.encode(recommended));
 
         vm.prank(EIP1967Helper.getAdmin(address(protocolVersions)));
         Proxy(payable(address(protocolVersions))).upgradeToAndCall(
@@ -89,7 +90,7 @@ contract ProtocolVersions_Setters_Test is ProtocolVersions_Init {
     /// @dev Tests that `setRequired` updates the required protocol version successfully.
     function testFuzz_setRequired_succeeds(uint256 _version) external {
         vm.expectEmit(true, true, true, true);
-        emit ConfigUpdate(0, ProtocolVersions.UpdateType.REQUIRED_PROTOCOL_VERSION, abi.encode(_version));
+        emit ConfigUpdate(0, IProtocolVersions.UpdateType.REQUIRED_PROTOCOL_VERSION, abi.encode(_version));
 
         vm.prank(protocolVersions.owner());
         protocolVersions.setRequired(ProtocolVersion.wrap(_version));
@@ -99,7 +100,7 @@ contract ProtocolVersions_Setters_Test is ProtocolVersions_Init {
     /// @dev Tests that `setRecommended` updates the recommended protocol version successfully.
     function testFuzz_setRecommended_succeeds(uint256 _version) external {
         vm.expectEmit(true, true, true, true);
-        emit ConfigUpdate(0, ProtocolVersions.UpdateType.RECOMMENDED_PROTOCOL_VERSION, abi.encode(_version));
+        emit ConfigUpdate(0, IProtocolVersions.UpdateType.RECOMMENDED_PROTOCOL_VERSION, abi.encode(_version));
 
         vm.prank(protocolVersions.owner());
         protocolVersions.setRecommended(ProtocolVersion.wrap(_version));

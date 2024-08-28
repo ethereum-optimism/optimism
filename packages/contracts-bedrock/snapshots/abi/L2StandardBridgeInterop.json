@@ -8,7 +8,7 @@
     "name": "MESSENGER",
     "outputs": [
       {
-        "internalType": "contract CrossDomainMessenger",
+        "internalType": "contract ICrossDomainMessenger",
         "name": "",
         "type": "address"
       }
@@ -21,7 +21,7 @@
     "name": "OTHER_BRIDGE",
     "outputs": [
       {
-        "internalType": "contract StandardBridge",
+        "internalType": "contract IStandardBridge",
         "name": "",
         "type": "address"
       }
@@ -257,7 +257,7 @@
   {
     "inputs": [
       {
-        "internalType": "contract StandardBridge",
+        "internalType": "contract IStandardBridge",
         "name": "_otherBridge",
         "type": "address"
       }
@@ -285,7 +285,7 @@
     "name": "messenger",
     "outputs": [
       {
-        "internalType": "contract CrossDomainMessenger",
+        "internalType": "contract ICrossDomainMessenger",
         "name": "",
         "type": "address"
       }
@@ -298,7 +298,7 @@
     "name": "otherBridge",
     "outputs": [
       {
-        "internalType": "contract StandardBridge",
+        "internalType": "contract IStandardBridge",
         "name": "",
         "type": "address"
       }

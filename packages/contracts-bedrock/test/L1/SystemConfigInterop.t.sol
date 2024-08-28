@@ -12,6 +12,7 @@ import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
 // Target contract dependencies
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { SystemConfigInterop } from "src/L1/SystemConfigInterop.sol";
+import { ISystemConfig } from "src/L1/interfaces/ISystemConfig.sol";
 import { OptimismPortalInterop } from "src/L1/OptimismPortalInterop.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { ConfigType } from "src/L2/L1BlockInterop.sol";
@@ -118,7 +119,7 @@ contract SystemConfigInterop_Test is CommonTest {
             _unsafeBlockSigner: address(1),
             _config: Constants.DEFAULT_RESOURCE_CONFIG(),
             _batchInbox: address(0),
-            _addresses: SystemConfig.Addresses({
+            _addresses: ISystemConfig.Addresses({
                 l1CrossDomainMessenger: address(0),
                 l1ERC721Bridge: address(0),
                 disputeGameFactory: address(0),

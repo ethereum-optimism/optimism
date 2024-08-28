@@ -342,7 +342,7 @@
             "type": "uint128"
           }
         ],
-        "internalType": "struct ResourceMetering.ResourceConfig",
+        "internalType": "struct IResourceMetering.ResourceConfig",
         "name": "_config",
         "type": "tuple"
       },
@@ -389,7 +389,7 @@
             "type": "address"
           }
         ],
-        "internalType": "struct SystemConfig.Addresses",
+        "internalType": "struct ISystemConfig.Addresses",
         "name": "_addresses",
         "type": "tuple"
       },
@@ -469,7 +469,7 @@
             "type": "uint128"
           }
         ],
-        "internalType": "struct ResourceMetering.ResourceConfig",
+        "internalType": "struct IResourceMetering.ResourceConfig",
         "name": "_config",
         "type": "tuple"
       },
@@ -516,7 +516,7 @@
             "type": "address"
           }
         ],
-        "internalType": "struct SystemConfig.Addresses",
+        "internalType": "struct ISystemConfig.Addresses",
         "name": "_addresses",
         "type": "tuple"
       }
@@ -713,7 +713,7 @@
             "type": "uint128"
           }
         ],
-        "internalType": "struct ResourceMetering.ResourceConfig",
+        "internalType": "struct IResourceMetering.ResourceConfig",
         "name": "",
         "type": "tuple"
       }
@@ -872,7 +872,7 @@
       },
       {
         "indexed": true,
-        "internalType": "enum SystemConfig.UpdateType",
+        "internalType": "enum ISystemConfig.UpdateType",
         "name": "updateType",
         "type": "uint8"
       },

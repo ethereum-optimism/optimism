@@ -6,9 +6,10 @@ import { OptimismPortalInterop as OptimismPortal } from "src/L1/OptimismPortalIn
 import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
+import { ISystemConfig } from "src/L1/interfaces/ISystemConfig.sol";
 import { ConfigType } from "src/L2/L1BlockInterop.sol";
 import { StaticConfig } from "src/libraries/StaticConfig.sol";
-import { ResourceMetering } from "src/L1/ResourceMetering.sol";
+import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
 import { Storage } from "src/libraries/Storage.sol";
 
 /// @custom:proxied true
@@ -41,9 +42,9 @@ contract SystemConfigInterop is SystemConfig {
         bytes32 _batcherHash,
         uint64 _gasLimit,
         address _unsafeBlockSigner,
-        ResourceMetering.ResourceConfig memory _config,
+        IResourceMetering.ResourceConfig memory _config,
         address _batchInbox,
-        SystemConfig.Addresses memory _addresses,
+        ISystemConfig.Addresses memory _addresses,
         address _dependencyManager
     )
         external

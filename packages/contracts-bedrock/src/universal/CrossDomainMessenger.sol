@@ -6,6 +6,7 @@ import { SafeCall } from "src/libraries/SafeCall.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Constants } from "src/libraries/Constants.sol";
+import { ICrossDomainMessenger } from "src/universal/interfaces/ICrossDomainMessenger.sol";
 
 /// @custom:legacy
 /// @title CrossDomainMessengerLegacySpacer0
@@ -137,7 +138,7 @@ abstract contract CrossDomainMessenger is
 
     /// @notice CrossDomainMessenger contract on the other chain.
     /// @custom:network-specific
-    CrossDomainMessenger public otherMessenger;
+    ICrossDomainMessenger public otherMessenger;
 
     /// @notice Reserve extra slots in the storage layout for future upgrades.
     ///         A gap size of 43 was chosen here, so that the first slot used in a child contract
@@ -324,7 +325,7 @@ abstract contract CrossDomainMessenger is
     ///         Public getter is legacy and will be removed in the future. Use `otherMessenger()` instead.
     /// @return CrossDomainMessenger contract on the other chain.
     /// @custom:legacy
-    function OTHER_MESSENGER() public view returns (CrossDomainMessenger) {
+    function OTHER_MESSENGER() public view returns (ICrossDomainMessenger) {
         return otherMessenger;
     }
 
@@ -373,7 +374,7 @@ abstract contract CrossDomainMessenger is
 
     /// @notice Initializer.
     /// @param _otherMessenger CrossDomainMessenger contract on the other chain.
-    function __CrossDomainMessenger_init(CrossDomainMessenger _otherMessenger) internal onlyInitializing {
+    function __CrossDomainMessenger_init(ICrossDomainMessenger _otherMessenger) internal onlyInitializing {
         // We only want to set the xDomainMsgSender to the default value if it hasn't been initialized yet,
         // meaning that this is a fresh contract deployment.
         // This prevents resetting the xDomainMsgSender to the default value during an upgrade, which would enable

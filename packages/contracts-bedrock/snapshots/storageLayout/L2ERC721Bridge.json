@@ -25,14 +25,14 @@
     "label": "messenger",
     "offset": 0,
     "slot": "1",
-    "type": "contract CrossDomainMessenger"
+    "type": "contract ICrossDomainMessenger"
   },
   {
     "bytes": "20",
     "label": "otherBridge",
     "offset": 0,
     "slot": "2",
-    "type": "contract ERC721Bridge"
+    "type": "contract IERC721Bridge"
   },
   {
     "bytes": "1472",

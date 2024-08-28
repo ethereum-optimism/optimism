@@ -12,9 +12,10 @@ import { Proxy } from "src/universal/Proxy.sol";
 
 // Target contract
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
+import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
 
 contract MeterUser is ResourceMetering {
-    ResourceMetering.ResourceConfig public innerConfig;
+    IResourceMetering.ResourceConfig public innerConfig;
 
     constructor() {
         initialize();
@@ -25,25 +26,25 @@ contract MeterUser is ResourceMetering {
         __ResourceMetering_init();
     }
 
-    function resourceConfig() public view returns (ResourceMetering.ResourceConfig memory) {
+    function resourceConfig() public view returns (IResourceMetering.ResourceConfig memory) {
         return _resourceConfig();
     }
 
-    function _resourceConfig() internal view override returns (ResourceMetering.ResourceConfig memory) {
+    function _resourceConfig() internal view override returns (IResourceMetering.ResourceConfig memory) {
         return innerConfig;
     }
 
     function use(uint64 _amount) public metered(_amount) { }
 
     function set(uint128 _prevBaseFee, uint64 _prevBoughtGas, uint64 _prevBlockNum) public {
-        params = ResourceMetering.ResourceParams({
+        params = IResourceMetering.ResourceParams({
             prevBaseFee: _prevBaseFee,
             prevBoughtGas: _prevBoughtGas,
             prevBlockNum: _prevBlockNum
         });
     }
 
-    function setParams(ResourceMetering.ResourceConfig memory newConfig) public {
+    function setParams(IResourceMetering.ResourceConfig memory newConfig) public {
         innerConfig = newConfig;
     }
 }
@@ -64,7 +65,7 @@ contract ResourceMetering_Test is Test {
     /// @dev Tests that the initial resource params are set correctly.
     function test_meter_initialResourceParams_succeeds() external view {
         (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = meter.params();
-        ResourceMetering.ResourceConfig memory rcfg = meter.resourceConfig();
+        IResourceMetering.ResourceConfig memory rcfg = meter.resourceConfig();
 
         assertEq(prevBaseFee, rcfg.minimumBaseFee);
         assertEq(prevBoughtGas, 0);
@@ -132,7 +133,7 @@ contract ResourceMetering_Test is Test {
 
     /// @dev Tests that updating the gas delta sets the meter params correctly.
     function test_meter_updateNoGasDelta_succeeds() external {
-        ResourceMetering.ResourceConfig memory rcfg = meter.resourceConfig();
+        IResourceMetering.ResourceConfig memory rcfg = meter.resourceConfig();
         uint256 target = uint256(rcfg.maxResourceLimit) / uint256(rcfg.elasticityMultiplier);
         meter.use(uint64(target));
         (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = meter.params();
@@ -144,7 +145,7 @@ contract ResourceMetering_Test is Test {
 
     /// @dev Tests that the meter params are set correctly for the maximum gas delta.
     function test_meter_useMax_succeeds() external {
-        ResourceMetering.ResourceConfig memory rcfg = meter.resourceConfig();
+        IResourceMetering.ResourceConfig memory rcfg = meter.resourceConfig();
         uint64 target = uint64(rcfg.maxResourceLimit) / uint64(rcfg.elasticityMultiplier);
         uint64 elasticityMultiplier = uint64(rcfg.elasticityMultiplier);
 
@@ -163,7 +164,7 @@ contract ResourceMetering_Test is Test {
     ///      Since the metered modifier internally calls solmate's powWad function, it will revert
     ///      with the error string "UNDEFINED" since the first parameter will be computed as 0.
     function test_meter_denominatorEq1_reverts() external {
-        ResourceMetering.ResourceConfig memory rcfg = meter.resourceConfig();
+        IResourceMetering.ResourceConfig memory rcfg = meter.resourceConfig();
         uint64 target = uint64(rcfg.maxResourceLimit) / uint64(rcfg.elasticityMultiplier);
         uint64 elasticityMultiplier = uint64(rcfg.elasticityMultiplier);
         rcfg.baseFeeMaxChangeDenominator = 1;
@@ -181,7 +182,7 @@ contract ResourceMetering_Test is Test {
 
     /// @dev Tests that the metered modifier reverts if the value is greater than allowed.
     function test_meter_useMoreThanMax_reverts() external {
-        ResourceMetering.ResourceConfig memory rcfg = meter.resourceConfig();
+        IResourceMetering.ResourceConfig memory rcfg = meter.resourceConfig();
         uint64 target = uint64(rcfg.maxResourceLimit) / uint64(rcfg.elasticityMultiplier);
         uint64 elasticityMultiplier = uint64(rcfg.elasticityMultiplier);
 
@@ -195,7 +196,7 @@ contract ResourceMetering_Test is Test {
         // At 12 seconds per block, this number is effectively unreachable.
         vm.assume(_blockDiff < 433576281058164217753225238677900874458691);
 
-        ResourceMetering.ResourceConfig memory rcfg = meter.resourceConfig();
+        IResourceMetering.ResourceConfig memory rcfg = meter.resourceConfig();
         uint64 target = uint64(rcfg.maxResourceLimit) / uint64(rcfg.elasticityMultiplier);
         uint64 elasticityMultiplier = uint64(rcfg.elasticityMultiplier);
 
@@ -223,14 +224,14 @@ contract CustomMeterUser is ResourceMetering {
     uint256 public endGas;
 
     constructor(uint128 _prevBaseFee, uint64 _prevBoughtGas, uint64 _prevBlockNum) {
-        params = ResourceMetering.ResourceParams({
+        params = IResourceMetering.ResourceParams({
             prevBaseFee: _prevBaseFee,
             prevBoughtGas: _prevBoughtGas,
             prevBlockNum: _prevBlockNum
         });
     }
 
-    function _resourceConfig() internal pure override returns (ResourceMetering.ResourceConfig memory) {
+    function _resourceConfig() internal pure override returns (IResourceMetering.ResourceConfig memory) {
         return Constants.DEFAULT_RESOURCE_CONFIG();
     }
 
@@ -269,7 +270,7 @@ contract ArtifactResourceMetering_Test is Test {
         vm.roll(1_000_000);
 
         MeterUser base = new MeterUser();
-        ResourceMetering.ResourceConfig memory rcfg = base.resourceConfig();
+        IResourceMetering.ResourceConfig memory rcfg = base.resourceConfig();
         minimumBaseFee = uint128(rcfg.minimumBaseFee);
         maximumBaseFee = rcfg.maximumBaseFee;
         maxResourceLimit = uint64(rcfg.maxResourceLimit);

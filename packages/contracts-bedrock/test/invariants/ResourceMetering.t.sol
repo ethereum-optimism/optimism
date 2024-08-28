@@ -8,6 +8,7 @@ import { StdInvariant } from "forge-std/StdInvariant.sol";
 
 import { Arithmetic } from "src/libraries/Arithmetic.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
+import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { InvariantTest } from "test/invariants/InvariantTest.sol";
 
@@ -31,12 +32,12 @@ contract ResourceMetering_User is StdUtils, ResourceMetering {
         __ResourceMetering_init();
     }
 
-    function resourceConfig() public pure returns (ResourceMetering.ResourceConfig memory) {
+    function resourceConfig() public pure returns (IResourceMetering.ResourceConfig memory) {
         return _resourceConfig();
     }
 
-    function _resourceConfig() internal pure override returns (ResourceMetering.ResourceConfig memory) {
-        ResourceMetering.ResourceConfig memory rcfg = Constants.DEFAULT_RESOURCE_CONFIG();
+    function _resourceConfig() internal pure override returns (IResourceMetering.ResourceConfig memory) {
+        IResourceMetering.ResourceConfig memory rcfg = Constants.DEFAULT_RESOURCE_CONFIG();
         return rcfg;
     }
 
@@ -48,7 +49,7 @@ contract ResourceMetering_User is StdUtils, ResourceMetering {
         uint256 cachedPrevBoughtGas = uint256(params.prevBoughtGas);
         uint256 cachedPrevBlockNum = uint256(params.prevBlockNum);
 
-        ResourceMetering.ResourceConfig memory rcfg = resourceConfig();
+        IResourceMetering.ResourceConfig memory rcfg = resourceConfig();
         uint256 targetResourceLimit = uint256(rcfg.maxResourceLimit) / uint256(rcfg.elasticityMultiplier);
 
         // check that the last block's base fee hasn't dropped below the minimum

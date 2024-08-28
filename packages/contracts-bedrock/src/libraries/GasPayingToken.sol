@@ -10,11 +10,11 @@ import { LibString } from "@solady/utils/LibString.sol";
 ///         by the L2 network.
 interface IGasToken {
     /// @notice Getter for the ERC20 token address that is used to pay for gas and its decimals.
-    function gasPayingToken() external view returns (address, uint8);
+    function gasPayingToken() external view returns (address addr_, uint8 decimals_);
     /// @notice Returns the gas token name.
-    function gasPayingTokenName() external view returns (string memory);
+    function gasPayingTokenName() external view returns (string memory name_);
     /// @notice Returns the gas token symbol.
-    function gasPayingTokenSymbol() external view returns (string memory);
+    function gasPayingTokenSymbol() external view returns (string memory symbol_);
     /// @notice Returns true if the network uses a custom gas token.
     function isCustomGasToken() external view returns (bool);
 }

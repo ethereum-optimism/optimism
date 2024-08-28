@@ -25,11 +25,15 @@ import { OptimismPortalInterop } from "src/L1/OptimismPortalInterop.sol";
 import { L1ChugSplashProxy } from "src/legacy/L1ChugSplashProxy.sol";
 import { ResolvedDelegateProxy } from "src/legacy/ResolvedDelegateProxy.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
+import { ICrossDomainMessenger } from "src/universal/interfaces/ICrossDomainMessenger.sol";
 import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { SystemConfigInterop } from "src/L1/SystemConfigInterop.sol";
+import { ISystemConfig } from "src/L1/interfaces/ISystemConfig.sol";
+import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
+import { IDisputeGameFactory } from "src/dispute/interfaces/IDisputeGameFactory.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { DataAvailabilityChallenge } from "src/L1/DataAvailabilityChallenge.sol";
 import { Constants } from "src/libraries/Constants.sol";
@@ -1066,7 +1070,7 @@ contract Deploy is Deployer {
                     cfg.p2pSequencerAddress(),
                     Constants.DEFAULT_RESOURCE_CONFIG(),
                     cfg.batchInboxAddress(),
-                    SystemConfig.Addresses({
+                    ISystemConfig.Addresses({
                         l1CrossDomainMessenger: mustGetAddress("L1CrossDomainMessengerProxy"),
                         l1ERC721Bridge: mustGetAddress("L1ERC721BridgeProxy"),
                         l1StandardBridge: mustGetAddress("L1StandardBridgeProxy"),
@@ -1113,9 +1117,9 @@ contract Deploy is Deployer {
             _innerCallData: abi.encodeCall(
                 L1StandardBridge.initialize,
                 (
-                    L1CrossDomainMessenger(l1CrossDomainMessengerProxy),
-                    SuperchainConfig(superchainConfigProxy),
-                    SystemConfig(systemConfigProxy)
+                    ICrossDomainMessenger(l1CrossDomainMessengerProxy),
+                    ISuperchainConfig(superchainConfigProxy),
+                    ISystemConfig(systemConfigProxy)
                 )
             )
         });
@@ -1139,7 +1143,7 @@ contract Deploy is Deployer {
             _implementation: l1ERC721Bridge,
             _innerCallData: abi.encodeCall(
                 L1ERC721Bridge.initialize,
-                (L1CrossDomainMessenger(payable(l1CrossDomainMessengerProxy)), SuperchainConfig(superchainConfigProxy))
+                (ICrossDomainMessenger(payable(l1CrossDomainMessengerProxy)), SuperchainConfig(superchainConfigProxy))
             )
         });
 
@@ -1304,9 +1308,9 @@ contract Deploy is Deployer {
             _innerCallData: abi.encodeCall(
                 OptimismPortal2.initialize,
                 (
-                    DisputeGameFactory(disputeGameFactoryProxy),
-                    SystemConfig(systemConfigProxy),
-                    SuperchainConfig(superchainConfigProxy),
+                    IDisputeGameFactory(disputeGameFactoryProxy),
+                    ISystemConfig(systemConfigProxy),
+                    ISuperchainConfig(superchainConfigProxy),
                     GameType.wrap(uint32(cfg.respectedGameType()))
                 )
             )

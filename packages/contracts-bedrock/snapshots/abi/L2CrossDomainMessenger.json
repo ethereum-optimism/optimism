@@ -61,7 +61,7 @@
     "name": "OTHER_MESSENGER",
     "outputs": [
       {
-        "internalType": "contract CrossDomainMessenger",
+        "internalType": "contract ICrossDomainMessenger",
         "name": "",
         "type": "address"
       }
@@ -167,7 +167,7 @@
   {
     "inputs": [
       {
-        "internalType": "contract CrossDomainMessenger",
+        "internalType": "contract ICrossDomainMessenger",
         "name": "_l1CrossDomainMessenger",
         "type": "address"
       }
@@ -182,7 +182,7 @@
     "name": "l1CrossDomainMessenger",
     "outputs": [
       {
-        "internalType": "contract CrossDomainMessenger",
+        "internalType": "contract ICrossDomainMessenger",
         "name": "",
         "type": "address"
       }
@@ -208,7 +208,7 @@
     "name": "otherMessenger",
     "outputs": [
       {
-        "internalType": "contract CrossDomainMessenger",
+        "internalType": "contract ICrossDomainMessenger",
         "name": "",
         "type": "address"
       }

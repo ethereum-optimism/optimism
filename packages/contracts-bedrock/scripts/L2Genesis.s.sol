@@ -21,8 +21,8 @@ import { OptimismMintableERC721Factory } from "src/universal/OptimismMintableERC
 import { BaseFeeVault } from "src/L2/BaseFeeVault.sol";
 import { L1FeeVault } from "src/L2/L1FeeVault.sol";
 import { GovernanceToken } from "src/governance/GovernanceToken.sol";
-import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
-import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
+import { ICrossDomainMessenger } from "src/universal/interfaces/ICrossDomainMessenger.sol";
+import { IStandardBridge } from "src/universal/interfaces/IStandardBridge.sol";
 import { FeeVault } from "src/universal/FeeVault.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Process } from "scripts/libraries/Process.sol";
@@ -277,10 +277,10 @@ contract L2Genesis is Deployer {
     function setL2CrossDomainMessenger(address payable _l1CrossDomainMessengerProxy) public {
         address impl = _setImplementationCode(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
 
-        L2CrossDomainMessenger(impl).initialize({ _l1CrossDomainMessenger: L1CrossDomainMessenger(address(0)) });
+        L2CrossDomainMessenger(impl).initialize({ _l1CrossDomainMessenger: ICrossDomainMessenger(address(0)) });
 
         L2CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).initialize({
-            _l1CrossDomainMessenger: L1CrossDomainMessenger(_l1CrossDomainMessengerProxy)
+            _l1CrossDomainMessenger: ICrossDomainMessenger(_l1CrossDomainMessengerProxy)
         });
     }
 
@@ -296,10 +296,10 @@ contract L2Genesis is Deployer {
             impl = _setImplementationCode(Predeploys.L2_STANDARD_BRIDGE);
         }
 
-        L2StandardBridge(payable(impl)).initialize({ _otherBridge: L1StandardBridge(payable(address(0))) });
+        L2StandardBridge(payable(impl)).initialize({ _otherBridge: IStandardBridge(payable(address(0))) });
 
         L2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).initialize({
-            _otherBridge: L1StandardBridge(_l1StandardBridgeProxy)
+            _otherBridge: IStandardBridge(_l1StandardBridgeProxy)
         });
     }
 

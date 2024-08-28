@@ -4,6 +4,8 @@ pragma solidity 0.8.15;
 import { ERC721Bridge } from "src/universal/ERC721Bridge.sol";
 import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
+import { ICrossDomainMessenger } from "src/universal/interfaces/ICrossDomainMessenger.sol";
+import { IERC721Bridge } from "src/universal/interfaces/IERC721Bridge.sol";
 import { IOptimismMintableERC721 } from "src/universal/interfaces/IOptimismMintableERC721.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
@@ -34,8 +36,8 @@ contract L2ERC721Bridge is ERC721Bridge, ISemver {
     /// @param _l1ERC721Bridge Address of the ERC721 bridge contract on the other network.
     function initialize(address payable _l1ERC721Bridge) public initializer {
         __ERC721Bridge_init({
-            _messenger: CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER),
-            _otherBridge: ERC721Bridge(_l1ERC721Bridge)
+            _messenger: ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER),
+            _otherBridge: IERC721Bridge(_l1ERC721Bridge)
         });
     }
 

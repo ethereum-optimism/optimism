@@ -11,6 +11,7 @@ import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { SecureMerkleTrie } from "src/libraries/trie/SecureMerkleTrie.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
+import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -222,7 +223,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     ///         Used internally by the ResourceMetering contract.
     ///         The SystemConfig is the source of truth for the resource config.
     /// @return ResourceMetering ResourceConfig
-    function _resourceConfig() internal view override returns (ResourceMetering.ResourceConfig memory) {
+    function _resourceConfig() internal view override returns (IResourceMetering.ResourceConfig memory) {
         return systemConfig.resourceConfig();
     }
 

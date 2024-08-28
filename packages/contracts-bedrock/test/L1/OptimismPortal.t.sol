@@ -16,7 +16,7 @@ import { Constants } from "src/libraries/Constants.sol";
 
 // Target contract dependencies
 import { Proxy } from "src/universal/Proxy.sol";
-import { ResourceMetering } from "src/L1/ResourceMetering.sol";
+import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
@@ -170,7 +170,7 @@ contract OptimismPortal_Test is CommonTest {
             _to = address(0);
         }
         vm.assume(_data.length <= 120_000);
-        ResourceMetering.ResourceConfig memory rcfg = systemConfig.resourceConfig();
+        IResourceMetering.ResourceConfig memory rcfg = systemConfig.resourceConfig();
         _gasLimit =
             uint64(bound(_gasLimit, optimismPortal.minimumGasLimit(uint64(_data.length)), rcfg.maxResourceLimit));
 
@@ -1156,7 +1156,7 @@ contract OptimismPortalUpgradeable_Test is CommonTest {
     /// @dev Tests that the proxy is initialized correctly.
     function test_params_initValuesOnProxy_succeeds() external view {
         (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = optimismPortal.params();
-        ResourceMetering.ResourceConfig memory rcfg = systemConfig.resourceConfig();
+        IResourceMetering.ResourceConfig memory rcfg = systemConfig.resourceConfig();
 
         assertEq(prevBaseFee, rcfg.minimumBaseFee);
         assertEq(prevBoughtGas, 0);
@@ -1228,7 +1228,7 @@ contract OptimismPortalResourceFuzz_Test is CommonTest {
         vm.roll(uint256(keccak256(abi.encode(_blockDiff))) % uint256(type(uint16).max) + uint256(_blockDiff));
 
         // Create a resource config to mock the call to the system config with
-        ResourceMetering.ResourceConfig memory rcfg = ResourceMetering.ResourceConfig({
+        IResourceMetering.ResourceConfig memory rcfg = IResourceMetering.ResourceConfig({
             maxResourceLimit: _maxResourceLimit,
             elasticityMultiplier: _elasticityMultiplier,
             baseFeeMaxChangeDenominator: _baseFeeMaxChangeDenominator,
@@ -1287,7 +1287,7 @@ contract OptimismPortalWithMockERC20_Test is OptimismPortal_FinalizeWithdrawal_T
             _to = address(0);
         }
         vm.assume(_data.length <= 120_000);
-        ResourceMetering.ResourceConfig memory rcfg = systemConfig.resourceConfig();
+        IResourceMetering.ResourceConfig memory rcfg = systemConfig.resourceConfig();
         _gasLimit =
             uint64(bound(_gasLimit, optimismPortal.minimumGasLimit(uint64(_data.length)), rcfg.maxResourceLimit));
 
@@ -1502,7 +1502,7 @@ contract OptimismPortalWithMockERC20_Test is OptimismPortal_FinalizeWithdrawal_T
             _to = address(0);
         }
         vm.assume(_data.length <= 120_000);
-        ResourceMetering.ResourceConfig memory rcfg = systemConfig.resourceConfig();
+        IResourceMetering.ResourceConfig memory rcfg = systemConfig.resourceConfig();
         _gasLimit =
             uint64(bound(_gasLimit, optimismPortal.minimumGasLimit(uint64(_data.length)), rcfg.maxResourceLimit));
 

@@ -25,11 +25,11 @@ contract L1StandardBridge_Getter_Test is Bridge_Initializer {
     /// @dev Test that the accessors return the correct initialized values.
     function test_getters_succeeds() external view {
         assert(l1StandardBridge.l2TokenBridge() == address(l2StandardBridge));
-        assert(l1StandardBridge.OTHER_BRIDGE() == l2StandardBridge);
-        assert(l1StandardBridge.messenger() == l1CrossDomainMessenger);
-        assert(l1StandardBridge.MESSENGER() == l1CrossDomainMessenger);
-        assert(l1StandardBridge.superchainConfig() == superchainConfig);
-        assert(l1StandardBridge.systemConfig() == systemConfig);
+        assert(address(l1StandardBridge.OTHER_BRIDGE()) == address(l2StandardBridge));
+        assert(address(l1StandardBridge.messenger()) == address(l1CrossDomainMessenger));
+        assert(address(l1StandardBridge.MESSENGER()) == address(l1CrossDomainMessenger));
+        assert(address(l1StandardBridge.superchainConfig()) == address(superchainConfig));
+        assert(address(l1StandardBridge.systemConfig()) == address(systemConfig));
     }
 }
 

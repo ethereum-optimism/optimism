@@ -18,7 +18,7 @@
     "label": "params",
     "offset": 0,
     "slot": "1",
-    "type": "struct ResourceMetering.ResourceParams"
+    "type": "struct IResourceMetering.ResourceParams"
   },
   {
     "bytes": "1536",
@@ -60,7 +60,7 @@
     "label": "superchainConfig",
     "offset": 1,
     "slot": "53",
-    "type": "contract SuperchainConfig"
+    "type": "contract ISuperchainConfig"
   },
   {
     "bytes": "20",
@@ -74,14 +74,14 @@
     "label": "systemConfig",
     "offset": 0,
     "slot": "55",
-    "type": "contract SystemConfig"
+    "type": "contract ISystemConfig"
   },
   {
     "bytes": "20",
     "label": "disputeGameFactory",
     "offset": 0,
     "slot": "56",
-    "type": "contract DisputeGameFactory"
+    "type": "contract IDisputeGameFactory"
   },
   {
     "bytes": "32",

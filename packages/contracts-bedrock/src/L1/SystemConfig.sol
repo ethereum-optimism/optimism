@@ -3,7 +3,8 @@ pragma solidity 0.8.15;
 
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
-import { ResourceMetering } from "src/L1/ResourceMetering.sol";
+import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
+import { ISystemConfig } from "src/L1/interfaces/ISystemConfig.sol";
 import { Storage } from "src/libraries/Storage.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
@@ -16,32 +17,6 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 ///         All configuration is stored on L1 and picked up by L2 as part of the derviation of
 ///         the L2 chain.
 contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
-    /// @notice Enum representing different types of updates.
-    /// @custom:value BATCHER              Represents an update to the batcher hash.
-    /// @custom:value GAS_CONFIG           Represents an update to txn fee config on L2.
-    /// @custom:value GAS_LIMIT            Represents an update to gas limit on L2.
-    /// @custom:value UNSAFE_BLOCK_SIGNER  Represents an update to the signer key for unsafe
-    ///                                    block distrubution.
-    enum UpdateType {
-        BATCHER,
-        GAS_CONFIG,
-        GAS_LIMIT,
-        UNSAFE_BLOCK_SIGNER
-    }
-
-    /// @notice Struct representing the addresses of L1 system contracts. These should be the
-    ///         contracts that users interact with (not implementations for proxied contracts)
-    ///         and are network specific.
-    struct Addresses {
-        address l1CrossDomainMessenger;
-        address l1ERC721Bridge;
-        address l1StandardBridge;
-        address disputeGameFactory;
-        address optimismPortal;
-        address optimismMintableERC20Factory;
-        address gasPayingToken;
-    }
-
     /// @notice Version identifier, used for upgrades.
     uint256 public constant VERSION = 0;
 
@@ -116,13 +91,13 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     /// @notice The configuration for the deposit fee market.
     ///         Used by the OptimismPortal to meter the cost of buying L2 gas on L1.
     ///         Set as internal with a getter so that the struct is returned instead of a tuple.
-    ResourceMetering.ResourceConfig internal _resourceConfig;
+    IResourceMetering.ResourceConfig internal _resourceConfig;
 
     /// @notice Emitted when configuration is updated.
     /// @param version    SystemConfig version.
     /// @param updateType Type of update.
     /// @param data       Encoded update data.
-    event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
+    event ConfigUpdate(uint256 indexed version, ISystemConfig.UpdateType indexed updateType, bytes data);
 
     /// @notice Semantic version.
     /// @custom:semver 2.3.0-beta.3
@@ -144,7 +119,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
             _batcherHash: bytes32(0),
             _gasLimit: 1,
             _unsafeBlockSigner: address(0),
-            _config: ResourceMetering.ResourceConfig({
+            _config: IResourceMetering.ResourceConfig({
                 maxResourceLimit: 1,
                 elasticityMultiplier: 1,
                 baseFeeMaxChangeDenominator: 2,
@@ -153,7 +128,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
                 maximumBaseFee: 0
             }),
             _batchInbox: address(0),
-            _addresses: SystemConfig.Addresses({
+            _addresses: ISystemConfig.Addresses({
                 l1CrossDomainMessenger: address(0),
                 l1ERC721Bridge: address(0),
                 l1StandardBridge: address(0),
@@ -184,9 +159,9 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         bytes32 _batcherHash,
         uint64 _gasLimit,
         address _unsafeBlockSigner,
-        ResourceMetering.ResourceConfig memory _config,
+        IResourceMetering.ResourceConfig memory _config,
         address _batchInbox,
-        SystemConfig.Addresses memory _addresses
+        ISystemConfig.Addresses memory _addresses
     )
         public
         initializer
@@ -339,7 +314,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         Storage.setAddress(UNSAFE_BLOCK_SIGNER_SLOT, _unsafeBlockSigner);
 
         bytes memory data = abi.encode(_unsafeBlockSigner);
-        emit ConfigUpdate(VERSION, UpdateType.UNSAFE_BLOCK_SIGNER, data);
+        emit ConfigUpdate(VERSION, ISystemConfig.UpdateType.UNSAFE_BLOCK_SIGNER, data);
     }
 
     /// @notice Updates the batcher hash. Can only be called by the owner.
@@ -354,7 +329,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         batcherHash = _batcherHash;
 
         bytes memory data = abi.encode(_batcherHash);
-        emit ConfigUpdate(VERSION, UpdateType.BATCHER, data);
+        emit ConfigUpdate(VERSION, ISystemConfig.UpdateType.BATCHER, data);
     }
 
     /// @notice Updates gas config. Can only be called by the owner.
@@ -375,7 +350,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         scalar = _scalar;
 
         bytes memory data = abi.encode(_overhead, _scalar);
-        emit ConfigUpdate(VERSION, UpdateType.GAS_CONFIG, data);
+        emit ConfigUpdate(VERSION, ISystemConfig.UpdateType.GAS_CONFIG, data);
     }
 
     /// @notice Updates gas config as of the Ecotone upgrade. Can only be called by the owner.
@@ -395,7 +370,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         scalar = (uint256(0x01) << 248) | (uint256(_blobbasefeeScalar) << 32) | _basefeeScalar;
 
         bytes memory data = abi.encode(overhead, scalar);
-        emit ConfigUpdate(VERSION, UpdateType.GAS_CONFIG, data);
+        emit ConfigUpdate(VERSION, ISystemConfig.UpdateType.GAS_CONFIG, data);
     }
 
     /// @notice Updates the L2 gas limit. Can only be called by the owner.
@@ -412,7 +387,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         gasLimit = _gasLimit;
 
         bytes memory data = abi.encode(_gasLimit);
-        emit ConfigUpdate(VERSION, UpdateType.GAS_LIMIT, data);
+        emit ConfigUpdate(VERSION, ISystemConfig.UpdateType.GAS_LIMIT, data);
     }
 
     /// @notice Sets the start block in a backwards compatible way. Proxies
@@ -433,7 +408,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     /// @notice A getter for the resource config.
     ///         Ensures that the struct is returned instead of a tuple.
     /// @return ResourceConfig
-    function resourceConfig() external view returns (ResourceMetering.ResourceConfig memory) {
+    function resourceConfig() external view returns (IResourceMetering.ResourceConfig memory) {
         return _resourceConfig;
     }
 
@@ -442,7 +417,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     ///         In the future, this method may emit an event that the `op-node` picks up
     ///         for when the resource config is changed.
     /// @param _config The new resource config.
-    function _setResourceConfig(ResourceMetering.ResourceConfig memory _config) internal {
+    function _setResourceConfig(IResourceMetering.ResourceConfig memory _config) internal {
         // Min base fee must be less than or equal to max base fee.
         require(
             _config.minimumBaseFee <= _config.maximumBaseFee, "SystemConfig: min base fee must be less than max base"
