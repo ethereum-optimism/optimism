@@ -172,3 +172,7 @@ func (cfg *Config) Check() error {
 	}
 	return nil
 }
+
+func (cfg *Config) P2PEnabled() bool {
+	return cfg.P2P != nil && !cfg.P2P.Disabled()
+}
