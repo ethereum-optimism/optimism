@@ -1,6 +1,7 @@
 package script
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -36,7 +37,7 @@ func (c *CheatCodesPrecompile) ProjectRoot() string {
 
 func (c *CheatCodesPrecompile) getArtifact(input string) (*foundry.Artifact, error) {
 	// fetching by relative file path, or using a contract version, is not supported
-	parts := strings.SplitN(input, ":", 1)
+	parts := strings.SplitN(input, ":", 2)
 	name := parts[0] + ".sol"
 	contract := parts[0]
 	if len(parts) == 2 {
@@ -52,7 +53,7 @@ func (c *CheatCodesPrecompile) GetCode(input string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return artifact.Bytecode.Object, nil
+	return bytes.Clone(artifact.Bytecode.Object), nil
 }
 
 // GetDeployedCode implements https://book.getfoundry.sh/cheatcodes/get-deployed-code
@@ -61,7 +62,7 @@ func (c *CheatCodesPrecompile) GetDeployedCode(input string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return artifact.DeployedBytecode.Object, nil
+	return bytes.Clone(artifact.DeployedBytecode.Object), nil
 }
 
 // Sleep implements https://book.getfoundry.sh/cheatcodes/sleep

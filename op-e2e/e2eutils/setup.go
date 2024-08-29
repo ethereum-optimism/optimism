@@ -60,7 +60,6 @@ func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
 	deployConfig.MaxSequencerDrift = tp.MaxSequencerDrift
 	deployConfig.SequencerWindowSize = tp.SequencerWindowSize
 	deployConfig.ChannelTimeoutBedrock = tp.ChannelTimeout
-	deployConfig.ChannelTimeoutGranite = tp.ChannelTimeout
 	deployConfig.L1BlockTime = tp.L1BlockTime
 	deployConfig.UseAltDA = tp.UseAltDA
 	ApplyDeployConfigForks(deployConfig)
@@ -175,7 +174,6 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		MaxSequencerDrift:      deployConf.MaxSequencerDrift,
 		SeqWindowSize:          deployConf.SequencerWindowSize,
 		ChannelTimeoutBedrock:  deployConf.ChannelTimeoutBedrock,
-		ChannelTimeoutGranite:  deployConf.ChannelTimeoutGranite,
 		L1ChainID:              new(big.Int).SetUint64(deployConf.L1ChainID),
 		L2ChainID:              new(big.Int).SetUint64(deployConf.L2ChainID),
 		BatchInboxAddress:      deployConf.BatchInboxAddress,

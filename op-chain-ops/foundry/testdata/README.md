@@ -1,3 +1,3 @@
-# artifacts test data
+# source-map test data
 
-This is a small selection of `forge-artifacts` specifically for testing of Artifact decoding and the Artifacts-FS.
+Simple small multi-contract forge setup, to test Go forge map functionality against.

@@ -43,7 +43,6 @@ func randConfig() *Config {
 		MaxSequencerDrift:      100,
 		SeqWindowSize:          2,
 		ChannelTimeoutBedrock:  123,
-		ChannelTimeoutGranite:  45,
 		L1ChainID:              big.NewInt(900),
 		L2ChainID:              big.NewInt(901),
 		BatchInboxAddress:      randAddr(),
@@ -378,25 +377,6 @@ func TestConfig_Check(t *testing.T) {
 		{
 			name:        "ChannelTimeoutBedrockZero",
 			modifier:    func(cfg *Config) { cfg.ChannelTimeoutBedrock = 0 },
-			expectedErr: ErrMissingChannelTimeout,
-		},
-		{
-			name:        "ChannelTimeoutGraniteZeroNotEnabled",
-			modifier:    func(cfg *Config) { cfg.ChannelTimeoutGranite = 0 },
-			expectedErr: nil,
-		},
-		{
-			name: "ChannelTimeoutGraniteZeroEnabled",
-			modifier: func(cfg *Config) {
-				genesis := uint64(0)
-				cfg.ChannelTimeoutGranite = 0
-				cfg.RegolithTime = &genesis
-				cfg.CanyonTime = &genesis
-				cfg.DeltaTime = &genesis
-				cfg.EcotoneTime = &genesis
-				cfg.FjordTime = &genesis
-				cfg.GraniteTime = &genesis
-			},
 			expectedErr: ErrMissingChannelTimeout,
 		},
 		{

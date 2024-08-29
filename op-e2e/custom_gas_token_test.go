@@ -35,9 +35,9 @@ func TestCustomGasToken(t *testing.T) {
 
 	sys, err := cfg.Start(t)
 	require.NoError(t, err, "Error starting up system")
-	defer sys.Close()
-	l1Client := sys.Clients["l1"]
-	l2Client := sys.Clients["sequencer"]
+
+	l1Client := sys.NodeClient("l1")
+	l2Client := sys.NodeClient("sequencer")
 
 	aliceOpts, err := bind.NewKeyedTransactorWithChainID(cfg.Secrets.Alice, cfg.L1ChainIDBig())
 	require.NoError(t, err)
@@ -134,7 +134,7 @@ func TestCustomGasToken(t *testing.T) {
 	// and assert token balance is increased on L1.
 	checkWithdrawal := func(t *testing.T) {
 		l2Seq := l2Client
-		l2Verif := sys.Clients["verifier"]
+		l2Verif := sys.NodeClient("verifier")
 		fromAddr := aliceOpts.From
 		ethPrivKey := cfg.Secrets.Alice
 
@@ -463,7 +463,7 @@ func callViaSafe(opts *bind.TransactOpts, client *ethclient.Client, safeAddress 
 // It reads existing parameters from the SystemConfig contract, inserts the supplied cgtAddress and reinitializes that contract.
 // To do this it uses the ProxyAdmin and StorageSetter from the supplied cfg.
 func setCustomGasToken(t *testing.T, cfg SystemConfig, sys *System, cgtAddress common.Address) {
-	l1Client := sys.Clients["l1"]
+	l1Client := sys.NodeClient("l1")
 	deployerOpts, err := bind.NewKeyedTransactorWithChainID(cfg.Secrets.Deployer, cfg.L1ChainIDBig())
 	require.NoError(t, err)
 
@@ -581,7 +581,7 @@ func setCustomGasToken(t *testing.T, cfg SystemConfig, sys *System, cgtAddress c
 	depositTx, err := derive.UnmarshalDepositLogEvent(&depositEvent.Raw)
 
 	require.NoError(t, err)
-	l2Client := sys.Clients["sequencer"]
+	l2Client := sys.NodeClient("sequencer")
 	receipt, err = wait.ForReceiptOK(context.Background(), l2Client, types.NewTx(depositTx).Hash())
 	require.NoError(t, err)
 

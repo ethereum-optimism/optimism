@@ -4,55 +4,63 @@ import (
 	"os"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
+	mttestutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 )
 
-// TODO
 func FuzzStateSyscallCloneMT(f *testing.F) {
 	v := GetMultiThreadedTestCase(f)
-	// t.Skip is causing linting check to fail, disable for now
-	//nolint:staticcheck
-	f.Fuzz(func(t *testing.T, pc uint32, step uint64, preimageOffset uint32) {
-		// TODO(cp-903) Customize test for multi-threaded vm
-		t.Skip("TODO - customize this test for MTCannon")
-		pc = pc & 0xFF_FF_FF_FC // align PC
-		nextPC := pc + 4
-		goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(),
-			WithPC(pc), WithNextPC(nextPC), WithStep(step), WithPreimageOffset(preimageOffset))
-		state := goVm.GetState()
-		state.GetRegistersRef()[2] = exec.SysClone
+	f.Fuzz(func(t *testing.T, nextThreadId, stackPtr uint32, seed int64) {
+		goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(seed))
+		state := mttestutil.GetMtState(t, goVm)
+		// Update existing threads to avoid collision with nextThreadId
+		if mttestutil.FindThread(state, nextThreadId) != nil {
+			for i, t := range mttestutil.GetAllThreads(state) {
+				t.ThreadId = nextThreadId - uint32(i+1)
+			}
+		}
 
-		state.GetMemory().SetMemory(pc, syscallInsn)
-		preStateRoot := state.GetMemory().MerkleRoot()
-		expectedRegisters := testutil.CopyRegisters(state)
-		expectedRegisters[2] = 0x1
+		// Setup
+		state.NextThreadId = nextThreadId
+		state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
+		state.GetRegistersRef()[2] = exec.SysClone
+		state.GetRegistersRef()[4] = exec.ValidCloneFlags
+		state.GetRegistersRef()[5] = stackPtr
+		step := state.GetStep()
+
+		// Set up expectations
+		expected := mttestutil.NewExpectedMTState(state)
+		expected.Step += 1
+		// Set original thread expectations
+		expected.PrestateActiveThread().PC = state.GetCpu().NextPC
+		expected.PrestateActiveThread().NextPC = state.GetCpu().NextPC + 4
+		expected.PrestateActiveThread().Registers[2] = nextThreadId
+		expected.PrestateActiveThread().Registers[7] = 0
+		// Set expectations for new, cloned thread
+		expected.ActiveThreadId = nextThreadId
+		epxectedNewThread := expected.ExpectNewThread()
+		epxectedNewThread.PC = state.GetCpu().NextPC
+		epxectedNewThread.NextPC = state.GetCpu().NextPC + 4
+		epxectedNewThread.Registers[2] = 0
+		epxectedNewThread.Registers[7] = 0
+		epxectedNewThread.Registers[29] = stackPtr
+		expected.NextThreadId = nextThreadId + 1
+		expected.StepsSinceLastContextSwitch = 0
+		if state.TraverseRight {
+			expected.RightStackSize += 1
+		} else {
+			expected.LeftStackSize += 1
+		}
 
 		stepWitness, err := goVm.Step(true)
 		require.NoError(t, err)
 		require.False(t, stepWitness.HasPreimage())
 
-		require.Equal(t, pc+4, state.GetCpu().PC)
-		require.Equal(t, nextPC+4, state.GetCpu().NextPC)
-		require.Equal(t, uint32(0), state.GetCpu().LO)
-		require.Equal(t, uint32(0), state.GetCpu().HI)
-		require.Equal(t, uint32(0), state.GetHeap())
-		require.Equal(t, uint8(0), state.GetExitCode())
-		require.Equal(t, false, state.GetExited())
-		require.Equal(t, preStateRoot, state.GetMemory().MerkleRoot())
-		require.Equal(t, expectedRegisters, state.GetRegistersRef())
-		require.Equal(t, step+1, state.GetStep())
-		require.Equal(t, common.Hash{}, state.GetPreimageKey())
-		require.Equal(t, preimageOffset, state.GetPreimageOffset())
-
-		evm := testutil.NewMIPSEVM(v.Contracts)
-		evmPost := evm.Step(t, stepWitness, step, v.StateHashFn)
-		goPost, _ := goVm.GetState().EncodeWitness()
-		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
-			"mipsevm produced different state than EVM")
+		expected.Validate(t, state)
+		testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), v.Contracts, nil)
 	})
 }

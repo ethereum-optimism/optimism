@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"os"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/srcmap"
 	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/eth/tracers/logger"
 	"github.com/stretchr/testify/require"
@@ -57,24 +58,24 @@ func TestContractsSetup(t require.TestingT, version MipsVersion) *ContractMetada
 
 // loadArtifacts loads the Cannon contracts, from the contracts package.
 func loadArtifacts(version MipsVersion) (*Artifacts, error) {
-	var mipsMetadata string
+	artifactFS := foundry.OpenArtifactsDir("../../../packages/contracts-bedrock/forge-artifacts")
+	var mips *foundry.Artifact
+	var err error
 	switch version {
 	case MipsSingleThreaded:
-		mipsMetadata = "../../../packages/contracts-bedrock/forge-artifacts/MIPS.sol/MIPS.json"
+		mips, err = artifactFS.ReadArtifact("MIPS.sol", "MIPS")
 	case MipsMultithreaded:
-		mipsMetadata = "../../../packages/contracts-bedrock/forge-artifacts/MIPS2.sol/MIPS2.json"
+		mips, err = artifactFS.ReadArtifact("MIPS2.sol", "MIPS2")
 	default:
 		return nil, fmt.Errorf("Unknown MipsVersion supplied: %v", version)
 	}
-
-	mips, err := foundry.ReadArtifact(mipsMetadata)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load MIPS contract: %w", err)
+		return nil, err
 	}
 
-	oracle, err := foundry.ReadArtifact("../../../packages/contracts-bedrock/forge-artifacts/PreimageOracle.sol/PreimageOracle.json")
+	oracle, err := artifactFS.ReadArtifact("PreimageOracle.sol", "PreimageOracle")
 	if err != nil {
-		return nil, fmt.Errorf("failed to load Oracle contract: %w", err)
+		return nil, err
 	}
 
 	return &Artifacts{
@@ -155,4 +156,26 @@ func (d *testChain) GetHeader(h common.Hash, n uint64) *types.Header {
 
 func MarkdownTracer() *tracing.Hooks {
 	return logger.NewMarkdownLogger(&logger.Config{}, os.Stdout).Hooks()
+}
+
+func SourceMapTracer(t require.TestingT, version MipsVersion, mips *foundry.Artifact, oracle *foundry.Artifact, addrs *Addresses) *tracing.Hooks {
+	srcFS := foundry.NewSourceMapFS(os.DirFS("../../../packages/contracts-bedrock"))
+	var mipsSrcMap *srcmap.SourceMap
+	var err error
+	switch version {
+	case MipsSingleThreaded:
+		mipsSrcMap, err = srcFS.SourceMap(mips, "MIPS")
+	case MipsMultithreaded:
+		mipsSrcMap, err = srcFS.SourceMap(mips, "MIPS2")
+	default:
+		require.Fail(t, "invalid mips version")
+	}
+	require.NoError(t, err)
+	oracleSrcMap, err := srcFS.SourceMap(oracle, "PreimageOracle")
+	require.NoError(t, err)
+
+	return srcmap.NewSourceMapTracer(map[common.Address]*srcmap.SourceMap{
+		addrs.MIPS:   mipsSrcMap,
+		addrs.Oracle: oracleSrcMap,
+	}, os.Stdout).Hooks()
 }

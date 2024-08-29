@@ -2,12 +2,10 @@ package tests
 
 import (
 	"bytes"
-	"math/rand"
 	"os"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 
@@ -22,44 +20,28 @@ const syscallInsn = uint32(0x00_00_00_0c)
 
 func FuzzStateSyscallBrk(f *testing.F) {
 	versions := GetMipsVersionTestCases(f)
-	f.Fuzz(func(t *testing.T, pc uint32, step uint64, preimageOffset uint32) {
+	f.Fuzz(func(t *testing.T, seed int64) {
 		for _, v := range versions {
 			t.Run(v.Name, func(t *testing.T) {
-				pc = pc & 0xFF_FF_FF_FC // align PC
-				nextPC := pc + 4
-
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(),
-					WithPC(pc), WithNextPC(nextPC), WithStep(step), WithPreimageOffset(preimageOffset))
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(seed))
 				state := goVm.GetState()
 				state.GetRegistersRef()[2] = exec.SysBrk
-				state.GetMemory().SetMemory(pc, syscallInsn)
+				state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
+				step := state.GetStep()
 
-				preStateRoot := state.GetMemory().MerkleRoot()
-				expectedRegisters := testutil.CopyRegisters(state)
-				expectedRegisters[2] = program.PROGRAM_BREAK
+				expected := testutil.NewExpectedState(state)
+				expected.Step += 1
+				expected.PC = state.GetCpu().NextPC
+				expected.NextPC = state.GetCpu().NextPC + 4
+				expected.Registers[2] = program.PROGRAM_BREAK // Return fixed BRK value
+				expected.Registers[7] = 0                     // No error
 
 				stepWitness, err := goVm.Step(true)
 				require.NoError(t, err)
 				require.False(t, stepWitness.HasPreimage())
 
-				require.Equal(t, pc+4, state.GetPC())
-				require.Equal(t, nextPC+4, state.GetCpu().NextPC)
-				require.Equal(t, uint32(0), state.GetCpu().LO)
-				require.Equal(t, uint32(0), state.GetCpu().HI)
-				require.Equal(t, uint32(0), state.GetHeap())
-				require.Equal(t, uint8(0), state.GetExitCode())
-				require.Equal(t, false, state.GetExited())
-				require.Equal(t, preStateRoot, state.GetMemory().MerkleRoot())
-				require.Equal(t, expectedRegisters, state.GetRegistersRef())
-				require.Equal(t, step+1, state.GetStep())
-				require.Equal(t, common.Hash{}, state.GetPreimageKey())
-				require.Equal(t, preimageOffset, state.GetPreimageOffset())
-
-				evm := testutil.NewMIPSEVM(v.Contracts)
-				evmPost := evm.Step(t, stepWitness, step, v.StateHashFn)
-				goPost, _ := goVm.GetState().EncodeWitness()
-				require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
-					"mipsevm produced different state than EVM")
+				expected.Validate(t, state)
+				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, nil)
 			})
 		}
 	})
@@ -76,25 +58,20 @@ func FuzzStateSyscallMmap(f *testing.F) {
 	f.Fuzz(func(t *testing.T, addr uint32, siz uint32, heap uint32, seed int64) {
 		for _, v := range versions {
 			t.Run(v.Name, func(t *testing.T) {
-				step := uint64(0)
 				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(),
-					WithStep(step), WithHeap(heap))
+					testutil.WithRandomization(seed), testutil.WithHeap(heap))
 				state := goVm.GetState()
-				*state.GetRegistersRef() = testutil.RandomRegisters(seed)
+				step := state.GetStep()
+
 				state.GetRegistersRef()[2] = exec.SysMmap
 				state.GetRegistersRef()[4] = addr
 				state.GetRegistersRef()[5] = siz
-				state.GetMemory().SetMemory(0, syscallInsn)
+				state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
 
-				preStateRoot := state.GetMemory().MerkleRoot()
-				preStateRegisters := testutil.CopyRegisters(state)
-
-				stepWitness, err := goVm.Step(true)
-				require.NoError(t, err)
-				require.False(t, stepWitness.HasPreimage())
-
-				var expectedHeap uint32
-				expectedRegisters := preStateRegisters
+				expected := testutil.NewExpectedState(state)
+				expected.Step += 1
+				expected.PC = state.GetCpu().NextPC
+				expected.NextPC = state.GetCpu().NextPC + 4
 				if addr == 0 {
 					sizAlign := siz
 					if sizAlign&memory.PageAddrMask != 0 { // adjust size to align with page size
@@ -102,38 +79,24 @@ func FuzzStateSyscallMmap(f *testing.F) {
 					}
 					newHeap := heap + sizAlign
 					if newHeap > program.HEAP_END || newHeap < heap || sizAlign < siz {
-						expectedHeap = heap
-						expectedRegisters[2] = exec.SysErrorSignal
-						expectedRegisters[7] = exec.MipsEINVAL
+						expected.Registers[2] = exec.SysErrorSignal
+						expected.Registers[7] = exec.MipsEINVAL
 					} else {
-						expectedRegisters[2] = heap
-						expectedRegisters[7] = 0 // no error
-						expectedHeap = heap + sizAlign
+						expected.Heap = heap + sizAlign
+						expected.Registers[2] = heap
+						expected.Registers[7] = 0 // no error
 					}
 				} else {
-					expectedRegisters[2] = addr
-					expectedRegisters[7] = 0 // no error
-					expectedHeap = heap
+					expected.Registers[2] = addr
+					expected.Registers[7] = 0 // no error
 				}
 
-				require.Equal(t, uint32(4), state.GetCpu().PC)
-				require.Equal(t, uint32(8), state.GetCpu().NextPC)
-				require.Equal(t, uint32(0), state.GetCpu().LO)
-				require.Equal(t, uint32(0), state.GetCpu().HI)
-				require.Equal(t, preStateRoot, state.GetMemory().MerkleRoot())
-				require.Equal(t, uint64(1), state.GetStep())
-				require.Equal(t, common.Hash{}, state.GetPreimageKey())
-				require.Equal(t, uint32(0), state.GetPreimageOffset())
-				require.Equal(t, expectedHeap, state.GetHeap())
-				require.Equal(t, uint8(0), state.GetExitCode())
-				require.Equal(t, false, state.GetExited())
-				require.Equal(t, expectedRegisters, state.GetRegistersRef())
+				stepWitness, err := goVm.Step(true)
+				require.NoError(t, err)
+				require.False(t, stepWitness.HasPreimage())
 
-				evm := testutil.NewMIPSEVM(v.Contracts)
-				evmPost := evm.Step(t, stepWitness, step, v.StateHashFn)
-				goPost, _ := goVm.GetState().EncodeWitness()
-				require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
-					"mipsevm produced different state than EVM")
+				expected.Validate(t, state)
+				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, nil)
 			})
 		}
 	})
@@ -141,43 +104,28 @@ func FuzzStateSyscallMmap(f *testing.F) {
 
 func FuzzStateSyscallExitGroup(f *testing.F) {
 	versions := GetMipsVersionTestCases(f)
-	f.Fuzz(func(t *testing.T, exitCode uint8, pc uint32, step uint64) {
+	f.Fuzz(func(t *testing.T, exitCode uint8, seed int64) {
 		for _, v := range versions {
 			t.Run(v.Name, func(t *testing.T) {
-				pc = pc & 0xFF_FF_FF_FC // align PC
-				nextPC := pc + 4
 				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(),
-					WithPC(pc), WithNextPC(nextPC), WithStep(step))
+					testutil.WithRandomization(seed))
 				state := goVm.GetState()
 				state.GetRegistersRef()[2] = exec.SysExitGroup
 				state.GetRegistersRef()[4] = uint32(exitCode)
-				state.GetMemory().SetMemory(pc, syscallInsn)
+				state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
+				step := state.GetStep()
 
-				preStateRoot := state.GetMemory().MerkleRoot()
-				preStateRegisters := testutil.CopyRegisters(state)
+				expected := testutil.NewExpectedState(state)
+				expected.Step += 1
+				expected.Exited = true
+				expected.ExitCode = exitCode
 
 				stepWitness, err := goVm.Step(true)
 				require.NoError(t, err)
 				require.False(t, stepWitness.HasPreimage())
 
-				require.Equal(t, pc, state.GetCpu().PC)
-				require.Equal(t, nextPC, state.GetCpu().NextPC)
-				require.Equal(t, uint32(0), state.GetCpu().LO)
-				require.Equal(t, uint32(0), state.GetCpu().HI)
-				require.Equal(t, uint32(0), state.GetHeap())
-				require.Equal(t, uint8(exitCode), state.GetExitCode())
-				require.Equal(t, true, state.GetExited())
-				require.Equal(t, preStateRoot, state.GetMemory().MerkleRoot())
-				require.Equal(t, preStateRegisters, state.GetRegistersRef())
-				require.Equal(t, step+1, state.GetStep())
-				require.Equal(t, common.Hash{}, state.GetPreimageKey())
-				require.Equal(t, uint32(0), state.GetPreimageOffset())
-
-				evm := testutil.NewMIPSEVM(v.Contracts)
-				evmPost := evm.Step(t, stepWitness, step, v.StateHashFn)
-				goPost, _ := goVm.GetState().EncodeWitness()
-				require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
-					"mipsevm produced different state than EVM")
+				expected.Validate(t, state)
+				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, nil)
 			})
 		}
 	})
@@ -185,60 +133,45 @@ func FuzzStateSyscallExitGroup(f *testing.F) {
 
 func FuzzStateSyscallFcntl(f *testing.F) {
 	versions := GetMipsVersionTestCases(f)
-	f.Fuzz(func(t *testing.T, fd uint32, cmd uint32) {
+	f.Fuzz(func(t *testing.T, fd uint32, cmd uint32, seed int64) {
 		for _, v := range versions {
 			t.Run(v.Name, func(t *testing.T) {
-				step := uint64(0)
 				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(),
-					WithStep(step))
+					testutil.WithRandomization(seed))
 				state := goVm.GetState()
 				state.GetRegistersRef()[2] = exec.SysFcntl
 				state.GetRegistersRef()[4] = fd
 				state.GetRegistersRef()[5] = cmd
-				state.GetMemory().SetMemory(0, syscallInsn)
+				state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
+				step := state.GetStep()
 
-				preStateRoot := state.GetMemory().MerkleRoot()
-				preStateRegisters := testutil.CopyRegisters(state)
+				expected := testutil.NewExpectedState(state)
+				expected.Step += 1
+				expected.PC = state.GetCpu().NextPC
+				expected.NextPC = state.GetCpu().NextPC + 4
+				if cmd == 3 {
+					switch fd {
+					case exec.FdStdin, exec.FdPreimageRead, exec.FdHintRead:
+						expected.Registers[2] = 0
+						expected.Registers[7] = 0
+					case exec.FdStdout, exec.FdStderr, exec.FdPreimageWrite, exec.FdHintWrite:
+						expected.Registers[2] = 1
+						expected.Registers[7] = 0
+					default:
+						expected.Registers[2] = 0xFF_FF_FF_FF
+						expected.Registers[7] = exec.MipsEBADF
+					}
+				} else {
+					expected.Registers[2] = 0xFF_FF_FF_FF
+					expected.Registers[7] = exec.MipsEINVAL
+				}
 
 				stepWitness, err := goVm.Step(true)
 				require.NoError(t, err)
 				require.False(t, stepWitness.HasPreimage())
 
-				require.Equal(t, uint32(4), state.GetCpu().PC)
-				require.Equal(t, uint32(8), state.GetCpu().NextPC)
-				require.Equal(t, uint32(0), state.GetCpu().LO)
-				require.Equal(t, uint32(0), state.GetCpu().HI)
-				require.Equal(t, uint32(0), state.GetHeap())
-				require.Equal(t, uint8(0), state.GetExitCode())
-				require.Equal(t, false, state.GetExited())
-				require.Equal(t, preStateRoot, state.GetMemory().MerkleRoot())
-				require.Equal(t, uint64(1), state.GetStep())
-				require.Equal(t, common.Hash{}, state.GetPreimageKey())
-				require.Equal(t, uint32(0), state.GetPreimageOffset())
-				if cmd == 3 {
-					expectedRegisters := preStateRegisters
-					switch fd {
-					case exec.FdStdin, exec.FdPreimageRead, exec.FdHintRead:
-						expectedRegisters[2] = 0
-					case exec.FdStdout, exec.FdStderr, exec.FdPreimageWrite, exec.FdHintWrite:
-						expectedRegisters[2] = 1
-					default:
-						expectedRegisters[2] = 0xFF_FF_FF_FF
-						expectedRegisters[7] = exec.MipsEBADF
-					}
-					require.Equal(t, expectedRegisters, state.GetRegistersRef())
-				} else {
-					expectedRegisters := preStateRegisters
-					expectedRegisters[2] = 0xFF_FF_FF_FF
-					expectedRegisters[7] = exec.MipsEINVAL
-					require.Equal(t, expectedRegisters, state.GetRegistersRef())
-				}
-
-				evm := testutil.NewMIPSEVM(v.Contracts)
-				evmPost := evm.Step(t, stepWitness, step, v.StateHashFn)
-				goPost, _ := goVm.GetState().EncodeWitness()
-				require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
-					"mipsevm produced different state than EVM")
+				expected.Validate(t, state)
+				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, nil)
 			})
 		}
 	})
@@ -246,49 +179,36 @@ func FuzzStateSyscallFcntl(f *testing.F) {
 
 func FuzzStateHintRead(f *testing.F) {
 	versions := GetMipsVersionTestCases(f)
-	f.Fuzz(func(t *testing.T, addr uint32, count uint32) {
+	f.Fuzz(func(t *testing.T, addr uint32, count uint32, seed int64) {
 		for _, v := range versions {
 			t.Run(v.Name, func(t *testing.T) {
-				step := uint64(0)
 				preimageData := []byte("hello world")
 				preimageKey := preimage.Keccak256Key(crypto.Keccak256Hash(preimageData)).PreimageKey()
 				oracle := testutil.StaticOracle(t, preimageData) // only used for hinting
 
 				goVm := v.VMFactory(oracle, os.Stdout, os.Stderr, testutil.CreateLogger(),
-					WithStep(step), WithPreimageKey(preimageKey))
+					testutil.WithRandomization(seed), testutil.WithPreimageKey(preimageKey))
 				state := goVm.GetState()
 				state.GetRegistersRef()[2] = exec.SysRead
 				state.GetRegistersRef()[4] = exec.FdHintRead
 				state.GetRegistersRef()[5] = addr
 				state.GetRegistersRef()[6] = count
-				state.GetMemory().SetMemory(0, syscallInsn)
+				state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
+				step := state.GetStep()
 
-				preStatePreimageKey := state.GetPreimageKey()
-				preStateRoot := state.GetMemory().MerkleRoot()
-				expectedRegisters := testutil.CopyRegisters(state)
-				expectedRegisters[2] = count
+				expected := testutil.NewExpectedState(state)
+				expected.Step += 1
+				expected.PC = state.GetCpu().NextPC
+				expected.NextPC = state.GetCpu().NextPC + 4
+				expected.Registers[2] = count
+				expected.Registers[7] = 0 // no error
 
 				stepWitness, err := goVm.Step(true)
 				require.NoError(t, err)
 				require.False(t, stepWitness.HasPreimage())
 
-				require.Equal(t, uint32(4), state.GetCpu().PC)
-				require.Equal(t, uint32(8), state.GetCpu().NextPC)
-				require.Equal(t, uint32(0), state.GetCpu().LO)
-				require.Equal(t, uint32(0), state.GetCpu().HI)
-				require.Equal(t, uint32(0), state.GetHeap())
-				require.Equal(t, uint8(0), state.GetExitCode())
-				require.Equal(t, false, state.GetExited())
-				require.Equal(t, preStateRoot, state.GetMemory().MerkleRoot())
-				require.Equal(t, uint64(1), state.GetStep())
-				require.Equal(t, preStatePreimageKey, state.GetPreimageKey())
-				require.Equal(t, expectedRegisters, state.GetRegistersRef())
-
-				evm := testutil.NewMIPSEVM(v.Contracts)
-				evmPost := evm.Step(t, stepWitness, step, v.StateHashFn)
-				goPost, _ := goVm.GetState().EncodeWitness()
-				require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
-					"mipsevm produced different state than EVM")
+				expected.Validate(t, state)
+				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, nil)
 			})
 		}
 	})
@@ -296,63 +216,57 @@ func FuzzStateHintRead(f *testing.F) {
 
 func FuzzStatePreimageRead(f *testing.F) {
 	versions := GetMipsVersionTestCases(f)
-	f.Fuzz(func(t *testing.T, addr uint32, count uint32, preimageOffset uint32) {
+	f.Fuzz(func(t *testing.T, addr uint32, count uint32, preimageOffset uint32, seed int64) {
 		for _, v := range versions {
 			t.Run(v.Name, func(t *testing.T) {
-				step := uint64(0)
-				preimageData := []byte("hello world")
-				if preimageOffset >= uint32(len(preimageData)) {
+				preimageValue := []byte("hello world")
+				if preimageOffset >= uint32(len(preimageValue)) {
 					t.SkipNow()
 				}
-				preimageKey := preimage.Keccak256Key(crypto.Keccak256Hash(preimageData)).PreimageKey()
-				oracle := testutil.StaticOracle(t, preimageData)
+				preimageKey := preimage.Keccak256Key(crypto.Keccak256Hash(preimageValue)).PreimageKey()
+				oracle := testutil.StaticOracle(t, preimageValue)
 
 				goVm := v.VMFactory(oracle, os.Stdout, os.Stderr, testutil.CreateLogger(),
-					WithStep(step), WithPreimageKey(preimageKey), WithPreimageOffset(preimageOffset))
+					testutil.WithRandomization(seed), testutil.WithPreimageKey(preimageKey), testutil.WithPreimageOffset(preimageOffset))
 				state := goVm.GetState()
 				state.GetRegistersRef()[2] = exec.SysRead
 				state.GetRegistersRef()[4] = exec.FdPreimageRead
 				state.GetRegistersRef()[5] = addr
 				state.GetRegistersRef()[6] = count
-				state.GetMemory().SetMemory(0, syscallInsn)
+				state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
+				step := state.GetStep()
 
-				preStatePreimageKey := state.GetPreimageKey()
-				preStateRoot := state.GetMemory().MerkleRoot()
-				writeLen := count
-				if writeLen > 4 {
-					writeLen = 4
+				alignment := addr & 3
+				writeLen := 4 - alignment
+				if count < writeLen {
+					writeLen = count
 				}
-				if preimageOffset+writeLen > uint32(8+len(preimageData)) {
-					writeLen = uint32(8+len(preimageData)) - preimageOffset
+				// Cap write length to remaining bytes of the preimage
+				preimageDataLen := uint32(len(preimageValue) + 8) // Data len includes a length prefix
+				if preimageOffset+writeLen > preimageDataLen {
+					writeLen = preimageDataLen - preimageOffset
 				}
+
+				expected := testutil.NewExpectedState(state)
+				expected.Step += 1
+				expected.PC = state.GetCpu().NextPC
+				expected.NextPC = state.GetCpu().NextPC + 4
+				expected.Registers[2] = writeLen
+				expected.Registers[7] = 0 // no error
+				expected.PreimageOffset += writeLen
 
 				stepWitness, err := goVm.Step(true)
 				require.NoError(t, err)
 				require.True(t, stepWitness.HasPreimage())
 
-				require.Equal(t, uint32(4), state.GetCpu().PC)
-				require.Equal(t, uint32(8), state.GetCpu().NextPC)
-				require.Equal(t, uint32(0), state.GetCpu().LO)
-				require.Equal(t, uint32(0), state.GetCpu().HI)
-				require.Equal(t, uint32(0), state.GetHeap())
-				require.Equal(t, uint8(0), state.GetExitCode())
-				require.Equal(t, false, state.GetExited())
-				if writeLen > 0 {
-					// Memory may be unchanged if we're writing the first zero-valued 7 bytes of the pre-image.
-					//require.NotEqual(t, preStateRoot, state.GetMemory().MerkleRoot())
-					require.Greater(t, state.GetPreimageOffset(), preimageOffset)
-				} else {
-					require.Equal(t, preStateRoot, state.GetMemory().MerkleRoot())
-					require.Equal(t, state.GetPreimageOffset(), preimageOffset)
+				// TODO(cp-983) - Do stricter validation of expected memory
+				expected.Validate(t, state, testutil.SkipMemoryValidation)
+				if writeLen == 0 {
+					// Note: We are not asserting a memory root change when writeLen > 0 because we may not necessarily
+					// modify memory - it's possible we just write the leading zero bytes of the length prefix
+					require.Equal(t, expected.MemoryRoot, common.Hash(state.GetMemory().MerkleRoot()))
 				}
-				require.Equal(t, uint64(1), state.GetStep())
-				require.Equal(t, preStatePreimageKey, state.GetPreimageKey())
-
-				evm := testutil.NewMIPSEVM(v.Contracts)
-				evmPost := evm.Step(t, stepWitness, step, v.StateHashFn)
-				goPost, _ := goVm.GetState().EncodeWitness()
-				require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
-					"mipsevm produced different state than EVM")
+				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, nil)
 			})
 		}
 	})
@@ -363,53 +277,41 @@ func FuzzStateHintWrite(f *testing.F) {
 	f.Fuzz(func(t *testing.T, addr uint32, count uint32, randSeed int64) {
 		for _, v := range versions {
 			t.Run(v.Name, func(t *testing.T) {
-				step := uint64(0)
 				preimageData := []byte("hello world")
 				preimageKey := preimage.Keccak256Key(crypto.Keccak256Hash(preimageData)).PreimageKey()
+				// TODO(cp-983) - use testutil.HintTrackingOracle, validate expected hints
 				oracle := testutil.StaticOracle(t, preimageData) // only used for hinting
 
 				goVm := v.VMFactory(oracle, os.Stdout, os.Stderr, testutil.CreateLogger(),
-					WithStep(step), WithPreimageKey(preimageKey))
+					testutil.WithRandomization(randSeed), testutil.WithPreimageKey(preimageKey))
 				state := goVm.GetState()
 				state.GetRegistersRef()[2] = exec.SysWrite
 				state.GetRegistersRef()[4] = exec.FdHintWrite
 				state.GetRegistersRef()[5] = addr
 				state.GetRegistersRef()[6] = count
+				step := state.GetStep()
 
 				// Set random data at the target memory range
-				randBytes, err := randomBytes(randSeed, count)
+				randBytes := testutil.RandomBytes(t, randSeed, count)
+				err := state.GetMemory().SetMemoryRange(addr, bytes.NewReader(randBytes))
 				require.NoError(t, err)
-				err = state.GetMemory().SetMemoryRange(addr, bytes.NewReader(randBytes))
-				require.NoError(t, err)
-				// Set syscall instruction
-				state.GetMemory().SetMemory(0, syscallInsn)
+				// Set instruction
+				state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
 
-				preStatePreimageKey := state.GetPreimageKey()
-				preStateRoot := state.GetMemory().MerkleRoot()
-				expectedRegisters := testutil.CopyRegisters(state)
-				expectedRegisters[2] = count
+				expected := testutil.NewExpectedState(state)
+				expected.Step += 1
+				expected.PC = state.GetCpu().NextPC
+				expected.NextPC = state.GetCpu().NextPC + 4
+				expected.Registers[2] = count
+				expected.Registers[7] = 0 // no error
 
 				stepWitness, err := goVm.Step(true)
 				require.NoError(t, err)
 				require.False(t, stepWitness.HasPreimage())
 
-				require.Equal(t, uint32(4), state.GetCpu().PC)
-				require.Equal(t, uint32(8), state.GetCpu().NextPC)
-				require.Equal(t, uint32(0), state.GetCpu().LO)
-				require.Equal(t, uint32(0), state.GetCpu().HI)
-				require.Equal(t, uint32(0), state.GetHeap())
-				require.Equal(t, uint8(0), state.GetExitCode())
-				require.Equal(t, false, state.GetExited())
-				require.Equal(t, preStateRoot, state.GetMemory().MerkleRoot())
-				require.Equal(t, uint64(1), state.GetStep())
-				require.Equal(t, preStatePreimageKey, state.GetPreimageKey())
-				require.Equal(t, expectedRegisters, state.GetRegistersRef())
-
-				evm := testutil.NewMIPSEVM(v.Contracts)
-				evmPost := evm.Step(t, stepWitness, step, v.StateHashFn)
-				goPost, _ := goVm.GetState().EncodeWitness()
-				require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
-					"mipsevm produced different state than EVM")
+				// TODO(cp-983) - validate expected hints
+				expected.Validate(t, state, testutil.SkipHintValidation)
+				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, nil)
 			})
 		}
 	})
@@ -417,62 +319,44 @@ func FuzzStateHintWrite(f *testing.F) {
 
 func FuzzStatePreimageWrite(f *testing.F) {
 	versions := GetMipsVersionTestCases(f)
-	f.Fuzz(func(t *testing.T, addr uint32, count uint32) {
+	f.Fuzz(func(t *testing.T, addr uint32, count uint32, seed int64) {
 		for _, v := range versions {
 			t.Run(v.Name, func(t *testing.T) {
-				step := uint64(0)
 				preimageData := []byte("hello world")
 				preimageKey := preimage.Keccak256Key(crypto.Keccak256Hash(preimageData)).PreimageKey()
 				oracle := testutil.StaticOracle(t, preimageData)
 
 				goVm := v.VMFactory(oracle, os.Stdout, os.Stderr, testutil.CreateLogger(),
-					WithStep(step), WithPreimageKey(preimageKey), WithPreimageOffset(128))
+					testutil.WithRandomization(seed), testutil.WithPreimageKey(preimageKey), testutil.WithPreimageOffset(128))
 				state := goVm.GetState()
 				state.GetRegistersRef()[2] = exec.SysWrite
 				state.GetRegistersRef()[4] = exec.FdPreimageWrite
 				state.GetRegistersRef()[5] = addr
 				state.GetRegistersRef()[6] = count
-				state.GetMemory().SetMemory(0, syscallInsn)
+				state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
+				step := state.GetStep()
 
-				preStateRoot := state.GetMemory().MerkleRoot()
-				expectedRegisters := testutil.CopyRegisters(state)
 				sz := 4 - (addr & 0x3)
 				if sz < count {
 					count = sz
 				}
-				expectedRegisters[2] = count
+
+				expected := testutil.NewExpectedState(state)
+				expected.Step += 1
+				expected.PC = state.GetCpu().NextPC
+				expected.NextPC = state.GetCpu().NextPC + 4
+				expected.PreimageOffset = 0
+				expected.Registers[2] = count
+				expected.Registers[7] = 0 // No error
 
 				stepWitness, err := goVm.Step(true)
 				require.NoError(t, err)
 				require.False(t, stepWitness.HasPreimage())
 
-				require.Equal(t, uint32(4), state.GetCpu().PC)
-				require.Equal(t, uint32(8), state.GetCpu().NextPC)
-				require.Equal(t, uint32(0), state.GetCpu().LO)
-				require.Equal(t, uint32(0), state.GetCpu().HI)
-				require.Equal(t, uint32(0), state.GetHeap())
-				require.Equal(t, uint8(0), state.GetExitCode())
-				require.Equal(t, false, state.GetExited())
-				require.Equal(t, preStateRoot, state.GetMemory().MerkleRoot())
-				require.Equal(t, uint64(1), state.GetStep())
-				require.Equal(t, uint32(0), state.GetPreimageOffset())
-				require.Equal(t, expectedRegisters, state.GetRegistersRef())
-
-				evm := testutil.NewMIPSEVM(v.Contracts)
-				evmPost := evm.Step(t, stepWitness, step, v.StateHashFn)
-				goPost, _ := goVm.GetState().EncodeWitness()
-				require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
-					"mipsevm produced different state than EVM")
+				// TODO(cp-983) - validate preimage key
+				expected.Validate(t, state, testutil.SkipPreimageKeyValidation)
+				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, nil)
 			})
 		}
 	})
-}
-
-func randomBytes(seed int64, length uint32) ([]byte, error) {
-	r := rand.New(rand.NewSource(seed))
-	randBytes := make([]byte, length)
-	if _, err := r.Read(randBytes); err != nil {
-		return nil, err
-	}
-	return randBytes, nil
 }

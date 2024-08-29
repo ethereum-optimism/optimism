@@ -434,11 +434,7 @@ func TestChannelBuilder_OutputFrames(t *testing.T) {
 func TestChannelBuilder_OutputFrames_SpanBatch(t *testing.T) {
 	for _, algo := range derive.CompressionAlgos {
 		t.Run("ChannelBuilder_OutputFrames_SpanBatch_"+algo.String(), func(t *testing.T) {
-			if algo.IsBrotli() {
-				ChannelBuilder_OutputFrames_SpanBatch(t, algo) // to fill faster for brotli
-			} else {
-				ChannelBuilder_OutputFrames_SpanBatch(t, algo)
-			}
+			ChannelBuilder_OutputFrames_SpanBatch(t, algo) // to fill faster for brotli
 		})
 	}
 }

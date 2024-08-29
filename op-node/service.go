@@ -75,6 +75,12 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		haltOption = ""
 	}
 
+	if ctx.IsSet(flags.HeartbeatEnabledFlag.Name) ||
+		ctx.IsSet(flags.HeartbeatMonikerFlag.Name) ||
+		ctx.IsSet(flags.HeartbeatURLFlag.Name) {
+		log.Warn("Heartbeat functionality is not supported anymore, CLI flags will be removed in following release.")
+	}
+
 	cfg := &node.Config{
 		L1:     l1Endpoint,
 		L2:     l2Endpoint,
@@ -96,16 +102,11 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		P2PSigner:                   p2pSignerSetup,
 		L1EpochPollInterval:         ctx.Duration(flags.L1EpochPollIntervalFlag.Name),
 		RuntimeConfigReloadInterval: ctx.Duration(flags.RuntimeConfigReloadIntervalFlag.Name),
-		Heartbeat: node.HeartbeatConfig{
-			Enabled: ctx.Bool(flags.HeartbeatEnabledFlag.Name),
-			Moniker: ctx.String(flags.HeartbeatMonikerFlag.Name),
-			URL:     ctx.String(flags.HeartbeatURLFlag.Name),
-		},
-		ConfigPersistence: configPersistence,
-		SafeDBPath:        ctx.String(flags.SafeDBPath.Name),
-		Sync:              *syncConfig,
-		RollupHalt:        haltOption,
-		RethDBPath:        ctx.String(flags.L1RethDBPath.Name),
+		ConfigPersistence:           configPersistence,
+		SafeDBPath:                  ctx.String(flags.SafeDBPath.Name),
+		Sync:                        *syncConfig,
+		RollupHalt:                  haltOption,
+		RethDBPath:                  ctx.String(flags.L1RethDBPath.Name),
 
 		ConductorEnabled:    ctx.Bool(flags.ConductorEnabledFlag.Name),
 		ConductorRpc:        ctx.String(flags.ConductorRpcFlag.Name),

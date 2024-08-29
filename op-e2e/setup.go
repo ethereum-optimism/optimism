@@ -16,7 +16,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/batcher"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/maps"
+
 	ds "github.com/ipfs/go-datastore"
 	dsSync "github.com/ipfs/go-datastore/sync"
 	ic "github.com/libp2p/go-libp2p/core/crypto"
@@ -26,13 +28,11 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/host/peerstore/pstoremem"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	ma "github.com/multiformats/go-multiaddr"
-	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
-	geth_eth "github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
@@ -44,10 +44,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/batcher"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/opnode"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/services"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
-	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
@@ -56,10 +58,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
-	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
+	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
@@ -218,7 +220,6 @@ func FjordSystemConfig(t *testing.T, fjordTimeOffset *hexutil.Uint64) SystemConf
 func GraniteSystemConfig(t *testing.T, graniteTimeOffset *hexutil.Uint64) SystemConfig {
 	cfg := FjordSystemConfig(t, &genesisTime)
 	cfg.DeployConfig.L2GenesisGraniteTimeOffset = graniteTimeOffset
-	cfg.DeployConfig.ChannelTimeoutGranite = 20
 	return cfg
 }
 
@@ -305,41 +306,6 @@ type SystemConfig struct {
 	MaxPendingTransactions uint64
 }
 
-type GethInstance struct {
-	Backend *geth_eth.Ethereum
-	Node    *node.Node
-}
-
-func (gi *GethInstance) HTTPEndpoint() string {
-	return gi.Node.HTTPEndpoint()
-}
-
-func (gi *GethInstance) WSEndpoint() string {
-	return gi.Node.WSEndpoint()
-}
-
-func (gi *GethInstance) WSAuthEndpoint() string {
-	return gi.Node.WSAuthEndpoint()
-}
-
-func (gi *GethInstance) HTTPAuthEndpoint() string {
-	return gi.Node.HTTPAuthEndpoint()
-}
-
-func (gi *GethInstance) Close() error {
-	return gi.Node.Close()
-}
-
-// EthInstance is either an in process Geth or external process exposing its
-// endpoints over the network
-type EthInstance interface {
-	HTTPEndpoint() string
-	WSEndpoint() string
-	HTTPAuthEndpoint() string
-	WSAuthEndpoint() string
-	Close() error
-}
-
 type System struct {
 	Cfg SystemConfig
 
@@ -348,15 +314,13 @@ type System struct {
 	L2GenesisCfg *core.Genesis
 
 	// Connections to running nodes
-	EthInstances      map[string]EthInstance
-	Clients           map[string]*ethclient.Client
-	RawClients        map[string]*rpc.Client
-	RollupNodes       map[string]*rollupNode.OpNode
+	EthInstances      map[string]services.EthInstance
+	RollupNodes       map[string]services.RollupNode
 	L2OutputSubmitter *l2os.ProposerService
 	BatchSubmitter    *bss.BatcherService
 	Mocknet           mocknet.Mocknet
 
-	L1BeaconAPIAddr string
+	L1BeaconAPIAddr endpoint.RestHTTP
 
 	// TimeTravelClock is nil unless SystemConfig.SupportL1TimeTravel was set to true
 	// It provides access to the clock instance used by the L1 node. Calling TimeTravelClock.AdvanceBy
@@ -368,8 +332,13 @@ type System struct {
 	t      *testing.T
 	closed atomic.Bool
 
-	// rollupClients caches the lazily created RollupClient instances so they can be reused and closed
+	// rollupClients caches the lazily created RollupClient
+	// instances so they can be reused and closed
 	rollupClients map[string]*sources.RollupClient
+
+	// clients caches lazily created L1/L2 ethclient.Client
+	// instances so they can be reused and closed
+	clients map[string]*ethclient.Client
 }
 
 func (sys *System) Config() SystemConfig { return sys.Cfg }
@@ -382,38 +351,29 @@ func (sys *System) AdvanceTime(d time.Duration) {
 	}
 }
 
-func (sys *System) L1BeaconEndpoint() string {
+func (sys *System) L1BeaconEndpoint() endpoint.RestHTTP {
 	return sys.L1BeaconAPIAddr
 }
 
 func (sys *System) L1BeaconHTTPClient() *sources.BeaconHTTPClient {
 	logger := testlog.Logger(sys.t, log.LevelInfo).New("component", "beaconClient")
-	return sources.NewBeaconHTTPClient(client.NewBasicHTTPClient(sys.L1BeaconEndpoint(), logger))
+	return sources.NewBeaconHTTPClient(client.NewBasicHTTPClient(sys.L1BeaconEndpoint().RestHTTP(), logger))
 }
 
-func (sys *System) NodeEndpoint(name string) string {
-	return selectEndpoint(sys.EthInstances[name])
-}
-
-func (sys *System) NodeClient(name string) *ethclient.Client {
-	return sys.Clients[name]
-}
-
-func (sys *System) RollupEndpoint(name string) string {
-	return sys.RollupNodes[name].HTTPEndpoint()
-}
-
-func (sys *System) RollupClient(name string) *sources.RollupClient {
-	client, ok := sys.rollupClients[name]
-	if ok {
-		return client
+func (sys *System) NodeEndpoint(name string) endpoint.RPC {
+	ethInst, ok := sys.EthInstances[name]
+	if !ok {
+		sys.t.Fatalf("unknown eth instance: %s", name)
 	}
-	logger := testlog.Logger(sys.t, log.LevelInfo).New("rollupClient", name)
-	endpoint := sys.RollupEndpoint(name)
-	client, err := dial.DialRollupClientWithTimeout(context.Background(), 30*time.Second, logger, endpoint)
-	require.NoErrorf(sys.t, err, "Failed to dial rollup client %v", name)
-	sys.rollupClients[name] = client
-	return client
+	return ethInst.UserRPC()
+}
+
+func (sys *System) RollupEndpoint(name string) endpoint.RPC {
+	rNode, ok := sys.RollupNodes[name]
+	if !ok {
+		sys.t.Fatalf("unknown rollup node instance: %s", name)
+	}
+	return rNode.UserRPC()
 }
 
 func (sys *System) L1Deployments() *genesis.L1Deployments {
@@ -434,6 +394,7 @@ func (sys *System) L1Slot(l1Timestamp uint64) uint64 {
 }
 
 func (sys *System) Close() {
+	sys.t.Log("CLOSING")
 	if !sys.closed.CompareAndSwap(false, true) {
 		// Already closed.
 		return
@@ -454,7 +415,7 @@ func (sys *System) Close() {
 	}
 
 	for name, node := range sys.RollupNodes {
-		if err := node.Stop(postCtx); err != nil && !errors.Is(err, rollupNode.ErrAlreadyClosed) {
+		if err := node.Stop(postCtx); err != nil && !errors.Is(err, rollupNode.ErrAlreadyClosed) && !errors.Is(err, postCtx.Err()) {
 			combinedErr = errors.Join(combinedErr, fmt.Errorf("stop rollup node %v: %w", name, err))
 		}
 	}
@@ -462,6 +423,9 @@ func (sys *System) Close() {
 		if err := ei.Close(); err != nil && !errors.Is(err, node.ErrNodeStopped) {
 			combinedErr = errors.Join(combinedErr, fmt.Errorf("stop EthInstance %v: %w", name, err))
 		}
+	}
+	for _, client := range sys.clients {
+		client.Close()
 	}
 	for _, client := range sys.rollupClients {
 		client.Close()
@@ -514,10 +478,9 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	sys := &System{
 		t:             t,
 		Cfg:           cfg,
-		EthInstances:  make(map[string]EthInstance),
-		Clients:       make(map[string]*ethclient.Client),
-		RawClients:    make(map[string]*rpc.Client),
-		RollupNodes:   make(map[string]*rollupNode.OpNode),
+		EthInstances:  make(map[string]services.EthInstance),
+		RollupNodes:   make(map[string]services.RollupNode),
+		clients:       make(map[string]*ethclient.Client),
 		rollupClients: make(map[string]*sources.RollupClient),
 	}
 	// Automatically stop the system at the end of the test
@@ -555,15 +518,8 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	}
 
 	l1Block := l1Genesis.ToBlock()
-	var allocsMode genesis.L2AllocsMode
-	allocsMode = genesis.L2AllocsDelta
-	if graniteTime := cfg.DeployConfig.GraniteTime(l1Block.Time()); graniteTime != nil && *graniteTime <= 0 {
-		allocsMode = genesis.L2AllocsGranite
-	} else if fjordTime := cfg.DeployConfig.FjordTime(l1Block.Time()); fjordTime != nil && *fjordTime <= 0 {
-		allocsMode = genesis.L2AllocsFjord
-	} else if ecotoneTime := cfg.DeployConfig.EcotoneTime(l1Block.Time()); ecotoneTime != nil && *ecotoneTime <= 0 {
-		allocsMode = genesis.L2AllocsEcotone
-	}
+	allocsMode := cfg.DeployConfig.AllocMode(l1Block.Time())
+
 	t.Log("Generating L2 genesis", "l2_allocs_mode", string(allocsMode))
 	l2Allocs := config.L2Allocs(allocsMode)
 	l2Genesis, err := genesis.BuildL2Genesis(cfg.DeployConfig, l2Allocs, l1Block)
@@ -605,7 +561,6 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 			MaxSequencerDrift:       cfg.DeployConfig.MaxSequencerDrift,
 			SeqWindowSize:           cfg.DeployConfig.SequencerWindowSize,
 			ChannelTimeoutBedrock:   cfg.DeployConfig.ChannelTimeoutBedrock,
-			ChannelTimeoutGranite:   cfg.DeployConfig.ChannelTimeoutGranite,
 			L1ChainID:               cfg.L1ChainIDBig(),
 			L2ChainID:               cfg.L2ChainIDBig(),
 			BatchInboxAddress:       cfg.DeployConfig.BatchInboxAddress,
@@ -636,40 +591,36 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	require.NoError(t, bcn.Start("127.0.0.1:0"))
 	beaconApiAddr := bcn.BeaconAddr()
 	require.NotEmpty(t, beaconApiAddr, "beacon API listener must be up")
-	sys.L1BeaconAPIAddr = beaconApiAddr
+	sys.L1BeaconAPIAddr = endpoint.RestHTTPURL(beaconApiAddr)
 
 	// Initialize nodes
-	l1Node, l1Backend, err := geth.InitL1(cfg.DeployConfig.L1ChainID,
+	l1Geth, err := geth.InitL1(
 		cfg.DeployConfig.L1BlockTime, cfg.L1FinalizedDistance, l1Genesis, c,
 		path.Join(cfg.BlobsPath, "l1_el"), bcn, cfg.GethOptions[RoleL1]...)
 	if err != nil {
 		return nil, err
 	}
-	sys.EthInstances[RoleL1] = &GethInstance{
-		Backend: l1Backend,
-		Node:    l1Node,
-	}
-	err = l1Node.Start()
+	sys.EthInstances[RoleL1] = l1Geth
+	err = l1Geth.Node.Start()
 	if err != nil {
 		return nil, err
 	}
 
 	for name := range cfg.Nodes {
-		var ethClient EthInstance
+		if name == RoleL1 {
+			return nil, fmt.Errorf("node name %s is reserved for L1 node", RoleL1)
+		}
+		var ethClient services.EthInstance
 		if cfg.ExternalL2Shim == "" {
-			node, backend, err := geth.InitL2(name, big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath, cfg.GethOptions[name]...)
+			l2Geth, err := geth.InitL2(name, l2Genesis, cfg.JWTFilePath, cfg.GethOptions[name]...)
 			if err != nil {
 				return nil, err
 			}
-			gethInst := &GethInstance{
-				Backend: backend,
-				Node:    node,
-			}
-			err = gethInst.Node.Start()
+			err = l2Geth.Node.Start()
 			if err != nil {
 				return nil, err
 			}
-			ethClient = gethInst
+			ethClient = l2Geth
 		} else {
 			if len(cfg.GethOptions[name]) > 0 {
 				t.Skip("External L2 nodes do not support configuration through GethOptions")
@@ -690,32 +641,9 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	for name, nodeCfg := range cfg.Nodes {
 		configureL1(nodeCfg, sys.EthInstances[RoleL1], sys.L1BeaconEndpoint())
 		configureL2(nodeCfg, sys.EthInstances[name], cfg.JWTSecret)
-		if sys.RollupConfig.EcotoneTime != nil {
-			nodeCfg.Beacon = &rollupNode.L1BeaconEndpointConfig{BeaconAddr: sys.L1BeaconAPIAddr}
-		}
 	}
 
-	// Geth Clients
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	l1Srv, err := l1Node.RPCHandler()
-	if err != nil {
-		return nil, err
-	}
-	rawL1Client := rpc.DialInProc(l1Srv)
-	l1Client := ethclient.NewClient(rawL1Client)
-	sys.Clients[RoleL1] = l1Client
-	sys.RawClients[RoleL1] = rawL1Client
-	for name, ethInst := range sys.EthInstances {
-		rawClient, err := rpc.DialContext(ctx, ethInst.WSEndpoint())
-		if err != nil {
-			return nil, err
-		}
-		client := ethclient.NewClient(rawClient)
-		sys.RawClients[name] = rawClient
-		sys.Clients[name] = client
-	}
-
+	l1Client := sys.NodeClient(RoleL1)
 	_, err = geth.WaitForBlock(big.NewInt(2), l1Client, 6*time.Second*time.Duration(cfg.DeployConfig.L1BlockTime))
 	if err != nil {
 		return nil, fmt.Errorf("waiting for blocks: %w", err)
@@ -772,10 +700,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	// Rollup nodes
 
 	// Ensure we are looping through the nodes in alphabetical order
-	ks := make([]string, 0, len(cfg.Nodes))
-	for k := range cfg.Nodes {
-		ks = append(ks, k)
-	}
+	ks := maps.Keys(cfg.Nodes)
 	// Sort strings in ascending alphabetical order
 	sort.Strings(ks)
 
@@ -797,28 +722,13 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 
 		c.Rollup.LogDescription(cfg.Loggers[name], chaincfg.L2ChainIDToNetworkDisplayName)
 		l := cfg.Loggers[name]
-		var cycle cliapp.Lifecycle
-		c.Cancel = func(errCause error) {
-			l.Warn("node requested early shutdown!", "err", errCause)
-			go func() {
-				postCtx, postCancel := context.WithCancel(context.Background())
-				postCancel() // don't allow the stopping to continue for longer than needed
-				if err := cycle.Stop(postCtx); err != nil {
-					t.Error(err)
-				}
-				l.Warn("closed op-node!")
-			}()
-		}
-		node, err := rollupNode.New(context.Background(), &c, l, "", metrics.NewMetrics(""))
-		if err != nil {
-			return nil, err
-		}
-		cycle = node
-		err = node.Start(context.Background())
-		if err != nil {
-			return nil, err
-		}
-		sys.RollupNodes[name] = node
+
+		n, err := opnode.NewOpnode(l, &c, func(err error) {
+			t.Error(err)
+		})
+		require.NoError(t, err)
+
+		sys.RollupNodes[name] = n
 
 		if action, ok := opts.Get("afterRollupNodeStart", name); ok {
 			action(&cfg, sys)
@@ -855,13 +765,13 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	var proposerCLIConfig *l2os.CLIConfig
 	if e2eutils.UseFaultProofs() {
 		proposerCLIConfig = &l2os.CLIConfig{
-			L1EthRpc:          sys.EthInstances[RoleL1].WSEndpoint(),
-			RollupRpc:         sys.RollupNodes[RoleSeq].HTTPEndpoint(),
+			L1EthRpc:          sys.EthInstances[RoleL1].UserRPC().RPC(),
+			RollupRpc:         sys.RollupNodes[RoleSeq].UserRPC().RPC(),
 			DGFAddress:        config.L1Deployments.DisputeGameFactoryProxy.Hex(),
 			ProposalInterval:  6 * time.Second,
 			DisputeGameType:   254, // Fast game type
-			PollInterval:      50 * time.Millisecond,
-			TxMgrConfig:       newTxMgrConfig(sys.EthInstances[RoleL1].WSEndpoint(), cfg.Secrets.Proposer),
+			PollInterval:      500 * time.Millisecond,
+			TxMgrConfig:       newTxMgrConfig(sys.EthInstances[RoleL1].UserRPC().RPC(), cfg.Secrets.Proposer),
 			AllowNonFinalized: cfg.NonFinalizedProposals,
 			LogConfig: oplog.CLIConfig{
 				Level:  log.LvlInfo,
@@ -870,11 +780,11 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		}
 	} else {
 		proposerCLIConfig = &l2os.CLIConfig{
-			L1EthRpc:          sys.EthInstances[RoleL1].WSEndpoint(),
-			RollupRpc:         sys.RollupNodes[RoleSeq].HTTPEndpoint(),
+			L1EthRpc:          sys.EthInstances[RoleL1].UserRPC().RPC(),
+			RollupRpc:         sys.RollupNodes[RoleSeq].UserRPC().RPC(),
 			L2OOAddress:       config.L1Deployments.L2OutputOracleProxy.Hex(),
-			PollInterval:      50 * time.Millisecond,
-			TxMgrConfig:       newTxMgrConfig(sys.EthInstances[RoleL1].WSEndpoint(), cfg.Secrets.Proposer),
+			PollInterval:      500 * time.Millisecond,
+			TxMgrConfig:       newTxMgrConfig(sys.EthInstances[RoleL1].UserRPC().RPC(), cfg.Secrets.Proposer),
 			AllowNonFinalized: cfg.NonFinalizedProposals,
 			LogConfig: oplog.CLIConfig{
 				Level:  log.LvlInfo,
@@ -910,9 +820,9 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	}
 
 	batcherCLIConfig := &bss.CLIConfig{
-		L1EthRpc:                 sys.EthInstances[RoleL1].WSEndpoint(),
-		L2EthRpc:                 sys.EthInstances[RoleSeq].WSEndpoint(),
-		RollupRpc:                sys.RollupNodes[RoleSeq].HTTPEndpoint(),
+		L1EthRpc:                 sys.EthInstances[RoleL1].UserRPC().RPC(),
+		L2EthRpc:                 sys.EthInstances[RoleSeq].UserRPC().RPC(),
+		RollupRpc:                sys.RollupNodes[RoleSeq].UserRPC().RPC(),
 		MaxPendingTransactions:   cfg.MaxPendingTransactions,
 		MaxChannelDuration:       1,
 		MaxL1TxSize:              batcherMaxL1TxSizeBytes,
@@ -921,7 +831,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		ApproxComprRatio:         0.4,
 		SubSafetyMargin:          4,
 		PollInterval:             50 * time.Millisecond,
-		TxMgrConfig:              newTxMgrConfig(sys.EthInstances[RoleL1].WSEndpoint(), cfg.Secrets.Batcher),
+		TxMgrConfig:              newTxMgrConfig(sys.EthInstances[RoleL1].UserRPC().RPC(), cfg.Secrets.Batcher),
 		LogConfig: oplog.CLIConfig{
 			Level:  log.LevelInfo,
 			Format: oplog.FormatText,
@@ -1009,22 +919,9 @@ func (sys *System) TestAccount(idx int) *ecdsa.PrivateKey {
 	}
 }
 
-func UseHTTP() bool {
-	return os.Getenv("OP_E2E_USE_HTTP") == "true"
-}
-
-func selectEndpoint(node EthInstance) string {
-	if UseHTTP() {
-		log.Info("using HTTP client")
-		return node.HTTPEndpoint()
-	}
-	return node.WSEndpoint()
-}
-
-func configureL1(rollupNodeCfg *rollupNode.Config, l1Node EthInstance, beaconEndpoint string) {
-	l1EndpointConfig := selectEndpoint(l1Node)
+func configureL1(rollupNodeCfg *rollupNode.Config, l1Node services.EthInstance, beaconEndpoint endpoint.RestHTTP) {
 	rollupNodeCfg.L1 = &rollupNode.L1EndpointConfig{
-		L1NodeAddr:       l1EndpointConfig,
+		L1NodeAddr:       endpoint.SelectRPC(EnvRPCPreference(), l1Node.UserRPC()),
 		L1TrustRPC:       false,
 		L1RPCKind:        sources.RPCKindStandard,
 		RateLimit:        0,
@@ -1033,23 +930,13 @@ func configureL1(rollupNodeCfg *rollupNode.Config, l1Node EthInstance, beaconEnd
 		MaxConcurrency:   10,
 	}
 	rollupNodeCfg.Beacon = &rollupNode.L1BeaconEndpointConfig{
-		BeaconAddr: beaconEndpoint,
+		BeaconAddr: beaconEndpoint.RestHTTP(),
 	}
 }
 
-type WSOrHTTPEndpoint interface {
-	WSAuthEndpoint() string
-	HTTPAuthEndpoint() string
-}
-
-func configureL2(rollupNodeCfg *rollupNode.Config, l2Node WSOrHTTPEndpoint, jwtSecret [32]byte) {
-	l2EndpointConfig := l2Node.WSAuthEndpoint()
-	if UseHTTP() {
-		l2EndpointConfig = l2Node.HTTPAuthEndpoint()
-	}
-
+func configureL2(rollupNodeCfg *rollupNode.Config, l2Node services.EthInstance, jwtSecret [32]byte) {
 	rollupNodeCfg.L2 = &rollupNode.L2EndpointConfig{
-		L2EngineAddr:      l2EndpointConfig,
+		L2EngineAddr:      endpoint.SelectRPC(EnvRPCPreference(), l2Node.AuthRPC()),
 		L2EngineJWTSecret: jwtSecret,
 	}
 }
@@ -1065,4 +952,48 @@ func (cfg SystemConfig) L2ChainIDBig() *big.Int {
 func hexPriv(in *ecdsa.PrivateKey) string {
 	b := e2eutils.EncodePrivKey(in)
 	return hexutil.Encode(b)
+}
+
+func (sys *System) RollupClient(name string) *sources.RollupClient {
+	rollupClient, ok := sys.rollupClients[name]
+	if ok {
+		return rollupClient
+	}
+	rpcClient := endpoint.DialRPC(endpoint.PreferAnyRPC, sys.RollupEndpoint(name), func(v string) *rpc.Client {
+		logger := testlog.Logger(sys.t, log.LevelInfo).New("rollupClient", name)
+		cl, err := dial.DialRPCClientWithTimeout(context.Background(), 30*time.Second, logger, v)
+		require.NoError(sys.t, err, "failed to dial rollup instance %s", name)
+		return cl
+	})
+	rollupClient = sources.NewRollupClient(client.NewBaseRPCClient(rpcClient))
+	sys.rollupClients[name] = rollupClient
+	return rollupClient
+}
+
+func (sys *System) NodeClient(name string) *ethclient.Client {
+	nodeClient, ok := sys.clients[name]
+	if ok {
+		return nodeClient
+	}
+	rpcCl := endpoint.DialRPC(endpoint.PreferAnyRPC, sys.NodeEndpoint(name), func(v string) *rpc.Client {
+		logger := testlog.Logger(sys.t, log.LevelInfo).New("node", name)
+		cl, err := dial.DialRPCClientWithTimeout(context.Background(), 30*time.Second, logger, v)
+		require.NoError(sys.t, err, "failed to dial eth node instance %s", name)
+		return cl
+	})
+	nodeClient = ethclient.NewClient(rpcCl)
+	sys.clients[name] = nodeClient
+	return nodeClient
+}
+
+// EnvRPCPreference reads the type of RPC that should be used.
+// Some E2E tests are forced to run with HTTP,
+// since HTTP does not support subscriptions, which thus could affect functionality.
+// The alternative E2E tests are labeled "ws", but really just any transport here is the same.
+func EnvRPCPreference() endpoint.RPCPreference {
+	// L1 is a legacy exception; the System setup itself depends on RPC subscriptions.
+	if os.Getenv("OP_E2E_USE_HTTP") == "true" {
+		return endpoint.PreferHttpRPC
+	}
+	return endpoint.PreferAnyRPC
 }

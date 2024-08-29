@@ -42,7 +42,7 @@ type FPVMState interface {
 	// so a VM can start from any state without fetching prior pre-images,
 	// and instead just repeat the last hint on setup,
 	// to make sure pre-image requests can be served.
-	// The first 4 bytes are a uin32 length prefix.
+	// The first 4 bytes are a uint32 length prefix.
 	// Warning: the hint MAY NOT BE COMPLETE. I.e. this is buffered,
 	// and should only be read when len(LastHint) > 4 && uint32(LastHint[:4]) <= len(LastHint[4:])
 	GetLastHint() hexutil.Bytes
@@ -69,4 +69,8 @@ type FPVM interface {
 
 	// GetDebugInfo returns debug information about the VM
 	GetDebugInfo() *DebugInfo
+
+	// LookupSymbol returns the symbol located at the specified address.
+	// May return an empty string if there's no symbol table available.
+	LookupSymbol(addr uint32) string
 }

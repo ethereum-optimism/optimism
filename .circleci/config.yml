@@ -195,6 +195,10 @@ jobs:
           name: print forge version
           command: forge --version
       - run:
+          name: Pull artifacts
+          command: bash scripts/ops/pull-artifacts.sh
+          working_directory: packages/contracts-bedrock
+      - run:
           name: Build contracts
           environment:
             FOUNDRY_PROFILE: ci
@@ -1461,6 +1465,24 @@ jobs:
           working_directory: ./packages/contracts-bedrock
       - notify-failures-on-develop
 
+  publish-contract-artifacts:
+    docker:
+      - image: <<pipeline.parameters.ci_builder_image>>
+    resource_class: medium
+    steps:
+      - gcp-cli/install
+      - gcp-oidc-authenticate:
+          gcp_cred_config_file_path: /root/gcp_cred_config.json
+          oidc_token_file_path: /root/oidc_token.json
+          service_account_email: GCP_SERVICE_CONTRACTS_ACCOUNT_EMAIL
+      - checkout
+      - attach_workspace: { at: "." }
+      - install-contracts-dependencies
+      - run:
+          name: Publish artifacts
+          command: bash scripts/ops/publish-artifacts.sh
+          working_directory: packages/contracts-bedrock
+
 workflows:
   main:
     when:
@@ -1475,6 +1497,11 @@ workflows:
     jobs:
       - pnpm-monorepo:
           name: pnpm-monorepo
+      - publish-contract-artifacts:
+          requires:
+            - pnpm-monorepo
+          context:
+            - oplabs-gcr-release
       - contracts-bedrock-tests
       - contracts-bedrock-coverage
       - contracts-bedrock-checks:
@@ -1517,10 +1544,6 @@ workflows:
           on_changes: op-e2e,packages/contracts-bedrock/src
           uses_artifacts: true
           requires: ["go-mod-download", "pnpm-monorepo"]
-      - go-test:
-          name: op-heartbeat-tests
-          module: op-heartbeat
-          requires: [ "go-mod-download" ]
       - go-test:
           name: op-batcher-tests
           module: op-batcher
@@ -1607,7 +1630,6 @@ workflows:
             - go-mod-download
             - op-batcher-tests
             - op-chain-ops-tests
-            - op-heartbeat-tests
             - op-node-tests
             - op-proposer-tests
             - op-challenger-tests
@@ -1658,11 +1680,6 @@ workflows:
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           # op-conductor is not part of the devnet, we don't save it.
       - docker-build:
-          name: op-heartbeat-docker-build
-          docker_name: op-heartbeat
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          # op-heartbeat is not part of the devnet, we don't save it.
-      - docker-build:
           name: da-server-docker-build
           docker_name: da-server
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
@@ -1712,26 +1729,6 @@ workflows:
               only: /^(da-server|ci-builder(-rust)?|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
-      - docker-build:
-          name: op-heartbeat-release
-          filters:
-            tags:
-              only: /^op-heartbeat\/v.*/
-            branches:
-              ignore: /.*/
-          docker_name: op-heartbeat
-          docker_tags: <<pipeline.git.revision>>
-          requires: ['hold']
-          platforms: "linux/amd64,linux/arm64"
-          publish: true
-          release: true
-          context:
-            - oplabs-gcr-release
-      - check-cross-platform:
-          name: op-heartbeat-cross-platform
-          op_component: op-heartbeat
-          requires:
-            - op-heartbeat-release
       - docker-build:
           name: op-node-docker-release
           filters:
@@ -2107,20 +2104,6 @@ workflows:
           op_component: op-conductor
           requires:
             - op-conductor-docker-publish
-      - docker-build:
-          name: op-heartbeat-docker-publish
-          docker_name: op-heartbeat
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          platforms: "linux/amd64,linux/arm64"
-          publish: true
-          context:
-            - oplabs-gcr
-            - slack
-      - check-cross-platform:
-          name: op-heartbeat-cross-platform
-          op_component: op-heartbeat
-          requires:
-            - op-heartbeat-docker-publish
       - docker-build:
           name: op-supervisor-docker-publish
           docker_name: op-supervisor
