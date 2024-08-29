@@ -460,7 +460,7 @@ func (n *OpNode) initPProf(cfg *Config) error {
 }
 
 func (n *OpNode) p2pEnabled() bool {
-	return n.cfg.P2P != nil && !n.cfg.P2P.Disabled()
+	return n.cfg.p2pEnabled()
 }
 
 func (n *OpNode) initP2P(cfg *Config) (err error) {
