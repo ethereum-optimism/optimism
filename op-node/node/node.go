@@ -401,7 +401,22 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config) error {
 	} else {
 		n.safeDB = safedb.Disabled
 	}
-	n.l2Driver = driver.NewDriver(&cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source, n.beacon, n, n, n.log, n.metrics, cfg.ConfigPersistence, n.safeDB, &cfg.Sync, sequencerConductor, altDA)
+	n.l2Driver = driver.NewDriver(
+		&cfg.Driver,
+		&cfg.Rollup,
+		n.l2Source,
+		n.l1Source,
+		n.beacon,
+		n,
+		n,
+		n.log,
+		n.metrics,
+		cfg.ConfigPersistence,
+		n.safeDB,
+		&cfg.Sync,
+		sequencerConductor,
+		altDA,
+	)
 	return nil
 }
 

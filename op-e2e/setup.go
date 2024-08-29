@@ -163,9 +163,9 @@ func DefaultSystemConfig(t testing.TB) SystemConfig {
 		},
 		Loggers: map[string]log.Logger{
 			RoleVerif:  testlog.Logger(t, log.LevelInfo).New("role", RoleVerif),
-			RoleSeq:    testlog.Logger(t, log.LevelInfo).New("role", RoleSeq),
+			RoleSeq:    testlog.Logger(t, log.LevelWarn).New("role", RoleSeq),
 			"batcher":  testlog.Logger(t, log.LevelInfo).New("role", "batcher"),
-			"proposer": testlog.Logger(t, log.LevelInfo).New("role", "proposer"),
+			"proposer": testlog.Logger(t, log.LevelWarn).New("role", "proposer"),
 		},
 		GethOptions:            map[string][]geth.GethOption{},
 		P2PTopology:            nil, // no P2P connectivity by default
@@ -974,6 +974,43 @@ func (sys *System) newMockNetPeer() (host.Host, error) {
 	p, err := peer.IDFromPublicKey(sk.GetPublic())
 	if err != nil {
 		return nil, err
+	}
+
+	ps, err := pstoremem.NewPeerstore()
+	if err != nil {
+		return nil, err
+	}
+	ps.AddAddr(p, a, peerstore.PermanentAddrTTL)
+	_ = ps.AddPrivKey(p, sk)
+	_ = ps.AddPubKey(p, sk.GetPublic())
+
+	ds := dsSync.MutexWrap(ds.NewMapDatastore())
+	eps, err := store.NewExtendedPeerstore(context.Background(), log.Root(), clock.SystemClock, ps, ds, 24*time.Hour)
+	if err != nil {
+		return nil, err
+	}
+	return sys.Mocknet.AddPeerWithPeerstore(p, eps)
+}
+
+// mocknet doesn't allow us to add a peerstore without fully creating the peer ourselves
+func (sys *System) newMockNetPeerWithCustomPeerId(p peer.ID) (host.Host, error) {
+	sk, _, err := ic.GenerateECDSAKeyPair(rand.Reader)
+	if err != nil {
+		return nil, err
+	}
+	id, err := peer.IDFromPrivateKey(sk)
+	if err != nil {
+		return nil, err
+	}
+	suffix := id
+	if len(id) > 8 {
+		suffix = id[len(id)-8:]
+	}
+	ip := append(net.IP{}, blackholeIP6...)
+	copy(ip[net.IPv6len-len(suffix):], suffix)
+	a, err := ma.NewMultiaddr(fmt.Sprintf("/ip6/%s/tcp/4242", ip))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create test multiaddr: %w", err)
 	}
 
 	ps, err := pstoremem.NewPeerstore()

@@ -250,7 +250,12 @@ func (sb *seenBlocks) markSeen(h common.Hash) {
 	sb.blockHashes = append(sb.blockHashes, h)
 }
 
-func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, blockVersion eth.BlockVersion) pubsub.ValidatorEx {
+func BuildBlocksValidator(
+	log log.Logger,
+	cfg *rollup.Config,
+	runCfg GossipRuntimeConfig,
+	blockVersion eth.BlockVersion,
+) pubsub.ValidatorEx {
 
 	// Seen block hashes per block height
 	// uint64 -> *seenBlocks
@@ -570,7 +575,14 @@ func (p *publisher) Close() error {
 	return errors.Join(e1, e2)
 }
 
-func JoinGossip(self peer.ID, ps *pubsub.PubSub, log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, gossipIn GossipIn) (GossipOut, error) {
+func JoinGossip(
+	self peer.ID,
+	ps *pubsub.PubSub,
+	log log.Logger,
+	cfg *rollup.Config,
+	runCfg GossipRuntimeConfig,
+	gossipIn GossipIn,
+) (GossipOut, error) {
 	p2pCtx, p2pCancel := context.WithCancel(context.Background())
 
 	v1Logger := log.New("topic", "blocksV1")

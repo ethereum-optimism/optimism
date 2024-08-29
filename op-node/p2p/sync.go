@@ -61,11 +61,13 @@ const (
 	clientErrRateCost = peerServerBlocksBurst
 )
 
+type resultCode byte
+
 const (
-	ResultCodeSuccess     byte = 0
-	ResultCodeNotFoundErr byte = 1
-	ResultCodeInvalidErr  byte = 2
-	ResultCodeUnknownErr  byte = 3
+	ResultCodeSuccess     resultCode = 0
+	ResultCodeNotFoundErr resultCode = 1
+	ResultCodeInvalidErr  resultCode = 2
+	ResultCodeUnknownErr  resultCode = 3
 )
 
 var resultCodeString = []string{
@@ -179,10 +181,10 @@ type SyncPeerScorer interface {
 //   - Requests for data that's already in the quarantine are not repeated
 //   - Data already in the quarantine that is trusted is attempted to be promoted.
 //
-// - Peers each have their own routine for processing requests.
+// - Peers each has their own routine for processing requests.
 //   - They fetch the requested block by number, parse and validate it, and then send it back to the main loop
 //   - If peers fail to fetch or process it, or fail to send it back to the main loop within timeout,
-//     then the doRequest returns an error. It then marks the in-flight request as completed.
+//     then doRequest returns an error. It then marks the in-flight request as completed.
 //
 // - Main loop receives results synchronously with the range requests
 //   - The result is removed from in-flight tracker
@@ -223,6 +225,7 @@ type SyncPeerScorer interface {
 // If the user does sync a long range of blocks through this mechanism,
 // it does end up traversing through the chain, but receives the blocks in reverse order.
 // It is up to the user to persist the blocks for later processing, or drop & resync them if persistence is limited.
+// TODO: Should this be renamed to AltSyncClient?
 type SyncClient struct {
 	log log.Logger
 
@@ -281,7 +284,14 @@ type SyncClient struct {
 	syncOnlyReqToStatic bool
 }
 
-func NewSyncClient(log log.Logger, cfg *rollup.Config, host HostNewStream, rcv receivePayloadFn, metrics SyncClientMetrics, appScorer SyncPeerScorer) *SyncClient {
+func NewSyncClient(
+	log log.Logger,
+	cfg *rollup.Config,
+	host HostNewStream,
+	rcv receivePayloadFn,
+	metrics SyncClientMetrics,
+	appScorer SyncPeerScorer,
+) *SyncClient {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	c := &SyncClient{
@@ -400,6 +410,7 @@ func (s *SyncClient) mainLoop() {
 			s.onRangeRequest(ctx, req)
 			cancel()
 		case res := <-s.results:
+			fmt.Printf("got sync result %d\n", res.payload.ExecutionPayload.BlockNumber)
 			ctx, cancel := context.WithTimeout(s.resCtx, maxResultProcessing)
 			s.onResult(ctx, res)
 			cancel()
@@ -469,7 +480,7 @@ func (s *SyncClient) onRangeRequest(ctx context.Context, req rangeRequest) {
 			log.Info("did not schedule full P2P sync range", "current", num, "err", ctx.Err())
 			return
 		default: // peers may all be busy processing requests already
-			log.Info("no peers ready to handle block requests for more P2P requests for L2 block history", "current", num)
+			log.Warn("no peers ready to handle block requests for more P2P requests for L2 block history", "current", num)
 			return
 		}
 	}
@@ -596,14 +607,17 @@ func (s *SyncClient) peerLoop(ctx context.Context, id peer.ID) {
 			start := time.Now()
 
 			resultCode := ResultCodeSuccess
+			fmt.Printf("requesting %d from %v\n", pr.num, id)
 			err := panicGuard(s.doRequest)(ctx, id, pr.num)
+			fmt.Printf("result of requesting %d from %v: %v\n", pr.num, id, err)
 			if err != nil {
 				s.inFlight.delete(pr.num)
 				log.Warn("failed p2p sync request", "num", pr.num, "err", err)
 				resultCode = ResultCodeNotFoundErr
 				sendResponseError := true
 
-				if re, ok := err.(requestResultErr); ok {
+				var re requestResultErr
+				if errors.As(err, &re) {
 					resultCode = re.ResultCode()
 					if resultCode == ResultCodeNotFoundErr {
 						log.Warn("cancelling p2p sync range request", "rangeReqId", pr.rangeReqId)
@@ -627,14 +641,14 @@ func (s *SyncClient) peerLoop(ctx context.Context, id peer.ID) {
 			}
 
 			took := time.Since(start)
-			s.metrics.ClientPayloadByNumberEvent(pr.num, resultCode, took)
+			s.metrics.ClientPayloadByNumberEvent(pr.num, byte(resultCode), took)
 		case <-ctx.Done():
 			return
 		}
 	}
 }
 
-type requestResultErr byte
+type requestResultErr resultCode
 
 func (r requestResultErr) Error() string {
 	var errStr string
@@ -646,8 +660,8 @@ func (r requestResultErr) Error() string {
 	return fmt.Sprintf("peer failed to serve request with code %d: %s", uint8(r), errStr)
 }
 
-func (r requestResultErr) ResultCode() byte {
-	return byte(r)
+func (r requestResultErr) ResultCode() resultCode {
+	return resultCode(r)
 }
 
 func (s *SyncClient) doRequest(ctx context.Context, id peer.ID, expectedBlockNum uint64) error {
@@ -677,9 +691,9 @@ func (s *SyncClient) doRequest(ctx context.Context, id peer.ID, expectedBlockNum
 	r := io.LimitReader(str, maxGossipSize)
 	var result [1]byte
 	if _, err := io.ReadFull(r, result[:]); err != nil {
-		return fmt.Errorf("failed to read result part of response: %w", err)
+		return fmt.Errorf("failed to read result code: %w", err)
 	}
-	if res := result[0]; res != 0 {
+	if res := resultCode(result[0]); res != ResultCodeSuccess {
 		return requestResultErr(res)
 	}
 	var versionData [4]byte
@@ -688,6 +702,7 @@ func (s *SyncClient) doRequest(ctx context.Context, id peer.ID, expectedBlockNum
 	}
 
 	// payload is SSZ encoded with Snappy framed compression
+	// snappy sux, gross
 	r = snappy.NewReader(r)
 	r = io.LimitReader(r, maxGossipSize)
 
@@ -718,8 +733,9 @@ func (s *SyncClient) doRequest(ctx context.Context, id peer.ID, expectedBlockNum
 	return nil
 }
 
-// panicGuard is a generic function that takes another function with generic arguments and returns an error.
-// It recovers from any panic that occurs during the execution of the function.
+// panicGuard is a generic function that takes another function with generic arguments and returns
+// an error. It recovers from any panic that occurs during the execution of the function. TODO: You
+// really shouldn't swallow panics. The stack should at least be dumped!
 func panicGuard[T, S, U any](fn func(T, S, U) error) func(T, S, U) error {
 	return func(arg0 T, arg1 S, arg2 U) (err error) {
 		defer func() {
@@ -839,11 +855,11 @@ func (srv *ReqRespServer) HandleSyncRequest(ctx context.Context, log log.Logger,
 			resultCode = ResultCodeUnknownErr
 		}
 		// try to write error code, so the other peer can understand the reason for failure.
-		_, _ = stream.Write([]byte{resultCode})
+		_, _ = stream.Write([]byte{byte(resultCode)})
 	} else {
 		log.Debug("successfully served sync response", "req", req)
 	}
-	srv.metrics.ServerPayloadByNumberEvent(req, resultCode, time.Since(start))
+	srv.metrics.ServerPayloadByNumberEvent(req, byte(resultCode), time.Since(start))
 }
 
 var errInvalidRequest = errors.New("invalid request")

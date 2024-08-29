@@ -52,7 +52,17 @@ type NodeP2P struct {
 
 // NewNodeP2P creates a new p2p node, and returns a reference to it. If the p2p is disabled, it returns nil.
 // If metrics are configured, a bandwidth monitor will be spawned in a goroutine.
-func NewNodeP2P(resourcesCtx context.Context, rollupCfg *rollup.Config, log log.Logger, setup SetupP2P, gossipIn GossipIn, l2Chain L2Chain, runCfg GossipRuntimeConfig, metrics metrics.Metricer, elSyncEnabled bool) (*NodeP2P, error) {
+func NewNodeP2P(
+	resourcesCtx context.Context,
+	rollupCfg *rollup.Config,
+	log log.Logger,
+	setup SetupP2P,
+	gossipIn GossipIn,
+	l2Chain L2Chain,
+	runCfg GossipRuntimeConfig,
+	metrics metrics.Metricer,
+	elSyncEnabled bool,
+) (*NodeP2P, error) {
 	if setup == nil {
 		return nil, errors.New("p2p node cannot be created without setup")
 	}
@@ -70,7 +80,17 @@ func NewNodeP2P(resourcesCtx context.Context, rollupCfg *rollup.Config, log log.
 	return &n, nil
 }
 
-func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, log log.Logger, setup SetupP2P, gossipIn GossipIn, l2Chain L2Chain, runCfg GossipRuntimeConfig, metrics metrics.Metricer, elSyncEnabled bool) error {
+func (n *NodeP2P) init(
+	resourcesCtx context.Context,
+	rollupCfg *rollup.Config,
+	log log.Logger,
+	setup SetupP2P,
+	gossipIn GossipIn,
+	l2Chain L2Chain,
+	runCfg GossipRuntimeConfig,
+	metrics metrics.Metricer,
+	elSyncEnabled bool,
+) error {
 	bwc := p2pmetrics.NewBandwidthCounter()
 
 	n.log = log
