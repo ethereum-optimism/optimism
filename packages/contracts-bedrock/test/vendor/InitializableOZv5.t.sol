@@ -3,7 +3,6 @@ pragma solidity 0.8.25;
 
 import { Test } from "forge-std/Test.sol";
 import { OptimismSuperchainERC20 } from "src/L2/OptimismSuperchainERC20.sol";
-import { SuperchainERC20 } from "src/L2/SuperchainERC20.sol";
 import { Initializable } from "@openzeppelin/contracts-v5/proxy/utils/Initializable.sol";
 
 /// @title InitializerOZv5_Test
