@@ -2,7 +2,6 @@
 pragma solidity ^0.8.15;
 
 import { CommonTest } from "test/setup/CommonTest.sol";
-import { Executables } from "scripts/libraries/Executables.sol";
 import { console2 as console } from "forge-std/console2.sol";
 import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
