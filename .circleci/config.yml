@@ -195,6 +195,10 @@ jobs:
           name: print forge version
           command: forge --version
       - run:
+          name: Pull artifacts
+          command: bash scripts/ops/pull-artifacts.sh
+          working_directory: packages/contracts-bedrock
+      - run:
           name: Build contracts
           environment:
             FOUNDRY_PROFILE: ci
@@ -1461,6 +1465,24 @@ jobs:
           working_directory: ./packages/contracts-bedrock
       - notify-failures-on-develop
 
+  publish-contract-artifacts:
+    docker:
+      - image: <<pipeline.parameters.ci_builder_image>>
+    resource_class: medium
+    steps:
+      - gcp-cli/install
+      - gcp-oidc-authenticate:
+          gcp_cred_config_file_path: /root/gcp_cred_config.json
+          oidc_token_file_path: /root/oidc_token.json
+          service_account_email: GCP_SERVICE_CONTRACTS_ACCOUNT_EMAIL
+      - checkout
+      - attach_workspace: { at: "." }
+      - install-contracts-dependencies
+      - run:
+          name: Publish artifacts
+          command: bash scripts/ops/publish-artifacts.sh
+          working_directory: packages/contracts-bedrock
+
 workflows:
   main:
     when:
@@ -1475,6 +1497,11 @@ workflows:
     jobs:
       - pnpm-monorepo:
           name: pnpm-monorepo
+      - publish-contract-artifacts:
+          requires:
+            - pnpm-monorepo
+          context:
+            - oplabs-gcr-release
       - contracts-bedrock-tests
       - contracts-bedrock-coverage
       - contracts-bedrock-checks:
