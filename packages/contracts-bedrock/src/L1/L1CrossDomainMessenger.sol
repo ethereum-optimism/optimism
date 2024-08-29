@@ -8,7 +8,7 @@ import { ISemver } from "src/universal/ISemver.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 
-/// @custom:proxied
+/// @custom:proxied true
 /// @title L1CrossDomainMessenger
 /// @notice The L1CrossDomainMessenger is a message passing interface between L1 and L2 responsible
 ///         for sending and receiving data on the L1 side. Users are encouraged to use this
@@ -25,8 +25,8 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
     SystemConfig public systemConfig;
 
     /// @notice Semantic version.
-    /// @custom:semver 2.4.0
-    string public constant version = "2.4.0";
+    /// @custom:semver 2.4.1-beta.1
+    string public constant version = "2.4.1-beta.1";
 
     /// @notice Constructs the L1CrossDomainMessenger contract.
     constructor() CrossDomainMessenger() {

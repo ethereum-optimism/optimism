@@ -10,6 +10,7 @@ import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { GasPayingToken, IGasToken } from "src/libraries/GasPayingToken.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
+/// @custom:proxied true
 /// @title SystemConfig
 /// @notice The SystemConfig contract is used to manage configuration of an Optimism network.
 ///         All configuration is stored on L1 and picked up by L2 as part of the derviation of
@@ -124,9 +125,9 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
     /// @notice Semantic version.
-    /// @custom:semver 2.3.0-beta.2
+    /// @custom:semver 2.3.0-beta.3
     function version() public pure virtual returns (string memory) {
-        return "2.3.0-beta.2";
+        return "2.3.0-beta.3";
     }
 
     /// @notice Constructs the SystemConfig contract. Cannot set

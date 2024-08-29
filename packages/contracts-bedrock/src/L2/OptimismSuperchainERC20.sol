@@ -23,7 +23,7 @@ error OnlyBridge();
 /// @notice Thrown when attempting to mint or burn tokens and the account is the zero address.
 error ZeroAddress();
 
-/// @custom:proxied
+/// @custom:proxied true
 /// @title OptimismSuperchainERC20
 /// @notice OptimismSuperchainERC20 is a standard extension of the base ERC20 token contract that unifies ERC20 token
 ///         bridging to make it fungible across the Superchain. This construction allows the L2StandardBridge to burn
@@ -70,8 +70,8 @@ contract OptimismSuperchainERC20 is IOptimismSuperchainERC20Extension, ERC20, IS
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.1
-    string public constant version = "1.0.0-beta.1";
+    /// @custom:semver 1.0.0-beta.2
+    string public constant version = "1.0.0-beta.2";
 
     /// @notice Constructs the OptimismSuperchainERC20 contract.
     constructor() {
