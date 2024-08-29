@@ -3,6 +3,9 @@ pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
 
+import { DeployOPChainInput } from "scripts/DeployOPChain.s.sol";
+import { DeployOPChain_TestBase } from "test/DeployOPChain.t.sol";
+
 import { Proxy } from "src/universal/Proxy.sol";
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
 
@@ -44,85 +47,46 @@ contract OPStackManager_Harness is OPStackManager {
 // Unlike other test suites, we intentionally do not inherit from CommonTest or Setup. This is
 // because OPStackManager acts as a deploy script, so we start from a clean slate here and
 // work OPStackManager's deployment into the existing test setup, instead of using the existing
-// test setup to deploy OPStackManager.
-contract OPStackManager_Init is Test {
-    OPStackManager opsm;
-
-    // Default dummy parameters for the deploy function.
-    OPStackManager.Roles roles = OPStackManager.Roles({
-        opChainProxyAdminOwner: makeAddr("opChainProxyAdminOwner"),
-        systemConfigOwner: makeAddr("systemConfigOwner"),
-        batcher: makeAddr("batcher"),
-        unsafeBlockSigner: makeAddr("unsafeBlockSigner"),
-        proposer: makeAddr("proposer"),
-        challenger: makeAddr("challenger")
-    });
-    OPStackManager.DeployInput deployInput =
-        OPStackManager.DeployInput({ roles: roles, basefeeScalar: 100, blobBasefeeScalar: 200, l2ChainId: 300 });
-
-    OPStackManager.ImplementationSetter[] setters;
-
-    function setUp() public {
-        // TODO Test with DeployOPChain to use real implementations.
-        setters.push(
-            OPStackManager.ImplementationSetter({
-                name: "L1ERC721Bridge",
-                info: OPStackManager.Implementation(makeAddr("l1ERC721Bridge"), L1ERC721Bridge.initialize.selector)
-            })
-        );
-        setters.push(
-            OPStackManager.ImplementationSetter({
-                name: "OptimismPortal",
-                info: OPStackManager.Implementation(makeAddr("optimismPortal"), OptimismPortal2.initialize.selector)
-            })
-        );
-        setters.push(
-            OPStackManager.ImplementationSetter({
-                name: "SystemConfig",
-                info: OPStackManager.Implementation(makeAddr("systemConfig"), SystemConfig.initialize.selector)
-            })
-        );
-        setters.push(
-            OPStackManager.ImplementationSetter({
-                name: "OptimismMintableERC20Factory",
-                info: OPStackManager.Implementation(
-                    makeAddr("optimismMintableERC20Factory"), OptimismMintableERC20Factory.initialize.selector
-                )
-            })
-        );
-        setters.push(
-            OPStackManager.ImplementationSetter({
-                name: "L1CrossDomainMessenger",
-                info: OPStackManager.Implementation(
-                    makeAddr("l1CrossDomainMessenger"), L1CrossDomainMessenger.initialize.selector
-                )
-            })
-        );
-
-        opsm = new OPStackManager({
-            _superchainConfig: SuperchainConfig(makeAddr("superchainConfig")),
-            _protocolVersions: ProtocolVersions(makeAddr("protocolVersions"))
+// test setup to deploy OPStackManager. We do however inherit from DeployOPChain_TestBase so
+// we can use its setup to deploy the implementations similarly to how a real deployment would
+// happen.
+contract OPStackManager_Deploy_Test is DeployOPChain_TestBase {
+    // This helper function is used to convert the input struct type defined in DeployOPChain.s.sol
+    // to the input struct type defined in OPStackManager.sol.
+    function toOPSMDeployInput(DeployOPChainInput.Input memory input)
+        internal
+        pure
+        returns (OPStackManager.DeployInput memory)
+    {
+        return OPStackManager.DeployInput({
+            roles: OPStackManager.Roles({
+                opChainProxyAdminOwner: input.roles.opChainProxyAdminOwner,
+                systemConfigOwner: input.roles.systemConfigOwner,
+                batcher: input.roles.batcher,
+                unsafeBlockSigner: input.roles.unsafeBlockSigner,
+                proposer: input.roles.proposer,
+                challenger: input.roles.challenger
+            }),
+            basefeeScalar: input.basefeeScalar,
+            blobBasefeeScalar: input.blobBaseFeeScalar,
+            l2ChainId: input.l2ChainId
         });
-
-        opsm.setRelease("op-contracts/latest", true, setters);
     }
-}
 
-contract OPStackManager_Deploy_Test is OPStackManager_Init {
     function test_deploy_l2ChainIdEqualsZero_reverts() public {
-        deployInput.l2ChainId = 0;
+        deployOPChainInput.l2ChainId = 0;
         vm.expectRevert(OPStackManager.InvalidChainId.selector);
-        opsm.deploy(deployInput);
+        deployImplementationsOutput.opsmSingleton.deploy(toOPSMDeployInput(deployOPChainInput));
     }
 
     function test_deploy_l2ChainIdEqualsCurrentChainId_reverts() public {
-        deployInput.l2ChainId = block.chainid;
+        deployOPChainInput.l2ChainId = block.chainid;
         vm.expectRevert(OPStackManager.InvalidChainId.selector);
-        opsm.deploy(deployInput);
+        deployImplementationsOutput.opsmSingleton.deploy(toOPSMDeployInput(deployOPChainInput));
     }
 
     function test_deploy_succeeds() public {
-        opsm.deploy(deployInput);
+        deployImplementationsOutput.opsmSingleton.deploy(toOPSMDeployInput(deployOPChainInput));
     }
 }
 

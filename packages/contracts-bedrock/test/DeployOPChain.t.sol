@@ -318,7 +318,7 @@ contract DeployOPChainOutput_Test is Test {
 
 // To mimic a production environment, we default to integration tests here that actually run the
 // DeploySuperchain and DeployImplementations scripts.
-contract DeployOPChain_Test is Test {
+contract DeployOPChain_TestBase is Test {
     DeployOPChain deployOPChain;
     DeployOPChainInput dsi;
     DeployOPChainOutput dso;
@@ -384,8 +384,13 @@ contract DeployOPChain_Test is Test {
 
         // Deploy the implementations using the updated DeployImplementations input struct.
         deployImplementationsOutput = deployImplementations.run(deployImplementationsInput);
-    }
 
+        // Set the OPStackManager on the input struct for DeployOPChain.
+        deployOPChainInput.opsm = deployImplementationsOutput.opsmSingleton;
+    }
+}
+
+contract DeployOPChain_Test is DeployOPChain_TestBase {
     function test_run_succeeds(DeployOPChainInput.Input memory _input) public {
         vm.assume(_input.roles.opChainProxyAdminOwner != address(0));
         vm.assume(_input.roles.systemConfigOwner != address(0));
@@ -395,7 +400,7 @@ contract DeployOPChain_Test is Test {
         vm.assume(_input.roles.challenger != address(0));
         vm.assume(_input.l2ChainId != 0 && _input.l2ChainId != block.chainid);
 
-        _input.opsm = deployImplementationsOutput.opsmSingleton;
+        _input.opsm = deployOPChainInput.opsm;
 
         DeployOPChainOutput.Output memory output = deployOPChain.run(_input);
 
