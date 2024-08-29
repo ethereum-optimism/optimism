@@ -228,6 +228,16 @@ func (ev PromoteFinalizedEvent) String() string {
 	return "promote-finalized"
 }
 
+// CrossUpdateRequestEvent triggers update events to be emitted, repeating the current state.
+type CrossUpdateRequestEvent struct {
+	CrossUnsafe bool
+	CrossSafe   bool
+}
+
+func (ev CrossUpdateRequestEvent) String() string {
+	return "cross-update-request"
+}
+
 type EngDeriver struct {
 	metrics Metrics
 
@@ -406,6 +416,19 @@ func (d *EngDeriver) OnEvent(ev event.Event) bool {
 		d.ec.SetFinalizedHead(x.Ref)
 		// Try to apply the forkchoice changes
 		d.emitter.Emit(TryUpdateEngineEvent{})
+	case CrossUpdateRequestEvent:
+		if x.CrossUnsafe {
+			d.emitter.Emit(CrossUnsafeUpdateEvent{
+				CrossUnsafe: d.ec.CrossUnsafeL2Head(),
+				LocalUnsafe: d.ec.UnsafeL2Head(),
+			})
+		}
+		if x.CrossSafe {
+			d.emitter.Emit(CrossSafeUpdateEvent{
+				CrossSafe: d.ec.SafeL2Head(),
+				LocalSafe: d.ec.LocalSafeL2Head(),
+			})
+		}
 	case BuildStartEvent:
 		d.onBuildStart(x)
 	case BuildStartedEvent:

@@ -244,6 +244,7 @@ func (fi *Finalizer) tryFinalize() {
 				finalizedDerivedFrom, derivedRef, fi.finalizedL1)})
 			return
 		}
+		// TODO: if interop, can log local-finalized event, but cannot cross-finalize here.
 		fi.emitter.Emit(engine.PromoteFinalizedEvent{Ref: finalizedL2})
 	}
 }

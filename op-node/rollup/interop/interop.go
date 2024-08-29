@@ -2,6 +2,7 @@ package interop
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -33,10 +34,17 @@ type InteropDeriver struct {
 
 	driverCtx context.Context
 
+	// L2 blockhash -> derived from L1 block ref.
+	// Added to when a block is local-safe.
+	// Removed from when it is promoted to cross-safe.
+	derivedFrom map[common.Hash]eth.L1BlockRef
+
 	backend InteropBackend
 	l2      L2Source
 
 	emitter event.Emitter
+
+	mu sync.Mutex
 }
 
 var _ event.Deriver = (*InteropDeriver)(nil)
@@ -45,12 +53,13 @@ var _ event.AttachEmitter = (*InteropDeriver)(nil)
 func NewInteropDeriver(log log.Logger, cfg *rollup.Config,
 	driverCtx context.Context, backend InteropBackend, l2 L2Source) *InteropDeriver {
 	return &InteropDeriver{
-		log:       log,
-		cfg:       cfg,
-		chainID:   types.ChainIDFromBig(cfg.L2ChainID),
-		driverCtx: driverCtx,
-		backend:   backend,
-		l2:        l2,
+		log:         log,
+		cfg:         cfg,
+		chainID:     types.ChainIDFromBig(cfg.L2ChainID),
+		driverCtx:   driverCtx,
+		derivedFrom: make(map[common.Hash]eth.L1BlockRef),
+		backend:     backend,
+		l2:          l2,
 	}
 }
 
@@ -58,9 +67,13 @@ func (d *InteropDeriver) AttachEmitter(em event.Emitter) {
 	d.emitter = em
 }
 
+// TODO: trigger CrossUpdateRequestEvent
+//  if cross-L2 updates have not shown up for a while. Or maybe trigger by op-supervisor event?
+
 func (d *InteropDeriver) OnEvent(ev event.Event) bool {
-	// TODO: trigger RequestCrossUnsafeEvent and RequestCrossSafeEvent
-	//  if cross-L2 updates have not shown up for a while. Or maybe trigger by op-supervisor event?
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	switch x := ev.(type) {
 	case engine.UnsafeUpdateEvent:
 		d.emitter.Emit(engine.RequestCrossUnsafeEvent{})
@@ -89,6 +102,7 @@ func (d *InteropDeriver) OnEvent(ev event.Event) bool {
 		}
 		// TODO: check if block safety == invalid: trigger chain halt (or reorg)
 	case engine.LocalSafeUpdateEvent:
+		d.derivedFrom[x.Ref.Hash] = x.DerivedFrom
 		d.emitter.Emit(engine.RequestCrossSafeEvent{})
 	case engine.CrossSafeUpdateEvent:
 		if x.CrossSafe.Number >= x.LocalSafe.Number {
@@ -110,11 +124,27 @@ func (d *InteropDeriver) OnEvent(ev event.Event) bool {
 			d.log.Warn("Failed to check interop safety of local-safe block", "err", err)
 			break
 		}
+		derivedFrom, ok := d.derivedFrom[candidate.Hash]
+		if !ok {
+			break
+		}
 		switch blockSafety {
-		case types.Safe, types.Finalized:
+		case types.CrossSafe:
+			// TODO: once we have interop reorg support, we need to clean stale blocks also.
+			delete(d.derivedFrom, candidate.Hash)
 			d.emitter.Emit(engine.PromoteSafeEvent{
 				Ref:         candidate,
-				DerivedFrom: eth.L1BlockRef{}, // TODO figure out how to elegantly source this info
+				DerivedFrom: derivedFrom,
+			})
+		case types.Finalized:
+			// TODO: once we have interop reorg support, we need to clean stale blocks also.
+			delete(d.derivedFrom, candidate.Hash)
+			d.emitter.Emit(engine.PromoteSafeEvent{
+				Ref:         candidate,
+				DerivedFrom: derivedFrom,
+			})
+			d.emitter.Emit(engine.PromoteFinalizedEvent{
+				Ref: candidate,
 			})
 		}
 	// no reorg support yet; the safe L2 head will finalize eventually, no exceptions
