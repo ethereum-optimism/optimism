@@ -8,10 +8,13 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/anacrolix/chansync"
+	_ "github.com/anacrolix/envpprof"
 	"github.com/golang/snappy"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -227,6 +230,8 @@ type SyncPeerScorer interface {
 // It is up to the user to persist the blocks for later processing, or drop & resync them if persistence is limited.
 // TODO: Should this be renamed to AltSyncClient?
 type SyncClient struct {
+	mu sync.Mutex
+
 	log log.Logger
 
 	cfg *rollup.Config
@@ -253,6 +258,9 @@ type SyncClient struct {
 	// This map is cleared upon evictions of items from the quarantine LRU
 	quarantineByNum map[uint64]common.Hash
 
+	blockFailedCond   chansync.BroadcastCond
+	wanted            []*wantedBlock
+	requestBlocksCond chansync.BroadcastCond
 	// inFlight requests are not repeated
 	inFlight       *requestIdMap
 	inFlightChecks chan inFlightCheck
@@ -385,15 +393,13 @@ func (s *SyncClient) RequestL2Range(ctx context.Context, start, end eth.L2BlockR
 	rangeReqId := atomic.AddUint64(&s.rangeReqId, 1)
 	// need to flag request as active before adding request to s.rangeRequests to avoid race
 	s.activeRangeRequests.set(rangeReqId, true)
-
-	// synchronize requests with the main loop for state access
-	select {
-	case s.rangeRequests <- rangeRequest{start: start.Number, end: end, id: rangeReqId}:
-		return rangeReqId, nil
-	case <-ctx.Done():
-		s.activeRangeRequests.delete(rangeReqId)
-		return rangeReqId, fmt.Errorf("too busy with P2P results/requests: %w", ctx.Err())
+	if len(s.activeRangeRequests.requests) != 0 {
+		fmt.Printf("already have %v active range requests\n", len(s.activeRangeRequests.requests))
 	}
+	fmt.Printf("requesting range %v to %v\n", start, end)
+
+	s.onRangeRequest(ctx, rangeRequest{start: start.Number, end: end, id: rangeReqId})
+	return 0, nil
 }
 
 const (
@@ -439,21 +445,32 @@ func (s *SyncClient) isInFlight(ctx context.Context, num uint64) (bool, error) {
 	}
 }
 
+// go-ethereum should expose a method for this.
+type blockNumber = uint64
+
 // onRangeRequest is exclusively called by the main loop, and has thus direct access to the request bookkeeping state.
 // This function transforms requested block ranges into work for each peer.
 func (s *SyncClient) onRangeRequest(ctx context.Context, req rangeRequest) {
 	log := s.log.New("target", req.start, "end", req.end)
 	log.Info("processing L2 range request", "rangeReqId", req.id)
 
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	// This is to get the synced payload counts to match up (prevent duplicate range requests).
+	if s.wanted != nil {
+		return
+	}
 	// add req head to trusted set of blocks
 	s.trusted.Add(req.end.Hash, struct{}{})
 	s.trusted.Add(req.end.ParentHash, struct{}{})
 
+	s.wanted = nil
+
 	// Now try to fetch lower numbers than current end, to traverse back towards the updated start.
-	for i := uint64(0); ; i++ {
+	for i := blockNumber(0); ; i++ {
 		num := req.end.Number - 1 - i
 		if num <= req.start {
-			return
+			break
 		}
 		// check if we have something in quarantine already
 		if h, ok := s.quarantineByNum[num]; ok {
@@ -465,25 +482,14 @@ func (s *SyncClient) onRangeRequest(ctx context.Context, req rangeRequest) {
 			continue
 		}
 
-		if s.inFlight.get(num) {
-			log.Debug("request still in-flight, not rescheduling sync request", "num", num)
-			continue // request still in flight
-		}
-		pr := peerRequest{num: num, rangeReqId: req.id}
+		s.wanted = append(s.wanted, &wantedBlock{
+			num:                num,
+			requestConcurrency: chansync.NewSemaphore(3),
+		})
 
 		log.Debug("Scheduling P2P block request", "num", num, "rangeReqId", req.id)
-		// schedule number
-		select {
-		case s.peerRequests <- pr:
-			s.inFlight.set(num, true)
-		case <-ctx.Done():
-			log.Info("did not schedule full P2P sync range", "current", num, "err", ctx.Err())
-			return
-		default: // peers may all be busy processing requests already
-			log.Warn("no peers ready to handle block requests for more P2P requests for L2 block history", "current", num)
-			return
-		}
 	}
+	s.requestBlocksCond.Broadcast()
 }
 
 func (s *SyncClient) onQuarantineEvict(key common.Hash, value syncResult) {
@@ -516,16 +522,21 @@ func (s *SyncClient) tryPromote(h common.Hash) {
 func (s *SyncClient) promote(ctx context.Context, res syncResult) {
 	s.log.Debug("promoting p2p sync result", "payload", res.payload.ExecutionPayload.ID(), "peer", res.peer)
 
+	blockNumber := blockNumber(res.payload.ExecutionPayload.BlockNumber)
 	if err := s.receivePayload(ctx, res.peer, res.payload); err != nil {
 		s.log.Warn("failed to promote payload, receiver error", "err", err)
+		s.blockFailed(blockNumber)
 		return
 	}
+	s.gotBlockNumber(blockNumber)
 	s.trusted.Add(res.payload.ExecutionPayload.BlockHash, struct{}{})
+
 	if s.quarantine.Remove(res.payload.ExecutionPayload.BlockHash) {
 		s.log.Debug("promoted previously p2p-synced block from quarantine to main", "id", res.payload.ExecutionPayload.ID())
 	} else {
 		s.log.Debug("promoted new p2p-synced block to main", "id", res.payload.ExecutionPayload.ID())
 	}
+	s.getWantedBlock(blockNumber).quarantined.Clear()
 
 	// Mark parent block as trusted, so that we can promote it once we receive it / find it
 	s.trusted.Add(res.payload.ExecutionPayload.ParentHash, struct{}{})
@@ -535,7 +546,7 @@ func (s *SyncClient) promote(ctx context.Context, res syncResult) {
 
 	// In case we don't have the parent, and what we have in quarantine is wrong,
 	// clear what we buffered in favor of fetching something else.
-	if h, ok := s.quarantineByNum[uint64(res.payload.ExecutionPayload.BlockNumber)-1]; ok {
+	if h, ok := s.quarantineByNum[blockNumber-1]; ok {
 		s.quarantine.Remove(h)
 	}
 }
@@ -546,15 +557,126 @@ func (s *SyncClient) onResult(ctx context.Context, res syncResult) {
 	payload := res.payload.ExecutionPayload
 	s.log.Debug("processing p2p sync result", "payload", payload.ID(), "peer", res.peer)
 	// Clean up the in-flight request, we have a result now.
-	s.inFlight.delete(uint64(payload.BlockNumber))
+	blockNum := blockNumber(payload.BlockNumber)
+	s.inFlight.delete(blockNum)
 	// Always put it in quarantine first. If promotion fails because the receiver is too busy, this functions as cache.
+	s.mu.Lock()
 	s.quarantine.Add(payload.BlockHash, res)
-	s.quarantineByNum[uint64(payload.BlockNumber)] = payload.BlockHash
+	s.quarantineByNum[blockNum] = payload.BlockHash
+	getWantedForBlockNumber(blockNum, s.wanted).quarantined.Set()
+	s.mu.Unlock()
 	s.metrics.PayloadsQuarantineSize(s.quarantine.Len())
 	// If we know this block is canonical, then promote it
 	if s.trusted.Contains(payload.BlockHash) {
 		s.promote(ctx, res)
 	}
+}
+
+func (s *syncClientPeer) doSingleBlockRequest(ctx context.Context, id peer.ID, num blockNumber) (err error) {
+	// We already established the peer is available w.r.t. rate-limiting,
+	// and this is the only loop over this peer, so we can request now.
+
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
+
+	go func() {
+		wanted := s.getWantedBlock(num)
+		select {
+		case <-wanted.quarantined.On():
+			cancel(errors.New("block quarantined"))
+		case <-wanted.done.Done():
+			cancel(errors.New("block promoted"))
+		case <-ctx.Done():
+		}
+	}()
+	start := time.Now()
+
+	resultCode := ResultCodeSuccess
+	fmt.Printf("requesting %d from %v\n", num, id)
+	err = panicGuard(s.doRequest)(ctx, id, num)
+	fmt.Printf("result of requesting %d from %v: %v\n", num, id, err)
+	if err != nil {
+		log.Warn("failed p2p sync request", "num", num, "err", err)
+		resultCode = ResultCodeNotFoundErr
+		sendResponseError := true
+
+		var re requestResultErr
+		if errors.As(err, &re) {
+			resultCode = re.ResultCode()
+			if resultCode == ResultCodeNotFoundErr {
+				sendResponseError = false // don't penalize peer for this error
+			}
+		}
+
+		if sendResponseError {
+			s.appScorer.onResponseError(id)
+			// If we hit an error, then count it as many requests.
+			// We'd like to avoid making more requests for a while, so back off.
+			s.lastRequestError = time.Now()
+		}
+	} else {
+		log.Debug("completed p2p sync request", "num", num)
+		s.appScorer.onValidResponse(id)
+	}
+
+	took := time.Since(start)
+	s.metrics.ClientPayloadByNumberEvent(num, byte(resultCode), took)
+	return
+}
+
+func (s *syncClientPeer) requestBlocks(ctx context.Context, id peer.ID, rl *rate.Limiter) (err error) {
+	wantedSlice := slices.Clone(s.wanted)
+	s.mu.Unlock()
+	defer s.mu.Lock()
+	for {
+		allDone := true
+		for _, wanted := range wantedSlice {
+			if wanted.done.IsSet() {
+				continue
+			}
+			allDone = false
+			if wanted.quarantined.Bool() {
+				continue
+			}
+			r := rl.Reserve()
+			if !r.OK() {
+				panic(rl)
+			}
+			select {
+			case <-ctx.Done():
+				r.Cancel()
+				return context.Cause(ctx)
+			case <-wanted.done.Done():
+				r.Cancel()
+				continue
+			case <-time.After(r.Delay()):
+			}
+			select {
+			default:
+				r.Cancel()
+				continue
+			case wanted.requestConcurrency.Acquire() <- struct{}{}:
+			}
+			err = s.globalRL.Wait(ctx)
+			if err != nil {
+				r.Cancel()
+				<-wanted.requestConcurrency.Release()
+				err = fmt.Errorf("while waiting for global rate limiter: %w", err)
+				return
+			}
+			err = s.doSingleBlockRequest(ctx, id, wanted.num)
+			<-wanted.requestConcurrency.Release()
+			s.requestBlocksCond.Broadcast()
+			if err != nil {
+				err = fmt.Errorf("requesting block %v: %w", wanted.num, err)
+				return
+			}
+		}
+		if allDone {
+			break
+		}
+	}
+	return
 }
 
 // peerLoop for syncing from a single peer
@@ -567,85 +689,48 @@ func (s *SyncClient) peerLoop(ctx context.Context, id peer.ID) {
 		s.peersLock.Unlock()
 	}()
 
+	peer := &syncClientPeer{
+		SyncClient: s,
+	}
+	peer.Run(ctx, id)
+}
+
+func (s *syncClientPeer) Run(ctx context.Context, id peer.ID) {
 	log := s.log.New("peer", id)
 	log.Info("Starting P2P sync client event loop")
-
 	// Implement the same rate limits as the server does per-peer,
 	// so we don't be too aggressive to the server.
 	rl := rate.NewLimiter(peerServerBlocksRateLimit, peerServerBlocksBurst)
-
-	// if onlyReqToStatic is on, ensure that only static peers are dealing with the request
-	peerRequests := s.peerRequests
-	if s.syncOnlyReqToStatic && !s.extra.IsStatic(id) {
-		// for non-static peers, set peerRequests to nil
-		// this will effectively make the peer loop not perform outgoing sync-requests.
-		// while sync-requests will block, the loop may still process other events (if added in the future).
-		peerRequests = nil
-	}
-
 	for {
-		// wait for a global allocation to be available
-		if err := s.globalRL.Wait(ctx); err != nil {
-			return
+		s.mu.Lock()
+		// if onlyReqToStatic is on, ensure that only static peers are dealing with the request.
+		// Take this before requesting blocks, so if we return for whatever reason we can jump
+		// straight back in if our preconditions changed.
+		requestBlocksSignal := s.requestBlocksCond.Signaled()
+		if s.syncOnlyReqToStatic && !s.extra.IsStatic(id) {
+			// for non-static peers, set requestBlocksCond to nil
+			// this will effectively make the peer loop not perform outgoing sync-requests.
+			// while sync-requests will block, the loop may still process other events (if added in the future).
+			requestBlocksSignal = nil
+		} else {
+			err := s.requestBlocks(ctx, id, rl)
+			if err != nil {
+				log.Warn("error requesting blocks", "err", err)
+				naughtyBoyChan := make(chan struct{})
+				requestBlocksSignal = naughtyBoyChan
+				// Calculated approximately from the penalty that was applied to the peer rate limiter.
+				time.AfterFunc(5*time.Second, func() { close(naughtyBoyChan) })
+			}
 		}
-		// wait for peer to be available for more work
-		if err := rl.Wait(ctx); err != nil {
-			return
-		}
-
+		s.mu.Unlock()
 		// once the peer is available, wait for a sync request.
 		select {
-		case pr := <-peerRequests:
-			if !s.activeRangeRequests.get(pr.rangeReqId) {
-				log.Debug("dropping cancelled p2p sync request", "num", pr.num)
-				s.inFlight.delete(pr.num)
-				continue
-			}
-
-			// We already established the peer is available w.r.t. rate-limiting,
-			// and this is the only loop over this peer, so we can request now.
-			start := time.Now()
-
-			resultCode := ResultCodeSuccess
-			fmt.Printf("requesting %d from %v\n", pr.num, id)
-			err := panicGuard(s.doRequest)(ctx, id, pr.num)
-			fmt.Printf("result of requesting %d from %v: %v\n", pr.num, id, err)
-			if err != nil {
-				s.inFlight.delete(pr.num)
-				log.Warn("failed p2p sync request", "num", pr.num, "err", err)
-				resultCode = ResultCodeNotFoundErr
-				sendResponseError := true
-
-				var re requestResultErr
-				if errors.As(err, &re) {
-					resultCode = re.ResultCode()
-					if resultCode == ResultCodeNotFoundErr {
-						log.Warn("cancelling p2p sync range request", "rangeReqId", pr.rangeReqId)
-						s.activeRangeRequests.delete(pr.rangeReqId)
-						sendResponseError = false // don't penalize peer for this error
-					}
-				}
-
-				if sendResponseError {
-					s.appScorer.onResponseError(id)
-				}
-
-				// If we hit an error, then count it as many requests.
-				// We'd like to avoid making more requests for a while, so back off.
-				if err := rl.WaitN(ctx, clientErrRateCost); err != nil {
-					return
-				}
-			} else {
-				log.Debug("completed p2p sync request", "num", pr.num)
-				s.appScorer.onValidResponse(id)
-			}
-
-			took := time.Since(start)
-			s.metrics.ClientPayloadByNumberEvent(pr.num, byte(resultCode), took)
+		case <-requestBlocksSignal:
 		case <-ctx.Done():
 			return
 		}
 	}
+
 }
 
 type requestResultErr resultCode
@@ -664,7 +749,7 @@ func (r requestResultErr) ResultCode() resultCode {
 	return resultCode(r)
 }
 
-func (s *SyncClient) doRequest(ctx context.Context, id peer.ID, expectedBlockNum uint64) error {
+func (s *syncClientPeer) doRequest(ctx context.Context, id peer.ID, expectedBlockNum uint64) error {
 	// open stream to peer
 	reqCtx, reqCancel := context.WithTimeout(ctx, streamTimeout)
 	str, err := s.newStreamFn(reqCtx, id, s.payloadByNumber)
@@ -959,4 +1044,40 @@ func (srv *ReqRespServer) handleSyncRequest(ctx context.Context, stream network.
 	}
 
 	return req, nil
+}
+
+type wantedBlock struct {
+	num                blockNumber
+	requestConcurrency chansync.Semaphore
+	done               chansync.SetOnce
+	// This prevents duplicate requests when one delivers.
+	quarantined chansync.Flag
+}
+
+func getWantedForBlockNumber(num blockNumber, wanted []*wantedBlock) *wantedBlock {
+	for _, wanted := range wanted {
+		if wanted.num == num {
+			return wanted
+		}
+	}
+	return nil
+}
+
+func (me *SyncClient) gotBlockNumber(num blockNumber) {
+	getWantedForBlockNumber(num, me.wanted).done.Set()
+}
+
+func (me *SyncClient) blockFailed(num blockNumber) {
+	if getWantedForBlockNumber(num, me.wanted) != nil {
+		me.blockFailedCond.Broadcast()
+	}
+}
+
+type syncClientPeer struct {
+	*SyncClient
+	lastRequestError time.Time
+}
+
+func (s *SyncClient) getWantedBlock(blockNum blockNumber) *wantedBlock {
+	return getWantedForBlockNumber(blockNum, s.wanted)
 }

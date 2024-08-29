@@ -33,7 +33,7 @@ import (
 
 // NodeP2P is a p2p node, which can be used to gossip messages.
 type NodeP2P struct {
-	host        host.Host                      // p2p host (optional, may be nil)
+	host        host.Host                      // p2p host
 	gater       gating.BlockingConnectionGater // p2p gater, to ban/unban peers with, may be nil even with p2p enabled
 	scorer      Scorer                         // writes score-updates to the peerstore and keeps metrics of score changes
 	connMgr     connmgr.ConnManager            // p2p conn manager, to keep a reliable number of peers, may be nil even with p2p enabled
@@ -196,6 +196,7 @@ func (n *NodeP2P) RequestL2Range(ctx context.Context, start, end eth.L2BlockRef)
 	if !n.AltSyncEnabled() {
 		return fmt.Errorf("cannot request range %s - %s, req-resp sync is not enabled", start, end)
 	}
+	// TODO: Nobody uses the activeRequestId... get rid of it.
 	_, err := n.syncCl.RequestL2Range(ctx, start, end)
 	return err
 }

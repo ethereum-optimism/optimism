@@ -220,6 +220,7 @@ func (s *Driver) eventLoop() {
 		// If the engine is not ready, or if the L2 head is actively changing, then reset the alt-sync:
 		// there is no need to request L2 blocks when we are syncing already.
 		if head := s.Engine.UnsafeL2Head(); head != lastUnsafeL2 || !s.Derivation.DerivationReady() {
+			fmt.Printf("last unsafe l2 head changed: %v\n", head)
 			lastUnsafeL2 = head
 			altSyncTicker.Reset(syncCheckInterval)
 		}
