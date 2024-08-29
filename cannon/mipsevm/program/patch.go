@@ -86,7 +86,8 @@ func PatchStack(st mipsevm.FPVMState) error {
 	_ = st.GetMemory().SetMemoryRange(sp+4*14, bytes.NewReader(envar))
 
 	// 24 bytes for GODEBUG=memprofilerate=0 + 4 null bytes
-	programName := append([]byte("op-program"), 0x0)
+	// Then append program name + 2 null bytes for 4-byte alignment
+	programName := append([]byte("op-program"), 0x0, 0x0)
 	_ = st.GetMemory().SetMemoryRange(sp+4*21, bytes.NewReader(programName))
 
 	return nil
