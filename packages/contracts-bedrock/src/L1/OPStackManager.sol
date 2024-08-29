@@ -114,6 +114,12 @@ contract OPStackManager is ISemver {
     /// @notice Throw when two addresses do not match but are expected to.
     error AddressMismatch(string addressName);
 
+    /// @notice Thrown when an address is the zero address.
+    error AddressNotFound(address who);
+
+    /// @notice Throw when a contract address has no code.
+    error AddressHasNoCode(address who);
+
     /// @notice Thrown when a release version is already set.
     error AlreadyReleased();
 
@@ -122,9 +128,6 @@ contract OPStackManager is ISemver {
 
     /// @notice Thrown when a role's address is not valid.
     error InvalidRoleAddress(string role);
-
-    /// @notice Thrown when an implementation is not found for a contract.
-    error ImplementationNotFound(address proxy);
 
     // -------- Methods --------
 
@@ -406,7 +409,8 @@ contract OPStackManager is ISemver {
         view
         returns (bytes memory)
     {
-        return abi.encodeWithSelector(_selector, superchainConfig, _output.optimismPortalProxy);
+        return
+            abi.encodeWithSelector(_selector, superchainConfig, _output.optimismPortalProxy, _output.systemConfigProxy);
     }
 
     /// @notice Makes an external call to the target to initialize the proxy with the specified data.
@@ -420,7 +424,15 @@ contract OPStackManager is ISemver {
     )
         internal
     {
-        if (_implementation == address(0)) revert ImplementationNotFound(_target);
+        assertValidContractAddress(address(_proxyAdmin));
+        assertValidContractAddress(_target);
+        assertValidContractAddress(_implementation);
+
         _proxyAdmin.upgradeAndCall(payable(address(_target)), _implementation, _data);
+    }
+
+    function assertValidContractAddress(address _who) internal view {
+        if (_who == address(0)) revert AddressNotFound(_who);
+        if (_who.code.length == 0) revert AddressHasNoCode(_who);
     }
 }

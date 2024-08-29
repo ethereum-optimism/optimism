@@ -387,6 +387,14 @@ contract DeployOPChain_Test is Test {
     }
 
     function test_run_succeeds(DeployOPChainInput.Input memory _input) public {
+        vm.assume(_input.roles.opChainProxyAdminOwner != address(0));
+        vm.assume(_input.roles.systemConfigOwner != address(0));
+        vm.assume(_input.roles.batcher != address(0));
+        vm.assume(_input.roles.unsafeBlockSigner != address(0));
+        vm.assume(_input.roles.proposer != address(0));
+        vm.assume(_input.roles.challenger != address(0));
+        vm.assume(_input.l2ChainId != 0 && _input.l2ChainId != block.chainid);
+
         _input.opsm = deployImplementationsOutput.opsmSingleton;
 
         DeployOPChainOutput.Output memory output = deployOPChain.run(_input);
@@ -423,13 +431,11 @@ contract DeployOPChain_Test is Test {
         // Assert inputs were properly passed through to the contract initializers.
         assertEq(address(output.opChainProxyAdmin.owner()), _input.roles.opChainProxyAdminOwner, "2100");
         assertEq(address(output.systemConfigProxy.owner()), _input.roles.systemConfigOwner, "2200");
-        address batcher = address(uint160(bytes20(output.systemConfigProxy.batcherHash())));
+        address batcher = address(uint160(uint256(output.systemConfigProxy.batcherHash())));
         assertEq(batcher, _input.roles.batcher, "2300");
         assertEq(address(output.systemConfigProxy.unsafeBlockSigner()), _input.roles.unsafeBlockSigner, "2400");
-        // assertEq(address(....proposer()), _input.roles.proposer, "2500"); // TODO once we deploy permissioned dispute
-        // game
-        // assertEq(address(....challenger()), _input.roles.challenger, "2600"); // TODO once we deploy permissioned
-        // dispute game
+        // assertEq(address(...proposer()), _input.roles.proposer, "2500"); // TODO once we deploy dispute games.
+        // assertEq(address(...challenger()), _input.roles.challenger, "2600"); // TODO once we deploy dispute games.
 
         // Most architecture assertions are handled within the OP Stack Manager itself and therefore
         // we only assert on the things that are not visible onchain.
