@@ -19,8 +19,6 @@ import { BeaconProxy } from "@openzeppelin/contracts-v5/proxy/beacon/BeaconProxy
 import {
     OptimismSuperchainERC20,
     IOptimismSuperchainERC20Extension,
-    CallerNotL2ToL2CrossDomainMessenger,
-    InvalidCrossDomainSender,
     OnlyBridge,
     ZeroAddress
 } from "src/L2/OptimismSuperchainERC20.sol";
@@ -152,11 +150,11 @@ contract OptimismSuperchainERC20Test is Test {
         uint256 _toBalanceBefore = superchainERC20.balanceOf(_to);
 
         // Look for the emit of the `Transfer` event
-        vm.expectEmit(true, true, true, true, address(superchainERC20));
+        vm.expectEmit(address(superchainERC20));
         emit IERC20.Transfer(ZERO_ADDRESS, _to, _amount);
 
         // Look for the emit of the `Mint` event
-        vm.expectEmit(true, true, true, true, address(superchainERC20));
+        vm.expectEmit(address(superchainERC20));
         emit IOptimismSuperchainERC20Extension.Mint(_to, _amount);
 
         // Call the `mint` function with the bridge caller
@@ -205,11 +203,11 @@ contract OptimismSuperchainERC20Test is Test {
         uint256 _fromBalanceBefore = superchainERC20.balanceOf(_from);
 
         // Look for the emit of the `Transfer` event
-        vm.expectEmit(true, true, true, true, address(superchainERC20));
+        vm.expectEmit(address(superchainERC20));
         emit IERC20.Transfer(_from, ZERO_ADDRESS, _amount);
 
         // Look for the emit of the `Burn` event
-        vm.expectEmit(true, true, true, true, address(superchainERC20));
+        vm.expectEmit(address(superchainERC20));
         emit IOptimismSuperchainERC20Extension.Burn(_from, _amount);
 
         // Call the `burn` function with the bridge caller
@@ -247,11 +245,11 @@ contract OptimismSuperchainERC20Test is Test {
         uint256 _senderBalanceBefore = superchainERC20.balanceOf(_sender);
 
         // Look for the emit of the `Transfer` event
-        vm.expectEmit(true, true, true, true, address(superchainERC20));
+        vm.expectEmit(address(superchainERC20));
         emit IERC20.Transfer(_sender, ZERO_ADDRESS, _amount);
 
         // Look for the emit of the `SendERC20` event
-        vm.expectEmit(true, true, true, true, address(superchainERC20));
+        vm.expectEmit(address(superchainERC20));
         emit ISuperchainERC20Extensions.SendERC20(_sender, _to, _amount, _chainId);
 
         // Mock the call over the `sendMessage` function and expect it to be called properly
@@ -355,11 +353,11 @@ contract OptimismSuperchainERC20Test is Test {
         uint256 _toBalanceBefore = superchainERC20.balanceOf(_to);
 
         // Look for the emit of the `Transfer` event
-        vm.expectEmit(true, true, true, true, address(superchainERC20));
+        vm.expectEmit(address(superchainERC20));
         emit IERC20.Transfer(ZERO_ADDRESS, _to, _amount);
 
         // Look for the emit of the `RelayERC20` event
-        vm.expectEmit(true, true, true, true, address(superchainERC20));
+        vm.expectEmit(address(superchainERC20));
         emit ISuperchainERC20Extensions.RelayERC20(_from, _to, _amount, _source);
 
         // Call the `relayERC20` function with the messenger caller
