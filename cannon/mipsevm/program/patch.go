@@ -81,7 +81,7 @@ func PatchStack(st mipsevm.FPVMState) error {
 
 	_ = st.GetMemory().SetMemoryRange(sp+4*10, bytes.NewReader([]byte("4;byfairdiceroll"))) // 16 bytes of "randomness"
 
-	// append 3 extra zero bytes to end at 4-byte alignment
+	// append 4 extra zero bytes to end at 4-byte alignment
 	envar := append([]byte("GODEBUG=memprofilerate=0"), 0x0, 0x0, 0x0, 0x0)
 	_ = st.GetMemory().SetMemoryRange(sp+4*14, bytes.NewReader(envar))
 
