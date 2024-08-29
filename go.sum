@@ -321,8 +321,8 @@ github.com/hashicorp/go-immutable-radix v1.0.0 h1:AKDB1HM5PWEA7i4nhcpwOrO2byshxB
 github.com/hashicorp/go-immutable-radix v1.0.0/go.mod h1:0y9vanUI8NX6FsYoO3zeMjhV/C5i9g4Q3DwcSNZ4P60=
 github.com/hashicorp/go-msgpack v0.5.5 h1:i9R9JSrqIz0QVLz3sz+i3YJdT7TTSLcfLLzJi9aZTuI=
 github.com/hashicorp/go-msgpack v0.5.5/go.mod h1:ahLV/dePpqEmjfWmKiqvPkv/twdG7iPBM1vqhUKIvfM=
-github.com/hashicorp/go-msgpack/v2 v2.1.1 h1:xQEY9yB2wnHitoSzk/B9UjXWRQ67QKu5AOm8aFp8N3I=
-github.com/hashicorp/go-msgpack/v2 v2.1.1/go.mod h1:upybraOAblm4S7rx0+jeNy+CWWhzywQsSRV5033mMu4=
+github.com/hashicorp/go-msgpack/v2 v2.1.2 h1:4Ee8FTp834e+ewB71RDrQ0VKpyFdrKOjvYtnQ/ltVj0=
+github.com/hashicorp/go-msgpack/v2 v2.1.2/go.mod h1:upybraOAblm4S7rx0+jeNy+CWWhzywQsSRV5033mMu4=
 github.com/hashicorp/go-multierror v1.1.1 h1:H5DkEtf6CXdFp0N0Em5UCwQpXMWke8IA0+lD48awMYo=
 github.com/hashicorp/go-multierror v1.1.1/go.mod h1:iw975J/qwKPdAO1clOe2L8331t/9/fmwbPZ6JB6eMoM=
 github.com/hashicorp/go-retryablehttp v0.5.3/go.mod h1:9B5zBasrRhHXnJnui7y6sL7es7NDiJgTc6Er0maI1Xs=
@@ -335,8 +335,8 @@ github.com/hashicorp/golang-lru/arc/v2 v2.0.7/go.mod h1:Pe7gBlGdc8clY5LJ0LpJXMt5
 github.com/hashicorp/golang-lru/v2 v2.0.7 h1:a+bsQ5rvGLjzHuww6tVxozPZFVghXaHOwFs4luLUK2k=
 github.com/hashicorp/golang-lru/v2 v2.0.7/go.mod h1:QeFd9opnmA6QUJc5vARoKUSoFhyfM2/ZepoAG6RGpeM=
 github.com/hashicorp/raft v1.1.0/go.mod h1:4Ak7FSPnuvmb0GV6vgIAJ4vYT4bek9bb6Q+7HVbyzqM=
-github.com/hashicorp/raft v1.7.0 h1:4u24Qn6lQ6uwziM++UgsyiT64Q8GyRn43CV41qPiz1o=
-github.com/hashicorp/raft v1.7.0/go.mod h1:N1sKh6Vn47mrWvEArQgILTyng8GoDRNYlgKyK7PMjs0=
+github.com/hashicorp/raft v1.7.1 h1:ytxsNx4baHsRZrhUcbt3+79zc4ly8qm7pi0393pSchY=
+github.com/hashicorp/raft v1.7.1/go.mod h1:hUeiEwQQR/Nk2iKDD0dkEhklSsu3jcAcqvPzPoZSAEM=
 github.com/hashicorp/raft-boltdb v0.0.0-20231211162105-6c830fa4535e h1:SK4y8oR4ZMHPvwVHryKI88kJPJda4UyWYvG5A6iEQxc=
 github.com/hashicorp/raft-boltdb v0.0.0-20231211162105-6c830fa4535e/go.mod h1:EMz/UIuG93P0MBeHh6CbXQAEe8ckVJLZjhD17lBzK5Q=
 github.com/hashicorp/raft-boltdb/v2 v2.3.0 h1:fPpQR1iGEVYjZ2OELvUHX600VAK5qmdnDEv3eXOwZUA=
