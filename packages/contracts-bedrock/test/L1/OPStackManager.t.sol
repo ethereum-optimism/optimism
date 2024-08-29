@@ -76,17 +76,17 @@ contract OPStackManager_Deploy_Test is DeployOPChain_TestBase {
     function test_deploy_l2ChainIdEqualsZero_reverts() public {
         deployOPChainInput.l2ChainId = 0;
         vm.expectRevert(OPStackManager.InvalidChainId.selector);
-        deployImplementationsOutput.opsmSingleton.deploy(toOPSMDeployInput(deployOPChainInput));
+        deployImplementationsOutput.opsm.deploy(toOPSMDeployInput(deployOPChainInput));
     }
 
     function test_deploy_l2ChainIdEqualsCurrentChainId_reverts() public {
         deployOPChainInput.l2ChainId = block.chainid;
         vm.expectRevert(OPStackManager.InvalidChainId.selector);
-        deployImplementationsOutput.opsmSingleton.deploy(toOPSMDeployInput(deployOPChainInput));
+        deployImplementationsOutput.opsm.deploy(toOPSMDeployInput(deployOPChainInput));
     }
 
     function test_deploy_succeeds() public {
-        deployImplementationsOutput.opsmSingleton.deploy(toOPSMDeployInput(deployOPChainInput));
+        deployImplementationsOutput.opsm.deploy(toOPSMDeployInput(deployOPChainInput));
     }
 }
 

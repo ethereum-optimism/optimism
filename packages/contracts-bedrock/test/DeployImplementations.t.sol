@@ -86,7 +86,7 @@ contract DeployImplementationsOutput_Test is Test {
 
     function test_set_succeeds() public {
         DeployImplementationsOutput.Output memory output = DeployImplementationsOutput.Output({
-            opsmSingleton: OPStackManager(makeAddr("opsmSingleton")),
+            opsm: OPStackManager(makeAddr("opsm")),
             optimismPortalImpl: OptimismPortal2(payable(makeAddr("optimismPortalImpl"))),
             delayedWETHImpl: DelayedWETH(payable(makeAddr("delayedWETHImpl"))),
             preimageOracleSingleton: PreimageOracle(makeAddr("preimageOracleSingleton")),
@@ -98,7 +98,7 @@ contract DeployImplementationsOutput_Test is Test {
             optimismMintableERC20FactoryImpl: OptimismMintableERC20Factory(makeAddr("optimismMintableERC20FactoryImpl"))
         });
 
-        vm.etch(address(output.opsmSingleton), hex"01");
+        vm.etch(address(output.opsm), hex"01");
         vm.etch(address(output.optimismPortalImpl), hex"01");
         vm.etch(address(output.delayedWETHImpl), hex"01");
         vm.etch(address(output.preimageOracleSingleton), hex"01");
@@ -109,7 +109,7 @@ contract DeployImplementationsOutput_Test is Test {
         vm.etch(address(output.l1StandardBridgeImpl), hex"01");
         vm.etch(address(output.optimismMintableERC20FactoryImpl), hex"01");
 
-        dso.set(dso.opsmSingleton.selector, address(output.opsmSingleton));
+        dso.set(dso.opsm.selector, address(output.opsm));
         dso.set(dso.optimismPortalImpl.selector, address(output.optimismPortalImpl));
         dso.set(dso.delayedWETHImpl.selector, address(output.delayedWETHImpl));
         dso.set(dso.preimageOracleSingleton.selector, address(output.preimageOracleSingleton));
@@ -120,7 +120,7 @@ contract DeployImplementationsOutput_Test is Test {
         dso.set(dso.l1StandardBridgeImpl.selector, address(output.l1StandardBridgeImpl));
         dso.set(dso.optimismMintableERC20FactoryImpl.selector, address(output.optimismMintableERC20FactoryImpl));
 
-        assertEq(address(output.opsmSingleton), address(dso.opsmSingleton()), "50");
+        assertEq(address(output.opsm), address(dso.opsm()), "50");
         assertEq(address(output.optimismPortalImpl), address(dso.optimismPortalImpl()), "100");
         assertEq(address(output.delayedWETHImpl), address(dso.delayedWETHImpl()), "200");
         assertEq(address(output.preimageOracleSingleton), address(dso.preimageOracleSingleton()), "300");

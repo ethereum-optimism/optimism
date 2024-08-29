@@ -386,7 +386,7 @@ contract DeployOPChain_TestBase is Test {
         deployImplementationsOutput = deployImplementations.run(deployImplementationsInput);
 
         // Set the OPStackManager on the input struct for DeployOPChain.
-        deployOPChainInput.opsm = deployImplementationsOutput.opsmSingleton;
+        deployOPChainInput.opsm = deployImplementationsOutput.opsm;
     }
 }
 

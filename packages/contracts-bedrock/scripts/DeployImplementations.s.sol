@@ -108,7 +108,7 @@ contract DeployImplementationsInput {
 
 contract DeployImplementationsOutput {
     struct Output {
-        OPStackManager opsmSingleton;
+        OPStackManager opsm;
         DelayedWETH delayedWETHImpl;
         OptimismPortal2 optimismPortalImpl;
         PreimageOracle preimageOracleSingleton;
@@ -124,7 +124,7 @@ contract DeployImplementationsOutput {
 
     function set(bytes4 sel, address _addr) public {
         // forgefmt: disable-start
-        if (sel == this.opsmSingleton.selector) outputs.opsmSingleton = OPStackManager(payable(_addr));
+        if (sel == this.opsm.selector) outputs.opsm = OPStackManager(payable(_addr));
         else if (sel == this.optimismPortalImpl.selector) outputs.optimismPortalImpl = OptimismPortal2(payable(_addr));
         else if (sel == this.delayedWETHImpl.selector) outputs.delayedWETHImpl = DelayedWETH(payable(_addr));
         else if (sel == this.preimageOracleSingleton.selector) outputs.preimageOracleSingleton = PreimageOracle(_addr);
@@ -149,7 +149,7 @@ contract DeployImplementationsOutput {
 
     function checkOutput() public view {
         address[] memory addrs = Solarray.addresses(
-            address(outputs.opsmSingleton),
+            address(outputs.opsm),
             address(outputs.optimismPortalImpl),
             address(outputs.delayedWETHImpl),
             address(outputs.preimageOracleSingleton),
@@ -163,9 +163,9 @@ contract DeployImplementationsOutput {
         DeployUtils.assertValidContractAddresses(addrs);
     }
 
-    function opsmSingleton() public view returns (OPStackManager) {
-        DeployUtils.assertValidContractAddress(address(outputs.opsmSingleton));
-        return outputs.opsmSingleton;
+    function opsm() public view returns (OPStackManager) {
+        DeployUtils.assertValidContractAddress(address(outputs.opsm));
+        return outputs.opsm;
     }
 
     function optimismPortalImpl() public view returns (OptimismPortal2) {
@@ -264,7 +264,7 @@ contract DeployImplementations is Script {
         string memory release = _dsi.release();
 
         vm.broadcast(msg.sender);
-        OPStackManager opsmSingleton =
+        OPStackManager opsm =
             new OPStackManager({ _superchainConfig: superchainConfigProxy, _protocolVersions: protocolVersionsProxy });
 
         OPStackManager.ImplementationSetter[] memory setters = new OPStackManager.ImplementationSetter[](5);
@@ -294,10 +294,10 @@ contract DeployImplementations is Script {
         });
 
         vm.broadcast(msg.sender);
-        opsmSingleton.setRelease({ _release: release, _isLatest: true, _setters: setters });
+        opsm.setRelease({ _release: release, _isLatest: true, _setters: setters });
 
-        vm.label(address(opsmSingleton), "OPStackManager");
-        _dso.set(_dso.opsmSingleton.selector, address(opsmSingleton));
+        vm.label(address(opsm), "OPStackManager");
+        _dso.set(_dso.opsm.selector, address(opsm));
     }
 
     function deploySystemConfigImpl(DeployImplementationsInput, DeployImplementationsOutput _dso) public {
