@@ -26,10 +26,15 @@ type L2Source interface {
 	L2BlockRefByNumber(context.Context, uint64) (eth.L2BlockRef, error)
 }
 
+// InteropDeriver watches for update events (either real changes to block safety,
+// or updates published upon request), checks if there is some local data to cross-verify,
+// and then checks with the interop-backend, to try to promote to cross-verified safety.
 type InteropDeriver struct {
 	log log.Logger
 	cfg *rollup.Config
 
+	// we cache the chainID,
+	// to not continuously convert from the type in the rollup-config to this type.
 	chainID types.ChainID
 
 	driverCtx context.Context
@@ -67,9 +72,6 @@ func (d *InteropDeriver) AttachEmitter(em event.Emitter) {
 	d.emitter = em
 }
 
-// TODO: trigger CrossUpdateRequestEvent
-//  if cross-L2 updates have not shown up for a while. Or maybe trigger by op-supervisor event?
-
 func (d *InteropDeriver) OnEvent(ev event.Event) bool {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -81,6 +83,10 @@ func (d *InteropDeriver) OnEvent(ev event.Event) bool {
 		if x.CrossUnsafe.Number >= x.LocalUnsafe.Number {
 			break // nothing left to promote
 		}
+		// pre-interop the engine itself handles promotion to cross-unsafe
+		if !d.cfg.IsInterop(d.cfg.TimestampForBlock(x.CrossUnsafe.Number + 1)) {
+			return false
+		}
 		ctx, cancel := context.WithTimeout(d.driverCtx, checkBlockTimeout)
 		defer cancel()
 		candidate, err := d.l2.L2BlockRefByNumber(ctx, x.CrossUnsafe.Number+1)
@@ -88,19 +94,17 @@ func (d *InteropDeriver) OnEvent(ev event.Event) bool {
 			d.log.Warn("Failed to fetch next cross-unsafe candidate", "err", err)
 			break
 		}
-		// pre-interop the engine itself handles promotion to cross-unsafe
-		if !d.cfg.IsInterop(candidate.Time) {
-			return false
-		}
 		blockSafety, err := d.backend.CheckBlock(ctx, d.chainID, candidate.Hash, candidate.Number)
 		if err != nil {
 			d.log.Warn("Failed to check interop safety of unsafe block", "err", err)
 			break
 		}
-		if blockSafety != types.Unsafe {
+		switch blockSafety {
+		case types.CrossUnsafe, types.CrossSafe, types.CrossFinalized:
+			// Hold off on promoting higher than cross-unsafe,
+			// this will happen once we verify it to be local-safe first.
 			d.emitter.Emit(engine.PromoteCrossUnsafeEvent{Ref: candidate})
 		}
-		// TODO: check if block safety == invalid: trigger chain halt (or reorg)
 	case engine.LocalSafeUpdateEvent:
 		d.derivedFrom[x.Ref.Hash] = x.DerivedFrom
 		d.emitter.Emit(engine.RequestCrossSafeEvent{})
@@ -108,16 +112,16 @@ func (d *InteropDeriver) OnEvent(ev event.Event) bool {
 		if x.CrossSafe.Number >= x.LocalSafe.Number {
 			break // nothing left to promote
 		}
+		// pre-interop the engine itself handles promotion to cross-safe
+		if !d.cfg.IsInterop(d.cfg.TimestampForBlock(x.CrossSafe.Number + 1)) {
+			return false
+		}
 		ctx, cancel := context.WithTimeout(d.driverCtx, checkBlockTimeout)
 		defer cancel()
 		candidate, err := d.l2.L2BlockRefByNumber(ctx, x.CrossSafe.Number+1)
 		if err != nil {
 			d.log.Warn("Failed to fetch next cross-safe candidate", "err", err)
 			break
-		}
-		// pre-interop the engine itself handles promotion to cross-safe
-		if !d.cfg.IsInterop(candidate.Time) {
-			return false
 		}
 		blockSafety, err := d.backend.CheckBlock(ctx, d.chainID, candidate.Hash, candidate.Number)
 		if err != nil {
@@ -130,14 +134,14 @@ func (d *InteropDeriver) OnEvent(ev event.Event) bool {
 		}
 		switch blockSafety {
 		case types.CrossSafe:
-			// TODO: once we have interop reorg support, we need to clean stale blocks also.
+			// TODO(#11673): once we have interop reorg support, we need to clean stale blocks also.
 			delete(d.derivedFrom, candidate.Hash)
 			d.emitter.Emit(engine.PromoteSafeEvent{
 				Ref:         candidate,
 				DerivedFrom: derivedFrom,
 			})
 		case types.Finalized:
-			// TODO: once we have interop reorg support, we need to clean stale blocks also.
+			// TODO(#11673): once we have interop reorg support, we need to clean stale blocks also.
 			delete(d.derivedFrom, candidate.Hash)
 			d.emitter.Emit(engine.PromoteSafeEvent{
 				Ref:         candidate,

@@ -1,36 +1,21 @@
 package actions
 
 import (
-	"context"
 	"testing"
 
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
-type mockSupervisor struct {
-	Mock mock.Mock
-}
-
-func (m *mockSupervisor) ExpectCheckBlock(chainID types.ChainID, blockNumber uint64, safety types.SafetyLevel, err error) {
-	m.Mock.On("CheckBlock", chainID, blockNumber).Once().Return(safety, &err)
-}
-
-func (m *mockSupervisor) CheckBlock(ctx context.Context, chainID types.ChainID, blockHash common.Hash, blockNumber uint64) (types.SafetyLevel, error) {
-	result := m.Mock.MethodCalled("CheckBlock", chainID, blockNumber)
-	return result.Get(0).(types.SafetyLevel), *result.Get(1).(*error)
-}
-
-var _ interop.InteropBackend = (*mockSupervisor)(nil)
+var _ interop.InteropBackend = (*testutils.MockInteropBackend)(nil)
 
 func TestInteropVerifier(gt *testing.T) {
 	t := NewDefaultTesting(gt)
@@ -40,14 +25,14 @@ func TestInteropVerifier(gt *testing.T) {
 	// The state genesis in this test is pre-interop however.
 	sd.RollupCfg.InteropTime = new(uint64)
 	logger := testlog.Logger(t, log.LevelDebug)
-	seqMockBackend := &mockSupervisor{}
+	seqMockBackend := &testutils.MockInteropBackend{}
 	l1Miner, seqEng, seq := setupSequencerTest(t, sd, logger,
 		WithVerifierOpts(WithInteropBackend(seqMockBackend)))
 
 	batcher := NewL2Batcher(logger, sd.RollupCfg, DefaultBatcherCfg(dp),
 		seq.RollupClient(), l1Miner.EthClient(), seqEng.EthClient(), seqEng.EngineClient(t, sd.RollupCfg))
 
-	verMockBackend := &mockSupervisor{}
+	verMockBackend := &testutils.MockInteropBackend{}
 	_, ver := setupVerifier(t, sd, logger,
 		l1Miner.L1Client(t, sd.RollupCfg), l1Miner.BlobStore(), &sync.Config{},
 		WithInteropBackend(verMockBackend))
@@ -61,7 +46,7 @@ func TestInteropVerifier(gt *testing.T) {
 	seq.ActL2StartBlock(t)
 	seq.ActL2EndBlock(t)
 	seq.ActL2PipelineFull(t)
-	seqMockBackend.Mock.AssertExpectations(t)
+	seqMockBackend.AssertExpectations(t)
 	status := seq.SyncStatus()
 	require.Equal(t, uint64(1), status.UnsafeL2.Number)
 	require.Equal(t, uint64(0), status.CrossUnsafeL2.Number)
@@ -73,7 +58,7 @@ func TestInteropVerifier(gt *testing.T) {
 	seqMockBackend.ExpectCheckBlock(l2ChainID, 1, types.CrossUnsafe, nil)
 	seq.ActInteropBackendCheck(t)
 	seq.ActL2PipelineFull(t)
-	seqMockBackend.Mock.AssertExpectations(t)
+	seqMockBackend.AssertExpectations(t)
 	status = seq.SyncStatus()
 	require.Equal(t, uint64(1), status.UnsafeL2.Number)
 	require.Equal(t, uint64(1), status.CrossUnsafeL2.Number, "cross unsafe now")
@@ -91,7 +76,7 @@ func TestInteropVerifier(gt *testing.T) {
 	seqMockBackend.ExpectCheckBlock(l2ChainID, 1, types.CrossUnsafe, nil) // not cross-safe yet
 	seq.ActL1HeadSignal(t)
 	seq.ActL2PipelineFull(t)
-	seqMockBackend.Mock.AssertExpectations(t)
+	seqMockBackend.AssertExpectations(t)
 
 	status = seq.SyncStatus()
 	require.Equal(t, uint64(1), status.UnsafeL2.Number)
@@ -103,7 +88,7 @@ func TestInteropVerifier(gt *testing.T) {
 	seqMockBackend.ExpectCheckBlock(l2ChainID, 1, types.CrossSafe, nil)
 	seq.ActInteropBackendCheck(t)
 	seq.ActL2PipelineFull(t)
-	seqMockBackend.Mock.AssertExpectations(t)
+	seqMockBackend.AssertExpectations(t)
 
 	status = seq.SyncStatus()
 	require.Equal(t, uint64(1), status.UnsafeL2.Number)
@@ -117,7 +102,7 @@ func TestInteropVerifier(gt *testing.T) {
 	verMockBackend.ExpectCheckBlock(l2ChainID, 1, types.Unsafe, nil) // for the local safe check
 	ver.ActL1HeadSignal(t)
 	ver.ActL2PipelineFull(t)
-	verMockBackend.Mock.AssertExpectations(t)
+	verMockBackend.AssertExpectations(t)
 	status = ver.SyncStatus()
 	require.Equal(t, uint64(1), status.UnsafeL2.Number, "synced the block")
 	require.Equal(t, uint64(0), status.CrossUnsafeL2.Number, "not cross-verified yet")
@@ -131,7 +116,7 @@ func TestInteropVerifier(gt *testing.T) {
 	seq.ActL1SafeSignal(t)
 	seq.ActL1FinalizedSignal(t)
 	seq.ActL2PipelineFull(t)
-	seqMockBackend.Mock.AssertExpectations(t)
+	seqMockBackend.AssertExpectations(t)
 
 	status = seq.SyncStatus()
 	require.Equal(t, uint64(1), status.FinalizedL2.Number, "finalized the block")
