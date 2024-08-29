@@ -55,7 +55,11 @@
 				]
 			},
 			"targetFunctionSignatures": [],
-			"excludeFunctionSignatures": []
+			"excludeFunctionSignatures": [
+        "ProtocolProperties.test_ERC20external_zeroAddressBalance()",
+        "ProtocolProperties.test_ERC20external_transferToZeroAddress()",
+        "ProtocolProperties.test_ERC20external_transferFromToZeroAddress(uint256)"
+      ]
 		},
 		"chainConfig": {
 			"codeSizeCheckDisabled": true,

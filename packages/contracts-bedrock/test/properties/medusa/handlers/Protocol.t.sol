@@ -7,10 +7,12 @@ import { StdUtils } from "forge-std/StdUtils.sol";
 import { ERC1967Proxy } from "@openzeppelin/contracts-v5/proxy/ERC1967/ERC1967Proxy.sol";
 import { EnumerableMap } from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import { OptimismSuperchainERC20 } from "src/L2/OptimismSuperchainERC20.sol";
+import { OptimismSuperchainERC20ForToBProperties } from "../../helpers/OptimismSuperchainERC20ForToBProperties.t.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { MockL2ToL2CrossDomainMessenger } from "../../helpers/MockL2ToL2CrossDomainMessenger.t.sol";
+import { Actors } from "../../helpers/Actors.t.sol";
 
-contract ProtocolHandler is TestBase, StdUtils {
+contract ProtocolHandler is TestBase, StdUtils, Actors {
     using EnumerableMap for EnumerableMap.Bytes32ToUintMap;
 
     uint8 internal constant MAX_CHAINS = 4;
@@ -36,18 +38,20 @@ contract ProtocolHandler is TestBase, StdUtils {
     address[] internal remoteTokens;
     address[] internal allSuperTokens;
 
-    //@notice  'real' deploy salt => total supply sum across chains
+    /// @notice  'real' deploy salt => total supply sum across chains
     EnumerableMap.Bytes32ToUintMap internal ghost_totalSupplyAcrossChains;
 
     constructor() {
         vm.etch(address(MESSENGER), address(new MockL2ToL2CrossDomainMessenger()).code);
-        superchainERC20Impl = new OptimismSuperchainERC20();
-        for (uint256 remoteTokenIndex = 0; remoteTokenIndex < INITIAL_TOKENS; remoteTokenIndex++) {
+        superchainERC20Impl = new OptimismSuperchainERC20ForToBProperties();
+        for (uint256 remoteTokenIndex; remoteTokenIndex < INITIAL_TOKENS; remoteTokenIndex++) {
             _deployRemoteToken();
-            for (uint256 supertokenChainId = 0; supertokenChainId < INITIAL_SUPERTOKENS; supertokenChainId++) {
+            for (uint256 supertokenChainId; supertokenChainId < INITIAL_SUPERTOKENS; supertokenChainId++) {
                 _deploySupertoken(remoteTokens[remoteTokenIndex], WORDS[0], WORDS[0], DECIMALS[0], supertokenChainId);
             }
         }
+        // integrate with all ToB properties using address(this) as the sender
+        addActor(address(this));
     }
 
     /// @notice the deploy params are _indexes_ to pick from a pre-defined array of options and limit
@@ -62,22 +66,68 @@ contract ProtocolHandler is TestBase, StdUtils {
         _;
     }
 
-    function handler_MockNewRemoteToken() external {
+    function handler_mockNewRemoteToken() external {
         _deployRemoteToken();
     }
 
     /// @notice pick one already-deployed supertoken and mint an arbitrary amount of it
     /// necessary so there is something to be bridged :D
     /// TODO: will be replaced when testing the factories and `convert()`
-    function handler_MintSupertoken(uint256 index, uint96 amount) external {
+    function handler_mintSupertoken(uint256 index, uint96 amount) external withActor(msg.sender) {
         index = bound(index, 0, allSuperTokens.length - 1);
         address addr = allSuperTokens[index];
         vm.prank(BRIDGE);
         // medusa calls with different senders by default
-        OptimismSuperchainERC20(addr).mint(msg.sender, amount);
+        OptimismSuperchainERC20(addr).mint(currentActor(), amount);
         // currentValue will be zero if key is not present
         (, uint256 currentValue) = ghost_totalSupplyAcrossChains.tryGet(MESSENGER.superTokenInitDeploySalts(addr));
         ghost_totalSupplyAcrossChains.set(MESSENGER.superTokenInitDeploySalts(addr), currentValue + amount);
+    }
+
+    /// @notice The ToB properties don't preclude the need for this since they
+    /// always use address(this) as the caller, which won't get any balance
+    /// until it's transferred to it somehow
+    function handler_supERC20Transfer(
+        uint256 tokenIndex,
+        uint256 toIndex,
+        uint256 amount
+    )
+        external
+        withActor(msg.sender)
+    {
+        vm.prank(currentActor());
+        OptimismSuperchainERC20(allSuperTokens[bound(tokenIndex, 0, allSuperTokens.length)]).transfer(
+            getActorByRawIndex(toIndex), amount
+        );
+    }
+
+    function handler_supERC20TransferFrom(
+        uint256 tokenIndex,
+        uint256 fromIndex,
+        uint256 toIndex,
+        uint256 amount
+    )
+        external
+        withActor(msg.sender)
+    {
+        vm.prank(currentActor());
+        OptimismSuperchainERC20(allSuperTokens[bound(tokenIndex, 0, allSuperTokens.length)]).transferFrom(
+            getActorByRawIndex(fromIndex), getActorByRawIndex(toIndex), amount
+        );
+    }
+
+    function handler_supERC20Approve(
+        uint256 tokenIndex,
+        uint256 spenderIndex,
+        uint256 amount
+    )
+        external
+        withActor(msg.sender)
+    {
+        vm.prank(currentActor());
+        OptimismSuperchainERC20(allSuperTokens[bound(tokenIndex, 0, allSuperTokens.length)]).approve(
+            getActorByRawIndex(spenderIndex), amount
+        );
     }
 
     /// @notice deploy a remote token, that supertokens will be a representation of. They are  never called, so there

@@ -28,6 +28,10 @@ contract MockL2ToL2CrossDomainMessenger {
         return OptimismSuperchainERC20(superTokenAddresses[destinationChainId][superTokenInitDeploySalts[sender]]);
     }
 
+    function setCrossDomainMessageSender(address sender) external {
+        crossDomainMessageSender = sender;
+    }
+
     function registerSupertoken(bytes32 deploySalt, uint256 chainId, address token) external {
         superTokenAddresses[chainId][deploySalt] = token;
         superTokenInitDeploySalts[token] = deploySalt;
@@ -49,5 +53,6 @@ contract MockL2ToL2CrossDomainMessenger {
         crossDomainMessageSource = msg.sender;
         SafeCall.call(crossDomainMessageSender, 0, message);
         crossDomainMessageSender = address(0);
+        crossDomainMessageSource = address(0);
     }
 }

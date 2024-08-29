@@ -32,3 +32,6 @@
 [submodule "packages/contracts-bedrock/lib/halmos-cheatcodes"]
 	path = packages/contracts-bedrock/lib/halmos-cheatcodes
 	url = https://github.com/a16z/halmos-cheatcodes
+[submodule "packages/contracts-bedrock/lib/properties"]
+	path = packages/contracts-bedrock/lib/properties
+	url = https://github.com/crytic/properties

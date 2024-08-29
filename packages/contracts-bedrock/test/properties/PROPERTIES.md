@@ -71,20 +71,21 @@ legend:
 | 3   | Liquidity Migration | convert() only allows migrations between tokens representing the same remote asset         | [ ]    | [ ]    |
 | 4   | Liquidity Migration | convert() only allows migrations from tokens with the same decimals                        | [ ]    | [ ]    |
 | 5   | Liquidity Migration | convert() burns the same amount of legacy token that it mints of supertoken, and viceversa | [ ]    | [ ]    |
+| 25  | SupERC20            | supertokens can't be reinitialized                                                         | [ ]    | [x]    |
 
 ## Valid state
 
-| id  | milestone | description                                                                                | halmos  | medusa |
-| --- | ---       | ---                                                                                        | ---     | ---    |
-| 6   | SupERC20  | calls to sendERC20 succeed as long as caller has enough balance                            | [x]     | [ ]    |
-| 7   | SupERC20  | calls to relayERC20 always succeed as long as the sender and cross-domain caller are valid | **[~]** | [ ]    |
+| id  | milestone | description                                                                    | halmos  | medusa |
+| --- | ---       | ---                                                                            | ---     | ---    |
+| 6   | SupERC20  | calls to sendERC20 succeed as long as caller has enough balance                | [x]     | [x]    |
+| 7   | SupERC20  | calls to relayERC20 always succeed as long as the cross-domain caller is valid | **[~]** | [~]    |
 
 ## Variable transition
 
 | id  | milestone           | description                                                                                       | halmos | medusa |
 | --- | ---                 | ---                                                                                               | ---    | ---    |
-| 8   | SupERC20            | sendERC20 with a value of zero does not modify accounting                                         | [x]    | [ ]    |
-| 9   | SupERC20            | relayERC20 with a value of zero does not modify accounting                                        | [x]    | [ ]    |
+| 8   | SupERC20            | sendERC20 with a value of zero does not modify accounting                                         | [x]    | [x]    |
+| 9   | SupERC20            | relayERC20 with a value of zero does not modify accounting                                        | [x]    | [x]    |
 | 10  | SupERC20            | sendERC20 decreases the token's totalSupply in the source chain exactly by the input amount       | [x]    | [ ]    |
 | 11  | SupERC20            | relayERC20 increases the token's totalSupply in the destination chain exactly by the input amount | [x]    | [ ]    |
 | 12  | Liquidity Migration | supertoken total supply only increases on calls to mint() by the L2toL2StandardBridge             | [x]    | [~]    |
@@ -116,7 +117,7 @@ It’s worth noting that these properties will not hold for a live system
 
 # Expected external interactions
 
-- regular ERC20 operations between any accounts on the same chain, provided by [crytic ERC20 properties](https://github.com/crytic/properties?tab=readme-ov-file#erc20-tests)
+- [x] regular ERC20 operations between any accounts on the same chain, provided by [crytic ERC20 properties](https://github.com/crytic/properties?tab=readme-ov-file#erc20-tests)
 
 # Invariant-breaking candidates (brain dump)
 
@@ -124,3 +125,15 @@ here we’ll list possible interactions that we intend the fuzzing campaign to s
 
 - [ ]  changing the decimals of tokens after deployment
 - [ ]  `convert()` ing between multiple (3+) representations of the same remote token, by having different names/symbols
+
+# Internal structure
+
+## Medusa campaign
+
+Fuzzing campaigns have both the need to push the contract into different states (state transitions) and assert properties are actually held. This defines a spectrum of function types:
+
+- `handler_`: they only transition the protocol state, and don't perform any assertions.
+- `fuzz_`: they both transition the protocol state and perform assertions on properties. They are further divided in:
+    - unguided: they exist to let the fuzzer try novel or unexpected interactions, and potentially transition to unexpectedly invalid states
+    - guided: they have the goal of quickly covering code and moving the protocol to known valid states (eg: by moving funds between valid users)
+- `property_`: they only assert the protocol is in a valid state, without causing a state transition. Note that they still use assertion-mode testing for simplicity, but could be migrated to run in property-mode.
