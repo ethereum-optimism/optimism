@@ -20,7 +20,7 @@ func FuzzStateSyscallCloneST(f *testing.F) {
 		state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
 		step := state.GetStep()
 
-		expected := testutil.CreateExpectedState(state)
+		expected := testutil.NewExpectedState(state)
 		expected.Step += 1
 		expected.PC = state.GetCpu().NextPC
 		expected.NextPC = state.GetCpu().NextPC + 4

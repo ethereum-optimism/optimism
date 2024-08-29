@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 
@@ -30,7 +29,7 @@ func FuzzStateSyscallBrk(f *testing.F) {
 				state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
 				step := state.GetStep()
 
-				expected := testutil.CreateExpectedState(state)
+				expected := testutil.NewExpectedState(state)
 				expected.Step += 1
 				expected.PC = state.GetCpu().NextPC
 				expected.NextPC = state.GetCpu().NextPC + 4
@@ -42,12 +41,7 @@ func FuzzStateSyscallBrk(f *testing.F) {
 				require.False(t, stepWitness.HasPreimage())
 
 				expected.Validate(t, state)
-
-				evm := testutil.NewMIPSEVM(v.Contracts)
-				evmPost := evm.Step(t, stepWitness, step, v.StateHashFn)
-				goPost, _ := goVm.GetState().EncodeWitness()
-				require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
-					"mipsevm produced different state than EVM")
+				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, nil)
 			})
 		}
 	})
@@ -74,7 +68,7 @@ func FuzzStateSyscallMmap(f *testing.F) {
 				state.GetRegistersRef()[5] = siz
 				state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
 
-				expected := testutil.CreateExpectedState(state)
+				expected := testutil.NewExpectedState(state)
 				expected.Step += 1
 				expected.PC = state.GetCpu().NextPC
 				expected.NextPC = state.GetCpu().NextPC + 4
@@ -102,12 +96,7 @@ func FuzzStateSyscallMmap(f *testing.F) {
 				require.False(t, stepWitness.HasPreimage())
 
 				expected.Validate(t, state)
-
-				evm := testutil.NewMIPSEVM(v.Contracts)
-				evmPost := evm.Step(t, stepWitness, step, v.StateHashFn)
-				goPost, _ := goVm.GetState().EncodeWitness()
-				require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
-					"mipsevm produced different state than EVM")
+				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, nil)
 			})
 		}
 	})
@@ -126,7 +115,7 @@ func FuzzStateSyscallExitGroup(f *testing.F) {
 				state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
 				step := state.GetStep()
 
-				expected := testutil.CreateExpectedState(state)
+				expected := testutil.NewExpectedState(state)
 				expected.Step += 1
 				expected.Exited = true
 				expected.ExitCode = exitCode
@@ -136,12 +125,7 @@ func FuzzStateSyscallExitGroup(f *testing.F) {
 				require.False(t, stepWitness.HasPreimage())
 
 				expected.Validate(t, state)
-
-				evm := testutil.NewMIPSEVM(v.Contracts)
-				evmPost := evm.Step(t, stepWitness, step, v.StateHashFn)
-				goPost, _ := goVm.GetState().EncodeWitness()
-				require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
-					"mipsevm produced different state than EVM")
+				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, nil)
 			})
 		}
 	})
@@ -161,7 +145,7 @@ func FuzzStateSyscallFcntl(f *testing.F) {
 				state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
 				step := state.GetStep()
 
-				expected := testutil.CreateExpectedState(state)
+				expected := testutil.NewExpectedState(state)
 				expected.Step += 1
 				expected.PC = state.GetCpu().NextPC
 				expected.NextPC = state.GetCpu().NextPC + 4
@@ -187,12 +171,7 @@ func FuzzStateSyscallFcntl(f *testing.F) {
 				require.False(t, stepWitness.HasPreimage())
 
 				expected.Validate(t, state)
-
-				evm := testutil.NewMIPSEVM(v.Contracts)
-				evmPost := evm.Step(t, stepWitness, step, v.StateHashFn)
-				goPost, _ := goVm.GetState().EncodeWitness()
-				require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
-					"mipsevm produced different state than EVM")
+				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, nil)
 			})
 		}
 	})
@@ -217,7 +196,7 @@ func FuzzStateHintRead(f *testing.F) {
 				state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
 				step := state.GetStep()
 
-				expected := testutil.CreateExpectedState(state)
+				expected := testutil.NewExpectedState(state)
 				expected.Step += 1
 				expected.PC = state.GetCpu().NextPC
 				expected.NextPC = state.GetCpu().NextPC + 4
@@ -229,12 +208,7 @@ func FuzzStateHintRead(f *testing.F) {
 				require.False(t, stepWitness.HasPreimage())
 
 				expected.Validate(t, state)
-
-				evm := testutil.NewMIPSEVM(v.Contracts)
-				evmPost := evm.Step(t, stepWitness, step, v.StateHashFn)
-				goPost, _ := goVm.GetState().EncodeWitness()
-				require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
-					"mipsevm produced different state than EVM")
+				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, nil)
 			})
 		}
 	})
@@ -273,7 +247,7 @@ func FuzzStatePreimageRead(f *testing.F) {
 					writeLen = preimageDataLen - preimageOffset
 				}
 
-				expected := testutil.CreateExpectedState(state)
+				expected := testutil.NewExpectedState(state)
 				expected.Step += 1
 				expected.PC = state.GetCpu().NextPC
 				expected.NextPC = state.GetCpu().NextPC + 4
@@ -292,12 +266,7 @@ func FuzzStatePreimageRead(f *testing.F) {
 					// modify memory - it's possible we just write the leading zero bytes of the length prefix
 					require.Equal(t, expected.MemoryRoot, common.Hash(state.GetMemory().MerkleRoot()))
 				}
-
-				evm := testutil.NewMIPSEVM(v.Contracts)
-				evmPost := evm.Step(t, stepWitness, step, v.StateHashFn)
-				goPost, _ := goVm.GetState().EncodeWitness()
-				require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
-					"mipsevm produced different state than EVM")
+				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, nil)
 			})
 		}
 	})
@@ -329,7 +298,7 @@ func FuzzStateHintWrite(f *testing.F) {
 				// Set instruction
 				state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
 
-				expected := testutil.CreateExpectedState(state)
+				expected := testutil.NewExpectedState(state)
 				expected.Step += 1
 				expected.PC = state.GetCpu().NextPC
 				expected.NextPC = state.GetCpu().NextPC + 4
@@ -342,12 +311,7 @@ func FuzzStateHintWrite(f *testing.F) {
 
 				// TODO(cp-983) - validate expected hints
 				expected.Validate(t, state, testutil.SkipHintValidation)
-
-				evm := testutil.NewMIPSEVM(v.Contracts)
-				evmPost := evm.Step(t, stepWitness, step, v.StateHashFn)
-				goPost, _ := goVm.GetState().EncodeWitness()
-				require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
-					"mipsevm produced different state than EVM")
+				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, nil)
 			})
 		}
 	})
@@ -377,7 +341,7 @@ func FuzzStatePreimageWrite(f *testing.F) {
 					count = sz
 				}
 
-				expected := testutil.CreateExpectedState(state)
+				expected := testutil.NewExpectedState(state)
 				expected.Step += 1
 				expected.PC = state.GetCpu().NextPC
 				expected.NextPC = state.GetCpu().NextPC + 4
@@ -391,12 +355,7 @@ func FuzzStatePreimageWrite(f *testing.F) {
 
 				// TODO(cp-983) - validate preimage key
 				expected.Validate(t, state, testutil.SkipPreimageKeyValidation)
-
-				evm := testutil.NewMIPSEVM(v.Contracts)
-				evmPost := evm.Step(t, stepWitness, step, v.StateHashFn)
-				goPost, _ := goVm.GetState().EncodeWitness()
-				require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
-					"mipsevm produced different state than EVM")
+				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, nil)
 			})
 		}
 	})

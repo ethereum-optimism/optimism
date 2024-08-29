@@ -435,7 +435,7 @@ contract MIPS2_Test is CommonTest {
         MIPS2.ThreadState memory expectThread = copyThread(thread);
         expectThread.pc = thread.nextPC;
         expectThread.nextPC = thread.nextPC + 4;
-        expectThread.futexAddr = futexAddr;
+        expectThread.futexAddr = sys.FUTEX_EMPTY_ADDR;
         expectThread.registers[2] = sys.SYS_ERROR_SIGNAL;
         expectThread.registers[7] = sys.EAGAIN; // errno
         threading.replaceCurrent(expectThread);
