@@ -1039,12 +1039,19 @@ func TestSpanBatchAtomicity_Consolidation(gt *testing.T) {
 	verifier.l2PipelineIdle = false
 	for !verifier.l2PipelineIdle {
 		// wait for next pending block
-		verifier.ActL2EventsUntil(t, event.Any(
-			event.Is[engine2.PendingSafeUpdateEvent], event.Is[derive.DeriverIdleEvent]), 1000, false)
+		verifier.ActL2EventsUntil(t, func(ev event.Event) bool {
+			if event.Is[engine2.SafeDerivedEvent](ev) { // safe updates should only happen once the pending-safe reaches the target.
+				t.Fatal("unexpected next safe update")
+			}
+			return event.Any(event.Is[engine2.PendingSafeUpdateEvent], event.Is[derive.DeriverIdleEvent])(ev)
+		}, 1000, false)
 		if verifier.L2PendingSafe().Number < targetHeadNumber {
 			// If the span batch is not fully processed, the safe head must not advance.
 			require.Equal(t, verifier.L2Safe().Number, uint64(0))
 		} else {
+			// Make sure we do the post-processing of what safety updates might happen
+			// after the pending-safe event, before the next pending-safe event.
+			verifier.ActL2EventsUntil(t, event.Is[engine2.PendingSafeUpdateEvent], 100, true)
 			// Once the span batch is fully processed, the safe head must advance to the end of span batch.
 			require.Equal(t, verifier.L2Safe().Number, targetHeadNumber)
 			require.Equal(t, verifier.L2Safe(), verifier.L2PendingSafe())
@@ -1088,12 +1095,19 @@ func TestSpanBatchAtomicity_ForceAdvance(gt *testing.T) {
 	verifier.l2PipelineIdle = false
 	for !verifier.l2PipelineIdle {
 		// wait for next pending block
-		verifier.ActL2EventsUntil(t, event.Any(
-			event.Is[engine2.PendingSafeUpdateEvent], event.Is[derive.DeriverIdleEvent]), 1000, false)
+		verifier.ActL2EventsUntil(t, func(ev event.Event) bool {
+			if event.Is[engine2.SafeDerivedEvent](ev) { // safe updates should only happen once the pending-safe reaches the target.
+				t.Fatal("unexpected next safe update")
+			}
+			return event.Any(event.Is[engine2.PendingSafeUpdateEvent], event.Is[derive.DeriverIdleEvent])(ev)
+		}, 1000, false)
 		if verifier.L2PendingSafe().Number < targetHeadNumber {
 			// If the span batch is not fully processed, the safe head must not advance.
 			require.Equal(t, verifier.L2Safe().Number, uint64(0))
 		} else {
+			// Make sure we do the post-processing of what safety updates might happen
+			// after the pending-safe event, before the next pending-safe event.
+			verifier.ActL2EventsUntil(t, event.Is[engine2.PendingSafeUpdateEvent], 100, true)
 			// Once the span batch is fully processed, the safe head must advance to the end of span batch.
 			require.Equal(t, verifier.L2Safe().Number, targetHeadNumber)
 			require.Equal(t, verifier.L2Safe(), verifier.L2PendingSafe())

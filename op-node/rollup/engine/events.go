@@ -402,6 +402,10 @@ func (d *EngDeriver) OnEvent(ev event.Event) bool {
 		d.ec.SetSafeHead(x.Ref)
 		// Finalizer can pick up this safe cross-block now
 		d.emitter.Emit(SafeDerivedEvent{Safe: x.Ref, DerivedFrom: x.DerivedFrom})
+		d.emitter.Emit(CrossSafeUpdateEvent{
+			CrossSafe: d.ec.SafeL2Head(),
+			LocalSafe: d.ec.LocalSafeL2Head(),
+		})
 		// Try to apply the forkchoice changes
 		d.emitter.Emit(TryUpdateEngineEvent{})
 	case PromoteFinalizedEvent:

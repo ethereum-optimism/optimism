@@ -35,4 +35,6 @@ func (eq *EngDeriver) onPayloadSuccess(ev PayloadSuccessEvent) {
 		"state_root", payload.StateRoot, "timestamp", uint64(payload.Timestamp), "parent", payload.ParentHash,
 		"prev_randao", payload.PrevRandao, "fee_recipient", payload.FeeRecipient,
 		"txs", len(payload.Transactions), "last_in_span", ev.IsLastInSpan, "derived_from", ev.DerivedFrom)
+
+	eq.emitter.Emit(TryUpdateEngineEvent{})
 }
