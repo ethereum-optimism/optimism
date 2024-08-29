@@ -42,8 +42,9 @@ func (ev ForkchoiceUpdateEvent) String() string {
 
 // PromoteUnsafeEvent signals that the given block may now become a canonical unsafe block.
 // This is pre-forkchoice update; the change may not be reflected yet in the EL.
-// Warning: this even does not always fire;
-// the legacy pre-events unsafe block processing does not emit this.
+// Note that the legacy pre-event-refactor code-path (processing P2P blocks) does fire this,
+// but manually, duplicate with the newer events processing code-path.
+// See EngineController.InsertUnsafePayload.
 type PromoteUnsafeEvent struct {
 	Ref eth.L2BlockRef
 }
