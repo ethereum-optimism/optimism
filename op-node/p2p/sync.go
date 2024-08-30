@@ -718,7 +718,7 @@ func (s *SyncClient) doRequest(ctx context.Context, id peer.ID, expectedBlockNum
 	select {
 	case s.results <- syncResult{payload: envelope, peer: id}:
 	case <-ctx.Done():
-		return fmt.Errorf("failed to process response, sync client is too busy: %w", err)
+		return fmt.Errorf("failed to process response, sync client is too busy: %w", context.Cause(ctx))
 	}
 	return nil
 }
@@ -833,6 +833,7 @@ func (srv *ReqRespServer) HandleSyncRequest(ctx context.Context, log log.Logger,
 	req, err := srv.handleSyncRequest(ctx, stream)
 	cancel()
 
+	// Doesn't look like rate limiting gets special treatment.
 	resultCode := ResultCodeSuccess
 	if err != nil {
 		log.Warn("failed to serve p2p sync request", "req", req, "err", err)
