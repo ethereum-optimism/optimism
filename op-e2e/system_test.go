@@ -1042,6 +1042,7 @@ func TestSystemP2PAltSyncExtreme(t *testing.T) {
 
 			syncedPayloads := syncer.syncedPayloads
 			// Verify that the tx was received via P2P sync
+			require.NotEmpty(t, syncedPayloads[p2p.PayloadSourceAltSync])
 			require.Contains(
 				t,
 				syncer.altSyncedBlockIdStrings(),
@@ -1051,7 +1052,6 @@ func TestSystemP2PAltSyncExtreme(t *testing.T) {
 			// Verify that everything that was received was published
 			//require.GreaterOrEqual(t, len(published), len(syncedPayloads))
 			require.Subset(t, published, syncer.altSyncedBlockIdStrings())
-			require.NotEmpty(t, syncedPayloads[p2p.PayloadSourceAltSync])
 			t.Logf("%v synced", syncer.name)
 			return nil
 		})

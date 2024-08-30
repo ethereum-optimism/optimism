@@ -2,11 +2,14 @@ package p2p
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
+	g "github.com/anacrolix/generics"
 	"io"
+	"maps"
 	"math/big"
 	"slices"
 	"sync"
@@ -262,8 +265,10 @@ type SyncClient struct {
 	// This map is cleared upon evictions of items from the quarantine LRU
 	quarantineByNum map[uint64]common.Hash
 
+	endBlockNumber    blockNumber
+	startBlockNumber  blockNumber
 	blockFailedCond   chansync.BroadcastCond
-	wanted            []*wantedBlock
+	wanted            map[blockNumber]*wantedBlock
 	requestBlocksCond chansync.BroadcastCond
 	// inFlight requests are not repeated
 	inFlight       *requestIdMap
@@ -318,13 +323,14 @@ func NewSyncClient(
 		rangeRequests:       make(chan rangeRequest), // blocking
 		activeRangeRequests: newRequestIdMap(),
 		peerRequests:        make(chan peerRequest, 128),
-		results:             make(chan syncResult),
-		inFlight:            newRequestIdMap(),
-		inFlightChecks:      make(chan inFlightCheck, 128),
-		globalRL:            rate.NewLimiter(globalServerBlocksRateLimit, globalServerBlocksBurst),
-		resCtx:              ctx,
-		resCancel:           cancel,
-		receivePayload:      rcv,
+		// mainLoop promotes into this while also being the receiver. That's not cool.
+		results:        make(chan syncResult, 128),
+		inFlight:       newRequestIdMap(),
+		inFlightChecks: make(chan inFlightCheck, 128),
+		globalRL:       rate.NewLimiter(globalServerBlocksRateLimit, globalServerBlocksBurst),
+		resCtx:         ctx,
+		resCancel:      cancel,
+		receivePayload: rcv,
 	}
 	if extra, ok := host.(ExtraHostFeatures); ok && extra.SyncOnlyReqToStatic() {
 		c.extra = extra
@@ -370,7 +376,7 @@ func (s *SyncClient) RemovePeer(id peer.ID) {
 	defer s.peersLock.Unlock()
 	cancel, ok := s.peers[id]
 	if !ok {
-		s.log.Warn("cannot remove peer from sync duties, peer was not registered", "peer", id)
+		s.log.Debug("cannot remove peer from sync duties, peer was not registered", "peer", id)
 		return
 	}
 	cancel() // once loop exits
@@ -417,6 +423,7 @@ func (s *SyncClient) mainLoop() {
 		select {
 		case req := <-s.rangeRequests:
 			ctx, cancel := context.WithTimeout(s.resCtx, maxRequestScheduling)
+			// This posts back to itself... fml
 			s.onRangeRequest(ctx, req)
 			cancel()
 		case res := <-s.results:
@@ -452,6 +459,39 @@ func (s *SyncClient) isInFlight(ctx context.Context, num uint64) (bool, error) {
 // go-ethereum should expose a method for this.
 type blockNumber = uint64
 
+func (s *SyncClient) trimOutsideWanted() {
+	for num, wanted := range s.wanted {
+		if num < s.startBlockNumber || num > s.endBlockNumber {
+			wanted.done.Set()
+			delete(s.wanted, num)
+		}
+	}
+}
+
+func (s *SyncClient) addMissingWanted(log log.Logger) {
+	for num := s.endBlockNumber; num >= s.startBlockNumber; num-- {
+		if s.wanted[num] != nil {
+			continue
+		}
+		log.Debug("Scheduling P2P block request", "num", num)
+		wanted := &wantedBlock{
+			num:                num,
+			requestConcurrency: chansync.NewSemaphore(3),
+		}
+		h, ok := s.quarantineByNum[num]
+		// check if we have something in quarantine already
+		if ok {
+			if s.trusted.Contains(h) { // if we trust it, try to promote it.
+				go s.tryPromote(h)
+			}
+		}
+		wanted.quarantined.SetBool(ok)
+		g.MakeMapIfNil(&s.wanted)
+		s.wanted[num] = wanted
+		s.requestBlocksCond.Broadcast()
+	}
+}
+
 // onRangeRequest is exclusively called by the main loop, and has thus direct access to the request bookkeeping state.
 // This function transforms requested block ranges into work for each peer.
 func (s *SyncClient) onRangeRequest(ctx context.Context, req rangeRequest) {
@@ -460,40 +500,13 @@ func (s *SyncClient) onRangeRequest(ctx context.Context, req rangeRequest) {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	// This is to get the synced payload counts to match up (prevent duplicate range requests).
-	if s.wanted != nil {
-		return
-	}
+	s.endBlockNumber = req.end.Number - 1
+	s.startBlockNumber = req.start + 1
 	// add req head to trusted set of blocks
 	s.trusted.Add(req.end.Hash, struct{}{})
 	s.trusted.Add(req.end.ParentHash, struct{}{})
-
-	s.wanted = nil
-
-	// Now try to fetch lower numbers than current end, to traverse back towards the updated start.
-	for i := blockNumber(0); ; i++ {
-		num := req.end.Number - 1 - i
-		if num <= req.start {
-			break
-		}
-		// check if we have something in quarantine already
-		if h, ok := s.quarantineByNum[num]; ok {
-			if s.trusted.Contains(h) { // if we trust it, try to promote it.
-				s.tryPromote(h)
-			}
-			// Don't fetch things that we have a candidate for already.
-			// We'll evict it from quarantine by finding a conflict, or if we sync enough other blocks
-			continue
-		}
-
-		s.wanted = append(s.wanted, &wantedBlock{
-			num:                num,
-			requestConcurrency: chansync.NewSemaphore(3),
-		})
-
-		log.Debug("Scheduling P2P block request", "num", num, "rangeReqId", req.id)
-	}
-	s.requestBlocksCond.Broadcast()
+	s.trimOutsideWanted()
+	s.addMissingWanted(log)
 }
 
 func (s *SyncClient) onQuarantineEvict(key common.Hash, value syncResult) {
@@ -629,12 +642,15 @@ func (s *syncClientPeer) doSingleBlockRequest(ctx context.Context, id peer.ID, n
 }
 
 func (s *syncClientPeer) requestBlocks(ctx context.Context, id peer.ID, rl *rate.Limiter) (err error) {
-	wantedSlice := slices.Clone(s.wanted)
+	wantedSlice := slices.SortedFunc(maps.Values(s.wanted), func(l *wantedBlock, r *wantedBlock) int {
+		return cmp.Compare(r.num, l.num)
+	})
 	s.mu.Unlock()
 	defer s.mu.Lock()
 	for {
 		allDone := true
 		for _, wanted := range wantedSlice {
+			fmt.Printf("%v\n", wanted.num)
 			if wanted.done.IsSet() {
 				continue
 			}
@@ -1059,13 +1075,9 @@ type wantedBlock struct {
 	quarantined chansync.Flag
 }
 
-func getWantedForBlockNumber(num blockNumber, wanted []*wantedBlock) *wantedBlock {
-	for _, wanted := range wanted {
-		if wanted.num == num {
-			return wanted
-		}
-	}
-	return nil
+// Well that didn't age well.
+func getWantedForBlockNumber(num blockNumber, wanted map[blockNumber]*wantedBlock) *wantedBlock {
+	return wanted[num]
 }
 
 func (me *SyncClient) gotBlockNumber(num blockNumber) {
