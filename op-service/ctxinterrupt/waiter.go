@@ -32,7 +32,6 @@ func (me waitResult) Cause() error {
 		return me.CtxError
 	}
 	if me.Interrupt != nil {
-		// Do we really need to wrap the interrupt?
 		return fmt.Errorf("interrupted: %w", me.Interrupt)
 	}
 	return nil

@@ -22,9 +22,7 @@ func main() {
 		cmd.WitnessCommand,
 		cmd.RunCommand,
 	}
-	// This used to punt stdout on an interrupt, should that be a default behaviour?
 	ctx := ctxinterrupt.WithSignalWaiterMain(context.Background())
-
 	err := app.RunContext(ctx, os.Args)
 	if err != nil {
 		if errors.Is(err, ctx.Err()) {

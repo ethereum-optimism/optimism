@@ -28,12 +28,11 @@ func WithSignalWaiter(ctx context.Context) (_ context.Context, stop func()) {
 	return withInterruptWaiter(ctx, catcher), catcher.Stop
 }
 
-// Returns a Context with a signal interrupt blocker and leaks the destructor. Intended for use in
+// WithSignalWaiterMain returns a Context with a signal interrupt blocker and leaks the destructor. Intended for use in
 // main functions where we exit right after using the returned context anyway.
 func WithSignalWaiterMain(ctx context.Context) context.Context {
-	// Should we check that an interrupt waiter isn't already installed here?
-	catcher := newSignalWaiter()
-	return withInterruptWaiter(ctx, catcher)
+	ctx, _ = WithSignalWaiter(ctx)
+	return ctx
 }
 
 // WithCancelOnInterrupt returns a Context that is cancelled when Wait returns on the waiter in ctx.

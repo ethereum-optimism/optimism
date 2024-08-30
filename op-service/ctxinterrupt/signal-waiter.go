@@ -22,10 +22,8 @@ type signalWaiter struct {
 
 func newSignalWaiter() signalWaiter {
 	catcher := signalWaiter{
-		// I'm not sure buffering these would have the intended effect beyond 1 as signals are
-		// generally emitted on timers and can't be relied on to deliver more than once in quick
-		// succession. It's not clear what the intention is if there are multiple concurrent waiters
-		// and only a single signal arrives.
+		// Buffer, in case we are slow to act on older signals,
+		// but still want to handle repeat-signals as special case (e.g. to force shutdown)
 		incoming: make(chan os.Signal, 10),
 	}
 	signal.Notify(catcher.incoming, defaultSignals...)
