@@ -171,7 +171,7 @@ func TestSinglePeerSync(t *testing.T) {
 	defer cl.Close()
 
 	// request to start syncing between 10 and 20
-	_, err = cl.RequestL2Range(ctx, payloads.getBlockRef(10), payloads.getBlockRef(20))
+	err = cl.RequestL2Range(ctx, payloads.getBlockRef(10), payloads.getBlockRef(20))
 	require.NoError(t, err)
 
 	// and wait for the sync results to come in (in reverse order)
@@ -258,7 +258,7 @@ func TestMultiPeerSync(t *testing.T) {
 	defer clC.Close()
 
 	// request to start syncing between 10 and 90
-	_, err = clA.RequestL2Range(ctx, payloads.getBlockRef(10), payloads.getBlockRef(90))
+	err = clA.RequestL2Range(ctx, payloads.getBlockRef(10), payloads.getBlockRef(90))
 	require.NoError(t, err)
 
 	// With such large range to request we are going to hit the rate-limits of B and C,
@@ -274,10 +274,8 @@ func TestMultiPeerSync(t *testing.T) {
 	// now see if B can sync a range, and fill the gap with a re-request
 	bl25, _ := payloads.getPayload(25) // temporarily remove it from the available payloads. This will create a gap
 	payloads.deletePayload(25)
-	rangeReqId, err := clB.RequestL2Range(ctx, payloads.getBlockRef(20), payloads.getBlockRef(30))
-
+	err = clB.RequestL2Range(ctx, payloads.getBlockRef(20), payloads.getBlockRef(30))
 	require.NoError(t, err)
-	require.True(t, clB.activeRangeRequests.get(rangeReqId), "expecting range request to be active")
 
 	for i := uint64(29); i > 25; i-- {
 		p := <-recvB
@@ -320,12 +318,11 @@ func TestMultiPeerSync(t *testing.T) {
 			break
 		}
 	}
-	require.False(t, clB.activeRangeRequests.get(rangeReqId), "expecting range request to be cancelled")
 
 	// Add back the block
 	payloads.addPayload(bl25)
 	// And request a range again, 25 is there now, and 21-24 should follow quickly (some may already have been fetched and wait in quarantine)
-	_, err = clB.RequestL2Range(ctx, payloads.getBlockRef(20), payloads.getBlockRef(26))
+	err = clB.RequestL2Range(ctx, payloads.getBlockRef(20), payloads.getBlockRef(26))
 	require.NoError(t, err)
 	for i := uint64(25); i > 20; i-- {
 		p := <-recvB

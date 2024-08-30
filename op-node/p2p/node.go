@@ -196,9 +196,7 @@ func (n *NodeP2P) RequestL2Range(ctx context.Context, start, end eth.L2BlockRef)
 	if !n.AltSyncEnabled() {
 		return fmt.Errorf("cannot request range %s - %s, req-resp sync is not enabled", start, end)
 	}
-	// TODO: Nobody uses the activeRequestId... get rid of it.
-	_, err := n.syncCl.RequestL2Range(ctx, start, end)
-	return err
+	return n.syncCl.RequestL2Range(ctx, start, end)
 }
 
 func (n *NodeP2P) Host() host.Host {

@@ -13,7 +13,6 @@ import (
 	"math/big"
 	"slices"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/anacrolix/chansync"
@@ -113,7 +112,6 @@ func (r receivePayloadFn) OnUnsafeL2Payload(ctx context.Context, from peer.ID, m
 type rangeRequest struct {
 	start uint64
 	end   eth.L2BlockRef
-	id    uint64
 }
 
 type syncResult struct {
@@ -267,19 +265,8 @@ type SyncClient struct {
 
 	endBlockNumber    blockNumber
 	startBlockNumber  blockNumber
-	blockFailedCond   chansync.BroadcastCond
 	wanted            map[blockNumber]*wantedBlock
 	requestBlocksCond chansync.BroadcastCond
-	// inFlight requests are not repeated
-	inFlight       *requestIdMap
-	inFlightChecks chan inFlightCheck
-
-	rangeRequests       chan rangeRequest
-	activeRangeRequests *requestIdMap
-	rangeReqId          uint64
-	peerRequests        chan peerRequest
-
-	results chan syncResult
 
 	receivePayload L2PayloadIn
 
@@ -312,25 +299,18 @@ func NewSyncClient(
 	ctx, cancel := context.WithCancel(context.Background())
 
 	c := &SyncClient{
-		log:                 log,
-		cfg:                 cfg,
-		metrics:             metrics,
-		appScorer:           appScorer,
-		newStreamFn:         host.NewStream,
-		payloadByNumber:     PayloadByNumberProtocolID(cfg.L2ChainID),
-		peers:               make(map[peer.ID]context.CancelFunc),
-		quarantineByNum:     make(map[uint64]common.Hash),
-		rangeRequests:       make(chan rangeRequest), // blocking
-		activeRangeRequests: newRequestIdMap(),
-		peerRequests:        make(chan peerRequest, 128),
-		// mainLoop promotes into this while also being the receiver. That's not cool.
-		results:        make(chan syncResult, 128),
-		inFlight:       newRequestIdMap(),
-		inFlightChecks: make(chan inFlightCheck, 128),
-		globalRL:       rate.NewLimiter(globalServerBlocksRateLimit, globalServerBlocksBurst),
-		resCtx:         ctx,
-		resCancel:      cancel,
-		receivePayload: rcv,
+		log:             log,
+		cfg:             cfg,
+		metrics:         metrics,
+		appScorer:       appScorer,
+		newStreamFn:     host.NewStream,
+		payloadByNumber: PayloadByNumberProtocolID(cfg.L2ChainID),
+		peers:           make(map[peer.ID]context.CancelFunc),
+		quarantineByNum: make(map[uint64]common.Hash),
+		globalRL:        rate.NewLimiter(globalServerBlocksRateLimit, globalServerBlocksBurst),
+		resCtx:          ctx,
+		resCancel:       cancel,
+		receivePayload:  rcv,
 	}
 	if extra, ok := host.(ExtraHostFeatures); ok && extra.SyncOnlyReqToStatic() {
 		c.extra = extra
@@ -394,22 +374,16 @@ func (s *SyncClient) Close() error {
 	return nil
 }
 
-func (s *SyncClient) RequestL2Range(ctx context.Context, start, end eth.L2BlockRef) (uint64, error) {
+func (s *SyncClient) RequestL2Range(ctx context.Context, start, end eth.L2BlockRef) error {
 	if end == (eth.L2BlockRef{}) {
 		s.log.Debug("P2P sync client received range signal, but cannot sync open-ended chain: need sync target to verify blocks through parent-hashes", "start", start)
-		return 0, nil
+		return nil
 	}
-	// Create shared rangeReqId so associated peerRequests can all be cancelled by setting a single flag
-	rangeReqId := atomic.AddUint64(&s.rangeReqId, 1)
-	// need to flag request as active before adding request to s.rangeRequests to avoid race
-	s.activeRangeRequests.set(rangeReqId, true)
-	if len(s.activeRangeRequests.requests) != 0 {
-		fmt.Printf("already have %v active range requests\n", len(s.activeRangeRequests.requests))
-	}
+
 	fmt.Printf("requesting range %v to %v\n", start, end)
 
-	s.onRangeRequest(ctx, rangeRequest{start: start.Number, end: end, id: rangeReqId})
-	return 0, nil
+	s.onRangeRequest(ctx, rangeRequest{start: start.Number, end: end})
+	return nil
 }
 
 const (
@@ -419,26 +393,8 @@ const (
 
 func (s *SyncClient) mainLoop() {
 	defer s.wg.Done()
-	for {
-		select {
-		case req := <-s.rangeRequests:
-			ctx, cancel := context.WithTimeout(s.resCtx, maxRequestScheduling)
-			// This posts back to itself... fml
-			s.onRangeRequest(ctx, req)
-			cancel()
-		case res := <-s.results:
-			fmt.Printf("got sync result %d\n", res.payload.ExecutionPayload.BlockNumber)
-			ctx, cancel := context.WithTimeout(s.resCtx, maxResultProcessing)
-			s.onResult(ctx, res)
-			cancel()
-		case check := <-s.inFlightChecks:
-			s.log.Info("Checking in flight", "num", check.num)
-			check.result <- s.inFlight.get(check.num)
-		case <-s.resCtx.Done():
-			s.log.Info("stopped P2P req-resp L2 block sync client")
-			return
-		}
-	}
+	<-s.resCtx.Done()
+	s.log.Info("stopped P2P req-resp L2 block sync client")
 }
 
 func (s *SyncClient) isInFlight(ctx context.Context, num uint64) (bool, error) {
@@ -496,7 +452,7 @@ func (s *SyncClient) addMissingWanted(log log.Logger) {
 // This function transforms requested block ranges into work for each peer.
 func (s *SyncClient) onRangeRequest(ctx context.Context, req rangeRequest) {
 	log := s.log.New("target", req.start, "end", req.end)
-	log.Info("processing L2 range request", "rangeReqId", req.id)
+	log.Info("processing L2 range request")
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
