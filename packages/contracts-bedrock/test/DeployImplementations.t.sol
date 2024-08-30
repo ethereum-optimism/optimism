@@ -20,6 +20,7 @@ import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC2
 import {
     DeployImplementationsInput,
     DeployImplementations,
+    DeployImplementationsInterop,
     DeployImplementationsOutput
 } from "scripts/DeployImplementations.s.sol";
 
@@ -226,9 +227,16 @@ contract DeployImplementations_Test is Test {
         protocolVersionsProxy: ProtocolVersions(makeAddr("protocolVersionsProxy"))
     });
 
-    function setUp() public {
+    function setUp() public virtual {
         deployImplementations = new DeployImplementations();
         (dsi, dso) = deployImplementations.getIOContracts();
+    }
+
+    // By deploying the `DeployImplementations` contract with this virtual function, we provide a
+    // hook that child contracts can override to return a different implementation of the contract.
+    // This lets us test e.g. the `DeployImplementationsInterop` contract without duplicating test code.
+    function createDeployImplementationsContract() internal virtual returns (DeployImplementations) {
+        return new DeployImplementations();
     }
 
     function test_run_succeeds(DeployImplementationsInput.Input memory _input) public {
@@ -284,5 +292,11 @@ contract DeployImplementations_Test is Test {
         input.challengePeriodSeconds = bound(_challengePeriodSeconds, uint256(type(uint64).max) + 1, type(uint256).max);
         vm.expectRevert("DeployImplementationsInput: challenge period too large");
         deployImplementations.run(input);
+    }
+}
+
+contract DeployImplementationsInterop_Test is DeployImplementations_Test {
+    function createDeployImplementationsContract() internal override returns (DeployImplementations) {
+        return new DeployImplementationsInterop();
     }
 }

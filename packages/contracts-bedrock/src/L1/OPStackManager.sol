@@ -364,6 +364,7 @@ contract OPStackManager is ISemver {
     )
         internal
         view
+        virtual
         returns (bytes memory)
     {
         return abi.encodeWithSelector(_selector, _output.l1CrossDomainMessengerProxy, superchainConfig);
@@ -376,6 +377,7 @@ contract OPStackManager is ISemver {
     )
         internal
         view
+        virtual
         returns (bytes memory)
     {
         _output;
@@ -392,26 +394,11 @@ contract OPStackManager is ISemver {
     )
         internal
         pure
+        virtual
         returns (bytes memory)
     {
-        ResourceMetering.ResourceConfig memory referenceResourceConfig = ResourceMetering.ResourceConfig({
-            maxResourceLimit: 2e7,
-            elasticityMultiplier: 10,
-            baseFeeMaxChangeDenominator: 8,
-            minimumBaseFee: 1e9,
-            systemTxMaxGas: 1e6,
-            maximumBaseFee: 340282366920938463463374607431768211455
-        });
-
-        SystemConfig.Addresses memory addrs = SystemConfig.Addresses({
-            l1CrossDomainMessenger: address(_output.l1CrossDomainMessengerProxy),
-            l1ERC721Bridge: address(_output.l1ERC721BridgeProxy),
-            l1StandardBridge: address(_output.l1StandardBridgeProxy),
-            disputeGameFactory: address(_output.disputeGameFactoryProxy),
-            optimismPortal: address(_output.optimismPortalProxy),
-            optimismMintableERC20Factory: address(_output.optimismMintableERC20FactoryProxy),
-            gasPayingToken: address(0)
-        });
+        (ResourceMetering.ResourceConfig memory referenceResourceConfig, SystemConfig.Addresses memory addrs) =
+            defaultSystemConfigParams(selector, _input, _output);
 
         return abi.encodeWithSelector(
             selector,
@@ -434,6 +421,7 @@ contract OPStackManager is ISemver {
     )
         internal
         pure
+        virtual
         returns (bytes memory)
     {
         return abi.encodeWithSelector(_selector, _output.l1StandardBridgeProxy);
@@ -446,10 +434,45 @@ contract OPStackManager is ISemver {
     )
         internal
         view
+        virtual
         returns (bytes memory)
     {
         return
             abi.encodeWithSelector(_selector, superchainConfig, _output.optimismPortalProxy, _output.systemConfigProxy);
+    }
+
+    /// @notice Returns default, standard config arguments for the SystemConfig initializer.
+    /// This is used by subclasses to reduce code duplication.
+    function defaultSystemConfigParams(
+        bytes4, /* selector */
+        DeployInput memory, /* _input */
+        DeployOutput memory _output
+    )
+        internal
+        pure
+        virtual
+        returns (ResourceMetering.ResourceConfig memory, SystemConfig.Addresses memory)
+    {
+        ResourceMetering.ResourceConfig memory referenceResourceConfig = ResourceMetering.ResourceConfig({
+            maxResourceLimit: 2e7,
+            elasticityMultiplier: 10,
+            baseFeeMaxChangeDenominator: 8,
+            minimumBaseFee: 1e9,
+            systemTxMaxGas: 1e6,
+            maximumBaseFee: 340282366920938463463374607431768211455
+        });
+
+        SystemConfig.Addresses memory addrs = SystemConfig.Addresses({
+            l1CrossDomainMessenger: address(_output.l1CrossDomainMessengerProxy),
+            l1ERC721Bridge: address(_output.l1ERC721BridgeProxy),
+            l1StandardBridge: address(_output.l1StandardBridgeProxy),
+            disputeGameFactory: address(_output.disputeGameFactoryProxy),
+            optimismPortal: address(_output.optimismPortalProxy),
+            optimismMintableERC20Factory: address(_output.optimismMintableERC20FactoryProxy),
+            gasPayingToken: address(0)
+        });
+
+        return (referenceResourceConfig, addrs);
     }
 
     /// @notice Makes an external call to the target to initialize the proxy with the specified data.

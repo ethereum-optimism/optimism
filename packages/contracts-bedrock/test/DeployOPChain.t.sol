@@ -7,6 +7,7 @@ import { DeploySuperchainInput, DeploySuperchain, DeploySuperchainOutput } from 
 import {
     DeployImplementationsInput,
     DeployImplementations,
+    DeployImplementationsInterop,
     DeployImplementationsOutput
 } from "scripts/DeployImplementations.s.sol";
 import { DeployOPChainInput, DeployOPChain, DeployOPChainOutput } from "scripts/DeployOPChain.s.sol";
@@ -388,6 +389,12 @@ contract DeployOPChain_TestBase is Test {
         // Set the OPStackManager on the input struct for DeployOPChain.
         deployOPChainInput.opsm = deployImplementationsOutput.opsm;
     }
+
+    // See the function of the same name in the `DeployImplementations_Test` contract of
+    // `DeployImplementations.t.sol` for more details on why we use this method.
+    function createDeployImplementationsContract() internal virtual returns (DeployImplementations) {
+        return new DeployImplementations();
+    }
 }
 
 contract DeployOPChain_Test is DeployOPChain_TestBase {
@@ -445,5 +452,11 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         // Most architecture assertions are handled within the OP Stack Manager itself and therefore
         // we only assert on the things that are not visible onchain.
         // TODO add these assertions: AddressManager, Proxy, ProxyAdmin, etc.
+    }
+}
+
+contract DeployOPChain_Test_Interop is DeployOPChain_Test {
+    function createDeployImplementationsContract() internal override returns (DeployImplementations) {
+        return new DeployImplementationsInterop();
     }
 }
