@@ -32,7 +32,7 @@ clean:
 	rm bin/op-node
 
 test:
-	go test -v ./...
+	go test -failfast -v ./...
 
 fuzz:
 	go test $(FUZZLDFLAGS) -run NOTAREALTEST -v -fuzztime 10s -fuzz FuzzL1InfoBedrockRoundTrip ./rollup/derive

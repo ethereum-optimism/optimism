@@ -57,6 +57,7 @@ require (
 	github.com/allegro/bigcache v1.2.1 // indirect
 	github.com/anacrolix/chansync v0.5.1 // indirect
 	github.com/anacrolix/envpprof v1.3.0 // indirect
+	github.com/anacrolix/generics v0.0.2 // indirect
 	github.com/anacrolix/log v0.13.1 // indirect
 	github.com/anacrolix/missinggo v1.2.1 // indirect
 	github.com/anacrolix/missinggo/perf v1.0.0 // indirect

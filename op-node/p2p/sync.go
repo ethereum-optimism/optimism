@@ -318,7 +318,7 @@ func NewSyncClient(
 		rangeRequests:       make(chan rangeRequest), // blocking
 		activeRangeRequests: newRequestIdMap(),
 		peerRequests:        make(chan peerRequest, 128),
-		results:             make(chan syncResult, 128),
+		results:             make(chan syncResult),
 		inFlight:            newRequestIdMap(),
 		inFlightChecks:      make(chan inFlightCheck, 128),
 		globalRL:            rate.NewLimiter(globalServerBlocksRateLimit, globalServerBlocksBurst),
@@ -527,7 +527,7 @@ func (s *SyncClient) promote(ctx context.Context, res syncResult) {
 	s.log.Debug("promoting p2p sync result", "payload", res.payload.ExecutionPayload.ID(), "peer", res.peer)
 
 	blockNumber := blockNumber(res.payload.ExecutionPayload.BlockNumber)
-	if err := s.receivePayload.OnUnsafeL2Payload(ctx, res.peer, res.payload, "altsync"); err != nil {
+	if err := s.receivePayload.OnUnsafeL2Payload(ctx, res.peer, res.payload, PayloadSourceAltSync); err != nil {
 		s.log.Warn("failed to promote payload, receiver error", "err", err)
 		s.blockFailed(blockNumber)
 		return

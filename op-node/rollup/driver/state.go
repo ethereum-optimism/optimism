@@ -530,9 +530,9 @@ func (s *Driver) BlockRefWithStatus(ctx context.Context, num uint64) (eth.L2Bloc
 	}
 }
 
-// checkForGapInUnsafeQueue checks if there is a gap in the unsafe queue and attempts to retrieve the missing payloads from an alt-sync method.
-// WARNING: This is only an outgoing signal, the blocks are not guaranteed to be retrieved.
-// Results are received through OnUnsafeL2Payload.
+// checkForGapInUnsafeQueue checks if there is a gap in the unsafe queue and attempts to retrieve
+// the missing payloads from an alt-sync method. WARNING: This is only an outgoing signal, the
+// blocks are not guaranteed to be retrieved. Results are received through OnUnsafeL2Payload.
 func (s *Driver) checkForGapInUnsafeQueue(ctx context.Context) error {
 	start := s.Engine.UnsafeL2Head()
 	end := s.CLSync.LowestQueuedUnsafeBlock()

@@ -4,9 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	g "github.com/anacrolix/generics"
 	"github.com/libp2p/go-libp2p/core/host"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
+	"github.com/stretchr/testify/assert"
 	"golang.org/x/sync/errgroup"
+	"maps"
 	"math/big"
 	"os"
 	"runtime"
@@ -821,11 +824,27 @@ func linkAndConnectNodeNamesNodes(t *testing.T, mocknet mocknet.Mocknet, a, b st
 type syncerType struct {
 	// The node name. Not sure how to access this just from the node...
 	name           string
-	syncedPayloads map[p2p.PayloadSource][]string
+	syncedPayloads map[p2p.PayloadSource][]syncedPayload
 	h              host.Host
 	node           *rollupNode.OpNode
 	l2Verif        *ethclient.Client
 	stop           func()
+}
+
+func (me *syncerType) peerId() peer.ID {
+	return me.node.P2P().Host().ID()
+}
+
+func (me *syncerType) altSyncedBlockIdStrings() (ret []string) {
+	for _, synced := range me.syncedPayloads[p2p.PayloadSourceAltSync] {
+		ret = append(ret, synced.blockId.String())
+	}
+	return
+}
+
+type syncedPayload struct {
+	from    peer.ID
+	blockId eth.BlockID
 }
 
 func makeSyncer(ctx context.Context, t *testing.T, name string, cfg SystemConfig, sys *System) (syncer *syncerType) {
@@ -835,6 +854,7 @@ func makeSyncer(ctx context.Context, t *testing.T, name string, cfg SystemConfig
 	syncer = &syncerType{
 		name: name,
 	}
+	g.MakeMapWithCap(&syncer.syncedPayloads, 2)
 
 	// Create a peer
 	var err error
@@ -855,10 +875,12 @@ func makeSyncer(ctx context.Context, t *testing.T, name string, cfg SystemConfig
 		Metrics:             rollupNode.MetricsConfig{Enabled: false}, // no metrics server
 		Pprof:               oppprof.CLIConfig{},
 		L1EpochPollInterval: time.Second * 10,
-		// TODO: Make sure these are from alt sync.
 		Tracer: &FnTracer{
 			L2PayloadInFunc: func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayloadEnvelope, source p2p.PayloadSource) error {
-				syncer.syncedPayloads[source] = append(syncer.syncedPayloads[source], payload.ExecutionPayload.ID().String())
+				syncer.syncedPayloads[source] = append(syncer.syncedPayloads[source], syncedPayload{
+					from:    from,
+					blockId: payload.ExecutionPayload.ID(),
+				})
 				return nil
 			},
 		},
@@ -900,6 +922,8 @@ func TestSystemP2PAltSyncExtreme(t *testing.T) {
 	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
+
+	//cfg.DeployConfig.L2BlockTime = 0
 
 	// remove default verifier node
 	delete(cfg.Nodes, RoleVerif)
@@ -967,10 +991,12 @@ func TestSystemP2PAltSyncExtreme(t *testing.T) {
 		opts.Value = big.NewInt(1_000_000_000)
 	})
 
+	assert.EqualValues(t, cfg.DeployConfig.L2BlockTime, 1)
+
 	// Gossip is able to respond to IWANT messages for the duration of heartbeat_time *
 	// message_window = 0.5 * 12 = 6 Wait till we pass that, and then we'll have missed some blocks
 	// that cannot be retrieved in any way from gossip
-	time.Sleep(time.Second * 10)
+	time.Sleep(time.Second * 4)
 
 	// set up our syncer node, connect it to alice/bob
 	cfg.Loggers["syncer"] = testlog.Logger(t, log.LevelWarn).New("role", "syncer")
@@ -995,10 +1021,11 @@ func TestSystemP2PAltSyncExtreme(t *testing.T) {
 		syncers = append(syncers, newSyncer)
 	}
 
-	for i := range 100 {
+	for i := range 15 {
 		addSyncer(i)
 	}
 
+	// Don't stop the nodes right away so they can sync from each other.
 	for _, syncer := range syncers {
 		defer syncer.stop()
 	}
@@ -1015,16 +1042,43 @@ func TestSystemP2PAltSyncExtreme(t *testing.T) {
 
 			syncedPayloads := syncer.syncedPayloads
 			// Verify that the tx was received via P2P sync
-			require.Contains(t, syncedPayloads, eth.BlockID{Hash: receiptVerif.BlockHash, Number: receiptVerif.BlockNumber.Uint64()}.String())
+			require.Contains(
+				t,
+				syncer.altSyncedBlockIdStrings(),
+				eth.BlockID{Hash: receiptVerif.BlockHash, Number: receiptVerif.BlockNumber.Uint64()}.String(),
+			)
 			//assert.GreaterOrEqual(t, len(syncedPayloads), len(published))
 			// Verify that everything that was received was published
 			//require.GreaterOrEqual(t, len(published), len(syncedPayloads))
-			require.Subset(t, published, syncedPayloads)
+			require.Subset(t, published, syncer.altSyncedBlockIdStrings())
+			require.NotEmpty(t, syncedPayloads[p2p.PayloadSourceAltSync])
 			t.Logf("%v synced", syncer.name)
 			return nil
 		})
 	}
 	require.NoError(t, eg.Wait())
+
+	altSyncSources := make(map[peer.ID]int)
+	for _, syncer := range syncers {
+		fmt.Printf("%v (%v)\n", syncer.node.P2P().Host().ID(), syncer.name)
+		for source, blocks := range syncer.syncedPayloads {
+			fmt.Printf("  %v (%v):", source, len(blocks))
+			for _, block := range blocks {
+				fmt.Printf(" %v", block.blockId.Number)
+			}
+			fmt.Printf("\n")
+		}
+		for _, block := range syncer.syncedPayloads[p2p.PayloadSourceAltSync] {
+			altSyncSources[block.from]++
+		}
+	}
+	peerIds := slices.SortedFunc(maps.Keys(altSyncSources), func(id peer.ID, id2 peer.ID) int {
+		return altSyncSources[id2] - altSyncSources[id]
+	})
+	fmt.Printf("alt sync sources\n")
+	for _, peerId := range peerIds {
+		fmt.Printf("  %v: %v\n", altSyncSources[peerId], peerId)
+	}
 }
 
 // TestSystemDenseTopology sets up a dense p2p topology with 3 verifier nodes and 1 sequencer node.

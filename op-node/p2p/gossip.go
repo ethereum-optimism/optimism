@@ -446,7 +446,13 @@ func verifyBlockSignature(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 	return pubsub.ValidationAccept
 }
 
+// TODO: Differentiate these in metrics
 type PayloadSource string
+
+const (
+	PayloadSourceAltSync PayloadSource = "alt-sync"
+	PayloadSourceGossip  PayloadSource = "gossip"
+)
 
 type L2PayloadInFunc func(ctx context.Context, from peer.ID, msg *eth.ExecutionPayloadEnvelope, _ PayloadSource) error
 
@@ -678,7 +684,7 @@ func BlocksHandler(onBlock L2PayloadInFunc) MessageHandler {
 		if !ok {
 			return fmt.Errorf("expected topic validator to parse and validate data into execution payload, but got %T", msg)
 		}
-		return onBlock(ctx, from, payload, "gossip")
+		return onBlock(ctx, from, payload, PayloadSourceGossip)
 	}
 }
 
