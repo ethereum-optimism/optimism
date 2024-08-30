@@ -38,31 +38,44 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
+// TestInterop stands up a basic L1
+// and multiple L2 states
 func TestInterop(t *testing.T) {
-	rec := interopgen.InteropDevRecipe{
+	recipe := interopgen.InteropDevRecipe{
 		L1ChainID:        900100,
 		L2ChainIDs:       []uint64{900200, 900201},
-		GenesisTimestamp: uint64(time.Now().Unix() + 3), // start chain in 3 seconds from now
+		GenesisTimestamp: uint64(time.Now().Unix() + 3), // start chain 3 seconds from now
 	}
-	hd, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
-	require.NoError(t, err)
-	worldCfg, err := rec.Build(hd)
+
+	// Create a new HD wallet to store the keys
+	hdWallet, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	require.NoError(t, err)
 
+	// Build the world configuration from the recipe and the HD wallet
+	worldCfg, err := recipe.Build(hdWallet)
+	require.NoError(t, err)
+
+	// create a logger for the world configuration
 	logger := testlog.Logger(t, log.LevelInfo)
 	require.NoError(t, worldCfg.Check(logger))
 
-	fa := foundry.OpenArtifactsDir("../../packages/contracts-bedrock/forge-artifacts")
-	srcFS := foundry.NewSourceMapFS(os.DirFS("../../packages/contracts-bedrock"))
+	// create the foundry artifacts and source map
+	foundryArtifacts := foundry.OpenArtifactsDir("../../packages/contracts-bedrock/forge-artifacts")
+	sourceMap := foundry.NewSourceMapFS(os.DirFS("../../packages/contracts-bedrock"))
 
-	worldDeployment, worldOutput, err := interopgen.Deploy(logger, fa, srcFS, worldCfg)
+	// deploy the world, using the logger, foundry artifacts, source map, and world configuration
+	worldDeployment, worldOutput, err := interopgen.Deploy(logger, foundryArtifacts, sourceMap, worldCfg)
 	require.NoError(t, err)
 
+	// acknowledging worldDeployment to avoid unused variable warnings
 	_ = worldDeployment
-	_ = worldOutput
 
+	// set up the L1 chain parameters
 	genesisTimestampL1 := worldOutput.L1.Genesis.Timestamp
+	require.Equal(t, recipe.GenesisTimestamp, genesisTimestampL1)
 	blockTimeL1 := uint64(6)
+	l1FinalizedDistance := uint64(3)
+	l1Clock := clock.SystemClock
 
 	// Create a fake Beacon node to hold on to blobs created by the L1 miner, and to serve them to L2
 	blobPath := t.TempDir()
@@ -75,9 +88,7 @@ func TestInterop(t *testing.T) {
 	beaconApiAddr := bcn.BeaconAddr()
 	require.NotEmpty(t, beaconApiAddr, "beacon API listener must be up")
 
-	l1FinalizedDistance := uint64(3)
-	l1Clock := clock.SystemClock
-
+	// Start the L1 chain
 	l1Geth, err := geth.InitL1(blockTimeL1, l1FinalizedDistance, worldOutput.L1.Genesis, l1Clock,
 		filepath.Join(blobPath, "l1_el"), bcn)
 	require.NoError(t, err)
@@ -86,6 +97,7 @@ func TestInterop(t *testing.T) {
 		_ = l1Geth.Close()
 	})
 
+	// Start the L2 chains
 	for id, l2Out := range worldOutput.L2s {
 		logger := logger.New("role", "op-node-"+id)
 		jwtPath := writeDefaultJWT(t)
@@ -98,7 +110,7 @@ func TestInterop(t *testing.T) {
 		})
 		// TODO register the op-geth node
 
-		seqP2PSecret, err := hd.Secret(devkeys.ChainOperatorKey{
+		seqP2PSecret, err := hdWallet.Secret(devkeys.ChainOperatorKey{
 			ChainID: l2Out.Genesis.Config.ChainID,
 			Role:    devkeys.SequencerP2PRole,
 		})
@@ -106,9 +118,10 @@ func TestInterop(t *testing.T) {
 
 		nodeCfg := &node.Config{
 			L1: &node.PreparedL1Endpoint{
-				Client: client.NewBaseRPCClient(
-					endpoint.DialRPC(endpoint.PreferAnyRPC,
-						l1Geth.UserRPC(), mustDial(t, logger))),
+				Client: client.NewBaseRPCClient(endpoint.DialRPC(
+					endpoint.PreferAnyRPC,
+					l1Geth.UserRPC(),
+					mustDial(t, logger))),
 				TrustRPC:        false,
 				RPCProviderKind: sources.RPCKindDebugGeth,
 			},
@@ -157,7 +170,7 @@ func TestInterop(t *testing.T) {
 
 		// op-proposer
 		{
-			proposerSecret, err := hd.Secret(devkeys.ChainOperatorKey{
+			proposerSecret, err := hdWallet.Secret(devkeys.ChainOperatorKey{
 				ChainID: l2Out.Genesis.Config.ChainID,
 				Role:    devkeys.ProposerRole,
 			})
@@ -191,7 +204,7 @@ func TestInterop(t *testing.T) {
 
 		// op-batcher
 		{
-			batcherSecret, err := hd.Secret(devkeys.ChainOperatorKey{
+			batcherSecret, err := hdWallet.Secret(devkeys.ChainOperatorKey{
 				ChainID: l2Out.Genesis.Config.ChainID,
 				Role:    devkeys.BatcherRole,
 			})
