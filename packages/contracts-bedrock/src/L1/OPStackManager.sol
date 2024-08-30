@@ -338,9 +338,16 @@ contract OPStackManager is ISemver {
     /// @notice Deterministically deploys a new proxy contract owned by the provided ProxyAdmin.
     /// The salt is computed as a function of the L2 chain ID and the contract name. This is required
     /// because we deploy many identical proxies, so they each require a unique salt for determinism.
-    function deployProxy(uint256 l2ChainId, ProxyAdmin proxyAdmin, bytes32 contractName) internal returns (address) {
-        bytes32 salt = keccak256(abi.encode(l2ChainId, contractName));
-        return Blueprint.deployFrom(blueprint.proxy, salt, abi.encode(proxyAdmin));
+    function deployProxy(
+        uint256 _l2ChainId,
+        ProxyAdmin _proxyAdmin,
+        bytes32 _contractName
+    )
+        internal
+        returns (address)
+    {
+        bytes32 salt = keccak256(abi.encode(_l2ChainId, _contractName));
+        return Blueprint.deployFrom(blueprint.proxy, salt, abi.encode(_proxyAdmin));
     }
 
     /// @notice Returns the implementation data for a contract name.

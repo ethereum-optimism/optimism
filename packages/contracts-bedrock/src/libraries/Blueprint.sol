@@ -91,29 +91,29 @@ library Blueprint {
 
     /// @notice Parses the code at the given `_target` as a blueprint and deploys the resulting initcode
     /// with the given `_data` appended, i.e. `_data` is the ABI-encoded constructor arguments.
-    function deployFrom(address _target, bytes32 _salt, bytes memory _data) internal returns (address newContract) {
+    function deployFrom(address _target, bytes32 _salt, bytes memory _data) internal returns (address newContract_) {
         Preamble memory preamble = parseBlueprintPreamble(address(_target).code);
         if (preamble.ercVersion != 0) revert UnsupportedERCVersion(preamble.ercVersion);
         if (preamble.preambleData.length != 0) revert UnexpectedPreambleData();
 
         bytes memory initcode = bytes.concat(preamble.initcode, _data);
         assembly ("memory-safe") {
-            newContract := create2(0, add(initcode, 0x20), mload(initcode), _salt)
+            newContract_ := create2(0, add(initcode, 0x20), mload(initcode), _salt)
         }
-        if (newContract == address(0)) revert DeploymentFailed();
+        if (newContract_ == address(0)) revert DeploymentFailed();
     }
 
     /// @notice Parses the code at the given `_target` as a blueprint and deploys the resulting initcode.
-    function deployFrom(address _target, bytes32 _salt) internal returns (address newContract) {
+    function deployFrom(address _target, bytes32 _salt) internal returns (address) {
         return deployFrom(_target, _salt, new bytes(0));
     }
 
     /// @notice Convert a bytes array to a uint256.
-    function bytesToUint(bytes memory b) internal pure returns (uint256) {
-        if (b.length > 32) revert BytesArrayTooLong();
+    function bytesToUint(bytes memory _b) internal pure returns (uint256) {
+        if (_b.length > 32) revert BytesArrayTooLong();
         uint256 number;
-        for (uint256 i = 0; i < b.length; i++) {
-            number = number + uint256(uint8(b[i])) * (2 ** (8 * (b.length - (i + 1))));
+        for (uint256 i = 0; i < _b.length; i++) {
+            number = number + uint256(uint8(_b[i])) * (2 ** (8 * (_b.length - (i + 1))));
         }
         return number;
     }

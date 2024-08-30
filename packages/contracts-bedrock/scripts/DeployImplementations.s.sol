@@ -449,10 +449,10 @@ contract DeployImplementations is Script {
         dso_ = DeployImplementationsOutput(DeployUtils.toIOAddress(msg.sender, "optimism.DeployImplementationsOutput"));
     }
 
-    function deployBytecode(bytes memory bytecode, bytes32 salt) public returns (address newContract) {
+    function deployBytecode(bytes memory _bytecode, bytes32 _salt) public returns (address newContract_) {
         assembly ("memory-safe") {
-            newContract := create2(0, add(bytecode, 0x20), mload(bytecode), salt)
+            newContract_ := create2(0, add(_bytecode, 0x20), mload(_bytecode), _salt)
         }
-        require(newContract != address(0), "DeployImplementations: create2 failed");
+        require(newContract_ != address(0), "DeployImplementations: create2 failed");
     }
 }
