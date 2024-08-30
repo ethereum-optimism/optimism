@@ -632,7 +632,6 @@ contract MIPS2 is ISemver {
     }
 
     function outputThreadState(ThreadState memory _thread) internal pure returns (bytes32 out_) {
-        uint32 exited;
         assembly {
             // copies 'size' bytes, right-aligned in word at 'from', to 'to', incl. trailing data
             function copyMem(from, to, size) -> fromOut, toOut {
@@ -651,7 +650,6 @@ contract MIPS2 is ISemver {
             // Copy state to free memory
             from, to := copyMem(from, to, 4) // threadID
             from, to := copyMem(from, to, 1) // exitCode
-            exited := mload(from)
             from, to := copyMem(from, to, 1) // exited
             from, to := copyMem(from, to, 4) // futexAddr
             from, to := copyMem(from, to, 4) // futexVal
@@ -670,8 +668,6 @@ contract MIPS2 is ISemver {
             // Compute the hash of the resulting ThreadState
             out_ := keccak256(start, sub(to, start))
         }
-
-        st.assertExitedIsValid(exited);
     }
 
     function getCpuScalars(ThreadState memory _tc) internal pure returns (st.CpuScalars memory cpu_) {
@@ -701,7 +697,6 @@ contract MIPS2 is ISemver {
         // verify we have enough calldata
         require(s >= (THREAD_PROOF_OFFSET + 166), "insufficient calldata for thread witness");
 
-        uint32 exited;
         unchecked {
             assembly {
                 function putField(callOffset, memOffset, size) -> callOffsetOut, memOffsetOut {
@@ -717,7 +712,6 @@ contract MIPS2 is ISemver {
                 c, m := putField(c, m, 4) // threadID
                 c, m := putField(c, m, 1) // exitCode
                 c, m := putField(c, m, 1) // exited
-                exited := mload(sub(m, 32))
                 c, m := putField(c, m, 4) // futexAddr
                 c, m := putField(c, m, 4) // futexVal
                 c, m := putField(c, m, 8) // futexTimeoutStep
@@ -730,7 +724,6 @@ contract MIPS2 is ISemver {
                 for { let i := 0 } lt(i, 32) { i := add(i, 1) } { c, m := putField(c, m, 4) }
             }
         }
-        st.assertExitedIsValid(exited);
     }
 
     /// @notice Loads the inner root for the current thread hash onion from calldata.

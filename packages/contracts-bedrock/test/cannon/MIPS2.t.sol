@@ -221,36 +221,6 @@ contract MIPS2_Test is CommonTest {
         mips.step(stateData, proofData, 0);
     }
 
-    /// @notice Tests that the mips step function fails when the value of the exited field on the thread witness is
-    ///         invalid (anything greater than 1).
-    /// @param _exited Value to set the exited field to.
-    function testFuzz_step_invalidExitedValueInThread_fails(uint8 _exited) external {
-        // Make sure the value of _exited is invalid.
-        _exited = uint8(bound(uint256(_exited), 2, type(uint8).max));
-
-        // Set up state with exited thread
-        uint32 insn = encodespec(17, 18, 8, 0x20); // Arbitrary instruction: add t0, s1, s2
-        (MIPS2.State memory state, MIPS2.ThreadState memory thread, bytes memory memProof) =
-            constructMIPSState(0, insn, 0x4, 0);
-        thread.exited = true;
-        thread.exitCode = uint8(1);
-        updateThreadStacks(state, thread);
-
-        // Set up step data
-        bytes memory stateData = encodeState(state);
-        bytes memory threadWitness = abi.encodePacked(encodeThread(thread), EMPTY_THREAD_ROOT);
-        bytes memory proofData = bytes.concat(threadWitness, memProof);
-        assembly {
-            // Manipulate threadWitness to contain invalid exited value
-            // Push offset by an additional 32 bytes (0x20) to account for length prefix
-            mstore8(add(add(proofData, 0x20), 5), _exited)
-        }
-
-        // Call the step function and expect a revert.
-        vm.expectRevert(InvalidExitedValue.selector);
-        mips.step(stateData, proofData, 0);
-    }
-
     function test_invalidThreadWitness_reverts() public {
         MIPS2.State memory state;
         MIPS2.ThreadState memory thread;
