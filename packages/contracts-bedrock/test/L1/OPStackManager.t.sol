@@ -14,9 +14,10 @@ import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
 contract OPStackManager_Harness is OPStackManager {
     constructor(
         SuperchainConfig _superchainConfig,
-        ProtocolVersions _protocolVersions
+        ProtocolVersions _protocolVersions,
+        Blueprints memory _blueprints
     )
-        OPStackManager(_superchainConfig, _protocolVersions)
+        OPStackManager(_superchainConfig, _protocolVersions, _blueprints)
     { }
 
     function chainIdToBatchInboxAddress_exposed(uint256 l2ChainId) public pure returns (address) {
@@ -77,7 +78,14 @@ contract OPStackManager_InternalMethods_Test is Test {
     function setUp() public {
         opsmHarness = new OPStackManager_Harness({
             _superchainConfig: SuperchainConfig(makeAddr("superchainConfig")),
-            _protocolVersions: ProtocolVersions(makeAddr("protocolVersions"))
+            _protocolVersions: ProtocolVersions(makeAddr("protocolVersions")),
+            _blueprints: OPStackManager.Blueprints({
+                addressManager: makeAddr("addressManager"),
+                proxy: makeAddr("proxy"),
+                proxyAdmin: makeAddr("proxyAdmin"),
+                l1ChugSplashProxy: makeAddr("l1ChugSplashProxy"),
+                resolvedDelegateProxy: makeAddr("resolvedDelegateProxy")
+            })
         });
     }
 

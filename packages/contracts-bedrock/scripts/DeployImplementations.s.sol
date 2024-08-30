@@ -3,6 +3,12 @@ pragma solidity 0.8.15;
 
 import { Script } from "forge-std/Script.sol";
 
+import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
+import { Proxy } from "src/universal/Proxy.sol";
+import { L1ChugSplashProxy } from "src/legacy/L1ChugSplashProxy.sol";
+import { ResolvedDelegateProxy } from "src/legacy/ResolvedDelegateProxy.sol";
+import { AddressManager } from "src/legacy/AddressManager.sol";
+
 import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
 import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
@@ -17,6 +23,8 @@ import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
+
+import { Blueprint } from "src/libraries/Blueprint.sol";
 
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
@@ -259,13 +267,30 @@ contract DeployImplementations is Script {
     // -------- Deployment Steps --------
 
     function deployOPStackManager(DeployImplementationsInput _dsi, DeployImplementationsOutput _dso) public {
+        // First we deploy the blueprints for the singletons deployed by OPSM.
+        // forgefmt: disable-start
+        bytes32 salt = bytes32(0);
+        OPStackManager.Blueprints memory blueprints;
+
+        vm.startBroadcast(msg.sender);
+        blueprints.addressManager = deployBytecode(Blueprint.blueprintDeployerBytecode(type(AddressManager).creationCode), salt);
+        blueprints.proxy = deployBytecode(Blueprint.blueprintDeployerBytecode(type(Proxy).creationCode), salt);
+        blueprints.proxyAdmin = deployBytecode(Blueprint.blueprintDeployerBytecode(type(ProxyAdmin).creationCode), salt);
+        blueprints.l1ChugSplashProxy = deployBytecode(Blueprint.blueprintDeployerBytecode(type(L1ChugSplashProxy).creationCode), salt);
+        blueprints.resolvedDelegateProxy = deployBytecode(Blueprint.blueprintDeployerBytecode(type(ResolvedDelegateProxy).creationCode), salt);
+        vm.stopBroadcast();
+        // forgefmt: disable-end
+
         SuperchainConfig superchainConfigProxy = _dsi.superchainConfigProxy();
         ProtocolVersions protocolVersionsProxy = _dsi.protocolVersionsProxy();
         string memory release = _dsi.release();
 
         vm.broadcast(msg.sender);
-        OPStackManager opsm =
-            new OPStackManager({ _superchainConfig: superchainConfigProxy, _protocolVersions: protocolVersionsProxy });
+        OPStackManager opsm = new OPStackManager({
+            _superchainConfig: superchainConfigProxy,
+            _protocolVersions: protocolVersionsProxy,
+            _blueprints: blueprints
+        });
 
         OPStackManager.ImplementationSetter[] memory setters = new OPStackManager.ImplementationSetter[](5);
         setters[0] = OPStackManager.ImplementationSetter({
@@ -422,5 +447,12 @@ contract DeployImplementations is Script {
     function getIOContracts() public view returns (DeployImplementationsInput dsi_, DeployImplementationsOutput dso_) {
         dsi_ = DeployImplementationsInput(DeployUtils.toIOAddress(msg.sender, "optimism.DeployImplementationsInput"));
         dso_ = DeployImplementationsOutput(DeployUtils.toIOAddress(msg.sender, "optimism.DeployImplementationsOutput"));
+    }
+
+    function deployBytecode(bytes memory bytecode, bytes32 salt) public returns (address newContract) {
+        assembly ("memory-safe") {
+            newContract := create2(0, add(bytecode, 0x20), mload(bytecode), salt)
+        }
+        require(newContract != address(0), "DeployImplementations: create2 failed");
     }
 }
