@@ -82,7 +82,7 @@ func setupSequencerFailoverTest(t *testing.T) (*System, map[string]*conductor, f
 
 	// start sequencing on leader
 	lid, _ := findLeader(t, conductors)
-	unsafeHead, err := sys.Clients[lid].BlockByNumber(ctx, nil)
+	unsafeHead, err := sys.NodeClient(lid).BlockByNumber(ctx, nil)
 	require.NoError(t, err)
 	require.Equal(t, uint64(0), unsafeHead.NumberU64())
 	require.NoError(t, sys.RollupClient(lid).StartSequencer(ctx, unsafeHead.Hash()))
@@ -93,9 +93,9 @@ func setupSequencerFailoverTest(t *testing.T) (*System, map[string]*conductor, f
 	// weirdly, batcher does not submit a batch until unsafe block 9.
 	// It became normal after that and submits a batch every L1 block (2s) per configuration.
 	// Since our health monitor checks on safe head progression, wait for batcher to become normal before proceeding.
-	_, err = wait.ForNextSafeBlock(ctx, sys.Clients[Sequencer1Name])
+	_, err = wait.ForNextSafeBlock(ctx, sys.NodeClient(Sequencer1Name))
 	require.NoError(t, err)
-	_, err = wait.ForNextSafeBlock(ctx, sys.Clients[Sequencer1Name])
+	_, err = wait.ForNextSafeBlock(ctx, sys.NodeClient(Sequencer1Name))
 	require.NoError(t, err)
 
 	// make sure conductor reports all sequencers as healthy, this means they're syncing correctly.
@@ -189,8 +189,8 @@ func setupHAInfra(t *testing.T, ctx context.Context) (*System, map[string]*condu
 	}
 	for _, cfg := range conductorCfgs {
 		cfg := cfg
-		nodePRC := sys.RollupNodes[cfg.name].HTTPEndpoint()
-		engineRPC := sys.EthInstances[cfg.name].HTTPEndpoint()
+		nodePRC := sys.RollupNodes[cfg.name].UserRPC().RPC()
+		engineRPC := sys.EthInstances[cfg.name].UserRPC().RPC()
 		if conductors[cfg.name], err = setupConductor(t, cfg.name, t.TempDir(), nodePRC, engineRPC, cfg.port, cfg.bootstrap, *sys.RollupConfig); err != nil {
 			return nil, nil, err
 		}
@@ -252,6 +252,7 @@ func setupConductor(
 	if err != nil {
 		return nil, err
 	}
+	t.Cleanup(rawClient.Close)
 	client := conrpc.NewAPIClient(rawClient)
 
 	return &conductor{
@@ -277,7 +278,7 @@ func setupBatcher(t *testing.T, sys *System, conductors map[string]*conductor) {
 		conductors[Sequencer3Name].RPCEndpoint(),
 	}, ",")
 	batcherCLIConfig := &bss.CLIConfig{
-		L1EthRpc:               sys.EthInstances["l1"].WSEndpoint(),
+		L1EthRpc:               sys.EthInstances["l1"].UserRPC().RPC(),
 		L2EthRpc:               l2EthRpc,
 		RollupRpc:              rollupRpc,
 		MaxPendingTransactions: 0,
@@ -287,7 +288,7 @@ func setupBatcher(t *testing.T, sys *System, conductors map[string]*conductor) {
 		ApproxComprRatio:       0.4,
 		SubSafetyMargin:        4,
 		PollInterval:           1 * time.Second,
-		TxMgrConfig:            newTxMgrConfig(sys.EthInstances["l1"].WSEndpoint(), sys.Cfg.Secrets.Batcher),
+		TxMgrConfig:            newTxMgrConfig(sys.EthInstances["l1"].UserRPC().RPC(), sys.Cfg.Secrets.Batcher),
 		LogConfig: oplog.CLIConfig{
 			Level:  log.LevelDebug,
 			Format: oplog.FormatText,
@@ -507,7 +508,7 @@ func ensureOnlyOneLeader(t *testing.T, sys *System, conductors map[string]*condu
 }
 
 func memberIDs(membership *consensus.ClusterMembership) []string {
-	ids := make([]string, len(membership.Servers))
+	ids := make([]string, 0, len(membership.Servers))
 	for _, member := range membership.Servers {
 		ids = append(ids, member.ID)
 	}

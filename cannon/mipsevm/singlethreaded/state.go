@@ -34,13 +34,6 @@ type State struct {
 	Registers [32]uint32 `json:"registers"`
 
 	// LastHint is optional metadata, and not part of the VM state itself.
-	// It is used to remember the last pre-image hint,
-	// so a VM can start from any state without fetching prior pre-images,
-	// and instead just repeat the last hint on setup,
-	// to make sure pre-image requests can be served.
-	// The first 4 bytes are a uin32 length prefix.
-	// Warning: the hint MAY NOT BE COMPLETE. I.e. this is buffered,
-	// and should only be read when len(LastHint) > 4 && uint32(LastHint[:4]) <= len(LastHint[4:])
 	LastHint hexutil.Bytes `json:"lastHint,omitempty"`
 }
 
@@ -130,7 +123,9 @@ func (s *State) UnmarshalJSON(data []byte) error {
 
 func (s *State) GetPC() uint32 { return s.Cpu.PC }
 
-func (s *State) GetRegisters() *[32]uint32 { return &s.Registers }
+func (s *State) GetCpu() mipsevm.CpuScalars { return s.Cpu }
+
+func (s *State) GetRegistersRef() *[32]uint32 { return &s.Registers }
 
 func (s *State) GetExitCode() uint8 { return s.ExitCode }
 
@@ -138,12 +133,28 @@ func (s *State) GetExited() bool { return s.Exited }
 
 func (s *State) GetStep() uint64 { return s.Step }
 
+func (s *State) GetLastHint() hexutil.Bytes {
+	return s.LastHint
+}
+
 func (s *State) VMStatus() uint8 {
 	return mipsevm.VmStatus(s.Exited, s.ExitCode)
 }
 
 func (s *State) GetMemory() *memory.Memory {
 	return s.Memory
+}
+
+func (s *State) GetHeap() uint32 {
+	return s.Heap
+}
+
+func (s *State) GetPreimageKey() common.Hash {
+	return s.PreimageKey
+}
+
+func (s *State) GetPreimageOffset() uint32 {
+	return s.PreimageOffset
 }
 
 func (s *State) EncodeWitness() ([]byte, common.Hash) {

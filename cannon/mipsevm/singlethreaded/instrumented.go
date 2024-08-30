@@ -119,3 +119,10 @@ func (m *InstrumentedState) GetDebugInfo() *mipsevm.DebugInfo {
 func (m *InstrumentedState) Traceback() {
 	m.stackTracker.Traceback()
 }
+
+func (m *InstrumentedState) LookupSymbol(addr uint32) string {
+	if m.meta == nil {
+		return ""
+	}
+	return m.meta.LookupSymbol(addr)
+}

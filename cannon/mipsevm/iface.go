@@ -2,6 +2,7 @@ package mipsevm
 
 import (
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 )
@@ -9,11 +10,23 @@ import (
 type FPVMState interface {
 	GetMemory() *memory.Memory
 
+	// GetHeap returns the current memory address at the top of the heap
+	GetHeap() uint32
+
+	// GetPreimageKey returns the most recently accessed preimage key
+	GetPreimageKey() common.Hash
+
+	// GetPreimageOffset returns the current offset into the current preimage
+	GetPreimageOffset() uint32
+
 	// GetPC returns the currently executing program counter
 	GetPC() uint32
 
-	// GetRegisters returns the currently active registers
-	GetRegisters() *[32]uint32
+	// GetCpu returns the currently active cpu scalars, including the program counter
+	GetCpu() CpuScalars
+
+	// GetRegistersRef returns a pointer to the currently active registers
+	GetRegistersRef() *[32]uint32
 
 	// GetStep returns the current VM step
 	GetStep() uint64
@@ -23,6 +36,16 @@ type FPVMState interface {
 
 	// GetExitCode returns the exit code
 	GetExitCode() uint8
+
+	// GetLastHint returns optional metadata which is not part of the VM state itself.
+	// It is used to remember the last pre-image hint,
+	// so a VM can start from any state without fetching prior pre-images,
+	// and instead just repeat the last hint on setup,
+	// to make sure pre-image requests can be served.
+	// The first 4 bytes are a uint32 length prefix.
+	// Warning: the hint MAY NOT BE COMPLETE. I.e. this is buffered,
+	// and should only be read when len(LastHint) > 4 && uint32(LastHint[:4]) <= len(LastHint[4:])
+	GetLastHint() hexutil.Bytes
 
 	// EncodeWitness returns the witness for the current state and the state hash
 	EncodeWitness() (witness []byte, hash common.Hash)
@@ -46,4 +69,8 @@ type FPVM interface {
 
 	// GetDebugInfo returns debug information about the VM
 	GetDebugInfo() *DebugInfo
+
+	// LookupSymbol returns the symbol located at the specified address.
+	// May return an empty string if there's no symbol table available.
+	LookupSymbol(addr uint32) string
 }
