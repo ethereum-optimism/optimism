@@ -92,4 +92,7 @@ func TestDeriveChainFromNearL1Genesis(gt *testing.T) {
 	verifier.ActL2PipelineFull(t) // Should not get stuck in a reset loop forever
 	require.EqualValues(gt, l2BlockNum, seqEngine.l2Chain.CurrentSafeBlock().Number.Uint64())
 	require.EqualValues(gt, l2BlockNum, seqEngine.l2Chain.CurrentFinalBlock().Number.Uint64())
+	syncStatus := verifier.syncStatus.SyncStatus()
+	require.EqualValues(gt, l2BlockNum, syncStatus.SafeL2.Number)
+	require.EqualValues(gt, l2BlockNum, syncStatus.FinalizedL2.Number)
 }
