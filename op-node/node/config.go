@@ -54,8 +54,7 @@ type Config struct {
 	RuntimeConfigReloadInterval time.Duration
 
 	// Optional
-	Tracer    Tracer
-	Heartbeat HeartbeatConfig
+	Tracer Tracer
 
 	Sync sync.Config
 
@@ -104,12 +103,6 @@ func (m MetricsConfig) Check() error {
 	}
 
 	return nil
-}
-
-type HeartbeatConfig struct {
-	Enabled bool
-	Moniker string
-	URL     string
 }
 
 func (cfg *Config) LoadPersisted(log log.Logger) error {
@@ -178,4 +171,8 @@ func (cfg *Config) Check() error {
 		log.Warn("Alt-DA Mode is a Beta feature of the MIT licensed OP Stack.  While it has received initial review from core contributors, it is still undergoing testing, and may have bugs or other issues.")
 	}
 	return nil
+}
+
+func (cfg *Config) P2PEnabled() bool {
+	return cfg.P2P != nil && !cfg.P2P.Disabled()
 }

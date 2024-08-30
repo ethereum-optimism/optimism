@@ -78,7 +78,11 @@ func (h *Host) Prank(msgSender *common.Address, txOrigin *common.Address, repeat
 			return errors.New("you have an active prank; broadcasting and pranks are not compatible")
 		}
 	}
-	h.log.Warn("prank", "sender", msgSender)
+	if broadcast {
+		h.log.Debug("starting broadcast", "sender", msgSender, "repeat", repeat)
+	} else {
+		h.log.Debug("starting prank", "sender", msgSender, "repeat", repeat)
+	}
 	cf.Prank = &Prank{
 		Sender:     msgSender,
 		Origin:     txOrigin,
@@ -107,6 +111,11 @@ func (h *Host) StopPrank(broadcast bool) error {
 	}
 	if !cf.Prank.Broadcast && broadcast {
 		return errors.New("no broadcast in progress to stop")
+	}
+	if broadcast {
+		h.log.Debug("stopping broadcast")
+	} else {
+		h.log.Debug("stopping prank")
 	}
 	cf.Prank = nil
 	return nil

@@ -2,7 +2,6 @@ package testutil
 
 import (
 	"fmt"
-	"math/rand"
 	"slices"
 	"testing"
 
@@ -31,7 +30,7 @@ type StateMutator interface {
 	SetExited(val bool)
 	SetStep(val uint64)
 	SetLastHint(val hexutil.Bytes)
-	GetRegistersRef() *[32]uint32
+	Randomize(randSeed int64)
 }
 
 type StateOption func(state StateMutator)
@@ -80,36 +79,26 @@ func WithStep(step uint64) StateOption {
 
 func WithRandomization(seed int64) StateOption {
 	return func(mut StateMutator) {
-		RandomizeState(seed, mut)
+		mut.Randomize(seed)
 	}
 }
 
-func RandomizeState(seed int64, mut StateMutator) {
-	r := rand.New(rand.NewSource(seed))
-
+func AlignPC(pc uint32) uint32 {
 	// Memory-align random pc and leave room for nextPC
-	pc := r.Uint32() & 0xFF_FF_FF_FC // Align address
+	pc = pc & 0xFF_FF_FF_FC // Align address
 	if pc >= 0xFF_FF_FF_FC {
 		// Leave room to set and then increment nextPC
 		pc = 0xFF_FF_FF_FC - 8
 	}
+	return pc
+}
 
-	// Set random step, but leave room to increment
-	step := r.Uint64()
+func BoundStep(step uint64) uint64 {
+	// Leave room to increment step at least once
 	if step == ^uint64(0) {
 		step -= 1
 	}
-
-	mut.SetPreimageKey(randHash(r))
-	mut.SetPreimageOffset(r.Uint32())
-	mut.SetPC(pc)
-	mut.SetNextPC(pc + 4)
-	mut.SetHI(r.Uint32())
-	mut.SetLO(r.Uint32())
-	mut.SetHeap(r.Uint32())
-	mut.SetStep(step)
-	mut.SetLastHint(randHint(r))
-	*mut.GetRegistersRef() = *randRegisters(r)
+	return step
 }
 
 type ExpectedState struct {
@@ -128,7 +117,7 @@ type ExpectedState struct {
 	MemoryRoot     common.Hash
 }
 
-func CreateExpectedState(fromState mipsevm.FPVMState) *ExpectedState {
+func NewExpectedState(fromState mipsevm.FPVMState) *ExpectedState {
 	return &ExpectedState{
 		PreimageKey:    fromState.GetPreimageKey(),
 		PreimageOffset: fromState.GetPreimageOffset(),
@@ -175,41 +164,4 @@ func (e *ExpectedState) Validate(t testing.TB, actualState mipsevm.FPVMState, fl
 	if !slices.Contains(flags, SkipMemoryValidation) {
 		require.Equal(t, e.MemoryRoot, common.Hash(actualState.GetMemory().MerkleRoot()), fmt.Sprintf("Expect memory root = %v", e.MemoryRoot))
 	}
-}
-
-func randHash(r *rand.Rand) common.Hash {
-	var bytes [32]byte
-	_, err := r.Read(bytes[:])
-	if err != nil {
-		panic(err)
-	}
-	return bytes
-}
-
-func randHint(r *rand.Rand) []byte {
-	count := r.Intn(10)
-
-	bytes := make([]byte, count)
-	_, err := r.Read(bytes[:])
-	if err != nil {
-		panic(err)
-	}
-	return bytes
-}
-
-func randRegisters(r *rand.Rand) *[32]uint32 {
-	registers := new([32]uint32)
-	for i := 0; i < 32; i++ {
-		registers[i] = r.Uint32()
-	}
-	return registers
-}
-
-func RandomBytes(t require.TestingT, seed int64, length uint32) []byte {
-	r := rand.New(rand.NewSource(seed))
-	randBytes := make([]byte, length)
-	if _, err := r.Read(randBytes); err != nil {
-		require.NoError(t, err)
-	}
-	return randBytes
 }

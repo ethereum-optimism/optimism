@@ -148,8 +148,8 @@
     "sourceCodeHash": "0xb6e219e8c2d81d75c48a1459907609e9096fe032a7447c88cd3e0d134752ac8e"
   },
   "src/cannon/MIPS2.sol": {
-    "initCodeHash": "0xbb425bd1c3cad13a77f5c9676b577606e2f8f320687739f529b257a042f58d85",
-    "sourceCodeHash": "0xe66f19942947f53ccd658b94c1ef6db39e947419d4ec7436067c6cc44452ff73"
+    "initCodeHash": "0x36b7c32cf9eba05e6db44910a25c800b801c075f8e053eca9515c6e0e4d8a902",
+    "sourceCodeHash": "0xa307c44a2d67bc84e75f4b7341345ed236da2e63c1f3f442416f14cd262126bf"
   },
   "src/cannon/PreimageOracle.sol": {
     "initCodeHash": "0xce7a1c3265e457a05d17b6d1a2ef93c4639caac3733c9cf88bfd192eae2c5788",

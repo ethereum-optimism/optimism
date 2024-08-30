@@ -15,7 +15,6 @@ import (
 // Syscall codes
 const (
 	SysMmap       = 4090
-	SysMunmap     = 4091
 	SysBrk        = 4045
 	SysClone      = 4120
 	SysExitGroup  = 4246
@@ -32,6 +31,7 @@ const (
 
 // Noop Syscall codes
 const (
+	SysMunmap        = 4091
 	SysGetAffinity   = 4240
 	SysMadvise       = 4218
 	SysRtSigprocmask = 4195
