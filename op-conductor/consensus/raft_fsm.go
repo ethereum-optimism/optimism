@@ -29,7 +29,7 @@ func NewUnsafeHeadTracker(log log.Logger) *unsafeHeadTracker {
 
 // Apply implements raft.FSM, it applies the latest change (latest unsafe head payload) to FSM.
 func (t *unsafeHeadTracker) Apply(l *raft.Log) interface{} {
-	if l.Data == nil || len(l.Data) == 0 {
+	if len(l.Data) == 0 {
 		return fmt.Errorf("log data is nil or empty")
 	}
 
