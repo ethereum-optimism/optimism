@@ -143,6 +143,22 @@ func (m *InstrumentedState) handleSyscall() error {
 	case exec.SysOpen:
 		v0 = exec.SysErrorSignal
 		v1 = exec.MipsEBADF
+	case exec.SysClockGetTime:
+		v0 = 0
+		v1 = 0
+		// clock_gettime is used by Go guest programs for goroutine scheduling and to implement `time.Sleep` (and other sleep related operations).
+		if a0 == exec.ClockGettimeMonotonicFlag {
+			secs := uint32(m.state.Step / exec.HZ)
+			nsecs := uint32((m.state.Step % exec.HZ) * (1_000_000_000 / exec.HZ))
+			effAddr := a1 & 0xFFffFFfc
+			m.memoryTracker.TrackMemAccess(effAddr)
+			m.state.Memory.SetMemory(effAddr, secs)
+			m.memoryTracker.TrackMemAccess2(effAddr + 4)
+			m.state.Memory.SetMemory(effAddr+4, nsecs)
+		}
+	case exec.SysGetpid:
+		v0 = 0
+		v1 = 0
 	case exec.SysMunmap:
 	case exec.SysGetAffinity:
 	case exec.SysMadvise:
@@ -173,7 +189,6 @@ func (m *InstrumentedState) handleSyscall() error {
 	case exec.SysTimerCreate:
 	case exec.SysTimerSetTime:
 	case exec.SysTimerDelete:
-	case exec.SysClockGetTime:
 	default:
 		m.Traceback()
 		panic(fmt.Sprintf("unrecognized syscall: %d", syscallNum))

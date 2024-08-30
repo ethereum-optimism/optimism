@@ -54,26 +54,42 @@ func TestInstrumentedState_MultithreadedProgram(t *testing.T) {
 }
 
 func TestInstrumentedState_Alloc(t *testing.T) {
-	t.Skip("TODO(client-pod#906): Currently failing - need to debug.")
+	const maxMemoryUsageCheck = 512 * 1024 * 1024 // 512 MiB
 
-	state, _ := testutil.LoadELFProgram(t, "../../testdata/example/bin/alloc.elf", CreateInitialState, false)
-	const numAllocs = 100 // where each alloc is a 32 MiB chunk
-	oracle := testutil.AllocOracle(t, numAllocs)
-
-	// completes in ~870 M steps
-	us := NewInstrumentedState(state, oracle, os.Stdout, os.Stderr, testutil.CreateLogger())
-	for i := 0; i < 20_000_000_000; i++ {
-		if us.GetState().GetExited() {
-			break
-		}
-		_, err := us.Step(false)
-		require.NoError(t, err)
-		if state.Step%10_000_000 == 0 {
-			t.Logf("Completed %d steps", state.Step)
-		}
+	cases := []struct {
+		name      string
+		numAllocs int
+		allocSize int
+	}{
+		{name: "100 32MiB allocations", numAllocs: 100, allocSize: 32 * 1024 * 1024},
+		{name: "50 64MiB allocations", numAllocs: 50, allocSize: 64 * 1024 * 1024},
+		{name: "10 128MiB allocations", numAllocs: 10, allocSize: 128 * 1024 * 1024},
 	}
-	t.Logf("Completed in %d steps", state.Step)
-	require.True(t, state.Exited, "must complete program")
-	require.Equal(t, uint8(0), state.ExitCode, "exit with 0")
-	require.Less(t, state.Memory.PageCount()*memory.PageSize, 1*1024*1024*1024, "must not allocate more than 1 GiB")
+
+	for _, test := range cases {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			state, _ := testutil.LoadELFProgram(t, "../../testdata/example/bin/alloc.elf", CreateInitialState, false)
+			oracle := testutil.AllocOracle(t, test.numAllocs, test.allocSize)
+
+			us := NewInstrumentedState(state, oracle, os.Stdout, os.Stderr, testutil.CreateLogger())
+			// emulation shouldn't take more than 20 B steps
+			for i := 0; i < 20_000_000_000; i++ {
+				if us.GetState().GetExited() {
+					break
+				}
+				_, err := us.Step(false)
+				require.NoError(t, err)
+				if state.Step%10_000_000 == 0 {
+					t.Logf("Completed %d steps", state.Step)
+				}
+			}
+			memUsage := state.Memory.PageCount() * memory.PageSize
+			t.Logf("Completed in %d steps. cannon memory usage: %d KiB", state.Step, memUsage/1024/1024.0)
+			require.True(t, state.Exited, "must complete program")
+			require.Equal(t, uint8(0), state.ExitCode, "exit with 0")
+			require.Less(t, memUsage, maxMemoryUsageCheck, "memory allocation is too large")
+		})
+	}
 }
