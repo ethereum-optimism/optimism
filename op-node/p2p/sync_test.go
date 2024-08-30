@@ -356,9 +356,16 @@ func TestNetworkNotifyAddPeerAndRemovePeer(t *testing.T) {
 	require.NoError(t, err, "failed to launch host B")
 	defer hostB.Close()
 
-	syncCl := NewSyncClient(log, cfg, hostA, func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayloadEnvelope) error {
-		return nil
-	}, metrics.NoopMetrics, &NoopApplicationScorer{})
+	syncCl := NewSyncClient(
+		log,
+		cfg,
+		hostA,
+		receivePayloadFn(func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayloadEnvelope) error {
+			return nil
+		}),
+		metrics.NoopMetrics,
+		&NoopApplicationScorer{},
+	)
 
 	waitChan := make(chan struct{}, 1)
 	hostA.Network().Notify(&network.NotifyBundle{

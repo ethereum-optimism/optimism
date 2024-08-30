@@ -26,7 +26,7 @@ import (
 
 type gossipNoop struct{}
 
-func (g *gossipNoop) OnUnsafeL2Payload(_ context.Context, _ peer.ID, _ *eth.ExecutionPayloadEnvelope) error {
+func (g *gossipNoop) OnUnsafeL2Payload(_ context.Context, _ peer.ID, _ *eth.ExecutionPayloadEnvelope, _ p2p.PayloadSource) error {
 	return nil
 }
 

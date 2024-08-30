@@ -57,7 +57,7 @@ func NewNodeP2P(
 	rollupCfg *rollup.Config,
 	log log.Logger,
 	setup SetupP2P,
-	gossipIn GossipIn,
+	gossipIn L2PayloadIn,
 	l2Chain L2Chain,
 	runCfg GossipRuntimeConfig,
 	metrics metrics.Metricer,
@@ -85,7 +85,7 @@ func (n *NodeP2P) init(
 	rollupCfg *rollup.Config,
 	log log.Logger,
 	setup SetupP2P,
-	gossipIn GossipIn,
+	gossipIn L2PayloadIn,
 	l2Chain L2Chain,
 	runCfg GossipRuntimeConfig,
 	metrics metrics.Metricer,
@@ -126,7 +126,7 @@ func (n *NodeP2P) init(
 		}
 		// Activate the P2P req-resp sync if enabled by feature-flag.
 		if setup.ReqRespSyncEnabled() && !elSyncEnabled {
-			n.syncCl = NewSyncClient(log, rollupCfg, n.host, gossipIn.OnUnsafeL2Payload, metrics, n.appScorer)
+			n.syncCl = NewSyncClient(log, rollupCfg, n.host, gossipIn, metrics, n.appScorer)
 			n.host.Network().Notify(&network.NotifyBundle{
 				ConnectedF: func(nw network.Network, conn network.Conn) {
 					n.syncCl.AddPeer(conn.RemotePeer())

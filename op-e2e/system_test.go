@@ -821,7 +821,7 @@ func linkAndConnectNodeNamesNodes(t *testing.T, mocknet mocknet.Mocknet, a, b st
 type syncerType struct {
 	// The node name. Not sure how to access this just from the node...
 	name           string
-	syncedPayloads []string
+	syncedPayloads map[p2p.PayloadSource][]string
 	h              host.Host
 	node           *rollupNode.OpNode
 	l2Verif        *ethclient.Client
@@ -857,8 +857,9 @@ func makeSyncer(ctx context.Context, t *testing.T, name string, cfg SystemConfig
 		L1EpochPollInterval: time.Second * 10,
 		// TODO: Make sure these are from alt sync.
 		Tracer: &FnTracer{
-			OnUnsafeL2PayloadFn: func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayloadEnvelope) {
-				syncer.syncedPayloads = append(syncer.syncedPayloads, payload.ExecutionPayload.ID().String())
+			L2PayloadInFunc: func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayloadEnvelope, source p2p.PayloadSource) error {
+				syncer.syncedPayloads[source] = append(syncer.syncedPayloads[source], payload.ExecutionPayload.ID().String())
+				return nil
 			},
 		},
 	}

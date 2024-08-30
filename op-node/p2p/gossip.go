@@ -446,8 +446,12 @@ func verifyBlockSignature(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 	return pubsub.ValidationAccept
 }
 
-type GossipIn interface {
-	OnUnsafeL2Payload(ctx context.Context, from peer.ID, msg *eth.ExecutionPayloadEnvelope) error
+type PayloadSource string
+
+type L2PayloadInFunc func(ctx context.Context, from peer.ID, msg *eth.ExecutionPayloadEnvelope, _ PayloadSource) error
+
+type L2PayloadIn interface {
+	OnUnsafeL2Payload(ctx context.Context, from peer.ID, msg *eth.ExecutionPayloadEnvelope, _ PayloadSource) error
 }
 
 type GossipTopicInfo interface {
@@ -581,7 +585,7 @@ func JoinGossip(
 	log log.Logger,
 	cfg *rollup.Config,
 	runCfg GossipRuntimeConfig,
-	gossipIn GossipIn,
+	gossipIn L2PayloadIn,
 ) (GossipOut, error) {
 	p2pCtx, p2pCancel := context.WithCancel(context.Background())
 
@@ -620,7 +624,14 @@ func JoinGossip(
 	}, nil
 }
 
-func newBlockTopic(ctx context.Context, topicId string, ps *pubsub.PubSub, log log.Logger, gossipIn GossipIn, validator pubsub.ValidatorEx) (*blockTopic, error) {
+func newBlockTopic(
+	ctx context.Context,
+	topicId string,
+	ps *pubsub.PubSub,
+	log log.Logger,
+	l2payloadIn L2PayloadIn,
+	validator pubsub.ValidatorEx,
+) (*blockTopic, error) {
 	err := ps.RegisterTopicValidator(topicId,
 		validator,
 		pubsub.WithValidatorTimeout(3*time.Second),
@@ -648,7 +659,7 @@ func newBlockTopic(ctx context.Context, topicId string, ps *pubsub.PubSub, log l
 		return nil, fmt.Errorf("failed to subscribe to blocks gossip topic: %w", err)
 	}
 
-	subscriber := MakeSubscriber(log, BlocksHandler(gossipIn.OnUnsafeL2Payload))
+	subscriber := MakeSubscriber(log, BlocksHandler(l2payloadIn.OnUnsafeL2Payload))
 	go subscriber(ctx, subscription)
 
 	return &blockTopic{
@@ -661,13 +672,13 @@ func newBlockTopic(ctx context.Context, topicId string, ps *pubsub.PubSub, log l
 type TopicSubscriber func(ctx context.Context, sub *pubsub.Subscription)
 type MessageHandler func(ctx context.Context, from peer.ID, msg any) error
 
-func BlocksHandler(onBlock func(ctx context.Context, from peer.ID, msg *eth.ExecutionPayloadEnvelope) error) MessageHandler {
+func BlocksHandler(onBlock L2PayloadInFunc) MessageHandler {
 	return func(ctx context.Context, from peer.ID, msg any) error {
 		payload, ok := msg.(*eth.ExecutionPayloadEnvelope)
 		if !ok {
 			return fmt.Errorf("expected topic validator to parse and validate data into execution payload, but got %T", msg)
 		}
-		return onBlock(ctx, from, payload)
+		return onBlock(ctx, from, payload, "gossip")
 	}
 }
 

@@ -103,6 +103,10 @@ type newStreamFn func(ctx context.Context, peerId peer.ID, protocolId ...protoco
 
 type receivePayloadFn func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayloadEnvelope) error
 
+func (r receivePayloadFn) OnUnsafeL2Payload(ctx context.Context, from peer.ID, msg *eth.ExecutionPayloadEnvelope, _ PayloadSource) error {
+	return r(ctx, from, msg)
+}
+
 type rangeRequest struct {
 	start uint64
 	end   eth.L2BlockRef
@@ -272,7 +276,7 @@ type SyncClient struct {
 
 	results chan syncResult
 
-	receivePayload receivePayloadFn
+	receivePayload L2PayloadIn
 
 	// Global rate limiter for all peers.
 	globalRL *rate.Limiter
@@ -296,7 +300,7 @@ func NewSyncClient(
 	log log.Logger,
 	cfg *rollup.Config,
 	host HostNewStream,
-	rcv receivePayloadFn,
+	rcv L2PayloadIn,
 	metrics SyncClientMetrics,
 	appScorer SyncPeerScorer,
 ) *SyncClient {
@@ -523,7 +527,7 @@ func (s *SyncClient) promote(ctx context.Context, res syncResult) {
 	s.log.Debug("promoting p2p sync result", "payload", res.payload.ExecutionPayload.ID(), "peer", res.peer)
 
 	blockNumber := blockNumber(res.payload.ExecutionPayload.BlockNumber)
-	if err := s.receivePayload(ctx, res.peer, res.payload); err != nil {
+	if err := s.receivePayload.OnUnsafeL2Payload(ctx, res.peer, res.payload, "altsync"); err != nil {
 		s.log.Warn("failed to promote payload, receiver error", "err", err)
 		s.blockFailed(blockNumber)
 		return
@@ -813,7 +817,7 @@ func (s *syncClientPeer) doRequest(ctx context.Context, id peer.ID, expectedBloc
 	select {
 	case s.results <- syncResult{payload: envelope, peer: id}:
 	case <-ctx.Done():
-		return fmt.Errorf("failed to process response, sync client is too busy: %w", err)
+		return fmt.Errorf("failed to process response, sync client is too busy: %w", context.Cause(ctx))
 	}
 	return nil
 }
@@ -929,6 +933,7 @@ func (srv *ReqRespServer) HandleSyncRequest(ctx context.Context, log log.Logger,
 	req, err := srv.handleSyncRequest(ctx, stream)
 	cancel()
 
+	// Doesn't look like rate limiting gets special treatment.
 	resultCode := ResultCodeSuccess
 	if err != nil {
 		log.Warn("failed to serve p2p sync request", "req", req, "err", err)

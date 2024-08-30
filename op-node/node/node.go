@@ -84,7 +84,7 @@ type OpNode struct {
 }
 
 // The OpNode handles incoming gossip
-var _ p2p.GossipIn = (*OpNode)(nil)
+var _ p2p.L2PayloadIn = (*OpNode)(nil)
 
 // New creates a new OpNode instance.
 // The provided ctx argument is for the span of initialization only;
@@ -589,13 +589,21 @@ func (n *OpNode) PublishL2Payload(ctx context.Context, envelope *eth.ExecutionPa
 	return nil
 }
 
-func (n *OpNode) OnUnsafeL2Payload(ctx context.Context, from peer.ID, envelope *eth.ExecutionPayloadEnvelope) error {
+func (n *OpNode) OnUnsafeL2Payload(
+	ctx context.Context,
+	from peer.ID,
+	envelope *eth.ExecutionPayloadEnvelope,
+	source p2p.PayloadSource,
+) error {
 	// ignore if it's from ourselves
 	if n.p2pNode != nil && from == n.p2pNode.Host().ID() {
 		return nil
 	}
 
-	n.tracer.OnUnsafeL2Payload(ctx, from, envelope)
+	err := n.tracer.OnUnsafeL2Payload(ctx, from, envelope, source)
+	if err != nil {
+		n.log.Warn("error notifying tracer of unsafe l2 payload", "err", err)
+	}
 
 	n.log.Info("Received signed execution payload from p2p", "id", envelope.ExecutionPayload.ID(), "peer", from,
 		"txs", len(envelope.ExecutionPayload.Transactions))
