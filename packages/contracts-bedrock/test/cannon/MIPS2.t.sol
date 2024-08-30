@@ -1135,6 +1135,103 @@ contract MIPS2_Test is CommonTest {
         assertEq(postState, outputState(expect), "unexpected post state");
     }
 
+    function test_mmap_succeeds_simple() external {
+        uint32 insn = 0x0000000c; // syscall
+        (MIPS2.State memory state, MIPS2.ThreadState memory thread, bytes memory memProof) =
+            constructMIPSState(0, insn, 0x4, 0);
+
+        state.heap = 4096;
+        thread.nextPC = 4;
+        thread.registers[2] = sys.SYS_MMAP; // syscall num
+        thread.registers[4] = 0x0; // a0
+        thread.registers[5] = 4095; // a1
+        updateThreadStacks(state, thread);
+
+        // Set up step data
+        bytes memory threadWitness = abi.encodePacked(encodeThread(thread), EMPTY_THREAD_ROOT);
+        bytes memory encodedState = encodeState(state);
+
+        MIPS2.State memory expect = copyState(state);
+        MIPS2.ThreadState memory expectThread = copyThread(thread);
+        expect.memRoot = state.memRoot;
+        expect.step = state.step + 1;
+        expect.stepsSinceLastContextSwitch = state.stepsSinceLastContextSwitch + 1;
+        expect.heap = state.heap + 4096;
+        expectThread.pc = thread.nextPC;
+        expectThread.nextPC = thread.nextPC + 4;
+        expectThread.registers[2] = state.heap; // return old heap
+        expectThread.registers[7] = 0; // No error
+        updateThreadStacks(expect, expectThread);
+
+        bytes32 postState = mips.step(encodedState, bytes.concat(threadWitness, memProof), 0);
+        assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    function test_mmap_succeeds_justWithinMemLimit() external {
+        uint32 insn = 0x0000000c; // syscall
+        (MIPS2.State memory state, MIPS2.ThreadState memory thread, bytes memory memProof) =
+            constructMIPSState(0, insn, 0x4, 0);
+
+        state.heap = sys.HEAP_END - 4096; // Set up to increase heap to its limit
+        thread.nextPC = 4;
+        thread.registers[2] = sys.SYS_MMAP; // syscall num
+        thread.registers[4] = 0x0; // a0
+        thread.registers[5] = 4095; // a1
+        updateThreadStacks(state, thread);
+
+        // Set up step data
+        bytes memory threadWitness = abi.encodePacked(encodeThread(thread), EMPTY_THREAD_ROOT);
+        bytes memory encodedState = encodeState(state);
+
+        MIPS2.State memory expect = copyState(state);
+        MIPS2.ThreadState memory expectThread = copyThread(thread);
+        expect.memRoot = state.memRoot;
+        expect.step += 1;
+        expect.stepsSinceLastContextSwitch += 1;
+        expect.heap = sys.HEAP_END;
+        expectThread.pc = thread.nextPC;
+        expectThread.nextPC = thread.nextPC + 4;
+        expectThread.registers[2] = state.heap; // Return the old heap value
+        expectThread.registers[7] = 0; // No error
+        updateThreadStacks(expect, expectThread);
+
+        bytes32 postState = mips.step(encodedState, bytes.concat(threadWitness, memProof), 0);
+        assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    function test_mmap_fails() external {
+        uint32 insn = 0x0000000c; // syscall
+        (MIPS2.State memory state, MIPS2.ThreadState memory thread, bytes memory memProof) =
+            constructMIPSState(0, insn, 0x4, 0);
+
+        state.heap = sys.HEAP_END - 4096; // Set up to increase heap beyond its limit
+        thread.nextPC = 4;
+        thread.registers[2] = sys.SYS_MMAP; // syscall num
+        thread.registers[4] = 0x0; // a0
+        thread.registers[5] = 4097; // a1
+        updateThreadStacks(state, thread);
+
+        // Set up step data
+        bytes memory threadWitness = abi.encodePacked(encodeThread(thread), EMPTY_THREAD_ROOT);
+        bytes memory encodedState = encodeState(state);
+
+        MIPS2.State memory expect = copyState(state);
+        MIPS2.ThreadState memory expectThread = copyThread(thread);
+        expect.memRoot = state.memRoot;
+        expect.step += 1;
+        expect.stepsSinceLastContextSwitch += 1;
+        expectThread.pc = thread.nextPC;
+        expectThread.nextPC = thread.nextPC + 4;
+        expectThread.registers[2] = sys.SYS_ERROR_SIGNAL; // signal an stdError
+        expectThread.registers[7] = sys.EINVAL; // Return error value
+        expectThread.registers[4] = thread.registers[4]; // a0
+        expectThread.registers[5] = thread.registers[5]; // a1
+        updateThreadStacks(expect, expectThread);
+
+        bytes32 postState = mips.step(encodedState, bytes.concat(threadWitness, memProof), 0);
+        assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
     function test_add_succeeds() public {
         uint32 insn = encodespec(17, 18, 8, 0x20); // add t0, s1, s2
         (MIPS2.State memory state, MIPS2.ThreadState memory thread, bytes memory memProof) =
@@ -2234,8 +2331,11 @@ contract MIPS2_Test is CommonTest {
         }
     }
 
-    function outputState(MIPS2.State memory state) internal pure returns (bytes32 out_) {
+    event ExpectedOutputState(bytes encoded, MIPS2.State state);
+
+    function outputState(MIPS2.State memory state) internal returns (bytes32 out_) {
         bytes memory enc = encodeState(state);
+        emit ExpectedOutputState(enc, state);
         VMStatus status = vmStatus(state);
         out_ = keccak256(enc);
         assembly {
