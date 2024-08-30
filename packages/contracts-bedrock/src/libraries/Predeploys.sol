@@ -101,6 +101,10 @@ library Predeploys {
     /// @notice Address of the OptimismSuperchainERC20Beacon predeploy.
     address internal constant OPTIMISM_SUPERCHAIN_ERC20_BEACON = 0x4200000000000000000000000000000000000027;
 
+    // TODO: Precalculate the address of the implementation contract
+    /// @notice Arbitrary address of the OptimismSuperchainERC20 implementation contract.
+    address internal constant OPTIMISM_SUPERCHAIN_ERC20 = 0xB9415c6cA93bdC545D4c5177512FCC22EFa38F28;
+
     /// @notice Returns the name of the predeploy at the given address.
     function getName(address _addr) internal pure returns (string memory out_) {
         require(isPredeployNamespace(_addr), "Predeploys: address must be a predeploy");
