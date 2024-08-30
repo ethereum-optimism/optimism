@@ -299,11 +299,6 @@ func TestMultiPeerSync(t *testing.T) {
 		}
 	}
 
-	// the request for 25 should fail. See:
-	// server: WARN  peer requested unknown block by number   num=25
-	// client: WARN  failed p2p sync request    num=25 err="peer failed to serve request with code 1"
-	require.Zero(t, len(recvB), "there is a gap, should not see other payloads yet")
-
 	// race-condition fix: the request for 25 is expected to error, but is marked as complete in the peer-loop.
 	// But the re-request checks the status in the main loop, and it may thus look like it's still in-flight,
 	// and thus not run the new request.

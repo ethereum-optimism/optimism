@@ -267,6 +267,7 @@ type SyncClient struct {
 	startBlockNumber  blockNumber
 	wanted            map[blockNumber]*wantedBlock
 	requestBlocksCond chansync.BroadcastCond
+	results           chan syncResult
 
 	receivePayload L2PayloadIn
 
@@ -299,6 +300,7 @@ func NewSyncClient(
 	ctx, cancel := context.WithCancel(context.Background())
 
 	c := &SyncClient{
+		results:         make(chan syncResult, 128),
 		log:             log,
 		cfg:             cfg,
 		metrics:         metrics,
@@ -393,23 +395,37 @@ const (
 
 func (s *SyncClient) mainLoop() {
 	defer s.wg.Done()
-	<-s.resCtx.Done()
-	s.log.Info("stopped P2P req-resp L2 block sync client")
+	for {
+		select {
+		// This is tricky because it can be recursive, and shouldn't block the result submitter.
+		// Additionally, the payloads can be large.
+		case res := <-s.results:
+			fmt.Printf("got sync result %d\n", res.payload.ExecutionPayload.BlockNumber)
+			ctx, cancel := context.WithTimeout(s.resCtx, maxResultProcessing)
+			s.onResult(ctx, res)
+			cancel()
+		case <-s.resCtx.Done():
+			s.log.Info("stopped P2P req-resp L2 block sync client")
+			return
+		}
+	}
 }
 
-func (s *SyncClient) isInFlight(ctx context.Context, num uint64) (bool, error) {
-	check := inFlightCheck{num: num, result: make(chan bool, 1)}
-	select {
-	case s.inFlightChecks <- check:
-	case <-ctx.Done():
-		return false, errors.New("context cancelled when publishing in flight check")
+func (s *SyncClient) isInFlight(ctx context.Context, num blockNumber) (inFlight bool, _ error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	wanted := s.getWantedBlock(num)
+	if wanted == nil {
+		return
 	}
 	select {
-	case res := <-check.result:
-		return res, nil
-	case <-ctx.Done():
-		return false, errors.New("context cancelled while waiting for in flight check response")
+	default:
+		return
+	case <-wanted.quarantined.On():
+	case <-wanted.done.Done():
 	}
+	inFlight = true
+	return
 }
 
 // go-ethereum should expose a method for this.
@@ -498,6 +514,7 @@ func (s *SyncClient) promote(ctx context.Context, res syncResult) {
 	blockNumber := blockNumber(res.payload.ExecutionPayload.BlockNumber)
 	if err := s.receivePayload.OnUnsafeL2Payload(ctx, res.peer, res.payload, PayloadSourceAltSync); err != nil {
 		s.log.Warn("failed to promote payload, receiver error", "err", err)
+		// Should we eject from quarantine here so we can refetch maybe?
 		s.blockFailed(blockNumber)
 		return
 	}
@@ -529,9 +546,7 @@ func (s *SyncClient) promote(ctx context.Context, res syncResult) {
 func (s *SyncClient) onResult(ctx context.Context, res syncResult) {
 	payload := res.payload.ExecutionPayload
 	s.log.Debug("processing p2p sync result", "payload", payload.ID(), "peer", res.peer)
-	// Clean up the in-flight request, we have a result now.
 	blockNum := blockNumber(payload.BlockNumber)
-	s.inFlight.delete(blockNum)
 	// Always put it in quarantine first. If promotion fails because the receiver is too busy, this functions as cache.
 	s.mu.Lock()
 	s.quarantine.Add(payload.BlockHash, res)
@@ -1042,7 +1057,7 @@ func (me *SyncClient) gotBlockNumber(num blockNumber) {
 
 func (me *SyncClient) blockFailed(num blockNumber) {
 	if getWantedForBlockNumber(num, me.wanted) != nil {
-		me.blockFailedCond.Broadcast()
+		//me.blockFailedCond.Broadcast()
 	}
 }
 
