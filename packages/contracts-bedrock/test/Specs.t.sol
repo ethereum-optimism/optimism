@@ -831,6 +831,17 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "OPStackManager", _sel: OPStackManager.deploy.selector });
         _addSpec({ _name: "OPStackManager", _sel: OPStackManager.blueprints.selector });
 
+        // OPStackManagerInterop
+        _addSpec({ _name: "OPStackManagerInterop", _sel: _getSel("version()") });
+        _addSpec({ _name: "OPStackManagerInterop", _sel: _getSel("superchainConfig()") });
+        _addSpec({ _name: "OPStackManagerInterop", _sel: _getSel("protocolVersions()") });
+        _addSpec({ _name: "OPStackManagerInterop", _sel: _getSel("latestRelease()") });
+        _addSpec({ _name: "OPStackManagerInterop", _sel: _getSel("implementations(string,string)") });
+        _addSpec({ _name: "OPStackManagerInterop", _sel: _getSel("systemConfigs(uint256)") });
+        _addSpec({ _name: "OPStackManagerInterop", _sel: OPStackManager.setRelease.selector });
+        _addSpec({ _name: "OPStackManagerInterop", _sel: OPStackManager.deploy.selector });
+        _addSpec({ _name: "OPStackManagerInterop", _sel: OPStackManager.blueprints.selector });
+
         // DeputyGuardianModule
         _addSpec({
             _name: "DeputyGuardianModule",
