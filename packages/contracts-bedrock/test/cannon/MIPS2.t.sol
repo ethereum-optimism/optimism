@@ -5,6 +5,7 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 import { MIPS2 } from "src/cannon/MIPS2.sol";
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
 import { MIPSSyscalls as sys } from "src/cannon/libraries/MIPSSyscalls.sol";
+import { MIPSInstructions as ins } from "src/cannon/libraries/MIPSInstructions.sol";
 import "src/dispute/lib/Types.sol";
 import { InvalidExitedValue } from "src/cannon/libraries/CannonErrors.sol";
 
@@ -1226,6 +1227,69 @@ contract MIPS2_Test is CommonTest {
         expectThread.registers[7] = sys.EINVAL; // Return error value
         expectThread.registers[4] = thread.registers[4]; // a0
         expectThread.registers[5] = thread.registers[5]; // a1
+        updateThreadStacks(expect, expectThread);
+
+        bytes32 postState = mips.step(encodedState, bytes.concat(threadWitness, memProof), 0);
+        assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    function test_srav_succeeds() external {
+        uint32 insn = encodespec(0xa, 0x9, 0x8, 7); // srav t0, t1, t2
+        (MIPS2.State memory state, MIPS2.ThreadState memory thread, bytes memory memProof) =
+            constructMIPSState(0, insn, 0x4, 0);
+        thread.registers[9] = 0xdeafbeef; // t1
+        thread.registers[10] = 12; // t2
+        updateThreadStacks(state, thread);
+
+        // Set up step data
+        bytes memory threadWitness = abi.encodePacked(encodeThread(thread), EMPTY_THREAD_ROOT);
+        bytes memory encodedState = encodeState(state);
+
+        MIPS2.State memory expect = copyState(state);
+        MIPS2.ThreadState memory expectThread = copyThread(thread);
+        expect.memRoot = state.memRoot;
+        expect.step += 1;
+        expect.stepsSinceLastContextSwitch += 1;
+        expectThread.pc = thread.nextPC;
+        expectThread.nextPC = thread.nextPC + 4;
+        expectThread.registers[8] = 0xfffdeafb; // t0
+        updateThreadStacks(expect, expectThread);
+
+        bytes32 postState = mips.step(encodedState, bytes.concat(threadWitness, memProof), 0);
+        assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    /// @notice Tests that the SRAV instruction succeeds when it includes extra bits in the shift
+    ///         amount beyond the lower 5 bits that are actually used for the shift. Extra bits
+    ///         need to be ignored but the instruction should still succeed.
+    /// @param _rs Value to set in the shift register $rs.
+    function testFuzz_srav_withExtraBits_succeeds(uint32 _rs) external {
+        // Assume
+        // Force _rs to have more than 5 bits set.
+        _rs = uint32(bound(uint256(_rs), 0x20, type(uint32).max));
+
+        uint32 insn = encodespec(0xa, 0x9, 0x8, 7); // srav t0, t1, t2
+        (MIPS2.State memory state, MIPS2.ThreadState memory thread, bytes memory memProof) =
+            constructMIPSState(0, insn, 0x4, 0);
+        thread.registers[9] = 0xdeadbeef; // t1
+        thread.registers[10] = _rs; // t2
+        updateThreadStacks(state, thread);
+
+        // Set up step data
+        bytes memory threadWitness = abi.encodePacked(encodeThread(thread), EMPTY_THREAD_ROOT);
+        bytes memory encodedState = encodeState(state);
+
+        // Calculate shamt
+        uint32 shamt = thread.registers[10] & 0x1F;
+
+        MIPS2.State memory expect = copyState(state);
+        MIPS2.ThreadState memory expectThread = copyThread(thread);
+        expect.memRoot = state.memRoot;
+        expect.step += 1;
+        expect.stepsSinceLastContextSwitch += 1;
+        expectThread.pc = thread.nextPC;
+        expectThread.nextPC = thread.nextPC + 4;
+        expectThread.registers[8] = ins.signExtend(thread.registers[9] >> shamt, 32 - shamt); // t0
         updateThreadStacks(expect, expectThread);
 
         bytes32 postState = mips.step(encodedState, bytes.concat(threadWitness, memProof), 0);
