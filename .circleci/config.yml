@@ -1471,7 +1471,7 @@ jobs:
   publish-contract-artifacts:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: medium
+    resource_class: xlarge
     steps:
       - gcp-cli/install
       - gcp-oidc-authenticate:
