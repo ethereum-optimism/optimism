@@ -104,7 +104,7 @@ func FuzzTrie() {
 	case prefixedValidKey:
 		testCase = genTrieTestCase(false)
 
-		b := make([]byte, randRange(1, 16))
+		b := make([]byte, 0, randRange(1, 16))
 		if _, err := rand.Read(b); err != nil {
 			log.Fatal("Error generating random bytes")
 		}
