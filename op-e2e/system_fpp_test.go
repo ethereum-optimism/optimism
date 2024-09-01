@@ -280,7 +280,7 @@ type FaultProofProgramTestScenario struct {
 func testFaultProofProgramScenario(t *testing.T, ctx context.Context, sys *System, s *FaultProofProgramTestScenario) {
 	// Use `os.MkdirTemp` to apply extra randomness over `t.TempDir`. This prevents the same directory from being reused
 	// across multiple test runs, which can cause issues when running tests in parallel.
-	preimageDir, err := os.MkdirTemp("", "witness-db")
+	preimageDir, err := os.MkdirTemp("", "witness-db-*")
 	require.NoError(t, err)
 
 	fppConfig := oppconf.NewConfig(sys.RollupConfig, sys.L2GenesisCfg.Config, s.L1Head, s.L2Head, s.L2OutputRoot, common.Hash(s.L2Claim), s.L2ClaimBlockNumber)

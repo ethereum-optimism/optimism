@@ -24,7 +24,7 @@ func NewDiskKV(path string) *DiskKV {
 		Cache:                    pebble.NewCache(int64(32 * 1024 * 1024)),
 		MaxConcurrentCompactions: runtime.NumCPU,
 		Levels: []pebble.LevelOptions{
-			{Compression: pebble.ZstdCompression},
+			{Compression: pebble.SnappyCompression},
 		},
 	}
 	db, err := pebble.Open(path, opts)
