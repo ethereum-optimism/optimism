@@ -3,7 +3,6 @@ package op_e2e
 import (
 	"context"
 	"math/big"
-	"os"
 	"testing"
 	"time"
 
@@ -87,6 +86,7 @@ func applySpanBatchActivation(active bool, dp *genesis.DeployConfig) {
 // - update the state root via a tx
 // - run program
 func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool, spanBatchActivated bool) {
+	t.Helper()
 	InitParallel(t)
 	ctx := context.Background()
 
@@ -187,6 +187,7 @@ func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool, spanBatchActi
 }
 
 func testVerifyL2OutputRoot(t *testing.T, detached bool, spanBatchActivated bool) {
+	t.Helper()
 	InitParallel(t)
 	ctx := context.Background()
 
@@ -278,10 +279,7 @@ type FaultProofProgramTestScenario struct {
 
 // testFaultProofProgramScenario runs the fault proof program in several contexts, given a test scenario.
 func testFaultProofProgramScenario(t *testing.T, ctx context.Context, sys *System, s *FaultProofProgramTestScenario) {
-	// Use `os.MkdirTemp` to apply extra randomness over `t.TempDir`. This prevents the same directory from being reused
-	// across multiple test runs, which can cause issues when running tests in parallel.
-	preimageDir, err := os.MkdirTemp("", "witness-db-*")
-	require.NoError(t, err)
+	preimageDir := t.TempDir()
 
 	fppConfig := oppconf.NewConfig(sys.RollupConfig, sys.L2GenesisCfg.Config, s.L1Head, s.L2Head, s.L2OutputRoot, common.Hash(s.L2Claim), s.L2ClaimBlockNumber)
 	fppConfig.L1URL = sys.NodeEndpoint("l1").RPC()
@@ -295,7 +293,7 @@ func testFaultProofProgramScenario(t *testing.T, ctx context.Context, sys *Syste
 	// Check the FPP confirms the expected output
 	t.Log("Running fault proof in fetching mode")
 	log := testlog.Logger(t, log.LevelInfo)
-	err = opp.FaultProofProgram(ctx, log, fppConfig)
+	err := opp.FaultProofProgram(ctx, log, fppConfig)
 	require.NoError(t, err)
 
 	t.Log("Shutting down network")
