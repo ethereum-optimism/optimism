@@ -175,8 +175,14 @@ func PreimageServer(ctx context.Context, logger log.Logger, cfg *config.Config, 
 	hinterDone = routeHints(logger, hintChannel, hinter)
 	select {
 	case err := <-serverDone:
+		if err := kv.Close(); err != nil {
+			return err
+		}
 		return err
 	case err := <-hinterDone:
+		if err := kv.Close(); err != nil {
+			return err
+		}
 		return err
 	}
 }
