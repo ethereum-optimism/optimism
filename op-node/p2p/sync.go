@@ -198,8 +198,6 @@ type SyncPeerScorer interface {
 // It is up to the user to persist the blocks for later processing, or drop & resync them if persistence is limited.
 // TODO: Should this be renamed to AltSyncClient?
 type SyncClient struct {
-	mu sync.Mutex
-
 	log log.Logger
 
 	cfg *rollup.Config
@@ -214,6 +212,7 @@ type SyncClient struct {
 	// syncing worker per peer
 	peers map[peer.ID]context.CancelFunc
 
+	mu                sync.Mutex
 	nextPromote       g.Option[nextPromote]
 	endBlockNumber    blockNumber
 	startBlockNumber  blockNumber
