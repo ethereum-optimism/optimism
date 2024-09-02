@@ -3,6 +3,7 @@ package p2p
 import (
 	"context"
 	"fmt"
+	"github.com/anacrolix/chansync"
 	"math/big"
 	"strings"
 	"sync"
@@ -199,12 +200,17 @@ func TestMultiPeerSync(t *testing.T) {
 	cfg, payloads := setupSyncTestData(100)
 
 	// Buffered channel of all blocks requested from any client.
-	requested := make(chan uint64, 100)
+	var requestedMu sync.Mutex
+	requested := make([]uint64, 0, 100)
+	var requestedCond chansync.BroadcastCond
 
 	setupPeer := func(ctx context.Context, h host.Host) (*SyncClient, chan *eth.ExecutionPayloadEnvelope) {
 		// Serving payloads: just load them from the map, if they exist
 		servePayload := mockPayloadFn(func(n uint64) (*eth.ExecutionPayloadEnvelope, error) {
-			requested <- n
+			requestedMu.Lock()
+			requested = append(requested, n)
+			requestedMu.Unlock()
+			requestedCond.Broadcast()
 			p, ok := payloads.getPayload(n)
 			if !ok {
 				return nil, ethereum.NotFound
@@ -267,6 +273,7 @@ func TestMultiPeerSync(t *testing.T) {
 		e := <-recvA
 		p := e.ExecutionPayload
 		exp, ok := payloads.getPayload(uint64(p.BlockNumber))
+		t.Logf("i: %v, bn: %v", i, p.BlockNumber)
 		require.True(t, ok, "expecting known payload")
 		require.Equal(t, exp.ExecutionPayload.BlockHash, p.BlockHash, "expecting the correct payload")
 	}
@@ -280,6 +287,7 @@ func TestMultiPeerSync(t *testing.T) {
 	for i := uint64(29); i > 25; i-- {
 		p := <-recvB
 		exp, ok := payloads.getPayload(uint64(p.ExecutionPayload.BlockNumber))
+		t.Logf("i: %v, bn: %v", i, p.ExecutionPayload.BlockNumber)
 		require.True(t, ok, "expecting known payload")
 		require.Equal(t, exp.ExecutionPayload.BlockHash, p.ExecutionPayload.BlockHash, "expecting the correct payload")
 	}
@@ -287,13 +295,19 @@ func TestMultiPeerSync(t *testing.T) {
 	// Wait for the request for block 25 to be made
 	ctx, cancelFunc := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancelFunc()
-	requestMade := false
-	for requestMade != true {
-		select {
-		case blockNum := <-requested:
+findRequest:
+	for {
+		requestedMu.Lock()
+		for _, blockNum := range requested {
 			if blockNum == 25 {
-				requestMade = true
+				requestedMu.Unlock()
+				break findRequest
 			}
+		}
+		cond := requestedCond.Signaled()
+		requestedMu.Unlock()
+		select {
+		case <-cond:
 		case <-ctx.Done():
 			t.Fatal("Did not request block 25 in a reasonable time")
 		}
