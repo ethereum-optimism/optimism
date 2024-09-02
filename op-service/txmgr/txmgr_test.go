@@ -798,7 +798,7 @@ func TestTxMgrRetriesUnbumpableTx(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	receipt, err := h.mgr.sendTx(ctx, txToSend)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.NotNil(t, receipt)
 	require.Greater(t, sameTxPublishAttempts, 1, "expected the original tx to be retried at least once")
 }
