@@ -86,7 +86,6 @@ func applySpanBatchActivation(active bool, dp *genesis.DeployConfig) {
 // - update the state root via a tx
 // - run program
 func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool, spanBatchActivated bool) {
-	t.Helper()
 	InitParallel(t)
 	ctx := context.Background()
 
@@ -187,7 +186,6 @@ func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool, spanBatchActi
 }
 
 func testVerifyL2OutputRoot(t *testing.T, detached bool, spanBatchActivated bool) {
-	t.Helper()
 	InitParallel(t)
 	ctx := context.Background()
 
@@ -280,7 +278,6 @@ type FaultProofProgramTestScenario struct {
 // testFaultProofProgramScenario runs the fault proof program in several contexts, given a test scenario.
 func testFaultProofProgramScenario(t *testing.T, ctx context.Context, sys *System, s *FaultProofProgramTestScenario) {
 	preimageDir := t.TempDir()
-
 	fppConfig := oppconf.NewConfig(sys.RollupConfig, sys.L2GenesisCfg.Config, s.L1Head, s.L2Head, s.L2OutputRoot, common.Hash(s.L2Claim), s.L2ClaimBlockNumber)
 	fppConfig.L1URL = sys.NodeEndpoint("l1").RPC()
 	fppConfig.L2URL = sys.NodeEndpoint("sequencer").RPC()

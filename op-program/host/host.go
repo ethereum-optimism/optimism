@@ -122,10 +122,6 @@ func FaultProofProgram(ctx context.Context, logger log.Logger, cfg *config.Confi
 func PreimageServer(ctx context.Context, logger log.Logger, cfg *config.Config, preimageChannel preimage.FileChannel, hintChannel preimage.FileChannel) error {
 	var serverDone chan error
 	var hinterDone chan error
-	logger.Info("Starting preimage server")
-	var kv kvstore.KV
-
-	// Close the preimage/hint channels, and then kv store once the server and hinter have exited.
 	defer func() {
 		preimageChannel.Close()
 		hintChannel.Close()
@@ -137,12 +133,9 @@ func PreimageServer(ctx context.Context, logger log.Logger, cfg *config.Config, 
 			// Wait for hinter to complete
 			<-hinterDone
 		}
-
-		if kv != nil {
-			kv.Close()
-		}
 	}()
-
+	logger.Info("Starting preimage server")
+	var kv kvstore.KV
 	if cfg.DataDir == "" {
 		logger.Info("Using in-memory storage")
 		kv = kvstore.NewMemKV()
