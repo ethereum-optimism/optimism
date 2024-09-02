@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/host/prefetcher"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -35,10 +36,12 @@ func Main(logger log.Logger, cfg *config.Config) error {
 	opservice.ValidateEnvVars(flags.EnvVarPrefix, flags.Flags, logger)
 	cfg.Rollup.LogDescription(logger, chaincfg.L2ChainIDToNetworkDisplayName)
 
-	ctx := context.Background()
+	hostCtx, stop := ctxinterrupt.WithSignalWaiter(context.Background())
+	defer stop()
+	ctx := ctxinterrupt.WithCancelOnInterrupt(hostCtx)
 	if cfg.ServerMode {
-		preimageChan := cl.CreatePreimageChannel()
-		hinterChan := cl.CreateHinterChannel()
+		preimageChan := preimage.ClientPreimageChannel()
+		hinterChan := preimage.ClientHinterChannel()
 		return PreimageServer(ctx, logger, cfg, preimageChan, hinterChan)
 	}
 
@@ -185,6 +188,9 @@ func PreimageServer(ctx context.Context, logger log.Logger, cfg *config.Config, 
 		return err
 	case err := <-hinterDone:
 		return err
+	case <-ctx.Done():
+		logger.Info("Shutting down")
+		return ctx.Err()
 	}
 }
 
