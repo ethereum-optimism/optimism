@@ -10,13 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/tracing"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
@@ -123,37 +120,43 @@ func TestEVMSingleStep(t *testing.T) {
 
 	versions := GetMipsVersionTestCases(t)
 	cases := []struct {
-		name   string
-		pc     uint32
-		nextPC uint32
-		insn   uint32
+		name         string
+		pc           uint32
+		nextPC       uint32
+		insn         uint32
+		expectNextPC uint32
+		expectLink   bool
 	}{
-		{"j MSB set target", 0, 4, 0x0A_00_00_02},                         // j 0x02_00_00_02
-		{"j non-zero PC region", 0x10000000, 0x10000004, 0x08_00_00_02},   // j 0x2
-		{"jal MSB set target", 0, 4, 0x0E_00_00_02},                       // jal 0x02_00_00_02
-		{"jal non-zero PC region", 0x10000000, 0x10000004, 0x0C_00_00_02}, // jal 0x2
+		{name: "j MSB set target", pc: 0, nextPC: 4, insn: 0x0A_00_00_02, expectNextPC: 0x08_00_00_08},                                           // j 0x02_00_00_02
+		{name: "j non-zero PC region", pc: 0x10000000, nextPC: 0x10000004, insn: 0x08_00_00_02, expectNextPC: 0x10_00_00_08},                     // j 0x2
+		{name: "jal MSB set target", pc: 0, nextPC: 4, insn: 0x0E_00_00_02, expectNextPC: 0x08_00_00_08, expectLink: true},                       // jal 0x02_00_00_02
+		{name: "jal non-zero PC region", pc: 0x10000000, nextPC: 0x10000004, insn: 0x0C_00_00_02, expectNextPC: 0x10_00_00_08, expectLink: true}, // jal 0x2
 	}
 
 	for _, v := range versions {
-		for _, tt := range cases {
+		for i, tt := range cases {
 			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
 			t.Run(testName, func(t *testing.T) {
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), WithPC(tt.pc), WithNextPC(tt.nextPC))
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPC(tt.pc), testutil.WithNextPC(tt.nextPC))
 				state := goVm.GetState()
 				state.GetMemory().SetMemory(tt.pc, tt.insn)
-				curStep := state.GetStep()
+				step := state.GetStep()
+
+				// Setup expectations
+				expected := testutil.NewExpectedState(state)
+				expected.Step += 1
+				expected.PC = state.GetCpu().NextPC
+				expected.NextPC = tt.expectNextPC
+				if tt.expectLink {
+					expected.Registers[31] = state.GetPC() + 8
+				}
 
 				stepWitness, err := goVm.Step(true)
 				require.NoError(t, err)
 
-				evm := testutil.NewMIPSEVM(v.Contracts)
-				evm.SetTracer(tracer)
-				testutil.LogStepFailureAtCleanup(t, evm)
-
-				evmPost := evm.Step(t, stepWitness, curStep, v.StateHashFn)
-				goPost, _ := goVm.GetState().EncodeWitness()
-				require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
-					"mipsevm produced different state than EVM")
+				// Check expectations
+				expected.Validate(t, state)
+				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, tracer)
 			})
 		}
 	}
@@ -183,33 +186,33 @@ func TestEVM_MMap(t *testing.T) {
 	}
 
 	for _, v := range versions {
-		for _, c := range cases {
+		for i, c := range cases {
 			testName := fmt.Sprintf("%v (%v)", c.name, v.Name)
 			t.Run(testName, func(t *testing.T) {
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), WithHeap(c.heap))
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithHeap(c.heap))
 				state := goVm.GetState()
 
 				state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
-				*state.GetRegistersRef() = testutil.RandomRegisters(77)
 				state.GetRegistersRef()[2] = exec.SysMmap
 				state.GetRegistersRef()[4] = c.address
 				state.GetRegistersRef()[5] = c.size
 				step := state.GetStep()
 
-				expectedRegisters := testutil.CopyRegisters(state)
-				expectedHeap := state.GetHeap()
-				expectedMemoryRoot := state.GetMemory().MerkleRoot()
+				expected := testutil.NewExpectedState(state)
+				expected.Step += 1
+				expected.PC = state.GetCpu().NextPC
+				expected.NextPC = state.GetCpu().NextPC + 4
 				if c.shouldFail {
-					expectedRegisters[2] = exec.SysErrorSignal
-					expectedRegisters[7] = exec.MipsEINVAL
+					expected.Registers[2] = exec.SysErrorSignal
+					expected.Registers[7] = exec.MipsEINVAL
 				} else {
-					expectedHeap = c.expectedHeap
+					expected.Heap = c.expectedHeap
 					if c.address == 0 {
-						expectedRegisters[2] = state.GetHeap()
-						expectedRegisters[7] = 0
+						expected.Registers[2] = state.GetHeap()
+						expected.Registers[7] = 0
 					} else {
-						expectedRegisters[2] = c.address
-						expectedRegisters[7] = 0
+						expected.Registers[2] = c.address
+						expected.Registers[7] = 0
 					}
 				}
 
@@ -217,28 +220,8 @@ func TestEVM_MMap(t *testing.T) {
 				require.NoError(t, err)
 
 				// Check expectations
-				require.Equal(t, step+1, state.GetStep())
-				require.Equal(t, expectedHeap, state.GetHeap())
-				require.Equal(t, expectedRegisters, state.GetRegistersRef())
-				require.Equal(t, expectedMemoryRoot, state.GetMemory().MerkleRoot())
-				require.Equal(t, common.Hash{}, state.GetPreimageKey())
-				require.Equal(t, uint32(0), state.GetPreimageOffset())
-				require.Equal(t, uint32(4), state.GetCpu().PC)
-				require.Equal(t, uint32(8), state.GetCpu().NextPC)
-				require.Equal(t, uint32(0), state.GetCpu().HI)
-				require.Equal(t, uint32(0), state.GetCpu().LO)
-				require.Equal(t, false, state.GetExited())
-				require.Equal(t, uint8(0), state.GetExitCode())
-				require.Equal(t, hexutil.Bytes(nil), state.GetLastHint())
-
-				evm := testutil.NewMIPSEVM(v.Contracts)
-				evm.SetTracer(tracer)
-				testutil.LogStepFailureAtCleanup(t, evm)
-
-				evmPost := evm.Step(t, stepWitness, step, v.StateHashFn)
-				goPost, _ := goVm.GetState().EncodeWitness()
-				require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
-					"mipsevm produced different state than EVM")
+				expected.Validate(t, state)
+				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, tracer)
 			})
 		}
 	}
@@ -249,12 +232,13 @@ func TestEVMSysWriteHint(t *testing.T) {
 
 	versions := GetMipsVersionTestCases(t)
 	cases := []struct {
-		name          string
-		memOffset     int      // Where the hint data is stored in memory
-		hintData      []byte   // Hint data stored in memory at memOffset
-		bytesToWrite  int      // How many bytes of hintData to write
-		lastHint      []byte   // The buffer that stores lastHint in the state
-		expectedHints [][]byte // The hints we expect to be processed
+		name             string
+		memOffset        int      // Where the hint data is stored in memory
+		hintData         []byte   // Hint data stored in memory at memOffset
+		bytesToWrite     int      // How many bytes of hintData to write
+		lastHint         []byte   // The buffer that stores lastHint in the state
+		expectedHints    [][]byte // The hints we expect to be processed
+		expectedLastHint []byte   // The lastHint we should expect for the post-state
 	}{
 		{
 			name:      "write 1 full hint at beginning of page",
@@ -264,10 +248,11 @@ func TestEVMSysWriteHint(t *testing.T) {
 				0xAA, 0xAA, 0xAA, 0xAA, 0xBB, 0xBB, // Hint data
 			},
 			bytesToWrite: 10,
-			lastHint:     nil,
+			lastHint:     []byte{},
 			expectedHints: [][]byte{
 				{0xAA, 0xAA, 0xAA, 0xAA, 0xBB, 0xBB},
 			},
+			expectedLastHint: []byte{},
 		},
 		{
 			name:      "write 1 full hint across page boundary",
@@ -277,10 +262,11 @@ func TestEVMSysWriteHint(t *testing.T) {
 				0xAA, 0xAA, 0xAA, 0xAA, 0xBB, 0xBB, 0xBB, 0xBB, // Hint data
 			},
 			bytesToWrite: 12,
-			lastHint:     nil,
+			lastHint:     []byte{},
 			expectedHints: [][]byte{
 				{0xAA, 0xAA, 0xAA, 0xAA, 0xBB, 0xBB, 0xBB, 0xBB},
 			},
+			expectedLastHint: []byte{},
 		},
 		{
 			name:      "write 2 full hints",
@@ -292,11 +278,12 @@ func TestEVMSysWriteHint(t *testing.T) {
 				0xAA, 0xAA, 0xAA, 0xAA, 0xBB, 0xBB, 0xBB, 0xBB, // Hint data
 			},
 			bytesToWrite: 22,
-			lastHint:     nil,
+			lastHint:     []byte{},
 			expectedHints: [][]byte{
 				{0xAA, 0xAA, 0xAA, 0xAA, 0xBB, 0xBB},
 				{0xAA, 0xAA, 0xAA, 0xAA, 0xBB, 0xBB, 0xBB, 0xBB},
 			},
+			expectedLastHint: []byte{},
 		},
 		{
 			name:      "write a single partial hint",
@@ -305,9 +292,10 @@ func TestEVMSysWriteHint(t *testing.T) {
 				0, 0, 0, 6, // Length prefix
 				0xAA, 0xAA, 0xAA, 0xAA, 0xBB, 0xBB, // Hint data
 			},
-			bytesToWrite:  8,
-			lastHint:      nil,
-			expectedHints: nil,
+			bytesToWrite:     8,
+			lastHint:         []byte{},
+			expectedHints:    nil,
+			expectedLastHint: []byte{0, 0, 0, 6, 0xAA, 0xAA, 0xAA, 0xAA},
 		},
 		{
 			name:      "write 1 full, 1 partial hint",
@@ -319,10 +307,11 @@ func TestEVMSysWriteHint(t *testing.T) {
 				0xAA, 0xAA, 0xAA, 0xAA, 0xBB, 0xBB, 0xBB, 0xBB, // Hint data
 			},
 			bytesToWrite: 16,
-			lastHint:     nil,
+			lastHint:     []byte{},
 			expectedHints: [][]byte{
 				{0xAA, 0xAA, 0xAA, 0xAA, 0xBB, 0xBB},
 			},
+			expectedLastHint: []byte{0, 0, 0, 8, 0xAA, 0xAA},
 		},
 		{
 			name:      "write a single partial hint to large capacity lastHint buffer",
@@ -331,9 +320,10 @@ func TestEVMSysWriteHint(t *testing.T) {
 				0, 0, 0, 6, // Length prefix
 				0xAA, 0xAA, 0xAA, 0xAA, 0xBB, 0xBB, // Hint data
 			},
-			bytesToWrite:  8,
-			lastHint:      make([]byte, 0, 4096),
-			expectedHints: nil,
+			bytesToWrite:     8,
+			lastHint:         make([]byte, 0, 4096),
+			expectedHints:    nil,
+			expectedLastHint: []byte{0, 0, 0, 6, 0xAA, 0xAA, 0xAA, 0xAA},
 		},
 		{
 			name:      "write full hint to large capacity lastHint buffer",
@@ -347,6 +337,7 @@ func TestEVMSysWriteHint(t *testing.T) {
 			expectedHints: [][]byte{
 				{0xAA, 0xAA, 0xAA, 0xAA, 0xBB, 0xBB},
 			},
+			expectedLastHint: []byte{},
 		},
 		{
 			name:      "write multiple hints to large capacity lastHint buffer",
@@ -363,6 +354,7 @@ func TestEVMSysWriteHint(t *testing.T) {
 				{0xAA, 0xAA, 0xAA, 0xAA, 0xBB, 0xBB, 0xCC, 0xCC},
 				{0xAA, 0xAA, 0xAA, 0xAA, 0xBB, 0xBB, 0xBB, 0xBB},
 			},
+			expectedLastHint: []byte{},
 		},
 		{
 			name:      "write remaining hint data to non-empty lastHint buffer",
@@ -375,6 +367,7 @@ func TestEVMSysWriteHint(t *testing.T) {
 			expectedHints: [][]byte{
 				{0xAA, 0xAA, 0xAA, 0xAA, 0xBB, 0xBB, 0xCC, 0xCC},
 			},
+			expectedLastHint: []byte{},
 		},
 		{
 			name:      "write partial hint data to non-empty lastHint buffer",
@@ -382,9 +375,10 @@ func TestEVMSysWriteHint(t *testing.T) {
 			hintData: []byte{
 				0xAA, 0xAA, 0xAA, 0xAA, 0xBB, 0xBB, 0xCC, 0xCC, // Hint data
 			},
-			bytesToWrite:  4,
-			lastHint:      []byte{0, 0, 0, 8},
-			expectedHints: nil,
+			bytesToWrite:     4,
+			lastHint:         []byte{0, 0, 0, 8},
+			expectedHints:    nil,
+			expectedLastHint: []byte{0, 0, 0, 8, 0xAA, 0xAA, 0xAA, 0xAA},
 		},
 	}
 
@@ -393,11 +387,11 @@ func TestEVMSysWriteHint(t *testing.T) {
 	)
 
 	for _, v := range versions {
-		for _, tt := range cases {
+		for i, tt := range cases {
 			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
 			t.Run(testName, func(t *testing.T) {
-				oracle := hintTrackingOracle{}
-				goVm := v.VMFactory(&oracle, os.Stdout, os.Stderr, testutil.CreateLogger(), WithLastHint(tt.lastHint))
+				oracle := testutil.HintTrackingOracle{}
+				goVm := v.VMFactory(&oracle, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithLastHint(tt.lastHint))
 				state := goVm.GetState()
 				state.GetRegistersRef()[2] = exec.SysWrite
 				state.GetRegistersRef()[4] = exec.FdHintWrite
@@ -406,21 +400,23 @@ func TestEVMSysWriteHint(t *testing.T) {
 
 				err := state.GetMemory().SetMemoryRange(uint32(tt.memOffset), bytes.NewReader(tt.hintData))
 				require.NoError(t, err)
-				state.GetMemory().SetMemory(0, insn)
-				curStep := state.GetStep()
+				state.GetMemory().SetMemory(state.GetPC(), insn)
+				step := state.GetStep()
+
+				expected := testutil.NewExpectedState(state)
+				expected.Step += 1
+				expected.PC = state.GetCpu().NextPC
+				expected.NextPC = state.GetCpu().NextPC + 4
+				expected.LastHint = tt.expectedLastHint
+				expected.Registers[2] = uint32(tt.bytesToWrite) // Return count of bytes written
+				expected.Registers[7] = 0                       // no Error
 
 				stepWitness, err := goVm.Step(true)
 				require.NoError(t, err)
-				require.Equal(t, tt.expectedHints, oracle.hints)
 
-				evm := testutil.NewMIPSEVM(v.Contracts)
-				evm.SetTracer(tracer)
-				testutil.LogStepFailureAtCleanup(t, evm)
-
-				evmPost := evm.Step(t, stepWitness, curStep, v.StateHashFn)
-				goPost, _ := goVm.GetState().EncodeWitness()
-				require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
-					"mipsevm produced different state than EVM")
+				expected.Validate(t, state)
+				require.Equal(t, tt.expectedHints, oracle.Hints())
+				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, tracer)
 			})
 		}
 	}
@@ -428,7 +424,6 @@ func TestEVMSysWriteHint(t *testing.T) {
 
 func TestEVMFault(t *testing.T) {
 	var tracer *tracing.Hooks // no-tracer by default, but see test_util.MarkdownTracer
-	sender := common.Address{0x13, 0x37}
 
 	versions := GetMipsVersionTestCases(t)
 	cases := []struct {
@@ -445,30 +440,14 @@ func TestEVMFault(t *testing.T) {
 		for _, tt := range cases {
 			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
 			t.Run(testName, func(t *testing.T) {
-				env, evmState := testutil.NewEVMEnv(v.Contracts)
-				env.Config.Tracer = tracer
-
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), WithNextPC(tt.nextPC))
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithNextPC(tt.nextPC))
 				state := goVm.GetState()
 				state.GetMemory().SetMemory(0, tt.insn)
 				// set the return address ($ra) to jump into when test completes
 				state.GetRegistersRef()[31] = testutil.EndAddr
 
 				require.Panics(t, func() { _, _ = goVm.Step(true) })
-
-				insnProof := state.GetMemory().MerkleProof(0)
-				encodedWitness, _ := state.EncodeWitness()
-				stepWitness := &mipsevm.StepWitness{
-					State:     encodedWitness,
-					ProofData: insnProof[:],
-				}
-				input := testutil.EncodeStepInput(t, stepWitness, mipsevm.LocalContext{}, v.Contracts.Artifacts.MIPS)
-				startingGas := uint64(30_000_000)
-
-				_, _, err := env.Call(vm.AccountRef(sender), v.Contracts.Addresses.MIPS, input, startingGas, common.U2560)
-				require.EqualValues(t, err, vm.ErrExecutionReverted)
-				logs := evmState.Logs()
-				require.Equal(t, 0, len(logs))
+				testutil.AssertEVMReverts(t, state, v.Contracts, tracer)
 			})
 		}
 	}
@@ -491,7 +470,7 @@ func TestHelloEVM(t *testing.T) {
 
 			start := time.Now()
 			for i := 0; i < 400_000; i++ {
-				curStep := goVm.GetState().GetStep()
+				step := goVm.GetState().GetStep()
 				if goVm.GetState().GetExited() {
 					break
 				}
@@ -502,7 +481,7 @@ func TestHelloEVM(t *testing.T) {
 
 				stepWitness, err := goVm.Step(true)
 				require.NoError(t, err)
-				evmPost := evm.Step(t, stepWitness, curStep, v.StateHashFn)
+				evmPost := evm.Step(t, stepWitness, step, v.StateHashFn)
 				// verify the post-state matches.
 				// TODO: maybe more readable to decode the evmPost state, and do attribute-wise comparison.
 				goPost, _ := goVm.GetState().EncodeWitness()
@@ -569,14 +548,46 @@ func TestClaimEVM(t *testing.T) {
 	}
 }
 
-type hintTrackingOracle struct {
-	hints [][]byte
-}
+func TestEntryEVM(t *testing.T) {
+	var tracer *tracing.Hooks // no-tracer by default, but see test_util.MarkdownTracer
+	versions := GetMipsVersionTestCases(t)
 
-func (t *hintTrackingOracle) Hint(v []byte) {
-	t.hints = append(t.hints, v)
-}
+	for _, v := range versions {
+		t.Run(v.Name, func(t *testing.T) {
+			evm := testutil.NewMIPSEVM(v.Contracts)
+			evm.SetTracer(tracer)
+			testutil.LogStepFailureAtCleanup(t, evm)
 
-func (t *hintTrackingOracle) GetPreimage(k [32]byte) []byte {
-	return nil
+			var stdOutBuf, stdErrBuf bytes.Buffer
+			elfFile := "../../testdata/example/bin/entry.elf"
+			goVm := v.ElfVMFactory(t, elfFile, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr), testutil.CreateLogger())
+			state := goVm.GetState()
+
+			start := time.Now()
+			for i := 0; i < 400_000; i++ {
+				curStep := goVm.GetState().GetStep()
+				if goVm.GetState().GetExited() {
+					break
+				}
+				insn := state.GetMemory().GetMemory(state.GetPC())
+				if i%10_000 == 0 { // avoid spamming test logs, we are executing many steps
+					t.Logf("step: %4d pc: 0x%08x insn: 0x%08x", state.GetStep(), state.GetPC(), insn)
+				}
+
+				stepWitness, err := goVm.Step(true)
+				require.NoError(t, err)
+				evmPost := evm.Step(t, stepWitness, curStep, v.StateHashFn)
+				// verify the post-state matches.
+				goPost, _ := goVm.GetState().EncodeWitness()
+				require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
+					"mipsevm produced different state than EVM")
+			}
+			end := time.Now()
+			delta := end.Sub(start)
+			t.Logf("test took %s, %d instructions, %s per instruction", delta, state.GetStep(), delta/time.Duration(state.GetStep()))
+
+			require.True(t, state.GetExited(), "must complete program")
+			require.Equal(t, uint8(0), state.GetExitCode(), "exit with 0")
+		})
+	}
 }

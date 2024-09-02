@@ -910,3 +910,45 @@ func TestOutputCannonHonestSafeTraceExtension_InvalidRoot(t *testing.T) {
 	game.LogGameData(ctx)
 	require.EqualValues(t, gameTypes.GameStatusChallengerWon, game.Status(ctx))
 }
+
+func TestAgreeFirstBlockWithOriginOf1(t *testing.T) {
+	op_e2e.InitParallel(t, op_e2e.UsesCannon)
+
+	ctx := context.Background()
+	sys, _ := StartFaultDisputeSystem(t)
+	t.Cleanup(sys.Close)
+
+	rollupClient := sys.RollupClient("sequencer")
+	blockNum := uint64(0)
+	limit := uint64(100)
+	for ; blockNum <= limit; blockNum++ {
+		require.NoError(t, wait.ForBlock(ctx, sys.NodeClient("sequencer"), blockNum))
+		output, err := rollupClient.OutputAtBlock(ctx, blockNum)
+		require.NoError(t, err)
+		if output.BlockRef.L1Origin.Number == 1 {
+			break
+		}
+	}
+	require.Less(t, blockNum, limit)
+
+	// Create a dispute game with a dishonest claim @ L2 block #4
+	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
+	// Make the agreed block the first one with L1 origin of block 1 so the claim is blockNum+1
+	game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", blockNum+1, common.Hash{0xCA, 0xFE})
+	require.NotNil(t, game)
+	outputRootClaim := game.DisputeLastBlock(ctx)
+	game.LogGameData(ctx)
+
+	honestChallenger := game.StartChallenger(ctx, "HonestActor", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+
+	// Wait for the honest challenger to dispute the outputRootClaim. This creates a root of an execution game that we challenge by coercing
+	// a step at a preimage trace index.
+	outputRootClaim = outputRootClaim.WaitForCounterClaim(ctx)
+	game.LogGameData(ctx)
+
+	// Should claim output root is invalid, but actually panics.
+	outputRootClaim.RequireInvalidStatusCode()
+	// The above method already verified the image was uploaded and step called successfully
+	// So we don't waste time resolving the game - that's tested elsewhere.
+	require.NoError(t, honestChallenger.Close())
+}

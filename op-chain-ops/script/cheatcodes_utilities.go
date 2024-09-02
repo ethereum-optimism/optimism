@@ -37,7 +37,7 @@ func (c *CheatCodesPrecompile) Skip() error {
 
 // Label implements https://book.getfoundry.sh/cheatcodes/label
 func (c *CheatCodesPrecompile) Label(addr common.Address, label string) {
-	c.h.labels[addr] = label
+	c.h.Label(addr, label)
 }
 
 // GetLabel implements https://book.getfoundry.sh/cheatcodes/get-label

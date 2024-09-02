@@ -32,7 +32,7 @@ func TestInstrumentedState_Claim(t *testing.T) {
 }
 
 func TestInstrumentedState_MultithreadedProgram(t *testing.T) {
-	state := testutil.LoadELFProgram(t, "../../testdata/example/bin/multithreaded.elf", CreateInitialState, false)
+	state, _ := testutil.LoadELFProgram(t, "../../testdata/example/bin/multithreaded.elf", CreateInitialState, false)
 	oracle := testutil.StaticOracle(t, []byte{})
 
 	var stdOutBuf, stdErrBuf bytes.Buffer
@@ -56,7 +56,7 @@ func TestInstrumentedState_MultithreadedProgram(t *testing.T) {
 func TestInstrumentedState_Alloc(t *testing.T) {
 	t.Skip("TODO(client-pod#906): Currently failing - need to debug.")
 
-	state := testutil.LoadELFProgram(t, "../../testdata/example/bin/alloc.elf", CreateInitialState, false)
+	state, _ := testutil.LoadELFProgram(t, "../../testdata/example/bin/alloc.elf", CreateInitialState, false)
 	const numAllocs = 100 // where each alloc is a 32 MiB chunk
 	oracle := testutil.AllocOracle(t, numAllocs)
 

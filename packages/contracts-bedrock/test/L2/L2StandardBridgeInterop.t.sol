@@ -29,6 +29,10 @@ contract L2StandardBridgeInterop_Test is Bridge_Initializer {
     function setUp() public virtual override {
         super.enableInterop();
         super.setUp();
+
+        // TODO: Remove it once the `OptimismSuperchainERC20Factory` is added to predeploys.
+        // Ensure OPTIMISM_SUPERCHAIN_ERC20_FACTORY's code is not empty.
+        vm.etch(Predeploys.predeployToCodeNamespace(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY), address(this).code);
     }
 
     /// @notice Helper function to setup a mock and expect a call to it.

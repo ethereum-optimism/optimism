@@ -59,7 +59,6 @@ func TestTxGasSameAsBlockGasLimit(t *testing.T) {
 	cfg := DefaultSystemConfig(t)
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
-	defer sys.Close()
 
 	ethPrivKey := sys.Cfg.Secrets.Alice
 	tx := types.MustSignNewTx(ethPrivKey, types.LatestSignerForChainID(cfg.L2ChainIDBig()), &types.DynamicFeeTx{
@@ -68,7 +67,7 @@ func TestTxGasSameAsBlockGasLimit(t *testing.T) {
 	})
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	l2Seq := sys.Clients["sequencer"]
+	l2Seq := sys.NodeClient("sequencer")
 	err = l2Seq.SendTransaction(ctx, tx)
 	require.ErrorContains(t, err, txpool.ErrGasLimit.Error())
 }

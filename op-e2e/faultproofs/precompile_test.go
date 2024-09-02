@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
@@ -26,9 +25,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
-	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
@@ -90,17 +87,13 @@ func TestPrecompiles(t *testing.T) {
 
 			sys, err := cfg.Start(t)
 			require.Nil(t, err, "Error starting up system")
-			defer sys.Close()
 
 			log := testlog.Logger(t, log.LevelInfo)
 			log.Info("genesis", "l2", sys.RollupConfig.Genesis.L2, "l1", sys.RollupConfig.Genesis.L1, "l2_time", sys.RollupConfig.Genesis.L2Time)
 
-			l1Client := sys.Clients["l1"]
-			l2Seq := sys.Clients["sequencer"]
-			rollupRPCClient, err := rpc.DialContext(context.Background(), sys.RollupNodes["sequencer"].HTTPEndpoint())
-			require.Nil(t, err)
-			rollupClient := sources.NewRollupClient(client.NewBaseRPCClient(rollupRPCClient))
-
+			l1Client := sys.NodeClient("l1")
+			l2Seq := sys.NodeClient("sequencer")
+			rollupClient := sys.RollupClient("sequencer")
 			aliceKey := cfg.Secrets.Alice
 
 			t.Log("Capture current L2 head as agreed starting point")
@@ -147,9 +140,8 @@ func TestPrecompiles(t *testing.T) {
 			}
 			ctx := context.Background()
 			sys, _ := StartFaultDisputeSystem(t, WithBlobBatches())
-			defer sys.Close()
 
-			l2Seq := sys.Clients["sequencer"]
+			l2Seq := sys.NodeClient("sequencer")
 			aliceKey := sys.Cfg.Secrets.Alice
 			receipt := op_e2e.SendL2Tx(t, sys.Cfg, l2Seq, aliceKey, func(opts *op_e2e.TxOpts) {
 				opts.Gas = 1_000_000
@@ -194,17 +186,13 @@ func TestGranitePrecompiles(t *testing.T) {
 
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
-	defer sys.Close()
 
 	log := testlog.Logger(t, log.LevelInfo)
 	log.Info("genesis", "l2", sys.RollupConfig.Genesis.L2, "l1", sys.RollupConfig.Genesis.L1, "l2_time", sys.RollupConfig.Genesis.L2Time)
 
-	l1Client := sys.Clients["l1"]
-	l2Seq := sys.Clients["sequencer"]
-	rollupRPCClient, err := rpc.DialContext(context.Background(), sys.RollupNodes["sequencer"].HTTPEndpoint())
-	require.Nil(t, err)
-	rollupClient := sources.NewRollupClient(client.NewBaseRPCClient(rollupRPCClient))
-
+	l1Client := sys.NodeClient("l1")
+	l2Seq := sys.NodeClient("sequencer")
+	rollupClient := sys.RollupClient("sequencer")
 	aliceKey := cfg.Secrets.Alice
 
 	t.Log("Capture current L2 head as agreed starting point")
@@ -258,10 +246,10 @@ func TestGranitePrecompiles(t *testing.T) {
 }
 
 func runCannon(t *testing.T, ctx context.Context, sys *op_e2e.System, inputs utils.LocalGameInputs, l2Node string, extraVmArgs ...string) {
-	l1Endpoint := sys.NodeEndpoint("l1")
-	l1Beacon := sys.L1BeaconEndpoint()
-	rollupEndpoint := sys.RollupEndpoint("sequencer")
-	l2Endpoint := sys.NodeEndpoint("sequencer")
+	l1Endpoint := sys.NodeEndpoint("l1").RPC()
+	l1Beacon := sys.L1BeaconEndpoint().RestHTTP()
+	rollupEndpoint := sys.RollupEndpoint("sequencer").RPC()
+	l2Endpoint := sys.NodeEndpoint("sequencer").RPC()
 	cannonOpts := challenger.WithCannon(t, sys.RollupCfg(), sys.L2Genesis())
 	dir := t.TempDir()
 	proofsDir := filepath.Join(dir, "cannon-proofs")

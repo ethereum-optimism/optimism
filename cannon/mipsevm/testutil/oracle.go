@@ -145,3 +145,19 @@ func SelectOracleFixture(t *testing.T, programName string) mipsevm.PreimageOracl
 		return nil
 	}
 }
+
+type HintTrackingOracle struct {
+	hints [][]byte
+}
+
+func (t *HintTrackingOracle) Hint(v []byte) {
+	t.hints = append(t.hints, v)
+}
+
+func (t *HintTrackingOracle) GetPreimage(k [32]byte) []byte {
+	return nil
+}
+
+func (t *HintTrackingOracle) Hints() [][]byte {
+	return t.hints
+}

@@ -102,13 +102,13 @@ func (m *InstrumentedState) handleSyscall() error {
 		// args: a0 = addr, a1 = op, a2 = val, a3 = timeout
 		switch a1 {
 		case exec.FutexWaitPrivate:
-			thread.FutexAddr = a0
 			m.memoryTracker.TrackMemAccess(a0)
 			mem := m.state.Memory.GetMemory(a0)
 			if mem != a2 {
 				v0 = exec.SysErrorSignal
 				v1 = exec.MipsEAGAIN
 			} else {
+				thread.FutexAddr = a0
 				thread.FutexVal = a2
 				if a3 == 0 {
 					thread.FutexTimeoutStep = exec.FutexNoTimeout
@@ -242,11 +242,11 @@ func (m *InstrumentedState) mipsStep() error {
 
 	if m.state.StepsSinceLastContextSwitch >= exec.SchedQuantum {
 		// Force a context switch as this thread has been active too long
-		if m.state.threadCount() > 1 {
+		if m.state.ThreadCount() > 1 {
 			// Log if we're hitting our context switch limit - only matters if we have > 1 thread
 			if m.log.Enabled(context.Background(), log.LevelTrace) {
 				msg := fmt.Sprintf("Thread has reached maximum execution steps (%v) - preempting.", exec.SchedQuantum)
-				m.log.Trace(msg, "threadId", thread.ThreadId, "threadCount", m.state.threadCount(), "pc", thread.Cpu.PC)
+				m.log.Trace(msg, "threadId", thread.ThreadId, "threadCount", m.state.ThreadCount(), "pc", thread.Cpu.PC)
 			}
 		}
 		m.preemptThread(thread)
@@ -339,5 +339,5 @@ func (m *InstrumentedState) popThread() {
 }
 
 func (m *InstrumentedState) lastThreadRemaining() bool {
-	return m.state.threadCount() == 1
+	return m.state.ThreadCount() == 1
 }
