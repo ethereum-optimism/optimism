@@ -19,13 +19,14 @@ type DiskKV struct {
 
 // NewDiskKV creates a DiskKV that puts/gets pre-images as files in the given directory path.
 // The path must exist, or subsequent Put/Get calls will error when it does not.
-func NewDiskKV(path string) *DiskKV {
+func NewDiskKV(path string, readOnly bool) *DiskKV {
 	opts := &pebble.Options{
 		Cache:                    pebble.NewCache(int64(32 * 1024 * 1024)),
 		MaxConcurrentCompactions: runtime.NumCPU,
 		Levels: []pebble.LevelOptions{
 			{Compression: pebble.SnappyCompression},
 		},
+		ReadOnly: readOnly,
 	}
 	db, err := pebble.Open(path, opts)
 	if err != nil {
