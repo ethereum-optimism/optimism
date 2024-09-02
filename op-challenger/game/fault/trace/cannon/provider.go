@@ -24,12 +24,11 @@ import (
 )
 
 type CannonTraceProvider struct {
-	logger         log.Logger
-	dir            string
-	prestate       string
-	generator      utils.ProofGenerator
-	gameDepth      types.Depth
-	preimageLoader *utils.PreimageLoader
+	logger    log.Logger
+	dir       string
+	prestate  string
+	generator utils.ProofGenerator
+	gameDepth types.Depth
 
 	types.PrestateProvider
 
@@ -45,7 +44,6 @@ func NewTraceProvider(logger log.Logger, m vm.Metricer, cfg vm.Config, vmCfg vm.
 		prestate:         prestate,
 		generator:        vm.NewExecutor(logger, m, cfg, vmCfg, prestate, localInputs),
 		gameDepth:        gameDepth,
-		preimageLoader:   utils.NewPreimageLoader(kvstore.NewDiskKV(vm.PreimageDir(dir)).Get),
 		PrestateProvider: prestateProvider,
 	}
 }
@@ -84,7 +82,8 @@ func (p *CannonTraceProvider) GetStepData(ctx context.Context, pos types.Positio
 	if data == nil {
 		return nil, nil, nil, errors.New("proof missing proof data")
 	}
-	oracleData, err := p.preimageLoader.LoadPreimage(proof)
+	preimageLoader := utils.NewPreimageLoader(kvstore.NewDiskKV(vm.PreimageDir(p.dir)).Get)
+	oracleData, err := preimageLoader.LoadPreimage(proof)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to load preimage: %w", err)
 	}
@@ -178,12 +177,11 @@ type CannonTraceProviderForTest struct {
 
 func NewTraceProviderForTest(logger log.Logger, m vm.Metricer, cfg *config.Config, localInputs utils.LocalGameInputs, dir string, gameDepth types.Depth) *CannonTraceProviderForTest {
 	p := &CannonTraceProvider{
-		logger:         logger,
-		dir:            dir,
-		prestate:       cfg.CannonAbsolutePreState,
-		generator:      vm.NewExecutor(logger, m, cfg.Cannon, vm.NewOpProgramServerExecutor(), cfg.CannonAbsolutePreState, localInputs),
-		gameDepth:      gameDepth,
-		preimageLoader: utils.NewPreimageLoader(kvstore.NewDiskKV(vm.PreimageDir(dir)).Get),
+		logger:    logger,
+		dir:       dir,
+		prestate:  cfg.CannonAbsolutePreState,
+		generator: vm.NewExecutor(logger, m, cfg.Cannon, vm.NewOpProgramServerExecutor(), cfg.CannonAbsolutePreState, localInputs),
+		gameDepth: gameDepth,
 	}
 	return &CannonTraceProviderForTest{p}
 }

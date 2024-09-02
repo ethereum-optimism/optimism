@@ -26,7 +26,6 @@ type AsteriscTraceProvider struct {
 	prestate       string
 	generator      utils.ProofGenerator
 	gameDepth      types.Depth
-	preimageLoader *utils.PreimageLoader
 
 	types.PrestateProvider
 
@@ -42,7 +41,6 @@ func NewTraceProvider(logger log.Logger, m vm.Metricer, cfg vm.Config, vmCfg vm.
 		prestate:         asteriscPrestate,
 		generator:        vm.NewExecutor(logger, m, cfg, vmCfg, asteriscPrestate, localInputs),
 		gameDepth:        gameDepth,
-		preimageLoader:   utils.NewPreimageLoader(kvstore.NewDiskKV(vm.PreimageDir(dir)).Get),
 		PrestateProvider: prestateProvider,
 	}
 }
@@ -81,7 +79,8 @@ func (p *AsteriscTraceProvider) GetStepData(ctx context.Context, pos types.Posit
 	if data == nil {
 		return nil, nil, nil, errors.New("proof missing proof data")
 	}
-	oracleData, err := p.preimageLoader.LoadPreimage(proof)
+	preimageLoader := utils.NewPreimageLoader(kvstore.NewDiskKV(vm.PreimageDir(p.dir)).Get)
+	oracleData, err := preimageLoader.LoadPreimage(proof)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to load preimage: %w", err)
 	}
@@ -179,7 +178,6 @@ func NewTraceProviderForTest(logger log.Logger, m vm.Metricer, cfg *config.Confi
 		prestate:       cfg.AsteriscAbsolutePreState,
 		generator:      vm.NewExecutor(logger, m, cfg.Asterisc, vm.NewOpProgramServerExecutor(), cfg.AsteriscAbsolutePreState, localInputs),
 		gameDepth:      gameDepth,
-		preimageLoader: utils.NewPreimageLoader(kvstore.NewDiskKV(vm.PreimageDir(dir)).Get),
 	}
 	return &AsteriscTraceProviderForTest{p}
 }
