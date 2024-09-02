@@ -42,6 +42,46 @@ contract ProtocolUnguided is ProtocolHandler {
         }
     }
 
+    /// @custom:property-id 6
+    /// @custom:property calls to sendERC20 succeed as long as caller has enough balance
+    /// @custom:property-id 26
+    /// @custom:property sendERC20 decreases sender balance in source chain exactly by the input amount
+    /// @custom:property-id 10
+    /// @custom:property sendERC20 decreases total supply in source chain exactly by the input amount
+    function fuzz_sendERC20(
+        address sender,
+        address recipient,
+        uint256 fromIndex,
+        uint256 destinationChainId,
+        uint256 amount
+    )
+        public
+    {
+        destinationChainId = bound(destinationChainId, 0, MAX_CHAINS - 1);
+        OptimismSuperchainERC20 sourceToken = OptimismSuperchainERC20(allSuperTokens[fromIndex]);
+        OptimismSuperchainERC20 destinationToken =
+            MESSENGER.crossChainMessageReceiver(address(sourceToken), destinationChainId);
+        bytes32 deploySalt = MESSENGER.superTokenInitDeploySalts(address(sourceToken));
+        uint256 sourceBalanceBefore = sourceToken.balanceOf(sender);
+        uint256 sourceSupplyBefore = sourceToken.totalSupply();
+
+        vm.prank(sender);
+        try sourceToken.sendERC20(recipient, amount, destinationChainId) {
+            (, uint256 currentlyInTransit) = ghost_tokensInTransit.tryGet(deploySalt);
+            ghost_tokensInTransit.set(deploySalt, currentlyInTransit + amount);
+            // 26
+            uint256 sourceBalanceAfter = sourceToken.balanceOf(sender);
+            assert(sourceBalanceBefore - amount == sourceBalanceAfter);
+            // 10
+            uint256 sourceSupplyAfter = sourceToken.totalSupply();
+            assert(sourceSupplyBefore - amount == sourceSupplyAfter);
+        } catch {
+            // 6
+            assert(address(destinationToken) == address(sourceToken) || sourceBalanceBefore < amount);
+        }
+    }
+
+
     /// @custom:property-id 12
     /// @custom:property supertoken total supply only increases on calls to mint() by the L2toL2StandardBridge
     function fuzz_mint(uint256 tokenIndex, address to, address sender, uint256 amount) external {
@@ -52,9 +92,9 @@ contract ProtocolUnguided is ProtocolHandler {
         try OptimismSuperchainERC20(token).mint(to, amount) {
             assert(sender == BRIDGE);
             (, uint256 currentValue) = ghost_totalSupplyAcrossChains.tryGet(salt);
-            ghost_totalSupplyAcrossChains.set(salt, currentValue - amount);
+            ghost_totalSupplyAcrossChains.set(salt, currentValue + amount);
         } catch {
-            assert(sender != BRIDGE);
+            assert(sender != BRIDGE || to == address(0));
         }
     }
 

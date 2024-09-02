@@ -40,6 +40,8 @@ contract ProtocolHandler is TestBase, StdUtils, Actors {
 
     /// @notice  'real' deploy salt => total supply sum across chains
     EnumerableMap.Bytes32ToUintMap internal ghost_totalSupplyAcrossChains;
+    /// @notice  'real' deploy salt => tokens sendERC20'd but not yet relayERC20'd
+    EnumerableMap.Bytes32ToUintMap internal ghost_tokensInTransit;
 
     constructor() {
         vm.etch(address(MESSENGER), address(new MockL2ToL2CrossDomainMessenger()).code);

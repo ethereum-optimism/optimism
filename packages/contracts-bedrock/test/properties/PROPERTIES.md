@@ -86,7 +86,9 @@ legend:
 | --- | ---                 | ---                                                                                               | ---    | ---    |
 | 8   | SupERC20            | sendERC20 with a value of zero does not modify accounting                                         | [x]    | [x]    |
 | 9   | SupERC20            | relayERC20 with a value of zero does not modify accounting                                        | [x]    | [x]    |
-| 10  | SupERC20            | sendERC20 decreases the token's totalSupply in the source chain exactly by the input amount       | [x]    | [ ]    |
+| 10  | SupERC20            | sendERC20 decreases the token's totalSupply in the source chain exactly by the input amount       | [x]    | [x]    |
+| 26  | SupERC20            | sendERC20 decreases the sender's balance in the source chain exactly by the input amount          | [ ]    | [x]    |
+| 27  | SupERC20            | relayERC20 increases sender's balance in the destination chain exactly by the input amount        | [ ]    | [x]    |
 | 11  | SupERC20            | relayERC20 increases the token's totalSupply in the destination chain exactly by the input amount | [x]    | [ ]    |
 | 12  | Liquidity Migration | supertoken total supply only increases on calls to mint() by the L2toL2StandardBridge             | [x]    | [~]    |
 | 13  | Liquidity Migration | supertoken total supply only decreases on calls to burn() by the L2toL2StandardBridge             | [x]    | [ ]    |
@@ -100,9 +102,9 @@ legend:
 | --- | ---                 | ---                                                                                                                                                                   | ---    | ---    |
 | 17  | Liquidity Migration | only calls to convert(legacy, super) can increase a supertoken’s  total supply across chains                                                                          | [ ]    | [ ]    |
 | 18  | Liquidity Migration | only calls to convert(super, legacy) can decrease a supertoken’s  total supply across chains                                                                          | [ ]    | [ ]    |
-| 19  | Liquidity Migration | sum of supertoken total supply across all chains is always <= to convert(legacy, super)- convert(super, legacy)                                                       | [ ]    | [ ]    |
+| 19  | Liquidity Migration | sum of supertoken total supply across all chains is always <= to convert(legacy, super)- convert(super, legacy)                                                       | [ ]    | [~]    |
 | 20  | SupERC20            | tokens sendERC20-ed on a source chain to a destination chain can be relayERC20-ed on it as long as the source chain is in the dependency set of the destination chain | [ ]    | [ ]    |
-| 21  | Liquidity Migration | sum of supertoken total supply across all chains is = to convert(legacy, super)- convert(super, legacy) when all cross-chain messages are processed                   | [ ]    | [ ]    |
+| 21  | Liquidity Migration | sum of supertoken total supply across all chains is = to convert(legacy, super)- convert(super, legacy) when all cross-chain messages are processed                   | [ ]    | [~]    |
 
 ## Atomic bridging pseudo-properties
 

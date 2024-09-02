@@ -104,6 +104,7 @@ script = 'test/kontrol/proofs'
 src = 'test/properties/medusa/'
 test = 'test/properties/medusa/'
 script = 'test/properties/medusa/'
+via-ir=true
 
 [profile.halmos]
 src = 'test/properties/halmos/'

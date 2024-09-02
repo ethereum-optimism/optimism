@@ -3,7 +3,7 @@
 		"workers": 10,
 		"workerResetLimit": 50,
 		"timeout": 0,
-		"testLimit": 500000,
+		"testLimit": 0,
 		"callSequenceLength": 100,
 		"corpusDirectory": "test/properties/medusa/corpus/",
 		"coverageEnabled": true,

@@ -27,18 +27,40 @@ contract ProtocolProperties is ProtocolGuided, ProtocolUnguided, CryticERC20Exte
     }
 
     // TODO: will need rework after
-    //   - non-atomic bridge
     //   - `convert`
-    /// @custom:property-id 24
-    /// @custom:property sum of supertoken total supply across all chains is always equal to convert(legacy, super)-
+    /// @custom:property-id 19
+    /// @custom:property sum of supertoken total supply across all chains is always <= to convert(legacy, super)-
     /// convert(super, legacy)
-    function property_totalSupplyAcrossChainsEqualsMints() external view {
+    function property_totalSupplyAcrossChainsEqualsMintsMinusFundsInTransit() external view {
         // iterate over unique deploy salts aka supertokens that are supposed to be compatible with each other
-        for (uint256 deploySaltIndex; deploySaltIndex < ghost_totalSupplyAcrossChains.length(); deploySaltIndex++) {
-            uint256 totalSupply;
+        for (uint256 deploySaltIndex ; deploySaltIndex < ghost_totalSupplyAcrossChains.length(); deploySaltIndex++) {
+            uint256 totalSupply ;
+            (bytes32 currentSalt, uint256 trackedSupply) = ghost_totalSupplyAcrossChains.at(deploySaltIndex);
+            (, uint256 fundsInTransit) = ghost_tokensInTransit.tryGet(currentSalt);
+            // and then over all the (mocked) chain ids where that supertoken could be deployed
+            for (uint256 validChainId ; validChainId < MAX_CHAINS; validChainId++) {
+                address supertoken = MESSENGER.superTokenAddresses(validChainId, currentSalt);
+                if (supertoken != address(0)) {
+                    totalSupply += OptimismSuperchainERC20(supertoken).totalSupply();
+                }
+            }
+            assert(trackedSupply == totalSupply + fundsInTransit);
+        }
+    }
+
+    // TODO: will need rework after
+    //   - `convert`
+    /// @custom:property-id 21
+    /// @custom:property sum of supertoken total supply across all chains is equal to convert(legacy, super)-
+    /// convert(super, legacy) when all when all cross-chain messages are processed
+    function property_totalSupplyAcrossChainsEqualsMintsWhenQueueIsEmpty() external view {
+        require(MESSENGER.messageQueueLength() == 0);
+        // iterate over unique deploy salts aka supertokens that are supposed to be compatible with each other
+        for (uint256 deploySaltIndex ; deploySaltIndex < ghost_totalSupplyAcrossChains.length(); deploySaltIndex++) {
+            uint256 totalSupply ;
             (bytes32 currentSalt, uint256 trackedSupply) = ghost_totalSupplyAcrossChains.at(deploySaltIndex);
             // and then over all the (mocked) chain ids where that supertoken could be deployed
-            for (uint256 validChainId; validChainId < MAX_CHAINS; validChainId++) {
+            for (uint256 validChainId ; validChainId < MAX_CHAINS; validChainId++) {
                 address supertoken = MESSENGER.superTokenAddresses(validChainId, currentSalt);
                 if (supertoken != address(0)) {
                     totalSupply += OptimismSuperchainERC20(supertoken).totalSupply();
