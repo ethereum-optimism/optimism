@@ -65,9 +65,6 @@ type Config struct {
 	// Cancel to request a premature shutdown of the node itself, e.g. when halting. This may be nil.
 	Cancel context.CancelCauseFunc
 
-	// [OPTIONAL] The reth DB path to read receipts from
-	RethDBPath string
-
 	// Conductor is used to determine this node is the leader sequencer.
 	ConductorEnabled    bool
 	ConductorRpc        string

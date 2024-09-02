@@ -106,7 +106,6 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		SafeDBPath:                  ctx.String(flags.SafeDBPath.Name),
 		Sync:                        *syncConfig,
 		RollupHalt:                  haltOption,
-		RethDBPath:                  ctx.String(flags.L1RethDBPath.Name),
 
 		ConductorEnabled:    ctx.Bool(flags.ConductorEnabledFlag.Name),
 		ConductorRpc:        ctx.String(flags.ConductorRpcFlag.Name),
