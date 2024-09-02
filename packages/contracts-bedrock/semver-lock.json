@@ -148,8 +148,8 @@
     "sourceCodeHash": "0xb6e219e8c2d81d75c48a1459907609e9096fe032a7447c88cd3e0d134752ac8e"
   },
   "src/cannon/MIPS2.sol": {
-    "initCodeHash": "0xd75b7541ca736dff03b1fa7116a9835f97bc82507287bf90f3dd739299f5aa03",
-    "sourceCodeHash": "0x520d11d38815ed0be801c0e4cd6dc4a8c5e9bff783767607f377c0e8798e9931"
+    "initCodeHash": "0xb5516fc515d9f483635af706530bb68c1be3a9b25c402865f0fee97d43d2d0ce",
+    "sourceCodeHash": "0x28507a6bc85d05dec9365d7ed77f4df3cabab8b5807c5bf2a2220c947655ec2f"
   },
   "src/cannon/PreimageOracle.sol": {
     "initCodeHash": "0xce7a1c3265e457a05d17b6d1a2ef93c4639caac3733c9cf88bfd192eae2c5788",
@@ -164,8 +164,8 @@
     "sourceCodeHash": "0x854542f55161996d0567bf6677481729d7f9e61bf2262f0e2383f9042a5b6115"
   },
   "src/dispute/FaultDisputeGame.sol": {
-    "initCodeHash": "0x5ea5b544b8d7b32f55f7864c25a2443a5db363ffd1c66e0799cbc7bccaf98526",
-    "sourceCodeHash": "0x8fb70a1306f13fb386ef8db91a65597f106617364b379b34cf28437bc7116e6f"
+    "initCodeHash": "0x8705f00408ff4405723bf59e2dce61a90aa49d8094da1c96a3652a2ebb169519",
+    "sourceCodeHash": "0xe7e437bcb029d653b2e6e10f1186f7ba9028ad68986e3cbe3a03c3dce6c5ec63"
   },
   "src/dispute/weth/DelayedWETH.sol": {
     "initCodeHash": "0xdad40c84fe75a0f112c219bcc9553e325bacc8e11860f692353ea3ff110fd7cc",

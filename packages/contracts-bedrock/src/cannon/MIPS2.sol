@@ -383,7 +383,8 @@ contract MIPS2 is ISemver {
                 v1 = sys.EBADF;
             } else if (syscall_no == sys.SYS_MUNMAP) {
                 // ignored
-            } else if (syscall_no == sys.SYS_GETAFFINITY) {
+            }
+            else if (syscall_no == sys.SYS_GETAFFINITY) {
                 // ignored
             }
             else if (syscall_no == sys.SYS_MADVISE) {
@@ -469,9 +470,11 @@ contract MIPS2 is ISemver {
             }
             else if (syscall_no == sys.SYS_TIMERDELETE) {
                 // ignored
-            } else if (syscall_no == sys.SYS_CLOCKGETTIME) {
+            }
+            else if (syscall_no == sys.SYS_CLOCKGETTIME) {
                 // ignored
-            } else if (syscall_no == sys.SYS_MUNMAP) {
+            }
+            else if (syscall_no == sys.SYS_MUNMAP) {
                 // ignored
             }
             else {
