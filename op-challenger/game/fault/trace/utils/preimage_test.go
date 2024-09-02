@@ -20,14 +20,20 @@ import (
 )
 
 func TestPreimageLoader_NoPreimage(t *testing.T) {
-	loader := NewPreimageLoader(kvstore.NewMemKV().Get)
+	kv := kvstore.NewMemKV()
+	loader := NewPreimageLoader(func() PreimageSource {
+		return kv
+	})
 	actual, err := loader.LoadPreimage(&ProofData{})
 	require.NoError(t, err)
 	require.Nil(t, actual)
 }
 
 func TestPreimageLoader_LocalPreimage(t *testing.T) {
-	loader := NewPreimageLoader(kvstore.NewMemKV().Get)
+	kv := kvstore.NewMemKV()
+	loader := NewPreimageLoader(func() PreimageSource {
+		return kv
+	})
 	proof := &ProofData{
 		OracleKey:    common.Hash{byte(preimage.LocalKeyType), 0xaa, 0xbb}.Bytes(),
 		OracleValue:  nil,
@@ -48,7 +54,10 @@ func TestPreimageLoader_SimpleTypes(t *testing.T) {
 	for _, keyType := range tests {
 		keyType := keyType
 		t.Run(fmt.Sprintf("type-%v", keyType), func(t *testing.T) {
-			loader := NewPreimageLoader(kvstore.NewMemKV().Get)
+			kv := kvstore.NewMemKV()
+			loader := NewPreimageLoader(func() PreimageSource {
+				return kv
+			})
 			proof := &ProofData{
 				OracleKey:    common.Hash{byte(keyType), 0xaa, 0xbb}.Bytes(),
 				OracleValue:  []byte{1, 2, 3, 4, 5, 6},
@@ -90,7 +99,9 @@ func TestPreimageLoader_BlobPreimage(t *testing.T) {
 
 	t.Run("NoKeyPreimage", func(t *testing.T) {
 		kv := kvstore.NewMemKV()
-		loader := NewPreimageLoader(kv.Get)
+		loader := NewPreimageLoader(func() PreimageSource {
+			return kv
+		})
 		proof := &ProofData{
 			OracleKey:    common.Hash{byte(preimage.BlobKeyType), 0xaf}.Bytes(),
 			OracleValue:  proof.OracleValue,
@@ -102,7 +113,9 @@ func TestPreimageLoader_BlobPreimage(t *testing.T) {
 
 	t.Run("InvalidKeyPreimage", func(t *testing.T) {
 		kv := kvstore.NewMemKV()
-		loader := NewPreimageLoader(kv.Get)
+		loader := NewPreimageLoader(func() PreimageSource {
+			return kv
+		})
 		proof := &ProofData{
 			OracleKey:    common.Hash{byte(preimage.BlobKeyType), 0xad}.Bytes(),
 			OracleValue:  proof.OracleValue,
@@ -115,7 +128,9 @@ func TestPreimageLoader_BlobPreimage(t *testing.T) {
 
 	t.Run("MissingBlobs", func(t *testing.T) {
 		kv := kvstore.NewMemKV()
-		loader := NewPreimageLoader(kv.Get)
+		loader := NewPreimageLoader(func() PreimageSource {
+			return kv
+		})
 		proof := &ProofData{
 			OracleKey:    common.Hash{byte(preimage.BlobKeyType), 0xae}.Bytes(),
 			OracleValue:  proof.OracleValue,
@@ -128,7 +143,9 @@ func TestPreimageLoader_BlobPreimage(t *testing.T) {
 
 	t.Run("Valid", func(t *testing.T) {
 		kv := kvstore.NewMemKV()
-		loader := NewPreimageLoader(kv.Get)
+		loader := NewPreimageLoader(func() PreimageSource {
+			return kv
+		})
 		storeBlob(t, kv, gokzg4844.KZGCommitment(commitment), gokzg4844.Blob(blob))
 		actual, err := loader.LoadPreimage(proof)
 		require.NoError(t, err)
@@ -161,13 +178,17 @@ func TestPreimageLoader_PrecompilePreimage(t *testing.T) {
 
 	t.Run("NoInputPreimage", func(t *testing.T) {
 		kv := kvstore.NewMemKV()
-		loader := NewPreimageLoader(kv.Get)
+		loader := NewPreimageLoader(func() PreimageSource {
+			return kv
+		})
 		_, err := loader.LoadPreimage(proof)
 		require.ErrorIs(t, err, kvstore.ErrNotFound)
 	})
 	t.Run("Valid", func(t *testing.T) {
 		kv := kvstore.NewMemKV()
-		loader := NewPreimageLoader(kv.Get)
+		loader := NewPreimageLoader(func() PreimageSource {
+			return kv
+		})
 		require.NoError(t, kv.Put(preimage.Keccak256Key(proof.OracleKey).PreimageKey(), input))
 		actual, err := loader.LoadPreimage(proof)
 		require.NoError(t, err)
