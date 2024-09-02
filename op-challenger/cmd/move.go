@@ -43,7 +43,7 @@ func Move(ctx *cli.Context) error {
 	claim := common.HexToHash(ctx.String(ClaimFlag.Name))
 
 	if attack && defend {
-		return fmt.Errorf("both attack and defense flags cannot be set")
+		return fmt.Errorf("Both attack and defense flags cannot be set together")
 	}
 
 	contract, txMgr, err := NewContractWithTxMgr[contracts.FaultDisputeGameContract](ctx, AddrFromFlag(GameAddressFlag.Name), contracts.NewFaultDisputeGameContract)
