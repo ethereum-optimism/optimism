@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"math/big"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/cmd/batch_decoder/fetch"
@@ -187,6 +189,48 @@ func main() {
 			},
 		},
 		{
+			Name:  "reassemble-devnet",
+			Usage: "Reassembles channels from fetched batch transactions and decode batches for devnet use",
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:  "in",
+					Value: "/tmp/batch_decoder/transactions_cache",
+					Usage: "Cache directory for the found transactions",
+				},
+				&cli.StringFlag{
+					Name:  "out",
+					Value: "/tmp/batch_decoder/channel_cache",
+					Usage: "Cache directory for the found channels",
+				},
+			},
+			Action: func(cliCtx *cli.Context) error {
+				rollupCfg, err := readDevnetConfig()
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				var (
+					L2GenesisTime     uint64         = rollupCfg.Genesis.L2Time
+					L2BlockTime       uint64         = rollupCfg.BlockTime
+					L2ChainID         *big.Int       = rollupCfg.L2ChainID
+					BatchInboxAddress common.Address = rollupCfg.BatchInboxAddress
+				)
+
+				config := reassemble.Config{
+					BatchInbox:    BatchInboxAddress,
+					InDirectory:   cliCtx.String("in"),
+					OutDirectory:  cliCtx.String("out"),
+					L2ChainID:     L2ChainID,
+					L2GenesisTime: L2GenesisTime,
+					L2BlockTime:   L2BlockTime,
+				}
+
+				reassemble.Channels(config, rollupCfg)
+				fmt.Printf("Reassembled channels saved to %v\n", cliCtx.String("out"))
+				return nil
+			},
+		},
+		{
 			Name:  "force-close",
 			Usage: "Create the tx data which will force close a channel",
 			Flags: []cli.Flag{
@@ -231,4 +275,39 @@ func main() {
 	if err := app.Run(os.Args); err != nil {
 		log.Fatal(err)
 	}
+}
+
+const devnetCfgPath = "../../../packages/contracts-bedrock/deploy-config/devnetL1.json"
+
+type DevnetConfig struct {
+	L2ChainID               *big.Int       `json:"l2ChainID"`
+	L2BlockTime             uint64         `json:"l2BlockTime"`
+	BatchInboxAddress       common.Address `json:"batchInboxAddress"`
+	L1GenesisBlockTimestamp string         `json:"l1GenesisBlockTimestamp"`
+}
+
+func readDevnetConfig() (cfg *rollup.Config, err error) {
+	content, err := os.ReadFile(devnetCfgPath)
+	if err != nil {
+		return nil, fmt.Errorf("error when opening file: %v", err)
+	}
+
+	var config DevnetConfig
+	err = json.Unmarshal(content, &config)
+	if err != nil {
+		return nil, fmt.Errorf("error during Unmarshal(): %v", err)
+	}
+
+	L2Time, _ := strconv.ParseUint(config.L1GenesisBlockTimestamp[2:], 16, 64)
+
+	rollupCfg := rollup.Config{
+		Genesis: rollup.Genesis{
+			L2Time: L2Time,
+		},
+		L2ChainID:         config.L2ChainID,
+		BatchInboxAddress: config.BatchInboxAddress,
+		BlockTime:         config.L2BlockTime,
+	}
+
+	return &rollupCfg, nil
 }
