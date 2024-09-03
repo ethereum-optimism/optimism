@@ -19,7 +19,11 @@ autogen-invariant-docs:
 test: build-go-ffi
   forge test
 
-test-kontrol:
+# Run Kontrol tests and build all dependencies.
+test-kontrol: build-go-ffi build kontrol-summary-full test-kontrol-no-build
+
+# Run Kontrol tests without dependencies.
+test-kontrol-no-build:
   ./test/kontrol/scripts/run-kontrol.sh script
 
 test-rerun: build-go-ffi
@@ -48,18 +52,32 @@ gas-snapshot: build-go-ffi gas-snapshot-no-build
 gas-snapshot-check: build-go-ffi
   forge snapshot --match-contract GasBenchMark --check
 
+# Check that the Kontrol deployment script has not changed.
+kontrol-deployment-check:
+  ./scripts/checks/check-kontrol-deployment.sh
+
+# Generates default Kontrol summary.
 kontrol-summary:
   ./test/kontrol/scripts/make-summary-deployment.sh
 
+# Generates fault proofs Kontrol summary.
 kontrol-summary-fp:
   KONTROL_FP_DEPLOYMENT=true ./test/kontrol/scripts/make-summary-deployment.sh
 
+# Generates all Kontrol summaries (default and FP).
+kontrol-summary-full: kontrol-summary kontrol-summary-fp
+
+# Generates ABI snapshots for contracts.
 snapshots-abi-storage:
   go run ./scripts/autogen/generate-snapshots .
 
-snapshots: build snapshots-no-build
+# Generates core snapshots without building contracts. Currently just an alias for
+# snapshots-abi-storage because we no longer run Kontrol snapshots here. Run
+# kontrol-summary-full to build the Kontrol summaries if necessary.
+snapshots-no-build: snapshots-abi-storage
 
-snapshots-no-build: snapshots-abi-storage kontrol-summary-fp kontrol-summary
+# Builds contracts and then generates core snapshots.
+snapshots: build snapshots-no-build
 
 snapshots-check:
   ./scripts/checks/check-snapshots.sh
