@@ -13,6 +13,7 @@ import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
 import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
 import { MIPS } from "src/cannon/MIPS.sol";
+import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
@@ -128,6 +129,7 @@ contract DeployImplementationsOutput {
         L1ERC721Bridge l1ERC721BridgeImpl;
         L1StandardBridge l1StandardBridgeImpl;
         OptimismMintableERC20Factory optimismMintableERC20FactoryImpl;
+        DisputeGameFactory disputeGameFactoryImpl;
     }
 
     Output internal outputs;
@@ -144,6 +146,7 @@ contract DeployImplementationsOutput {
         else if (sel == this.l1ERC721BridgeImpl.selector) outputs.l1ERC721BridgeImpl = L1ERC721Bridge(_addr);
         else if (sel == this.l1StandardBridgeImpl.selector) outputs.l1StandardBridgeImpl = L1StandardBridge(payable(_addr));
         else if (sel == this.optimismMintableERC20FactoryImpl.selector) outputs.optimismMintableERC20FactoryImpl = OptimismMintableERC20Factory(_addr);
+        else if (sel == this.disputeGameFactoryImpl.selector) outputs.disputeGameFactoryImpl = DisputeGameFactory(_addr);
         else revert("DeployImplementationsOutput: unknown selector");
         // forgefmt: disable-end
     }
@@ -168,7 +171,8 @@ contract DeployImplementationsOutput {
             address(outputs.l1CrossDomainMessengerImpl),
             address(outputs.l1ERC721BridgeImpl),
             address(outputs.l1StandardBridgeImpl),
-            address(outputs.optimismMintableERC20FactoryImpl)
+            address(outputs.optimismMintableERC20FactoryImpl),
+            address(outputs.disputeGameFactoryImpl)
         );
         DeployUtils.assertValidContractAddresses(addrs);
     }
@@ -222,6 +226,11 @@ contract DeployImplementationsOutput {
         DeployUtils.assertValidContractAddress(address(outputs.optimismMintableERC20FactoryImpl));
         return outputs.optimismMintableERC20FactoryImpl;
     }
+
+    function disputeGameFactoryImpl() public view returns (DisputeGameFactory) {
+        DeployUtils.assertValidContractAddress(address(outputs.disputeGameFactoryImpl));
+        return outputs.disputeGameFactoryImpl;
+    }
 }
 
 contract DeployImplementations is Script {
@@ -259,6 +268,7 @@ contract DeployImplementations is Script {
         deployDelayedWETHImpl(_dsi, _dso);
         deployPreimageOracleSingleton(_dsi, _dso);
         deployMipsSingleton(_dsi, _dso);
+        deployDisputeGameFactoryImpl(_dsi, _dso);
 
         // Deploy the OP Stack Manager with the new implementations set.
         deployOPStackManager(_dsi, _dso);
@@ -467,6 +477,20 @@ contract DeployImplementations is Script {
 
         vm.label(address(mipsSingleton), "MIPSSingleton");
         _dso.set(_dso.mipsSingleton.selector, address(mipsSingleton));
+    }
+
+    function deployDisputeGameFactoryImpl(
+        DeployImplementationsInput,
+        DeployImplementationsOutput _dso
+    )
+        public
+        virtual
+    {
+        vm.broadcast(msg.sender);
+        DisputeGameFactory disputeGameFactoryImpl = new DisputeGameFactory();
+
+        vm.label(address(disputeGameFactoryImpl), "DisputeGameFactoryImpl");
+        _dso.set(_dso.disputeGameFactoryImpl.selector, address(disputeGameFactoryImpl));
     }
 
     // -------- Utilities --------

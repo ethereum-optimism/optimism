@@ -6,6 +6,7 @@ import { Test } from "forge-std/Test.sol";
 import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
 import { MIPS } from "src/cannon/MIPS.sol";
+import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
@@ -96,7 +97,8 @@ contract DeployImplementationsOutput_Test is Test {
             l1CrossDomainMessengerImpl: L1CrossDomainMessenger(makeAddr("l1CrossDomainMessengerImpl")),
             l1ERC721BridgeImpl: L1ERC721Bridge(makeAddr("l1ERC721BridgeImpl")),
             l1StandardBridgeImpl: L1StandardBridge(payable(makeAddr("l1StandardBridgeImpl"))),
-            optimismMintableERC20FactoryImpl: OptimismMintableERC20Factory(makeAddr("optimismMintableERC20FactoryImpl"))
+            optimismMintableERC20FactoryImpl: OptimismMintableERC20Factory(makeAddr("optimismMintableERC20FactoryImpl")),
+            disputeGameFactoryImpl: DisputeGameFactory(makeAddr("disputeGameFactoryImpl"))
         });
 
         vm.etch(address(output.opsm), hex"01");
@@ -109,7 +111,7 @@ contract DeployImplementationsOutput_Test is Test {
         vm.etch(address(output.l1ERC721BridgeImpl), hex"01");
         vm.etch(address(output.l1StandardBridgeImpl), hex"01");
         vm.etch(address(output.optimismMintableERC20FactoryImpl), hex"01");
-
+        vm.etch(address(output.disputeGameFactoryImpl), hex"01");
         dso.set(dso.opsm.selector, address(output.opsm));
         dso.set(dso.optimismPortalImpl.selector, address(output.optimismPortalImpl));
         dso.set(dso.delayedWETHImpl.selector, address(output.delayedWETHImpl));
@@ -120,6 +122,7 @@ contract DeployImplementationsOutput_Test is Test {
         dso.set(dso.l1ERC721BridgeImpl.selector, address(output.l1ERC721BridgeImpl));
         dso.set(dso.l1StandardBridgeImpl.selector, address(output.l1StandardBridgeImpl));
         dso.set(dso.optimismMintableERC20FactoryImpl.selector, address(output.optimismMintableERC20FactoryImpl));
+        dso.set(dso.disputeGameFactoryImpl.selector, address(output.disputeGameFactoryImpl));
 
         assertEq(address(output.opsm), address(dso.opsm()), "50");
         assertEq(address(output.optimismPortalImpl), address(dso.optimismPortalImpl()), "100");
@@ -133,6 +136,7 @@ contract DeployImplementationsOutput_Test is Test {
         assertEq(
             address(output.optimismMintableERC20FactoryImpl), address(dso.optimismMintableERC20FactoryImpl()), "900"
         );
+        assertEq(address(output.disputeGameFactoryImpl), address(dso.disputeGameFactoryImpl()), "950");
 
         assertEq(keccak256(abi.encode(output)), keccak256(abi.encode(dso.output())), "1000");
     }
@@ -166,6 +170,9 @@ contract DeployImplementationsOutput_Test is Test {
 
         vm.expectRevert(expectedErr);
         dso.optimismMintableERC20FactoryImpl();
+
+        vm.expectRevert(expectedErr);
+        dso.disputeGameFactoryImpl();
     }
 
     function test_getters_whenAddrHasNoCode_reverts() public {
@@ -264,6 +271,7 @@ contract DeployImplementations_Test is Test {
         assertEq(
             address(output.optimismMintableERC20FactoryImpl), address(dso.optimismMintableERC20FactoryImpl()), "1400"
         );
+        assertEq(address(output.disputeGameFactoryImpl), address(dso.disputeGameFactoryImpl()), "1450");
 
         // Assert that the full input and output structs were properly set.
         assertEq(keccak256(abi.encode(_input)), keccak256(abi.encode(DeployImplementationsInput(dsi).input())), "1500");
