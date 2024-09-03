@@ -36,13 +36,14 @@ type AsteriscTraceProvider struct {
 }
 
 func NewTraceProvider(logger log.Logger, m vm.Metricer, cfg vm.Config, vmCfg vm.OracleServerExecutor, prestateProvider types.PrestateProvider, asteriscPrestate string, localInputs utils.LocalGameInputs, dir string, gameDepth types.Depth) *AsteriscTraceProvider {
+	kv, _ := kvstore.NewDiskKV(vm.PreimageDir(dir))
 	return &AsteriscTraceProvider{
 		logger:           logger,
 		dir:              dir,
 		prestate:         asteriscPrestate,
 		generator:        vm.NewExecutor(logger, m, cfg, vmCfg, asteriscPrestate, localInputs),
 		gameDepth:        gameDepth,
-		preimageLoader:   utils.NewPreimageLoader(kvstore.NewDiskKV(vm.PreimageDir(dir)).Get),
+		preimageLoader:   utils.NewPreimageLoader(kv.Get),
 		PrestateProvider: prestateProvider,
 	}
 }
@@ -173,13 +174,14 @@ type AsteriscTraceProviderForTest struct {
 }
 
 func NewTraceProviderForTest(logger log.Logger, m vm.Metricer, cfg *config.Config, localInputs utils.LocalGameInputs, dir string, gameDepth types.Depth) *AsteriscTraceProviderForTest {
+	kv, _ := kvstore.NewDiskKV(vm.PreimageDir(dir))
 	p := &AsteriscTraceProvider{
 		logger:         logger,
 		dir:            dir,
 		prestate:       cfg.AsteriscAbsolutePreState,
 		generator:      vm.NewExecutor(logger, m, cfg.Asterisc, vm.NewOpProgramServerExecutor(), cfg.AsteriscAbsolutePreState, localInputs),
 		gameDepth:      gameDepth,
-		preimageLoader: utils.NewPreimageLoader(kvstore.NewDiskKV(vm.PreimageDir(dir)).Get),
+		preimageLoader: utils.NewPreimageLoader(kv.Get),
 	}
 	return &AsteriscTraceProviderForTest{p}
 }

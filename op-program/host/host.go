@@ -122,6 +122,9 @@ func FaultProofProgram(ctx context.Context, logger log.Logger, cfg *config.Confi
 func PreimageServer(ctx context.Context, logger log.Logger, cfg *config.Config, preimageChannel preimage.FileChannel, hintChannel preimage.FileChannel) error {
 	var serverDone chan error
 	var hinterDone chan error
+	logger.Info("Starting preimage server")
+	var kv kvstore.KV
+
 	defer func() {
 		preimageChannel.Close()
 		hintChannel.Close()
@@ -133,18 +136,25 @@ func PreimageServer(ctx context.Context, logger log.Logger, cfg *config.Config, 
 			// Wait for hinter to complete
 			<-hinterDone
 		}
+
+		if kv != nil {
+			kv.Close()
+		}
 	}()
-	logger.Info("Starting preimage server")
-	var kv kvstore.KV
+
 	if cfg.DataDir == "" {
 		logger.Info("Using in-memory storage")
 		kv = kvstore.NewMemKV()
 	} else {
 		logger.Info("Creating disk storage", "datadir", cfg.DataDir)
-		if err := os.MkdirAll(cfg.DataDir, 0755); err != nil {
+		err := os.MkdirAll(cfg.DataDir, 0755)
+		if err != nil {
 			return fmt.Errorf("creating datadir: %w", err)
 		}
-		kv = kvstore.NewDiskKV(cfg.DataDir)
+		kv, err = kvstore.NewDiskKV(cfg.DataDir)
+		if err != nil {
+			return fmt.Errorf("failed to create disk storage: %w", err)
+		}
 	}
 
 	var (

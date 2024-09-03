@@ -1,14 +1,9 @@
 package kvstore
 
 import (
-	"encoding/hex"
-	"errors"
-	"fmt"
-	"io"
-	"os"
-	"path"
 	"sync"
 
+	"github.com/bmatsuo/lmdb-go/lmdb"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -21,73 +16,75 @@ const diskPermission = 0666
 // file system supports atomic renames.
 type DiskKV struct {
 	sync.RWMutex
-	path string
+	env *lmdb.Env
 }
 
 // NewDiskKV creates a DiskKV that puts/gets pre-images as files in the given directory path.
 // The path must exist, or subsequent Put/Get calls will error when it does not.
-func NewDiskKV(path string) *DiskKV {
-	return &DiskKV{path: path}
-}
+func NewDiskKV(path string) (*DiskKV, error) {
+	env, err := lmdb.NewEnv()
+	if err != nil {
+		return nil, err
+	}
+	// Only allow one database in the environment
+	if err := env.SetMaxDBs(1); err != nil {
+		return nil, err
+	}
+	// Set a 1GB map size
+	if err = env.SetMapSize(1 << 30); err != nil {
+		return nil, err
+	}
 
-func (d *DiskKV) pathKey(k common.Hash) string {
-	return path.Join(d.path, k.String()+".txt")
+	err = env.Open(path, 0, diskPermission)
+	if err != nil {
+		return nil, err
+	}
+
+	return &DiskKV{env: env}, nil
 }
 
 func (d *DiskKV) Put(k common.Hash, v []byte) error {
 	d.Lock()
 	defer d.Unlock()
-	f, err := openTempFile(d.path, k.String()+".txt.*")
-	if err != nil {
-		return fmt.Errorf("failed to open temp file for pre-image %s: %w", k, err)
-	}
-	defer os.Remove(f.Name()) // Clean up the temp file if it doesn't actually get moved into place
-	if _, err := f.Write([]byte(hex.EncodeToString(v))); err != nil {
-		_ = f.Close()
-		return fmt.Errorf("failed to write pre-image %s to disk: %w", k, err)
-	}
-	if err := f.Close(); err != nil {
-		return fmt.Errorf("failed to close temp pre-image %s file: %w", k, err)
-	}
 
-	targetFile := d.pathKey(k)
-	if err := os.Rename(f.Name(), targetFile); err != nil {
-		return fmt.Errorf("failed to move temp dir %v to final destination %v: %w", f.Name(), targetFile, err)
-	}
-	return nil
-}
-
-func openTempFile(dir string, nameTemplate string) (*os.File, error) {
-	f, err := os.CreateTemp(dir, nameTemplate)
-	// Directory has been deleted out from underneath us. Recreate it.
-	if errors.Is(err, os.ErrNotExist) {
-		if mkdirErr := os.MkdirAll(dir, 0777); mkdirErr != nil {
-			return nil, errors.Join(fmt.Errorf("failed to create directory %v: %w", dir, mkdirErr), err)
+	return d.env.Update(func(txn *lmdb.Txn) error {
+		// Open the kvstore dbi, creating it if it doesn't exist.
+		dbi, err := txn.OpenDBI("kvstore", lmdb.Create)
+		if err != nil {
+			return err
 		}
-		f, err = os.CreateTemp(dir, nameTemplate)
-	}
-	if err != nil {
-		return nil, err
-	}
-	return f, nil
+
+		return txn.Put(dbi, k.Bytes(), v, 0)
+	})
 }
 
 func (d *DiskKV) Get(k common.Hash) ([]byte, error) {
 	d.RLock()
 	defer d.RUnlock()
-	f, err := os.OpenFile(d.pathKey(k), os.O_RDONLY, diskPermission)
+
+	var v []byte
+	err := d.env.Update(func(txn *lmdb.Txn) error {
+		// Open the kvstore dbi, creating it if it doesn't exist.
+		dbi, err := txn.OpenDBI("kvstore", lmdb.Create)
+		if err != nil {
+			return err
+		}
+
+		v, err = txn.Get(dbi, k.Bytes())
+		return err
+	})
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
+		if lmdb.IsNotFound(err) {
 			return nil, ErrNotFound
 		}
-		return nil, fmt.Errorf("failed to open pre-image file %s: %w", k, err)
+		return nil, err
 	}
-	defer f.Close() // fine to ignore closing error here
-	dat, err := io.ReadAll(f)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read pre-image from file %s: %w", k, err)
-	}
-	return hex.DecodeString(string(dat))
+
+	return v, nil
+}
+
+func (d *DiskKV) Close() error {
+	return d.env.Close()
 }
 
 var _ KV = (*DiskKV)(nil)
