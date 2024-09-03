@@ -348,9 +348,11 @@ func (l *BatchSubmitter) loop() {
 	publishAndWait := func() {
 		l.publishStateToL1(queue, receiptsCh, daGroup)
 		if !l.Txmgr.IsClosed() {
-			l.Log.Info("Wait for pure DA writes, not L1 txs")
-			_ = daGroup.Wait()
-			l.Log.Info("Wait for L1 writes (blobs or DA commitments)")
+			if l.Config.UseAltDA {
+				l.Log.Info("Waiting for altDA writes to complete...")
+				_ = daGroup.Wait()
+			}
+			l.Log.Info("Waiting for L1 txs to be confirmed...")
 			queue.Wait()
 		} else {
 			l.Log.Info("Txmgr is closed, remaining channel data won't be sent")
