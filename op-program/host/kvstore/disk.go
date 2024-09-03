@@ -1,15 +1,20 @@
 package kvstore
 
 import (
+	"database/sql"
 	"os"
+	"path/filepath"
 	"sync"
 
-	"github.com/bmatsuo/lmdb-go/lmdb"
 	"github.com/ethereum/go-ethereum/common"
+	_ "modernc.org/sqlite"
 )
 
 // read/write mode for user/group/other, executable only for user.
 const diskPermission = 0766
+
+// The name of the driver for the DiskKV.
+const driverName = "sqlite"
 
 // DiskKV is a disk-backed key-value store, every key-value pair is a hex-encoded .txt file, with the value as content.
 // DiskKV is safe for concurrent use with a single DiskKV instance.
@@ -17,67 +22,60 @@ const diskPermission = 0766
 // file system supports atomic renames.
 type DiskKV struct {
 	sync.RWMutex
-	env *lmdb.Env
+	db *sql.DB
 }
 
 // NewDiskKV creates a DiskKV that puts/gets pre-images as files in the given directory path.
 // The path must exist, or subsequent Put/Get calls will error when it does not.
 func NewDiskKV(path string) (*DiskKV, error) {
-	env, err := lmdb.NewEnv()
+	if err := os.MkdirAll(path, diskPermission); err != nil {
+		return nil, err
+	}
+	db, err := sql.Open(driverName, filepath.Join(path, "kvstore.db"))
 	if err != nil {
 		return nil, err
 	}
-	// Only allow one database in the environment
-	if err := env.SetMaxDBs(1); err != nil {
-		return nil, err
-	}
-	// Set a 1GB map size
-	if err = env.SetMapSize(1 << 30); err != nil {
+
+	_, err = db.Exec("CREATE TABLE IF NOT EXISTS kv_store (key BLOB PRIMARY KEY, value TSQLRawBlob)")
+	if err != nil {
 		return nil, err
 	}
 
-	if err = os.MkdirAll(path, diskPermission); err != nil {
-		return nil, err
-	}
-	if err = env.Open(path, lmdb.Create, diskPermission); err != nil {
-		return nil, err
-	}
-
-	return &DiskKV{env: env}, nil
+	return &DiskKV{db: db}, nil
 }
 
 func (d *DiskKV) Put(k common.Hash, v []byte) error {
 	d.Lock()
 	defer d.Unlock()
 
-	return d.env.Update(func(txn *lmdb.Txn) error {
-		// Open the kvstore dbi, creating it if it doesn't exist.
-		dbi, err := txn.OpenDBI("kvstore", lmdb.Create)
-		if err != nil {
-			return err
-		}
+	s, err := d.db.Prepare("INSERT OR REPLACE INTO kv_store (key, value) VALUES (?, ?)")
+	if err != nil {
+		return err
+	}
+	defer s.Close()
 
-		return txn.Put(dbi, k.Bytes(), v, 0)
-	})
+	_, err = s.Exec(k.Bytes(), v)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (d *DiskKV) Get(k common.Hash) ([]byte, error) {
 	d.RLock()
 	defer d.RUnlock()
 
-	var v []byte
-	err := d.env.Update(func(txn *lmdb.Txn) error {
-		// Open the kvstore dbi, creating it if it doesn't exist.
-		dbi, err := txn.OpenDBI("kvstore", lmdb.Create)
-		if err != nil {
-			return err
-		}
-
-		v, err = txn.Get(dbi, k.Bytes())
-		return err
-	})
+	s, err := d.db.Prepare("SELECT value FROM kv_store WHERE key = ?")
 	if err != nil {
-		if lmdb.IsNotFound(err) {
+		return nil, err
+	}
+	defer s.Close()
+
+	var v []byte
+	row := s.QueryRow(k.Bytes())
+	if err := row.Scan(&v); err != nil {
+		if err == sql.ErrNoRows {
 			return nil, ErrNotFound
 		}
 		return nil, err
@@ -87,7 +85,10 @@ func (d *DiskKV) Get(k common.Hash) ([]byte, error) {
 }
 
 func (d *DiskKV) Close() error {
-	return d.env.Close()
+	if d.db != nil {
+		return d.db.Close()
+	}
+	return nil
 }
 
 var _ KV = (*DiskKV)(nil)
