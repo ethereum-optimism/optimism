@@ -1,8 +1,13 @@
 {
+  "go": "1.22.6",
   "abigen": "v1.10.25",
-  "foundry": "63fff3510408b552f11efb8196f48cfe6c1da664",
-  "geth": "v1.13.14",
+  "foundry": "d28a3377e52e6a4114a8cea2903c115b023279e8",
+  "geth": "v1.14.7",
+  "geth_release": "1.14.7-aa55f5ea",
+  "eth2_testnet_genesis": "v0.10.0",
   "nvm": "v20.9.0",
   "slither": "0.10.2",
-  "kontrol": "0.1.247"
+  "kontrol": "0.1.316",
+  "just": "1.34.0",
+  "binary_signer": "1.0.4"
 }

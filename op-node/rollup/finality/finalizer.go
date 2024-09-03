@@ -34,14 +34,14 @@ const defaultFinalityLookback = 4*32 + 1
 // We do not want to do this too often, since it requires fetching a L1 block by number, so no cache data.
 const finalityDelay = 64
 
-// calcFinalityLookback calculates the default finality lookback based on DA challenge window if plasma
+// calcFinalityLookback calculates the default finality lookback based on DA challenge window if altDA
 // mode is activated or L1 finality lookback.
 func calcFinalityLookback(cfg *rollup.Config) uint64 {
 	// in alt-da mode the longest finality lookback is a commitment is challenged on the last block of
 	// the challenge window in which case it will be both challenge + resolve window.
-	if cfg.PlasmaEnabled() {
-		lkb := cfg.PlasmaConfig.DAChallengeWindow + cfg.PlasmaConfig.DAResolveWindow + 1
-		// in the case only if the plasma windows are longer than the default finality lookback
+	if cfg.AltDAEnabled() {
+		lkb := cfg.AltDAConfig.DAChallengeWindow + cfg.AltDAConfig.DAResolveWindow + 1
+		// in the case only if the altDA windows are longer than the default finality lookback
 		if lkb > defaultFinalityLookback {
 			return lkb
 		}
@@ -94,7 +94,7 @@ type Finalizer struct {
 	l1Fetcher FinalizerL1Interface
 }
 
-func NewFinalizer(ctx context.Context, log log.Logger, cfg *rollup.Config, l1Fetcher FinalizerL1Interface, emitter event.Emitter) *Finalizer {
+func NewFinalizer(ctx context.Context, log log.Logger, cfg *rollup.Config, l1Fetcher FinalizerL1Interface) *Finalizer {
 	lookback := calcFinalityLookback(cfg)
 	return &Finalizer{
 		ctx:              ctx,
@@ -104,8 +104,11 @@ func NewFinalizer(ctx context.Context, log log.Logger, cfg *rollup.Config, l1Fet
 		finalityData:     make([]FinalityData, 0, lookback),
 		finalityLookback: lookback,
 		l1Fetcher:        l1Fetcher,
-		emitter:          emitter,
 	}
+}
+
+func (fi *Finalizer) AttachEmitter(em event.Emitter) {
+	fi.emitter = em
 }
 
 // FinalizedL1 identifies the L1 chain (incl.) that included and/or produced all the finalized L2 blocks.
@@ -131,7 +134,7 @@ func (ev TryFinalizeEvent) String() string {
 	return "try-finalize"
 }
 
-func (fi *Finalizer) OnEvent(ev event.Event) {
+func (fi *Finalizer) OnEvent(ev event.Event) bool {
 	switch x := ev.(type) {
 	case FinalizeL1Event:
 		fi.onL1Finalized(x.FinalizedL1)
@@ -145,7 +148,10 @@ func (fi *Finalizer) OnEvent(ev event.Event) {
 		fi.tryFinalize()
 	case engine.ForkchoiceUpdateEvent:
 		fi.lastFinalizedL2 = x.FinalizedL2Head
+	default:
+		return false
 	}
+	return true
 }
 
 // onL1Finalized applies a L1 finality signal

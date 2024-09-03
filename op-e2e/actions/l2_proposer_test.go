@@ -46,7 +46,7 @@ func TestProposerBatchType(t *testing.T) {
 func RunProposerTest(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = deltaTimeOffset
+	applyDeltaTimeOffset(dp, deltaTimeOffset)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
@@ -64,15 +64,17 @@ func RunProposerTest(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 		proposer = NewL2Proposer(t, log, &ProposerCfg{
 			DisputeGameFactoryAddr: &sd.DeploymentsL1.DisputeGameFactoryProxy,
 			ProposalInterval:       6 * time.Second,
+			ProposalRetryInterval:  3 * time.Second,
 			DisputeGameType:        respectedGameType,
 			ProposerKey:            dp.Secrets.Proposer,
 			AllowNonFinalized:      true,
 		}, miner.EthClient(), rollupSeqCl)
 	} else {
 		proposer = NewL2Proposer(t, log, &ProposerCfg{
-			OutputOracleAddr:  &sd.DeploymentsL1.L2OutputOracleProxy,
-			ProposerKey:       dp.Secrets.Proposer,
-			AllowNonFinalized: false,
+			OutputOracleAddr:      &sd.DeploymentsL1.L2OutputOracleProxy,
+			ProposerKey:           dp.Secrets.Proposer,
+			ProposalRetryInterval: 3 * time.Second,
+			AllowNonFinalized:     false,
 		}, miner.EthClient(), rollupSeqCl)
 	}
 

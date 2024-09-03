@@ -33,7 +33,7 @@ func (d *ProgramDeriver) Result() error {
 	return d.result
 }
 
-func (d *ProgramDeriver) OnEvent(ev event.Event) {
+func (d *ProgramDeriver) OnEvent(ev event.Event) bool {
 	switch x := ev.(type) {
 	case engine.EngineResetConfirmedEvent:
 		d.Emitter.Emit(derive.ConfirmPipelineResetEvent{})
@@ -52,7 +52,7 @@ func (d *ProgramDeriver) OnEvent(ev event.Event) {
 		d.Emitter.Emit(derive.ConfirmReceivedAttributesEvent{})
 		// No need to queue the attributes, since there is no unsafe chain to consolidate against,
 		// and no temporary-error retry to perform on block processing.
-		d.Emitter.Emit(engine.ProcessAttributesEvent{Attributes: x.Attributes})
+		d.Emitter.Emit(engine.BuildStartEvent{Attributes: x.Attributes})
 	case engine.InvalidPayloadAttributesEvent:
 		// If a set of attributes was invalid, then we drop the attributes,
 		// and continue with the next.
@@ -84,6 +84,7 @@ func (d *ProgramDeriver) OnEvent(ev event.Event) {
 		// Other events can be ignored safely.
 		// They are broadcast, but only consumed by the other derivers,
 		// or do not affect the state-transition.
-		return
+		return false
 	}
+	return true
 }

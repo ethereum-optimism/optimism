@@ -213,6 +213,11 @@ func TestCannonRequiredArgs(t *testing.T) {
 			cfg.Cannon.Network = "unknown"
 			require.ErrorIs(t, cfg.Check(), ErrCannonNetworkUnknown)
 		})
+
+		t.Run(fmt.Sprintf("TestDebugInfoEnabled-%v", traceType), func(t *testing.T) {
+			cfg := validConfig(traceType)
+			require.True(t, cfg.Cannon.DebugInfo)
+		})
 	}
 }
 
@@ -318,6 +323,11 @@ func TestAsteriscRequiredArgs(t *testing.T) {
 			cfg := validConfig(traceType)
 			cfg.Asterisc.Network = "unknown"
 			require.ErrorIs(t, cfg.Check(), ErrAsteriscNetworkUnknown)
+		})
+
+		t.Run(fmt.Sprintf("TestDebugInfoDisabled-%v", traceType), func(t *testing.T) {
+			cfg := validConfig(traceType)
+			require.False(t, cfg.Asterisc.DebugInfo)
 		})
 	}
 }

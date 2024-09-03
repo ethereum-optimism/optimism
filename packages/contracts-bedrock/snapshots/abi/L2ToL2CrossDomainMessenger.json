@@ -109,7 +109,7 @@
     ],
     "name": "sendMessage",
     "outputs": [],
-    "stateMutability": "payable",
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -168,19 +168,6 @@
       }
     ],
     "name": "RelayedMessage",
-    "type": "event"
-  },
-  {
-    "anonymous": true,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "bytes",
-        "name": "data",
-        "type": "bytes"
-      }
-    ],
-    "name": "SentMessage",
     "type": "event"
   },
   {

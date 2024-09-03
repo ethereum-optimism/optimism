@@ -2,9 +2,7 @@
 node_modules
 results
 temp
-.nyc_output
 coverage.json
-*.tsbuildinfo
 **/lcov.info
 
 yarn-error.log
@@ -16,6 +14,9 @@ yarn-error.log
 dist
 artifacts
 cache
+
+!op-chain-ops/foundry/testdata/srcmaps/cache
+!op-chain-ops/foundry/testdata/srcmaps/artifacts
 
 packages/contracts-bedrock/deployments/devnetL1
 packages/contracts-bedrock/deployments/anvil
@@ -40,8 +41,6 @@ packages/contracts-bedrock/deployments/anvil
 
 coverage.out
 
-# Ignore bedrock go bindings local output files
-op-bindings/bin
 
 __pycache__
 

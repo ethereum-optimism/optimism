@@ -18,18 +18,17 @@ pjoin = os.path.join
 parser = argparse.ArgumentParser(description='Bedrock devnet launcher')
 parser.add_argument('--monorepo-dir', help='Directory of the monorepo', default=os.getcwd())
 parser.add_argument('--allocs', help='Only create the allocs and exit', type=bool, action=argparse.BooleanOptionalAction)
-parser.add_argument('--test', help='Tests the deployment, must already be deployed', type=bool, action=argparse.BooleanOptionalAction)
 
 log = logging.getLogger()
 
 # Global constants
-FORKS = ["delta", "ecotone", "fjord"]
+FORKS = ["delta", "ecotone", "fjord", "granite"]
 
 # Global environment variables
 DEVNET_NO_BUILD = os.getenv('DEVNET_NO_BUILD') == "true"
 DEVNET_L2OO = os.getenv('DEVNET_L2OO') == "true"
-DEVNET_PLASMA = os.getenv('DEVNET_PLASMA') == "true"
-GENERIC_PLASMA = os.getenv('GENERIC_PLASMA') == "true"
+DEVNET_ALTDA = os.getenv('DEVNET_ALTDA') == "true"
+GENERIC_ALTDA = os.getenv('GENERIC_ALTDA') == "true"
 
 class Bunch:
     def __init__(self, **kwds):
@@ -70,7 +69,6 @@ def main():
     devnet_config_path = pjoin(deploy_config_dir, 'devnetL1.json')
     devnet_config_template_path = pjoin(deploy_config_dir, 'devnetL1-template.json')
     ops_chain_ops = pjoin(monorepo_dir, 'op-chain-ops')
-    tasks_dir = pjoin(monorepo_dir, 'packages', 'devnet-tasks')
 
     paths = Bunch(
       mono_repo_dir=monorepo_dir,
@@ -85,7 +83,6 @@ def main():
       op_node_dir=op_node_dir,
       ops_bedrock_dir=ops_bedrock_dir,
       ops_chain_ops=ops_chain_ops,
-      tasks_dir=tasks_dir,
       genesis_l1_path=pjoin(devnet_dir, 'genesis-l1.json'),
       genesis_l2_path=pjoin(devnet_dir, 'genesis-l2.json'),
       allocs_l1_path=pjoin(devnet_dir, 'allocs-l1.json'),
@@ -93,11 +90,6 @@ def main():
       sdk_addresses_json_path=pjoin(devnet_dir, 'sdk-addresses.json'),
       rollup_config_path=pjoin(devnet_dir, 'rollup.json')
     )
-
-    if args.test:
-      log.info('Testing deployed devnet')
-      devnet_test(paths)
-      return
 
     os.makedirs(devnet_dir, exist_ok=True)
 
@@ -131,9 +123,9 @@ def init_devnet_l1_deploy_config(paths, update_timestamp=False):
         deploy_config['l1GenesisBlockTimestamp'] = '{:#x}'.format(int(time.time()))
     if DEVNET_L2OO:
         deploy_config['useFaultProofs'] = False
-    if DEVNET_PLASMA:
-        deploy_config['usePlasma'] = True
-    if GENERIC_PLASMA:
+    if DEVNET_ALTDA:
+        deploy_config['useAltDA'] = True
+    if GENERIC_ALTDA:
         deploy_config['daCommitmentType'] = "GenericCommitment"
     write_json(paths.devnet_config_path, deploy_config)
 
@@ -183,7 +175,7 @@ def devnet_deploy(paths):
         log.info('L1 genesis already generated.')
     else:
         log.info('Generating L1 genesis.')
-        if not os.path.exists(paths.allocs_l1_path) or DEVNET_L2OO or DEVNET_PLASMA:
+        if not os.path.exists(paths.allocs_l1_path) or DEVNET_L2OO or DEVNET_ALTDA:
             # If this is a devnet variant then we need to generate the allocs
             # file here always. This is because CI will run devnet-allocs
             # without setting the appropriate env var which means the allocs will be wrong.
@@ -206,8 +198,12 @@ def devnet_deploy(paths):
             '--outfile.l1', paths.genesis_l1_path,
         ], cwd=paths.op_node_dir)
 
+        run_command([
+          'sh', 'l1-generate-beacon-genesis.sh',
+        ], cwd=paths.ops_bedrock_dir)
+
     log.info('Starting L1.')
-    run_command(['docker', 'compose', 'up', '-d', 'l1'], cwd=paths.ops_bedrock_dir, env={
+    run_command(['docker', 'compose', 'up', '-d', 'l1', 'l1-bn', 'l1-vc'], cwd=paths.ops_bedrock_dir, env={
         'PWD': paths.ops_bedrock_dir
     })
     wait_up(8545)
@@ -269,20 +265,21 @@ def devnet_deploy(paths):
     else:
         docker_env['DGF_ADDRESS'] = dispute_game_factory
         docker_env['DG_TYPE'] = '254'
-        docker_env['PROPOSAL_INTERVAL'] = '10s'
+        docker_env['PROPOSAL_INTERVAL'] = '12s'
 
-    if DEVNET_PLASMA:
-        docker_env['PLASMA_ENABLED'] = 'true'
+    if DEVNET_ALTDA:
+        docker_env['ALTDA_ENABLED'] = 'true'
+        docker_env['DA_TYPE'] = 'calldata'
     else:
-        docker_env['PLASMA_ENABLED'] = 'false'
+        docker_env['ALTDA_ENABLED'] = 'false'
+        docker_env['DA_TYPE'] = 'blobs'
 
-    if GENERIC_PLASMA:
-        docker_env['PLASMA_GENERIC_DA'] = 'true'
-        docker_env['PLASMA_DA_SERVICE'] = 'true'
+    if GENERIC_ALTDA:
+        docker_env['ALTDA_GENERIC_DA'] = 'true'
+        docker_env['ALTDA_SERVICE'] = 'true'
     else:
-        docker_env['PLASMA_GENERIC_DA'] = 'false'
-        docker_env['PLASMA_DA_SERVICE'] = 'false'
-
+        docker_env['ALTDA_GENERIC_DA'] = 'false'
+        docker_env['ALTDA_SERVICE'] = 'false'
 
     # Bring up the rest of the services.
     log.info('Bringing up `op-node`, `op-proposer` and `op-batcher`.')
@@ -294,7 +291,7 @@ def devnet_deploy(paths):
         run_command(['docker', 'compose', 'up', '-d', 'op-challenger'], cwd=paths.ops_bedrock_dir, env=docker_env)
 
     # Optionally bring up Alt-DA Mode components.
-    if DEVNET_PLASMA:
+    if DEVNET_ALTDA:
         log.info('Bringing up `da-server`, `sentinel`.') # TODO(10141): We don't have public sentinel images yet
         run_command(['docker', 'compose', 'up', '-d', 'da-server'], cwd=paths.ops_bedrock_dir, env=docker_env)
 
@@ -324,21 +321,6 @@ def wait_for_rpc_server(url):
 
 
 CommandPreset = namedtuple('Command', ['name', 'args', 'cwd', 'timeout'])
-
-
-def devnet_test(paths):
-    # Run the two commands with different signers, so the ethereum nonce management does not conflict
-    # And do not use devnet system addresses, to avoid breaking fee-estimation or nonce values.
-    run_commands([
-        CommandPreset('erc20-test',
-          ['npx', 'hardhat',  'deposit-erc20', '--network',  'devnetL1',
-           '--l1-contracts-json-path', paths.addresses_json_path, '--signer-index', '14'],
-          cwd=paths.tasks_dir, timeout=8*60),
-        CommandPreset('eth-test',
-          ['npx', 'hardhat',  'deposit-eth', '--network',  'devnetL1',
-           '--l1-contracts-json-path', paths.addresses_json_path, '--signer-index', '15'],
-          cwd=paths.tasks_dir, timeout=8*60)
-    ], max_workers=1)
 
 
 def run_commands(commands: list[CommandPreset], max_workers=2):

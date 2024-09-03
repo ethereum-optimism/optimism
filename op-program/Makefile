@@ -21,7 +21,7 @@ op-program: \
 	op-program-client-mips
 
 op-program-host:
-	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v -ldflags "$(LDFLAGSSTRING)" -o ./bin/op-program ./host/cmd/main.go
+	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) CGO_ENABLED=0 go build -v -ldflags "$(LDFLAGSSTRING)" -o ./bin/op-program ./host/cmd/main.go
 
 op-program-client:
 	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v -ldflags "$(PC_LDFLAGSSTRING)" -o ./bin/op-program-client ./client/cmd/main.go
@@ -64,7 +64,12 @@ capture-sepolia-ecotone: op-program-host op-program-client
 	env GO111MODULE=on go run ./verify/sepolia/cmd/sepolia.go --l1 $$SEPOLIA_L1URL --l1.beacon $$SEPOLIA_BEACON_URL --l2 $$SEPOLIA_L2URL --datadir "$(COMPAT_DIR)/sepolia-ecotone" --l1.head "0x5d491a8c1e728a4e70720c09fefdaa083681a9421cd365af85220cf8bd4448a3" --l2.start "9205715" --l2.end "9205815"
 	tar jcf "$(COMPAT_DIR)/sepolia-ecotone.tar.bz" -C "$(COMPAT_DIR)" sepolia-ecotone
 
-capture-chain-test-data: capture-mainnet-genesis capture-sepolia-delta capture-sepolia-ecotone
+capture-sepolia-fjord: op-program-host op-program-client
+	rm -rf "$(COMPAT_DIR)/sepolia-fjord" "$(COMPAT_DIR)/sepolia-fjord.tar.bz"
+	env GO111MODULE=on go run ./verify/sepolia/cmd/sepolia.go --l1 $$SEPOLIA_L1URL --l1.beacon $$SEPOLIA_BEACON_URL --l2 $$SEPOLIA_L2URL --datadir "$(COMPAT_DIR)/sepolia-fjord" --l1.head "0x93ba31bf89e54237af6e6564e69d328b2b5202adf643de4cb097431f74f4a6c1" --l2.start "15378256" --l2.end "15378356"
+	tar jcf "$(COMPAT_DIR)/sepolia-fjord.tar.bz" -C "$(COMPAT_DIR)" sepolia-fjord
+
+capture-chain-test-data: capture-mainnet-genesis capture-sepolia-delta capture-sepolia-ecotone capture-sepolia-fjord
 
 verify-sepolia-delta: op-program-host op-program-client
 	./scripts/run-compat.sh "sepolia-delta"
@@ -74,6 +79,9 @@ verify-mainnet-genesis: op-program-host op-program-client
 
 verify-sepolia-ecotone: op-program-host op-program-client
 	./scripts/run-compat.sh "sepolia-ecotone"
+
+verify-sepolia-fjord: op-program-host op-program-client
+	./scripts/run-compat.sh "sepolia-fjord"
 
 verify-compat: verify-sepolia-delta verify-sepolia-ecotone verify-mainnet-genesis
 

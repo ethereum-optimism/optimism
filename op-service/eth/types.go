@@ -20,10 +20,19 @@ import (
 
 type ErrorCode int
 
+func (c ErrorCode) IsEngineError() bool {
+	return -38100 < c && c <= -38000
+}
+
+// Engine error codes used to be -3200x, but were rebased to -3800x:
+// https://github.com/ethereum/execution-apis/pull/214
 const (
-	UnknownPayload           ErrorCode = -32001 // Payload does not exist / is not available.
+	InvalidParams            ErrorCode = -32602
+	UnknownPayload           ErrorCode = -38001 // Payload does not exist / is not available.
 	InvalidForkchoiceState   ErrorCode = -38002 // Forkchoice state is invalid / inconsistent.
 	InvalidPayloadAttributes ErrorCode = -38003 // Payload attributes are invalid / inconsistent.
+	TooLargeEngineRequest    ErrorCode = -38004 // Unused, here for completeness, only used by engine_getPayloadBodiesByHashV1
+	UnsupportedFork          ErrorCode = -38005 // Unused, see issue #11130.
 )
 
 var ErrBedrockScalarPaddingNotEmpty = errors.New("version 0 scalar value has non-empty padding")

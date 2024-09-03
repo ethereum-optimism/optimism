@@ -8,10 +8,10 @@ import (
 
 	"github.com/urfave/cli/v2"
 
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
@@ -56,6 +56,9 @@ type CLIConfig struct {
 	// If using blobs, this setting is ignored and the max blob size is used.
 	MaxL1TxSize uint64
 
+	// Maximum number of blocks to add to a span batch. Default is 0 - no maximum.
+	MaxBlocksPerSpanBatch int
+
 	// The target number of frames to create per channel. Controls number of blobs
 	// per blob tx, if using Blob DA.
 	TargetNumFrames int
@@ -85,22 +88,23 @@ type CLIConfig struct {
 	BatchType uint
 
 	// DataAvailabilityType is one of the values defined in op-batcher/flags/types.go and dictates
-	// the data availability type to use for posting batches, e.g. blobs vs calldata.
+	// the data availability type to use for posting batches, e.g. blobs vs calldata, or auto
+	// for choosing the most economic type dynamically at the start of each channel.
 	DataAvailabilityType flags.DataAvailabilityType
+
+	// ActiveSequencerCheckDuration is the duration between checks to determine the active sequencer endpoint.
+	ActiveSequencerCheckDuration time.Duration
 
 	// TestUseMaxTxSizeForBlobs allows to set the blob size with MaxL1TxSize.
 	// Should only be used for testing purposes.
 	TestUseMaxTxSizeForBlobs bool
-
-	// ActiveSequencerCheckDuration is the duration between checks to determine the active sequencer endpoint.
-	ActiveSequencerCheckDuration time.Duration
 
 	TxMgrConfig   txmgr.CLIConfig
 	LogConfig     oplog.CLIConfig
 	MetricsConfig opmetrics.CLIConfig
 	PprofConfig   oppprof.CLIConfig
 	RPC           oprpc.CLIConfig
-	PlasmaDA      plasma.CLIConfig
+	AltDA         altda.CLIConfig
 }
 
 func (c *CLIConfig) Check() error {
@@ -172,6 +176,7 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		MaxPendingTransactions:       ctx.Uint64(flags.MaxPendingTransactionsFlag.Name),
 		MaxChannelDuration:           ctx.Uint64(flags.MaxChannelDurationFlag.Name),
 		MaxL1TxSize:                  ctx.Uint64(flags.MaxL1TxSizeBytesFlag.Name),
+		MaxBlocksPerSpanBatch:        ctx.Int(flags.MaxBlocksPerSpanBatch.Name),
 		TargetNumFrames:              ctx.Int(flags.TargetNumFramesFlag.Name),
 		ApproxComprRatio:             ctx.Float64(flags.ApproxComprRatioFlag.Name),
 		Compressor:                   ctx.String(flags.CompressorFlag.Name),
@@ -187,6 +192,6 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		MetricsConfig:                opmetrics.ReadCLIConfig(ctx),
 		PprofConfig:                  oppprof.ReadCLIConfig(ctx),
 		RPC:                          oprpc.ReadCLIConfig(ctx),
-		PlasmaDA:                     plasma.ReadCLIConfig(ctx),
+		AltDA:                        altda.ReadCLIConfig(ctx),
 	}
 }

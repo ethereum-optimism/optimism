@@ -36,6 +36,10 @@ test-fault-proofs: pre-test
 	$(go_test) $(go_test_flags) ./faultproofs
 .PHONY: test-faultproofs
 
+test-devnet: pre-test
+	$(go_test) $(go_test_flags) ./devnet
+.PHONY: test-devnet
+
 cannon-prestate:
 	make -C .. cannon-prestate
 .PHONY: cannon-prestate
@@ -66,7 +70,7 @@ clean:
 .PHONY: clean
 
 fuzz:
-	go test -run NOTAREALTEST -v -fuzztime 10s -fuzz FuzzFjordCostFunction ./
-	go test -run NOTAREALTEST -v -fuzztime 10s -fuzz FuzzFastLzGethSolidity ./
-	go test -run NOTAREALTEST -v -fuzztime 10s -fuzz FuzzFastLzCgo ./
+	go test -run NOTAREALTEST -tags cgo_test -v -fuzztime 10s -fuzz FuzzFjordCostFunction ./
+	go test -run NOTAREALTEST -tags cgo_test -v -fuzztime 10s -fuzz FuzzFastLzGethSolidity ./
+	go test -run NOTAREALTEST -tags cgo_test -v -fuzztime 10s -fuzz FuzzFastLzCgo ./
 

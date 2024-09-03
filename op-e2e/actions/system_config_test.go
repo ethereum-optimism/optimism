@@ -53,7 +53,7 @@ func BatcherKeyRotation(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	dp.DeployConfig.L2BlockTime = 2
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = deltaTimeOffset
+	applyDeltaTimeOffset(dp, deltaTimeOffset)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
@@ -227,7 +227,15 @@ func BatcherKeyRotation(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 func GPOParamsChange(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = deltaTimeOffset
+	applyDeltaTimeOffset(dp, deltaTimeOffset)
+
+	// activating Delta only, not Ecotone and further:
+	// the GPO change assertions here all apply only for the Delta transition.
+	// Separate tests cover Ecotone GPO changes.
+	dp.DeployConfig.L2GenesisEcotoneTimeOffset = nil
+	dp.DeployConfig.L2GenesisFjordTimeOffset = nil
+	dp.DeployConfig.L2GenesisGraniteTimeOffset = nil
+
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
@@ -354,7 +362,7 @@ func GPOParamsChange(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 func GasLimitChange(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = deltaTimeOffset
+	applyDeltaTimeOffset(dp, deltaTimeOffset)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)

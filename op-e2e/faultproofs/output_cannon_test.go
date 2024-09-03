@@ -194,7 +194,7 @@ func TestOutputCannonDefendStep(t *testing.T) {
 
 	game.StartChallenger(ctx, "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
 
-	correctTrace := game.CreateHonestActor(ctx, "sequencer", challenger.WithPrivKey(sys.Cfg.Secrets.Mallory))
+	correctTrace := game.CreateHonestActor(ctx, "sequencer", disputegame.WithPrivKey(sys.Cfg.Secrets.Mallory))
 
 	maxDepth := game.MaxDepth(ctx)
 	game.DefendClaim(ctx, outputRootClaim, func(claim *disputegame.ClaimHelper) *disputegame.ClaimHelper {
@@ -410,7 +410,7 @@ func TestOutputCannonProposedOutputRootValid(t *testing.T) {
 
 			disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
 			game := disputeGameFactory.StartOutputCannonGameWithCorrectRoot(ctx, "sequencer", 1)
-			correctTrace := game.CreateHonestActor(ctx, "sequencer", challenger.WithPrivKey(sys.Cfg.Secrets.Mallory))
+			correctTrace := game.CreateHonestActor(ctx, "sequencer", disputegame.WithPrivKey(sys.Cfg.Secrets.Mallory))
 
 			game.StartChallenger(ctx, "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
 
@@ -445,7 +445,7 @@ func TestOutputCannonPoisonedPostState(t *testing.T) {
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
 	// Root claim is dishonest
 	game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", 1, common.Hash{0xaa})
-	correctTrace := game.CreateHonestActor(ctx, "sequencer", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+	correctTrace := game.CreateHonestActor(ctx, "sequencer", disputegame.WithPrivKey(sys.Cfg.Secrets.Alice))
 
 	// Honest first attack at "honest" level
 	claim := correctTrace.AttackClaim(ctx, game.RootClaim(ctx))
@@ -509,7 +509,7 @@ func TestDisputeOutputRootBeyondProposedBlock_ValidOutputRoot(t *testing.T) {
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
 	// Root claim is dishonest
 	game := disputeGameFactory.StartOutputCannonGameWithCorrectRoot(ctx, "sequencer", 1)
-	correctTrace := game.CreateHonestActor(ctx, "sequencer", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+	correctTrace := game.CreateHonestActor(ctx, "sequencer", disputegame.WithPrivKey(sys.Cfg.Secrets.Alice))
 	// Start the honest challenger
 	game.StartChallenger(ctx, "Honest", challenger.WithPrivKey(sys.Cfg.Secrets.Bob))
 
@@ -559,7 +559,7 @@ func TestDisputeOutputRootBeyondProposedBlock_InvalidOutputRoot(t *testing.T) {
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
 	// Root claim is dishonest
 	game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", 1, common.Hash{0xaa})
-	correctTrace := game.CreateHonestActor(ctx, "sequencer", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+	correctTrace := game.CreateHonestActor(ctx, "sequencer", disputegame.WithPrivKey(sys.Cfg.Secrets.Alice))
 
 	// Start the honest challenger
 	game.StartChallenger(ctx, "Honest", challenger.WithPrivKey(sys.Cfg.Secrets.Bob))
@@ -610,7 +610,7 @@ func TestDisputeOutputRoot_ChangeClaimedOutputRoot(t *testing.T) {
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
 	// Root claim is dishonest
 	game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", 1, common.Hash{0xaa})
-	correctTrace := game.CreateHonestActor(ctx, "sequencer", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+	correctTrace := game.CreateHonestActor(ctx, "sequencer", disputegame.WithPrivKey(sys.Cfg.Secrets.Alice))
 
 	// Start the honest challenger
 	game.StartChallenger(ctx, "Honest", challenger.WithPrivKey(sys.Cfg.Secrets.Bob))
@@ -700,7 +700,7 @@ func TestInvalidateUnsafeProposal(t *testing.T) {
 			// Root claim is _dishonest_ because the required data is not available on L1
 			game := disputeGameFactory.StartOutputCannonGameWithCorrectRoot(ctx, "sequencer", blockNum, disputegame.WithUnsafeProposal())
 
-			correctTrace := game.CreateHonestActor(ctx, "sequencer", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+			correctTrace := game.CreateHonestActor(ctx, "sequencer", disputegame.WithPrivKey(sys.Cfg.Secrets.Alice))
 
 			// Start the honest challenger
 			game.StartChallenger(ctx, "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Bob))
@@ -762,7 +762,7 @@ func TestInvalidateProposalForFutureBlock(t *testing.T) {
 			// Root claim is _dishonest_ because the required data is not available on L1
 			game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", farFutureBlockNum, common.Hash{0xaa}, disputegame.WithFutureProposal())
 
-			correctTrace := game.CreateHonestActor(ctx, "sequencer", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+			correctTrace := game.CreateHonestActor(ctx, "sequencer", disputegame.WithPrivKey(sys.Cfg.Secrets.Alice))
 
 			// Start the honest challenger
 			game.StartChallenger(ctx, "Honest", challenger.WithPrivKey(sys.Cfg.Secrets.Bob))
@@ -814,4 +814,141 @@ func TestInvalidateCorrectProposalFutureBlock(t *testing.T) {
 	// yet in the L2 chain.
 	game.WaitForGameStatus(ctx, gameTypes.GameStatusChallengerWon)
 	game.LogGameData(ctx)
+}
+
+func TestOutputCannonHonestSafeTraceExtension_ValidRoot(t *testing.T) {
+	op_e2e.InitParallel(t, op_e2e.UsesCannon)
+
+	ctx := context.Background()
+	sys, l1Client := StartFaultDisputeSystem(t)
+	t.Cleanup(sys.Close)
+
+	// Wait for there to be there are safe L2 blocks past the claimed safe head that have data available on L1 within
+	// the commitment stored in the dispute game.
+	safeHeadNum := uint64(3)
+	require.NoError(t, wait.ForSafeBlock(ctx, sys.RollupClient("sequencer"), safeHeadNum))
+
+	// Create a dispute game with an honest claim
+	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
+	game := disputeGameFactory.StartOutputCannonGameWithCorrectRoot(ctx, "sequencer", safeHeadNum-1)
+	require.NotNil(t, game)
+
+	// Create a correct trace actor with an honest trace extending to L2 block #4
+	correctTrace := game.CreateHonestActor(ctx, "sequencer", disputegame.WithPrivKey(sys.Cfg.Secrets.Mallory))
+
+	// Create a correct trace actor with an honest trace extending to L2 block #5
+	// Notably, L2 block #5 is a valid block within the safe chain, and the data required to reproduce it
+	// will be committed to within the L1 head of the dispute game.
+	correctTracePlus1 := game.CreateHonestActor(ctx, "sequencer",
+		disputegame.WithPrivKey(sys.Cfg.Secrets.Mallory),
+		disputegame.WithClaimedL2BlockNumber(safeHeadNum))
+
+	// Start the honest challenger. They will defend the root claim.
+	game.StartChallenger(ctx, "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+
+	claim := game.RootClaim(ctx)
+	game.ChallengeClaim(ctx, claim, func(parent *disputegame.ClaimHelper) *disputegame.ClaimHelper {
+		// Have to disagree with the root claim - we're trying to invalidate a valid output root
+		if parent.IsRootClaim() {
+			return parent.Attack(ctx, common.Hash{0xdd})
+		}
+		return correctTracePlus1.CounterClaim(ctx, parent)
+	}, func(parentClaimIdx int64) {
+		correctTrace.StepFails(ctx, parentClaimIdx, true)
+		correctTrace.StepFails(ctx, parentClaimIdx, false)
+		correctTracePlus1.StepFails(ctx, parentClaimIdx, true)
+		correctTracePlus1.StepFails(ctx, parentClaimIdx, false)
+	})
+	game.LogGameData(ctx)
+
+	// Time travel past when the game will be resolvable.
+	sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
+	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
+
+	game.WaitForInactivity(ctx, 10, true)
+	game.LogGameData(ctx)
+	require.EqualValues(t, gameTypes.GameStatusDefenderWon, game.Status(ctx))
+}
+
+func TestOutputCannonHonestSafeTraceExtension_InvalidRoot(t *testing.T) {
+	op_e2e.InitParallel(t, op_e2e.UsesCannon)
+
+	ctx := context.Background()
+	sys, l1Client := StartFaultDisputeSystem(t)
+	t.Cleanup(sys.Close)
+
+	// Wait for there to be there are safe L2 blocks past the claimed safe head that have data available on L1 within
+	// the commitment stored in the dispute game.
+	safeHeadNum := uint64(2)
+	require.NoError(t, wait.ForSafeBlock(ctx, sys.RollupClient("sequencer"), safeHeadNum))
+
+	// Create a dispute game with a dishonest claim @ L2 block #4
+	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
+	game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", safeHeadNum-1, common.Hash{0xCA, 0xFE})
+	require.NotNil(t, game)
+
+	// Create a correct trace actor with an honest trace extending to L2 block #5
+	// Notably, L2 block #5 is a valid block within the safe chain, and the data required to reproduce it
+	// will be committed to within the L1 head of the dispute game.
+	correctTracePlus1 := game.CreateHonestActor(ctx, "sequencer",
+		disputegame.WithPrivKey(sys.Cfg.Secrets.Mallory),
+		disputegame.WithClaimedL2BlockNumber(safeHeadNum))
+
+	// Start the honest challenger. They will challenge the root claim.
+	game.StartChallenger(ctx, "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+
+	claim := game.RootClaim(ctx)
+	game.DefendClaim(ctx, claim, func(parent *disputegame.ClaimHelper) *disputegame.ClaimHelper {
+		return correctTracePlus1.CounterClaim(ctx, parent)
+	})
+
+	// Time travel past when the game will be resolvable.
+	sys.TimeTravelClock.AdvanceTime(game.MaxClockDuration(ctx))
+	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
+
+	game.WaitForInactivity(ctx, 10, true)
+	game.LogGameData(ctx)
+	require.EqualValues(t, gameTypes.GameStatusChallengerWon, game.Status(ctx))
+}
+
+func TestAgreeFirstBlockWithOriginOf1(t *testing.T) {
+	op_e2e.InitParallel(t, op_e2e.UsesCannon)
+
+	ctx := context.Background()
+	sys, _ := StartFaultDisputeSystem(t)
+	t.Cleanup(sys.Close)
+
+	rollupClient := sys.RollupClient("sequencer")
+	blockNum := uint64(0)
+	limit := uint64(100)
+	for ; blockNum <= limit; blockNum++ {
+		require.NoError(t, wait.ForBlock(ctx, sys.NodeClient("sequencer"), blockNum))
+		output, err := rollupClient.OutputAtBlock(ctx, blockNum)
+		require.NoError(t, err)
+		if output.BlockRef.L1Origin.Number == 1 {
+			break
+		}
+	}
+	require.Less(t, blockNum, limit)
+
+	// Create a dispute game with a dishonest claim @ L2 block #4
+	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
+	// Make the agreed block the first one with L1 origin of block 1 so the claim is blockNum+1
+	game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", blockNum+1, common.Hash{0xCA, 0xFE})
+	require.NotNil(t, game)
+	outputRootClaim := game.DisputeLastBlock(ctx)
+	game.LogGameData(ctx)
+
+	honestChallenger := game.StartChallenger(ctx, "HonestActor", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+
+	// Wait for the honest challenger to dispute the outputRootClaim. This creates a root of an execution game that we challenge by coercing
+	// a step at a preimage trace index.
+	outputRootClaim = outputRootClaim.WaitForCounterClaim(ctx)
+	game.LogGameData(ctx)
+
+	// Should claim output root is invalid, but actually panics.
+	outputRootClaim.RequireInvalidStatusCode()
+	// The above method already verified the image was uploaded and step called successfully
+	// So we don't waste time resolving the game - that's tested elsewhere.
+	require.NoError(t, honestChallenger.Close())
 }

@@ -191,7 +191,8 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		l1F.ExpectL1BlockRefByNumber(refD.Number, refD, nil)
 
 		emitter := &testutils.MockEmitter{}
-		fi := NewFinalizer(context.Background(), logger, &rollup.Config{}, l1F, emitter)
+		fi := NewFinalizer(context.Background(), logger, &rollup.Config{}, l1F)
+		fi.AttachEmitter(emitter)
 
 		// now say C1 was included in D and became the new safe head
 		fi.OnEvent(engine.SafeDerivedEvent{Safe: refC1, DerivedFrom: refD})
@@ -225,7 +226,8 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		l1F.ExpectL1BlockRefByNumber(refD.Number, refD, nil) // to check what was derived from (same in this case)
 
 		emitter := &testutils.MockEmitter{}
-		fi := NewFinalizer(context.Background(), logger, &rollup.Config{}, l1F, emitter)
+		fi := NewFinalizer(context.Background(), logger, &rollup.Config{}, l1F)
+		fi.AttachEmitter(emitter)
 
 		// now say C1 was included in D and became the new safe head
 		fi.OnEvent(engine.SafeDerivedEvent{Safe: refC1, DerivedFrom: refD})
@@ -264,7 +266,8 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		defer l1F.AssertExpectations(t)
 
 		emitter := &testutils.MockEmitter{}
-		fi := NewFinalizer(context.Background(), logger, &rollup.Config{}, l1F, emitter)
+		fi := NewFinalizer(context.Background(), logger, &rollup.Config{}, l1F)
+		fi.AttachEmitter(emitter)
 
 		fi.OnEvent(engine.SafeDerivedEvent{Safe: refC1, DerivedFrom: refD})
 		fi.OnEvent(derive.DeriverIdleEvent{Origin: refD})
@@ -349,7 +352,8 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		l1F.ExpectL1BlockRefByNumber(refC.Number, refC, nil) // check what we derived the L2 block from
 
 		emitter := &testutils.MockEmitter{}
-		fi := NewFinalizer(context.Background(), logger, &rollup.Config{}, l1F, emitter)
+		fi := NewFinalizer(context.Background(), logger, &rollup.Config{}, l1F)
+		fi.AttachEmitter(emitter)
 
 		// now say B1 was included in C and became the new safe head
 		fi.OnEvent(engine.SafeDerivedEvent{Safe: refB1, DerivedFrom: refC})
@@ -385,7 +389,8 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		l1F.ExpectL1BlockRefByNumber(refE.Number, refE, nil) // post-reorg
 
 		emitter := &testutils.MockEmitter{}
-		fi := NewFinalizer(context.Background(), logger, &rollup.Config{}, l1F, emitter)
+		fi := NewFinalizer(context.Background(), logger, &rollup.Config{}, l1F)
+		fi.AttachEmitter(emitter)
 
 		// now say B1 was included in C and became the new safe head
 		fi.OnEvent(engine.SafeDerivedEvent{Safe: refB1, DerivedFrom: refC})

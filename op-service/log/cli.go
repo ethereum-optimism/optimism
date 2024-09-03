@@ -3,11 +3,11 @@ package log
 import (
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"strings"
 
 	"github.com/urfave/cli/v2"
-	"golang.org/x/exp/slog"
 	"golang.org/x/term"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -140,7 +140,7 @@ func FormatHandler(ft FormatType, color bool) func(io.Writer) slog.Handler {
 	case FormatJSON:
 		return log.JSONHandler
 	case FormatText:
-		if term.IsTerminal(int(os.Stdout.Fd())) {
+		if color {
 			return termColorHandler
 		} else {
 			return logfmtHandler

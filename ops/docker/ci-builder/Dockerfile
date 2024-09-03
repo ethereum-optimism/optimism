@@ -92,34 +92,25 @@ COPY --from=rust-build /root/.foundry/bin/anvil /usr/local/bin/anvil
 COPY --from=rust-build /root/.cargo/bin/svm /usr/local/bin/svm
 COPY --from=rust-build /root/.cargo/bin/just /usr/local/bin/just
 
-COPY .nvmrc .nvmrc
 COPY ./versions.json ./versions.json
-
-ENV NODE_MAJOR=20
 
 RUN /bin/sh -c set -eux; \
   apt-get update; \
   apt-get install -y --no-install-recommends bash curl openssh-client git build-essential ca-certificates jq gnupg binutils-mips-linux-gnu python3 python3-pip python3-setuptools; \
   mkdir -p /etc/apt/keyrings; \
-  curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg; \
-  echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$NODE_MAJOR.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list; \
   curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg; \
   chmod a+r /etc/apt/keyrings/docker.gpg; \
   echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null; \
   apt-get update; \
-  apt-get install -y nodejs docker-ce-cli; \
+  apt-get install -y docker-ce-cli; \
   ln -s /usr/local/go/bin/gofmt /usr/local/bin/gofmt; \
-  npm i -g depcheck; \
   pip install capstone pyelftools; \
   curl -fLSs https://raw.githubusercontent.com/CircleCI-Public/circleci-cli/master/install.sh | bash; \
   apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false; \
   rm -rf /var/lib/apt/lists/*; \
-  rm -rf /root/.cache/pip; \
-  rm -rf /root/.cache/npm;
+  rm -rf /root/.cache/pip;
 
-RUN npm i -g pnpm && npm i -g yarn@1 && pnpm --version && yarn --version
-
-RUN svm install 0.5.17 && \
+RUN svm install 0.8.25 && \
   svm install 0.8.15 && \
   svm install 0.8.19
 

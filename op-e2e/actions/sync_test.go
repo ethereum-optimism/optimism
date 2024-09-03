@@ -4,6 +4,7 @@ import (
 	"errors"
 	"math/big"
 	"math/rand"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,14 +17,15 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rpc"
 
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	engine2 "github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
-	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -31,7 +33,7 @@ import (
 )
 
 func newSpanChannelOut(t StatefulTesting, e e2eutils.SetupData) derive.ChannelOut {
-	channelOut, err := derive.NewSpanChannelOut(e.RollupCfg.Genesis.L2Time, e.RollupCfg.L2ChainID, 128_000, derive.Zlib)
+	channelOut, err := derive.NewSpanChannelOut(e.RollupCfg.Genesis.L2Time, e.RollupCfg.L2ChainID, 128_000, derive.Zlib, rollup.NewChainSpec(e.RollupCfg))
 	require.NoError(t, err)
 	return channelOut
 }
@@ -64,7 +66,7 @@ func TestSyncBatchType(t *testing.T) {
 func DerivationWithFlakyL1RPC(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = deltaTimeOffset
+	applyDeltaTimeOffset(dp, deltaTimeOffset)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LevelError) // mute all the temporary derivation errors that we forcefully create
 	_, _, miner, sequencer, _, verifier, _, batcher := setupReorgTestActors(t, dp, sd, log)
@@ -104,7 +106,7 @@ func DerivationWithFlakyL1RPC(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 func FinalizeWhileSyncing(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = deltaTimeOffset
+	applyDeltaTimeOffset(dp, deltaTimeOffset)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LevelError) // mute all the temporary derivation errors that we forcefully create
 	_, _, miner, sequencer, _, verifier, _, batcher := setupReorgTestActors(t, dp, sd, log)
@@ -180,7 +182,7 @@ func TestBackupUnsafe(gt *testing.T) {
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	minTs := hexutil.Uint64(0)
 	// Activate Delta hardfork
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
+	applyDeltaTimeOffset(dp, &minTs)
 	dp.DeployConfig.L2BlockTime = 2
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlInfo)
@@ -241,12 +243,12 @@ func TestBackupUnsafe(gt *testing.T) {
 				To:        &dp.Addresses.Bob,
 				Value:     e2eutils.Ether(2),
 			})
-			block = block.WithBody([]*types.Transaction{block.Transactions()[0], validTx}, []*types.Header{})
+			block = block.WithBody(types.Body{Transactions: []*types.Transaction{block.Transactions()[0], validTx}})
 		}
 		if i == 3 {
 			// Make block B3 as an invalid block
 			invalidTx := testutils.RandomTx(rng, big.NewInt(100), signer)
-			block = block.WithBody([]*types.Transaction{block.Transactions()[0], invalidTx}, []*types.Header{})
+			block = block.WithBody(types.Body{Transactions: []*types.Transaction{block.Transactions()[0], invalidTx}})
 		}
 		// Add A1, B2, B3, B4, B5 into the channel
 		err = channelOut.AddBlock(sd.RollupCfg, block)
@@ -341,7 +343,7 @@ func TestBackupUnsafeReorgForkChoiceInputError(gt *testing.T) {
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	minTs := hexutil.Uint64(0)
 	// Activate Delta hardfork
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
+	applyDeltaTimeOffset(dp, &minTs)
 	dp.DeployConfig.L2BlockTime = 2
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlInfo)
@@ -402,12 +404,12 @@ func TestBackupUnsafeReorgForkChoiceInputError(gt *testing.T) {
 				To:        &dp.Addresses.Bob,
 				Value:     e2eutils.Ether(2),
 			})
-			block = block.WithBody([]*types.Transaction{block.Transactions()[0], validTx}, []*types.Header{})
+			block = block.WithBody(types.Body{Transactions: []*types.Transaction{block.Transactions()[0], validTx}})
 		}
 		if i == 3 {
 			// Make block B3 as an invalid block
 			invalidTx := testutils.RandomTx(rng, big.NewInt(100), signer)
-			block = block.WithBody([]*types.Transaction{block.Transactions()[0], invalidTx}, []*types.Header{})
+			block = block.WithBody(types.Body{Transactions: []*types.Transaction{block.Transactions()[0], invalidTx}})
 		}
 		// Add A1, B2, B3, B4, B5 into the channel
 		err = channelOut.AddBlock(sd.RollupCfg, block)
@@ -448,7 +450,7 @@ func TestBackupUnsafeReorgForkChoiceInputError(gt *testing.T) {
 
 	// B3 is invalid block
 	// NextAttributes is called
-	sequencer.ActL2EventsUntil(t, event.Is[engine2.ProcessAttributesEvent], 100, true)
+	sequencer.ActL2EventsUntil(t, event.Is[engine2.BuildStartEvent], 100, true)
 	// mock forkChoiceUpdate error while restoring previous unsafe chain using backupUnsafe.
 	seqEng.ActL2RPCFail(t, eth.InputError{Inner: errors.New("mock L2 RPC error"), Code: eth.InvalidForkchoiceState})
 
@@ -474,7 +476,7 @@ func TestBackupUnsafeReorgForkChoiceNotInputError(gt *testing.T) {
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	minTs := hexutil.Uint64(0)
 	// Activate Delta hardfork
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
+	applyDeltaTimeOffset(dp, &minTs)
 	dp.DeployConfig.L2BlockTime = 2
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlInfo)
@@ -535,12 +537,12 @@ func TestBackupUnsafeReorgForkChoiceNotInputError(gt *testing.T) {
 				To:        &dp.Addresses.Bob,
 				Value:     e2eutils.Ether(2),
 			})
-			block = block.WithBody([]*types.Transaction{block.Transactions()[0], validTx}, []*types.Header{})
+			block = block.WithBody(types.Body{Transactions: []*types.Transaction{block.Transactions()[0], validTx}})
 		}
 		if i == 3 {
 			// Make block B3 as an invalid block
 			invalidTx := testutils.RandomTx(rng, big.NewInt(100), signer)
-			block = block.WithBody([]*types.Transaction{block.Transactions()[0], invalidTx}, []*types.Header{})
+			block = block.WithBody(types.Body{Transactions: []*types.Transaction{block.Transactions()[0], invalidTx}})
 		}
 		// Add A1, B2, B3, B4, B5 into the channel
 		err = channelOut.AddBlock(sd.RollupCfg, block)
@@ -581,17 +583,28 @@ func TestBackupUnsafeReorgForkChoiceNotInputError(gt *testing.T) {
 
 	// B3 is invalid block
 	// wait till attributes processing (excl.) before mocking errors
-	sequencer.ActL2EventsUntil(t, event.Is[engine2.ProcessAttributesEvent], 100, true)
+	sequencer.ActL2EventsUntil(t, event.Is[engine2.BuildStartEvent], 100, true)
 
 	serverErrCnt := 2
-	for i := 0; i < serverErrCnt; i++ {
-		// mock forkChoiceUpdate failure while restoring previous unsafe chain using backupUnsafe.
-		seqEng.ActL2RPCFail(t, gethengine.GenericServerError)
-		// TryBackupUnsafeReorg is called - forkChoiceUpdate returns GenericServerError so retry
-		sequencer.ActL2EventsUntil(t, event.Is[rollup.EngineTemporaryErrorEvent], 100, false)
-		// backupUnsafeHead not emptied yet
-		require.Equal(t, targetUnsafeHeadHash, sequencer.L2BackupUnsafe().Hash)
+	// mock forkChoiceUpdate failure while restoring previous unsafe chain using backupUnsafe.
+	seqEng.failL2RPC = func(call []rpc.BatchElem) error {
+		for _, e := range call {
+			// There may be other calls, like payload-processing-cancellation
+			// based on previous invalid block, and processing of block attributes.
+			if strings.HasPrefix(e.Method, "engine_forkchoiceUpdated") && e.Args[1].(*eth.PayloadAttributes) == nil {
+				if serverErrCnt > 0 {
+					serverErrCnt -= 1
+					return gethengine.GenericServerError
+				} else {
+					return nil
+				}
+			}
+		}
+		return nil
 	}
+	// cannot drain events until specific engine error, since SyncDeriver calls Drain internally still.
+	sequencer.ActL2PipelineFull(t)
+
 	// now forkchoice succeeds
 	// try to process invalid leftovers: B4, B5
 	sequencer.ActL2PipelineFull(t)
@@ -806,7 +819,7 @@ func TestELSyncTransitionsToCLSyncAfterNodeRestart(gt *testing.T) {
 	PrepareELSyncedNode(t, miner, sequencer, seqEng, verifier, verEng, seqEngCl, batcher, dp)
 
 	// Create a new verifier which is essentially a new op-node with the sync mode of ELSync and default geth engine kind.
-	verifier = NewL2Verifier(t, captureLog, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), plasma.Disabled, verifier.eng, sd.RollupCfg, &sync.Config{SyncMode: sync.ELSync}, defaultVerifierCfg().safeHeadListener)
+	verifier = NewL2Verifier(t, captureLog, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), altda.Disabled, verifier.eng, sd.RollupCfg, &sync.Config{SyncMode: sync.ELSync}, defaultVerifierCfg().safeHeadListener)
 
 	// Build another 10 L1 blocks on the sequencer
 	for i := 0; i < 10; i++ {
@@ -848,7 +861,7 @@ func TestForcedELSyncCLAfterNodeRestart(gt *testing.T) {
 	PrepareELSyncedNode(t, miner, sequencer, seqEng, verifier, verEng, seqEngCl, batcher, dp)
 
 	// Create a new verifier which is essentially a new op-node with the sync mode of ELSync and erigon engine kind.
-	verifier2 := NewL2Verifier(t, captureLog, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), plasma.Disabled, verifier.eng, sd.RollupCfg, &sync.Config{SyncMode: sync.ELSync, SupportsPostFinalizationELSync: true}, defaultVerifierCfg().safeHeadListener)
+	verifier2 := NewL2Verifier(t, captureLog, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), altda.Disabled, verifier.eng, sd.RollupCfg, &sync.Config{SyncMode: sync.ELSync, SupportsPostFinalizationELSync: true}, defaultVerifierCfg().safeHeadListener)
 
 	// Build another 10 L1 blocks on the sequencer
 	for i := 0; i < 10; i++ {
@@ -880,7 +893,7 @@ func TestInvalidPayloadInSpanBatch(gt *testing.T) {
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	minTs := hexutil.Uint64(0)
 	// Activate Delta hardfork
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
+	applyDeltaTimeOffset(dp, &minTs)
 	dp.DeployConfig.L2BlockTime = 2
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LevelInfo)
@@ -906,7 +919,7 @@ func TestInvalidPayloadInSpanBatch(gt *testing.T) {
 		if i == 8 {
 			// Make block A8 as an invalid block
 			invalidTx := testutils.RandomTx(rng, big.NewInt(100), signer)
-			block = block.WithBody([]*types.Transaction{block.Transactions()[0], invalidTx}, []*types.Header{})
+			block = block.WithBody(types.Body{Transactions: []*types.Transaction{block.Transactions()[0], invalidTx}})
 		}
 		// Add A1 ~ A12 into the channel
 		err = channelOut.AddBlock(sd.RollupCfg, block)
@@ -955,7 +968,7 @@ func TestInvalidPayloadInSpanBatch(gt *testing.T) {
 				Data:      data,
 			})
 			// Create valid new block B1 at the same height as A1
-			block = block.WithBody([]*types.Transaction{block.Transactions()[0], tx}, []*types.Header{})
+			block = block.WithBody(types.Body{Transactions: []*types.Transaction{block.Transactions()[0], tx}})
 		}
 		// Add B1, A2 ~ A12 into the channel
 		err = channelOut.AddBlock(sd.RollupCfg, block)
@@ -985,7 +998,7 @@ func TestSpanBatchAtomicity_Consolidation(gt *testing.T) {
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	minTs := hexutil.Uint64(0)
 	// Activate Delta hardfork
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
+	applyDeltaTimeOffset(dp, &minTs)
 	dp.DeployConfig.L2BlockTime = 2
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LevelInfo)
@@ -1046,7 +1059,7 @@ func TestSpanBatchAtomicity_ForceAdvance(gt *testing.T) {
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	minTs := hexutil.Uint64(0)
 	// Activate Delta hardfork
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
+	applyDeltaTimeOffset(dp, &minTs)
 	dp.DeployConfig.L2BlockTime = 2
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LevelInfo)

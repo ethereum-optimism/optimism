@@ -6,13 +6,13 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
-	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 )
 
 type EndCondition interface {
@@ -36,13 +36,16 @@ func NewDriver(logger log.Logger, cfg *rollup.Config, l1Source derive.L1Fetcher,
 		logger: logger,
 	}
 
-	pipeline := derive.NewDerivationPipeline(logger, cfg, l1Source, l1BlobsSource, plasma.Disabled, l2Source, metrics.NoopMetrics)
-	pipelineDeriver := derive.NewPipelineDeriver(context.Background(), pipeline, d)
+	pipeline := derive.NewDerivationPipeline(logger, cfg, l1Source, l1BlobsSource, altda.Disabled, l2Source, metrics.NoopMetrics)
+	pipelineDeriver := derive.NewPipelineDeriver(context.Background(), pipeline)
+	pipelineDeriver.AttachEmitter(d)
 
 	ec := engine.NewEngineController(l2Source, logger, metrics.NoopMetrics, cfg, &sync.Config{SyncMode: sync.CLSync}, d)
-	engineDeriv := engine.NewEngDeriver(logger, context.Background(), cfg, ec, d)
+	engineDeriv := engine.NewEngDeriver(logger, context.Background(), cfg, metrics.NoopMetrics, ec)
+	engineDeriv.AttachEmitter(d)
 	syncCfg := &sync.Config{SyncMode: sync.CLSync}
-	engResetDeriv := engine.NewEngineResetDeriver(context.Background(), logger, cfg, l1Source, l2Source, syncCfg, d)
+	engResetDeriv := engine.NewEngineResetDeriver(context.Background(), logger, cfg, l1Source, l2Source, syncCfg)
+	engResetDeriv.AttachEmitter(d)
 
 	prog := &ProgramDeriver{
 		logger:         logger,

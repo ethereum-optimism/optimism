@@ -67,7 +67,7 @@ used in production and are intended to provide convenient manual testing.
 ```shell
 ./bin/op-challenger create-game \
   --l1-eth-rpc <L1_ETH_RPC> \
-  --game-address <GAME_FACTORY_ADDRESS> \
+  --game-factory-address <GAME_FACTORY_ADDRESS> \
   --output-root <OUTPUT_ROOT> \
   --l2-block-num <L2_BLOCK_NUM> \
   <SIGNER_ARGS>
@@ -154,7 +154,7 @@ If the game is resolved successfully, the result is printed.
 ```shell
 ./bin/op-challenger list-games \
   --l1-eth-rpc <L1_ETH_RPC> \
-  --game-factory-address <GAME_FACTORY_ADDRESS>
+  --network <Predefined_Network>
 ```
 
 Prints the games created by the game factory along with their current status.
@@ -165,7 +165,7 @@ Prints the games created by the game factory along with their current status.
 ### list-claims
 
 ```shell
-./bin/op-challenger list-games \
+./bin/op-challenger list-claims \
   --l1-eth-rpc <L1_ETH_RPC> \
   --game-address <GAME_ADDRESS>
 ```

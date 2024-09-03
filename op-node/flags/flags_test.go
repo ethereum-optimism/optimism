@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 
 	"github.com/stretchr/testify/require"
@@ -74,11 +73,7 @@ func TestDeprecatedFlagsAreHidden(t *testing.T) {
 func TestHasEnvVar(t *testing.T) {
 	// known exceptions to the number of env vars
 	expEnvVars := map[string]int{
-		BeaconFallbackAddrs.Name:       2,
-		plasma.EnabledFlagName:         2,
-		plasma.DaServerAddressFlagName: 2,
-		plasma.VerifyOnReadFlagName:    2,
-		plasma.DaServiceFlag:           2,
+		BeaconFallbackAddrs.Name: 2,
 	}
 
 	for _, flag := range Flags {

@@ -6,7 +6,7 @@ Chain-ops scripts for the Fault Proof Alpha Chad contracts.
 
 ### Generating the Cannon prestate and artifacts
 
-_Description_: Generates the cannon prestate, tars the relavent artifacts, and sets the absolute prestate field in the network's deploy config.
+_Description_: Generates the cannon prestate, tars the relevant artifacts, and sets the absolute prestate field in the network's deploy config.
 
 ```sh
 make cannon-prestate chain=<chain-name>

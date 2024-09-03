@@ -19,13 +19,13 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
@@ -44,8 +44,8 @@ type L1TxAPI interface {
 	SendTransaction(ctx context.Context, tx *types.Transaction) error
 }
 
-type PlasmaInputSetter interface {
-	SetInput(ctx context.Context, img []byte) (plasma.CommitmentData, error)
+type AltDAInputSetter interface {
+	SetInput(ctx context.Context, img []byte) (altda.CommitmentData, error)
 }
 
 type BatcherCfg struct {
@@ -59,10 +59,10 @@ type BatcherCfg struct {
 
 	ForceSubmitSingularBatch bool
 	ForceSubmitSpanBatch     bool
-	UsePlasma                bool
+	UseAltDA                 bool
 
 	DataAvailabilityType batcherFlags.DataAvailabilityType
-	PlasmaDA             PlasmaInputSetter
+	AltDA                AltDAInputSetter
 }
 
 func DefaultBatcherCfg(dp *e2eutils.DeployParams) *BatcherCfg {
@@ -74,14 +74,14 @@ func DefaultBatcherCfg(dp *e2eutils.DeployParams) *BatcherCfg {
 	}
 }
 
-func PlasmaBatcherCfg(dp *e2eutils.DeployParams, plasmaDa PlasmaInputSetter) *BatcherCfg {
+func AltDABatcherCfg(dp *e2eutils.DeployParams, altDA AltDAInputSetter) *BatcherCfg {
 	return &BatcherCfg{
 		MinL1TxSize:          0,
 		MaxL1TxSize:          128_000,
 		BatcherKey:           dp.Secrets.Batcher,
 		DataAvailabilityType: batcherFlags.CalldataType,
-		PlasmaDA:             plasmaDa,
-		UsePlasma:            true,
+		AltDA:                altDA,
+		UseAltDA:             true,
 	}
 }
 
@@ -199,12 +199,13 @@ func (s *L2Batcher) Buffer(t Testing) error {
 			if s.l2BatcherCfg.ForceSubmitSingularBatch && s.l2BatcherCfg.ForceSubmitSpanBatch {
 				t.Fatalf("ForceSubmitSingularBatch and ForceSubmitSpanBatch cannot be set to true at the same time")
 			} else {
+				chainSpec := rollup.NewChainSpec(s.rollupCfg)
 				// use span batch if we're forcing it or if we're at/beyond delta
 				if s.l2BatcherCfg.ForceSubmitSpanBatch || s.rollupCfg.IsDelta(block.Time()) {
-					ch, err = derive.NewSpanChannelOut(s.rollupCfg.Genesis.L2Time, s.rollupCfg.L2ChainID, target, derive.Zlib)
+					ch, err = derive.NewSpanChannelOut(s.rollupCfg.Genesis.L2Time, s.rollupCfg.L2ChainID, target, derive.Zlib, chainSpec)
 					// use singular batches in all other cases
 				} else {
-					ch, err = derive.NewSingularChannelOut(c)
+					ch, err = derive.NewSingularChannelOut(c, chainSpec)
 				}
 			}
 		}
@@ -249,9 +250,9 @@ func (s *L2Batcher) ActL2BatchSubmit(t Testing, txOpts ...func(tx *types.Dynamic
 	}
 
 	payload := data.Bytes()
-	if s.l2BatcherCfg.UsePlasma {
-		comm, err := s.l2BatcherCfg.PlasmaDA.SetInput(t.Ctx(), payload)
-		require.NoError(t, err, "failed to set input for plasma")
+	if s.l2BatcherCfg.UseAltDA {
+		comm, err := s.l2BatcherCfg.AltDA.SetInput(t.Ctx(), payload)
+		require.NoError(t, err, "failed to set input for altda")
 		payload = comm.TxData()
 	}
 

@@ -10,17 +10,17 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/log"
-
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 )
 
 type CannonTraceProvider struct {
@@ -38,12 +38,12 @@ type CannonTraceProvider struct {
 	lastStep uint64
 }
 
-func NewTraceProvider(logger log.Logger, m vm.Metricer, cfg vm.Config, prestateProvider types.PrestateProvider, prestate string, localInputs utils.LocalGameInputs, dir string, gameDepth types.Depth) *CannonTraceProvider {
+func NewTraceProvider(logger log.Logger, m vm.Metricer, cfg vm.Config, vmCfg vm.OracleServerExecutor, prestateProvider types.PrestateProvider, prestate string, localInputs utils.LocalGameInputs, dir string, gameDepth types.Depth) *CannonTraceProvider {
 	return &CannonTraceProvider{
 		logger:           logger,
 		dir:              dir,
 		prestate:         prestate,
-		generator:        vm.NewExecutor(logger, m, cfg, prestate, localInputs),
+		generator:        vm.NewExecutor(logger, m, cfg, vmCfg, prestate, localInputs),
 		gameDepth:        gameDepth,
 		preimageLoader:   utils.NewPreimageLoader(kvstore.NewDiskKV(vm.PreimageDir(dir)).Get),
 		PrestateProvider: prestateProvider,
@@ -162,7 +162,7 @@ func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*utils.P
 	return &proof, nil
 }
 
-func (c *CannonTraceProvider) finalState() (*mipsevm.State, error) {
+func (c *CannonTraceProvider) finalState() (*singlethreaded.State, error) {
 	state, err := parseState(filepath.Join(c.dir, vm.FinalState))
 	if err != nil {
 		return nil, fmt.Errorf("cannot read final state: %w", err)
@@ -181,7 +181,7 @@ func NewTraceProviderForTest(logger log.Logger, m vm.Metricer, cfg *config.Confi
 		logger:         logger,
 		dir:            dir,
 		prestate:       cfg.CannonAbsolutePreState,
-		generator:      vm.NewExecutor(logger, m, cfg.Cannon, cfg.CannonAbsolutePreState, localInputs),
+		generator:      vm.NewExecutor(logger, m, cfg.Cannon, vm.NewOpProgramServerExecutor(), cfg.CannonAbsolutePreState, localInputs),
 		gameDepth:      gameDepth,
 		preimageLoader: utils.NewPreimageLoader(kvstore.NewDiskKV(vm.PreimageDir(dir)).Get),
 	}

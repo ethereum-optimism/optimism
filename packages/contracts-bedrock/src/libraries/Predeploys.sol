@@ -89,6 +89,16 @@ library Predeploys {
     /// @notice Address of the L2ToL2CrossDomainMessenger predeploy.
     address internal constant L2_TO_L2_CROSS_DOMAIN_MESSENGER = 0x4200000000000000000000000000000000000023;
 
+    /// @notice Address of the SuperchainWETH predeploy.
+    address internal constant SUPERCHAIN_WETH = 0x4200000000000000000000000000000000000024;
+
+    /// @notice Address of the ETHLiquidity predeploy.
+    address internal constant ETH_LIQUIDITY = 0x4200000000000000000000000000000000000025;
+
+    /// TODO: Add correct predeploy address for OptimismSuperchainERC20Factory
+    /// @notice Address of the OptimismSuperchainERC20Factory predeploy.
+    address internal constant OPTIMISM_SUPERCHAIN_ERC20_FACTORY = 0x4200000000000000000000000000000000000026;
+
     /// @notice Returns the name of the predeploy at the given address.
     function getName(address _addr) internal pure returns (string memory out_) {
         require(isPredeployNamespace(_addr), "Predeploys: address must be a predeploy");
@@ -115,6 +125,9 @@ library Predeploys {
         if (_addr == LEGACY_ERC20_ETH) return "LegacyERC20ETH";
         if (_addr == CROSS_L2_INBOX) return "CrossL2Inbox";
         if (_addr == L2_TO_L2_CROSS_DOMAIN_MESSENGER) return "L2ToL2CrossDomainMessenger";
+        if (_addr == SUPERCHAIN_WETH) return "SuperchainWETH";
+        if (_addr == ETH_LIQUIDITY) return "ETHLiquidity";
+        if (_addr == OPTIMISM_SUPERCHAIN_ERC20_FACTORY) return "OptimismSuperchainERC20Factory";
         revert("Predeploys: unnamed predeploy");
     }
 
@@ -131,7 +144,9 @@ library Predeploys {
             || _addr == L2_ERC721_BRIDGE || _addr == L1_BLOCK_ATTRIBUTES || _addr == L2_TO_L1_MESSAGE_PASSER
             || _addr == OPTIMISM_MINTABLE_ERC721_FACTORY || _addr == PROXY_ADMIN || _addr == BASE_FEE_VAULT
             || _addr == L1_FEE_VAULT || _addr == SCHEMA_REGISTRY || _addr == EAS || _addr == GOVERNANCE_TOKEN
-            || (_useInterop && _addr == CROSS_L2_INBOX) || (_useInterop && _addr == L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+            || (_useInterop && _addr == CROSS_L2_INBOX) || (_useInterop && _addr == L2_TO_L2_CROSS_DOMAIN_MESSENGER)
+            || (_useInterop && _addr == SUPERCHAIN_WETH) || (_useInterop && _addr == ETH_LIQUIDITY)
+            || (_useInterop && _addr == OPTIMISM_SUPERCHAIN_ERC20_FACTORY);
     }
 
     function isPredeployNamespace(address _addr) internal pure returns (bool) {

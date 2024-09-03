@@ -39,7 +39,7 @@ func TestSpanBatchTxConvert(t *testing.T) {
 				tx := testCase.mkTx(rng, signer)
 
 				v, r, s := tx.RawSignatureValues()
-				sbtx, err := newSpanBatchTx(*tx)
+				sbtx, err := newSpanBatchTx(tx)
 				require.NoError(t, err)
 
 				tx2, err := sbtx.convertToFullTx(tx.Nonce(), tx.Gas(), tx.To(), chainID, v, r, s)
@@ -77,7 +77,7 @@ func TestSpanBatchTxRoundTrip(t *testing.T) {
 			for txIdx := 0; txIdx < testCase.trials; txIdx++ {
 				tx := testCase.mkTx(rng, signer)
 
-				sbtx, err := newSpanBatchTx(*tx)
+				sbtx, err := newSpanBatchTx(tx)
 				require.NoError(t, err)
 
 				sbtxEncoded, err := sbtx.MarshalBinary()
@@ -100,7 +100,7 @@ func (txData *spanBatchDummyTxData) txType() byte { return types.DepositTxType }
 func TestSpanBatchTxInvalidTxType(t *testing.T) {
 	// span batch never contain deposit tx
 	depositTx := types.NewTx(&types.DepositTx{})
-	_, err := newSpanBatchTx(*depositTx)
+	_, err := newSpanBatchTx(depositTx)
 	require.ErrorContains(t, err, "invalid tx type")
 
 	var sbtx spanBatchTx

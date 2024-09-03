@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"math"
 	"math/big"
-	"strings"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
@@ -26,7 +25,6 @@ import (
 var maxChildChecks = big.NewInt(512)
 
 var (
-	methodVersion                 = "version"
 	methodMaxClockDuration        = "maxClockDuration"
 	methodMaxGameDepth            = "maxGameDepth"
 	methodAbsolutePrestate        = "absolutePrestate"
@@ -84,14 +82,8 @@ type outputRootProof struct {
 func NewFaultDisputeGameContract(ctx context.Context, metrics metrics.ContractMetricer, addr common.Address, caller *batching.MultiCaller) (FaultDisputeGameContract, error) {
 	contractAbi := snapshots.LoadFaultDisputeGameABI()
 
-	result, err := caller.SingleCall(ctx, rpcblock.Latest, batching.NewContractCall(contractAbi, addr, methodVersion))
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve version of dispute game %v: %w", addr, err)
-	}
-	version := result.GetString(0)
-
-	if strings.HasPrefix(version, "0.8.") {
-		// Detected an older version of contracts, use a compatibility shim.
+	var builder VersionedBuilder[FaultDisputeGameContract]
+	builder.AddVersion(0, 8, func() (FaultDisputeGameContract, error) {
 		legacyAbi := mustParseAbi(faultDisputeGameAbi020)
 		return &FaultDisputeGameContract080{
 			FaultDisputeGameContractLatest: FaultDisputeGameContractLatest{
@@ -100,8 +92,8 @@ func NewFaultDisputeGameContract(ctx context.Context, metrics metrics.ContractMe
 				contract:    batching.NewBoundContract(legacyAbi, addr),
 			},
 		}, nil
-	} else if strings.HasPrefix(version, "0.18.") || strings.HasPrefix(version, "1.0.") {
-		// Detected an older version of contracts, use a compatibility shim.
+	})
+	builder.AddVersion(0, 18, func() (FaultDisputeGameContract, error) {
 		legacyAbi := mustParseAbi(faultDisputeGameAbi0180)
 		return &FaultDisputeGameContract0180{
 			FaultDisputeGameContractLatest: FaultDisputeGameContractLatest{
@@ -110,8 +102,18 @@ func NewFaultDisputeGameContract(ctx context.Context, metrics metrics.ContractMe
 				contract:    batching.NewBoundContract(legacyAbi, addr),
 			},
 		}, nil
-	} else if strings.HasPrefix(version, "1.1.") {
-		// Detected an older version of contracts, use a compatibility shim.
+	})
+	builder.AddVersion(1, 0, func() (FaultDisputeGameContract, error) {
+		legacyAbi := mustParseAbi(faultDisputeGameAbi0180)
+		return &FaultDisputeGameContract0180{
+			FaultDisputeGameContractLatest: FaultDisputeGameContractLatest{
+				metrics:     metrics,
+				multiCaller: caller,
+				contract:    batching.NewBoundContract(legacyAbi, addr),
+			},
+		}, nil
+	})
+	builder.AddVersion(1, 1, func() (FaultDisputeGameContract, error) {
 		legacyAbi := mustParseAbi(faultDisputeGameAbi111)
 		return &FaultDisputeGameContract111{
 			FaultDisputeGameContractLatest: FaultDisputeGameContractLatest{
@@ -120,13 +122,14 @@ func NewFaultDisputeGameContract(ctx context.Context, metrics metrics.ContractMe
 				contract:    batching.NewBoundContract(legacyAbi, addr),
 			},
 		}, nil
-	} else {
+	})
+	return builder.Build(ctx, caller, contractAbi, addr, func() (FaultDisputeGameContract, error) {
 		return &FaultDisputeGameContractLatest{
 			metrics:     metrics,
 			multiCaller: caller,
 			contract:    batching.NewBoundContract(contractAbi, addr),
 		}, nil
-	}
+	})
 }
 
 func mustParseAbi(json []byte) *abi.ABI {
@@ -307,7 +310,7 @@ func (f *FaultDisputeGameContractLatest) ClaimCreditTx(ctx context.Context, reci
 	call := f.contract.Call(methodClaimCredit, recipient)
 	_, err := f.multiCaller.SingleCall(ctx, rpcblock.Latest, call)
 	if err != nil {
-		return txmgr.TxCandidate{}, fmt.Errorf("%w: %v", ErrSimulationFailed, err.Error())
+		return txmgr.TxCandidate{}, fmt.Errorf("%w: %w", ErrSimulationFailed, err)
 	}
 	return call.ToTxCandidate()
 }
@@ -364,7 +367,7 @@ func (f *FaultDisputeGameContractLatest) getDelayedWETH(ctx context.Context, blo
 	return NewDelayedWETHContract(f.metrics, result.GetAddress(0), f.multiCaller), nil
 }
 
-func (f *FaultDisputeGameContractLatest) GetOracle(ctx context.Context) (*PreimageOracleContract, error) {
+func (f *FaultDisputeGameContractLatest) GetOracle(ctx context.Context) (PreimageOracleContract, error) {
 	defer f.metrics.StartContractRequest("GetOracle")()
 	vm, err := f.Vm(ctx)
 	if err != nil {
@@ -616,7 +619,7 @@ type FaultDisputeGameContract interface {
 	GetRequiredBond(ctx context.Context, position types.Position) (*big.Int, error)
 	UpdateOracleTx(ctx context.Context, claimIdx uint64, data *types.PreimageOracleData) (txmgr.TxCandidate, error)
 	GetWithdrawals(ctx context.Context, block rpcblock.Block, recipients ...common.Address) ([]*WithdrawalRequest, error)
-	GetOracle(ctx context.Context) (*PreimageOracleContract, error)
+	GetOracle(ctx context.Context) (PreimageOracleContract, error)
 	GetMaxClockDuration(ctx context.Context) (time.Duration, error)
 	GetMaxGameDepth(ctx context.Context) (types.Depth, error)
 	GetAbsolutePrestateHash(ctx context.Context) (common.Hash, error)

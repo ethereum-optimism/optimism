@@ -6,7 +6,7 @@ import (
 )
 
 type SimpleClock struct {
-	unix atomic.Uint64
+	v atomic.Pointer[time.Time]
 }
 
 func NewSimpleClock() *SimpleClock {
@@ -14,9 +14,18 @@ func NewSimpleClock() *SimpleClock {
 }
 
 func (c *SimpleClock) SetTime(u uint64) {
-	c.unix.Store(u)
+	t := time.Unix(int64(u), 0)
+	c.v.Store(&t)
+}
+
+func (c *SimpleClock) Set(v time.Time) {
+	c.v.Store(&v)
 }
 
 func (c *SimpleClock) Now() time.Time {
-	return time.Unix(int64(c.unix.Load()), 0)
+	v := c.v.Load()
+	if v == nil {
+		return time.Unix(0, 0)
+	}
+	return *v
 }

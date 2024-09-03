@@ -11,7 +11,7 @@ A lightweight binary for utilities accessed via `forge`'s `ffi` cheatcode in the
 
 ## Usage
 
-To build, run `pnpm build:go-ffi` from this directory or the `contract-bedrock` package.
+To build, run `just build-go-ffi` from this directory or the `contract-bedrock` package.
 
 ### In a Forge Test
 

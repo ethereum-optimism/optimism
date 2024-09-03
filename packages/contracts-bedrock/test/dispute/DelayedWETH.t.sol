@@ -9,6 +9,7 @@ import { DisputeGameFactory, IDisputeGameFactory } from "src/dispute/DisputeGame
 import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
 import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
 import { Proxy } from "src/universal/Proxy.sol";
+import { Burn } from "src/libraries/Burn.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 
 contract DelayedWETH_Init is CommonTest {
@@ -45,7 +46,7 @@ contract DelayedWETH_Unlock_Test is DelayedWETH_Init {
         assertEq(timestamp, block.timestamp);
     }
 
-    /// @dev TEsts that unlocking twice is successful and timestamp/amount is updated.
+    /// @dev Tests that unlocking twice is successful and timestamp/amount is updated.
     function test_unlock_twice_succeeds() public {
         // Unlock once.
         uint256 ts = block.timestamp;
@@ -170,24 +171,35 @@ contract DelayedWETH_Withdraw_Test is DelayedWETH_Init {
 }
 
 contract DelayedWETH_Recover_Test is DelayedWETH_Init {
-    /// @dev Tests that recovering WETH succeeds.
-    function test_recover_succeeds() public {
+    /// @dev Tests that recovering WETH succeeds. Makes sure that doing so succeeds with any amount
+    ///      of ETH in the contract and any amount of gas used in the fallback function up to a
+    ///      maximum of 20,000,000 gas. Owner contract should never be using that much gas but we
+    ///      might as well set a very large upper bound for ourselves.
+    /// @param _amount Amount of WETH to recover.
+    /// @param _fallbackGasUsage Amount of gas to use in the fallback function.
+    function testFuzz_recover_succeeds(uint256 _amount, uint256 _fallbackGasUsage) public {
+        // Assume
+        _fallbackGasUsage = bound(_fallbackGasUsage, 0, 20000000);
+
+        // Set up the gas burner.
+        FallbackGasUser gasUser = new FallbackGasUser(_fallbackGasUsage);
+
         // Transfer ownership to alice.
-        delayedWeth.transferOwnership(alice);
+        delayedWeth.transferOwnership(address(gasUser));
 
         // Give the contract some WETH to recover.
-        vm.deal(address(delayedWeth), 1 ether);
+        vm.deal(address(delayedWeth), _amount);
 
         // Record the initial balance.
-        uint256 initialBalance = address(alice).balance;
+        uint256 initialBalance = address(gasUser).balance;
 
         // Recover the WETH.
-        vm.prank(alice);
-        delayedWeth.recover(1 ether);
+        vm.prank(address(gasUser));
+        delayedWeth.recover(_amount);
 
         // Verify the WETH was recovered.
         assertEq(address(delayedWeth).balance, 0);
-        assertEq(address(alice).balance, initialBalance + 1 ether);
+        assertEq(address(gasUser).balance, initialBalance + _amount);
     }
 
     /// @dev Tests that recovering WETH by non-owner fails.
@@ -218,6 +230,23 @@ contract DelayedWETH_Recover_Test is DelayedWETH_Init {
         // Verify the WETH was recovered.
         assertEq(address(delayedWeth).balance, 0);
         assertEq(address(alice).balance, initialBalance + 0.5 ether);
+    }
+
+    /// @dev Tests that recover reverts when recipient reverts.
+    function test_recover_whenRecipientReverts_fails() public {
+        // Set up the reverter.
+        FallbackReverter reverter = new FallbackReverter();
+
+        // Transfer ownership to the reverter.
+        delayedWeth.transferOwnership(address(reverter));
+
+        // Give the contract some WETH to recover.
+        vm.deal(address(delayedWeth), 1 ether);
+
+        // Recover fails.
+        vm.expectRevert("DelayedWETH: recover failed");
+        vm.prank(address(reverter));
+        delayedWeth.recover(1 ether);
     }
 }
 
@@ -253,5 +282,41 @@ contract DelayedWETH_Hold_Test is DelayedWETH_Init {
         // Hold fails.
         vm.expectRevert("DelayedWETH: not owner");
         delayedWeth.hold(bob, 1 ether);
+    }
+}
+
+/// @title FallbackGasUser
+/// @notice Contract that burns gas in the fallback function.
+contract FallbackGasUser {
+    /// @notice Amount of gas to use in the fallback function.
+    uint256 public gas;
+
+    /// @param _gas Amount of gas to use in the fallback function.
+    constructor(uint256 _gas) {
+        gas = _gas;
+    }
+
+    /// @notice Burn gas on fallback;
+    fallback() external payable {
+        Burn.gas(gas);
+    }
+
+    /// @notice Burn gas on receive.
+    receive() external payable {
+        Burn.gas(gas);
+    }
+}
+
+/// @title FallbackReverter
+/// @notice Contract that reverts in the fallback function.
+contract FallbackReverter {
+    /// @notice Revert on fallback.
+    fallback() external payable {
+        revert("FallbackReverter: revert");
+    }
+
+    /// @notice Revert on receive.
+    receive() external payable {
+        revert("FallbackReverter: revert");
     }
 }

@@ -1,6 +1,7 @@
 package test
 
 import (
+	"encoding/binary"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -130,15 +131,21 @@ type StubPrecompileOracle struct {
 	Calls   int
 }
 
+func NewStubPrecompileOracle(t *testing.T) *StubPrecompileOracle {
+	return &StubPrecompileOracle{t: t, Results: make(map[common.Hash]PrecompileResult)}
+}
+
 type PrecompileResult struct {
 	Result []byte
 	Ok     bool
 }
 
-func (o *StubPrecompileOracle) Precompile(address common.Address, input []byte) ([]byte, bool) {
-	result, ok := o.Results[crypto.Keccak256Hash(append(address.Bytes(), input...))]
+func (o *StubPrecompileOracle) Precompile(address common.Address, input []byte, requiredGas uint64) ([]byte, bool) {
+	arg := append(address.Bytes(), binary.BigEndian.AppendUint64(nil, requiredGas)...)
+	arg = append(arg, input...)
+	result, ok := o.Results[crypto.Keccak256Hash(arg)]
 	if !ok {
-		o.t.Fatalf("no value for point evaluation %v", input)
+		o.t.Fatalf("no value for point evaluation %x required gas %v", input, requiredGas)
 	}
 	o.Calls++
 	return result.Result, result.Ok

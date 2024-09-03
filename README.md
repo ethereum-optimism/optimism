@@ -69,7 +69,6 @@ The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vuln
 ├── <a href="./op-chain-ops">op-chain-ops</a>: State surgery utilities
 ├── <a href="./op-challenger">op-challenger</a>: Dispute game challenge agent
 ├── <a href="./op-e2e">op-e2e</a>: End-to-End testing of all bedrock components in Go
-├── <a href="./op-heartbeat">op-heartbeat</a>: Heartbeat monitor service
 ├── <a href="./op-node">op-node</a>: rollup consensus-layer client
 ├── <a href="./op-preimage">op-preimage</a>: Go bindings for Preimage Oracle
 ├── <a href="./op-program">op-program</a>: Fault proof program
@@ -80,9 +79,7 @@ The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vuln
 ├── <a href="./ops">ops</a>: Various operational packages
 ├── <a href="./ops-bedrock">ops-bedrock</a>: Bedrock devnet work
 ├── <a href="./packages">packages</a>
-│   ├── <a href="./packages/chain-mon">chain-mon</a>: Chain monitoring services
 │   ├── <a href="./packages/contracts-bedrock">contracts-bedrock</a>: OP Stack smart contracts
-│   ├── <a href="./packages/devnet-tasks">devnet-tasks</a>: Legacy Hardhat tasks used within devnet CI tests
 ├── <a href="./proxyd">proxyd</a>: Configurable RPC request router and proxy
 ├── <a href="./specs">specs</a>: Specs of the rollup starting at the Bedrock upgrade
 </pre>
@@ -106,7 +103,7 @@ Tags of the form `v<semver>`, such as `v1.1.4`, indicate releases of all Go code
 This naming scheme is required by Golang.
 In the above list, this means these `v<semver` releases contain all `op-*` components and exclude all `contracts-*` components.
 
-`op-geth` embeds upstream geth’s version inside it’s own version as follows: `vMAJOR.GETH_MAJOR GETH_MINOR GETH_PATCH.PATCH`.
+`op-geth` embeds upstream geth’s version inside its own version as follows: `vMAJOR.GETH_MAJOR GETH_MINOR GETH_PATCH.PATCH`.
 Basically, geth’s version is our minor version.
 For example if geth is at `v1.12.0`, the corresponding op-geth version would be `v1.101200.0`.
 Note that we pad out to three characters for the geth minor version and two characters for the geth patch version.
@@ -116,17 +113,12 @@ See the [Node Software Releases](https://docs.optimism.io/builders/node-operator
 
 The full set of components that have releases are:
 
-- `chain-mon`
-- `ci-builder`
 - `ci-builder`
 - `op-batcher`
 - `op-contracts`
 - `op-challenger`
-- `op-heartbeat`
 - `op-node`
 - `op-proposer`
-- `op-ufm`
-- `proxyd`
 
 All other components and packages should be considered development components only and do not have releases.
 

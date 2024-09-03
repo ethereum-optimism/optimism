@@ -27,7 +27,7 @@ Interactions within this repository are subject to a [Code of Conduct](https://g
 | [go](https://go.dev/)                                         | `^1.21`  | `go version`             |
 | [node](https://nodejs.org/en/)                                | `^20`    | `node --version`         |
 | [nvm](https://github.com/nvm-sh/nvm)                          | `^0.39`  | `nvm --version`          |
-| [pnpm](https://pnpm.io/installation)                          | `^8`     | `pnpm --version`         |
+| [just](https://github.com/casey/just)                         | `^1.34.0`| `just --version`         |
 | [foundry](https://github.com/foundry-rs/foundry#installation) | `^0.2.0` | `forge --version`        |
 | [make](https://linux.die.net/man/1/make)                      | `^3`     | `make --version`         |
 | [jq](https://github.com/jqlang/jq)                            | `^1.6`   | `jq --version`           |
@@ -39,14 +39,14 @@ Interactions within this repository are subject to a [Code of Conduct](https://g
 
 #### `node`
 
-Make sure to use the version of `node` specified within [`.nvmrc`](..nvmrc).
+Make sure to use the version of `node` specified within [`.nvmrc`](./.nvmrc).
 You can use [`nvm`](https://github.com/nvm-sh/nvm) to manage multiple versions of Node.js on your machine and automatically switch to the correct version when you enter this repository.
 
 #### `foundry`
 
 `foundry` is updated frequently and occasionally contains breaking changes.
 This repository pins a specific version of `foundry` inside of [`versions.json`](./versions.json).
-Use the command `pnpm update:foundry` at the root of the monorepo to make sure that your version of `foundry` is the same as the one currently being used in CI.
+Use the command `just update-foundry` at the root of the monorepo to make sure that your version of `foundry` is the same as the one currently being used in CI.
 
 #### `direnv`
 
@@ -89,19 +89,11 @@ Use the above command to rebuild the monorepo.
 
 Before running tests: **follow the above instructions to get everything built.**
 
-#### Running unit tests (typescript)
-
-Run unit tests for all packages in parallel via:
+#### Running unit tests (solidity)
 
 ```bash
-pnpm test
-```
-
-To run unit tests for a specific package:
-
-```bash
-cd packages/package-to-test
-pnpm test
+cd packages/contracts-bedrock
+just test
 ```
 
 #### Running unit tests (Go)
@@ -125,7 +117,7 @@ To run `slither` locally, do:
 ```bash
 cd packages/contracts-bedrock
 pip3 install slither-analyzer
-pnpm slither
+just slither
 ```
 
 ## Labels

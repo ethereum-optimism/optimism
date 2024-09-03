@@ -1,486 +1,249 @@
 package db
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
-	"math"
-	"sync"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/heads"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
+	backendTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 
-const (
-	searchCheckpointFrequency = 256
-
-	eventFlagIncrementLogIdx     = byte(1)
-	eventFlagHasExecutingMessage = byte(1) << 1
+var (
+	ErrUnknownChain = errors.New("unknown chain")
 )
 
-const (
-	typeSearchCheckpoint byte = iota
-	typeCanonicalHash
-	typeInitiatingEvent
-	typeExecutingLink
-	typeExecutingCheck
-)
-
-type Metrics interface {
-	RecordDBEntryCount(count int64)
-	RecordDBSearchEntriesRead(count int64)
+type LogStorage interface {
+	io.Closer
+	AddLog(logHash backendTypes.TruncatedHash, block eth.BlockID, timestamp uint64, logIdx uint32, execMsg *backendTypes.ExecutingMessage) error
+	Rewind(newHeadBlockNum uint64) error
+	LatestBlockNum() uint64
+	ClosestBlockInfo(blockNum uint64) (uint64, backendTypes.TruncatedHash, error)
+	ClosestBlockIterator(blockNum uint64) (logs.Iterator, error)
+	Contains(blockNum uint64, logIdx uint32, loghash backendTypes.TruncatedHash) (bool, entrydb.EntryIdx, error)
+	LastCheckpointBehind(entrydb.EntryIdx) (logs.Iterator, error)
+	NextExecutingMessage(logs.Iterator) (backendTypes.ExecutingMessage, error)
 }
 
-type logContext struct {
-	blockNum uint64
-	logIdx   uint32
+type HeadsStorage interface {
+	Current() *heads.Heads
+	Apply(op heads.Operation) error
 }
 
-type EntryStore interface {
-	Size() int64
-	Read(idx int64) (entrydb.Entry, error)
-	Append(entries ...entrydb.Entry) error
-	Truncate(idx int64) error
-	Close() error
+// ChainsDB is a database that stores logs and heads for multiple chains.
+// it implements the ChainsStorage interface.
+type ChainsDB struct {
+	logDBs map[types.ChainID]LogStorage
+	heads  HeadsStorage
 }
 
-// DB implements an append only database for log data and cross-chain dependencies.
-//
-// To keep the append-only format, reduce data size, and support reorg detection and registering of executing-messages:
-//
-// Use a fixed 24 bytes per entry.
-//
-// Data is an append-only log, that can be binary searched for any necessary event data.
-//
-// Rules:
-// if entry_index % 256 == 0: must be type 0. For easy binary search.
-// type 1 always adjacent to type 0
-// type 2 "diff" values are offsets from type 0 values (always within 256 entries range)
-// type 3 always after type 2
-// type 4 always after type 3
-//
-// Types (<type> = 1 byte):
-// type 0: "search checkpoint" <type><uint64 block number: 8 bytes><uint32 event index offset: 4 bytes><uint64 timestamp: 8 bytes> = 20 bytes
-// type 1: "canonical hash" <type><parent blockhash truncated: 20 bytes> = 21 bytes
-// type 2: "initiating event" <type><blocknum diff: 1 byte><event flags: 1 byte><event-hash: 20 bytes> = 23 bytes
-// type 3: "executing link" <type><chain: 4 bytes><blocknum: 8 bytes><event index: 3 bytes><uint64 timestamp: 8 bytes> = 24 bytes
-// type 4: "executing check" <type><event-hash: 20 bytes> = 21 bytes
-// other types: future compat. E.g. for linking to L1, registering block-headers as a kind of initiating-event, tracking safe-head progression, etc.
-//
-// Right-pad each entry that is not 24 bytes.
-//
-// event-flags: each bit represents a boolean value, currently only two are defined
-// * event-flags & 0x01 - true if the log index should increment. Should only be false when the event is immediately after a search checkpoint and canonical hash
-// * event-flags & 0x02 - true if the initiating event has an executing link that should follow. Allows detecting when the executing link failed to write.
-// event-hash: H(origin, timestamp, payloadhash); enough to check identifier matches & payload matches.
-type DB struct {
-	log    log.Logger
-	m      Metrics
-	store  EntryStore
-	rwLock sync.RWMutex
-
-	lastEntryContext logContext
-}
-
-func NewFromFile(logger log.Logger, m Metrics, path string) (*DB, error) {
-	store, err := entrydb.NewEntryDB(logger, path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open DB: %w", err)
+func NewChainsDB(logDBs map[types.ChainID]LogStorage, heads HeadsStorage) *ChainsDB {
+	return &ChainsDB{
+		logDBs: logDBs,
+		heads:  heads,
 	}
-	return NewFromEntryStore(logger, m, store)
 }
 
-func NewFromEntryStore(logger log.Logger, m Metrics, store EntryStore) (*DB, error) {
-	db := &DB{
-		log:   logger,
-		m:     m,
-		store: store,
-	}
-	if err := db.init(); err != nil {
-		return nil, fmt.Errorf("failed to init database: %w", err)
-	}
-	return db, nil
-}
-
-func (db *DB) lastEntryIdx() int64 {
-	return db.store.Size() - 1
-}
-
-func (db *DB) init() error {
-	defer db.updateEntryCountMetric() // Always update the entry count metric after init completes
-	if err := db.trimInvalidTrailingEntries(); err != nil {
-		return fmt.Errorf("failed to trim invalid trailing entries: %w", err)
-	}
-	if db.lastEntryIdx() < 0 {
-		// Database is empty so no context to load
-		return nil
-	}
-
-	lastCheckpoint := (db.lastEntryIdx() / searchCheckpointFrequency) * searchCheckpointFrequency
-	i, err := db.newIterator(lastCheckpoint)
-	if err != nil {
-		return fmt.Errorf("failed to create iterator at last search checkpoint: %w", err)
-	}
-	// Read all entries until the end of the file
-	for {
-		_, _, _, err := i.NextLog()
-		if errors.Is(err, io.EOF) {
-			break
-		} else if err != nil {
-			return fmt.Errorf("failed to init from existing entries: %w", err)
+// Resume prepares the chains db to resume recording events after a restart.
+// It rewinds the database to the last block that is guaranteed to have been fully recorded to the database
+// to ensure it can resume recording from the first log of the next block.
+func (db *ChainsDB) Resume() error {
+	for chain, logStore := range db.logDBs {
+		if err := Resume(logStore); err != nil {
+			return fmt.Errorf("failed to resume chain %v: %w", chain, err)
 		}
-	}
-	db.lastEntryContext = i.current
-	return nil
-}
-
-func (db *DB) trimInvalidTrailingEntries() error {
-	i := db.lastEntryIdx()
-	for ; i >= 0; i-- {
-		entry, err := db.store.Read(i)
-		if err != nil {
-			return fmt.Errorf("failed to read %v to check for trailing entries: %w", i, err)
-		}
-		if entry[0] == typeExecutingCheck {
-			// executing check is a valid final entry
-			break
-		}
-		if entry[0] == typeInitiatingEvent {
-			evt, err := newInitiatingEventFromEntry(entry)
-			if err != nil {
-				// Entry is invalid, keep walking backwards
-				continue
-			}
-			if !evt.hasExecMsg {
-				// init event with no exec msg is a valid final entry
-				break
-			}
-		}
-	}
-	if i < db.lastEntryIdx() {
-		db.log.Warn("Truncating unexpected trailing entries", "prev", db.lastEntryIdx(), "new", i)
-		return db.store.Truncate(i)
 	}
 	return nil
 }
 
-func (db *DB) updateEntryCountMetric() {
-	db.m.RecordDBEntryCount(db.lastEntryIdx() + 1)
-}
-
-// ClosestBlockInfo returns the block number and hash of the highest recorded block at or before blockNum.
-// Since block data is only recorded in search checkpoints, this may return an earlier block even if log data is
-// recorded for the requested block.
-func (db *DB) ClosestBlockInfo(blockNum uint64) (uint64, TruncatedHash, error) {
-	db.rwLock.RLock()
-	defer db.rwLock.RUnlock()
-	checkpointIdx, err := db.searchCheckpoint(blockNum, math.MaxUint32)
-	if err != nil {
-		return 0, TruncatedHash{}, fmt.Errorf("no checkpoint at or before block %v found: %w", blockNum, err)
-	}
-	checkpoint, err := db.readSearchCheckpoint(checkpointIdx)
-	if err != nil {
-		return 0, TruncatedHash{}, fmt.Errorf("failed to reach checkpoint: %w", err)
-	}
-	entry, err := db.readCanonicalHash(checkpointIdx + 1)
-	if err != nil {
-		return 0, TruncatedHash{}, fmt.Errorf("failed to read canonical hash: %w", err)
-	}
-	return checkpoint.blockNum, entry.hash, nil
-}
-
-// Contains return true iff the specified logHash is recorded in the specified blockNum and logIdx.
-// logIdx is the index of the log in the array of all logs the block.
-// This can be used to check the validity of cross-chain interop events.
-func (db *DB) Contains(blockNum uint64, logIdx uint32, logHash TruncatedHash) (bool, error) {
-	db.rwLock.RLock()
-	defer db.rwLock.RUnlock()
-	db.log.Trace("Checking for log", "blockNum", blockNum, "logIdx", logIdx, "hash", logHash)
-
-	evtHash, _, err := db.findLogInfo(blockNum, logIdx)
-	if errors.Is(err, ErrNotFound) {
-		// Did not find a log at blockNum and logIdx
-		return false, nil
-	} else if err != nil {
-		return false, err
-	}
-	db.log.Trace("Found initiatingEvent", "blockNum", blockNum, "logIdx", logIdx, "hash", evtHash)
-	// Found the requested block and log index, check if the hash matches
-	return evtHash == logHash, nil
-}
-
-// Executes checks if the log identified by the specific block number and log index, has an ExecutingMessage associated
-// with it that needs to be checked as part of interop validation.
-// logIdx is the index of the log in the array of all logs the block.
-// Returns the ExecutingMessage if it exists, or ExecutingMessage{} if the log is found but has no ExecutingMessage.
-// Returns ErrNotFound if the specified log does not exist in the database.
-func (db *DB) Executes(blockNum uint64, logIdx uint32) (ExecutingMessage, error) {
-	db.rwLock.RLock()
-	defer db.rwLock.RUnlock()
-	_, iter, err := db.findLogInfo(blockNum, logIdx)
-	if err != nil {
-		return ExecutingMessage{}, err
-	}
-	execMsg, err := iter.ExecMessage()
-	if err != nil {
-		return ExecutingMessage{}, fmt.Errorf("failed to read executing message: %w", err)
-	}
-	return execMsg, nil
-}
-
-func (db *DB) findLogInfo(blockNum uint64, logIdx uint32) (TruncatedHash, *iterator, error) {
-	entryIdx, err := db.searchCheckpoint(blockNum, logIdx)
-	if errors.Is(err, io.EOF) {
-		// Did not find a checkpoint to start reading from so the log cannot be present.
-		return TruncatedHash{}, nil, ErrNotFound
-	} else if err != nil {
-		return TruncatedHash{}, nil, err
-	}
-
-	i, err := db.newIterator(entryIdx)
-	if err != nil {
-		return TruncatedHash{}, nil, fmt.Errorf("failed to create iterator: %w", err)
-	}
-	db.log.Trace("Starting search", "entry", entryIdx, "blockNum", i.current.blockNum, "logIdx", i.current.logIdx)
-	defer func() {
-		db.m.RecordDBSearchEntriesRead(i.entriesRead)
-	}()
-	for {
-		evtBlockNum, evtLogIdx, evtHash, err := i.NextLog()
-		if errors.Is(err, io.EOF) {
-			// Reached end of log without finding the event
-			return TruncatedHash{}, nil, ErrNotFound
-		} else if err != nil {
-			return TruncatedHash{}, nil, fmt.Errorf("failed to read next log: %w", err)
-		}
-		if evtBlockNum == blockNum && evtLogIdx == logIdx {
-			db.log.Trace("Found initiatingEvent", "blockNum", evtBlockNum, "logIdx", evtLogIdx, "hash", evtHash)
-			return evtHash, i, nil
-		}
-		if evtBlockNum > blockNum || (evtBlockNum == blockNum && evtLogIdx > logIdx) {
-			// Progressed past the requested log without finding it.
-			return TruncatedHash{}, nil, ErrNotFound
-		}
-	}
-}
-
-func (db *DB) newIterator(startCheckpointEntry int64) (*iterator, error) {
-	checkpoint, err := db.readSearchCheckpoint(startCheckpointEntry)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read search checkpoint entry %v: %w", startCheckpointEntry, err)
-	}
-	startIdx := startCheckpointEntry + 2
-	firstEntry, err := db.store.Read(startIdx)
-	if errors.Is(err, io.EOF) {
-		// There should always be an entry after a checkpoint and canonical hash so an EOF here is data corruption
-		return nil, fmt.Errorf("%w: no entry after checkpoint and canonical hash at %v", ErrDataCorruption, startCheckpointEntry)
-	} else if err != nil {
-		return nil, fmt.Errorf("failed to read first entry to iterate %v: %w", startCheckpointEntry+2, err)
-	}
-	startLogCtx := logContext{
-		blockNum: checkpoint.blockNum,
-		logIdx:   checkpoint.logIdx,
-	}
-	// Handle starting from a checkpoint after initiating-event but before its executing-link or executing-check
-	if firstEntry[0] == typeExecutingLink || firstEntry[0] == typeExecutingCheck {
-		if firstEntry[0] == typeExecutingLink {
-			// The start checkpoint was between the initiating event and the executing link
-			// Step back to read the initiating event. The checkpoint block data will be for the initiating event
-			startIdx = startCheckpointEntry - 1
-		} else {
-			// The start checkpoint was between the executing link and the executing check
-			// Step back to read the initiating event. The checkpoint block data will be for the initiating event
-			startIdx = startCheckpointEntry - 2
-		}
-		initEntry, err := db.store.Read(startIdx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read prior initiating event: %w", err)
-		}
-		initEvt, err := newInitiatingEventFromEntry(initEntry)
-		if err != nil {
-			return nil, fmt.Errorf("invalid initiating event at idx %v: %w", startIdx, err)
-		}
-		startLogCtx = initEvt.preContext(startLogCtx)
-	}
-	i := &iterator{
-		db: db,
-		// +2 to skip the initial search checkpoint and the canonical hash event after it
-		nextEntryIdx: startIdx,
-		current:      startLogCtx,
-	}
-	return i, nil
-}
-
-// searchCheckpoint performs a binary search of the searchCheckpoint entries to find the closest one at or before
-// the requested log.
-// Returns the index of the searchCheckpoint to begin reading from or an error
-func (db *DB) searchCheckpoint(blockNum uint64, logIdx uint32) (int64, error) {
-	n := (db.lastEntryIdx() / searchCheckpointFrequency) + 1
-	// Define x[-1] < target and x[n] >= target.
-	// Invariant: x[i-1] < target, x[j] >= target.
-	i, j := int64(0), n
-	for i < j {
-		h := int64(uint64(i+j) >> 1) // avoid overflow when computing h
-		checkpoint, err := db.readSearchCheckpoint(h * searchCheckpointFrequency)
-		if err != nil {
-			return 0, fmt.Errorf("failed to read entry %v: %w", h, err)
-		}
-		// i ≤ h < j
-		if checkpoint.blockNum < blockNum || (checkpoint.blockNum == blockNum && checkpoint.logIdx < logIdx) {
-			i = h + 1 // preserves x[i-1] < target
-		} else {
-			j = h // preserves x[j] >= target
-		}
-	}
-	if i < n {
-		checkpoint, err := db.readSearchCheckpoint(i * searchCheckpointFrequency)
-		if err != nil {
-			return 0, fmt.Errorf("failed to read entry %v: %w", i, err)
-		}
-		if checkpoint.blockNum == blockNum && checkpoint.logIdx == logIdx {
-			// Found entry at requested block number and log index
-			return i * searchCheckpointFrequency, nil
-		}
-	}
-	if i == 0 {
-		// There are no checkpoints before the requested blocks
-		return 0, io.EOF
-	}
-	// Not found, need to start reading from the entry prior
-	return (i - 1) * searchCheckpointFrequency, nil
-}
-
-func (db *DB) AddLog(logHash TruncatedHash, block eth.BlockID, timestamp uint64, logIdx uint32, execMsg *ExecutingMessage) error {
-	db.rwLock.Lock()
-	defer db.rwLock.Unlock()
-	postState := logContext{
-		blockNum: block.Number,
-		logIdx:   logIdx,
-	}
-	if block.Number == 0 {
-		return fmt.Errorf("%w: should not have logs in block 0", ErrLogOutOfOrder)
-	}
-	if db.lastEntryContext.blockNum > block.Number {
-		return fmt.Errorf("%w: adding block %v, head block: %v", ErrLogOutOfOrder, block.Number, db.lastEntryContext.blockNum)
-	}
-	if db.lastEntryContext.blockNum == block.Number && db.lastEntryContext.logIdx+1 != logIdx {
-		return fmt.Errorf("%w: adding log %v in block %v, but currently at log %v", ErrLogOutOfOrder, logIdx, block.Number, db.lastEntryContext.logIdx)
-	}
-	if db.lastEntryContext.blockNum < block.Number && logIdx != 0 {
-		return fmt.Errorf("%w: adding log %v as first log in block %v", ErrLogOutOfOrder, logIdx, block.Number)
-	}
-	var entriesToAdd []entrydb.Entry
-	newContext := db.lastEntryContext
-	lastEntryIdx := db.lastEntryIdx()
-
-	addEntry := func(entry entrydb.Entry) {
-		entriesToAdd = append(entriesToAdd, entry)
-		lastEntryIdx++
-	}
-	maybeAddCheckpoint := func() {
-		if (lastEntryIdx+1)%searchCheckpointFrequency == 0 {
-			addEntry(newSearchCheckpoint(block.Number, logIdx, timestamp).encode())
-			addEntry(newCanonicalHash(TruncateHash(block.Hash)).encode())
-			newContext = postState
-		}
-	}
-	maybeAddCheckpoint()
-
-	evt, err := newInitiatingEvent(newContext, postState.blockNum, postState.logIdx, logHash, execMsg != nil)
-	if err != nil {
-		return fmt.Errorf("failed to create initiating event: %w", err)
-	}
-	addEntry(evt.encode())
-
-	if execMsg != nil {
-		maybeAddCheckpoint()
-		link, err := newExecutingLink(*execMsg)
-		if err != nil {
-			return fmt.Errorf("failed to create executing link: %w", err)
-		}
-		addEntry(link.encode())
-
-		maybeAddCheckpoint()
-		addEntry(newExecutingCheck(execMsg.Hash).encode())
-	}
-	if err := db.store.Append(entriesToAdd...); err != nil {
-		return fmt.Errorf("failed to append entries: %w", err)
-	}
-	db.lastEntryContext = postState
-	db.updateEntryCountMetric()
-	return nil
-}
-
-// Rewind the database to remove any blocks after headBlockNum
-// The block at headBlockNum itself is not removed.
-func (db *DB) Rewind(headBlockNum uint64) error {
-	db.rwLock.Lock()
-	defer db.rwLock.Unlock()
-	if headBlockNum >= db.lastEntryContext.blockNum {
-		// Nothing to do
-		return nil
-	}
-	// Find the last checkpoint before the block to remove
-	idx, err := db.searchCheckpoint(headBlockNum+1, 0)
-	if errors.Is(err, io.EOF) {
-		// Requested a block prior to the first checkpoint
-		// Delete everything without scanning forward
-		idx = -1
-	} else if err != nil {
-		return fmt.Errorf("failed to find checkpoint prior to block %v: %w", headBlockNum, err)
-	} else {
-		// Scan forward from the checkpoint to find the first entry about a block after headBlockNum
-		i, err := db.newIterator(idx)
-		if err != nil {
-			return fmt.Errorf("failed to create iterator when searching for rewind point: %w", err)
-		}
-		// If we don't find any useful logs after the checkpoint, we should delete the checkpoint itself
-		// So move our delete marker back to include it as a starting point
-		idx--
+// StartCrossHeadMaintenance starts a background process that maintains the cross-heads of the chains
+// for now it does not prevent multiple instances of this process from running
+func (db *ChainsDB) StartCrossHeadMaintenance(ctx context.Context) {
+	go func() {
+		// create three safety checkers, one for each safety level
+		unsafeChecker := NewSafetyChecker(Unsafe, db)
+		safeChecker := NewSafetyChecker(Safe, db)
+		finalizedChecker := NewSafetyChecker(Finalized, db)
+		// run the maintenance loop every 10 seconds for now
+		ticker := time.NewTicker(time.Second * 10)
 		for {
-			blockNum, _, _, err := i.NextLog()
-			if errors.Is(err, io.EOF) {
-				// Reached end of file, we need to keep everything
-				return nil
-			} else if err != nil {
-				return fmt.Errorf("failed to find rewind point: %w", err)
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				for _, checker := range []SafetyChecker{
+					unsafeChecker,
+					safeChecker,
+					finalizedChecker} {
+					if err := db.UpdateCrossHeads(checker); err != nil {
+						log.Error("failed to update cross-heads", "err", err, "safety", checker.Name())
+						// we should consider exiting if an error is encountered, as the path forward is unclear
+					}
+				}
 			}
-			if blockNum > headBlockNum {
-				// Found the first entry we don't need, so stop searching and delete everything after idx
-				break
-			}
-			// Otherwise we need all of the entries the iterator just read
-			idx = i.nextEntryIdx - 1
 		}
+	}()
+}
+
+// Check calls the underlying logDB to determine if the given log entry is safe with respect to the checker's criteria.
+func (db *ChainsDB) Check(chain types.ChainID, blockNum uint64, logIdx uint32, logHash backendTypes.TruncatedHash) (bool, entrydb.EntryIdx, error) {
+	logDB, ok := db.logDBs[chain]
+	if !ok {
+		return false, 0, fmt.Errorf("%w: %v", ErrUnknownChain, chain)
 	}
-	// Truncate to contain idx+1 entries, since indices are 0 based, this deletes everything after idx
-	if err := db.store.Truncate(idx); err != nil {
-		return fmt.Errorf("failed to truncate to block %v: %w", headBlockNum, err)
+	return logDB.Contains(blockNum, logIdx, logHash)
+}
+
+// UpdateCrossSafeHeads updates the cross-heads of all chains
+// this is an example of how to use the SafetyChecker to update the cross-heads
+func (db *ChainsDB) UpdateCrossSafeHeads() error {
+	checker := NewSafetyChecker(Safe, db)
+	return db.UpdateCrossHeads(checker)
+}
+
+// UpdateCrossHeadsForChain updates the cross-head for a single chain.
+// the provided checker controls which heads are considered.
+// TODO: we should invert control and have the underlying logDB call their own update
+// for now, monolithic control is fine. There may be a stronger reason to refactor if the API needs it.
+func (db *ChainsDB) UpdateCrossHeadsForChain(chainID types.ChainID, checker SafetyChecker) error {
+	// start with the xsafe head of the chain
+	xHead := checker.CrossHeadForChain(chainID)
+	// advance as far as the local head
+	localHead := checker.LocalHeadForChain(chainID)
+	// get an iterator for the last checkpoint behind the x-head
+	i, err := db.logDBs[chainID].LastCheckpointBehind(xHead)
+	if err != nil {
+		return fmt.Errorf("failed to rewind cross-safe head for chain %v: %w", chainID, err)
 	}
-	// Use db.init() to find the log context for the new latest log entry
-	if err := db.init(); err != nil {
-		return fmt.Errorf("failed to find new last entry context: %w", err)
+	// advance the logDB through all executing messages we can
+	// this loop will break:
+	// - when we reach the local head
+	// - when we reach a message that is not safe
+	// - if an error occurs
+	for {
+		exec, err := db.logDBs[chainID].NextExecutingMessage(i)
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return fmt.Errorf("failed to read next executing message for chain %v: %w", chainID, err)
+		}
+		// if we are now beyond the local head, stop
+		if i.Index() > localHead {
+			break
+		}
+		// use the checker to determine if this message is safe
+		safe := checker.Check(
+			types.ChainIDFromUInt64(uint64(exec.Chain)),
+			exec.BlockNum,
+			exec.LogIdx,
+			exec.Hash)
+		if !safe {
+			break
+		}
+		// if all is well, prepare the x-head update to this point
+		xHead = i.Index()
+	}
+
+	// have the checker create an update to the x-head in question, and apply that update
+	err = db.heads.Apply(checker.Update(chainID, xHead))
+	if err != nil {
+		return fmt.Errorf("failed to update cross-head for chain %v: %w", chainID, err)
 	}
 	return nil
 }
 
-func (db *DB) readSearchCheckpoint(entryIdx int64) (searchCheckpoint, error) {
-	data, err := db.store.Read(entryIdx)
-	if err != nil {
-		return searchCheckpoint{}, fmt.Errorf("failed to read entry %v: %w", entryIdx, err)
+// UpdateCrossHeads updates the cross-heads of all chains
+// based on the provided SafetyChecker. The SafetyChecker is used to determine
+// the safety of each log entry in the database, and the cross-head associated with it.
+func (db *ChainsDB) UpdateCrossHeads(checker SafetyChecker) error {
+	currentHeads := db.heads.Current()
+	for chainID := range currentHeads.Chains {
+		if err := db.UpdateCrossHeadsForChain(chainID, checker); err != nil {
+			return err
+		}
 	}
-	return newSearchCheckpointFromEntry(data)
+	return nil
 }
 
-func (db *DB) readCanonicalHash(entryIdx int64) (canonicalHash, error) {
-	data, err := db.store.Read(entryIdx)
-	if err != nil {
-		return canonicalHash{}, fmt.Errorf("failed to read entry %v: %w", entryIdx, err)
+// LastLogInBlock scans through the logs of the given chain starting from the given block number,
+// and returns the index of the last log entry in that block.
+func (db *ChainsDB) LastLogInBlock(chain types.ChainID, blockNum uint64) (entrydb.EntryIdx, error) {
+	logDB, ok := db.logDBs[chain]
+	if !ok {
+		return 0, fmt.Errorf("%w: %v", ErrUnknownChain, chain)
 	}
-	return newCanonicalHashFromEntry(data)
+	iter, err := logDB.ClosestBlockIterator(blockNum)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get block iterator for chain %v: %w", chain, err)
+	}
+	ret := entrydb.EntryIdx(0)
+	// scan through using the iterator until the block number exceeds the target
+	for {
+		bn, index, _, err := iter.NextLog()
+		// if we have reached the end of the database, stop
+		if err == io.EOF {
+			break
+		}
+		// all other errors are fatal
+		if err != nil {
+			return 0, fmt.Errorf("failed to read next log entry for chain %v: %w", chain, err)
+		}
+		// if we are now beyond the target block, stop withour updating the return value
+		if bn > blockNum {
+			break
+		}
+		// only update the return value if the block number is the same
+		// it is possible the iterator started before the target block, or that the target block is not in the db
+		if bn == blockNum {
+			ret = entrydb.EntryIdx(index)
+		}
+	}
+	// if we never found the block, return an error
+	if ret == 0 {
+		return 0, fmt.Errorf("block %v not found in chain %v", blockNum, chain)
+	}
+	return ret, nil
 }
 
-func (db *DB) Close() error {
-	return db.store.Close()
+// LatestBlockNum returns the latest block number that has been recorded to the logs db
+// for the given chain. It does not contain safety guarantees.
+func (db *ChainsDB) LatestBlockNum(chain types.ChainID) uint64 {
+	logDB, ok := db.logDBs[chain]
+	if !ok {
+		return 0
+	}
+	return logDB.LatestBlockNum()
+}
+
+func (db *ChainsDB) AddLog(chain types.ChainID, logHash backendTypes.TruncatedHash, block eth.BlockID, timestamp uint64, logIdx uint32, execMsg *backendTypes.ExecutingMessage) error {
+	logDB, ok := db.logDBs[chain]
+	if !ok {
+		return fmt.Errorf("%w: %v", ErrUnknownChain, chain)
+	}
+	return logDB.AddLog(logHash, block, timestamp, logIdx, execMsg)
+}
+
+func (db *ChainsDB) Rewind(chain types.ChainID, headBlockNum uint64) error {
+	logDB, ok := db.logDBs[chain]
+	if !ok {
+		return fmt.Errorf("%w: %v", ErrUnknownChain, chain)
+	}
+	return logDB.Rewind(headBlockNum)
+}
+
+func (db *ChainsDB) Close() error {
+	var combined error
+	for id, logDB := range db.logDBs {
+		if err := logDB.Close(); err != nil {
+			combined = errors.Join(combined, fmt.Errorf("failed to close log db for chain %v: %w", id, err))
+		}
+	}
+	return combined
 }

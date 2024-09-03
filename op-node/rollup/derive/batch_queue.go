@@ -109,21 +109,6 @@ func (bq *BatchQueue) NextBatch(ctx context.Context, parent eth.L2BlockRef) (*Si
 		}
 	}
 
-	// If the epoch is advanced, update bq.l1Blocks
-	// Advancing epoch must be done after the pipeline successfully apply the entire span batch to the chain.
-	// Because the span batch can be reverted during processing the batch, then we must preserve existing l1Blocks
-	// to verify the epochs of the next candidate batch.
-	if len(bq.l1Blocks) > 0 && parent.L1Origin.Number > bq.l1Blocks[0].Number {
-		for i, l1Block := range bq.l1Blocks {
-			if parent.L1Origin.Number == l1Block.Number {
-				bq.l1Blocks = bq.l1Blocks[i:]
-				bq.log.Debug("Advancing internal L1 blocks", "next_epoch", bq.l1Blocks[0].ID(), "next_epoch_time", bq.l1Blocks[0].Time)
-				break
-			}
-		}
-		// If we can't find the origin of parent block, we have to advance bq.origin.
-	}
-
 	// Note: We use the origin that we will have to determine if it's behind. This is important
 	// because it's the future origin that gets saved into the l1Blocks array.
 	// We always update the origin of this stage if it is not the same so after the update code
@@ -144,6 +129,21 @@ func (bq *BatchQueue) NextBatch(ctx context.Context, parent eth.L2BlockRef) (*Si
 			bq.l1Blocks = bq.l1Blocks[:0]
 		}
 		bq.log.Info("Advancing bq origin", "origin", bq.origin, "originBehind", originBehind)
+	}
+
+	// If the epoch is advanced, update bq.l1Blocks
+	// Advancing epoch must be done after the pipeline successfully apply the entire span batch to the chain.
+	// Because the span batch can be reverted during processing the batch, then we must preserve existing l1Blocks
+	// to verify the epochs of the next candidate batch.
+	if len(bq.l1Blocks) > 0 && parent.L1Origin.Number > bq.l1Blocks[0].Number {
+		for i, l1Block := range bq.l1Blocks {
+			if parent.L1Origin.Number == l1Block.Number {
+				bq.l1Blocks = bq.l1Blocks[i:]
+				bq.log.Debug("Advancing internal L1 blocks", "next_epoch", bq.l1Blocks[0].ID(), "next_epoch_time", bq.l1Blocks[0].Time)
+				break
+			}
+		}
+		// If we can't find the origin of parent block, we have to advance bq.origin.
 	}
 
 	// Load more data into the batch queue

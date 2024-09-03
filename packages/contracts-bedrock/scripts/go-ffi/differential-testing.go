@@ -7,10 +7,6 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -20,6 +16,11 @@ import (
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/ethereum/go-ethereum/triedb"
 	"github.com/ethereum/go-ethereum/triedb/hashdb"
+
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 )
 
 // ABI types
@@ -359,22 +360,22 @@ func DiffTestUtils() {
 		fmt.Print(hexutil.Encode(packed[32:]))
 	case "cannonMemoryProof":
 		// <pc, insn, [memAddr, memValue]>
-		mem := mipsevm.NewMemory()
+		mem := memory.NewMemory()
 		if len(args) != 3 && len(args) != 5 {
 			panic("Error: cannonMemoryProofWithProof requires 2 or 4 arguments")
 		}
 		pc, err := strconv.ParseUint(args[1], 10, 32)
-		checkErr(err, "Error decocding addr")
+		checkErr(err, "Error decoding addr")
 		insn, err := strconv.ParseUint(args[2], 10, 32)
-		checkErr(err, "Error decocding insn")
+		checkErr(err, "Error decoding insn")
 		mem.SetMemory(uint32(pc), uint32(insn))
 
 		var insnProof, memProof [896]byte
 		if len(args) == 5 {
 			memAddr, err := strconv.ParseUint(args[3], 10, 32)
-			checkErr(err, "Error decocding memAddr")
+			checkErr(err, "Error decoding memAddr")
 			memValue, err := strconv.ParseUint(args[4], 10, 32)
-			checkErr(err, "Error decocding memValue")
+			checkErr(err, "Error decoding memValue")
 			mem.SetMemory(uint32(memAddr), uint32(memValue))
 			memProof = mem.MerkleProof(uint32(memAddr))
 		}
@@ -392,21 +393,21 @@ func DiffTestUtils() {
 		fmt.Print(hexutil.Encode(packed[32:]))
 	case "cannonMemoryProofWrongLeaf":
 		// <pc, insn, memAddr, memValue>
-		mem := mipsevm.NewMemory()
+		mem := memory.NewMemory()
 		if len(args) != 5 {
 			panic("Error: cannonMemoryProofWrongLeaf requires 4 arguments")
 		}
 		pc, err := strconv.ParseUint(args[1], 10, 32)
-		checkErr(err, "Error decocding addr")
+		checkErr(err, "Error decoding addr")
 		insn, err := strconv.ParseUint(args[2], 10, 32)
-		checkErr(err, "Error decocding insn")
+		checkErr(err, "Error decoding insn")
 		mem.SetMemory(uint32(pc), uint32(insn))
 
 		var insnProof, memProof [896]byte
 		memAddr, err := strconv.ParseUint(args[3], 10, 32)
-		checkErr(err, "Error decocding memAddr")
+		checkErr(err, "Error decoding memAddr")
 		memValue, err := strconv.ParseUint(args[4], 10, 32)
-		checkErr(err, "Error decocding memValue")
+		checkErr(err, "Error decoding memValue")
 		mem.SetMemory(uint32(memAddr), uint32(memValue))
 
 		// Compute a valid proof for the root, but for the wrong leaves.
@@ -425,9 +426,9 @@ func DiffTestUtils() {
 		fmt.Print(hexutil.Encode(packed[32:]))
 	case "encodeScalarEcotone":
 		basefeeScalar, err := strconv.ParseUint(args[1], 10, 32)
-		checkErr(err, "Error decocding basefeeScalar")
+		checkErr(err, "Error decoding basefeeScalar")
 		blobbasefeeScalar, err := strconv.ParseUint(args[2], 10, 32)
-		checkErr(err, "Error decocding blobbasefeeScalar")
+		checkErr(err, "Error decoding blobbasefeeScalar")
 
 		encoded := eth.EncodeScalar(eth.EcotoneScalars{
 			BaseFeeScalar:     uint32(basefeeScalar),

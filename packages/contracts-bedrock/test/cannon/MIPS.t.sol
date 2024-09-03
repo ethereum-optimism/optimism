@@ -4,6 +4,9 @@ pragma solidity 0.8.15;
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { MIPS } from "src/cannon/MIPS.sol";
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
+import { MIPSInstructions } from "src/cannon/libraries/MIPSInstructions.sol";
+import { MIPSSyscalls as sys } from "src/cannon/libraries/MIPSSyscalls.sol";
+import { InvalidExitedValue } from "src/cannon/libraries/CannonErrors.sol";
 import "src/dispute/lib/Types.sol";
 
 contract MIPS_Test is CommonTest {
@@ -56,6 +59,30 @@ contract MIPS_Test is CommonTest {
 
         bytes32 postState = mips.step(encodeState(state), proof, 0);
         assertNotEq(postState, bytes32(0));
+    }
+
+    /// @notice Tests that the mips step function fails when the value of the exited field is
+    ///         invalid (anything greater than 1).
+    /// @param _exited Value to set the exited field to.
+    function testFuzz_step_invalidExitedValue_fails(uint8 _exited) external {
+        // Assume
+        // Make sure the value of _exited is invalid.
+        _exited = uint8(bound(uint256(_exited), 2, type(uint8).max));
+
+        // Rest of this stuff doesn't matter very much, just setting up some state to edit.
+        // Here just using the parameters for the ADD test below.
+        uint32 insn = encodespec(17, 18, 8, 0x20);
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+
+        // Compute the encoded state and manipulate it.
+        bytes memory enc = encodeState(state);
+        assembly {
+            mstore8(add(add(enc, 0x20), 89), _exited)
+        }
+
+        // Call the step function and expect a revert.
+        vm.expectRevert(InvalidExitedValue.selector);
+        mips.step(enc, proof, 0);
     }
 
     function test_add_succeeds() external {
@@ -1241,15 +1268,46 @@ contract MIPS_Test is CommonTest {
     function test_srav_succeeds() external {
         uint32 insn = encodespec(0xa, 0x9, 0x8, 7); // srav t0, t1, t2
         (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
-        state.registers[9] = 0x20_00; // t1
-        state.registers[10] = 4; // t2
+        state.registers[9] = 0xdeafbeef; // t1
+        state.registers[10] = 12; // t2
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
         expect.pc = state.nextPC;
         expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
-        expect.registers[8] = state.registers[9] >> state.registers[10]; // t0
+        expect.registers[8] = 0xfffdeafb; // t0
+        expect.registers[9] = state.registers[9];
+        expect.registers[10] = state.registers[10];
+
+        bytes memory enc = encodeState(state);
+        bytes32 postState = mips.step(enc, proof, 0);
+        assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    /// @notice Tests that the SRAV instruction succeeds when it includes extra bits in the shift
+    ///         amount beyond the lower 5 bits that are actually used for the shift. Extra bits
+    ///         need to be ignored but the instruction should still succeed.
+    /// @param _rs Value to set in the shift register $rs.
+    function testFuzz_srav_withExtraBits_succeeds(uint32 _rs) external {
+        // Assume
+        // Force _rs to have more than 5 bits set.
+        _rs = uint32(bound(uint256(_rs), 0x20, type(uint32).max));
+
+        uint32 insn = encodespec(0xa, 0x9, 0x8, 7); // srav t0, t1, t2
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        state.registers[9] = 0xdeadbeef; // t1
+        state.registers[10] = _rs; // t2
+
+        // Calculate shamt
+        uint32 shamt = state.registers[10] & 0x1F;
+
+        MIPS.State memory expect;
+        expect.memRoot = state.memRoot;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
+        expect.step = state.step + 1;
+        expect.registers[8] = MIPSInstructions.signExtend(state.registers[9] >> shamt, 32 - shamt); // t0
         expect.registers[9] = state.registers[9];
         expect.registers[10] = state.registers[10];
 
@@ -1421,6 +1479,64 @@ contract MIPS_Test is CommonTest {
         expect.registers[2] = 0; // return old heap
         expect.registers[4] = 0x0; // a0
         expect.registers[5] = 4095; // a1
+
+        bytes32 postState = mips.step(encodedState, proof, 0);
+        assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    function test_mmap_succeeds_justWithinMemLimit() external {
+        uint32 insn = 0x0000000c; // syscall
+        (bytes32 memRoot, bytes memory proof) = ffi.getCannonMemoryProof(0, insn);
+
+        MIPS.State memory state;
+        state.memRoot = memRoot;
+        state.nextPC = 4;
+        state.heap = sys.HEAP_END - 4096; // Set up to increase heap to its limit
+        state.registers[2] = 4090; // mmap syscall
+        state.registers[4] = 0x0; // a0
+        state.registers[5] = 4095; // a1
+        bytes memory encodedState = encodeState(state);
+
+        MIPS.State memory expect;
+        expect.memRoot = state.memRoot;
+        // assert page allocation is aligned to 4k
+        expect.step = state.step + 1;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
+        expect.heap = sys.HEAP_END;
+        expect.registers[2] = state.heap; // Return the old heap value
+        expect.registers[7] = 0; // No error
+        expect.registers[4] = state.registers[4]; // a0
+        expect.registers[5] = state.registers[5]; // a1
+
+        bytes32 postState = mips.step(encodedState, proof, 0);
+        assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    function test_mmap_fails() external {
+        uint32 insn = 0x0000000c; // syscall
+        (bytes32 memRoot, bytes memory proof) = ffi.getCannonMemoryProof(0, insn);
+
+        MIPS.State memory state;
+        state.memRoot = memRoot;
+        state.nextPC = 4;
+        state.heap = sys.HEAP_END - 4096; // Set up to increase heap beyond its limit
+        state.registers[2] = 4090; // mmap syscall
+        state.registers[4] = 0x0; // a0
+        state.registers[5] = 4097; // a1
+        bytes memory encodedState = encodeState(state);
+
+        MIPS.State memory expect;
+        expect.memRoot = state.memRoot;
+        // assert page allocation is aligned to 4k
+        expect.step = state.step + 1;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
+        expect.heap = state.heap;
+        expect.registers[2] = sys.SYS_ERROR_SIGNAL; // signal an stdError
+        expect.registers[7] = sys.EINVAL; // Return error value
+        expect.registers[4] = state.registers[4]; // a0
+        expect.registers[5] = state.registers[5]; // a1
 
         bytes32 postState = mips.step(encodedState, proof, 0);
         assertEq(postState, outputState(expect), "unexpected post state");

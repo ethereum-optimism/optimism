@@ -96,17 +96,23 @@ Spacers MUST be `private`.
 
 All contracts should be assumed to live behind proxies (except in certain special circumstances).
 This means that new contracts MUST be built under the assumption of upgradeability.
-We use a minimal [`Proxy`](./contracts/universal/Proxy.sol) contract designed to be owned by a
-corresponding [`ProxyAdmin`](./contracts/universal/ProxyAdmin.sol) which follow the interfaces
+We use a minimal [`Proxy`](./src/universal/Proxy.sol) contract designed to be owned by a
+corresponding [`ProxyAdmin`](./src/universal/ProxyAdmin.sol) which follow the interfaces
 of OpenZeppelin's `Proxy` and `ProxyAdmin` contracts, respectively.
 
 Unless explicitly discussed otherwise, you MUST include the following basic upgradeability
 pattern for each new implementation contract:
 
 1. Extend OpenZeppelin's `Initializable` base contract.
-2. Include a `uint8 public constant VERSION = X` at the TOP of your contract.
-3. Include a function `initialize` with the modifier `reinitializer(VERSION)`.
-4. In the `constructor`, set any `immutable` variables and call the `initialize` function for setting mutables.
+2. Include a function `initialize` with the modifier `initializer()`.
+3. In the `constructor`:
+    1. Call `_disableInitializers()` to ensure the implementation contract cannot be initialized.
+    2. Set any immutables. However, we generally prefer to not use immutables to ensure the same implementation contracts can be used for all chains, and to allow chain operators to dynamically configure parameters
+
+Because `reinitializer(uint64 version)` is not used, the process for upgrading the implementation is to atomically:
+1. Upgrade the implementation to the `StorageSetter` contract.
+2. Use that to set the initialized slot (typically slot 0) to zero.
+3. Upgrade the implementation to the desired new implementation and `initialize` it.
 
 ### Versioning
 

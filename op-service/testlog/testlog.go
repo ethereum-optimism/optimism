@@ -21,13 +21,12 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"log/slog"
 	"os"
 	"runtime"
 	"strconv"
 	"strings"
 	"sync"
-
-	"golang.org/x/exp/slog"
 
 	"github.com/ethereum/go-ethereum/log"
 )
