@@ -1,14 +1,15 @@
 package kvstore
 
 import (
+	"os"
 	"sync"
 
 	"github.com/bmatsuo/lmdb-go/lmdb"
 	"github.com/ethereum/go-ethereum/common"
 )
 
-// read/write mode for user/group/other, not executable.
-const diskPermission = 0666
+// read/write mode for user/group/other, executable only for user.
+const diskPermission = 0766
 
 // DiskKV is a disk-backed key-value store, every key-value pair is a hex-encoded .txt file, with the value as content.
 // DiskKV is safe for concurrent use with a single DiskKV instance.
@@ -35,8 +36,10 @@ func NewDiskKV(path string) (*DiskKV, error) {
 		return nil, err
 	}
 
-	err = env.Open(path, 0, diskPermission)
-	if err != nil {
+	if err = os.MkdirAll(path, diskPermission); err != nil {
+		return nil, err
+	}
+	if err = env.Open(path, lmdb.Create, diskPermission); err != nil {
 		return nil, err
 	}
 

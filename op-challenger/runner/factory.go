@@ -34,7 +34,7 @@ func createTraceProvider(
 			return nil, err
 		}
 		prestateProvider := cannon.NewPrestateProvider(prestate)
-		return cannon.NewTraceProvider(logger, m, cfg.Cannon, vmConfig, prestateProvider, prestate, localInputs, dir, 42), nil
+		return cannon.NewTraceProvider(logger, m, cfg.Cannon, vmConfig, prestateProvider, prestate, localInputs, dir, 42)
 	case types.TraceTypeAsterisc:
 		vmConfig := vm.NewOpProgramServerExecutor()
 		prestate, err := getPrestate(prestateHash, cfg.AsteriscAbsolutePreStateBaseURL, cfg.AsteriscAbsolutePreState, dir)
@@ -42,7 +42,7 @@ func createTraceProvider(
 			return nil, err
 		}
 		prestateProvider := asterisc.NewPrestateProvider(prestate)
-		return asterisc.NewTraceProvider(logger, m, cfg.Asterisc, vmConfig, prestateProvider, prestate, localInputs, dir, 42), nil
+		return asterisc.NewTraceProvider(logger, m, cfg.Asterisc, vmConfig, prestateProvider, prestate, localInputs, dir, 42)
 	case types.TraceTypeAsteriscKona:
 		vmConfig := vm.NewKonaServerExecutor()
 		prestate, err := getPrestate(prestateHash, cfg.AsteriscAbsolutePreStateBaseURL, cfg.AsteriscAbsolutePreState, dir)
@@ -50,7 +50,7 @@ func createTraceProvider(
 			return nil, err
 		}
 		prestateProvider := asterisc.NewPrestateProvider(prestate)
-		return asterisc.NewTraceProvider(logger, m, cfg.Asterisc, vmConfig, prestateProvider, prestate, localInputs, dir, 42), nil
+		return asterisc.NewTraceProvider(logger, m, cfg.Asterisc, vmConfig, prestateProvider, prestate, localInputs, dir, 42)
 	}
 	return nil, errors.New("invalid trace type")
 }

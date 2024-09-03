@@ -41,8 +41,7 @@ func NewOutputAsteriscTraceAccessor(
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch asterisc local inputs: %w", err)
 		}
-		provider := asterisc.NewTraceProvider(logger, m, cfg, vmCfg, prestateProvider, asteriscPrestate, localInputs, subdir, depth)
-		return provider, nil
+		return asterisc.NewTraceProvider(logger, m, cfg, vmCfg, prestateProvider, asteriscPrestate, localInputs, subdir, depth)
 	}
 
 	cache := NewProviderCache(m, "output_asterisc_provider", asteriscCreator)

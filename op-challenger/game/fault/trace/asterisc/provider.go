@@ -35,8 +35,12 @@ type AsteriscTraceProvider struct {
 	lastStep uint64
 }
 
-func NewTraceProvider(logger log.Logger, m vm.Metricer, cfg vm.Config, vmCfg vm.OracleServerExecutor, prestateProvider types.PrestateProvider, asteriscPrestate string, localInputs utils.LocalGameInputs, dir string, gameDepth types.Depth) *AsteriscTraceProvider {
-	kv, _ := kvstore.NewDiskKV(vm.PreimageDir(dir))
+func NewTraceProvider(logger log.Logger, m vm.Metricer, cfg vm.Config, vmCfg vm.OracleServerExecutor, prestateProvider types.PrestateProvider, asteriscPrestate string, localInputs utils.LocalGameInputs, dir string, gameDepth types.Depth) (*AsteriscTraceProvider, error) {
+	kv, err := kvstore.NewDiskKV(vm.PreimageDir(dir))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create disk storage: %w", err)
+	}
+
 	return &AsteriscTraceProvider{
 		logger:           logger,
 		dir:              dir,
@@ -45,7 +49,7 @@ func NewTraceProvider(logger log.Logger, m vm.Metricer, cfg vm.Config, vmCfg vm.
 		gameDepth:        gameDepth,
 		preimageLoader:   utils.NewPreimageLoader(kv.Get),
 		PrestateProvider: prestateProvider,
-	}
+	}, nil
 }
 
 func (p *AsteriscTraceProvider) Get(ctx context.Context, pos types.Position) (common.Hash, error) {
@@ -173,8 +177,12 @@ type AsteriscTraceProviderForTest struct {
 	*AsteriscTraceProvider
 }
 
-func NewTraceProviderForTest(logger log.Logger, m vm.Metricer, cfg *config.Config, localInputs utils.LocalGameInputs, dir string, gameDepth types.Depth) *AsteriscTraceProviderForTest {
-	kv, _ := kvstore.NewDiskKV(vm.PreimageDir(dir))
+func NewTraceProviderForTest(logger log.Logger, m vm.Metricer, cfg *config.Config, localInputs utils.LocalGameInputs, dir string, gameDepth types.Depth) (*AsteriscTraceProviderForTest, error) {
+	kv, err := kvstore.NewDiskKV(vm.PreimageDir(dir))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create disk storage: %w", err)
+	}
+
 	p := &AsteriscTraceProvider{
 		logger:         logger,
 		dir:            dir,
@@ -183,7 +191,7 @@ func NewTraceProviderForTest(logger log.Logger, m vm.Metricer, cfg *config.Confi
 		gameDepth:      gameDepth,
 		preimageLoader: utils.NewPreimageLoader(kv.Get),
 	}
-	return &AsteriscTraceProviderForTest{p}
+	return &AsteriscTraceProviderForTest{p}, nil
 }
 
 func (p *AsteriscTraceProviderForTest) FindStep(ctx context.Context, start uint64, preimage utils.PreimageOpt) (uint64, error) {

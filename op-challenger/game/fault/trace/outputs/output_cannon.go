@@ -41,8 +41,7 @@ func NewOutputCannonTraceAccessor(
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch cannon local inputs: %w", err)
 		}
-		provider := cannon.NewTraceProvider(logger, m, cfg, serverExecutor, prestateProvider, cannonPrestate, localInputs, subdir, depth)
-		return provider, nil
+		return cannon.NewTraceProvider(logger, m, cfg, serverExecutor, prestateProvider, cannonPrestate, localInputs, subdir, depth)
 	}
 
 	cache := NewProviderCache(m, "output_cannon_provider", cannonCreator)
