@@ -2,6 +2,7 @@ package multithreaded
 
 import (
 	"encoding/binary"
+	"io"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -72,6 +73,53 @@ func (t *ThreadState) serializeThread() []byte {
 	}
 
 	return out
+}
+
+func (t *ThreadState) Serialize(out io.Writer) error {
+	_, err := out.Write(t.serializeThread())
+	return err
+}
+
+func (t *ThreadState) Deserialize(in io.Reader) error {
+	if err := binary.Read(in, binary.BigEndian, &t.ThreadId); err != nil {
+		return err
+	}
+	if err := binary.Read(in, binary.BigEndian, &t.ExitCode); err != nil {
+		return err
+	}
+	var exited uint8
+	if err := binary.Read(in, binary.BigEndian, &exited); err != nil {
+		return err
+	}
+	t.Exited = exited != 0
+	if err := binary.Read(in, binary.BigEndian, &t.FutexAddr); err != nil {
+		return err
+	}
+	if err := binary.Read(in, binary.BigEndian, &t.FutexVal); err != nil {
+		return err
+	}
+	if err := binary.Read(in, binary.BigEndian, &t.FutexTimeoutStep); err != nil {
+		return err
+	}
+	if err := binary.Read(in, binary.BigEndian, &t.Cpu.PC); err != nil {
+		return err
+	}
+	if err := binary.Read(in, binary.BigEndian, &t.Cpu.NextPC); err != nil {
+		return err
+	}
+	if err := binary.Read(in, binary.BigEndian, &t.Cpu.LO); err != nil {
+		return err
+	}
+	if err := binary.Read(in, binary.BigEndian, &t.Cpu.HI); err != nil {
+		return err
+	}
+	// Read the registers as big endian uint32s
+	for i := range t.Registers {
+		if err := binary.Read(in, binary.BigEndian, &t.Registers[i]); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func computeThreadRoot(prevStackRoot common.Hash, threadToPush *ThreadState) common.Hash {
