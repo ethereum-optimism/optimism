@@ -104,9 +104,7 @@ library LibGameId {
     /// @return gameType_ The game type.
     /// @return timestamp_ The timestamp of the game's creation.
     /// @return gameProxy_ The game proxy address.
-    function unpack(
-        GameId _gameId
-    )
+    function unpack(GameId _gameId)
         internal
         pure
         returns (GameType gameType_, Timestamp timestamp_, address gameProxy_)

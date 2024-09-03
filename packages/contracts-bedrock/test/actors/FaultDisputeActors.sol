@@ -150,9 +150,7 @@ contract HonestGameSolver is GameSolver {
     ////////////////////////////////////////////////////////////////
 
     /// @dev Helper function to determine the direction of the next move to be taken.
-    function determineDirection(
-        IFaultDisputeGame.ClaimData memory _claimData
-    )
+    function determineDirection(IFaultDisputeGame.ClaimData memory _claimData)
         internal
         view
         returns (Direction direction_, Position movePos_)

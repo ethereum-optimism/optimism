@@ -13,9 +13,7 @@ import { Process } from "scripts/libraries/Process.sol";
 contract FFIInterface {
     Vm internal constant vm = Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
 
-    function getProveWithdrawalTransactionInputs(
-        Types.WithdrawalTransaction memory _tx
-    )
+    function getProveWithdrawalTransactionInputs(Types.WithdrawalTransaction memory _tx)
         external
         returns (bytes32, bytes32, bytes32, bytes32, bytes[] memory)
     {
@@ -201,9 +199,7 @@ contract FFIInterface {
         return abi.decode(result, (uint256, uint256));
     }
 
-    function getMerkleTrieFuzzCase(
-        string memory variant
-    )
+    function getMerkleTrieFuzzCase(string memory variant)
         external
         returns (bytes32, bytes memory, bytes memory, bytes[] memory)
     {

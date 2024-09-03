@@ -32,9 +32,7 @@ contract OptimistInviterHelper {
     /// @notice Returns the hash of the struct ClaimableInvite.
     /// @param _claimableInvite ClaimableInvite struct to hash.
     /// @return EIP-712 typed struct hash.
-    function getClaimableInviteStructHash(
-        OptimistInviter.ClaimableInvite memory _claimableInvite
-    )
+    function getClaimableInviteStructHash(OptimistInviter.ClaimableInvite memory _claimableInvite)
         public
         pure
         returns (bytes32)

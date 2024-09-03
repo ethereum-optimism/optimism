@@ -38,9 +38,7 @@ contract TransferOnionTest is Test {
     }
 
     /// @notice Build the onion data.
-    function _onionize(
-        TransferOnion.Layer[] memory _layers
-    )
+    function _onionize(TransferOnion.Layer[] memory _layers)
         public
         pure
         returns (bytes32, TransferOnion.Layer[] memory)

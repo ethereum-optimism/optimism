@@ -100,9 +100,7 @@ contract EAS is IEAS, ISemver, EIP1271Verifier {
     }
 
     /// @inheritdoc IEAS
-    function attestByDelegation(
-        DelegatedAttestationRequest calldata delegatedRequest
-    )
+    function attestByDelegation(DelegatedAttestationRequest calldata delegatedRequest)
         external
         payable
         returns (bytes32)
@@ -115,9 +113,7 @@ contract EAS is IEAS, ISemver, EIP1271Verifier {
     }
 
     /// @inheritdoc IEAS
-    function multiAttest(
-        MultiAttestationRequest[] calldata multiRequests
-    )
+    function multiAttest(MultiAttestationRequest[] calldata multiRequests)
         external
         payable
         returns (bytes32[] memory)
@@ -169,9 +165,7 @@ contract EAS is IEAS, ISemver, EIP1271Verifier {
     }
 
     /// @inheritdoc IEAS
-    function multiAttestByDelegation(
-        MultiDelegatedAttestationRequest[] calldata multiDelegatedRequests
-    )
+    function multiAttestByDelegation(MultiDelegatedAttestationRequest[] calldata multiDelegatedRequests)
         external
         payable
         returns (bytes32[] memory)
@@ -281,9 +275,7 @@ contract EAS is IEAS, ISemver, EIP1271Verifier {
     }
 
     /// @inheritdoc IEAS
-    function multiRevokeByDelegation(
-        MultiDelegatedRevocationRequest[] calldata multiDelegatedRequests
-    )
+    function multiRevokeByDelegation(MultiDelegatedRevocationRequest[] calldata multiDelegatedRequests)
         external
         payable
     {

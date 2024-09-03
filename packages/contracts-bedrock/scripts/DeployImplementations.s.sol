@@ -195,9 +195,7 @@ contract DeployImplementations is Script {
         require(false, "DeployImplementations: run is not implemented");
     }
 
-    function run(
-        DeployImplementationsInput.Input memory _input
-    )
+    function run(DeployImplementationsInput.Input memory _input)
         public
         returns (DeployImplementationsOutput.Output memory)
     {

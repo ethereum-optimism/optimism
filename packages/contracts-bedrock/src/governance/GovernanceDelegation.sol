@@ -231,8 +231,7 @@ contract GovernanceDelegation is IGovernanceDelegation {
             // Check sorting and uniqueness of delegatees.
             if (i == 0 && _newDelegations[i].delegatee == address(0)) {
                 // zero delegation is allowed if in 0th position
-            }
-            else if (_newDelegations[i].delegatee <= _lastDelegatee) {
+            } else if (_newDelegations[i].delegatee <= _lastDelegatee) {
                 revert DuplicateOrUnsortedDelegatees(_newDelegations[i].delegatee);
             }
 

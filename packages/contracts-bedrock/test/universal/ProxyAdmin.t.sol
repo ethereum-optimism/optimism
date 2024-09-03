@@ -164,8 +164,7 @@ contract ProxyAdmin_Test is Test {
             admin.getProxyAdmin(_proxy);
         } else if (proxyType == ProxyAdmin.ProxyType.RESOLVED) {
             // Just an empty block to show that all cases are covered
-        }
-        else {
+        } else {
             vm.expectRevert("ProxyAdmin: unknown proxy type");
         }
 

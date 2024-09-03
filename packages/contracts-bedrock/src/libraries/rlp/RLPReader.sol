@@ -125,9 +125,7 @@ library RLPReader {
     /// @return offset_ Offset of the encoded data.
     /// @return length_ Length of the encoded data.
     /// @return type_ RLP item type (LIST_ITEM or DATA_ITEM).
-    function _decodeLength(
-        RLPItem memory _in
-    )
+    function _decodeLength(RLPItem memory _in)
         private
         pure
         returns (uint256 offset_, uint256 length_, RLPItemType type_)

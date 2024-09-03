@@ -968,9 +968,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @return startingPos_ The starting output root position.
     /// @return disputedClaim_ The disputed output root claim.
     /// @return disputedPos_ The disputed output root position.
-    function _findStartingAndDisputedOutputs(
-        uint256 _start
-    )
+    function _findStartingAndDisputedOutputs(uint256 _start)
         internal
         view
         returns (Claim startingClaim_, Position startingPos_, Claim disputedClaim_, Position disputedPos_)
