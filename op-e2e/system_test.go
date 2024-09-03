@@ -1440,16 +1440,25 @@ func TestBatcherConcurrentAltDARequests(t *testing.T) {
 	err = driver.StartBatchSubmitting()
 	require.NoError(t, err)
 
-	totalTxCount := 0
+	totalBatcherTxsCount := 0
 	// wait for up to 10 L1 blocks, expecting 10 L2 batcher txs in them.
 	// usually only 3 is required, but it's possible additional L1 blocks will be created
 	// before the batcher starts, so we wait additional blocks.
 	for i := int64(0); i < 10; i++ {
 		block, err := geth.WaitForBlock(big.NewInt(int64(startingL1BlockNum)+i), l1Client, time.Duration(cfg.DeployConfig.L1BlockTime*5)*time.Second)
 		require.NoError(t, err, "Waiting for l1 blocks")
-		totalTxCount += len(block.Transactions())
+		for _, tx := range block.Transactions() {
+			signer := types.NewCancunSigner(tx.ChainId())
+			sender, err := types.Sender(signer, tx)
+			require.NoError(t, err)
+			// there are possibly other services (proposer/challenger) in the background sending txs
+			// so we only count the batcher txs
+			if sender == cfg.DeployConfig.BatchSenderAddress {
+				totalBatcherTxsCount++
+			}
+		}
 
-		if totalTxCount >= 10 {
+		if totalBatcherTxsCount >= 10 {
 			return
 		}
 	}
