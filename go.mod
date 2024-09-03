@@ -1,12 +1,14 @@
 module github.com/ethereum-optimism/optimism
 
-go 1.22
+go 1.21
 
 require (
 	github.com/BurntSushi/toml v1.4.0
-	github.com/anacrolix/chansync v0.5.1
+	github.com/anacrolix/chansync v0.5.2-0.20240902132230-bb4c5f157404
 	github.com/anacrolix/envpprof v1.3.0
 	github.com/anacrolix/generics v0.0.3-0.20240810033109-cddd00a51d96
+	github.com/anacrolix/missinggo/v2 v2.7.4-0.20240902050650-7985420302c7
+	github.com/anacrolix/sync v0.3.0
 	github.com/andybalholm/brotli v1.1.0
 	github.com/btcsuite/btcd v0.24.2
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0
@@ -61,8 +63,6 @@ require (
 	github.com/anacrolix/log v0.13.1 // indirect
 	github.com/anacrolix/missinggo v1.2.1 // indirect
 	github.com/anacrolix/missinggo/perf v1.0.0 // indirect
-	github.com/anacrolix/missinggo/v2 v2.7.4-0.20240902050650-7985420302c7 // indirect
-	github.com/anacrolix/sync v0.3.0 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
