@@ -73,7 +73,8 @@ func run(configPath string) error {
 	fmt.Printf("==================    op-geth shim awaiting termination  ==========================\n")
 
 	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(sigs)
+	signal.Notify(sigs, os.Interrupt, syscall.SIGTERM)
 
 	select {
 	case <-sigs:

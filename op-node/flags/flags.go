@@ -157,13 +157,6 @@ var (
 		}(),
 		Category: L1RPCCategory,
 	}
-	L1RethDBPath = &cli.StringFlag{
-		Name:     "l1.rethdb",
-		Usage:    "The L1 RethDB path, used to fetch receipts for L1 blocks.",
-		EnvVars:  prefixEnvVars("L1_RETHDB"),
-		Hidden:   true,
-		Category: L1RPCCategory,
-	}
 	L1RPCMaxConcurrency = &cli.IntFlag{
 		Name:     "l1.max-concurrency",
 		Usage:    "Maximum number of concurrent RPC requests to make to the L1 RPC provider.",
@@ -413,7 +406,6 @@ var optionalFlags = []cli.Flag{
 	HeartbeatURLFlag,
 	RollupHalt,
 	RollupLoadProtocolVersions,
-	L1RethDBPath,
 	ConductorEnabledFlag,
 	ConductorRpcFlag,
 	ConductorRpcTimeoutFlag,

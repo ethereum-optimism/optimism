@@ -62,6 +62,8 @@ contract OptimismSuperchainERC20_User is StdUtils {
             return;
         }
 
+        if (_chainId == block.chainid) return;
+
         // Bound send amount to our ERC20 balance.
         _amount = bound(_amount, 0, superchainERC20.balanceOf(address(this)));
 

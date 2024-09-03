@@ -35,6 +35,9 @@ parameters:
   docker_publish_dispatch:
     type: boolean
     default: false
+  publish_contract_artifacts_dispatch:
+    type: boolean
+    default: false
 
 orbs:
   go: circleci/go@1.8.0
@@ -1310,45 +1313,6 @@ jobs:
           paths:
             - "/go/pkg/mod"
 
-  op-service-rethdb-tests:
-    docker:
-      - image: <<pipeline.parameters.ci_builder_rust_image>>
-    steps:
-      - checkout
-      - check-changed:
-          patterns: op-service,op-node
-      - restore_cache:
-          name: Restore Go modules cache
-          key: gomod-{{ checksum "go.sum" }}
-      - run:
-          name: Cargo fmt + clippy
-          command: |
-            cargo +nightly fmt -- --check
-            cargo +nightly clippy --all --all-features -- -D warnings
-          working_directory: op-service/rethdb-reader
-      - run:
-          name: Generate testdata db
-          command: cargo test
-          working_directory: op-service/rethdb-reader
-      - run:
-          name: Build dylib
-          command: cargo build --release
-          working_directory: op-service/rethdb-reader
-      - run:
-          name: Update LD_LIBRARY_PATH
-          command: echo 'export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:/root/project/op-service/rethdb-reader/target/release"' >> $BASH_ENV
-      - run:
-          name: Run op-service RethDB tests
-          command: |
-            gotestsum --format=standard-verbose --junitfile=/tmp/test-results/op-service.xml \
-            -- -parallel=8 -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out \
-            -run TestRethDB -tags rethdb -v
-          working_directory: op-service/sources
-      # TODO(CLI-148): Fix codecov
-      #- run:
-          #name: upload coverage
-          #command: codecov --verbose --clean --flags bedrock-rethdb-go-tests
-
   bedrock-go-tests:  # just a helper, that depends on all the actual test jobs
     docker:
       # Use a smaller base image to avoid pulling the huge ci-builder
@@ -1468,16 +1432,26 @@ jobs:
   publish-contract-artifacts:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: medium
+    resource_class: xlarge
     steps:
       - gcp-cli/install
       - gcp-oidc-authenticate:
           gcp_cred_config_file_path: /root/gcp_cred_config.json
           oidc_token_file_path: /root/oidc_token.json
-          service_account_email: GCP_SERVICE_CONTRACTS_ACCOUNT_EMAIL
+          project_id: GCP_TOOLS_ARTIFACTS_PROJECT_ID
+          service_account_email: GCP_CONTRACTS_PUBLISHER_SERVICE_ACCOUNT_EMAIL
       - checkout
-      - attach_workspace: { at: "." }
       - install-contracts-dependencies
+      - run:
+          name: Pull artifacts
+          command: bash scripts/ops/pull-artifacts.sh
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: Build contracts
+          environment:
+            FOUNDRY_PROFILE: ci
+          command: just build
+          working_directory: packages/contracts-bedrock
       - run:
           name: Publish artifacts
           command: bash scripts/ops/publish-artifacts.sh
@@ -1497,11 +1471,6 @@ workflows:
     jobs:
       - pnpm-monorepo:
           name: pnpm-monorepo
-      - publish-contract-artifacts:
-          requires:
-            - pnpm-monorepo
-          context:
-            - oplabs-gcr-release
       - contracts-bedrock-tests
       - contracts-bedrock-coverage
       - contracts-bedrock-checks:
@@ -1614,9 +1583,6 @@ workflows:
           requires:
             - pnpm-monorepo
             - cannon-prestate
-      - op-service-rethdb-tests:
-          requires:
-            - go-mod-download
       - op-program-compat:
           requires:
             - op-program-tests
@@ -1639,7 +1605,6 @@ workflows:
             - op-program-compat
             - op-service-tests
             - op-supervisor-tests
-            - op-service-rethdb-tests
             - op-e2e-HTTP-tests
             - op-e2e-fault-proof-tests
             - op-e2e-action-tests
@@ -1954,6 +1919,14 @@ workflows:
           context:
             - slack
             - oplabs-fpp-nodes
+
+  develop-publish-contract-artifacts:
+    when:
+      or:
+        - equal: [ "develop", <<pipeline.git.branch>> ]
+        - equal: [ true, <<pipeline.parameters.publish_contract_artifacts_dispatch>> ]
+    jobs:
+      - publish-contract-artifacts
 
   develop-fault-proofs:
     when:

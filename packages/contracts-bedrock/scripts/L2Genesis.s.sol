@@ -525,6 +525,7 @@ contract L2Genesis is Deployer {
         _setPreinstallCode(Preinstalls.SenderCreator_v070); // ERC 4337 v0.7.0
         _setPreinstallCode(Preinstalls.EntryPoint_v070); // ERC 4337 v0.7.0
         _setPreinstallCode(Preinstalls.BeaconBlockRoots);
+        _setPreinstallCode(Preinstalls.CreateX);
         // 4788 sender nonce must be incremented, since it's part of later upgrade-transactions.
         // For the upgrade-tx to not create a contract that conflicts with an already-existing copy,
         // the nonce must be bumped.
