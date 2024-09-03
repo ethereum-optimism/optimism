@@ -127,8 +127,9 @@ func (n *NodeP2P) init(
 	} else {
 		n.appScorer = &NoopApplicationScorer{}
 	}
+	rrsConfig := setup.ReqRespSyncConfig()
 	// Activate the P2P req-resp sync if enabled by feature-flag.
-	if setup.ReqRespSyncEnabled() && !elSyncEnabled {
+	if rrsConfig.Enabled && !elSyncEnabled {
 		n.syncCl = NewSyncClient(log, rollupCfg, n.host, gossipIn, metrics, n.appScorer)
 		n.host.Network().Notify(&network.NotifyBundle{
 			ConnectedF: func(nw network.Network, conn network.Conn) {
@@ -141,13 +142,20 @@ func (n *NodeP2P) init(
 				}
 			},
 		})
+		if c := rrsConfig.ConfigureClient; c != nil {
+			c(n.syncCl)
+		}
 		n.syncCl.Start()
 		// the host may already be connected to peers, add them all to the sync client
 		for _, peerID := range n.host.Network().Peers() {
 			n.syncCl.AddPeer(peerID)
 		}
-		if l2Chain != nil { // Only enable serving side of req-resp sync if we have a data-source, to make minimal P2P testing easy
+		// Only enable serving side of req-resp sync if we have a data-source, to make minimal P2P testing easy
+		if l2Chain != nil {
 			n.syncSrv = NewReqRespServer(rollupCfg, l2Chain, metrics)
+			if c := rrsConfig.ConfigureServer; c != nil {
+				c(n.syncSrv)
+			}
 			// register the sync protocol with libp2p host
 			payloadByNumber := MakeStreamHandler(resourcesCtx, log.New("serve", "payloads_by_number"), n.syncSrv.HandleSyncRequest)
 			n.host.SetStreamHandler(PayloadByNumberProtocolID(rollupCfg.L2ChainID), payloadByNumber)

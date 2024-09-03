@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"math/big"
 	"net"
 	"os"
@@ -95,6 +96,18 @@ func newTxMgrConfig(l1Addr string, privKey *ecdsa.PrivateKey) txmgr.CLIConfig {
 	}
 }
 
+type sequencerP2PConfig struct {
+	*p2p.Config
+}
+
+const sequencerOutboundQueueSize = 1
+
+func (me *sequencerP2PConfig) ConfigureGossip(rollupCfg *rollup.Config) []pubsub.Option {
+	options := me.Config.ConfigureGossip(rollupCfg)
+	options = append(options, pubsub.WithPeerOutboundQueueSize(1))
+	return options
+}
+
 func DefaultSystemConfig(t testing.TB) SystemConfig {
 	config.ExternalL2TestParms.SkipIfNecessary(t)
 
@@ -145,6 +158,7 @@ func DefaultSystemConfig(t testing.TB) SystemConfig {
 				RuntimeConfigReloadInterval: time.Minute * 10,
 				ConfigPersistence:           &rollupNode.DisabledConfigPersistence{},
 				Sync:                        sync.Config{SyncMode: sync.CLSync},
+				P2P:                         &sequencerP2PConfig{},
 			},
 			RoleVerif: {
 				Driver: driver.Config{
@@ -267,7 +281,7 @@ type SystemConfig struct {
 	P2PTopology map[string][]string
 
 	// Enables req-resp sync in the P2P nodes
-	P2PReqRespSync bool
+	P2PReqRespSync p2p.ReqRespSyncConfig
 
 	// If the proposer can make proposals for L2 blocks derived from L1 blocks which are not finalized on L1 yet.
 	NonFinalizedProposals bool
@@ -670,10 +684,10 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 			// TODO we can enable discv5 in the testnodes to test discovery of new peers.
 			// Would need to mock though, and the discv5 implementation does not provide nice mocks here.
 			p := &p2p.Prepared{
-				HostP2P:           h,
-				LocalNode:         nil,
-				UDPv5:             nil,
-				EnableReqRespSync: cfg.P2PReqRespSync,
+				HostP2P:     h,
+				LocalNode:   nil,
+				UDPv5:       nil,
+				ReqRespSync: cfg.P2PReqRespSync,
 			}
 			p2pNodes[name] = p
 			return p, nil

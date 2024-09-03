@@ -64,7 +64,7 @@ func NewConfig(ctx *cli.Context, rollupCfg *rollup.Config) (*p2p.Config, error) 
 		return nil, fmt.Errorf("failed to load banning option: %w", err)
 	}
 
-	conf.EnableReqRespSync = ctx.Bool(flags.SyncReqRespName)
+	conf.ReqRespSync.Enabled = ctx.Bool(flags.SyncReqRespName)
 	conf.EnablePingService = ctx.Bool(flags.P2PPingName)
 	conf.SyncOnlyReqToStatic = ctx.Bool(flags.SyncOnlyReqToStaticName)
 

@@ -205,8 +205,9 @@ type SyncClient struct {
 	metrics   SyncClientMetrics
 	appScorer SyncPeerScorer
 
-	newStreamFn     newStreamFn
-	payloadByNumber protocol.ID
+	newStreamFn        newStreamFn
+	payloadByNumber    protocol.ID
+	NewPeerRateLimiter func() *rate.Limiter
 
 	peersLock sync.Mutex
 	// syncing worker per peer
@@ -256,17 +257,24 @@ func NewSyncClient(
 	ctx, cancel := context.WithCancel(context.Background())
 
 	c := &SyncClient{
-		log:             log,
-		cfg:             cfg,
-		metrics:         metrics,
-		appScorer:       appScorer,
+		log:       log,
+		cfg:       cfg,
+		metrics:   metrics,
+		appScorer: appScorer,
+
 		newStreamFn:     host.NewStream,
 		payloadByNumber: PayloadByNumberProtocolID(cfg.L2ChainID),
-		peers:           make(map[peer.ID]context.CancelFunc),
-		globalRL:        rate.NewLimiter(globalServerBlocksRateLimit, globalServerBlocksBurst),
-		resCtx:          ctx,
-		resCancel:       cancel,
-		receivePayload:  rcv,
+		// Implement the same rate limits as the server does per-peer,
+		// so we don't be too aggressive to the server.
+		NewPeerRateLimiter: func() *rate.Limiter {
+			return rate.NewLimiter(peerServerBlocksRateLimit, peerServerBlocksBurst)
+		},
+
+		peers:          make(map[peer.ID]context.CancelFunc),
+		globalRL:       rate.NewLimiter(globalServerBlocksRateLimit, globalServerBlocksBurst),
+		resCtx:         ctx,
+		resCancel:      cancel,
+		receivePayload: rcv,
 	}
 	if extra, ok := host.(ExtraHostFeatures); ok && extra.SyncOnlyReqToStatic() {
 		c.extra = extra
@@ -663,6 +671,7 @@ func (s *SyncClient) peerLoop(ctx context.Context, id peer.ID) {
 
 	peer := &syncClientPeer{
 		SyncClient: s,
+		rl:         s.NewPeerRateLimiter(),
 	}
 	peer.Run(ctx, id)
 }
@@ -670,9 +679,6 @@ func (s *SyncClient) peerLoop(ctx context.Context, id peer.ID) {
 func (s *syncClientPeer) Run(ctx context.Context, id peer.ID) {
 	log := s.log.New("peer", id)
 	log.Info("Starting P2P sync client event loop")
-	// Implement the same rate limits as the server does per-peer,
-	// so we don't be too aggressive to the server.
-	rl := rate.NewLimiter(peerServerBlocksRateLimit, peerServerBlocksBurst)
 	for {
 		s.mu.Lock()
 		// if onlyReqToStatic is on, ensure that only static peers are dealing with the request.
@@ -685,7 +691,7 @@ func (s *syncClientPeer) Run(ctx context.Context, id peer.ID) {
 			// while sync-requests will block, the loop may still process other events (if added in the future).
 			requestBlocksSignal = nil
 		} else {
-			err := s.requestBlocks(ctx, id, rl)
+			err := s.requestBlocks(ctx, id, s.rl)
 			if err != nil {
 				log.Warn("error requesting blocks", "err", err)
 				naughtyBoyChan := make(chan struct{})
@@ -817,7 +823,8 @@ func (s *syncClientPeer) doRequest(
 	return
 }
 
-// Modelled on "net/http".conn.serve's panic handler. Retained separately for testing purposes.
+// Modelled on "net/http".conn.serve's panic handler. Retained separately for testing purposes. Logs
+// the panic details, and returns the function error. Possibly f should not return an error.
 func panicGuard(logger log.Logger, msg string, f func() error, logAttrs ...any) (err error) {
 	defer func() {
 		r := recover()
@@ -828,7 +835,7 @@ func panicGuard(logger log.Logger, msg string, f func() error, logAttrs ...any) 
 		logger.Error(
 			fmt.Sprintf("panic %s: %v\n%s", msg, r, debug.Stack()),
 			logAttrs...)
-		// This shouldn't be possible in this constrained wrapper.
+		// This shouldn't be possible, since f can't assign an error if it panicked.
 		if err != nil {
 			logger.Error(fmt.Sprintf("unhandled error %s: %v", msg, err))
 		}
@@ -900,7 +907,7 @@ type ReqRespServer struct {
 	peerRateLimits *simplelru.LRU[peer.ID, *peerStat]
 	peerStatsLock  sync.Mutex
 
-	globalRequestsRL *rate.Limiter
+	GlobalRequestsRL *rate.Limiter
 }
 
 func NewReqRespServer(cfg *rollup.Config, l2 L2Chain, metrics ReqRespServerMetrics) *ReqRespServer {
@@ -915,7 +922,7 @@ func NewReqRespServer(cfg *rollup.Config, l2 L2Chain, metrics ReqRespServerMetri
 		l2:               l2,
 		metrics:          metrics,
 		peerRateLimits:   peerRateLimits,
-		globalRequestsRL: globalRequestsRL,
+		GlobalRequestsRL: globalRequestsRL,
 	}
 }
 
@@ -959,18 +966,12 @@ var errInvalidRequest = errors.New("invalid request")
 func (srv *ReqRespServer) handleSyncRequest(ctx context.Context, stream network.Stream) (uint64, error) {
 	peerId := stream.Conn().RemotePeer()
 
-	// take a token from the global rate-limiter,
-	// to make sure there's not too much concurrent server work between different peers.
-	if err := srv.globalRequestsRL.Wait(ctx); err != nil {
-		return 0, fmt.Errorf("timed out waiting for global sync rate limit: %w", err)
-	}
-
 	// find rate limiting data of peer, or add otherwise
 	srv.peerStatsLock.Lock()
 	ps, _ := srv.peerRateLimits.Get(peerId)
 	if ps == nil {
 		ps = &peerStat{
-			Requests: rate.NewLimiter(peerServerBlocksRateLimit, peerServerBlocksBurst),
+			Requests: rate.NewLimiter(rate.Inf, 0),
 		}
 		srv.peerRateLimits.Add(peerId, ps)
 		ps.Requests.Reserve() // count the hit, but make it delay the next request rather than immediately waiting
@@ -985,6 +986,13 @@ func (srv *ReqRespServer) handleSyncRequest(ctx context.Context, stream network.
 		}
 	}
 	srv.peerStatsLock.Unlock()
+
+	// Take the global rate limiter after the peer-specific one so as not to waste tokens on peers that can't advance.
+	// take a token from the global rate-limiter,
+	// to make sure there's not too much concurrent server work between different peers.
+	if err := srv.GlobalRequestsRL.Wait(ctx); err != nil {
+		return 0, fmt.Errorf("timed out waiting for global sync rate limit: %w", err)
+	}
 
 	// Set read deadline, if available
 	_ = stream.SetReadDeadline(time.Now().Add(serverReadRequestTimeout))
@@ -1077,6 +1085,7 @@ func (me *SyncClient) blockFailed(num blockNumber) {
 type syncClientPeer struct {
 	*SyncClient
 	lastRequestError time.Time
+	rl               *rate.Limiter
 }
 
 // Returns the request state. Can be nil if the request range has been altered.

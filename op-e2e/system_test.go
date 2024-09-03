@@ -9,12 +9,13 @@ import (
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/time/rate"
 	"maps"
 	"math/big"
 	"os"
 	"runtime"
 	"slices"
-	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -723,7 +724,7 @@ func TestSystemP2PAltSync(t *testing.T) {
 		"bob":       {"alice", "sequencer"},
 	}
 	// Enable the P2P req-resp based sync
-	cfg.P2PReqRespSync = true
+	cfg.P2PReqRespSync.Enabled = true
 
 	// Disable batcher, so there will not be any L1 data to sync from
 	cfg.DisableBatcher = true
@@ -779,11 +780,15 @@ func TestSystemP2PAltSync(t *testing.T) {
 	require.Equal(t, receiptSeq, receiptVerif)
 
 	// Verify that the tx was received via P2P sync
-	require.Contains(t, syncer.syncedPayloads, eth.BlockID{Hash: receiptVerif.BlockHash, Number: receiptVerif.BlockNumber.Uint64()}.String())
+	require.Contains(
+		t,
+		syncer.altSyncedBlockIdStrings(),
+		eth.BlockID{Hash: receiptVerif.BlockHash, Number: receiptVerif.BlockNumber.Uint64()}.String(),
+	)
 
 	// Verify that everything that was received was published
 	require.GreaterOrEqual(t, len(published), len(syncer.syncedPayloads))
-	require.Subset(t, published, syncer.syncedPayloads)
+	require.Subset(t, published, syncer.altSyncedBlockIdStrings())
 }
 
 func linkNodes(t *testing.T, mocknet mocknet.Mocknet, a, b p2p.Node) {
@@ -844,6 +849,7 @@ func makeSyncer(ctx context.Context, t *testing.T, name string, cfg SystemConfig
 	syncer.h, err = sys.newMockNetPeerWithCustomPeerId(peer.ID(name))
 	require.NoError(t, err)
 
+	var payloadMu sync.Mutex
 	// Configure the new rollup node that'll be syncing
 	syncNodeCfg := &rollupNode.Config{
 		Driver:    driver.Config{VerifierConfDepth: 0},
@@ -854,12 +860,16 @@ func makeSyncer(ctx context.Context, t *testing.T, name string, cfg SystemConfig
 			ListenPort:  0,
 			EnableAdmin: true,
 		},
-		P2P:                 &p2p.Prepared{HostP2P: syncer.h, EnableReqRespSync: true},
+		P2P: &p2p.Prepared{HostP2P: syncer.h, ReqRespSync: p2p.ReqRespSyncConfig{
+			Enabled: true,
+		}},
 		Metrics:             rollupNode.MetricsConfig{Enabled: false}, // no metrics server
 		Pprof:               oppprof.CLIConfig{},
 		L1EpochPollInterval: time.Second * 10,
 		Tracer: &FnTracer{
 			L2PayloadInFunc: func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayloadEnvelope, source p2p.PayloadSource) error {
+				payloadMu.Lock()
+				defer payloadMu.Unlock()
 				syncer.syncedPayloads[source] = append(syncer.syncedPayloads[source], syncedPayload{
 					from:    from,
 					blockId: payload.ExecutionPayload.ID(),
@@ -895,6 +905,10 @@ func makeMap[M ~map[K]V, K comparable, V any](m *M) {
 	*m = make(M)
 }
 
+func newInfLimiter() *rate.Limiter {
+	return rate.NewLimiter(rate.Inf, 0)
+}
+
 // Run this with -ethLogVerbosity=1
 func TestSystemP2PAltSyncExtreme(t *testing.T) {
 	//log.SetDefault(log.NewLogger
@@ -905,8 +919,7 @@ func TestSystemP2PAltSyncExtreme(t *testing.T) {
 	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
-
-	//cfg.DeployConfig.L2BlockTime = 0
+	cfg.DeployConfig.L1GenesisBlockTimestamp = hexutil.Uint64(time.Now().Add(-10 * time.Second).Unix())
 
 	// remove default verifier node
 	delete(cfg.Nodes, RoleVerif)
@@ -934,26 +947,42 @@ func TestSystemP2PAltSyncExtreme(t *testing.T) {
 		verifierIds = append(verifierIds, id)
 	}
 
-	addNode := func(i int) {
-		id := strconv.FormatInt(int64(i), 10)
-		addNodeId(id)
-	}
+	//addNode := func(i int) {
+	//	id := strconv.FormatInt(int64(i), 10)
+	//	addNodeId(id)
+	//}
 
 	// Add more verifier nodes
 	addNodeId("alice")
 	addNodeId("bob")
-	addNode(1)
+	//addNode(1)
 
 	// Enable the P2P req-resp based sync
-	cfg.P2PReqRespSync = true
+	cfg.P2PReqRespSync.Enabled = true
+	cfg.P2PReqRespSync.ConfigureClient = func(syncClient *p2p.SyncClient) {
+		syncClient.NewPeerRateLimiter = newInfLimiter
+	}
+	cfg.P2PReqRespSync.ConfigureServer = func(syncClient *p2p.ReqRespServer) {
+		syncClient.GlobalRequestsRL = newInfLimiter()
+	}
 
 	// Disable batcher, so there will not be any L1 data to sync from
 	cfg.DisableBatcher = true
 
-	var published []string
+	var (
+		publishedMu sync.Mutex
+		published   []string
+	)
+	getPublished := func() []string {
+		publishedMu.Lock()
+		defer publishedMu.Unlock()
+		return published
+	}
 	seqTracer := new(FnTracer)
 	// The sequencer still publishes the blocks to the tracer, even if they do not reach the network due to disabled P2P
 	seqTracer.OnPublishL2PayloadFn = func(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) {
+		publishedMu.Lock()
+		defer publishedMu.Unlock()
 		published = append(published, payload.ExecutionPayload.ID().String())
 	}
 	// Blocks are now received via the RPC based alt-sync method
@@ -973,13 +1002,29 @@ func TestSystemP2PAltSyncExtreme(t *testing.T) {
 		opts.ToAddr = &common.Address{0xff, 0xff}
 		opts.Value = big.NewInt(1_000_000_000)
 	})
+	t.Logf("tx receipt is in block %v", receiptSeq.BlockNumber)
 
 	assert.EqualValues(t, cfg.DeployConfig.L2BlockTime, 1)
 
 	// Gossip is able to respond to IWANT messages for the duration of heartbeat_time *
 	// message_window = 0.5 * 12 = 6 Wait till we pass that, and then we'll have missed some blocks
 	// that cannot be retrieved in any way from gossip
-	time.Sleep(time.Second * 4)
+	//time.Sleep(time.Second * 4)
+
+	// Wait until the receipt is in a block that can't be gossipped out.
+	targetPublishedLen := receiptSeq.BlockNumber.Int64() + sequencerOutboundQueueSize + 1
+	for {
+		blocksPublished := int64(len(getPublished()))
+		if blocksPublished >= targetPublishedLen {
+			break
+		}
+		t.Logf("waiting for blocks published (%v) >= %v", blocksPublished, targetPublishedLen)
+		time.Sleep(time.Second)
+	}
+	// Give time for the outbound gossip queues to lose messages.
+	time.Sleep(time.Second)
+	t.Logf("starting syncers after %v blocks published", len(getPublished()))
+	//assert.Greater(t, int64(len(getPublished())), receiptSeq.BlockNumber.Int64()+sequencerOutboundQueueSize)
 
 	// set up our syncer node, connect it to alice/bob
 	cfg.Loggers["syncer"] = testlog.Logger(t, log.LevelWarn).New("role", "syncer")
@@ -993,13 +1038,9 @@ func TestSystemP2PAltSyncExtreme(t *testing.T) {
 		newSyncer := makeSyncer(ctx, t, name, cfg, sys)
 		// Link to all the other syncers
 		for _, syncer := range syncers {
-			//linkNodes(t, sys.Mocknet, syncer.node, newSyncer.node)
-			//connectNodes(t, sys.Mocknet, syncer.node, newSyncer.node)
 			linkAndConnectNodeNamesNodes(t, sys.Mocknet, syncer.name, newSyncer.name)
 		}
 		// And to the sequencer.
-		//linkNodes(t, sys.Mocknet, sequencerNode, newSyncer.node)
-		//connectNodes(t, sys.Mocknet, sequencerNode, newSyncer.node)
 		linkAndConnectNodeNamesNodes(t, sys.Mocknet, string(sequencerNode.P2P().Host().ID()), newSyncer.name)
 		syncers = append(syncers, newSyncer)
 	}
@@ -1034,7 +1075,7 @@ func TestSystemP2PAltSyncExtreme(t *testing.T) {
 			//assert.GreaterOrEqual(t, len(syncedPayloads), len(published))
 			// Verify that everything that was received was published
 			//require.GreaterOrEqual(t, len(published), len(syncedPayloads))
-			require.Subset(t, published, syncer.altSyncedBlockIdStrings())
+			require.Subset(t, getPublished(), syncer.altSyncedBlockIdStrings())
 			t.Logf("%v synced", syncer.name)
 			return nil
 		})
