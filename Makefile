@@ -209,10 +209,7 @@ devnet-logs: ## Displays logs for the local devnet
 .PHONY: devnet-logs
 
 test-unit: ## Runs unit tests for all components
-	make -C ./op-node test
-	make -C ./op-proposer test
-	make -C ./op-batcher test
-	make -C ./op-e2e test
+	just test-components
 	(cd packages/contracts-bedrock && just test)
 .PHONY: test-unit
 
