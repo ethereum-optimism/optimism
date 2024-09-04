@@ -18,6 +18,7 @@ import (
 	con "github.com/ethereum-optimism/optimism/op-conductor/conductor"
 	"github.com/ethereum-optimism/optimism/op-conductor/consensus"
 	conrpc "github.com/ethereum-optimism/optimism/op-conductor/rpc"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/setuputils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -291,7 +292,7 @@ func setupBatcher(t *testing.T, sys *System, conductors map[string]*conductor) {
 		ApproxComprRatio:       0.4,
 		SubSafetyMargin:        4,
 		PollInterval:           1 * time.Second,
-		TxMgrConfig:            newTxMgrConfig(sys.EthInstances["l1"].UserRPC().RPC(), sys.Cfg.Secrets.Batcher),
+		TxMgrConfig:            setuputils.NewTxMgrConfig(sys.EthInstances["l1"].UserRPC(), sys.Cfg.Secrets.Batcher),
 		LogConfig: oplog.CLIConfig{
 			Level:  log.LevelDebug,
 			Format: oplog.FormatText,
