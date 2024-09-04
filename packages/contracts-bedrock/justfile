@@ -82,6 +82,15 @@ snapshots: build snapshots-no-build
 snapshots-check:
   ./scripts/checks/check-snapshots.sh
 
+# Checks interface correctness without building.
+interfaces-check-no-build:
+  ./scripts/checks/check-interfaces.sh
+
+# Checks that all interfaces are appropriately named and accurately reflect the corresponding
+# contract that they're meant to represent. We run "clean" before building because leftover
+# artifacts can cause the script to detect issues incorrectly.2
+interfaces-check: clean build interfaces-check-no-build
+
 semver-lock:
   forge script scripts/autogen/SemverLock.s.sol
 

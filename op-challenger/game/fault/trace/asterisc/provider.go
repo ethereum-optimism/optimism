@@ -37,12 +37,14 @@ type AsteriscTraceProvider struct {
 
 func NewTraceProvider(logger log.Logger, m vm.Metricer, cfg vm.Config, vmCfg vm.OracleServerExecutor, prestateProvider types.PrestateProvider, asteriscPrestate string, localInputs utils.LocalGameInputs, dir string, gameDepth types.Depth) *AsteriscTraceProvider {
 	return &AsteriscTraceProvider{
-		logger:           logger,
-		dir:              dir,
-		prestate:         asteriscPrestate,
-		generator:        vm.NewExecutor(logger, m, cfg, vmCfg, asteriscPrestate, localInputs),
-		gameDepth:        gameDepth,
-		preimageLoader:   utils.NewPreimageLoader(kvstore.NewDiskKV(vm.PreimageDir(dir)).Get),
+		logger:    logger,
+		dir:       dir,
+		prestate:  asteriscPrestate,
+		generator: vm.NewExecutor(logger, m, cfg, vmCfg, asteriscPrestate, localInputs),
+		gameDepth: gameDepth,
+		preimageLoader: utils.NewPreimageLoader(func() utils.PreimageSource {
+			return kvstore.NewFileKV(vm.PreimageDir(dir))
+		}),
 		PrestateProvider: prestateProvider,
 	}
 }
@@ -174,12 +176,14 @@ type AsteriscTraceProviderForTest struct {
 
 func NewTraceProviderForTest(logger log.Logger, m vm.Metricer, cfg *config.Config, localInputs utils.LocalGameInputs, dir string, gameDepth types.Depth) *AsteriscTraceProviderForTest {
 	p := &AsteriscTraceProvider{
-		logger:         logger,
-		dir:            dir,
-		prestate:       cfg.AsteriscAbsolutePreState,
-		generator:      vm.NewExecutor(logger, m, cfg.Asterisc, vm.NewOpProgramServerExecutor(), cfg.AsteriscAbsolutePreState, localInputs),
-		gameDepth:      gameDepth,
-		preimageLoader: utils.NewPreimageLoader(kvstore.NewDiskKV(vm.PreimageDir(dir)).Get),
+		logger:    logger,
+		dir:       dir,
+		prestate:  cfg.AsteriscAbsolutePreState,
+		generator: vm.NewExecutor(logger, m, cfg.Asterisc, vm.NewOpProgramServerExecutor(), cfg.AsteriscAbsolutePreState, localInputs),
+		gameDepth: gameDepth,
+		preimageLoader: utils.NewPreimageLoader(func() utils.PreimageSource {
+			return kvstore.NewFileKV(vm.PreimageDir(dir))
+		}),
 	}
 	return &AsteriscTraceProviderForTest{p}
 }
