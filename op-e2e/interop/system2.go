@@ -12,8 +12,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -79,14 +81,15 @@ type SuperSystem interface {
 	// get the geth instance for a network
 	L2Geth(network string) *geth.GethInstance
 	// get the L2 geth client for a network
-	L2GethClient(t *testing.T, network string) *ethclient.Client
+	L2GethClient(network string) *ethclient.Client
 	// get the secret for a network and role
 	L2OperatorKey(network string, role devkeys.ChainOperatorRole) ecdsa.PrivateKey
 	// get the list of network IDs
 	L2IDs() []string
 	AddUser(username string)
 	UserKey(id, username string) ecdsa.PrivateKey
-	SendL2Tx(t *testing.T, id string, privKey *ecdsa.PrivateKey, applyTxOpts op_e2e.TxOptsFn) *types.Receipt
+	SendL2Tx(network string, username string, applyTxOpts op_e2e.TxOptsFn) *types.Receipt
+	Address(network string, username string) common.Address
 }
 
 // NewSuperSystem creates a new SuperSystem from a recipe. It creates a system2.
@@ -101,6 +104,7 @@ func NewSuperSystem(t *testing.T, recipe *interopgen.InteropDevRecipe) SuperSyst
 // the functionality is broken down into smaller functions so that
 // the system can be prepared iteratively if desired
 type system2 struct {
+	t               *testing.T
 	recipe          *interopgen.InteropDevRecipe
 	logger          log.Logger
 	hdWallet        *devkeys.MnemonicDevKeys
@@ -122,22 +126,22 @@ type l2Set struct {
 	userKeys     map[string]ecdsa.PrivateKey
 }
 
-// prepareHDWallet creates a new HD wallet to store the keys
-// and stores it in the system
-func (s *system2) prepareHDWallet(t *testing.T) *devkeys.MnemonicDevKeys {
+// prepareHDWallet creates a new HD wallet to derive keys from
+func (s *system2) prepareHDWallet() *devkeys.MnemonicDevKeys {
 	hdWallet, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
-	require.NoError(t, err)
+	require.NoError(s.t, err)
 	return hdWallet
 }
 
-func (s *system2) prepareWorld(t *testing.T) (*interopgen.WorldDeployment, *interopgen.WorldOutput) {
+// prepareWorld creates the world configuration from the recipe and deploys it
+func (s *system2) prepareWorld() (*interopgen.WorldDeployment, *interopgen.WorldOutput) {
 	// Build the world configuration from the recipe and the HD wallet
 	worldCfg, err := s.recipe.Build(s.hdWallet)
-	require.NoError(t, err)
+	require.NoError(s.t, err)
 
 	// create a logger for the world configuration
-	logger := testlog.Logger(t, log.LevelInfo)
-	require.NoError(t, worldCfg.Check(logger))
+	logger := s.logger.New("role", "world")
+	require.NoError(s.t, worldCfg.Check(logger))
 
 	// create the foundry artifacts and source map
 	foundryArtifacts := foundry.OpenArtifactsDir("../../packages/contracts-bedrock/forge-artifacts")
@@ -145,24 +149,24 @@ func (s *system2) prepareWorld(t *testing.T) (*interopgen.WorldDeployment, *inte
 
 	// deploy the world, using the logger, foundry artifacts, source map, and world configuration
 	worldDeployment, worldOutput, err := interopgen.Deploy(logger, foundryArtifacts, sourceMap, worldCfg)
-	require.NoError(t, err)
+	require.NoError(s.t, err)
 
 	return worldDeployment, worldOutput
 }
 
-func (s *system2) prepareL1(t *testing.T) (*fakebeacon.FakeBeacon, *geth.GethInstance) {
+func (s *system2) prepareL1() (*fakebeacon.FakeBeacon, *geth.GethInstance) {
 	// Create a fake Beacon node to hold on to blobs created by the L1 miner, and to serve them to L2
 	genesisTimestampL1 := s.worldOutput.L1.Genesis.Timestamp
 	blockTimeL1 := uint64(6)
-	blobPath := t.TempDir()
+	blobPath := s.t.TempDir()
 	bcn := fakebeacon.NewBeacon(s.logger.New("role", "l1_cl"),
 		filepath.Join(blobPath, "l1_cl"), genesisTimestampL1, blockTimeL1)
-	t.Cleanup(func() {
+	s.t.Cleanup(func() {
 		_ = bcn.Close()
 	})
-	require.NoError(t, bcn.Start("127.0.0.1:0"))
+	require.NoError(s.t, bcn.Start("127.0.0.1:0"))
 	beaconApiAddr := bcn.BeaconAddr()
-	require.NotEmpty(t, beaconApiAddr, "beacon API listener must be up")
+	require.NotEmpty(s.t, beaconApiAddr, "beacon API listener must be up")
 
 	l1FinalizedDistance := uint64(3)
 	l1Clock := clock.SystemClock
@@ -175,16 +179,15 @@ func (s *system2) prepareL1(t *testing.T) (*fakebeacon.FakeBeacon, *geth.GethIns
 		filepath.Join(blobPath, "l1_el"),
 		bcn)
 
-	require.NoError(t, err)
-	require.NoError(t, l1Geth.Node.Start())
-	t.Cleanup(func() {
+	require.NoError(s.t, err)
+	require.NoError(s.t, l1Geth.Node.Start())
+	s.t.Cleanup(func() {
 		_ = l1Geth.Close()
 	})
 	return bcn, l1Geth
 }
 
-// TODO: break up this monolith
-func (s *system2) prepareL2(t *testing.T, id string, l2Out *interopgen.L2Output) l2Set {
+func (s *system2) newOperatorKeysForL2(l2Out *interopgen.L2Output) map[devkeys.ChainOperatorRole]ecdsa.PrivateKey {
 	// Create operatorKeys for the L2 chain actors
 	operatorKeys := map[devkeys.ChainOperatorRole]ecdsa.PrivateKey{}
 	// create the sequencer P2P secret
@@ -192,41 +195,51 @@ func (s *system2) prepareL2(t *testing.T, id string, l2Out *interopgen.L2Output)
 		ChainID: l2Out.Genesis.Config.ChainID,
 		Role:    devkeys.SequencerP2PRole,
 	})
-	require.NoError(t, err)
+	require.NoError(s.t, err)
 	operatorKeys[devkeys.SequencerP2PRole] = *seqP2PSecret
 	// create the proposer secret
 	proposerSecret, err := s.hdWallet.Secret(devkeys.ChainOperatorKey{
 		ChainID: l2Out.Genesis.Config.ChainID,
 		Role:    devkeys.ProposerRole,
 	})
-	require.NoError(t, err)
+	require.NoError(s.t, err)
 	operatorKeys[devkeys.ProposerRole] = *proposerSecret
 	// create the batcher secret
 	batcherSecret, err := s.hdWallet.Secret(devkeys.ChainOperatorKey{
 		ChainID: l2Out.Genesis.Config.ChainID,
 		Role:    devkeys.BatcherRole,
 	})
-	require.NoError(t, err)
+	require.NoError(s.t, err)
 	operatorKeys[devkeys.BatcherRole] = *batcherSecret
+	return operatorKeys
+}
 
-	// Create L2 geth
-	jwtPath := writeDefaultJWT(t)
+func (s *system2) newGethForL2(id string, l2Out *interopgen.L2Output) *geth.GethInstance {
+	jwtPath := writeDefaultJWT(s.t)
 	name := "l2-" + id
 	l2Geth, err := geth.InitL2(name, l2Out.Genesis, jwtPath)
-	require.NoError(t, err)
-	require.NoError(t, l2Geth.Node.Start())
-	t.Cleanup(func() {
+	require.NoError(s.t, err)
+	require.NoError(s.t, l2Geth.Node.Start())
+	s.t.Cleanup(func() {
 		_ = l2Geth.Close()
 	})
+	return l2Geth
+}
 
-	// Create L2 node
+func (s *system2) newNodeForL2(
+	id string,
+	l2Out *interopgen.L2Output,
+	operatorKeys map[devkeys.ChainOperatorRole]ecdsa.PrivateKey,
+	l2Geth *geth.GethInstance,
+) *opnode.Opnode {
 	logger := s.logger.New("role", "op-node-"+id)
+	p2pKey := operatorKeys[devkeys.SequencerP2PRole]
 	nodeCfg := &node.Config{
 		L1: &node.PreparedL1Endpoint{
 			Client: client.NewBaseRPCClient(endpoint.DialRPC(
 				endpoint.PreferAnyRPC,
 				s.l1.UserRPC(),
-				mustDial(t, logger))),
+				mustDial(s.t, logger))),
 			TrustRPC:        false,
 			RPCProviderKind: sources.RPCKindDebugGeth,
 		},
@@ -244,7 +257,7 @@ func (s *system2) prepareL2(t *testing.T, id string, l2Out *interopgen.L2Output)
 		},
 		Rollup: *l2Out.RollupCfg,
 		P2PSigner: &p2p.PreparedSigner{
-			Signer: p2p.NewLocalSigner(seqP2PSecret)},
+			Signer: p2p.NewLocalSigner(&p2pKey)},
 		RPC: node.RPCConfig{
 			ListenAddr:  "127.0.0.1",
 			ListenPort:  0,
@@ -263,16 +276,24 @@ func (s *system2) prepareL2(t *testing.T, id string, l2Out *interopgen.L2Output)
 	}
 	opNode, err := opnode.NewOpnode(logger.New("service", "op-node"),
 		nodeCfg, func(err error) {
-			t.Error(err)
+			s.t.Error(err)
 		})
-	require.NoError(t, err)
-	t.Cleanup(func() {
+	require.NoError(s.t, err)
+	s.t.Cleanup(func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel() // force-quit
 		_ = opNode.Stop(ctx)
 	})
+	return opNode
+}
 
-	// Create L2 proposer
+func (s *system2) newProposerForL2(
+	id string,
+	operatorKeys map[devkeys.ChainOperatorRole]ecdsa.PrivateKey,
+	opNode *opnode.Opnode,
+) *l2os.ProposerService {
+	proposerSecret := operatorKeys[devkeys.ProposerRole]
+	logger := s.logger.New("role", "proposer"+id)
 	proposerCLIConfig := &l2os.CLIConfig{
 		L1EthRpc:          s.l1.UserRPC().RPC(),
 		RollupRpc:         opNode.UserRPC().RPC(),
@@ -280,7 +301,7 @@ func (s *system2) prepareL2(t *testing.T, id string, l2Out *interopgen.L2Output)
 		ProposalInterval:  6 * time.Second,
 		DisputeGameType:   254, // Fast game type
 		PollInterval:      500 * time.Millisecond,
-		TxMgrConfig:       setuputils.NewTxMgrConfig(s.l1.UserRPC(), proposerSecret),
+		TxMgrConfig:       setuputils.NewTxMgrConfig(s.l1.UserRPC(), &proposerSecret),
 		AllowNonFinalized: false,
 		LogConfig: oplog.CLIConfig{
 			Level:  log.LvlInfo,
@@ -290,15 +311,24 @@ func (s *system2) prepareL2(t *testing.T, id string, l2Out *interopgen.L2Output)
 	proposer, err := l2os.ProposerServiceFromCLIConfig(
 		context.Background(), "0.0.1", proposerCLIConfig,
 		logger.New("service", "proposer"))
-	require.NoError(t, err, "must start proposer")
-	require.NoError(t, proposer.Start(context.Background()))
-	t.Cleanup(func() {
+	require.NoError(s.t, err, "must start proposer")
+	require.NoError(s.t, proposer.Start(context.Background()))
+	s.t.Cleanup(func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel() // force-quit
 		_ = proposer.Stop(ctx)
 	})
+	return proposer
+}
 
-	// Create L2 batcher
+func (s *system2) newBatcherForL2(
+	id string,
+	operatorKeys map[devkeys.ChainOperatorRole]ecdsa.PrivateKey,
+	l2Geth *geth.GethInstance,
+	opNode *opnode.Opnode,
+) *bss.BatcherService {
+	batcherSecret := operatorKeys[devkeys.BatcherRole]
+	logger := s.logger.New("role", "batcher"+id)
 	batcherCLIConfig := &bss.CLIConfig{
 		L1EthRpc:                 s.l1.UserRPC().RPC(),
 		L2EthRpc:                 l2Geth.UserRPC().RPC(),
@@ -311,7 +341,7 @@ func (s *system2) prepareL2(t *testing.T, id string, l2Out *interopgen.L2Output)
 		ApproxComprRatio:         0.4,
 		SubSafetyMargin:          4,
 		PollInterval:             50 * time.Millisecond,
-		TxMgrConfig:              setuputils.NewTxMgrConfig(s.l1.UserRPC(), batcherSecret),
+		TxMgrConfig:              setuputils.NewTxMgrConfig(s.l1.UserRPC(), &batcherSecret),
 		LogConfig: oplog.CLIConfig{
 			Level:  log.LevelInfo,
 			Format: oplog.FormatText,
@@ -325,13 +355,25 @@ func (s *system2) prepareL2(t *testing.T, id string, l2Out *interopgen.L2Output)
 	batcher, err := bss.BatcherServiceFromCLIConfig(
 		context.Background(), "0.0.1", batcherCLIConfig,
 		logger.New("service", "batcher"))
-	require.NoError(t, err)
-	require.NoError(t, batcher.Start(context.Background()))
-	t.Cleanup(func() {
+	require.NoError(s.t, err)
+	require.NoError(s.t, batcher.Start(context.Background()))
+	s.t.Cleanup(func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel() // force-quit
 		_ = batcher.Stop(ctx)
 	})
+	return batcher
+}
+
+// newL2 creates a new L2, starting with the L2Output from the world configuration
+// and iterating through the resources needed for the L2.
+// it returns a l2Set with the resources for the L2
+func (s *system2) newL2(id string, l2Out *interopgen.L2Output) l2Set {
+	operatorKeys := s.newOperatorKeysForL2(l2Out)
+	l2Geth := s.newGethForL2(id, l2Out)
+	opNode := s.newNodeForL2(id, l2Out, operatorKeys, l2Geth)
+	proposer := s.newProposerForL2(id, operatorKeys, opNode)
+	batcher := s.newBatcherForL2(id, operatorKeys, l2Geth, opNode)
 
 	return l2Set{
 		chainID:      l2Out.Genesis.Config.ChainID,
@@ -344,10 +386,26 @@ func (s *system2) prepareL2(t *testing.T, id string, l2Out *interopgen.L2Output)
 	}
 }
 
+// prepare sets up the system for testing
+// components are built iteratively, so that they can be reused or modified
+// their creation can't be safely skipped or reordered at this time
+func (s *system2) prepare(t *testing.T) {
+	s.t = t
+	s.logger = testlog.Logger(s.t, log.LevelInfo)
+	s.hdWallet = s.prepareHDWallet()
+	s.worldDeployment, s.worldOutput = s.prepareWorld()
+	s.beacon, s.l1 = s.prepareL1()
+	s.l2s = s.prepareL2s()
+	// TODO op-supervisor
+}
+
 // AddUser adds a user to the system by creating a user key for each L2.
 // each user key is stored in the L2's userKeys map.
 // because all user maps start empty, a users index should be the same for all L2s,
 // but if in the future these maps can diverge, the indexes for username would also diverge
+// NOTE: The first 20 accounts are implicitly funded by the Recipe's World Deployment
+// see: op-chain-ops/interopgen/recipe.go
+// TODO: make the funded account quantity specified in the recipe so SuperSystems can know which accounts are funded
 func (s *system2) AddUser(username string) {
 	for id, l2 := range s.l2s {
 		bigID, _ := big.NewInt(0).SetString(id, 10)
@@ -361,15 +419,23 @@ func (s *system2) AddUser(username string) {
 	}
 }
 
+// UserKey returns the user key for a user on an L2
 func (s *system2) UserKey(id, username string) ecdsa.PrivateKey {
 	return s.l2s[id].userKeys[username]
 }
 
+// Address returns the address for a user on an L2
+func (s *system2) Address(id, username string) common.Address {
+	secret := s.UserKey(id, username)
+	require.NotNil(s.t, secret, "no secret found for user %s", username)
+	return crypto.PubkeyToAddress(secret.PublicKey)
+}
+
 // prepareL2s creates the L2s for the system, returning a map of L2s
-func (s *system2) prepareL2s(t *testing.T) map[string]l2Set {
+func (s *system2) prepareL2s() map[string]l2Set {
 	l2s := make(map[string]l2Set)
 	for id, l2Out := range s.worldOutput.L2s {
-		l2s[id] = s.prepareL2(t, id, l2Out)
+		l2s[id] = s.newL2(id, l2Out)
 	}
 	return l2s
 }
@@ -377,31 +443,14 @@ func (s *system2) prepareL2s(t *testing.T) map[string]l2Set {
 // addL2 adds an L2 to the system by creating the resources for it
 // and then assigning them to the system's map of L2s.
 // This function is currently unused, but could be used to add L2s to the system after it is prepared.
-func (s *system2) addL2(t *testing.T, id string, output *interopgen.L2Output) {
+func (s *system2) addL2(id string, output *interopgen.L2Output) {
 	if s.l2s == nil {
 		s.l2s = make(map[string]l2Set)
 	}
-	s.l2s[id] = s.prepareL2(t, id, output)
+	s.l2s[id] = s.newL2(id, output)
 }
 
-// prepare sets up the system for testing
-// it is a monlith that creates all the resources by calling the other prepare functions
-func (s *system2) prepare(t *testing.T) {
-
-	s.logger = testlog.Logger(t, log.LevelInfo)
-
-	s.hdWallet = s.prepareHDWallet(t)
-
-	s.worldDeployment, s.worldOutput = s.prepareWorld(t)
-
-	s.beacon, s.l1 = s.prepareL1(t)
-
-	s.l2s = s.prepareL2s(t)
-
-	// TODO op-supervisor
-}
-
-func (s *system2) L2GethClient(t *testing.T, id string) *ethclient.Client {
+func (s *system2) L2GethClient(id string) *ethclient.Client {
 	// guard: check if the client already exists and return it in that case
 	nodeClient, ok := s.l2GethClients[id]
 	if ok {
@@ -414,9 +463,9 @@ func (s *system2) L2GethClient(t *testing.T, id string) *ethclient.Client {
 		endpoint.PreferAnyRPC,
 		rpcEndpoint,
 		func(v string) *rpc.Client {
-			logger := testlog.Logger(t, log.LevelInfo).New("node", id)
+			logger := testlog.Logger(s.t, log.LevelInfo).New("node", id)
 			cl, err := dial.DialRPCClientWithTimeout(context.Background(), 30*time.Second, logger, v)
-			require.NoError(t, err, "failed to dial eth node instance %s", id)
+			require.NoError(s.t, err, "failed to dial eth node instance %s", id)
 			return cl
 		})
 	nodeClient = ethclient.NewClient(rpcCl)
@@ -458,13 +507,21 @@ func (s *system2) L2IDs() []string {
 	return ids
 }
 
-// SendL2Tx sends an L2 transaction to the L2 with the given ID
-func (s *system2) SendL2Tx(t *testing.T, id string, privKey *ecdsa.PrivateKey, applyTxOpts op_e2e.TxOptsFn) *types.Receipt {
+// SendL2Tx sends an L2 transaction to the L2 with the given ID.
+// it acts as a wrapper around op-e2e.SendL2TxWithID
+// and uses the L2's chain ID, username key, and geth client.
+func (s *system2) SendL2Tx(
+	id string,
+	sender string,
+	applyTxOpts op_e2e.TxOptsFn,
+) *types.Receipt {
+	senderSecret := s.UserKey(id, sender)
+	require.NotNil(s.t, senderSecret, "no secret found for sender %s", sender)
 	return op_e2e.SendL2TxWithID(
-		t,
+		s.t,
 		s.l2s[id].chainID,
-		s.L2GethClient(t, id),
-		privKey,
+		s.L2GethClient(id),
+		&senderSecret,
 		applyTxOpts)
 }
 

@@ -2,21 +2,18 @@ package interop
 
 import (
 	"context"
-	"fmt"
 	"math/big"
 	"testing"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/stretchr/testify/require"
 )
 
-// TestInterop stands up a basic L1
-// and multiple L2 states
-func TestInterop(t *testing.T) {
-	ctx, _ := context.WithTimeout(context.Background(), 100*time.Second)
+// a test that demonstrates the use of the SuperSystem
+// as a proto-development of an interop test
+func TestDemonstrateSuperSystem(t *testing.T) {
 	recipe := interopgen.InteropDevRecipe{
 		L1ChainID:        900100,
 		L2ChainIDs:       []uint64{900200, 900201},
@@ -28,54 +25,53 @@ func TestInterop(t *testing.T) {
 	s2 := NewSuperSystem(t, &recipe)
 	ids := s2.L2IDs()
 
-	netA := ids[0]
-	netABig, _ := new(big.Int).SetString(netA, 10)
-	netB := ids[1]
-	_ = netB
+	// chainA is the first L2 chain
+	chainA := ids[0]
+	chainB := ids[1]
 
-	client := s2.L2GethClient(t, netA)
+	client := s2.L2GethClient(chainA)
 
+	// create two users on all L2 chains
 	s2.AddUser("Alice")
-	aliceASecret := s2.UserKey(netA, "Alice")
-	aliceOpts, err := bind.NewKeyedTransactorWithChainID(
-		&aliceASecret,
-		netABig,
-	)
-	require.NoError(t, err)
-	aliceAddr := aliceOpts.From
-	aliceBalance, err := client.BalanceAt(ctx, aliceAddr, nil)
-	fmt.Println("aliceBalance", aliceBalance)
-
 	s2.AddUser("Bob")
-	bobASecret := s2.UserKey(netA, "Bob")
-	bobOpts, err := bind.NewKeyedTransactorWithChainID(
-		&bobASecret,
-		netABig,
-	)
-	require.NoError(t, err)
-	bobAddr := bobOpts.From
+
+	bobAddr := s2.Address(chainA, "Bob")
+
+	// check the balance of Bob
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
 	bobBalance, err := client.BalanceAt(ctx, bobAddr, nil)
-	fmt.Println("bobBalance", bobBalance)
+	require.NoError(t, err)
+	expectedBalance, _ := big.NewInt(0).SetString("10000000000000000000000000", 10)
+	require.Equal(t, expectedBalance, bobBalance)
 
-	// hack: sleep for 30 seconds to make up for indexing
-	time.Sleep(30 * time.Second)
-
-	// demonstration: sending a transaction from Alice to Bob
-	// and checking the balance of Bob
+	// send a tx from Alice to Bob
 	s2.SendL2Tx(
-		t,
-		netA,
-		&aliceASecret,
+		chainA,
+		"Alice",
 		func(l2Opts *op_e2e.TxOpts) {
 			l2Opts.ToAddr = &bobAddr
 			l2Opts.Value = big.NewInt(1000000)
+			l2Opts.GasFeeCap = big.NewInt(1_000_000_000)
+			l2Opts.GasTipCap = big.NewInt(1_000_000_000)
 		},
 	)
 
-	fmt.Println("post-transaction")
+	// check the balance of Bob after the tx
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
 	bobBalance, err = client.BalanceAt(ctx, bobAddr, nil)
-	fmt.Println("bobBalance", bobBalance)
+	require.NoError(t, err)
+	expectedBalance, _ = big.NewInt(0).SetString("10000000000000000001000000", 10)
+	require.Equal(t, expectedBalance, bobBalance)
 
-	// TODO (placeholder) Let the system test-run for a bit
-	time.Sleep(time.Second * 30)
+	// check that the balance of Bob on ChainB hasn't changed
+	bobAddrB := s2.Address(chainB, "Bob")
+	clientB := s2.L2GethClient(chainB)
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	bobBalance, err = clientB.BalanceAt(ctx, bobAddrB, nil)
+	require.NoError(t, err)
+	expectedBalance, _ = big.NewInt(0).SetString("10000000000000000000000000", 10)
+	require.Equal(t, expectedBalance, bobBalance)
 }
