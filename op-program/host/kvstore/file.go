@@ -13,28 +13,28 @@ import (
 )
 
 // read/write mode for user/group/other, not executable.
-const diskPermission = 0666
+const filePermission = 0666
 
-// DiskKV is a disk-backed key-value store, every key-value pair is a hex-encoded .txt file, with the value as content.
-// DiskKV is safe for concurrent use with a single DiskKV instance.
-// DiskKV is safe for concurrent use between different DiskKV instances of the same disk directory as long as the
+// FileKV is a disk-backed key-value store, every key-value pair is a hex-encoded .txt file, with the value as content.
+// FileKV is safe for concurrent use with a single FileKV instance.
+// FileKV is safe for concurrent use between different FileKV instances of the same disk directory as long as the
 // file system supports atomic renames.
-type DiskKV struct {
+type FileKV struct {
 	sync.RWMutex
 	path string
 }
 
-// NewDiskKV creates a DiskKV that puts/gets pre-images as files in the given directory path.
+// NewFileKV creates a FileKV that puts/gets pre-images as files in the given directory path.
 // The path must exist, or subsequent Put/Get calls will error when it does not.
-func NewDiskKV(path string) *DiskKV {
-	return &DiskKV{path: path}
+func NewFileKV(path string) *FileKV {
+	return &FileKV{path: path}
 }
 
-func (d *DiskKV) pathKey(k common.Hash) string {
+func (d *FileKV) pathKey(k common.Hash) string {
 	return path.Join(d.path, k.String()+".txt")
 }
 
-func (d *DiskKV) Put(k common.Hash, v []byte) error {
+func (d *FileKV) Put(k common.Hash, v []byte) error {
 	d.Lock()
 	defer d.Unlock()
 	f, err := openTempFile(d.path, k.String()+".txt.*")
@@ -72,10 +72,10 @@ func openTempFile(dir string, nameTemplate string) (*os.File, error) {
 	return f, nil
 }
 
-func (d *DiskKV) Get(k common.Hash) ([]byte, error) {
+func (d *FileKV) Get(k common.Hash) ([]byte, error) {
 	d.RLock()
 	defer d.RUnlock()
-	f, err := os.OpenFile(d.pathKey(k), os.O_RDONLY, diskPermission)
+	f, err := os.OpenFile(d.pathKey(k), os.O_RDONLY, filePermission)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, ErrNotFound
@@ -90,4 +90,8 @@ func (d *DiskKV) Get(k common.Hash) ([]byte, error) {
 	return hex.DecodeString(string(dat))
 }
 
-var _ KV = (*DiskKV)(nil)
+func (d *FileKV) Close() error {
+	return nil
+}
+
+var _ KV = (*FileKV)(nil)
