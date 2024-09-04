@@ -48,7 +48,6 @@ EXCLUDE_CONTRACTS=(
     "KontrolCheatsBase"
 
     # TODO: Interfaces that need to be fixed
-    "IPreimageOracle"
     "IOptimismMintableERC721"
     "IFaultDisputeGame"
     "IOptimismSuperchainERC20"

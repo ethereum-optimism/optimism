@@ -86,6 +86,9 @@ snapshots-check:
 interfaces-check-no-build:
   ./scripts/checks/check-interfaces.sh
 
+# Checks interface correctness without cleaning before building.
+interfaces-check-no-clean: build interfaces-check-no-build
+
 # Checks that all interfaces are appropriately named and accurately reflect the corresponding
 # contract that they're meant to represent. We run "clean" before building because leftover
 # artifacts can cause the script to detect issues incorrectly.2

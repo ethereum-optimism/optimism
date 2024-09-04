@@ -32,7 +32,7 @@
     "label": "proposals",
     "offset": 0,
     "slot": "19",
-    "type": "struct PreimageOracle.LargePreimageProposalKeys[]"
+    "type": "struct IPreimageOracle.LargePreimageProposalKeys[]"
   },
   {
     "bytes": "32",
