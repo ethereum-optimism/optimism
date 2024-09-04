@@ -17,6 +17,8 @@ import {
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { IOptimismMintableERC20 } from "src/universal/IOptimismMintableERC20.sol";
+import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
+import { ILegacyMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
 
 // TODO: Replace Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY with optimismSuperchainERC20Factory
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -63,6 +65,11 @@ contract L2StandardBridgeInterop_Test is Bridge_Initializer {
     /// @notice Assume a valid address for fuzzing
     function _assumeAddress(address _address) internal {
         assumeAddressIsNot(_address, AddressType.Precompile, AddressType.ForgeAddress);
+        // Assume the address doesn't support an optimistic mintable ERC20 interface, so it doesn't mess with the tests
+        vm.assume(
+            !(ERC165Checker.supportsInterface(_address, type(ILegacyMintableERC20).interfaceId))
+                && ERC165Checker.supportsInterface(_address, type(IOptimismMintableERC20).interfaceId)
+        );
     }
 }
 
