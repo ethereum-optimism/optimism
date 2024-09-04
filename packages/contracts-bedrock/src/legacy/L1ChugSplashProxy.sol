@@ -2,11 +2,7 @@
 pragma solidity 0.8.15;
 
 import { Constants } from "src/libraries/Constants.sol";
-
-/// @title IL1ChugSplashDeployer
-interface IL1ChugSplashDeployer {
-    function isUpgrading() external view returns (bool);
-}
+import { IL1ChugSplashDeployer } from "src/legacy/interfaces/IL1ChugSplashProxy.sol";
 
 /// @custom:legacy
 /// @title L1ChugSplashProxy

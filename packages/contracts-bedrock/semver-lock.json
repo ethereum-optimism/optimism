@@ -69,7 +69,7 @@
   },
   "src/L2/CrossL2Inbox.sol": {
     "initCodeHash": "0x071b53cd8cf0503af856c4ee0ee34643e85059d53c096453891225472e02abfa",
-    "sourceCodeHash": "0x3c78129b91d9f06afa4787d4b3039f45a3b22b3edf5155ed73d4f0c3ab33c6c8"
+    "sourceCodeHash": "0xc3478a7036b8c58ed1a90ad90556a62c99a4abb124b0fa47f2edfca31eec680f"
   },
   "src/L2/ETHLiquidity.sol": {
     "initCodeHash": "0x98177562fca0de0dfea5313c9acefe2fdbd73dee5ce6c1232055601f208f0177",
