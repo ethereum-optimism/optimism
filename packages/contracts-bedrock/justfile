@@ -29,6 +29,10 @@ test-kontrol-no-build:
 test-rerun: build-go-ffi
   forge test --rerun -vvv
 
+# Run extra fuzz iterations for modified fuzz tests.
+test-heavy-fuzz-modified-tests: build-go-ffi
+  ./scripts/testing/test-heavy-fuzz-modified-tests.sh
+
 genesis:
   forge script scripts/L2Genesis.s.sol:L2Genesis --sig 'runWithStateDump()'
 
