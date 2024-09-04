@@ -134,6 +134,8 @@ contract SuperchainWETH_Test is CommonTest {
     {
         // Assume
         vm.assume(_chainId != block.chainid);
+        vm.assume(_caller != address(ethLiquidity));
+        vm.assume(_caller != address(superchainWeth));
         _amount = bound(_amount, 0, type(uint248).max - 1);
 
         // Arrange
@@ -233,6 +235,9 @@ contract SuperchainWETH_Test is CommonTest {
     /// @param _amount The amount of WETH to send.
     function testFuzz_relayERC20_fromMessenger_succeeds(address _sender, uint256 _amount, uint256 _chainId) public {
         // Assume
+        vm.assume(_chainId != block.chainid);
+        vm.assume(_sender != address(ethLiquidity));
+        vm.assume(_sender != address(superchainWeth));
         _amount = bound(_amount, 0, type(uint248).max - 1);
 
         // Arrange
@@ -272,6 +277,9 @@ contract SuperchainWETH_Test is CommonTest {
         public
     {
         // Assume
+        vm.assume(_chainId != block.chainid);
+        vm.assume(_sender != address(ethLiquidity));
+        vm.assume(_sender != address(superchainWeth));
         _amount = bound(_amount, 0, type(uint248).max - 1);
 
         // Arrange
