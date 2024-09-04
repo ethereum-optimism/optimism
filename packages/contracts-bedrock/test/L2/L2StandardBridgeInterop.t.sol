@@ -65,11 +65,6 @@ contract L2StandardBridgeInterop_Test is Bridge_Initializer {
     /// @notice Assume a valid address for fuzzing
     function _assumeAddress(address _address) internal {
         assumeAddressIsNot(_address, AddressType.Precompile, AddressType.ForgeAddress);
-        // Assume the address doesn't support an optimistic mintable ERC20 interface, so it doesn't mess with the tests
-        vm.assume(
-            !(ERC165Checker.supportsInterface(_address, type(ILegacyMintableERC20).interfaceId))
-                && ERC165Checker.supportsInterface(_address, type(IOptimismMintableERC20).interfaceId)
-        );
     }
 }
 
@@ -87,7 +82,7 @@ contract L2StandardBridgeInterop_LegacyToSuper_Test is L2StandardBridgeInterop_T
 
         // Mock `_from` to be a legacy address
         _mockInterface(_from, type(IERC165).interfaceId, true);
-        _mockInterface(_from, type(IOptimismMintableERC20).interfaceId, true);
+        _mockInterface(_from, type(ILegacyMintableERC20).interfaceId, true);
     }
 
     /// @notice Test that the `convert` function with different decimals reverts
@@ -237,6 +232,11 @@ contract L2StandardBridgeInterop_SuperToLegacy_Test is L2StandardBridgeInterop_T
         // Mock same decimals
         _mockDecimals(_from, 18);
         _mockDecimals(_to, 18);
+
+        // Mock `_from` so it is not a LegacyMintableERC20 address
+        _mockInterface(_from, type(IERC165).interfaceId, true);
+        _mockInterface(_from, type(ILegacyMintableERC20).interfaceId, false);
+        _mockInterface(_from, type(IOptimismMintableERC20).interfaceId, false);
     }
 
     /// @notice Test that the `convert` function with different decimals reverts
