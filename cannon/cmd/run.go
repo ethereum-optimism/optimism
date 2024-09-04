@@ -217,9 +217,29 @@ func (p *ProcessPreimageOracle) Close() error {
 	if p.cmd == nil {
 		return nil
 	}
+
+	tryWait := func(dur time.Duration) (bool, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), dur)
+		defer cancel()
+		select {
+		case <-ctx.Done():
+			return false, nil
+		case err := <-p.waitErr:
+			return true, err
+		}
+	}
 	// Give the pre-image server time to exit cleanly before killing it.
-	time.Sleep(time.Second * 1)
+	if exited, err := tryWait(1 * time.Second); exited {
+		return err
+	}
+	// Politely ask the process to exit and give it some more time
 	_ = p.cmd.Process.Signal(os.Interrupt)
+	if exited, err := tryWait(30 * time.Second); exited {
+		return err
+	}
+
+	// Force the process to exit
+	_ = p.cmd.Process.Signal(os.Kill)
 	return <-p.waitErr
 }
 

@@ -27,15 +27,20 @@ var (
 	ErrInvalidBlobKeyPreimage = errors.New("invalid blob key preimage")
 )
 
-type preimageSource func(key common.Hash) ([]byte, error)
-
-type PreimageLoader struct {
-	getPreimage preimageSource
+type PreimageSource interface {
+	Get(key common.Hash) ([]byte, error)
+	Close() error
 }
 
-func NewPreimageLoader(getPreimage preimageSource) *PreimageLoader {
+type PreimageSourceCreator func() PreimageSource
+
+type PreimageLoader struct {
+	makeSource PreimageSourceCreator
+}
+
+func NewPreimageLoader(makeSource PreimageSourceCreator) *PreimageLoader {
 	return &PreimageLoader{
-		getPreimage: getPreimage,
+		makeSource: makeSource,
 	}
 }
 
@@ -57,7 +62,9 @@ func (l *PreimageLoader) loadBlobPreimage(proof *ProofData) (*types.PreimageOrac
 	// The key for a blob field element is a keccak hash of commitment++fieldElementIndex.
 	// First retrieve the preimage of the key as a keccak hash so we have the commitment and required field element
 	inputsKey := preimage.Keccak256Key(proof.OracleKey).PreimageKey()
-	inputs, err := l.getPreimage(inputsKey)
+	source := l.makeSource()
+	defer source.Close()
+	inputs, err := source.Get(inputsKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get key preimage: %w", err)
 	}
@@ -74,7 +81,7 @@ func (l *PreimageLoader) loadBlobPreimage(proof *ProofData) (*types.PreimageOrac
 	for i := 0; i < params.BlobTxFieldElementsPerBlob; i++ {
 		binary.BigEndian.PutUint64(fieldElemKey[72:], uint64(i))
 		key := preimage.BlobKey(crypto.Keccak256(fieldElemKey)).PreimageKey()
-		fieldElement, err := l.getPreimage(key)
+		fieldElement, err := source.Get(key)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load field element %v with key %v:  %w", i, common.Hash(key), err)
 		}
@@ -105,7 +112,9 @@ func (l *PreimageLoader) loadBlobPreimage(proof *ProofData) (*types.PreimageOrac
 
 func (l *PreimageLoader) loadPrecompilePreimage(proof *ProofData) (*types.PreimageOracleData, error) {
 	inputKey := preimage.Keccak256Key(proof.OracleKey).PreimageKey()
-	input, err := l.getPreimage(inputKey)
+	source := l.makeSource()
+	defer source.Close()
+	input, err := source.Get(inputKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get key preimage: %w", err)
 	}

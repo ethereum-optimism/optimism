@@ -621,6 +621,11 @@ jobs:
             just kontrol-deployment-check || echo "export KONTROL_DEPLOYMENT_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
+          name: interfaces
+          command: |
+            just interfaces-check-no-build || echo "export INTERFACES_STATUS=1" >> "$BASH_ENV"
+          working_directory: packages/contracts-bedrock
+      - run:
           name: size check
           command: |
             forge build --sizes --skip "/**/test/**" --skip "/**/scripts/**" || echo "export SIZE_CHECK=1" >> "$BASH_ENV"
@@ -660,6 +665,10 @@ jobs:
             fi
             if [[ "$KONTROL_DEPLOYMENT_STATUS" -ne 0 ]]; then
               echo "Kontrol deployment check failed, see job output for details."
+              FAILED=1
+            fi
+            if [[ "$INTERFACES_STATUS" -ne 0 ]]; then
+              echo "Interface check failed, see job output for details."
               FAILED=1
             fi
             if [[ "$SIZE_CHECK" -ne 0 ]]; then
