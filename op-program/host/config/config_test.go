@@ -178,14 +178,14 @@ func TestIsCustomChainConfig(t *testing.T) {
 func TestDBFormat(t *testing.T) {
 	t.Run("invalid", func(t *testing.T) {
 		cfg := validConfig()
-		cfg.DBFormat = "foo"
+		cfg.DataFormat = "foo"
 		require.ErrorIs(t, cfg.Check(), ErrInvalidDataFormat)
 	})
 	for _, format := range types.SupportedDataFormats {
 		format := format
 		t.Run(fmt.Sprintf("%v", format), func(t *testing.T) {
 			cfg := validConfig()
-			cfg.DBFormat = format
+			cfg.DataFormat = format
 			require.NoError(t, cfg.Check())
 		})
 	}

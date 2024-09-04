@@ -151,17 +151,17 @@ func PreimageServer(ctx context.Context, logger log.Logger, cfg *config.Config, 
 		logger.Info("Using in-memory storage")
 		kv = kvstore.NewMemKV()
 	} else {
-		logger.Info("Creating disk storage", "datadir", cfg.DataDir, "format", cfg.DBFormat)
+		logger.Info("Creating disk storage", "datadir", cfg.DataDir, "format", cfg.DataFormat)
 		if err := os.MkdirAll(cfg.DataDir, 0755); err != nil {
 			return fmt.Errorf("creating datadir: %w", err)
 		}
-		switch cfg.DBFormat {
+		switch cfg.DataFormat {
 		case types.DataFormatFile:
 			kv = kvstore.NewFileKV(cfg.DataDir)
 		case types.DataFormatPebble:
 			kv = kvstore.NewPebbleKV(cfg.DataDir)
 		default:
-			return fmt.Errorf("invalid db format: %s", cfg.DBFormat)
+			return fmt.Errorf("invalid data format: %s", cfg.DataFormat)
 		}
 	}
 

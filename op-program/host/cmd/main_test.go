@@ -126,7 +126,7 @@ func TestDataFormat(t *testing.T) {
 		format := format
 		t.Run(fmt.Sprintf("Valid-%v", format), func(t *testing.T) {
 			cfg := configForArgs(t, addRequiredArgs("--data.format", string(format)))
-			require.Equal(t, format, cfg.DBFormat)
+			require.Equal(t, format, cfg.DataFormat)
 		})
 	}
 

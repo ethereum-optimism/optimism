@@ -41,8 +41,8 @@ type Config struct {
 	// If not set, an in-memory key-value store is used and fetching data must be enabled
 	DataDir string
 
-	// DBFormat specifies the format to use for on-disk storage. Only applies when DataDir is set.
-	DBFormat types.DataFormat
+	// DataFormat specifies the format to use for on-disk storage. Only applies when DataDir is set.
+	DataFormat types.DataFormat
 
 	// L1Head is the block hash of the L1 chain head block
 	L1Head      common.Hash
@@ -106,7 +106,7 @@ func (c *Config) Check() error {
 	if c.ServerMode && c.ExecCmd != "" {
 		return ErrNoExecInServerMode
 	}
-	if c.DataDir != "" && !slices.Contains(types.SupportedDataFormats, c.DBFormat) {
+	if c.DataDir != "" && !slices.Contains(types.SupportedDataFormats, c.DataFormat) {
 		return ErrInvalidDataFormat
 	}
 	return nil
@@ -139,7 +139,7 @@ func NewConfig(
 		L2ClaimBlockNumber:  l2ClaimBlockNum,
 		L1RPCKind:           sources.RPCKindStandard,
 		IsCustomChainConfig: isCustomConfig,
-		DBFormat:            types.DataFormatFile,
+		DataFormat:          types.DataFormatFile,
 	}
 }
 
@@ -200,7 +200,7 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 	return &Config{
 		Rollup:              rollupCfg,
 		DataDir:             ctx.String(flags.DataDir.Name),
-		DBFormat:            dbFormat,
+		DataFormat:          dbFormat,
 		L2URL:               ctx.String(flags.L2NodeAddr.Name),
 		L2ChainConfig:       l2ChainConfig,
 		L2Head:              l2Head,
