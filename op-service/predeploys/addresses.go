@@ -105,7 +105,7 @@ func init() {
 		},
 	}
 	Predeploys["GovernanceDelegation"] = &Predeploy{
-		Address:       GovernanceDelegationAddr,
+		Address: GovernanceDelegationAddr,
 		Enabled: func(config DeployConfig) bool {
 			return config.GovernanceEnabled()
 		},
