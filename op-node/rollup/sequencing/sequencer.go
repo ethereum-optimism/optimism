@@ -527,7 +527,7 @@ func (d *Sequencer) startBuildingBlock() {
 		d.log.Info("Sequencing Fjord upgrade block")
 	}
 
-	// For the Fjord activation block we shouldn't include any sequencer transactions.
+	// For the Granite activation block we shouldn't include any sequencer transactions.
 	if d.rollupCfg.IsGraniteActivationBlock(uint64(attrs.Timestamp)) {
 		d.log.Info("Sequencing Granite upgrade block")
 	}
