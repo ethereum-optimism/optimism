@@ -157,7 +157,7 @@ func PreimageServer(ctx context.Context, logger log.Logger, cfg *config.Config, 
 		}
 		switch cfg.DBFormat {
 		case types.DataFormatFile:
-			kv = kvstore.NewDiskKV(cfg.DataDir)
+			kv = kvstore.NewFileKV(cfg.DataDir)
 		case types.DataFormatPebble:
 			kv = kvstore.NewPebbleKV(cfg.DataDir)
 		default:

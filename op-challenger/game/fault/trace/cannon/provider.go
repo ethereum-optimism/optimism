@@ -46,7 +46,7 @@ func NewTraceProvider(logger log.Logger, m vm.Metricer, cfg vm.Config, vmCfg vm.
 		generator: vm.NewExecutor(logger, m, cfg, vmCfg, prestate, localInputs),
 		gameDepth: gameDepth,
 		preimageLoader: utils.NewPreimageLoader(func() utils.PreimageSource {
-			return kvstore.NewDiskKV(vm.PreimageDir(dir))
+			return kvstore.NewFileKV(vm.PreimageDir(dir))
 		}),
 		PrestateProvider: prestateProvider,
 	}
@@ -186,7 +186,7 @@ func NewTraceProviderForTest(logger log.Logger, m vm.Metricer, cfg *config.Confi
 		generator: vm.NewExecutor(logger, m, cfg.Cannon, vm.NewOpProgramServerExecutor(), cfg.CannonAbsolutePreState, localInputs),
 		gameDepth: gameDepth,
 		preimageLoader: utils.NewPreimageLoader(func() utils.PreimageSource {
-			return kvstore.NewDiskKV(vm.PreimageDir(dir))
+			return kvstore.NewFileKV(vm.PreimageDir(dir))
 		}),
 	}
 	return &CannonTraceProviderForTest{p}
