@@ -32,27 +32,15 @@ contract DeploySuperchainInput_Test is Test {
         // parameters to e.g. avoid the zero address. Therefore we hardcode a concrete test case
         // which is simpler and still sufficient.
         dsi.loadInput(input);
+        _assertLoadInput();
+    }
 
-        assertTrue(dsi.inputSet(), "100");
+    function test_loadInputFile_succeeds() public {
+        string memory root = vm.projectRoot();
+        string memory path = string.concat(root, "/test/fixtures/test-deploy-superchain.toml");
 
-        // Compare the test input struct to the getter methods.
-        assertEq(input.roles.proxyAdminOwner, dsi.proxyAdminOwner(), "200");
-        assertEq(input.roles.protocolVersionsOwner, dsi.protocolVersionsOwner(), "300");
-        assertEq(input.roles.guardian, dsi.guardian(), "400");
-        assertEq(input.paused, dsi.paused(), "500");
-        assertEq(
-            ProtocolVersion.unwrap(input.requiredProtocolVersion),
-            ProtocolVersion.unwrap(dsi.requiredProtocolVersion()),
-            "600"
-        );
-        assertEq(
-            ProtocolVersion.unwrap(input.recommendedProtocolVersion),
-            ProtocolVersion.unwrap(dsi.recommendedProtocolVersion()),
-            "700"
-        );
-
-        // Compare the test input struct to the `input` getter method.
-        assertEq(keccak256(abi.encode(input)), keccak256(abi.encode(dsi.input())), "800");
+        dsi.loadInputFile(path);
+        _assertLoadInput();
     }
 
     function test_getters_whenNotSet_revert() public {
@@ -75,6 +63,29 @@ contract DeploySuperchainInput_Test is Test {
 
         vm.expectRevert(expectedErr);
         dsi.recommendedProtocolVersion();
+    }
+
+    function _assertLoadInput() internal {
+        assertTrue(dsi.inputSet(), "100");
+
+        // Compare the test input struct to the getter methods.
+        assertEq(input.roles.proxyAdminOwner, dsi.proxyAdminOwner(), "200");
+        assertEq(input.roles.protocolVersionsOwner, dsi.protocolVersionsOwner(), "300");
+        assertEq(input.roles.guardian, dsi.guardian(), "400");
+        assertEq(input.paused, dsi.paused(), "500");
+        assertEq(
+            ProtocolVersion.unwrap(input.requiredProtocolVersion),
+            ProtocolVersion.unwrap(dsi.requiredProtocolVersion()),
+            "600"
+        );
+        assertEq(
+            ProtocolVersion.unwrap(input.recommendedProtocolVersion),
+            ProtocolVersion.unwrap(dsi.recommendedProtocolVersion()),
+            "700"
+        );
+
+        // Compare the test input struct to the `input` getter method.
+        assertEq(keccak256(abi.encode(input)), keccak256(abi.encode(dsi.input())), "800");
     }
 }
 
@@ -165,6 +176,35 @@ contract DeploySuperchainOutput_Test is Test {
         vm.expectRevert(expectedErr);
         dso.protocolVersionsProxy();
     }
+
+    function test_writeOutputFile_succeeds() public {
+        DeploySuperchainOutput.Output memory output = DeploySuperchainOutput.Output({
+            superchainProxyAdmin: ProxyAdmin(makeAddr("superchainProxyAdmin")),
+            superchainConfigImpl: SuperchainConfig(makeAddr("superchainConfigImpl")),
+            superchainConfigProxy: SuperchainConfig(makeAddr("superchainConfigProxy")),
+            protocolVersionsImpl: ProtocolVersions(makeAddr("protocolVersionsImpl")),
+            protocolVersionsProxy: ProtocolVersions(makeAddr("protocolVersionsProxy"))
+        });
+
+        dso.set(dso.superchainProxyAdmin.selector, address(output.superchainProxyAdmin));
+        dso.set(dso.superchainConfigImpl.selector, address(output.superchainConfigImpl));
+        dso.set(dso.superchainConfigProxy.selector, address(output.superchainConfigProxy));
+        dso.set(dso.protocolVersionsImpl.selector, address(output.protocolVersionsImpl));
+        dso.set(dso.protocolVersionsProxy.selector, address(output.protocolVersionsProxy));
+
+        string memory root = vm.projectRoot();
+        string memory path = string.concat(root, "/.testdata/test-deploy-superchain-output.toml");
+        dso.writeOutputFile(path);
+        string memory data = vm.readFile(path);
+
+        // Clean up before asserting so that we don't leave any files behind.
+        vm.removeFile(path);
+
+        assertEq(
+            keccak256(abi.encode(data)),
+            bytes32(0x496d8cafe47414684c9ccf13231a39c825f3740e0ed19854c54e1df691591fbd)
+        );
+    }
 }
 
 contract DeploySuperchain_Test is Test {
@@ -193,7 +233,7 @@ contract DeploySuperchain_Test is Test {
         return ProtocolVersion.unwrap(_pv);
     }
 
-    function test_run_succeeds(DeploySuperchainInput.Input memory _input) public {
+    function test_run_memory_succeeds(DeploySuperchainInput.Input memory _input) public {
         vm.assume(_input.roles.proxyAdminOwner != address(0));
         vm.assume(_input.roles.protocolVersionsOwner != address(0));
         vm.assume(_input.roles.guardian != address(0));
@@ -242,6 +282,22 @@ contract DeploySuperchain_Test is Test {
         // Ensure that `checkOutput` passes. This is called by the `run` function during execution,
         // so this just acts as a sanity check. It reverts on failure.
         dso.checkOutput();
+    }
+
+    function test_run_io_succeeds() public {
+        string memory root = vm.projectRoot();
+        string memory inpath = string.concat(root, "/test/fixtures/test-deploy-superchain.toml");
+        string memory outpath = string.concat(root, "/.testdata/test-deploy-superchain-out.toml");
+
+        deploySuperchain.run(inpath, outpath);
+
+        string memory outdata = vm.readFile(outpath);
+        // Clean up before asserting so that we don't leave any files behind.
+        vm.removeFile(outpath);
+        assertEq(
+            keccak256(abi.encode(outdata)),
+            bytes32(0x08aee2fe779ae629438776065e99398edaec136e7b57da9fd8574581aa7a0b3d)
+        );
     }
 
     function test_run_ZeroAddressRoleInput_reverts() public {
