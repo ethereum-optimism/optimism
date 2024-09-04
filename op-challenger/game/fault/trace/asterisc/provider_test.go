@@ -221,12 +221,11 @@ func setupTestData(t *testing.T) (string, string) {
 func setupWithTestData(t *testing.T, dataDir string, prestate string) (*AsteriscTraceProvider, *stubGenerator) {
 	generator := &stubGenerator{}
 	return &AsteriscTraceProvider{
-		logger:         testlog.Logger(t, log.LevelInfo),
-		dir:            dataDir,
-		generator:      generator,
-		prestate:       filepath.Join(dataDir, prestate),
-		gameDepth:      63,
-		stateConverter: &StateConverter{},
+		logger:    testlog.Logger(t, log.LevelInfo),
+		dir:       dataDir,
+		generator: generator,
+		prestate:  filepath.Join(dataDir, prestate),
+		gameDepth: 63,
 	}, generator
 }
 
