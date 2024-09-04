@@ -67,7 +67,7 @@ wrap_comments=true
 ################################################################
 
 [profile.ci]
-fuzz = { runs = 512 }
+fuzz = { runs = 46080 }
 
 [profile.ci.invariant]
 runs = 256
