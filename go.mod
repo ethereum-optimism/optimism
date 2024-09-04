@@ -6,7 +6,7 @@ require (
 	github.com/BurntSushi/toml v1.4.0
 	github.com/anacrolix/chansync v0.5.2-0.20240902132230-bb4c5f157404
 	github.com/anacrolix/envpprof v1.3.0
-	github.com/anacrolix/generics v0.0.3-0.20240810033109-cddd00a51d96
+	github.com/anacrolix/generics v0.0.3-0.20240902042256-7fb2702ef0ca
 	github.com/anacrolix/missinggo/v2 v2.7.4-0.20240902050650-7985420302c7
 	github.com/anacrolix/sync v0.3.0
 	github.com/andybalholm/brotli v1.1.0
@@ -260,3 +260,5 @@ exclude (
 //replace github.com/anacrolix/generics => ../../../ags/generics
 
 //replace github.com/anacrolix/chansync => ../../../ags/chansync
+
+replace github.com/anacrolix/chansync => ../../../ags/chansync

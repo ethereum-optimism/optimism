@@ -379,16 +379,22 @@ func (s *syncClientRequestState) trimOutsideWanted() {
 func (s *syncClientRequestState) addMissingWanted(log log.Logger) {
 	g.MakeMapIfNilWithCap(&s.wanted, s.endBlockNumber-s.startBlockNumber+1)
 	for num := s.endBlockNumber; num >= s.startBlockNumber; num-- {
-		if g.MapContains(s.wanted, num) {
+		log.Debug("Scheduling P2P block request", "num", num)
+		blockState, ok := s.wanted[num]
+		if ok {
+			// TODO: Should we just clobber the block? There can be requests active on this block
+			// already so that seems wasteful unless those requests resync to the new block state.
+			fmt.Printf("requested already requested block\n")
+			blockState.promoted = false
+			blockState.done.Clear()
+			blockState.finalHash.SetNone()
 			continue
 		}
-		log.Debug("Scheduling P2P block request", "num", num)
 		wanted := &wantedBlock{
 			num:                num,
 			requestConcurrency: chansync.NewSemaphore(3),
 		}
 		s.wanted[num] = wanted
-		s.requestBlocksCond.Broadcast()
 	}
 }
 
@@ -405,6 +411,7 @@ func (s *SyncClient) onRangeRequest(ctx context.Context, req rangeRequest) {
 	s.trimOutsideWanted()
 	s.addMissingWanted(log)
 	s.setNextPromote(s.endBlockNumber, req.end.ParentHash)
+	s.requestBlocksCond.Broadcast()
 	s.promoterCond.Broadcast()
 }
 
@@ -438,6 +445,7 @@ func (s *SyncClient) promotedBlock(payload *eth.ExecutionPayloadEnvelope) {
 	clear(wanted.quarantined)
 	panicif.True(wanted.finalHash.Set(payload.ExecutionPayload.BlockHash).Ok)
 	wanted.done.Set()
+	wanted.promoted = true
 	// Should we pass through the just promoted block number so it can avoid wrap around instead?
 	panicif.Eq(0, bn)
 	s.setNextPromote(bn-1, payload.ExecutionPayload.ParentHash)
@@ -561,7 +569,7 @@ func (s *syncClientPeer) doSingleBlockRequest(ctx context.Context, id peer.ID, n
 			return
 		}
 		select {
-		case <-wanted.done.Done():
+		case <-wanted.done.On():
 		case <-ctx.Done():
 		}
 	}()
@@ -630,7 +638,7 @@ func (s *syncClientPeer) requestBlocks(ctx context.Context, id peer.ID, rl *rate
 			case <-ctx.Done():
 				r.Cancel()
 				return context.Cause(ctx)
-			case <-wanted.done.Done():
+			case <-wanted.done.On():
 				r.Cancel()
 				continue
 			case <-time.After(r.Delay()):
@@ -1068,7 +1076,10 @@ func (srv *ReqRespServer) handleSyncRequest(ctx context.Context, stream network.
 type wantedBlock struct {
 	num                blockNumber
 	requestConcurrency chansync.Semaphore
-	done               chansync.SetOnce
+	done               chansync.Flag
+	// Whether we're done because we submitted a block upstream. If we get a request for a range
+	// that includes a block that's been promoted, we should get it again.
+	promoted bool
 	// This prevents duplicate requests when one delivers.
 	quarantined map[common.Hash]syncResult
 	// The correct hash when it becomes known. Can be used to score late replies.
