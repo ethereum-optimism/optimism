@@ -27,8 +27,7 @@ contract PredeploysTest is CommonTest {
 
     /// @dev Returns true if the address is not proxied.
     function _notProxied(address _addr) internal pure returns (bool) {
-        return _addr == Predeploys.GOVERNANCE_TOKEN || _addr == Predeploys.GOVERNANCE_DELEGATION
-            || _addr == Predeploys.WETH;
+        return _addr == Predeploys.GOVERNANCE_TOKEN || _addr == Predeploys.WETH;
     }
 
     /// @dev Returns true if the account is not meant to be in the L2 genesis anymore.

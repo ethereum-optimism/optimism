@@ -255,7 +255,7 @@ contract L2Genesis is Deployer {
             setL2ToL2CrossDomainMessenger(); // 23
             setSuperchainWETH(); // 24
             setETHLiquidity(); // 25
-            setGovernanceDelegation(); // 43: OP (not behind a proxy)
+            setGovernanceDelegation(); // 43
         }
     }
 
@@ -468,9 +468,21 @@ contract L2Genesis is Deployer {
             return;
         }
 
-        console.log("Setting %s implementation at: %s", "GovernanceDelegation", Predeploys.GOVERNANCE_DELEGATION);
         string memory cname = Predeploys.getName(Predeploys.GOVERNANCE_DELEGATION);
-        vm.etch(Predeploys.GOVERNANCE_DELEGATION, vm.getDeployedCode(string.concat(cname, ".sol:", cname)));
+        address impl = Predeploys.predeployToCodeNamespace(Predeploys.GOVERNANCE_DELEGATION);
+        bytes memory code = vm.getCode(string.concat(cname, ".sol:", cname));
+
+        address govdelegation;
+        assembly {
+            govdelegation := create(0, add(code, 0x20), mload(code))
+        }
+
+        console.log("Setting %s implementation at: %s", cname, impl);
+        vm.etch(impl, govdelegation.code);
+
+        /// Reset so its not included state dump
+        vm.etch(govdelegation, "");
+        vm.resetNonce(govdelegation);
     }
 
     /// @notice This predeploy is following the safety invariant #1.

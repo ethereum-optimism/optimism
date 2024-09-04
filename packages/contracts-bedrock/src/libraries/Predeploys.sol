@@ -137,7 +137,7 @@ library Predeploys {
 
     /// @notice Returns true if the predeploy is not proxied.
     function notProxied(address _addr) internal pure returns (bool) {
-        return _addr == GOVERNANCE_TOKEN || _addr == GOVERNANCE_DELEGATION || _addr == WETH;
+        return _addr == GOVERNANCE_TOKEN || _addr == WETH;
     }
 
     /// @notice Returns true if the address is a defined predeploy that is embedded into new OP-Stack chains.
