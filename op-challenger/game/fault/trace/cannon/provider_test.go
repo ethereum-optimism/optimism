@@ -239,12 +239,11 @@ func setupTestData(t *testing.T) (string, string) {
 func setupWithTestData(t *testing.T, dataDir string, prestate string) (*CannonTraceProvider, *stubGenerator) {
 	generator := &stubGenerator{}
 	return &CannonTraceProvider{
-		logger:         testlog.Logger(t, log.LevelInfo),
-		dir:            dataDir,
-		generator:      generator,
-		prestate:       filepath.Join(dataDir, prestate),
-		gameDepth:      63,
-		stateConverter: &StateConverter{},
+		logger:    testlog.Logger(t, log.LevelInfo),
+		dir:       dataDir,
+		generator: generator,
+		prestate:  filepath.Join(dataDir, prestate),
+		gameDepth: 63,
 	}, generator
 }
 
