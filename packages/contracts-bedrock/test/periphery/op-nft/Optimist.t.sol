@@ -3,6 +3,7 @@ pragma solidity >=0.6.2 <0.9.0;
 
 // Testing utilities
 import { Test } from "forge-std/Test.sol";
+import { IMulticall3 } from "forge-std/interfaces/IMulticall3.sol";
 import { AttestationStation } from "src/periphery/op-nft/AttestationStation.sol";
 import { Optimist } from "src/periphery/op-nft/Optimist.sol";
 import { OptimistAllowlist } from "src/periphery/op-nft/OptimistAllowlist.sol";
@@ -10,21 +11,6 @@ import { OptimistInviter } from "src/periphery/op-nft/OptimistInviter.sol";
 import { OptimistInviterHelper } from "test/mocks/OptimistInviterHelper.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-
-interface IMulticall3 {
-    struct Call3 {
-        address target;
-        bool allowFailure;
-        bytes callData;
-    }
-
-    struct Result {
-        bool success;
-        bytes returnData;
-    }
-
-    function aggregate3(Call3[] calldata calls) external payable returns (Result[] memory returnData);
-}
 
 library Multicall {
     bytes internal constant code =
