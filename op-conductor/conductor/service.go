@@ -149,7 +149,17 @@ func (c *OpConductor) initConsensus(ctx context.Context) error {
 	}
 
 	serverAddr := fmt.Sprintf("%s:%d", c.cfg.ConsensusAddr, c.cfg.ConsensusPort)
-	cons, err := consensus.NewRaftConsensus(c.log, c.cfg.RaftServerID, serverAddr, c.cfg.RaftStorageDir, c.cfg.RaftBootstrap, &c.cfg.RollupCfg)
+	raftConsensusConfig := &consensus.RaftConsensusConfig{
+		ServerID:          c.cfg.RaftServerID,
+		ServerAddr:        serverAddr,
+		StorageDir:        c.cfg.RaftStorageDir,
+		Bootstrap:         c.cfg.RaftBootstrap,
+		RollupCfg:         &c.cfg.RollupCfg,
+		SnapshotInterval:  c.cfg.RaftSnapshotInterval,
+		SnapshotThreshold: c.cfg.RaftSnapshotThreshold,
+		TrailingLogs:      c.cfg.RaftTrailingLogs,
+	}
+	cons, err := consensus.NewRaftConsensus(c.log, raftConsensusConfig)
 	if err != nil {
 		return errors.Wrap(err, "failed to create raft consensus")
 	}
