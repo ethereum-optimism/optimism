@@ -616,6 +616,11 @@ jobs:
             just snapshots-check || echo "export SNAPSHOTS_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
+          name: kontrol deployment
+          command: |
+            just kontrol-deployment-check || echo "export KONTROL_DEPLOYMENT_STATUS=1" >> "$BASH_ENV"
+          working_directory: packages/contracts-bedrock
+      - run:
           name: size check
           command: |
             forge build --sizes --skip "/**/test/**" --skip "/**/scripts/**" || echo "export SIZE_CHECK=1" >> "$BASH_ENV"
@@ -651,6 +656,10 @@ jobs:
             fi
             if [[ "$SNAPSHOTS_STATUS" -ne 0 ]]; then
               echo "Snapshots check failed, see job output for details."
+              FAILED=1
+            fi
+            if [[ "$KONTROL_DEPLOYMENT_STATUS" -ne 0 ]]; then
+              echo "Kontrol deployment check failed, see job output for details."
               FAILED=1
             fi
             if [[ "$SIZE_CHECK" -ne 0 ]]; then
@@ -1313,45 +1322,6 @@ jobs:
           paths:
             - "/go/pkg/mod"
 
-  op-service-rethdb-tests:
-    docker:
-      - image: <<pipeline.parameters.ci_builder_rust_image>>
-    steps:
-      - checkout
-      - check-changed:
-          patterns: op-service,op-node
-      - restore_cache:
-          name: Restore Go modules cache
-          key: gomod-{{ checksum "go.sum" }}
-      - run:
-          name: Cargo fmt + clippy
-          command: |
-            cargo +nightly fmt -- --check
-            cargo +nightly clippy --all --all-features -- -D warnings
-          working_directory: op-service/rethdb-reader
-      - run:
-          name: Generate testdata db
-          command: cargo test
-          working_directory: op-service/rethdb-reader
-      - run:
-          name: Build dylib
-          command: cargo build --release
-          working_directory: op-service/rethdb-reader
-      - run:
-          name: Update LD_LIBRARY_PATH
-          command: echo 'export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:/root/project/op-service/rethdb-reader/target/release"' >> $BASH_ENV
-      - run:
-          name: Run op-service RethDB tests
-          command: |
-            gotestsum --format=standard-verbose --junitfile=/tmp/test-results/op-service.xml \
-            -- -parallel=8 -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out \
-            -run TestRethDB -tags rethdb -v
-          working_directory: op-service/sources
-      # TODO(CLI-148): Fix codecov
-      #- run:
-          #name: upload coverage
-          #command: codecov --verbose --clean --flags bedrock-rethdb-go-tests
-
   bedrock-go-tests:  # just a helper, that depends on all the actual test jobs
     docker:
       # Use a smaller base image to avoid pulling the huge ci-builder
@@ -1622,9 +1592,6 @@ workflows:
           requires:
             - pnpm-monorepo
             - cannon-prestate
-      - op-service-rethdb-tests:
-          requires:
-            - go-mod-download
       - op-program-compat:
           requires:
             - op-program-tests
@@ -1647,7 +1614,6 @@ workflows:
             - op-program-compat
             - op-service-tests
             - op-supervisor-tests
-            - op-service-rethdb-tests
             - op-e2e-HTTP-tests
             - op-e2e-fault-proof-tests
             - op-e2e-action-tests

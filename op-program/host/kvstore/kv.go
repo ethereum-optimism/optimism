@@ -19,7 +19,4 @@ type KV interface {
 	// It returns ErrNotFound when the pre-image cannot be found.
 	// KV store implementations may return additional errors specific to the KV storage.
 	Get(k common.Hash) ([]byte, error)
-
-	// Closes the KV store.
-	Close() error
 }
