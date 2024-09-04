@@ -3,8 +3,8 @@ pragma solidity 0.8.25;
 
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { TransientContext, TransientReentrancyAware } from "src/libraries/TransientContext.sol";
-import { ISemver } from "src/universal/ISemver.sol";
-import { ICrossL2Inbox } from "src/L2/ICrossL2Inbox.sol";
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
+import { ICrossL2Inbox } from "src/L2/interfaces/ICrossL2Inbox.sol";
 import { SafeCall } from "src/libraries/SafeCall.sol";
 import { IDependencySet } from "src/L2/interfaces/IDependencySet.sol";
 

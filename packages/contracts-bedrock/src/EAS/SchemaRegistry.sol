@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.19;
 
-import { ISemver } from "src/universal/ISemver.sol";
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { ISchemaResolver } from "src/EAS/resolver/ISchemaResolver.sol";
 import { EMPTY_UID, MAX_GAP } from "src/EAS/Common.sol";
 import { ISchemaRegistry, SchemaRecord } from "src/EAS/ISchemaRegistry.sol";

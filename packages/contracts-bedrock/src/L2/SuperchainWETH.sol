@@ -5,10 +5,10 @@ import { WETH98 } from "src/dispute/weth/WETH98.sol";
 import { Unauthorized, NotCustomGasToken } from "src/libraries/errors/CommonErrors.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { L1Block } from "src/L2/L1Block.sol";
-import { IL2ToL2CrossDomainMessenger } from "src/L2/IL2ToL2CrossDomainMessenger.sol";
+import { IL2ToL2CrossDomainMessenger } from "src/L2/interfaces/IL2ToL2CrossDomainMessenger.sol";
 import { ETHLiquidity } from "src/L2/ETHLiquidity.sol";
-import { ISuperchainERC20Extensions } from "src/L2/ISuperchainERC20.sol";
-import { ISemver } from "src/universal/ISemver.sol";
+import { ISuperchainERC20Extensions } from "src/L2/interfaces/ISuperchainERC20.sol";
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
 
 /// @title SuperchainWETH
 /// @notice SuperchainWETH is a version of WETH that can be freely transfrered between chains
@@ -16,8 +16,8 @@ import { ISemver } from "src/universal/ISemver.sol";
 ///         do not use a custom gas token.
 contract SuperchainWETH is WETH98, ISuperchainERC20Extensions, ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.1
-    string public constant version = "1.0.0-beta.1";
+    /// @custom:semver 1.0.0-beta.2
+    string public constant version = "1.0.0-beta.2";
 
     /// @inheritdoc WETH98
     function deposit() public payable override {

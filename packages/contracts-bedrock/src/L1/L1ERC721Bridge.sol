@@ -4,7 +4,7 @@ pragma solidity 0.8.15;
 import { ERC721Bridge } from "src/universal/ERC721Bridge.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { L2ERC721Bridge } from "src/L2/L2ERC721Bridge.sol";
-import { ISemver } from "src/universal/ISemver.sol";
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { StandardBridge } from "src/universal/StandardBridge.sol";

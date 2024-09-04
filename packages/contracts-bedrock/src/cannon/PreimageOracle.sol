@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 import { IPreimageOracle } from "./interfaces/IPreimageOracle.sol";
-import { ISemver } from "src/universal/ISemver.sol";
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { PreimageKeyLib } from "./PreimageKeyLib.sol";
 import { LibKeccak } from "@lib-keccak/LibKeccak.sol";
 import "src/cannon/libraries/CannonErrors.sol";
@@ -31,8 +31,8 @@ contract PreimageOracle is IPreimageOracle, ISemver {
     uint256 public constant PRECOMPILE_CALL_RESERVED_GAS = 100_000;
 
     /// @notice The semantic version of the Preimage Oracle contract.
-    /// @custom:semver 1.1.2-rc.1
-    string public constant version = "1.1.2-rc.1";
+    /// @custom:semver 1.1.3-beta.1
+    string public constant version = "1.1.3-beta.1";
 
     ////////////////////////////////////////////////////////////////
     //                 Authorized Preimage Parts                  //
