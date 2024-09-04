@@ -213,13 +213,7 @@ type SyncClient struct {
 	// syncing worker per peer
 	peers map[peer.ID]context.CancelFunc
 
-	mu                sync.Mutex
-	nextPromote       g.Option[nextPromote]
-	endBlockNumber    blockNumber
-	startBlockNumber  blockNumber
-	wanted            map[blockNumber]*wantedBlock
-	requestBlocksCond chansync.BroadcastCond
-	promoterCond      chansync.BroadcastCond
+	syncClientRequestState
 
 	receivePayload L2PayloadIn
 
@@ -239,6 +233,16 @@ type SyncClient struct {
 
 	extra               ExtraHostFeatures
 	syncOnlyReqToStatic bool
+}
+
+type syncClientRequestState struct {
+	mu                sync.Mutex
+	nextPromote       g.Option[nextPromote]
+	endBlockNumber    blockNumber
+	startBlockNumber  blockNumber
+	wanted            map[blockNumber]*wantedBlock
+	requestBlocksCond chansync.BroadcastCond
+	promoterCond      chansync.BroadcastCond
 }
 
 type nextPromote struct {
@@ -349,7 +353,7 @@ const (
 )
 
 // This just emulates old behaviour for a test. It's probably pointless.
-func (s *SyncClient) isInFlight(ctx context.Context, num blockNumber) (inFlight bool, _ error) {
+func (s *syncClientRequestState) isInFlight(ctx context.Context, num blockNumber) (inFlight bool, _ error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	wanted := s.getWantedBlock(num)
@@ -363,7 +367,7 @@ func (s *SyncClient) isInFlight(ctx context.Context, num blockNumber) (inFlight 
 // go-ethereum should expose a method for this.
 type blockNumber = uint64
 
-func (s *SyncClient) trimOutsideWanted() {
+func (s *syncClientRequestState) trimOutsideWanted() {
 	for num, wanted := range s.wanted {
 		if num < s.startBlockNumber || num > s.endBlockNumber {
 			wanted.done.Set()
@@ -372,7 +376,7 @@ func (s *SyncClient) trimOutsideWanted() {
 	}
 }
 
-func (s *SyncClient) addMissingWanted(log log.Logger) {
+func (s *syncClientRequestState) addMissingWanted(log log.Logger) {
 	g.MakeMapIfNilWithCap(&s.wanted, s.endBlockNumber-s.startBlockNumber+1)
 	for num := s.endBlockNumber; num >= s.startBlockNumber; num-- {
 		if g.MapContains(s.wanted, num) {
@@ -1071,17 +1075,6 @@ type wantedBlock struct {
 	finalHash g.Option[common.Hash]
 }
 
-// Well that didn't age well.
-func getWantedForBlockNumber(num blockNumber, wanted map[blockNumber]*wantedBlock) *wantedBlock {
-	return wanted[num]
-}
-
-func (me *SyncClient) blockFailed(num blockNumber) {
-	if getWantedForBlockNumber(num, me.wanted) != nil {
-		//me.blockFailedCond.Broadcast()
-	}
-}
-
 type syncClientPeer struct {
 	*SyncClient
 	lastRequestError time.Time
@@ -1089,6 +1082,6 @@ type syncClientPeer struct {
 }
 
 // Returns the request state. Can be nil if the request range has been altered.
-func (s *SyncClient) getWantedBlock(blockNum blockNumber) *wantedBlock {
-	return getWantedForBlockNumber(blockNum, s.wanted)
+func (s *syncClientRequestState) getWantedBlock(blockNum blockNumber) *wantedBlock {
+	return s.wanted[blockNum]
 }
