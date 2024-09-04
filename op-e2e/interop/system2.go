@@ -3,6 +3,7 @@ package interop
 import (
 	"context"
 	"crypto/ecdsa"
+	"math/big"
 	"os"
 	"path"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -21,9 +23,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen"
+	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/opnode"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/services"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/setuputils"
 	"github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
@@ -59,10 +63,43 @@ var _ rpcClient = &rpc.Client{}
 // TestInterop stands up a basic L1
 // and multiple L2 states
 
-// system2 is a struct for creating resources
-// rather than make a big-bang of resources like system 1,
-// system 2 will create resources in a more modular way
-// and allows calls
+// SuperSystem is an interface for the system
+// it provides a way to get the resources for a network by network ID
+// and provides a way to get the list of network IDs
+// this is useful for testing multiple network backends,
+// for example, system2 is the default implementation, but a shim to
+// kurtosis or another testing framework could be implemented
+type SuperSystem interface {
+	// get the batcher for a network
+	Batcher(network string) *bss.BatcherService
+	// get the proposer for a network
+	Proposer(network string) *l2os.ProposerService
+	// get the opnode for a network
+	OpNode(network string) *opnode.Opnode
+	// get the geth instance for a network
+	L2Geth(network string) *geth.GethInstance
+	// get the L2 geth client for a network
+	L2GethClient(t *testing.T, network string) *ethclient.Client
+	// get the secret for a network and role
+	L2OperatorKey(network string, role devkeys.ChainOperatorRole) ecdsa.PrivateKey
+	// get the list of network IDs
+	L2IDs() []string
+	AddUser(username string)
+	UserKey(id, username string) ecdsa.PrivateKey
+	SendL2Tx(t *testing.T, id string, privKey *ecdsa.PrivateKey, applyTxOpts op_e2e.TxOptsFn) *types.Receipt
+}
+
+// NewSuperSystem creates a new SuperSystem from a recipe. It creates a system2.
+func NewSuperSystem(t *testing.T, recipe *interopgen.InteropDevRecipe) SuperSystem {
+	s2 := &system2{recipe: recipe}
+	s2.prepare(t)
+	return s2
+}
+
+// system2 implements the SuperSystem interface
+// it prepares network resources and provides access to them
+// the functionality is broken down into smaller functions so that
+// the system can be prepared iteratively if desired
 type system2 struct {
 	recipe          *interopgen.InteropDevRecipe
 	logger          log.Logger
@@ -72,15 +109,17 @@ type system2 struct {
 	beacon          *fakebeacon.FakeBeacon
 	l1              *geth.GethInstance
 	l2s             map[string]l2Set
-	clients         map[string]*ethclient.Client
+	l2GethClients   map[string]*ethclient.Client
 }
 
 type l2Set struct {
-	opNode   *opnode.Opnode
-	l2Geth   *geth.GethInstance
-	proposer *l2os.ProposerService
-	batcher  *bss.BatcherService
-	secrets  map[devkeys.ChainOperatorRole]ecdsa.PrivateKey
+	chainID      *big.Int
+	opNode       *opnode.Opnode
+	l2Geth       *geth.GethInstance
+	proposer     *l2os.ProposerService
+	batcher      *bss.BatcherService
+	operatorKeys map[devkeys.ChainOperatorRole]ecdsa.PrivateKey
+	userKeys     map[string]ecdsa.PrivateKey
 }
 
 // prepareHDWallet creates a new HD wallet to store the keys
@@ -146,29 +185,29 @@ func (s *system2) prepareL1(t *testing.T) (*fakebeacon.FakeBeacon, *geth.GethIns
 
 // TODO: break up this monolith
 func (s *system2) prepareL2(t *testing.T, id string, l2Out *interopgen.L2Output) l2Set {
-	// Create secrets for the L2 chain actors
-	secrets := map[devkeys.ChainOperatorRole]ecdsa.PrivateKey{}
+	// Create operatorKeys for the L2 chain actors
+	operatorKeys := map[devkeys.ChainOperatorRole]ecdsa.PrivateKey{}
 	// create the sequencer P2P secret
 	seqP2PSecret, err := s.hdWallet.Secret(devkeys.ChainOperatorKey{
 		ChainID: l2Out.Genesis.Config.ChainID,
 		Role:    devkeys.SequencerP2PRole,
 	})
 	require.NoError(t, err)
-	secrets[devkeys.SequencerP2PRole] = *seqP2PSecret
+	operatorKeys[devkeys.SequencerP2PRole] = *seqP2PSecret
 	// create the proposer secret
 	proposerSecret, err := s.hdWallet.Secret(devkeys.ChainOperatorKey{
 		ChainID: l2Out.Genesis.Config.ChainID,
 		Role:    devkeys.ProposerRole,
 	})
 	require.NoError(t, err)
-	secrets[devkeys.ProposerRole] = *proposerSecret
+	operatorKeys[devkeys.ProposerRole] = *proposerSecret
 	// create the batcher secret
 	batcherSecret, err := s.hdWallet.Secret(devkeys.ChainOperatorKey{
 		ChainID: l2Out.Genesis.Config.ChainID,
 		Role:    devkeys.BatcherRole,
 	})
 	require.NoError(t, err)
-	secrets[devkeys.BatcherRole] = *batcherSecret
+	operatorKeys[devkeys.BatcherRole] = *batcherSecret
 
 	// Create L2 geth
 	jwtPath := writeDefaultJWT(t)
@@ -287,7 +326,6 @@ func (s *system2) prepareL2(t *testing.T, id string, l2Out *interopgen.L2Output)
 		context.Background(), "0.0.1", batcherCLIConfig,
 		logger.New("service", "batcher"))
 	require.NoError(t, err)
-	require.NoError(t, err, "must start batcher")
 	require.NoError(t, batcher.Start(context.Background()))
 	t.Cleanup(func() {
 		ctx, cancel := context.WithCancel(context.Background())
@@ -296,11 +334,35 @@ func (s *system2) prepareL2(t *testing.T, id string, l2Out *interopgen.L2Output)
 	})
 
 	return l2Set{
-		opNode,
-		l2Geth,
-		proposer,
-		batcher,
-		secrets}
+		chainID:      l2Out.Genesis.Config.ChainID,
+		opNode:       opNode,
+		l2Geth:       l2Geth,
+		proposer:     proposer,
+		batcher:      batcher,
+		operatorKeys: operatorKeys,
+		userKeys:     make(map[string]ecdsa.PrivateKey),
+	}
+}
+
+// AddUser adds a user to the system by creating a user key for each L2.
+// each user key is stored in the L2's userKeys map.
+// because all user maps start empty, a users index should be the same for all L2s,
+// but if in the future these maps can diverge, the indexes for username would also diverge
+func (s *system2) AddUser(username string) {
+	for id, l2 := range s.l2s {
+		bigID, _ := big.NewInt(0).SetString(id, 10)
+		userSecret, _ := s.hdWallet.Secret(
+			devkeys.ChainUserKey{
+				ChainID: bigID,
+				Index:   uint64(len(l2.userKeys)),
+			},
+		)
+		l2.userKeys[username] = *userSecret
+	}
+}
+
+func (s *system2) UserKey(id, username string) ecdsa.PrivateKey {
+	return s.l2s[id].userKeys[username]
 }
 
 // prepareL2s creates the L2s for the system, returning a map of L2s
@@ -313,7 +375,8 @@ func (s *system2) prepareL2s(t *testing.T) map[string]l2Set {
 }
 
 // addL2 adds an L2 to the system by creating the resources for it
-// and then assigning them to the system's map of L2s
+// and then assigning them to the system's map of L2s.
+// This function is currently unused, but could be used to add L2s to the system after it is prepared.
 func (s *system2) addL2(t *testing.T, id string, output *interopgen.L2Output) {
 	if s.l2s == nil {
 		s.l2s = make(map[string]l2Set)
@@ -338,54 +401,71 @@ func (s *system2) prepare(t *testing.T) {
 	// TODO op-supervisor
 }
 
-// this function taken from System
-func (s *system2) NodeClient(t *testing.T, name string, rpcEndpoint endpoint.RPC) *ethclient.Client {
-	nodeClient, ok := s.clients[name]
+func (s *system2) L2GethClient(t *testing.T, id string) *ethclient.Client {
+	// guard: check if the client already exists and return it in that case
+	nodeClient, ok := s.l2GethClients[id]
 	if ok {
 		return nodeClient
 	}
+	// create a new client for the L2 from the L2's geth instance
+	var ethClient services.EthInstance = s.L2Geth(id)
+	rpcEndpoint := ethClient.UserRPC()
 	rpcCl := endpoint.DialRPC(
 		endpoint.PreferAnyRPC,
 		rpcEndpoint,
 		func(v string) *rpc.Client {
-			logger := testlog.Logger(t, log.LevelInfo).New("node", name)
+			logger := testlog.Logger(t, log.LevelInfo).New("node", id)
 			cl, err := dial.DialRPCClientWithTimeout(context.Background(), 30*time.Second, logger, v)
-			require.NoError(t, err, "failed to dial eth node instance %s", name)
+			require.NoError(t, err, "failed to dial eth node instance %s", id)
 			return cl
 		})
 	nodeClient = ethclient.NewClient(rpcCl)
-	s.addClient(name, nodeClient)
+	// register the client so it can be reused
+	s.addL2GethClient(id, nodeClient)
 	return nodeClient
 }
 
-func (sys *system2) addClient(name string, client *ethclient.Client) {
-	if sys.clients == nil {
-		sys.clients = make(map[string]*ethclient.Client)
+func (sys *system2) addL2GethClient(name string, client *ethclient.Client) {
+	if sys.l2GethClients == nil {
+		sys.l2GethClients = make(map[string]*ethclient.Client)
 	}
-	sys.clients[name] = client
+	sys.l2GethClients[name] = client
 }
 
 // gettter functions for the individual L2s
-// TODO: maybe the caller is just better off using the map directly, it reads nicely
-func (s *system2) getBatcher(id string) *bss.BatcherService {
+func (s *system2) Batcher(id string) *bss.BatcherService {
 	return s.l2s[id].batcher
 }
-func (s *system2) getProposer(id string) *l2os.ProposerService {
+func (s *system2) Proposer(id string) *l2os.ProposerService {
 	return s.l2s[id].proposer
 }
-func (s *system2) getOpNode(id string) *opnode.Opnode {
+func (s *system2) OpNode(id string) *opnode.Opnode {
 	return s.l2s[id].opNode
 }
-func (s *system2) getL2Geth(id string) *geth.GethInstance {
+func (s *system2) L2Geth(id string) *geth.GethInstance {
 	return s.l2s[id].l2Geth
 }
+func (s *system2) L2OperatorKey(id string, role devkeys.ChainOperatorRole) ecdsa.PrivateKey {
+	return s.l2s[id].operatorKeys[role]
+}
 
-func (s *system2) getL2IDs() []string {
+// L2IDs returns the list of L2 IDs, which are the keys of the L2s map
+func (s *system2) L2IDs() []string {
 	ids := make([]string, 0, len(s.l2s))
 	for id := range s.l2s {
 		ids = append(ids, id)
 	}
 	return ids
+}
+
+// SendL2Tx sends an L2 transaction to the L2 with the given ID
+func (s *system2) SendL2Tx(t *testing.T, id string, privKey *ecdsa.PrivateKey, applyTxOpts op_e2e.TxOptsFn) *types.Receipt {
+	return op_e2e.SendL2TxWithID(
+		t,
+		s.l2s[id].chainID,
+		s.L2GethClient(t, id),
+		privKey,
+		applyTxOpts)
 }
 
 func mustDial(t *testing.T, logger log.Logger) func(v string) *rpc.Client {
