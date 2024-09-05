@@ -7,15 +7,15 @@ import { StdUtils } from "forge-std/StdUtils.sol";
 import { ERC1967Proxy } from "@openzeppelin/contracts-v5/proxy/ERC1967/ERC1967Proxy.sol";
 import { EnumerableMap } from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import { OptimismSuperchainERC20 } from "src/L2/OptimismSuperchainERC20.sol";
-import { OptimismSuperchainERC20ForToBProperties } from "../../helpers/OptimismSuperchainERC20ForToBProperties.t.sol";
+import { OptimismSuperchainERC20ForToBProperties } from "../helpers/OptimismSuperchainERC20ForToBProperties.t.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { MockL2ToL2CrossDomainMessenger } from "../../helpers/MockL2ToL2CrossDomainMessenger.t.sol";
-import { Actors } from "../../helpers/Actors.t.sol";
+import { MockL2ToL2CrossDomainMessenger } from "../helpers/MockL2ToL2CrossDomainMessenger.t.sol";
+import { Actors } from "../helpers/Actors.t.sol";
 
 contract ProtocolHandler is TestBase, StdUtils, Actors {
     using EnumerableMap for EnumerableMap.Bytes32ToUintMap;
 
-    uint8 internal constant MAX_CHAINS = 4;
+    uint8 public constant MAX_CHAINS = 4;
     uint8 internal constant INITIAL_TOKENS = 1;
     uint8 internal constant INITIAL_SUPERTOKENS = 1;
     uint8 internal constant SUPERTOKEN_INITIAL_MINT = 100;
@@ -79,7 +79,6 @@ contract ProtocolHandler is TestBase, StdUtils, Actors {
         index = bound(index, 0, allSuperTokens.length - 1);
         address addr = allSuperTokens[index];
         vm.prank(BRIDGE);
-        // medusa calls with different senders by default
         OptimismSuperchainERC20(addr).mint(currentActor(), amount);
         // currentValue will be zero if key is not present
         (, uint256 currentValue) = ghost_totalSupplyAcrossChains.tryGet(MESSENGER.superTokenInitDeploySalts(addr));
@@ -156,6 +155,10 @@ contract ProtocolHandler is TestBase, StdUtils, Actors {
     {
         // this salt would be used in production. Tokens sharing it will be bridgable with each other
         bytes32 realSalt = keccak256(abi.encode(remoteToken, name, symbol, decimals));
+        // Foundry invariant erroneously show other unrelated invariant breaking
+        // when this deployment fails due to a create2 collision, so we revert eagerly instead
+        require(MESSENGER.superTokenAddresses(chainId, realSalt) == address(0), "skip duplicate deployment");
+
         // what we use in the tests to walk around two contracts needing two different addresses
         // tbf we could be using CREATE1, but this feels more verbose
         bytes32 hackySalt = keccak256(abi.encode(remoteToken, name, symbol, decimals, chainId));

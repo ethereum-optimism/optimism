@@ -4,9 +4,10 @@ pragma solidity ^0.8.25;
 import { ProtocolHandler } from "../handlers/Protocol.t.sol";
 import { EnumerableMap } from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import { OptimismSuperchainERC20 } from "src/L2/OptimismSuperchainERC20.sol";
+import { CompatibleAssert } from '../helpers/CompatibleAssert.t.sol';
 
 // TODO: add fuzz_sendERC20 when we implement non-atomic bridging
-contract ProtocolUnguided is ProtocolHandler {
+contract ProtocolUnguided is ProtocolHandler , CompatibleAssert{
     using EnumerableMap for EnumerableMap.Bytes32ToUintMap;
 
     /// @custom:property-id 7
@@ -28,8 +29,8 @@ contract ProtocolUnguided is ProtocolHandler {
         vm.prank(sender);
         try OptimismSuperchainERC20(token).relayERC20(sender, recipient, amount) {
             MESSENGER.setCrossDomainMessageSender(address(0));
-            assert(sender == address(MESSENGER));
-            assert(crossDomainMessageSender == token);
+            compatibleAssert(sender == address(MESSENGER));
+            compatibleAssert(crossDomainMessageSender == token);
             // this increases the supply across chains without a call to
             // `mint` by the MESSENGER, so it kind of breaks an invariant, but
             // let's walk around that:
@@ -37,7 +38,7 @@ contract ProtocolUnguided is ProtocolHandler {
             (, uint256 currentValue) = ghost_totalSupplyAcrossChains.tryGet(salt);
             ghost_totalSupplyAcrossChains.set(salt, currentValue + amount);
         } catch {
-            assert(sender != address(MESSENGER) || crossDomainMessageSender != token);
+            compatibleAssert(sender != address(MESSENGER) || crossDomainMessageSender != token);
             MESSENGER.setCrossDomainMessageSender(address(0));
         }
     }
@@ -71,13 +72,13 @@ contract ProtocolUnguided is ProtocolHandler {
             ghost_tokensInTransit.set(deploySalt, currentlyInTransit + amount);
             // 26
             uint256 sourceBalanceAfter = sourceToken.balanceOf(sender);
-            assert(sourceBalanceBefore - amount == sourceBalanceAfter);
+            compatibleAssert(sourceBalanceBefore - amount == sourceBalanceAfter);
             // 10
             uint256 sourceSupplyAfter = sourceToken.totalSupply();
-            assert(sourceSupplyBefore - amount == sourceSupplyAfter);
+            compatibleAssert(sourceSupplyBefore - amount == sourceSupplyAfter);
         } catch {
             // 6
-            assert(address(destinationToken) == address(sourceToken) || sourceBalanceBefore < amount);
+            compatibleAssert(address(destinationToken) == address(sourceToken) || sourceBalanceBefore < amount);
         }
     }
 
@@ -90,11 +91,11 @@ contract ProtocolUnguided is ProtocolHandler {
         amount = bound(amount, 0, type(uint256).max - OptimismSuperchainERC20(token).totalSupply());
         vm.prank(sender);
         try OptimismSuperchainERC20(token).mint(to, amount) {
-            assert(sender == BRIDGE);
+            compatibleAssert(sender == BRIDGE);
             (, uint256 currentValue) = ghost_totalSupplyAcrossChains.tryGet(salt);
             ghost_totalSupplyAcrossChains.set(salt, currentValue + amount);
         } catch {
-            assert(sender != BRIDGE || to == address(0));
+            compatibleAssert(sender != BRIDGE || to == address(0));
         }
     }
 
@@ -107,11 +108,11 @@ contract ProtocolUnguided is ProtocolHandler {
         uint256 senderBalance = OptimismSuperchainERC20(token).balanceOf(sender);
         vm.prank(sender);
         try OptimismSuperchainERC20(token).burn(from, amount) {
-            assert(sender == BRIDGE);
+            compatibleAssert(sender == BRIDGE);
             (, uint256 currentValue) = ghost_totalSupplyAcrossChains.tryGet(salt);
             ghost_totalSupplyAcrossChains.set(salt, currentValue - amount);
         } catch {
-            assert(sender != BRIDGE || senderBalance < amount);
+            compatibleAssert(sender != BRIDGE || senderBalance < amount);
         }
     }
 
@@ -132,7 +133,7 @@ contract ProtocolUnguided is ProtocolHandler {
         try OptimismSuperchainERC20(allSuperTokens[bound(tokenIndex, 0, allSuperTokens.length)]).initialize(
             remoteToken, name, symbol, decimals
         ) {
-            assert(false);
+            compatibleAssert(false);
         } catch { }
     }
 }

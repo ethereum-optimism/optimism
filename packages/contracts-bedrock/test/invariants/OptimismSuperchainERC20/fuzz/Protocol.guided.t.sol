@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.25;
 
-import { MockL2ToL2CrossDomainMessenger } from "../../helpers/MockL2ToL2CrossDomainMessenger.t.sol";
+import { MockL2ToL2CrossDomainMessenger } from "../helpers/MockL2ToL2CrossDomainMessenger.t.sol";
 import { OptimismSuperchainERC20 } from "src/L2/OptimismSuperchainERC20.sol";
 import { ProtocolHandler } from "../handlers/Protocol.t.sol";
 import { EnumerableMap } from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
+import { CompatibleAssert } from '../helpers/CompatibleAssert.t.sol';
 
-contract ProtocolGuided is ProtocolHandler {
+contract ProtocolGuided is ProtocolHandler, CompatibleAssert {
     using EnumerableMap for EnumerableMap.Bytes32ToUintMap;
     /// @notice deploy a new supertoken with deploy salt determined by params, to the given (of course mocked) chainId
     /// @custom:property-id 14
@@ -27,7 +28,7 @@ contract ProtocolGuided is ProtocolHandler {
             chainId
         );
         // 14
-        assert(supertoken.totalSupply() == 0);
+        compatibleAssert(supertoken.totalSupply() == 0);
     }
 
     /// @custom:property-id 6
@@ -65,19 +66,19 @@ contract ProtocolGuided is ProtocolHandler {
             uint256 sourceBalanceAfter = sourceToken.balanceOf(currentActor());
             uint256 destinationBalanceAfter = destinationToken.balanceOf(recipient);
             // no free mint
-            assert(sourceBalanceBefore + destinationBalanceBefore == sourceBalanceAfter + destinationBalanceAfter);
+            compatibleAssert(sourceBalanceBefore + destinationBalanceBefore == sourceBalanceAfter + destinationBalanceAfter);
             // 22
-            assert(sourceBalanceBefore - amount == sourceBalanceAfter);
-            assert(destinationBalanceBefore + amount == destinationBalanceAfter);
+            compatibleAssert(sourceBalanceBefore - amount == sourceBalanceAfter);
+            compatibleAssert(destinationBalanceBefore + amount == destinationBalanceAfter);
             uint256 sourceSupplyAfter = sourceToken.totalSupply();
             uint256 destinationSupplyAfter = destinationToken.totalSupply();
             // 23
-            assert(sourceSupplyBefore - amount == sourceSupplyAfter);
-            assert(destinationSupplyBefore + amount == destinationSupplyAfter);
+            compatibleAssert(sourceSupplyBefore - amount == sourceSupplyAfter);
+            compatibleAssert(destinationSupplyBefore + amount == destinationSupplyAfter);
         } catch {
             MESSENGER.setAtomic(false);
             // 6
-            assert(address(destinationToken) == address(sourceToken) || sourceBalanceBefore < amount);
+            compatibleAssert(address(destinationToken) == address(sourceToken) || sourceBalanceBefore < amount);
         }
     }
 
@@ -112,13 +113,13 @@ contract ProtocolGuided is ProtocolHandler {
             ghost_tokensInTransit.set(deploySalt, currentlyInTransit + amount);
             // 26
             uint256 sourceBalanceAfter = sourceToken.balanceOf(currentActor());
-            assert(sourceBalanceBefore - amount == sourceBalanceAfter);
+            compatibleAssert(sourceBalanceBefore - amount == sourceBalanceAfter);
             // 10
             uint256 sourceSupplyAfter = sourceToken.totalSupply();
-            assert(sourceSupplyBefore - amount == sourceSupplyAfter);
+            compatibleAssert(sourceSupplyBefore - amount == sourceSupplyAfter);
         } catch {
             // 6
-            assert(address(destinationToken) == address(sourceToken) || sourceBalanceBefore < amount);
+            compatibleAssert(address(destinationToken) == address(sourceToken) || sourceBalanceBefore < amount);
         }
     }
 
@@ -138,17 +139,17 @@ contract ProtocolGuided is ProtocolHandler {
             bytes32 deploySalt = MESSENGER.superTokenInitDeploySalts(address(destinationToken));
             (bool success, uint256 currentlyInTransit) = ghost_tokensInTransit.tryGet(deploySalt);
             // if sendERC20 didnt intialize this, then test suite is broken
-            assert(success);
+            compatibleAssert(success);
             ghost_tokensInTransit.set(deploySalt, currentlyInTransit - messageToRelay.amount);
             // 11
-            assert(destinationSupplyBefore + messageToRelay.amount == destinationToken.totalSupply());
+            compatibleAssert(destinationSupplyBefore + messageToRelay.amount == destinationToken.totalSupply());
             // 27
-            assert(
+            compatibleAssert(
                 destinationBalanceBefore + messageToRelay.amount == destinationToken.balanceOf(messageToRelay.recipient)
             );
         } catch {
             // 7
-            assert(false);
+            compatibleAssert(false);
         }
     }
 
@@ -194,13 +195,13 @@ contract ProtocolGuided is ProtocolHandler {
             // should not revert because of 7, and if it *does* revert, I want the test suite
             // to discard the sequence instead of potentially getting another
             // error due to the crossDomainMessageSender being manually set
-            assert(false);
+            compatibleAssert(false);
         }
         uint256 balanceSenderAfter = token.balanceOf(currentActor());
         uint256 balanceRecipeintAfter = token.balanceOf(recipient);
         uint256 supplyAfter = token.totalSupply();
-        assert(balanceSenderBefore == balanceSenderAfter);
-        assert(balanceRecipientBefore == balanceRecipeintAfter);
-        assert(supplyBefore == supplyAfter);
+        compatibleAssert(balanceSenderBefore == balanceSenderAfter);
+        compatibleAssert(balanceRecipientBefore == balanceRecipeintAfter);
+        compatibleAssert(supplyBefore == supplyAfter);
     }
 }

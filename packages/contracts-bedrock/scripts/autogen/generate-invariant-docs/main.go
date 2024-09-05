@@ -77,6 +77,12 @@ func docGen(invariantsDir, docsDir string) error {
 		// Read the contents of the invariant test file.
 		fileName := file.Name()
 		filePath := filepath.Join(invariantsDir, fileName)
+		// where invariants for a module have their own directory, interpret
+		// the test file with the same name as the directory as a 'main' of
+		// sorts, from where documentation is pulled
+		if file.IsDir() {
+			filePath = filepath.Join(filePath, strings.Join([]string{fileName, ".t.sol"}, ""))
+		}
 		fileContents, err := os.ReadFile(filePath)
 		if err != nil {
 			return fmt.Errorf("error reading file %q: %w", filePath, err)

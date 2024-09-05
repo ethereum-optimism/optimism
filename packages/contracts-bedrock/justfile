@@ -26,9 +26,6 @@ test-kontrol: build-go-ffi build kontrol-summary-full test-kontrol-no-build
 test-kontrol-no-build:
   ./test/kontrol/scripts/run-kontrol.sh script
 
-test-medusa timeout='100':
-  FOUNDRY_PROFILE=medusa medusa fuzz --timeout {{timeout}}
-
 test-rerun: build-go-ffi
   forge test --rerun -vvv
 
