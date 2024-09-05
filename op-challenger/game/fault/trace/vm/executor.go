@@ -28,11 +28,12 @@ type Metricer interface {
 
 type Config struct {
 	// VM Configuration
-	VmType       types.TraceType
-	VmBin        string // Path to the vm executable to run when generating trace data
-	SnapshotFreq uint   // Frequency of snapshots to create when executing (in VM instructions)
-	InfoFreq     uint   // Frequency of progress log messages (in VM instructions)
-	DebugInfo    bool
+	VmType          types.TraceType
+	VmBin           string // Path to the vm executable to run when generating trace data
+	SnapshotFreq    uint   // Frequency of snapshots to create when executing (in VM instructions)
+	InfoFreq        uint   // Frequency of progress log messages (in VM instructions)
+	DebugInfo       bool   // Whether to record debug info from the execution
+	BinarySnapshots bool   // Whether to use binary snapshots instead of JSON
 
 	// Host Configuration
 	L1               string
@@ -82,13 +83,13 @@ func (e *Executor) GenerateProof(ctx context.Context, dir string, i uint64) erro
 // The proof is stored at the specified directory.
 func (e *Executor) DoGenerateProof(ctx context.Context, dir string, begin uint64, end uint64, extraVmArgs ...string) error {
 	snapshotDir := filepath.Join(dir, SnapsDir)
-	start, err := e.selectSnapshot(e.logger, snapshotDir, e.absolutePreState, begin)
+	start, err := e.selectSnapshot(e.logger, snapshotDir, e.absolutePreState, begin, e.cfg.BinarySnapshots)
 	if err != nil {
 		return fmt.Errorf("find starting snapshot: %w", err)
 	}
 	proofDir := filepath.Join(dir, utils.ProofsDir)
 	dataDir := PreimageDir(dir)
-	lastGeneratedState := filepath.Join(dir, FinalState)
+	lastGeneratedState := FinalStatePath(dir, e.cfg.BinarySnapshots)
 	args := []string{
 		"run",
 		"--input", start,
@@ -98,7 +99,11 @@ func (e *Executor) DoGenerateProof(ctx context.Context, dir string, begin uint64
 		"--proof-at", "=" + strconv.FormatUint(end, 10),
 		"--proof-fmt", filepath.Join(proofDir, "%d.json.gz"),
 		"--snapshot-at", "%" + strconv.FormatUint(uint64(e.cfg.SnapshotFreq), 10),
-		"--snapshot-fmt", filepath.Join(snapshotDir, "%d.json.gz"),
+	}
+	if e.cfg.BinarySnapshots {
+		args = append(args, "--snapshot-fmt", filepath.Join(snapshotDir, "%d.bin.gz"))
+	} else {
+		args = append(args, "--snapshot-fmt", filepath.Join(snapshotDir, "%d.json.gz"))
 	}
 	if end < math.MaxUint64 {
 		args = append(args, "--stop-at", "="+strconv.FormatUint(end+1, 10))
