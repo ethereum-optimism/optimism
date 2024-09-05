@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/cannon/serialize"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
@@ -46,6 +47,32 @@ func TestLoadState(t *testing.T) {
 
 		var expected singlethreaded.State
 		require.NoError(t, json.Unmarshal(testState, &expected))
+		require.Equal(t, &expected, state)
+	})
+
+	t.Run("Binary", func(t *testing.T) {
+		var expected singlethreaded.State
+		require.NoError(t, json.Unmarshal(testState, &expected))
+
+		dir := t.TempDir()
+		path := filepath.Join(dir, "state.bin")
+		require.NoError(t, serialize.Write[*singlethreaded.State](path, &expected, 0644))
+
+		state, err := parseState(path)
+		require.NoError(t, err)
+		require.Equal(t, &expected, state)
+	})
+
+	t.Run("BinaryGzip", func(t *testing.T) {
+		var expected singlethreaded.State
+		require.NoError(t, json.Unmarshal(testState, &expected))
+
+		dir := t.TempDir()
+		path := filepath.Join(dir, "state.bin.gz")
+		require.NoError(t, serialize.Write[*singlethreaded.State](path, &expected, 0644))
+
+		state, err := parseState(path)
+		require.NoError(t, err)
 		require.Equal(t, &expected, state)
 	})
 }
