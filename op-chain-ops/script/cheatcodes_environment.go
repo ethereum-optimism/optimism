@@ -1,12 +1,14 @@
 package script
 
 import (
+	"bytes"
 	"math/big"
 
 	"github.com/holiman/uint256"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/tracing"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 )
 
@@ -64,7 +66,7 @@ func (c *CheatCodesPrecompile) Load(account common.Address, slot [32]byte) [32]b
 
 // Etch implements https://book.getfoundry.sh/cheatcodes/etch
 func (c *CheatCodesPrecompile) Etch(who common.Address, code []byte) {
-	c.h.state.SetCode(who, code)
+	c.h.state.SetCode(who, bytes.Clone(code)) // important to clone; geth EVM will reuse the calldata memory.
 }
 
 // Deal implements https://book.getfoundry.sh/cheatcodes/deal
@@ -138,6 +140,17 @@ func (c *CheatCodesPrecompile) GetNonce(addr common.Address) uint64 {
 	return c.h.state.GetNonce(addr)
 }
 
+func (c *CheatCodesPrecompile) ResetNonce(addr common.Address) {
+	// Undocumented cheatcode of forge, but used a lot.
+	// Resets nonce to 0 if EOA, or 1 if contract.
+	// In scripts often set code to empty first when using it, it then becomes 0.
+	if c.h.state.GetCodeHash(addr) == types.EmptyCodeHash {
+		c.h.state.SetNonce(addr, 0)
+	} else {
+		c.h.state.SetNonce(addr, 1)
+	}
+}
+
 // MockCall_b96213e4 implements https://book.getfoundry.sh/cheatcodes/mock-call
 func (c *CheatCodesPrecompile) MockCall_b96213e4(where common.Address, data []byte, retdata []byte) error {
 	panic("mockCall not supported")
@@ -170,31 +183,26 @@ func (c *CheatCodesPrecompile) Coinbase(addr common.Address) {
 
 // Broadcast_afc98040 implements https://book.getfoundry.sh/cheatcodes/broadcast
 func (c *CheatCodesPrecompile) Broadcast_afc98040() error {
-	c.h.log.Info("broadcasting next call")
 	return c.h.Prank(nil, nil, false, true)
 }
 
 // Broadcast_e6962cdb implements https://book.getfoundry.sh/cheatcodes/broadcast
 func (c *CheatCodesPrecompile) Broadcast_e6962cdb(who common.Address) error {
-	c.h.log.Info("broadcasting next call", "who", who)
 	return c.h.Prank(&who, nil, false, true)
 }
 
 // StartBroadcast_7fb5297f implements https://book.getfoundry.sh/cheatcodes/start-broadcast
 func (c *CheatCodesPrecompile) StartBroadcast_7fb5297f() error {
-	c.h.log.Info("starting repeat-broadcast")
 	return c.h.Prank(nil, nil, true, true)
 }
 
 // StartBroadcast_7fec2a8d implements https://book.getfoundry.sh/cheatcodes/start-broadcast
 func (c *CheatCodesPrecompile) StartBroadcast_7fec2a8d(who common.Address) error {
-	c.h.log.Info("starting repeat-broadcast", "who", who)
-	return c.h.Prank(nil, nil, true, true)
+	return c.h.Prank(&who, nil, true, true)
 }
 
 // StopBroadcast implements https://book.getfoundry.sh/cheatcodes/stop-broadcast
 func (c *CheatCodesPrecompile) StopBroadcast() error {
-	c.h.log.Info("stopping repeat-broadcast")
 	return c.h.StopPrank(true)
 }
 

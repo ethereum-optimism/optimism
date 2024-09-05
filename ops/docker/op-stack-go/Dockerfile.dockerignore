@@ -10,7 +10,6 @@
 !/packages/contracts-bedrock/snapshots
 !/op-dispute-mon
 !/op-conductor
-!/op-heartbeat
 !/op-node
 !/op-preimage
 !/op-program

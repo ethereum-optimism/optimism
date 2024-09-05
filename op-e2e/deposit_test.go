@@ -21,10 +21,9 @@ func TestMintOnRevertedDeposit(t *testing.T) {
 	delete(cfg.Nodes, "verifier")
 	sys, err := cfg.Start(t)
 	require.NoError(t, err, "Error starting up system")
-	defer sys.Close()
 
-	l1Client := sys.Clients["l1"]
-	l2Verif := sys.Clients["sequencer"]
+	l1Client := sys.NodeClient("l1")
+	l2Verif := sys.NodeClient("sequencer")
 
 	// create signer
 	aliceKey := cfg.Secrets.Alice
@@ -82,10 +81,9 @@ func TestDepositTxCreateContract(t *testing.T) {
 
 	sys, err := cfg.Start(t)
 	require.NoError(t, err, "Error starting up system")
-	defer sys.Close()
 
-	l1Client := sys.Clients["l1"]
-	l2Client := sys.Clients["sequencer"]
+	l1Client := sys.NodeClient("l1")
+	l2Client := sys.NodeClient("sequencer")
 
 	opts, err := bind.NewKeyedTransactorWithChainID(cfg.Secrets.Alice, cfg.L1ChainIDBig())
 	require.NoError(t, err)

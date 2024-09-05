@@ -11,7 +11,7 @@ import { StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { LibString } from "@solady/utils/LibString.sol";
 import { ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
-import { IAddressManager } from "scripts/interfaces/IAddressManager.sol";
+import { IAddressManager } from "src/legacy/interfaces/IAddressManager.sol";
 import { Process } from "scripts/libraries/Process.sol";
 
 /// @notice Represents a deployment. Is serialized to JSON as a key/value
@@ -113,6 +113,8 @@ abstract contract Artifacts {
         } else if (digest == keccak256(bytes("L2ToL1MessagePasser"))) {
             return payable(Predeploys.L2_TO_L1_MESSAGE_PASSER);
         } else if (digest == keccak256(bytes("L2StandardBridge"))) {
+            return payable(Predeploys.L2_STANDARD_BRIDGE);
+        } else if (digest == keccak256(bytes("L2StandardBridgeInterop"))) {
             return payable(Predeploys.L2_STANDARD_BRIDGE);
         } else if (digest == keccak256(bytes("L2ERC721Bridge"))) {
             return payable(Predeploys.L2_ERC721_BRIDGE);

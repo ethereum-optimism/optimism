@@ -19,7 +19,7 @@ interface IL2ToL2CrossDomainMessenger {
     /// @param _destination Chain ID of the destination chain.
     /// @param _target      Target contract or wallet address.
     /// @param _message     Message to trigger the target address with.
-    function sendMessage(uint256 _destination, address _target, bytes calldata _message) external payable;
+    function sendMessage(uint256 _destination, address _target, bytes calldata _message) external;
 
     /// @notice Relays a message that was sent by the other CrossDomainMessenger contract. Can only
     ///         be executed via cross-chain call from the other messenger OR if the message was

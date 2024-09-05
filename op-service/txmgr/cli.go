@@ -79,7 +79,7 @@ var (
 		MinBaseFeeGwei:            1.0,
 		ResubmissionTimeout:       48 * time.Second,
 		NetworkTimeout:            10 * time.Second,
-		TxSendTimeout:             0 * time.Second,
+		TxSendTimeout:             10 * time.Minute,
 		TxNotInMempoolTimeout:     2 * time.Minute,
 		ReceiptQueryInterval:      12 * time.Second,
 	}

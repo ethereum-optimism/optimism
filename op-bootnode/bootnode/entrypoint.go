@@ -17,10 +17,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	p2pcli "github.com/ethereum-optimism/optimism/op-node/p2p/cli"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	"github.com/ethereum-optimism/optimism/op-service/opio"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 )
 
@@ -116,9 +116,7 @@ func Main(cliCtx *cli.Context) error {
 		m.RecordUp()
 	}
 
-	opio.BlockOnInterrupts()
-
-	return nil
+	return ctxinterrupt.Wait(ctx)
 }
 
 // validateConfig ensures the minimal config required to run a bootnode

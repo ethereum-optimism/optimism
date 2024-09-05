@@ -7,7 +7,7 @@ import (
 
 	"github.com/urfave/cli/v2"
 
-	"github.com/ethereum-optimism/optimism/op-service/opio"
+	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 )
 
 type Lifecycle interface {
@@ -29,36 +29,26 @@ type Lifecycle interface {
 // a shutdown when the Stop context is not expired.
 type LifecycleAction func(ctx *cli.Context, close context.CancelCauseFunc) (Lifecycle, error)
 
-var interruptErr = errors.New("interrupt signal")
-
 // LifecycleCmd turns a LifecycleAction into an CLI action,
-// by instrumenting it with CLI context and signal based termination.
-// The signals are caught with the opio.BlockFn attached to the context, if any.
-// If no block function is provided, it adds default interrupt handling.
+// by instrumenting it with CLI context and signal based cancellation.
+// The signals are caught with the ctxinterrupt.waiter attached to the context, or default
+// interrupt signal handling if not already provided.
 // The app may continue to run post-processing until fully shutting down.
 // The user can force an early shut-down during post-processing by sending a second interruption signal.
 func LifecycleCmd(fn LifecycleAction) cli.ActionFunc {
 	return func(ctx *cli.Context) error {
-		hostCtx := ctx.Context
-		blockOnInterrupt := opio.BlockerFromContext(hostCtx)
-		if blockOnInterrupt == nil { // add default interrupt blocker to context if none is set.
-			hostCtx = opio.WithInterruptBlocker(hostCtx)
-			blockOnInterrupt = opio.BlockerFromContext(hostCtx)
-		}
-		appCtx, appCancel := context.WithCancelCause(hostCtx)
+		hostCtx, stop := ctxinterrupt.WithSignalWaiter(ctx.Context)
+		defer stop()
+		appCtx, appCancel := context.WithCancelCause(ctxinterrupt.WithCancelOnInterrupt(hostCtx))
+		// This is updated so the fn callback cli.Context uses the appCtx we just made.
 		ctx.Context = appCtx
-
-		go func() {
-			blockOnInterrupt(appCtx)
-			appCancel(interruptErr)
-		}()
 
 		appLifecycle, err := fn(ctx, appCancel)
 		if err != nil {
 			// join errors to include context cause (nil errors are dropped)
 			return errors.Join(
 				fmt.Errorf("failed to setup: %w", err),
-				context.Cause(appCtx),
+				context.Cause(ctx.Context),
 			)
 		}
 
@@ -75,15 +65,10 @@ func LifecycleCmd(fn LifecycleAction) cli.ActionFunc {
 
 		// Graceful stop context.
 		// This allows the service to idle before shutdown, if halted. User may interrupt.
-		stopCtx, stopCancel := context.WithCancelCause(hostCtx)
-		go func() {
-			blockOnInterrupt(stopCtx)
-			stopCancel(interruptErr)
-		}()
+		stopCtx := ctxinterrupt.WithCancelOnInterrupt(hostCtx)
 
 		// Execute graceful stop.
 		stopErr := appLifecycle.Stop(stopCtx)
-		stopCancel(nil)
 		// note: Stop implementation may choose to suppress a context error,
 		// if it handles it well (e.g. stop idling after a halt).
 		if stopErr != nil {

@@ -189,7 +189,13 @@ func newPayloadAttributes(evp sources.EngineVersionProvider, timestamp uint64, p
 	return pa
 }
 
-func Auto(ctx context.Context, metrics Metricer, client *sources.EngineAPIClient, log log.Logger, shutdown <-chan struct{}, settings *BlockBuildingSettings) error {
+func Auto(
+	ctx context.Context,
+	metrics Metricer,
+	client *sources.EngineAPIClient,
+	log log.Logger,
+	settings *BlockBuildingSettings,
+) error {
 	ticker := time.NewTicker(time.Millisecond * 100)
 	defer ticker.Stop()
 
@@ -197,9 +203,6 @@ func Auto(ctx context.Context, metrics Metricer, client *sources.EngineAPIClient
 	var buildErr error
 	for {
 		select {
-		case <-shutdown:
-			log.Info("shutting down")
-			return nil
 		case <-ctx.Done():
 			log.Info("context closed", "err", ctx.Err())
 			return ctx.Err()

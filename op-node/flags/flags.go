@@ -157,13 +157,6 @@ var (
 		}(),
 		Category: L1RPCCategory,
 	}
-	L1RethDBPath = &cli.StringFlag{
-		Name:     "l1.rethdb",
-		Usage:    "The L1 RethDB path, used to fetch receipts for L1 blocks.",
-		EnvVars:  prefixEnvVars("L1_RETHDB"),
-		Hidden:   true,
-		Category: L1RPCCategory,
-	}
 	L1RPCMaxConcurrency = &cli.IntFlag{
 		Name:     "l1.max-concurrency",
 		Usage:    "Maximum number of concurrent RPC requests to make to the L1 RPC provider.",
@@ -279,22 +272,24 @@ var (
 	}
 	HeartbeatEnabledFlag = &cli.BoolFlag{
 		Name:     "heartbeat.enabled",
-		Usage:    "Enables or disables heartbeating",
+		Usage:    "Deprecated, no-op flag.",
 		EnvVars:  prefixEnvVars("HEARTBEAT_ENABLED"),
 		Category: OperationsCategory,
+		Hidden:   true,
 	}
 	HeartbeatMonikerFlag = &cli.StringFlag{
 		Name:     "heartbeat.moniker",
-		Usage:    "Sets a moniker for this node",
+		Usage:    "Deprecated, no-op flag.",
 		EnvVars:  prefixEnvVars("HEARTBEAT_MONIKER"),
 		Category: OperationsCategory,
+		Hidden:   true,
 	}
 	HeartbeatURLFlag = &cli.StringFlag{
 		Name:     "heartbeat.url",
-		Usage:    "Sets the URL to heartbeat to",
+		Usage:    "Deprecated, no-op flag.",
 		EnvVars:  prefixEnvVars("HEARTBEAT_URL"),
-		Value:    "https://heartbeat.optimism.io",
 		Category: OperationsCategory,
+		Hidden:   true,
 	}
 	RollupHalt = &cli.StringFlag{
 		Name:     "rollup.halt",
@@ -411,7 +406,6 @@ var optionalFlags = []cli.Flag{
 	HeartbeatURLFlag,
 	RollupHalt,
 	RollupLoadProtocolVersions,
-	L1RethDBPath,
 	ConductorEnabledFlag,
 	ConductorRpcFlag,
 	ConductorRpcTimeoutFlag,

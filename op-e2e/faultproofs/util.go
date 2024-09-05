@@ -61,11 +61,11 @@ func StartFaultDisputeSystem(t *testing.T, opts ...faultDisputeConfigOpts) (*op_
 	}
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
-	return sys, sys.Clients["l1"]
+	return sys, sys.NodeClient("l1")
 }
 
 func SendKZGPointEvaluationTx(t *testing.T, sys *op_e2e.System, l2Node string, privateKey *ecdsa.PrivateKey) *types.Receipt {
-	return op_e2e.SendL2Tx(t, sys.Cfg, sys.Clients[l2Node], privateKey, func(opts *op_e2e.TxOpts) {
+	return op_e2e.SendL2Tx(t, sys.Cfg, sys.NodeClient(l2Node), privateKey, func(opts *op_e2e.TxOpts) {
 		precompile := common.BytesToAddress([]byte{0x0a})
 		opts.Gas = 100_000
 		opts.ToAddr = &precompile

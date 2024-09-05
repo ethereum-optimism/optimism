@@ -169,7 +169,7 @@ func mockPreimageOracleData() *types.PreimageOracleData {
 	for i := 0; i < keccakTypes.BlockSize; i++ {
 		fullLeaf[i] = byte(i)
 	}
-	oracleData := make([]byte, 5*MaxBlocksPerChunk)
+	oracleData := make([]byte, 0, 5*MaxBlocksPerChunk)
 	for i := 0; i < 5*MaxBlocksPerChunk; i++ {
 		oracleData = append(oracleData, fullLeaf...)
 	}

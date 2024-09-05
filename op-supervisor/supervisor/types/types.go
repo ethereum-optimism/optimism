@@ -13,6 +13,11 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
+type Message struct {
+	Identifier  Identifier  `json:"identifier"`
+	PayloadHash common.Hash `json:"payloadHash"`
+}
+
 type Identifier struct {
 	Origin      common.Address
 	BlockNumber uint64
@@ -83,11 +88,30 @@ func (lvl *SafetyLevel) UnmarshalText(text []byte) error {
 	return nil
 }
 
+// AtLeastAsSafe returns true if the receiver is at least as safe as the other SafetyLevel.
+func (lvl *SafetyLevel) AtLeastAsSafe(min SafetyLevel) bool {
+	switch min {
+	case Invalid:
+		return true
+	case Unsafe:
+		return *lvl != Invalid
+	case Safe:
+		return *lvl == Safe || *lvl == Finalized
+	case Finalized:
+		return *lvl == Finalized
+	default:
+		return false
+	}
+}
+
 const (
-	Finalized   SafetyLevel = "finalized"
-	Safe        SafetyLevel = "safe"
-	CrossUnsafe SafetyLevel = "cross-unsafe"
-	Unsafe      SafetyLevel = "unsafe"
+	CrossFinalized SafetyLevel = "cross-finalized"
+	Finalized      SafetyLevel = "finalized"
+	CrossSafe      SafetyLevel = "cross-safe"
+	Safe           SafetyLevel = "safe"
+	CrossUnsafe    SafetyLevel = "cross-unsafe"
+	Unsafe         SafetyLevel = "unsafe"
+	Invalid        SafetyLevel = "invalid"
 )
 
 type ChainID uint256.Int

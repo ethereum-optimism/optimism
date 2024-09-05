@@ -43,6 +43,10 @@ func (m *MockBackend) CheckMessage(identifier types.Identifier, payloadHash comm
 	return types.CrossUnsafe, nil
 }
 
+func (m *MockBackend) CheckMessages(messages []types.Message, minSafety types.SafetyLevel) error {
+	return nil
+}
+
 func (m *MockBackend) CheckBlock(chainID *hexutil.U256, blockHash common.Hash, blockNumber hexutil.Uint64) (types.SafetyLevel, error) {
 	return types.CrossUnsafe, nil
 }

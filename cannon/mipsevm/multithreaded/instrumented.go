@@ -23,6 +23,7 @@ type InstrumentedState struct {
 	stackTracker  ThreadedStackTracker
 
 	preimageOracle *exec.TrackingPreimageOracleReader
+	meta           *program.Metadata
 }
 
 var _ mipsevm.FPVM = (*InstrumentedState)(nil)
@@ -53,6 +54,7 @@ func (m *InstrumentedState) InitDebug(meta *program.Metadata) error {
 		return err
 	}
 	m.stackTracker = stackTracker
+	m.meta = meta
 	return nil
 }
 
@@ -115,4 +117,11 @@ func (m *InstrumentedState) GetDebugInfo() *mipsevm.DebugInfo {
 
 func (m *InstrumentedState) Traceback() {
 	m.stackTracker.Traceback()
+}
+
+func (m *InstrumentedState) LookupSymbol(addr uint32) string {
+	if m.meta == nil {
+		return ""
+	}
+	return m.meta.LookupSymbol(addr)
 }

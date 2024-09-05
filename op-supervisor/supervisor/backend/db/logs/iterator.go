@@ -9,6 +9,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
 )
 
+type Iterator interface {
+	NextLog() (blockNum uint64, logIdx uint32, evtHash types.TruncatedHash, outErr error)
+	Index() entrydb.EntryIdx
+	ExecMessage() (types.ExecutingMessage, error)
+}
+
 type iterator struct {
 	db           *DB
 	nextEntryIdx entrydb.EntryIdx
@@ -19,6 +25,8 @@ type iterator struct {
 	entriesRead int64
 }
 
+// NextLog returns the next log in the iterator.
+// It scans forward until it finds an initiating event, returning the block number, log index, and event hash.
 func (i *iterator) NextLog() (blockNum uint64, logIdx uint32, evtHash types.TruncatedHash, outErr error) {
 	for i.nextEntryIdx <= i.db.lastEntryIdx() {
 		entryIdx := i.nextEntryIdx
@@ -61,6 +69,10 @@ func (i *iterator) NextLog() (blockNum uint64, logIdx uint32, evtHash types.Trun
 	}
 	outErr = io.EOF
 	return
+}
+
+func (i *iterator) Index() entrydb.EntryIdx {
+	return i.nextEntryIdx - 1
 }
 
 func (i *iterator) ExecMessage() (types.ExecutingMessage, error) {

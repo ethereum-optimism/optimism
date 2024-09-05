@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/heads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/source"
+	backendTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/frontend"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -101,11 +102,14 @@ func (su *SupervisorBackend) Start(ctx context.Context) error {
 	if !su.started.CompareAndSwap(false, true) {
 		return errors.New("already started")
 	}
+	// start chain monitors
 	for _, monitor := range su.chainMonitors {
 		if err := monitor.Start(); err != nil {
 			return fmt.Errorf("failed to start chain monitor: %w", err)
 		}
 	}
+	// start db maintenance loop
+	su.db.StartCrossHeadMaintenance(ctx)
 	return nil
 }
 
@@ -131,11 +135,69 @@ func (su *SupervisorBackend) Close() error {
 }
 
 func (su *SupervisorBackend) CheckMessage(identifier types.Identifier, payloadHash common.Hash) (types.SafetyLevel, error) {
-	// TODO(protocol-quest#288): hook up to logdb lookup
-	return types.CrossUnsafe, nil
+	chainID := identifier.ChainID
+	blockNum := identifier.BlockNumber
+	logIdx := identifier.LogIndex
+	ok, i, err := su.db.Check(chainID, blockNum, uint32(logIdx), backendTypes.TruncateHash(payloadHash))
+	if err != nil {
+		return types.Invalid, fmt.Errorf("failed to check log: %w", err)
+	}
+	if !ok {
+		return types.Invalid, nil
+	}
+	safest := types.CrossUnsafe
+	// at this point we have the log entry, and we can check if it is safe by various criteria
+	for _, checker := range []db.SafetyChecker{
+		db.NewSafetyChecker(types.Unsafe, su.db),
+		db.NewSafetyChecker(types.Safe, su.db),
+		db.NewSafetyChecker(types.Finalized, su.db),
+	} {
+		if i <= checker.CrossHeadForChain(chainID) {
+			safest = checker.SafetyLevel()
+		}
+	}
+	return safest, nil
 }
 
+func (su *SupervisorBackend) CheckMessages(
+	messages []types.Message,
+	minSafety types.SafetyLevel) error {
+	for _, msg := range messages {
+		safety, err := su.CheckMessage(msg.Identifier, msg.PayloadHash)
+		if err != nil {
+			return fmt.Errorf("failed to check message: %w", err)
+		}
+		if !safety.AtLeastAsSafe(minSafety) {
+			return fmt.Errorf("message %v (safety level: %v) does not meet the minimum safety %v",
+				msg.Identifier,
+				safety,
+				minSafety)
+		}
+	}
+	return nil
+}
+
+// CheckBlock checks if the block is safe according to the safety level
+// The block is considered safe if all logs in the block are safe
+// this is decided by finding the last log in the block and
 func (su *SupervisorBackend) CheckBlock(chainID *hexutil.U256, blockHash common.Hash, blockNumber hexutil.Uint64) (types.SafetyLevel, error) {
-	// TODO(protocol-quest#288): hook up to logdb lookup
-	return types.CrossUnsafe, nil
+	// TODO(#11612): this function ignores blockHash and assumes that the block in the db is the one we are looking for
+	// In order to check block hash, the database must *always* insert a block hash checkpoint, which is not currently done
+	safest := types.CrossUnsafe
+	// find the last log index in the block
+	i, err := su.db.LastLogInBlock(types.ChainID(*chainID), uint64(blockNumber))
+	if err != nil {
+		return types.Invalid, fmt.Errorf("failed to scan block: %w", err)
+	}
+	// at this point we have the extent of the block, and we can check if it is safe by various criteria
+	for _, checker := range []db.SafetyChecker{
+		db.NewSafetyChecker(types.Unsafe, su.db),
+		db.NewSafetyChecker(types.Safe, su.db),
+		db.NewSafetyChecker(types.Finalized, su.db),
+	} {
+		if i <= checker.CrossHeadForChain(types.ChainID(*chainID)) {
+			safest = checker.SafetyLevel()
+		}
+	}
+	return safest, nil
 }

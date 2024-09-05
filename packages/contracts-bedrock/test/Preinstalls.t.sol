@@ -5,10 +5,7 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 import { Preinstalls } from "src/libraries/Preinstalls.sol";
 import { Bytes } from "src/libraries/Bytes.sol";
 import { console2 as console } from "forge-std/console2.sol";
-
-interface IEIP712 {
-    function DOMAIN_SEPARATOR() external view returns (bytes32);
-}
+import { IEIP712 } from "src/universal/interfaces/IEIP712.sol";
 
 /// @title PreinstallsTest
 contract PreinstallsTest is CommonTest {
@@ -117,5 +114,9 @@ contract PreinstallsTest is CommonTest {
     function test_preinstall_beaconBlockRoots_succeeds() external view {
         assertPreinstall(Preinstalls.BeaconBlockRoots, Preinstalls.BeaconBlockRootsCode);
         assertEq(vm.getNonce(Preinstalls.BeaconBlockRootsSender), 1, "4788 sender must have nonce=1");
+    }
+
+    function test_preinstall_createX_succeeds() external view {
+        assertPreinstall(Preinstalls.CreateX, Preinstalls.CreateXCode);
     }
 }
