@@ -183,6 +183,9 @@ func NewDriver(
 
 	opts := event.DefaultRegisterOpts()
 
+	// If interop is scheduled we start the driver.
+	// It will then be ready to pick up verification work
+	// as soon as we reach the upgrade time (if the upgrade is not already active).
 	if cfg.InteropTime != nil {
 		interopDeriver := interop.NewInteropDeriver(log, cfg, driverCtx, supervisor, l2)
 		sys.Register("interop", interopDeriver, opts)

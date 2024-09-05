@@ -143,7 +143,7 @@ func (cfg *Config) Check() error {
 			return fmt.Errorf("the Interop upgrade is scheduled (timestamp = %d) but no supervisor RPC endpoint is configured", *cfg.Rollup.InteropTime)
 		}
 		if err := cfg.Supervisor.Check(); err != nil {
-			return fmt.Errorf("misconfigured supervsiro RPC endpoint: %w", err)
+			return fmt.Errorf("misconfigured supervisor RPC endpoint: %w", err)
 		}
 	}
 	if err := cfg.Rollup.Check(); err != nil {

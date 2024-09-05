@@ -74,8 +74,9 @@ var (
 		Category: RollupCategory,
 	}
 	SupervisorAddr = &cli.StringFlag{
-		Name:    "supervisor",
-		Usage:   "Experimental feature. Do not use. Address of interop supervisor service for cross-chain safety verification.",
+		Name: "supervisor",
+		Usage: "RPC address of interop supervisor service for cross-chain safety verification." +
+			"Applies only to Interop-enabled networks.",
 		Hidden:  true, // hidden for now during early testing.
 		EnvVars: prefixEnvVars("SUPERVISOR"),
 	}

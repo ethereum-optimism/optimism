@@ -83,7 +83,8 @@ func (d *InteropDeriver) OnEvent(ev event.Event) bool {
 		if x.CrossUnsafe.Number >= x.LocalUnsafe.Number {
 			break // nothing left to promote
 		}
-		// pre-interop the engine itself handles promotion to cross-unsafe
+		// Pre-interop the engine itself handles promotion to cross-unsafe.
+		// Check if the next block (still unsafe) can be promoted to cross-unsafe.
 		if !d.cfg.IsInterop(d.cfg.TimestampForBlock(x.CrossUnsafe.Number + 1)) {
 			return false
 		}
@@ -112,7 +113,8 @@ func (d *InteropDeriver) OnEvent(ev event.Event) bool {
 		if x.CrossSafe.Number >= x.LocalSafe.Number {
 			break // nothing left to promote
 		}
-		// pre-interop the engine itself handles promotion to cross-safe
+		// Pre-interop the engine itself handles promotion to cross-safe.
+		// Check if the next block (not yet cross-safe) can be promoted to cross-safe.
 		if !d.cfg.IsInterop(d.cfg.TimestampForBlock(x.CrossSafe.Number + 1)) {
 			return false
 		}
