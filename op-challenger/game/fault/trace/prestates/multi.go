@@ -15,6 +15,9 @@ import (
 
 var (
 	ErrPrestateUnavailable = errors.New("prestate unavailable")
+
+	// supportedFileTypes lists, in preferred order, the prestate file types to attempt to download
+	supportedFileTypes = []string{".bin.gz", ".json.gz", ".json"}
 )
 
 type MultiPrestateProvider struct {
@@ -30,22 +33,37 @@ func NewMultiPrestateProvider(baseUrl *url.URL, dataDir string) *MultiPrestatePr
 }
 
 func (m *MultiPrestateProvider) PrestatePath(hash common.Hash) (string, error) {
-	path := filepath.Join(m.dataDir, hash.Hex()+".json.gz")
-	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
-		if err := m.fetchPrestate(hash, path); err != nil {
-			return "", fmt.Errorf("failed to fetch prestate: %w", err)
+	// First try to find a previously downloaded prestate
+	for _, fileType := range supportedFileTypes {
+		path := filepath.Join(m.dataDir, hash.Hex()+fileType)
+		if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+			continue // File doesn't exist, try the next file type
+		} else if err != nil {
+			return "", fmt.Errorf("error checking for existing prestate %v in file %v: %w", hash, path, err)
 		}
-	} else if err != nil {
-		return "", fmt.Errorf("error checking for existing prestate %v: %w", hash, err)
+		return path, nil // Found an existing file so use it
 	}
-	return path, nil
+
+	// Didn't find any available files, try to download one
+	var combinedErr error // Keep a track of each download attempt so we can report them if none work
+	for _, fileType := range supportedFileTypes {
+		path := filepath.Join(m.dataDir, hash.Hex()+fileType)
+		if err := m.fetchPrestate(hash, fileType, path); errors.Is(err, ErrPrestateUnavailable) {
+			combinedErr = errors.Join(combinedErr, err)
+			continue // Didn't find prestate in this format, try the next
+		} else if err != nil {
+			return "", fmt.Errorf("error downloading prestate %v to file %v: %w", hash, path, err)
+		}
+		return path, nil // Successfully downloaded a prestate so use it
+	}
+	return "", errors.Join(ErrPrestateUnavailable, combinedErr)
 }
 
-func (m *MultiPrestateProvider) fetchPrestate(hash common.Hash, dest string) error {
+func (m *MultiPrestateProvider) fetchPrestate(hash common.Hash, fileType string, dest string) error {
 	if err := os.MkdirAll(m.dataDir, 0755); err != nil {
 		return fmt.Errorf("error creating prestate dir: %w", err)
 	}
-	prestateUrl := m.baseUrl.JoinPath(hash.Hex() + ".json")
+	prestateUrl := m.baseUrl.JoinPath(hash.Hex() + fileType)
 	resp, err := http.Get(prestateUrl.String())
 	if err != nil {
 		return fmt.Errorf("failed to fetch prestate from %v: %w", prestateUrl, err)

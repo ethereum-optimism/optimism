@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
@@ -29,7 +30,7 @@ func TestDownloadPrestate(t *testing.T) {
 	defer in.Close()
 	content, err := io.ReadAll(in)
 	require.NoError(t, err)
-	require.Equal(t, "/"+hash.Hex()+".json", string(content))
+	require.Equal(t, "/"+hash.Hex()+".bin.gz", string(content))
 }
 
 func TestCreateDirectory(t *testing.T) {
@@ -48,7 +49,7 @@ func TestCreateDirectory(t *testing.T) {
 	defer in.Close()
 	content, err := io.ReadAll(in)
 	require.NoError(t, err)
-	require.Equal(t, "/"+hash.Hex()+".json", string(content))
+	require.Equal(t, "/"+hash.Hex()+".bin.gz", string(content))
 }
 
 func TestExistingPrestate(t *testing.T) {
@@ -72,7 +73,9 @@ func TestExistingPrestate(t *testing.T) {
 
 func TestMissingPrestate(t *testing.T) {
 	dir := t.TempDir()
+	var requests []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests = append(requests, r.URL.Path)
 		w.WriteHeader(404)
 	}))
 	defer server.Close()
@@ -82,6 +85,41 @@ func TestMissingPrestate(t *testing.T) {
 	require.ErrorIs(t, err, ErrPrestateUnavailable)
 	_, err = os.Stat(path)
 	require.ErrorIs(t, err, os.ErrNotExist)
+	expectedRequests := []string{
+		"/" + hash.Hex() + ".bin.gz",
+		"/" + hash.Hex() + ".json.gz",
+		"/" + hash.Hex() + ".json",
+	}
+	require.Equal(t, expectedRequests, requests)
+}
+
+func TestStorePrestateWithCorrectExtension(t *testing.T) {
+	extensions := []string{".bin.gz", ".json.gz", ".json"}
+	for _, ext := range extensions {
+		ext := ext
+		t.Run(ext, func(t *testing.T) {
+			dir := t.TempDir()
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if !strings.HasSuffix(r.URL.Path, ext) {
+					w.WriteHeader(404)
+					return
+				}
+				_, _ = w.Write([]byte("content"))
+			}))
+			defer server.Close()
+			provider := NewMultiPrestateProvider(parseURL(t, server.URL), dir)
+			hash := common.Hash{0xaa}
+			path, err := provider.PrestatePath(hash)
+			require.NoError(t, err)
+			require.Truef(t, strings.HasSuffix(path, ext), "Expected path %v to have extension %v", path, ext)
+			in, err := ioutil.OpenDecompressed(path)
+			require.NoError(t, err)
+			defer in.Close()
+			content, err := io.ReadAll(in)
+			require.NoError(t, err)
+			require.Equal(t, "content", string(content))
+		})
+	}
 }
 
 func parseURL(t *testing.T, str string) *url.URL {
