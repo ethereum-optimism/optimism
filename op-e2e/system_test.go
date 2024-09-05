@@ -1376,7 +1376,7 @@ func TestBatcherMultiTx(t *testing.T) {
 	_, err = geth.WaitForBlock(big.NewInt(10), l2Seq, time.Duration(cfg.DeployConfig.L2BlockTime*15)*time.Second)
 	require.NoError(t, err, "Waiting for L2 blocks")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	l1Number, err := l1Client.BlockNumber(ctx)
 	require.NoError(t, err)
@@ -1386,16 +1386,20 @@ func TestBatcherMultiTx(t *testing.T) {
 	err = driver.StartBatchSubmitting()
 	require.NoError(t, err)
 
-	totalTxCount := 0
-	// wait for up to 10 L1 blocks, usually only 3 is required, but it's
+	totalBatcherTxsCount := int64(0)
+	// wait for up to 5 L1 blocks, usually only 3 is required, but it's
 	// possible additional L1 blocks will be created before the batcher starts,
 	// so we wait additional blocks.
-	for i := int64(0); i < 10; i++ {
+	for i := int64(0); i < 5; i++ {
 		block, err := geth.WaitForBlock(big.NewInt(int64(l1Number)+i), l1Client, time.Duration(cfg.DeployConfig.L1BlockTime*5)*time.Second)
 		require.NoError(t, err, "Waiting for l1 blocks")
-		totalTxCount += len(block.Transactions())
+		// there are possibly other services (proposer/challenger) in the background sending txs
+		// so we only count the batcher txs
+		batcherTxCount, err := transactions.TransactionsBySender(block, cfg.DeployConfig.BatchSenderAddress)
+		require.NoError(t, err)
+		totalBatcherTxsCount += int64(batcherTxCount)
 
-		if totalTxCount >= 10 {
+		if totalBatcherTxsCount >= 10 {
 			return
 		}
 	}
@@ -1406,6 +1410,8 @@ func TestBatcherMultiTx(t *testing.T) {
 func TestBatcherConcurrentAltDARequests(t *testing.T) {
 	InitParallel(t)
 
+	numL1TxsExpected := int64(10)
+
 	cfg := DefaultSystemConfig(t)
 	cfg.DeployConfig.UseAltDA = true
 	cfg.BatcherMaxPendingTransactions = 0 // no limit on parallel txs
@@ -1413,7 +1419,7 @@ func TestBatcherConcurrentAltDARequests(t *testing.T) {
 	cfg.BatcherMaxL1TxSizeBytes = derive.FrameV0OverHeadSize + 1 /*version bytes*/ + 1
 	cfg.BatcherBatchType = 0
 	cfg.DataAvailabilityType = flags.CalldataType
-	cfg.BatcherMaxConcurrentDARequest = 0 // no limit
+	cfg.BatcherMaxConcurrentDARequest = uint64(numL1TxsExpected)
 
 	// disable batcher because we start it manually below
 	cfg.DisableBatcher = true
@@ -1427,8 +1433,8 @@ func TestBatcherConcurrentAltDARequests(t *testing.T) {
 	l1Client := sys.NodeClient("l1")
 	l2Seq := sys.NodeClient("sequencer")
 
-	// we wait for some L2 blocks to have been produced, just to make sure the sequencer is working properly
-	_, err = geth.WaitForBlock(big.NewInt(10), l2Seq, time.Duration(cfg.DeployConfig.L2BlockTime*15)*time.Second)
+	// we wait for numL1TxsExpected L2 blocks to have been produced, just to make sure the sequencer is working properly
+	_, err = geth.WaitForBlock(big.NewInt(numL1TxsExpected), l2Seq, time.Duration(cfg.DeployConfig.L2BlockTime*uint64(numL1TxsExpected))*time.Second)
 	require.NoError(t, err, "Waiting for L2 blocks")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -1440,25 +1446,20 @@ func TestBatcherConcurrentAltDARequests(t *testing.T) {
 	err = driver.StartBatchSubmitting()
 	require.NoError(t, err)
 
-	totalBatcherTxsCount := 0
-	// wait for up to 10 L1 blocks, expecting 10 L2 batcher txs in them.
+	totalBatcherTxsCount := int64(0)
+	// wait for up to 5 L1 blocks, expecting 10 L2 batcher txs in them.
 	// usually only 3 is required, but it's possible additional L1 blocks will be created
 	// before the batcher starts, so we wait additional blocks.
-	for i := int64(0); i < 10; i++ {
+	for i := int64(0); i < 5; i++ {
 		block, err := geth.WaitForBlock(big.NewInt(int64(startingL1BlockNum)+i), l1Client, time.Duration(cfg.DeployConfig.L1BlockTime*5)*time.Second)
 		require.NoError(t, err, "Waiting for l1 blocks")
-		for _, tx := range block.Transactions() {
-			signer := types.NewCancunSigner(tx.ChainId())
-			sender, err := types.Sender(signer, tx)
-			require.NoError(t, err)
-			// there are possibly other services (proposer/challenger) in the background sending txs
-			// so we only count the batcher txs
-			if sender == cfg.DeployConfig.BatchSenderAddress {
-				totalBatcherTxsCount++
-			}
-		}
+		// there are possibly other services (proposer/challenger) in the background sending txs
+		// so we only count the batcher txs
+		batcherTxCount, err := transactions.TransactionsBySender(block, cfg.DeployConfig.BatchSenderAddress)
+		require.NoError(t, err)
+		totalBatcherTxsCount += int64(batcherTxCount)
 
-		if totalBatcherTxsCount >= 10 {
+		if totalBatcherTxsCount >= numL1TxsExpected {
 			return
 		}
 	}
