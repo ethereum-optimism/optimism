@@ -222,33 +222,48 @@ func (s *State) ThreadCount() int {
 	return len(s.LeftThreadStack) + len(s.RightThreadStack)
 }
 
+// Serialize writes the state in a simple binary format which can be read again using Deserialize
+// The format is a simple concatenation of fields, with prefixed item count for repeating items and using big endian
+// encoding for numbers.
+//
+// StateVersion                uint8(1)
+// Memory                      As per Memory.Serialize
+// PreimageKey                 [32]byte
+// PreimageOffset              uint32
+// Heap                        uint32
+// ExitCode                    uint8
+// Exited                      uint8 - 0 for false, 1 for true
+// Step                        uint64
+// StepsSinceLastContextSwitch uint64
+// Wakeup                      uint32
+// TraverseRight               uint8 - 0 for false, 1 for true
+// NextThreadId                uint32
+// len(LeftThreadStack)        uint32
+// LeftThreadStack entries     as per ThreadState.Serialize
+// len(RightThreadStack)       uint32
+// RightThreadStack entries    as per ThreadState.Serialize
+// len(LastHint)			   uint32 (0 when LastHint is nil)
+// LastHint 				   []byte
 func (s *State) Serialize(out io.Writer) error {
-	// Write the version byte to the buffer.
 	if err := binary.Write(out, binary.BigEndian, StateVersion); err != nil {
 		return err
 	}
 
-	// Write memory
 	if err := s.Memory.Serialize(out); err != nil {
 		return err
 	}
-	// Write the preimage key as a 32-byte hash
 	if _, err := out.Write(s.PreimageKey[:]); err != nil {
 		return err
 	}
-	// Write the preimage offset as a big endian uint32
 	if err := binary.Write(out, binary.BigEndian, s.PreimageOffset); err != nil {
 		return err
 	}
-	// Write the Heap pointer as a big endian uint32
 	if err := binary.Write(out, binary.BigEndian, s.Heap); err != nil {
 		return err
 	}
-	// Write the exit code as a single byte
 	if err := binary.Write(out, binary.BigEndian, s.ExitCode); err != nil {
 		return err
 	}
-	// Write the exited flag as a single byte
 	var exited uint8
 	if s.Exited {
 		exited = 1
@@ -256,20 +271,16 @@ func (s *State) Serialize(out io.Writer) error {
 	if err := binary.Write(out, binary.BigEndian, exited); err != nil {
 		return err
 	}
-	// Write the step counter as a big endian uint64
 	if err := binary.Write(out, binary.BigEndian, s.Step); err != nil {
 		return err
 	}
-	// Write the step since last context switch counter as a big endian uint64
 	if err := binary.Write(out, binary.BigEndian, s.StepsSinceLastContextSwitch); err != nil {
 		return err
 	}
-	// Write wake up as big endian uint32
 	if err := binary.Write(out, binary.BigEndian, s.Wakeup); err != nil {
 		return err
 	}
 
-	// Write traverse right flag as a single byte
 	var traverseRight uint8
 	if s.TraverseRight {
 		traverseRight = 1
@@ -278,27 +289,22 @@ func (s *State) Serialize(out io.Writer) error {
 		return err
 	}
 
-	// Write next thread ID as big endian uint32
 	if err := binary.Write(out, binary.BigEndian, s.NextThreadId); err != nil {
 		return err
 	}
 
-	// Write size of left thread stack as big endian uint32
 	if err := binary.Write(out, binary.BigEndian, uint32(len(s.LeftThreadStack))); err != nil {
 		return err
 	}
-	// Write the left thread stack states
 	for _, stack := range s.LeftThreadStack {
 		if err := stack.Serialize(out); err != nil {
 			return err
 		}
 	}
 
-	// Write size of right thread stack as big endian uint32
 	if err := binary.Write(out, binary.BigEndian, uint32(len(s.RightThreadStack))); err != nil {
 		return err
 	}
-	// Write the right thread stack states
 	for _, stack := range s.RightThreadStack {
 		if err := stack.Serialize(out); err != nil {
 			return err
@@ -329,7 +335,6 @@ func (s *State) Serialize(out io.Writer) error {
 }
 
 func (s *State) Deserialize(in io.Reader) error {
-	// Read the version byte from the buffer.
 	var version uint8
 	if err := binary.Read(in, binary.BigEndian, &version); err != nil {
 		return err
@@ -341,25 +346,20 @@ func (s *State) Deserialize(in io.Reader) error {
 	if err := s.Memory.Deserialize(in); err != nil {
 		return err
 	}
-	// Read the preimage key as a 32-byte hash
 	if _, err := io.ReadFull(in, s.PreimageKey[:]); err != nil {
 		return err
 	}
-	// Read the preimage offset as a big endian uint32
 	if err := binary.Read(in, binary.BigEndian, &s.PreimageOffset); err != nil {
 		return err
 	}
-	// Read the Heap pointer as a big endian uint32
 	if err := binary.Read(in, binary.BigEndian, &s.Heap); err != nil {
 		return err
 	}
-	// Read the exit code as a single byte
 	var exitCode uint8
 	if err := binary.Read(in, binary.BigEndian, &exitCode); err != nil {
 		return err
 	}
 	s.ExitCode = exitCode
-	// Read the exited flag as a single byte
 	var exited uint8
 	if err := binary.Read(in, binary.BigEndian, &exited); err != nil {
 		return err
@@ -369,32 +369,26 @@ func (s *State) Deserialize(in io.Reader) error {
 	} else {
 		s.Exited = false
 	}
-	// Read the step counter as a big endian uint64
 	if err := binary.Read(in, binary.BigEndian, &s.Step); err != nil {
 		return err
 	}
-	// Read the steps since last context switch counter as a big endian uint64
 	if err := binary.Read(in, binary.BigEndian, &s.StepsSinceLastContextSwitch); err != nil {
 		return err
 	}
-	// Read the wakeup counter as a big endian uint32
 	if err := binary.Read(in, binary.BigEndian, &s.Wakeup); err != nil {
 		return err
 	}
 
-	// Read traverse right flag as single byte
 	var traverseRight uint8
 	if err := binary.Read(in, binary.BigEndian, &traverseRight); err != nil {
 		return nil
 	}
 	s.TraverseRight = traverseRight != 0
 
-	// Read the next thread ID as big endian uint32
 	if err := binary.Read(in, binary.BigEndian, &s.NextThreadId); err != nil {
 		return err
 	}
 
-	// Read length of left thread stack as big endian uint32
 	var leftThreadStackSize uint32
 	if err := binary.Read(in, binary.BigEndian, &leftThreadStackSize); err != nil {
 		return err
@@ -407,7 +401,6 @@ func (s *State) Deserialize(in io.Reader) error {
 		}
 	}
 
-	// Read length of right thread stack as big endian uint32
 	var rightThreadStackSize uint32
 	if err := binary.Read(in, binary.BigEndian, &rightThreadStackSize); err != nil {
 		return err
@@ -420,8 +413,7 @@ func (s *State) Deserialize(in io.Reader) error {
 		}
 	}
 
-	// Read the length of the last hint as a big endian uint32.
-	// Note that the length is set to 0 even if the hint is nil.
+	// Note that a zero length is always interpreted as nil
 	var lastHintLen uint32
 	if err := binary.Read(in, binary.BigEndian, &lastHintLen); err != nil {
 		return err

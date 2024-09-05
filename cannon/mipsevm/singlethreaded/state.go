@@ -180,49 +180,57 @@ func (s *State) EncodeWitness() ([]byte, common.Hash) {
 	return out, stateHashFromWitness(out)
 }
 
+// Serialize writes the state in a simple binary format which can be read again using Deserialize
+// The format is a simple concatenation of fields, with prefixed item count for repeating items and using big endian
+// encoding for numbers.
+//
+// StateVersion                uint8(0)
+// Memory                      As per Memory.Serialize
+// PreimageKey                 [32]byte
+// PreimageOffset              uint32
+// Cpu.PC					   uint32
+// Cpu.NextPC 				   uint32
+// Cpu.LO 					   uint32
+// Cpu.HI					   uint32
+// Heap                        uint32
+// ExitCode                    uint8
+// Exited                      uint8 - 0 for false, 1 for true
+// Step                        uint64
+// Registers                   [32]uint32
+// len(LastHint)			   uint32 (0 when LastHint is nil)
+// LastHint 				   []byte
 func (s *State) Serialize(out io.Writer) error {
-	// Write the version byte to the buffer.
 	if err := binary.Write(out, binary.BigEndian, StateVersion); err != nil {
 		return err
 	}
 
-	// Write memory
 	if err := s.Memory.Serialize(out); err != nil {
 		return err
 	}
-	// Write the preimage key as a 32-byte hash
 	if _, err := out.Write(s.PreimageKey[:]); err != nil {
 		return err
 	}
-	// Write the preimage offset as a big endian uint32
 	if err := binary.Write(out, binary.BigEndian, s.PreimageOffset); err != nil {
 		return err
 	}
-	// Write the PC as a big endian uint32
 	if err := binary.Write(out, binary.BigEndian, s.Cpu.PC); err != nil {
 		return err
 	}
-	// Write the NextPC as a big endian uint32
 	if err := binary.Write(out, binary.BigEndian, s.Cpu.NextPC); err != nil {
 		return err
 	}
-	// Write the LO register as a big endian uint32
 	if err := binary.Write(out, binary.BigEndian, s.Cpu.LO); err != nil {
 		return err
 	}
-	// Write the HI register as a big endian uint32
 	if err := binary.Write(out, binary.BigEndian, s.Cpu.HI); err != nil {
 		return err
 	}
-	// Write the Heap pointer as a big endian uint32
 	if err := binary.Write(out, binary.BigEndian, s.Heap); err != nil {
 		return err
 	}
-	// Write the exit code as a single byte
 	if err := binary.Write(out, binary.BigEndian, s.ExitCode); err != nil {
 		return err
 	}
-	// Write the exited flag as a single byte
 	var exited uint8
 	if s.Exited {
 		exited = 1
@@ -230,18 +238,15 @@ func (s *State) Serialize(out io.Writer) error {
 	if err := binary.Write(out, binary.BigEndian, exited); err != nil {
 		return err
 	}
-	// Write the step counter as a big endian uint64
 	if err := binary.Write(out, binary.BigEndian, s.Step); err != nil {
 		return err
 	}
-	// Write the registers as big endian uint32s
 	for _, r := range s.Registers {
 		if err := binary.Write(out, binary.BigEndian, r); err != nil {
 			return err
 		}
 	}
 
-	// Write the length of the last hint as a big endian uint32.
 	// Note that the length is set to 0 even if the hint is nil.
 	if s.LastHint == nil {
 		if err := binary.Write(out, binary.BigEndian, uint32(0)); err != nil {
@@ -265,7 +270,6 @@ func (s *State) Serialize(out io.Writer) error {
 }
 
 func (s *State) Deserialize(in io.Reader) error {
-	// Read the version byte from the buffer.
 	var version uint8
 	if err := binary.Read(in, binary.BigEndian, &version); err != nil {
 		return err
@@ -277,41 +281,32 @@ func (s *State) Deserialize(in io.Reader) error {
 	if err := s.Memory.Deserialize(in); err != nil {
 		return err
 	}
-	// Read the preimage key as a 32-byte hash
 	if _, err := io.ReadFull(in, s.PreimageKey[:]); err != nil {
 		return err
 	}
-	// Read the preimage offset as a big endian uint32
 	if err := binary.Read(in, binary.BigEndian, &s.PreimageOffset); err != nil {
 		return err
 	}
-	// Read the PC as a big endian uint32
 	if err := binary.Read(in, binary.BigEndian, &s.Cpu.PC); err != nil {
 		return err
 	}
-	// Read the NextPC as a big endian uint32
 	if err := binary.Read(in, binary.BigEndian, &s.Cpu.NextPC); err != nil {
 		return err
 	}
-	// Read the LO register as a big endian uint32
 	if err := binary.Read(in, binary.BigEndian, &s.Cpu.LO); err != nil {
 		return err
 	}
-	// Read the HI register as a big endian uint32
 	if err := binary.Read(in, binary.BigEndian, &s.Cpu.HI); err != nil {
 		return err
 	}
-	// Read the Heap pointer as a big endian uint32
 	if err := binary.Read(in, binary.BigEndian, &s.Heap); err != nil {
 		return err
 	}
-	// Read the exit code as a single byte
 	var exitCode uint8
 	if err := binary.Read(in, binary.BigEndian, &exitCode); err != nil {
 		return err
 	}
 	s.ExitCode = exitCode
-	// Read the exited flag as a single byte
 	var exited uint8
 	if err := binary.Read(in, binary.BigEndian, &exited); err != nil {
 		return err
@@ -321,19 +316,16 @@ func (s *State) Deserialize(in io.Reader) error {
 	} else {
 		s.Exited = false
 	}
-	// Read the step counter as a big endian uint64
 	if err := binary.Read(in, binary.BigEndian, &s.Step); err != nil {
 		return err
 	}
-	// Read the registers as big endian uint32s
 	for i := range s.Registers {
 		if err := binary.Read(in, binary.BigEndian, &s.Registers[i]); err != nil {
 			return err
 		}
 	}
 
-	// Read the length of the last hint as a big endian uint32.
-	// Note that the length is set to 0 even if the hint is nil.
+	// Note that a zero length is always interpreted as nil
 	var lastHintLen uint32
 	if err := binary.Read(in, binary.BigEndian, &lastHintLen); err != nil {
 		return err

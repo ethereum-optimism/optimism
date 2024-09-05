@@ -286,6 +286,15 @@ func (m *Memory) SetMemoryRange(addr uint32, r io.Reader) error {
 	}
 }
 
+// Serialize writes the memory in a simple binary format which can be read again using Deserialize
+// The format is a simple concatenation of fields, with prefixed item count for repeating items and using big endian
+// encoding for numbers.
+//
+// len(PageCount)    uint32
+// For each page (order is arbitrary):
+//
+//	page index          uint32
+//	page Data           [PageSize]byte
 func (m *Memory) Serialize(out io.Writer) error {
 	if err := binary.Write(out, binary.BigEndian, uint32(m.PageCount())); err != nil {
 		return err
