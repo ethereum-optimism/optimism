@@ -454,11 +454,14 @@ func TestEVMFault(t *testing.T) {
 }
 
 func TestHelloEVM(t *testing.T) {
+	t.Parallel()
 	var tracer *tracing.Hooks // no-tracer by default, but see test_util.MarkdownTracer
 	versions := GetMipsVersionTestCases(t)
 
 	for _, v := range versions {
+		v := v
 		t.Run(v.Name, func(t *testing.T) {
+			t.Parallel()
 			evm := testutil.NewMIPSEVM(v.Contracts)
 			evm.SetTracer(tracer)
 			testutil.LogStepFailureAtCleanup(t, evm)
@@ -502,11 +505,14 @@ func TestHelloEVM(t *testing.T) {
 }
 
 func TestClaimEVM(t *testing.T) {
+	t.Parallel()
 	var tracer *tracing.Hooks // no-tracer by default, but see test_util.MarkdownTracer
 	versions := GetMipsVersionTestCases(t)
 
 	for _, v := range versions {
+		v := v
 		t.Run(v.Name, func(t *testing.T) {
+			t.Parallel()
 			evm := testutil.NewMIPSEVM(v.Contracts)
 			evm.SetTracer(tracer)
 			testutil.LogStepFailureAtCleanup(t, evm)
@@ -549,11 +555,14 @@ func TestClaimEVM(t *testing.T) {
 }
 
 func TestEntryEVM(t *testing.T) {
+	t.Parallel()
 	var tracer *tracing.Hooks // no-tracer by default, but see test_util.MarkdownTracer
 	versions := GetMipsVersionTestCases(t)
 
 	for _, v := range versions {
+		v := v
 		t.Run(v.Name, func(t *testing.T) {
+			t.Parallel()
 			evm := testutil.NewMIPSEVM(v.Contracts)
 			evm.SetTracer(tracer)
 			testutil.LogStepFailureAtCleanup(t, evm)
