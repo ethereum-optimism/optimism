@@ -27,35 +27,39 @@ import (
 )
 
 func TestVerifyL2OutputRoot(t *testing.T) {
-	testVerifyL2OutputRoot(t, false, false)
+	testVerifyL2OutputRoot(t, false, false, false)
+}
+
+func TestVerifyL2OutputRootInVM(t *testing.T) {
+	testVerifyL2OutputRoot(t, false, false, true)
 }
 
 func TestVerifyL2OutputRootSpanBatch(t *testing.T) {
-	testVerifyL2OutputRoot(t, false, true)
+	testVerifyL2OutputRoot(t, false, true, false)
 }
 
 func TestVerifyL2OutputRootDetached(t *testing.T) {
-	testVerifyL2OutputRoot(t, true, false)
+	testVerifyL2OutputRoot(t, true, false, false)
 }
 
 func TestVerifyL2OutputRootDetachedSpanBatch(t *testing.T) {
-	testVerifyL2OutputRoot(t, true, true)
+	testVerifyL2OutputRoot(t, true, true, false)
 }
 
 func TestVerifyL2OutputRootEmptyBlock(t *testing.T) {
-	testVerifyL2OutputRootEmptyBlock(t, false, false)
+	testVerifyL2OutputRootEmptyBlock(t, false, false, false)
 }
 
 func TestVerifyL2OutputRootEmptyBlockSpanBatch(t *testing.T) {
-	testVerifyL2OutputRootEmptyBlock(t, false, true)
+	testVerifyL2OutputRootEmptyBlock(t, false, true, false)
 }
 
 func TestVerifyL2OutputRootEmptyBlockDetached(t *testing.T) {
-	testVerifyL2OutputRootEmptyBlock(t, true, false)
+	testVerifyL2OutputRootEmptyBlock(t, true, false, false)
 }
 
 func TestVerifyL2OutputRootEmptyBlockDetachedSpanBatch(t *testing.T) {
-	testVerifyL2OutputRootEmptyBlock(t, true, true)
+	testVerifyL2OutputRootEmptyBlock(t, true, true, false)
 }
 
 func applySpanBatchActivation(active bool, dp *genesis.DeployConfig) {
@@ -88,7 +92,7 @@ func applySpanBatchActivation(active bool, dp *genesis.DeployConfig) {
 // - reboot the batch submitter
 // - update the state root via a tx
 // - run program
-func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool, spanBatchActivated bool) {
+func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool, spanBatchActivated bool, useVM bool) {
 	InitParallel(t)
 	ctx := context.Background()
 
@@ -188,7 +192,7 @@ func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool, spanBatchActi
 	})
 }
 
-func testVerifyL2OutputRoot(t *testing.T, detached bool, spanBatchActivated bool) {
+func testVerifyL2OutputRoot(t *testing.T, detached bool, spanBatchActivated bool, useVM bool) {
 	InitParallel(t)
 	ctx := context.Background()
 
@@ -266,7 +270,7 @@ func testVerifyL2OutputRoot(t *testing.T, detached bool, spanBatchActivated bool
 		L2Claim:            common.Hash(l2Claim),
 		L2ClaimBlockNumber: l2ClaimBlockNumber,
 		Detached:           detached,
-		UseCannon:          true,
+		UseCannon:          useVM,
 	})
 }
 
@@ -307,6 +311,7 @@ func testFaultProofProgramScenario(t *testing.T, ctx context.Context, sys *Syste
 	for _, node := range sys.EthInstances {
 		node.Close()
 	}
+	sys.Close()
 
 	t.Log("Running fault proof in offline mode")
 	// Should be able to rerun in offline mode using the pre-fetched images
@@ -314,6 +319,12 @@ func testFaultProofProgramScenario(t *testing.T, ctx context.Context, sys *Syste
 	fppConfig.L2URL = ""
 	err = opp.FaultProofProgram(ctx, log, fppConfig)
 	require.NoError(t, err)
+
+	if s.UseCannon {
+		t.Log("Running fault proof inside VM")
+		//exitCode := RunOpProgramInVM(t, ctx, *fppConfig, sys, cannontest.SingleThreadElfVmFactory)
+		RunOpProgramInVM(t, ctx, *fppConfig, sys, cannontest.MultiThreadElfVmFactory, 0)
+	}
 
 	// Check that a fault is detected if we provide an incorrect claim
 	t.Log("Running fault proof with invalid claim")
@@ -326,19 +337,17 @@ func testFaultProofProgramScenario(t *testing.T, ctx context.Context, sys *Syste
 	}
 
 	if s.UseCannon {
-		sys.Close()
-		t.Log("Running fault proof inside singlethreaded VM")
-		//exitCode := RunOpProgramInVM(t, ctx, fppConfig.DataDir, s, sys, cannontest.SingleThreadElfVmFactory)
-		exitCode := RunOpProgramInVM(t, ctx, fppConfig.DataDir, s, sys, cannontest.MultiThreadElfVmFactory)
-		require.Zero(t, exitCode)
+		t.Log("Running fault proof with invalid claim inside VM")
+		//exitCode := RunOpProgramInVM(t, ctx, *fppConfig, sys, cannontest.SingleThreadElfVmFactory)
+		RunOpProgramInVM(t, ctx, *fppConfig, sys, cannontest.MultiThreadElfVmFactory, 1)
 	}
 }
 
-func RunOpProgramInVM(t *testing.T, ctx context.Context, preimageDir string, inputs *FaultProofProgramTestScenario, sys *System, vmFactory cannontest.ElfVMFactory) uint8 {
-	fppConfig := oppconf.NewConfig(sys.RollupConfig, sys.L2GenesisCfg.Config, inputs.L1Head, inputs.L2Head, inputs.L2OutputRoot, common.Hash(inputs.L2Claim), inputs.L2ClaimBlockNumber)
-	fppConfig.DataDir = preimageDir
+func RunOpProgramInVM(t *testing.T, ctx context.Context, fppConfig oppconf.Config, sys *System, vmFactory cannontest.ElfVMFactory, expectedExitCode uint8) {
 	fppConfig.ServerMode = true
-
+	fppConfig.L1URL = ""
+	fppConfig.L2URL = ""
+	fppConfig.L1BeaconURL = ""
 	opProgramELFFile := BuildOpProgramClientMips(t)
 
 	pClientRW, pOracleRW, err := preimage.CreateBidirectionalChannel()
@@ -351,7 +360,7 @@ func RunOpProgramInVM(t *testing.T, ctx context.Context, preimageDir string, inp
 	hostLog := testlog.Logger(t, log.LevelDebug)
 	serverErr := make(chan error, 1)
 	go func() {
-		err := opp.ChanneledServer(ctx, hostLog, fppConfig, preimageChan, hinterChan)
+		err := opp.ChanneledServer(ctx, hostLog, &fppConfig, preimageChan, hinterChan)
 		serverErr <- err
 		close(serverErr)
 		t.Errorf("op-program host channel closed! %v", err)
@@ -368,7 +377,11 @@ func RunOpProgramInVM(t *testing.T, ctx context.Context, preimageDir string, inp
 	errLog := &mipsevm.LoggingWriter{Log: programLog.With("stream", "stderr")}
 	defer errLog.Flush()
 	vm := vmFactory(t, opProgramELFFile, oracle, outLog, errLog, programLog)
-	defer vm.Traceback()
+	defer func() {
+		if t.Failed() {
+			vm.Traceback()
+		}
+	}()
 
 	state := vm.GetState()
 	for !state.GetExited() {
@@ -384,22 +397,9 @@ func RunOpProgramInVM(t *testing.T, ctx context.Context, preimageDir string, inp
 				state.GetMemory().Usage())
 		}
 	}
-	t.Log("vm execution complete")
-	return vm.GetState().GetExitCode()
-}
-
-func waitForSafeHead(ctx context.Context, safeBlockNum uint64, rollupClient *sources.RollupClient) error {
-	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
-	defer cancel()
-	for {
-		seqStatus, err := rollupClient.SyncStatus(ctx)
-		if err != nil {
-			return err
-		}
-		if seqStatus.SafeL2.Number >= safeBlockNum {
-			return nil
-		}
-	}
+	ec := vm.GetState().GetExitCode()
+	t.Logf("vm execution complete with exit_code %d", ec)
+	require.EqualValues(t, expectedExitCode, ec)
 }
 
 type preimageOracle struct {
