@@ -157,12 +157,13 @@ contract DeploySuperchainInput is CommonBase {
 
 contract DeploySuperchainOutput is CommonBase {
     // The output struct contains all the output data from the deployment.
+    // The fields must be in alphabetical order for vm.parseToml to work.
     struct Output {
-        ProxyAdmin superchainProxyAdmin;
-        SuperchainConfig superchainConfigImpl;
-        SuperchainConfig superchainConfigProxy;
         ProtocolVersions protocolVersionsImpl;
         ProtocolVersions protocolVersionsProxy;
+        SuperchainConfig superchainConfigImpl;
+        SuperchainConfig superchainConfigProxy;
+        ProxyAdmin superchainProxyAdmin;
     }
 
     // We use a similar pattern as the input contract to expose outputs. Because outputs are set

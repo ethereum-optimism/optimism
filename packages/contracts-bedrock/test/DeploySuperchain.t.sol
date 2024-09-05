@@ -32,15 +32,15 @@ contract DeploySuperchainInput_Test is Test {
         // parameters to e.g. avoid the zero address. Therefore we hardcode a concrete test case
         // which is simpler and still sufficient.
         dsi.loadInput(input);
-        _assertLoadInput();
+        assertLoadInput();
     }
 
     function test_loadInputFile_succeeds() public {
         string memory root = vm.projectRoot();
-        string memory path = string.concat(root, "/test/fixtures/test-deploy-superchain.toml");
+        string memory path = string.concat(root, "/test/fixtures/test-deploy-superchain-in.toml");
 
         dsi.loadInputFile(path);
-        _assertLoadInput();
+        assertLoadInput();
     }
 
     function test_getters_whenNotSet_revert() public {
@@ -178,31 +178,30 @@ contract DeploySuperchainOutput_Test is Test {
     }
 
     function test_writeOutputFile_succeeds() public {
-        DeploySuperchainOutput.Output memory output = DeploySuperchainOutput.Output({
-            superchainProxyAdmin: ProxyAdmin(makeAddr("superchainProxyAdmin")),
-            superchainConfigImpl: SuperchainConfig(makeAddr("superchainConfigImpl")),
-            superchainConfigProxy: SuperchainConfig(makeAddr("superchainConfigProxy")),
-            protocolVersionsImpl: ProtocolVersions(makeAddr("protocolVersionsImpl")),
-            protocolVersionsProxy: ProtocolVersions(makeAddr("protocolVersionsProxy"))
-        });
-
-        dso.set(dso.superchainProxyAdmin.selector, address(output.superchainProxyAdmin));
-        dso.set(dso.superchainConfigImpl.selector, address(output.superchainConfigImpl));
-        dso.set(dso.superchainConfigProxy.selector, address(output.superchainConfigProxy));
-        dso.set(dso.protocolVersionsImpl.selector, address(output.protocolVersionsImpl));
-        dso.set(dso.protocolVersionsProxy.selector, address(output.protocolVersionsProxy));
-
         string memory root = vm.projectRoot();
-        string memory path = string.concat(root, "/.testdata/test-deploy-superchain-output.toml");
-        dso.writeOutputFile(path);
-        string memory data = vm.readFile(path);
+
+        // Use the expected data from the test fixture.
+        string memory expOutPath = string.concat(root, "/test/fixtures/test-deploy-superchain-out.toml");
+        string memory expOutToml = vm.readFile(expOutPath);
+        bytes memory expOutData = vm.parseToml(expOutToml);
+        DeploySuperchainOutput.Output memory expOutput = abi.decode(expOutData, (DeploySuperchainOutput.Output));
+
+        dso.set(dso.superchainProxyAdmin.selector, address(expOutput.superchainProxyAdmin));
+        dso.set(dso.superchainConfigImpl.selector, address(expOutput.superchainConfigImpl));
+        dso.set(dso.superchainConfigProxy.selector, address(expOutput.superchainConfigProxy));
+        dso.set(dso.protocolVersionsImpl.selector, address(expOutput.protocolVersionsImpl));
+        dso.set(dso.protocolVersionsProxy.selector, address(expOutput.protocolVersionsProxy));
+
+        string memory actOutPath = string.concat(root, "/.testdata/test-deploy-superchain-output.toml");
+        dso.writeOutputFile(actOutPath);
+        string memory actOutToml = vm.readFile(actOutPath);
 
         // Clean up before asserting so that we don't leave any files behind.
-        vm.removeFile(path);
+        vm.removeFile(actOutPath);
 
         assertEq(
-            keccak256(abi.encode(data)),
-            bytes32(0x496d8cafe47414684c9ccf13231a39c825f3740e0ed19854c54e1df691591fbd)
+            expOutToml,
+            actOutToml
         );
     }
 }
@@ -286,17 +285,18 @@ contract DeploySuperchain_Test is Test {
 
     function test_run_io_succeeds() public {
         string memory root = vm.projectRoot();
-        string memory inpath = string.concat(root, "/test/fixtures/test-deploy-superchain.toml");
+        string memory inpath = string.concat(root, "/test/fixtures/test-deploy-superchain-in.toml");
         string memory outpath = string.concat(root, "/.testdata/test-deploy-superchain-out.toml");
 
         deploySuperchain.run(inpath, outpath);
 
-        string memory outdata = vm.readFile(outpath);
+        string memory actOutToml = vm.readFile(outpath);
+        string memory expOutToml = vm.readFile(string.concat(root, "/test/fixtures/test-deploy-superchain-out.toml"));
         // Clean up before asserting so that we don't leave any files behind.
         vm.removeFile(outpath);
         assertEq(
-            keccak256(abi.encode(outdata)),
-            bytes32(0x08aee2fe779ae629438776065e99398edaec136e7b57da9fd8574581aa7a0b3d)
+            expOutToml,
+            actOutToml
         );
     }
 
