@@ -186,7 +186,7 @@ contract DeploySuperchainOutput is CommonBase {
     // Save the output to a TOML file.
     function writeOutputFile(string memory _outfile) public {
         string memory key = "dso-outfile";
-        vm.serializeAddress(key, "proxyAdmin", address(outputs.superchainProxyAdmin));
+        vm.serializeAddress(key, "superchainProxyAdmin", address(outputs.superchainProxyAdmin));
         vm.serializeAddress(key, "superchainConfigImpl", address(outputs.superchainConfigImpl));
         vm.serializeAddress(key, "superchainConfigProxy", address(outputs.superchainConfigProxy));
         vm.serializeAddress(key, "protocolVersionsImpl", address(outputs.protocolVersionsImpl));
