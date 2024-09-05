@@ -48,7 +48,9 @@ func WriteSerializedBinary(outputPath string, value Serializable, perm os.FileMo
 	}
 	var out io.Writer
 	finish := func() error { return nil }
-	if outputPath != "-" {
+	if outputPath == "-" {
+		out = os.Stdout
+	} else {
 		f, err := ioutil.NewAtomicWriterCompressed(outputPath, perm)
 		if err != nil {
 			return fmt.Errorf("failed to create temp file when writing: %w", err)
@@ -61,8 +63,6 @@ func WriteSerializedBinary(outputPath string, value Serializable, perm os.FileMo
 		// Closing the file causes it to be renamed to the final destination
 		// so make sure we handle any errors it returns
 		finish = f.Close
-	} else {
-		out = os.Stdout
 	}
 	err := value.Serialize(out)
 	if err != nil {

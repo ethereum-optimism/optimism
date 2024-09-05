@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -30,8 +31,6 @@ const (
 	LEFT_THREADS_ROOT_WITNESS_OFFSET          = TRAVERSE_RIGHT_WITNESS_OFFSET + 1
 	RIGHT_THREADS_ROOT_WITNESS_OFFSET         = LEFT_THREADS_ROOT_WITNESS_OFFSET + 32
 	THREAD_ID_WITNESS_OFFSET                  = RIGHT_THREADS_ROOT_WITNESS_OFFSET + 32
-
-	StateVersion = uint8(1)
 )
 
 type State struct {
@@ -245,7 +244,7 @@ func (s *State) ThreadCount() int {
 // len(LastHint)			   uint32 (0 when LastHint is nil)
 // LastHint 				   []byte
 func (s *State) Serialize(out io.Writer) error {
-	if err := binary.Write(out, binary.BigEndian, StateVersion); err != nil {
+	if err := binary.Write(out, binary.BigEndian, versions.VersionMultiThreaded); err != nil {
 		return err
 	}
 
@@ -335,11 +334,11 @@ func (s *State) Serialize(out io.Writer) error {
 }
 
 func (s *State) Deserialize(in io.Reader) error {
-	var version uint8
+	var version versions.StateVersion
 	if err := binary.Read(in, binary.BigEndian, &version); err != nil {
 		return err
 	}
-	if version != StateVersion {
+	if version != versions.VersionMultiThreaded {
 		return fmt.Errorf("invalid state encoding version %d", version)
 	}
 	s.Memory = memory.NewMemory()
