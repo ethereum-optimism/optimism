@@ -202,10 +202,14 @@ jobs:
           command: bash scripts/ops/pull-artifacts.sh
           working_directory: packages/contracts-bedrock
       - run:
+          name: Contract prebuild
+          command: just prebuild
+          working_directory: packages/contracts-bedrock
+      - run:
           name: Build contracts
           environment:
             FOUNDRY_PROFILE: ci
-          command: just build
+          command: forge build --deny-warnings
           working_directory: packages/contracts-bedrock
       - run:
           name: Generate L2OO allocs
@@ -574,13 +578,6 @@ jobs:
           name: forge version
           command: forge --version
       - run:
-          name: solc warnings check
-          command: |
-            forge build --force --deny-warnings || echo "export SOLC_WARNINGS_CHECK=1" >> "$BASH_ENV"
-          environment:
-            FOUNDRY_PROFILE: ci
-          working_directory: packages/contracts-bedrock
-      - run:
         # Semver lock must come second because one of the later steps may modify the cache & force a contracts rebuild.
           name: semver lock
           command: |
@@ -637,10 +634,6 @@ jobs:
           command: |
             if [[ "$LINT_STATUS" -ne 0 ]]; then
               echo "Linting failed, see job output for details."
-              FAILED=1
-            fi
-            if [[ "$SOLC_WARNINGS_CHECK" -ne 0 ]]; then
-              echo "Solidity emitted warnings, see job output for details."
               FAILED=1
             fi
             if [[ "$GAS_SNAPSHOT_STATUS" -ne 0 ]]; then
