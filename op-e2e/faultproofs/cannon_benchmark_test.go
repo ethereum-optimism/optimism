@@ -93,7 +93,7 @@ func TestBenchmarkCannon_FPP(t *testing.T) {
 		L2BlockNumber: l2ClaimBlockNumber,
 	}
 	debugfile := path.Join(t.TempDir(), "debug.json")
-	runCannon(t, ctx, sys, inputs, "sequencer", "--debug-info", debugfile)
+	runCannon(t, ctx, sys, inputs, "--debug-info", debugfile)
 	data, err := os.ReadFile(debugfile)
 	require.NoError(t, err)
 	var debuginfo mipsevm.DebugInfo

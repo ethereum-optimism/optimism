@@ -128,7 +128,7 @@ func TestPrecompiles(t *testing.T) {
 				L2OutputRoot:  common.Hash(l2OutputRoot),
 				L2BlockNumber: l2ClaimBlockNumber,
 			}
-			runCannon(t, ctx, sys, inputs, "sequencer")
+			runCannon(t, ctx, sys, inputs)
 		})
 
 		t.Run("DisputePrecompile-"+test.name, func(t *testing.T) {
@@ -240,10 +240,10 @@ func TestGranitePrecompiles(t *testing.T) {
 		L2OutputRoot:  common.Hash(l2OutputRoot),
 		L2BlockNumber: l2ClaimBlockNumber,
 	}
-	runCannon(t, ctx, sys, inputs, "sequencer")
+	runCannon(t, ctx, sys, inputs)
 }
 
-func runCannon(t *testing.T, ctx context.Context, sys *op_e2e.System, inputs utils.LocalGameInputs, l2Node string, extraVmArgs ...string) {
+func runCannon(t *testing.T, ctx context.Context, sys *op_e2e.System, inputs utils.LocalGameInputs, extraVmArgs ...string) {
 	l1Endpoint := sys.NodeEndpoint("l1").RPC()
 	l1Beacon := sys.L1BeaconEndpoint().RestHTTP()
 	rollupEndpoint := sys.RollupEndpoint("sequencer").RPC()
