@@ -34,7 +34,7 @@ RUN git submodule update --init --recursive \
     && just build \
     && echo $(git rev-parse HEAD) > .gitcommit
 
-FROM --platform=linux/amd64 debian:bookworm-20240812-slim
+FROM --platform=linux/amd64 debian:bookworm-20240812-slim as contracts-bedrock
 
 RUN apt-get update && apt-get install -y \
   curl \
