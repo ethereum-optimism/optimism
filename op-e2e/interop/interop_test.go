@@ -74,4 +74,7 @@ func TestDemonstrateSuperSystem(t *testing.T) {
 	require.NoError(t, err)
 	expectedBalance, _ = big.NewInt(0).SetString("10000000000000000000000000", 10)
 	require.Equal(t, expectedBalance, bobBalance)
+
+	// now to play with the supervisor
+	_ = s2.Supervisor()
 }
