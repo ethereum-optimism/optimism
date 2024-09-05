@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 import { Script } from "forge-std/Script.sol";
+import { CommonBase } from "forge-std/Base.sol";
 
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { ProtocolVersions, ProtocolVersion } from "src/L1/ProtocolVersions.sol";
@@ -57,19 +58,20 @@ import { Solarray } from "scripts/libraries/Solarray.sol";
  * scripts from the existing ones that "Config" and "Artifacts" terminology.
  */
 
-contract DeploySuperchainInput {
+contract DeploySuperchainInput is CommonBase {
     // The input struct contains all the input data required for the deployment.
+    // The fields must be in alphabetical order for vm.parseToml to work.
     struct Input {
-        Roles roles;
         bool paused;
-        ProtocolVersion requiredProtocolVersion;
         ProtocolVersion recommendedProtocolVersion;
+        ProtocolVersion requiredProtocolVersion;
+        Roles roles;
     }
 
     struct Roles {
-        address proxyAdminOwner;
-        address protocolVersionsOwner;
         address guardian;
+        address protocolVersionsOwner;
+        address proxyAdminOwner;
     }
 
     // This flag tells us if all inputs have been set. An `input()` getter method that returns all
@@ -84,10 +86,10 @@ contract DeploySuperchainInput {
 
     // Load the input from a TOML file.
     function loadInputFile(string memory _infile) public {
-        _infile;
-        Input memory parsedInput;
+        string memory toml = vm.readFile(_infile);
+        bytes memory data = vm.parseToml(toml);
+        Input memory parsedInput = abi.decode(data, (Input));
         loadInput(parsedInput);
-        require(false, "DeploySuperchainInput: not implemented");
     }
 
     // Load the input from a struct.
@@ -153,14 +155,15 @@ contract DeploySuperchainInput {
     }
 }
 
-contract DeploySuperchainOutput {
+contract DeploySuperchainOutput is CommonBase {
     // The output struct contains all the output data from the deployment.
+    // The fields must be in alphabetical order for vm.parseToml to work.
     struct Output {
-        ProxyAdmin superchainProxyAdmin;
-        SuperchainConfig superchainConfigImpl;
-        SuperchainConfig superchainConfigProxy;
         ProtocolVersions protocolVersionsImpl;
         ProtocolVersions protocolVersionsProxy;
+        SuperchainConfig superchainConfigImpl;
+        SuperchainConfig superchainConfigProxy;
+        ProxyAdmin superchainProxyAdmin;
     }
 
     // We use a similar pattern as the input contract to expose outputs. Because outputs are set
@@ -182,9 +185,14 @@ contract DeploySuperchainOutput {
     }
 
     // Save the output to a TOML file.
-    function writeOutputFile(string memory _outfile) public pure {
-        _outfile;
-        require(false, "DeploySuperchainOutput: not implemented");
+    function writeOutputFile(string memory _outfile) public {
+        string memory key = "dso-outfile";
+        vm.serializeAddress(key, "superchainProxyAdmin", address(outputs.superchainProxyAdmin));
+        vm.serializeAddress(key, "superchainConfigImpl", address(outputs.superchainConfigImpl));
+        vm.serializeAddress(key, "superchainConfigProxy", address(outputs.superchainConfigProxy));
+        vm.serializeAddress(key, "protocolVersionsImpl", address(outputs.protocolVersionsImpl));
+        string memory out = vm.serializeAddress(key, "protocolVersionsProxy", address(outputs.protocolVersionsProxy));
+        vm.writeToml(out, _outfile);
     }
 
     function output() public view returns (Output memory) {
@@ -238,7 +246,7 @@ contract DeploySuperchain is Script {
     // This entrypoint is for end-users to deploy from an input file and write to an output file.
     // In this usage, we don't need the input and output contract functionality, so we deploy them
     // here and abstract that architectural detail away from the end user.
-    function run(string memory _infile) public {
+    function run(string memory _infile, string memory _outfile) public {
         // End-user without file IO, so etch the IO helper contracts.
         (DeploySuperchainInput dsi, DeploySuperchainOutput dso) = etchIOContracts();
 
@@ -248,10 +256,8 @@ contract DeploySuperchain is Script {
         // Run the deployment script and write outputs to the DeploySuperchainOutput contract.
         run(dsi, dso);
 
-        // Write the output data to a file. The file
-        string memory outfile = ""; // This will be derived from input file name, e.g. `foo.in.toml` -> `foo.out.toml`
-        dso.writeOutputFile(outfile);
-        require(false, "DeploySuperchain: run is not implemented");
+        // Write the output data to a file.
+        dso.writeOutputFile(_outfile);
     }
 
     // This entrypoint is for use with Solidity tests, where the input and outputs are structs.
