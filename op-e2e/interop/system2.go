@@ -42,8 +42,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/oppprof"
+	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	supervisorConfig "github.com/ethereum-optimism/optimism/op-supervisor/config"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor"
 )
 
 // rather than pass around a string for rpc, pass around an rpc interface
@@ -72,6 +77,8 @@ var _ rpcClient = &rpc.Client{}
 // for example, system2 is the default implementation, but a shim to
 // kurtosis or another testing framework could be implemented
 type SuperSystem interface {
+	// get the supervisor
+	Supervisor() *supervisor.SupervisorService
 	// get the batcher for a network
 	Batcher(network string) *bss.BatcherService
 	// get the proposer for a network
@@ -114,6 +121,7 @@ type system2 struct {
 	l1              *geth.GethInstance
 	l2s             map[string]l2Set
 	l2GethClients   map[string]*ethclient.Client
+	supervisor      *supervisor.SupervisorService
 }
 
 type l2Set struct {
@@ -386,6 +394,43 @@ func (s *system2) newL2(id string, l2Out *interopgen.L2Output) l2Set {
 	}
 }
 
+func (s *system2) prepareSupervisor() *supervisor.SupervisorService {
+	cfg := supervisorConfig.Config{
+		MetricsConfig: metrics.CLIConfig{
+			Enabled: false,
+		},
+		PprofConfig: oppprof.CLIConfig{
+			ListenEnabled: false,
+		},
+		LogConfig: oplog.CLIConfig{
+			Level:  log.LvlInfo,
+			Format: oplog.FormatText,
+		},
+		RPC: oprpc.CLIConfig{
+			ListenAddr:  "127.0.0.1",
+			ListenPort:  0,
+			EnableAdmin: true,
+		},
+		L2RPCs:  []string{},
+		Datadir: path.Join(s.t.TempDir(), "supervisor"),
+	}
+	for id := range s.l2s {
+		cfg.L2RPCs = append(cfg.L2RPCs, s.l2s[id].l2Geth.UserRPC().RPC())
+	}
+	// Create the supervisor with the configuration
+	super, err := supervisor.SupervisorFromConfig(context.Background(), &cfg, s.logger)
+	require.NoError(s.t, err)
+	// Start the supervisor
+	err = super.Start(context.Background())
+	require.NoError(s.t, err)
+	s.t.Cleanup(func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel() // force-quit
+		_ = super.Stop(ctx)
+	})
+	return super
+}
+
 // prepare sets up the system for testing
 // components are built iteratively, so that they can be reused or modified
 // their creation can't be safely skipped or reordered at this time
@@ -396,7 +441,7 @@ func (s *system2) prepare(t *testing.T) {
 	s.worldDeployment, s.worldOutput = s.prepareWorld()
 	s.beacon, s.l1 = s.prepareL1()
 	s.l2s = s.prepareL2s()
-	// TODO op-supervisor
+	s.supervisor = s.prepareSupervisor()
 }
 
 // AddUser adds a user to the system by creating a user key for each L2.
@@ -479,6 +524,11 @@ func (sys *system2) addL2GethClient(name string, client *ethclient.Client) {
 		sys.l2GethClients = make(map[string]*ethclient.Client)
 	}
 	sys.l2GethClients[name] = client
+}
+
+// getter functions for L1 entities
+func (s *system2) Supervisor() *supervisor.SupervisorService {
+	return s.supervisor
 }
 
 // gettter functions for the individual L2s
