@@ -57,7 +57,7 @@ func NewCannonRegisterTask(gameType faultTypes.GameType, cfg *config.Config, m c
 			cfg.CannonAbsolutePreState,
 			filepath.Join(cfg.Datadir, "cannon-prestates"),
 			func(path string) faultTypes.PrestateProvider {
-				return cannon.NewPrestateProvider(path)
+				return vm.NewPrestateProvider(path, cannon.NewStateConverter())
 			}),
 		newTraceAccessor: func(
 			logger log.Logger,
@@ -71,7 +71,7 @@ func NewCannonRegisterTask(gameType faultTypes.GameType, cfg *config.Config, m c
 			splitDepth faultTypes.Depth,
 			prestateBlock uint64,
 			poststateBlock uint64) (*trace.Accessor, error) {
-			provider := vmPrestateProvider.(*cannon.CannonPrestateProvider)
+			provider := vmPrestateProvider.(*vm.PrestateProvider)
 			return outputs.NewOutputCannonTraceAccessor(logger, m, cfg.Cannon, serverExecutor, l2Client, prestateProvider, provider.PrestatePath(), rollupClient, dir, l1Head, splitDepth, prestateBlock, poststateBlock)
 		},
 	}
@@ -87,7 +87,7 @@ func NewAsteriscRegisterTask(gameType faultTypes.GameType, cfg *config.Config, m
 			cfg.AsteriscAbsolutePreState,
 			filepath.Join(cfg.Datadir, "asterisc-prestates"),
 			func(path string) faultTypes.PrestateProvider {
-				return asterisc.NewPrestateProvider(path)
+				return vm.NewPrestateProvider(path, asterisc.NewStateConverter())
 			}),
 		newTraceAccessor: func(
 			logger log.Logger,
@@ -101,7 +101,7 @@ func NewAsteriscRegisterTask(gameType faultTypes.GameType, cfg *config.Config, m
 			splitDepth faultTypes.Depth,
 			prestateBlock uint64,
 			poststateBlock uint64) (*trace.Accessor, error) {
-			provider := vmPrestateProvider.(*asterisc.AsteriscPreStateProvider)
+			provider := vmPrestateProvider.(*vm.PrestateProvider)
 			return outputs.NewOutputAsteriscTraceAccessor(logger, m, cfg.Asterisc, serverExecutor, l2Client, prestateProvider, provider.PrestatePath(), rollupClient, dir, l1Head, splitDepth, prestateBlock, poststateBlock)
 		},
 	}
