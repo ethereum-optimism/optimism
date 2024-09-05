@@ -48,16 +48,18 @@ type RegisterTask struct {
 }
 
 func NewCannonRegisterTask(gameType faultTypes.GameType, cfg *config.Config, m caching.Metrics, serverExecutor vm.OracleServerExecutor) *RegisterTask {
+	stateConverter := cannon.NewStateConverter()
 	return &RegisterTask{
 		gameType: gameType,
 		getPrestateProvider: cachePrestates(
 			gameType,
+			stateConverter,
 			m,
 			cfg.CannonAbsolutePreStateBaseURL,
 			cfg.CannonAbsolutePreState,
 			filepath.Join(cfg.Datadir, "cannon-prestates"),
 			func(path string) faultTypes.PrestateProvider {
-				return vm.NewPrestateProvider(path, cannon.NewStateConverter())
+				return vm.NewPrestateProvider(path, stateConverter)
 			}),
 		newTraceAccessor: func(
 			logger log.Logger,
@@ -78,16 +80,18 @@ func NewCannonRegisterTask(gameType faultTypes.GameType, cfg *config.Config, m c
 }
 
 func NewAsteriscRegisterTask(gameType faultTypes.GameType, cfg *config.Config, m caching.Metrics, serverExecutor vm.OracleServerExecutor) *RegisterTask {
+	stateConverter := asterisc.NewStateConverter()
 	return &RegisterTask{
 		gameType: gameType,
 		getPrestateProvider: cachePrestates(
 			gameType,
+			stateConverter,
 			m,
 			cfg.AsteriscAbsolutePreStateBaseURL,
 			cfg.AsteriscAbsolutePreState,
 			filepath.Join(cfg.Datadir, "asterisc-prestates"),
 			func(path string) faultTypes.PrestateProvider {
-				return vm.NewPrestateProvider(path, asterisc.NewStateConverter())
+				return vm.NewPrestateProvider(path, stateConverter)
 			}),
 		newTraceAccessor: func(
 			logger log.Logger,
@@ -162,13 +166,14 @@ func NewAlphabetRegisterTask(gameType faultTypes.GameType) *RegisterTask {
 
 func cachePrestates(
 	gameType faultTypes.GameType,
+	stateConverter vm.StateConverter,
 	m caching.Metrics,
 	prestateBaseURL *url.URL,
 	preStatePath string,
 	prestateDir string,
 	newPrestateProvider func(path string) faultTypes.PrestateProvider,
 ) func(prestateHash common.Hash) (faultTypes.PrestateProvider, error) {
-	prestateSource := prestates.NewPrestateSource(prestateBaseURL, preStatePath, prestateDir)
+	prestateSource := prestates.NewPrestateSource(prestateBaseURL, preStatePath, prestateDir, stateConverter)
 	prestateProviderCache := prestates.NewPrestateProviderCache(m, fmt.Sprintf("prestates-%v", gameType), func(prestateHash common.Hash) (faultTypes.PrestateProvider, error) {
 		prestatePath, err := prestateSource.PrestatePath(prestateHash)
 		if err != nil {

@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -21,14 +22,16 @@ var (
 )
 
 type MultiPrestateProvider struct {
-	baseUrl *url.URL
-	dataDir string
+	baseUrl        *url.URL
+	dataDir        string
+	stateConverter vm.StateConverter
 }
 
-func NewMultiPrestateProvider(baseUrl *url.URL, dataDir string) *MultiPrestateProvider {
+func NewMultiPrestateProvider(baseUrl *url.URL, dataDir string, stateConverter vm.StateConverter) *MultiPrestateProvider {
 	return &MultiPrestateProvider{
-		baseUrl: baseUrl,
-		dataDir: dataDir,
+		baseUrl:        baseUrl,
+		dataDir:        dataDir,
+		stateConverter: stateConverter,
 	}
 }
 
@@ -72,7 +75,8 @@ func (m *MultiPrestateProvider) fetchPrestate(hash common.Hash, fileType string,
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("%w from url %v: status %v", ErrPrestateUnavailable, prestateUrl, resp.StatusCode)
 	}
-	out, err := ioutil.NewAtomicWriterCompressed(dest, 0o644)
+	tmpFile := dest + ".tmp" + fileType // Preserve the file type extension so compression is applied correctly
+	out, err := ioutil.NewAtomicWriterCompressed(tmpFile, 0o644)
 	if err != nil {
 		return fmt.Errorf("failed to open atomic writer for %v: %w", dest, err)
 	}
@@ -85,6 +89,16 @@ func (m *MultiPrestateProvider) fetchPrestate(hash common.Hash, fileType string,
 	}
 	if err := out.Close(); err != nil {
 		return fmt.Errorf("failed to close file %v: %w", dest, err)
+	}
+	// Verify the prestate actually matches the expected hash before moving it into the final destination
+	proof, _, _, err := m.stateConverter.ConvertStateToProof(dest)
+	if err != nil || proof.ClaimValue != hash {
+		// Treat invalid prestates as unavailable. Often servers return a 404 page with 200 status code
+		_ = os.Remove(tmpFile) // Best effort attempt to clean up the temporary file
+		return fmt.Errorf("invalid prestate from url: %v, ignoring: %w", prestateUrl, errors.Join(ErrPrestateUnavailable, err))
+	}
+	if err := os.Rename(tmpFile, dest); err != nil {
+		return fmt.Errorf("failed to move temp file to final destination: %w", err)
 	}
 	return nil
 }
