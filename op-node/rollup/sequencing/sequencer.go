@@ -114,6 +114,8 @@ type Sequencer struct {
 	latest     BuildingState
 	latestHead eth.L2BlockRef
 
+	latestHeadSet chan struct{}
+
 	// toBlockRef converts a payload to a block-ref, and is only configurable for test-purposes
 	toBlockRef func(rollupCfg *rollup.Config, payload *eth.ExecutionPayload) (eth.L2BlockRef, error)
 }
@@ -425,7 +427,7 @@ func (d *Sequencer) onForkchoiceUpdate(x engine.ForkchoiceUpdateEvent) {
 	d.log.Debug("Sequencer is processing forkchoice update", "unsafe", x.UnsafeL2Head, "latest", d.latestHead)
 
 	if !d.active.Load() {
-		d.latestHead = x.UnsafeL2Head
+		d.setLatestHead(x.UnsafeL2Head)
 		return
 	}
 	// If the safe head has fallen behind by a significant number of blocks, delay creating new blocks
@@ -456,7 +458,15 @@ func (d *Sequencer) onForkchoiceUpdate(x engine.ForkchoiceUpdateEvent) {
 			d.nextAction = now
 		}
 	}
-	d.latestHead = x.UnsafeL2Head
+	d.setLatestHead(x.UnsafeL2Head)
+}
+
+func (d *Sequencer) setLatestHead(head eth.L2BlockRef) {
+	d.latestHead = head
+	if d.latestHeadSet != nil {
+		close(d.latestHeadSet)
+		d.latestHeadSet = nil
+	}
 }
 
 // StartBuildingBlock initiates a block building job on top of the given L2 head, safe and finalized blocks, and using the provided l1Origin.
@@ -647,21 +657,30 @@ func (d *Sequencer) forceStart() error {
 }
 
 func (d *Sequencer) Stop(ctx context.Context) (hash common.Hash, err error) {
-	for {
+	if err := d.l.LockCtx(ctx); err != nil {
+		return common.Hash{}, err
+	}
+
+	if !d.active.Load() {
+		d.l.Unlock()
+		return common.Hash{}, ErrSequencerAlreadyStopped
+	}
+
+	// ensure latestHead has been updated to the latest sealed/gossiped block before stopping the sequencer
+	for d.latestHead.Hash != d.latest.Ref.Hash {
+		latestHeadSet := make(chan struct{})
+		d.latestHeadSet = latestHeadSet
+		d.l.Unlock()
+		select {
+		case <-ctx.Done():
+			return common.Hash{}, ctx.Err()
+		case <-latestHeadSet:
+		}
 		if err := d.l.LockCtx(ctx); err != nil {
 			return common.Hash{}, err
 		}
-		// ensure latestHead has been updated to the latest sealed/gossiped block before stopping the sequencer
-		if d.latestHead.Hash == d.latest.Ref.Hash {
-			break
-		}
-		d.l.Unlock()
 	}
 	defer d.l.Unlock()
-
-	if !d.active.Load() {
-		return common.Hash{}, ErrSequencerAlreadyStopped
-	}
 
 	if err := d.listener.SequencerStopped(); err != nil {
 		return common.Hash{}, fmt.Errorf("failed to notify sequencer-state listener of stop: %w", err)
