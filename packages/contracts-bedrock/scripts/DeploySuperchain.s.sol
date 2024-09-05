@@ -19,7 +19,7 @@ import { Solarray } from "scripts/libraries/Solarray.sol";
  *
  * There are three categories of users that are expected to interact with the scripts:
  *   1. End users that want to run live contract deployments.
- *   2. Solidity developers that want to use or test these script in a standard forge test environment.
+ *   2. Solidity developers that want to use or test these scripts in a standard forge test environment.
  *   3. Go developers that want to run the deploy scripts as part of e2e testing with other aspects of the OP Stack.
  *
  * We want each user to interact with the scripts in the way that's simplest for their use case:
@@ -46,7 +46,7 @@ import { Solarray } from "scripts/libraries/Solarray.sol";
  *
  * Each deployment step in the core deploy script is modularized into its own function that performs
  * the deploy and sets the output on the Output contract, allowing for easy composition and testing
- * of deployment steps. The output setter methods requires keying off the four-byte selector of the
+ * of deployment steps. The output setter methods requires keying off the four-byte selector of
  * each output field's getter method, ensuring that the output is set for the correct field and
  * minimizing the amount of boilerplate needed for each output field.
  *
@@ -55,7 +55,7 @@ import { Solarray } from "scripts/libraries/Solarray.sol";
  * documentation.
  *
  * Additionally, we intentionally use "Input" and "Output" terminology to clearly distinguish these
- * scripts from the existing ones that "Config" and "Artifacts" terminology.
+ * scripts from the existing ones that use the "Config" and "Artifacts" terminology.
  */
 
 contract DeploySuperchainInput is CommonBase {
@@ -238,7 +238,7 @@ contract DeploySuperchainOutput is CommonBase {
 
 // For all broadcasts in this script we explicitly specify the deployer as `msg.sender` because for
 // testing we deploy this script from a test contract. If we provide no argument, the foundry
-// default sender is be the broadcaster during test, but the broadcaster needs to be the deployer
+// default sender would be the broadcaster during test, but the broadcaster needs to be the deployer
 // since they are set to the initial proxy admin owner.
 contract DeploySuperchain is Script {
     // -------- Core Deployment Methods --------
@@ -300,7 +300,7 @@ contract DeploySuperchain is Script {
     function deploySuperchainProxyAdmin(DeploySuperchainInput, DeploySuperchainOutput _dso) public {
         // Deploy the proxy admin, with the owner set to the deployer.
         // We explicitly specify the deployer as `msg.sender` because for testing we deploy this script from a test
-        // contract. If we provide no argument, the foundry default sender is be the broadcaster during test, but the
+        // contract. If we provide no argument, the foundry default sender would be the broadcaster during test, but the
         // broadcaster needs to be the deployer since they are set to the initial proxy admin owner.
         vm.broadcast(msg.sender);
         ProxyAdmin superchainProxyAdmin = new ProxyAdmin(msg.sender);
