@@ -647,8 +647,15 @@ func (d *Sequencer) forceStart() error {
 }
 
 func (d *Sequencer) Stop(ctx context.Context) (hash common.Hash, err error) {
-	if err := d.l.LockCtx(ctx); err != nil {
-		return common.Hash{}, err
+	for {
+		if err := d.l.LockCtx(ctx); err != nil {
+			return common.Hash{}, err
+		}
+		// ensure latestHead has been updated to the latest sealed/gossiped block before stopping the sequencer
+		if d.latestHead.Hash == d.latest.Ref.Hash {
+			break
+		}
+		d.l.Unlock()
 	}
 	defer d.l.Unlock()
 
