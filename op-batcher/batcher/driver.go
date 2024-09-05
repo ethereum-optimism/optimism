@@ -350,10 +350,16 @@ func (l *BatchSubmitter) loop() {
 		if !l.Txmgr.IsClosed() {
 			if l.Config.UseAltDA {
 				l.Log.Info("Waiting for altDA writes to complete...")
-				_ = daGroup.Wait()
+				err := daGroup.Wait()
+				if err != nil {
+					l.Log.Error("Error returned by one of the altda goroutines waited on", "err", err)
+				}
 			}
 			l.Log.Info("Waiting for L1 txs to be confirmed...")
-			queue.Wait()
+			err := queue.Wait()
+			if err != nil {
+				l.Log.Error("Error returned by one of the txmgr goroutines waited on", "err", err)
+			}
 		} else {
 			l.Log.Info("Txmgr is closed, remaining channel data won't be sent")
 		}
