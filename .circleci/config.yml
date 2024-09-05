@@ -135,6 +135,7 @@ jobs:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: medium
+    parallelism: 4
     steps:
       - checkout
       - check-changed:
@@ -157,8 +158,11 @@ jobs:
           name: Cannon Go tests
           command: |
             mkdir -p /testlogs
+            # List all test packages
+            TEST_PACKAGES=$(go list ./... | grep -v /vendor/ | circleci tests split --split-by=timings --timings-type=filename)
+            # Run gotestsum with the split test packages
             gotestsum --format=testname --junitfile=/tmp/test-results/cannon.xml --jsonfile=/testlogs/log.json \
-            -- -parallel=2 -coverpkg=github.com/ethereum-optimism/optimism/cannon/... -coverprofile=coverage.out ./...
+              -- -parallel=2 -coverpkg=github.com/ethereum-optimism/optimism/cannon/... -coverprofile=coverage.out $TEST_PACKAGES
           working_directory: cannon
       - run:
           name: upload Cannon coverage
@@ -530,6 +534,7 @@ jobs:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: xlarge
+    parallelism: 4
     steps:
       - checkout
       - check-changed:
@@ -544,8 +549,23 @@ jobs:
           command: forge --version
           working_directory: packages/contracts-bedrock
       - run:
+          name: pull cached artifacts
+          command: bash scripts/ops/pull-artifacts.sh
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: build stuff
+          command: |
+            just build
+            just build-go-ffi
+          environment:
+            FOUNDRY_PROFILE: ci
+          working_directory: packages/contracts-bedrock
+          no_output_timeout: 15m
+      - run:
           name: run tests
-          command: just test
+          command: |
+            TESTS=$(forge test --list | grep -E '^\s{4}' | awk '{print $1}' | circleci tests split --split-by=timings | paste -sd "|" -)
+            forge test --match-test "$TESTS"
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
