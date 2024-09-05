@@ -544,8 +544,26 @@ jobs:
           command: forge --version
           working_directory: packages/contracts-bedrock
       - run:
+          name: Pull artifacts
+          command: bash scripts/ops/pull-artifacts.sh
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: build contracts
+          command: just build
+          environment:
+            FOUNDRY_PROFILE: ci
+          working_directory: packages/contracts-bedrock
+          no_output_timeout: 15m
+      - run:
+          name: build go ffi
+          command: just build-go-ffi
+          environment:
+            FOUNDRY_PROFILE: ci
+          working_directory: packages/contracts-bedrock
+          no_output_timeout: 15m
+      - run:
           name: run tests
-          command: just test
+          command: forge test --threads 8
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
