@@ -361,7 +361,8 @@ contract Initializer_Test is Bridge_Initializer {
         // OptimismMintableERC20FactoryImpl, OptimismMintableERC20FactoryProxy, OptimismPortal2,
         // DisputeGameFactoryImpl, DisputeGameFactoryProxy, DelayedWETHImpl, DelayedWETHProxy.
         // Omitting OptimismSuperchainERC20 due to using OZ v5 Initializable.
-        assertEq(_getNumInitializable(), contracts.length);
+
+        assertEq(_getNumInitializable(), contracts.length, "_getNumInitializable() != contracts.length");
 
         // Attempt to re-initialize all contracts within the `contracts` array.
         for (uint256 i; i < contracts.length; i++) {
@@ -372,11 +373,11 @@ contract Initializer_Test is Bridge_Initializer {
                 size := extcodesize(target)
             }
             // Assert that the contract is already initialized.
-            assertEq(_contract.initializedSlotVal, 1);
+            assertEq(_contract.initializedSlotVal, 1, "_contract.initializedSlotVal != 1");
 
             // Then, attempt to re-initialize the contract. This should fail.
             (bool success, bytes memory returnData) = _contract.target.call(_contract.initCalldata);
-            assertFalse(success);
+            assertFalse(success, "Re-initializing the contract should fail");
             assertEq(_extractErrorString(returnData), "Initializable: contract is already initialized");
         }
     }
