@@ -1391,7 +1391,7 @@ func TestBatcherMultiTx(t *testing.T) {
 	// possible additional L1 blocks will be created before the batcher starts,
 	// so we wait additional blocks.
 	for i := int64(0); i < 5; i++ {
-		block, err := geth.WaitForBlock(big.NewInt(int64(l1Number)+i), l1Client, time.Duration(cfg.DeployConfig.L1BlockTime*5)*time.Second)
+		block, err := geth.WaitForBlock(big.NewInt(int64(l1Number)+i), l1Client, time.Duration(cfg.DeployConfig.L1BlockTime*2)*time.Second)
 		require.NoError(t, err, "Waiting for l1 blocks")
 		// there are possibly other services (proposer/challenger) in the background sending txs
 		// so we only count the batcher txs
@@ -1451,7 +1451,7 @@ func TestBatcherConcurrentAltDARequests(t *testing.T) {
 	// usually only 3 is required, but it's possible additional L1 blocks will be created
 	// before the batcher starts, so we wait additional blocks.
 	for i := int64(0); i < 5; i++ {
-		block, err := geth.WaitForBlock(big.NewInt(int64(startingL1BlockNum)+i), l1Client, time.Duration(cfg.DeployConfig.L1BlockTime*5)*time.Second)
+		block, err := geth.WaitForBlock(big.NewInt(int64(startingL1BlockNum)+i), l1Client, time.Duration(cfg.DeployConfig.L1BlockTime*2)*time.Second)
 		require.NoError(t, err, "Waiting for l1 blocks")
 		// there are possibly other services (proposer/challenger) in the background sending txs
 		// so we only count the batcher txs
