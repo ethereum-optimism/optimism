@@ -2,12 +2,14 @@
 pragma solidity 0.8.15;
 
 import { Script } from "forge-std/Script.sol";
+import { stdJson } from "forge-std/StdJson.sol";
 import { console2 as console } from "forge-std/console2.sol";
 import { Deployer } from "scripts/deploy/Deployer.sol";
 
 import { Config, OutputMode, OutputModeUtils, Fork, ForkUtils, LATEST_FORK } from "scripts/libraries/Config.sol";
 import { Artifacts } from "scripts/Artifacts.s.sol";
 import { DeployConfig } from "scripts/deploy/DeployConfig.s.sol";
+import { Executables } from "scripts/libraries/Executables.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Preinstalls } from "src/libraries/Preinstalls.sol";
 import { L2CrossDomainMessenger } from "src/L2/L2CrossDomainMessenger.sol";
@@ -94,6 +96,15 @@ contract L2Genesis is Deployer {
     /// @notice Sets up the script and ensures the deployer account is used to make calls.
     function setUp() public override {
         deployer = makeAddr("deployer");
+
+        // Write git commit hash to <chain-id>-meta.json file
+        // Used by superchain-registry validation tests
+        string memory commitHash = Executables.gitCommitHash();
+        string memory metaFilepath =
+            string.concat(vm.projectRoot(), "/deployments/", vm.toString(block.chainid), "-meta.json");
+        console.log("Storing git commit hash %s in file: %s", commitHash, metaFilepath);
+        vm.writeJson({ json: stdJson.serialize("", "commitHash", commitHash), path: metaFilepath });
+
         super.setUp();
     }
 
