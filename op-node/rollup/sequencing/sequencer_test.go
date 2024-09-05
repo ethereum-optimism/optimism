@@ -193,6 +193,20 @@ func TestSequencer_StartStop(t *testing.T) {
 	err := seq.Start(context.Background(), common.Hash{0xaa})
 	require.ErrorIs(t, err, ErrSequencerAlreadyStarted)
 
+	// ensure the latest.Ref is updated before attempting to stop
+	envelope := &eth.ExecutionPayloadEnvelope{
+		ExecutionPayload: &eth.ExecutionPayload{},
+	}
+	emitter.ExpectOnce(engine.PayloadProcessEvent{
+		Envelope: envelope,
+		Ref:      eth.L2BlockRef{Hash: common.Hash{0xaa}},
+	})
+	seq.OnEvent(engine.BuildSealedEvent{
+		Envelope: envelope,
+		Ref:      eth.L2BlockRef{Hash: common.Hash{0xaa}},
+	})
+	emitter.AssertExpectations(t)
+
 	head, err := seq.Stop(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, head, common.Hash{0xaa})
@@ -345,6 +359,18 @@ func TestSequencer_StaleBuild(t *testing.T) {
 	require.Equal(t, payloadEnvelope, deps.asyncGossip.payload, "must send to async gossip")
 	_, ok = seq.NextAction()
 	require.False(t, ok, "optimistically published, but not ready to sequence next, until local processing completes")
+
+	// ensure the latest.Ref is updated before attempting to stop
+	emitter.ExpectOnce(engine.PayloadProcessEvent{
+		Envelope: payloadEnvelope,
+		Ref:      head,
+	})
+	seq.OnEvent(engine.BuildSealedEvent{
+		Info:     payloadInfo,
+		Envelope: payloadEnvelope,
+		Ref:      head,
+	})
+	emitter.AssertExpectations(t)
 
 	// Now we stop the block building,
 	// before successful local processing of the committed block!
