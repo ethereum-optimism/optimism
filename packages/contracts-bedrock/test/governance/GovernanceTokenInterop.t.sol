@@ -193,9 +193,4 @@ contract GovernanceTokenInterop_Test is CommonTest {
         emit DelegationsChanged(rando, new IGovernanceDelegation.Delegation[](0), delegations);
         governanceToken.delegate(owner);
     }
-
-    /// @dev Tests that `delegateBySig` correctly delegates and emits event.
-    function test_delegateBySig_succeeds() external {
-        // TODO
-    }
 }

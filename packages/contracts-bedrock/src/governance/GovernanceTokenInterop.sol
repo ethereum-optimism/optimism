@@ -26,7 +26,6 @@ contract GovernanceTokenInterop is GovernanceToken {
     function _delegate(address _delegator, address _delegatee) internal override(ERC20Votes) {
         // GovernanceDelegation will migrate account if necessary.
         IGovernanceDelegation(Predeploys.GOVERNANCE_DELEGATION).delegateFromToken(_delegator, _delegatee);
-        // TODO: what happens to the previous delegatee? shouldn't its voting power be updated?
     }
 
     /// @notice Callback called after a token transfer. Forwards to the GovernanceDelegation contract,

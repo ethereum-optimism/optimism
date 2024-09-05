@@ -434,6 +434,69 @@ contract GovernanceDelegation_Delegate_Test is GovernanceDelegation_Init {
         assertEq(governanceDelegation.getVotes(_from), 0);
         assertEq(governanceDelegation.getVotes(_to), _amount);
     }
+
+    function testFuzz_delegate_existing_succeeds(uint224 _votes) public {
+        vm.assume(_votes != 0);
+
+        StdCheats.deployCodeTo("GovernanceToken.sol:GovernanceToken", "", Predeploys.GOVERNANCE_TOKEN);
+
+        vm.prank(rando);
+        governanceToken.delegate(rando);
+        governanceToken.mint(rando, _votes);
+
+        vm.roll(block.number + 1);
+
+        StdCheats.deployCodeTo("GovernanceDelegation.sol:GovernanceDelegation", "", Predeploys.GOVERNANCE_DELEGATION);
+        StdCheats.deployCodeTo("GovernanceTokenInterop.sol:GovernanceTokenInterop", "", Predeploys.GOVERNANCE_TOKEN);
+
+        assertEq(governanceToken.getVotes(rando), _votes);
+        assertEq(governanceToken.getVotes(address(0x123)), 0);
+        assertEq(governanceDelegation.getVotes(rando), 0);
+        assertEq(governanceDelegation.getVotes(address(0x123)), 0);
+
+        vm.prank(rando);
+        governanceToken.delegate(address(0x123));
+
+        assertEq(governanceToken.getVotes(rando), _votes);
+        assertEq(governanceToken.getVotes(address(0x123)), 0);
+        assertEq(governanceDelegation.getVotes(rando), 0);
+        assertEq(governanceDelegation.getVotes(address(0x123)), _votes);
+    }
+
+    function testFuzz_delegate_migrateExisting_succeeds(uint224 _votes) public {
+        vm.assume(_votes != 0);
+
+        StdCheats.deployCodeTo("GovernanceToken.sol:GovernanceToken", "", Predeploys.GOVERNANCE_TOKEN);
+
+        vm.prank(rando);
+        governanceToken.delegate(rando);
+        governanceToken.mint(rando, _votes);
+
+        vm.roll(block.number + 1);
+
+        StdCheats.deployCodeTo("GovernanceDelegation.sol:GovernanceDelegation", "", Predeploys.GOVERNANCE_DELEGATION);
+        StdCheats.deployCodeTo("GovernanceTokenInterop.sol:GovernanceTokenInterop", "", Predeploys.GOVERNANCE_TOKEN);
+
+        assertEq(governanceToken.getVotes(rando), _votes);
+        assertEq(governanceToken.getVotes(address(0x123)), 0);
+        assertEq(governanceDelegation.getVotes(rando), 0);
+        assertEq(governanceDelegation.getVotes(address(0x123)), 0);
+
+        IGovernanceTokenInterop(address(governanceToken)).migrate(rando);
+
+        assertEq(governanceToken.getVotes(rando), _votes);
+        assertEq(governanceToken.getVotes(address(0x123)), 0);
+        assertEq(governanceDelegation.getVotes(rando), _votes);
+        assertEq(governanceDelegation.getVotes(address(0x123)), 0);
+
+        vm.prank(rando);
+        governanceToken.delegate(address(0x123));
+
+        assertEq(governanceToken.getVotes(rando), _votes);
+        assertEq(governanceToken.getVotes(address(0x123)), 0);
+        assertEq(governanceDelegation.getVotes(rando), 0);
+        assertEq(governanceDelegation.getVotes(address(0x123)), _votes);
+    }
 }
 
 contract GovernanceDelegation_Delegate_TestFail is GovernanceDelegation_Init {
