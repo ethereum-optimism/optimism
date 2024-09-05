@@ -277,9 +277,19 @@ func (m *InstrumentedState) mipsStep() error {
 	if opcode == 0 && fun == 0xC {
 		return m.handleSyscall()
 	}
+	// DEBUGME: race detector
+	exec.Current = m.state.GetCurrentThread().ThreadId
 
 	// Exec the rest of the step logic
-	return exec.ExecMipsCoreStepLogic(m.state.getCpuRef(), m.state.GetRegistersRef(), m.state.Memory, insn, opcode, fun, m.memoryTracker, m.stackTracker)
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Printf("recovered err: %v\n", r)
+			m.Traceback()
+			panic(r)
+		}
+	}()
+	err := exec.ExecMipsCoreStepLogic(m.state.getCpuRef(), m.state.GetRegistersRef(), m.state.Memory, insn, opcode, fun, m.memoryTracker, m.stackTracker)
+	return err
 }
 
 func (m *InstrumentedState) onWaitComplete(thread *ThreadState, isTimedOut bool) {

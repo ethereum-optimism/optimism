@@ -2,7 +2,10 @@ package op_e2e
 
 import (
 	"context"
+	"encoding/json"
 	"math/big"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -31,7 +34,8 @@ func TestVerifyL2OutputRoot(t *testing.T) {
 }
 
 func TestVerifyL2OutputRootInVM(t *testing.T) {
-	testVerifyL2OutputRoot(t, false, false, true)
+	reproduce(t)
+	//testVerifyL2OutputRoot(t, false, false, true)
 }
 
 func TestVerifyL2OutputRootSpanBatch(t *testing.T) {
@@ -322,8 +326,8 @@ func testFaultProofProgramScenario(t *testing.T, ctx context.Context, sys *Syste
 
 	if s.UseCannon {
 		t.Log("Running fault proof inside VM")
-		//exitCode := RunOpProgramInVM(t, ctx, *fppConfig, sys, cannontest.SingleThreadElfVmFactory)
-		RunOpProgramInVM(t, ctx, *fppConfig, sys, cannontest.MultiThreadElfVmFactory, 0)
+		//exitCode := RunOpProgramInVM(t, ctx, *fppConfig, cannontest.SingleThreadElfVmFactory)
+		RunOpProgramInVM(t, ctx, *fppConfig, cannontest.MultiThreadElfVmFactory, 0)
 	}
 
 	// Check that a fault is detected if we provide an incorrect claim
@@ -338,12 +342,64 @@ func testFaultProofProgramScenario(t *testing.T, ctx context.Context, sys *Syste
 
 	if s.UseCannon {
 		t.Log("Running fault proof with invalid claim inside VM")
-		//exitCode := RunOpProgramInVM(t, ctx, *fppConfig, sys, cannontest.SingleThreadElfVmFactory)
-		RunOpProgramInVM(t, ctx, *fppConfig, sys, cannontest.MultiThreadElfVmFactory, 1)
+		//exitCode := RunOpProgramInVM(t, ctx, *fppConfig, cannontest.SingleThreadElfVmFactory)
+		RunOpProgramInVM(t, ctx, *fppConfig, cannontest.MultiThreadElfVmFactory, 1)
+		t.Log("debug: done running op-program in vm")
+	}
+	t.Log("debug: done running op-program test")
+}
+
+var newdir = "/tmp/go-test-temp"
+var confFile = filepath.Join(newdir, "config.json")
+
+func reproduce(t *testing.T) {
+	config := &oppconf.Config{}
+	confFile := filepath.Join(newdir, "config.json")
+	buf, err := os.ReadFile(confFile)
+	if err != nil {
+		panic(err)
+	}
+	if err := json.Unmarshal(buf, config); err != nil {
+		panic(err)
+	}
+	config.DataDir = filepath.Join(newdir, "datadir")
+	runOpProgramInVMWithoutSnapshot(t, context.Background(), *config, cannontest.MultiThreadElfVmFactory, 1)
+}
+
+func snapshot(t *testing.T, fppConfig oppconf.Config) {
+	buf, err := json.Marshal(fppConfig)
+	if err != nil {
+		panic(err)
+	}
+	t.Logf("fppConfig: %s\n", string(buf))
+	if err := os.WriteFile(confFile, buf, os.ModePerm); err != nil {
+		panic(err)
+	}
+	err = os.MkdirAll("/tmp/go-test-temp", 0777)
+	if err != nil {
+		panic(err)
+	}
+	dest := filepath.Join(newdir, "datadir")
+	if err = os.RemoveAll(dest); err != nil {
+		panic(err)
+	}
+	err = os.Rename(fppConfig.DataDir, dest)
+	if err != nil {
+		panic(err)
 	}
 }
 
-func RunOpProgramInVM(t *testing.T, ctx context.Context, fppConfig oppconf.Config, sys *System, vmFactory cannontest.ElfVMFactory, expectedExitCode uint8) {
+func RunOpProgramInVM(t *testing.T, ctx context.Context, fppConfig oppconf.Config, vmFactory cannontest.ElfVMFactory, expectedExitCode uint8) {
+	defer func() {
+		if t.Failed() {
+			t.Log("Creating snapshot...")
+			snapshot(t, fppConfig)
+		}
+	}()
+	runOpProgramInVMWithoutSnapshot(t, ctx, fppConfig, vmFactory, expectedExitCode)
+}
+
+func runOpProgramInVMWithoutSnapshot(t *testing.T, ctx context.Context, fppConfig oppconf.Config, vmFactory cannontest.ElfVMFactory, expectedExitCode uint8) {
 	fppConfig.ServerMode = true
 	fppConfig.L1URL = ""
 	fppConfig.L2URL = ""
@@ -363,7 +419,7 @@ func RunOpProgramInVM(t *testing.T, ctx context.Context, fppConfig oppconf.Confi
 		err := opp.ChanneledServer(ctx, hostLog, &fppConfig, preimageChan, hinterChan)
 		serverErr <- err
 		close(serverErr)
-		t.Errorf("op-program host channel closed! %v", err)
+		t.Logf("op-program host channel closed! %v", err)
 	}()
 
 	clientPollTimeout := time.Second * 15

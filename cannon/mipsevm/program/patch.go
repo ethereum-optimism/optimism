@@ -69,7 +69,7 @@ func PatchStack(st mipsevm.FPVMState) error {
 
 	// init argc, argv, aux on stack
 	storeMem(sp+4*0, 1)       // argc = 1 (argument count)
-	storeMem(sp+4*1, sp+4*21) // argv[0]
+	storeMem(sp+4*1, sp+4*40) // argv[0]
 	storeMem(sp+4*2, 0)       // argv[1] = terminating
 	storeMem(sp+4*3, sp+4*14) // envp[0] = x (offset to first env var)
 	storeMem(sp+4*4, 0)       // envp[1] = terminating
@@ -82,13 +82,14 @@ func PatchStack(st mipsevm.FPVMState) error {
 	_ = st.GetMemory().SetMemoryRange(sp+4*10, bytes.NewReader([]byte("4;byfairdiceroll"))) // 16 bytes of "randomness"
 
 	// append 4 extra zero bytes to end at 4-byte alignment
-	envar := append([]byte("GODEBUG=memprofilerate=0"), 0x0, 0x0, 0x0, 0x0)
+	// DEBUGME: trace the Go scheduler
+	envar := append([]byte("GODEBUG=memprofilerate=0,scheddetail=1"), 0x0, 0x0, 0x0, 0x0)
 	_ = st.GetMemory().SetMemoryRange(sp+4*14, bytes.NewReader(envar))
 
 	// 24 bytes for GODEBUG=memprofilerate=0 + 4 null bytes
 	// Then append program name + 2 null bytes for 4-byte alignment
 	programName := append([]byte("op-program"), 0x0, 0x0)
-	_ = st.GetMemory().SetMemoryRange(sp+4*21, bytes.NewReader(programName))
+	_ = st.GetMemory().SetMemoryRange(sp+4*40, bytes.NewReader(programName))
 
 	return nil
 }

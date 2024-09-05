@@ -1,6 +1,7 @@
 package exec
 
 import (
+	"fmt"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 )
@@ -271,8 +272,16 @@ func ExecuteMipsInstruction(insn, opcode, fun, rs, rt, mem uint32) uint32 {
 			mask := uint32(0xFFFFFFFF) << (24 - (rs&3)*8)
 			return (mem & ^mask) | val
 		case 0x30: //  ll
+			// DEBUGME: race detector
+			if previous != 0 && previous != Current {
+				//fmt.Printf("race detected between current %d and %d\n", Current, previous)
+				//panic("race detected")
+				_ = fmt.Printf
+			}
+			previous = Current
 			return mem
 		case 0x38: //  sc
+			previous = 0
 			return rt
 		default:
 			panic("invalid instruction")
@@ -280,6 +289,10 @@ func ExecuteMipsInstruction(insn, opcode, fun, rs, rt, mem uint32) uint32 {
 	}
 	panic("invalid instruction")
 }
+
+// Current thread is set by mips.go
+var Current uint32
+var previous uint32
 
 func SignExtend(dat uint32, idx uint32) uint32 {
 	isSigned := (dat >> (idx - 1)) != 0
