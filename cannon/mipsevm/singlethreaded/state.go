@@ -17,6 +17,8 @@ import (
 // STATE_WITNESS_SIZE is the size of the state witness encoding in bytes.
 const STATE_WITNESS_SIZE = 226
 
+const StateVersion = uint8(0)
+
 type State struct {
 	Memory *memory.Memory `json:"memory"`
 
@@ -180,7 +182,7 @@ func (s *State) EncodeWitness() ([]byte, common.Hash) {
 
 func (s *State) Serialize(out io.Writer) error {
 	// Write the version byte to the buffer.
-	if err := binary.Write(out, binary.BigEndian, uint8(0)); err != nil {
+	if err := binary.Write(out, binary.BigEndian, StateVersion); err != nil {
 		return err
 	}
 
@@ -268,7 +270,7 @@ func (s *State) Deserialize(in io.Reader) error {
 	if err := binary.Read(in, binary.BigEndian, &version); err != nil {
 		return err
 	}
-	if version != 0 {
+	if version != StateVersion {
 		return fmt.Errorf("invalid state encoding version %d", version)
 	}
 	s.Memory = memory.NewMemory()

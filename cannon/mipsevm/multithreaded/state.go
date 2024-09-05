@@ -30,6 +30,8 @@ const (
 	LEFT_THREADS_ROOT_WITNESS_OFFSET          = TRAVERSE_RIGHT_WITNESS_OFFSET + 1
 	RIGHT_THREADS_ROOT_WITNESS_OFFSET         = LEFT_THREADS_ROOT_WITNESS_OFFSET + 32
 	THREAD_ID_WITNESS_OFFSET                  = RIGHT_THREADS_ROOT_WITNESS_OFFSET + 32
+
+	StateVersion = uint8(1)
 )
 
 type State struct {
@@ -222,7 +224,7 @@ func (s *State) ThreadCount() int {
 
 func (s *State) Serialize(out io.Writer) error {
 	// Write the version byte to the buffer.
-	if err := binary.Write(out, binary.BigEndian, uint8(0)); err != nil {
+	if err := binary.Write(out, binary.BigEndian, StateVersion); err != nil {
 		return err
 	}
 
@@ -332,7 +334,7 @@ func (s *State) Deserialize(in io.Reader) error {
 	if err := binary.Read(in, binary.BigEndian, &version); err != nil {
 		return err
 	}
-	if version != 0 {
+	if version != StateVersion {
 		return fmt.Errorf("invalid state encoding version %d", version)
 	}
 	s.Memory = memory.NewMemory()
