@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/vm"
 )
 
@@ -222,40 +223,51 @@ type SourceMapTracer struct {
 	out     io.Writer
 }
 
-func (s *SourceMapTracer) info(codeAddr *common.Address, pc uint64) string {
-	info := "non-contract"
-	if codeAddr != nil {
-		srcMap, ok := s.srcMaps[*codeAddr]
-		if ok {
-			info = srcMap.FormattedInfo(pc)
-		} else {
-			info = "unknown-contract"
-		}
+func (s *SourceMapTracer) info(codeAddr common.Address, pc uint64) string {
+	info := "unknown-contract"
+	srcMap, ok := s.srcMaps[codeAddr]
+	if ok {
+		info = srcMap.FormattedInfo(pc)
 	}
 	return info
 }
 
-func (s *SourceMapTracer) CaptureState(pc uint64, op vm.OpCode, gas, cost uint64, scope *vm.ScopeContext, rData []byte, depth int, err error) {
+func (s *SourceMapTracer) OnOpCode(pc uint64, opcode byte, gas, cost uint64, scope tracing.OpContext, rData []byte, depth int, err error) {
+	op := vm.OpCode(opcode)
 	if op.IsPush() {
-		start := uint64(op) - uint64(vm.PUSH1) + 1
-		end := pc + 1 + start
-		val := scope.Contract.Code[pc+1 : end]
-		fmt.Fprintf(s.out, "%-40s : pc %x opcode %s (%x)\n", s.info(scope.Contract.CodeAddr, pc), pc, op.String(), val)
+		var val []byte
+		sc, ok := scope.(*vm.ScopeContext)
+		if ok {
+			start := pc + 1
+			end := uint64(op) - uint64(vm.PUSH1) + 1
+			val = sc.Contract.Code[start : start+end]
+		} else {
+			val = []byte("N/A")
+		}
+		fmt.Fprintf(s.out, "%-40s : pc %x opcode %s (%x)\n", s.info(scope.Address(), pc), pc, op.String(), val)
 		return
 	}
-	fmt.Fprintf(s.out, "%-40s : pc %x opcode %s\n", s.info(scope.Contract.CodeAddr, pc), pc, op.String())
+	fmt.Fprintf(s.out, "%-40s : pc %x opcode %s\n", s.info(scope.Address(), pc), pc, op.String())
 }
 
-func (s *SourceMapTracer) CaptureFault(pc uint64, op vm.OpCode, gas, cost uint64, scope *vm.ScopeContext, depth int, err error) {
-	fmt.Fprintf(s.out, "%-40s: pc %x opcode %s FAULT %v\n", s.info(scope.Contract.CodeAddr, pc), pc, op.String(), err)
+func (s *SourceMapTracer) OnFault(pc uint64, opcode byte, gas, cost uint64, scope tracing.OpContext, depth int, err error) {
+	op := vm.OpCode(opcode)
+	fmt.Fprintf(s.out, "%-40s: pc %x opcode %s FAULT %v\n", s.info(scope.Address(), pc), pc, op.String(), err)
 	fmt.Println("----")
-	fmt.Fprintf(s.out, "calldata: %x\n", scope.Contract.Input)
+	fmt.Fprintf(s.out, "calldata: %x\n", scope.CallInput())
 	fmt.Println("----")
-	fmt.Fprintf(s.out, "memory: %x\n", scope.Memory.Data())
+	fmt.Fprintf(s.out, "memory: %x\n", scope.MemoryData())
 	fmt.Println("----")
 	fmt.Fprintf(s.out, "stack:\n")
-	stack := scope.Stack.Data()
+	stack := scope.StackData()
 	for i := range stack {
 		fmt.Fprintf(s.out, "%3d: %x\n", -i, stack[len(stack)-1-i].Bytes32())
+	}
+}
+
+func (s *SourceMapTracer) Hooks() *tracing.Hooks {
+	return &tracing.Hooks{
+		OnOpcode: s.OnOpCode,
+		OnFault:  s.OnFault,
 	}
 }

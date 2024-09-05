@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/big"
 	"reflect"
 	"testing"
 
@@ -12,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/services"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -39,7 +39,7 @@ var (
 // OpGeth is an actor that functions as a l2 op-geth node
 // It provides useful functions for advancing and querying the chain
 type OpGeth struct {
-	node          EthInstance
+	node          services.EthInstance
 	l2Engine      *sources.EngineClient
 	L2Client      *ethclient.Client
 	SystemConfig  eth.SystemConfig
@@ -85,11 +85,11 @@ func NewOpGeth(t testing.TB, ctx context.Context, cfg *SystemConfig) (*OpGeth, e
 		SystemConfig: e2eutils.SystemConfigFromDeployConfig(cfg.DeployConfig),
 	}
 
-	var node EthInstance
+	var node services.EthInstance
 	if cfg.ExternalL2Shim == "" {
-		gethNode, _, err := geth.InitL2("l2", big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath)
+		gethNode, err := geth.InitL2("l2", l2Genesis, cfg.JWTFilePath)
 		require.NoError(t, err)
-		require.NoError(t, gethNode.Start())
+		require.NoError(t, gethNode.Node.Start())
 		node = gethNode
 	} else {
 		externalNode := (&ExternalRunner{
@@ -102,7 +102,7 @@ func NewOpGeth(t testing.TB, ctx context.Context, cfg *SystemConfig) (*OpGeth, e
 	}
 
 	auth := rpc.WithHTTPAuth(gn.NewJWTAuth(cfg.JWTSecret))
-	l2Node, err := client.NewRPC(ctx, logger, node.WSAuthEndpoint(), client.WithGethRPCOptions(auth))
+	l2Node, err := client.NewRPC(ctx, logger, node.AuthRPC().RPC(), client.WithGethRPCOptions(auth))
 	require.NoError(t, err)
 
 	// Finally create the engine client
@@ -117,7 +117,7 @@ func NewOpGeth(t testing.TB, ctx context.Context, cfg *SystemConfig) (*OpGeth, e
 	)
 	require.NoError(t, err)
 
-	l2Client, err := ethclient.Dial(selectEndpoint(node))
+	l2Client, err := ethclient.Dial(node.UserRPC().RPC())
 	require.NoError(t, err)
 
 	genesisPayload, err := eth.BlockAsPayload(l2GenesisBlock, cfg.DeployConfig.CanyonTime(l2GenesisBlock.Time()))

@@ -245,6 +245,56 @@ contract FFIInterface {
         return (memRoot, proof);
     }
 
+    function getCannonMemoryProof(
+        uint32 pc,
+        uint32 insn,
+        uint32 memAddr,
+        uint32 memVal,
+        uint32 memAddr2,
+        uint32 memVal2
+    )
+        external
+        returns (bytes32, bytes memory)
+    {
+        string[] memory cmds = new string[](9);
+        cmds[0] = "scripts/go-ffi/go-ffi";
+        cmds[1] = "diff";
+        cmds[2] = "cannonMemoryProof";
+        cmds[3] = vm.toString(pc);
+        cmds[4] = vm.toString(insn);
+        cmds[5] = vm.toString(memAddr);
+        cmds[6] = vm.toString(memVal);
+        cmds[7] = vm.toString(memAddr2);
+        cmds[8] = vm.toString(memVal2);
+        bytes memory result = Process.run(cmds);
+        (bytes32 memRoot, bytes memory proof) = abi.decode(result, (bytes32, bytes));
+        return (memRoot, proof);
+    }
+
+    function getCannonMemoryProof2(
+        uint32 pc,
+        uint32 insn,
+        uint32 memAddr,
+        uint32 memVal,
+        uint32 memAddrForProof
+    )
+        external
+        returns (bytes32, bytes memory)
+    {
+        string[] memory cmds = new string[](8);
+        cmds[0] = "scripts/go-ffi/go-ffi";
+        cmds[1] = "diff";
+        cmds[2] = "cannonMemoryProof2";
+        cmds[3] = vm.toString(pc);
+        cmds[4] = vm.toString(insn);
+        cmds[5] = vm.toString(memAddr);
+        cmds[6] = vm.toString(memVal);
+        cmds[7] = vm.toString(memAddrForProof);
+        bytes memory result = Process.run(cmds);
+        (bytes32 memRoot, bytes memory proof) = abi.decode(result, (bytes32, bytes));
+        return (memRoot, proof);
+    }
+
     function getCannonMemoryProofWrongLeaf(
         uint32 pc,
         uint32 insn,

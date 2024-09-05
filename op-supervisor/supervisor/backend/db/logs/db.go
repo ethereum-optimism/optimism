@@ -202,6 +202,18 @@ func (db *DB) ClosestBlockInfo(blockNum uint64) (uint64, types.TruncatedHash, er
 	return checkpoint.blockNum, entry.hash, nil
 }
 
+// ClosestBlockIterator returns an iterator for the block closest to the specified blockNum.
+// The iterator will start at the search checkpoint for the block, or the first checkpoint before it.
+func (db *DB) ClosestBlockIterator(blockNum uint64) (Iterator, error) {
+	db.rwLock.RLock()
+	defer db.rwLock.RUnlock()
+	checkpointIdx, err := db.searchCheckpoint(blockNum, math.MaxUint32)
+	if err != nil {
+		return nil, fmt.Errorf("no checkpoint at or before block %v found: %w", blockNum, err)
+	}
+	return db.newIterator(checkpointIdx)
+}
+
 // Get returns the truncated hash of the log at the specified blockNum and logIdx,
 // or an error if the log is not found.
 func (db *DB) Get(blockNum uint64, logiIdx uint32) (types.TruncatedHash, error) {

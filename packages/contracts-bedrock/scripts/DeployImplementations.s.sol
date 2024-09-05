@@ -273,14 +273,15 @@ contract DeployImplementations is Script {
     //   - AnchorStateRegistry: Proxied, bespoke per chain.
     //   - FaultDisputeGame: Not proxied, bespoke per chain.
     //   - PermissionedDisputeGame: Not proxied, bespoke per chain.
-    //   - DelayedWETH: Proxied, shared by all standard chains.
+    //   - DelayedWETH: Proxied, and two bespoke ones per chain (one for each DisputeGame).
     //   - PreimageOracle: Not proxied, shared by all standard chains.
     //   - MIPS: Not proxied, shared by all standard chains.
     //   - OptimismPortal2: Proxied, shared by all standard chains.
     //
     // This script only deploys the shared contracts. The bespoke contracts are deployed by
-    // `DeployOPChain.s.sol`. When the shared contracts are proxied, we call the "implementations",
-    // and when they are not proxied, we call them "singletons". So here we deploy:
+    // `DeployOPChain.s.sol`. When the shared contracts are proxied, the contracts deployed here are
+    // "implementations", and when shared contracts are not proxied, they are "singletons". So
+    // here we deploy:
     //
     //   - OptimismPortal2 (implementation)
     //   - DelayedWETH (implementation)

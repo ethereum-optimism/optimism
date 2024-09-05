@@ -279,22 +279,24 @@ var (
 	}
 	HeartbeatEnabledFlag = &cli.BoolFlag{
 		Name:     "heartbeat.enabled",
-		Usage:    "Enables or disables heartbeating",
+		Usage:    "Deprecated, no-op flag.",
 		EnvVars:  prefixEnvVars("HEARTBEAT_ENABLED"),
 		Category: OperationsCategory,
+		Hidden:   true,
 	}
 	HeartbeatMonikerFlag = &cli.StringFlag{
 		Name:     "heartbeat.moniker",
-		Usage:    "Sets a moniker for this node",
+		Usage:    "Deprecated, no-op flag.",
 		EnvVars:  prefixEnvVars("HEARTBEAT_MONIKER"),
 		Category: OperationsCategory,
+		Hidden:   true,
 	}
 	HeartbeatURLFlag = &cli.StringFlag{
 		Name:     "heartbeat.url",
-		Usage:    "Sets the URL to heartbeat to",
+		Usage:    "Deprecated, no-op flag.",
 		EnvVars:  prefixEnvVars("HEARTBEAT_URL"),
-		Value:    "https://heartbeat.optimism.io",
 		Category: OperationsCategory,
+		Hidden:   true,
 	}
 	RollupHalt = &cli.StringFlag{
 		Name:     "rollup.halt",
