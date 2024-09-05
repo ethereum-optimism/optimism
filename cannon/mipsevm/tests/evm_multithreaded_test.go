@@ -626,7 +626,7 @@ func TestEVM_UnsupportedSyscall(t *testing.T) {
 	var tracer *tracing.Hooks
 
 	var NoopSyscallNums = maps.Values(NoopSyscalls)
-	var SupportedSyscalls = []uint32{exec.SysMmap, exec.SysBrk, exec.SysClone, exec.SysExitGroup, exec.SysRead, exec.SysWrite, exec.SysFcntl, exec.SysExit, exec.SysSchedYield, exec.SysGetTID, exec.SysFutex, exec.SysOpen, exec.SysNanosleep}
+	var SupportedSyscalls = []uint32{exec.SysMmap, exec.SysBrk, exec.SysClone, exec.SysExitGroup, exec.SysRead, exec.SysWrite, exec.SysFcntl, exec.SysExit, exec.SysSchedYield, exec.SysGetTID, exec.SysFutex, exec.SysOpen, exec.SysNanosleep, exec.SysClockGetTime, exec.SysGetpid}
 	unsupportedSyscalls := make([]uint32, 0, 400)
 	for i := 4000; i < 4400; i++ {
 		candidate := uint32(i)
