@@ -619,7 +619,7 @@ func (d *Sequencer) Init(ctx context.Context, active bool) error {
 // forceStart skips all the checks, and just starts the sequencer
 func (d *Sequencer) forceStart() error {
 	if d.latestHead == (eth.L2BlockRef{}) {
-		// This happens if sequencing is activate on op-node startup.
+		// This happens if sequencing is activated on op-node startup.
 		// The op-conductor check and choice of sequencing with this pre-state already happened before op-node startup.
 		d.log.Info("Starting sequencing, without known pre-state")
 		d.asyncGossip.Clear() // if we are starting from an unknown pre-state, just clear gossip out of caution.
