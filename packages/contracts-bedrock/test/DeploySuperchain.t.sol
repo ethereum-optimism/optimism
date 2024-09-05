@@ -199,10 +199,7 @@ contract DeploySuperchainOutput_Test is Test {
         // Clean up before asserting so that we don't leave any files behind.
         vm.removeFile(actOutPath);
 
-        assertEq(
-            expOutToml,
-            actOutToml
-        );
+        assertEq(expOutToml, actOutToml);
     }
 }
 
@@ -294,10 +291,7 @@ contract DeploySuperchain_Test is Test {
         string memory expOutToml = vm.readFile(string.concat(root, "/test/fixtures/test-deploy-superchain-out.toml"));
         // Clean up before asserting so that we don't leave any files behind.
         vm.removeFile(outpath);
-        assertEq(
-            expOutToml,
-            actOutToml
-        );
+        assertEq(expOutToml, actOutToml);
     }
 
     function test_run_ZeroAddressRoleInput_reverts() public {
