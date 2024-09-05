@@ -6,7 +6,7 @@ import { Constants } from "src/libraries/Constants.sol";
 import { GasPayingToken, IGasToken } from "src/libraries/GasPayingToken.sol";
 import "src/libraries/L1BlockErrors.sol";
 
-/// @custom:proxied
+/// @custom:proxied true
 /// @custom:predeploy 0x4200000000000000000000000000000000000015
 /// @title L1Block
 /// @notice The L1Block predeploy gives users access to information about the last known L1 block.
@@ -57,9 +57,9 @@ contract L1Block is ISemver, IGasToken {
     /// @notice The latest L1 blob base fee.
     uint256 public blobBaseFee;
 
-    /// @custom:semver 1.4.1-beta.1
+    /// @custom:semver 1.4.1-beta.2
     function version() public pure virtual returns (string memory) {
-        return "1.4.1-beta.1";
+        return "1.4.1-beta.2";
     }
 
     /// @notice Returns the gas paying token, its decimals, name and symbol.

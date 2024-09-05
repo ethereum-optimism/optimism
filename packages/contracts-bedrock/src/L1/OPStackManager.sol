@@ -4,10 +4,10 @@ pragma solidity 0.8.15;
 import { ISemver } from "src/universal/ISemver.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 
-/// @custom:proxied
+/// @custom:proxied true
 contract OPStackManager is ISemver {
-    /// @custom:semver 1.0.0-beta.1
-    string public constant version = "1.0.0-beta.1";
+    /// @custom:semver 1.0.0-beta.2
+    string public constant version = "1.0.0-beta.2";
 
     /// @notice Represents the roles that can be set when deploying a standard OP Stack chain.
     struct Roles {

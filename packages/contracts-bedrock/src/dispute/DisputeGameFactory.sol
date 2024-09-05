@@ -11,6 +11,7 @@ import { IDisputeGameFactory } from "src/dispute/interfaces/IDisputeGameFactory.
 import "src/dispute/lib/Types.sol";
 import "src/dispute/lib/Errors.sol";
 
+/// @custom:proxied true
 /// @title DisputeGameFactory
 /// @notice A factory contract for creating `IDisputeGame` contracts. All created dispute games are stored in both a
 ///         mapping and an append only array. The timestamp of the creation time of the dispute game is packed tightly
@@ -21,8 +22,8 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, ISemver 
     using LibClone for address;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 1.0.1-beta.1
+    string public constant version = "1.0.1-beta.1";
 
     /// @inheritdoc IDisputeGameFactory
     mapping(GameType => IDisputeGame) public gameImpls;
