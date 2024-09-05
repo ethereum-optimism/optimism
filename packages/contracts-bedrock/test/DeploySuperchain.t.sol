@@ -65,7 +65,7 @@ contract DeploySuperchainInput_Test is Test {
         dsi.recommendedProtocolVersion();
     }
 
-    function _assertLoadInput() internal {
+    function assertLoadInput() internal view {
         assertTrue(dsi.inputSet(), "100");
 
         // Compare the test input struct to the getter methods.
