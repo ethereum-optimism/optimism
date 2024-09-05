@@ -82,11 +82,12 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 	}
 
 	cfg := &node.Config{
-		L1:     l1Endpoint,
-		L2:     l2Endpoint,
-		Rollup: *rollupConfig,
-		Driver: *driverConfig,
-		Beacon: NewBeaconEndpointConfig(ctx),
+		L1:         l1Endpoint,
+		L2:         l2Endpoint,
+		Rollup:     *rollupConfig,
+		Driver:     *driverConfig,
+		Beacon:     NewBeaconEndpointConfig(ctx),
+		Supervisor: NewSupervisorEndpointConfig(ctx),
 		RPC: node.RPCConfig{
 			ListenAddr:  ctx.String(flags.RPCListenAddr.Name),
 			ListenPort:  ctx.Int(flags.RPCListenPort.Name),
@@ -127,6 +128,12 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		return nil, err
 	}
 	return cfg, nil
+}
+
+func NewSupervisorEndpointConfig(ctx *cli.Context) node.SupervisorEndpointSetup {
+	return &node.SupervisorEndpointConfig{
+		SupervisorAddr: ctx.String(flags.SupervisorAddr.Name),
+	}
 }
 
 func NewBeaconEndpointConfig(ctx *cli.Context) node.L1BeaconEndpointSetup {

@@ -37,8 +37,30 @@ func EngineWithP2P() EngineOption {
 	}
 }
 
-func setupSequencerTest(t Testing, sd *e2eutils.SetupData, log log.Logger) (*L1Miner, *L2Engine, *L2Sequencer) {
+type sequencerCfg struct {
+	verifierCfg
+}
+
+func defaultSequencerConfig() *sequencerCfg {
+	return &sequencerCfg{verifierCfg: *defaultVerifierCfg()}
+}
+
+type SequencerOpt func(opts *sequencerCfg)
+
+func WithVerifierOpts(opts ...VerifierOpt) SequencerOpt {
+	return func(cfg *sequencerCfg) {
+		for _, opt := range opts {
+			opt(&cfg.verifierCfg)
+		}
+	}
+}
+
+func setupSequencerTest(t Testing, sd *e2eutils.SetupData, log log.Logger, opts ...SequencerOpt) (*L1Miner, *L2Engine, *L2Sequencer) {
 	jwtPath := e2eutils.WriteDefaultJWT(t)
+	cfg := defaultSequencerConfig()
+	for _, opt := range opts {
+		opt(cfg)
+	}
 
 	miner := NewL1Miner(t, log.New("role", "l1-miner"), sd.L1Cfg)
 
@@ -48,7 +70,7 @@ func setupSequencerTest(t Testing, sd *e2eutils.SetupData, log log.Logger) (*L1M
 	l2Cl, err := sources.NewEngineClient(engine.RPCClient(), log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 	require.NoError(t, err)
 
-	sequencer := NewL2Sequencer(t, log.New("role", "sequencer"), l1F, miner.BlobStore(), altda.Disabled, l2Cl, sd.RollupCfg, 0)
+	sequencer := NewL2Sequencer(t, log.New("role", "sequencer"), l1F, miner.BlobStore(), altda.Disabled, l2Cl, sd.RollupCfg, 0, cfg.interopBackend)
 	return miner, engine, sequencer
 }
 
