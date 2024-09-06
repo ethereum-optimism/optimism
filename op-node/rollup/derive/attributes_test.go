@@ -218,7 +218,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		require.NoError(t, err)
 
 		// sets config to post-interop
-		cfg.AfterHardfork(rollup.Interop, 2)
+		cfg.ActivateAtGenesis(rollup.Interop)
 
 		epoch := l1Info.ID()
 		l1InfoTx, err := L1InfoDepositBytes(cfg, testSysCfg, 0, l1Info, 0)

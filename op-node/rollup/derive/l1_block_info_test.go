@@ -111,7 +111,7 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
 		info := testutils.MakeBlockInfo(nil)(rng)
 		rollupCfg := rollup.Config{}
-		rollupCfg.AtHardfork(rollup.Regolith)
+		rollupCfg.ActivateAtGenesis(rollup.Regolith)
 		depTx, err := L1InfoDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, 0)
 		require.NoError(t, err)
 		require.False(t, depTx.IsSystemTransaction)
@@ -121,7 +121,7 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
 		info := testutils.MakeBlockInfo(nil)(rng)
 		rollupCfg := rollup.Config{}
-		rollupCfg.AtHardfork(rollup.Ecotone)
+		rollupCfg.ActivateAtGenesis(rollup.Ecotone)
 		depTx, err := L1InfoDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, 1)
 		require.NoError(t, err)
 		require.False(t, depTx.IsSystemTransaction)
@@ -131,8 +131,8 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 	t.Run("first-block ecotone", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
 		info := testutils.MakeBlockInfo(nil)(rng)
-		rollupCfg := rollup.Config{}
-		rollupCfg.AfterHardfork(rollup.Ecotone, 2)
+		rollupCfg := rollup.Config{BlockTime: 2}
+		rollupCfg.ActivateAtGenesis(rollup.Ecotone)
 		depTx, err := L1InfoDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, 2)
 		require.NoError(t, err)
 		require.False(t, depTx.IsSystemTransaction)
@@ -142,8 +142,8 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 	t.Run("genesis-block ecotone", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
 		info := testutils.MakeBlockInfo(nil)(rng)
-		rollupCfg := rollup.Config{}
-		rollupCfg.AfterHardfork(rollup.Ecotone, 2)
+		rollupCfg := rollup.Config{BlockTime: 2}
+		rollupCfg.ActivateAtGenesis(rollup.Ecotone)
 		depTx, err := L1InfoDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, 0)
 		require.NoError(t, err)
 		require.False(t, depTx.IsSystemTransaction)
@@ -154,7 +154,7 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
 		info := testutils.MakeBlockInfo(nil)(rng)
 		rollupCfg := rollup.Config{}
-		rollupCfg.AtHardfork(rollup.Interop)
+		rollupCfg.ActivateAtGenesis(rollup.Interop)
 		depTx, err := L1InfoDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, 1)
 		require.NoError(t, err)
 		require.False(t, depTx.IsSystemTransaction)
@@ -166,8 +166,8 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 	t.Run("first-block isthmus", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
 		info := testutils.MakeBlockInfo(nil)(rng)
-		rollupCfg := rollup.Config{}
-		rollupCfg.AfterHardfork(rollup.Interop, 2)
+		rollupCfg := rollup.Config{BlockTime: 2}
+		rollupCfg.ActivateAtGenesis(rollup.Interop)
 		depTx, err := L1InfoDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, 2)
 		require.NoError(t, err)
 		require.False(t, depTx.IsSystemTransaction)
@@ -178,8 +178,8 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 	t.Run("genesis-block isthmus", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
 		info := testutils.MakeBlockInfo(nil)(rng)
-		rollupCfg := rollup.Config{}
-		rollupCfg.AfterHardfork(rollup.Interop, 2)
+		rollupCfg := rollup.Config{BlockTime: 2}
+		rollupCfg.ActivateAtGenesis(rollup.Interop)
 		depTx, err := L1InfoDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, 0)
 		require.NoError(t, err)
 		require.False(t, depTx.IsSystemTransaction)

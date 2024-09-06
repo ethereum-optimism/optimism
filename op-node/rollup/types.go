@@ -457,49 +457,44 @@ func (c *Config) IsHoloceneActivationBlock(l2BlockTime uint64) bool {
 		!c.IsHolocene(l2BlockTime-c.BlockTime)
 }
 
-// TODO rename to IsIsthmusActivationBlock (this will require quite a bit of renaming)
 func (c *Config) IsInteropActivationBlock(l2BlockTime uint64) bool {
 	return c.IsInterop(l2BlockTime) &&
 		l2BlockTime >= c.BlockTime &&
 		!c.IsInterop(l2BlockTime-c.BlockTime)
 }
 
-func (c *Config) AtHardfork(hardfork ForkName) {
-	zero := uint64(0)
+func (c *Config) ActivateAtGenesis(hardfork ForkName) {
 	// IMPORTANT! ordered from newest to oldest
 	switch hardfork {
 	case Interop:
-		c.InteropTime = &zero
+		c.InteropTime = new(uint64)
 		fallthrough
 	case Holocene:
-		c.HoloceneTime = &zero
+		c.HoloceneTime = new(uint64)
 		fallthrough
 	case Granite:
-		c.GraniteTime = &zero
+		c.GraniteTime = new(uint64)
 		fallthrough
 	case Fjord:
-		c.FjordTime = &zero
+		c.FjordTime = new(uint64)
 		fallthrough
 	case Ecotone:
-		c.EcotoneTime = &zero
+		c.EcotoneTime = new(uint64)
 		fallthrough
 	case Delta:
-		c.DeltaTime = &zero
+		c.DeltaTime = new(uint64)
 		fallthrough
 	case Canyon:
-		c.CanyonTime = &zero
+		c.CanyonTime = new(uint64)
 		fallthrough
 	case Regolith:
-		c.RegolithTime = &zero
+		c.RegolithTime = new(uint64)
 		fallthrough
+	case Bedrock:
+		// default
 	case None:
 		break
 	}
-}
-func (c *Config) AfterHardfork(hardfork ForkName, timestamp uint64) {
-	c.AtHardfork(hardfork)
-	// required after hardfork time bump
-	c.BlockTime = timestamp
 }
 
 // ForkchoiceUpdatedVersion returns the EngineAPIMethod suitable for the chain hard fork version.
