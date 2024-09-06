@@ -7,6 +7,7 @@ import (
 	"io"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
+	"github.com/ethereum-optimism/optimism/cannon/serialize"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -199,78 +200,59 @@ func (s *State) EncodeWitness() ([]byte, common.Hash) {
 // len(LastHint)			   uint32 (0 when LastHint is nil)
 // LastHint 				   []byte
 func (s *State) Serialize(out io.Writer) error {
-	if err := binary.Write(out, binary.BigEndian, versions.VersionSingleThreaded); err != nil {
+	bout := serialize.NewBinaryWriter(out)
+	if err := bout.WriteUInt(versions.VersionSingleThreaded); err != nil {
 		return err
 	}
 
 	if err := s.Memory.Serialize(out); err != nil {
 		return err
 	}
-	if _, err := out.Write(s.PreimageKey[:]); err != nil {
+	if err := bout.WriteHash(s.PreimageKey); err != nil {
 		return err
 	}
-	if err := binary.Write(out, binary.BigEndian, s.PreimageOffset); err != nil {
+	if err := bout.WriteUInt(s.PreimageOffset); err != nil {
 		return err
 	}
-	if err := binary.Write(out, binary.BigEndian, s.Cpu.PC); err != nil {
+	if err := bout.WriteUInt(s.Cpu.PC); err != nil {
 		return err
 	}
-	if err := binary.Write(out, binary.BigEndian, s.Cpu.NextPC); err != nil {
+	if err := bout.WriteUInt(s.Cpu.NextPC); err != nil {
 		return err
 	}
-	if err := binary.Write(out, binary.BigEndian, s.Cpu.LO); err != nil {
+	if err := bout.WriteUInt(s.Cpu.LO); err != nil {
 		return err
 	}
-	if err := binary.Write(out, binary.BigEndian, s.Cpu.HI); err != nil {
+	if err := bout.WriteUInt(s.Cpu.HI); err != nil {
 		return err
 	}
-	if err := binary.Write(out, binary.BigEndian, s.Heap); err != nil {
+	if err := bout.WriteUInt(s.Heap); err != nil {
 		return err
 	}
-	if err := binary.Write(out, binary.BigEndian, s.ExitCode); err != nil {
+	if err := bout.WriteUInt(s.ExitCode); err != nil {
 		return err
 	}
-	var exited uint8
-	if s.Exited {
-		exited = 1
-	}
-	if err := binary.Write(out, binary.BigEndian, exited); err != nil {
+	if err := bout.WriteBool(s.Exited); err != nil {
 		return err
 	}
-	if err := binary.Write(out, binary.BigEndian, s.Step); err != nil {
+	if err := bout.WriteUInt(s.Step); err != nil {
 		return err
 	}
 	for _, r := range s.Registers {
-		if err := binary.Write(out, binary.BigEndian, r); err != nil {
+		if err := bout.WriteUInt(r); err != nil {
 			return err
 		}
 	}
-
-	// Note that the length is set to 0 even if the hint is nil.
-	if s.LastHint == nil {
-		if err := binary.Write(out, binary.BigEndian, uint32(0)); err != nil {
-			return err
-		}
-	} else {
-		if err := binary.Write(out, binary.BigEndian, uint32(len(s.LastHint))); err != nil {
-			return err
-		}
-
-		n, err := out.Write(s.LastHint)
-		if err != nil {
-			return err
-		}
-		if n != len(s.LastHint) {
-			panic("failed to write full last hint")
-		}
+	if err := bout.WriteBytes(s.LastHint); err != nil {
+		return err
 	}
-
 	return nil
 }
 
 func (s *State) Deserialize(in io.Reader) error {
+	bin := serialize.NewBinaryReader(in)
 	var version versions.StateVersion
-	if err := binary.Read(in, binary.BigEndian, &version); err != nil {
+	if err := bin.ReadUInt(&version); err != nil {
 		return err
 	}
 	if version != versions.VersionSingleThreaded {
@@ -280,67 +262,44 @@ func (s *State) Deserialize(in io.Reader) error {
 	if err := s.Memory.Deserialize(in); err != nil {
 		return err
 	}
-	if _, err := io.ReadFull(in, s.PreimageKey[:]); err != nil {
+	if err := bin.ReadHash(&s.PreimageKey); err != nil {
 		return err
 	}
-	if err := binary.Read(in, binary.BigEndian, &s.PreimageOffset); err != nil {
+	if err := bin.ReadUInt(&s.PreimageOffset); err != nil {
 		return err
 	}
-	if err := binary.Read(in, binary.BigEndian, &s.Cpu.PC); err != nil {
+	if err := bin.ReadUInt(&s.Cpu.PC); err != nil {
 		return err
 	}
-	if err := binary.Read(in, binary.BigEndian, &s.Cpu.NextPC); err != nil {
+	if err := bin.ReadUInt(&s.Cpu.NextPC); err != nil {
 		return err
 	}
-	if err := binary.Read(in, binary.BigEndian, &s.Cpu.LO); err != nil {
+	if err := bin.ReadUInt(&s.Cpu.LO); err != nil {
 		return err
 	}
-	if err := binary.Read(in, binary.BigEndian, &s.Cpu.HI); err != nil {
+	if err := bin.ReadUInt(&s.Cpu.HI); err != nil {
 		return err
 	}
-	if err := binary.Read(in, binary.BigEndian, &s.Heap); err != nil {
+	if err := bin.ReadUInt(&s.Heap); err != nil {
 		return err
 	}
-	var exitCode uint8
-	if err := binary.Read(in, binary.BigEndian, &exitCode); err != nil {
+	if err := bin.ReadUInt(&s.ExitCode); err != nil {
 		return err
 	}
-	s.ExitCode = exitCode
-	var exited uint8
-	if err := binary.Read(in, binary.BigEndian, &exited); err != nil {
+	if err := bin.ReadBool(&s.Exited); err != nil {
 		return err
 	}
-	if exited == 1 {
-		s.Exited = true
-	} else {
-		s.Exited = false
-	}
-	if err := binary.Read(in, binary.BigEndian, &s.Step); err != nil {
+	if err := bin.ReadUInt(&s.Step); err != nil {
 		return err
 	}
 	for i := range s.Registers {
-		if err := binary.Read(in, binary.BigEndian, &s.Registers[i]); err != nil {
+		if err := bin.ReadUInt(&s.Registers[i]); err != nil {
 			return err
 		}
 	}
-
-	// Note that a zero length is always interpreted as nil
-	var lastHintLen uint32
-	if err := binary.Read(in, binary.BigEndian, &lastHintLen); err != nil {
+	if err := bin.ReadBytes((*[]byte)(&s.LastHint)); err != nil {
 		return err
 	}
-	if lastHintLen > 0 {
-		lastHint := make([]byte, lastHintLen)
-		n, err := in.Read(lastHint)
-		if err != nil {
-			return err
-		}
-		if n != int(lastHintLen) {
-			panic("failed to read full last hint")
-		}
-		s.LastHint = lastHint
-	}
-
 	return nil
 }
 
