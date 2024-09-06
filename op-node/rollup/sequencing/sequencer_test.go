@@ -170,6 +170,18 @@ func TestSequencer_StartStop(t *testing.T) {
 	require.True(t, deps.asyncGossip.started, "async gossip is always started on initialization")
 	require.False(t, deps.seqState.active, "sequencer not active yet")
 
+	envelope := &eth.ExecutionPayloadEnvelope{
+		ExecutionPayload: &eth.ExecutionPayload{},
+	}
+	emitter.ExpectOnce(engine.PayloadProcessEvent{
+		Envelope: envelope,
+		Ref:      eth.L2BlockRef{Hash: common.Hash{0xaa}},
+	})
+	seq.OnEvent(engine.BuildSealedEvent{
+		Envelope: envelope,
+		Ref:      eth.L2BlockRef{Hash: common.Hash{0xaa}},
+	})
+	emitter.AssertExpectations(t)
 	seq.OnEvent(engine.ForkchoiceUpdateEvent{
 		UnsafeL2Head:    eth.L2BlockRef{Hash: common.Hash{0xaa}},
 		SafeL2Head:      eth.L2BlockRef{},
@@ -192,20 +204,6 @@ func TestSequencer_StartStop(t *testing.T) {
 	// can't activate again before stopping
 	err := seq.Start(context.Background(), common.Hash{0xaa})
 	require.ErrorIs(t, err, ErrSequencerAlreadyStarted)
-
-	// ensure the latest.Ref is updated before attempting to stop
-	envelope := &eth.ExecutionPayloadEnvelope{
-		ExecutionPayload: &eth.ExecutionPayload{},
-	}
-	emitter.ExpectOnce(engine.PayloadProcessEvent{
-		Envelope: envelope,
-		Ref:      eth.L2BlockRef{Hash: common.Hash{0xaa}},
-	})
-	seq.OnEvent(engine.BuildSealedEvent{
-		Envelope: envelope,
-		Ref:      eth.L2BlockRef{Hash: common.Hash{0xaa}},
-	})
-	emitter.AssertExpectations(t)
 
 	head, err := seq.Stop(context.Background())
 	require.NoError(t, err)
@@ -360,7 +358,14 @@ func TestSequencer_StaleBuild(t *testing.T) {
 	_, ok = seq.NextAction()
 	require.False(t, ok, "optimistically published, but not ready to sequence next, until local processing completes")
 
-	// ensure the latest.Ref is updated before attempting to stop
+	// attempting to stop block building here should timeout, because the sealed block is different from the latestHead
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	_, err := seq.Stop(ctx)
+	require.Error(t, err, "stop should have timed out")
+	require.ErrorIs(t, err, ctx.Err())
+
+	// reset latestSealed to the previous head
 	emitter.ExpectOnce(engine.PayloadProcessEvent{
 		Envelope: payloadEnvelope,
 		Ref:      head,
