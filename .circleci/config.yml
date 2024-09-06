@@ -198,14 +198,14 @@ jobs:
           name: print forge version
           command: forge --version
       - run:
-          name: Pull artifacts
-          command: bash scripts/ops/pull-artifacts.sh
+          name: Contracts prebuild
+          command: just prebuild
           working_directory: packages/contracts-bedrock
       - run:
-          name: Build contracts
+          name: Build contracts (skip tests)
           environment:
             FOUNDRY_PROFILE: ci
-          command: just build
+          command: forge build --skip test
           working_directory: packages/contracts-bedrock
       - run:
           name: Generate L2OO allocs
