@@ -11,53 +11,51 @@ import { Proxy } from "src/universal/Proxy.sol";
 
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
-/**
- * This comment block defines the requirements and rationale for the architecture used in this forge
- * script, along with other scripts that are being written as new Superchain-first deploy scripts to
- * complement the OP Stack Manager. The script architecture is a bit different than a standard forge
- * deployment script.
- *
- * There are three categories of users that are expected to interact with the scripts:
- *   1. End users that want to run live contract deployments.
- *   2. Solidity developers that want to use or test these script in a standard forge test environment.
- *   3. Go developers that want to run the deploy scripts as part of e2e testing with other aspects of the OP Stack.
- *
- * We want each user to interact with the scripts in the way that's simplest for their use case:
- *   1. End users: TOML input files that define config, and TOML output files with all output data.
- *   2. Solidity developers: Direct calls to the script with input structs and output structs.
- *   3. Go developers: The forge scripts can be executed directly in Go.
- *
- * The following architecture is used to meet the requirements of each user. We use this file's
- * `DeploySuperchain` script as an example, but it applies to other scripts as well.
- *
- * This `DeploySuperchain.s.sol` file contains three contracts:
- *   1. `DeploySuperchainInput`: Responsible for parsing, storing, and exposing the input data.
- *   2. `DeploySuperchainOutput`: Responsible for storing and exposing the output data.
- *   3. `DeploySuperchain`: The core script that executes the deployment. It reads inputs from the
- *      input contract, and writes outputs to the output contract.
- *
- * Because the core script performs calls to the input and output contracts, Go developers can
- * intercept calls to these addresses (analogous to how forge intercepts calls to the `Vm` address
- * to execute cheatcodes), to avoid the need for file I/O or hardcoding the input/output structs.
- *
- * Public getter methods on the input and output contracts allow individual fields to be accessed
- * in a strong, type-safe manner (as opposed to a single struct getter where the caller may
- * inadvertently transpose two addresses, for example).
- *
- * Each deployment step in the core deploy script is modularized into its own function that performs
- * the deploy and sets the output on the Output contract, allowing for easy composition and testing
- * of deployment steps. The output setter methods requires keying off the four-byte selector of the
- * each output field's getter method, ensuring that the output is set for the correct field and
- * minimizing the amount of boilerplate needed for each output field.
- *
- * This script doubles as a reference for documenting the pattern used and therefore contains
- * comments explaining the patterns used. Other scripts are not expected to have this level of
- * documentation.
- *
- * Additionally, we intentionally use "Input" and "Output" terminology to clearly distinguish these
- * scripts from the existing ones that "Config" and "Artifacts" terminology.
- */
 
+// This comment block defines the requirements and rationale for the architecture used in this forge
+// script, along with other scripts that are being written as new Superchain-first deploy scripts to
+// complement the OP Stack Manager. The script architecture is a bit different than a standard forge
+// deployment script.
+//
+// There are three categories of users that are expected to interact with the scripts:
+//   1. End users that want to run live contract deployments.
+//   2. Solidity developers that want to use or test these scripts in a standard forge test environment.
+//   3. Go developers that want to run the deploy scripts as part of e2e testing with other aspects of the OP Stack.
+//
+// We want each user to interact with the scripts in the way that's simplest for their use case:
+//   1. End users: TOML input files that define config, and TOML output files with all output data.
+//   2. Solidity developers: Direct calls to the script with input structs and output structs.
+//   3. Go developers: The forge scripts can be executed directly in Go.
+//
+// The following architecture is used to meet the requirements of each user. We use this file's
+// `DeploySuperchain` script as an example, but it applies to other scripts as well.
+//
+// This `DeploySuperchain.s.sol` file contains three contracts:
+//   1. `DeploySuperchainInput`: Responsible for parsing, storing, and exposing the input data.
+//   2. `DeploySuperchainOutput`: Responsible for storing and exposing the output data.
+//   3. `DeploySuperchain`: The core script that executes the deployment. It reads inputs from the
+//      input contract, and writes outputs to the output contract.
+//
+// Because the core script performs calls to the input and output contracts, Go developers can
+// intercept calls to these addresses (analogous to how forge intercepts calls to the `Vm` address
+// to execute cheatcodes), to avoid the need for file I/O or hardcoding the input/output structs.
+//
+// Public getter methods on the input and output contracts allow individual fields to be accessed
+// in a strong, type-safe manner (as opposed to a single struct getter where the caller may
+// inadvertently transpose two addresses, for example).
+//
+// Each deployment step in the core deploy script is modularized into its own function that performs
+// the deploy and sets the output on the Output contract, allowing for easy composition and testing
+// of deployment steps. The output setter methods requires keying off the four-byte selector of
+// each output field's getter method, ensuring that the output is set for the correct field and
+// minimizing the amount of boilerplate needed for each output field.
+//
+// This script doubles as a reference for documenting the pattern used and therefore contains
+// comments explaining the patterns used. Other scripts are not expected to have this level of
+// documentation.
+//
+// Additionally, we intentionally use "Input" and "Output" terminology to clearly distinguish these
+// scripts from the existing ones that use the "Config" and "Artifacts" terminology.
 contract DeploySuperchainInput is CommonBase {
     // The input struct contains all the input data required for the deployment.
     // The fields must be in alphabetical order for vm.parseToml to work.
@@ -238,7 +236,7 @@ contract DeploySuperchainOutput is CommonBase {
 
 // For all broadcasts in this script we explicitly specify the deployer as `msg.sender` because for
 // testing we deploy this script from a test contract. If we provide no argument, the foundry
-// default sender is be the broadcaster during test, but the broadcaster needs to be the deployer
+// default sender would be the broadcaster during test, but the broadcaster needs to be the deployer
 // since they are set to the initial proxy admin owner.
 contract DeploySuperchain is Script {
     // -------- Core Deployment Methods --------
@@ -300,7 +298,7 @@ contract DeploySuperchain is Script {
     function deploySuperchainProxyAdmin(DeploySuperchainInput, DeploySuperchainOutput _dso) public {
         // Deploy the proxy admin, with the owner set to the deployer.
         // We explicitly specify the deployer as `msg.sender` because for testing we deploy this script from a test
-        // contract. If we provide no argument, the foundry default sender is be the broadcaster during test, but the
+        // contract. If we provide no argument, the foundry default sender would be the broadcaster during test, but the
         // broadcaster needs to be the deployer since they are set to the initial proxy admin owner.
         vm.broadcast(msg.sender);
         ProxyAdmin superchainProxyAdmin = new ProxyAdmin(msg.sender);
