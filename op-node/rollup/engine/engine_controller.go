@@ -269,6 +269,11 @@ func (e *EngineController) TryUpdateEngine(ctx context.Context) error {
 	if e.IsEngineSyncing() {
 		e.log.Warn("Attempting to update forkchoice state while EL syncing")
 	}
+	if e.unsafeHead.Number < e.finalizedHead.Number {
+		err := fmt.Errorf("invalid forkchoice state, unsafe head %s is behind finalized head %s", e.unsafeHead, e.finalizedHead)
+		e.emitter.Emit(rollup.CriticalErrorEvent{Err: err}) // make the node exit, things are very wrong.
+		return err
+	}
 	fc := eth.ForkchoiceState{
 		HeadBlockHash:      e.unsafeHead.Hash,
 		SafeBlockHash:      e.safeHead.Hash,
