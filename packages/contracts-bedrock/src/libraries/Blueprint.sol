@@ -93,6 +93,7 @@ library Blueprint {
     }
 
     /// @notice Parses the code at the given `_target` as a blueprint and deploys the resulting initcode.
+    /// This version of `deployFrom` is used when the initcode requires no constructor arguments.
     function deployFrom(address _target, bytes32 _salt) internal returns (address) {
         return deployFrom(_target, _salt, new bytes(0));
     }

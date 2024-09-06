@@ -46,6 +46,13 @@ contract Blueprint_Test is Test {
         blueprint = new BlueprintHarness();
     }
 
+    function deployWithCreate2(bytes memory _initcode, bytes32 _salt) public returns (address addr_) {
+        assembly ("memory-safe") {
+            addr_ := create2(0, add(_initcode, 0x20), mload(_initcode), _salt)
+        }
+        require(addr_ != address(0), "deployWithCreate2: deployment failed");
+    }
+
     // --- We start with the test cases from ERC-5202 ---
 
     // An example (and trivial!) blueprint contract with no data section, whose initcode is just the STOP instruction.
@@ -100,11 +107,7 @@ contract Blueprint_Test is Test {
         bytes memory blueprintInitcode = blueprint.blueprintDeployerBytecode(_initcode);
 
         // Deploy the blueprint.
-        address blueprintAddress;
-        assembly ("memory-safe") {
-            blueprintAddress := create2(0, add(blueprintInitcode, 0x20), mload(blueprintInitcode), 0)
-        }
-        require(blueprintAddress != address(0), "DeployImplementations: create2 failed");
+        address blueprintAddress = deployWithCreate2(blueprintInitcode, bytes32(0));
 
         // Read the blueprint code from the deployed code.
         bytes memory blueprintCode = address(blueprintAddress).code;
@@ -164,11 +167,7 @@ contract Blueprint_Test is Test {
         bytes memory blueprintInitcode = blueprint.blueprintDeployerBytecode(initcode);
 
         // Deploy the blueprint.
-        address blueprintAddress;
-        assembly ("memory-safe") {
-            blueprintAddress := create2(0, add(blueprintInitcode, 0x20), mload(blueprintInitcode), 0)
-        }
-        require(blueprintAddress != address(0), "Blueprint deployment failed");
+        address blueprintAddress = deployWithCreate2(blueprintInitcode, _salt);
 
         // Deploy from the blueprint.
         address deployedContract = Blueprint.deployFrom(blueprintAddress, _salt);
@@ -184,11 +183,7 @@ contract Blueprint_Test is Test {
         bytes memory blueprintInitcode = blueprint.blueprintDeployerBytecode(type(ConstructorArgMock).creationCode);
 
         // Deploy the blueprint.
-        address blueprintAddress;
-        assembly ("memory-safe") {
-            blueprintAddress := create2(0, add(blueprintInitcode, 0x20), mload(blueprintInitcode), 0)
-        }
-        require(blueprintAddress != address(0), "Blueprint deployment failed");
+        address blueprintAddress = deployWithCreate2(blueprintInitcode, _salt);
 
         // Deploy from the blueprint.
         bytes memory args = abi.encode(_x, _y);
@@ -240,7 +235,10 @@ contract Blueprint_Test is Test {
         // Additional test cases.
         assertEq(0, blueprint.bytesToUint(hex""));
         assertEq(0, blueprint.bytesToUint(hex"00"));
+        assertEq(3, blueprint.bytesToUint(hex"0003"));
+        assertEq(3145731, blueprint.bytesToUint(hex"300003"));
         assertEq(14545064521499334880, blueprint.bytesToUint(hex"c9da731e871ad8e0"));
+        assertEq(14545064521499334880, blueprint.bytesToUint(hex"00c9da731e871ad8e0"));
         assertEq(type(uint256).max, blueprint.bytesToUint(bytes.concat(bytes32(type(uint256).max))));
     }
 }
