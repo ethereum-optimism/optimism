@@ -6,7 +6,6 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"math/big"
 	"net"
 	"os"
@@ -96,18 +95,6 @@ func newTxMgrConfig(l1Addr string, privKey *ecdsa.PrivateKey) txmgr.CLIConfig {
 	}
 }
 
-type sequencerP2PConfig struct {
-	*p2p.Config
-}
-
-const sequencerOutboundQueueSize = 1
-
-func (me *sequencerP2PConfig) ConfigureGossip(rollupCfg *rollup.Config) []pubsub.Option {
-	options := me.Config.ConfigureGossip(rollupCfg)
-	options = append(options, pubsub.WithPeerOutboundQueueSize(1))
-	return options
-}
-
 func DefaultSystemConfig(t testing.TB) SystemConfig {
 	config.ExternalL2TestParms.SkipIfNecessary(t)
 
@@ -158,7 +145,6 @@ func DefaultSystemConfig(t testing.TB) SystemConfig {
 				RuntimeConfigReloadInterval: time.Minute * 10,
 				ConfigPersistence:           &rollupNode.DisabledConfigPersistence{},
 				Sync:                        sync.Config{SyncMode: sync.CLSync},
-				P2P:                         &sequencerP2PConfig{},
 			},
 			RoleVerif: {
 				Driver: driver.Config{

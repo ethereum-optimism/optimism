@@ -194,10 +194,10 @@ func (s *Driver) eventLoop() {
 
 	// Create a ticker to check if there is a gap in the engine queue. Whenever
 	// there is, we send requests to sync source to retrieve the missing payloads.
+	// Wait 2 whole blocks before checking.
 	syncCheckInterval := time.Duration(s.Config.BlockTime) * time.Second * 2
 	altSyncTicker := time.NewTicker(syncCheckInterval)
 	defer altSyncTicker.Stop()
-	lastUnsafeL2 := s.Engine.UnsafeL2Head()
 
 	for {
 		if s.driverCtx.Err() != nil { // don't try to schedule/handle more work when we are closing.
@@ -217,28 +217,13 @@ func (s *Driver) eventLoop() {
 
 		planSequencerAction()
 
-		// If the engine is not ready, or if the L2 head is actively changing, then reset the alt-sync:
-		// there is no need to request L2 blocks when we are syncing already.
-		if head := s.Engine.UnsafeL2Head(); head != lastUnsafeL2 || !s.Derivation.DerivationReady() {
-			fmt.Printf("last unsafe l2 head changed: %v\n", head)
-			lastUnsafeL2 = head
-			altSyncTicker.Reset(syncCheckInterval)
-		}
-
-		// This select is excessively large and crosses multiple states and can cause starvation for
-		// example of the driverCtx. TODO: Check this assertion now it's been tidied up.
 		select {
 		case <-sequencerCh:
 			s.Emitter.Emit(sequencing.SequencerActionEvent{})
 		case <-altSyncTicker.C:
-			// Check if there is a gap in the current unsafe payload queue.
-			ctx, cancel := context.WithTimeout(s.driverCtx, time.Second*2)
-			err := s.checkForGapInUnsafeQueue(ctx)
-			cancel()
-			if err != nil {
-				s.log.Warn("failed to check for unsafe L2 blocks to sync", "err", err)
-			}
+			s.syncUnsafeBlocks()
 		case envelope := <-s.unsafeL2Payloads:
+			s.syncUnsafeBlocks()
 			// If we are doing CL sync or done with engine syncing, fallback to the unsafe payload queue & CL P2P sync.
 			if s.SyncCfg.SyncMode == sync.CLSync || !s.Engine.IsEngineSyncing() {
 				s.log.Info("Optimistically queueing unsafe L2 execution payload", "id", envelope.ExecutionPayload.ID())
@@ -530,14 +515,32 @@ func (s *Driver) BlockRefWithStatus(ctx context.Context, num uint64) (eth.L2Bloc
 	}
 }
 
-// checkForGapInUnsafeQueue checks if there is a gap in the unsafe queue and attempts to retrieve
+func (s *Driver) syncUnsafeBlocks() {
+	if !s.Derivation.DerivationReady() {
+		return
+	}
+	if len(s.unsafeL2Payloads) != 0 {
+		// Finish processing l2 payloads before resetting alt sync or blocks may be unpromoted that
+		// just haven't been processed yet.
+		return
+	}
+	ctx, cancel := context.WithTimeout(s.driverCtx, time.Second*2)
+	defer cancel()
+	err := s.requestMissingUnsafeBlocks(ctx)
+	if err != nil {
+		s.log.Warn("failed to check for unsafe L2 blocks to sync", "err", err)
+	}
+}
+
+// requestMissingUnsafeBlocks checks if there is a gap in the unsafe queue and attempts to retrieve
 // the missing payloads from an alt-sync method. WARNING: This is only an outgoing signal, the
 // blocks are not guaranteed to be retrieved. Results are received through OnUnsafeL2Payload.
-func (s *Driver) checkForGapInUnsafeQueue(ctx context.Context) error {
+func (s *Driver) requestMissingUnsafeBlocks(ctx context.Context) error {
 	start := s.Engine.UnsafeL2Head()
 	end := s.CLSync.LowestQueuedUnsafeBlock()
 	// Check if we have missing blocks between the start and end. Request them if we do.
 	if end == (eth.L2BlockRef{}) {
+		// NB the alt-sync client doesn't actually handle this since it doesn't know what to trust.
 		s.log.Debug("requesting sync with open-end range", "start", start)
 		return s.altSync.RequestL2Range(ctx, start, eth.L2BlockRef{})
 	} else if end.Number > start.Number+1 {
