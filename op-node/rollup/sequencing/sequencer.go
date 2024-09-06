@@ -658,7 +658,7 @@ func (d *Sequencer) forceStart() error {
 	return nil
 }
 
-func (d *Sequencer) Stop(ctx context.Context) (hash common.Hash, err error) {
+func (d *Sequencer) Stop(ctx context.Context) (common.Hash, error) {
 	if err := d.l.LockCtx(ctx); err != nil {
 		return common.Hash{}, err
 	}
@@ -683,6 +683,11 @@ func (d *Sequencer) Stop(ctx context.Context) (hash common.Hash, err error) {
 		}
 	}
 	defer d.l.Unlock()
+
+	// Stop() may have been called twice, so check if we are active after reacquiring the lock
+	if !d.active.Load() {
+		return common.Hash{}, ErrSequencerAlreadyStopped
+	}
 
 	if err := d.listener.SequencerStopped(); err != nil {
 		return common.Hash{}, fmt.Errorf("failed to notify sequencer-state listener of stop: %w", err)
