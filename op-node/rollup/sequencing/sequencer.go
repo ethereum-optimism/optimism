@@ -111,8 +111,9 @@ type Sequencer struct {
 	nextAction   time.Time
 	nextActionOK bool
 
-	latest     BuildingState
-	latestHead eth.L2BlockRef
+	latest       BuildingState
+	latestSealed eth.L2BlockRef
+	latestHead   eth.L2BlockRef
 
 	latestHeadSet chan struct{}
 
@@ -285,6 +286,7 @@ func (d *Sequencer) onBuildSealed(x engine.BuildSealedEvent) {
 		Ref:          x.Ref,
 	})
 	d.latest.Ref = x.Ref
+	d.latestSealed = x.Ref
 }
 
 func (d *Sequencer) onPayloadSealInvalid(x engine.PayloadSealInvalidEvent) {
@@ -667,7 +669,7 @@ func (d *Sequencer) Stop(ctx context.Context) (hash common.Hash, err error) {
 	}
 
 	// ensure latestHead has been updated to the latest sealed/gossiped block before stopping the sequencer
-	for d.latestHead.Hash != d.latest.Ref.Hash {
+	for d.latestHead.Hash != d.latestSealed.Hash {
 		latestHeadSet := make(chan struct{})
 		d.latestHeadSet = latestHeadSet
 		d.l.Unlock()
