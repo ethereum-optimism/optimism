@@ -902,7 +902,11 @@ func (sys *System) newMockNetPeer() (host.Host, error) {
 	return sys.Mocknet.AddPeerWithPeerstore(p, eps)
 }
 
-// mocknet doesn't allow us to add a peerstore without fully creating the peer ourselves
+// mocknet doesn't allow us to add a peerstore without fully creating the peer ourselves. TODO: This
+// method was an attempt to use custom peer IDs so I could identify different entities in the p2p
+// where we no longer have a reference to the node. Unfortunately the IDs seem to be altered into
+// something that looks like "LKFFiQkECKz" (still better than
+// Qm-really-long-visually-indistiguishable-multiaddrs). It still works but it's not very useful.
 func (sys *System) newMockNetPeerWithCustomPeerId(p peer.ID) (host.Host, error) {
 	sk, _, err := ic.GenerateECDSAKeyPair(rand.Reader)
 	if err != nil {

@@ -748,17 +748,6 @@ func TestSystemP2PAltSync(t *testing.T) {
 
 	syncer := makeSyncer(ctx, t, "syncer", cfg, sys)
 	defer syncer.stop()
-	// set up our syncer node, connect it to alice/bob
-	//cfg.Loggers["syncer"] = testlog.Logger(t, log.LevelInfo).New("role", "syncer")
-
-	//if len(sys.RollupNodes) != 2 {
-	//	panic(fmt.Sprint(slices.Collect(maps.Keys(sys.RollupNodes))))
-	//}
-	//
-	//for _, rollup := range sys.RollupNodes {
-	//	linkNodes(t, sys.Mocknet, rollup, syncer.node)
-	//	connectNodes(t, sys.Mocknet, rollup, syncer.node)
-	//}
 
 	linkNodes(t, sys.Mocknet, sys.RollupNodes[RoleSeq].P2P(), syncer.node.P2P())
 	connectNodes(t, sys.Mocknet, sys.RollupNodes[RoleSeq].P2P(), syncer.node.P2P())
