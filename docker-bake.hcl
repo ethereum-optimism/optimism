@@ -219,6 +219,7 @@ target "contracts-bedrock" {
   dockerfile = "./ops/docker/Dockerfile.packages"
   context = "."
   target = "contracts-bedrock"
-  platforms = split(",", PLATFORMS)
+  # See comment in Dockerfile.packages for why we only build for linux/amd64.
+  platforms = ["linux/amd64"]
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/contracts-bedrock:${tag}"]
 }

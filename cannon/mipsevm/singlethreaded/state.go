@@ -4,7 +4,10 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"io"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
+	"github.com/ethereum-optimism/optimism/cannon/serialize"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -175,6 +178,129 @@ func (s *State) EncodeWitness() ([]byte, common.Hash) {
 		out = binary.BigEndian.AppendUint32(out, r)
 	}
 	return out, stateHashFromWitness(out)
+}
+
+// Serialize writes the state in a simple binary format which can be read again using Deserialize
+// The format is a simple concatenation of fields, with prefixed item count for repeating items and using big endian
+// encoding for numbers.
+//
+// StateVersion                uint8(0)
+// Memory                      As per Memory.Serialize
+// PreimageKey                 [32]byte
+// PreimageOffset              uint32
+// Cpu.PC					   uint32
+// Cpu.NextPC 				   uint32
+// Cpu.LO 					   uint32
+// Cpu.HI					   uint32
+// Heap                        uint32
+// ExitCode                    uint8
+// Exited                      uint8 - 0 for false, 1 for true
+// Step                        uint64
+// Registers                   [32]uint32
+// len(LastHint)			   uint32 (0 when LastHint is nil)
+// LastHint 				   []byte
+func (s *State) Serialize(out io.Writer) error {
+	bout := serialize.NewBinaryWriter(out)
+	if err := bout.WriteUInt(versions.VersionSingleThreaded); err != nil {
+		return err
+	}
+
+	if err := s.Memory.Serialize(out); err != nil {
+		return err
+	}
+	if err := bout.WriteHash(s.PreimageKey); err != nil {
+		return err
+	}
+	if err := bout.WriteUInt(s.PreimageOffset); err != nil {
+		return err
+	}
+	if err := bout.WriteUInt(s.Cpu.PC); err != nil {
+		return err
+	}
+	if err := bout.WriteUInt(s.Cpu.NextPC); err != nil {
+		return err
+	}
+	if err := bout.WriteUInt(s.Cpu.LO); err != nil {
+		return err
+	}
+	if err := bout.WriteUInt(s.Cpu.HI); err != nil {
+		return err
+	}
+	if err := bout.WriteUInt(s.Heap); err != nil {
+		return err
+	}
+	if err := bout.WriteUInt(s.ExitCode); err != nil {
+		return err
+	}
+	if err := bout.WriteBool(s.Exited); err != nil {
+		return err
+	}
+	if err := bout.WriteUInt(s.Step); err != nil {
+		return err
+	}
+	for _, r := range s.Registers {
+		if err := bout.WriteUInt(r); err != nil {
+			return err
+		}
+	}
+	if err := bout.WriteBytes(s.LastHint); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *State) Deserialize(in io.Reader) error {
+	bin := serialize.NewBinaryReader(in)
+	var version versions.StateVersion
+	if err := bin.ReadUInt(&version); err != nil {
+		return err
+	}
+	if version != versions.VersionSingleThreaded {
+		return fmt.Errorf("invalid state encoding version %d", version)
+	}
+	s.Memory = memory.NewMemory()
+	if err := s.Memory.Deserialize(in); err != nil {
+		return err
+	}
+	if err := bin.ReadHash(&s.PreimageKey); err != nil {
+		return err
+	}
+	if err := bin.ReadUInt(&s.PreimageOffset); err != nil {
+		return err
+	}
+	if err := bin.ReadUInt(&s.Cpu.PC); err != nil {
+		return err
+	}
+	if err := bin.ReadUInt(&s.Cpu.NextPC); err != nil {
+		return err
+	}
+	if err := bin.ReadUInt(&s.Cpu.LO); err != nil {
+		return err
+	}
+	if err := bin.ReadUInt(&s.Cpu.HI); err != nil {
+		return err
+	}
+	if err := bin.ReadUInt(&s.Heap); err != nil {
+		return err
+	}
+	if err := bin.ReadUInt(&s.ExitCode); err != nil {
+		return err
+	}
+	if err := bin.ReadBool(&s.Exited); err != nil {
+		return err
+	}
+	if err := bin.ReadUInt(&s.Step); err != nil {
+		return err
+	}
+	for i := range s.Registers {
+		if err := bin.ReadUInt(&s.Registers[i]); err != nil {
+			return err
+		}
+	}
+	if err := bin.ReadBytes((*[]byte)(&s.LastHint)); err != nil {
+		return err
+	}
+	return nil
 }
 
 type StateWitness []byte

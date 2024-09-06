@@ -5,8 +5,8 @@ import { L1Block } from "src/L2/L1Block.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 
-/// @custom:legacy
-/// @custom:proxied
+/// @custom:legacy true
+/// @custom:proxied true
 /// @custom:predeploy 0x4200000000000000000000000000000000000013
 /// @title L1BlockNumber
 /// @notice L1BlockNumber is a legacy contract that fills the roll of the OVM_L1BlockNumber contract
@@ -15,8 +15,8 @@ import { ISemver } from "src/universal/ISemver.sol";
 ///        contract instead.
 contract L1BlockNumber is ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 1.1.0
-    string public constant version = "1.1.0";
+    /// @custom:semver 1.1.1-beta.1
+    string public constant version = "1.1.1-beta.1";
 
     /// @notice Returns the L1 block number.
     receive() external payable {

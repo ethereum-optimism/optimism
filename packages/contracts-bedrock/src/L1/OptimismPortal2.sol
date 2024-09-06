@@ -22,7 +22,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import "src/libraries/PortalErrors.sol";
 import "src/dispute/lib/Types.sol";
 
-/// @custom:proxied
+/// @custom:proxied true
 /// @title OptimismPortal2
 /// @notice The OptimismPortal is a low-level contract responsible for passing messages between L1
 ///         and L2. Messages sent directly to the OptimismPortal have no form of replayability.
@@ -153,9 +153,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 3.11.0-beta.2
+    /// @custom:semver 3.11.0-beta.3
     function version() public pure virtual returns (string memory) {
-        return "3.11.0-beta.2";
+        return "3.11.0-beta.3";
     }
 
     /// @notice Constructs the OptimismPortal contract.

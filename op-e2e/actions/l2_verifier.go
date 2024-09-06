@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/status"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -84,7 +85,10 @@ type safeDB interface {
 	node.SafeDBReader
 }
 
-func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, blobsSrc derive.L1BlobsFetcher, altDASrc driver.AltDAIface, eng L2API, cfg *rollup.Config, syncCfg *sync.Config, safeHeadListener safeDB) *L2Verifier {
+func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
+	blobsSrc derive.L1BlobsFetcher, altDASrc driver.AltDAIface,
+	eng L2API, cfg *rollup.Config, syncCfg *sync.Config, safeHeadListener safeDB,
+	interopBackend interop.InteropBackend) *L2Verifier {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
@@ -102,6 +106,10 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, blobsSrc deri
 			log.Warn("Hitting events rate-limit. An events code-path may be hot-looping.")
 			t.Fatal("Tests must not hot-loop events")
 		},
+	}
+
+	if interopBackend != nil {
+		sys.Register("interop", interop.NewInteropDeriver(log, cfg, ctx, interopBackend, eng), opts)
 	}
 
 	metrics := &testutils.TestDerivationMetrics{}
@@ -314,6 +322,13 @@ func (s *L2Verifier) ActL1FinalizedSignal(t Testing) {
 		return ok && x.FinalizedL1 == finalized
 	}, false))
 	require.Equal(t, finalized, s.syncStatus.SyncStatus().FinalizedL1)
+}
+
+func (s *L2Verifier) ActInteropBackendCheck(t Testing) {
+	s.synchronousEvents.Emit(engine.CrossUpdateRequestEvent{
+		CrossUnsafe: true,
+		CrossSafe:   true,
+	})
 }
 
 func (s *L2Verifier) OnEvent(ev event.Event) bool {

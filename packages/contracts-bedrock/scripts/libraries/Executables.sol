@@ -19,12 +19,16 @@ library Executables {
     string internal constant ls = "ls";
     string internal constant git = "git";
 
-    /// @notice Returns the commit hash of HEAD.
+    /// @notice Returns the commit hash of HEAD. If no git repository is
+    /// found, it will return the contents of the .gitcommit file. Otherwise,
+    /// it will return an error. The .gitcommit file is used to store the
+    /// git commit of the contracts when they are packaged into docker images
+    /// in order to avoid the need to have a git repository in the image.
     function gitCommitHash() internal returns (string memory) {
         string[] memory commands = new string[](3);
         commands[0] = bash;
         commands[1] = "-c";
-        commands[2] = "cast abi-encode 'f(string)' $(git rev-parse HEAD)";
+        commands[2] = "cast abi-encode 'f(string)' $(git rev-parse HEAD || cat .gitcommit)";
         return abi.decode(Process.run(commands), (string));
     }
 }

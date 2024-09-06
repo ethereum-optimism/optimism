@@ -28,7 +28,7 @@ import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
 
-/// @custom:proxied TODO this is not proxied yet.
+/// @custom:proxied true
 contract OPStackManager is ISemver {
     // -------- Structs --------
 
@@ -99,8 +99,8 @@ contract OPStackManager is ISemver {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 1.0.0-beta.2
-    string public constant version = "1.0.0-beta.2";
+    /// @custom:semver 1.0.0-beta.3
+    string public constant version = "1.0.0-beta.3";
 
     /// @notice Address of the SuperchainConfig contract shared by all chains.
     SuperchainConfig public immutable superchainConfig;

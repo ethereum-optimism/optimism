@@ -10,6 +10,8 @@ import { ISemver } from "src/universal/ISemver.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 
+/// @custom:proxied true
+/// @custom:predeploy 0x4200000000000000000000000000000000000014
 /// @title L2ERC721Bridge
 /// @notice The L2 ERC721 bridge is a contract which works together with the L1 ERC721 bridge to
 ///         make it possible to transfer ERC721 tokens from Ethereum to Optimism. This contract
@@ -20,8 +22,8 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 ///         wait for the one-week challenge period to elapse before their Optimism-native NFT
 ///         can be refunded on L2.
 contract L2ERC721Bridge is ERC721Bridge, ISemver {
-    /// @custom:semver 1.7.1+beta.1
-    string public constant version = "1.7.1+beta.1";
+    /// @custom:semver 1.7.1-beta.2
+    string public constant version = "1.7.1-beta.2";
 
     /// @notice Constructs the L2ERC721Bridge contract.
     constructor() ERC721Bridge() {

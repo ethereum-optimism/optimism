@@ -6,7 +6,7 @@ import { ISchemaResolver } from "src/EAS/resolver/ISchemaResolver.sol";
 import { EMPTY_UID, MAX_GAP } from "src/EAS/Common.sol";
 import { ISchemaRegistry, SchemaRecord } from "src/EAS/ISchemaRegistry.sol";
 
-/// @custom:proxied
+/// @custom:proxied true
 /// @custom:predeploy 0x4200000000000000000000000000000000000020
 /// @title SchemaRegistry
 /// @notice The global attestation schemas for the Ethereum Attestation Service protocol.
@@ -20,8 +20,8 @@ contract SchemaRegistry is ISchemaRegistry, ISemver {
     uint256[MAX_GAP - 1] private __gap;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.3.0
-    string public constant version = "1.3.0";
+    /// @custom:semver 1.3.1-beta.1
+    string public constant version = "1.3.1-beta.1";
 
     /// @inheritdoc ISchemaRegistry
     function register(string calldata schema, ISchemaResolver resolver, bool revocable) external returns (bytes32) {

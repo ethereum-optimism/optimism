@@ -38,7 +38,9 @@ func WriteJSON[X any](outputPath string, value X, perm os.FileMode) error {
 	}
 	var out io.Writer
 	finish := func() error { return nil }
-	if outputPath != "-" {
+	if outputPath == "-" {
+		out = os.Stdout
+	} else {
 		f, err := ioutil.NewAtomicWriterCompressed(outputPath, perm)
 		if err != nil {
 			return fmt.Errorf("failed to open output file: %w", err)
@@ -51,8 +53,6 @@ func WriteJSON[X any](outputPath string, value X, perm os.FileMode) error {
 		// Closing the file causes it to be renamed to the final destination
 		// so make sure we handle any errors it returns
 		finish = f.Close
-	} else {
-		out = os.Stdout
 	}
 	enc := json.NewEncoder(out)
 	enc.SetIndent("", "  ")
