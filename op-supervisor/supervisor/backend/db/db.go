@@ -51,9 +51,17 @@ func NewChainsDB(logDBs map[types.ChainID]LogStorage, heads HeadsStorage) *Chain
 	}
 }
 
+func (db *ChainsDB) AddLogDB(chain types.ChainID, logDB LogStorage) {
+	if db.logDBs[chain] != nil {
+		log.Warn("overwriting existing logDB for chain", "chain", chain)
+	}
+	db.logDBs[chain] = logDB
+}
+
 // Resume prepares the chains db to resume recording events after a restart.
 // It rewinds the database to the last block that is guaranteed to have been fully recorded to the database
 // to ensure it can resume recording from the first log of the next block.
+// TODO: I am interested in renaming this to something more descriptive like "PrepareWithRollback"
 func (db *ChainsDB) Resume() error {
 	for chain, logStore := range db.logDBs {
 		if err := Resume(logStore); err != nil {
@@ -99,13 +107,6 @@ func (db *ChainsDB) Check(chain types.ChainID, blockNum uint64, logIdx uint32, l
 		return false, 0, fmt.Errorf("%w: %v", ErrUnknownChain, chain)
 	}
 	return logDB.Contains(blockNum, logIdx, logHash)
-}
-
-// UpdateCrossSafeHeads updates the cross-heads of all chains
-// this is an example of how to use the SafetyChecker to update the cross-heads
-func (db *ChainsDB) UpdateCrossSafeHeads() error {
-	checker := NewSafetyChecker(Safe, db)
-	return db.UpdateCrossHeads(checker)
 }
 
 // UpdateCrossHeadsForChain updates the cross-head for a single chain.
