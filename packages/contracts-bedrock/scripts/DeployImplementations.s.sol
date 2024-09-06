@@ -19,13 +19,15 @@ import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
 import { OPStackManager } from "src/L1/OPStackManager.sol";
 import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
-import { OptimismPortalInterop } from "src/L1/OptimismPortalInterop.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
-import { SystemConfigInterop } from "src/L1/SystemConfigInterop.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
+
+import { OPStackManagerInterop } from "src/L1/OPStackManagerInterop.sol";
+import { OptimismPortalInterop } from "src/L1/OptimismPortalInterop.sol";
+import { SystemConfigInterop } from "src/L1/SystemConfigInterop.sol";
 
 import { Blueprint } from "src/libraries/Blueprint.sol";
 
@@ -278,11 +280,13 @@ contract DeployImplementations is Script {
 
     // -------- Deployment Steps --------
 
+    // --- OP Stack Manager ---
+
     function opsmSystemConfigSetter(
         DeployImplementationsInput,
         DeployImplementationsOutput _dso
     )
-        public
+        internal
         view
         virtual
         returns (OPStackManager.ImplementationSetter memory)
@@ -293,7 +297,29 @@ contract DeployImplementations is Script {
         });
     }
 
+    function createOPSMContract(
+        DeployImplementationsInput _dsi,
+        DeployImplementationsOutput,
+        OPStackManager.Blueprints memory blueprints
+    )
+        internal
+        virtual
+        returns (OPStackManager opsm_)
+    {
+        SuperchainConfig superchainConfigProxy = _dsi.superchainConfigProxy();
+        ProtocolVersions protocolVersionsProxy = _dsi.protocolVersionsProxy();
+
+        vm.broadcast(msg.sender);
+        opsm_ = new OPStackManager({
+            _superchainConfig: superchainConfigProxy,
+            _protocolVersions: protocolVersionsProxy,
+            _blueprints: blueprints
+        });
+    }
+
     function deployOPStackManager(DeployImplementationsInput _dsi, DeployImplementationsOutput _dso) public virtual {
+        string memory release = _dsi.release();
+
         // First we deploy the blueprints for the singletons deployed by OPSM.
         // forgefmt: disable-start
         bytes32 salt = bytes32(0);
@@ -308,16 +334,8 @@ contract DeployImplementations is Script {
         vm.stopBroadcast();
         // forgefmt: disable-end
 
-        SuperchainConfig superchainConfigProxy = _dsi.superchainConfigProxy();
-        ProtocolVersions protocolVersionsProxy = _dsi.protocolVersionsProxy();
-        string memory release = _dsi.release();
-
-        vm.broadcast(msg.sender);
-        OPStackManager opsm = new OPStackManager({
-            _superchainConfig: superchainConfigProxy,
-            _protocolVersions: protocolVersionsProxy,
-            _blueprints: blueprints
-        });
+        // This call contains a broadcast to deploy OPSM.
+        OPStackManager opsm = createOPSMContract(_dsi, _dso, blueprints);
 
         OPStackManager.ImplementationSetter[] memory setters = new OPStackManager.ImplementationSetter[](5);
         setters[0] = OPStackManager.ImplementationSetter({
@@ -348,6 +366,8 @@ contract DeployImplementations is Script {
         vm.label(address(opsm), "OPStackManager");
         _dso.set(_dso.opsm.selector, address(opsm));
     }
+
+    // --- Core Contracts ---
 
     function deploySystemConfigImpl(DeployImplementationsInput, DeployImplementationsOutput _dso) public virtual {
         vm.broadcast(msg.sender);
@@ -400,6 +420,8 @@ contract DeployImplementations is Script {
         vm.label(address(optimismMintableERC20FactoryImpl), "OptimismMintableERC20FactoryImpl");
         _dso.set(_dso.optimismMintableERC20FactoryImpl.selector, address(optimismMintableERC20FactoryImpl));
     }
+
+    // --- Fault Proofs Contracts ---
 
     // The fault proofs contracts are configured as follows:
     //   - DisputeGameFactory: Proxied, bespoke per chain.
@@ -514,8 +536,59 @@ contract DeployImplementations is Script {
     }
 }
 
+// Similar to how DeploySuperchain.s.sol contains a lot of comments to thoroughly document the script
+// architecture, this comment block documents how to update the deploy scripts to support new features.
+//
+// Using the base scripts and contracts (DeploySuperchain, DeployImplementations, DeployOPChain, and
+// the corresponding OPStackManager) deploys a standard chain. For nonstandard and in-development
+// features we need to modify some or all of those contracts, and we do that via inheritance. Using
+// interop as an example, they've made the following changes to L1 contracts:
+//   - `OptimismPortalInterop is OptimismPortal`: A different portal implementation is used, and
+//     it's ABI is the same.
+//   - `SystemConfigInterop is SystemConfig`: A different system config implementation is used, and
+//     it's initializer has a different signature. This signature is different because there is a
+//     new input parameter, the `dependencyManager`.
+//   - Because of the different system config initializer, we there is a new input parameter (dependencyManager)
+//
+// Similar to how inheritance was used to develop the new portal and system config contracts, we use
+// inheritance to modify up to all of the deployer contracts. For this interop example, what this
+// means is we need:
+//   - An `OPStackManagerInterop is OPStackManager` that knows how to encode the calldata for the
+//     new system config initializer.
+//   - A `DeployImplementationsInterop is DeployImplementations` that:
+//     - Deploys OptimismPortalInterop instead of OptimismPortal.
+//     - Deploys SystemConfigInterop instead of SystemConfig.
+//     - Deploys OPStackManagerInterop instead of OPStackManager, which contains the updated logic
+//       for encoding the SystemConfig initializer.
+//     - Updates the OPSM release setter logic to use the updated initializer.
+//  - A `DeployOPChainInterop is DeployOPChain` that allows the updated input parameter to be passed.
+//
+// Most of the complexity in the above flow comes from the the new input for the updated SystemConfig
+// initializer. If all function signatures were the same, all we'd have to change is the contract
+// implementations that are deployed then set in the OPSM. For now, to simplify things until we
+// resolve https://github.com/ethereum-optimism/optimism/issues/11783, we just assume this new role
+// is the same as the proxy admin owner.
 contract DeployImplementationsInterop is DeployImplementations {
-    // Overridden because we use a different portal implementation.
+    function createOPSMContract(
+        DeployImplementationsInput _dsi,
+        DeployImplementationsOutput,
+        OPStackManager.Blueprints memory blueprints
+    )
+        internal
+        override
+        returns (OPStackManager opsm_)
+    {
+        SuperchainConfig superchainConfigProxy = _dsi.superchainConfigProxy();
+        ProtocolVersions protocolVersionsProxy = _dsi.protocolVersionsProxy();
+
+        vm.broadcast(msg.sender);
+        opsm_ = new OPStackManagerInterop({
+            _superchainConfig: superchainConfigProxy,
+            _protocolVersions: protocolVersionsProxy,
+            _blueprints: blueprints
+        });
+    }
+
     function deployOptimismPortalImpl(
         DeployImplementationsInput _dsi,
         DeployImplementationsOutput _dso
@@ -536,21 +609,19 @@ contract DeployImplementationsInterop is DeployImplementations {
         _dso.set(_dso.optimismPortalImpl.selector, address(optimismPortalImpl));
     }
 
-    // Overridden because we use a different system config implementation.
     function deploySystemConfigImpl(DeployImplementationsInput, DeployImplementationsOutput _dso) public override {
         vm.broadcast(msg.sender);
-        SystemConfig systemConfigImpl = new SystemConfig();
+        SystemConfigInterop systemConfigImpl = new SystemConfigInterop();
 
         vm.label(address(systemConfigImpl), "systemConfigImpl");
         _dso.set(_dso.systemConfigImpl.selector, address(systemConfigImpl));
     }
 
-    // Overridden because the system config's initializer has a different function signature.
     function opsmSystemConfigSetter(
         DeployImplementationsInput,
         DeployImplementationsOutput _dso
     )
-        public
+        internal
         view
         override
         returns (OPStackManager.ImplementationSetter memory)

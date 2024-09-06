@@ -18,6 +18,8 @@ contract OPStackManagerInterop is OPStackManager {
         OPStackManager(_superchainConfig, _protocolVersions, _blueprints)
     { }
 
+    // The `SystemConfigInterop` contract has an extra `address _dependencyManager` argument
+    // that we must account for.
     function encodeSystemConfigInitializer(
         bytes4 selector,
         DeployInput memory _input,
@@ -29,27 +31,14 @@ contract OPStackManagerInterop is OPStackManager {
         override
         returns (bytes memory)
     {
-        // The `SystemConfigInterop` contract has an extra `address _dependencyManager` argument
-        // that we must account for.
         (ResourceMetering.ResourceConfig memory referenceResourceConfig, SystemConfig.Addresses memory addrs) =
             defaultSystemConfigParams(selector, _input, _output);
 
         // TODO For now we assume that the dependency manager is the same as the proxy admin owner.
         // This is currently undefined since it's not part of the standard config, so we may need
-        // to update where this value is pulled from in the future. If we want to support a
-        // different dependency manager in this contract without an invasive change of redefining
-        // the `Roles` struct, we can pull this from "hidden data". Solidity allows excess
-        // calldata to be appended, so while in development we could simply require an extra
-        // 32 bytes to be appended to the calldata and then do:
-        //
-        //     address dependencyManager = abi.decode(msg.data[msg.data.length - 32:], (address))
-        //
-        // And you don't even have really need to ABI encode the address, and can just append 20 bytes:
-        //
-        //     address dependencyManager = address(uint160(uint256(msg.data[msg.data.length - 20:])))
-        //
-        // However, once closer to production and preparing the release candidate we must properly
-        // update the Roles struct.
+        // to update where this value is pulled from in the future. To support a different dependency
+        // manager in this contract without an invasive change of redefining the `Roles` struct,
+        // we will make the change described in https://github.com/ethereum-optimism/optimism/issues/11783.
         address dependencyManager = address(_input.roles.opChainProxyAdminOwner);
 
         return abi.encodeWithSelector(
