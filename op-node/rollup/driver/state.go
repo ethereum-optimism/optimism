@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/anacrolix/chansync"
+	"github.com/anacrolix/chansync/events"
 	gosync "sync"
 	"time"
 
@@ -59,7 +61,10 @@ type Driver struct {
 	l1FinalizedSig chan eth.L1BlockRef
 
 	// Interface to signal the L2 block range to sync.
-	altSync AltSync
+	altSync                     AltSync
+	lastAltSyncStart            eth.L2BlockRef
+	lastAltSyncForkChoiceSignal events.Signaled
+	forkChoiceUpdated           chansync.BroadcastCond
 
 	// L2 Signals:
 
@@ -199,6 +204,8 @@ func (s *Driver) eventLoop() {
 	altSyncTicker := time.NewTicker(syncCheckInterval)
 	defer altSyncTicker.Stop()
 
+	s.updateAltSyncRequests()
+
 	for {
 		if s.driverCtx.Err() != nil { // don't try to schedule/handle more work when we are closing.
 			return
@@ -218,12 +225,13 @@ func (s *Driver) eventLoop() {
 		planSequencerAction()
 
 		select {
+		case <-s.lastAltSyncForkChoiceSignal:
+			s.updateAltSyncRequests()
 		case <-sequencerCh:
 			s.Emitter.Emit(sequencing.SequencerActionEvent{})
 		case <-altSyncTicker.C:
-			s.syncUnsafeBlocks()
+			s.updateAltSyncRequests()
 		case envelope := <-s.unsafeL2Payloads:
-			s.syncUnsafeBlocks()
 			// If we are doing CL sync or done with engine syncing, fallback to the unsafe payload queue & CL P2P sync.
 			if s.SyncCfg.SyncMode == sync.CLSync || !s.Engine.IsEngineSyncing() {
 				s.log.Info("Optimistically queueing unsafe L2 execution payload", "id", envelope.ExecutionPayload.ID())
@@ -285,6 +293,14 @@ func (s *Driver) OnEvent(ev event.Event) bool {
 				logger.Error("Failed to shutdown driver on critical error", "err", err)
 			}
 		}()
+		return true
+	case engine.ForkchoiceUpdateEvent:
+		fmt.Println("fork choice update event")
+		s.forkChoiceUpdated.Broadcast()
+		return true
+	case engine.ForkchoiceRequestEvent:
+		fmt.Println("fork choice request event")
+		s.forkChoiceUpdated.Broadcast()
 		return true
 	default:
 		return false
@@ -515,7 +531,7 @@ func (s *Driver) BlockRefWithStatus(ctx context.Context, num uint64) (eth.L2Bloc
 	}
 }
 
-func (s *Driver) syncUnsafeBlocks() {
+func (s *Driver) updateAltSyncRequests() {
 	if !s.Derivation.DerivationReady() {
 		return
 	}
@@ -524,19 +540,25 @@ func (s *Driver) syncUnsafeBlocks() {
 		// just haven't been processed yet.
 		return
 	}
+	// Set up a signal for the condition we're about to check so if it changes we can look again.
+	s.lastAltSyncForkChoiceSignal = s.forkChoiceUpdated.Signaled()
+	engineStart := s.Engine.UnsafeL2Head()
+	if engineStart == s.lastAltSyncStart {
+		return
+	}
 	ctx, cancel := context.WithTimeout(s.driverCtx, time.Second*2)
 	defer cancel()
-	err := s.requestMissingUnsafeBlocks(ctx)
+	err := s.requestMissingUnsafeBlocks(ctx, engineStart)
 	if err != nil {
 		s.log.Warn("failed to check for unsafe L2 blocks to sync", "err", err)
 	}
+	s.lastAltSyncStart = engineStart
 }
 
 // requestMissingUnsafeBlocks checks if there is a gap in the unsafe queue and attempts to retrieve
 // the missing payloads from an alt-sync method. WARNING: This is only an outgoing signal, the
 // blocks are not guaranteed to be retrieved. Results are received through OnUnsafeL2Payload.
-func (s *Driver) requestMissingUnsafeBlocks(ctx context.Context) error {
-	start := s.Engine.UnsafeL2Head()
+func (s *Driver) requestMissingUnsafeBlocks(ctx context.Context, start eth.L2BlockRef) error {
 	end := s.CLSync.LowestQueuedUnsafeBlock()
 	// Check if we have missing blocks between the start and end. Request them if we do.
 	if end == (eth.L2BlockRef{}) {
