@@ -34,6 +34,11 @@ func (eq *EngDeriver) onBuildStart(ev BuildStartEvent) {
 		SafeL2Head:      eq.ec.safeHead,
 		FinalizedL2Head: eq.ec.finalizedHead,
 	}
+	if fcEvent.UnsafeL2Head.Number < fcEvent.FinalizedL2Head.Number {
+		err := fmt.Errorf("invalid block-building pre-state, unsafe head %s is behind finalized head %s", fcEvent.UnsafeL2Head, fcEvent.FinalizedL2Head)
+		eq.emitter.Emit(rollup.CriticalErrorEvent{Err: err}) // make the node exit, things are very wrong.
+		return
+	}
 	fc := eth.ForkchoiceState{
 		HeadBlockHash:      fcEvent.UnsafeL2Head.Hash,
 		SafeBlockHash:      fcEvent.SafeL2Head.Hash,

@@ -17,6 +17,7 @@ import {
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { IOptimismMintableERC20 } from "src/universal/IOptimismMintableERC20.sol";
+import { ILegacyMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
 
 // TODO: Replace Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY with optimismSuperchainERC20Factory
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -80,7 +81,7 @@ contract L2StandardBridgeInterop_LegacyToSuper_Test is L2StandardBridgeInterop_T
 
         // Mock `_from` to be a legacy address
         _mockInterface(_from, type(IERC165).interfaceId, true);
-        _mockInterface(_from, type(IOptimismMintableERC20).interfaceId, true);
+        _mockInterface(_from, type(ILegacyMintableERC20).interfaceId, true);
     }
 
     /// @notice Test that the `convert` function with different decimals reverts
@@ -230,6 +231,11 @@ contract L2StandardBridgeInterop_SuperToLegacy_Test is L2StandardBridgeInterop_T
         // Mock same decimals
         _mockDecimals(_from, 18);
         _mockDecimals(_to, 18);
+
+        // Mock `_from` so it is not a LegacyMintableERC20 address
+        _mockInterface(_from, type(IERC165).interfaceId, true);
+        _mockInterface(_from, type(ILegacyMintableERC20).interfaceId, false);
+        _mockInterface(_from, type(IOptimismMintableERC20).interfaceId, false);
     }
 
     /// @notice Test that the `convert` function with different decimals reverts

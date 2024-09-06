@@ -29,6 +29,7 @@ struct Challenge {
     uint256 resolvedBlock;
 }
 
+/// @custom:proxied true
 /// @title DataAvailabilityChallenge
 /// @notice This contract enables data availability of a data commitment at a given block number to be challenged.
 ///         To challenge a commitment, the challenger must first post a bond (bondSize).
@@ -88,8 +89,8 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
     event BalanceChanged(address account, uint256 balance);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 1.0.1-beta.1
+    string public constant version = "1.0.1-beta.1";
 
     /// @notice The fixed cost of resolving a challenge.
     /// @dev The value is estimated by measuring the cost of resolving with `bytes(0)`

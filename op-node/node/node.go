@@ -70,6 +70,8 @@ type OpNode struct {
 
 	beacon *sources.L1BeaconClient
 
+	supervisor *sources.SupervisorClient
+
 	// some resources cannot be stopped directly, like the p2p gossipsub router (not our design),
 	// and depend on this ctx to be closed.
 	resourcesCtx   context.Context
@@ -379,6 +381,14 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config) error {
 		return err
 	}
 
+	if cfg.Rollup.InteropTime != nil {
+		cl, err := cfg.Supervisor.SupervisorClient(ctx, n.log)
+		if err != nil {
+			return fmt.Errorf("failed to setup supervisor RPC client: %w", err)
+		}
+		n.supervisor = cl
+	}
+
 	var sequencerConductor conductor.SequencerConductor = &conductor.NoOpConductor{}
 	if cfg.ConductorEnabled {
 		sequencerConductor = NewConductorClient(cfg, n.log, n.metrics)
@@ -405,6 +415,7 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config) error {
 		&cfg.Rollup,
 		n.l2Source,
 		n.l1Source,
+		n.supervisor,
 		n.beacon,
 		n,
 		n,
@@ -705,6 +716,11 @@ func (n *OpNode) Stop(ctx context.Context) error {
 	// close L2 engine RPC client
 	if n.l2Source != nil {
 		n.l2Source.Close()
+	}
+
+	// close the supervisor RPC client
+	if n.supervisor != nil {
+		n.supervisor.Close()
 	}
 
 	// close L1 data source

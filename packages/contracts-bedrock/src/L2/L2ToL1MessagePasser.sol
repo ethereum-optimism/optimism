@@ -7,7 +7,7 @@ import { Encoding } from "src/libraries/Encoding.sol";
 import { Burn } from "src/libraries/Burn.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 
-/// @custom:proxied
+/// @custom:proxied true
 /// @custom:predeploy 0x4200000000000000000000000000000000000016
 /// @title L2ToL1MessagePasser
 /// @notice The L2ToL1MessagePasser is a dedicated contract where messages that are being sent from
@@ -48,8 +48,8 @@ contract L2ToL1MessagePasser is ISemver {
     /// @param amount Amount of ETh that was burned.
     event WithdrawerBalanceBurnt(uint256 indexed amount);
 
-    /// @custom:semver 1.1.0
-    string public constant version = "1.1.0";
+    /// @custom:semver 1.1.1-beta.1
+    string public constant version = "1.1.1-beta.1";
 
     /// @notice Allows users to withdraw ETH by sending directly to this contract.
     receive() external payable {
