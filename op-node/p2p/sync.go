@@ -466,7 +466,9 @@ func (s *SyncClient) deleteBadQuarantines(bn blockNumber, expected common.Hash) 
 	}
 }
 
-func (s *SyncClient) tryPromote(ctx context.Context, res syncResult) bool {
+// Is there any point returning something from this? We just try the next expected hash anyway, and
+// if it isn't present, the promoter waits.
+func (s *SyncClient) tryPromote(ctx context.Context, res syncResult) {
 	s.log.Debug("promoting p2p sync result", "payload", res.payload.ExecutionPayload.ID(), "peer", res.peer)
 
 	blockNumber := blockNumber(res.payload.ExecutionPayload.BlockNumber)
@@ -477,13 +479,25 @@ func (s *SyncClient) tryPromote(ctx context.Context, res syncResult) bool {
 	s.mu.Unlock()
 	err := s.receivePayload.OnUnsafeL2Payload(ctx, res.peer, res.payload, PayloadSourceAltSync)
 	s.mu.Lock()
+	// Should we log err here first?
+	if s.getWantedBlock(blockNumber) == nil {
+		// The range was altered to not include this block number while we were sending the payload.
+		return
+	}
 	if err != nil {
 		s.log.Warn("failed to promote payload, receiver error", "err", err)
 		s.removeFromQuarantine(blockNumber, res.payload.ExecutionPayload.BlockHash)
-		return false
 	}
-	s.promotedBlock(res.payload)
-	return true
+	stillNextPromote := s.nextPromote.Ok && s.nextPromote.Value.hash == res.payload.ExecutionPayload.BlockHash && s.nextPromote.Value.num == blockNumber
+	if stillNextPromote {
+		s.promotedBlock(res.payload)
+	} else {
+		// If we still want the block number, but no longer want to promote this next then we leave
+		// it in quarantine so can resubmit it later if it becomes trusted again. When we promote
+		// its child, we will know if this block is valid immediately and can promote it again or
+		// evict it.
+	}
+	return
 }
 
 func (s *SyncClient) onResultUnlocked(res syncResult) {
@@ -535,20 +549,22 @@ func (s *SyncClient) promoter(ctx context.Context) {
 }
 
 func (s *SyncClient) maybePromote(ctx context.Context) {
-another:
-	if !s.nextPromote.Ok {
-		return
-	}
-	wanted := s.getWantedBlock(s.nextPromote.Value.num)
-	// Should have been trimmed due to knowing what the next hash should be.
-	panicif.GreaterThan(len(wanted.quarantined), 1)
-	if len(wanted.quarantined) == 0 {
-		return
-	}
-	for hash, syncRes := range wanted.quarantined {
-		panicif.NotEq(hash, s.nextPromote.Value.hash)
-		if s.tryPromote(ctx, syncRes) {
-			goto another
+	for {
+		if !s.nextPromote.Ok {
+			return
+		}
+		wanted := s.getWantedBlock(s.nextPromote.Value.num)
+		if len(wanted.quarantined) == 0 {
+			return
+		}
+		// Should have been trimmed due to knowing what the next hash should be.
+		panicif.GreaterThan(len(wanted.quarantined), 1)
+		for hash, syncRes := range wanted.quarantined {
+			panicif.NotEq(hash, s.nextPromote.Value.hash)
+			s.tryPromote(ctx, syncRes)
+			// Paranoid. I know Go will shift things underneath us on maps if it can get away with
+			// it.
+			break
 		}
 	}
 }
