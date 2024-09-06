@@ -1,16 +1,25 @@
-package jsonutil
+package serialize
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"reflect"
 
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 )
 
-func LoadJSON[X any](inputPath string) (*X, error) {
+// Serializable defines functionality for a type that may be serialized to raw bytes.
+type Serializable interface {
+	// Serialize encodes the type as raw bytes.
+	Serialize(out io.Writer) error
+
+	// Deserialize decodes raw bytes into the type.
+	Deserialize(in io.Reader) error
+}
+
+func LoadSerializedBinary[X any](inputPath string) (*X, error) {
 	if inputPath == "" {
 		return nil, errors.New("no path specified")
 	}
@@ -20,19 +29,20 @@ func LoadJSON[X any](inputPath string) (*X, error) {
 		return nil, fmt.Errorf("failed to open file %q: %w", inputPath, err)
 	}
 	defer f.Close()
-	var state X
-	decoder := json.NewDecoder(f)
-	if err := decoder.Decode(&state); err != nil {
-		return nil, fmt.Errorf("failed to decode file %q: %w", inputPath, err)
+
+	var x X
+	serializable, ok := reflect.ValueOf(&x).Interface().(Serializable)
+	if !ok {
+		return nil, fmt.Errorf("%T is not a Serializable", x)
 	}
-	// We are only expecting 1 JSON object - confirm there is no trailing data
-	if _, err := decoder.Token(); err != io.EOF {
-		return nil, fmt.Errorf("unexpected trailing data in file %q", inputPath)
+	err = serializable.Deserialize(f)
+	if err != nil {
+		return nil, err
 	}
-	return &state, nil
+	return &x, nil
 }
 
-func WriteJSON[X any](outputPath string, value X, perm os.FileMode) error {
+func WriteSerializedBinary(outputPath string, value Serializable, perm os.FileMode) error {
 	if outputPath == "" {
 		return nil
 	}
@@ -43,7 +53,7 @@ func WriteJSON[X any](outputPath string, value X, perm os.FileMode) error {
 	} else {
 		f, err := ioutil.NewAtomicWriterCompressed(outputPath, perm)
 		if err != nil {
-			return fmt.Errorf("failed to open output file: %w", err)
+			return fmt.Errorf("failed to create temp file when writing: %w", err)
 		}
 		// Ensure we close the stream without renaming even if failures occur.
 		defer func() {
@@ -54,14 +64,9 @@ func WriteJSON[X any](outputPath string, value X, perm os.FileMode) error {
 		// so make sure we handle any errors it returns
 		finish = f.Close
 	}
-	enc := json.NewEncoder(out)
-	enc.SetIndent("", "  ")
-	if err := enc.Encode(value); err != nil {
-		return fmt.Errorf("failed to encode to JSON: %w", err)
-	}
-	_, err := out.Write([]byte{'\n'})
+	err := value.Serialize(out)
 	if err != nil {
-		return fmt.Errorf("failed to append new-line: %w", err)
+		return fmt.Errorf("failed to write binary: %w", err)
 	}
 	if err := finish(); err != nil {
 		return fmt.Errorf("failed to finish write: %w", err)
