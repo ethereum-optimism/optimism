@@ -57,9 +57,9 @@ contract L1Block is ISemver, IGasToken {
     /// @notice The latest L1 blob base fee.
     uint256 public blobBaseFee;
 
-    /// @custom:semver 1.4.1-beta.2
+    /// @custom:semver 1.5.1-beta.1
     function version() public pure virtual returns (string memory) {
-        return "1.4.1-beta.2";
+        return "1.5.1-beta.1";
     }
 
     /// @notice Returns the gas paying token, its decimals, name and symbol.
@@ -133,7 +133,34 @@ contract L1Block is ISemver, IGasToken {
     ///   7. _blobBaseFee        L1 blob base fee.
     ///   8. _hash               L1 blockhash.
     ///   9. _batcherHash        Versioned hash to authenticate batcher by.
-    function setL1BlockValuesEcotone() external {
+    function setL1BlockValuesEcotone() public {
+        _setL1BlockValuesEcotone();
+    }
+
+    /// @notice Sets the gas paying token for the L2 system. Can only be called by the special
+    ///         depositor account. This function is not called on every L2 block but instead
+    ///         only called by specially crafted L1 deposit transactions.
+    function setGasPayingToken(address _token, uint8 _decimals, bytes32 _name, bytes32 _symbol) external {
+        if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
+
+        GasPayingToken.set({ _token: _token, _decimals: _decimals, _name: _name, _symbol: _symbol });
+
+        emit GasPayingTokenSet({ token: _token, decimals: _decimals, name: _name, symbol: _symbol });
+    }
+
+    /// @notice Updates the L1 block values for an Ecotone upgraded chain.
+    /// Params are packed and passed in as raw msg.data instead of ABI to reduce calldata size.
+    /// Params are expected to be in the following order:
+    ///   1. _baseFeeScalar      L1 base fee scalar
+    ///   2. _blobBaseFeeScalar  L1 blob base fee scalar
+    ///   3. _sequenceNumber     Number of L2 blocks since epoch start.
+    ///   4. _timestamp          L1 timestamp.
+    ///   5. _number             L1 blocknumber.
+    ///   6. _basefee            L1 base fee.
+    ///   7. _blobBaseFee        L1 blob base fee.
+    ///   8. _hash               L1 blockhash.
+    ///   9. _batcherHash        Versioned hash to authenticate batcher by.
+    function _setL1BlockValuesEcotone() internal {
         address depositor = DEPOSITOR_ACCOUNT();
         assembly {
             // Revert if the caller is not the depositor account.
@@ -150,16 +177,5 @@ contract L1Block is ISemver, IGasToken {
             sstore(hash.slot, calldataload(100)) // bytes32
             sstore(batcherHash.slot, calldataload(132)) // bytes32
         }
-    }
-
-    /// @notice Sets the gas paying token for the L2 system. Can only be called by the special
-    ///         depositor account. This function is not called on every L2 block but instead
-    ///         only called by specially crafted L1 deposit transactions.
-    function setGasPayingToken(address _token, uint8 _decimals, bytes32 _name, bytes32 _symbol) external {
-        if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
-
-        GasPayingToken.set({ _token: _token, _decimals: _decimals, _name: _name, _symbol: _symbol });
-
-        emit GasPayingTokenSet({ token: _token, decimals: _decimals, name: _name, symbol: _symbol });
     }
 }

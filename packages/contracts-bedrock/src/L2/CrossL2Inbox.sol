@@ -8,6 +8,14 @@ import { ICrossL2Inbox } from "src/L2/interfaces/ICrossL2Inbox.sol";
 import { SafeCall } from "src/libraries/SafeCall.sol";
 import { IDependencySet } from "src/L2/interfaces/IDependencySet.sol";
 
+/// @title IL1Block
+/// @notice Interface for L1Block with only `isDeposit()` method.
+interface IL1Block {
+    /// @notice Returns whether the call was triggered from a a deposit or not.
+    /// @return True if the current call was triggered by a deposit transaction, and false otherwise.
+    function isDeposit() external view returns (bool);
+}
+
 /// @notice Thrown when the caller is not DEPOSITOR_ACCOUNT when calling `setInteropStart()`
 error NotDepositor();
 
@@ -25,6 +33,9 @@ error InvalidChainId();
 
 /// @notice Thrown when trying to execute a cross chain message and the target call fails.
 error TargetCallFailed();
+
+/// @notice Thrown when trying to execute a cross chain message on a deposit transaction.
+error NoExecutingDeposits();
 
 /// @custom:proxied true
 /// @custom:predeploy 0x4200000000000000000000000000000000000022
@@ -135,6 +146,9 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
         payable
         reentrantAware
     {
+        // We need to know if this is being called on a depositTx
+        if (IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isDeposit()) revert NoExecutingDeposits();
+
         // Check the Identifier.
         _checkIdentifier(_id);
 
