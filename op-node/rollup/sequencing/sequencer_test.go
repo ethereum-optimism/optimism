@@ -170,6 +170,12 @@ func TestSequencer_StartStop(t *testing.T) {
 	require.True(t, deps.asyncGossip.started, "async gossip is always started on initialization")
 	require.False(t, deps.seqState.active, "sequencer not active yet")
 
+	// latest refs should all be empty
+	require.Equal(t, common.Hash{}, seq.latest.Ref.Hash)
+	require.Equal(t, common.Hash{}, seq.latestSealed.Hash)
+	require.Equal(t, common.Hash{}, seq.latestHead.Hash)
+
+	// update the latestSealed
 	envelope := &eth.ExecutionPayloadEnvelope{
 		ExecutionPayload: &eth.ExecutionPayload{},
 	}
@@ -181,12 +187,20 @@ func TestSequencer_StartStop(t *testing.T) {
 		Envelope: envelope,
 		Ref:      eth.L2BlockRef{Hash: common.Hash{0xaa}},
 	})
+	require.Equal(t, common.Hash{0xaa}, seq.latest.Ref.Hash)
+	require.Equal(t, common.Hash{0xaa}, seq.latestSealed.Hash)
+	require.Equal(t, common.Hash{}, seq.latestHead.Hash)
+
+	// update latestHead
 	emitter.AssertExpectations(t)
 	seq.OnEvent(engine.ForkchoiceUpdateEvent{
 		UnsafeL2Head:    eth.L2BlockRef{Hash: common.Hash{0xaa}},
 		SafeL2Head:      eth.L2BlockRef{},
 		FinalizedL2Head: eth.L2BlockRef{},
 	})
+	require.Equal(t, common.Hash{0xaa}, seq.latest.Ref.Hash)
+	require.Equal(t, common.Hash{0xaa}, seq.latestSealed.Hash)
+	require.Equal(t, common.Hash{0xaa}, seq.latestHead.Hash)
 
 	require.False(t, seq.Active())
 	// no action scheduled
