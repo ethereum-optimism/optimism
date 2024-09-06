@@ -2,7 +2,6 @@ package p2p
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	"encoding/binary"
 	"errors"
@@ -11,10 +10,8 @@ import (
 	"github.com/anacrolix/missinggo/v2/panicif"
 	"github.com/anacrolix/sync"
 	"io"
-	"maps"
 	"math/big"
 	"runtime/debug"
-	"slices"
 	"time"
 
 	"github.com/anacrolix/chansync"
@@ -626,62 +623,60 @@ func (s *syncClientPeer) doSingleBlockRequest(ctx context.Context, id peer.ID, n
 	return
 }
 
-func (s *syncClientPeer) requestBlocks(ctx context.Context, id peer.ID, rl *rate.Limiter) (err error) {
-	wantedSlice := slices.SortedFunc(maps.Values(s.wanted), func(l *wantedBlock, r *wantedBlock) int {
-		return cmp.Compare(r.num, l.num)
-	})
-	s.mu.Unlock()
-	defer s.mu.Lock()
-	for {
-		allDone := true
-		for _, wanted := range wantedSlice {
-			if wanted.done.IsSet() {
-				continue
-			}
-			allDone = false
-			// Don't bother to quarantine more than one block for each number.
-			s.mu.Lock()
-			if len(wanted.quarantined) != 0 {
-				s.mu.Unlock()
-				continue
-			}
-			s.mu.Unlock()
-			r := rl.Reserve()
-			if !r.OK() {
-				panic(rl)
-			}
-			select {
-			case <-ctx.Done():
-				r.Cancel()
-				return context.Cause(ctx)
-			case <-wanted.done.On():
-				r.Cancel()
-				continue
-			case <-time.After(r.Delay()):
-			}
-			select {
-			default:
-				r.Cancel()
-				continue
-			case wanted.requestConcurrency.Acquire() <- struct{}{}:
-			}
-			err = s.globalRL.Wait(ctx)
-			if err != nil {
-				r.Cancel()
-				<-wanted.requestConcurrency.Release()
-				err = fmt.Errorf("while waiting for global rate limiter: %w", err)
-				return
-			}
-			err = s.doSingleBlockRequest(ctx, id, wanted.num)
-			<-wanted.requestConcurrency.Release()
-			s.requestBlocksCond.Broadcast()
-			if err != nil {
-				err = fmt.Errorf("requesting block %v: %w", wanted.num, err)
-				return
-			}
-		}
-		if allDone {
+func (s *syncClientPeer) requestBlocks(ctx context.Context, id peer.ID) (err error) {
+	//wantedSlice := slices.SortedFunc(maps.Values(s.wanted), func(l *wantedBlock, r *wantedBlock) int {
+	//	return cmp.Compare(r.num, l.num)
+	//})
+	for bn := s.endBlockNumber; bn >= s.startBlockNumber; bn-- {
+		wanted := s.getWantedBlock(bn)
+		if wanted == nil {
 			break
+		}
+		// Don't bother to quarantine more than one block for each number.
+		if len(wanted.quarantined) != 0 {
+			continue
+		}
+		if wanted.done.IsSet() {
+			continue
+		}
+		s.mu.Unlock()
+		r := s.rl.Reserve()
+		if !r.OK() {
+			panic(s.rl)
+		}
+		select {
+		case <-ctx.Done():
+			r.Cancel()
+			s.mu.Lock()
+			return context.Cause(ctx)
+		case <-wanted.done.On():
+			r.Cancel()
+			s.mu.Lock()
+			continue
+		case <-time.After(r.Delay()):
+		}
+		select {
+		default:
+			r.Cancel()
+			s.mu.Lock()
+			continue
+		case wanted.requestConcurrency.Acquire() <- struct{}{}:
+		}
+		err = s.globalRL.Wait(ctx)
+		if err != nil {
+			r.Cancel()
+			<-wanted.requestConcurrency.Release()
+			err = fmt.Errorf("while waiting for global rate limiter: %w", err)
+			s.mu.Lock()
+			return
+		}
+		err = s.doSingleBlockRequest(ctx, id, wanted.num)
+		<-wanted.requestConcurrency.Release()
+		s.requestBlocksCond.Broadcast()
+		s.mu.Lock()
+		if err != nil {
+			err = fmt.Errorf("requesting block %v: %w", wanted.num, err)
+			return
 		}
 	}
 	return
@@ -719,7 +714,7 @@ func (s *syncClientPeer) Run(ctx context.Context, id peer.ID) {
 			// while sync-requests will block, the loop may still process other events (if added in the future).
 			requestBlocksSignal = nil
 		} else {
-			err := s.requestBlocks(ctx, id, s.rl)
+			err := s.requestBlocks(ctx, id)
 			if err != nil {
 				log.Warn("error requesting blocks", "err", err)
 				naughtyBoyChan := make(chan struct{})

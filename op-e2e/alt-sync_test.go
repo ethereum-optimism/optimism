@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	g "github.com/anacrolix/generics"
+	"github.com/anacrolix/missinggo/v2/iter"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
@@ -27,7 +28,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/time/rate"
-	"maps"
 	"math/big"
 	"slices"
 	"sync"
@@ -182,7 +182,7 @@ func TestSystemP2PAltSyncExtreme(t *testing.T) {
 		syncers = append(syncers, newSyncer)
 	}
 
-	for i := range 15 {
+	for i := range iter.N(15) {
 		addSyncer(i)
 	}
 
@@ -194,6 +194,8 @@ func TestSystemP2PAltSyncExtreme(t *testing.T) {
 	eg, ctx := errgroup.WithContext(ctx)
 
 	for _, syncer := range syncers {
+		// Behold, Go 1.21.
+		syncer := syncer
 		eg.Go(func() error {
 			// It may take a while to sync, but eventually we should see the sequenced data show up
 			receiptVerif, err := wait.ForReceiptOK(ctx, syncer.l2Verif, receiptSeq.TxHash)
@@ -233,8 +235,15 @@ func TestSystemP2PAltSyncExtreme(t *testing.T) {
 			altSyncSources[block.from]++
 		}
 	}
-	peerIds := slices.SortedFunc(maps.Keys(altSyncSources), func(id peer.ID, id2 peer.ID) int {
-		return altSyncSources[id2] - altSyncSources[id]
+	//peerIds := slices.SortedFunc(maps.Keys(altSyncSources), func(id peer.ID, id2 peer.ID) int {
+	//	return altSyncSources[id2] - altSyncSources[id]
+	//})
+	peerIds := make([]peer.ID, 0, len(altSyncSources))
+	for key := range altSyncSources {
+		peerIds = append(peerIds, key)
+	}
+	slices.SortFunc(peerIds, func(a, b peer.ID) int {
+		return altSyncSources[b] - altSyncSources[a]
 	})
 	fmt.Printf("alt sync sources\n")
 	for _, peerId := range peerIds {
