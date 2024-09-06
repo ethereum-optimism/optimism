@@ -6,22 +6,8 @@ import { Proxy } from "src/universal/Proxy.sol";
 import { AddressManager } from "src/legacy/AddressManager.sol";
 import { L1ChugSplashProxy } from "src/legacy/L1ChugSplashProxy.sol";
 import { Constants } from "src/libraries/Constants.sol";
-
-/// @title IStaticERC1967Proxy
-/// @notice IStaticERC1967Proxy is a static version of the ERC1967 proxy interface.
-interface IStaticERC1967Proxy {
-    function implementation() external view returns (address);
-
-    function admin() external view returns (address);
-}
-
-/// @title IStaticL1ChugSplashProxy
-/// @notice IStaticL1ChugSplashProxy is a static version of the ChugSplash proxy interface.
-interface IStaticL1ChugSplashProxy {
-    function getImplementation() external view returns (address);
-
-    function getOwner() external view returns (address);
-}
+import { IStaticERC1967Proxy } from "src/universal/interfaces/IStaticERC1967Proxy.sol";
+import { IStaticL1ChugSplashProxy } from "src/legacy/interfaces/IL1ChugSplashProxy.sol";
 
 /// @title ProxyAdmin
 /// @notice This is an auxiliary contract meant to be assigned as the admin of an ERC1967 Proxy,

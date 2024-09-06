@@ -6,10 +6,10 @@ import (
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
+	"github.com/ethereum-optimism/optimism/cannon/serialize"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
-	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
 
 var (
@@ -33,12 +33,12 @@ func Witness(ctx *cli.Context) error {
 	if vmType, err := vmTypeFromString(ctx); err != nil {
 		return err
 	} else if vmType == cannonVMType {
-		state, err = jsonutil.LoadJSON[singlethreaded.State](input)
+		state, err = serialize.Load[singlethreaded.State](input)
 		if err != nil {
 			return fmt.Errorf("invalid input state (%v): %w", input, err)
 		}
 	} else if vmType == mtVMType {
-		state, err = jsonutil.LoadJSON[multithreaded.State](input)
+		state, err = serialize.Load[multithreaded.State](input)
 		if err != nil {
 			return fmt.Errorf("invalid input state (%v): %w", input, err)
 		}

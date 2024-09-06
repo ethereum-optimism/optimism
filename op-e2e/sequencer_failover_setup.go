@@ -208,14 +208,17 @@ func setupConductor(
 ) (*conductor, error) {
 	consensusPort := findAvailablePort(t)
 	cfg := con.Config{
-		ConsensusAddr:  localhost,
-		ConsensusPort:  consensusPort,
-		RaftServerID:   serverID,
-		RaftStorageDir: dir,
-		RaftBootstrap:  bootstrap,
-		NodeRPC:        nodeRPC,
-		ExecutionRPC:   engineRPC,
-		Paused:         true,
+		ConsensusAddr:         localhost,
+		ConsensusPort:         consensusPort,
+		RaftServerID:          serverID,
+		RaftStorageDir:        dir,
+		RaftBootstrap:         bootstrap,
+		RaftSnapshotInterval:  120 * time.Second,
+		RaftSnapshotThreshold: 8192,
+		RaftTrailingLogs:      10240,
+		NodeRPC:               nodeRPC,
+		ExecutionRPC:          engineRPC,
+		Paused:                true,
 		HealthCheck: con.HealthCheckConfig{
 			Interval:     1, // per test setup, l2 block time is 1s.
 			MinPeerCount: 2, // per test setup, each sequencer has 2 peers

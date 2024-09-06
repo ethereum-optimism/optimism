@@ -1,6 +1,7 @@
 package mipsevm
 
 import (
+	"github.com/ethereum-optimism/optimism/cannon/serialize"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
@@ -8,6 +9,8 @@ import (
 )
 
 type FPVMState interface {
+	serialize.Serializable
+
 	GetMemory() *memory.Memory
 
 	// GetHeap returns the current memory address at the top of the heap

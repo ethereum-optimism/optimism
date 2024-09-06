@@ -56,12 +56,27 @@ type EngineController struct {
 	emitter event.Emitter
 
 	// Block Head State
-	unsafeHead       eth.L2BlockRef
-	pendingSafeHead  eth.L2BlockRef // L2 block processed from the middle of a span batch, but not marked as the safe block yet.
-	safeHead         eth.L2BlockRef
-	finalizedHead    eth.L2BlockRef
+	unsafeHead eth.L2BlockRef
+	// Cross-verified unsafeHead, always equal to unsafeHead pre-interop
+	crossUnsafeHead eth.L2BlockRef
+	// Pending localSafeHead
+	// L2 block processed from the middle of a span batch,
+	// but not marked as the safe block yet.
+	pendingSafeHead eth.L2BlockRef
+	// Derived from L1, and known to be a completed span-batch,
+	// but not cross-verified yet.
+	localSafeHead eth.L2BlockRef
+	// Derived from L1 and cross-verified to have cross-safe dependencies.
+	safeHead eth.L2BlockRef
+	// Derived from finalized L1 data,
+	// and cross-verified to only have finalized dependencies.
+	finalizedHead eth.L2BlockRef
+	// The unsafe head to roll back to,
+	// after the pendingSafeHead fails to become safe.
+	// This is changing in the Holocene fork.
 	backupUnsafeHead eth.L2BlockRef
-	needFCUCall      bool
+
+	needFCUCall bool
 	// Track when the rollup node changes the forkchoice to restore previous
 	// known unsafe chain. e.g. Unsafe Reorg caused by Invalid span batch.
 	// This update does not retry except engine returns non-input error
@@ -96,8 +111,16 @@ func (e *EngineController) UnsafeL2Head() eth.L2BlockRef {
 	return e.unsafeHead
 }
 
+func (e *EngineController) CrossUnsafeL2Head() eth.L2BlockRef {
+	return e.crossUnsafeHead
+}
+
 func (e *EngineController) PendingSafeL2Head() eth.L2BlockRef {
 	return e.pendingSafeHead
+}
+
+func (e *EngineController) LocalSafeL2Head() eth.L2BlockRef {
+	return e.localSafeHead
 }
 
 func (e *EngineController) SafeL2Head() eth.L2BlockRef {
@@ -131,19 +154,31 @@ func (e *EngineController) SetPendingSafeL2Head(r eth.L2BlockRef) {
 	e.pendingSafeHead = r
 }
 
-// SetSafeHead implements LocalEngineControl.
+// SetLocalSafeHead sets the local-safe head.
+func (e *EngineController) SetLocalSafeHead(r eth.L2BlockRef) {
+	e.metrics.RecordL2Ref("l2_local_safe", r)
+	e.localSafeHead = r
+}
+
+// SetSafeHead sets the cross-safe head.
 func (e *EngineController) SetSafeHead(r eth.L2BlockRef) {
 	e.metrics.RecordL2Ref("l2_safe", r)
 	e.safeHead = r
 	e.needFCUCall = true
 }
 
-// SetUnsafeHead implements LocalEngineControl.
+// SetUnsafeHead sets the local-unsafe head.
 func (e *EngineController) SetUnsafeHead(r eth.L2BlockRef) {
 	e.metrics.RecordL2Ref("l2_unsafe", r)
 	e.unsafeHead = r
 	e.needFCUCall = true
 	e.chainSpec.CheckForkActivation(e.log, r)
+}
+
+// SetCrossUnsafeHead the cross-unsafe head.
+func (e *EngineController) SetCrossUnsafeHead(r eth.L2BlockRef) {
+	e.metrics.RecordL2Ref("l2_cross_unsafe", r)
+	e.crossUnsafeHead = r
 }
 
 // SetBackupUnsafeL2Head implements LocalEngineControl.
@@ -234,6 +269,11 @@ func (e *EngineController) TryUpdateEngine(ctx context.Context) error {
 	if e.IsEngineSyncing() {
 		e.log.Warn("Attempting to update forkchoice state while EL syncing")
 	}
+	if e.unsafeHead.Number < e.finalizedHead.Number {
+		err := fmt.Errorf("invalid forkchoice state, unsafe head %s is behind finalized head %s", e.unsafeHead, e.finalizedHead)
+		e.emitter.Emit(rollup.CriticalErrorEvent{Err: err}) // make the node exit, things are very wrong.
+		return err
+	}
 	fc := eth.ForkchoiceState{
 		HeadBlockHash:      e.unsafeHead.Hash,
 		SafeBlockHash:      e.safeHead.Hash,
@@ -310,7 +350,11 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 	if e.syncStatus == syncStatusFinishedELButNotFinalized {
 		fc.SafeBlockHash = envelope.ExecutionPayload.BlockHash
 		fc.FinalizedBlockHash = envelope.ExecutionPayload.BlockHash
+		e.SetUnsafeHead(ref) // ensure that the unsafe head stays ahead of safe/finalized labels.
+		e.emitter.Emit(UnsafeUpdateEvent{Ref: ref})
+		e.SetLocalSafeHead(ref)
 		e.SetSafeHead(ref)
+		e.emitter.Emit(CrossSafeUpdateEvent{LocalSafe: ref, CrossSafe: ref})
 		e.SetFinalizedHead(ref)
 	}
 	logFn := e.logSyncProgressMaybe()
@@ -336,6 +380,7 @@ func (e *EngineController) InsertUnsafePayload(ctx context.Context, envelope *et
 	}
 	e.SetUnsafeHead(ref)
 	e.needFCUCall = false
+	e.emitter.Emit(UnsafeUpdateEvent{Ref: ref})
 
 	if e.syncStatus == syncStatusFinishedELButNotFinalized {
 		e.log.Info("Finished EL sync", "sync_duration", e.clock.Since(e.elStart), "finalized_block", ref.ID().String())

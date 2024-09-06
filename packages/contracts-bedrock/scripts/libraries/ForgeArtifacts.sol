@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import { Vm } from "forge-std/Vm.sol";
 import { stdJson } from "forge-std/StdJson.sol";
+import { LibString } from "@solady/utils/LibString.sol";
 import { Executables } from "scripts/libraries/Executables.sol";
 import { Process } from "scripts/libraries/Process.sol";
 
@@ -83,6 +84,67 @@ library ForgeArtifacts {
         ids_ = stdJson.readStringArray(string(res), "");
     }
 
+    /// @notice Returns the kind of contract (i.e. library, contract, or interface).
+    /// @param _name The name of the contract to get the kind of.
+    /// @return kind_ The kind of contract ("library", "contract", or "interface").
+    function getContractKind(string memory _name) internal returns (string memory kind_) {
+        string[] memory cmd = new string[](3);
+        cmd[0] = Executables.bash;
+        cmd[1] = "-c";
+        cmd[2] = string.concat(
+            Executables.jq,
+            " -r '.ast.nodes[] | select(.nodeType == \"ContractDefinition\") | .contractKind' < ",
+            _getForgeArtifactPath(_name)
+        );
+        bytes memory res = Process.run(cmd);
+        kind_ = string(res);
+    }
+
+    /// @notice Returns whether or not a contract is proxied.
+    /// @param _name The name of the contract to check.
+    /// @return out_ Whether or not the contract is proxied.
+    function isProxiedContract(string memory _name) internal returns (bool out_) {
+        // TODO: Using the `@custom:proxied` tag is to determine if a contract is meant to be
+        // proxied is functional but developers can easily forget to add the tag when writing a new
+        // contract. We should consider determining whether a contract is proxied based on the
+        // deployment script since it's the source of truth for that. Current deployment script
+        // does not make this easy but an updated script should likely make this possible.
+        string[] memory cmd = new string[](3);
+        cmd[0] = Executables.bash;
+        cmd[1] = "-c";
+        cmd[2] = string.concat(
+            Executables.jq,
+            " -r '.rawMetadata' ",
+            _getForgeArtifactPath(_name),
+            " | ",
+            Executables.jq,
+            " -r '.output.devdoc' | jq -r 'has(\"custom:proxied\")'"
+        );
+        bytes memory res = Process.run(cmd);
+        out_ = stdJson.readBool(string(res), "");
+    }
+
+    /// @notice Returns whether or not a contract is predeployed.
+    /// @param _name The name of the contract to check.
+    /// @return out_ Whether or not the contract is predeployed.
+    function isPredeployedContract(string memory _name) internal returns (bool out_) {
+        // TODO: Similar to the above, using the `@custom:predeployed` tag is not reliable but
+        // functional for now. Deployment script should make this easier to determine.
+        string[] memory cmd = new string[](3);
+        cmd[0] = Executables.bash;
+        cmd[1] = "-c";
+        cmd[2] = string.concat(
+            Executables.jq,
+            " -r '.rawMetadata' ",
+            _getForgeArtifactPath(_name),
+            " | ",
+            Executables.jq,
+            " -r '.output.devdoc' | jq -r 'has(\"custom:predeploy\")'"
+        );
+        bytes memory res = Process.run(cmd);
+        out_ = stdJson.readBool(string(res), "");
+    }
+
     function _getForgeArtifactDirectory(string memory _name) internal returns (string memory dir_) {
         string[] memory cmd = new string[](3);
         cmd[0] = Executables.bash;
@@ -128,6 +190,14 @@ library ForgeArtifacts {
     function getInitializedSlot(string memory _contractName) internal returns (StorageSlot memory slot_) {
         string memory storageLayout = getStorageLayout(_contractName);
 
+        // FaultDisputeGame and PermissionedDisputeGame use a different name for the initialized storage slot.
+        string memory slotName = "_initialized";
+        string memory slotType = "t_uint8";
+        if (LibString.eq(_contractName, "FaultDisputeGame") || LibString.eq(_contractName, "PermissionedDisputeGame")) {
+            slotName = "initialized";
+            slotType = "t_bool";
+        }
+
         string[] memory command = new string[](3);
         command[0] = Executables.bash;
         command[1] = "-c";
@@ -138,7 +208,11 @@ library ForgeArtifacts {
             "'",
             " | ",
             Executables.jq,
-            " '.storage[] | select(.label == \"_initialized\" and .type == \"t_uint8\")'"
+            " '.storage[] | select(.label == \"",
+            slotName,
+            "\" and .type == \"",
+            slotType,
+            "\")'"
         );
         bytes memory rawSlot = vm.parseJson(string(Process.run(command)));
         slot_ = abi.decode(rawSlot, (StorageSlot));
@@ -152,18 +226,21 @@ library ForgeArtifacts {
         initialized_ = uint8((uint256(slotVal) >> (slot.offset * 8)) & 0xFF) != 0;
     }
 
-    /// @notice Returns the function ABIs of all L1 contracts.
-    function getContractFunctionAbis(
-        string memory path,
-        string[] memory pathExcludes
+    /// @notice Returns the names of all contracts in a given directory.
+    /// @param _path The path to search for contracts.
+    /// @param _pathExcludes An array of paths to exclude from the search.
+    /// @return contractNames_ An array of contract names.
+    function getContractNames(
+        string memory _path,
+        string[] memory _pathExcludes
     )
         internal
-        returns (Abi[] memory abis_)
+        returns (string[] memory contractNames_)
     {
         string memory pathExcludesPat;
-        for (uint256 i = 0; i < pathExcludes.length; i++) {
-            pathExcludesPat = string.concat(pathExcludesPat, " -path \"", pathExcludes[i], "\"");
-            if (i != pathExcludes.length - 1) {
+        for (uint256 i = 0; i < _pathExcludes.length; i++) {
+            pathExcludesPat = string.concat(pathExcludesPat, " -path \"", _pathExcludes[i], "\"");
+            if (i != _pathExcludes.length - 1) {
                 pathExcludesPat = string.concat(pathExcludesPat, " -o ");
             }
         }
@@ -174,7 +251,7 @@ library ForgeArtifacts {
         command[2] = string.concat(
             Executables.find,
             " ",
-            path,
+            _path,
             bytes(pathExcludesPat).length > 0 ? string.concat(" ! \\( ", pathExcludesPat, " \\)") : "",
             " -type f ",
             "-exec basename {} \\;",
@@ -185,8 +262,19 @@ library ForgeArtifacts {
             Executables.jq,
             " -R -s 'split(\"\n\")[:-1]'"
         );
-        string[] memory contractNames = abi.decode(vm.parseJson(string(Process.run(command))), (string[]));
 
+        contractNames_ = abi.decode(vm.parseJson(string(Process.run(command))), (string[]));
+    }
+
+    /// @notice Returns the function ABIs of all L1 contracts.
+    function getContractFunctionAbis(
+        string memory path,
+        string[] memory pathExcludes
+    )
+        internal
+        returns (Abi[] memory abis_)
+    {
+        string[] memory contractNames = getContractNames(path, pathExcludes);
         abis_ = new Abi[](contractNames.length);
 
         for (uint256 i; i < contractNames.length; i++) {

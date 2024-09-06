@@ -2,13 +2,9 @@
 pragma solidity 0.8.15;
 
 import { Constants } from "src/libraries/Constants.sol";
+import { IL1ChugSplashDeployer } from "src/legacy/interfaces/IL1ChugSplashProxy.sol";
 
-/// @title IL1ChugSplashDeployer
-interface IL1ChugSplashDeployer {
-    function isUpgrading() external view returns (bool);
-}
-
-/// @custom:legacy
+/// @custom:legacy true
 /// @title L1ChugSplashProxy
 /// @notice Basic ChugSplash proxy contract for L1. Very close to being a normal proxy but has added
 ///         functions `setCode` and `setStorage` for changing the code or storage of the contract.

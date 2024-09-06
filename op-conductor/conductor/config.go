@@ -3,6 +3,7 @@ package conductor
 import (
 	"fmt"
 	"math"
+	"time"
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/pkg/errors"
@@ -32,6 +33,15 @@ type Config struct {
 
 	// RaftBootstrap is true if this node should bootstrap a new raft cluster.
 	RaftBootstrap bool
+
+	// RaftSnapshotInterval is the interval to check if a snapshot should be taken.
+	RaftSnapshotInterval time.Duration
+
+	// RaftSnapshotThreshold is the number of logs to trigger a snapshot.
+	RaftSnapshotThreshold uint64
+
+	// RaftTrailingLogs is the number of logs to keep after a snapshot.
+	RaftTrailingLogs uint64
 
 	// NodeRPC is the HTTP provider URL for op-node.
 	NodeRPC string
@@ -107,14 +117,17 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 	}
 
 	return &Config{
-		ConsensusAddr:  ctx.String(flags.ConsensusAddr.Name),
-		ConsensusPort:  ctx.Int(flags.ConsensusPort.Name),
-		RaftBootstrap:  ctx.Bool(flags.RaftBootstrap.Name),
-		RaftServerID:   ctx.String(flags.RaftServerID.Name),
-		RaftStorageDir: ctx.String(flags.RaftStorageDir.Name),
-		NodeRPC:        ctx.String(flags.NodeRPC.Name),
-		ExecutionRPC:   ctx.String(flags.ExecutionRPC.Name),
-		Paused:         ctx.Bool(flags.Paused.Name),
+		ConsensusAddr:         ctx.String(flags.ConsensusAddr.Name),
+		ConsensusPort:         ctx.Int(flags.ConsensusPort.Name),
+		RaftBootstrap:         ctx.Bool(flags.RaftBootstrap.Name),
+		RaftServerID:          ctx.String(flags.RaftServerID.Name),
+		RaftStorageDir:        ctx.String(flags.RaftStorageDir.Name),
+		RaftSnapshotInterval:  ctx.Duration(flags.RaftSnapshotInterval.Name),
+		RaftSnapshotThreshold: ctx.Uint64(flags.RaftSnapshotThreshold.Name),
+		RaftTrailingLogs:      ctx.Uint64(flags.RaftTrailingLogs.Name),
+		NodeRPC:               ctx.String(flags.NodeRPC.Name),
+		ExecutionRPC:          ctx.String(flags.ExecutionRPC.Name),
+		Paused:                ctx.Bool(flags.Paused.Name),
 		HealthCheck: HealthCheckConfig{
 			Interval:       ctx.Uint64(flags.HealthCheckInterval.Name),
 			UnsafeInterval: ctx.Uint64(flags.HealthCheckUnsafeInterval.Name),

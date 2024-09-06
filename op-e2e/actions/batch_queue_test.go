@@ -88,7 +88,8 @@ func TestDeriveChainFromNearL1Genesis(gt *testing.T) {
 	// This is the same situation as if op-node restarted at this point.
 	l2Cl, err := sources.NewEngineClient(seqEngine.RPCClient(), logger, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 	require.NoError(gt, err)
-	verifier := NewL2Verifier(t, logger, sequencer.l1, miner.BlobStore(), altda.Disabled, l2Cl, sequencer.rollupCfg, sequencer.syncCfg, safedb.Disabled)
+	verifier := NewL2Verifier(t, logger, sequencer.l1, miner.BlobStore(), altda.Disabled,
+		l2Cl, sequencer.rollupCfg, sequencer.syncCfg, safedb.Disabled, nil)
 	verifier.ActL2PipelineFull(t) // Should not get stuck in a reset loop forever
 	require.EqualValues(gt, l2BlockNum, seqEngine.l2Chain.CurrentSafeBlock().Number.Uint64())
 	require.EqualValues(gt, l2BlockNum, seqEngine.l2Chain.CurrentFinalBlock().Number.Uint64())

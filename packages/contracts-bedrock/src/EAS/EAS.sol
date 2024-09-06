@@ -40,7 +40,7 @@ struct AttestationsResult {
     bytes32[] uids; // UIDs of the new attestations.
 }
 
-/// @custom:proxied
+/// @custom:proxied true
 /// @custom:predeploy 0x4200000000000000000000000000000000000021
 /// @title EAS
 /// @notice The Ethereum Attestation Service protocol.
@@ -80,8 +80,8 @@ contract EAS is IEAS, ISemver, EIP1271Verifier {
     uint256[MAX_GAP - 3] private __gap;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.4.0
-    string public constant version = "1.4.0";
+    /// @custom:semver 1.4.1-beta.1
+    string public constant version = "1.4.1-beta.1";
 
     /// @dev Creates a new EAS instance.
     constructor() EIP1271Verifier("EAS", "1.3.0") { }

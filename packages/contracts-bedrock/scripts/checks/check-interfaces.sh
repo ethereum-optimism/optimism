@@ -24,6 +24,7 @@ EXCLUDE_CONTRACTS=(
     "IERC721"
     "IERC721Enumerable"
     "IERC721Upgradeable"
+    "IERC721Metadata"
     "IERC165"
     "IERC165Upgradeable"
     "ERC721TokenReceiver"
@@ -31,10 +32,12 @@ EXCLUDE_CONTRACTS=(
     "ERC777TokensRecipient"
     "Guard"
     "IProxy"
-
-    # Foundry
     "Vm"
     "VmSafe"
+    "IMulticall3"
+    "IBeacon"
+    "IERC721TokenReceiver"
+    "IProxyCreationCallback"
 
     # EAS
     "IEAS"
@@ -141,6 +144,22 @@ for interface_file in $JSON_FILES; do
             if ! is_excluded "$contract_name"; then
                 echo "Issue found in ABI for interface $contract_name from file $interface_file."
                 echo "Interface $contract_name does not start with 'I'."
+                issues_detected=true
+            fi
+        fi
+        continue
+    fi
+
+    # Extract contract semver
+    contract_semver=$(jq -r '.ast.nodes[] | select(.nodeType == "PragmaDirective") | .literals | join("")' "$interface_file")
+
+    # If semver is not exactly "solidity^0.8.0", throw an error
+    if [ "$contract_semver" != "solidity^0.8.0" ]; then
+        if ! grep -q "^$contract_name$" "$REPORTED_INTERFACES_FILE"; then
+            echo "$contract_name" >> "$REPORTED_INTERFACES_FILE"
+            if ! is_excluded "$contract_name"; then
+                echo "Issue found in ABI for interface $contract_name from file $interface_file."
+                echo "Interface $contract_name does not have correct compiler version (MUST be exactly solidity ^0.8.0)."
                 issues_detected=true
             fi
         fi

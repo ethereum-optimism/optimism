@@ -51,8 +51,8 @@ contract MIPS2 is ISemver {
     }
 
     /// @notice The semantic version of the MIPS2 contract.
-    /// @custom:semver 1.0.0-beta.5
-    string public constant version = "1.0.0-beta.5";
+    /// @custom:semver 1.0.0-beta.6
+    string public constant version = "1.0.0-beta.6";
 
     /// @notice The preimage oracle contract.
     IPreimageOracle internal immutable ORACLE;
@@ -91,7 +91,7 @@ contract MIPS2 is ISemver {
         unchecked {
             State memory state;
             ThreadState memory thread;
-
+            uint32 exited;
             assembly {
                 if iszero(eq(state, STATE_MEM_OFFSET)) {
                     // expected state mem offset check
@@ -131,6 +131,7 @@ contract MIPS2 is ISemver {
                 c, m := putField(c, m, 4) // heap
                 c, m := putField(c, m, 1) // exitCode
                 c, m := putField(c, m, 1) // exited
+                exited := mload(sub(m, 32))
                 c, m := putField(c, m, 8) // step
                 c, m := putField(c, m, 8) // stepsSinceLastContextSwitch
                 c, m := putField(c, m, 4) // wakeup
@@ -139,6 +140,7 @@ contract MIPS2 is ISemver {
                 c, m := putField(c, m, 32) // rightThreadStack
                 c, m := putField(c, m, 4) // nextThreadID
             }
+            st.assertExitedIsValid(exited);
 
             if (state.exited) {
                 // thread state is unchanged
@@ -459,6 +461,7 @@ contract MIPS2 is ISemver {
     /// @notice Computes the hash of the MIPS state.
     /// @return out_ The hashed MIPS state.
     function outputState() internal returns (bytes32 out_) {
+        uint32 exited;
         assembly {
             // copies 'size' bytes, right-aligned in word at 'from', to 'to', incl. trailing data
             function copyMem(from, to, size) -> fromOut, toOut {
@@ -481,7 +484,7 @@ contract MIPS2 is ISemver {
             from, to := copyMem(from, to, 4) // heap
             let exitCode := mload(from)
             from, to := copyMem(from, to, 1) // exitCode
-            let exited := mload(from)
+            exited := mload(from)
             from, to := copyMem(from, to, 1) // exited
             from, to := copyMem(from, to, 8) // step
             from, to := copyMem(from, to, 8) // stepsSinceLastContextSwitch
@@ -516,6 +519,8 @@ contract MIPS2 is ISemver {
             out_ := keccak256(start, sub(to, start))
             out_ := or(and(not(shl(248, 0xFF)), out_), shl(248, status))
         }
+
+        st.assertExitedIsValid(exited);
     }
 
     /// @notice Updates the current thread stack root via inner thread root in calldata

@@ -7,7 +7,7 @@ import { L1Block } from "src/L2/L1Block.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { LibZip } from "@solady/utils/LibZip.sol";
 
-/// @custom:proxied
+/// @custom:proxied true
 /// @custom:predeploy 0x420000000000000000000000000000000000000F
 /// @title GasPriceOracle
 /// @notice This contract maintains the variables responsible for computing the L1 portion of the
@@ -26,8 +26,8 @@ contract GasPriceOracle is ISemver {
     uint256 public constant DECIMALS = 6;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.3.0
-    string public constant version = "1.3.0";
+    /// @custom:semver 1.3.1-beta.1
+    string public constant version = "1.3.1-beta.1";
 
     /// @notice This is the intercept value for the linear regression used to estimate the final size of the
     ///         compressed transaction.

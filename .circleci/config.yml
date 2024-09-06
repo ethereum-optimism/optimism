@@ -544,6 +544,10 @@ jobs:
           command: forge --version
           working_directory: packages/contracts-bedrock
       - run:
+          name: pull cached artifacts
+          command: bash scripts/ops/pull-artifacts.sh
+          working_directory: packages/contracts-bedrock
+      - run:
           name: run tests
           command: just test
           environment:

@@ -10,6 +10,7 @@ import { WETH98 } from "src/dispute/weth/WETH98.sol";
 
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 
+/// @custom:proxied true
 /// @title DelayedWETH
 /// @notice DelayedWETH is an extension to WETH9 that allows for delayed withdrawals. Accounts must trigger an unlock
 ///         function before they can withdraw WETH. Accounts must trigger unlock by specifying a sub-account and an
@@ -21,8 +22,8 @@ import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 ///         Not the prettiest contract in the world, but it gets the job done.
 contract DelayedWETH is OwnableUpgradeable, WETH98, IDelayedWETH, ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 1.1.0-rc.1
-    string public constant version = "1.1.0-rc.1";
+    /// @custom:semver 1.1.1-beta.1
+    string public constant version = "1.1.1-beta.1";
 
     /// @inheritdoc IDelayedWETH
     mapping(address => mapping(address => WithdrawalRequest)) public withdrawals;

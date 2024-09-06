@@ -14,6 +14,7 @@ import "src/dispute/lib/Types.sol";
 import { Unauthorized } from "src/libraries/errors/CommonErrors.sol";
 import { UnregisteredGame, InvalidGameStatus } from "src/dispute/lib/Errors.sol";
 
+/// @custom:proxied true
 /// @title AnchorStateRegistry
 /// @notice The AnchorStateRegistry is a contract that stores the latest "anchor" state for each available
 ///         FaultDisputeGame type. The anchor state is the latest state that has been proposed on L1 and was not
@@ -27,8 +28,8 @@ contract AnchorStateRegistry is Initializable, IAnchorStateRegistry, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 2.0.0-rc.1
-    string public constant version = "2.0.0-rc.1";
+    /// @custom:semver 2.0.1-beta.1
+    string public constant version = "2.0.1-beta.1";
 
     /// @notice DisputeGameFactory address.
     IDisputeGameFactory internal immutable DISPUTE_GAME_FACTORY;
