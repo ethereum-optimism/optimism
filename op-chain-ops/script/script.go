@@ -29,6 +29,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/srcmap"
 )
 
+// jumpHistory is the amount of successful jumps to track for debugging.
+const jumpHistory = 5
+
 // CallFrame encodes the scope context of the current call
 type CallFrame struct {
 	Depth int
@@ -39,7 +42,9 @@ type CallFrame struct {
 	// Reverts often happen in generated code.
 	// We want to fallback to logging the source-map position of
 	// the non-generated code, i.e. the origin of the last successful jump.
-	LastJumpPC uint64
+	// And beyond that, a short history of the latest jumps is useful for debugging.
+	// This is a list of program-counters at the time of the jump (i.e. before raching JUMPDEST).
+	LastJumps []uint64
 
 	Ctx *vm.ScopeContext
 
@@ -79,6 +84,8 @@ type Host struct {
 	// src-maps are disabled if this is nil.
 	srcFS   *foundry.SourceMapFS
 	srcMaps map[common.Address]*srcmap.SourceMap
+
+	onLabel []func(name string, addr common.Address)
 }
 
 // NewHost creates a Host that can load contracts from the given Artifacts FS,
@@ -378,11 +385,10 @@ func (h *Host) onOpcode(pc uint64, op byte, gas, cost uint64, scope tracing.OpCo
 	// We do this here, instead of onEnter, to capture an initialized scope.
 	if len(h.callStack) == 0 || h.callStack[len(h.callStack)-1].Depth < depth {
 		h.callStack = append(h.callStack, CallFrame{
-			Depth:      depth,
-			LastOp:     vm.OpCode(op),
-			LastPC:     pc,
-			LastJumpPC: pc,
-			Ctx:        scopeCtx,
+			Depth:  depth,
+			LastOp: vm.OpCode(op),
+			LastPC: pc,
+			Ctx:    scopeCtx,
 		})
 	}
 	// Sanity check that top of the call-stack matches the scope context now
@@ -391,7 +397,11 @@ func (h *Host) onOpcode(pc uint64, op byte, gas, cost uint64, scope tracing.OpCo
 	}
 	cf := &h.callStack[len(h.callStack)-1]
 	if vm.OpCode(op) == vm.JUMPDEST { // remember the last PC before successful jump
-		cf.LastJumpPC = cf.LastPC
+		cf.LastJumps = append(cf.LastJumps, cf.LastPC)
+		if len(cf.LastJumps) > jumpHistory {
+			copy(cf.LastJumps[:], cf.LastJumps[len(cf.LastJumps)-jumpHistory:])
+			cf.LastJumps = cf.LastJumps[:jumpHistory]
+		}
 	}
 	cf.LastOp = vm.OpCode(op)
 	cf.LastPC = pc
@@ -527,10 +537,14 @@ func (h *Host) EnforceMaxCodeSize(v bool) {
 func (h *Host) LogCallStack() {
 	for _, cf := range h.callStack {
 		callsite := ""
-		if srcMap, ok := h.srcMaps[cf.Ctx.Address()]; ok {
+		srcMap, ok := h.srcMaps[cf.Ctx.Address()]
+		if !ok && cf.Ctx.Contract.CodeAddr != nil { // if delegate-call, we might know the implementation code.
+			srcMap, ok = h.srcMaps[*cf.Ctx.Contract.CodeAddr]
+		}
+		if ok {
 			callsite = srcMap.FormattedInfo(cf.LastPC)
-			if callsite == "unknown:0:0" {
-				callsite = srcMap.FormattedInfo(cf.LastJumpPC)
+			if callsite == "unknown:0:0" && len(cf.LastJumps) > 0 {
+				callsite = srcMap.FormattedInfo(cf.LastJumps[len(cf.LastJumps)-1])
 			}
 		}
 		input := cf.Ctx.CallInput()
@@ -538,9 +552,14 @@ func (h *Host) LogCallStack() {
 		if len(input) >= 4 {
 			byte4 = fmt.Sprintf("0x%x", input[:4])
 		}
-		h.log.Debug("callframe", "depth", cf.Depth, "input", hexutil.Bytes(input), "pc", cf.LastPC, "op", cf.LastOp)
+		h.log.Debug("callframe input", "depth", cf.Depth, "input", hexutil.Bytes(input), "pc", cf.LastPC, "op", cf.LastOp)
 		h.log.Warn("callframe", "depth", cf.Depth, "byte4", byte4,
 			"addr", cf.Ctx.Address(), "callsite", callsite, "label", h.labels[cf.Ctx.Address()])
+		if srcMap != nil {
+			for _, jmpPC := range cf.LastJumps {
+				h.log.Debug("recent jump", "depth", cf.Depth, "callsite", srcMap.FormattedInfo(jmpPC), "pc", jmpPC)
+			}
+		}
 	}
 }
 
@@ -548,4 +567,40 @@ func (h *Host) LogCallStack() {
 func (h *Host) Label(addr common.Address, label string) {
 	h.log.Debug("labeling", "addr", addr, "label", label)
 	h.labels[addr] = label
+
+	for _, fn := range h.onLabel {
+		fn(label, addr)
+	}
+}
+
+// NewScriptAddress creates a new address for the ScriptDeployer account, and bumps the nonce.
+func (h *Host) NewScriptAddress() common.Address {
+	deployer := ScriptDeployer
+	deployNonce := h.state.GetNonce(deployer)
+	// compute address of script contract to be deployed
+	addr := crypto.CreateAddress(deployer, deployNonce)
+	h.state.SetNonce(deployer, deployNonce+1)
+	return addr
+}
+
+func (h *Host) ChainID() *big.Int {
+	return new(big.Int).Set(h.chainCfg.ChainID)
+}
+
+func (h *Host) Artifacts() *foundry.ArtifactsFS {
+	return h.af
+}
+
+// RememberOnLabel links the contract source-code of srcFile upon a given label
+func (h *Host) RememberOnLabel(label, srcFile, contract string) error {
+	artifact, err := h.af.ReadArtifact(srcFile, contract)
+	if err != nil {
+		return fmt.Errorf("failed to read artifact %s (contract %s) for label %q", srcFile, contract, label)
+	}
+	h.onLabel = append(h.onLabel, func(v string, addr common.Address) {
+		if label == v {
+			h.RememberArtifact(addr, artifact, contract)
+		}
+	})
+	return nil
 }
