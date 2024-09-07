@@ -79,6 +79,11 @@ snapshots-no-build: snapshots-abi-storage
 # Builds contracts and then generates core snapshots.
 snapshots: build snapshots-no-build
 
+# Checks if the snapshots are up to date without building.
+snapshots-check-no-build:
+  ./scripts/checks/check-snapshots.sh --no-build
+
+# Checks if the snapshots are up to date.
 snapshots-check:
   ./scripts/checks/check-snapshots.sh
 
