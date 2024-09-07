@@ -595,8 +595,16 @@ jobs:
       - run:
           name: run tests
           command: |
-            TESTS=$(forge test --list | grep -E '^\s{4}' | awk '{print $1}' | circleci tests split --split-by=timings | paste -sd "|" -)
-            forge test --match-test "$TESTS"
+            # Find all test files
+            TEST_FILES=$(find ./test -name "*.t.sol")
+            # Split the tests by timings
+            TEST_FILES=$(echo "$TEST_FILES" | circleci tests split --split-by=timings)
+            # Strip the leading "./test/" from each file path
+            TEST_FILES=$(echo "$TEST_FILES" | sed 's|./test/||')
+            # Generate the match path
+            MATCH_PATH="./test/{$(echo "$TEST_FILES" | paste -sd "," -)}"
+            # Run the tests
+            forge test --match-path "$MATCH_PATH"
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
