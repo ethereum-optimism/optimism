@@ -52,9 +52,17 @@ func NewChainsDB(logDBs map[types.ChainID]LogStorage, heads HeadsStorage) *Chain
 	}
 }
 
+func (db *ChainsDB) AddLogDB(chain types.ChainID, logDB LogStorage) {
+	if db.logDBs[chain] != nil {
+		log.Warn("overwriting existing logDB for chain", "chain", chain)
+	}
+	db.logDBs[chain] = logDB
+}
+
 // Resume prepares the chains db to resume recording events after a restart.
 // It rewinds the database to the last block that is guaranteed to have been fully recorded to the database
 // to ensure it can resume recording from the first log of the next block.
+// TODO(#11793): we can rename this to something more descriptive like "PrepareWithRollback"
 func (db *ChainsDB) Resume() error {
 	for chain, logStore := range db.logDBs {
 		if err := Resume(logStore); err != nil {
