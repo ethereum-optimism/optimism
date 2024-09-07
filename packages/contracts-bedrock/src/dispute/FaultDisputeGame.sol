@@ -12,7 +12,6 @@ import { IBigStepper, IPreimageOracle } from "src/dispute/interfaces/IBigStepper
 import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistry.sol";
 
 import { Clone } from "@solady/utils/Clone.sol";
-import { Types } from "src/libraries/Types.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 
 import { Types } from "src/libraries/Types.sol";
