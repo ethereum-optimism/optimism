@@ -5,16 +5,14 @@ import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
 import { L1BlockInterop, ConfigType } from "src/L2/L1BlockInterop.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Constants } from "src/libraries/Constants.sol";
+import { IOptimismPortalInterop } from "src/L1/interfaces/IOptimismPortalInterop.sol";
 
 /// @custom:proxied true
 /// @title OptimismPortalInterop
 /// @notice The OptimismPortal is a low-level contract responsible for passing messages between L1
 ///         and L2. Messages sent directly to the OptimismPortal have no form of replayability.
 ///         Users are encouraged to use the L1CrossDomainMessenger for a higher-level interface.
-contract OptimismPortalInterop is OptimismPortal2 {
-    /// @notice Thrown when a non-depositor account attempts update static configuration.
-    error Unauthorized();
-
+contract OptimismPortalInterop is OptimismPortal2, IOptimismPortalInterop {
     constructor(
         uint256 _proofMaturityDelaySeconds,
         uint256 _disputeGameFinalityDelaySeconds

@@ -12,12 +12,12 @@ import { Hashing } from "src/libraries/Hashing.sol";
 import { SecureMerkleTrie } from "src/libraries/trie/SecureMerkleTrie.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
-import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { L1Block } from "src/L2/L1Block.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { IOptimismPortal2 } from "src/L1/interfaces/IOptimismPortal2.sol";
 
 import "src/libraries/PortalErrors.sol";
 import "src/dispute/lib/Types.sol";
@@ -27,17 +27,9 @@ import "src/dispute/lib/Types.sol";
 /// @notice The OptimismPortal is a low-level contract responsible for passing messages between L1
 ///         and L2. Messages sent directly to the OptimismPortal have no form of replayability.
 ///         Users are encouraged to use the L1CrossDomainMessenger for a higher-level interface.
-contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
+contract OptimismPortal2 is Initializable, ResourceMetering, IOptimismPortal2 {
     /// @notice Allows for interactions with non standard ERC20 tokens.
     using SafeERC20 for IERC20;
-
-    /// @notice Represents a proven withdrawal.
-    /// @custom:field disputeGameProxy The address of the dispute game proxy that the withdrawal was proven against.
-    /// @custom:field timestamp        Timestamp at whcih the withdrawal was proven.
-    struct ProvenWithdrawal {
-        IDisputeGame disputeGameProxy;
-        uint64 timestamp;
-    }
 
     /// @notice The delay between when a withdrawal transaction is proven and when it may be finalized.
     uint256 internal immutable PROOF_MATURITY_DELAY_SECONDS;
@@ -110,41 +102,6 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     ///         overflows for L2 account balances when custom gas tokens are used.
     ///         It is not safe to trust `ERC20.balanceOf` as it may lie.
     uint256 internal _balance;
-
-    /// @notice Emitted when a transaction is deposited from L1 to L2.
-    ///         The parameters of this event are read by the rollup node and used to derive deposit
-    ///         transactions on L2.
-    /// @param from       Address that triggered the deposit transaction.
-    /// @param to         Address that the deposit transaction is directed to.
-    /// @param version    Version of this deposit transaction event.
-    /// @param opaqueData ABI encoded deposit data to be parsed off-chain.
-    event TransactionDeposited(address indexed from, address indexed to, uint256 indexed version, bytes opaqueData);
-
-    /// @notice Emitted when a withdrawal transaction is proven.
-    /// @param withdrawalHash Hash of the withdrawal transaction.
-    /// @param from           Address that triggered the withdrawal transaction.
-    /// @param to             Address that the withdrawal transaction is directed to.
-    event WithdrawalProven(bytes32 indexed withdrawalHash, address indexed from, address indexed to);
-
-    /// @notice Emitted when a withdrawal transaction is proven. Exists as a separate event to allow for backwards
-    ///         compatibility for tooling that observes the `WithdrawalProven` event.
-    /// @param withdrawalHash Hash of the withdrawal transaction.
-    /// @param proofSubmitter Address of the proof submitter.
-    event WithdrawalProvenExtension1(bytes32 indexed withdrawalHash, address indexed proofSubmitter);
-
-    /// @notice Emitted when a withdrawal transaction is finalized.
-    /// @param withdrawalHash Hash of the withdrawal transaction.
-    /// @param success        Whether the withdrawal transaction was successful.
-    event WithdrawalFinalized(bytes32 indexed withdrawalHash, bool success);
-
-    /// @notice Emitted when a dispute game is blacklisted by the Guardian.
-    /// @param disputeGame Address of the dispute game that was blacklisted.
-    event DisputeGameBlacklisted(IDisputeGame indexed disputeGame);
-
-    /// @notice Emitted when the Guardian changes the respected game type in the portal.
-    /// @param newGameType The new respected game type.
-    /// @param updatedAt   The timestamp at which the respected game type was updated.
-    event RespectedGameTypeSet(GameType indexed newGameType, Timestamp indexed updatedAt);
 
     /// @notice Reverts when paused.
     modifier whenNotPaused() {
