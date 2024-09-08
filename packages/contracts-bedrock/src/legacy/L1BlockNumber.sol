@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 import { L1Block } from "src/L2/L1Block.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { ISemver } from "src/universal/ISemver.sol";
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
 
 /// @custom:legacy true
 /// @custom:proxied true

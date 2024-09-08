@@ -8,7 +8,7 @@ import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol"
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
 import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
-import { ISemver } from "src/universal/ISemver.sol";
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { Unauthorized } from "src/libraries/PortalErrors.sol";
 import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
 
@@ -45,8 +45,8 @@ contract DeputyGuardianModule is ISemver {
     address internal immutable DEPUTY_GUARDIAN;
 
     /// @notice Semantic version.
-    /// @custom:semver 2.0.0-rc.1
-    string public constant version = "2.0.0-rc.1";
+    /// @custom:semver 2.0.1-beta.1
+    string public constant version = "2.0.1-beta.1";
 
     // Constructor to initialize the Safe and baseModule instances
     constructor(Safe _safe, SuperchainConfig _superchainConfig, address _deputyGuardian) {

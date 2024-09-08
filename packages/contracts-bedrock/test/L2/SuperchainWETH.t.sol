@@ -7,7 +7,7 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 // Contract imports
 import { Unauthorized, NotCustomGasToken } from "src/libraries/errors/CommonErrors.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { IL2ToL2CrossDomainMessenger } from "src/L2/IL2ToL2CrossDomainMessenger.sol";
+import { IL2ToL2CrossDomainMessenger } from "src/L2/interfaces/IL2ToL2CrossDomainMessenger.sol";
 import { ETHLiquidity } from "src/L2/ETHLiquidity.sol";
 
 /// @title SuperchainWETH_Test

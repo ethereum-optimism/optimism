@@ -5,7 +5,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { L2StandardBridge } from "src/L2/L2StandardBridge.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import { IOptimismERC20Factory } from "src/L2/IOptimismERC20Factory.sol";
+import { IOptimismERC20Factory } from "src/L2/interfaces/IOptimismERC20Factory.sol";
 
 /// @notice Thrown when the decimals of the tokens are not the same.
 error InvalidDecimals();
