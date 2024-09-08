@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
 	"github.com/ethereum-optimism/optimism/cannon/serialize"
+	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
@@ -93,7 +94,7 @@ func LoadELF(ctx *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to compute program metadata: %w", err)
 	}
-	if err := jsonutil.WriteJSON[*program.Metadata](ctx.Path(LoadELFMetaFlag.Name), meta, OutFilePerm); err != nil {
+	if err := jsonutil.WriteJSON[*program.Metadata](meta, ioutil.ToStdOutOrFileOrNoop(ctx.Path(LoadELFMetaFlag.Name), OutFilePerm)); err != nil {
 		return fmt.Errorf("failed to output metadata: %w", err)
 	}
 	return writeState(ctx.Path(LoadELFOutFlag.Name), state)

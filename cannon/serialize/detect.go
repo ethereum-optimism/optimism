@@ -4,6 +4,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
 
@@ -16,9 +17,9 @@ func Load[X any](inputPath string) (*X, error) {
 
 func Write[X Serializable](outputPath string, x X, perm os.FileMode) error {
 	if isBinary(outputPath) {
-		return WriteSerializedBinary(outputPath, x, perm)
+		return WriteSerializedBinary(x, ioutil.ToStdOutOrFileOrNoop(outputPath, perm))
 	}
-	return jsonutil.WriteJSON[X](outputPath, x, perm)
+	return jsonutil.WriteJSON[X](x, ioutil.ToStdOutOrFileOrNoop(outputPath, perm))
 }
 
 func isBinary(path string) bool {

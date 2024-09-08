@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/stretchr/testify/require"
 )
 
@@ -14,7 +15,7 @@ func TestRoundTripBinary(t *testing.T) {
 	dir := t.TempDir()
 	file := filepath.Join(dir, "test.bin")
 	data := &serializableTestData{A: []byte{0xde, 0xad}, B: 3}
-	err := WriteSerializedBinary(file, data, 0644)
+	err := WriteSerializedBinary(data, ioutil.ToAtomicFile(file, 0644))
 	require.NoError(t, err)
 
 	hasGzip, err := hasGzipHeader(file)
@@ -30,7 +31,7 @@ func TestRoundTripBinaryWithGzip(t *testing.T) {
 	dir := t.TempDir()
 	file := filepath.Join(dir, "test.bin.gz")
 	data := &serializableTestData{A: []byte{0xde, 0xad}, B: 3}
-	err := WriteSerializedBinary(file, data, 0644)
+	err := WriteSerializedBinary(data, ioutil.ToAtomicFile(file, 0644))
 	require.NoError(t, err)
 
 	hasGzip, err := hasGzipHeader(file)
