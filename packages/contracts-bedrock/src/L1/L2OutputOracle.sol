@@ -2,16 +2,16 @@
 pragma solidity 0.8.15;
 
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
-import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { Types } from "src/libraries/Types.sol";
 import { Constants } from "src/libraries/Constants.sol";
+import { IL2OutputOracle } from "src/L1/interfaces/IL2OutputOracle.sol";
 
 /// @custom:proxied true
 /// @title L2OutputOracle
 /// @notice The L2OutputOracle contains an array of L2 state outputs, where each output is a
 ///         commitment to the state of the L2 chain. Other contracts like the OptimismPortal use
 ///         these outputs to verify information about the state of L2.
-contract L2OutputOracle is Initializable, ISemver {
+contract L2OutputOracle is Initializable, IL2OutputOracle {
     /// @notice The number of the first L2 block recorded in this contract.
     uint256 public startingBlockNumber;
 
@@ -40,20 +40,6 @@ contract L2OutputOracle is Initializable, ISemver {
     /// @notice The minimum time (in seconds) that must elapse before a withdrawal can be finalized.
     /// @custom:network-specific
     uint256 public finalizationPeriodSeconds;
-
-    /// @notice Emitted when an output is proposed.
-    /// @param outputRoot    The output root.
-    /// @param l2OutputIndex The index of the output in the l2Outputs array.
-    /// @param l2BlockNumber The L2 block number of the output root.
-    /// @param l1Timestamp   The L1 timestamp when proposed.
-    event OutputProposed(
-        bytes32 indexed outputRoot, uint256 indexed l2OutputIndex, uint256 indexed l2BlockNumber, uint256 l1Timestamp
-    );
-
-    /// @notice Emitted when outputs are deleted.
-    /// @param prevNextOutputIndex Next L2 output index before the deletion.
-    /// @param newNextOutputIndex  Next L2 output index after the deletion.
-    event OutputsDeleted(uint256 indexed prevNextOutputIndex, uint256 indexed newNextOutputIndex);
 
     /// @notice Semantic version.
     /// @custom:semver 1.8.1-beta.1

@@ -8,6 +8,7 @@ import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
+import { IL1StandardBridge } from "src/L1/interfaces/IL1StandardBridge.sol";
 
 /// @custom:proxied true
 /// @title L1StandardBridge
@@ -19,57 +20,7 @@ import { SystemConfig } from "src/L1/SystemConfig.sol";
 ///         NOTE: this contract is not intended to support all variations of ERC20 tokens. Examples
 ///         of some token types that may not be properly supported by this contract include, but are
 ///         not limited to: tokens with transfer fees, rebasing tokens, and tokens with blocklists.
-contract L1StandardBridge is StandardBridge, ISemver {
-    /// @custom:legacy
-    /// @notice Emitted whenever a deposit of ETH from L1 into L2 is initiated.
-    /// @param from      Address of the depositor.
-    /// @param to        Address of the recipient on L2.
-    /// @param amount    Amount of ETH deposited.
-    /// @param extraData Extra data attached to the deposit.
-    event ETHDepositInitiated(address indexed from, address indexed to, uint256 amount, bytes extraData);
-
-    /// @custom:legacy
-    /// @notice Emitted whenever a withdrawal of ETH from L2 to L1 is finalized.
-    /// @param from      Address of the withdrawer.
-    /// @param to        Address of the recipient on L1.
-    /// @param amount    Amount of ETH withdrawn.
-    /// @param extraData Extra data attached to the withdrawal.
-    event ETHWithdrawalFinalized(address indexed from, address indexed to, uint256 amount, bytes extraData);
-
-    /// @custom:legacy
-    /// @notice Emitted whenever an ERC20 deposit is initiated.
-    /// @param l1Token   Address of the token on L1.
-    /// @param l2Token   Address of the corresponding token on L2.
-    /// @param from      Address of the depositor.
-    /// @param to        Address of the recipient on L2.
-    /// @param amount    Amount of the ERC20 deposited.
-    /// @param extraData Extra data attached to the deposit.
-    event ERC20DepositInitiated(
-        address indexed l1Token,
-        address indexed l2Token,
-        address indexed from,
-        address to,
-        uint256 amount,
-        bytes extraData
-    );
-
-    /// @custom:legacy
-    /// @notice Emitted whenever an ERC20 withdrawal is finalized.
-    /// @param l1Token   Address of the token on L1.
-    /// @param l2Token   Address of the corresponding token on L2.
-    /// @param from      Address of the withdrawer.
-    /// @param to        Address of the recipient on L1.
-    /// @param amount    Amount of the ERC20 withdrawn.
-    /// @param extraData Extra data attached to the withdrawal.
-    event ERC20WithdrawalFinalized(
-        address indexed l1Token,
-        address indexed l2Token,
-        address indexed from,
-        address to,
-        uint256 amount,
-        bytes extraData
-    );
-
+contract L1StandardBridge is StandardBridge, IL1StandardBridge {
     /// @notice Semantic version.
     /// @custom:semver 2.2.1-beta.1
     string public constant version = "2.2.1-beta.1";

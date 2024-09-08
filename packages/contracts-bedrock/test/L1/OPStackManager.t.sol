@@ -6,6 +6,7 @@ import { Test } from "forge-std/Test.sol";
 
 // Target contract
 import { OPStackManager } from "src/L1/OPStackManager.sol";
+import { IOPStackManager, Roles } from "src/L1/interfaces/IOPStackManager.sol";
 
 // Exposes internal functions for testing.
 contract OPStackManager_Harness is OPStackManager {
@@ -22,7 +23,7 @@ contract OPStackManager_Init is Test {
     OPStackManager opsm;
 
     // Default dummy parameters for the deploy function.
-    OPStackManager.Roles roles;
+    Roles roles;
     uint256 l2ChainId = 1234;
     uint32 basefeeScalar = 1;
     uint32 blobBasefeeScalar = 1;
@@ -34,12 +35,12 @@ contract OPStackManager_Init is Test {
 
 contract OPStackManager_Deploy_Test is OPStackManager_Init {
     function test_deploy_l2ChainIdEqualsZero_reverts() public {
-        vm.expectRevert(OPStackManager.InvalidChainId.selector);
+        vm.expectRevert(IOPStackManager.InvalidChainId.selector);
         opsm.deploy(0, basefeeScalar, blobBasefeeScalar, roles);
     }
 
     function test_deploy_l2ChainIdEqualsCurrentChainId_reverts() public {
-        vm.expectRevert(OPStackManager.InvalidChainId.selector);
+        vm.expectRevert(IOPStackManager.InvalidChainId.selector);
         opsm.deploy(block.chainid, basefeeScalar, blobBasefeeScalar, roles);
     }
 }

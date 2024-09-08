@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { ISemver } from "src/universal/interfaces/ISemver.sol";
+import { IDelayedVetoable } from "src/L1/interfaces/IDelayedVetoable.sol";
 
 /// @title DelayedVetoable
 /// @notice This contract enables a delay before a call is forwarded to a target contract, and during the delay period
@@ -10,32 +10,7 @@ import { ISemver } from "src/universal/interfaces/ISemver.sol";
 ///         Additionally, this contract cannot be used to forward calls with data beginning with the function selector
 ///         of the queuedAt(bytes32) function. This is because of input validation checks which solidity performs at
 ///         runtime on functions which take an argument.
-contract DelayedVetoable is ISemver {
-    /// @notice Error for when attempting to forward too early.
-    error ForwardingEarly();
-
-    /// @notice Error for unauthorized calls.
-    error Unauthorized(address expected, address actual);
-
-    /// @notice An event that is emitted when the delay is activated.
-    /// @param delay The delay that was activated.
-    event DelayActivated(uint256 delay);
-
-    /// @notice An event that is emitted when a call is initiated.
-    /// @param callHash The hash of the call data.
-    /// @param data The data of the initiated call.
-    event Initiated(bytes32 indexed callHash, bytes data);
-
-    /// @notice An event that is emitted each time a call is forwarded.
-    /// @param callHash The hash of the call data.
-    /// @param data The data forwarded to the target.
-    event Forwarded(bytes32 indexed callHash, bytes data);
-
-    /// @notice An event that is emitted each time a call is vetoed.
-    /// @param callHash The hash of the call data.
-    /// @param data The data forwarded to the target.
-    event Vetoed(bytes32 indexed callHash, bytes data);
-
+contract DelayedVetoable is IDelayedVetoable {
     /// @notice The address that all calls are forwarded to after the delay.
     address internal immutable TARGET;
 
