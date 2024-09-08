@@ -10,13 +10,14 @@ import { ConfigType } from "src/L2/L1BlockInterop.sol";
 import { StaticConfig } from "src/libraries/StaticConfig.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { Storage } from "src/libraries/Storage.sol";
+import { ISystemConfigInterop } from "src/L1/interfaces/ISystemConfigInterop.sol";
 
 /// @custom:proxied true
 /// @title SystemConfigInterop
 /// @notice The SystemConfig contract is used to manage configuration of an Optimism network.
 ///         All configuration is stored on L1 and picked up by L2 as part of the derviation of
 ///         the L2 chain.
-contract SystemConfigInterop is SystemConfig {
+contract SystemConfigInterop is SystemConfig, ISystemConfigInterop {
     /// @notice Storage slot where the dependency manager address is stored
     /// @dev    Equal to bytes32(uint256(keccak256("systemconfig.dependencymanager")) - 1)
     bytes32 internal constant DEPENDENCY_MANAGER_SLOT =
