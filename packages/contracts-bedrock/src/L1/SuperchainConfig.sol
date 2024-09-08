@@ -2,38 +2,20 @@
 pragma solidity 0.8.15;
 
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
-import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { Storage } from "src/libraries/Storage.sol";
+import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
 
 /// @custom:proxied true
 /// @custom:audit none This contracts is not yet audited.
 /// @title SuperchainConfig
 /// @notice The SuperchainConfig contract is used to manage configuration of global superchain values.
-contract SuperchainConfig is Initializable, ISemver {
-    /// @notice Enum representing different types of updates.
-    /// @custom:value GUARDIAN            Represents an update to the guardian.
-    enum UpdateType {
-        GUARDIAN
-    }
-
+contract SuperchainConfig is Initializable, ISuperchainConfig {
     /// @notice Whether or not the Superchain is paused.
     bytes32 public constant PAUSED_SLOT = bytes32(uint256(keccak256("superchainConfig.paused")) - 1);
 
     /// @notice The address of the guardian, which can pause withdrawals from the System.
     ///         It can only be modified by an upgrade.
     bytes32 public constant GUARDIAN_SLOT = bytes32(uint256(keccak256("superchainConfig.guardian")) - 1);
-
-    /// @notice Emitted when the pause is triggered.
-    /// @param identifier A string helping to identify provenance of the pause transaction.
-    event Paused(string identifier);
-
-    /// @notice Emitted when the pause is lifted.
-    event Unpaused();
-
-    /// @notice Emitted when configuration is updated.
-    /// @param updateType Type of update.
-    /// @param data       Encoded update data.
-    event ConfigUpdate(UpdateType indexed updateType, bytes data);
 
     /// @notice Semantic version.
     /// @custom:semver 1.1.1-beta.1

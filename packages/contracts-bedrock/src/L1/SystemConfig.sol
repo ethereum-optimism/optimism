@@ -2,33 +2,20 @@
 pragma solidity 0.8.15;
 
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { Storage } from "src/libraries/Storage.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { GasPayingToken, IGasToken } from "src/libraries/GasPayingToken.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { ISystemConfig } from "src/L1/interfaces/ISystemConfig.sol";
 
 /// @custom:proxied true
 /// @title SystemConfig
 /// @notice The SystemConfig contract is used to manage configuration of an Optimism network.
 ///         All configuration is stored on L1 and picked up by L2 as part of the derviation of
 ///         the L2 chain.
-contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
-    /// @notice Enum representing different types of updates.
-    /// @custom:value BATCHER              Represents an update to the batcher hash.
-    /// @custom:value GAS_CONFIG           Represents an update to txn fee config on L2.
-    /// @custom:value GAS_LIMIT            Represents an update to gas limit on L2.
-    /// @custom:value UNSAFE_BLOCK_SIGNER  Represents an update to the signer key for unsafe
-    ///                                    block distrubution.
-    enum UpdateType {
-        BATCHER,
-        GAS_CONFIG,
-        GAS_LIMIT,
-        UNSAFE_BLOCK_SIGNER
-    }
-
+contract SystemConfig is OwnableUpgradeable, ISystemConfig, IGasToken {
     /// @notice Struct representing the addresses of L1 system contracts. These should be the
     ///         contracts that users interact with (not implementations for proxied contracts)
     ///         and are network specific.
@@ -118,12 +105,6 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     ///         Set as internal with a getter so that the struct is returned instead of a tuple.
     ResourceMetering.ResourceConfig internal _resourceConfig;
 
-    /// @notice Emitted when configuration is updated.
-    /// @param version    SystemConfig version.
-    /// @param updateType Type of update.
-    /// @param data       Encoded update data.
-    event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
-
     /// @notice Semantic version.
     /// @custom:semver 2.3.0-beta.3
     function version() public pure virtual returns (string memory) {
@@ -153,7 +134,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
                 maximumBaseFee: 0
             }),
             _batchInbox: address(0),
-            _addresses: SystemConfig.Addresses({
+            _addresses: Addresses({
                 l1CrossDomainMessenger: address(0),
                 l1ERC721Bridge: address(0),
                 l1StandardBridge: address(0),

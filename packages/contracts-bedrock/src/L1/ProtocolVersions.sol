@@ -2,25 +2,14 @@
 pragma solidity 0.8.15;
 
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { Storage } from "src/libraries/Storage.sol";
 import { Constants } from "src/libraries/Constants.sol";
-
-/// @notice ProtocolVersion is a numeric identifier of the protocol version.
-type ProtocolVersion is uint256;
+import { IProtocolVersions, ProtocolVersion } from "src/L1/interfaces/IProtocolVersions.sol";
 
 /// @custom:proxied true
 /// @title ProtocolVersions
 /// @notice The ProtocolVersions contract is used to manage superchain protocol version information.
-contract ProtocolVersions is OwnableUpgradeable, ISemver {
-    /// @notice Enum representing different types of updates.
-    /// @custom:value REQUIRED_PROTOCOL_VERSION              Represents an update to the required protocol version.
-    /// @custom:value RECOMMENDED_PROTOCOL_VERSION           Represents an update to the recommended protocol version.
-    enum UpdateType {
-        REQUIRED_PROTOCOL_VERSION,
-        RECOMMENDED_PROTOCOL_VERSION
-    }
-
+contract ProtocolVersions is OwnableUpgradeable, IProtocolVersions {
     /// @notice Version identifier, used for upgrades.
     uint256 public constant VERSION = 0;
 
@@ -29,12 +18,6 @@ contract ProtocolVersions is OwnableUpgradeable, ISemver {
 
     /// @notice Storage slot that the recommended protocol version is stored at.
     bytes32 public constant RECOMMENDED_SLOT = bytes32(uint256(keccak256("protocolversion.recommended")) - 1);
-
-    /// @notice Emitted when configuration is updated.
-    /// @param version    ProtocolVersion version.
-    /// @param updateType Type of update.
-    /// @param data       Encoded update data.
-    event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
     /// @notice Semantic version.
     /// @custom:semver 1.0.1-beta.1
