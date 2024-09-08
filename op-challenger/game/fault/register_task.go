@@ -112,16 +112,18 @@ func NewAsteriscRegisterTask(gameType faultTypes.GameType, cfg *config.Config, m
 }
 
 func NewAsteriscKonaRegisterTask(gameType faultTypes.GameType, cfg *config.Config, m caching.Metrics, serverExecutor vm.OracleServerExecutor) *RegisterTask {
+	stateConverter := asterisc.NewStateConverter()
 	return &RegisterTask{
 		gameType: gameType,
 		getPrestateProvider: cachePrestates(
 			gameType,
+			stateConverter,
 			m,
 			cfg.AsteriscKonaAbsolutePreStateBaseURL,
 			cfg.AsteriscKonaAbsolutePreState,
 			filepath.Join(cfg.Datadir, "asterisc-kona-prestates"),
 			func(path string) faultTypes.PrestateProvider {
-				return vm.NewPrestateProvider(path, asterisc.NewStateConverter())
+				return vm.NewPrestateProvider(path, stateConverter)
 			}),
 		newTraceAccessor: func(
 			logger log.Logger,
