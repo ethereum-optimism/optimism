@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity ^0.8.0;
 
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { Types } from "src/libraries/Types.sol";
 import { DisputeGameFactory, IDisputeGame } from "src/dispute/DisputeGameFactory.sol";
+import { ConfigType } from "src/L2/L1BlockInterop.sol";
 import "src/dispute/lib/Types.sol";
+
 
 /// @title IOptimismPortal2
 /// @notice Interface for the OptimismPortal2 contract.
@@ -65,4 +67,6 @@ interface IOptimismPortal2 is ISemver {
     function blacklistDisputeGame(IDisputeGame _disputeGame) external;
     function setRespectedGameType(GameType _gameType) external;
     function numProofSubmitters(bytes32 _withdrawalHash) external view returns (uint256);
+    function setConfig(ConfigType _type, bytes memory _value) external;
+    receive() external payable;
 }

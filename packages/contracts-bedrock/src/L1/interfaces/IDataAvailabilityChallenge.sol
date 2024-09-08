@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity ^0.8.0;
 
 /// @dev An enum representing the status of a DA challenge.
 enum ChallengeStatus {

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity ^0.8.0;
 
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
 
@@ -36,4 +36,5 @@ interface IDelayedVetoable is ISemver {
     function target() external returns (address target_);
     function delay() external returns (uint256 delay_);
     function queuedAt(bytes32 callHash) external returns (uint256 queuedAt_);
+    fallback() external;
 }

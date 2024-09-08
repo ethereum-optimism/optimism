@@ -872,7 +872,7 @@
       },
       {
         "indexed": true,
-        "internalType": "enum SystemConfig.UpdateType",
+        "internalType": "enum ISystemConfig.UpdateType",
         "name": "updateType",
         "type": "uint8"
       },

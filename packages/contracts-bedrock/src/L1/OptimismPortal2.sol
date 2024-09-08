@@ -18,6 +18,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { L1Block } from "src/L2/L1Block.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { IOptimismPortal2 } from "src/L1/interfaces/IOptimismPortal2.sol";
+import { ConfigType } from "src/L2/L1BlockInterop.sol";
 
 import "src/libraries/PortalErrors.sol";
 import "src/dispute/lib/Types.sol";
@@ -638,5 +639,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, IOptimismPortal2 {
     /// @return The number of proof submitters for the withdrawal hash.
     function numProofSubmitters(bytes32 _withdrawalHash) external view returns (uint256) {
         return proofSubmitters[_withdrawalHash].length;
+    }
+
+    function setConfig(ConfigType _type, bytes memory _value) virtual external {
+        revert("unimplemented method");
     }
 }

@@ -175,7 +175,7 @@
       },
       {
         "indexed": true,
-        "internalType": "enum ProtocolVersions.UpdateType",
+        "internalType": "enum IProtocolVersions.UpdateType",
         "name": "updateType",
         "type": "uint8"
       },

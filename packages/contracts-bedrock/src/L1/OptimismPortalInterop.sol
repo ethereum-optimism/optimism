@@ -5,14 +5,18 @@ import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
 import { L1BlockInterop, ConfigType } from "src/L2/L1BlockInterop.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Constants } from "src/libraries/Constants.sol";
-import { IOptimismPortalInterop } from "src/L1/interfaces/IOptimismPortalInterop.sol";
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
+
 
 /// @custom:proxied true
 /// @title OptimismPortalInterop
 /// @notice The OptimismPortal is a low-level contract responsible for passing messages between L1
 ///         and L2. Messages sent directly to the OptimismPortal have no form of replayability.
 ///         Users are encouraged to use the L1CrossDomainMessenger for a higher-level interface.
-contract OptimismPortalInterop is OptimismPortal2, IOptimismPortalInterop {
+contract OptimismPortalInterop is OptimismPortal2 {
+    /// @notice Thrown when a non-depositor account attempts update static configuration.
+    error Unauthorized();
+
     constructor(
         uint256 _proofMaturityDelaySeconds,
         uint256 _disputeGameFinalityDelaySeconds
@@ -21,14 +25,14 @@ contract OptimismPortalInterop is OptimismPortal2, IOptimismPortalInterop {
     { }
 
     /// @custom:semver +interop
-    function version() public pure override returns (string memory) {
+    function version() public override pure returns (string memory) {
         return string.concat(super.version(), "+interop");
     }
 
     /// @notice Sets static configuration options for the L2 system.
     /// @param _type  Type of configuration to set.
     /// @param _value Encoded value of the configuration.
-    function setConfig(ConfigType _type, bytes memory _value) external {
+    function setConfig(ConfigType _type, bytes memory _value) override external {
         if (msg.sender != address(systemConfig)) revert Unauthorized();
 
         // Set L2 deposit gas as used without paying burning gas. Ensures that deposits cannot use too much L2 gas.

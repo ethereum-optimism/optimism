@@ -46,7 +46,7 @@
     "label": "provenWithdrawals",
     "offset": 0,
     "slot": "52",
-    "type": "mapping(bytes32 => struct OptimismPortal.ProvenWithdrawal)"
+    "type": "mapping(bytes32 => struct IOptimismPortal.ProvenWithdrawal)"
   },
   {
     "bytes": "1",

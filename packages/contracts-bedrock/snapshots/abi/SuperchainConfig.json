@@ -112,7 +112,7 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "enum SuperchainConfig.UpdateType",
+        "internalType": "enum ISuperchainConfig.UpdateType",
         "name": "updateType",
         "type": "uint8"
       },
