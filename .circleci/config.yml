@@ -1112,6 +1112,16 @@ jobs:
               echo 'export EXPECTED_PRESTATE_HASH="0x03e69d3de5155f4a80da99dd534561cbddd4f9dd56c9ecc704d6886625711d2b"' >> $BASH_ENV
             elif [[ "<<parameters.version>>" == "1.2.0" ]]; then
               echo 'export EXPECTED_PRESTATE_HASH="0x03617abec0b255dc7fc7a0513a2c2220140a1dcd7a1c8eca567659bd67e05cea"' >> $BASH_ENV
+            elif [[ "<<parameters.version>>" == "1.3.0-rc.1" ]]; then
+              echo 'export EXPECTED_PRESTATE_HASH="0x0367c4aa897bffbded0b523f277ca892298dc3c691baf37bc2099b86024f9673"' >> $BASH_ENV
+            elif [[ "<<parameters.version>>" == "1.3.0-rc.2" ]]; then
+              echo 'export EXPECTED_PRESTATE_HASH="0x0385c3f8ee78491001d92b90b07d0cf387b7b52ab9b83b4d87c994e92cf823ba"' >> $BASH_ENV
+            elif [[ "<<parameters.version>>" == "1.3.0-rc.3" ]]; then
+              echo 'export EXPECTED_PRESTATE_HASH="0x030de10d9da911a2b180ecfae2aeaba8758961fc28262ce989458c6f9a547922"' >> $BASH_ENV
+            elif [[ "<<parameters.version>>" == "1.3.1-rc.1" ]]; then
+              echo 'export EXPECTED_PRESTATE_HASH="0x03e806a2859a875267a563462a06d4d1d1b455a9efee959a46e21e54b6caf69a"' >> $BASH_ENV
+            elif [[ "<<parameters.version>>" == "1.3.1-rc.2" ]]; then
+              echo 'export EXPECTED_PRESTATE_HASH="0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"' >> $BASH_ENV
             else
               echo "Unknown prestate version <<parameters.version>>"
               exit 1
@@ -2206,6 +2216,17 @@ workflows:
       - preimage-reproducibility:
           matrix:
             parameters:
-              version: ["0.1.0", "0.2.0", "0.3.0", "1.0.0", "1.1.0", "1.2.0"]
+              version:
+                - "0.1.0"
+                - "0.2.0"
+                - "0.3.0"
+                - "1.0.0"
+                - "1.1.0"
+                - "1.2.0"
+                - "1.3.0-rc.1"
+                - "1.3.0-rc.2"
+                - "1.3.0-rc.3"
+                - "1.3.1-rc.1"
+                - "1.3.1-rc.2"
           context:
             slack
