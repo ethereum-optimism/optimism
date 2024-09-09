@@ -8,7 +8,7 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Constants } from "src/libraries/Constants.sol";
 
-// Target contract dependencies
+// Target contract
 import { L1Block } from "src/L2/L1Block.sol";
 import "src/libraries/L1BlockErrors.sol";
 

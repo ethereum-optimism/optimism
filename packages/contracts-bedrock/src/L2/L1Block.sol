@@ -137,17 +137,6 @@ contract L1Block is ISemver, IGasToken {
         _setL1BlockValuesEcotone();
     }
 
-    /// @notice Sets the gas paying token for the L2 system. Can only be called by the special
-    ///         depositor account. This function is not called on every L2 block but instead
-    ///         only called by specially crafted L1 deposit transactions.
-    function setGasPayingToken(address _token, uint8 _decimals, bytes32 _name, bytes32 _symbol) external {
-        if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
-
-        GasPayingToken.set({ _token: _token, _decimals: _decimals, _name: _name, _symbol: _symbol });
-
-        emit GasPayingTokenSet({ token: _token, decimals: _decimals, name: _name, symbol: _symbol });
-    }
-
     /// @notice Updates the L1 block values for an Ecotone upgraded chain.
     /// Params are packed and passed in as raw msg.data instead of ABI to reduce calldata size.
     /// Params are expected to be in the following order:
@@ -177,5 +166,16 @@ contract L1Block is ISemver, IGasToken {
             sstore(hash.slot, calldataload(100)) // bytes32
             sstore(batcherHash.slot, calldataload(132)) // bytes32
         }
+    }
+
+    /// @notice Sets the gas paying token for the L2 system. Can only be called by the special
+    ///         depositor account. This function is not called on every L2 block but instead
+    ///         only called by specially crafted L1 deposit transactions.
+    function setGasPayingToken(address _token, uint8 _decimals, bytes32 _name, bytes32 _symbol) external {
+        if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
+
+        GasPayingToken.set({ _token: _token, _decimals: _decimals, _name: _name, _symbol: _symbol });
+
+        emit GasPayingTokenSet({ token: _token, decimals: _decimals, name: _name, symbol: _symbol });
     }
 }
