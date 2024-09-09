@@ -551,7 +551,7 @@ func (s *SyncClient) maybePromote(ctx context.Context) {
 	}
 }
 
-func (s *syncClientPeer) doSingleBlockRequest(ctx context.Context, num blockNumber) (err error) {
+func (s *syncClientPeer) requestAndHandleResult(ctx context.Context, num blockNumber) (err error) {
 	// We already established the peer is available w.r.t. rate-limiting,
 	// and this is the only loop over this peer, so we can request now.
 
@@ -597,7 +597,6 @@ func (s *syncClientPeer) doSingleBlockRequest(ctx context.Context, num blockNumb
 			s.lastRequestError = time.Now()
 		}
 	} else {
-		// Do this outside the panic guard, it shouldn't be panicking...
 		s.onResultUnlocked(syncResult{payload: envelope, peer: s.remoteId})
 		log.Debug("completed p2p sync request", "num", num)
 		s.appScorer.onValidResponse(s.remoteId)
@@ -612,6 +611,7 @@ func (s *syncClientPeer) requestBlocks(ctx context.Context) (err error) {
 	for bn := s.endBlockNumber; bn >= s.startBlockNumber; bn-- {
 		wanted := s.getWantedBlock(bn)
 		if wanted == nil {
+			// Request range has been altered.
 			break
 		}
 		// Don't bother to quarantine more than one block for each number.
@@ -621,45 +621,58 @@ func (s *syncClientPeer) requestBlocks(ctx context.Context) (err error) {
 		if wanted.done.IsSet() {
 			continue
 		}
-		s.mu.Unlock()
-		r := s.rl.Reserve()
-		if !r.OK() {
-			panic(s.rl)
-		}
-		select {
-		case <-ctx.Done():
-			r.Cancel()
-			s.mu.Lock()
-			return context.Cause(ctx)
-		case <-wanted.done.On():
-			r.Cancel()
-			s.mu.Lock()
-			continue
-		case <-time.After(r.Delay()):
-		}
-		select {
-		default:
-			r.Cancel()
-			s.mu.Lock()
-			continue
-		case wanted.requestConcurrency.Acquire() <- struct{}{}:
-		}
-		err = s.globalRL.Wait(ctx)
+		err = s.reserveAndRequest(ctx, wanted)
 		if err != nil {
-			r.Cancel()
-			<-wanted.requestConcurrency.Release()
-			err = fmt.Errorf("while waiting for global rate limiter: %w", err)
-			s.mu.Lock()
 			return
 		}
-		err = s.doSingleBlockRequest(ctx, wanted.num)
+	}
+	return
+}
+
+// Waits for reservations and then does the request if appropriate.
+func (s *syncClientPeer) reserveAndRequest(ctx context.Context, wanted *wantedBlock) (err error) {
+	s.mu.Unlock()
+	defer s.mu.Lock()
+	r := s.rl.Reserve()
+	if !r.OK() {
+		panic(s.rl)
+	}
+	// Undo the reservation if we never get to request. We do the peer reservation first so we don't
+	// tie up other peers.
+	requested := false
+	defer func() {
+		if !requested {
+			r.Cancel()
+		}
+	}()
+	// Wait for the peer reservation to be ready.
+	select {
+	case <-ctx.Done():
+		return context.Cause(ctx)
+	case <-wanted.done.On():
+		return
+	case <-time.After(r.Delay()):
+	}
+	select {
+	default:
+		// Too many on this block.
+		return
+	case wanted.requestConcurrency.Acquire() <- struct{}{}:
+	}
+	// Releasing our slot on the block could free up another peer.
+	defer s.requestBlocksCond.Broadcast()
+	defer func() {
 		<-wanted.requestConcurrency.Release()
-		s.requestBlocksCond.Broadcast()
-		s.mu.Lock()
-		if err != nil {
-			err = fmt.Errorf("requesting block %v: %w", wanted.num, err)
-			return
-		}
+	}()
+	err = s.globalRL.Wait(ctx)
+	if err != nil {
+		err = fmt.Errorf("waiting for global rate limiter: %w", err)
+		return
+	}
+	err = s.requestAndHandleResult(ctx, wanted.num)
+	requested = true
+	if err != nil {
+		err = fmt.Errorf("requesting block %v: %w", wanted.num, err)
 	}
 	return
 }
