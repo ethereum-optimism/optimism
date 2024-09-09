@@ -176,8 +176,8 @@ for interface_file in $JSON_FILES; do
     fi
 
     # Extract and compare ABIs excluding constructors
-    interface_abi=$(jq '[.abi[] | select(.type != "constructor")]' < "$interface_file")
-    contract_abi=$(jq '[.abi[] | select(.type != "constructor")]' < "$corresponding_contract_file")
+#    interface_abi=$(jq '[.abi[] | select(.type != "constructor")]' < "$interface_file")
+#    contract_abi=$(jq '[.abi[] | select(.type != "constructor")]' < "$corresponding_contract_file")
 
     # Use jq to compare the ABIs
 #    if ! diff_result=$(diff -u <(echo "$interface_abi" | jq -S .) <(echo "$contract_abi" | jq -S .)); then
