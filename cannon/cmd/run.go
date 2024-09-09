@@ -12,6 +12,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
 	"github.com/ethereum-optimism/optimism/cannon/serialize"
+	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
@@ -478,7 +479,7 @@ func Run(ctx *cli.Context) error {
 				proof.OracleValue = witness.PreimageValue
 				proof.OracleOffset = witness.PreimageOffset
 			}
-			if err := jsonutil.WriteJSON(fmt.Sprintf(proofFmt, step), proof, OutFilePerm); err != nil {
+			if err := jsonutil.WriteJSON(proof, ioutil.ToStdOutOrFileOrNoop(fmt.Sprintf(proofFmt, step), OutFilePerm)); err != nil {
 				return fmt.Errorf("failed to write proof data: %w", err)
 			}
 		} else {
@@ -516,7 +517,7 @@ func Run(ctx *cli.Context) error {
 		return fmt.Errorf("failed to write state output: %w", err)
 	}
 	if debugInfoFile := ctx.Path(RunDebugInfoFlag.Name); debugInfoFile != "" {
-		if err := jsonutil.WriteJSON(debugInfoFile, vm.GetDebugInfo(), OutFilePerm); err != nil {
+		if err := jsonutil.WriteJSON(vm.GetDebugInfo(), ioutil.ToStdOutOrFileOrNoop(debugInfoFile, OutFilePerm)); err != nil {
 			return fmt.Errorf("failed to write benchmark data: %w", err)
 		}
 	}
