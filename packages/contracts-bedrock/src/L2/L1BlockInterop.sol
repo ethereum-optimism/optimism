@@ -5,23 +5,14 @@ import { L1Block } from "src/L2/L1Block.sol";
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
 import { StaticConfig } from "src/libraries/StaticConfig.sol";
+import { IL1BlockInterop, ConfigType } from "src/L2/interfaces/IL1BlockInterop.sol";
 import "src/libraries/L1BlockErrors.sol";
-
-/// @notice Enum representing different types of configurations that can be set on L1BlockInterop.
-/// @custom:value SET_GAS_PAYING_TOKEN  Represents the config type for setting the gas paying token.
-/// @custom:value ADD_DEPENDENCY        Represents the config type for adding a chain to the interop dependency set.
-/// @custom:value REMOVE_DEPENDENCY     Represents the config type for removing a chain from the interop dependency set.
-enum ConfigType {
-    SET_GAS_PAYING_TOKEN,
-    ADD_DEPENDENCY,
-    REMOVE_DEPENDENCY
-}
 
 /// @custom:proxied true
 /// @custom:predeploy 0x4200000000000000000000000000000000000015
 /// @title L1BlockInterop
 /// @notice Interop extenstions of L1Block.
-contract L1BlockInterop is L1Block {
+contract L1BlockInterop is L1Block, IL1BlockInterop {
     using EnumerableSet for EnumerableSet.UintSet;
 
     /// @notice Event emitted when a new dependency is added to the interop dependency set.

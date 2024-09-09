@@ -7,6 +7,7 @@ import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { L1Block } from "src/L2/L1Block.sol";
+import { IL2StandardBridge } from "src/L2/interfaces/IL2StandardBridge.sol";
 
 /// @custom:proxied true
 /// @custom:predeploy 0x4200000000000000000000000000000000000010
@@ -17,7 +18,7 @@ import { L1Block } from "src/L2/L1Block.sol";
 ///         NOTE: this contract is not intended to support all variations of ERC20 tokens. Examples
 ///         of some token types that may not be properly supported by this contract include, but are
 ///         not limited to: tokens with transfer fees, rebasing tokens, and tokens with blocklists.
-contract L2StandardBridge is StandardBridge, ISemver {
+contract L2StandardBridge is StandardBridge, ISemver, IL2StandardBridge {
     /// @custom:legacy
     /// @notice Emitted whenever a withdrawal from L2 to L1 is initiated.
     /// @param l1Token   Address of the token on L1.

@@ -6,6 +6,7 @@ import { L2StandardBridge } from "src/L2/L2StandardBridge.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { IOptimismERC20Factory } from "src/L2/interfaces/IOptimismERC20Factory.sol";
+import { IL2StandardBridgeInterop } from "src/L2/interfaces/IL2StandardBridgeInterop.sol";
 
 /// @notice Thrown when the decimals of the tokens are not the same.
 error InvalidDecimals();
@@ -33,7 +34,7 @@ interface MintableAndBurnable is IERC20 {
 /// @notice The L2StandardBridgeInterop is an extension of the L2StandardBridge that allows for
 ///         the conversion of tokens between legacy tokens (OptimismMintableERC20 or StandardL2ERC20)
 ///         and SuperchainERC20 tokens.
-contract L2StandardBridgeInterop is L2StandardBridge {
+contract L2StandardBridgeInterop is L2StandardBridge, IL2StandardBridgeInterop {
     /// @notice Emitted when a conversion is made.
     /// @param from The token being converted from.
     /// @param to The token being converted to.

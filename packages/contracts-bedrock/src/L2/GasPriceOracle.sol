@@ -6,6 +6,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { L1Block } from "src/L2/L1Block.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { LibZip } from "@solady/utils/LibZip.sol";
+import { IGasPriceOracle } from "src/L2/interfaces/IGasPriceOracle.sol";
 
 /// @custom:proxied true
 /// @custom:predeploy 0x420000000000000000000000000000000000000F
@@ -21,7 +22,7 @@ import { LibZip } from "@solady/utils/LibZip.sol";
 ///         - event OverheadUpdated(uint256 overhead);
 ///         - event ScalarUpdated(uint256 scalar);
 ///         - event DecimalsUpdated(uint256 decimals);
-contract GasPriceOracle is ISemver {
+contract GasPriceOracle is ISemver, IGasPriceOracle {
     /// @notice Number of decimals used in the scalar.
     uint256 public constant DECIMALS = 6;
 
