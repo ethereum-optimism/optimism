@@ -381,6 +381,8 @@ contract DeploySuperchain is Script {
         (dsi_, dso_) = getIOContracts();
         vm.etch(address(dsi_), type(DeploySuperchainInput).runtimeCode);
         vm.etch(address(dso_), type(DeploySuperchainOutput).runtimeCode);
+        vm.allowCheatcodes(address(dsi_));
+        vm.allowCheatcodes(address(dso_));
     }
 
     function getIOContracts() public view returns (DeploySuperchainInput dsi_, DeploySuperchainOutput dso_) {
