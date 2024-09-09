@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import { IOptimismSuperchainERC20Extension } from "src/L2/IOptimismSuperchainERC20.sol";
+import { IOptimismSuperchainERC20Extension } from "src/L2/interfaces/IOptimismSuperchainERC20.sol";
 import { ERC20 } from "@solady/tokens/ERC20.sol";
-import { IL2ToL2CrossDomainMessenger } from "src/L2/IL2ToL2CrossDomainMessenger.sol";
-import { ISemver } from "src/universal/ISemver.sol";
+import { IL2ToL2CrossDomainMessenger } from "src/L2/interfaces/IL2ToL2CrossDomainMessenger.sol";
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Initializable } from "@openzeppelin/contracts-v5/proxy/utils/Initializable.sol";
 import { ERC165 } from "@openzeppelin/contracts-v5/utils/introspection/ERC165.sol";
@@ -23,7 +23,7 @@ error OnlyBridge();
 /// @notice Thrown when attempting to mint or burn tokens and the account is the zero address.
 error ZeroAddress();
 
-/// @custom:proxied
+/// @custom:proxied true
 /// @title OptimismSuperchainERC20
 /// @notice OptimismSuperchainERC20 is a standard extension of the base ERC20 token contract that unifies ERC20 token
 ///         bridging to make it fungible across the Superchain. This construction allows the L2StandardBridge to burn
@@ -70,8 +70,8 @@ contract OptimismSuperchainERC20 is IOptimismSuperchainERC20Extension, ERC20, IS
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.1
-    string public constant version = "1.0.0-beta.1";
+    /// @custom:semver 1.0.0-beta.2
+    string public constant version = "1.0.0-beta.2";
 
     /// @notice Constructs the OptimismSuperchainERC20 contract.
     constructor() {

@@ -6,10 +6,6 @@ import (
 	"io"
 	"os"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
-
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-program/client/claim"
@@ -17,14 +13,17 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/client/l1"
 	"github.com/ethereum-optimism/optimism/op-program/client/l2"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 // Main executes the client program in a detached context and exits the current process.
 // The client runtime environment must be preset before calling this function.
 func Main(logger log.Logger) {
 	log.Info("Starting fault proof program client")
-	preimageOracle := CreatePreimageChannel()
-	preimageHinter := CreateHinterChannel()
+	preimageOracle := preimage.ClientPreimageChannel()
+	preimageHinter := preimage.ClientHinterChannel()
 	if err := RunProgram(logger, preimageOracle, preimageHinter); errors.Is(err, claim.ErrClaimNotValid) {
 		log.Error("Claim is invalid", "err", err)
 		os.Exit(1)
@@ -75,17 +74,4 @@ func runDerivation(logger log.Logger, cfg *rollup.Config, l2Cfg *params.ChainCon
 		return fmt.Errorf("failed to run program to completion: %w", err)
 	}
 	return claim.ValidateClaim(logger, l2ClaimBlockNum, eth.Bytes32(l2Claim), l2Source)
-}
-
-func CreateHinterChannel() preimage.FileChannel {
-	r := os.NewFile(HClientRFd, "preimage-hint-read")
-	w := os.NewFile(HClientWFd, "preimage-hint-write")
-	return preimage.NewReadWritePair(r, w)
-}
-
-// CreatePreimageChannel returns a FileChannel for the preimage oracle in a detached context
-func CreatePreimageChannel() preimage.FileChannel {
-	r := os.NewFile(PClientRFd, "preimage-oracle-read")
-	w := os.NewFile(PClientWFd, "preimage-oracle-write")
-	return preimage.NewReadWritePair(r, w)
 }

@@ -11,10 +11,8 @@ import (
 	"path/filepath"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
@@ -30,6 +28,8 @@ type CannonTraceProvider struct {
 	generator      utils.ProofGenerator
 	gameDepth      types.Depth
 	preimageLoader *utils.PreimageLoader
+	stateConverter vm.StateConverter
+	cfg            vm.Config
 
 	types.PrestateProvider
 
@@ -40,13 +40,17 @@ type CannonTraceProvider struct {
 
 func NewTraceProvider(logger log.Logger, m vm.Metricer, cfg vm.Config, vmCfg vm.OracleServerExecutor, prestateProvider types.PrestateProvider, prestate string, localInputs utils.LocalGameInputs, dir string, gameDepth types.Depth) *CannonTraceProvider {
 	return &CannonTraceProvider{
-		logger:           logger,
-		dir:              dir,
-		prestate:         prestate,
-		generator:        vm.NewExecutor(logger, m, cfg, vmCfg, prestate, localInputs),
-		gameDepth:        gameDepth,
-		preimageLoader:   utils.NewPreimageLoader(kvstore.NewDiskKV(vm.PreimageDir(dir)).Get),
+		logger:    logger,
+		dir:       dir,
+		prestate:  prestate,
+		generator: vm.NewExecutor(logger, m, cfg, vmCfg, prestate, localInputs),
+		gameDepth: gameDepth,
+		preimageLoader: utils.NewPreimageLoader(func() utils.PreimageSource {
+			return kvstore.NewFileKV(vm.PreimageDir(dir))
+		}),
 		PrestateProvider: prestateProvider,
+		stateConverter:   &StateConverter{},
+		cfg:              cfg,
 	}
 }
 
@@ -120,33 +124,22 @@ func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*utils.P
 		// Try opening the file again now and it should exist.
 		file, err = ioutil.OpenDecompressed(path)
 		if errors.Is(err, os.ErrNotExist) {
-			// Expected proof wasn't generated, check if we reached the end of execution
-			state, err := p.finalState()
+			proof, stateStep, exited, err := p.stateConverter.ConvertStateToProof(vm.FinalStatePath(p.dir, p.cfg.BinarySnapshots))
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("cannot create proof from final state: %w", err)
 			}
-			if state.Exited && state.Step <= i {
-				p.logger.Warn("Requested proof was after the program exited", "proof", i, "last", state.Step)
+
+			if exited && stateStep <= i {
+				p.logger.Warn("Requested proof was after the program exited", "proof", i, "last", stateStep)
 				// The final instruction has already been applied to this state, so the last step we can execute
 				// is one before its Step value.
-				p.lastStep = state.Step - 1
-				// Extend the trace out to the full length using a no-op instruction that doesn't change any state
-				// No execution is done, so no proof-data or oracle values are required.
-				witness, witnessHash := state.EncodeWitness()
-				proof := &utils.ProofData{
-					ClaimValue:   witnessHash,
-					StateData:    hexutil.Bytes(witness),
-					ProofData:    []byte{},
-					OracleKey:    nil,
-					OracleValue:  nil,
-					OracleOffset: 0,
-				}
+				p.lastStep = stateStep - 1
 				if err := utils.WriteLastStep(p.dir, proof, p.lastStep); err != nil {
 					p.logger.Warn("Failed to write last step to disk cache", "step", p.lastStep)
 				}
 				return proof, nil
 			} else {
-				return nil, fmt.Errorf("expected proof not generated but final state was not exited, requested step %v, final state at step %v", i, state.Step)
+				return nil, fmt.Errorf("expected proof not generated but final state was not exited, requested step %v, final state at step %v", i, stateStep)
 			}
 		}
 	}
@@ -162,14 +155,6 @@ func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*utils.P
 	return &proof, nil
 }
 
-func (c *CannonTraceProvider) finalState() (*singlethreaded.State, error) {
-	state, err := parseState(filepath.Join(c.dir, vm.FinalState))
-	if err != nil {
-		return nil, fmt.Errorf("cannot read final state: %w", err)
-	}
-	return state, nil
-}
-
 // CannonTraceProviderForTest is a CannonTraceProvider that can find the step referencing the preimage read
 // Only to be used for testing
 type CannonTraceProviderForTest struct {
@@ -178,12 +163,16 @@ type CannonTraceProviderForTest struct {
 
 func NewTraceProviderForTest(logger log.Logger, m vm.Metricer, cfg *config.Config, localInputs utils.LocalGameInputs, dir string, gameDepth types.Depth) *CannonTraceProviderForTest {
 	p := &CannonTraceProvider{
-		logger:         logger,
-		dir:            dir,
-		prestate:       cfg.CannonAbsolutePreState,
-		generator:      vm.NewExecutor(logger, m, cfg.Cannon, vm.NewOpProgramServerExecutor(), cfg.CannonAbsolutePreState, localInputs),
-		gameDepth:      gameDepth,
-		preimageLoader: utils.NewPreimageLoader(kvstore.NewDiskKV(vm.PreimageDir(dir)).Get),
+		logger:    logger,
+		dir:       dir,
+		prestate:  cfg.CannonAbsolutePreState,
+		generator: vm.NewExecutor(logger, m, cfg.Cannon, vm.NewOpProgramServerExecutor(), cfg.CannonAbsolutePreState, localInputs),
+		gameDepth: gameDepth,
+		preimageLoader: utils.NewPreimageLoader(func() utils.PreimageSource {
+			return kvstore.NewFileKV(vm.PreimageDir(dir))
+		}),
+		stateConverter: NewStateConverter(),
+		cfg:            cfg.Cannon,
 	}
 	return &CannonTraceProviderForTest{p}
 }
@@ -194,14 +183,15 @@ func (p *CannonTraceProviderForTest) FindStep(ctx context.Context, start uint64,
 		return 0, fmt.Errorf("generate cannon trace (until preimage read): %w", err)
 	}
 	// Load the step from the state cannon finished with
-	state, err := p.finalState()
+
+	_, step, exited, err := p.stateConverter.ConvertStateToProof(vm.FinalStatePath(p.dir, p.cfg.BinarySnapshots))
 	if err != nil {
 		return 0, fmt.Errorf("failed to load final state: %w", err)
 	}
 	// Check we didn't get to the end of the trace without finding the preimage read we were looking for
-	if state.Exited {
+	if exited {
 		return 0, fmt.Errorf("preimage read not found: %w", io.EOF)
 	}
 	// The state is the post-state so the step we want to execute to read the preimage is step - 1.
-	return state.Step - 1, nil
+	return step - 1, nil
 }

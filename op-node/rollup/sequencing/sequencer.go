@@ -345,6 +345,8 @@ func (d *Sequencer) onSequencerAction(x SequencerActionEvent) {
 			d.asyncGossip.Clear() // bad payload
 			return
 		}
+		d.log.Info("Resuming sequencing with previously async-gossip confirmed payload",
+			"payload", payload.ExecutionPayload.ID())
 		// Payload is known, we must have resumed sequencer-actions after a temporary error,
 		// meaning that we have seen BuildSealedEvent already.
 		// We can retry processing to make it canonical.
@@ -527,7 +529,7 @@ func (d *Sequencer) startBuildingBlock() {
 		d.log.Info("Sequencing Fjord upgrade block")
 	}
 
-	// For the Fjord activation block we shouldn't include any sequencer transactions.
+	// For the Granite activation block we shouldn't include any sequencer transactions.
 	if d.rollupCfg.IsGraniteActivationBlock(uint64(attrs.Timestamp)) {
 		d.log.Info("Sequencing Granite upgrade block")
 	}
@@ -616,9 +618,27 @@ func (d *Sequencer) Init(ctx context.Context, active bool) error {
 
 // forceStart skips all the checks, and just starts the sequencer
 func (d *Sequencer) forceStart() error {
+	if d.latestHead == (eth.L2BlockRef{}) {
+		// This happens if sequencing is activated on op-node startup.
+		// The op-conductor check and choice of sequencing with this pre-state already happened before op-node startup.
+		d.log.Info("Starting sequencing, without known pre-state")
+		d.asyncGossip.Clear() // if we are starting from an unknown pre-state, just clear gossip out of caution.
+	} else {
+		// This happens when we start sequencing on an already-running node.
+		d.log.Info("Starting sequencing on top of known pre-state", "head", d.latestHead)
+		if payload := d.asyncGossip.Get(); payload != nil &&
+			payload.ExecutionPayload.BlockHash != d.latestHead.Hash {
+			d.log.Warn("Cleared old block from async-gossip buffer, sequencing pre-state is different",
+				"buffered", payload.ExecutionPayload.ID(), "prestate", d.latestHead)
+			d.asyncGossip.Clear()
+		}
+	}
+
 	if err := d.listener.SequencerStarted(); err != nil {
 		return fmt.Errorf("failed to notify sequencer-state listener of start: %w", err)
 	}
+	// clear the building state; interrupting any existing sequencing job (there should never be one)
+	d.latest = BuildingState{}
 	d.nextActionOK = true
 	d.nextAction = d.timeNow()
 	d.active.Store(true)

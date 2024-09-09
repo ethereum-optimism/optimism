@@ -6,7 +6,7 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
-	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
+	"github.com/ethereum-optimism/optimism/cannon/serialize"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
@@ -48,7 +48,7 @@ func NewInstrumentedState(state *State, po mipsevm.PreimageOracle, stdOut, stdEr
 }
 
 func NewInstrumentedStateFromFile(stateFile string, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, meta *program.Metadata) (*InstrumentedState, error) {
-	state, err := jsonutil.LoadJSON[State](stateFile)
+	state, err := serialize.Load[State](stateFile)
 	if err != nil {
 		return nil, err
 	}
@@ -118,4 +118,11 @@ func (m *InstrumentedState) GetDebugInfo() *mipsevm.DebugInfo {
 
 func (m *InstrumentedState) Traceback() {
 	m.stackTracker.Traceback()
+}
+
+func (m *InstrumentedState) LookupSymbol(addr uint32) string {
+	if m.meta == nil {
+		return ""
+	}
+	return m.meta.LookupSymbol(addr)
 }

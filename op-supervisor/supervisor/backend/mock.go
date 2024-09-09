@@ -39,8 +39,16 @@ func (m *MockBackend) Stop(ctx context.Context) error {
 	return nil
 }
 
+func (m *MockBackend) AddL2RPC(ctx context.Context, rpc string) error {
+	return nil
+}
+
 func (m *MockBackend) CheckMessage(identifier types.Identifier, payloadHash common.Hash) (types.SafetyLevel, error) {
 	return types.CrossUnsafe, nil
+}
+
+func (m *MockBackend) CheckMessages(messages []types.Message, minSafety types.SafetyLevel) error {
+	return nil
 }
 
 func (m *MockBackend) CheckBlock(chainID *hexutil.U256, blockHash common.Hash, blockNumber hexutil.Uint64) (types.SafetyLevel, error) {

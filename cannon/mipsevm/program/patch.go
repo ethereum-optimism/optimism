@@ -47,16 +47,11 @@ func PatchGo(f *elf.File, st mipsevm.FPVMState) error {
 			})); err != nil {
 				return fmt.Errorf("failed to patch Go runtime.gcenable: %w", err)
 			}
-		case "runtime.MemProfileRate":
-			if err := st.GetMemory().SetMemoryRange(uint32(s.Value), bytes.NewReader(make([]byte, 4))); err != nil { // disable mem profiling, to avoid a lot of unnecessary floating point ops
-				return err
-			}
 		}
 	}
 	return nil
 }
 
-// TODO(cp-903) Consider setting envar "GODEBUG=memprofilerate=0" for go programs to disable memprofiling, instead of patching it out in PatchGo()
 func PatchStack(st mipsevm.FPVMState) error {
 	// setup stack pointer
 	sp := uint32(0x7f_ff_d0_00)
@@ -64,7 +59,7 @@ func PatchStack(st mipsevm.FPVMState) error {
 	if err := st.GetMemory().SetMemoryRange(sp-4*memory.PageSize, bytes.NewReader(make([]byte, 5*memory.PageSize))); err != nil {
 		return fmt.Errorf("failed to allocate page for stack content")
 	}
-	st.GetRegisters()[29] = sp
+	st.GetRegistersRef()[29] = sp
 
 	storeMem := func(addr uint32, v uint32) {
 		var dat [4]byte
@@ -73,16 +68,27 @@ func PatchStack(st mipsevm.FPVMState) error {
 	}
 
 	// init argc, argv, aux on stack
-	storeMem(sp+4*1, 0x42)   // argc = 0 (argument count)
-	storeMem(sp+4*2, 0x35)   // argv[n] = 0 (terminating argv)
-	storeMem(sp+4*3, 0)      // envp[term] = 0 (no env vars)
-	storeMem(sp+4*4, 6)      // auxv[0] = _AT_PAGESZ = 6 (key)
-	storeMem(sp+4*5, 4096)   // auxv[1] = page size of 4 KiB (value) - (== minPhysPageSize)
-	storeMem(sp+4*6, 25)     // auxv[2] = AT_RANDOM
-	storeMem(sp+4*7, sp+4*9) // auxv[3] = address of 16 bytes containing random value
-	storeMem(sp+4*8, 0)      // auxv[term] = 0
+	storeMem(sp+4*0, 1)       // argc = 1 (argument count)
+	storeMem(sp+4*1, sp+4*21) // argv[0]
+	storeMem(sp+4*2, 0)       // argv[1] = terminating
+	storeMem(sp+4*3, sp+4*14) // envp[0] = x (offset to first env var)
+	storeMem(sp+4*4, 0)       // envp[1] = terminating
+	storeMem(sp+4*5, 6)       // auxv[0] = _AT_PAGESZ = 6 (key)
+	storeMem(sp+4*6, 4096)    // auxv[1] = page size of 4 KiB (value) - (== minPhysPageSize)
+	storeMem(sp+4*7, 25)      // auxv[2] = AT_RANDOM
+	storeMem(sp+4*8, sp+4*10) // auxv[3] = address of 16 bytes containing random value
+	storeMem(sp+4*9, 0)       // auxv[term] = 0
 
-	_ = st.GetMemory().SetMemoryRange(sp+4*9, bytes.NewReader([]byte("4;byfairdiceroll"))) // 16 bytes of "randomness"
+	_ = st.GetMemory().SetMemoryRange(sp+4*10, bytes.NewReader([]byte("4;byfairdiceroll"))) // 16 bytes of "randomness"
+
+	// append 4 extra zero bytes to end at 4-byte alignment
+	envar := append([]byte("GODEBUG=memprofilerate=0"), 0x0, 0x0, 0x0, 0x0)
+	_ = st.GetMemory().SetMemoryRange(sp+4*14, bytes.NewReader(envar))
+
+	// 24 bytes for GODEBUG=memprofilerate=0 + 4 null bytes
+	// Then append program name + 2 null bytes for 4-byte alignment
+	programName := append([]byte("op-program"), 0x0, 0x0)
+	_ = st.GetMemory().SetMemoryRange(sp+4*21, bytes.NewReader(programName))
 
 	return nil
 }

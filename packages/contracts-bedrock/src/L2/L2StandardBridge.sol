@@ -3,12 +3,12 @@ pragma solidity 0.8.15;
 
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { StandardBridge } from "src/universal/StandardBridge.sol";
-import { ISemver } from "src/universal/ISemver.sol";
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { L1Block } from "src/L2/L1Block.sol";
 
-/// @custom:proxied
+/// @custom:proxied true
 /// @custom:predeploy 0x4200000000000000000000000000000000000010
 /// @title L2StandardBridge
 /// @notice The L2StandardBridge is responsible for transfering ETH and ERC20 tokens between L1 and
@@ -52,8 +52,11 @@ contract L2StandardBridge is StandardBridge, ISemver {
         bytes extraData
     );
 
-    /// @custom:semver 1.10.0
-    string public constant version = "1.10.0";
+    /// @notice Semantic version.
+    /// @custom:semver 1.11.1-beta.1
+    function version() public pure virtual returns (string memory) {
+        return "1.11.1-beta.1";
+    }
 
     /// @notice Constructs the L2StandardBridge contract.
     constructor() StandardBridge() {

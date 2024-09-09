@@ -33,8 +33,8 @@ import (
 
 	op_service "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
+	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum-optimism/optimism/op-service/opio"
 )
 
 var EnvPrefix = "OP_SIMULATE"
@@ -82,7 +82,7 @@ func main() {
 }
 
 func mainAction(c *cli.Context) error {
-	ctx := opio.CancelOnInterrupt(c.Context)
+	ctx := ctxinterrupt.WithCancelOnInterrupt(c.Context)
 	logCfg := oplog.ReadCLIConfig(c)
 	logger := oplog.NewLogger(c.App.Writer, logCfg)
 
