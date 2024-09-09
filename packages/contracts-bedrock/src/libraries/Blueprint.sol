@@ -28,7 +28,7 @@ library Blueprint {
 
     /// @notice Thrown when parsing a blueprint preamble and the preamble data is not empty.
     /// We do not use the preamble data, so it's expected to be empty.
-    error UnexpectedPreambleData();
+    error UnexpectedPreambleData(bytes data);
 
     /// @notice Thrown during deployment if the ERC version is not supported.
     error UnsupportedERCVersion(uint8 version);
@@ -37,6 +37,9 @@ library Blueprint {
     /// which will deploy a corresponding blueprint contract (with no data section). Based on the
     /// reference implementation in https://eips.ethereum.org/EIPS/eip-5202.
     function blueprintDeployerBytecode(bytes memory _initcode) internal pure returns (bytes memory) {
+        // Check that the initcode is not empty.
+        if (_initcode.length == 0) revert EmptyInitcode();
+
         bytes memory blueprintPreamble = hex"FE7100"; // ERC-5202 preamble.
         bytes memory blueprintBytecode = bytes.concat(blueprintPreamble, _initcode);
 
@@ -89,23 +92,24 @@ library Blueprint {
         return Preamble(ercVersion, preambleData, initcode);
     }
 
+    /// @notice Parses the code at the given `_target` as a blueprint and deploys the resulting initcode.
+    /// This version of `deployFrom` is used when the initcode requires no constructor arguments.
+    function deployFrom(address _target, bytes32 _salt) internal returns (address) {
+        return deployFrom(_target, _salt, new bytes(0));
+    }
+
     /// @notice Parses the code at the given `_target` as a blueprint and deploys the resulting initcode
     /// with the given `_data` appended, i.e. `_data` is the ABI-encoded constructor arguments.
     function deployFrom(address _target, bytes32 _salt, bytes memory _data) internal returns (address newContract_) {
         Preamble memory preamble = parseBlueprintPreamble(address(_target).code);
         if (preamble.ercVersion != 0) revert UnsupportedERCVersion(preamble.ercVersion);
-        if (preamble.preambleData.length != 0) revert UnexpectedPreambleData();
+        if (preamble.preambleData.length != 0) revert UnexpectedPreambleData(preamble.preambleData);
 
         bytes memory initcode = bytes.concat(preamble.initcode, _data);
         assembly ("memory-safe") {
             newContract_ := create2(0, add(initcode, 0x20), mload(initcode), _salt)
         }
         if (newContract_ == address(0)) revert DeploymentFailed();
-    }
-
-    /// @notice Parses the code at the given `_target` as a blueprint and deploys the resulting initcode.
-    function deployFrom(address _target, bytes32 _salt) internal returns (address) {
-        return deployFrom(_target, _salt, new bytes(0));
     }
 
     /// @notice Convert a bytes array to a uint256.

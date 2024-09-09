@@ -8,8 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 )
 
-type KonaServerExecutor struct {
-}
+type KonaServerExecutor struct{}
 
 var _ OracleServerExecutor = (*KonaServerExecutor)(nil)
 
@@ -23,7 +22,7 @@ func (s *KonaServerExecutor) OracleCommand(cfg Config, dataDir string, inputs ut
 	}
 
 	chainCfg := chaincfg.ChainByName(cfg.Network)
-	return []string{
+	args := []string{
 		cfg.Server, "--server",
 		"--l1-node-address", cfg.L1,
 		"--l1-beacon-address", cfg.L1Beacon,
@@ -35,5 +34,10 @@ func (s *KonaServerExecutor) OracleCommand(cfg Config, dataDir string, inputs ut
 		"--l2-output-root", inputs.L2OutputRoot.Hex(),
 		"--l2-claim", inputs.L2Claim.Hex(),
 		"--l2-block-number", inputs.L2BlockNumber.Text(10),
-	}, nil
+	}
+	if cfg.RollupConfigPath != "" {
+		args = append(args, "--rollup-config-path", cfg.RollupConfigPath)
+	}
+
+	return args, nil
 }

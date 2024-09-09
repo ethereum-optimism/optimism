@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 import { Blueprint } from "src/libraries/Blueprint.sol";
 
-import { ISemver } from "src/universal/ISemver.sol";
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { Proxy } from "src/universal/Proxy.sol";
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
 

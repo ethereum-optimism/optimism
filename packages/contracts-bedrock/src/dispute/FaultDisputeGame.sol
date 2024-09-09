@@ -13,7 +13,7 @@ import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistr
 
 import { Clone } from "@solady/utils/Clone.sol";
 import { Types } from "src/libraries/Types.sol";
-import { ISemver } from "src/universal/ISemver.sol";
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
 
 import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
@@ -70,8 +70,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     uint256 internal constant HEADER_BLOCK_NUMBER_INDEX = 8;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.3.0-rc.1
-    string public constant version = "1.3.0-rc.1";
+    /// @custom:semver 1.3.1-beta.1
+    string public constant version = "1.3.1-beta.1";
 
     /// @notice The starting timestamp of the game
     Timestamp public createdAt;

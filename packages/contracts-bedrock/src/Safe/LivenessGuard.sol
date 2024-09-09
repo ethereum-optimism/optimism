@@ -5,7 +5,7 @@ import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import { Guard as BaseGuard } from "safe-contracts/base/GuardManager.sol";
 import { SafeSigners } from "src/Safe/SafeSigners.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
-import { ISemver } from "src/universal/ISemver.sol";
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 /// @title LivenessGuard
@@ -25,8 +25,8 @@ contract LivenessGuard is ISemver, BaseGuard {
     event OwnerRecorded(address owner);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 1.0.1-beta.1
+    string public constant version = "1.0.1-beta.1";
 
     /// @notice The safe account for which this contract will be the guard.
     Safe internal immutable SAFE;

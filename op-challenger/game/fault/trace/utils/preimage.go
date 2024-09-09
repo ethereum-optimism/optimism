@@ -23,7 +23,6 @@ const (
 )
 
 var (
-	ErrInvalidScalarValue     = errors.New("invalid scalar value")
 	ErrInvalidBlobKeyPreimage = errors.New("invalid blob key preimage")
 )
 

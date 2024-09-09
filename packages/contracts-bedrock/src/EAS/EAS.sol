@@ -2,7 +2,7 @@
 pragma solidity 0.8.19;
 
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
-import { ISemver } from "src/universal/ISemver.sol";
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { EIP1271Verifier } from "src/EAS/eip1271/EIP1271Verifier.sol";
 import { ISchemaResolver } from "src/EAS/resolver/ISchemaResolver.sol";

@@ -18,7 +18,7 @@ import {
     NotDepositor,
     InteropStartAlreadySet
 } from "src/L2/CrossL2Inbox.sol";
-import { ICrossL2Inbox } from "src/L2/ICrossL2Inbox.sol";
+import { ICrossL2Inbox } from "src/L2/interfaces/ICrossL2Inbox.sol";
 
 /// @title CrossL2InboxWithModifiableTransientStorage
 /// @dev CrossL2Inbox contract with methods to modify the transient storage.
