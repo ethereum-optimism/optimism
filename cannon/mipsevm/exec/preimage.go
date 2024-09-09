@@ -57,6 +57,9 @@ func (p *TrackingPreimageOracleReader) ReadPreimage(key [32]byte, offset uint32)
 		p.lastPreimage = preimage
 	}
 	p.lastPreimageOffset = offset
+	if offset > uint32(len(preimage)) {
+		return
+	}
 	datLen = uint32(copy(dat[:], preimage[offset:]))
 	return
 }
