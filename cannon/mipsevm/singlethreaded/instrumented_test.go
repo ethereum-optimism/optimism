@@ -11,7 +11,7 @@ import (
 )
 
 func vmFactory(state *State, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger) mipsevm.FPVM {
-	return NewInstrumentedState(state, po, stdOut, stdErr, nil)
+	return NewInstrumentedState(state, po, stdOut, stdErr)
 }
 
 func TestInstrumentedState_OpenMips(t *testing.T) {

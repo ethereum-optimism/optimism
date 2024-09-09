@@ -3,13 +3,11 @@ package multithreaded
 import (
 	"io"
 
-	"github.com/ethereum-optimism/optimism/cannon/serialize"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 )
 
 type InstrumentedState struct {
@@ -23,7 +21,7 @@ type InstrumentedState struct {
 	stackTracker  ThreadedStackTracker
 
 	preimageOracle *exec.TrackingPreimageOracleReader
-	meta           *program.Metadata
+	meta           mipsevm.Metadata
 }
 
 var _ mipsevm.FPVM = (*InstrumentedState)(nil)
@@ -40,15 +38,7 @@ func NewInstrumentedState(state *State, po mipsevm.PreimageOracle, stdOut, stdEr
 	}
 }
 
-func NewInstrumentedStateFromFile(stateFile string, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger) (*InstrumentedState, error) {
-	state, err := serialize.Load[State](stateFile)
-	if err != nil {
-		return nil, err
-	}
-	return NewInstrumentedState(state, po, stdOut, stdErr, log), nil
-}
-
-func (m *InstrumentedState) InitDebug(meta *program.Metadata) error {
+func (m *InstrumentedState) InitDebug(meta mipsevm.Metadata) error {
 	stackTracker, err := NewThreadedStackTracker(m.state, meta)
 	if err != nil {
 		return err

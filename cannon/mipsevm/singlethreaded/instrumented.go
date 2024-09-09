@@ -5,14 +5,12 @@ import (
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
-	"github.com/ethereum-optimism/optimism/cannon/serialize"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
 type InstrumentedState struct {
-	meta       *program.Metadata
-	sleepCheck program.SymbolMatcher
+	meta       mipsevm.Metadata
+	sleepCheck mipsevm.SymbolMatcher
 
 	state *State
 
@@ -27,17 +25,9 @@ type InstrumentedState struct {
 
 var _ mipsevm.FPVM = (*InstrumentedState)(nil)
 
-func NewInstrumentedState(state *State, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, meta *program.Metadata) *InstrumentedState {
-	var sleepCheck program.SymbolMatcher
-	if meta == nil {
-		sleepCheck = func(addr uint32) bool { return false }
-	} else {
-		sleepCheck = meta.CreateSymbolMatcher("runtime.notesleep")
-	}
-
+func NewInstrumentedState(state *State, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer) *InstrumentedState {
 	return &InstrumentedState{
-		meta:           meta,
-		sleepCheck:     sleepCheck,
+		sleepCheck:     func(addr uint32) bool { return false },
 		state:          state,
 		stdOut:         stdOut,
 		stdErr:         stdErr,
@@ -47,20 +37,14 @@ func NewInstrumentedState(state *State, po mipsevm.PreimageOracle, stdOut, stdEr
 	}
 }
 
-func NewInstrumentedStateFromFile(stateFile string, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, meta *program.Metadata) (*InstrumentedState, error) {
-	state, err := serialize.Load[State](stateFile)
-	if err != nil {
-		return nil, err
-	}
-	return NewInstrumentedState(state, po, stdOut, stdErr, meta), nil
-}
-
-func (m *InstrumentedState) InitDebug() error {
-	stackTracker, err := exec.NewStackTracker(m.state, m.meta)
+func (m *InstrumentedState) InitDebug(meta mipsevm.Metadata) error {
+	stackTracker, err := exec.NewStackTracker(m.state, meta)
 	if err != nil {
 		return err
 	}
+	m.meta = meta
 	m.stackTracker = stackTracker
+	m.sleepCheck = meta.CreateSymbolMatcher("runtime.notesleep")
 	return nil
 }
 

@@ -54,6 +54,13 @@ type FPVMState interface {
 	EncodeWitness() (witness []byte, hash common.Hash)
 }
 
+type SymbolMatcher func(addr uint32) bool
+
+type Metadata interface {
+	LookupSymbol(addr uint32) string
+	CreateSymbolMatcher(name string) SymbolMatcher
+}
+
 type FPVM interface {
 	// GetState returns the current state of the VM. The FPVMState is updated by successive calls to Step
 	GetState() FPVMState
@@ -72,6 +79,9 @@ type FPVM interface {
 
 	// GetDebugInfo returns debug information about the VM
 	GetDebugInfo() *DebugInfo
+
+	// InitDebug initializes the debug mode of the VM, using meta as the symbol lookup
+	InitDebug(meta Metadata) error
 
 	// LookupSymbol returns the symbol located at the specified address.
 	// May return an empty string if there's no symbol table available.
