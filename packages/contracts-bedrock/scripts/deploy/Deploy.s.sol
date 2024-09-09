@@ -273,6 +273,10 @@ contract Deploy is Deployer {
         _run();
     }
 
+    /// @notice Deploy a new OP Chain using an existing SuperchainConfig and ProtocolVersions
+    /// @param _superchainConfigProxy Address of the existing SuperchainConfig proxy
+    /// @param _protocolVersionsProxy Address of the existing ProtocolVersions proxy
+    /// @param includeDump Whether to include a state dump after deployment
     function runWithSuperchain(
         address payable _superchainConfigProxy,
         address payable _protocolVersionsProxy,
