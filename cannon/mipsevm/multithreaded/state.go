@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 	"github.com/ethereum-optimism/optimism/cannon/serialize"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -246,9 +245,6 @@ func (s *State) ThreadCount() int {
 // LastHint 				   []byte
 func (s *State) Serialize(out io.Writer) error {
 	bout := serialize.NewBinaryWriter(out)
-	if err := bout.WriteUInt(versions.VersionMultiThreaded); err != nil {
-		return err
-	}
 
 	if err := s.Memory.Serialize(out); err != nil {
 		return err
@@ -309,13 +305,6 @@ func (s *State) Serialize(out io.Writer) error {
 
 func (s *State) Deserialize(in io.Reader) error {
 	bin := serialize.NewBinaryReader(in)
-	var version versions.StateVersion
-	if err := bin.ReadUInt(&version); err != nil {
-		return err
-	}
-	if version != versions.VersionMultiThreaded {
-		return fmt.Errorf("invalid state encoding version %d", version)
-	}
 	s.Memory = memory.NewMemory()
 	if err := s.Memory.Deserialize(in); err != nil {
 		return err

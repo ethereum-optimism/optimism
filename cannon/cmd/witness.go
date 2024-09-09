@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	factory "github.com/ethereum-optimism/optimism/cannon/mipsevm/factory"
+	factory "github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 	"github.com/urfave/cli/v2"
 )
 
@@ -25,11 +25,10 @@ var (
 func Witness(ctx *cli.Context) error {
 	input := ctx.Path(WitnessInputFlag.Name)
 	output := ctx.Path(WitnessOutputFlag.Name)
-	f, err := factory.NewVMFactoryFromStateFile(input)
+	state, err := factory.LoadStateFromFile(input)
 	if err != nil {
 		return fmt.Errorf("invalid input state (%v): %w", input, err)
 	}
-	state := f.State()
 	witness, h := state.EncodeWitness()
 	if output != "" {
 		if err := os.WriteFile(output, witness, 0755); err != nil {

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/factory"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 	"github.com/ethereum-optimism/optimism/cannon/serialize"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum/go-ethereum/common"
@@ -367,11 +367,11 @@ func Run(ctx *cli.Context) error {
 		}
 	}
 
-	factory, err := factory.NewVMFactoryFromStateFile(ctx.Path(RunInputFlag.Name))
+	state, err := versions.LoadStateFromFile(ctx.Path(RunInputFlag.Name))
 	if err != nil {
-		return fmt.Errorf("failed to create VM factory: %w", err)
+		return fmt.Errorf("failed to load state: %w", err)
 	}
-	vm := factory.CreateVM(l, po, outLog, errLog)
+	vm := state.CreateVM(l, po, outLog, errLog)
 	debugProgram := ctx.Bool(RunDebugFlag.Name)
 	if debugProgram {
 		if metaPath := ctx.Path(RunMetaFlag.Name); metaPath == "" {
@@ -392,7 +392,6 @@ func Run(ctx *cli.Context) error {
 
 	start := time.Now()
 
-	state := vm.GetState()
 	startStep := state.GetStep()
 
 	for !state.GetExited() {
