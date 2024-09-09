@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 import { Script } from "forge-std/Script.sol";
 import { CommonBase } from "forge-std/Base.sol";
+import { stdToml } from "forge-std/StdToml.sol";
 
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { ProtocolVersions, ProtocolVersion } from "src/L1/ProtocolVersions.sol";
@@ -57,6 +58,8 @@ import { Solarray } from "scripts/libraries/Solarray.sol";
 // Additionally, we intentionally use "Input" and "Output" terminology to clearly distinguish these
 // scripts from the existing ones that use the "Config" and "Artifacts" terminology.
 contract DeploySuperchainInput is CommonBase {
+    using stdToml for string;
+
     // All inputs are set in storage individually. We put any roles first, followed by the remaining
     // inputs. Inputs are internal and prefixed with an underscore, because we will expose a getter
     // method that returns the input value. We use a getter method to allow us to make assertions on
@@ -101,17 +104,17 @@ contract DeploySuperchainInput is CommonBase {
         string memory toml = vm.readFile(_infile);
 
         // Parse and set role inputs
-        _guardian = vm.parseTomlAddress(toml, "guardian");
-        _protocolVersionsOwner = vm.parseTomlAddress(toml, "protocolVersionsOwner");
-        _proxyAdminOwner = vm.parseTomlAddress(toml, "proxyAdminOwner");
+        _guardian = toml.readAddress(".roles.guardian");
+        _protocolVersionsOwner = toml.readAddress(".roles.protocolVersionsOwner");
+        _proxyAdminOwner = toml.readAddress(".roles.proxyAdminOwner");
 
         // Parse and set other inputs
-        _paused = vm.parseTomlBool(toml, "paused");
+        _paused = toml.readBool(".paused");
 
-        uint256 recVersion = vm.parseTomlUint(toml, "recommendedProtocolVersion");
+        uint256 recVersion = toml.readUint(".recommendedProtocolVersion");
         _recommendedProtocolVersion = ProtocolVersion.wrap(recVersion);
 
-        uint256 reqVersion = vm.parseTomlUint(toml, "requiredProtocolVersion");
+        uint256 reqVersion = toml.readUint(".requiredProtocolVersion");
         _requiredProtocolVersion = ProtocolVersion.wrap(reqVersion);
     }
 
@@ -212,7 +215,7 @@ contract DeploySuperchainOutput is CommonBase {
     }
 
     function superchainProxyAdmin() public view returns (ProxyAdmin) {
-        DeployUtils.assertValidContractAddress(address(_superchainProxyAdmin));
+        // This does not have to be a contract address, it could be an EOA.
         return _superchainProxyAdmin;
     }
 

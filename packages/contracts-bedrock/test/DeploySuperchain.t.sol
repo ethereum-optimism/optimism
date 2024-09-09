@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Test } from "forge-std/Test.sol";
+import { Test, stdStorage, StdStorage } from "forge-std/Test.sol";
 import { stdToml } from "forge-std/StdToml.sol";
 
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
@@ -48,24 +48,19 @@ contract DeploySuperchainInput_Test is Test {
     }
 
     function test_getters_whenNotSet_revert() public {
-        bytes memory expectedErr = "DeploySuperchainInput: input not set";
-
-        vm.expectRevert(expectedErr);
+        vm.expectRevert("DeploySuperchainInput: proxyAdminOwner not set");
         dsi.proxyAdminOwner();
 
-        vm.expectRevert(expectedErr);
+        vm.expectRevert("DeploySuperchainInput: protocolVersionsOwner not set");
         dsi.protocolVersionsOwner();
 
-        vm.expectRevert(expectedErr);
+        vm.expectRevert("DeploySuperchainInput: guardian not set");
         dsi.guardian();
 
-        vm.expectRevert(expectedErr);
-        dsi.paused();
-
-        vm.expectRevert(expectedErr);
+        vm.expectRevert("DeploySuperchainInput: requiredProtocolVersion not set");
         dsi.requiredProtocolVersion();
 
-        vm.expectRevert(expectedErr);
+        vm.expectRevert("DeploySuperchainInput: recommendedProtocolVersion not set");
         dsi.recommendedProtocolVersion();
     }
 }
@@ -112,21 +107,16 @@ contract DeploySuperchainOutput_Test is Test {
     }
 
     function test_getters_whenNotSet_revert() public {
-        bytes memory expectedErr = "DeployUtils: zero address";
-
-        vm.expectRevert(expectedErr);
-        dso.superchainProxyAdmin();
-
-        vm.expectRevert(expectedErr);
+        vm.expectRevert("DeployUtils: zero address");
         dso.superchainConfigImpl();
 
-        vm.expectRevert(expectedErr);
+        vm.expectRevert("DeployUtils: zero address");
         dso.superchainConfigProxy();
 
-        vm.expectRevert(expectedErr);
+        vm.expectRevert("DeployUtils: zero address");
         dso.protocolVersionsImpl();
 
-        vm.expectRevert(expectedErr);
+        vm.expectRevert("DeployUtils: zero address");
         dso.protocolVersionsProxy();
     }
 
@@ -163,12 +153,19 @@ contract DeploySuperchainOutput_Test is Test {
         string memory expOutToml = vm.readFile(expOutPath);
 
         // Parse each field of expOutToml individually.
-        ProxyAdmin expSuperchainProxyAdmin = ProxyAdmin(expOutToml.readAddress("superchainProxyAdmin"));
-        SuperchainConfig expSuperchainConfigImpl = SuperchainConfig(expOutToml.readAddress("superchainConfigImpl"));
-        SuperchainConfig expSuperchainConfigProxy = SuperchainConfig(expOutToml.readAddress("superchainConfigProxy"));
-        ProtocolVersions expProtocolVersionsImpl = ProtocolVersions(expOutToml.readAddress("protocolVersionsImpl"));
-        ProtocolVersions expProtocolVersionsProxy = ProtocolVersions(expOutToml.readAddress("protocolVersionsProxy"));
+        ProxyAdmin expSuperchainProxyAdmin = ProxyAdmin(expOutToml.readAddress(".superchainProxyAdmin"));
+        SuperchainConfig expSuperchainConfigImpl = SuperchainConfig(expOutToml.readAddress(".superchainConfigImpl"));
+        SuperchainConfig expSuperchainConfigProxy = SuperchainConfig(expOutToml.readAddress(".superchainConfigProxy"));
+        ProtocolVersions expProtocolVersionsImpl = ProtocolVersions(expOutToml.readAddress(".protocolVersionsImpl"));
+        ProtocolVersions expProtocolVersionsProxy = ProtocolVersions(expOutToml.readAddress(".protocolVersionsProxy"));
 
+        // Etch code at each address so the code checks pass when settings values.
+        vm.etch(address(expSuperchainConfigImpl), hex"01");
+        vm.etch(address(expSuperchainConfigProxy), hex"01");
+        vm.etch(address(expProtocolVersionsImpl), hex"01");
+        vm.etch(address(expProtocolVersionsProxy), hex"01");
+
+        dso.set(dso.superchainProxyAdmin.selector, address(expSuperchainProxyAdmin));
         dso.set(dso.superchainProxyAdmin.selector, address(expSuperchainProxyAdmin));
         dso.set(dso.superchainConfigImpl.selector, address(expSuperchainConfigImpl));
         dso.set(dso.superchainConfigProxy.selector, address(expSuperchainConfigProxy));
@@ -187,6 +184,8 @@ contract DeploySuperchainOutput_Test is Test {
 }
 
 contract DeploySuperchain_Test is Test {
+    using stdStorage for StdStorage;
+
     DeploySuperchain deploySuperchain;
     DeploySuperchainInput dsi;
     DeploySuperchainOutput dso;
@@ -201,7 +200,7 @@ contract DeploySuperchain_Test is Test {
 
     function setUp() public {
         deploySuperchain = new DeploySuperchain();
-        (dsi, dso) = deploySuperchain.getIOContracts();
+        (dsi, dso) = deploySuperchain.etchIOContracts();
     }
 
     function unwrap(ProtocolVersion _pv) internal pure returns (uint256) {
@@ -210,6 +209,10 @@ contract DeploySuperchain_Test is Test {
 
     function hash(bytes32 _seed, uint256 _i) internal pure returns (bytes32) {
         return keccak256(abi.encode(_seed, _i));
+    }
+
+    function testFoo() public {
+        test_run_memory_succeeds(0x9a964f0fabab8daf900a16393e024a8f15e6f2afb2d4451dd183280653a7171a);
     }
 
     function test_run_memory_succeeds(bytes32 _seed) public {
@@ -274,23 +277,48 @@ contract DeploySuperchain_Test is Test {
         assertEq(expOutToml, actOutToml);
     }
 
-    function test_run_ZeroAddressRoleInput_reverts() public {
-        // Snapshot the state so we can revert to the default `input` struct between assertions.
-        uint256 snapshotId = vm.snapshot();
+    function test_run_NullInput_reverts() public {
+        // Set default values for all inputs.
+        dsi.set(dsi.proxyAdminOwner.selector, defaultProxyAdminOwner);
+        dsi.set(dsi.protocolVersionsOwner.selector, defaultProtocolVersionsOwner);
+        dsi.set(dsi.guardian.selector, defaultGuardian);
+        dsi.set(dsi.paused.selector, defaultPaused);
+        dsi.set(dsi.requiredProtocolVersion.selector, defaultRequiredProtocolVersion);
+        dsi.set(dsi.recommendedProtocolVersion.selector, defaultRecommendedProtocolVersion);
 
-        // Assert over each role being set to the zero address.
-        // input.roles.proxyAdminOwner = address(0);
-        vm.expectRevert("DeploySuperchainInput: null proxyAdminOwner");
+        // Assert over each role being set to the zero address. We aren't allowed to use the setter
+        // methods to set the zero address, so we use StdStorage. We can't use the `checked_write`
+        // method, because it does a final call to test that the value was set correctly, but for us
+        // that would revert. Therefore we use StdStorage to find the slot, then we write to it.
+        uint256 slot = zeroOutSlotForSelector(dsi.proxyAdminOwner.selector);
+        vm.expectRevert("DeploySuperchainInput: proxyAdminOwner not set");
         deploySuperchain.run(dsi, dso);
+        vm.store(address(dsi), bytes32(slot), bytes32(uint256(uint160(defaultProxyAdminOwner)))); // Restore the value
+            // we just tested.
 
-        vm.revertTo(snapshotId);
-        // input.roles.protocolVersionsOwner = address(0);
-        vm.expectRevert("DeploySuperchainInput: null protocolVersionsOwner");
+        slot = zeroOutSlotForSelector(dsi.protocolVersionsOwner.selector);
+        vm.expectRevert("DeploySuperchainInput: protocolVersionsOwner not set");
         deploySuperchain.run(dsi, dso);
+        vm.store(address(dsi), bytes32(slot), bytes32(uint256(uint160(defaultProtocolVersionsOwner))));
 
-        vm.revertTo(snapshotId);
-        // input.roles.guardian = address(0);
-        vm.expectRevert("DeploySuperchainInput: null guardian");
+        slot = zeroOutSlotForSelector(dsi.guardian.selector);
+        vm.expectRevert("DeploySuperchainInput: guardian not set");
         deploySuperchain.run(dsi, dso);
+        vm.store(address(dsi), bytes32(slot), bytes32(uint256(uint160(defaultGuardian))));
+
+        slot = zeroOutSlotForSelector(dsi.requiredProtocolVersion.selector);
+        vm.expectRevert("DeploySuperchainInput: requiredProtocolVersion not set");
+        deploySuperchain.run(dsi, dso);
+        vm.store(address(dsi), bytes32(slot), bytes32(unwrap(defaultRequiredProtocolVersion)));
+
+        slot = zeroOutSlotForSelector(dsi.recommendedProtocolVersion.selector);
+        vm.expectRevert("DeploySuperchainInput: recommendedProtocolVersion not set");
+        deploySuperchain.run(dsi, dso);
+        vm.store(address(dsi), bytes32(slot), bytes32(unwrap(defaultRecommendedProtocolVersion)));
+    }
+
+    function zeroOutSlotForSelector(bytes4 _selector) internal returns (uint256 slot_) {
+        slot_ = stdstore.enable_packed_slots().target(address(dsi)).sig(_selector).find();
+        vm.store(address(dsi), bytes32(slot_), bytes32(0));
     }
 }
