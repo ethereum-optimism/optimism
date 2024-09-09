@@ -3,6 +3,7 @@ package op_e2e
 import (
 	"context"
 	"fmt"
+	"github.com/ethereum/go-ethereum/core/types"
 	"math/big"
 	"slices"
 	"sync"
@@ -109,9 +110,9 @@ func TestSystemP2PAltSyncExtreme(t *testing.T) {
 
 	var (
 		publishedMu sync.Mutex
-		published   []string
+		published   []eth.BlockID
 	)
-	getPublished := func() []string {
+	getPublished := func() []eth.BlockID {
 		publishedMu.Lock()
 		defer publishedMu.Unlock()
 		return published
@@ -121,7 +122,7 @@ func TestSystemP2PAltSyncExtreme(t *testing.T) {
 	seqTracer.OnPublishL2PayloadFn = func(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) {
 		publishedMu.Lock()
 		defer publishedMu.Unlock()
-		published = append(published, payload.ExecutionPayload.ID().String())
+		published = append(published, payload.ExecutionPayload.ID())
 	}
 	// Blocks are now received via the RPC based alt-sync method
 	cfg.Nodes[RoleSeq].Tracer = seqTracer
@@ -193,24 +194,7 @@ func TestSystemP2PAltSyncExtreme(t *testing.T) {
 		// Behold, Go 1.21.
 		syncer := syncer
 		eg.Go(func() error {
-			// It may take a while to sync, but eventually we should see the sequenced data show up
-			receiptVerif, err := wait.ForReceiptOK(ctx, syncer.l2Verif, receiptSeq.TxHash)
-			require.Nil(t, err, "Waiting for L2 tx on verifier")
-
-			require.Equal(t, receiptSeq, receiptVerif)
-
-			syncedPayloads := syncer.syncedPayloads
-			// Verify that the tx was received via P2P sync
-			require.NotEmpty(t, syncedPayloads[p2p.PayloadSourceAltSync])
-			require.Contains(
-				t,
-				syncer.altSyncedBlockIdStrings(),
-				eth.BlockID{Hash: receiptVerif.BlockHash, Number: receiptVerif.BlockNumber.Uint64()}.String(),
-			)
-			//assert.GreaterOrEqual(t, len(syncedPayloads), len(published))
-			// Verify that everything that was received was published
-			//require.GreaterOrEqual(t, len(published), len(syncedPayloads))
-			require.Subset(t, getPublished(), syncer.altSyncedBlockIdStrings())
+			syncer.requireAltSyncTx(ctx, t, receiptSeq, getPublished)
 			t.Logf("%v synced", syncer.name)
 			return nil
 		})
@@ -281,9 +265,31 @@ type syncerType struct {
 	peerId         peer.ID
 }
 
-func (me *syncerType) altSyncedBlockIdStrings() (ret []string) {
+// Waits for the tx in the receipt to become available, then checks the alt sync payloads make
+// sense.
+func (syncer *syncerType) requireAltSyncTx(
+	ctx context.Context,
+	t *testing.T,
+	receiptSeq *types.Receipt,
+	getPublished func() []eth.BlockID,
+) {
+	// It may take a while to sync, but eventually we should see the sequenced data show up
+	receiptVerif, err := wait.ForReceiptOK(ctx, syncer.l2Verif, receiptSeq.TxHash)
+	require.Nil(t, err, "Waiting for L2 tx on verifier")
+
+	require.Equal(t, receiptSeq, receiptVerif)
+
+	require.Contains(
+		t,
+		syncer.altSyncedBlockIds(),
+		eth.BlockID{Hash: receiptVerif.BlockHash, Number: receiptVerif.BlockNumber.Uint64()},
+	)
+	require.Subset(t, getPublished(), syncer.altSyncedBlockIds())
+}
+
+func (me *syncerType) altSyncedBlockIds() (ret []eth.BlockID) {
 	for _, synced := range me.syncedPayloads[p2p.PayloadSourceAltSync] {
-		ret = append(ret, synced.blockId.String())
+		ret = append(ret, synced.blockId)
 	}
 	return
 }

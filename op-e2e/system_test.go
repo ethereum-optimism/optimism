@@ -719,11 +719,11 @@ func TestSystemP2PAltSync(t *testing.T) {
 	// Disable batcher, so there will not be any L1 data to sync from
 	cfg.DisableBatcher = true
 
-	var published []string
+	var published []eth.BlockID
 	seqTracer := new(FnTracer)
 	// The sequencer still publishes the blocks to the tracer, even if they do not reach the network due to disabled P2P
 	seqTracer.OnPublishL2PayloadFn = func(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) {
-		published = append(published, payload.ExecutionPayload.ID().String())
+		published = append(published, payload.ExecutionPayload.ID())
 	}
 	// Blocks are now received via the RPC based alt-sync method
 	cfg.Nodes["sequencer"].Tracer = seqTracer
@@ -752,22 +752,9 @@ func TestSystemP2PAltSync(t *testing.T) {
 	linkNodes(t, sys.Mocknet, sys.RollupNodes[RoleSeq].P2P(), syncer.node.P2P())
 	connectNodes(t, sys.Mocknet, sys.RollupNodes[RoleSeq].P2P(), syncer.node.P2P())
 
-	// It may take a while to sync, but eventually we should see the sequenced data show up
-	receiptVerif, err := wait.ForReceiptOK(ctx, syncer.l2Verif, receiptSeq.TxHash)
-	require.Nil(t, err, "Waiting for L2 tx on verifier")
-
-	require.Equal(t, receiptSeq, receiptVerif)
-
-	// Verify that the tx was received via P2P sync
-	require.Contains(
-		t,
-		syncer.altSyncedBlockIdStrings(),
-		eth.BlockID{Hash: receiptVerif.BlockHash, Number: receiptVerif.BlockNumber.Uint64()}.String(),
-	)
-
-	// Verify that everything that was received was published
-	require.GreaterOrEqual(t, len(published), len(syncer.syncedPayloads))
-	require.Subset(t, published, syncer.altSyncedBlockIdStrings())
+	syncer.requireAltSyncTx(ctx, t, receiptSeq, func() []eth.BlockID {
+		return published
+	})
 }
 
 // TestSystemDenseTopology sets up a dense p2p topology with 3 verifier nodes and 1 sequencer node.
