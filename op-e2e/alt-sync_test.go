@@ -3,12 +3,13 @@ package op_e2e
 import (
 	"context"
 	"fmt"
-	"github.com/ethereum/go-ethereum/core/types"
 	"math/big"
 	"slices"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/ethereum/go-ethereum/core/types"
 
 	g "github.com/anacrolix/generics"
 	"github.com/anacrolix/missinggo/v2/iter"
