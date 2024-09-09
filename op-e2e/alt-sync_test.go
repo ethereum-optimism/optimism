@@ -279,10 +279,6 @@ type syncerType struct {
 	stop           func()
 }
 
-func (me *syncerType) peerId() peer.ID {
-	return me.node.P2P().Host().ID()
-}
-
 func (me *syncerType) altSyncedBlockIdStrings() (ret []string) {
 	for _, synced := range me.syncedPayloads[p2p.PayloadSourceAltSync] {
 		ret = append(ret, synced.blockId.String())

@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/anacrolix/chansync"
-	"github.com/anacrolix/chansync/events"
 	gosync "sync"
 	"time"
+
+	"github.com/anacrolix/chansync"
+	"github.com/anacrolix/chansync/events"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"

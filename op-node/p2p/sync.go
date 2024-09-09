@@ -6,13 +6,14 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	g "github.com/anacrolix/generics"
-	"github.com/anacrolix/missinggo/v2/panicif"
-	"github.com/anacrolix/sync"
 	"io"
 	"math/big"
 	"runtime/debug"
 	"time"
+
+	g "github.com/anacrolix/generics"
+	"github.com/anacrolix/missinggo/v2/panicif"
+	"github.com/anacrolix/sync"
 
 	"github.com/anacrolix/chansync"
 	_ "github.com/anacrolix/envpprof"
@@ -58,11 +59,6 @@ const (
 	peerServerBlocksRateLimit rate.Limit = 4
 	// Allow a peer to request 30s of blocks at once
 	peerServerBlocksBurst = 15
-	// If the client hits a request error, it counts as a lot of rate-limit tokens for syncing from that peer:
-	// we rather sync from other servers. We'll try again later,
-	// and eventually kick the peer based on degraded scoring if it's really not serving us well.
-	// TODO(CLI-4009): Use a backoff rather than this mechanism.
-	clientErrRateCost = peerServerBlocksBurst
 )
 
 type resultCode byte
@@ -343,11 +339,6 @@ func (s *SyncClient) RequestL2Range(ctx context.Context, start, end eth.L2BlockR
 	s.onRangeRequest(ctx, rangeRequest{start: start.Number, end: end})
 	return nil
 }
-
-const (
-	maxRequestScheduling = time.Second * 3
-	maxResultProcessing  = time.Second * 3
-)
 
 // This just emulates old behaviour for a test. It's probably pointless.
 func (s *syncClientRequestState) isInFlight(ctx context.Context, num blockNumber) (inFlight bool, _ error) {

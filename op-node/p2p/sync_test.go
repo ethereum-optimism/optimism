@@ -3,12 +3,13 @@ package p2p
 import (
 	"context"
 	"fmt"
-	"github.com/anacrolix/chansync"
 	"math/big"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/anacrolix/chansync"
 
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
