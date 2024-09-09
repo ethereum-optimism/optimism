@@ -12,20 +12,6 @@ interface IDataAvailabilityChallenge {
     function challengeWindow() external view returns (uint256);
     function deposit() external payable;
     function fixedResolutionCost() external view returns (uint256);
-    function getChallenge(
-        uint256 challengedBlockNumber,
-        bytes memory challengedCommitment
-    )
-        external
-        view
-        returns (Challenge memory);
-    function getChallengeStatus(
-        uint256 challengedBlockNumber,
-        bytes memory challengedCommitment
-    )
-        external
-        view
-        returns (ChallengeStatus);
     function initialize(
         address _owner,
         uint256 _challengeWindow,
@@ -34,8 +20,6 @@ interface IDataAvailabilityChallenge {
         uint256 _resolverRefundPercentage
     )
         external;
-    function owner() external view returns (address);
-    function renounceOwnership() external;
     function resolve(
         uint256 challengedBlockNumber,
         bytes memory challengedCommitment,
@@ -46,11 +30,9 @@ interface IDataAvailabilityChallenge {
     function resolverRefundPercentage() external view returns (uint256);
     function setBondSize(uint256 _bondSize) external;
     function setResolverRefundPercentage(uint256 _resolverRefundPercentage) external;
-    function transferOwnership(address newOwner) external;
     function unlockBond(uint256 challengedBlockNumber, bytes memory challengedCommitment) external;
     function validateCommitment(bytes memory commitment) external pure;
     function variableResolutionCost() external view returns (uint256);
     function variableResolutionCostPrecision() external view returns (uint256);
-    function version() external view returns (string memory);
     function withdraw() external;
 }

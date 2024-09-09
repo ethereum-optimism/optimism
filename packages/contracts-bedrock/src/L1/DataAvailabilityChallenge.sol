@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { SafeCall } from "src/libraries/SafeCall.sol";
+import { IDataAvailabilityChallenge } from "src/L1/interfaces/IDataAvailabilityChallenge.sol";
 
 /// @dev An enum representing the status of a DA challenge.
 enum ChallengeStatus {
@@ -39,7 +40,7 @@ struct Challenge {
 ///         expired.
 ///         If a challenge is expired, the challenger's bond is unlocked and the challenged commitment is added to the
 ///         chain of expired challenges.
-contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
+contract DataAvailabilityChallenge is IDataAvailabilityChallenge, OwnableUpgradeable, ISemver {
     /// @notice Error for when the provided resolver refund percentage exceeds 100%.
     error InvalidResolverRefundPercentage(uint256 invalidResolverRefundPercentage);
 
