@@ -299,9 +299,6 @@ contract Deploy is Deployer {
         save("ProtocolVersions", pvProxy.implementation());
         save("ProtocolVersionsProxy", _protocolVersionsProxy);
 
-        // We still need to set up the address manager and proxy admin
-        // for this specific chain.
-        setupAdmin();
         _run(false);
 
         if (includeDump) {
