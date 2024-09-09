@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { IBeacon } from "@openzeppelin/contracts/proxy/beacon/IBeacon.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 
+/// @custom:proxied
 /// @custom:predeployed 0x4200000000000000000000000000000000000027
 /// @title OptimismSuperchainERC20Beacon
 /// @notice OptimismSuperchainERC20Beacon is the beacon proxy for the OptimismSuperchainERC20 implementation.
