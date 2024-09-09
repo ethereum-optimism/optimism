@@ -7,13 +7,14 @@ import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
+import { IL1CrossDomainMessenger } from "src/L1/interfaces/IL1CrossDomainMessenger.sol";
 
 /// @custom:proxied true
 /// @title L1CrossDomainMessenger
 /// @notice The L1CrossDomainMessenger is a message passing interface between L1 and L2 responsible
 ///         for sending and receiving data on the L1 side. Users are encouraged to use this
 ///         interface instead of interacting with lower-level contracts directly.
-contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
+contract L1CrossDomainMessenger is IL1CrossDomainMessenger, CrossDomainMessenger, ISemver {
     /// @notice Contract of the SuperchainConfig.
     SuperchainConfig public superchainConfig;
 

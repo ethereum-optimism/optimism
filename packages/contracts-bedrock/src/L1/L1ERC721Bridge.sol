@@ -10,13 +10,14 @@ import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { StandardBridge } from "src/universal/StandardBridge.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
+import { IL1ERC721Bridge } from "src/L1/interfaces/IL1ERC721Bridge.sol";
 
 /// @custom:proxied true
 /// @title L1ERC721Bridge
 /// @notice The L1 ERC721 bridge is a contract which works together with the L2 ERC721 bridge to
 ///         make it possible to transfer ERC721 tokens from Ethereum to Optimism. This contract
 ///         acts as an escrow for ERC721 tokens deposited into L2.
-contract L1ERC721Bridge is ERC721Bridge, ISemver {
+contract L1ERC721Bridge is IL1ERC721Bridge, ERC721Bridge, ISemver {
     /// @notice Mapping of L1 token to L2 token to ID to boolean, indicating if the given L1 token
     ///         by ID was deposited for a given L2 token.
     mapping(address => mapping(address => mapping(uint256 => bool))) public deposits;
