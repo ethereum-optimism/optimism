@@ -26,7 +26,7 @@ type InstrumentedState struct {
 
 var _ mipsevm.FPVM = (*InstrumentedState)(nil)
 
-func NewInstrumentedState(state *State, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger) *InstrumentedState {
+func NewInstrumentedState(state *State, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger, meta mipsevm.Metadata) *InstrumentedState {
 	return &InstrumentedState{
 		state:          state,
 		log:            log,
@@ -35,16 +35,16 @@ func NewInstrumentedState(state *State, po mipsevm.PreimageOracle, stdOut, stdEr
 		memoryTracker:  exec.NewMemoryTracker(state.Memory),
 		stackTracker:   &NoopThreadedStackTracker{},
 		preimageOracle: exec.NewTrackingPreimageOracleReader(po),
+		meta:           meta,
 	}
 }
 
-func (m *InstrumentedState) InitDebug(meta mipsevm.Metadata) error {
-	stackTracker, err := NewThreadedStackTracker(m.state, meta)
+func (m *InstrumentedState) InitDebug() error {
+	stackTracker, err := NewThreadedStackTracker(m.state, m.meta)
 	if err != nil {
 		return err
 	}
 	m.stackTracker = stackTracker
-	m.meta = meta
 	return nil
 }
 

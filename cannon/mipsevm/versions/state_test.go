@@ -12,19 +12,17 @@ import (
 
 func TestNewFromState(t *testing.T) {
 	t.Run("singlethreaded", func(t *testing.T) {
-		rawState := singlethreaded.CreateEmptyState()
-		expected, err := NewFromState(rawState)
+		actual, err := NewFromState(singlethreaded.CreateEmptyState())
 		require.NoError(t, err)
-		require.IsType(t, &singlethreaded.State{}, expected.FPVMState)
-		require.Equal(t, VersionSingleThreaded, expected.Version)
+		require.IsType(t, &singlethreaded.State{}, actual.FPVMState)
+		require.Equal(t, VersionSingleThreaded, actual.Version)
 	})
 
 	t.Run("multithreaded", func(t *testing.T) {
-		rawState := multithreaded.CreateEmptyState()
-		expected, err := NewFromState(rawState)
+		actual, err := NewFromState(multithreaded.CreateEmptyState())
 		require.NoError(t, err)
-		require.IsType(t, &multithreaded.State{}, expected.FPVMState)
-		require.Equal(t, VersionMultiThreaded, expected.Version)
+		require.IsType(t, &multithreaded.State{}, actual.FPVMState)
+		require.Equal(t, VersionMultiThreaded, actual.Version)
 	})
 }
 

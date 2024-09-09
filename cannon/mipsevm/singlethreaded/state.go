@@ -68,9 +68,9 @@ func CreateInitialState(pc, heapStart uint32) *State {
 	return state
 }
 
-func (s *State) CreateVM(logger log.Logger, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer) mipsevm.FPVM {
+func (s *State) CreateVM(logger log.Logger, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, meta mipsevm.Metadata) mipsevm.FPVM {
 	logger.Info("Using cannon VM")
-	return NewInstrumentedState(s, po, stdOut, stdErr)
+	return NewInstrumentedState(s, po, stdOut, stdErr, meta)
 }
 
 type stateMarshaling struct {

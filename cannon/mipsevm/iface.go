@@ -57,7 +57,7 @@ type FPVMState interface {
 	EncodeWitness() (witness []byte, hash common.Hash)
 
 	// CreateVM creates a FPVM that can operate on this state.
-	CreateVM(logger log.Logger, po PreimageOracle, stdOut, stdErr io.Writer) FPVM
+	CreateVM(logger log.Logger, po PreimageOracle, stdOut, stdErr io.Writer, meta Metadata) FPVM
 }
 
 type SymbolMatcher func(addr uint32) bool
@@ -86,8 +86,8 @@ type FPVM interface {
 	// GetDebugInfo returns debug information about the VM
 	GetDebugInfo() *DebugInfo
 
-	// InitDebug initializes the debug mode of the VM, using meta as the symbol lookup
-	InitDebug(meta Metadata) error
+	// InitDebug initializes the debug mode of the VM
+	InitDebug() error
 
 	// LookupSymbol returns the symbol located at the specified address.
 	// May return an empty string if there's no symbol table available.

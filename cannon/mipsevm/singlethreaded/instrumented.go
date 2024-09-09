@@ -25,26 +25,31 @@ type InstrumentedState struct {
 
 var _ mipsevm.FPVM = (*InstrumentedState)(nil)
 
-func NewInstrumentedState(state *State, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer) *InstrumentedState {
+func NewInstrumentedState(state *State, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, meta mipsevm.Metadata) *InstrumentedState {
+	var sleepCheck mipsevm.SymbolMatcher
+	if meta == nil {
+		sleepCheck = func(addr uint32) bool { return false }
+	} else {
+		sleepCheck = meta.CreateSymbolMatcher("runtime.notesleep")
+	}
 	return &InstrumentedState{
-		sleepCheck:     func(addr uint32) bool { return false },
+		sleepCheck:     sleepCheck,
 		state:          state,
 		stdOut:         stdOut,
 		stdErr:         stdErr,
 		memoryTracker:  exec.NewMemoryTracker(state.Memory),
 		stackTracker:   &exec.NoopStackTracker{},
 		preimageOracle: exec.NewTrackingPreimageOracleReader(po),
+		meta:           meta,
 	}
 }
 
-func (m *InstrumentedState) InitDebug(meta mipsevm.Metadata) error {
-	stackTracker, err := exec.NewStackTracker(m.state, meta)
+func (m *InstrumentedState) InitDebug() error {
+	stackTracker, err := exec.NewStackTracker(m.state, m.meta)
 	if err != nil {
 		return err
 	}
-	m.meta = meta
 	m.stackTracker = stackTracker
-	m.sleepCheck = meta.CreateSymbolMatcher("runtime.notesleep")
 	return nil
 }
 

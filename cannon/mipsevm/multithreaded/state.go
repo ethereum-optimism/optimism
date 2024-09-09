@@ -87,9 +87,9 @@ func CreateInitialState(pc, heapStart uint32) *State {
 	return state
 }
 
-func (s *State) CreateVM(logger log.Logger, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer) mipsevm.FPVM {
+func (s *State) CreateVM(logger log.Logger, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, meta mipsevm.Metadata) mipsevm.FPVM {
 	logger.Info("Using cannon multithreaded VM")
-	return NewInstrumentedState(s, po, stdOut, stdErr, logger)
+	return NewInstrumentedState(s, po, stdOut, stdErr, logger, meta)
 }
 
 func (s *State) GetCurrentThread() *ThreadState {

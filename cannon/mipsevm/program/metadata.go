@@ -18,6 +18,8 @@ type Metadata struct {
 	Symbols []Symbol `json:"symbols"`
 }
 
+var _ mipsevm.Metadata = (*Metadata)(nil)
+
 func MakeMetadata(elfProgram *elf.File) (*Metadata, error) {
 	syms, err := elfProgram.Symbols()
 	if err != nil {

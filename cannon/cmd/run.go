@@ -371,13 +371,13 @@ func Run(ctx *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to load state: %w", err)
 	}
-	vm := state.CreateVM(l, po, outLog, errLog)
+	vm := state.CreateVM(l, po, outLog, errLog, meta)
 	debugProgram := ctx.Bool(RunDebugFlag.Name)
 	if debugProgram {
 		if metaPath := ctx.Path(RunMetaFlag.Name); metaPath == "" {
 			return fmt.Errorf("cannot enable debug mode without a metadata file")
 		}
-		if err := vm.InitDebug(meta); err != nil {
+		if err := vm.InitDebug(); err != nil {
 			return fmt.Errorf("failed to initialize debug mode: %w", err)
 		}
 	}
