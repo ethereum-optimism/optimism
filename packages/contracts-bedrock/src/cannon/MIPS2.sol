@@ -8,7 +8,7 @@ import { MIPSSyscalls as sys } from "src/cannon/libraries/MIPSSyscalls.sol";
 import { MIPSState as st } from "src/cannon/libraries/MIPSState.sol";
 import { MIPSInstructions as ins } from "src/cannon/libraries/MIPSInstructions.sol";
 import { VMStatuses } from "src/dispute/lib/Types.sol";
-import { InvalidMemoryProof, InvalidSecondMemoryProof } from "src/cannon/libraries/CannonErrors.sol";
+import { InvalidMemoryProof, InvalidRMWInstruction, InvalidSecondMemoryProof } from "src/cannon/libraries/CannonErrors.sol";
 
 /// @title MIPS2
 /// @notice The MIPS2 contract emulates a single MIPS instruction.
@@ -228,6 +228,11 @@ contract MIPS2 is ISemver {
                 return handleSyscall(_localContext);
             }
 
+            // Handle RMW (read-modify-write) ops
+            if (opcode == ins.OP_LOAD_LINKED || opcode == ins.OP_STORE_CONDITIONAL) {
+                return handleRMWOps(state, thread, insn, opcode);
+            }
+
             // Exec the rest of the step logic
             st.CpuScalars memory cpu = getCpuScalars(thread);
             (state.memRoot) = ins.execMipsCoreStepLogic({
@@ -241,6 +246,45 @@ contract MIPS2 is ISemver {
             });
             setStateCpuScalars(thread, cpu);
             updateCurrentThreadRoot();
+            return outputState();
+        }
+    }
+
+    function handleRMWOps(
+        State memory _state,
+        ThreadState memory _thread,
+        uint32 _insn,
+        uint32 _opcode
+    )
+        internal
+        returns (bytes32)
+    {
+        unchecked {
+            uint32 baseReg = (_insn >> 21) & 0x1F;
+            uint32 base = _thread.registers[baseReg];
+            uint32 rtReg = (_insn >> 16) & 0x1F;
+            uint32 offset = ins.signExtendImmediate(_insn);
+
+            uint32 effAddr = (base + offset) & 0xFFFFFFFC;
+            uint256 memProofOffset = MIPSMemory.memoryProofOffset(MEM_PROOF_OFFSET, 1);
+            uint32 mem = MIPSMemory.readMem(_state.memRoot, effAddr, memProofOffset);
+
+            uint32 retVal;
+            if (_opcode == ins.OP_LOAD_LINKED) {
+                retVal = mem;
+            } else if (_opcode == ins.OP_STORE_CONDITIONAL) {
+                uint32 val = _thread.registers[rtReg];
+                _state.memRoot = MIPSMemory.writeMem(effAddr, memProofOffset, val);
+                retVal = 1; // 1 for success
+            } else {
+                revert InvalidRMWInstruction();
+            }
+
+            st.CpuScalars memory cpu = getCpuScalars(_thread);
+            ins.handleRd(cpu, _thread.registers, rtReg, retVal, true);
+            setStateCpuScalars(_thread, cpu);
+            updateCurrentThreadRoot();
+
             return outputState();
         }
     }

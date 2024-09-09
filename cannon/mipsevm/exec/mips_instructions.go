@@ -5,6 +5,11 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 )
 
+const (
+	OpLoadLinked       = 0x30
+	OpStoreConditional = 0x38
+)
+
 func GetInstructionDetails(pc uint32, memory *memory.Memory) (insn, opcode, fun uint32) {
 	insn = memory.GetMemory(pc)
 	opcode = insn >> 26 // First 6-bits
@@ -120,6 +125,10 @@ func ExecMipsCoreStepLogic(cpu *mipsevm.CpuScalars, registers *[32]uint32, memor
 
 	// write back the value to destination register
 	return HandleRd(cpu, registers, rdReg, val, true)
+}
+
+func SignExtendImmediate(insn uint32) uint32 {
+	return SignExtend(insn&0xFFFF, 16)
 }
 
 func ExecuteMipsInstruction(insn, opcode, fun, rs, rt, mem uint32) uint32 {

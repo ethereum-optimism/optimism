@@ -8,6 +8,7 @@ import { MIPSInstructions as ins } from "src/cannon/libraries/MIPSInstructions.s
 import { MIPSSyscalls as sys } from "src/cannon/libraries/MIPSSyscalls.sol";
 import { MIPSState as st } from "src/cannon/libraries/MIPSState.sol";
 import { MIPSMemory } from "src/cannon/libraries/MIPSMemory.sol";
+import { InvalidRMWInstruction } from "src/cannon/libraries/CannonErrors.sol";
 
 /// @title MIPS
 /// @notice The MIPS contract emulates a single MIPS instruction.
@@ -44,8 +45,8 @@ contract MIPS is ISemver {
     }
 
     /// @notice The semantic version of the MIPS contract.
-    /// @custom:semver 1.1.1-beta.3
-    string public constant version = "1.1.1-beta.3";
+    /// @custom:semver 1.1.1-beta.4
+    string public constant version = "1.1.1-beta.4";
 
     /// @notice The preimage oracle contract.
     IPreimageOracle internal immutable ORACLE;
@@ -291,6 +292,11 @@ contract MIPS is ISemver {
                 return handleSyscall(_localContext);
             }
 
+            // Handle RMW (read-modify-write) ops
+            if (opcode == ins.OP_LOAD_LINKED || opcode == ins.OP_STORE_CONDITIONAL) {
+                return handleRMWOps(state, insn, opcode);
+            }
+
             // Exec the rest of the step logic
             st.CpuScalars memory cpu = getCpuScalars(state);
             (state.memRoot) = ins.execMipsCoreStepLogic({
@@ -303,6 +309,36 @@ contract MIPS is ISemver {
                 _fun: fun
             });
             setStateCpuScalars(state, cpu);
+
+            return outputState();
+        }
+    }
+
+    function handleRMWOps(State memory _state, uint32 _insn, uint32 _opcode) internal returns (bytes32) {
+        unchecked {
+            uint32 baseReg = (_insn >> 21) & 0x1F;
+            uint32 base = _state.registers[baseReg];
+            uint32 rtReg = (_insn >> 16) & 0x1F;
+            uint32 offset = ins.signExtendImmediate(_insn);
+
+            uint32 effAddr = (base + offset) & 0xFFFFFFFC;
+            uint256 memProofOffset = MIPSMemory.memoryProofOffset(STEP_PROOF_OFFSET, 1);
+            uint32 mem = MIPSMemory.readMem(_state.memRoot, effAddr, memProofOffset);
+
+            uint32 retVal;
+            if (_opcode == ins.OP_LOAD_LINKED) {
+                retVal = mem;
+            } else if (_opcode == ins.OP_STORE_CONDITIONAL) {
+                uint32 val = _state.registers[rtReg];
+                _state.memRoot = MIPSMemory.writeMem(effAddr, memProofOffset, val);
+                retVal = 1; // 1 for success
+            } else {
+                revert InvalidRMWInstruction();
+            }
+
+            st.CpuScalars memory cpu = getCpuScalars(_state);
+            ins.handleRd(cpu, _state.registers, rtReg, retVal, true);
+            setStateCpuScalars(_state, cpu);
 
             return outputState();
         }

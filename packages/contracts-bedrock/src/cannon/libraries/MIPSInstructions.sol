@@ -5,6 +5,9 @@ import { MIPSMemory } from "src/cannon/libraries/MIPSMemory.sol";
 import { MIPSState as st } from "src/cannon/libraries/MIPSState.sol";
 
 library MIPSInstructions {
+    uint32 internal constant OP_LOAD_LINKED = 0x30;
+    uint32 internal constant OP_STORE_CONDITIONAL = 0x38;
+
     /// @param _pc The program counter.
     /// @param _memRoot The current memory root.
     /// @param _insnProofOffset The calldata offset of the memory proof for the current instruction.
@@ -167,6 +170,12 @@ library MIPSInstructions {
             handleRd(_cpu, _registers, rdReg, val, true);
 
             return newMemRoot_;
+        }
+    }
+
+    function signExtendImmediate(uint32 _insn) internal pure returns (uint32 offset_) {
+        unchecked {
+            return signExtend(_insn & 0xFFFF, 16);
         }
     }
 
