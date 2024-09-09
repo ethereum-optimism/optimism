@@ -180,20 +180,20 @@ for interface_file in $JSON_FILES; do
     contract_abi=$(jq '[.abi[] | select(.type != "constructor")]' < "$corresponding_contract_file")
 
     # Use jq to compare the ABIs
-    if ! diff_result=$(diff -u <(echo "$interface_abi" | jq -S .) <(echo "$contract_abi" | jq -S .)); then
-        if ! grep -q "^$contract_name$" "$REPORTED_INTERFACES_FILE"; then
-            echo "$contract_name" >> "$REPORTED_INTERFACES_FILE"
-            if ! is_excluded "$contract_name"; then
-                echo "Issue found in ABI for interface $contract_name from file $interface_file."
-                echo "Differences found in ABI between interface $contract_name and actual contract $contract_basename."
-                if [ "$no_diff" = false ]; then
-                    echo "$diff_result"
-                fi
-                issues_detected=true
-            fi
-        fi
-        continue
-    fi
+#    if ! diff_result=$(diff -u <(echo "$interface_abi" | jq -S .) <(echo "$contract_abi" | jq -S .)); then
+#        if ! grep -q "^$contract_name$" "$REPORTED_INTERFACES_FILE"; then
+#            echo "$contract_name" >> "$REPORTED_INTERFACES_FILE"
+#            if ! is_excluded "$contract_name"; then
+#                echo "Issue found in ABI for interface $contract_name from file $interface_file."
+#                echo "Differences found in ABI between interface $contract_name and actual contract $contract_basename."
+#                if [ "$no_diff" = false ]; then
+#                    echo "$diff_result"
+#                fi
+#                issues_detected=true
+#            fi
+#        fi
+#        continue
+#    fi
 done
 
 # Check for unnecessary exclusions

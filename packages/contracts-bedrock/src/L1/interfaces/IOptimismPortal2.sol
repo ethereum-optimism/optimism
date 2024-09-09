@@ -7,7 +7,6 @@ import { DisputeGameFactory, IDisputeGame } from "src/dispute/DisputeGameFactory
 import { ConfigType } from "src/L2/L1BlockInterop.sol";
 import "src/dispute/lib/Types.sol";
 
-
 /// @title IOptimismPortal2
 /// @notice Interface for the OptimismPortal2 contract.
 interface IOptimismPortal2 is ISemver {
@@ -67,6 +66,5 @@ interface IOptimismPortal2 is ISemver {
     function blacklistDisputeGame(IDisputeGame _disputeGame) external;
     function setRespectedGameType(GameType _gameType) external;
     function numProofSubmitters(bytes32 _withdrawalHash) external view returns (uint256);
-    function setConfig(ConfigType _type, bytes memory _value) external;
     receive() external payable;
 }

@@ -640,8 +640,4 @@ contract OptimismPortal2 is Initializable, ResourceMetering, IOptimismPortal2 {
     function numProofSubmitters(bytes32 _withdrawalHash) external view returns (uint256) {
         return proofSubmitters[_withdrawalHash].length;
     }
-
-    function setConfig(ConfigType _type, bytes memory _value) virtual external {
-        revert("unimplemented method");
-    }
 }
