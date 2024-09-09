@@ -195,7 +195,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		require.Equal(t, l1InfoTx, []byte(attrs.Transactions[0]))
 		require.True(t, attrs.NoTxPool)
 	})
-	t.Run("same origin with deposits on post-Isthmus", func(t *testing.T) {
+	t.Run("new origin with deposits on post-Isthmus", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
 		l1Fetcher := &testutils.MockL1Source{}
 		defer l1Fetcher.AssertExpectations(t)
@@ -203,9 +203,10 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		l1CfgFetcher := &testutils.MockL2Client{}
 		l1CfgFetcher.ExpectSystemConfigByL2Hash(l2Parent.Hash, testSysCfg, nil)
 		defer l1CfgFetcher.AssertExpectations(t)
+
 		l1Info := testutils.RandomBlockInfo(rng)
 		l1Info.InfoParentHash = l2Parent.L1Origin.Hash
-		l1Info.InfoNum = l2Parent.L1Origin.Number + 1
+		l1Info.InfoNum = l2Parent.L1Origin.Number + 1 // next origin, where deposits may be
 
 		receipts, depositTxs, err := makeReceipts(rng, l1Info.InfoHash, cfg.DepositContractAddress, []receiptData{
 			{goodReceipt: true, DepositLogs: []bool{true, false}},
@@ -220,10 +221,11 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		// sets config to post-interop
 		cfg.ActivateAtGenesis(rollup.Interop)
 
+		seqNumber := uint64(0)
 		epoch := l1Info.ID()
-		l1InfoTx, err := L1InfoDepositBytes(cfg, testSysCfg, 0, l1Info, 0)
+		l1InfoTx, err := L1InfoDepositBytes(cfg, testSysCfg, seqNumber, l1Info, 0)
 		require.NoError(t, err)
-		depositsComplete, err := DepositsCompleteBytes(0, l1Info)
+		depositsComplete, err := DepositsCompleteBytes(seqNumber, l1Info)
 		require.NoError(t, err)
 
 		var l2Txs []eth.Data
@@ -240,6 +242,47 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		require.Equal(t, eth.Bytes32(l1Info.InfoMixDigest), attrs.PrevRandao)
 		require.Equal(t, predeploys.SequencerFeeVaultAddr, attrs.SuggestedFeeRecipient)
 		require.Equal(t, len(l2Txs), len(attrs.Transactions), "Expected txs to equal l1 info tx + user deposit txs + DepositsComplete")
+		require.Equal(t, eth.Data(depositsComplete).String(), attrs.Transactions[len(l2Txs)-1].String())
+		require.Equal(t, l2Txs, attrs.Transactions)
+		require.True(t, attrs.NoTxPool)
+	})
+
+	t.Run("same origin without deposits on post-Isthmus", func(t *testing.T) {
+		rng := rand.New(rand.NewSource(1234))
+		l1Fetcher := &testutils.MockL1Source{}
+		defer l1Fetcher.AssertExpectations(t)
+		l2Parent := testutils.RandomL2BlockRef(rng)
+		l1CfgFetcher := &testutils.MockL2Client{}
+		l1CfgFetcher.ExpectSystemConfigByL2Hash(l2Parent.Hash, testSysCfg, nil)
+		defer l1CfgFetcher.AssertExpectations(t)
+		l1Info := testutils.RandomBlockInfo(rng)
+		l1Info.InfoHash = l2Parent.L1Origin.Hash
+		l1Info.InfoNum = l2Parent.L1Origin.Number // same origin again, so the sequence number is not reset
+
+		// sets config to post-interop
+		cfg.ActivateAtGenesis(rollup.Interop)
+
+		seqNumber := l2Parent.SequenceNumber + 1
+		epoch := l1Info.ID()
+		l1InfoTx, err := L1InfoDepositBytes(cfg, testSysCfg, seqNumber, l1Info, 0)
+		require.NoError(t, err)
+		depositsComplete, err := DepositsCompleteBytes(seqNumber, l1Info)
+		require.NoError(t, err)
+
+		var l2Txs []eth.Data
+		l2Txs = append(l2Txs, l1InfoTx)
+		l2Txs = append(l2Txs, depositsComplete)
+
+		l1Fetcher.ExpectInfoByHash(epoch.Hash, l1Info, nil)
+		attrBuilder := NewFetchingAttributesBuilder(cfg, l1Fetcher, l1CfgFetcher)
+		attrs, err := attrBuilder.PreparePayloadAttributes(context.Background(), l2Parent, epoch)
+		require.NoError(t, err)
+		require.NotNil(t, attrs)
+		require.Equal(t, l2Parent.Time+cfg.BlockTime, uint64(attrs.Timestamp))
+		require.Equal(t, eth.Bytes32(l1Info.InfoMixDigest), attrs.PrevRandao)
+		require.Equal(t, predeploys.SequencerFeeVaultAddr, attrs.SuggestedFeeRecipient)
+		require.Equal(t, len(l2Txs), len(attrs.Transactions), "Expected txs to equal l1 info tx + user deposit txs + DepositsComplete")
+		require.Equal(t, eth.Data(depositsComplete).String(), attrs.Transactions[len(l2Txs)-1].String())
 		require.Equal(t, l2Txs, attrs.Transactions)
 		require.True(t, attrs.NoTxPool)
 	})

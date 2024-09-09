@@ -36,16 +36,32 @@ func TestEcotone4788ContractSourceHash(t *testing.T) {
 	assert.Equal(t, expected, actual.Hex())
 }
 
-// TestAfterForceIncludeSourceHash
-// cast keccak $(cast concat-hex 0x0000000000000000000000000000000000000000000000000000000000000003 $(cast keccak 0x01))
-// # 0x8afb1c4a581d0e71ab65334e3365ba5511fb15c13fa212776f9d4dafc6287845
-func TestAfterForceIncludeSource(t *testing.T) {
-	source := AfterForceIncludeSource{
-		L1BlockHash: common.Hash{0x01},
+// TestL1InfoDepositSource
+// cast keccak $(cast concat-hex 0x0000000000000000000000000000000000000000000000000000000000000001 $(cast keccak $(cast concat-hex 0xc00e5d67c2755389aded7d8b151cbd5bcdf7ed275ad5e028b664880fc7581c77 0x0000000000000000000000000000000000000000000000000000000000000004)))
+// # 0x0586c503340591999b8b38bc9834bb16aec7d5bc00eb5587ab139c9ddab81977
+func TestL1InfoDepositSource(t *testing.T) {
+	source := L1InfoDepositSource{
+		L1BlockHash: common.HexToHash("0xc00e5d67c2755389aded7d8b151cbd5bcdf7ed275ad5e028b664880fc7581c77"),
+		SeqNumber:   4,
 	}
 
 	actual := source.SourceHash()
-	expected := "0x8afb1c4a581d0e71ab65334e3365ba5511fb15c13fa212776f9d4dafc6287845"
+	expected := "0x0586c503340591999b8b38bc9834bb16aec7d5bc00eb5587ab139c9ddab81977"
+
+	assert.Equal(t, expected, actual.Hex())
+}
+
+// TestAfterForceIncludeSourceHash
+// cast keccak $(cast concat-hex 0x0000000000000000000000000000000000000000000000000000000000000003 $(cast keccak $(cast concat-hex 0xc00e5d67c2755389aded7d8b151cbd5bcdf7ed275ad5e028b664880fc7581c77 0x0000000000000000000000000000000000000000000000000000000000000004)))
+// # 0x0d165c391384b29c29f655e3f32315755b8c1e4c1147d1824d1243420dda5ec3
+func TestAfterForceIncludeSource(t *testing.T) {
+	source := AfterForceIncludeSource{
+		L1BlockHash: common.HexToHash("0xc00e5d67c2755389aded7d8b151cbd5bcdf7ed275ad5e028b664880fc7581c77"),
+		SeqNumber:   4,
+	}
+
+	actual := source.SourceHash()
+	expected := "0x0d165c391384b29c29f655e3f32315755b8c1e4c1147d1824d1243420dda5ec3"
 
 	assert.Equal(t, expected, actual.Hex())
 }

@@ -65,14 +65,16 @@ func (dep *UpgradeDepositSource) SourceHash() common.Hash {
 	return crypto.Keccak256Hash(domainInput[:])
 }
 
-// Used for DepositsComplete/ResetDeposits post-deposits transactions.
+// AfterForceIncludeSource identifies the DepositsComplete post-user-deposits deposit-transaction.
 type AfterForceIncludeSource struct {
 	L1BlockHash common.Hash
+	SeqNumber   uint64 // without this the Deposit tx would have the same tx hash for every time the L1 info repeats.
 }
 
 func (dep *AfterForceIncludeSource) SourceHash() common.Hash {
 	var input [32 * 2]byte
 	copy(input[:32], dep.L1BlockHash[:])
+	binary.BigEndian.PutUint64(input[32*2-8:], dep.SeqNumber)
 	depositIDHash := crypto.Keccak256Hash(input[:])
 
 	var domainInput [32 * 2]byte
