@@ -179,7 +179,7 @@
   {
     "inputs": [
       {
-        "internalType": "contract L2OutputOracle",
+        "internalType": "contract IL2OutputOracle",
         "name": "_l2Oracle",
         "type": "address"
       },
@@ -223,7 +223,7 @@
     "name": "l2Oracle",
     "outputs": [
       {
-        "internalType": "contract L2OutputOracle",
+        "internalType": "contract IL2OutputOracle",
         "name": "",
         "type": "address"
       }

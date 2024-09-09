@@ -907,10 +907,11 @@ contract Specification_Test is CommonTest {
 
     /// @notice Ensures that there's an auth spec for every L1 contract function.
     function testContractAuth() public {
-        string[] memory pathExcludes = new string[](3);
+        string[] memory pathExcludes = new string[](4);
         pathExcludes[0] = "src/dispute/interfaces/*";
         pathExcludes[1] = "src/dispute/lib/*";
         pathExcludes[2] = "src/Safe/SafeSigners.sol";
+        pathExcludes[3] = "src/L1/interfaces/*";
         Abi[] memory abis = ForgeArtifacts.getContractFunctionAbis(
             "src/{L1,dispute,governance,Safe,universal/ProxyAdmin.sol}", pathExcludes
         );

@@ -6,7 +6,6 @@ import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
 import { Executables } from "scripts/libraries/Executables.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
-import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { SystemConfigInterop } from "src/L1/SystemConfigInterop.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
