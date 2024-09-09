@@ -56,7 +56,7 @@ func (d *DirectoryKV) Put(k common.Hash, v []byte) error {
 		return fmt.Errorf("failed to create parent directory for pre-image %s: %w", f.Name(), err)
 	}
 	if err := os.Rename(f.Name(), targetFile); err != nil {
-		return fmt.Errorf("failed to move temp dir %v to final destination %v: %w", f.Name(), targetFile, err)
+		return fmt.Errorf("failed to move temp file %v to final destination %v: %w", f.Name(), targetFile, err)
 	}
 	return nil
 }
