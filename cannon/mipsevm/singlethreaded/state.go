@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
@@ -65,6 +66,11 @@ func CreateInitialState(pc, heapStart uint32) *State {
 	state.Heap = heapStart
 
 	return state
+}
+
+func (s *State) CreateVM(logger log.Logger, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer) mipsevm.FPVM {
+	logger.Info("Using cannon VM")
+	return NewInstrumentedState(s, po, stdOut, stdErr)
 }
 
 type stateMarshaling struct {

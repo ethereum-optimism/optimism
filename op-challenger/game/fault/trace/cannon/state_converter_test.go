@@ -70,14 +70,14 @@ func TestLoadState(t *testing.T) {
 	})
 }
 
-func writeState(t *testing.T, filename string, state versions.VersionedState) string {
+func writeState(t *testing.T, filename string, state *versions.VersionedState) string {
 	dir := t.TempDir()
 	path := filepath.Join(dir, filename)
 	require.NoError(t, serialize.Write(path, state, 0644))
 	return path
 }
 
-func loadExpectedState(t *testing.T) versions.VersionedState {
+func loadExpectedState(t *testing.T) *versions.VersionedState {
 	var expected singlethreaded.State
 	require.NoError(t, json.Unmarshal(testState, &expected))
 	state, err := versions.NewFromState(&expected)

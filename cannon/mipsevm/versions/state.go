@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
 	"github.com/ethereum-optimism/optimism/cannon/serialize"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 type StateVersion uint8
@@ -22,16 +21,11 @@ const (
 )
 
 var (
-	ErrUnknownVersion = errors.New("unknown version")
+	ErrUnknownVersion   = errors.New("unknown version")
+	ErrJsonNotSupported = errors.New("json not supported")
 )
 
-type VersionedState interface {
-	mipsevm.FPVMState
-	serialize.Serializable
-	CreateVM(logger log.Logger, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer) mipsevm.FPVM
-}
-
-func LoadStateFromFile(path string) (VersionedState, error) {
+func LoadStateFromFile(path string) (*VersionedState, error) {
 	if !serialize.IsBinaryFile(path) {
 		// Always use singlethreaded for JSON states
 		state, err := jsonutil.LoadJSON[singlethreaded.State](path)
@@ -40,74 +34,72 @@ func LoadStateFromFile(path string) (VersionedState, error) {
 		}
 		return NewFromState(state)
 	}
-	return serialize.LoadSerializedBinary[versionedState](path)
+	return serialize.LoadSerializedBinary[VersionedState](path)
 }
 
-func NewFromState(state mipsevm.FPVMState) (VersionedState, error) {
+func NewFromState(state mipsevm.FPVMState) (*VersionedState, error) {
 	switch state := state.(type) {
 	case *singlethreaded.State:
-		return &versionedState{
-			version:        VersionSingleThreaded,
-			VersionedState: &SingleThreadedState{state},
+		return &VersionedState{
+			Version:   VersionSingleThreaded,
+			FPVMState: state,
 		}, nil
 	case *multithreaded.State:
-		return &versionedState{
-			version:        VersionMultiThreaded,
-			VersionedState: &MultiThreadedState{state},
+		return &VersionedState{
+			Version:   VersionMultiThreaded,
+			FPVMState: state,
 		}, nil
 	default:
 		return nil, fmt.Errorf("%w: %T", ErrUnknownVersion, state)
 	}
 }
 
-// versionedState deserializes a FPVMState and implements VersionedState based on the version of that state.
+// VersionedState deserializes a FPVMState and implements VersionedState based on the version of that state.
 // It does this based on the version byte read in Deserialize
-type versionedState struct {
-	version StateVersion
-	VersionedState
+type VersionedState struct {
+	Version StateVersion
+	mipsevm.FPVMState
 }
 
-func (s *versionedState) Deserialize(in io.Reader) error {
-	// Read the version byte and then create a multireader to allow the actual implementation to also read it
-	// Allows the Serialize and Deserialize methods of the states to be exact inverses of each other.
+func (s *VersionedState) Serialize(w io.Writer) error {
+	bout := serialize.NewBinaryWriter(w)
+	if err := bout.WriteUInt(s.Version); err != nil {
+		return err
+	}
+	return s.FPVMState.Serialize(w)
+}
+
+func (s *VersionedState) Deserialize(in io.Reader) error {
 	bin := serialize.NewBinaryReader(in)
-	if err := bin.ReadUInt(&s.version); err != nil {
+	if err := bin.ReadUInt(&s.Version); err != nil {
 		return err
 	}
 
-	switch s.version {
+	switch s.Version {
 	case VersionSingleThreaded:
 		state := &singlethreaded.State{}
 		if err := state.Deserialize(in); err != nil {
 			return err
 		}
-		s.VersionedState = &SingleThreadedState{State: state}
+		s.FPVMState = state
 		return nil
 	case VersionMultiThreaded:
 		state := &multithreaded.State{}
 		if err := state.Deserialize(in); err != nil {
 			return err
 		}
-		s.VersionedState = &MultiThreadedState{State: state}
+		s.FPVMState = state
 		return nil
 	default:
-		return fmt.Errorf("%w: %d", ErrUnknownVersion, s.version)
+		return fmt.Errorf("%w: %d", ErrUnknownVersion, s.Version)
 	}
 }
 
-func (s *versionedState) Serialize(w io.Writer) error {
-	bout := serialize.NewBinaryWriter(w)
-	if err := bout.WriteUInt(s.version); err != nil {
-		return err
-	}
-	return s.VersionedState.Serialize(w)
-}
-
-// MarshalJSON marshalls the underlying state without adding version prefix.
+// MarshalJSON marshals the underlying state without adding version prefix.
 // JSON states are always assumed to be single threaded
-func (s *versionedState) MarshalJSON() ([]byte, error) {
-	if s.version != VersionSingleThreaded {
-		return nil, fmt.Errorf("attempting to JSON marshal state of type %T, only single threaded states support JSON", s.VersionedState)
+func (s *VersionedState) MarshalJSON() ([]byte, error) {
+	if s.Version != VersionSingleThreaded {
+		return nil, fmt.Errorf("%w for type %T", ErrJsonNotSupported, s.FPVMState)
 	}
-	return json.Marshal(s.VersionedState)
+	return json.Marshal(s.FPVMState)
 }
