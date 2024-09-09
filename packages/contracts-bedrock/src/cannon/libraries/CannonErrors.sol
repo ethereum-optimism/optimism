@@ -54,3 +54,9 @@ error BondTransferFailed();
 
 /// @notice Thrown when the value of the exited boolean is not 0 or 1.
 error InvalidExitedValue();
+
+/// @notice Thrown when reading an invalid memory
+error InvalidMemoryProof();
+
+/// @notice Thrown when the second memory location is invalid
+error InvalidSecondMemoryProof();

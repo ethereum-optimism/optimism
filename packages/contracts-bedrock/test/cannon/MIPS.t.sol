@@ -6,7 +6,7 @@ import { MIPS } from "src/cannon/MIPS.sol";
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
 import { MIPSInstructions } from "src/cannon/libraries/MIPSInstructions.sol";
 import { MIPSSyscalls as sys } from "src/cannon/libraries/MIPSSyscalls.sol";
-import { InvalidExitedValue } from "src/cannon/libraries/CannonErrors.sol";
+import { InvalidExitedValue, InvalidMemoryProof } from "src/cannon/libraries/CannonErrors.sol";
 import "src/dispute/lib/Types.sol";
 
 contract MIPS_Test is CommonTest {
@@ -1658,7 +1658,7 @@ contract MIPS_Test is CommonTest {
         for (uint256 i = 0; i < proof.length; i++) {
             proof[i] = 0x0;
         }
-        vm.expectRevert(hex"000000000000000000000000000000000000000000000000000000000badf00d");
+        vm.expectRevert(InvalidMemoryProof.selector);
         mips.step(encodeState(state), proof, 0);
     }
 
@@ -1677,7 +1677,7 @@ contract MIPS_Test is CommonTest {
         state.registers[2] = 4246; // exit_group syscall
         state.registers[4] = 0x5; // a0
 
-        vm.expectRevert(hex"000000000000000000000000000000000000000000000000000000000badf00d");
+        vm.expectRevert(InvalidMemoryProof.selector);
         mips.step(encodeState(state), proof, 0);
     }
 

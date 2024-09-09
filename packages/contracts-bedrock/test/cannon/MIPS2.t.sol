@@ -6,6 +6,7 @@ import { MIPS2 } from "src/cannon/MIPS2.sol";
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
 import { MIPSSyscalls as sys } from "src/cannon/libraries/MIPSSyscalls.sol";
 import "src/dispute/lib/Types.sol";
+import "src/cannon/libraries/CannonErrors.sol";
 
 contract ThreadStack {
     bytes32 internal constant EMPTY_THREAD_ROOT = hex"ad3228b676f7d3cd4284a5443f17f1962b36e491b30a40b2405849e597ba5fb5";
@@ -643,11 +644,11 @@ contract MIPS2_Test is CommonTest {
                 invalidInsnAndMemProof[i] = 0x0;
             }
         }
-        vm.expectRevert("MIPS2: invalid memory proof");
+        vm.expectRevert(InvalidMemoryProof.selector);
         mips.step(encodeState(state), bytes.concat(threadWitness, invalidInsnAndMemProof, memProof2), 0);
 
         (, bytes memory invalidMemProof2) = ffi.getCannonMemoryProof2(pc, insn, timespecAddr, 10 + 1, timespecAddr + 4);
-        vm.expectRevert("MIPS2: invalid second memory proof");
+        vm.expectRevert(InvalidSecondMemoryProof.selector);
         mips.step(encodeState(state), bytes.concat(threadWitness, insnAndMemProof, invalidMemProof2), 0);
     }
 

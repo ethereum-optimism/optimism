@@ -8,6 +8,7 @@ import { MIPSSyscalls as sys } from "src/cannon/libraries/MIPSSyscalls.sol";
 import { MIPSState as st } from "src/cannon/libraries/MIPSState.sol";
 import { MIPSInstructions as ins } from "src/cannon/libraries/MIPSInstructions.sol";
 import { VMStatuses } from "src/dispute/lib/Types.sol";
+import { InvalidMemoryProof, InvalidSecondMemoryProof } from "src/cannon/libraries/CannonErrors.sol";
 
 /// @title MIPS2
 /// @notice The MIPS2 contract emulates a single MIPS instruction.
@@ -389,22 +390,24 @@ contract MIPS2 is ISemver {
                     uint32 nsecs = uint32((state.step % sys.HZ) * (1_000_000_000 / sys.HZ));
                     uint32 effAddr = a1 & 0xFFffFFfc;
                     // First verify the effAddr path
-                    require(
-                        MIPSMemory.isValidProof(
+                    if (
+                        !MIPSMemory.isValidProof(
                             state.memRoot, effAddr, MIPSMemory.memoryProofOffset(MEM_PROOF_OFFSET, 1)
-                        ),
-                        "MIPS2: invalid memory proof"
-                    );
+                        )
+                    ) {
+                        revert InvalidMemoryProof();
+                    }
                     // Recompute the new root after updating effAddr
                     state.memRoot =
                         MIPSMemory.writeMem(effAddr, MIPSMemory.memoryProofOffset(MEM_PROOF_OFFSET, 1), secs);
                     // Verify the second memory proof against the newly computed root
-                    require(
-                        MIPSMemory.isValidProof(
+                    if (
+                        !MIPSMemory.isValidProof(
                             state.memRoot, effAddr + 4, MIPSMemory.memoryProofOffset(MEM_PROOF_OFFSET, 2)
-                        ),
-                        "MIPS2: invalid second memory proof"
-                    );
+                        )
+                    ) {
+                        revert InvalidSecondMemoryProof();
+                    }
                     state.memRoot =
                         MIPSMemory.writeMem(effAddr + 4, MIPSMemory.memoryProofOffset(MEM_PROOF_OFFSET, 2), nsecs);
                 }
