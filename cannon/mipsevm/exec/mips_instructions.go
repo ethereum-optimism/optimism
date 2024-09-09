@@ -391,6 +391,7 @@ func HandleRd(cpu *mipsevm.CpuScalars, registers *[32]uint32, storeReg uint32, v
 		panic("invalid register")
 	}
 	if storeReg != 0 && conditional {
+		// Register 0 is a special register that always holds a value of 0
 		registers[storeReg] = val
 	}
 	cpu.PC = cpu.NextPC

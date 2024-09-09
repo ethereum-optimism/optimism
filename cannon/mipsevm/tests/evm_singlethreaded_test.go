@@ -20,16 +20,18 @@ func TestEVM_LL(t *testing.T) {
 		offset  int
 		value   uint32
 		effAddr uint32
+		rtReg   int
 	}{
-		{name: "Aligned effAddr", base: 0x00_00_00_01, offset: 0x0133, value: 0xABCD, effAddr: 0x00_00_01_34},
-		{name: "Aligned effAddr, signed extended", base: 0x00_00_00_01, offset: 0xFF33, value: 0xABCD, effAddr: 0xFF_FF_FF_34},
-		{name: "Unaligned effAddr", base: 0xFF_12_00_01, offset: 0x3401, value: 0xABCD, effAddr: 0xFF_12_34_00},
-		{name: "Unaligned effAddr, sign extended w overflow", base: 0xFF_12_00_01, offset: 0x8401, value: 0xABCD, effAddr: 0xFF_11_84_00},
+		{name: "Aligned effAddr", base: 0x00_00_00_01, offset: 0x0133, value: 0xABCD, effAddr: 0x00_00_01_34, rtReg: 5},
+		{name: "Aligned effAddr, signed extended", base: 0x00_00_00_01, offset: 0xFF33, value: 0xABCD, effAddr: 0xFF_FF_FF_34, rtReg: 5},
+		{name: "Unaligned effAddr", base: 0xFF_12_00_01, offset: 0x3401, value: 0xABCD, effAddr: 0xFF_12_34_00, rtReg: 5},
+		{name: "Unaligned effAddr, sign extended w overflow", base: 0xFF_12_00_01, offset: 0x8401, value: 0xABCD, effAddr: 0xFF_11_84_00, rtReg: 5},
+		{name: "Return register set to 0", base: 0x00_00_00_01, offset: 0x0133, value: 0xABCD, effAddr: 0x00_00_01_34, rtReg: 0},
 	}
 	v := GetSingleThreadedTestCase(t)
 	for i, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			rtReg := 5
+			rtReg := c.rtReg
 			baseReg := 6
 			pc := uint32(0x44)
 			insn := uint32((0b11_0000 << 26) | (baseReg & 0x1F << 21) | (rtReg & 0x1F << 16) | (0xFFFF & c.offset))
@@ -45,7 +47,9 @@ func TestEVM_LL(t *testing.T) {
 			expected.Step += 1
 			expected.PC = pc + 4
 			expected.NextPC = pc + 8
-			expected.Registers[rtReg] = c.value
+			if rtReg != 0 {
+				expected.Registers[rtReg] = c.value
+			}
 
 			stepWitness, err := goVm.Step(true)
 			require.NoError(t, err)
@@ -66,16 +70,18 @@ func TestEVM_SC(t *testing.T) {
 		offset  int
 		value   uint32
 		effAddr uint32
+		rtReg   int
 	}{
-		{name: "Aligned effAddr", base: 0x00_00_00_01, offset: 0x0133, value: 0xABCD, effAddr: 0x00_00_01_34},
-		{name: "Aligned effAddr, signed extended", base: 0x00_00_00_01, offset: 0xFF33, value: 0xABCD, effAddr: 0xFF_FF_FF_34},
-		{name: "Unaligned effAddr", base: 0xFF_12_00_01, offset: 0x3401, value: 0xABCD, effAddr: 0xFF_12_34_00},
-		{name: "Unaligned effAddr, sign extended w overflow", base: 0xFF_12_00_01, offset: 0x8401, value: 0xABCD, effAddr: 0xFF_11_84_00},
+		{name: "Aligned effAddr", base: 0x00_00_00_01, offset: 0x0133, value: 0xABCD, effAddr: 0x00_00_01_34, rtReg: 5},
+		{name: "Aligned effAddr, signed extended", base: 0x00_00_00_01, offset: 0xFF33, value: 0xABCD, effAddr: 0xFF_FF_FF_34, rtReg: 5},
+		{name: "Unaligned effAddr", base: 0xFF_12_00_01, offset: 0x3401, value: 0xABCD, effAddr: 0xFF_12_34_00, rtReg: 5},
+		{name: "Unaligned effAddr, sign extended w overflow", base: 0xFF_12_00_01, offset: 0x8401, value: 0xABCD, effAddr: 0xFF_11_84_00, rtReg: 5},
+		{name: "Return register set to 0", base: 0xFF_12_00_01, offset: 0x8401, value: 0xABCD, effAddr: 0xFF_11_84_00, rtReg: 0},
 	}
 	v := GetSingleThreadedTestCase(t)
 	for i, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			rtReg := 5
+			rtReg := c.rtReg
 			baseReg := 6
 			pc := uint32(0x44)
 			insn := uint32((0b11_1000 << 26) | (baseReg & 0x1F << 21) | (rtReg & 0x1F << 16) | (0xFFFF & c.offset))
@@ -91,11 +97,13 @@ func TestEVM_SC(t *testing.T) {
 			expected.Step += 1
 			expected.PC = pc + 4
 			expected.NextPC = pc + 8
-			expected.Registers[rtReg] = 1 // 1 for success
 			expectedMemory := memory.NewMemory()
 			expectedMemory.SetMemory(pc, insn)
 			expectedMemory.SetMemory(c.effAddr, c.value)
 			expected.MemoryRoot = expectedMemory.MerkleRoot()
+			if rtReg != 0 {
+				expected.Registers[rtReg] = 1 // 1 for success
+			}
 
 			stepWitness, err := goVm.Step(true)
 			require.NoError(t, err)
