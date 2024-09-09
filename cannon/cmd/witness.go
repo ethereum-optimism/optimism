@@ -46,7 +46,6 @@ var WitnessCommand = &cli.Command{
 	Description: "Convert a Cannon JSON state into a binary witness. The hash of the witness is written to stdout",
 	Action:      Witness,
 	Flags: []cli.Flag{
-		VMTypeFlag,
 		WitnessInputFlag,
 		WitnessOutputFlag,
 	},

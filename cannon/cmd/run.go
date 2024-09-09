@@ -501,7 +501,6 @@ var RunCommand = &cli.Command{
 	Description: "Run VM step(s) and generate proof data to replicate onchain. See flags to match when to output a proof, a snapshot, or to stop early.",
 	Action:      Run,
 	Flags: []cli.Flag{
-		VMTypeFlag,
 		RunInputFlag,
 		RunOutputFlag,
 		RunProofAtFlag,
