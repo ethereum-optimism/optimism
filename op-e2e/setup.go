@@ -902,47 +902,6 @@ func (sys *System) newMockNetPeer() (host.Host, error) {
 	return sys.Mocknet.AddPeerWithPeerstore(p, eps)
 }
 
-// mocknet doesn't allow us to add a peerstore without fully creating the peer ourselves. TODO: This
-// method was an attempt to use custom peer IDs so I could identify different entities in the p2p
-// where we no longer have a reference to the node. Unfortunately the IDs seem to be altered into
-// something that looks like "LKFFiQkECKz" (still better than
-// Qm-really-long-visually-indistiguishable-multiaddrs). It still works but it's not very useful.
-func (sys *System) newMockNetPeerWithCustomPeerId(p peer.ID) (host.Host, error) {
-	sk, _, err := ic.GenerateECDSAKeyPair(rand.Reader)
-	if err != nil {
-		return nil, err
-	}
-	id, err := peer.IDFromPrivateKey(sk)
-	if err != nil {
-		return nil, err
-	}
-	suffix := id
-	if len(id) > 8 {
-		suffix = id[len(id)-8:]
-	}
-	ip := append(net.IP{}, blackholeIP6...)
-	copy(ip[net.IPv6len-len(suffix):], suffix)
-	a, err := ma.NewMultiaddr(fmt.Sprintf("/ip6/%s/tcp/4242", ip))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create test multiaddr: %w", err)
-	}
-
-	ps, err := pstoremem.NewPeerstore()
-	if err != nil {
-		return nil, err
-	}
-	ps.AddAddr(p, a, peerstore.PermanentAddrTTL)
-	_ = ps.AddPrivKey(p, sk)
-	_ = ps.AddPubKey(p, sk.GetPublic())
-
-	ds := dsSync.MutexWrap(ds.NewMapDatastore())
-	eps, err := store.NewExtendedPeerstore(context.Background(), log.Root(), clock.SystemClock, ps, ds, 24*time.Hour)
-	if err != nil {
-		return nil, err
-	}
-	return sys.Mocknet.AddPeerWithPeerstore(p, eps)
-}
-
 func (sys *System) BatcherHelper() *batcher.Helper {
 	return batcher.NewHelper(sys.t, sys.Cfg.Secrets.Batcher, sys.RollupConfig, sys.NodeClient(RoleL1))
 }

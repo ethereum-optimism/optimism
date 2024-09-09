@@ -216,11 +216,12 @@ func logValidationResult(self peer.ID, msg string, log log.Logger, fn pubsub.Val
 
 func guardGossipValidator(log log.Logger, fn pubsub.ValidatorEx) pubsub.ValidatorEx {
 	return func(ctx context.Context, id peer.ID, message *pubsub.Message) (result pubsub.ValidationResult) {
-		// The only error this will return is one for the panic, which will already be logged.
-		if panicGuard(log, "gossip validation", func() error {
+		err := panicGuard(log, "gossip validation", func() error {
 			result = fn(ctx, id, message)
 			return nil
-		}, "peer", id) != nil {
+		}, "peer", id)
+		// If there's an error here, it is a panic that has been logged already.
+		if err != nil {
 			result = pubsub.ValidationReject
 		}
 		return
@@ -447,7 +448,6 @@ func verifyBlockSignature(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 	return pubsub.ValidationAccept
 }
 
-// TODO: Differentiate these in metrics
 type PayloadSource string
 
 const (

@@ -3,6 +3,12 @@ package op_e2e
 import (
 	"context"
 	"fmt"
+	"math/big"
+	"slices"
+	"sync"
+	"testing"
+	"time"
+
 	g "github.com/anacrolix/generics"
 	"github.com/anacrolix/missinggo/v2/iter"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
@@ -28,11 +34,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/time/rate"
-	"math/big"
-	"slices"
-	"sync"
-	"testing"
-	"time"
 )
 
 type altSyncSequencerP2pConfig struct {
@@ -302,7 +303,7 @@ func makeSyncer(ctx context.Context, t *testing.T, name string, cfg SystemConfig
 
 	// Create a peer
 	var err error
-	syncer.h, err = sys.newMockNetPeerWithCustomPeerId(peer.ID(name))
+	syncer.h, err = sys.newMockNetPeer()
 	require.NoError(t, err)
 
 	var payloadMu sync.Mutex

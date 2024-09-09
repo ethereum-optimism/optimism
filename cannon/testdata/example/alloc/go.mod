@@ -1,8 +1,8 @@
 module alloc
 
-go 1.22
+go 1.21
 
-toolchain go1.23.0
+toolchain go1.21.1
 
 require github.com/ethereum-optimism/optimism v0.0.0
 
