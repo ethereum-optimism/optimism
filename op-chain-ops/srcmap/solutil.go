@@ -120,6 +120,10 @@ type SourceMap struct {
 // This location is the source file-path, the line number, and column number.
 // This may return an error, as the source-file is lazy-loaded to calculate the position data.
 func (s *SourceMap) Info(pc uint64) (source string, line uint32, col uint32, err error) {
+	if pc >= uint64(len(s.Instr)) {
+		source = "invalid"
+		return
+	}
 	instr := s.Instr[pc]
 	if instr.F < 0 || instr == (InstrMapping{}) {
 		return "generated", 0, 0, nil

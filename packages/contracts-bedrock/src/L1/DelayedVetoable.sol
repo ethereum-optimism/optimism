@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { ISemver } from "src/universal/ISemver.sol";
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
 
 /// @title DelayedVetoable
 /// @notice This contract enables a delay before a call is forwarded to a target contract, and during the delay period
@@ -68,8 +68,8 @@ contract DelayedVetoable is ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 1.0.1-beta.1
+    string public constant version = "1.0.1-beta.1";
 
     /// @notice Sets the target admin during contract deployment.
     /// @param vetoer_ Address of the vetoer.

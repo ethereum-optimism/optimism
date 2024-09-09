@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { ISemver } from "src/universal/ISemver.sol";
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { ERC721BurnableUpgradeable } from
     "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721BurnableUpgradeable.sol";
 import { AttestationStation } from "src/periphery/op-nft/AttestationStation.sol";
@@ -26,8 +26,8 @@ contract Optimist is ERC721BurnableUpgradeable, ISemver {
     OptimistAllowlist public immutable OPTIMIST_ALLOWLIST;
 
     /// @notice Semantic version.
-    /// @custom:semver 2.1.0
-    string public constant version = "2.1.0";
+    /// @custom:semver 2.1.1-beta.1
+    string public constant version = "2.1.1-beta.1";
 
     /// @param _name               Token name.
     /// @param _symbol             Token symbol.

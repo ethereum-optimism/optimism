@@ -40,8 +40,9 @@ type HeadsStorage interface {
 // ChainsDB is a database that stores logs and heads for multiple chains.
 // it implements the ChainsStorage interface.
 type ChainsDB struct {
-	logDBs map[types.ChainID]LogStorage
-	heads  HeadsStorage
+	logDBs           map[types.ChainID]LogStorage
+	heads            HeadsStorage
+	maintenanceReady chan struct{}
 }
 
 func NewChainsDB(logDBs map[types.ChainID]LogStorage, heads HeadsStorage) *ChainsDB {
@@ -51,9 +52,17 @@ func NewChainsDB(logDBs map[types.ChainID]LogStorage, heads HeadsStorage) *Chain
 	}
 }
 
+func (db *ChainsDB) AddLogDB(chain types.ChainID, logDB LogStorage) {
+	if db.logDBs[chain] != nil {
+		log.Warn("overwriting existing logDB for chain", "chain", chain)
+	}
+	db.logDBs[chain] = logDB
+}
+
 // Resume prepares the chains db to resume recording events after a restart.
 // It rewinds the database to the last block that is guaranteed to have been fully recorded to the database
 // to ensure it can resume recording from the first log of the next block.
+// TODO(#11793): we can rename this to something more descriptive like "PrepareWithRollback"
 func (db *ChainsDB) Resume() error {
 	for chain, logStore := range db.logDBs {
 		if err := Resume(logStore); err != nil {
@@ -67,10 +76,6 @@ func (db *ChainsDB) Resume() error {
 // for now it does not prevent multiple instances of this process from running
 func (db *ChainsDB) StartCrossHeadMaintenance(ctx context.Context) {
 	go func() {
-		// create three safety checkers, one for each safety level
-		unsafeChecker := NewSafetyChecker(Unsafe, db)
-		safeChecker := NewSafetyChecker(Safe, db)
-		finalizedChecker := NewSafetyChecker(Finalized, db)
 		// run the maintenance loop every 10 seconds for now
 		ticker := time.NewTicker(time.Second * 10)
 		for {
@@ -78,14 +83,10 @@ func (db *ChainsDB) StartCrossHeadMaintenance(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				for _, checker := range []SafetyChecker{
-					unsafeChecker,
-					safeChecker,
-					finalizedChecker} {
-					if err := db.UpdateCrossHeads(checker); err != nil {
-						log.Error("failed to update cross-heads", "err", err, "safety", checker.Name())
-						// we should consider exiting if an error is encountered, as the path forward is unclear
-					}
+				db.RequestMaintenance()
+			case <-db.maintenanceReady:
+				if err := db.updateAllHeads(); err != nil {
+					log.Error("failed to update cross-heads", "err", err)
 				}
 			}
 		}
@@ -101,17 +102,37 @@ func (db *ChainsDB) Check(chain types.ChainID, blockNum uint64, logIdx uint32, l
 	return logDB.Contains(blockNum, logIdx, logHash)
 }
 
-// UpdateCrossSafeHeads updates the cross-heads of all chains
-// this is an example of how to use the SafetyChecker to update the cross-heads
-func (db *ChainsDB) UpdateCrossSafeHeads() error {
-	checker := NewSafetyChecker(Safe, db)
-	return db.UpdateCrossHeads(checker)
+// RequestMaintenance requests that the maintenance loop update the cross-heads
+// it does not block if maintenance is already scheduled
+func (db *ChainsDB) RequestMaintenance() {
+	select {
+	case db.maintenanceReady <- struct{}{}:
+		return
+	default:
+		return
+	}
+}
+
+// updateAllHeads updates the cross-heads of all safety levels
+// it is called by the maintenance loop
+func (db *ChainsDB) updateAllHeads() error {
+	// create three safety checkers, one for each safety level
+	unsafeChecker := NewSafetyChecker(Unsafe, db)
+	safeChecker := NewSafetyChecker(Safe, db)
+	finalizedChecker := NewSafetyChecker(Finalized, db)
+	for _, checker := range []SafetyChecker{
+		unsafeChecker,
+		safeChecker,
+		finalizedChecker} {
+		if err := db.UpdateCrossHeads(checker); err != nil {
+			return fmt.Errorf("failed to update cross-heads for safety level %v: %w", checker.Name(), err)
+		}
+	}
+	return nil
 }
 
 // UpdateCrossHeadsForChain updates the cross-head for a single chain.
 // the provided checker controls which heads are considered.
-// TODO: we should invert control and have the underlying logDB call their own update
-// for now, monolithic control is fine. There may be a stronger reason to refactor if the API needs it.
 func (db *ChainsDB) UpdateCrossHeadsForChain(chainID types.ChainID, checker SafetyChecker) error {
 	// start with the xsafe head of the chain
 	xHead := checker.CrossHeadForChain(chainID)
@@ -122,6 +143,8 @@ func (db *ChainsDB) UpdateCrossHeadsForChain(chainID types.ChainID, checker Safe
 	if err != nil {
 		return fmt.Errorf("failed to rewind cross-safe head for chain %v: %w", chainID, err)
 	}
+	// track if we updated the cross-head
+	updated := false
 	// advance the logDB through all executing messages we can
 	// this loop will break:
 	// - when we reach the local head
@@ -149,12 +172,19 @@ func (db *ChainsDB) UpdateCrossHeadsForChain(chainID types.ChainID, checker Safe
 		}
 		// if all is well, prepare the x-head update to this point
 		xHead = i.Index()
+		updated = true
 	}
 
 	// have the checker create an update to the x-head in question, and apply that update
 	err = db.heads.Apply(checker.Update(chainID, xHead))
 	if err != nil {
 		return fmt.Errorf("failed to update cross-head for chain %v: %w", chainID, err)
+	}
+	// if any chain was updated, we can trigger a maintenance request
+	// this allows for the maintenance loop to handle cascading updates
+	// instead of waiting for the next scheduled update
+	if updated {
+		db.RequestMaintenance()
 	}
 	return nil
 }
@@ -165,7 +195,8 @@ func (db *ChainsDB) UpdateCrossHeadsForChain(chainID types.ChainID, checker Safe
 func (db *ChainsDB) UpdateCrossHeads(checker SafetyChecker) error {
 	currentHeads := db.heads.Current()
 	for chainID := range currentHeads.Chains {
-		if err := db.UpdateCrossHeadsForChain(chainID, checker); err != nil {
+		err := db.UpdateCrossHeadsForChain(chainID, checker)
+		if err != nil {
 			return err
 		}
 	}
