@@ -71,7 +71,7 @@ func TestSystemP2PAltSyncExtreme(t *testing.T) {
 		L1EpochPollInterval: time.Second * 4,
 	}
 
-	makeMap(&cfg.P2PTopology)
+	g.MakeMap(&cfg.P2PTopology)
 
 	var verifierIds []string
 	addNodeId := func(id string) {
@@ -176,20 +176,15 @@ func TestSystemP2PAltSyncExtreme(t *testing.T) {
 		newSyncer := makeSyncer(ctx, t, name, cfg, sys)
 		// Link to all the other syncers
 		for _, syncer := range syncers {
-			linkAndConnectNodeNamesNodes(t, sys.Mocknet, syncer.name, newSyncer.name)
+			linkAndConnectNodeNamesNodes(t, sys.Mocknet, syncer.peerId, newSyncer.peerId)
 		}
 		// And to the sequencer.
-		linkAndConnectNodeNamesNodes(t, sys.Mocknet, string(sequencerNode.P2P().Host().ID()), newSyncer.name)
+		linkAndConnectNodeNamesNodes(t, sys.Mocknet, sequencerNode.P2P().Host().ID(), newSyncer.peerId)
 		syncers = append(syncers, newSyncer)
 	}
 
 	for i := range iter.N(15) {
 		addSyncer(i)
-	}
-
-	// Don't stop the nodes right away so they can sync from each other.
-	for _, syncer := range syncers {
-		defer syncer.stop()
 	}
 
 	eg, ctx := errgroup.WithContext(ctx)
@@ -222,9 +217,14 @@ func TestSystemP2PAltSyncExtreme(t *testing.T) {
 	}
 	require.NoError(t, eg.Wait())
 
+	// Don't stop the nodes right away so they can sync from each other.
+	for _, syncer := range syncers {
+		syncer.stop()
+	}
+
 	altSyncSources := make(map[peer.ID]int)
 	for _, syncer := range syncers {
-		fmt.Printf("%v (%v)\n", syncer.node.P2P().Host().ID(), syncer.name)
+		fmt.Printf("%v (%v)\n", syncer.peerId, syncer.name)
 		for source, blocks := range syncer.syncedPayloads {
 			fmt.Printf("  %v (%v):", source, len(blocks))
 			for _, block := range blocks {
@@ -262,10 +262,10 @@ func connectNodes(t *testing.T, mocknet mocknet.Mocknet, a, b p2p.Node) {
 	require.NoError(t, err)
 }
 
-func linkAndConnectNodeNamesNodes(t *testing.T, mocknet mocknet.Mocknet, a, b string) {
-	_, err := mocknet.LinkPeers(peer.ID(a), peer.ID(b))
+func linkAndConnectNodeNamesNodes(t *testing.T, mocknet mocknet.Mocknet, a, b peer.ID) {
+	_, err := mocknet.LinkPeers(a, b)
 	require.NoError(t, err)
-	_, err = mocknet.ConnectPeers(peer.ID(a), peer.ID(b))
+	_, err = mocknet.ConnectPeers(a, b)
 	require.NoError(t, err)
 }
 
@@ -278,6 +278,7 @@ type syncerType struct {
 	node           *rollupNode.OpNode
 	l2Verif        *ethclient.Client
 	stop           func()
+	peerId         peer.ID
 }
 
 func (me *syncerType) altSyncedBlockIdStrings() (ret []string) {
@@ -344,6 +345,7 @@ func makeSyncer(ctx context.Context, t *testing.T, name string, cfg SystemConfig
 
 	syncer.node, err = rollupNode.New(ctx, syncNodeCfg, cfg.Loggers[name], "", metrics.NewMetrics(""))
 	require.NoError(t, err)
+	syncer.peerId = syncer.node.P2P().Host().ID()
 	err = syncer.node.Start(ctx)
 	require.NoError(t, err)
 	syncer.stop = func() {
@@ -356,10 +358,6 @@ func makeSyncer(ctx context.Context, t *testing.T, name string, cfg SystemConfig
 	syncer.l2Verif = ethclient.NewClient(rpc)
 
 	return
-}
-
-func makeMap[M ~map[K]V, K comparable, V any](m *M) {
-	*m = make(M)
 }
 
 func newInfLimiter() *rate.Limiter {
