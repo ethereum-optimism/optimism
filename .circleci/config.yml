@@ -196,10 +196,10 @@ jobs:
       - run:
           name: Print forge version
           command: forge --version
-      - run:
-          name: Pull artifacts
-          command: bash scripts/ops/pull-artifacts.sh
-          working_directory: packages/contracts-bedrock
+      # - run:
+      #     name: Pull artifacts
+      #     command: bash scripts/ops/pull-artifacts.sh
+      #     working_directory: packages/contracts-bedrock
       - run:
           name: Build contracts
           command: << parameters.build_command >>
@@ -565,6 +565,9 @@ jobs:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: xlarge
+    parameters:
+      test_filter:
+        type: string
     parallelism: 4
     steps:
       - checkout
@@ -596,7 +599,7 @@ jobs:
           name: run tests
           command: |
             # Find all test files
-            TEST_FILES=$(find ./test -name "*.t.sol")
+            TEST_FILES=$(<<parameters.test_filter>>)
             # Split the tests by timings
             TEST_FILES=$(echo "$TEST_FILES" | circleci tests split --split-by=timings)
             # Strip the leading "./test/" from each file path
@@ -1572,9 +1575,20 @@ workflows:
       - contracts-bedrock-build:
           name: contracts-bedrock-build-skip-tests
           build_command: forge build --skip test
+      - contracts-bedrock-build:
+          name: contracts-bedrock-build-invariants-only
+          build_command: forge build ./test/invariants/
       - contracts-bedrock-tests:
+          name: contracts-bedrock-tests-no-invariants
+          test_filter: find ./test -path "./test/invariants" -prune -o -name "*.t.sol"
           requires:
             - contracts-bedrock-build
+            - go-mod-download
+      - contracts-bedrock-tests:
+          name: contracts-bedrock-tests-invariants-only
+          test_filter: find ./test/invariants -name "*.t.sol"
+          requires:
+            - contracts-bedrock-build-invariants-only
             - go-mod-download
       - contracts-bedrock-coverage
       - contracts-bedrock-checks:
