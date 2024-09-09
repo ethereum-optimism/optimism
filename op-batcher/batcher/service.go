@@ -105,6 +105,9 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 	if err := bs.initTxManager(cfg); err != nil {
 		return fmt.Errorf("failed to init Tx manager: %w", err)
 	}
+	if err := bs.initAltDA(cfg); err != nil {
+		return fmt.Errorf("failed to init AltDA: %w", err)
+	}
 	if err := bs.initChannelConfig(cfg); err != nil {
 		return fmt.Errorf("failed to init channel config: %w", err)
 	}
@@ -116,9 +119,6 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 		return fmt.Errorf("failed to init profiling: %w", err)
 	}
 	// init before driver
-	if err := bs.initAltDA(cfg); err != nil {
-		return fmt.Errorf("failed to init AltDA: %w", err)
-	}
 	bs.initDriver()
 	if err := bs.initRPCServer(cfg); err != nil {
 		return fmt.Errorf("failed to start RPC server: %w", err)
