@@ -1,6 +1,7 @@
 package factory
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -63,20 +64,24 @@ type VersionedState struct {
 }
 
 func (s *VersionedState) Deserialize(in io.Reader) error {
+	// Peek the version byte and then create a multireader to allow the actual implementation to also read it
+	// Allows the Serialize and Deserialize methods of the states to be exact inverses of each other.
 	bin := serialize.NewBinaryReader(in)
 	if err := bin.ReadUInt(&s.Version); err != nil {
 		return err
 	}
+	full := io.MultiReader(bytes.NewReader([]byte{byte(s.Version)}), in)
+
 	switch s.Version {
 	case versions.VersionSingleThreaded:
 		s.singlethreadedState = &singlethreaded.State{}
-		if err := s.singlethreadedState.Deserialize(in); err != nil {
+		if err := s.singlethreadedState.Deserialize(full); err != nil {
 			return err
 		}
 		return nil
 	case versions.VersionMultiThreaded:
 		s.multithreadedState = &multithreaded.State{}
-		if err := s.multithreadedState.Deserialize(in); err != nil {
+		if err := s.multithreadedState.Deserialize(full); err != nil {
 			return err
 		}
 		return nil
