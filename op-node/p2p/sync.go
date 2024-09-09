@@ -229,8 +229,9 @@ type SyncClient struct {
 }
 
 type syncClientRequestState struct {
-	mu                sync.Mutex
-	nextPromote       g.Option[nextPromote]
+	mu          sync.Mutex
+	nextPromote g.Option[nextPromote]
+	// These are *inclusive*.
 	endBlockNumber    blockNumber
 	startBlockNumber  blockNumber
 	wanted            map[blockNumber]*wantedBlock
@@ -333,9 +334,6 @@ func (s *SyncClient) RequestL2Range(ctx context.Context, start, end eth.L2BlockR
 		s.log.Debug("P2P sync client received range signal, but cannot sync open-ended chain: need sync target to verify blocks through parent-hashes", "start", start)
 		return nil
 	}
-
-	fmt.Printf("requesting range %v to %v\n", start, end)
-
 	s.onRangeRequest(ctx, rangeRequest{start: start.Number, end: end})
 	return nil
 }
@@ -379,8 +377,9 @@ func (s *syncClientRequestState) addMissingWanted(log log.Logger) {
 			continue
 		}
 		wanted := &wantedBlock{
-			num:                num,
-			requestConcurrency: chansync.NewSemaphore(3),
+			num: num,
+			// Set to the smallest amount that still ensures no single peer blocks us. Old behaviour was essentially 1.
+			requestConcurrency: chansync.NewSemaphore(2),
 		}
 		s.wanted[num] = wanted
 	}
@@ -454,8 +453,6 @@ func (s *SyncClient) deleteBadQuarantines(bn blockNumber, expected common.Hash) 
 	}
 }
 
-// Is there any point returning something from this? We just try the next expected hash anyway, and
-// if it isn't present, the promoter waits.
 func (s *SyncClient) tryPromote(ctx context.Context, res syncResult) {
 	s.log.Debug("promoting p2p sync result", "payload", res.payload.ExecutionPayload.ID(), "peer", res.peer)
 
@@ -1072,10 +1069,12 @@ func (srv *ReqRespServer) handleSyncRequest(ctx context.Context, stream network.
 	return req, nil
 }
 
+// State for blocks that are or have been requested through the sync client.
 type wantedBlock struct {
 	num                blockNumber
 	requestConcurrency chansync.Semaphore
-	done               chansync.Flag
+	// On when we've either promoted the block, or no longer want it.
+	done chansync.Flag
 	// Whether we're done because we submitted a block upstream. If we get a request for a range
 	// that includes a block that's been promoted, we should get it again.
 	promoted bool
