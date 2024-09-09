@@ -6,7 +6,7 @@ import { Vm } from "forge-std/Vm.sol";
 
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { SuperchainWETH } from "src/L2/SuperchainWETH.sol";
-import { IL2ToL2CrossDomainMessenger } from "src/L2/IL2ToL2CrossDomainMessenger.sol";
+import { IL2ToL2CrossDomainMessenger } from "src/L2/interfaces/IL2ToL2CrossDomainMessenger.sol";
 
 import { CommonTest } from "test/setup/CommonTest.sol";
 

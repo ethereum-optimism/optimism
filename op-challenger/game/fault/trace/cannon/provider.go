@@ -29,6 +29,7 @@ type CannonTraceProvider struct {
 	gameDepth      types.Depth
 	preimageLoader *utils.PreimageLoader
 	stateConverter vm.StateConverter
+	cfg            vm.Config
 
 	types.PrestateProvider
 
@@ -49,6 +50,7 @@ func NewTraceProvider(logger log.Logger, m vm.Metricer, cfg vm.Config, vmCfg vm.
 		}),
 		PrestateProvider: prestateProvider,
 		stateConverter:   &StateConverter{},
+		cfg:              cfg,
 	}
 }
 
@@ -122,7 +124,7 @@ func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*utils.P
 		// Try opening the file again now and it should exist.
 		file, err = ioutil.OpenDecompressed(path)
 		if errors.Is(err, os.ErrNotExist) {
-			proof, stateStep, exited, err := p.stateConverter.ConvertStateToProof(filepath.Join(p.dir, vm.FinalState))
+			proof, stateStep, exited, err := p.stateConverter.ConvertStateToProof(vm.FinalStatePath(p.dir, p.cfg.BinarySnapshots))
 			if err != nil {
 				return nil, fmt.Errorf("cannot create proof from final state: %w", err)
 			}
@@ -170,6 +172,7 @@ func NewTraceProviderForTest(logger log.Logger, m vm.Metricer, cfg *config.Confi
 			return kvstore.NewFileKV(vm.PreimageDir(dir))
 		}),
 		stateConverter: NewStateConverter(),
+		cfg:            cfg.Cannon,
 	}
 	return &CannonTraceProviderForTest{p}
 }
@@ -180,7 +183,8 @@ func (p *CannonTraceProviderForTest) FindStep(ctx context.Context, start uint64,
 		return 0, fmt.Errorf("generate cannon trace (until preimage read): %w", err)
 	}
 	// Load the step from the state cannon finished with
-	_, step, exited, err := p.stateConverter.ConvertStateToProof(filepath.Join(p.dir, vm.FinalState))
+
+	_, step, exited, err := p.stateConverter.ConvertStateToProof(vm.FinalStatePath(p.dir, p.cfg.BinarySnapshots))
 	if err != nil {
 		return 0, fmt.Errorf("failed to load final state: %w", err)
 	}

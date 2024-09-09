@@ -1,14 +1,14 @@
 {
-  "memory": [],
+  "memory": [{"index":10,"data":"eJzswAENAAAAwiD7p7bHBwMAAADyHgAA//8QAAAB"}],
   "preimageKey": "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-  "preimageOffset": 0,
-  "pc": 0,
+  "preimageOffset": 42,
+  "pc": 94,
   "nextPC": 1,
-  "lo": 0,
-  "hi": 0,
-  "heap": 0,
-  "exit": 0,
-  "exited": false,
-  "step": 0,
-  "registers": []
+  "lo": 3,
+  "hi": 5,
+  "heap": 4,
+  "exit": 1,
+  "exited": true,
+  "step": 8849,
+  "registers": [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2147471360,0,0]
 }

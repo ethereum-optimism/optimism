@@ -5,7 +5,9 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 import { MIPS2 } from "src/cannon/MIPS2.sol";
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
 import { MIPSSyscalls as sys } from "src/cannon/libraries/MIPSSyscalls.sol";
+import { MIPSInstructions as ins } from "src/cannon/libraries/MIPSInstructions.sol";
 import "src/dispute/lib/Types.sol";
+import { InvalidExitedValue } from "src/cannon/libraries/CannonErrors.sol";
 
 contract ThreadStack {
     bytes32 internal constant EMPTY_THREAD_ROOT = hex"ad3228b676f7d3cd4284a5443f17f1962b36e491b30a40b2405849e597ba5fb5";
@@ -189,6 +191,34 @@ contract MIPS2_Test is CommonTest {
             hex"3c10bfff3610fff0341100013c08ffff3508fffd34090003010950202d420001ae020008ae11000403e000080000000000000000000000000000000000000000ad3228b676f7d3cd4284a5443f17f1962b36e491b30a40b2405849e597ba5fb5b4c11951957c6f8f642c4af61cd6b24640fec6dc7fc607ee8206a99e92410d3021ddb9a356815c3fac1026b6dec5df3124afbadb485c9ba5a3e3398a04b7ba85e58769b32a1beaf1ea27375a44095a0d1fb664ce2dd358e7fcbfb78c26a193440eb01ebfc9ed27500cd4dfc979272d1f0913cc9f66540d7e8005811109e1cf2d887c22bd8750d34016ac3c66b5ff102dacdd73f6b014e710b51e8022af9a1968ffd70157e48063fc33c97a050f7f640233bf646cc98d9524c6b92bcf3ab56f839867cc5f7f196b93bae1e27e6320742445d290f2263827498b54fec539f756afcefad4e508c098b9a7e1d8feb19955fb02ba9675585078710969d3440f5054e0f9dc3e7fe016e050eff260334f18a5d4fe391d82092319f5964f2e2eb7c1c3a5f8b13a49e282f609c317a833fb8d976d11517c571d1221a265d25af778ecf8923490c6ceeb450aecdc82e28293031d10c7d73bf85e57bf041a97360aa2c5d99cc1df82d9c4b87413eae2ef048f94b4d3554cea73d92b0f7af96e0271c691e2bb5c67add7c6caf302256adedf7ab114da0acfe870d449a3a489f781d659e8beccda7bce9f4e8618b6bd2f4132ce798cdc7a60e7e1460a7299e3c6342a579626d22733e50f526ec2fa19a22b31e8ed50f23cd1fdf94c9154ed3a7609a2f1ff981fe1d3b5c807b281e4683cc6d6315cf95b9ade8641defcb32372f1c126e398ef7a5a2dce0a8a7f68bb74560f8f71837c2c2ebbcbf7fffb42ae1896f13f7c7479a0b46a28b6f55540f89444f63de0378e3d121be09e06cc9ded1c20e65876d36aa0c65e9645644786b620e2dd2ad648ddfcbf4a7e5b1a3a4ecfe7f64667a3f0b7e2f4418588ed35a2458cffeb39b93d26f18d2ab13bdce6aee58e7b99359ec2dfd95a9c16dc00d6ef18b7933a6f8dc65ccb55667138776f7dea101070dc8796e3774df84f40ae0c8229d0d6069e5c8f39a7c299677a09d367fc7b05e3bc380ee652cdc72595f74c7b1043d0e1ffbab734648c838dfb0527d971b602bc216c9619ef0abf5ac974a1ed57f4050aa510dd9c74f508277b39d7973bb2dfccc5eeb0618db8cd74046ff337f0a7bf2c8e03e10f642c1886798d71806ab1e888d9e5ee87d00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
         bytes32 post = mips.step(encodeState(state), bytes.concat(threadWitness, memProof), 0);
         assertNotEq(post, bytes32(0));
+    }
+
+    /// @notice Tests that the mips step function fails when the value of the exited field is
+    ///         invalid (anything greater than 1).
+    /// @param _exited Value to set the exited field to.
+    function testFuzz_step_invalidExitedValueInState_fails(uint8 _exited) external {
+        // Make sure the value of _exited is invalid.
+        _exited = uint8(bound(uint256(_exited), 2, type(uint8).max));
+
+        // Setup state
+        uint32 insn = encodespec(17, 18, 8, 0x20); // Arbitrary instruction: add t0, s1, s2
+        (MIPS2.State memory state, MIPS2.ThreadState memory thread, bytes memory memProof) =
+            constructMIPSState(0, insn, 0x4, 0);
+
+        // Set up step data
+        bytes memory encodedThread = encodeThread(thread);
+        bytes memory threadWitness = abi.encodePacked(encodedThread, EMPTY_THREAD_ROOT);
+        bytes memory proofData = bytes.concat(threadWitness, memProof);
+        bytes memory stateData = encodeState(state);
+        assembly {
+            // Manipulate state data
+            // Push offset by an additional 32 bytes (0x20) to account for length prefix
+            mstore8(add(add(stateData, 0x20), 73), _exited)
+        }
+
+        // Call the step function and expect a revert.
+        vm.expectRevert(InvalidExitedValue.selector);
+        mips.step(stateData, proofData, 0);
     }
 
     function test_invalidThreadWitness_reverts() public {
@@ -1073,6 +1103,166 @@ contract MIPS2_Test is CommonTest {
         finalizeThreadingState(threading, expect);
 
         bytes32 postState = mips.step(encodeState(state), threadWitness, 0);
+        assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    function test_mmap_succeeds_simple() external {
+        uint32 insn = 0x0000000c; // syscall
+        (MIPS2.State memory state, MIPS2.ThreadState memory thread, bytes memory memProof) =
+            constructMIPSState(0, insn, 0x4, 0);
+
+        state.heap = 4096;
+        thread.nextPC = 4;
+        thread.registers[2] = sys.SYS_MMAP; // syscall num
+        thread.registers[4] = 0x0; // a0
+        thread.registers[5] = 4095; // a1
+        updateThreadStacks(state, thread);
+
+        // Set up step data
+        bytes memory threadWitness = abi.encodePacked(encodeThread(thread), EMPTY_THREAD_ROOT);
+        bytes memory encodedState = encodeState(state);
+
+        MIPS2.State memory expect = copyState(state);
+        MIPS2.ThreadState memory expectThread = copyThread(thread);
+        expect.memRoot = state.memRoot;
+        expect.step = state.step + 1;
+        expect.stepsSinceLastContextSwitch = state.stepsSinceLastContextSwitch + 1;
+        expect.heap = state.heap + 4096;
+        expectThread.pc = thread.nextPC;
+        expectThread.nextPC = thread.nextPC + 4;
+        expectThread.registers[2] = state.heap; // return old heap
+        expectThread.registers[7] = 0; // No error
+        updateThreadStacks(expect, expectThread);
+
+        bytes32 postState = mips.step(encodedState, bytes.concat(threadWitness, memProof), 0);
+        assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    function test_mmap_succeeds_justWithinMemLimit() external {
+        uint32 insn = 0x0000000c; // syscall
+        (MIPS2.State memory state, MIPS2.ThreadState memory thread, bytes memory memProof) =
+            constructMIPSState(0, insn, 0x4, 0);
+
+        state.heap = sys.HEAP_END - 4096; // Set up to increase heap to its limit
+        thread.nextPC = 4;
+        thread.registers[2] = sys.SYS_MMAP; // syscall num
+        thread.registers[4] = 0x0; // a0
+        thread.registers[5] = 4095; // a1
+        updateThreadStacks(state, thread);
+
+        // Set up step data
+        bytes memory threadWitness = abi.encodePacked(encodeThread(thread), EMPTY_THREAD_ROOT);
+        bytes memory encodedState = encodeState(state);
+
+        MIPS2.State memory expect = copyState(state);
+        MIPS2.ThreadState memory expectThread = copyThread(thread);
+        expect.memRoot = state.memRoot;
+        expect.step += 1;
+        expect.stepsSinceLastContextSwitch += 1;
+        expect.heap = sys.HEAP_END;
+        expectThread.pc = thread.nextPC;
+        expectThread.nextPC = thread.nextPC + 4;
+        expectThread.registers[2] = state.heap; // Return the old heap value
+        expectThread.registers[7] = 0; // No error
+        updateThreadStacks(expect, expectThread);
+
+        bytes32 postState = mips.step(encodedState, bytes.concat(threadWitness, memProof), 0);
+        assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    function test_mmap_fails() external {
+        uint32 insn = 0x0000000c; // syscall
+        (MIPS2.State memory state, MIPS2.ThreadState memory thread, bytes memory memProof) =
+            constructMIPSState(0, insn, 0x4, 0);
+
+        state.heap = sys.HEAP_END - 4096; // Set up to increase heap beyond its limit
+        thread.nextPC = 4;
+        thread.registers[2] = sys.SYS_MMAP; // syscall num
+        thread.registers[4] = 0x0; // a0
+        thread.registers[5] = 4097; // a1
+        updateThreadStacks(state, thread);
+
+        // Set up step data
+        bytes memory threadWitness = abi.encodePacked(encodeThread(thread), EMPTY_THREAD_ROOT);
+        bytes memory encodedState = encodeState(state);
+
+        MIPS2.State memory expect = copyState(state);
+        MIPS2.ThreadState memory expectThread = copyThread(thread);
+        expect.memRoot = state.memRoot;
+        expect.step += 1;
+        expect.stepsSinceLastContextSwitch += 1;
+        expectThread.pc = thread.nextPC;
+        expectThread.nextPC = thread.nextPC + 4;
+        expectThread.registers[2] = sys.SYS_ERROR_SIGNAL; // signal an stdError
+        expectThread.registers[7] = sys.EINVAL; // Return error value
+        expectThread.registers[4] = thread.registers[4]; // a0
+        expectThread.registers[5] = thread.registers[5]; // a1
+        updateThreadStacks(expect, expectThread);
+
+        bytes32 postState = mips.step(encodedState, bytes.concat(threadWitness, memProof), 0);
+        assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    function test_srav_succeeds() external {
+        uint32 insn = encodespec(0xa, 0x9, 0x8, 7); // srav t0, t1, t2
+        (MIPS2.State memory state, MIPS2.ThreadState memory thread, bytes memory memProof) =
+            constructMIPSState(0, insn, 0x4, 0);
+        thread.registers[9] = 0xdeafbeef; // t1
+        thread.registers[10] = 12; // t2
+        updateThreadStacks(state, thread);
+
+        // Set up step data
+        bytes memory threadWitness = abi.encodePacked(encodeThread(thread), EMPTY_THREAD_ROOT);
+        bytes memory encodedState = encodeState(state);
+
+        MIPS2.State memory expect = copyState(state);
+        MIPS2.ThreadState memory expectThread = copyThread(thread);
+        expect.memRoot = state.memRoot;
+        expect.step += 1;
+        expect.stepsSinceLastContextSwitch += 1;
+        expectThread.pc = thread.nextPC;
+        expectThread.nextPC = thread.nextPC + 4;
+        expectThread.registers[8] = 0xfffdeafb; // t0
+        updateThreadStacks(expect, expectThread);
+
+        bytes32 postState = mips.step(encodedState, bytes.concat(threadWitness, memProof), 0);
+        assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    /// @notice Tests that the SRAV instruction succeeds when it includes extra bits in the shift
+    ///         amount beyond the lower 5 bits that are actually used for the shift. Extra bits
+    ///         need to be ignored but the instruction should still succeed.
+    /// @param _rs Value to set in the shift register $rs.
+    function testFuzz_srav_withExtraBits_succeeds(uint32 _rs) external {
+        // Assume
+        // Force _rs to have more than 5 bits set.
+        _rs = uint32(bound(uint256(_rs), 0x20, type(uint32).max));
+
+        uint32 insn = encodespec(0xa, 0x9, 0x8, 7); // srav t0, t1, t2
+        (MIPS2.State memory state, MIPS2.ThreadState memory thread, bytes memory memProof) =
+            constructMIPSState(0, insn, 0x4, 0);
+        thread.registers[9] = 0xdeadbeef; // t1
+        thread.registers[10] = _rs; // t2
+        updateThreadStacks(state, thread);
+
+        // Set up step data
+        bytes memory threadWitness = abi.encodePacked(encodeThread(thread), EMPTY_THREAD_ROOT);
+        bytes memory encodedState = encodeState(state);
+
+        // Calculate shamt
+        uint32 shamt = thread.registers[10] & 0x1F;
+
+        MIPS2.State memory expect = copyState(state);
+        MIPS2.ThreadState memory expectThread = copyThread(thread);
+        expect.memRoot = state.memRoot;
+        expect.step += 1;
+        expect.stepsSinceLastContextSwitch += 1;
+        expectThread.pc = thread.nextPC;
+        expectThread.nextPC = thread.nextPC + 4;
+        expectThread.registers[8] = ins.signExtend(thread.registers[9] >> shamt, 32 - shamt); // t0
+        updateThreadStacks(expect, expectThread);
+
+        bytes32 postState = mips.step(encodedState, bytes.concat(threadWitness, memProof), 0);
         assertEq(postState, outputState(expect), "unexpected post state");
     }
 
@@ -2175,8 +2365,11 @@ contract MIPS2_Test is CommonTest {
         }
     }
 
-    function outputState(MIPS2.State memory state) internal pure returns (bytes32 out_) {
+    event ExpectedOutputState(bytes encoded, MIPS2.State state);
+
+    function outputState(MIPS2.State memory state) internal returns (bytes32 out_) {
         bytes memory enc = encodeState(state);
+        emit ExpectedOutputState(enc, state);
         VMStatus status = vmStatus(state);
         out_ = keccak256(enc);
         assembly {

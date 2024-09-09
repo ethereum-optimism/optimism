@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
-import { ISemver } from "src/universal/ISemver.sol";
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { Storage } from "src/libraries/Storage.sol";
 
 /// @custom:proxied true

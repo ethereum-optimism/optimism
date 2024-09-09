@@ -65,7 +65,6 @@ contract MIPS_Test is CommonTest {
     ///         invalid (anything greater than 1).
     /// @param _exited Value to set the exited field to.
     function testFuzz_step_invalidExitedValue_fails(uint8 _exited) external {
-        // Assume
         // Make sure the value of _exited is invalid.
         _exited = uint8(bound(uint256(_exited), 2, type(uint8).max));
 
@@ -77,6 +76,7 @@ contract MIPS_Test is CommonTest {
         // Compute the encoded state and manipulate it.
         bytes memory enc = encodeState(state);
         assembly {
+            // Push offset by an additional 32 bytes (0x20) to account for length prefix
             mstore8(add(add(enc, 0x20), 89), _exited)
         }
 
