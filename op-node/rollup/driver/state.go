@@ -296,11 +296,11 @@ func (s *Driver) OnEvent(ev event.Event) bool {
 		}()
 		return true
 	case engine.ForkchoiceUpdateEvent:
-		fmt.Println("fork choice update event")
+		//fmt.Println("fork choice update event")
 		s.forkChoiceUpdated.Broadcast()
 		return true
 	case engine.ForkchoiceRequestEvent:
-		fmt.Println("fork choice request event")
+		//fmt.Println("fork choice request event")
 		s.forkChoiceUpdated.Broadcast()
 		return true
 	default:
