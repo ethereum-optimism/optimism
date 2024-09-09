@@ -9,19 +9,19 @@ import (
 )
 
 func Load[X any](inputPath string) (*X, error) {
-	if IsBinaryState(inputPath) {
+	if IsBinaryFile(inputPath) {
 		return LoadSerializedBinary[X](inputPath)
 	}
 	return jsonutil.LoadJSON[X](inputPath)
 }
 
 func Write[X Serializable](outputPath string, x X, perm os.FileMode) error {
-	if IsBinaryState(outputPath) {
+	if IsBinaryFile(outputPath) {
 		return WriteSerializedBinary(x, ioutil.ToStdOutOrFileOrNoop(outputPath, perm))
 	}
 	return jsonutil.WriteJSON[X](x, ioutil.ToStdOutOrFileOrNoop(outputPath, perm))
 }
 
-func IsBinaryState(path string) bool {
+func IsBinaryFile(path string) bool {
 	return strings.HasSuffix(path, ".bin") || strings.HasSuffix(path, ".bin.gz")
 }

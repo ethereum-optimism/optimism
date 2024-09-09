@@ -32,7 +32,7 @@ type VersionedState interface {
 }
 
 func LoadStateFromFile(path string) (VersionedState, error) {
-	if !serialize.IsBinaryState(path) {
+	if !serialize.IsBinaryFile(path) {
 		// Always use singlethreaded for JSON states
 		state, err := jsonutil.LoadJSON[singlethreaded.State](path)
 		if err != nil {
