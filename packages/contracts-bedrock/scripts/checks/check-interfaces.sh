@@ -8,10 +8,10 @@ set -euo pipefail
 # NOTE: Script is fast enough but could be parallelized if necessary.
 
 # Parse flags
-no_diff=false
-if [[ "${1:-}" == "--no-diff" ]]; then
-    no_diff=true
-fi
+#no_diff=false
+#if [[ "${1:-}" == "--no-diff" ]]; then
+#    no_diff=true
+#fi
 
 # Grab the directory of the contracts-bedrock package
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
