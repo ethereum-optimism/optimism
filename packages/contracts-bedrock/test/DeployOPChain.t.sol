@@ -71,7 +71,7 @@ contract DeployOPChainInput_Test is Test {
         assertEq(address(input.opsm), address(dsi.opsm()), "1100");
 
         // Compare the test input struct to the `input` getter method.
-        assertEq(keccak256(abi.encode(input)), keccak256(abi.encode(dsi.input())), "1100");
+        assertEq(keccak256(abi.encode(input)), keccak256(abi.encode(dsi.input())), "1050");
     }
 
     function test_getters_whenNotSet_revert() public {
