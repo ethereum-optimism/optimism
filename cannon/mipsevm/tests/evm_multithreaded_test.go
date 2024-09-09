@@ -558,6 +558,114 @@ func TestEVM_SysOpen(t *testing.T) {
 	testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), contracts, tracer)
 }
 
+func TestEVM_SysGetPID(t *testing.T) {
+	var tracer *tracing.Hooks
+	goVm, state, contracts := setup(t, 1929)
+
+	state.Memory.SetMemory(state.GetPC(), syscallInsn)
+	state.GetRegistersRef()[2] = exec.SysGetpid // Set syscall number
+	step := state.Step
+
+	// Set up post-state expectations
+	expected := mttestutil.NewExpectedMTState(state)
+	expected.ExpectStep()
+	expected.ActiveThread().Registers[2] = 0
+	expected.ActiveThread().Registers[7] = 0
+
+	// State transition
+	var err error
+	var stepWitness *mipsevm.StepWitness
+	stepWitness, err = goVm.Step(true)
+	require.NoError(t, err)
+
+	// Validate post-state
+	expected.Validate(t, state)
+	testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), contracts, tracer)
+}
+
+func TestEVM_SysClockGettimeMonotonic(t *testing.T) {
+	var tracer *tracing.Hooks
+
+	cases := []struct {
+		name         string
+		timespecAddr uint32
+	}{
+		{"aligned timespec address", 0x1000},
+		{"unaligned timespec address", 0x1003},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			goVm, state, contracts := setup(t, 2101)
+
+			state.Memory.SetMemory(state.GetPC(), syscallInsn)
+			state.GetRegistersRef()[2] = exec.SysClockGetTime           // Set syscall number
+			state.GetRegistersRef()[4] = exec.ClockGettimeMonotonicFlag // a0
+			state.GetRegistersRef()[5] = c.timespecAddr                 // a1
+			step := state.Step
+
+			expected := mttestutil.NewExpectedMTState(state)
+			expected.ExpectStep()
+			expected.ActiveThread().Registers[2] = 0
+			expected.ActiveThread().Registers[7] = 0
+			next := state.Step + 1
+			secs := next / exec.HZ
+			nsecs := (next % exec.HZ) * (1_000_000_000 / exec.HZ)
+			effAddr := c.timespecAddr & 0xFFffFFfc
+			expected.ExpectMemoryWrite(effAddr, uint32(secs))
+			expected.ExpectMemoryWrite(effAddr+4, uint32(nsecs))
+
+			var err error
+			var stepWitness *mipsevm.StepWitness
+			stepWitness, err = goVm.Step(true)
+			require.NoError(t, err)
+
+			// Validate post-state
+			expected.Validate(t, state)
+			testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), contracts, tracer)
+		})
+	}
+}
+
+func TestEVM_SysClockGettimeRealtime(t *testing.T) {
+	testEVM_SysClockGettimeNonMonotonic(t, exec.ClockGettimeRealtimeFlag)
+}
+
+func TestEVM_SysClockGettimeNonMonotonicNotRealtime(t *testing.T) {
+	testEVM_SysClockGettimeNonMonotonic(t, 0xdead)
+}
+
+func testEVM_SysClockGettimeNonMonotonic(t *testing.T, flag uint32) {
+	require.NotEqual(t, uint32(exec.ClockGettimeMonotonicFlag), flag)
+	var ret, errno uint32
+	if flag != exec.ClockGettimeRealtimeFlag {
+		ret, errno = exec.SysErrorSignal, exec.MipsEBADF
+	}
+
+	var tracer *tracing.Hooks
+	goVm, state, contracts := setup(t, 2101)
+
+	timespecAddr := uint32(0x1000)
+	state.Memory.SetMemory(state.GetPC(), syscallInsn)
+	state.GetRegistersRef()[2] = exec.SysClockGetTime // Set syscall number
+	state.GetRegistersRef()[4] = flag                 // a0
+	state.GetRegistersRef()[5] = timespecAddr         // a1
+	step := state.Step
+
+	expected := mttestutil.NewExpectedMTState(state)
+	expected.ExpectStep()
+	expected.ActiveThread().Registers[2] = ret
+	expected.ActiveThread().Registers[7] = errno
+
+	var err error
+	var stepWitness *mipsevm.StepWitness
+	stepWitness, err = goVm.Step(true)
+	require.NoError(t, err)
+
+	// Validate post-state
+	expected.Validate(t, state)
+	testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), contracts, tracer)
+}
+
 var NoopSyscalls = map[string]uint32{
 	"SysGetAffinity":   4240,
 	"SysMadvise":       4218,
@@ -589,7 +697,6 @@ var NoopSyscalls = map[string]uint32{
 	"SysTimerCreate":   4257,
 	"SysTimerSetTime":  4258,
 	"SysTimerDelete":   4261,
-	"SysClockGetTime":  4263,
 }
 
 func TestEVM_NoopSyscall(t *testing.T) {

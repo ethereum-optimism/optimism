@@ -99,6 +99,7 @@ library MIPSSyscalls {
 
     uint32 internal constant SCHED_QUANTUM = 100_000;
     uint32 internal constant HZ = 10_000_000;
+    uint32 internal constant CLOCK_GETTIME_REALTIME_FLAG = 0;
     uint32 internal constant CLOCK_GETTIME_MONOTONIC_FLAG = 1;
     /// @notice Start of the data segment.
     uint32 internal constant PROGRAM_BREAK = 0x40000000;

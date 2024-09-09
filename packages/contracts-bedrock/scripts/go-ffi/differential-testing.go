@@ -359,7 +359,8 @@ func DiffTestUtils() {
 		// Print the output
 		fmt.Print(hexutil.Encode(packed[32:]))
 	case "cannonMemoryProof":
-		// <pc, insn, [memAddr, memValue], [memAddr, memValue]>
+		// <pc, insn, [memAddr, memValue], [memAddr2, memValue2]>
+		// Generates a memory proof of `memAddr` for a trie containing memValue and memValue2
 		mem := memory.NewMemory()
 		if len(args) != 3 && len(args) != 5 && len(args) != 7 {
 			panic("Error: cannonMemoryProofWithProof requires 2, 4, or 6 arguments")
@@ -401,6 +402,7 @@ func DiffTestUtils() {
 		fmt.Print(hexutil.Encode(packed[32:]))
 	case "cannonMemoryProof2":
 		// <pc, insn, [memAddr, memValue], memAddr2>
+		// Generates a memory proof of memAddr2 for a trie containing memValue
 		mem := memory.NewMemory()
 		if len(args) != 6 {
 			panic("Error: cannonMemoryProofWithProof2 requires 5 arguments")

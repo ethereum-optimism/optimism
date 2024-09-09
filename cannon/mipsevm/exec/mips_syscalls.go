@@ -144,7 +144,9 @@ const (
 	// Adjust this value accordingly as the emulation speed changes. The HZ value should be within the same order of magnitude as the emulation speed.
 	HZ = 10_000_000
 
-	// ClockGettimeMonotonicFlag is the id for Linux's monotonic clock: https://github.com/torvalds/linux/blob/ad618736883b8970f66af799e34007475fe33a68/include/uapi/linux/time.h#L50
+	// ClockGettimeRealtimeFlag is the clock_gettime clock id for Linux's realtime clock: https://github.com/torvalds/linux/blob/ad618736883b8970f66af799e34007475fe33a68/include/uapi/linux/time.h#L49
+	ClockGettimeRealtimeFlag = 0
+	// ClockGettimeMonotonicFlag is the clock_gettime clock id for Linux's monotonic clock: https://github.com/torvalds/linux/blob/ad618736883b8970f66af799e34007475fe33a68/include/uapi/linux/time.h#L50
 	ClockGettimeMonotonicFlag = 1
 )
 
