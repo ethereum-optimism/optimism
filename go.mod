@@ -256,7 +256,3 @@ exclude (
 	github.com/kataras/iris/v12 v12.2.0
 	github.com/kataras/iris/v12 v12.2.11
 )
-
-//replace github.com/anacrolix/generics => ../../../ags/generics
-
-//replace github.com/anacrolix/chansync => ../../../ags/chansync

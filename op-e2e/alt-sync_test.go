@@ -49,8 +49,10 @@ func (me altSyncSequencerP2pConfig) ConfigureGossip(rollupCfg *rollup.Config) []
 	return options
 }
 
-// Run this with -ethLogVerbosity=1
-func TestSystemP2PAltSyncExtreme(t *testing.T) {
+// Run this with -ethLogVerbosity=1. This tests many nodes requesting ranges they're missing that
+// aren't available over gossip when only a few nodes have the actual blocks. TestSystemP2PAltSync
+// is the baby version where there's only a single new syncer and many nodes with the blocks.
+func TestSystemP2PAltSyncLongStall(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -63,38 +65,9 @@ func TestSystemP2PAltSyncExtreme(t *testing.T) {
 	// remove default verifier node
 	delete(cfg.Nodes, RoleVerif)
 
-	verifierNodeConfig := rollupNode.Config{
-		Driver: driver.Config{
-			VerifierConfDepth:  0,
-			SequencerConfDepth: 0,
-			SequencerEnabled:   false,
-		},
-		L1EpochPollInterval: time.Second * 4,
-	}
-
+	// This is needed to have SystemConfig.Start set up the sequencer's host for us.
 	g.MakeMap(&cfg.P2PTopology)
-
-	var verifierIds []string
-	addNodeId := func(id string) {
-		cfg.Nodes[id] = &verifierNodeConfig
-		cfg.Loggers[id] = testlog.Logger(t, log.LevelWarn).New("role", id)
-		cfg.P2PTopology[RoleSeq] = append(cfg.P2PTopology[RoleSeq], id)
-		for _, vId := range verifierIds {
-			cfg.P2PTopology[vId] = append(cfg.P2PTopology[vId], id)
-		}
-		cfg.P2PTopology[id] = append(slices.Clone(verifierIds), RoleSeq)
-		verifierIds = append(verifierIds, id)
-	}
-
-	//addNode := func(i int) {
-	//	id := strconv.FormatInt(int64(i), 10)
-	//	addNodeId(id)
-	//}
-
-	// Add more verifier nodes
-	addNodeId("alice")
-	addNodeId("bob")
-	//addNode(1)
+	cfg.P2PTopology[RoleSeq] = nil
 
 	// Enable the P2P req-resp based sync
 	cfg.P2PReqRespSync.Enabled = true
@@ -145,12 +118,8 @@ func TestSystemP2PAltSyncExtreme(t *testing.T) {
 
 	assert.EqualValues(t, cfg.DeployConfig.L2BlockTime, 1)
 
-	// Gossip is able to respond to IWANT messages for the duration of heartbeat_time *
-	// message_window = 0.5 * 12 = 6 Wait till we pass that, and then we'll have missed some blocks
-	// that cannot be retrieved in any way from gossip
-	//time.Sleep(time.Second * 4)
-
-	// Wait until the receipt is in a block that can't be gossipped out.
+	// Gossip has been limited to a single block, so now we wait until the block for which we hold
+	// the receipt is no longer available in the sequencer's outbound gossip window.
 	targetPublishedLen := receiptSeq.BlockNumber.Int64() + sequencerOutboundQueueSize + 1
 	for {
 		blocksPublished := int64(len(getPublished()))
@@ -163,10 +132,6 @@ func TestSystemP2PAltSyncExtreme(t *testing.T) {
 	// Give time for the outbound gossip queues to lose messages.
 	time.Sleep(time.Second)
 	t.Logf("starting syncers after %v blocks published", len(getPublished()))
-	//assert.Greater(t, int64(len(getPublished())), receiptSeq.BlockNumber.Int64()+sequencerOutboundQueueSize)
-
-	// set up our syncer node, connect it to alice/bob
-	cfg.Loggers["syncer"] = testlog.Logger(t, log.LevelWarn).New("role", "syncer")
 
 	var syncers []*syncerType
 
@@ -184,6 +149,7 @@ func TestSystemP2PAltSyncExtreme(t *testing.T) {
 		syncers = append(syncers, newSyncer)
 	}
 
+	// Approximately mirroring the replica count in prod.
 	for i := range iter.N(15) {
 		addSyncer(i)
 	}
