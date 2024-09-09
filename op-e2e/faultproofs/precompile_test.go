@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/cannon/serialize"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -15,7 +15,6 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
@@ -261,9 +260,9 @@ func runCannon(t *testing.T, ctx context.Context, sys *op_e2e.System, inputs uti
 	err := executor.DoGenerateProof(ctx, proofsDir, math.MaxUint, math.MaxUint, extraVmArgs...)
 	require.NoError(t, err, "failed to generate proof")
 
-	state, err := serialize.Load[singlethreaded.State](vm.FinalStatePath(proofsDir, cfg.Cannon.BinarySnapshots))
+	state, err := versions.LoadStateFromFile(vm.FinalStatePath(proofsDir, cfg.Cannon.BinarySnapshots))
 	require.NoError(t, err, "failed to parse state")
-	require.True(t, state.Exited, "cannon did not exit")
-	require.Zero(t, state.ExitCode, "cannon failed with exit code %d", state.ExitCode)
-	t.Logf("Completed in %d steps", state.Step)
+	require.True(t, state.GetExited(), "cannon did not exit")
+	require.Zero(t, state.GetExitCode(), "cannon failed with exit code %d", state.GetExitCode())
+	t.Logf("Completed in %d steps", state.GetStep())
 }

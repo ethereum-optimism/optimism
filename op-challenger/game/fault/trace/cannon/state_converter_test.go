@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 	"github.com/ethereum-optimism/optimism/cannon/serialize"
 	"github.com/stretchr/testify/require"
 
@@ -26,9 +27,8 @@ func TestLoadState(t *testing.T) {
 		state, err := parseState(path)
 		require.NoError(t, err)
 
-		var expected singlethreaded.State
-		require.NoError(t, json.Unmarshal(testState, &expected))
-		require.Equal(t, &expected, state)
+		expected := loadExpectedState(t)
+		require.Equal(t, expected, state)
 	})
 
 	t.Run("Gzipped", func(t *testing.T) {
@@ -45,34 +45,42 @@ func TestLoadState(t *testing.T) {
 		state, err := parseState(path)
 		require.NoError(t, err)
 
-		var expected singlethreaded.State
-		require.NoError(t, json.Unmarshal(testState, &expected))
-		require.Equal(t, &expected, state)
+		expected := loadExpectedState(t)
+		require.Equal(t, expected, state)
 	})
 
 	t.Run("Binary", func(t *testing.T) {
-		var expected singlethreaded.State
-		require.NoError(t, json.Unmarshal(testState, &expected))
+		expected := loadExpectedState(t)
 
-		dir := t.TempDir()
-		path := filepath.Join(dir, "state.bin")
-		require.NoError(t, serialize.Write[*singlethreaded.State](path, &expected, 0644))
+		path := writeState(t, "state.bin", expected)
 
 		state, err := parseState(path)
 		require.NoError(t, err)
-		require.Equal(t, &expected, state)
+		require.Equal(t, expected, state)
 	})
 
 	t.Run("BinaryGzip", func(t *testing.T) {
-		var expected singlethreaded.State
-		require.NoError(t, json.Unmarshal(testState, &expected))
+		expected := loadExpectedState(t)
 
-		dir := t.TempDir()
-		path := filepath.Join(dir, "state.bin.gz")
-		require.NoError(t, serialize.Write[*singlethreaded.State](path, &expected, 0644))
+		path := writeState(t, "state.bin.gz", expected)
 
 		state, err := parseState(path)
 		require.NoError(t, err)
-		require.Equal(t, &expected, state)
+		require.Equal(t, expected, state)
 	})
+}
+
+func writeState(t *testing.T, filename string, state versions.VersionedState) string {
+	dir := t.TempDir()
+	path := filepath.Join(dir, filename)
+	require.NoError(t, serialize.Write(path, state, 0644))
+	return path
+}
+
+func loadExpectedState(t *testing.T) versions.VersionedState {
+	var expected singlethreaded.State
+	require.NoError(t, json.Unmarshal(testState, &expected))
+	state, err := versions.NewFromState(&expected)
+	require.NoError(t, err)
+	return state
 }
