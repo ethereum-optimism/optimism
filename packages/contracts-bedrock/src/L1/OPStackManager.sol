@@ -200,7 +200,7 @@ contract OPStackManager is ISemver {
         bytes32 salt = bytes32(_input.l2ChainId);
         DeployOutput memory output;
 
-        // -------- Deploy Proxy Contracts --------
+        // -------- Deploy Chain Singletons --------
 
         // The ProxyAdmin is the owner of all proxies for the chain. We temporarily set the owner to
         // this contract, and then transfer ownership to the specified owner at the end of deployment.
@@ -210,6 +210,8 @@ contract OPStackManager is ISemver {
         output.opChainProxyAdmin =
             ProxyAdmin(Blueprint.deployFrom(blueprint.proxyAdmin, salt, abi.encode(address(this))));
         output.opChainProxyAdmin.setAddressManager(output.addressManager);
+
+        // -------- Deploy Proxy Contracts --------
 
         // Deploy ERC-1967 proxied contracts.
         output.l1ERC721BridgeProxy = L1ERC721Bridge(deployProxy(l2ChainId, output.opChainProxyAdmin, "L1ERC721Bridge"));
