@@ -29,7 +29,7 @@
   },
   "src/L1/L2OutputOracle.sol": {
     "initCodeHash": "0x433fac9de52d8ce8fc3471b78ef6cc9cff1019f480c9ad91b6e09ab8738a8edb",
-    "sourceCodeHash": "0xc11a2a514a051bdc82b21ec39c7b923145d384629adb1efc52b534f3c686f6a0"
+    "sourceCodeHash": "0xde4df0f9633dc0cdb1c9f634003ea5b0f7c5c1aebc407bc1b2f44c0ecf938649"
   },
   "src/L1/OPStackManager.sol": {
     "initCodeHash": "0x67bf02405bf1ca7d78c4215c350ad9c5c7b4cece35d9fab837f279d65f995c5d",
@@ -37,7 +37,7 @@
   },
   "src/L1/OptimismPortal.sol": {
     "initCodeHash": "0x6bf59539298b20221de6c51db21016be8d3278bdbe0be1cdd49638dc828e003e",
-    "sourceCodeHash": "0xad97b31e3855ad0af82a0fc80db9773b7eacc85215611854dcc54f60f97f06bf"
+    "sourceCodeHash": "0x07f6f4c0cc14be4aeb9a29ec4a238ea3748d5cb6b244e0054845a18308c16ab5"
   },
   "src/L1/OptimismPortal2.sol": {
     "initCodeHash": "0x414ad1fdb6296ac32fc67ce01288b6e67bedd2ed239d7eb8ed40c7f55f9021f2",

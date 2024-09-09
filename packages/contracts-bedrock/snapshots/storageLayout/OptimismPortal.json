@@ -67,7 +67,7 @@
     "label": "l2Oracle",
     "offset": 0,
     "slot": "54",
-    "type": "contract L2OutputOracle"
+    "type": "contract IL2OutputOracle"
   },
   {
     "bytes": "20",

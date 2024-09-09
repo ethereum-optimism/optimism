@@ -8,7 +8,7 @@ import { Deployer } from "scripts/deploy/Deployer.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
-import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
+import { IL2OutputOracle } from "src/L1/interfaces/IL2OutputOracle.sol";
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
 import { ProtocolVersion, ProtocolVersions } from "src/L1/ProtocolVersions.sol";
@@ -245,7 +245,7 @@ library ChainAssertions {
         view
     {
         console.log("Running chain assertions on the L2OutputOracle");
-        L2OutputOracle oracle = L2OutputOracle(_contracts.L2OutputOracle);
+        IL2OutputOracle oracle = IL2OutputOracle(_contracts.L2OutputOracle);
 
         // Check that the contract is initialized
         assertSlotValueIsOne({ _contractAddress: address(oracle), _slot: 0, _offset: 0 });
