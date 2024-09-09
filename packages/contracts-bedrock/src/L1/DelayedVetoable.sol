@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
+import { IDelayedVetoable } from "src/L1/interfaces/IDelayedVetoable.sol";
 
 /// @title DelayedVetoable
 /// @notice This contract enables a delay before a call is forwarded to a target contract, and during the delay period
@@ -10,7 +11,7 @@ import { ISemver } from "src/universal/interfaces/ISemver.sol";
 ///         Additionally, this contract cannot be used to forward calls with data beginning with the function selector
 ///         of the queuedAt(bytes32) function. This is because of input validation checks which solidity performs at
 ///         runtime on functions which take an argument.
-contract DelayedVetoable is ISemver {
+contract DelayedVetoable is IDelayedVetoable, ISemver {
     /// @notice Error for when attempting to forward too early.
     error ForwardingEarly();
 
