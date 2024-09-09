@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
-/// @custom:legacy
+/// @custom:legacy true
 /// @title AddressManager
 /// @notice AddressManager is a legacy contract that was used in the old version of the Optimism
 ///         system to manage a registry of string names to addresses. We now use a more standard

@@ -390,8 +390,13 @@ func TestNetworkNotifyAddPeerAndRemovePeer(t *testing.T) {
 
 	// wait for async removing process done
 	<-waitChan
+	syncCl.peersLock.Lock()
+	// Technically this can't fail since SyncClient.RemovePeer also deletes from the
+	// SyncClient.peers, so unless that action is deferred to SyncClient.peerLoop it's not very
+	// interesting.
 	_, peerBExist3 := syncCl.peers[hostB.ID()]
-	require.True(t, !peerBExist3, "peerB should not exist in syncClient")
+	syncCl.peersLock.Unlock()
+	require.False(t, peerBExist3, "peerB should not exist in syncClient")
 }
 
 func TestPanicGuard(t *testing.T) {

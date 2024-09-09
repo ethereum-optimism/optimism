@@ -548,7 +548,7 @@ func requireContains(t *testing.T, db *DB, blockNum uint64, logIdx uint32, logHa
 	require.LessOrEqual(t, len(execMsg), 1, "cannot have multiple executing messages for a single log")
 	m, ok := db.m.(*stubMetrics)
 	require.True(t, ok, "Did not get the expected metrics type")
-	result, err := db.Contains(blockNum, logIdx, types.TruncateHash(logHash))
+	result, _, err := db.Contains(blockNum, logIdx, types.TruncateHash(logHash))
 	require.NoErrorf(t, err, "Error searching for log %v in block %v", logIdx, blockNum)
 	require.Truef(t, result, "Did not find log %v in block %v with hash %v", logIdx, blockNum, logHash)
 	require.LessOrEqual(t, m.entriesReadForSearch, int64(searchCheckpointFrequency), "Should not need to read more than between two checkpoints")
@@ -564,7 +564,7 @@ func requireContains(t *testing.T, db *DB, blockNum uint64, logIdx uint32, logHa
 func requireNotContains(t *testing.T, db *DB, blockNum uint64, logIdx uint32, logHash common.Hash) {
 	m, ok := db.m.(*stubMetrics)
 	require.True(t, ok, "Did not get the expected metrics type")
-	result, err := db.Contains(blockNum, logIdx, types.TruncateHash(logHash))
+	result, _, err := db.Contains(blockNum, logIdx, types.TruncateHash(logHash))
 	require.NoErrorf(t, err, "Error searching for log %v in block %v", logIdx, blockNum)
 	require.Falsef(t, result, "Found unexpected log %v in block %v with hash %v", logIdx, blockNum, logHash)
 	require.LessOrEqual(t, m.entriesReadForSearch, int64(searchCheckpointFrequency), "Should not need to read more than between two checkpoints")
@@ -584,10 +584,10 @@ func requireExecutingMessage(t *testing.T, db *DB, blockNum uint64, logIdx uint3
 	require.NotZero(t, m.entriesReadForSearch, "Must read at least some entries to find the log")
 }
 
-func requireWrongHash(t *testing.T, db *DB, blockNum uint64, logIdx uint32, logHash common.Hash, execMsg types.ExecutingMessage) {
+func requireWrongHash(t *testing.T, db *DB, blockNum uint64, logIdx uint32, logHash common.Hash, _ types.ExecutingMessage) {
 	m, ok := db.m.(*stubMetrics)
 	require.True(t, ok, "Did not get the expected metrics type")
-	result, err := db.Contains(blockNum, logIdx, types.TruncateHash(logHash))
+	result, _, err := db.Contains(blockNum, logIdx, types.TruncateHash(logHash))
 	require.NoErrorf(t, err, "Error searching for log %v in block %v", logIdx, blockNum)
 	require.Falsef(t, result, "Found unexpected log %v in block %v with hash %v", logIdx, blockNum, logHash)
 

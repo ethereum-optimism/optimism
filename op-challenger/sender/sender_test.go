@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
 )
@@ -168,6 +169,10 @@ func (s *stubTxMgr) From() common.Address {
 
 func (s *stubTxMgr) BlockNumber(_ context.Context) (uint64, error) {
 	panic("unsupported")
+}
+
+func (s *stubTxMgr) API() rpc.API {
+	panic("unimplemented")
 }
 
 func (s *stubTxMgr) Close() {

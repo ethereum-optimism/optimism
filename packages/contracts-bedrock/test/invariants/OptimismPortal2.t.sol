@@ -16,6 +16,7 @@ import { Types } from "src/libraries/Types.sol";
 
 import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
 import "src/dispute/lib/Types.sol";
+import "src/libraries/PortalErrors.sol";
 
 contract OptimismPortal2_Depositor is StdUtils, ResourceMetering {
     Vm internal vm;
@@ -209,7 +210,7 @@ contract OptimismPortal2_CannotFinalizeTwice is OptimismPortal2_Invariant_Harnes
     ///                   Ensures that there is no chain of calls that can be made that allows a withdrawal to be
     ///                   finalized twice.
     function invariant_cannotFinalizeTwice() external {
-        vm.expectRevert("OptimismPortal: withdrawal has already been finalized");
+        vm.expectRevert(AlreadyFinalized.selector);
         optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
     }
 }

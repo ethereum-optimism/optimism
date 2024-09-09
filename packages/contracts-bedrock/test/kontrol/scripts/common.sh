@@ -35,6 +35,7 @@ usage_make_summary() {
 
 # Set Run Directory <root>/packages/contracts-bedrock
 WORKSPACE_DIR=$( cd "$SCRIPT_HOME/../../.." >/dev/null 2>&1 && pwd )
+pushd "$WORKSPACE_DIR" > /dev/null || exit
 
 # Variables
 export KONTROL_FP_DEPLOYMENT="${KONTROL_FP_DEPLOYMENT:-false}"
@@ -111,7 +112,6 @@ parse_first_arg() {
     export LOCAL=true
     export SCRIPT_TESTS=$SCRIPT_OPTION
     export CUSTOM_TESTS=$CUSTOM_OPTION
-    pushd "$WORKSPACE_DIR" > /dev/null || exit
   elif [ "$1" == "script" ]; then
     notif "Running in docker container (DEFAULT)"
     export LOCAL=false
@@ -130,7 +130,6 @@ check_kontrol_version() {
   if [ "$(kontrol version | awk -F': ' '{print$2}')" == "$KONTROLRC" ]; then
     notif "Kontrol version matches $KONTROLRC"
     export LOCAL=true
-    pushd "$WORKSPACE_DIR" > /dev/null || exit
   else
     notif "Kontrol version does NOT match $KONTROLRC"
     notif "Please run 'kup install kontrol --version v$KONTROLRC'"
@@ -182,10 +181,15 @@ copy_to_docker() {
 }
 
 clean_docker(){
-  notif "Stopping Docker Container"
-  docker stop "$CONTAINER_NAME"
+  if [ "$LOCAL" = false ]; then
+    notif "Cleaning Docker Container"
+    docker stop "$CONTAINER_NAME" > /dev/null 2>&1 || true
+    docker rm "$CONTAINER_NAME" > /dev/null 2>&1 || true
+    sleep 2 # Give time for system to clean up container
+  else
+    notif "Not Running in Container. Done."
+  fi
 }
-
 
 docker_exec () {
   docker exec --user user --workdir /home/user/workspace $CONTAINER_NAME "${@}"
@@ -200,4 +204,5 @@ run () {
     notif "Running in docker"
     docker_exec "${@}"
   fi
+  return $? # Return the exit code of the command
 }

@@ -96,9 +96,12 @@ type Config struct {
 	CannonAbsolutePreStateBaseURL *url.URL // Base URL to retrieve absolute pre-states for Cannon traces from
 
 	// Specific to the asterisc trace provider
-	Asterisc                        vm.Config
-	AsteriscAbsolutePreState        string   // File to load the absolute pre-state for Asterisc traces from
-	AsteriscAbsolutePreStateBaseURL *url.URL // Base URL to retrieve absolute pre-states for Asterisc traces from
+	Asterisc                            vm.Config
+	AsteriscAbsolutePreState            string   // File to load the absolute pre-state for Asterisc traces from
+	AsteriscAbsolutePreStateBaseURL     *url.URL // Base URL to retrieve absolute pre-states for Asterisc traces from
+	AsteriscKona                        vm.Config
+	AsteriscKonaAbsolutePreState        string   // File to load the absolute pre-state for AsteriscKona traces from
+	AsteriscKonaAbsolutePreStateBaseURL *url.URL // Base URL to retrieve absolute pre-states for AsteriscKona traces from
 
 	MaxPendingTx uint64 // Maximum number of pending transactions (0 == no limit)
 
@@ -136,15 +139,25 @@ func NewConfig(
 		Datadir: datadir,
 
 		Cannon: vm.Config{
-			VmType:       types.TraceTypeCannon,
-			L1:           l1EthRpc,
-			L1Beacon:     l1BeaconApi,
-			L2:           l2EthRpc,
-			SnapshotFreq: DefaultCannonSnapshotFreq,
-			InfoFreq:     DefaultCannonInfoFreq,
+			VmType:          types.TraceTypeCannon,
+			L1:              l1EthRpc,
+			L1Beacon:        l1BeaconApi,
+			L2:              l2EthRpc,
+			SnapshotFreq:    DefaultCannonSnapshotFreq,
+			InfoFreq:        DefaultCannonInfoFreq,
+			DebugInfo:       true,
+			BinarySnapshots: true,
 		},
 		Asterisc: vm.Config{
 			VmType:       types.TraceTypeAsterisc,
+			L1:           l1EthRpc,
+			L1Beacon:     l1BeaconApi,
+			L2:           l2EthRpc,
+			SnapshotFreq: DefaultAsteriscSnapshotFreq,
+			InfoFreq:     DefaultAsteriscInfoFreq,
+		},
+		AsteriscKona: vm.Config{
+			VmType:       types.TraceTypeAsteriscKona,
 			L1:           l1EthRpc,
 			L1Beacon:     l1BeaconApi,
 			L2:           l2EthRpc,

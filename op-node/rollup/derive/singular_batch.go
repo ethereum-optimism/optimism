@@ -23,7 +23,7 @@ type SingularBatch struct {
 	ParentHash   common.Hash  // parent L2 block hash
 	EpochNum     rollup.Epoch // aka l1 num
 	EpochHash    common.Hash  // l1 block hash
-	Timestamp    uint64
+	Timestamp    uint64       // l2 block timestamp
 	Transactions []hexutil.Bytes
 }
 

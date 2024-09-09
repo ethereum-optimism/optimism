@@ -34,14 +34,14 @@ const defaultFinalityLookback = 4*32 + 1
 // We do not want to do this too often, since it requires fetching a L1 block by number, so no cache data.
 const finalityDelay = 64
 
-// calcFinalityLookback calculates the default finality lookback based on DA challenge window if plasma
+// calcFinalityLookback calculates the default finality lookback based on DA challenge window if altDA
 // mode is activated or L1 finality lookback.
 func calcFinalityLookback(cfg *rollup.Config) uint64 {
 	// in alt-da mode the longest finality lookback is a commitment is challenged on the last block of
 	// the challenge window in which case it will be both challenge + resolve window.
-	if cfg.PlasmaEnabled() {
-		lkb := cfg.PlasmaConfig.DAChallengeWindow + cfg.PlasmaConfig.DAResolveWindow + 1
-		// in the case only if the plasma windows are longer than the default finality lookback
+	if cfg.AltDAEnabled() {
+		lkb := cfg.AltDAConfig.DAChallengeWindow + cfg.AltDAConfig.DAResolveWindow + 1
+		// in the case only if the altDA windows are longer than the default finality lookback
 		if lkb > defaultFinalityLookback {
 			return lkb
 		}

@@ -58,7 +58,7 @@
   "respectedGameType": 0,
   "useFaultProofs": false,
   "fundDevAccounts": true,
-  "usePlasma": false,
+  "useAltDA": false,
   "daChallengeWindow": 100,
   "daResolveWindow": 100,
   "daBondSize": 1000,

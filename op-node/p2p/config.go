@@ -48,6 +48,7 @@ type HostMetrics interface {
 // SetupP2P provides a host and discovery service for usage in the rollup node.
 type SetupP2P interface {
 	Check() error
+	// Looks like this was started to prevent partially inited p2p.
 	Disabled() bool
 	// Host creates a libp2p host service. Returns nil, nil if p2p is disabled.
 	Host(log log.Logger, reporter metrics.Reporter, metrics HostMetrics) (host.Host, error)

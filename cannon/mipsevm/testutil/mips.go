@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"math"
@@ -8,7 +9,9 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/stretchr/testify/require"
 
@@ -28,17 +31,21 @@ type MIPSEVM struct {
 	lastStepInput []byte
 }
 
-func NewMIPSEVM(artifacts *Artifacts, addrs *Addresses) *MIPSEVM {
-	env, evmState := NewEVMEnv(artifacts, addrs)
-	return &MIPSEVM{env, evmState, addrs, nil, artifacts, math.MaxUint64, nil}
+func NewMIPSEVM(contracts *ContractMetadata) *MIPSEVM {
+	env, evmState := NewEVMEnv(contracts)
+	return &MIPSEVM{env, evmState, contracts.Addresses, nil, contracts.Artifacts, math.MaxUint64, nil}
 }
 
-func (m *MIPSEVM) SetTracer(tracer vm.EVMLogger) {
+func (m *MIPSEVM) SetTracer(tracer *tracing.Hooks) {
 	m.env.Config.Tracer = tracer
 }
 
 func (m *MIPSEVM) SetLocalOracle(oracle mipsevm.PreimageOracle) {
 	m.localOracle = oracle
+}
+
+func (m *MIPSEVM) SetSourceMapTracer(t *testing.T, version MipsVersion) {
+	m.env.Config.Tracer = SourceMapTracer(t, version, m.artifacts.MIPS, m.artifacts.Oracle, m.addrs)
 }
 
 // Step is a pure function that computes the poststate from the VM state encoded in the StepWitness.
@@ -120,11 +127,13 @@ func EncodePreimageOracleInput(t *testing.T, wit *mipsevm.StepWitness, localCont
 		}
 		preimage := localOracle.GetPreimage(preimage.Keccak256Key(wit.PreimageKey).PreimageKey())
 		precompile := common.BytesToAddress(preimage[:20])
-		callInput := preimage[20:]
+		requiredGas := binary.BigEndian.Uint64(preimage[20:28])
+		callInput := preimage[28:]
 		input, err := oracle.ABI.Pack(
 			"loadPrecompilePreimagePart",
 			new(big.Int).SetUint64(uint64(wit.PreimageOffset)),
 			precompile,
+			requiredGas,
 			callInput,
 		)
 		require.NoError(t, err)
@@ -142,4 +151,36 @@ func LogStepFailureAtCleanup(t *testing.T, mipsEvm *MIPSEVM) {
 			t.Logf("Failed while executing step %d with input: %x", mipsEvm.lastStep, mipsEvm.lastStepInput)
 		}
 	})
+}
+
+// ValidateEVM runs a single evm step and validates against an FPVM poststate
+func ValidateEVM(t *testing.T, stepWitness *mipsevm.StepWitness, step uint64, goVm mipsevm.FPVM, hashFn mipsevm.HashFn, contracts *ContractMetadata, tracer *tracing.Hooks) {
+	evm := NewMIPSEVM(contracts)
+	evm.SetTracer(tracer)
+	LogStepFailureAtCleanup(t, evm)
+
+	evmPost := evm.Step(t, stepWitness, step, hashFn)
+	goPost, _ := goVm.GetState().EncodeWitness()
+	require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
+		"mipsevm produced different state than EVM")
+}
+
+// AssertEVMReverts runs a single evm step from an FPVM prestate and asserts that the VM panics
+func AssertEVMReverts(t *testing.T, state mipsevm.FPVMState, contracts *ContractMetadata, tracer *tracing.Hooks) {
+	insnProof := state.GetMemory().MerkleProof(state.GetPC())
+	encodedWitness, _ := state.EncodeWitness()
+	stepWitness := &mipsevm.StepWitness{
+		State:     encodedWitness,
+		ProofData: insnProof[:],
+	}
+	input := EncodeStepInput(t, stepWitness, mipsevm.LocalContext{}, contracts.Artifacts.MIPS)
+	startingGas := uint64(30_000_000)
+
+	env, evmState := NewEVMEnv(contracts)
+	env.Config.Tracer = tracer
+	sender := common.Address{0x13, 0x37}
+	_, _, err := env.Call(vm.AccountRef(sender), contracts.Addresses.MIPS, input, startingGas, common.U2560)
+	require.EqualValues(t, err, vm.ErrExecutionReverted)
+	logs := evmState.Logs()
+	require.Equal(t, 0, len(logs))
 }

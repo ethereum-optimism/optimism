@@ -52,11 +52,10 @@ func TestCheckFjordScript(t *testing.T) {
 
 			sys, err := cfg.Start(t)
 			require.NoError(t, err, "Error starting up system")
-			defer sys.Close()
 
 			checkFjordConfig := &fjordChecks.CheckFjordConfig{
 				Log:  log,
-				L2:   sys.Clients["sequencer"],
+				L2:   sys.NodeClient("sequencer"),
 				Key:  sys.Cfg.Secrets.Alice,
 				Addr: sys.Cfg.Secrets.Addresses().Alice,
 			}

@@ -21,6 +21,8 @@ func TestVMContract_Oracle(t *testing.T) {
 	vmContract := NewVMContract(vmAddr, batching.NewMultiCaller(stubRpc, batching.DefaultBatchSize))
 
 	stubRpc.SetResponse(vmAddr, methodOracle, rpcblock.Latest, nil, []interface{}{oracleAddr})
+	stubRpc.AddContract(oracleAddr, snapshots.LoadPreimageOracleABI())
+	stubRpc.SetResponse(oracleAddr, methodVersion, rpcblock.Latest, nil, []interface{}{oracleLatest})
 
 	oracleContract, err := vmContract.Oracle(context.Background())
 	require.NoError(t, err)

@@ -4,10 +4,10 @@ pragma solidity 0.8.15;
 import { Script } from "forge-std/Script.sol";
 import { console2 as console } from "forge-std/console2.sol";
 import { stdJson } from "forge-std/StdJson.sol";
-import { Executables } from "scripts/Executables.sol";
+import { Executables } from "scripts/libraries/Executables.sol";
 import { Process } from "scripts/libraries/Process.sol";
-import { Chains } from "scripts/Chains.sol";
-import { Config, Fork, ForkUtils } from "scripts/Config.sol";
+import { Chains } from "scripts/libraries/Chains.sol";
+import { Config, Fork, ForkUtils } from "scripts/libraries/Config.sol";
 
 /// @title DeployConfig
 /// @notice Represents the configuration required to deploy the system. It is expected
@@ -30,6 +30,7 @@ contract DeployConfig is Script {
     uint256 public l2GenesisDeltaTimeOffset;
     uint256 public l2GenesisEcotoneTimeOffset;
     uint256 public l2GenesisFjordTimeOffset;
+    uint256 public l2GenesisGraniteTimeOffset;
     uint256 public maxSequencerDrift;
     uint256 public sequencerWindowSize;
     uint256 public channelTimeout;
@@ -79,7 +80,7 @@ contract DeployConfig is Script {
     uint256 public disputeGameFinalityDelaySeconds;
     uint256 public respectedGameType;
     bool public useFaultProofs;
-    bool public usePlasma;
+    bool public useAltDA;
     string public daCommitmentType;
     uint256 public daChallengeWindow;
     uint256 public daResolveWindow;
@@ -108,6 +109,7 @@ contract DeployConfig is Script {
         l2GenesisDeltaTimeOffset = _readOr(_json, "$.l2GenesisDeltaTimeOffset", NULL_OFFSET);
         l2GenesisEcotoneTimeOffset = _readOr(_json, "$.l2GenesisEcotoneTimeOffset", NULL_OFFSET);
         l2GenesisFjordTimeOffset = _readOr(_json, "$.l2GenesisFjordTimeOffset", NULL_OFFSET);
+        l2GenesisGraniteTimeOffset = _readOr(_json, "$.l2GenesisGraniteTimeOffset", NULL_OFFSET);
 
         maxSequencerDrift = stdJson.readUint(_json, "$.maxSequencerDrift");
         sequencerWindowSize = stdJson.readUint(_json, "$.sequencerWindowSize");
@@ -163,7 +165,7 @@ contract DeployConfig is Script {
         preimageOracleMinProposalSize = stdJson.readUint(_json, "$.preimageOracleMinProposalSize");
         preimageOracleChallengePeriod = stdJson.readUint(_json, "$.preimageOracleChallengePeriod");
 
-        usePlasma = _readOr(_json, "$.usePlasma", false);
+        useAltDA = _readOr(_json, "$.useAltDA", false);
         daCommitmentType = _readOr(_json, "$.daCommitmentType", "KeccakCommitment");
         daChallengeWindow = _readOr(_json, "$.daChallengeWindow", 1000);
         daResolveWindow = _readOr(_json, "$.daResolveWindow", 1000);
@@ -216,9 +218,9 @@ contract DeployConfig is Script {
         return uint256(_l2OutputOracleStartingTimestamp);
     }
 
-    /// @notice Allow the `usePlasma` config to be overridden in testing environments
-    function setUsePlasma(bool _usePlasma) public {
-        usePlasma = _usePlasma;
+    /// @notice Allow the `useAltDA` config to be overridden in testing environments
+    function setUseAltDA(bool _useAltDA) public {
+        useAltDA = _useAltDA;
     }
 
     /// @notice Allow the `useFaultProofs` config to be overridden in testing environments
@@ -243,7 +245,9 @@ contract DeployConfig is Script {
     }
 
     function latestGenesisFork() internal view returns (Fork) {
-        if (l2GenesisFjordTimeOffset == 0) {
+        if (l2GenesisGraniteTimeOffset == 0) {
+            return Fork.GRANITE;
+        } else if (l2GenesisFjordTimeOffset == 0) {
             return Fork.FJORD;
         } else if (l2GenesisEcotoneTimeOffset == 0) {
             return Fork.ECOTONE;

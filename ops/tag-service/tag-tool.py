@@ -11,7 +11,6 @@ SERVICES  = [
     'op-dispute-mon',
     'op-proposer',
     'da-server',
-    'op-heartbeat',
     'op-contracts',
     'test',
     'op-stack', # special case for tagging op-node, op-batcher, and op-proposer together

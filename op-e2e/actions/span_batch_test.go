@@ -132,6 +132,11 @@ func TestHardforkMiddleOfSpanBatch(gt *testing.T) {
 	// Activate HF in the middle of the first epoch
 	deltaOffset := hexutil.Uint64(6)
 	applyDeltaTimeOffset(dp, &deltaOffset)
+	// Applies to HF that goes into Delta. Otherwise we end up with more upgrade txs and things during this case.
+	dp.DeployConfig.L2GenesisEcotoneTimeOffset = nil
+	dp.DeployConfig.L2GenesisFjordTimeOffset = nil
+	dp.DeployConfig.L2GenesisGraniteTimeOffset = nil
+
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LevelError)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)

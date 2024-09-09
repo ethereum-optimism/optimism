@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"math/big"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -127,20 +128,27 @@ func TestAgent_SelectiveClaimResolution(t *testing.T) {
 		},
 	}
 
-	for _, test := range tests {
-		test := test
-		t.Run(test.name, func(t *testing.T) {
+	for _, tCase := range tests {
+		tCase := tCase
+		t.Run(tCase.name, func(t *testing.T) {
 			agent, claimLoader, responder := setupTestAgent(t)
-			agent.selective = test.selective
-			agent.claimants = test.claimants
+			agent.selective = tCase.selective
+			agent.claimants = tCase.claimants
 			claimLoader.maxLoads = 1
-			claimLoader.claims = test.claims
-			responder.callResolveStatus = test.callResolveStatus
+			if tCase.selective {
+				claimLoader.maxLoads = 0
+			}
+			claimLoader.claims = tCase.claims
+			responder.callResolveStatus = tCase.callResolveStatus
 
 			require.NoError(t, agent.Act(ctx))
 
-			require.Equal(t, test.expectedResolveCount, responder.callResolveClaimCount, "should check if game is resolvable")
-			require.Equal(t, test.expectedResolveCount, responder.resolveClaimCount, "should check if game is resolvable")
+			require.Equal(t, tCase.expectedResolveCount, responder.callResolveClaimCount, "should check if game is resolvable")
+			require.Equal(t, tCase.expectedResolveCount, responder.resolveClaimCount, "should check if game is resolvable")
+			if tCase.selective {
+				require.Equal(t, 0, responder.callResolveCount, "should not resolve game in selective mode")
+				require.Equal(t, 0, responder.resolveCount, "should not resolve game in selective mode")
+			}
 		})
 	}
 }
@@ -230,6 +238,7 @@ type stubResponder struct {
 	callResolveClaimCount int
 	callResolveClaimErr   error
 	resolveClaimCount     int
+	resolvedClaims        []uint64
 }
 
 func (s *stubResponder) CallResolve(_ context.Context) (gameTypes.GameStatus, error) {
@@ -246,9 +255,12 @@ func (s *stubResponder) Resolve() error {
 	return s.resolveErr
 }
 
-func (s *stubResponder) CallResolveClaim(_ context.Context, _ uint64) error {
+func (s *stubResponder) CallResolveClaim(_ context.Context, idx uint64) error {
 	s.l.Lock()
 	defer s.l.Unlock()
+	if slices.Contains(s.resolvedClaims, idx) {
+		return errors.New("already resolved")
+	}
 	s.callResolveClaimCount++
 	return s.callResolveClaimErr
 }
@@ -257,6 +269,7 @@ func (s *stubResponder) ResolveClaims(claims ...uint64) error {
 	s.l.Lock()
 	defer s.l.Unlock()
 	s.resolveClaimCount += len(claims)
+	s.resolvedClaims = append(s.resolvedClaims, claims...)
 	return nil
 }
 

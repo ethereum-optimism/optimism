@@ -3,9 +3,11 @@ package actions
 import (
 	"context"
 	"crypto/ecdsa"
+	"encoding/binary"
 	"math/big"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -15,6 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
@@ -31,6 +34,7 @@ type ProposerCfg struct {
 	OutputOracleAddr       *common.Address
 	DisputeGameFactoryAddr *common.Address
 	ProposalInterval       time.Duration
+	ProposalRetryInterval  time.Duration
 	DisputeGameType        uint32
 	ProposerKey            *ecdsa.PrivateKey
 	AllowNonFinalized      bool
@@ -72,6 +76,10 @@ func (f fakeTxMgr) IsClosed() bool {
 	return false
 }
 
+func (f fakeTxMgr) API() rpc.API {
+	panic("unimplemented")
+}
+
 func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Client, rollupCl *sources.RollupClient) *L2Proposer {
 	proposerConfig := proposer.ProposerConfig{
 		PollInterval:           time.Second,
@@ -90,6 +98,7 @@ func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Cl
 		Cfg:            proposerConfig,
 		Txmgr:          fakeTxMgr{from: crypto.PubkeyToAddress(cfg.ProposerKey.PublicKey)},
 		L1Client:       l1,
+		Multicaller:    batching.NewMultiCaller(l1.Client(), batching.DefaultBatchSize),
 		RollupProvider: rollupProvider,
 	}
 
@@ -206,18 +215,12 @@ func toCallArg(msg ethereum.CallMsg) interface{} {
 
 func (p *L2Proposer) fetchNextOutput(t Testing) (*eth.OutputResponse, bool, error) {
 	if e2eutils.UseFaultProofs() {
-		blockNumber, err := p.driver.FetchCurrentBlockNumber(t.Ctx())
-		if err != nil {
+		output, shouldPropose, err := p.driver.FetchDGFOutput(t.Ctx())
+		if err != nil || !shouldPropose {
 			return nil, false, err
 		}
-
-		output, _, err := p.driver.FetchOutput(t.Ctx(), blockNumber)
-		if err != nil {
-			return nil, false, err
-		}
-
 		encodedBlockNumber := make([]byte, 32)
-		copy(encodedBlockNumber[32-len(blockNumber.Bytes()):], blockNumber.Bytes())
+		binary.BigEndian.PutUint64(encodedBlockNumber[24:], output.BlockRef.Number)
 		game, err := p.disputeGameFactory.Games(&bind.CallOpts{}, p.driver.Cfg.DisputeGameType, output.OutputRoot, encodedBlockNumber)
 		if err != nil {
 			return nil, false, err
@@ -228,7 +231,7 @@ func (p *L2Proposer) fetchNextOutput(t Testing) (*eth.OutputResponse, bool, erro
 
 		return output, true, nil
 	} else {
-		return p.driver.FetchNextOutputInfo(t.Ctx())
+		return p.driver.FetchL2OOOutput(t.Ctx())
 	}
 }
 
@@ -248,8 +251,9 @@ func (p *L2Proposer) ActMakeProposalTx(t Testing) {
 
 	var txData []byte
 	if e2eutils.UseFaultProofs() {
-		txData, _, err = p.driver.ProposeL2OutputDGFTxData(output)
+		tx, err := p.driver.ProposeL2OutputDGFTxCandidate(context.Background(), output)
 		require.NoError(t, err)
+		txData = tx.TxData
 	} else {
 		txData, err = p.driver.ProposeL2OutputTxData(output)
 		require.NoError(t, err)

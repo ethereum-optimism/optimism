@@ -1,12 +1,14 @@
 package config
 
 import (
+	"fmt"
 	"math/big"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-program/chainconfig"
+	"github.com/ethereum-optimism/optimism/op-program/host/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
@@ -171,6 +173,22 @@ func TestIsCustomChainConfig(t *testing.T) {
 		require.Equal(t, cfg.IsCustomChainConfig, true)
 	})
 
+}
+
+func TestDBFormat(t *testing.T) {
+	t.Run("invalid", func(t *testing.T) {
+		cfg := validConfig()
+		cfg.DataFormat = "foo"
+		require.ErrorIs(t, cfg.Check(), ErrInvalidDataFormat)
+	})
+	for _, format := range types.SupportedDataFormats {
+		format := format
+		t.Run(fmt.Sprintf("%v", format), func(t *testing.T) {
+			cfg := validConfig()
+			cfg.DataFormat = format
+			require.NoError(t, cfg.Check())
+		})
+	}
 }
 
 func validConfig() *Config {

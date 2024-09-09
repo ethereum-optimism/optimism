@@ -109,10 +109,10 @@ func (s *L1Miner) ActL1StartBlock(timeDelta uint64) Action {
 			context := core.NewEVMBlockContext(header, s.l1Chain, nil, s.l1Chain.Config(), statedb)
 			// NOTE: Unlikely to be needed for the beacon block root, but we setup any precompile overrides anyways for forwards-compatibility
 			var precompileOverrides vm.PrecompileOverrides
-			if vmConfig := s.l1Chain.GetVMConfig(); vmConfig != nil && vmConfig.OptimismPrecompileOverrides != nil {
-				precompileOverrides = vmConfig.OptimismPrecompileOverrides
+			if vmConfig := s.l1Chain.GetVMConfig(); vmConfig != nil && vmConfig.PrecompileOverrides != nil {
+				precompileOverrides = vmConfig.PrecompileOverrides
 			}
-			vmenv := vm.NewEVM(context, vm.TxContext{}, statedb, s.l1Chain.Config(), vm.Config{OptimismPrecompileOverrides: precompileOverrides})
+			vmenv := vm.NewEVM(context, vm.TxContext{}, statedb, s.l1Chain.Config(), vm.Config{PrecompileOverrides: precompileOverrides})
 			core.ProcessBeaconBlockRoot(*header.ParentBeaconRoot, vmenv, statedb)
 		}
 
@@ -207,10 +207,13 @@ func (s *L1Miner) ActL1EndBlock(t Testing) {
 	s.l1Building = false
 	s.l1BuildingHeader.GasUsed = s.l1BuildingHeader.GasLimit - uint64(*s.l1GasPool)
 	s.l1BuildingHeader.Root = s.l1BuildingState.IntermediateRoot(s.l1Cfg.Config.IsEIP158(s.l1BuildingHeader.Number))
-	block := types.NewBlock(s.l1BuildingHeader, s.l1Transactions, nil, s.l1Receipts, trie.NewStackTrie(nil))
+
+	var withdrawals []*types.Withdrawal
 	if s.l1Cfg.Config.IsShanghai(s.l1BuildingHeader.Number, s.l1BuildingHeader.Time) {
-		block = block.WithWithdrawals(make([]*types.Withdrawal, 0))
+		withdrawals = make([]*types.Withdrawal, 0)
 	}
+
+	block := types.NewBlock(s.l1BuildingHeader, &types.Body{Transactions: s.l1Transactions, Withdrawals: withdrawals}, s.l1Receipts, trie.NewStackTrie(nil))
 	if s.l1Cfg.Config.IsCancun(s.l1BuildingHeader.Number, s.l1BuildingHeader.Time) {
 		parent := s.l1Chain.GetHeaderByHash(s.l1BuildingHeader.ParentHash)
 		var (

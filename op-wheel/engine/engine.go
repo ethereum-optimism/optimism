@@ -44,7 +44,7 @@ func getBlock(ctx context.Context, client client.RPC, method string, tag string)
 	if err != nil {
 		return nil, err
 	}
-	return types.NewBlockWithHeader(&bl.Header).WithBody(bl.Transactions, nil), nil
+	return types.NewBlockWithHeader(&bl.Header).WithBody(types.Body{Transactions: bl.Transactions}), nil
 }
 
 func getHeader(ctx context.Context, client client.RPC, method string, tag string) (*types.Header, error) {
@@ -189,7 +189,13 @@ func newPayloadAttributes(evp sources.EngineVersionProvider, timestamp uint64, p
 	return pa
 }
 
-func Auto(ctx context.Context, metrics Metricer, client *sources.EngineAPIClient, log log.Logger, shutdown <-chan struct{}, settings *BlockBuildingSettings) error {
+func Auto(
+	ctx context.Context,
+	metrics Metricer,
+	client *sources.EngineAPIClient,
+	log log.Logger,
+	settings *BlockBuildingSettings,
+) error {
 	ticker := time.NewTicker(time.Millisecond * 100)
 	defer ticker.Stop()
 
@@ -197,9 +203,6 @@ func Auto(ctx context.Context, metrics Metricer, client *sources.EngineAPIClient
 	var buildErr error
 	for {
 		select {
-		case <-shutdown:
-			log.Info("shutting down")
-			return nil
 		case <-ctx.Done():
 			log.Info("context closed", "err", ctx.Err())
 			return ctx.Err()
@@ -405,10 +408,10 @@ func Rewind(ctx context.Context, lgr log.Logger, client *sources.EngineAPIClient
 
 	// when rewinding, don't increase unsafe/finalized tags
 	toSafe, toFinalized := toUnsafe, toUnsafe
-	if safe.Number.Uint64() < to {
+	if safe != nil && safe.Number.Uint64() < to {
 		toSafe = eth.HeaderBlockID(safe)
 	}
-	if finalized.Number.Uint64() < to {
+	if finalized != nil && finalized.Number.Uint64() < to {
 		toFinalized = eth.HeaderBlockID(finalized)
 	}
 

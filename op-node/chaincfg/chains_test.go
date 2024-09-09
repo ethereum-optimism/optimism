@@ -55,7 +55,7 @@ var mainnetCfg = rollup.Config{
 	BlockTime:               2,
 	MaxSequencerDrift:       600,
 	SeqWindowSize:           3600,
-	ChannelTimeout:          300,
+	ChannelTimeoutBedrock:   300,
 	L1ChainID:               big.NewInt(1),
 	L2ChainID:               big.NewInt(10),
 	BatchInboxAddress:       common.HexToAddress("0xff00000000000000000000000000000000000010"),
@@ -66,6 +66,7 @@ var mainnetCfg = rollup.Config{
 	DeltaTime:               u64Ptr(1708560000),
 	EcotoneTime:             u64Ptr(1710374401),
 	FjordTime:               u64Ptr(1720627201),
+	GraniteTime:             u64Ptr(1726070401),
 	ProtocolVersionsAddress: common.HexToAddress("0x8062AbC286f5e7D9428a0Ccb9AbD71e50d93b935"),
 }
 
@@ -90,7 +91,7 @@ var sepoliaCfg = rollup.Config{
 	BlockTime:               2,
 	MaxSequencerDrift:       600,
 	SeqWindowSize:           3600,
-	ChannelTimeout:          300,
+	ChannelTimeoutBedrock:   300,
 	L1ChainID:               big.NewInt(11155111),
 	L2ChainID:               big.NewInt(11155420),
 	BatchInboxAddress:       common.HexToAddress("0xff00000000000000000000000000000011155420"),
@@ -101,6 +102,7 @@ var sepoliaCfg = rollup.Config{
 	DeltaTime:               u64Ptr(1703203200),
 	EcotoneTime:             u64Ptr(1708534800),
 	FjordTime:               u64Ptr(1716998400),
+	GraniteTime:             u64Ptr(1723478400),
 	ProtocolVersionsAddress: common.HexToAddress("0x79ADD5713B383DAa0a138d3C4780C7A1804a8090"),
 }
 
@@ -125,7 +127,7 @@ var sepoliaDev0Cfg = rollup.Config{
 	BlockTime:               2,
 	MaxSequencerDrift:       600,
 	SeqWindowSize:           3600,
-	ChannelTimeout:          300,
+	ChannelTimeoutBedrock:   300,
 	L1ChainID:               big.NewInt(11155111),
 	L2ChainID:               big.NewInt(11155421),
 	BatchInboxAddress:       common.HexToAddress("0xff00000000000000000000000000000011155421"),
@@ -136,6 +138,7 @@ var sepoliaDev0Cfg = rollup.Config{
 	DeltaTime:               u64Ptr(0),
 	EcotoneTime:             u64Ptr(1706634000),
 	FjordTime:               u64Ptr(1715961600),
+	GraniteTime:             u64Ptr(1723046400),
 	ProtocolVersionsAddress: common.HexToAddress("0x252CbE9517F731C618961D890D534183822dcC8d"),
 }
 

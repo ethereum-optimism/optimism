@@ -4,9 +4,10 @@ pragma solidity 0.8.25;
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { CrossL2Inbox } from "src/L2/CrossL2Inbox.sol";
-import { IL2ToL2CrossDomainMessenger } from "src/L2/IL2ToL2CrossDomainMessenger.sol";
-import { ISemver } from "src/universal/ISemver.sol";
+import { IL2ToL2CrossDomainMessenger } from "src/L2/interfaces/IL2ToL2CrossDomainMessenger.sol";
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { SafeCall } from "src/libraries/SafeCall.sol";
+import { TransientReentrancyAware } from "src/libraries/TransientContext.sol";
 
 /// @notice Thrown when a non-written slot in transient storage is attempted to be read from.
 error NotEntered();
@@ -35,17 +36,13 @@ error MessageAlreadyRelayed();
 /// @notice Thrown when a reentrant call is detected.
 error ReentrantCall();
 
-/// @custom:proxied
+/// @custom:proxied true
 /// @custom:predeploy 0x4200000000000000000000000000000000000023
 /// @title L2ToL2CrossDomainMessenger
 /// @notice The L2ToL2CrossDomainMessenger is a higher level abstraction on top of the CrossL2Inbox that provides
 ///         features necessary for secure transfers ERC20 tokens between L2 chains. Messages sent through the
 ///         L2ToL2CrossDomainMessenger on the source chain receive both replay protection as well as domain binding.
-contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver {
-    /// @notice Storage slot for `entered` value.
-    ///         Equal to bytes32(uint256(keccak256("l2tol2crossdomainmessenger.entered")) - 1)
-    bytes32 internal constant ENTERED_SLOT = 0xf53fc38c5e461bdcbbeb47887fecf014abd399293109cd50f65e5f9078cfd025;
-
+contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, TransientReentrancyAware {
     /// @notice Storage slot for the sender of the current cross domain message.
     ///         Equal to bytes32(uint256(keccak256("l2tol2crossdomainmessenger.sender")) - 1)
     bytes32 internal constant CROSS_DOMAIN_MESSAGE_SENDER_SLOT =
@@ -60,8 +57,8 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver {
     uint16 public constant messageVersion = uint16(0);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.2
-    string public constant version = "1.0.0-beta.2";
+    /// @custom:semver 1.0.0-beta.4
+    string public constant version = "1.0.0-beta.4";
 
     /// @notice Mapping of message hashes to boolean receipt values. Note that a message will only be present in this
     ///         mapping if it has successfully been relayed on this chain, and can therefore not be relayed again.
@@ -79,25 +76,6 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver {
     /// @notice Emitted whenever a message fails to be relayed on this chain.
     /// @param messageHash Hash of the message that failed to be relayed.
     event FailedRelayedMessage(bytes32 indexed messageHash);
-
-    /// @notice Enforces that a function cannot be re-entered.
-    modifier nonReentrant() {
-        if (_entered()) revert ReentrantCall();
-        assembly {
-            tstore(ENTERED_SLOT, 1)
-        }
-        _;
-        assembly {
-            tstore(ENTERED_SLOT, 0)
-        }
-    }
-
-    /// @notice Enforces that cross domain message sender and source are set. Reverts if not.
-    ///         Used to differentiate between 0 and nil in transient storage.
-    modifier onlyEntered() {
-        if (!_entered()) revert NotEntered();
-        _;
-    }
 
     /// @notice Retrieves the sender of the current cross domain message. If not entered, reverts.
     /// @return _sender Address of the sender of the current cross domain message.
@@ -121,7 +99,7 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver {
     /// @param _destination Chain ID of the destination chain.
     /// @param _target      Target contract or wallet address.
     /// @param _message     Message payload to call target with.
-    function sendMessage(uint256 _destination, address _target, bytes calldata _message) external payable {
+    function sendMessage(uint256 _destination, address _target, bytes calldata _message) external {
         if (_destination == block.chainid) revert MessageDestinationSameChain();
         if (_target == Predeploys.CROSS_L2_INBOX) revert MessageTargetCrossL2Inbox();
         if (_target == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER) revert MessageTargetL2ToL2CrossDomainMessenger();
@@ -191,16 +169,6 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver {
     /// @return Nonce of the next message to be sent, with added message version.
     function messageNonce() public view returns (uint256) {
         return Encoding.encodeVersionedNonce(msgNonce, messageVersion);
-    }
-
-    /// @notice Retrieves whether the contract is currently entered or not.
-    /// @return True if the contract is entered, and false otherwise.
-    function _entered() internal view returns (bool) {
-        uint256 value;
-        assembly {
-            value := tload(ENTERED_SLOT)
-        }
-        return value != 0;
     }
 
     /// @notice Stores message data such as sender and source in transient storage.

@@ -3,12 +3,13 @@ package multithreaded
 import (
 	"io"
 
+	"github.com/ethereum-optimism/optimism/cannon/serialize"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
-	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
 
 type InstrumentedState struct {
@@ -22,6 +23,7 @@ type InstrumentedState struct {
 	stackTracker  ThreadedStackTracker
 
 	preimageOracle *exec.TrackingPreimageOracleReader
+	meta           *program.Metadata
 }
 
 var _ mipsevm.FPVM = (*InstrumentedState)(nil)
@@ -39,7 +41,7 @@ func NewInstrumentedState(state *State, po mipsevm.PreimageOracle, stdOut, stdEr
 }
 
 func NewInstrumentedStateFromFile(stateFile string, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger) (*InstrumentedState, error) {
-	state, err := jsonutil.LoadJSON[State](stateFile)
+	state, err := serialize.Load[State](stateFile)
 	if err != nil {
 		return nil, err
 	}
@@ -52,6 +54,7 @@ func (m *InstrumentedState) InitDebug(meta *program.Metadata) error {
 		return err
 	}
 	m.stackTracker = stackTracker
+	m.meta = meta
 	return nil
 }
 
@@ -106,6 +109,7 @@ func (m *InstrumentedState) GetState() mipsevm.FPVMState {
 func (m *InstrumentedState) GetDebugInfo() *mipsevm.DebugInfo {
 	return &mipsevm.DebugInfo{
 		Pages:               m.state.Memory.PageCount(),
+		MemoryUsed:          hexutil.Uint64(m.state.Memory.UsageRaw()),
 		NumPreimageRequests: m.preimageOracle.NumPreimageRequests(),
 		TotalPreimageSize:   m.preimageOracle.TotalPreimageSize(),
 	}
@@ -113,4 +117,11 @@ func (m *InstrumentedState) GetDebugInfo() *mipsevm.DebugInfo {
 
 func (m *InstrumentedState) Traceback() {
 	m.stackTracker.Traceback()
+}
+
+func (m *InstrumentedState) LookupSymbol(addr uint32) string {
+	if m.meta == nil {
+		return ""
+	}
+	return m.meta.LookupSymbol(addr)
 }
