@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -41,7 +42,6 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 	randomSeqNr := func(rng *rand.Rand) uint64 {
 		return rng.Uint64()
 	}
-
 	// Go 1.18 will have native fuzzing for us to use, until then, we cover just the below cases
 	cases := []infoTest{
 		{"random", testutils.MakeBlockInfo(nil), randomL1Cfg, randomSeqNr},
@@ -120,20 +120,24 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 	t.Run("ecotone", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
 		info := testutils.MakeBlockInfo(nil)(rng)
-		rollupCfg := rollup.Config{}
+		rollupCfg := rollup.Config{BlockTime: 2, Genesis: rollup.Genesis{L2Time: 1000}}
 		rollupCfg.ActivateAtGenesis(rollup.Ecotone)
-		depTx, err := L1InfoDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, 1)
+		// run 1 block after ecotone transition
+		timestamp := rollupCfg.Genesis.L2Time + rollupCfg.BlockTime
+		depTx, err := L1InfoDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, timestamp)
 		require.NoError(t, err)
 		require.False(t, depTx.IsSystemTransaction)
 		require.Equal(t, depTx.Gas, uint64(RegolithSystemTxGas))
 		require.Equal(t, L1InfoEcotoneLen, len(depTx.Data))
 	})
-	t.Run("first-block ecotone", func(t *testing.T) {
+	t.Run("activation-block ecotone", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
 		info := testutils.MakeBlockInfo(nil)(rng)
-		rollupCfg := rollup.Config{BlockTime: 2}
-		rollupCfg.ActivateAtGenesis(rollup.Ecotone)
-		depTx, err := L1InfoDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, 2)
+		rollupCfg := rollup.Config{BlockTime: 2, Genesis: rollup.Genesis{L2Time: 1000}}
+		rollupCfg.ActivateAtGenesis(rollup.Delta)
+		ecotoneTime := rollupCfg.Genesis.L2Time + rollupCfg.BlockTime // activate ecotone just after genesis
+		rollupCfg.EcotoneTime = &ecotoneTime
+		depTx, err := L1InfoDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, ecotoneTime)
 		require.NoError(t, err)
 		require.False(t, depTx.IsSystemTransaction)
 		require.Equal(t, depTx.Gas, uint64(RegolithSystemTxGas))
@@ -142,50 +146,53 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 	t.Run("genesis-block ecotone", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
 		info := testutils.MakeBlockInfo(nil)(rng)
-		rollupCfg := rollup.Config{BlockTime: 2}
+		rollupCfg := rollup.Config{BlockTime: 2, Genesis: rollup.Genesis{L2Time: 1000}}
 		rollupCfg.ActivateAtGenesis(rollup.Ecotone)
-		depTx, err := L1InfoDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, 0)
+		depTx, err := L1InfoDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, rollupCfg.Genesis.L2Time)
 		require.NoError(t, err)
 		require.False(t, depTx.IsSystemTransaction)
 		require.Equal(t, depTx.Gas, uint64(RegolithSystemTxGas))
 		require.Equal(t, L1InfoEcotoneLen, len(depTx.Data))
 	})
-	t.Run("Isthmus", func(t *testing.T) {
+	t.Run("isthmus", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
 		info := testutils.MakeBlockInfo(nil)(rng)
-		rollupCfg := rollup.Config{}
+		rollupCfg := rollup.Config{BlockTime: 2, Genesis: rollup.Genesis{L2Time: 1000}}
 		rollupCfg.ActivateAtGenesis(rollup.Interop)
-		depTx, err := L1InfoDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, 1)
+		// run 1 block after interop transition
+		timestamp := rollupCfg.Genesis.L2Time + rollupCfg.BlockTime
+		depTx, err := L1InfoDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, timestamp)
 		require.NoError(t, err)
 		require.False(t, depTx.IsSystemTransaction)
 		require.Equal(t, depTx.Gas, uint64(RegolithSystemTxGas))
+		require.Equal(t, L1InfoEcotoneLen, len(depTx.Data), "the length is same in isthmus")
+		require.Equal(t, L1InfoFuncIsthmusBytes4, depTx.Data[:4], "upgrade is active, need isthmus signature")
+	})
+	t.Run("activation-block isthmus", func(t *testing.T) {
+		rng := rand.New(rand.NewSource(1234))
+		info := testutils.MakeBlockInfo(nil)(rng)
+		rollupCfg := rollup.Config{BlockTime: 2, Genesis: rollup.Genesis{L2Time: 1000}}
+		rollupCfg.ActivateAtGenesis(rollup.Fjord)
+		isthmusTime := rollupCfg.Genesis.L2Time + rollupCfg.BlockTime // activate isthmus just after genesis
+		rollupCfg.InteropTime = &isthmusTime
+		depTx, err := L1InfoDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, isthmusTime)
+		require.NoError(t, err)
+		require.False(t, depTx.IsSystemTransaction)
+		require.Equal(t, depTx.Gas, uint64(RegolithSystemTxGas))
+		// Isthmus activates, but ecotone L1 info is still used at this upgrade block
 		require.Equal(t, L1InfoEcotoneLen, len(depTx.Data))
 		require.Equal(t, L1InfoFuncEcotoneBytes4, depTx.Data[:4])
-		// should still send Ecotone signature since upgrade happens after deposits
-	})
-	t.Run("first-block isthmus", func(t *testing.T) {
-		rng := rand.New(rand.NewSource(1234))
-		info := testutils.MakeBlockInfo(nil)(rng)
-		rollupCfg := rollup.Config{BlockTime: 2}
-		rollupCfg.ActivateAtGenesis(rollup.Interop)
-		depTx, err := L1InfoDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, 2)
-		require.NoError(t, err)
-		require.False(t, depTx.IsSystemTransaction)
-		require.Equal(t, depTx.Gas, uint64(RegolithSystemTxGas))
-		require.Equal(t, L1InfoBedrockLen, len(depTx.Data))
-		require.Equal(t, L1InfoFuncIsthmusBytes4, depTx.Data[:4])
 	})
 	t.Run("genesis-block isthmus", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
 		info := testutils.MakeBlockInfo(nil)(rng)
-		rollupCfg := rollup.Config{BlockTime: 2}
+		rollupCfg := rollup.Config{BlockTime: 2, Genesis: rollup.Genesis{L2Time: 1000}}
 		rollupCfg.ActivateAtGenesis(rollup.Interop)
-		depTx, err := L1InfoDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, 0)
+		depTx, err := L1InfoDeposit(&rollupCfg, randomL1Cfg(rng, info), randomSeqNr(rng), info, rollupCfg.Genesis.L2Time)
 		require.NoError(t, err)
 		require.False(t, depTx.IsSystemTransaction)
 		require.Equal(t, depTx.Gas, uint64(RegolithSystemTxGas))
 		require.Equal(t, L1InfoEcotoneLen, len(depTx.Data))
-		require.Equal(t, L1InfoBedrockLen, len(depTx.Data))
 	})
 }
 
@@ -198,8 +205,18 @@ func TestDepositsCompleteBytes(t *testing.T) {
 		info := testutils.MakeBlockInfo(nil)(rng)
 		depTxByes, err := DepositsCompleteBytes(randomSeqNr(rng), info)
 		require.NoError(t, err)
-		require.Equal(t, depTxByes, DepositsCompleteBytes4)
-		require.Equal(t, DepositsCompleteLen, len(depTxByes))
+		var depTx types.Transaction
+		require.NoError(t, depTx.UnmarshalBinary(depTxByes))
+		require.Equal(t, uint8(types.DepositTxType), depTx.Type())
+		require.Equal(t, depTx.Data(), DepositsCompleteBytes4)
+		require.Equal(t, DepositsCompleteLen, len(depTx.Data()))
+		require.Equal(t, DepositsCompleteGas, depTx.Gas())
+		require.False(t, depTx.IsSystemTx())
+		require.Equal(t, depTx.Value(), big.NewInt(0))
+		signer := types.LatestSignerForChainID(depTx.ChainId())
+		sender, err := signer.Sender(&depTx)
+		require.NoError(t, err)
+		require.Equal(t, L1InfoDepositerAddress, sender)
 	})
 	t.Run("valid return Transaction", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
@@ -211,6 +228,6 @@ func TestDepositsCompleteBytes(t *testing.T) {
 		require.Equal(t, DepositsCompleteGas, depTx.Gas)
 		require.False(t, depTx.IsSystemTransaction)
 		require.Equal(t, depTx.Value, big.NewInt(0))
-		require.Equal(t, depTx.From, L1InfoDepositerAddress)
+		require.Equal(t, L1InfoDepositerAddress, depTx.From)
 	})
 }
