@@ -3,6 +3,7 @@ package interop
 import (
 	"context"
 	"crypto/ecdsa"
+	"fmt"
 	"math/big"
 	"os"
 	"path"
@@ -79,6 +80,8 @@ var _ rpcClient = &rpc.Client{}
 type SuperSystem interface {
 	// get the supervisor
 	Supervisor() *supervisor.SupervisorService
+	// get the supervisor client
+	SupervisorClient() *sources.SupervisorClient
 	// get the batcher for a network
 	Batcher(network string) *bss.BatcherService
 	// get the proposer for a network
@@ -93,9 +96,13 @@ type SuperSystem interface {
 	L2OperatorKey(network string, role devkeys.ChainOperatorRole) ecdsa.PrivateKey
 	// get the list of network IDs
 	L2IDs() []string
+	// register a username to an account on all L2s
 	AddUser(username string)
+	// get the user key for a user on an L2
 	UserKey(id, username string) ecdsa.PrivateKey
+	// send a transaction on an L2 on the given network, from the given user
 	SendL2Tx(network string, username string, applyTxOpts op_e2e.TxOptsFn) *types.Receipt
+	// get the address for a user on an L2
 	Address(network string, username string) common.Address
 }
 
@@ -122,6 +129,7 @@ type system2 struct {
 	l2s             map[string]l2Set
 	l2GethClients   map[string]*ethclient.Client
 	supervisor      *supervisor.SupervisorService
+	superClient     *sources.SupervisorClient
 }
 
 type l2Set struct {
@@ -271,6 +279,9 @@ func (s *system2) newNodeForL2(
 			ListenPort:  0,
 			EnableAdmin: true,
 		},
+		Supervisor: &node.SupervisorEndpointConfig{
+			SupervisorAddr: s.supervisor.RPC(),
+		},
 		P2P:                         nil, // disabled P2P setup for now
 		L1EpochPollInterval:         time.Second * 2,
 		RuntimeConfigReloadInterval: 0,
@@ -395,6 +406,7 @@ func (s *system2) newL2(id string, l2Out *interopgen.L2Output) l2Set {
 }
 
 func (s *system2) prepareSupervisor() *supervisor.SupervisorService {
+	logger := s.logger.New("role", "supervisor")
 	cfg := supervisorConfig.Config{
 		MetricsConfig: metrics.CLIConfig{
 			Enabled: false,
@@ -418,7 +430,7 @@ func (s *system2) prepareSupervisor() *supervisor.SupervisorService {
 		cfg.L2RPCs = append(cfg.L2RPCs, s.l2s[id].l2Geth.UserRPC().RPC())
 	}
 	// Create the supervisor with the configuration
-	super, err := supervisor.SupervisorFromConfig(context.Background(), &cfg, s.logger)
+	super, err := supervisor.SupervisorFromConfig(context.Background(), &cfg, logger)
 	require.NoError(s.t, err)
 	// Start the supervisor
 	err = super.Start(context.Background())
@@ -431,6 +443,17 @@ func (s *system2) prepareSupervisor() *supervisor.SupervisorService {
 	return super
 }
 
+func (s *system2) SupervisorClient() *sources.SupervisorClient {
+	if s.superClient != nil {
+		return s.superClient
+	}
+	cl, err := client.NewRPC(context.Background(), s.logger, s.supervisor.RPC())
+	require.NoError(s.t, err, "failed to dial supervisor RPC")
+	superClient := sources.NewSupervisorClient(cl)
+	s.superClient = superClient
+	return superClient
+}
+
 // prepare sets up the system for testing
 // components are built iteratively, so that they can be reused or modified
 // their creation can't be safely skipped or reordered at this time
@@ -439,9 +462,12 @@ func (s *system2) prepare(t *testing.T) {
 	s.logger = testlog.Logger(s.t, log.LevelInfo)
 	s.hdWallet = s.prepareHDWallet()
 	s.worldDeployment, s.worldOutput = s.prepareWorld()
+	s.supervisor = s.prepareSupervisor()
+	client := s.SupervisorClient()
+	fmt.Println("client", client)
+	//time.Sleep(300 * time.Second) // wait for the supervisor to start
 	s.beacon, s.l1 = s.prepareL1()
 	s.l2s = s.prepareL2s()
-	s.supervisor = s.prepareSupervisor()
 }
 
 // AddUser adds a user to the system by creating a user key for each L2.
