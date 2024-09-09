@@ -337,7 +337,7 @@ contract DeployImplementations is Script {
         // This call contains a broadcast to deploy OPSM.
         OPStackManager opsm = createOPSMContract(_dsi, _dso, blueprints);
 
-        OPStackManager.ImplementationSetter[] memory setters = new OPStackManager.ImplementationSetter[](5);
+        OPStackManager.ImplementationSetter[] memory setters = new OPStackManager.ImplementationSetter[](6);
         setters[0] = OPStackManager.ImplementationSetter({
             name: "L1ERC721Bridge",
             info: OPStackManager.Implementation(address(_dso.l1ERC721BridgeImpl()), L1ERC721Bridge.initialize.selector)
@@ -358,6 +358,10 @@ contract DeployImplementations is Script {
             info: OPStackManager.Implementation(
                 address(_dso.l1CrossDomainMessengerImpl()), L1CrossDomainMessenger.initialize.selector
             )
+        });
+        setters[5] = OPStackManager.ImplementationSetter({
+            name: "L1StandardBridge",
+            info: OPStackManager.Implementation(address(_dso.l1StandardBridgeImpl()), L1StandardBridge.initialize.selector)
         });
 
         vm.broadcast(msg.sender);

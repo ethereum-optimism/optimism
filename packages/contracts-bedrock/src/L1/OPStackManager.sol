@@ -267,6 +267,10 @@ contract OPStackManager is ISemver {
         data = encodeL1CrossDomainMessengerInitializer(impl.initializer, output);
         upgradeAndCall(output.opChainProxyAdmin, address(output.l1CrossDomainMessengerProxy), impl.logic, data);
 
+        impl = getLatestImplementation("L1StandardBridge");
+        data = encodeL1StandardBridgeInitializer(impl.initializer, output);
+        upgradeAndCall(output.opChainProxyAdmin, address(output.l1StandardBridgeProxy), impl.logic, data);
+
         // -------- TODO: Placeholders --------
         // For contracts we don't yet deploy, we set the outputs to  dummy proxies so they have code to pass assertions.
         output.disputeGameFactoryProxy = DisputeGameFactory(deployProxy(l2ChainId, output.opChainProxyAdmin, "1"));
@@ -439,6 +443,21 @@ contract OPStackManager is ISemver {
     {
         return
             abi.encodeWithSelector(_selector, superchainConfig, _output.optimismPortalProxy, _output.systemConfigProxy);
+    }
+
+    /// @notice Helper method for encoding the L1StandardBridge initializer data.
+    function encodeL1StandardBridgeInitializer(
+        bytes4 _selector,
+        DeployOutput memory _output
+    )
+        internal
+        view
+        virtual
+        returns (bytes memory)
+    {
+        return abi.encodeWithSelector(
+            _selector, _output.l1CrossDomainMessengerProxy, superchainConfig, _output.systemConfigProxy
+        );
     }
 
     /// @notice Returns default, standard config arguments for the SystemConfig initializer.
