@@ -214,7 +214,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 			{goodReceipt: false, DepositLogs: []bool{false}},
 		})
 		require.NoError(t, err)
-		usedDepositTxs, err := encodeDeposits(depositTxs)
+		userDepositTxs, err := encodeDeposits(depositTxs)
 		require.NoError(t, err)
 
 		// sets config to post-interop
@@ -223,8 +223,13 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		epoch := l1Info.ID()
 		l1InfoTx, err := L1InfoDepositBytes(cfg, testSysCfg, 0, l1Info, 0)
 		require.NoError(t, err)
+		depositsComplete, err := DepositsCompleteBytes(0, l1Info)
+		require.NoError(t, err)
 
-		l2Txs := append(append(make([]eth.Data, 0), l1InfoTx), usedDepositTxs...)
+		var l2Txs []eth.Data
+		l2Txs = append(l2Txs, l1InfoTx)
+		l2Txs = append(l2Txs, userDepositTxs...)
+		l2Txs = append(l2Txs, depositsComplete)
 
 		l1Fetcher.ExpectFetchReceipts(epoch.Hash, l1Info, receipts, nil)
 		attrBuilder := NewFetchingAttributesBuilder(cfg, l1Fetcher, l1CfgFetcher)
@@ -236,11 +241,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		require.Equal(t, predeploys.SequencerFeeVaultAddr, attrs.SuggestedFeeRecipient)
 		require.Equal(t, len(l2Txs), len(attrs.Transactions), "Expected txs to equal l1 info tx + user deposit txs + DepositsComplete")
 		require.Equal(t, l2Txs, attrs.Transactions)
-		require.Equal(t, DepositsCompleteBytes4, attrs.Transactions[1+len(depositTxs)][:4])
 		require.True(t, attrs.NoTxPool)
-		depositsCompleteTx, err := DepositsCompleteBytes(l2Parent.SequenceNumber, l1Info)
-		require.NoError(t, err)
-		require.Equal(t, l2Txs, append(attrs.Transactions, depositsCompleteTx))
 	})
 
 	// Test that the payload attributes builder changes the deposit format based on L2-time-based regolith activation
