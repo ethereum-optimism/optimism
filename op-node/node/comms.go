@@ -2,6 +2,7 @@ package node
 
 import (
 	"context"
+
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 
 	"github.com/libp2p/go-libp2p/core/peer"

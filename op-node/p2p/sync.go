@@ -477,15 +477,12 @@ func (s *SyncClient) tryPromote(ctx context.Context, res syncResult) {
 		s.removeFromQuarantine(blockNumber, res.payload.ExecutionPayload.BlockHash)
 	}
 	stillNextPromote := s.nextPromote.Ok && s.nextPromote.Value.hash == res.payload.ExecutionPayload.BlockHash && s.nextPromote.Value.num == blockNumber
+	// If we still want the block number, but no longer want to promote this next then we leave it
+	// in quarantine so can resubmit it later if it becomes trusted again. When we promote its
+	// child, we will know if this block is valid immediately and can promote it again or evict it.
 	if stillNextPromote {
 		s.promotedBlock(res.payload)
-	} else {
-		// If we still want the block number, but no longer want to promote this next then we leave
-		// it in quarantine so can resubmit it later if it becomes trusted again. When we promote
-		// its child, we will know if this block is valid immediately and can promote it again or
-		// evict it.
 	}
-	return
 }
 
 func (s *SyncClient) onResultUnlocked(res syncResult) {
