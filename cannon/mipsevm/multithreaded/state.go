@@ -35,27 +35,27 @@ const (
 )
 
 type State struct {
-	Memory *memory.Memory `json:"memory"`
+	Memory *memory.Memory
 
-	PreimageKey    common.Hash `json:"preimageKey"`
-	PreimageOffset uint32      `json:"preimageOffset"` // note that the offset includes the 8-byte length prefix
+	PreimageKey    common.Hash
+	PreimageOffset uint32 // note that the offset includes the 8-byte length prefix
 
-	Heap uint32 `json:"heap"` // to handle mmap growth
+	Heap uint32 // to handle mmap growth
 
-	ExitCode uint8 `json:"exit"`
-	Exited   bool  `json:"exited"`
+	ExitCode uint8
+	Exited   bool
 
-	Step                        uint64 `json:"step"`
-	StepsSinceLastContextSwitch uint64 `json:"stepsSinceLastContextSwitch"`
-	Wakeup                      uint32 `json:"wakeup"`
+	Step                        uint64
+	StepsSinceLastContextSwitch uint64
+	Wakeup                      uint32
 
-	TraverseRight    bool           `json:"traverseRight"`
-	LeftThreadStack  []*ThreadState `json:"leftThreadStack"`
-	RightThreadStack []*ThreadState `json:"rightThreadStack"`
-	NextThreadId     uint32         `json:"nextThreadId"`
+	TraverseRight    bool
+	LeftThreadStack  []*ThreadState
+	RightThreadStack []*ThreadState
+	NextThreadId     uint32
 
 	// LastHint is optional metadata, and not part of the VM state itself.
-	LastHint hexutil.Bytes `json:"lastHint,omitempty"`
+	LastHint hexutil.Bytes
 }
 
 var _ mipsevm.FPVMState = (*State)(nil)
