@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"sync"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-dispute-mon/mon/types"
@@ -33,6 +34,7 @@ type gameMonitor struct {
 	done   chan struct{}
 	ctx    context.Context
 	cancel context.CancelFunc
+	wg     sync.WaitGroup
 
 	gameWindow      time.Duration
 	monitorInterval time.Duration
@@ -114,6 +116,7 @@ func (m *gameMonitor) monitorGames() error {
 }
 
 func (m *gameMonitor) loop() {
+	defer m.wg.Done()
 	ticker := m.clock.NewTicker(m.monitorInterval)
 	defer ticker.Stop()
 	for {
@@ -130,7 +133,7 @@ func (m *gameMonitor) loop() {
 }
 
 func (m *gameMonitor) StartMonitoring() {
-	// Setup the cancellation only if it's not already set.
+	// Set up the cancellation only if it's not already set.
 	// This prevents overwriting the context and cancel function
 	// if, for example, this function is called multiple times.
 	if m.cancel == nil {
@@ -139,6 +142,7 @@ func (m *gameMonitor) StartMonitoring() {
 		m.cancel = cancel
 	}
 	m.logger.Info("Starting game monitor")
+	m.wg.Add(1)
 	go m.loop()
 }
 
@@ -149,4 +153,5 @@ func (m *gameMonitor) StopMonitoring() {
 		m.cancel = nil
 	}
 	close(m.done)
+	m.wg.Wait()
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"math/big"
+	"sync"
 	"testing"
 	"time"
 
@@ -81,6 +82,8 @@ func TestMonitor_StartMonitoring(t *testing.T) {
 
 		monitor.StartMonitoring()
 		require.Eventually(t, func() bool {
+			forecaster.mu.Lock()
+			defer forecaster.mu.Unlock()
 			return forecaster.calls >= 2
 		}, time.Second, 50*time.Millisecond)
 		monitor.StopMonitoring()
@@ -93,6 +96,8 @@ func TestMonitor_StartMonitoring(t *testing.T) {
 
 		monitor.StartMonitoring()
 		require.Eventually(t, func() bool {
+			factory.mu.Lock()
+			defer factory.mu.Unlock()
 			return factory.calls > 0
 		}, time.Second, 50*time.Millisecond)
 		monitor.StopMonitoring()
@@ -165,11 +170,14 @@ func (m *mockMonitor) Check(games []*monTypes.EnrichedGameData) {
 }
 
 type mockForecast struct {
+	mu    sync.Mutex
 	calls int
 }
 
 func (m *mockForecast) Forecast(_ []*monTypes.EnrichedGameData, _, _ int) {
+	m.mu.Lock()
 	m.calls++
+	m.mu.Unlock()
 }
 
 type mockBonds struct {
@@ -182,6 +190,7 @@ func (m *mockBonds) CheckBonds(_ []*monTypes.EnrichedGameData) {
 
 type mockExtractor struct {
 	fetchErr     error
+	mu           sync.Mutex
 	calls        int
 	maxSuccess   int
 	games        []*monTypes.EnrichedGameData
@@ -194,7 +203,9 @@ func (m *mockExtractor) Extract(
 	_ common.Hash,
 	_ uint64,
 ) ([]*monTypes.EnrichedGameData, int, int, error) {
+	m.mu.Lock()
 	m.calls++
+	m.mu.Unlock()
 	if m.fetchErr != nil {
 		return nil, 0, 0, m.fetchErr
 	}
