@@ -509,7 +509,7 @@ func (s *SyncClient) doPayloadsQuarantineSizeMetric() {
 	for _, wanted := range s.wanted {
 		size += len(wanted.quarantined)
 	}
-	fmt.Printf("payloads quarantine size: %v\n", size)
+	//fmt.Printf("payloads quarantine size: %v\n", size)
 	s.metrics.PayloadsQuarantineSize(size)
 }
 
@@ -551,7 +551,7 @@ func (s *SyncClient) maybePromote(ctx context.Context) {
 	}
 }
 
-func (s *syncClientPeer) doSingleBlockRequest(ctx context.Context, id peer.ID, num blockNumber) (err error) {
+func (s *syncClientPeer) doSingleBlockRequest(ctx context.Context, num blockNumber) (err error) {
 	// We already established the peer is available w.r.t. rate-limiting,
 	// and this is the only loop over this peer, so we can request now.
 
@@ -574,9 +574,9 @@ func (s *syncClientPeer) doSingleBlockRequest(ctx context.Context, id peer.ID, n
 	start := time.Now()
 
 	resultCode := ResultCodeSuccess
-	fmt.Printf("requesting %d from %v\n", num, id)
-	envelope, err := s.doRequestRecoveringPanic(ctx, id, num)
-	fmt.Printf("result of requesting %d from %v: %v\n", num, id, err)
+	//fmt.Printf("requesting %d from %v\n", num, s.remoteId)
+	envelope, err := s.doRequestRecoveringPanic(ctx, num)
+	//fmt.Printf("result of requesting %d from %v: %v\n", num, s.remoteId, err)
 	if err != nil {
 		log.Warn("failed p2p sync request", "num", num, "err", err)
 		resultCode = ResultCodeNotFoundErr
@@ -591,16 +591,16 @@ func (s *syncClientPeer) doSingleBlockRequest(ctx context.Context, id peer.ID, n
 		}
 
 		if sendResponseError {
-			s.appScorer.onResponseError(id)
+			s.appScorer.onResponseError(s.remoteId)
 			// If we hit an error, then count it as many requests.
 			// We'd like to avoid making more requests for a while, so back off.
 			s.lastRequestError = time.Now()
 		}
 	} else {
 		// Do this outside the panic guard, it shouldn't be panicking...
-		s.onResultUnlocked(syncResult{payload: envelope, peer: id})
+		s.onResultUnlocked(syncResult{payload: envelope, peer: s.remoteId})
 		log.Debug("completed p2p sync request", "num", num)
-		s.appScorer.onValidResponse(id)
+		s.appScorer.onValidResponse(s.remoteId)
 	}
 
 	took := time.Since(start)
@@ -608,10 +608,7 @@ func (s *syncClientPeer) doSingleBlockRequest(ctx context.Context, id peer.ID, n
 	return
 }
 
-func (s *syncClientPeer) requestBlocks(ctx context.Context, id peer.ID) (err error) {
-	//wantedSlice := slices.SortedFunc(maps.Values(s.wanted), func(l *wantedBlock, r *wantedBlock) int {
-	//	return cmp.Compare(r.num, l.num)
-	//})
+func (s *syncClientPeer) requestBlocks(ctx context.Context) (err error) {
 	for bn := s.endBlockNumber; bn >= s.startBlockNumber; bn-- {
 		wanted := s.getWantedBlock(bn)
 		if wanted == nil {
@@ -655,7 +652,7 @@ func (s *syncClientPeer) requestBlocks(ctx context.Context, id peer.ID) (err err
 			s.mu.Lock()
 			return
 		}
-		err = s.doSingleBlockRequest(ctx, id, wanted.num)
+		err = s.doSingleBlockRequest(ctx, wanted.num)
 		<-wanted.requestConcurrency.Release()
 		s.requestBlocksCond.Broadcast()
 		s.mu.Lock()
@@ -680,12 +677,13 @@ func (s *SyncClient) peerLoop(ctx context.Context, id peer.ID) {
 	peer := &syncClientPeer{
 		SyncClient: s,
 		rl:         s.NewPeerRateLimiter(),
+		remoteId:   id,
 	}
-	peer.Run(ctx, id)
+	peer.Run(ctx)
 }
 
-func (s *syncClientPeer) Run(ctx context.Context, id peer.ID) {
-	log := s.log.New("peer", id)
+func (s *syncClientPeer) Run(ctx context.Context) {
+	log := s.log.New("peer", s.remoteId)
 	log.Info("Starting P2P sync client event loop")
 	for {
 		s.mu.Lock()
@@ -693,18 +691,19 @@ func (s *syncClientPeer) Run(ctx context.Context, id peer.ID) {
 		// Take this before requesting blocks, so if we return for whatever reason we can jump
 		// straight back in if our preconditions changed.
 		requestBlocksSignal := s.requestBlocksCond.Signaled()
-		if s.syncOnlyReqToStatic && !s.extra.IsStatic(id) {
+		if s.syncOnlyReqToStatic && !s.extra.IsStatic(s.remoteId) {
 			// for non-static peers, set requestBlocksCond to nil
 			// this will effectively make the peer loop not perform outgoing sync-requests.
 			// while sync-requests will block, the loop may still process other events (if added in the future).
 			requestBlocksSignal = nil
 		} else {
-			err := s.requestBlocks(ctx, id)
+			err := s.requestBlocks(ctx)
 			if err != nil {
 				log.Warn("error requesting blocks", "err", err)
 				naughtyBoyChan := make(chan struct{})
 				requestBlocksSignal = naughtyBoyChan
-				// Calculated approximately from the penalty that was applied to the peer rate limiter.
+				// Calculated approximately from the penalty that was applied to the peer rate
+				// limiter in the code that used to artificially apply tokens to achieve backoff.
 				time.AfterFunc(5*time.Second, func() { close(naughtyBoyChan) })
 			}
 		}
@@ -736,25 +735,25 @@ func (r requestResultErr) ResultCode() resultCode {
 }
 
 func (s *syncClientPeer) doRequestRecoveringPanic(
-	ctx context.Context, id peer.ID, expectedBlockNum uint64,
+	ctx context.Context, expectedBlockNum uint64,
 ) (
 	envelope *eth.ExecutionPayloadEnvelope, err error,
 ) {
-	err = panicGuard(s.log, fmt.Sprintf("doing alt sync request to %v", id), func() (err error) {
-		envelope, err = s.doRequest(ctx, id, expectedBlockNum)
+	err = panicGuard(s.log, fmt.Sprintf("doing alt sync request to %v", s.remoteId), func() (err error) {
+		envelope, err = s.doRequest(ctx, expectedBlockNum)
 		return
 	})
 	return
 }
 
 func (s *syncClientPeer) doRequest(
-	ctx context.Context, id peer.ID, expectedBlockNum uint64,
+	ctx context.Context, expectedBlockNum uint64,
 ) (
 	envelope *eth.ExecutionPayloadEnvelope, err error,
 ) {
 	// open stream to peer
 	reqCtx, reqCancel := context.WithTimeout(ctx, streamTimeout)
-	str, err := s.newStreamFn(reqCtx, id, s.payloadByNumber)
+	str, err := s.newStreamFn(reqCtx, s.remoteId, s.payloadByNumber)
 	reqCancel()
 	if err != nil {
 		err = fmt.Errorf("failed to open stream: %w", err)
@@ -1088,6 +1087,7 @@ type syncClientPeer struct {
 	*SyncClient
 	lastRequestError time.Time
 	rl               *rate.Limiter
+	remoteId         peer.ID
 }
 
 // Returns the request state. Can be nil if the request range has been altered.
