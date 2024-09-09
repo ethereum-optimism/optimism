@@ -4,12 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
-	"github.com/ethereum-optimism/optimism/cannon/serialize"
+	factory "github.com/ethereum-optimism/optimism/cannon/mipsevm/factory"
 	"github.com/urfave/cli/v2"
-
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
 )
 
 var (
@@ -29,23 +25,11 @@ var (
 func Witness(ctx *cli.Context) error {
 	input := ctx.Path(WitnessInputFlag.Name)
 	output := ctx.Path(WitnessOutputFlag.Name)
-	var state mipsevm.FPVMState
-	if vmType, err := vmTypeFromString(ctx); err != nil {
-		return err
-	} else if vmType == cannonVMType {
-		state, err = serialize.Load[singlethreaded.State](input)
-		if err != nil {
-			return fmt.Errorf("invalid input state (%v): %w", input, err)
-		}
-	} else if vmType == mtVMType {
-		state, err = serialize.Load[multithreaded.State](input)
-		if err != nil {
-			return fmt.Errorf("invalid input state (%v): %w", input, err)
-		}
-	} else {
-		return fmt.Errorf("invalid VM type: %q", vmType)
+	f, err := factory.NewVMFactoryFromStateFile(input)
+	if err != nil {
+		return fmt.Errorf("invalid input state (%v): %w", input, err)
 	}
-
+	state := f.State()
 	witness, h := state.EncodeWitness()
 	if output != "" {
 		if err := os.WriteFile(output, witness, 0755); err != nil {

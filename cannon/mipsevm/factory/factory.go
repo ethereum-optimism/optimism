@@ -21,6 +21,7 @@ var (
 
 type VMFactory interface {
 	CreateVM(logger log.Logger, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer) mipsevm.FPVM
+	State() mipsevm.FPVMState
 }
 
 func NewVMFactoryFromStateFile(path string) (VMFactory, error) {
@@ -54,28 +55,6 @@ func NewVMFactoryFromStateFile(path string) (VMFactory, error) {
 		return nil, fmt.Errorf("%w: %d", ErrUnknownVersion, versionedState.Version)
 	}
 }
-
-type SingleThreadedFactory struct {
-	state *singlethreaded.State
-}
-
-func (s *SingleThreadedFactory) CreateVM(logger log.Logger, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer) mipsevm.FPVM {
-	logger.Info("Using cannon VM")
-	return singlethreaded.NewInstrumentedState(s.state, po, stdOut, stdErr)
-}
-
-var _ VMFactory = (*SingleThreadedFactory)(nil)
-
-type MultiThreadedFactory struct {
-	state *multithreaded.State
-}
-
-func (m *MultiThreadedFactory) CreateVM(logger log.Logger, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer) mipsevm.FPVM {
-	logger.Info("Using cannon multithreaded VM")
-	return multithreaded.NewInstrumentedState(m.state, po, stdOut, stdErr, logger)
-}
-
-var _ VMFactory = (*MultiThreadedFactory)(nil)
 
 type VersionedState struct {
 	Version             versions.StateVersion
