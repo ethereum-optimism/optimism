@@ -6,11 +6,12 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { L1Block } from "src/L2/L1Block.sol";
 import { SafeSend } from "src/universal/SafeSend.sol";
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
+import { IETHLiquidity } from "src/L2/interfaces/IETHLiquidity.sol";
 
 /// @title ETHLiquidity
 /// @notice The ETHLiquidity contract allows other contracts to access ETH liquidity without
 ///         needing to modify the EVM to generate new ETH.
-contract ETHLiquidity is ISemver {
+contract ETHLiquidity is IETHLiquidity, ISemver {
     /// @notice Emitted when an address burns ETH liquidity.
     event LiquidityBurned(address indexed caller, uint256 value);
 
