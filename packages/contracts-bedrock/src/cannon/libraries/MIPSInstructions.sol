@@ -117,7 +117,7 @@ library MIPSInstructions {
                 rs += signExtend(_insn & 0xFFFF, 16);
                 uint32 addr = rs & 0xFFFFFFFC;
                 mem = MIPSMemory.readMem(_memRoot, addr, _memProofOffset);
-                if (_opcode >= 0x28 && _opcode != 0x30) {
+                if (_opcode >= 0x28) {
                     // store
                     storeAddr = addr;
                     // store opcodes don't write back to a register
@@ -154,11 +154,6 @@ library MIPSInstructions {
 
                     return newMemRoot_;
                 }
-            }
-
-            // stupid sc, write a 1 to rt
-            if (_opcode == 0x38 && rtReg != 0) {
-                _registers[rtReg] = 1;
             }
 
             // write memory
@@ -426,14 +421,6 @@ library MIPSInstructions {
                     uint32 val = _rt << (24 - (_rs & 3) * 8);
                     uint32 mask = uint32(0xFFFFFFFF) << (24 - (_rs & 3) * 8);
                     return (_mem & ~mask) | val;
-                }
-                // ll
-                else if (_opcode == 0x30) {
-                    return _mem;
-                }
-                // sc
-                else if (_opcode == 0x38) {
-                    return _rt;
                 } else {
                     revert("invalid instruction");
                 }

@@ -75,7 +75,7 @@ func ExecMipsCoreStepLogic(cpu *mipsevm.CpuScalars, registers *[32]uint32, memor
 		addr := rs & 0xFFFFFFFC
 		memTracker.TrackMemAccess(addr)
 		mem = memory.GetMemory(addr)
-		if opcode >= 0x28 && opcode != 0x30 {
+		if opcode >= 0x28 {
 			// store
 			storeAddr = addr
 			// store opcodes don't write back to a register
@@ -110,11 +110,6 @@ func ExecMipsCoreStepLogic(cpu *mipsevm.CpuScalars, registers *[32]uint32, memor
 		if fun >= 0x10 && fun < 0x1c {
 			return HandleHiLo(cpu, registers, fun, rs, rt, rdReg)
 		}
-	}
-
-	// store conditional, write a 1 to rt
-	if opcode == 0x38 && rtReg != 0 {
-		registers[rtReg] = 1
 	}
 
 	// write memory
@@ -281,10 +276,6 @@ func ExecuteMipsInstruction(insn, opcode, fun, rs, rt, mem uint32) uint32 {
 			val := rt << (24 - (rs&3)*8)
 			mask := uint32(0xFFFFFFFF) << (24 - (rs&3)*8)
 			return (mem & ^mask) | val
-		case 0x30: //  ll
-			return mem
-		case 0x38: //  sc
-			return rt
 		default:
 			panic("invalid instruction")
 		}
