@@ -2,7 +2,6 @@
 pragma solidity ^0.8.15;
 
 import { CommonTest } from "test/setup/CommonTest.sol";
-import { Executables } from "scripts/libraries/Executables.sol";
 import { console2 as console } from "forge-std/console2.sol";
 import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
@@ -823,7 +822,25 @@ contract Specification_Test is CommonTest {
 
         // OPStackManager
         _addSpec({ _name: "OPStackManager", _sel: _getSel("version()") });
+        _addSpec({ _name: "OPStackManager", _sel: _getSel("superchainConfig()") });
+        _addSpec({ _name: "OPStackManager", _sel: _getSel("protocolVersions()") });
+        _addSpec({ _name: "OPStackManager", _sel: _getSel("latestRelease()") });
+        _addSpec({ _name: "OPStackManager", _sel: _getSel("implementations(string,string)") });
+        _addSpec({ _name: "OPStackManager", _sel: _getSel("systemConfigs(uint256)") });
+        _addSpec({ _name: "OPStackManager", _sel: OPStackManager.setRelease.selector });
         _addSpec({ _name: "OPStackManager", _sel: OPStackManager.deploy.selector });
+        _addSpec({ _name: "OPStackManager", _sel: OPStackManager.blueprints.selector });
+
+        // OPStackManagerInterop
+        _addSpec({ _name: "OPStackManagerInterop", _sel: _getSel("version()") });
+        _addSpec({ _name: "OPStackManagerInterop", _sel: _getSel("superchainConfig()") });
+        _addSpec({ _name: "OPStackManagerInterop", _sel: _getSel("protocolVersions()") });
+        _addSpec({ _name: "OPStackManagerInterop", _sel: _getSel("latestRelease()") });
+        _addSpec({ _name: "OPStackManagerInterop", _sel: _getSel("implementations(string,string)") });
+        _addSpec({ _name: "OPStackManagerInterop", _sel: _getSel("systemConfigs(uint256)") });
+        _addSpec({ _name: "OPStackManagerInterop", _sel: OPStackManager.setRelease.selector });
+        _addSpec({ _name: "OPStackManagerInterop", _sel: OPStackManager.deploy.selector });
+        _addSpec({ _name: "OPStackManagerInterop", _sel: OPStackManager.blueprints.selector });
 
         // DeputyGuardianModule
         _addSpec({
