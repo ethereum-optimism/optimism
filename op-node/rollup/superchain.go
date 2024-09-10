@@ -50,6 +50,7 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 			DAChallengeAddress: common.Address(*chConfig.AltDA.DAChallengeAddress),
 			DAChallengeWindow:  *chConfig.AltDA.DAChallengeWindow,
 			DAResolveWindow:    *chConfig.AltDA.DAResolveWindow,
+			CommitmentType:     *chConfig.AltDA.DACommitmentType,
 		}
 	}
 
