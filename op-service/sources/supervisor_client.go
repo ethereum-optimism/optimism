@@ -40,7 +40,10 @@ func (cl *SupervisorClient) AddL2RPC(
 func (cl *SupervisorClient) CheckBlock(ctx context.Context,
 	chainID types.ChainID, blockHash common.Hash, blockNumber uint64) (types.SafetyLevel, error) {
 	var result types.SafetyLevel
-	err := cl.client.CallContext(ctx, &result, "interop_checkBlock",
+	err := cl.client.CallContext(
+		ctx,
+		&result,
+		"supervisor_checkBlock",
 		(*hexutil.U256)(&chainID), blockHash, hexutil.Uint64(blockNumber))
 	if err != nil {
 		return types.Unsafe, fmt.Errorf("failed to check Block %s:%d (chain %s): %w", blockHash, blockNumber, chainID, err)
