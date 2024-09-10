@@ -328,7 +328,9 @@ func (s *system2) newProposerForL2(
 		},
 	}
 	proposer, err := l2os.ProposerServiceFromCLIConfig(
-		context.Background(), "0.0.1", proposerCLIConfig,
+		context.Background(),
+		"0.0.1",
+		proposerCLIConfig,
 		logger.New("service", "proposer"))
 	require.NoError(s.t, err, "must start proposer")
 	require.NoError(s.t, proposer.Start(context.Background()))
@@ -391,14 +393,16 @@ func (s *system2) newL2(id string, l2Out *interopgen.L2Output) l2Set {
 	operatorKeys := s.newOperatorKeysForL2(l2Out)
 	l2Geth := s.newGethForL2(id, l2Out)
 	opNode := s.newNodeForL2(id, l2Out, operatorKeys, l2Geth)
-	proposer := s.newProposerForL2(id, operatorKeys, opNode)
+	// TODO: proposer does not work with the generated world,
+	// as there is no DisputeGameFactoryProxy
+	//proposer := s.newProposerForL2(id, operatorKeys, opNode)
 	batcher := s.newBatcherForL2(id, operatorKeys, l2Geth, opNode)
 
 	return l2Set{
 		chainID:      l2Out.Genesis.Config.ChainID,
 		opNode:       opNode,
 		l2Geth:       l2Geth,
-		proposer:     proposer,
+		proposer:     nil,
 		batcher:      batcher,
 		operatorKeys: operatorKeys,
 		userKeys:     make(map[string]ecdsa.PrivateKey),
@@ -463,11 +467,14 @@ func (s *system2) prepare(t *testing.T) {
 	s.hdWallet = s.prepareHDWallet()
 	s.worldDeployment, s.worldOutput = s.prepareWorld()
 	s.supervisor = s.prepareSupervisor()
+	s.superClient = s.SupervisorClient()
 	client := s.SupervisorClient()
 	fmt.Println("client", client)
-	//time.Sleep(300 * time.Second) // wait for the supervisor to start
 	s.beacon, s.l1 = s.prepareL1()
 	s.l2s = s.prepareL2s()
+	//for _, l2 := range s.l2s {
+	//	s.superClient.
+	//}
 }
 
 // AddUser adds a user to the system by creating a user key for each L2.
