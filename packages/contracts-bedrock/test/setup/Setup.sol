@@ -1,9 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Testing
 import { console2 as console } from "forge-std/console2.sol";
-import { Predeploys } from "src/libraries/Predeploys.sol";
-import { Preinstalls } from "src/libraries/Preinstalls.sol";
+import { Vm } from "forge-std/Vm.sol";
+
+// Scripts
+import { DeployConfig } from "scripts/deploy/DeployConfig.s.sol";
+import { Deploy } from "scripts/deploy/Deploy.s.sol";
+import { Fork, LATEST_FORK } from "scripts/libraries/Config.sol";
+import { L2Genesis, L1Dependencies } from "scripts/L2Genesis.s.sol";
+import { OutputMode, Fork, ForkUtils } from "scripts/libraries/Config.sol";
+import { Executables } from "scripts/libraries/Executables.sol";
+
+// Contracts
 import { L2CrossDomainMessenger } from "src/L2/L2CrossDomainMessenger.sol";
 import { L2StandardBridgeInterop } from "src/L2/L2StandardBridgeInterop.sol";
 import { L2ToL1MessagePasser } from "src/L2/L2ToL1MessagePasser.sol";
@@ -18,31 +28,30 @@ import { GovernanceToken } from "src/governance/GovernanceToken.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
 import { StandardBridge } from "src/universal/StandardBridge.sol";
 import { FeeVault } from "src/universal/FeeVault.sol";
-import { OptimismPortal } from "src/L1/OptimismPortal.sol";
-import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
 import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
-import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
-import { DeployConfig } from "scripts/deploy/DeployConfig.s.sol";
-import { Deploy } from "scripts/deploy/Deploy.s.sol";
-import { Fork, LATEST_FORK } from "scripts/libraries/Config.sol";
-import { L2Genesis, L1Dependencies } from "scripts/L2Genesis.s.sol";
-import { OutputMode, Fork, ForkUtils } from "scripts/libraries/Config.sol";
-import { IL2OutputOracle } from "src/L1/interfaces/IL2OutputOracle.sol";
 import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
-import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { AddressManager } from "src/legacy/AddressManager.sol";
-import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
-import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
-import { Executables } from "scripts/libraries/Executables.sol";
-import { Vm } from "forge-std/Vm.sol";
-import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
-import { DataAvailabilityChallenge } from "src/L1/DataAvailabilityChallenge.sol";
 import { WETH } from "src/L2/WETH.sol";
 import { SuperchainWETH } from "src/L2/SuperchainWETH.sol";
 import { ETHLiquidity } from "src/L2/ETHLiquidity.sol";
+import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
+
+// Libraries
+import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Preinstalls } from "src/libraries/Preinstalls.sol";
+import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
+
+// Interfaces
+import { IOptimismPortal } from "src/L1/interfaces/IOptimismPortal.sol";
+import { IOptimismPortal2 } from "src/L1/interfaces/IOptimismPortal2.sol";
+import { IL1CrossDomainMessenger } from "src/L1/interfaces/IL1CrossDomainMessenger.sol";
+import { IL2OutputOracle } from "src/L1/interfaces/IL2OutputOracle.sol";
+import { ISystemConfig } from "src/L1/interfaces/ISystemConfig.sol";
+import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
+import { IDataAvailabilityChallenge } from "src/L1/interfaces/IDataAvailabilityChallenge.sol";
 
 /// @title Setup
 /// @dev This contact is responsible for setting up the contracts in state. It currently
@@ -65,20 +74,20 @@ contract Setup {
     // @notice Allows users of Setup to override what L2 genesis is being created.
     Fork l2Fork = LATEST_FORK;
 
-    OptimismPortal optimismPortal;
-    OptimismPortal2 optimismPortal2;
+    IOptimismPortal optimismPortal;
+    IOptimismPortal2 optimismPortal2;
     DisputeGameFactory disputeGameFactory;
     DelayedWETH delayedWeth;
     IL2OutputOracle l2OutputOracle;
-    SystemConfig systemConfig;
+    ISystemConfig systemConfig;
     L1StandardBridge l1StandardBridge;
-    L1CrossDomainMessenger l1CrossDomainMessenger;
+    IL1CrossDomainMessenger l1CrossDomainMessenger;
     AddressManager addressManager;
     L1ERC721Bridge l1ERC721Bridge;
     OptimismMintableERC20Factory l1OptimismMintableERC20Factory;
     ProtocolVersions protocolVersions;
-    SuperchainConfig superchainConfig;
-    DataAvailabilityChallenge dataAvailabilityChallenge;
+    ISuperchainConfig superchainConfig;
+    IDataAvailabilityChallenge dataAvailabilityChallenge;
     AnchorStateRegistry anchorStateRegistry;
 
     L2CrossDomainMessenger l2CrossDomainMessenger =
@@ -131,20 +140,20 @@ contract Setup {
         deploy.run();
         console.log("Setup: completed L1 deployment, registering addresses now");
 
-        optimismPortal = OptimismPortal(deploy.mustGetAddress("OptimismPortalProxy"));
-        optimismPortal2 = OptimismPortal2(deploy.mustGetAddress("OptimismPortalProxy"));
+        optimismPortal = IOptimismPortal(deploy.mustGetAddress("OptimismPortalProxy"));
+        optimismPortal2 = IOptimismPortal2(deploy.mustGetAddress("OptimismPortalProxy"));
         disputeGameFactory = DisputeGameFactory(deploy.mustGetAddress("DisputeGameFactoryProxy"));
         delayedWeth = DelayedWETH(deploy.mustGetAddress("DelayedWETHProxy"));
         l2OutputOracle = IL2OutputOracle(deploy.mustGetAddress("L2OutputOracleProxy"));
-        systemConfig = SystemConfig(deploy.mustGetAddress("SystemConfigProxy"));
+        systemConfig = ISystemConfig(deploy.mustGetAddress("SystemConfigProxy"));
         l1StandardBridge = L1StandardBridge(deploy.mustGetAddress("L1StandardBridgeProxy"));
-        l1CrossDomainMessenger = L1CrossDomainMessenger(deploy.mustGetAddress("L1CrossDomainMessengerProxy"));
+        l1CrossDomainMessenger = IL1CrossDomainMessenger(deploy.mustGetAddress("L1CrossDomainMessengerProxy"));
         addressManager = AddressManager(deploy.mustGetAddress("AddressManager"));
         l1ERC721Bridge = L1ERC721Bridge(deploy.mustGetAddress("L1ERC721BridgeProxy"));
         l1OptimismMintableERC20Factory =
             OptimismMintableERC20Factory(deploy.mustGetAddress("OptimismMintableERC20FactoryProxy"));
         protocolVersions = ProtocolVersions(deploy.mustGetAddress("ProtocolVersionsProxy"));
-        superchainConfig = SuperchainConfig(deploy.mustGetAddress("SuperchainConfigProxy"));
+        superchainConfig = ISuperchainConfig(deploy.mustGetAddress("SuperchainConfigProxy"));
         anchorStateRegistry = AnchorStateRegistry(deploy.mustGetAddress("AnchorStateRegistryProxy"));
 
         vm.label(address(l2OutputOracle), "L2OutputOracle");
@@ -174,7 +183,7 @@ contract Setup {
 
         if (deploy.cfg().useAltDA()) {
             dataAvailabilityChallenge =
-                DataAvailabilityChallenge(deploy.mustGetAddress("DataAvailabilityChallengeProxy"));
+                IDataAvailabilityChallenge(deploy.mustGetAddress("DataAvailabilityChallengeProxy"));
             vm.label(address(dataAvailabilityChallenge), "DataAvailabilityChallengeProxy");
             vm.label(deploy.mustGetAddress("DataAvailabilityChallenge"), "DataAvailabilityChallenge");
         }

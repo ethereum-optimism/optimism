@@ -7,11 +7,15 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import "src/libraries/PortalErrors.sol";
 
 // Target contract dependencies
 import "src/libraries/PortalErrors.sol";
 import { OptimismPortalInterop } from "src/L1/OptimismPortalInterop.sol";
 import { L1BlockIsthmus, ConfigType } from "src/L2/L1BlockIsthmus.sol";
+
+// Interfaces
+import { IOptimismPortalInterop } from "src/L1/interfaces/IOptimismPortalInterop.sol";
 
 contract OptimismPortalInterop_Test is CommonTest {
     /// @notice Marked virtual to be overridden in
@@ -91,7 +95,7 @@ contract OptimismPortalInterop_Test is CommonTest {
     }
 
     /// @dev Returns the OptimismPortalInterop instance.
-    function _optimismPortalInterop() internal view returns (OptimismPortalInterop) {
-        return OptimismPortalInterop(payable(address(optimismPortal)));
+    function _optimismPortalInterop() internal view returns (IOptimismPortalInterop) {
+        return IOptimismPortalInterop(payable(address(optimismPortal)));
     }
 }

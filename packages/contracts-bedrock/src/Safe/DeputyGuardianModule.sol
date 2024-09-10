@@ -1,18 +1,23 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Safe
 import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
 
-import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
-import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
-import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
-import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
-import { ISemver } from "src/universal/interfaces/ISemver.sol";
-import { Unauthorized } from "src/libraries/PortalErrors.sol";
+// Contracts
 import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
 
+// Libraries
+import { Unauthorized } from "src/libraries/PortalErrors.sol";
 import "src/dispute/lib/Types.sol";
+
+// Interfaces
+import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
+import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
+import { IOptimismPortal2 } from "src/L1/interfaces/IOptimismPortal2.sol";
+import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
 
 /// @title DeputyGuardianModule
 /// @notice This module is intended to be enabled on the Security Council Safe, which will own the Guardian role in the
@@ -39,7 +44,7 @@ contract DeputyGuardianModule is ISemver {
     Safe internal immutable SAFE;
 
     /// @notice The SuperchainConfig's address
-    SuperchainConfig internal immutable SUPERCHAIN_CONFIG;
+    ISuperchainConfig internal immutable SUPERCHAIN_CONFIG;
 
     /// @notice The deputy guardian's address
     address internal immutable DEPUTY_GUARDIAN;
@@ -49,7 +54,7 @@ contract DeputyGuardianModule is ISemver {
     string public constant version = "2.0.1-beta.1";
 
     // Constructor to initialize the Safe and baseModule instances
-    constructor(Safe _safe, SuperchainConfig _superchainConfig, address _deputyGuardian) {
+    constructor(Safe _safe, ISuperchainConfig _superchainConfig, address _deputyGuardian) {
         SAFE = _safe;
         SUPERCHAIN_CONFIG = _superchainConfig;
         DEPUTY_GUARDIAN = _deputyGuardian;
@@ -63,7 +68,7 @@ contract DeputyGuardianModule is ISemver {
 
     /// @notice Getter function for the SuperchainConfig's address
     /// @return superchainConfig_ The SuperchainConfig's address
-    function superchainConfig() public view returns (SuperchainConfig superchainConfig_) {
+    function superchainConfig() public view returns (ISuperchainConfig superchainConfig_) {
         superchainConfig_ = SUPERCHAIN_CONFIG;
     }
 
@@ -131,10 +136,10 @@ contract DeputyGuardianModule is ISemver {
     ///      Only the deputy guardian can call this function.
     /// @param _portal The `OptimismPortal2` contract instance.
     /// @param _game The `IDisputeGame` contract instance.
-    function blacklistDisputeGame(OptimismPortal2 _portal, IDisputeGame _game) external {
+    function blacklistDisputeGame(IOptimismPortal2 _portal, IDisputeGame _game) external {
         _onlyDeputyGuardian();
 
-        bytes memory data = abi.encodeCall(OptimismPortal2.blacklistDisputeGame, (_game));
+        bytes memory data = abi.encodeCall(IOptimismPortal2.blacklistDisputeGame, (_game));
         (bool success, bytes memory returnData) =
             SAFE.execTransactionFromModuleReturnData(address(_portal), 0, data, Enum.Operation.Call);
         if (!success) {
@@ -148,10 +153,10 @@ contract DeputyGuardianModule is ISemver {
     ///      Only the deputy guardian can call this function.
     /// @param _portal The `OptimismPortal2` contract instance.
     /// @param _gameType The `GameType` to set as the respected game type.
-    function setRespectedGameType(OptimismPortal2 _portal, GameType _gameType) external {
+    function setRespectedGameType(IOptimismPortal2 _portal, GameType _gameType) external {
         _onlyDeputyGuardian();
 
-        bytes memory data = abi.encodeCall(OptimismPortal2.setRespectedGameType, (_gameType));
+        bytes memory data = abi.encodeCall(IOptimismPortal2.setRespectedGameType, (_gameType));
         (bool success, bytes memory returnData) =
             SAFE.execTransactionFromModuleReturnData(address(_portal), 0, data, Enum.Operation.Call);
         if (!success) {

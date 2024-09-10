@@ -1,17 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-// Testing utilities
+// Testing
 import { Test } from "forge-std/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
-import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
-import { ResourceMetering } from "src/L1/ResourceMetering.sol";
+
+// Libraries
 import { Types } from "src/libraries/Types.sol";
 import { SafeCall } from "src/libraries/SafeCall.sol";
 import { L1BlockIsthmus } from "src/L2/L1BlockIsthmus.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
+
+// Interfaces
+import { ICrossDomainMessenger } from "src/universal/interfaces/ICrossDomainMessenger.sol";
 
 // Free function for setting the prevBaseFee param in the OptimismPortal.
 function setPrevBaseFee(Vm _vm, address _op, uint128 _prevBaseFee) {
@@ -182,7 +185,7 @@ contract GasBenchMark_L1StandardBridge_Finalize is Bridge_Initializer {
         deal(address(L1Token), address(l1StandardBridge), 100, true);
         vm.mockCall(
             address(l1StandardBridge.messenger()),
-            abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
+            abi.encodeWithSelector(ICrossDomainMessenger.xDomainMessageSender.selector),
             abi.encode(address(l1StandardBridge.OTHER_BRIDGE()))
         );
         vm.startPrank(address(l1StandardBridge.messenger()));

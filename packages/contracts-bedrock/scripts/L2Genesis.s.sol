@@ -21,7 +21,7 @@ import { OptimismMintableERC721Factory } from "src/universal/OptimismMintableERC
 import { BaseFeeVault } from "src/L2/BaseFeeVault.sol";
 import { L1FeeVault } from "src/L2/L1FeeVault.sol";
 import { GovernanceToken } from "src/governance/GovernanceToken.sol";
-import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
+import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { FeeVault } from "src/universal/FeeVault.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
@@ -277,10 +277,10 @@ contract L2Genesis is Deployer {
     function setL2CrossDomainMessenger(address payable _l1CrossDomainMessengerProxy) public {
         address impl = _setImplementationCode(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
 
-        L2CrossDomainMessenger(impl).initialize({ _l1CrossDomainMessenger: L1CrossDomainMessenger(address(0)) });
+        L2CrossDomainMessenger(impl).initialize({ _l1CrossDomainMessenger: CrossDomainMessenger(address(0)) });
 
         L2CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).initialize({
-            _l1CrossDomainMessenger: L1CrossDomainMessenger(_l1CrossDomainMessengerProxy)
+            _l1CrossDomainMessenger: CrossDomainMessenger(_l1CrossDomainMessengerProxy)
         });
     }
 
