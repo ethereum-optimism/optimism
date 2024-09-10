@@ -683,8 +683,15 @@ contract MIPS2_Test is CommonTest {
         assertEq(postState, outputState(expect), "unexpected post state");
     }
 
-    /// @dev static unit test asserting that an clock_gettime syscall reverts on an invalid memory proof
-    function test_syscallClockGettimeMonotonicInvalidProof_reverts() public {
+    /// @dev Test asserting that an clock_gettime syscall reverts on an invalid memory proof
+    function testFuzz_syscallClockGettimeMonotonicInvalidProof_reverts(uint32 _proofIndex) public {
+        // _proofIndex points to a leaf in the index in the insnAndMemProof that will be zeroed.
+        // The second leaf in the memory proof is already zeroed because it's the sibling of the first memory write. So
+        // don't point to that .
+        _proofIndex = uint32(bound(uint256(_proofIndex), 896 + (32 * 2), 896 * 2 - 1));
+        // align the proof index to the start of a leaf
+        _proofIndex = _proofIndex & ~uint32(31);
+
         uint32 pc = 0;
         uint32 insn = 0x0000000c; // syscall
         uint32 timespecAddr = 0xb000;
@@ -701,10 +708,11 @@ contract MIPS2_Test is CommonTest {
 
         bytes memory invalidInsnAndMemProof = new bytes(insnAndMemProof.length);
         for (uint256 i = 0; i < invalidInsnAndMemProof.length; i++) {
-            if (i < 897) {
-                invalidInsnAndMemProof[i] = insnAndMemProof[i];
-            } else {
+            // clear the 32-byte insn leaf
+            if (i >= _proofIndex && i < _proofIndex + 32) {
                 invalidInsnAndMemProof[i] = 0x0;
+            } else {
+                invalidInsnAndMemProof[i] = insnAndMemProof[i];
             }
         }
         vm.expectRevert(InvalidMemoryProof.selector);
