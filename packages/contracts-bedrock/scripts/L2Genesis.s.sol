@@ -530,11 +530,7 @@ contract L2Genesis is Deployer {
         OptimismSuperchainERC20Beacon beacon = new OptimismSuperchainERC20Beacon(superchainERC20Impl);
         address beaconImpl = Predeploys.predeployToCodeNamespace(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON);
 
-        console.log(
-            "Setting %s implementation at: %s",
-            "OptimismSuperchainERC20Beacon",
-            beaconImpl
-        );
+        console.log("Setting %s implementation at: %s", "OptimismSuperchainERC20Beacon", beaconImpl);
         vm.etch(beaconImpl, address(beacon).code);
 
         /// Reset so its not included state dump
