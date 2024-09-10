@@ -472,9 +472,10 @@ func (s *system2) prepare(t *testing.T) {
 	fmt.Println("client", client)
 	s.beacon, s.l1 = s.prepareL1()
 	s.l2s = s.prepareL2s()
-	//for _, l2 := range s.l2s {
-	//	s.superClient.
-	//}
+	for _, l2 := range s.l2s {
+		err := s.superClient.AddL2RPC(context.Background(), l2.l2Geth.UserRPC().RPC())
+		require.NoError(s.t, err, "failed to add L2 RPC to supervisor")
+	}
 }
 
 // AddUser adds a user to the system by creating a user key for each L2.

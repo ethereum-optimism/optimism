@@ -29,7 +29,7 @@ func (cl *SupervisorClient) AddL2RPC(
 	err := cl.client.CallContext(
 		ctx,
 		&result,
-		"interop_addL2RPC",
+		"admin_addL2RPC",
 		rpc)
 	if err != nil {
 		return fmt.Errorf("failed to Add L2 to Supervisor (rpc: %s): %w", rpc, err)
