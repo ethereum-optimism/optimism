@@ -31,7 +31,7 @@ contract OPStackManagerInterop is OPStackManager {
         override
         returns (bytes memory)
     {
-        (ResourceMetering.ResourceConfig memory referenceResourceConfig, SystemConfig.Addresses memory addrs) =
+        (ResourceMetering.ResourceConfig memory referenceResourceConfig, SystemConfig.Addresses memory opChainAddrs) =
             defaultSystemConfigParams(selector, _input, _output);
 
         // TODO For now we assume that the dependency manager is the same as the proxy admin owner.
@@ -47,11 +47,11 @@ contract OPStackManagerInterop is OPStackManager {
             _input.basefeeScalar,
             _input.blobBasefeeScalar,
             bytes32(uint256(uint160(_input.roles.batcher))), // batcherHash
-            30_000_000, // gasLimit
+            30_000_000, // gasLimit TODO make this configurable?
             _input.roles.unsafeBlockSigner,
             referenceResourceConfig,
             chainIdToBatchInboxAddress(_input.l2ChainId),
-            addrs,
+            opChainAddrs,
             dependencyManager
         );
     }

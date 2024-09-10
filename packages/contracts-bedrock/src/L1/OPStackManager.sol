@@ -404,7 +404,7 @@ contract OPStackManager is ISemver {
         virtual
         returns (bytes memory)
     {
-        (ResourceMetering.ResourceConfig memory referenceResourceConfig, SystemConfig.Addresses memory addrs) =
+        (ResourceMetering.ResourceConfig memory referenceResourceConfig, SystemConfig.Addresses memory opChainAddrs) =
             defaultSystemConfigParams(selector, _input, _output);
 
         return abi.encodeWithSelector(
@@ -417,7 +417,7 @@ contract OPStackManager is ISemver {
             _input.roles.unsafeBlockSigner,
             referenceResourceConfig,
             chainIdToBatchInboxAddress(_input.l2ChainId),
-            addrs
+            opChainAddrs
         );
     }
 
@@ -485,7 +485,7 @@ contract OPStackManager is ISemver {
             maximumBaseFee: 340282366920938463463374607431768211455
         });
 
-        SystemConfig.Addresses memory addrs = SystemConfig.Addresses({
+        SystemConfig.Addresses memory opChainAddrs = SystemConfig.Addresses({
             l1CrossDomainMessenger: address(_output.l1CrossDomainMessengerProxy),
             l1ERC721Bridge: address(_output.l1ERC721BridgeProxy),
             l1StandardBridge: address(_output.l1StandardBridgeProxy),
@@ -495,7 +495,7 @@ contract OPStackManager is ISemver {
             gasPayingToken: address(0)
         });
 
-        return (referenceResourceConfig, addrs);
+        return (referenceResourceConfig, opChainAddrs);
     }
 
     /// @notice Makes an external call to the target to initialize the proxy with the specified data.
