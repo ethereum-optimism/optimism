@@ -25,7 +25,7 @@ import { Solarray } from "scripts/libraries/Solarray.sol";
 //
 // We want each user to interact with the scripts in the way that's simplest for their use case:
 //   1. End users: TOML input files that define config, and TOML output files with all output data.
-//   2. Solidity developers: Direct calls to the script with input structs and output structs.
+//   2. Solidity developers: Direct calls to the script, with the input and output contracts configured.
 //   3. Go developers: The forge scripts can be executed directly in Go.
 //
 // The following architecture is used to meet the requirements of each user. We use this file's
@@ -39,7 +39,7 @@ import { Solarray } from "scripts/libraries/Solarray.sol";
 //
 // Because the core script performs calls to the input and output contracts, Go developers can
 // intercept calls to these addresses (analogous to how forge intercepts calls to the `Vm` address
-// to execute cheatcodes), to avoid the need for file I/O or hardcoding the input/output structs.
+// to execute cheatcodes), to avoid the need for file I/O or hardcoding the input/output values.
 //
 // Public getter methods on the input and output contracts allow individual fields to be accessed
 // in a strong, type-safe manner (as opposed to a single struct getter where the caller may
@@ -118,10 +118,10 @@ contract DeploySuperchainInput is CommonBase {
         _requiredProtocolVersion = ProtocolVersion.wrap(reqVersion);
     }
 
-    // Each field of the input struct is exposed via it's own getter method. Using public storage
-    // variables here would be more verbose, but would also be more error-prone, as it would
-    // require the caller to remember to check the `inputSet` flag before accessing any of the
-    // fields. With getter methods, we can be sure that the input is set before accessing any field.
+    // Each input field is exposed via it's own getter method. Using public storage variables here
+    // would be less verbose, but would also be more error-prone, as it would require the caller to
+    // validate that each input is set before accessing it. With getter methods, we can automatically
+    // validate that each input is set before allowing any field to be accessed.
 
     function proxyAdminOwner() public view returns (address) {
         require(_proxyAdminOwner != address(0), "DeploySuperchainInput: proxyAdminOwner not set");
