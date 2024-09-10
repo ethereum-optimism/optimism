@@ -122,6 +122,18 @@ contract OPStackManager is ISemver {
     /// @notice Maps an L2 Chain ID to the SystemConfig for that chain.
     mapping(uint256 => SystemConfig) public systemConfigs;
 
+    // Define an enum for the proxies to help with type safety.
+    enum ProxyType {
+        L1CrossDomainMessenger,
+        L1ERC721Bridge,
+        OptimismMintableERC20Factory,
+        OptimismPortal,
+        SystemConfig
+    }
+
+    // Mapping to help represent an enum with strings
+    mapping(ProxyType => string) public proxyNames;
+
     // -------- Events --------
 
     /// @notice Emitted when a new OP Stack chain is deployed.
@@ -168,6 +180,12 @@ contract OPStackManager is ISemver {
         superchainConfig = _superchainConfig;
         protocolVersions = _protocolVersions;
         blueprint = _blueprints;
+
+        proxyNames[ProxyType.L1ERC721Bridge] = "L1ERC721Bridge";
+        proxyNames[ProxyType.OptimismPortal] = "OptimismPortal";
+        proxyNames[ProxyType.SystemConfig] = "SystemConfig";
+        proxyNames[ProxyType.OptimismMintableERC20Factory] = "OptimismMintableERC20Factory";
+        proxyNames[ProxyType.L1CrossDomainMessenger] = "L1CrossDomainMessenger";
     }
 
     /// @notice Callable by the OPSM owner to release a set of implementation contracts for a given
@@ -212,12 +230,15 @@ contract OPStackManager is ISemver {
         output.opChainProxyAdmin.setAddressManager(output.addressManager);
 
         // Deploy ERC-1967 proxied contracts.
-        output.l1ERC721BridgeProxy = L1ERC721Bridge(deployProxy(l2ChainId, output.opChainProxyAdmin, "L1ERC721Bridge"));
-        output.optimismPortalProxy =
-            OptimismPortal2(payable(deployProxy(l2ChainId, output.opChainProxyAdmin, "OptimismPortal")));
-        output.systemConfigProxy = SystemConfig(deployProxy(l2ChainId, output.opChainProxyAdmin, "SystemConfig"));
+        output.l1ERC721BridgeProxy =
+            L1ERC721Bridge(deployProxy(l2ChainId, output.opChainProxyAdmin, getProxyName(ProxyType.L1ERC721Bridge)));
+        output.optimismPortalProxy = OptimismPortal2(
+            payable(deployProxy(l2ChainId, output.opChainProxyAdmin, getProxyName(ProxyType.OptimismPortal)))
+        );
+        output.systemConfigProxy =
+            SystemConfig(deployProxy(l2ChainId, output.opChainProxyAdmin, getProxyName(ProxyType.SystemConfig)));
         output.optimismMintableERC20FactoryProxy = OptimismMintableERC20Factory(
-            deployProxy(l2ChainId, output.opChainProxyAdmin, "OptimismMintableERC20Factory")
+            deployProxy(l2ChainId, output.opChainProxyAdmin, getProxyName(ProxyType.OptimismMintableERC20Factory))
         );
 
         // Deploy legacy proxied contracts.
@@ -242,23 +263,23 @@ contract OPStackManager is ISemver {
         Implementation storage impl;
         bytes memory data;
 
-        impl = getLatestImplementation("L1ERC721Bridge");
+        impl = getLatestImplementation(getProxyName(ProxyType.L1ERC721Bridge));
         data = encodeL1ERC721BridgeInitializer(impl.initializer, output);
         upgradeAndCall(output.opChainProxyAdmin, address(output.l1ERC721BridgeProxy), impl.logic, data);
 
-        impl = getLatestImplementation("OptimismPortal");
+        impl = getLatestImplementation(getProxyName(ProxyType.OptimismPortal));
         data = encodeOptimismPortalInitializer(impl.initializer, output);
         upgradeAndCall(output.opChainProxyAdmin, address(output.optimismPortalProxy), impl.logic, data);
 
-        impl = getLatestImplementation("SystemConfig");
+        impl = getLatestImplementation(getProxyName(ProxyType.SystemConfig));
         data = encodeSystemConfigInitializer(impl.initializer, _input, output);
         upgradeAndCall(output.opChainProxyAdmin, address(output.systemConfigProxy), impl.logic, data);
 
-        impl = getLatestImplementation("OptimismMintableERC20Factory");
+        impl = getLatestImplementation(getProxyName(ProxyType.OptimismMintableERC20Factory));
         data = encodeOptimismMintableERC20FactoryInitializer(impl.initializer, output);
         upgradeAndCall(output.opChainProxyAdmin, address(output.optimismMintableERC20FactoryProxy), impl.logic, data);
 
-        impl = getLatestImplementation("L1CrossDomainMessenger");
+        impl = getLatestImplementation(getProxyName(ProxyType.L1CrossDomainMessenger));
         // TODO add this check back in
         // require(
         //     impl.logic == referenceAddressManager.getAddress("OVM_L1CrossDomainMessenger"),
@@ -341,7 +362,7 @@ contract OPStackManager is ISemver {
     function deployProxy(
         uint256 _l2ChainId,
         ProxyAdmin _proxyAdmin,
-        bytes32 _contractName
+        string memory _contractName
     )
         internal
         returns (address)
@@ -500,5 +521,10 @@ contract OPStackManager is ISemver {
     /// @notice Returns the blueprint contract addresses.
     function blueprints() public view returns (Blueprints memory) {
         return blueprint;
+    }
+
+    /// @notice Returns the contract name for a proxy
+    function getProxyName(ProxyType proxyType) public view returns (string memory) {
+        return proxyNames[proxyType];
     }
 }
