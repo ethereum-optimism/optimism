@@ -25,7 +25,7 @@ import { OptimismPortalInterop } from "src/L1/OptimismPortalInterop.sol";
 import { L1ChugSplashProxy } from "src/legacy/L1ChugSplashProxy.sol";
 import { ResolvedDelegateProxy } from "src/legacy/ResolvedDelegateProxy.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
-import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
+import { IL2OutputOracle } from "src/L1/interfaces/IL2OutputOracle.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
@@ -697,11 +697,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the L2OutputOracle
     function deployL2OutputOracle() public broadcast returns (address addr_) {
-        console.log("Deploying L2OutputOracle implementation");
-        L2OutputOracle oracle = new L2OutputOracle{ salt: _implSalt() }();
-
-        save("L2OutputOracle", address(oracle));
-        console.log("L2OutputOracle deployed at %s", address(oracle));
+        IL2OutputOracle oracle = IL2OutputOracle(_deploy("L2OutputOracle", hex""));
 
         // Override the `L2OutputOracle` contract to the deployed implementation. This is necessary
         // to check the `L2OutputOracle` implementation alongside dependent contracts, which
@@ -1235,7 +1231,7 @@ contract Deploy is Deployer {
             _proxy: payable(l2OutputOracleProxy),
             _implementation: l2OutputOracle,
             _innerCallData: abi.encodeCall(
-                L2OutputOracle.initialize,
+                IL2OutputOracle.initialize,
                 (
                     cfg.l2OutputOracleSubmissionInterval(),
                     cfg.l2BlockTime(),
@@ -1248,7 +1244,7 @@ contract Deploy is Deployer {
             )
         });
 
-        L2OutputOracle oracle = L2OutputOracle(l2OutputOracleProxy);
+        IL2OutputOracle oracle = IL2OutputOracle(l2OutputOracleProxy);
         string memory version = oracle.version();
         console.log("L2OutputOracle version: %s", version);
 
@@ -1275,7 +1271,7 @@ contract Deploy is Deployer {
             _innerCallData: abi.encodeCall(
                 OptimismPortal.initialize,
                 (
-                    L2OutputOracle(l2OutputOracleProxy),
+                    IL2OutputOracle(l2OutputOracleProxy),
                     SystemConfig(systemConfigProxy),
                     SuperchainConfig(superchainConfigProxy)
                 )
@@ -1614,5 +1610,22 @@ contract Deploy is Deployer {
         require(dac.resolveWindow() == daResolveWindow);
         require(dac.bondSize() == daBondSize);
         require(dac.resolverRefundPercentage() == daResolverRefundPercentage);
+    }
+
+    /// @notice Deploys a contract via CREATE2.
+    /// @param _name The name of the contract.
+    /// @param _constructorParams The constructor parameters.
+    function _deploy(string memory _name, bytes memory _constructorParams) internal returns (address addr_) {
+        console.log("Deploying %s", _name);
+        bytes32 salt = _implSalt();
+        bytes memory initCode = abi.encodePacked(vm.getCode(_name), _constructorParams);
+        address preComputedAddress = vm.computeCreate2Address(salt, keccak256(initCode));
+        require(preComputedAddress.code.length == 0, "Deploy: contract already deployed");
+        assembly {
+            addr_ := create2(0, add(initCode, 0x20), mload(initCode), salt)
+        }
+        require(addr_ != address(0), "deployment failed");
+        save(_name, addr_);
+        console.log("%s deployed at %s", _name, addr_);
     }
 }

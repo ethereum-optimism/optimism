@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 )
 
 type StackTracker interface {
@@ -31,10 +30,10 @@ type StackTrackerImpl struct {
 
 	stack  []uint32
 	caller []uint32
-	meta   *program.Metadata
+	meta   mipsevm.Metadata
 }
 
-func NewStackTracker(state mipsevm.FPVMState, meta *program.Metadata) (*StackTrackerImpl, error) {
+func NewStackTracker(state mipsevm.FPVMState, meta mipsevm.Metadata) (*StackTrackerImpl, error) {
 	if meta == nil {
 		return nil, errors.New("metadata is nil")
 	}
@@ -42,7 +41,7 @@ func NewStackTracker(state mipsevm.FPVMState, meta *program.Metadata) (*StackTra
 }
 
 // NewStackTrackerUnsafe creates a new TraceableStackTracker without verifying meta is not nil
-func NewStackTrackerUnsafe(state mipsevm.FPVMState, meta *program.Metadata) *StackTrackerImpl {
+func NewStackTrackerUnsafe(state mipsevm.FPVMState, meta mipsevm.Metadata) *StackTrackerImpl {
 	return &StackTrackerImpl{state: state, meta: meta}
 }
 

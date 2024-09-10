@@ -15,7 +15,7 @@ import (
 )
 
 func vmFactory(state *State, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger) mipsevm.FPVM {
-	return NewInstrumentedState(state, po, stdOut, stdErr, log)
+	return NewInstrumentedState(state, po, stdOut, stdErr, log, nil)
 }
 
 func TestInstrumentedState_OpenMips(t *testing.T) {
@@ -36,7 +36,7 @@ func TestInstrumentedState_MultithreadedProgram(t *testing.T) {
 	oracle := testutil.StaticOracle(t, []byte{})
 
 	var stdOutBuf, stdErrBuf bytes.Buffer
-	us := NewInstrumentedState(state, oracle, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr), testutil.CreateLogger())
+	us := NewInstrumentedState(state, oracle, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr), testutil.CreateLogger(), nil)
 	for i := 0; i < 1_000_000; i++ {
 		if us.GetState().GetExited() {
 			break
@@ -73,7 +73,7 @@ func TestInstrumentedState_Alloc(t *testing.T) {
 			state, _ := testutil.LoadELFProgram(t, "../../testdata/example/bin/alloc.elf", CreateInitialState, false)
 			oracle := testutil.AllocOracle(t, test.numAllocs, test.allocSize)
 
-			us := NewInstrumentedState(state, oracle, os.Stdout, os.Stderr, testutil.CreateLogger())
+			us := NewInstrumentedState(state, oracle, os.Stdout, os.Stderr, testutil.CreateLogger(), nil)
 			// emulation shouldn't take more than 20 B steps
 			for i := 0; i < 20_000_000_000; i++ {
 				if us.GetState().GetExited() {

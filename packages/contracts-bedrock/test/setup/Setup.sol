@@ -29,7 +29,7 @@ import { Deploy } from "scripts/deploy/Deploy.s.sol";
 import { Fork, LATEST_FORK } from "scripts/libraries/Config.sol";
 import { L2Genesis, L1Dependencies } from "scripts/L2Genesis.s.sol";
 import { OutputMode, Fork, ForkUtils } from "scripts/libraries/Config.sol";
-import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
+import { IL2OutputOracle } from "src/L1/interfaces/IL2OutputOracle.sol";
 import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
@@ -69,7 +69,7 @@ contract Setup {
     OptimismPortal2 optimismPortal2;
     DisputeGameFactory disputeGameFactory;
     DelayedWETH delayedWeth;
-    L2OutputOracle l2OutputOracle;
+    IL2OutputOracle l2OutputOracle;
     SystemConfig systemConfig;
     L1StandardBridge l1StandardBridge;
     L1CrossDomainMessenger l1CrossDomainMessenger;
@@ -135,7 +135,7 @@ contract Setup {
         optimismPortal2 = OptimismPortal2(deploy.mustGetAddress("OptimismPortalProxy"));
         disputeGameFactory = DisputeGameFactory(deploy.mustGetAddress("DisputeGameFactoryProxy"));
         delayedWeth = DelayedWETH(deploy.mustGetAddress("DelayedWETHProxy"));
-        l2OutputOracle = L2OutputOracle(deploy.mustGetAddress("L2OutputOracleProxy"));
+        l2OutputOracle = IL2OutputOracle(deploy.mustGetAddress("L2OutputOracleProxy"));
         systemConfig = SystemConfig(deploy.mustGetAddress("SystemConfigProxy"));
         l1StandardBridge = L1StandardBridge(deploy.mustGetAddress("L1StandardBridgeProxy"));
         l1CrossDomainMessenger = L1CrossDomainMessenger(deploy.mustGetAddress("L1CrossDomainMessengerProxy"));

@@ -2,14 +2,14 @@
 pragma solidity 0.8.15;
 
 import { CommonTest } from "test/setup/CommonTest.sol";
-import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
+import { IL2OutputOracle } from "src/L1/interfaces/IL2OutputOracle.sol";
 import { Vm } from "forge-std/Vm.sol";
 
 contract L2OutputOracle_Proposer {
-    L2OutputOracle internal oracle;
+    IL2OutputOracle internal oracle;
     Vm internal vm;
 
-    constructor(L2OutputOracle _oracle, Vm _vm) {
+    constructor(IL2OutputOracle _oracle, Vm _vm) {
         oracle = _oracle;
         vm = _vm;
     }
@@ -36,7 +36,7 @@ contract L2OutputOracle_MonotonicBlockNumIncrease_Invariant is CommonTest {
         super.setUp();
 
         // Create a proposer actor.
-        actor = new L2OutputOracle_Proposer(l2OutputOracle, vm);
+        actor = new L2OutputOracle_Proposer(IL2OutputOracle(address(l2OutputOracle)), vm);
 
         // Set the target contract to the proposer actor.
         targetContract(address(actor));

@@ -1,6 +1,7 @@
 package script
 
 import (
+	"bytes"
 	"errors"
 	"math/big"
 
@@ -69,7 +70,7 @@ func (h *Host) Prank(msgSender *common.Address, txOrigin *common.Address, repeat
 		h.log.Warn("no call stack")
 		return nil // cannot prank while not in a call.
 	}
-	cf := &h.callStack[len(h.callStack)-1]
+	cf := h.callStack[len(h.callStack)-1]
 	if cf.Prank != nil {
 		if cf.Prank.Broadcast && !broadcast {
 			return errors.New("you have an active broadcast; broadcasting and pranks are not compatible")
@@ -98,7 +99,7 @@ func (h *Host) StopPrank(broadcast bool) error {
 	if len(h.callStack) == 0 {
 		return nil
 	}
-	cf := &h.callStack[len(h.callStack)-1]
+	cf := h.callStack[len(h.callStack)-1]
 	if cf.Prank == nil {
 		if broadcast {
 			return errors.New("no broadcast in progress to stop")
@@ -127,7 +128,7 @@ func (h *Host) CallerMode() CallerMode {
 	if len(h.callStack) == 0 {
 		return CallerModeNone
 	}
-	cf := &h.callStack[len(h.callStack)-1]
+	cf := h.callStack[len(h.callStack)-1]
 	if cf.Prank != nil {
 		if cf.Prank.Broadcast {
 			if cf.Prank.Repeat {
@@ -157,3 +158,36 @@ const (
 	CallerModePrank
 	CallerModeRecurrentPrank
 )
+
+// Broadcast captures a transaction that was selected to be broadcasted
+// via vm.broadcast(). Actually submitting the transaction is left up
+// to other tools.
+type Broadcast struct {
+	From     common.Address
+	To       common.Address
+	Calldata []byte
+	Value    *big.Int
+}
+
+// NewBroadcastFromCtx creates a Broadcast from a VM context. This method
+// is preferred to manually creating the struct since it correctly handles
+// data that must be copied prior to being returned to prevent accidental
+// mutation.
+func NewBroadcastFromCtx(ctx *vm.ScopeContext) Broadcast {
+	// Consistently return nil for zero values in order
+	// for tests to have a deterministic value to compare
+	// against.
+	value := ctx.CallValue().ToBig()
+	if value.Cmp(common.Big0) == 0 {
+		value = nil
+	}
+
+	// Need to clone CallInput() below since it's used within
+	// the VM itself elsewhere.
+	return Broadcast{
+		From:     ctx.Caller(),
+		To:       ctx.Address(),
+		Calldata: bytes.Clone(ctx.CallInput()),
+		Value:    value,
+	}
+}

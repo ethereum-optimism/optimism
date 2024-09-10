@@ -3,6 +3,7 @@ package script
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math/big"
@@ -69,7 +70,7 @@ type Host struct {
 
 	precompiles map[common.Address]vm.PrecompiledContract
 
-	callStack []CallFrame
+	callStack []*CallFrame
 
 	// serializerStates are in-progress JSON payloads by name,
 	// for the serializeX family of cheat codes, see:
@@ -86,12 +87,34 @@ type Host struct {
 	srcMaps map[common.Address]*srcmap.SourceMap
 
 	onLabel []func(name string, addr common.Address)
+
+	hooks *Hooks
+}
+
+type HostOption func(h *Host)
+
+type BroadcastHook func(broadcast Broadcast)
+
+type Hooks struct {
+	OnBroadcast BroadcastHook
+}
+
+func WithBroadcastHook(hook BroadcastHook) HostOption {
+	return func(h *Host) {
+		h.hooks.OnBroadcast = hook
+	}
 }
 
 // NewHost creates a Host that can load contracts from the given Artifacts FS,
 // and with an EVM initialized to the given executionContext.
 // Optionally src-map loading may be enabled, by providing a non-nil srcFS to read sources from.
-func NewHost(logger log.Logger, fs *foundry.ArtifactsFS, srcFS *foundry.SourceMapFS, executionContext Context) *Host {
+func NewHost(
+	logger log.Logger,
+	fs *foundry.ArtifactsFS,
+	srcFS *foundry.SourceMapFS,
+	executionContext Context,
+	options ...HostOption,
+) *Host {
 	h := &Host{
 		log:              logger,
 		af:               fs,
@@ -101,6 +124,13 @@ func NewHost(logger log.Logger, fs *foundry.ArtifactsFS, srcFS *foundry.SourceMa
 		precompiles:      make(map[common.Address]vm.PrecompiledContract),
 		srcFS:            srcFS,
 		srcMaps:          make(map[common.Address]*srcmap.SourceMap),
+		hooks: &Hooks{
+			OnBroadcast: func(broadcast Broadcast) {},
+		},
+	}
+
+	for _, opt := range options {
+		opt(h)
 	}
 
 	// Init a default chain config, with all the mainnet L1 forks activated
@@ -361,6 +391,19 @@ func (h *Host) unwindCallstack(depth int) {
 		if len(h.callStack) > 1 {
 			parentCallFrame := h.callStack[len(h.callStack)-2]
 			if parentCallFrame.Prank != nil {
+				if parentCallFrame.Prank.Broadcast && parentCallFrame.LastOp != vm.STATICCALL {
+					currentFrame := h.callStack[len(h.callStack)-1]
+					bcast := NewBroadcastFromCtx(currentFrame.Ctx)
+					h.hooks.OnBroadcast(bcast)
+					h.log.Debug(
+						"called broadcast hook",
+						"from", bcast.From,
+						"to", bcast.To,
+						"calldata", hex.EncodeToString(bcast.Calldata),
+						"value", bcast.Value,
+					)
+				}
+
 				// While going back to the parent, restore the tx.origin.
 				// It will later be re-applied on sub-calls if the prank persists (if Repeat == true).
 				if parentCallFrame.Prank.Origin != nil {
@@ -372,7 +415,7 @@ func (h *Host) unwindCallstack(depth int) {
 			}
 		}
 		// Now pop the call-frame
-		h.callStack[len(h.callStack)-1] = CallFrame{} // don't hold on to the underlying call-frame resources
+		h.callStack[len(h.callStack)-1] = nil // don't hold on to the underlying call-frame resources
 		h.callStack = h.callStack[:len(h.callStack)-1]
 	}
 }
@@ -384,7 +427,7 @@ func (h *Host) onOpcode(pc uint64, op byte, gas, cost uint64, scope tracing.OpCo
 	// Check if we are entering a new depth, add it to the call-stack if so.
 	// We do this here, instead of onEnter, to capture an initialized scope.
 	if len(h.callStack) == 0 || h.callStack[len(h.callStack)-1].Depth < depth {
-		h.callStack = append(h.callStack, CallFrame{
+		h.callStack = append(h.callStack, &CallFrame{
 			Depth:  depth,
 			LastOp: vm.OpCode(op),
 			LastPC: pc,
@@ -395,7 +438,7 @@ func (h *Host) onOpcode(pc uint64, op byte, gas, cost uint64, scope tracing.OpCo
 	if len(h.callStack) == 0 || h.callStack[len(h.callStack)-1].Ctx != scopeCtx {
 		panic("scope context changed without call-frame pop/push")
 	}
-	cf := &h.callStack[len(h.callStack)-1]
+	cf := h.callStack[len(h.callStack)-1]
 	if vm.OpCode(op) == vm.JUMPDEST { // remember the last PC before successful jump
 		cf.LastJumps = append(cf.LastJumps, cf.LastPC)
 		if len(cf.LastJumps) > jumpHistory {
@@ -429,7 +472,7 @@ func (h *Host) CurrentCall() CallFrame {
 	if len(h.callStack) == 0 {
 		return CallFrame{}
 	}
-	return h.callStack[len(h.callStack)-1]
+	return *h.callStack[len(h.callStack)-1]
 }
 
 // MsgSender returns the msg.sender of the current active EVM call-frame,

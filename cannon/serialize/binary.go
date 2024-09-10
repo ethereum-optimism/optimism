@@ -4,19 +4,21 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"reflect"
 
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 )
 
+// Deserializable defines functionality for a type that may be deserialized from raw bytes.
+type Deserializable interface {
+	// Deserialize decodes raw bytes into the type.
+	Deserialize(in io.Reader) error
+}
+
 // Serializable defines functionality for a type that may be serialized to raw bytes.
 type Serializable interface {
 	// Serialize encodes the type as raw bytes.
 	Serialize(out io.Writer) error
-
-	// Deserialize decodes raw bytes into the type.
-	Deserialize(in io.Reader) error
 }
 
 func LoadSerializedBinary[X any](inputPath string) (*X, error) {
@@ -31,7 +33,7 @@ func LoadSerializedBinary[X any](inputPath string) (*X, error) {
 	defer f.Close()
 
 	var x X
-	serializable, ok := reflect.ValueOf(&x).Interface().(Serializable)
+	serializable, ok := reflect.ValueOf(&x).Interface().(Deserializable)
 	if !ok {
 		return nil, fmt.Errorf("%T is not a Serializable", x)
 	}
@@ -42,33 +44,20 @@ func LoadSerializedBinary[X any](inputPath string) (*X, error) {
 	return &x, nil
 }
 
-func WriteSerializedBinary(outputPath string, value Serializable, perm os.FileMode) error {
-	if outputPath == "" {
-		return nil
+func WriteSerializedBinary(value Serializable, target ioutil.OutputTarget) error {
+	out, closer, abort, err := target()
+	if err != nil {
+		return err
 	}
-	var out io.Writer
-	finish := func() error { return nil }
-	if outputPath == "-" {
-		out = os.Stdout
-	} else {
-		f, err := ioutil.NewAtomicWriterCompressed(outputPath, perm)
-		if err != nil {
-			return fmt.Errorf("failed to create temp file when writing: %w", err)
-		}
-		// Ensure we close the stream without renaming even if failures occur.
-		defer func() {
-			_ = f.Abort()
-		}()
-		out = f
-		// Closing the file causes it to be renamed to the final destination
-		// so make sure we handle any errors it returns
-		finish = f.Close
+	if out == nil {
+		return nil // Nothing to write to so skip generating content entirely
 	}
-	err := value.Serialize(out)
+	defer abort()
+	err = value.Serialize(out)
 	if err != nil {
 		return fmt.Errorf("failed to write binary: %w", err)
 	}
-	if err := finish(); err != nil {
+	if err := closer.Close(); err != nil {
 		return fmt.Errorf("failed to finish write: %w", err)
 	}
 	return nil
