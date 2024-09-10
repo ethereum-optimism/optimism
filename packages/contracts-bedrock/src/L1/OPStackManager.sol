@@ -347,7 +347,7 @@ contract OPStackManager is ISemver {
     function deployProxy(
         uint256 _l2ChainId,
         ProxyAdmin _proxyAdmin,
-        bytes32 _contractName
+        string memory _contractName
     )
         internal
         returns (address)
