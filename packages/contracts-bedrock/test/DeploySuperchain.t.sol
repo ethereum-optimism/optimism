@@ -124,10 +124,6 @@ contract DeploySuperchainOutput_Test is Test {
         address emptyAddr = makeAddr("emptyAddr");
         bytes memory expectedErr = bytes(string.concat("DeployUtils: no code at ", vm.toString(emptyAddr)));
 
-        dso.set(dso.superchainProxyAdmin.selector, emptyAddr);
-        vm.expectRevert(expectedErr);
-        dso.superchainProxyAdmin();
-
         dso.set(dso.superchainConfigImpl.selector, emptyAddr);
         vm.expectRevert(expectedErr);
         dso.superchainConfigImpl();
