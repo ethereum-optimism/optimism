@@ -1743,6 +1743,10 @@ workflows:
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           save_image_tag: <<pipeline.git.revision>> # for devnet later
       - docker-build:
+          name: op-challenger-deps-docker-build
+          docker_name: op-challenger-deps
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+      - docker-build:
           name: op-dispute-mon-docker-build
           docker_name: op-dispute-mon
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
@@ -1978,14 +1982,31 @@ workflows:
           requires:
             - op-supervisor-docker-release
       - docker-build:
-          name: ci-builder-docker-release
+          name: op-challenger-big-docker-release
           filters:
             tags:
-              only: /^ci-builder\/v.*/
+              only: /^op-challenger\/v.*/
             branches:
               ignore: /.*/
           docker_name: ci-builder
           docker_tags: <<pipeline.git.revision>>,latest
+          publish: true
+          release: true
+          resource_class: xlarge
+          context:
+            - oplabs-gcr
+          requires:
+            - hold
+      - docker-build:
+          name: op-challenger-deps-docker-release
+          filters:
+            tags:
+              only: /^op-challenger-deps\/v.*/  # TODO: Should this just build on op-challenger releases?
+            branches:
+              ignore: /.*/
+          docker_name: op-challenger-deps
+          docker_tags: <<pipeline.git.revision>>,latest
+          platforms: "linux/amd64,linux/arm64"
           publish: true
           release: true
           resource_class: xlarge
@@ -2160,6 +2181,7 @@ workflows:
           op_component: op-challenger
           requires:
             - op-challenger-docker-publish
+      # TODO: Should we periodically publish op-challenger-deps too? Currently it uses fixed versions though...
       - docker-build:
           name: op-dispute-mon-docker-publish
           docker_name: op-dispute-mon

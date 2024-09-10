@@ -199,6 +199,19 @@ target "cannon" {
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/cannon:${tag}"]
 }
 
+target "op-challenger-deps" {
+  dockerfile = "./ops/docker/op-challenger-deps/Dockerfile"
+  context = "."
+  args = {
+    CHALLENGER_VERSION="v1.0.1"
+    KONA_VERSION="latest" # TODO: Set an explicit version when we have a tagged docker image
+    ASTERISC_VERSION="v1.0.0"
+  }
+  target="op-challenger-deps"
+  platforms = split(",", PLATFORMS)
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-challenger-deps:${tag}"]
+}
+
 target "ci-builder" {
   dockerfile = "./ops/docker/ci-builder/Dockerfile"
   context = "."
