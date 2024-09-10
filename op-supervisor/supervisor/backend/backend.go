@@ -232,7 +232,10 @@ func (su *SupervisorBackend) CheckBlock(chainID *hexutil.U256, blockHash common.
 	safest := types.CrossUnsafe
 	// find the last log index in the block
 	i, err := su.db.LastLogInBlock(types.ChainID(*chainID), uint64(blockNumber))
-	if err != nil {
+	// TODO(#11836) checking for EOF as a non-error case is a bit of a code smell
+	// and could potentially be incorrect if the given block number is intentionally far in the future
+	if err != nil && !errors.Is(err, io.EOF) {
+		su.logger.Error("failed to scan block", "err", err)
 		return types.Invalid, fmt.Errorf("failed to scan block: %w", err)
 	}
 	// at this point we have the extent of the block, and we can check if it is safe by various criteria
