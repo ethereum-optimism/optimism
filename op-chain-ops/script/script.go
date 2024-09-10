@@ -55,33 +55,6 @@ type CallFrame struct {
 	Prank *Prank
 }
 
-type Broadcast struct {
-	From     common.Address
-	To       common.Address
-	Calldata []byte
-	Value    *big.Int
-}
-
-var zero = big.NewInt(0)
-
-func NewBroadcastFromCtx(ctx *vm.ScopeContext) Broadcast {
-	value := ctx.CallValue().ToBig()
-	if value.Cmp(zero) == 0 {
-		value = nil
-	}
-
-	callInput := ctx.CallInput()
-	calldata := make([]byte, len(callInput))
-	copy(calldata, callInput)
-
-	return Broadcast{
-		From:     ctx.Caller(),
-		To:       ctx.Address(),
-		Calldata: calldata,
-		Value:    value,
-	}
-}
-
 // Host is an EVM executor that runs Forge scripts.
 type Host struct {
 	log      log.Logger
@@ -118,6 +91,8 @@ type Host struct {
 	hooks *Hooks
 }
 
+type HostOption func(h *Host)
+
 type Hooks struct {
 	OnBroadcast func(broadcast Broadcast)
 }
@@ -126,14 +101,22 @@ var defaultHooks = &Hooks{
 	OnBroadcast: func(broadcast Broadcast) {},
 }
 
-func NewHost(logger log.Logger, fs *foundry.ArtifactsFS, srcFS *foundry.SourceMapFS, executionContext Context) *Host {
-	return NewHostWithHooks(logger, fs, srcFS, executionContext, nil)
+func WithHooks(hooks *Hooks) HostOption {
+	return func(h *Host) {
+		h.hooks = hooks
+	}
 }
 
-// NewHostWithHooks creates a Host that can load contracts from the given Artifacts FS,
+// NewHost creates a Host that can load contracts from the given Artifacts FS,
 // and with an EVM initialized to the given executionContext.
 // Optionally src-map loading may be enabled, by providing a non-nil srcFS to read sources from.
-func NewHostWithHooks(logger log.Logger, fs *foundry.ArtifactsFS, srcFS *foundry.SourceMapFS, executionContext Context, hooks *Hooks) *Host {
+func NewHost(
+	logger log.Logger,
+	fs *foundry.ArtifactsFS,
+	srcFS *foundry.SourceMapFS,
+	executionContext Context,
+	options ...HostOption,
+) *Host {
 	h := &Host{
 		log:              logger,
 		af:               fs,
@@ -146,8 +129,8 @@ func NewHostWithHooks(logger log.Logger, fs *foundry.ArtifactsFS, srcFS *foundry
 		hooks:            defaultHooks,
 	}
 
-	if hooks != nil {
-		h.hooks = hooks
+	for _, opt := range options {
+		opt(h)
 	}
 
 	// Init a default chain config, with all the mainnet L1 forks activated

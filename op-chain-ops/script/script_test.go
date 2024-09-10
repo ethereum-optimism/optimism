@@ -80,11 +80,11 @@ func TestScriptBroadcast(t *testing.T) {
 
 	scriptContext := DefaultContext
 	var broadcasts []Broadcast
-	h := NewHostWithHooks(logger, af, nil, scriptContext, &Hooks{
+	h := NewHost(logger, af, nil, scriptContext, WithHooks(&Hooks{
 		OnBroadcast: func(broadcast Broadcast) {
 			broadcasts = append(broadcasts, broadcast)
 		},
-	})
+	}))
 	addr, err := h.LoadContract("ScriptExample.s.sol", "ScriptExample")
 	require.NoError(t, err)
 

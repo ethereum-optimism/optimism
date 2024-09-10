@@ -157,3 +157,28 @@ const (
 	CallerModePrank
 	CallerModeRecurrentPrank
 )
+
+type Broadcast struct {
+	From     common.Address
+	To       common.Address
+	Calldata []byte
+	Value    *big.Int
+}
+
+func NewBroadcastFromCtx(ctx *vm.ScopeContext) Broadcast {
+	value := ctx.CallValue().ToBig()
+	if value.Cmp(common.Big0) == 0 {
+		value = nil
+	}
+
+	callInput := ctx.CallInput()
+	calldata := make([]byte, len(callInput))
+	copy(calldata, callInput)
+
+	return Broadcast{
+		From:     ctx.Caller(),
+		To:       ctx.Address(),
+		Calldata: calldata,
+		Value:    value,
+	}
+}
