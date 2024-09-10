@@ -93,17 +93,15 @@ type Host struct {
 
 type HostOption func(h *Host)
 
+type BroadcastHook func(broadcast Broadcast)
+
 type Hooks struct {
-	OnBroadcast func(broadcast Broadcast)
+	OnBroadcast BroadcastHook
 }
 
-var defaultHooks = &Hooks{
-	OnBroadcast: func(broadcast Broadcast) {},
-}
-
-func WithHooks(hooks *Hooks) HostOption {
+func WithBroadcastHook(hook BroadcastHook) HostOption {
 	return func(h *Host) {
-		h.hooks = hooks
+		h.hooks.OnBroadcast = hook
 	}
 }
 
@@ -126,7 +124,9 @@ func NewHost(
 		precompiles:      make(map[common.Address]vm.PrecompiledContract),
 		srcFS:            srcFS,
 		srcMaps:          make(map[common.Address]*srcmap.SourceMap),
-		hooks:            defaultHooks,
+		hooks: &Hooks{
+			OnBroadcast: func(broadcast Broadcast) {},
+		},
 	}
 
 	for _, opt := range options {

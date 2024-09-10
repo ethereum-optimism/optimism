@@ -1,6 +1,7 @@
 package script
 
 import (
+	"bytes"
 	"errors"
 	"math/big"
 
@@ -158,6 +159,9 @@ const (
 	CallerModeRecurrentPrank
 )
 
+// Broadcast captures a transaction that was selected to be broadcasted
+// via vm.broadcast(). Actually submitting the transaction is left up
+// to other tools.
 type Broadcast struct {
 	From     common.Address
 	To       common.Address
@@ -165,20 +169,25 @@ type Broadcast struct {
 	Value    *big.Int
 }
 
+// NewBroadcastFromCtx creates a Broadcast from a VM context. This method
+// is preferred to manually creating the struct since it correctly handles
+// data that must be copied prior to being returned to prevent accidental
+// mutation.
 func NewBroadcastFromCtx(ctx *vm.ScopeContext) Broadcast {
+	// Consistently return nil for zero values in order
+	// for tests to have a deterministic value to compare
+	// against.
 	value := ctx.CallValue().ToBig()
 	if value.Cmp(common.Big0) == 0 {
 		value = nil
 	}
 
-	callInput := ctx.CallInput()
-	calldata := make([]byte, len(callInput))
-	copy(calldata, callInput)
-
+	// Need to clone CallInput() below since it's used within
+	// the VM itself elsewhere.
 	return Broadcast{
 		From:     ctx.Caller(),
 		To:       ctx.Address(),
-		Calldata: calldata,
+		Calldata: bytes.Clone(ctx.CallInput()),
 		Value:    value,
 	}
 }
