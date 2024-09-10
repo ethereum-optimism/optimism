@@ -18,7 +18,6 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 
@@ -27,9 +26,7 @@ import (
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
-	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
@@ -50,16 +47,13 @@ func TestBenchmarkCannon_FPP(t *testing.T) {
 
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
-	defer sys.Close()
 
 	log := testlog.Logger(t, log.LevelInfo)
 	log.Info("genesis", "l2", sys.RollupConfig.Genesis.L2, "l1", sys.RollupConfig.Genesis.L1, "l2_time", sys.RollupConfig.Genesis.L2Time)
 
-	l1Client := sys.Clients["l1"]
-	l2Seq := sys.Clients["sequencer"]
-	rollupRPCClient, err := rpc.DialContext(context.Background(), sys.RollupNodes["sequencer"].HTTPEndpoint())
-	require.Nil(t, err)
-	rollupClient := sources.NewRollupClient(client.NewBaseRPCClient(rollupRPCClient))
+	l1Client := sys.NodeClient("l1")
+	l2Seq := sys.NodeClient("sequencer")
+	rollupClient := sys.RollupClient("sequencer")
 	require.NoError(t, wait.ForUnsafeBlock(ctx, rollupClient, 1))
 
 	// Agreed state: 200 Big Contracts deployed at max size - total codesize is 5.90 MB
@@ -99,7 +93,7 @@ func TestBenchmarkCannon_FPP(t *testing.T) {
 		L2BlockNumber: l2ClaimBlockNumber,
 	}
 	debugfile := path.Join(t.TempDir(), "debug.json")
-	runCannon(t, ctx, sys, inputs, "sequencer", "--debug-info", debugfile)
+	runCannon(t, ctx, sys, inputs, "--debug-info", debugfile)
 	data, err := os.ReadFile(debugfile)
 	require.NoError(t, err)
 	var debuginfo mipsevm.DebugInfo

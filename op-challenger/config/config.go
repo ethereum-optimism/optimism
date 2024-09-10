@@ -139,13 +139,14 @@ func NewConfig(
 		Datadir: datadir,
 
 		Cannon: vm.Config{
-			VmType:       types.TraceTypeCannon,
-			L1:           l1EthRpc,
-			L1Beacon:     l1BeaconApi,
-			L2:           l2EthRpc,
-			SnapshotFreq: DefaultCannonSnapshotFreq,
-			InfoFreq:     DefaultCannonInfoFreq,
-			DebugInfo:    true,
+			VmType:          types.TraceTypeCannon,
+			L1:              l1EthRpc,
+			L1Beacon:        l1BeaconApi,
+			L2:              l2EthRpc,
+			SnapshotFreq:    DefaultCannonSnapshotFreq,
+			InfoFreq:        DefaultCannonInfoFreq,
+			DebugInfo:       true,
+			BinarySnapshots: true,
 		},
 		Asterisc: vm.Config{
 			VmType:       types.TraceTypeAsterisc,

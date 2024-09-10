@@ -327,7 +327,7 @@ func CheckCannonFlags(ctx *cli.Context) error {
 	return nil
 }
 
-func CheckAsteriscFlags(ctx *cli.Context) error {
+func CheckAsteriscBaseFlags(ctx *cli.Context) error {
 	if ctx.IsSet(AsteriscNetworkFlag.Name) && ctx.IsSet(flags.NetworkFlagName) {
 		return fmt.Errorf("flag %v can not be used with %v", AsteriscNetworkFlag.Name, flags.NetworkFlagName)
 	}
@@ -350,11 +350,31 @@ func CheckAsteriscFlags(ctx *cli.Context) error {
 	if !ctx.IsSet(AsteriscBinFlag.Name) {
 		return fmt.Errorf("flag %s is required", AsteriscBinFlag.Name)
 	}
+	return nil
+}
+
+func CheckAsteriscFlags(ctx *cli.Context) error {
+	if err := CheckAsteriscBaseFlags(ctx); err != nil {
+		return err
+	}
 	if !ctx.IsSet(AsteriscServerFlag.Name) {
 		return fmt.Errorf("flag %s is required", AsteriscServerFlag.Name)
 	}
 	if !ctx.IsSet(AsteriscPreStateFlag.Name) && !ctx.IsSet(AsteriscPreStatesURLFlag.Name) {
 		return fmt.Errorf("flag %s or %s is required", AsteriscPreStatesURLFlag.Name, AsteriscPreStateFlag.Name)
+	}
+	return nil
+}
+
+func CheckAsteriscKonaFlags(ctx *cli.Context) error {
+	if err := CheckAsteriscBaseFlags(ctx); err != nil {
+		return err
+	}
+	if !ctx.IsSet(AsteriscKonaServerFlag.Name) {
+		return fmt.Errorf("flag %s is required", AsteriscKonaServerFlag.Name)
+	}
+	if !ctx.IsSet(AsteriscKonaPreStateFlag.Name) && !ctx.IsSet(AsteriscKonaPreStatesURLFlag.Name) {
+		return fmt.Errorf("flag %s or %s is required", AsteriscKonaPreStatesURLFlag.Name, AsteriscKonaPreStateFlag.Name)
 	}
 	return nil
 }
@@ -379,9 +399,13 @@ func CheckRequired(ctx *cli.Context, traceTypes []types.TraceType) error {
 			if err := CheckAsteriscFlags(ctx); err != nil {
 				return err
 			}
+		case types.TraceTypeAsteriscKona:
+			if err := CheckAsteriscKonaFlags(ctx); err != nil {
+				return err
+			}
 		case types.TraceTypeAlphabet, types.TraceTypeFast:
 		default:
-			return fmt.Errorf("invalid trace type. must be one of %v", types.TraceTypes)
+			return fmt.Errorf("invalid trace type %v. must be one of %v", traceType, types.TraceTypes)
 		}
 	}
 	return nil
@@ -554,6 +578,7 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 			SnapshotFreq:     ctx.Uint(CannonSnapshotFreqFlag.Name),
 			InfoFreq:         ctx.Uint(CannonInfoFreqFlag.Name),
 			DebugInfo:        true,
+			BinarySnapshots:  true,
 		},
 		CannonAbsolutePreState:        ctx.String(CannonPreStateFlag.Name),
 		CannonAbsolutePreStateBaseURL: cannonPrestatesURL,

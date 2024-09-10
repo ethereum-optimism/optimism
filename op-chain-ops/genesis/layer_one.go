@@ -31,7 +31,7 @@ func BuildL1DeveloperGenesis(config *DeployConfig, dump *foundry.ForgeAllocs, l1
 		return nil, fmt.Errorf("cannot create L1 developer genesis: %w", err)
 	}
 
-	if genesis.Alloc != nil && len(genesis.Alloc) != 0 {
+	if len(genesis.Alloc) != 0 {
 		panic("Did not expect NewL1Genesis to generate non-empty state") // sanity check for dev purposes.
 	}
 	// copy, for safety when the dump is reused (like in e2e testing)

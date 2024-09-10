@@ -67,7 +67,7 @@ used in production and are intended to provide convenient manual testing.
 ```shell
 ./bin/op-challenger create-game \
   --l1-eth-rpc <L1_ETH_RPC> \
-  --game-address <GAME_FACTORY_ADDRESS> \
+  --game-factory-address <GAME_FACTORY_ADDRESS> \
   --output-root <OUTPUT_ROOT> \
   --l2-block-num <L2_BLOCK_NUM> \
   <SIGNER_ARGS>

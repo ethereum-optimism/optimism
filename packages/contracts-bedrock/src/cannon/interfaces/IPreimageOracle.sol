@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity ^0.8.0;
 
 /// @title IPreimageOracle
 /// @notice Interface for a preimage oracle.
 interface IPreimageOracle {
+    /// @notice Returns the length of the large preimage proposal challenge period.
+    /// @return challengePeriod_ The length of the challenge period in seconds.
+    function challengePeriod() external view returns (uint256 challengePeriod_);
+
     /// @notice Reads a preimage from the oracle.
     /// @param _key The key of the preimage to read.
     /// @param _offset The offset of the preimage to read.
@@ -75,6 +79,13 @@ interface IPreimageOracle {
     ///         The preimage key is `6 ++ keccak256(precompile ++ input)[1:]`.
     /// @param _partOffset The offset of the precompile result being loaded.
     /// @param _precompile The precompile address
+    /// @param _requiredGas The gas required to fully execute an L1 precompile.
     /// @param _input The input to the precompile call.
-    function loadPrecompilePreimagePart(uint256 _partOffset, address _precompile, bytes calldata _input) external;
+    function loadPrecompilePreimagePart(
+        uint256 _partOffset,
+        address _precompile,
+        uint64 _requiredGas,
+        bytes calldata _input
+    )
+        external;
 }

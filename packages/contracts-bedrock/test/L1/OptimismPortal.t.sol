@@ -18,7 +18,7 @@ import { Constants } from "src/libraries/Constants.sol";
 import { Proxy } from "src/universal/Proxy.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
-import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
+import { IL2OutputOracle } from "src/L1/interfaces/IL2OutputOracle.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { L1Block } from "src/L2/L1Block.sol";
@@ -403,7 +403,7 @@ contract OptimismPortal_Test is CommonTest {
         uint256 ts = block.timestamp;
         vm.mockCall(
             address(optimismPortal.l2Oracle()),
-            abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
+            abi.encodeWithSelector(IL2OutputOracle.getL2Output.selector),
             abi.encode(Types.OutputProposal(bytes32(uint256(1)), uint128(ts), uint128(startingBlockNumber)))
         );
 
@@ -831,7 +831,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
         // this case we just use bytes32(uint256(1)).
         vm.mockCall(
             address(optimismPortal.l2Oracle()),
-            abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
+            abi.encodeWithSelector(IL2OutputOracle.getL2Output.selector),
             abi.encode(bytes32(uint256(1)), _proposedBlockNumber)
         );
 
@@ -886,7 +886,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
         // to finalize the withdrawal.
         vm.mockCall(
             address(optimismPortal.l2Oracle()),
-            abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
+            abi.encodeWithSelector(IL2OutputOracle.getL2Output.selector),
             abi.encode(
                 Types.OutputProposal(bytes32(uint256(0)), uint128(block.timestamp), uint128(_proposedBlockNumber))
             )
@@ -917,7 +917,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
         // finalization period.
         vm.mockCall(
             address(optimismPortal.l2Oracle()),
-            abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
+            abi.encodeWithSelector(IL2OutputOracle.getL2Output.selector),
             abi.encode(Types.OutputProposal(_outputRoot, uint128(block.timestamp + 1), uint128(_proposedBlockNumber)))
         );
 
@@ -953,7 +953,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
         uint256 recentTimestamp = block.timestamp - 1;
         vm.mockCall(
             address(optimismPortal.l2Oracle()),
-            abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
+            abi.encodeWithSelector(IL2OutputOracle.getL2Output.selector),
             abi.encode(Types.OutputProposal(_outputRoot, uint128(recentTimestamp), uint128(_proposedBlockNumber)))
         );
 
@@ -1005,7 +1005,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
 
         vm.mockCall(
             address(optimismPortal.l2Oracle()),
-            abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
+            abi.encodeWithSelector(IL2OutputOracle.getL2Output.selector),
             abi.encode(
                 Types.OutputProposal(
                     Hashing.hashOutputRootProof(outputRootProof),
@@ -1054,7 +1054,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
         uint256 finalizedTimestamp = block.timestamp - l2OutputOracle.FINALIZATION_PERIOD_SECONDS() - 1;
         vm.mockCall(
             address(optimismPortal.l2Oracle()),
-            abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
+            abi.encodeWithSelector(IL2OutputOracle.getL2Output.selector),
             abi.encode(Types.OutputProposal(outputRoot, uint128(finalizedTimestamp), uint128(_proposedBlockNumber)))
         );
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/urfave/cli/v2"
@@ -120,7 +121,7 @@ var Subcommands = cli.Commands{
 				return err
 			}
 
-			return jsonutil.WriteJSON(ctx.String(outfileL1Flag.Name), l1Genesis, 0o666)
+			return jsonutil.WriteJSON(l1Genesis, ioutil.ToStdOutOrFileOrNoop(ctx.String(outfileL1Flag.Name), 0o666))
 		},
 	},
 	{
@@ -204,10 +205,10 @@ var Subcommands = cli.Commands{
 				return fmt.Errorf("generated rollup config does not pass validation: %w", err)
 			}
 
-			if err := jsonutil.WriteJSON(ctx.String(outfileL2Flag.Name), l2Genesis, 0o666); err != nil {
+			if err := jsonutil.WriteJSON(l2Genesis, ioutil.ToAtomicFile(ctx.String(outfileL2Flag.Name), 0o666)); err != nil {
 				return err
 			}
-			return jsonutil.WriteJSON(ctx.String(outfileRollupFlag.Name), rollupConfig, 0o666)
+			return jsonutil.WriteJSON(rollupConfig, ioutil.ToAtomicFile(ctx.String(outfileRollupFlag.Name), 0o666))
 		},
 	},
 }

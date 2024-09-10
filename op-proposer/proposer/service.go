@@ -18,6 +18,7 @@ import (
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -31,9 +32,6 @@ type ProposerConfig struct {
 	// How frequently to poll L2 for new finalized outputs
 	PollInterval   time.Duration
 	NetworkTimeout time.Duration
-
-	// How frequently to retry fetching an output if one fails
-	OutputRetryInterval time.Duration
 
 	// How frequently to post L2 outputs when the DisputeGameFactory is configured
 	ProposalInterval time.Duration
@@ -92,7 +90,6 @@ func (ps *ProposerService) initFromCLIConfig(ctx context.Context, version string
 	ps.initMetrics(cfg)
 
 	ps.PollInterval = cfg.PollInterval
-	ps.OutputRetryInterval = cfg.OutputRetryInterval
 	ps.NetworkTimeout = cfg.TxMgrConfig.NetworkTimeout
 	ps.AllowNonFinalized = cfg.AllowNonFinalized
 	ps.WaitNodeSync = cfg.WaitNodeSync
@@ -234,6 +231,7 @@ func (ps *ProposerService) initDriver() error {
 		Cfg:            ps.ProposerConfig,
 		Txmgr:          ps.TxManager,
 		L1Client:       ps.L1Client,
+		Multicaller:    batching.NewMultiCaller(ps.L1Client.Client(), batching.DefaultBatchSize),
 		RollupProvider: ps.RollupProvider,
 	})
 	if err != nil {
@@ -253,6 +251,7 @@ func (ps *ProposerService) initRPCServer(cfg *CLIConfig) error {
 	if cfg.RPCConfig.EnableAdmin {
 		adminAPI := rpc.NewAdminAPI(ps.driver, ps.Metrics, ps.Log)
 		server.AddAPI(rpc.GetAdminAPI(adminAPI))
+		server.AddAPI(ps.TxManager.API())
 		ps.Log.Info("Admin RPC enabled")
 	}
 	ps.Log.Info("Starting JSON-RPC server")

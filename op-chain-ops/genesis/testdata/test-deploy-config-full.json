@@ -86,7 +86,7 @@
   "respectedGameType": 0,
   "useCustomGasToken": false,
   "useFaultProofs": false,
-  "usePlasma": false,
+  "useAltDA": false,
   "daBondSize": 0,
   "daCommitmentType": "KeccakCommitment",
   "daChallengeProxy": "0x0000000000000000000000000000000000000000",

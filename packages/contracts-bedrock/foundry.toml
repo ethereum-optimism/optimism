@@ -13,6 +13,7 @@ optimizer_runs = 999999
 remappings = [
   '@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts',
   '@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts',
+  '@openzeppelin/contracts-v5/=lib/openzeppelin-contracts-v5/contracts',
   '@rari-capital/solmate/=lib/solmate',
   '@lib-keccak/=lib/lib-keccak/contracts/lib',
   '@solady/=lib/solady/src',
@@ -48,7 +49,8 @@ fs_permissions = [
   { access='read', path = './forge-artifacts/' },
   { access='write', path='./semver-lock.json' },
   { access='read-write', path='./.testdata/' },
-  { access='read', path='./kout-deployment' }
+  { access='read', path='./kout-deployment' },
+  { access='read', path='./test/fixtures' },
 ]
 libs = ["node_modules", "lib"]
 

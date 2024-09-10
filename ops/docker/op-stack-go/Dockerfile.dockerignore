@@ -10,7 +10,6 @@
 !/packages/contracts-bedrock/snapshots
 !/op-dispute-mon
 !/op-conductor
-!/op-heartbeat
 !/op-node
 !/op-preimage
 !/op-program
@@ -18,6 +17,6 @@
 !/op-service
 !/op-supervisor
 !/op-wheel
-!/op-plasma
+!/op-alt-da
 !/go.mod
 !/go.sum

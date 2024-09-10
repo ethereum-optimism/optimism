@@ -51,12 +51,10 @@ func TestPingService(t *testing.T) {
 		return peers
 	})
 
-	srv := NewPingService(log, pingFn, peersFn, fakeClock)
-
 	trace := make(chan string)
-	srv.trace = func(work string) {
+	srv := newTracedPingService(log, pingFn, peersFn, fakeClock, func(work string) {
 		trace <- work
-	}
+	})
 
 	// wait for ping service to get online
 	require.Equal(t, "started", <-trace)

@@ -18,6 +18,7 @@ This directory contains documentation for all defined invariant tests within `co
 - [L2OutputOracle](./L2OutputOracle.md)
 - [OptimismPortal](./OptimismPortal.md)
 - [OptimismPortal2](./OptimismPortal2.md)
+- [OptimismSuperchainERC20](./OptimismSuperchainERC20.md)
 - [ResourceMetering](./ResourceMetering.md)
 - [SafeCall](./SafeCall.md)
 - [SuperchainWETH](./SuperchainWETH.md)

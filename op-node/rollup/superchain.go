@@ -12,11 +12,7 @@ import (
 	"github.com/ethereum-optimism/superchain-registry/superchain"
 )
 
-var OPStackSupport = params.ProtocolVersionV0{Build: [8]byte{}, Major: 7, Minor: 0, Patch: 0, PreRelease: 0}.Encode()
-
-const (
-	pgnSepolia = 58008
-)
+var OPStackSupport = params.ProtocolVersionV0{Build: [8]byte{}, Major: 8, Minor: 0, Patch: 0, PreRelease: 0}.Encode()
 
 // LoadOPStackRollupConfig loads the rollup configuration of the requested chain ID from the superchain-registry.
 // Some chains may require a SystemConfigProvider to retrieve any values not part of the registry.
@@ -48,12 +44,20 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		return nil, fmt.Errorf("unable to retrieve deposit contract address")
 	}
 
-	var plasma *PlasmaConfig
-	if chConfig.Plasma != nil {
-		plasma = &PlasmaConfig{
-			DAChallengeAddress: common.Address(*chConfig.Plasma.DAChallengeAddress),
-			DAChallengeWindow:  *chConfig.Plasma.DAChallengeWindow,
-			DAResolveWindow:    *chConfig.Plasma.DAResolveWindow,
+	var altDA *AltDAConfig
+	if chConfig.AltDA != nil {
+		altDA = &AltDAConfig{}
+		if chConfig.AltDA.DAChallengeAddress != nil {
+			altDA.DAChallengeAddress = common.Address(*chConfig.AltDA.DAChallengeAddress)
+		}
+		if chConfig.AltDA.DAChallengeWindow != nil {
+			altDA.DAChallengeWindow = *chConfig.AltDA.DAChallengeWindow
+		}
+		if chConfig.AltDA.DAResolveWindow != nil {
+			altDA.DAResolveWindow = *chConfig.AltDA.DAResolveWindow
+		}
+		if chConfig.AltDA.DACommitmentType != nil {
+			altDA.CommitmentType = *chConfig.AltDA.DACommitmentType
 		}
 	}
 
@@ -76,10 +80,9 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		// Note: hardcoded values are not yet represented in the registry but should be
 		// soon, then will be read and set in the same fashion.
 		BlockTime:              chConfig.BlockTime,
-		MaxSequencerDrift:      600,
+		MaxSequencerDrift:      chConfig.MaxSequencerDrift,
 		SeqWindowSize:          chConfig.SequencerWindowSize,
 		ChannelTimeoutBedrock:  300,
-		ChannelTimeoutGranite:  50,
 		L1ChainID:              new(big.Int).SetUint64(superChain.Config.L1.ChainID),
 		L2ChainID:              new(big.Int).SetUint64(chConfig.ChainID),
 		RegolithTime:           &regolithTime,
@@ -91,15 +94,11 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		BatchInboxAddress:      common.Address(chConfig.BatchInboxAddr),
 		DepositContractAddress: common.Address(addrs.OptimismPortalProxy),
 		L1SystemConfigAddress:  common.Address(addrs.SystemConfigProxy),
-		PlasmaConfig:           plasma,
+		AltDAConfig:            altDA,
 	}
 
 	if superChain.Config.ProtocolVersionsAddr != nil { // Set optional protocol versions address
 		cfg.ProtocolVersionsAddress = common.Address(*superChain.Config.ProtocolVersionsAddr)
-	}
-	if chainID == pgnSepolia {
-		cfg.MaxSequencerDrift = 1000
-		cfg.SeqWindowSize = 7200
 	}
 	return cfg, nil
 }

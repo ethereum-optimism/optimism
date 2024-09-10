@@ -1,28 +1,29 @@
-# Packages
-/packages/contracts-bedrock     @ethereum-optimism/contract-reviewers
-/packages/sdk                   @ethereum-optimism/devxpod
+# Monorepo - default to go-reviewers
+* @ethereum-optimism/go-reviewers
 
-# Bedrock codebases
-/bedrock-devnet @ethereum-optimism/go-reviewers
-/cannon         @ethereum-optimism/go-reviewers
-/op-batcher     @ethereum-optimism/go-reviewers
-/op-bootnode    @ethereum-optimism/go-reviewers
-/op-chain-ops   @ethereum-optimism/go-reviewers
-/op-challenger  @ethereum-optimism/go-reviewers
-/op-dispute-mon  @ethereum-optimism/go-reviewers
-/op-e2e         @ethereum-optimism/go-reviewers
-/op-heartbeat   @ethereum-optimism/go-reviewers
-/op-node        @ethereum-optimism/go-reviewers
-/op-node/rollup @protolambda @ajsutton
-/op-plasma      @ethereum-optimism/go-reviewers
-/op-preimage    @ethereum-optimism/go-reviewers
-/op-program     @ethereum-optimism/go-reviewers
-/op-proposer    @ethereum-optimism/go-reviewers
-/op-service     @ethereum-optimism/go-reviewers
-/op-supervisor  @ethereum-optimism/go-reviewers
-/op-wheel       @ethereum-optimism/go-reviewers
-/ops-bedrock    @ethereum-optimism/go-reviewers
-/op-conductor   @0x00101010 @zhwrd @mslipper
+# OP Stack general
+/bedrock-devnet @ethereum-optimism/go-reviewers @ethereum-optimism/op-stack
+/op-alt-da      @ethereum-optimism/go-reviewers @ethereum-optimism/op-stack
+/op-batcher     @ethereum-optimism/go-reviewers @ethereum-optimism/op-stack
+/op-chain-ops   @ethereum-optimism/go-reviewers @ethereum-optimism/op-stack
+/op-e2e         @ethereum-optimism/go-reviewers @ethereum-optimism/op-stack
+/op-node        @ethereum-optimism/go-reviewers @ethereum-optimism/op-stack
+/op-proposer    @ethereum-optimism/go-reviewers @ethereum-optimism/op-stack
+/op-wheel       @ethereum-optimism/go-reviewers @ethereum-optimism/op-stack
+/ops-bedrock    @ethereum-optimism/go-reviewers @ethereum-optimism/op-stack
+
+# Expert areas
+/op-node/rollup @ethereum-optimism/go-reviewers @ethereum-optimism/consensus
+
+/op-supervisor  @ethereum-optimism/go-reviewers @ethereum-optimism/interop
+
+/op-conductor   @ethereum-optimism/go-reviewers @ethereum-optimism/op-conductor
+
+/cannon         @ethereum-optimism/go-reviewers @ethereum-optimism/proofs
+/op-dispute-mon @ethereum-optimism/go-reviewers @ethereum-optimism/proofs
+/op-challenger  @ethereum-optimism/go-reviewers @ethereum-optimism/proofs
+/op-preimage    @ethereum-optimism/go-reviewers @ethereum-optimism/proofs
+/op-program     @ethereum-optimism/go-reviewers @ethereum-optimism/proofs
 
 # Ops
 /.circleci       @ethereum-optimism/monorepo-ops-reviewers
@@ -30,15 +31,5 @@
 /ops             @ethereum-optimism/monorepo-ops-reviewers
 /docker-bake.hcl @ethereum-optimism/monorepo-ops-reviewers
 
-# Misc
-/proxyd           @ethereum-optimism/infra-reviewers
-/infra            @ethereum-optimism/infra-reviewers
-/specs            @ethereum-optimism/contract-reviewers @ethereum-optimism/go-reviewers
-
-# Don't add owners if only package.json is updated
-/packages/*/package.json
-/*/package.json
-
-# JavaScript Releases
-/packages/*/CHANGELOG.md @ethereum-optimism/release-managers
-/*/CHANGELOG.md          @ethereum-optimism/release-managers
+# Contracts
+/packages/contracts-bedrock     @ethereum-optimism/contract-reviewers

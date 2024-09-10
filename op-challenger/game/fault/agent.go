@@ -155,6 +155,11 @@ func (a *Agent) tryResolve(ctx context.Context) bool {
 		a.log.Error("Failed to resolve claims", "err", err)
 		return false
 	}
+	if a.selective {
+		// Never resolve games in selective mode as it won't unlock any bonds for us.
+		// Assume the game is still in progress or the player wouldn't have told us to act.
+		return false
+	}
 	status, err := a.responder.CallResolve(ctx)
 	if err != nil || status == gameTypes.GameStatusInProgress {
 		return false

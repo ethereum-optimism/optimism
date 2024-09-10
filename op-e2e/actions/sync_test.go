@@ -19,13 +19,13 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	engine2 "github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
-	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -819,7 +819,7 @@ func TestELSyncTransitionsToCLSyncAfterNodeRestart(gt *testing.T) {
 	PrepareELSyncedNode(t, miner, sequencer, seqEng, verifier, verEng, seqEngCl, batcher, dp)
 
 	// Create a new verifier which is essentially a new op-node with the sync mode of ELSync and default geth engine kind.
-	verifier = NewL2Verifier(t, captureLog, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), plasma.Disabled, verifier.eng, sd.RollupCfg, &sync.Config{SyncMode: sync.ELSync}, defaultVerifierCfg().safeHeadListener)
+	verifier = NewL2Verifier(t, captureLog, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), altda.Disabled, verifier.eng, sd.RollupCfg, &sync.Config{SyncMode: sync.ELSync}, defaultVerifierCfg().safeHeadListener, nil)
 
 	// Build another 10 L1 blocks on the sequencer
 	for i := 0; i < 10; i++ {
@@ -861,7 +861,7 @@ func TestForcedELSyncCLAfterNodeRestart(gt *testing.T) {
 	PrepareELSyncedNode(t, miner, sequencer, seqEng, verifier, verEng, seqEngCl, batcher, dp)
 
 	// Create a new verifier which is essentially a new op-node with the sync mode of ELSync and erigon engine kind.
-	verifier2 := NewL2Verifier(t, captureLog, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), plasma.Disabled, verifier.eng, sd.RollupCfg, &sync.Config{SyncMode: sync.ELSync, SupportsPostFinalizationELSync: true}, defaultVerifierCfg().safeHeadListener)
+	verifier2 := NewL2Verifier(t, captureLog, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), altda.Disabled, verifier.eng, sd.RollupCfg, &sync.Config{SyncMode: sync.ELSync, SupportsPostFinalizationELSync: true}, defaultVerifierCfg().safeHeadListener, nil)
 
 	// Build another 10 L1 blocks on the sequencer
 	for i := 0; i < 10; i++ {
@@ -1039,12 +1039,19 @@ func TestSpanBatchAtomicity_Consolidation(gt *testing.T) {
 	verifier.l2PipelineIdle = false
 	for !verifier.l2PipelineIdle {
 		// wait for next pending block
-		verifier.ActL2EventsUntil(t, event.Any(
-			event.Is[engine2.PendingSafeUpdateEvent], event.Is[derive.DeriverIdleEvent]), 1000, false)
+		verifier.ActL2EventsUntil(t, func(ev event.Event) bool {
+			if event.Is[engine2.SafeDerivedEvent](ev) { // safe updates should only happen once the pending-safe reaches the target.
+				t.Fatal("unexpected next safe update")
+			}
+			return event.Any(event.Is[engine2.PendingSafeUpdateEvent], event.Is[derive.DeriverIdleEvent])(ev)
+		}, 1000, false)
 		if verifier.L2PendingSafe().Number < targetHeadNumber {
 			// If the span batch is not fully processed, the safe head must not advance.
 			require.Equal(t, verifier.L2Safe().Number, uint64(0))
 		} else {
+			// Make sure we do the post-processing of what safety updates might happen
+			// after the pending-safe event, before the next pending-safe event.
+			verifier.ActL2EventsUntil(t, event.Is[engine2.PendingSafeUpdateEvent], 100, true)
 			// Once the span batch is fully processed, the safe head must advance to the end of span batch.
 			require.Equal(t, verifier.L2Safe().Number, targetHeadNumber)
 			require.Equal(t, verifier.L2Safe(), verifier.L2PendingSafe())
@@ -1088,12 +1095,19 @@ func TestSpanBatchAtomicity_ForceAdvance(gt *testing.T) {
 	verifier.l2PipelineIdle = false
 	for !verifier.l2PipelineIdle {
 		// wait for next pending block
-		verifier.ActL2EventsUntil(t, event.Any(
-			event.Is[engine2.PendingSafeUpdateEvent], event.Is[derive.DeriverIdleEvent]), 1000, false)
+		verifier.ActL2EventsUntil(t, func(ev event.Event) bool {
+			if event.Is[engine2.SafeDerivedEvent](ev) { // safe updates should only happen once the pending-safe reaches the target.
+				t.Fatal("unexpected next safe update")
+			}
+			return event.Any(event.Is[engine2.PendingSafeUpdateEvent], event.Is[derive.DeriverIdleEvent])(ev)
+		}, 1000, false)
 		if verifier.L2PendingSafe().Number < targetHeadNumber {
 			// If the span batch is not fully processed, the safe head must not advance.
 			require.Equal(t, verifier.L2Safe().Number, uint64(0))
 		} else {
+			// Make sure we do the post-processing of what safety updates might happen
+			// after the pending-safe event, before the next pending-safe event.
+			verifier.ActL2EventsUntil(t, event.Is[engine2.PendingSafeUpdateEvent], 100, true)
 			// Once the span batch is fully processed, the safe head must advance to the end of span batch.
 			require.Equal(t, verifier.L2Safe().Number, targetHeadNumber)
 			require.Equal(t, verifier.L2Safe(), verifier.L2PendingSafe())

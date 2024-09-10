@@ -58,11 +58,21 @@ func TestSendStateNoAbortAfterProcessOtherError(t *testing.T) {
 	require.Nil(t, sendState.CriticalError())
 }
 
+// TestSendStateAbortSafelyAfterNonceTooLowButNoTxMined asserts that we will abort after the very
+// first none-too-low error if a tx hasn't yet been published.
+func TestSendStateAbortSafelyAfterNonceTooLowNoTxPublished(t *testing.T) {
+	sendState := newSendState()
+
+	sendState.ProcessSendError(core.ErrNonceTooLow)
+	require.ErrorIs(t, sendState.CriticalError(), core.ErrNonceTooLow)
+}
+
 // TestSendStateAbortSafelyAfterNonceTooLowButNoTxMined asserts that we will
 // abort after the safe abort interval has elapsed if we haven't mined a tx.
 func TestSendStateAbortSafelyAfterNonceTooLowButNoTxMined(t *testing.T) {
 	sendState := newSendState()
 
+	sendState.ProcessSendError(nil)
 	sendState.ProcessSendError(core.ErrNonceTooLow)
 	require.Nil(t, sendState.CriticalError())
 	sendState.ProcessSendError(core.ErrNonceTooLow)
@@ -90,6 +100,7 @@ func TestSendStateMiningTxCancelsAbort(t *testing.T) {
 func TestSendStateReorgingTxResetsAbort(t *testing.T) {
 	sendState := newSendState()
 
+	sendState.ProcessSendError(nil)
 	sendState.ProcessSendError(core.ErrNonceTooLow)
 	sendState.ProcessSendError(core.ErrNonceTooLow)
 	sendState.TxMined(testHash)
@@ -120,6 +131,7 @@ func TestSendStateNoAbortEvenIfNonceTooLowAfterTxMined(t *testing.T) {
 func TestSendStateSafeAbortIfNonceTooLowPersistsAfterUnmine(t *testing.T) {
 	sendState := newSendState()
 
+	sendState.ProcessSendError(nil)
 	sendState.TxMined(testHash)
 	sendState.TxNotMined(testHash)
 	sendState.ProcessSendError(core.ErrNonceTooLow)

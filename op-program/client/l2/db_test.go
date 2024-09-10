@@ -131,6 +131,7 @@ func TestUpdateState(t *testing.T) {
 
 	statedb, err := state.New(genesisBlock.Root(), state.NewDatabase(rawdb.NewDatabase(db)), nil)
 	require.NoError(t, err)
+	statedb.MakeSinglethreaded()
 	statedb.SetBalance(userAccount, uint256.NewInt(50), tracing.BalanceChangeUnspecified)
 	require.Equal(t, uint256.NewInt(50), statedb.GetBalance(userAccount))
 	statedb.SetNonce(userAccount, uint64(5))
@@ -149,6 +150,7 @@ func TestUpdateState(t *testing.T) {
 
 	statedb, err = state.New(newRoot, state.NewDatabase(rawdb.NewDatabase(db)), nil)
 	require.NoError(t, err)
+	statedb.MakeSinglethreaded()
 	require.Equal(t, uint256.NewInt(50), statedb.GetBalance(userAccount))
 	require.Equal(t, uint64(5), statedb.GetNonce(userAccount))
 	require.Equal(t, uint256.NewInt(60), statedb.GetBalance(unknownAccount))

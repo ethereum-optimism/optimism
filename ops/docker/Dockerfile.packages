@@ -1,11 +1,12 @@
+# We need to specify the platforms below, otherwise platforms other than
+# linux/amd64 will be forced to rebuild the contracts every time this
+# image is used.
+
 # This Dockerfile builds all the dependencies needed by the smart-contracts, excluding Go and Python.
 
-FROM us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest as foundry
+FROM --platform=linux/amd64 us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest as foundry
 
-# Historically the contracts-bedrock was on the node image based on Debian 11 (bullseye),
-# for Node / PNPM compatibility reasons.
-# We no longer use Node JS, but continue to use the same Debian version for compatibility.
-FROM debian:bullseye-slim as base
+FROM --platform=linux/amd64 debian:bookworm-20240812-slim as base
 
 # Base: install deps
 RUN apt-get update && apt-get install -y \
@@ -17,13 +18,7 @@ RUN apt-get update && apt-get install -y \
   bash \
   --no-install-recommends
 
-COPY /ops/docker/oplabs.crt /usr/local/share/ca-certificates/oplabs.crt
-RUN chmod 644 /usr/local/share/ca-certificates/oplabs.crt \
-  && update-ca-certificates
-
-# Note: "just" is only available on Debian 13. Instead, pull it from the foundry image.
 COPY --from=foundry /usr/local/bin/just /usr/local/bin/just
-
 COPY --from=foundry /usr/local/bin/forge /usr/local/bin/forge
 COPY --from=foundry /usr/local/bin/cast /usr/local/bin/cast
 
@@ -31,22 +26,48 @@ WORKDIR /opt/optimism
 
 COPY ./versions.json ./versions.json
 COPY ./packages ./packages
-
 COPY .git/ ./.git
 COPY .gitmodules ./.gitmodules
-RUN git submodule update --init --recursive
+
+RUN git submodule update --init --recursive \
+    && cd packages/contracts-bedrock \
+    && just build \
+    && echo $(git rev-parse HEAD) > .gitcommit
+
+FROM --platform=linux/amd64 debian:bookworm-20240812-slim as contracts-bedrock
+
+RUN apt-get update && apt-get install -y \
+  curl \
+  jq \
+  ca-certificates \
+  git \
+  make \
+  bash \
+  --no-install-recommends
+
+COPY /ops/docker/oplabs.crt /usr/local/share/ca-certificates/oplabs.crt
+
+RUN chmod 644 /usr/local/share/ca-certificates/oplabs.crt \
+  && update-ca-certificates
+
+COPY --from=foundry /usr/local/bin/just /usr/local/bin/just
+COPY --from=foundry /usr/local/bin/forge /usr/local/bin/forge
+COPY --from=foundry /usr/local/bin/cast /usr/local/bin/cast
+COPY --from=foundry /usr/local/bin/svm /usr/local/bin/svm
+
+RUN svm install 0.8.25 && \
+  svm install 0.8.15 && \
+  svm install 0.8.19 && \
+  svm install 0.8.26
 
 # Not to be confused with OP, this is a OnePassword CLI tool.
 COPY --from=1password/op:2 /usr/local/bin/op /usr/local/bin/op
 
-# prebuild the smart-contracts for the convenience of the user
-RUN cd packages/contracts-bedrock && just build
+RUN mkdir -p /opt/optimism/packages/contracts-bedrock
 
-FROM base as contracts-bedrock
+COPY --from=base /opt/optimism/packages/contracts-bedrock /opt/optimism/packages/contracts-bedrock
+COPY --from=base /opt/optimism/versions.json /opt/optimism/versions.json
+
 WORKDIR /opt/optimism/packages/contracts-bedrock
 
-# Set "just" as entrypoint, so the default args (the Dockerfile CMD)
-# are passed in to it. This was previously "pnpm run" + "deploy".
-ENTRYPOINT ["just"]
-
-CMD ["deploy"]
+CMD ["echo", "Override this command to use this image."]

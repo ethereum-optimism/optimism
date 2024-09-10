@@ -5,7 +5,7 @@ import { Script } from "forge-std/Script.sol";
 import { console2 as console } from "forge-std/console2.sol";
 import { Deployer } from "scripts/deploy/Deployer.sol";
 
-import { Config, OutputMode, OutputModeUtils, Fork, ForkUtils, LATEST_FORK } from "scripts/Config.sol";
+import { Config, OutputMode, OutputModeUtils, Fork, ForkUtils, LATEST_FORK } from "scripts/libraries/Config.sol";
 import { Artifacts } from "scripts/Artifacts.s.sol";
 import { DeployConfig } from "scripts/deploy/DeployConfig.s.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -286,7 +286,15 @@ contract L2Genesis is Deployer {
 
     /// @notice This predeploy is following the safety invariant #1.
     function setL2StandardBridge(address payable _l1StandardBridgeProxy) public {
-        address impl = _setImplementationCode(Predeploys.L2_STANDARD_BRIDGE);
+        address impl;
+        if (cfg.useInterop()) {
+            string memory cname = "L2StandardBridgeInterop";
+            impl = Predeploys.predeployToCodeNamespace(Predeploys.L2_STANDARD_BRIDGE);
+            console.log("Setting %s implementation at: %s", cname, impl);
+            vm.etch(impl, vm.getDeployedCode(string.concat(cname, ".sol:", cname)));
+        } else {
+            impl = _setImplementationCode(Predeploys.L2_STANDARD_BRIDGE);
+        }
 
         L2StandardBridge(payable(impl)).initialize({ _otherBridge: L1StandardBridge(payable(address(0))) });
 
@@ -517,6 +525,7 @@ contract L2Genesis is Deployer {
         _setPreinstallCode(Preinstalls.SenderCreator_v070); // ERC 4337 v0.7.0
         _setPreinstallCode(Preinstalls.EntryPoint_v070); // ERC 4337 v0.7.0
         _setPreinstallCode(Preinstalls.BeaconBlockRoots);
+        _setPreinstallCode(Preinstalls.CreateX);
         // 4788 sender nonce must be incremented, since it's part of later upgrade-transactions.
         // For the upgrade-tx to not create a contract that conflicts with an already-existing copy,
         // the nonce must be bumped.

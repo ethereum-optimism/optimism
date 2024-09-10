@@ -28,38 +28,42 @@ func createTraceProvider(
 ) (types.TraceProvider, error) {
 	switch traceType {
 	case types.TraceTypeCannon:
-		vmConfig := vm.NewOpProgramVmConfig()
-		prestate, err := getPrestate(prestateHash, cfg.CannonAbsolutePreStateBaseURL, cfg.CannonAbsolutePreState, dir)
+		vmConfig := vm.NewOpProgramServerExecutor()
+		stateConverter := cannon.NewStateConverter()
+		prestate, err := getPrestate(prestateHash, cfg.CannonAbsolutePreStateBaseURL, cfg.CannonAbsolutePreState, dir, stateConverter)
 		if err != nil {
 			return nil, err
 		}
-		prestateProvider := cannon.NewPrestateProvider(prestate)
+		prestateProvider := vm.NewPrestateProvider(prestate, stateConverter)
 		return cannon.NewTraceProvider(logger, m, cfg.Cannon, vmConfig, prestateProvider, prestate, localInputs, dir, 42), nil
 	case types.TraceTypeAsterisc:
-		vmConfig := vm.NewOpProgramVmConfig()
-		prestate, err := getPrestate(prestateHash, cfg.AsteriscAbsolutePreStateBaseURL, cfg.AsteriscAbsolutePreState, dir)
+		vmConfig := vm.NewOpProgramServerExecutor()
+		stateConverter := asterisc.NewStateConverter()
+		prestate, err := getPrestate(prestateHash, cfg.AsteriscAbsolutePreStateBaseURL, cfg.AsteriscAbsolutePreState, dir, stateConverter)
 		if err != nil {
 			return nil, err
 		}
-		prestateProvider := asterisc.NewPrestateProvider(prestate)
+		prestateProvider := vm.NewPrestateProvider(prestate, stateConverter)
 		return asterisc.NewTraceProvider(logger, m, cfg.Asterisc, vmConfig, prestateProvider, prestate, localInputs, dir, 42), nil
 	case types.TraceTypeAsteriscKona:
-		vmConfig := vm.NewKonaVmConfig()
-		prestate, err := getPrestate(prestateHash, cfg.AsteriscAbsolutePreStateBaseURL, cfg.AsteriscAbsolutePreState, dir)
+		vmConfig := vm.NewKonaServerExecutor()
+		stateConverter := asterisc.NewStateConverter()
+		prestate, err := getPrestate(prestateHash, cfg.AsteriscKonaAbsolutePreStateBaseURL, cfg.AsteriscKonaAbsolutePreState, dir, stateConverter)
 		if err != nil {
 			return nil, err
 		}
-		prestateProvider := asterisc.NewPrestateProvider(prestate)
-		return asterisc.NewTraceProvider(logger, m, cfg.Asterisc, vmConfig, prestateProvider, prestate, localInputs, dir, 42), nil
+		prestateProvider := vm.NewPrestateProvider(prestate, stateConverter)
+		return asterisc.NewTraceProvider(logger, m, cfg.AsteriscKona, vmConfig, prestateProvider, prestate, localInputs, dir, 42), nil
 	}
 	return nil, errors.New("invalid trace type")
 }
 
-func getPrestate(prestateHash common.Hash, prestateBaseUrl *url.URL, prestatePath string, dataDir string) (string, error) {
+func getPrestate(prestateHash common.Hash, prestateBaseUrl *url.URL, prestatePath string, dataDir string, stateConverter vm.StateConverter) (string, error) {
 	prestateSource := prestates.NewPrestateSource(
 		prestateBaseUrl,
 		prestatePath,
-		filepath.Join(dataDir, "prestates"))
+		filepath.Join(dataDir, "prestates"),
+		stateConverter)
 
 	prestate, err := prestateSource.PrestatePath(prestateHash)
 	if err != nil {

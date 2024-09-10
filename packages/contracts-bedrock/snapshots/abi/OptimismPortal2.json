@@ -823,7 +823,17 @@
   },
   {
     "inputs": [],
+    "name": "AlreadyFinalized",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "BadTarget",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "Blacklisted",
     "type": "error"
   },
   {
@@ -853,7 +863,27 @@
   },
   {
     "inputs": [],
+    "name": "InvalidDisputeGame",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidGameType",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidHeader",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidMerkleProof",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidProof",
     "type": "error"
   },
   {
@@ -883,6 +913,11 @@
   },
   {
     "inputs": [],
+    "name": "ProposalNotValidated",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "SmallGasLimit",
     "type": "error"
   },
@@ -904,6 +939,11 @@
   {
     "inputs": [],
     "name": "UnexpectedString",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "Unproven",
     "type": "error"
   }
 ]

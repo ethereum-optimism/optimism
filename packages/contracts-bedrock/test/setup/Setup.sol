@@ -5,7 +5,7 @@ import { console2 as console } from "forge-std/console2.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Preinstalls } from "src/libraries/Preinstalls.sol";
 import { L2CrossDomainMessenger } from "src/L2/L2CrossDomainMessenger.sol";
-import { L2StandardBridge } from "src/L2/L2StandardBridge.sol";
+import { L2StandardBridgeInterop } from "src/L2/L2StandardBridgeInterop.sol";
 import { L2ToL1MessagePasser } from "src/L2/L2ToL1MessagePasser.sol";
 import { L2ERC721Bridge } from "src/L2/L2ERC721Bridge.sol";
 import { BaseFeeVault } from "src/L2/BaseFeeVault.sol";
@@ -26,17 +26,17 @@ import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
 import { DeployConfig } from "scripts/deploy/DeployConfig.s.sol";
 import { Deploy } from "scripts/deploy/Deploy.s.sol";
-import { Fork, LATEST_FORK } from "scripts/Config.sol";
+import { Fork, LATEST_FORK } from "scripts/libraries/Config.sol";
 import { L2Genesis, L1Dependencies } from "scripts/L2Genesis.s.sol";
-import { OutputMode, Fork, ForkUtils } from "scripts/Config.sol";
-import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
+import { OutputMode, Fork, ForkUtils } from "scripts/libraries/Config.sol";
+import { IL2OutputOracle } from "src/L1/interfaces/IL2OutputOracle.sol";
 import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { AddressManager } from "src/legacy/AddressManager.sol";
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
-import { Executables } from "scripts/Executables.sol";
+import { Executables } from "scripts/libraries/Executables.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { DataAvailabilityChallenge } from "src/L1/DataAvailabilityChallenge.sol";
@@ -69,7 +69,7 @@ contract Setup {
     OptimismPortal2 optimismPortal2;
     DisputeGameFactory disputeGameFactory;
     DelayedWETH delayedWeth;
-    L2OutputOracle l2OutputOracle;
+    IL2OutputOracle l2OutputOracle;
     SystemConfig systemConfig;
     L1StandardBridge l1StandardBridge;
     L1CrossDomainMessenger l1CrossDomainMessenger;
@@ -83,7 +83,7 @@ contract Setup {
 
     L2CrossDomainMessenger l2CrossDomainMessenger =
         L2CrossDomainMessenger(payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER));
-    L2StandardBridge l2StandardBridge = L2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE));
+    L2StandardBridgeInterop l2StandardBridge = L2StandardBridgeInterop(payable(Predeploys.L2_STANDARD_BRIDGE));
     L2ToL1MessagePasser l2ToL1MessagePasser = L2ToL1MessagePasser(payable(Predeploys.L2_TO_L1_MESSAGE_PASSER));
     OptimismMintableERC20Factory l2OptimismMintableERC20Factory =
         OptimismMintableERC20Factory(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY);
@@ -135,7 +135,7 @@ contract Setup {
         optimismPortal2 = OptimismPortal2(deploy.mustGetAddress("OptimismPortalProxy"));
         disputeGameFactory = DisputeGameFactory(deploy.mustGetAddress("DisputeGameFactoryProxy"));
         delayedWeth = DelayedWETH(deploy.mustGetAddress("DelayedWETHProxy"));
-        l2OutputOracle = L2OutputOracle(deploy.mustGetAddress("L2OutputOracleProxy"));
+        l2OutputOracle = IL2OutputOracle(deploy.mustGetAddress("L2OutputOracleProxy"));
         systemConfig = SystemConfig(deploy.mustGetAddress("SystemConfigProxy"));
         l1StandardBridge = L1StandardBridge(deploy.mustGetAddress("L1StandardBridgeProxy"));
         l1CrossDomainMessenger = L1CrossDomainMessenger(deploy.mustGetAddress("L1CrossDomainMessengerProxy"));
@@ -172,7 +172,7 @@ contract Setup {
         vm.label(deploy.mustGetAddress("SuperchainConfigProxy"), "SuperchainConfigProxy");
         vm.label(AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger)), "L1CrossDomainMessenger_aliased");
 
-        if (deploy.cfg().usePlasma()) {
+        if (deploy.cfg().useAltDA()) {
             dataAvailabilityChallenge =
                 DataAvailabilityChallenge(deploy.mustGetAddress("DataAvailabilityChallengeProxy"));
             vm.label(address(dataAvailabilityChallenge), "DataAvailabilityChallengeProxy");
@@ -233,6 +233,7 @@ contract Setup {
         labelPreinstall(Preinstalls.SenderCreator_v070);
         labelPreinstall(Preinstalls.EntryPoint_v070);
         labelPreinstall(Preinstalls.BeaconBlockRoots);
+        labelPreinstall(Preinstalls.CreateX);
 
         console.log("Setup: completed L2 genesis");
     }

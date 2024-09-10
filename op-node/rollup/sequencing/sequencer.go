@@ -111,8 +111,11 @@ type Sequencer struct {
 	nextAction   time.Time
 	nextActionOK bool
 
-	latest     BuildingState
-	latestHead eth.L2BlockRef
+	latest       BuildingState
+	latestSealed eth.L2BlockRef
+	latestHead   eth.L2BlockRef
+
+	latestHeadSet chan struct{}
 
 	// toBlockRef converts a payload to a block-ref, and is only configurable for test-purposes
 	toBlockRef func(rollupCfg *rollup.Config, payload *eth.ExecutionPayload) (eth.L2BlockRef, error)
@@ -283,6 +286,7 @@ func (d *Sequencer) onBuildSealed(x engine.BuildSealedEvent) {
 		Ref:          x.Ref,
 	})
 	d.latest.Ref = x.Ref
+	d.latestSealed = x.Ref
 }
 
 func (d *Sequencer) onPayloadSealInvalid(x engine.PayloadSealInvalidEvent) {
@@ -345,6 +349,8 @@ func (d *Sequencer) onSequencerAction(x SequencerActionEvent) {
 			d.asyncGossip.Clear() // bad payload
 			return
 		}
+		d.log.Info("Resuming sequencing with previously async-gossip confirmed payload",
+			"payload", payload.ExecutionPayload.ID())
 		// Payload is known, we must have resumed sequencer-actions after a temporary error,
 		// meaning that we have seen BuildSealedEvent already.
 		// We can retry processing to make it canonical.
@@ -423,7 +429,7 @@ func (d *Sequencer) onForkchoiceUpdate(x engine.ForkchoiceUpdateEvent) {
 	d.log.Debug("Sequencer is processing forkchoice update", "unsafe", x.UnsafeL2Head, "latest", d.latestHead)
 
 	if !d.active.Load() {
-		d.latestHead = x.UnsafeL2Head
+		d.setLatestHead(x.UnsafeL2Head)
 		return
 	}
 	// If the safe head has fallen behind by a significant number of blocks, delay creating new blocks
@@ -454,7 +460,15 @@ func (d *Sequencer) onForkchoiceUpdate(x engine.ForkchoiceUpdateEvent) {
 			d.nextAction = now
 		}
 	}
-	d.latestHead = x.UnsafeL2Head
+	d.setLatestHead(x.UnsafeL2Head)
+}
+
+func (d *Sequencer) setLatestHead(head eth.L2BlockRef) {
+	d.latestHead = head
+	if d.latestHeadSet != nil {
+		close(d.latestHeadSet)
+		d.latestHeadSet = nil
+	}
 }
 
 // StartBuildingBlock initiates a block building job on top of the given L2 head, safe and finalized blocks, and using the provided l1Origin.
@@ -527,7 +541,7 @@ func (d *Sequencer) startBuildingBlock() {
 		d.log.Info("Sequencing Fjord upgrade block")
 	}
 
-	// For the Fjord activation block we shouldn't include any sequencer transactions.
+	// For the Granite activation block we shouldn't include any sequencer transactions.
 	if d.rollupCfg.IsGraniteActivationBlock(uint64(attrs.Timestamp)) {
 		d.log.Info("Sequencing Granite upgrade block")
 	}
@@ -616,9 +630,27 @@ func (d *Sequencer) Init(ctx context.Context, active bool) error {
 
 // forceStart skips all the checks, and just starts the sequencer
 func (d *Sequencer) forceStart() error {
+	if d.latestHead == (eth.L2BlockRef{}) {
+		// This happens if sequencing is activated on op-node startup.
+		// The op-conductor check and choice of sequencing with this pre-state already happened before op-node startup.
+		d.log.Info("Starting sequencing, without known pre-state")
+		d.asyncGossip.Clear() // if we are starting from an unknown pre-state, just clear gossip out of caution.
+	} else {
+		// This happens when we start sequencing on an already-running node.
+		d.log.Info("Starting sequencing on top of known pre-state", "head", d.latestHead)
+		if payload := d.asyncGossip.Get(); payload != nil &&
+			payload.ExecutionPayload.BlockHash != d.latestHead.Hash {
+			d.log.Warn("Cleared old block from async-gossip buffer, sequencing pre-state is different",
+				"buffered", payload.ExecutionPayload.ID(), "prestate", d.latestHead)
+			d.asyncGossip.Clear()
+		}
+	}
+
 	if err := d.listener.SequencerStarted(); err != nil {
 		return fmt.Errorf("failed to notify sequencer-state listener of start: %w", err)
 	}
+	// clear the building state; interrupting any existing sequencing job (there should never be one)
+	d.latest = BuildingState{}
 	d.nextActionOK = true
 	d.nextAction = d.timeNow()
 	d.active.Store(true)
@@ -626,12 +658,33 @@ func (d *Sequencer) forceStart() error {
 	return nil
 }
 
-func (d *Sequencer) Stop(ctx context.Context) (hash common.Hash, err error) {
+func (d *Sequencer) Stop(ctx context.Context) (common.Hash, error) {
 	if err := d.l.LockCtx(ctx); err != nil {
 		return common.Hash{}, err
 	}
+
+	if !d.active.Load() {
+		d.l.Unlock()
+		return common.Hash{}, ErrSequencerAlreadyStopped
+	}
+
+	// ensure latestHead has been updated to the latest sealed/gossiped block before stopping the sequencer
+	for d.latestHead.Hash != d.latestSealed.Hash {
+		latestHeadSet := make(chan struct{})
+		d.latestHeadSet = latestHeadSet
+		d.l.Unlock()
+		select {
+		case <-ctx.Done():
+			return common.Hash{}, ctx.Err()
+		case <-latestHeadSet:
+		}
+		if err := d.l.LockCtx(ctx); err != nil {
+			return common.Hash{}, err
+		}
+	}
 	defer d.l.Unlock()
 
+	// Stop() may have been called twice, so check if we are active after reacquiring the lock
 	if !d.active.Load() {
 		return common.Hash{}, ErrSequencerAlreadyStopped
 	}

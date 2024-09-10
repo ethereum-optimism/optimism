@@ -9,28 +9,29 @@ import (
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 )
 
 // Syscall codes
 const (
-	SysMmap       = 5009
-	SysMunmap     = 5011
-	SysBrk        = 5012
-	SysClone      = 5055
-	SysExitGroup  = 5205
-	SysRead       = 5000
-	SysWrite      = 5001
-	SysFcntl      = 5070
-	SysExit       = 5058
-	SysSchedYield = 5023
-	SysGetTID     = 5178
-	SysFutex      = 5194
-	SysOpen       = 5002
-	SysNanosleep  = 5034
+	SysMmap       = 4090
+	SysBrk        = 4045
+	SysClone      = 4120
+	SysExitGroup  = 4246
+	SysRead       = 4003
+	SysWrite      = 4004
+	SysFcntl      = 4055
+	SysExit       = 4001
+	SysSchedYield = 4162
+	SysGetTID     = 4222
+	SysFutex      = 4238
+	SysOpen       = 4005
+	SysNanosleep  = 4166
 )
 
 // Noop Syscall codes
 const (
+	SysMunmap        = 5011
 	SysGetAffinity   = 5196
 	SysMadvise       = 5027
 	SysRtSigprocmask = 5014
@@ -133,7 +134,6 @@ const (
 // Other constants
 const (
 	SchedQuantum = 100_000
-	BrkStart     = 0x40000000
 )
 
 func GetSyscallArgs(registers *[32]uint64) (syscallNum, a0, a1, a2, a3 uint64) {
@@ -159,6 +159,12 @@ func HandleSysMmap(a0, a1, heap uint64) (v0, v1, newHeap uint64) {
 		v0 = heap
 		//fmt.Printf("mmap heap 0x%x size 0x%x\n", v0, sz)
 		newHeap += sz
+		// Fail if new heap exceeds memory limit, newHeap overflows around to low memory, or sz overflows
+		if newHeap > program.HEAP_END || newHeap < heap || sz < a1 {
+			v0 = SysErrorSignal
+			v1 = MipsEINVAL
+			return v0, v1, heap
+		}
 	} else {
 		v0 = a0
 		//fmt.Printf("mmap hint 0x%x size 0x%x\n", v0, sz)
@@ -182,7 +188,7 @@ func HandleSysRead(a0, a1, a2 uint64, preimageKey [32]byte, preimageOffset uint6
 		memTracker.TrackMemAccess(effAddr)
 		mem := memory.GetDoubleWord(effAddr)
 		dat, datLen := preimageReader.ReadPreimage(preimageKey, preimageOffset)
-		//fmt.Printf("reading pre-image data: addr: %08x, offset: %d, datLen: %d, data: %x, key: %s  count: %d\n", a1, m.state.PreimageOffset, datLen, dat[:datLen], m.state.PreimageKey, a2)
+		//fmt.Printf("reading pre-image data: addr: %08x, offset: %d, datLen: %d, data: %x, key: %s  count: %d\n", a1, preimageOffset, datLen, dat[:datLen], preimageKey, a2)
 		alignment := a1 & 7
 		space := 8 - alignment
 		if space < datLen {

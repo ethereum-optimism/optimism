@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { ISemver } from "src/universal/ISemver.sol";
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
 
 /// @title AttestationStation
 /// @author Optimism Collective
@@ -29,8 +29,8 @@ contract AttestationStation is ISemver {
     event AttestationCreated(address indexed creator, address indexed about, bytes32 indexed key, bytes val);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.2.0
-    string public constant version = "1.2.0";
+    /// @custom:semver 1.2.1-beta.1
+    string public constant version = "1.2.1-beta.1";
 
     /// @notice Allows anyone to create an attestation.
     /// @param _about Address that the attestation is about.

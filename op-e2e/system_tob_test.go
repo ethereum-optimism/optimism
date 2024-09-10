@@ -52,12 +52,11 @@ func TestGasPriceOracleFeeUpdates(t *testing.T) {
 	cfg := DefaultSystemConfig(t)
 	sys, err := cfg.Start(t)
 	require.NoError(t, err, "Error starting up system")
-	defer sys.Close()
 
 	// Obtain our sequencer, verifier, and transactor keypair.
-	l1Client := sys.Clients["l1"]
-	l2Seq := sys.Clients["sequencer"]
-	// l2Verif := sys.Clients["verifier"]
+	l1Client := sys.NodeClient("l1")
+	l2Seq := sys.NodeClient("sequencer")
+	// l2Verif := sys.NodeClient("verifier")
 	ethPrivKey := cfg.Secrets.SysCfgOwner
 
 	// Bind to the SystemConfig & GasPriceOracle contracts
@@ -128,11 +127,10 @@ func TestL2SequencerRPCDepositTx(t *testing.T) {
 	cfg := DefaultSystemConfig(t)
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
-	defer sys.Close()
 
 	// Obtain our sequencer, verifier, and transactor keypair.
-	l2Seq := sys.Clients["sequencer"]
-	l2Verif := sys.Clients["verifier"]
+	l2Seq := sys.NodeClient("sequencer")
+	l2Verif := sys.NodeClient("verifier")
 	txSigningKey := sys.Cfg.Secrets.Alice
 	require.Nil(t, err)
 
@@ -237,12 +235,11 @@ func TestMixedDepositValidity(t *testing.T) {
 	cfg := DefaultSystemConfig(t)
 	sys, testAccounts, err := startConfigWithTestAccounts(t, &cfg, accountUsedToDeposit)
 	require.Nil(t, err, "Error starting up system")
-	defer sys.Close()
 
 	// Obtain our sequencer, verifier, and transactor keypair.
-	l1Client := sys.Clients["l1"]
-	l2Seq := sys.Clients["sequencer"]
-	l2Verif := sys.Clients["verifier"]
+	l1Client := sys.NodeClient("l1")
+	l2Seq := sys.NodeClient("sequencer")
+	l2Verif := sys.NodeClient("verifier")
 	require.NoError(t, err)
 
 	// Define our L1 transaction timeout duration.
@@ -408,12 +405,11 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 			require.Equal(t, cfg.DeployConfig.FundDevAccounts, true)
 			sys, err := cfg.Start(t)
 			require.NoError(t, err, "error starting up system")
-			defer sys.Close()
 
 			// Obtain our sequencer, verifier, and transactor keypair.
-			l1Client := sys.Clients["l1"]
-			l2Seq := sys.Clients["sequencer"]
-			l2Verif := sys.Clients["verifier"]
+			l1Client := sys.NodeClient("l1")
+			l2Seq := sys.NodeClient("sequencer")
+			l2Verif := sys.NodeClient("verifier")
 			require.NoError(t, err)
 
 			systemConfig, err := legacybindings.NewSystemConfigCaller(cfg.L1Deployments.SystemConfigProxy, l1Client)
@@ -554,7 +550,7 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 			header, err = l2Verif.HeaderByNumber(ctx, new(big.Int).SetUint64(blockNumber))
 			require.Nil(t, err)
 
-			rpcClient, err := rpc.Dial(sys.EthInstances["verifier"].WSEndpoint())
+			rpcClient, err := rpc.Dial(sys.EthInstances["verifier"].UserRPC().RPC())
 			require.Nil(t, err)
 			proofCl := gethclient.New(rpcClient)
 			receiptCl := ethclient.NewClient(rpcClient)

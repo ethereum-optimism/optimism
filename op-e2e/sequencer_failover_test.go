@@ -49,7 +49,7 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 	sort.Strings(ids)
 	require.Equal(t, []string{Sequencer1Name, Sequencer2Name, Sequencer3Name}, ids, "Expected all sequencers to be in cluster")
 
-	// Test Active & Pause & Resume
+	// Test Active & Pause & Resume & Stop
 	t.Log("Testing Active & Pause & Resume")
 	active, err := c1.client.Active(ctx)
 	require.NoError(t, err)
@@ -100,8 +100,8 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 	nonvoter, err := retry.Do[*conductor](ctx, maxSetupRetries, retryStrategy, func() (*conductor, error) {
 		return setupConductor(
 			t, VerifierName, t.TempDir(),
-			sys.RollupEndpoint(Sequencer3Name),
-			sys.NodeEndpoint(Sequencer3Name),
+			sys.RollupEndpoint(Sequencer3Name).RPC(),
+			sys.NodeEndpoint(Sequencer3Name).RPC(),
 			findAvailablePort(t),
 			false,
 			*sys.RollupConfig,
@@ -161,6 +161,13 @@ func TestSequencerFailover_ConductorRPC(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 2, len(membership.Servers), "Expected 2 members in cluster after removal")
 	require.NotContains(t, memberIDs(membership), fid, "Expected follower to be removed from cluster")
+
+	// Testing the stop api
+	t.Log("Testing Stop API")
+	err = c1.client.Stop(ctx)
+	require.NoError(t, err)
+	_, err = c1.client.Stopped(ctx)
+	require.Error(t, err, "Expected no connection to the conductor since it's stopped")
 }
 
 // [Category: Sequencer Failover]
