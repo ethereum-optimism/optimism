@@ -391,7 +391,7 @@ func (h *Host) unwindCallstack(depth int) {
 		if len(h.callStack) > 1 {
 			parentCallFrame := h.callStack[len(h.callStack)-2]
 			if parentCallFrame.Prank != nil {
-				if parentCallFrame.Prank.Broadcast {
+				if parentCallFrame.Prank.Broadcast && parentCallFrame.LastOp != vm.STATICCALL {
 					currentFrame := h.callStack[len(h.callStack)-1]
 					bcast := NewBroadcastFromCtx(currentFrame.Ctx)
 					h.hooks.OnBroadcast(bcast)

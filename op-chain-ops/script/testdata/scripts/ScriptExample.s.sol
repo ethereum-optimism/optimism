@@ -67,6 +67,9 @@ contract ScriptExample {
     address internal constant VM_ADDRESS = address(uint160(uint256(keccak256("hevm cheat code"))));
     Vm internal constant vm = Vm(VM_ADDRESS);
 
+    // @notice counter variable to force non-pure calls.
+    uint256 public counter;
+
     /// @notice example function, runs through basic cheat-codes and console logs.
     function run() public {
         bool x = vm.envOr("EXAMPLE_BOOL", false);
@@ -104,6 +107,7 @@ contract ScriptExample {
         vm.startBroadcast();
         this.call1("startstop_call1");
         this.call2("startstop_call2");
+        this.callPure("startstop_pure");
         vm.stopBroadcast();
         this.call1("startstop_call3");
 
@@ -119,19 +123,27 @@ contract ScriptExample {
         console.log("hello msg.sender", address(msg.sender));
     }
 
-    function call1(string calldata _v) external pure {
+    function call1(string calldata _v) external {
+        counter++;
         console.log(_v);
     }
 
-    function call2(string calldata _v) external pure {
+    function call2(string calldata _v) external {
+        counter++;
         console.log(_v);
     }
 
-    function nested1(string calldata _v) external view {
+    function nested1(string calldata _v) external {
+        counter++;
         this.nested2(_v);
     }
 
-    function nested2(string calldata _v) external pure {
+    function nested2(string calldata _v) external {
+        counter++;
+        console.log(_v);
+    }
+
+    function callPure(string calldata _v) external pure {
         console.log(_v);
     }
 }
