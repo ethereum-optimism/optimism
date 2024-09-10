@@ -419,7 +419,7 @@ func (s *system2) prepareSupervisor() *supervisor.SupervisorService {
 			ListenEnabled: false,
 		},
 		LogConfig: oplog.CLIConfig{
-			Level:  log.LvlInfo,
+			Level:  log.LevelTrace,
 			Format: oplog.FormatText,
 		},
 		RPC: oprpc.CLIConfig{
