@@ -3,7 +3,6 @@ package script
 import (
 	"bytes"
 	"encoding/binary"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math/big"
@@ -39,6 +38,9 @@ type CallFrame struct {
 
 	LastOp vm.OpCode
 	LastPC uint64
+
+	// To reconstruct a create2 later, e.g. on broadcast
+	LastCreate2Salt [32]byte
 
 	// Reverts often happen in generated code.
 	// We want to fallback to logging the source-map position of
@@ -391,17 +393,24 @@ func (h *Host) unwindCallstack(depth int) {
 		if len(h.callStack) > 1 {
 			parentCallFrame := h.callStack[len(h.callStack)-2]
 			if parentCallFrame.Prank != nil {
-				if parentCallFrame.Prank.Broadcast && parentCallFrame.LastOp != vm.STATICCALL {
-					currentFrame := h.callStack[len(h.callStack)-1]
-					bcast := NewBroadcastFromCtx(currentFrame.Ctx)
-					h.hooks.OnBroadcast(bcast)
-					h.log.Debug(
-						"called broadcast hook",
-						"from", bcast.From,
-						"to", bcast.To,
-						"calldata", hex.EncodeToString(bcast.Calldata),
-						"value", bcast.Value,
-					)
+				if parentCallFrame.Prank.Broadcast {
+					if parentCallFrame.LastOp == vm.DELEGATECALL {
+						h.log.Warn("Cannot broadcast a delegate-call. Ignoring broadcast hook.")
+					} else if parentCallFrame.LastOp == vm.STATICCALL {
+						h.log.Trace("Broadcast is active, ignoring static-call.")
+					} else {
+						currentCallFrame := h.callStack[len(h.callStack)-1]
+						bcast := NewBroadcast(parentCallFrame, currentCallFrame)
+						h.log.Debug(
+							"calling broadcast hook",
+							"from", bcast.From,
+							"to", bcast.To,
+							"input", bcast.Input,
+							"value", bcast.Value,
+							"type", bcast.Type,
+						)
+						h.hooks.OnBroadcast(bcast)
+					}
 				}
 
 				// While going back to the parent, restore the tx.origin.
@@ -448,6 +457,9 @@ func (h *Host) onOpcode(pc uint64, op byte, gas, cost uint64, scope tracing.OpCo
 	}
 	cf.LastOp = vm.OpCode(op)
 	cf.LastPC = pc
+	if cf.LastOp == vm.CREATE2 {
+		cf.LastCreate2Salt = scopeCtx.Stack.Back(3).Bytes32()
+	}
 }
 
 // onStorageChange is a trace-hook to capture state changes

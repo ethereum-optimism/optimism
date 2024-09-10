@@ -9,6 +9,8 @@ interface Vm {
     function startPrank(address msgSender) external;
     function stopPrank() external;
     function broadcast() external;
+    function broadcast(address msgSender) external;
+    function startBroadcast(address msgSender) external;
     function startBroadcast() external;
     function stopBroadcast() external;
 }
@@ -104,7 +106,7 @@ contract ScriptExample {
         this.call2("single_call2");
 
         console.log("testing start/stop");
-        vm.startBroadcast();
+        vm.startBroadcast(address(uint160(0xc0ffee)));
         this.call1("startstop_call1");
         this.call2("startstop_call2");
         this.callPure("startstop_pure");
@@ -112,9 +114,20 @@ contract ScriptExample {
         this.call1("startstop_call3");
 
         console.log("testing nested");
-        vm.startBroadcast();
+        vm.startBroadcast(address(uint160(0x1234)));
         this.nested1("nested");
         vm.stopBroadcast();
+
+        console.log("contract deployment");
+        vm.broadcast(address(uint160(0x123456)));
+        FooBar x = new FooBar(1234);
+        require(x.foo() == 1234);
+
+        console.log("create 2");
+        vm.broadcast(address(uint160(0xcafe)));
+        FooBar y = new FooBar{salt: bytes32(uint256(42))}(1234);
+        require(y.foo() == 1234);
+        console.log("done!");
     }
 
     /// @notice example external function, to force a CALL, and test vm.startPrank with.
@@ -145,5 +158,13 @@ contract ScriptExample {
 
     function callPure(string calldata _v) external pure {
         console.log(_v);
+    }
+}
+
+contract FooBar {
+    uint256 public foo;
+
+    constructor(uint256 v) {
+        foo = v;
     }
 }
