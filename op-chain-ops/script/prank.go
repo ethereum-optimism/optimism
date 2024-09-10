@@ -69,7 +69,7 @@ func (h *Host) Prank(msgSender *common.Address, txOrigin *common.Address, repeat
 		h.log.Warn("no call stack")
 		return nil // cannot prank while not in a call.
 	}
-	cf := &h.callStack[len(h.callStack)-1]
+	cf := h.callStack[len(h.callStack)-1]
 	if cf.Prank != nil {
 		if cf.Prank.Broadcast && !broadcast {
 			return errors.New("you have an active broadcast; broadcasting and pranks are not compatible")
@@ -98,7 +98,7 @@ func (h *Host) StopPrank(broadcast bool) error {
 	if len(h.callStack) == 0 {
 		return nil
 	}
-	cf := &h.callStack[len(h.callStack)-1]
+	cf := h.callStack[len(h.callStack)-1]
 	if cf.Prank == nil {
 		if broadcast {
 			return errors.New("no broadcast in progress to stop")
@@ -127,7 +127,7 @@ func (h *Host) CallerMode() CallerMode {
 	if len(h.callStack) == 0 {
 		return CallerModeNone
 	}
-	cf := &h.callStack[len(h.callStack)-1]
+	cf := h.callStack[len(h.callStack)-1]
 	if cf.Prank != nil {
 		if cf.Prank.Broadcast {
 			if cf.Prank.Repeat {

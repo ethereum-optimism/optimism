@@ -8,6 +8,9 @@ interface Vm {
     function parseJsonKeys(string calldata json, string calldata key) external pure returns (string[] memory keys);
     function startPrank(address msgSender) external;
     function stopPrank() external;
+    function broadcast() external;
+    function startBroadcast() external;
+    function stopBroadcast() external;
 }
 
 // console is a minimal version of the console2 lib.
@@ -90,9 +93,45 @@ contract ScriptExample {
         console.log("done!");
     }
 
+    /// @notice example function, to test vm.broadcast with.
+    function runBroadcast() public {
+        console.log("testing single");
+        vm.broadcast();
+        this.call1("single_call1");
+        this.call2("single_call2");
+
+        console.log("testing start/stop");
+        vm.startBroadcast();
+        this.call1("startstop_call1");
+        this.call2("startstop_call2");
+        vm.stopBroadcast();
+        this.call1("startstop_call3");
+
+        console.log("testing nested");
+        vm.startBroadcast();
+        this.nested1("nested");
+        vm.stopBroadcast();
+    }
+
     /// @notice example external function, to force a CALL, and test vm.startPrank with.
     function hello(string calldata _v) external view {
         console.log(_v);
         console.log("hello msg.sender", address(msg.sender));
+    }
+
+    function call1(string calldata _v) external pure {
+        console.log(_v);
+    }
+
+    function call2(string calldata _v) external pure {
+        console.log(_v);
+    }
+
+    function nested1(string calldata _v) external view {
+        this.nested2(_v);
+    }
+
+    function nested2(string calldata _v) external pure {
+        console.log(_v);
     }
 }
