@@ -25,7 +25,6 @@ import (
 )
 
 type SupervisorBackend struct {
-	ctx     context.Context
 	started atomic.Bool
 	logger  log.Logger
 	m       Metrics
@@ -82,7 +81,7 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger, m Metrics, cfg
 // it does not expect to be called after the backend has been started
 func (su *SupervisorBackend) addFromRPC(ctx context.Context, logger log.Logger, rpc string) error {
 	// create the rpc client, which yields the chain id
-	rpcClient, chainID, err := createRpcClient(su.ctx, logger, rpc)
+	rpcClient, chainID, err := createRpcClient(ctx, logger, rpc)
 	if err != nil {
 		return err
 	}
@@ -173,9 +172,11 @@ func (su *SupervisorBackend) AddL2RPC(ctx context.Context, rpc string) error {
 	if err := su.Stop(ctx); err != nil {
 		return fmt.Errorf("failed to stop backend: %w", err)
 	}
+	su.logger.Info("temporarily stopped the backend to add a new L2 RPC", "rpc", rpc)
 	if err := su.addFromRPC(ctx, su.logger, rpc); err != nil {
 		return fmt.Errorf("failed to add chain monitor: %w", err)
 	}
+	su.logger.Info("added the new L2 RPC, starting supervisor again", "rpc", rpc)
 	return su.Start(ctx)
 }
 
