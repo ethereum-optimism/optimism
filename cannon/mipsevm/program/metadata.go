@@ -4,6 +4,8 @@ import (
 	"debug/elf"
 	"fmt"
 	"sort"
+
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 )
 
 type Symbol struct {
@@ -15,6 +17,8 @@ type Symbol struct {
 type Metadata struct {
 	Symbols []Symbol `json:"symbols"`
 }
+
+var _ mipsevm.Metadata = (*Metadata)(nil)
 
 func MakeMetadata(elfProgram *elf.File) (*Metadata, error) {
 	syms, err := elfProgram.Symbols()
@@ -50,9 +54,7 @@ func (m *Metadata) LookupSymbol(addr uint32) string {
 	return out.Name
 }
 
-type SymbolMatcher func(addr uint32) bool
-
-func (m *Metadata) CreateSymbolMatcher(name string) SymbolMatcher {
+func (m *Metadata) CreateSymbolMatcher(name string) mipsevm.SymbolMatcher {
 	for _, s := range m.Symbols {
 		if s.Name == name {
 			start := s.Start

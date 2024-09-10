@@ -9,13 +9,16 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 )
 
+// Deserializable defines functionality for a type that may be deserialized from raw bytes.
+type Deserializable interface {
+	// Deserialize decodes raw bytes into the type.
+	Deserialize(in io.Reader) error
+}
+
 // Serializable defines functionality for a type that may be serialized to raw bytes.
 type Serializable interface {
 	// Serialize encodes the type as raw bytes.
 	Serialize(out io.Writer) error
-
-	// Deserialize decodes raw bytes into the type.
-	Deserialize(in io.Reader) error
 }
 
 func LoadSerializedBinary[X any](inputPath string) (*X, error) {
@@ -30,7 +33,7 @@ func LoadSerializedBinary[X any](inputPath string) (*X, error) {
 	defer f.Close()
 
 	var x X
-	serializable, ok := reflect.ValueOf(&x).Interface().(Serializable)
+	serializable, ok := reflect.ValueOf(&x).Interface().(Deserializable)
 	if !ok {
 		return nil, fmt.Errorf("%T is not a Serializable", x)
 	}

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
+	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 	"github.com/stretchr/testify/require"
 )
 
@@ -42,13 +43,16 @@ func TestRoundtrip(t *testing.T) {
 			start := make([]byte, 1)
 			_, err = io.ReadFull(decompressed, start)
 			require.NoError(t, err)
+			var load func(path string) (*serializableTestData, error)
 			if test.expectJSON {
+				load = jsonutil.LoadJSON[serializableTestData]
 				require.Equal(t, "{", string(start))
 			} else {
+				load = LoadSerializedBinary[serializableTestData]
 				require.NotEqual(t, "{", string(start))
 			}
 
-			result, err := Load[serializableTestData](path)
+			result, err := load(path)
 			require.NoError(t, err)
 			require.EqualValues(t, data, result)
 		})

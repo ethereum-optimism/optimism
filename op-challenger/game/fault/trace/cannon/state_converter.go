@@ -3,8 +3,8 @@ package cannon
 import (
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
-	"github.com/ethereum-optimism/optimism/cannon/serialize"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 )
 
@@ -30,9 +30,9 @@ func (c *StateConverter) ConvertStateToProof(statePath string) (*utils.ProofData
 		OracleKey:    nil,
 		OracleValue:  nil,
 		OracleOffset: 0,
-	}, state.Step, state.Exited, nil
+	}, state.GetStep(), state.GetExited(), nil
 }
 
-func parseState(path string) (*singlethreaded.State, error) {
-	return serialize.Load[singlethreaded.State](path)
+func parseState(path string) (mipsevm.FPVMState, error) {
+	return versions.LoadStateFromFile(path)
 }

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 	"github.com/ethereum-optimism/optimism/cannon/serialize"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum/go-ethereum/common"
@@ -21,7 +21,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
@@ -279,11 +278,6 @@ func Run(ctx *cli.Context) error {
 		defer profile.Start(profile.NoShutdownHook, profile.ProfilePath("."), profile.CPUProfile).Stop()
 	}
 
-	vmType, err := vmTypeFromString(ctx)
-	if err != nil {
-		return err
-	}
-
 	guestLogger := Logger(os.Stderr, log.LevelInfo)
 	outLog := &mipsevm.LoggingWriter{Log: guestLogger.With("module", "guest", "stream", "stdout")}
 	errLog := &mipsevm.LoggingWriter{Log: guestLogger.With("module", "guest", "stream", "stderr")}
@@ -373,42 +367,19 @@ func Run(ctx *cli.Context) error {
 		}
 	}
 
-	var vm mipsevm.FPVM
-	var debugProgram bool
-	if vmType == cannonVMType {
-		l.Info("Using cannon VM")
-		cannon, err := singlethreaded.NewInstrumentedStateFromFile(ctx.Path(RunInputFlag.Name), po, outLog, errLog, meta)
-		if err != nil {
-			return err
+	state, err := versions.LoadStateFromFile(ctx.Path(RunInputFlag.Name))
+	if err != nil {
+		return fmt.Errorf("failed to load state: %w", err)
+	}
+	vm := state.CreateVM(l, po, outLog, errLog, meta)
+	debugProgram := ctx.Bool(RunDebugFlag.Name)
+	if debugProgram {
+		if metaPath := ctx.Path(RunMetaFlag.Name); metaPath == "" {
+			return fmt.Errorf("cannot enable debug mode without a metadata file")
 		}
-		debugProgram = ctx.Bool(RunDebugFlag.Name)
-		if debugProgram {
-			if metaPath := ctx.Path(RunMetaFlag.Name); metaPath == "" {
-				return fmt.Errorf("cannot enable debug mode without a metadata file")
-			}
-			if err := cannon.InitDebug(); err != nil {
-				return fmt.Errorf("failed to initialize debug mode: %w", err)
-			}
+		if err := vm.InitDebug(); err != nil {
+			return fmt.Errorf("failed to initialize debug mode: %w", err)
 		}
-		vm = cannon
-	} else if vmType == mtVMType {
-		l.Info("Using cannon multithreaded VM")
-		cannon, err := multithreaded.NewInstrumentedStateFromFile(ctx.Path(RunInputFlag.Name), po, outLog, errLog, l)
-		if err != nil {
-			return err
-		}
-		debugProgram = ctx.Bool(RunDebugFlag.Name)
-		if debugProgram {
-			if metaPath := ctx.Path(RunMetaFlag.Name); metaPath == "" {
-				return fmt.Errorf("cannot enable debug mode without a metadata file")
-			}
-			if err := cannon.InitDebug(meta); err != nil {
-				return fmt.Errorf("failed to initialize debug mode: %w", err)
-			}
-		}
-		vm = cannon
-	} else {
-		return fmt.Errorf("unknown VM type %q", vmType)
 	}
 
 	proofFmt := ctx.String(RunProofFmtFlag.Name)
@@ -421,7 +392,6 @@ func Run(ctx *cli.Context) error {
 
 	start := time.Now()
 
-	state := vm.GetState()
 	startStep := state.GetStep()
 
 	for !state.GetExited() {
@@ -530,7 +500,6 @@ var RunCommand = &cli.Command{
 	Description: "Run VM step(s) and generate proof data to replicate onchain. See flags to match when to output a proof, a snapshot, or to stop early.",
 	Action:      Run,
 	Flags: []cli.Flag{
-		VMTypeFlag,
 		RunInputFlag,
 		RunOutputFlag,
 		RunProofAtFlag,

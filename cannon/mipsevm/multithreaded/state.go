@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 	"github.com/ethereum-optimism/optimism/cannon/serialize"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
@@ -35,27 +35,27 @@ const (
 )
 
 type State struct {
-	Memory *memory.Memory `json:"memory"`
+	Memory *memory.Memory
 
-	PreimageKey    common.Hash `json:"preimageKey"`
-	PreimageOffset uint32      `json:"preimageOffset"` // note that the offset includes the 8-byte length prefix
+	PreimageKey    common.Hash
+	PreimageOffset uint32 // note that the offset includes the 8-byte length prefix
 
-	Heap uint32 `json:"heap"` // to handle mmap growth
+	Heap uint32 // to handle mmap growth
 
-	ExitCode uint8 `json:"exit"`
-	Exited   bool  `json:"exited"`
+	ExitCode uint8
+	Exited   bool
 
-	Step                        uint64 `json:"step"`
-	StepsSinceLastContextSwitch uint64 `json:"stepsSinceLastContextSwitch"`
-	Wakeup                      uint32 `json:"wakeup"`
+	Step                        uint64
+	StepsSinceLastContextSwitch uint64
+	Wakeup                      uint32
 
-	TraverseRight    bool           `json:"traverseRight"`
-	LeftThreadStack  []*ThreadState `json:"leftThreadStack"`
-	RightThreadStack []*ThreadState `json:"rightThreadStack"`
-	NextThreadId     uint32         `json:"nextThreadId"`
+	TraverseRight    bool
+	LeftThreadStack  []*ThreadState
+	RightThreadStack []*ThreadState
+	NextThreadId     uint32
 
 	// LastHint is optional metadata, and not part of the VM state itself.
-	LastHint hexutil.Bytes `json:"lastHint,omitempty"`
+	LastHint hexutil.Bytes
 }
 
 var _ mipsevm.FPVMState = (*State)(nil)
@@ -85,6 +85,11 @@ func CreateInitialState(pc, heapStart uint32) *State {
 	state.Heap = heapStart
 
 	return state
+}
+
+func (s *State) CreateVM(logger log.Logger, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, meta mipsevm.Metadata) mipsevm.FPVM {
+	logger.Info("Using cannon multithreaded VM")
+	return NewInstrumentedState(s, po, stdOut, stdErr, logger, meta)
 }
 
 func (s *State) GetCurrentThread() *ThreadState {
@@ -246,9 +251,6 @@ func (s *State) ThreadCount() int {
 // LastHint 				   []byte
 func (s *State) Serialize(out io.Writer) error {
 	bout := serialize.NewBinaryWriter(out)
-	if err := bout.WriteUInt(versions.VersionMultiThreaded); err != nil {
-		return err
-	}
 
 	if err := s.Memory.Serialize(out); err != nil {
 		return err
@@ -309,13 +311,6 @@ func (s *State) Serialize(out io.Writer) error {
 
 func (s *State) Deserialize(in io.Reader) error {
 	bin := serialize.NewBinaryReader(in)
-	var version versions.StateVersion
-	if err := bin.ReadUInt(&version); err != nil {
-		return err
-	}
-	if version != versions.VersionMultiThreaded {
-		return fmt.Errorf("invalid state encoding version %d", version)
-	}
 	s.Memory = memory.NewMemory()
 	if err := s.Memory.Deserialize(in); err != nil {
 		return err
