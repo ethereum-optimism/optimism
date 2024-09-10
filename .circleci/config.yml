@@ -1342,7 +1342,7 @@ jobs:
       SEMGREP_COMMIT: << pipeline.git.revision >>
     docker:
       - image: returntocorp/semgrep
-    resource_class: medium
+    resource_class: large
     steps:
       - checkout
       - unless:
@@ -1364,12 +1364,10 @@ jobs:
       - run:
           name: "Semgrep scan"
           # --time shows which rules take the most time
-          # --max-memory (in MiB) limits memory usage
-          #   (defaults to 5GB, but medium runner only has 4GB, so we conservatively limit it to 3GB)
           # --timeout (in seconds) limits the time per rule and file.
           #   SEMGREP_TIMEOUT is the same, but docs have conflicting defaults (5s in CLI flag, 1800 in some places)
           #    https://semgrep.dev/docs/troubleshooting/semgrep-app#if-the-job-is-aborted-due-to-taking-too-long
-          command: semgrep ci --time --timeout=100 --max-memory=3000
+          command: semgrep ci --time --timeout=100
           # If semgrep hangs, stop the scan after 20m, to prevent a useless 5h job
           no_output_timeout: 20m
       - notify-failures-on-develop
