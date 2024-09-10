@@ -28,6 +28,7 @@ type AsteriscTraceProvider struct {
 	gameDepth      types.Depth
 	preimageLoader *utils.PreimageLoader
 	stateConverter vm.StateConverter
+	cfg            vm.Config
 
 	types.PrestateProvider
 
@@ -48,6 +49,7 @@ func NewTraceProvider(logger log.Logger, m vm.Metricer, cfg vm.Config, vmCfg vm.
 		}),
 		PrestateProvider: prestateProvider,
 		stateConverter:   NewStateConverter(),
+		cfg:              cfg,
 	}
 }
 
@@ -122,7 +124,7 @@ func (p *AsteriscTraceProvider) loadProof(ctx context.Context, i uint64) (*utils
 		file, err = ioutil.OpenDecompressed(path)
 		if errors.Is(err, os.ErrNotExist) {
 			// Expected proof wasn't generated, check if we reached the end of execution
-			proof, step, exited, err := p.stateConverter.ConvertStateToProof(filepath.Join(p.dir, vm.FinalState))
+			proof, step, exited, err := p.stateConverter.ConvertStateToProof(vm.FinalStatePath(p.dir, p.cfg.BinarySnapshots))
 			if err != nil {
 				return nil, err
 			}
@@ -171,6 +173,7 @@ func NewTraceProviderForTest(logger log.Logger, m vm.Metricer, cfg *config.Confi
 			return kvstore.NewFileKV(vm.PreimageDir(dir))
 		}),
 		stateConverter: NewStateConverter(),
+		cfg:            cfg.Asterisc,
 	}
 	return &AsteriscTraceProviderForTest{p}
 }
@@ -181,7 +184,7 @@ func (p *AsteriscTraceProviderForTest) FindStep(ctx context.Context, start uint6
 		return 0, fmt.Errorf("generate asterisc trace (until preimage read): %w", err)
 	}
 	// Load the step from the state asterisc finished with
-	_, step, exited, err := p.stateConverter.ConvertStateToProof(filepath.Join(p.dir, vm.FinalState))
+	_, step, exited, err := p.stateConverter.ConvertStateToProof(vm.FinalStatePath(p.dir, p.cfg.BinarySnapshots))
 	if err != nil {
 		return 0, fmt.Errorf("failed to load final state: %w", err)
 	}

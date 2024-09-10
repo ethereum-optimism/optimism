@@ -23,6 +23,8 @@ type Config struct {
 
 	Beacon L1BeaconEndpointSetup
 
+	Supervisor SupervisorEndpointSetup
+
 	Driver driver.Config
 
 	Rollup rollup.Config
@@ -130,10 +132,18 @@ func (cfg *Config) Check() error {
 	}
 	if cfg.Rollup.EcotoneTime != nil {
 		if cfg.Beacon == nil {
-			return fmt.Errorf("the Ecotone upgrade is scheduled but no L1 Beacon API endpoint is configured")
+			return fmt.Errorf("the Ecotone upgrade is scheduled (timestamp = %d) but no L1 Beacon API endpoint is configured", *cfg.Rollup.EcotoneTime)
 		}
 		if err := cfg.Beacon.Check(); err != nil {
 			return fmt.Errorf("misconfigured L1 Beacon API endpoint: %w", err)
+		}
+	}
+	if cfg.Rollup.InteropTime != nil {
+		if cfg.Supervisor == nil {
+			return fmt.Errorf("the Interop upgrade is scheduled (timestamp = %d) but no supervisor RPC endpoint is configured", *cfg.Rollup.InteropTime)
+		}
+		if err := cfg.Supervisor.Check(); err != nil {
+			return fmt.Errorf("misconfigured supervisor RPC endpoint: %w", err)
 		}
 	}
 	if err := cfg.Rollup.Check(); err != nil {

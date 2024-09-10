@@ -102,7 +102,7 @@ func (s *L2Client) L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) 
 	if err != nil {
 		// Both geth and erigon like to serve non-standard errors for the safe and finalized heads, correct that.
 		// This happens when the chain just started and nothing is marked as safe/finalized yet.
-		if strings.Contains(err.Error(), "block not found") || strings.Contains(err.Error(), "Unknown block") || strings.Contains(err.Error(), "unknown block") {
+		if strings.Contains(err.Error(), "block not found") || strings.Contains(err.Error(), "Unknown block") || strings.Contains(err.Error(), "unknown block") || strings.Contains(err.Error(), "header not found") {
 			err = ethereum.NotFound
 		}
 		// w%: wrap to preserve ethereum.NotFound case

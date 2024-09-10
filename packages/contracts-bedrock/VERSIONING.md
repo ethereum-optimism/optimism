@@ -81,7 +81,9 @@ To accommodate this, once contract changes are ready for governance approval, th
   - After merge, the new commit on the `proposal/op-contracts/vX.Y.Z` branch is the commit hash that will be tagged as `op-contracts/vX.Y.Z-rc.1`, used to deploy the contracts, and proposed to governance.
   - Sometimes additional release candidates are needed before proposal—see [Additional Release Candidates](#additional-release-candidates) for more information on this flow.
 - Once the governance approval is posted, any lock on contracts on `develop` is released.
-- Once governance approves the proposal, merge the proposal branch into `develop` and set the version of all contracts to the appropriate `X.Y.Z` after considering any changes made to `develop` since the release candidate was created.
+- Once governance approves the proposal:
+    - Create the official `op-contracts/vX.Y.Z` off of this `proposal/op-contracts/vX.Y.Z` branch. It should be at the same commit as the most recent release candidate.
+    - Merge the proposal branch into `develop` and set the version of all contracts to the appropriate `X.Y.Z` after considering any changes made to `develop` since the release candidate was created.
   - See [Merging Back to Develop After Governance Approval](#merging-back-to-develop-after-governance-approval) for more information on how to choose the resulting contract versions when merging back into `develop`.
 
 ### Additional Release Candidates

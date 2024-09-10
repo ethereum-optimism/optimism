@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDiskKV(t *testing.T) {
+func TestFileKV(t *testing.T) {
 	tmp := t.TempDir() // automatically removed by testing cleanup
 	kv := NewFileKV(tmp)
 	t.Cleanup(func() { // Can't use defer because kvTest runs tests in parallel.
@@ -17,7 +17,7 @@ func TestDiskKV(t *testing.T) {
 	kvTest(t, kv)
 }
 
-func TestCreateMissingDirectory(t *testing.T) {
+func TestFileKV_CreateMissingDirectory(t *testing.T) {
 	tmp := t.TempDir()
 	dir := filepath.Join(tmp, "data")
 	kv := NewFileKV(dir)

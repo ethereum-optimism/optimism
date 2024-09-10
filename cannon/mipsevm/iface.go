@@ -1,13 +1,19 @@
 package mipsevm
 
 import (
+	"io"
+
+	"github.com/ethereum-optimism/optimism/cannon/serialize"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 )
 
 type FPVMState interface {
+	serialize.Serializable
+
 	GetMemory() *memory.Memory
 
 	// GetHeap returns the current memory address at the top of the heap
@@ -49,6 +55,16 @@ type FPVMState interface {
 
 	// EncodeWitness returns the witness for the current state and the state hash
 	EncodeWitness() (witness []byte, hash common.Hash)
+
+	// CreateVM creates a FPVM that can operate on this state.
+	CreateVM(logger log.Logger, po PreimageOracle, stdOut, stdErr io.Writer, meta Metadata) FPVM
+}
+
+type SymbolMatcher func(addr uint32) bool
+
+type Metadata interface {
+	LookupSymbol(addr uint32) string
+	CreateSymbolMatcher(name string) SymbolMatcher
 }
 
 type FPVM interface {
@@ -69,6 +85,9 @@ type FPVM interface {
 
 	// GetDebugInfo returns debug information about the VM
 	GetDebugInfo() *DebugInfo
+
+	// InitDebug initializes the debug mode of the VM
+	InitDebug() error
 
 	// LookupSymbol returns the symbol located at the specified address.
 	// May return an empty string if there's no symbol table available.

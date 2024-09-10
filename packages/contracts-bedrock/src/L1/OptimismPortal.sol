@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { SafeCall } from "src/libraries/SafeCall.sol";
-import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
+import { IL2OutputOracle } from "src/L1/interfaces/IL2OutputOracle.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { Constants } from "src/libraries/Constants.sol";
@@ -12,14 +12,14 @@ import { Hashing } from "src/libraries/Hashing.sol";
 import { SecureMerkleTrie } from "src/libraries/trie/SecureMerkleTrie.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
-import { ISemver } from "src/universal/ISemver.sol";
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { L1Block } from "src/L2/L1Block.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import "src/libraries/PortalErrors.sol";
 
-/// @custom:proxied
+/// @custom:proxied true
 /// @title OptimismPortal
 /// @notice The OptimismPortal is a low-level contract responsible for passing messages between L1
 ///         and L2. Messages sent directly to the OptimismPortal have no form of replayability.
@@ -68,7 +68,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
 
     /// @notice Contract of the L2OutputOracle.
     /// @custom:network-specific
-    L2OutputOracle public l2Oracle;
+    IL2OutputOracle public l2Oracle;
 
     /// @notice Contract of the SystemConfig.
     /// @custom:network-specific
@@ -128,15 +128,15 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 2.8.1-beta.1
+    /// @custom:semver 2.8.1-beta.2
     function version() public pure virtual returns (string memory) {
-        return "2.8.1-beta.1";
+        return "2.8.1-beta.2";
     }
 
     /// @notice Constructs the OptimismPortal contract.
     constructor() {
         initialize({
-            _l2Oracle: L2OutputOracle(address(0)),
+            _l2Oracle: IL2OutputOracle(address(0)),
             _systemConfig: SystemConfig(address(0)),
             _superchainConfig: SuperchainConfig(address(0))
         });
@@ -147,7 +147,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     /// @param _systemConfig Contract of the SystemConfig.
     /// @param _superchainConfig Contract of the SuperchainConfig.
     function initialize(
-        L2OutputOracle _l2Oracle,
+        IL2OutputOracle _l2Oracle,
         SystemConfig _systemConfig,
         SuperchainConfig _superchainConfig
     )

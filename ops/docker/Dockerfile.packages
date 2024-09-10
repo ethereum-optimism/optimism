@@ -34,7 +34,7 @@ RUN git submodule update --init --recursive \
     && just build \
     && echo $(git rev-parse HEAD) > .gitcommit
 
-FROM --platform=linux/amd64 debian:bookworm-20240812-slim
+FROM --platform=linux/amd64 debian:bookworm-20240812-slim as contracts-bedrock
 
 RUN apt-get update && apt-get install -y \
   curl \
@@ -70,8 +70,4 @@ COPY --from=base /opt/optimism/versions.json /opt/optimism/versions.json
 
 WORKDIR /opt/optimism/packages/contracts-bedrock
 
-# Set "just" as entrypoint, so the default args (the Dockerfile CMD)
-# are passed in to it. This was previously "pnpm run" + "deploy".
-ENTRYPOINT ["just"]
-
-CMD ["deploy"]
+CMD ["echo", "Override this command to use this image."]

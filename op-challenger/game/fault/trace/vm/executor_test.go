@@ -43,7 +43,7 @@ func TestGenerateProof(t *testing.T) {
 	captureExec := func(t *testing.T, cfg Config, proofAt uint64) (string, string, map[string]string) {
 		m := &stubVmMetrics{}
 		executor := NewExecutor(testlog.Logger(t, log.LevelInfo), m, cfg, NewOpProgramServerExecutor(), prestate, inputs)
-		executor.selectSnapshot = func(logger log.Logger, dir string, absolutePreState string, i uint64) (string, error) {
+		executor.selectSnapshot = func(logger log.Logger, dir string, absolutePreState string, i uint64, binary bool) (string, error) {
 			return input, nil
 		}
 		var binary string
@@ -82,7 +82,7 @@ func TestGenerateProof(t *testing.T) {
 		require.Equal(t, input, args["--input"])
 		require.Contains(t, args, "--meta")
 		require.Equal(t, "", args["--meta"])
-		require.Equal(t, filepath.Join(dir, FinalState), args["--output"])
+		require.Equal(t, FinalStatePath(dir, cfg.BinarySnapshots), args["--output"])
 		require.Equal(t, "=150000000", args["--proof-at"])
 		require.Equal(t, "=150000001", args["--stop-at"])
 		require.Equal(t, "%500", args["--snapshot-at"])
@@ -127,6 +127,20 @@ func TestGenerateProof(t *testing.T) {
 		// stop-at would need to be one more than the proof step which would overflow back to 0
 		// so expect that it will be omitted. We'll ultimately want asterisc to execute until the program exits.
 		require.NotContains(t, args, "--stop-at")
+	})
+
+	t.Run("BinarySnapshots", func(t *testing.T) {
+		cfg.Network = "mainnet"
+		cfg.BinarySnapshots = true
+		_, _, args := captureExec(t, cfg, 100)
+		require.Equal(t, filepath.Join(dir, SnapsDir, "%d.bin.gz"), args["--snapshot-fmt"])
+	})
+
+	t.Run("JsonSnapshots", func(t *testing.T) {
+		cfg.Network = "mainnet"
+		cfg.BinarySnapshots = false
+		_, _, args := captureExec(t, cfg, 100)
+		require.Equal(t, filepath.Join(dir, SnapsDir, "%d.json.gz"), args["--snapshot-fmt"])
 	})
 }
 

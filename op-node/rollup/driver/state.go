@@ -465,6 +465,12 @@ func (s *SyncDeriver) SyncStep() {
 	// Upon the pending-safe signal the attributes deriver can then ask the pipeline
 	// to generate new attributes, if no attributes are known already.
 	s.Emitter.Emit(engine.PendingSafeRequestEvent{})
+
+	// If interop is configured, we have to run the engine events,
+	// to ensure cross-L2 safety is continuously verified against the interop-backend.
+	if s.Config.InteropTime != nil {
+		s.Emitter.Emit(engine.CrossUpdateRequestEvent{})
+	}
 }
 
 // ResetDerivationPipeline forces a reset of the derivation pipeline.

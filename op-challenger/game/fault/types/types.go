@@ -67,7 +67,7 @@ const (
 	TraceTypePermissioned TraceType = "permissioned"
 )
 
-var TraceTypes = []TraceType{TraceTypeAlphabet, TraceTypeCannon, TraceTypePermissioned, TraceTypeAsterisc, TraceTypeFast}
+var TraceTypes = []TraceType{TraceTypeAlphabet, TraceTypeCannon, TraceTypePermissioned, TraceTypeAsterisc, TraceTypeAsteriscKona, TraceTypeFast}
 
 func (t TraceType) String() string {
 	return string(t)
@@ -104,6 +104,8 @@ func (t TraceType) GameType() GameType {
 		return PermissionedGameType
 	case TraceTypeAsterisc:
 		return AsteriscGameType
+	case TraceTypeAsteriscKona:
+		return AsteriscKonaGameType
 	case TraceTypeFast:
 		return FastGameType
 	case TraceTypeAlphabet:
