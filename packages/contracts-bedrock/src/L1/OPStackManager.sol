@@ -387,6 +387,7 @@ contract OPStackManager is ISemver {
         returns (bytes memory)
     {
         _output;
+        // TODO make GameTypes.CANNON an input once FPs are supported
         return abi.encodeWithSelector(
             _selector, _output.disputeGameFactoryProxy, _output.systemConfigProxy, superchainConfig, GameTypes.CANNON
         );
@@ -412,7 +413,7 @@ contract OPStackManager is ISemver {
             _input.basefeeScalar,
             _input.blobBasefeeScalar,
             bytes32(uint256(uint160(_input.roles.batcher))), // batcherHash
-            30_000_000, // gasLimit
+            30_000_000, // gasLimit, TODO should this be an input?
             _input.roles.unsafeBlockSigner,
             referenceResourceConfig,
             chainIdToBatchInboxAddress(_input.l2ChainId),
@@ -474,6 +475,7 @@ contract OPStackManager is ISemver {
         virtual
         returns (ResourceMetering.ResourceConfig memory, SystemConfig.Addresses memory)
     {
+        // TODO do any of these need to be configurable? are these values correct?
         ResourceMetering.ResourceConfig memory referenceResourceConfig = ResourceMetering.ResourceConfig({
             maxResourceLimit: 2e7,
             elasticityMultiplier: 10,
