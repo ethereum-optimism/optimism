@@ -10,7 +10,7 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { OptimismSuperchainERC20 } from "src/L2/OptimismSuperchainERC20.sol";
-import { IL2ToL2CrossDomainMessenger } from "src/L2/IL2ToL2CrossDomainMessenger.sol";
+import { IL2ToL2CrossDomainMessenger } from "src/L2/interfaces/IL2ToL2CrossDomainMessenger.sol";
 import { ProtocolGuided } from "./fuzz/Protocol.guided.t.sol";
 import { ProtocolUnguided } from "./fuzz/Protocol.unguided.t.sol";
 import { HandlerGetters } from "./helpers/HandlerGetters.t.sol";
