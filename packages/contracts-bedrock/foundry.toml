@@ -17,12 +17,11 @@ remappings = [
   '@rari-capital/solmate/=lib/solmate',
   '@lib-keccak/=lib/lib-keccak/contracts/lib',
   '@solady/=lib/solady/src',
-  '@crytic/properties/=lib/properties/',
   'forge-std/=lib/forge-std/src',
   'ds-test/=lib/forge-std/lib/ds-test/src',
   'safe-contracts/=lib/safe-contracts/contracts',
   'kontrol-cheatcodes/=lib/kontrol-cheatcodes/src',
-  'gelato/=lib/automate/contracts',
+  'gelato/=lib/automate/contracts'
 ]
 extra_output = ['devdoc', 'userdoc', 'metadata', 'storageLayout']
 bytecode_hash = 'none'
@@ -98,4 +97,3 @@ src = 'test/kontrol/proofs'
 out = 'kout-proofs'
 test = 'test/kontrol/proofs'
 script = 'test/kontrol/proofs'
-

@@ -6,7 +6,6 @@ broadcast
 kout-deployment
 kout-proofs
 test/kontrol/logs
-test/properties/medusa/corpus/
 
 # Metrics
 coverage.out
