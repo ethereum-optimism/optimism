@@ -210,6 +210,9 @@ if [ "$issues_detected" = true ]; then
     echo "If the interface is an external dependency or should otherwise be excluded from this"
     echo "check, add the interface name to the EXCLUDE_CONTRACTS list in the script. This will prevent"
     echo "the script from comparing it against a corresponding contract."
+    echo "IMPORTANT: Interface files are NOT yet generated automatically. You must fix any"
+    echo "listed discrepancies manually by updating the specified interface file. Automated"
+    echo "interface generation is dependent on a few Forge bug fixes."
     exit 1
 else
     exit 0
