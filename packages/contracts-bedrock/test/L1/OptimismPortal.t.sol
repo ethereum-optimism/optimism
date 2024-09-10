@@ -1211,19 +1211,31 @@ contract OptimismPortalResourceFuzz_Test is CommonTest {
     {
         // Get the set system gas limit
         uint64 gasLimit = systemConfig.gasLimit();
+
         // Bound resource config
         _maxResourceLimit = uint32(bound(_maxResourceLimit, 21000, MAX_GAS_LIMIT / 8));
         _gasLimit = uint64(bound(_gasLimit, 21000, _maxResourceLimit));
         _prevBaseFee = uint128(bound(_prevBaseFee, 0, 3 gwei));
+        _prevBoughtGas = uint64(bound(_prevBoughtGas, 0, _maxResourceLimit - _gasLimit));
+        _blockDiff = uint8(bound(_blockDiff, 0, 3));
+        _baseFeeMaxChangeDenominator = uint8(bound(_baseFeeMaxChangeDenominator, 2, type(uint8).max));
+        _elasticityMultiplier = uint8(bound(_elasticityMultiplier, 1, type(uint8).max));
+
         // Prevent values that would cause reverts
         vm.assume(gasLimit >= _gasLimit);
         vm.assume(_minimumBaseFee < _maximumBaseFee);
-        vm.assume(_baseFeeMaxChangeDenominator > 1);
         vm.assume(uint256(_maxResourceLimit) + uint256(_systemTxMaxGas) <= gasLimit);
-        vm.assume(_elasticityMultiplier > 0);
         vm.assume(((_maxResourceLimit / _elasticityMultiplier) * _elasticityMultiplier) == _maxResourceLimit);
-        _prevBoughtGas = uint64(bound(_prevBoughtGas, 0, _maxResourceLimit - _gasLimit));
-        _blockDiff = uint8(bound(_blockDiff, 0, 3));
+
+        // Base fee can increase quickly and mean that we can't buy the amount of gas we want.
+        // Here we add a VM assumption to bound the potential increase.
+        // Compute the maximum possible increase in base fee.
+        uint256 maxPercentIncrease = uint256(_elasticityMultiplier - 1) * 100 / uint256(_baseFeeMaxChangeDenominator);
+        // Assume that we have enough gas to burn.
+        // Compute the maximum amount of gas we'd need to burn.
+        // Assume we need 1/5 of our gas to do other stuff.
+        vm.assume(_prevBaseFee * maxPercentIncrease * _gasLimit / 100 < MAX_GAS_LIMIT * 4 / 5);
+
         // Pick a pseudorandom block number
         vm.roll(uint256(keccak256(abi.encode(_blockDiff))) % uint256(type(uint16).max) + uint256(_blockDiff));
 
