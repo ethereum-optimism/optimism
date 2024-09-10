@@ -552,7 +552,7 @@ contract DeployImplementations is Script {
 //   - `SystemConfigInterop is SystemConfig`: A different system config implementation is used, and
 //     it's initializer has a different signature. This signature is different because there is a
 //     new input parameter, the `dependencyManager`.
-//   - Because of the different system config initializer, we there is a new input parameter (dependencyManager)
+//   - Because of the different system config initializer, there is a new input parameter (dependencyManager).
 //
 // Similar to how inheritance was used to develop the new portal and system config contracts, we use
 // inheritance to modify up to all of the deployer contracts. For this interop example, what this
