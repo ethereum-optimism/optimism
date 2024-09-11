@@ -609,6 +609,84 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "GovernanceToken", _sel: _getSel("transferFrom(address,address,uint256)") });
         _addSpec({ _name: "GovernanceToken", _sel: _getSel("transferOwnership(address)") });
 
+        // GovernanceTokenInterop
+        _addSpec({ _name: "GovernanceTokenInterop", _sel: _getSel("DOMAIN_SEPARATOR()") });
+        _addSpec({ _name: "GovernanceTokenInterop", _sel: _getSel("allowance(address,address)") });
+        _addSpec({ _name: "GovernanceTokenInterop", _sel: _getSel("approve(address,uint256)") });
+        _addSpec({ _name: "GovernanceTokenInterop", _sel: _getSel("balanceOf(address)") });
+        _addSpec({ _name: "GovernanceTokenInterop", _sel: _getSel("burn(uint256)") });
+        _addSpec({ _name: "GovernanceTokenInterop", _sel: _getSel("burnFrom(address,uint256)") });
+        _addSpec({ _name: "GovernanceTokenInterop", _sel: _getSel("checkpoints(address,uint32)") });
+        _addSpec({ _name: "GovernanceTokenInterop", _sel: _getSel("decimals()") });
+        _addSpec({ _name: "GovernanceTokenInterop", _sel: _getSel("decreaseAllowance(address,uint256)") });
+        _addSpec({ _name: "GovernanceTokenInterop", _sel: _getSel("delegate(address)") });
+        _addSpec({
+            _name: "GovernanceTokenInterop",
+            _sel: _getSel("delegateBySig(address,uint256,uint256,uint8,bytes32,bytes32)")
+        });
+        _addSpec({ _name: "GovernanceTokenInterop", _sel: _getSel("delegates(address)") });
+        _addSpec({ _name: "GovernanceTokenInterop", _sel: _getSel("getPastTotalSupply(uint256)") });
+        _addSpec({ _name: "GovernanceTokenInterop", _sel: _getSel("getPastVotes(address,uint256)") });
+        _addSpec({ _name: "GovernanceTokenInterop", _sel: _getSel("getVotes(address)") });
+        _addSpec({ _name: "GovernanceTokenInterop", _sel: _getSel("increaseAllowance(address,uint256)") });
+        _addSpec({
+            _name: "GovernanceTokenInterop",
+            _sel: _getSel("mint(address,uint256)"),
+            _auth: Role.GOVERNANCETOKENOWNER
+        });
+        _addSpec({ _name: "GovernanceTokenInterop", _sel: _getSel("name()") });
+        _addSpec({ _name: "GovernanceTokenInterop", _sel: _getSel("nonces(address)") });
+        _addSpec({ _name: "GovernanceTokenInterop", _sel: _getSel("numCheckpoints(address)") });
+        _addSpec({ _name: "GovernanceTokenInterop", _sel: _getSel("owner()") });
+        _addSpec({
+            _name: "GovernanceTokenInterop",
+            _sel: _getSel("permit(address,address,uint256,uint256,uint8,bytes32,bytes32)")
+        });
+        _addSpec({ _name: "GovernanceTokenInterop", _sel: _getSel("renounceOwnership()") });
+        _addSpec({ _name: "GovernanceTokenInterop", _sel: _getSel("symbol()") });
+        _addSpec({ _name: "GovernanceTokenInterop", _sel: _getSel("totalSupply()") });
+        _addSpec({ _name: "GovernanceTokenInterop", _sel: _getSel("transfer(address,uint256)") });
+        _addSpec({ _name: "GovernanceTokenInterop", _sel: _getSel("transferFrom(address,address,uint256)") });
+        _addSpec({ _name: "GovernanceTokenInterop", _sel: _getSel("transferOwnership(address)") });
+        _addSpec({ _name: "GovernanceTokenInterop", _sel: _getSel("migrate(address)") });
+
+        // IGovernanceTokenInterop
+        _addSpec({ _name: "IGovernanceTokenInterop", _sel: _getSel("migrate(address)") });
+
+        // GovernanceDelegation
+        _addSpec({ _name: "GovernanceDelegation", _sel: _getSel("MAX_DELEGATIONS()") });
+        _addSpec({ _name: "GovernanceDelegation", _sel: _getSel("DENOMINATOR()") });
+        _addSpec({ _name: "GovernanceDelegation", _sel: _getSel("version()") });
+        _addSpec({ _name: "GovernanceDelegation", _sel: _getSel("delegations(address)") });
+        _addSpec({ _name: "GovernanceDelegation", _sel: _getSel("checkpoints(address,uint32)") });
+        _addSpec({ _name: "GovernanceDelegation", _sel: _getSel("numCheckpoints(address)") });
+        _addSpec({ _name: "GovernanceDelegation", _sel: _getSel("delegates(address)") });
+        _addSpec({ _name: "GovernanceDelegation", _sel: _getSel("getVotes(address)") });
+        _addSpec({ _name: "GovernanceDelegation", _sel: _getSel("getPastVotes(address,uint256)") });
+        _addSpec({ _name: "GovernanceDelegation", _sel: _getSel("getPastTotalSupply(uint256)") });
+        _addSpec({ _name: "GovernanceDelegation", _sel: _getSel("delegate((uint8,address,uint256))") });
+        _addSpec({ _name: "GovernanceDelegation", _sel: _getSel("delegateFromToken(address,address)") });
+        _addSpec({ _name: "GovernanceDelegation", _sel: _getSel("delegateBatched((uint8,address,uint256)[])") });
+        _addSpec({ _name: "GovernanceDelegation", _sel: _getSel("afterTokenTransfer(address,address,uint256)") });
+        _addSpec({ _name: "GovernanceDelegation", _sel: _getSel("migrateAccounts(address[])") });
+
+        // IGovernanceDelegation
+        _addSpec({ _name: "IGovernanceDelegation", _sel: _getSel("MAX_DELEGATIONS()") });
+        _addSpec({ _name: "IGovernanceDelegation", _sel: _getSel("DENOMINATOR()") });
+        _addSpec({ _name: "IGovernanceDelegation", _sel: _getSel("version()") });
+        _addSpec({ _name: "IGovernanceDelegation", _sel: _getSel("delegations(address)") });
+        _addSpec({ _name: "IGovernanceDelegation", _sel: _getSel("checkpoints(address,uint32)") });
+        _addSpec({ _name: "IGovernanceDelegation", _sel: _getSel("numCheckpoints(address)") });
+        _addSpec({ _name: "IGovernanceDelegation", _sel: _getSel("delegates(address)") });
+        _addSpec({ _name: "IGovernanceDelegation", _sel: _getSel("getVotes(address)") });
+        _addSpec({ _name: "IGovernanceDelegation", _sel: _getSel("getPastVotes(address,uint256)") });
+        _addSpec({ _name: "IGovernanceDelegation", _sel: _getSel("getPastTotalSupply(uint256)") });
+        _addSpec({ _name: "IGovernanceDelegation", _sel: _getSel("delegate((uint8,address,uint256))") });
+        _addSpec({ _name: "IGovernanceDelegation", _sel: _getSel("delegateFromToken(address,address)") });
+        _addSpec({ _name: "IGovernanceDelegation", _sel: _getSel("delegateBatched((uint8,address,uint256)[])") });
+        _addSpec({ _name: "IGovernanceDelegation", _sel: _getSel("afterTokenTransfer(address,address,uint256)") });
+        _addSpec({ _name: "IGovernanceDelegation", _sel: _getSel("migrateAccounts(address[])") });
+
         // MintManager
         _addSpec({ _name: "MintManager", _sel: _getSel("DENOMINATOR()") });
         _addSpec({ _name: "MintManager", _sel: _getSel("MINT_CAP()") });

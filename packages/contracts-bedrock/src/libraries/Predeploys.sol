@@ -77,6 +77,9 @@ library Predeploys {
     /// @notice Address of the GovernanceToken predeploy.
     address internal constant GOVERNANCE_TOKEN = 0x4200000000000000000000000000000000000042;
 
+    /// @notice Address of the GovernanceDelegation predeploy.
+    address internal constant GOVERNANCE_DELEGATION = 0x4200000000000000000000000000000000000043;
+
     /// @custom:legacy
     /// @notice Address of the LegacyERC20ETH predeploy. Deprecated. Balances are migrated to the
     ///         state trie as of the Bedrock upgrade. Contract has been locked and write functions
@@ -122,6 +125,7 @@ library Predeploys {
         if (_addr == SCHEMA_REGISTRY) return "SchemaRegistry";
         if (_addr == EAS) return "EAS";
         if (_addr == GOVERNANCE_TOKEN) return "GovernanceToken";
+        if (_addr == GOVERNANCE_DELEGATION) return "GovernanceDelegation";
         if (_addr == LEGACY_ERC20_ETH) return "LegacyERC20ETH";
         if (_addr == CROSS_L2_INBOX) return "CrossL2Inbox";
         if (_addr == L2_TO_L2_CROSS_DOMAIN_MESSENGER) return "L2ToL2CrossDomainMessenger";
@@ -146,7 +150,8 @@ library Predeploys {
             || _addr == L1_FEE_VAULT || _addr == SCHEMA_REGISTRY || _addr == EAS || _addr == GOVERNANCE_TOKEN
             || (_useInterop && _addr == CROSS_L2_INBOX) || (_useInterop && _addr == L2_TO_L2_CROSS_DOMAIN_MESSENGER)
             || (_useInterop && _addr == SUPERCHAIN_WETH) || (_useInterop && _addr == ETH_LIQUIDITY)
-            || (_useInterop && _addr == OPTIMISM_SUPERCHAIN_ERC20_FACTORY);
+            || (_useInterop && _addr == OPTIMISM_SUPERCHAIN_ERC20_FACTORY)
+            || (_useInterop && _addr == GOVERNANCE_DELEGATION);
     }
 
     function isPredeployNamespace(address _addr) internal pure returns (bool) {

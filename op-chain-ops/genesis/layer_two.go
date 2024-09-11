@@ -62,7 +62,7 @@ func BuildL2Genesis(config *DeployConfig, dump *foundry.ForgeAllocs, l1StartBloc
 	// sanity check that all predeploys are present
 	for i := 0; i < 2048; i++ {
 		addr := common.BigToAddress(new(big.Int).Or(l2PredeployNamespace.Big(), big.NewInt(int64(i))))
-		if !config.GovernanceEnabled() && addr == predeploys.GovernanceTokenAddr {
+		if (!config.GovernanceEnabled() && (addr == predeploys.GovernanceTokenAddr)) || addr == predeploys.GovernanceDelegationAddr {
 			continue
 		}
 		if len(genspec.Alloc[addr].Code) == 0 {

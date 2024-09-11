@@ -27,21 +27,29 @@ contract GovernanceToken is ERC20Burnable, ERC20Votes, Ownable {
     /// @param from   The account sending tokens.
     /// @param to     The account receiving tokens.
     /// @param amount The amount of tokens being transfered.
-    function _afterTokenTransfer(address from, address to, uint256 amount) internal override(ERC20, ERC20Votes) {
+    function _afterTokenTransfer(
+        address from,
+        address to,
+        uint256 amount
+    )
+        internal
+        virtual
+        override(ERC20, ERC20Votes)
+    {
         super._afterTokenTransfer(from, to, amount);
     }
 
     /// @notice Internal mint function.
     /// @param to     The account receiving minted tokens.
     /// @param amount The amount of tokens to mint.
-    function _mint(address to, uint256 amount) internal override(ERC20, ERC20Votes) {
+    function _mint(address to, uint256 amount) internal virtual override(ERC20, ERC20Votes) {
         super._mint(to, amount);
     }
 
     /// @notice Internal burn function.
     /// @param account The account that tokens will be burned from.
     /// @param amount  The amount of tokens that will be burned.
-    function _burn(address account, uint256 amount) internal override(ERC20, ERC20Votes) {
+    function _burn(address account, uint256 amount) internal virtual override(ERC20, ERC20Votes) {
         super._burn(account, amount);
     }
 }

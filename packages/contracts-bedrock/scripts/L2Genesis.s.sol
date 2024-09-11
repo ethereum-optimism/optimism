@@ -24,6 +24,7 @@ import { GovernanceToken } from "src/governance/GovernanceToken.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
 import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { FeeVault } from "src/universal/FeeVault.sol";
+import { GovernanceTokenInterop } from "src/governance/GovernanceTokenInterop.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Process } from "scripts/libraries/Process.sol";
 
@@ -254,6 +255,7 @@ contract L2Genesis is Deployer {
             setL2ToL2CrossDomainMessenger(); // 23
             setSuperchainWETH(); // 24
             setETHLiquidity(); // 25
+            setGovernanceDelegation(); // 43
         }
     }
 
@@ -437,21 +439,50 @@ contract L2Genesis is Deployer {
             return;
         }
 
-        GovernanceToken token = new GovernanceToken();
+        address token;
+        if (cfg.useInterop()) {
+            token = address(new GovernanceTokenInterop());
+        } else {
+            token = address(new GovernanceToken());
+        }
         console.log("Setting %s implementation at: %s", "GovernanceToken", Predeploys.GOVERNANCE_TOKEN);
-        vm.etch(Predeploys.GOVERNANCE_TOKEN, address(token).code);
+        vm.etch(Predeploys.GOVERNANCE_TOKEN, token.code);
 
         bytes32 _nameSlot = hex"0000000000000000000000000000000000000000000000000000000000000003";
         bytes32 _symbolSlot = hex"0000000000000000000000000000000000000000000000000000000000000004";
         bytes32 _ownerSlot = hex"000000000000000000000000000000000000000000000000000000000000000a";
 
-        vm.store(Predeploys.GOVERNANCE_TOKEN, _nameSlot, vm.load(address(token), _nameSlot));
-        vm.store(Predeploys.GOVERNANCE_TOKEN, _symbolSlot, vm.load(address(token), _symbolSlot));
+        vm.store(Predeploys.GOVERNANCE_TOKEN, _nameSlot, vm.load(token, _nameSlot));
+        vm.store(Predeploys.GOVERNANCE_TOKEN, _symbolSlot, vm.load(token, _symbolSlot));
         vm.store(Predeploys.GOVERNANCE_TOKEN, _ownerSlot, bytes32(uint256(uint160(cfg.governanceTokenOwner()))));
 
         /// Reset so its not included state dump
-        vm.etch(address(token), "");
-        vm.resetNonce(address(token));
+        vm.etch(token, "");
+        vm.resetNonce(token);
+    }
+
+    /// @notice This predeploy is following the safety invariant #2.
+    function setGovernanceDelegation() public {
+        if (!cfg.enableGovernance()) {
+            console.log("Governance not enabled, skipping setting GovernanceDelegation");
+            return;
+        }
+
+        string memory cname = Predeploys.getName(Predeploys.GOVERNANCE_DELEGATION);
+        address impl = Predeploys.predeployToCodeNamespace(Predeploys.GOVERNANCE_DELEGATION);
+        bytes memory code = vm.getCode(string.concat(cname, ".sol:", cname));
+
+        address govdelegation;
+        assembly {
+            govdelegation := create(0, add(code, 0x20), mload(code))
+        }
+
+        console.log("Setting %s implementation at: %s", cname, impl);
+        vm.etch(impl, govdelegation.code);
+
+        /// Reset so its not included state dump
+        vm.etch(govdelegation, "");
+        vm.resetNonce(govdelegation);
     }
 
     /// @notice This predeploy is following the safety invariant #1.
