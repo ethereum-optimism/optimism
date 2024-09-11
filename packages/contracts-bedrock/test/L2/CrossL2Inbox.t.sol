@@ -11,7 +11,6 @@ import { TransientContext } from "src/libraries/TransientContext.sol";
 // Target contracts
 import {
     CrossL2Inbox,
-    IL1Block,
     NotEntered,
     NoExecutingDeposits,
     InvalidTimestamp,
@@ -20,6 +19,7 @@ import {
     NotDepositor,
     InteropStartAlreadySet
 } from "src/L2/CrossL2Inbox.sol";
+import { IL1BlockIsthmus } from "src/L2/interfaces/IL1BlockIsthmus.sol";
 import { ICrossL2Inbox } from "src/L2/interfaces/ICrossL2Inbox.sol";
 
 /// @title CrossL2InboxWithModifiableTransientStorage
@@ -160,7 +160,7 @@ contract CrossL2InboxTest is Test {
         // Ensure is not a deposit transaction
         vm.mockCall({
             callee: Predeploys.L1_BLOCK_ATTRIBUTES,
-            data: abi.encodeWithSelector(IL1Block.isDeposit.selector),
+            data: abi.encodeWithSelector(IL1BlockIsthmus.isDeposit.selector),
             returnData: abi.encode(false)
         });
 
@@ -222,7 +222,7 @@ contract CrossL2InboxTest is Test {
         // Ensure is not a deposit transaction
         vm.mockCall({
             callee: Predeploys.L1_BLOCK_ATTRIBUTES,
-            data: abi.encodeWithSelector(IL1Block.isDeposit.selector),
+            data: abi.encodeWithSelector(IL1BlockIsthmus.isDeposit.selector),
             returnData: abi.encode(false)
         });
 
@@ -282,7 +282,7 @@ contract CrossL2InboxTest is Test {
         // Ensure it is a deposit transaction
         vm.mockCall({
             callee: Predeploys.L1_BLOCK_ATTRIBUTES,
-            data: abi.encodeWithSelector(IL1Block.isDeposit.selector),
+            data: abi.encodeWithSelector(IL1BlockIsthmus.isDeposit.selector),
             returnData: abi.encode(true)
         });
 
@@ -312,7 +312,7 @@ contract CrossL2InboxTest is Test {
         // Ensure is not a deposit transaction
         vm.mockCall({
             callee: Predeploys.L1_BLOCK_ATTRIBUTES,
-            data: abi.encodeWithSelector(IL1Block.isDeposit.selector),
+            data: abi.encodeWithSelector(IL1BlockIsthmus.isDeposit.selector),
             returnData: abi.encode(false)
         });
 
@@ -368,7 +368,7 @@ contract CrossL2InboxTest is Test {
         // Ensure is not a deposit transaction
         vm.mockCall({
             callee: Predeploys.L1_BLOCK_ATTRIBUTES,
-            data: abi.encodeWithSelector(IL1Block.isDeposit.selector),
+            data: abi.encodeWithSelector(IL1BlockIsthmus.isDeposit.selector),
             returnData: abi.encode(false)
         });
 
@@ -412,7 +412,7 @@ contract CrossL2InboxTest is Test {
         // Ensure is not a deposit transaction
         vm.mockCall({
             callee: Predeploys.L1_BLOCK_ATTRIBUTES,
-            data: abi.encodeWithSelector(IL1Block.isDeposit.selector),
+            data: abi.encodeWithSelector(IL1BlockIsthmus.isDeposit.selector),
             returnData: abi.encode(false)
         });
 

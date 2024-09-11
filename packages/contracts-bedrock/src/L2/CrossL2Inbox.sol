@@ -7,7 +7,7 @@ import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { ICrossL2Inbox } from "src/L2/interfaces/ICrossL2Inbox.sol";
 import { SafeCall } from "src/libraries/SafeCall.sol";
 import { IDependencySet } from "src/L2/interfaces/IDependencySet.sol";
-import { IL1Block } from "src/L2/interfaces/IL1Block.sol";
+import { IL1BlockIsthmus } from "src/L2/interfaces/IL1BlockIsthmus.sol";
 
 /// @notice Thrown when the caller is not DEPOSITOR_ACCOUNT when calling `setInteropStart()`
 error NotDepositor();
@@ -140,7 +140,7 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
         reentrantAware
     {
         // We need to know if this is being called on a depositTx
-        if (IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isDeposit()) revert NoExecutingDeposits();
+        if (IL1BlockIsthmus(Predeploys.L1_BLOCK_ATTRIBUTES).isDeposit()) revert NoExecutingDeposits();
 
         // Check the Identifier.
         _checkIdentifier(_id);
