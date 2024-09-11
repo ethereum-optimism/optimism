@@ -718,57 +718,57 @@ contract MIPS2_Test is CommonTest {
     }
 
     /// @dev Test asserting that an clock_gettime monotonic syscall reverts on an invalid memory proof
-    function testFuzz_syscallClockGettimeMonotonicInvalidProof_reverts(uint32 _proofIndex) public {
-        _testFuzz_syscallClockGettimeInvalidProof_reverts(sys.CLOCK_GETTIME_MONOTONIC_FLAG, _proofIndex);
+    function test_syscallClockGettimeMonotonicInvalidProof_reverts() public {
+        _test_syscallClockGettimeInvalidProof_reverts(sys.CLOCK_GETTIME_MONOTONIC_FLAG);
     }
 
     /// @dev Test asserting that an clock_gettime realtime syscall reverts on an invalid memory proof
-    function testFuzz_syscallClockGettimeRealtimeInvalidProof_reverts(uint32 _proofIndex) public {
-        _testFuzz_syscallClockGettimeInvalidProof_reverts(sys.CLOCK_GETTIME_REALTIME_FLAG, _proofIndex);
+    function test_syscallClockGettimeRealtimeInvalidProof_reverts() public {
+        _test_syscallClockGettimeInvalidProof_reverts(sys.CLOCK_GETTIME_REALTIME_FLAG);
     }
 
-    function _testFuzz_syscallClockGettimeInvalidProof_reverts(uint32 clkid, uint32 _proofIndex) internal {
-        // _proofIndex points to a leaf in the index in the insnAndMemProof that will be zeroed.
-        // The second leaf in the memory proof is already zeroed because it's the sibling of the first memory write. So
-        // don't point to that .
-        _proofIndex = uint32(bound(uint256(_proofIndex), 896 + (32 * 2), 896 * 2 - 1));
-        // align the proof index to the start of a leaf
-        _proofIndex = _proofIndex & ~uint32(31);
+    function _test_syscallClockGettimeInvalidProof_reverts(uint32 clkid) internal {
+        // NOTE: too slow to run this test under the forge fuzzer.
+        for (uint256 proofIndex = 896 + (32 * 2); proofIndex < 896 * 2; proofIndex += 32) {
+            // proofIndex points to a leaf in the index in the memory proof (in insnAndMemProof) that will be zeroed.
+            // Note that the second leaf in the memory proof is already zeroed because it's the sibling of the first
+            // memory write. So start from the third leaf.
 
-        uint32 secs = 0;
-        if (clkid == sys.CLOCK_GETTIME_MONOTONIC_FLAG) {
-            secs = 10;
-        }
-        uint32 pc = 0;
-        uint32 insn = 0x0000000c; // syscall
-        uint32 timespecAddr = 0xb000;
-        (MIPS2.State memory state, MIPS2.ThreadState memory thread, bytes memory insnAndMemProof) =
-            constructMIPSState(pc, insn, timespecAddr, 0xbad);
-        state.step = 100_000_004;
-        thread.registers[2] = sys.SYS_CLOCKGETTIME;
-        thread.registers[A0_REG] = sys.CLOCK_GETTIME_MONOTONIC_FLAG;
-        thread.registers[A1_REG] = timespecAddr;
-        thread.registers[7] = 0xdead;
-        bytes memory threadWitness = abi.encodePacked(encodeThread(thread), EMPTY_THREAD_ROOT);
-        updateThreadStacks(state, thread);
-        (, bytes memory memProof2) = ffi.getCannonMemoryProof2(pc, insn, timespecAddr, secs, timespecAddr + 4);
-
-        bytes memory invalidInsnAndMemProof = new bytes(insnAndMemProof.length);
-        for (uint256 i = 0; i < invalidInsnAndMemProof.length; i++) {
-            // clear the 32-byte insn leaf
-            if (i >= _proofIndex && i < _proofIndex + 32) {
-                invalidInsnAndMemProof[i] = 0x0;
-            } else {
-                invalidInsnAndMemProof[i] = insnAndMemProof[i];
+            uint32 secs = 0;
+            if (clkid == sys.CLOCK_GETTIME_MONOTONIC_FLAG) {
+                secs = 10;
             }
-        }
-        vm.expectRevert(InvalidMemoryProof.selector);
-        mips.step(encodeState(state), bytes.concat(threadWitness, invalidInsnAndMemProof, memProof2), 0);
+            uint32 pc = 0;
+            uint32 insn = 0x0000000c; // syscall
+            uint32 timespecAddr = 0xb000;
+            (MIPS2.State memory state, MIPS2.ThreadState memory thread, bytes memory insnAndMemProof) =
+                constructMIPSState(pc, insn, timespecAddr, 0xbad);
+            state.step = 100_000_004;
+            thread.registers[2] = sys.SYS_CLOCKGETTIME;
+            thread.registers[A0_REG] = sys.CLOCK_GETTIME_MONOTONIC_FLAG;
+            thread.registers[A1_REG] = timespecAddr;
+            thread.registers[7] = 0xdead;
+            bytes memory threadWitness = abi.encodePacked(encodeThread(thread), EMPTY_THREAD_ROOT);
+            updateThreadStacks(state, thread);
+            (, bytes memory memProof2) = ffi.getCannonMemoryProof2(pc, insn, timespecAddr, secs, timespecAddr + 4);
 
-        (, bytes memory invalidMemProof2) =
-            ffi.getCannonMemoryProof2(pc, insn, timespecAddr, secs + 1, timespecAddr + 4);
-        vm.expectRevert(InvalidSecondMemoryProof.selector);
-        mips.step(encodeState(state), bytes.concat(threadWitness, insnAndMemProof, invalidMemProof2), 0);
+            bytes memory invalidInsnAndMemProof = new bytes(insnAndMemProof.length);
+            for (uint256 i = 0; i < invalidInsnAndMemProof.length; i++) {
+                // clear the 32-byte insn leaf
+                if (i >= proofIndex && i < proofIndex + 32) {
+                    invalidInsnAndMemProof[i] = 0x0;
+                } else {
+                    invalidInsnAndMemProof[i] = insnAndMemProof[i];
+                }
+            }
+            vm.expectRevert(InvalidMemoryProof.selector);
+            mips.step(encodeState(state), bytes.concat(threadWitness, invalidInsnAndMemProof, memProof2), 0);
+
+            (, bytes memory invalidMemProof2) =
+                ffi.getCannonMemoryProof2(pc, insn, timespecAddr, secs + 1, timespecAddr + 4);
+            vm.expectRevert(InvalidSecondMemoryProof.selector);
+            mips.step(encodeState(state), bytes.concat(threadWitness, insnAndMemProof, invalidMemProof2), 0);
+        }
     }
 
     /// @dev static unit test asserting that clock_gettime syscall for non-realtime, non-monotonic time succeeds
