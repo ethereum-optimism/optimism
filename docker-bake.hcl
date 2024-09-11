@@ -199,17 +199,17 @@ target "cannon" {
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/cannon:${tag}"]
 }
 
-target "op-challenger-deps" {
-  dockerfile = "./ops/docker/op-challenger-deps/Dockerfile"
+target "proofs-tools" {
+  dockerfile = "./ops/docker/proofs-tools/Dockerfile"
   context = "."
   args = {
     CHALLENGER_VERSION="v1.0.1"
-    KONA_VERSION="latest" # TODO: Set an explicit version when we have a tagged docker image
-    ASTERISC_VERSION="v1.0.0"
+    KONA_VERSION="kona-client-v0.1.0-alpha.3"
+    ASTERISC_VERSION="v1.0.2"
   }
-  target="op-challenger-deps"
+  target="proofs-tools"
   platforms = split(",", PLATFORMS)
-  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-challenger-deps:${tag}"]
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/proofs-tools:${tag}"]
 }
 
 target "ci-builder" {
