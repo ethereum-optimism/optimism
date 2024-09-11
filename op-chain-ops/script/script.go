@@ -410,7 +410,7 @@ func (h *Host) onEnter(depth int, typ byte, from common.Address, to common.Addre
 
 	if parentCallFrame.Prank.Broadcast {
 		if vm.OpCode(typ) == vm.CALL && to != VMAddr {
-			sender := parentCallFrame.Ctx.Caller()
+			sender := parentCallFrame.Ctx.Address()
 			if parentCallFrame.Prank.Sender != nil {
 				sender = *parentCallFrame.Prank.Sender
 			}
