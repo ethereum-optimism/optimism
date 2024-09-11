@@ -556,10 +556,9 @@ jobs:
         description: Number of test jobs to run in parallel
         type: integer
         default: 4
-      test_filter:
+      test_command:
         description: List of test files to run
         type: string
-        default: find ./test -name "*.t.sol"
     parallelism: <<parameters.test_parallelism>>
     steps:
       - checkout
@@ -593,17 +592,7 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: run tests
-          command: |
-            # Find all test files
-            TEST_FILES=$(<<parameters.test_filter>>)
-            # Split the tests by timings
-            TEST_FILES=$(echo "$TEST_FILES" | circleci tests split --split-by=timings)
-            # Strip the leading "./test/" from each file path
-            TEST_FILES=$(echo "$TEST_FILES" | sed 's|./test/||')
-            # Generate the match path
-            MATCH_PATH="./test/{$(echo "$TEST_FILES" | paste -sd "," -)}"
-            # Run the tests
-            forge test --match-path "$MATCH_PATH"
+          command: <<parameters.test_command>>
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
@@ -1572,13 +1561,25 @@ workflows:
             forge build --skip test --skip scripts
             forge build ./scripts/deploy/Deploy.s.sol
       - contracts-bedrock-tests:
-          test_filter: find . -name "*.t.sol" -not -name "PreimageOracle.t.sol"
+          # Test everything except PreimageOracle.t.sol since it's slow.
+          name: contracts-bedrock-tests
           test_parallelism: 4
+          test_command: |
+            TEST_FILES=$(find . -name "*.t.sol" -not -name "PreimageOracle.t.sol")
+            TEST_FILES=$(echo "$TEST_FILES" | circleci tests split --split-by=timings)
+            TEST_FILES=$(echo "$TEST_FILES" | sed 's|./test/||')
+            MATCH_PATH="./test/{$(echo "$TEST_FILES" | paste -sd "," -)}"
+            forge test --match-path "$MATCH_PATH"
       - contracts-bedrock-tests:
-          # PreimageOracle test is slow, run it separately to unblock CI
+          # PreimageOracle test is slow, run it separately to unblock CI.
           name: contracts-bedrock-tests-preimage-oracle
-          test_filter: find . -name "PreimageOracle.t.sol"
           test_parallelism: 1
+          test_command: forge test --match-path ./test/cannon/PreimageOracle.t.sol
+      - contracts-bedrock-tests:
+          # Heavily fuzz any fuzz tests that have been added or modified.
+          name: contracts-bedrock-tests-heavy-fuzz-modified
+          test_parallelism: 1
+          test_command: just test-heavy-fuzz-modified-tests
       - contracts-bedrock-coverage
       - contracts-bedrock-checks:
           requires:
