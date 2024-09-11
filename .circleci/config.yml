@@ -1745,6 +1745,10 @@ workflows:
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           save_image_tag: <<pipeline.git.revision>> # for devnet later
       - docker-build:
+          name: proofs-tools-docker-build
+          docker_name: proofs-tools
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+      - docker-build:
           name: op-dispute-mon-docker-build
           docker_name: op-dispute-mon
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
@@ -1980,13 +1984,29 @@ workflows:
           requires:
             - op-supervisor-docker-release
       - docker-build:
-          name: ci-builder-docker-release
+          name: op-challenger-big-docker-release
           filters:
             tags:
-              only: /^ci-builder\/v.*/
+              only: /^op-challenger\/v.*/
             branches:
               ignore: /.*/
           docker_name: ci-builder
+          docker_tags: <<pipeline.git.revision>>,latest
+          publish: true
+          release: true
+          resource_class: xlarge
+          context:
+            - oplabs-gcr
+          requires:
+            - hold
+      - docker-build:
+          name: proofs-tools-docker-release
+          filters:
+            tags:
+              only: /^proofs-tools\/v.*/
+            branches:
+              ignore: /.*/
+          docker_name: proofs-tools
           docker_tags: <<pipeline.git.revision>>,latest
           publish: true
           release: true
