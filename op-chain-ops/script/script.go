@@ -408,31 +408,33 @@ func (h *Host) onEnter(depth int, typ byte, from common.Address, to common.Addre
 		return
 	}
 
-	if vm.OpCode(typ) == vm.CALL && to != VMAddr {
-		sender := parentCallFrame.Ctx.Caller()
-		if parentCallFrame.Prank.Sender != nil {
-			sender = *parentCallFrame.Prank.Sender
+	if parentCallFrame.Prank.Broadcast {
+		if vm.OpCode(typ) == vm.CALL && to != VMAddr {
+			sender := parentCallFrame.Ctx.Caller()
+			if parentCallFrame.Prank.Sender != nil {
+				sender = *parentCallFrame.Prank.Sender
+			}
+
+			h.state.SetNonce(
+				sender,
+				h.state.GetNonce(sender)+1,
+			)
 		}
 
-		h.state.SetNonce(
-			sender,
-			h.state.GetNonce(sender)+1,
-		)
-	}
-
-	if parentCallFrame.Prank.Broadcast && h.isolateBroadcasts {
-		var dest *common.Address
-		switch parentCallFrame.LastOp {
-		case vm.CREATE, vm.CREATE2:
-			dest = nil // no destination address to warm up
-		case vm.CALL:
-			dest = &to
-		default:
-			return
+		if h.isolateBroadcasts {
+			var dest *common.Address
+			switch parentCallFrame.LastOp {
+			case vm.CREATE, vm.CREATE2:
+				dest = nil // no destination address to warm up
+			case vm.CALL:
+				dest = &to
+			default:
+				return
+			}
+			h.state.Finalise(true)
+			// the prank msg.sender, if any, has already been applied to 'from' before onEnter
+			h.prelude(from, dest)
 		}
-		h.state.Finalise(true)
-		// the prank msg.sender, if any, has already been applied to 'from' before onEnter
-		h.prelude(from, dest)
 	}
 }
 
