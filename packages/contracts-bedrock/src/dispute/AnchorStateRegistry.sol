@@ -28,8 +28,8 @@ contract AnchorStateRegistry is Initializable, IAnchorStateRegistry, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 2.0.1-beta.1
-    string public constant version = "2.0.1-beta.1";
+    /// @custom:semver 2.0.1-beta.2
+    string public constant version = "2.0.1-beta.2";
 
     /// @notice DisputeGameFactory address.
     IDisputeGameFactory internal immutable DISPUTE_GAME_FACTORY;

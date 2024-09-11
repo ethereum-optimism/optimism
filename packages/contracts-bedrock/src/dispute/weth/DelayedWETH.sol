@@ -22,8 +22,8 @@ import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
 ///         Not the prettiest contract in the world, but it gets the job done.
 contract DelayedWETH is OwnableUpgradeable, WETH98, IDelayedWETH, ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 1.1.1-beta.1
-    string public constant version = "1.1.1-beta.1";
+    /// @custom:semver 1.1.1-beta.2
+    string public constant version = "1.1.1-beta.2";
 
     /// @inheritdoc IDelayedWETH
     mapping(address => mapping(address => WithdrawalRequest)) public withdrawals;
