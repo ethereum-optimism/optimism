@@ -122,7 +122,7 @@ func TestScriptBroadcast(t *testing.T) {
 		},
 		{
 			From:    scriptAddr,
-			To:      crypto.CreateAddress(scriptAddr, 1),
+			To:      crypto.CreateAddress(scriptAddr, 2),
 			Input:   expectedInitCode,
 			Value:   (*hexutil.U256)(uint256.NewInt(0)),
 			GasUsed: 39112,
@@ -151,11 +151,11 @@ func TestScriptBroadcast(t *testing.T) {
 	require.Equal(t, string(expected), string(got))
 
 	// Assert that the nonces for accounts participating in the
-	// broadcast increase. The scriptAddr check is set to 1 to
-	// account for the initial deployment of the contract.
-	// senderAddr is 1 because of the initial `Call`.
-	require.EqualValues(t, 1, h.GetNonce(senderAddr))
-	require.EqualValues(t, 2, h.GetNonce(scriptAddr))
+	// broadcast increase. The scriptAddr check is set to 3 to
+	// account for the initial deployment of the contract and
+	// two additional calls.
+	require.EqualValues(t, 0, h.GetNonce(senderAddr))
+	require.EqualValues(t, 3, h.GetNonce(scriptAddr))
 	require.EqualValues(t, 2, h.GetNonce(coffeeAddr))
 	require.EqualValues(t, 1, h.GetNonce(cafeAddr))
 }
