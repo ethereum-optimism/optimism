@@ -96,6 +96,11 @@ type Host struct {
 	onLabel []func(name string, addr common.Address)
 
 	hooks *Hooks
+
+	// isolateBroadcasts will flush the journal changes,
+	// and prepare the ephemeral tx context again,
+	// to make gas accounting of a broadcast sub-call more accurate.
+	isolateBroadcasts bool
 }
 
 type HostOption func(h *Host)
@@ -109,6 +114,17 @@ type Hooks struct {
 func WithBroadcastHook(hook BroadcastHook) HostOption {
 	return func(h *Host) {
 		h.hooks.OnBroadcast = hook
+	}
+}
+
+// WithIsolatedBroadcasts makes each broadcast clean the context,
+// by flushing the dirty storage changes, and preparing the ephemeral state again.
+// This then produces more accurate gas estimation for broadcast calls.
+// This is not compatible with state-snapshots: upon cleaning,
+// it is assumed that the state has to never revert back, similar to the state-dump guarantees.
+func WithIsolatedBroadcasts() HostOption {
+	return func(h *Host) {
+		h.isolateBroadcasts = true
 	}
 }
 
@@ -222,6 +238,7 @@ func NewHost(
 
 	// Hook up the Host to capture the EVM environment changes
 	trHooks := &tracing.Hooks{
+		OnEnter:         h.onEnter,
 		OnExit:          h.onExit,
 		OnOpcode:        h.onOpcode,
 		OnFault:         h.onFault,
@@ -378,6 +395,37 @@ func (h *Host) SetPrecompile(addr common.Address, precompile vm.PrecompiledContr
 func (h *Host) HasPrecompileOverride(addr common.Address) bool {
 	_, ok := h.precompiles[addr]
 	return ok
+}
+
+// onEnter is a trace-hook, which we use to apply changes to the state-DB, to simulate isolated broadcast calls,
+// for better gas estimation of the exact broadcast call execution.
+func (h *Host) onEnter(depth int, typ byte, from common.Address, to common.Address, input []byte, gas uint64, value *big.Int) {
+	if len(h.callStack) == 0 {
+		return
+	}
+	parentCallFrame := h.callStack[len(h.callStack)-1]
+	if parentCallFrame.Prank == nil {
+		return
+	}
+	if parentCallFrame.Prank.Sender != nil {
+		// TODO undo nonce bump of original sender
+		//  (retrieve this from the parent context scope-context, since `from` has already been updated.)
+		// TODO bump nonce of overridden sender
+	}
+	if parentCallFrame.Prank.Broadcast && h.isolateBroadcasts {
+		var dest *common.Address
+		switch parentCallFrame.LastOp {
+		case vm.CREATE, vm.CREATE2:
+			dest = nil // no destination address to warm up
+		case vm.CALL:
+			dest = &to
+		default:
+			return
+		}
+		h.state.Finalise(true)
+		// the prank msg.sender, if any, has already been applied to 'from' before onEnter
+		h.prelude(from, dest)
+	}
 }
 
 // onExit is a trace-hook, which we use to maintain an accurate view of functions, and log any revert warnings.
