@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-program/host"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
+	hostTypes "github.com/ethereum-optimism/optimism/op-program/host/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
@@ -121,8 +122,6 @@ func NewOpProgramCfg(
 	fi *FixtureInputs,
 	params ...OpProgramCfgParam,
 ) *config.Config {
-	t.Helper()
-
 	dfault := config.NewConfig(env.sd.RollupCfg, env.sd.L2Cfg.Config, fi.L1Head, fi.L2Head, fi.L2OutputRoot, fi.L2Claim, fi.L2BlockNumber)
 
 	// Set up in-process L1 sources
@@ -139,6 +138,7 @@ func NewOpProgramCfg(
 
 	if dumpFixtures {
 		dfault.DataDir = t.TempDir()
+		dfault.DataFormat = hostTypes.DataFormatPebble
 	}
 
 	for _, apply := range params {

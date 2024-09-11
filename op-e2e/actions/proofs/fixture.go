@@ -22,10 +22,10 @@ var (
 )
 
 func init() {
-	if os.Getenv("OP_E2E_DUMP_FIXTURES") == "1" {
+	fixtureDir = os.Getenv("OP_E2E_FPP_FIXTURE_DIR")
+	if fixtureDir != "" {
 		dumpFixtures = true
 	}
-	fixtureDir = os.Getenv("OP_E2E_FPP_FIXTURE_DIR")
 }
 
 type TestFixture struct {
