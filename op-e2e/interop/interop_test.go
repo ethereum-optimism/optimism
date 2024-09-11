@@ -11,9 +11,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// a test that demonstrates the use of the SuperSystem
-// as a proto-development of an interop test
-func TestDemonstrateSuperSystem(t *testing.T) {
+// TestInteropTrivial tests a simple interop scenario
+// Chains A and B exist, but no messages are sent between them
+// and in fact no event-logs are emitted by either chain at all.
+// A transaction is sent from Alice to Bob on Chain A.
+// The balance of Bob on Chain A is checked before and after the tx.
+// The balance of Bob on Chain B is checked after the tx.
+func TestInteropTrivial(t *testing.T) {
 	recipe := interopgen.InteropDevRecipe{
 		L1ChainID:        900100,
 		L2ChainIDs:       []uint64{900200, 900201},
@@ -27,9 +31,8 @@ func TestDemonstrateSuperSystem(t *testing.T) {
 
 	// chainA is the first L2 chain
 	chainA := ids[0]
+	// chainB is the second L2 chain
 	chainB := ids[1]
-
-	client := s2.L2GethClient(chainA)
 
 	// create two users on all L2 chains
 	s2.AddUser("Alice")
@@ -38,9 +41,10 @@ func TestDemonstrateSuperSystem(t *testing.T) {
 	bobAddr := s2.Address(chainA, "Bob")
 
 	// check the balance of Bob
+	clientA := s2.L2GethClient(chainA)
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	bobBalance, err := client.BalanceAt(ctx, bobAddr, nil)
+	bobBalance, err := clientA.BalanceAt(ctx, bobAddr, nil)
 	require.NoError(t, err)
 	expectedBalance, _ := big.NewInt(0).SetString("10000000000000000000000000", 10)
 	require.Equal(t, expectedBalance, bobBalance)
@@ -60,7 +64,7 @@ func TestDemonstrateSuperSystem(t *testing.T) {
 	// check the balance of Bob after the tx
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	bobBalance, err = client.BalanceAt(ctx, bobAddr, nil)
+	bobBalance, err = clientA.BalanceAt(ctx, bobAddr, nil)
 	require.NoError(t, err)
 	expectedBalance, _ = big.NewInt(0).SetString("10000000000000000001000000", 10)
 	require.Equal(t, expectedBalance, bobBalance)
@@ -74,7 +78,4 @@ func TestDemonstrateSuperSystem(t *testing.T) {
 	require.NoError(t, err)
 	expectedBalance, _ = big.NewInt(0).SetString("10000000000000000000000000", 10)
 	require.Equal(t, expectedBalance, bobBalance)
-
-	// let the chain run for a minute
-	time.Sleep(60 * time.Second)
 }

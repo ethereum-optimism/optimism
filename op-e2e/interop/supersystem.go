@@ -3,7 +3,6 @@ package interop
 import (
 	"context"
 	"crypto/ecdsa"
-	"fmt"
 	"math/big"
 	"os"
 	"path"
@@ -52,30 +51,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor"
 )
 
-// rather than pass around a string for rpc, pass around an rpc interface
-// this interface should be able to have a simple version
-// and a copmlex version
-// a utility in the middle can decide which to use based on an interface check,
-// plus preferences if they can be applied
-type rpcClient interface {
-}
-
-// ignore unused variable warning
-var _ rpcClient = &rpc.Client{}
-
-// example: ask for a chainID plus the actor,
-// get the actor back
-// system2 should provide a complex rpcClient
-// or could return the simple rpcClient url
-
-// TestInterop stands up a basic L1
-// and multiple L2 states
-
-// SuperSystem is an interface for the system
+// SuperSystem is an interface for the system (collection of connected resources)
 // it provides a way to get the resources for a network by network ID
 // and provides a way to get the list of network IDs
 // this is useful for testing multiple network backends,
-// for example, system2 is the default implementation, but a shim to
+// for example, interopE2ESystem is the default implementation, but a shim to
 // kurtosis or another testing framework could be implemented
 type SuperSystem interface {
 	// get the supervisor
@@ -106,18 +86,18 @@ type SuperSystem interface {
 	Address(network string, username string) common.Address
 }
 
-// NewSuperSystem creates a new SuperSystem from a recipe. It creates a system2.
+// NewSuperSystem creates a new SuperSystem from a recipe. It creates an interopE2ESystem.
 func NewSuperSystem(t *testing.T, recipe *interopgen.InteropDevRecipe) SuperSystem {
-	s2 := &system2{recipe: recipe}
+	s2 := &interopE2ESystem{recipe: recipe}
 	s2.prepare(t)
 	return s2
 }
 
-// system2 implements the SuperSystem interface
+// interopE2ESystem implements the SuperSystem interface
 // it prepares network resources and provides access to them
 // the functionality is broken down into smaller functions so that
 // the system can be prepared iteratively if desired
-type system2 struct {
+type interopE2ESystem struct {
 	t               *testing.T
 	recipe          *interopgen.InteropDevRecipe
 	logger          log.Logger
@@ -132,6 +112,7 @@ type system2 struct {
 	superClient     *sources.SupervisorClient
 }
 
+// l2Set is a set of resources for an L2 chain
 type l2Set struct {
 	chainID      *big.Int
 	opNode       *opnode.Opnode
@@ -143,14 +124,14 @@ type l2Set struct {
 }
 
 // prepareHDWallet creates a new HD wallet to derive keys from
-func (s *system2) prepareHDWallet() *devkeys.MnemonicDevKeys {
+func (s *interopE2ESystem) prepareHDWallet() *devkeys.MnemonicDevKeys {
 	hdWallet, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
 	require.NoError(s.t, err)
 	return hdWallet
 }
 
 // prepareWorld creates the world configuration from the recipe and deploys it
-func (s *system2) prepareWorld() (*interopgen.WorldDeployment, *interopgen.WorldOutput) {
+func (s *interopE2ESystem) prepareWorld() (*interopgen.WorldDeployment, *interopgen.WorldOutput) {
 	// Build the world configuration from the recipe and the HD wallet
 	worldCfg, err := s.recipe.Build(s.hdWallet)
 	require.NoError(s.t, err)
@@ -170,7 +151,8 @@ func (s *system2) prepareWorld() (*interopgen.WorldDeployment, *interopgen.World
 	return worldDeployment, worldOutput
 }
 
-func (s *system2) prepareL1() (*fakebeacon.FakeBeacon, *geth.GethInstance) {
+// prepareL1 creates the L1 chain resources
+func (s *interopE2ESystem) prepareL1() (*fakebeacon.FakeBeacon, *geth.GethInstance) {
 	// Create a fake Beacon node to hold on to blobs created by the L1 miner, and to serve them to L2
 	genesisTimestampL1 := s.worldOutput.L1.Genesis.Timestamp
 	blockTimeL1 := uint64(6)
@@ -203,7 +185,10 @@ func (s *system2) prepareL1() (*fakebeacon.FakeBeacon, *geth.GethInstance) {
 	return bcn, l1Geth
 }
 
-func (s *system2) newOperatorKeysForL2(l2Out *interopgen.L2Output) map[devkeys.ChainOperatorRole]ecdsa.PrivateKey {
+// newOperatorKeysForL2 creates the operator keys for an L2 chain
+// it uses an L2Output to determine the chain ID and configuration,
+// and then makes a key for each operator role [SequencerP2PRole, ProposerRole, BatcherRole]
+func (s *interopE2ESystem) newOperatorKeysForL2(l2Out *interopgen.L2Output) map[devkeys.ChainOperatorRole]ecdsa.PrivateKey {
 	// Create operatorKeys for the L2 chain actors
 	operatorKeys := map[devkeys.ChainOperatorRole]ecdsa.PrivateKey{}
 	// create the sequencer P2P secret
@@ -230,7 +215,8 @@ func (s *system2) newOperatorKeysForL2(l2Out *interopgen.L2Output) map[devkeys.C
 	return operatorKeys
 }
 
-func (s *system2) newGethForL2(id string, l2Out *interopgen.L2Output) *geth.GethInstance {
+// newGethForL2 creates a new Geth instance for an L2 chain
+func (s *interopE2ESystem) newGethForL2(id string, l2Out *interopgen.L2Output) *geth.GethInstance {
 	jwtPath := writeDefaultJWT(s.t)
 	name := "l2-" + id
 	l2Geth, err := geth.InitL2(name, l2Out.Genesis, jwtPath)
@@ -242,7 +228,8 @@ func (s *system2) newGethForL2(id string, l2Out *interopgen.L2Output) *geth.Geth
 	return l2Geth
 }
 
-func (s *system2) newNodeForL2(
+// newNodeForL2 creates a new Opnode for an L2 chain
+func (s *interopE2ESystem) newNodeForL2(
 	id string,
 	l2Out *interopgen.L2Output,
 	operatorKeys map[devkeys.ChainOperatorRole]ecdsa.PrivateKey,
@@ -306,7 +293,9 @@ func (s *system2) newNodeForL2(
 	return opNode
 }
 
-func (s *system2) newProposerForL2(
+// newProposerForL2 creates a new Proposer for an L2 chain
+// it is currently unused, as the generated world does not have a DisputeGameFactoryProxy
+func (s *interopE2ESystem) newProposerForL2(
 	id string,
 	operatorKeys map[devkeys.ChainOperatorRole]ecdsa.PrivateKey,
 	opNode *opnode.Opnode,
@@ -342,7 +331,8 @@ func (s *system2) newProposerForL2(
 	return proposer
 }
 
-func (s *system2) newBatcherForL2(
+// newBatcherForL2 creates a new Batcher for an L2 chain
+func (s *interopE2ESystem) newBatcherForL2(
 	id string,
 	operatorKeys map[devkeys.ChainOperatorRole]ecdsa.PrivateKey,
 	l2Geth *geth.GethInstance,
@@ -389,12 +379,11 @@ func (s *system2) newBatcherForL2(
 // newL2 creates a new L2, starting with the L2Output from the world configuration
 // and iterating through the resources needed for the L2.
 // it returns a l2Set with the resources for the L2
-func (s *system2) newL2(id string, l2Out *interopgen.L2Output) l2Set {
+func (s *interopE2ESystem) newL2(id string, l2Out *interopgen.L2Output) l2Set {
 	operatorKeys := s.newOperatorKeysForL2(l2Out)
 	l2Geth := s.newGethForL2(id, l2Out)
 	opNode := s.newNodeForL2(id, l2Out, operatorKeys, l2Geth)
-	// TODO: proposer does not work with the generated world,
-	// as there is no DisputeGameFactoryProxy
+	// TODO: proposer does not work with the generated world as there is no DisputeGameFactoryProxy
 	//proposer := s.newProposerForL2(id, operatorKeys, opNode)
 	batcher := s.newBatcherForL2(id, operatorKeys, l2Geth, opNode)
 
@@ -409,7 +398,8 @@ func (s *system2) newL2(id string, l2Out *interopgen.L2Output) l2Set {
 	}
 }
 
-func (s *system2) prepareSupervisor() *supervisor.SupervisorService {
+// prepareSupervisor creates a new supervisor for the system
+func (s *interopE2ESystem) prepareSupervisor() *supervisor.SupervisorService {
 	logger := s.logger.New("role", "supervisor")
 	cfg := supervisorConfig.Config{
 		MetricsConfig: metrics.CLIConfig{
@@ -447,7 +437,8 @@ func (s *system2) prepareSupervisor() *supervisor.SupervisorService {
 	return super
 }
 
-func (s *system2) SupervisorClient() *sources.SupervisorClient {
+// SupervisorClient returns the supervisor client for the system, creating it if it doesn't exist
+func (s *interopE2ESystem) SupervisorClient() *sources.SupervisorClient {
 	if s.superClient != nil {
 		return s.superClient
 	}
@@ -461,19 +452,21 @@ func (s *system2) SupervisorClient() *sources.SupervisorClient {
 // prepare sets up the system for testing
 // components are built iteratively, so that they can be reused or modified
 // their creation can't be safely skipped or reordered at this time
-func (s *system2) prepare(t *testing.T) {
+func (s *interopE2ESystem) prepare(t *testing.T) {
 	s.t = t
 	s.logger = testlog.Logger(s.t, log.LevelInfo)
 	s.hdWallet = s.prepareHDWallet()
 	s.worldDeployment, s.worldOutput = s.prepareWorld()
+
+	// the supervisor and client are created first so that the L2s can use the supervisor
 	s.supervisor = s.prepareSupervisor()
-	s.superClient = s.SupervisorClient()
-	client := s.SupervisorClient()
-	fmt.Println("client", client)
+
 	s.beacon, s.l1 = s.prepareL1()
 	s.l2s = s.prepareL2s()
+
+	// add the L2 RPCs to the supervisor now that the L2s are created
 	for _, l2 := range s.l2s {
-		err := s.superClient.AddL2RPC(context.Background(), l2.l2Geth.UserRPC().RPC())
+		err := s.SupervisorClient().AddL2RPC(context.Background(), l2.l2Geth.UserRPC().RPC())
 		require.NoError(s.t, err, "failed to add L2 RPC to supervisor")
 	}
 }
@@ -485,7 +478,7 @@ func (s *system2) prepare(t *testing.T) {
 // NOTE: The first 20 accounts are implicitly funded by the Recipe's World Deployment
 // see: op-chain-ops/interopgen/recipe.go
 // TODO: make the funded account quantity specified in the recipe so SuperSystems can know which accounts are funded
-func (s *system2) AddUser(username string) {
+func (s *interopE2ESystem) AddUser(username string) {
 	for id, l2 := range s.l2s {
 		bigID, _ := big.NewInt(0).SetString(id, 10)
 		userSecret, _ := s.hdWallet.Secret(
@@ -499,19 +492,19 @@ func (s *system2) AddUser(username string) {
 }
 
 // UserKey returns the user key for a user on an L2
-func (s *system2) UserKey(id, username string) ecdsa.PrivateKey {
+func (s *interopE2ESystem) UserKey(id, username string) ecdsa.PrivateKey {
 	return s.l2s[id].userKeys[username]
 }
 
 // Address returns the address for a user on an L2
-func (s *system2) Address(id, username string) common.Address {
+func (s *interopE2ESystem) Address(id, username string) common.Address {
 	secret := s.UserKey(id, username)
 	require.NotNil(s.t, secret, "no secret found for user %s", username)
 	return crypto.PubkeyToAddress(secret.PublicKey)
 }
 
 // prepareL2s creates the L2s for the system, returning a map of L2s
-func (s *system2) prepareL2s() map[string]l2Set {
+func (s *interopE2ESystem) prepareL2s() map[string]l2Set {
 	l2s := make(map[string]l2Set)
 	for id, l2Out := range s.worldOutput.L2s {
 		l2s[id] = s.newL2(id, l2Out)
@@ -522,14 +515,14 @@ func (s *system2) prepareL2s() map[string]l2Set {
 // addL2 adds an L2 to the system by creating the resources for it
 // and then assigning them to the system's map of L2s.
 // This function is currently unused, but could be used to add L2s to the system after it is prepared.
-func (s *system2) addL2(id string, output *interopgen.L2Output) {
+func (s *interopE2ESystem) addL2(id string, output *interopgen.L2Output) {
 	if s.l2s == nil {
 		s.l2s = make(map[string]l2Set)
 	}
 	s.l2s[id] = s.newL2(id, output)
 }
 
-func (s *system2) L2GethClient(id string) *ethclient.Client {
+func (s *interopE2ESystem) L2GethClient(id string) *ethclient.Client {
 	// guard: check if the client already exists and return it in that case
 	nodeClient, ok := s.l2GethClients[id]
 	if ok {
@@ -553,7 +546,7 @@ func (s *system2) L2GethClient(id string) *ethclient.Client {
 	return nodeClient
 }
 
-func (sys *system2) addL2GethClient(name string, client *ethclient.Client) {
+func (sys *interopE2ESystem) addL2GethClient(name string, client *ethclient.Client) {
 	if sys.l2GethClients == nil {
 		sys.l2GethClients = make(map[string]*ethclient.Client)
 	}
@@ -561,29 +554,29 @@ func (sys *system2) addL2GethClient(name string, client *ethclient.Client) {
 }
 
 // getter functions for L1 entities
-func (s *system2) Supervisor() *supervisor.SupervisorService {
+func (s *interopE2ESystem) Supervisor() *supervisor.SupervisorService {
 	return s.supervisor
 }
 
 // gettter functions for the individual L2s
-func (s *system2) Batcher(id string) *bss.BatcherService {
+func (s *interopE2ESystem) Batcher(id string) *bss.BatcherService {
 	return s.l2s[id].batcher
 }
-func (s *system2) Proposer(id string) *l2os.ProposerService {
+func (s *interopE2ESystem) Proposer(id string) *l2os.ProposerService {
 	return s.l2s[id].proposer
 }
-func (s *system2) OpNode(id string) *opnode.Opnode {
+func (s *interopE2ESystem) OpNode(id string) *opnode.Opnode {
 	return s.l2s[id].opNode
 }
-func (s *system2) L2Geth(id string) *geth.GethInstance {
+func (s *interopE2ESystem) L2Geth(id string) *geth.GethInstance {
 	return s.l2s[id].l2Geth
 }
-func (s *system2) L2OperatorKey(id string, role devkeys.ChainOperatorRole) ecdsa.PrivateKey {
+func (s *interopE2ESystem) L2OperatorKey(id string, role devkeys.ChainOperatorRole) ecdsa.PrivateKey {
 	return s.l2s[id].operatorKeys[role]
 }
 
 // L2IDs returns the list of L2 IDs, which are the keys of the L2s map
-func (s *system2) L2IDs() []string {
+func (s *interopE2ESystem) L2IDs() []string {
 	ids := make([]string, 0, len(s.l2s))
 	for id := range s.l2s {
 		ids = append(ids, id)
@@ -594,7 +587,7 @@ func (s *system2) L2IDs() []string {
 // SendL2Tx sends an L2 transaction to the L2 with the given ID.
 // it acts as a wrapper around op-e2e.SendL2TxWithID
 // and uses the L2's chain ID, username key, and geth client.
-func (s *system2) SendL2Tx(
+func (s *interopE2ESystem) SendL2Tx(
 	id string,
 	sender string,
 	applyTxOpts op_e2e.TxOptsFn,
