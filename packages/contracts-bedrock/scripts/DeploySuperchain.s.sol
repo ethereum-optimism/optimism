@@ -100,22 +100,24 @@ contract DeploySuperchainInput is CommonBase {
     }
 
     // Load the input from a TOML file.
+    // When setting inputs from a TOML file, we use the setter methods instead of writing directly
+    // to storage. This allows us to validate each input as it is set.
     function loadInputFile(string memory _infile) public {
         string memory toml = vm.readFile(_infile);
 
-        // Parse and set role inputs
-        _guardian = toml.readAddress(".roles.guardian");
-        _protocolVersionsOwner = toml.readAddress(".roles.protocolVersionsOwner");
-        _proxyAdminOwner = toml.readAddress(".roles.proxyAdminOwner");
+        // Parse and set role inputs.
+        set(this.guardian.selector, toml.readAddress(".roles.guardian"));
+        set(this.protocolVersionsOwner.selector, toml.readAddress(".roles.protocolVersionsOwner"));
+        set(this.proxyAdminOwner.selector, toml.readAddress(".roles.proxyAdminOwner"));
 
-        // Parse and set other inputs
-        _paused = toml.readBool(".paused");
+        // Parse and set other inputs.
+        set(this.paused.selector, toml.readBool(".paused"));
 
         uint256 recVersion = toml.readUint(".recommendedProtocolVersion");
-        _recommendedProtocolVersion = ProtocolVersion.wrap(recVersion);
+        set(this.recommendedProtocolVersion.selector, ProtocolVersion.wrap(recVersion));
 
         uint256 reqVersion = toml.readUint(".requiredProtocolVersion");
-        _requiredProtocolVersion = ProtocolVersion.wrap(reqVersion);
+        set(this.requiredProtocolVersion.selector, ProtocolVersion.wrap(reqVersion));
     }
 
     // Each input field is exposed via it's own getter method. Using public storage variables here

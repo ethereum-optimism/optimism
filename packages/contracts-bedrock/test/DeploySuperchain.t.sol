@@ -30,7 +30,6 @@ contract DeploySuperchainInput_Test is Test {
 
         dsi.loadInputFile(path);
 
-        // Compare the test input struct to the getter methods.
         assertEq(proxyAdminOwner, dsi.proxyAdminOwner(), "100");
         assertEq(protocolVersionsOwner, dsi.protocolVersionsOwner(), "200");
         assertEq(guardian, dsi.guardian(), "300");
@@ -98,7 +97,7 @@ contract DeploySuperchainOutput_Test is Test {
         dso.set(dso.protocolVersionsImpl.selector, address(protocolVersionsImpl));
         dso.set(dso.protocolVersionsProxy.selector, address(protocolVersionsProxy));
 
-        // Compare the test output struct to the getter methods.
+        // Compare the test data to the getter methods.
         assertEq(address(superchainProxyAdmin), address(dso.superchainProxyAdmin()), "100");
         assertEq(address(superchainConfigImpl), address(dso.superchainConfigImpl()), "200");
         assertEq(address(superchainConfigProxy), address(dso.superchainConfigProxy()), "300");
@@ -205,10 +204,6 @@ contract DeploySuperchain_Test is Test {
 
     function hash(bytes32 _seed, uint256 _i) internal pure returns (bytes32) {
         return keccak256(abi.encode(_seed, _i));
-    }
-
-    function testFoo() public {
-        test_run_memory_succeeds(0x9a964f0fabab8daf900a16393e024a8f15e6f2afb2d4451dd183280653a7171a);
     }
 
     function test_run_memory_succeeds(bytes32 _seed) public {
