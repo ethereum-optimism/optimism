@@ -35,6 +35,10 @@ type channelManager struct {
 	blocks []*types.Block
 	// The latest L1 block from all the L2 blocks in the most recently closed channel
 	l1OriginLastClosedChannel eth.BlockID
+
+	// The ChannelConfig used by the most recently closed channel
+	cfgLastClosedChannel *ChannelConfig
+
 	// last block hash - for reorg detection
 	tip common.Hash
 
@@ -203,7 +207,14 @@ func (s *channelManager) ensureChannelWithSpace(l1Head eth.BlockID) error {
 		return nil
 	}
 
-	cfg := s.cfgProvider.ChannelConfigFull()
+	// We reuse the ChannelConfig from the last closed channel.
+	// This will be reassessed at channel submission-time,
+	// but this is our best guess at the appropriate values for now.
+	if s.cfgLastClosedChannel == nil {
+		panic("Expected to find a cached ChannelConfig from the last closed channel")
+	}
+	cfg := *s.cfgLastClosedChannel
+
 	pc, err := newChannel(s.log, s.metr, cfg, s.rollupCfg, s.l1OriginLastClosedChannel.Number)
 	if err != nil {
 		return fmt.Errorf("creating new channel: %w", err)
@@ -300,6 +311,7 @@ func (s *channelManager) outputFrames() error {
 	if lastClosedL1Origin.Number > s.l1OriginLastClosedChannel.Number {
 		s.l1OriginLastClosedChannel = lastClosedL1Origin
 	}
+	s.cfgLastClosedChannel = &s.currentChannel.cfg
 
 	inBytes, outBytes := s.currentChannel.InputBytes(), s.currentChannel.OutputBytes()
 	s.metr.RecordChannelClosed(
