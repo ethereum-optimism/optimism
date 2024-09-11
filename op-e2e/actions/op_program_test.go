@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/client/claim"
 	"github.com/ethereum-optimism/optimism/op-program/host"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
+	hostTypes "github.com/ethereum-optimism/optimism/op-program/host/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
@@ -32,10 +33,10 @@ var (
 )
 
 func init() {
-	if os.Getenv("OP_E2E_DUMP_FIXTURES") == "1" {
+	fixtureDir = os.Getenv("OP_E2E_FPP_FIXTURE_DIR")
+	if fixtureDir != "" {
 		dumpFixtures = true
 	}
-	fixtureDir = os.Getenv("OP_E2E_FPP_FIXTURE_DIR")
 }
 
 // L2FaultProofEnv is a test harness for a fault provable L2 chain.
@@ -134,8 +135,6 @@ func NewOpProgramCfg(
 	l2ClaimBlockNum uint64,
 	params ...OpProgramCfgParam,
 ) *config.Config {
-	t.Helper()
-
 	dfault := config.NewConfig(env.sd.RollupCfg, env.sd.L2Cfg.Config, l1Head, l2Head, l2OutputRoot, l2Claim, l2ClaimBlockNum)
 
 	// Set up in-process L1 sources
@@ -152,6 +151,7 @@ func NewOpProgramCfg(
 
 	if dumpFixtures {
 		dfault.DataDir = t.TempDir()
+		dfault.DataFormat = hostTypes.DataFormatPebble
 	}
 
 	for _, apply := range params {
