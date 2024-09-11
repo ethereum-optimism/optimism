@@ -237,26 +237,17 @@ contract GasBenchMark_L1Block is CommonTest {
 
 contract GasBenchMark_L1Block_SetValuesEcotone is GasBenchMark_L1Block {
     function test_setL1BlockValuesEcotone_benchmark() external {
-        SafeCall.call({
-            _target: address(l1Block),
-            _calldata: setValuesCalldata
-        });
+        SafeCall.call({ _target: address(l1Block), _calldata: setValuesCalldata });
     }
 }
 
 contract GasBenchMark_L1Block_SetValuesEcotone_Warm is GasBenchMark_L1Block {
     function setUp() public virtual override {
-        SafeCall.call({
-            _target: address(l1Block),
-            _calldata: setValuesCalldata
-        });
+        SafeCall.call({ _target: address(l1Block), _calldata: setValuesCalldata });
     }
 
     function test_setL1BlockValuesEcotone_benchmark() external {
-        SafeCall.call({
-            _target: address(l1Block),
-            _calldata: setValuesCalldata
-        });
+        SafeCall.call({ _target: address(l1Block), _calldata: setValuesCalldata });
     }
 }
 
@@ -282,26 +273,17 @@ contract GasBenchMark_L1BlockIsthmus is GasBenchMark_L1Block {
 
 contract GasBenchMark_L1BlockIsthmus_SetValuesIsthmus is GasBenchMark_L1BlockIsthmus {
     function test_setL1BlockValuesIsthmus_benchmark() external {
-        SafeCall.call({
-            _target: address(l1BlockIsthmus),
-            _calldata: setValuesCalldata
-        });
+        SafeCall.call({ _target: address(l1BlockIsthmus), _calldata: setValuesCalldata });
     }
 }
 
 contract GasBenchMark_L1BlockIsthmus_SetValuesIsthmus_Warm is GasBenchMark_L1BlockIsthmus {
     function setUp() public virtual override {
-        SafeCall.call({
-            _target: address(l1BlockIsthmus),
-            _calldata: setValuesCalldata
-        });
+        SafeCall.call({ _target: address(l1BlockIsthmus), _calldata: setValuesCalldata });
     }
 
     function test_setL1BlockValuesIsthmus_benchmark() external {
-        SafeCall.call({
-            _target: address(l1BlockIsthmus),
-            _calldata: setValuesCalldata
-        });
+        SafeCall.call({ _target: address(l1BlockIsthmus), _calldata: setValuesCalldata });
     }
 }
 
@@ -318,10 +300,7 @@ contract GasBenchMark_L1BlockIsthmus_DepositsComplete_Warm is GasBenchMark_L1Blo
     function setUp() public virtual override {
         super.setUp();
         // Set the isDeposit flag to true so then we can benchmark when it is reset.
-        SafeCall.call({
-            _target: address(l1BlockIsthmus),
-            _calldata: setValuesCalldata
-        });
+        SafeCall.call({ _target: address(l1BlockIsthmus), _calldata: setValuesCalldata });
     }
 
     function test_depositsComplete_benchmark() external {
