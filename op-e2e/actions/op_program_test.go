@@ -40,26 +40,8 @@ type L2FaultProofEnv struct {
 	alice     *CrossLayerUser
 }
 
-type TestParam func(p *e2eutils.TestParams)
-
-func NewL2FaultProofEnv(t Testing, batcherCfg *BatcherCfg, params ...TestParam) *L2FaultProofEnv {
-	p := defaultRollupTestParams
-	for _, apply := range params {
-		apply(p)
-	}
+func NewL2FaultProofEnv(t Testing, tp *e2eutils.TestParams, dp *e2eutils.DeployParams, batcherCfg *BatcherCfg) *L2FaultProofEnv {
 	log := testlog.Logger(t, log.LvlDebug)
-	dp := e2eutils.MakeDeployParams(t, p)
-
-	// Enable Cancun on L1 & Granite on L2 at genesis
-	// TODO: Hardfork configurability.
-	genesisBlock := hexutil.Uint64(0)
-	dp.DeployConfig.L1CancunTimeOffset = &genesisBlock
-	dp.DeployConfig.L2GenesisRegolithTimeOffset = &genesisBlock
-	dp.DeployConfig.L2GenesisCanyonTimeOffset = &genesisBlock
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = &genesisBlock
-	dp.DeployConfig.L2GenesisEcotoneTimeOffset = &genesisBlock
-	dp.DeployConfig.L2GenesisFjordTimeOffset = &genesisBlock
-	dp.DeployConfig.L2GenesisGraniteTimeOffset = &genesisBlock
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 
 	miner, engine, sequencer := setupSequencerTest(t, sd, log)
@@ -93,6 +75,26 @@ func NewL2FaultProofEnv(t Testing, batcherCfg *BatcherCfg, params ...TestParam) 
 		miner:     miner,
 		alice:     alice,
 	}
+}
+
+type TestParam func(p *e2eutils.TestParams)
+
+func NewTestParams(params ...TestParam) *e2eutils.TestParams {
+	dfault := defaultRollupTestParams
+	for _, apply := range params {
+		apply(dfault)
+	}
+	return dfault
+}
+
+type DeployParam func(p *e2eutils.DeployParams)
+
+func NewDeployParams(t Testing, params ...DeployParam) *e2eutils.DeployParams {
+	dfault := e2eutils.MakeDeployParams(t, NewTestParams())
+	for _, apply := range params {
+		apply(dfault)
+	}
+	return dfault
 }
 
 type BatcherCfgParam func(c *BatcherCfg)
@@ -143,7 +145,21 @@ func NewOpProgramCfg(
 
 func Test_ProgramAction_SimpleEmptyChain_HonestClaim_Granite(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	env := NewL2FaultProofEnv(t, NewBatcherCfg())
+	tp := NewTestParams()
+	dp := NewDeployParams(t, func(dp *e2eutils.DeployParams) {
+		genesisBlock := hexutil.Uint64(0)
+
+		// Enable Cancun on L1 & Granite on L2 at genesis
+		dp.DeployConfig.L1CancunTimeOffset = &genesisBlock
+		dp.DeployConfig.L2GenesisRegolithTimeOffset = &genesisBlock
+		dp.DeployConfig.L2GenesisCanyonTimeOffset = &genesisBlock
+		dp.DeployConfig.L2GenesisDeltaTimeOffset = &genesisBlock
+		dp.DeployConfig.L2GenesisEcotoneTimeOffset = &genesisBlock
+		dp.DeployConfig.L2GenesisFjordTimeOffset = &genesisBlock
+		dp.DeployConfig.L2GenesisGraniteTimeOffset = &genesisBlock
+	})
+	bCfg := NewBatcherCfg()
+	env := NewL2FaultProofEnv(t, tp, dp, bCfg)
 
 	// Build an empty block on L2
 	env.sequencer.ActL2StartBlock(t)
@@ -172,7 +188,7 @@ func Test_ProgramAction_SimpleEmptyChain_HonestClaim_Granite(gt *testing.T) {
 	require.Equal(t, uint64(1), l2SafeHead.Number.Uint64())
 
 	// Fetch the pre and post output roots for the fault proof.
-	preRoot, err := env.sequencer.RollupClient().OutputAtBlock(context.Background(), l2SafeHead.Number.Uint64() - 1)
+	preRoot, err := env.sequencer.RollupClient().OutputAtBlock(context.Background(), l2SafeHead.Number.Uint64()-1)
 	require.NoError(t, err)
 	claimRoot, err := env.sequencer.RollupClient().OutputAtBlock(context.Background(), l2SafeHead.Number.Uint64())
 	require.NoError(t, err)
@@ -193,7 +209,21 @@ func Test_ProgramAction_SimpleEmptyChain_HonestClaim_Granite(gt *testing.T) {
 
 func Test_ProgramAction_SimpleEmptyChain_JunkClaim_Granite(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	env := NewL2FaultProofEnv(t, NewBatcherCfg())
+	tp := NewTestParams()
+	dp := NewDeployParams(t, func(dp *e2eutils.DeployParams) {
+		genesisBlock := hexutil.Uint64(0)
+
+		// Enable Cancun on L1 & Granite on L2 at genesis
+		dp.DeployConfig.L1CancunTimeOffset = &genesisBlock
+		dp.DeployConfig.L2GenesisRegolithTimeOffset = &genesisBlock
+		dp.DeployConfig.L2GenesisCanyonTimeOffset = &genesisBlock
+		dp.DeployConfig.L2GenesisDeltaTimeOffset = &genesisBlock
+		dp.DeployConfig.L2GenesisEcotoneTimeOffset = &genesisBlock
+		dp.DeployConfig.L2GenesisFjordTimeOffset = &genesisBlock
+		dp.DeployConfig.L2GenesisGraniteTimeOffset = &genesisBlock
+	})
+	bCfg := NewBatcherCfg()
+	env := NewL2FaultProofEnv(t, tp, dp, bCfg)
 
 	// Build an empty block on L2
 	env.sequencer.ActL2StartBlock(t)
@@ -222,7 +252,7 @@ func Test_ProgramAction_SimpleEmptyChain_JunkClaim_Granite(gt *testing.T) {
 	require.Equal(t, uint64(1), l2SafeHead.Number.Uint64())
 
 	// Fetch the pre and post output roots for the fault proof.
-	preRoot, err := env.sequencer.RollupClient().OutputAtBlock(context.Background(), l2SafeHead.Number.Uint64() - 1)
+	preRoot, err := env.sequencer.RollupClient().OutputAtBlock(context.Background(), l2SafeHead.Number.Uint64()-1)
 	require.NoError(t, err)
 
 	// Run the fault proof program from the state transition from L2 block 0 -> 1, with a junk claim.
