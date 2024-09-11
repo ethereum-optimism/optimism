@@ -187,9 +187,6 @@ func TestSystemP2PAltSyncLongStall(t *testing.T) {
 			altSyncSources[block.from]++
 		}
 	}
-	//peerIds := slices.SortedFunc(maps.Keys(altSyncSources), func(id peer.ID, id2 peer.ID) int {
-	//	return altSyncSources[id2] - altSyncSources[id]
-	//})
 	peerIds := make([]peer.ID, 0, len(altSyncSources))
 	for key := range altSyncSources {
 		peerIds = append(peerIds, key)

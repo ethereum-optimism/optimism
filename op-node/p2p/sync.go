@@ -368,9 +368,6 @@ func (s *syncClientRequestState) addMissingWanted(log log.Logger) {
 		log.Debug("Scheduling P2P block request", "num", num)
 		blockState, ok := s.wanted[num]
 		if ok {
-			// TODO: Should we just clobber the block? There can be requests active on this block
-			// already so that seems wasteful unless those requests resync to the new block state.
-			fmt.Printf("requested already requested block\n")
 			blockState.promoted = false
 			blockState.done.Clear()
 			blockState.finalHash.SetNone()
@@ -574,9 +571,9 @@ func (s *syncClientPeer) requestAndHandleResult(ctx context.Context, num blockNu
 	start := time.Now()
 
 	resultCode := ResultCodeSuccess
-	//fmt.Printf("requesting %d from %v\n", num, s.remoteId)
+
 	envelope, err := s.doRequestRecoveringPanic(ctx, num)
-	//fmt.Printf("result of requesting %d from %v: %v\n", num, s.remoteId, err)
+
 	if err != nil {
 		log.Warn("failed p2p sync request", "num", num, "err", err)
 		resultCode = ResultCodeNotFoundErr
