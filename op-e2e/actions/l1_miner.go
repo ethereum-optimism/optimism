@@ -240,7 +240,7 @@ func (s *L1Miner) ActL1EndBlock(t Testing) {
 	for _, sidecar := range s.l1BuildingBlobSidecars {
 		for i, h := range sidecar.BlobHashes() {
 			blob := (*eth.Blob)(&sidecar.Blobs[i])
-			s.blobStore.StoreBlob(block.Hash(), h, blob)
+			s.blobStore.StoreBlob(block.Time(), h, blob)
 		}
 	}
 	_, err = s.l1Chain.InsertChain(types.Blocks{block})
