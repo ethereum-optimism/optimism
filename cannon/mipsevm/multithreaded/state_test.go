@@ -55,6 +55,7 @@ func TestState_EncodeWitness(t *testing.T) {
 		state.PreimageKey = preimageKey
 		state.PreimageOffset = preimageOffset
 		state.Heap = heap
+		state.LLReservationActive = true
 		state.LLAddress = llAddress
 		state.LLOwnerThread = llThreadOwner
 		state.Step = step
@@ -70,6 +71,7 @@ func TestState_EncodeWitness(t *testing.T) {
 		setWitnessField(expectedWitness, PREIMAGE_KEY_WITNESS_OFFSET, preimageKey[:])
 		setWitnessField(expectedWitness, PREIMAGE_OFFSET_WITNESS_OFFSET, []byte{0, 0, 0, byte(preimageOffset)})
 		setWitnessField(expectedWitness, HEAP_WITNESS_OFFSET, []byte{0, 0, 0, byte(heap)})
+		setWitnessField(expectedWitness, LL_RESERVATION_ACTIVE_OFFSET, []byte{1})
 		setWitnessField(expectedWitness, LL_ADDRESS_OFFSET, []byte{0, 0, 0, byte(llAddress)})
 		setWitnessField(expectedWitness, LL_OWNER_THREAD_OFFSET, []byte{0, 0, 0, byte(llThreadOwner)})
 		setWitnessField(expectedWitness, EXITCODE_WITNESS_OFFSET, []byte{c.exitCode})
@@ -182,6 +184,7 @@ func TestSerializeStateRoundTrip(t *testing.T) {
 		PreimageKey:                 common.Hash{0xFF},
 		PreimageOffset:              5,
 		Heap:                        0xc0ffee,
+		LLReservationActive:         true,
 		LLAddress:                   0x12345678,
 		LLOwnerThread:               0x02,
 		ExitCode:                    1,

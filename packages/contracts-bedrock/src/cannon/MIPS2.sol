@@ -33,13 +33,14 @@ contract MIPS2 is ISemver {
     }
 
     /// @notice Stores the VM state.
-    ///         Total state size: 32 + 32 + 4 + 4 + 4 + 4 + 1 + 1 + 8 + 8 + 4 + 1 + 32 + 32 + 4 = 171 bytes
+    ///         Total state size: 32 + 32 + 4 + 4 + 1 + 4 + 4 + 1 + 1 + 8 + 8 + 4 + 1 + 32 + 32 + 4 = 172 bytes
     ///         If nextPC != pc + 4, then the VM is executing a branch/jump delay slot.
     struct State {
         bytes32 memRoot;
         bytes32 preimageKey;
         uint32 preimageOffset;
         uint32 heap;
+        bool llReservationActive;
         uint32 llAddress;
         uint32 llOwnerThread;
         uint8 exitCode;
@@ -73,7 +74,7 @@ contract MIPS2 is ISemver {
     uint256 internal constant STATE_MEM_OFFSET = 0x80;
 
     // ThreadState memory offset allocated during step
-    uint256 internal constant TC_MEM_OFFSET = 0x260;
+    uint256 internal constant TC_MEM_OFFSET = 0x280;
 
     /// @param _oracle The address of the preimage oracle contract.
     constructor(IPreimageOracle _oracle) {
@@ -110,8 +111,8 @@ contract MIPS2 is ISemver {
                     // expected thread mem offset check
                     revert(0, 0)
                 }
-                if iszero(eq(mload(0x40), shl(5, 62))) {
-                    // 4 + 15 state slots + 43 thread slots = 62 expected memory check
+                if iszero(eq(mload(0x40), shl(5, 63))) {
+                    // 4 + 16 state slots + 43 thread slots = 63 expected memory check
                     revert(0, 0)
                 }
                 if iszero(eq(_stateData.offset, 132)) {
@@ -138,6 +139,7 @@ contract MIPS2 is ISemver {
                 c, m := putField(c, m, 32) // preimageKey
                 c, m := putField(c, m, 4) // preimageOffset
                 c, m := putField(c, m, 4) // heap
+                c, m := putField(c, m, 1) // llReservationActive
                 c, m := putField(c, m, 4) // llAddress
                 c, m := putField(c, m, 4) // llOwnerThread
                 c, m := putField(c, m, 1) // exitCode
@@ -575,6 +577,7 @@ contract MIPS2 is ISemver {
             from, to := copyMem(from, to, 32) // preimageKey
             from, to := copyMem(from, to, 4) // preimageOffset
             from, to := copyMem(from, to, 4) // heap
+            from, to := copyMem(from, to, 1) // llReservationActive
             from, to := copyMem(from, to, 4) // llAddress
             from, to := copyMem(from, to, 4) // llOwnerThread
             let exitCode := mload(from)
