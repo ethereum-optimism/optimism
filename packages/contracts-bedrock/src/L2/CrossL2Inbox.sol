@@ -7,14 +7,7 @@ import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { ICrossL2Inbox } from "src/L2/interfaces/ICrossL2Inbox.sol";
 import { SafeCall } from "src/libraries/SafeCall.sol";
 import { IDependencySet } from "src/L2/interfaces/IDependencySet.sol";
-
-/// @title IL1Block
-/// @notice Interface for L1Block with only `isDeposit()` method.
-interface IL1Block {
-    /// @notice Returns whether the call was triggered from a a deposit or not.
-    /// @return True if the current call was triggered by a deposit transaction, and false otherwise.
-    function isDeposit() external view returns (bool);
-}
+import { IL1Block } from "src/L2/interfaces/IL1Block.sol";
 
 /// @notice Thrown when the caller is not DEPOSITOR_ACCOUNT when calling `setInteropStart()`
 error NotDepositor();
