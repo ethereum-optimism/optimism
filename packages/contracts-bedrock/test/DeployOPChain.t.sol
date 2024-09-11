@@ -32,7 +32,7 @@ import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
 
 contract DeployOPChainInput_Test is Test {
-    DeployOPChainInput dsi;
+    DeployOPChainInput doi;
 
     DeployOPChainInput.Input input = DeployOPChainInput.Input({
         roles: DeployOPChainInput.Roles({
@@ -50,67 +50,67 @@ contract DeployOPChainInput_Test is Test {
     });
 
     function setUp() public {
-        dsi = new DeployOPChainInput();
+        doi = new DeployOPChainInput();
     }
 
     function test_loadInput_succeeds() public {
-        dsi.loadInput(input);
+        doi.loadInput(input);
 
-        assertTrue(dsi.inputSet(), "100");
+        assertTrue(doi.inputSet(), "100");
 
         // Compare the test input struct to the getter methods.
-        assertEq(input.roles.opChainProxyAdminOwner, dsi.opChainProxyAdminOwner(), "200");
-        assertEq(input.roles.systemConfigOwner, dsi.systemConfigOwner(), "300");
-        assertEq(input.roles.batcher, dsi.batcher(), "400");
-        assertEq(input.roles.unsafeBlockSigner, dsi.unsafeBlockSigner(), "500");
-        assertEq(input.roles.proposer, dsi.proposer(), "600");
-        assertEq(input.roles.challenger, dsi.challenger(), "700");
-        assertEq(input.basefeeScalar, dsi.basefeeScalar(), "800");
-        assertEq(input.blobBaseFeeScalar, dsi.blobBaseFeeScalar(), "900");
-        assertEq(input.l2ChainId, dsi.l2ChainId(), "1000");
-        assertEq(address(input.opsm), address(dsi.opsm()), "1100");
+        assertEq(input.roles.opChainProxyAdminOwner, doi.opChainProxyAdminOwner(), "200");
+        assertEq(input.roles.systemConfigOwner, doi.systemConfigOwner(), "300");
+        assertEq(input.roles.batcher, doi.batcher(), "400");
+        assertEq(input.roles.unsafeBlockSigner, doi.unsafeBlockSigner(), "500");
+        assertEq(input.roles.proposer, doi.proposer(), "600");
+        assertEq(input.roles.challenger, doi.challenger(), "700");
+        assertEq(input.basefeeScalar, doi.basefeeScalar(), "800");
+        assertEq(input.blobBaseFeeScalar, doi.blobBaseFeeScalar(), "900");
+        assertEq(input.l2ChainId, doi.l2ChainId(), "1000");
+        assertEq(address(input.opsm), address(doi.opsm()), "1100");
 
         // Compare the test input struct to the `input` getter method.
-        assertEq(keccak256(abi.encode(input)), keccak256(abi.encode(dsi.input())), "1200");
+        assertEq(keccak256(abi.encode(input)), keccak256(abi.encode(doi.input())), "1200");
     }
 
     function test_getters_whenNotSet_revert() public {
         bytes memory expectedErr = "DeployOPChainInput: input not set";
 
         vm.expectRevert(expectedErr);
-        dsi.opChainProxyAdminOwner();
+        doi.opChainProxyAdminOwner();
 
         vm.expectRevert(expectedErr);
-        dsi.systemConfigOwner();
+        doi.systemConfigOwner();
 
         vm.expectRevert(expectedErr);
-        dsi.batcher();
+        doi.batcher();
 
         vm.expectRevert(expectedErr);
-        dsi.unsafeBlockSigner();
+        doi.unsafeBlockSigner();
 
         vm.expectRevert(expectedErr);
-        dsi.proposer();
+        doi.proposer();
 
         vm.expectRevert(expectedErr);
-        dsi.challenger();
+        doi.challenger();
 
         vm.expectRevert(expectedErr);
-        dsi.basefeeScalar();
+        doi.basefeeScalar();
 
         vm.expectRevert(expectedErr);
-        dsi.blobBaseFeeScalar();
+        doi.blobBaseFeeScalar();
 
         vm.expectRevert(expectedErr);
-        dsi.l2ChainId();
+        doi.l2ChainId();
     }
 }
 
 contract DeployOPChainOutput_Test is Test {
-    DeployOPChainOutput dso;
+    DeployOPChainOutput doo;
 
     function setUp() public {
-        dso = new DeployOPChainOutput();
+        doo = new DeployOPChainOutput();
     }
 
     function test_set_succeeds() public {
@@ -150,170 +150,170 @@ contract DeployOPChainOutput_Test is Test {
         vm.etch(address(output.delayedWETHPermissionedGameProxy), hex"01");
         vm.etch(address(output.delayedWETHPermissionlessGameProxy), hex"01");
 
-        dso.set(dso.opChainProxyAdmin.selector, address(output.opChainProxyAdmin));
-        dso.set(dso.addressManager.selector, address(output.addressManager));
-        dso.set(dso.l1ERC721BridgeProxy.selector, address(output.l1ERC721BridgeProxy));
-        dso.set(dso.systemConfigProxy.selector, address(output.systemConfigProxy));
-        dso.set(dso.optimismMintableERC20FactoryProxy.selector, address(output.optimismMintableERC20FactoryProxy));
-        dso.set(dso.l1StandardBridgeProxy.selector, address(output.l1StandardBridgeProxy));
-        dso.set(dso.l1CrossDomainMessengerProxy.selector, address(output.l1CrossDomainMessengerProxy));
-        dso.set(dso.optimismPortalProxy.selector, address(output.optimismPortalProxy));
-        dso.set(dso.disputeGameFactoryProxy.selector, address(output.disputeGameFactoryProxy));
-        dso.set(dso.disputeGameFactoryImpl.selector, address(output.disputeGameFactoryImpl));
-        dso.set(dso.anchorStateRegistryProxy.selector, address(output.anchorStateRegistryProxy));
-        dso.set(dso.anchorStateRegistryImpl.selector, address(output.anchorStateRegistryImpl));
-        dso.set(dso.faultDisputeGame.selector, address(output.faultDisputeGame));
-        dso.set(dso.permissionedDisputeGame.selector, address(output.permissionedDisputeGame));
-        dso.set(dso.delayedWETHPermissionedGameProxy.selector, address(output.delayedWETHPermissionedGameProxy));
-        dso.set(dso.delayedWETHPermissionlessGameProxy.selector, address(output.delayedWETHPermissionlessGameProxy));
+        doo.set(doo.opChainProxyAdmin.selector, address(output.opChainProxyAdmin));
+        doo.set(doo.addressManager.selector, address(output.addressManager));
+        doo.set(doo.l1ERC721BridgeProxy.selector, address(output.l1ERC721BridgeProxy));
+        doo.set(doo.systemConfigProxy.selector, address(output.systemConfigProxy));
+        doo.set(doo.optimismMintableERC20FactoryProxy.selector, address(output.optimismMintableERC20FactoryProxy));
+        doo.set(doo.l1StandardBridgeProxy.selector, address(output.l1StandardBridgeProxy));
+        doo.set(doo.l1CrossDomainMessengerProxy.selector, address(output.l1CrossDomainMessengerProxy));
+        doo.set(doo.optimismPortalProxy.selector, address(output.optimismPortalProxy));
+        doo.set(doo.disputeGameFactoryProxy.selector, address(output.disputeGameFactoryProxy));
+        doo.set(doo.disputeGameFactoryImpl.selector, address(output.disputeGameFactoryImpl));
+        doo.set(doo.anchorStateRegistryProxy.selector, address(output.anchorStateRegistryProxy));
+        doo.set(doo.anchorStateRegistryImpl.selector, address(output.anchorStateRegistryImpl));
+        doo.set(doo.faultDisputeGame.selector, address(output.faultDisputeGame));
+        doo.set(doo.permissionedDisputeGame.selector, address(output.permissionedDisputeGame));
+        doo.set(doo.delayedWETHPermissionedGameProxy.selector, address(output.delayedWETHPermissionedGameProxy));
+        doo.set(doo.delayedWETHPermissionlessGameProxy.selector, address(output.delayedWETHPermissionlessGameProxy));
 
-        assertEq(address(output.opChainProxyAdmin), address(dso.opChainProxyAdmin()), "100");
-        assertEq(address(output.addressManager), address(dso.addressManager()), "200");
-        assertEq(address(output.l1ERC721BridgeProxy), address(dso.l1ERC721BridgeProxy()), "300");
-        assertEq(address(output.systemConfigProxy), address(dso.systemConfigProxy()), "400");
+        assertEq(address(output.opChainProxyAdmin), address(doo.opChainProxyAdmin()), "100");
+        assertEq(address(output.addressManager), address(doo.addressManager()), "200");
+        assertEq(address(output.l1ERC721BridgeProxy), address(doo.l1ERC721BridgeProxy()), "300");
+        assertEq(address(output.systemConfigProxy), address(doo.systemConfigProxy()), "400");
         assertEq(
-            address(output.optimismMintableERC20FactoryProxy), address(dso.optimismMintableERC20FactoryProxy()), "500"
+            address(output.optimismMintableERC20FactoryProxy), address(doo.optimismMintableERC20FactoryProxy()), "500"
         );
-        assertEq(address(output.l1StandardBridgeProxy), address(dso.l1StandardBridgeProxy()), "600");
-        assertEq(address(output.l1CrossDomainMessengerProxy), address(dso.l1CrossDomainMessengerProxy()), "700");
-        assertEq(address(output.optimismPortalProxy), address(dso.optimismPortalProxy()), "800");
-        assertEq(address(output.disputeGameFactoryProxy), address(dso.disputeGameFactoryProxy()), "900");
-        assertEq(address(output.disputeGameFactoryImpl), address(dso.disputeGameFactoryImpl()), "1000");
-        assertEq(address(output.anchorStateRegistryProxy), address(dso.anchorStateRegistryProxy()), "1100");
-        assertEq(address(output.anchorStateRegistryImpl), address(dso.anchorStateRegistryImpl()), "1200");
-        assertEq(address(output.faultDisputeGame), address(dso.faultDisputeGame()), "1300");
-        assertEq(address(output.permissionedDisputeGame), address(dso.permissionedDisputeGame()), "1400");
+        assertEq(address(output.l1StandardBridgeProxy), address(doo.l1StandardBridgeProxy()), "600");
+        assertEq(address(output.l1CrossDomainMessengerProxy), address(doo.l1CrossDomainMessengerProxy()), "700");
+        assertEq(address(output.optimismPortalProxy), address(doo.optimismPortalProxy()), "800");
+        assertEq(address(output.disputeGameFactoryProxy), address(doo.disputeGameFactoryProxy()), "900");
+        assertEq(address(output.disputeGameFactoryImpl), address(doo.disputeGameFactoryImpl()), "1000");
+        assertEq(address(output.anchorStateRegistryProxy), address(doo.anchorStateRegistryProxy()), "1100");
+        assertEq(address(output.anchorStateRegistryImpl), address(doo.anchorStateRegistryImpl()), "1200");
+        assertEq(address(output.faultDisputeGame), address(doo.faultDisputeGame()), "1300");
+        assertEq(address(output.permissionedDisputeGame), address(doo.permissionedDisputeGame()), "1400");
         assertEq(
-            address(output.delayedWETHPermissionedGameProxy), address(dso.delayedWETHPermissionedGameProxy()), "1500"
+            address(output.delayedWETHPermissionedGameProxy), address(doo.delayedWETHPermissionedGameProxy()), "1500"
         );
         assertEq(
             address(output.delayedWETHPermissionlessGameProxy),
-            address(dso.delayedWETHPermissionlessGameProxy()),
+            address(doo.delayedWETHPermissionlessGameProxy()),
             "1600"
         );
 
-        assertEq(keccak256(abi.encode(output)), keccak256(abi.encode(dso.output())), "1700");
+        assertEq(keccak256(abi.encode(output)), keccak256(abi.encode(doo.output())), "1700");
     }
 
     function test_getters_whenNotSet_revert() public {
         bytes memory expectedErr = "DeployUtils: zero address";
 
         vm.expectRevert(expectedErr);
-        dso.opChainProxyAdmin();
+        doo.opChainProxyAdmin();
 
         vm.expectRevert(expectedErr);
-        dso.addressManager();
+        doo.addressManager();
 
         vm.expectRevert(expectedErr);
-        dso.l1ERC721BridgeProxy();
+        doo.l1ERC721BridgeProxy();
 
         vm.expectRevert(expectedErr);
-        dso.systemConfigProxy();
+        doo.systemConfigProxy();
 
         vm.expectRevert(expectedErr);
-        dso.optimismMintableERC20FactoryProxy();
+        doo.optimismMintableERC20FactoryProxy();
 
         vm.expectRevert(expectedErr);
-        dso.l1StandardBridgeProxy();
+        doo.l1StandardBridgeProxy();
 
         vm.expectRevert(expectedErr);
-        dso.l1CrossDomainMessengerProxy();
+        doo.l1CrossDomainMessengerProxy();
 
         vm.expectRevert(expectedErr);
-        dso.optimismPortalProxy();
+        doo.optimismPortalProxy();
 
         vm.expectRevert(expectedErr);
-        dso.disputeGameFactoryProxy();
+        doo.disputeGameFactoryProxy();
 
         vm.expectRevert(expectedErr);
-        dso.disputeGameFactoryImpl();
+        doo.disputeGameFactoryImpl();
 
         vm.expectRevert(expectedErr);
-        dso.anchorStateRegistryProxy();
+        doo.anchorStateRegistryProxy();
 
         vm.expectRevert(expectedErr);
-        dso.anchorStateRegistryImpl();
+        doo.anchorStateRegistryImpl();
 
         vm.expectRevert(expectedErr);
-        dso.faultDisputeGame();
+        doo.faultDisputeGame();
 
         vm.expectRevert(expectedErr);
-        dso.permissionedDisputeGame();
+        doo.permissionedDisputeGame();
 
         vm.expectRevert(expectedErr);
-        dso.delayedWETHPermissionedGameProxy();
+        doo.delayedWETHPermissionedGameProxy();
 
         vm.expectRevert(expectedErr);
-        dso.delayedWETHPermissionlessGameProxy();
+        doo.delayedWETHPermissionlessGameProxy();
     }
 
     function test_getters_whenAddrHasNoCode_reverts() public {
         address emptyAddr = makeAddr("emptyAddr");
         bytes memory expectedErr = bytes(string.concat("DeployUtils: no code at ", vm.toString(emptyAddr)));
 
-        dso.set(dso.opChainProxyAdmin.selector, emptyAddr);
+        doo.set(doo.opChainProxyAdmin.selector, emptyAddr);
         vm.expectRevert(expectedErr);
-        dso.opChainProxyAdmin();
+        doo.opChainProxyAdmin();
 
-        dso.set(dso.addressManager.selector, emptyAddr);
+        doo.set(doo.addressManager.selector, emptyAddr);
         vm.expectRevert(expectedErr);
-        dso.addressManager();
+        doo.addressManager();
 
-        dso.set(dso.l1ERC721BridgeProxy.selector, emptyAddr);
+        doo.set(doo.l1ERC721BridgeProxy.selector, emptyAddr);
         vm.expectRevert(expectedErr);
-        dso.l1ERC721BridgeProxy();
+        doo.l1ERC721BridgeProxy();
 
-        dso.set(dso.systemConfigProxy.selector, emptyAddr);
+        doo.set(doo.systemConfigProxy.selector, emptyAddr);
         vm.expectRevert(expectedErr);
-        dso.systemConfigProxy();
+        doo.systemConfigProxy();
 
-        dso.set(dso.optimismMintableERC20FactoryProxy.selector, emptyAddr);
+        doo.set(doo.optimismMintableERC20FactoryProxy.selector, emptyAddr);
         vm.expectRevert(expectedErr);
-        dso.optimismMintableERC20FactoryProxy();
+        doo.optimismMintableERC20FactoryProxy();
 
-        dso.set(dso.l1StandardBridgeProxy.selector, emptyAddr);
+        doo.set(doo.l1StandardBridgeProxy.selector, emptyAddr);
         vm.expectRevert(expectedErr);
-        dso.l1StandardBridgeProxy();
+        doo.l1StandardBridgeProxy();
 
-        dso.set(dso.l1CrossDomainMessengerProxy.selector, emptyAddr);
+        doo.set(doo.l1CrossDomainMessengerProxy.selector, emptyAddr);
         vm.expectRevert(expectedErr);
-        dso.l1CrossDomainMessengerProxy();
+        doo.l1CrossDomainMessengerProxy();
 
-        dso.set(dso.optimismPortalProxy.selector, emptyAddr);
+        doo.set(doo.optimismPortalProxy.selector, emptyAddr);
         vm.expectRevert(expectedErr);
-        dso.optimismPortalProxy();
+        doo.optimismPortalProxy();
 
-        dso.set(dso.disputeGameFactoryProxy.selector, emptyAddr);
+        doo.set(doo.disputeGameFactoryProxy.selector, emptyAddr);
         vm.expectRevert(expectedErr);
-        dso.disputeGameFactoryProxy();
+        doo.disputeGameFactoryProxy();
 
-        dso.set(dso.disputeGameFactoryImpl.selector, emptyAddr);
+        doo.set(doo.disputeGameFactoryImpl.selector, emptyAddr);
         vm.expectRevert(expectedErr);
-        dso.disputeGameFactoryImpl();
+        doo.disputeGameFactoryImpl();
 
-        dso.set(dso.anchorStateRegistryProxy.selector, emptyAddr);
+        doo.set(doo.anchorStateRegistryProxy.selector, emptyAddr);
         vm.expectRevert(expectedErr);
-        dso.anchorStateRegistryProxy();
+        doo.anchorStateRegistryProxy();
 
-        dso.set(dso.anchorStateRegistryImpl.selector, emptyAddr);
+        doo.set(doo.anchorStateRegistryImpl.selector, emptyAddr);
         vm.expectRevert(expectedErr);
-        dso.anchorStateRegistryImpl();
+        doo.anchorStateRegistryImpl();
 
-        dso.set(dso.faultDisputeGame.selector, emptyAddr);
+        doo.set(doo.faultDisputeGame.selector, emptyAddr);
         vm.expectRevert(expectedErr);
-        dso.faultDisputeGame();
+        doo.faultDisputeGame();
 
-        dso.set(dso.permissionedDisputeGame.selector, emptyAddr);
+        doo.set(doo.permissionedDisputeGame.selector, emptyAddr);
         vm.expectRevert(expectedErr);
-        dso.permissionedDisputeGame();
+        doo.permissionedDisputeGame();
 
-        dso.set(dso.delayedWETHPermissionedGameProxy.selector, emptyAddr);
+        doo.set(doo.delayedWETHPermissionedGameProxy.selector, emptyAddr);
         vm.expectRevert(expectedErr);
-        dso.delayedWETHPermissionedGameProxy();
+        doo.delayedWETHPermissionedGameProxy();
 
-        dso.set(dso.delayedWETHPermissionlessGameProxy.selector, emptyAddr);
+        doo.set(doo.delayedWETHPermissionlessGameProxy.selector, emptyAddr);
         vm.expectRevert(expectedErr);
-        dso.delayedWETHPermissionlessGameProxy();
+        doo.delayedWETHPermissionlessGameProxy();
     }
 }
 
@@ -401,7 +401,7 @@ contract DeployOPChain_TestBase is Test {
 }
 
 contract DeployOPChain_Test is DeployOPChain_TestBase {
-    function test_run_succeeds(DeployOPChainInput.Input memory _input) public {
+    function testFuzz_run_succeeds(DeployOPChainInput.Input memory _input) public {
         vm.assume(_input.roles.opChainProxyAdminOwner != address(0));
         vm.assume(_input.roles.systemConfigOwner != address(0));
         vm.assume(_input.roles.batcher != address(0));

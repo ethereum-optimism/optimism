@@ -56,7 +56,15 @@ import { Solarray } from "scripts/libraries/Solarray.sol";
 // documentation.
 //
 // Additionally, we intentionally use "Input" and "Output" terminology to clearly distinguish these
-// scripts from the existing ones that use the "Config" and "Artifacts" terminology.
+// scripts from the existing ones that use the "Config" and "Artifacts" terminology. Within scripts
+// we use variable names that are shorthand for the full contract names, for example:
+//   - `dsi` for DeploySuperchainInput
+//   - `dso` for DeploySuperchainOutput
+//   - `dio` for DeployImplementationsInput
+//   - `dio` for DeployImplementationsOutput
+//   - `doo` for DeployOPChainInput
+//   - `doo` for DeployOPChainOutput
+//   - etc.
 contract DeploySuperchainInput is CommonBase {
     using stdToml for string;
 
