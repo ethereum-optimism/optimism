@@ -1,28 +1,37 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
-import { ResourceMetering } from "src/L1/ResourceMetering.sol";
+// Testing
+import { Vm } from "forge-std/Vm.sol";
+import { console2 as console } from "forge-std/console2.sol";
+
+// Scripts
 import { DeployConfig } from "scripts/deploy/DeployConfig.s.sol";
 import { Deployer } from "scripts/deploy/Deployer.sol";
-import { SystemConfig } from "src/L1/SystemConfig.sol";
-import { Constants } from "src/libraries/Constants.sol";
+
+// Contracts
+import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
 import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
-import { IL2OutputOracle } from "src/L1/interfaces/IL2OutputOracle.sol";
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
 import { ProtocolVersion, ProtocolVersions } from "src/L1/ProtocolVersions.sol";
-import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
-import { OptimismPortal } from "src/L1/OptimismPortal.sol";
-import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
-import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
+
+// Libraries
+import { Constants } from "src/libraries/Constants.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Types } from "scripts/libraries/Types.sol";
-import { Vm } from "forge-std/Vm.sol";
+
+// Interfaces
+import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
+import { ISystemConfig } from "src/L1/interfaces/ISystemConfig.sol";
+import { IL2OutputOracle } from "src/L1/interfaces/IL2OutputOracle.sol";
+import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
+import { IL1CrossDomainMessenger } from "src/L1/interfaces/IL1CrossDomainMessenger.sol";
+import { IOptimismPortal } from "src/L1/interfaces/IOptimismPortal.sol";
+import { IOptimismPortal2 } from "src/L1/interfaces/IOptimismPortal2.sol";
 import { ISystemConfigV0 } from "scripts/interfaces/ISystemConfigV0.sol";
-import { console2 as console } from "forge-std/console2.sol";
 
 library ChainAssertions {
     Vm internal constant vm = Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
@@ -39,8 +48,8 @@ library ChainAssertions {
         view
     {
         console.log("Running post-deploy assertions");
-        ResourceMetering.ResourceConfig memory rcfg = SystemConfig(_prox.SystemConfig).resourceConfig();
-        ResourceMetering.ResourceConfig memory dflt = Constants.DEFAULT_RESOURCE_CONFIG();
+        IResourceMetering.ResourceConfig memory rcfg = ISystemConfig(_prox.SystemConfig).resourceConfig();
+        IResourceMetering.ResourceConfig memory dflt = Constants.DEFAULT_RESOURCE_CONFIG();
         require(keccak256(abi.encode(rcfg)) == keccak256(abi.encode(dflt)));
 
         checkSystemConfig({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
@@ -62,12 +71,12 @@ library ChainAssertions {
     /// @notice Asserts that the SystemConfig is setup correctly
     function checkSystemConfig(Types.ContractSet memory _contracts, DeployConfig _cfg, bool _isProxy) internal view {
         console.log("Running chain assertions on the SystemConfig");
-        SystemConfig config = SystemConfig(_contracts.SystemConfig);
+        ISystemConfig config = ISystemConfig(_contracts.SystemConfig);
 
         // Check that the contract is initialized
         assertSlotValueIsOne({ _contractAddress: address(config), _slot: 0, _offset: 0 });
 
-        ResourceMetering.ResourceConfig memory resourceConfig = config.resourceConfig();
+        IResourceMetering.ResourceConfig memory resourceConfig = config.resourceConfig();
 
         if (_isProxy) {
             require(config.owner() == _cfg.finalSystemOwner());
@@ -78,7 +87,7 @@ library ChainAssertions {
             require(config.unsafeBlockSigner() == _cfg.p2pSequencerAddress());
             require(config.scalar() >> 248 == 1);
             // Check _config
-            ResourceMetering.ResourceConfig memory rconfig = Constants.DEFAULT_RESOURCE_CONFIG();
+            IResourceMetering.ResourceConfig memory rconfig = Constants.DEFAULT_RESOURCE_CONFIG();
             require(resourceConfig.maxResourceLimit == rconfig.maxResourceLimit);
             require(resourceConfig.elasticityMultiplier == rconfig.elasticityMultiplier);
             require(resourceConfig.baseFeeMaxChangeDenominator == rconfig.baseFeeMaxChangeDenominator);
@@ -127,7 +136,7 @@ library ChainAssertions {
     /// @notice Asserts that the L1CrossDomainMessenger is setup correctly
     function checkL1CrossDomainMessenger(Types.ContractSet memory _contracts, Vm _vm, bool _isProxy) internal view {
         console.log("Running chain assertions on the L1CrossDomainMessenger");
-        L1CrossDomainMessenger messenger = L1CrossDomainMessenger(_contracts.L1CrossDomainMessenger);
+        IL1CrossDomainMessenger messenger = IL1CrossDomainMessenger(_contracts.L1CrossDomainMessenger);
 
         // Check that the contract is initialized
         assertSlotValueIsOne({ _contractAddress: address(messenger), _slot: 0, _offset: 20 });
@@ -201,7 +210,7 @@ library ChainAssertions {
         if (_isProxy) {
             require(weth.owner() == _expectedOwner);
             require(weth.delay() == _cfg.faultGameWithdrawalDelay());
-            require(weth.config() == SuperchainConfig(_contracts.SuperchainConfig));
+            require(weth.config() == ISuperchainConfig(_contracts.SuperchainConfig));
         } else {
             require(weth.owner() == _expectedOwner);
             require(weth.delay() == _cfg.faultGameWithdrawalDelay());
@@ -227,7 +236,7 @@ library ChainAssertions {
         if (_isProxy) {
             require(weth.owner() == _expectedOwner);
             require(weth.delay() == _cfg.faultGameWithdrawalDelay());
-            require(weth.config() == SuperchainConfig(_contracts.SuperchainConfig));
+            require(weth.config() == ISuperchainConfig(_contracts.SuperchainConfig));
         } else {
             require(weth.owner() == _expectedOwner);
             require(weth.delay() == _cfg.faultGameWithdrawalDelay());
@@ -322,7 +331,7 @@ library ChainAssertions {
     function checkOptimismPortal(Types.ContractSet memory _contracts, DeployConfig _cfg, bool _isProxy) internal view {
         console.log("Running chain assertions on the OptimismPortal");
 
-        OptimismPortal portal = OptimismPortal(payable(_contracts.OptimismPortal));
+        IOptimismPortal portal = IOptimismPortal(payable(_contracts.OptimismPortal));
 
         // Check that the contract is initialized
         assertSlotValueIsOne({ _contractAddress: address(portal), _slot: 0, _offset: 0 });
@@ -337,7 +346,7 @@ library ChainAssertions {
             require(address(portal.systemConfig()) == _contracts.SystemConfig);
             require(portal.guardian() == guardian);
             require(address(portal.superchainConfig()) == address(_contracts.SuperchainConfig));
-            require(portal.paused() == SuperchainConfig(_contracts.SuperchainConfig).paused());
+            require(portal.paused() == ISuperchainConfig(_contracts.SuperchainConfig).paused());
             require(portal.l2Sender() == Constants.DEFAULT_L2_SENDER);
         } else {
             require(address(portal.l2Oracle()) == address(0));
@@ -358,7 +367,7 @@ library ChainAssertions {
     {
         console.log("Running chain assertions on the OptimismPortal2");
 
-        OptimismPortal2 portal = OptimismPortal2(payable(_contracts.OptimismPortal2));
+        IOptimismPortal2 portal = IOptimismPortal2(payable(_contracts.OptimismPortal2));
 
         // Check that the contract is initialized
         assertSlotValueIsOne({ _contractAddress: address(portal), _slot: 0, _offset: 0 });
@@ -373,7 +382,7 @@ library ChainAssertions {
             require(address(portal.systemConfig()) == _contracts.SystemConfig);
             require(portal.guardian() == guardian);
             require(address(portal.superchainConfig()) == address(_contracts.SuperchainConfig));
-            require(portal.paused() == SuperchainConfig(_contracts.SuperchainConfig).paused());
+            require(portal.paused() == ISuperchainConfig(_contracts.SuperchainConfig).paused());
             require(portal.l2Sender() == Constants.DEFAULT_L2_SENDER);
         } else {
             require(address(portal.disputeGameFactory()) == address(0));
@@ -422,7 +431,7 @@ library ChainAssertions {
         view
     {
         console.log("Running chain assertions on the SuperchainConfig");
-        SuperchainConfig superchainConfig = SuperchainConfig(_contracts.SuperchainConfig);
+        ISuperchainConfig superchainConfig = ISuperchainConfig(_contracts.SuperchainConfig);
 
         // Check that the contract is initialized
         assertSlotValueIsOne({ _contractAddress: address(superchainConfig), _slot: 0, _offset: 0 });

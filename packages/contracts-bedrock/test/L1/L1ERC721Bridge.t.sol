@@ -8,8 +8,8 @@ import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 // Target contract dependencies
 import { L2ERC721Bridge } from "src/L2/L2ERC721Bridge.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
-import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
+import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
+import { ICrossDomainMessenger } from "src/universal/interfaces/ICrossDomainMessenger.sol";
 
 // Target contract
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
@@ -323,7 +323,7 @@ contract L1ERC721Bridge_Pause_Test is Bridge_Initializer {
     /// @dev Ensures that the `paused` function of the bridge contract actually calls the `paused` function of the
     ///      `superchainConfig`.
     function test_pause_callsSuperchainConfig_succeeds() external {
-        vm.expectCall(address(superchainConfig), abi.encodeWithSelector(SuperchainConfig.paused.selector));
+        vm.expectCall(address(superchainConfig), abi.encodeWithSelector(ISuperchainConfig.paused.selector));
         l1ERC721Bridge.paused();
     }
 
@@ -352,7 +352,7 @@ contract L1ERC721Bridge_Pause_TestFail is Bridge_Initializer {
 
         vm.mockCall(
             address(l1ERC721Bridge.messenger()),
-            abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
+            abi.encodeWithSelector(ICrossDomainMessenger.xDomainMessageSender.selector),
             abi.encode(address(l1ERC721Bridge.otherBridge()))
         );
     }

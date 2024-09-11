@@ -16,7 +16,6 @@ import { Constants } from "src/libraries/Constants.sol";
 import { L2CrossDomainMessenger } from "src/L2/L2CrossDomainMessenger.sol";
 import { L2ToL1MessagePasser } from "src/L2/L2ToL1MessagePasser.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
-import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 
 contract L2CrossDomainMessenger_Test is Bridge_Initializer {
     /// @dev Receiver address for testing

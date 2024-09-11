@@ -39,7 +39,7 @@
     "label": "messenger",
     "offset": 0,
     "slot": "3",
-    "type": "contract CrossDomainMessenger"
+    "type": "contract ICrossDomainMessenger"
   },
   {
     "bytes": "20",

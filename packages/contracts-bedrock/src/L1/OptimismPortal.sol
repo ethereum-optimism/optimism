@@ -1,23 +1,29 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Contracts
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import { ResourceMetering } from "src/L1/ResourceMetering.sol";
+import { L1Block } from "src/L2/L1Block.sol";
+
+// Libraries
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { SafeCall } from "src/libraries/SafeCall.sol";
-import { IL2OutputOracle } from "src/L1/interfaces/IL2OutputOracle.sol";
-import { SystemConfig } from "src/L1/SystemConfig.sol";
-import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { SecureMerkleTrie } from "src/libraries/trie/SecureMerkleTrie.sol";
-import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
-import { ResourceMetering } from "src/L1/ResourceMetering.sol";
-import { ISemver } from "src/universal/interfaces/ISemver.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { L1Block } from "src/L2/L1Block.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import "src/libraries/PortalErrors.sol";
+
+// Interfaces
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IL2OutputOracle } from "src/L1/interfaces/IL2OutputOracle.sol";
+import { ISystemConfig } from "src/L1/interfaces/ISystemConfig.sol";
+import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
+import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
 
 /// @custom:proxied true
 /// @title OptimismPortal
@@ -64,7 +70,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     bool private spacer_53_0_1;
 
     /// @notice Contract of the Superchain Config.
-    SuperchainConfig public superchainConfig;
+    ISuperchainConfig public superchainConfig;
 
     /// @notice Contract of the L2OutputOracle.
     /// @custom:network-specific
@@ -72,7 +78,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
 
     /// @notice Contract of the SystemConfig.
     /// @custom:network-specific
-    SystemConfig public systemConfig;
+    ISystemConfig public systemConfig;
 
     /// @custom:spacer disputeGameFactory
     /// @notice Spacer for backwards compatibility.
@@ -137,8 +143,8 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     constructor() {
         initialize({
             _l2Oracle: IL2OutputOracle(address(0)),
-            _systemConfig: SystemConfig(address(0)),
-            _superchainConfig: SuperchainConfig(address(0))
+            _systemConfig: ISystemConfig(address(0)),
+            _superchainConfig: ISuperchainConfig(address(0))
         });
     }
 
@@ -148,8 +154,8 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     /// @param _superchainConfig Contract of the SuperchainConfig.
     function initialize(
         IL2OutputOracle _l2Oracle,
-        SystemConfig _systemConfig,
-        SuperchainConfig _superchainConfig
+        ISystemConfig _systemConfig,
+        ISuperchainConfig _superchainConfig
     )
         public
         initializer
@@ -222,8 +228,16 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     ///         Used internally by the ResourceMetering contract.
     ///         The SystemConfig is the source of truth for the resource config.
     /// @return ResourceMetering ResourceConfig
-    function _resourceConfig() internal view override returns (ResourceMetering.ResourceConfig memory) {
-        return systemConfig.resourceConfig();
+    function _resourceConfig() internal view override returns (ResourceConfig memory) {
+        IResourceMetering.ResourceConfig memory config = systemConfig.resourceConfig();
+        return ResourceConfig({
+            maxResourceLimit: config.maxResourceLimit,
+            elasticityMultiplier: config.elasticityMultiplier,
+            baseFeeMaxChangeDenominator: config.baseFeeMaxChangeDenominator,
+            minimumBaseFee: config.minimumBaseFee,
+            systemTxMaxGas: config.systemTxMaxGas,
+            maximumBaseFee: config.maximumBaseFee
+        });
     }
 
     /// @notice Proves a withdrawal transaction.
