@@ -376,6 +376,10 @@ contract DeploySuperchain is Script {
 
     // -------- Utilities --------
 
+    // This etches the IO contracts into memory so that we can use them in tests. When using file IO
+    // we don't need to call this directly, as the `DeploySuperchain.run(file, file)` entrypoint
+    // handles it. But when interacting with the script programmatically (e.g. in a Solidity test),
+    // this must be called.
     function etchIOContracts() public returns (DeploySuperchainInput dsi_, DeploySuperchainOutput dso_) {
         (dsi_, dso_) = getIOContracts();
         vm.etch(address(dsi_), type(DeploySuperchainInput).runtimeCode);
@@ -384,6 +388,7 @@ contract DeploySuperchain is Script {
         vm.allowCheatcodes(address(dso_));
     }
 
+    // This returns the addresses of the IO contracts for this script.
     function getIOContracts() public view returns (DeploySuperchainInput dsi_, DeploySuperchainOutput dso_) {
         dsi_ = DeploySuperchainInput(DeployUtils.toIOAddress(msg.sender, "optimism.DeploySuperchainInput"));
         dso_ = DeploySuperchainOutput(DeployUtils.toIOAddress(msg.sender, "optimism.DeploySuperchainOutput"));
