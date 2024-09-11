@@ -279,6 +279,39 @@ contract Deploy is Deployer {
         _run();
     }
 
+    /// @notice Deploy a new OP Chain using an existing SuperchainConfig and ProtocolVersions
+    /// @param _superchainConfigProxy Address of the existing SuperchainConfig proxy
+    /// @param _protocolVersionsProxy Address of the existing ProtocolVersions proxy
+    /// @param includeDump Whether to include a state dump after deployment
+    function runWithSuperchain(
+        address payable _superchainConfigProxy,
+        address payable _protocolVersionsProxy,
+        bool includeDump
+    )
+        public
+    {
+        require(_superchainConfigProxy != address(0), "must specify address for superchain config proxy");
+        require(_protocolVersionsProxy != address(0), "must specify address for protocol versions proxy");
+
+        vm.chainId(cfg.l1ChainID());
+
+        console.log("Deploying a fresh OP Stack with existing SuperchainConfig and ProtocolVersions");
+
+        Proxy scProxy = Proxy(_superchainConfigProxy);
+        save("SuperchainConfig", scProxy.implementation());
+        save("SuperchainConfigProxy", _superchainConfigProxy);
+
+        Proxy pvProxy = Proxy(_protocolVersionsProxy);
+        save("ProtocolVersions", pvProxy.implementation());
+        save("ProtocolVersionsProxy", _protocolVersionsProxy);
+
+        _run(false);
+
+        if (includeDump) {
+            vm.dumpState(Config.stateDumpPath(""));
+        }
+    }
+
     function runWithStateDump() public {
         vm.chainId(cfg.l1ChainID());
         _run();
@@ -290,13 +323,27 @@ contract Deploy is Deployer {
         _run();
     }
 
-    /// @notice Internal function containing the deploy logic.
+    /// @notice Compatibility function for tests that override _run().
     function _run() internal virtual {
+        _run(true);
+    }
+
+    /// @notice Internal function containing the deploy logic.
+    function _run(bool _needsSuperchain) internal {
         console.log("start of L1 Deploy!");
         deploySafe("SystemOwnerSafe");
         console.log("deployed Safe!");
-        setupSuperchain();
-        console.log("set up superchain!");
+
+        // Deploy a new ProxyAdmin and AddressManager
+        // This proxy will be used on the SuperchainConfig and ProtocolVersions contracts, as well as the contracts
+        // in the OP Chain system.
+        setupAdmin();
+
+        if (_needsSuperchain) {
+            setupSuperchain();
+            console.log("set up superchain!");
+        }
+
         if (cfg.useAltDA()) {
             bytes32 typeHash = keccak256(bytes(cfg.daCommitmentType()));
             bytes32 keccakHash = keccak256(bytes("KeccakCommitment"));
@@ -312,19 +359,19 @@ contract Deploy is Deployer {
     //           High Level Deployment Functions                  //
     ////////////////////////////////////////////////////////////////
 
+    /// @notice Deploy the address manager and proxy admin contracts.
+    function setupAdmin() public {
+        deployAddressManager();
+        deployProxyAdmin();
+        transferProxyAdminOwnership();
+    }
+
     /// @notice Deploy a full system with a new SuperchainConfig
     ///         The Superchain system has 2 singleton contracts which lie outside of an OP Chain:
     ///         1. The SuperchainConfig contract
     ///         2. The ProtocolVersions contract
     function setupSuperchain() public {
         console.log("Setting up Superchain");
-
-        // Deploy a new ProxyAdmin and AddressManager
-        // This proxy will be used on the SuperchainConfig and ProtocolVersions contracts, as well as the contracts
-        // in the OP Chain system.
-        deployAddressManager();
-        deployProxyAdmin();
-        transferProxyAdminOwnership();
 
         // Deploy the SuperchainConfigProxy
         deployERC1967Proxy("SuperchainConfigProxy");
