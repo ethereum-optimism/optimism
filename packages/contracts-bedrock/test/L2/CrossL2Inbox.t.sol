@@ -343,6 +343,13 @@ contract CrossL2InboxTest is Test {
         // Ensure that the contract has enough balance to send with value
         vm.deal(address(this), _value);
 
+        // Ensure is not a deposit transaction
+        vm.mockCall({
+            callee: Predeploys.L1_BLOCK_ATTRIBUTES,
+            data: abi.encodeWithSelector(IL1BlockIsthmus.isDeposit.selector),
+            returnData: abi.encode(false)
+        });
+
         // Expect a revert with the InvalidTimestamp selector
         vm.expectRevert(InvalidTimestamp.selector);
 
