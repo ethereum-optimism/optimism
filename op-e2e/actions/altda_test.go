@@ -60,7 +60,7 @@ func NewL2AltDA(t Testing, params ...AltDAParam) *L2AltDA {
 	log := testlog.Logger(t, log.LvlDebug)
 
 	dp := e2eutils.MakeDeployParams(t, p)
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 
 	require.True(t, sd.RollupCfg.AltDAEnabled())
 

@@ -30,7 +30,7 @@ func TestDeriveChainFromNearL1Genesis(gt *testing.T) {
 	dp := e2eutils.MakeDeployParams(t, p)
 	// do not activate Delta hardfork for verifier
 	applyDeltaTimeOffset(dp, nil)
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	logger := testlog.Logger(t, log.LevelInfo)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, logger)
 

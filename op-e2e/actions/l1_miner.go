@@ -17,7 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/trie"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-program/host/sources"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -52,7 +52,7 @@ func NewL1Miner(t Testing, log log.Logger, genesis *core.Genesis) *L1Miner {
 	}
 }
 
-func (s *L1Miner) BlobStore() derive.L1BlobsFetcher {
+func (s *L1Miner) BlobStore() sources.L1BlobSource {
 	return s.blobStore
 }
 
