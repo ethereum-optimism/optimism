@@ -57,9 +57,9 @@ contract L1Block is ISemver, IGasToken {
     /// @notice The latest L1 blob base fee.
     uint256 public blobBaseFee;
 
-    /// @custom:semver 1.4.1-beta.2
+    /// @custom:semver 1.5.1-beta.1
     function version() public pure virtual returns (string memory) {
-        return "1.4.1-beta.2";
+        return "1.5.1-beta.1";
     }
 
     /// @notice Returns the gas paying token, its decimals, name and symbol.
@@ -133,7 +133,23 @@ contract L1Block is ISemver, IGasToken {
     ///   7. _blobBaseFee        L1 blob base fee.
     ///   8. _hash               L1 blockhash.
     ///   9. _batcherHash        Versioned hash to authenticate batcher by.
-    function setL1BlockValuesEcotone() external {
+    function setL1BlockValuesEcotone() public {
+        _setL1BlockValuesEcotone();
+    }
+
+    /// @notice Updates the L1 block values for an Ecotone upgraded chain.
+    /// Params are packed and passed in as raw msg.data instead of ABI to reduce calldata size.
+    /// Params are expected to be in the following order:
+    ///   1. _baseFeeScalar      L1 base fee scalar
+    ///   2. _blobBaseFeeScalar  L1 blob base fee scalar
+    ///   3. _sequenceNumber     Number of L2 blocks since epoch start.
+    ///   4. _timestamp          L1 timestamp.
+    ///   5. _number             L1 blocknumber.
+    ///   6. _basefee            L1 base fee.
+    ///   7. _blobBaseFee        L1 blob base fee.
+    ///   8. _hash               L1 blockhash.
+    ///   9. _batcherHash        Versioned hash to authenticate batcher by.
+    function _setL1BlockValuesEcotone() internal {
         address depositor = DEPOSITOR_ACCOUNT();
         assembly {
             // Revert if the caller is not the depositor account.

@@ -92,6 +92,13 @@
   },
   {
     "inputs": [],
+    "name": "depositsComplete",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "gasPayingToken",
     "outputs": [
       {
@@ -154,6 +161,19 @@
       {
         "internalType": "bool",
         "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "isDeposit",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "isDeposit_",
         "type": "bool"
       }
     ],
@@ -334,6 +354,13 @@
   },
   {
     "inputs": [],
+    "name": "setL1BlockValuesIsthmus",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "timestamp",
     "outputs": [
       {
@@ -428,6 +455,11 @@
   {
     "inputs": [],
     "name": "DependencySetSizeTooLarge",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotCrossL2Inbox",
     "type": "error"
   },
   {

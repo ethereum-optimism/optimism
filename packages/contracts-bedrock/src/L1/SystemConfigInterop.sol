@@ -6,7 +6,7 @@ import { OptimismPortalInterop as OptimismPortal } from "src/L1/OptimismPortalIn
 import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
-import { ConfigType } from "src/L2/L1BlockInterop.sol";
+import { ConfigType } from "src/L2/L1BlockIsthmus.sol";
 import { StaticConfig } from "src/libraries/StaticConfig.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { Storage } from "src/libraries/Storage.sol";

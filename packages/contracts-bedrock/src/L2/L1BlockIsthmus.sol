@@ -5,9 +5,10 @@ import { L1Block } from "src/L2/L1Block.sol";
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
 import { StaticConfig } from "src/libraries/StaticConfig.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
 import "src/libraries/L1BlockErrors.sol";
 
-/// @notice Enum representing different types of configurations that can be set on L1BlockInterop.
+/// @notice Enum representing different types of configurations that can be set on L1BlockIsthmus.
 /// @custom:value SET_GAS_PAYING_TOKEN  Represents the config type for setting the gas paying token.
 /// @custom:value ADD_DEPENDENCY        Represents the config type for adding a chain to the interop dependency set.
 /// @custom:value REMOVE_DEPENDENCY     Represents the config type for removing a chain from the interop dependency set.
@@ -19,9 +20,9 @@ enum ConfigType {
 
 /// @custom:proxied true
 /// @custom:predeploy 0x4200000000000000000000000000000000000015
-/// @title L1BlockInterop
-/// @notice Interop extenstions of L1Block.
-contract L1BlockInterop is L1Block {
+/// @title L1BlockIsthmus
+/// @notice Isthmus extenstions of L1Block.
+contract L1BlockIsthmus is L1Block {
     using EnumerableSet for EnumerableSet.UintSet;
 
     /// @notice Event emitted when a new dependency is added to the interop dependency set.
@@ -33,9 +34,23 @@ contract L1BlockInterop is L1Block {
     /// @notice The interop dependency set, containing the chain IDs in it.
     EnumerableSet.UintSet dependencySet;
 
-    /// @custom:semver +interop
+    /// @notice Storage slot that the isDeposit is stored at.
+    ///         This is a custom slot that is not part of the standard storage layout.
+    /// keccak256(abi.encode(uint256(keccak256("l1Block.identifier.isDeposit")) - 1)) & ~bytes32(uint256(0xff))
+    uint256 internal constant IS_DEPOSIT_SLOT = 0x921bd3a089295c6e5540e8fba8195448d253efd6f2e3e495b499b627dc36a300;
+
+    /// @custom:semver +isthmus
     function version() public pure override returns (string memory) {
-        return string.concat(super.version(), "+interop");
+        return string.concat(super.version(), "+isthmus");
+    }
+
+    /// @notice Returns whether the call was triggered from a a deposit or not.
+    /// @notice This function is only callable by the CrossL2Inbox contract.
+    function isDeposit() external view returns (bool isDeposit_) {
+        if (msg.sender != Predeploys.CROSS_L2_INBOX) revert NotCrossL2Inbox();
+        assembly {
+            isDeposit_ := sload(IS_DEPOSIT_SLOT)
+        }
     }
 
     /// @notice Returns true if a chain ID is in the interop dependency set and false otherwise.
@@ -50,6 +65,29 @@ contract L1BlockInterop is L1Block {
     /// @return The size of the interop dependency set.
     function dependencySetSize() external view returns (uint8) {
         return uint8(dependencySet.length());
+    }
+
+    /// @notice Updates the `isDeposit` flag and sets the L1 block values for an Isthmus upgraded chain.
+    ///         It updates the L1 block values through the `setL1BlockValuesEcotone` function.
+    ///         It forwards the calldata to the internally-used `setL1BlockValuesEcotone` function.
+    function setL1BlockValuesIsthmus() external {
+        // Set the isDeposit flag to true.
+        assembly {
+            sstore(IS_DEPOSIT_SLOT, 1)
+        }
+
+        _setL1BlockValuesEcotone();
+    }
+
+    /// @notice Resets the isDeposit flag.
+    ///         Should only be called by the depositor account after the deposits are complete.
+    function depositsComplete() external {
+        if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
+
+        // Set the isDeposit flag to false.
+        assembly {
+            sstore(IS_DEPOSIT_SLOT, 0)
+        }
     }
 
     /// @notice Sets static configuration options for the L2 system. Can only be called by the special

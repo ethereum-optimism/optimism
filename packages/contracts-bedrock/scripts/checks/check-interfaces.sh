@@ -67,6 +67,7 @@ EXCLUDE_CONTRACTS=(
     "IL1StandardBridge"
     "ISuperchainConfig"
     "IOptimismPortal"
+    "IL1BlockIsthmus"
 )
 
 # Find all JSON files in the forge-artifacts folder
