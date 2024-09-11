@@ -2001,7 +2001,7 @@ workflows:
           name: proofs-tools-docker-release
           filters:
             tags:
-              only: /^proofs-tools\/v.*/  # TODO: Should this just build on op-challenger releases?
+              only: /^proofs-tools\/v.*/
             branches:
               ignore: /.*/
           docker_name: proofs-tools
