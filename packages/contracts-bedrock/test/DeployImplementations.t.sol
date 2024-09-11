@@ -46,7 +46,7 @@ contract DeployImplementationsInput_Test is Test {
         // This test is currently skipped because loadInputFile is not implemented.
         vm.skip(true);
 
-        // Compare the test input struct to the getter methods.
+        // Compare the test inputs to the getter methods.
         // assertEq(withdrawalDelaySeconds, dii.withdrawalDelaySeconds(), "100");
         // assertEq(minProposalSizeBytes, dii.minProposalSizeBytes(), "200");
         // assertEq(challengePeriodSeconds, dii.challengePeriodSeconds(), "300");
@@ -222,7 +222,7 @@ contract DeployImplementations_Test is Test {
     DeployImplementationsInput dii;
     DeployImplementationsOutput dio;
 
-    // Define a default input struct for testing.
+    // Define default inputs for testing.
     uint256 withdrawalDelaySeconds = 100;
     uint256 minProposalSizeBytes = 200;
     uint256 challengePeriodSeconds = 300;
@@ -248,7 +248,7 @@ contract DeployImplementations_Test is Test {
         return keccak256(abi.encode(_seed, _i));
     }
 
-    function testFuzz_run_succeeds(bytes32 _seed) public {
+    function testFuzz_run_memory_succeeds(bytes32 _seed) public {
         withdrawalDelaySeconds = uint256(hash(_seed, 0));
         minProposalSizeBytes = uint256(hash(_seed, 1));
         challengePeriodSeconds = bound(uint256(hash(_seed, 2)), 0, type(uint64).max);
@@ -269,7 +269,7 @@ contract DeployImplementations_Test is Test {
 
         deployImplementations.run(dii, dio);
 
-        // Assert that individual input fields were properly set based on the input struct.
+        // Assert that individual input fields were properly set based on the inputs.
         assertEq(withdrawalDelaySeconds, dii.withdrawalDelaySeconds(), "100");
         assertEq(minProposalSizeBytes, dii.minProposalSizeBytes(), "200");
         assertEq(challengePeriodSeconds, dii.challengePeriodSeconds(), "300");

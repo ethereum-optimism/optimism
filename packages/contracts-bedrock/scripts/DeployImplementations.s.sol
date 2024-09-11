@@ -77,7 +77,7 @@ contract DeployImplementationsInput {
     }
 
     function set(bytes4 sel, address _addr) public {
-        require(_addr != address(0), "DeployImplementationsInput: cannot set null address");
+        require(_addr != address(0), "DeployImplementationsInput: cannot set zero address");
         if (sel == this.superchainConfigProxy.selector) _superchainConfigProxy = SuperchainConfig(_addr);
         else if (sel == this.protocolVersionsProxy.selector) _protocolVersionsProxy = ProtocolVersions(_addr);
         else revert("DeployImplementationsInput: unknown selector");
@@ -146,7 +146,7 @@ contract DeployImplementationsOutput {
     DisputeGameFactory internal _disputeGameFactoryImpl;
 
     function set(bytes4 sel, address _addr) public {
-        require(_addr != address(0), "DeployImplementationsOutput: cannot set null address");
+        require(_addr != address(0), "DeployImplementationsOutput: cannot set zero address");
 
         // forgefmt: disable-start
         if (sel == this.opsm.selector) _opsm = OPStackManager(payable(_addr));
