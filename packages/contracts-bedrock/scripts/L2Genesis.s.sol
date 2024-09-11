@@ -15,18 +15,13 @@ import { Process } from "scripts/libraries/Process.sol";
 import { SetPreinstalls } from "scripts/SetPreinstalls.s.sol";
 
 // Contracts
-import { L2CrossDomainMessenger } from "src/L2/L2CrossDomainMessenger.sol";
 import { L1Block } from "src/L2/L1Block.sol";
 import { GasPriceOracle } from "src/L2/GasPriceOracle.sol";
-import { L2StandardBridge } from "src/L2/L2StandardBridge.sol";
-import { L2ERC721Bridge } from "src/L2/L2ERC721Bridge.sol";
 import { SequencerFeeVault } from "src/L2/SequencerFeeVault.sol";
 import { BaseFeeVault } from "src/L2/BaseFeeVault.sol";
 import { L1FeeVault } from "src/L2/L1FeeVault.sol";
 import { OptimismSuperchainERC20Beacon } from "src/L2/OptimismSuperchainERC20Beacon.sol";
 import { OptimismMintableERC721Factory } from "src/universal/OptimismMintableERC721Factory.sol";
-import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
-import { StandardBridge } from "src/universal/StandardBridge.sol";
 import { FeeVault } from "src/universal/FeeVault.sol";
 import { GovernanceToken } from "src/governance/GovernanceToken.sol";
 
@@ -36,6 +31,11 @@ import { Preinstalls } from "src/libraries/Preinstalls.sol";
 
 // Interfaces
 import { IOptimismMintableERC20Factory } from "src/universal/interfaces/IOptimismMintableERC20Factory.sol";
+import { IL2CrossDomainMessenger } from "src/L2/interfaces/IL2CrossDomainMessenger.sol";
+import { IL2StandardBridge } from "src/L2/interfaces/IL2StandardBridge.sol";
+import { IL2ERC721Bridge } from "src/L2/interfaces/IL2ERC721Bridge.sol";
+import { IStandardBridge } from "src/universal/interfaces/IStandardBridge.sol";
+import { ICrossDomainMessenger } from "src/universal/interfaces/ICrossDomainMessenger.sol";
 
 interface IInitializable {
     function initialize(address _addr) external;
@@ -304,10 +304,10 @@ contract L2Genesis is Deployer {
     function setL2CrossDomainMessenger(address payable _l1CrossDomainMessengerProxy) public {
         address impl = _setImplementationCode(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
 
-        L2CrossDomainMessenger(impl).initialize({ _l1CrossDomainMessenger: CrossDomainMessenger(address(0)) });
+        IL2CrossDomainMessenger(impl).initialize({ _l1CrossDomainMessenger: ICrossDomainMessenger(address(0)) });
 
-        L2CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).initialize({
-            _l1CrossDomainMessenger: CrossDomainMessenger(_l1CrossDomainMessengerProxy)
+        IL2CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).initialize({
+            _l1CrossDomainMessenger: ICrossDomainMessenger(_l1CrossDomainMessengerProxy)
         });
     }
 
@@ -323,10 +323,10 @@ contract L2Genesis is Deployer {
             impl = _setImplementationCode(Predeploys.L2_STANDARD_BRIDGE);
         }
 
-        L2StandardBridge(payable(impl)).initialize({ _otherBridge: StandardBridge(payable(address(0))) });
+        IL2StandardBridge(payable(impl)).initialize({ _otherBridge: IStandardBridge(payable(address(0))) });
 
-        L2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).initialize({
-            _otherBridge: StandardBridge(_l1StandardBridgeProxy)
+        IL2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).initialize({
+            _otherBridge: IStandardBridge(_l1StandardBridgeProxy)
         });
     }
 
@@ -334,9 +334,9 @@ contract L2Genesis is Deployer {
     function setL2ERC721Bridge(address payable _l1ERC721BridgeProxy) public {
         address impl = _setImplementationCode(Predeploys.L2_ERC721_BRIDGE);
 
-        L2ERC721Bridge(impl).initialize({ _l1ERC721Bridge: payable(address(0)) });
+        IL2ERC721Bridge(impl).initialize({ _l1ERC721Bridge: payable(address(0)) });
 
-        L2ERC721Bridge(Predeploys.L2_ERC721_BRIDGE).initialize({ _l1ERC721Bridge: payable(_l1ERC721BridgeProxy) });
+        IL2ERC721Bridge(Predeploys.L2_ERC721_BRIDGE).initialize({ _l1ERC721Bridge: payable(_l1ERC721BridgeProxy) });
     }
 
     /// @notice This predeploy is following the safety invariant #2,

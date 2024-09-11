@@ -8,7 +8,6 @@ import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
 // Contracts
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { StandardBridge } from "src/universal/StandardBridge.sol";
-import { L2StandardBridge } from "src/L2/L2StandardBridge.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
