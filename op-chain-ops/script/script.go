@@ -407,11 +407,19 @@ func (h *Host) onEnter(depth int, typ byte, from common.Address, to common.Addre
 	if parentCallFrame.Prank == nil {
 		return
 	}
-	if parentCallFrame.Prank.Sender != nil {
-		// TODO undo nonce bump of original sender
-		//  (retrieve this from the parent context scope-context, since `from` has already been updated.)
-		// TODO bump nonce of overridden sender
+
+	if vm.OpCode(typ) == vm.CALL && to != VMAddr {
+		sender := parentCallFrame.Ctx.Caller()
+		if parentCallFrame.Prank.Sender != nil {
+			sender = *parentCallFrame.Prank.Sender
+		}
+
+		h.state.SetNonce(
+			sender,
+			h.state.GetNonce(sender)+1,
+		)
 	}
+
 	if parentCallFrame.Prank.Broadcast && h.isolateBroadcasts {
 		var dest *common.Address
 		switch parentCallFrame.LastOp {
@@ -465,18 +473,6 @@ func (h *Host) unwindCallstack(depth int) {
 						h.log.Trace("Broadcast is active, ignoring static-call.")
 					} else {
 						currentCallFrame := h.callStack[len(h.callStack)-1]
-
-						// Have to handle vm.CALLs here since the VM does not
-						// increase nonces for calls. Broadcasting changes this
-						// behavior, so we have to manually increase the nonce.
-						if parentCallFrame.LastOp == vm.CALL {
-							caller := currentCallFrame.Ctx.Caller()
-							h.state.SetNonce(
-								caller,
-								h.state.GetNonce(caller)+1,
-							)
-						}
-
 						bcast := NewBroadcast(parentCallFrame, currentCallFrame)
 						h.log.Debug(
 							"calling broadcast hook",
