@@ -44,11 +44,11 @@ func NewQueue[T any](ctx context.Context, txMgr TxManager, maxPending uint64) *Q
 }
 
 // Wait waits for all pending txs to complete (or fail).
-func (q *Queue[T]) Wait() {
+func (q *Queue[T]) Wait() error {
 	if q.group == nil {
-		return
+		return nil
 	}
-	_ = q.group.Wait()
+	return q.group.Wait()
 }
 
 // Send will wait until the number of pending txs is below the max pending,

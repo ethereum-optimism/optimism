@@ -187,8 +187,8 @@ func (d *DAServer) HandlePut(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (b *DAServer) Endpoint() string {
-	return b.listener.Addr().String()
+func (b *DAServer) HttpEndpoint() string {
+	return fmt.Sprintf("http://%s", b.listener.Addr().String())
 }
 
 func (b *DAServer) Stop() error {
