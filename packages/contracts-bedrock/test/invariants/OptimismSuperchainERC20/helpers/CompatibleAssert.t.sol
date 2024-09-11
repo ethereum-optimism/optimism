@@ -15,7 +15,7 @@ contract CompatibleAssert {
 
     function compatibleAssert(bool condition, string memory message) internal {
         if (!condition) {
-            if(bytes(message).length != 0) console.log("Assertion failed: ", message);
+            if (bytes(message).length != 0) console.log("Assertion failed: ", message);
             else console.log("Assertion failed");
 
             // for foundry to call & check

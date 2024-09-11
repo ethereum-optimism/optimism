@@ -5,13 +5,14 @@ import { MockL2ToL2CrossDomainMessenger } from "../helpers/MockL2ToL2CrossDomain
 import { OptimismSuperchainERC20 } from "src/L2/OptimismSuperchainERC20.sol";
 import { ProtocolHandler } from "../handlers/Protocol.t.sol";
 import { EnumerableMap } from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
-import { CompatibleAssert } from '../helpers/CompatibleAssert.t.sol';
+import { CompatibleAssert } from "../helpers/CompatibleAssert.t.sol";
 
 contract ProtocolGuided is ProtocolHandler, CompatibleAssert {
     using EnumerableMap for EnumerableMap.Bytes32ToUintMap;
     /// @notice deploy a new supertoken with deploy salt determined by params, to the given (of course mocked) chainId
     /// @custom:property-id 14
     /// @custom:property supertoken total supply starts at zero
+
     function fuzz_deployNewSupertoken(
         TokenDeployParams memory params,
         uint256 chainId
@@ -66,7 +67,9 @@ contract ProtocolGuided is ProtocolHandler, CompatibleAssert {
             uint256 sourceBalanceAfter = sourceToken.balanceOf(currentActor());
             uint256 destinationBalanceAfter = destinationToken.balanceOf(recipient);
             // no free mint
-            compatibleAssert(sourceBalanceBefore + destinationBalanceBefore == sourceBalanceAfter + destinationBalanceAfter);
+            compatibleAssert(
+                sourceBalanceBefore + destinationBalanceBefore == sourceBalanceAfter + destinationBalanceAfter
+            );
             // 22
             compatibleAssert(sourceBalanceBefore - amount == sourceBalanceAfter);
             compatibleAssert(destinationBalanceBefore + amount == destinationBalanceAfter);
@@ -124,7 +127,8 @@ contract ProtocolGuided is ProtocolHandler, CompatibleAssert {
     }
 
     /// @custom:property-id 11
-    /// @custom:property relayERC20 increases the token's totalSupply in the destination chain exactly by the input amount
+    /// @custom:property relayERC20 increases the token's totalSupply in the destination chain exactly by the input
+    /// amount
     /// @custom:property-id 27
     /// @custom:property relayERC20 increases sender's balance in the destination chain exactly by the input amount
     /// @custom:property-id 7

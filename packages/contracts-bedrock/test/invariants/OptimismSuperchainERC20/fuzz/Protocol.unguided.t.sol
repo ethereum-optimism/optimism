@@ -4,10 +4,10 @@ pragma solidity ^0.8.25;
 import { ProtocolHandler } from "../handlers/Protocol.t.sol";
 import { EnumerableMap } from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import { OptimismSuperchainERC20 } from "src/L2/OptimismSuperchainERC20.sol";
-import { CompatibleAssert } from '../helpers/CompatibleAssert.t.sol';
+import { CompatibleAssert } from "../helpers/CompatibleAssert.t.sol";
 
 // TODO: add fuzz_sendERC20 when we implement non-atomic bridging
-contract ProtocolUnguided is ProtocolHandler , CompatibleAssert{
+contract ProtocolUnguided is ProtocolHandler, CompatibleAssert {
     using EnumerableMap for EnumerableMap.Bytes32ToUintMap;
 
     /// @custom:property-id 7
@@ -82,7 +82,6 @@ contract ProtocolUnguided is ProtocolHandler , CompatibleAssert{
         }
     }
 
-
     /// @custom:property-id 12
     /// @custom:property supertoken total supply only increases on calls to mint() by the L2toL2StandardBridge
     function fuzz_mint(uint256 tokenIndex, address to, address sender, uint256 amount) external {
@@ -98,7 +97,6 @@ contract ProtocolUnguided is ProtocolHandler , CompatibleAssert{
             compatibleAssert(sender != BRIDGE || to == address(0));
         }
     }
-
 
     /// @custom:property-id 13
     /// @custom:property supertoken total supply only increases on calls to mint() by the L2toL2StandardBridge

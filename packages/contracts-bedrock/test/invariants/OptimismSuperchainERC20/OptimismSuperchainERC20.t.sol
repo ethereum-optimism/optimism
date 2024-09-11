@@ -72,7 +72,8 @@ contract OptimismSuperchainERC20Properties is Test {
         }
     }
 
-    /// @custom:invariant many other assertion mode invariants are also defined  under `test/invariants/OptimismSuperchainERC20/fuzz/` .
+    /// @custom:invariant many other assertion mode invariants are also defined  under
+    /// `test/invariants/OptimismSuperchainERC20/fuzz/` .
     ///
     ///     since setting`fail_on_revert=false` also ignores StdAssertion failures, this invariant explicitly asks the
     ///     handler for assertion test failures

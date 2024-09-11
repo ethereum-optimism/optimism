@@ -6,6 +6,7 @@ import { EnumerableMap } from "@openzeppelin/contracts/utils/structs/EnumerableM
 
 contract HandlerGetters is ProtocolHandler {
     using EnumerableMap for EnumerableMap.Bytes32ToUintMap;
+
     function deploySaltsLength() external view returns (uint256 length) {
         return ghost_totalSupplyAcrossChains.length();
     }
