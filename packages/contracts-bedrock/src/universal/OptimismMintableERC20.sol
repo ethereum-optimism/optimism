@@ -14,14 +14,14 @@ import { ISemver } from "src/universal/interfaces/ISemver.sol";
 ///         Designed to be backwards compatible with the older StandardL2ERC20 token which was only
 ///         meant for use on L2.
 contract OptimismMintableERC20 is IOptimismMintableERC20, ILegacyMintableERC20, ERC20Permit, ISemver {
+    /// @notice Address of permit2 on this network.
+    address public constant PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
+
     /// @notice Address of the corresponding version of this token on the remote chain.
     address public immutable REMOTE_TOKEN;
 
     /// @notice Address of the StandardBridge on this network.
     address public immutable BRIDGE;
-
-    /// @notice Address of permit2 on this network..
-    address public constant PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
 
     /// @notice Decimals of the token
     uint8 private immutable DECIMALS;
