@@ -416,7 +416,7 @@ func (c *ChannelBuilder) HasFrame() bool {
 }
 
 // PendingFrames returns the number of pending frames in the frames queue.
-// It is larger zero iff HasFrames() returns true.
+// It is larger zero iff HasFrame() returns true.
 func (c *ChannelBuilder) PendingFrames() int {
 	return len(c.frames)
 }

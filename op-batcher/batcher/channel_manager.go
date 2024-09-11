@@ -158,6 +158,7 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 	defer s.mu.Unlock()
 	var firstWithTxData *channel
 	for _, ch := range s.channelQueue {
+		ch.updateDATypeAndRebuild(s.cfgProvider)
 		if ch.HasTxData() {
 			firstWithTxData = ch
 			break
@@ -168,7 +169,7 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 	s.log.Debug("Requested tx data", "l1Head", l1Head, "txdata_pending", dataPending, "blocks_pending", len(s.blocks))
 
 	// Short circuit if there is pending tx data or the channel manager is closed.
-	// TODO do we need to checkDynamicConfigAndRebuild here?
+
 	if dataPending || s.closed {
 		return s.nextTxData(firstWithTxData)
 	}

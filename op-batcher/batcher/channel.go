@@ -181,7 +181,8 @@ func (s *channel) HasTxData() bool {
 		return s.channelBuilder.HasFrame()
 	}
 	// collect enough frames if channel is not full yet
-	return s.channelBuilder.PendingFrames() >= int(s.cfg.MaxFramesPerTx())
+	// GK -- OR if the channel is full and we are using blobs??
+	return s.channelBuilder.PendingFrames() >= int(s.cfg.MaxFramesPerTx()) // Why isn't this checking the minimum frames per tx?
 }
 
 func (s *channel) IsFull() bool {
@@ -246,4 +247,35 @@ func (c *channel) OldestL2() eth.BlockID {
 
 func (s *channel) Close() {
 	s.channelBuilder.Close()
+}
+
+func (s *channel) updateDATypeAndRebuild(p ChannelConfigProvider) {
+	if len(s.pendingTransactions) != 0 {
+		// Channel has already started to be sent to L1
+		// We should not modify the DA type, since this can cause
+		// problems with transaction replacement / cancelling
+		return
+	}
+	usingBlobsInitially := s.cfg.UseBlobs
+	channelBytes := []byte{} // TODO use actual channel data
+	s.cfg = p.ChannelConfig(channelBytes)
+	if s.cfg.UseBlobs == usingBlobsInitially {
+		// No change to DA type, proceed as planned
+		return
+	}
+	// DA type has been changed, we need to rebuild the channel
+	newChannelBuilder, err := NewChannelBuilder(s.cfg, s.channelBuilder.rollupCfg, s.LatestL1Origin().Number)
+	if err != nil {
+		panic(err)
+		// TODO don't panic
+	}
+	for _, b := range s.channelBuilder.blocks {
+		newChannelBuilder.AddBlock(b)
+		// TODO error handling here.
+		// TODO I wonder if we want to be rebuilding at a layer above in the channel manager,
+		// because we could end up filling this channel and need to overflow into another one?
+	}
+
+	s.channelBuilder = newChannelBuilder
+
 }
