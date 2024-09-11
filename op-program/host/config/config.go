@@ -13,6 +13,7 @@ import (
 	opnode "github.com/ethereum-optimism/optimism/op-node"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-program/host/flags"
+	hostSources "github.com/ethereum-optimism/optimism/op-program/host/sources"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
@@ -73,6 +74,11 @@ type Config struct {
 
 	// IsCustomChainConfig indicates that the program uses a custom chain configuration
 	IsCustomChainConfig bool
+
+	// Optional process sources. Will be favored over the RPC sources if set.
+	L1ProcessSource       hostSources.L1Source
+	L1BeaconProcessSource hostSources.L1BlobSource
+	L2ProcessSource       hostSources.L2Source
 }
 
 func (c *Config) Check() error {
@@ -113,8 +119,11 @@ func (c *Config) Check() error {
 }
 
 func (c *Config) FetchingEnabled() bool {
-	// TODO: Include Beacon URL once cancun is active on all chains we fault prove.
-	return c.L1URL != "" && c.L2URL != ""
+	return (c.L1URL != "" && c.L2URL != "" && c.L1BeaconURL != "") || c.InProcessSourcesEnabled()
+}
+
+func (c *Config) InProcessSourcesEnabled() bool {
+	return c.L1ProcessSource != nil && c.L1BeaconProcessSource != nil && c.L2ProcessSource != nil
 }
 
 // NewConfig creates a Config with all optional values set to the CLI default value

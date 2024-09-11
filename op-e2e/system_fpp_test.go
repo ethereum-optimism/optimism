@@ -281,6 +281,7 @@ func testFaultProofProgramScenario(t *testing.T, ctx context.Context, sys *Syste
 	fppConfig := oppconf.NewConfig(sys.RollupConfig, sys.L2GenesisCfg.Config, s.L1Head, s.L2Head, s.L2OutputRoot, common.Hash(s.L2Claim), s.L2ClaimBlockNumber)
 	fppConfig.L1URL = sys.NodeEndpoint("l1").RPC()
 	fppConfig.L2URL = sys.NodeEndpoint("sequencer").RPC()
+	fppConfig.L1BeaconURL = sys.L1BeaconEndpoint().RestHTTP()
 	fppConfig.DataDir = preimageDir
 	if s.Detached {
 		// When running in detached mode we need to compile the client executable since it will be called directly.
