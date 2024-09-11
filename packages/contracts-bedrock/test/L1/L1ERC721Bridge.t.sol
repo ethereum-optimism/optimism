@@ -1,18 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-// Testing utilities
+// Testing
 import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
-import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 
-// Target contract dependencies
+// Contracts
+import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import { L2ERC721Bridge } from "src/L2/L2ERC721Bridge.sol";
+
+// Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
+
+// Interfaces
 import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
 import { ICrossDomainMessenger } from "src/universal/interfaces/ICrossDomainMessenger.sol";
-
-// Target contract
-import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
+import { IL1ERC721Bridge } from "src/L1/interfaces/IL1ERC721Bridge.sol";
 
 /// @dev Test ERC721 contract.
 contract TestERC721 is ERC721 {
@@ -67,7 +69,7 @@ contract L1ERC721Bridge_Test is Bridge_Initializer {
     /// @notice Marked virtual to be overridden in
     ///         test/kontrol/deployment/DeploymentSummary.t.sol
     function test_constructor_succeeds() public virtual {
-        L1ERC721Bridge impl = L1ERC721Bridge(deploy.mustGetAddress("L1ERC721Bridge"));
+        IL1ERC721Bridge impl = IL1ERC721Bridge(deploy.mustGetAddress("L1ERC721Bridge"));
         assertEq(address(impl.MESSENGER()), address(0));
         assertEq(address(impl.messenger()), address(0));
         assertEq(address(impl.OTHER_BRIDGE()), Predeploys.L2_ERC721_BRIDGE);

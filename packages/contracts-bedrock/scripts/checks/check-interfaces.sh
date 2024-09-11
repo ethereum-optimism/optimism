@@ -35,7 +35,6 @@ EXCLUDE_CONTRACTS=(
     "Vm"
     "VmSafe"
     "IMulticall3"
-    "IBeacon"
     "IERC721TokenReceiver"
     "IProxyCreationCallback"
 
@@ -68,6 +67,9 @@ EXCLUDE_CONTRACTS=(
     "ISuperchainConfig"
     "IOptimismPortal"
     "IL1BlockIsthmus"
+
+    # Need to make complex tweaks to the check script for this one
+    "ISystemConfigInterop"
 )
 
 # Find all JSON files in the forge-artifacts folder

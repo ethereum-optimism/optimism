@@ -7,9 +7,9 @@ import { Executables } from "scripts/libraries/Executables.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { ICrossDomainMessenger } from "src/universal/interfaces/ICrossDomainMessenger.sol";
+import { StandardBridge } from "src/universal/StandardBridge.sol";
 import { ISystemConfig } from "src/L1/interfaces/ISystemConfig.sol";
 import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
-import { SystemConfigInterop } from "src/L1/SystemConfigInterop.sol";
 import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
 import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
 import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
@@ -17,7 +17,7 @@ import { PermissionedDisputeGame } from "src/dispute/PermissionedDisputeGame.sol
 import { GameTypes } from "src/dispute/lib/Types.sol";
 import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
 import { Process } from "scripts/libraries/Process.sol";
-import "src/L1/ProtocolVersions.sol";
+import { ProtocolVersion } from "src/L1/interfaces/IProtocolVersions.sol";
 import "src/dispute/lib/Types.sol";
 import "scripts/deploy/Deployer.sol";
 
@@ -296,7 +296,7 @@ contract Initializer_Test is Bridge_Initializer {
             InitializeableContract({
                 name: "L2StandardBridge",
                 target: address(l2StandardBridge),
-                initCalldata: abi.encodeCall(l2StandardBridge.initialize, (l1StandardBridge))
+                initCalldata: abi.encodeCall(l2StandardBridge.initialize, (StandardBridge(payable(l1StandardBridge))))
             })
         );
         // L2StandardBridgeInterop
@@ -304,7 +304,7 @@ contract Initializer_Test is Bridge_Initializer {
             InitializeableContract({
                 name: "L2StandardBridgeInterop",
                 target: address(l2StandardBridge),
-                initCalldata: abi.encodeCall(l2StandardBridge.initialize, (l1StandardBridge))
+                initCalldata: abi.encodeCall(l2StandardBridge.initialize, (StandardBridge(payable(l1StandardBridge))))
             })
         );
         // L1ERC721BridgeImpl

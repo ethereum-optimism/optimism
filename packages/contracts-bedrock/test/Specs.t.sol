@@ -10,7 +10,6 @@ import { Executables } from "scripts/libraries/Executables.sol";
 import { ForgeArtifacts, Abi, AbiEntry } from "scripts/libraries/ForgeArtifacts.sol";
 
 // Contracts
-import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
 import { OPStackManager } from "src/L1/OPStackManager.sol";
 
 // Interfaces
@@ -19,6 +18,7 @@ import { IOptimismPortal2 } from "src/L1/interfaces/IOptimismPortal2.sol";
 import { IOptimismPortalInterop } from "src/L1/interfaces/IOptimismPortalInterop.sol";
 import { ISystemConfig } from "src/L1/interfaces/ISystemConfig.sol";
 import { IDataAvailabilityChallenge } from "src/L1/interfaces/IDataAvailabilityChallenge.sol";
+import { IProtocolVersions } from "src/L1/interfaces/IProtocolVersions.sol";
 
 /// @title Specification_Test
 /// @dev Specifies common security properties of entrypoints to L1 contracts, including authorization and
@@ -394,19 +394,19 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "ProtocolVersions", _sel: _getSel("RECOMMENDED_SLOT()") });
         _addSpec({ _name: "ProtocolVersions", _sel: _getSel("REQUIRED_SLOT()") });
         _addSpec({ _name: "ProtocolVersions", _sel: _getSel("VERSION()") });
-        _addSpec({ _name: "ProtocolVersions", _sel: ProtocolVersions.initialize.selector });
+        _addSpec({ _name: "ProtocolVersions", _sel: IProtocolVersions.initialize.selector });
         _addSpec({ _name: "ProtocolVersions", _sel: _getSel("owner()") });
-        _addSpec({ _name: "ProtocolVersions", _sel: ProtocolVersions.recommended.selector });
+        _addSpec({ _name: "ProtocolVersions", _sel: IProtocolVersions.recommended.selector });
         _addSpec({ _name: "ProtocolVersions", _sel: _getSel("renounceOwnership()"), _auth: Role.SYSTEMCONFIGOWNER });
-        _addSpec({ _name: "ProtocolVersions", _sel: ProtocolVersions.required.selector });
+        _addSpec({ _name: "ProtocolVersions", _sel: IProtocolVersions.required.selector });
         _addSpec({
             _name: "ProtocolVersions",
-            _sel: ProtocolVersions.setRequired.selector,
+            _sel: IProtocolVersions.setRequired.selector,
             _auth: Role.SYSTEMCONFIGOWNER
         });
         _addSpec({
             _name: "ProtocolVersions",
-            _sel: ProtocolVersions.setRecommended.selector,
+            _sel: IProtocolVersions.setRecommended.selector,
             _auth: Role.SYSTEMCONFIGOWNER
         });
         _addSpec({ _name: "ProtocolVersions", _sel: _getSel("transferOwnership(address)") });

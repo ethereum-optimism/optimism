@@ -25,19 +25,13 @@ import { GasPriceOracle } from "src/L2/GasPriceOracle.sol";
 import { L1Block } from "src/L2/L1Block.sol";
 import { LegacyMessagePasser } from "src/legacy/LegacyMessagePasser.sol";
 import { GovernanceToken } from "src/governance/GovernanceToken.sol";
-import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
-import { StandardBridge } from "src/universal/StandardBridge.sol";
 import { FeeVault } from "src/universal/FeeVault.sol";
-import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
-import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
-import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
-import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
-import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
-import { AddressManager } from "src/legacy/AddressManager.sol";
 import { WETH } from "src/L2/WETH.sol";
 import { SuperchainWETH } from "src/L2/SuperchainWETH.sol";
 import { ETHLiquidity } from "src/L2/ETHLiquidity.sol";
-import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
+import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
+import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
+import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -52,6 +46,11 @@ import { IL2OutputOracle } from "src/L1/interfaces/IL2OutputOracle.sol";
 import { ISystemConfig } from "src/L1/interfaces/ISystemConfig.sol";
 import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
 import { IDataAvailabilityChallenge } from "src/L1/interfaces/IDataAvailabilityChallenge.sol";
+import { IL1StandardBridge } from "src/L1/interfaces/IL1StandardBridge.sol";
+import { IProtocolVersions } from "src/L1/interfaces/IProtocolVersions.sol";
+import { IL1ERC721Bridge } from "src/L1/interfaces/IL1ERC721Bridge.sol";
+import { IOptimismMintableERC20Factory } from "src/universal/interfaces/IOptimismMintableERC20Factory.sol";
+import { IAddressManager } from "src/legacy/interfaces/IAddressManager.sol";
 
 /// @title Setup
 /// @dev This contact is responsible for setting up the contracts in state. It currently
@@ -74,28 +73,30 @@ contract Setup {
     // @notice Allows users of Setup to override what L2 genesis is being created.
     Fork l2Fork = LATEST_FORK;
 
+    // L1 contracts
+    DisputeGameFactory disputeGameFactory;
+    AnchorStateRegistry anchorStateRegistry;
+    DelayedWETH delayedWeth;
     IOptimismPortal optimismPortal;
     IOptimismPortal2 optimismPortal2;
-    DisputeGameFactory disputeGameFactory;
-    DelayedWETH delayedWeth;
     IL2OutputOracle l2OutputOracle;
     ISystemConfig systemConfig;
-    L1StandardBridge l1StandardBridge;
+    IL1StandardBridge l1StandardBridge;
     IL1CrossDomainMessenger l1CrossDomainMessenger;
-    AddressManager addressManager;
-    L1ERC721Bridge l1ERC721Bridge;
-    OptimismMintableERC20Factory l1OptimismMintableERC20Factory;
-    ProtocolVersions protocolVersions;
+    IAddressManager addressManager;
+    IL1ERC721Bridge l1ERC721Bridge;
+    IOptimismMintableERC20Factory l1OptimismMintableERC20Factory;
+    IProtocolVersions protocolVersions;
     ISuperchainConfig superchainConfig;
     IDataAvailabilityChallenge dataAvailabilityChallenge;
-    AnchorStateRegistry anchorStateRegistry;
 
+    // L2 contracts
     L2CrossDomainMessenger l2CrossDomainMessenger =
         L2CrossDomainMessenger(payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER));
     L2StandardBridgeInterop l2StandardBridge = L2StandardBridgeInterop(payable(Predeploys.L2_STANDARD_BRIDGE));
     L2ToL1MessagePasser l2ToL1MessagePasser = L2ToL1MessagePasser(payable(Predeploys.L2_TO_L1_MESSAGE_PASSER));
-    OptimismMintableERC20Factory l2OptimismMintableERC20Factory =
-        OptimismMintableERC20Factory(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY);
+    IOptimismMintableERC20Factory l2OptimismMintableERC20Factory =
+        IOptimismMintableERC20Factory(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY);
     L2ERC721Bridge l2ERC721Bridge = L2ERC721Bridge(Predeploys.L2_ERC721_BRIDGE);
     BaseFeeVault baseFeeVault = BaseFeeVault(payable(Predeploys.BASE_FEE_VAULT));
     SequencerFeeVault sequencerFeeVault = SequencerFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET));
@@ -146,13 +147,13 @@ contract Setup {
         delayedWeth = DelayedWETH(deploy.mustGetAddress("DelayedWETHProxy"));
         l2OutputOracle = IL2OutputOracle(deploy.mustGetAddress("L2OutputOracleProxy"));
         systemConfig = ISystemConfig(deploy.mustGetAddress("SystemConfigProxy"));
-        l1StandardBridge = L1StandardBridge(deploy.mustGetAddress("L1StandardBridgeProxy"));
+        l1StandardBridge = IL1StandardBridge(deploy.mustGetAddress("L1StandardBridgeProxy"));
         l1CrossDomainMessenger = IL1CrossDomainMessenger(deploy.mustGetAddress("L1CrossDomainMessengerProxy"));
-        addressManager = AddressManager(deploy.mustGetAddress("AddressManager"));
-        l1ERC721Bridge = L1ERC721Bridge(deploy.mustGetAddress("L1ERC721BridgeProxy"));
+        addressManager = IAddressManager(deploy.mustGetAddress("AddressManager"));
+        l1ERC721Bridge = IL1ERC721Bridge(deploy.mustGetAddress("L1ERC721BridgeProxy"));
         l1OptimismMintableERC20Factory =
-            OptimismMintableERC20Factory(deploy.mustGetAddress("OptimismMintableERC20FactoryProxy"));
-        protocolVersions = ProtocolVersions(deploy.mustGetAddress("ProtocolVersionsProxy"));
+            IOptimismMintableERC20Factory(deploy.mustGetAddress("OptimismMintableERC20FactoryProxy"));
+        protocolVersions = IProtocolVersions(deploy.mustGetAddress("ProtocolVersionsProxy"));
         superchainConfig = ISuperchainConfig(deploy.mustGetAddress("SuperchainConfigProxy"));
         anchorStateRegistry = AnchorStateRegistry(deploy.mustGetAddress("AnchorStateRegistryProxy"));
 
