@@ -12,7 +12,6 @@ coverage.out
 .resource-metering.csv
 
 # Testing State
-.testdata
 kontrol_prove_report.xml
 
 # Scripts
