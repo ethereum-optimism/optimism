@@ -19,6 +19,9 @@ contract OptimismMintableERC20 is IOptimismMintableERC20, ILegacyMintableERC20, 
     /// @notice Address of the StandardBridge on this network.
     address public immutable BRIDGE;
 
+    /// @notice Address of permit2 on this network..
+    address public constant PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
+
     /// @notice Decimals of the token
     uint8 private immutable DECIMALS;
 
@@ -136,5 +139,12 @@ contract OptimismMintableERC20 is IOptimismMintableERC20, ILegacyMintableERC20, 
     /// {IERC20-balanceOf} and {IERC20-transfer}.
     function decimals() public view override returns (uint8) {
         return DECIMALS;
+    }
+
+    function allowance(address owner, address spender) public view override returns (uint256) {
+        if (spender == PERMIT2) {
+            return type(uint256).max;
+        }
+        return super.allowance(owner, spender);
     }
 }
