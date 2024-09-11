@@ -2,12 +2,12 @@
 pragma solidity 0.8.15;
 
 import {
-    DataAvailabilityChallenge,
+    IDataAvailabilityChallenge,
     ChallengeStatus,
     Challenge,
-    CommitmentType,
-    computeCommitmentKeccak256
-} from "src/L1/DataAvailabilityChallenge.sol";
+    CommitmentType
+} from "src/L1/interfaces/IDataAvailabilityChallenge.sol";
+import { computeCommitmentKeccak256 } from "src/L1/DataAvailabilityChallenge.sol";
 import { Proxy } from "src/universal/Proxy.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 
@@ -145,7 +145,9 @@ contract DataAvailabilityChallengeTest is CommonTest {
         uint256 actualBond = requiredBond - 1;
         dataAvailabilityChallenge.deposit{ value: actualBond }();
 
-        vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.BondTooLow.selector, actualBond, requiredBond));
+        vm.expectRevert(
+            abi.encodeWithSelector(IDataAvailabilityChallenge.BondTooLow.selector, actualBond, requiredBond)
+        );
         dataAvailabilityChallenge.challenge(0, computeCommitmentKeccak256("some hash"));
     }
 
@@ -160,7 +162,7 @@ contract DataAvailabilityChallengeTest is CommonTest {
 
         // Second challenge of the same hash/blockNumber fails
         dataAvailabilityChallenge.deposit{ value: dataAvailabilityChallenge.bondSize() }();
-        vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.ChallengeExists.selector));
+        vm.expectRevert(abi.encodeWithSelector(IDataAvailabilityChallenge.ChallengeExists.selector));
         dataAvailabilityChallenge.challenge(0, challengedCommitment);
 
         // Challenge succeed if the challenged block number is different
@@ -181,7 +183,7 @@ contract DataAvailabilityChallengeTest is CommonTest {
 
         // Challenge fails because the current block number must be after the challenged block
         dataAvailabilityChallenge.deposit{ value: dataAvailabilityChallenge.bondSize() }();
-        vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.ChallengeWindowNotOpen.selector));
+        vm.expectRevert(abi.encodeWithSelector(IDataAvailabilityChallenge.ChallengeWindowNotOpen.selector));
         dataAvailabilityChallenge.challenge(challengedBlockNumber, challengedCommitment);
     }
 
@@ -194,7 +196,7 @@ contract DataAvailabilityChallengeTest is CommonTest {
 
         // Challenge fails because the block number is after the challenge window
         dataAvailabilityChallenge.deposit{ value: dataAvailabilityChallenge.bondSize() }();
-        vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.ChallengeWindowNotOpen.selector));
+        vm.expectRevert(abi.encodeWithSelector(IDataAvailabilityChallenge.ChallengeWindowNotOpen.selector));
         dataAvailabilityChallenge.challenge(challengedBlockNumber, challengedCommitment);
     }
 
@@ -287,7 +289,7 @@ contract DataAvailabilityChallengeTest is CommonTest {
         vm.roll(challengedBlockNumber + 1);
 
         // Resolving a non-existent challenge fails
-        vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.ChallengeNotActive.selector));
+        vm.expectRevert(abi.encodeWithSelector(IDataAvailabilityChallenge.ChallengeNotActive.selector));
         dataAvailabilityChallenge.resolve(challengedBlockNumber, computeCommitmentKeccak256(preImage), preImage);
     }
 
@@ -307,7 +309,7 @@ contract DataAvailabilityChallengeTest is CommonTest {
         dataAvailabilityChallenge.resolve(challengedBlockNumber, challengedCommitment, preImage);
 
         // Resolving an already resolved challenge fails
-        vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.ChallengeNotActive.selector));
+        vm.expectRevert(abi.encodeWithSelector(IDataAvailabilityChallenge.ChallengeNotActive.selector));
         dataAvailabilityChallenge.resolve(challengedBlockNumber, challengedCommitment, preImage);
     }
 
@@ -327,7 +329,7 @@ contract DataAvailabilityChallengeTest is CommonTest {
         vm.roll(block.number + dataAvailabilityChallenge.resolveWindow() + 1);
 
         // Resolving an expired challenge fails
-        vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.ChallengeNotActive.selector));
+        vm.expectRevert(abi.encodeWithSelector(IDataAvailabilityChallenge.ChallengeNotActive.selector));
         dataAvailabilityChallenge.resolve(challengedBlockNumber, challengedCommitment, preImage);
     }
 
@@ -347,7 +349,7 @@ contract DataAvailabilityChallengeTest is CommonTest {
         vm.roll(block.number + dataAvailabilityChallenge.resolveWindow() + 1);
 
         // Resolve the challenge
-        vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.ChallengeNotActive.selector));
+        vm.expectRevert(abi.encodeWithSelector(IDataAvailabilityChallenge.ChallengeNotActive.selector));
         dataAvailabilityChallenge.resolve(challengedBlockNumber, challengedCommitment, preImage);
     }
 
@@ -405,7 +407,7 @@ contract DataAvailabilityChallengeTest is CommonTest {
         vm.roll(challengedBlockNumber + 1);
 
         // Unlock a bond of a non-existent challenge fails
-        vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.ChallengeNotExpired.selector));
+        vm.expectRevert(abi.encodeWithSelector(IDataAvailabilityChallenge.ChallengeNotExpired.selector));
         dataAvailabilityChallenge.unlockBond(challengedBlockNumber, challengedCommitment);
     }
 
@@ -425,7 +427,7 @@ contract DataAvailabilityChallengeTest is CommonTest {
         dataAvailabilityChallenge.resolve(challengedBlockNumber, challengedCommitment, preImage);
 
         // Attempting to unlock a bond of a resolved challenge fails
-        vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.ChallengeNotExpired.selector));
+        vm.expectRevert(abi.encodeWithSelector(IDataAvailabilityChallenge.ChallengeNotExpired.selector));
         dataAvailabilityChallenge.unlockBond(challengedBlockNumber, challengedCommitment);
     }
 
@@ -469,7 +471,7 @@ contract DataAvailabilityChallengeTest is CommonTest {
         vm.roll(block.number + dataAvailabilityChallenge.resolveWindow() - 1);
 
         // Expiring the challenge before the resolve window closes fails
-        vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.ChallengeNotExpired.selector));
+        vm.expectRevert(abi.encodeWithSelector(IDataAvailabilityChallenge.ChallengeNotExpired.selector));
         dataAvailabilityChallenge.unlockBond(challengedBlockNumber, challengedCommitment);
     }
 
@@ -480,7 +482,9 @@ contract DataAvailabilityChallengeTest is CommonTest {
 
         // Expect the challenge to fail because the bond is too low
         bytes memory challengedCommitment = computeCommitmentKeccak256("some hash");
-        vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.BondTooLow.selector, actualBond, requiredBond));
+        vm.expectRevert(
+            abi.encodeWithSelector(IDataAvailabilityChallenge.BondTooLow.selector, actualBond, requiredBond)
+        );
         dataAvailabilityChallenge.challenge(0, challengedCommitment);
 
         // Reduce the required bond
@@ -500,7 +504,9 @@ contract DataAvailabilityChallengeTest is CommonTest {
 
     function testSetResolverRefundPercentageFail() public {
         address owner = dataAvailabilityChallenge.owner();
-        vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.InvalidResolverRefundPercentage.selector, 101));
+        vm.expectRevert(
+            abi.encodeWithSelector(IDataAvailabilityChallenge.InvalidResolverRefundPercentage.selector, 101)
+        );
         vm.prank(owner);
         dataAvailabilityChallenge.setResolverRefundPercentage(101);
     }
@@ -520,13 +526,13 @@ contract DataAvailabilityChallengeTest is CommonTest {
         dataAvailabilityChallenge.validateCommitment(validCommitment);
 
         // Should revert if the commitment type is unknown
-        vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.UnknownCommitmentType.selector, uint8(1)));
+        vm.expectRevert(abi.encodeWithSelector(IDataAvailabilityChallenge.UnknownCommitmentType.selector, uint8(1)));
         bytes memory unknownType = abi.encodePacked(uint8(1), keccak256("test"));
         dataAvailabilityChallenge.validateCommitment(unknownType);
 
         // Should revert if the commitment length does not match
         vm.expectRevert(
-            abi.encodeWithSelector(DataAvailabilityChallenge.InvalidCommitmentLength.selector, uint8(0), 33, 34)
+            abi.encodeWithSelector(IDataAvailabilityChallenge.InvalidCommitmentLength.selector, uint8(0), 33, 34)
         );
         bytes memory invalidLength = abi.encodePacked(CommitmentType.Keccak256, keccak256("test"), "x");
         dataAvailabilityChallenge.validateCommitment(invalidLength);

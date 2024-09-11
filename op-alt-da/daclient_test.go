@@ -2,47 +2,13 @@ package altda
 
 import (
 	"context"
-	"fmt"
 	"math/rand"
-	"sync"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
-
-type MemStore struct {
-	db   map[string][]byte
-	lock sync.RWMutex
-}
-
-func NewMemStore() *MemStore {
-	return &MemStore{
-		db: make(map[string][]byte),
-	}
-}
-
-// Get retrieves the given key if it's present in the key-value store.
-func (s *MemStore) Get(ctx context.Context, key []byte) ([]byte, error) {
-	s.lock.RLock()
-	defer s.lock.RUnlock()
-
-	if entry, ok := s.db[string(key)]; ok {
-		return common.CopyBytes(entry), nil
-	}
-	return nil, ErrNotFound
-}
-
-// Put inserts the given value into the key-value store.
-func (s *MemStore) Put(ctx context.Context, key []byte, value []byte) error {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
-	s.db[string(key)] = common.CopyBytes(value)
-	return nil
-}
 
 func TestDAClientPrecomputed(t *testing.T) {
 	store := NewMemStore()
@@ -56,7 +22,7 @@ func TestDAClientPrecomputed(t *testing.T) {
 
 	cfg := CLIConfig{
 		Enabled:      true,
-		DAServerURL:  fmt.Sprintf("http://%s", server.Endpoint()),
+		DAServerURL:  server.HttpEndpoint(),
 		VerifyOnRead: true,
 	}
 	require.NoError(t, cfg.Check())
@@ -113,7 +79,7 @@ func TestDAClientService(t *testing.T) {
 
 	cfg := CLIConfig{
 		Enabled:      true,
-		DAServerURL:  fmt.Sprintf("http://%s", server.Endpoint()),
+		DAServerURL:  server.HttpEndpoint(),
 		VerifyOnRead: false,
 		GenericDA:    false,
 	}

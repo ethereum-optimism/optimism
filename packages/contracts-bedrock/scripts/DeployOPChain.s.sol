@@ -15,6 +15,7 @@ import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
 import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
 import { PermissionedDisputeGame } from "src/dispute/PermissionedDisputeGame.sol";
 
+import { OPStackManager } from "src/L1/OPStackManager.sol";
 import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
@@ -38,6 +39,7 @@ contract DeployOPChainInput {
         uint32 basefeeScalar;
         uint32 blobBaseFeeScalar;
         uint256 l2ChainId;
+        OPStackManager opsm;
     }
 
     bool public inputSet = false;
@@ -59,6 +61,8 @@ contract DeployOPChainInput {
         require(_input.roles.unsafeBlockSigner != address(0), "DeployOPChainInput: null unsafeBlockSigner");
         require(_input.roles.proposer != address(0), "DeployOPChainInput: null proposer");
         require(_input.roles.challenger != address(0), "DeployOPChainInput: null challenger");
+        require(_input.l2ChainId != 0 && _input.l2ChainId != block.chainid, "DeployOPChainInput: invalid l2ChainId");
+        require(address(_input.opsm) != address(0), "DeployOPChainInput: null opsm");
 
         inputSet = true;
         inputs = _input;
@@ -116,6 +120,11 @@ contract DeployOPChainInput {
     function l2ChainId() public view returns (uint256) {
         assertInputSet();
         return inputs.l2ChainId;
+    }
+
+    function opsm() public view returns (OPStackManager) {
+        assertInputSet();
+        return inputs.opsm;
     }
 }
 
@@ -283,39 +292,95 @@ contract DeployOPChainOutput {
 contract DeployOPChain is Script {
     // -------- Core Deployment Methods --------
     function run(string memory _infile) public {
-        (DeployOPChainInput dsi, DeployOPChainOutput dso) = etchIOContracts();
-        dsi.loadInputFile(_infile);
-        run(dsi, dso);
+        (DeployOPChainInput doi, DeployOPChainOutput doo) = etchIOContracts();
+        doi.loadInputFile(_infile);
+        run(doi, doo);
         string memory outfile = ""; // This will be derived from input file name, e.g. `foo.in.toml` -> `foo.out.toml`
-        dso.writeOutputFile(outfile);
+        doo.writeOutputFile(outfile);
         require(false, "DeployOPChain: run is not implemented");
     }
 
     function run(DeployOPChainInput.Input memory _input) public returns (DeployOPChainOutput.Output memory) {
-        (DeployOPChainInput dsi, DeployOPChainOutput dso) = etchIOContracts();
-        dsi.loadInput(_input);
-        run(dsi, dso);
-        return dso.output();
+        (DeployOPChainInput doi, DeployOPChainOutput doo) = etchIOContracts();
+        doi.loadInput(_input);
+        run(doi, doo);
+        return doo.output();
     }
 
-    function run(DeployOPChainInput _dsi, DeployOPChainOutput _dso) public view {
-        require(_dsi.inputSet(), "DeployOPChain: input not set");
+    function run(DeployOPChainInput _doi, DeployOPChainOutput _doo) public {
+        require(_doi.inputSet(), "DeployOPChain: input not set");
 
-        // TODO call OP Stack Manager deploy method
+        OPStackManager opsm = _doi.opsm();
 
-        _dso.checkOutput();
+        OPStackManager.Roles memory roles = OPStackManager.Roles({
+            opChainProxyAdminOwner: _doi.opChainProxyAdminOwner(),
+            systemConfigOwner: _doi.systemConfigOwner(),
+            batcher: _doi.batcher(),
+            unsafeBlockSigner: _doi.unsafeBlockSigner(),
+            proposer: _doi.proposer(),
+            challenger: _doi.challenger()
+        });
+        OPStackManager.DeployInput memory deployInput = OPStackManager.DeployInput({
+            roles: roles,
+            basefeeScalar: _doi.basefeeScalar(),
+            blobBasefeeScalar: _doi.blobBaseFeeScalar(),
+            l2ChainId: _doi.l2ChainId()
+        });
+
+        vm.broadcast(msg.sender);
+        OPStackManager.DeployOutput memory deployOutput = opsm.deploy(deployInput);
+
+        vm.label(address(deployOutput.opChainProxyAdmin), "opChainProxyAdmin");
+        vm.label(address(deployOutput.addressManager), "addressManager");
+        vm.label(address(deployOutput.l1ERC721BridgeProxy), "l1ERC721BridgeProxy");
+        vm.label(address(deployOutput.systemConfigProxy), "systemConfigProxy");
+        vm.label(address(deployOutput.optimismMintableERC20FactoryProxy), "optimismMintableERC20FactoryProxy");
+        vm.label(address(deployOutput.l1StandardBridgeProxy), "l1StandardBridgeProxy");
+        vm.label(address(deployOutput.l1CrossDomainMessengerProxy), "l1CrossDomainMessengerProxy");
+        vm.label(address(deployOutput.optimismPortalProxy), "optimismPortalProxy");
+        vm.label(address(deployOutput.disputeGameFactoryProxy), "disputeGameFactoryProxy");
+        vm.label(address(deployOutput.disputeGameFactoryImpl), "disputeGameFactoryImpl");
+        vm.label(address(deployOutput.anchorStateRegistryProxy), "anchorStateRegistryProxy");
+        vm.label(address(deployOutput.anchorStateRegistryImpl), "anchorStateRegistryImpl");
+        vm.label(address(deployOutput.faultDisputeGame), "faultDisputeGame");
+        vm.label(address(deployOutput.permissionedDisputeGame), "permissionedDisputeGame");
+        vm.label(address(deployOutput.delayedWETHPermissionedGameProxy), "delayedWETHPermissionedGameProxy");
+        vm.label(address(deployOutput.delayedWETHPermissionlessGameProxy), "delayedWETHPermissionlessGameProxy");
+
+        _doo.set(_doo.opChainProxyAdmin.selector, address(deployOutput.opChainProxyAdmin));
+        _doo.set(_doo.addressManager.selector, address(deployOutput.addressManager));
+        _doo.set(_doo.l1ERC721BridgeProxy.selector, address(deployOutput.l1ERC721BridgeProxy));
+        _doo.set(_doo.systemConfigProxy.selector, address(deployOutput.systemConfigProxy));
+        _doo.set(
+            _doo.optimismMintableERC20FactoryProxy.selector, address(deployOutput.optimismMintableERC20FactoryProxy)
+        );
+        _doo.set(_doo.l1StandardBridgeProxy.selector, address(deployOutput.l1StandardBridgeProxy));
+        _doo.set(_doo.l1CrossDomainMessengerProxy.selector, address(deployOutput.l1CrossDomainMessengerProxy));
+        _doo.set(_doo.optimismPortalProxy.selector, address(deployOutput.optimismPortalProxy));
+        _doo.set(_doo.disputeGameFactoryProxy.selector, address(deployOutput.disputeGameFactoryProxy));
+        _doo.set(_doo.disputeGameFactoryImpl.selector, address(deployOutput.disputeGameFactoryImpl));
+        _doo.set(_doo.anchorStateRegistryProxy.selector, address(deployOutput.anchorStateRegistryProxy));
+        _doo.set(_doo.anchorStateRegistryImpl.selector, address(deployOutput.anchorStateRegistryImpl));
+        _doo.set(_doo.faultDisputeGame.selector, address(deployOutput.faultDisputeGame));
+        _doo.set(_doo.permissionedDisputeGame.selector, address(deployOutput.permissionedDisputeGame));
+        _doo.set(_doo.delayedWETHPermissionedGameProxy.selector, address(deployOutput.delayedWETHPermissionedGameProxy));
+        _doo.set(
+            _doo.delayedWETHPermissionlessGameProxy.selector, address(deployOutput.delayedWETHPermissionlessGameProxy)
+        );
+
+        _doo.checkOutput();
     }
 
     // -------- Utilities --------
 
-    function etchIOContracts() internal returns (DeployOPChainInput dsi_, DeployOPChainOutput dso_) {
-        (dsi_, dso_) = getIOContracts();
-        vm.etch(address(dsi_), type(DeployOPChainInput).runtimeCode);
-        vm.etch(address(dso_), type(DeployOPChainOutput).runtimeCode);
+    function etchIOContracts() internal returns (DeployOPChainInput doi_, DeployOPChainOutput doo_) {
+        (doi_, doo_) = getIOContracts();
+        vm.etch(address(doi_), type(DeployOPChainInput).runtimeCode);
+        vm.etch(address(doo_), type(DeployOPChainOutput).runtimeCode);
     }
 
-    function getIOContracts() public view returns (DeployOPChainInput dsi_, DeployOPChainOutput dso_) {
-        dsi_ = DeployOPChainInput(DeployUtils.toIOAddress(msg.sender, "optimism.DeployOPChainInput"));
-        dso_ = DeployOPChainOutput(DeployUtils.toIOAddress(msg.sender, "optimism.DeployOPChainOutput"));
+    function getIOContracts() public view returns (DeployOPChainInput doi_, DeployOPChainOutput doo_) {
+        doi_ = DeployOPChainInput(DeployUtils.toIOAddress(msg.sender, "optimism.DeployOPChainInput"));
+        doo_ = DeployOPChainOutput(DeployUtils.toIOAddress(msg.sender, "optimism.DeployOPChainOutput"));
     }
 }

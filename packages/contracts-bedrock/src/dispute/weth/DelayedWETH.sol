@@ -8,7 +8,7 @@ import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 import { IWETH } from "src/dispute/interfaces/IWETH.sol";
 import { WETH98 } from "src/dispute/weth/WETH98.sol";
 
-import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
+import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
 
 /// @custom:proxied true
 /// @title DelayedWETH
@@ -32,18 +32,18 @@ contract DelayedWETH is OwnableUpgradeable, WETH98, IDelayedWETH, ISemver {
     uint256 internal immutable DELAY_SECONDS;
 
     /// @notice Address of the SuperchainConfig contract.
-    SuperchainConfig public config;
+    ISuperchainConfig public config;
 
     /// @param _delay The delay for withdrawals in seconds.
     constructor(uint256 _delay) {
         DELAY_SECONDS = _delay;
-        initialize({ _owner: address(0), _config: SuperchainConfig(address(0)) });
+        initialize({ _owner: address(0), _config: ISuperchainConfig(address(0)) });
     }
 
     /// @notice Initializes the contract.
     /// @param _owner The address of the owner.
     /// @param _config Address of the SuperchainConfig contract.
-    function initialize(address _owner, SuperchainConfig _config) public initializer {
+    function initialize(address _owner, ISuperchainConfig _config) public initializer {
         __Ownable_init();
         _transferOwnership(_owner);
         config = _config;

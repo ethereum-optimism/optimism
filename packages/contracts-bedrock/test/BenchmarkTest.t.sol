@@ -1,14 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-// Testing utilities
+// Testing
 import { Test } from "forge-std/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
-import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
-import { ResourceMetering } from "src/L1/ResourceMetering.sol";
+
+// Libraries
 import { Types } from "src/libraries/Types.sol";
+import { SafeCall } from "src/libraries/SafeCall.sol";
+import { L1BlockIsthmus } from "src/L2/L1BlockIsthmus.sol";
+import { Encoding } from "src/libraries/Encoding.sol";
+
+// Interfaces
+import { ICrossDomainMessenger } from "src/universal/interfaces/ICrossDomainMessenger.sol";
 
 // Free function for setting the prevBaseFee param in the OptimismPortal.
 function setPrevBaseFee(Vm _vm, address _op, uint128 _prevBaseFee) {
@@ -179,7 +185,7 @@ contract GasBenchMark_L1StandardBridge_Finalize is Bridge_Initializer {
         deal(address(L1Token), address(l1StandardBridge), 100, true);
         vm.mockCall(
             address(l1StandardBridge.messenger()),
-            abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
+            abi.encodeWithSelector(ICrossDomainMessenger.xDomainMessageSender.selector),
             abi.encode(address(l1StandardBridge.OTHER_BRIDGE()))
         );
         vm.startPrank(address(l1StandardBridge.messenger()));
@@ -207,5 +213,103 @@ contract GasBenchMark_L2OutputOracle is CommonTest {
 
     function test_proposeL2Output_benchmark() external {
         l2OutputOracle.proposeL2Output(nonZeroHash, nextBlockNumber, 0, 0);
+    }
+}
+
+contract GasBenchMark_L1Block is CommonTest {
+    address depositor;
+    bytes setValuesCalldata;
+
+    function setUp() public virtual override {
+        super.setUp();
+        depositor = l1Block.DEPOSITOR_ACCOUNT();
+        setValuesCalldata = Encoding.encodeSetL1BlockValuesEcotone(
+            type(uint32).max,
+            type(uint32).max,
+            type(uint64).max,
+            type(uint64).max,
+            type(uint64).max,
+            type(uint256).max,
+            type(uint256).max,
+            keccak256(abi.encode(1)),
+            bytes32(type(uint256).max)
+        );
+        vm.startPrank(depositor);
+    }
+}
+
+contract GasBenchMark_L1Block_SetValuesEcotone is GasBenchMark_L1Block {
+    function test_setL1BlockValuesEcotone_benchmark() external {
+        SafeCall.call({ _target: address(l1Block), _calldata: setValuesCalldata });
+    }
+}
+
+contract GasBenchMark_L1Block_SetValuesEcotone_Warm is GasBenchMark_L1Block {
+    function setUp() public virtual override {
+        SafeCall.call({ _target: address(l1Block), _calldata: setValuesCalldata });
+    }
+
+    function test_setL1BlockValuesEcotone_benchmark() external {
+        SafeCall.call({ _target: address(l1Block), _calldata: setValuesCalldata });
+    }
+}
+
+contract GasBenchMark_L1BlockIsthmus is GasBenchMark_L1Block {
+    L1BlockIsthmus l1BlockIsthmus;
+
+    function setUp() public virtual override {
+        super.setUp();
+        l1BlockIsthmus = new L1BlockIsthmus();
+        setValuesCalldata = Encoding.encodeSetL1BlockValuesIsthmus(
+            type(uint32).max,
+            type(uint32).max,
+            type(uint64).max,
+            type(uint64).max,
+            type(uint64).max,
+            type(uint256).max,
+            type(uint256).max,
+            keccak256(abi.encode(1)),
+            bytes32(type(uint256).max)
+        );
+    }
+}
+
+contract GasBenchMark_L1BlockIsthmus_SetValuesIsthmus is GasBenchMark_L1BlockIsthmus {
+    function test_setL1BlockValuesIsthmus_benchmark() external {
+        SafeCall.call({ _target: address(l1BlockIsthmus), _calldata: setValuesCalldata });
+    }
+}
+
+contract GasBenchMark_L1BlockIsthmus_SetValuesIsthmus_Warm is GasBenchMark_L1BlockIsthmus {
+    function setUp() public virtual override {
+        SafeCall.call({ _target: address(l1BlockIsthmus), _calldata: setValuesCalldata });
+    }
+
+    function test_setL1BlockValuesIsthmus_benchmark() external {
+        SafeCall.call({ _target: address(l1BlockIsthmus), _calldata: setValuesCalldata });
+    }
+}
+
+contract GasBenchMark_L1BlockIsthmus_DepositsComplete is GasBenchMark_L1BlockIsthmus {
+    function test_depositsComplete_benchmark() external {
+        SafeCall.call({
+            _target: address(l1BlockIsthmus),
+            _calldata: abi.encodeWithSelector(l1BlockIsthmus.depositsComplete.selector)
+        });
+    }
+}
+
+contract GasBenchMark_L1BlockIsthmus_DepositsComplete_Warm is GasBenchMark_L1BlockIsthmus {
+    function setUp() public virtual override {
+        super.setUp();
+        // Set the isDeposit flag to true so then we can benchmark when it is reset.
+        SafeCall.call({ _target: address(l1BlockIsthmus), _calldata: setValuesCalldata });
+    }
+
+    function test_depositsComplete_benchmark() external {
+        SafeCall.call({
+            _target: address(l1BlockIsthmus),
+            _calldata: abi.encodeWithSelector(l1BlockIsthmus.depositsComplete.selector)
+        });
     }
 }

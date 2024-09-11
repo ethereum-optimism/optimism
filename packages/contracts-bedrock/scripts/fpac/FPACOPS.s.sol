@@ -86,14 +86,14 @@ contract FPACOPS is Deploy, StdAssertions {
         address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
         Proxy(payable(wethProxy)).upgradeToAndCall(
             mustGetAddress("DelayedWETH"),
-            abi.encodeCall(DelayedWETH.initialize, (msg.sender, SuperchainConfig(superchainConfigProxy)))
+            abi.encodeCall(DelayedWETH.initialize, (msg.sender, ISuperchainConfig(superchainConfigProxy)))
         );
     }
 
     function initializeAnchorStateRegistryProxy() internal broadcast {
         console.log("Initializing AnchorStateRegistryProxy with AnchorStateRegistry.");
         address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
-        SuperchainConfig superchainConfig = SuperchainConfig(superchainConfigProxy);
+        ISuperchainConfig superchainConfig = ISuperchainConfig(superchainConfigProxy);
 
         AnchorStateRegistry.StartingAnchorRoot[] memory roots = new AnchorStateRegistry.StartingAnchorRoot[](2);
         roots[0] = AnchorStateRegistry.StartingAnchorRoot({

@@ -255,6 +255,11 @@
   },
   {
     "inputs": [],
+    "name": "NoExecutingDeposits",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "NotDepositor",
     "type": "error"
   },

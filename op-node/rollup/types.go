@@ -463,6 +463,40 @@ func (c *Config) IsInteropActivationBlock(l2BlockTime uint64) bool {
 		!c.IsInterop(l2BlockTime-c.BlockTime)
 }
 
+func (c *Config) ActivateAtGenesis(hardfork ForkName) {
+	// IMPORTANT! ordered from newest to oldest
+	switch hardfork {
+	case Interop:
+		c.InteropTime = new(uint64)
+		fallthrough
+	case Holocene:
+		c.HoloceneTime = new(uint64)
+		fallthrough
+	case Granite:
+		c.GraniteTime = new(uint64)
+		fallthrough
+	case Fjord:
+		c.FjordTime = new(uint64)
+		fallthrough
+	case Ecotone:
+		c.EcotoneTime = new(uint64)
+		fallthrough
+	case Delta:
+		c.DeltaTime = new(uint64)
+		fallthrough
+	case Canyon:
+		c.CanyonTime = new(uint64)
+		fallthrough
+	case Regolith:
+		c.RegolithTime = new(uint64)
+		fallthrough
+	case Bedrock:
+		// default
+	case None:
+		break
+	}
+}
+
 // ForkchoiceUpdatedVersion returns the EngineAPIMethod suitable for the chain hard fork version.
 func (c *Config) ForkchoiceUpdatedVersion(attr *eth.PayloadAttributes) eth.EngineAPIMethod {
 	if attr == nil {

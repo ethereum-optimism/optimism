@@ -7,7 +7,7 @@ pragma solidity ^0.8.13;
 // since Solidity does not have great array UX.
 //
 // This library was generated using the `generator.py` script from the linked repo with the length
-// set to 10, and then everything except the `addresses` functions was removed.
+// set accordingly, and then everything except the `addresses` functions was removed.
 library Solarray {
     function addresses(address a) internal pure returns (address[] memory) {
         address[] memory arr = new address[](1);
@@ -186,6 +186,38 @@ library Solarray {
         arr[7] = h;
         arr[8] = i;
         arr[9] = j;
+        return arr;
+    }
+
+    function addresses(
+        address a,
+        address b,
+        address c,
+        address d,
+        address e,
+        address f,
+        address g,
+        address h,
+        address i,
+        address j,
+        address k
+    )
+        internal
+        pure
+        returns (address[] memory)
+    {
+        address[] memory arr = new address[](11);
+        arr[0] = a;
+        arr[1] = b;
+        arr[2] = c;
+        arr[3] = d;
+        arr[4] = e;
+        arr[5] = f;
+        arr[6] = g;
+        arr[7] = h;
+        arr[8] = i;
+        arr[9] = j;
+        arr[10] = k;
         return arr;
     }
 

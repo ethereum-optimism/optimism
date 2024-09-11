@@ -8,7 +8,7 @@ import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistr
 import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
 import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
 import { IDisputeGameFactory } from "src/dispute/interfaces/IDisputeGameFactory.sol";
-import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
+import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
 
 import "src/dispute/lib/Types.sol";
 import { Unauthorized } from "src/libraries/errors/CommonErrors.sol";
@@ -38,7 +38,7 @@ contract AnchorStateRegistry is Initializable, IAnchorStateRegistry, ISemver {
     mapping(GameType => OutputRoot) public anchors;
 
     /// @notice Address of the SuperchainConfig contract.
-    SuperchainConfig public superchainConfig;
+    ISuperchainConfig public superchainConfig;
 
     /// @param _disputeGameFactory DisputeGameFactory address.
     constructor(IDisputeGameFactory _disputeGameFactory) {
@@ -51,7 +51,7 @@ contract AnchorStateRegistry is Initializable, IAnchorStateRegistry, ISemver {
     /// @param _superchainConfig The address of the SuperchainConfig contract.
     function initialize(
         StartingAnchorRoot[] memory _startingAnchorRoots,
-        SuperchainConfig _superchainConfig
+        ISuperchainConfig _superchainConfig
     )
         public
         initializer
