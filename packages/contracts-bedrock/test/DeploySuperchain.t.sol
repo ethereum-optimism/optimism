@@ -206,7 +206,7 @@ contract DeploySuperchain_Test is Test {
         return keccak256(abi.encode(_seed, _i));
     }
 
-    function test_run_memory_succeeds(bytes32 _seed) public {
+    function testFuzz_run_memory_succeeds(bytes32 _seed) public {
         // Generate random input values from the seed. This doesn't give us the benefit of the forge
         // fuzzer's dictionary, but that's ok because we are just testing that values are set and
         // passed correctly.
