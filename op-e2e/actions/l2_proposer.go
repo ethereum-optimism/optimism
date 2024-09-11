@@ -69,6 +69,10 @@ func (f fakeTxMgr) Send(_ context.Context, _ txmgr.TxCandidate) (*types.Receipt,
 	panic("unimplemented")
 }
 
+func (f fakeTxMgr) SendAsync(ctx context.Context, candidate txmgr.TxCandidate, ch chan txmgr.SendResponse) {
+	panic("unimplemented")
+}
+
 func (f fakeTxMgr) Close() {
 }
 

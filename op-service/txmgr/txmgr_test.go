@@ -420,7 +420,7 @@ func TestTxMgrTxSendTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
 	defer cancel()
 
-	receipt, err := h.mgr.send(ctx, txCandidate)
+	receipt, err := h.mgr.Send(ctx, txCandidate)
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 	// Because network timeout is much shorter than send timeout, we should see multiple send attempts
 	// before the overall send fails.
