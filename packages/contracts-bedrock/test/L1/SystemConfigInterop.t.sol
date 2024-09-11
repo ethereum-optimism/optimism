@@ -1,20 +1,22 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-// Testing utilities
+// Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
+
+// Contracts
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { ConfigType } from "src/L2/L1BlockIsthmus.sol";
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
 import { StaticConfig } from "src/libraries/StaticConfig.sol";
 import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
 
-// Target contract dependencies
+// Interfaces
 import { ISystemConfig } from "src/L1/interfaces/ISystemConfig.sol";
-import { SystemConfigInterop } from "src/L1/SystemConfigInterop.sol";
+import { ISystemConfigInterop } from "src/L1/interfaces/ISystemConfigInterop.sol";
 import { IOptimismPortalInterop } from "src/L1/interfaces/IOptimismPortalInterop.sol";
-import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { ConfigType } from "src/L2/L1BlockIsthmus.sol";
 
 contract SystemConfigInterop_Test is CommonTest {
     /// @notice Marked virtual to be overridden in
@@ -132,7 +134,7 @@ contract SystemConfigInterop_Test is CommonTest {
     }
 
     /// @dev Returns the SystemConfigInterop instance.
-    function _systemConfigInterop() internal view returns (SystemConfigInterop) {
-        return SystemConfigInterop(address(systemConfig));
+    function _systemConfigInterop() internal view returns (ISystemConfigInterop) {
+        return ISystemConfigInterop(address(systemConfig));
     }
 }

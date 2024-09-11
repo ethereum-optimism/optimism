@@ -1,31 +1,39 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Testing
 import { Script } from "forge-std/Script.sol";
 import { console2 as console } from "forge-std/console2.sol";
-import { Deployer } from "scripts/deploy/Deployer.sol";
+import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
+// Scripts
+import { Deployer } from "scripts/deploy/Deployer.sol";
 import { Config, OutputMode, OutputModeUtils, Fork, ForkUtils, LATEST_FORK } from "scripts/libraries/Config.sol";
 import { Artifacts } from "scripts/Artifacts.s.sol";
 import { DeployConfig } from "scripts/deploy/DeployConfig.s.sol";
-import { Predeploys } from "src/libraries/Predeploys.sol";
-import { Preinstalls } from "src/libraries/Preinstalls.sol";
+import { Process } from "scripts/libraries/Process.sol";
+
+// Contracts
 import { L2CrossDomainMessenger } from "src/L2/L2CrossDomainMessenger.sol";
 import { L1Block } from "src/L2/L1Block.sol";
 import { GasPriceOracle } from "src/L2/GasPriceOracle.sol";
 import { L2StandardBridge } from "src/L2/L2StandardBridge.sol";
 import { L2ERC721Bridge } from "src/L2/L2ERC721Bridge.sol";
 import { SequencerFeeVault } from "src/L2/SequencerFeeVault.sol";
-import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
-import { OptimismMintableERC721Factory } from "src/universal/OptimismMintableERC721Factory.sol";
 import { BaseFeeVault } from "src/L2/BaseFeeVault.sol";
 import { L1FeeVault } from "src/L2/L1FeeVault.sol";
-import { GovernanceToken } from "src/governance/GovernanceToken.sol";
+import { OptimismMintableERC721Factory } from "src/universal/OptimismMintableERC721Factory.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
-import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
+import { StandardBridge } from "src/universal/StandardBridge.sol";
 import { FeeVault } from "src/universal/FeeVault.sol";
-import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
-import { Process } from "scripts/libraries/Process.sol";
+import { GovernanceToken } from "src/governance/GovernanceToken.sol";
+
+// Libraries
+import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Preinstalls } from "src/libraries/Preinstalls.sol";
+
+// Interfaces
+import { IOptimismMintableERC20Factory } from "src/universal/interfaces/IOptimismMintableERC20Factory.sol";
 
 interface IInitializable {
     function initialize(address _addr) external;
@@ -296,10 +304,10 @@ contract L2Genesis is Deployer {
             impl = _setImplementationCode(Predeploys.L2_STANDARD_BRIDGE);
         }
 
-        L2StandardBridge(payable(impl)).initialize({ _otherBridge: L1StandardBridge(payable(address(0))) });
+        L2StandardBridge(payable(impl)).initialize({ _otherBridge: StandardBridge(payable(address(0))) });
 
         L2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).initialize({
-            _otherBridge: L1StandardBridge(_l1StandardBridgeProxy)
+            _otherBridge: StandardBridge(_l1StandardBridgeProxy)
         });
     }
 
@@ -333,9 +341,9 @@ contract L2Genesis is Deployer {
     function setOptimismMintableERC20Factory() public {
         address impl = _setImplementationCode(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY);
 
-        OptimismMintableERC20Factory(impl).initialize({ _bridge: address(0) });
+        IOptimismMintableERC20Factory(impl).initialize({ _bridge: address(0) });
 
-        OptimismMintableERC20Factory(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY).initialize({
+        IOptimismMintableERC20Factory(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY).initialize({
             _bridge: Predeploys.L2_STANDARD_BRIDGE
         });
     }

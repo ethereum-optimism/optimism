@@ -8,15 +8,12 @@ import { console2 as console } from "forge-std/console2.sol";
 // Scripts
 import { DeployConfig } from "scripts/deploy/DeployConfig.s.sol";
 import { Deployer } from "scripts/deploy/Deployer.sol";
+import { ISystemConfigV0 } from "scripts/interfaces/ISystemConfigV0.sol";
 
 // Contracts
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
-import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
-import { ProtocolVersion, ProtocolVersions } from "src/L1/ProtocolVersions.sol";
-import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
-import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
@@ -31,7 +28,10 @@ import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
 import { IL1CrossDomainMessenger } from "src/L1/interfaces/IL1CrossDomainMessenger.sol";
 import { IOptimismPortal } from "src/L1/interfaces/IOptimismPortal.sol";
 import { IOptimismPortal2 } from "src/L1/interfaces/IOptimismPortal2.sol";
-import { ISystemConfigV0 } from "scripts/interfaces/ISystemConfigV0.sol";
+import { IL1ERC721Bridge } from "src/L1/interfaces/IL1ERC721Bridge.sol";
+import { IL1StandardBridge } from "src/L1/interfaces/IL1StandardBridge.sol";
+import { ProtocolVersion, IProtocolVersions } from "src/L1/interfaces/IProtocolVersions.sol";
+import { IOptimismMintableERC20Factory } from "src/universal/interfaces/IOptimismMintableERC20Factory.sol";
 
 library ChainAssertions {
     Vm internal constant vm = Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
@@ -160,7 +160,7 @@ library ChainAssertions {
     /// @notice Asserts that the L1StandardBridge is setup correctly
     function checkL1StandardBridge(Types.ContractSet memory _contracts, bool _isProxy) internal view {
         console.log("Running chain assertions on the L1StandardBridge");
-        L1StandardBridge bridge = L1StandardBridge(payable(_contracts.L1StandardBridge));
+        IL1StandardBridge bridge = IL1StandardBridge(payable(_contracts.L1StandardBridge));
 
         // Check that the contract is initialized
         assertSlotValueIsOne({ _contractAddress: address(bridge), _slot: 0, _offset: 0 });
@@ -291,7 +291,7 @@ library ChainAssertions {
     /// @notice Asserts that the OptimismMintableERC20Factory is setup correctly
     function checkOptimismMintableERC20Factory(Types.ContractSet memory _contracts, bool _isProxy) internal view {
         console.log("Running chain assertions on the OptimismMintableERC20Factory");
-        OptimismMintableERC20Factory factory = OptimismMintableERC20Factory(_contracts.OptimismMintableERC20Factory);
+        IOptimismMintableERC20Factory factory = IOptimismMintableERC20Factory(_contracts.OptimismMintableERC20Factory);
 
         // Check that the contract is initialized
         assertSlotValueIsOne({ _contractAddress: address(factory), _slot: 0, _offset: 0 });
@@ -308,7 +308,7 @@ library ChainAssertions {
     /// @notice Asserts that the L1ERC721Bridge is setup correctly
     function checkL1ERC721Bridge(Types.ContractSet memory _contracts, bool _isProxy) internal view {
         console.log("Running chain assertions on the L1ERC721Bridge");
-        L1ERC721Bridge bridge = L1ERC721Bridge(_contracts.L1ERC721Bridge);
+        IL1ERC721Bridge bridge = IL1ERC721Bridge(_contracts.L1ERC721Bridge);
 
         // Check that the contract is initialized
         assertSlotValueIsOne({ _contractAddress: address(bridge), _slot: 0, _offset: 0 });
@@ -405,7 +405,7 @@ library ChainAssertions {
         view
     {
         console.log("Running chain assertions on the ProtocolVersions");
-        ProtocolVersions versions = ProtocolVersions(_contracts.ProtocolVersions);
+        IProtocolVersions versions = IProtocolVersions(_contracts.ProtocolVersions);
 
         // Check that the contract is initialized
         assertSlotValueIsOne({ _contractAddress: address(versions), _slot: 0, _offset: 0 });
