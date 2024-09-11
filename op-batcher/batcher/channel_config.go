@@ -51,9 +51,15 @@ type ChannelConfig struct {
 	UseBlobs bool
 }
 
-// ChannelConfig returns a copy of itself. This makes a ChannelConfig a static
+// ChannelConfigFull returns a copy of the receiver. This allows the receiver to be a static
 // ChannelConfigProvider of itself.
-func (cc ChannelConfig) ChannelConfig() ChannelConfig {
+func (cc ChannelConfig) ChannelConfigFull() ChannelConfig {
+	return cc
+}
+
+// ChannelConfig returns a copy of the receiver. This allows the receiver to be a static
+// ChannelConfigProvider of itself.
+func (cc ChannelConfig) ChannelConfig(data []byte) ChannelConfig {
 	return cc
 }
 

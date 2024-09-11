@@ -14,7 +14,8 @@ const randomByteCalldataGas = params.TxDataNonZeroGasEIP2028
 
 type (
 	ChannelConfigProvider interface {
-		ChannelConfig() ChannelConfig
+		ChannelConfigFull() ChannelConfig
+		ChannelConfig(data []byte) ChannelConfig
 	}
 
 	GasPricer interface {
@@ -47,8 +48,11 @@ func NewDynamicEthChannelConfig(lgr log.Logger,
 	dec.lastConfig = &dec.blobConfig
 	return dec
 }
-
-func (dec *DynamicEthChannelConfig) ChannelConfig() ChannelConfig {
+func (dec *DynamicEthChannelConfig) ChannelConfig(data []byte) ChannelConfig {
+	// TODO do a proper estimation/decision using full data
+	return dec.ChannelConfigFull()
+}
+func (dec *DynamicEthChannelConfig) ChannelConfigFull() ChannelConfig {
 	ctx, cancel := context.WithTimeout(context.Background(), dec.timeout)
 	defer cancel()
 	tipCap, baseFee, blobBaseFee, err := dec.gasPricer.SuggestGasPriceCaps(ctx)

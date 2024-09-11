@@ -203,7 +203,7 @@ func (s *channelManager) ensureChannelWithSpace(l1Head eth.BlockID) error {
 		return nil
 	}
 
-	cfg := s.cfgProvider.ChannelConfig()
+	cfg := s.cfgProvider.ChannelConfigFull()
 	pc, err := newChannel(s.log, s.metr, cfg, s.rollupCfg, s.l1OriginLastClosedChannel.Number)
 	if err != nil {
 		return fmt.Errorf("creating new channel: %w", err)
