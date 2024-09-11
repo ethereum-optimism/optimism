@@ -232,13 +232,40 @@ type TxCandidate struct {
 //
 // NOTE: Send can be called concurrently, the nonce will be managed internally.
 func (m *SimpleTxManager) Send(ctx context.Context, candidate TxCandidate) (*types.Receipt, error) {
-	ch := make(chan SendResponse, 1)
-	m.SendAsync(ctx, candidate, ch)
-	res := <-ch
-	return res.Receipt, res.Err
+	// refuse new requests if the tx manager is closed
+	if m.closed.Load() {
+		return nil, ErrClosed
+	}
+
+	m.metr.RecordPendingTx(m.pending.Add(1))
+	defer m.metr.RecordPendingTx(m.pending.Add(-1))
+
+	var cancel context.CancelFunc
+	if m.cfg.TxSendTimeout == 0 {
+		ctx, cancel = context.WithCancel(ctx)
+	} else {
+		ctx, cancel = context.WithTimeout(ctx, m.cfg.TxSendTimeout)
+	}
+	defer cancel()
+
+	tx, err := m.prepare(ctx, candidate)
+	if err != nil {
+		m.resetNonce()
+		return nil, err
+	}
+	receipt, err := m.sendTx(ctx, tx)
+	if err != nil {
+		m.resetNonce()
+		return nil, err
+	}
+	return receipt, err
 }
 
 func (m *SimpleTxManager) SendAsync(ctx context.Context, candidate TxCandidate, ch chan SendResponse) {
+	if cap(ch) == 0 {
+		panic("SendAsync: channel must be buffered")
+	}
+
 	// refuse new requests if the tx manager is closed
 	if m.closed.Load() {
 		ch <- SendResponse{
@@ -249,9 +276,6 @@ func (m *SimpleTxManager) SendAsync(ctx context.Context, candidate TxCandidate, 
 	}
 
 	m.metr.RecordPendingTx(m.pending.Add(1))
-	defer func() {
-		m.metr.RecordPendingTx(m.pending.Add(-1))
-	}()
 
 	var cancel context.CancelFunc
 	if m.cfg.TxSendTimeout == 0 {
@@ -264,6 +288,7 @@ func (m *SimpleTxManager) SendAsync(ctx context.Context, candidate TxCandidate, 
 	if err != nil {
 		m.resetNonce()
 		cancel()
+		m.metr.RecordPendingTx(m.pending.Add(-1))
 		ch <- SendResponse{
 			Receipt: nil,
 			Err:     err,
@@ -272,8 +297,9 @@ func (m *SimpleTxManager) SendAsync(ctx context.Context, candidate TxCandidate, 
 	}
 
 	go func() {
+		defer m.metr.RecordPendingTx(m.pending.Add(-1))
+		defer cancel()
 		receipt, err := m.sendTx(ctx, tx)
-		cancel()
 		if err != nil {
 			m.resetNonce()
 		}
