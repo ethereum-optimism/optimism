@@ -25,6 +25,6 @@
     "label": "superchainConfig",
     "offset": 0,
     "slot": "2",
-    "type": "contract SuperchainConfig"
+    "type": "contract ISuperchainConfig"
   }
 ]

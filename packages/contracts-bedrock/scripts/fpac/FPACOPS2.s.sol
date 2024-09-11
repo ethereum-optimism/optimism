@@ -134,7 +134,7 @@ contract FPACOPS2 is Deploy, StdAssertions {
         address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
         Proxy(payable(wethProxy)).upgradeToAndCall(
             mustGetAddress("DelayedWETH"),
-            abi.encodeCall(DelayedWETH.initialize, (msg.sender, SuperchainConfig(superchainConfigProxy)))
+            abi.encodeCall(DelayedWETH.initialize, (msg.sender, ISuperchainConfig(superchainConfigProxy)))
         );
     }
 
@@ -146,7 +146,7 @@ contract FPACOPS2 is Deploy, StdAssertions {
         address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
         Proxy(payable(wethProxy)).upgradeToAndCall(
             mustGetAddress("DelayedWETH"),
-            abi.encodeCall(DelayedWETH.initialize, (msg.sender, SuperchainConfig(superchainConfigProxy)))
+            abi.encodeCall(DelayedWETH.initialize, (msg.sender, ISuperchainConfig(superchainConfigProxy)))
         );
     }
 

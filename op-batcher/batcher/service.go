@@ -39,6 +39,8 @@ type BatcherConfig struct {
 	// UseAltDA is true if the rollup config has a DA challenge address so the batcher
 	// will post inputs to the DA server and post commitments to blobs or calldata.
 	UseAltDA bool
+	// maximum number of concurrent blob put requests to the DA server
+	MaxConcurrentDARequests uint64
 
 	WaitNodeSync        bool
 	CheckRecentTxsDepth int
@@ -93,6 +95,7 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 
 	bs.PollInterval = cfg.PollInterval
 	bs.MaxPendingTransactions = cfg.MaxPendingTransactions
+	bs.MaxConcurrentDARequests = cfg.AltDA.MaxConcurrentRequests
 	bs.NetworkTimeout = cfg.TxMgrConfig.NetworkTimeout
 	bs.CheckRecentTxsDepth = cfg.CheckRecentTxsDepth
 	bs.WaitNodeSync = cfg.WaitNodeSync

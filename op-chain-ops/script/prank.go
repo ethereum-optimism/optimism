@@ -3,12 +3,15 @@ package script
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"math/big"
 
 	"github.com/holiman/uint256"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 // Prank represents an active prank task for the next sub-call.
@@ -159,35 +162,106 @@ const (
 	CallerModeRecurrentPrank
 )
 
-// Broadcast captures a transaction that was selected to be broadcasted
+type BroadcastType string
+
+const (
+	BroadcastCall   BroadcastType = "call"
+	BroadcastCreate BroadcastType = "create"
+	// BroadcastCreate2 is to be broadcast via the Create2Deployer,
+	// and not really documented much anywhere.
+	BroadcastCreate2 BroadcastType = "create2"
+)
+
+func (bt BroadcastType) String() string {
+	return string(bt)
+}
+
+func (bt BroadcastType) MarshalText() ([]byte, error) {
+	return []byte(bt.String()), nil
+}
+
+func (bt *BroadcastType) UnmarshalText(data []byte) error {
+	v := BroadcastType(data)
+	switch v {
+	case BroadcastCall, BroadcastCreate, BroadcastCreate2:
+		*bt = v
+		return nil
+	default:
+		return fmt.Errorf("unrecognized broadcast type bytes: %x", data)
+	}
+}
+
+// Broadcast captures a transaction that was selected to be broadcast
 // via vm.broadcast(). Actually submitting the transaction is left up
 // to other tools.
 type Broadcast struct {
-	From     common.Address
-	To       common.Address
-	Calldata []byte
-	Value    *big.Int
+	From    common.Address `json:"from"`
+	To      common.Address `json:"to"`    // set to expected contract address, if this is a deployment
+	Input   hexutil.Bytes  `json:"input"` // set to contract-creation code, if this is a deployment
+	Value   *hexutil.U256  `json:"value"`
+	Salt    common.Hash    `json:"salt"` // set if this is a Create2 broadcast
+	GasUsed uint64         `json:"gasUsed"`
+	Type    BroadcastType  `json:"type"`
+	Nonce   uint64         `json:"nonce"` // pre-state nonce of From, before any increment (always 0 if create2)
 }
 
-// NewBroadcastFromCtx creates a Broadcast from a VM context. This method
-// is preferred to manually creating the struct since it correctly handles
-// data that must be copied prior to being returned to prevent accidental
-// mutation.
-func NewBroadcastFromCtx(ctx *vm.ScopeContext) Broadcast {
-	// Consistently return nil for zero values in order
-	// for tests to have a deterministic value to compare
-	// against.
-	value := ctx.CallValue().ToBig()
-	if value.Cmp(common.Big0) == 0 {
-		value = nil
+// NewBroadcast creates a Broadcast from a parent callframe, and the completed child callframe.
+// This method is preferred to manually creating the struct since it correctly handles
+// data that must be copied prior to being returned to prevent accidental mutation.
+func NewBroadcast(parent, current *CallFrame) Broadcast {
+	ctx := current.Ctx
+
+	value := ctx.CallValue()
+	if value == nil {
+		value = uint256.NewInt(0)
 	}
 
-	// Need to clone CallInput() below since it's used within
-	// the VM itself elsewhere.
-	return Broadcast{
-		From:     ctx.Caller(),
-		To:       ctx.Address(),
-		Calldata: bytes.Clone(ctx.CallInput()),
-		Value:    value,
+	// Code is tracked separate from calldata input,
+	// even though they are the same thing for a regular contract creation
+	input := ctx.CallInput()
+	if ctx.Contract.IsDeployment {
+		input = ctx.Contract.Code
 	}
+
+	bcast := Broadcast{
+		From: ctx.Caller(),
+		To:   ctx.Address(),
+		// Need to clone the input below since memory is reused in the VM
+		Input:   bytes.Clone(input),
+		Value:   (*hexutil.U256)(value.Clone()),
+		GasUsed: current.GasUsed,
+	}
+
+	switch parent.LastOp {
+	case vm.CREATE:
+		bcast.Type = BroadcastCreate
+		// Nonce bump was already applied, but we need the pre-state
+		bcast.Nonce = current.CallerNonce - 1
+		expectedAddr := crypto.CreateAddress(bcast.From, bcast.Nonce)
+		if expectedAddr != bcast.To {
+			panic(fmt.Errorf("script bug: create broadcast has "+
+				"unexpected address: %s, expected %s. Sender: %s, Nonce: %d",
+				bcast.To, expectedAddr, bcast.From, bcast.Nonce))
+		}
+	case vm.CREATE2:
+		bcast.Salt = parent.LastCreate2Salt
+		initHash := crypto.Keccak256Hash(bcast.Input)
+		expectedAddr := crypto.CreateAddress2(bcast.From, bcast.Salt, initHash[:])
+		// Sanity-check the create2 salt is correct by checking the address computation.
+		if expectedAddr != bcast.To {
+			panic(fmt.Errorf("script bug: create2 broadcast has "+
+				"unexpected address: %s, expected %s. Sender: %s, Salt: %s, Inithash: %s",
+				bcast.To, expectedAddr, bcast.From, bcast.Salt, initHash))
+		}
+		bcast.Type = BroadcastCreate2
+		bcast.Nonce = 0 // always 0. The nonce should not matter for create2.
+	case vm.CALL:
+		bcast.Type = BroadcastCall
+		// Nonce bump was already applied, but we need the pre-state
+		bcast.Nonce = current.CallerNonce - 1
+	default:
+		panic(fmt.Errorf("unexpected broadcast operation %s", parent.LastOp))
+	}
+
+	return bcast
 }

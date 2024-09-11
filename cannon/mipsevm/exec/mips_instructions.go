@@ -86,8 +86,10 @@ func ExecMipsCoreStepLogic(cpu *mipsevm.CpuScalars, registers *[32]uint32, memor
 			linkReg := uint32(0)
 			if fun == 9 {
 				linkReg = rdReg
+				stackTracker.PushStack(cpu.PC, rs)
+			} else {
+				stackTracker.PopStack()
 			}
-			stackTracker.PopStack()
 			return HandleJump(cpu, registers, linkReg, rs)
 		}
 

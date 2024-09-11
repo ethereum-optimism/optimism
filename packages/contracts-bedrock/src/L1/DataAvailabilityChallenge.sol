@@ -1,9 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Contracts
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import { ISemver } from "src/universal/interfaces/ISemver.sol";
+
+// Libraries
 import { SafeCall } from "src/libraries/SafeCall.sol";
+
+// Interfaces
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
 
 /// @dev An enum representing the status of a DA challenge.
 enum ChallengeStatus {

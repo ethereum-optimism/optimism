@@ -18,7 +18,6 @@ import { GuardManager } from "safe-contracts/base/GuardManager.sol";
 import { LivenessGuard } from "src/Safe/LivenessGuard.sol";
 import { LivenessModule } from "src/Safe/LivenessModule.sol";
 import { DeputyGuardianModule } from "src/Safe/DeputyGuardianModule.sol";
-import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 
 contract DeployOwnershipTest is Test, DeployOwnership {
     address internal constant SENTINEL_MODULES = address(0x1);
