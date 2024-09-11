@@ -76,9 +76,9 @@ type Config struct {
 	IsCustomChainConfig bool
 
 	// Optional process sources. Will be favored over the RPC sources if set.
-	L1ProcessSource hostSources.L1Source
+	L1ProcessSource       hostSources.L1Source
 	L1BeaconProcessSource hostSources.L1BlobSource
-	L2ProcessSource hostSources.L2Source
+	L2ProcessSource       hostSources.L2Source
 }
 
 func (c *Config) Check() error {

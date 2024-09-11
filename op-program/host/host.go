@@ -16,12 +16,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/host/flags"
 	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
 	"github.com/ethereum-optimism/optimism/op-program/host/prefetcher"
+	hostSources "github.com/ethereum-optimism/optimism/op-program/host/sources"
 	"github.com/ethereum-optimism/optimism/op-program/host/types"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
-	hostSources "github.com/ethereum-optimism/optimism/op-program/host/sources"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -211,6 +211,7 @@ func makePrefetcher(ctx context.Context, logger log.Logger, kv kvstore.KV, cfg *
 	var l2DebugCl hostSources.L2Source
 
 	if cfg.InProcessSourcesEnabled() {
+		logger.Debug("Using in-process sources for preimage fetching.")
 		l1Cl = cfg.L1ProcessSource
 		l1BlobFetcher = cfg.L1BeaconProcessSource
 		l2DebugCl = cfg.L2ProcessSource

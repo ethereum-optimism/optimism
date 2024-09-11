@@ -68,8 +68,8 @@ func (store *BlobsStore) GetBlobSidecars(ctx context.Context, ref eth.L1BlockRef
 			return nil, fmt.Errorf("failed to convert blob to commitment: %w", err)
 		}
 		out = append(out, &eth.BlobSidecar{
-			Index: eth.Uint64String(h.Index),
-			Blob: *b,
+			Index:         eth.Uint64String(h.Index),
+			Blob:          *b,
 			KZGCommitment: eth.Bytes48(commitment),
 		})
 	}
@@ -77,6 +77,6 @@ func (store *BlobsStore) GetBlobSidecars(ctx context.Context, ref eth.L1BlockRef
 }
 
 var (
-	_ derive.L1BlobsFetcher   = (*BlobsStore)(nil)
-	_ sources.L1BlobSource = (*BlobsStore)(nil)
+	_ derive.L1BlobsFetcher = (*BlobsStore)(nil)
+	_ sources.L1BlobSource  = (*BlobsStore)(nil)
 )
