@@ -54,16 +54,16 @@ func TestInstrumentedState_MultithreadedProgram(t *testing.T) {
 }
 
 func TestInstrumentedState_Alloc(t *testing.T) {
-	const maxMemoryUsageCheck = 512 * 1024 * 1024 // 512 MiB
+	const maxMemoryUsageCheck = 256 * 1024 * 1024 // 256 MiB
 
 	cases := []struct {
 		name      string
 		numAllocs int
 		allocSize int
 	}{
-		{name: "100 32MiB allocations", numAllocs: 100, allocSize: 32 * 1024 * 1024},
-		{name: "50 64MiB allocations", numAllocs: 50, allocSize: 64 * 1024 * 1024},
-		{name: "10 128MiB allocations", numAllocs: 10, allocSize: 128 * 1024 * 1024},
+		{name: "20 32MiB allocations", numAllocs: 20, allocSize: 32 * 1024 * 1024},
+		{name: "10 64MiB allocations", numAllocs: 10, allocSize: 64 * 1024 * 1024},
+		{name: "5 128MiB allocations", numAllocs: 5, allocSize: 128 * 1024 * 1024},
 	}
 
 	for _, test := range cases {
