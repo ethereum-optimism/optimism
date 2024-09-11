@@ -2006,7 +2006,6 @@ workflows:
               ignore: /.*/
           docker_name: proofs-tools
           docker_tags: <<pipeline.git.revision>>,latest
-          platforms: "linux/amd64,linux/arm64"
           publish: true
           release: true
           resource_class: xlarge
