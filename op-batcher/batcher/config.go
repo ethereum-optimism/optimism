@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/urfave/cli/v2"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
@@ -135,14 +136,14 @@ func (c *CLIConfig) Check() error {
 	if !derive.ValidCompressionAlgo(c.CompressionAlgo) {
 		return fmt.Errorf("invalid compression algo %v", c.CompressionAlgo)
 	}
-	if c.BatchType > 1 {
+	if c.BatchType > derive.SpanBatchType {
 		return fmt.Errorf("unknown batch type: %v", c.BatchType)
 	}
 	if c.CheckRecentTxsDepth > 128 {
 		return fmt.Errorf("CheckRecentTxsDepth cannot be set higher than 128: %v", c.CheckRecentTxsDepth)
 	}
-	if c.DataAvailabilityType == flags.BlobsType && c.TargetNumFrames > 6 {
-		return errors.New("too many frames for blob transactions, max 6")
+	if c.DataAvailabilityType == flags.BlobsType && c.TargetNumFrames > params.MaxBlobGasPerBlock/params.BlobTxBlobGasPerBlob {
+		return fmt.Errorf("too many frames for blob transactions, max %d", params.MaxBlobGasPerBlock/params.BlobTxBlobGasPerBlob)
 	}
 	if !flags.ValidDataAvailabilityType(c.DataAvailabilityType) {
 		return fmt.Errorf("unknown data availability type: %q", c.DataAvailabilityType)
