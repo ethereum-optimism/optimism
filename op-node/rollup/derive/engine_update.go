@@ -227,22 +227,17 @@ func confirmPayload(
 	metrics.CountSequencedTxsBySource(len(engineEnvelope.ExecutionPayload.Transactions), opMetrics.PayloadSourceEngine)
 
 	if builderPayload != nil && builderPayload.success {
-		if builderPayload.envelope.ExecutionPayload.GasUsed >= engineEnvelope.ExecutionPayload.GasUsed {
-			log.Info("builder payload has higher gas usage than engine payload", "builder_gas", builderPayload.envelope.ExecutionPayload.GasUsed, "engine_gas", engineEnvelope.ExecutionPayload.GasUsed)
-			metrics.RecordSequencerProfit(float64(weiToGwei(builderPayload.envelope.BlockValue)), opMetrics.PayloadSourceBuilder)
-			metrics.RecordPayloadGas(float64(builderPayload.envelope.ExecutionPayload.GasUsed), opMetrics.PayloadSourceBuilder)
-			metrics.CountSequencedTxsBySource(len(builderPayload.envelope.ExecutionPayload.Transactions), opMetrics.PayloadSourceBuilder)
+		metrics.RecordSequencerProfit(float64(weiToGwei(builderPayload.envelope.BlockValue)), opMetrics.PayloadSourceBuilder)
+		metrics.RecordPayloadGas(float64(builderPayload.envelope.ExecutionPayload.GasUsed), opMetrics.PayloadSourceBuilder)
+		metrics.CountSequencedTxsBySource(len(builderPayload.envelope.ExecutionPayload.Transactions), opMetrics.PayloadSourceBuilder)
 
-			errTyp, err := insertPayload(ctx, log, eng, fc, updateSafe, agossip, sequencerConductor, builderPayload.envelope)
-			if errTyp == BlockInsertOK {
-				metrics.RecordSequencerPayloadInserted(opMetrics.PayloadSourceBuilder)
-				log.Info("succeessfully inserted payload from builder")
-				return builderPayload.envelope, errTyp, err
-			}
-			log.Error("failed to insert payload from builder", "errType", errTyp, "error", err)
-		} else {
-			log.Warn("builder payload has lower gas usage than engine payload", "builder_gas", builderPayload.envelope.ExecutionPayload.GasUsed, "engine_gas", engineEnvelope.ExecutionPayload.GasUsed)
+		errTyp, err := insertPayload(ctx, log, eng, fc, updateSafe, agossip, sequencerConductor, builderPayload.envelope)
+		if errTyp == BlockInsertOK {
+			metrics.RecordSequencerPayloadInserted(opMetrics.PayloadSourceBuilder)
+			log.Info("succeessfully inserted payload from builder")
+			return builderPayload.envelope, errTyp, err
 		}
+		log.Error("failed to insert payload from builder", "errType", errTyp, "error", err)
 	}
 
 	metrics.RecordSequencerPayloadInserted(opMetrics.PayloadSourceEngine)
