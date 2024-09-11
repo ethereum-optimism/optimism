@@ -324,7 +324,7 @@ contract DeployOPChain_TestBase is Test {
     DeployOPChainInput doi;
     DeployOPChainOutput doo;
 
-    // We define a default initial input set for DeploySuperchain. The other inputs are dependent
+    // Define default initial input set for DeploySuperchain. The other inputs are dependent
     // on the outputs of the previous scripts, so we initialize them in the `setUp` method.
     address proxyAdminOwner = makeAddr("defaultProxyAdminOwner");
     address protocolVersionsOwner = makeAddr("defaultProtocolVersionsOwner");
@@ -333,17 +333,17 @@ contract DeployOPChain_TestBase is Test {
     ProtocolVersion requiredProtocolVersion = ProtocolVersion.wrap(1);
     ProtocolVersion recommendedProtocolVersion = ProtocolVersion.wrap(2);
 
-    DeployImplementationsInput.Input deployImplementationsInput = DeployImplementationsInput.Input({
-        withdrawalDelaySeconds: 100,
-        minProposalSizeBytes: 200,
-        challengePeriodSeconds: 300,
-        proofMaturityDelaySeconds: 400,
-        disputeGameFinalityDelaySeconds: 500,
-        release: "op-contracts/latest",
-        // These are set during `setUp` since they are outputs of the previous step.
-        superchainConfigProxy: SuperchainConfig(address(0)),
-        protocolVersionsProxy: ProtocolVersions(address(0))
-    });
+    // Define default initial input set for DeployImplementations.
+    // `superchainConfigProxy` and `protocolVersionsProxy` are set during `setUp` since they are
+    // outputs of the previous step.
+    uint256 withdrawalDelaySeconds = 100;
+    uint256 minProposalSizeBytes = 200;
+    uint256 challengePeriodSeconds = 300;
+    uint256 proofMaturityDelaySeconds = 400;
+    uint256 disputeGameFinalityDelaySeconds = 500;
+    string release = "op-contracts/latest";
+    SuperchainConfig superchainConfigProxy;
+    ProtocolVersions protocolVersionsProxy;
 
     DeployOPChainInput.Input deployOPChainInput = DeployOPChainInput.Input({
         roles: DeployOPChainInput.Roles({
@@ -361,9 +361,6 @@ contract DeployOPChain_TestBase is Test {
         opsm: OPStackManager(address(0))
     });
 
-    // Set during `setUp`.
-    DeployImplementationsOutput.Output deployImplementationsOutput;
-
     function setUp() public {
         // Initialize deploy scripts.
         DeploySuperchain deploySuperchain = new DeploySuperchain();
@@ -376,6 +373,8 @@ contract DeployOPChain_TestBase is Test {
         dsi.set(dsi.recommendedProtocolVersion.selector, recommendedProtocolVersion);
 
         DeployImplementations deployImplementations = new DeployImplementations();
+        (DeployImplementationsInput dii, DeployImplementationsOutput dio) = deployImplementations.etchIOContracts();
+
         deployOPChain = new DeployOPChain();
         (doi, doo) = deployOPChain.getIOContracts();
 
@@ -383,14 +382,22 @@ contract DeployOPChain_TestBase is Test {
         deploySuperchain.run(dsi, dso);
 
         // Populate the input struct for DeployImplementations based on the output of DeploySuperchain.
-        deployImplementationsInput.superchainConfigProxy = dso.superchainConfigProxy();
-        deployImplementationsInput.protocolVersionsProxy = dso.protocolVersionsProxy();
+        superchainConfigProxy = dso.superchainConfigProxy();
+        protocolVersionsProxy = dso.protocolVersionsProxy();
 
-        // Deploy the implementations using the updated DeployImplementations input struct.
-        deployImplementationsOutput = deployImplementations.run(deployImplementationsInput);
+        // Deploy the implementations.
+        dii.set(dii.withdrawalDelaySeconds.selector, withdrawalDelaySeconds);
+        dii.set(dii.minProposalSizeBytes.selector, minProposalSizeBytes);
+        dii.set(dii.challengePeriodSeconds.selector, challengePeriodSeconds);
+        dii.set(dii.proofMaturityDelaySeconds.selector, proofMaturityDelaySeconds);
+        dii.set(dii.disputeGameFinalityDelaySeconds.selector, disputeGameFinalityDelaySeconds);
+        dii.set(dii.release.selector, release);
+        dii.set(dii.superchainConfigProxy.selector, address(superchainConfigProxy));
+        dii.set(dii.protocolVersionsProxy.selector, address(protocolVersionsProxy));
+        deployImplementations.run(dii, dio);
 
         // Set the OPStackManager on the input struct for DeployOPChain.
-        deployOPChainInput.opsm = deployImplementationsOutput.opsm;
+        deployOPChainInput.opsm = dio.opsm();
     }
 
     // See the function of the same name in the `DeployImplementations_Test` contract of
