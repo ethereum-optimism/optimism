@@ -295,7 +295,7 @@ func (s *interopE2ESystem) newNodeForL2(
 
 // newProposerForL2 creates a new Proposer for an L2 chain
 // it is currently unused, as the generated world does not have a DisputeGameFactoryProxy
-func (s *interopE2ESystem) newProposerForL2(
+func (s *interopE2ESystem) _(
 	id string,
 	operatorKeys map[devkeys.ChainOperatorRole]ecdsa.PrivateKey,
 	opNode *opnode.Opnode,
@@ -515,7 +515,7 @@ func (s *interopE2ESystem) prepareL2s() map[string]l2Set {
 // addL2 adds an L2 to the system by creating the resources for it
 // and then assigning them to the system's map of L2s.
 // This function is currently unused, but could be used to add L2s to the system after it is prepared.
-func (s *interopE2ESystem) addL2(id string, output *interopgen.L2Output) {
+func (s *interopE2ESystem) _(id string, output *interopgen.L2Output) {
 	if s.l2s == nil {
 		s.l2s = make(map[string]l2Set)
 	}
