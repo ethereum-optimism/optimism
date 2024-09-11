@@ -559,6 +559,10 @@ jobs:
       test_command:
         description: List of test files to run
         type: string
+      test_run_timeout:
+        description: Timeout for running tests
+        type: string
+        default: 15m
     parallelism: <<parameters.test_parallelism>>
     steps:
       - checkout
@@ -596,7 +600,7 @@ jobs:
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
-          no_output_timeout: 15m
+          no_output_timeout: <<parameters.test_run_timeout>>
       - run:
           name: print failed test traces
           command: just test-rerun
@@ -1580,6 +1584,7 @@ workflows:
           name: contracts-bedrock-tests-heavy-fuzz-modified
           test_parallelism: 1
           test_command: just test-heavy-fuzz-modified-tests
+          test_run_timeout: 45m
       - contracts-bedrock-coverage
       - contracts-bedrock-checks:
           requires:
