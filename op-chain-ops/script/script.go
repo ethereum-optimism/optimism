@@ -55,6 +55,11 @@ type CallFrame struct {
 	// Forge script does not support nested pranks on the same call-depth.
 	// Pranks can also be broadcasting.
 	Prank *Prank
+
+	// GasUsed keeps track of the amount of gas used by this call frame.
+	// This is useful for broadcasts, which sometimes cannot correctly
+	// estimate gas when sending transactions in parallel.
+	GasUsed uint64
 }
 
 // Host is an EVM executor that runs Forge scripts.
@@ -336,6 +341,16 @@ func (h *Host) Wipe(addr common.Address) {
 	h.state.SetBalance(addr, uint256.NewInt(0), tracing.BalanceChangeUnspecified)
 }
 
+// SetNonce sets an account's nonce in state.
+func (h *Host) SetNonce(addr common.Address, nonce uint64) {
+	h.state.SetNonce(addr, nonce)
+}
+
+// GetNonce returs an account's nonce from state.
+func (h *Host) GetNonce(addr common.Address) uint64 {
+	return h.state.GetNonce(addr)
+}
+
 // getPrecompile overrides any accounts during runtime, to insert special precompiles, if activated.
 func (h *Host) getPrecompile(rules params.Rules, original vm.PrecompiledContract, addr common.Address) vm.PrecompiledContract {
 	if p, ok := h.precompiles[addr]; ok {
@@ -377,6 +392,8 @@ func (h *Host) onExit(depth int, output []byte, gasUsed uint64, err error, rever
 			h.log.Warn("Revert", "addr", addr, "err", err, "revertData", hexutil.Bytes(output), "depth", depth)
 		}
 	}
+
+	h.callStack[len(h.callStack)-1].GasUsed += gasUsed
 	h.unwindCallstack(depth)
 }
 
@@ -400,6 +417,18 @@ func (h *Host) unwindCallstack(depth int) {
 						h.log.Trace("Broadcast is active, ignoring static-call.")
 					} else {
 						currentCallFrame := h.callStack[len(h.callStack)-1]
+
+						// Have to handle vm.CALLs here since the VM does not
+						// increase nonces for calls. Broadcasting changes this
+						// behavior, so we have to manually increase the nonce.
+						if parentCallFrame.LastOp == vm.CALL {
+							caller := currentCallFrame.Ctx.Caller()
+							h.state.SetNonce(
+								caller,
+								h.state.GetNonce(caller)+1,
+							)
+						}
+
 						bcast := NewBroadcast(parentCallFrame, currentCallFrame)
 						h.log.Debug(
 							"calling broadcast hook",

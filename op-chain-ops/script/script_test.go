@@ -67,65 +67,72 @@ func TestScriptBroadcast(t *testing.T) {
 	salt := uint256.NewInt(42).Bytes32()
 
 	senderAddr := common.HexToAddress("0x5b73C5498c1E3b4dbA84de0F1833c4a029d90519")
+	coffeeAddr := common.HexToAddress("0x0000000000000000000000000000000000C0FFEE")
+	cafeAddr := common.HexToAddress("0xcafe")
 	expBroadcasts := []Broadcast{
 		{
-			From:  senderAddr,
-			To:    senderAddr,
-			Input: mustEncodeCalldata("call1", "single_call1"),
-			Value: (*hexutil.U256)(uint256.NewInt(0)),
-			Type:  BroadcastCall,
+			From:    senderAddr,
+			To:      senderAddr,
+			Input:   mustEncodeCalldata("call1", "single_call1"),
+			Value:   (*hexutil.U256)(uint256.NewInt(0)),
+			GasUsed: 23421,
+			Type:    BroadcastCall,
 		},
 		{
-			From:  common.HexToAddress("0x0000000000000000000000000000000000C0FFEE"),
-			To:    senderAddr,
-			Input: mustEncodeCalldata("call1", "startstop_call1"),
-			Value: (*hexutil.U256)(uint256.NewInt(0)),
-			Type:  BroadcastCall,
+			From:    coffeeAddr,
+			To:      senderAddr,
+			Input:   mustEncodeCalldata("call1", "startstop_call1"),
+			Value:   (*hexutil.U256)(uint256.NewInt(0)),
+			GasUsed: 1521,
+			Type:    BroadcastCall,
 		},
 		{
-			From:  common.HexToAddress("0x0000000000000000000000000000000000C0FFEE"),
-			To:    senderAddr,
-			Input: mustEncodeCalldata("call2", "startstop_call2"),
-			Value: (*hexutil.U256)(uint256.NewInt(0)),
-			Type:  BroadcastCall,
+			From:    coffeeAddr,
+			To:      senderAddr,
+			Input:   mustEncodeCalldata("call2", "startstop_call2"),
+			Value:   (*hexutil.U256)(uint256.NewInt(0)),
+			GasUsed: 1565,
+			Type:    BroadcastCall,
 		},
 		{
-			From:  common.HexToAddress("0x1234"),
-			To:    senderAddr,
-			Input: mustEncodeCalldata("nested1", "nested"),
-			Value: (*hexutil.U256)(uint256.NewInt(0)),
-			Type:  BroadcastCall,
+			From:    common.HexToAddress("0x1234"),
+			To:      senderAddr,
+			Input:   mustEncodeCalldata("nested1", "nested"),
+			Value:   (*hexutil.U256)(uint256.NewInt(0)),
+			GasUsed: 2763,
+			Type:    BroadcastCall,
 		},
 		{
-			From:  common.HexToAddress("0x123456"),
-			To:    crypto.CreateAddress(common.HexToAddress("0x123456"), 0),
-			Input: expectedInitCode,
-			Value: (*hexutil.U256)(uint256.NewInt(0)),
-			Type:  BroadcastCreate,
+			From:    common.HexToAddress("0x123456"),
+			To:      crypto.CreateAddress(common.HexToAddress("0x123456"), 0),
+			Input:   expectedInitCode,
+			Value:   (*hexutil.U256)(uint256.NewInt(0)),
+			GasUsed: 39112,
+			Type:    BroadcastCreate,
 		},
 		{
-			From:  common.HexToAddress("0xcafe"),
-			To:    crypto.CreateAddress2(common.HexToAddress("0xcafe"), salt, crypto.Keccak256(expectedInitCode)),
-			Input: expectedInitCode,
-			Value: (*hexutil.U256)(uint256.NewInt(0)),
-			Type:  BroadcastCreate2,
-			Salt:  salt,
+			From:    cafeAddr,
+			To:      crypto.CreateAddress2(cafeAddr, salt, crypto.Keccak256(expectedInitCode)),
+			Input:   expectedInitCode,
+			Value:   (*hexutil.U256)(uint256.NewInt(0)),
+			Type:    BroadcastCreate2,
+			GasUsed: 39112,
+			Salt:    salt,
 		},
 	}
 
-	scriptContext := DefaultContext
 	var broadcasts []Broadcast
 	hook := func(broadcast Broadcast) {
 		broadcasts = append(broadcasts, broadcast)
 	}
-	h := NewHost(logger, af, nil, scriptContext, WithBroadcastHook(hook))
+	h := NewHost(logger, af, nil, DefaultContext, WithBroadcastHook(hook))
 	addr, err := h.LoadContract("ScriptExample.s.sol", "ScriptExample")
 	require.NoError(t, err)
 
 	require.NoError(t, h.EnableCheats())
 
 	input := bytes4("runBroadcast()")
-	returnData, _, err := h.Call(scriptContext.Sender, addr, input[:], DefaultFoundryGasLimit, uint256.NewInt(0))
+	returnData, _, err := h.Call(senderAddr, addr, input[:], DefaultFoundryGasLimit, uint256.NewInt(0))
 	require.NoError(t, err, "call failed: %x", string(returnData))
 
 	expected, err := json.MarshalIndent(expBroadcasts, "  ", "  ")
@@ -133,4 +140,11 @@ func TestScriptBroadcast(t *testing.T) {
 	got, err := json.MarshalIndent(broadcasts, "  ", "  ")
 	require.NoError(t, err)
 	require.Equal(t, string(expected), string(got))
+
+	// Assert that the nonces for accounts participating in the
+	// broadcast increase. The senderAddr check is set to 2 to
+	// account for the initial deployment of the contract.
+	require.EqualValues(t, 2, h.GetNonce(senderAddr))
+	require.EqualValues(t, 2, h.GetNonce(coffeeAddr))
+	require.EqualValues(t, 1, h.GetNonce(cafeAddr))
 }
