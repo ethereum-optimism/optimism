@@ -202,6 +202,7 @@ type Broadcast struct {
 	Salt    common.Hash    `json:"salt"` // set if this is a Create2 broadcast
 	GasUsed uint64         `json:"gasUsed"`
 	Type    BroadcastType  `json:"type"`
+	Nonce   uint64         `json:"nonce"` // pre-state nonce of From, before any increment (always 0 if create2)
 }
 
 // NewBroadcast creates a Broadcast from a parent callframe, and the completed child callframe.
@@ -234,6 +235,14 @@ func NewBroadcast(parent, current *CallFrame) Broadcast {
 	switch parent.LastOp {
 	case vm.CREATE:
 		bcast.Type = BroadcastCreate
+		// Nonce bump was already applied, but we need the pre-state
+		bcast.Nonce = current.CallerNonce - 1
+		expectedAddr := crypto.CreateAddress(bcast.From, bcast.Nonce)
+		if expectedAddr != bcast.To {
+			panic(fmt.Errorf("script bug: create broadcast has "+
+				"unexpected address: %s, expected %s. Sender: %s, Nonce: %d",
+				bcast.To, expectedAddr, bcast.From, bcast.Nonce))
+		}
 	case vm.CREATE2:
 		bcast.Salt = parent.LastCreate2Salt
 		initHash := crypto.Keccak256Hash(bcast.Input)
@@ -245,8 +254,11 @@ func NewBroadcast(parent, current *CallFrame) Broadcast {
 				bcast.To, expectedAddr, bcast.From, bcast.Salt, initHash))
 		}
 		bcast.Type = BroadcastCreate2
+		bcast.Nonce = 0 // always 0. The nonce should not matter for create2.
 	case vm.CALL:
 		bcast.Type = BroadcastCall
+		// Nonce bump was already applied, but we need the pre-state
+		bcast.Nonce = current.CallerNonce - 1
 	default:
 		panic(fmt.Errorf("unexpected broadcast operation %s", parent.LastOp))
 	}

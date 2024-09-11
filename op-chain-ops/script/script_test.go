@@ -78,6 +78,7 @@ func TestScriptBroadcast(t *testing.T) {
 			Value:   (*hexutil.U256)(uint256.NewInt(0)),
 			GasUsed: 23421,
 			Type:    BroadcastCall,
+			Nonce:   1, // first action by script (script already has a nonce of 1)
 		},
 		{
 			From:    coffeeAddr,
@@ -86,6 +87,7 @@ func TestScriptBroadcast(t *testing.T) {
 			Value:   (*hexutil.U256)(uint256.NewInt(0)),
 			GasUsed: 1521,
 			Type:    BroadcastCall,
+			Nonce:   0, // first action by 0xc0ffee
 		},
 		{
 			From:    coffeeAddr,
@@ -94,6 +96,7 @@ func TestScriptBroadcast(t *testing.T) {
 			Value:   (*hexutil.U256)(uint256.NewInt(0)),
 			GasUsed: 1565,
 			Type:    BroadcastCall,
+			Nonce:   1, // second action of 0xc0ffee
 		},
 		{
 			From:    common.HexToAddress("0x1234"),
@@ -102,6 +105,7 @@ func TestScriptBroadcast(t *testing.T) {
 			Value:   (*hexutil.U256)(uint256.NewInt(0)),
 			GasUsed: 2763,
 			Type:    BroadcastCall,
+			Nonce:   0, // first action of 0x1234
 		},
 		{
 			From:    common.HexToAddress("0x123456"),
@@ -110,6 +114,7 @@ func TestScriptBroadcast(t *testing.T) {
 			Value:   (*hexutil.U256)(uint256.NewInt(0)),
 			GasUsed: 39112,
 			Type:    BroadcastCreate,
+			Nonce:   0, // first action of 0x123456
 		},
 		{
 			From:    cafeAddr,
@@ -119,6 +124,7 @@ func TestScriptBroadcast(t *testing.T) {
 			Type:    BroadcastCreate2,
 			GasUsed: 39112,
 			Salt:    salt,
+			Nonce:   0, // first action of 0xcafe
 		},
 		{
 			From:    scriptAddr,
@@ -127,6 +133,7 @@ func TestScriptBroadcast(t *testing.T) {
 			Value:   (*hexutil.U256)(uint256.NewInt(0)),
 			GasUsed: 39112,
 			Type:    BroadcastCreate,
+			Nonce:   2, // second action, on top of starting at 1.
 		},
 	}
 

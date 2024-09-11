@@ -60,6 +60,10 @@ type CallFrame struct {
 	// This is useful for broadcasts, which sometimes cannot correctly
 	// estimate gas when sending transactions in parallel.
 	GasUsed uint64
+
+	// CallerNonce keeps track of the nonce of the caller who entered the callframe
+	// (nonce of pranked caller, if pranked).
+	CallerNonce uint64
 }
 
 // Host is an EVM executor that runs Forge scripts.
@@ -407,34 +411,39 @@ func (h *Host) onEnter(depth int, typ byte, from common.Address, to common.Addre
 	if parentCallFrame.Prank == nil {
 		return
 	}
+	// sanity check our callframe is set up correctly
+	if parentCallFrame.LastOp != vm.OpCode(typ) {
+		panic(fmt.Errorf("parent call-frame has invalid last Op: %d", typ))
+	}
+	if !parentCallFrame.Prank.Broadcast {
+		return
+	}
+	if to == VMAddr || to == ConsoleAddr { // no broadcasts to the cheatcode or console address
+		return
+	}
 
-	if parentCallFrame.Prank.Broadcast {
-		if vm.OpCode(typ) == vm.CALL && to != VMAddr {
-			sender := parentCallFrame.Ctx.Address()
-			if parentCallFrame.Prank.Sender != nil {
-				sender = *parentCallFrame.Prank.Sender
-			}
-
-			h.state.SetNonce(
-				sender,
-				h.state.GetNonce(sender)+1,
-			)
+	// Bump nonce value, such that a broadcast Call appears like a tx
+	if parentCallFrame.LastOp == vm.CALL {
+		sender := parentCallFrame.Ctx.Address()
+		if parentCallFrame.Prank.Sender != nil {
+			sender = *parentCallFrame.Prank.Sender
 		}
+		h.state.SetNonce(sender, h.state.GetNonce(sender)+1)
+	}
 
-		if h.isolateBroadcasts {
-			var dest *common.Address
-			switch parentCallFrame.LastOp {
-			case vm.CREATE, vm.CREATE2:
-				dest = nil // no destination address to warm up
-			case vm.CALL:
-				dest = &to
-			default:
-				return
-			}
-			h.state.Finalise(true)
-			// the prank msg.sender, if any, has already been applied to 'from' before onEnter
-			h.prelude(from, dest)
+	if h.isolateBroadcasts {
+		var dest *common.Address
+		switch parentCallFrame.LastOp {
+		case vm.CREATE, vm.CREATE2:
+			dest = nil // no destination address to warm up
+		case vm.CALL:
+			dest = &to
+		default:
+			return
 		}
+		h.state.Finalise(true)
+		// the prank msg.sender, if any, has already been applied to 'from' before onEnter
+		h.prelude(from, dest)
 	}
 }
 
@@ -512,10 +521,11 @@ func (h *Host) onOpcode(pc uint64, op byte, gas, cost uint64, scope tracing.OpCo
 	// We do this here, instead of onEnter, to capture an initialized scope.
 	if len(h.callStack) == 0 || h.callStack[len(h.callStack)-1].Depth < depth {
 		h.callStack = append(h.callStack, &CallFrame{
-			Depth:  depth,
-			LastOp: vm.OpCode(op),
-			LastPC: pc,
-			Ctx:    scopeCtx,
+			Depth:       depth,
+			LastOp:      vm.OpCode(op),
+			LastPC:      pc,
+			Ctx:         scopeCtx,
+			CallerNonce: h.GetNonce(scopeCtx.Caller()),
 		})
 	}
 	// Sanity check that top of the call-stack matches the scope context now
