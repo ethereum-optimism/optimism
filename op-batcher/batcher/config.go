@@ -142,11 +142,12 @@ func (c *CLIConfig) Check() error {
 	if c.CheckRecentTxsDepth > 128 {
 		return fmt.Errorf("CheckRecentTxsDepth cannot be set higher than 128: %v", c.CheckRecentTxsDepth)
 	}
-	if c.DataAvailabilityType == flags.BlobsType && c.TargetNumFrames > params.MaxBlobGasPerBlock/params.BlobTxBlobGasPerBlob {
-		return fmt.Errorf("too many frames for blob transactions, max %d", params.MaxBlobGasPerBlock/params.BlobTxBlobGasPerBlob)
-	}
 	if !flags.ValidDataAvailabilityType(c.DataAvailabilityType) {
 		return fmt.Errorf("unknown data availability type: %q", c.DataAvailabilityType)
+	}
+	// we want to enforce it for both blobs and auto
+	if c.DataAvailabilityType != flags.CalldataType && c.TargetNumFrames > params.MaxBlobGasPerBlock/params.BlobTxBlobGasPerBlob {
+		return fmt.Errorf("too many frames for blob transactions, max %d", params.MaxBlobGasPerBlock/params.BlobTxBlobGasPerBlob)
 	}
 	if err := c.MetricsConfig.Check(); err != nil {
 		return err
