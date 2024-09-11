@@ -18,7 +18,7 @@ func GetInstructionDetails(pc uint32, memory *memory.Memory) (insn, opcode, fun 
 	return insn, opcode, fun
 }
 
-func ExecMipsCoreStepLogic(cpu *mipsevm.CpuScalars, registers *[32]uint32, memory *memory.Memory, insn, opcode, fun uint32, memTracker MemTracker, stackTracker StackTracker) error {
+func ExecMipsCoreStepLogic(cpu *mipsevm.CpuScalars, registers *[32]uint32, memory *memory.Memory, insn, opcode, fun uint32, memTracker MemTracker, stackTracker StackTracker) (memUpdated bool, memAddr uint32, err error) {
 	// j-type j/jal
 	if opcode == 2 || opcode == 3 {
 		linkReg := uint32(0)
@@ -28,7 +28,8 @@ func ExecMipsCoreStepLogic(cpu *mipsevm.CpuScalars, registers *[32]uint32, memor
 		// Take top 4 bits of the next PC (its 256 MB region), and concatenate with the 26-bit offset
 		target := (cpu.NextPC & 0xF0000000) | ((insn & 0x03FFFFFF) << 2)
 		stackTracker.PushStack(cpu.PC, target)
-		return HandleJump(cpu, registers, linkReg, target)
+		err = HandleJump(cpu, registers, linkReg, target)
+		return
 	}
 
 	// register fetch
@@ -62,7 +63,8 @@ func ExecMipsCoreStepLogic(cpu *mipsevm.CpuScalars, registers *[32]uint32, memor
 	}
 
 	if (opcode >= 4 && opcode < 8) || opcode == 1 {
-		return HandleBranch(cpu, registers, opcode, insn, rtReg, rs)
+		err = HandleBranch(cpu, registers, opcode, insn, rtReg, rs)
+		return
 	}
 
 	storeAddr := uint32(0xFF_FF_FF_FF)
@@ -95,20 +97,24 @@ func ExecMipsCoreStepLogic(cpu *mipsevm.CpuScalars, registers *[32]uint32, memor
 			} else {
 				stackTracker.PopStack()
 			}
-			return HandleJump(cpu, registers, linkReg, rs)
+			err = HandleJump(cpu, registers, linkReg, rs)
+			return
 		}
 
 		if fun == 0xa { // movz
-			return HandleRd(cpu, registers, rdReg, rs, rt == 0)
+			err = HandleRd(cpu, registers, rdReg, rs, rt == 0)
+			return
 		}
 		if fun == 0xb { // movn
-			return HandleRd(cpu, registers, rdReg, rs, rt != 0)
+			err = HandleRd(cpu, registers, rdReg, rs, rt != 0)
+			return
 		}
 
 		// lo and hi registers
 		// can write back
 		if fun >= 0x10 && fun < 0x1c {
-			return HandleHiLo(cpu, registers, fun, rs, rt, rdReg)
+			err = HandleHiLo(cpu, registers, fun, rs, rt, rdReg)
+			return
 		}
 	}
 
@@ -116,10 +122,13 @@ func ExecMipsCoreStepLogic(cpu *mipsevm.CpuScalars, registers *[32]uint32, memor
 	if storeAddr != 0xFF_FF_FF_FF {
 		memTracker.TrackMemAccess(storeAddr)
 		memory.SetMemory(storeAddr, val)
+		memUpdated = true
+		memAddr = storeAddr
 	}
 
 	// write back the value to destination register
-	return HandleRd(cpu, registers, rdReg, val, true)
+	err = HandleRd(cpu, registers, rdReg, val, true)
+	return
 }
 
 func SignExtendImmediate(insn uint32) uint32 {

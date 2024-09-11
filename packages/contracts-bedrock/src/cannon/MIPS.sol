@@ -179,7 +179,7 @@ contract MIPS is ISemver {
                     proofOffset: MIPSMemory.memoryProofOffset(STEP_PROOF_OFFSET, 1),
                     memRoot: state.memRoot
                 });
-                (v0, v1, state.preimageOffset, state.memRoot) = sys.handleSysRead(args);
+                (v0, v1, state.preimageOffset, state.memRoot,,) = sys.handleSysRead(args);
             } else if (syscall_no == sys.SYS_WRITE) {
                 (v0, v1, state.preimageKey, state.preimageOffset) = sys.handleSysWrite({
                     _a0: a0,
@@ -299,15 +299,16 @@ contract MIPS is ISemver {
 
             // Exec the rest of the step logic
             st.CpuScalars memory cpu = getCpuScalars(state);
-            (state.memRoot) = ins.execMipsCoreStepLogic({
-                _cpu: cpu,
-                _registers: state.registers,
-                _memRoot: state.memRoot,
-                _memProofOffset: MIPSMemory.memoryProofOffset(STEP_PROOF_OFFSET, 1),
-                _insn: insn,
-                _opcode: opcode,
-                _fun: fun
+            ins.CoreStepLogicParams memory coreStepArgs = ins.CoreStepLogicParams({
+                cpu: cpu,
+                registers: state.registers,
+                memRoot: state.memRoot,
+                memProofOffset: MIPSMemory.memoryProofOffset(STEP_PROOF_OFFSET, 1),
+                insn: insn,
+                opcode: opcode,
+                fun: fun
             });
+            (state.memRoot,,) = ins.execMipsCoreStepLogic(coreStepArgs);
             setStateCpuScalars(state, cpu);
 
             return outputState();
