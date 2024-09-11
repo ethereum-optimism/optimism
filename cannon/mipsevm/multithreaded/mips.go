@@ -145,13 +145,16 @@ func (m *InstrumentedState) handleSyscall() error {
 		v1 = exec.MipsEBADF
 	case exec.SysClockGetTime:
 		switch a0 {
-		case exec.ClockGettimeRealtimeFlag:
+		case exec.ClockGettimeRealtimeFlag, exec.ClockGettimeMonotonicFlag:
 			v0, v1 = 0, 0
-		// clock_gettime is used by Go guest programs for goroutine scheduling and to implement `time.Sleep` (and other sleep related operations).
-		case exec.ClockGettimeMonotonicFlag:
-			v0, v1 = 0, 0
-			secs := uint32(m.state.Step / exec.HZ)
-			nsecs := uint32((m.state.Step % exec.HZ) * (1_000_000_000 / exec.HZ))
+			var secs, nsecs uint32
+			if a0 == exec.ClockGettimeMonotonicFlag {
+				// monotonic clock_gettime is used by Go guest programs for goroutine scheduling and to implement
+				// `time.Sleep` (and other sleep related operations).
+				secs = uint32(m.state.Step / exec.HZ)
+				nsecs = uint32((m.state.Step % exec.HZ) * (1_000_000_000 / exec.HZ))
+			} // else realtime set to Unix Epoch
+
 			effAddr := a1 & 0xFFffFFfc
 			m.memoryTracker.TrackMemAccess(effAddr)
 			m.state.Memory.SetMemory(effAddr, secs)
@@ -159,7 +162,7 @@ func (m *InstrumentedState) handleSyscall() error {
 			m.state.Memory.SetMemory(effAddr+4, nsecs)
 		default:
 			v0 = exec.SysErrorSignal
-			v1 = exec.MipsEBADF
+			v1 = exec.MipsEINVAL
 		}
 	case exec.SysGetpid:
 		v0 = 0

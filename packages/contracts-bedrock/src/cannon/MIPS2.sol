@@ -385,14 +385,15 @@ contract MIPS2 is ISemver {
                 v0 = sys.SYS_ERROR_SIGNAL;
                 v1 = sys.EBADF;
             } else if (syscall_no == sys.SYS_CLOCKGETTIME) {
-                if (a0 == sys.CLOCK_GETTIME_REALTIME_FLAG) {
+                if (a0 == sys.CLOCK_GETTIME_REALTIME_FLAG || a0 == sys.CLOCK_GETTIME_MONOTONIC_FLAG) {
                     v0 = 0;
                     v1 = 0;
-                } else if (a0 == sys.CLOCK_GETTIME_MONOTONIC_FLAG) {
-                    v0 = 0;
-                    v1 = 0;
-                    uint32 secs = uint32(state.step / sys.HZ);
-                    uint32 nsecs = uint32((state.step % sys.HZ) * (1_000_000_000 / sys.HZ));
+                    uint32 secs = 0;
+                    uint32 nsecs = 0;
+                    if (a0 == sys.CLOCK_GETTIME_MONOTONIC_FLAG) {
+                        secs = uint32(state.step / sys.HZ);
+                        nsecs = uint32((state.step % sys.HZ) * (1_000_000_000 / sys.HZ));
+                    }
                     uint32 effAddr = a1 & 0xFFffFFfc;
                     // First verify the effAddr path
                     if (
@@ -417,7 +418,7 @@ contract MIPS2 is ISemver {
                         MIPSMemory.writeMem(effAddr + 4, MIPSMemory.memoryProofOffset(MEM_PROOF_OFFSET, 2), nsecs);
                 } else {
                     v0 = sys.SYS_ERROR_SIGNAL;
-                    v1 = sys.EBADF;
+                    v1 = sys.EINVAL;
                 }
             } else if (syscall_no == sys.SYS_GETPID) {
                 v0 = 0;
