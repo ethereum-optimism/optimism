@@ -321,22 +321,17 @@ contract DeployOPChainOutput_Test is Test {
 // DeploySuperchain and DeployImplementations scripts.
 contract DeployOPChain_TestBase is Test {
     DeployOPChain deployOPChain;
-    DeployOPChainInput dsi;
-    DeployOPChainOutput dso;
+    DeployOPChainInput doi;
+    DeployOPChainOutput doo;
 
-    // We define a default initial input struct for DeploySuperchain. The other input structs are
-    // dependent on the outputs of the previous scripts, so we initialize them here and populate
-    // the null values in the `setUp` method.assert
-    DeploySuperchainInput.Input deploySuperchainInput = DeploySuperchainInput.Input({
-        roles: DeploySuperchainInput.Roles({
-            proxyAdminOwner: makeAddr("defaultProxyAdminOwner"),
-            protocolVersionsOwner: makeAddr("defaultProtocolVersionsOwner"),
-            guardian: makeAddr("defaultGuardian")
-        }),
-        paused: false,
-        requiredProtocolVersion: ProtocolVersion.wrap(1),
-        recommendedProtocolVersion: ProtocolVersion.wrap(2)
-    });
+    // We define a default initial input set for DeploySuperchain. The other inputs are dependent
+    // on the outputs of the previous scripts, so we initialize them in the `setUp` method.
+    address proxyAdminOwner = makeAddr("defaultProxyAdminOwner");
+    address protocolVersionsOwner = makeAddr("defaultProtocolVersionsOwner");
+    address guardian = makeAddr("defaultGuardian");
+    bool paused = false;
+    ProtocolVersion requiredProtocolVersion = ProtocolVersion.wrap(1);
+    ProtocolVersion recommendedProtocolVersion = ProtocolVersion.wrap(2);
 
     DeployImplementationsInput.Input deployImplementationsInput = DeployImplementationsInput.Input({
         withdrawalDelaySeconds: 100,
@@ -372,16 +367,24 @@ contract DeployOPChain_TestBase is Test {
     function setUp() public {
         // Initialize deploy scripts.
         DeploySuperchain deploySuperchain = new DeploySuperchain();
+        (DeploySuperchainInput dsi, DeploySuperchainOutput dso) = deploySuperchain.etchIOContracts();
+        dsi.set(dsi.proxyAdminOwner.selector, proxyAdminOwner);
+        dsi.set(dsi.protocolVersionsOwner.selector, protocolVersionsOwner);
+        dsi.set(dsi.guardian.selector, guardian);
+        dsi.set(dsi.paused.selector, paused);
+        dsi.set(dsi.requiredProtocolVersion.selector, requiredProtocolVersion);
+        dsi.set(dsi.recommendedProtocolVersion.selector, recommendedProtocolVersion);
+
         DeployImplementations deployImplementations = new DeployImplementations();
         deployOPChain = new DeployOPChain();
-        (dsi, dso) = deployOPChain.getIOContracts();
+        (doi, doo) = deployOPChain.getIOContracts();
 
         // Deploy the superchain contracts.
-        DeploySuperchainOutput.Output memory superchainOutput = deploySuperchain.run(deploySuperchainInput);
+        deploySuperchain.run(dsi, dso);
 
         // Populate the input struct for DeployImplementations based on the output of DeploySuperchain.
-        deployImplementationsInput.superchainConfigProxy = superchainOutput.superchainConfigProxy;
-        deployImplementationsInput.protocolVersionsProxy = superchainOutput.protocolVersionsProxy;
+        deployImplementationsInput.superchainConfigProxy = dso.superchainConfigProxy();
+        deployImplementationsInput.protocolVersionsProxy = dso.protocolVersionsProxy();
 
         // Deploy the implementations using the updated DeployImplementations input struct.
         deployImplementationsOutput = deployImplementations.run(deployImplementationsInput);
@@ -414,31 +417,31 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         // TODO Add fault proof contract assertions below once OPSM fully supports them.
 
         // Assert that individual input fields were properly set based on the input struct.
-        assertEq(_input.roles.opChainProxyAdminOwner, dsi.opChainProxyAdminOwner(), "100");
-        assertEq(_input.roles.systemConfigOwner, dsi.systemConfigOwner(), "200");
-        assertEq(_input.roles.batcher, dsi.batcher(), "300");
-        assertEq(_input.roles.unsafeBlockSigner, dsi.unsafeBlockSigner(), "400");
-        assertEq(_input.roles.proposer, dsi.proposer(), "500");
-        assertEq(_input.roles.challenger, dsi.challenger(), "600");
-        assertEq(_input.basefeeScalar, dsi.basefeeScalar(), "700");
-        assertEq(_input.blobBaseFeeScalar, dsi.blobBaseFeeScalar(), "800");
-        assertEq(_input.l2ChainId, dsi.l2ChainId(), "900");
+        assertEq(_input.roles.opChainProxyAdminOwner, doi.opChainProxyAdminOwner(), "100");
+        assertEq(_input.roles.systemConfigOwner, doi.systemConfigOwner(), "200");
+        assertEq(_input.roles.batcher, doi.batcher(), "300");
+        assertEq(_input.roles.unsafeBlockSigner, doi.unsafeBlockSigner(), "400");
+        assertEq(_input.roles.proposer, doi.proposer(), "500");
+        assertEq(_input.roles.challenger, doi.challenger(), "600");
+        assertEq(_input.basefeeScalar, doi.basefeeScalar(), "700");
+        assertEq(_input.blobBaseFeeScalar, doi.blobBaseFeeScalar(), "800");
+        assertEq(_input.l2ChainId, doi.l2ChainId(), "900");
 
         // Assert that individual output fields were properly set based on the output struct.
-        assertEq(address(output.opChainProxyAdmin), address(dso.opChainProxyAdmin()), "1100");
-        assertEq(address(output.addressManager), address(dso.addressManager()), "1200");
-        assertEq(address(output.l1ERC721BridgeProxy), address(dso.l1ERC721BridgeProxy()), "1300");
-        assertEq(address(output.systemConfigProxy), address(dso.systemConfigProxy()), "1400");
+        assertEq(address(output.opChainProxyAdmin), address(doo.opChainProxyAdmin()), "1100");
+        assertEq(address(output.addressManager), address(doo.addressManager()), "1200");
+        assertEq(address(output.l1ERC721BridgeProxy), address(doo.l1ERC721BridgeProxy()), "1300");
+        assertEq(address(output.systemConfigProxy), address(doo.systemConfigProxy()), "1400");
         assertEq(
-            address(output.optimismMintableERC20FactoryProxy), address(dso.optimismMintableERC20FactoryProxy()), "1500"
+            address(output.optimismMintableERC20FactoryProxy), address(doo.optimismMintableERC20FactoryProxy()), "1500"
         );
-        assertEq(address(output.l1StandardBridgeProxy), address(dso.l1StandardBridgeProxy()), "1600");
-        assertEq(address(output.l1CrossDomainMessengerProxy), address(dso.l1CrossDomainMessengerProxy()), "1700");
-        assertEq(address(output.optimismPortalProxy), address(dso.optimismPortalProxy()), "1800");
+        assertEq(address(output.l1StandardBridgeProxy), address(doo.l1StandardBridgeProxy()), "1600");
+        assertEq(address(output.l1CrossDomainMessengerProxy), address(doo.l1CrossDomainMessengerProxy()), "1700");
+        assertEq(address(output.optimismPortalProxy), address(doo.optimismPortalProxy()), "1800");
 
         // Assert that the full input and output structs were properly set.
-        assertEq(keccak256(abi.encode(_input)), keccak256(abi.encode(DeployOPChainInput(dsi).input())), "1900");
-        assertEq(keccak256(abi.encode(output)), keccak256(abi.encode(DeployOPChainOutput(dso).output())), "2000");
+        assertEq(keccak256(abi.encode(_input)), keccak256(abi.encode(DeployOPChainInput(doi).input())), "1900");
+        assertEq(keccak256(abi.encode(output)), keccak256(abi.encode(DeployOPChainOutput(doo).output())), "2000");
 
         // Assert inputs were properly passed through to the contract initializers.
         assertEq(address(output.opChainProxyAdmin.owner()), _input.roles.opChainProxyAdminOwner, "2100");
