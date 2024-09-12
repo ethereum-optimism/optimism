@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Test, stdStorage, StdStorage } from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 import { stdToml } from "forge-std/StdToml.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
 
-import { DeployAuthSystemInput } from "scripts/DeployAuthSystem.s.sol";
+import { DeployAuthSystemInput, DeployAuthSystemOutput } from "scripts/DeployAuthSystem.s.sol";
 
 contract DeployAuthSystemInput_Test is Test {
     DeployAuthSystemInput dsi;
@@ -46,5 +46,61 @@ contract DeployAuthSystemInput_Test is Test {
 
         vm.expectRevert("DeployAuthSystemInput: owners not set");
         dsi.owners();
+    }
+}
+
+contract DeployAuthSystemOutput_Test is Test {
+    using stdToml for string;
+
+    DeployAuthSystemOutput daso;
+
+    function setUp() public {
+        daso = new DeployAuthSystemOutput();
+    }
+
+    function test_set_succeeds() public {
+        address safeAddr = makeAddr("safe");
+
+        // Ensure the address has code, since it's expected to be a contract
+        vm.etch(safeAddr, hex"01");
+
+        // Set the output data
+        daso.set(daso.safe.selector, safeAddr);
+
+        // Compare the test data to the getter method
+        assertEq(safeAddr, address(daso.safe()), "100");
+    }
+
+    function test_getter_whenNotSet_reverts() public {
+        vm.expectRevert("DeployUtils: zero address");
+        daso.safe();
+    }
+
+    function test_getter_whenAddrHasNoCode_reverts() public {
+        address emptyAddr = makeAddr("emptyAddr");
+        bytes memory expectedErr = bytes(string.concat("DeployUtils: no code at ", vm.toString(emptyAddr)));
+
+        daso.set(daso.safe.selector, emptyAddr);
+        vm.expectRevert(expectedErr);
+        daso.safe();
+    }
+
+    function test_writeOutputFile_succeeds() public {
+        string memory root = vm.projectRoot();
+
+        // Use the expected data from the test fixture.
+        string memory expOutPath = string.concat(root, "/test/fixtures/test-deploy-auth-system-out.toml");
+        string memory expOutToml = vm.readFile(expOutPath);
+
+        address expSafe = expOutToml.readAddress(".safe");
+
+        // Etch code at each address so the code checks pass when settings values.
+        vm.etch(expSafe, hex"01");
+
+        daso.set(daso.safe.selector, expSafe);
+
+        string memory actOutPath = string.concat(root, "/.testdata/test-deploy-auth-system-output.toml");
+        daso.writeOutputFile(actOutPath);
+        string memory actOutToml = vm.readFile(actOutPath);
     }
 }
