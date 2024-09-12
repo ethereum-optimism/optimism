@@ -17,11 +17,16 @@ import { BeaconProxy } from "@openzeppelin/contracts-v5/proxy/beacon/BeaconProxy
 
 // Target contract
 import {
-    OptimismSuperchainERC20,
-    IOptimismSuperchainERC20Extension,
-    OnlyBridge,
-    ZeroAddress
+    OptimismSuperchainERC20, IOptimismSuperchainERC20Extension, OnlyBridge
 } from "src/L2/OptimismSuperchainERC20.sol";
+
+// SuperchainERC20 Errors
+import {
+    ZeroAddress,
+    CallerNotL2ToL2CrossDomainMessenger,
+    InvalidCrossDomainSender
+} from "src/L2/OptimismSuperchainERC20.sol";
+
 import { ISuperchainERC20Extensions } from "src/L2/interfaces/ISuperchainERC20.sol";
 
 /// @title OptimismSuperchainERC20Test
@@ -310,23 +315,6 @@ contract OptimismSuperchainERC20Test is Test {
         // Call the `relayERC20` function with the sender caller
         vm.prank(MESSENGER);
         superchainERC20.relayERC20(_crossDomainMessageSender, _to, _amount);
-    }
-
-    /// @notice Tests the `relayERC20` function reverts when the `_to` address is the zero address.
-    function testFuzz_relayERC20_zeroAddressTo_reverts(uint256 _amount) public {
-        // Expect the revert with `ZeroAddress` selector
-        vm.expectRevert(ZeroAddress.selector);
-
-        // Mock the call over the `crossDomainMessageSender` function setting the same address as value
-        vm.mockCall(
-            MESSENGER,
-            abi.encodeWithSelector(IL2ToL2CrossDomainMessenger.crossDomainMessageSender.selector),
-            abi.encode(address(superchainERC20))
-        );
-
-        // Call the `relayERC20` function with the zero address
-        vm.prank(MESSENGER);
-        superchainERC20.relayERC20({ _from: ZERO_ADDRESS, _to: ZERO_ADDRESS, _amount: _amount });
     }
 
     /// @notice Tests the `relayERC20` mints the proper amount and emits the `RelayERC20` event.

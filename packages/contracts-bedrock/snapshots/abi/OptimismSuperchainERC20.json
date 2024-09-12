@@ -633,10 +633,5 @@
     "inputs": [],
     "name": "ZeroAddress",
     "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ZeroAddress",
-    "type": "error"
   }
 ]

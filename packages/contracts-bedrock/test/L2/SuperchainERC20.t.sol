@@ -7,7 +7,7 @@ import { Test } from "forge-std/Test.sol";
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { IERC20 } from "@openzeppelin/contracts-v5/token/ERC20/IERC20.sol";
-import { IL2ToL2CrossDomainMessenger } from "src/L2/IL2ToL2CrossDomainMessenger.sol";
+import { IL2ToL2CrossDomainMessenger } from "src/L2/interfaces/IL2ToL2CrossDomainMessenger.sol";
 
 // Target contract
 import {
@@ -20,27 +20,41 @@ import {
 
 /// @notice Mock contract for the SuperchainERC20 contract so tests can mint tokens.
 contract SuperchainERC20Mock is SuperchainERC20 {
-    constructor(
-        string memory _name,
-        string memory _symbol,
-        uint8 _decimals
-    )
-        SuperchainERC20(_name, _symbol, _decimals)
-    { }
+    string private _name;
+    string private _symbol;
+    uint8 private _decimals;
+
+    constructor(string memory __name, string memory __symbol, uint8 __decimals) {
+        _name = __name;
+        _symbol = __symbol;
+        _decimals = __decimals;
+    }
 
     function mint(address _account, uint256 _amount) public {
         _mint(_account, _amount);
     }
-}
 
+    function name() public view virtual override returns (string memory) {
+        return _name;
+    }
+
+    function symbol() public view virtual override returns (string memory) {
+        return _symbol;
+    }
+
+    function decimals() public view virtual override returns (uint8) {
+        return _decimals;
+    }
+}
 /// @title SuperchainERC20Test
 /// @notice Contract for testing the SuperchainERC20 contract.
+
 contract SuperchainERC20Test is Test {
-    address internal constant ZERO_ADDRESS = address(0);
     string internal constant NAME = "SuperchainERC20";
     string internal constant SYMBOL = "SCE";
     uint8 internal constant DECIMALS = 18;
     address internal constant MESSENGER = Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER;
+    address internal ZERO_ADDRESS;
 
     SuperchainERC20 public superchainERC20Impl;
     SuperchainERC20Mock public superchainERC20;
@@ -154,23 +168,6 @@ contract SuperchainERC20Test is Test {
         superchainERC20.relayERC20(_crossDomainMessageSender, _to, _amount);
     }
 
-    /// @notice Tests the `relayERC20` function reverts when the `_to` address is the zero address.
-    function testFuzz_relayERC20_zeroAddressTo_reverts(uint256 _amount) public {
-        // Expect the revert with `ZeroAddress` selector
-        vm.expectRevert(ZeroAddress.selector);
-
-        // Mock the call over the `crossDomainMessageSender` function setting the same address as value
-        vm.mockCall(
-            MESSENGER,
-            abi.encodeWithSelector(IL2ToL2CrossDomainMessenger.crossDomainMessageSender.selector),
-            abi.encode(address(superchainERC20))
-        );
-
-        // Call the `relayERC20` function with the zero address
-        vm.prank(MESSENGER);
-        superchainERC20.relayERC20({ _from: ZERO_ADDRESS, _to: ZERO_ADDRESS, _amount: _amount });
-    }
-
     /// @notice Tests the `relayERC20` mints the proper amount and emits the `RelayERC20` event.
     function testFuzz_relayERC20_succeeds(address _from, address _to, uint256 _amount, uint256 _source) public {
         vm.assume(_from != ZERO_ADDRESS);
@@ -211,21 +208,21 @@ contract SuperchainERC20Test is Test {
         assertEq(superchainERC20.balanceOf(_to), _toBalanceBefore + _amount);
     }
 
-    /// @notice Tests the `decimals` function always returns the correct value.
-    function testFuzz_decimals_succeeds(uint8 _decimals) public {
-        SuperchainERC20 _newSuperchainERC20 = new SuperchainERC20(NAME, SYMBOL, _decimals);
-        assertEq(_newSuperchainERC20.decimals(), _decimals);
-    }
-
     /// @notice Tests the `name` function always returns the correct value.
     function testFuzz_name_succeeds(string memory _name) public {
-        SuperchainERC20 _newSuperchainERC20 = new SuperchainERC20(_name, SYMBOL, DECIMALS);
+        SuperchainERC20 _newSuperchainERC20 = new SuperchainERC20Mock(_name, SYMBOL, DECIMALS);
         assertEq(_newSuperchainERC20.name(), _name);
     }
 
     /// @notice Tests the `symbol` function always returns the correct value.
     function testFuzz_symbol_succeeds(string memory _symbol) public {
-        SuperchainERC20 _newSuperchainERC20 = new SuperchainERC20(NAME, _symbol, DECIMALS);
+        SuperchainERC20 _newSuperchainERC20 = new SuperchainERC20Mock(NAME, _symbol, DECIMALS);
         assertEq(_newSuperchainERC20.symbol(), _symbol);
+    }
+
+    /// @notice Tests the `decimals` function always returns the correct value.
+    function testFuzz_decimals_succeeds(uint8 _decimals) public {
+        SuperchainERC20 _newSuperchainERC20 = new SuperchainERC20Mock(NAME, SYMBOL, _decimals);
+        assertEq(_newSuperchainERC20.decimals(), _decimals);
     }
 }

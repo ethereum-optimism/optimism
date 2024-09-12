@@ -2,20 +2,25 @@
 pragma solidity 0.8.25;
 
 import { IOptimismSuperchainERC20Extension } from "src/L2/interfaces/IOptimismSuperchainERC20.sol";
-import { ERC20 } from "@solady/tokens/ERC20.sol";
 import { IL2ToL2CrossDomainMessenger } from "src/L2/interfaces/IL2ToL2CrossDomainMessenger.sol";
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { ZeroAddress } from "src/libraries/errors/CommonErrors.sol";
+import { ERC20 } from "@solady/tokens/ERC20.sol";
 import { SuperchainERC20 } from "src/L2/SuperchainERC20.sol";
-import { ISemver } from "src/universal/ISemver.sol";
 import { Initializable } from "@openzeppelin/contracts-v5/proxy/utils/Initializable.sol";
 import { ERC165 } from "@openzeppelin/contracts-v5/utils/introspection/ERC165.sol";
 
+/// @notice Thrown when attempting to relay a message and the function caller (msg.sender) is not
+/// L2ToL2CrossDomainMessenger.
+error CallerNotL2ToL2CrossDomainMessenger();
+
+/// @notice Thrown when attempting to relay a message and the cross domain message sender is not this
+/// OptimismSuperchainERC20.
+error InvalidCrossDomainSender();
+
 /// @notice Thrown when attempting to mint or burn tokens and the function caller is not the StandardBridge.
 error OnlyBridge();
-
-/// @notice Thrown when attempting to mint or burn tokens and the account is the zero address.
-error ZeroAddress();
 
 /// @custom:proxied true
 /// @title OptimismSuperchainERC20
@@ -45,6 +50,12 @@ contract OptimismSuperchainERC20 is
     struct OptimismSuperchainERC20Metadata {
         /// @notice Address of the corresponding version of this token on the remote chain.
         address remoteToken;
+        /// @notice Name of the token
+        string name;
+        /// @notice Symbol of the token
+        string symbol;
+        /// @notice Decimals of the token
+        uint8 decimals;
     }
 
     /// @notice Returns the storage for the OptimismSuperchainERC20Metadata.
@@ -65,7 +76,7 @@ contract OptimismSuperchainERC20 is
     string public constant version = "1.0.0-beta.2";
 
     /// @notice Constructs the OptimismSuperchainERC20 contract.
-    constructor() SuperchainERC20("", "", 18) {
+    constructor() {
         _disableInitializers();
     }
 
@@ -83,10 +94,11 @@ contract OptimismSuperchainERC20 is
         external
         initializer
     {
-        _setMetadataStorage(_name, _symbol, _decimals);
-
         OptimismSuperchainERC20Metadata storage _storage = _getStorage();
         _storage.remoteToken = _remoteToken;
+        _storage.name = _name;
+        _storage.symbol = _symbol;
+        _storage.decimals = _decimals;
     }
 
     /// @notice Allows the L2StandardBridge to mint tokens.
@@ -114,6 +126,26 @@ contract OptimismSuperchainERC20 is
     /// @notice Returns the address of the corresponding version of this token on the remote chain.
     function remoteToken() public view override returns (address) {
         return _getStorage().remoteToken;
+    }
+
+    /// @notice Returns the name of the token.
+    function name() public view virtual override returns (string memory) {
+        return _getStorage().name;
+    }
+
+    /// @notice Returns the symbol of the token.
+    function symbol() public view virtual override returns (string memory) {
+        return _getStorage().symbol;
+    }
+
+    /// @notice Returns the number of decimals used to get its user representation.
+    /// For example, if `decimals` equals `2`, a balance of `505` tokens should
+    /// be displayed to a user as `5.05` (`505 / 10 ** 2`).
+    /// NOTE: This information is only used for _display_ purposes: it in
+    /// no way affects any of the arithmetic of the contract, including
+    /// {IERC20-balanceOf} and {IERC20-transfer}.
+    function decimals() public view override returns (uint8) {
+        return _getStorage().decimals;
     }
 
     /// @notice ERC165 interface check function.
