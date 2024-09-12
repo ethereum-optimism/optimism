@@ -41,13 +41,13 @@ func NewL2FaultProofEnv(t actions.Testing, tp *e2eutils.TestParams, dp *e2eutils
 
 	miner := actions.NewL1Miner(t, log.New("role", "l1-miner"), sd.L1Cfg)
 
-	l1F, err := sources.NewL1Client(miner.RPCClient(), log, nil, sources.L1ClientDefaultConfig(sd.RollupCfg, false, sources.RPCKindStandard))
+	l1Cl, err := sources.NewL1Client(miner.RPCClient(), log, nil, sources.L1ClientDefaultConfig(sd.RollupCfg, false, sources.RPCKindStandard))
 	require.NoError(t, err)
 	engine := actions.NewL2Engine(t, log.New("role", "sequencer-engine"), sd.L2Cfg, sd.RollupCfg.Genesis.L1, jwtPath, actions.EngineWithP2P())
-	l2Cl, err := sources.NewEngineClient(engine.RPCClient(), log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
+	l2EngineCl, err := sources.NewEngineClient(engine.RPCClient(), log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 	require.NoError(t, err)
 
-	sequencer := actions.NewL2Sequencer(t, log.New("role", "sequencer"), l1F, miner.BlobStore(), altda.Disabled, l2Cl, sd.RollupCfg, 0, cfg.InteropBackend)
+	sequencer := actions.NewL2Sequencer(t, log.New("role", "sequencer"), l1Cl, miner.BlobStore(), altda.Disabled, l2EngineCl, sd.RollupCfg, 0, cfg.InteropBackend)
 	miner.ActL1SetFeeRecipient(common.Address{0xCA, 0xFE, 0xBA, 0xBE})
 	sequencer.ActL2PipelineFull(t)
 	engCl := engine.EngineClient(t, sd.RollupCfg)
@@ -57,14 +57,22 @@ func NewL2FaultProofEnv(t actions.Testing, tp *e2eutils.TestParams, dp *e2eutils
 	batcher := actions.NewL2Batcher(log, sd.RollupCfg, batcherCfg, sequencer.RollupClient(), miner.EthClient(), engine.EthClient(), engCl)
 
 	addresses := e2eutils.CollectAddresses(sd, dp)
-	cl := engine.EthClient()
+	l1EthCl := miner.EthClient()
+	l2EthCl := engine.EthClient()
+	l1UserEnv := &actions.BasicUserEnv[*actions.L1Bindings]{
+		EthCl:          l1EthCl,
+		Signer:         types.LatestSigner(sd.L1Cfg.Config),
+		AddressCorpora: addresses,
+		Bindings:       actions.NewL1Bindings(t, l1EthCl),
+	}
 	l2UserEnv := &actions.BasicUserEnv[*actions.L2Bindings]{
-		EthCl:          cl,
+		EthCl:          l2EthCl,
 		Signer:         types.LatestSigner(sd.L2Cfg.Config),
 		AddressCorpora: addresses,
-		Bindings:       actions.NewL2Bindings(t, cl, engine.GethClient()),
+		Bindings:       actions.NewL2Bindings(t, l2EthCl, engine.GethClient()),
 	}
 	alice := actions.NewCrossLayerUser(log, dp.Secrets.Alice, rand.New(rand.NewSource(0xa57b)))
+	alice.L1.SetUserEnv(l1UserEnv)
 	alice.L2.SetUserEnv(l2UserEnv)
 
 	return &L2FaultProofEnv{
