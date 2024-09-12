@@ -22,6 +22,7 @@ import { L2ERC721Bridge } from "src/L2/L2ERC721Bridge.sol";
 import { SequencerFeeVault } from "src/L2/SequencerFeeVault.sol";
 import { BaseFeeVault } from "src/L2/BaseFeeVault.sol";
 import { L1FeeVault } from "src/L2/L1FeeVault.sol";
+import { OptimismSuperchainERC20Beacon } from "src/L2/OptimismSuperchainERC20Beacon.sol";
 import { OptimismMintableERC721Factory } from "src/universal/OptimismMintableERC721Factory.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { StandardBridge } from "src/universal/StandardBridge.sol";

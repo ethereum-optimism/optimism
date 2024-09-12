@@ -51,6 +51,7 @@ import { IProtocolVersions } from "src/L1/interfaces/IProtocolVersions.sol";
 import { IL1ERC721Bridge } from "src/L1/interfaces/IL1ERC721Bridge.sol";
 import { IOptimismMintableERC20Factory } from "src/universal/interfaces/IOptimismMintableERC20Factory.sol";
 import { IAddressManager } from "src/legacy/interfaces/IAddressManager.sol";
+import { IOptimismERC20Factory } from "src/L2/interfaces/IOptimismERC20Factory.sol";
 
 /// @title Setup
 /// @dev This contact is responsible for setting up the contracts in state. It currently
