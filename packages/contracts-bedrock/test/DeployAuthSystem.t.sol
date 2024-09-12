@@ -5,7 +5,7 @@ import { Test } from "forge-std/Test.sol";
 import { stdToml } from "forge-std/StdToml.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
 
-import { DeployAuthSystemInput, DeployAuthSystemOutput } from "scripts/DeployAuthSystem.s.sol";
+import { DeployAuthSystemInput } from "scripts/DeployAuthSystem.s.sol";
 
 contract DeployAuthSystemInput_Test is Test {
     DeployAuthSystemInput dsi;
@@ -48,4 +48,3 @@ contract DeployAuthSystemInput_Test is Test {
         dsi.owners();
     }
 }
-
