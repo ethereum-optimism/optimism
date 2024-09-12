@@ -88,6 +88,11 @@ for FILE in $CHANGED_FILES; do
     # Extract function names and their line numbers from the entire file
     FUNCTION_LINES=$(awk '/function testFuzz_|function invariant_/ {print FNR, $0}' "$FILE")
 
+    # If there are no function lines, skip the file.
+    if [ -z "$FUNCTION_LINES" ]; then
+        continue
+    fi
+
     # Reverse the function lines so we can match the last function modified.
     # We'd otherwise end up matching the first function with a line number less
     # than the modified line number which is not what we want.
