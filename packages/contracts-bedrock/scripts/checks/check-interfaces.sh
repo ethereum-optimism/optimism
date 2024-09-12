@@ -35,9 +35,9 @@ EXCLUDE_CONTRACTS=(
     "Vm"
     "VmSafe"
     "IMulticall3"
-    "IBeacon"
     "IERC721TokenReceiver"
     "IProxyCreationCallback"
+    "IBeacon"
 
     # EAS
     "IEAS"
@@ -68,6 +68,9 @@ EXCLUDE_CONTRACTS=(
     "ISuperchainConfig"
     "IOptimismPortal"
     "IL1BlockIsthmus"
+
+    # Need to make complex tweaks to the check script for this one
+    "ISystemConfigInterop"
 )
 
 # Find all JSON files in the forge-artifacts folder
@@ -180,8 +183,24 @@ for interface_file in $JSON_FILES; do
     interface_abi=$(jq '[.abi[] | select(.type != "constructor")]' < "$interface_file")
     contract_abi=$(jq '[.abi[] | select(.type != "constructor")]' < "$corresponding_contract_file")
 
+    # Function to normalize ABI by replacing interface name with contract name.
+    # Base contracts aren't allowed to inherit from their interfaces in order
+    # to guarantee a 1:1 match between interfaces and contracts. This means
+    # that the interface will redefine types in the base contract. We normalize
+    # the ABI as if the interface and contract are the same name
+    normalize_abi() {
+        local abi="$1"
+        local interface_name="$2"
+        local contract_name="$3"
+        echo "${abi//$interface_name/$contract_name}"
+    }
+
+    # Normalize the ABIs
+    normalized_interface_abi=$(normalize_abi "$interface_abi" "$contract_name" "$contract_basename")
+    normalized_contract_abi="$contract_abi"
+
     # Use jq to compare the ABIs
-    if ! diff_result=$(diff -u <(echo "$interface_abi" | jq -S .) <(echo "$contract_abi" | jq -S .)); then
+    if ! diff_result=$(diff -u <(echo "$normalized_interface_abi" | jq -S .) <(echo "$normalized_contract_abi" | jq -S .)); then
         if ! grep -q "^$contract_name$" "$REPORTED_INTERFACES_FILE"; then
             echo "$contract_name" >> "$REPORTED_INTERFACES_FILE"
             if ! is_excluded "$contract_name"; then
@@ -200,8 +219,9 @@ done
 # Check for unnecessary exclusions
 for exclude_item in "${EXCLUDE_CONTRACTS[@]}"; do
     if ! grep -q "^$exclude_item$" "$REPORTED_INTERFACES_FILE"; then
-        echo "Warning: $exclude_item is in the exclude list but was not reported as an issue."
-        echo "Consider removing it from the EXCLUDE_CONTRACTS list in the script."
+        echo "Warning: $exclude_item is in the exclude list but WAS NOT reported as an issue. It"
+        echo "may be unnecessary in the EXCLUDE_CONTRACTS list, but you MUST verify this before"
+        echo "removing it by performing a clean and full build before re-running this script."
     fi
 done
 

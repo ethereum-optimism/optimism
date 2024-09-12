@@ -140,7 +140,8 @@ func TestFetchingEnabled(t *testing.T) {
 	t.Run("FetchingEnabledWhenBothFetcherUrlsSpecified", func(t *testing.T) {
 		cfg := validConfig()
 		cfg.L1URL = "https://example.com:1234"
-		cfg.L2URL = "https://example.com:5678"
+		cfg.L1BeaconURL = "https://example.com:5678"
+		cfg.L2URL = "https://example.com:91011"
 		require.True(t, cfg.FetchingEnabled(), "Should enable fetching when node URL supplied")
 	})
 }

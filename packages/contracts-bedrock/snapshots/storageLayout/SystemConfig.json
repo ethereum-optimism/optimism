@@ -81,6 +81,6 @@
     "label": "_resourceConfig",
     "offset": 0,
     "slot": "105",
-    "type": "struct ResourceMetering.ResourceConfig"
+    "type": "struct IResourceMetering.ResourceConfig"
   }
 ]

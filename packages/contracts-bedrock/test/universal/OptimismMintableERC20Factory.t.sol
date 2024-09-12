@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-// Testing utilities
+// Testing
 import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
 import { NextImpl } from "test/mocks/NextImpl.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
-// Target contract dependencies
+// Contracts
 import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
+import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
 import { Proxy } from "src/universal/Proxy.sol";
 
-// Target contract
-import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
+// Interfaces
+import { IOptimismMintableERC20Factory } from "src/universal/interfaces/IOptimismMintableERC20Factory.sol";
 
 contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
     event StandardL2TokenCreated(address indexed remoteToken, address indexed localToken);
@@ -19,7 +20,7 @@ contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
 
     /// @notice Tests that the constructor is initialized correctly.
     function test_constructor_succeeds() external {
-        OptimismMintableERC20Factory impl = new OptimismMintableERC20Factory();
+        IOptimismMintableERC20Factory impl = IOptimismMintableERC20Factory(address(new OptimismMintableERC20Factory()));
         assertEq(address(impl.BRIDGE()), address(0));
         assertEq(address(impl.bridge()), address(0));
     }

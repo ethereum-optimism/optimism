@@ -5,10 +5,6 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/eth/ethconfig"
-	"github.com/ethereum/go-ethereum/node"
-	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -21,43 +17,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
-func EngineWithP2P() EngineOption {
-	return func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error {
-		p2pKey, err := crypto.GenerateKey()
-		if err != nil {
-			return err
-		}
-		nodeCfg.P2P = p2p.Config{
-			MaxPeers:    100,
-			NoDiscovery: true,
-			ListenAddr:  "127.0.0.1:0",
-			PrivateKey:  p2pKey,
-		}
-		return nil
-	}
-}
-
-type sequencerCfg struct {
-	verifierCfg
-}
-
-func defaultSequencerConfig() *sequencerCfg {
-	return &sequencerCfg{verifierCfg: *defaultVerifierCfg()}
-}
-
-type SequencerOpt func(opts *sequencerCfg)
-
-func WithVerifierOpts(opts ...VerifierOpt) SequencerOpt {
-	return func(cfg *sequencerCfg) {
-		for _, opt := range opts {
-			opt(&cfg.verifierCfg)
-		}
-	}
-}
-
 func setupSequencerTest(t Testing, sd *e2eutils.SetupData, log log.Logger, opts ...SequencerOpt) (*L1Miner, *L2Engine, *L2Sequencer) {
 	jwtPath := e2eutils.WriteDefaultJWT(t)
-	cfg := defaultSequencerConfig()
+	cfg := DefaultSequencerConfig()
 	for _, opt := range opts {
 		opt(cfg)
 	}
@@ -70,7 +32,7 @@ func setupSequencerTest(t Testing, sd *e2eutils.SetupData, log log.Logger, opts 
 	l2Cl, err := sources.NewEngineClient(engine.RPCClient(), log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 	require.NoError(t, err)
 
-	sequencer := NewL2Sequencer(t, log.New("role", "sequencer"), l1F, miner.BlobStore(), altda.Disabled, l2Cl, sd.RollupCfg, 0, cfg.interopBackend)
+	sequencer := NewL2Sequencer(t, log.New("role", "sequencer"), l1F, miner.BlobStore(), altda.Disabled, l2Cl, sd.RollupCfg, 0, cfg.InteropBackend)
 	return miner, engine, sequencer
 }
 
@@ -83,7 +45,7 @@ func TestL2Sequencer_SequencerDrift(gt *testing.T) {
 		L1BlockTime:         12,
 	}
 	dp := e2eutils.MakeDeployParams(t, p)
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 	miner, engine, sequencer := setupSequencerTest(t, sd, log)
 	miner.ActL1SetFeeRecipient(common.Address{'A'})
@@ -150,8 +112,8 @@ func TestL2Sequencer_SequencerDrift(gt *testing.T) {
 // while the verifier-codepath only ever sees the valid post-reorg L1 chain.
 func TestL2Sequencer_SequencerOnlyReorg(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 	miner, _, sequencer := setupSequencerTest(t, sd, log)
 

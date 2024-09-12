@@ -55,6 +55,15 @@ type CallFrame struct {
 	// Forge script does not support nested pranks on the same call-depth.
 	// Pranks can also be broadcasting.
 	Prank *Prank
+
+	// GasUsed keeps track of the amount of gas used by this call frame.
+	// This is useful for broadcasts, which sometimes cannot correctly
+	// estimate gas when sending transactions in parallel.
+	GasUsed uint64
+
+	// CallerNonce keeps track of the nonce of the caller who entered the callframe
+	// (nonce of pranked caller, if pranked).
+	CallerNonce uint64
 }
 
 // Host is an EVM executor that runs Forge scripts.
@@ -91,6 +100,11 @@ type Host struct {
 	onLabel []func(name string, addr common.Address)
 
 	hooks *Hooks
+
+	// isolateBroadcasts will flush the journal changes,
+	// and prepare the ephemeral tx context again,
+	// to make gas accounting of a broadcast sub-call more accurate.
+	isolateBroadcasts bool
 }
 
 type HostOption func(h *Host)
@@ -104,6 +118,17 @@ type Hooks struct {
 func WithBroadcastHook(hook BroadcastHook) HostOption {
 	return func(h *Host) {
 		h.hooks.OnBroadcast = hook
+	}
+}
+
+// WithIsolatedBroadcasts makes each broadcast clean the context,
+// by flushing the dirty storage changes, and preparing the ephemeral state again.
+// This then produces more accurate gas estimation for broadcast calls.
+// This is not compatible with state-snapshots: upon cleaning,
+// it is assumed that the state has to never revert back, similar to the state-dump guarantees.
+func WithIsolatedBroadcasts() HostOption {
+	return func(h *Host) {
+		h.isolateBroadcasts = true
 	}
 }
 
@@ -217,6 +242,7 @@ func NewHost(
 
 	// Hook up the Host to capture the EVM environment changes
 	trHooks := &tracing.Hooks{
+		OnEnter:         h.onEnter,
 		OnExit:          h.onExit,
 		OnOpcode:        h.onOpcode,
 		OnFault:         h.onFault,
@@ -336,6 +362,16 @@ func (h *Host) Wipe(addr common.Address) {
 	h.state.SetBalance(addr, uint256.NewInt(0), tracing.BalanceChangeUnspecified)
 }
 
+// SetNonce sets an account's nonce in state.
+func (h *Host) SetNonce(addr common.Address, nonce uint64) {
+	h.state.SetNonce(addr, nonce)
+}
+
+// GetNonce returs an account's nonce from state.
+func (h *Host) GetNonce(addr common.Address) uint64 {
+	return h.state.GetNonce(addr)
+}
+
 // getPrecompile overrides any accounts during runtime, to insert special precompiles, if activated.
 func (h *Host) getPrecompile(rules params.Rules, original vm.PrecompiledContract, addr common.Address) vm.PrecompiledContract {
 	if p, ok := h.precompiles[addr]; ok {
@@ -365,6 +401,52 @@ func (h *Host) HasPrecompileOverride(addr common.Address) bool {
 	return ok
 }
 
+// onEnter is a trace-hook, which we use to apply changes to the state-DB, to simulate isolated broadcast calls,
+// for better gas estimation of the exact broadcast call execution.
+func (h *Host) onEnter(depth int, typ byte, from common.Address, to common.Address, input []byte, gas uint64, value *big.Int) {
+	if len(h.callStack) == 0 {
+		return
+	}
+	parentCallFrame := h.callStack[len(h.callStack)-1]
+	if parentCallFrame.Prank == nil {
+		return
+	}
+	// sanity check our callframe is set up correctly
+	if parentCallFrame.LastOp != vm.OpCode(typ) {
+		panic(fmt.Errorf("parent call-frame has invalid last Op: %d", typ))
+	}
+	if !parentCallFrame.Prank.Broadcast {
+		return
+	}
+	if to == VMAddr || to == ConsoleAddr { // no broadcasts to the cheatcode or console address
+		return
+	}
+
+	// Bump nonce value, such that a broadcast Call appears like a tx
+	if parentCallFrame.LastOp == vm.CALL {
+		sender := parentCallFrame.Ctx.Address()
+		if parentCallFrame.Prank.Sender != nil {
+			sender = *parentCallFrame.Prank.Sender
+		}
+		h.state.SetNonce(sender, h.state.GetNonce(sender)+1)
+	}
+
+	if h.isolateBroadcasts {
+		var dest *common.Address
+		switch parentCallFrame.LastOp {
+		case vm.CREATE, vm.CREATE2:
+			dest = nil // no destination address to warm up
+		case vm.CALL:
+			dest = &to
+		default:
+			return
+		}
+		h.state.Finalise(true)
+		// the prank msg.sender, if any, has already been applied to 'from' before onEnter
+		h.prelude(from, dest)
+	}
+}
+
 // onExit is a trace-hook, which we use to maintain an accurate view of functions, and log any revert warnings.
 func (h *Host) onExit(depth int, output []byte, gasUsed uint64, err error, reverted bool) {
 	// Note: onExit runs also when going deeper, exiting the context into a nested context.
@@ -377,6 +459,8 @@ func (h *Host) onExit(depth int, output []byte, gasUsed uint64, err error, rever
 			h.log.Warn("Revert", "addr", addr, "err", err, "revertData", hexutil.Bytes(output), "depth", depth)
 		}
 	}
+
+	h.callStack[len(h.callStack)-1].GasUsed += gasUsed
 	h.unwindCallstack(depth)
 }
 
@@ -437,10 +521,11 @@ func (h *Host) onOpcode(pc uint64, op byte, gas, cost uint64, scope tracing.OpCo
 	// We do this here, instead of onEnter, to capture an initialized scope.
 	if len(h.callStack) == 0 || h.callStack[len(h.callStack)-1].Depth < depth {
 		h.callStack = append(h.callStack, &CallFrame{
-			Depth:  depth,
-			LastOp: vm.OpCode(op),
-			LastPC: pc,
-			Ctx:    scopeCtx,
+			Depth:       depth,
+			LastOp:      vm.OpCode(op),
+			LastPC:      pc,
+			Ctx:         scopeCtx,
+			CallerNonce: h.GetNonce(scopeCtx.Caller()),
 		})
 	}
 	// Sanity check that top of the call-stack matches the scope context now

@@ -49,6 +49,10 @@ func ChainUserKeys(chainID *big.Int) func(index uint64) ChainUserKey {
 	}
 }
 
+type Role interface {
+	Key(chainID *big.Int) Key
+}
+
 // SuperchainOperatorRole identifies an account used in the operations of superchain contracts
 type SuperchainOperatorRole uint64
 
@@ -79,6 +83,13 @@ func (role SuperchainOperatorRole) String() string {
 		return "dependency-set-manager"
 	default:
 		return fmt.Sprintf("unknown-superchain-%d", uint64(role))
+	}
+}
+
+func (role SuperchainOperatorRole) Key(chainID *big.Int) Key {
+	return &SuperchainOperatorKey{
+		ChainID: chainID,
+		Role:    role,
 	}
 }
 
@@ -163,7 +174,7 @@ func (role ChainOperatorRole) String() string {
 	}
 }
 
-func (role ChainOperatorRole) Key(chainID *big.Int) *ChainOperatorKey {
+func (role ChainOperatorRole) Key(chainID *big.Int) Key {
 	return &ChainOperatorKey{
 		ChainID: chainID,
 		Role:    role,

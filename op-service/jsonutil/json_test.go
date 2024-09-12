@@ -2,7 +2,6 @@ package jsonutil
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -95,7 +94,7 @@ func TestLoadJSONWithExtraDataAppended(t *testing.T) {
 
 			var result *jsonTestData
 			result, err = LoadJSON[jsonTestData](file)
-			require.ErrorContains(t, err, fmt.Sprintf("unexpected trailing data in file %q", file))
+			require.ErrorContains(t, err, "unexpected trailing data")
 			require.Nil(t, result)
 		})
 	}

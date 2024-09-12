@@ -342,7 +342,7 @@
             "type": "uint128"
           }
         ],
-        "internalType": "struct ResourceMetering.ResourceConfig",
+        "internalType": "struct IResourceMetering.ResourceConfig",
         "name": "_config",
         "type": "tuple"
       },
@@ -469,7 +469,7 @@
             "type": "uint128"
           }
         ],
-        "internalType": "struct ResourceMetering.ResourceConfig",
+        "internalType": "struct IResourceMetering.ResourceConfig",
         "name": "_config",
         "type": "tuple"
       },
@@ -713,7 +713,7 @@
             "type": "uint128"
           }
         ],
-        "internalType": "struct ResourceMetering.ResourceConfig",
+        "internalType": "struct IResourceMetering.ResourceConfig",
         "name": "",
         "type": "tuple"
       }

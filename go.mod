@@ -35,6 +35,7 @@ require (
 	github.com/multiformats/go-base32 v0.1.0
 	github.com/multiformats/go-multiaddr v0.13.0
 	github.com/multiformats/go-multiaddr-dns v0.3.1
+	github.com/naoina/toml v0.1.2-0.20170918210437-9fafd6967416
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/onsi/gomega v1.34.1
 	github.com/pkg/errors v0.9.1
@@ -165,7 +166,6 @@ require (
 	github.com/multiformats/go-varint v0.0.7 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/naoina/go-stringutil v0.1.0 // indirect
-	github.com/naoina/toml v0.1.2-0.20170918210437-9fafd6967416 // indirect
 	github.com/onsi/ginkgo/v2 v2.20.0 // indirect
 	github.com/opencontainers/runtime-spec v1.2.0 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect

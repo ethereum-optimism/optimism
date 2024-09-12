@@ -488,8 +488,8 @@ func TestHelloEVM(t *testing.T) {
 				// verify the post-state matches.
 				// TODO: maybe more readable to decode the evmPost state, and do attribute-wise comparison.
 				goPost, _ := goVm.GetState().EncodeWitness()
-				require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
-					"mipsevm produced different state than EVM")
+				require.Equalf(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
+					"mipsevm produced different state than EVM. insn: %x", insn)
 			}
 			end := time.Now()
 			delta := end.Sub(start)

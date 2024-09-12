@@ -6,7 +6,7 @@ import { MIPS } from "src/cannon/MIPS.sol";
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
 import { MIPSInstructions } from "src/cannon/libraries/MIPSInstructions.sol";
 import { MIPSSyscalls as sys } from "src/cannon/libraries/MIPSSyscalls.sol";
-import { InvalidExitedValue } from "src/cannon/libraries/CannonErrors.sol";
+import { InvalidExitedValue, InvalidMemoryProof } from "src/cannon/libraries/CannonErrors.sol";
 import "src/dispute/lib/Types.sol";
 
 contract MIPS_Test is CommonTest {
@@ -63,26 +63,28 @@ contract MIPS_Test is CommonTest {
 
     /// @notice Tests that the mips step function fails when the value of the exited field is
     ///         invalid (anything greater than 1).
-    /// @param _exited Value to set the exited field to.
-    function testFuzz_step_invalidExitedValue_fails(uint8 _exited) external {
-        // Make sure the value of _exited is invalid.
-        _exited = uint8(bound(uint256(_exited), 2, type(uint8).max));
+    function test_step_invalidExitedValue_fails() external {
+        // Bound to invalid exited values.
+        for (uint8 exited = 2; exited <= type(uint8).max && exited != 0;) {
+            // Rest of this stuff doesn't matter very much, just setting up some state to edit.
+            // Here just using the parameters for the ADD test below.
+            uint32 insn = encodespec(17, 18, 8, 0x20);
+            (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
 
-        // Rest of this stuff doesn't matter very much, just setting up some state to edit.
-        // Here just using the parameters for the ADD test below.
-        uint32 insn = encodespec(17, 18, 8, 0x20);
-        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+            // Compute the encoded state and manipulate it.
+            bytes memory enc = encodeState(state);
+            assembly {
+                // Push offset by an additional 32 bytes (0x20) to account for length prefix
+                mstore8(add(add(enc, 0x20), 89), exited)
+            }
 
-        // Compute the encoded state and manipulate it.
-        bytes memory enc = encodeState(state);
-        assembly {
-            // Push offset by an additional 32 bytes (0x20) to account for length prefix
-            mstore8(add(add(enc, 0x20), 89), _exited)
+            // Call the step function and expect a revert.
+            vm.expectRevert(InvalidExitedValue.selector);
+            mips.step(enc, proof, 0);
+            unchecked {
+                exited++;
+            }
         }
-
-        // Call the step function and expect a revert.
-        vm.expectRevert(InvalidExitedValue.selector);
-        mips.step(enc, proof, 0);
     }
 
     function test_add_succeeds() external {
@@ -1658,7 +1660,7 @@ contract MIPS_Test is CommonTest {
         for (uint256 i = 0; i < proof.length; i++) {
             proof[i] = 0x0;
         }
-        vm.expectRevert(hex"000000000000000000000000000000000000000000000000000000000badf00d");
+        vm.expectRevert(InvalidMemoryProof.selector);
         mips.step(encodeState(state), proof, 0);
     }
 
@@ -1677,7 +1679,7 @@ contract MIPS_Test is CommonTest {
         state.registers[2] = 4246; // exit_group syscall
         state.registers[4] = 0x5; // a0
 
-        vm.expectRevert(hex"000000000000000000000000000000000000000000000000000000000badf00d");
+        vm.expectRevert(InvalidMemoryProof.selector);
         mips.step(encodeState(state), proof, 0);
     }
 
