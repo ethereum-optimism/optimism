@@ -124,7 +124,7 @@ func runChannelTimeoutTest(gt *testing.T, checkResult func(gt *testing.T, err er
 
 func Test_ProgramAction_ChannelTimeout_HonestClaim_Granite(gt *testing.T) {
 	runChannelTimeoutTest(gt, func(gt *testing.T, err error) {
-		require.NoError(gt, err, "fault proof program should have succeded")
+		require.NoError(gt, err, "fault proof program should have succeeded")
 	})
 }
 
