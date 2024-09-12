@@ -38,7 +38,7 @@ func NewPebbleKV(path string) *PebbleKV {
 func (d *PebbleKV) Put(k common.Hash, v []byte) error {
 	d.Lock()
 	defer d.Unlock()
-	return d.db.Set(k.Bytes(), v, pebble.Sync)
+	return d.db.Set(k.Bytes(), v, pebble.NoSync)
 }
 
 func (d *PebbleKV) Get(k common.Hash) ([]byte, error) {
