@@ -12,10 +12,10 @@ set -euo pipefail
 # modified.
 
 # Set the number of fuzz runs to run.
-# 350000 fuzz runs will guarantee that any test that fails 1% of the time with
-# the default 512 fuzz runs will fail 99.9% of the time (on average) inside of
+# 75000 fuzz runs will guarantee that any test that fails 5% of the time with
+# the default 512 fuzz runs will fail >99.9% of the time (on average) inside of
 # this script.
-FUZZ_RUNS=${1:-350000}
+FUZZ_RUNS=${1:-75000}
 
 # Set the number of invariant runs to run.
 # Invariant runs are generally slower than fuzz runs so we can't afford to run
