@@ -80,6 +80,39 @@ func NewL2FaultProofEnv(t actions.Testing, tp *e2eutils.TestParams, dp *e2eutils
 	}
 }
 
+type FixtureInputParam func(f *FixtureInputs)
+
+func (env *L2FaultProofEnv) RunFaultProofProgram(t actions.Testing, gt *testing.T, l2ClaimBlockNum uint64, fixtureInputParams ...FixtureInputParam) error {
+	// Fetch the pre and post output roots for the fault proof.
+	preRoot, err := env.sequencer.RollupClient().OutputAtBlock(t.Ctx(), l2ClaimBlockNum-1)
+	require.NoError(t, err)
+	claimRoot, err := env.sequencer.RollupClient().OutputAtBlock(t.Ctx(), l2ClaimBlockNum)
+	require.NoError(t, err)
+	l1Head := env.miner.L1Chain().CurrentBlock()
+
+	fixtureInputs := &FixtureInputs{
+		L2BlockNumber: l2ClaimBlockNum,
+		L2Claim:       common.Hash(claimRoot.OutputRoot),
+		L2Head:        preRoot.BlockRef.Hash,
+		L2OutputRoot:  common.Hash(preRoot.OutputRoot),
+		L2ChainID:     env.sd.RollupCfg.L2ChainID.Uint64(),
+		L1Head:        l1Head.Hash(),
+	}
+	for _, apply := range fixtureInputParams {
+		apply(fixtureInputs)
+	}
+
+	// Run the fault proof program from the state transition from L2 block 0 -> 1.
+	programCfg := NewOpProgramCfg(
+		t,
+		env,
+		fixtureInputs,
+	)
+	err = host.FaultProofProgram(t.Ctx(), env.log, programCfg)
+	tryDumpTestFixture(gt, err, t.Name(), env, programCfg)
+	return err
+}
+
 type TestParam func(p *e2eutils.TestParams)
 
 func NewTestParams(params ...TestParam) *e2eutils.TestParams {
@@ -145,37 +178,4 @@ func NewOpProgramCfg(
 		apply(dfault)
 	}
 	return dfault
-}
-
-type FixtureInputParam func(f *FixtureInputs)
-
-func RunFaultProofProgram(t actions.Testing, gt *testing.T, env *L2FaultProofEnv, l2ClaimBlockNum uint64, fixtureInputParams ...FixtureInputParam) error {
-	// Fetch the pre and post output roots for the fault proof.
-	preRoot, err := env.sequencer.RollupClient().OutputAtBlock(t.Ctx(), l2ClaimBlockNum-1)
-	require.NoError(t, err)
-	claimRoot, err := env.sequencer.RollupClient().OutputAtBlock(t.Ctx(), l2ClaimBlockNum)
-	require.NoError(t, err)
-	l1Head := env.miner.L1Chain().CurrentBlock()
-
-	fixtureInputs := &FixtureInputs{
-		L2BlockNumber: l2ClaimBlockNum,
-		L2Claim:       common.Hash(claimRoot.OutputRoot),
-		L2Head:        preRoot.BlockRef.Hash,
-		L2OutputRoot:  common.Hash(preRoot.OutputRoot),
-		L2ChainID:     env.sd.RollupCfg.L2ChainID.Uint64(),
-		L1Head:        l1Head.Hash(),
-	}
-	for _, apply := range fixtureInputParams {
-		apply(fixtureInputs)
-	}
-
-	// Run the fault proof program from the state transition from L2 block 0 -> 1.
-	programCfg := NewOpProgramCfg(
-		t,
-		env,
-		fixtureInputs,
-	)
-	err = host.FaultProofProgram(t.Ctx(), env.log, programCfg)
-	tryDumpTestFixture(gt, err, t.Name(), env, programCfg)
-	return err
 }

@@ -54,7 +54,7 @@ func Test_ProgramAction_SimpleEmptyChain_HonestClaim_Granite(gt *testing.T) {
 	// Ensure the block is marked as safe before we attempt to fault prove it.
 	require.Equal(t, uint64(1), l2SafeHead.Number.Uint64())
 
-	err := RunFaultProofProgram(t, gt, env, l2SafeHead.Number.Uint64())
+	err := env.RunFaultProofProgram(t, gt, l2SafeHead.Number.Uint64())
 	require.NoError(t, err, "fault proof program failed")
 }
 
@@ -102,7 +102,7 @@ func Test_ProgramAction_SimpleEmptyChain_JunkClaim_Granite(gt *testing.T) {
 	// Ensure the block is marked as safe before we attempt to fault prove it.
 	require.Equal(t, uint64(1), l2SafeHead.Number.Uint64())
 
-	err := RunFaultProofProgram(t, gt, env, l2SafeHead.Number.Uint64(), func(f *FixtureInputs) {
+	err := env.RunFaultProofProgram(t, gt, l2SafeHead.Number.Uint64(), func(f *FixtureInputs) {
 		f.L2Claim = common.HexToHash("0xdeadbeef")
 	})
 	require.Error(t, err, "fault proof program should have failed")
