@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/draft-ERC20Permit.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { ILegacyMintableERC20, IOptimismMintableERC20 } from "src/universal/interfaces/IOptimismMintableERC20.sol";
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
@@ -12,7 +13,7 @@ import { ISemver } from "src/universal/interfaces/ISemver.sol";
 ///         use an OptimismMintablERC20 as the L2 representation of an L1 token, or vice-versa.
 ///         Designed to be backwards compatible with the older StandardL2ERC20 token which was only
 ///         meant for use on L2.
-contract OptimismMintableERC20 is IOptimismMintableERC20, ILegacyMintableERC20, ERC20, ISemver {
+contract OptimismMintableERC20 is IOptimismMintableERC20, ILegacyMintableERC20, ERC20Permit, ISemver {
     /// @notice Address of the corresponding version of this token on the remote chain.
     address public immutable REMOTE_TOKEN;
 
@@ -40,7 +41,7 @@ contract OptimismMintableERC20 is IOptimismMintableERC20, ILegacyMintableERC20, 
 
     /// @notice Semantic version.
     /// @custom:semver 1.3.1-beta.1
-    string public constant version = "1.3.1-beta.1";
+    string public constant version = "1.3.1-beta.2";
 
     /// @param _bridge      Address of the L2 standard bridge.
     /// @param _remoteToken Address of the corresponding L1 token.
@@ -54,6 +55,7 @@ contract OptimismMintableERC20 is IOptimismMintableERC20, ILegacyMintableERC20, 
         uint8 _decimals
     )
         ERC20(_name, _symbol)
+        ERC20Permit(_name)
     {
         REMOTE_TOKEN = _remoteToken;
         BRIDGE = _bridge;
