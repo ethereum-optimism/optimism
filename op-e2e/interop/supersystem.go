@@ -247,8 +247,6 @@ func (s *interopE2ESystem) newNodeForL2(
 			RPCProviderKind: sources.RPCKindDebugGeth,
 		},
 		L2: &node.L2EndpointConfig{
-			// TODO refactoring this to a PreparedL2Endpoint,
-			//  with auth, to utilize in-process RPC would be very nice.
 			L2EngineAddr:      l2Geth.AuthRPC().RPC(),
 			L2EngineJWTSecret: testingJWTSecret,
 		},
@@ -295,6 +293,7 @@ func (s *interopE2ESystem) newNodeForL2(
 
 // newProposerForL2 creates a new Proposer for an L2 chain
 // it is currently unused, as the generated world does not have a DisputeGameFactoryProxy
+// TODO(#11888): name this function "newProposerForL2" and use it in the prepareL2s function when the DisputeGameFactoryProxy is available
 func (s *interopE2ESystem) _(
 	id string,
 	operatorKeys map[devkeys.ChainOperatorRole]ecdsa.PrivateKey,
@@ -383,7 +382,7 @@ func (s *interopE2ESystem) newL2(id string, l2Out *interopgen.L2Output) l2Set {
 	operatorKeys := s.newOperatorKeysForL2(l2Out)
 	l2Geth := s.newGethForL2(id, l2Out)
 	opNode := s.newNodeForL2(id, l2Out, operatorKeys, l2Geth)
-	// TODO: proposer does not work with the generated world as there is no DisputeGameFactoryProxy
+	// TODO(#11886): proposer does not work with the generated world as there is no DisputeGameFactoryProxy
 	//proposer := s.newProposerForL2(id, operatorKeys, opNode)
 	batcher := s.newBatcherForL2(id, operatorKeys, l2Geth, opNode)
 
@@ -477,7 +476,7 @@ func (s *interopE2ESystem) prepare(t *testing.T) {
 // but if in the future these maps can diverge, the indexes for username would also diverge
 // NOTE: The first 20 accounts are implicitly funded by the Recipe's World Deployment
 // see: op-chain-ops/interopgen/recipe.go
-// TODO: make the funded account quantity specified in the recipe so SuperSystems can know which accounts are funded
+// TODO(#11887): make the funded account quantity specified in the recipe so SuperSystems can know which accounts are funded
 func (s *interopE2ESystem) AddUser(username string) {
 	for id, l2 := range s.l2s {
 		bigID, _ := big.NewInt(0).SetString(id, 10)
@@ -510,16 +509,6 @@ func (s *interopE2ESystem) prepareL2s() map[string]l2Set {
 		l2s[id] = s.newL2(id, l2Out)
 	}
 	return l2s
-}
-
-// addL2 adds an L2 to the system by creating the resources for it
-// and then assigning them to the system's map of L2s.
-// This function is currently unused, but could be used to add L2s to the system after it is prepared.
-func (s *interopE2ESystem) _(id string, output *interopgen.L2Output) {
-	if s.l2s == nil {
-		s.l2s = make(map[string]l2Set)
-	}
-	s.l2s[id] = s.newL2(id, output)
 }
 
 func (s *interopE2ESystem) L2GethClient(id string) *ethclient.Client {
