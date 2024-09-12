@@ -249,3 +249,7 @@ func UseAltDA() bool {
 	return (os.Getenv("OP_E2E_USE_ALTDA") == "true" ||
 		os.Getenv("DEVNET_ALTDA") == "true")
 }
+
+func UseMTCannon() bool {
+	return os.Getenv("USE_MT_CANNON") == "true"
+}
