@@ -592,8 +592,11 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // Update the status and emit the resolved event, note that we're performing an assignment here.
         emit Resolved(status = status_);
 
-        // Try to update the anchor state, this should not revert.
-        ANCHOR_STATE_REGISTRY.tryUpdateAnchorState();
+        // Try to update the anchor state.
+        // Can fail if this game is older than the current anchor state, if the game is
+        // blacklisted, or if the game did not resolve in favor of the defender. We don't care if
+        // this fails for one of those reasons, so simply empty try/catch and move on.
+        try ANCHOR_STATE_REGISTRY.tryUpdateAnchorState() { } catch { }
     }
 
     /// @inheritdoc IFaultDisputeGame
