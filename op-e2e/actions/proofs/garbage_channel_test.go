@@ -107,7 +107,7 @@ func runGarbageChannelTest(gt *testing.T, garbageKind actions.GarbageKind, check
 	l2SafeHead = env.engine.L2Chain().CurrentSafeBlock()
 	require.Equal(t, uint64(NumL2Blocks), l2SafeHead.Number.Uint64())
 
-	// Run the FPP on L2 block # NumL2Blocks. The claim is honest, so it should pass.
+	// Run the FPP on L2 block # NumL2Blocks.
 	err := env.RunFaultProofProgram(t, gt, NumL2Blocks, inputParams...)
 	checkResult(gt, err)
 }
