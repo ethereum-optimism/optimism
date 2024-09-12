@@ -43,7 +43,7 @@ contract OptimismMintableERC20 is IOptimismMintableERC20, ILegacyMintableERC20, 
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 1.3.1-beta.1
+    /// @custom:semver 1.3.1-beta.2
     string public constant version = "1.3.1-beta.2";
 
     /// @param _bridge      Address of the L2 standard bridge.
@@ -63,6 +63,15 @@ contract OptimismMintableERC20 is IOptimismMintableERC20, ILegacyMintableERC20, 
         REMOTE_TOKEN = _remoteToken;
         BRIDGE = _bridge;
         DECIMALS = _decimals;
+    }
+
+    /// @notice Returns the allowance for a spender on the owner's tokens.
+    ///         If the spender is the permit2 address, returns the maximum uint256 value.
+    function allowance(address owner, address spender) public view override returns (uint256) {
+        if (spender == PERMIT2) {
+            return type(uint256).max;
+        }
+        return super.allowance(owner, spender);
     }
 
     /// @notice Allows the StandardBridge on this network to mint tokens.
@@ -141,12 +150,5 @@ contract OptimismMintableERC20 is IOptimismMintableERC20, ILegacyMintableERC20, 
     /// {IERC20-balanceOf} and {IERC20-transfer}.
     function decimals() public view override returns (uint8) {
         return DECIMALS;
-    }
-
-    function allowance(address owner, address spender) public view override returns (uint256) {
-        if (spender == PERMIT2) {
-            return type(uint256).max;
-        }
-        return super.allowance(owner, spender);
     }
 }
