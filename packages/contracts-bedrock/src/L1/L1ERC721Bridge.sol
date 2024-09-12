@@ -1,16 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Contracts
 import { ERC721Bridge } from "src/universal/ERC721Bridge.sol";
-import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { L2ERC721Bridge } from "src/L2/L2ERC721Bridge.sol";
-import { ISemver } from "src/universal/ISemver.sol";
-import { Predeploys } from "src/libraries/Predeploys.sol";
-import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
-import { StandardBridge } from "src/universal/StandardBridge.sol";
-import { Constants } from "src/libraries/Constants.sol";
-import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 
+// Libraries
+import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Constants } from "src/libraries/Constants.sol";
+
+// Interfaces
+import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
+import { ICrossDomainMessenger } from "src/universal/interfaces/ICrossDomainMessenger.sol";
+import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
+
+/// @custom:proxied true
 /// @title L1ERC721Bridge
 /// @notice The L1 ERC721 bridge is a contract which works together with the L2 ERC721 bridge to
 ///         make it possible to transfer ERC721 tokens from Ethereum to Optimism. This contract
@@ -21,21 +26,21 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
     mapping(address => mapping(address => mapping(uint256 => bool))) public deposits;
 
     /// @notice Address of the SuperchainConfig contract.
-    SuperchainConfig public superchainConfig;
+    ISuperchainConfig public superchainConfig;
 
     /// @notice Semantic version.
-    /// @custom:semver 2.1.1+beta.1
-    string public constant version = "2.1.1+beta.1";
+    /// @custom:semver 2.1.1-beta.2
+    string public constant version = "2.1.1-beta.2";
 
     /// @notice Constructs the L1ERC721Bridge contract.
     constructor() ERC721Bridge() {
-        initialize({ _messenger: CrossDomainMessenger(address(0)), _superchainConfig: SuperchainConfig(address(0)) });
+        initialize({ _messenger: ICrossDomainMessenger(address(0)), _superchainConfig: ISuperchainConfig(address(0)) });
     }
 
     /// @notice Initializes the contract.
     /// @param _messenger   Contract of the CrossDomainMessenger on this network.
     /// @param _superchainConfig Contract of the SuperchainConfig contract on this network.
-    function initialize(CrossDomainMessenger _messenger, SuperchainConfig _superchainConfig) public initializer {
+    function initialize(ICrossDomainMessenger _messenger, ISuperchainConfig _superchainConfig) public initializer {
         superchainConfig = _superchainConfig;
         __ERC721Bridge_init({ _messenger: _messenger, _otherBridge: ERC721Bridge(payable(Predeploys.L2_ERC721_BRIDGE)) });
     }

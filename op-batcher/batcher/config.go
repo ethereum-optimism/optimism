@@ -8,10 +8,10 @@ import (
 
 	"github.com/urfave/cli/v2"
 
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
@@ -55,6 +55,9 @@ type CLIConfig struct {
 	// MaxL1TxSize is the maximum size of a batch tx submitted to L1.
 	// If using blobs, this setting is ignored and the max blob size is used.
 	MaxL1TxSize uint64
+
+	// Maximum number of blocks to add to a span batch. Default is 0 - no maximum.
+	MaxBlocksPerSpanBatch int
 
 	// The target number of frames to create per channel. Controls number of blobs
 	// per blob tx, if using Blob DA.
@@ -101,7 +104,7 @@ type CLIConfig struct {
 	MetricsConfig opmetrics.CLIConfig
 	PprofConfig   oppprof.CLIConfig
 	RPC           oprpc.CLIConfig
-	PlasmaDA      plasma.CLIConfig
+	AltDA         altda.CLIConfig
 }
 
 func (c *CLIConfig) Check() error {
@@ -173,6 +176,7 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		MaxPendingTransactions:       ctx.Uint64(flags.MaxPendingTransactionsFlag.Name),
 		MaxChannelDuration:           ctx.Uint64(flags.MaxChannelDurationFlag.Name),
 		MaxL1TxSize:                  ctx.Uint64(flags.MaxL1TxSizeBytesFlag.Name),
+		MaxBlocksPerSpanBatch:        ctx.Int(flags.MaxBlocksPerSpanBatch.Name),
 		TargetNumFrames:              ctx.Int(flags.TargetNumFramesFlag.Name),
 		ApproxComprRatio:             ctx.Float64(flags.ApproxComprRatioFlag.Name),
 		Compressor:                   ctx.String(flags.CompressorFlag.Name),
@@ -188,6 +192,6 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		MetricsConfig:                opmetrics.ReadCLIConfig(ctx),
 		PprofConfig:                  oppprof.ReadCLIConfig(ctx),
 		RPC:                          oprpc.ReadCLIConfig(ctx),
-		PlasmaDA:                     plasma.ReadCLIConfig(ctx),
+		AltDA:                        altda.ReadCLIConfig(ctx),
 	}
 }

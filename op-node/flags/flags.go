@@ -6,9 +6,9 @@ import (
 
 	"github.com/urfave/cli/v2"
 
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
-	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	openum "github.com/ethereum-optimism/optimism/op-service/enum"
 	opflags "github.com/ethereum-optimism/optimism/op-service/flags"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -72,6 +72,13 @@ var (
 		Required: false,
 		EnvVars:  prefixEnvVars("L1_BEACON"),
 		Category: RollupCategory,
+	}
+	SupervisorAddr = &cli.StringFlag{
+		Name: "supervisor",
+		Usage: "RPC address of interop supervisor service for cross-chain safety verification." +
+			"Applies only to Interop-enabled networks.",
+		Hidden:  true, // hidden for now during early testing.
+		EnvVars: prefixEnvVars("SUPERVISOR"),
 	}
 	/* Optional Flags */
 	BeaconHeader = &cli.StringFlag{
@@ -155,13 +162,6 @@ var (
 			out := sources.RPCKindStandard
 			return &out
 		}(),
-		Category: L1RPCCategory,
-	}
-	L1RethDBPath = &cli.StringFlag{
-		Name:     "l1.rethdb",
-		Usage:    "The L1 RethDB path, used to fetch receipts for L1 blocks.",
-		EnvVars:  prefixEnvVars("L1_RETHDB"),
-		Hidden:   true,
 		Category: L1RPCCategory,
 	}
 	L1RPCMaxConcurrency = &cli.IntFlag{
@@ -279,22 +279,24 @@ var (
 	}
 	HeartbeatEnabledFlag = &cli.BoolFlag{
 		Name:     "heartbeat.enabled",
-		Usage:    "Enables or disables heartbeating",
+		Usage:    "Deprecated, no-op flag.",
 		EnvVars:  prefixEnvVars("HEARTBEAT_ENABLED"),
 		Category: OperationsCategory,
+		Hidden:   true,
 	}
 	HeartbeatMonikerFlag = &cli.StringFlag{
 		Name:     "heartbeat.moniker",
-		Usage:    "Sets a moniker for this node",
+		Usage:    "Deprecated, no-op flag.",
 		EnvVars:  prefixEnvVars("HEARTBEAT_MONIKER"),
 		Category: OperationsCategory,
+		Hidden:   true,
 	}
 	HeartbeatURLFlag = &cli.StringFlag{
 		Name:     "heartbeat.url",
-		Usage:    "Sets the URL to heartbeat to",
+		Usage:    "Deprecated, no-op flag.",
 		EnvVars:  prefixEnvVars("HEARTBEAT_URL"),
-		Value:    "https://heartbeat.optimism.io",
 		Category: OperationsCategory,
+		Hidden:   true,
 	}
 	RollupHalt = &cli.StringFlag{
 		Name:     "rollup.halt",
@@ -379,6 +381,7 @@ var requiredFlags = []cli.Flag{
 }
 
 var optionalFlags = []cli.Flag{
+	SupervisorAddr,
 	BeaconAddr,
 	BeaconHeader,
 	BeaconFallbackAddrs,
@@ -411,7 +414,6 @@ var optionalFlags = []cli.Flag{
 	HeartbeatURLFlag,
 	RollupHalt,
 	RollupLoadProtocolVersions,
-	L1RethDBPath,
 	ConductorEnabledFlag,
 	ConductorRpcFlag,
 	ConductorRpcTimeoutFlag,
@@ -438,7 +440,7 @@ func init() {
 	optionalFlags = append(optionalFlags, oppprof.CLIFlagsWithCategory(EnvVarPrefix, OperationsCategory)...)
 	optionalFlags = append(optionalFlags, DeprecatedFlags...)
 	optionalFlags = append(optionalFlags, opflags.CLIFlags(EnvVarPrefix, RollupCategory)...)
-	optionalFlags = append(optionalFlags, plasma.CLIFlags(EnvVarPrefix, AltDACategory)...)
+	optionalFlags = append(optionalFlags, altda.CLIFlags(EnvVarPrefix, AltDACategory)...)
 	Flags = append(requiredFlags, optionalFlags...)
 }
 

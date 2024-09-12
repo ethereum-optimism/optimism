@@ -56,7 +56,6 @@ var mainnetCfg = rollup.Config{
 	MaxSequencerDrift:       600,
 	SeqWindowSize:           3600,
 	ChannelTimeoutBedrock:   300,
-	ChannelTimeoutGranite:   50,
 	L1ChainID:               big.NewInt(1),
 	L2ChainID:               big.NewInt(10),
 	BatchInboxAddress:       common.HexToAddress("0xff00000000000000000000000000000000000010"),
@@ -67,6 +66,7 @@ var mainnetCfg = rollup.Config{
 	DeltaTime:               u64Ptr(1708560000),
 	EcotoneTime:             u64Ptr(1710374401),
 	FjordTime:               u64Ptr(1720627201),
+	GraniteTime:             u64Ptr(1726070401),
 	ProtocolVersionsAddress: common.HexToAddress("0x8062AbC286f5e7D9428a0Ccb9AbD71e50d93b935"),
 }
 
@@ -92,7 +92,6 @@ var sepoliaCfg = rollup.Config{
 	MaxSequencerDrift:       600,
 	SeqWindowSize:           3600,
 	ChannelTimeoutBedrock:   300,
-	ChannelTimeoutGranite:   50,
 	L1ChainID:               big.NewInt(11155111),
 	L2ChainID:               big.NewInt(11155420),
 	BatchInboxAddress:       common.HexToAddress("0xff00000000000000000000000000000011155420"),
@@ -129,7 +128,6 @@ var sepoliaDev0Cfg = rollup.Config{
 	MaxSequencerDrift:       600,
 	SeqWindowSize:           3600,
 	ChannelTimeoutBedrock:   300,
-	ChannelTimeoutGranite:   50,
 	L1ChainID:               big.NewInt(11155111),
 	L2ChainID:               big.NewInt(11155421),
 	BatchInboxAddress:       common.HexToAddress("0xff00000000000000000000000000000011155421"),

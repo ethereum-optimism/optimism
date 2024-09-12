@@ -4,13 +4,12 @@ pragma solidity ^0.8.0;
 import { console2 as console } from "forge-std/console2.sol";
 import { Script } from "forge-std/Script.sol";
 
-import { Config } from "scripts/Config.sol";
+import { Config } from "scripts/libraries/Config.sol";
 import { Artifacts } from "scripts/Artifacts.s.sol";
 import { PeripheryDeployConfig } from "scripts/periphery/deploy/PeripheryDeployConfig.s.sol";
 
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
 import { Proxy } from "src/universal/Proxy.sol";
-import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { Faucet } from "src/periphery/faucet/Faucet.sol";
 import { Drippie } from "src/periphery/drippie/Drippie.sol";
 import { CheckGelatoLow } from "src/periphery/drippie/dripchecks/CheckGelatoLow.sol";

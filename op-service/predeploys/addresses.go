@@ -26,6 +26,7 @@ const (
 	SchemaRegistry                = "0x4200000000000000000000000000000000000020"
 	EAS                           = "0x4200000000000000000000000000000000000021"
 	CrossL2Inbox                  = "0x4200000000000000000000000000000000000022"
+	L2toL2CrossDomainMessenger    = "0x4200000000000000000000000000000000000023"
 	Create2Deployer               = "0x13b0D85CcB8bf860b6b79AF3029fCA081AE9beF2"
 	MultiCall3                    = "0xcA11bde05977b3631167028862bE2a173976CA11"
 	Safe_v130                     = "0x69f4D1788e39c87893C980c06EdF4b7f686e2938"
@@ -62,6 +63,7 @@ var (
 	SchemaRegistryAddr                = common.HexToAddress(SchemaRegistry)
 	EASAddr                           = common.HexToAddress(EAS)
 	CrossL2InboxAddr                  = common.HexToAddress(CrossL2Inbox)
+	L2toL2CrossDomainMessengerAddr    = common.HexToAddress(L2toL2CrossDomainMessenger)
 	Create2DeployerAddr               = common.HexToAddress(Create2Deployer)
 	MultiCall3Addr                    = common.HexToAddress(MultiCall3)
 	Safe_v130Addr                     = common.HexToAddress(Safe_v130)
@@ -91,6 +93,8 @@ func init() {
 	Predeploys["L1BlockNumber"] = &Predeploy{Address: L1BlockNumberAddr}
 	Predeploys["GasPriceOracle"] = &Predeploy{Address: GasPriceOracleAddr}
 	Predeploys["L1Block"] = &Predeploy{Address: L1BlockAddr}
+	Predeploys["CrossL2Inbox"] = &Predeploy{Address: CrossL2InboxAddr}
+	Predeploys["L2toL2CrossDomainMessenger"] = &Predeploy{Address: L2toL2CrossDomainMessengerAddr}
 	Predeploys["GovernanceToken"] = &Predeploy{
 		Address:       GovernanceTokenAddr,
 		ProxyDisabled: true,

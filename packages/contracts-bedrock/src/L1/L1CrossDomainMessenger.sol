@@ -1,39 +1,44 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Predeploys } from "src/libraries/Predeploys.sol";
-import { OptimismPortal } from "src/L1/OptimismPortal.sol";
+// Contracts
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
-import { ISemver } from "src/universal/ISemver.sol";
-import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
-import { SystemConfig } from "src/L1/SystemConfig.sol";
 
-/// @custom:proxied
+// Libraries
+import { Predeploys } from "src/libraries/Predeploys.sol";
+
+// Interfaces
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
+import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
+import { ISystemConfig } from "src/L1/interfaces/ISystemConfig.sol";
+import { IOptimismPortal } from "src/L1/interfaces/IOptimismPortal.sol";
+
+/// @custom:proxied true
 /// @title L1CrossDomainMessenger
 /// @notice The L1CrossDomainMessenger is a message passing interface between L1 and L2 responsible
 ///         for sending and receiving data on the L1 side. Users are encouraged to use this
 ///         interface instead of interacting with lower-level contracts directly.
 contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
     /// @notice Contract of the SuperchainConfig.
-    SuperchainConfig public superchainConfig;
+    ISuperchainConfig public superchainConfig;
 
     /// @notice Contract of the OptimismPortal.
     /// @custom:network-specific
-    OptimismPortal public portal;
+    IOptimismPortal public portal;
 
     /// @notice Address of the SystemConfig contract.
-    SystemConfig public systemConfig;
+    ISystemConfig public systemConfig;
 
     /// @notice Semantic version.
-    /// @custom:semver 2.4.0
-    string public constant version = "2.4.0";
+    /// @custom:semver 2.4.1-beta.1
+    string public constant version = "2.4.1-beta.1";
 
     /// @notice Constructs the L1CrossDomainMessenger contract.
     constructor() CrossDomainMessenger() {
         initialize({
-            _superchainConfig: SuperchainConfig(address(0)),
-            _portal: OptimismPortal(payable(address(0))),
-            _systemConfig: SystemConfig(address(0))
+            _superchainConfig: ISuperchainConfig(address(0)),
+            _portal: IOptimismPortal(payable(address(0))),
+            _systemConfig: ISystemConfig(address(0))
         });
     }
 
@@ -42,9 +47,9 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
     /// @param _portal Contract of the OptimismPortal contract on this network.
     /// @param _systemConfig Contract of the SystemConfig contract on this network.
     function initialize(
-        SuperchainConfig _superchainConfig,
-        OptimismPortal _portal,
-        SystemConfig _systemConfig
+        ISuperchainConfig _superchainConfig,
+        IOptimismPortal _portal,
+        ISystemConfig _systemConfig
     )
         public
         initializer
@@ -64,7 +69,7 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
     ///         Public getter is legacy and will be removed in the future. Use `portal()` instead.
     /// @return Contract of the OptimismPortal on this chain.
     /// @custom:legacy
-    function PORTAL() external view returns (OptimismPortal) {
+    function PORTAL() external view returns (IOptimismPortal) {
         return portal;
     }
 

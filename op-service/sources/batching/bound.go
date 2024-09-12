@@ -43,11 +43,11 @@ func (b *BoundContract) DecodeCall(data []byte) (string, *CallResult, error) {
 	method, err := b.abi.MethodById(data[:4])
 	if err != nil {
 		// ABI doesn't return a nicely typed error so treat any failure to find the method as unknown
-		return "", nil, fmt.Errorf("%w: %v", ErrUnknownMethod, err.Error())
+		return "", nil, fmt.Errorf("%w: %w", ErrUnknownMethod, err)
 	}
 	args, err := method.Inputs.Unpack(data[4:])
 	if err != nil {
-		return "", nil, fmt.Errorf("%w: %v", ErrInvalidCall, err.Error())
+		return "", nil, fmt.Errorf("%w: %w", ErrInvalidCall, err)
 	}
 	return method.Name, &CallResult{args}, nil
 }
@@ -58,7 +58,7 @@ func (b *BoundContract) DecodeEvent(log *types.Log) (string, *CallResult, error)
 	}
 	event, err := b.abi.EventByID(log.Topics[0])
 	if err != nil {
-		return "", nil, fmt.Errorf("%w: %v", ErrUnknownEvent, err.Error())
+		return "", nil, fmt.Errorf("%w: %w", ErrUnknownEvent, err)
 	}
 
 	argsMap := make(map[string]interface{})
@@ -69,13 +69,13 @@ func (b *BoundContract) DecodeEvent(log *types.Log) (string, *CallResult, error)
 		}
 	}
 	if err := abi.ParseTopicsIntoMap(argsMap, indexed, log.Topics[1:]); err != nil {
-		return "", nil, fmt.Errorf("%w indexed topics: %v", ErrInvalidEvent, err.Error())
+		return "", nil, fmt.Errorf("%w indexed topics: %w", ErrInvalidEvent, err)
 	}
 
 	nonIndexed := event.Inputs.NonIndexed()
 	if len(nonIndexed) > 0 {
 		if err := nonIndexed.UnpackIntoMap(argsMap, log.Data); err != nil {
-			return "", nil, fmt.Errorf("%w non-indexed topics: %v", ErrInvalidEvent, err.Error())
+			return "", nil, fmt.Errorf("%w non-indexed topics: %w", ErrInvalidEvent, err)
 		}
 	}
 	args := make([]interface{}, 0, len(event.Inputs))

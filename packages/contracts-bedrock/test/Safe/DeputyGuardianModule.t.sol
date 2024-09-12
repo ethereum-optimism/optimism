@@ -2,11 +2,13 @@
 pragma solidity 0.8.15;
 
 import { CommonTest } from "test/setup/CommonTest.sol";
-import { ForgeArtifacts, Abi } from "scripts/ForgeArtifacts.sol";
+import { ForgeArtifacts, Abi } from "scripts/libraries/ForgeArtifacts.sol";
 import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import "test/safe-tools/SafeTestTools.sol";
 
 import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
+import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
+import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
 import { DeputyGuardianModule } from "src/Safe/DeputyGuardianModule.sol";
 
 import "src/dispute/lib/Types.sol";
@@ -148,6 +150,43 @@ contract DeputyGuardianModule_Unpause_TestFail is DeputyGuardianModule_Unpause_T
     }
 }
 
+contract DeputyGuardianModule_SetAnchorState_TestFail is DeputyGuardianModule_TestInit {
+    function test_setAnchorState_notDeputyGuardian_reverts() external {
+        AnchorStateRegistry asr = AnchorStateRegistry(makeAddr("asr"));
+        vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector));
+        deputyGuardianModule.setAnchorState(asr, IFaultDisputeGame(address(0)));
+    }
+
+    function test_setAnchorState_targetReverts_reverts() external {
+        AnchorStateRegistry asr = AnchorStateRegistry(makeAddr("asr"));
+        vm.mockCallRevert(
+            address(asr),
+            abi.encodeWithSelector(asr.setAnchorState.selector),
+            "AnchorStateRegistry: setAnchorState reverted"
+        );
+        vm.prank(address(deputyGuardian));
+        vm.expectRevert(
+            abi.encodeWithSelector(ExecutionFailed.selector, "AnchorStateRegistry: setAnchorState reverted")
+        );
+        deputyGuardianModule.setAnchorState(asr, IFaultDisputeGame(address(0)));
+    }
+}
+
+contract DeputyGuardianModule_SetAnchorState_Test is DeputyGuardianModule_TestInit {
+    function test_setAnchorState_succeeds() external {
+        AnchorStateRegistry asr = AnchorStateRegistry(makeAddr("asr"));
+        vm.mockCall(
+            address(asr),
+            abi.encodeWithSelector(AnchorStateRegistry.setAnchorState.selector, IFaultDisputeGame(address(0))),
+            ""
+        );
+        vm.expectEmit(address(safeInstance.safe));
+        emit ExecutionFromModuleSuccess(address(deputyGuardianModule));
+        vm.prank(address(deputyGuardian));
+        deputyGuardianModule.setAnchorState(asr, IFaultDisputeGame(address(0)));
+    }
+}
+
 contract DeputyGuardianModule_BlacklistDisputeGame_Test is DeputyGuardianModule_TestInit {
     /// @dev Tests that `blacklistDisputeGame` successfully blacklists a dispute game when called by the deputy
     /// guardian.
@@ -239,9 +278,12 @@ contract DeputyGuardianModule_NoPortalCollisions_Test is DeputyGuardianModule_Te
     /// @dev tests that no function selectors in the L1 contracts collide with the OptimismPortal2 functions called by
     ///      the DeputyGuardianModule.
     function test_noPortalCollisions_succeeds() external {
-        string[] memory excludes = new string[](2);
-        excludes[0] = "src/L1/OptimismPortal2.sol";
-        excludes[1] = "src/dispute/lib/*";
+        string[] memory excludes = new string[](5);
+        excludes[0] = "src/dispute/lib/*";
+        excludes[1] = "src/L1/OptimismPortal2.sol";
+        excludes[2] = "src/L1/OptimismPortalInterop.sol";
+        excludes[3] = "src/L1/interfaces/IOptimismPortal2.sol";
+        excludes[4] = "src/L1/interfaces/IOptimismPortalInterop.sol";
         Abi[] memory abis = ForgeArtifacts.getContractFunctionAbis("src/{L1,dispute,universal}", excludes);
         for (uint256 i; i < abis.length; i++) {
             for (uint256 j; j < abis[i].entries.length; j++) {

@@ -51,10 +51,10 @@ func TestSystemConfigBatchType(t *testing.T) {
 func BatcherKeyRotation(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
 
-	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
 	dp.DeployConfig.L2BlockTime = 2
 	applyDeltaTimeOffset(dp, deltaTimeOffset)
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
 	miner.ActL1SetFeeRecipient(common.Address{'A'})
@@ -226,9 +226,17 @@ func BatcherKeyRotation(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 // and that the L1 data fees to the L2 transaction are applied correctly before, during and after the GPO update in L2.
 func GPOParamsChange(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
 	applyDeltaTimeOffset(dp, deltaTimeOffset)
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+
+	// activating Delta only, not Ecotone and further:
+	// the GPO change assertions here all apply only for the Delta transition.
+	// Separate tests cover Ecotone GPO changes.
+	dp.DeployConfig.L2GenesisEcotoneTimeOffset = nil
+	dp.DeployConfig.L2GenesisFjordTimeOffset = nil
+	dp.DeployConfig.L2GenesisGraniteTimeOffset = nil
+
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
 	batcher := NewL2Batcher(log, sd.RollupCfg, DefaultBatcherCfg(dp),
@@ -353,9 +361,9 @@ func GPOParamsChange(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 // the gas limit change event. And checks if a verifier node can reproduce the same gas limit change.
 func GasLimitChange(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
 	applyDeltaTimeOffset(dp, deltaTimeOffset)
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
 	batcher := NewL2Batcher(log, sd.RollupCfg, DefaultBatcherCfg(dp),

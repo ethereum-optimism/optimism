@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 import { AddressManager } from "src/legacy/AddressManager.sol";
 
-/// @custom:legacy
+/// @custom:legacy true
 /// @title ResolvedDelegateProxy
 /// @notice ResolvedDelegateProxy is a legacy proxy contract that makes use of the AddressManager to
 ///         resolve the implementation address. We're maintaining this contract for backwards

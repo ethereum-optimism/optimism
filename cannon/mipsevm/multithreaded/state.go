@@ -3,10 +3,13 @@ package multithreaded
 import (
 	"encoding/binary"
 	"fmt"
+	"io"
 
+	"github.com/ethereum-optimism/optimism/cannon/serialize"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
@@ -32,34 +35,27 @@ const (
 )
 
 type State struct {
-	Memory *memory.Memory `json:"memory"`
+	Memory *memory.Memory
 
-	PreimageKey    common.Hash `json:"preimageKey"`
-	PreimageOffset uint32      `json:"preimageOffset"` // note that the offset includes the 8-byte length prefix
+	PreimageKey    common.Hash
+	PreimageOffset uint32 // note that the offset includes the 8-byte length prefix
 
-	Heap uint32 `json:"heap"` // to handle mmap growth
+	Heap uint32 // to handle mmap growth
 
-	ExitCode uint8 `json:"exit"`
-	Exited   bool  `json:"exited"`
+	ExitCode uint8
+	Exited   bool
 
-	Step                        uint64 `json:"step"`
-	StepsSinceLastContextSwitch uint64 `json:"stepsSinceLastContextSwitch"`
-	Wakeup                      uint32 `json:"wakeup"`
+	Step                        uint64
+	StepsSinceLastContextSwitch uint64
+	Wakeup                      uint32
 
-	TraverseRight    bool           `json:"traverseRight"`
-	LeftThreadStack  []*ThreadState `json:"leftThreadStack"`
-	RightThreadStack []*ThreadState `json:"rightThreadStack"`
-	NextThreadId     uint32         `json:"nextThreadId"`
+	TraverseRight    bool
+	LeftThreadStack  []*ThreadState
+	RightThreadStack []*ThreadState
+	NextThreadId     uint32
 
 	// LastHint is optional metadata, and not part of the VM state itself.
-	// It is used to remember the last pre-image hint,
-	// so a VM can start from any state without fetching prior pre-images,
-	// and instead just repeat the last hint on setup,
-	// to make sure pre-image requests can be served.
-	// The first 4 bytes are a uin32 length prefix.
-	// Warning: the hint MAY NOT BE COMPLETE. I.e. this is buffered,
-	// and should only be read when len(LastHint) > 4 && uint32(LastHint[:4]) <= len(LastHint[4:])
-	LastHint hexutil.Bytes `json:"lastHint,omitempty"`
+	LastHint hexutil.Bytes
 }
 
 var _ mipsevm.FPVMState = (*State)(nil)
@@ -83,7 +79,7 @@ func CreateEmptyState() *State {
 
 func CreateInitialState(pc, heapStart uint32) *State {
 	state := CreateEmptyState()
-	currentThread := state.getCurrentThread()
+	currentThread := state.GetCurrentThread()
 	currentThread.Cpu.PC = pc
 	currentThread.Cpu.NextPC = pc + 4
 	state.Heap = heapStart
@@ -91,7 +87,12 @@ func CreateInitialState(pc, heapStart uint32) *State {
 	return state
 }
 
-func (s *State) getCurrentThread() *ThreadState {
+func (s *State) CreateVM(logger log.Logger, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, meta mipsevm.Metadata) mipsevm.FPVM {
+	logger.Info("Using cannon multithreaded VM")
+	return NewInstrumentedState(s, po, stdOut, stdErr, logger, meta)
+}
+
+func (s *State) GetCurrentThread() *ThreadState {
 	activeStack := s.getActiveThreadStack()
 
 	activeStackSize := len(activeStack)
@@ -131,17 +132,22 @@ func (s *State) calculateThreadStackRoot(stack []*ThreadState) common.Hash {
 }
 
 func (s *State) GetPC() uint32 {
-	activeThread := s.getCurrentThread()
+	activeThread := s.GetCurrentThread()
 	return activeThread.Cpu.PC
 }
 
-func (s *State) GetRegisters() *[32]uint32 {
-	activeThread := s.getCurrentThread()
-	return &activeThread.Registers
+func (s *State) GetCpu() mipsevm.CpuScalars {
+	activeThread := s.GetCurrentThread()
+	return activeThread.Cpu
 }
 
-func (s *State) getCpu() *mipsevm.CpuScalars {
-	return &s.getCurrentThread().Cpu
+func (s *State) getCpuRef() *mipsevm.CpuScalars {
+	return &s.GetCurrentThread().Cpu
+}
+
+func (s *State) GetRegistersRef() *[32]uint32 {
+	activeThread := s.GetCurrentThread()
+	return &activeThread.Registers
 }
 
 func (s *State) GetExitCode() uint8 { return s.ExitCode }
@@ -150,12 +156,28 @@ func (s *State) GetExited() bool { return s.Exited }
 
 func (s *State) GetStep() uint64 { return s.Step }
 
+func (s *State) GetLastHint() hexutil.Bytes {
+	return s.LastHint
+}
+
 func (s *State) VMStatus() uint8 {
 	return mipsevm.VmStatus(s.Exited, s.ExitCode)
 }
 
 func (s *State) GetMemory() *memory.Memory {
 	return s.Memory
+}
+
+func (s *State) GetHeap() uint32 {
+	return s.Heap
+}
+
+func (s *State) GetPreimageKey() common.Hash {
+	return s.PreimageKey
+}
+
+func (s *State) GetPreimageOffset() uint32 {
+	return s.PreimageOffset
 }
 
 func (s *State) EncodeWitness() ([]byte, common.Hash) {
@@ -201,8 +223,158 @@ func (s *State) EncodeThreadProof() []byte {
 	return out
 }
 
-func (s *State) threadCount() int {
+func (s *State) ThreadCount() int {
 	return len(s.LeftThreadStack) + len(s.RightThreadStack)
+}
+
+// Serialize writes the state in a simple binary format which can be read again using Deserialize
+// The format is a simple concatenation of fields, with prefixed item count for repeating items and using big endian
+// encoding for numbers.
+//
+// StateVersion                uint8(1)
+// Memory                      As per Memory.Serialize
+// PreimageKey                 [32]byte
+// PreimageOffset              uint32
+// Heap                        uint32
+// ExitCode                    uint8
+// Exited                      uint8 - 0 for false, 1 for true
+// Step                        uint64
+// StepsSinceLastContextSwitch uint64
+// Wakeup                      uint32
+// TraverseRight               uint8 - 0 for false, 1 for true
+// NextThreadId                uint32
+// len(LeftThreadStack)        uint32
+// LeftThreadStack entries     as per ThreadState.Serialize
+// len(RightThreadStack)       uint32
+// RightThreadStack entries    as per ThreadState.Serialize
+// len(LastHint)			   uint32 (0 when LastHint is nil)
+// LastHint 				   []byte
+func (s *State) Serialize(out io.Writer) error {
+	bout := serialize.NewBinaryWriter(out)
+
+	if err := s.Memory.Serialize(out); err != nil {
+		return err
+	}
+	if err := bout.WriteHash(s.PreimageKey); err != nil {
+		return err
+	}
+	if err := bout.WriteUInt(s.PreimageOffset); err != nil {
+		return err
+	}
+	if err := bout.WriteUInt(s.Heap); err != nil {
+		return err
+	}
+	if err := bout.WriteUInt(s.ExitCode); err != nil {
+		return err
+	}
+	if err := bout.WriteBool(s.Exited); err != nil {
+		return err
+	}
+	if err := bout.WriteUInt(s.Step); err != nil {
+		return err
+	}
+	if err := bout.WriteUInt(s.StepsSinceLastContextSwitch); err != nil {
+		return err
+	}
+	if err := bout.WriteUInt(s.Wakeup); err != nil {
+		return err
+	}
+	if err := bout.WriteBool(s.TraverseRight); err != nil {
+		return err
+	}
+	if err := bout.WriteUInt(s.NextThreadId); err != nil {
+		return err
+	}
+
+	if err := bout.WriteUInt(uint32(len(s.LeftThreadStack))); err != nil {
+		return err
+	}
+	for _, stack := range s.LeftThreadStack {
+		if err := stack.Serialize(out); err != nil {
+			return err
+		}
+	}
+	if err := bout.WriteUInt(uint32(len(s.RightThreadStack))); err != nil {
+		return err
+	}
+	for _, stack := range s.RightThreadStack {
+		if err := stack.Serialize(out); err != nil {
+			return err
+		}
+	}
+	if err := bout.WriteBytes(s.LastHint); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *State) Deserialize(in io.Reader) error {
+	bin := serialize.NewBinaryReader(in)
+	s.Memory = memory.NewMemory()
+	if err := s.Memory.Deserialize(in); err != nil {
+		return err
+	}
+	if err := bin.ReadHash(&s.PreimageKey); err != nil {
+		return err
+	}
+	if err := bin.ReadUInt(&s.PreimageOffset); err != nil {
+		return err
+	}
+	if err := bin.ReadUInt(&s.Heap); err != nil {
+		return err
+	}
+	if err := bin.ReadUInt(&s.ExitCode); err != nil {
+		return err
+	}
+	if err := bin.ReadBool(&s.Exited); err != nil {
+		return err
+	}
+	if err := bin.ReadUInt(&s.Step); err != nil {
+		return err
+	}
+	if err := bin.ReadUInt(&s.StepsSinceLastContextSwitch); err != nil {
+		return err
+	}
+	if err := bin.ReadUInt(&s.Wakeup); err != nil {
+		return err
+	}
+	if err := bin.ReadBool(&s.TraverseRight); err != nil {
+		return err
+	}
+
+	if err := bin.ReadUInt(&s.NextThreadId); err != nil {
+		return err
+	}
+
+	var leftThreadStackSize uint32
+	if err := bin.ReadUInt(&leftThreadStackSize); err != nil {
+		return err
+	}
+	s.LeftThreadStack = make([]*ThreadState, leftThreadStackSize)
+	for i := range s.LeftThreadStack {
+		s.LeftThreadStack[i] = &ThreadState{}
+		if err := s.LeftThreadStack[i].Deserialize(in); err != nil {
+			return err
+		}
+	}
+
+	var rightThreadStackSize uint32
+	if err := bin.ReadUInt(&rightThreadStackSize); err != nil {
+		return err
+	}
+	s.RightThreadStack = make([]*ThreadState, rightThreadStackSize)
+	for i := range s.RightThreadStack {
+		s.RightThreadStack[i] = &ThreadState{}
+		if err := s.RightThreadStack[i].Deserialize(in); err != nil {
+			return err
+		}
+	}
+
+	if err := bin.ReadBytes((*[]byte)(&s.LastHint)); err != nil {
+		return err
+	}
+	return nil
 }
 
 type StateWitness []byte
@@ -212,6 +384,12 @@ func (sw StateWitness) StateHash() (common.Hash, error) {
 		return common.Hash{}, fmt.Errorf("Invalid witness length. Got %d, expected %d", len(sw), STATE_WITNESS_SIZE)
 	}
 	return stateHashFromWitness(sw), nil
+}
+
+func GetStateHashFn() mipsevm.HashFn {
+	return func(sw []byte) (common.Hash, error) {
+		return StateWitness(sw).StateHash()
+	}
 }
 
 func stateHashFromWitness(sw []byte) common.Hash {

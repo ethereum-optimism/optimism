@@ -1,5 +1,21 @@
 [
   {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_proofMaturityDelaySeconds",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_disputeGameFinalityDelaySeconds",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
     "stateMutability": "payable",
     "type": "receive"
   },
@@ -13,6 +29,37 @@
         "type": "uint256"
       }
     ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract IDisputeGame",
+        "name": "_disputeGame",
+        "type": "address"
+      }
+    ],
+    "name": "blacklistDisputeGame",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "_withdrawalHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "address",
+        "name": "_proofSubmitter",
+        "type": "address"
+      }
+    ],
+    "name": "checkWithdrawal",
+    "outputs": [],
     "stateMutability": "view",
     "type": "function"
   },
@@ -88,6 +135,51 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "contract IDisputeGame",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "disputeGameBlacklist",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "disputeGameFactory",
+    "outputs": [
+      {
+        "internalType": "contract IDisputeGameFactory",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "disputeGameFinalityDelaySeconds",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "donateETH",
     "outputs": [],
@@ -142,6 +234,56 @@
   {
     "inputs": [
       {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "nonce",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "sender",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "target",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "value",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "gasLimit",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes",
+            "name": "data",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct Types.WithdrawalTransaction",
+        "name": "_tx",
+        "type": "tuple"
+      },
+      {
+        "internalType": "address",
+        "name": "_proofSubmitter",
+        "type": "address"
+      }
+    ],
+    "name": "finalizeWithdrawalTransactionExternalProof",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "bytes32",
         "name": "",
         "type": "bytes32"
@@ -174,56 +316,29 @@
   {
     "inputs": [
       {
-        "internalType": "contract L2OutputOracle",
-        "name": "_l2Oracle",
+        "internalType": "contract IDisputeGameFactory",
+        "name": "_disputeGameFactory",
         "type": "address"
       },
       {
-        "internalType": "contract SystemConfig",
+        "internalType": "contract ISystemConfig",
         "name": "_systemConfig",
         "type": "address"
       },
       {
-        "internalType": "contract SuperchainConfig",
+        "internalType": "contract ISuperchainConfig",
         "name": "_superchainConfig",
         "type": "address"
+      },
+      {
+        "internalType": "GameType",
+        "name": "_initialRespectedGameType",
+        "type": "uint32"
       }
     ],
     "name": "initialize",
     "outputs": [],
     "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "_l2OutputIndex",
-        "type": "uint256"
-      }
-    ],
-    "name": "isOutputFinalized",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "",
-        "type": "bool"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "l2Oracle",
-    "outputs": [
-      {
-        "internalType": "contract L2OutputOracle",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -259,6 +374,25 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "_withdrawalHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "numProofSubmitters",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "params",
     "outputs": [
@@ -287,8 +421,45 @@
     "outputs": [
       {
         "internalType": "bool",
-        "name": "paused_",
+        "name": "",
         "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "proofMaturityDelaySeconds",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "proofSubmitters",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
       }
     ],
     "stateMutability": "view",
@@ -335,7 +506,7 @@
       },
       {
         "internalType": "uint256",
-        "name": "_l2OutputIndex",
+        "name": "_disputeGameIndex",
         "type": "uint256"
       },
       {
@@ -382,24 +553,50 @@
         "internalType": "bytes32",
         "name": "",
         "type": "bytes32"
+      },
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
       }
     ],
     "name": "provenWithdrawals",
     "outputs": [
       {
-        "internalType": "bytes32",
-        "name": "outputRoot",
-        "type": "bytes32"
+        "internalType": "contract IDisputeGame",
+        "name": "disputeGameProxy",
+        "type": "address"
       },
       {
-        "internalType": "uint128",
+        "internalType": "uint64",
         "name": "timestamp",
-        "type": "uint128"
-      },
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "respectedGameType",
+    "outputs": [
       {
-        "internalType": "uint128",
-        "name": "l2OutputIndex",
-        "type": "uint128"
+        "internalType": "GameType",
+        "name": "",
+        "type": "uint32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "respectedGameTypeUpdatedAt",
+    "outputs": [
+      {
+        "internalType": "uint64",
+        "name": "",
+        "type": "uint64"
       }
     ],
     "stateMutability": "view",
@@ -452,11 +649,24 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "GameType",
+        "name": "_gameType",
+        "type": "uint32"
+      }
+    ],
+    "name": "setRespectedGameType",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "superchainConfig",
     "outputs": [
       {
-        "internalType": "contract SuperchainConfig",
+        "internalType": "contract ISuperchainConfig",
         "name": "",
         "type": "address"
       }
@@ -469,7 +679,7 @@
     "name": "systemConfig",
     "outputs": [
       {
-        "internalType": "contract SystemConfig",
+        "internalType": "contract ISystemConfig",
         "name": "",
         "type": "address"
       }
@@ -494,6 +704,19 @@
     "anonymous": false,
     "inputs": [
       {
+        "indexed": true,
+        "internalType": "contract IDisputeGame",
+        "name": "disputeGame",
+        "type": "address"
+      }
+    ],
+    "name": "DisputeGameBlacklisted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
         "indexed": false,
         "internalType": "uint8",
         "name": "version",
@@ -501,6 +724,25 @@
       }
     ],
     "name": "Initialized",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "GameType",
+        "name": "newGameType",
+        "type": "uint32"
+      },
+      {
+        "indexed": true,
+        "internalType": "Timestamp",
+        "name": "updatedAt",
+        "type": "uint64"
+      }
+    ],
+    "name": "RespectedGameTypeSet",
     "type": "event"
   },
   {
@@ -579,8 +821,37 @@
     "type": "event"
   },
   {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "withdrawalHash",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "proofSubmitter",
+        "type": "address"
+      }
+    ],
+    "name": "WithdrawalProvenExtension1",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "AlreadyFinalized",
+    "type": "error"
+  },
+  {
     "inputs": [],
     "name": "BadTarget",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "Blacklisted",
     "type": "error"
   },
   {
@@ -610,7 +881,27 @@
   },
   {
     "inputs": [],
+    "name": "InvalidDisputeGame",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidGameType",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidHeader",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidMerkleProof",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidProof",
     "type": "error"
   },
   {
@@ -640,6 +931,11 @@
   },
   {
     "inputs": [],
+    "name": "ProposalNotValidated",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "SmallGasLimit",
     "type": "error"
   },
@@ -655,17 +951,17 @@
   },
   {
     "inputs": [],
-    "name": "Unauthorized",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "UnexpectedList",
     "type": "error"
   },
   {
     "inputs": [],
     "name": "UnexpectedString",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "Unproven",
     "type": "error"
   }
 ]

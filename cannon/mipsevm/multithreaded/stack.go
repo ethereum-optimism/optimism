@@ -3,8 +3,8 @@ package multithreaded
 import (
 	"errors"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 )
 
 type ThreadedStackTracker interface {
@@ -21,14 +21,14 @@ var _ ThreadedStackTracker = (*ThreadedStackTrackerImpl)(nil)
 func (n *NoopThreadedStackTracker) DropThread(threadId uint32) {}
 
 type ThreadedStackTrackerImpl struct {
-	meta               *program.Metadata
+	meta               mipsevm.Metadata
 	state              *State
 	trackersByThreadId map[uint32]exec.TraceableStackTracker
 }
 
 var _ ThreadedStackTracker = (*ThreadedStackTrackerImpl)(nil)
 
-func NewThreadedStackTracker(state *State, meta *program.Metadata) (*ThreadedStackTrackerImpl, error) {
+func NewThreadedStackTracker(state *State, meta mipsevm.Metadata) (*ThreadedStackTrackerImpl, error) {
 	if meta == nil {
 		return nil, errors.New("metadata is nil")
 	}
@@ -53,7 +53,7 @@ func (t *ThreadedStackTrackerImpl) Traceback() {
 }
 
 func (t *ThreadedStackTrackerImpl) getCurrentTracker() exec.TraceableStackTracker {
-	thread := t.state.getCurrentThread()
+	thread := t.state.GetCurrentThread()
 	tracker, exists := t.trackersByThreadId[thread.ThreadId]
 	if !exists {
 		tracker = exec.NewStackTrackerUnsafe(t.state, t.meta)

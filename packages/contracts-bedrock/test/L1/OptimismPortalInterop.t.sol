@@ -7,11 +7,15 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import "src/libraries/PortalErrors.sol";
 
 // Target contract dependencies
 import "src/libraries/PortalErrors.sol";
 import { OptimismPortalInterop } from "src/L1/OptimismPortalInterop.sol";
-import { L1BlockInterop, ConfigType } from "src/L2/L1BlockInterop.sol";
+import { L1BlockIsthmus, ConfigType } from "src/L2/L1BlockIsthmus.sol";
+
+// Interfaces
+import { IOptimismPortalInterop } from "src/L1/interfaces/IOptimismPortalInterop.sol";
 
 contract OptimismPortalInterop_Test is CommonTest {
     /// @notice Marked virtual to be overridden in
@@ -31,7 +35,7 @@ contract OptimismPortalInterop_Test is CommonTest {
             _mint: 0,
             _gasLimit: 200_000,
             _isCreation: false,
-            _data: abi.encodeCall(L1BlockInterop.setConfig, (ConfigType.SET_GAS_PAYING_TOKEN, _value))
+            _data: abi.encodeCall(L1BlockIsthmus.setConfig, (ConfigType.SET_GAS_PAYING_TOKEN, _value))
         });
 
         vm.prank(address(_optimismPortalInterop().systemConfig()));
@@ -54,7 +58,7 @@ contract OptimismPortalInterop_Test is CommonTest {
             _mint: 0,
             _gasLimit: 200_000,
             _isCreation: false,
-            _data: abi.encodeCall(L1BlockInterop.setConfig, (ConfigType.ADD_DEPENDENCY, _value))
+            _data: abi.encodeCall(L1BlockIsthmus.setConfig, (ConfigType.ADD_DEPENDENCY, _value))
         });
 
         vm.prank(address(_optimismPortalInterop().systemConfig()));
@@ -77,7 +81,7 @@ contract OptimismPortalInterop_Test is CommonTest {
             _mint: 0,
             _gasLimit: 200_000,
             _isCreation: false,
-            _data: abi.encodeCall(L1BlockInterop.setConfig, (ConfigType.REMOVE_DEPENDENCY, _value))
+            _data: abi.encodeCall(L1BlockIsthmus.setConfig, (ConfigType.REMOVE_DEPENDENCY, _value))
         });
 
         vm.prank(address(_optimismPortalInterop().systemConfig()));
@@ -91,7 +95,7 @@ contract OptimismPortalInterop_Test is CommonTest {
     }
 
     /// @dev Returns the OptimismPortalInterop instance.
-    function _optimismPortalInterop() internal view returns (OptimismPortalInterop) {
-        return OptimismPortalInterop(payable(address(optimismPortal)));
+    function _optimismPortalInterop() internal view returns (IOptimismPortalInterop) {
+        return IOptimismPortalInterop(payable(address(optimismPortal)));
     }
 }

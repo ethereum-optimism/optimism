@@ -39,7 +39,7 @@
     "label": "messenger",
     "offset": 0,
     "slot": "3",
-    "type": "contract CrossDomainMessenger"
+    "type": "contract ICrossDomainMessenger"
   },
   {
     "bytes": "20",
@@ -60,13 +60,13 @@
     "label": "superchainConfig",
     "offset": 0,
     "slot": "50",
-    "type": "contract SuperchainConfig"
+    "type": "contract ISuperchainConfig"
   },
   {
     "bytes": "20",
     "label": "systemConfig",
     "offset": 0,
     "slot": "51",
-    "type": "contract SystemConfig"
+    "type": "contract ISystemConfig"
   }
 ]

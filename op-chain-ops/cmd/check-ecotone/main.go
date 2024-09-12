@@ -32,10 +32,10 @@ import (
 	op_service "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum-optimism/optimism/op-service/opio"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -168,7 +168,7 @@ func makeCommandAction(fn CheckAction) func(c *cli.Context) error {
 		logCfg := oplog.ReadCLIConfig(c)
 		logger := oplog.NewLogger(c.App.Writer, logCfg)
 
-		c.Context = opio.CancelOnInterrupt(c.Context)
+		c.Context = ctxinterrupt.WithCancelOnInterrupt(c.Context)
 		l1Cl, err := ethclient.DialContext(c.Context, c.String(EndpointL1.Name))
 		if err != nil {
 			return fmt.Errorf("failed to dial L1 RPC: %w", err)
@@ -271,7 +271,8 @@ func check4844Precompile(ctx context.Context, env *actionEnv) error {
 		return fmt.Errorf("failed to compute commitment: %w", err)
 	}
 	point := kzg4844.Point{}
-	proof, claim, err := kzg4844.ComputeProof(kzg4844.Blob(x), point)
+	blob := kzg4844.Blob(x)
+	proof, claim, err := kzg4844.ComputeProof(&blob, point)
 	if err != nil {
 		return fmt.Errorf("failed to compute proof: %w", err)
 	}

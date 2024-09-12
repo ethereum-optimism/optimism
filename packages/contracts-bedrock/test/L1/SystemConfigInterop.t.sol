@@ -1,20 +1,22 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-// Testing utilities
+// Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
+
+// Contracts
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { ConfigType } from "src/L2/L1BlockIsthmus.sol";
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
 import { StaticConfig } from "src/libraries/StaticConfig.sol";
 import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
 
-// Target contract dependencies
-import { SystemConfig } from "src/L1/SystemConfig.sol";
-import { SystemConfigInterop } from "src/L1/SystemConfigInterop.sol";
-import { OptimismPortalInterop } from "src/L1/OptimismPortalInterop.sol";
-import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { ConfigType } from "src/L2/L1BlockInterop.sol";
+// Interfaces
+import { ISystemConfig } from "src/L1/interfaces/ISystemConfig.sol";
+import { ISystemConfigInterop } from "src/L1/interfaces/ISystemConfigInterop.sol";
+import { IOptimismPortalInterop } from "src/L1/interfaces/IOptimismPortalInterop.sol";
 
 contract SystemConfigInterop_Test is CommonTest {
     /// @notice Marked virtual to be overridden in
@@ -46,7 +48,7 @@ contract SystemConfigInterop_Test is CommonTest {
         vm.expectCall(
             address(optimismPortal),
             abi.encodeCall(
-                OptimismPortalInterop.setConfig,
+                IOptimismPortalInterop.setConfig,
                 (
                     ConfigType.SET_GAS_PAYING_TOKEN,
                     StaticConfig.encodeSetGasPayingToken({
@@ -67,17 +69,18 @@ contract SystemConfigInterop_Test is CommonTest {
         vm.expectCall(
             address(optimismPortal),
             abi.encodeCall(
-                OptimismPortalInterop.setConfig, (ConfigType.ADD_DEPENDENCY, StaticConfig.encodeAddDependency(_chainId))
+                IOptimismPortalInterop.setConfig,
+                (ConfigType.ADD_DEPENDENCY, StaticConfig.encodeAddDependency(_chainId))
             )
         );
 
-        vm.prank(systemConfig.owner());
+        vm.prank(_systemConfigInterop().dependencyManager());
         _systemConfigInterop().addDependency(_chainId);
     }
 
-    /// @dev Tests that adding a dependency as not the owner reverts.
-    function testFuzz_addDependency_notOwner_reverts(uint256 _chainId) public {
-        vm.expectRevert("Ownable: caller is not the owner");
+    /// @dev Tests that adding a dependency as not the dependency manager reverts.
+    function testFuzz_addDependency_notDependencyManager_reverts(uint256 _chainId) public {
+        vm.expectRevert("SystemConfig: caller is not the dependency manager");
         _systemConfigInterop().addDependency(_chainId);
     }
 
@@ -86,18 +89,18 @@ contract SystemConfigInterop_Test is CommonTest {
         vm.expectCall(
             address(optimismPortal),
             abi.encodeCall(
-                OptimismPortalInterop.setConfig,
+                IOptimismPortalInterop.setConfig,
                 (ConfigType.REMOVE_DEPENDENCY, StaticConfig.encodeRemoveDependency(_chainId))
             )
         );
 
-        vm.prank(systemConfig.owner());
+        vm.prank(_systemConfigInterop().dependencyManager());
         _systemConfigInterop().removeDependency(_chainId);
     }
 
-    /// @dev Tests that removing a dependency as not the owner reverts.
-    function testFuzz_removeDependency_notOwner_reverts(uint256 _chainId) public {
-        vm.expectRevert("Ownable: caller is not the owner");
+    /// @dev Tests that removing a dependency as not the dependency manager reverts.
+    function testFuzz_removeDependency_notDependencyManager_reverts(uint256 _chainId) public {
+        vm.expectRevert("SystemConfig: caller is not the dependency manager");
         _systemConfigInterop().removeDependency(_chainId);
     }
 
@@ -118,7 +121,7 @@ contract SystemConfigInterop_Test is CommonTest {
             _unsafeBlockSigner: address(1),
             _config: Constants.DEFAULT_RESOURCE_CONFIG(),
             _batchInbox: address(0),
-            _addresses: SystemConfig.Addresses({
+            _addresses: ISystemConfig.Addresses({
                 l1CrossDomainMessenger: address(0),
                 l1ERC721Bridge: address(0),
                 disputeGameFactory: address(0),
@@ -131,7 +134,7 @@ contract SystemConfigInterop_Test is CommonTest {
     }
 
     /// @dev Returns the SystemConfigInterop instance.
-    function _systemConfigInterop() internal view returns (SystemConfigInterop) {
-        return SystemConfigInterop(address(systemConfig));
+    function _systemConfigInterop() internal view returns (ISystemConfigInterop) {
+        return ISystemConfigInterop(address(systemConfig));
     }
 }

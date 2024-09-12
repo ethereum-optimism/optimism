@@ -5,6 +5,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-program/client/l2/engineapi"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -83,8 +84,10 @@ func NewL2Engine(t Testing, log log.Logger, genesis *core.Genesis, rollupGenesis
 
 func newBackend(t e2eutils.TestingBase, genesis *core.Genesis, jwtPath string, options []EngineOption) (*node.Node, *geth.Ethereum, *engineApiBackend) {
 	ethCfg := &ethconfig.Config{
-		NetworkId: genesis.Config.ChainID.Uint64(),
-		Genesis:   genesis,
+		NetworkId:   genesis.Config.ChainID.Uint64(),
+		Genesis:     genesis,
+		StateScheme: rawdb.HashScheme,
+		NoPruning:   true,
 	}
 	nodeCfg := &node.Config{
 		Name:        "l2-geth",
@@ -130,6 +133,10 @@ func (e *engineApiBackend) Database() ethdb.Database {
 
 func (e *engineApiBackend) Genesis() *core.Genesis {
 	return e.genesis
+}
+
+func (s *L2Engine) L2Chain() *core.BlockChain {
+	return s.l2Chain
 }
 
 func (s *L2Engine) Enode() *enode.Node {

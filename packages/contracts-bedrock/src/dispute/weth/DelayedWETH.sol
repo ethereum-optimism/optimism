@@ -2,14 +2,15 @@
 pragma solidity 0.8.15;
 
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import { ISemver } from "src/universal/ISemver.sol";
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
 
 import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 import { IWETH } from "src/dispute/interfaces/IWETH.sol";
 import { WETH98 } from "src/dispute/weth/WETH98.sol";
 
-import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
+import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
 
+/// @custom:proxied true
 /// @title DelayedWETH
 /// @notice DelayedWETH is an extension to WETH9 that allows for delayed withdrawals. Accounts must trigger an unlock
 ///         function before they can withdraw WETH. Accounts must trigger unlock by specifying a sub-account and an
@@ -21,8 +22,8 @@ import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 ///         Not the prettiest contract in the world, but it gets the job done.
 contract DelayedWETH is OwnableUpgradeable, WETH98, IDelayedWETH, ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 1.1.1-beta.2
+    string public constant version = "1.1.1-beta.2";
 
     /// @inheritdoc IDelayedWETH
     mapping(address => mapping(address => WithdrawalRequest)) public withdrawals;
@@ -31,18 +32,18 @@ contract DelayedWETH is OwnableUpgradeable, WETH98, IDelayedWETH, ISemver {
     uint256 internal immutable DELAY_SECONDS;
 
     /// @notice Address of the SuperchainConfig contract.
-    SuperchainConfig public config;
+    ISuperchainConfig public config;
 
     /// @param _delay The delay for withdrawals in seconds.
     constructor(uint256 _delay) {
         DELAY_SECONDS = _delay;
-        initialize({ _owner: address(0), _config: SuperchainConfig(address(0)) });
+        initialize({ _owner: address(0), _config: ISuperchainConfig(address(0)) });
     }
 
     /// @notice Initializes the contract.
     /// @param _owner The address of the owner.
     /// @param _config Address of the SuperchainConfig contract.
-    function initialize(address _owner, SuperchainConfig _config) public initializer {
+    function initialize(address _owner, ISuperchainConfig _config) public initializer {
         __Ownable_init();
         _transferOwnership(_owner);
         config = _config;
@@ -85,7 +86,8 @@ contract DelayedWETH is OwnableUpgradeable, WETH98, IDelayedWETH, ISemver {
     function recover(uint256 _wad) external {
         require(msg.sender == owner(), "DelayedWETH: not owner");
         uint256 amount = _wad < address(this).balance ? _wad : address(this).balance;
-        payable(msg.sender).transfer(amount);
+        (bool success,) = payable(msg.sender).call{ value: amount }(hex"");
+        require(success, "DelayedWETH: recover failed");
     }
 
     /// @inheritdoc IDelayedWETH

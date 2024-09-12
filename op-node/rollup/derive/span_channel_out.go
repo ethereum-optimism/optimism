@@ -2,7 +2,6 @@ package derive
 
 import (
 	"bytes"
-
 	"crypto/rand"
 	"fmt"
 	"io"
@@ -37,6 +36,15 @@ type SpanChannelOut struct {
 	// spanBatch is the batch being built, which immutably holds genesis timestamp and chain ID, but otherwise can be reset
 	spanBatch *SpanBatch
 
+	// maxBlocksPerSpanBatch is an optional limit on the number of blocks per span batch.
+	// If non-zero, a new span batch will be started after the current span batch has
+	// reached this maximum.
+	maxBlocksPerSpanBatch int
+
+	// sealedRLPBytes stores the sealed number of input RLP bytes. This is used when maxBlocksPerSpanBatch is non-zero
+	// to seal full span batches (that have reached the max block count) in the rlp slices.
+	sealedRLPBytes int
+
 	chainSpec *rollup.ChainSpec
 }
 
@@ -49,7 +57,15 @@ func (co *SpanChannelOut) setRandomID() error {
 	return err
 }
 
-func NewSpanChannelOut(genesisTimestamp uint64, chainID *big.Int, targetOutputSize uint64, compressionAlgo CompressionAlgo, chainSpec *rollup.ChainSpec) (*SpanChannelOut, error) {
+type SpanChannelOutOption func(co *SpanChannelOut)
+
+func WithMaxBlocksPerSpanBatch(maxBlock int) SpanChannelOutOption {
+	return func(co *SpanChannelOut) {
+		co.maxBlocksPerSpanBatch = maxBlock
+	}
+}
+
+func NewSpanChannelOut(genesisTimestamp uint64, chainID *big.Int, targetOutputSize uint64, compressionAlgo CompressionAlgo, chainSpec *rollup.ChainSpec, opts ...SpanChannelOutOption) (*SpanChannelOut, error) {
 	c := &SpanChannelOut{
 		id:        ChannelID{},
 		frame:     0,
@@ -67,6 +83,10 @@ func NewSpanChannelOut(genesisTimestamp uint64, chainID *big.Int, targetOutputSi
 		return nil, err
 	}
 
+	for _, opt := range opts {
+		opt(c)
+	}
+
 	return c, nil
 }
 
@@ -74,13 +94,18 @@ func (co *SpanChannelOut) Reset() error {
 	co.closed = false
 	co.full = nil
 	co.frame = 0
+	co.sealedRLPBytes = 0
 	co.rlp[0].Reset()
 	co.rlp[1].Reset()
 	co.lastCompressedRLPSize = 0
 	co.compressor.Reset()
-	co.spanBatch = NewSpanBatch(co.spanBatch.GenesisTimestamp, co.spanBatch.ChainID)
+	co.resetSpanBatch()
 	// setting the new randomID is the only part of the reset that can fail
 	return co.setRandomID()
+}
+
+func (co *SpanChannelOut) resetSpanBatch() {
+	co.spanBatch = NewSpanBatch(co.spanBatch.GenesisTimestamp, co.spanBatch.ChainID)
 }
 
 // activeRLP returns the active RLP buffer using the current rlpIndex
@@ -127,6 +152,7 @@ func (co *SpanChannelOut) AddSingularBatch(batch *SingularBatch, seqNum uint64) 
 		return err
 	}
 
+	co.ensureOpenSpanBatch()
 	// update the SpanBatch with the SingularBatch
 	if err := co.spanBatch.AppendSingularBatch(batch, seqNum); err != nil {
 		return fmt.Errorf("failed to append SingularBatch to SpanBatch: %w", err)
@@ -137,11 +163,13 @@ func (co *SpanChannelOut) AddSingularBatch(batch *SingularBatch, seqNum uint64) 
 		return fmt.Errorf("failed to convert SpanBatch into RawSpanBatch: %w", err)
 	}
 
-	// switch to the other buffer and reset it for new use
-	// (the RLP buffer which is being made inactive holds the RLP encoded span batch just before the new batch was added)
+	// switch to the other buffer and truncate it for new use
+	// (the RLP buffer which is being made inactive holds the RLP encoded span batch(es)
+	// just before the new batch was added)
 	co.swapRLP()
-	co.activeRLP().Reset()
-	if err = rlp.Encode(co.activeRLP(), NewBatchData(rawSpanBatch)); err != nil {
+	active := co.activeRLP()
+	active.Truncate(co.sealedRLPBytes)
+	if err = rlp.Encode(active, NewBatchData(rawSpanBatch)); err != nil {
 		return fmt.Errorf("failed to encode RawSpanBatch into bytes: %w", err)
 	}
 
@@ -150,14 +178,14 @@ func (co *SpanChannelOut) AddSingularBatch(batch *SingularBatch, seqNum uint64) 
 	// of the current batch guarantees that this channel will be included in an L1 block with a timestamp well after
 	// the Fjord activation.
 	maxRLPBytesPerChannel := co.chainSpec.MaxRLPBytesPerChannel(batch.Timestamp)
-	if co.activeRLP().Len() > int(maxRLPBytesPerChannel) {
+	if active.Len() > int(maxRLPBytesPerChannel) {
 		return fmt.Errorf("could not take %d bytes as replacement of channel of %d bytes, max is %d. err: %w",
-			co.activeRLP().Len(), co.inactiveRLP().Len(), maxRLPBytesPerChannel, ErrTooManyRLPBytes)
+			active.Len(), co.inactiveRLP().Len(), maxRLPBytesPerChannel, ErrTooManyRLPBytes)
 	}
 
 	// if the compressed data *plus* the new rlp data is under the target size, return early
 	// this optimizes out cases where the compressor will obviously come in under the target size
-	rlpGrowth := co.activeRLP().Len() - co.lastCompressedRLPSize
+	rlpGrowth := active.Len() - co.lastCompressedRLPSize
 	if uint64(co.compressor.Len()+rlpGrowth) < co.target {
 		return nil
 	}
@@ -166,20 +194,24 @@ func (co *SpanChannelOut) AddSingularBatch(batch *SingularBatch, seqNum uint64) 
 	if err = co.compress(); err != nil {
 		return err
 	}
-	co.lastCompressedRLPSize = co.activeRLP().Len()
 
 	// if the channel is now full, either return the compressed data, or the compressed previous data
 	if err := co.FullErr(); err != nil {
-		// if there is only one batch in the channel, it *must* be returned
-		if len(co.spanBatch.Batches) == 1 {
+		// if it's the first singular batch/block of the channel, it *must* fit in
+		if co.sealedRLPBytes == 0 && co.spanBatch.GetBlockCount() == 1 {
+			return nil
+		}
+
+		// if we just perfectly filled up the channel, also return nil to retain block
+		if uint64(co.compressor.Len()) == co.target {
 			return nil
 		}
 
 		// if there is more than one batch in the channel, we revert the last batch
 		// by switching the RLP buffer and doing a fresh compression
 		co.swapRLP()
-		if err := co.compress(); err != nil {
-			return err
+		if cerr := co.compress(); cerr != nil {
+			return cerr
 		}
 		// return the full error
 		return err
@@ -188,13 +220,36 @@ func (co *SpanChannelOut) AddSingularBatch(batch *SingularBatch, seqNum uint64) 
 	return nil
 }
 
+func (co *SpanChannelOut) ensureOpenSpanBatch() {
+	if co.maxBlocksPerSpanBatch == 0 || co.spanBatch.GetBlockCount() < co.maxBlocksPerSpanBatch {
+		return
+	}
+	// we assume that the full span batch has been written to the last active rlp buffer
+	active, inactive := co.activeRLP(), co.inactiveRLP()
+	if inactive.Len() > active.Len() {
+		panic("inactive rlp unexpectedly larger")
+	}
+	co.sealedRLPBytes = active.Len()
+	// Copy active to inactive rlp buffer so both have the same sealed state
+	// and resetting by truncation works as intended.
+	inactive.Reset()
+	// err is guaranteed to always be nil
+	_, _ = inactive.Write(active.Bytes())
+	co.resetSpanBatch()
+}
+
 // compress compresses the active RLP buffer and checks if the compressed data is over the target size.
 // it resets all the compression buffers because Span Batches aren't meant to be compressed incrementally.
 func (co *SpanChannelOut) compress() error {
 	co.compressor.Reset()
-	if _, err := co.compressor.Write(co.activeRLP().Bytes()); err != nil {
+	// we write Bytes() of the active RLP to the compressor, so the active RLP's
+	// buffer is not advanced as a ReadWriter, making it possible to later use
+	// Truncate().
+	rlpBytes := co.activeRLP().Bytes()
+	if _, err := co.compressor.Write(rlpBytes); err != nil {
 		return err
 	}
+	co.lastCompressedRLPSize = len(rlpBytes)
 	if err := co.compressor.Close(); err != nil {
 		return err
 	}

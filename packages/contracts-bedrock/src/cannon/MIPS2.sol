@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { ISemver } from "src/universal/ISemver.sol";
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { IPreimageOracle } from "./interfaces/IPreimageOracle.sol";
 import { MIPSMemory } from "src/cannon/libraries/MIPSMemory.sol";
 import { MIPSSyscalls as sys } from "src/cannon/libraries/MIPSSyscalls.sol";
@@ -51,8 +51,8 @@ contract MIPS2 is ISemver {
     }
 
     /// @notice The semantic version of the MIPS2 contract.
-    /// @custom:semver 0.0.2-beta
-    string public constant version = "1.0.0-beta.3";
+    /// @custom:semver 1.0.0-beta.6
+    string public constant version = "1.0.0-beta.6";
 
     /// @notice The preimage oracle contract.
     IPreimageOracle internal immutable ORACLE;
@@ -91,7 +91,7 @@ contract MIPS2 is ISemver {
         unchecked {
             State memory state;
             ThreadState memory thread;
-
+            uint32 exited;
             assembly {
                 if iszero(eq(state, STATE_MEM_OFFSET)) {
                     // expected state mem offset check
@@ -131,6 +131,7 @@ contract MIPS2 is ISemver {
                 c, m := putField(c, m, 4) // heap
                 c, m := putField(c, m, 1) // exitCode
                 c, m := putField(c, m, 1) // exited
+                exited := mload(sub(m, 32))
                 c, m := putField(c, m, 8) // step
                 c, m := putField(c, m, 8) // stepsSinceLastContextSwitch
                 c, m := putField(c, m, 4) // wakeup
@@ -139,6 +140,7 @@ contract MIPS2 is ISemver {
                 c, m := putField(c, m, 32) // rightThreadStack
                 c, m := putField(c, m, 4) // nextThreadID
             }
+            st.assertExitedIsValid(exited);
 
             if (state.exited) {
                 // thread state is unchanged
@@ -202,7 +204,7 @@ contract MIPS2 is ISemver {
                 }
             }
 
-            if (state.stepsSinceLastContextSwitch == sys.SCHED_QUANTUM) {
+            if (state.stepsSinceLastContextSwitch >= sys.SCHED_QUANTUM) {
                 preemptThread(state, thread);
                 return outputState();
             }
@@ -256,7 +258,7 @@ contract MIPS2 is ISemver {
                 (v0, v1, state.heap) = sys.handleSysMmap(a0, a1, state.heap);
             } else if (syscall_no == sys.SYS_BRK) {
                 // brk: Returns a fixed address for the program break at 0x40000000
-                v0 = sys.BRK_START;
+                v0 = sys.PROGRAM_BREAK;
             } else if (syscall_no == sys.SYS_CLONE) {
                 if (sys.VALID_SYS_CLONE_FLAGS != a0) {
                     state.exited = true;
@@ -338,7 +340,6 @@ contract MIPS2 is ISemver {
             } else if (syscall_no == sys.SYS_FUTEX) {
                 // args: a0 = addr, a1 = op, a2 = val, a3 = timeout
                 if (a1 == sys.FUTEX_WAIT_PRIVATE) {
-                    thread.futexAddr = a0;
                     uint32 mem = MIPSMemory.readMem(
                         state.memRoot, a0 & 0xFFffFFfc, MIPSMemory.memoryProofOffset(MEM_PROOF_OFFSET, 1)
                     );
@@ -346,6 +347,7 @@ contract MIPS2 is ISemver {
                         v0 = sys.SYS_ERROR_SIGNAL;
                         v1 = sys.EAGAIN;
                     } else {
+                        thread.futexAddr = a0;
                         thread.futexVal = a2;
                         thread.futexTimeoutStep = a3 == 0 ? sys.FUTEX_NO_TIMEOUT : state.step + sys.FUTEX_TIMEOUT_STEPS;
                         // Leave cpu scalars as-is. This instruction will be completed by `onWaitComplete`
@@ -381,9 +383,9 @@ contract MIPS2 is ISemver {
             } else if (syscall_no == sys.SYS_OPEN) {
                 v0 = sys.SYS_ERROR_SIGNAL;
                 v1 = sys.EBADF;
-            } else if (syscall_no == sys.SYS_CLOCK_GETTIME) {
+            } else if (syscall_no == sys.SYS_MUNMAP) {
                 // ignored
-            } else if (syscall_no == sys.SYS_GET_AFFINITY) {
+            } else if (syscall_no == sys.SYS_GETAFFINITY) {
                 // ignored
             } else if (syscall_no == sys.SYS_MADVISE) {
                 // ignored
@@ -443,8 +445,6 @@ contract MIPS2 is ISemver {
                 // ignored
             } else if (syscall_no == sys.SYS_CLOCKGETTIME) {
                 // ignored
-            } else if (syscall_no == sys.SYS_MUNMAP) {
-                // ignored
             } else {
                 revert("MIPS2: unimplemented syscall");
             }
@@ -461,6 +461,7 @@ contract MIPS2 is ISemver {
     /// @notice Computes the hash of the MIPS state.
     /// @return out_ The hashed MIPS state.
     function outputState() internal returns (bytes32 out_) {
+        uint32 exited;
         assembly {
             // copies 'size' bytes, right-aligned in word at 'from', to 'to', incl. trailing data
             function copyMem(from, to, size) -> fromOut, toOut {
@@ -483,7 +484,7 @@ contract MIPS2 is ISemver {
             from, to := copyMem(from, to, 4) // heap
             let exitCode := mload(from)
             from, to := copyMem(from, to, 1) // exitCode
-            let exited := mload(from)
+            exited := mload(from)
             from, to := copyMem(from, to, 1) // exited
             from, to := copyMem(from, to, 8) // step
             from, to := copyMem(from, to, 8) // stepsSinceLastContextSwitch
@@ -518,6 +519,8 @@ contract MIPS2 is ISemver {
             out_ := keccak256(start, sub(to, start))
             out_ := or(and(not(shl(248, 0xFF)), out_), shl(248, status))
         }
+
+        st.assertExitedIsValid(exited);
     }
 
     /// @notice Updates the current thread stack root via inner thread root in calldata

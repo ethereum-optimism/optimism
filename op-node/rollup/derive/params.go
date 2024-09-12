@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	plasma "github.com/ethereum-optimism/optimism/op-plasma"
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 )
 
 // count the tagging info as 200 in terms of buffer size.
@@ -21,8 +21,8 @@ func frameSize(frame Frame) uint64 {
 
 const DerivationVersion0 = 0
 
-// DerivationVersion1 is reserved for batcher transactions containing plasma commitments.
-const DerivationVersion1 = plasma.TxDataVersion1
+// DerivationVersion1 is reserved for batcher transactions containing altDA commitments.
+const DerivationVersion1 = altda.TxDataVersion1
 
 // MaxSpanBatchElementCount is the maximum number of blocks, transactions in total,
 // or transaction per block allowed in a span batch.

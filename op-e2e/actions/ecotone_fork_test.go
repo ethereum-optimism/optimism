@@ -41,22 +41,20 @@ func verifyCodeHashMatches(t Testing, client *ethclient.Client, address common.A
 
 func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
-	genesisBlock := hexutil.Uint64(0)
+	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
 	ecotoneOffset := hexutil.Uint64(4)
 
 	log := testlog.Logger(t, log.LevelDebug)
 
-	dp.DeployConfig.L1CancunTimeOffset = &genesisBlock // can be removed once Cancun on L1 is the default
-
+	require.Zero(t, *dp.DeployConfig.L1CancunTimeOffset)
 	// Activate all forks at genesis, and schedule Ecotone the block after
-	dp.DeployConfig.L2GenesisRegolithTimeOffset = &genesisBlock
-	dp.DeployConfig.L2GenesisCanyonTimeOffset = &genesisBlock
-	dp.DeployConfig.L2GenesisDeltaTimeOffset = &genesisBlock
 	dp.DeployConfig.L2GenesisEcotoneTimeOffset = &ecotoneOffset
+	dp.DeployConfig.L2GenesisFjordTimeOffset = nil
+	dp.DeployConfig.L2GenesisGraniteTimeOffset = nil
+	// New forks have to be added here...
 	require.NoError(t, dp.DeployConfig.Check(log), "must have valid config")
 
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	_, _, miner, sequencer, engine, verifier, _, _ := setupReorgTestActors(t, dp, sd, log)
 	ethCl := engine.EthClient()
 
@@ -241,7 +239,7 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 // TestEcotoneBeforeL1 tests that the L2 Ecotone fork can activate before L1 Dencun does
 func TestEcotoneBeforeL1(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
 	offset := hexutil.Uint64(0)
 	farOffset := hexutil.Uint64(10000)
 	dp.DeployConfig.L2GenesisRegolithTimeOffset = &offset
@@ -250,7 +248,7 @@ func TestEcotoneBeforeL1(gt *testing.T) {
 	dp.DeployConfig.L2GenesisDeltaTimeOffset = &offset
 	dp.DeployConfig.L2GenesisEcotoneTimeOffset = &offset
 
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 	_, _, _, sequencer, engine, verifier, _, _ := setupReorgTestActors(t, dp, sd, log)
 

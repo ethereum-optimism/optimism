@@ -77,11 +77,42 @@
         "internalType": "struct AnchorStateRegistry.StartingAnchorRoot[]",
         "name": "_startingAnchorRoots",
         "type": "tuple[]"
+      },
+      {
+        "internalType": "contract ISuperchainConfig",
+        "name": "_superchainConfig",
+        "type": "address"
       }
     ],
     "name": "initialize",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract IFaultDisputeGame",
+        "name": "_game",
+        "type": "address"
+      }
+    ],
+    "name": "setAnchorState",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "superchainConfig",
+    "outputs": [
+      {
+        "internalType": "contract ISuperchainConfig",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -116,5 +147,20 @@
     ],
     "name": "Initialized",
     "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidGameStatus",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "Unauthorized",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "UnregisteredGame",
+    "type": "error"
   }
 ]

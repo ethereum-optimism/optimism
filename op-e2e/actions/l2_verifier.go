@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/finality"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/status"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -84,7 +85,10 @@ type safeDB interface {
 	node.SafeDBReader
 }
 
-func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, blobsSrc derive.L1BlobsFetcher, plasmaSrc driver.PlasmaIface, eng L2API, cfg *rollup.Config, syncCfg *sync.Config, safeHeadListener safeDB) *L2Verifier {
+func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
+	blobsSrc derive.L1BlobsFetcher, altDASrc driver.AltDAIface,
+	eng L2API, cfg *rollup.Config, syncCfg *sync.Config, safeHeadListener safeDB,
+	interopBackend interop.InteropBackend) *L2Verifier {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
@@ -104,6 +108,10 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, blobsSrc deri
 		},
 	}
 
+	if interopBackend != nil {
+		sys.Register("interop", interop.NewInteropDeriver(log, cfg, ctx, interopBackend, eng), opts)
+	}
+
 	metrics := &testutils.TestDerivationMetrics{}
 	ec := engine.NewEngineController(eng, log, metrics, cfg, syncCfg,
 		sys.Register("engine-controller", nil, opts))
@@ -115,8 +123,8 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, blobsSrc deri
 	sys.Register("cl-sync", clSync, opts)
 
 	var finalizer driver.Finalizer
-	if cfg.PlasmaEnabled() {
-		finalizer = finality.NewPlasmaFinalizer(ctx, log, cfg, l1, plasmaSrc)
+	if cfg.AltDAEnabled() {
+		finalizer = finality.NewAltDAFinalizer(ctx, log, cfg, l1, altDASrc)
 	} else {
 		finalizer = finality.NewFinalizer(ctx, log, cfg, l1)
 	}
@@ -125,7 +133,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, blobsSrc deri
 	sys.Register("attributes-handler",
 		attributes.NewAttributesHandler(log, cfg, ctx, eng), opts)
 
-	pipeline := derive.NewDerivationPipeline(log, cfg, l1, blobsSrc, plasmaSrc, eng, metrics)
+	pipeline := derive.NewDerivationPipeline(log, cfg, l1, blobsSrc, altDASrc, eng, metrics)
 	sys.Register("pipeline", derive.NewPipelineDeriver(ctx, pipeline), opts)
 
 	testActionEmitter := sys.Register("test-action", nil, opts)
@@ -314,6 +322,13 @@ func (s *L2Verifier) ActL1FinalizedSignal(t Testing) {
 		return ok && x.FinalizedL1 == finalized
 	}, false))
 	require.Equal(t, finalized, s.syncStatus.SyncStatus().FinalizedL1)
+}
+
+func (s *L2Verifier) ActInteropBackendCheck(t Testing) {
+	s.synchronousEvents.Emit(engine.CrossUpdateRequestEvent{
+		CrossUnsafe: true,
+		CrossSafe:   true,
+	})
 }
 
 func (s *L2Verifier) OnEvent(ev event.Event) bool {

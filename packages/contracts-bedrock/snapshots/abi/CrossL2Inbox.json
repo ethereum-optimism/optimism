@@ -77,6 +77,19 @@
   },
   {
     "inputs": [],
+    "name": "interopStart",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "interopStart_",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "logIndex",
     "outputs": [
       {
@@ -103,6 +116,13 @@
   },
   {
     "inputs": [],
+    "name": "setInteropStart",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "timestamp",
     "outputs": [
       {
@@ -112,6 +132,51 @@
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "origin",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "blockNumber",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "logIndex",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "timestamp",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "chainId",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct ICrossL2Inbox.Identifier",
+        "name": "_id",
+        "type": "tuple"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "_msgHash",
+        "type": "bytes32"
+      }
+    ],
+    "name": "validateMessage",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -175,6 +240,11 @@
   },
   {
     "inputs": [],
+    "name": "InteropStartAlreadySet",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidChainId",
     "type": "error"
   },
@@ -185,7 +255,22 @@
   },
   {
     "inputs": [],
+    "name": "NoExecutingDeposits",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotDepositor",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "NotEntered",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ReentrantCall",
     "type": "error"
   },
   {

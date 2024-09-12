@@ -83,7 +83,7 @@ The smart-contracts are integrated into the Optimism monorepo contracts:
 
 Example programs that can be run and proven with Cannon.
 Optional dependency, but required for `mipsevm` Go tests.
-See [`example/Makefile`](./example/Makefile) for building the example MIPS binaries.
+See [`testdata/example/Makefile`](./testdata/example/Makefile) for building the example MIPS binaries.
 
 ## License
 

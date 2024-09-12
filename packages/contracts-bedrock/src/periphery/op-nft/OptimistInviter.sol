@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 import { OptimistConstants } from "src/periphery/op-nft/libraries/OptimistConstants.sol";
-import { ISemver } from "src/universal/ISemver.sol";
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { AttestationStation } from "src/periphery/op-nft/AttestationStation.sol";
 import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import { EIP712Upgradeable } from "@openzeppelin/contracts-upgradeable/utils/cryptography/draft-EIP712Upgradeable.sol";
@@ -88,8 +88,8 @@ contract OptimistInviter is ISemver, EIP712Upgradeable {
     mapping(address => uint256) public inviteCounts;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.1.0
-    string public constant version = "1.1.0";
+    /// @custom:semver 1.1.1-beta.1
+    string public constant version = "1.1.1-beta.1";
 
     /// @param _inviteGranter      Address of the invite granter.
     /// @param _attestationStation Address of the AttestationStation contract.

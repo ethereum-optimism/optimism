@@ -1,14 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Predeploys } from "src/libraries/Predeploys.sol";
+// Contracts
 import { StandardBridge } from "src/universal/StandardBridge.sol";
-import { ISemver } from "src/universal/ISemver.sol";
 import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
-import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { L1Block } from "src/L2/L1Block.sol";
 
-/// @custom:proxied
+// Libraries
+import { Predeploys } from "src/libraries/Predeploys.sol";
+
+// Interfaces
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
+import { ICrossDomainMessenger } from "src/universal/interfaces/ICrossDomainMessenger.sol";
+
+/// @custom:proxied true
 /// @custom:predeploy 0x4200000000000000000000000000000000000010
 /// @title L2StandardBridge
 /// @notice The L2StandardBridge is responsible for transfering ETH and ERC20 tokens between L1 and
@@ -52,8 +57,11 @@ contract L2StandardBridge is StandardBridge, ISemver {
         bytes extraData
     );
 
-    /// @custom:semver 1.10.0
-    string public constant version = "1.10.0";
+    /// @notice Semantic version.
+    /// @custom:semver 1.11.1-beta.1
+    function version() public pure virtual returns (string memory) {
+        return "1.11.1-beta.1";
+    }
 
     /// @notice Constructs the L2StandardBridge contract.
     constructor() StandardBridge() {
@@ -64,7 +72,7 @@ contract L2StandardBridge is StandardBridge, ISemver {
     /// @param _otherBridge Contract for the corresponding bridge on the other chain.
     function initialize(StandardBridge _otherBridge) public initializer {
         __StandardBridge_init({
-            _messenger: CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER),
+            _messenger: ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER),
             _otherBridge: _otherBridge
         });
     }

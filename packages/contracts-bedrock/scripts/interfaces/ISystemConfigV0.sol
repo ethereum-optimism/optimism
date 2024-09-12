@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity ^0.8.0;
 
-import { ResourceMetering } from "src/L1/ResourceMetering.sol";
+import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
 
 /// @title ISystemConfigV0
 /// @notice Minimal interface of the Legacy SystemConfig containing only getters.
@@ -14,6 +14,6 @@ interface ISystemConfigV0 {
     function scalar() external view returns (uint256);
     function batcherHash() external view returns (bytes32);
     function gasLimit() external view returns (uint64);
-    function resourceConfig() external view returns (ResourceMetering.ResourceConfig memory);
+    function resourceConfig() external view returns (IResourceMetering.ResourceConfig memory);
     function unsafeBlockSigner() external view returns (address);
 }

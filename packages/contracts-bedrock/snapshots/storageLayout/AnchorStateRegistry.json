@@ -19,5 +19,12 @@
     "offset": 0,
     "slot": "1",
     "type": "mapping(GameType => struct OutputRoot)"
+  },
+  {
+    "bytes": "20",
+    "label": "superchainConfig",
+    "offset": 0,
+    "slot": "2",
+    "type": "contract ISuperchainConfig"
   }
 ]

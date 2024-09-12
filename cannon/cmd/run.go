@@ -11,6 +11,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
+	"github.com/ethereum-optimism/optimism/cannon/serialize"
+	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
@@ -19,19 +22,11 @@ import (
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
 
 var (
-	RunType = &cli.StringFlag{
-		Name:  "type",
-		Usage: "VM type to run. Options are 'cannon' (default)",
-		Value: "cannon",
-		// TODO(client-pod#903): This should be required once we have additional vm types
-		Required: false,
-	}
 	RunInputFlag = &cli.PathFlag{
 		Name:      "input",
 		Usage:     "path of input JSON state. Stdin if left empty.",
@@ -224,9 +219,29 @@ func (p *ProcessPreimageOracle) Close() error {
 	if p.cmd == nil {
 		return nil
 	}
+
+	tryWait := func(dur time.Duration) (bool, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), dur)
+		defer cancel()
+		select {
+		case <-ctx.Done():
+			return false, nil
+		case err := <-p.waitErr:
+			return true, err
+		}
+	}
 	// Give the pre-image server time to exit cleanly before killing it.
-	time.Sleep(time.Second * 1)
+	if exited, err := tryWait(1 * time.Second); exited {
+		return err
+	}
+	// Politely ask the process to exit and give it some more time
 	_ = p.cmd.Process.Signal(os.Interrupt)
+	if exited, err := tryWait(30 * time.Second); exited {
+		return err
+	}
+
+	// Force the process to exit
+	_ = p.cmd.Process.Signal(os.Kill)
 	return <-p.waitErr
 }
 
@@ -259,20 +274,9 @@ func Guard(proc *os.ProcessState, fn StepFn) StepFn {
 
 var _ mipsevm.PreimageOracle = (*ProcessPreimageOracle)(nil)
 
-type VMType string
-
-var cannonVMType VMType = "cannon"
-
 func Run(ctx *cli.Context) error {
 	if ctx.Bool(RunPProfCPU.Name) {
 		defer profile.Start(profile.NoShutdownHook, profile.ProfilePath("."), profile.CPUProfile).Stop()
-	}
-
-	var vmType VMType
-	if vmTypeStr := ctx.String(RunType.Name); vmTypeStr == string(cannonVMType) {
-		vmType = cannonVMType
-	} else {
-		return fmt.Errorf("unknown VM type %q", vmType)
 	}
 
 	guestLogger := Logger(os.Stderr, log.LevelInfo)
@@ -364,25 +368,19 @@ func Run(ctx *cli.Context) error {
 		}
 	}
 
-	var vm mipsevm.FPVM
-	var debugProgram bool
-	if vmType == cannonVMType {
-		cannon, err := singlethreaded.NewInstrumentedStateFromFile(ctx.Path(RunInputFlag.Name), po, outLog, errLog, meta)
-		if err != nil {
-			return err
+	state, err := versions.LoadStateFromFile(ctx.Path(RunInputFlag.Name))
+	if err != nil {
+		return fmt.Errorf("failed to load state: %w", err)
+	}
+	vm := state.CreateVM(l, po, outLog, errLog, meta)
+	debugProgram := ctx.Bool(RunDebugFlag.Name)
+	if debugProgram {
+		if metaPath := ctx.Path(RunMetaFlag.Name); metaPath == "" {
+			return errors.New("cannot enable debug mode without a metadata file")
 		}
-		debugProgram = ctx.Bool(RunDebugFlag.Name)
-		if debugProgram {
-			if metaPath := ctx.Path(RunMetaFlag.Name); metaPath == "" {
-				return errors.New("cannot enable debug mode without a metadata file")
-			}
-			if err := cannon.InitDebug(); err != nil {
-				return fmt.Errorf("failed to initialize debug mode: %w", err)
-			}
+		if err := vm.InitDebug(); err != nil {
+			return fmt.Errorf("failed to initialize debug mode: %w", err)
 		}
-		vm = cannon
-	} else {
-		return fmt.Errorf("unknown VM type %q", vmType)
 	}
 
 	proofFmt := ctx.String(RunProofFmtFlag.Name)
@@ -395,7 +393,6 @@ func Run(ctx *cli.Context) error {
 
 	start := time.Now()
 
-	state := vm.GetState()
 	startStep := state.GetStep()
 
 	for !state.GetExited() {
@@ -430,7 +427,7 @@ func Run(ctx *cli.Context) error {
 		}
 
 		if snapshotAt(state) {
-			if err := jsonutil.WriteJSON(fmt.Sprintf(snapshotFmt, step), state, OutFilePerm); err != nil {
+			if err := serialize.Write(fmt.Sprintf(snapshotFmt, step), state, OutFilePerm); err != nil {
 				return fmt.Errorf("failed to write state snapshot: %w", err)
 			}
 		}
@@ -453,7 +450,7 @@ func Run(ctx *cli.Context) error {
 				proof.OracleValue = witness.PreimageValue
 				proof.OracleOffset = witness.PreimageOffset
 			}
-			if err := jsonutil.WriteJSON(fmt.Sprintf(proofFmt, step), proof, OutFilePerm); err != nil {
+			if err := jsonutil.WriteJSON(proof, ioutil.ToStdOutOrFileOrNoop(fmt.Sprintf(proofFmt, step), OutFilePerm)); err != nil {
 				return fmt.Errorf("failed to write proof data: %w", err)
 			}
 		} else {
@@ -487,11 +484,11 @@ func Run(ctx *cli.Context) error {
 		vm.Traceback()
 	}
 
-	if err := jsonutil.WriteJSON(ctx.Path(RunOutputFlag.Name), state, OutFilePerm); err != nil {
+	if err := serialize.Write(ctx.Path(RunOutputFlag.Name), state, OutFilePerm); err != nil {
 		return fmt.Errorf("failed to write state output: %w", err)
 	}
 	if debugInfoFile := ctx.Path(RunDebugInfoFlag.Name); debugInfoFile != "" {
-		if err := jsonutil.WriteJSON(debugInfoFile, vm.GetDebugInfo(), OutFilePerm); err != nil {
+		if err := jsonutil.WriteJSON(vm.GetDebugInfo(), ioutil.ToStdOutOrFileOrNoop(debugInfoFile, OutFilePerm)); err != nil {
 			return fmt.Errorf("failed to write benchmark data: %w", err)
 		}
 	}
@@ -504,7 +501,6 @@ var RunCommand = &cli.Command{
 	Description: "Run VM step(s) and generate proof data to replicate onchain. See flags to match when to output a proof, a snapshot, or to stop early.",
 	Action:      Run,
 	Flags: []cli.Flag{
-		RunType,
 		RunInputFlag,
 		RunOutputFlag,
 		RunProofAtFlag,

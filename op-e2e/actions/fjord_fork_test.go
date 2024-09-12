@@ -30,7 +30,7 @@ var (
 
 func TestFjordNetworkUpgradeTransactions(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
 	genesisBlock := hexutil.Uint64(0)
 	fjordOffset := hexutil.Uint64(2)
 
@@ -46,7 +46,7 @@ func TestFjordNetworkUpgradeTransactions(gt *testing.T) {
 	dp.DeployConfig.L2GenesisFjordTimeOffset = &fjordOffset
 	require.NoError(t, dp.DeployConfig.Check(log), "must have valid config")
 
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	_, _, _, sequencer, engine, verifier, _, _ := setupReorgTestActors(t, dp, sd, log)
 	ethCl := engine.EthClient()
 

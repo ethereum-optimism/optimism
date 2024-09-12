@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 import { IPreimageOracle } from "./interfaces/IPreimageOracle.sol";
-import { ISemver } from "src/universal/ISemver.sol";
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { PreimageKeyLib } from "./PreimageKeyLib.sol";
 import { LibKeccak } from "@lib-keccak/LibKeccak.sol";
 import "src/cannon/libraries/CannonErrors.sol";
@@ -27,10 +27,12 @@ contract PreimageOracle is IPreimageOracle, ISemver {
     uint256 public constant KECCAK_TREE_DEPTH = 16;
     /// @notice The maximum number of keccak blocks that can fit into the merkle tree.
     uint256 public constant MAX_LEAF_COUNT = 2 ** KECCAK_TREE_DEPTH - 1;
+    /// @notice The reserved gas for precompile call setup.
+    uint256 public constant PRECOMPILE_CALL_RESERVED_GAS = 100_000;
 
     /// @notice The semantic version of the Preimage Oracle contract.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 1.1.3-beta.2
+    string public constant version = "1.1.3-beta.2";
 
     ////////////////////////////////////////////////////////////////
     //                 Authorized Preimage Parts                  //
@@ -90,6 +92,11 @@ contract PreimageOracle is IPreimageOracle, ISemver {
         MIN_LPP_SIZE_BYTES = _minProposalSize;
         CHALLENGE_PERIOD = _challengePeriod;
 
+        // Make sure challenge period fits within uint64 so that it can safely be used within the
+        // FaultDisputeGame contract to compute clock extensions. Adding this check is simpler than
+        // changing the existing contract ABI.
+        require(_challengePeriod <= type(uint64).max, "challenge period too large");
+
         // Compute hashes in empty sparse Merkle tree. The first hash is not set, and kept as zero as the identity.
         for (uint256 height = 0; height < KECCAK_TREE_DEPTH - 1; height++) {
             zeroHashes[height + 1] = keccak256(abi.encodePacked(zeroHashes[height], zeroHashes[height]));
@@ -131,7 +138,7 @@ contract PreimageOracle is IPreimageOracle, ISemver {
         key_ = PreimageKeyLib.localizeIdent(_ident, _localContext);
 
         // Revert if the given part offset is not within bounds.
-        if (_partOffset > _size + 8 || _size > 32) {
+        if (_partOffset >= _size + 8 || _size > 32) {
             revert PartOffsetOOB();
         }
 
@@ -332,7 +339,14 @@ contract PreimageOracle is IPreimageOracle, ISemver {
     }
 
     /// @inheritdoc IPreimageOracle
-    function loadPrecompilePreimagePart(uint256 _partOffset, address _precompile, bytes calldata _input) external {
+    function loadPrecompilePreimagePart(
+        uint256 _partOffset,
+        address _precompile,
+        uint64 _requiredGas,
+        bytes calldata _input
+    )
+        external
+    {
         bytes32 res;
         bytes32 key;
         bytes32 part;
@@ -341,21 +355,32 @@ contract PreimageOracle is IPreimageOracle, ISemver {
             // we leave solidity slots 0x40 and 0x60 untouched, and everything after as scratch-memory.
             let ptr := 0x80
 
-            // copy precompile address and input into memory
-            // len(sig) + len(_partOffset) + address-offset-in-slot
-            calldatacopy(ptr, 48, 20)
-            calldatacopy(add(20, ptr), _input.offset, _input.length)
+            // copy precompile address, requiredGas, and input into memory to compute the key
+            mstore(ptr, shl(96, _precompile))
+            mstore(add(ptr, 20), shl(192, _requiredGas))
+            calldatacopy(add(28, ptr), _input.offset, _input.length)
             // compute the hash
-            let h := keccak256(ptr, add(20, _input.length))
+            let h := keccak256(ptr, add(28, _input.length))
             // mask out prefix byte, replace with type 6 byte
             key := or(and(h, not(shl(248, 0xFF))), shl(248, 0x06))
 
+            // Check if the precompile call has at least the required gas.
+            // This assumes there are no further memory expansion costs until after the staticall on the precompile
+            // Also assumes that the gas expended in setting up the staticcall is less than PRECOMPILE_CALL_RESERVED_GAS
+            // require(gas() >= (requiredGas * 64 / 63) + reservedGas)
+            if lt(mul(gas(), 63), add(mul(_requiredGas, 64), mul(PRECOMPILE_CALL_RESERVED_GAS, 63))) {
+                // Store "NotEnoughGas()"
+                mstore(0, 0xdd629f86)
+                revert(0x1c, 4)
+            }
+
             // Call the precompile to get the result.
+            // SAFETY: Given the above gas check, the staticall cannot fail due to insufficient gas.
             res :=
                 staticcall(
                     gas(), // forward all gas
                     _precompile,
-                    add(20, ptr), // input ptr
+                    add(28, ptr), // input ptr
                     _input.length,
                     0x0, // Unused as we don't copy anything
                     0x00 // don't copy anything
@@ -429,6 +454,10 @@ contract PreimageOracle is IPreimageOracle, ISemver {
 
         // Initialize the proposal metadata.
         LPPMetaData metaData = proposalMetadata[msg.sender][_uuid];
+
+        // Revert if the proposal has already been initialized. 0-size preimages are *not* allowed.
+        if (metaData.claimedSize() != 0) revert AlreadyInitialized();
+
         proposalMetadata[msg.sender][_uuid] = metaData.setPartOffset(_partOffset).setClaimedSize(_claimedSize);
         proposals.push(LargePreimageProposalKeys(msg.sender, _uuid));
 
@@ -484,7 +513,7 @@ contract PreimageOracle is IPreimageOracle, ISemver {
             let inputPtr := add(input, 0x20)
 
             // The input length must be a multiple of 136 bytes
-            // The input lenth / 136 must be equal to the number of state commitments.
+            // The input length / 136 must be equal to the number of state commitments.
             if or(mod(inputLen, 136), iszero(eq(_stateCommitments.length, div(inputLen, 136)))) {
                 // Store "InvalidInputSize()" error selector
                 mstore(0x00, 0x7b1daf1)
@@ -652,6 +681,9 @@ contract PreimageOracle is IPreimageOracle, ISemver {
 
         // Check if the proposal was countered.
         if (metaData.countered()) revert BadProposal();
+
+        // Check if the proposal has been finalized at all.
+        if (metaData.timestamp() == 0) revert ActiveProposal();
 
         // Check if the challenge period has passed since the proposal was finalized.
         if (block.timestamp - metaData.timestamp() <= CHALLENGE_PERIOD) revert ActiveProposal();

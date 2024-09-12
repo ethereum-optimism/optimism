@@ -90,7 +90,7 @@
     "name": "config",
     "outputs": [
       {
-        "internalType": "contract SuperchainConfig",
+        "internalType": "contract ISuperchainConfig",
         "name": "",
         "type": "address"
       }
@@ -157,7 +157,7 @@
         "type": "address"
       },
       {
-        "internalType": "contract SuperchainConfig",
+        "internalType": "contract ISuperchainConfig",
         "name": "_config",
         "type": "address"
       }

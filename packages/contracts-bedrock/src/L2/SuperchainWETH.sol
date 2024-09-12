@@ -5,10 +5,10 @@ import { WETH98 } from "src/dispute/weth/WETH98.sol";
 import { Unauthorized, NotCustomGasToken } from "src/libraries/errors/CommonErrors.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { L1Block } from "src/L2/L1Block.sol";
-import { IL2ToL2CrossDomainMessenger } from "src/L2/IL2ToL2CrossDomainMessenger.sol";
+import { IL2ToL2CrossDomainMessenger } from "src/L2/interfaces/IL2ToL2CrossDomainMessenger.sol";
 import { ETHLiquidity } from "src/L2/ETHLiquidity.sol";
-import { ISuperchainERC20Extensions } from "src/L2/ISuperchainERC20.sol";
-import { ISemver } from "src/universal/ISemver.sol";
+import { ISuperchainERC20Extensions } from "src/L2/interfaces/ISuperchainERC20.sol";
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
 
 /// @title SuperchainWETH
 /// @notice SuperchainWETH is a version of WETH that can be freely transfrered between chains
@@ -16,8 +16,8 @@ import { ISemver } from "src/universal/ISemver.sol";
 ///         do not use a custom gas token.
 contract SuperchainWETH is WETH98, ISuperchainERC20Extensions, ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.1
-    string public constant version = "1.0.0-beta.1";
+    /// @custom:semver 1.0.0-beta.2
+    string public constant version = "1.0.0-beta.2";
 
     /// @inheritdoc WETH98
     function deposit() public payable override {
@@ -45,7 +45,7 @@ contract SuperchainWETH is WETH98, ISuperchainERC20Extensions, ISemver {
         IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).sendMessage({
             _destination: chainId,
             _target: address(this),
-            _message: abi.encodeCall(this.relayERC20, (dst, wad))
+            _message: abi.encodeCall(this.relayERC20, (msg.sender, dst, wad))
         });
 
         // Emit event.
@@ -53,7 +53,7 @@ contract SuperchainWETH is WETH98, ISuperchainERC20Extensions, ISemver {
     }
 
     /// @inheritdoc ISuperchainERC20Extensions
-    function relayERC20(address dst, uint256 wad) external {
+    function relayERC20(address from, address dst, uint256 wad) external {
         // Receive message from other chain.
         IL2ToL2CrossDomainMessenger messenger = IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
         if (msg.sender != address(messenger)) revert Unauthorized();
@@ -64,11 +64,14 @@ contract SuperchainWETH is WETH98, ISuperchainERC20Extensions, ISemver {
             ETHLiquidity(Predeploys.ETH_LIQUIDITY).mint(wad);
         }
 
+        // Get source chain ID.
+        uint256 source = messenger.crossDomainMessageSource();
+
         // Mint to user's balance.
         _mint(dst, wad);
 
         // Emit event.
-        emit RelayERC20(dst, wad);
+        emit RelayERC20(from, dst, wad, source);
     }
 
     /// @notice Mints WETH to an address.

@@ -4,10 +4,13 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"io"
 
+	"github.com/ethereum-optimism/optimism/cannon/serialize"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
@@ -34,13 +37,6 @@ type State struct {
 	Registers [32]uint32 `json:"registers"`
 
 	// LastHint is optional metadata, and not part of the VM state itself.
-	// It is used to remember the last pre-image hint,
-	// so a VM can start from any state without fetching prior pre-images,
-	// and instead just repeat the last hint on setup,
-	// to make sure pre-image requests can be served.
-	// The first 4 bytes are a uin32 length prefix.
-	// Warning: the hint MAY NOT BE COMPLETE. I.e. this is buffered,
-	// and should only be read when len(LastHint) > 4 && uint32(LastHint[:4]) <= len(LastHint[4:])
 	LastHint hexutil.Bytes `json:"lastHint,omitempty"`
 }
 
@@ -70,6 +66,11 @@ func CreateInitialState(pc, heapStart uint32) *State {
 	state.Heap = heapStart
 
 	return state
+}
+
+func (s *State) CreateVM(logger log.Logger, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, meta mipsevm.Metadata) mipsevm.FPVM {
+	logger.Info("Using cannon VM")
+	return NewInstrumentedState(s, po, stdOut, stdErr, meta)
 }
 
 type stateMarshaling struct {
@@ -130,7 +131,9 @@ func (s *State) UnmarshalJSON(data []byte) error {
 
 func (s *State) GetPC() uint32 { return s.Cpu.PC }
 
-func (s *State) GetRegisters() *[32]uint32 { return &s.Registers }
+func (s *State) GetCpu() mipsevm.CpuScalars { return s.Cpu }
+
+func (s *State) GetRegistersRef() *[32]uint32 { return &s.Registers }
 
 func (s *State) GetExitCode() uint8 { return s.ExitCode }
 
@@ -138,12 +141,28 @@ func (s *State) GetExited() bool { return s.Exited }
 
 func (s *State) GetStep() uint64 { return s.Step }
 
+func (s *State) GetLastHint() hexutil.Bytes {
+	return s.LastHint
+}
+
 func (s *State) VMStatus() uint8 {
 	return mipsevm.VmStatus(s.Exited, s.ExitCode)
 }
 
 func (s *State) GetMemory() *memory.Memory {
 	return s.Memory
+}
+
+func (s *State) GetHeap() uint32 {
+	return s.Heap
+}
+
+func (s *State) GetPreimageKey() common.Hash {
+	return s.PreimageKey
+}
+
+func (s *State) GetPreimageOffset() uint32 {
+	return s.PreimageOffset
 }
 
 func (s *State) EncodeWitness() ([]byte, common.Hash) {
@@ -164,6 +183,119 @@ func (s *State) EncodeWitness() ([]byte, common.Hash) {
 		out = binary.BigEndian.AppendUint32(out, r)
 	}
 	return out, stateHashFromWitness(out)
+}
+
+// Serialize writes the state in a simple binary format which can be read again using Deserialize
+// The format is a simple concatenation of fields, with prefixed item count for repeating items and using big endian
+// encoding for numbers.
+//
+// StateVersion                uint8(0)
+// Memory                      As per Memory.Serialize
+// PreimageKey                 [32]byte
+// PreimageOffset              uint32
+// Cpu.PC					   uint32
+// Cpu.NextPC 				   uint32
+// Cpu.LO 					   uint32
+// Cpu.HI					   uint32
+// Heap                        uint32
+// ExitCode                    uint8
+// Exited                      uint8 - 0 for false, 1 for true
+// Step                        uint64
+// Registers                   [32]uint32
+// len(LastHint)			   uint32 (0 when LastHint is nil)
+// LastHint 				   []byte
+func (s *State) Serialize(out io.Writer) error {
+	bout := serialize.NewBinaryWriter(out)
+
+	if err := s.Memory.Serialize(out); err != nil {
+		return err
+	}
+	if err := bout.WriteHash(s.PreimageKey); err != nil {
+		return err
+	}
+	if err := bout.WriteUInt(s.PreimageOffset); err != nil {
+		return err
+	}
+	if err := bout.WriteUInt(s.Cpu.PC); err != nil {
+		return err
+	}
+	if err := bout.WriteUInt(s.Cpu.NextPC); err != nil {
+		return err
+	}
+	if err := bout.WriteUInt(s.Cpu.LO); err != nil {
+		return err
+	}
+	if err := bout.WriteUInt(s.Cpu.HI); err != nil {
+		return err
+	}
+	if err := bout.WriteUInt(s.Heap); err != nil {
+		return err
+	}
+	if err := bout.WriteUInt(s.ExitCode); err != nil {
+		return err
+	}
+	if err := bout.WriteBool(s.Exited); err != nil {
+		return err
+	}
+	if err := bout.WriteUInt(s.Step); err != nil {
+		return err
+	}
+	for _, r := range s.Registers {
+		if err := bout.WriteUInt(r); err != nil {
+			return err
+		}
+	}
+	if err := bout.WriteBytes(s.LastHint); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *State) Deserialize(in io.Reader) error {
+	bin := serialize.NewBinaryReader(in)
+	s.Memory = memory.NewMemory()
+	if err := s.Memory.Deserialize(in); err != nil {
+		return err
+	}
+	if err := bin.ReadHash(&s.PreimageKey); err != nil {
+		return err
+	}
+	if err := bin.ReadUInt(&s.PreimageOffset); err != nil {
+		return err
+	}
+	if err := bin.ReadUInt(&s.Cpu.PC); err != nil {
+		return err
+	}
+	if err := bin.ReadUInt(&s.Cpu.NextPC); err != nil {
+		return err
+	}
+	if err := bin.ReadUInt(&s.Cpu.LO); err != nil {
+		return err
+	}
+	if err := bin.ReadUInt(&s.Cpu.HI); err != nil {
+		return err
+	}
+	if err := bin.ReadUInt(&s.Heap); err != nil {
+		return err
+	}
+	if err := bin.ReadUInt(&s.ExitCode); err != nil {
+		return err
+	}
+	if err := bin.ReadBool(&s.Exited); err != nil {
+		return err
+	}
+	if err := bin.ReadUInt(&s.Step); err != nil {
+		return err
+	}
+	for i := range s.Registers {
+		if err := bin.ReadUInt(&s.Registers[i]); err != nil {
+			return err
+		}
+	}
+	if err := bin.ReadBytes((*[]byte)(&s.LastHint)); err != nil {
+		return err
+	}
+	return nil
 }
 
 type StateWitness []byte

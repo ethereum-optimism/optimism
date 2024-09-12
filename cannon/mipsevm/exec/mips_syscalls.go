@@ -9,12 +9,12 @@ import (
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 )
 
 // Syscall codes
 const (
 	SysMmap       = 4090
-	SysMunmap     = 4091
 	SysBrk        = 4045
 	SysClone      = 4120
 	SysExitGroup  = 4246
@@ -31,6 +31,7 @@ const (
 
 // Noop Syscall codes
 const (
+	SysMunmap        = 4091
 	SysGetAffinity   = 4240
 	SysMadvise       = 4218
 	SysRtSigprocmask = 4195
@@ -132,7 +133,6 @@ const (
 // Other constants
 const (
 	SchedQuantum = 100_000
-	BrkStart     = 0x40000000
 )
 
 func GetSyscallArgs(registers *[32]uint32) (syscallNum, a0, a1, a2, a3 uint32) {
@@ -158,6 +158,12 @@ func HandleSysMmap(a0, a1, heap uint32) (v0, v1, newHeap uint32) {
 		v0 = heap
 		//fmt.Printf("mmap heap 0x%x size 0x%x\n", v0, sz)
 		newHeap += sz
+		// Fail if new heap exceeds memory limit, newHeap overflows around to low memory, or sz overflows
+		if newHeap > program.HEAP_END || newHeap < heap || sz < a1 {
+			v0 = SysErrorSignal
+			v1 = MipsEINVAL
+			return v0, v1, heap
+		}
 	} else {
 		v0 = a0
 		//fmt.Printf("mmap hint 0x%x size 0x%x\n", v0, sz)
@@ -181,7 +187,7 @@ func HandleSysRead(a0, a1, a2 uint32, preimageKey [32]byte, preimageOffset uint3
 		memTracker.TrackMemAccess(effAddr)
 		mem := memory.GetMemory(effAddr)
 		dat, datLen := preimageReader.ReadPreimage(preimageKey, preimageOffset)
-		//fmt.Printf("reading pre-image data: addr: %08x, offset: %d, datLen: %d, data: %x, key: %s  count: %d\n", a1, m.state.PreimageOffset, datLen, dat[:datLen], m.state.PreimageKey, a2)
+		//fmt.Printf("reading pre-image data: addr: %08x, offset: %d, datLen: %d, data: %x, key: %s  count: %d\n", a1, preimageOffset, datLen, dat[:datLen], preimageKey, a2)
 		alignment := a1 & 3
 		space := 4 - alignment
 		if space < datLen {

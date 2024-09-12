@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/client/l2"
 	"github.com/ethereum-optimism/optimism/op-program/client/mpt"
 	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
+	"github.com/ethereum-optimism/optimism/op-program/host/sources"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -34,34 +35,16 @@ var acceleratedPrecompiles = []common.Address{
 	common.BytesToAddress([]byte{0x0a}), // KZG Point Evaluation
 }
 
-type L1Source interface {
-	InfoByHash(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, error)
-	InfoAndTxsByHash(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Transactions, error)
-	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error)
-}
-
-type L1BlobSource interface {
-	GetBlobSidecars(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.BlobSidecar, error)
-	GetBlobs(ctx context.Context, ref eth.L1BlockRef, hashes []eth.IndexedBlobHash) ([]*eth.Blob, error)
-}
-
-type L2Source interface {
-	InfoAndTxsByHash(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Transactions, error)
-	NodeByHash(ctx context.Context, hash common.Hash) ([]byte, error)
-	CodeByHash(ctx context.Context, hash common.Hash) ([]byte, error)
-	OutputByRoot(ctx context.Context, root common.Hash) (eth.Output, error)
-}
-
 type Prefetcher struct {
 	logger        log.Logger
-	l1Fetcher     L1Source
-	l1BlobFetcher L1BlobSource
-	l2Fetcher     L2Source
+	l1Fetcher     sources.L1Source
+	l1BlobFetcher sources.L1BlobSource
+	l2Fetcher     sources.L2Source
 	lastHint      string
 	kvStore       kvstore.KV
 }
 
-func NewPrefetcher(logger log.Logger, l1Fetcher L1Source, l1BlobFetcher L1BlobSource, l2Fetcher L2Source, kvStore kvstore.KV) *Prefetcher {
+func NewPrefetcher(logger log.Logger, l1Fetcher sources.L1Source, l1BlobFetcher sources.L1BlobSource, l2Fetcher sources.L2Source, kvStore kvstore.KV) *Prefetcher {
 	return &Prefetcher{
 		logger:        logger,
 		l1Fetcher:     NewRetryingL1Source(logger, l1Fetcher),
@@ -194,6 +177,36 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 
 		// KZG Point Evaluation precompile also verifies its input
 		result, err := precompile.Run(hintBytes[20:])
+		if err == nil {
+			result = append(precompileSuccess[:], result...)
+		} else {
+			result = append(precompileFailure[:], result...)
+		}
+		inputHash := crypto.Keccak256Hash(hintBytes)
+		// Put the input preimage so it can be loaded later
+		if err := p.kvStore.Put(preimage.Keccak256Key(inputHash).PreimageKey(), hintBytes); err != nil {
+			return err
+		}
+		return p.kvStore.Put(preimage.PrecompileKey(inputHash).PreimageKey(), result)
+	case l1.HintL1PrecompileV2:
+		if len(hintBytes) < 28 {
+			return fmt.Errorf("invalid precompile hint: %x", hint)
+		}
+		precompileAddress := common.BytesToAddress(hintBytes[:20])
+		// requiredGas := hintBytes[20:28] - unused by the host. Since the client already validates gas requirements.
+		// The requiredGas is only used by the L1 PreimageOracle to enforce complete precompile execution.
+
+		// For extra safety, avoid accelerating unexpected precompiles
+		if !slices.Contains(acceleratedPrecompiles, precompileAddress) {
+			return fmt.Errorf("unsupported precompile address: %s", precompileAddress)
+		}
+		// NOTE: We use the precompiled contracts from Cancun because it's the only set that contains the addresses of all accelerated precompiles
+		// We assume the precompile Run function behavior does not change across EVM upgrades.
+		// As such, we must not rely on upgrade-specific behavior such as precompile.RequiredGas.
+		precompile := getPrecompiledContract(precompileAddress)
+
+		// KZG Point Evaluation precompile also verifies its input
+		result, err := precompile.Run(hintBytes[28:])
 		if err == nil {
 			result = append(precompileSuccess[:], result...)
 		} else {

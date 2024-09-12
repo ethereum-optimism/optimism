@@ -4,10 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	factory "github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 	"github.com/urfave/cli/v2"
-
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
-	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
 
 var (
@@ -27,7 +25,7 @@ var (
 func Witness(ctx *cli.Context) error {
 	input := ctx.Path(WitnessInputFlag.Name)
 	output := ctx.Path(WitnessOutputFlag.Name)
-	state, err := jsonutil.LoadJSON[singlethreaded.State](input)
+	state, err := factory.LoadStateFromFile(input)
 	if err != nil {
 		return fmt.Errorf("invalid input state (%v): %w", input, err)
 	}

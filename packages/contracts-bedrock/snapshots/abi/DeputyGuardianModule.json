@@ -7,7 +7,7 @@
         "type": "address"
       },
       {
-        "internalType": "contract SuperchainConfig",
+        "internalType": "contract ISuperchainConfig",
         "name": "_superchainConfig",
         "type": "address"
       },
@@ -23,7 +23,7 @@
   {
     "inputs": [
       {
-        "internalType": "contract OptimismPortal2",
+        "internalType": "contract IOptimismPortal2",
         "name": "_portal",
         "type": "address"
       },
@@ -74,7 +74,25 @@
   {
     "inputs": [
       {
-        "internalType": "contract OptimismPortal2",
+        "internalType": "contract AnchorStateRegistry",
+        "name": "_registry",
+        "type": "address"
+      },
+      {
+        "internalType": "contract IFaultDisputeGame",
+        "name": "_game",
+        "type": "address"
+      }
+    ],
+    "name": "setAnchorState",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract IOptimismPortal2",
         "name": "_portal",
         "type": "address"
       },
@@ -94,7 +112,7 @@
     "name": "superchainConfig",
     "outputs": [
       {
-        "internalType": "contract SuperchainConfig",
+        "internalType": "contract ISuperchainConfig",
         "name": "superchainConfig_",
         "type": "address"
       }

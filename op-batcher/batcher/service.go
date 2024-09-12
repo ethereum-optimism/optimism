@@ -12,12 +12,13 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
+	"github.com/ethereum-optimism/optimism/op-node/params"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -35,9 +36,11 @@ type BatcherConfig struct {
 	PollInterval           time.Duration
 	MaxPendingTransactions uint64
 
-	// UsePlasma is true if the rollup config has a DA challenge address so the batcher
-	// will post inputs to the Plasma DA server and post commitments to blobs or calldata.
-	UsePlasma bool
+	// UseAltDA is true if the rollup config has a DA challenge address so the batcher
+	// will post inputs to the DA server and post commitments to blobs or calldata.
+	UseAltDA bool
+	// maximum number of concurrent blob put requests to the DA server
+	MaxConcurrentDARequests uint64
 
 	WaitNodeSync        bool
 	CheckRecentTxsDepth int
@@ -51,7 +54,7 @@ type BatcherService struct {
 	L1Client         *ethclient.Client
 	EndpointProvider dial.L2EndpointProvider
 	TxManager        *txmgr.SimpleTxManager
-	PlasmaDA         *plasma.DAClient
+	AltDA            *altda.DAClient
 
 	BatcherConfig
 
@@ -92,6 +95,7 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 
 	bs.PollInterval = cfg.PollInterval
 	bs.MaxPendingTransactions = cfg.MaxPendingTransactions
+	bs.MaxConcurrentDARequests = cfg.AltDA.MaxConcurrentRequests
 	bs.NetworkTimeout = cfg.TxMgrConfig.NetworkTimeout
 	bs.CheckRecentTxsDepth = cfg.CheckRecentTxsDepth
 	bs.WaitNodeSync = cfg.WaitNodeSync
@@ -104,6 +108,10 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 	if err := bs.initTxManager(cfg); err != nil {
 		return fmt.Errorf("failed to init Tx manager: %w", err)
 	}
+	// must be init before driver and channel config
+	if err := bs.initAltDA(cfg); err != nil {
+		return fmt.Errorf("failed to init AltDA: %w", err)
+	}
 	if err := bs.initChannelConfig(cfg); err != nil {
 		return fmt.Errorf("failed to init channel config: %w", err)
 	}
@@ -113,10 +121,6 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 	}
 	if err := bs.initPProf(cfg); err != nil {
 		return fmt.Errorf("failed to init profiling: %w", err)
-	}
-	// init before driver
-	if err := bs.initPlasmaDA(cfg); err != nil {
-		return fmt.Errorf("failed to init plasma DA: %w", err)
 	}
 	bs.initDriver()
 	if err := bs.initRPCServer(cfg); err != nil {
@@ -189,16 +193,17 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 	// Use lower channel timeout if granite is scheduled.
 	// Ensures channels are restricted to the tighter timeout even if granite hasn't activated yet
 	if bs.RollupConfig.GraniteTime != nil {
-		channelTimeout = bs.RollupConfig.ChannelTimeoutGranite
+		channelTimeout = params.ChannelTimeoutGranite
 	}
 	cc := ChannelConfig{
-		SeqWindowSize:      bs.RollupConfig.SeqWindowSize,
-		ChannelTimeout:     channelTimeout,
-		MaxChannelDuration: cfg.MaxChannelDuration,
-		MaxFrameSize:       cfg.MaxL1TxSize - 1, // account for version byte prefix; reset for blobs
-		TargetNumFrames:    cfg.TargetNumFrames,
-		SubSafetyMargin:    cfg.SubSafetyMargin,
-		BatchType:          cfg.BatchType,
+		SeqWindowSize:         bs.RollupConfig.SeqWindowSize,
+		ChannelTimeout:        channelTimeout,
+		MaxChannelDuration:    cfg.MaxChannelDuration,
+		MaxFrameSize:          cfg.MaxL1TxSize - 1, // account for version byte prefix; reset for blobs
+		MaxBlocksPerSpanBatch: cfg.MaxBlocksPerSpanBatch,
+		TargetNumFrames:       cfg.TargetNumFrames,
+		SubSafetyMargin:       cfg.SubSafetyMargin,
+		BatchType:             cfg.BatchType,
 	}
 
 	switch cfg.DataAvailabilityType {
@@ -213,8 +218,8 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 		return fmt.Errorf("unknown data availability type: %v", cfg.DataAvailabilityType)
 	}
 
-	if bs.UsePlasma && cc.MaxFrameSize > plasma.MaxInputSize {
-		return fmt.Errorf("max frame size %d exceeds plasma max input size %d", cc.MaxFrameSize, plasma.MaxInputSize)
+	if bs.UseAltDA && cc.MaxFrameSize > altda.MaxInputSize {
+		return fmt.Errorf("max frame size %d exceeds altDA max input size %d", cc.MaxFrameSize, altda.MaxInputSize)
 	}
 
 	cc.InitCompressorConfig(cfg.ApproxComprRatio, cfg.Compressor, cfg.CompressionAlgo)
@@ -236,7 +241,7 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 	}
 	bs.Log.Info("Initialized channel-config",
 		"da_type", cfg.DataAvailabilityType,
-		"use_plasma", bs.UsePlasma,
+		"use_alt_da", bs.UseAltDA,
 		"max_frame_size", cc.MaxFrameSize,
 		"target_num_frames", cc.TargetNumFrames,
 		"compressor", cc.CompressorConfig.Kind,
@@ -245,7 +250,7 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 		"max_channel_duration", cc.MaxChannelDuration,
 		"channel_timeout", cc.ChannelTimeout,
 		"sub_safety_margin", cc.SubSafetyMargin)
-	if bs.UsePlasma {
+	if bs.UseAltDA {
 		bs.Log.Warn("Alt-DA Mode is a Beta feature of the MIT licensed OP Stack.  While it has received initial review from core contributors, it is still undergoing testing, and may have bugs or other issues.")
 	}
 
@@ -320,7 +325,7 @@ func (bs *BatcherService) initDriver() {
 		L1Client:         bs.L1Client,
 		EndpointProvider: bs.EndpointProvider,
 		ChannelConfig:    bs.ChannelConfig,
-		PlasmaDA:         bs.PlasmaDA,
+		AltDA:            bs.AltDA,
 	})
 }
 
@@ -334,6 +339,7 @@ func (bs *BatcherService) initRPCServer(cfg *CLIConfig) error {
 	if cfg.RPC.EnableAdmin {
 		adminAPI := rpc.NewAdminAPI(bs.driver, bs.Metrics, bs.Log)
 		server.AddAPI(rpc.GetAdminAPI(adminAPI))
+		server.AddAPI(bs.TxManager.API())
 		bs.Log.Info("Admin RPC enabled")
 	}
 	bs.Log.Info("Starting JSON-RPC server")
@@ -344,13 +350,13 @@ func (bs *BatcherService) initRPCServer(cfg *CLIConfig) error {
 	return nil
 }
 
-func (bs *BatcherService) initPlasmaDA(cfg *CLIConfig) error {
-	config := cfg.PlasmaDA
+func (bs *BatcherService) initAltDA(cfg *CLIConfig) error {
+	config := cfg.AltDA
 	if err := config.Check(); err != nil {
 		return err
 	}
-	bs.PlasmaDA = config.NewDAClient()
-	bs.UsePlasma = config.Enabled
+	bs.AltDA = config.NewDAClient()
+	bs.UseAltDA = config.Enabled
 	return nil
 }
 

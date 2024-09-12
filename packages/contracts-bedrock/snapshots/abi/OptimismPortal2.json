@@ -158,7 +158,7 @@
     "name": "disputeGameFactory",
     "outputs": [
       {
-        "internalType": "contract DisputeGameFactory",
+        "internalType": "contract IDisputeGameFactory",
         "name": "",
         "type": "address"
       }
@@ -316,17 +316,17 @@
   {
     "inputs": [
       {
-        "internalType": "contract DisputeGameFactory",
+        "internalType": "contract IDisputeGameFactory",
         "name": "_disputeGameFactory",
         "type": "address"
       },
       {
-        "internalType": "contract SystemConfig",
+        "internalType": "contract ISystemConfig",
         "name": "_systemConfig",
         "type": "address"
       },
       {
-        "internalType": "contract SuperchainConfig",
+        "internalType": "contract ISuperchainConfig",
         "name": "_superchainConfig",
         "type": "address"
       },
@@ -648,7 +648,7 @@
     "name": "superchainConfig",
     "outputs": [
       {
-        "internalType": "contract SuperchainConfig",
+        "internalType": "contract ISuperchainConfig",
         "name": "",
         "type": "address"
       }
@@ -661,7 +661,7 @@
     "name": "systemConfig",
     "outputs": [
       {
-        "internalType": "contract SystemConfig",
+        "internalType": "contract ISystemConfig",
         "name": "",
         "type": "address"
       }
@@ -823,7 +823,17 @@
   },
   {
     "inputs": [],
+    "name": "AlreadyFinalized",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "BadTarget",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "Blacklisted",
     "type": "error"
   },
   {
@@ -853,7 +863,27 @@
   },
   {
     "inputs": [],
+    "name": "InvalidDisputeGame",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidGameType",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidHeader",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidMerkleProof",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidProof",
     "type": "error"
   },
   {
@@ -883,6 +913,11 @@
   },
   {
     "inputs": [],
+    "name": "ProposalNotValidated",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "SmallGasLimit",
     "type": "error"
   },
@@ -904,6 +939,11 @@
   {
     "inputs": [],
     "name": "UnexpectedString",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "Unproven",
     "type": "error"
   }
 ]

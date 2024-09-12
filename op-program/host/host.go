@@ -16,8 +16,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/host/flags"
 	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
 	"github.com/ethereum-optimism/optimism/op-program/host/prefetcher"
+	hostSources "github.com/ethereum-optimism/optimism/op-program/host/sources"
+	"github.com/ethereum-optimism/optimism/op-program/host/types"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -35,10 +38,12 @@ func Main(logger log.Logger, cfg *config.Config) error {
 	opservice.ValidateEnvVars(flags.EnvVarPrefix, flags.Flags, logger)
 	cfg.Rollup.LogDescription(logger, chaincfg.L2ChainIDToNetworkDisplayName)
 
-	ctx := context.Background()
+	hostCtx, stop := ctxinterrupt.WithSignalWaiter(context.Background())
+	defer stop()
+	ctx := ctxinterrupt.WithCancelOnInterrupt(hostCtx)
 	if cfg.ServerMode {
-		preimageChan := cl.CreatePreimageChannel()
-		hinterChan := cl.CreateHinterChannel()
+		preimageChan := preimage.ClientPreimageChannel()
+		hinterChan := preimage.ClientHinterChannel()
 		return PreimageServer(ctx, logger, cfg, preimageChan, hinterChan)
 	}
 
@@ -122,6 +127,10 @@ func FaultProofProgram(ctx context.Context, logger log.Logger, cfg *config.Confi
 func PreimageServer(ctx context.Context, logger log.Logger, cfg *config.Config, preimageChannel preimage.FileChannel, hintChannel preimage.FileChannel) error {
 	var serverDone chan error
 	var hinterDone chan error
+	logger.Info("Starting preimage server")
+	var kv kvstore.KV
+
+	// Close the preimage/hint channels, and then kv store once the server and hinter have exited.
 	defer func() {
 		preimageChannel.Close()
 		hintChannel.Close()
@@ -133,18 +142,30 @@ func PreimageServer(ctx context.Context, logger log.Logger, cfg *config.Config, 
 			// Wait for hinter to complete
 			<-hinterDone
 		}
+
+		if kv != nil {
+			kv.Close()
+		}
 	}()
-	logger.Info("Starting preimage server")
-	var kv kvstore.KV
+
 	if cfg.DataDir == "" {
 		logger.Info("Using in-memory storage")
 		kv = kvstore.NewMemKV()
 	} else {
-		logger.Info("Creating disk storage", "datadir", cfg.DataDir)
+		logger.Info("Creating disk storage", "datadir", cfg.DataDir, "format", cfg.DataFormat)
 		if err := os.MkdirAll(cfg.DataDir, 0755); err != nil {
 			return fmt.Errorf("creating datadir: %w", err)
 		}
-		kv = kvstore.NewDiskKV(cfg.DataDir)
+		switch cfg.DataFormat {
+		case types.DataFormatFile:
+			kv = kvstore.NewFileKV(cfg.DataDir)
+		case types.DataFormatDirectory:
+			kv = kvstore.NewDirectoryKV(cfg.DataDir)
+		case types.DataFormatPebble:
+			kv = kvstore.NewPebbleKV(cfg.DataDir)
+		default:
+			return fmt.Errorf("invalid data format: %s", cfg.DataFormat)
+		}
 	}
 
 	var (
@@ -178,35 +199,49 @@ func PreimageServer(ctx context.Context, logger log.Logger, cfg *config.Config, 
 		return err
 	case err := <-hinterDone:
 		return err
+	case <-ctx.Done():
+		logger.Info("Shutting down")
+		return ctx.Err()
 	}
 }
 
 func makePrefetcher(ctx context.Context, logger log.Logger, kv kvstore.KV, cfg *config.Config) (*prefetcher.Prefetcher, error) {
-	logger.Info("Connecting to L1 node", "l1", cfg.L1URL)
-	l1RPC, err := client.NewRPC(ctx, logger, cfg.L1URL, client.WithDialBackoff(10))
-	if err != nil {
-		return nil, fmt.Errorf("failed to setup L1 RPC: %w", err)
-	}
+	var l1Cl hostSources.L1Source
+	var l1BlobFetcher hostSources.L1BlobSource
+	var l2DebugCl hostSources.L2Source
 
-	logger.Info("Connecting to L2 node", "l2", cfg.L2URL)
-	l2RPC, err := client.NewRPC(ctx, logger, cfg.L2URL, client.WithDialBackoff(10))
-	if err != nil {
-		return nil, fmt.Errorf("failed to setup L2 RPC: %w", err)
-	}
+	if cfg.InProcessSourcesEnabled() {
+		logger.Debug("Using in-process sources for preimage fetching.")
+		l1Cl = cfg.L1ProcessSource
+		l1BlobFetcher = cfg.L1BeaconProcessSource
+		l2DebugCl = cfg.L2ProcessSource
+	} else {
+		logger.Info("Connecting to L1 node", "l1", cfg.L1URL)
+		l1RPC, err := client.NewRPC(ctx, logger, cfg.L1URL, client.WithDialBackoff(10))
+		if err != nil {
+			return nil, fmt.Errorf("failed to setup L1 RPC: %w", err)
+		}
 
-	l1ClCfg := sources.L1ClientDefaultConfig(cfg.Rollup, cfg.L1TrustRPC, cfg.L1RPCKind)
-	l2ClCfg := sources.L2ClientDefaultConfig(cfg.Rollup, true)
-	l1Cl, err := sources.NewL1Client(l1RPC, logger, nil, l1ClCfg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create L1 client: %w", err)
+		logger.Info("Connecting to L2 node", "l2", cfg.L2URL)
+		l2RPC, err := client.NewRPC(ctx, logger, cfg.L2URL, client.WithDialBackoff(10))
+		if err != nil {
+			return nil, fmt.Errorf("failed to setup L2 RPC: %w", err)
+		}
+
+		l1ClCfg := sources.L1ClientDefaultConfig(cfg.Rollup, cfg.L1TrustRPC, cfg.L1RPCKind)
+		l2ClCfg := sources.L2ClientDefaultConfig(cfg.Rollup, true)
+		l1Cl, err = sources.NewL1Client(l1RPC, logger, nil, l1ClCfg)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create L1 client: %w", err)
+		}
+		l1Beacon := sources.NewBeaconHTTPClient(client.NewBasicHTTPClient(cfg.L1BeaconURL, logger))
+		l1BlobFetcher = sources.NewL1BeaconClient(l1Beacon, sources.L1BeaconClientConfig{FetchAllSidecars: false})
+		l2Cl, err := NewL2Client(l2RPC, logger, nil, &L2ClientConfig{L2ClientConfig: l2ClCfg, L2Head: cfg.L2Head})
+		if err != nil {
+			return nil, fmt.Errorf("failed to create L2 client: %w", err)
+		}
+		l2DebugCl = &L2Source{L2Client: l2Cl, DebugClient: sources.NewDebugClient(l2RPC.CallContext)}
 	}
-	l1Beacon := sources.NewBeaconHTTPClient(client.NewBasicHTTPClient(cfg.L1BeaconURL, logger))
-	l1BlobFetcher := sources.NewL1BeaconClient(l1Beacon, sources.L1BeaconClientConfig{FetchAllSidecars: false})
-	l2Cl, err := NewL2Client(l2RPC, logger, nil, &L2ClientConfig{L2ClientConfig: l2ClCfg, L2Head: cfg.L2Head})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create L2 client: %w", err)
-	}
-	l2DebugCl := &L2Source{L2Client: l2Cl, DebugClient: sources.NewDebugClient(l2RPC.CallContext)}
 	return prefetcher.NewPrefetcher(logger, l1Cl, l1BlobFetcher, l2DebugCl, kv), nil
 }
 

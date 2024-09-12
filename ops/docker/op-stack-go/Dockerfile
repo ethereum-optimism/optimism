@@ -48,62 +48,57 @@ ARG TARGETARCH
 # "sharing" defaults to "shared", the cache will thus be available to other concurrent docker builds.
 FROM --platform=$BUILDPLATFORM builder AS cannon-builder
 ARG CANNON_VERSION=v0.0.0
-RUN --mount=type=cache,target=/root/.cache/go-build cd cannon && make cannon  \
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build cd cannon && make cannon  \
   GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$CANNON_VERSION"
 
 FROM --platform=$BUILDPLATFORM builder AS op-program-builder
 ARG OP_PROGRAM_VERSION=v0.0.0
 # note: we only build the host, that's all the user needs. No Go MIPS cross-build in docker
-RUN --mount=type=cache,target=/root/.cache/go-build cd op-program && make op-program-host  \
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build cd op-program && make op-program-host  \
   GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_PROGRAM_VERSION"
-
-FROM --platform=$BUILDPLATFORM builder AS op-heartbeat-builder
-ARG OP_HEARTBEAT_VERSION=v0.0.0
-RUN --mount=type=cache,target=/root/.cache/go-build cd op-heartbeat && make op-heartbeat  \
-  GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_HEARTBEAT_VERSION"
 
 FROM --platform=$BUILDPLATFORM builder AS op-wheel-builder
 ARG OP_WHEEL_VERSION=v0.0.0
-RUN --mount=type=cache,target=/root/.cache/go-build cd op-wheel && make op-wheel  \
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build cd op-wheel && make op-wheel  \
   GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE  VERSION="$OP_WHEEL_VERSION"
 
 FROM --platform=$BUILDPLATFORM builder AS op-node-builder
 ARG OP_NODE_VERSION=v0.0.0
-RUN --mount=type=cache,target=/root/.cache/go-build cd op-node && make op-node  \
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build cd op-node && make op-node  \
   GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_NODE_VERSION"
 
 FROM --platform=$BUILDPLATFORM builder AS op-challenger-builder
 ARG OP_CHALLENGER_VERSION=v0.0.0
-RUN --mount=type=cache,target=/root/.cache/go-build cd op-challenger && make op-challenger  \
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build cd op-challenger && make op-challenger  \
   GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE  VERSION="$OP_CHALLENGER_VERSION"
 
 FROM --platform=$BUILDPLATFORM builder AS op-dispute-mon-builder
 ARG OP_DISPUTE_MON_VERSION=v0.0.0
-RUN --mount=type=cache,target=/root/.cache/go-build cd op-dispute-mon && make op-dispute-mon  \
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build cd op-dispute-mon && make op-dispute-mon  \
   GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE  VERSION="$OP_DISPUTE_MON_VERSION"
 
 FROM --platform=$BUILDPLATFORM builder AS op-batcher-builder
 ARG OP_BATCHER_VERSION=v0.0.0
-RUN --mount=type=cache,target=/root/.cache/go-build cd op-batcher && make op-batcher  \
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build cd op-batcher && make op-batcher  \
   GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE  VERSION="$OP_BATCHER_VERSION"
 
 FROM --platform=$BUILDPLATFORM builder AS op-proposer-builder
 ARG OP_PROPOSER_VERSION=v0.0.0
-RUN --mount=type=cache,target=/root/.cache/go-build cd op-proposer && make op-proposer  \
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build cd op-proposer && make op-proposer  \
   GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE  VERSION="$OP_PROPOSER_VERSION"
 
 FROM --platform=$BUILDPLATFORM builder AS op-conductor-builder
 ARG OP_CONDUCTOR_VERSION=v0.0.0
-RUN --mount=type=cache,target=/root/.cache/go-build cd op-conductor && make op-conductor  \
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build cd op-conductor && make op-conductor  \
   GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE  VERSION="$OP_CONDUCTOR_VERSION"
 
 FROM --platform=$BUILDPLATFORM builder AS da-server-builder
-RUN --mount=type=cache,target=/root/.cache/go-build cd op-plasma && make da-server  \
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build cd op-alt-da && make da-server  \
   GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE
 
 FROM --platform=$BUILDPLATFORM builder AS op-supervisor-builder
 ARG OP_SUPERVISOR_VERSION=v0.0.0
-RUN --mount=type=cache,target=/root/.cache/go-build cd op-supervisor && make op-supervisor  \
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build cd op-supervisor && make op-supervisor  \
   GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE  VERSION="$OP_SUPERVISOR_VERSION"
 
 FROM --platform=$TARGETPLATFORM $TARGET_BASE_IMAGE AS cannon-target
@@ -113,10 +108,6 @@ CMD ["cannon"]
 FROM --platform=$TARGETPLATFORM $TARGET_BASE_IMAGE AS op-program-target
 COPY --from=op-program-builder /app/op-program/bin/op-program /usr/local/bin/
 CMD ["op-program"]
-
-FROM --platform=$TARGETPLATFORM $TARGET_BASE_IMAGE AS op-heartbeat-target
-COPY --from=op-heartbeat-builder /app/op-heartbeat/bin/op-heartbeat /usr/local/bin/
-CMD ["op-heartbeat"]
 
 FROM --platform=$TARGETPLATFORM $TARGET_BASE_IMAGE AS op-wheel-target
 COPY --from=op-wheel-builder /app/op-wheel/bin/op-wheel /usr/local/bin/
@@ -153,7 +144,7 @@ COPY --from=op-conductor-builder /app/op-conductor/bin/op-conductor /usr/local/b
 CMD ["op-conductor"]
 
 FROM --platform=$TARGETPLATFORM $TARGET_BASE_IMAGE AS da-server-target
-COPY --from=da-server-builder /app/op-plasma/bin/da-server /usr/local/bin/
+COPY --from=da-server-builder /app/op-alt-da/bin/da-server /usr/local/bin/
 CMD ["da-server"]
 
 FROM --platform=$TARGETPLATFORM $TARGET_BASE_IMAGE AS op-supervisor-target

@@ -4,10 +4,10 @@ pragma solidity 0.8.15;
 import { StdUtils } from "forge-std/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
 
-import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
+import { IOptimismPortal2 } from "src/L1/interfaces/IOptimismPortal2.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
-import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
+import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
 import { Constants } from "src/libraries/Constants.sol";
 
 import { CommonTest } from "test/setup/CommonTest.sol";
@@ -16,13 +16,14 @@ import { Types } from "src/libraries/Types.sol";
 
 import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
 import "src/dispute/lib/Types.sol";
+import "src/libraries/PortalErrors.sol";
 
 contract OptimismPortal2_Depositor is StdUtils, ResourceMetering {
     Vm internal vm;
-    OptimismPortal2 internal portal;
+    IOptimismPortal2 internal portal;
     bool public failedToComplete;
 
-    constructor(Vm _vm, OptimismPortal2 _portal) {
+    constructor(Vm _vm, IOptimismPortal2 _portal) {
         vm = _vm;
         portal = _portal;
         initialize();
@@ -36,9 +37,11 @@ contract OptimismPortal2_Depositor is StdUtils, ResourceMetering {
         return _resourceConfig();
     }
 
-    function _resourceConfig() internal pure override returns (ResourceMetering.ResourceConfig memory) {
-        ResourceMetering.ResourceConfig memory rcfg = Constants.DEFAULT_RESOURCE_CONFIG();
-        return rcfg;
+    function _resourceConfig() internal pure override returns (ResourceMetering.ResourceConfig memory config_) {
+        IResourceMetering.ResourceConfig memory rcfg = Constants.DEFAULT_RESOURCE_CONFIG();
+        assembly ("memory-safe") {
+            config_ := rcfg
+        }
     }
 
     // A test intended to identify any unexpected halting conditions
@@ -209,7 +212,7 @@ contract OptimismPortal2_CannotFinalizeTwice is OptimismPortal2_Invariant_Harnes
     ///                   Ensures that there is no chain of calls that can be made that allows a withdrawal to be
     ///                   finalized twice.
     function invariant_cannotFinalizeTwice() external {
-        vm.expectRevert("OptimismPortal: withdrawal has already been finalized");
+        vm.expectRevert(AlreadyFinalized.selector);
         optimismPortal2.finalizeWithdrawalTransaction(_defaultTx);
     }
 }

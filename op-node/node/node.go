@@ -8,6 +8,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup/sequencing"
+
 	"github.com/hashicorp/go-multierror"
 	"github.com/libp2p/go-libp2p/core/peer"
 
@@ -15,7 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-node/heartbeat"
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
@@ -23,8 +25,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/conductor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
-	"github.com/ethereum-optimism/optimism/op-node/version"
-	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
@@ -42,6 +42,8 @@ type closableSafeDB interface {
 }
 
 type OpNode struct {
+	// Retain the config to test for active features rather than test for runtime state.
+	cfg        *Config
 	log        log.Logger
 	appVersion string
 	metrics    *metrics.Metrics
@@ -67,6 +69,8 @@ type OpNode struct {
 	metricsSrv   *httputil.HTTPServer
 
 	beacon *sources.L1BeaconClient
+
+	supervisor *sources.SupervisorClient
 
 	// some resources cannot be stopped directly, like the p2p gossipsub router (not our design),
 	// and depend on this ctx to be closed.
@@ -95,6 +99,7 @@ func New(ctx context.Context, cfg *Config, log log.Logger, appVersion string, m 
 	}
 
 	n := &OpNode{
+		cfg:        cfg,
 		log:        log,
 		appVersion: appVersion,
 		metrics:    m,
@@ -136,7 +141,7 @@ func (n *OpNode) init(ctx context.Context, cfg *Config) error {
 	if err := n.initP2PSigner(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to init the P2P signer: %w", err)
 	}
-	if err := n.initP2P(ctx, cfg); err != nil {
+	if err := n.initP2P(cfg); err != nil {
 		return fmt.Errorf("failed to init the P2P stack: %w", err)
 	}
 	// Only expose the server at the end, ensuring all RPC backend components are initialized.
@@ -148,7 +153,6 @@ func (n *OpNode) init(ctx context.Context, cfg *Config) error {
 	}
 	n.metrics.RecordInfo(n.appVersion)
 	n.metrics.RecordUp()
-	n.initHeartbeat(cfg)
 	if err := n.initPProf(cfg); err != nil {
 		return fmt.Errorf("failed to init profiling: %w", err)
 	}
@@ -169,9 +173,6 @@ func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
 	if err != nil {
 		return fmt.Errorf("failed to get L1 RPC client: %w", err)
 	}
-
-	// Set the RethDB path in the EthClientConfig, if there is one configured.
-	rpcCfg.EthClientConfig.RethDBPath = cfg.RethDBPath
 
 	n.l1Source, err = sources.NewL1Client(
 		client.NewInstrumentedRPC(l1Node, &n.metrics.RPCMetrics.RPCClientMetrics), n.log, n.metrics.L1SourceCache, rpcCfg)
@@ -380,17 +381,25 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config) error {
 		return err
 	}
 
+	if cfg.Rollup.InteropTime != nil {
+		cl, err := cfg.Supervisor.SupervisorClient(ctx, n.log)
+		if err != nil {
+			return fmt.Errorf("failed to setup supervisor RPC client: %w", err)
+		}
+		n.supervisor = cl
+	}
+
 	var sequencerConductor conductor.SequencerConductor = &conductor.NoOpConductor{}
 	if cfg.ConductorEnabled {
 		sequencerConductor = NewConductorClient(cfg, n.log, n.metrics)
 	}
 
-	// if plasma is not explicitly activated in the node CLI, the config + any error will be ignored.
-	rpCfg, err := cfg.Rollup.GetOPPlasmaConfig()
-	if cfg.Plasma.Enabled && err != nil {
-		return fmt.Errorf("failed to get plasma config: %w", err)
+	// if altDA is not explicitly activated in the node CLI, the config + any error will be ignored.
+	rpCfg, err := cfg.Rollup.GetOPAltDAConfig()
+	if cfg.AltDA.Enabled && err != nil {
+		return fmt.Errorf("failed to get altDA config: %w", err)
 	}
-	plasmaDA := plasma.NewPlasmaDA(n.log, cfg.Plasma, rpCfg, n.metrics.PlasmaMetrics)
+	altDA := altda.NewAltDA(n.log, cfg.AltDA, rpCfg, n.metrics.AltDAMetrics)
 	if cfg.SafeDBPath != "" {
 		n.log.Info("Safe head database enabled", "path", cfg.SafeDBPath)
 		safeDB, err := safedb.NewSafeDB(n.log, cfg.SafeDBPath)
@@ -401,7 +410,8 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config) error {
 	} else {
 		n.safeDB = safedb.Disabled
 	}
-	n.l2Driver = driver.NewDriver(&cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source, n.beacon, n, n, n.log, n.metrics, cfg.ConfigPersistence, n.safeDB, &cfg.Sync, sequencerConductor, plasmaDA)
+	n.l2Driver = driver.NewDriver(&cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source,
+		n.supervisor, n.beacon, n, n, n.log, n.metrics, cfg.ConfigPersistence, n.safeDB, &cfg.Sync, sequencerConductor, altDA)
 	return nil
 }
 
@@ -410,7 +420,7 @@ func (n *OpNode) initRPCServer(cfg *Config) error {
 	if err != nil {
 		return err
 	}
-	if n.p2pNode != nil {
+	if n.p2pEnabled() {
 		server.EnableP2P(p2p.NewP2PAPIBackend(n.p2pNode, n.log, n.metrics))
 	}
 	if cfg.RPC.EnableAdmin {
@@ -440,32 +450,6 @@ func (n *OpNode) initMetricsServer(cfg *Config) error {
 	return nil
 }
 
-func (n *OpNode) initHeartbeat(cfg *Config) {
-	if !cfg.Heartbeat.Enabled {
-		return
-	}
-	var peerID string
-	if cfg.P2P.Disabled() {
-		peerID = "disabled"
-	} else {
-		peerID = n.P2P().Host().ID().String()
-	}
-
-	payload := &heartbeat.Payload{
-		Version: version.Version,
-		Meta:    version.Meta,
-		Moniker: cfg.Heartbeat.Moniker,
-		PeerID:  peerID,
-		ChainID: cfg.Rollup.L2ChainID.Uint64(),
-	}
-
-	go func(url string) {
-		if err := heartbeat.Beat(n.resourcesCtx, n.log, url, payload); err != nil {
-			log.Error("heartbeat goroutine crashed", "err", err)
-		}
-	}(cfg.Heartbeat.URL)
-}
-
 func (n *OpNode) initPProf(cfg *Config) error {
 	n.pprofService = oppprof.New(
 		cfg.Pprof.ListenEnabled,
@@ -483,14 +467,20 @@ func (n *OpNode) initPProf(cfg *Config) error {
 	return nil
 }
 
-func (n *OpNode) initP2P(ctx context.Context, cfg *Config) error {
-	if cfg.P2P != nil {
+func (n *OpNode) p2pEnabled() bool {
+	return n.cfg.P2PEnabled()
+}
+
+func (n *OpNode) initP2P(cfg *Config) (err error) {
+	if n.p2pNode != nil {
+		panic("p2p node already initialized")
+	}
+	if n.p2pEnabled() {
 		// TODO(protocol-quest/97): Use EL Sync instead of CL Alt sync for fetching missing blocks in the payload queue.
-		p2pNode, err := p2p.NewNodeP2P(n.resourcesCtx, &cfg.Rollup, n.log, cfg.P2P, n, n.l2Source, n.runCfg, n.metrics, false)
-		if err != nil || p2pNode == nil {
-			return err
+		n.p2pNode, err = p2p.NewNodeP2P(n.resourcesCtx, &cfg.Rollup, n.log, cfg.P2P, n, n.l2Source, n.runCfg, n.metrics, false)
+		if err != nil {
+			return
 		}
-		n.p2pNode = p2pNode
 		if n.p2pNode.Dv5Udp() != nil {
 			go n.p2pNode.DiscoveryProcess(n.resourcesCtx, n.log, &cfg.Rollup, cfg.P2P.TargetPeers())
 		}
@@ -498,15 +488,14 @@ func (n *OpNode) initP2P(ctx context.Context, cfg *Config) error {
 	return nil
 }
 
-func (n *OpNode) initP2PSigner(ctx context.Context, cfg *Config) error {
+func (n *OpNode) initP2PSigner(ctx context.Context, cfg *Config) (err error) {
 	// the p2p signer setup is optional
 	if cfg.P2PSigner == nil {
-		return nil
+		return
 	}
 	// p2pSigner may still be nil, the signer setup may not create any signer, the signer is optional
-	var err error
 	n.p2pSigner, err = cfg.P2PSigner.SetupSigner(ctx)
-	return err
+	return
 }
 
 func (n *OpNode) Start(ctx context.Context) error {
@@ -562,7 +551,7 @@ func (n *OpNode) PublishL2Payload(ctx context.Context, envelope *eth.ExecutionPa
 	n.tracer.OnPublishL2Payload(ctx, envelope)
 
 	// publish to p2p, if we are running p2p at all
-	if n.p2pNode != nil {
+	if n.p2pEnabled() {
 		payload := envelope.ExecutionPayload
 		if n.p2pSigner == nil {
 			return fmt.Errorf("node has no p2p signer, payload %s cannot be published", payload.ID())
@@ -576,7 +565,7 @@ func (n *OpNode) PublishL2Payload(ctx context.Context, envelope *eth.ExecutionPa
 
 func (n *OpNode) OnUnsafeL2Payload(ctx context.Context, from peer.ID, envelope *eth.ExecutionPayloadEnvelope) error {
 	// ignore if it's from ourselves
-	if n.p2pNode != nil && from == n.p2pNode.Host().ID() {
+	if n.p2pEnabled() && from == n.p2pNode.Host().ID() {
 		return nil
 	}
 
@@ -597,9 +586,13 @@ func (n *OpNode) OnUnsafeL2Payload(ctx context.Context, from peer.ID, envelope *
 }
 
 func (n *OpNode) RequestL2Range(ctx context.Context, start, end eth.L2BlockRef) error {
-	if n.p2pNode != nil && n.p2pNode.AltSyncEnabled() {
+	if n.p2pEnabled() && n.p2pNode.AltSyncEnabled() {
 		if unixTimeStale(start.Time, 12*time.Hour) {
-			n.log.Debug("ignoring request to sync L2 range, timestamp is too old for p2p", "start", start, "end", end, "start_time", start.Time)
+			n.log.Debug(
+				"ignoring request to sync L2 range, timestamp is too old for p2p",
+				"start", start,
+				"end", end,
+				"start_time", start.Time)
 			return nil
 		}
 		return n.p2pNode.RequestL2Range(ctx, start, end)
@@ -635,10 +628,26 @@ func (n *OpNode) Stop(ctx context.Context) error {
 			result = multierror.Append(result, fmt.Errorf("failed to close RPC server: %w", err))
 		}
 	}
+
+	// Stop sequencer and report last hash. l2Driver can be nil if we're cleaning up a failed init.
+	if n.l2Driver != nil {
+		latestHead, err := n.l2Driver.StopSequencer(ctx)
+		switch {
+		case errors.Is(err, sequencing.ErrSequencerNotEnabled):
+		case errors.Is(err, driver.ErrSequencerAlreadyStopped):
+			n.log.Info("stopping node: sequencer already stopped", "latestHead", latestHead)
+		case err == nil:
+			n.log.Info("stopped sequencer", "latestHead", latestHead)
+		default:
+			result = multierror.Append(result, fmt.Errorf("error stopping sequencer: %w", err))
+		}
+	}
 	if n.p2pNode != nil {
 		if err := n.p2pNode.Close(); err != nil {
 			result = multierror.Append(result, fmt.Errorf("failed to close p2p node: %w", err))
 		}
+		// Prevent further use of p2p.
+		n.p2pNode = nil
 	}
 	if n.p2pSigner != nil {
 		if err := n.p2pSigner.Close(); err != nil {
@@ -684,6 +693,11 @@ func (n *OpNode) Stop(ctx context.Context) error {
 	// close L2 engine RPC client
 	if n.l2Source != nil {
 		n.l2Source.Close()
+	}
+
+	// close the supervisor RPC client
+	if n.supervisor != nil {
+		n.supervisor.Close()
 	}
 
 	// close L1 data source

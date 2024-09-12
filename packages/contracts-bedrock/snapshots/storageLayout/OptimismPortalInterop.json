@@ -43,10 +43,10 @@
   },
   {
     "bytes": "32",
-    "label": "provenWithdrawals",
+    "label": "spacer_52_0_32",
     "offset": 0,
     "slot": "52",
-    "type": "mapping(bytes32 => struct OptimismPortal.ProvenWithdrawal)"
+    "type": "bytes32"
   },
   {
     "bytes": "1",
@@ -60,56 +60,63 @@
     "label": "superchainConfig",
     "offset": 1,
     "slot": "53",
-    "type": "contract SuperchainConfig"
+    "type": "contract ISuperchainConfig"
   },
   {
     "bytes": "20",
-    "label": "l2Oracle",
+    "label": "spacer_54_0_20",
     "offset": 0,
     "slot": "54",
-    "type": "contract L2OutputOracle"
+    "type": "address"
   },
   {
     "bytes": "20",
     "label": "systemConfig",
     "offset": 0,
     "slot": "55",
-    "type": "contract SystemConfig"
+    "type": "contract ISystemConfig"
   },
   {
     "bytes": "20",
-    "label": "spacer_56_0_20",
+    "label": "disputeGameFactory",
     "offset": 0,
     "slot": "56",
-    "type": "address"
+    "type": "contract IDisputeGameFactory"
   },
   {
     "bytes": "32",
-    "label": "spacer_57_0_32",
+    "label": "provenWithdrawals",
     "offset": 0,
     "slot": "57",
-    "type": "bytes32"
+    "type": "mapping(bytes32 => mapping(address => struct OptimismPortal2.ProvenWithdrawal))"
   },
   {
     "bytes": "32",
-    "label": "spacer_58_0_32",
+    "label": "disputeGameBlacklist",
     "offset": 0,
     "slot": "58",
-    "type": "bytes32"
+    "type": "mapping(contract IDisputeGame => bool)"
   },
   {
-    "bytes": "32",
-    "label": "spacer_59_0_32",
+    "bytes": "4",
+    "label": "respectedGameType",
     "offset": 0,
     "slot": "59",
-    "type": "bytes32"
+    "type": "GameType"
+  },
+  {
+    "bytes": "8",
+    "label": "respectedGameTypeUpdatedAt",
+    "offset": 4,
+    "slot": "59",
+    "type": "uint64"
   },
   {
     "bytes": "32",
-    "label": "spacer_60_0_32",
+    "label": "proofSubmitters",
     "offset": 0,
     "slot": "60",
-    "type": "bytes32"
+    "type": "mapping(bytes32 => address[])"
   },
   {
     "bytes": "32",

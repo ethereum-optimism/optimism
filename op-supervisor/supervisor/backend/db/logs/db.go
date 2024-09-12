@@ -202,29 +202,54 @@ func (db *DB) ClosestBlockInfo(blockNum uint64) (uint64, types.TruncatedHash, er
 	return checkpoint.blockNum, entry.hash, nil
 }
 
+// ClosestBlockIterator returns an iterator for the block closest to the specified blockNum.
+// The iterator will start at the search checkpoint for the block, or the first checkpoint before it.
+func (db *DB) ClosestBlockIterator(blockNum uint64) (Iterator, error) {
+	db.rwLock.RLock()
+	defer db.rwLock.RUnlock()
+	checkpointIdx, err := db.searchCheckpoint(blockNum, math.MaxUint32)
+	if err != nil {
+		return nil, fmt.Errorf("no checkpoint at or before block %v found: %w", blockNum, err)
+	}
+	return db.newIterator(checkpointIdx)
+}
+
+// Get returns the truncated hash of the log at the specified blockNum and logIdx,
+// or an error if the log is not found.
+func (db *DB) Get(blockNum uint64, logiIdx uint32) (types.TruncatedHash, error) {
+	db.rwLock.RLock()
+	defer db.rwLock.RUnlock()
+	hash, _, err := db.findLogInfo(blockNum, logiIdx)
+	return hash, err
+}
+
 // Contains return true iff the specified logHash is recorded in the specified blockNum and logIdx.
-// logIdx is the index of the log in the array of all logs the block.
+// If the log is found, the entry index of the log is returned, too.
+// logIdx is the index of the log in the array of all logs in the block.
 // This can be used to check the validity of cross-chain interop events.
-func (db *DB) Contains(blockNum uint64, logIdx uint32, logHash types.TruncatedHash) (bool, error) {
+func (db *DB) Contains(blockNum uint64, logIdx uint32, logHash types.TruncatedHash) (bool, entrydb.EntryIdx, error) {
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
 	db.log.Trace("Checking for log", "blockNum", blockNum, "logIdx", logIdx, "hash", logHash)
 
-	evtHash, _, err := db.findLogInfo(blockNum, logIdx)
+	evtHash, iter, err := db.findLogInfo(blockNum, logIdx)
 	if errors.Is(err, ErrNotFound) {
 		// Did not find a log at blockNum and logIdx
-		return false, nil
+		return false, 0, nil
 	} else if err != nil {
-		return false, err
+		return false, 0, err
 	}
 	db.log.Trace("Found initiatingEvent", "blockNum", blockNum, "logIdx", logIdx, "hash", evtHash)
 	// Found the requested block and log index, check if the hash matches
-	return evtHash == logHash, nil
+	if evtHash == logHash {
+		return true, iter.Index(), nil
+	}
+	return false, 0, nil
 }
 
 // Executes checks if the log identified by the specific block number and log index, has an ExecutingMessage associated
 // with it that needs to be checked as part of interop validation.
-// logIdx is the index of the log in the array of all logs the block.
+// logIdx is the index of the log in the array of all logs in the block.
 // Returns the ExecutingMessage if it exists, or ExecutingMessage{} if the log is found but has no ExecutingMessage.
 // Returns ErrNotFound if the specified log does not exist in the database.
 func (db *DB) Executes(blockNum uint64, logIdx uint32) (types.ExecutingMessage, error) {
@@ -241,7 +266,7 @@ func (db *DB) Executes(blockNum uint64, logIdx uint32) (types.ExecutingMessage, 
 	return execMsg, nil
 }
 
-func (db *DB) findLogInfo(blockNum uint64, logIdx uint32) (types.TruncatedHash, *iterator, error) {
+func (db *DB) findLogInfo(blockNum uint64, logIdx uint32) (types.TruncatedHash, Iterator, error) {
 	entryIdx, err := db.searchCheckpoint(blockNum, logIdx)
 	if errors.Is(err, io.EOF) {
 		// Did not find a checkpoint to start reading from so the log cannot be present.
@@ -475,6 +500,58 @@ func (db *DB) Rewind(headBlockNum uint64) error {
 		return fmt.Errorf("failed to find new last entry context: %w", err)
 	}
 	return nil
+}
+
+// NextExecutingMessage returns the next executing message in the log database.
+// it skips over any non-executing messages, and will return an error if encountered.
+// the iterator is modified in the process.
+func (db *DB) NextExecutingMessage(iter Iterator) (types.ExecutingMessage, error) {
+	db.rwLock.RLock()
+	defer db.rwLock.RUnlock()
+	// this for-loop will break:
+	// - when the iterator reaches the end of the log
+	// - when the iterator reaches an executing message
+	// - if an error occurs
+	for {
+		_, _, _, err := iter.NextLog()
+		if err != nil {
+			return types.ExecutingMessage{}, err
+		}
+		// if the log is not an executing message, both exec and err are empty
+		exec, err := iter.ExecMessage()
+		if err != nil {
+			return types.ExecutingMessage{}, fmt.Errorf("failed to get executing message: %w", err)
+		}
+		if exec != (types.ExecutingMessage{}) {
+			return exec, nil
+		}
+	}
+}
+
+// LastCheckpointBehind returns an iterator for the last checkpoint behind the specified entry index.
+// If the entry index is a search checkpoint, the iterator will start at that checkpoint.
+// After searching back long enough (the searchCheckpointFrequency), an error is returned,
+// as checkpoints are expected to be found within the frequency.
+func (db *DB) LastCheckpointBehind(entryIdx entrydb.EntryIdx) (Iterator, error) {
+	for attempts := 0; attempts < searchCheckpointFrequency; attempts++ {
+		// attempt to read the index entry as a search checkpoint
+		_, err := db.readSearchCheckpoint(entryIdx)
+		if err == nil {
+			return db.newIterator(entryIdx)
+		}
+		// ErrDataCorruption is the return value if the entry is not a search checkpoint
+		// if it's not that type of error, we should return it instead of continuing
+		if !errors.Is(err, ErrDataCorruption) {
+			return nil, err
+		}
+		// don't attempt to read behind the start of the data
+		if entryIdx == 0 {
+			break
+		}
+		// reverse if we haven't found it yet
+		entryIdx -= 1
+	}
+	return nil, fmt.Errorf("failed to find a search checkpoint in the last %v entries", searchCheckpointFrequency)
 }
 
 func (db *DB) readSearchCheckpoint(entryIdx entrydb.EntryIdx) (searchCheckpoint, error) {

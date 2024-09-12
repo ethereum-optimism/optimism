@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching/rpcblock"
 	"github.com/stretchr/testify/require"
 )
@@ -99,8 +100,13 @@ func (h *OutputHonestHelper) StepFails(ctx context.Context, claimIdx int64, isAt
 		// If we're defending, then the step will be from the trace to the next one
 		pos = pos.MoveRight()
 	}
-	prestate, proofData, _, err := h.correctTrace.GetStepData(ctx, game, claim, pos)
+	prestate, proofData, preimage, err := h.correctTrace.GetStepData(ctx, game, claim, pos)
 	h.require.NoError(err, "Get step data")
+	if preimage != nil {
+		tx, err := h.game.Game.UpdateOracleTx(ctx, uint64(claimIdx), preimage)
+		h.require.NoError(err)
+		transactions.RequireSendTx(h.t, ctx, h.game.Client, tx, h.game.PrivKey)
+	}
 	h.game.StepFails(ctx, claimIdx, isAttack, prestate, proofData)
 }
 

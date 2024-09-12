@@ -86,8 +86,10 @@ func ExecMipsCoreStepLogic(cpu *mipsevm.CpuScalars, registers *[32]uint32, memor
 			linkReg := uint32(0)
 			if fun == 9 {
 				linkReg = rdReg
+				stackTracker.PushStack(cpu.PC, rs)
+			} else {
+				stackTracker.PopStack()
 			}
-			stackTracker.PopStack()
 			return HandleJump(cpu, registers, linkReg, rs)
 		}
 
@@ -153,7 +155,8 @@ func ExecuteMipsInstruction(insn, opcode, fun, rs, rt, mem uint32) uint32 {
 		case 0x06: // srlv
 			return rt >> (rs & 0x1F)
 		case 0x07: // srav
-			return SignExtend(rt>>rs, 32-rs)
+			shamt := rs & 0x1F
+			return SignExtend(rt>>shamt, 32-shamt)
 		// functs in range [0x8, 0x1b] are handled specially by other functions
 		case 0x08: // jr
 			return rs

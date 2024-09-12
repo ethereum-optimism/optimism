@@ -168,8 +168,8 @@ func TestQueue_Send(t *testing.T) {
 			t.Parallel()
 
 			conf := configWithNumConfs(1)
-			conf.ReceiptQueryInterval = 1 * time.Second // simulate a network send
-			conf.ResubmissionTimeout = 2 * time.Second  // resubmit to detect errors
+			conf.ReceiptQueryInterval = 1 * time.Second            // simulate a network send
+			conf.ResubmissionTimeout.Store(int64(2 * time.Second)) // resubmit to detect errors
 			conf.SafeAbortNonceTooLowCount = 1
 			backend := newMockBackendWithNonce(newGasPricer(3))
 			mgr := &SimpleTxManager{
@@ -222,7 +222,7 @@ func TestQueue_Send(t *testing.T) {
 				require.Equal(t, c.queued, queued, msg)
 			}
 			// wait for the queue to drain (all txs complete or failed)
-			queue.Wait()
+			_ = queue.Wait()
 			duration := time.Since(start)
 			// expect the execution time within a certain window
 			now := time.Now()

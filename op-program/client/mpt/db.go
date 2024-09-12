@@ -31,7 +31,7 @@ func (p DB) Delete(key []byte) error {
 	return nil
 }
 
-func (p DB) Stat(property string) (string, error) {
+func (p DB) Stat() (string, error) {
 	panic("not supported")
 }
 
@@ -49,10 +49,6 @@ func (p DB) NewIterator(prefix []byte, start []byte) ethdb.Iterator {
 
 func (p DB) Compact(start []byte, limit []byte) error {
 	return nil // no-op
-}
-
-func (p DB) NewSnapshot() (ethdb.Snapshot, error) {
-	panic("not supported")
 }
 
 func (p DB) Close() error {

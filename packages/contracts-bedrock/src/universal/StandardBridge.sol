@@ -6,8 +6,8 @@ import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC16
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { SafeCall } from "src/libraries/SafeCall.sol";
-import { IOptimismMintableERC20, ILegacyMintableERC20 } from "src/universal/IOptimismMintableERC20.sol";
-import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
+import { IOptimismMintableERC20, ILegacyMintableERC20 } from "src/universal/interfaces/IOptimismMintableERC20.sol";
+import { ICrossDomainMessenger } from "src/universal/interfaces/ICrossDomainMessenger.sol";
 import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { Constants } from "src/libraries/Constants.sol";
@@ -38,7 +38,7 @@ abstract contract StandardBridge is Initializable {
 
     /// @notice Messenger contract on this domain.
     /// @custom:network-specific
-    CrossDomainMessenger public messenger;
+    ICrossDomainMessenger public messenger;
 
     /// @notice Corresponding bridge on the other domain.
     /// @custom:network-specific
@@ -116,7 +116,7 @@ abstract contract StandardBridge is Initializable {
     /// @param _messenger   Contract for CrossDomainMessenger on this network.
     /// @param _otherBridge Contract for the other StandardBridge contract.
     function __StandardBridge_init(
-        CrossDomainMessenger _messenger,
+        ICrossDomainMessenger _messenger,
         StandardBridge _otherBridge
     )
         internal
@@ -143,7 +143,7 @@ abstract contract StandardBridge is Initializable {
     ///         Public getter is legacy and will be removed in the future. Use `messenger` instead.
     /// @return Contract of the messenger on this domain.
     /// @custom:legacy
-    function MESSENGER() external view returns (CrossDomainMessenger) {
+    function MESSENGER() external view returns (ICrossDomainMessenger) {
         return messenger;
     }
 

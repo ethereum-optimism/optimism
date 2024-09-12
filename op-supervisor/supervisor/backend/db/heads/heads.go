@@ -7,6 +7,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
 
@@ -58,7 +59,7 @@ func (t *HeadTracker) Current() *Heads {
 }
 
 func (t *HeadTracker) write(heads *Heads) error {
-	if err := jsonutil.WriteJSON(t.path, heads, 0o644); err != nil {
+	if err := jsonutil.WriteJSON(heads, ioutil.ToAtomicFile(t.path, 0o644)); err != nil {
 		return fmt.Errorf("failed to write new heads: %w", err)
 	}
 	return nil

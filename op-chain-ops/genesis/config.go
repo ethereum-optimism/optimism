@@ -17,8 +17,9 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	altda "github.com/ethereum-optimism/optimism/op-alt-da"
+	opparams "github.com/ethereum-optimism/optimism/op-node/params"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	plasma "github.com/ethereum-optimism/optimism/op-plasma"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -393,6 +394,37 @@ func (d *UpgradeScheduleDeployConfig) InteropTime(genesisTime uint64) *uint64 {
 	return offsetToUpgradeTime(d.L2GenesisInteropTimeOffset, genesisTime)
 }
 
+func (d *UpgradeScheduleDeployConfig) AllocMode(genesisTime uint64) L2AllocsMode {
+
+	forks := d.forks()
+	for i := len(forks) - 1; i >= 0; i-- {
+		if forkTime := offsetToUpgradeTime(forks[i].L2GenesisTimeOffset, genesisTime); forkTime != nil && *forkTime == 0 {
+			return L2AllocsMode(forks[i].Name)
+		}
+		// the oldest L2AllocsMode is delta
+		if forks[i].Name == string(L2AllocsDelta) {
+			return L2AllocsDelta
+		}
+	}
+	panic("should never reach here")
+}
+
+type Fork struct {
+	L2GenesisTimeOffset *hexutil.Uint64
+	Name                string
+}
+
+func (d *UpgradeScheduleDeployConfig) forks() []Fork {
+	return []Fork{
+		{L2GenesisTimeOffset: d.L2GenesisRegolithTimeOffset, Name: "regolith"},
+		{L2GenesisTimeOffset: d.L2GenesisCanyonTimeOffset, Name: "canyon"},
+		{L2GenesisTimeOffset: d.L2GenesisDeltaTimeOffset, Name: string(L2AllocsDelta)},
+		{L2GenesisTimeOffset: d.L2GenesisEcotoneTimeOffset, Name: string(L2AllocsEcotone)},
+		{L2GenesisTimeOffset: d.L2GenesisFjordTimeOffset, Name: string(L2AllocsFjord)},
+		{L2GenesisTimeOffset: d.L2GenesisGraniteTimeOffset, Name: string(L2AllocsGranite)},
+	}
+}
+
 func (d *UpgradeScheduleDeployConfig) Check(log log.Logger) error {
 	// checkFork checks that fork A is before or at the same time as fork B
 	checkFork := func(a, b *hexutil.Uint64, aName, bName string) error {
@@ -410,20 +442,11 @@ func (d *UpgradeScheduleDeployConfig) Check(log log.Logger) error {
 		}
 		return nil
 	}
-	if err := checkFork(d.L2GenesisRegolithTimeOffset, d.L2GenesisCanyonTimeOffset, "regolith", "canyon"); err != nil {
-		return err
-	}
-	if err := checkFork(d.L2GenesisCanyonTimeOffset, d.L2GenesisDeltaTimeOffset, "canyon", "delta"); err != nil {
-		return err
-	}
-	if err := checkFork(d.L2GenesisDeltaTimeOffset, d.L2GenesisEcotoneTimeOffset, "delta", "ecotone"); err != nil {
-		return err
-	}
-	if err := checkFork(d.L2GenesisEcotoneTimeOffset, d.L2GenesisFjordTimeOffset, "ecotone", "fjord"); err != nil {
-		return err
-	}
-	if err := checkFork(d.L2GenesisFjordTimeOffset, d.L2GenesisGraniteTimeOffset, "fjord", "granite"); err != nil {
-		return err
+	forks := d.forks()
+	for i := 0; i < len(forks)-1; i++ {
+		if err := checkFork(forks[i].L2GenesisTimeOffset, forks[i+1].L2GenesisTimeOffset, forks[i].Name, forks[i+1].Name); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -450,8 +473,6 @@ type L2CoreDeployConfig struct {
 	SequencerWindowSize uint64 `json:"sequencerWindowSize"`
 	// ChannelTimeoutBedrock is the number of L1 blocks that a frame stays valid when included in L1.
 	ChannelTimeoutBedrock uint64 `json:"channelTimeout"`
-	// ChannelTimeoutGranite is the number of L1 blocks that a frame stays valid when included in L1 after granite.
-	ChannelTimeoutGranite uint64 `json:"channelTimeoutGranite,omitempty"`
 	// BatchInboxAddress is the L1 account that batches are sent to.
 	BatchInboxAddress common.Address `json:"batchInboxAddress"`
 
@@ -491,10 +512,10 @@ func (d *L2CoreDeployConfig) Check(log log.Logger) error {
 	return nil
 }
 
-// PlasmaDeployConfig configures optional Alt-DA and Plasma functionality.
-type PlasmaDeployConfig struct {
-	// UsePlasma is a flag that indicates if the system is using op-plasma
-	UsePlasma bool `json:"usePlasma"`
+// AltDADeployConfig configures optional AltDA functionality.
+type AltDADeployConfig struct {
+	// UseAltDA is a flag that indicates if the system is using op-alt-da
+	UseAltDA bool `json:"useAltDA"`
 	// DACommitmentType specifies the allowed commitment
 	DACommitmentType string `json:"daCommitmentType"`
 	// DAChallengeWindow represents the block interval during which the availability of a data commitment can be challenged.
@@ -508,15 +529,15 @@ type PlasmaDeployConfig struct {
 	DAResolverRefundPercentage uint64 `json:"daResolverRefundPercentage"`
 }
 
-var _ ConfigChecker = (*PlasmaDeployConfig)(nil)
+var _ ConfigChecker = (*AltDADeployConfig)(nil)
 
-func (d *PlasmaDeployConfig) Check(log log.Logger) error {
-	if d.UsePlasma {
-		if !(d.DACommitmentType == plasma.KeccakCommitmentString || d.DACommitmentType == plasma.GenericCommitmentString) {
+func (d *AltDADeployConfig) Check(log log.Logger) error {
+	if d.UseAltDA {
+		if !(d.DACommitmentType == altda.KeccakCommitmentString || d.DACommitmentType == altda.GenericCommitmentString) {
 			return fmt.Errorf("%w: DACommitmentType must be either KeccakCommitment or GenericCommitment", ErrInvalidDeployConfig)
 		}
 		// only enforce challenge and resolve window if using alt-da mode with Keccak Commitments
-		if d.DACommitmentType != plasma.GenericCommitmentString {
+		if d.DACommitmentType != altda.GenericCommitmentString {
 			if d.DAChallengeWindow == 0 {
 				return fmt.Errorf("%w: DAChallengeWindow cannot be 0 when using alt-da mode with Keccak Commitments", ErrInvalidDeployConfig)
 			}
@@ -542,15 +563,12 @@ type L2InitializationConfig struct {
 	EIP1559DeployConfig
 	UpgradeScheduleDeployConfig
 	L2CoreDeployConfig
-	PlasmaDeployConfig
+	AltDADeployConfig
 }
 
 func (d *L2InitializationConfig) Check(log log.Logger) error {
 	if err := checkConfigBundle(d, log); err != nil {
 		return err
-	}
-	if d.ChannelTimeoutGranite == 0 && d.L2GenesisGraniteTimeOffset != nil {
-		return fmt.Errorf("%w: ChannelTimeoutGranite cannot be 0", ErrInvalidDeployConfig)
 	}
 	return nil
 }
@@ -719,7 +737,7 @@ type L1DependenciesConfig struct {
 // DependencyContext is the contextual configuration needed to verify the L1 dependencies,
 // used by DeployConfig.CheckAddresses.
 type DependencyContext struct {
-	UsePlasma        bool
+	UseAltDA         bool
 	DACommitmentType string
 }
 
@@ -740,9 +758,9 @@ func (d *L1DependenciesConfig) CheckAddresses(dependencyContext DependencyContex
 		return fmt.Errorf("%w: OptimismPortalProxy cannot be address(0)", ErrInvalidDeployConfig)
 	}
 
-	if dependencyContext.UsePlasma && dependencyContext.DACommitmentType == plasma.KeccakCommitmentString && d.DAChallengeProxy == (common.Address{}) {
+	if dependencyContext.UseAltDA && dependencyContext.DACommitmentType == altda.KeccakCommitmentString && d.DAChallengeProxy == (common.Address{}) {
 		return fmt.Errorf("%w: DAChallengeContract cannot be address(0) when using alt-da mode", ErrInvalidDeployConfig)
-	} else if dependencyContext.UsePlasma && dependencyContext.DACommitmentType == plasma.GenericCommitmentString && d.DAChallengeProxy != (common.Address{}) {
+	} else if dependencyContext.UseAltDA && dependencyContext.DACommitmentType == altda.GenericCommitmentString && d.DAChallengeProxy != (common.Address{}) {
 		return fmt.Errorf("%w: DAChallengeContract must be address(0) when using generic commitments in alt-da mode", ErrInvalidDeployConfig)
 	}
 	return nil
@@ -761,6 +779,17 @@ type LegacyDeployConfig struct {
 	// DeploymentWaitConfirmations is the number of confirmations to wait during
 	// deployment. This is DEPRECATED and should be removed in a future PR.
 	DeploymentWaitConfirmations int `json:"deploymentWaitConfirmations"`
+
+	UnusedChannelTimeoutGranite uint64 `json:"channelTimeoutGranite,omitempty"`
+}
+
+var _ ConfigChecker = (*LegacyDeployConfig)(nil)
+
+func (d *LegacyDeployConfig) Check(log log.Logger) error {
+	if d.UnusedChannelTimeoutGranite != 0 && d.UnusedChannelTimeoutGranite != opparams.ChannelTimeoutGranite {
+		return fmt.Errorf("%w: channelTimeoutGranite is no longer used. Only valid values are 0 or the protocol constant (%d)", ErrInvalidDeployConfig, opparams.ChannelTimeoutGranite)
+	}
+	return nil
 }
 
 // DeployConfig represents the deployment configuration for an OP Stack chain.
@@ -822,9 +851,6 @@ func (d *DeployConfig) Check(log log.Logger) error {
 	if d.L1BlockTime < d.L2BlockTime {
 		return fmt.Errorf("L2 block time (%d) is larger than L1 block time (%d)", d.L2BlockTime, d.L1BlockTime)
 	}
-	if d.ChannelTimeoutGranite == 0 && d.L2GenesisGraniteTimeOffset != nil {
-		return fmt.Errorf("%w: ChannelTimeoutGranite cannot be 0", ErrInvalidDeployConfig)
-	}
 	return checkConfigBundle(d, log)
 }
 
@@ -834,7 +860,7 @@ func (d *DeployConfig) Check(log log.Logger) error {
 // circular dependency that should be resolved in the future.
 func (d *DeployConfig) CheckAddresses() error {
 	return d.L1DependenciesConfig.CheckAddresses(DependencyContext{
-		UsePlasma:        d.UsePlasma,
+		UseAltDA:         d.UseAltDA,
 		DACommitmentType: d.DACommitmentType,
 	})
 }
@@ -858,9 +884,9 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 	if d.SystemConfigProxy == (common.Address{}) {
 		return nil, errors.New("SystemConfigProxy cannot be address(0)")
 	}
-	var plasma *rollup.PlasmaConfig
-	if d.UsePlasma {
-		plasma = &rollup.PlasmaConfig{
+	var altDA *rollup.AltDAConfig
+	if d.UseAltDA {
+		altDA = &rollup.AltDAConfig{
 			CommitmentType:     d.DACommitmentType,
 			DAChallengeAddress: d.DAChallengeProxy,
 			DAChallengeWindow:  d.DAChallengeWindow,
@@ -890,7 +916,6 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 		MaxSequencerDrift:      d.MaxSequencerDrift,
 		SeqWindowSize:          d.SequencerWindowSize,
 		ChannelTimeoutBedrock:  d.ChannelTimeoutBedrock,
-		ChannelTimeoutGranite:  d.ChannelTimeoutGranite,
 		L1ChainID:              new(big.Int).SetUint64(d.L1ChainID),
 		L2ChainID:              new(big.Int).SetUint64(d.L2ChainID),
 		BatchInboxAddress:      d.BatchInboxAddress,
@@ -903,7 +928,7 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 		FjordTime:              d.FjordTime(l1StartBlock.Time()),
 		GraniteTime:            d.GraniteTime(l1StartBlock.Time()),
 		InteropTime:            d.InteropTime(l1StartBlock.Time()),
-		PlasmaConfig:           plasma,
+		AltDAConfig:            altDA,
 	}, nil
 }
 
@@ -987,7 +1012,7 @@ func (d *L1Deployments) Check(deployConfig *DeployConfig) error {
 				name == "DisputeGameFactoryProxy") {
 			continue
 		}
-		if !deployConfig.UsePlasma &&
+		if !deployConfig.UseAltDA &&
 			(name == "DataAvailabilityChallenge" ||
 				name == "DataAvailabilityChallengeProxy") {
 			continue
