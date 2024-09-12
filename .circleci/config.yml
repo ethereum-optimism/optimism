@@ -2101,8 +2101,8 @@ workflows:
         - or:
           - equal: [ "develop", <<pipeline.git.branch>> ]
           - equal: [ true, <<pipeline.parameters.fault_proofs_dispatch>> ]
-        - not:
-            equal: [ scheduled_pipeline, << pipeline.trigger_source >> ]
+        #- not:
+            #equal: [ scheduled_pipeline, << pipeline.trigger_source >> ]
     jobs:
       - go-mod-download
       - cannon-prestate:
