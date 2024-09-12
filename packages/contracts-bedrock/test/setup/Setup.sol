@@ -29,7 +29,7 @@ import { WETH } from "src/L2/WETH.sol";
 import { SuperchainWETH } from "src/L2/SuperchainWETH.sol";
 import { ETHLiquidity } from "src/L2/ETHLiquidity.sol";
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
-import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
+import { DelayedWETH } from "src/dispute/DelayedWETH.sol";
 import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
 
 // Libraries

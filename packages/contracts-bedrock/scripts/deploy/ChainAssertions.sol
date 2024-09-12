@@ -13,7 +13,7 @@ import { ISystemConfigV0 } from "scripts/interfaces/ISystemConfigV0.sol";
 // Contracts
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
-import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
+import { DelayedWETH } from "src/dispute/DelayedWETH.sol";
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";

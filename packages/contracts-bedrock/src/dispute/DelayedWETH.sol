@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Contracts
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import { WETH98 } from "src/universal/WETH98.sol";
+
+// Interfaces
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
-
+import { IWETH } from "src/universal/interfaces/IWETH.sol";
 import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
-import { IWETH } from "src/dispute/interfaces/IWETH.sol";
-import { WETH98 } from "src/dispute/weth/WETH98.sol";
-
 import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
 
 /// @custom:proxied true
@@ -22,8 +23,8 @@ import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
 ///         Not the prettiest contract in the world, but it gets the job done.
 contract DelayedWETH is OwnableUpgradeable, WETH98, IDelayedWETH, ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 1.1.1-beta.2
-    string public constant version = "1.1.1-beta.2";
+    /// @custom:semver 1.2.0-beta.1
+    string public constant version = "1.2.0-beta.1";
 
     /// @inheritdoc IDelayedWETH
     mapping(address => mapping(address => WithdrawalRequest)) public withdrawals;

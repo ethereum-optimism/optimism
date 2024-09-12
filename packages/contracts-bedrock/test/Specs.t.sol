@@ -949,7 +949,7 @@ contract Specification_Test is CommonTest {
         pathExcludes[3] = "src/L1/interfaces/*";
         pathExcludes[4] = "src/governance/interfaces/*";
         Abi[] memory abis = ForgeArtifacts.getContractFunctionAbis(
-            "src/{L1,dispute,governance,safe,universal/ProxyAdmin.sol}", pathExcludes
+            "src/{L1,dispute,governance,safe,universal/ProxyAdmin.sol,universal/WETH98.sol}", pathExcludes
         );
 
         uint256 numCheckedEntries = 0;

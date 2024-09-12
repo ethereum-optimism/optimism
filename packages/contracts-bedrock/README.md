@@ -61,7 +61,7 @@ graph LR
         DisputeGameFactory(<a href="https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/dispute/DisputeGameFactory.sol">DisputeGameFactory</a>)
         FaultDisputeGame(<a href="https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/dispute/FaultDisputeGame.sol">FaultDisputeGame</a>)
         AnchorStateRegistry(<a href="https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/dispute/AnchorStateRegistry.sol">AnchorStateRegistry</a>)
-        DelayedWETH(<a href="https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/dispute/weth/DelayedWETH.sol">DelayedWETH</a>)
+        DelayedWETH(<a href="https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/dispute/DelayedWETH.sol">DelayedWETH</a>)
     end
 
     subgraph "User Interactions (Permissionless)"
