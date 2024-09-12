@@ -219,8 +219,9 @@ done
 # Check for unnecessary exclusions
 for exclude_item in "${EXCLUDE_CONTRACTS[@]}"; do
     if ! grep -q "^$exclude_item$" "$REPORTED_INTERFACES_FILE"; then
-        echo "Warning: $exclude_item is in the exclude list but was not reported as an issue."
-        echo "Consider removing it from the EXCLUDE_CONTRACTS list in the script."
+        echo "Warning: $exclude_item is in the exclude list but WAS NOT reported as an issue. It"
+        echo "may be unnecessary in the EXCLUDE_CONTRACTS list, but you MUST verify this before"
+        echo "removing it by performing a clean and full build before re-running this script."
     fi
 done
 
