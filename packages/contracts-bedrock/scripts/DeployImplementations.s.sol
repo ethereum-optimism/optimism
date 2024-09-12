@@ -3,6 +3,8 @@ pragma solidity 0.8.15;
 
 import { Script } from "forge-std/Script.sol";
 
+import { LibString } from "@solady/utils/LibString.sol";
+
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
 import { Proxy } from "src/universal/Proxy.sol";
 import { L1ChugSplashProxy } from "src/legacy/L1ChugSplashProxy.sol";
@@ -36,119 +38,128 @@ import { Solarray } from "scripts/libraries/Solarray.sol";
 
 // See DeploySuperchain.s.sol for detailed comments on the script architecture used here.
 contract DeployImplementationsInput {
-    struct Input {
-        uint256 withdrawalDelaySeconds;
-        uint256 minProposalSizeBytes;
-        uint256 challengePeriodSeconds;
-        uint256 proofMaturityDelaySeconds;
-        uint256 disputeGameFinalityDelaySeconds;
-        // We also deploy OP Stack Manager here, which has a dependency on the prior step of deploying
-        // the superchain contracts.
-        string release; // The release version to set OPSM implementations for, of the format `op-contracts/vX.Y.Z`.
-        SuperchainConfig superchainConfigProxy;
-        ProtocolVersions protocolVersionsProxy;
+    uint256 internal _withdrawalDelaySeconds;
+    uint256 internal _minProposalSizeBytes;
+    uint256 internal _challengePeriodSeconds;
+    uint256 internal _proofMaturityDelaySeconds;
+    uint256 internal _disputeGameFinalityDelaySeconds;
+
+    // The release version to set OPSM implementations for, of the format `op-contracts/vX.Y.Z`.
+    string internal _release;
+
+    // Outputs from DeploySuperchain.s.sol.
+    SuperchainConfig internal _superchainConfigProxy;
+    ProtocolVersions internal _protocolVersionsProxy;
+
+    function set(bytes4 sel, uint256 _value) public {
+        require(_value != 0, "DeployImplementationsInput: cannot set zero value");
+
+        if (sel == this.withdrawalDelaySeconds.selector) {
+            _withdrawalDelaySeconds = _value;
+        } else if (sel == this.minProposalSizeBytes.selector) {
+            _minProposalSizeBytes = _value;
+        } else if (sel == this.challengePeriodSeconds.selector) {
+            require(_value <= type(uint64).max, "DeployImplementationsInput: challengePeriodSeconds too large");
+            _challengePeriodSeconds = _value;
+        } else if (sel == this.proofMaturityDelaySeconds.selector) {
+            _proofMaturityDelaySeconds = _value;
+        } else if (sel == this.disputeGameFinalityDelaySeconds.selector) {
+            _disputeGameFinalityDelaySeconds = _value;
+        } else {
+            revert("DeployImplementationsInput: unknown selector");
+        }
     }
 
-    bool public inputSet = false;
-    Input internal inputs;
+    function set(bytes4 sel, string memory _value) public {
+        require(!LibString.eq(_value, ""), "DeployImplementationsInput: cannot set empty string");
+        if (sel == this.release.selector) _release = _value;
+        else revert("DeployImplementationsInput: unknown selector");
+    }
 
-    function loadInputFile(string memory _infile) public {
+    function set(bytes4 sel, address _addr) public {
+        require(_addr != address(0), "DeployImplementationsInput: cannot set zero address");
+        if (sel == this.superchainConfigProxy.selector) _superchainConfigProxy = SuperchainConfig(_addr);
+        else if (sel == this.protocolVersionsProxy.selector) _protocolVersionsProxy = ProtocolVersions(_addr);
+        else revert("DeployImplementationsInput: unknown selector");
+    }
+
+    function loadInputFile(string memory _infile) public pure {
         _infile;
-        Input memory parsedInput;
-        loadInput(parsedInput);
         require(false, "DeployImplementationsInput: not implemented");
     }
 
-    function loadInput(Input memory _input) public {
-        require(!inputSet, "DeployImplementationsInput: input already set");
-        require(
-            _input.challengePeriodSeconds <= type(uint64).max, "DeployImplementationsInput: challenge period too large"
-        );
-
-        inputSet = true;
-        inputs = _input;
-    }
-
-    function assertInputSet() internal view {
-        require(inputSet, "DeployImplementationsInput: input not set");
-    }
-
-    function input() public view returns (Input memory) {
-        assertInputSet();
-        return inputs;
-    }
-
     function withdrawalDelaySeconds() public view returns (uint256) {
-        assertInputSet();
-        return inputs.withdrawalDelaySeconds;
+        require(_withdrawalDelaySeconds != 0, "DeployImplementationsInput: not set");
+        return _withdrawalDelaySeconds;
     }
 
     function minProposalSizeBytes() public view returns (uint256) {
-        assertInputSet();
-        return inputs.minProposalSizeBytes;
+        require(_minProposalSizeBytes != 0, "DeployImplementationsInput: not set");
+        return _minProposalSizeBytes;
     }
 
     function challengePeriodSeconds() public view returns (uint256) {
-        assertInputSet();
-        return inputs.challengePeriodSeconds;
+        require(_challengePeriodSeconds != 0, "DeployImplementationsInput: not set");
+        require(
+            _challengePeriodSeconds <= type(uint64).max, "DeployImplementationsInput: challengePeriodSeconds too large"
+        );
+        return _challengePeriodSeconds;
     }
 
     function proofMaturityDelaySeconds() public view returns (uint256) {
-        assertInputSet();
-        return inputs.proofMaturityDelaySeconds;
+        require(_proofMaturityDelaySeconds != 0, "DeployImplementationsInput: not set");
+        return _proofMaturityDelaySeconds;
     }
 
     function disputeGameFinalityDelaySeconds() public view returns (uint256) {
-        assertInputSet();
-        return inputs.disputeGameFinalityDelaySeconds;
+        require(_disputeGameFinalityDelaySeconds != 0, "DeployImplementationsInput: not set");
+        return _disputeGameFinalityDelaySeconds;
     }
 
     function release() public view returns (string memory) {
-        assertInputSet();
-        return inputs.release;
+        require(!LibString.eq(_release, ""), "DeployImplementationsInput: not set");
+        return _release;
     }
 
     function superchainConfigProxy() public view returns (SuperchainConfig) {
-        assertInputSet();
-        return inputs.superchainConfigProxy;
+        require(address(_superchainConfigProxy) != address(0), "DeployImplementationsInput: not set");
+        return _superchainConfigProxy;
     }
 
     function protocolVersionsProxy() public view returns (ProtocolVersions) {
-        assertInputSet();
-        return inputs.protocolVersionsProxy;
+        require(address(_protocolVersionsProxy) != address(0), "DeployImplementationsInput: not set");
+        return _protocolVersionsProxy;
     }
 }
 
 contract DeployImplementationsOutput {
-    struct Output {
-        OPStackManager opsm;
-        DelayedWETH delayedWETHImpl;
-        OptimismPortal2 optimismPortalImpl;
-        PreimageOracle preimageOracleSingleton;
-        MIPS mipsSingleton;
-        SystemConfig systemConfigImpl;
-        L1CrossDomainMessenger l1CrossDomainMessengerImpl;
-        L1ERC721Bridge l1ERC721BridgeImpl;
-        L1StandardBridge l1StandardBridgeImpl;
-        OptimismMintableERC20Factory optimismMintableERC20FactoryImpl;
-        DisputeGameFactory disputeGameFactoryImpl;
-    }
-
-    Output internal outputs;
+    OPStackManager internal _opsm;
+    DelayedWETH internal _delayedWETHImpl;
+    OptimismPortal2 internal _optimismPortalImpl;
+    PreimageOracle internal _preimageOracleSingleton;
+    MIPS internal _mipsSingleton;
+    SystemConfig internal _systemConfigImpl;
+    L1CrossDomainMessenger internal _l1CrossDomainMessengerImpl;
+    L1ERC721Bridge internal _l1ERC721BridgeImpl;
+    L1StandardBridge internal _l1StandardBridgeImpl;
+    OptimismMintableERC20Factory internal _optimismMintableERC20FactoryImpl;
+    DisputeGameFactory internal _disputeGameFactoryImpl;
 
     function set(bytes4 sel, address _addr) public {
+        require(_addr != address(0), "DeployImplementationsOutput: cannot set zero address");
+
         // forgefmt: disable-start
-        if (sel == this.opsm.selector) outputs.opsm = OPStackManager(payable(_addr));
-        else if (sel == this.optimismPortalImpl.selector) outputs.optimismPortalImpl = OptimismPortal2(payable(_addr));
-        else if (sel == this.delayedWETHImpl.selector) outputs.delayedWETHImpl = DelayedWETH(payable(_addr));
-        else if (sel == this.preimageOracleSingleton.selector) outputs.preimageOracleSingleton = PreimageOracle(_addr);
-        else if (sel == this.mipsSingleton.selector) outputs.mipsSingleton = MIPS(_addr);
-        else if (sel == this.systemConfigImpl.selector) outputs.systemConfigImpl = SystemConfig(_addr);
-        else if (sel == this.l1CrossDomainMessengerImpl.selector) outputs.l1CrossDomainMessengerImpl = L1CrossDomainMessenger(_addr);
-        else if (sel == this.l1ERC721BridgeImpl.selector) outputs.l1ERC721BridgeImpl = L1ERC721Bridge(_addr);
-        else if (sel == this.l1StandardBridgeImpl.selector) outputs.l1StandardBridgeImpl = L1StandardBridge(payable(_addr));
-        else if (sel == this.optimismMintableERC20FactoryImpl.selector) outputs.optimismMintableERC20FactoryImpl = OptimismMintableERC20Factory(_addr);
-        else if (sel == this.disputeGameFactoryImpl.selector) outputs.disputeGameFactoryImpl = DisputeGameFactory(_addr);
+        if (sel == this.opsm.selector) _opsm = OPStackManager(payable(_addr));
+        else if (sel == this.optimismPortalImpl.selector) _optimismPortalImpl = OptimismPortal2(payable(_addr));
+        else if (sel == this.delayedWETHImpl.selector) _delayedWETHImpl = DelayedWETH(payable(_addr));
+        else if (sel == this.preimageOracleSingleton.selector) _preimageOracleSingleton = PreimageOracle(_addr);
+        else if (sel == this.mipsSingleton.selector) _mipsSingleton = MIPS(_addr);
+        else if (sel == this.systemConfigImpl.selector) _systemConfigImpl = SystemConfig(_addr);
+        else if (sel == this.l1CrossDomainMessengerImpl.selector) _l1CrossDomainMessengerImpl = L1CrossDomainMessenger(_addr);
+        else if (sel == this.l1ERC721BridgeImpl.selector) _l1ERC721BridgeImpl = L1ERC721Bridge(_addr);
+        else if (sel == this.l1StandardBridgeImpl.selector) _l1StandardBridgeImpl = L1StandardBridge(payable(_addr));
+        else if (sel == this.optimismMintableERC20FactoryImpl.selector) _optimismMintableERC20FactoryImpl = OptimismMintableERC20Factory(_addr);
+        else if (sel == this.disputeGameFactoryImpl.selector) _disputeGameFactoryImpl = DisputeGameFactory(_addr);
         else revert("DeployImplementationsOutput: unknown selector");
         // forgefmt: disable-end
     }
@@ -158,80 +169,76 @@ contract DeployImplementationsOutput {
         require(false, "DeployImplementationsOutput: not implemented");
     }
 
-    function output() public view returns (Output memory) {
-        return outputs;
-    }
-
     function checkOutput() public view {
         address[] memory addrs = Solarray.addresses(
-            address(outputs.opsm),
-            address(outputs.optimismPortalImpl),
-            address(outputs.delayedWETHImpl),
-            address(outputs.preimageOracleSingleton),
-            address(outputs.mipsSingleton),
-            address(outputs.systemConfigImpl),
-            address(outputs.l1CrossDomainMessengerImpl),
-            address(outputs.l1ERC721BridgeImpl),
-            address(outputs.l1StandardBridgeImpl),
-            address(outputs.optimismMintableERC20FactoryImpl),
-            address(outputs.disputeGameFactoryImpl)
+            address(this.opsm()),
+            address(this.optimismPortalImpl()),
+            address(this.delayedWETHImpl()),
+            address(this.preimageOracleSingleton()),
+            address(this.mipsSingleton()),
+            address(this.systemConfigImpl()),
+            address(this.l1CrossDomainMessengerImpl()),
+            address(this.l1ERC721BridgeImpl()),
+            address(this.l1StandardBridgeImpl()),
+            address(this.optimismMintableERC20FactoryImpl()),
+            address(this.disputeGameFactoryImpl())
         );
         DeployUtils.assertValidContractAddresses(addrs);
     }
 
     function opsm() public view returns (OPStackManager) {
-        DeployUtils.assertValidContractAddress(address(outputs.opsm));
-        return outputs.opsm;
+        DeployUtils.assertValidContractAddress(address(_opsm));
+        return _opsm;
     }
 
     function optimismPortalImpl() public view returns (OptimismPortal2) {
-        DeployUtils.assertValidContractAddress(address(outputs.optimismPortalImpl));
-        return outputs.optimismPortalImpl;
+        DeployUtils.assertValidContractAddress(address(_optimismPortalImpl));
+        return _optimismPortalImpl;
     }
 
     function delayedWETHImpl() public view returns (DelayedWETH) {
-        DeployUtils.assertValidContractAddress(address(outputs.delayedWETHImpl));
-        return outputs.delayedWETHImpl;
+        DeployUtils.assertValidContractAddress(address(_delayedWETHImpl));
+        return _delayedWETHImpl;
     }
 
     function preimageOracleSingleton() public view returns (PreimageOracle) {
-        DeployUtils.assertValidContractAddress(address(outputs.preimageOracleSingleton));
-        return outputs.preimageOracleSingleton;
+        DeployUtils.assertValidContractAddress(address(_preimageOracleSingleton));
+        return _preimageOracleSingleton;
     }
 
     function mipsSingleton() public view returns (MIPS) {
-        DeployUtils.assertValidContractAddress(address(outputs.mipsSingleton));
-        return outputs.mipsSingleton;
+        DeployUtils.assertValidContractAddress(address(_mipsSingleton));
+        return _mipsSingleton;
     }
 
     function systemConfigImpl() public view returns (SystemConfig) {
-        DeployUtils.assertValidContractAddress(address(outputs.systemConfigImpl));
-        return outputs.systemConfigImpl;
+        DeployUtils.assertValidContractAddress(address(_systemConfigImpl));
+        return _systemConfigImpl;
     }
 
     function l1CrossDomainMessengerImpl() public view returns (L1CrossDomainMessenger) {
-        DeployUtils.assertValidContractAddress(address(outputs.l1CrossDomainMessengerImpl));
-        return outputs.l1CrossDomainMessengerImpl;
+        DeployUtils.assertValidContractAddress(address(_l1CrossDomainMessengerImpl));
+        return _l1CrossDomainMessengerImpl;
     }
 
     function l1ERC721BridgeImpl() public view returns (L1ERC721Bridge) {
-        DeployUtils.assertValidContractAddress(address(outputs.l1ERC721BridgeImpl));
-        return outputs.l1ERC721BridgeImpl;
+        DeployUtils.assertValidContractAddress(address(_l1ERC721BridgeImpl));
+        return _l1ERC721BridgeImpl;
     }
 
     function l1StandardBridgeImpl() public view returns (L1StandardBridge) {
-        DeployUtils.assertValidContractAddress(address(outputs.l1StandardBridgeImpl));
-        return outputs.l1StandardBridgeImpl;
+        DeployUtils.assertValidContractAddress(address(_l1StandardBridgeImpl));
+        return _l1StandardBridgeImpl;
     }
 
     function optimismMintableERC20FactoryImpl() public view returns (OptimismMintableERC20Factory) {
-        DeployUtils.assertValidContractAddress(address(outputs.optimismMintableERC20FactoryImpl));
-        return outputs.optimismMintableERC20FactoryImpl;
+        DeployUtils.assertValidContractAddress(address(_optimismMintableERC20FactoryImpl));
+        return _optimismMintableERC20FactoryImpl;
     }
 
     function disputeGameFactoryImpl() public view returns (DisputeGameFactory) {
-        DeployUtils.assertValidContractAddress(address(outputs.disputeGameFactoryImpl));
-        return outputs.disputeGameFactoryImpl;
+        DeployUtils.assertValidContractAddress(address(_disputeGameFactoryImpl));
+        return _disputeGameFactoryImpl;
     }
 }
 
@@ -247,19 +254,7 @@ contract DeployImplementations is Script {
         require(false, "DeployImplementations: run is not implemented");
     }
 
-    function run(DeployImplementationsInput.Input memory _input)
-        public
-        returns (DeployImplementationsOutput.Output memory)
-    {
-        (DeployImplementationsInput dii, DeployImplementationsOutput dio) = etchIOContracts();
-        dii.loadInput(_input);
-        run(dii, dio);
-        return dio.output();
-    }
-
     function run(DeployImplementationsInput _dii, DeployImplementationsOutput _dio) public {
-        require(_dii.inputSet(), "DeployImplementations: input not set");
-
         // Deploy the implementations.
         deploySystemConfigImpl(_dii, _dio);
         deployL1CrossDomainMessengerImpl(_dii, _dio);
@@ -521,7 +516,7 @@ contract DeployImplementations is Script {
 
     // -------- Utilities --------
 
-    function etchIOContracts() internal returns (DeployImplementationsInput dii_, DeployImplementationsOutput dio_) {
+    function etchIOContracts() public returns (DeployImplementationsInput dii_, DeployImplementationsOutput dio_) {
         (dii_, dio_) = getIOContracts();
         vm.etch(address(dii_), type(DeployImplementationsInput).runtimeCode);
         vm.etch(address(dio_), type(DeployImplementationsOutput).runtimeCode);

@@ -88,7 +88,7 @@ contract DeploySuperchainInput is CommonBase {
     // These `set` methods let each input be set individually. The selector of an input's getter method
     // is used to determine which field to set.
     function set(bytes4 _sel, address _address) public {
-        require(_address != address(0), "DeploySuperchainInput: cannot set null address");
+        require(_address != address(0), "DeploySuperchainInput: cannot set zero address");
         if (_sel == this.guardian.selector) _guardian = _address;
         else if (_sel == this.protocolVersionsOwner.selector) _protocolVersionsOwner = _address;
         else if (_sel == this.proxyAdminOwner.selector) _proxyAdminOwner = _address;
@@ -181,6 +181,7 @@ contract DeploySuperchainOutput is CommonBase {
     // This method lets each field be set individually. The selector of an output's getter method
     // is used to determine which field to set.
     function set(bytes4 sel, address _address) public {
+        require(_address != address(0), "DeploySuperchainOutput: cannot set zero address");
         if (sel == this.superchainProxyAdmin.selector) _superchainProxyAdmin = ProxyAdmin(_address);
         else if (sel == this.superchainConfigImpl.selector) _superchainConfigImpl = SuperchainConfig(_address);
         else if (sel == this.superchainConfigProxy.selector) _superchainConfigProxy = SuperchainConfig(_address);

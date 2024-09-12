@@ -34,48 +34,48 @@ import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC2
 contract DeployOPChainInput_Test is Test {
     DeployOPChainInput doi;
 
-    DeployOPChainInput.Input input = DeployOPChainInput.Input({
-        roles: DeployOPChainInput.Roles({
-            opChainProxyAdminOwner: makeAddr("opChainProxyAdminOwner"),
-            systemConfigOwner: makeAddr("systemConfigOwner"),
-            batcher: makeAddr("batcher"),
-            unsafeBlockSigner: makeAddr("unsafeBlockSigner"),
-            proposer: makeAddr("proposer"),
-            challenger: makeAddr("challenger")
-        }),
-        basefeeScalar: 100,
-        blobBaseFeeScalar: 200,
-        l2ChainId: 300,
-        opsm: OPStackManager(makeAddr("opsm"))
-    });
+    // Define defaults.
+    address opChainProxyAdminOwner = makeAddr("opChainProxyAdminOwner");
+    address systemConfigOwner = makeAddr("systemConfigOwner");
+    address batcher = makeAddr("batcher");
+    address unsafeBlockSigner = makeAddr("unsafeBlockSigner");
+    address proposer = makeAddr("proposer");
+    address challenger = makeAddr("challenger");
+    uint32 basefeeScalar = 100;
+    uint32 blobBaseFeeScalar = 200;
+    uint256 l2ChainId = 300;
+    OPStackManager opsm = OPStackManager(makeAddr("opsm"));
 
     function setUp() public {
         doi = new DeployOPChainInput();
     }
 
-    function test_loadInput_succeeds() public {
-        doi.loadInput(input);
-
-        assertTrue(doi.inputSet(), "100");
-
-        // Compare the test input struct to the getter methods.
-        assertEq(input.roles.opChainProxyAdminOwner, doi.opChainProxyAdminOwner(), "200");
-        assertEq(input.roles.systemConfigOwner, doi.systemConfigOwner(), "300");
-        assertEq(input.roles.batcher, doi.batcher(), "400");
-        assertEq(input.roles.unsafeBlockSigner, doi.unsafeBlockSigner(), "500");
-        assertEq(input.roles.proposer, doi.proposer(), "600");
-        assertEq(input.roles.challenger, doi.challenger(), "700");
-        assertEq(input.basefeeScalar, doi.basefeeScalar(), "800");
-        assertEq(input.blobBaseFeeScalar, doi.blobBaseFeeScalar(), "900");
-        assertEq(input.l2ChainId, doi.l2ChainId(), "1000");
-        assertEq(address(input.opsm), address(doi.opsm()), "1100");
-
-        // Compare the test input struct to the `input` getter method.
-        assertEq(keccak256(abi.encode(input)), keccak256(abi.encode(doi.input())), "1200");
+    function test_set_succeeds() public {
+        doi.set(doi.opChainProxyAdminOwner.selector, opChainProxyAdminOwner);
+        doi.set(doi.systemConfigOwner.selector, systemConfigOwner);
+        doi.set(doi.batcher.selector, batcher);
+        doi.set(doi.unsafeBlockSigner.selector, unsafeBlockSigner);
+        doi.set(doi.proposer.selector, proposer);
+        doi.set(doi.challenger.selector, challenger);
+        doi.set(doi.basefeeScalar.selector, basefeeScalar);
+        doi.set(doi.blobBaseFeeScalar.selector, blobBaseFeeScalar);
+        doi.set(doi.l2ChainId.selector, l2ChainId);
+        doi.set(doi.opsm.selector, address(opsm));
+        // Compare the default inputs to the getter methods.
+        assertEq(opChainProxyAdminOwner, doi.opChainProxyAdminOwner(), "200");
+        assertEq(systemConfigOwner, doi.systemConfigOwner(), "300");
+        assertEq(batcher, doi.batcher(), "400");
+        assertEq(unsafeBlockSigner, doi.unsafeBlockSigner(), "500");
+        assertEq(proposer, doi.proposer(), "600");
+        assertEq(challenger, doi.challenger(), "700");
+        assertEq(basefeeScalar, doi.basefeeScalar(), "800");
+        assertEq(blobBaseFeeScalar, doi.blobBaseFeeScalar(), "900");
+        assertEq(l2ChainId, doi.l2ChainId(), "1000");
+        assertEq(address(opsm), address(doi.opsm()), "1100");
     }
 
     function test_getters_whenNotSet_revert() public {
-        bytes memory expectedErr = "DeployOPChainInput: input not set";
+        bytes memory expectedErr = "DeployOPChainInput: not set";
 
         vm.expectRevert(expectedErr);
         doi.opChainProxyAdminOwner();
@@ -109,90 +109,82 @@ contract DeployOPChainInput_Test is Test {
 contract DeployOPChainOutput_Test is Test {
     DeployOPChainOutput doo;
 
+    // Define default outputs to set.
+    // We set these in storage because doing it locally in test_set_succeeds results in stack too deep.
+    ProxyAdmin opChainProxyAdmin = ProxyAdmin(makeAddr("optimismPortal2Impl"));
+    AddressManager addressManager = AddressManager(makeAddr("delayedWETHImpl"));
+    L1ERC721Bridge l1ERC721BridgeProxy = L1ERC721Bridge(makeAddr("l1ERC721BridgeProxy"));
+    SystemConfig systemConfigProxy = SystemConfig(makeAddr("systemConfigProxy"));
+    OptimismMintableERC20Factory optimismMintableERC20FactoryProxy =
+        OptimismMintableERC20Factory(makeAddr("optimismMintableERC20FactoryProxy"));
+    L1StandardBridge l1StandardBridgeProxy = L1StandardBridge(payable(makeAddr("l1StandardBridgeProxy")));
+    L1CrossDomainMessenger l1CrossDomainMessengerProxy = L1CrossDomainMessenger(makeAddr("l1CrossDomainMessengerProxy"));
+    OptimismPortal2 optimismPortalProxy = OptimismPortal2(payable(makeAddr("optimismPortalProxy")));
+    DisputeGameFactory disputeGameFactoryProxy = DisputeGameFactory(makeAddr("disputeGameFactoryProxy"));
+    DisputeGameFactory disputeGameFactoryImpl = DisputeGameFactory(makeAddr("disputeGameFactoryImpl"));
+    AnchorStateRegistry anchorStateRegistryProxy = AnchorStateRegistry(makeAddr("anchorStateRegistryProxy"));
+    AnchorStateRegistry anchorStateRegistryImpl = AnchorStateRegistry(makeAddr("anchorStateRegistryImpl"));
+    FaultDisputeGame faultDisputeGame = FaultDisputeGame(makeAddr("faultDisputeGame"));
+    PermissionedDisputeGame permissionedDisputeGame = PermissionedDisputeGame(makeAddr("permissionedDisputeGame"));
+    DelayedWETH delayedWETHPermissionedGameProxy = DelayedWETH(payable(makeAddr("delayedWETHPermissionedGameProxy")));
+    DelayedWETH delayedWETHPermissionlessGameProxy =
+        DelayedWETH(payable(makeAddr("delayedWETHPermissionlessGameProxy")));
+
     function setUp() public {
         doo = new DeployOPChainOutput();
     }
 
     function test_set_succeeds() public {
-        DeployOPChainOutput.Output memory output = DeployOPChainOutput.Output({
-            opChainProxyAdmin: ProxyAdmin(makeAddr("optimismPortal2Impl")),
-            addressManager: AddressManager(makeAddr("delayedWETHImpl")),
-            l1ERC721BridgeProxy: L1ERC721Bridge(makeAddr("l1ERC721BridgeProxy")),
-            systemConfigProxy: SystemConfig(makeAddr("systemConfigProxy")),
-            optimismMintableERC20FactoryProxy: OptimismMintableERC20Factory(makeAddr("optimismMintableERC20FactoryProxy")),
-            l1StandardBridgeProxy: L1StandardBridge(payable(makeAddr("l1StandardBridgeProxy"))),
-            l1CrossDomainMessengerProxy: L1CrossDomainMessenger(makeAddr("l1CrossDomainMessengerProxy")),
-            optimismPortalProxy: OptimismPortal2(payable(makeAddr("optimismPortalProxy"))),
-            disputeGameFactoryProxy: DisputeGameFactory(makeAddr("disputeGameFactoryProxy")),
-            disputeGameFactoryImpl: DisputeGameFactory(makeAddr("disputeGameFactoryImpl")),
-            anchorStateRegistryProxy: AnchorStateRegistry(makeAddr("anchorStateRegistryProxy")),
-            anchorStateRegistryImpl: AnchorStateRegistry(makeAddr("anchorStateRegistryImpl")),
-            faultDisputeGame: FaultDisputeGame(makeAddr("faultDisputeGame")),
-            permissionedDisputeGame: PermissionedDisputeGame(makeAddr("permissionedDisputeGame")),
-            delayedWETHPermissionedGameProxy: DelayedWETH(payable(makeAddr("delayedWETHPermissionedGameProxy"))),
-            delayedWETHPermissionlessGameProxy: DelayedWETH(payable(makeAddr("delayedWETHPermissionlessGameProxy")))
-        });
+        vm.etch(address(opChainProxyAdmin), hex"01");
+        vm.etch(address(addressManager), hex"01");
+        vm.etch(address(l1ERC721BridgeProxy), hex"01");
+        vm.etch(address(systemConfigProxy), hex"01");
+        vm.etch(address(optimismMintableERC20FactoryProxy), hex"01");
+        vm.etch(address(l1StandardBridgeProxy), hex"01");
+        vm.etch(address(l1CrossDomainMessengerProxy), hex"01");
+        vm.etch(address(optimismPortalProxy), hex"01");
+        vm.etch(address(disputeGameFactoryProxy), hex"01");
+        vm.etch(address(disputeGameFactoryImpl), hex"01");
+        vm.etch(address(anchorStateRegistryProxy), hex"01");
+        vm.etch(address(anchorStateRegistryImpl), hex"01");
+        vm.etch(address(faultDisputeGame), hex"01");
+        vm.etch(address(permissionedDisputeGame), hex"01");
+        vm.etch(address(delayedWETHPermissionedGameProxy), hex"01");
+        vm.etch(address(delayedWETHPermissionlessGameProxy), hex"01");
 
-        vm.etch(address(output.opChainProxyAdmin), hex"01");
-        vm.etch(address(output.addressManager), hex"01");
-        vm.etch(address(output.l1ERC721BridgeProxy), hex"01");
-        vm.etch(address(output.systemConfigProxy), hex"01");
-        vm.etch(address(output.optimismMintableERC20FactoryProxy), hex"01");
-        vm.etch(address(output.l1StandardBridgeProxy), hex"01");
-        vm.etch(address(output.l1CrossDomainMessengerProxy), hex"01");
-        vm.etch(address(output.optimismPortalProxy), hex"01");
-        vm.etch(address(output.disputeGameFactoryProxy), hex"01");
-        vm.etch(address(output.disputeGameFactoryImpl), hex"01");
-        vm.etch(address(output.anchorStateRegistryProxy), hex"01");
-        vm.etch(address(output.anchorStateRegistryImpl), hex"01");
-        vm.etch(address(output.faultDisputeGame), hex"01");
-        vm.etch(address(output.permissionedDisputeGame), hex"01");
-        vm.etch(address(output.delayedWETHPermissionedGameProxy), hex"01");
-        vm.etch(address(output.delayedWETHPermissionlessGameProxy), hex"01");
+        doo.set(doo.opChainProxyAdmin.selector, address(opChainProxyAdmin));
+        doo.set(doo.addressManager.selector, address(addressManager));
+        doo.set(doo.l1ERC721BridgeProxy.selector, address(l1ERC721BridgeProxy));
+        doo.set(doo.systemConfigProxy.selector, address(systemConfigProxy));
+        doo.set(doo.optimismMintableERC20FactoryProxy.selector, address(optimismMintableERC20FactoryProxy));
+        doo.set(doo.l1StandardBridgeProxy.selector, address(l1StandardBridgeProxy));
+        doo.set(doo.l1CrossDomainMessengerProxy.selector, address(l1CrossDomainMessengerProxy));
+        doo.set(doo.optimismPortalProxy.selector, address(optimismPortalProxy));
+        doo.set(doo.disputeGameFactoryProxy.selector, address(disputeGameFactoryProxy));
+        doo.set(doo.disputeGameFactoryImpl.selector, address(disputeGameFactoryImpl));
+        doo.set(doo.anchorStateRegistryProxy.selector, address(anchorStateRegistryProxy));
+        doo.set(doo.anchorStateRegistryImpl.selector, address(anchorStateRegistryImpl));
+        doo.set(doo.faultDisputeGame.selector, address(faultDisputeGame));
+        doo.set(doo.permissionedDisputeGame.selector, address(permissionedDisputeGame));
+        doo.set(doo.delayedWETHPermissionedGameProxy.selector, address(delayedWETHPermissionedGameProxy));
+        doo.set(doo.delayedWETHPermissionlessGameProxy.selector, address(delayedWETHPermissionlessGameProxy));
 
-        doo.set(doo.opChainProxyAdmin.selector, address(output.opChainProxyAdmin));
-        doo.set(doo.addressManager.selector, address(output.addressManager));
-        doo.set(doo.l1ERC721BridgeProxy.selector, address(output.l1ERC721BridgeProxy));
-        doo.set(doo.systemConfigProxy.selector, address(output.systemConfigProxy));
-        doo.set(doo.optimismMintableERC20FactoryProxy.selector, address(output.optimismMintableERC20FactoryProxy));
-        doo.set(doo.l1StandardBridgeProxy.selector, address(output.l1StandardBridgeProxy));
-        doo.set(doo.l1CrossDomainMessengerProxy.selector, address(output.l1CrossDomainMessengerProxy));
-        doo.set(doo.optimismPortalProxy.selector, address(output.optimismPortalProxy));
-        doo.set(doo.disputeGameFactoryProxy.selector, address(output.disputeGameFactoryProxy));
-        doo.set(doo.disputeGameFactoryImpl.selector, address(output.disputeGameFactoryImpl));
-        doo.set(doo.anchorStateRegistryProxy.selector, address(output.anchorStateRegistryProxy));
-        doo.set(doo.anchorStateRegistryImpl.selector, address(output.anchorStateRegistryImpl));
-        doo.set(doo.faultDisputeGame.selector, address(output.faultDisputeGame));
-        doo.set(doo.permissionedDisputeGame.selector, address(output.permissionedDisputeGame));
-        doo.set(doo.delayedWETHPermissionedGameProxy.selector, address(output.delayedWETHPermissionedGameProxy));
-        doo.set(doo.delayedWETHPermissionlessGameProxy.selector, address(output.delayedWETHPermissionlessGameProxy));
-
-        assertEq(address(output.opChainProxyAdmin), address(doo.opChainProxyAdmin()), "100");
-        assertEq(address(output.addressManager), address(doo.addressManager()), "200");
-        assertEq(address(output.l1ERC721BridgeProxy), address(doo.l1ERC721BridgeProxy()), "300");
-        assertEq(address(output.systemConfigProxy), address(doo.systemConfigProxy()), "400");
-        assertEq(
-            address(output.optimismMintableERC20FactoryProxy), address(doo.optimismMintableERC20FactoryProxy()), "500"
-        );
-        assertEq(address(output.l1StandardBridgeProxy), address(doo.l1StandardBridgeProxy()), "600");
-        assertEq(address(output.l1CrossDomainMessengerProxy), address(doo.l1CrossDomainMessengerProxy()), "700");
-        assertEq(address(output.optimismPortalProxy), address(doo.optimismPortalProxy()), "800");
-        assertEq(address(output.disputeGameFactoryProxy), address(doo.disputeGameFactoryProxy()), "900");
-        assertEq(address(output.disputeGameFactoryImpl), address(doo.disputeGameFactoryImpl()), "1000");
-        assertEq(address(output.anchorStateRegistryProxy), address(doo.anchorStateRegistryProxy()), "1100");
-        assertEq(address(output.anchorStateRegistryImpl), address(doo.anchorStateRegistryImpl()), "1200");
-        assertEq(address(output.faultDisputeGame), address(doo.faultDisputeGame()), "1300");
-        assertEq(address(output.permissionedDisputeGame), address(doo.permissionedDisputeGame()), "1400");
-        assertEq(
-            address(output.delayedWETHPermissionedGameProxy), address(doo.delayedWETHPermissionedGameProxy()), "1500"
-        );
-        assertEq(
-            address(output.delayedWETHPermissionlessGameProxy),
-            address(doo.delayedWETHPermissionlessGameProxy()),
-            "1600"
-        );
-
-        assertEq(keccak256(abi.encode(output)), keccak256(abi.encode(doo.output())), "1700");
+        assertEq(address(opChainProxyAdmin), address(doo.opChainProxyAdmin()), "100");
+        assertEq(address(addressManager), address(doo.addressManager()), "200");
+        assertEq(address(l1ERC721BridgeProxy), address(doo.l1ERC721BridgeProxy()), "300");
+        assertEq(address(systemConfigProxy), address(doo.systemConfigProxy()), "400");
+        assertEq(address(optimismMintableERC20FactoryProxy), address(doo.optimismMintableERC20FactoryProxy()), "500");
+        assertEq(address(l1StandardBridgeProxy), address(doo.l1StandardBridgeProxy()), "600");
+        assertEq(address(l1CrossDomainMessengerProxy), address(doo.l1CrossDomainMessengerProxy()), "700");
+        assertEq(address(optimismPortalProxy), address(doo.optimismPortalProxy()), "800");
+        assertEq(address(disputeGameFactoryProxy), address(doo.disputeGameFactoryProxy()), "900");
+        assertEq(address(disputeGameFactoryImpl), address(doo.disputeGameFactoryImpl()), "1000");
+        assertEq(address(anchorStateRegistryProxy), address(doo.anchorStateRegistryProxy()), "1100");
+        assertEq(address(anchorStateRegistryImpl), address(doo.anchorStateRegistryImpl()), "1200");
+        assertEq(address(faultDisputeGame), address(doo.faultDisputeGame()), "1300");
+        assertEq(address(permissionedDisputeGame), address(doo.permissionedDisputeGame()), "1400");
+        assertEq(address(delayedWETHPermissionedGameProxy), address(doo.delayedWETHPermissionedGameProxy()), "1500");
+        assertEq(address(delayedWETHPermissionlessGameProxy), address(doo.delayedWETHPermissionlessGameProxy()), "1600");
     }
 
     function test_getters_whenNotSet_revert() public {
@@ -324,8 +316,7 @@ contract DeployOPChain_TestBase is Test {
     DeployOPChainInput doi;
     DeployOPChainOutput doo;
 
-    // We define a default initial input set for DeploySuperchain. The other inputs are dependent
-    // on the outputs of the previous scripts, so we initialize them in the `setUp` method.
+    // Define default inputs for DeploySuperchain.
     address proxyAdminOwner = makeAddr("defaultProxyAdminOwner");
     address protocolVersionsOwner = makeAddr("defaultProtocolVersionsOwner");
     address guardian = makeAddr("defaultGuardian");
@@ -333,38 +324,32 @@ contract DeployOPChain_TestBase is Test {
     ProtocolVersion requiredProtocolVersion = ProtocolVersion.wrap(1);
     ProtocolVersion recommendedProtocolVersion = ProtocolVersion.wrap(2);
 
-    DeployImplementationsInput.Input deployImplementationsInput = DeployImplementationsInput.Input({
-        withdrawalDelaySeconds: 100,
-        minProposalSizeBytes: 200,
-        challengePeriodSeconds: 300,
-        proofMaturityDelaySeconds: 400,
-        disputeGameFinalityDelaySeconds: 500,
-        release: "op-contracts/latest",
-        // These are set during `setUp` since they are outputs of the previous step.
-        superchainConfigProxy: SuperchainConfig(address(0)),
-        protocolVersionsProxy: ProtocolVersions(address(0))
-    });
+    // Define default inputs for DeployImplementations.
+    // `superchainConfigProxy` and `protocolVersionsProxy` are set during `setUp` since they are
+    // outputs of the previous step.
+    uint256 withdrawalDelaySeconds = 100;
+    uint256 minProposalSizeBytes = 200;
+    uint256 challengePeriodSeconds = 300;
+    uint256 proofMaturityDelaySeconds = 400;
+    uint256 disputeGameFinalityDelaySeconds = 500;
+    string release = "op-contracts/latest";
+    SuperchainConfig superchainConfigProxy;
+    ProtocolVersions protocolVersionsProxy;
 
-    DeployOPChainInput.Input deployOPChainInput = DeployOPChainInput.Input({
-        roles: DeployOPChainInput.Roles({
-            opChainProxyAdminOwner: makeAddr("defaultOPChainProxyAdminOwner"),
-            systemConfigOwner: makeAddr("defaultSystemConfigOwner"),
-            batcher: makeAddr("defaultBatcher"),
-            unsafeBlockSigner: makeAddr("defaultUnsafeBlockSigner"),
-            proposer: makeAddr("defaultProposer"),
-            challenger: makeAddr("defaultChallenger")
-        }),
-        basefeeScalar: 100,
-        blobBaseFeeScalar: 200,
-        l2ChainId: 300,
-        // This is set during `setUp` since it is an output of the previous step.
-        opsm: OPStackManager(address(0))
-    });
+    // Define default inputs for DeployOPChain.
+    // `opsm` is set during `setUp` since it is an output of the previous step.
+    address opChainProxyAdminOwner = makeAddr("defaultOPChainProxyAdminOwner");
+    address systemConfigOwner = makeAddr("defaultSystemConfigOwner");
+    address batcher = makeAddr("defaultBatcher");
+    address unsafeBlockSigner = makeAddr("defaultUnsafeBlockSigner");
+    address proposer = makeAddr("defaultProposer");
+    address challenger = makeAddr("defaultChallenger");
+    uint32 basefeeScalar = 100;
+    uint32 blobBaseFeeScalar = 200;
+    uint256 l2ChainId = 300;
+    OPStackManager opsm = OPStackManager(address(0));
 
-    // Set during `setUp`.
-    DeployImplementationsOutput.Output deployImplementationsOutput;
-
-    function setUp() public {
+    function setUp() public virtual {
         // Initialize deploy scripts.
         DeploySuperchain deploySuperchain = new DeploySuperchain();
         (DeploySuperchainInput dsi, DeploySuperchainOutput dso) = deploySuperchain.etchIOContracts();
@@ -376,21 +361,31 @@ contract DeployOPChain_TestBase is Test {
         dsi.set(dsi.recommendedProtocolVersion.selector, recommendedProtocolVersion);
 
         DeployImplementations deployImplementations = new DeployImplementations();
+        (DeployImplementationsInput dii, DeployImplementationsOutput dio) = deployImplementations.etchIOContracts();
+
         deployOPChain = new DeployOPChain();
-        (doi, doo) = deployOPChain.getIOContracts();
+        (doi, doo) = deployOPChain.etchIOContracts();
 
         // Deploy the superchain contracts.
         deploySuperchain.run(dsi, dso);
 
-        // Populate the input struct for DeployImplementations based on the output of DeploySuperchain.
-        deployImplementationsInput.superchainConfigProxy = dso.superchainConfigProxy();
-        deployImplementationsInput.protocolVersionsProxy = dso.protocolVersionsProxy();
+        // Populate the inputs for DeployImplementations based on the output of DeploySuperchain.
+        superchainConfigProxy = dso.superchainConfigProxy();
+        protocolVersionsProxy = dso.protocolVersionsProxy();
 
-        // Deploy the implementations using the updated DeployImplementations input struct.
-        deployImplementationsOutput = deployImplementations.run(deployImplementationsInput);
+        // Deploy the implementations.
+        dii.set(dii.withdrawalDelaySeconds.selector, withdrawalDelaySeconds);
+        dii.set(dii.minProposalSizeBytes.selector, minProposalSizeBytes);
+        dii.set(dii.challengePeriodSeconds.selector, challengePeriodSeconds);
+        dii.set(dii.proofMaturityDelaySeconds.selector, proofMaturityDelaySeconds);
+        dii.set(dii.disputeGameFinalityDelaySeconds.selector, disputeGameFinalityDelaySeconds);
+        dii.set(dii.release.selector, release);
+        dii.set(dii.superchainConfigProxy.selector, address(superchainConfigProxy));
+        dii.set(dii.protocolVersionsProxy.selector, address(protocolVersionsProxy));
+        deployImplementations.run(dii, dio);
 
-        // Set the OPStackManager on the input struct for DeployOPChain.
-        deployOPChainInput.opsm = deployImplementationsOutput.opsm;
+        // Set the OPStackManager input for DeployOPChain.
+        opsm = dio.opsm();
     }
 
     // See the function of the same name in the `DeployImplementations_Test` contract of
@@ -401,56 +396,55 @@ contract DeployOPChain_TestBase is Test {
 }
 
 contract DeployOPChain_Test is DeployOPChain_TestBase {
-    function testFuzz_run_succeeds(DeployOPChainInput.Input memory _input) public {
-        vm.assume(_input.roles.opChainProxyAdminOwner != address(0));
-        vm.assume(_input.roles.systemConfigOwner != address(0));
-        vm.assume(_input.roles.batcher != address(0));
-        vm.assume(_input.roles.unsafeBlockSigner != address(0));
-        vm.assume(_input.roles.proposer != address(0));
-        vm.assume(_input.roles.challenger != address(0));
-        vm.assume(_input.l2ChainId != 0 && _input.l2ChainId != block.chainid);
+    function hash(bytes32 _seed, uint256 _i) internal pure returns (bytes32) {
+        return keccak256(abi.encode(_seed, _i));
+    }
 
-        _input.opsm = deployOPChainInput.opsm;
+    function testFuzz_run_memory_succeeds(bytes32 _seed) public {
+        opChainProxyAdminOwner = address(uint160(uint256(hash(_seed, 0))));
+        systemConfigOwner = address(uint160(uint256(hash(_seed, 1))));
+        batcher = address(uint160(uint256(hash(_seed, 2))));
+        unsafeBlockSigner = address(uint160(uint256(hash(_seed, 3))));
+        proposer = address(uint160(uint256(hash(_seed, 4))));
+        challenger = address(uint160(uint256(hash(_seed, 5))));
+        basefeeScalar = uint32(uint256(hash(_seed, 6)));
+        blobBaseFeeScalar = uint32(uint256(hash(_seed, 7)));
+        l2ChainId = uint256(uint256(hash(_seed, 8)));
 
-        DeployOPChainOutput.Output memory output = deployOPChain.run(_input);
+        doi.set(doi.opChainProxyAdminOwner.selector, opChainProxyAdminOwner);
+        doi.set(doi.systemConfigOwner.selector, systemConfigOwner);
+        doi.set(doi.batcher.selector, batcher);
+        doi.set(doi.unsafeBlockSigner.selector, unsafeBlockSigner);
+        doi.set(doi.proposer.selector, proposer);
+        doi.set(doi.challenger.selector, challenger);
+        doi.set(doi.basefeeScalar.selector, basefeeScalar);
+        doi.set(doi.blobBaseFeeScalar.selector, blobBaseFeeScalar);
+        doi.set(doi.l2ChainId.selector, l2ChainId);
+        doi.set(doi.opsm.selector, address(opsm)); // Not fuzzed since it must be an actual instance.
+
+        deployOPChain.run(doi, doo);
 
         // TODO Add fault proof contract assertions below once OPSM fully supports them.
 
-        // Assert that individual input fields were properly set based on the input struct.
-        assertEq(_input.roles.opChainProxyAdminOwner, doi.opChainProxyAdminOwner(), "100");
-        assertEq(_input.roles.systemConfigOwner, doi.systemConfigOwner(), "200");
-        assertEq(_input.roles.batcher, doi.batcher(), "300");
-        assertEq(_input.roles.unsafeBlockSigner, doi.unsafeBlockSigner(), "400");
-        assertEq(_input.roles.proposer, doi.proposer(), "500");
-        assertEq(_input.roles.challenger, doi.challenger(), "600");
-        assertEq(_input.basefeeScalar, doi.basefeeScalar(), "700");
-        assertEq(_input.blobBaseFeeScalar, doi.blobBaseFeeScalar(), "800");
-        assertEq(_input.l2ChainId, doi.l2ChainId(), "900");
-
-        // Assert that individual output fields were properly set based on the output struct.
-        assertEq(address(output.opChainProxyAdmin), address(doo.opChainProxyAdmin()), "1100");
-        assertEq(address(output.addressManager), address(doo.addressManager()), "1200");
-        assertEq(address(output.l1ERC721BridgeProxy), address(doo.l1ERC721BridgeProxy()), "1300");
-        assertEq(address(output.systemConfigProxy), address(doo.systemConfigProxy()), "1400");
-        assertEq(
-            address(output.optimismMintableERC20FactoryProxy), address(doo.optimismMintableERC20FactoryProxy()), "1500"
-        );
-        assertEq(address(output.l1StandardBridgeProxy), address(doo.l1StandardBridgeProxy()), "1600");
-        assertEq(address(output.l1CrossDomainMessengerProxy), address(doo.l1CrossDomainMessengerProxy()), "1700");
-        assertEq(address(output.optimismPortalProxy), address(doo.optimismPortalProxy()), "1800");
-
-        // Assert that the full input and output structs were properly set.
-        assertEq(keccak256(abi.encode(_input)), keccak256(abi.encode(DeployOPChainInput(doi).input())), "1900");
-        assertEq(keccak256(abi.encode(output)), keccak256(abi.encode(DeployOPChainOutput(doo).output())), "2000");
+        // Assert that individual input fields were properly set based on the inputs.
+        assertEq(opChainProxyAdminOwner, doi.opChainProxyAdminOwner(), "100");
+        assertEq(systemConfigOwner, doi.systemConfigOwner(), "200");
+        assertEq(batcher, doi.batcher(), "300");
+        assertEq(unsafeBlockSigner, doi.unsafeBlockSigner(), "400");
+        assertEq(proposer, doi.proposer(), "500");
+        assertEq(challenger, doi.challenger(), "600");
+        assertEq(basefeeScalar, doi.basefeeScalar(), "700");
+        assertEq(blobBaseFeeScalar, doi.blobBaseFeeScalar(), "800");
+        assertEq(l2ChainId, doi.l2ChainId(), "900");
 
         // Assert inputs were properly passed through to the contract initializers.
-        assertEq(address(output.opChainProxyAdmin.owner()), _input.roles.opChainProxyAdminOwner, "2100");
-        assertEq(address(output.systemConfigProxy.owner()), _input.roles.systemConfigOwner, "2200");
-        address batcher = address(uint160(uint256(output.systemConfigProxy.batcherHash())));
-        assertEq(batcher, _input.roles.batcher, "2300");
-        assertEq(address(output.systemConfigProxy.unsafeBlockSigner()), _input.roles.unsafeBlockSigner, "2400");
-        // assertEq(address(...proposer()), _input.roles.proposer, "2500"); // TODO once we deploy dispute games.
-        // assertEq(address(...challenger()), _input.roles.challenger, "2600"); // TODO once we deploy dispute games.
+        assertEq(address(doo.opChainProxyAdmin().owner()), opChainProxyAdminOwner, "2100");
+        assertEq(address(doo.systemConfigProxy().owner()), systemConfigOwner, "2200");
+        address batcherActual = address(uint160(uint256(doo.systemConfigProxy().batcherHash())));
+        assertEq(batcherActual, batcher, "2300");
+        assertEq(address(doo.systemConfigProxy().unsafeBlockSigner()), unsafeBlockSigner, "2400");
+        // assertEq(address(...proposer()), proposer, "2500"); // TODO once we deploy dispute games.
+        // assertEq(address(...challenger()), challenger, "2600"); // TODO once we deploy dispute games.
 
         // Most architecture assertions are handled within the OP Stack Manager itself and therefore
         // we only assert on the things that are not visible onchain.
