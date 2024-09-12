@@ -9,14 +9,14 @@ import (
 	"strings"
 )
 
-type statDirFs interface {
+type StatDirFs interface {
 	fs.StatFS
 	fs.ReadDirFS
 }
 
 func OpenArtifactsDir(dirPath string) *ArtifactsFS {
 	dir := os.DirFS(dirPath)
-	if d, ok := dir.(statDirFs); !ok {
+	if d, ok := dir.(StatDirFs); !ok {
 		panic("Go DirFS guarantees changed")
 	} else {
 		return &ArtifactsFS{FS: d}
@@ -29,7 +29,7 @@ func OpenArtifactsDir(dirPath string) *ArtifactsFS {
 // See OpenArtifactsDir for reading from a local directory.
 // Alternative FS systems, like a tarball, may be used too.
 type ArtifactsFS struct {
-	FS statDirFs
+	FS StatDirFs
 }
 
 // ListArtifacts lists the artifacts. Each artifact matches a source-file name.
