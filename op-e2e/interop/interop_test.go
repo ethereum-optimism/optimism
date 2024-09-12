@@ -23,10 +23,14 @@ func TestInteropTrivial(t *testing.T) {
 		L2ChainIDs:       []uint64{900200, 900201},
 		GenesisTimestamp: uint64(time.Now().Unix() + 3), // start chain 3 seconds from now
 	}
+	worldResources := worldResourcePaths{
+		foundryArtifacts: "../../packages/contracts-bedrock/forge-artifacts",
+		sourceMap:        "../../packages/contracts-bedrock",
+	}
 
 	// create a super system from the recipe
 	// and get the L2 IDs for use in the test
-	s2 := NewSuperSystem(t, &recipe)
+	s2 := NewSuperSystem(t, &recipe, worldResources)
 	ids := s2.L2IDs()
 
 	// chainA is the first L2 chain

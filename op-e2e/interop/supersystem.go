@@ -87,9 +87,9 @@ type SuperSystem interface {
 }
 
 // NewSuperSystem creates a new SuperSystem from a recipe. It creates an interopE2ESystem.
-func NewSuperSystem(t *testing.T, recipe *interopgen.InteropDevRecipe) SuperSystem {
+func NewSuperSystem(t *testing.T, recipe *interopgen.InteropDevRecipe, w worldResourcePaths) SuperSystem {
 	s2 := &interopE2ESystem{recipe: recipe}
-	s2.prepare(t)
+	s2.prepare(t, w)
 	return s2
 }
 
@@ -130,8 +130,13 @@ func (s *interopE2ESystem) prepareHDWallet() *devkeys.MnemonicDevKeys {
 	return hdWallet
 }
 
+type worldResourcePaths struct {
+	foundryArtifacts string
+	sourceMap        string
+}
+
 // prepareWorld creates the world configuration from the recipe and deploys it
-func (s *interopE2ESystem) prepareWorld() (*interopgen.WorldDeployment, *interopgen.WorldOutput) {
+func (s *interopE2ESystem) prepareWorld(w worldResourcePaths) (*interopgen.WorldDeployment, *interopgen.WorldOutput) {
 	// Build the world configuration from the recipe and the HD wallet
 	worldCfg, err := s.recipe.Build(s.hdWallet)
 	require.NoError(s.t, err)
@@ -141,8 +146,8 @@ func (s *interopE2ESystem) prepareWorld() (*interopgen.WorldDeployment, *interop
 	require.NoError(s.t, worldCfg.Check(logger))
 
 	// create the foundry artifacts and source map
-	foundryArtifacts := foundry.OpenArtifactsDir("../../packages/contracts-bedrock/forge-artifacts")
-	sourceMap := foundry.NewSourceMapFS(os.DirFS("../../packages/contracts-bedrock"))
+	foundryArtifacts := foundry.OpenArtifactsDir(w.foundryArtifacts)
+	sourceMap := foundry.NewSourceMapFS(os.DirFS(w.sourceMap))
 
 	// deploy the world, using the logger, foundry artifacts, source map, and world configuration
 	worldDeployment, worldOutput, err := interopgen.Deploy(logger, foundryArtifacts, sourceMap, worldCfg)
@@ -451,11 +456,11 @@ func (s *interopE2ESystem) SupervisorClient() *sources.SupervisorClient {
 // prepare sets up the system for testing
 // components are built iteratively, so that they can be reused or modified
 // their creation can't be safely skipped or reordered at this time
-func (s *interopE2ESystem) prepare(t *testing.T) {
+func (s *interopE2ESystem) prepare(t *testing.T, w worldResourcePaths) {
 	s.t = t
 	s.logger = testlog.Logger(s.t, log.LevelInfo)
 	s.hdWallet = s.prepareHDWallet()
-	s.worldDeployment, s.worldOutput = s.prepareWorld()
+	s.worldDeployment, s.worldOutput = s.prepareWorld(w)
 
 	// the supervisor and client are created first so that the L2s can use the supervisor
 	s.supervisor = s.prepareSupervisor()
