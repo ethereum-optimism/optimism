@@ -10,7 +10,6 @@ import { PeripheryDeployConfig } from "scripts/periphery/deploy/PeripheryDeployC
 
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
 import { Proxy } from "src/universal/Proxy.sol";
-import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { Faucet } from "src/periphery/faucet/Faucet.sol";
 import { Drippie } from "src/periphery/drippie/Drippie.sol";
 import { CheckGelatoLow } from "src/periphery/drippie/dripchecks/CheckGelatoLow.sol";

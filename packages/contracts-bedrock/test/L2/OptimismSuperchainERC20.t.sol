@@ -3,6 +3,7 @@ pragma solidity 0.8.25;
 
 // Testing utilities
 import { Test } from "forge-std/Test.sol";
+import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -11,6 +12,8 @@ import { IL2ToL2CrossDomainMessenger } from "src/L2/interfaces/IL2ToL2CrossDomai
 import { ERC1967Proxy } from "@openzeppelin/contracts-v5/proxy/ERC1967/ERC1967Proxy.sol";
 import { Initializable } from "@openzeppelin/contracts-v5/proxy/utils/Initializable.sol";
 import { IERC165 } from "@openzeppelin/contracts-v5/utils/introspection/IERC165.sol";
+import { IBeacon } from "@openzeppelin/contracts-v5/proxy/beacon/IBeacon.sol";
+import { BeaconProxy } from "@openzeppelin/contracts-v5/proxy/beacon/BeaconProxy.sol";
 
 // Target contract
 import {
@@ -40,7 +43,30 @@ contract OptimismSuperchainERC20Test is Test {
     /// @notice Sets up the test suite.
     function setUp() public {
         superchainERC20Impl = new OptimismSuperchainERC20();
+
+        // Deploy the OptimismSuperchainERC20Beacon contract
+        _deployBeacon();
+
         superchainERC20 = _deploySuperchainERC20Proxy(REMOTE_TOKEN, NAME, SYMBOL, DECIMALS);
+    }
+
+    /// @notice Deploy the OptimismSuperchainERC20Beacon predeploy contract
+    function _deployBeacon() internal {
+        // Deploy the OptimismSuperchainERC20Beacon implementation
+        address _addr = Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON;
+        address _impl = Predeploys.predeployToCodeNamespace(_addr);
+        vm.etch(_impl, vm.getDeployedCode("OptimismSuperchainERC20Beacon.sol:OptimismSuperchainERC20Beacon"));
+
+        // Deploy the ERC1967Proxy contract at the Predeploy
+        bytes memory code = vm.getDeployedCode("universal/Proxy.sol:Proxy");
+        vm.etch(_addr, code);
+        EIP1967Helper.setAdmin(_addr, Predeploys.PROXY_ADMIN);
+        EIP1967Helper.setImplementation(_addr, _impl);
+
+        // Mock implementation address
+        vm.mockCall(
+            _impl, abi.encodeWithSelector(IBeacon.implementation.selector), abi.encode(address(superchainERC20Impl))
+        );
     }
 
     /// @notice Helper function to deploy a proxy of the OptimismSuperchainERC20 contract.
@@ -55,9 +81,8 @@ contract OptimismSuperchainERC20Test is Test {
     {
         return OptimismSuperchainERC20(
             address(
-                // TODO: Use the SuperchainERC20 Beacon Proxy
-                new ERC1967Proxy(
-                    address(superchainERC20Impl),
+                new BeaconProxy(
+                    Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON,
                     abi.encodeCall(OptimismSuperchainERC20.initialize, (_remoteToken, _name, _symbol, _decimals))
                 )
             )

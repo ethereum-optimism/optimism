@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/host/flags"
 	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
 	"github.com/ethereum-optimism/optimism/op-program/host/prefetcher"
+	hostSources "github.com/ethereum-optimism/optimism/op-program/host/sources"
 	"github.com/ethereum-optimism/optimism/op-program/host/types"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -205,31 +206,42 @@ func PreimageServer(ctx context.Context, logger log.Logger, cfg *config.Config, 
 }
 
 func makePrefetcher(ctx context.Context, logger log.Logger, kv kvstore.KV, cfg *config.Config) (*prefetcher.Prefetcher, error) {
-	logger.Info("Connecting to L1 node", "l1", cfg.L1URL)
-	l1RPC, err := client.NewRPC(ctx, logger, cfg.L1URL, client.WithDialBackoff(10))
-	if err != nil {
-		return nil, fmt.Errorf("failed to setup L1 RPC: %w", err)
-	}
+	var l1Cl hostSources.L1Source
+	var l1BlobFetcher hostSources.L1BlobSource
+	var l2DebugCl hostSources.L2Source
 
-	logger.Info("Connecting to L2 node", "l2", cfg.L2URL)
-	l2RPC, err := client.NewRPC(ctx, logger, cfg.L2URL, client.WithDialBackoff(10))
-	if err != nil {
-		return nil, fmt.Errorf("failed to setup L2 RPC: %w", err)
-	}
+	if cfg.InProcessSourcesEnabled() {
+		logger.Debug("Using in-process sources for preimage fetching.")
+		l1Cl = cfg.L1ProcessSource
+		l1BlobFetcher = cfg.L1BeaconProcessSource
+		l2DebugCl = cfg.L2ProcessSource
+	} else {
+		logger.Info("Connecting to L1 node", "l1", cfg.L1URL)
+		l1RPC, err := client.NewRPC(ctx, logger, cfg.L1URL, client.WithDialBackoff(10))
+		if err != nil {
+			return nil, fmt.Errorf("failed to setup L1 RPC: %w", err)
+		}
 
-	l1ClCfg := sources.L1ClientDefaultConfig(cfg.Rollup, cfg.L1TrustRPC, cfg.L1RPCKind)
-	l2ClCfg := sources.L2ClientDefaultConfig(cfg.Rollup, true)
-	l1Cl, err := sources.NewL1Client(l1RPC, logger, nil, l1ClCfg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create L1 client: %w", err)
+		logger.Info("Connecting to L2 node", "l2", cfg.L2URL)
+		l2RPC, err := client.NewRPC(ctx, logger, cfg.L2URL, client.WithDialBackoff(10))
+		if err != nil {
+			return nil, fmt.Errorf("failed to setup L2 RPC: %w", err)
+		}
+
+		l1ClCfg := sources.L1ClientDefaultConfig(cfg.Rollup, cfg.L1TrustRPC, cfg.L1RPCKind)
+		l2ClCfg := sources.L2ClientDefaultConfig(cfg.Rollup, true)
+		l1Cl, err = sources.NewL1Client(l1RPC, logger, nil, l1ClCfg)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create L1 client: %w", err)
+		}
+		l1Beacon := sources.NewBeaconHTTPClient(client.NewBasicHTTPClient(cfg.L1BeaconURL, logger))
+		l1BlobFetcher = sources.NewL1BeaconClient(l1Beacon, sources.L1BeaconClientConfig{FetchAllSidecars: false})
+		l2Cl, err := NewL2Client(l2RPC, logger, nil, &L2ClientConfig{L2ClientConfig: l2ClCfg, L2Head: cfg.L2Head})
+		if err != nil {
+			return nil, fmt.Errorf("failed to create L2 client: %w", err)
+		}
+		l2DebugCl = &L2Source{L2Client: l2Cl, DebugClient: sources.NewDebugClient(l2RPC.CallContext)}
 	}
-	l1Beacon := sources.NewBeaconHTTPClient(client.NewBasicHTTPClient(cfg.L1BeaconURL, logger))
-	l1BlobFetcher := sources.NewL1BeaconClient(l1Beacon, sources.L1BeaconClientConfig{FetchAllSidecars: false})
-	l2Cl, err := NewL2Client(l2RPC, logger, nil, &L2ClientConfig{L2ClientConfig: l2ClCfg, L2Head: cfg.L2Head})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create L2 client: %w", err)
-	}
-	l2DebugCl := &L2Source{L2Client: l2Cl, DebugClient: sources.NewDebugClient(l2RPC.CallContext)}
 	return prefetcher.NewPrefetcher(logger, l1Cl, l1BlobFetcher, l2DebugCl, kv), nil
 }
 

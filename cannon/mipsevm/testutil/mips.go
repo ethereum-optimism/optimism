@@ -123,7 +123,7 @@ func EncodePreimageOracleInput(t *testing.T, wit *mipsevm.StepWitness, localCont
 		return input, nil
 	case preimage.PrecompileKeyType:
 		if localOracle == nil {
-			return nil, fmt.Errorf("local oracle is required for precompile preimages")
+			return nil, errors.New("local oracle is required for precompile preimages")
 		}
 		preimage := localOracle.GetPreimage(preimage.Keccak256Key(wit.PreimageKey).PreimageKey())
 		precompile := common.BytesToAddress(preimage[:20])

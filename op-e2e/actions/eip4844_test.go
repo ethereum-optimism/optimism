@@ -17,14 +17,14 @@ import (
 )
 
 func setupEIP4844Test(t Testing, log log.Logger) (*e2eutils.SetupData, *e2eutils.DeployParams, *L1Miner, *L2Sequencer, *L2Engine, *L2Verifier, *L2Engine) {
-	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
 	genesisActivation := hexutil.Uint64(0)
 	dp.DeployConfig.L1CancunTimeOffset = &genesisActivation
 	dp.DeployConfig.L2GenesisCanyonTimeOffset = &genesisActivation
 	dp.DeployConfig.L2GenesisDeltaTimeOffset = &genesisActivation
 	dp.DeployConfig.L2GenesisEcotoneTimeOffset = &genesisActivation
 
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
 	miner.ActL1SetFeeRecipient(common.Address{'A'})
 	sequencer.ActL2PipelineFull(t)

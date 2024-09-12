@@ -1,31 +1,31 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-// Testing utilities
+// Testing
 import { stdStorage, StdStorage } from "forge-std/Test.sol";
-import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
+
+// Contracts
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { StandardBridge } from "src/universal/StandardBridge.sol";
+import { L2StandardBridge } from "src/L2/L2StandardBridge.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Constants } from "src/libraries/Constants.sol";
-
-// Target contract dependencies
-import { StandardBridge } from "src/universal/StandardBridge.sol";
-import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
-import { L2StandardBridge } from "src/L2/L2StandardBridge.sol";
-import { ICrossDomainMessenger } from "src/universal/interfaces/ICrossDomainMessenger.sol";
-import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 
-// Target contract
+// Interfaces
+import { ICrossDomainMessenger } from "src/universal/interfaces/ICrossDomainMessenger.sol";
+import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
 import { IOptimismPortal } from "src/L1/interfaces/IOptimismPortal.sol";
+import { IL1StandardBridge } from "src/L1/interfaces/IL1StandardBridge.sol";
 
 contract L1StandardBridge_Getter_Test is Bridge_Initializer {
     /// @dev Test that the accessors return the correct initialized values.
     function test_getters_succeeds() external view {
         assert(l1StandardBridge.l2TokenBridge() == address(l2StandardBridge));
-        assert(l1StandardBridge.OTHER_BRIDGE() == l2StandardBridge);
+        assert(address(l1StandardBridge.OTHER_BRIDGE()) == address(l2StandardBridge));
         assert(address(l1StandardBridge.messenger()) == address(l1CrossDomainMessenger));
         assert(address(l1StandardBridge.MESSENGER()) == address(l1CrossDomainMessenger));
         assert(l1StandardBridge.superchainConfig() == superchainConfig);
@@ -38,7 +38,7 @@ contract L1StandardBridge_Initialize_Test is Bridge_Initializer {
     /// @notice Marked virtual to be overridden in
     ///         test/kontrol/deployment/DeploymentSummary.t.sol
     function test_constructor_succeeds() external virtual {
-        L1StandardBridge impl = L1StandardBridge(deploy.mustGetAddress("L1StandardBridge"));
+        IL1StandardBridge impl = IL1StandardBridge(deploy.mustGetAddress("L1StandardBridge"));
         assertEq(address(impl.superchainConfig()), address(0));
         assertEq(address(impl.MESSENGER()), address(0));
         assertEq(address(impl.messenger()), address(0));
