@@ -351,7 +351,8 @@ func testSendVariants(t *testing.T, testFn func(t *testing.T, send testSendVaria
 
 	t.Run("SendAsync", func(t *testing.T) {
 		testFn(t, func(ctx context.Context, h *testHarness, tx TxCandidate) (*types.Receipt, error) {
-			ch := make(chan SendResponse, 1)
+			// unbuffered is ok, will be written to from a goroutine spawned inside SendAsync
+			ch := make(chan SendResponse)
 			h.mgr.SendAsync(ctx, tx, ch)
 			res := <-ch
 			return res.Receipt, res.Err
@@ -1587,13 +1588,4 @@ func TestMakeSidecar(t *testing.T) {
 		require.NoError(t, eth.VerifyBlobProof((*eth.Blob)(&sidecar.Blobs[i]), commit, sidecar.Proofs[i]), "proof must be valid")
 		require.Equal(t, hashes[i], eth.KZGToVersionedHash(commit))
 	}
-}
-
-func TestSendAsyncUnbufferedChan(t *testing.T) {
-	conf := configWithNumConfs(2)
-	h := newTestHarnessWithConfig(t, conf)
-
-	require.Panics(t, func() {
-		h.mgr.SendAsync(context.Background(), TxCandidate{}, make(chan SendResponse))
-	})
 }
