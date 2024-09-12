@@ -368,7 +368,7 @@ contract DeployOPChain_TestBase is Test {
         // Deploy the superchain contracts.
         deploySuperchain.run(dsi, dso);
 
-        // Populate the input struct for DeployImplementations based on the output of DeploySuperchain.
+        // Populate the inputs for DeployImplementations based on the output of DeploySuperchain.
         superchainConfigProxy = dso.superchainConfigProxy();
         protocolVersionsProxy = dso.protocolVersionsProxy();
 
