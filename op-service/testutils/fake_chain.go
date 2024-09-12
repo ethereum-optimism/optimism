@@ -16,7 +16,7 @@ import (
 
 func FakeGenesis(l1 rune, l2 rune, l1GenesisNumber uint64) rollup.Genesis {
 	return rollup.Genesis{
-		L1: fakeID(l1, uint64(l1GenesisNumber)),
+		L1: fakeID(l1, l1GenesisNumber),
 		L2: fakeID(l2, 0),
 	}
 }
