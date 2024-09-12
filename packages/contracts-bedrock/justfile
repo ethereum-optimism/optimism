@@ -111,8 +111,11 @@ validate-spacers-no-build:
 
 validate-spacers: build validate-spacers-no-build
 
+# Cleans build artifacts and deployments.
+# Removes everything inside of .testdata (except the .gitkeep file).
 clean:
-  rm -rf ./artifacts ./forge-artifacts ./cache ./scripts/go-ffi/go-ffi ./.testdata ./deployments/hardhat/*
+  rm -rf ./artifacts ./forge-artifacts ./cache ./scripts/go-ffi/go-ffi ./deployments/hardhat/*
+  find ./.testdata -mindepth 1 -not -name '.gitkeep' -delete
 
 pre-pr-no-build: gas-snapshot-no-build snapshots-no-build semver-lock autogen-invariant-docs lint
 
