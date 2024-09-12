@@ -37,6 +37,7 @@ EXCLUDE_CONTRACTS=(
     "IMulticall3"
     "IERC721TokenReceiver"
     "IProxyCreationCallback"
+    "IBeacon"
 
     # EAS
     "IEAS"
