@@ -9,7 +9,7 @@ import "test/safe-tools/SafeTestTools.sol";
 import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
 import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
 import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
-import { DeputyGuardianModule } from "src/Safe/DeputyGuardianModule.sol";
+import { DeputyGuardianModule } from "src/safe/DeputyGuardianModule.sol";
 
 import "src/dispute/lib/Types.sol";
 

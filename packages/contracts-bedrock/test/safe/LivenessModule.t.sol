@@ -7,8 +7,8 @@ import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
 import "test/safe-tools/SafeTestTools.sol";
 
-import { LivenessModule } from "src/Safe/LivenessModule.sol";
-import { LivenessGuard } from "src/Safe/LivenessGuard.sol";
+import { LivenessModule } from "src/safe/LivenessModule.sol";
+import { LivenessGuard } from "src/safe/LivenessGuard.sol";
 
 contract LivenessModule_TestInit is Test, SafeTestTools {
     using SafeTestLib for SafeInstance;
