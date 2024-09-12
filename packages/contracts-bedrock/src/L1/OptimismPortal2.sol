@@ -106,7 +106,13 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     /// @notice The timestamp at which the respected game type was last updated.
     uint64 public respectedGameTypeUpdatedAt;
 
-    /// @notice Mapping of withdrawal hashes to addresses that have submitted a proof for the withdrawal.
+    /// @notice Mapping of withdrawal hashes to addresses that have submitted a proof for the
+    ///         withdrawal. Original OptimismPortal contract only allowed one proof to be submitted
+    ///         for any given withdrawal hash. Fault Proofs version of this contract must allow
+    ///         multiple proofs for the same withdrawal hash to prevent a malicious user from
+    ///         blocking other withdrawals by proving them against invalid proposals. Submitters
+    ///         are tracked in an array to simplify the off-chain process of determining which
+    ///         proof submission should be used when finalizing a withdrawal.
     mapping(bytes32 => address[]) public proofSubmitters;
 
     /// @notice Represents the amount of native asset minted in L2. This may not
@@ -158,9 +164,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 3.11.0-beta.3
+    /// @custom:semver 3.11.0-beta.4
     function version() public pure virtual returns (string memory) {
-        return "3.11.0-beta.3";
+        return "3.11.0-beta.4";
     }
 
     /// @notice Constructs the OptimismPortal contract.
