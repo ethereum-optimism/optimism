@@ -135,6 +135,10 @@ func (e *engineApiBackend) Genesis() *core.Genesis {
 	return e.genesis
 }
 
+func (s *L2Engine) L2Chain() *core.BlockChain {
+	return s.l2Chain
+}
+
 func (s *L2Engine) Enode() *enode.Node {
 	return s.node.Server().LocalNode().Node()
 }

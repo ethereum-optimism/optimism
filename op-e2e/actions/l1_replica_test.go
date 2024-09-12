@@ -21,20 +21,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
-var defaultRollupTestParams = &e2eutils.TestParams{
-	MaxSequencerDrift:   40,
-	SequencerWindowSize: 120,
-	ChannelTimeout:      120,
-	L1BlockTime:         15,
-}
-
-var defaultAlloc = &e2eutils.AllocParams{PrefundTestUsers: true}
-
 // Test if we can mock an RPC failure
 func TestL1Replica_ActL1RPCFail(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 	replica := NewL1Replica(t, log, sd.L1Cfg)
 	t.Cleanup(func() {
@@ -55,9 +46,9 @@ func TestL1Replica_ActL1RPCFail(gt *testing.T) {
 // Test if we can make the replica sync an artificial L1 chain, rewind it, and reorg it
 func TestL1Replica_ActL1Sync(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
 	dp.DeployConfig.L1CancunTimeOffset = nil
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 	genesisBlock := sd.L1Cfg.ToBlock()
 	consensus := beacon.New(ethash.NewFaker())
