@@ -139,18 +139,6 @@
     "initCodeHash": "0x789916977b4930eb266f2187a100bc432c12b76e3872931be673a7ef2773507a",
     "sourceCodeHash": "0x3f7bd622a788b8d00fe1631b14b761488eedccf56879f7ea2d610dd5ce81efbe"
   },
-  "src/Safe/DeputyGuardianModule.sol": {
-    "initCodeHash": "0x785cb529957f4d42d1659f2c37967dce7c621f3c6e06550600897205c2551a88",
-    "sourceCodeHash": "0xc8df2c0ae90cff18ddd4d2b8e2d44689e3c4c98e96c746c4ee9baaebf6a80ec4"
-  },
-  "src/Safe/LivenessGuard.sol": {
-    "initCodeHash": "0xfd74ff89e7b689b38ab97515d64429ffaf6c0cd1ea6488c6a4743a0665419c85",
-    "sourceCodeHash": "0xcfeadabe8da944fb64d85c9c971ee364baddcc6aa5b5a0701049669ce372cd90"
-  },
-  "src/Safe/LivenessModule.sol": {
-    "initCodeHash": "0xcfccdd9e423c95a0ddc6e09ccb6333d5fc8429ed2b8fc872f1290d392ae13aad",
-    "sourceCodeHash": "0x255a3f78036745feb57da2e16a93a83fe3f52944fec42029da9b9eaa147db11c"
-  },
   "src/cannon/MIPS.sol": {
     "initCodeHash": "0x6add59adb849ec02e13b33df7efd439ca80f6a8ceefdf69ebcb0963c0167da23",
     "sourceCodeHash": "0xee1aef5a502f9491b7b83dab46ea2f0fc286f87ace31edcc1367c840d462bdfe"
@@ -206,6 +194,18 @@
   "src/periphery/op-nft/OptimistInviter.sol": {
     "initCodeHash": "0x28dfa6676702a7abd19609cc773158d1f958210bc0a38c008d67a002dc1df862",
     "sourceCodeHash": "0x3a0a294932d6deba043f6a2b46b4e8477ee96e7fb054d7e7229a43ce4352c68d"
+  },
+  "src/safe/DeputyGuardianModule.sol": {
+    "initCodeHash": "0x785cb529957f4d42d1659f2c37967dce7c621f3c6e06550600897205c2551a88",
+    "sourceCodeHash": "0xc8df2c0ae90cff18ddd4d2b8e2d44689e3c4c98e96c746c4ee9baaebf6a80ec4"
+  },
+  "src/safe/LivenessGuard.sol": {
+    "initCodeHash": "0xfd74ff89e7b689b38ab97515d64429ffaf6c0cd1ea6488c6a4743a0665419c85",
+    "sourceCodeHash": "0xa40ea6472d9c7e124791489c0899822d6f6b19b16e583d3b437674c615e4bac3"
+  },
+  "src/safe/LivenessModule.sol": {
+    "initCodeHash": "0xcfccdd9e423c95a0ddc6e09ccb6333d5fc8429ed2b8fc872f1290d392ae13aad",
+    "sourceCodeHash": "0xd1479c60087f352385b6d5379ef3cc07839f671d617626b4c94ece91da781ef2"
   },
   "src/universal/OptimismMintableERC20.sol": {
     "initCodeHash": "0xfc77e4db406c232d8b84a3f77b939fb08fa27852faa5f4b0d78d998402caf308",

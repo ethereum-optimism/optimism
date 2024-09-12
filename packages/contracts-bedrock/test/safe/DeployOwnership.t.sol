@@ -15,9 +15,9 @@ import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
 import { GuardManager } from "safe-contracts/base/GuardManager.sol";
 
-import { LivenessGuard } from "src/Safe/LivenessGuard.sol";
-import { LivenessModule } from "src/Safe/LivenessModule.sol";
-import { DeputyGuardianModule } from "src/Safe/DeputyGuardianModule.sol";
+import { LivenessGuard } from "src/safe/LivenessGuard.sol";
+import { LivenessModule } from "src/safe/LivenessModule.sol";
+import { DeputyGuardianModule } from "src/safe/DeputyGuardianModule.sol";
 
 contract DeployOwnershipTest is Test, DeployOwnership {
     address internal constant SENTINEL_MODULES = address(0x1);

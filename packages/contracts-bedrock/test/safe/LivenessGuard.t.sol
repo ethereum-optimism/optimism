@@ -10,7 +10,7 @@ import { Enum } from "safe-contracts/common/Enum.sol";
 import "test/safe-tools/SafeTestTools.sol";
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
-import { LivenessGuard } from "src/Safe/LivenessGuard.sol";
+import { LivenessGuard } from "src/safe/LivenessGuard.sol";
 
 /// @dev A wrapper contract exposing the length of the ownersBefore set in the LivenessGuard.
 contract WrappedGuard is LivenessGuard {
@@ -235,7 +235,16 @@ contract LivenessGuard_FuzzOwnerManagement_Test is StdCheats, StdUtils, Liveness
     )
         external
     {
-        vm.assume(changes.length < 20);
+        // Cut down the changes array to a maximum of 20.
+        // We don't use vm.assume to avoid throwing out too many inputs.
+        OwnerChange[] memory boundedChanges = new OwnerChange[](bound(changes.length, 0, 20));
+        for (uint256 i; i < boundedChanges.length; i++) {
+            boundedChanges[i] = changes[i];
+        }
+
+        // Update the original array.
+        changes = boundedChanges;
+
         // Initialize the safe with more owners than changes, to ensure we don't try to remove them all
         initialOwners = bound(initialOwners, changes.length, 2 * changes.length);
 
