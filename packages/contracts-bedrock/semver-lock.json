@@ -119,6 +119,14 @@
     "initCodeHash": "0xdd16dbc0ccbbac53ec2d4273f06334960a907a9f20b7c40300833227ee31d0de",
     "sourceCodeHash": "0x910d43a17800df64dbc104f69ef1f900ca761cec4949c01d1c1126fde5268349"
   },
+  "src/L2/OptimismSuperchainERC20Beacon.sol": {
+    "initCodeHash": "0x99ce8095b23c124850d866cbc144fee6cee05dbc6bb5d83acadfe00b90cf42c7",
+    "sourceCodeHash": "0x5e58b7c867fafa49fe39d68d83875425e9cf94f05f2835bdcdaa08fc8bc6b68e"
+  },
+  "src/L2/OptimismSuperchainERC20Factory.sol": {
+    "initCodeHash": "0x98011045722178751e4a1112892f7d9a11bc1f5e42ac18205b6d30a1f1476d24",
+    "sourceCodeHash": "0x9e72b2a77d82fcf3963734232ba9faff9d63962594a032041c2561f0a9f1b0b5"
+  },
   "src/L2/SequencerFeeVault.sol": {
     "initCodeHash": "0x2e6551705e493bacba8cffe22e564d5c401ae5bb02577a5424e0d32784e13e74",
     "sourceCodeHash": "0xd56922cb04597dea469c65e5a49d4b3c50c171e603601e6f41da9517cae0b11a"

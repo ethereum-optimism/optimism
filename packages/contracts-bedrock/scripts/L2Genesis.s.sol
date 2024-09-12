@@ -22,6 +22,7 @@ import { L2ERC721Bridge } from "src/L2/L2ERC721Bridge.sol";
 import { SequencerFeeVault } from "src/L2/SequencerFeeVault.sol";
 import { BaseFeeVault } from "src/L2/BaseFeeVault.sol";
 import { L1FeeVault } from "src/L2/L1FeeVault.sol";
+import { OptimismSuperchainERC20Beacon } from "src/L2/OptimismSuperchainERC20Beacon.sol";
 import { OptimismMintableERC721Factory } from "src/universal/OptimismMintableERC721Factory.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { StandardBridge } from "src/universal/StandardBridge.sol";
@@ -262,6 +263,8 @@ contract L2Genesis is Deployer {
             setL2ToL2CrossDomainMessenger(); // 23
             setSuperchainWETH(); // 24
             setETHLiquidity(); // 25
+            setOptimismSuperchainERC20Factory(); // 26
+            setOptimismSuperchainERC20Beacon(); // 27
         }
     }
 
@@ -511,6 +514,29 @@ contract L2Genesis is Deployer {
     ///         This contract has no initializer.
     function setSuperchainWETH() internal {
         _setImplementationCode(Predeploys.SUPERCHAIN_WETH);
+    }
+
+    /// @notice This predeploy is following the safety invariant #1.
+    ///         This contract has no initializer.
+    function setOptimismSuperchainERC20Factory() internal {
+        _setImplementationCode(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY);
+    }
+
+    /// @notice This predeploy is following the safety invariant #2.
+    function setOptimismSuperchainERC20Beacon() internal {
+        address superchainERC20Impl = Predeploys.OPTIMISM_SUPERCHAIN_ERC20;
+        console.log("Setting %s implementation at: %s", "OptimismSuperchainERC20", superchainERC20Impl);
+        vm.etch(superchainERC20Impl, vm.getDeployedCode("OptimismSuperchainERC20.sol:OptimismSuperchainERC20"));
+
+        OptimismSuperchainERC20Beacon beacon = new OptimismSuperchainERC20Beacon(superchainERC20Impl);
+        address beaconImpl = Predeploys.predeployToCodeNamespace(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON);
+
+        console.log("Setting %s implementation at: %s", "OptimismSuperchainERC20Beacon", beaconImpl);
+        vm.etch(beaconImpl, address(beacon).code);
+
+        /// Reset so its not included state dump
+        vm.etch(address(beacon), "");
+        vm.resetNonce(address(beacon));
     }
 
     /// @notice Sets all the preinstalls.
