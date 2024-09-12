@@ -1558,8 +1558,8 @@ workflows:
       - contracts-bedrock-build:
           name: contracts-bedrock-build
           build_command: |
-            forge build --skip test --skip scripts
-            forge build ./scripts/deploy/Deploy.s.sol
+            # Note: scripts are included, to be available to op-e2e
+            forge build --skip test
       - contracts-bedrock-tests:
           # Test everything except PreimageOracle.t.sol since it's slow.
           name: contracts-bedrock-tests
