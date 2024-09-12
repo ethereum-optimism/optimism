@@ -251,5 +251,6 @@ func UseAltDA() bool {
 }
 
 func UseMTCannon() bool {
-	return os.Getenv("USE_MT_CANNON") == "true"
+	return (os.Getenv("OP_E2E_USE_MT_CANNON") == "true" ||
+		os.Getenv("USE_MT_CANNON") == "true")
 }

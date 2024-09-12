@@ -237,6 +237,12 @@ jobs:
           name: Copy AltDA allocs to .devnet-altda
           command: cp -r .devnet/ .devnet-altda-generic/
       - run:
+          name: Generate MT-Cannon allocs
+          command: USE_MT_CANNON="true" make devnet-allocs
+      - run:
+          name: Copy MT-Cannon allocs to .devnet-mt-cannon
+          command: cp -r .devnet/ .devnet-mt-cannon/
+      - run:
           name: Generate default allocs
           command: make devnet-allocs
       - save_cache:
@@ -279,6 +285,12 @@ jobs:
             - ".devnet-altda-generic/allocs-l2-ecotone.json"
             - ".devnet-altda-generic/allocs-l2-fjord.json"
             - ".devnet-altda-generic/allocs-l2-granite.json"
+            - ".devnet-mt-cannon/allocs-l1.json"
+            - ".devnet-mt-cannon/addresses.json"
+            - ".devnet-mt-cannon/allocs-l2-delta.json"
+            - ".devnet-mt-cannon/allocs-l2-ecotone.json"
+            - ".devnet-mt-cannon/allocs-l2-fjord.json"
+            - ".devnet-mt-cannon/allocs-l2-granite.json"
             - "packages/contracts-bedrock/deploy-config/devnetL1.json"
             - "packages/contracts-bedrock/deployments/devnetL1"
       - notify-failures-on-develop
@@ -924,6 +936,13 @@ jobs:
             - run:
                 name: Set OP_E2E_USE_ALTDA = true
                 command: echo 'export OP_E2E_USE_ALTDA=true' >> $BASH_ENV
+      - when:
+          condition:
+            equal: ['-mt-cannon', <<parameters.variant>>]
+          steps:
+            - run:
+                name: Set OP_E2E_USE_MT_CANNON = true
+                command: echo 'export OP_E2E_USE_MT_CANNON=true' >> $BASH_ENV
       - check-changed:
           patterns: op-(.+),cannon,contracts-bedrock
       - run:
@@ -2083,7 +2102,12 @@ workflows:
             - go-mod-download
       - contracts-bedrock-build
       - go-e2e-test:
-          name: op-e2e-cannon-tests
+          name: op-e2e-cannon-tests<< matrix.variant >>
+          matrix:
+            parameters:
+              variant: [""]
+              # TODO: add mt-cannon to matrix once it's stable
+              #variant: ["", "-mt-cannon"]
           module: op-e2e
           target: test-cannon
           parallelism: 4
