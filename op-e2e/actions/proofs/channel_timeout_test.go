@@ -5,6 +5,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-e2e/actions"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-program/client/claim"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
@@ -132,7 +133,7 @@ func Test_ProgramAction_ChannelTimeout_JunkClaim_Granite(gt *testing.T) {
 	runChannelTimeoutTest(
 		gt,
 		func(gt *testing.T, err error) {
-			require.Error(gt, err, "fault proof program should have failed")
+			require.ErrorIs(gt, err, claim.ErrClaimNotValid, "fault proof program should have failed")
 		},
 		func(f *FixtureInputs) {
 			f.L2Claim = common.HexToHash("0xdeadbeef")
