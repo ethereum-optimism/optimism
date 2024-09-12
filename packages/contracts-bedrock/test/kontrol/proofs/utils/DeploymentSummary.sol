@@ -27,11 +27,11 @@ contract DeploymentSummary is DeploymentSummaryCode {
     address internal constant l1StandardBridgeProxyAddress = 0x20A42a5a785622c6Ba2576B2D6e924aA82BFA11D;
     address internal constant l2OutputOracleAddress = 0x60d37db59d0D14f7EA5c7425A2C03244E08B162D;
     address internal constant l2OutputOracleProxyAddress = 0x39Af23E00F1e662025aA01b0cEdA19542B78DF99;
-    address internal constant mipsAddress = 0x46cce16e68c41f7EBdf485EF825AB3b46143F738;
+    address internal constant mipsAddress = 0x180CBe2EBb9F37D3a3C542DDc2546Fd160555a73;
     address internal constant optimismMintableERC20FactoryAddress = 0x79c3114E5f89266e2C8842871Bce16D4e5076b1e;
     address internal constant optimismMintableERC20FactoryProxyAddress = 0xc7B87b2b892EA5C3CfF47168881FE168C00377FB;
-    address internal constant optimismPortalAddress = 0xBE8eE5CEA97De55Ae8b020E778A5C93C2Af81Ed4;
-    address internal constant optimismPortal2Address = 0x5506077419b90A12C048500e2eBcafb4fC6Bab61;
+    address internal constant optimismPortalAddress = 0xb5A42f01EF5068F82C11fa1c4F9bBD4c8D346961;
+    address internal constant optimismPortal2Address = 0x150581358018524994Fc29800b1783637943b103;
     address internal constant optimismPortalProxyAddress = 0x1c23A6d89F95ef3148BCDA8E242cAb145bf9c0E4;
     address internal constant permissionedDelayedWETHProxyAddress = 0xd6EAF4c146261653EE059077B78ED088Add54309;
     address internal constant preimageOracleAddress = 0x7A9Eab4CE99d157AeE7A02E95b366E972a2D5b0b;
@@ -430,7 +430,7 @@ contract DeploymentSummary is DeploymentSummaryCode {
         value = hex"0000000000000000000000000000000000000000000000000000000000000003";
         vm.store(systemOwnerSafeAddress, slot, value);
         slot = hex"360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc";
-        value = hex"000000000000000000000000be8ee5cea97de55ae8b020e778a5c93c2af81ed4";
+        value = hex"000000000000000000000000b5a42f01ef5068f82c11fa1c4f9bbd4c8d346961";
         vm.store(optimismPortalProxyAddress, slot, value);
         slot = hex"0000000000000000000000000000000000000000000000000000000000000000";
         value = hex"0000000000000000000000000000000000000000000000000000000000000001";

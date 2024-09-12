@@ -41,6 +41,8 @@ library MIPSSyscalls {
     uint32 internal constant SYS_FUTEX = 4238;
     uint32 internal constant SYS_OPEN = 4005;
     uint32 internal constant SYS_NANOSLEEP = 4166;
+    uint32 internal constant SYS_CLOCKGETTIME = 4263;
+    uint32 internal constant SYS_GETPID = 4020;
     // unused syscalls
     uint32 internal constant SYS_MUNMAP = 4091;
     uint32 internal constant SYS_GETAFFINITY = 4240;
@@ -74,7 +76,6 @@ library MIPSSyscalls {
     uint32 internal constant SYS_TIMERCREATE = 4257;
     uint32 internal constant SYS_TIMERSETTIME = 4258;
     uint32 internal constant SYS_TIMERDELETE = 4261;
-    uint32 internal constant SYS_CLOCKGETTIME = 4263;
 
     uint32 internal constant FD_STDIN = 0;
     uint32 internal constant FD_STDOUT = 1;
@@ -97,6 +98,9 @@ library MIPSSyscalls {
     uint32 internal constant FUTEX_EMPTY_ADDR = 0xFF_FF_FF_FF;
 
     uint32 internal constant SCHED_QUANTUM = 100_000;
+    uint32 internal constant HZ = 10_000_000;
+    uint32 internal constant CLOCK_GETTIME_REALTIME_FLAG = 0;
+    uint32 internal constant CLOCK_GETTIME_MONOTONIC_FLAG = 1;
     /// @notice Start of the data segment.
     uint32 internal constant PROGRAM_BREAK = 0x40000000;
     uint32 internal constant HEAP_END = 0x60000000;

@@ -64,5 +64,10 @@
     ],
     "stateMutability": "view",
     "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidMemoryProof",
+    "type": "error"
   }
 ]
