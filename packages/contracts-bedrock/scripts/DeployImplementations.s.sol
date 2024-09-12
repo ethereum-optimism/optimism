@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 import { Script } from "forge-std/Script.sol";
+import "forge-std/console.sol";
 
 import { LibString } from "@solady/utils/LibString.sol";
 
@@ -188,6 +189,7 @@ contract DeployImplementationsOutput {
 
     function opsm() public view returns (OPStackManager) {
         DeployUtils.assertValidContractAddress(address(_opsm));
+        DeployUtils.assertEIP1967ImplementationSet(address(_opsm));
         return _opsm;
     }
 
@@ -299,17 +301,26 @@ contract DeployImplementations is Script {
     )
         internal
         virtual
-        returns (OPStackManager opsm_)
+        returns (OPStackManager opsmProxy_)
     {
         SuperchainConfig superchainConfigProxy = _dii.superchainConfigProxy();
         ProtocolVersions protocolVersionsProxy = _dii.protocolVersionsProxy();
 
+        // In this case, DeployImplementations script needs to deploy a proxy contract and the opsm contract.
+        // To deploy a proxy contract, you need to know the proxy admin.
+        // However, this proxy admin is not deployed until the OPStackManager.
+        // Not using blueprint because we don't have access to l2ChainId.
         vm.broadcast(msg.sender);
-        opsm_ = new OPStackManager({
+        Proxy proxy = new Proxy(msg.sender); // Setting proxy admin to msg.sender because ProxyAdmin is not deployed
+            // yet.
+        OPStackManager opsm = new OPStackManager({
             _superchainConfig: superchainConfigProxy,
             _protocolVersions: protocolVersionsProxy,
             _blueprints: blueprints
         });
+        proxy.upgradeTo(address(opsm));
+        vm.stopBroadcast();
+        opsmProxy_ = OPStackManager(address(proxy));
     }
 
     function deployOPStackManager(DeployImplementationsInput _dii, DeployImplementationsOutput _dio) public virtual {
@@ -329,7 +340,7 @@ contract DeployImplementations is Script {
         vm.stopBroadcast();
         // forgefmt: disable-end
 
-        // This call contains a broadcast to deploy OPSM.
+        // This call contains a broadcast to deploy OPSM which is proxied.
         OPStackManager opsm = createOPSMContract(_dii, _dio, blueprints);
 
         OPStackManager.ImplementationSetter[] memory setters = new OPStackManager.ImplementationSetter[](6);

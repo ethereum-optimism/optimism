@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 import { LibString } from "@solady/utils/LibString.sol";
+import "forge-std/console.sol";
 
 library DeployUtils {
     // This takes a sender and an identifier and returns a deterministic address based on the two.
@@ -16,6 +17,16 @@ library DeployUtils {
     function assertValidContractAddress(address _who) internal view {
         require(_who != address(0), "DeployUtils: zero address");
         require(_who.code.length > 0, string.concat("DeployUtils: no code at ", LibString.toHexStringChecksummed(_who)));
+    }
+
+    function assertEIP1967ImplementationSet(address _proxy) internal view {
+        (bool success, bytes memory result) = _proxy.staticcall(abi.encodeWithSignature("implementation()"));
+        console.logBool(success);
+        require(success, "DeployUtils: EIP1967 implementation check failed");
+        console.log("success is true");
+        console.logBytes(result);
+        address implementation = abi.decode(result, (address));
+        assertValidContractAddress(implementation);
     }
 
     function assertValidContractAddresses(address[] memory _addrs) internal view {
