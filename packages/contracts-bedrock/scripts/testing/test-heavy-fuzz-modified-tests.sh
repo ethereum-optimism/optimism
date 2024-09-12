@@ -51,8 +51,24 @@ fi
 # Initialize an array to hold relevant function names.
 NEW_OR_MODIFIED_TEST_NAMES=""
 
+# these tests are too expensive to run heavily
+IGNORED_FUZZ_TESTS=("MIPS.t.sol" "MIPS2.t.sol")
+
 # Process each changed file.
 for FILE in $CHANGED_FILES; do
+    IGNORED=false
+    for TEST in "${IGNORED_FUZZ_TESTS[@]}"; do
+      FILENAME=$(basename "$FILE")
+      if [[ "$TEST" == "$FILENAME" ]]; then
+        IGNORED=true
+        break
+      fi
+    done
+    if $IGNORED; then
+      echo "skipping $FILE"
+      continue
+    fi
+
     # Get the diff for the file.
     DIFF=$(git diff origin/develop...HEAD --unified=0 -- "$FILE")
 

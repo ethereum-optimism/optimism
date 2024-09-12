@@ -195,30 +195,32 @@ contract MIPS2_Test is CommonTest {
 
     /// @notice Tests that the mips step function fails when the value of the exited field is
     ///         invalid (anything greater than 1).
-    /// @param _exited Value to set the exited field to.
-    function testFuzz_step_invalidExitedValueInState_fails(uint8 _exited) external {
-        // Make sure the value of _exited is invalid.
-        _exited = uint8(bound(uint256(_exited), 2, type(uint8).max));
+    function test_step_invalidExitedValueInState_fails() external {
+        // Bound to invalid exited values.
+        for (uint8 exited = 2; exited <= type(uint8).max && exited != 0;) {
+            // Setup state
+            uint32 insn = encodespec(17, 18, 8, 0x20); // Arbitrary instruction: add t0, s1, s2
+            (MIPS2.State memory state, MIPS2.ThreadState memory thread, bytes memory memProof) =
+                constructMIPSState(0, insn, 0x4, 0);
 
-        // Setup state
-        uint32 insn = encodespec(17, 18, 8, 0x20); // Arbitrary instruction: add t0, s1, s2
-        (MIPS2.State memory state, MIPS2.ThreadState memory thread, bytes memory memProof) =
-            constructMIPSState(0, insn, 0x4, 0);
+            // Set up step data
+            bytes memory encodedThread = encodeThread(thread);
+            bytes memory threadWitness = abi.encodePacked(encodedThread, EMPTY_THREAD_ROOT);
+            bytes memory proofData = bytes.concat(threadWitness, memProof);
+            bytes memory stateData = encodeState(state);
+            assembly {
+                // Manipulate state data
+                // Push offset by an additional 32 bytes (0x20) to account for length prefix
+                mstore8(add(add(stateData, 0x20), 73), exited)
+            }
 
-        // Set up step data
-        bytes memory encodedThread = encodeThread(thread);
-        bytes memory threadWitness = abi.encodePacked(encodedThread, EMPTY_THREAD_ROOT);
-        bytes memory proofData = bytes.concat(threadWitness, memProof);
-        bytes memory stateData = encodeState(state);
-        assembly {
-            // Manipulate state data
-            // Push offset by an additional 32 bytes (0x20) to account for length prefix
-            mstore8(add(add(stateData, 0x20), 73), _exited)
+            // Call the step function and expect a revert.
+            vm.expectRevert(InvalidExitedValue.selector);
+            mips.step(stateData, proofData, 0);
+            unchecked {
+                exited++;
+            }
         }
-
-        // Call the step function and expect a revert.
-        vm.expectRevert(InvalidExitedValue.selector);
-        mips.step(stateData, proofData, 0);
     }
 
     function test_invalidThreadWitness_reverts() public {
