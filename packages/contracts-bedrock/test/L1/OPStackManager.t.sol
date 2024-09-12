@@ -34,6 +34,21 @@ contract OPStackManager_Harness is OPStackManager {
 contract OPStackManager_Deploy_Test is DeployOPChain_TestBase {
     using stdStorage for StdStorage;
 
+    function setUp() public override {
+        DeployOPChain_TestBase.setUp();
+
+        doi.set(doi.opChainProxyAdminOwner.selector, opChainProxyAdminOwner);
+        doi.set(doi.systemConfigOwner.selector, systemConfigOwner);
+        doi.set(doi.batcher.selector, batcher);
+        doi.set(doi.unsafeBlockSigner.selector, unsafeBlockSigner);
+        doi.set(doi.proposer.selector, proposer);
+        doi.set(doi.challenger.selector, challenger);
+        doi.set(doi.basefeeScalar.selector, basefeeScalar);
+        doi.set(doi.blobBaseFeeScalar.selector, blobBaseFeeScalar);
+        doi.set(doi.l2ChainId.selector, l2ChainId);
+        doi.set(doi.opsm.selector, address(opsm));
+    }
+
     // This helper function is used to convert the input struct type defined in DeployOPChain.s.sol
     // to the input struct type defined in OPStackManager.sol.
     function toOPSMDeployInput(DeployOPChainInput _doi) internal view returns (OPStackManager.DeployInput memory) {
@@ -53,23 +68,22 @@ contract OPStackManager_Deploy_Test is DeployOPChain_TestBase {
     }
 
     function test_deploy_l2ChainIdEqualsZero_reverts() public {
-        uint256 slot_ = stdstore.enable_packed_slots().target(address(doi)).sig(doi.l2ChainId.selector).find();
-        vm.store(address(doi), bytes32(slot_), bytes32(0));
-
+        OPStackManager.DeployInput memory deployInput = toOPSMDeployInput(doi);
+        deployInput.l2ChainId = 0;
         vm.expectRevert(OPStackManager.InvalidChainId.selector);
-        doi.opsm().deploy(toOPSMDeployInput(doi));
+        opsm.deploy(deployInput);
     }
 
     function test_deploy_l2ChainIdEqualsCurrentChainId_reverts() public {
-        uint256 slot_ = stdstore.enable_packed_slots().target(address(doi)).sig(doi.l2ChainId.selector).find();
-        vm.store(address(doi), bytes32(slot_), bytes32(block.chainid));
+        OPStackManager.DeployInput memory deployInput = toOPSMDeployInput(doi);
+        deployInput.l2ChainId = block.chainid;
 
         vm.expectRevert(OPStackManager.InvalidChainId.selector);
-        doi.opsm().deploy(toOPSMDeployInput(doi));
+        opsm.deploy(deployInput);
     }
 
     function test_deploy_succeeds() public {
-        doi.opsm().deploy(toOPSMDeployInput(doi));
+        opsm.deploy(toOPSMDeployInput(doi));
     }
 }
 

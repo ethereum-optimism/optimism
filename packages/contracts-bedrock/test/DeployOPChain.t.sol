@@ -348,7 +348,7 @@ contract DeployOPChain_TestBase is Test {
     uint256 l2ChainId = 300;
     OPStackManager opsm = OPStackManager(address(0));
 
-    function setUp() public {
+    function setUp() public virtual {
         // Initialize deploy scripts.
         DeploySuperchain deploySuperchain = new DeploySuperchain();
         (DeploySuperchainInput dsi, DeploySuperchainOutput dso) = deploySuperchain.etchIOContracts();
