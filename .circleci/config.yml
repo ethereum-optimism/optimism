@@ -2103,35 +2103,9 @@ workflows:
       - contracts-bedrock-build
       - go-e2e-test:
           name: op-e2e-cannon-tests
-          module: op-e2e
-          target: test-cannon
-          parallelism: 4
-          notify: true
-          mentions: "@proofs-squad"
-          requires:
-            - contracts-bedrock-build
-            - cannon-prestate
-          context:
-            - slack
-
-  develop-fault-proofs-mt:
-    when:
-      and:
-        - or:
-          - equal: [ "develop", <<pipeline.git.branch>> ]
-          - equal: [ true, <<pipeline.parameters.fault_proofs_dispatch>> ]
-        #- not:
-            #equal: [ scheduled_pipeline, << pipeline.trigger_source >> ]
-    jobs:
-      - go-mod-download
-      - cannon-prestate:
-          requires:
-            - go-mod-download
-      - contracts-bedrock-build
-      - go-e2e-test:
-          name: op-e2e-cannon-tests
           matrix:
             parameters:
+              # TODO: temporarily remove mt-cannon from the mix
               variant: ["", "-mt-cannon"]
           module: op-e2e
           target: test-cannon
