@@ -120,6 +120,11 @@ func (_m *TxManager) Send(ctx context.Context, candidate txmgr.TxCandidate) (*ty
 	return r0, r1
 }
 
+// SendAsync provides a mock function with given fields: ctx, candidate, ch
+func (_m *TxManager) SendAsync(ctx context.Context, candidate txmgr.TxCandidate, ch chan txmgr.SendResponse) {
+	_m.Called(ctx, candidate, ch)
+}
+
 type mockConstructorTestingTNewTxManager interface {
 	mock.TestingT
 	Cleanup(func())
