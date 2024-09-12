@@ -118,7 +118,7 @@ func runChannelTimeoutTest(gt *testing.T, checkResult func(gt *testing.T, err er
 	l2SafeHead = env.engine.L2Chain().CurrentSafeBlock()
 	require.EqualValues(t, NumL2Blocks, l2SafeHead.Number.Uint64())
 
-	// Run the FPP on L2 block # NumL2Blocks/2. The claim is honest, so it should pass.
+	// Run the FPP on L2 block # NumL2Blocks/2.
 	err := env.RunFaultProofProgram(t, gt, NumL2Blocks/2, inputParams...)
 	checkResult(gt, err)
 }
