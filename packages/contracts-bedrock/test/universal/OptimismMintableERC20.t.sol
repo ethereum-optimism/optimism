@@ -46,7 +46,7 @@ contract OptimismMintableERC20_Test is Bridge_Initializer {
         assertEq(L2Token.balanceOf(alice), 100);
     }
 
-    function test_allowance_permit2_max() external {
+    function test_allowance_permit2_max() external view {
         assertEq(L2Token.allowance(alice, L2Token.PERMIT2()), type(uint256).max);
     }
 

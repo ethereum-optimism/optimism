@@ -86,12 +86,12 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "owner",
+        "name": "_owner",
         "type": "address"
       },
       {
         "internalType": "address",
-        "name": "spender",
+        "name": "_spender",
         "type": "address"
       }
     ],

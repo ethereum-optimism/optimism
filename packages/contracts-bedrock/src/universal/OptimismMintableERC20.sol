@@ -6,6 +6,7 @@ import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/draf
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { ILegacyMintableERC20, IOptimismMintableERC20 } from "src/universal/interfaces/IOptimismMintableERC20.sol";
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
+import { Preinstalls } from "src/libraries/Preinstalls.sol";
 
 /// @title OptimismMintableERC20
 /// @notice OptimismMintableERC20 is a standard extension of the base ERC20 token contract designed
@@ -14,9 +15,6 @@ import { ISemver } from "src/universal/interfaces/ISemver.sol";
 ///         Designed to be backwards compatible with the older StandardL2ERC20 token which was only
 ///         meant for use on L2.
 contract OptimismMintableERC20 is IOptimismMintableERC20, ILegacyMintableERC20, ERC20Permit, ISemver {
-    /// @notice Address of permit2 on this network.
-    address public constant PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
-
     /// @notice Address of the corresponding version of this token on the remote chain.
     address public immutable REMOTE_TOKEN;
 
@@ -43,8 +41,16 @@ contract OptimismMintableERC20 is IOptimismMintableERC20, ILegacyMintableERC20, 
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 1.3.1-beta.2
-    string public constant version = "1.3.1-beta.2";
+    /// @custom:semver 1.4.0-beta.1
+    string public constant version = "1.4.0-beta.1";
+
+    /// @notice Getter function for the permit2 address. It deterministically deployed
+    ///         so it will always be at the same address. It is also included as a preinstall,
+    ///         so it exists in the genesis state of chains.
+    /// @return Address of permit2 on this network.
+    function PERMIT2() public pure returns (address) {
+        return Preinstalls.Permit2;
+    }
 
     /// @param _bridge      Address of the L2 standard bridge.
     /// @param _remoteToken Address of the corresponding L1 token.
@@ -65,13 +71,26 @@ contract OptimismMintableERC20 is IOptimismMintableERC20, ILegacyMintableERC20, 
         DECIMALS = _decimals;
     }
 
+    /// @dev Returns the number of decimals used to get its user representation.
+    /// For example, if `decimals` equals `2`, a balance of `505` tokens should
+    /// be displayed to a user as `5.05` (`505 / 10 ** 2`).
+    /// NOTE: This information is only used for _display_ purposes: it in
+    /// no way affects any of the arithmetic of the contract, including
+    /// {IERC20-balanceOf} and {IERC20-transfer}.
+    function decimals() public view override returns (uint8) {
+        return DECIMALS;
+    }
+
     /// @notice Returns the allowance for a spender on the owner's tokens.
     ///         If the spender is the permit2 address, returns the maximum uint256 value.
-    function allowance(address owner, address spender) public view override returns (uint256) {
-        if (spender == PERMIT2) {
+    /// @param _owner   owner of the tokens.
+    /// @param _spender spender of the tokens.
+    /// @return Allowance for the spender.
+    function allowance(address _owner, address _spender) public view override returns (uint256) {
+        if (_spender == PERMIT2()) {
             return type(uint256).max;
         }
-        return super.allowance(owner, spender);
+        return super.allowance(_owner, _spender);
     }
 
     /// @notice Allows the StandardBridge on this network to mint tokens.
@@ -140,15 +159,5 @@ contract OptimismMintableERC20 is IOptimismMintableERC20, ILegacyMintableERC20, 
     /// @notice Legacy getter for BRIDGE.
     function bridge() public view returns (address) {
         return BRIDGE;
-    }
-
-    /// @dev Returns the number of decimals used to get its user representation.
-    /// For example, if `decimals` equals `2`, a balance of `505` tokens should
-    /// be displayed to a user as `5.05` (`505 / 10 ** 2`).
-    /// NOTE: This information is only used for _display_ purposes: it in
-    /// no way affects any of the arithmetic of the contract, including
-    /// {IERC20-balanceOf} and {IERC20-transfer}.
-    function decimals() public view override returns (uint8) {
-        return DECIMALS;
     }
 }
