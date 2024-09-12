@@ -383,7 +383,7 @@ contract DeployOPChain_TestBase is Test {
         dii.set(dii.protocolVersionsProxy.selector, address(protocolVersionsProxy));
         deployImplementations.run(dii, dio);
 
-        // Set the OPStackManager on the input struct for DeployOPChain.
+        // Set the OPStackManager input for DeployOPChain.
         opsm = dio.opsm();
     }
 
