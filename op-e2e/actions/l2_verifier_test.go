@@ -9,48 +9,21 @@ import (
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
-	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/interop"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
-type verifierCfg struct {
-	safeHeadListener safeDB
-	interopBackend   interop.InteropBackend
-}
-
-type VerifierOpt func(opts *verifierCfg)
-
-func WithSafeHeadListener(l safeDB) VerifierOpt {
-	return func(opts *verifierCfg) {
-		opts.safeHeadListener = l
-	}
-}
-
-func WithInteropBackend(b interop.InteropBackend) VerifierOpt {
-	return func(opts *verifierCfg) {
-		opts.interopBackend = b
-	}
-}
-
-func defaultVerifierCfg() *verifierCfg {
-	return &verifierCfg{
-		safeHeadListener: safedb.Disabled,
-	}
-}
-
 func setupVerifier(t Testing, sd *e2eutils.SetupData, log log.Logger,
 	l1F derive.L1Fetcher, blobSrc derive.L1BlobsFetcher, syncCfg *sync.Config, opts ...VerifierOpt) (*L2Engine, *L2Verifier) {
-	cfg := defaultVerifierCfg()
+	cfg := DefaultVerifierCfg()
 	for _, opt := range opts {
 		opt(cfg)
 	}
 	jwtPath := e2eutils.WriteDefaultJWT(t)
 	engine := NewL2Engine(t, log.New("role", "verifier-engine"), sd.L2Cfg, sd.RollupCfg.Genesis.L1, jwtPath, EngineWithP2P())
 	engCl := engine.EngineClient(t, sd.RollupCfg)
-	verifier := NewL2Verifier(t, log.New("role", "verifier"), l1F, blobSrc, altda.Disabled, engCl, sd.RollupCfg, syncCfg, cfg.safeHeadListener, cfg.interopBackend)
+	verifier := NewL2Verifier(t, log.New("role", "verifier"), l1F, blobSrc, altda.Disabled, engCl, sd.RollupCfg, syncCfg, cfg.SafeHeadListener, cfg.InteropBackend)
 	return engine, verifier
 }
 
@@ -70,7 +43,7 @@ func TestL2Verifier_SequenceWindow(gt *testing.T) {
 		L1BlockTime:         15,
 	}
 	dp := e2eutils.MakeDeployParams(t, p)
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 	miner, engine, verifier := setupVerifierOnlyTest(t, sd, log)
 	miner.ActL1SetFeeRecipient(common.Address{'A'})

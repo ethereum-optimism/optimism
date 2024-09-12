@@ -558,6 +558,111 @@ func TestEVM_SysOpen(t *testing.T) {
 	testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), contracts, tracer)
 }
 
+func TestEVM_SysGetPID(t *testing.T) {
+	var tracer *tracing.Hooks
+	goVm, state, contracts := setup(t, 1929)
+
+	state.Memory.SetMemory(state.GetPC(), syscallInsn)
+	state.GetRegistersRef()[2] = exec.SysGetpid // Set syscall number
+	step := state.Step
+
+	// Set up post-state expectations
+	expected := mttestutil.NewExpectedMTState(state)
+	expected.ExpectStep()
+	expected.ActiveThread().Registers[2] = 0
+	expected.ActiveThread().Registers[7] = 0
+
+	// State transition
+	var err error
+	var stepWitness *mipsevm.StepWitness
+	stepWitness, err = goVm.Step(true)
+	require.NoError(t, err)
+
+	// Validate post-state
+	expected.Validate(t, state)
+	testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), contracts, tracer)
+}
+
+func TestEVM_SysClockGettimeMonotonic(t *testing.T) {
+	testEVM_SysClockGettime(t, exec.ClockGettimeMonotonicFlag)
+}
+
+func TestEVM_SysClockGettimeRealtime(t *testing.T) {
+	testEVM_SysClockGettime(t, exec.ClockGettimeRealtimeFlag)
+}
+
+func testEVM_SysClockGettime(t *testing.T, clkid uint32) {
+	var tracer *tracing.Hooks
+
+	cases := []struct {
+		name         string
+		timespecAddr uint32
+	}{
+		{"aligned timespec address", 0x1000},
+		{"unaligned timespec address", 0x1003},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			goVm, state, contracts := setup(t, 2101)
+
+			state.Memory.SetMemory(state.GetPC(), syscallInsn)
+			state.GetRegistersRef()[2] = exec.SysClockGetTime // Set syscall number
+			state.GetRegistersRef()[4] = clkid                // a0
+			state.GetRegistersRef()[5] = c.timespecAddr       // a1
+			step := state.Step
+
+			expected := mttestutil.NewExpectedMTState(state)
+			expected.ExpectStep()
+			expected.ActiveThread().Registers[2] = 0
+			expected.ActiveThread().Registers[7] = 0
+			next := state.Step + 1
+			var secs, nsecs uint32
+			if clkid == exec.ClockGettimeMonotonicFlag {
+				secs = uint32(next / exec.HZ)
+				nsecs = uint32((next % exec.HZ) * (1_000_000_000 / exec.HZ))
+			}
+			effAddr := c.timespecAddr & 0xFFffFFfc
+			expected.ExpectMemoryWrite(effAddr, secs)
+			expected.ExpectMemoryWrite(effAddr+4, nsecs)
+
+			var err error
+			var stepWitness *mipsevm.StepWitness
+			stepWitness, err = goVm.Step(true)
+			require.NoError(t, err)
+
+			// Validate post-state
+			expected.Validate(t, state)
+			testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), contracts, tracer)
+		})
+	}
+}
+
+func TestEVM_SysClockGettimeNonMonotonic(t *testing.T) {
+	var tracer *tracing.Hooks
+	goVm, state, contracts := setup(t, 2101)
+
+	timespecAddr := uint32(0x1000)
+	state.Memory.SetMemory(state.GetPC(), syscallInsn)
+	state.GetRegistersRef()[2] = exec.SysClockGetTime // Set syscall number
+	state.GetRegistersRef()[4] = 0xDEAD               // a0 - invalid clockid
+	state.GetRegistersRef()[5] = timespecAddr         // a1
+	step := state.Step
+
+	expected := mttestutil.NewExpectedMTState(state)
+	expected.ExpectStep()
+	expected.ActiveThread().Registers[2] = exec.SysErrorSignal
+	expected.ActiveThread().Registers[7] = exec.MipsEINVAL
+
+	var err error
+	var stepWitness *mipsevm.StepWitness
+	stepWitness, err = goVm.Step(true)
+	require.NoError(t, err)
+
+	// Validate post-state
+	expected.Validate(t, state)
+	testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), contracts, tracer)
+}
+
 var NoopSyscalls = map[string]uint32{
 	"SysGetAffinity":   4240,
 	"SysMadvise":       4218,
@@ -589,7 +694,6 @@ var NoopSyscalls = map[string]uint32{
 	"SysTimerCreate":   4257,
 	"SysTimerSetTime":  4258,
 	"SysTimerDelete":   4261,
-	"SysClockGetTime":  4263,
 }
 
 func TestEVM_NoopSyscall(t *testing.T) {
@@ -627,7 +731,7 @@ func TestEVM_UnsupportedSyscall(t *testing.T) {
 	var tracer *tracing.Hooks
 
 	var NoopSyscallNums = maps.Values(NoopSyscalls)
-	var SupportedSyscalls = []uint32{exec.SysMmap, exec.SysBrk, exec.SysClone, exec.SysExitGroup, exec.SysRead, exec.SysWrite, exec.SysFcntl, exec.SysExit, exec.SysSchedYield, exec.SysGetTID, exec.SysFutex, exec.SysOpen, exec.SysNanosleep}
+	var SupportedSyscalls = []uint32{exec.SysMmap, exec.SysBrk, exec.SysClone, exec.SysExitGroup, exec.SysRead, exec.SysWrite, exec.SysFcntl, exec.SysExit, exec.SysSchedYield, exec.SysGetTID, exec.SysFutex, exec.SysOpen, exec.SysNanosleep, exec.SysClockGetTime, exec.SysGetpid}
 	unsupportedSyscalls := make([]uint32, 0, 400)
 	for i := 4000; i < 4400; i++ {
 		candidate := uint32(i)

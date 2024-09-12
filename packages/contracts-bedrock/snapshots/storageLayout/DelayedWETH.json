@@ -60,6 +60,6 @@
     "label": "config",
     "offset": 0,
     "slot": "104",
-    "type": "contract SuperchainConfig"
+    "type": "contract ISuperchainConfig"
   }
 ]

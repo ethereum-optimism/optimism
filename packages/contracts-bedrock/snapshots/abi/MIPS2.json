@@ -56,5 +56,15 @@
     "inputs": [],
     "name": "InvalidExitedValue",
     "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidMemoryProof",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidSecondMemoryProof",
+    "type": "error"
   }
 ]

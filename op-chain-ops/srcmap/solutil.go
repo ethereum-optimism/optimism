@@ -239,8 +239,15 @@ func (s *SourceMapTracer) info(codeAddr common.Address, pc uint64) string {
 func (s *SourceMapTracer) OnOpCode(pc uint64, opcode byte, gas, cost uint64, scope tracing.OpContext, rData []byte, depth int, err error) {
 	op := vm.OpCode(opcode)
 	if op.IsPush() {
-		start := uint64(op) - uint64(vm.PUSH1) + 1
-		val := scope.StackData()[:start]
+		var val []byte
+		sc, ok := scope.(*vm.ScopeContext)
+		if ok {
+			start := pc + 1
+			end := uint64(op) - uint64(vm.PUSH1) + 1
+			val = sc.Contract.Code[start : start+end]
+		} else {
+			val = []byte("N/A")
+		}
 		fmt.Fprintf(s.out, "%-40s : pc %x opcode %s (%x)\n", s.info(scope.Address(), pc), pc, op.String(), val)
 		return
 	}

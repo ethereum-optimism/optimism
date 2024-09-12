@@ -328,6 +328,20 @@ func (m *Memory) Deserialize(in io.Reader) error {
 	return nil
 }
 
+func (m *Memory) Copy() *Memory {
+	out := NewMemory()
+	out.nodes = make(map[uint64]*[32]byte)
+	out.pages = make(map[uint32]*CachedPage)
+	out.lastPageKeys = [2]uint32{^uint32(0), ^uint32(0)}
+	out.lastPage = [2]*CachedPage{nil, nil}
+	for k, page := range m.pages {
+		data := new(Page)
+		*data = *page.Data
+		out.AllocPage(k).Data = data
+	}
+	return out
+}
+
 type memReader struct {
 	m     *Memory
 	addr  uint32

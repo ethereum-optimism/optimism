@@ -1,15 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Constants } from "src/libraries/Constants.sol";
-import { OptimismPortalInterop as OptimismPortal } from "src/L1/OptimismPortalInterop.sol";
-import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
+// Contracts
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { IOptimismPortalInterop as IOptimismPortal } from "src/L1/interfaces/IOptimismPortalInterop.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { ConfigType } from "src/L2/L1BlockIsthmus.sol";
+
+// Libraries
+import { Constants } from "src/libraries/Constants.sol";
+import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
 import { StaticConfig } from "src/libraries/StaticConfig.sol";
-import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { Storage } from "src/libraries/Storage.sol";
+
+// Interfaces
+import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
 
 /// @custom:proxied true
 /// @title SystemConfigInterop
@@ -41,7 +46,7 @@ contract SystemConfigInterop is SystemConfig {
         bytes32 _batcherHash,
         uint64 _gasLimit,
         address _unsafeBlockSigner,
-        ResourceMetering.ResourceConfig memory _config,
+        IResourceMetering.ResourceConfig memory _config,
         address _batchInbox,
         SystemConfig.Addresses memory _addresses,
         address _dependencyManager
@@ -85,7 +90,7 @@ contract SystemConfigInterop is SystemConfig {
 
             // Set the gas paying token in storage and in the OptimismPortal.
             GasPayingToken.set({ _token: _token, _decimals: GAS_PAYING_TOKEN_DECIMALS, _name: name, _symbol: symbol });
-            OptimismPortal(payable(optimismPortal())).setConfig(
+            IOptimismPortal(payable(optimismPortal())).setConfig(
                 ConfigType.SET_GAS_PAYING_TOKEN,
                 StaticConfig.encodeSetGasPayingToken({
                     _token: _token,
@@ -101,7 +106,7 @@ contract SystemConfigInterop is SystemConfig {
     /// @param _chainId Chain ID of chain to add.
     function addDependency(uint256 _chainId) external {
         require(msg.sender == dependencyManager(), "SystemConfig: caller is not the dependency manager");
-        OptimismPortal(payable(optimismPortal())).setConfig(
+        IOptimismPortal(payable(optimismPortal())).setConfig(
             ConfigType.ADD_DEPENDENCY, StaticConfig.encodeAddDependency(_chainId)
         );
     }
@@ -110,7 +115,7 @@ contract SystemConfigInterop is SystemConfig {
     /// @param _chainId Chain ID of the chain to remove.
     function removeDependency(uint256 _chainId) external {
         require(msg.sender == dependencyManager(), "SystemConfig: caller is not the dependency manager");
-        OptimismPortal(payable(optimismPortal())).setConfig(
+        IOptimismPortal(payable(optimismPortal())).setConfig(
             ConfigType.REMOVE_DEPENDENCY, StaticConfig.encodeRemoveDependency(_chainId)
         );
     }

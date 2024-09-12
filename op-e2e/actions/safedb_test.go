@@ -17,7 +17,7 @@ import (
 
 func TestRecordSafeHeadUpdates(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	sd, miner, sequencer, verifier, verifierEng, batcher := setupSafeDBTest(t, defaultRollupTestParams)
+	sd, miner, sequencer, verifier, verifierEng, batcher := setupSafeDBTest(t, DefaultRollupTestParams)
 	verifEngClient := verifierEng.EngineClient(t, sd.RollupCfg)
 
 	sequencer.ActL2PipelineFull(t)
@@ -116,7 +116,7 @@ func TestRecordSafeHeadUpdates(gt *testing.T) {
 func setupSafeDBTest(t Testing, config *e2eutils.TestParams) (*e2eutils.SetupData, *L1Miner, *L2Sequencer, *L2Verifier, *L2Engine, *L2Batcher) {
 	dp := e2eutils.MakeDeployParams(t, config)
 
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	logger := testlog.Logger(t, log.LevelDebug)
 
 	return setupSafeDBTestActors(t, dp, sd, logger)

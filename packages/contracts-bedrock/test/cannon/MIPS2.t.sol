@@ -7,7 +7,7 @@ import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
 import { MIPSSyscalls as sys } from "src/cannon/libraries/MIPSSyscalls.sol";
 import { MIPSInstructions as ins } from "src/cannon/libraries/MIPSInstructions.sol";
 import "src/dispute/lib/Types.sol";
-import { InvalidExitedValue } from "src/cannon/libraries/CannonErrors.sol";
+import { InvalidExitedValue, InvalidMemoryProof, InvalidSecondMemoryProof } from "src/cannon/libraries/CannonErrors.sol";
 
 contract ThreadStack {
     bytes32 internal constant EMPTY_THREAD_ROOT = hex"ad3228b676f7d3cd4284a5443f17f1962b36e491b30a40b2405849e597ba5fb5";
@@ -195,30 +195,32 @@ contract MIPS2_Test is CommonTest {
 
     /// @notice Tests that the mips step function fails when the value of the exited field is
     ///         invalid (anything greater than 1).
-    /// @param _exited Value to set the exited field to.
-    function testFuzz_step_invalidExitedValueInState_fails(uint8 _exited) external {
-        // Make sure the value of _exited is invalid.
-        _exited = uint8(bound(uint256(_exited), 2, type(uint8).max));
+    function test_step_invalidExitedValueInState_fails() external {
+        // Bound to invalid exited values.
+        for (uint8 exited = 2; exited <= type(uint8).max && exited != 0;) {
+            // Setup state
+            uint32 insn = encodespec(17, 18, 8, 0x20); // Arbitrary instruction: add t0, s1, s2
+            (MIPS2.State memory state, MIPS2.ThreadState memory thread, bytes memory memProof) =
+                constructMIPSState(0, insn, 0x4, 0);
 
-        // Setup state
-        uint32 insn = encodespec(17, 18, 8, 0x20); // Arbitrary instruction: add t0, s1, s2
-        (MIPS2.State memory state, MIPS2.ThreadState memory thread, bytes memory memProof) =
-            constructMIPSState(0, insn, 0x4, 0);
+            // Set up step data
+            bytes memory encodedThread = encodeThread(thread);
+            bytes memory threadWitness = abi.encodePacked(encodedThread, EMPTY_THREAD_ROOT);
+            bytes memory proofData = bytes.concat(threadWitness, memProof);
+            bytes memory stateData = encodeState(state);
+            assembly {
+                // Manipulate state data
+                // Push offset by an additional 32 bytes (0x20) to account for length prefix
+                mstore8(add(add(stateData, 0x20), 73), exited)
+            }
 
-        // Set up step data
-        bytes memory encodedThread = encodeThread(thread);
-        bytes memory threadWitness = abi.encodePacked(encodedThread, EMPTY_THREAD_ROOT);
-        bytes memory proofData = bytes.concat(threadWitness, memProof);
-        bytes memory stateData = encodeState(state);
-        assembly {
-            // Manipulate state data
-            // Push offset by an additional 32 bytes (0x20) to account for length prefix
-            mstore8(add(add(stateData, 0x20), 73), _exited)
+            // Call the step function and expect a revert.
+            vm.expectRevert(InvalidExitedValue.selector);
+            mips.step(stateData, proofData, 0);
+            unchecked {
+                exited++;
+            }
         }
-
-        // Call the step function and expect a revert.
-        vm.expectRevert(InvalidExitedValue.selector);
-        mips.step(stateData, proofData, 0);
     }
 
     function test_invalidThreadWitness_reverts() public {
@@ -592,6 +594,211 @@ contract MIPS2_Test is CommonTest {
         finalizeThreadingState(threading, expect);
 
         bytes32 postState = mips.step(encodeState(state), bytes.concat(threadWitness, memProof), 0);
+        assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    function test_syscallGetPid_succeeds() public {
+        uint32 insn = 0x0000000c; // syscall
+        (MIPS2.State memory state, MIPS2.ThreadState memory thread, bytes memory memProof) =
+            constructMIPSState(0, insn, 0x4, 0);
+        thread.registers[2] = sys.SYS_GETPID;
+        thread.registers[7] = 0xdead;
+        bytes memory threadWitness = abi.encodePacked(encodeThread(thread), EMPTY_THREAD_ROOT);
+        updateThreadStacks(state, thread);
+
+        MIPS2.ThreadState memory expectThread = copyThread(thread);
+        expectThread.pc = thread.nextPC;
+        expectThread.nextPC = thread.nextPC + 4;
+        expectThread.registers[2] = 0x0;
+        expectThread.registers[7] = 0x0;
+        MIPS2.State memory expect = copyState(state);
+        expect.step = state.step + 1;
+        expect.stepsSinceLastContextSwitch = state.stepsSinceLastContextSwitch + 1;
+        expect.leftThreadStack = keccak256(abi.encodePacked(EMPTY_THREAD_ROOT, keccak256(encodeThread(expectThread))));
+
+        bytes32 postState = mips.step(encodeState(state), bytes.concat(threadWitness, memProof), 0);
+        assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    /// @dev static unit test asserting that clock_gettime syscall for monotonic time succeeds
+    function test_syscallClockGettimeMonotonic_succeeds() public {
+        _test_syscallClockGettime_succeeds(sys.CLOCK_GETTIME_MONOTONIC_FLAG);
+    }
+
+    /// @dev static unit test asserting that clock_gettime syscall for real time succeeds
+    function test_syscallClockGettimeRealtime_succeeds() public {
+        _test_syscallClockGettime_succeeds(sys.CLOCK_GETTIME_REALTIME_FLAG);
+    }
+
+    function _test_syscallClockGettime_succeeds(uint32 clkid) internal {
+        uint32 pc = 0;
+        uint32 insn = 0x0000000c; // syscall
+        uint32 timespecAddr = 0xb000;
+        (MIPS2.State memory state, MIPS2.ThreadState memory thread, bytes memory insnAndMemProof) =
+            constructMIPSState(pc, insn, timespecAddr, 0xbad);
+        state.step = 100_000_004;
+        thread.registers[2] = sys.SYS_CLOCKGETTIME;
+        thread.registers[A0_REG] = clkid;
+        thread.registers[A1_REG] = timespecAddr;
+        thread.registers[7] = 0xdead;
+
+        uint32 secs = 0;
+        uint32 nsecs = 0;
+        if (clkid == sys.CLOCK_GETTIME_MONOTONIC_FLAG) {
+            secs = 10;
+            nsecs = 500;
+        }
+        bytes memory threadWitness = abi.encodePacked(encodeThread(thread), EMPTY_THREAD_ROOT);
+        updateThreadStacks(state, thread);
+        (, bytes memory memProof2) = ffi.getCannonMemoryProof2(pc, insn, timespecAddr, secs, timespecAddr + 4);
+
+        MIPS2.State memory expect = copyState(state);
+        (expect.memRoot,) = ffi.getCannonMemoryProof(pc, insn, timespecAddr, secs, timespecAddr + 4, nsecs);
+        expect.step = state.step + 1;
+        expect.stepsSinceLastContextSwitch = state.stepsSinceLastContextSwitch + 1;
+        MIPS2.ThreadState memory expectThread = copyThread(thread);
+        expectThread.pc = thread.nextPC;
+        expectThread.nextPC = thread.nextPC + 4;
+        expectThread.registers[2] = 0x0;
+        expectThread.registers[7] = 0x0;
+        expect.leftThreadStack = keccak256(abi.encodePacked(EMPTY_THREAD_ROOT, keccak256(encodeThread(expectThread))));
+
+        bytes32 postState = mips.step(encodeState(state), bytes.concat(threadWitness, insnAndMemProof, memProof2), 0);
+        assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    /// @dev static unit test asserting that clock_gettime syscall for monotonic time succeeds in writing to an
+    /// unaligned address
+    function test_syscallClockGettimeMonotonicUnaligned_succeeds() public {
+        _test_syscallClockGettimeUnaligned_succeeds(sys.CLOCK_GETTIME_MONOTONIC_FLAG);
+    }
+
+    /// @dev static unit test asserting that clock_gettime syscall for real time succeeds in writing to an
+    /// unaligned address
+    function test_syscallClockGettimeRealtimeUnaligned_succeeds() public {
+        _test_syscallClockGettimeUnaligned_succeeds(sys.CLOCK_GETTIME_REALTIME_FLAG);
+    }
+
+    function _test_syscallClockGettimeUnaligned_succeeds(uint32 clkid) internal {
+        uint32 pc = 0;
+        uint32 insn = 0x0000000c; // syscall
+        uint32 timespecAddr = 0xb001;
+        uint32 timespecAddrAligned = 0xb000;
+        (MIPS2.State memory state, MIPS2.ThreadState memory thread, bytes memory insnAndMemProof) =
+            constructMIPSState(pc, insn, timespecAddrAligned, 0xbad);
+        state.step = 100_000_004;
+        thread.registers[2] = sys.SYS_CLOCKGETTIME;
+        thread.registers[A0_REG] = clkid;
+        thread.registers[A1_REG] = timespecAddr;
+        thread.registers[7] = 0xdead;
+
+        uint32 secs = 0;
+        uint32 nsecs = 0;
+        if (clkid == sys.CLOCK_GETTIME_MONOTONIC_FLAG) {
+            secs = 10;
+            nsecs = 500;
+        }
+        bytes memory threadWitness = abi.encodePacked(encodeThread(thread), EMPTY_THREAD_ROOT);
+        updateThreadStacks(state, thread);
+        (, bytes memory memProof2) =
+            ffi.getCannonMemoryProof2(pc, insn, timespecAddrAligned, secs, timespecAddrAligned + 4);
+
+        MIPS2.State memory expect = copyState(state);
+        (expect.memRoot,) =
+            ffi.getCannonMemoryProof(pc, insn, timespecAddrAligned, secs, timespecAddrAligned + 4, nsecs);
+        expect.step = state.step + 1;
+        expect.stepsSinceLastContextSwitch = state.stepsSinceLastContextSwitch + 1;
+        MIPS2.ThreadState memory expectThread = copyThread(thread);
+        expectThread.pc = thread.nextPC;
+        expectThread.nextPC = thread.nextPC + 4;
+        expectThread.registers[2] = 0x0;
+        expectThread.registers[7] = 0x0;
+        expect.leftThreadStack = keccak256(abi.encodePacked(EMPTY_THREAD_ROOT, keccak256(encodeThread(expectThread))));
+
+        bytes32 postState = mips.step(encodeState(state), bytes.concat(threadWitness, insnAndMemProof, memProof2), 0);
+        assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    /// @dev Test asserting that an clock_gettime monotonic syscall reverts on an invalid memory proof
+    function test_syscallClockGettimeMonotonicInvalidProof_reverts() public {
+        _test_syscallClockGettimeInvalidProof_reverts(sys.CLOCK_GETTIME_MONOTONIC_FLAG);
+    }
+
+    /// @dev Test asserting that an clock_gettime realtime syscall reverts on an invalid memory proof
+    function test_syscallClockGettimeRealtimeInvalidProof_reverts() public {
+        _test_syscallClockGettimeInvalidProof_reverts(sys.CLOCK_GETTIME_REALTIME_FLAG);
+    }
+
+    function _test_syscallClockGettimeInvalidProof_reverts(uint32 clkid) internal {
+        // NOTE: too slow to run this test under the forge fuzzer.
+        for (uint256 proofIndex = 896 + (32 * 2); proofIndex < 896 * 2; proofIndex += 32) {
+            // proofIndex points to a leaf in the index in the memory proof (in insnAndMemProof) that will be zeroed.
+            // Note that the second leaf in the memory proof is already zeroed because it's the sibling of the first
+            // memory write. So start from the third leaf.
+
+            uint32 secs = 0;
+            if (clkid == sys.CLOCK_GETTIME_MONOTONIC_FLAG) {
+                secs = 10;
+            }
+            uint32 pc = 0;
+            uint32 insn = 0x0000000c; // syscall
+            uint32 timespecAddr = 0xb000;
+            (MIPS2.State memory state, MIPS2.ThreadState memory thread, bytes memory insnAndMemProof) =
+                constructMIPSState(pc, insn, timespecAddr, 0xbad);
+            state.step = 100_000_004;
+            thread.registers[2] = sys.SYS_CLOCKGETTIME;
+            thread.registers[A0_REG] = sys.CLOCK_GETTIME_MONOTONIC_FLAG;
+            thread.registers[A1_REG] = timespecAddr;
+            thread.registers[7] = 0xdead;
+            bytes memory threadWitness = abi.encodePacked(encodeThread(thread), EMPTY_THREAD_ROOT);
+            updateThreadStacks(state, thread);
+            (, bytes memory memProof2) = ffi.getCannonMemoryProof2(pc, insn, timespecAddr, secs, timespecAddr + 4);
+
+            bytes memory invalidInsnAndMemProof = new bytes(insnAndMemProof.length);
+            for (uint256 i = 0; i < invalidInsnAndMemProof.length; i++) {
+                // clear the 32-byte insn leaf
+                if (i >= proofIndex && i < proofIndex + 32) {
+                    invalidInsnAndMemProof[i] = 0x0;
+                } else {
+                    invalidInsnAndMemProof[i] = insnAndMemProof[i];
+                }
+            }
+            vm.expectRevert(InvalidMemoryProof.selector);
+            mips.step(encodeState(state), bytes.concat(threadWitness, invalidInsnAndMemProof, memProof2), 0);
+
+            (, bytes memory invalidMemProof2) =
+                ffi.getCannonMemoryProof2(pc, insn, timespecAddr, secs + 1, timespecAddr + 4);
+            vm.expectRevert(InvalidSecondMemoryProof.selector);
+            mips.step(encodeState(state), bytes.concat(threadWitness, insnAndMemProof, invalidMemProof2), 0);
+        }
+    }
+
+    /// @dev static unit test asserting that clock_gettime syscall for non-realtime, non-monotonic time succeeds
+    function test_syscallClockGettimeOtherFlags_succeeds() public {
+        uint32 pc = 0;
+        uint32 insn = 0x0000000c; // syscall
+        uint32 timespecAddr = 0xb000;
+        (MIPS2.State memory state, MIPS2.ThreadState memory thread, bytes memory insnAndMemProof) =
+            constructMIPSState(pc, insn, timespecAddr, 0xbad);
+        state.step = (sys.HZ * 10 + 5) - 1;
+        thread.registers[2] = sys.SYS_CLOCKGETTIME;
+        thread.registers[A0_REG] = sys.CLOCK_GETTIME_MONOTONIC_FLAG + 1;
+        thread.registers[A1_REG] = timespecAddr;
+        thread.registers[7] = 0xdead;
+        bytes memory threadWitness = abi.encodePacked(encodeThread(thread), EMPTY_THREAD_ROOT);
+        updateThreadStacks(state, thread);
+
+        MIPS2.ThreadState memory expectThread = copyThread(thread);
+        expectThread.pc = thread.nextPC;
+        expectThread.nextPC = thread.nextPC + 4;
+        expectThread.registers[2] = sys.SYS_ERROR_SIGNAL;
+        expectThread.registers[7] = sys.EINVAL;
+        MIPS2.State memory expect = copyState(state);
+        expect.step = state.step + 1;
+        expect.stepsSinceLastContextSwitch = state.stepsSinceLastContextSwitch + 1;
+        expect.leftThreadStack = keccak256(abi.encodePacked(EMPTY_THREAD_ROOT, keccak256(encodeThread(expectThread))));
+
+        bytes32 postState = mips.step(encodeState(state), bytes.concat(threadWitness, insnAndMemProof), 0);
         assertEq(postState, outputState(expect), "unexpected post state");
     }
 

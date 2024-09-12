@@ -199,6 +199,19 @@ target "cannon" {
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/cannon:${tag}"]
 }
 
+target "proofs-tools" {
+  dockerfile = "./ops/docker/proofs-tools/Dockerfile"
+  context = "."
+  args = {
+    CHALLENGER_VERSION="v1.1.0"
+    KONA_VERSION="kona-client-v0.1.0-alpha.3"
+    ASTERISC_VERSION="v1.0.2"
+  }
+  target="proofs-tools"
+  platforms = split(",", PLATFORMS)
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/proofs-tools:${tag}"]
+}
+
 target "ci-builder" {
   dockerfile = "./ops/docker/ci-builder/Dockerfile"
   context = "."

@@ -109,7 +109,7 @@ func TestCrossLayerUser(t *testing.T) {
 
 func runCrossLayerUserTest(gt *testing.T, test hardforkScheduledTest) {
 	t := NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
 	// This overwrites all deploy-config settings,
 	// so even when the deploy-config defaults change, we test the right transitions.
 	dp.DeployConfig.L2GenesisRegolithTimeOffset = test.regolithTime
@@ -125,7 +125,7 @@ func runCrossLayerUserTest(gt *testing.T, test hardforkScheduledTest) {
 		require.Zero(t, uint64(*test.ecotoneTime)%uint64(dp.DeployConfig.L2BlockTime), "ecotone fork must be aligned")
 	}
 
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 
 	require.Equal(t, dp.Secrets.Addresses().Batcher, dp.DeployConfig.BatchSenderAddress)

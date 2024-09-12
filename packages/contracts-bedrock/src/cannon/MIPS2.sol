@@ -8,6 +8,7 @@ import { MIPSSyscalls as sys } from "src/cannon/libraries/MIPSSyscalls.sol";
 import { MIPSState as st } from "src/cannon/libraries/MIPSState.sol";
 import { MIPSInstructions as ins } from "src/cannon/libraries/MIPSInstructions.sol";
 import { VMStatuses } from "src/dispute/lib/Types.sol";
+import { InvalidMemoryProof, InvalidSecondMemoryProof } from "src/cannon/libraries/CannonErrors.sol";
 
 /// @title MIPS2
 /// @notice The MIPS2 contract emulates a single MIPS instruction.
@@ -51,8 +52,8 @@ contract MIPS2 is ISemver {
     }
 
     /// @notice The semantic version of the MIPS2 contract.
-    /// @custom:semver 1.0.0-beta.6
-    string public constant version = "1.0.0-beta.6";
+    /// @custom:semver 1.0.0-beta.7
+    string public constant version = "1.0.0-beta.7";
 
     /// @notice The preimage oracle contract.
     IPreimageOracle internal immutable ORACLE;
@@ -383,6 +384,45 @@ contract MIPS2 is ISemver {
             } else if (syscall_no == sys.SYS_OPEN) {
                 v0 = sys.SYS_ERROR_SIGNAL;
                 v1 = sys.EBADF;
+            } else if (syscall_no == sys.SYS_CLOCKGETTIME) {
+                if (a0 == sys.CLOCK_GETTIME_REALTIME_FLAG || a0 == sys.CLOCK_GETTIME_MONOTONIC_FLAG) {
+                    v0 = 0;
+                    v1 = 0;
+                    uint32 secs = 0;
+                    uint32 nsecs = 0;
+                    if (a0 == sys.CLOCK_GETTIME_MONOTONIC_FLAG) {
+                        secs = uint32(state.step / sys.HZ);
+                        nsecs = uint32((state.step % sys.HZ) * (1_000_000_000 / sys.HZ));
+                    }
+                    uint32 effAddr = a1 & 0xFFffFFfc;
+                    // First verify the effAddr path
+                    if (
+                        !MIPSMemory.isValidProof(
+                            state.memRoot, effAddr, MIPSMemory.memoryProofOffset(MEM_PROOF_OFFSET, 1)
+                        )
+                    ) {
+                        revert InvalidMemoryProof();
+                    }
+                    // Recompute the new root after updating effAddr
+                    state.memRoot =
+                        MIPSMemory.writeMem(effAddr, MIPSMemory.memoryProofOffset(MEM_PROOF_OFFSET, 1), secs);
+                    // Verify the second memory proof against the newly computed root
+                    if (
+                        !MIPSMemory.isValidProof(
+                            state.memRoot, effAddr + 4, MIPSMemory.memoryProofOffset(MEM_PROOF_OFFSET, 2)
+                        )
+                    ) {
+                        revert InvalidSecondMemoryProof();
+                    }
+                    state.memRoot =
+                        MIPSMemory.writeMem(effAddr + 4, MIPSMemory.memoryProofOffset(MEM_PROOF_OFFSET, 2), nsecs);
+                } else {
+                    v0 = sys.SYS_ERROR_SIGNAL;
+                    v1 = sys.EINVAL;
+                }
+            } else if (syscall_no == sys.SYS_GETPID) {
+                v0 = 0;
+                v1 = 0;
             } else if (syscall_no == sys.SYS_MUNMAP) {
                 // ignored
             } else if (syscall_no == sys.SYS_GETAFFINITY) {
@@ -442,8 +482,6 @@ contract MIPS2 is ISemver {
             } else if (syscall_no == sys.SYS_TIMERSETTIME) {
                 // ignored
             } else if (syscall_no == sys.SYS_TIMERDELETE) {
-                // ignored
-            } else if (syscall_no == sys.SYS_CLOCKGETTIME) {
                 // ignored
             } else {
                 revert("MIPS2: unimplemented syscall");

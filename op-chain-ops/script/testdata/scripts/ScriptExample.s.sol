@@ -100,6 +100,8 @@ contract ScriptExample {
 
     /// @notice example function, to test vm.broadcast with.
     function runBroadcast() public {
+        console.log("nonce start", uint256(vm.getNonce(address(this))));
+
         console.log("testing single");
         vm.broadcast();
         this.call1("single_call1");
@@ -128,6 +130,12 @@ contract ScriptExample {
         FooBar y = new FooBar{salt: bytes32(uint256(42))}(1234);
         require(y.foo() == 1234);
         console.log("done!");
+
+        // Deploy a script without a pranked sender and check the nonce.
+        vm.broadcast();
+        new FooBar(1234);
+
+        console.log("nonce end", uint256(vm.getNonce(address(this))));
     }
 
     /// @notice example external function, to force a CALL, and test vm.startPrank with.

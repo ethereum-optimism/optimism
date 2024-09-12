@@ -359,10 +359,11 @@ func DiffTestUtils() {
 		// Print the output
 		fmt.Print(hexutil.Encode(packed[32:]))
 	case "cannonMemoryProof":
-		// <pc, insn, [memAddr, memValue]>
+		// <pc, insn, [memAddr, memValue], [memAddr2, memValue2]>
+		// Generates a memory proof of `memAddr` for a trie containing memValue and memValue2
 		mem := memory.NewMemory()
-		if len(args) != 3 && len(args) != 5 {
-			panic("Error: cannonMemoryProofWithProof requires 2 or 4 arguments")
+		if len(args) != 3 && len(args) != 5 && len(args) != 7 {
+			panic("Error: cannonMemoryProofWithProof requires 2, 4, or 6 arguments")
 		}
 		pc, err := strconv.ParseUint(args[1], 10, 32)
 		checkErr(err, "Error decoding addr")
@@ -371,10 +372,18 @@ func DiffTestUtils() {
 		mem.SetMemory(uint32(pc), uint32(insn))
 
 		var insnProof, memProof [896]byte
-		if len(args) == 5 {
+		if len(args) >= 5 {
 			memAddr, err := strconv.ParseUint(args[3], 10, 32)
 			checkErr(err, "Error decoding memAddr")
 			memValue, err := strconv.ParseUint(args[4], 10, 32)
+			checkErr(err, "Error decoding memValue")
+			mem.SetMemory(uint32(memAddr), uint32(memValue))
+			memProof = mem.MerkleProof(uint32(memAddr))
+		}
+		if len(args) == 7 {
+			memAddr, err := strconv.ParseUint(args[5], 10, 32)
+			checkErr(err, "Error decoding memAddr")
+			memValue, err := strconv.ParseUint(args[6], 10, 32)
 			checkErr(err, "Error decoding memValue")
 			mem.SetMemory(uint32(memAddr), uint32(memValue))
 			memProof = mem.MerkleProof(uint32(memAddr))
@@ -387,6 +396,40 @@ func DiffTestUtils() {
 		}{
 			MemRoot: mem.MerkleRoot(),
 			Proof:   append(insnProof[:], memProof[:]...),
+		}
+		packed, err := cannonMemoryProofArgs.Pack(&output)
+		checkErr(err, "Error encoding output")
+		fmt.Print(hexutil.Encode(packed[32:]))
+	case "cannonMemoryProof2":
+		// <pc, insn, [memAddr, memValue], memAddr2>
+		// Generates a memory proof of memAddr2 for a trie containing memValue
+		mem := memory.NewMemory()
+		if len(args) != 6 {
+			panic("Error: cannonMemoryProofWithProof2 requires 5 arguments")
+		}
+		pc, err := strconv.ParseUint(args[1], 10, 32)
+		checkErr(err, "Error decoding addr")
+		insn, err := strconv.ParseUint(args[2], 10, 32)
+		checkErr(err, "Error decoding insn")
+		mem.SetMemory(uint32(pc), uint32(insn))
+
+		var memProof [896]byte
+		memAddr, err := strconv.ParseUint(args[3], 10, 32)
+		checkErr(err, "Error decoding memAddr")
+		memValue, err := strconv.ParseUint(args[4], 10, 32)
+		checkErr(err, "Error decoding memValue")
+		mem.SetMemory(uint32(memAddr), uint32(memValue))
+
+		memAddr2, err := strconv.ParseUint(args[5], 10, 32)
+		checkErr(err, "Error decoding memAddr")
+		memProof = mem.MerkleProof(uint32(memAddr2))
+
+		output := struct {
+			MemRoot common.Hash
+			Proof   []byte
+		}{
+			MemRoot: mem.MerkleRoot(),
+			Proof:   memProof[:],
 		}
 		packed, err := cannonMemoryProofArgs.Pack(&output)
 		checkErr(err, "Error encoding output")
