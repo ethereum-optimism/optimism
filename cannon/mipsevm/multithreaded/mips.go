@@ -75,8 +75,13 @@ func (m *InstrumentedState) handleSyscall() error {
 		return nil
 	case exec.SysRead:
 		var newPreimageOffset uint32
-		v0, v1, newPreimageOffset, _, _ = exec.HandleSysRead(a0, a1, a2, m.state.PreimageKey, m.state.PreimageOffset, m.preimageOracle, m.state.Memory, m.memoryTracker)
+		var memUpdated bool
+		var memAddr uint32
+		v0, v1, newPreimageOffset, memUpdated, memAddr = exec.HandleSysRead(a0, a1, a2, m.state.PreimageKey, m.state.PreimageOffset, m.preimageOracle, m.state.Memory, m.memoryTracker)
 		m.state.PreimageOffset = newPreimageOffset
+		if memUpdated {
+			m.handleMemoryUpdate(memAddr)
+		}
 	case exec.SysWrite:
 		var newLastHint hexutil.Bytes
 		var newPreimageKey common.Hash
@@ -292,8 +297,28 @@ func (m *InstrumentedState) mipsStep() error {
 	}
 
 	// Exec the rest of the step logic
-	_, _, err := exec.ExecMipsCoreStepLogic(m.state.getCpuRef(), m.state.GetRegistersRef(), m.state.Memory, insn, opcode, fun, m.memoryTracker, m.stackTracker)
-	return err
+	memUpdated, memAddr, err := exec.ExecMipsCoreStepLogic(m.state.getCpuRef(), m.state.GetRegistersRef(), m.state.Memory, insn, opcode, fun, m.memoryTracker, m.stackTracker)
+	if err != nil {
+		return err
+	}
+	if memUpdated {
+		m.handleMemoryUpdate(memAddr)
+	}
+
+	return nil
+}
+
+func (m *InstrumentedState) handleMemoryUpdate(memAddr uint32) {
+	if memAddr == m.state.LLAddress {
+		// Reserved address was modified, clear the reservation
+		m.clearLLMemoryReservation()
+	}
+}
+
+func (m *InstrumentedState) clearLLMemoryReservation() {
+	m.state.LLReservationActive = false
+	m.state.LLAddress = 0
+	m.state.LLOwnerThread = 0
 }
 
 // handleRMWOps handles LL and SC operations which provide the primitives to implement read-modify-write operations
@@ -308,12 +333,24 @@ func (m *InstrumentedState) handleRMWOps(insn, opcode uint32) error {
 	mem := m.state.Memory.GetMemory(effAddr)
 
 	var retVal uint32
+	threadId := m.state.GetCurrentThread().ThreadId
 	if opcode == exec.OpLoadLinked {
 		retVal = mem
+		m.state.LLReservationActive = true
+		m.state.LLAddress = effAddr
+		m.state.LLOwnerThread = threadId
 	} else if opcode == exec.OpStoreConditional {
-		rt := m.state.GetRegistersRef()[rtReg]
-		m.state.Memory.SetMemory(effAddr, rt)
-		retVal = 1 // 1 for success
+		// Check if our memory reservation is still intact
+		if m.state.LLReservationActive && m.state.LLOwnerThread == threadId && m.state.LLAddress == effAddr {
+			// Complete atomic update: set memory and return 1 for success
+			m.clearLLMemoryReservation()
+			rt := m.state.GetRegistersRef()[rtReg]
+			m.state.Memory.SetMemory(effAddr, rt)
+			retVal = 1
+		} else {
+			// Atomic update failed, return 0 for failure
+			retVal = 0
+		}
 	} else {
 		panic(fmt.Sprintf("Invalid instruction passed to handleRMWOps (opcode %08x)", opcode))
 	}

@@ -8,7 +8,9 @@ import { MIPSSyscalls as sys } from "src/cannon/libraries/MIPSSyscalls.sol";
 import { MIPSState as st } from "src/cannon/libraries/MIPSState.sol";
 import { MIPSInstructions as ins } from "src/cannon/libraries/MIPSInstructions.sol";
 import { VMStatuses } from "src/dispute/lib/Types.sol";
-import { InvalidMemoryProof, InvalidRMWInstruction, InvalidSecondMemoryProof } from "src/cannon/libraries/CannonErrors.sol";
+import {
+    InvalidMemoryProof, InvalidRMWInstruction, InvalidSecondMemoryProof
+} from "src/cannon/libraries/CannonErrors.sol";
 
 /// @title MIPS2
 /// @notice The MIPS2 contract emulates a single MIPS instruction.
@@ -250,11 +252,30 @@ contract MIPS2 is ISemver {
                 opcode: opcode,
                 fun: fun
             });
-            (state.memRoot,,) = ins.execMipsCoreStepLogic(coreStepArgs);
+            bool memUpdated;
+            uint32 memAddr;
+            (state.memRoot, memUpdated, memAddr) = ins.execMipsCoreStepLogic(coreStepArgs);
             setStateCpuScalars(thread, cpu);
             updateCurrentThreadRoot();
+            if (memUpdated) {
+                handleMemoryUpdate(state, memAddr);
+            }
+
             return outputState();
         }
+    }
+
+    function handleMemoryUpdate(State memory _state, uint32 _memAddr) internal pure {
+        if (_memAddr == _state.llAddress) {
+            // Reserved address was modified, clear the reservation
+            clearLLMemoryReservation(_state);
+        }
+    }
+
+    function clearLLMemoryReservation(State memory _state) internal pure {
+        _state.llReservationActive = false;
+        _state.llAddress = 0;
+        _state.llOwnerThread = 0;
     }
 
     function handleRMWOps(
@@ -277,12 +298,24 @@ contract MIPS2 is ISemver {
             uint32 mem = MIPSMemory.readMem(_state.memRoot, effAddr, memProofOffset);
 
             uint32 retVal;
+            uint32 threadId = _thread.threadID;
             if (_opcode == ins.OP_LOAD_LINKED) {
                 retVal = mem;
+                _state.llReservationActive = true;
+                _state.llAddress = effAddr;
+                _state.llOwnerThread = threadId;
             } else if (_opcode == ins.OP_STORE_CONDITIONAL) {
-                uint32 val = _thread.registers[rtReg];
-                _state.memRoot = MIPSMemory.writeMem(effAddr, memProofOffset, val);
-                retVal = 1; // 1 for success
+                // Check if our memory reservation is still intact
+                if (_state.llReservationActive && _state.llOwnerThread == threadId && _state.llAddress == effAddr) {
+                    // Complete atomic update: set memory and return 1 for success
+                    clearLLMemoryReservation(_state);
+                    uint32 val = _thread.registers[rtReg];
+                    _state.memRoot = MIPSMemory.writeMem(effAddr, memProofOffset, val);
+                    retVal = 1;
+                } else {
+                    // Atomic update failed, return 0 for failure
+                    retVal = 0;
+                }
             } else {
                 revert InvalidRMWInstruction();
             }
@@ -370,7 +403,8 @@ contract MIPS2 is ISemver {
                     proofOffset: MIPSMemory.memoryProofOffset(MEM_PROOF_OFFSET, 1),
                     memRoot: state.memRoot
                 });
-                (v0, v1, state.preimageOffset, state.memRoot,,) = sys.handleSysRead(args);
+                // Encapsulate execution to avoid stack-too-deep error
+                (v0, v1) = execSysRead(state, args);
             } else if (syscall_no == sys.SYS_WRITE) {
                 (v0, v1, state.preimageKey, state.preimageOffset) = sys.handleSysWrite({
                     _a0: a0,
@@ -550,6 +584,22 @@ contract MIPS2 is ISemver {
 
             updateCurrentThreadRoot();
             out_ = outputState();
+        }
+    }
+
+    function execSysRead(
+        State memory _state,
+        sys.SysReadParams memory _args
+    )
+        internal
+        view
+        returns (uint32 v0, uint32 v1)
+    {
+        bool memUpdated;
+        uint32 memAddr;
+        (v0, v1, _state.preimageOffset, _state.memRoot, memUpdated, memAddr) = sys.handleSysRead(_args);
+        if (memUpdated) {
+            handleMemoryUpdate(_state, memAddr);
         }
     }
 

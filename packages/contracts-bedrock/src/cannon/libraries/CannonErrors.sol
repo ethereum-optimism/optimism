@@ -62,4 +62,4 @@ error InvalidMemoryProof();
 error InvalidSecondMemoryProof();
 
 /// @notice Thrown when an RMW instruction is expected, but a different instruction is provided.
-    error InvalidRMWInstruction();
+error InvalidRMWInstruction();

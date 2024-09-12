@@ -1995,36 +1995,50 @@ contract MIPS2_Test is CommonTest {
     }
 
     function test_ll_succeeds() public {
-        uint32 t1 = 0x100;
-        uint32 val = 0x12_23_45_67;
-        uint32 insn = encodeitype(0x30, 0x9, 0x8, 0x4); // ll $t0, 4($t1)
+        uint32 base = 0x100;
+        uint32 memVal = 0x12_23_45_67;
+        uint16 offset = 0x4;
+        uint32 effAddr = base + offset;
+        uint32 insn = encodeitype(0x30, 0x9, 0x8, offset); // ll baseReg, rtReg, offset
+
         (MIPS2.State memory state, MIPS2.ThreadState memory thread, bytes memory memProof) =
-            constructMIPSState(0, insn, t1 + 4, val);
-        thread.registers[8] = 0; // t0
-        thread.registers[9] = t1;
+            constructMIPSState(0, insn, effAddr, memVal);
+        thread.registers[8] = 0; // rtReg
+        thread.registers[9] = base;
         bytes memory threadWitness = abi.encodePacked(encodeThread(thread), EMPTY_THREAD_ROOT);
         updateThreadStacks(state, thread);
 
-        thread.registers[8] = val; // t0
-        MIPS2.State memory expect = arithmeticPostState(state, thread, 8, /* t0 */ thread.registers[8]);
+        MIPS2.State memory expect = arithmeticPostState(state, thread, 8, memVal);
+        expect.llReservationActive = true;
+        expect.llAddress = effAddr;
+        expect.llOwnerThread = thread.threadID;
 
         bytes32 postState = mips.step(encodeState(state), bytes.concat(threadWitness, memProof), 0);
         assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_sc_succeeds() public {
-        uint32 t1 = 0x100;
-        uint32 insn = encodeitype(0x38, 0x9, 0x8, 0x4); // sc $t0, 4($t1)
+        uint32 base = 0x100;
+        uint16 offset = 0x4;
+        uint32 effAddr = base + offset;
+        uint32 writeMemVal = 0xaa_bb_cc_dd;
+        uint32 insn = encodeitype(0x38, 0x9, 0x8, offset); // ll baseReg, rtReg, offset
+
         (MIPS2.State memory state, MIPS2.ThreadState memory thread, bytes memory memProof) =
-            constructMIPSState(0, insn, t1 + 4, 0);
-        thread.registers[8] = 0xaa_bb_cc_dd; // t0
-        thread.registers[9] = t1;
+            constructMIPSState(0, insn, effAddr, 0);
+        state.llReservationActive = true;
+        state.llAddress = effAddr;
+        state.llOwnerThread = thread.threadID;
+        thread.registers[8] = writeMemVal;
+        thread.registers[9] = base;
         bytes memory threadWitness = abi.encodePacked(encodeThread(thread), EMPTY_THREAD_ROOT);
         updateThreadStacks(state, thread);
 
-        thread.registers[8] = 0x1; // t0
-        MIPS2.State memory expect = arithmeticPostState(state, thread, 8, /* t0 */ thread.registers[8]);
-        (expect.memRoot,) = ffi.getCannonMemoryProof(0, insn, t1 + 4, 0xaa_bb_cc_dd);
+        MIPS2.State memory expect = arithmeticPostState(state, thread, 8, 0x1);
+        (expect.memRoot,) = ffi.getCannonMemoryProof(0, insn, effAddr, writeMemVal);
+        expect.llReservationActive = false;
+        expect.llAddress = 0;
+        expect.llOwnerThread = 0;
 
         bytes32 postState = mips.step(encodeState(state), bytes.concat(threadWitness, memProof), 0);
         assertEq(postState, outputState(expect), "unexpected post state");

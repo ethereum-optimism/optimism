@@ -13,7 +13,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
 	mttestutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
@@ -36,90 +35,148 @@ func TestEVM_MT_LL(t *testing.T) {
 		{name: "Unaligned effAddr, sign extended w overflow", base: 0xFF_12_00_01, offset: 0x8401, value: 0xABCD, effAddr: 0xFF_11_84_00, rtReg: 5},
 		{name: "Return register set to 0", base: 0xFF_12_00_01, offset: 0x8401, value: 0xABCD, effAddr: 0xFF_11_84_00, rtReg: 0},
 	}
-	v := GetMultiThreadedTestCase(t)
 	for i, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			rtReg := c.rtReg
-			baseReg := 6
-			pc := uint32(0x44)
-			insn := uint32((0b11_0000 << 26) | (baseReg & 0x1F << 21) | (rtReg & 0x1F << 16) | (0xFFFF & c.offset))
-			goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPC(pc), testutil.WithNextPC(pc+4))
-			state := goVm.GetState()
-			state.GetMemory().SetMemory(pc, insn)
-			state.GetMemory().SetMemory(c.effAddr, c.value)
-			state.GetRegistersRef()[baseReg] = c.base
-			step := state.GetStep()
+		for _, withExistingReservation := range []bool{true, false} {
+			tName := fmt.Sprintf("%v (withExistingReservation = %v)", c.name, withExistingReservation)
+			t.Run(tName, func(t *testing.T) {
+				rtReg := c.rtReg
+				baseReg := 6
+				pc := uint32(0x44)
+				insn := uint32((0b11_0000 << 26) | (baseReg & 0x1F << 21) | (rtReg & 0x1F << 16) | (0xFFFF & c.offset))
+				goVm, state, contracts := setup(t, i)
+				step := state.GetStep()
 
-			// Setup expectations
-			expected := testutil.NewExpectedState(state)
-			expected.Step += 1
-			expected.PC = pc + 4
-			expected.NextPC = pc + 8
-			if rtReg != 0 {
-				expected.Registers[rtReg] = c.value
-			}
+				// Set up state
+				state.GetCurrentThread().Cpu.PC = pc
+				state.GetCurrentThread().Cpu.NextPC = pc + 4
+				state.GetMemory().SetMemory(pc, insn)
+				state.GetMemory().SetMemory(c.effAddr, c.value)
+				state.GetRegistersRef()[baseReg] = c.base
+				if withExistingReservation {
+					state.LLReservationActive = true
+					state.LLAddress = c.effAddr + uint32(4)
+					state.LLOwnerThread = 123
+				} else {
+					state.LLReservationActive = false
+					state.LLAddress = 0
+					state.LLOwnerThread = 0
+				}
 
-			stepWitness, err := goVm.Step(true)
-			require.NoError(t, err)
+				// Set up expectations
+				expected := mttestutil.NewExpectedMTState(state)
+				expected.ExpectStep()
+				expected.LLReservationActive = true
+				expected.LLAddress = c.effAddr
+				expected.LLOwnerThread = state.GetCurrentThread().ThreadId
+				if rtReg != 0 {
+					expected.ActiveThread().Registers[rtReg] = c.value
+				}
 
-			// Check expectations
-			expected.Validate(t, state)
-			testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, tracer)
-		})
+				stepWitness, err := goVm.Step(true)
+				require.NoError(t, err)
+
+				// Check expectations
+				expected.Validate(t, state)
+				testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), contracts, tracer)
+			})
+		}
 	}
 }
 
 func TestEVM_MT_SC(t *testing.T) {
 	var tracer *tracing.Hooks
 
-	cases := []struct {
-		name    string
-		base    uint32
-		offset  int
-		value   uint32
-		effAddr uint32
-		rtReg   int
+	llVariations := []struct {
+		name                string
+		llReservationActive bool
+		matchThreadId       bool
+		matchEffAddr        bool
+		shouldSucceed       bool
 	}{
-		{name: "Aligned effAddr", base: 0x00_00_00_01, offset: 0x0133, value: 0xABCD, effAddr: 0x00_00_01_34, rtReg: 5},
-		{name: "Aligned effAddr, signed extended", base: 0x00_00_00_01, offset: 0xFF33, value: 0xABCD, effAddr: 0xFF_FF_FF_34, rtReg: 5},
-		{name: "Unaligned effAddr", base: 0xFF_12_00_01, offset: 0x3401, value: 0xABCD, effAddr: 0xFF_12_34_00, rtReg: 5},
-		{name: "Unaligned effAddr, sign extended w overflow", base: 0xFF_12_00_01, offset: 0x8401, value: 0xABCD, effAddr: 0xFF_11_84_00, rtReg: 5},
-		{name: "Return register set to 0", base: 0xFF_12_00_01, offset: 0x8401, value: 0xABCD, effAddr: 0xFF_11_84_00, rtReg: 0},
+		{name: "should succeed", llReservationActive: true, matchThreadId: true, matchEffAddr: true, shouldSucceed: true},
+		{name: "mismatch addr", llReservationActive: true, matchThreadId: false, matchEffAddr: true, shouldSucceed: false},
+		{name: "mismatched thread", llReservationActive: true, matchThreadId: true, matchEffAddr: false, shouldSucceed: false},
+		{name: "mismatched addr & thread", llReservationActive: true, matchThreadId: false, matchEffAddr: false, shouldSucceed: false},
+		{name: "no active reservation", llReservationActive: false, matchThreadId: true, matchEffAddr: true, shouldSucceed: false},
 	}
-	v := GetMultiThreadedTestCase(t)
+
+	cases := []struct {
+		name     string
+		base     uint32
+		offset   int
+		value    uint32
+		effAddr  uint32
+		rtReg    int
+		threadId uint32
+	}{
+		{name: "Aligned effAddr", base: 0x00_00_00_01, offset: 0x0133, value: 0xABCD, effAddr: 0x00_00_01_34, rtReg: 5, threadId: 4},
+		{name: "Aligned effAddr, signed extended", base: 0x00_00_00_01, offset: 0xFF33, value: 0xABCD, effAddr: 0xFF_FF_FF_34, rtReg: 5, threadId: 4},
+		{name: "Unaligned effAddr", base: 0xFF_12_00_01, offset: 0x3401, value: 0xABCD, effAddr: 0xFF_12_34_00, rtReg: 5, threadId: 4},
+		{name: "Unaligned effAddr, sign extended w overflow", base: 0xFF_12_00_01, offset: 0x8401, value: 0xABCD, effAddr: 0xFF_11_84_00, rtReg: 5, threadId: 4},
+		{name: "Return register set to 0", base: 0xFF_12_00_01, offset: 0x8401, value: 0xABCD, effAddr: 0xFF_11_84_00, rtReg: 0, threadId: 4},
+		{name: "Zero valued ll args", base: 0x00_00_00_00, offset: 0x0, value: 0xABCD, effAddr: 0x00_00_00_00, rtReg: 5, threadId: 0},
+	}
 	for i, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			rtReg := c.rtReg
-			baseReg := 6
-			pc := uint32(0x44)
-			insn := uint32((0b11_1000 << 26) | (baseReg & 0x1F << 21) | (rtReg & 0x1F << 16) | (0xFFFF & c.offset))
-			goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPC(pc), testutil.WithNextPC(pc+4))
-			state := goVm.GetState()
-			state.GetMemory().SetMemory(pc, insn)
-			state.GetRegistersRef()[baseReg] = c.base
-			state.GetRegistersRef()[rtReg] = c.value
-			step := state.GetStep()
+		for _, v := range llVariations {
+			tName := fmt.Sprintf("%v (%v)", c.name, v.name)
+			t.Run(tName, func(t *testing.T) {
+				rtReg := c.rtReg
+				baseReg := 6
+				pc := uint32(0x44)
+				insn := uint32((0b11_1000 << 26) | (baseReg & 0x1F << 21) | (rtReg & 0x1F << 16) | (0xFFFF & c.offset))
+				goVm, state, contracts := setup(t, i)
+				mttestutil.InitializeSingleThread(i*23456, state, i%2 == 1)
+				step := state.GetStep()
 
-			// Setup expectations
-			expected := testutil.NewExpectedState(state)
-			expected.Step += 1
-			expected.PC = pc + 4
-			expected.NextPC = pc + 8
-			expectedMemory := memory.NewMemory()
-			expectedMemory.SetMemory(pc, insn)
-			expectedMemory.SetMemory(c.effAddr, c.value)
-			expected.MemoryRoot = expectedMemory.MerkleRoot()
-			if rtReg != 0 {
-				expected.Registers[rtReg] = 1 // 1 for success
-			}
+				// Define LL-related params
+				var llAddress, llOwnerThread uint32
+				if v.matchEffAddr {
+					llAddress = c.effAddr
+				} else {
+					llAddress = c.effAddr + 4
+				}
+				if v.matchThreadId {
+					llOwnerThread = c.threadId
+				} else {
+					llOwnerThread = c.threadId + 1
+				}
 
-			stepWitness, err := goVm.Step(true)
-			require.NoError(t, err)
+				// Setup state
+				state.GetCurrentThread().ThreadId = c.threadId
+				state.GetCurrentThread().Cpu.PC = pc
+				state.GetCurrentThread().Cpu.NextPC = pc + 4
+				state.GetMemory().SetMemory(pc, insn)
+				state.GetRegistersRef()[baseReg] = c.base
+				state.GetRegistersRef()[rtReg] = c.value
+				state.LLReservationActive = v.llReservationActive
+				state.LLAddress = llAddress
+				state.LLOwnerThread = llOwnerThread
 
-			// Check expectations
-			expected.Validate(t, state)
-			testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, tracer)
-		})
+				// Setup expectations
+				expected := mttestutil.NewExpectedMTState(state)
+				expected.ExpectStep()
+				var retVal uint32
+				if v.shouldSucceed {
+					retVal = 1
+					expected.ExpectMemoryWrite(c.effAddr, c.value)
+					expected.LLReservationActive = false
+					expected.LLAddress = 0
+					expected.LLOwnerThread = 0
+				} else {
+					retVal = 0
+				}
+				if rtReg != 0 {
+					expected.ActiveThread().Registers[rtReg] = retVal
+				}
+
+				stepWitness, err := goVm.Step(true)
+				require.NoError(t, err)
+
+				// Check expectations
+				expected.Validate(t, state)
+				testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), contracts, tracer)
+			})
+		}
 	}
 }
 

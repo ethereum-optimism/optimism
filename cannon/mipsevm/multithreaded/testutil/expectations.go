@@ -14,14 +14,17 @@ import (
 // ExpectedMTState is a test utility that basically stores a copy of a state that can be explicitly mutated
 // to define an expected post-state.  The post-state is then validated with ExpectedMTState.Validate(t, postState)
 type ExpectedMTState struct {
-	PreimageKey    common.Hash
-	PreimageOffset uint32
-	Heap           uint32
-	ExitCode       uint8
-	Exited         bool
-	Step           uint64
-	LastHint       hexutil.Bytes
-	MemoryRoot     common.Hash
+	PreimageKey         common.Hash
+	PreimageOffset      uint32
+	Heap                uint32
+	LLReservationActive bool
+	LLAddress           uint32
+	LLOwnerThread       uint32
+	ExitCode            uint8
+	Exited              bool
+	Step                uint64
+	LastHint            hexutil.Bytes
+	MemoryRoot          common.Hash
 	expectedMemory *memory.Memory
 	// Threading-related expectations
 	StepsSinceLastContextSwitch uint64
@@ -62,14 +65,17 @@ func NewExpectedMTState(fromState *multithreaded.State) *ExpectedMTState {
 
 	return &ExpectedMTState{
 		// General Fields
-		PreimageKey:    fromState.GetPreimageKey(),
-		PreimageOffset: fromState.GetPreimageOffset(),
-		Heap:           fromState.GetHeap(),
-		ExitCode:       fromState.GetExitCode(),
-		Exited:         fromState.GetExited(),
-		Step:           fromState.GetStep(),
-		LastHint:       fromState.GetLastHint(),
-		MemoryRoot:     fromState.GetMemory().MerkleRoot(),
+		PreimageKey:         fromState.GetPreimageKey(),
+		PreimageOffset:      fromState.GetPreimageOffset(),
+		Heap:                fromState.GetHeap(),
+		LLReservationActive: fromState.LLReservationActive,
+		LLAddress:           fromState.LLAddress,
+		LLOwnerThread:       fromState.LLOwnerThread,
+		ExitCode:            fromState.GetExitCode(),
+		Exited:              fromState.GetExited(),
+		Step:                fromState.GetStep(),
+		LastHint:            fromState.GetLastHint(),
+		MemoryRoot:          fromState.GetMemory().MerkleRoot(),
 		// Thread-related global fields
 		StepsSinceLastContextSwitch: fromState.StepsSinceLastContextSwitch,
 		Wakeup:                      fromState.Wakeup,
@@ -119,7 +125,7 @@ func (e *ExpectedMTState) ExpectMemoryWrite(addr uint32, val uint32) {
 
 func (e *ExpectedMTState) ExpectMemoryWriteMultiple(addr uint32, val uint32, addr2 uint32, val2 uint32) {
 	e.expectedMemory.SetMemory(addr, val)
-	e.expectedMemory.SetMemory(addr2, val)
+	e.expectedMemory.SetMemory(addr2, val2)
 	e.MemoryRoot = e.expectedMemory.MerkleRoot()
 }
 
@@ -168,6 +174,9 @@ func (e *ExpectedMTState) Validate(t require.TestingT, actualState *multithreade
 	require.Equalf(t, e.PreimageKey, actualState.GetPreimageKey(), "Expect preimageKey = %v", e.PreimageKey)
 	require.Equalf(t, e.PreimageOffset, actualState.GetPreimageOffset(), "Expect preimageOffset = %v", e.PreimageOffset)
 	require.Equalf(t, e.Heap, actualState.GetHeap(), "Expect heap = 0x%x", e.Heap)
+	require.Equalf(t, e.LLReservationActive, actualState.LLReservationActive, "Expect LLReservationActive = %v", e.LLReservationActive)
+	require.Equalf(t, e.LLAddress, actualState.LLAddress, "Expect LLAddress = 0x%x", e.LLAddress)
+	require.Equalf(t, e.LLOwnerThread, actualState.LLOwnerThread, "Expect LLOwnerThread = %v", e.LLOwnerThread)
 	require.Equalf(t, e.ExitCode, actualState.GetExitCode(), "Expect exitCode = 0x%x", e.ExitCode)
 	require.Equalf(t, e.Exited, actualState.GetExited(), "Expect exited = %v", e.Exited)
 	require.Equalf(t, e.Step, actualState.GetStep(), "Expect step = %d", e.Step)
