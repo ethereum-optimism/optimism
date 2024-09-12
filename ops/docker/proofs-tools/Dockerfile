@@ -10,7 +10,7 @@ FROM --platform=$BUILDPLATFORM ghcr.io/anton-rs/kona/kona-fpp-asterisc:$KONA_VER
 FROM --platform=$BUILDPLATFORM ghcr.io/ethereum-optimism/asterisc/asterisc:$ASTERISC_VERSION AS asterisc
 
 FROM --platform=$BUILDPLATFORM ubuntu:22.04 AS proofs-tools
-RUN apt-get update && apt-get install -y --no-install-recommends musl
+RUN apt-get update && apt-get install -y --no-install-recommends musl openssl ca-certificates
 COPY --from=challenger /usr/local/bin/op-challenger /usr/local/bin/
 COPY --from=challenger /usr/local/bin/cannon /usr/local/bin/
 ENV OP_CHALLENGER_CANNON_BIN /usr/local/bin/cannon
