@@ -2102,7 +2102,7 @@ workflows:
             - go-mod-download
       - contracts-bedrock-build
       - go-e2e-test:
-          name: op-e2e-cannon-tests
+          name: op-e2e-cannon-tests<< matrix.variant >>
           matrix:
             parameters:
               # TODO: temporarily remove mt-cannon from the mix
