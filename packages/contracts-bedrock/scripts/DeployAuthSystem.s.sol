@@ -52,3 +52,34 @@ contract DeployAuthSystemInput is CommonBase {
         return _owners;
     }
 }
+
+contract DeployAuthSystemOutput is CommonBase {
+    Safe internal _safe;
+
+    // This method lets each field be set individually. The selector of an output's getter method
+    // is used to determine which field to set.
+    function set(bytes4 sel, address _address) public {
+        if (sel == this.safe.selector) _safe = Safe(payable(_address));
+        else revert("DeployAuthSystemOutput: unknown selector");
+    }
+
+    // Save the output to a TOML file.
+    // We fetch the output values using external calls to the getters to verify that all outputs are
+    // set correctly before writing them to the file.
+    function writeOutputFile(string memory _outfile) public {
+        string memory out = vm.serializeAddress("outfile", "safe", address(this.safe()));
+        vm.writeToml(out, _outfile);
+    }
+
+    // This function can be called to ensure all outputs are correct. Similar to `writeOutputFile`,
+    // it fetches the output values using external calls to the getter methods for safety.
+    function checkOutput() public view {
+        address[] memory addrs = Solarray.addresses(address(this.safe()));
+        DeployUtils.assertValidContractAddresses(addrs);
+    }
+
+    function safe() public view returns (Safe) {
+        DeployUtils.assertValidContractAddress(address(_safe));
+        return _safe;
+    }
+}
