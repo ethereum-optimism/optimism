@@ -556,7 +556,7 @@ func (s *SyncClient) maybePromote(ctx context.Context) {
 	}
 }
 
-func (s *syncClientPeer) requestAndHandleResult(ctx context.Context, num blockNumber) (err error) {
+func (s *syncClientPeer) requestAndHandleResult(ctx context.Context, wanted *wantedBlock) (err error) {
 	// We already established the peer is available w.r.t. rate-limiting,
 	// and this is the only loop over this peer, so we can request now.
 
@@ -565,12 +565,6 @@ func (s *syncClientPeer) requestAndHandleResult(ctx context.Context, num blockNu
 
 	go func() {
 		defer cancel()
-		s.mu.Lock()
-		wanted := s.getWantedBlock(num)
-		s.mu.Unlock()
-		if wanted == nil {
-			return
-		}
 		select {
 		case <-wanted.done.On():
 		case <-ctx.Done():
@@ -579,6 +573,7 @@ func (s *syncClientPeer) requestAndHandleResult(ctx context.Context, num blockNu
 	start := time.Now()
 
 	resultCode := ResultCodeSuccess
+	num := wanted.num
 
 	envelope, err := s.doRequestRecoveringPanic(ctx, num)
 
@@ -674,7 +669,7 @@ func (s *syncClientPeer) reserveAndRequest(ctx context.Context, wanted *wantedBl
 		err = fmt.Errorf("waiting for global rate limiter: %w", err)
 		return
 	}
-	err = s.requestAndHandleResult(ctx, wanted.num)
+	err = s.requestAndHandleResult(ctx, wanted)
 	requested = true
 	if err != nil {
 		err = fmt.Errorf("requesting block %v: %w", wanted.num, err)
