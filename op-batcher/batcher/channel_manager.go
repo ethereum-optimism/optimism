@@ -350,6 +350,7 @@ func (s *channelManager) outputFrames() error {
 // AddL2Block adds an L2 block to the internal blocks queue. It returns ErrReorg
 // if the block does not extend the last block loaded into the state. If no
 // blocks were added yet, the parent hash check is skipped.
+// TODO how about a variadic version of this function, to avoid thrashing the mutex
 func (s *channelManager) AddL2Block(block *types.Block) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
