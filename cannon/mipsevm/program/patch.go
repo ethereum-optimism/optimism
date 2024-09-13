@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"debug/elf"
 	"encoding/binary"
+	"errors"
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
@@ -57,7 +58,7 @@ func PatchStack(st mipsevm.FPVMState) error {
 	sp := uint32(0x7f_ff_d0_00)
 	// allocate 1 page for the initial stack data, and 16KB = 4 pages for the stack to grow
 	if err := st.GetMemory().SetMemoryRange(sp-4*memory.PageSize, bytes.NewReader(make([]byte, 5*memory.PageSize))); err != nil {
-		return fmt.Errorf("failed to allocate page for stack content")
+		return errors.New("failed to allocate page for stack content")
 	}
 	st.GetRegistersRef()[29] = sp
 

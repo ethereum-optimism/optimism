@@ -2,28 +2,29 @@
 * @ethereum-optimism/go-reviewers
 
 # OP Stack general
-/bedrock-devnet @ethereum-optimism/go-reviewers @ethereum-optimism/op-stack
-/op-alt-da      @ethereum-optimism/go-reviewers @ethereum-optimism/op-stack
-/op-batcher     @ethereum-optimism/go-reviewers @ethereum-optimism/op-stack
-/op-chain-ops   @ethereum-optimism/go-reviewers @ethereum-optimism/op-stack
-/op-e2e         @ethereum-optimism/go-reviewers @ethereum-optimism/op-stack
-/op-node        @ethereum-optimism/go-reviewers @ethereum-optimism/op-stack
-/op-proposer    @ethereum-optimism/go-reviewers @ethereum-optimism/op-stack
-/op-wheel       @ethereum-optimism/go-reviewers @ethereum-optimism/op-stack
-/ops-bedrock    @ethereum-optimism/go-reviewers @ethereum-optimism/op-stack
+/bedrock-devnet @ethereum-optimism/op-stack @ethereum-optimism/go-reviewers
+/op-alt-da      @ethereum-optimism/op-stack @ethereum-optimism/go-reviewers
+/op-batcher     @ethereum-optimism/op-stack @ethereum-optimism/go-reviewers
+/op-chain-ops   @ethereum-optimism/op-stack @ethereum-optimism/go-reviewers
+/op-e2e         @ethereum-optimism/op-stack @ethereum-optimism/go-reviewers
+/op-node        @ethereum-optimism/op-stack @ethereum-optimism/go-reviewers
+/op-proposer    @ethereum-optimism/op-stack @ethereum-optimism/go-reviewers
+/op-wheel       @ethereum-optimism/op-stack @ethereum-optimism/go-reviewers
+/ops-bedrock    @ethereum-optimism/op-stack @ethereum-optimism/go-reviewers
 
 # Expert areas
-/op-node/rollup @ethereum-optimism/go-reviewers @ethereum-optimism/consensus
+/op-node/rollup @ethereum-optimism/consensus @ethereum-optimism/go-reviewers
 
-/op-supervisor  @ethereum-optimism/go-reviewers @ethereum-optimism/interop
+/op-supervisor  @ethereum-optimism/interop @ethereum-optimism/go-reviewers
 
-/op-conductor   @ethereum-optimism/go-reviewers @ethereum-optimism/op-conductor
+/op-conductor   @ethereum-optimism/op-conductor @ethereum-optimism/go-reviewers
 
-/cannon         @ethereum-optimism/go-reviewers @ethereum-optimism/proofs
-/op-dispute-mon @ethereum-optimism/go-reviewers @ethereum-optimism/proofs
-/op-challenger  @ethereum-optimism/go-reviewers @ethereum-optimism/proofs
-/op-preimage    @ethereum-optimism/go-reviewers @ethereum-optimism/proofs
-/op-program     @ethereum-optimism/go-reviewers @ethereum-optimism/proofs
+/cannon         @ethereum-optimism/proofs @ethereum-optimism/go-reviewers
+/op-challenger  @ethereum-optimism/proofs @ethereum-optimism/go-reviewers
+/op-dispute-mon @ethereum-optimism/proofs @ethereum-optimism/go-reviewers
+/op-preimage    @ethereum-optimism/proofs @ethereum-optimism/go-reviewers
+/op-program     @ethereum-optimism/proofs @ethereum-optimism/go-reviewers
+/op-e2e/actions/proofs @ethereum-optimism/proofs @ethereum-optimism/go-reviewers
 
 # Ops
 /.circleci       @ethereum-optimism/monorepo-ops-reviewers

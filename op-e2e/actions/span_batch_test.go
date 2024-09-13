@@ -41,7 +41,7 @@ func TestDropSpanBatchBeforeHardfork(gt *testing.T) {
 	dp := e2eutils.MakeDeployParams(t, p)
 	// do not activate Delta hardfork for verifier
 	applyDeltaTimeOffset(dp, nil)
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelError)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
 	verifEngine, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
@@ -137,7 +137,7 @@ func TestHardforkMiddleOfSpanBatch(gt *testing.T) {
 	dp.DeployConfig.L2GenesisFjordTimeOffset = nil
 	dp.DeployConfig.L2GenesisGraniteTimeOffset = nil
 
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelError)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
 	verifEngine, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
@@ -245,7 +245,7 @@ func TestAcceptSingularBatchAfterHardfork(gt *testing.T) {
 
 	// activate Delta hardfork for verifier.
 	applyDeltaTimeOffset(dp, &minTs)
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelError)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
 	verifEngine, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
@@ -331,7 +331,7 @@ func TestMixOfBatchesAfterHardfork(gt *testing.T) {
 
 	// Activate Delta hardfork for verifier.
 	applyDeltaTimeOffset(dp, &minTs)
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelError)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
 	verifEngine, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
@@ -421,7 +421,7 @@ func TestSpanBatchEmptyChain(gt *testing.T) {
 	minTs := hexutil.Uint64(0)
 	// Activate Delta hardfork
 	applyDeltaTimeOffset(dp, &minTs)
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelError)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
 	_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
@@ -484,7 +484,7 @@ func TestSpanBatchLowThroughputChain(gt *testing.T) {
 	minTs := hexutil.Uint64(0)
 	// Activate Delta hardfork
 	applyDeltaTimeOffset(dp, &minTs)
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelError)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
 	_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
@@ -598,7 +598,7 @@ func TestBatchEquivalence(gt *testing.T) {
 	dp := e2eutils.MakeDeployParams(t, p)
 	minTs := hexutil.Uint64(0)
 	applyDeltaTimeOffset(dp, &minTs)
-	sdDeltaActivated := e2eutils.Setup(t, dp, defaultAlloc)
+	sdDeltaActivated := e2eutils.Setup(t, dp, DefaultAlloc)
 
 	// Delta deactivated deploy config
 	rcfg := *sdDeltaActivated.RollupCfg

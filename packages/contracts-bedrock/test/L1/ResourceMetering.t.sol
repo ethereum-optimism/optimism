@@ -12,13 +12,22 @@ import { Proxy } from "src/universal/Proxy.sol";
 
 // Target contract
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
+import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
 
 contract MeterUser is ResourceMetering {
     ResourceMetering.ResourceConfig public innerConfig;
 
     constructor() {
         initialize();
-        innerConfig = Constants.DEFAULT_RESOURCE_CONFIG();
+        IResourceMetering.ResourceConfig memory rcfg = Constants.DEFAULT_RESOURCE_CONFIG();
+        innerConfig = ResourceMetering.ResourceConfig({
+            maxResourceLimit: rcfg.maxResourceLimit,
+            elasticityMultiplier: rcfg.elasticityMultiplier,
+            baseFeeMaxChangeDenominator: rcfg.baseFeeMaxChangeDenominator,
+            minimumBaseFee: rcfg.minimumBaseFee,
+            systemTxMaxGas: rcfg.systemTxMaxGas,
+            maximumBaseFee: rcfg.maximumBaseFee
+        });
     }
 
     function initialize() public initializer {
@@ -231,7 +240,15 @@ contract CustomMeterUser is ResourceMetering {
     }
 
     function _resourceConfig() internal pure override returns (ResourceMetering.ResourceConfig memory) {
-        return Constants.DEFAULT_RESOURCE_CONFIG();
+        IResourceMetering.ResourceConfig memory rcfg = Constants.DEFAULT_RESOURCE_CONFIG();
+        return ResourceMetering.ResourceConfig({
+            maxResourceLimit: rcfg.maxResourceLimit,
+            elasticityMultiplier: rcfg.elasticityMultiplier,
+            baseFeeMaxChangeDenominator: rcfg.baseFeeMaxChangeDenominator,
+            minimumBaseFee: rcfg.minimumBaseFee,
+            systemTxMaxGas: rcfg.systemTxMaxGas,
+            maximumBaseFee: rcfg.maximumBaseFee
+        });
     }
 
     function use(uint64 _amount) public returns (uint256) {

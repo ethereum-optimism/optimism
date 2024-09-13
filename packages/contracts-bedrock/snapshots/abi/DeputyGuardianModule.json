@@ -7,7 +7,7 @@
         "type": "address"
       },
       {
-        "internalType": "contract SuperchainConfig",
+        "internalType": "contract ISuperchainConfig",
         "name": "_superchainConfig",
         "type": "address"
       },
@@ -23,7 +23,7 @@
   {
     "inputs": [
       {
-        "internalType": "contract OptimismPortal2",
+        "internalType": "contract IOptimismPortal2",
         "name": "_portal",
         "type": "address"
       },
@@ -92,7 +92,7 @@
   {
     "inputs": [
       {
-        "internalType": "contract OptimismPortal2",
+        "internalType": "contract IOptimismPortal2",
         "name": "_portal",
         "type": "address"
       },
@@ -112,7 +112,7 @@
     "name": "superchainConfig",
     "outputs": [
       {
-        "internalType": "contract SuperchainConfig",
+        "internalType": "contract ISuperchainConfig",
         "name": "superchainConfig_",
         "type": "address"
       }

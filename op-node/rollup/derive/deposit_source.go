@@ -13,9 +13,10 @@ type UserDepositSource struct {
 }
 
 const (
-	UserDepositSourceDomain    = 0
-	L1InfoDepositSourceDomain  = 1
-	UpgradeDepositSourceDomain = 2
+	UserDepositSourceDomain       = 0
+	L1InfoDepositSourceDomain     = 1
+	UpgradeDepositSourceDomain    = 2
+	AfterForceIncludeSourceDomain = 3
 )
 
 func (dep *UserDepositSource) SourceHash() common.Hash {
@@ -61,5 +62,23 @@ func (dep *UpgradeDepositSource) SourceHash() common.Hash {
 	var domainInput [32 * 2]byte
 	binary.BigEndian.PutUint64(domainInput[32-8:32], UpgradeDepositSourceDomain)
 	copy(domainInput[32:], intentHash[:])
+	return crypto.Keccak256Hash(domainInput[:])
+}
+
+// AfterForceIncludeSource identifies the DepositsComplete post-user-deposits deposit-transaction.
+type AfterForceIncludeSource struct {
+	L1BlockHash common.Hash
+	SeqNumber   uint64 // without this the Deposit tx would have the same tx hash for every time the L1 info repeats.
+}
+
+func (dep *AfterForceIncludeSource) SourceHash() common.Hash {
+	var input [32 * 2]byte
+	copy(input[:32], dep.L1BlockHash[:])
+	binary.BigEndian.PutUint64(input[32*2-8:], dep.SeqNumber)
+	depositIDHash := crypto.Keccak256Hash(input[:])
+
+	var domainInput [32 * 2]byte
+	binary.BigEndian.PutUint64(domainInput[32-8:32], AfterForceIncludeSourceDomain)
+	copy(domainInput[32:], depositIDHash[:])
 	return crypto.Keccak256Hash(domainInput[:])
 }

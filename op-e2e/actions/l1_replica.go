@@ -192,6 +192,10 @@ func (s *L1Replica) L1Client(t Testing, cfg *rollup.Config) *sources.L1Client {
 	return l1F
 }
 
+func (s *L1Replica) L1Chain() *core.BlockChain {
+	return s.l1Chain
+}
+
 func (s *L1Replica) UnsafeNum() uint64 {
 	head := s.l1Chain.CurrentBlock()
 	headNum := uint64(0)

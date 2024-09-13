@@ -27,7 +27,7 @@ func setupReorgTest(t Testing, config *e2eutils.TestParams, deltaTimeOffset *hex
 	dp := e2eutils.MakeDeployParams(t, config)
 	applyDeltaTimeOffset(dp, deltaTimeOffset)
 
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 
 	return setupReorgTestActors(t, dp, sd, log)
@@ -75,7 +75,7 @@ func TestReorgBatchType(t *testing.T) {
 
 func ReorgOrphanBlock(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
-	sd, _, miner, sequencer, _, verifier, verifierEng, batcher := setupReorgTest(t, defaultRollupTestParams, deltaTimeOffset)
+	sd, _, miner, sequencer, _, verifier, verifierEng, batcher := setupReorgTest(t, DefaultRollupTestParams, deltaTimeOffset)
 	verifEngClient := verifierEng.EngineClient(t, sd.RollupCfg)
 
 	sequencer.ActL2PipelineFull(t)
@@ -143,7 +143,7 @@ func ReorgOrphanBlock(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 
 func ReorgFlipFlop(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
-	sd, _, miner, sequencer, _, verifier, verifierEng, batcher := setupReorgTest(t, defaultRollupTestParams, deltaTimeOffset)
+	sd, _, miner, sequencer, _, verifier, verifierEng, batcher := setupReorgTest(t, DefaultRollupTestParams, deltaTimeOffset)
 	minerCl := miner.L1Client(t, sd.RollupCfg)
 	verifEngClient := verifierEng.EngineClient(t, sd.RollupCfg)
 	checkVerifEngine := func() {
@@ -599,9 +599,9 @@ func RestartOpGeth(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 		nodeCfg.DataDir = dbPath
 		return nil
 	}
-	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
 	applyDeltaTimeOffset(dp, deltaTimeOffset)
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 	jwtPath := e2eutils.WriteDefaultJWT(t)
 	// L1
@@ -687,9 +687,9 @@ func RestartOpGeth(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 // the alt block is not synced by the verifier, in unsafe and safe sync modes.
 func ConflictingL2Blocks(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
 	applyDeltaTimeOffset(dp, deltaTimeOffset)
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 
 	sd, _, miner, sequencer, seqEng, verifier, _, batcher := setupReorgTestActors(t, dp, sd, log)

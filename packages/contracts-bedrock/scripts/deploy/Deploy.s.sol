@@ -1,38 +1,36 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+// Testing
 import { VmSafe } from "forge-std/Vm.sol";
 import { Script } from "forge-std/Script.sol";
-
 import { console2 as console } from "forge-std/console2.sol";
 import { stdJson } from "forge-std/StdJson.sol";
+import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
+import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
+// Safe
 import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
 import { GnosisSafeProxyFactory as SafeProxyFactory } from "safe-contracts/proxies/GnosisSafeProxyFactory.sol";
 import { Enum as SafeOps } from "safe-contracts/common/Enum.sol";
 
+// Scripts
 import { Deployer } from "scripts/deploy/Deployer.sol";
+import { Chains } from "scripts/libraries/Chains.sol";
+import { Config } from "scripts/libraries/Config.sol";
+import { LibStateDiff } from "scripts/libraries/LibStateDiff.sol";
+import { Process } from "scripts/libraries/Process.sol";
+import { ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
+import { ChainAssertions } from "scripts/deploy/ChainAssertions.sol";
 
+// Contracts
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
 import { AddressManager } from "src/legacy/AddressManager.sol";
 import { Proxy } from "src/universal/Proxy.sol";
-import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { StandardBridge } from "src/universal/StandardBridge.sol";
-import { OptimismPortal } from "src/L1/OptimismPortal.sol";
-import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
-import { OptimismPortalInterop } from "src/L1/OptimismPortalInterop.sol";
 import { L1ChugSplashProxy } from "src/legacy/L1ChugSplashProxy.sol";
 import { ResolvedDelegateProxy } from "src/legacy/ResolvedDelegateProxy.sol";
-import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
-import { IL2OutputOracle } from "src/L1/interfaces/IL2OutputOracle.sol";
-import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
-import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
-import { SystemConfig } from "src/L1/SystemConfig.sol";
-import { SystemConfigInterop } from "src/L1/SystemConfigInterop.sol";
-import { ResourceMetering } from "src/L1/ResourceMetering.sol";
-import { DataAvailabilityChallenge } from "src/L1/DataAvailabilityChallenge.sol";
-import { Constants } from "src/libraries/Constants.sol";
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
 import { PermissionedDisputeGame } from "src/dispute/PermissionedDisputeGame.sol";
@@ -40,23 +38,30 @@ import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
 import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
 import { MIPS } from "src/cannon/MIPS.sol";
-import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
-import { ProtocolVersions, ProtocolVersion } from "src/L1/ProtocolVersions.sol";
 import { StorageSetter } from "src/universal/StorageSetter.sol";
-import { Predeploys } from "src/libraries/Predeploys.sol";
-import { Chains } from "scripts/libraries/Chains.sol";
-import { Config } from "scripts/libraries/Config.sol";
 
+// Libraries
+import { Constants } from "src/libraries/Constants.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Types } from "scripts/libraries/Types.sol";
+import "src/dispute/lib/Types.sol";
+
+// Interfaces
+import { IOptimismPortal } from "src/L1/interfaces/IOptimismPortal.sol";
+import { IOptimismPortal2 } from "src/L1/interfaces/IOptimismPortal2.sol";
+import { IOptimismPortalInterop } from "src/L1/interfaces/IOptimismPortalInterop.sol";
+import { ICrossDomainMessenger } from "src/universal/interfaces/ICrossDomainMessenger.sol";
+import { IL1CrossDomainMessenger } from "src/L1/interfaces/IL1CrossDomainMessenger.sol";
+import { IL2OutputOracle } from "src/L1/interfaces/IL2OutputOracle.sol";
+import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
+import { ISystemConfig } from "src/L1/interfaces/ISystemConfig.sol";
+import { IDataAvailabilityChallenge } from "src/L1/interfaces/IDataAvailabilityChallenge.sol";
+import { IL1ERC721Bridge } from "src/L1/interfaces/IL1ERC721Bridge.sol";
+import { IL1StandardBridge } from "src/L1/interfaces/IL1StandardBridge.sol";
+import { IProtocolVersions, ProtocolVersion } from "src/L1/interfaces/IProtocolVersions.sol";
 import { IBigStepper } from "src/dispute/interfaces/IBigStepper.sol";
 import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
-import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
-import "src/dispute/lib/Types.sol";
-import { ChainAssertions } from "scripts/deploy/ChainAssertions.sol";
-import { Types } from "scripts/libraries/Types.sol";
-import { LibStateDiff } from "scripts/libraries/LibStateDiff.sol";
-import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
-import { ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
-import { Process } from "scripts/libraries/Process.sol";
+import { IOptimismMintableERC20Factory } from "src/universal/interfaces/IOptimismMintableERC20Factory.sol";
 
 /// @title Deploy
 /// @notice Script used to deploy a bedrock system. The entire system is deployed within the `run` function.
@@ -273,6 +278,39 @@ contract Deploy is Deployer {
         _run();
     }
 
+    /// @notice Deploy a new OP Chain using an existing SuperchainConfig and ProtocolVersions
+    /// @param _superchainConfigProxy Address of the existing SuperchainConfig proxy
+    /// @param _protocolVersionsProxy Address of the existing ProtocolVersions proxy
+    /// @param includeDump Whether to include a state dump after deployment
+    function runWithSuperchain(
+        address payable _superchainConfigProxy,
+        address payable _protocolVersionsProxy,
+        bool includeDump
+    )
+        public
+    {
+        require(_superchainConfigProxy != address(0), "must specify address for superchain config proxy");
+        require(_protocolVersionsProxy != address(0), "must specify address for protocol versions proxy");
+
+        vm.chainId(cfg.l1ChainID());
+
+        console.log("Deploying a fresh OP Stack with existing SuperchainConfig and ProtocolVersions");
+
+        Proxy scProxy = Proxy(_superchainConfigProxy);
+        save("SuperchainConfig", scProxy.implementation());
+        save("SuperchainConfigProxy", _superchainConfigProxy);
+
+        Proxy pvProxy = Proxy(_protocolVersionsProxy);
+        save("ProtocolVersions", pvProxy.implementation());
+        save("ProtocolVersionsProxy", _protocolVersionsProxy);
+
+        _run(false);
+
+        if (includeDump) {
+            vm.dumpState(Config.stateDumpPath(""));
+        }
+    }
+
     function runWithStateDump() public {
         vm.chainId(cfg.l1ChainID());
         _run();
@@ -284,13 +322,27 @@ contract Deploy is Deployer {
         _run();
     }
 
-    /// @notice Internal function containing the deploy logic.
+    /// @notice Compatibility function for tests that override _run().
     function _run() internal virtual {
+        _run(true);
+    }
+
+    /// @notice Internal function containing the deploy logic.
+    function _run(bool _needsSuperchain) internal {
         console.log("start of L1 Deploy!");
         deploySafe("SystemOwnerSafe");
         console.log("deployed Safe!");
-        setupSuperchain();
-        console.log("set up superchain!");
+
+        // Deploy a new ProxyAdmin and AddressManager
+        // This proxy will be used on the SuperchainConfig and ProtocolVersions contracts, as well as the contracts
+        // in the OP Chain system.
+        setupAdmin();
+
+        if (_needsSuperchain) {
+            setupSuperchain();
+            console.log("set up superchain!");
+        }
+
         if (cfg.useAltDA()) {
             bytes32 typeHash = keccak256(bytes(cfg.daCommitmentType()));
             bytes32 keccakHash = keccak256(bytes("KeccakCommitment"));
@@ -306,19 +358,19 @@ contract Deploy is Deployer {
     //           High Level Deployment Functions                  //
     ////////////////////////////////////////////////////////////////
 
+    /// @notice Deploy the address manager and proxy admin contracts.
+    function setupAdmin() public {
+        deployAddressManager();
+        deployProxyAdmin();
+        transferProxyAdminOwnership();
+    }
+
     /// @notice Deploy a full system with a new SuperchainConfig
     ///         The Superchain system has 2 singleton contracts which lie outside of an OP Chain:
     ///         1. The SuperchainConfig contract
     ///         2. The ProtocolVersions contract
     function setupSuperchain() public {
         console.log("Setting up Superchain");
-
-        // Deploy a new ProxyAdmin and AddressManager
-        // This proxy will be used on the SuperchainConfig and ProtocolVersions contracts, as well as the contracts
-        // in the OP Chain system.
-        deployAddressManager();
-        deployProxyAdmin();
-        transferProxyAdminOwnership();
 
         // Deploy the SuperchainConfigProxy
         deployERC1967Proxy("SuperchainConfigProxy");
@@ -613,23 +665,16 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the SuperchainConfig contract
     function deploySuperchainConfig() public broadcast {
-        SuperchainConfig superchainConfig = new SuperchainConfig{ salt: _implSalt() }();
+        ISuperchainConfig superchainConfig = ISuperchainConfig(_deploy("SuperchainConfig", hex""));
 
         require(superchainConfig.guardian() == address(0));
         bytes32 initialized = vm.load(address(superchainConfig), bytes32(0));
         require(initialized != 0);
-
-        save("SuperchainConfig", address(superchainConfig));
-        console.log("SuperchainConfig deployed at %s", address(superchainConfig));
     }
 
     /// @notice Deploy the L1CrossDomainMessenger
     function deployL1CrossDomainMessenger() public broadcast returns (address addr_) {
-        console.log("Deploying L1CrossDomainMessenger implementation");
-        L1CrossDomainMessenger messenger = new L1CrossDomainMessenger{ salt: _implSalt() }();
-
-        save("L1CrossDomainMessenger", address(messenger));
-        console.log("L1CrossDomainMessenger deployed at %s", address(messenger));
+        IL1CrossDomainMessenger messenger = IL1CrossDomainMessenger(_deploy("L1CrossDomainMessenger", hex""));
 
         // Override the `L1CrossDomainMessenger` contract to the deployed implementation. This is necessary
         // to check the `L1CrossDomainMessenger` implementation alongside dependent contracts, which
@@ -643,13 +688,11 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the OptimismPortal
     function deployOptimismPortal() public broadcast returns (address addr_) {
-        console.log("Deploying OptimismPortal implementation");
         if (cfg.useInterop()) {
             console.log("Attempting to deploy OptimismPortal with interop, this config is a noop");
         }
-        addr_ = address(new OptimismPortal{ salt: _implSalt() }());
-        save("OptimismPortal", addr_);
-        console.log("OptimismPortal deployed at %s", addr_);
+
+        addr_ = _deploy("OptimismPortal", hex"");
 
         // Override the `OptimismPortal` contract to the deployed implementation. This is necessary
         // to check the `OptimismPortal` implementation alongside dependent contracts, which
@@ -661,31 +704,22 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the OptimismPortal2
     function deployOptimismPortal2() public broadcast returns (address addr_) {
-        console.log("Deploying OptimismPortal2 implementation");
-
         // Could also verify this inside DeployConfig but doing it here is a bit more reliable.
         require(
             uint32(cfg.respectedGameType()) == cfg.respectedGameType(), "Deploy: respectedGameType must fit into uint32"
         );
 
         if (cfg.useInterop()) {
-            addr_ = address(
-                new OptimismPortalInterop{ salt: _implSalt() }({
-                    _proofMaturityDelaySeconds: cfg.proofMaturityDelaySeconds(),
-                    _disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds()
-                })
+            addr_ = _deploy(
+                "OptimismPortalInterop",
+                abi.encode(cfg.proofMaturityDelaySeconds(), cfg.disputeGameFinalityDelaySeconds())
             );
+            save("OptimismPortal2", addr_);
         } else {
-            addr_ = address(
-                new OptimismPortal2{ salt: _implSalt() }({
-                    _proofMaturityDelaySeconds: cfg.proofMaturityDelaySeconds(),
-                    _disputeGameFinalityDelaySeconds: cfg.disputeGameFinalityDelaySeconds()
-                })
+            addr_ = _deploy(
+                "OptimismPortal2", abi.encode(cfg.proofMaturityDelaySeconds(), cfg.disputeGameFinalityDelaySeconds())
             );
         }
-
-        save("OptimismPortal2", addr_);
-        console.log("OptimismPortal2 deployed at %s", addr_);
 
         // Override the `OptimismPortal2` contract to the deployed implementation. This is necessary
         // to check the `OptimismPortal2` implementation alongside dependent contracts, which
@@ -716,11 +750,8 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the OptimismMintableERC20Factory
     function deployOptimismMintableERC20Factory() public broadcast returns (address addr_) {
-        console.log("Deploying OptimismMintableERC20Factory implementation");
-        OptimismMintableERC20Factory factory = new OptimismMintableERC20Factory{ salt: _implSalt() }();
-
-        save("OptimismMintableERC20Factory", address(factory));
-        console.log("OptimismMintableERC20Factory deployed at %s", address(factory));
+        IOptimismMintableERC20Factory factory =
+            IOptimismMintableERC20Factory(_deploy("OptimismMintableERC20Factory", hex""));
 
         // Override the `OptimismMintableERC20Factory` contract to the deployed implementation. This is necessary
         // to check the `OptimismMintableERC20Factory` implementation alongside dependent contracts, which
@@ -771,10 +802,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the ProtocolVersions
     function deployProtocolVersions() public broadcast returns (address addr_) {
-        console.log("Deploying ProtocolVersions implementation");
-        ProtocolVersions versions = new ProtocolVersions{ salt: _implSalt() }();
-        save("ProtocolVersions", address(versions));
-        console.log("ProtocolVersions deployed at %s", address(versions));
+        IProtocolVersions versions = IProtocolVersions(_deploy("ProtocolVersions", hex""));
 
         // Override the `ProtocolVersions` contract to the deployed implementation. This is necessary
         // to check the `ProtocolVersions` implementation alongside dependent contracts, which
@@ -822,14 +850,12 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the SystemConfig
     function deploySystemConfig() public broadcast returns (address addr_) {
-        console.log("Deploying SystemConfig implementation");
         if (cfg.useInterop()) {
-            addr_ = address(new SystemConfigInterop{ salt: _implSalt() }());
+            addr_ = _deploy("SystemConfigInterop", hex"");
+            save("SystemConfig", addr_);
         } else {
-            addr_ = address(new SystemConfig{ salt: _implSalt() }());
+            addr_ = _deploy("SystemConfig", hex"");
         }
-        save("SystemConfig", addr_);
-        console.log("SystemConfig deployed at %s", addr_);
 
         // Override the `SystemConfig` contract to the deployed implementation. This is necessary
         // to check the `SystemConfig` implementation alongside dependent contracts, which
@@ -841,12 +867,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the L1StandardBridge
     function deployL1StandardBridge() public broadcast returns (address addr_) {
-        console.log("Deploying L1StandardBridge implementation");
-
-        L1StandardBridge bridge = new L1StandardBridge{ salt: _implSalt() }();
-
-        save("L1StandardBridge", address(bridge));
-        console.log("L1StandardBridge deployed at %s", address(bridge));
+        IL1StandardBridge bridge = IL1StandardBridge(payable(_deploy("L1StandardBridge", hex"")));
 
         // Override the `L1StandardBridge` contract to the deployed implementation. This is necessary
         // to check the `L1StandardBridge` implementation alongside dependent contracts, which
@@ -860,11 +881,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the L1ERC721Bridge
     function deployL1ERC721Bridge() public broadcast returns (address addr_) {
-        console.log("Deploying L1ERC721Bridge implementation");
-        L1ERC721Bridge bridge = new L1ERC721Bridge{ salt: _implSalt() }();
-
-        save("L1ERC721Bridge", address(bridge));
-        console.log("L1ERC721Bridge deployed at %s", address(bridge));
+        IL1ERC721Bridge bridge = IL1ERC721Bridge(_deploy("L1ERC721Bridge", hex""));
 
         // Override the `L1ERC721Bridge` contract to the deployed implementation. This is necessary
         // to check the `L1ERC721Bridge` implementation alongside dependent contracts, which
@@ -893,11 +910,8 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the DataAvailabilityChallenge
     function deployDataAvailabilityChallenge() public broadcast returns (address addr_) {
-        console.log("Deploying DataAvailabilityChallenge implementation");
-        DataAvailabilityChallenge dac = new DataAvailabilityChallenge();
-        save("DataAvailabilityChallenge", address(dac));
-        console.log("DataAvailabilityChallenge deployed at %s", address(dac));
-
+        IDataAvailabilityChallenge dac =
+            IDataAvailabilityChallenge(payable(_deploy("DataAvailabilityChallenge", hex"")));
         addr_ = address(dac);
     }
 
@@ -912,7 +926,7 @@ contract Deploy is Deployer {
         _upgradeAndCallViaSafe({
             _proxy: superchainConfigProxy,
             _implementation: superchainConfig,
-            _innerCallData: abi.encodeCall(SuperchainConfig.initialize, (cfg.superchainConfigGuardian(), false))
+            _innerCallData: abi.encodeCall(ISuperchainConfig.initialize, (cfg.superchainConfigGuardian(), false))
         });
 
         ChainAssertions.checkSuperchainConfig({ _contracts: _proxiesUnstrict(), _cfg: cfg, _isPaused: false });
@@ -945,7 +959,7 @@ contract Deploy is Deployer {
         _upgradeAndCallViaSafe({
             _proxy: payable(delayedWETHProxy),
             _implementation: delayedWETH,
-            _innerCallData: abi.encodeCall(DelayedWETH.initialize, (msg.sender, SuperchainConfig(superchainConfigProxy)))
+            _innerCallData: abi.encodeCall(DelayedWETH.initialize, (msg.sender, ISuperchainConfig(superchainConfigProxy)))
         });
 
         string memory version = DelayedWETH(payable(delayedWETHProxy)).version();
@@ -968,7 +982,7 @@ contract Deploy is Deployer {
         _upgradeAndCallViaSafe({
             _proxy: payable(delayedWETHProxy),
             _implementation: delayedWETH,
-            _innerCallData: abi.encodeCall(DelayedWETH.initialize, (msg.sender, SuperchainConfig(superchainConfigProxy)))
+            _innerCallData: abi.encodeCall(DelayedWETH.initialize, (msg.sender, ISuperchainConfig(superchainConfigProxy)))
         });
 
         string memory version = DelayedWETH(payable(delayedWETHProxy)).version();
@@ -986,7 +1000,7 @@ contract Deploy is Deployer {
         console.log("Upgrading and initializing AnchorStateRegistry proxy");
         address anchorStateRegistryProxy = mustGetAddress("AnchorStateRegistryProxy");
         address anchorStateRegistry = mustGetAddress("AnchorStateRegistry");
-        SuperchainConfig superchainConfig = SuperchainConfig(mustGetAddress("SuperchainConfigProxy"));
+        ISuperchainConfig superchainConfig = ISuperchainConfig(mustGetAddress("SuperchainConfigProxy"));
 
         AnchorStateRegistry.StartingAnchorRoot[] memory roots = new AnchorStateRegistry.StartingAnchorRoot[](5);
         roots[0] = AnchorStateRegistry.StartingAnchorRoot({
@@ -1052,7 +1066,7 @@ contract Deploy is Deployer {
             _proxy: payable(systemConfigProxy),
             _implementation: systemConfig,
             _innerCallData: abi.encodeCall(
-                SystemConfig.initialize,
+                ISystemConfig.initialize,
                 (
                     cfg.finalSystemOwner(),
                     cfg.basefeeScalar(),
@@ -1062,7 +1076,7 @@ contract Deploy is Deployer {
                     cfg.p2pSequencerAddress(),
                     Constants.DEFAULT_RESOURCE_CONFIG(),
                     cfg.batchInboxAddress(),
-                    SystemConfig.Addresses({
+                    ISystemConfig.Addresses({
                         l1CrossDomainMessenger: mustGetAddress("L1CrossDomainMessengerProxy"),
                         l1ERC721Bridge: mustGetAddress("L1ERC721BridgeProxy"),
                         l1StandardBridge: mustGetAddress("L1StandardBridgeProxy"),
@@ -1075,7 +1089,7 @@ contract Deploy is Deployer {
             )
         });
 
-        SystemConfig config = SystemConfig(systemConfigProxy);
+        ISystemConfig config = ISystemConfig(systemConfigProxy);
         string memory version = config.version();
         console.log("SystemConfig version: %s", version);
 
@@ -1107,16 +1121,16 @@ contract Deploy is Deployer {
             _proxy: payable(l1StandardBridgeProxy),
             _implementation: l1StandardBridge,
             _innerCallData: abi.encodeCall(
-                L1StandardBridge.initialize,
+                IL1StandardBridge.initialize,
                 (
-                    L1CrossDomainMessenger(l1CrossDomainMessengerProxy),
-                    SuperchainConfig(superchainConfigProxy),
-                    SystemConfig(systemConfigProxy)
+                    ICrossDomainMessenger(l1CrossDomainMessengerProxy),
+                    ISuperchainConfig(superchainConfigProxy),
+                    ISystemConfig(systemConfigProxy)
                 )
             )
         });
 
-        string memory version = L1StandardBridge(payable(l1StandardBridgeProxy)).version();
+        string memory version = IL1StandardBridge(payable(l1StandardBridgeProxy)).version();
         console.log("L1StandardBridge version: %s", version);
 
         ChainAssertions.checkL1StandardBridge({ _contracts: _proxies(), _isProxy: true });
@@ -1134,12 +1148,12 @@ contract Deploy is Deployer {
             _proxy: payable(l1ERC721BridgeProxy),
             _implementation: l1ERC721Bridge,
             _innerCallData: abi.encodeCall(
-                L1ERC721Bridge.initialize,
-                (L1CrossDomainMessenger(payable(l1CrossDomainMessengerProxy)), SuperchainConfig(superchainConfigProxy))
+                IL1ERC721Bridge.initialize,
+                (ICrossDomainMessenger(payable(l1CrossDomainMessengerProxy)), ISuperchainConfig(superchainConfigProxy))
             )
         });
 
-        L1ERC721Bridge bridge = L1ERC721Bridge(l1ERC721BridgeProxy);
+        IL1ERC721Bridge bridge = IL1ERC721Bridge(l1ERC721BridgeProxy);
         string memory version = bridge.version();
         console.log("L1ERC721Bridge version: %s", version);
 
@@ -1156,10 +1170,10 @@ contract Deploy is Deployer {
         _upgradeAndCallViaSafe({
             _proxy: payable(optimismMintableERC20FactoryProxy),
             _implementation: optimismMintableERC20Factory,
-            _innerCallData: abi.encodeCall(OptimismMintableERC20Factory.initialize, (l1StandardBridgeProxy))
+            _innerCallData: abi.encodeCall(IOptimismMintableERC20Factory.initialize, (l1StandardBridgeProxy))
         });
 
-        OptimismMintableERC20Factory factory = OptimismMintableERC20Factory(optimismMintableERC20FactoryProxy);
+        IOptimismMintableERC20Factory factory = IOptimismMintableERC20Factory(optimismMintableERC20FactoryProxy);
         string memory version = factory.version();
         console.log("OptimismMintableERC20Factory version: %s", version);
 
@@ -1205,16 +1219,16 @@ contract Deploy is Deployer {
             _proxy: payable(l1CrossDomainMessengerProxy),
             _implementation: l1CrossDomainMessenger,
             _innerCallData: abi.encodeCall(
-                L1CrossDomainMessenger.initialize,
+                IL1CrossDomainMessenger.initialize,
                 (
-                    SuperchainConfig(superchainConfigProxy),
-                    OptimismPortal(payable(optimismPortalProxy)),
-                    SystemConfig(systemConfigProxy)
+                    ISuperchainConfig(superchainConfigProxy),
+                    IOptimismPortal(payable(optimismPortalProxy)),
+                    ISystemConfig(systemConfigProxy)
                 )
             )
         });
 
-        L1CrossDomainMessenger messenger = L1CrossDomainMessenger(l1CrossDomainMessengerProxy);
+        IL1CrossDomainMessenger messenger = IL1CrossDomainMessenger(l1CrossDomainMessengerProxy);
         string memory version = messenger.version();
         console.log("L1CrossDomainMessenger version: %s", version);
 
@@ -1269,16 +1283,16 @@ contract Deploy is Deployer {
             _proxy: payable(optimismPortalProxy),
             _implementation: optimismPortal,
             _innerCallData: abi.encodeCall(
-                OptimismPortal.initialize,
+                IOptimismPortal.initialize,
                 (
                     IL2OutputOracle(l2OutputOracleProxy),
-                    SystemConfig(systemConfigProxy),
-                    SuperchainConfig(superchainConfigProxy)
+                    ISystemConfig(systemConfigProxy),
+                    ISuperchainConfig(superchainConfigProxy)
                 )
             )
         });
 
-        OptimismPortal portal = OptimismPortal(payable(optimismPortalProxy));
+        IOptimismPortal portal = IOptimismPortal(payable(optimismPortalProxy));
         string memory version = portal.version();
         console.log("OptimismPortal version: %s", version);
 
@@ -1298,17 +1312,17 @@ contract Deploy is Deployer {
             _proxy: payable(optimismPortalProxy),
             _implementation: optimismPortal2,
             _innerCallData: abi.encodeCall(
-                OptimismPortal2.initialize,
+                IOptimismPortal2.initialize,
                 (
                     DisputeGameFactory(disputeGameFactoryProxy),
-                    SystemConfig(systemConfigProxy),
-                    SuperchainConfig(superchainConfigProxy),
+                    ISystemConfig(systemConfigProxy),
+                    ISuperchainConfig(superchainConfigProxy),
                     GameType.wrap(uint32(cfg.respectedGameType()))
                 )
             )
         });
 
-        OptimismPortal2 portal = OptimismPortal2(payable(optimismPortalProxy));
+        IOptimismPortal2 portal = IOptimismPortal2(payable(optimismPortalProxy));
         string memory version = portal.version();
         console.log("OptimismPortal2 version: %s", version);
 
@@ -1328,7 +1342,7 @@ contract Deploy is Deployer {
             _proxy: payable(protocolVersionsProxy),
             _implementation: protocolVersions,
             _innerCallData: abi.encodeCall(
-                ProtocolVersions.initialize,
+                IProtocolVersions.initialize,
                 (
                     finalSystemOwner,
                     ProtocolVersion.wrap(requiredProtocolVersion),
@@ -1337,7 +1351,7 @@ contract Deploy is Deployer {
             )
         });
 
-        ProtocolVersions versions = ProtocolVersions(protocolVersionsProxy);
+        IProtocolVersions versions = IProtocolVersions(protocolVersionsProxy);
         string memory version = versions.version();
         console.log("ProtocolVersions version: %s", version);
 
@@ -1596,12 +1610,12 @@ contract Deploy is Deployer {
             _proxy: payable(dataAvailabilityChallengeProxy),
             _implementation: dataAvailabilityChallenge,
             _innerCallData: abi.encodeCall(
-                DataAvailabilityChallenge.initialize,
+                IDataAvailabilityChallenge.initialize,
                 (finalSystemOwner, daChallengeWindow, daResolveWindow, daBondSize, daResolverRefundPercentage)
             )
         });
 
-        DataAvailabilityChallenge dac = DataAvailabilityChallenge(payable(dataAvailabilityChallengeProxy));
+        IDataAvailabilityChallenge dac = IDataAvailabilityChallenge(payable(dataAvailabilityChallengeProxy));
         string memory version = dac.version();
         console.log("DataAvailabilityChallenge version: %s", version);
 

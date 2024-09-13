@@ -45,12 +45,12 @@ func TestBlockTimeBatchType(t *testing.T) {
 // This is a regression test against the bug fixed in PR #4566
 func BatchInLastPossibleBlocks(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
 	applyDeltaTimeOffset(dp, deltaTimeOffset)
 	dp.DeployConfig.SequencerWindowSize = 4
 	dp.DeployConfig.L2BlockTime = 2
 
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 
 	sd, _, miner, sequencer, sequencerEngine, _, _, batcher := setupReorgTestActors(t, dp, sd, log)
@@ -156,7 +156,7 @@ func BatchInLastPossibleBlocks(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 // Note: It batches submits when possible.
 func LargeL1Gaps(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
 	dp.DeployConfig.L1BlockTime = 4
 	dp.DeployConfig.L2BlockTime = 2
 	dp.DeployConfig.SequencerWindowSize = 4
@@ -166,7 +166,7 @@ func LargeL1Gaps(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	// TODO(client-pod#831): The Ecotone (and Fjord) activation blocks don't include user txs,
 	// so disabling these forks for now.
 	applyDeltaTimeOffset(dp, deltaTimeOffset)
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 
 	sd, _, miner, sequencer, sequencerEngine, verifier, _, batcher := setupReorgTestActors(t, dp, sd, log)

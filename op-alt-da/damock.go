@@ -4,8 +4,12 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net/http"
+	"sync"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/ethdb/memorydb"
 	"github.com/ethereum/go-ethereum/log"
@@ -98,4 +102,85 @@ func (d *AltDADisabled) OnFinalizedHeadSignal(f HeadSignalFn) {
 
 func (d *AltDADisabled) AdvanceL1Origin(ctx context.Context, l1 L1Fetcher, blockId eth.BlockID) error {
 	return ErrNotEnabled
+}
+
+// FakeDAServer is a fake DA server for e2e tests.
+// It is a small wrapper around DAServer that allows for setting request latencies,
+// to mimic a DA service with slow responses (eg. eigenDA with 10 min batching interval).
+type FakeDAServer struct {
+	*DAServer
+	putRequestLatency time.Duration
+	getRequestLatency time.Duration
+}
+
+func NewFakeDAServer(host string, port int, log log.Logger) *FakeDAServer {
+	store := NewMemStore()
+	fakeDAServer := &FakeDAServer{
+		DAServer:          NewDAServer(host, port, store, log, true),
+		putRequestLatency: 0,
+		getRequestLatency: 0,
+	}
+	return fakeDAServer
+}
+
+func (s *FakeDAServer) HandleGet(w http.ResponseWriter, r *http.Request) {
+	time.Sleep(s.getRequestLatency)
+	s.DAServer.HandleGet(w, r)
+}
+
+func (s *FakeDAServer) HandlePut(w http.ResponseWriter, r *http.Request) {
+	time.Sleep(s.putRequestLatency)
+	s.DAServer.HandlePut(w, r)
+}
+
+func (s *FakeDAServer) Start() error {
+	err := s.DAServer.Start()
+	if err != nil {
+		return err
+	}
+	// Override the HandleGet/Put method registrations
+	mux := http.NewServeMux()
+	mux.HandleFunc("/get/", s.HandleGet)
+	mux.HandleFunc("/put/", s.HandlePut)
+	s.httpServer.Handler = mux
+	return nil
+}
+
+func (s *FakeDAServer) SetPutRequestLatency(latency time.Duration) {
+	s.putRequestLatency = latency
+}
+
+func (s *FakeDAServer) SetGetRequestLatency(latency time.Duration) {
+	s.getRequestLatency = latency
+}
+
+type MemStore struct {
+	db   map[string][]byte
+	lock sync.RWMutex
+}
+
+func NewMemStore() *MemStore {
+	return &MemStore{
+		db: make(map[string][]byte),
+	}
+}
+
+// Get retrieves the given key if it's present in the key-value store.
+func (s *MemStore) Get(ctx context.Context, key []byte) ([]byte, error) {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
+	if entry, ok := s.db[string(key)]; ok {
+		return common.CopyBytes(entry), nil
+	}
+	return nil, ErrNotFound
+}
+
+// Put inserts the given value into the key-value store.
+func (s *MemStore) Put(ctx context.Context, key []byte, value []byte) error {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	s.db[string(key)] = common.CopyBytes(value)
+	return nil
 }

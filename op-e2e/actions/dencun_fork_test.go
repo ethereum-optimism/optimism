@@ -18,10 +18,10 @@ import (
 
 func TestDencunL1ForkAfterGenesis(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
 	offset := hexutil.Uint64(24)
 	dp.DeployConfig.L1CancunTimeOffset = &offset
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 	_, _, miner, sequencer, _, verifier, _, batcher := setupReorgTestActors(t, dp, sd, log)
 
@@ -61,9 +61,9 @@ func TestDencunL1ForkAfterGenesis(gt *testing.T) {
 
 func TestDencunL1ForkAtGenesis(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
 	require.Zero(t, *dp.DeployConfig.L1CancunTimeOffset)
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 	_, _, miner, sequencer, _, verifier, _, batcher := setupReorgTestActors(t, dp, sd, log)
 
@@ -118,7 +118,7 @@ func verifyEcotoneBlock(gt *testing.T, header *types.Header) {
 
 func TestDencunL2ForkAfterGenesis(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
 	require.Zero(t, *dp.DeployConfig.L1CancunTimeOffset)
 	// This test wil fork on the second block
 	offset := hexutil.Uint64(dp.DeployConfig.L2BlockTime * 2)
@@ -127,7 +127,7 @@ func TestDencunL2ForkAfterGenesis(gt *testing.T) {
 	dp.DeployConfig.L2GenesisGraniteTimeOffset = nil
 	// New forks have to be added here, after changing the default deploy config!
 
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 	_, _, _, sequencer, engine, verifier, _, _ := setupReorgTestActors(t, dp, sd, log)
 
@@ -156,10 +156,10 @@ func TestDencunL2ForkAfterGenesis(gt *testing.T) {
 
 func TestDencunL2ForkAtGenesis(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
 	require.Zero(t, *dp.DeployConfig.L2GenesisEcotoneTimeOffset)
 
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 	_, _, _, sequencer, engine, verifier, _, _ := setupReorgTestActors(t, dp, sd, log)
 
@@ -194,9 +194,9 @@ func newEngine(t Testing, sd *e2eutils.SetupData, log log.Logger) *L2Engine {
 // TestDencunBlobTxRPC tries to send a Blob tx to the L2 engine via RPC, it should not be accepted.
 func TestDencunBlobTxRPC(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
 
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 	engine := newEngine(t, sd, log)
 	cl := engine.EthClient()
@@ -208,9 +208,9 @@ func TestDencunBlobTxRPC(gt *testing.T) {
 // TestDencunBlobTxInTxPool tries to insert a blob tx directly into the tx pool, it should not be accepted.
 func TestDencunBlobTxInTxPool(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
 
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 	engine := newEngine(t, sd, log)
 	tx := aliceSimpleBlobTx(t, dp)
@@ -221,9 +221,9 @@ func TestDencunBlobTxInTxPool(gt *testing.T) {
 // TestDencunBlobTxInclusion tries to send a Blob tx to the L2 engine, it should not be accepted.
 func TestDencunBlobTxInclusion(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
 
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 
 	_, engine, sequencer := setupSequencerTest(t, sd, log)

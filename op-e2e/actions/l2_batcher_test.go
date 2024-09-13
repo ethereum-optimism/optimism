@@ -81,7 +81,7 @@ func NormalBatcher(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	}
 	dp := e2eutils.MakeDeployParams(t, p)
 	applyDeltaTimeOffset(dp, deltaTimeOffset)
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
 	verifEngine, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
@@ -148,9 +148,9 @@ func NormalBatcher(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 
 func L2Finalization(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
 	applyDeltaTimeOffset(dp, deltaTimeOffset)
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 	miner, engine, sequencer := setupSequencerTest(t, sd, log)
 
@@ -245,9 +245,9 @@ func L2Finalization(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 // L2FinalizationWithSparseL1 tests that safe L2 blocks can be finalized even if we do not regularly get a L1 finalization signal
 func L2FinalizationWithSparseL1(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
 	applyDeltaTimeOffset(dp, deltaTimeOffset)
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 	miner, engine, sequencer := setupSequencerTest(t, sd, log)
 
@@ -301,11 +301,11 @@ func L2FinalizationWithSparseL1(gt *testing.T, deltaTimeOffset *hexutil.Uint64) 
 // and the safe L2 head should remain unaltered.
 func GarbageBatch(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
-	p := defaultRollupTestParams
+	p := DefaultRollupTestParams
 	dp := e2eutils.MakeDeployParams(t, p)
 	applyDeltaTimeOffset(dp, deltaTimeOffset)
 	for _, garbageKind := range GarbageKinds {
-		sd := e2eutils.Setup(t, dp, defaultAlloc)
+		sd := e2eutils.Setup(t, dp, DefaultAlloc)
 		log := testlog.Logger(t, log.LevelError)
 		miner, engine, sequencer := setupSequencerTest(t, sd, log)
 
@@ -317,8 +317,8 @@ func GarbageBatch(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 			// If the garbage kind is `INVALID_COMPRESSION` or `MALFORM_RLP`, use the `actions` packages
 			// modified `ChannelOut`.
 			batcherCfg.GarbageCfg = &GarbageChannelCfg{
-				useInvalidCompression: garbageKind == INVALID_COMPRESSION,
-				malformRLP:            garbageKind == MALFORM_RLP,
+				UseInvalidCompression: garbageKind == INVALID_COMPRESSION,
+				MalformRLP:            garbageKind == MALFORM_RLP,
 			}
 		}
 
@@ -385,7 +385,7 @@ func ExtendedTimeWithoutL1Batches(gt *testing.T, deltaTimeOffset *hexutil.Uint64
 	}
 	dp := e2eutils.MakeDeployParams(t, p)
 	applyDeltaTimeOffset(dp, deltaTimeOffset)
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelError)
 	miner, engine, sequencer := setupSequencerTest(t, sd, log)
 
@@ -441,7 +441,7 @@ func BigL2Txs(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	}
 	dp := e2eutils.MakeDeployParams(t, p)
 	applyDeltaTimeOffset(dp, deltaTimeOffset)
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelInfo)
 	miner, engine, sequencer := setupSequencerTest(t, sd, log)
 
