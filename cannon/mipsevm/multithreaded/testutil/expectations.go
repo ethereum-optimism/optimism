@@ -22,6 +22,7 @@ type ExpectedMTState struct {
 	Step           uint64
 	LastHint       hexutil.Bytes
 	MemoryRoot     common.Hash
+	expectedMemory *memory.Memory
 	// Threading-related expectations
 	StepsSinceLastContextSwitch uint64
 	Wakeup                      uint32
@@ -34,7 +35,6 @@ type ExpectedMTState struct {
 	prestateActiveThreadOrig    ExpectedThreadState // Cached for internal use
 	ActiveThreadId              uint32
 	threadExpectations          map[uint32]*ExpectedThreadState
-	memoryExpectations          *memory.Memory
 }
 
 type ExpectedThreadState struct {
@@ -83,7 +83,7 @@ func NewExpectedMTState(fromState *multithreaded.State) *ExpectedMTState {
 		prestateActiveThreadOrig: *newExpectedThreadState(currentThread), // Cache prestate thread for internal use
 		ActiveThreadId:           currentThread.ThreadId,
 		threadExpectations:       expectedThreads,
-		memoryExpectations:       fromState.Memory.Copy(),
+		expectedMemory:           fromState.Memory.Copy(),
 	}
 }
 
@@ -113,14 +113,14 @@ func (e *ExpectedMTState) ExpectStep() {
 }
 
 func (e *ExpectedMTState) ExpectMemoryWrite(addr uint32, val uint32) {
-	e.memoryExpectations.SetMemory(addr, val)
-	e.MemoryRoot = e.memoryExpectations.MerkleRoot()
+	e.expectedMemory.SetMemory(addr, val)
+	e.MemoryRoot = e.expectedMemory.MerkleRoot()
 }
 
 func (e *ExpectedMTState) ExpectMemoryWriteMultiple(addr uint32, val uint32, addr2 uint32, val2 uint32) {
-	e.memoryExpectations.SetMemory(addr, val)
-	e.memoryExpectations.SetMemory(addr2, val)
-	e.MemoryRoot = e.memoryExpectations.MerkleRoot()
+	e.expectedMemory.SetMemory(addr, val)
+	e.expectedMemory.SetMemory(addr2, val)
+	e.MemoryRoot = e.expectedMemory.MerkleRoot()
 }
 
 func (e *ExpectedMTState) ExpectPreemption(preState *multithreaded.State) {
