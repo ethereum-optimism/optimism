@@ -416,7 +416,7 @@ contract Initializer_Test is Bridge_Initializer {
         //       don't work properly. Remove these exclusions once the deployment script is fixed.
         excludes[4] = "src/dispute/FaultDisputeGame.sol";
         excludes[5] = "src/dispute/PermissionedDisputeGame.sol";
-        // TODO: Eventually remove this exlusion. Same reason as above dispute contracts.
+        // TODO: Eventually remove this exclusion. Same reason as above dispute contracts.
         excludes[6] = "src/L1/OPStackManager.sol";
         excludes[7] = "src/L1/OPStackManagerInterop.sol";
 

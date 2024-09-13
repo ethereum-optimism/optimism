@@ -593,7 +593,6 @@ contract DeployImplementationsInterop is DeployImplementations {
         OPStackManager.ImplementationSetter[] memory setters
     )
         internal
-        virtual
         override
         returns (OPStackManager opsmProxy_)
     {
