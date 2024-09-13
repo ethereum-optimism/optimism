@@ -52,3 +52,27 @@ contract DeployAuthSystemInput is CommonBase {
         return _owners;
     }
 }
+
+contract DeployAuthSystemOutput is CommonBase {
+    Safe internal _safe;
+
+    function set(bytes4 sel, address _address) public {
+        if (sel == this.safe.selector) _safe = Safe(payable(_address));
+        else revert("DeployAuthSystemOutput: unknown selector");
+    }
+
+    function writeOutputFile(string memory _outfile) public {
+        string memory out = vm.serializeAddress("outfile", "safe", address(this.safe()));
+        vm.writeToml(out, _outfile);
+    }
+
+    function checkOutput() public view {
+        address[] memory addrs = Solarray.addresses(address(this.safe()));
+        DeployUtils.assertValidContractAddresses(addrs);
+    }
+
+    function safe() public view returns (Safe) {
+        DeployUtils.assertValidContractAddress(address(_safe));
+        return _safe;
+    }
+}
