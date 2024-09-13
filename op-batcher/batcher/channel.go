@@ -156,8 +156,8 @@ func (s *channel) ID() derive.ChannelID {
 }
 
 // NextTxData returns the next tx data packet.
-// If cfg.MultiFrameTxs is false, it returns txData with a single frame.
-// If cfg.MultiFrameTxs is true, it will read frames from its channel builder
+// If cfg.UseBlobs is false, it returns txData with a single frame.
+// If cfg.UseBlobs is true, it will read frames from its channel builder
 // until it either doesn't have more frames or the target number of frames is reached.
 //
 // NextTxData should only be called after HasTxData returned true.
