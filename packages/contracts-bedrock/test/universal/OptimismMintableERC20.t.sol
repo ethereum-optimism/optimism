@@ -46,6 +46,20 @@ contract OptimismMintableERC20_Test is Bridge_Initializer {
         assertEq(L2Token.balanceOf(alice), 100);
     }
 
+    function test_allowance_permit2_max() external view {
+        assertEq(L2Token.allowance(alice, L2Token.PERMIT2()), type(uint256).max);
+    }
+
+    function test_permit2_transferFrom() external {
+        vm.prank(address(l2StandardBridge));
+        L2Token.mint(alice, 100);
+
+        assertEq(L2Token.balanceOf(bob), 0);
+        vm.prank(L2Token.PERMIT2());
+        L2Token.transferFrom(alice, bob, 100);
+        assertEq(L2Token.balanceOf(bob), 100);
+    }
+
     function test_mint_notBridge_reverts() external {
         // NOT the bridge
         vm.expectRevert("OptimismMintableERC20: only bridge can mint and burn");
