@@ -3,8 +3,11 @@ pragma solidity 0.8.15;
 
 import { Proxy } from "src/universal/Proxy.sol";
 import { LibString } from "@solady/utils/LibString.sol";
+import { Vm } from "forge-std/Vm.sol";
 
 library DeployUtils {
+    Vm internal constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
+
     // This takes a sender and an identifier and returns a deterministic address based on the two.
     // The result is used to etch the input and output contracts to a deterministic address based on
     // those two values, where the identifier represents the input or output contract, such as
@@ -20,6 +23,9 @@ library DeployUtils {
     }
 
     function assertEIP1967Implementation(address _proxy) internal {
+        // We prank as the zero address due to the Proxy's `proxyCallIfNotAdmin` modifier.
+        // Pranking inside this function also means it can no longer be considered `view`.
+        vm.prank(address(0));
         address implementation = Proxy(payable(_proxy)).implementation();
         assertValidContractAddress(implementation);
     }

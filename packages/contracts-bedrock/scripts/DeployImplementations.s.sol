@@ -139,7 +139,7 @@ contract DeployImplementationsInput {
     }
 }
 
-contract DeployImplementationsOutput is Script {
+contract DeployImplementationsOutput {
     OPStackManager internal _opsm;
     DelayedWETH internal _delayedWETHImpl;
     OptimismPortal2 internal _optimismPortalImpl;
@@ -195,9 +195,6 @@ contract DeployImplementationsOutput is Script {
 
     function opsm() public returns (OPStackManager) {
         DeployUtils.assertValidContractAddress(address(_opsm));
-        // We prank as the zero address due to the Proxy's `proxyCallIfNotAdmin` modifier.
-        // Pranking inside this function also means it can no longer be considered `view`.
-        vm.prank(address(0));
         DeployUtils.assertEIP1967Implementation(address(_opsm));
         return _opsm;
     }
@@ -303,7 +300,7 @@ contract DeployImplementations is Script {
         });
     }
 
-    // Deploy and initialize the OPStackManager contract that is fronted by a proxy.
+    // Deploy and initialize a proxied OPStackManager.
     function createOPSMContract(
         DeployImplementationsInput _dii,
         DeployImplementationsOutput,
@@ -319,18 +316,13 @@ contract DeployImplementations is Script {
         ProtocolVersions protocolVersionsProxy = _dii.protocolVersionsProxy();
         ProxyAdmin proxyAdmin = _dii.superchainProxyAdmin();
 
-        // We broadcast as the proxyAdminOwner address due to the ProxyAdmin's `onlyOwner` modifier.
         vm.startBroadcast(msg.sender);
         Proxy proxy = new Proxy(address(msg.sender));
         OPStackManager opsm = new OPStackManager(superchainConfigProxy, protocolVersionsProxy);
 
-        // TODO: Design decision, do we want to proceed with using initialize function?
-        // OPStackManager.InitializerInputs memory initializerInputs =
-        //     OPStackManager.InitializerInputs(blueprints, setters, release, true);
-        // proxy.upgradeToAndCall(address(opsm), abi.encodeWithSelector(opsm.initialize.selector, initializerInputs));
-
-        OPStackManager.SetRelease memory setRelease = OPStackManager.SetRelease(blueprints, setters, release, true);
-        proxy.upgradeToAndCall(address(opsm), abi.encodeWithSelector(opsm.setRelease.selector, setRelease));
+        OPStackManager.InitializerInputs memory initializerInputs =
+            OPStackManager.InitializerInputs(blueprints, setters, release, true);
+        proxy.upgradeToAndCall(address(opsm), abi.encodeWithSelector(opsm.initialize.selector, initializerInputs));
 
         proxy.changeAdmin(address(proxyAdmin)); // transfer ownership of Proxy contract to the ProxyAdmin contract
         vm.stopBroadcast();
@@ -611,13 +603,9 @@ contract DeployImplementationsInterop is DeployImplementations {
         Proxy proxy = new Proxy(address(msg.sender));
         OPStackManager opsm = new OPStackManagerInterop(superchainConfigProxy, protocolVersionsProxy);
 
-        // TODO: Design decision, do we want to proceed with using initialize function?
-        // OPStackManager.InitializerInputs memory initializerInputs =
-        //     OPStackManager.InitializerInputs(blueprints, setters, release, true);
-        // proxy.upgradeToAndCall(address(opsm), abi.encodeWithSelector(opsm.initialize.selector, initializerInputs));
-
-        OPStackManager.SetRelease memory setRelease = OPStackManager.SetRelease(blueprints, setters, release, true);
-        proxy.upgradeToAndCall(address(opsm), abi.encodeWithSelector(opsm.setRelease.selector, setRelease));
+        OPStackManager.InitializerInputs memory initializerInputs =
+            OPStackManager.InitializerInputs(blueprints, setters, release, true);
+        proxy.upgradeToAndCall(address(opsm), abi.encodeWithSelector(opsm.initialize.selector, initializerInputs));
 
         proxy.changeAdmin(address(proxyAdmin)); // transfer ownership of Proxy contract to the ProxyAdmin contract
         vm.stopBroadcast();
