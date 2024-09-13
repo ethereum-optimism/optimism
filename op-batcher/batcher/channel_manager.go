@@ -157,6 +157,7 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 	//
 	//	call txData a second time.
 	// else just return above txData result.
+	// TODO let's take control of flip-flopping (avoid it)
 }
 
 // txData returns the next tx data that should be submitted to L1.
