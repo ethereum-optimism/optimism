@@ -40,7 +40,7 @@ var (
 		Name:    "data.format",
 		Usage:   fmt.Sprintf("Format to use for preimage data storage. Available formats: %s", openum.EnumString(types.SupportedDataFormats)),
 		EnvVars: prefixEnvVars("DATA_FORMAT"),
-		Value:   string(types.DataFormatFile),
+		Value:   string(types.DataFormatDirectory),
 	}
 	L2NodeAddr = &cli.StringFlag{
 		Name:    "l2",

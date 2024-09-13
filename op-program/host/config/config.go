@@ -138,7 +138,7 @@ func NewConfig(
 		L2ClaimBlockNumber:  l2ClaimBlockNum,
 		L1RPCKind:           sources.RPCKindStandard,
 		IsCustomChainConfig: isCustomConfig,
-		DataFormat:          types.DataFormatFile,
+		DataFormat:          types.DataFormatDirectory,
 	}
 }
 

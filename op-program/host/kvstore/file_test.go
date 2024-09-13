@@ -10,7 +10,7 @@ import (
 
 func TestFileKV(t *testing.T) {
 	tmp := t.TempDir() // automatically removed by testing cleanup
-	kv := NewFileKV(tmp)
+	kv := newFileKV(tmp)
 	t.Cleanup(func() { // Can't use defer because kvTest runs tests in parallel.
 		require.NoError(t, kv.Close())
 	})
@@ -20,7 +20,7 @@ func TestFileKV(t *testing.T) {
 func TestFileKV_CreateMissingDirectory(t *testing.T) {
 	tmp := t.TempDir()
 	dir := filepath.Join(tmp, "data")
-	kv := NewFileKV(dir)
+	kv := newFileKV(dir)
 	defer kv.Close()
 	val := []byte{1, 2, 3, 4}
 	key := crypto.Keccak256Hash(val)

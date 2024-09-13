@@ -16,7 +16,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/host/flags"
 	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
 	"github.com/ethereum-optimism/optimism/op-program/host/prefetcher"
-	"github.com/ethereum-optimism/optimism/op-program/host/types"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
@@ -175,20 +174,14 @@ func PreimageServer(ctx context.Context, logger log.Logger, cfg *config.Config, 
 		logger.Info("Using in-memory storage")
 		kv = kvstore.NewMemKV()
 	} else {
-		logger.Info("Creating disk storage", "datadir", cfg.DataDir, "format", cfg.DataFormat)
 		if err := os.MkdirAll(cfg.DataDir, 0755); err != nil {
 			return fmt.Errorf("creating datadir: %w", err)
 		}
-		switch cfg.DataFormat {
-		case types.DataFormatFile:
-			kv = kvstore.NewFileKV(cfg.DataDir)
-		case types.DataFormatDirectory:
-			kv = kvstore.NewDirectoryKV(cfg.DataDir)
-		case types.DataFormatPebble:
-			kv = kvstore.NewPebbleKV(cfg.DataDir)
-		default:
-			return fmt.Errorf("invalid data format: %s", cfg.DataFormat)
+		store, err := kvstore.NewDiskKV(logger, cfg.DataDir, cfg.DataFormat)
+		if err != nil {
+			return fmt.Errorf("creating kvstore: %w", err)
 		}
+		kv = store
 	}
 
 	var (
