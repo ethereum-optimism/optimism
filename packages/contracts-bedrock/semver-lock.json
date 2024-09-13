@@ -60,8 +60,8 @@
     "sourceCodeHash": "0x06a50ac992175fdb434b13e8461893e83862c23ce399e697e6e8109728ad1a3d"
   },
   "src/L1/SystemConfigInterop.sol": {
-    "initCodeHash": "0xc5a3ffc59dd7bf1ef238087414cfa04b37f0d83fc9a4f5e6d62a1059a23359f3",
-    "sourceCodeHash": "0xd7b6ebf03ead541917b1bdfcf1293ca3c8a8e3865b8a8548bee69956a4ce71cc"
+    "initCodeHash": "0x1f500e310170769ffc747e08ad1d5b0de4b0f58534001bc4d4d563ec058bb331",
+    "sourceCodeHash": "0xcb6008cb49a06f87eb5b6cb4651e5e4aafe0b1f33000eccd165226c04f6b63c6"
   },
   "src/L2/BaseFeeVault.sol": {
     "initCodeHash": "0x3bfcd57e25ad54b66c374f63e24e33a6cf107044aa8f5f69ef21202c380b5c5b",
