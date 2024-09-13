@@ -1,24 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import { ISuperchainERC20Extensions } from "src/L2/interfaces/ISuperchainERC20.sol";
+import { ISuperchainERC20Extensions, ISuperchainERC20Errors } from "src/L2/interfaces/ISuperchainERC20.sol";
 import { ERC20 } from "@solady/tokens/ERC20.sol";
 import { IL2ToL2CrossDomainMessenger } from "src/L2/interfaces/IL2ToL2CrossDomainMessenger.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { ZeroAddress } from "src/libraries/errors/CommonErrors.sol";
-
-/// @notice Thrown when attempting to relay a message and the function caller (msg.sender) is not
-/// L2ToL2CrossDomainMessenger.
-error CallerNotL2ToL2CrossDomainMessenger();
-
-/// @notice Thrown when attempting to relay a message and the cross domain message sender is not this SuperchainERC20.
-error InvalidCrossDomainSender();
 
 /// @title SuperchainERC20
 /// @notice SuperchainERC20 is a standard extension of the base ERC20 token contract that unifies ERC20 token
 ///         bridging to make it fungible across the Superchain. It builds on top of the L2ToL2CrossDomainMessenger for
 ///         both replay protection and domain binding.
-abstract contract SuperchainERC20 is ISuperchainERC20Extensions, ERC20 {
+abstract contract SuperchainERC20 is ISuperchainERC20Extensions, ISuperchainERC20Errors, ERC20 {
     /// @notice Address of the L2ToL2CrossDomainMessenger Predeploy.
     address internal constant MESSENGER = Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER;
 

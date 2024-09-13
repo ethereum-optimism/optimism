@@ -20,14 +20,8 @@ import {
     OptimismSuperchainERC20, IOptimismSuperchainERC20Extension, OnlyBridge
 } from "src/L2/OptimismSuperchainERC20.sol";
 
-// SuperchainERC20 Errors
-import {
-    ZeroAddress,
-    CallerNotL2ToL2CrossDomainMessenger,
-    InvalidCrossDomainSender
-} from "src/L2/OptimismSuperchainERC20.sol";
-
-import { ISuperchainERC20Extensions } from "src/L2/interfaces/ISuperchainERC20.sol";
+// SuperchainERC20 Interfaces
+import { ISuperchainERC20Extensions, ISuperchainERC20Errors } from "src/L2/interfaces/ISuperchainERC20.sol";
 
 /// @title OptimismSuperchainERC20Test
 /// @notice Contract for testing the OptimismSuperchainERC20 contract.
@@ -138,7 +132,7 @@ contract OptimismSuperchainERC20Test is Test {
     /// @notice Tests the `mint` function reverts when the amount is zero.
     function testFuzz_mint_zeroAddressTo_reverts(uint256 _amount) public {
         // Expect the revert with `ZeroAddress` selector
-        vm.expectRevert(ZeroAddress.selector);
+        vm.expectRevert(ISuperchainERC20Errors.ZeroAddress.selector);
 
         // Call the `mint` function with the zero address
         vm.prank(BRIDGE);
@@ -187,7 +181,7 @@ contract OptimismSuperchainERC20Test is Test {
     /// @notice Tests the `burn` function reverts when the amount is zero.
     function testFuzz_burn_zeroAddressFrom_reverts(uint256 _amount) public {
         // Expect the revert with `ZeroAddress` selector
-        vm.expectRevert(ZeroAddress.selector);
+        vm.expectRevert(ISuperchainERC20Errors.ZeroAddress.selector);
 
         // Call the `burn` function with the zero address
         vm.prank(BRIDGE);
@@ -227,7 +221,7 @@ contract OptimismSuperchainERC20Test is Test {
     /// @notice Tests the `sendERC20` function reverts when the `_to` address is the zero address.
     function testFuzz_sendERC20_zeroAddressTo_reverts(uint256 _amount, uint256 _chainId) public {
         // Expect the revert with `ZeroAddress` selector
-        vm.expectRevert(ZeroAddress.selector);
+        vm.expectRevert(ISuperchainERC20Errors.ZeroAddress.selector);
 
         // Call the `sendERC20` function with the zero address
         vm.prank(BRIDGE);
@@ -283,7 +277,7 @@ contract OptimismSuperchainERC20Test is Test {
         vm.assume(_to != ZERO_ADDRESS);
 
         // Expect the revert with `CallerNotL2ToL2CrossDomainMessenger` selector
-        vm.expectRevert(CallerNotL2ToL2CrossDomainMessenger.selector);
+        vm.expectRevert(ISuperchainERC20Errors.CallerNotL2ToL2CrossDomainMessenger.selector);
 
         // Call the `relayERC20` function with the non-messenger caller
         vm.prank(_caller);
@@ -310,7 +304,7 @@ contract OptimismSuperchainERC20Test is Test {
         );
 
         // Expect the revert with `InvalidCrossDomainSender` selector
-        vm.expectRevert(InvalidCrossDomainSender.selector);
+        vm.expectRevert(ISuperchainERC20Errors.InvalidCrossDomainSender.selector);
 
         // Call the `relayERC20` function with the sender caller
         vm.prank(MESSENGER);

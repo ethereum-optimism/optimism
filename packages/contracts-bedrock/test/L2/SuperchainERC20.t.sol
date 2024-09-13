@@ -10,13 +10,8 @@ import { IERC20 } from "@openzeppelin/contracts-v5/token/ERC20/IERC20.sol";
 import { IL2ToL2CrossDomainMessenger } from "src/L2/interfaces/IL2ToL2CrossDomainMessenger.sol";
 
 // Target contract
-import {
-    CallerNotL2ToL2CrossDomainMessenger,
-    InvalidCrossDomainSender,
-    SuperchainERC20,
-    ISuperchainERC20Extensions,
-    ZeroAddress
-} from "src/L2/SuperchainERC20.sol";
+import { SuperchainERC20 } from "src/L2/SuperchainERC20.sol";
+import { ISuperchainERC20Extensions, ISuperchainERC20Errors } from "src/L2/interfaces/ISuperchainERC20.sol";
 
 /// @notice Mock contract for the SuperchainERC20 contract so tests can mint tokens.
 contract SuperchainERC20Mock is SuperchainERC20 {
@@ -48,13 +43,12 @@ contract SuperchainERC20Mock is SuperchainERC20 {
 }
 /// @title SuperchainERC20Test
 /// @notice Contract for testing the SuperchainERC20 contract.
-
 contract SuperchainERC20Test is Test {
+    address internal constant ZERO_ADDRESS = address(0);
     string internal constant NAME = "SuperchainERC20";
     string internal constant SYMBOL = "SCE";
     uint8 internal constant DECIMALS = 18;
     address internal constant MESSENGER = Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER;
-    address internal ZERO_ADDRESS;
 
     SuperchainERC20 public superchainERC20Impl;
     SuperchainERC20Mock public superchainERC20;
@@ -80,7 +74,7 @@ contract SuperchainERC20Test is Test {
     /// @notice Tests the `sendERC20` function reverts when the `_to` address is the zero address.
     function testFuzz_sendERC20_zeroAddressTo_reverts(uint256 _amount, uint256 _chainId) public {
         // Expect the revert with `ZeroAddress` selector
-        vm.expectRevert(ZeroAddress.selector);
+        vm.expectRevert(ISuperchainERC20Errors.ZeroAddress.selector);
 
         // Call the `sendERC20` function with the zero address
         superchainERC20.sendERC20({ _to: ZERO_ADDRESS, _amount: _amount, _chainId: _chainId });
@@ -134,7 +128,7 @@ contract SuperchainERC20Test is Test {
         vm.assume(_to != ZERO_ADDRESS);
 
         // Expect the revert with `CallerNotL2ToL2CrossDomainMessenger` selector
-        vm.expectRevert(CallerNotL2ToL2CrossDomainMessenger.selector);
+        vm.expectRevert(ISuperchainERC20Errors.CallerNotL2ToL2CrossDomainMessenger.selector);
 
         // Call the `relayERC20` function with the non-messenger caller
         vm.prank(_caller);
@@ -161,7 +155,7 @@ contract SuperchainERC20Test is Test {
         );
 
         // Expect the revert with `InvalidCrossDomainSender` selector
-        vm.expectRevert(InvalidCrossDomainSender.selector);
+        vm.expectRevert(ISuperchainERC20Errors.InvalidCrossDomainSender.selector);
 
         // Call the `relayERC20` function with the sender caller
         vm.prank(MESSENGER);
