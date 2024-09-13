@@ -148,12 +148,23 @@ func (s *channelManager) nextTxData(channel *channel) (txData, error) {
 	return tx, nil
 }
 
-// TxData returns the next tx data that should be submitted to L1.
+func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
+	// call txData a first time
+	// recompute DA config
+	// detect any change DA config
+	// if change
+	// requeue blocks / clear out channels
+	//
+	//	call txData a second time.
+	// else just return above txData result.
+}
+
+// txData returns the next tx data that should be submitted to L1.
 //
 // If the pending channel is
 // full, it only returns the remaining frames of this channel until it got
 // successfully fully sent to L1. It returns io.EOF if there's no pending tx data.
-func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
+func (s *channelManager) txData(l1Head eth.BlockID) (txData, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var firstWithTxData *channel

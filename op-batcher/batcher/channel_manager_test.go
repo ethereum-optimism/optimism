@@ -103,9 +103,9 @@ func ChannelManagerReturnsErrReorgWhenDrained(t *testing.T, batchType uint) {
 
 	require.NoError(t, m.AddL2Block(a))
 
-	_, err := m.TxData(eth.BlockID{})
+	_, err := m.txData(eth.BlockID{})
 	require.NoError(t, err)
-	_, err = m.TxData(eth.BlockID{})
+	_, err = m.txData(eth.BlockID{})
 	require.ErrorIs(t, err, io.EOF)
 
 	require.ErrorIs(t, m.AddL2Block(x), ErrReorg)
@@ -202,7 +202,7 @@ func ChannelManager_TxResend(t *testing.T, batchType uint) {
 
 	require.NoError(m.AddL2Block(a))
 
-	txdata0, err := m.TxData(eth.BlockID{})
+	txdata0, err := m.txData(eth.BlockID{})
 	require.NoError(err)
 	txdata0bytes := txdata0.CallData()
 	data0 := make([]byte, len(txdata0bytes))
@@ -210,13 +210,13 @@ func ChannelManager_TxResend(t *testing.T, batchType uint) {
 	copy(data0, txdata0bytes)
 
 	// ensure channel is drained
-	_, err = m.TxData(eth.BlockID{})
+	_, err = m.txData(eth.BlockID{})
 	require.ErrorIs(err, io.EOF)
 
 	// requeue frame
 	m.TxFailed(txdata0.ID())
 
-	txdata1, err := m.TxData(eth.BlockID{})
+	txdata1, err := m.txData(eth.BlockID{})
 	require.NoError(err)
 
 	data1 := txdata1.CallData()
@@ -245,7 +245,7 @@ func ChannelManagerCloseBeforeFirstUse(t *testing.T, batchType uint) {
 	err := m.AddL2Block(a)
 	require.NoError(err, "Failed to add L2 block")
 
-	_, err = m.TxData(eth.BlockID{})
+	_, err = m.txData(eth.BlockID{})
 	require.ErrorIs(err, io.EOF, "Expected closed channel manager to contain no tx data")
 }
 
@@ -266,12 +266,12 @@ func ChannelManagerCloseNoPendingChannel(t *testing.T, batchType uint) {
 	err := m.AddL2Block(a)
 	require.NoError(err, "Failed to add L2 block")
 
-	txdata, err := m.TxData(eth.BlockID{})
+	txdata, err := m.txData(eth.BlockID{})
 	require.NoError(err, "Expected channel manager to return valid tx data")
 
 	m.TxConfirmed(txdata.ID(), eth.BlockID{})
 
-	_, err = m.TxData(eth.BlockID{})
+	_, err = m.txData(eth.BlockID{})
 	require.ErrorIs(err, io.EOF, "Expected channel manager to EOF")
 
 	require.NoError(m.Close(), "Expected to close channel manager gracefully")
@@ -279,7 +279,7 @@ func ChannelManagerCloseNoPendingChannel(t *testing.T, batchType uint) {
 	err = m.AddL2Block(b)
 	require.NoError(err, "Failed to add L2 block")
 
-	_, err = m.TxData(eth.BlockID{})
+	_, err = m.txData(eth.BlockID{})
 	require.ErrorIs(err, io.EOF, "Expected closed channel manager to return no new tx data")
 }
 
@@ -303,7 +303,7 @@ func ChannelManagerClosePendingChannel(t *testing.T, batchType uint) {
 	err := m.AddL2Block(a)
 	require.NoError(err, "Failed to add L2 block")
 
-	txdata, err := m.TxData(eth.BlockID{})
+	txdata, err := m.txData(eth.BlockID{})
 	require.NoError(err, "Expected channel manager to produce valid tx data")
 	log.Info("generated first tx data", "len", txdata.Len())
 
@@ -311,16 +311,16 @@ func ChannelManagerClosePendingChannel(t *testing.T, batchType uint) {
 
 	require.ErrorIs(m.Close(), ErrPendingAfterClose, "Expected channel manager to error on close because of pending tx data")
 
-	txdata, err = m.TxData(eth.BlockID{})
+	txdata, err = m.txData(eth.BlockID{})
 	require.NoError(err, "Expected channel manager to produce tx data from remaining L2 block data")
 	log.Info("generated more tx data", "len", txdata.Len())
 
 	m.TxConfirmed(txdata.ID(), eth.BlockID{})
 
-	_, err = m.TxData(eth.BlockID{})
+	_, err = m.txData(eth.BlockID{})
 	require.ErrorIs(err, io.EOF, "Expected channel manager to have no more tx data")
 
-	_, err = m.TxData(eth.BlockID{})
+	_, err = m.txData(eth.BlockID{})
 	require.ErrorIs(err, io.EOF, "Expected closed channel manager to produce no more tx data")
 }
 
@@ -364,27 +364,27 @@ func TestChannelManager_Close_PartiallyPendingChannel(t *testing.T) {
 	// The NonCompressor will flush the first, but not the second block, when
 	// adding the second block, setting up the test with a partially flushed
 	// compressor.
-	txdata, err := m.TxData(eth.BlockID{})
+	txdata, err := m.txData(eth.BlockID{})
 	require.NoError(err, "Expected channel manager to produce valid tx data")
 	log.Info("generated first tx data", "len", txdata.Len())
 
 	m.TxConfirmed(txdata.ID(), eth.BlockID{})
 
 	// ensure no new ready data before closing
-	_, err = m.TxData(eth.BlockID{})
+	_, err = m.txData(eth.BlockID{})
 	require.ErrorIs(err, io.EOF, "Expected unclosed channel manager to only return a single frame")
 
 	require.ErrorIs(m.Close(), ErrPendingAfterClose, "Expected channel manager to error on close because of pending tx data")
 	require.NotNil(m.currentChannel)
 	require.ErrorIs(m.currentChannel.FullErr(), ErrTerminated, "Expected current channel to be terminated by Close")
 
-	txdata, err = m.TxData(eth.BlockID{})
+	txdata, err = m.txData(eth.BlockID{})
 	require.NoError(err, "Expected channel manager to produce tx data from remaining L2 block data")
 	log.Info("generated more tx data", "len", txdata.Len())
 
 	m.TxConfirmed(txdata.ID(), eth.BlockID{})
 
-	_, err = m.TxData(eth.BlockID{})
+	_, err = m.txData(eth.BlockID{})
 	require.ErrorIs(err, io.EOF, "Expected closed channel manager to produce no more tx data")
 }
 
@@ -408,7 +408,7 @@ func ChannelManagerCloseAllTxsFailed(t *testing.T, batchType uint) {
 
 	drainTxData := func() (txdatas []txData) {
 		for {
-			txdata, err := m.TxData(eth.BlockID{})
+			txdata, err := m.txData(eth.BlockID{})
 			if err == io.EOF {
 				return
 			}
@@ -436,7 +436,7 @@ func ChannelManagerCloseAllTxsFailed(t *testing.T, batchType uint) {
 
 	require.NoError(m.Close(), "Expected to close channel manager gracefully")
 
-	_, err = m.TxData(eth.BlockID{})
+	_, err = m.txData(eth.BlockID{})
 	require.ErrorIs(err, io.EOF, "Expected closed channel manager to produce no more tx data")
 }
 
