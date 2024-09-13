@@ -49,14 +49,14 @@ func Test_ProgramAction_SimpleEmptyChain(gt *testing.T) {
 	matrix.AddTestCase(
 		"HonestClaim",
 		nil,
-		LatestForkOnly(),
+		LatestForkOnly,
 		runSimpleProgramTest,
 		ExpectNoError(),
 	)
 	matrix.AddTestCase(
 		"JunkClaim",
 		nil,
-		LatestForkOnly(),
+		LatestForkOnly,
 		runSimpleProgramTest,
 		ExpectError(claim.ErrClaimNotValid),
 		WithL2Claim(common.HexToHash("0xdeadbeef")),

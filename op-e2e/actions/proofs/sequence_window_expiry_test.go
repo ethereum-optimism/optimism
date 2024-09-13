@@ -53,14 +53,14 @@ func Test_ProgramAction_SequenceWindowExpired(gt *testing.T) {
 	matrix.AddTestCase(
 		"HonestClaim",
 		nil,
-		LatestForkOnly(),
+		LatestForkOnly,
 		runSequenceWindowExpireTest,
 		ExpectNoError(),
 	)
 	matrix.AddTestCase(
 		"JunkClaim",
 		nil,
-		LatestForkOnly(),
+		LatestForkOnly,
 		runSequenceWindowExpireTest,
 		ExpectNoError(),
 		WithL2Claim(common.HexToHash("0xdeadbeef")),

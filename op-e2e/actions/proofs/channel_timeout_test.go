@@ -115,14 +115,14 @@ func Test_ProgramAction_ChannelTimeout(gt *testing.T) {
 	matrix.AddTestCase(
 		"HonestClaim",
 		nil,
-		LatestForkOnly(),
+		LatestForkOnly,
 		runChannelTimeoutTest,
 		ExpectNoError(),
 	)
 	matrix.AddTestCase(
 		"JunkClaim",
 		nil,
-		LatestForkOnly(),
+		LatestForkOnly,
 		runChannelTimeoutTest,
 		ExpectError(claim.ErrClaimNotValid),
 		WithL2Claim(common.HexToHash("0xdeadbeef")),

@@ -97,9 +97,7 @@ var (
 )
 var Hardforks = ForkMatrix{Regolith, Canyon, Delta, Fjord, Ecotone, Granite}
 
-var LatestForkOnly = func() ForkMatrix {
-	return ForkMatrix{Hardforks[0]}
-}
+var LatestForkOnly = ForkMatrix{Hardforks[0]}
 
 func NewForkMatrix(forks ...*Hardfork) ForkMatrix {
 	return append(ForkMatrix{}, forks...)
