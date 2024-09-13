@@ -8,13 +8,13 @@ import { Solarray } from "scripts/libraries/Solarray.sol";
 import { DeployAuthSystemInput } from "scripts/DeployAuthSystem.s.sol";
 
 contract DeployAuthSystemInput_Test is Test {
-    DeployAuthSystemInput dsi;
+    DeployAuthSystemInput dasi;
 
     uint256 threshold = 5;
     address[] owners;
 
     function setUp() public {
-        dsi = new DeployAuthSystemInput();
+        dasi = new DeployAuthSystemInput();
         address[] memory _owners = Solarray.addresses(
             0x1111111111111111111111111111111111111111,
             0x2222222222222222222222222222222222222222,
@@ -34,17 +34,24 @@ contract DeployAuthSystemInput_Test is Test {
         string memory root = vm.projectRoot();
         string memory path = string.concat(root, "/test/fixtures/test-deploy-auth-system-in.toml");
 
-        dsi.loadInputFile(path);
+        dasi.loadInputFile(path);
 
-        assertEq(threshold, dsi.threshold(), "100");
-        assertEq(owners.length, dsi.owners().length, "200");
+        assertEq(threshold, dasi.threshold(), "100");
+        assertEq(owners.length, dasi.owners().length, "200");
     }
 
     function test_getters_whenNotSet_revert() public {
         vm.expectRevert("DeployAuthSystemInput: threshold not set");
-        dsi.threshold();
+        dasi.threshold();
 
         vm.expectRevert("DeployAuthSystemInput: owners not set");
-        dsi.owners();
+        dasi.owners();
+    }
+
+    function test_setters_ownerAlreadySet_revert() public {
+        dasi.set(dasi.owners.selector, owners);
+
+        vm.expectRevert("DeployAuthSystemInput: owners already set");
+        dasi.set(dasi.owners.selector, owners);
     }
 }

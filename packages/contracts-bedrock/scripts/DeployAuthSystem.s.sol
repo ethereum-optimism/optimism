@@ -10,6 +10,7 @@ import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
 
+// This file follows the pattern of Superchain.s.sol. Refer to that file for more details.
 contract DeployAuthSystemInput is CommonBase {
     using stdToml for string;
 
@@ -25,6 +26,7 @@ contract DeployAuthSystemInput is CommonBase {
 
     function set(bytes4 _sel, address[] memory _addrs) public {
         if (_sel == this.owners.selector) {
+            require(_owners.length == 0, "DeployAuthSystemInput: owners already set");
             for (uint256 i = 0; i < _addrs.length; i++) {
                 _owners.push(_addrs[i]);
             }
@@ -33,13 +35,9 @@ contract DeployAuthSystemInput is CommonBase {
         }
     }
 
-    // Load the input from a TOML file.
-    // When setting inputs from a TOML file, we use the setter methods instead of writing directly
-    // to storage. This allows us to validate each input as it is set.
     function loadInputFile(string memory _infile) public {
         string memory toml = vm.readFile(_infile);
 
-        // Parse and set role inputs.
         set(this.threshold.selector, toml.readUint(".safe.threshold"));
         set(this.owners.selector, toml.readAddressArray(".safe.owners"));
     }
