@@ -273,7 +273,6 @@ func TestEVM_SysRead_Preimage(t *testing.T) {
 				effAddr := 0xFFffFFfc & c.addr
 				preimageKey := preimage.Keccak256Key(crypto.Keccak256Hash(preimageValue)).PreimageKey()
 				oracle := testutil.StaticOracle(t, preimageValue)
-				//goVm, state, contracts := setup(t, i, oracle)
 				goVm := v.VMFactory(oracle, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPreimageKey(preimageKey), testutil.WithPreimageOffset(c.preimageOffset))
 				state := goVm.GetState()
 				step := state.GetStep()
