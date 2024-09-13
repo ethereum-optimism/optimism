@@ -239,7 +239,6 @@ contract DeployImplementations_Test is Test {
     string release = "op-contracts/latest";
     SuperchainConfig superchainConfigProxy = SuperchainConfig(makeAddr("superchainConfigProxy"));
     ProtocolVersions protocolVersionsProxy = ProtocolVersions(makeAddr("protocolVersionsProxy"));
-    ProxyAdmin superchainProxyAdmin = ProxyAdmin(makeAddr("superchainProxyAdmin"));
 
     function setUp() public virtual {
         deployImplementations = new DeployImplementations();
@@ -264,13 +263,18 @@ contract DeployImplementations_Test is Test {
         proofMaturityDelaySeconds = uint256(hash(_seed, 3));
         disputeGameFinalityDelaySeconds = uint256(hash(_seed, 4));
         release = string(bytes.concat(hash(_seed, 5)));
-        superchainConfigProxy = SuperchainConfig(address(uint160(uint256(hash(_seed, 6)))));
         protocolVersionsProxy = ProtocolVersions(address(uint160(uint256(hash(_seed, 7)))));
 
         // Must configure the ProxyAdmin contract which is used to upgrade the OPSM's proxy contract.
-        superchainProxyAdmin = new ProxyAdmin(msg.sender);
+        ProxyAdmin superchainProxyAdmin = new ProxyAdmin(msg.sender);
+        superchainConfigProxy = SuperchainConfig(address(new Proxy(payable(address(superchainProxyAdmin)))));
+
+        SuperchainConfig superchainConfigImpl = SuperchainConfig(address(uint160(uint256(hash(_seed, 6)))));
+        vm.prank(address(superchainProxyAdmin));
+        Proxy(payable(address(superchainConfigProxy))).upgradeTo(address(superchainConfigImpl));
+
         vm.etch(address(superchainProxyAdmin), address(superchainProxyAdmin).code);
-        vm.etch(address(superchainConfigProxy), hex"01");
+        vm.etch(address(superchainConfigProxy), address(superchainConfigProxy).code);
         vm.etch(address(protocolVersionsProxy), hex"01");
 
         dii.set(dii.withdrawalDelaySeconds.selector, withdrawalDelaySeconds);
@@ -281,7 +285,6 @@ contract DeployImplementations_Test is Test {
         dii.set(dii.release.selector, release);
         dii.set(dii.superchainConfigProxy.selector, address(superchainConfigProxy));
         dii.set(dii.protocolVersionsProxy.selector, address(protocolVersionsProxy));
-        dii.set(dii.superchainProxyAdmin.selector, address(superchainProxyAdmin));
 
         deployImplementations.run(dii, dio);
 
@@ -294,7 +297,6 @@ contract DeployImplementations_Test is Test {
         assertEq(release, dii.release(), "525");
         assertEq(address(superchainConfigProxy), address(dii.superchainConfigProxy()), "550");
         assertEq(address(protocolVersionsProxy), address(dii.protocolVersionsProxy()), "575");
-        assertEq(address(superchainProxyAdmin), address(dii.superchainProxyAdmin()), "580");
 
         // Architecture assertions.
         assertEq(address(dio.mipsSingleton().oracle()), address(dio.preimageOracleSingleton()), "600");
@@ -314,7 +316,6 @@ contract DeployImplementations_Test is Test {
         dii.set(dii.release.selector, release);
         dii.set(dii.superchainConfigProxy.selector, address(superchainConfigProxy));
         dii.set(dii.protocolVersionsProxy.selector, address(protocolVersionsProxy));
-        dii.set(dii.superchainProxyAdmin.selector, address(superchainProxyAdmin));
 
         // Set the challenge period to a value that is too large, using vm.store because the setter
         // method won't allow it.

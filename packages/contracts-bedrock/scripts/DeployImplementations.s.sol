@@ -37,7 +37,7 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
 
 // See DeploySuperchain.s.sol for detailed comments on the script architecture used here.
-contract DeployImplementationsInput {
+contract DeployImplementationsInput is Script {
     uint256 internal _withdrawalDelaySeconds;
     uint256 internal _minProposalSizeBytes;
     uint256 internal _challengePeriodSeconds;
@@ -50,7 +50,6 @@ contract DeployImplementationsInput {
     // Outputs from DeploySuperchain.s.sol.
     SuperchainConfig internal _superchainConfigProxy;
     ProtocolVersions internal _protocolVersionsProxy;
-    ProxyAdmin internal _superchainProxyAdmin;
 
     function set(bytes4 sel, uint256 _value) public {
         require(_value != 0, "DeployImplementationsInput: cannot set zero value");
@@ -81,7 +80,6 @@ contract DeployImplementationsInput {
         require(_addr != address(0), "DeployImplementationsInput: cannot set zero address");
         if (sel == this.superchainConfigProxy.selector) _superchainConfigProxy = SuperchainConfig(_addr);
         else if (sel == this.protocolVersionsProxy.selector) _protocolVersionsProxy = ProtocolVersions(_addr);
-        else if (sel == this.superchainProxyAdmin.selector) _superchainProxyAdmin = ProxyAdmin(_addr);
         else revert("DeployImplementationsInput: unknown selector");
     }
 
@@ -133,9 +131,13 @@ contract DeployImplementationsInput {
         return _protocolVersionsProxy;
     }
 
-    function superchainProxyAdmin() public view returns (ProxyAdmin) {
-        require(address(_superchainProxyAdmin) != address(0), "DeployImplementationsInput: not set");
-        return _superchainProxyAdmin;
+    function superchainProxyAdmin() public returns (ProxyAdmin) {
+        SuperchainConfig proxy = this.superchainConfigProxy();
+        // Can infer the superchainProxyAdmin from the superchainConfigProxy.
+        vm.prank(address(0));
+        ProxyAdmin proxyAdmin = ProxyAdmin(Proxy(payable(address(proxy))).admin());
+        require(address(proxyAdmin) != address(0), "DeployImplementationsInput: not set");
+        return proxyAdmin;
     }
 }
 

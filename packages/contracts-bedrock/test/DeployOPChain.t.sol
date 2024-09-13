@@ -335,7 +335,6 @@ contract DeployOPChain_TestBase is Test {
     string release = "op-contracts/latest";
     SuperchainConfig superchainConfigProxy;
     ProtocolVersions protocolVersionsProxy;
-    ProxyAdmin superchainProxyAdmin;
 
     // Define default inputs for DeployOPChain.
     // `opsm` is set during `setUp` since it is an output of the previous step.
@@ -373,7 +372,6 @@ contract DeployOPChain_TestBase is Test {
         // Populate the inputs for DeployImplementations based on the output of DeploySuperchain.
         superchainConfigProxy = dso.superchainConfigProxy();
         protocolVersionsProxy = dso.protocolVersionsProxy();
-        superchainProxyAdmin = dso.superchainProxyAdmin();
 
         // Deploy the implementations.
         dii.set(dii.withdrawalDelaySeconds.selector, withdrawalDelaySeconds);
@@ -384,7 +382,6 @@ contract DeployOPChain_TestBase is Test {
         dii.set(dii.release.selector, release);
         dii.set(dii.superchainConfigProxy.selector, address(superchainConfigProxy));
         dii.set(dii.protocolVersionsProxy.selector, address(protocolVersionsProxy));
-        dii.set(dii.superchainProxyAdmin.selector, address(superchainProxyAdmin));
         deployImplementations.run(dii, dio);
 
         // Set the OPStackManager input for DeployOPChain.
