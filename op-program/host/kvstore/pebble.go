@@ -10,16 +10,16 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-// PebbleKV is a disk-backed key-value store, with PebbleDB as the underlying DBMS.
-// PebbleKV is safe for concurrent use with a single PebbleKV instance.
-type PebbleKV struct {
+// pebbleKV is a disk-backed key-value store, with PebbleDB as the underlying DBMS.
+// pebbleKV is safe for concurrent use with a single pebbleKV instance.
+type pebbleKV struct {
 	sync.RWMutex
 	db *pebble.DB
 }
 
-// NewPebbleKV creates a PebbleKV that puts/gets pre-images as files in the given directory path.
+// newPebbleKV creates a pebbleKV that puts/gets pre-images as files in the given directory path.
 // The path must exist, or subsequent Put/Get calls will error when it does not.
-func NewPebbleKV(path string) *PebbleKV {
+func newPebbleKV(path string) *pebbleKV {
 	opts := &pebble.Options{
 		Cache:                    pebble.NewCache(int64(32 * 1024 * 1024)),
 		MaxConcurrentCompactions: runtime.NumCPU,
@@ -32,16 +32,16 @@ func NewPebbleKV(path string) *PebbleKV {
 		panic(fmt.Errorf("failed to open pebbledb at %s: %w", path, err))
 	}
 
-	return &PebbleKV{db: db}
+	return &pebbleKV{db: db}
 }
 
-func (d *PebbleKV) Put(k common.Hash, v []byte) error {
+func (d *pebbleKV) Put(k common.Hash, v []byte) error {
 	d.Lock()
 	defer d.Unlock()
 	return d.db.Set(k.Bytes(), v, pebble.NoSync)
 }
 
-func (d *PebbleKV) Get(k common.Hash) ([]byte, error) {
+func (d *pebbleKV) Get(k common.Hash) ([]byte, error) {
 	d.RLock()
 	defer d.RUnlock()
 
@@ -58,11 +58,11 @@ func (d *PebbleKV) Get(k common.Hash) ([]byte, error) {
 	return ret, nil
 }
 
-func (d *PebbleKV) Close() error {
+func (d *pebbleKV) Close() error {
 	d.Lock()
 	defer d.Unlock()
 
 	return d.db.Close()
 }
 
-var _ KV = (*PebbleKV)(nil)
+var _ KV = (*pebbleKV)(nil)
