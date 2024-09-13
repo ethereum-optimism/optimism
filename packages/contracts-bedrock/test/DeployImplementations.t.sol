@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Test } from "forge-std/Test.sol";
+import { Test, stdStorage, StdStorage } from "forge-std/Test.sol";
 
 import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
@@ -28,54 +28,56 @@ import {
 contract DeployImplementationsInput_Test is Test {
     DeployImplementationsInput dii;
 
-    DeployImplementationsInput.Input input = DeployImplementationsInput.Input({
-        withdrawalDelaySeconds: 100,
-        minProposalSizeBytes: 200,
-        challengePeriodSeconds: 300,
-        proofMaturityDelaySeconds: 400,
-        disputeGameFinalityDelaySeconds: 500,
-        release: "op-contracts/latest",
-        superchainConfigProxy: SuperchainConfig(makeAddr("superchainConfigProxy")),
-        protocolVersionsProxy: ProtocolVersions(makeAddr("protocolVersionsProxy"))
-    });
+    uint256 withdrawalDelaySeconds = 100;
+    uint256 minProposalSizeBytes = 200;
+    uint256 challengePeriodSeconds = 300;
+    uint256 proofMaturityDelaySeconds = 400;
+    uint256 disputeGameFinalityDelaySeconds = 500;
+    string release = "op-contracts/latest";
+    SuperchainConfig superchainConfigProxy = SuperchainConfig(makeAddr("superchainConfigProxy"));
+    ProtocolVersions protocolVersionsProxy = ProtocolVersions(makeAddr("protocolVersionsProxy"));
 
     function setUp() public {
         dii = new DeployImplementationsInput();
     }
 
-    function test_loadInput_succeeds() public {
-        dii.loadInput(input);
+    function test_loadInputFile_succeeds() public {
+        // See `test_loadInputFile_succeeds` in `DeploySuperchain.t.sol` for a reference implementation.
+        // This test is currently skipped because loadInputFile is not implemented.
+        vm.skip(true);
 
-        assertTrue(dii.inputSet(), "100");
-
-        // Compare the test input struct to the getter methods.
-        assertEq(input.withdrawalDelaySeconds, dii.withdrawalDelaySeconds(), "200");
-        assertEq(input.minProposalSizeBytes, dii.minProposalSizeBytes(), "300");
-        assertEq(input.challengePeriodSeconds, dii.challengePeriodSeconds(), "400");
-        assertEq(input.proofMaturityDelaySeconds, dii.proofMaturityDelaySeconds(), "500");
-        assertEq(input.disputeGameFinalityDelaySeconds, dii.disputeGameFinalityDelaySeconds(), "600");
-
-        // Compare the test input struct to the `input` getter method.
-        assertEq(keccak256(abi.encode(input)), keccak256(abi.encode(dii.input())), "800");
+        // Compare the test inputs to the getter methods.
+        // assertEq(withdrawalDelaySeconds, dii.withdrawalDelaySeconds(), "100");
+        // assertEq(minProposalSizeBytes, dii.minProposalSizeBytes(), "200");
+        // assertEq(challengePeriodSeconds, dii.challengePeriodSeconds(), "300");
+        // assertEq(proofMaturityDelaySeconds, dii.proofMaturityDelaySeconds(), "400");
+        // assertEq(disputeGameFinalityDelaySeconds, dii.disputeGameFinalityDelaySeconds(), "500");
     }
 
     function test_getters_whenNotSet_revert() public {
-        bytes memory expectedErr = "DeployImplementationsInput: input not set";
-
-        vm.expectRevert(expectedErr);
+        vm.expectRevert("DeployImplementationsInput: not set");
         dii.withdrawalDelaySeconds();
 
-        vm.expectRevert(expectedErr);
+        vm.expectRevert("DeployImplementationsInput: not set");
         dii.minProposalSizeBytes();
 
-        vm.expectRevert(expectedErr);
+        vm.expectRevert("DeployImplementationsInput: not set");
         dii.challengePeriodSeconds();
 
-        vm.expectRevert(expectedErr);
+        vm.expectRevert("DeployImplementationsInput: not set");
         dii.proofMaturityDelaySeconds();
 
-        vm.expectRevert(expectedErr);
+        vm.expectRevert("DeployImplementationsInput: not set");
         dii.disputeGameFinalityDelaySeconds();
+
+        vm.expectRevert("DeployImplementationsInput: not set");
+        dii.release();
+
+        vm.expectRevert("DeployImplementationsInput: not set");
+        dii.superchainConfigProxy();
+
+        vm.expectRevert("DeployImplementationsInput: not set");
+        dii.protocolVersionsProxy();
     }
 }
 
@@ -87,58 +89,54 @@ contract DeployImplementationsOutput_Test is Test {
     }
 
     function test_set_succeeds() public {
-        DeployImplementationsOutput.Output memory output = DeployImplementationsOutput.Output({
-            opsm: OPStackManager(makeAddr("opsm")),
-            optimismPortalImpl: OptimismPortal2(payable(makeAddr("optimismPortalImpl"))),
-            delayedWETHImpl: DelayedWETH(payable(makeAddr("delayedWETHImpl"))),
-            preimageOracleSingleton: PreimageOracle(makeAddr("preimageOracleSingleton")),
-            mipsSingleton: MIPS(makeAddr("mipsSingleton")),
-            systemConfigImpl: SystemConfig(makeAddr("systemConfigImpl")),
-            l1CrossDomainMessengerImpl: L1CrossDomainMessenger(makeAddr("l1CrossDomainMessengerImpl")),
-            l1ERC721BridgeImpl: L1ERC721Bridge(makeAddr("l1ERC721BridgeImpl")),
-            l1StandardBridgeImpl: L1StandardBridge(payable(makeAddr("l1StandardBridgeImpl"))),
-            optimismMintableERC20FactoryImpl: OptimismMintableERC20Factory(makeAddr("optimismMintableERC20FactoryImpl")),
-            disputeGameFactoryImpl: DisputeGameFactory(makeAddr("disputeGameFactoryImpl"))
-        });
+        OPStackManager opsm = OPStackManager(makeAddr("opsm"));
+        OptimismPortal2 optimismPortalImpl = OptimismPortal2(payable(makeAddr("optimismPortalImpl")));
+        DelayedWETH delayedWETHImpl = DelayedWETH(payable(makeAddr("delayedWETHImpl")));
+        PreimageOracle preimageOracleSingleton = PreimageOracle(makeAddr("preimageOracleSingleton"));
+        MIPS mipsSingleton = MIPS(makeAddr("mipsSingleton"));
+        SystemConfig systemConfigImpl = SystemConfig(makeAddr("systemConfigImpl"));
+        L1CrossDomainMessenger l1CrossDomainMessengerImpl =
+            L1CrossDomainMessenger(makeAddr("l1CrossDomainMessengerImpl"));
+        L1ERC721Bridge l1ERC721BridgeImpl = L1ERC721Bridge(makeAddr("l1ERC721BridgeImpl"));
+        L1StandardBridge l1StandardBridgeImpl = L1StandardBridge(payable(makeAddr("l1StandardBridgeImpl")));
+        OptimismMintableERC20Factory optimismMintableERC20FactoryImpl =
+            OptimismMintableERC20Factory(makeAddr("optimismMintableERC20FactoryImpl"));
+        DisputeGameFactory disputeGameFactoryImpl = DisputeGameFactory(makeAddr("disputeGameFactoryImpl"));
 
-        vm.etch(address(output.opsm), hex"01");
-        vm.etch(address(output.optimismPortalImpl), hex"01");
-        vm.etch(address(output.delayedWETHImpl), hex"01");
-        vm.etch(address(output.preimageOracleSingleton), hex"01");
-        vm.etch(address(output.mipsSingleton), hex"01");
-        vm.etch(address(output.systemConfigImpl), hex"01");
-        vm.etch(address(output.l1CrossDomainMessengerImpl), hex"01");
-        vm.etch(address(output.l1ERC721BridgeImpl), hex"01");
-        vm.etch(address(output.l1StandardBridgeImpl), hex"01");
-        vm.etch(address(output.optimismMintableERC20FactoryImpl), hex"01");
-        vm.etch(address(output.disputeGameFactoryImpl), hex"01");
-        dio.set(dio.opsm.selector, address(output.opsm));
-        dio.set(dio.optimismPortalImpl.selector, address(output.optimismPortalImpl));
-        dio.set(dio.delayedWETHImpl.selector, address(output.delayedWETHImpl));
-        dio.set(dio.preimageOracleSingleton.selector, address(output.preimageOracleSingleton));
-        dio.set(dio.mipsSingleton.selector, address(output.mipsSingleton));
-        dio.set(dio.systemConfigImpl.selector, address(output.systemConfigImpl));
-        dio.set(dio.l1CrossDomainMessengerImpl.selector, address(output.l1CrossDomainMessengerImpl));
-        dio.set(dio.l1ERC721BridgeImpl.selector, address(output.l1ERC721BridgeImpl));
-        dio.set(dio.l1StandardBridgeImpl.selector, address(output.l1StandardBridgeImpl));
-        dio.set(dio.optimismMintableERC20FactoryImpl.selector, address(output.optimismMintableERC20FactoryImpl));
-        dio.set(dio.disputeGameFactoryImpl.selector, address(output.disputeGameFactoryImpl));
+        vm.etch(address(opsm), hex"01");
+        vm.etch(address(optimismPortalImpl), hex"01");
+        vm.etch(address(delayedWETHImpl), hex"01");
+        vm.etch(address(preimageOracleSingleton), hex"01");
+        vm.etch(address(mipsSingleton), hex"01");
+        vm.etch(address(systemConfigImpl), hex"01");
+        vm.etch(address(l1CrossDomainMessengerImpl), hex"01");
+        vm.etch(address(l1ERC721BridgeImpl), hex"01");
+        vm.etch(address(l1StandardBridgeImpl), hex"01");
+        vm.etch(address(optimismMintableERC20FactoryImpl), hex"01");
+        vm.etch(address(disputeGameFactoryImpl), hex"01");
+        dio.set(dio.opsm.selector, address(opsm));
+        dio.set(dio.optimismPortalImpl.selector, address(optimismPortalImpl));
+        dio.set(dio.delayedWETHImpl.selector, address(delayedWETHImpl));
+        dio.set(dio.preimageOracleSingleton.selector, address(preimageOracleSingleton));
+        dio.set(dio.mipsSingleton.selector, address(mipsSingleton));
+        dio.set(dio.systemConfigImpl.selector, address(systemConfigImpl));
+        dio.set(dio.l1CrossDomainMessengerImpl.selector, address(l1CrossDomainMessengerImpl));
+        dio.set(dio.l1ERC721BridgeImpl.selector, address(l1ERC721BridgeImpl));
+        dio.set(dio.l1StandardBridgeImpl.selector, address(l1StandardBridgeImpl));
+        dio.set(dio.optimismMintableERC20FactoryImpl.selector, address(optimismMintableERC20FactoryImpl));
+        dio.set(dio.disputeGameFactoryImpl.selector, address(disputeGameFactoryImpl));
 
-        assertEq(address(output.opsm), address(dio.opsm()), "50");
-        assertEq(address(output.optimismPortalImpl), address(dio.optimismPortalImpl()), "100");
-        assertEq(address(output.delayedWETHImpl), address(dio.delayedWETHImpl()), "200");
-        assertEq(address(output.preimageOracleSingleton), address(dio.preimageOracleSingleton()), "300");
-        assertEq(address(output.mipsSingleton), address(dio.mipsSingleton()), "400");
-        assertEq(address(output.systemConfigImpl), address(dio.systemConfigImpl()), "500");
-        assertEq(address(output.l1CrossDomainMessengerImpl), address(dio.l1CrossDomainMessengerImpl()), "600");
-        assertEq(address(output.l1ERC721BridgeImpl), address(dio.l1ERC721BridgeImpl()), "700");
-        assertEq(address(output.l1StandardBridgeImpl), address(dio.l1StandardBridgeImpl()), "800");
-        assertEq(
-            address(output.optimismMintableERC20FactoryImpl), address(dio.optimismMintableERC20FactoryImpl()), "900"
-        );
-        assertEq(address(output.disputeGameFactoryImpl), address(dio.disputeGameFactoryImpl()), "950");
-
-        assertEq(keccak256(abi.encode(output)), keccak256(abi.encode(dio.output())), "1000");
+        assertEq(address(opsm), address(dio.opsm()), "50");
+        assertEq(address(optimismPortalImpl), address(dio.optimismPortalImpl()), "100");
+        assertEq(address(delayedWETHImpl), address(dio.delayedWETHImpl()), "200");
+        assertEq(address(preimageOracleSingleton), address(dio.preimageOracleSingleton()), "300");
+        assertEq(address(mipsSingleton), address(dio.mipsSingleton()), "400");
+        assertEq(address(systemConfigImpl), address(dio.systemConfigImpl()), "500");
+        assertEq(address(l1CrossDomainMessengerImpl), address(dio.l1CrossDomainMessengerImpl()), "600");
+        assertEq(address(l1ERC721BridgeImpl), address(dio.l1ERC721BridgeImpl()), "700");
+        assertEq(address(l1StandardBridgeImpl), address(dio.l1StandardBridgeImpl()), "800");
+        assertEq(address(optimismMintableERC20FactoryImpl), address(dio.optimismMintableERC20FactoryImpl()), "900");
+        assertEq(address(disputeGameFactoryImpl), address(dio.disputeGameFactoryImpl()), "950");
     }
 
     function test_getters_whenNotSet_revert() public {
@@ -218,25 +216,25 @@ contract DeployImplementationsOutput_Test is Test {
 }
 
 contract DeployImplementations_Test is Test {
+    using stdStorage for StdStorage;
+
     DeployImplementations deployImplementations;
     DeployImplementationsInput dii;
     DeployImplementationsOutput dio;
 
-    // Define a default input struct for testing.
-    DeployImplementationsInput.Input input = DeployImplementationsInput.Input({
-        withdrawalDelaySeconds: 100,
-        minProposalSizeBytes: 200,
-        challengePeriodSeconds: 300,
-        proofMaturityDelaySeconds: 400,
-        disputeGameFinalityDelaySeconds: 500,
-        release: "op-contracts/latest",
-        superchainConfigProxy: SuperchainConfig(makeAddr("superchainConfigProxy")),
-        protocolVersionsProxy: ProtocolVersions(makeAddr("protocolVersionsProxy"))
-    });
+    // Define default inputs for testing.
+    uint256 withdrawalDelaySeconds = 100;
+    uint256 minProposalSizeBytes = 200;
+    uint256 challengePeriodSeconds = 300;
+    uint256 proofMaturityDelaySeconds = 400;
+    uint256 disputeGameFinalityDelaySeconds = 500;
+    string release = "op-contracts/latest";
+    SuperchainConfig superchainConfigProxy = SuperchainConfig(makeAddr("superchainConfigProxy"));
+    ProtocolVersions protocolVersionsProxy = ProtocolVersions(makeAddr("protocolVersionsProxy"));
 
     function setUp() public virtual {
         deployImplementations = new DeployImplementations();
-        (dii, dio) = deployImplementations.getIOContracts();
+        (dii, dio) = deployImplementations.etchIOContracts();
     }
 
     // By deploying the `DeployImplementations` contract with this virtual function, we provide a
@@ -246,50 +244,43 @@ contract DeployImplementations_Test is Test {
         return new DeployImplementations();
     }
 
-    function testFuzz_run_succeeds(DeployImplementationsInput.Input memory _input) public {
-        // This is a requirement in the PreimageOracle contract.
-        _input.challengePeriodSeconds = bound(_input.challengePeriodSeconds, 0, type(uint64).max);
+    function hash(bytes32 _seed, uint256 _i) internal pure returns (bytes32) {
+        return keccak256(abi.encode(_seed, _i));
+    }
 
-        DeployImplementationsOutput.Output memory output = deployImplementations.run(_input);
+    function testFuzz_run_memory_succeeds(bytes32 _seed) public {
+        withdrawalDelaySeconds = uint256(hash(_seed, 0));
+        minProposalSizeBytes = uint256(hash(_seed, 1));
+        challengePeriodSeconds = bound(uint256(hash(_seed, 2)), 0, type(uint64).max);
+        proofMaturityDelaySeconds = uint256(hash(_seed, 3));
+        disputeGameFinalityDelaySeconds = uint256(hash(_seed, 4));
+        release = string(bytes.concat(hash(_seed, 5)));
+        superchainConfigProxy = SuperchainConfig(address(uint160(uint256(hash(_seed, 6)))));
+        protocolVersionsProxy = ProtocolVersions(address(uint160(uint256(hash(_seed, 7)))));
 
-        // Assert that individual input fields were properly set based on the input struct.
-        assertEq(_input.withdrawalDelaySeconds, dii.withdrawalDelaySeconds(), "100");
-        assertEq(_input.minProposalSizeBytes, dii.minProposalSizeBytes(), "200");
-        assertEq(_input.challengePeriodSeconds, dii.challengePeriodSeconds(), "300");
-        assertEq(_input.proofMaturityDelaySeconds, dii.proofMaturityDelaySeconds(), "400");
-        assertEq(_input.disputeGameFinalityDelaySeconds, dii.disputeGameFinalityDelaySeconds(), "500");
+        dii.set(dii.withdrawalDelaySeconds.selector, withdrawalDelaySeconds);
+        dii.set(dii.minProposalSizeBytes.selector, minProposalSizeBytes);
+        dii.set(dii.challengePeriodSeconds.selector, challengePeriodSeconds);
+        dii.set(dii.proofMaturityDelaySeconds.selector, proofMaturityDelaySeconds);
+        dii.set(dii.disputeGameFinalityDelaySeconds.selector, disputeGameFinalityDelaySeconds);
+        dii.set(dii.release.selector, release);
+        dii.set(dii.superchainConfigProxy.selector, address(superchainConfigProxy));
+        dii.set(dii.protocolVersionsProxy.selector, address(protocolVersionsProxy));
 
-        // Assert that individual output fields were properly set based on the output struct.
-        assertEq(address(output.optimismPortalImpl), address(dio.optimismPortalImpl()), "600");
-        assertEq(address(output.delayedWETHImpl), address(dio.delayedWETHImpl()), "700");
-        assertEq(address(output.preimageOracleSingleton), address(dio.preimageOracleSingleton()), "800");
-        assertEq(address(output.mipsSingleton), address(dio.mipsSingleton()), "900");
-        assertEq(address(output.systemConfigImpl), address(dio.systemConfigImpl()), "1000");
-        assertEq(address(output.l1CrossDomainMessengerImpl), address(dio.l1CrossDomainMessengerImpl()), "1100");
-        assertEq(address(output.l1ERC721BridgeImpl), address(dio.l1ERC721BridgeImpl()), "1200");
-        assertEq(address(output.l1StandardBridgeImpl), address(dio.l1StandardBridgeImpl()), "1300");
-        assertEq(
-            address(output.optimismMintableERC20FactoryImpl), address(dio.optimismMintableERC20FactoryImpl()), "1400"
-        );
-        assertEq(address(output.disputeGameFactoryImpl), address(dio.disputeGameFactoryImpl()), "1450");
+        deployImplementations.run(dii, dio);
 
-        // Assert that the full input and output structs were properly set.
-        assertEq(keccak256(abi.encode(_input)), keccak256(abi.encode(DeployImplementationsInput(dii).input())), "1500");
-        assertEq(
-            keccak256(abi.encode(output)), keccak256(abi.encode(DeployImplementationsOutput(dio).output())), "1600"
-        );
-
-        // Assert inputs were properly passed through to the contract initializers.
-        assertEq(output.delayedWETHImpl.delay(), _input.withdrawalDelaySeconds, "1700");
-        assertEq(output.preimageOracleSingleton.challengePeriod(), _input.challengePeriodSeconds, "1800");
-        assertEq(output.preimageOracleSingleton.minProposalSize(), _input.minProposalSizeBytes, "1900");
-        assertEq(output.optimismPortalImpl.proofMaturityDelaySeconds(), _input.proofMaturityDelaySeconds, "2000");
-        assertEq(
-            output.optimismPortalImpl.disputeGameFinalityDelaySeconds(), _input.disputeGameFinalityDelaySeconds, "2100"
-        );
+        // Assert that individual input fields were properly set based on the inputs.
+        assertEq(withdrawalDelaySeconds, dii.withdrawalDelaySeconds(), "100");
+        assertEq(minProposalSizeBytes, dii.minProposalSizeBytes(), "200");
+        assertEq(challengePeriodSeconds, dii.challengePeriodSeconds(), "300");
+        assertEq(proofMaturityDelaySeconds, dii.proofMaturityDelaySeconds(), "400");
+        assertEq(disputeGameFinalityDelaySeconds, dii.disputeGameFinalityDelaySeconds(), "500");
+        assertEq(release, dii.release(), "525");
+        assertEq(address(superchainConfigProxy), address(dii.superchainConfigProxy()), "550");
+        assertEq(address(protocolVersionsProxy), address(dii.protocolVersionsProxy()), "575");
 
         // Architecture assertions.
-        assertEq(address(output.mipsSingleton.oracle()), address(output.preimageOracleSingleton), "2200");
+        assertEq(address(dio.mipsSingleton().oracle()), address(dio.preimageOracleSingleton()), "600");
 
         // Ensure that `checkOutput` passes. This is called by the `run` function during execution,
         // so this just acts as a sanity check. It reverts on failure.
@@ -297,9 +288,25 @@ contract DeployImplementations_Test is Test {
     }
 
     function testFuzz_run_largeChallengePeriodSeconds_reverts(uint256 _challengePeriodSeconds) public {
-        input.challengePeriodSeconds = bound(_challengePeriodSeconds, uint256(type(uint64).max) + 1, type(uint256).max);
-        vm.expectRevert("DeployImplementationsInput: challenge period too large");
-        deployImplementations.run(input);
+        // Set the defaults.
+        dii.set(dii.withdrawalDelaySeconds.selector, withdrawalDelaySeconds);
+        dii.set(dii.minProposalSizeBytes.selector, minProposalSizeBytes);
+        dii.set(dii.challengePeriodSeconds.selector, challengePeriodSeconds);
+        dii.set(dii.proofMaturityDelaySeconds.selector, proofMaturityDelaySeconds);
+        dii.set(dii.disputeGameFinalityDelaySeconds.selector, disputeGameFinalityDelaySeconds);
+        dii.set(dii.release.selector, release);
+        dii.set(dii.superchainConfigProxy.selector, address(superchainConfigProxy));
+        dii.set(dii.protocolVersionsProxy.selector, address(protocolVersionsProxy));
+
+        // Set the challenge period to a value that is too large, using vm.store because the setter
+        // method won't allow it.
+        challengePeriodSeconds = bound(_challengePeriodSeconds, uint256(type(uint64).max) + 1, type(uint256).max);
+        uint256 slot =
+            stdstore.enable_packed_slots().target(address(dii)).sig(dii.challengePeriodSeconds.selector).find();
+        vm.store(address(dii), bytes32(slot), bytes32(challengePeriodSeconds));
+
+        vm.expectRevert("DeployImplementationsInput: challengePeriodSeconds too large");
+        deployImplementations.run(dii, dio);
     }
 }
 

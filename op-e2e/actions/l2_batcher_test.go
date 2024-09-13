@@ -317,8 +317,8 @@ func GarbageBatch(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 			// If the garbage kind is `INVALID_COMPRESSION` or `MALFORM_RLP`, use the `actions` packages
 			// modified `ChannelOut`.
 			batcherCfg.GarbageCfg = &GarbageChannelCfg{
-				useInvalidCompression: garbageKind == INVALID_COMPRESSION,
-				malformRLP:            garbageKind == MALFORM_RLP,
+				UseInvalidCompression: garbageKind == INVALID_COMPRESSION,
+				MalformRLP:            garbageKind == MALFORM_RLP,
 			}
 		}
 

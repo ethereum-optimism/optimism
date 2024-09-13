@@ -52,8 +52,8 @@ contract MIPS2 is ISemver {
     }
 
     /// @notice The semantic version of the MIPS2 contract.
-    /// @custom:semver 1.0.0-beta.7
-    string public constant version = "1.0.0-beta.7";
+    /// @custom:semver 1.0.0-beta.8
+    string public constant version = "1.0.0-beta.8";
 
     /// @notice The preimage oracle contract.
     IPreimageOracle internal immutable ORACLE;
@@ -76,6 +76,12 @@ contract MIPS2 is ISemver {
     /// @param _oracle The address of the preimage oracle contract.
     constructor(IPreimageOracle _oracle) {
         ORACLE = _oracle;
+    }
+
+    /// @notice Getter for the pre-image oracle contract.
+    /// @return oracle_ The IPreimageOracle contract.
+    function oracle() external view returns (IPreimageOracle oracle_) {
+        oracle_ = ORACLE;
     }
 
     /// @notice Executes a single step of the multi-threaded vm.

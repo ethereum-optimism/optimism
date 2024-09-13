@@ -138,6 +138,11 @@ library Config {
         }
     }
 
+    /// @notice Returns true if multithreaded Cannon is used for the deployment.
+    function useMultithreadedCannon() internal view returns (bool _enabled) {
+        _enabled = vm.envOr("USE_MT_CANNON", false);
+    }
+
     /// @notice Returns the latest fork to use for genesis allocs generation.
     ///         It reads the fork from the environment variable FORK. If it is
     ///         unset, NONE is returned.

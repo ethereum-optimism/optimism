@@ -36,10 +36,29 @@ var GarbageKinds = []GarbageKind{
 	MALFORM_RLP,
 }
 
+func (gk GarbageKind) String() string {
+	switch gk {
+	case STRIP_VERSION:
+		return "STRIP_VERSION"
+	case RANDOM:
+		return "RANDOM"
+	case TRUNCATE_END:
+		return "TRUNCATE_END"
+	case DIRTY_APPEND:
+		return "DIRTY_APPEND"
+	case INVALID_COMPRESSION:
+		return "INVALID_COMPRESSION"
+	case MALFORM_RLP:
+		return "MALFORM_RLP"
+	default:
+		return "UNKNOWN"
+	}
+}
+
 // GarbageChannelCfg is the configuration for a `GarbageChannelOut`
 type GarbageChannelCfg struct {
-	useInvalidCompression bool
-	malformRLP            bool
+	UseInvalidCompression bool
+	MalformRLP            bool
 }
 
 // Writer is the interface shared between `zlib.Writer` and `gzip.Writer`
@@ -109,7 +128,7 @@ func NewGarbageChannelOut(cfg *GarbageChannelCfg) (*GarbageChannelOut, error) {
 
 	// Optionally use zlib or gzip compression
 	var compress Writer
-	if cfg.useInvalidCompression {
+	if cfg.UseInvalidCompression {
 		compress, err = gzip.NewWriterLevel(&c.buf, gzip.BestCompression)
 	} else {
 		compress, err = zlib.NewWriterLevel(&c.buf, zlib.BestCompression)
@@ -152,7 +171,7 @@ func (co *GarbageChannelOut) AddBlock(rollupCfg *rollup.Config, block *types.Blo
 	if err := rlp.Encode(&buf, batch); err != nil {
 		return err
 	}
-	if co.cfg.malformRLP {
+	if co.cfg.MalformRLP {
 		// Malform the RLP by incrementing the length prefix by 1.
 		bufBytes := buf.Bytes()
 		bufBytes[0] += 1

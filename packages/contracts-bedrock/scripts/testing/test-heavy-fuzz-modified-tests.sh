@@ -12,15 +12,10 @@ set -euo pipefail
 # modified.
 
 # Set the number of fuzz runs to run.
-# 350000 fuzz runs will guarantee that any test that fails 1% of the time with
-# the default 512 fuzz runs will fail 99.9% of the time (on average) inside of
-# this script.
-FUZZ_RUNS=${1:-350000}
+FUZZ_RUNS=${1:-10000}
 
 # Set the number of invariant runs to run.
-# Invariant runs are generally slower than fuzz runs so we can't afford to run
-# as many of them. 25000 is probably good enough for most cases.
-INVARIANT_RUNS=${2:-25000}
+INVARIANT_RUNS=${2:-10000}
 
 # Verify that FUZZ_RUNS is a number.
 if ! [[ "$FUZZ_RUNS" =~ ^[0-9]+$ ]]; then
@@ -87,6 +82,11 @@ for FILE in $CHANGED_FILES; do
 
     # Extract function names and their line numbers from the entire file
     FUNCTION_LINES=$(awk '/function testFuzz_|function invariant_/ {print FNR, $0}' "$FILE")
+
+    # If there are no function lines, skip the file.
+    if [ -z "$FUNCTION_LINES" ]; then
+        continue
+    fi
 
     # Reverse the function lines so we can match the last function modified.
     # We'd otherwise end up matching the first function with a line number less

@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
 import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
-import { SafeSigners } from "src/Safe/SafeSigners.sol";
+import { SafeSigners } from "src/safe/SafeSigners.sol";
 import "test/safe-tools/SafeTestTools.sol";
 
 contract SafeSigners_Test is Test, SafeTestTools {

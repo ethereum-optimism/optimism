@@ -3,6 +3,8 @@ pragma solidity 0.8.15;
 
 import { Script } from "forge-std/Script.sol";
 
+import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
+
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
 
@@ -24,151 +26,138 @@ import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
 
 contract DeployOPChainInput {
-    struct Roles {
-        address opChainProxyAdminOwner;
-        address systemConfigOwner;
-        address batcher;
-        address unsafeBlockSigner;
-        address proposer;
-        address challenger;
-    }
+    address internal _opChainProxyAdminOwner;
+    address internal _systemConfigOwner;
+    address internal _batcher;
+    address internal _unsafeBlockSigner;
+    address internal _proposer;
+    address internal _challenger;
 
     // TODO Add fault proofs inputs in a future PR.
-    struct Input {
-        Roles roles;
-        uint32 basefeeScalar;
-        uint32 blobBaseFeeScalar;
-        uint256 l2ChainId;
-        OPStackManager opsm;
+    uint32 internal _basefeeScalar;
+    uint32 internal _blobBaseFeeScalar;
+    uint256 internal _l2ChainId;
+    OPStackManager internal _opsm;
+
+    function set(bytes4 _sel, address _addr) public {
+        require(_addr != address(0), "DeployOPChainInput: cannot set zero address");
+        if (_sel == this.opChainProxyAdminOwner.selector) _opChainProxyAdminOwner = _addr;
+        else if (_sel == this.systemConfigOwner.selector) _systemConfigOwner = _addr;
+        else if (_sel == this.batcher.selector) _batcher = _addr;
+        else if (_sel == this.unsafeBlockSigner.selector) _unsafeBlockSigner = _addr;
+        else if (_sel == this.proposer.selector) _proposer = _addr;
+        else if (_sel == this.challenger.selector) _challenger = _addr;
+        else if (_sel == this.opsm.selector) _opsm = OPStackManager(_addr);
+        else revert("DeployOPChainInput: unknown selector");
     }
 
-    bool public inputSet = false;
-    Input internal inputs;
+    function set(bytes4 _sel, uint256 _value) public {
+        if (_sel == this.basefeeScalar.selector) {
+            _basefeeScalar = SafeCast.toUint32(_value);
+        } else if (_sel == this.blobBaseFeeScalar.selector) {
+            _blobBaseFeeScalar = SafeCast.toUint32(_value);
+        } else if (_sel == this.l2ChainId.selector) {
+            require(_value != 0 && _value != block.chainid, "DeployOPChainInput: invalid l2ChainId");
+            _l2ChainId = _value;
+        } else {
+            revert("DeployOPChainInput: unknown selector");
+        }
+    }
 
-    function loadInputFile(string memory _infile) public {
+    function loadInputFile(string memory _infile) public pure {
         _infile;
-        Input memory parsedInput;
-        loadInput(parsedInput);
         require(false, "DeployOPChainInput: not implemented");
     }
 
-    function loadInput(Input memory _input) public {
-        require(!inputSet, "DeployOPChainInput: input already set");
-
-        require(_input.roles.opChainProxyAdminOwner != address(0), "DeployOPChainInput: null opChainProxyAdminOwner");
-        require(_input.roles.systemConfigOwner != address(0), "DeployOPChainInput: null systemConfigOwner");
-        require(_input.roles.batcher != address(0), "DeployOPChainInput: null batcher");
-        require(_input.roles.unsafeBlockSigner != address(0), "DeployOPChainInput: null unsafeBlockSigner");
-        require(_input.roles.proposer != address(0), "DeployOPChainInput: null proposer");
-        require(_input.roles.challenger != address(0), "DeployOPChainInput: null challenger");
-        require(_input.l2ChainId != 0 && _input.l2ChainId != block.chainid, "DeployOPChainInput: invalid l2ChainId");
-        require(address(_input.opsm) != address(0), "DeployOPChainInput: null opsm");
-
-        inputSet = true;
-        inputs = _input;
-    }
-
-    function assertInputSet() internal view {
-        require(inputSet, "DeployOPChainInput: input not set");
-    }
-
-    function input() public view returns (Input memory) {
-        assertInputSet();
-        return inputs;
-    }
-
     function opChainProxyAdminOwner() public view returns (address) {
-        assertInputSet();
-        return inputs.roles.opChainProxyAdminOwner;
+        require(_opChainProxyAdminOwner != address(0), "DeployOPChainInput: not set");
+        return _opChainProxyAdminOwner;
     }
 
     function systemConfigOwner() public view returns (address) {
-        assertInputSet();
-        return inputs.roles.systemConfigOwner;
+        require(_systemConfigOwner != address(0), "DeployOPChainInput: not set");
+        return _systemConfigOwner;
     }
 
     function batcher() public view returns (address) {
-        assertInputSet();
-        return inputs.roles.batcher;
+        require(_batcher != address(0), "DeployOPChainInput: not set");
+        return _batcher;
     }
 
     function unsafeBlockSigner() public view returns (address) {
-        assertInputSet();
-        return inputs.roles.unsafeBlockSigner;
+        require(_unsafeBlockSigner != address(0), "DeployOPChainInput: not set");
+        return _unsafeBlockSigner;
     }
 
     function proposer() public view returns (address) {
-        assertInputSet();
-        return inputs.roles.proposer;
+        require(_proposer != address(0), "DeployOPChainInput: not set");
+        return _proposer;
     }
 
     function challenger() public view returns (address) {
-        assertInputSet();
-        return inputs.roles.challenger;
+        require(_challenger != address(0), "DeployOPChainInput: not set");
+        return _challenger;
     }
 
     function basefeeScalar() public view returns (uint32) {
-        assertInputSet();
-        return inputs.basefeeScalar;
+        require(_basefeeScalar != 0, "DeployOPChainInput: not set");
+        return _basefeeScalar;
     }
 
     function blobBaseFeeScalar() public view returns (uint32) {
-        assertInputSet();
-        return inputs.blobBaseFeeScalar;
+        require(_blobBaseFeeScalar != 0, "DeployOPChainInput: not set");
+        return _blobBaseFeeScalar;
     }
 
     function l2ChainId() public view returns (uint256) {
-        assertInputSet();
-        return inputs.l2ChainId;
+        require(_l2ChainId != 0, "DeployOPChainInput: not set");
+        require(_l2ChainId != block.chainid, "DeployOPChainInput: invalid l2ChainId");
+        return _l2ChainId;
     }
 
     function opsm() public view returns (OPStackManager) {
-        assertInputSet();
-        return inputs.opsm;
+        require(address(_opsm) != address(0), "DeployOPChainInput: not set");
+        return _opsm;
     }
 }
 
 contract DeployOPChainOutput {
-    struct Output {
-        ProxyAdmin opChainProxyAdmin;
-        AddressManager addressManager;
-        L1ERC721Bridge l1ERC721BridgeProxy;
-        SystemConfig systemConfigProxy;
-        OptimismMintableERC20Factory optimismMintableERC20FactoryProxy;
-        L1StandardBridge l1StandardBridgeProxy;
-        L1CrossDomainMessenger l1CrossDomainMessengerProxy;
-        // Fault proof contracts below.
-        OptimismPortal2 optimismPortalProxy;
-        DisputeGameFactory disputeGameFactoryProxy;
-        DisputeGameFactory disputeGameFactoryImpl;
-        AnchorStateRegistry anchorStateRegistryProxy;
-        AnchorStateRegistry anchorStateRegistryImpl;
-        FaultDisputeGame faultDisputeGame;
-        PermissionedDisputeGame permissionedDisputeGame;
-        DelayedWETH delayedWETHPermissionedGameProxy;
-        DelayedWETH delayedWETHPermissionlessGameProxy;
-    }
-
-    Output internal outputs;
+    ProxyAdmin internal _opChainProxyAdmin;
+    AddressManager internal _addressManager;
+    L1ERC721Bridge internal _l1ERC721BridgeProxy;
+    SystemConfig internal _systemConfigProxy;
+    OptimismMintableERC20Factory internal _optimismMintableERC20FactoryProxy;
+    L1StandardBridge internal _l1StandardBridgeProxy;
+    L1CrossDomainMessenger internal _l1CrossDomainMessengerProxy;
+    OptimismPortal2 internal _optimismPortalProxy;
+    DisputeGameFactory internal _disputeGameFactoryProxy;
+    DisputeGameFactory internal _disputeGameFactoryImpl;
+    AnchorStateRegistry internal _anchorStateRegistryProxy;
+    AnchorStateRegistry internal _anchorStateRegistryImpl;
+    FaultDisputeGame internal _faultDisputeGame;
+    PermissionedDisputeGame internal _permissionedDisputeGame;
+    DelayedWETH internal _delayedWETHPermissionedGameProxy;
+    DelayedWETH internal _delayedWETHPermissionlessGameProxy;
 
     function set(bytes4 sel, address _addr) public {
+        require(_addr != address(0), "DeployOPChainOutput: cannot set zero address");
         // forgefmt: disable-start
-        if (sel == this.opChainProxyAdmin.selector) outputs.opChainProxyAdmin = ProxyAdmin(_addr) ;
-        else if (sel == this.addressManager.selector) outputs.addressManager = AddressManager(_addr) ;
-        else if (sel == this.l1ERC721BridgeProxy.selector) outputs.l1ERC721BridgeProxy = L1ERC721Bridge(_addr) ;
-        else if (sel == this.systemConfigProxy.selector) outputs.systemConfigProxy = SystemConfig(_addr) ;
-        else if (sel == this.optimismMintableERC20FactoryProxy.selector) outputs.optimismMintableERC20FactoryProxy = OptimismMintableERC20Factory(_addr) ;
-        else if (sel == this.l1StandardBridgeProxy.selector) outputs.l1StandardBridgeProxy = L1StandardBridge(payable(_addr)) ;
-        else if (sel == this.l1CrossDomainMessengerProxy.selector) outputs.l1CrossDomainMessengerProxy = L1CrossDomainMessenger(_addr) ;
-        else if (sel == this.optimismPortalProxy.selector) outputs.optimismPortalProxy = OptimismPortal2(payable(_addr)) ;
-        else if (sel == this.disputeGameFactoryProxy.selector) outputs.disputeGameFactoryProxy = DisputeGameFactory(_addr) ;
-        else if (sel == this.disputeGameFactoryImpl.selector) outputs.disputeGameFactoryImpl = DisputeGameFactory(_addr) ;
-        else if (sel == this.anchorStateRegistryProxy.selector) outputs.anchorStateRegistryProxy = AnchorStateRegistry(_addr) ;
-        else if (sel == this.anchorStateRegistryImpl.selector) outputs.anchorStateRegistryImpl = AnchorStateRegistry(_addr) ;
-        else if (sel == this.faultDisputeGame.selector) outputs.faultDisputeGame = FaultDisputeGame(_addr) ;
-        else if (sel == this.permissionedDisputeGame.selector) outputs.permissionedDisputeGame = PermissionedDisputeGame(_addr) ;
-        else if (sel == this.delayedWETHPermissionedGameProxy.selector) outputs.delayedWETHPermissionedGameProxy = DelayedWETH(payable(_addr)) ;
-        else if (sel == this.delayedWETHPermissionlessGameProxy.selector) outputs.delayedWETHPermissionlessGameProxy = DelayedWETH(payable(_addr)) ;
+        if (sel == this.opChainProxyAdmin.selector) _opChainProxyAdmin = ProxyAdmin(_addr) ;
+        else if (sel == this.addressManager.selector) _addressManager = AddressManager(_addr) ;
+        else if (sel == this.l1ERC721BridgeProxy.selector) _l1ERC721BridgeProxy = L1ERC721Bridge(_addr) ;
+        else if (sel == this.systemConfigProxy.selector) _systemConfigProxy = SystemConfig(_addr) ;
+        else if (sel == this.optimismMintableERC20FactoryProxy.selector) _optimismMintableERC20FactoryProxy = OptimismMintableERC20Factory(_addr) ;
+        else if (sel == this.l1StandardBridgeProxy.selector) _l1StandardBridgeProxy = L1StandardBridge(payable(_addr)) ;
+        else if (sel == this.l1CrossDomainMessengerProxy.selector) _l1CrossDomainMessengerProxy = L1CrossDomainMessenger(_addr) ;
+        else if (sel == this.optimismPortalProxy.selector) _optimismPortalProxy = OptimismPortal2(payable(_addr)) ;
+        else if (sel == this.disputeGameFactoryProxy.selector) _disputeGameFactoryProxy = DisputeGameFactory(_addr) ;
+        else if (sel == this.disputeGameFactoryImpl.selector) _disputeGameFactoryImpl = DisputeGameFactory(_addr) ;
+        else if (sel == this.anchorStateRegistryProxy.selector) _anchorStateRegistryProxy = AnchorStateRegistry(_addr) ;
+        else if (sel == this.anchorStateRegistryImpl.selector) _anchorStateRegistryImpl = AnchorStateRegistry(_addr) ;
+        else if (sel == this.faultDisputeGame.selector) _faultDisputeGame = FaultDisputeGame(_addr) ;
+        else if (sel == this.permissionedDisputeGame.selector) _permissionedDisputeGame = PermissionedDisputeGame(_addr) ;
+        else if (sel == this.delayedWETHPermissionedGameProxy.selector) _delayedWETHPermissionedGameProxy = DelayedWETH(payable(_addr)) ;
+        else if (sel == this.delayedWETHPermissionlessGameProxy.selector) _delayedWETHPermissionlessGameProxy = DelayedWETH(payable(_addr)) ;
         else revert("DeployOPChainOutput: unknown selector");
         // forgefmt: disable-end
     }
@@ -178,114 +167,110 @@ contract DeployOPChainOutput {
         require(false, "DeployOPChainOutput: not implemented");
     }
 
-    function output() public view returns (Output memory) {
-        return outputs;
-    }
-
     function checkOutput() public view {
         // With 16 addresses, we'd get a stack too deep error if we tried to do this inline as a
         // single call to `Solarray.addresses`. So we split it into two calls.
         address[] memory addrs1 = Solarray.addresses(
-            address(outputs.opChainProxyAdmin),
-            address(outputs.addressManager),
-            address(outputs.l1ERC721BridgeProxy),
-            address(outputs.systemConfigProxy),
-            address(outputs.optimismMintableERC20FactoryProxy),
-            address(outputs.l1StandardBridgeProxy),
-            address(outputs.l1CrossDomainMessengerProxy)
+            address(_opChainProxyAdmin),
+            address(_addressManager),
+            address(_l1ERC721BridgeProxy),
+            address(_systemConfigProxy),
+            address(_optimismMintableERC20FactoryProxy),
+            address(_l1StandardBridgeProxy),
+            address(_l1CrossDomainMessengerProxy)
         );
         address[] memory addrs2 = Solarray.addresses(
-            address(outputs.optimismPortalProxy),
-            address(outputs.disputeGameFactoryProxy),
-            address(outputs.disputeGameFactoryImpl),
-            address(outputs.anchorStateRegistryProxy),
-            address(outputs.anchorStateRegistryImpl),
-            address(outputs.faultDisputeGame),
-            address(outputs.permissionedDisputeGame),
-            address(outputs.delayedWETHPermissionedGameProxy),
-            address(outputs.delayedWETHPermissionlessGameProxy)
+            address(_optimismPortalProxy),
+            address(_disputeGameFactoryProxy),
+            address(_disputeGameFactoryImpl),
+            address(_anchorStateRegistryProxy),
+            address(_anchorStateRegistryImpl),
+            address(_faultDisputeGame),
+            address(_permissionedDisputeGame),
+            address(_delayedWETHPermissionedGameProxy),
+            address(_delayedWETHPermissionlessGameProxy)
         );
         DeployUtils.assertValidContractAddresses(Solarray.extend(addrs1, addrs2));
     }
 
     function opChainProxyAdmin() public view returns (ProxyAdmin) {
-        DeployUtils.assertValidContractAddress(address(outputs.opChainProxyAdmin));
-        return outputs.opChainProxyAdmin;
+        DeployUtils.assertValidContractAddress(address(_opChainProxyAdmin));
+        return _opChainProxyAdmin;
     }
 
     function addressManager() public view returns (AddressManager) {
-        DeployUtils.assertValidContractAddress(address(outputs.addressManager));
-        return outputs.addressManager;
+        DeployUtils.assertValidContractAddress(address(_addressManager));
+        return _addressManager;
     }
 
     function l1ERC721BridgeProxy() public view returns (L1ERC721Bridge) {
-        DeployUtils.assertValidContractAddress(address(outputs.l1ERC721BridgeProxy));
-        return outputs.l1ERC721BridgeProxy;
+        DeployUtils.assertValidContractAddress(address(_l1ERC721BridgeProxy));
+        return _l1ERC721BridgeProxy;
     }
 
     function systemConfigProxy() public view returns (SystemConfig) {
-        DeployUtils.assertValidContractAddress(address(outputs.systemConfigProxy));
-        return outputs.systemConfigProxy;
+        DeployUtils.assertValidContractAddress(address(_systemConfigProxy));
+        return _systemConfigProxy;
     }
 
     function optimismMintableERC20FactoryProxy() public view returns (OptimismMintableERC20Factory) {
-        DeployUtils.assertValidContractAddress(address(outputs.optimismMintableERC20FactoryProxy));
-        return outputs.optimismMintableERC20FactoryProxy;
+        DeployUtils.assertValidContractAddress(address(_optimismMintableERC20FactoryProxy));
+        return _optimismMintableERC20FactoryProxy;
     }
 
     function l1StandardBridgeProxy() public view returns (L1StandardBridge) {
-        DeployUtils.assertValidContractAddress(address(outputs.l1StandardBridgeProxy));
-        return outputs.l1StandardBridgeProxy;
+        DeployUtils.assertValidContractAddress(address(_l1StandardBridgeProxy));
+        return _l1StandardBridgeProxy;
     }
 
     function l1CrossDomainMessengerProxy() public view returns (L1CrossDomainMessenger) {
-        DeployUtils.assertValidContractAddress(address(outputs.l1CrossDomainMessengerProxy));
-        return outputs.l1CrossDomainMessengerProxy;
+        DeployUtils.assertValidContractAddress(address(_l1CrossDomainMessengerProxy));
+        return _l1CrossDomainMessengerProxy;
     }
 
     function optimismPortalProxy() public view returns (OptimismPortal2) {
-        DeployUtils.assertValidContractAddress(address(outputs.optimismPortalProxy));
-        return outputs.optimismPortalProxy;
+        DeployUtils.assertValidContractAddress(address(_optimismPortalProxy));
+        return _optimismPortalProxy;
     }
 
     function disputeGameFactoryProxy() public view returns (DisputeGameFactory) {
-        DeployUtils.assertValidContractAddress(address(outputs.disputeGameFactoryProxy));
-        return outputs.disputeGameFactoryProxy;
+        DeployUtils.assertValidContractAddress(address(_disputeGameFactoryProxy));
+        return _disputeGameFactoryProxy;
     }
 
     function disputeGameFactoryImpl() public view returns (DisputeGameFactory) {
-        DeployUtils.assertValidContractAddress(address(outputs.disputeGameFactoryImpl));
-        return outputs.disputeGameFactoryImpl;
+        DeployUtils.assertValidContractAddress(address(_disputeGameFactoryImpl));
+        return _disputeGameFactoryImpl;
     }
 
     function anchorStateRegistryProxy() public view returns (AnchorStateRegistry) {
-        DeployUtils.assertValidContractAddress(address(outputs.anchorStateRegistryProxy));
-        return outputs.anchorStateRegistryProxy;
+        DeployUtils.assertValidContractAddress(address(_anchorStateRegistryProxy));
+        return _anchorStateRegistryProxy;
     }
 
     function anchorStateRegistryImpl() public view returns (AnchorStateRegistry) {
-        DeployUtils.assertValidContractAddress(address(outputs.anchorStateRegistryImpl));
-        return outputs.anchorStateRegistryImpl;
+        DeployUtils.assertValidContractAddress(address(_anchorStateRegistryImpl));
+        return _anchorStateRegistryImpl;
     }
 
     function faultDisputeGame() public view returns (FaultDisputeGame) {
-        DeployUtils.assertValidContractAddress(address(outputs.faultDisputeGame));
-        return outputs.faultDisputeGame;
+        DeployUtils.assertValidContractAddress(address(_faultDisputeGame));
+        return _faultDisputeGame;
     }
 
     function permissionedDisputeGame() public view returns (PermissionedDisputeGame) {
-        DeployUtils.assertValidContractAddress(address(outputs.permissionedDisputeGame));
-        return outputs.permissionedDisputeGame;
+        DeployUtils.assertValidContractAddress(address(_permissionedDisputeGame));
+        return _permissionedDisputeGame;
     }
 
     function delayedWETHPermissionedGameProxy() public view returns (DelayedWETH) {
-        DeployUtils.assertValidContractAddress(address(outputs.delayedWETHPermissionedGameProxy));
-        return outputs.delayedWETHPermissionedGameProxy;
+        DeployUtils.assertValidContractAddress(address(_delayedWETHPermissionedGameProxy));
+        return _delayedWETHPermissionedGameProxy;
     }
 
     function delayedWETHPermissionlessGameProxy() public view returns (DelayedWETH) {
-        DeployUtils.assertValidContractAddress(address(outputs.delayedWETHPermissionlessGameProxy));
-        return outputs.delayedWETHPermissionlessGameProxy;
+        DeployUtils.assertValidContractAddress(address(_delayedWETHPermissionlessGameProxy));
+        return _delayedWETHPermissionlessGameProxy;
     }
 }
 
@@ -300,16 +285,7 @@ contract DeployOPChain is Script {
         require(false, "DeployOPChain: run is not implemented");
     }
 
-    function run(DeployOPChainInput.Input memory _input) public returns (DeployOPChainOutput.Output memory) {
-        (DeployOPChainInput doi, DeployOPChainOutput doo) = etchIOContracts();
-        doi.loadInput(_input);
-        run(doi, doo);
-        return doo.output();
-    }
-
     function run(DeployOPChainInput _doi, DeployOPChainOutput _doo) public {
-        require(_doi.inputSet(), "DeployOPChain: input not set");
-
         OPStackManager opsm = _doi.opsm();
 
         OPStackManager.Roles memory roles = OPStackManager.Roles({
@@ -373,7 +349,7 @@ contract DeployOPChain is Script {
 
     // -------- Utilities --------
 
-    function etchIOContracts() internal returns (DeployOPChainInput doi_, DeployOPChainOutput doo_) {
+    function etchIOContracts() public returns (DeployOPChainInput doi_, DeployOPChainOutput doo_) {
         (doi_, doo_) = getIOContracts();
         vm.etch(address(doi_), type(DeployOPChainInput).runtimeCode);
         vm.etch(address(doo_), type(DeployOPChainOutput).runtimeCode);
