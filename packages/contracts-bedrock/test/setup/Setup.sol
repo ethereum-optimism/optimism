@@ -31,6 +31,7 @@ import { ETHLiquidity } from "src/L2/ETHLiquidity.sol";
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
 import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
+// import { OPStackManager } from "src/L1/OPStackManager.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -77,6 +78,7 @@ contract Setup {
     // L1 contracts
     DisputeGameFactory disputeGameFactory;
     AnchorStateRegistry anchorStateRegistry;
+    // OPStackManager opStackManager;
     DelayedWETH delayedWeth;
     IOptimismPortal optimismPortal;
     IOptimismPortal2 optimismPortal2;
@@ -161,6 +163,7 @@ contract Setup {
         protocolVersions = IProtocolVersions(deploy.mustGetAddress("ProtocolVersionsProxy"));
         superchainConfig = ISuperchainConfig(deploy.mustGetAddress("SuperchainConfigProxy"));
         anchorStateRegistry = AnchorStateRegistry(deploy.mustGetAddress("AnchorStateRegistryProxy"));
+        // opStackManager = OPStackManager(eploy.mustGetAddress("OPStackManagerProxy"));
 
         vm.label(address(l2OutputOracle), "L2OutputOracle");
         vm.label(deploy.mustGetAddress("L2OutputOracleProxy"), "L2OutputOracleProxy");

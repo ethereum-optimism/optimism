@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+import { Proxy } from "src/universal/Proxy.sol";
 import { LibString } from "@solady/utils/LibString.sol";
-import "forge-std/console.sol";
 
 library DeployUtils {
     // This takes a sender and an identifier and returns a deterministic address based on the two.
@@ -19,13 +19,8 @@ library DeployUtils {
         require(_who.code.length > 0, string.concat("DeployUtils: no code at ", LibString.toHexStringChecksummed(_who)));
     }
 
-    function assertEIP1967ImplementationSet(address _proxy) internal view {
-        (bool success, bytes memory result) = _proxy.staticcall(abi.encodeWithSignature("implementation()"));
-        console.logBool(success);
-        require(success, "DeployUtils: EIP1967 implementation check failed");
-        console.log("success is true");
-        console.logBytes(result);
-        address implementation = abi.decode(result, (address));
+    function assertEIP1967Implementation(address _proxy) internal {
+        address implementation = Proxy(payable(_proxy)).implementation();
         assertValidContractAddress(implementation);
     }
 

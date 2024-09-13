@@ -17,6 +17,8 @@ import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
+import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
+import { Proxy } from "src/universal/Proxy.sol";
 
 import {
     DeployImplementationsInput,
@@ -89,7 +91,12 @@ contract DeployImplementationsOutput_Test is Test {
     }
 
     function test_set_succeeds() public {
-        OPStackManager opsm = OPStackManager(makeAddr("opsm"));
+        Proxy opsmProxy = new Proxy(address(0));
+        address opsmImpl = address(makeAddr("opsm"));
+        vm.prank(address(0));
+        opsmProxy.upgradeTo(opsmImpl);
+
+        OPStackManager opsm = OPStackManager(address(opsmProxy));
         OptimismPortal2 optimismPortalImpl = OptimismPortal2(payable(makeAddr("optimismPortalImpl")));
         DelayedWETH delayedWETHImpl = DelayedWETH(payable(makeAddr("delayedWETHImpl")));
         PreimageOracle preimageOracleSingleton = PreimageOracle(makeAddr("preimageOracleSingleton"));
@@ -103,7 +110,8 @@ contract DeployImplementationsOutput_Test is Test {
             OptimismMintableERC20Factory(makeAddr("optimismMintableERC20FactoryImpl"));
         DisputeGameFactory disputeGameFactoryImpl = DisputeGameFactory(makeAddr("disputeGameFactoryImpl"));
 
-        vm.etch(address(opsm), hex"01");
+        vm.etch(address(opsmProxy), address(opsmProxy).code);
+        vm.etch(address(opsmImpl), hex"01");
         vm.etch(address(optimismPortalImpl), hex"01");
         vm.etch(address(delayedWETHImpl), hex"01");
         vm.etch(address(preimageOracleSingleton), hex"01");
@@ -231,6 +239,7 @@ contract DeployImplementations_Test is Test {
     string release = "op-contracts/latest";
     SuperchainConfig superchainConfigProxy = SuperchainConfig(makeAddr("superchainConfigProxy"));
     ProtocolVersions protocolVersionsProxy = ProtocolVersions(makeAddr("protocolVersionsProxy"));
+    ProxyAdmin superchainProxyAdmin = ProxyAdmin(makeAddr("superchainProxyAdmin"));
 
     function setUp() public virtual {
         deployImplementations = new DeployImplementations();
@@ -258,6 +267,12 @@ contract DeployImplementations_Test is Test {
         superchainConfigProxy = SuperchainConfig(address(uint160(uint256(hash(_seed, 6)))));
         protocolVersionsProxy = ProtocolVersions(address(uint160(uint256(hash(_seed, 7)))));
 
+        // Must configure the ProxyAdmin contract which is used to upgrade the OPSM's proxy contract.
+        superchainProxyAdmin = new ProxyAdmin(msg.sender);
+        vm.etch(address(superchainProxyAdmin), address(superchainProxyAdmin).code);
+        vm.etch(address(superchainConfigProxy), hex"01");
+        vm.etch(address(protocolVersionsProxy), hex"01");
+
         dii.set(dii.withdrawalDelaySeconds.selector, withdrawalDelaySeconds);
         dii.set(dii.minProposalSizeBytes.selector, minProposalSizeBytes);
         dii.set(dii.challengePeriodSeconds.selector, challengePeriodSeconds);
@@ -266,6 +281,7 @@ contract DeployImplementations_Test is Test {
         dii.set(dii.release.selector, release);
         dii.set(dii.superchainConfigProxy.selector, address(superchainConfigProxy));
         dii.set(dii.protocolVersionsProxy.selector, address(protocolVersionsProxy));
+        dii.set(dii.superchainProxyAdmin.selector, address(superchainProxyAdmin));
 
         deployImplementations.run(dii, dio);
 
@@ -278,6 +294,7 @@ contract DeployImplementations_Test is Test {
         assertEq(release, dii.release(), "525");
         assertEq(address(superchainConfigProxy), address(dii.superchainConfigProxy()), "550");
         assertEq(address(protocolVersionsProxy), address(dii.protocolVersionsProxy()), "575");
+        assertEq(address(superchainProxyAdmin), address(dii.superchainProxyAdmin()), "580");
 
         // Architecture assertions.
         assertEq(address(dio.mipsSingleton().oracle()), address(dio.preimageOracleSingleton()), "600");
@@ -297,6 +314,7 @@ contract DeployImplementations_Test is Test {
         dii.set(dii.release.selector, release);
         dii.set(dii.superchainConfigProxy.selector, address(superchainConfigProxy));
         dii.set(dii.protocolVersionsProxy.selector, address(protocolVersionsProxy));
+        dii.set(dii.superchainProxyAdmin.selector, address(superchainProxyAdmin));
 
         // Set the challenge period to a value that is too large, using vm.store because the setter
         // method won't allow it.
