@@ -20,6 +20,9 @@ error GameAlreadyExists(Hash uuid);
 /// @param rootClaim is the claim that was unexpected.
 error UnexpectedRootClaim(Claim rootClaim);
 
+/// @notice Thrown when attempting to update an anchor state with an older game.
+error GameNotNewer();
+
 ////////////////////////////////////////////////////////////////
 //                 `FaultDisputeGame` Errors                  //
 ////////////////////////////////////////////////////////////////
