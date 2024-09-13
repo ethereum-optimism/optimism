@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"encoding/binary"
 	"fmt"
 	"os"
 	"slices"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/tracing"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
 
@@ -16,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
 	mttestutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
+	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 )
 
 func TestEVM_MT_LL(t *testing.T) {
@@ -43,7 +46,7 @@ func TestEVM_MT_LL(t *testing.T) {
 				baseReg := 6
 				pc := uint32(0x44)
 				insn := uint32((0b11_0000 << 26) | (baseReg & 0x1F << 21) | (rtReg & 0x1F << 16) | (0xFFFF & c.offset))
-				goVm, state, contracts := setup(t, i)
+				goVm, state, contracts := setup(t, i, nil)
 				step := state.GetStep()
 
 				// Set up state
@@ -124,7 +127,7 @@ func TestEVM_MT_SC(t *testing.T) {
 				baseReg := 6
 				pc := uint32(0x44)
 				insn := uint32((0b11_1000 << 26) | (baseReg & 0x1F << 21) | (rtReg & 0x1F << 16) | (0xFFFF & c.offset))
-				goVm, state, contracts := setup(t, i)
+				goVm, state, contracts := setup(t, i, nil)
 				mttestutil.InitializeSingleThread(i*23456, state, i%2 == 1)
 				step := state.GetStep()
 
@@ -178,6 +181,124 @@ func TestEVM_MT_SC(t *testing.T) {
 			})
 		}
 	}
+}
+
+func TestEVM_MT_SysRead_Preimage(t *testing.T) {
+	var tracer *tracing.Hooks
+
+	preimageValue := make([]byte, 0, 8)
+	preimageValue = binary.BigEndian.AppendUint32(preimageValue, 0x12_34_56_78)
+	preimageValue = binary.BigEndian.AppendUint32(preimageValue, 0x98_76_54_32)
+
+	llVariations := []struct {
+		name                   string
+		llReservationActive    bool
+		matchThreadId          bool
+		matchEffAddr           bool
+		shouldClearReservation bool
+	}{
+		{name: "matching reservation", llReservationActive: true, matchThreadId: true, matchEffAddr: true, shouldClearReservation: true},
+		{name: "matching reservation, diff thread", llReservationActive: true, matchThreadId: false, matchEffAddr: true, shouldClearReservation: true},
+		{name: "mismatched reservation", llReservationActive: true, matchThreadId: true, matchEffAddr: false, shouldClearReservation: false},
+		{name: "mismatched reservation", llReservationActive: true, matchThreadId: false, matchEffAddr: false, shouldClearReservation: false},
+		{name: "no reservation, matching addr", llReservationActive: false, matchThreadId: true, matchEffAddr: true, shouldClearReservation: true},
+		{name: "no reservation, mismatched addr", llReservationActive: false, matchThreadId: true, matchEffAddr: false, shouldClearReservation: false},
+	}
+
+	cases := []struct {
+		name           string
+		addr           uint32
+		count          uint32
+		writeLen       uint32
+		preimageOffset uint32
+		prestateMem    uint32
+		postateMem     uint32
+		shouldPanic    bool
+	}{
+		{name: "Aligned addr, write 1 byte", addr: 0x00_00_FF_00, count: 1, writeLen: 1, preimageOffset: 8, prestateMem: 0xFF_FF_FF_FF, postateMem: 0x12_FF_FF_FF},
+		{name: "Aligned addr, write 2 byte", addr: 0x00_00_FF_00, count: 2, writeLen: 2, preimageOffset: 8, prestateMem: 0xFF_FF_FF_FF, postateMem: 0x12_34_FF_FF},
+		{name: "Aligned addr, write 3 byte", addr: 0x00_00_FF_00, count: 3, writeLen: 3, preimageOffset: 8, prestateMem: 0xFF_FF_FF_FF, postateMem: 0x12_34_56_FF},
+		{name: "Aligned addr, write 4 byte", addr: 0x00_00_FF_00, count: 4, writeLen: 4, preimageOffset: 8, prestateMem: 0xFF_FF_FF_FF, postateMem: 0x12_34_56_78},
+		{name: "1-byte misaligned addr, write 1 byte", addr: 0x00_00_FF_01, count: 1, writeLen: 1, preimageOffset: 8, prestateMem: 0xFF_FF_FF_FF, postateMem: 0xFF_12_FF_FF},
+		{name: "1-byte misaligned addr, write 2 byte", addr: 0x00_00_FF_01, count: 2, writeLen: 2, preimageOffset: 9, prestateMem: 0xFF_FF_FF_FF, postateMem: 0xFF_34_56_FF},
+		{name: "1-byte misaligned addr, write 3 byte", addr: 0x00_00_FF_01, count: 3, writeLen: 3, preimageOffset: 8, prestateMem: 0xFF_FF_FF_FF, postateMem: 0xFF_12_34_56},
+		{name: "2-byte misaligned addr, write 1 byte", addr: 0x00_00_FF_02, count: 1, writeLen: 1, preimageOffset: 8, prestateMem: 0xFF_FF_FF_FF, postateMem: 0xFF_FF_12_FF},
+		{name: "2-byte misaligned addr, write 2 byte", addr: 0x00_00_FF_02, count: 2, writeLen: 2, preimageOffset: 12, prestateMem: 0xFF_FF_FF_FF, postateMem: 0xFF_FF_98_76},
+		{name: "3-byte misaligned addr, write 1 byte", addr: 0x00_00_FF_03, count: 1, writeLen: 1, preimageOffset: 8, prestateMem: 0xFF_FF_FF_FF, postateMem: 0xFF_FF_FF_12},
+		{name: "Count of 0", addr: 0x00_00_FF_03, count: 0, writeLen: 0, preimageOffset: 8, prestateMem: 0xFF_FF_FF_FF, postateMem: 0xFF_FF_FF_FF},
+		{name: "Count greater than 4", addr: 0x00_00_FF_00, count: 15, writeLen: 4, preimageOffset: 8, prestateMem: 0xFF_FF_FF_FF, postateMem: 0x12_34_56_78},
+		{name: "Count greater than 4, unaligned", addr: 0x00_00_FF_01, count: 15, writeLen: 3, preimageOffset: 8, prestateMem: 0xFF_FF_FF_FF, postateMem: 0xFF_12_34_56},
+		{name: "Offset at last byte", addr: 0x00_00_FF_00, count: 4, writeLen: 1, preimageOffset: 15, prestateMem: 0xFF_FF_FF_FF, postateMem: 0x32_FF_FF_FF},
+		{name: "Offset just out of bounds", addr: 0x00_00_FF_00, count: 4, writeLen: 0, preimageOffset: 16, prestateMem: 0xFF_FF_FF_FF, postateMem: 0xFF_FF_FF_FF, shouldPanic: true},
+		{name: "Offset out of bounds", addr: 0x00_00_FF_00, count: 4, writeLen: 0, preimageOffset: 17, prestateMem: 0xFF_FF_FF_FF, postateMem: 0xFF_FF_FF_FF, shouldPanic: true},
+	}
+	for i, c := range cases {
+		for _, v := range llVariations {
+			tName := fmt.Sprintf("%v (%v)", c.name, v.name)
+			t.Run(tName, func(t *testing.T) {
+				effAddr := 0xFFffFFfc & c.addr
+				preimageKey := preimage.Keccak256Key(crypto.Keccak256Hash(preimageValue)).PreimageKey()
+				oracle := testutil.StaticOracle(t, preimageValue)
+				goVm, state, contracts := setup(t, i, oracle)
+				step := state.GetStep()
+
+				// Define LL-related params
+				var llAddress, llOwnerThread uint32
+				if v.matchEffAddr {
+					llAddress = effAddr
+				} else {
+					llAddress = effAddr + 4
+				}
+				if v.matchThreadId {
+					llOwnerThread = state.GetCurrentThread().ThreadId
+				} else {
+					llOwnerThread = state.GetCurrentThread().ThreadId + 1
+				}
+
+				// Set up state
+				state.PreimageKey = preimageKey
+				state.PreimageOffset = c.preimageOffset
+				state.GetRegistersRef()[2] = exec.SysRead
+				state.GetRegistersRef()[4] = exec.FdPreimageRead
+				state.GetRegistersRef()[5] = c.addr
+				state.GetRegistersRef()[6] = c.count
+				state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
+				state.LLReservationActive = v.llReservationActive
+				state.LLAddress = llAddress
+				state.LLOwnerThread = llOwnerThread
+				state.GetMemory().SetMemory(effAddr, c.prestateMem)
+
+				// Setup expectations
+				expected := mttestutil.NewExpectedMTState(state)
+				expected.ExpectStep()
+				expected.ActiveThread().Registers[2] = c.writeLen
+				expected.ActiveThread().Registers[7] = 0 // no error
+				expected.PreimageOffset += c.writeLen
+				expected.ExpectMemoryWrite(effAddr, c.postateMem)
+				if v.shouldClearReservation {
+					expected.LLReservationActive = false
+					expected.LLAddress = 0
+					expected.LLOwnerThread = 0
+				}
+
+				if c.shouldPanic {
+					require.Panics(t, func() { _, _ = goVm.Step(true) })
+					testutil.AssertPreimageOracleReverts(t, preimageKey, preimageValue, c.preimageOffset, contracts, tracer)
+				} else {
+					stepWitness, err := goVm.Step(true)
+					require.NoError(t, err)
+
+					// Check expectations
+					expected.Validate(t, state)
+					testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), contracts, tracer)
+				}
+			})
+		}
+	}
+}
+
+func TestEVM_MT_StoreCalls(t *testing.T) {
+	t.Skip("TODO")
 }
 
 func TestEVM_SysClone_FlagHandling(t *testing.T) {
@@ -254,7 +375,7 @@ func TestEVM_SysClone_Successful(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			stackPtr := uint32(100)
 
-			goVm, state, contracts := setup(t, i)
+			goVm, state, contracts := setup(t, i, nil)
 			mttestutil.InitializeSingleThread(i*333, state, c.traverseRight)
 			state.Memory.SetMemory(state.GetPC(), syscallInsn)
 			state.GetRegistersRef()[2] = exec.SysClone        // the syscall number
@@ -315,7 +436,7 @@ func TestEVM_SysGetTID(t *testing.T) {
 
 	for i, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			goVm, state, contracts := setup(t, i*789)
+			goVm, state, contracts := setup(t, i*789, nil)
 			mttestutil.InitializeSingleThread(i*789, state, false)
 
 			state.GetCurrentThread().ThreadId = c.threadId
@@ -359,7 +480,7 @@ func TestEVM_SysExit(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			exitCode := uint8(3)
 
-			goVm, state, contracts := setup(t, i*133)
+			goVm, state, contracts := setup(t, i*133, nil)
 			mttestutil.SetupThreads(int64(i*1111), state, i%2 == 0, c.threadCount, 0)
 
 			state.Memory.SetMemory(state.GetPC(), syscallInsn)
@@ -407,7 +528,7 @@ func TestEVM_PopExitedThread(t *testing.T) {
 
 	for i, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			goVm, state, contracts := setup(t, i*133)
+			goVm, state, contracts := setup(t, i*133, nil)
 			mttestutil.SetupThreads(int64(i*222), state, c.traverseRight, c.activeStackThreadCount, 1)
 			step := state.Step
 
@@ -462,7 +583,7 @@ func TestEVM_SysFutex_WaitPrivate(t *testing.T) {
 
 	for i, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			goVm, state, contracts := setup(t, i*1234)
+			goVm, state, contracts := setup(t, i*1234, nil)
 			step := state.GetStep()
 
 			state.Memory.SetMemory(state.GetPC(), syscallInsn)
@@ -525,7 +646,7 @@ func TestEVM_SysFutex_WakePrivate(t *testing.T) {
 
 	for i, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			goVm, state, contracts := setup(t, i*1122)
+			goVm, state, contracts := setup(t, i*1122, nil)
 			mttestutil.SetupThreads(int64(i*2244), state, c.traverseRight, c.activeThreadCount, c.inactiveThreadCount)
 			step := state.Step
 
@@ -611,7 +732,7 @@ func TestEVM_SysFutex_UnsupportedOp(t *testing.T) {
 
 	for name, op := range unsupportedFutexOps {
 		t.Run(name, func(t *testing.T) {
-			goVm, state, contracts := setup(t, int(op))
+			goVm, state, contracts := setup(t, int(op), nil)
 			step := state.GetStep()
 
 			state.Memory.SetMemory(state.GetPC(), syscallInsn)
@@ -666,7 +787,7 @@ func runPreemptSyscall(t *testing.T, syscallName string, syscallNum uint32) {
 		for _, traverseRight := range []bool{true, false} {
 			testName := fmt.Sprintf("%v: %v (traverseRight = %v)", syscallName, c.name, traverseRight)
 			t.Run(testName, func(t *testing.T) {
-				goVm, state, contracts := setup(t, i*789)
+				goVm, state, contracts := setup(t, i*789, nil)
 				mttestutil.SetupThreads(int64(i*3259), state, traverseRight, c.activeThreads, c.inactiveThreads)
 
 				state.Memory.SetMemory(state.GetPC(), syscallInsn)
@@ -697,7 +818,7 @@ func runPreemptSyscall(t *testing.T, syscallName string, syscallNum uint32) {
 func TestEVM_SysOpen(t *testing.T) {
 	var tracer *tracing.Hooks
 
-	goVm, state, contracts := setup(t, 5512)
+	goVm, state, contracts := setup(t, 5512, nil)
 
 	state.Memory.SetMemory(state.GetPC(), syscallInsn)
 	state.GetRegistersRef()[2] = exec.SysOpen // Set syscall number
@@ -722,7 +843,7 @@ func TestEVM_SysOpen(t *testing.T) {
 
 func TestEVM_SysGetPID(t *testing.T) {
 	var tracer *tracing.Hooks
-	goVm, state, contracts := setup(t, 1929)
+	goVm, state, contracts := setup(t, 1929, nil)
 
 	state.Memory.SetMemory(state.GetPC(), syscallInsn)
 	state.GetRegistersRef()[2] = exec.SysGetpid // Set syscall number
@@ -765,7 +886,7 @@ func testEVM_SysClockGettime(t *testing.T, clkid uint32) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			goVm, state, contracts := setup(t, 2101)
+			goVm, state, contracts := setup(t, 2101, nil)
 
 			state.Memory.SetMemory(state.GetPC(), syscallInsn)
 			state.GetRegistersRef()[2] = exec.SysClockGetTime // Set syscall number
@@ -801,7 +922,7 @@ func testEVM_SysClockGettime(t *testing.T, clkid uint32) {
 
 func TestEVM_SysClockGettimeNonMonotonic(t *testing.T) {
 	var tracer *tracing.Hooks
-	goVm, state, contracts := setup(t, 2101)
+	goVm, state, contracts := setup(t, 2101, nil)
 
 	timespecAddr := uint32(0x1000)
 	state.Memory.SetMemory(state.GetPC(), syscallInsn)
@@ -862,7 +983,7 @@ func TestEVM_NoopSyscall(t *testing.T) {
 	var tracer *tracing.Hooks
 	for noopName, noopVal := range NoopSyscalls {
 		t.Run(noopName, func(t *testing.T) {
-			goVm, state, contracts := setup(t, int(noopVal))
+			goVm, state, contracts := setup(t, int(noopVal), nil)
 
 			state.Memory.SetMemory(state.GetPC(), syscallInsn)
 			state.GetRegistersRef()[2] = noopVal // Set syscall number
@@ -909,7 +1030,7 @@ func TestEVM_UnsupportedSyscall(t *testing.T) {
 		syscallNum := syscallNum
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
-			goVm, state, contracts := setup(t, i*3434)
+			goVm, state, contracts := setup(t, i*3434, nil)
 			// Setup basic getThreadId syscall instruction
 			state.Memory.SetMemory(state.GetPC(), syscallInsn)
 			state.GetRegistersRef()[2] = syscallNum
@@ -956,7 +1077,7 @@ func TestEVM_NormalTraversalStep_HandleWaitingThread(t *testing.T) {
 					require.Fail(t, "Invalid test case - cannot expect a timeout with no wakeup")
 				}
 
-				goVm, state, contracts := setup(t, i)
+				goVm, state, contracts := setup(t, i, nil)
 				mttestutil.SetupThreads(int64(i*101), state, traverseRight, c.activeStackSize, c.otherStackSize)
 				state.Step = c.step
 
@@ -1018,7 +1139,7 @@ func TestEVM_NormalTraversal_Full(t *testing.T) {
 			testName := fmt.Sprintf("%v (traverseRight = %v)", c.name, traverseRight)
 			t.Run(testName, func(t *testing.T) {
 				// Setup
-				goVm, state, contracts := setup(t, i*789)
+				goVm, state, contracts := setup(t, i*789, nil)
 				mttestutil.SetupThreads(int64(i*2947), state, traverseRight, c.threadCount, 0)
 				// Put threads into a waiting state so that we just traverse through them
 				for _, thread := range mttestutil.GetAllThreads(state) {
@@ -1088,7 +1209,7 @@ func TestEVM_WakeupTraversalStep(t *testing.T) {
 
 	for i, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			goVm, state, contracts := setup(t, i*2000)
+			goVm, state, contracts := setup(t, i*2000, nil)
 			mttestutil.SetupThreads(int64(i*101), state, c.traverseRight, c.activeStackSize, c.otherStackSize)
 			step := state.Step
 
@@ -1136,7 +1257,7 @@ func TestEVM_WakeupTraversal_Full(t *testing.T) {
 	for i, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			// Setup
-			goVm, state, contracts := setup(t, i*789)
+			goVm, state, contracts := setup(t, i*789, nil)
 			mttestutil.SetupThreads(int64(i*2947), state, false, c.threadCount, 0)
 			state.Wakeup = 0x08
 			step := state.Step
@@ -1190,7 +1311,7 @@ func TestEVM_SchedQuantumThreshold(t *testing.T) {
 
 	for i, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			goVm, state, contracts := setup(t, i*789)
+			goVm, state, contracts := setup(t, i*789, nil)
 			// Setup basic getThreadId syscall instruction
 			state.Memory.SetMemory(state.GetPC(), syscallInsn)
 			state.GetRegistersRef()[2] = exec.SysGetTID // Set syscall number
@@ -1222,9 +1343,9 @@ func TestEVM_SchedQuantumThreshold(t *testing.T) {
 	}
 }
 
-func setup(t require.TestingT, randomSeed int) (mipsevm.FPVM, *multithreaded.State, *testutil.ContractMetadata) {
+func setup(t require.TestingT, randomSeed int, preimageOracle mipsevm.PreimageOracle) (mipsevm.FPVM, *multithreaded.State, *testutil.ContractMetadata) {
 	v := GetMultiThreadedTestCase(t)
-	vm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(randomSeed)))
+	vm := v.VMFactory(preimageOracle, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(randomSeed)))
 	state := mttestutil.GetMtState(t, vm)
 
 	return vm, state, v.Contracts

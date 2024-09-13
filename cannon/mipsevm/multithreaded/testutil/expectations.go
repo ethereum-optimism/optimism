@@ -25,7 +25,7 @@ type ExpectedMTState struct {
 	Step                uint64
 	LastHint            hexutil.Bytes
 	MemoryRoot          common.Hash
-	expectedMemory *memory.Memory
+	expectedMemory      *memory.Memory
 	// Threading-related expectations
 	StepsSinceLastContextSwitch uint64
 	Wakeup                      uint32
