@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 )
 
 func CopyRegisters(state mipsevm.FPVMState) *[32]uint32 {
@@ -115,6 +116,7 @@ type ExpectedState struct {
 	LastHint       hexutil.Bytes
 	Registers      [32]uint32
 	MemoryRoot     common.Hash
+	expectedMemory *memory.Memory
 }
 
 func NewExpectedState(fromState mipsevm.FPVMState) *ExpectedState {
@@ -132,7 +134,20 @@ func NewExpectedState(fromState mipsevm.FPVMState) *ExpectedState {
 		LastHint:       fromState.GetLastHint(),
 		Registers:      *fromState.GetRegistersRef(),
 		MemoryRoot:     fromState.GetMemory().MerkleRoot(),
+		expectedMemory: fromState.GetMemory().Copy(),
 	}
+}
+
+func (e *ExpectedState) ExpectStep() {
+	// Set some standard expectations for a normal step
+	e.Step += 1
+	e.PC += 4
+	e.NextPC += 4
+}
+
+func (e *ExpectedState) ExpectMemoryWrite(addr uint32, val uint32) {
+	e.expectedMemory.SetMemory(addr, val)
+	e.MemoryRoot = e.expectedMemory.MerkleRoot()
 }
 
 type StateValidationFlags int
