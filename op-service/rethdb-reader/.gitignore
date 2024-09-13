@@ -1,8 +1,0 @@
-# Target
-target/
-
-# Bindings
-rdb.h
-
-# Testdata DB
-testdata/db

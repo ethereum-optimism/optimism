@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 )
@@ -118,4 +119,25 @@ func TestPrecompile(t *testing.T) {
 	out, err = p.Run(input)
 	require.NoError(t, err)
 	require.Equal(t, b32((42+100+7)*3), out)
+}
+
+type DeploymentExample struct {
+	FooBar common.Address
+}
+
+func TestDeploymentOutputPrecompile(t *testing.T) {
+	e := &DeploymentExample{}
+	p, err := NewPrecompile[*DeploymentExample](e, WithFieldSetter[*DeploymentExample])
+	require.NoError(t, err)
+
+	addr := common.Address{0: 0x42, 19: 0xaa}
+	fooBarSelector := bytes4("fooBar()")
+	var input []byte
+	input = append(input, setterFnBytes4[:]...)
+	input = append(input, rightPad32(fooBarSelector[:])...)
+	input = append(input, leftPad32(addr[:])...)
+	out, err := p.Run(input)
+	require.NoError(t, err)
+	require.Empty(t, out)
+	require.Equal(t, addr, e.FooBar)
 }

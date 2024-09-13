@@ -187,3 +187,11 @@ func TestMemoryJSON(t *testing.T) {
 	require.NoError(t, json.Unmarshal(dat, &res))
 	require.Equal(t, uint32(123), res.GetMemory(8))
 }
+
+func TestMemoryCopy(t *testing.T) {
+	m := NewMemory()
+	m.SetMemory(0x8000, 123)
+	mcpy := m.Copy()
+	require.Equal(t, uint32(123), mcpy.GetMemory(0x8000))
+	require.Equal(t, m.MerkleRoot(), mcpy.MerkleRoot())
+}

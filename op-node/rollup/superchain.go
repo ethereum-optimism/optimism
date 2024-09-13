@@ -46,10 +46,18 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 
 	var altDA *AltDAConfig
 	if chConfig.AltDA != nil {
-		altDA = &AltDAConfig{
-			DAChallengeAddress: common.Address(*chConfig.AltDA.DAChallengeAddress),
-			DAChallengeWindow:  *chConfig.AltDA.DAChallengeWindow,
-			DAResolveWindow:    *chConfig.AltDA.DAResolveWindow,
+		altDA = &AltDAConfig{}
+		if chConfig.AltDA.DAChallengeAddress != nil {
+			altDA.DAChallengeAddress = common.Address(*chConfig.AltDA.DAChallengeAddress)
+		}
+		if chConfig.AltDA.DAChallengeWindow != nil {
+			altDA.DAChallengeWindow = *chConfig.AltDA.DAChallengeWindow
+		}
+		if chConfig.AltDA.DAResolveWindow != nil {
+			altDA.DAResolveWindow = *chConfig.AltDA.DAResolveWindow
+		}
+		if chConfig.AltDA.DACommitmentType != nil {
+			altDA.CommitmentType = *chConfig.AltDA.DACommitmentType
 		}
 	}
 
@@ -75,7 +83,6 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		MaxSequencerDrift:      chConfig.MaxSequencerDrift,
 		SeqWindowSize:          chConfig.SequencerWindowSize,
 		ChannelTimeoutBedrock:  300,
-		ChannelTimeoutGranite:  50,
 		L1ChainID:              new(big.Int).SetUint64(superChain.Config.L1.ChainID),
 		L2ChainID:              new(big.Int).SetUint64(chConfig.ChainID),
 		RegolithTime:           &regolithTime,

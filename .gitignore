@@ -15,6 +15,9 @@ dist
 artifacts
 cache
 
+!op-chain-ops/foundry/testdata/srcmaps/cache
+!op-chain-ops/foundry/testdata/srcmaps/artifacts
+
 packages/contracts-bedrock/deployments/devnetL1
 packages/contracts-bedrock/deployments/anvil
 

@@ -4,9 +4,9 @@ pragma solidity 0.8.15;
 import { StdUtils } from "forge-std/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
 
-import { OptimismPortal } from "src/L1/OptimismPortal.sol";
-import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
+import { IOptimismPortal } from "src/L1/interfaces/IOptimismPortal.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
+import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
 import { Constants } from "src/libraries/Constants.sol";
 
 import { CommonTest } from "test/setup/CommonTest.sol";
@@ -15,10 +15,10 @@ import { Types } from "src/libraries/Types.sol";
 
 contract OptimismPortal_Depositor is StdUtils, ResourceMetering {
     Vm internal vm;
-    OptimismPortal internal portal;
+    IOptimismPortal internal portal;
     bool public failedToComplete;
 
-    constructor(Vm _vm, OptimismPortal _portal) {
+    constructor(Vm _vm, IOptimismPortal _portal) {
         vm = _vm;
         portal = _portal;
         initialize();
@@ -32,9 +32,11 @@ contract OptimismPortal_Depositor is StdUtils, ResourceMetering {
         return _resourceConfig();
     }
 
-    function _resourceConfig() internal pure override returns (ResourceMetering.ResourceConfig memory) {
-        ResourceMetering.ResourceConfig memory rcfg = Constants.DEFAULT_RESOURCE_CONFIG();
-        return rcfg;
+    function _resourceConfig() internal pure override returns (ResourceMetering.ResourceConfig memory config_) {
+        IResourceMetering.ResourceConfig memory rcfg = Constants.DEFAULT_RESOURCE_CONFIG();
+        assembly ("memory-safe") {
+            config_ := rcfg
+        }
     }
 
     // A test intended to identify any unexpected halting conditions

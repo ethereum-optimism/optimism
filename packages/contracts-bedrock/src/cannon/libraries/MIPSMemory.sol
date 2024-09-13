@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+import "src/cannon/libraries/CannonErrors.sol";
+
 library MIPSMemory {
     /// @notice Reads a 32-bit value from memory.
     /// @param _memRoot The current memory root
@@ -8,6 +10,28 @@ library MIPSMemory {
     /// @param _proofOffset The offset of the memory proof in calldata.
     /// @return out_ The hashed MIPS state.
     function readMem(bytes32 _memRoot, uint32 _addr, uint256 _proofOffset) internal pure returns (uint32 out_) {
+        bool valid;
+        (out_, valid) = readMemUnchecked(_memRoot, _addr, _proofOffset);
+        if (!valid) {
+            revert InvalidMemoryProof();
+        }
+    }
+
+    /// @notice Reads a 32-bit value from memory.
+    /// @param _memRoot The current memory root
+    /// @param _addr The address to read from.
+    /// @param _proofOffset The offset of the memory proof in calldata.
+    /// @return out_ The hashed MIPS state.
+    ///         valid_ Whether the proof is valid.
+    function readMemUnchecked(
+        bytes32 _memRoot,
+        uint32 _addr,
+        uint256 _proofOffset
+    )
+        internal
+        pure
+        returns (uint32 out_, bool valid_)
+    {
         unchecked {
             validateMemoryProofAvailability(_proofOffset);
             assembly {
@@ -38,14 +62,12 @@ library MIPSMemory {
                 }
 
                 // Verify the root matches.
-                if iszero(eq(node, _memRoot)) {
-                    mstore(0, 0x0badf00d)
-                    revert(0, 32)
+                valid_ := eq(node, _memRoot)
+                if valid_ {
+                    // Bits to shift = (32 - 4 - (addr % 32)) * 8
+                    let shamt := shl(3, sub(sub(32, 4), and(_addr, 31)))
+                    out_ := and(shr(shamt, leaf), 0xFFffFFff)
                 }
-
-                // Bits to shift = (32 - 4 - (addr % 32)) * 8
-                let shamt := shl(3, sub(sub(32, 4), and(_addr, 31)))
-                out_ := and(shr(shamt, leaf), 0xFFffFFff)
             }
         }
     }
@@ -95,6 +117,15 @@ library MIPSMemory {
             }
             return newMemRoot_;
         }
+    }
+
+    /// @notice Verifies a memory proof.
+    /// @param _memRoot The expected memory root
+    /// @param _addr The _addr proven.
+    /// @param _proofOffset The offset of the memory proof in calldata.
+    /// @return valid_ True iff it is a valid proof.
+    function isValidProof(bytes32 _memRoot, uint32 _addr, uint256 _proofOffset) internal pure returns (bool valid_) {
+        (, valid_) = readMemUnchecked(_memRoot, _addr, _proofOffset);
     }
 
     /// @notice Computes the offset of a memory proof in the calldata.

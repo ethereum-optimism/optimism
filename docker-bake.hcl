@@ -53,10 +53,6 @@ variable "OP_DISPUTE_MON_VERSION" {
   default = "${GIT_VERSION}"
 }
 
-variable "OP_HEARTBEAT_VERSION" {
-  default = "${GIT_VERSION}"
-}
-
 variable "OP_PROGRAM_VERSION" {
   default = "${GIT_VERSION}"
 }
@@ -152,19 +148,6 @@ target "op-conductor" {
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-conductor:${tag}"]
 }
 
-target "op-heartbeat" {
-  dockerfile = "ops/docker/op-stack-go/Dockerfile"
-  context = "."
-  args = {
-    GIT_COMMIT = "${GIT_COMMIT}"
-    GIT_DATE = "${GIT_DATE}"
-    OP_HEARTBEAT_VERSION = "${OP_HEARTBEAT_VERSION}"
-  }
-  target = "op-heartbeat-target"
-  platforms = split(",", PLATFORMS)
-  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-heartbeat:${tag}"]
-}
-
 target "da-server" {
   dockerfile = "ops/docker/op-stack-go/Dockerfile"
   context = "."
@@ -216,6 +199,19 @@ target "cannon" {
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/cannon:${tag}"]
 }
 
+target "proofs-tools" {
+  dockerfile = "./ops/docker/proofs-tools/Dockerfile"
+  context = "."
+  args = {
+    CHALLENGER_VERSION="v1.1.0"
+    KONA_VERSION="kona-client-v0.1.0-alpha.3"
+    ASTERISC_VERSION="v1.0.2"
+  }
+  target="proofs-tools"
+  platforms = split(",", PLATFORMS)
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/proofs-tools:${tag}"]
+}
+
 target "ci-builder" {
   dockerfile = "./ops/docker/ci-builder/Dockerfile"
   context = "."
@@ -236,6 +232,7 @@ target "contracts-bedrock" {
   dockerfile = "./ops/docker/Dockerfile.packages"
   context = "."
   target = "contracts-bedrock"
-  platforms = split(",", PLATFORMS)
+  # See comment in Dockerfile.packages for why we only build for linux/amd64.
+  platforms = ["linux/amd64"]
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/contracts-bedrock:${tag}"]
 }

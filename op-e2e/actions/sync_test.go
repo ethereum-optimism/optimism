@@ -65,9 +65,9 @@ func TestSyncBatchType(t *testing.T) {
 
 func DerivationWithFlakyL1RPC(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
 	applyDeltaTimeOffset(dp, deltaTimeOffset)
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelError) // mute all the temporary derivation errors that we forcefully create
 	_, _, miner, sequencer, _, verifier, _, batcher := setupReorgTestActors(t, dp, sd, log)
 
@@ -105,9 +105,9 @@ func DerivationWithFlakyL1RPC(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 
 func FinalizeWhileSyncing(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
 	applyDeltaTimeOffset(dp, deltaTimeOffset)
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelError) // mute all the temporary derivation errors that we forcefully create
 	_, _, miner, sequencer, _, verifier, _, batcher := setupReorgTestActors(t, dp, sd, log)
 
@@ -151,8 +151,8 @@ func FinalizeWhileSyncing(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 // TestUnsafeSync tests that a verifier properly imports unsafe blocks via gossip.
 func TestUnsafeSync(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelInfo)
 
 	sd, _, _, sequencer, seqEng, verifier, _, _ := setupReorgTestActors(t, dp, sd, log)
@@ -179,12 +179,12 @@ func TestUnsafeSync(gt *testing.T) {
 
 func TestBackupUnsafe(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
 	minTs := hexutil.Uint64(0)
 	// Activate Delta hardfork
 	applyDeltaTimeOffset(dp, &minTs)
 	dp.DeployConfig.L2BlockTime = 2
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LvlInfo)
 	_, dp, miner, sequencer, seqEng, verifier, _, batcher := setupReorgTestActors(t, dp, sd, log)
 	l2Cl := seqEng.EthClient()
@@ -340,12 +340,12 @@ func TestBackupUnsafe(gt *testing.T) {
 
 func TestBackupUnsafeReorgForkChoiceInputError(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
 	minTs := hexutil.Uint64(0)
 	// Activate Delta hardfork
 	applyDeltaTimeOffset(dp, &minTs)
 	dp.DeployConfig.L2BlockTime = 2
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LvlInfo)
 	_, dp, miner, sequencer, seqEng, verifier, _, batcher := setupReorgTestActors(t, dp, sd, log)
 	l2Cl := seqEng.EthClient()
@@ -473,12 +473,12 @@ func TestBackupUnsafeReorgForkChoiceInputError(gt *testing.T) {
 
 func TestBackupUnsafeReorgForkChoiceNotInputError(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
 	minTs := hexutil.Uint64(0)
 	// Activate Delta hardfork
 	applyDeltaTimeOffset(dp, &minTs)
 	dp.DeployConfig.L2BlockTime = 2
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LvlInfo)
 	_, dp, miner, sequencer, seqEng, verifier, _, batcher := setupReorgTestActors(t, dp, sd, log)
 	l2Cl := seqEng.EthClient()
@@ -692,8 +692,8 @@ func BatchSubmitBlock(t Testing, miner *L1Miner, sequencer *L2Sequencer, verifie
 // when passed a single unsafe block. op-geth can either snap sync or full sync here.
 func TestELSync(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelInfo)
 
 	miner, seqEng, sequencer := setupSequencerTest(t, sd, log)
@@ -745,8 +745,8 @@ func PrepareELSyncedNode(t Testing, miner *L1Miner, sequencer *L2Sequencer, seqE
 //  8. Create 1 more block & batch submit everything & assert that the verifier picked up those blocks
 func TestELSyncTransitionstoCL(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	logger := testlog.Logger(t, log.LevelInfo)
 
 	captureLog, captureLogHandler := testlog.CaptureLogger(t, log.LevelInfo)
@@ -802,8 +802,8 @@ func TestELSyncTransitionstoCL(gt *testing.T) {
 
 func TestELSyncTransitionsToCLSyncAfterNodeRestart(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	logger := testlog.Logger(t, log.LevelInfo)
 
 	captureLog, captureLogHandler := testlog.CaptureLogger(t, log.LevelInfo)
@@ -819,7 +819,7 @@ func TestELSyncTransitionsToCLSyncAfterNodeRestart(gt *testing.T) {
 	PrepareELSyncedNode(t, miner, sequencer, seqEng, verifier, verEng, seqEngCl, batcher, dp)
 
 	// Create a new verifier which is essentially a new op-node with the sync mode of ELSync and default geth engine kind.
-	verifier = NewL2Verifier(t, captureLog, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), altda.Disabled, verifier.eng, sd.RollupCfg, &sync.Config{SyncMode: sync.ELSync}, defaultVerifierCfg().safeHeadListener)
+	verifier = NewL2Verifier(t, captureLog, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), altda.Disabled, verifier.eng, sd.RollupCfg, &sync.Config{SyncMode: sync.ELSync}, DefaultVerifierCfg().SafeHeadListener, nil)
 
 	// Build another 10 L1 blocks on the sequencer
 	for i := 0; i < 10; i++ {
@@ -844,8 +844,8 @@ func TestELSyncTransitionsToCLSyncAfterNodeRestart(gt *testing.T) {
 
 func TestForcedELSyncCLAfterNodeRestart(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	logger := testlog.Logger(t, log.LevelInfo)
 
 	captureLog, captureLogHandler := testlog.CaptureLogger(t, log.LevelInfo)
@@ -861,7 +861,7 @@ func TestForcedELSyncCLAfterNodeRestart(gt *testing.T) {
 	PrepareELSyncedNode(t, miner, sequencer, seqEng, verifier, verEng, seqEngCl, batcher, dp)
 
 	// Create a new verifier which is essentially a new op-node with the sync mode of ELSync and erigon engine kind.
-	verifier2 := NewL2Verifier(t, captureLog, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), altda.Disabled, verifier.eng, sd.RollupCfg, &sync.Config{SyncMode: sync.ELSync, SupportsPostFinalizationELSync: true}, defaultVerifierCfg().safeHeadListener)
+	verifier2 := NewL2Verifier(t, captureLog, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), altda.Disabled, verifier.eng, sd.RollupCfg, &sync.Config{SyncMode: sync.ELSync, SupportsPostFinalizationELSync: true}, DefaultVerifierCfg().SafeHeadListener, nil)
 
 	// Build another 10 L1 blocks on the sequencer
 	for i := 0; i < 10; i++ {
@@ -890,12 +890,12 @@ func TestForcedELSyncCLAfterNodeRestart(gt *testing.T) {
 
 func TestInvalidPayloadInSpanBatch(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
 	minTs := hexutil.Uint64(0)
 	// Activate Delta hardfork
 	applyDeltaTimeOffset(dp, &minTs)
 	dp.DeployConfig.L2BlockTime = 2
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelInfo)
 	_, _, miner, sequencer, seqEng, verifier, _, batcher := setupReorgTestActors(t, dp, sd, log)
 	l2Cl := seqEng.EthClient()
@@ -995,12 +995,12 @@ func TestInvalidPayloadInSpanBatch(gt *testing.T) {
 
 func TestSpanBatchAtomicity_Consolidation(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
 	minTs := hexutil.Uint64(0)
 	// Activate Delta hardfork
 	applyDeltaTimeOffset(dp, &minTs)
 	dp.DeployConfig.L2BlockTime = 2
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelInfo)
 	_, _, miner, sequencer, seqEng, verifier, _, batcher := setupReorgTestActors(t, dp, sd, log)
 	seqEngCl, err := sources.NewEngineClient(seqEng.RPCClient(), log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
@@ -1039,12 +1039,19 @@ func TestSpanBatchAtomicity_Consolidation(gt *testing.T) {
 	verifier.l2PipelineIdle = false
 	for !verifier.l2PipelineIdle {
 		// wait for next pending block
-		verifier.ActL2EventsUntil(t, event.Any(
-			event.Is[engine2.PendingSafeUpdateEvent], event.Is[derive.DeriverIdleEvent]), 1000, false)
+		verifier.ActL2EventsUntil(t, func(ev event.Event) bool {
+			if event.Is[engine2.SafeDerivedEvent](ev) { // safe updates should only happen once the pending-safe reaches the target.
+				t.Fatal("unexpected next safe update")
+			}
+			return event.Any(event.Is[engine2.PendingSafeUpdateEvent], event.Is[derive.DeriverIdleEvent])(ev)
+		}, 1000, false)
 		if verifier.L2PendingSafe().Number < targetHeadNumber {
 			// If the span batch is not fully processed, the safe head must not advance.
 			require.Equal(t, verifier.L2Safe().Number, uint64(0))
 		} else {
+			// Make sure we do the post-processing of what safety updates might happen
+			// after the pending-safe event, before the next pending-safe event.
+			verifier.ActL2EventsUntil(t, event.Is[engine2.PendingSafeUpdateEvent], 100, true)
 			// Once the span batch is fully processed, the safe head must advance to the end of span batch.
 			require.Equal(t, verifier.L2Safe().Number, targetHeadNumber)
 			require.Equal(t, verifier.L2Safe(), verifier.L2PendingSafe())
@@ -1056,12 +1063,12 @@ func TestSpanBatchAtomicity_Consolidation(gt *testing.T) {
 
 func TestSpanBatchAtomicity_ForceAdvance(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
 	minTs := hexutil.Uint64(0)
 	// Activate Delta hardfork
 	applyDeltaTimeOffset(dp, &minTs)
 	dp.DeployConfig.L2BlockTime = 2
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	log := testlog.Logger(t, log.LevelInfo)
 	_, _, miner, sequencer, _, verifier, _, batcher := setupReorgTestActors(t, dp, sd, log)
 
@@ -1088,12 +1095,19 @@ func TestSpanBatchAtomicity_ForceAdvance(gt *testing.T) {
 	verifier.l2PipelineIdle = false
 	for !verifier.l2PipelineIdle {
 		// wait for next pending block
-		verifier.ActL2EventsUntil(t, event.Any(
-			event.Is[engine2.PendingSafeUpdateEvent], event.Is[derive.DeriverIdleEvent]), 1000, false)
+		verifier.ActL2EventsUntil(t, func(ev event.Event) bool {
+			if event.Is[engine2.SafeDerivedEvent](ev) { // safe updates should only happen once the pending-safe reaches the target.
+				t.Fatal("unexpected next safe update")
+			}
+			return event.Any(event.Is[engine2.PendingSafeUpdateEvent], event.Is[derive.DeriverIdleEvent])(ev)
+		}, 1000, false)
 		if verifier.L2PendingSafe().Number < targetHeadNumber {
 			// If the span batch is not fully processed, the safe head must not advance.
 			require.Equal(t, verifier.L2Safe().Number, uint64(0))
 		} else {
+			// Make sure we do the post-processing of what safety updates might happen
+			// after the pending-safe event, before the next pending-safe event.
+			verifier.ActL2EventsUntil(t, event.Is[engine2.PendingSafeUpdateEvent], 100, true)
 			// Once the span batch is fully processed, the safe head must advance to the end of span batch.
 			require.Equal(t, verifier.L2Safe().Number, targetHeadNumber)
 			require.Equal(t, verifier.L2Safe(), verifier.L2PendingSafe())

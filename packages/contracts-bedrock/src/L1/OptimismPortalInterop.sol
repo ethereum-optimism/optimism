@@ -1,20 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Contracts
 import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
-import { L1BlockInterop, ConfigType } from "src/L2/L1BlockInterop.sol";
+import { L1BlockIsthmus, ConfigType } from "src/L2/L1BlockIsthmus.sol";
+
+// Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Constants } from "src/libraries/Constants.sol";
+import "src/libraries/PortalErrors.sol";
 
-/// @custom:proxied
+/// @custom:proxied true
 /// @title OptimismPortalInterop
 /// @notice The OptimismPortal is a low-level contract responsible for passing messages between L1
 ///         and L2. Messages sent directly to the OptimismPortal have no form of replayability.
 ///         Users are encouraged to use the L1CrossDomainMessenger for a higher-level interface.
 contract OptimismPortalInterop is OptimismPortal2 {
-    /// @notice Thrown when a non-depositor account attempts update static configuration.
-    error Unauthorized();
-
     constructor(
         uint256 _proofMaturityDelaySeconds,
         uint256 _disputeGameFinalityDelaySeconds
@@ -47,7 +48,7 @@ contract OptimismPortalInterop is OptimismPortal2 {
                 uint256(0), // value
                 uint64(SYSTEM_DEPOSIT_GAS_LIMIT), // gasLimit
                 false, // isCreation,
-                abi.encodeCall(L1BlockInterop.setConfig, (_type, _value))
+                abi.encodeCall(L1BlockIsthmus.setConfig, (_type, _value))
             )
         );
     }

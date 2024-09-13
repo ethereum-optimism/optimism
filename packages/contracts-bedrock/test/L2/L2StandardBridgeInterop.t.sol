@@ -16,10 +16,8 @@ import {
 } from "src/L2/L2StandardBridgeInterop.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
-import { IOptimismMintableERC20 } from "src/universal/IOptimismMintableERC20.sol";
-
-// TODO: Replace Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY with optimismSuperchainERC20Factory
-import { Predeploys } from "src/libraries/Predeploys.sol";
+import { IOptimismMintableERC20 } from "src/universal/interfaces/IOptimismMintableERC20.sol";
+import { ILegacyMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
 
 contract L2StandardBridgeInterop_Test is Bridge_Initializer {
     /// @notice Emitted when a conversion is made.
@@ -76,7 +74,7 @@ contract L2StandardBridgeInterop_LegacyToSuper_Test is L2StandardBridgeInterop_T
 
         // Mock `_from` to be a legacy address
         _mockInterface(_from, type(IERC165).interfaceId, true);
-        _mockInterface(_from, type(IOptimismMintableERC20).interfaceId, true);
+        _mockInterface(_from, type(ILegacyMintableERC20).interfaceId, true);
     }
 
     /// @notice Test that the `convert` function with different decimals reverts
@@ -141,7 +139,7 @@ contract L2StandardBridgeInterop_LegacyToSuper_Test is L2StandardBridgeInterop_T
         _mockDeployments(address(l2OptimismMintableERC20Factory), _from, _remoteToken);
 
         // Mock the superchain factory to return address(0)
-        _mockDeployments(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY, _to, address(0));
+        _mockDeployments(address(l2OptimismSuperchainERC20Factory), _to, address(0));
 
         // Expect the revert with `InvalidSuperchainERC20Address` selector
         vm.expectRevert(InvalidSuperchainERC20Address.selector);
@@ -172,7 +170,7 @@ contract L2StandardBridgeInterop_LegacyToSuper_Test is L2StandardBridgeInterop_T
         _mockDeployments(address(l2OptimismMintableERC20Factory), _from, _fromRemoteToken);
 
         // Mock the superchain factory to return `_toRemoteToken`
-        _mockDeployments(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY, _to, _toRemoteToken);
+        _mockDeployments(address(l2OptimismSuperchainERC20Factory), _to, _toRemoteToken);
 
         // Expect the revert with `InvalidTokenPair` selector
         vm.expectRevert(InvalidTokenPair.selector);
@@ -199,7 +197,7 @@ contract L2StandardBridgeInterop_LegacyToSuper_Test is L2StandardBridgeInterop_T
 
         // Mock the legacy and superchain factory to return `_remoteToken`
         _mockDeployments(address(l2OptimismMintableERC20Factory), _from, _remoteToken);
-        _mockDeployments(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY, _to, _remoteToken);
+        _mockDeployments(address(l2OptimismSuperchainERC20Factory), _to, _remoteToken);
 
         // Expect the `Converted` event to be emitted
         vm.expectEmit(address(l2StandardBridge));
@@ -226,6 +224,11 @@ contract L2StandardBridgeInterop_SuperToLegacy_Test is L2StandardBridgeInterop_T
         // Mock same decimals
         _mockDecimals(_from, 18);
         _mockDecimals(_to, 18);
+
+        // Mock `_from` so it is not a LegacyMintableERC20 address
+        _mockInterface(_from, type(IERC165).interfaceId, true);
+        _mockInterface(_from, type(ILegacyMintableERC20).interfaceId, false);
+        _mockInterface(_from, type(IOptimismMintableERC20).interfaceId, false);
     }
 
     /// @notice Test that the `convert` function with different decimals reverts
@@ -290,7 +293,7 @@ contract L2StandardBridgeInterop_SuperToLegacy_Test is L2StandardBridgeInterop_T
         _mockDeployments(address(l2OptimismMintableERC20Factory), _to, _remoteToken);
 
         // Mock the superchain factory to return address(0)
-        _mockDeployments(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY, _from, address(0));
+        _mockDeployments(address(l2OptimismSuperchainERC20Factory), _from, address(0));
 
         // Expect the revert with `InvalidSuperchainERC20Address` selector
         vm.expectRevert(InvalidSuperchainERC20Address.selector);
@@ -321,7 +324,7 @@ contract L2StandardBridgeInterop_SuperToLegacy_Test is L2StandardBridgeInterop_T
         _mockDeployments(address(l2OptimismMintableERC20Factory), _to, _fromRemoteToken);
 
         // Mock the superchain factory to return `_toRemoteToken`
-        _mockDeployments(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY, _from, _toRemoteToken);
+        _mockDeployments(address(l2OptimismSuperchainERC20Factory), _from, _toRemoteToken);
 
         // Expect the revert with `InvalidTokenPair` selector
         vm.expectRevert(InvalidTokenPair.selector);
@@ -348,7 +351,7 @@ contract L2StandardBridgeInterop_SuperToLegacy_Test is L2StandardBridgeInterop_T
 
         // Mock the legacy and superchain factory to return `_remoteToken`
         _mockDeployments(address(l2OptimismMintableERC20Factory), _to, _remoteToken);
-        _mockDeployments(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY, _from, _remoteToken);
+        _mockDeployments(address(l2OptimismSuperchainERC20Factory), _from, _remoteToken);
 
         // Expect the `Converted` event to be emitted
         vm.expectEmit(address(l2StandardBridge));

@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
-import { ILegacyMintableERC20, IOptimismMintableERC20 } from "src/universal/IOptimismMintableERC20.sol";
+import { ILegacyMintableERC20, IOptimismMintableERC20 } from "src/universal/interfaces/IOptimismMintableERC20.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 contract OptimismMintableERC20_Test is Bridge_Initializer {
@@ -44,6 +44,20 @@ contract OptimismMintableERC20_Test is Bridge_Initializer {
         L2Token.mint(alice, 100);
 
         assertEq(L2Token.balanceOf(alice), 100);
+    }
+
+    function test_allowance_permit2_max() external view {
+        assertEq(L2Token.allowance(alice, L2Token.PERMIT2()), type(uint256).max);
+    }
+
+    function test_permit2_transferFrom() external {
+        vm.prank(address(l2StandardBridge));
+        L2Token.mint(alice, 100);
+
+        assertEq(L2Token.balanceOf(bob), 0);
+        vm.prank(L2Token.PERMIT2());
+        L2Token.transferFrom(alice, bob, 100);
+        assertEq(L2Token.balanceOf(bob), 100);
     }
 
     function test_mint_notBridge_reverts() external {

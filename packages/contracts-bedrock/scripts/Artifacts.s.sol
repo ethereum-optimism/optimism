@@ -11,7 +11,7 @@ import { StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { LibString } from "@solady/utils/LibString.sol";
 import { ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
-import { IAddressManager } from "scripts/interfaces/IAddressManager.sol";
+import { IAddressManager } from "src/legacy/interfaces/IAddressManager.sol";
 import { Process } from "scripts/libraries/Process.sol";
 
 /// @notice Represents a deployment. Is serialized to JSON as a key/value
@@ -28,13 +28,15 @@ struct Deployment {
 abstract contract Artifacts {
     /// @notice Foundry cheatcode VM.
     Vm private constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
-    /// @notice Error for when attempting to fetch a deployment and it does not exist
 
+    /// @notice Error for when attempting to fetch a deployment and it does not exist
     error DeploymentDoesNotExist(string);
     /// @notice Error for when trying to save an invalid deployment
     error InvalidDeployment(string);
-    /// @notice The set of deployments that have been done during execution.
+    /// @notice Error for when attempting to load the initialized slot of an unsupported contract.
+    error UnsupportedInitializableContract(string);
 
+    /// @notice The set of deployments that have been done during execution.
     mapping(string => Deployment) internal _namedDeployments;
     /// @notice The same as `_namedDeployments` but as an array.
     Deployment[] internal _newDeployments;
@@ -152,6 +154,10 @@ abstract contract Artifacts {
             return payable(Predeploys.SCHEMA_REGISTRY);
         } else if (digest == keccak256(bytes("EAS"))) {
             return payable(Predeploys.EAS);
+        } else if (digest == keccak256(bytes("OptimismSuperchainERC20Factory"))) {
+            return payable(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY);
+        } else if (digest == keccak256(bytes("OptimismSuperchainERC20Beacon"))) {
+            return payable(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON);
         }
         return payable(address(0));
     }
@@ -211,6 +217,13 @@ abstract contract Artifacts {
 
     /// @notice Returns the value of the internal `_initialized` storage slot for a given contract.
     function loadInitializedSlot(string memory _contractName) public returns (uint8 initialized_) {
+        // FaultDisputeGame and PermissionedDisputeGame are initializable but cannot be loaded with
+        // this function yet because they are not properly labeled in the deploy script.
+        // TODO: Remove this restriction once the deploy script is fixed.
+        if (LibString.eq(_contractName, "FaultDisputeGame") || LibString.eq(_contractName, "PermissionedDisputeGame")) {
+            revert UnsupportedInitializableContract(_contractName);
+        }
+
         address contractAddress;
         // Check if the contract name ends with `Proxy` and, if so, get the implementation address
         if (LibString.endsWith(_contractName, "Proxy")) {

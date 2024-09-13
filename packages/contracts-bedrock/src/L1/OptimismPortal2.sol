@@ -1,28 +1,33 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Contracts
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import { ResourceMetering } from "src/L1/ResourceMetering.sol";
+import { L1Block } from "src/L2/L1Block.sol";
+
+// Libraries
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { SafeCall } from "src/libraries/SafeCall.sol";
-import { DisputeGameFactory, IDisputeGame } from "src/dispute/DisputeGameFactory.sol";
-import { SystemConfig } from "src/L1/SystemConfig.sol";
-import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { SecureMerkleTrie } from "src/libraries/trie/SecureMerkleTrie.sol";
-import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
-import { ResourceMetering } from "src/L1/ResourceMetering.sol";
-import { ISemver } from "src/universal/ISemver.sol";
-import { Constants } from "src/libraries/Constants.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { L1Block } from "src/L2/L1Block.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-
+import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import "src/libraries/PortalErrors.sol";
 import "src/dispute/lib/Types.sol";
 
-/// @custom:proxied
+// Interfaces
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { ISystemConfig } from "src/L1/interfaces/ISystemConfig.sol";
+import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
+import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
+import { IDisputeGameFactory } from "src/dispute/interfaces/IDisputeGameFactory.sol";
+import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
+
+/// @custom:proxied true
 /// @title OptimismPortal2
 /// @notice The OptimismPortal is a low-level contract responsible for passing messages between L1
 ///         and L2. Messages sent directly to the OptimismPortal have no form of replayability.
@@ -74,7 +79,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     bool private spacer_53_0_1;
 
     /// @notice Contract of the Superchain Config.
-    SuperchainConfig public superchainConfig;
+    ISuperchainConfig public superchainConfig;
 
     /// @custom:legacy
     /// @custom:spacer l2Oracle
@@ -83,11 +88,11 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
 
     /// @notice Contract of the SystemConfig.
     /// @custom:network-specific
-    SystemConfig public systemConfig;
+    ISystemConfig public systemConfig;
 
     /// @notice Address of the DisputeGameFactory.
     /// @custom:network-specific
-    DisputeGameFactory public disputeGameFactory;
+    IDisputeGameFactory public disputeGameFactory;
 
     /// @notice A mapping of withdrawal hashes to proof submitters to `ProvenWithdrawal` data.
     mapping(bytes32 => mapping(address => ProvenWithdrawal)) public provenWithdrawals;
@@ -101,7 +106,13 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     /// @notice The timestamp at which the respected game type was last updated.
     uint64 public respectedGameTypeUpdatedAt;
 
-    /// @notice Mapping of withdrawal hashes to addresses that have submitted a proof for the withdrawal.
+    /// @notice Mapping of withdrawal hashes to addresses that have submitted a proof for the
+    ///         withdrawal. Original OptimismPortal contract only allowed one proof to be submitted
+    ///         for any given withdrawal hash. Fault Proofs version of this contract must allow
+    ///         multiple proofs for the same withdrawal hash to prevent a malicious user from
+    ///         blocking other withdrawals by proving them against invalid proposals. Submitters
+    ///         are tracked in an array to simplify the off-chain process of determining which
+    ///         proof submission should be used when finalizing a withdrawal.
     mapping(bytes32 => address[]) public proofSubmitters;
 
     /// @notice Represents the amount of native asset minted in L2. This may not
@@ -153,9 +164,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 3.11.0-beta.2
+    /// @custom:semver 3.11.0-beta.4
     function version() public pure virtual returns (string memory) {
-        return "3.11.0-beta.2";
+        return "3.11.0-beta.4";
     }
 
     /// @notice Constructs the OptimismPortal contract.
@@ -164,9 +175,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         DISPUTE_GAME_FINALITY_DELAY_SECONDS = _disputeGameFinalityDelaySeconds;
 
         initialize({
-            _disputeGameFactory: DisputeGameFactory(address(0)),
-            _systemConfig: SystemConfig(address(0)),
-            _superchainConfig: SuperchainConfig(address(0)),
+            _disputeGameFactory: IDisputeGameFactory(address(0)),
+            _systemConfig: ISystemConfig(address(0)),
+            _superchainConfig: ISuperchainConfig(address(0)),
             _initialRespectedGameType: GameType.wrap(0)
         });
     }
@@ -176,9 +187,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     /// @param _systemConfig Contract of the SystemConfig.
     /// @param _superchainConfig Contract of the SuperchainConfig.
     function initialize(
-        DisputeGameFactory _disputeGameFactory,
-        SystemConfig _systemConfig,
-        SuperchainConfig _superchainConfig,
+        IDisputeGameFactory _disputeGameFactory,
+        ISystemConfig _systemConfig,
+        ISuperchainConfig _superchainConfig,
         GameType _initialRespectedGameType
     )
         public
@@ -271,9 +282,12 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     /// @notice Getter for the resource config.
     ///         Used internally by the ResourceMetering contract.
     ///         The SystemConfig is the source of truth for the resource config.
-    /// @return ResourceMetering ResourceConfig
-    function _resourceConfig() internal view override returns (ResourceMetering.ResourceConfig memory) {
-        return systemConfig.resourceConfig();
+    /// @return config_ ResourceMetering ResourceConfig
+    function _resourceConfig() internal view override returns (ResourceMetering.ResourceConfig memory config_) {
+        IResourceMetering.ResourceConfig memory config = systemConfig.resourceConfig();
+        assembly ("memory-safe") {
+            config_ := config
+        }
     }
 
     /// @notice Proves a withdrawal transaction.

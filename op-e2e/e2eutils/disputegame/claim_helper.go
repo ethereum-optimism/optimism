@@ -6,6 +6,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum/go-ethereum/common"
@@ -96,6 +97,10 @@ func (c *ClaimHelper) RequireCorrectOutputRoot(ctx context.Context) {
 	expected, err := c.game.CorrectOutputProvider.Get(ctx, c.Position)
 	c.require.NoError(err, "Failed to get correct output root")
 	c.require.Equalf(expected, c.claim, "Should have correct output root in claim %v and position %v", c.Index, c.Position)
+}
+
+func (c *ClaimHelper) RequireInvalidStatusCode() {
+	c.require.Equal(byte(mipsevm.VMStatusInvalid), c.claim[0], "should have had invalid status code")
 }
 
 func (c *ClaimHelper) Attack(ctx context.Context, value common.Hash, opts ...MoveOpt) *ClaimHelper {

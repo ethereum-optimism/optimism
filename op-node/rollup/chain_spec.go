@@ -1,6 +1,7 @@
 package rollup
 
 import (
+	"github.com/ethereum-optimism/optimism/op-node/params"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -79,7 +80,7 @@ func (s *ChainSpec) MaxChannelBankSize(t uint64) uint64 {
 // ChannelTimeout returns the channel timeout constant.
 func (s *ChainSpec) ChannelTimeout(t uint64) uint64 {
 	if s.config.IsGranite(t) {
-		return s.config.ChannelTimeoutGranite
+		return params.ChannelTimeoutGranite
 	}
 	return s.config.ChannelTimeoutBedrock
 }

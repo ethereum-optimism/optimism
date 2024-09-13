@@ -73,6 +73,13 @@ var (
 		EnvVars:  prefixEnvVars("L1_BEACON"),
 		Category: RollupCategory,
 	}
+	SupervisorAddr = &cli.StringFlag{
+		Name: "supervisor",
+		Usage: "RPC address of interop supervisor service for cross-chain safety verification." +
+			"Applies only to Interop-enabled networks.",
+		Hidden:  true, // hidden for now during early testing.
+		EnvVars: prefixEnvVars("SUPERVISOR"),
+	}
 	/* Optional Flags */
 	BeaconHeader = &cli.StringFlag{
 		Name:     "l1.beacon-header",
@@ -155,13 +162,6 @@ var (
 			out := sources.RPCKindStandard
 			return &out
 		}(),
-		Category: L1RPCCategory,
-	}
-	L1RethDBPath = &cli.StringFlag{
-		Name:     "l1.rethdb",
-		Usage:    "The L1 RethDB path, used to fetch receipts for L1 blocks.",
-		EnvVars:  prefixEnvVars("L1_RETHDB"),
-		Hidden:   true,
 		Category: L1RPCCategory,
 	}
 	L1RPCMaxConcurrency = &cli.IntFlag{
@@ -279,22 +279,24 @@ var (
 	}
 	HeartbeatEnabledFlag = &cli.BoolFlag{
 		Name:     "heartbeat.enabled",
-		Usage:    "Enables or disables heartbeating",
+		Usage:    "Deprecated, no-op flag.",
 		EnvVars:  prefixEnvVars("HEARTBEAT_ENABLED"),
 		Category: OperationsCategory,
+		Hidden:   true,
 	}
 	HeartbeatMonikerFlag = &cli.StringFlag{
 		Name:     "heartbeat.moniker",
-		Usage:    "Sets a moniker for this node",
+		Usage:    "Deprecated, no-op flag.",
 		EnvVars:  prefixEnvVars("HEARTBEAT_MONIKER"),
 		Category: OperationsCategory,
+		Hidden:   true,
 	}
 	HeartbeatURLFlag = &cli.StringFlag{
 		Name:     "heartbeat.url",
-		Usage:    "Sets the URL to heartbeat to",
+		Usage:    "Deprecated, no-op flag.",
 		EnvVars:  prefixEnvVars("HEARTBEAT_URL"),
-		Value:    "https://heartbeat.optimism.io",
 		Category: OperationsCategory,
+		Hidden:   true,
 	}
 	RollupHalt = &cli.StringFlag{
 		Name:     "rollup.halt",
@@ -379,6 +381,7 @@ var requiredFlags = []cli.Flag{
 }
 
 var optionalFlags = []cli.Flag{
+	SupervisorAddr,
 	BeaconAddr,
 	BeaconHeader,
 	BeaconFallbackAddrs,
@@ -411,7 +414,6 @@ var optionalFlags = []cli.Flag{
 	HeartbeatURLFlag,
 	RollupHalt,
 	RollupLoadProtocolVersions,
-	L1RethDBPath,
 	ConductorEnabledFlag,
 	ConductorRpcFlag,
 	ConductorRpcTimeoutFlag,

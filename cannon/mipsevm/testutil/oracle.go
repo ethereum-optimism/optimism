@@ -120,14 +120,19 @@ func ClaimTestOracle(t *testing.T) (po mipsevm.PreimageOracle, stdOut string, st
 	return oracle, fmt.Sprintf("computing %d * %d + %d\nclaim %d is good!\n", s, a, b, s*a+b), "started!"
 }
 
-func AllocOracle(t *testing.T, numAllocs int) *TestOracle {
+func AllocOracle(t *testing.T, numAllocs int, allocSize int) *TestOracle {
 	return &TestOracle{
 		hint: func(v []byte) {},
 		getPreimage: func(k [32]byte) []byte {
-			if k != preimage.LocalIndexKey(0).PreimageKey() {
+			switch k {
+			case preimage.LocalIndexKey(0).PreimageKey():
+				return binary.LittleEndian.AppendUint64(nil, uint64(numAllocs))
+			case preimage.LocalIndexKey(1).PreimageKey():
+				return binary.LittleEndian.AppendUint64(nil, uint64(allocSize))
+			default:
 				t.Fatalf("invalid preimage request for %x", k)
 			}
-			return binary.LittleEndian.AppendUint64(nil, uint64(numAllocs))
+			panic("unreachable")
 		},
 	}
 }
@@ -144,4 +149,20 @@ func SelectOracleFixture(t *testing.T, programName string) mipsevm.PreimageOracl
 	} else {
 		return nil
 	}
+}
+
+type HintTrackingOracle struct {
+	hints [][]byte
+}
+
+func (t *HintTrackingOracle) Hint(v []byte) {
+	t.hints = append(t.hints, v)
+}
+
+func (t *HintTrackingOracle) GetPreimage(k [32]byte) []byte {
+	return nil
+}
+
+func (t *HintTrackingOracle) Hints() [][]byte {
+	return t.hints
 }

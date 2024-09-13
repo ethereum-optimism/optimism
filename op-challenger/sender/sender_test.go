@@ -128,6 +128,10 @@ func (s *stubTxMgr) Send(ctx context.Context, candidate txmgr.TxCandidate) (*typ
 	return <-ch, nil
 }
 
+func (s *stubTxMgr) SendAsync(ctx context.Context, candidate txmgr.TxCandidate, ch chan txmgr.SendResponse) {
+	panic("unimplemented")
+}
+
 func (s *stubTxMgr) recordTx(candidate txmgr.TxCandidate) chan *types.Receipt {
 	s.m.Lock()
 	defer s.m.Unlock()

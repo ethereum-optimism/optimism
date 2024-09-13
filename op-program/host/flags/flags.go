@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-program/host/types"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
@@ -34,6 +35,12 @@ var (
 		Name:    "datadir",
 		Usage:   "Directory to use for preimage data storage. Default uses in-memory storage",
 		EnvVars: prefixEnvVars("DATADIR"),
+	}
+	DataFormat = &cli.StringFlag{
+		Name:    "data.format",
+		Usage:   fmt.Sprintf("Format to use for preimage data storage. Available formats: %s", openum.EnumString(types.SupportedDataFormats)),
+		EnvVars: prefixEnvVars("DATA_FORMAT"),
+		Value:   string(types.DataFormatDirectory),
 	}
 	L2NodeAddr = &cli.StringFlag{
 		Name:    "l2",
@@ -122,6 +129,7 @@ var programFlags = []cli.Flag{
 	RollupConfig,
 	Network,
 	DataDir,
+	DataFormat,
 	L2NodeAddr,
 	L2GenesisPath,
 	L1NodeAddr,

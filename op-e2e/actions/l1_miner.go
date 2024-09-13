@@ -3,6 +3,7 @@ package actions
 import (
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-program/host/prefetcher"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -17,7 +18,6 @@ import (
 	"github.com/ethereum/go-ethereum/trie"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -52,7 +52,7 @@ func NewL1Miner(t Testing, log log.Logger, genesis *core.Genesis) *L1Miner {
 	}
 }
 
-func (s *L1Miner) BlobStore() derive.L1BlobsFetcher {
+func (s *L1Miner) BlobStore() prefetcher.L1BlobSource {
 	return s.blobStore
 }
 
@@ -240,7 +240,7 @@ func (s *L1Miner) ActL1EndBlock(t Testing) {
 	for _, sidecar := range s.l1BuildingBlobSidecars {
 		for i, h := range sidecar.BlobHashes() {
 			blob := (*eth.Blob)(&sidecar.Blobs[i])
-			s.blobStore.StoreBlob(block.Hash(), h, blob)
+			s.blobStore.StoreBlob(block.Time(), h, blob)
 		}
 	}
 	_, err = s.l1Chain.InsertChain(types.Blocks{block})

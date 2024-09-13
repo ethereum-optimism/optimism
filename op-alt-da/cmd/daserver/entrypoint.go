@@ -6,8 +6,8 @@ import (
 	"github.com/urfave/cli/v2"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
+	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum-optimism/optimism/op-service/opio"
 )
 
 func StartDAServer(cliCtx *cli.Context) error {
@@ -55,7 +55,5 @@ func StartDAServer(cliCtx *cli.Context) error {
 		}
 	}()
 
-	opio.BlockOnInterrupts()
-
-	return nil
+	return ctxinterrupt.Wait(cliCtx.Context)
 }

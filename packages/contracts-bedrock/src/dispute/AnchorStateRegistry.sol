@@ -2,18 +2,19 @@
 pragma solidity 0.8.15;
 
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
-import { ISemver } from "src/universal/ISemver.sol";
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
 
 import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistry.sol";
 import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
 import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
 import { IDisputeGameFactory } from "src/dispute/interfaces/IDisputeGameFactory.sol";
-import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
+import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
 
 import "src/dispute/lib/Types.sol";
 import { Unauthorized } from "src/libraries/errors/CommonErrors.sol";
 import { UnregisteredGame, InvalidGameStatus } from "src/dispute/lib/Errors.sol";
 
+/// @custom:proxied true
 /// @title AnchorStateRegistry
 /// @notice The AnchorStateRegistry is a contract that stores the latest "anchor" state for each available
 ///         FaultDisputeGame type. The anchor state is the latest state that has been proposed on L1 and was not
@@ -27,8 +28,8 @@ contract AnchorStateRegistry is Initializable, IAnchorStateRegistry, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 2.0.0-rc.1
-    string public constant version = "2.0.0-rc.1";
+    /// @custom:semver 2.0.1-beta.2
+    string public constant version = "2.0.1-beta.2";
 
     /// @notice DisputeGameFactory address.
     IDisputeGameFactory internal immutable DISPUTE_GAME_FACTORY;
@@ -37,7 +38,7 @@ contract AnchorStateRegistry is Initializable, IAnchorStateRegistry, ISemver {
     mapping(GameType => OutputRoot) public anchors;
 
     /// @notice Address of the SuperchainConfig contract.
-    SuperchainConfig public superchainConfig;
+    ISuperchainConfig public superchainConfig;
 
     /// @param _disputeGameFactory DisputeGameFactory address.
     constructor(IDisputeGameFactory _disputeGameFactory) {
@@ -50,7 +51,7 @@ contract AnchorStateRegistry is Initializable, IAnchorStateRegistry, ISemver {
     /// @param _superchainConfig The address of the SuperchainConfig contract.
     function initialize(
         StartingAnchorRoot[] memory _startingAnchorRoots,
-        SuperchainConfig _superchainConfig
+        ISuperchainConfig _superchainConfig
     )
         public
         initializer

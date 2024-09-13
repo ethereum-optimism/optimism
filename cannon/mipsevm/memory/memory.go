@@ -286,6 +286,62 @@ func (m *Memory) SetMemoryRange(addr uint32, r io.Reader) error {
 	}
 }
 
+// Serialize writes the memory in a simple binary format which can be read again using Deserialize
+// The format is a simple concatenation of fields, with prefixed item count for repeating items and using big endian
+// encoding for numbers.
+//
+// len(PageCount)    uint32
+// For each page (order is arbitrary):
+//
+//	page index          uint32
+//	page Data           [PageSize]byte
+func (m *Memory) Serialize(out io.Writer) error {
+	if err := binary.Write(out, binary.BigEndian, uint32(m.PageCount())); err != nil {
+		return err
+	}
+	for pageIndex, page := range m.pages {
+		if err := binary.Write(out, binary.BigEndian, pageIndex); err != nil {
+			return err
+		}
+		if _, err := out.Write(page.Data[:]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (m *Memory) Deserialize(in io.Reader) error {
+	var pageCount uint32
+	if err := binary.Read(in, binary.BigEndian, &pageCount); err != nil {
+		return err
+	}
+	for i := uint32(0); i < pageCount; i++ {
+		var pageIndex uint32
+		if err := binary.Read(in, binary.BigEndian, &pageIndex); err != nil {
+			return err
+		}
+		page := m.AllocPage(pageIndex)
+		if _, err := io.ReadFull(in, page.Data[:]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (m *Memory) Copy() *Memory {
+	out := NewMemory()
+	out.nodes = make(map[uint64]*[32]byte)
+	out.pages = make(map[uint32]*CachedPage)
+	out.lastPageKeys = [2]uint32{^uint32(0), ^uint32(0)}
+	out.lastPage = [2]*CachedPage{nil, nil}
+	for k, page := range m.pages {
+		data := new(Page)
+		*data = *page.Data
+		out.AllocPage(k).Data = data
+	}
+	return out
+}
+
 type memReader struct {
 	m     *Memory
 	addr  uint32

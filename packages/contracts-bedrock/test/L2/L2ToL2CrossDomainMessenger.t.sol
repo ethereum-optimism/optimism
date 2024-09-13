@@ -76,14 +76,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
     }
 
     /// @dev Tests that `sendMessage` succeeds and emits the correct event.
-    function testFuzz_sendMessage_succeeds(
-        uint256 _destination,
-        address _target,
-        bytes calldata _message,
-        uint256 _value
-    )
-        external
-    {
+    function testFuzz_sendMessage_succeeds(uint256 _destination, address _target, bytes calldata _message) external {
         // Ensure the destination is not the same as the source, otherwise the function will revert
         vm.assume(_destination != block.chainid);
 
@@ -93,18 +86,11 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         // Get the current message nonce
         uint256 messageNonce = l2ToL2CrossDomainMessenger.messageNonce();
 
-        // Add sufficient value to the contract to send the message with
-        vm.deal(address(this), _value);
-
         // Look for correct emitted event
         vm.recordLogs();
 
         // Call the sendMessage function
-        l2ToL2CrossDomainMessenger.sendMessage{ value: _value }({
-            _destination: _destination,
-            _target: _target,
-            _message: _message
-        });
+        l2ToL2CrossDomainMessenger.sendMessage({ _destination: _destination, _target: _target, _message: _message });
 
         // Check that the event was emitted with the correct parameters
         Vm.Log[] memory logs = vm.getRecordedLogs();
@@ -119,6 +105,36 @@ contract L2ToL2CrossDomainMessengerTest is Test {
 
         // Check that the message nonce has been incremented
         assertEq(l2ToL2CrossDomainMessenger.messageNonce(), messageNonce + 1);
+    }
+
+    /// @dev Tests that the `sendMessage` function reverts when sending a ETH
+    function testFuzz_sendMessage_nonPayable_reverts(
+        uint256 _destination,
+        address _target,
+        bytes calldata _message,
+        uint256 _value
+    )
+        external
+    {
+        // Ensure the destination is not the same as the source, otherwise the function will revert
+        vm.assume(_destination != block.chainid);
+
+        // Ensure that the target contract is not CrossL2Inbox or L2ToL2CrossDomainMessenger
+        vm.assume(_target != Predeploys.CROSS_L2_INBOX && _target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+
+        // Ensure that _value is greater than 0
+        vm.assume(_value > 0);
+
+        // Add sufficient value to the contract to send the message with
+        vm.deal(address(this), _value);
+
+        // Call the sendMessage function with value to provoke revert
+        (bool success,) = address(l2ToL2CrossDomainMessenger).call{ value: _value }(
+            abi.encodeCall(l2ToL2CrossDomainMessenger.sendMessage, (_destination, _target, _message))
+        );
+
+        // Check that the function reverts
+        assertFalse(success);
     }
 
     /// @dev Tests that the `sendMessage` function reverts when destination is the same as the source chain.

@@ -153,7 +153,8 @@ func hydrateBindingsField(
 	// Decodes the result of the backend into values to return as function, including error/revert handling.
 	outDecodeFn := func(result []byte, resultErr error) []reflect.Value {
 		if resultErr != nil {
-			if errors.Is(resultErr, vm.ErrExecutionReverted) {
+			// Empty return-data might happen on a regular description-less revert. No need to unpack in that case.
+			if len(result) > 0 && errors.Is(resultErr, vm.ErrExecutionReverted) {
 				msg, err := abi.UnpackRevert(result)
 				if err != nil {
 					return returnErr(fmt.Errorf("failed to unpack result args: %w", err))

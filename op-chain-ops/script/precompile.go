@@ -10,9 +10,14 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 )
+
+var setterFnSig = "set(bytes4,address)"
+var setterFnBytes4 = bytes4(setterFnSig)
 
 // precompileFunc is a prepared function to perform a method call / field read with ABI decoding/encoding.
 type precompileFunc struct {
@@ -51,9 +56,19 @@ func rightPad32(data []byte) []byte {
 	return append(out, make([]byte, 32-(len(out)%32))...)
 }
 
+type settableField struct {
+	name  string
+	value *reflect.Value
+}
+
 // Precompile is a wrapper around a Go object, making it a precompile.
 type Precompile[E any] struct {
 	Precompile E
+
+	fieldsOnly bool
+
+	fieldSetter bool
+	settable    map[[4]byte]*settableField
 
 	// abiMethods is effectively the jump-table for 4-byte ABI calls to the precompile.
 	abiMethods map[[4]byte]*precompileFunc
@@ -61,16 +76,35 @@ type Precompile[E any] struct {
 
 var _ vm.PrecompiledContract = (*Precompile[struct{}])(nil)
 
+type PrecompileOption[E any] func(p *Precompile[E])
+
+func WithFieldsOnly[E any](p *Precompile[E]) {
+	p.fieldsOnly = true
+}
+
+func WithFieldSetter[E any](p *Precompile[E]) {
+	p.fieldSetter = true
+}
+
 // NewPrecompile wraps a Go object into a Precompile.
 // All exported fields and methods will have a corresponding ABI interface.
-// Fields with a tag `evm:"-"` will be ignored.
+// Fields with a tag `evm:"-"` will be ignored, or can override their ABI name to x with this tag: `evm:"x"`.
 // Field names and method names are adjusted to start with a lowercase character in the ABI signature.
 // Method names may end with a `_X` where X must be the 4byte selector (this is sanity-checked),
 // to support multiple variants of the same method with different ABI input parameters.
 // Methods may return an error, which will result in a revert, rather than become an ABI encoded arg, if not nil.
 // All precompile methods have 0 gas cost.
-func NewPrecompile[E any](e E) (*Precompile[E], error) {
-	out := &Precompile[E]{Precompile: e, abiMethods: make(map[[4]byte]*precompileFunc)}
+func NewPrecompile[E any](e E, opts ...PrecompileOption[E]) (*Precompile[E], error) {
+	out := &Precompile[E]{
+		Precompile:  e,
+		abiMethods:  make(map[[4]byte]*precompileFunc),
+		fieldsOnly:  false,
+		fieldSetter: false,
+		settable:    make(map[[4]byte]*settableField),
+	}
+	for _, opt := range opts {
+		opt(out)
+	}
 	elemVal := reflect.ValueOf(e)
 	// setup methods (and if pointer, the indirect methods also)
 	if err := out.setupMethods(&elemVal); err != nil {
@@ -80,11 +114,16 @@ func NewPrecompile[E any](e E) (*Precompile[E], error) {
 	if err := out.setupFields(&elemVal); err != nil {
 		return nil, fmt.Errorf("failed to setup fields of precompile: %w", err)
 	}
+	// create setter that can handle of the fields
+	out.setupFieldSetter()
 	return out, nil
 }
 
 // setupMethods iterates through all exposed methods of val, and sets them all up as ABI methods.
 func (p *Precompile[E]) setupMethods(val *reflect.Value) error {
+	if p.fieldsOnly {
+		return nil
+	}
 	typ := val.Type()
 	methodCount := val.NumMethod()
 	for i := 0; i < methodCount; i++ {
@@ -431,6 +470,10 @@ func (p *Precompile[E]) setupStructField(fieldDef *reflect.StructField, fieldVal
 	if lo := strings.ToLower(abiFunctionName[:1]); lo != abiFunctionName[:1] {
 		abiFunctionName = lo + abiFunctionName[1:]
 	}
+	// The tag can override the field name
+	if v, ok := fieldDef.Tag.Lookup("evm"); ok {
+		abiFunctionName = v
+	}
 	// The ABI signature of public fields in solidity is simply a getter function of the same name.
 	// The return type is not part of the ABI signature. So we just append "()" to turn it into a function.
 	methodSig := abiFunctionName + "()"
@@ -455,7 +498,14 @@ func (p *Precompile[E]) setupStructField(fieldDef *reflect.StructField, fieldVal
 		if len(input) != 0 { // 4 byte selector is already trimmed
 			return nil, fmt.Errorf("unexpected input: %x", input)
 		}
-		outData, err := outArgs.PackValues([]any{fieldVal.Interface()})
+		v := fieldVal.Interface()
+		if abiVal, ok := v.(interface{ ToABI() []byte }); ok {
+			return abiVal.ToABI(), nil
+		}
+		if bigInt, ok := v.(*hexutil.Big); ok { // We can change this to use convertType later, if we need more generic type handling.
+			v = (*big.Int)(bigInt)
+		}
+		outData, err := outArgs.PackValues([]any{v})
 		if err != nil {
 			return nil, fmt.Errorf("method %s failed to pack return data: %w", methodSig, err)
 		}
@@ -466,7 +516,40 @@ func (p *Precompile[E]) setupStructField(fieldDef *reflect.StructField, fieldVal
 		abiSignature: methodSig,
 		fn:           fn,
 	}
+	// register field as settable
+	if p.fieldSetter && fieldDef.Type.AssignableTo(typeFor[common.Address]()) {
+		p.settable[byte4Sig] = &settableField{
+			name:  fieldDef.Name,
+			value: fieldVal,
+		}
+	}
 	return nil
+}
+
+func (p *Precompile[E]) setupFieldSetter() {
+	if !p.fieldSetter {
+		return
+	}
+	p.abiMethods[setterFnBytes4] = &precompileFunc{
+		goName:       "__fieldSetter___",
+		abiSignature: setterFnSig,
+		fn: func(input []byte) ([]byte, error) {
+			if len(input) != 32*2 {
+				return nil, fmt.Errorf("cannot set address field to %d bytes", len(input))
+			}
+			if [32 - 4]byte(input[4:32]) != ([32 - 4]byte{}) {
+				return nil, fmt.Errorf("unexpected selector content, input: %x", input[:])
+			}
+			selector := [4]byte(input[:4])
+			f, ok := p.settable[selector]
+			if !ok {
+				return nil, fmt.Errorf("unknown address field selector 0x%x", selector)
+			}
+			addr := common.Address(input[32*2-20 : 32*2])
+			f.value.Set(reflect.ValueOf(addr))
+			return nil, nil
+		},
+	}
 }
 
 // RequiredGas is part of the vm.PrecompiledContract interface, and all system precompiles use 0 gas.

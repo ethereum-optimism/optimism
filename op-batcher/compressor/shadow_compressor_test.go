@@ -109,7 +109,7 @@ func TestShadowCompressor(t *testing.T) {
 	}
 }
 
-// TestBoundInaccruateForLargeRandomData documents where our bounding heuristic starts to fail
+// TestBoundInaccurateForLargeRandomData documents where our bounding heuristic starts to fail
 // (writing at least 128k of random data)
 func TestBoundInaccurateForLargeRandomData(t *testing.T) {
 	const sizeLimit = 1 << 17

@@ -1,15 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Predeploys } from "src/libraries/Predeploys.sol";
+// Contracts
 import { StandardBridge } from "src/universal/StandardBridge.sol";
-import { ISemver } from "src/universal/ISemver.sol";
-import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
-import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
-import { OptimismPortal } from "src/L1/OptimismPortal.sol";
-import { SystemConfig } from "src/L1/SystemConfig.sol";
 
-/// @custom:proxied
+// Libraries
+import { Predeploys } from "src/libraries/Predeploys.sol";
+
+// Interfaces
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
+import { ICrossDomainMessenger } from "src/universal/interfaces/ICrossDomainMessenger.sol";
+import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
+import { ISystemConfig } from "src/L1/interfaces/ISystemConfig.sol";
+
+/// @custom:proxied true
 /// @title L1StandardBridge
 /// @notice The L1StandardBridge is responsible for transfering ETH and ERC20 tokens between L1 and
 ///         L2. In the case that an ERC20 token is native to L1, it will be escrowed within this
@@ -71,21 +75,21 @@ contract L1StandardBridge is StandardBridge, ISemver {
     );
 
     /// @notice Semantic version.
-    /// @custom:semver 2.2.0
-    string public constant version = "2.2.0";
+    /// @custom:semver 2.2.1-beta.1
+    string public constant version = "2.2.1-beta.1";
 
     /// @notice Address of the SuperchainConfig contract.
-    SuperchainConfig public superchainConfig;
+    ISuperchainConfig public superchainConfig;
 
     /// @notice Address of the SystemConfig contract.
-    SystemConfig public systemConfig;
+    ISystemConfig public systemConfig;
 
     /// @notice Constructs the L1StandardBridge contract.
     constructor() StandardBridge() {
         initialize({
-            _messenger: CrossDomainMessenger(address(0)),
-            _superchainConfig: SuperchainConfig(address(0)),
-            _systemConfig: SystemConfig(address(0))
+            _messenger: ICrossDomainMessenger(address(0)),
+            _superchainConfig: ISuperchainConfig(address(0)),
+            _systemConfig: ISystemConfig(address(0))
         });
     }
 
@@ -93,9 +97,9 @@ contract L1StandardBridge is StandardBridge, ISemver {
     /// @param _messenger        Contract for the CrossDomainMessenger on this network.
     /// @param _superchainConfig Contract for the SuperchainConfig on this network.
     function initialize(
-        CrossDomainMessenger _messenger,
-        SuperchainConfig _superchainConfig,
-        SystemConfig _systemConfig
+        ICrossDomainMessenger _messenger,
+        ISuperchainConfig _superchainConfig,
+        ISystemConfig _systemConfig
     )
         public
         initializer

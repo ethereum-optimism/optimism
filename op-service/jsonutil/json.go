@@ -5,12 +5,106 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
+
+	"github.com/BurntSushi/toml"
 
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 )
 
+type Decoder interface {
+	Decode(v interface{}) error
+}
+
+type DecoderFactory func(r io.Reader) Decoder
+
+type Encoder interface {
+	Encode(v interface{}) error
+}
+
+type EncoderFactory func(w io.Writer) Encoder
+
+type jsonDecoder struct {
+	d *json.Decoder
+}
+
+func newJSONDecoder(r io.Reader) Decoder {
+	return &jsonDecoder{
+		d: json.NewDecoder(r),
+	}
+}
+
+func (d *jsonDecoder) Decode(v interface{}) error {
+	if err := d.d.Decode(v); err != nil {
+		return fmt.Errorf("failed to decode JSON: %w", err)
+	}
+	if _, err := d.d.Token(); err != io.EOF {
+		return errors.New("unexpected trailing data")
+	}
+	return nil
+}
+
+type tomlDecoder struct {
+	r io.Reader
+}
+
+func newTOMLDecoder(r io.Reader) Decoder {
+	return &tomlDecoder{
+		r: r,
+	}
+}
+
+func (d *tomlDecoder) Decode(v interface{}) error {
+	if _, err := toml.NewDecoder(d.r).Decode(v); err != nil {
+		return fmt.Errorf("failed to decode TOML: %w", err)
+	}
+	return nil
+}
+
+type jsonEncoder struct {
+	e *json.Encoder
+}
+
+func newJSONEncoder(w io.Writer) Encoder {
+	e := json.NewEncoder(w)
+	e.SetIndent("", "  ")
+	return &jsonEncoder{
+		e: e,
+	}
+}
+
+func (e *jsonEncoder) Encode(v interface{}) error {
+	if err := e.e.Encode(v); err != nil {
+		return fmt.Errorf("failed to encode JSON: %w", err)
+	}
+	return nil
+}
+
+type tomlEncoder struct {
+	w io.Writer
+}
+
+func newTOMLEncoder(w io.Writer) Encoder {
+	return &tomlEncoder{
+		w: w,
+	}
+}
+
+func (e *tomlEncoder) Encode(v interface{}) error {
+	if err := toml.NewEncoder(e.w).Encode(v); err != nil {
+		return fmt.Errorf("failed to encode TOML: %w", err)
+	}
+	return nil
+}
+
 func LoadJSON[X any](inputPath string) (*X, error) {
+	return load[X](inputPath, newJSONDecoder)
+}
+
+func LoadTOML[X any](inputPath string) (*X, error) {
+	return load[X](inputPath, newTOMLDecoder)
+}
+
+func load[X any](inputPath string, dec DecoderFactory) (*X, error) {
 	if inputPath == "" {
 		return nil, errors.New("no path specified")
 	}
@@ -21,49 +115,37 @@ func LoadJSON[X any](inputPath string) (*X, error) {
 	}
 	defer f.Close()
 	var state X
-	decoder := json.NewDecoder(f)
-	if err := decoder.Decode(&state); err != nil {
+	if err := dec(f).Decode(&state); err != nil {
 		return nil, fmt.Errorf("failed to decode file %q: %w", inputPath, err)
-	}
-	// We are only expecting 1 JSON object - confirm there is no trailing data
-	if _, err := decoder.Token(); err != io.EOF {
-		return nil, fmt.Errorf("unexpected trailing data in file %q", inputPath)
 	}
 	return &state, nil
 }
 
-func WriteJSON[X any](outputPath string, value X, perm os.FileMode) error {
-	if outputPath == "" {
-		return nil
+func WriteJSON[X any](value X, target ioutil.OutputTarget) error {
+	return write(value, target, newJSONEncoder)
+}
+
+func WriteTOML[X any](value X, target ioutil.OutputTarget) error {
+	return write(value, target, newTOMLEncoder)
+}
+
+func write[X any](value X, target ioutil.OutputTarget, enc EncoderFactory) error {
+	out, closer, abort, err := target()
+	if err != nil {
+		return err
 	}
-	var out io.Writer
-	finish := func() error { return nil }
-	if outputPath != "-" {
-		f, err := ioutil.NewAtomicWriterCompressed(outputPath, perm)
-		if err != nil {
-			return fmt.Errorf("failed to open output file: %w", err)
-		}
-		// Ensure we close the stream without renaming even if failures occur.
-		defer func() {
-			_ = f.Abort()
-		}()
-		out = f
-		// Closing the file causes it to be renamed to the final destination
-		// so make sure we handle any errors it returns
-		finish = f.Close
-	} else {
-		out = os.Stdout
+	if out == nil {
+		return nil // No output stream selected so skip generating the content entirely
 	}
-	enc := json.NewEncoder(out)
-	enc.SetIndent("", "  ")
-	if err := enc.Encode(value); err != nil {
-		return fmt.Errorf("failed to encode to JSON: %w", err)
+	defer abort()
+	if err := enc(out).Encode(value); err != nil {
+		return fmt.Errorf("failed to encode: %w", err)
 	}
-	_, err := out.Write([]byte{'\n'})
+	_, err = out.Write([]byte{'\n'})
 	if err != nil {
 		return fmt.Errorf("failed to append new-line: %w", err)
 	}
-	if err := finish(); err != nil {
+	if err := closer.Close(); err != nil {
 		return fmt.Errorf("failed to finish write: %w", err)
 	}
 	return nil

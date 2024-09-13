@@ -11,6 +11,19 @@
     "type": "constructor"
   },
   {
+    "inputs": [],
+    "name": "oracle",
+    "outputs": [
+      {
+        "internalType": "contract IPreimageOracle",
+        "name": "oracle_",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "bytes",
@@ -51,5 +64,20 @@
     ],
     "stateMutability": "view",
     "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidExitedValue",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidMemoryProof",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidSecondMemoryProof",
+    "type": "error"
   }
 ]

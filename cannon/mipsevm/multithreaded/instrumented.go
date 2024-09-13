@@ -8,8 +8,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
-	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
 
 type InstrumentedState struct {
@@ -23,11 +21,12 @@ type InstrumentedState struct {
 	stackTracker  ThreadedStackTracker
 
 	preimageOracle *exec.TrackingPreimageOracleReader
+	meta           mipsevm.Metadata
 }
 
 var _ mipsevm.FPVM = (*InstrumentedState)(nil)
 
-func NewInstrumentedState(state *State, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger) *InstrumentedState {
+func NewInstrumentedState(state *State, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger, meta mipsevm.Metadata) *InstrumentedState {
 	return &InstrumentedState{
 		state:          state,
 		log:            log,
@@ -36,19 +35,12 @@ func NewInstrumentedState(state *State, po mipsevm.PreimageOracle, stdOut, stdEr
 		memoryTracker:  exec.NewMemoryTracker(state.Memory),
 		stackTracker:   &NoopThreadedStackTracker{},
 		preimageOracle: exec.NewTrackingPreimageOracleReader(po),
+		meta:           meta,
 	}
 }
 
-func NewInstrumentedStateFromFile(stateFile string, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger) (*InstrumentedState, error) {
-	state, err := jsonutil.LoadJSON[State](stateFile)
-	if err != nil {
-		return nil, err
-	}
-	return NewInstrumentedState(state, po, stdOut, stdErr, log), nil
-}
-
-func (m *InstrumentedState) InitDebug(meta *program.Metadata) error {
-	stackTracker, err := NewThreadedStackTracker(m.state, meta)
+func (m *InstrumentedState) InitDebug() error {
+	stackTracker, err := NewThreadedStackTracker(m.state, m.meta)
 	if err != nil {
 		return err
 	}
@@ -81,7 +73,9 @@ func (m *InstrumentedState) Step(proof bool) (wit *mipsevm.StepWitness, err erro
 
 	if proof {
 		memProof := m.memoryTracker.MemProof()
+		memProof2 := m.memoryTracker.MemProof2()
 		wit.ProofData = append(wit.ProofData, memProof[:]...)
+		wit.ProofData = append(wit.ProofData, memProof2[:]...)
 		lastPreimageKey, lastPreimage, lastPreimageOffset := m.preimageOracle.LastPreimage()
 		if lastPreimageOffset != ^uint32(0) {
 			wit.PreimageOffset = lastPreimageOffset
@@ -115,4 +109,11 @@ func (m *InstrumentedState) GetDebugInfo() *mipsevm.DebugInfo {
 
 func (m *InstrumentedState) Traceback() {
 	m.stackTracker.Traceback()
+}
+
+func (m *InstrumentedState) LookupSymbol(addr uint32) string {
+	if m.meta == nil {
+		return ""
+	}
+	return m.meta.LookupSymbol(addr)
 }

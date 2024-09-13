@@ -1,15 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Contracts
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import { ISemver } from "src/universal/ISemver.sol";
-import { ResourceMetering } from "src/L1/ResourceMetering.sol";
-import { Storage } from "src/libraries/Storage.sol";
-import { Constants } from "src/libraries/Constants.sol";
-import { OptimismPortal } from "src/L1/OptimismPortal.sol";
-import { GasPayingToken, IGasToken } from "src/libraries/GasPayingToken.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
+// Libraries
+import { Storage } from "src/libraries/Storage.sol";
+import { Constants } from "src/libraries/Constants.sol";
+import { GasPayingToken, IGasToken } from "src/libraries/GasPayingToken.sol";
+
+// Interfaces
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
+import { IOptimismPortal } from "src/L1/interfaces/IOptimismPortal.sol";
+import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
+
+/// @custom:proxied true
 /// @title SystemConfig
 /// @notice The SystemConfig contract is used to manage configuration of an Optimism network.
 ///         All configuration is stored on L1 and picked up by L2 as part of the derviation of
@@ -115,7 +121,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     /// @notice The configuration for the deposit fee market.
     ///         Used by the OptimismPortal to meter the cost of buying L2 gas on L1.
     ///         Set as internal with a getter so that the struct is returned instead of a tuple.
-    ResourceMetering.ResourceConfig internal _resourceConfig;
+    IResourceMetering.ResourceConfig internal _resourceConfig;
 
     /// @notice Emitted when configuration is updated.
     /// @param version    SystemConfig version.
@@ -124,9 +130,9 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
     /// @notice Semantic version.
-    /// @custom:semver 2.3.0-beta.2
+    /// @custom:semver 2.3.0-beta.3
     function version() public pure virtual returns (string memory) {
-        return "2.3.0-beta.2";
+        return "2.3.0-beta.3";
     }
 
     /// @notice Constructs the SystemConfig contract. Cannot set
@@ -143,7 +149,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
             _batcherHash: bytes32(0),
             _gasLimit: 1,
             _unsafeBlockSigner: address(0),
-            _config: ResourceMetering.ResourceConfig({
+            _config: IResourceMetering.ResourceConfig({
                 maxResourceLimit: 1,
                 elasticityMultiplier: 1,
                 baseFeeMaxChangeDenominator: 2,
@@ -183,7 +189,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         bytes32 _batcherHash,
         uint64 _gasLimit,
         address _unsafeBlockSigner,
-        ResourceMetering.ResourceConfig memory _config,
+        IResourceMetering.ResourceConfig memory _config,
         address _batchInbox,
         SystemConfig.Addresses memory _addresses
     )
@@ -317,7 +323,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
 
             // Set the gas paying token in storage and in the OptimismPortal.
             GasPayingToken.set({ _token: _token, _decimals: GAS_PAYING_TOKEN_DECIMALS, _name: name, _symbol: symbol });
-            OptimismPortal(payable(optimismPortal())).setGasPayingToken({
+            IOptimismPortal(payable(optimismPortal())).setGasPayingToken({
                 _token: _token,
                 _decimals: GAS_PAYING_TOKEN_DECIMALS,
                 _name: name,
@@ -432,7 +438,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     /// @notice A getter for the resource config.
     ///         Ensures that the struct is returned instead of a tuple.
     /// @return ResourceConfig
-    function resourceConfig() external view returns (ResourceMetering.ResourceConfig memory) {
+    function resourceConfig() external view returns (IResourceMetering.ResourceConfig memory) {
         return _resourceConfig;
     }
 
@@ -441,7 +447,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     ///         In the future, this method may emit an event that the `op-node` picks up
     ///         for when the resource config is changed.
     /// @param _config The new resource config.
-    function _setResourceConfig(ResourceMetering.ResourceConfig memory _config) internal {
+    function _setResourceConfig(IResourceMetering.ResourceConfig memory _config) internal {
         // Min base fee must be less than or equal to max base fee.
         require(
             _config.minimumBaseFee <= _config.maximumBaseFee, "SystemConfig: min base fee must be less than max base"
