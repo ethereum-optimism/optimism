@@ -237,6 +237,12 @@ jobs:
           name: Copy AltDA allocs to .devnet-altda
           command: cp -r .devnet/ .devnet-altda-generic/
       - run:
+          name: Generate MT-Cannon allocs
+          command: USE_MT_CANNON="true" make devnet-allocs
+      - run:
+          name: Copy MT-Cannon allocs to .devnet-mt-cannon
+          command: cp -r .devnet/ .devnet-mt-cannon/
+      - run:
           name: Generate default allocs
           command: make devnet-allocs
       - save_cache:
@@ -279,6 +285,12 @@ jobs:
             - ".devnet-altda-generic/allocs-l2-ecotone.json"
             - ".devnet-altda-generic/allocs-l2-fjord.json"
             - ".devnet-altda-generic/allocs-l2-granite.json"
+            - ".devnet-mt-cannon/allocs-l1.json"
+            - ".devnet-mt-cannon/addresses.json"
+            - ".devnet-mt-cannon/allocs-l2-delta.json"
+            - ".devnet-mt-cannon/allocs-l2-ecotone.json"
+            - ".devnet-mt-cannon/allocs-l2-fjord.json"
+            - ".devnet-mt-cannon/allocs-l2-granite.json"
             - "packages/contracts-bedrock/deploy-config/devnetL1.json"
             - "packages/contracts-bedrock/deployments/devnetL1"
       - notify-failures-on-develop
@@ -928,6 +940,13 @@ jobs:
             - run:
                 name: Set OP_E2E_USE_ALTDA = true
                 command: echo 'export OP_E2E_USE_ALTDA=true' >> $BASH_ENV
+      - when:
+          condition:
+            equal: ['-mt-cannon', <<parameters.variant>>]
+          steps:
+            - run:
+                name: Set OP_E2E_USE_MT_CANNON = true
+                command: echo 'export OP_E2E_USE_MT_CANNON=true' >> $BASH_ENV
       - check-changed:
           patterns: op-(.+),cannon,contracts-bedrock
       - run:
@@ -1071,6 +1090,16 @@ jobs:
             - "op-program/bin/prestate.json"
             - "op-program/bin/meta.json"
             - "op-program/bin/prestate-proof.json"
+      - run:
+          name: generate cannon-mt prestate
+          command: make cannon-prestate-mt
+      - save_cache:
+          key: cannon-prestate-mt-{{ checksum "./cannon/bin/cannon" }}-{{ checksum "op-program/bin/op-program-client.elf" }}
+          name: Save MT-Cannon prestate to cache
+          paths:
+            - "op-program/bin/prestate-mt.json"
+            - "op-program/bin/meta-mt.json"
+            - "op-program/bin/prestate-proof-mt.json"
       - save_cache:
           name: Save Go build cache
           key: golang-build-cache-cannon-prestate-{{ checksum "go.sum" }}
@@ -2078,7 +2107,12 @@ workflows:
             - go-mod-download
       - contracts-bedrock-build
       - go-e2e-test:
-          name: op-e2e-cannon-tests
+          name: op-e2e-cannon-tests<< matrix.variant >>
+          matrix:
+            parameters:
+              variant: [""]
+              # TODO(#11893): add mt-cannon to matrix once it's stable
+              #variant: ["", "-mt-cannon"]
           module: op-e2e
           target: test-cannon
           parallelism: 4
