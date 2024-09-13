@@ -43,7 +43,6 @@ contract SuperchainERC20Mock is SuperchainERC20 {
 }
 /// @title SuperchainERC20Test
 /// @notice Contract for testing the SuperchainERC20 contract.
-
 contract SuperchainERC20Test is Test {
     address internal constant ZERO_ADDRESS = address(0);
     string internal constant NAME = "SuperchainERC20";
