@@ -195,7 +195,7 @@ contract DeployImplementationsOutput {
 
     function opsm() public returns (OPStackManager) {
         DeployUtils.assertValidContractAddress(address(_opsm));
-        DeployUtils.assertEIP1967Implementation(address(_opsm));
+        DeployUtils.assertImplementationSet(address(_opsm));
         return _opsm;
     }
 

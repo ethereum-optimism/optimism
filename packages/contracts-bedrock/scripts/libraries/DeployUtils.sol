@@ -22,7 +22,7 @@ library DeployUtils {
         require(_who.code.length > 0, string.concat("DeployUtils: no code at ", LibString.toHexStringChecksummed(_who)));
     }
 
-    function assertEIP1967Implementation(address _proxy) internal {
+    function assertImplementationSet(address _proxy) internal {
         // We prank as the zero address due to the Proxy's `proxyCallIfNotAdmin` modifier.
         // Pranking inside this function also means it can no longer be considered `view`.
         vm.prank(address(0));
