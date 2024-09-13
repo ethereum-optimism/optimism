@@ -849,6 +849,60 @@ jobs:
           paths:
             - "/root/.cache/golangci-lint"
 
+  go-test-kurtosis:
+    parameters:
+      module:
+        description: Go Module Name
+        type: string
+      uses_artifacts:
+        description: Uses contract artifacts
+        type: boolean
+        default: false
+    machine:
+      image: <<pipeline.parameters.base_image>> # only used to enable codecov.
+    resource_class: xlarge
+    steps:
+      - run:
+          name: Install components
+          command: |
+            go version
+            go install gotest.tools/gotestsum@v1.11.0
+      - run:
+          name: Install Kurtosis
+          command: |
+            echo "deb [trusted=yes] https://apt.fury.io/kurtosis-tech/ /" | sudo tee /etc/apt/sources.list.d/kurtosis.list
+            sudo apt update
+            sudo apt install kurtosis-cli
+            kurtosis engine start
+      - checkout
+      - when:
+          condition: <<parameters.uses_artifacts>>
+          steps:
+            - attach_workspace: { at: "." }
+      - run:
+          name: prep results dir
+          command: |
+            # Make sure the workspace is properly owned
+            sudo chown -R $USER:$USER .
+            mkdir -p /tmp/test-results 
+            mkdir -p /tmp/testlogs
+      - run:
+          name: run tests
+          command: |
+            ENABLE_KURTOSIS=true gotestsum \
+              --format=testname \
+              --junitfile=/tmp/test-results/<<parameters.module>>.xml \
+              --jsonfile=/tmp/testlogs/log.json \
+              -- -parallel=8 \
+              -coverpkg=github.com/ethereum-optimism/optimism/... \
+              -coverprofile=coverage.out ./...
+          working_directory: <<parameters.module>>
+      - store_test_results:
+          path: /tmp/test-results
+      - store_artifacts:
+          path: /tmp/testlogs
+          when: always
+
   go-test:
     parameters:
       module:
@@ -881,10 +935,6 @@ jobs:
           key: golang-build-cache-test-<<parameters.module>>-{{ checksum "go.sum" }}
           paths:
             - "/root/.cache/go-build"
-      # TODO(CLI-148): Fix codecov
-      #- run:
-          #name: upload coverage
-          #command: codecov --verbose --clean --flags bedrock-go-tests
       - store_test_results:
           path: /tmp/test-results
       - store_artifacts:
@@ -1010,53 +1060,6 @@ jobs:
           steps:
             - notify-failures-on-develop:
                 mentions: "<<parameters.mentions>>"
-
-  go-lint-test-build:
-    parameters:
-      binary_name:
-        description: Binary name to build
-        type: string
-      working_directory:
-        description: Working directory
-        type: string
-      build:
-        description: Whether or not to build the binary
-        type: boolean
-        default: true
-      dependencies:
-        description: Regex matching dependent packages
-        type: string
-        default: this-package-does-not-exist
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: medium
-    steps:
-      - checkout
-      - check-changed:
-          patterns: <<parameters.working_directory>>,<<parameters.dependencies>>
-      - run:
-          name: Lint
-          command: make lint
-          working_directory: <<parameters.working_directory>>
-      - run:
-          name: Test
-          command: |
-            mkdir -p /test-results
-            gotestsum  --format=testname --junitfile /test-results/tests.xml --jsonfile /test-results/log.json -- -parallel=2
-          working_directory: <<parameters.working_directory>>
-      - store_test_results:
-          path: /test-results
-      - store_artifacts:
-          path: /testlogs
-          when: always
-      - when:
-          condition:
-            equal: [ true, <<parameters.build>> ]
-          steps:
-            - run:
-                name: Build
-                command: make <<parameters.binary_name>>
-                working_directory: <<parameters.working_directory>>
 
   cannon-prestate:
     docker:
@@ -1661,10 +1664,11 @@ workflows:
           name: op-batcher-tests
           module: op-batcher
           requires: ["go-mod-download"]
-      - go-test:
+      - go-test-kurtosis:
           name: op-chain-ops-tests
           module: op-chain-ops
-          requires: ["go-mod-download"]
+          uses_artifacts: true
+          requires: ["contracts-bedrock-build"]
       - go-test:
           name: op-node-tests
           module: op-node

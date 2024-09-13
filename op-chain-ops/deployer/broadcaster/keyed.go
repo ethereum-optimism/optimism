@@ -30,11 +30,12 @@ type KeyedBroadcaster struct {
 }
 
 type KeyedBroadcasterOpts struct {
-	Logger  log.Logger
-	ChainID *big.Int
-	Client  *ethclient.Client
-	Signer  opcrypto.SignerFn
-	From    common.Address
+	Logger          log.Logger
+	ChainID         *big.Int
+	Client          *ethclient.Client
+	Signer          opcrypto.SignerFn
+	From            common.Address
+	TXManagerLogger log.Logger
 }
 
 func NewKeyedBroadcaster(cfg KeyedBroadcasterOpts) (*KeyedBroadcaster, error) {
@@ -66,9 +67,14 @@ func NewKeyedBroadcaster(cfg KeyedBroadcasterOpts) (*KeyedBroadcaster, error) {
 	mgrCfg.MinTipCap.Store(minTipCap)
 	mgrCfg.MinTipCap.Store(minBaseFee)
 
+	txmLogger := log.NewLogger(log.DiscardHandler())
+	if cfg.TXManagerLogger != nil {
+		txmLogger = cfg.TXManagerLogger
+	}
+
 	mgr, err := txmgr.NewSimpleTxManagerFromConfig(
 		"transactor",
-		log.NewLogger(log.DiscardHandler()),
+		txmLogger,
 		&metrics.NoopTxMetrics{},
 		mgrCfg,
 	)

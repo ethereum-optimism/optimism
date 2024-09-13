@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/pipeline"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
@@ -92,7 +94,6 @@ func Apply(ctx context.Context, cfg ApplyConfig) error {
 
 	env := &pipeline.Env{
 		Workdir:  cfg.Workdir,
-		L1RPCUrl: cfg.L1RPCUrl,
 		L1Client: l1Client,
 		Logger:   cfg.Logger,
 		Signer:   signer,
@@ -113,6 +114,24 @@ func Apply(ctx context.Context, cfg ApplyConfig) error {
 		return err
 	}
 
+	if err := ApplyPipeline(ctx, env, intent, st); err != nil {
+		return err
+	}
+
+	st.AppliedIntent = intent
+	if err := env.WriteState(st); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func ApplyPipeline(
+	ctx context.Context,
+	env *pipeline.Env,
+	intent *state.Intent,
+	st *state.State,
+) error {
 	pline := []struct {
 		name  string
 		stage pipeline.Stage
@@ -125,11 +144,5 @@ func Apply(ctx context.Context, cfg ApplyConfig) error {
 			return fmt.Errorf("error in pipeline stage: %w", err)
 		}
 	}
-
-	st.AppliedIntent = intent
-	if err := env.WriteState(st); err != nil {
-		return err
-	}
-
 	return nil
 }
