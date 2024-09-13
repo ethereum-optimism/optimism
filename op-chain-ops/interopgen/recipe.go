@@ -30,6 +30,7 @@ func (r *InteropDevRecipe) Build(addrs devkeys.Addresses) (*WorldConfig, error) 
 		Prefund: make(map[common.Address]*big.Int),
 	}
 
+	// TODO(#11887): consider making the number of prefunded keys configurable.
 	l1Users := devkeys.ChainUserKeys(l1Cfg.ChainID)
 	for i := uint64(0); i < 20; i++ {
 		userAddr, err := addrs.Address(l1Users(i))
@@ -72,16 +73,6 @@ func (r *InteropDevRecipe) Build(addrs devkeys.Addresses) (*WorldConfig, error) 
 				ChallengePeriodSeconds:          big.NewInt(120),
 				ProofMaturityDelaySeconds:       big.NewInt(12),
 				DisputeGameFinalityDelaySeconds: big.NewInt(6),
-				// Legacy config:
-				//UseFaultProofs:                  true,
-				//FaultGameAbsolutePrestate:       common.HexToHash("0x03c7ae758795765c6664a5d39bf63841c71ff191e9189522bad8ebff5d4eca98"),
-				//FaultGameMaxDepth:               50,
-				//FaultGameClockExtension:         0,
-				//FaultGameMaxClockDuration:       1200,
-				//FaultGameGenesisBlock:           0,
-				//FaultGameGenesisOutputRoot:      common.HexToHash("0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF"),
-				//FaultGameSplitDepth:             14,
-				//RespectedGameType:               254, // "fast" game type
 			},
 			UseInterop: true,
 		},
@@ -258,6 +249,7 @@ func InteropL2DevConfig(l1ChainID, l2ChainID uint64, addrs devkeys.Addresses) (*
 		Prefund: make(map[common.Address]*big.Int),
 	}
 
+	// TODO(#11887): consider making the number of prefunded keys configurable.
 	l2Users := devkeys.ChainUserKeys(new(big.Int).SetUint64(l2ChainID))
 	for i := uint64(0); i < 20; i++ {
 		userAddr, err := addrs.Address(l2Users(i))

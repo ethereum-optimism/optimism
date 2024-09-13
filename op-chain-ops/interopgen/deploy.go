@@ -43,7 +43,7 @@ func Deploy(logger log.Logger, fa *foundry.ArtifactsFS, srcFS *foundry.SourceMap
 		return nil, nil, fmt.Errorf("failed to enable cheats in L1 state: %w", err)
 	}
 
-	l1Deployment, err := initialL1(l1Host, cfg.L1)
+	l1Deployment, err := prepareInitialL1(l1Host, cfg.L1)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to deploy initial L1 content: %w", err)
 	}
@@ -54,6 +54,11 @@ func Deploy(logger log.Logger, fa *foundry.ArtifactsFS, srcFS *foundry.SourceMap
 		return nil, nil, fmt.Errorf("failed to deploy superchain to L1: %w", err)
 	}
 	deployments.Superchain = superDeployment
+
+	// We deploy contracts for each L2 to the L1
+	// because we need to compute the genesis block hash
+	// to put into the L2 genesis configs, and can thus not mutate the L1 state
+	// after creating the final config for any particular L2. Will add comments.
 
 	for l2ChainID, l2Cfg := range cfg.L2s {
 		l2Deployment, err := deployL2ToL1(l1Host, cfg.Superchain, superDeployment, l2Cfg)
@@ -72,6 +77,7 @@ func Deploy(logger log.Logger, fa *foundry.ArtifactsFS, srcFS *foundry.SourceMap
 	}
 	out.L1 = l1Out
 
+	// Now that the L1 does not change anymore we can compute the L1 genesis block, to anchor all the L2s to.
 	l1GenesisBlock := l1Out.Genesis.ToBlock()
 	genesisTimestamp := l1Out.Genesis.Timestamp
 
@@ -126,13 +132,16 @@ func createL2(logger log.Logger, fa *foundry.ArtifactsFS, srcFS *foundry.SourceM
 	return l2Host
 }
 
-// initialL1 deploys basics such as preinstalls to L1  (incl. EIP-4788)
-func initialL1(l1Host *script.Host, cfg *L1Config) (*L1Deployment, error) {
+// prepareInitialL1 deploys basics such as preinstalls to L1  (incl. EIP-4788)
+func prepareInitialL1(l1Host *script.Host, cfg *L1Config) (*L1Deployment, error) {
 	l1Host.SetTxOrigin(sysGenesisDeployer)
 
-	return &L1Deployment{
-		// any contracts we need to register here?
-	}, nil
+	if err := deployers.InsertPreinstalls(l1Host); err != nil {
+		return nil, fmt.Errorf("failed to install preinstalls in L1: %w", err)
+	}
+	// No global contracts inserted at this point.
+	// All preinstalls have known constant addresses.
+	return &L1Deployment{}, nil
 }
 
 func deploySuperchainToL1(l1Host *script.Host, superCfg *SuperchainConfig) (*SuperchainDeployment, error) {
@@ -238,7 +247,9 @@ func completeL1(l1Host *script.Host, cfg *L1Config) (*L1Output, error) {
 		return nil, fmt.Errorf("failed to dump L1 state: %w", err)
 	}
 
-	if err := noDeployed(allocs, sysGenesisDeployer); err != nil {
+	// Sanity check that the default deployer didn't include anything,
+	// and make sure it's not in the state.
+	if err := ensureNoDeployed(allocs, sysGenesisDeployer); err != nil {
 		return nil, fmt.Errorf("unexpected deployed account content by L1 genesis deployer: %w", err)
 	}
 
@@ -285,7 +296,9 @@ func completeL2(l2Host *script.Host, cfg *L2Config, l1Block *types.Block, deploy
 		return nil, fmt.Errorf("failed to dump L1 state: %w", err)
 	}
 
-	if err := noDeployed(allocs, sysGenesisDeployer); err != nil {
+	// Sanity check that the default deployer didn't include anything,
+	// and make sure it's not in the state.
+	if err := ensureNoDeployed(allocs, sysGenesisDeployer); err != nil {
 		return nil, fmt.Errorf("unexpected deployed account content by L2 genesis deployer: %w", err)
 	}
 
@@ -308,7 +321,10 @@ func completeL2(l2Host *script.Host, cfg *L2Config, l1Block *types.Block, deploy
 	}, nil
 }
 
-func noDeployed(allocs *foundry.ForgeAllocs, deployer common.Address) error {
+// ensureNoDeployed checks that non of the contracts that
+// could have been deployed by the given deployer address are around.
+// And removes deployer from the allocs.
+func ensureNoDeployed(allocs *foundry.ForgeAllocs, deployer common.Address) error {
 	// Sanity check we have no deploy output that's not meant to be there.
 	for i := uint64(0); i <= allocs.Accounts[deployer].Nonce; i++ {
 		addr := crypto.CreateAddress(deployer, i)
