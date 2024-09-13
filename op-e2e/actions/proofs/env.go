@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
@@ -34,8 +35,30 @@ type L2FaultProofEnv struct {
 	alice     *actions.CrossLayerUser
 }
 
-func NewL2FaultProofEnv(t actions.Testing, tp *e2eutils.TestParams, dp *e2eutils.DeployParams, batcherCfg *actions.BatcherCfg) *L2FaultProofEnv {
+func NewL2FaultProofEnv[c any](t actions.Testing, testCfg *TestCfg[c], tp *e2eutils.TestParams, batcherCfg *actions.BatcherCfg) *L2FaultProofEnv {
 	log := testlog.Logger(t, log.LvlDebug)
+	dp := NewDeployParams(t, func(dp *e2eutils.DeployParams) {
+		genesisBlock := hexutil.Uint64(0)
+
+		// Enable cancun always
+		dp.DeployConfig.L1CancunTimeOffset = &genesisBlock
+
+		// Enable L2 feature.
+		switch testCfg.Hardfork {
+		case Regolith:
+			dp.DeployConfig.L2GenesisRegolithTimeOffset = &genesisBlock
+		case Canyon:
+			dp.DeployConfig.L2GenesisCanyonTimeOffset = &genesisBlock
+		case Delta:
+			dp.DeployConfig.L2GenesisDeltaTimeOffset = &genesisBlock
+		case Ecotone:
+			dp.DeployConfig.L2GenesisEcotoneTimeOffset = &genesisBlock
+		case Fjord:
+			dp.DeployConfig.L2GenesisFjordTimeOffset = &genesisBlock
+		case Granite:
+			dp.DeployConfig.L2GenesisGraniteTimeOffset = &genesisBlock
+		}
+	})
 	sd := e2eutils.Setup(t, dp, actions.DefaultAlloc)
 
 	jwtPath := e2eutils.WriteDefaultJWT(t)
@@ -92,7 +115,27 @@ func NewL2FaultProofEnv(t actions.Testing, tp *e2eutils.TestParams, dp *e2eutils
 
 type FixtureInputParam func(f *FixtureInputs)
 
-func (env *L2FaultProofEnv) RunFaultProofProgram(t actions.Testing, l2ClaimBlockNum uint64, fixtureInputParams ...FixtureInputParam) error {
+type CheckResult func(actions.Testing, error)
+
+func ExpectNoError() CheckResult {
+	return func(t actions.Testing, err error) {
+		require.NoError(t, err, "fault proof program should have succeeded")
+	}
+}
+
+func ExpectError(expectedErr error) CheckResult {
+	return func(t actions.Testing, err error) {
+		require.ErrorIs(t, err, expectedErr, "fault proof program should have failed with expected error")
+	}
+}
+
+func WithL2Claim(claim common.Hash) FixtureInputParam {
+	return func(f *FixtureInputs) {
+		f.L2Claim = claim
+	}
+}
+
+func (env *L2FaultProofEnv) RunFaultProofProgram(t actions.Testing, l2ClaimBlockNum uint64, checkResult CheckResult, fixtureInputParams ...FixtureInputParam) {
 	// Fetch the pre and post output roots for the fault proof.
 	preRoot, err := env.sequencer.RollupClient().OutputAtBlock(t.Ctx(), l2ClaimBlockNum-1)
 	require.NoError(t, err)
@@ -134,7 +177,6 @@ func (env *L2FaultProofEnv) RunFaultProofProgram(t actions.Testing, l2ClaimBlock
 	})
 	err = host.FaultProofProgram(t.Ctx(), env.log, programCfg, withInProcessPrefetcher)
 	tryDumpTestFixture(t, err, t.Name(), env, programCfg)
-	return err
 }
 
 type TestParam func(p *e2eutils.TestParams)

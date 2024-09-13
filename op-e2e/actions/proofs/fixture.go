@@ -7,6 +7,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/actions"
 	"github.com/ethereum-optimism/optimism/op-program/client/claim"
@@ -51,6 +53,7 @@ func tryDumpTestFixture(t actions.Testing, result error, name string, env *L2Fau
 		return
 	}
 
+	name = convertToKebabCase(name)
 	rollupCfg := env.sd.RollupCfg
 	l2Genesis := env.sd.L2Cfg
 
@@ -116,4 +119,18 @@ func tryDumpTestFixture(t actions.Testing, result error, name string, env *L2Fau
 	cmd.Dir = filepath.Join(fixturePath)
 	require.NoError(t, cmd.Run(), "Failed to compress witness DB")
 	require.NoError(t, os.RemoveAll(filepath.Join(fixturePath, "witness-db")), "Failed to remove uncompressed witness DB")
+}
+
+// Convert to lower kebab case for strings containing `/`
+func convertToKebabCase(input string) string {
+	if !strings.Contains(input, "/") {
+		return input
+	}
+
+	// Replace non-alphanumeric characters with underscores
+	re := regexp.MustCompile(`[^a-zA-Z0-9]+`)
+	snake := re.ReplaceAllString(input, "-")
+
+	// Convert to lower case
+	return strings.ToLower(snake)
 }

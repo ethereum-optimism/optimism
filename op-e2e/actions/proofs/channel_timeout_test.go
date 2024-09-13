@@ -7,7 +7,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-program/client/claim"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 )
 
@@ -20,26 +19,13 @@ import (
 // 4. Submit the channel frame data across 2 transactions.
 // 5. Instruct the sequencer to derive the L2 chain.
 // 6. Run the FPP on the safe head.
-func runChannelTimeoutTest(gt *testing.T, checkResult func(gt *testing.T, err error), inputParams ...FixtureInputParam) {
+func runChannelTimeoutTest(gt *testing.T, testCfg *TestCfg[any]) {
 	t := actions.NewDefaultTesting(gt)
 	tp := NewTestParams(func(tp *e2eutils.TestParams) {
 		// Set the channel timeout to 10 blocks, 12x lower than the sequencing window.
 		tp.ChannelTimeout = 10
 	})
-	dp := NewDeployParams(t, func(dp *e2eutils.DeployParams) {
-		genesisBlock := hexutil.Uint64(0)
-
-		// Enable Cancun on L1 & Granite on L2 at genesis
-		dp.DeployConfig.L1CancunTimeOffset = &genesisBlock
-		dp.DeployConfig.L2GenesisRegolithTimeOffset = &genesisBlock
-		dp.DeployConfig.L2GenesisCanyonTimeOffset = &genesisBlock
-		dp.DeployConfig.L2GenesisDeltaTimeOffset = &genesisBlock
-		dp.DeployConfig.L2GenesisEcotoneTimeOffset = &genesisBlock
-		dp.DeployConfig.L2GenesisFjordTimeOffset = &genesisBlock
-		dp.DeployConfig.L2GenesisGraniteTimeOffset = &genesisBlock
-	})
-	bCfg := NewBatcherCfg()
-	env := NewL2FaultProofEnv(t, tp, dp, bCfg)
+	env := NewL2FaultProofEnv(t, testCfg, tp, NewBatcherCfg())
 
 	const NumL2Blocks = 10
 
@@ -119,24 +105,26 @@ func runChannelTimeoutTest(gt *testing.T, checkResult func(gt *testing.T, err er
 	require.EqualValues(t, NumL2Blocks, l2SafeHead.Number.Uint64())
 
 	// Run the FPP on L2 block # NumL2Blocks/2.
-	err := env.RunFaultProofProgram(t, NumL2Blocks/2, inputParams...)
-	checkResult(gt, err)
+	env.RunFaultProofProgram(t, NumL2Blocks/2, testCfg.CheckResult, testCfg.InputParams...)
 }
 
-func Test_ProgramAction_ChannelTimeout_HonestClaim_Granite(gt *testing.T) {
-	runChannelTimeoutTest(gt, func(gt *testing.T, err error) {
-		require.NoError(gt, err, "fault proof program should have succeeded")
-	})
-}
+func Test_ProgramAction_ChannelTimeout(gt *testing.T) {
+	matrix := NewMatrix[any]()
+	defer matrix.Run(gt)
 
-func Test_ProgramAction_ChannelTimeout_JunkClaim_Granite(gt *testing.T) {
-	runChannelTimeoutTest(
-		gt,
-		func(gt *testing.T, err error) {
-			require.ErrorIs(gt, err, claim.ErrClaimNotValid, "fault proof program should have failed")
-		},
-		func(f *FixtureInputs) {
-			f.L2Claim = common.HexToHash("0xdeadbeef")
-		},
+	matrix.AddTestCase(
+		"HonestClaim",
+		nil,
+		LatestForkOnly,
+		runChannelTimeoutTest,
+		ExpectNoError(),
+	)
+	matrix.AddTestCase(
+		"JunkClaim",
+		nil,
+		LatestForkOnly,
+		runChannelTimeoutTest,
+		ExpectError(claim.ErrClaimNotValid),
+		WithL2Claim(common.HexToHash("0xdeadbeef")),
 	)
 }
