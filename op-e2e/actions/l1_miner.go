@@ -3,6 +3,7 @@ package actions
 import (
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-program/host/prefetcher"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -17,7 +18,6 @@ import (
 	"github.com/ethereum/go-ethereum/trie"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
-	"github.com/ethereum-optimism/optimism/op-program/host/sources"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -52,7 +52,7 @@ func NewL1Miner(t Testing, log log.Logger, genesis *core.Genesis) *L1Miner {
 	}
 }
 
-func (s *L1Miner) BlobStore() sources.L1BlobSource {
+func (s *L1Miner) BlobStore() prefetcher.L1BlobSource {
 	return s.blobStore
 }
 

@@ -9,7 +9,6 @@ import (
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-program/host/sources"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -78,5 +77,4 @@ func (store *BlobsStore) GetBlobSidecars(ctx context.Context, ref eth.L1BlockRef
 
 var (
 	_ derive.L1BlobsFetcher = (*BlobsStore)(nil)
-	_ sources.L1BlobSource  = (*BlobsStore)(nil)
 )

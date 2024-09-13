@@ -59,7 +59,7 @@ func runSequenceWindowExpireTest(gt *testing.T, checkResult func(gt *testing.T, 
 	require.Greater(t, l2SafeHead.Number.Uint64(), uint64(0))
 
 	// Run the FPP on one of the auto-derived blocks.
-	err := env.RunFaultProofProgram(t, gt, l2SafeHead.Number.Uint64()/2, inputParams...)
+	err := env.RunFaultProofProgram(t, l2SafeHead.Number.Uint64()/2, inputParams...)
 	checkResult(gt, err)
 }
 
