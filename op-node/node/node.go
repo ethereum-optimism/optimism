@@ -609,6 +609,10 @@ func (n *OpNode) OnUnsafeL2Payload(
 }
 
 func (n *OpNode) RequestL2Range(ctx context.Context, start, end eth.L2BlockRef) error {
+	// I don't think this is set soon enough in Stop.
+	if n.closed.Load() {
+		return errors.New("OpNode closed")
+	}
 	if n.p2pEnabled() && n.p2pNode.AltSyncEnabled() {
 		if unixTimeStale(start.Time, 12*time.Hour) {
 			n.log.Debug(
