@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 import { Script } from "forge-std/Script.sol";
+import { CommonBase } from "forge-std/Base.sol";
 
 import { LibString } from "@solady/utils/LibString.sol";
 
@@ -37,7 +38,7 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
 
 // See DeploySuperchain.s.sol for detailed comments on the script architecture used here.
-contract DeployImplementationsInput is Script {
+contract DeployImplementationsInput is CommonBase {
     uint256 internal _withdrawalDelaySeconds;
     uint256 internal _minProposalSizeBytes;
     uint256 internal _challengePeriodSeconds;
