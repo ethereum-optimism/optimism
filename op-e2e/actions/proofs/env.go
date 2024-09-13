@@ -115,7 +115,27 @@ func NewL2FaultProofEnv[c any](t actions.Testing, testCfg *TestCfg[c], tp *e2eut
 
 type FixtureInputParam func(f *FixtureInputs)
 
-func (env *L2FaultProofEnv) RunFaultProofProgram(t actions.Testing, gt *testing.T, l2ClaimBlockNum uint64, fixtureInputParams ...FixtureInputParam) error {
+type CheckResult func(actions.Testing, error)
+
+func ExpectNoError() CheckResult {
+	return func(t actions.Testing, err error) {
+		require.NoError(t, err, "fault proof program should have succeeded")
+	}
+}
+
+func ExpectError(expectedErr error) CheckResult {
+	return func(t actions.Testing, err error) {
+		require.ErrorIs(t, err, expectedErr, "fault proof program should have failed with expected error")
+	}
+}
+
+func WithL2Claim(claim common.Hash) FixtureInputParam {
+	return func(f *FixtureInputs) {
+		f.L2Claim = claim
+	}
+}
+
+func (env *L2FaultProofEnv) RunFaultProofProgram(t actions.Testing, l2ClaimBlockNum uint64, checkResult CheckResult, fixtureInputParams ...FixtureInputParam) {
 	// Fetch the pre and post output roots for the fault proof.
 	preRoot, err := env.sequencer.RollupClient().OutputAtBlock(t.Ctx(), l2ClaimBlockNum-1)
 	require.NoError(t, err)
@@ -157,7 +177,6 @@ func (env *L2FaultProofEnv) RunFaultProofProgram(t actions.Testing, gt *testing.
 	})
 	err = host.FaultProofProgram(t.Ctx(), env.log, programCfg, withInProcessPrefetcher)
 	tryDumpTestFixture(t, err, t.Name(), env, programCfg)
-	return err
 }
 
 type TestParam func(p *e2eutils.TestParams)

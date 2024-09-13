@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/actions"
 	"github.com/ethereum-optimism/optimism/op-program/client/claim"

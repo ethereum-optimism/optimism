@@ -2,7 +2,6 @@ package proofs
 
 import (
 	"fmt"
-	"sort"
 	"testing"
 )
 
