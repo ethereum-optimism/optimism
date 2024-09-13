@@ -163,7 +163,7 @@ contract OPStackManager is ISemver, Initializable {
     /// @notice Thrown when a role's address is not valid.
     error InvalidRoleAddress(string role);
 
-    /// @notice Thrown when the latest release is not set.
+    /// @notice Thrown when the latest release is not set upon initialization.
     error LatestReleaseNotSet();
 
     // -------- Methods --------
