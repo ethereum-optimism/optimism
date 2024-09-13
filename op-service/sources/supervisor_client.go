@@ -21,10 +21,29 @@ func NewSupervisorClient(client client.RPC) *SupervisorClient {
 	}
 }
 
+func (cl *SupervisorClient) AddL2RPC(
+	ctx context.Context,
+	rpc string,
+) error {
+	var result error
+	err := cl.client.CallContext(
+		ctx,
+		&result,
+		"admin_addL2RPC",
+		rpc)
+	if err != nil {
+		return fmt.Errorf("failed to Add L2 to Supervisor (rpc: %s): %w", rpc, err)
+	}
+	return result
+}
+
 func (cl *SupervisorClient) CheckBlock(ctx context.Context,
 	chainID types.ChainID, blockHash common.Hash, blockNumber uint64) (types.SafetyLevel, error) {
 	var result types.SafetyLevel
-	err := cl.client.CallContext(ctx, &result, "interop_checkBlock",
+	err := cl.client.CallContext(
+		ctx,
+		&result,
+		"supervisor_checkBlock",
 		(*hexutil.U256)(&chainID), blockHash, hexutil.Uint64(blockNumber))
 	if err != nil {
 		return types.Unsafe, fmt.Errorf("failed to check Block %s:%d (chain %s): %w", blockHash, blockNumber, chainID, err)

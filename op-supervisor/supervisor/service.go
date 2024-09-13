@@ -164,6 +164,7 @@ func (su *SupervisorService) Start(ctx context.Context) error {
 	}
 
 	su.metrics.RecordUp()
+	su.log.Info("JSON-RPC Server started", "endpoint", su.rpcServer.Endpoint())
 	return nil
 }
 
@@ -171,7 +172,7 @@ func (su *SupervisorService) Stop(ctx context.Context) error {
 	if !su.closing.CompareAndSwap(false, true) {
 		return nil // already closing
 	}
-
+	su.log.Info("Stopping JSON-RPC server")
 	var result error
 	if su.rpcServer != nil {
 		if err := su.rpcServer.Stop(); err != nil {
@@ -193,9 +194,16 @@ func (su *SupervisorService) Stop(ctx context.Context) error {
 			result = errors.Join(result, fmt.Errorf("failed to stop metrics server: %w", err))
 		}
 	}
+	su.log.Info("JSON-RPC server stopped")
 	return result
 }
 
 func (su *SupervisorService) Stopped() bool {
 	return su.closing.Load()
+}
+
+func (su *SupervisorService) RPC() string {
+	// the RPC endpoint is assumed to be HTTP
+	// TODO(#11032): make this flexible for ws if the server supports it
+	return "http://" + su.rpcServer.Endpoint()
 }

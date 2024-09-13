@@ -2,6 +2,7 @@ package tests
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"os"
@@ -12,12 +13,14 @@ import (
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/tracing"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
+	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 )
 
 func TestEVM(t *testing.T) {
@@ -222,6 +225,85 @@ func TestEVM_MMap(t *testing.T) {
 				// Check expectations
 				expected.Validate(t, state)
 				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, tracer)
+			})
+		}
+	}
+}
+
+func TestEVM_SysRead_Preimage(t *testing.T) {
+	var tracer *tracing.Hooks
+
+	preimageValue := make([]byte, 0, 8)
+	preimageValue = binary.BigEndian.AppendUint32(preimageValue, 0x12_34_56_78)
+	preimageValue = binary.BigEndian.AppendUint32(preimageValue, 0x98_76_54_32)
+
+	versions := GetMipsVersionTestCases(t)
+
+	cases := []struct {
+		name           string
+		addr           uint32
+		count          uint32
+		writeLen       uint32
+		preimageOffset uint32
+		prestateMem    uint32
+		postateMem     uint32
+		shouldPanic    bool
+	}{
+		{name: "Aligned addr, write 1 byte", addr: 0x00_00_FF_00, count: 1, writeLen: 1, preimageOffset: 8, prestateMem: 0xFF_FF_FF_FF, postateMem: 0x12_FF_FF_FF},
+		{name: "Aligned addr, write 2 byte", addr: 0x00_00_FF_00, count: 2, writeLen: 2, preimageOffset: 8, prestateMem: 0xFF_FF_FF_FF, postateMem: 0x12_34_FF_FF},
+		{name: "Aligned addr, write 3 byte", addr: 0x00_00_FF_00, count: 3, writeLen: 3, preimageOffset: 8, prestateMem: 0xFF_FF_FF_FF, postateMem: 0x12_34_56_FF},
+		{name: "Aligned addr, write 4 byte", addr: 0x00_00_FF_00, count: 4, writeLen: 4, preimageOffset: 8, prestateMem: 0xFF_FF_FF_FF, postateMem: 0x12_34_56_78},
+		{name: "1-byte misaligned addr, write 1 byte", addr: 0x00_00_FF_01, count: 1, writeLen: 1, preimageOffset: 8, prestateMem: 0xFF_FF_FF_FF, postateMem: 0xFF_12_FF_FF},
+		{name: "1-byte misaligned addr, write 2 byte", addr: 0x00_00_FF_01, count: 2, writeLen: 2, preimageOffset: 9, prestateMem: 0xFF_FF_FF_FF, postateMem: 0xFF_34_56_FF},
+		{name: "1-byte misaligned addr, write 3 byte", addr: 0x00_00_FF_01, count: 3, writeLen: 3, preimageOffset: 8, prestateMem: 0xFF_FF_FF_FF, postateMem: 0xFF_12_34_56},
+		{name: "2-byte misaligned addr, write 1 byte", addr: 0x00_00_FF_02, count: 1, writeLen: 1, preimageOffset: 8, prestateMem: 0xFF_FF_FF_FF, postateMem: 0xFF_FF_12_FF},
+		{name: "2-byte misaligned addr, write 2 byte", addr: 0x00_00_FF_02, count: 2, writeLen: 2, preimageOffset: 12, prestateMem: 0xFF_FF_FF_FF, postateMem: 0xFF_FF_98_76},
+		{name: "3-byte misaligned addr, write 1 byte", addr: 0x00_00_FF_03, count: 1, writeLen: 1, preimageOffset: 8, prestateMem: 0xFF_FF_FF_FF, postateMem: 0xFF_FF_FF_12},
+		{name: "Count of 0", addr: 0x00_00_FF_03, count: 0, writeLen: 0, preimageOffset: 8, prestateMem: 0xFF_FF_FF_FF, postateMem: 0xFF_FF_FF_FF},
+		{name: "Count greater than 4", addr: 0x00_00_FF_00, count: 15, writeLen: 4, preimageOffset: 8, prestateMem: 0xFF_FF_FF_FF, postateMem: 0x12_34_56_78},
+		{name: "Count greater than 4, unaligned", addr: 0x00_00_FF_01, count: 15, writeLen: 3, preimageOffset: 8, prestateMem: 0xFF_FF_FF_FF, postateMem: 0xFF_12_34_56},
+		{name: "Offset at last byte", addr: 0x00_00_FF_00, count: 4, writeLen: 1, preimageOffset: 15, prestateMem: 0xFF_FF_FF_FF, postateMem: 0x32_FF_FF_FF},
+		{name: "Offset just out of bounds", addr: 0x00_00_FF_00, count: 4, writeLen: 0, preimageOffset: 16, prestateMem: 0xFF_FF_FF_FF, postateMem: 0xFF_FF_FF_FF, shouldPanic: true},
+		{name: "Offset out of bounds", addr: 0x00_00_FF_00, count: 4, writeLen: 0, preimageOffset: 17, prestateMem: 0xFF_FF_FF_FF, postateMem: 0xFF_FF_FF_FF, shouldPanic: true},
+	}
+	for i, c := range cases {
+		for _, v := range versions {
+			tName := fmt.Sprintf("%v (%v)", c.name, v.Name)
+			t.Run(tName, func(t *testing.T) {
+				effAddr := 0xFFffFFfc & c.addr
+				preimageKey := preimage.Keccak256Key(crypto.Keccak256Hash(preimageValue)).PreimageKey()
+				oracle := testutil.StaticOracle(t, preimageValue)
+				goVm := v.VMFactory(oracle, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPreimageKey(preimageKey), testutil.WithPreimageOffset(c.preimageOffset))
+				state := goVm.GetState()
+				step := state.GetStep()
+
+				// Set up state
+				state.GetRegistersRef()[2] = exec.SysRead
+				state.GetRegistersRef()[4] = exec.FdPreimageRead
+				state.GetRegistersRef()[5] = c.addr
+				state.GetRegistersRef()[6] = c.count
+				state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
+				state.GetMemory().SetMemory(effAddr, c.prestateMem)
+
+				// Setup expectations
+				expected := testutil.NewExpectedState(state)
+				expected.ExpectStep()
+				expected.Registers[2] = c.writeLen
+				expected.Registers[7] = 0 // no error
+				expected.PreimageOffset += c.writeLen
+				expected.ExpectMemoryWrite(effAddr, c.postateMem)
+
+				if c.shouldPanic {
+					require.Panics(t, func() { _, _ = goVm.Step(true) })
+					testutil.AssertPreimageOracleReverts(t, preimageKey, preimageValue, c.preimageOffset, v.Contracts, tracer)
+				} else {
+					stepWitness, err := goVm.Step(true)
+					require.NoError(t, err)
+
+					// Check expectations
+					expected.Validate(t, state)
+					testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, tracer)
+				}
 			})
 		}
 	}

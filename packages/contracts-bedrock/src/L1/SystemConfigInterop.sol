@@ -52,8 +52,8 @@ contract SystemConfigInterop is SystemConfig {
         address _dependencyManager
     )
         external
-        initializer
     {
+        // This method has an initializer modifier, and will revert if already initialized.
         initialize({
             _owner: _owner,
             _basefeeScalar: _basefeeScalar,
