@@ -68,13 +68,10 @@ contract DeployAuthSystemOutput_Test is Test {
     function test_set_succeeds() public {
         address safeAddr = makeAddr("safe");
 
-        // Ensure the address has code, since it's expected to be a contract
         vm.etch(safeAddr, hex"01");
 
-        // Set the output data
         daso.set(daso.safe.selector, safeAddr);
 
-        // Compare the test data to the getter method
         assertEq(safeAddr, address(daso.safe()), "100");
     }
 
@@ -95,13 +92,11 @@ contract DeployAuthSystemOutput_Test is Test {
     function test_writeOutputFile_succeeds() public {
         string memory root = vm.projectRoot();
 
-        // Use the expected data from the test fixture.
         string memory expOutPath = string.concat(root, "/test/fixtures/test-deploy-auth-system-out.toml");
         string memory expOutToml = vm.readFile(expOutPath);
 
         address expSafe = expOutToml.readAddress(".safe");
 
-        // Etch code at each address so the code checks pass when settings values.
         vm.etch(expSafe, hex"01");
 
         daso.set(daso.safe.selector, expSafe);
@@ -110,7 +105,6 @@ contract DeployAuthSystemOutput_Test is Test {
         daso.writeOutputFile(actOutPath);
         string memory actOutToml = vm.readFile(actOutPath);
 
-        // Clean up before asserting so that we don't leave any files behind.
         vm.removeFile(actOutPath);
 
         assertEq(expOutToml, actOutToml);
@@ -142,9 +136,6 @@ contract DeployAuthSystem_Test is Test {
     }
 
     function testFuzz_run_memory_succeeds(bytes32 _seed) public {
-        // Generate random input values from the seed. This doesn't give us the benefit of the forge
-        // fuzzer's dictionary, but that's ok because we are just testing that values are set and
-        // passed correctly.
         address[] memory _owners = Solarray.addresses(
             address(uint160(uint256(hash(_seed, 0)))),
             address(uint160(uint256(hash(_seed, 1)))),
@@ -160,10 +151,8 @@ contract DeployAuthSystem_Test is Test {
         dasi.set(dasi.owners.selector, _owners);
         dasi.set(dasi.threshold.selector, threshold);
 
-        // Run the deployment script.
         deployAuthSystem.run(dasi, daso);
 
-        // Assert inputs were properly passed through to the contract initializers.
         assertNotEq(address(daso.safe()), address(0), "100");
         assertEq(daso.safe().getThreshold(), threshold, "200");
         // TODO: the getOwners() method requires iterating over the owners linked list.
@@ -187,13 +176,11 @@ contract DeployAuthSystem_Test is Test {
         string memory actOutToml = vm.readFile(outpath);
         string memory expOutToml = vm.readFile(string.concat(root, "/test/fixtures/test-deploy-auth-system-out.toml"));
 
-        // Clean up before asserting so that we don't leave any files behind.
         vm.removeFile(outpath);
         assertEq(expOutToml, actOutToml);
     }
 
     function test_run_NullInput_reverts() public {
-        // Set default values for all inputs.
         dasi.set(dasi.owners.selector, defaultOwners);
         dasi.set(dasi.threshold.selector, defaultThreshold);
 
@@ -204,7 +191,6 @@ contract DeployAuthSystem_Test is Test {
         deployAuthSystem.run(dasi, daso);
         vm.store(address(dasi), bytes32(uint256(9)), bytes32(defaultOwnersLength));
 
-        // Zero out the threshold slot
         slot = zeroOutSlotForSelector(dasi.threshold.selector);
         vm.expectRevert("DeployAuthSystemInput: threshold not set");
         deployAuthSystem.run(dasi, daso);
