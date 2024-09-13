@@ -1,8 +1,8 @@
 package proofs
 
 import (
+	"context"
 	"math/rand"
-	"testing"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
@@ -10,6 +10,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-program/host"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
+	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
+	"github.com/ethereum-optimism/optimism/op-program/host/prefetcher"
 	hostTypes "github.com/ethereum-optimism/optimism/op-program/host/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -90,7 +92,7 @@ func NewL2FaultProofEnv(t actions.Testing, tp *e2eutils.TestParams, dp *e2eutils
 
 type FixtureInputParam func(f *FixtureInputs)
 
-func (env *L2FaultProofEnv) RunFaultProofProgram(t actions.Testing, gt *testing.T, l2ClaimBlockNum uint64, fixtureInputParams ...FixtureInputParam) error {
+func (env *L2FaultProofEnv) RunFaultProofProgram(t actions.Testing, l2ClaimBlockNum uint64, fixtureInputParams ...FixtureInputParam) error {
 	// Fetch the pre and post output roots for the fault proof.
 	preRoot, err := env.sequencer.RollupClient().OutputAtBlock(t.Ctx(), l2ClaimBlockNum-1)
 	require.NoError(t, err)
@@ -116,8 +118,22 @@ func (env *L2FaultProofEnv) RunFaultProofProgram(t actions.Testing, gt *testing.
 		env,
 		fixtureInputs,
 	)
-	err = host.FaultProofProgram(t.Ctx(), env.log, programCfg)
-	tryDumpTestFixture(gt, err, t.Name(), env, programCfg)
+	withInProcessPrefetcher := host.WithPrefetcher(func(ctx context.Context, logger log.Logger, kv kvstore.KV, cfg *config.Config) (*prefetcher.Prefetcher, error) {
+		// Set up in-process L1 sources
+		l1Cl := env.miner.L1Client(t, env.sd.RollupCfg)
+		l1BlobFetcher := env.miner.BlobStore()
+
+		// Set up in-process L2 source
+		l2ClCfg := sources.L2ClientDefaultConfig(env.sd.RollupCfg, true)
+		l2RPC := env.engine.RPCClient()
+		l2Client, err := host.NewL2Client(l2RPC, env.log, nil, &host.L2ClientConfig{L2ClientConfig: l2ClCfg, L2Head: cfg.L2Head})
+		require.NoError(t, err, "failed to create L2 client")
+		l2DebugCl := &host.L2Source{L2Client: l2Client, DebugClient: sources.NewDebugClient(l2RPC.CallContext)}
+
+		return prefetcher.NewPrefetcher(logger, l1Cl, l1BlobFetcher, l2DebugCl, kv), nil
+	})
+	err = host.FaultProofProgram(t.Ctx(), env.log, programCfg, withInProcessPrefetcher)
+	tryDumpTestFixture(t, err, t.Name(), env, programCfg)
 	return err
 }
 
@@ -164,18 +180,6 @@ func NewOpProgramCfg(
 	params ...OpProgramCfgParam,
 ) *config.Config {
 	dfault := config.NewConfig(env.sd.RollupCfg, env.sd.L2Cfg.Config, fi.L1Head, fi.L2Head, fi.L2OutputRoot, fi.L2Claim, fi.L2BlockNumber)
-
-	// Set up in-process L1 sources
-	dfault.L1ProcessSource = env.miner.L1Client(t, env.sd.RollupCfg)
-	dfault.L1BeaconProcessSource = env.miner.BlobStore()
-
-	// Set up in-process L2 source
-	l2ClCfg := sources.L2ClientDefaultConfig(env.sd.RollupCfg, true)
-	l2RPC := env.engine.RPCClient()
-	l2Client, err := host.NewL2Client(l2RPC, env.log, nil, &host.L2ClientConfig{L2ClientConfig: l2ClCfg, L2Head: fi.L2Head})
-	require.NoError(t, err, "failed to create L2 client")
-	l2DebugCl := &host.L2Source{L2Client: l2Client, DebugClient: sources.NewDebugClient(l2RPC.CallContext)}
-	dfault.L2ProcessSource = l2DebugCl
 
 	if dumpFixtures {
 		dfault.DataDir = t.TempDir()
