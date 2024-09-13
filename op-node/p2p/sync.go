@@ -32,6 +32,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
+const (
+	// How many payloads to allow to be cached. They will always be preferred to stack against the
+	// top of the active request.
+	quarantineLimit = 10
+)
+
 // StreamCtxFn provides a new context to use when handling stream requests
 type StreamCtxFn func() context.Context
 
@@ -427,6 +433,7 @@ func (s *SyncClient) promotedBlock(payload *eth.ExecutionPayloadEnvelope) {
 		s.requestBlocksCond.Broadcast()
 	}
 	clear(wanted.quarantined)
+	s.requestBlocksCond.Broadcast()
 	panicif.True(wanted.finalHash.Set(payload.ExecutionPayload.BlockHash).Ok)
 	wanted.done.Set()
 	wanted.promoted = true
@@ -499,14 +506,31 @@ func (s *SyncClient) onResultUnlocked(res syncResult) {
 				s.appScorer.onRejectedPayload(res.peer)
 			}
 			// We could score the peer for sending us a block here, but maybe they stalled on
-			// purpose. Let's reward the one that answered first.
+			// purpose. Let's just reward the one that answered first.
 		}
+		return
+	}
+	if g.MapContains(wanted.quarantined, payload.BlockHash) {
+		// We already have this block, this peer was just slow. Don't score them just as we do
+		// elsewhere.
+		return
+	}
+	if !s.trimQuarantinedBelow(blockNum) {
+		// Can't fit this block there are higher priority blocks.
 		return
 	}
 	g.MakeMapIfNil(&wanted.quarantined)
 	wanted.quarantined[payload.BlockHash] = res
 	s.doPayloadsQuarantineSizeMetric()
 	s.promoterCond.Broadcast()
+}
+
+func (s *SyncClient) trimQuarantinedBelow(below blockNumber) bool {
+	count := 0
+	for bn := below; bn <= s.endBlockNumber; bn++ {
+		count += len(s.getWantedBlock(bn).quarantined)
+	}
+	return s.trimQuarantineCache(below, count-quarantineLimit+1)
 }
 
 func (s *SyncClient) doPayloadsQuarantineSizeMetric() {
@@ -608,6 +632,7 @@ func (s *syncClientPeer) requestAndHandleResult(ctx context.Context, wanted *wan
 }
 
 func (s *syncClientPeer) requestBlocks(ctx context.Context) (err error) {
+	quarantineCount := 0
 	for bn := s.endBlockNumber; bn >= s.startBlockNumber; bn-- {
 		wanted := s.getWantedBlock(bn)
 		if wanted == nil {
@@ -616,15 +641,19 @@ func (s *syncClientPeer) requestBlocks(ctx context.Context) (err error) {
 		}
 		// Don't bother to quarantine more than one block for each number.
 		if len(wanted.quarantined) != 0 {
+			quarantineCount += len(wanted.quarantined)
 			continue
 		}
 		if wanted.done.IsSet() {
 			continue
 		}
-		err = s.reserveAndRequest(ctx, wanted)
-		if err != nil {
-			return
+		if quarantineCount >= quarantineLimit {
+			if !s.trimQuarantineCache(bn, quarantineCount-quarantineLimit+1) {
+				return
+			}
 		}
+		// Our quarantine count could be invalid.
+		return s.reserveAndRequest(ctx, wanted)
 	}
 	return
 }
@@ -1106,4 +1135,18 @@ type syncClientPeer struct {
 // Returns the request state. Can be nil if the request range has been altered.
 func (s *syncClientRequestState) getWantedBlock(blockNum blockNumber) *wantedBlock {
 	return s.wanted[blockNum]
+}
+
+// Returns true if all the space required was trimmed from quarantined payloads before the given
+// block number.
+func (s *SyncClient) trimQuarantineCache(before blockNumber, spaceRequired int) bool {
+	for num := s.startBlockNumber; spaceRequired > 0 && num < before; num++ {
+		wanted := s.getWantedBlock(num)
+		for hash := range wanted.quarantined {
+			delete(wanted.quarantined, hash)
+			s.requestBlocksCond.Broadcast()
+			spaceRequired--
+		}
+	}
+	return spaceRequired <= 0
 }
