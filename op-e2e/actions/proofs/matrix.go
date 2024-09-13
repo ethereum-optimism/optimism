@@ -6,12 +6,6 @@ import (
 	"testing"
 )
 
-func init() {
-	sort.Slice(Hardforks, func(i, j int) bool {
-		return Hardforks[i].Precedence > Hardforks[j].Precedence
-	})
-}
-
 type RunTest[cfg any] func(t *testing.T, testCfg *TestCfg[cfg])
 
 type TestCfg[cfg any] struct {
@@ -97,7 +91,7 @@ var (
 )
 var Hardforks = ForkMatrix{Regolith, Canyon, Delta, Fjord, Ecotone, Granite}
 
-var LatestForkOnly = ForkMatrix{Hardforks[0]}
+var LatestForkOnly = ForkMatrix{Hardforks[len(Hardforks)-1]}
 
 func NewForkMatrix(forks ...*Hardfork) ForkMatrix {
 	return append(ForkMatrix{}, forks...)
