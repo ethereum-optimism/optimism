@@ -493,6 +493,14 @@ func (s *SyncClient) onResultUnlocked(res syncResult) {
 		return
 	}
 	if wanted.done.IsSet() {
+		// Late arrival and we know what we should have received.
+		if wanted.finalHash.Ok {
+			if res.payload.ExecutionPayload.BlockHash != wanted.finalHash.Value {
+				s.appScorer.onRejectedPayload(res.peer)
+			}
+			// We could score the peer for sending us a block here, but maybe they stalled on
+			// purpose. Let's reward the one that answered first.
+		}
 		return
 	}
 	g.MakeMapIfNil(&wanted.quarantined)
