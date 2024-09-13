@@ -118,7 +118,7 @@ func (env *L2FaultProofEnv) RunFaultProofProgram(t actions.Testing, l2ClaimBlock
 		env,
 		fixtureInputs,
 	)
-	withInProcessPrefetcher := host.WithPrefetcher(func(ctx context.Context, logger log.Logger, kv kvstore.KV, cfg *config.Config) (*prefetcher.Prefetcher, error) {
+	withInProcessPrefetcher := host.WithPrefetcher(func(ctx context.Context, logger log.Logger, kv kvstore.KV, cfg *config.Config) (host.Prefetcher, error) {
 		// Set up in-process L1 sources
 		l1Cl := env.miner.L1Client(t, env.sd.RollupCfg)
 		l1BlobFetcher := env.miner.BlobStore()

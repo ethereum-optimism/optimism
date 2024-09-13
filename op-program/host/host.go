@@ -30,16 +30,20 @@ type L2Source struct {
 	*sources.DebugClient
 }
 
-type PrefetcherCreator func(ctx context.Context, logger log.Logger, kv kvstore.KV, cfg *config.Config) (*prefetcher.Prefetcher, error)
+type Prefetcher interface {
+	Hint(hint string) error
+	GetPreimage(ctx context.Context, key common.Hash) ([]byte, error)
+}
+type PrefetcherCreator func(ctx context.Context, logger log.Logger, kv kvstore.KV, cfg *config.Config) (Prefetcher, error)
 
-type creators struct {
+type creatorsCfg struct {
 	prefetcher PrefetcherCreator
 }
 
-type ProgramOpt func(c *creators)
+type ProgramOpt func(c *creatorsCfg)
 
 func WithPrefetcher(creator PrefetcherCreator) ProgramOpt {
-	return func(c *creators) {
+	return func(c *creatorsCfg) {
 		c.prefetcher = creator
 	}
 }
@@ -69,7 +73,7 @@ func Main(logger log.Logger, cfg *config.Config) error {
 
 // FaultProofProgram is the programmatic entry-point for the fault proof program
 func FaultProofProgram(ctx context.Context, logger log.Logger, cfg *config.Config, opts ...ProgramOpt) error {
-	creators := &creators{
+	creators := &creatorsCfg{
 		prefetcher: makeDefaultPrefetcher,
 	}
 	for _, opt := range opts {
@@ -224,7 +228,7 @@ func PreimageServer(ctx context.Context, logger log.Logger, cfg *config.Config, 
 	}
 }
 
-func makeDefaultPrefetcher(ctx context.Context, logger log.Logger, kv kvstore.KV, cfg *config.Config) (*prefetcher.Prefetcher, error) {
+func makeDefaultPrefetcher(ctx context.Context, logger log.Logger, kv kvstore.KV, cfg *config.Config) (Prefetcher, error) {
 	if !cfg.FetchingEnabled() {
 		return nil, nil
 	}
