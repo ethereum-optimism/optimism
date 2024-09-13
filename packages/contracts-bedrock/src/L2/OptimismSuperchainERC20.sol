@@ -5,19 +5,10 @@ import { IOptimismSuperchainERC20Extension } from "src/L2/interfaces/IOptimismSu
 import { IL2ToL2CrossDomainMessenger } from "src/L2/interfaces/IL2ToL2CrossDomainMessenger.sol";
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { ZeroAddress } from "src/libraries/errors/CommonErrors.sol";
 import { ERC20 } from "@solady/tokens/ERC20.sol";
 import { SuperchainERC20 } from "src/L2/SuperchainERC20.sol";
 import { Initializable } from "@openzeppelin/contracts-v5/proxy/utils/Initializable.sol";
 import { ERC165 } from "@openzeppelin/contracts-v5/utils/introspection/ERC165.sol";
-
-/// @notice Thrown when attempting to relay a message and the function caller (msg.sender) is not
-/// L2ToL2CrossDomainMessenger.
-error CallerNotL2ToL2CrossDomainMessenger();
-
-/// @notice Thrown when attempting to relay a message and the cross domain message sender is not this
-/// OptimismSuperchainERC20.
-error InvalidCrossDomainSender();
 
 /// @notice Thrown when attempting to mint or burn tokens and the function caller is not the StandardBridge.
 error OnlyBridge();
