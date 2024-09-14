@@ -98,9 +98,7 @@ contract DeployAuthSystem is Script {
 
         // TODO: replace with a real deployment. The safe deployment logic is fairly complex, so for the purposes of
         // this scaffolding PR we'll just etch the code.
-        // makeAddr("safe") = 0xDC93f9959c0F9c3849461B6468B4592a19567E09
-        address safe = 0xDC93f9959c0F9c3849461B6468B4592a19567E09;
-        vm.label(safe, "Safe");
+        address safe = makeAddr("safe");
         vm.etch(safe, type(Safe).runtimeCode);
         vm.store(safe, bytes32(uint256(3)), bytes32(uint256(owners.length)));
         vm.store(safe, bytes32(uint256(4)), bytes32(uint256(threshold)));
