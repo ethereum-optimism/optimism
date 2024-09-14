@@ -10,38 +10,6 @@
         "internalType": "contract ProtocolVersions",
         "name": "_protocolVersions",
         "type": "address"
-      },
-      {
-        "components": [
-          {
-            "internalType": "address",
-            "name": "addressManager",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "proxy",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "proxyAdmin",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "l1ChugSplashProxy",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "resolvedDelegateProxy",
-            "type": "address"
-          }
-        ],
-        "internalType": "struct OPStackManager.Blueprints",
-        "name": "_blueprints",
-        "type": "tuple"
       }
     ],
     "stateMutability": "nonpayable",
@@ -272,6 +240,92 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "components": [
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "addressManager",
+                "type": "address"
+              },
+              {
+                "internalType": "address",
+                "name": "proxy",
+                "type": "address"
+              },
+              {
+                "internalType": "address",
+                "name": "proxyAdmin",
+                "type": "address"
+              },
+              {
+                "internalType": "address",
+                "name": "l1ChugSplashProxy",
+                "type": "address"
+              },
+              {
+                "internalType": "address",
+                "name": "resolvedDelegateProxy",
+                "type": "address"
+              }
+            ],
+            "internalType": "struct OPStackManager.Blueprints",
+            "name": "blueprints",
+            "type": "tuple"
+          },
+          {
+            "components": [
+              {
+                "internalType": "string",
+                "name": "name",
+                "type": "string"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "address",
+                    "name": "logic",
+                    "type": "address"
+                  },
+                  {
+                    "internalType": "bytes4",
+                    "name": "initializer",
+                    "type": "bytes4"
+                  }
+                ],
+                "internalType": "struct OPStackManager.Implementation",
+                "name": "info",
+                "type": "tuple"
+              }
+            ],
+            "internalType": "struct OPStackManager.ImplementationSetter[]",
+            "name": "setters",
+            "type": "tuple[]"
+          },
+          {
+            "internalType": "string",
+            "name": "release",
+            "type": "string"
+          },
+          {
+            "internalType": "bool",
+            "name": "isLatest",
+            "type": "bool"
+          }
+        ],
+        "internalType": "struct OPStackManager.InitializerInputs",
+        "name": "_initializerInputs",
+        "type": "tuple"
+      }
+    ],
+    "name": "initialize",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "latestRelease",
     "outputs": [
@@ -295,53 +349,6 @@
       }
     ],
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "string",
-        "name": "_release",
-        "type": "string"
-      },
-      {
-        "internalType": "bool",
-        "name": "_isLatest",
-        "type": "bool"
-      },
-      {
-        "components": [
-          {
-            "internalType": "string",
-            "name": "name",
-            "type": "string"
-          },
-          {
-            "components": [
-              {
-                "internalType": "address",
-                "name": "logic",
-                "type": "address"
-              },
-              {
-                "internalType": "bytes4",
-                "name": "initializer",
-                "type": "bytes4"
-              }
-            ],
-            "internalType": "struct OPStackManager.Implementation",
-            "name": "info",
-            "type": "tuple"
-          }
-        ],
-        "internalType": "struct OPStackManager.ImplementationSetter[]",
-        "name": "_setters",
-        "type": "tuple[]"
-      }
-    ],
-    "name": "setRelease",
-    "outputs": [],
-    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -406,6 +413,19 @@
       }
     ],
     "name": "Deployed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint8",
+        "name": "version",
+        "type": "uint8"
+      }
+    ],
+    "name": "Initialized",
     "type": "event"
   },
   {
@@ -475,6 +495,11 @@
       }
     ],
     "name": "InvalidRoleAddress",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "LatestReleaseNotSet",
     "type": "error"
   },
   {

@@ -19,6 +19,7 @@ type DeployImplementationsInput struct {
 	Release               string
 	SuperchainConfigProxy common.Address
 	ProtocolVersionsProxy common.Address
+	SuperchainProxyAdmin  common.Address
 	UseInterop            bool // if true, deploy Interop implementations
 }
 

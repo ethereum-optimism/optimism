@@ -8,14 +8,13 @@ import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { SystemConfigInterop } from "src/L1/SystemConfigInterop.sol";
 
-/// @custom:proxied TODO this is not proxied yet.
+/// @custom:proxied true
 contract OPStackManagerInterop is OPStackManager {
     constructor(
         SuperchainConfig _superchainConfig,
-        ProtocolVersions _protocolVersions,
-        Blueprints memory _blueprints
+        ProtocolVersions _protocolVersions
     )
-        OPStackManager(_superchainConfig, _protocolVersions, _blueprints)
+        OPStackManager(_superchainConfig, _protocolVersions)
     { }
 
     // The `SystemConfigInterop` contract has an extra `address _dependencyManager` argument

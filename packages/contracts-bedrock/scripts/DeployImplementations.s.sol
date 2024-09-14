@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 import { Script } from "forge-std/Script.sol";
+import { CommonBase } from "forge-std/Base.sol";
 
 import { LibString } from "@solady/utils/LibString.sol";
 
@@ -37,7 +38,7 @@ import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
 
 // See DeploySuperchain.s.sol for detailed comments on the script architecture used here.
-contract DeployImplementationsInput {
+contract DeployImplementationsInput is CommonBase {
     uint256 internal _withdrawalDelaySeconds;
     uint256 internal _minProposalSizeBytes;
     uint256 internal _challengePeriodSeconds;
@@ -130,6 +131,15 @@ contract DeployImplementationsInput {
         require(address(_protocolVersionsProxy) != address(0), "DeployImplementationsInput: not set");
         return _protocolVersionsProxy;
     }
+
+    function superchainProxyAdmin() public returns (ProxyAdmin) {
+        SuperchainConfig proxy = this.superchainConfigProxy();
+        // Can infer the superchainProxyAdmin from the superchainConfigProxy.
+        vm.prank(address(0));
+        ProxyAdmin proxyAdmin = ProxyAdmin(Proxy(payable(address(proxy))).admin());
+        require(address(proxyAdmin) != address(0), "DeployImplementationsInput: not set");
+        return proxyAdmin;
+    }
 }
 
 contract DeployImplementationsOutput {
@@ -169,7 +179,7 @@ contract DeployImplementationsOutput {
         require(false, "DeployImplementationsOutput: not implemented");
     }
 
-    function checkOutput() public view {
+    function checkOutput() public {
         address[] memory addrs = Solarray.addresses(
             address(this.opsm()),
             address(this.optimismPortalImpl()),
@@ -186,8 +196,9 @@ contract DeployImplementationsOutput {
         DeployUtils.assertValidContractAddresses(addrs);
     }
 
-    function opsm() public view returns (OPStackManager) {
+    function opsm() public returns (OPStackManager) {
         DeployUtils.assertValidContractAddress(address(_opsm));
+        DeployUtils.assertImplementationSet(address(_opsm));
         return _opsm;
     }
 
@@ -292,24 +303,34 @@ contract DeployImplementations is Script {
         });
     }
 
+    // Deploy and initialize a proxied OPStackManager.
     function createOPSMContract(
         DeployImplementationsInput _dii,
         DeployImplementationsOutput,
-        OPStackManager.Blueprints memory blueprints
+        OPStackManager.Blueprints memory blueprints,
+        string memory release,
+        OPStackManager.ImplementationSetter[] memory setters
     )
         internal
         virtual
-        returns (OPStackManager opsm_)
+        returns (OPStackManager opsmProxy_)
     {
         SuperchainConfig superchainConfigProxy = _dii.superchainConfigProxy();
         ProtocolVersions protocolVersionsProxy = _dii.protocolVersionsProxy();
+        ProxyAdmin proxyAdmin = _dii.superchainProxyAdmin();
 
-        vm.broadcast(msg.sender);
-        opsm_ = new OPStackManager({
-            _superchainConfig: superchainConfigProxy,
-            _protocolVersions: protocolVersionsProxy,
-            _blueprints: blueprints
-        });
+        vm.startBroadcast(msg.sender);
+        Proxy proxy = new Proxy(address(msg.sender));
+        OPStackManager opsm = new OPStackManager(superchainConfigProxy, protocolVersionsProxy);
+
+        OPStackManager.InitializerInputs memory initializerInputs =
+            OPStackManager.InitializerInputs(blueprints, setters, release, true);
+        proxy.upgradeToAndCall(address(opsm), abi.encodeWithSelector(opsm.initialize.selector, initializerInputs));
+
+        proxy.changeAdmin(address(proxyAdmin)); // transfer ownership of Proxy contract to the ProxyAdmin contract
+        vm.stopBroadcast();
+
+        opsmProxy_ = OPStackManager(address(proxy));
     }
 
     function deployOPStackManager(DeployImplementationsInput _dii, DeployImplementationsOutput _dio) public virtual {
@@ -328,9 +349,6 @@ contract DeployImplementations is Script {
         blueprints.resolvedDelegateProxy = deployBytecode(Blueprint.blueprintDeployerBytecode(type(ResolvedDelegateProxy).creationCode), salt);
         vm.stopBroadcast();
         // forgefmt: disable-end
-
-        // This call contains a broadcast to deploy OPSM.
-        OPStackManager opsm = createOPSMContract(_dii, _dio, blueprints);
 
         OPStackManager.ImplementationSetter[] memory setters = new OPStackManager.ImplementationSetter[](6);
         setters[0] = OPStackManager.ImplementationSetter({
@@ -359,8 +377,8 @@ contract DeployImplementations is Script {
             info: OPStackManager.Implementation(address(_dio.l1StandardBridgeImpl()), L1StandardBridge.initialize.selector)
         });
 
-        vm.broadcast(msg.sender);
-        opsm.setRelease({ _release: release, _isLatest: true, _setters: setters });
+        // This call contains a broadcast to deploy OPSM which is proxied.
+        OPStackManager opsm = createOPSMContract(_dii, _dio, blueprints, release, setters);
 
         vm.label(address(opsm), "OPStackManager");
         _dio.set(_dio.opsm.selector, address(opsm));
@@ -571,21 +589,30 @@ contract DeployImplementationsInterop is DeployImplementations {
     function createOPSMContract(
         DeployImplementationsInput _dii,
         DeployImplementationsOutput,
-        OPStackManager.Blueprints memory blueprints
+        OPStackManager.Blueprints memory blueprints,
+        string memory release,
+        OPStackManager.ImplementationSetter[] memory setters
     )
         internal
         override
-        returns (OPStackManager opsm_)
+        returns (OPStackManager opsmProxy_)
     {
         SuperchainConfig superchainConfigProxy = _dii.superchainConfigProxy();
         ProtocolVersions protocolVersionsProxy = _dii.protocolVersionsProxy();
+        ProxyAdmin proxyAdmin = _dii.superchainProxyAdmin();
 
-        vm.broadcast(msg.sender);
-        opsm_ = new OPStackManagerInterop({
-            _superchainConfig: superchainConfigProxy,
-            _protocolVersions: protocolVersionsProxy,
-            _blueprints: blueprints
-        });
+        vm.startBroadcast(msg.sender);
+        Proxy proxy = new Proxy(address(msg.sender));
+        OPStackManager opsm = new OPStackManagerInterop(superchainConfigProxy, protocolVersionsProxy);
+
+        OPStackManager.InitializerInputs memory initializerInputs =
+            OPStackManager.InitializerInputs(blueprints, setters, release, true);
+        proxy.upgradeToAndCall(address(opsm), abi.encodeWithSelector(opsm.initialize.selector, initializerInputs));
+
+        proxy.changeAdmin(address(proxyAdmin)); // transfer ownership of Proxy contract to the ProxyAdmin contract
+        vm.stopBroadcast();
+
+        opsmProxy_ = OPStackManagerInterop(address(proxy));
     }
 
     function deployOptimismPortalImpl(

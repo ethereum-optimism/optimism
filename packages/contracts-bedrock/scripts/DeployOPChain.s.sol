@@ -115,6 +115,7 @@ contract DeployOPChainInput {
         return _l2ChainId;
     }
 
+    // TODO: Check that opsm is proxied and it has an implementation.
     function opsm() public view returns (OPStackManager) {
         require(address(_opsm) != address(0), "DeployOPChainInput: not set");
         return _opsm;

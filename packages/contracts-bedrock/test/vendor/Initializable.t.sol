@@ -400,7 +400,7 @@ contract Initializer_Test is Bridge_Initializer {
     ///         3. The `initialize()` function of each contract cannot be called again.
     function test_cannotReinitialize_succeeds() public {
         // Collect exclusions.
-        string[] memory excludes = new string[](6);
+        string[] memory excludes = new string[](8);
         // TODO: Neither of these contracts are labeled properly in the deployment script. Both are
         //       currently being labeled as their non-interop versions. Remove these exclusions once
         //       the deployment script is fixed.
@@ -416,6 +416,9 @@ contract Initializer_Test is Bridge_Initializer {
         //       don't work properly. Remove these exclusions once the deployment script is fixed.
         excludes[4] = "src/dispute/FaultDisputeGame.sol";
         excludes[5] = "src/dispute/PermissionedDisputeGame.sol";
+        // TODO: Eventually remove this exclusion. Same reason as above dispute contracts.
+        excludes[6] = "src/L1/OPStackManager.sol";
+        excludes[7] = "src/L1/OPStackManagerInterop.sol";
 
         // Get all contract names in the src directory, minus the excluded contracts.
         string[] memory contractNames = ForgeArtifacts.getContractNames("src/*", excludes);

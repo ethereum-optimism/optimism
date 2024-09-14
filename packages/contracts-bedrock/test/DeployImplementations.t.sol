@@ -17,6 +17,8 @@ import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
+import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
+import { Proxy } from "src/universal/Proxy.sol";
 
 import {
     DeployImplementationsInput,
@@ -89,7 +91,12 @@ contract DeployImplementationsOutput_Test is Test {
     }
 
     function test_set_succeeds() public {
-        OPStackManager opsm = OPStackManager(makeAddr("opsm"));
+        Proxy opsmProxy = new Proxy(address(0));
+        address opsmImpl = address(makeAddr("opsm"));
+        vm.prank(address(0));
+        opsmProxy.upgradeTo(opsmImpl);
+
+        OPStackManager opsm = OPStackManager(address(opsmProxy));
         OptimismPortal2 optimismPortalImpl = OptimismPortal2(payable(makeAddr("optimismPortalImpl")));
         DelayedWETH delayedWETHImpl = DelayedWETH(payable(makeAddr("delayedWETHImpl")));
         PreimageOracle preimageOracleSingleton = PreimageOracle(makeAddr("preimageOracleSingleton"));
@@ -103,7 +110,8 @@ contract DeployImplementationsOutput_Test is Test {
             OptimismMintableERC20Factory(makeAddr("optimismMintableERC20FactoryImpl"));
         DisputeGameFactory disputeGameFactoryImpl = DisputeGameFactory(makeAddr("disputeGameFactoryImpl"));
 
-        vm.etch(address(opsm), hex"01");
+        vm.etch(address(opsmProxy), address(opsmProxy).code);
+        vm.etch(address(opsmImpl), hex"01");
         vm.etch(address(optimismPortalImpl), hex"01");
         vm.etch(address(delayedWETHImpl), hex"01");
         vm.etch(address(preimageOracleSingleton), hex"01");
@@ -255,8 +263,19 @@ contract DeployImplementations_Test is Test {
         proofMaturityDelaySeconds = uint256(hash(_seed, 3));
         disputeGameFinalityDelaySeconds = uint256(hash(_seed, 4));
         release = string(bytes.concat(hash(_seed, 5)));
-        superchainConfigProxy = SuperchainConfig(address(uint160(uint256(hash(_seed, 6)))));
         protocolVersionsProxy = ProtocolVersions(address(uint160(uint256(hash(_seed, 7)))));
+
+        // Must configure the ProxyAdmin contract which is used to upgrade the OPSM's proxy contract.
+        ProxyAdmin superchainProxyAdmin = new ProxyAdmin(msg.sender);
+        superchainConfigProxy = SuperchainConfig(address(new Proxy(payable(address(superchainProxyAdmin)))));
+
+        SuperchainConfig superchainConfigImpl = SuperchainConfig(address(uint160(uint256(hash(_seed, 6)))));
+        vm.prank(address(superchainProxyAdmin));
+        Proxy(payable(address(superchainConfigProxy))).upgradeTo(address(superchainConfigImpl));
+
+        vm.etch(address(superchainProxyAdmin), address(superchainProxyAdmin).code);
+        vm.etch(address(superchainConfigProxy), address(superchainConfigProxy).code);
+        vm.etch(address(protocolVersionsProxy), hex"01");
 
         dii.set(dii.withdrawalDelaySeconds.selector, withdrawalDelaySeconds);
         dii.set(dii.minProposalSizeBytes.selector, minProposalSizeBytes);
