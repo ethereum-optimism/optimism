@@ -168,6 +168,7 @@ func deploySuperchainToL1(l1Host *script.Host, superCfg *SuperchainConfig) (*Sup
 		Release:                         superCfg.Implementations.Release,
 		SuperchainConfigProxy:           superDeployment.SuperchainConfigProxy,
 		ProtocolVersionsProxy:           superDeployment.ProtocolVersionsProxy,
+		SuperchainProxyAdmin:            superDeployment.SuperchainProxyAdmin,
 		UseInterop:                      superCfg.Implementations.UseInterop,
 	})
 	if err != nil {
