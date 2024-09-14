@@ -1,4 +1,4 @@
-package deployers
+package opsm
 
 import (
 	"fmt"
@@ -35,6 +35,7 @@ type DeployOPChainOutput struct {
 	OptimismMintableERC20FactoryProxy common.Address
 	L1StandardBridgeProxy             common.Address
 	L1CrossDomainMessengerProxy       common.Address
+
 	// Fault proof contracts below.
 	OptimismPortalProxy                common.Address
 	DisputeGameFactoryProxy            common.Address
@@ -55,33 +56,33 @@ type DeployOPChainScript struct {
 	Run func(input, output common.Address) error
 }
 
-func DeployOPChain(l1Host *script.Host, input *DeployOPChainInput) (*DeployOPChainOutput, error) {
-	output := &DeployOPChainOutput{}
-	inputAddr := l1Host.NewScriptAddress()
-	outputAddr := l1Host.NewScriptAddress()
+func DeployOPChain(host *script.Host, input DeployOPChainInput) (DeployOPChainOutput, error) {
+	var dco DeployOPChainOutput
+	inputAddr := host.NewScriptAddress()
+	outputAddr := host.NewScriptAddress()
 
-	cleanupInput, err := script.WithPrecompileAtAddress[*DeployOPChainInput](l1Host, inputAddr, input)
+	cleanupInput, err := script.WithPrecompileAtAddress[*DeployOPChainInput](host, inputAddr, &input)
 	if err != nil {
-		return nil, fmt.Errorf("failed to insert DeployOPChainInput precompile: %w", err)
+		return dco, fmt.Errorf("failed to insert DeployOPChainInput precompile: %w", err)
 	}
 	defer cleanupInput()
 
-	cleanupOutput, err := script.WithPrecompileAtAddress[*DeployOPChainOutput](l1Host, outputAddr, output,
+	cleanupOutput, err := script.WithPrecompileAtAddress[*DeployOPChainOutput](host, outputAddr, &dco,
 		script.WithFieldSetter[*DeployOPChainOutput])
 	if err != nil {
-		return nil, fmt.Errorf("failed to insert DeployOPChainOutput precompile: %w", err)
+		return dco, fmt.Errorf("failed to insert DeployOPChainOutput precompile: %w", err)
 	}
 	defer cleanupOutput()
 
-	deployScript, cleanupDeploy, err := script.WithScript[DeployOPChainScript](l1Host, "DeployOPChain.s.sol", "DeployOPChain")
+	deployScript, cleanupDeploy, err := script.WithScript[DeployOPChainScript](host, "DeployOPChain.s.sol", "DeployOPChain")
 	if err != nil {
-		return nil, fmt.Errorf("failed to load DeployOPChain script: %w", err)
+		return dco, fmt.Errorf("failed to load DeployOPChain script: %w", err)
 	}
 	defer cleanupDeploy()
 
 	if err := deployScript.Run(inputAddr, outputAddr); err != nil {
-		return nil, fmt.Errorf("failed to run DeployOPChain script: %w", err)
+		return dco, fmt.Errorf("failed to run DeployOPChain script: %w", err)
 	}
 
-	return output, nil
+	return dco, nil
 }

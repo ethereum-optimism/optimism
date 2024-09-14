@@ -33,6 +33,7 @@ import { OptimismPortalInterop } from "src/L1/OptimismPortalInterop.sol";
 import { SystemConfigInterop } from "src/L1/SystemConfigInterop.sol";
 
 import { Blueprint } from "src/libraries/Blueprint.sol";
+import { Config } from "scripts/libraries/Config.sol";
 
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
@@ -338,7 +339,7 @@ contract DeployImplementations is Script {
 
         // First we deploy the blueprints for the singletons deployed by OPSM.
         // forgefmt: disable-start
-        bytes32 salt = bytes32(0);
+        bytes32 salt = keccak256(bytes(Config.implSalt()));
         OPStackManager.Blueprints memory blueprints;
 
         vm.startBroadcast(msg.sender);

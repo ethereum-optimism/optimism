@@ -1,4 +1,4 @@
-package deployers
+package opsm
 
 import (
 	"fmt"
@@ -19,8 +19,9 @@ type DeployImplementationsInput struct {
 	Release               string
 	SuperchainConfigProxy common.Address
 	ProtocolVersionsProxy common.Address
-	SuperchainProxyAdmin  common.Address
 	UseInterop            bool // if true, deploy Interop implementations
+
+	SuperchainProxyAdmin common.Address
 }
 
 func (input *DeployImplementationsInput) InputSet() bool {
@@ -49,21 +50,24 @@ type DeployImplementationsScript struct {
 	Run func(input, output common.Address) error
 }
 
-func DeployImplementations(l1Host *script.Host, input *DeployImplementationsInput) (*DeployImplementationsOutput, error) {
-	output := &DeployImplementationsOutput{}
-	inputAddr := l1Host.NewScriptAddress()
-	outputAddr := l1Host.NewScriptAddress()
+func DeployImplementations(
+	host *script.Host,
+	input DeployImplementationsInput,
+) (DeployImplementationsOutput, error) {
+	var output DeployImplementationsOutput
+	inputAddr := host.NewScriptAddress()
+	outputAddr := host.NewScriptAddress()
 
-	cleanupInput, err := script.WithPrecompileAtAddress[*DeployImplementationsInput](l1Host, inputAddr, input)
+	cleanupInput, err := script.WithPrecompileAtAddress[*DeployImplementationsInput](host, inputAddr, &input)
 	if err != nil {
-		return nil, fmt.Errorf("failed to insert DeployImplementationsInput precompile: %w", err)
+		return output, fmt.Errorf("failed to insert DeployImplementationsInput precompile: %w", err)
 	}
 	defer cleanupInput()
 
-	cleanupOutput, err := script.WithPrecompileAtAddress[*DeployImplementationsOutput](l1Host, outputAddr, output,
+	cleanupOutput, err := script.WithPrecompileAtAddress[*DeployImplementationsOutput](host, outputAddr, &output,
 		script.WithFieldSetter[*DeployImplementationsOutput])
 	if err != nil {
-		return nil, fmt.Errorf("failed to insert DeployImplementationsOutput precompile: %w", err)
+		return output, fmt.Errorf("failed to insert DeployImplementationsOutput precompile: %w", err)
 	}
 	defer cleanupOutput()
 
@@ -71,9 +75,9 @@ func DeployImplementations(l1Host *script.Host, input *DeployImplementationsInpu
 	if input.UseInterop {
 		implContract = "DeployImplementationsInterop"
 	}
-	deployScript, cleanupDeploy, err := script.WithScript[DeployImplementationsScript](l1Host, "DeployImplementations.s.sol", implContract)
+	deployScript, cleanupDeploy, err := script.WithScript[DeployImplementationsScript](host, "DeployImplementations.s.sol", implContract)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load %s script: %w", implContract, err)
+		return output, fmt.Errorf("failed to load %s script: %w", implContract, err)
 	}
 	defer cleanupDeploy()
 
@@ -81,8 +85,8 @@ func DeployImplementations(l1Host *script.Host, input *DeployImplementationsInpu
 	if input.UseInterop {
 		opsmContract = "OPStackManagerInterop"
 	}
-	if err := l1Host.RememberOnLabel("OPStackManager", opsmContract+".sol", opsmContract); err != nil {
-		return nil, fmt.Errorf("failed to link OPStackManager label: %w", err)
+	if err := host.RememberOnLabel("OPStackManager", opsmContract+".sol", opsmContract); err != nil {
+		return output, fmt.Errorf("failed to link OPStackManager label: %w", err)
 	}
 
 	// So we can see in detail where the SystemConfig interop initializer fails
@@ -90,12 +94,12 @@ func DeployImplementations(l1Host *script.Host, input *DeployImplementationsInpu
 	if input.UseInterop {
 		sysConfig = "SystemConfigInterop"
 	}
-	if err := l1Host.RememberOnLabel("SystemConfigImpl", sysConfig+".sol", sysConfig); err != nil {
-		return nil, fmt.Errorf("failed to link SystemConfig label: %w", err)
+	if err := host.RememberOnLabel("SystemConfigImpl", sysConfig+".sol", sysConfig); err != nil {
+		return output, fmt.Errorf("failed to link SystemConfig label: %w", err)
 	}
 
 	if err := deployScript.Run(inputAddr, outputAddr); err != nil {
-		return nil, fmt.Errorf("failed to run %s script: %w", implContract, err)
+		return output, fmt.Errorf("failed to run %s script: %w", implContract, err)
 	}
 
 	return output, nil

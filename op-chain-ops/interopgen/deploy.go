@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opsm"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -147,7 +149,7 @@ func prepareInitialL1(l1Host *script.Host, cfg *L1Config) (*L1Deployment, error)
 func deploySuperchainToL1(l1Host *script.Host, superCfg *SuperchainConfig) (*SuperchainDeployment, error) {
 	l1Host.SetTxOrigin(superCfg.Deployer)
 
-	superDeployment, err := deployers.DeploySuperchain(l1Host, &deployers.DeploySuperchainInput{
+	superDeployment, err := opsm.DeploySuperchain(l1Host, opsm.DeploySuperchainInput{
 		ProxyAdminOwner:            superCfg.ProxyAdminOwner,
 		ProtocolVersionsOwner:      superCfg.ProtocolVersionsOwner,
 		Guardian:                   superCfg.SuperchainConfigGuardian,
@@ -159,7 +161,7 @@ func deploySuperchainToL1(l1Host *script.Host, superCfg *SuperchainConfig) (*Sup
 		return nil, fmt.Errorf("failed to deploy Superchain contracts: %w", err)
 	}
 
-	implementationsDeployment, err := deployers.DeployImplementations(l1Host, &deployers.DeployImplementationsInput{
+	implementationsDeployment, err := opsm.DeployImplementations(l1Host, opsm.DeployImplementationsInput{
 		WithdrawalDelaySeconds:          superCfg.Implementations.FaultProof.WithdrawalDelaySeconds,
 		MinProposalSizeBytes:            superCfg.Implementations.FaultProof.MinProposalSizeBytes,
 		ChallengePeriodSeconds:          superCfg.Implementations.FaultProof.ChallengePeriodSeconds,
@@ -178,7 +180,7 @@ func deploySuperchainToL1(l1Host *script.Host, superCfg *SuperchainConfig) (*Sup
 	// Collect deployment addresses
 	// This could all be automatic once we have better output-contract typing/scripting
 	return &SuperchainDeployment{
-		Implementations:       Implementations(*implementationsDeployment),
+		Implementations:       Implementations(implementationsDeployment),
 		ProxyAdmin:            superDeployment.SuperchainProxyAdmin,
 		ProtocolVersions:      superDeployment.ProtocolVersionsImpl,
 		ProtocolVersionsProxy: superDeployment.ProtocolVersionsProxy,
@@ -194,7 +196,7 @@ func deployL2ToL1(l1Host *script.Host, superCfg *SuperchainConfig, superDeployme
 
 	l1Host.SetTxOrigin(cfg.Deployer)
 
-	output, err := deployers.DeployOPChain(l1Host, &deployers.DeployOPChainInput{
+	output, err := opsm.DeployOPChain(l1Host, opsm.DeployOPChainInput{
 		OpChainProxyAdminOwner: cfg.ProxyAdminOwner,
 		SystemConfigOwner:      cfg.SystemConfigOwner,
 		Batcher:                cfg.BatchSenderAddress,
@@ -212,7 +214,7 @@ func deployL2ToL1(l1Host *script.Host, superCfg *SuperchainConfig, superDeployme
 
 	// Collect deployment addresses
 	return &L2Deployment{
-		L2OpchainDeployment: L2OpchainDeployment(*output),
+		L2OpchainDeployment: L2OpchainDeployment(output),
 	}, nil
 }
 
