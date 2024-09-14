@@ -105,6 +105,10 @@ type Host struct {
 	// and prepare the ephemeral tx context again,
 	// to make gas accounting of a broadcast sub-call more accurate.
 	isolateBroadcasts bool
+
+	// useCreate2Deployer uses the Create2Deployer for broadcasted
+	// create2 calls.
+	useCreate2Deployer bool
 }
 
 type HostOption func(h *Host)
@@ -129,6 +133,16 @@ func WithBroadcastHook(hook BroadcastHook) HostOption {
 func WithIsolatedBroadcasts() HostOption {
 	return func(h *Host) {
 		h.isolateBroadcasts = true
+	}
+}
+
+// WithCreate2Deployer proxies each CREATE2 call through the CREATE2 deployer
+// contract located at 0x4e59b44847b379578588920cA78FbF26c0B4956C. This is the Arachnid
+// Create2Deployer contract Forge uses. See https://github.com/Arachnid/deterministic-deployment-proxy
+// for the implementation.
+func WithCreate2Deployer() HostOption {
+	return func(h *Host) {
+		h.useCreate2Deployer = true
 	}
 }
 
