@@ -54,6 +54,13 @@ func (h *Host) handleCaller(caller vm.ContractRef) vm.ContractRef {
 	if len(h.callStack) > 0 {
 		parentCallFrame := h.callStack[len(h.callStack)-1]
 		if parentCallFrame.Prank != nil && caller.Address() != VMAddr { // pranks do not apply to the cheatcode precompile
+			if parentCallFrame.Prank.Broadcast && parentCallFrame.LastOp == vm.CREATE2 && h.useCreate2Deployer {
+				return &prankRef{
+					prank: DeterministicDeployerAddress,
+					ref:   caller,
+				}
+			}
+
 			if parentCallFrame.Prank.Sender != nil {
 				return &prankRef{
 					prank: *parentCallFrame.Prank.Sender,
