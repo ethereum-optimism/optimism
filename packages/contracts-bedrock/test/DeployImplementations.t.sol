@@ -80,6 +80,30 @@ contract DeployImplementationsInput_Test is Test {
 
         vm.expectRevert("DeployImplementationsInput: not set");
         dii.protocolVersionsProxy();
+
+        vm.expectRevert("DeployImplementationsInput: not set");
+        dii.superchainProxyAdmin();
+    }
+
+    function test_superchainProxyAdmin_whenNotSet_reverts() public {
+        vm.expectRevert("DeployImplementationsInput: not set");
+        dii.superchainProxyAdmin();
+
+        dii.set(dii.superchainConfigProxy.selector, address(superchainConfigProxy));
+        vm.expectRevert();
+        dii.superchainProxyAdmin();
+
+        Proxy noAdminProxy = new Proxy(address(0));
+        dii.set(dii.superchainConfigProxy.selector, address(noAdminProxy));
+        vm.expectRevert("DeployImplementationsInput: not set");
+        dii.superchainProxyAdmin();
+    }
+
+    function test_superchainProxyAdmin_succeeds() public {
+        Proxy proxyWithAdminSet = new Proxy(msg.sender);
+        dii.set(dii.superchainConfigProxy.selector, address(proxyWithAdminSet));
+        ProxyAdmin proxyAdmin = dii.superchainProxyAdmin();
+        assertEq(address(msg.sender), address(proxyAdmin), "100");
     }
 }
 
@@ -297,6 +321,7 @@ contract DeployImplementations_Test is Test {
         assertEq(release, dii.release(), "525");
         assertEq(address(superchainConfigProxy), address(dii.superchainConfigProxy()), "550");
         assertEq(address(protocolVersionsProxy), address(dii.protocolVersionsProxy()), "575");
+        assertEq(address(superchainProxyAdmin), address(dii.superchainProxyAdmin()), "580");
 
         // Architecture assertions.
         assertEq(address(dio.mipsSingleton().oracle()), address(dio.preimageOracleSingleton()), "600");
