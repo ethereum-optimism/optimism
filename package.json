@@ -2,5 +2,8 @@
   "name": "optimism",
   "version": "1.0.0",
   "author": "Optimism PBC",
-  "license": "MIT"
+  "license": "MIT",
+  "scripts": {
+    "preinstall": "echo 'here I am'"
+  }
 }
