@@ -85,7 +85,7 @@ contract DeployImplementationsInput_Test is Test {
         dii.superchainProxyAdmin();
     }
 
-    function test_inferringSuperchainProxyAdmin_revert() public {
+    function test_superchainProxyAdmin_whenNotSet_reverts() public {
         vm.expectRevert("DeployImplementationsInput: not set");
         dii.superchainProxyAdmin();
 
@@ -99,7 +99,7 @@ contract DeployImplementationsInput_Test is Test {
         dii.superchainProxyAdmin();
     }
 
-    function test_inferringSuperchainProxyAdmin_succeeds() public {
+    function test_superchainProxyAdmin_succeeds() public {
         Proxy proxyWithAdminSet = new Proxy(msg.sender);
         dii.set(dii.superchainConfigProxy.selector, address(proxyWithAdminSet));
         ProxyAdmin proxyAdmin = dii.superchainProxyAdmin();
