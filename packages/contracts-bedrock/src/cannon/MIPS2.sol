@@ -497,6 +497,7 @@ contract MIPS2 is ISemver {
                     // Recompute the new root after updating effAddr
                     state.memRoot =
                         MIPSMemory.writeMem(effAddr, MIPSMemory.memoryProofOffset(MEM_PROOF_OFFSET, 1), secs);
+                    handleMemoryUpdate(state, effAddr);
                     // Verify the second memory proof against the newly computed root
                     if (
                         !MIPSMemory.isValidProof(
@@ -507,6 +508,7 @@ contract MIPS2 is ISemver {
                     }
                     state.memRoot =
                         MIPSMemory.writeMem(effAddr + 4, MIPSMemory.memoryProofOffset(MEM_PROOF_OFFSET, 2), nsecs);
+                    handleMemoryUpdate(state, effAddr + 4);
                 } else {
                     v0 = sys.SYS_ERROR_SIGNAL;
                     v1 = sys.EINVAL;

@@ -967,6 +967,25 @@ func TestEVM_SysClockGettimeRealtime(t *testing.T) {
 func testEVM_SysClockGettime(t *testing.T, clkid uint32) {
 	var tracer *tracing.Hooks
 
+	llVariations := []struct {
+		name                   string
+		llReservationActive    bool
+		matchThreadId          bool
+		matchEffAddr           bool
+		matchEffAddr2          bool
+		shouldClearReservation bool
+	}{
+		{name: "matching reservation", llReservationActive: true, matchThreadId: true, matchEffAddr: true, shouldClearReservation: true},
+		{name: "matching reservation, 2nd word", llReservationActive: true, matchThreadId: true, matchEffAddr2: true, shouldClearReservation: true},
+		{name: "matching reservation, diff thread", llReservationActive: true, matchThreadId: false, matchEffAddr: true, shouldClearReservation: true},
+		{name: "matching reservation, diff thread, 2nd word", llReservationActive: true, matchThreadId: false, matchEffAddr2: true, shouldClearReservation: true},
+		{name: "mismatched reservation", llReservationActive: true, matchThreadId: true, matchEffAddr: false, shouldClearReservation: false},
+		{name: "mismatched reservation, diff thread", llReservationActive: true, matchThreadId: false, matchEffAddr: false, shouldClearReservation: false},
+		{name: "no reservation, matching addr", llReservationActive: false, matchThreadId: true, matchEffAddr: true, shouldClearReservation: true},
+		{name: "no reservation, matching addr2", llReservationActive: false, matchThreadId: true, matchEffAddr2: true, shouldClearReservation: true},
+		{name: "no reservation, mismatched addr", llReservationActive: false, matchThreadId: true, matchEffAddr: false, shouldClearReservation: false},
+	}
+
 	cases := []struct {
 		name         string
 		timespecAddr uint32
@@ -974,39 +993,67 @@ func testEVM_SysClockGettime(t *testing.T, clkid uint32) {
 		{"aligned timespec address", 0x1000},
 		{"unaligned timespec address", 0x1003},
 	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			goVm, state, contracts := setup(t, 2101, nil)
+	for i, c := range cases {
+		for _, v := range llVariations {
+			tName := fmt.Sprintf("%v (%v)", c.name, v.name)
+			t.Run(tName, func(t *testing.T) {
+				goVm, state, contracts := setup(t, 2101, nil)
+				mttestutil.InitializeSingleThread(2101+i, state, i%2 == 1)
+				effAddr := c.timespecAddr & 0xFFffFFfc
+				effAddr2 := effAddr + 4
+				step := state.Step
 
-			state.Memory.SetMemory(state.GetPC(), syscallInsn)
-			state.GetRegistersRef()[2] = exec.SysClockGetTime // Set syscall number
-			state.GetRegistersRef()[4] = clkid                // a0
-			state.GetRegistersRef()[5] = c.timespecAddr       // a1
-			step := state.Step
+				// Define LL-related params
+				var llAddress, llOwnerThread uint32
+				if v.matchEffAddr {
+					llAddress = effAddr
+				} else if v.matchEffAddr2 {
+					llAddress = effAddr2
+				} else {
+					llAddress = effAddr2 + 8
+				}
+				if v.matchThreadId {
+					llOwnerThread = state.GetCurrentThread().ThreadId
+				} else {
+					llOwnerThread = state.GetCurrentThread().ThreadId + 1
+				}
 
-			expected := mttestutil.NewExpectedMTState(state)
-			expected.ExpectStep()
-			expected.ActiveThread().Registers[2] = 0
-			expected.ActiveThread().Registers[7] = 0
-			next := state.Step + 1
-			var secs, nsecs uint32
-			if clkid == exec.ClockGettimeMonotonicFlag {
-				secs = uint32(next / exec.HZ)
-				nsecs = uint32((next % exec.HZ) * (1_000_000_000 / exec.HZ))
-			}
-			effAddr := c.timespecAddr & 0xFFffFFfc
-			expected.ExpectMemoryWrite(effAddr, secs)
-			expected.ExpectMemoryWrite(effAddr+4, nsecs)
+				state.Memory.SetMemory(state.GetPC(), syscallInsn)
+				state.GetRegistersRef()[2] = exec.SysClockGetTime // Set syscall number
+				state.GetRegistersRef()[4] = clkid                // a0
+				state.GetRegistersRef()[5] = c.timespecAddr       // a1
+				state.LLReservationActive = v.llReservationActive
+				state.LLAddress = llAddress
+				state.LLOwnerThread = llOwnerThread
 
-			var err error
-			var stepWitness *mipsevm.StepWitness
-			stepWitness, err = goVm.Step(true)
-			require.NoError(t, err)
+				expected := mttestutil.NewExpectedMTState(state)
+				expected.ExpectStep()
+				expected.ActiveThread().Registers[2] = 0
+				expected.ActiveThread().Registers[7] = 0
+				next := state.Step + 1
+				var secs, nsecs uint32
+				if clkid == exec.ClockGettimeMonotonicFlag {
+					secs = uint32(next / exec.HZ)
+					nsecs = uint32((next % exec.HZ) * (1_000_000_000 / exec.HZ))
+				}
+				expected.ExpectMemoryWrite(effAddr, secs)
+				expected.ExpectMemoryWrite(effAddr2, nsecs)
+				if v.shouldClearReservation {
+					expected.LLReservationActive = false
+					expected.LLAddress = 0
+					expected.LLOwnerThread = 0
+				}
 
-			// Validate post-state
-			expected.Validate(t, state)
-			testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), contracts, tracer)
-		})
+				var err error
+				var stepWitness *mipsevm.StepWitness
+				stepWitness, err = goVm.Step(true)
+				require.NoError(t, err)
+
+				// Validate post-state
+				expected.Validate(t, state)
+				testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), contracts, tracer)
+			})
+		}
 	}
 }
 

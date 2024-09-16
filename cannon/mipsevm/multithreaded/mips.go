@@ -163,8 +163,10 @@ func (m *InstrumentedState) handleSyscall() error {
 			effAddr := a1 & 0xFFffFFfc
 			m.memoryTracker.TrackMemAccess(effAddr)
 			m.state.Memory.SetMemory(effAddr, secs)
+			m.handleMemoryUpdate(effAddr)
 			m.memoryTracker.TrackMemAccess2(effAddr + 4)
 			m.state.Memory.SetMemory(effAddr+4, nsecs)
+			m.handleMemoryUpdate(effAddr + 4)
 		default:
 			v0 = exec.SysErrorSignal
 			v1 = exec.MipsEINVAL
