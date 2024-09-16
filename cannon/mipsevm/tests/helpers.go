@@ -43,7 +43,7 @@ func singleThreadElfVmFactory(t require.TestingT, elfFile string, po mipsevm.Pre
 	return fpvm
 }
 
-func multiThreadElfVmFactory(t require.TestingT, elfFile string, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger) mipsevm.FPVM {
+func MultiThreadElfVmFactory(t require.TestingT, elfFile string, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger) mipsevm.FPVM {
 	state, meta := testutil.LoadELFProgram(t, elfFile, multithreaded.CreateInitialState, false)
 	fpvm := multithreaded.NewInstrumentedState(state, po, stdOut, stdErr, log, meta)
 	require.NoError(t, fpvm.InitDebug())
@@ -74,7 +74,7 @@ func GetMultiThreadedTestCase(t require.TestingT) VersionedVMTestCase {
 		Contracts:    testutil.TestContractsSetup(t, testutil.MipsMultithreaded),
 		StateHashFn:  multithreaded.GetStateHashFn(),
 		VMFactory:    multiThreadedVmFactory,
-		ElfVMFactory: multiThreadElfVmFactory,
+		ElfVMFactory: MultiThreadElfVmFactory,
 	}
 }
 
