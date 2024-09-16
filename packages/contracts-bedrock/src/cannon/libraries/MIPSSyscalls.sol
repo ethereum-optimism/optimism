@@ -202,13 +202,22 @@ library MIPSSyscalls {
     function handleSysRead(SysReadParams memory _args)
         internal
         view
-        returns (uint32 v0_, uint32 v1_, uint32 newPreimageOffset_, bytes32 newMemRoot_)
+        returns (
+            uint32 v0_,
+            uint32 v1_,
+            uint32 newPreimageOffset_,
+            bytes32 newMemRoot_,
+            bool memUpdated_,
+            uint32 memAddr_
+        )
     {
         unchecked {
             v0_ = uint32(0);
             v1_ = uint32(0);
             newMemRoot_ = _args.memRoot;
             newPreimageOffset_ = _args.preimageOffset;
+            memUpdated_ = false;
+            memAddr_ = 0;
 
             // args: _a0 = fd, _a1 = addr, _a2 = count
             // returns: v0_ = read, v1_ = err code
@@ -217,9 +226,10 @@ library MIPSSyscalls {
             }
             // pre-image oracle read
             else if (_args.a0 == FD_PREIMAGE_READ) {
+                uint32 effAddr = _args.a1 & 0xFFffFFfc;
                 // verify proof is correct, and get the existing memory.
                 // mask the addr to align it to 4 bytes
-                uint32 mem = MIPSMemory.readMem(_args.memRoot, _args.a1 & 0xFFffFFfc, _args.proofOffset);
+                uint32 mem = MIPSMemory.readMem(_args.memRoot, effAddr, _args.proofOffset);
                 // If the preimage key is a local key, localize it in the context of the caller.
                 if (uint8(_args.preimageKey[0]) == 1) {
                     _args.preimageKey = PreimageKeyLib.localize(_args.preimageKey, _args.localContext);
@@ -246,7 +256,9 @@ library MIPSSyscalls {
                 }
 
                 // Write memory back
-                newMemRoot_ = MIPSMemory.writeMem(_args.a1 & 0xFFffFFfc, _args.proofOffset, mem);
+                newMemRoot_ = MIPSMemory.writeMem(effAddr, _args.proofOffset, mem);
+                memUpdated_ = true;
+                memAddr_ = effAddr;
                 newPreimageOffset_ += uint32(datLen);
                 v0_ = uint32(datLen);
             }
@@ -260,7 +272,7 @@ library MIPSSyscalls {
                 v1_ = EBADF;
             }
 
-            return (v0_, v1_, newPreimageOffset_, newMemRoot_);
+            return (v0_, v1_, newPreimageOffset_, newMemRoot_, memUpdated_, memAddr_);
         }
     }
 

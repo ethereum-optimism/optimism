@@ -1,6 +1,8 @@
 package singlethreaded
 
 import (
+	"fmt"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
@@ -30,7 +32,7 @@ func (m *InstrumentedState) handleSyscall() error {
 		return nil
 	case exec.SysRead:
 		var newPreimageOffset uint32
-		v0, v1, newPreimageOffset = exec.HandleSysRead(a0, a1, a2, m.state.PreimageKey, m.state.PreimageOffset, m.preimageOracle, m.state.Memory, m.memoryTracker)
+		v0, v1, newPreimageOffset, _, _ = exec.HandleSysRead(a0, a1, a2, m.state.PreimageKey, m.state.PreimageOffset, m.preimageOracle, m.state.Memory, m.memoryTracker)
 		m.state.PreimageOffset = newPreimageOffset
 	case exec.SysWrite:
 		var newLastHint hexutil.Bytes
@@ -62,6 +64,37 @@ func (m *InstrumentedState) mipsStep() error {
 		return m.handleSyscall()
 	}
 
+	// Handle RMW (read-modify-write) ops
+	if opcode == exec.OpLoadLinked || opcode == exec.OpStoreConditional {
+		return m.handleRMWOps(insn, opcode)
+	}
+
 	// Exec the rest of the step logic
-	return exec.ExecMipsCoreStepLogic(&m.state.Cpu, &m.state.Registers, m.state.Memory, insn, opcode, fun, m.memoryTracker, m.stackTracker)
+	_, _, err := exec.ExecMipsCoreStepLogic(&m.state.Cpu, &m.state.Registers, m.state.Memory, insn, opcode, fun, m.memoryTracker, m.stackTracker)
+	return err
+}
+
+// handleRMWOps handles LL and SC operations which provide the primitives to implement read-modify-write operations
+func (m *InstrumentedState) handleRMWOps(insn, opcode uint32) error {
+	baseReg := (insn >> 21) & 0x1F
+	base := m.state.Registers[baseReg]
+	rtReg := (insn >> 16) & 0x1F
+	offset := exec.SignExtendImmediate(insn)
+
+	effAddr := (base + offset) & 0xFFFFFFFC
+	m.memoryTracker.TrackMemAccess(effAddr)
+	mem := m.state.Memory.GetMemory(effAddr)
+
+	var retVal uint32
+	if opcode == exec.OpLoadLinked {
+		retVal = mem
+	} else if opcode == exec.OpStoreConditional {
+		rt := m.state.Registers[rtReg]
+		m.state.Memory.SetMemory(effAddr, rt)
+		retVal = 1 // 1 for success
+	} else {
+		panic(fmt.Sprintf("Invalid instruction passed to handleRMWOps (opcode %08x)", opcode))
+	}
+
+	return exec.HandleRd(&m.state.Cpu, &m.state.Registers, rtReg, retVal, true)
 }

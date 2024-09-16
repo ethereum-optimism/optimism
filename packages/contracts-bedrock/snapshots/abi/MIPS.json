@@ -69,5 +69,10 @@
     "inputs": [],
     "name": "InvalidMemoryProof",
     "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidRMWInstruction",
+    "type": "error"
   }
 ]

@@ -8,7 +8,9 @@ import { MIPSSyscalls as sys } from "src/cannon/libraries/MIPSSyscalls.sol";
 import { MIPSState as st } from "src/cannon/libraries/MIPSState.sol";
 import { MIPSInstructions as ins } from "src/cannon/libraries/MIPSInstructions.sol";
 import { VMStatuses } from "src/dispute/lib/Types.sol";
-import { InvalidMemoryProof, InvalidSecondMemoryProof } from "src/cannon/libraries/CannonErrors.sol";
+import {
+    InvalidMemoryProof, InvalidRMWInstruction, InvalidSecondMemoryProof
+} from "src/cannon/libraries/CannonErrors.sol";
 
 /// @title MIPS2
 /// @notice The MIPS2 contract emulates a single MIPS instruction.
@@ -33,13 +35,16 @@ contract MIPS2 is ISemver {
     }
 
     /// @notice Stores the VM state.
-    ///         Total state size: 32 + 32 + 4 + 4 + 1 + 1 + 8 + 8 + 4 + 1 + 32 + 32 + 4 = 163 bytes
+    ///         Total state size: 32 + 32 + 4 + 4 + 1 + 4 + 4 + 1 + 1 + 8 + 8 + 4 + 1 + 32 + 32 + 4 = 172 bytes
     ///         If nextPC != pc + 4, then the VM is executing a branch/jump delay slot.
     struct State {
         bytes32 memRoot;
         bytes32 preimageKey;
         uint32 preimageOffset;
         uint32 heap;
+        bool llReservationActive;
+        uint32 llAddress;
+        uint32 llOwnerThread;
         uint8 exitCode;
         bool exited;
         uint64 step;
@@ -52,8 +57,8 @@ contract MIPS2 is ISemver {
     }
 
     /// @notice The semantic version of the MIPS2 contract.
-    /// @custom:semver 1.0.0-beta.8
-    string public constant version = "1.0.0-beta.8";
+    /// @custom:semver 1.0.0-beta.9
+    string public constant version = "1.0.0-beta.9";
 
     /// @notice The preimage oracle contract.
     IPreimageOracle internal immutable ORACLE;
@@ -71,7 +76,7 @@ contract MIPS2 is ISemver {
     uint256 internal constant STATE_MEM_OFFSET = 0x80;
 
     // ThreadState memory offset allocated during step
-    uint256 internal constant TC_MEM_OFFSET = 0x220;
+    uint256 internal constant TC_MEM_OFFSET = 0x280;
 
     /// @param _oracle The address of the preimage oracle contract.
     constructor(IPreimageOracle _oracle) {
@@ -108,8 +113,8 @@ contract MIPS2 is ISemver {
                     // expected thread mem offset check
                     revert(0, 0)
                 }
-                if iszero(eq(mload(0x40), shl(5, 60))) {
-                    // 4 + 13 state slots + 43 thread slots = 60 expected memory check
+                if iszero(eq(mload(0x40), shl(5, 63))) {
+                    // 4 + 16 state slots + 43 thread slots = 63 expected memory check
                     revert(0, 0)
                 }
                 if iszero(eq(_stateData.offset, 132)) {
@@ -136,6 +141,9 @@ contract MIPS2 is ISemver {
                 c, m := putField(c, m, 32) // preimageKey
                 c, m := putField(c, m, 4) // preimageOffset
                 c, m := putField(c, m, 4) // heap
+                c, m := putField(c, m, 1) // llReservationActive
+                c, m := putField(c, m, 4) // llAddress
+                c, m := putField(c, m, 4) // llOwnerThread
                 c, m := putField(c, m, 1) // exitCode
                 c, m := putField(c, m, 1) // exited
                 exited := mload(sub(m, 32))
@@ -228,19 +236,95 @@ contract MIPS2 is ISemver {
                 return handleSyscall(_localContext);
             }
 
+            // Handle RMW (read-modify-write) ops
+            if (opcode == ins.OP_LOAD_LINKED || opcode == ins.OP_STORE_CONDITIONAL) {
+                return handleRMWOps(state, thread, insn, opcode);
+            }
+
             // Exec the rest of the step logic
             st.CpuScalars memory cpu = getCpuScalars(thread);
-            (state.memRoot) = ins.execMipsCoreStepLogic({
-                _cpu: cpu,
-                _registers: thread.registers,
-                _memRoot: state.memRoot,
-                _memProofOffset: MIPSMemory.memoryProofOffset(MEM_PROOF_OFFSET, 1),
-                _insn: insn,
-                _opcode: opcode,
-                _fun: fun
+            ins.CoreStepLogicParams memory coreStepArgs = ins.CoreStepLogicParams({
+                cpu: cpu,
+                registers: thread.registers,
+                memRoot: state.memRoot,
+                memProofOffset: MIPSMemory.memoryProofOffset(MEM_PROOF_OFFSET, 1),
+                insn: insn,
+                opcode: opcode,
+                fun: fun
             });
+            bool memUpdated;
+            uint32 memAddr;
+            (state.memRoot, memUpdated, memAddr) = ins.execMipsCoreStepLogic(coreStepArgs);
             setStateCpuScalars(thread, cpu);
             updateCurrentThreadRoot();
+            if (memUpdated) {
+                handleMemoryUpdate(state, memAddr);
+            }
+
+            return outputState();
+        }
+    }
+
+    function handleMemoryUpdate(State memory _state, uint32 _memAddr) internal pure {
+        if (_memAddr == _state.llAddress) {
+            // Reserved address was modified, clear the reservation
+            clearLLMemoryReservation(_state);
+        }
+    }
+
+    function clearLLMemoryReservation(State memory _state) internal pure {
+        _state.llReservationActive = false;
+        _state.llAddress = 0;
+        _state.llOwnerThread = 0;
+    }
+
+    function handleRMWOps(
+        State memory _state,
+        ThreadState memory _thread,
+        uint32 _insn,
+        uint32 _opcode
+    )
+        internal
+        returns (bytes32)
+    {
+        unchecked {
+            uint32 baseReg = (_insn >> 21) & 0x1F;
+            uint32 base = _thread.registers[baseReg];
+            uint32 rtReg = (_insn >> 16) & 0x1F;
+            uint32 offset = ins.signExtendImmediate(_insn);
+
+            uint32 effAddr = (base + offset) & 0xFFFFFFFC;
+            uint256 memProofOffset = MIPSMemory.memoryProofOffset(MEM_PROOF_OFFSET, 1);
+            uint32 mem = MIPSMemory.readMem(_state.memRoot, effAddr, memProofOffset);
+
+            uint32 retVal = 0;
+            uint32 threadId = _thread.threadID;
+            if (_opcode == ins.OP_LOAD_LINKED) {
+                retVal = mem;
+                _state.llReservationActive = true;
+                _state.llAddress = effAddr;
+                _state.llOwnerThread = threadId;
+            } else if (_opcode == ins.OP_STORE_CONDITIONAL) {
+                // Check if our memory reservation is still intact
+                if (_state.llReservationActive && _state.llOwnerThread == threadId && _state.llAddress == effAddr) {
+                    // Complete atomic update: set memory and return 1 for success
+                    clearLLMemoryReservation(_state);
+                    uint32 val = _thread.registers[rtReg];
+                    _state.memRoot = MIPSMemory.writeMem(effAddr, memProofOffset, val);
+                    retVal = 1;
+                } else {
+                    // Atomic update failed, return 0 for failure
+                    retVal = 0;
+                }
+            } else {
+                revert InvalidRMWInstruction();
+            }
+
+            st.CpuScalars memory cpu = getCpuScalars(_thread);
+            ins.handleRd(cpu, _thread.registers, rtReg, retVal, true);
+            setStateCpuScalars(_thread, cpu);
+            updateCurrentThreadRoot();
+
             return outputState();
         }
     }
@@ -319,7 +403,8 @@ contract MIPS2 is ISemver {
                     proofOffset: MIPSMemory.memoryProofOffset(MEM_PROOF_OFFSET, 1),
                     memRoot: state.memRoot
                 });
-                (v0, v1, state.preimageOffset, state.memRoot) = sys.handleSysRead(args);
+                // Encapsulate execution to avoid stack-too-deep error
+                (v0, v1) = execSysRead(state, args);
             } else if (syscall_no == sys.SYS_WRITE) {
                 (v0, v1, state.preimageKey, state.preimageOffset) = sys.handleSysWrite({
                     _a0: a0,
@@ -412,6 +497,7 @@ contract MIPS2 is ISemver {
                     // Recompute the new root after updating effAddr
                     state.memRoot =
                         MIPSMemory.writeMem(effAddr, MIPSMemory.memoryProofOffset(MEM_PROOF_OFFSET, 1), secs);
+                    handleMemoryUpdate(state, effAddr);
                     // Verify the second memory proof against the newly computed root
                     if (
                         !MIPSMemory.isValidProof(
@@ -422,6 +508,7 @@ contract MIPS2 is ISemver {
                     }
                     state.memRoot =
                         MIPSMemory.writeMem(effAddr + 4, MIPSMemory.memoryProofOffset(MEM_PROOF_OFFSET, 2), nsecs);
+                    handleMemoryUpdate(state, effAddr + 4);
                 } else {
                     v0 = sys.SYS_ERROR_SIGNAL;
                     v1 = sys.EINVAL;
@@ -502,6 +589,22 @@ contract MIPS2 is ISemver {
         }
     }
 
+    function execSysRead(
+        State memory _state,
+        sys.SysReadParams memory _args
+    )
+        internal
+        view
+        returns (uint32 v0, uint32 v1)
+    {
+        bool memUpdated;
+        uint32 memAddr;
+        (v0, v1, _state.preimageOffset, _state.memRoot, memUpdated, memAddr) = sys.handleSysRead(_args);
+        if (memUpdated) {
+            handleMemoryUpdate(_state, memAddr);
+        }
+    }
+
     /// @notice Computes the hash of the MIPS state.
     /// @return out_ The hashed MIPS state.
     function outputState() internal returns (bytes32 out_) {
@@ -526,6 +629,9 @@ contract MIPS2 is ISemver {
             from, to := copyMem(from, to, 32) // preimageKey
             from, to := copyMem(from, to, 4) // preimageOffset
             from, to := copyMem(from, to, 4) // heap
+            from, to := copyMem(from, to, 1) // llReservationActive
+            from, to := copyMem(from, to, 4) // llAddress
+            from, to := copyMem(from, to, 4) // llOwnerThread
             let exitCode := mload(from)
             from, to := copyMem(from, to, 1) // exitCode
             exited := mload(from)
