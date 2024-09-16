@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive/params"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/stretchr/testify/require"
 )
@@ -200,7 +201,7 @@ func TestParseFramesTruncated(t *testing.T) {
 // frames.
 func txMarshalFrames(frames []Frame) ([]byte, error) {
 	var data bytes.Buffer
-	if err := data.WriteByte(DerivationVersion0); err != nil {
+	if err := data.WriteByte(params.DerivationVersion0); err != nil {
 		return nil, err
 	}
 	for _, frame := range frames {
