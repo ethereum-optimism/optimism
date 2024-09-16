@@ -413,7 +413,7 @@ func (s *interopE2ESystem) prepareSupervisor() *supervisor.SupervisorService {
 			ListenEnabled: false,
 		},
 		LogConfig: oplog.CLIConfig{
-			Level:  log.LevelTrace,
+			Level:  log.LevelDebug,
 			Format: oplog.FormatText,
 		},
 		RPC: oprpc.CLIConfig{
@@ -469,9 +469,10 @@ func (s *interopE2ESystem) prepare(t *testing.T, w worldResourcePaths) {
 	s.l2s = s.prepareL2s()
 
 	// add the L2 RPCs to the supervisor now that the L2s are created
+	ctx := context.Background()
 	for _, l2 := range s.l2s {
-		err := s.SupervisorClient().AddL2RPC(context.Background(), l2.l2Geth.UserRPC().RPC())
-		require.NoError(s.t, err, "failed to add L2 RPC to supervisor")
+		err := s.SupervisorClient().AddL2RPC(ctx, l2.l2Geth.UserRPC().RPC())
+		require.NoError(s.t, err, "failed to add L2 RPC to supervisor", "error", err)
 	}
 }
 

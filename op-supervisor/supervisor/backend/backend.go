@@ -53,7 +53,7 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger, m Metrics, cfg
 	}
 
 	// create the chains db
-	db := db.NewChainsDB(map[types.ChainID]db.LogStorage{}, headTracker)
+	db := db.NewChainsDB(map[types.ChainID]db.LogStorage{}, headTracker, logger)
 
 	// create an empty map of chain monitors
 	chainMonitors := make(map[types.ChainID]*source.ChainMonitor, len(cfg.L2RPCs))
@@ -85,6 +85,7 @@ func (su *SupervisorBackend) addFromRPC(ctx context.Context, logger log.Logger, 
 	if err != nil {
 		return err
 	}
+	su.logger.Info("adding from rpc connection", "rpc", rpc, "chainID", chainID)
 	// create metrics and a logdb for the chain
 	cm := newChainMetrics(chainID, su.m)
 	path, err := prepLogDBPath(chainID, su.dataDir)
@@ -135,15 +136,17 @@ func (su *SupervisorBackend) Start(ctx context.Context) error {
 		}
 	}
 	// start db maintenance loop
-	maintinenceCtx, cancel := context.WithCancel(ctx)
+	maintinenceCtx, cancel := context.WithCancel(context.Background())
 	su.db.StartCrossHeadMaintenance(maintinenceCtx)
 	su.maintenanceCancel = cancel
 	return nil
 }
 
+var errAlreadyStopped = errors.New("already stopped")
+
 func (su *SupervisorBackend) Stop(ctx context.Context) error {
 	if !su.started.CompareAndSwap(true, false) {
-		return errors.New("already stopped")
+		return errAlreadyStopped
 	}
 	// signal the maintenance loop to stop
 	su.maintenanceCancel()

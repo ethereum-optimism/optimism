@@ -21,6 +21,34 @@ func NewSupervisorClient(client client.RPC) *SupervisorClient {
 	}
 }
 
+func (cl *SupervisorClient) Stop(
+	ctx context.Context,
+) error {
+	var result error
+	err := cl.client.CallContext(
+		ctx,
+		&result,
+		"admin_stop")
+	if err != nil {
+		return fmt.Errorf("failed to stop Supervisor: %w", err)
+	}
+	return result
+}
+
+func (cl *SupervisorClient) Start(
+	ctx context.Context,
+) error {
+	var result error
+	err := cl.client.CallContext(
+		ctx,
+		&result,
+		"admin_start")
+	if err != nil {
+		return fmt.Errorf("failed to start Supervisor: %w", err)
+	}
+	return result
+}
+
 func (cl *SupervisorClient) AddL2RPC(
 	ctx context.Context,
 	rpc string,
