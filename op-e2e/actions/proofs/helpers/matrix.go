@@ -1,4 +1,4 @@
-package proofs
+package helpers
 
 import (
 	"fmt"
