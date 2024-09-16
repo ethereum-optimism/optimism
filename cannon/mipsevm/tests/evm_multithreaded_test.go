@@ -1266,7 +1266,6 @@ func TestEVM_NormalTraversalStep_HandleWaitingThread(t *testing.T) {
 				// Validate post-state
 				expected.Validate(t, state)
 				testutil.ValidateEVM(t, stepWitness, c.step, goVm, multithreaded.GetStateHashFn(), contracts, tracer)
-
 			})
 
 		}
