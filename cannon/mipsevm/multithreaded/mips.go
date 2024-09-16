@@ -105,15 +105,16 @@ func (m *InstrumentedState) handleSyscall() error {
 		return nil
 	case exec.SysFutex:
 		// args: a0 = addr, a1 = op, a2 = val, a3 = timeout
+		effAddr := a0 & 0xFFffFFfc
 		switch a1 {
 		case exec.FutexWaitPrivate:
-			m.memoryTracker.TrackMemAccess(a0)
-			mem := m.state.Memory.GetMemory(a0)
+			m.memoryTracker.TrackMemAccess(effAddr)
+			mem := m.state.Memory.GetMemory(effAddr)
 			if mem != a2 {
 				v0 = exec.SysErrorSignal
 				v1 = exec.MipsEAGAIN
 			} else {
-				thread.FutexAddr = a0
+				thread.FutexAddr = effAddr
 				thread.FutexVal = a2
 				if a3 == 0 {
 					thread.FutexTimeoutStep = exec.FutexNoTimeout
@@ -126,7 +127,7 @@ func (m *InstrumentedState) handleSyscall() error {
 		case exec.FutexWakePrivate:
 			// Trigger thread traversal starting from the left stack until we find one waiting on the wakeup
 			// address
-			m.state.Wakeup = a0
+			m.state.Wakeup = effAddr
 			// Don't indicate to the program that we've woken up a waiting thread, as there are no guarantees.
 			// The woken up thread should indicate this in userspace.
 			v0 = 0
