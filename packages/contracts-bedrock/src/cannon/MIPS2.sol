@@ -433,9 +433,8 @@ contract MIPS2 is ISemver {
                 // args: a0 = addr, a1 = op, a2 = val, a3 = timeout
                 uint32 effAddr = a0 & 0xFFffFFfc;
                 if (a1 == sys.FUTEX_WAIT_PRIVATE) {
-                    uint32 mem = MIPSMemory.readMem(
-                        state.memRoot, effAddr, MIPSMemory.memoryProofOffset(MEM_PROOF_OFFSET, 1)
-                    );
+                    uint32 mem =
+                        MIPSMemory.readMem(state.memRoot, effAddr, MIPSMemory.memoryProofOffset(MEM_PROOF_OFFSET, 1));
                     if (mem != a2) {
                         v0 = sys.SYS_ERROR_SIGNAL;
                         v1 = sys.EAGAIN;
