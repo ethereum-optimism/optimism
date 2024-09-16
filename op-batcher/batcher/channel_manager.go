@@ -153,7 +153,7 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 	// recompute DA config
 	// detect any change DA config
 	// if change
-	// requeue blocks / clear out channels
+	// requeue blocks / clear out channels WARNING: ensure we do not reset channel timeouts
 	//
 	//	call txData a second time.
 	// else just return above txData result.
