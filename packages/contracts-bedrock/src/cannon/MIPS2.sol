@@ -205,7 +205,7 @@ contract MIPS2 is ISemver {
                     return onWaitComplete(state, thread, true);
                 } else {
                     uint32 mem = MIPSMemory.readMem(
-                        state.memRoot, thread.futexAddr, MIPSMemory.memoryProofOffset(MEM_PROOF_OFFSET, 1)
+                        state.memRoot, thread.futexAddr & 0xFFffFFfc, MIPSMemory.memoryProofOffset(MEM_PROOF_OFFSET, 1)
                     );
                     if (thread.futexVal == mem) {
                         // still got expected value, continue sleeping, try next thread.

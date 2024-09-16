@@ -1200,22 +1200,20 @@ func TestEVM_NormalTraversalStep_HandleWaitingThread(t *testing.T) {
 		timeoutStep     uint64
 		shouldWakeup    bool
 		shouldTimeout   bool
-		shouldPanic     bool
 	}{
 		{name: "Preempt, no timeout #1", step: 100, activeStackSize: 1, otherStackSize: 0, futexAddr: 0x100, targetValue: 0x01, actualValue: 0x01, timeoutStep: exec.FutexNoTimeout},
 		{name: "Preempt, no timeout #2", step: 100, activeStackSize: 1, otherStackSize: 1, futexAddr: 0x100, targetValue: 0x01, actualValue: 0x01, timeoutStep: exec.FutexNoTimeout},
 		{name: "Preempt, no timeout #3", step: 100, activeStackSize: 2, otherStackSize: 1, futexAddr: 0x100, targetValue: 0x01, actualValue: 0x01, timeoutStep: exec.FutexNoTimeout},
-		{name: "Preempt, no timeout, unaligned", step: 100, activeStackSize: 2, otherStackSize: 1, futexAddr: 0x101, targetValue: 0x01, actualValue: 0x01, timeoutStep: exec.FutexNoTimeout, shouldPanic: true},
+		{name: "Preempt, no timeout, unaligned", step: 100, activeStackSize: 2, otherStackSize: 1, futexAddr: 0x101, targetValue: 0x01, actualValue: 0x01, timeoutStep: exec.FutexNoTimeout},
 		{name: "Preempt, with timeout #1", step: 100, activeStackSize: 2, otherStackSize: 1, futexAddr: 0x100, targetValue: 0x01, actualValue: 0x01, timeoutStep: 101},
 		{name: "Preempt, with timeout #2", step: 100, activeStackSize: 1, otherStackSize: 1, futexAddr: 0x100, targetValue: 0x01, actualValue: 0x01, timeoutStep: 150},
-		{name: "Preempt, with timeout, unaligned", step: 100, activeStackSize: 1, otherStackSize: 1, futexAddr: 0x101, targetValue: 0x01, actualValue: 0x01, timeoutStep: 150, shouldPanic: true},
+		{name: "Preempt, with timeout, unaligned", step: 100, activeStackSize: 1, otherStackSize: 1, futexAddr: 0x101, targetValue: 0x01, actualValue: 0x01, timeoutStep: 150},
 		{name: "Wakeup, no timeout #1", step: 100, activeStackSize: 1, otherStackSize: 0, futexAddr: 0x100, targetValue: 0x01, actualValue: 0x02, timeoutStep: exec.FutexNoTimeout, shouldWakeup: true},
 		{name: "Wakeup, no timeout #2", step: 100, activeStackSize: 2, otherStackSize: 1, futexAddr: 0x100, targetValue: 0x01, actualValue: 0x02, timeoutStep: exec.FutexNoTimeout, shouldWakeup: true},
-		{name: "Wakeup, no timeout, unaligned", step: 100, activeStackSize: 2, otherStackSize: 1, futexAddr: 0x102, targetValue: 0x01, actualValue: 0x02, timeoutStep: exec.FutexNoTimeout, shouldWakeup: true, shouldPanic: true},
+		{name: "Wakeup, no timeout, unaligned", step: 100, activeStackSize: 2, otherStackSize: 1, futexAddr: 0x102, targetValue: 0x01, actualValue: 0x02, timeoutStep: exec.FutexNoTimeout, shouldWakeup: true},
 		{name: "Wakeup with timeout #1", step: 100, activeStackSize: 2, otherStackSize: 1, futexAddr: 0x100, targetValue: 0x01, actualValue: 0x02, timeoutStep: 100, shouldWakeup: true, shouldTimeout: true},
 		{name: "Wakeup with timeout #2", step: 100, activeStackSize: 2, otherStackSize: 1, futexAddr: 0x100, targetValue: 0x02, actualValue: 0x02, timeoutStep: 100, shouldWakeup: true, shouldTimeout: true},
 		{name: "Wakeup with timeout #3", step: 100, activeStackSize: 2, otherStackSize: 1, futexAddr: 0x100, targetValue: 0x02, actualValue: 0x02, timeoutStep: 50, shouldWakeup: true, shouldTimeout: true},
-		// This unaligned futexAddr will not cause a panic because we complete the wait based on the timeout without checking memory
 		{name: "Wakeup with timeout, unaligned", step: 100, activeStackSize: 2, otherStackSize: 1, futexAddr: 0x103, targetValue: 0x02, actualValue: 0x02, timeoutStep: 50, shouldWakeup: true, shouldTimeout: true},
 	}
 
@@ -1259,20 +1257,16 @@ func TestEVM_NormalTraversalStep_HandleWaitingThread(t *testing.T) {
 					expected.ExpectPreemption(state)
 				}
 
-				if c.shouldPanic {
-					require.Panics(t, func() { _, _ = goVm.Step(true) })
-					testutil.AssertEVMReverts(t, state, contracts, tracer)
-				} else {
-					// State transition
-					var err error
-					var stepWitness *mipsevm.StepWitness
-					stepWitness, err = goVm.Step(true)
-					require.NoError(t, err)
+				// State transition
+				var err error
+				var stepWitness *mipsevm.StepWitness
+				stepWitness, err = goVm.Step(true)
+				require.NoError(t, err)
 
-					// Validate post-state
-					expected.Validate(t, state)
-					testutil.ValidateEVM(t, stepWitness, c.step, goVm, multithreaded.GetStateHashFn(), contracts, tracer)
-				}
+				// Validate post-state
+				expected.Validate(t, state)
+				testutil.ValidateEVM(t, stepWitness, c.step, goVm, multithreaded.GetStateHashFn(), contracts, tracer)
+
 			})
 
 		}

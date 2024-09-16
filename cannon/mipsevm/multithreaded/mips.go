@@ -256,8 +256,9 @@ func (m *InstrumentedState) mipsStep() error {
 			m.onWaitComplete(thread, true)
 			return nil
 		} else {
-			m.memoryTracker.TrackMemAccess(thread.FutexAddr)
-			mem := m.state.Memory.GetMemory(thread.FutexAddr)
+			effAddr := thread.FutexAddr & 0xFFffFFfc
+			m.memoryTracker.TrackMemAccess(effAddr)
+			mem := m.state.Memory.GetMemory(effAddr)
 			if thread.FutexVal == mem {
 				// still got expected value, continue sleeping, try next thread.
 				m.preemptThread(thread)
