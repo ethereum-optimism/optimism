@@ -4,15 +4,15 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/actions"
-	proofsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers/proofs"
+	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
 	"github.com/ethereum-optimism/optimism/op-program/client/claim"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
 
-func runSimpleProgramTest(gt *testing.T, testCfg *proofsHelpers.TestCfg[any]) {
+func runSimpleProgramTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	t := actions.NewDefaultTesting(gt)
-	env := proofsHelpers.NewL2FaultProofEnv(t, testCfg, proofsHelpers.NewTestParams(), proofsHelpers.NewBatcherCfg())
+	env := helpers.NewL2FaultProofEnv(t, testCfg, helpers.NewTestParams(), helpers.NewBatcherCfg())
 
 	// Build an empty block on L2
 	env.Sequencer.ActL2StartBlock(t)
@@ -44,22 +44,22 @@ func runSimpleProgramTest(gt *testing.T, testCfg *proofsHelpers.TestCfg[any]) {
 }
 
 func Test_ProgramAction_SimpleEmptyChain(gt *testing.T) {
-	matrix := proofsHelpers.NewMatrix[any]()
+	matrix := helpers.NewMatrix[any]()
 	defer matrix.Run(gt)
 
 	matrix.AddTestCase(
 		"HonestClaim",
 		nil,
-		proofsHelpers.LatestForkOnly,
+		helpers.LatestForkOnly,
 		runSimpleProgramTest,
-		proofsHelpers.ExpectNoError(),
+		helpers.ExpectNoError(),
 	)
 	matrix.AddTestCase(
 		"JunkClaim",
 		nil,
-		proofsHelpers.LatestForkOnly,
+		helpers.LatestForkOnly,
 		runSimpleProgramTest,
-		proofsHelpers.ExpectError(claim.ErrClaimNotValid),
-		proofsHelpers.WithL2Claim(common.HexToHash("0xdeadbeef")),
+		helpers.ExpectError(claim.ErrClaimNotValid),
+		helpers.WithL2Claim(common.HexToHash("0xdeadbeef")),
 	)
 }

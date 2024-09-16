@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/actions"
-	proofsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers/proofs"
+	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-program/client/claim"
 	"github.com/ethereum/go-ethereum/common"
@@ -20,13 +20,13 @@ import (
 // 4. Submit the channel frame data across 2 transactions.
 // 5. Instruct the sequencer to derive the L2 chain.
 // 6. Run the FPP on the safe head.
-func runChannelTimeoutTest(gt *testing.T, testCfg *proofsHelpers.TestCfg[any]) {
+func runChannelTimeoutTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	t := actions.NewDefaultTesting(gt)
-	tp := proofsHelpers.NewTestParams(func(tp *e2eutils.TestParams) {
+	tp := helpers.NewTestParams(func(tp *e2eutils.TestParams) {
 		// Set the channel timeout to 10 blocks, 12x lower than the sequencing window.
 		tp.ChannelTimeout = 10
 	})
-	env := proofsHelpers.NewL2FaultProofEnv(t, testCfg, tp, proofsHelpers.NewBatcherCfg())
+	env := helpers.NewL2FaultProofEnv(t, testCfg, tp, helpers.NewBatcherCfg())
 
 	const NumL2Blocks = 10
 
@@ -110,22 +110,22 @@ func runChannelTimeoutTest(gt *testing.T, testCfg *proofsHelpers.TestCfg[any]) {
 }
 
 func Test_ProgramAction_ChannelTimeout(gt *testing.T) {
-	matrix := proofsHelpers.NewMatrix[any]()
+	matrix := helpers.NewMatrix[any]()
 	defer matrix.Run(gt)
 
 	matrix.AddTestCase(
 		"HonestClaim",
 		nil,
-		proofsHelpers.LatestForkOnly,
+		helpers.LatestForkOnly,
 		runChannelTimeoutTest,
-		proofsHelpers.ExpectNoError(),
+		helpers.ExpectNoError(),
 	)
 	matrix.AddTestCase(
 		"JunkClaim",
 		nil,
-		proofsHelpers.LatestForkOnly,
+		helpers.LatestForkOnly,
 		runChannelTimeoutTest,
-		proofsHelpers.ExpectError(claim.ErrClaimNotValid),
-		proofsHelpers.WithL2Claim(common.HexToHash("0xdeadbeef")),
+		helpers.ExpectError(claim.ErrClaimNotValid),
+		helpers.WithL2Claim(common.HexToHash("0xdeadbeef")),
 	)
 }

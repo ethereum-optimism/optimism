@@ -4,16 +4,16 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/actions"
-	proofsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers/proofs"
+	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
 
 // Run a test that proves a deposit-only block generated due to sequence window expiry.
-func runSequenceWindowExpireTest(gt *testing.T, testCfg *proofsHelpers.TestCfg[any]) {
+func runSequenceWindowExpireTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	t := actions.NewDefaultTesting(gt)
-	tp := proofsHelpers.NewTestParams()
-	env := proofsHelpers.NewL2FaultProofEnv(t, testCfg, tp, proofsHelpers.NewBatcherCfg())
+	tp := helpers.NewTestParams()
+	env := helpers.NewL2FaultProofEnv(t, testCfg, tp, helpers.NewBatcherCfg())
 
 	// Mine an empty block for gas estimation purposes.
 	env.Miner.ActEmptyBlock(t)
@@ -48,22 +48,22 @@ func runSequenceWindowExpireTest(gt *testing.T, testCfg *proofsHelpers.TestCfg[a
 }
 
 func Test_ProgramAction_SequenceWindowExpired(gt *testing.T) {
-	matrix := proofsHelpers.NewMatrix[any]()
+	matrix := helpers.NewMatrix[any]()
 	defer matrix.Run(gt)
 
 	matrix.AddTestCase(
 		"HonestClaim",
 		nil,
-		proofsHelpers.LatestForkOnly,
+		helpers.LatestForkOnly,
 		runSequenceWindowExpireTest,
-		proofsHelpers.ExpectNoError(),
+		helpers.ExpectNoError(),
 	)
 	matrix.AddTestCase(
 		"JunkClaim",
 		nil,
-		proofsHelpers.LatestForkOnly,
+		helpers.LatestForkOnly,
 		runSequenceWindowExpireTest,
-		proofsHelpers.ExpectNoError(),
-		proofsHelpers.WithL2Claim(common.HexToHash("0xdeadbeef")),
+		helpers.ExpectNoError(),
+		helpers.WithL2Claim(common.HexToHash("0xdeadbeef")),
 	)
 }

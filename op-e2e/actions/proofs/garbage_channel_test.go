@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/actions"
-	proofsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers/proofs"
+	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-program/client/claim"
 	"github.com/ethereum/go-ethereum/common"
@@ -26,15 +26,15 @@ var garbageKinds = []actions.GarbageKind{
 //
 // channel format ([]Frame):
 // [f[0 - correct] f_x[1 - bad frame] f[1 - correct]]
-func runGarbageChannelTest(gt *testing.T, testCfg *proofsHelpers.TestCfg[actions.GarbageKind]) {
+func runGarbageChannelTest(gt *testing.T, testCfg *helpers.TestCfg[actions.GarbageKind]) {
 	t := actions.NewDefaultTesting(gt)
-	tp := proofsHelpers.NewTestParams(func(tp *e2eutils.TestParams) {
+	tp := helpers.NewTestParams(func(tp *e2eutils.TestParams) {
 		// Set the channel timeout to 10 blocks, 12x lower than the sequencing window.
 		tp.ChannelTimeout = 10
 	})
-	env := proofsHelpers.NewL2FaultProofEnv(t, testCfg, tp, proofsHelpers.NewBatcherCfg())
+	env := helpers.NewL2FaultProofEnv(t, testCfg, tp, helpers.NewBatcherCfg())
 
-	includeBatchTx := func(env *proofsHelpers.L2FaultProofEnv) {
+	includeBatchTx := func(env *helpers.L2FaultProofEnv) {
 		// Instruct the batcher to submit the first channel frame to L1, and include the transaction.
 		env.Miner.ActL1StartBlock(12)(t)
 		env.Miner.ActL1IncludeTxByHash(env.Batcher.LastSubmitted.Hash())(t)
@@ -100,24 +100,24 @@ func runGarbageChannelTest(gt *testing.T, testCfg *proofsHelpers.TestCfg[actions
 }
 
 func Test_ProgramAction_GarbageChannel(gt *testing.T) {
-	matrix := proofsHelpers.NewMatrix[actions.GarbageKind]()
+	matrix := helpers.NewMatrix[actions.GarbageKind]()
 	defer matrix.Run(gt)
 
 	for _, garbageKind := range garbageKinds {
 		matrix.AddTestCase(
 			fmt.Sprintf("HonestClaim-%s", garbageKind.String()),
 			garbageKind,
-			proofsHelpers.LatestForkOnly,
+			helpers.LatestForkOnly,
 			runGarbageChannelTest,
-			proofsHelpers.ExpectNoError(),
+			helpers.ExpectNoError(),
 		)
 		matrix.AddTestCase(
 			fmt.Sprintf("JunkClaim-%s", garbageKind.String()),
 			garbageKind,
-			proofsHelpers.LatestForkOnly,
+			helpers.LatestForkOnly,
 			runGarbageChannelTest,
-			proofsHelpers.ExpectError(claim.ErrClaimNotValid),
-			proofsHelpers.WithL2Claim(common.HexToHash("0xdeadbeef")),
+			helpers.ExpectError(claim.ErrClaimNotValid),
+			helpers.WithL2Claim(common.HexToHash("0xdeadbeef")),
 		)
 	}
 }
