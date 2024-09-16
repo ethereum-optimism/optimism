@@ -172,7 +172,7 @@ func (f *FakeBeacon) StoreBlobsBundle(slot uint64, bundle *engine.BlobsBundleV1)
 			slotTimestamp,
 			eth.IndexedBlobHash{
 				Index: uint64(i),
-				Hash: eth.KZGToVersionedHash(kzg4844.Commitment(bundle.Commitments[i])),
+				Hash:  eth.KZGToVersionedHash(kzg4844.Commitment(bundle.Commitments[i])),
 			},
 			(*eth.Blob)(b[:]),
 		)

@@ -84,7 +84,7 @@ func (store *BlobsStore) GetAllSidecars(ctx context.Context, l1Timestamp uint64)
 	if !ok {
 		return nil, fmt.Errorf("no blobs known with given time: %w", ethereum.NotFound)
 	}
-	out := make([]*eth.BlobSidecar, 0, len(m))
+	out := make([]*eth.BlobSidecar, len(m))
 	for h, b := range m {
 		if b == nil {
 			return nil, fmt.Errorf("blob %d %s is nil, cannot copy: %w", h.Index, h.Hash, ethereum.NotFound)
