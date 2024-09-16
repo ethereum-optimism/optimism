@@ -60,3 +60,6 @@ error InvalidMemoryProof();
 
 /// @notice Thrown when the second memory location is invalid
 error InvalidSecondMemoryProof();
+
+/// @notice Thrown when an RMW instruction is expected, but a different instruction is provided.
+error InvalidRMWInstruction();

@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 )
 
@@ -42,6 +42,8 @@ func TestState_EncodeWitness(t *testing.T) {
 	}
 
 	heap := uint32(12)
+	llAddress := uint32(55)
+	llThreadOwner := uint32(99)
 	preimageKey := crypto.Keccak256Hash([]byte{1, 2, 3, 4})
 	preimageOffset := uint32(24)
 	step := uint64(33)
@@ -53,6 +55,9 @@ func TestState_EncodeWitness(t *testing.T) {
 		state.PreimageKey = preimageKey
 		state.PreimageOffset = preimageOffset
 		state.Heap = heap
+		state.LLReservationActive = true
+		state.LLAddress = llAddress
+		state.LLOwnerThread = llThreadOwner
 		state.Step = step
 		state.StepsSinceLastContextSwitch = stepsSinceContextSwitch
 
@@ -66,6 +71,9 @@ func TestState_EncodeWitness(t *testing.T) {
 		setWitnessField(expectedWitness, PREIMAGE_KEY_WITNESS_OFFSET, preimageKey[:])
 		setWitnessField(expectedWitness, PREIMAGE_OFFSET_WITNESS_OFFSET, []byte{0, 0, 0, byte(preimageOffset)})
 		setWitnessField(expectedWitness, HEAP_WITNESS_OFFSET, []byte{0, 0, 0, byte(heap)})
+		setWitnessField(expectedWitness, LL_RESERVATION_ACTIVE_OFFSET, []byte{1})
+		setWitnessField(expectedWitness, LL_ADDRESS_OFFSET, []byte{0, 0, 0, byte(llAddress)})
+		setWitnessField(expectedWitness, LL_OWNER_THREAD_OFFSET, []byte{0, 0, 0, byte(llThreadOwner)})
 		setWitnessField(expectedWitness, EXITCODE_WITNESS_OFFSET, []byte{c.exitCode})
 		if c.exited {
 			setWitnessField(expectedWitness, EXITED_WITNESS_OFFSET, []byte{1})
@@ -176,6 +184,9 @@ func TestSerializeStateRoundTrip(t *testing.T) {
 		PreimageKey:                 common.Hash{0xFF},
 		PreimageOffset:              5,
 		Heap:                        0xc0ffee,
+		LLReservationActive:         true,
+		LLAddress:                   0x12345678,
+		LLOwnerThread:               0x02,
 		ExitCode:                    1,
 		Exited:                      true,
 		Step:                        0xdeadbeef,
