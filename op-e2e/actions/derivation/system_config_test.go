@@ -5,8 +5,8 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/actions"
-	helpers2 "github.com/ethereum-optimism/optimism/op-e2e/actions/upgrades/helpers"
+	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
+	upgradesHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/upgrades/helpers"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -51,27 +51,27 @@ func TestSystemConfigBatchType(t *testing.T) {
 // BatcherKeyRotation tests that batcher A can operate, then be replaced with batcher B, then ignore old batcher A,
 // and that the change to batcher B is reverted properly upon reorg of L1.
 func BatcherKeyRotation(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
-	t := actions.NewDefaultTesting(gt)
+	t := actionsHelpers.NewDefaultTesting(gt)
 
-	dp := e2eutils.MakeDeployParams(t, actions.DefaultRollupTestParams)
+	dp := e2eutils.MakeDeployParams(t, actionsHelpers.DefaultRollupTestParams)
 	dp.DeployConfig.L2BlockTime = 2
-	helpers2.ApplyDeltaTimeOffset(dp, deltaTimeOffset)
-	sd := e2eutils.Setup(t, dp, actions.DefaultAlloc)
+	upgradesHelpers.ApplyDeltaTimeOffset(dp, deltaTimeOffset)
+	sd := e2eutils.Setup(t, dp, actionsHelpers.DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
-	miner, seqEngine, sequencer := actions.SetupSequencerTest(t, sd, log)
+	miner, seqEngine, sequencer := actionsHelpers.SetupSequencerTest(t, sd, log)
 	miner.ActL1SetFeeRecipient(common.Address{'A'})
 	sequencer.ActL2PipelineFull(t)
-	_, verifier := actions.SetupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
+	_, verifier := actionsHelpers.SetupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
 	rollupSeqCl := sequencer.RollupClient()
 
 	// the default batcher
-	batcherA := actions.NewL2Batcher(log, sd.RollupCfg, actions.DefaultBatcherCfg(dp),
+	batcherA := actionsHelpers.NewL2Batcher(log, sd.RollupCfg, actionsHelpers.DefaultBatcherCfg(dp),
 		rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 
 	// a batcher with a new key
-	altCfg := *actions.DefaultBatcherCfg(dp)
+	altCfg := *actionsHelpers.DefaultBatcherCfg(dp)
 	altCfg.BatcherKey = dp.Secrets.Bob
-	batcherB := actions.NewL2Batcher(log, sd.RollupCfg, &altCfg,
+	batcherB := actionsHelpers.NewL2Batcher(log, sd.RollupCfg, &altCfg,
 		rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 
 	sequencer.ActL2PipelineFull(t)
@@ -227,9 +227,9 @@ func BatcherKeyRotation(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 // GPOParamsChange tests that the GPO params can be updated to adjust fees of L2 transactions,
 // and that the L1 data fees to the L2 transaction are applied correctly before, during and after the GPO update in L2.
 func GPOParamsChange(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
-	t := actions.NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, actions.DefaultRollupTestParams)
-	helpers2.ApplyDeltaTimeOffset(dp, deltaTimeOffset)
+	t := actionsHelpers.NewDefaultTesting(gt)
+	dp := e2eutils.MakeDeployParams(t, actionsHelpers.DefaultRollupTestParams)
+	upgradesHelpers.ApplyDeltaTimeOffset(dp, deltaTimeOffset)
 
 	// activating Delta only, not Ecotone and further:
 	// the GPO change assertions here all apply only for the Delta transition.
@@ -238,14 +238,14 @@ func GPOParamsChange(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	dp.DeployConfig.L2GenesisFjordTimeOffset = nil
 	dp.DeployConfig.L2GenesisGraniteTimeOffset = nil
 
-	sd := e2eutils.Setup(t, dp, actions.DefaultAlloc)
+	sd := e2eutils.Setup(t, dp, actionsHelpers.DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
-	miner, seqEngine, sequencer := actions.SetupSequencerTest(t, sd, log)
-	batcher := actions.NewL2Batcher(log, sd.RollupCfg, actions.DefaultBatcherCfg(dp),
+	miner, seqEngine, sequencer := actionsHelpers.SetupSequencerTest(t, sd, log)
+	batcher := actionsHelpers.NewL2Batcher(log, sd.RollupCfg, actionsHelpers.DefaultBatcherCfg(dp),
 		sequencer.RollupClient(), miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 
-	alice := actions.NewBasicUser[any](log, dp.Secrets.Alice, rand.New(rand.NewSource(1234)))
-	alice.SetUserEnv(&actions.BasicUserEnv[any]{
+	alice := actionsHelpers.NewBasicUser[any](log, dp.Secrets.Alice, rand.New(rand.NewSource(1234)))
+	alice.SetUserEnv(&actionsHelpers.BasicUserEnv[any]{
 		EthCl:  seqEngine.EthClient(),
 		Signer: types.LatestSigner(sd.L2Cfg.Config),
 	})
@@ -362,13 +362,13 @@ func GPOParamsChange(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 // and that the L2 changes the gas limit instantly at the exact block that adopts the L1 origin with
 // the gas limit change event. And checks if a verifier node can reproduce the same gas limit change.
 func GasLimitChange(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
-	t := actions.NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, actions.DefaultRollupTestParams)
-	helpers2.ApplyDeltaTimeOffset(dp, deltaTimeOffset)
-	sd := e2eutils.Setup(t, dp, actions.DefaultAlloc)
+	t := actionsHelpers.NewDefaultTesting(gt)
+	dp := e2eutils.MakeDeployParams(t, actionsHelpers.DefaultRollupTestParams)
+	upgradesHelpers.ApplyDeltaTimeOffset(dp, deltaTimeOffset)
+	sd := e2eutils.Setup(t, dp, actionsHelpers.DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
-	miner, seqEngine, sequencer := actions.SetupSequencerTest(t, sd, log)
-	batcher := actions.NewL2Batcher(log, sd.RollupCfg, actions.DefaultBatcherCfg(dp),
+	miner, seqEngine, sequencer := actionsHelpers.SetupSequencerTest(t, sd, log)
+	batcher := actionsHelpers.NewL2Batcher(log, sd.RollupCfg, actionsHelpers.DefaultBatcherCfg(dp),
 		sequencer.RollupClient(), miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 
 	sequencer.ActL2PipelineFull(t)
@@ -412,7 +412,7 @@ func GasLimitChange(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	miner.ActL1IncludeTx(dp.Addresses.Batcher)(t)
 	miner.ActL1EndBlock(t)
 
-	_, verifier := actions.SetupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
+	_, verifier := actionsHelpers.SetupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
 	verifier.ActL2PipelineFull(t)
 
 	require.Equal(t, sequencer.L2Unsafe(), verifier.L2Safe(), "verifier stays in sync, even with gaslimit changes")

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/actions"
+	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-program/client/claim"
@@ -15,19 +15,19 @@ import (
 // garbageKinds is a list of garbage kinds to test. We don't use `INVALID_COMPRESSION` and `MALFORM_RLP` because
 // they submit malformed frames always, and this test models a valid channel with a single invalid frame in the
 // middle.
-var garbageKinds = []actions.GarbageKind{
-	actions.STRIP_VERSION,
-	actions.RANDOM,
-	actions.TRUNCATE_END,
-	actions.DIRTY_APPEND,
+var garbageKinds = []actionsHelpers.GarbageKind{
+	actionsHelpers.STRIP_VERSION,
+	actionsHelpers.RANDOM,
+	actionsHelpers.TRUNCATE_END,
+	actionsHelpers.DIRTY_APPEND,
 }
 
 // Run a test that submits garbage channel data in the middle of a channel.
 //
 // channel format ([]Frame):
 // [f[0 - correct] f_x[1 - bad frame] f[1 - correct]]
-func runGarbageChannelTest(gt *testing.T, testCfg *helpers.TestCfg[actions.GarbageKind]) {
-	t := actions.NewDefaultTesting(gt)
+func runGarbageChannelTest(gt *testing.T, testCfg *helpers.TestCfg[actionsHelpers.GarbageKind]) {
+	t := actionsHelpers.NewDefaultTesting(gt)
 	tp := helpers.NewTestParams(func(tp *e2eutils.TestParams) {
 		// Set the channel timeout to 10 blocks, 12x lower than the sequencing window.
 		tp.ChannelTimeout = 10
@@ -100,7 +100,7 @@ func runGarbageChannelTest(gt *testing.T, testCfg *helpers.TestCfg[actions.Garba
 }
 
 func Test_ProgramAction_GarbageChannel(gt *testing.T) {
-	matrix := helpers.NewMatrix[actions.GarbageKind]()
+	matrix := helpers.NewMatrix[actionsHelpers.GarbageKind]()
 	defer matrix.Run(gt)
 
 	for _, garbageKind := range garbageKinds {

@@ -3,7 +3,7 @@ package proofs
 import (
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/actions"
+	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
@@ -11,7 +11,7 @@ import (
 
 // Run a test that proves a deposit-only block generated due to sequence window expiry.
 func runSequenceWindowExpireTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
-	t := actions.NewDefaultTesting(gt)
+	t := actionsHelpers.NewDefaultTesting(gt)
 	tp := helpers.NewTestParams()
 	env := helpers.NewL2FaultProofEnv(t, testCfg, tp, helpers.NewBatcherCfg())
 

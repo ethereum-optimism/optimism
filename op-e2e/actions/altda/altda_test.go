@@ -5,7 +5,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/actions"
+	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -33,21 +33,21 @@ type L2AltDA struct {
 	daMgr      *altda.DA
 	altDACfg   altda.Config
 	contract   *bindings.DataAvailabilityChallenge
-	batcher    *actions.L2Batcher
-	sequencer  *actions.L2Sequencer
-	engine     *actions.L2Engine
+	batcher    *helpers.L2Batcher
+	sequencer  *helpers.L2Sequencer
+	engine     *helpers.L2Engine
 	engCl      *sources.EngineClient
 	sd         *e2eutils.SetupData
 	dp         *e2eutils.DeployParams
-	miner      *actions.L1Miner
-	alice      *actions.CrossLayerUser
+	miner      *helpers.L1Miner
+	alice      *helpers.CrossLayerUser
 	lastComm   []byte
 	lastCommBn uint64
 }
 
 type AltDAParam func(p *e2eutils.TestParams)
 
-func NewL2AltDA(t actions.Testing, params ...AltDAParam) *L2AltDA {
+func NewL2AltDA(t helpers.Testing, params ...AltDAParam) *L2AltDA {
 	p := &e2eutils.TestParams{
 		MaxSequencerDrift:   40,
 		SequencerWindowSize: 12,
@@ -61,15 +61,15 @@ func NewL2AltDA(t actions.Testing, params ...AltDAParam) *L2AltDA {
 	log := testlog.Logger(t, log.LvlDebug)
 
 	dp := e2eutils.MakeDeployParams(t, p)
-	sd := e2eutils.Setup(t, dp, actions.DefaultAlloc)
+	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
 
 	require.True(t, sd.RollupCfg.AltDAEnabled())
 
-	miner := actions.NewL1Miner(t, log, sd.L1Cfg)
+	miner := helpers.NewL1Miner(t, log, sd.L1Cfg)
 	l1Client := miner.EthClient()
 
 	jwtPath := e2eutils.WriteDefaultJWT(t)
-	engine := actions.NewL2Engine(t, log, sd.L2Cfg, sd.RollupCfg.Genesis.L1, jwtPath)
+	engine := helpers.NewL2Engine(t, log, sd.L2Cfg, sd.RollupCfg.Genesis.L1, jwtPath)
 	engCl := engine.EngineClient(t, sd.RollupCfg)
 
 	storage := &altda.DAErrFaker{Client: altda.NewMockDAClient(log)}
@@ -82,21 +82,21 @@ func NewL2AltDA(t actions.Testing, params ...AltDAParam) *L2AltDA {
 
 	daMgr := altda.NewAltDAWithStorage(log, altDACfg, storage, &altda.NoopMetrics{})
 
-	sequencer := actions.NewL2Sequencer(t, log, l1F, miner.BlobStore(), daMgr, engCl, sd.RollupCfg, 0, nil)
+	sequencer := helpers.NewL2Sequencer(t, log, l1F, miner.BlobStore(), daMgr, engCl, sd.RollupCfg, 0, nil)
 	miner.ActL1SetFeeRecipient(common.Address{'A'})
 	sequencer.ActL2PipelineFull(t)
 
-	batcher := actions.NewL2Batcher(log, sd.RollupCfg, actions.AltDABatcherCfg(dp, storage), sequencer.RollupClient(), l1Client, engine.EthClient(), engCl)
+	batcher := helpers.NewL2Batcher(log, sd.RollupCfg, helpers.AltDABatcherCfg(dp, storage), sequencer.RollupClient(), l1Client, engine.EthClient(), engCl)
 
 	addresses := e2eutils.CollectAddresses(sd, dp)
 	cl := engine.EthClient()
-	l2UserEnv := &actions.BasicUserEnv[*actions.L2Bindings]{
+	l2UserEnv := &helpers.BasicUserEnv[*helpers.L2Bindings]{
 		EthCl:          cl,
 		Signer:         types.LatestSigner(sd.L2Cfg.Config),
 		AddressCorpora: addresses,
-		Bindings:       actions.NewL2Bindings(t, cl, engine.GethClient()),
+		Bindings:       helpers.NewL2Bindings(t, cl, engine.GethClient()),
 	}
-	alice := actions.NewCrossLayerUser(log, dp.Secrets.Alice, rand.New(rand.NewSource(0xa57b)))
+	alice := helpers.NewCrossLayerUser(log, dp.Secrets.Alice, rand.New(rand.NewSource(0xa57b)))
 	alice.L2.SetUserEnv(l2UserEnv)
 
 	contract, err := bindings.NewDataAvailabilityChallenge(sd.RollupCfg.AltDAConfig.DAChallengeAddress, l1Client)
@@ -131,21 +131,21 @@ func (a *L2AltDA) StorageClient() *altda.DAErrFaker {
 	return a.storage
 }
 
-func (a *L2AltDA) NewVerifier(t actions.Testing) *actions.L2Verifier {
+func (a *L2AltDA) NewVerifier(t helpers.Testing) *helpers.L2Verifier {
 	jwtPath := e2eutils.WriteDefaultJWT(t)
-	engine := actions.NewL2Engine(t, a.log, a.sd.L2Cfg, a.sd.RollupCfg.Genesis.L1, jwtPath)
+	engine := helpers.NewL2Engine(t, a.log, a.sd.L2Cfg, a.sd.RollupCfg.Genesis.L1, jwtPath)
 	engCl := engine.EngineClient(t, a.sd.RollupCfg)
 	l1F, err := sources.NewL1Client(a.miner.RPCClient(), a.log, nil, sources.L1ClientDefaultConfig(a.sd.RollupCfg, false, sources.RPCKindBasic))
 	require.NoError(t, err)
 
 	daMgr := altda.NewAltDAWithStorage(a.log, a.altDACfg, a.storage, &altda.NoopMetrics{})
 
-	verifier := actions.NewL2Verifier(t, a.log, l1F, a.miner.BlobStore(), daMgr, engCl, a.sd.RollupCfg, &sync.Config{}, safedb.Disabled, nil)
+	verifier := helpers.NewL2Verifier(t, a.log, l1F, a.miner.BlobStore(), daMgr, engCl, a.sd.RollupCfg, &sync.Config{}, safedb.Disabled, nil)
 
 	return verifier
 }
 
-func (a *L2AltDA) ActSequencerIncludeTx(t actions.Testing) {
+func (a *L2AltDA) ActSequencerIncludeTx(t helpers.Testing) {
 	a.alice.L2.ActResetTxOpts(t)
 	a.alice.L2.ActSetTxToAddr(&a.dp.Addresses.Bob)(t)
 	a.alice.L2.ActMakeTx(t)
@@ -157,7 +157,7 @@ func (a *L2AltDA) ActSequencerIncludeTx(t actions.Testing) {
 	a.sequencer.ActL2EndBlock(t)
 }
 
-func (a *L2AltDA) ActNewL2Tx(t actions.Testing) {
+func (a *L2AltDA) ActNewL2Tx(t helpers.Testing) {
 	a.ActSequencerIncludeTx(t)
 
 	a.batcher.ActL2BatchBuffer(t)
@@ -174,17 +174,17 @@ func (a *L2AltDA) ActNewL2Tx(t actions.Testing) {
 	a.lastCommBn = a.miner.L1Chain().CurrentBlock().Number.Uint64()
 }
 
-func (a *L2AltDA) ActDeleteLastInput(t actions.Testing) {
+func (a *L2AltDA) ActDeleteLastInput(t helpers.Testing) {
 	require.NoError(t, a.storage.Client.DeleteData(a.lastComm))
 }
 
-func (a *L2AltDA) ActChallengeLastInput(t actions.Testing) {
+func (a *L2AltDA) ActChallengeLastInput(t helpers.Testing) {
 	a.ActChallengeInput(t, a.lastComm, a.lastCommBn)
 
 	a.log.Info("challenged last input", "block", a.lastCommBn)
 }
 
-func (a *L2AltDA) ActChallengeInput(t actions.Testing, comm []byte, bn uint64) {
+func (a *L2AltDA) ActChallengeInput(t helpers.Testing, comm []byte, bn uint64) {
 	bondValue, err := a.contract.BondSize(&bind.CallOpts{})
 	require.NoError(t, err)
 
@@ -210,7 +210,7 @@ func (a *L2AltDA) ActChallengeInput(t actions.Testing, comm []byte, bn uint64) {
 	a.miner.ActL1EndBlock(t)
 }
 
-func (a *L2AltDA) ActExpireLastInput(t actions.Testing) {
+func (a *L2AltDA) ActExpireLastInput(t helpers.Testing) {
 	reorgWindow := a.altDACfg.ResolveWindow + a.altDACfg.ChallengeWindow
 	for a.miner.L1Chain().CurrentBlock().Number.Uint64() <= a.lastCommBn+reorgWindow {
 		a.miner.ActL1StartBlock(12)(t)
@@ -218,7 +218,7 @@ func (a *L2AltDA) ActExpireLastInput(t actions.Testing) {
 	}
 }
 
-func (a *L2AltDA) ActResolveInput(t actions.Testing, comm []byte, input []byte, bn uint64) {
+func (a *L2AltDA) ActResolveInput(t helpers.Testing, comm []byte, input []byte, bn uint64) {
 	txOpts, err := bind.NewKeyedTransactorWithChainID(a.dp.Secrets.Alice, a.sd.L1Cfg.Config.ChainID)
 	require.NoError(t, err)
 
@@ -230,7 +230,7 @@ func (a *L2AltDA) ActResolveInput(t actions.Testing, comm []byte, input []byte, 
 	a.miner.ActL1EndBlock(t)
 }
 
-func (a *L2AltDA) ActResolveLastChallenge(t actions.Testing) {
+func (a *L2AltDA) ActResolveLastChallenge(t helpers.Testing) {
 	// remove derivation byte prefix
 	input, err := a.storage.GetInput(t.Ctx(), altda.Keccak256Commitment(a.lastComm[1:]))
 	require.NoError(t, err)
@@ -238,21 +238,21 @@ func (a *L2AltDA) ActResolveLastChallenge(t actions.Testing) {
 	a.ActResolveInput(t, a.lastComm, input, a.lastCommBn)
 }
 
-func (a *L2AltDA) ActL1Blocks(t actions.Testing, n uint64) {
+func (a *L2AltDA) ActL1Blocks(t helpers.Testing, n uint64) {
 	for i := uint64(0); i < n; i++ {
 		a.miner.ActL1StartBlock(12)(t)
 		a.miner.ActL1EndBlock(t)
 	}
 }
 
-func (a *L2AltDA) GetLastTxBlock(t actions.Testing) *types.Block {
+func (a *L2AltDA) GetLastTxBlock(t helpers.Testing) *types.Block {
 	rcpt := a.alice.L2.LastTxReceipt(t)
 	blk, err := a.engine.EthClient().BlockByHash(t.Ctx(), rcpt.BlockHash)
 	require.NoError(t, err)
 	return blk
 }
 
-func (a *L2AltDA) ActL1Finalized(t actions.Testing) {
+func (a *L2AltDA) ActL1Finalized(t helpers.Testing) {
 	latest := a.miner.L1Chain().CurrentBlock().Number.Uint64()
 	a.miner.ActL1Safe(t, latest)
 	a.miner.ActL1Finalize(t, latest)
@@ -265,7 +265,7 @@ func TestAltDA_ChallengeExpired(gt *testing.T) {
 		gt.Skip("AltDA is not enabled")
 	}
 
-	t := actions.NewDefaultTesting(gt)
+	t := helpers.NewDefaultTesting(gt)
 	harness := NewL2AltDA(t)
 
 	// generate enough initial l1 blocks to have a finalized head.
@@ -325,7 +325,7 @@ func TestAltDA_ChallengeResolved(gt *testing.T) {
 		gt.Skip("AltDA is not enabled")
 	}
 
-	t := actions.NewDefaultTesting(gt)
+	t := helpers.NewDefaultTesting(gt)
 	harness := NewL2AltDA(t)
 
 	// include a new l2 transaction, submitting an input commitment to the l1.
@@ -373,7 +373,7 @@ func TestAltDA_StorageError(gt *testing.T) {
 		gt.Skip("AltDA is not enabled")
 	}
 
-	t := actions.NewDefaultTesting(gt)
+	t := helpers.NewDefaultTesting(gt)
 	harness := NewL2AltDA(t)
 
 	// include a new l2 transaction, submitting an input commitment to the l1.
@@ -402,7 +402,7 @@ func TestAltDA_ChallengeReorg(gt *testing.T) {
 		gt.Skip("AltDA is not enabled")
 	}
 
-	t := actions.NewDefaultTesting(gt)
+	t := helpers.NewDefaultTesting(gt)
 	harness := NewL2AltDA(t)
 
 	// New L2 tx added to a batch and committed to L1
@@ -450,7 +450,7 @@ func TestAltDA_SequencerStalledMultiChallenges(gt *testing.T) {
 		gt.Skip("AltDA is not enabled")
 	}
 
-	t := actions.NewDefaultTesting(gt)
+	t := helpers.NewDefaultTesting(gt)
 	a := NewL2AltDA(t)
 
 	// create a new tx on l2 and commit it to l1
@@ -545,7 +545,7 @@ func TestAltDA_Finalization(gt *testing.T) {
 	if !e2eutils.UseAltDA() {
 		gt.Skip("AltDA is not enabled")
 	}
-	t := actions.NewDefaultTesting(gt)
+	t := helpers.NewDefaultTesting(gt)
 	a := NewL2AltDA(t)
 
 	// build L1 block #1

@@ -5,7 +5,7 @@ import (
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
-	"github.com/ethereum-optimism/optimism/op-e2e/actions"
+	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	upgradesHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/upgrades/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
@@ -23,7 +23,7 @@ import (
 // This is a regression test, previously the pipeline encountered got stuck in a reset loop with the error:
 // buffered L1 chain epoch %s in batch queue does not match safe head origin %s
 func TestDeriveChainFromNearL1Genesis(gt *testing.T) {
-	t := actions.NewDefaultTesting(gt)
+	t := helpers.NewDefaultTesting(gt)
 	p := &e2eutils.TestParams{
 		MaxSequencerDrift:   20, // larger than L1 block time we simulate in this test (12)
 		SequencerWindowSize: 24,
@@ -33,9 +33,9 @@ func TestDeriveChainFromNearL1Genesis(gt *testing.T) {
 	dp := e2eutils.MakeDeployParams(t, p)
 	// do not activate Delta hardfork for verifier
 	upgradesHelpers.ApplyDeltaTimeOffset(dp, nil)
-	sd := e2eutils.Setup(t, dp, actions.DefaultAlloc)
+	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
 	logger := testlog.Logger(t, log.LevelInfo)
-	miner, seqEngine, sequencer := actions.SetupSequencerTest(t, sd, logger)
+	miner, seqEngine, sequencer := helpers.SetupSequencerTest(t, sd, logger)
 
 	miner.ActEmptyBlock(t)
 	require.EqualValues(gt, 1, miner.L1Chain().CurrentBlock().Number.Uint64())
@@ -55,7 +55,7 @@ func TestDeriveChainFromNearL1Genesis(gt *testing.T) {
 
 	rollupSeqCl := sequencer.RollupClient()
 	// Force batcher to submit SingularBatches to L1.
-	batcher := actions.NewL2Batcher(logger, sd.RollupCfg, &actions.BatcherCfg{
+	batcher := helpers.NewL2Batcher(logger, sd.RollupCfg, &helpers.BatcherCfg{
 		MinL1TxSize:          0,
 		MaxL1TxSize:          128_000,
 		BatcherKey:           dp.Secrets.Batcher,
@@ -91,7 +91,7 @@ func TestDeriveChainFromNearL1Genesis(gt *testing.T) {
 	// This is the same situation as if op-node restarted at this point.
 	l2Cl, err := sources.NewEngineClient(seqEngine.RPCClient(), logger, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 	require.NoError(gt, err)
-	verifier := actions.NewL2Verifier(t, logger, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), altda.Disabled,
+	verifier := helpers.NewL2Verifier(t, logger, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), altda.Disabled,
 		l2Cl, sequencer.RollupCfg, &sync.Config{}, safedb.Disabled, nil)
 	verifier.ActL2PipelineFull(t) // Should not get stuck in a reset loop forever
 	require.EqualValues(gt, l2BlockNum, seqEngine.L2Chain().CurrentSafeBlock().Number.Uint64())

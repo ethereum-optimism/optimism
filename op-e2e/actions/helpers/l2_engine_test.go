@@ -1,4 +1,4 @@
-package actions
+package helpers
 
 import (
 	"encoding/binary"

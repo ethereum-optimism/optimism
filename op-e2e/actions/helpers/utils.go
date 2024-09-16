@@ -1,4 +1,4 @@
-package actions
+package helpers
 
 import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"

@@ -5,7 +5,7 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/actions"
+	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -31,7 +31,7 @@ var (
 // verifyCodeHashMatches checks that the has of the code at the given address matches the expected code-hash.
 // It also sanity-checks that the code is not empty: we should never deploy empty contract codes.
 // Returns the contract code
-func verifyCodeHashMatches(t actions.Testing, client *ethclient.Client, address common.Address, expectedCodeHash common.Hash) []byte {
+func verifyCodeHashMatches(t helpers.Testing, client *ethclient.Client, address common.Address, expectedCodeHash common.Hash) []byte {
 	code, err := client.CodeAt(context.Background(), address, nil)
 	require.NoError(t, err)
 	require.NotEmpty(t, code)
@@ -41,8 +41,8 @@ func verifyCodeHashMatches(t actions.Testing, client *ethclient.Client, address 
 }
 
 func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
-	t := actions.NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, actions.DefaultRollupTestParams)
+	t := helpers.NewDefaultTesting(gt)
+	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams)
 	ecotoneOffset := hexutil.Uint64(4)
 
 	log := testlog.Logger(t, log.LevelDebug)
@@ -55,8 +55,8 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	// New forks have to be added here...
 	require.NoError(t, dp.DeployConfig.Check(log), "must have valid config")
 
-	sd := e2eutils.Setup(t, dp, actions.DefaultAlloc)
-	_, _, miner, sequencer, engine, verifier, _, _ := actions.SetupReorgTestActors(t, dp, sd, log)
+	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
+	_, _, miner, sequencer, engine, verifier, _, _ := helpers.SetupReorgTestActors(t, dp, sd, log)
 	ethCl := engine.EthClient()
 
 	// build a single block to move away from the genesis with 0-values in L1Block contract
@@ -239,8 +239,8 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 
 // TestEcotoneBeforeL1 tests that the L2 Ecotone fork can activate before L1 Dencun does
 func TestEcotoneBeforeL1(gt *testing.T) {
-	t := actions.NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, actions.DefaultRollupTestParams)
+	t := helpers.NewDefaultTesting(gt)
+	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams)
 	offset := hexutil.Uint64(0)
 	farOffset := hexutil.Uint64(10000)
 	dp.DeployConfig.L2GenesisRegolithTimeOffset = &offset
@@ -249,9 +249,9 @@ func TestEcotoneBeforeL1(gt *testing.T) {
 	dp.DeployConfig.L2GenesisDeltaTimeOffset = &offset
 	dp.DeployConfig.L2GenesisEcotoneTimeOffset = &offset
 
-	sd := e2eutils.Setup(t, dp, actions.DefaultAlloc)
+	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
-	_, _, _, sequencer, engine, verifier, _, _ := actions.SetupReorgTestActors(t, dp, sd, log)
+	_, _, _, sequencer, engine, verifier, _, _ := helpers.SetupReorgTestActors(t, dp, sd, log)
 
 	// start op-nodes
 	sequencer.ActL2PipelineFull(t)

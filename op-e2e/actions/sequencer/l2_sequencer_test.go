@@ -4,7 +4,7 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/actions"
+	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 
@@ -17,7 +17,7 @@ import (
 )
 
 func TestL2Sequencer_SequencerDrift(gt *testing.T) {
-	t := actions.NewDefaultTesting(gt)
+	t := helpers.NewDefaultTesting(gt)
 	p := &e2eutils.TestParams{
 		MaxSequencerDrift:   20, // larger than L1 block time we simulate in this test (12)
 		SequencerWindowSize: 24,
@@ -25,9 +25,9 @@ func TestL2Sequencer_SequencerDrift(gt *testing.T) {
 		L1BlockTime:         12,
 	}
 	dp := e2eutils.MakeDeployParams(t, p)
-	sd := e2eutils.Setup(t, dp, actions.DefaultAlloc)
+	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
-	miner, engine, sequencer := actions.SetupSequencerTest(t, sd, log)
+	miner, engine, sequencer := helpers.SetupSequencerTest(t, sd, log)
 	miner.ActL1SetFeeRecipient(common.Address{'A'})
 
 	sequencer.ActL2PipelineFull(t)
@@ -91,11 +91,11 @@ func TestL2Sequencer_SequencerDrift(gt *testing.T) {
 // would build an unsafe L2 block with a L1 origin that then gets reorged out,
 // while the verifier-codepath only ever sees the valid post-reorg L1 chain.
 func TestL2Sequencer_SequencerOnlyReorg(gt *testing.T) {
-	t := actions.NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, actions.DefaultRollupTestParams)
-	sd := e2eutils.Setup(t, dp, actions.DefaultAlloc)
+	t := helpers.NewDefaultTesting(gt)
+	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams)
+	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
-	miner, _, sequencer := actions.SetupSequencerTest(t, sd, log)
+	miner, _, sequencer := helpers.SetupSequencerTest(t, sd, log)
 
 	// Sequencer at first only recognizes the genesis as safe.
 	// The rest of the L1 chain will be incorporated as L1 origins into unsafe L2 blocks.

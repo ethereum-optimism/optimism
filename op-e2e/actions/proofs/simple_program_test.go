@@ -3,7 +3,7 @@ package proofs
 import (
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/actions"
+	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
 	"github.com/ethereum-optimism/optimism/op-program/client/claim"
 	"github.com/ethereum/go-ethereum/common"
@@ -11,7 +11,7 @@ import (
 )
 
 func runSimpleProgramTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
-	t := actions.NewDefaultTesting(gt)
+	t := actionsHelpers.NewDefaultTesting(gt)
 	env := helpers.NewL2FaultProofEnv(t, testCfg, helpers.NewTestParams(), helpers.NewBatcherCfg())
 
 	// Build an empty block on L2

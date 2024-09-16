@@ -3,7 +3,7 @@ package derivation
 import (
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/actions"
+	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
@@ -13,7 +13,7 @@ import (
 )
 
 func TestL2Verifier_SequenceWindow(gt *testing.T) {
-	t := actions.NewDefaultTesting(gt)
+	t := helpers.NewDefaultTesting(gt)
 	p := &e2eutils.TestParams{
 		MaxSequencerDrift:   10,
 		SequencerWindowSize: 24,
@@ -21,9 +21,9 @@ func TestL2Verifier_SequenceWindow(gt *testing.T) {
 		L1BlockTime:         15,
 	}
 	dp := e2eutils.MakeDeployParams(t, p)
-	sd := e2eutils.Setup(t, dp, actions.DefaultAlloc)
+	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
-	miner, engine, verifier := actions.SetupVerifierOnlyTest(t, sd, log)
+	miner, engine, verifier := helpers.SetupVerifierOnlyTest(t, sd, log)
 	miner.ActL1SetFeeRecipient(common.Address{'A'})
 
 	// Make two sequence windows worth of empty L1 blocks. After we pass the first sequence window, the L2 chain should get blocks

@@ -3,7 +3,7 @@ package proofs
 import (
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/actions"
+	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-program/client/claim"
@@ -21,7 +21,7 @@ import (
 // 5. Instruct the sequencer to derive the L2 chain.
 // 6. Run the FPP on the safe head.
 func runChannelTimeoutTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
-	t := actions.NewDefaultTesting(gt)
+	t := actionsHelpers.NewDefaultTesting(gt)
 	tp := helpers.NewTestParams(func(tp *e2eutils.TestParams) {
 		// Set the channel timeout to 10 blocks, 12x lower than the sequencing window.
 		tp.ChannelTimeout = 10

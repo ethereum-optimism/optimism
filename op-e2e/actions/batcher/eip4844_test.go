@@ -3,7 +3,7 @@ package batcher
 import (
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/actions"
+	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -17,26 +17,26 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
-func setupEIP4844Test(t actions.Testing, log log.Logger) (*e2eutils.SetupData, *e2eutils.DeployParams, *actions.L1Miner, *actions.L2Sequencer, *actions.L2Engine, *actions.L2Verifier, *actions.L2Engine) {
-	dp := e2eutils.MakeDeployParams(t, actions.DefaultRollupTestParams)
+func setupEIP4844Test(t helpers.Testing, log log.Logger) (*e2eutils.SetupData, *e2eutils.DeployParams, *helpers.L1Miner, *helpers.L2Sequencer, *helpers.L2Engine, *helpers.L2Verifier, *helpers.L2Engine) {
+	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams)
 	genesisActivation := hexutil.Uint64(0)
 	dp.DeployConfig.L1CancunTimeOffset = &genesisActivation
 	dp.DeployConfig.L2GenesisCanyonTimeOffset = &genesisActivation
 	dp.DeployConfig.L2GenesisDeltaTimeOffset = &genesisActivation
 	dp.DeployConfig.L2GenesisEcotoneTimeOffset = &genesisActivation
 
-	sd := e2eutils.Setup(t, dp, actions.DefaultAlloc)
-	miner, seqEngine, sequencer := actions.SetupSequencerTest(t, sd, log)
+	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
+	miner, seqEngine, sequencer := helpers.SetupSequencerTest(t, sd, log)
 	miner.ActL1SetFeeRecipient(common.Address{'A'})
 	sequencer.ActL2PipelineFull(t)
-	verifEngine, verifier := actions.SetupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
+	verifEngine, verifier := helpers.SetupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
 	return sd, dp, miner, sequencer, seqEngine, verifier, verifEngine
 }
 
-func setupBatcher(t actions.Testing, log log.Logger, sd *e2eutils.SetupData, dp *e2eutils.DeployParams, miner *actions.L1Miner,
-	sequencer *actions.L2Sequencer, engine *actions.L2Engine, daType batcherFlags.DataAvailabilityType,
-) *actions.L2Batcher {
-	return actions.NewL2Batcher(log, sd.RollupCfg, &actions.BatcherCfg{
+func setupBatcher(t helpers.Testing, log log.Logger, sd *e2eutils.SetupData, dp *e2eutils.DeployParams, miner *helpers.L1Miner,
+	sequencer *helpers.L2Sequencer, engine *helpers.L2Engine, daType batcherFlags.DataAvailabilityType,
+) *helpers.L2Batcher {
+	return helpers.NewL2Batcher(log, sd.RollupCfg, &helpers.BatcherCfg{
 		MinL1TxSize:          0,
 		MaxL1TxSize:          128_000,
 		BatcherKey:           dp.Secrets.Batcher,
@@ -45,7 +45,7 @@ func setupBatcher(t actions.Testing, log log.Logger, sd *e2eutils.SetupData, dp 
 }
 
 func TestEIP4844DataAvailability(gt *testing.T) {
-	t := actions.NewDefaultTesting(gt)
+	t := helpers.NewDefaultTesting(gt)
 
 	log := testlog.Logger(t, log.LevelDebug)
 	sd, dp, miner, sequencer, seqEngine, verifier, _ := setupEIP4844Test(t, log)
@@ -83,7 +83,7 @@ func TestEIP4844DataAvailability(gt *testing.T) {
 }
 
 func TestEIP4844MultiBlobs(gt *testing.T) {
-	t := actions.NewDefaultTesting(gt)
+	t := helpers.NewDefaultTesting(gt)
 
 	log := testlog.Logger(t, log.LevelDebug)
 	sd, dp, miner, sequencer, seqEngine, verifier, _ := setupEIP4844Test(t, log)
@@ -122,7 +122,7 @@ func TestEIP4844MultiBlobs(gt *testing.T) {
 }
 
 func TestEIP4844DataAvailabilitySwitch(gt *testing.T) {
-	t := actions.NewDefaultTesting(gt)
+	t := helpers.NewDefaultTesting(gt)
 
 	log := testlog.Logger(t, log.LevelDebug)
 	sd, dp, miner, sequencer, seqEngine, verifier, _ := setupEIP4844Test(t, log)

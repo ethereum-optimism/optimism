@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/actions"
+	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/safedb/helpers"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
@@ -13,8 +13,8 @@ import (
 )
 
 func TestRecordSafeHeadUpdates(gt *testing.T) {
-	t := actions.NewDefaultTesting(gt)
-	sd, miner, sequencer, verifier, verifierEng, batcher := helpers.SetupSafeDBTest(t, actions.DefaultRollupTestParams)
+	t := actionsHelpers.NewDefaultTesting(gt)
+	sd, miner, sequencer, verifier, verifierEng, batcher := helpers.SetupSafeDBTest(t, actionsHelpers.DefaultRollupTestParams)
 	verifEngClient := verifierEng.EngineClient(t, sd.RollupCfg)
 
 	sequencer.ActL2PipelineFull(t)

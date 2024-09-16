@@ -1,4 +1,4 @@
-package actions
+package helpers
 
 import (
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"

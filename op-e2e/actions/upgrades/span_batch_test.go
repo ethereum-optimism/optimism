@@ -10,8 +10,8 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/actions"
-	helpers2 "github.com/ethereum-optimism/optimism/op-e2e/actions/upgrades/helpers"
+	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
+	upgradesHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/upgrades/helpers"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum"
@@ -33,7 +33,7 @@ import (
 // TestDropSpanBatchBeforeHardfork tests behavior of op-node before Delta hardfork.
 // op-node must drop SpanBatch before Delta hardfork.
 func TestDropSpanBatchBeforeHardfork(gt *testing.T) {
-	t := actions.NewDefaultTesting(gt)
+	t := actionsHelpers.NewDefaultTesting(gt)
 	p := &e2eutils.TestParams{
 		MaxSequencerDrift:   20, // larger than L1 block time we simulate in this test (12)
 		SequencerWindowSize: 24,
@@ -42,15 +42,15 @@ func TestDropSpanBatchBeforeHardfork(gt *testing.T) {
 	}
 	dp := e2eutils.MakeDeployParams(t, p)
 	// do not activate Delta hardfork for verifier
-	helpers2.ApplyDeltaTimeOffset(dp, nil)
-	sd := e2eutils.Setup(t, dp, actions.DefaultAlloc)
+	upgradesHelpers.ApplyDeltaTimeOffset(dp, nil)
+	sd := e2eutils.Setup(t, dp, actionsHelpers.DefaultAlloc)
 	log := testlog.Logger(t, log.LevelError)
-	miner, seqEngine, sequencer := actions.SetupSequencerTest(t, sd, log)
-	verifEngine, verifier := actions.SetupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
+	miner, seqEngine, sequencer := actionsHelpers.SetupSequencerTest(t, sd, log)
+	verifEngine, verifier := actionsHelpers.SetupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
 	rollupSeqCl := sequencer.RollupClient()
 
 	// Force batcher to submit SpanBatches to L1.
-	batcher := actions.NewL2Batcher(log, sd.RollupCfg, &actions.BatcherCfg{
+	batcher := actionsHelpers.NewL2Batcher(log, sd.RollupCfg, &actionsHelpers.BatcherCfg{
 		MinL1TxSize:          0,
 		MaxL1TxSize:          128_000,
 		BatcherKey:           dp.Secrets.Batcher,
@@ -122,7 +122,7 @@ func TestDropSpanBatchBeforeHardfork(gt *testing.T) {
 // TestHardforkMiddleOfSpanBatch tests behavior of op-node Delta hardfork.
 // If Delta activation time is in the middle of time range of a SpanBatch, op-node must drop the batch.
 func TestHardforkMiddleOfSpanBatch(gt *testing.T) {
-	t := actions.NewDefaultTesting(gt)
+	t := actionsHelpers.NewDefaultTesting(gt)
 	p := &e2eutils.TestParams{
 		MaxSequencerDrift:   20, // larger than L1 block time we simulate in this test (12)
 		SequencerWindowSize: 24,
@@ -133,21 +133,21 @@ func TestHardforkMiddleOfSpanBatch(gt *testing.T) {
 
 	// Activate HF in the middle of the first epoch
 	deltaOffset := hexutil.Uint64(6)
-	helpers2.ApplyDeltaTimeOffset(dp, &deltaOffset)
+	upgradesHelpers.ApplyDeltaTimeOffset(dp, &deltaOffset)
 	// Applies to HF that goes into Delta. Otherwise we end up with more upgrade txs and things during this case.
 	dp.DeployConfig.L2GenesisEcotoneTimeOffset = nil
 	dp.DeployConfig.L2GenesisFjordTimeOffset = nil
 	dp.DeployConfig.L2GenesisGraniteTimeOffset = nil
 
-	sd := e2eutils.Setup(t, dp, actions.DefaultAlloc)
+	sd := e2eutils.Setup(t, dp, actionsHelpers.DefaultAlloc)
 	log := testlog.Logger(t, log.LevelError)
-	miner, seqEngine, sequencer := actions.SetupSequencerTest(t, sd, log)
-	verifEngine, verifier := actions.SetupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
+	miner, seqEngine, sequencer := actionsHelpers.SetupSequencerTest(t, sd, log)
+	verifEngine, verifier := actionsHelpers.SetupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
 	minerCl := miner.EthClient()
 	rollupSeqCl := sequencer.RollupClient()
 
 	// Force batcher to submit SpanBatches to L1.
-	batcher := actions.NewL2Batcher(log, sd.RollupCfg, &actions.BatcherCfg{
+	batcher := actionsHelpers.NewL2Batcher(log, sd.RollupCfg, &actionsHelpers.BatcherCfg{
 		MinL1TxSize:          0,
 		MaxL1TxSize:          128_000,
 		BatcherKey:           dp.Secrets.Batcher,
@@ -235,7 +235,7 @@ func TestHardforkMiddleOfSpanBatch(gt *testing.T) {
 // TestAcceptSingularBatchAfterHardfork tests behavior of op-node after Delta hardfork.
 // op-node must accept SingularBatch after Delta hardfork.
 func TestAcceptSingularBatchAfterHardfork(gt *testing.T) {
-	t := actions.NewDefaultTesting(gt)
+	t := actionsHelpers.NewDefaultTesting(gt)
 	p := &e2eutils.TestParams{
 		MaxSequencerDrift:   20, // larger than L1 block time we simulate in this test (12)
 		SequencerWindowSize: 24,
@@ -246,15 +246,15 @@ func TestAcceptSingularBatchAfterHardfork(gt *testing.T) {
 	dp := e2eutils.MakeDeployParams(t, p)
 
 	// activate Delta hardfork for verifier.
-	helpers2.ApplyDeltaTimeOffset(dp, &minTs)
-	sd := e2eutils.Setup(t, dp, actions.DefaultAlloc)
+	upgradesHelpers.ApplyDeltaTimeOffset(dp, &minTs)
+	sd := e2eutils.Setup(t, dp, actionsHelpers.DefaultAlloc)
 	log := testlog.Logger(t, log.LevelError)
-	miner, seqEngine, sequencer := actions.SetupSequencerTest(t, sd, log)
-	verifEngine, verifier := actions.SetupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
+	miner, seqEngine, sequencer := actionsHelpers.SetupSequencerTest(t, sd, log)
+	verifEngine, verifier := actionsHelpers.SetupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
 	rollupSeqCl := sequencer.RollupClient()
 
 	// Force batcher to submit SingularBatches to L1.
-	batcher := actions.NewL2Batcher(log, sd.RollupCfg, &actions.BatcherCfg{
+	batcher := actionsHelpers.NewL2Batcher(log, sd.RollupCfg, &actionsHelpers.BatcherCfg{
 		MinL1TxSize:              0,
 		MaxL1TxSize:              128_000,
 		BatcherKey:               dp.Secrets.Batcher,
@@ -321,7 +321,7 @@ func TestAcceptSingularBatchAfterHardfork(gt *testing.T) {
 // TestMixOfBatchesAfterHardfork tests behavior of op-node after Delta hardfork.
 // op-node must accept SingularBatch and SpanBatch in sequence.
 func TestMixOfBatchesAfterHardfork(gt *testing.T) {
-	t := actions.NewDefaultTesting(gt)
+	t := actionsHelpers.NewDefaultTesting(gt)
 	p := &e2eutils.TestParams{
 		MaxSequencerDrift:   20, // larger than L1 block time we simulate in this test (12)
 		SequencerWindowSize: 24,
@@ -332,11 +332,11 @@ func TestMixOfBatchesAfterHardfork(gt *testing.T) {
 	dp := e2eutils.MakeDeployParams(t, p)
 
 	// Activate Delta hardfork for verifier.
-	helpers2.ApplyDeltaTimeOffset(dp, &minTs)
-	sd := e2eutils.Setup(t, dp, actions.DefaultAlloc)
+	upgradesHelpers.ApplyDeltaTimeOffset(dp, &minTs)
+	sd := e2eutils.Setup(t, dp, actionsHelpers.DefaultAlloc)
 	log := testlog.Logger(t, log.LevelError)
-	miner, seqEngine, sequencer := actions.SetupSequencerTest(t, sd, log)
-	verifEngine, verifier := actions.SetupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
+	miner, seqEngine, sequencer := actionsHelpers.SetupSequencerTest(t, sd, log)
+	verifEngine, verifier := actionsHelpers.SetupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
 	rollupSeqCl := sequencer.RollupClient()
 	seqEngCl := seqEngine.EthClient()
 
@@ -370,7 +370,7 @@ func TestMixOfBatchesAfterHardfork(gt *testing.T) {
 		sequencer.ActBuildToL1Head(t)
 
 		// Select batcher mode
-		batcherCfg := actions.BatcherCfg{
+		batcherCfg := actionsHelpers.BatcherCfg{
 			MinL1TxSize:              0,
 			MaxL1TxSize:              128_000,
 			BatcherKey:               dp.Secrets.Batcher,
@@ -378,7 +378,7 @@ func TestMixOfBatchesAfterHardfork(gt *testing.T) {
 			ForceSubmitSingularBatch: i%2 == 1, // Submit SingularBatch for even numbered batches
 			DataAvailabilityType:     batcherFlags.CalldataType,
 		}
-		batcher := actions.NewL2Batcher(log, sd.RollupCfg, &batcherCfg, rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
+		batcher := actionsHelpers.NewL2Batcher(log, sd.RollupCfg, &batcherCfg, rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 		// Submit all new blocks
 		batcher.ActSubmitAll(t)
 
@@ -412,7 +412,7 @@ func TestMixOfBatchesAfterHardfork(gt *testing.T) {
 
 // TestSpanBatchEmptyChain tests derivation of empty chain using SpanBatch.
 func TestSpanBatchEmptyChain(gt *testing.T) {
-	t := actions.NewDefaultTesting(gt)
+	t := actionsHelpers.NewDefaultTesting(gt)
 	p := &e2eutils.TestParams{
 		MaxSequencerDrift:   20,
 		SequencerWindowSize: 24,
@@ -422,14 +422,14 @@ func TestSpanBatchEmptyChain(gt *testing.T) {
 	dp := e2eutils.MakeDeployParams(t, p)
 	minTs := hexutil.Uint64(0)
 	// Activate Delta hardfork
-	helpers2.ApplyDeltaTimeOffset(dp, &minTs)
-	sd := e2eutils.Setup(t, dp, actions.DefaultAlloc)
+	upgradesHelpers.ApplyDeltaTimeOffset(dp, &minTs)
+	sd := e2eutils.Setup(t, dp, actionsHelpers.DefaultAlloc)
 	log := testlog.Logger(t, log.LevelError)
-	miner, seqEngine, sequencer := actions.SetupSequencerTest(t, sd, log)
-	_, verifier := actions.SetupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
+	miner, seqEngine, sequencer := actionsHelpers.SetupSequencerTest(t, sd, log)
+	_, verifier := actionsHelpers.SetupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
 
 	rollupSeqCl := sequencer.RollupClient()
-	batcher := actions.NewL2Batcher(log, sd.RollupCfg, actions.DefaultBatcherCfg(dp),
+	batcher := actionsHelpers.NewL2Batcher(log, sd.RollupCfg, actionsHelpers.DefaultBatcherCfg(dp),
 		rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 
 	sequencer.ActL2PipelineFull(t)
@@ -475,7 +475,7 @@ func TestSpanBatchEmptyChain(gt *testing.T) {
 
 // TestSpanBatchLowThroughputChain tests derivation of low-throughput chain using SpanBatch.
 func TestSpanBatchLowThroughputChain(gt *testing.T) {
-	t := actions.NewDefaultTesting(gt)
+	t := actionsHelpers.NewDefaultTesting(gt)
 	p := &e2eutils.TestParams{
 		MaxSequencerDrift:   20,
 		SequencerWindowSize: 24,
@@ -485,14 +485,14 @@ func TestSpanBatchLowThroughputChain(gt *testing.T) {
 	dp := e2eutils.MakeDeployParams(t, p)
 	minTs := hexutil.Uint64(0)
 	// Activate Delta hardfork
-	helpers2.ApplyDeltaTimeOffset(dp, &minTs)
-	sd := e2eutils.Setup(t, dp, actions.DefaultAlloc)
+	upgradesHelpers.ApplyDeltaTimeOffset(dp, &minTs)
+	sd := e2eutils.Setup(t, dp, actionsHelpers.DefaultAlloc)
 	log := testlog.Logger(t, log.LevelError)
-	miner, seqEngine, sequencer := actions.SetupSequencerTest(t, sd, log)
-	_, verifier := actions.SetupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
+	miner, seqEngine, sequencer := actionsHelpers.SetupSequencerTest(t, sd, log)
+	_, verifier := actionsHelpers.SetupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
 
 	rollupSeqCl := sequencer.RollupClient()
-	batcher := actions.NewL2Batcher(log, sd.RollupCfg, actions.DefaultBatcherCfg(dp),
+	batcher := actionsHelpers.NewL2Batcher(log, sd.RollupCfg, actionsHelpers.DefaultBatcherCfg(dp),
 		rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 	cl := seqEngine.EthClient()
 
@@ -587,7 +587,7 @@ func TestSpanBatchLowThroughputChain(gt *testing.T) {
 }
 
 func TestBatchEquivalence(gt *testing.T) {
-	t := actions.NewDefaultTesting(gt)
+	t := actionsHelpers.NewDefaultTesting(gt)
 	log := testlog.Logger(t, log.LevelError)
 
 	p := &e2eutils.TestParams{
@@ -599,8 +599,8 @@ func TestBatchEquivalence(gt *testing.T) {
 	// Delta activated deploy config
 	dp := e2eutils.MakeDeployParams(t, p)
 	minTs := hexutil.Uint64(0)
-	helpers2.ApplyDeltaTimeOffset(dp, &minTs)
-	sdDeltaActivated := e2eutils.Setup(t, dp, actions.DefaultAlloc)
+	upgradesHelpers.ApplyDeltaTimeOffset(dp, &minTs)
+	sdDeltaActivated := e2eutils.Setup(t, dp, actionsHelpers.DefaultAlloc)
 
 	// Delta deactivated deploy config
 	rcfg := *sdDeltaActivated.RollupCfg
@@ -613,18 +613,18 @@ func TestBatchEquivalence(gt *testing.T) {
 	}
 
 	// Setup sequencer
-	miner, seqEngine, sequencer := actions.SetupSequencerTest(t, sdDeltaActivated, log)
+	miner, seqEngine, sequencer := actionsHelpers.SetupSequencerTest(t, sdDeltaActivated, log)
 	rollupSeqCl := sequencer.RollupClient()
 	seqEngCl := seqEngine.EthClient()
 
 	// Setup Delta activated spanVerifier
-	_, spanVerifier := actions.SetupVerifier(t, sdDeltaActivated, log, miner.L1Client(t, sdDeltaActivated.RollupCfg), miner.BlobStore(), &sync.Config{})
+	_, spanVerifier := actionsHelpers.SetupVerifier(t, sdDeltaActivated, log, miner.L1Client(t, sdDeltaActivated.RollupCfg), miner.BlobStore(), &sync.Config{})
 
 	// Setup Delta deactivated spanVerifier
-	_, singularVerifier := actions.SetupVerifier(t, sdDeltaDeactivated, log, miner.L1Client(t, sdDeltaDeactivated.RollupCfg), miner.BlobStore(), &sync.Config{})
+	_, singularVerifier := actionsHelpers.SetupVerifier(t, sdDeltaDeactivated, log, miner.L1Client(t, sdDeltaDeactivated.RollupCfg), miner.BlobStore(), &sync.Config{})
 
 	// Setup SpanBatcher
-	spanBatcher := actions.NewL2Batcher(log, sdDeltaActivated.RollupCfg, &actions.BatcherCfg{
+	spanBatcher := actionsHelpers.NewL2Batcher(log, sdDeltaActivated.RollupCfg, &actionsHelpers.BatcherCfg{
 		MinL1TxSize:          0,
 		MaxL1TxSize:          128_000,
 		BatcherKey:           dp.Secrets.Batcher,
@@ -633,7 +633,7 @@ func TestBatchEquivalence(gt *testing.T) {
 	}, rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sdDeltaActivated.RollupCfg))
 
 	// Setup SingularBatcher
-	singularBatcher := actions.NewL2Batcher(log, sdDeltaDeactivated.RollupCfg, &actions.BatcherCfg{
+	singularBatcher := actionsHelpers.NewL2Batcher(log, sdDeltaDeactivated.RollupCfg, &actionsHelpers.BatcherCfg{
 		MinL1TxSize:              0,
 		MaxL1TxSize:              128_000,
 		BatcherKey:               dp.Secrets.Batcher,

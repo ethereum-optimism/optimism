@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/actions"
+	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -18,13 +18,13 @@ import (
 )
 
 func TestDencunL1ForkAfterGenesis(gt *testing.T) {
-	t := actions.NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, actions.DefaultRollupTestParams)
+	t := helpers.NewDefaultTesting(gt)
+	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams)
 	offset := hexutil.Uint64(24)
 	dp.DeployConfig.L1CancunTimeOffset = &offset
-	sd := e2eutils.Setup(t, dp, actions.DefaultAlloc)
+	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
-	_, _, miner, sequencer, _, verifier, _, batcher := actions.SetupReorgTestActors(t, dp, sd, log)
+	_, _, miner, sequencer, _, verifier, _, batcher := helpers.SetupReorgTestActors(t, dp, sd, log)
 
 	l1Head := miner.L1Chain().CurrentBlock()
 	require.False(t, sd.L1Cfg.Config.IsCancun(l1Head.Number, l1Head.Time), "Cancun not active yet")
@@ -61,12 +61,12 @@ func TestDencunL1ForkAfterGenesis(gt *testing.T) {
 }
 
 func TestDencunL1ForkAtGenesis(gt *testing.T) {
-	t := actions.NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, actions.DefaultRollupTestParams)
+	t := helpers.NewDefaultTesting(gt)
+	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams)
 	require.Zero(t, *dp.DeployConfig.L1CancunTimeOffset)
-	sd := e2eutils.Setup(t, dp, actions.DefaultAlloc)
+	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
-	_, _, miner, sequencer, _, verifier, _, batcher := actions.SetupReorgTestActors(t, dp, sd, log)
+	_, _, miner, sequencer, _, verifier, _, batcher := helpers.SetupReorgTestActors(t, dp, sd, log)
 
 	l1Head := miner.L1Chain().CurrentBlock()
 	require.True(t, sd.L1Cfg.Config.IsCancun(l1Head.Number, l1Head.Time), "Cancun active at genesis")
@@ -118,8 +118,8 @@ func verifyEcotoneBlock(gt *testing.T, header *types.Header) {
 }
 
 func TestDencunL2ForkAfterGenesis(gt *testing.T) {
-	t := actions.NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, actions.DefaultRollupTestParams)
+	t := helpers.NewDefaultTesting(gt)
+	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams)
 	require.Zero(t, *dp.DeployConfig.L1CancunTimeOffset)
 	// This test wil fork on the second block
 	offset := hexutil.Uint64(dp.DeployConfig.L2BlockTime * 2)
@@ -128,9 +128,9 @@ func TestDencunL2ForkAfterGenesis(gt *testing.T) {
 	dp.DeployConfig.L2GenesisGraniteTimeOffset = nil
 	// New forks have to be added here, after changing the default deploy config!
 
-	sd := e2eutils.Setup(t, dp, actions.DefaultAlloc)
+	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
-	_, _, _, sequencer, engine, verifier, _, _ := actions.SetupReorgTestActors(t, dp, sd, log)
+	_, _, _, sequencer, engine, verifier, _, _ := helpers.SetupReorgTestActors(t, dp, sd, log)
 
 	// start op-nodes
 	sequencer.ActL2PipelineFull(t)
@@ -156,13 +156,13 @@ func TestDencunL2ForkAfterGenesis(gt *testing.T) {
 }
 
 func TestDencunL2ForkAtGenesis(gt *testing.T) {
-	t := actions.NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, actions.DefaultRollupTestParams)
+	t := helpers.NewDefaultTesting(gt)
+	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams)
 	require.Zero(t, *dp.DeployConfig.L2GenesisEcotoneTimeOffset)
 
-	sd := e2eutils.Setup(t, dp, actions.DefaultAlloc)
+	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
-	_, _, _, sequencer, engine, verifier, _, _ := actions.SetupReorgTestActors(t, dp, sd, log)
+	_, _, _, sequencer, engine, verifier, _, _ := helpers.SetupReorgTestActors(t, dp, sd, log)
 
 	// start op-nodes
 	sequencer.ActL2PipelineFull(t)
@@ -177,7 +177,7 @@ func TestDencunL2ForkAtGenesis(gt *testing.T) {
 	verifyEcotoneBlock(gt, engine.L2Chain().CurrentBlock())
 }
 
-func aliceSimpleBlobTx(t actions.Testing, dp *e2eutils.DeployParams) *types.Transaction {
+func aliceSimpleBlobTx(t helpers.Testing, dp *e2eutils.DeployParams) *types.Transaction {
 	txData := transactions.CreateEmptyBlobTx(true, dp.DeployConfig.L2ChainID)
 	// Manual signer creation, so we can sign a blob tx on the chain,
 	// even though we have disabled cancun signer support in Ecotone.
@@ -187,17 +187,17 @@ func aliceSimpleBlobTx(t actions.Testing, dp *e2eutils.DeployParams) *types.Tran
 	return tx
 }
 
-func newEngine(t actions.Testing, sd *e2eutils.SetupData, log log.Logger) *actions.L2Engine {
+func newEngine(t helpers.Testing, sd *e2eutils.SetupData, log log.Logger) *helpers.L2Engine {
 	jwtPath := e2eutils.WriteDefaultJWT(t)
-	return actions.NewL2Engine(t, log, sd.L2Cfg, sd.RollupCfg.Genesis.L1, jwtPath)
+	return helpers.NewL2Engine(t, log, sd.L2Cfg, sd.RollupCfg.Genesis.L1, jwtPath)
 }
 
 // TestDencunBlobTxRPC tries to send a Blob tx to the L2 engine via RPC, it should not be accepted.
 func TestDencunBlobTxRPC(gt *testing.T) {
-	t := actions.NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, actions.DefaultRollupTestParams)
+	t := helpers.NewDefaultTesting(gt)
+	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams)
 
-	sd := e2eutils.Setup(t, dp, actions.DefaultAlloc)
+	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 	engine := newEngine(t, sd, log)
 	cl := engine.EthClient()
@@ -208,10 +208,10 @@ func TestDencunBlobTxRPC(gt *testing.T) {
 
 // TestDencunBlobTxInTxPool tries to insert a blob tx directly into the tx pool, it should not be accepted.
 func TestDencunBlobTxInTxPool(gt *testing.T) {
-	t := actions.NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, actions.DefaultRollupTestParams)
+	t := helpers.NewDefaultTesting(gt)
+	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams)
 
-	sd := e2eutils.Setup(t, dp, actions.DefaultAlloc)
+	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 	engine := newEngine(t, sd, log)
 	tx := aliceSimpleBlobTx(t, dp)
@@ -221,13 +221,13 @@ func TestDencunBlobTxInTxPool(gt *testing.T) {
 
 // TestDencunBlobTxInclusion tries to send a Blob tx to the L2 engine, it should not be accepted.
 func TestDencunBlobTxInclusion(gt *testing.T) {
-	t := actions.NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, actions.DefaultRollupTestParams)
+	t := helpers.NewDefaultTesting(gt)
+	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams)
 
-	sd := e2eutils.Setup(t, dp, actions.DefaultAlloc)
+	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 
-	_, engine, sequencer := actions.SetupSequencerTest(t, sd, log)
+	_, engine, sequencer := helpers.SetupSequencerTest(t, sd, log)
 	sequencer.ActL2PipelineFull(t)
 
 	tx := aliceSimpleBlobTx(t, dp)

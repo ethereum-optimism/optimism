@@ -4,8 +4,8 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/actions"
-	helpers2 "github.com/ethereum-optimism/optimism/op-e2e/actions/upgrades/helpers"
+	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
+	upgradesHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/upgrades/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -46,16 +46,16 @@ func TestBlockTimeBatchType(t *testing.T) {
 // window.
 // This is a regression test against the bug fixed in PR #4566
 func BatchInLastPossibleBlocks(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
-	t := actions.NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, actions.DefaultRollupTestParams)
-	helpers2.ApplyDeltaTimeOffset(dp, deltaTimeOffset)
+	t := actionsHelpers.NewDefaultTesting(gt)
+	dp := e2eutils.MakeDeployParams(t, actionsHelpers.DefaultRollupTestParams)
+	upgradesHelpers.ApplyDeltaTimeOffset(dp, deltaTimeOffset)
 	dp.DeployConfig.SequencerWindowSize = 4
 	dp.DeployConfig.L2BlockTime = 2
 
-	sd := e2eutils.Setup(t, dp, actions.DefaultAlloc)
+	sd := e2eutils.Setup(t, dp, actionsHelpers.DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 
-	sd, _, miner, sequencer, sequencerEngine, _, _, batcher := actions.SetupReorgTestActors(t, dp, sd, log)
+	sd, _, miner, sequencer, sequencerEngine, _, _, batcher := actionsHelpers.SetupReorgTestActors(t, dp, sd, log)
 
 	signer := types.LatestSigner(sd.L2Cfg.Config)
 	cl := sequencerEngine.EthClient()
@@ -157,8 +157,8 @@ func BatchInLastPossibleBlocks(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 // At this point it can verify that the batches where properly generated.
 // Note: It batches submits when possible.
 func LargeL1Gaps(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
-	t := actions.NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, actions.DefaultRollupTestParams)
+	t := actionsHelpers.NewDefaultTesting(gt)
+	dp := e2eutils.MakeDeployParams(t, actionsHelpers.DefaultRollupTestParams)
 	dp.DeployConfig.L1BlockTime = 4
 	dp.DeployConfig.L2BlockTime = 2
 	dp.DeployConfig.SequencerWindowSize = 4
@@ -167,11 +167,11 @@ func LargeL1Gaps(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	dp.DeployConfig.L2GenesisFjordTimeOffset = nil
 	// TODO(client-pod#831): The Ecotone (and Fjord) activation blocks don't include user txs,
 	// so disabling these forks for now.
-	helpers2.ApplyDeltaTimeOffset(dp, deltaTimeOffset)
-	sd := e2eutils.Setup(t, dp, actions.DefaultAlloc)
+	upgradesHelpers.ApplyDeltaTimeOffset(dp, deltaTimeOffset)
+	sd := e2eutils.Setup(t, dp, actionsHelpers.DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 
-	sd, _, miner, sequencer, sequencerEngine, verifier, _, batcher := actions.SetupReorgTestActors(t, dp, sd, log)
+	sd, _, miner, sequencer, sequencerEngine, verifier, _, batcher := actionsHelpers.SetupReorgTestActors(t, dp, sd, log)
 
 	signer := types.LatestSigner(sd.L2Cfg.Config)
 	cl := sequencerEngine.EthClient()
