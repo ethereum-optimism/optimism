@@ -153,6 +153,10 @@ func (s *L2Engine) PeerCount() int {
 	return s.node.Server().PeerCount()
 }
 
+func (s *L2Engine) HTTPEndpoint() string {
+	return s.node.HTTPEndpoint()
+}
+
 func (s *L2Engine) EthClient() *ethclient.Client {
 	cl := s.node.Attach()
 	return ethclient.NewClient(cl)

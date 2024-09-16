@@ -588,7 +588,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 
 	// Create a fake Beacon node to hold on to blobs created by the L1 miner, and to serve them to L2
 	bcn := fakebeacon.NewBeacon(testlog.Logger(t, log.LevelInfo).New("role", "l1_cl"),
-		path.Join(cfg.BlobsPath, "l1_cl"), l1Genesis.Timestamp, cfg.DeployConfig.L1BlockTime)
+		e2eutils.NewBlobStore(), l1Genesis.Timestamp, cfg.DeployConfig.L1BlockTime)
 	t.Cleanup(func() {
 		_ = bcn.Close()
 	})
