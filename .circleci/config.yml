@@ -888,7 +888,7 @@ jobs:
           command: |
             # Make sure the workspace is properly owned
             sudo chown -R $USER:$USER .
-            mkdir -p /tmp/test-results 
+            mkdir -p /tmp/test-results
             mkdir -p /tmp/testlogs
       - run:
           name: run tests
@@ -2123,9 +2123,7 @@ workflows:
           name: op-e2e-cannon-tests<< matrix.variant >>
           matrix:
             parameters:
-              variant: [""]
-              # TODO(#11893): add mt-cannon to matrix once it's stable
-              #variant: ["", "-mt-cannon"]
+              variant: ["", "-mt-cannon"]
           module: op-e2e
           target: test-cannon
           parallelism: 4
