@@ -297,7 +297,7 @@ contract MIPS2 is ISemver {
             uint256 memProofOffset = MIPSMemory.memoryProofOffset(MEM_PROOF_OFFSET, 1);
             uint32 mem = MIPSMemory.readMem(_state.memRoot, effAddr, memProofOffset);
 
-            uint32 retVal;
+            uint32 retVal = 0;
             uint32 threadId = _thread.threadID;
             if (_opcode == ins.OP_LOAD_LINKED) {
                 retVal = mem;
