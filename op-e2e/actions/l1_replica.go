@@ -168,6 +168,10 @@ func (s *L1Replica) MockL1RPCErrors(fn func() error) {
 	}
 }
 
+func (s *L1Replica) HTTPEndpoint() string {
+	return s.node.HTTPEndpoint()
+}
+
 func (s *L1Replica) EthClient() *ethclient.Client {
 	cl := s.node.Attach()
 	return ethclient.NewClient(cl)

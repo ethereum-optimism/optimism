@@ -66,15 +66,46 @@ func (store *BlobsStore) GetBlobSidecars(ctx context.Context, ref eth.L1BlockRef
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert blob to commitment: %w", err)
 		}
+		proof, err := kzg4844.ComputeBlobProof(b.KZGBlob(), commitment)
+		if err != nil {
+			return nil, fmt.Errorf("failed to compute blob proof: %w", err)
+		}
 		out = append(out, &eth.BlobSidecar{
 			Index:         eth.Uint64String(h.Index),
 			Blob:          *b,
 			KZGCommitment: eth.Bytes48(commitment),
+			KZGProof:      eth.Bytes48(proof),
 		})
 	}
 	return out, nil
 }
 
-var (
-	_ derive.L1BlobsFetcher = (*BlobsStore)(nil)
-)
+func (store *BlobsStore) GetUnindexedSidecars(ctx context.Context, l1Timestamp uint64) ([]*eth.BlobSidecar, error) {
+	out := make([]*eth.BlobSidecar, 0)
+	m, ok := store.blobs[l1Timestamp]
+	if !ok {
+		return nil, fmt.Errorf("no blobs known with given time: %w", ethereum.NotFound)
+	}
+	for h, b := range m {
+		if b == nil {
+			return nil, fmt.Errorf("blob %d is nil, cannot copy: %w", h, ethereum.NotFound)
+		}
+
+		commitment, err := kzg4844.BlobToCommitment(b.KZGBlob())
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert blob to commitment: %w", err)
+		}
+		proof, err := kzg4844.ComputeBlobProof(b.KZGBlob(), commitment)
+		if err != nil {
+			return nil, fmt.Errorf("failed to compute blob proof: %w", err)
+		}
+		out = append(out, &eth.BlobSidecar{
+			Blob:          *b,
+			KZGCommitment: eth.Bytes48(commitment),
+			KZGProof:      eth.Bytes48(proof),
+		})
+	}
+	return out, nil
+}
+
+var _ derive.L1BlobsFetcher = (*BlobsStore)(nil)
