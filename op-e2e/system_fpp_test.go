@@ -2,7 +2,10 @@ package op_e2e
 
 import (
 	"context"
+	"encoding/json"
 	"math/big"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -313,6 +316,7 @@ func testFaultProofProgramScenario(t *testing.T, ctx context.Context, sys *Syste
 	for _, node := range sys.EthInstances {
 		node.Close()
 	}
+	sys.Close()
 
 	t.Log("Running fault proof in offline mode")
 	// Should be able to rerun in offline mode using the pre-fetched images
@@ -320,6 +324,11 @@ func testFaultProofProgramScenario(t *testing.T, ctx context.Context, sys *Syste
 	fppConfig.L2URL = ""
 	err = opp.FaultProofProgram(ctx, log, fppConfig)
 	require.NoError(t, err)
+
+	if s.UseCannon {
+		t.Log("Running fault proof inside VM")
+		RunOpProgramInVM(t, ctx, *fppConfig, cannontest.MultiThreadElfVmFactory, 0)
+	}
 
 	// Check that a fault is detected if we provide an incorrect claim
 	t.Log("Running fault proof with invalid claim")
@@ -333,16 +342,66 @@ func testFaultProofProgramScenario(t *testing.T, ctx context.Context, sys *Syste
 
 	if s.UseCannon {
 		sys.Close()
-		t.Log("Running fault proof inside multithreaded VM")
-		exitCode := RunOpProgramInVM(t, ctx, fppConfig.DataDir, s, sys, cannontest.MultiThreadElfVmFactory)
-		require.Zero(t, exitCode)
+		t.Log("Running fault proof with invalid claim inside VM")
+		RunOpProgramInVM(t, ctx, *fppConfig, cannontest.MultiThreadElfVmFactory, 1)
 	}
 }
 
-func RunOpProgramInVM(t *testing.T, ctx context.Context, preimageDir string, inputs *FaultProofProgramTestScenario, sys *System, vmFactory cannontest.ElfVMFactory) uint8 {
-	fppConfig := oppconf.NewConfig(sys.RollupConfig, sys.L2GenesisCfg.Config, inputs.L1Head, inputs.L2Head, inputs.L2OutputRoot, common.Hash(inputs.L2Claim), inputs.L2ClaimBlockNumber)
-	fppConfig.DataDir = preimageDir
+var newdir = "/tmp/go-test-temp"
+var confFile = filepath.Join(newdir, "config.json")
+
+func reproduce(t *testing.T) {
+	config := &oppconf.Config{}
+	confFile := filepath.Join(newdir, "config.json")
+	buf, err := os.ReadFile(confFile)
+	if err != nil {
+		panic(err)
+	}
+	if err := json.Unmarshal(buf, config); err != nil {
+		panic(err)
+	}
+	config.DataDir = filepath.Join(newdir, "datadir")
+	runOpProgramInVMWithoutSnapshot(t, context.Background(), *config, cannontest.MultiThreadElfVmFactory, 1)
+}
+
+func snapshot(t *testing.T, fppConfig oppconf.Config) {
+	buf, err := json.Marshal(fppConfig)
+	if err != nil {
+		panic(err)
+	}
+	t.Logf("fppConfig: %s\n", string(buf))
+	if err := os.WriteFile(confFile, buf, os.ModePerm); err != nil {
+		panic(err)
+	}
+	err = os.MkdirAll("/tmp/go-test-temp", 0777)
+	if err != nil {
+		panic(err)
+	}
+	dest := filepath.Join(newdir, "datadir")
+	if err = os.RemoveAll(dest); err != nil {
+		panic(err)
+	}
+	err = os.Rename(fppConfig.DataDir, dest)
+	if err != nil {
+		panic(err)
+	}
+}
+
+func RunOpProgramInVM(t *testing.T, ctx context.Context, fppConfig oppconf.Config, vmFactory cannontest.ElfVMFactory, expectedExitCode uint8) {
+	defer func() {
+		if t.Failed() {
+			t.Log("Creating snapshot...")
+			snapshot(t, fppConfig)
+		}
+	}()
+	runOpProgramInVMWithoutSnapshot(t, ctx, fppConfig, vmFactory, expectedExitCode)
+}
+
+func runOpProgramInVMWithoutSnapshot(t *testing.T, ctx context.Context, fppConfig oppconf.Config, vmFactory cannontest.ElfVMFactory, expectedExitCode uint8) {
 	fppConfig.ServerMode = true
+	fppConfig.L1URL = ""
+	fppConfig.L2URL = ""
+	fppConfig.L1BeaconURL = ""
 
 	opProgramELFFile := BuildOpProgramClientMips(t)
 
@@ -355,8 +414,14 @@ func RunOpProgramInVM(t *testing.T, ctx context.Context, preimageDir string, inp
 
 	hostLog := testlog.Logger(t, log.LevelDebug)
 	serverErr := make(chan error, 1)
+	serverCtx, cancel := context.WithCancel(ctx)
+	defer func() {
+		cancel()
+		// wait a second for clean up before exiting
+		time.Sleep(time.Second*1)
+	}()
 	go func() {
-		err := opp.ChanneledServer(ctx, hostLog, fppConfig, preimageChan, hinterChan)
+		err := opp.ChanneledServer(serverCtx, hostLog, &fppConfig, preimageChan, hinterChan)
 		serverErr <- err
 		close(serverErr)
 		t.Logf("op-program host channel closed! %v", err)
@@ -386,8 +451,9 @@ func RunOpProgramInVM(t *testing.T, ctx context.Context, preimageDir string, inp
 				state.GetMemory().Usage())
 		}
 	}
-	t.Log("vm execution complete")
-	return vm.GetState().GetExitCode()
+	ec := vm.GetState().GetExitCode()
+	t.Logf("vm execution complete with exit_code %d", ec)
+	require.EqualValues(t, expectedExitCode, ec)
 }
 
 type preimageOracle struct {
