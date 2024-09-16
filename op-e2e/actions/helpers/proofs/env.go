@@ -25,14 +25,14 @@ import (
 // L2FaultProofEnv is a test harness for a fault provable L2 chain.
 type L2FaultProofEnv struct {
 	log       log.Logger
-	batcher   *actions.L2Batcher
-	sequencer *actions.L2Sequencer
-	engine    *actions.L2Engine
+	Batcher   *actions.L2Batcher
+	Sequencer *actions.L2Sequencer
+	Engine    *actions.L2Engine
 	engCl     *sources.EngineClient
 	sd        *e2eutils.SetupData
 	dp        *e2eutils.DeployParams
-	miner     *actions.L1Miner
-	alice     *actions.CrossLayerUser
+	Miner     *actions.L1Miner
+	Alice     *actions.CrossLayerUser
 }
 
 func NewL2FaultProofEnv[c any](t actions.Testing, testCfg *TestCfg[c], tp *e2eutils.TestParams, batcherCfg *actions.BatcherCfg) *L2FaultProofEnv {
@@ -102,14 +102,14 @@ func NewL2FaultProofEnv[c any](t actions.Testing, testCfg *TestCfg[c], tp *e2eut
 
 	return &L2FaultProofEnv{
 		log:       log,
-		batcher:   batcher,
-		sequencer: sequencer,
-		engine:    engine,
+		Batcher:   batcher,
+		Sequencer: sequencer,
+		Engine:    engine,
 		engCl:     engCl,
 		sd:        sd,
 		dp:        dp,
-		miner:     miner,
-		alice:     alice,
+		Miner:     miner,
+		Alice:     alice,
 	}
 }
 
@@ -137,11 +137,11 @@ func WithL2Claim(claim common.Hash) FixtureInputParam {
 
 func (env *L2FaultProofEnv) RunFaultProofProgram(t actions.Testing, l2ClaimBlockNum uint64, checkResult CheckResult, fixtureInputParams ...FixtureInputParam) {
 	// Fetch the pre and post output roots for the fault proof.
-	preRoot, err := env.sequencer.RollupClient().OutputAtBlock(t.Ctx(), l2ClaimBlockNum-1)
+	preRoot, err := env.Sequencer.RollupClient().OutputAtBlock(t.Ctx(), l2ClaimBlockNum-1)
 	require.NoError(t, err)
-	claimRoot, err := env.sequencer.RollupClient().OutputAtBlock(t.Ctx(), l2ClaimBlockNum)
+	claimRoot, err := env.Sequencer.RollupClient().OutputAtBlock(t.Ctx(), l2ClaimBlockNum)
 	require.NoError(t, err)
-	l1Head := env.miner.L1Chain().CurrentBlock()
+	l1Head := env.Miner.L1Chain().CurrentBlock()
 
 	fixtureInputs := &FixtureInputs{
 		L2BlockNumber: l2ClaimBlockNum,
@@ -163,12 +163,12 @@ func (env *L2FaultProofEnv) RunFaultProofProgram(t actions.Testing, l2ClaimBlock
 	)
 	withInProcessPrefetcher := host.WithPrefetcher(func(ctx context.Context, logger log.Logger, kv kvstore.KV, cfg *config.Config) (host.Prefetcher, error) {
 		// Set up in-process L1 sources
-		l1Cl := env.miner.L1Client(t, env.sd.RollupCfg)
-		l1BlobFetcher := env.miner.BlobStore()
+		l1Cl := env.Miner.L1Client(t, env.sd.RollupCfg)
+		l1BlobFetcher := env.Miner.BlobStore()
 
 		// Set up in-process L2 source
 		l2ClCfg := sources.L2ClientDefaultConfig(env.sd.RollupCfg, true)
-		l2RPC := env.engine.RPCClient()
+		l2RPC := env.Engine.RPCClient()
 		l2Client, err := host.NewL2Client(l2RPC, env.log, nil, &host.L2ClientConfig{L2ClientConfig: l2ClCfg, L2Head: cfg.L2Head})
 		require.NoError(t, err, "failed to create L2 client")
 		l2DebugCl := &host.L2Source{L2Client: l2Client, DebugClient: sources.NewDebugClient(l2RPC.CallContext)}
