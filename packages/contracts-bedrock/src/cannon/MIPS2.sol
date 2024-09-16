@@ -57,8 +57,8 @@ contract MIPS2 is ISemver {
     }
 
     /// @notice The semantic version of the MIPS2 contract.
-    /// @custom:semver 1.0.0-beta.9
-    string public constant version = "1.0.0-beta.9";
+    /// @custom:semver 1.0.0-beta.10
+    string public constant version = "1.0.0-beta.10";
 
     /// @notice The preimage oracle contract.
     IPreimageOracle internal immutable ORACLE;
@@ -175,7 +175,7 @@ contract MIPS2 is ISemver {
             // Don't allow regular execution until we resolved if we have woken up any thread.
             if (state.wakeup != sys.FUTEX_EMPTY_ADDR) {
                 if (state.wakeup == thread.futexAddr) {
-                    // completed wake traverssal
+                    // completed wake traversal
                     // resume execution on woken up thread
                     state.wakeup = sys.FUTEX_EMPTY_ADDR;
                     return outputState();
@@ -431,15 +431,15 @@ contract MIPS2 is ISemver {
                 return outputState();
             } else if (syscall_no == sys.SYS_FUTEX) {
                 // args: a0 = addr, a1 = op, a2 = val, a3 = timeout
+                uint32 effAddr = a0 & 0xFFffFFfc;
                 if (a1 == sys.FUTEX_WAIT_PRIVATE) {
-                    uint32 mem = MIPSMemory.readMem(
-                        state.memRoot, a0 & 0xFFffFFfc, MIPSMemory.memoryProofOffset(MEM_PROOF_OFFSET, 1)
-                    );
+                    uint32 mem =
+                        MIPSMemory.readMem(state.memRoot, effAddr, MIPSMemory.memoryProofOffset(MEM_PROOF_OFFSET, 1));
                     if (mem != a2) {
                         v0 = sys.SYS_ERROR_SIGNAL;
                         v1 = sys.EAGAIN;
                     } else {
-                        thread.futexAddr = a0;
+                        thread.futexAddr = effAddr;
                         thread.futexVal = a2;
                         thread.futexTimeoutStep = a3 == 0 ? sys.FUTEX_NO_TIMEOUT : state.step + sys.FUTEX_TIMEOUT_STEPS;
                         // Leave cpu scalars as-is. This instruction will be completed by `onWaitComplete`
@@ -449,7 +449,7 @@ contract MIPS2 is ISemver {
                 } else if (a1 == sys.FUTEX_WAKE_PRIVATE) {
                     // Trigger thread traversal starting from the left stack until we find one waiting on the wakeup
                     // address
-                    state.wakeup = a0;
+                    state.wakeup = effAddr;
                     // Don't indicate to the program that we've woken up a waiting thread, as there are no guarantees.
                     // The woken up thread should indicate this in userspace.
                     v0 = 0;

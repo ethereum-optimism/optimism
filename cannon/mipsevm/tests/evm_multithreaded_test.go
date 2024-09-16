@@ -654,17 +654,22 @@ func TestEVM_SysFutex_WaitPrivate(t *testing.T) {
 	var tracer *tracing.Hooks
 	cases := []struct {
 		name             string
-		address          uint32
+		addressParam     uint32
+		effAddr          uint32
 		targetValue      uint32
 		actualValue      uint32
 		timeout          uint32
 		shouldFail       bool
 		shouldSetTimeout bool
 	}{
-		{name: "successful wait, no timeout", address: 0x1234, targetValue: 0x01, actualValue: 0x01},
-		{name: "memory mismatch, no timeout", address: 0x1200, targetValue: 0x01, actualValue: 0x02, shouldFail: true},
-		{name: "successful wait w timeout", address: 0x1234, targetValue: 0x01, actualValue: 0x01, timeout: 1000000, shouldSetTimeout: true},
-		{name: "memory mismatch w timeout", address: 0x1200, targetValue: 0x01, actualValue: 0x02, timeout: 2000000, shouldFail: true},
+		{name: "successful wait, no timeout", addressParam: 0x1234, effAddr: 0x1234, targetValue: 0x01, actualValue: 0x01},
+		{name: "successful wait, no timeout, unaligned addr", addressParam: 0x1235, effAddr: 0x1234, targetValue: 0x01, actualValue: 0x01},
+		{name: "memory mismatch, no timeout", addressParam: 0x1200, effAddr: 0x1200, targetValue: 0x01, actualValue: 0x02, shouldFail: true},
+		{name: "memory mismatch, no timeout, unaligned", addressParam: 0x1203, effAddr: 0x1200, targetValue: 0x01, actualValue: 0x02, shouldFail: true},
+		{name: "successful wait w timeout", addressParam: 0x1234, effAddr: 0x1234, targetValue: 0x01, actualValue: 0x01, timeout: 1000000, shouldSetTimeout: true},
+		{name: "successful wait w timeout, unaligned", addressParam: 0x1232, effAddr: 0x1230, targetValue: 0x01, actualValue: 0x01, timeout: 1000000, shouldSetTimeout: true},
+		{name: "memory mismatch w timeout", addressParam: 0x1200, effAddr: 0x1200, targetValue: 0x01, actualValue: 0x02, timeout: 2000000, shouldFail: true},
+		{name: "memory mismatch w timeout, unaligned", addressParam: 0x120F, effAddr: 0x120C, targetValue: 0x01, actualValue: 0x02, timeout: 2000000, shouldFail: true},
 	}
 
 	for i, c := range cases {
@@ -673,9 +678,9 @@ func TestEVM_SysFutex_WaitPrivate(t *testing.T) {
 			step := state.GetStep()
 
 			state.Memory.SetMemory(state.GetPC(), syscallInsn)
-			state.Memory.SetMemory(c.address, c.actualValue)
+			state.Memory.SetMemory(c.effAddr, c.actualValue)
 			state.GetRegistersRef()[2] = exec.SysFutex // Set syscall number
-			state.GetRegistersRef()[4] = c.address
+			state.GetRegistersRef()[4] = c.addressParam
 			state.GetRegistersRef()[5] = exec.FutexWaitPrivate
 			state.GetRegistersRef()[6] = c.targetValue
 			state.GetRegistersRef()[7] = c.timeout
@@ -691,7 +696,7 @@ func TestEVM_SysFutex_WaitPrivate(t *testing.T) {
 				expected.ActiveThread().Registers[7] = exec.MipsEAGAIN
 			} else {
 				// PC and return registers should not update on success, updates happen when wait completes
-				expected.ActiveThread().FutexAddr = c.address
+				expected.ActiveThread().FutexAddr = c.effAddr
 				expected.ActiveThread().FutexVal = c.targetValue
 				expected.ActiveThread().FutexTimeoutStep = exec.FutexNoTimeout
 				if c.shouldSetTimeout {
@@ -716,18 +721,25 @@ func TestEVM_SysFutex_WakePrivate(t *testing.T) {
 	var tracer *tracing.Hooks
 	cases := []struct {
 		name                string
-		address             uint32
+		addressParam        uint32
+		effAddr             uint32
 		activeThreadCount   int
 		inactiveThreadCount int
 		traverseRight       bool
 		expectTraverseRight bool
 	}{
-		{name: "Traverse right", address: 0x6789, activeThreadCount: 2, inactiveThreadCount: 1, traverseRight: true},
-		{name: "Traverse right, no left threads", address: 0x6789, activeThreadCount: 2, inactiveThreadCount: 0, traverseRight: true},
-		{name: "Traverse right, single thread", address: 0x6789, activeThreadCount: 1, inactiveThreadCount: 0, traverseRight: true},
-		{name: "Traverse left", address: 0x6789, activeThreadCount: 2, inactiveThreadCount: 1, traverseRight: false},
-		{name: "Traverse left, switch directions", address: 0x6789, activeThreadCount: 1, inactiveThreadCount: 1, traverseRight: false, expectTraverseRight: true},
-		{name: "Traverse left, single thread", address: 0x6789, activeThreadCount: 1, inactiveThreadCount: 0, traverseRight: false, expectTraverseRight: true},
+		{name: "Traverse right", addressParam: 0x6700, effAddr: 0x6700, activeThreadCount: 2, inactiveThreadCount: 1, traverseRight: true},
+		{name: "Traverse right, unaligned addr", addressParam: 0x6789, effAddr: 0x6788, activeThreadCount: 2, inactiveThreadCount: 1, traverseRight: true},
+		{name: "Traverse right, no left threads", addressParam: 0x6784, effAddr: 0x6784, activeThreadCount: 2, inactiveThreadCount: 0, traverseRight: true},
+		{name: "Traverse right, no left threads, unaligned addr", addressParam: 0x678E, effAddr: 0x678C, activeThreadCount: 2, inactiveThreadCount: 0, traverseRight: true},
+		{name: "Traverse right, single thread", addressParam: 0x6788, effAddr: 0x6788, activeThreadCount: 1, inactiveThreadCount: 0, traverseRight: true},
+		{name: "Traverse right, single thread, unaligned", addressParam: 0x6789, effAddr: 0x6788, activeThreadCount: 1, inactiveThreadCount: 0, traverseRight: true},
+		{name: "Traverse left", addressParam: 0x6788, effAddr: 0x6788, activeThreadCount: 2, inactiveThreadCount: 1, traverseRight: false},
+		{name: "Traverse left, unaliagned", addressParam: 0x6789, effAddr: 0x6788, activeThreadCount: 2, inactiveThreadCount: 1, traverseRight: false},
+		{name: "Traverse left, switch directions", addressParam: 0x6788, effAddr: 0x6788, activeThreadCount: 1, inactiveThreadCount: 1, traverseRight: false, expectTraverseRight: true},
+		{name: "Traverse left, switch directions, unaligned", addressParam: 0x6789, effAddr: 0x6788, activeThreadCount: 1, inactiveThreadCount: 1, traverseRight: false, expectTraverseRight: true},
+		{name: "Traverse left, single thread", addressParam: 0x6788, effAddr: 0x6788, activeThreadCount: 1, inactiveThreadCount: 0, traverseRight: false, expectTraverseRight: true},
+		{name: "Traverse left, single thread, unaligned", addressParam: 0x6789, effAddr: 0x6788, activeThreadCount: 1, inactiveThreadCount: 0, traverseRight: false, expectTraverseRight: true},
 	}
 
 	for i, c := range cases {
@@ -738,7 +750,7 @@ func TestEVM_SysFutex_WakePrivate(t *testing.T) {
 
 			state.Memory.SetMemory(state.GetPC(), syscallInsn)
 			state.GetRegistersRef()[2] = exec.SysFutex // Set syscall number
-			state.GetRegistersRef()[4] = c.address
+			state.GetRegistersRef()[4] = c.addressParam
 			state.GetRegistersRef()[5] = exec.FutexWakePrivate
 
 			// Set up post-state expectations
@@ -746,7 +758,7 @@ func TestEVM_SysFutex_WakePrivate(t *testing.T) {
 			expected.ExpectStep()
 			expected.ActiveThread().Registers[2] = 0
 			expected.ActiveThread().Registers[7] = 0
-			expected.Wakeup = c.address
+			expected.Wakeup = c.effAddr
 			expected.ExpectPreemption(state)
 			expected.TraverseRight = c.expectTraverseRight
 			if c.traverseRight != c.expectTraverseRight {
@@ -1192,13 +1204,17 @@ func TestEVM_NormalTraversalStep_HandleWaitingThread(t *testing.T) {
 		{name: "Preempt, no timeout #1", step: 100, activeStackSize: 1, otherStackSize: 0, futexAddr: 0x100, targetValue: 0x01, actualValue: 0x01, timeoutStep: exec.FutexNoTimeout},
 		{name: "Preempt, no timeout #2", step: 100, activeStackSize: 1, otherStackSize: 1, futexAddr: 0x100, targetValue: 0x01, actualValue: 0x01, timeoutStep: exec.FutexNoTimeout},
 		{name: "Preempt, no timeout #3", step: 100, activeStackSize: 2, otherStackSize: 1, futexAddr: 0x100, targetValue: 0x01, actualValue: 0x01, timeoutStep: exec.FutexNoTimeout},
+		{name: "Preempt, no timeout, unaligned", step: 100, activeStackSize: 2, otherStackSize: 1, futexAddr: 0x101, targetValue: 0x01, actualValue: 0x01, timeoutStep: exec.FutexNoTimeout},
 		{name: "Preempt, with timeout #1", step: 100, activeStackSize: 2, otherStackSize: 1, futexAddr: 0x100, targetValue: 0x01, actualValue: 0x01, timeoutStep: 101},
 		{name: "Preempt, with timeout #2", step: 100, activeStackSize: 1, otherStackSize: 1, futexAddr: 0x100, targetValue: 0x01, actualValue: 0x01, timeoutStep: 150},
+		{name: "Preempt, with timeout, unaligned", step: 100, activeStackSize: 1, otherStackSize: 1, futexAddr: 0x101, targetValue: 0x01, actualValue: 0x01, timeoutStep: 150},
 		{name: "Wakeup, no timeout #1", step: 100, activeStackSize: 1, otherStackSize: 0, futexAddr: 0x100, targetValue: 0x01, actualValue: 0x02, timeoutStep: exec.FutexNoTimeout, shouldWakeup: true},
 		{name: "Wakeup, no timeout #2", step: 100, activeStackSize: 2, otherStackSize: 1, futexAddr: 0x100, targetValue: 0x01, actualValue: 0x02, timeoutStep: exec.FutexNoTimeout, shouldWakeup: true},
+		{name: "Wakeup, no timeout, unaligned", step: 100, activeStackSize: 2, otherStackSize: 1, futexAddr: 0x102, targetValue: 0x01, actualValue: 0x02, timeoutStep: exec.FutexNoTimeout, shouldWakeup: true},
 		{name: "Wakeup with timeout #1", step: 100, activeStackSize: 2, otherStackSize: 1, futexAddr: 0x100, targetValue: 0x01, actualValue: 0x02, timeoutStep: 100, shouldWakeup: true, shouldTimeout: true},
 		{name: "Wakeup with timeout #2", step: 100, activeStackSize: 2, otherStackSize: 1, futexAddr: 0x100, targetValue: 0x02, actualValue: 0x02, timeoutStep: 100, shouldWakeup: true, shouldTimeout: true},
 		{name: "Wakeup with timeout #3", step: 100, activeStackSize: 2, otherStackSize: 1, futexAddr: 0x100, targetValue: 0x02, actualValue: 0x02, timeoutStep: 50, shouldWakeup: true, shouldTimeout: true},
+		{name: "Wakeup with timeout, unaligned", step: 100, activeStackSize: 2, otherStackSize: 1, futexAddr: 0x103, targetValue: 0x02, actualValue: 0x02, timeoutStep: 50, shouldWakeup: true, shouldTimeout: true},
 	}
 
 	for _, c := range cases {
@@ -1209,7 +1225,7 @@ func TestEVM_NormalTraversalStep_HandleWaitingThread(t *testing.T) {
 				if !c.shouldWakeup && c.shouldTimeout {
 					require.Fail(t, "Invalid test case - cannot expect a timeout with no wakeup")
 				}
-
+				effAddr := c.futexAddr & 0xFF_FF_FF_Fc
 				goVm, state, contracts := setup(t, i, nil)
 				mttestutil.SetupThreads(int64(i*101), state, traverseRight, c.activeStackSize, c.otherStackSize)
 				state.Step = c.step
@@ -1218,7 +1234,7 @@ func TestEVM_NormalTraversalStep_HandleWaitingThread(t *testing.T) {
 				activeThread.FutexAddr = c.futexAddr
 				activeThread.FutexVal = c.targetValue
 				activeThread.FutexTimeoutStep = c.timeoutStep
-				state.GetMemory().SetMemory(c.futexAddr, c.actualValue)
+				state.GetMemory().SetMemory(effAddr, c.actualValue)
 
 				// Set up post-state expectations
 				expected := mttestutil.NewExpectedMTState(state)
@@ -1312,11 +1328,12 @@ func TestEVM_NormalTraversal_Full(t *testing.T) {
 }
 
 func TestEVM_WakeupTraversalStep(t *testing.T) {
-	wakeupAddr := uint32(0x1234)
+	addr := uint32(0x1234)
 	wakeupVal := uint32(0x999)
 	var tracer *tracing.Hooks
 	cases := []struct {
 		name              string
+		wakeupAddr        uint32
 		futexAddr         uint32
 		targetVal         uint32
 		traverseRight     bool
@@ -1325,19 +1342,28 @@ func TestEVM_WakeupTraversalStep(t *testing.T) {
 		shouldClearWakeup bool
 		shouldPreempt     bool
 	}{
-		{name: "Matching addr, not wakeable, first thread", futexAddr: wakeupAddr, targetVal: wakeupVal, traverseRight: false, activeStackSize: 3, otherStackSize: 0, shouldClearWakeup: true},
-		{name: "Matching addr, wakeable, first thread", futexAddr: wakeupAddr, targetVal: wakeupVal + 1, traverseRight: false, activeStackSize: 3, otherStackSize: 0, shouldClearWakeup: true},
-		{name: "Matching addr, not wakeable, last thread", futexAddr: wakeupAddr, targetVal: wakeupVal, traverseRight: true, activeStackSize: 1, otherStackSize: 2, shouldClearWakeup: true},
-		{name: "Matching addr, wakeable, last thread", futexAddr: wakeupAddr, targetVal: wakeupVal + 1, traverseRight: true, activeStackSize: 1, otherStackSize: 2, shouldClearWakeup: true},
-		{name: "Matching addr, not wakeable, intermediate thread", futexAddr: wakeupAddr, targetVal: wakeupVal, traverseRight: false, activeStackSize: 2, otherStackSize: 2, shouldClearWakeup: true},
-		{name: "Matching addr, wakeable, intermediate thread", futexAddr: wakeupAddr, targetVal: wakeupVal + 1, traverseRight: true, activeStackSize: 2, otherStackSize: 2, shouldClearWakeup: true},
-		{name: "Mismatched addr, last thread", futexAddr: wakeupAddr + 4, traverseRight: true, activeStackSize: 1, otherStackSize: 2, shouldPreempt: true, shouldClearWakeup: true},
-		{name: "Mismatched addr", futexAddr: wakeupAddr + 4, traverseRight: true, activeStackSize: 2, otherStackSize: 2, shouldPreempt: true},
-		{name: "Mismatched addr", futexAddr: wakeupAddr + 4, traverseRight: false, activeStackSize: 2, otherStackSize: 0, shouldPreempt: true},
-		{name: "Mismatched addr", futexAddr: wakeupAddr + 4, traverseRight: false, activeStackSize: 1, otherStackSize: 0, shouldPreempt: true},
-		{name: "Non-waiting thread", futexAddr: exec.FutexEmptyAddr, traverseRight: false, activeStackSize: 1, otherStackSize: 0, shouldPreempt: true},
-		{name: "Non-waiting thread", futexAddr: exec.FutexEmptyAddr, traverseRight: true, activeStackSize: 2, otherStackSize: 1, shouldPreempt: true},
-		{name: "Non-waiting thread, last thread", futexAddr: exec.FutexEmptyAddr, traverseRight: true, activeStackSize: 1, otherStackSize: 1, shouldPreempt: true, shouldClearWakeup: true},
+		{name: "Matching addr, not wakeable, first thread", wakeupAddr: addr, futexAddr: addr, targetVal: wakeupVal, traverseRight: false, activeStackSize: 3, otherStackSize: 0, shouldClearWakeup: true},
+		{name: "Matching addr, wakeable, first thread", wakeupAddr: addr, futexAddr: addr, targetVal: wakeupVal + 1, traverseRight: false, activeStackSize: 3, otherStackSize: 0, shouldClearWakeup: true},
+		{name: "Matching addr, not wakeable, last thread", wakeupAddr: addr, futexAddr: addr, targetVal: wakeupVal, traverseRight: true, activeStackSize: 1, otherStackSize: 2, shouldClearWakeup: true},
+		{name: "Matching addr, wakeable, last thread", wakeupAddr: addr, futexAddr: addr, targetVal: wakeupVal + 1, traverseRight: true, activeStackSize: 1, otherStackSize: 2, shouldClearWakeup: true},
+		{name: "Matching addr, not wakeable, intermediate thread", wakeupAddr: addr, futexAddr: addr, targetVal: wakeupVal, traverseRight: false, activeStackSize: 2, otherStackSize: 2, shouldClearWakeup: true},
+		{name: "Matching addr, wakeable, intermediate thread", wakeupAddr: addr, futexAddr: addr, targetVal: wakeupVal + 1, traverseRight: true, activeStackSize: 2, otherStackSize: 2, shouldClearWakeup: true},
+		{name: "Mismatched addr, last thread", wakeupAddr: addr, futexAddr: addr + 4, traverseRight: true, activeStackSize: 1, otherStackSize: 2, shouldPreempt: true, shouldClearWakeup: true},
+		{name: "Mismatched addr", wakeupAddr: addr, futexAddr: addr + 4, traverseRight: true, activeStackSize: 2, otherStackSize: 2, shouldPreempt: true},
+		{name: "Mismatched addr", wakeupAddr: addr, futexAddr: addr + 4, traverseRight: false, activeStackSize: 2, otherStackSize: 0, shouldPreempt: true},
+		{name: "Mismatched addr", wakeupAddr: addr, futexAddr: addr + 4, traverseRight: false, activeStackSize: 1, otherStackSize: 0, shouldPreempt: true},
+		{name: "Non-waiting thread", wakeupAddr: addr, futexAddr: exec.FutexEmptyAddr, traverseRight: false, activeStackSize: 1, otherStackSize: 0, shouldPreempt: true},
+		{name: "Non-waiting thread", wakeupAddr: addr, futexAddr: exec.FutexEmptyAddr, traverseRight: true, activeStackSize: 2, otherStackSize: 1, shouldPreempt: true},
+		{name: "Non-waiting thread, last thread", wakeupAddr: addr, futexAddr: exec.FutexEmptyAddr, traverseRight: true, activeStackSize: 1, otherStackSize: 1, shouldPreempt: true, shouldClearWakeup: true},
+		// Check behavior of unaligned addresses - should be the same as aligned addresses (no memory access)
+		{name: "Matching addr, unaligned", wakeupAddr: addr + 1, futexAddr: addr + 1, targetVal: wakeupVal, traverseRight: false, activeStackSize: 3, otherStackSize: 0, shouldClearWakeup: true},
+		{name: "Mismatched addr, last thread, wakeup unaligned", wakeupAddr: addr + 1, futexAddr: addr + 4, traverseRight: true, activeStackSize: 1, otherStackSize: 2, shouldPreempt: true, shouldClearWakeup: true},
+		{name: "Mismatched addr, last thread, futex unaligned", wakeupAddr: addr, futexAddr: addr + 5, traverseRight: true, activeStackSize: 1, otherStackSize: 2, shouldPreempt: true, shouldClearWakeup: true},
+		{name: "Mismatched addr, last thread, wake & futex unaligned", wakeupAddr: addr + 1, futexAddr: addr + 5, traverseRight: true, activeStackSize: 1, otherStackSize: 2, shouldPreempt: true, shouldClearWakeup: true},
+		{name: "Mismatched addr, wakeup unaligned", wakeupAddr: addr + 3, futexAddr: addr + 4, traverseRight: true, activeStackSize: 2, otherStackSize: 2, shouldPreempt: true},
+		{name: "Mismatched addr, futex unaligned", wakeupAddr: addr, futexAddr: addr + 6, traverseRight: true, activeStackSize: 2, otherStackSize: 2, shouldPreempt: true},
+		{name: "Mismatched addr, wakeup & futex unaligned", wakeupAddr: addr + 2, futexAddr: addr + 6, traverseRight: true, activeStackSize: 2, otherStackSize: 2, shouldPreempt: true},
+		{name: "Non-waiting thread, last thread, unaligned wakeup", wakeupAddr: addr + 3, futexAddr: exec.FutexEmptyAddr, traverseRight: true, activeStackSize: 1, otherStackSize: 1, shouldPreempt: true, shouldClearWakeup: true},
 	}
 
 	for i, c := range cases {
@@ -1346,8 +1372,8 @@ func TestEVM_WakeupTraversalStep(t *testing.T) {
 			mttestutil.SetupThreads(int64(i*101), state, c.traverseRight, c.activeStackSize, c.otherStackSize)
 			step := state.Step
 
-			state.Wakeup = wakeupAddr
-			state.GetMemory().SetMemory(wakeupAddr, wakeupVal)
+			state.Wakeup = c.wakeupAddr
+			state.GetMemory().SetMemory(c.wakeupAddr&0xFF_FF_FF_FC, wakeupVal)
 			activeThread := state.GetCurrentThread()
 			activeThread.FutexAddr = c.futexAddr
 			activeThread.FutexVal = c.targetVal
