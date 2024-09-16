@@ -387,10 +387,6 @@ func TestEVM_MT_StoreOpsClearMemReservation(t *testing.T) {
 	}
 }
 
-func TestEVM_MT_StoreCalls(t *testing.T) {
-	t.Skip("TODO")
-}
-
 func TestEVM_SysClone_FlagHandling(t *testing.T) {
 	contracts := testutil.TestContractsSetup(t, testutil.MipsMultithreaded)
 	var tracer *tracing.Hooks
