@@ -85,7 +85,6 @@ func (m *MIPSEVM) Step(t *testing.T, stepWitness *mipsevm.StepWitness, step uint
 	stateHash, err := stateHashFn(evmPost)
 	require.NoError(t, err, "state hash could not be computed")
 	require.Equal(t, stateHash, postHash, "logged state must be accurate")
-	//t.Logf("Input: %x\nExpectedHash: %x\n", input, postHash)
 
 	m.env.StateDB.RevertToSnapshot(snap)
 	t.Logf("EVM step %d took %d gas, and returned stateHash %s", step, m.startingGas-leftOverGas, postHash)
