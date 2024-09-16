@@ -126,19 +126,32 @@ func Apply(ctx context.Context, cfg ApplyConfig) error {
 	return nil
 }
 
+type pipelineStage struct {
+	name  string
+	stage pipeline.Stage
+}
+
 func ApplyPipeline(
 	ctx context.Context,
 	env *pipeline.Env,
 	intent *state.Intent,
 	st *state.State,
 ) error {
-	pline := []struct {
-		name  string
-		stage pipeline.Stage
-	}{
+	pline := []pipelineStage{
 		{"init", pipeline.Init},
 		{"deploy-superchain", pipeline.DeploySuperchain},
+		{"deploy-implementations", pipeline.DeployImplementations},
 	}
+
+	for _, chain := range intent.Chains {
+		pline = append(pline, pipelineStage{
+			fmt.Sprintf("deploy-opchain-%s", chain.ID.Hex()),
+			func(ctx context.Context, env *pipeline.Env, intent *state.Intent, st *state.State) error {
+				return pipeline.DeployOPChain(ctx, env, intent, st, chain.ID)
+			},
+		})
+	}
+
 	for _, stage := range pline {
 		if err := stage.stage(ctx, env, intent, st); err != nil {
 			return fmt.Errorf("error in pipeline stage: %w", err)

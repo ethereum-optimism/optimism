@@ -20,13 +20,14 @@ import (
 )
 
 const (
-	GasPadFactor = 1.5
+	GasPadFactor = 2.0
 )
 
 type KeyedBroadcaster struct {
 	lgr    log.Logger
 	mgr    txmgr.TxManager
 	bcasts []script.Broadcast
+	client *ethclient.Client
 }
 
 type KeyedBroadcasterOpts struct {
@@ -84,8 +85,9 @@ func NewKeyedBroadcaster(cfg KeyedBroadcasterOpts) (*KeyedBroadcaster, error) {
 	}
 
 	return &KeyedBroadcaster{
-		lgr: cfg.Logger,
-		mgr: mgr,
+		lgr:    cfg.Logger,
+		mgr:    mgr,
+		client: cfg.Client,
 	}, nil
 }
 
@@ -98,8 +100,13 @@ func (t *KeyedBroadcaster) Broadcast(ctx context.Context) ([]BroadcastResult, er
 	futures := make([]<-chan txmgr.SendResponse, len(t.bcasts))
 	ids := make([]common.Hash, len(t.bcasts))
 
+	latestBlock, err := t.client.BlockByNumber(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get latest block: %w", err)
+	}
+
 	for i, bcast := range t.bcasts {
-		futures[i], ids[i] = t.broadcast(ctx, bcast)
+		futures[i], ids[i] = t.broadcast(ctx, bcast, latestBlock.GasLimit())
 		t.lgr.Info(
 			"transaction broadcasted",
 			"id", ids[i],
@@ -107,7 +114,7 @@ func (t *KeyedBroadcaster) Broadcast(ctx context.Context) ([]BroadcastResult, er
 		)
 	}
 
-	var err *multierror.Error
+	var txErr *multierror.Error
 	var completed int
 	for i, fut := range futures {
 		bcastRes := <-fut
@@ -122,7 +129,7 @@ func (t *KeyedBroadcaster) Broadcast(ctx context.Context) ([]BroadcastResult, er
 
 			if bcastRes.Receipt.Status == 0 {
 				failErr := fmt.Errorf("transaction failed: %s", outRes.Receipt.TxHash.String())
-				err = multierror.Append(err, failErr)
+				txErr = multierror.Append(txErr, failErr)
 				outRes.Err = failErr
 				t.lgr.Error(
 					"transaction failed on chain",
@@ -144,7 +151,7 @@ func (t *KeyedBroadcaster) Broadcast(ctx context.Context) ([]BroadcastResult, er
 				)
 			}
 		} else {
-			err = multierror.Append(err, bcastRes.Err)
+			txErr = multierror.Append(txErr, bcastRes.Err)
 			outRes.Err = bcastRes.Err
 			t.lgr.Error(
 				"transaction failed",
@@ -157,12 +164,13 @@ func (t *KeyedBroadcaster) Broadcast(ctx context.Context) ([]BroadcastResult, er
 
 		results = append(results, outRes)
 	}
-	return results, err.ErrorOrNil()
+	return results, txErr.ErrorOrNil()
 }
 
-func (t *KeyedBroadcaster) broadcast(ctx context.Context, bcast script.Broadcast) (<-chan txmgr.SendResponse, common.Hash) {
-	id := bcast.ID()
+func (t *KeyedBroadcaster) broadcast(ctx context.Context, bcast script.Broadcast, blockGasLimit uint64) (<-chan txmgr.SendResponse, common.Hash) {
+	ch := make(chan txmgr.SendResponse, 1)
 
+	id := bcast.ID()
 	value := ((*uint256.Int)(bcast.Value)).ToBig()
 	var candidate txmgr.TxCandidate
 	switch bcast.Type {
@@ -172,27 +180,45 @@ func (t *KeyedBroadcaster) broadcast(ctx context.Context, bcast script.Broadcast
 			TxData:   bcast.Input,
 			To:       to,
 			Value:    value,
-			GasLimit: padGasLimit(bcast.Input, bcast.GasUsed, false),
+			GasLimit: padGasLimit(bcast.Input, bcast.GasUsed, false, blockGasLimit),
 		}
 	case script.BroadcastCreate:
 		candidate = txmgr.TxCandidate{
 			TxData:   bcast.Input,
 			To:       nil,
-			GasLimit: padGasLimit(bcast.Input, bcast.GasUsed, true),
+			GasLimit: padGasLimit(bcast.Input, bcast.GasUsed, true, blockGasLimit),
+		}
+	case script.BroadcastCreate2:
+		txData := make([]byte, len(bcast.Salt)+len(bcast.Input))
+		copy(txData, bcast.Salt[:])
+		copy(txData[len(bcast.Salt):], bcast.Input)
+
+		candidate = txmgr.TxCandidate{
+			TxData:   txData,
+			To:       &script.DeterministicDeployerAddress,
+			Value:    value,
+			GasLimit: padGasLimit(bcast.Input, bcast.GasUsed, true, blockGasLimit),
 		}
 	}
 
-	ch := make(chan txmgr.SendResponse, 1)
 	t.mgr.SendAsync(ctx, candidate, ch)
 	return ch, id
 }
 
-func padGasLimit(data []byte, gasUsed uint64, creation bool) uint64 {
+// padGasLimit calculates the gas limit for a transaction based on the intrinsic gas and the gas used by
+// the underlying call. Values are multiplied by a pad factor to account for any discrepancies. The output
+// is clamped to the block gas limit since Geth will reject transactions that exceed it before letting them
+// into the mempool.
+func padGasLimit(data []byte, gasUsed uint64, creation bool, blockGasLimit uint64) uint64 {
 	intrinsicGas, err := core.IntrinsicGas(data, nil, creation, true, true, false)
 	// This method never errors - we should look into it if it does.
 	if err != nil {
 		panic(err)
 	}
 
-	return uint64(float64(intrinsicGas+gasUsed) * GasPadFactor)
+	limit := uint64(float64(intrinsicGas+gasUsed) * GasPadFactor)
+	if limit > blockGasLimit {
+		return blockGasLimit
+	}
+	return limit
 }

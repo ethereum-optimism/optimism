@@ -2,7 +2,10 @@ package pipeline
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
+
+	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
 )
@@ -18,6 +21,13 @@ func Init(ctx context.Context, env *Env, intent *state.Intent, st *state.State) 
 	// Ensure the state version is supported.
 	if !IsSupportedStateVersion(st.Version) {
 		return fmt.Errorf("unsupported state version: %d", st.Version)
+	}
+
+	if st.Create2Salt == (common.Hash{}) {
+		_, err := rand.Read(st.Create2Salt[:])
+		if err != nil {
+			return fmt.Errorf("failed to generate CREATE2 salt: %w", err)
+		}
 	}
 
 	// If the state has never been applied, we don't need to perform

@@ -164,7 +164,7 @@ func TestScriptBroadcast(t *testing.T) {
 	require.EqualValues(t, 0, h.GetNonce(senderAddr))
 	require.EqualValues(t, 3, h.GetNonce(scriptAddr))
 	require.EqualValues(t, 2, h.GetNonce(coffeeAddr))
-	// This is zero because the deterministic deployer is the
-	// address that actually deploys the contract using CREATE2.
-	require.EqualValues(t, 0, h.GetNonce(cafeAddr))
+	// This is one because we still need to bump the nonce of the
+	// address that will perform the send to the Create2Deployer.
+	require.EqualValues(t, 1, h.GetNonce(cafeAddr))
 }

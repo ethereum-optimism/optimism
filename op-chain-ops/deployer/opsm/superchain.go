@@ -1,11 +1,9 @@
 package opsm
 
 import (
-	"context"
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
@@ -29,11 +27,11 @@ func (dsi *DeploySuperchainInput) InputSet() bool {
 }
 
 type DeploySuperchainOutput struct {
-	SuperchainProxyAdmin  common.Address `toml:"superchainProxyAdmin"`
-	SuperchainConfigImpl  common.Address `toml:"superchainConfigImpl"`
-	SuperchainConfigProxy common.Address `toml:"superchainConfigProxy"`
-	ProtocolVersionsImpl  common.Address `toml:"protocolVersionsImpl"`
-	ProtocolVersionsProxy common.Address `toml:"protocolVersionsProxy"`
+	SuperchainProxyAdmin  common.Address
+	SuperchainConfigImpl  common.Address
+	SuperchainConfigProxy common.Address
+	ProtocolVersionsImpl  common.Address
+	ProtocolVersionsProxy common.Address
 }
 
 func (output *DeploySuperchainOutput) CheckOutput() error {
@@ -54,46 +52,13 @@ type DeploySuperchainOpts struct {
 	Logger      log.Logger
 }
 
-func DeploySuperchainForge(ctx context.Context, opts DeploySuperchainOpts) (DeploySuperchainOutput, error) {
+func DeploySuperchain(h *script.Host, input DeploySuperchainInput) (DeploySuperchainOutput, error) {
 	var dso DeploySuperchainOutput
-
-	bcaster, err := broadcaster.NewKeyedBroadcaster(broadcaster.KeyedBroadcasterOpts{
-		Logger:  opts.Logger,
-		ChainID: opts.ChainID,
-		Client:  opts.Client,
-		Signer:  opts.Signer,
-		From:    opts.Deployer,
-	})
-	if err != nil {
-		return dso, fmt.Errorf("failed to create broadcaster: %w", err)
-	}
-
-	scriptCtx := script.DefaultContext
-	scriptCtx.Sender = opts.Deployer
-	scriptCtx.Origin = opts.Deployer
-	artifacts := &foundry.ArtifactsFS{FS: opts.ArtifactsFS}
-	h := script.NewHost(
-		opts.Logger,
-		artifacts,
-		nil,
-		scriptCtx,
-		script.WithBroadcastHook(bcaster.Hook),
-		script.WithIsolatedBroadcasts(),
-	)
-
-	if err := h.EnableCheats(); err != nil {
-		return dso, fmt.Errorf("failed to enable cheats: %w", err)
-	}
-
-	nonce, err := opts.Client.NonceAt(ctx, opts.Deployer, nil)
-	if err != nil {
-		return dso, fmt.Errorf("failed to get deployer nonce: %w", err)
-	}
 
 	inputAddr := h.NewScriptAddress()
 	outputAddr := h.NewScriptAddress()
 
-	cleanupInput, err := script.WithPrecompileAtAddress[*DeploySuperchainInput](h, inputAddr, &opts.Input)
+	cleanupInput, err := script.WithPrecompileAtAddress[*DeploySuperchainInput](h, inputAddr, &input)
 	if err != nil {
 		return dso, fmt.Errorf("failed to insert DeploySuperchainInput precompile: %w", err)
 	}
@@ -116,16 +81,8 @@ func DeploySuperchainForge(ctx context.Context, opts DeploySuperchainOpts) (Depl
 	}
 	defer cleanupDeploy()
 
-	h.SetNonce(opts.Deployer, nonce)
-
-	opts.Logger.Info("deployer nonce", "nonce", nonce)
-
 	if err := deployScript.Run(inputAddr, outputAddr); err != nil {
 		return dso, fmt.Errorf("failed to run DeploySuperchain script: %w", err)
-	}
-
-	if _, err := bcaster.Broadcast(ctx); err != nil {
-		return dso, fmt.Errorf("failed to broadcast transactions: %w", err)
 	}
 
 	return dso, nil

@@ -386,6 +386,20 @@ func (h *Host) GetNonce(addr common.Address) uint64 {
 	return h.state.GetNonce(addr)
 }
 
+// ImportState imports a set of foundry.ForgeAllocs into the
+// host's state database. It does not erase existing state
+// when importing.
+func (h *Host) ImportState(allocs *foundry.ForgeAllocs) {
+	for addr, alloc := range allocs.Accounts {
+		h.state.SetBalance(addr, uint256.MustFromBig(alloc.Balance), tracing.BalanceChangeUnspecified)
+		h.state.SetNonce(addr, alloc.Nonce)
+		h.state.SetCode(addr, alloc.Code)
+		for key, value := range alloc.Storage {
+			h.state.SetState(addr, key, value)
+		}
+	}
+}
+
 // getPrecompile overrides any accounts during runtime, to insert special precompiles, if activated.
 func (h *Host) getPrecompile(rules params.Rules, original vm.PrecompiledContract, addr common.Address) vm.PrecompiledContract {
 	if p, ok := h.precompiles[addr]; ok {
@@ -436,8 +450,8 @@ func (h *Host) onEnter(depth int, typ byte, from common.Address, to common.Addre
 		return
 	}
 
-	// Bump nonce value, such that a broadcast Call appears like a tx
-	if parentCallFrame.LastOp == vm.CALL {
+	// Bump nonce value, such that a broadcast Call or CREATE2 appears like a tx
+	if parentCallFrame.LastOp == vm.CALL || parentCallFrame.LastOp == vm.CREATE2 {
 		sender := parentCallFrame.Ctx.Address()
 		if parentCallFrame.Prank.Sender != nil {
 			sender = *parentCallFrame.Prank.Sender
