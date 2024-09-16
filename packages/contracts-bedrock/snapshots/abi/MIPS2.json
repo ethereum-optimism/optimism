@@ -77,6 +77,11 @@
   },
   {
     "inputs": [],
+    "name": "InvalidRMWInstruction",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidSecondMemoryProof",
     "type": "error"
   }
