@@ -37,12 +37,5 @@ func (ev ResetEvent) String() string {
 	return "reset-event"
 }
 
-type CriticalErrorEvent struct {
-	Err error
-}
-
-var _ event.Event = CriticalErrorEvent{}
-
-func (ev CriticalErrorEvent) String() string {
-	return "critical-error"
-}
+// CriticalErrorEvent is an alias for event.CriticalErrorEvent
+type CriticalErrorEvent = event.CriticalErrorEvent
