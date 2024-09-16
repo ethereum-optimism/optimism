@@ -297,6 +297,96 @@ func TestEVM_MT_SysRead_Preimage(t *testing.T) {
 	}
 }
 
+func TestEVM_MT_StoreOpsClearMemReservation(t *testing.T) {
+	var tracer *tracing.Hooks
+
+	llVariations := []struct {
+		name                   string
+		llReservationActive    bool
+		matchThreadId          bool
+		matchEffAddr           bool
+		shouldClearReservation bool
+	}{
+		{name: "matching reservation", llReservationActive: true, matchThreadId: true, matchEffAddr: true, shouldClearReservation: true},
+		{name: "matching reservation, diff thread", llReservationActive: true, matchThreadId: false, matchEffAddr: true, shouldClearReservation: true},
+		{name: "mismatched reservation", llReservationActive: true, matchThreadId: true, matchEffAddr: false, shouldClearReservation: false},
+		{name: "mismatched reservation, diff thread", llReservationActive: true, matchThreadId: false, matchEffAddr: false, shouldClearReservation: false},
+		{name: "no reservation, matching addr", llReservationActive: false, matchThreadId: true, matchEffAddr: true, shouldClearReservation: true},
+		{name: "no reservation, mismatched addr", llReservationActive: false, matchThreadId: true, matchEffAddr: false, shouldClearReservation: false},
+	}
+
+	pc := uint32(0x04)
+	rt := uint32(0x12_34_56_78)
+	baseReg := 5
+	rtReg := 6
+	cases := []struct {
+		name    string
+		opcode  int
+		offset  int
+		base    uint32
+		effAddr uint32
+		preMem  uint32
+		postMem uint32
+	}{
+		{name: "Store byte", opcode: 0b10_1000, base: 0xFF_00_00_04, offset: 0xFF_00_00_08, effAddr: 0xFF_00_00_0C, preMem: 0xFF_FF_FF_FF, postMem: 0x78_FF_FF_FF},
+		{name: "Store halfword", opcode: 0b10_1001, base: 0xFF_00_00_04, offset: 0xFF_00_00_08, effAddr: 0xFF_00_00_0C, preMem: 0xFF_FF_FF_FF, postMem: 0x56_78_FF_FF},
+		{name: "Store word left", opcode: 0b10_1010, base: 0xFF_00_00_04, offset: 0xFF_00_00_08, effAddr: 0xFF_00_00_0C, preMem: 0xFF_FF_FF_FF, postMem: 0x12_34_56_78},
+		{name: "Store word", opcode: 0b10_1011, base: 0xFF_00_00_04, offset: 0xFF_00_00_08, effAddr: 0xFF_00_00_0C, preMem: 0xFF_FF_FF_FF, postMem: 0x12_34_56_78},
+		{name: "Store word right", opcode: 0b10_1110, base: 0xFF_00_00_04, offset: 0xFF_00_00_08, effAddr: 0xFF_00_00_0C, preMem: 0xFF_FF_FF_FF, postMem: 0x78_FF_FF_FF},
+	}
+	for i, c := range cases {
+		for _, v := range llVariations {
+			tName := fmt.Sprintf("%v (%v)", c.name, v.name)
+			t.Run(tName, func(t *testing.T) {
+				insn := uint32((c.opcode << 26) | (baseReg & 0x1F << 21) | (rtReg & 0x1F << 16) | (0xFFFF & c.offset))
+				goVm, state, contracts := setup(t, i, nil)
+				step := state.GetStep()
+
+				// Define LL-related params
+				var llAddress, llOwnerThread uint32
+				if v.matchEffAddr {
+					llAddress = c.effAddr
+				} else {
+					llAddress = c.effAddr + 4
+				}
+				if v.matchThreadId {
+					llOwnerThread = state.GetCurrentThread().ThreadId
+				} else {
+					llOwnerThread = state.GetCurrentThread().ThreadId + 1
+				}
+
+				// Setup state
+				state.GetCurrentThread().Cpu.PC = pc
+				state.GetCurrentThread().Cpu.NextPC = pc + 4
+				state.GetRegistersRef()[rtReg] = rt
+				state.GetRegistersRef()[baseReg] = c.base
+				state.GetMemory().SetMemory(state.GetPC(), insn)
+				state.GetMemory().SetMemory(c.effAddr, c.preMem)
+				state.LLReservationActive = v.llReservationActive
+				state.LLAddress = llAddress
+				state.LLOwnerThread = llOwnerThread
+
+				// Setup expectations
+				expected := mttestutil.NewExpectedMTState(state)
+				expected.ExpectStep()
+				expected.ExpectMemoryWrite(c.effAddr, c.postMem)
+				if v.shouldClearReservation {
+					expected.LLReservationActive = false
+					expected.LLAddress = 0
+					expected.LLOwnerThread = 0
+				}
+
+				stepWitness, err := goVm.Step(true)
+				require.NoError(t, err)
+
+				// Check expectations
+				expected.Validate(t, state)
+				testutil.ValidateEVM(t, stepWitness, step, goVm, multithreaded.GetStateHashFn(), contracts, tracer)
+			})
+		}
+	}
+}
+
 func TestEVM_MT_StoreCalls(t *testing.T) {
 	t.Skip("TODO")
 }
