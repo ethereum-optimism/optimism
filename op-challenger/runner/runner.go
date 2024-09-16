@@ -42,9 +42,10 @@ type Metricer interface {
 }
 
 type Runner struct {
-	log log.Logger
-	cfg *config.Config
-	m   Metricer
+	log                 log.Logger
+	cfg                 *config.Config
+	addMTCannonPrestate common.Hash
+	m                   Metricer
 
 	running    atomic.Bool
 	ctx        context.Context
@@ -53,11 +54,12 @@ type Runner struct {
 	metricsSrv *httputil.HTTPServer
 }
 
-func NewRunner(logger log.Logger, cfg *config.Config) *Runner {
+func NewRunner(logger log.Logger, cfg *config.Config, mtCannonPrestate common.Hash) *Runner {
 	return &Runner{
-		log: logger,
-		cfg: cfg,
-		m:   NewMetrics(),
+		log:                 logger,
+		cfg:                 cfg,
+		addMTCannonPrestate: mtCannonPrestate,
+		m:                   NewMetrics(),
 	}
 }
 
@@ -97,16 +99,7 @@ func (r *Runner) loop(ctx context.Context, traceType types.TraceType, client *so
 	t := time.NewTicker(1 * time.Minute)
 	defer t.Stop()
 	for {
-		if err := r.runOnce(ctx, traceType, client, caller); errors.Is(err, ErrUnexpectedStatusCode) {
-			r.log.Error("Incorrect status code", "type", traceType, "err", err)
-			r.m.RecordInvalid(traceType)
-		} else if err != nil {
-			r.log.Error("Failed to run", "type", traceType, "err", err)
-			r.m.RecordFailure(traceType)
-		} else {
-			r.log.Info("Successfully verified output root", "type", traceType)
-			r.m.RecordSuccess(traceType)
-		}
+		r.runAndRecordOnce(ctx, traceType, client, caller)
 		select {
 		case <-t.C:
 		case <-ctx.Done():
@@ -115,22 +108,65 @@ func (r *Runner) loop(ctx context.Context, traceType types.TraceType, client *so
 	}
 }
 
-func (r *Runner) runOnce(ctx context.Context, traceType types.TraceType, client *sources.RollupClient, caller *batching.MultiCaller) error {
+func (r *Runner) runAndRecordOnce(ctx context.Context, traceType types.TraceType, client *sources.RollupClient, caller *batching.MultiCaller) {
+	recordError := func(err error, traceType types.TraceType, m Metricer, log log.Logger) {
+		if errors.Is(err, ErrUnexpectedStatusCode) {
+			log.Error("Incorrect status code", "type", traceType, "err", err)
+			m.RecordInvalid(traceType)
+		} else if err != nil {
+			log.Error("Failed to run", "type", traceType, "err", err)
+			m.RecordFailure(traceType)
+		} else {
+			log.Info("Successfully verified output root", "type", traceType)
+			m.RecordSuccess(traceType)
+		}
+	}
+
 	prestateHash, err := r.getPrestateHash(ctx, traceType, caller)
 	if err != nil {
-		return err
+		recordError(err, traceType, r.m, r.log)
+		return
 	}
 
 	localInputs, err := r.createGameInputs(ctx, client)
 	if err != nil {
-		return err
+		recordError(err, traceType, r.m, r.log)
+		return
 	}
 	dir, err := r.prepDatadir(traceType)
 	if err != nil {
-		return err
+		recordError(err, traceType, r.m, r.log)
+		return
 	}
+	err = r.runOnce(ctx, traceType, prestateHash, localInputs, dir)
+	recordError(err, traceType, r.m, r.log)
+
+	if r.addMTCannonPrestate != (common.Hash{}) {
+		// reuse the trace directory
+		err := r.runMTCannonOnce(ctx, localInputs, dir)
+		recordError(err, traceType, r.m, r.log.With("mt-cannon", true))
+	}
+}
+
+func (r *Runner) runOnce(ctx context.Context, traceType types.TraceType, prestateHash common.Hash, localInputs utils.LocalGameInputs, dir string) error {
 	logger := r.log.New("l1", localInputs.L1Head, "l2", localInputs.L2Head, "l2Block", localInputs.L2BlockNumber, "claim", localInputs.L2Claim, "type", traceType)
 	provider, err := createTraceProvider(logger, r.m, r.cfg, prestateHash, traceType, localInputs, dir)
+	if err != nil {
+		return fmt.Errorf("failed to create trace provider: %w", err)
+	}
+	hash, err := provider.Get(ctx, types.RootPosition)
+	if err != nil {
+		return fmt.Errorf("failed to execute trace provider: %w", err)
+	}
+	if hash[0] != mipsevm.VMStatusValid {
+		return fmt.Errorf("%w: %v", ErrUnexpectedStatusCode, hash)
+	}
+	return nil
+}
+
+func (r *Runner) runMTCannonOnce(ctx context.Context, localInputs utils.LocalGameInputs, dir string) error {
+	logger := r.log.New("l1", localInputs.L1Head, "l2", localInputs.L2Head, "l2Block", localInputs.L2BlockNumber, "claim", localInputs.L2Claim, "type", "mt-cannon")
+	provider, err := createTraceProvider(logger, r.m, r.cfg, r.addMTCannonPrestate, types.TraceTypeCannon, localInputs, dir)
 	if err != nil {
 		return fmt.Errorf("failed to create trace provider: %w", err)
 	}
