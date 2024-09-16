@@ -80,11 +80,11 @@ func (store *BlobsStore) GetBlobSidecars(ctx context.Context, ref eth.L1BlockRef
 }
 
 func (store *BlobsStore) GetAllSidecars(ctx context.Context, l1Timestamp uint64) ([]*eth.BlobSidecar, error) {
-	out := make([]*eth.BlobSidecar, 0)
 	m, ok := store.blobs[l1Timestamp]
 	if !ok {
 		return nil, fmt.Errorf("no blobs known with given time: %w", ethereum.NotFound)
 	}
+	out := make([]*eth.BlobSidecar, 0, len(m))
 	for h, b := range m {
 		if b == nil {
 			return nil, fmt.Errorf("blob %d %s is nil, cannot copy: %w", h.Index, h.Hash, ethereum.NotFound)
@@ -98,12 +98,12 @@ func (store *BlobsStore) GetAllSidecars(ctx context.Context, l1Timestamp uint64)
 		if err != nil {
 			return nil, fmt.Errorf("failed to compute blob proof: %w", err)
 		}
-		out = append(out, &eth.BlobSidecar{
+		out[h.Index] = &eth.BlobSidecar{
 			Index:         eth.Uint64String(h.Index),
 			Blob:          *b,
 			KZGCommitment: eth.Bytes48(commitment),
 			KZGProof:      eth.Bytes48(proof),
-		})
+		}
 	}
 	return out, nil
 }
