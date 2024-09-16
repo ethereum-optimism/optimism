@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	actinsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
+	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	upgradesHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/upgrades/helpers"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -46,24 +46,24 @@ func TestProposerBatchType(t *testing.T) {
 }
 
 func RunProposerTest(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
-	t := actinsHelpers.NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, actinsHelpers.DefaultRollupTestParams)
+	t := actionsHelpers.NewDefaultTesting(gt)
+	dp := e2eutils.MakeDeployParams(t, actionsHelpers.DefaultRollupTestParams)
 	upgradesHelpers.ApplyDeltaTimeOffset(dp, deltaTimeOffset)
-	sd := e2eutils.Setup(t, dp, actinsHelpers.DefaultAlloc)
+	sd := e2eutils.Setup(t, dp, actionsHelpers.DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
-	miner, seqEngine, sequencer := actinsHelpers.SetupSequencerTest(t, sd, log)
+	miner, seqEngine, sequencer := actionsHelpers.SetupSequencerTest(t, sd, log)
 
 	rollupSeqCl := sequencer.RollupClient()
-	batcher := actinsHelpers.NewL2Batcher(log, sd.RollupCfg, actinsHelpers.DefaultBatcherCfg(dp),
+	batcher := actionsHelpers.NewL2Batcher(log, sd.RollupCfg, actionsHelpers.DefaultBatcherCfg(dp),
 		rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 
-	var proposer *actinsHelpers.L2Proposer
+	var proposer *actionsHelpers.L2Proposer
 	if e2eutils.UseFaultProofs() {
 		optimismPortal2Contract, err := bindingspreview.NewOptimismPortal2(sd.DeploymentsL1.OptimismPortalProxy, miner.EthClient())
 		require.NoError(t, err)
 		respectedGameType, err := optimismPortal2Contract.RespectedGameType(&bind.CallOpts{})
 		require.NoError(t, err)
-		proposer = actinsHelpers.NewL2Proposer(t, log, &actinsHelpers.ProposerCfg{
+		proposer = actionsHelpers.NewL2Proposer(t, log, &actionsHelpers.ProposerCfg{
 			DisputeGameFactoryAddr: &sd.DeploymentsL1.DisputeGameFactoryProxy,
 			ProposalInterval:       6 * time.Second,
 			ProposalRetryInterval:  3 * time.Second,
@@ -72,7 +72,7 @@ func RunProposerTest(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 			AllowNonFinalized:      true,
 		}, miner.EthClient(), rollupSeqCl)
 	} else {
-		proposer = actinsHelpers.NewL2Proposer(t, log, &actinsHelpers.ProposerCfg{
+		proposer = actionsHelpers.NewL2Proposer(t, log, &actionsHelpers.ProposerCfg{
 			OutputOracleAddr:      &sd.DeploymentsL1.L2OutputOracleProxy,
 			ProposerKey:           dp.Secrets.Proposer,
 			ProposalRetryInterval: 3 * time.Second,
