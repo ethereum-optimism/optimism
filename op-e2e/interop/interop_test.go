@@ -53,6 +53,9 @@ func TestInteropTrivial(t *testing.T) {
 	expectedBalance, _ := big.NewInt(0).SetString("10000000000000000000000000", 10)
 	require.Equal(t, expectedBalance, bobBalance)
 
+	// sleep for a bit to allow the chain to start
+	time.Sleep(30 * time.Second)
+
 	// send a tx from Alice to Bob
 	s2.SendL2Tx(
 		chainA,

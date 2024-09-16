@@ -43,12 +43,14 @@ type ChainsDB struct {
 	logDBs           map[types.ChainID]LogStorage
 	heads            HeadsStorage
 	maintenanceReady chan struct{}
+	logger           log.Logger
 }
 
-func NewChainsDB(logDBs map[types.ChainID]LogStorage, heads HeadsStorage) *ChainsDB {
+func NewChainsDB(logDBs map[types.ChainID]LogStorage, heads HeadsStorage, l log.Logger) *ChainsDB {
 	return &ChainsDB{
 		logDBs: logDBs,
 		heads:  heads,
+		logger: l,
 	}
 }
 
@@ -76,17 +78,21 @@ func (db *ChainsDB) Resume() error {
 // for now it does not prevent multiple instances of this process from running
 func (db *ChainsDB) StartCrossHeadMaintenance(ctx context.Context) {
 	go func() {
+		db.logger.Info("cross-head maintenance loop started")
 		// run the maintenance loop every 10 seconds for now
-		ticker := time.NewTicker(time.Second * 10)
+		ticker := time.NewTicker(time.Second * 1)
 		for {
 			select {
 			case <-ctx.Done():
+				db.logger.Warn("context cancelled, stopping maintenance loop")
 				return
 			case <-ticker.C:
+				db.logger.Debug("regular maintenance requested")
 				db.RequestMaintenance()
 			case <-db.maintenanceReady:
+				db.logger.Debug("running maintenance")
 				if err := db.updateAllHeads(); err != nil {
-					log.Error("failed to update cross-heads", "err", err)
+					db.logger.Error("failed to update cross-heads", "err", err)
 				}
 			}
 		}
@@ -184,6 +190,7 @@ func (db *ChainsDB) UpdateCrossHeadsForChain(chainID types.ChainID, checker Safe
 	// this allows for the maintenance loop to handle cascading updates
 	// instead of waiting for the next scheduled update
 	if updated {
+		db.logger.Debug("heads were updated, requesting maintenance")
 		db.RequestMaintenance()
 	}
 	return nil

@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/heads"
 	backendTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -25,7 +26,7 @@ func TestHeadsForChain(t *testing.T) {
 		CrossFinalized: entrydb.EntryIdx(6),
 	}
 	h.Put(types.ChainIDFromUInt64(1), chainHeads)
-	chainsDB := NewChainsDB(nil, &stubHeadStorage{h})
+	chainsDB := NewChainsDB(nil, &stubHeadStorage{h}, log.New())
 	tcases := []struct {
 		name          string
 		chainID       types.ChainID
@@ -92,7 +93,7 @@ func TestCheck(t *testing.T) {
 		types.ChainIDFromUInt64(1): logDB,
 	}
 
-	chainsDB := NewChainsDB(logsStore, &stubHeadStorage{h})
+	chainsDB := NewChainsDB(logsStore, &stubHeadStorage{h}, log.New())
 
 	tcases := []struct {
 		name             string
