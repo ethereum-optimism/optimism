@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/heads"
 	backendTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
@@ -26,7 +27,7 @@ func TestHeadsForChain(t *testing.T) {
 		CrossFinalized: entrydb.EntryIdx(6),
 	}
 	h.Put(types.ChainIDFromUInt64(1), chainHeads)
-	chainsDB := NewChainsDB(nil, &stubHeadStorage{h}, log.New())
+	chainsDB := NewChainsDB(nil, &stubHeadStorage{h}, testlog.Logger(t, log.LevelDebug))
 	tcases := []struct {
 		name          string
 		chainID       types.ChainID
@@ -93,7 +94,7 @@ func TestCheck(t *testing.T) {
 		types.ChainIDFromUInt64(1): logDB,
 	}
 
-	chainsDB := NewChainsDB(logsStore, &stubHeadStorage{h}, log.New())
+	chainsDB := NewChainsDB(logsStore, &stubHeadStorage{h}, testlog.Logger(t, log.LevelDebug))
 
 	tcases := []struct {
 		name             string

@@ -471,9 +471,6 @@ func (s *interopE2ESystem) prepare(t *testing.T, w worldResourcePaths) {
 	// add the L2 RPCs to the supervisor now that the L2s are created
 	ctx := context.Background()
 	for _, l2 := range s.l2s {
-		// hack: wait for previous L2 additions to stop and start the supervisor again
-		// better would be to wait for the supervisor to be ready to accept new L2s
-		time.Sleep(10 * time.Second)
 		err := s.SupervisorClient().AddL2RPC(ctx, l2.l2Geth.UserRPC().RPC())
 		require.NoError(s.t, err, "failed to add L2 RPC to supervisor", "error", err)
 	}

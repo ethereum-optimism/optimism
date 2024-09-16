@@ -44,7 +44,7 @@ func (cl *SupervisorClient) Start(
 		&result,
 		"admin_start")
 	if err != nil {
-		return fmt.Errorf("failed to start Supervisor: %s): %w", err)
+		return fmt.Errorf("failed to start Supervisor: %w", err)
 	}
 	return result
 }

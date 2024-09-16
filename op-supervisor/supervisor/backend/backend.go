@@ -142,7 +142,7 @@ func (su *SupervisorBackend) Start(ctx context.Context) error {
 	return nil
 }
 
-var errAlreadyStopped = fmt.Errorf("already stopped")
+var errAlreadyStopped = errors.New("already stopped")
 
 func (su *SupervisorBackend) Stop(ctx context.Context) error {
 	if !su.started.CompareAndSwap(true, false) {
