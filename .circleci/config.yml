@@ -858,6 +858,10 @@ jobs:
         description: Uses contract artifacts
         type: boolean
         default: false
+      test_directory:
+        description: Test directory
+        type: string
+        default: "./..."
     machine:
       image: <<pipeline.parameters.base_image>> # only used to enable codecov.
     resource_class: xlarge
@@ -895,7 +899,7 @@ jobs:
               --jsonfile=/tmp/testlogs/log.json \
               -- -parallel=8 \
               -coverpkg=github.com/ethereum-optimism/optimism/... \
-              -coverprofile=coverage.out ./...
+              -coverprofile=coverage.out <<parameters.test_directory>>
           working_directory: <<parameters.module>>
       - store_test_results:
           path: /tmp/test-results
@@ -1664,9 +1668,13 @@ workflows:
           name: op-batcher-tests
           module: op-batcher
           requires: ["go-mod-download"]
-      - go-test-kurtosis:
+      - go-test:
           name: op-chain-ops-tests
           module: op-chain-ops
+      - go-test-kurtosis:
+          name: op-chain-ops-integration
+          module: op-chain-ops
+          test_directory: ./deployer/integration_test
           uses_artifacts: true
           requires: ["contracts-bedrock-build"]
       - go-test:
@@ -1744,6 +1752,7 @@ workflows:
             - go-mod-download
             - op-batcher-tests
             - op-chain-ops-tests
+            - op-chain-ops-integration
             - op-node-tests
             - op-proposer-tests
             - op-challenger-tests

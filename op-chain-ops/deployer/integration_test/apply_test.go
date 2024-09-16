@@ -1,4 +1,4 @@
-package deployer
+package integration_test
 
 import (
 	"context"
@@ -6,9 +6,11 @@ import (
 	"log/slog"
 	"math/big"
 	"net/url"
-	"os"
 	"path"
+	"runtime"
 	"testing"
+
+	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
@@ -49,11 +51,10 @@ func TestEndToEndApply(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	wd, err := os.Getwd()
-	require.NoError(t, err)
-	monorepoDir := path.Join(wd, "..", "..")
+	_, testFilename, _, ok := runtime.Caller(0)
+	require.Truef(t, ok, "failed to get test filename")
+	monorepoDir := path.Join(path.Dir(testFilename), "..", "..", "..")
 	artifactsDir := path.Join(monorepoDir, "packages", "contracts-bedrock", "forge-artifacts")
-	require.NoError(t, err)
 
 	enclaveCtx := kurtosisutil.StartEnclave(t, ctx, lgr, "github.com/ethpandaops/ethereum-package", TestParams)
 
@@ -104,7 +105,7 @@ func TestEndToEndApply(t *testing.T) {
 		Version: 1,
 	}
 
-	require.NoError(t, ApplyPipeline(
+	require.NoError(t, deployer.ApplyPipeline(
 		ctx,
 		env,
 		intent,
