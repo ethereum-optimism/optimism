@@ -21,7 +21,7 @@ test-ws: pre-test
 .PHONY: test-ws
 
 test-actions: pre-test
-	$(go_test) $(go_test_flags) ./actions
+	$(go_test) $(go_test_flags) ./actions/...
 .PHONY: test-actions
 
 test-http: pre-test
