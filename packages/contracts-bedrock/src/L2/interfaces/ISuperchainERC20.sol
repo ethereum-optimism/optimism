@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IERC20Solady } from "src/dependency/interfaces/IERC20Solady.sol";
 
 /// @title ISuperchainERC20Extensions
 /// @notice Interface for the extensions to the ERC20 standard that are used by SuperchainERC20.
@@ -35,6 +35,21 @@ interface ISuperchainERC20Extensions {
     function relayERC20(address _from, address _to, uint256 _amount) external;
 }
 
+/// @title ISuperchainERC20Errors
+/// @notice Interface containing the errors added in the SuperchainERC20 implementation.
+interface ISuperchainERC20Errors {
+    /// @notice Thrown when attempting to relay a message and the function caller (msg.sender) is not
+    /// L2ToL2CrossDomainMessenger.
+    error CallerNotL2ToL2CrossDomainMessenger();
+
+    /// @notice Thrown when attempting to relay a message and the cross domain message sender is not this
+    /// SuperchainERC20.
+    error InvalidCrossDomainSender();
+
+    /// @notice Thrown when attempting to perform an operation and the account is the zero address.
+    error ZeroAddress();
+}
+
 /// @title ISuperchainERC20
-/// @notice Combines the ERC20 interface with the SuperchainERC20Extensions interface.
-interface ISuperchainERC20 is IERC20, ISuperchainERC20Extensions { }
+/// @notice Combines Solady's ERC20 interface with the SuperchainERC20Extensions interface.
+interface ISuperchainERC20 is IERC20Solady, ISuperchainERC20Extensions, ISuperchainERC20Errors { }

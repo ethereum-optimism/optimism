@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { ISuperchainERC20Extensions } from "./ISuperchainERC20.sol";
+import { IERC20Solady } from "src/dependency/interfaces/IERC20Solady.sol";
+import { ISuperchainERC20Extensions, ISuperchainERC20Errors } from "./ISuperchainERC20.sol";
 
 /// @title IOptimismSuperchainERC20Extension
 /// @notice This interface is available on the OptimismSuperchainERC20 contract.
 ///         We declare it as a separate interface so that it can be used in
 ///         custom implementations of SuperchainERC20.
-interface IOptimismSuperchainERC20Extension is ISuperchainERC20Extensions {
+interface IOptimismSuperchainERC20Extension is ISuperchainERC20Extensions, ISuperchainERC20Errors {
     /// @notice Emitted whenever tokens are minted for an account.
     /// @param account Address of the account tokens are being minted for.
     /// @param amount  Amount of tokens minted.
@@ -34,5 +34,5 @@ interface IOptimismSuperchainERC20Extension is ISuperchainERC20Extensions {
 }
 
 /// @title IOptimismSuperchainERC20
-/// @notice Combines the ERC20 interface with the OptimismSuperchainERC20Extension interface.
-interface IOptimismSuperchainERC20 is IERC20, IOptimismSuperchainERC20Extension { }
+/// @notice Combines Solady's ERC20 interface with the OptimismSuperchainERC20Extension interface.
+interface IOptimismSuperchainERC20 is IERC20Solady, IOptimismSuperchainERC20Extension { }
