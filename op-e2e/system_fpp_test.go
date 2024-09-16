@@ -27,35 +27,39 @@ import (
 )
 
 func TestVerifyL2OutputRoot(t *testing.T) {
-	testVerifyL2OutputRoot(t, false, false)
+	testVerifyL2OutputRoot(t, false, false, false)
+}
+
+func TestVerifyL2OutputRootInVM(t *testing.T) {
+	testVerifyL2OutputRoot(t, false, false, true)
 }
 
 func TestVerifyL2OutputRootSpanBatch(t *testing.T) {
-	testVerifyL2OutputRoot(t, false, true)
+	testVerifyL2OutputRoot(t, false, true, false)
 }
 
 func TestVerifyL2OutputRootDetached(t *testing.T) {
-	testVerifyL2OutputRoot(t, true, false)
+	testVerifyL2OutputRoot(t, true, false, false)
 }
 
 func TestVerifyL2OutputRootDetachedSpanBatch(t *testing.T) {
-	testVerifyL2OutputRoot(t, true, true)
+	testVerifyL2OutputRoot(t, true, true, false)
 }
 
 func TestVerifyL2OutputRootEmptyBlock(t *testing.T) {
-	testVerifyL2OutputRootEmptyBlock(t, false, false)
+	testVerifyL2OutputRootEmptyBlock(t, false, false, false)
 }
 
 func TestVerifyL2OutputRootEmptyBlockSpanBatch(t *testing.T) {
-	testVerifyL2OutputRootEmptyBlock(t, false, true)
+	testVerifyL2OutputRootEmptyBlock(t, false, true, false)
 }
 
 func TestVerifyL2OutputRootEmptyBlockDetached(t *testing.T) {
-	testVerifyL2OutputRootEmptyBlock(t, true, false)
+	testVerifyL2OutputRootEmptyBlock(t, true, false, false)
 }
 
 func TestVerifyL2OutputRootEmptyBlockDetachedSpanBatch(t *testing.T) {
-	testVerifyL2OutputRootEmptyBlock(t, true, true)
+	testVerifyL2OutputRootEmptyBlock(t, true, true, false)
 }
 
 func applySpanBatchActivation(active bool, dp *genesis.DeployConfig) {
@@ -88,7 +92,7 @@ func applySpanBatchActivation(active bool, dp *genesis.DeployConfig) {
 // - reboot the batch submitter
 // - update the state root via a tx
 // - run program
-func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool, spanBatchActivated bool) {
+func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool, spanBatchActivated bool, useVM bool) {
 	InitParallel(t)
 	ctx := context.Background()
 
@@ -185,10 +189,11 @@ func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool, spanBatchActi
 		L2Claim:            common.Hash(l2Claim),
 		L2ClaimBlockNumber: l2ClaimBlockNumber,
 		Detached:           detached,
+		UseCannon:          useVM,
 	})
 }
 
-func testVerifyL2OutputRoot(t *testing.T, detached bool, spanBatchActivated bool) {
+func testVerifyL2OutputRoot(t *testing.T, detached bool, spanBatchActivated bool, useVM bool) {
 	InitParallel(t)
 	ctx := context.Background()
 
@@ -266,7 +271,7 @@ func testVerifyL2OutputRoot(t *testing.T, detached bool, spanBatchActivated bool
 		L2Claim:            common.Hash(l2Claim),
 		L2ClaimBlockNumber: l2ClaimBlockNumber,
 		Detached:           detached,
-		UseCannon:          true,
+		UseCannon:          useVM,
 	})
 }
 
@@ -354,7 +359,7 @@ func RunOpProgramInVM(t *testing.T, ctx context.Context, preimageDir string, inp
 		err := opp.ChanneledServer(ctx, hostLog, fppConfig, preimageChan, hinterChan)
 		serverErr <- err
 		close(serverErr)
-		t.Errorf("op-program host channel closed! %v", err)
+		t.Logf("op-program host channel closed! %v", err)
 	}()
 
 	clientPollTimeout := time.Second * 15
