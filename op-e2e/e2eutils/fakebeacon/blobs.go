@@ -159,6 +159,9 @@ func (f *FakeBeacon) Start(addr string) error {
 }
 
 func (f *FakeBeacon) StoreBlobsBundle(slot uint64, bundle *engine.BlobsBundleV1) error {
+	f.blobsLock.Lock()
+	defer f.blobsLock.Unlock()
+
 	// Solve for the slot timestamp.
 	// slot = (timestamp - genesis) / slot_time
 	// timestamp = slot * slot_time + genesis
