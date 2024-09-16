@@ -42,6 +42,7 @@ func DeployImplementations(ctx context.Context, env *Env, intent *state.Intent, 
 			Deployer:    env.Deployer,
 			Signer:      env.Signer,
 			Client:      env.L1Client,
+			Broadcaster: KeyedBroadcaster,
 			Handler: func(host *script.Host) error {
 				host.SetEnvVar("IMPL_SALT", st.Create2Salt.Hex()[2:])
 				host.ImportState(st.SuperchainDeployment.StateDump)

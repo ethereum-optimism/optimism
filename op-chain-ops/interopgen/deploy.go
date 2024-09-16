@@ -219,8 +219,8 @@ func deployL2ToL1(l1Host *script.Host, superCfg *SuperchainConfig, superDeployme
 }
 
 func genesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment) error {
-	if err := deployers.L2Genesis(l2Host, &deployers.L2GenesisInput{
-		L1Deployments: deployers.L1Deployments{
+	if err := opsm.L2Genesis(l2Host, &opsm.L2GenesisInput{
+		L1Deployments: opsm.L1Deployments{
 			L1CrossDomainMessengerProxy: deployment.L1CrossDomainMessengerProxy,
 			L1StandardBridgeProxy:       deployment.L1StandardBridgeProxy,
 			L1ERC721BridgeProxy:         deployment.L1ERC721BridgeProxy,

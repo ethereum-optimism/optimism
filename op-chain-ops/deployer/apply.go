@@ -149,6 +149,11 @@ func ApplyPipeline(
 			func(ctx context.Context, env *pipeline.Env, intent *state.Intent, st *state.State) error {
 				return pipeline.DeployOPChain(ctx, env, intent, st, chain.ID)
 			},
+		}, pipelineStage{
+			fmt.Sprintf("generate-l2-genesis-%s", chain.ID.Hex()),
+			func(ctx context.Context, env *pipeline.Env, intent *state.Intent, st *state.State) error {
+				return pipeline.GenerateL2Genesis(ctx, env, intent, st, chain.ID)
+			},
 		})
 	}
 

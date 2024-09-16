@@ -1,6 +1,8 @@
 package state
 
 import (
+	"fmt"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
@@ -32,11 +34,20 @@ type State struct {
 	ImplementationsDeployment *ImplementationsDeployment `json:"implementationsDeployment"`
 
 	// Chains contains data about L2 chain deployments.
-	Chains []ChainState `json:"opChainDeployments"`
+	Chains []*ChainState `json:"opChainDeployments"`
 }
 
-func (s State) WriteToFile(path string) error {
+func (s *State) WriteToFile(path string) error {
 	return jsonutil.WriteJSON(s, ioutil.ToAtomicFile(path, 0o755))
+}
+
+func (s *State) Chain(id common.Hash) (*ChainState, error) {
+	for _, chain := range s.Chains {
+		if chain.ID == id {
+			return chain, nil
+		}
+	}
+	return nil, fmt.Errorf("chain not found: %s", id.Hex())
 }
 
 type SuperchainDeployment struct {
@@ -82,4 +93,6 @@ type ChainState struct {
 	PermissionedDisputeGameAddress            common.Address `json:"permissionedDisputeGameAddress"`
 	DelayedWETHPermissionedGameProxyAddress   common.Address `json:"delayedWETHPermissionedGameProxyAddress"`
 	DelayedWETHPermissionlessGameProxyAddress common.Address `json:"delayedWETHPermissionlessGameProxyAddress"`
+
+	Genesis Base64Bytes `json:"genesis"`
 }
