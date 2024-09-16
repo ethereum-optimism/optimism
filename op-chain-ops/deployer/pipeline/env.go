@@ -16,7 +16,6 @@ import (
 type Env struct {
 	Workdir  string
 	L1Client *ethclient.Client
-	L1RPCUrl string
 	Signer   opcrypto.SignerFn
 	Deployer common.Address
 	Logger   log.Logger
