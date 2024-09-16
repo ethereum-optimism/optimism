@@ -170,7 +170,10 @@ func (f *FakeBeacon) StoreBlobsBundle(slot uint64, bundle *engine.BlobsBundleV1)
 	for i, b := range bundle.Blobs {
 		f.blobStore.StoreBlob(
 			slotTimestamp,
-			eth.KZGToVersionedHash(kzg4844.Commitment(bundle.Commitments[i])),
+			eth.IndexedBlobHash{
+				Index: uint64(i),
+				Hash: eth.KZGToVersionedHash(kzg4844.Commitment(bundle.Commitments[i])),
+			},
 			(*eth.Blob)(b[:]),
 		)
 	}
@@ -187,7 +190,7 @@ func (f *FakeBeacon) LoadBlobsBundle(slot uint64) (*engine.BlobsBundleV1, error)
 	slotTimestamp := slot*f.blockTime + f.genesisTime
 
 	// Load blobs from the store
-	blobs, err := f.blobStore.GetUnindexedSidecars(context.Background(), slotTimestamp)
+	blobs, err := f.blobStore.GetAllSidecars(context.Background(), slotTimestamp)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load blobs from store: %w", err)
 	}
@@ -198,10 +201,10 @@ func (f *FakeBeacon) LoadBlobsBundle(slot uint64) (*engine.BlobsBundleV1, error)
 		Proofs:      make([]hexutil.Bytes, len(blobs)),
 		Blobs:       make([]hexutil.Bytes, len(blobs)),
 	}
-	for i, b := range blobs {
-		out.Commitments[i] = hexutil.Bytes(b.KZGCommitment[:])
-		out.Proofs[i] = hexutil.Bytes(b.KZGProof[:])
-		out.Blobs[i] = hexutil.Bytes(b.Blob[:])
+	for _, b := range blobs {
+		out.Commitments[b.Index] = hexutil.Bytes(b.KZGCommitment[:])
+		out.Proofs[b.Index] = hexutil.Bytes(b.KZGProof[:])
+		out.Blobs[b.Index] = hexutil.Bytes(b.Blob[:])
 	}
 
 	return &out, nil
