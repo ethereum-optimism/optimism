@@ -40,7 +40,7 @@ type L2Verifier struct {
 
 	log log.Logger
 
-	eng L2API
+	Eng L2API
 
 	syncStatus driver.SyncStatusTracker
 
@@ -57,10 +57,10 @@ type L2Verifier struct {
 
 	l1 derive.L1Fetcher
 
-	l2PipelineIdle bool
+	L2PipelineIdle bool
 	l2Building     bool
 
-	rollupCfg *rollup.Config
+	RollupCfg *rollup.Config
 
 	rpc *rpc.Server
 
@@ -160,7 +160,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	rollupNode := &L2Verifier{
 		eventSys:          sys,
 		log:               log,
-		eng:               eng,
+		Eng:               eng,
 		engine:            ec,
 		derivation:        pipeline,
 		safeHeadListener:  safeHeadListener,
@@ -168,9 +168,9 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 		drainer:           executor,
 		l1:                l1,
 		syncStatus:        syncStatusTracker,
-		l2PipelineIdle:    true,
+		L2PipelineIdle:    true,
 		l2Building:        false,
-		rollupCfg:         cfg,
+		RollupCfg:         cfg,
 		rpc:               rpc.NewServer(),
 		synchronousEvents: testActionEmitter,
 	}
@@ -205,7 +205,7 @@ type l2VerifierBackend struct {
 }
 
 func (s *l2VerifierBackend) BlockRefWithStatus(ctx context.Context, num uint64) (eth.L2BlockRef, *eth.SyncStatus, error) {
-	ref, err := s.verifier.eng.L2BlockRefByNumber(ctx, num)
+	ref, err := s.verifier.Eng.L2BlockRefByNumber(ctx, num)
 	return ref, s.verifier.SyncStatus(), err
 }
 
@@ -345,9 +345,9 @@ func (s *L2Verifier) OnEvent(ev event.Event) bool {
 	case rollup.CriticalErrorEvent:
 		panic(fmt.Errorf("derivation failed critically: %w", x.Err))
 	case derive.DeriverIdleEvent:
-		s.l2PipelineIdle = true
+		s.L2PipelineIdle = true
 	case derive.PipelineStepEvent:
-		s.l2PipelineIdle = false
+		s.L2PipelineIdle = false
 	case driver.StepReqEvent:
 		s.synchronousEvents.Emit(driver.StepEvent{})
 	default:
@@ -396,7 +396,7 @@ func (s *L2Verifier) ActL2UnsafeGossipReceive(payload *eth.ExecutionPayloadEnvel
 // ActL2InsertUnsafePayload creates an action that can insert an unsafe execution payload
 func (s *L2Verifier) ActL2InsertUnsafePayload(payload *eth.ExecutionPayloadEnvelope) Action {
 	return func(t Testing) {
-		ref, err := derive.PayloadToBlockRef(s.rollupCfg, payload.ExecutionPayload)
+		ref, err := derive.PayloadToBlockRef(s.RollupCfg, payload.ExecutionPayload)
 		require.NoError(t, err)
 		err = s.engine.InsertUnsafePayload(t.Ctx(), payload, ref)
 		require.NoError(t, err)

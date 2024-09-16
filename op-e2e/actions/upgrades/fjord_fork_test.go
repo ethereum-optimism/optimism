@@ -1,4 +1,4 @@
-package actions
+package upgrades
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/actions"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -29,8 +30,8 @@ var (
 )
 
 func TestFjordNetworkUpgradeTransactions(gt *testing.T) {
-	t := NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
+	t := actions.NewDefaultTesting(gt)
+	dp := e2eutils.MakeDeployParams(t, actions.DefaultRollupTestParams)
 	genesisBlock := hexutil.Uint64(0)
 	fjordOffset := hexutil.Uint64(2)
 
@@ -46,8 +47,8 @@ func TestFjordNetworkUpgradeTransactions(gt *testing.T) {
 	dp.DeployConfig.L2GenesisFjordTimeOffset = &fjordOffset
 	require.NoError(t, dp.DeployConfig.Check(log), "must have valid config")
 
-	sd := e2eutils.Setup(t, dp, DefaultAlloc)
-	_, _, _, sequencer, engine, verifier, _, _ := setupReorgTestActors(t, dp, sd, log)
+	sd := e2eutils.Setup(t, dp, actions.DefaultAlloc)
+	_, _, _, sequencer, engine, verifier, _, _ := actions.SetupReorgTestActors(t, dp, sd, log)
 	ethCl := engine.EthClient()
 
 	// start op-nodes

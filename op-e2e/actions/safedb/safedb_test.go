@@ -1,23 +1,20 @@
-package actions
+package safedb
 
 import (
 	"context"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
-	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	"github.com/ethereum-optimism/optimism/op-e2e/actions"
+	"github.com/ethereum-optimism/optimism/op-e2e/actions/safedb/helpers"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
 func TestRecordSafeHeadUpdates(gt *testing.T) {
-	t := NewDefaultTesting(gt)
-	sd, miner, sequencer, verifier, verifierEng, batcher := setupSafeDBTest(t, DefaultRollupTestParams)
+	t := actions.NewDefaultTesting(gt)
+	sd, miner, sequencer, verifier, verifierEng, batcher := helpers.SetupSafeDBTest(t, actions.DefaultRollupTestParams)
 	verifEngClient := verifierEng.EngineClient(t, sd.RollupCfg)
 
 	sequencer.ActL2PipelineFull(t)
@@ -36,7 +33,7 @@ func TestRecordSafeHeadUpdates(gt *testing.T) {
 	// new L1 block with L2 batch
 	miner.ActL1StartBlock(12)(t)
 	miner.ActL1IncludeTx(sd.RollupCfg.Genesis.SystemConfig.BatcherAddr)(t)
-	batchTx := miner.l1Transactions[0]
+	batchTx := miner.L1Transactions[0]
 	miner.ActL1EndBlock(t)
 
 	// verifier picks up the L2 chain that was submitted
@@ -46,7 +43,7 @@ func TestRecordSafeHeadUpdates(gt *testing.T) {
 	require.NotEqual(t, sequencer.L2Safe(), sequencer.L2Unsafe(), "sequencer has not processed L1 yet")
 
 	// Verify the safe head is recorded
-	l1Head := miner.l1Chain.CurrentBlock()
+	l1Head := miner.L1Chain().CurrentBlock()
 	firstSafeHeadUpdateL1Block := l1Head.Number.Uint64()
 	response, err := verifier.RollupClient().SafeHeadAtL1Block(context.Background(), firstSafeHeadUpdateL1Block)
 	require.NoError(t, err)
@@ -62,7 +59,7 @@ func TestRecordSafeHeadUpdates(gt *testing.T) {
 	// Only genesis is safe at this point
 	response, err = verifier.RollupClient().SafeHeadAtL1Block(context.Background(), firstSafeHeadUpdateL1Block-1)
 	require.NoError(t, err)
-	require.Equal(t, eth.HeaderBlockID(miner.l1Chain.Genesis().Header()), response.L1Block)
+	require.Equal(t, eth.HeaderBlockID(miner.L1Chain().Genesis().Header()), response.L1Block)
 	require.Equal(t, sd.RollupCfg.Genesis.L2, response.SafeHead)
 
 	// orphan the L1 block that included the batch tx, and build a new different L1 block
@@ -83,7 +80,7 @@ func TestRecordSafeHeadUpdates(gt *testing.T) {
 	// The safe head has been reorged so the record should have been deleted, leaving us back with just genesis safe
 	response, err = verifier.RollupClient().SafeHeadAtL1Block(context.Background(), firstSafeHeadUpdateL1Block)
 	require.NoError(t, err)
-	require.Equal(t, eth.HeaderBlockID(miner.l1Chain.Genesis().Header()), response.L1Block)
+	require.Equal(t, eth.HeaderBlockID(miner.L1Chain().Genesis().Header()), response.L1Block)
 	require.Equal(t, sd.RollupCfg.Genesis.L2, response.SafeHead)
 
 	// Now replay the batch tx in a new L1 block
@@ -91,7 +88,7 @@ func TestRecordSafeHeadUpdates(gt *testing.T) {
 	miner.ActL1SetFeeRecipient(common.Address{'C'})
 	// note: the geth tx pool reorgLoop is too slow (responds to chain head events, but async),
 	// and there's no way to manually trigger runReorg, so we re-insert it ourselves.
-	require.NoError(t, miner.eth.TxPool().Add([]*types.Transaction{batchTx}, true, true)[0])
+	require.NoError(t, miner.Eth.TxPool().Add([]*types.Transaction{batchTx}, true, true)[0])
 	// need to re-insert previously included tx into the block
 	miner.ActL1IncludeTx(sd.RollupCfg.Genesis.SystemConfig.BatcherAddr)(t)
 	miner.ActL1EndBlock(t)
@@ -105,36 +102,10 @@ func TestRecordSafeHeadUpdates(gt *testing.T) {
 	require.Equal(t, verifier.L2Safe(), ref, "verifier engine matches rollup client")
 
 	// Verify the safe head is recorded again
-	l1Head = miner.l1Chain.CurrentBlock()
+	l1Head = miner.L1Chain().CurrentBlock()
 	firstSafeHeadUpdateL1Block = l1Head.Number.Uint64()
 	response, err = verifier.RollupClient().SafeHeadAtL1Block(context.Background(), firstSafeHeadUpdateL1Block)
 	require.NoError(t, err)
 	require.Equal(t, eth.HeaderBlockID(l1Head), response.L1Block)
 	require.Equal(t, verifier.L2Unsafe().ID(), response.SafeHead)
-}
-
-func setupSafeDBTest(t Testing, config *e2eutils.TestParams) (*e2eutils.SetupData, *L1Miner, *L2Sequencer, *L2Verifier, *L2Engine, *L2Batcher) {
-	dp := e2eutils.MakeDeployParams(t, config)
-
-	sd := e2eutils.Setup(t, dp, DefaultAlloc)
-	logger := testlog.Logger(t, log.LevelDebug)
-
-	return setupSafeDBTestActors(t, dp, sd, logger)
-}
-
-func setupSafeDBTestActors(t Testing, dp *e2eutils.DeployParams, sd *e2eutils.SetupData, log log.Logger) (*e2eutils.SetupData, *L1Miner, *L2Sequencer, *L2Verifier, *L2Engine, *L2Batcher) {
-	dir := t.TempDir()
-	db, err := safedb.NewSafeDB(log, dir)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = db.Close()
-	})
-	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
-	miner.ActL1SetFeeRecipient(common.Address{'A'})
-	sequencer.ActL2PipelineFull(t)
-	verifEngine, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{}, WithSafeHeadListener(db))
-	rollupSeqCl := sequencer.RollupClient()
-	batcher := NewL2Batcher(log, sd.RollupCfg, DefaultBatcherCfg(dp),
-		rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
-	return sd, miner, sequencer, verifier, verifEngine, batcher
 }

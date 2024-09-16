@@ -33,9 +33,9 @@ type L1Miner struct {
 	// L1 block building data
 	l1BuildingHeader *types.Header             // block header that we add txs to for block building
 	l1BuildingState  *state.StateDB            // state used for block building
-	l1GasPool        *core.GasPool             // track gas used of ongoing building
+	L1GasPool        *core.GasPool             // track gas used of ongoing building
 	pendingIndices   map[common.Address]uint64 // per account, how many txs from the pool were already included in the block, since the pool is lagging behind block mining.
-	l1Transactions   []*types.Transaction      // collects txs that were successfully included into current block build
+	L1Transactions   []*types.Transaction      // collects txs that were successfully included into current block build
 	l1Receipts       []*types.Receipt          // collect receipts of ongoing building
 	l1Building       bool
 	l1TxFailed       []*types.Transaction // log of failed transactions which could not be included
@@ -120,11 +120,11 @@ func (s *L1Miner) ActL1StartBlock(timeDelta uint64) Action {
 		s.l1BuildingHeader = header
 		s.l1BuildingState = statedb
 		s.l1Receipts = make([]*types.Receipt, 0)
-		s.l1Transactions = make([]*types.Transaction, 0)
+		s.L1Transactions = make([]*types.Transaction, 0)
 		s.pendingIndices = make(map[common.Address]uint64)
 		s.l1BuildingBlobSidecars = make([]*types.BlobTxSidecar, 0)
 
-		s.l1GasPool = new(core.GasPool).AddGas(header.GasLimit)
+		s.L1GasPool = new(core.GasPool).AddGas(header.GasLimit)
 	}
 }
 
@@ -138,7 +138,7 @@ func (s *L1Miner) ActL1IncludeTx(from common.Address) Action {
 		getPendingIndex := func(from common.Address) uint64 {
 			return s.pendingIndices[from]
 		}
-		tx := firstValidTx(t, from, getPendingIndex, s.eth.TxPool().ContentFrom, s.EthClient().NonceAt)
+		tx := firstValidTx(t, from, getPendingIndex, s.Eth.TxPool().ContentFrom, s.EthClient().NonceAt)
 		s.IncludeTx(t, tx)
 		s.pendingIndices[from] = s.pendingIndices[from] + 1 // won't retry the tx
 	}
@@ -151,7 +151,7 @@ func (s *L1Miner) ActL1IncludeTxByHash(txHash common.Hash) Action {
 			t.InvalidAction("no tx inclusion when not building l1 block")
 			return
 		}
-		tx := s.eth.TxPool().Get(txHash)
+		tx := s.Eth.TxPool().Get(txHash)
 		require.NotNil(t, tx, "cannot find tx %s", txHash)
 		s.IncludeTx(t, tx)
 		from, err := s.l1Signer.Sender(tx)
@@ -167,19 +167,19 @@ func (s *L1Miner) IncludeTx(t Testing, tx *types.Transaction) {
 	if tx.Gas() > s.l1BuildingHeader.GasLimit {
 		t.Fatalf("tx consumes %d gas, more than available in L1 block %d", tx.Gas(), s.l1BuildingHeader.GasLimit)
 	}
-	if tx.Gas() > uint64(*s.l1GasPool) {
-		t.InvalidAction("action takes too much gas: %d, only have %d", tx.Gas(), uint64(*s.l1GasPool))
+	if tx.Gas() > uint64(*s.L1GasPool) {
+		t.InvalidAction("action takes too much gas: %d, only have %d", tx.Gas(), uint64(*s.L1GasPool))
 		return
 	}
-	s.l1BuildingState.SetTxContext(tx.Hash(), len(s.l1Transactions))
+	s.l1BuildingState.SetTxContext(tx.Hash(), len(s.L1Transactions))
 	receipt, err := core.ApplyTransaction(s.l1Cfg.Config, s.l1Chain, &s.l1BuildingHeader.Coinbase,
-		s.l1GasPool, s.l1BuildingState, s.l1BuildingHeader, tx.WithoutBlobTxSidecar(), &s.l1BuildingHeader.GasUsed, *s.l1Chain.GetVMConfig())
+		s.L1GasPool, s.l1BuildingState, s.l1BuildingHeader, tx.WithoutBlobTxSidecar(), &s.l1BuildingHeader.GasUsed, *s.l1Chain.GetVMConfig())
 	if err != nil {
 		s.l1TxFailed = append(s.l1TxFailed, tx)
-		t.Fatalf("failed to apply transaction to L1 block (tx %d): %v", len(s.l1Transactions), err)
+		t.Fatalf("failed to apply transaction to L1 block (tx %d): %v", len(s.L1Transactions), err)
 	}
 	s.l1Receipts = append(s.l1Receipts, receipt)
-	s.l1Transactions = append(s.l1Transactions, tx.WithoutBlobTxSidecar())
+	s.L1Transactions = append(s.L1Transactions, tx.WithoutBlobTxSidecar())
 	if tx.Type() == types.BlobTxType {
 		require.True(t, s.l1Cfg.Config.IsCancun(s.l1BuildingHeader.Number, s.l1BuildingHeader.Time), "L1 must be cancun to process blob tx")
 		sidecar := tx.BlobTxSidecar()
@@ -205,7 +205,7 @@ func (s *L1Miner) ActL1EndBlock(t Testing) {
 	}
 
 	s.l1Building = false
-	s.l1BuildingHeader.GasUsed = s.l1BuildingHeader.GasLimit - uint64(*s.l1GasPool)
+	s.l1BuildingHeader.GasUsed = s.l1BuildingHeader.GasLimit - uint64(*s.L1GasPool)
 	s.l1BuildingHeader.Root = s.l1BuildingState.IntermediateRoot(s.l1Cfg.Config.IsEIP158(s.l1BuildingHeader.Number))
 
 	var withdrawals []*types.Withdrawal
@@ -213,7 +213,7 @@ func (s *L1Miner) ActL1EndBlock(t Testing) {
 		withdrawals = make([]*types.Withdrawal, 0)
 	}
 
-	block := types.NewBlock(s.l1BuildingHeader, &types.Body{Transactions: s.l1Transactions, Withdrawals: withdrawals}, s.l1Receipts, trie.NewStackTrie(nil))
+	block := types.NewBlock(s.l1BuildingHeader, &types.Body{Transactions: s.L1Transactions, Withdrawals: withdrawals}, s.l1Receipts, trie.NewStackTrie(nil))
 	if s.l1Cfg.Config.IsCancun(s.l1BuildingHeader.Number, s.l1BuildingHeader.Time) {
 		parent := s.l1Chain.GetHeaderByHash(s.l1BuildingHeader.ParentHash)
 		var (

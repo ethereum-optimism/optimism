@@ -35,7 +35,7 @@ type L2Engine struct {
 	log log.Logger
 
 	node *node.Node
-	eth  *geth.Ethereum
+	Eth  *geth.Ethereum
 
 	rollupGenesis *rollup.Genesis
 
@@ -43,9 +43,9 @@ type L2Engine struct {
 	l2Chain  *core.BlockChain
 	l2Signer types.Signer
 
-	engineApi *engineapi.L2EngineAPI
+	EngineApi *engineapi.L2EngineAPI
 
-	failL2RPC func(call []rpc.BatchElem) error // mock error
+	FailL2RPC func(call []rpc.BatchElem) error // mock error
 }
 
 type EngineOption func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error
@@ -58,7 +58,7 @@ func NewL2Engine(t Testing, log log.Logger, genesis *core.Genesis, rollupGenesis
 	eng := &L2Engine{
 		log:  log,
 		node: n,
-		eth:  ethBackend,
+		Eth:  ethBackend,
 		rollupGenesis: &rollup.Genesis{
 			L1:     rollupGenesisL1,
 			L2:     eth.BlockID{Hash: genesisBlock.Hash(), Number: genesisBlock.NumberU64()},
@@ -66,14 +66,14 @@ func NewL2Engine(t Testing, log log.Logger, genesis *core.Genesis, rollupGenesis
 		},
 		l2Chain:   chain,
 		l2Signer:  types.LatestSigner(genesis.Config),
-		engineApi: engineApi,
+		EngineApi: engineApi,
 	}
 	// register the custom engine API, so we can serve engine requests while having more control
 	// over sequencing of individual txs.
 	n.RegisterAPIs([]rpc.API{
 		{
 			Namespace:     "engine",
-			Service:       eng.engineApi,
+			Service:       eng.EngineApi,
 			Authenticated: true,
 		},
 	})
@@ -172,10 +172,10 @@ func (e *L2Engine) RPCClient() client.RPC {
 	return testutils.RPCErrFaker{
 		RPC: client.NewBaseRPCClient(cl),
 		ErrFn: func(call []rpc.BatchElem) error {
-			if e.failL2RPC == nil {
+			if e.FailL2RPC == nil {
 				return nil
 			}
-			return e.failL2RPC(call)
+			return e.FailL2RPC(call)
 		},
 	}
 }
@@ -188,12 +188,12 @@ func (e *L2Engine) EngineClient(t Testing, cfg *rollup.Config) *sources.EngineCl
 
 // ActL2RPCFail makes the next L2 RPC request fail with given error
 func (e *L2Engine) ActL2RPCFail(t Testing, err error) {
-	if e.failL2RPC != nil { // already set to fail?
+	if e.FailL2RPC != nil { // already set to fail?
 		t.InvalidAction("already set a mock L2 rpc error")
 		return
 	}
-	e.failL2RPC = func(call []rpc.BatchElem) error {
-		e.failL2RPC = nil
+	e.FailL2RPC = func(call []rpc.BatchElem) error {
+		e.FailL2RPC = nil
 		return err
 	}
 }
@@ -201,13 +201,13 @@ func (e *L2Engine) ActL2RPCFail(t Testing, err error) {
 // ActL2IncludeTx includes the next transaction from the given address in the block that is being built
 func (e *L2Engine) ActL2IncludeTx(from common.Address) Action {
 	return func(t Testing) {
-		if e.engineApi.ForcedEmpty() {
+		if e.EngineApi.ForcedEmpty() {
 			e.log.Info("Skipping including a transaction because e.L2ForceEmpty is true")
 			return
 		}
 
-		tx := firstValidTx(t, from, e.engineApi.PendingIndices, e.eth.TxPool().ContentFrom, e.EthClient().NonceAt)
-		err := e.engineApi.IncludeTx(tx, from)
+		tx := firstValidTx(t, from, e.EngineApi.PendingIndices, e.Eth.TxPool().ContentFrom, e.EthClient().NonceAt)
+		err := e.EngineApi.IncludeTx(tx, from)
 		if errors.Is(err, engineapi.ErrNotBuildingBlock) {
 			t.InvalidAction(err.Error())
 		} else if errors.Is(err, engineapi.ErrUsesTooMuchGas) {

@@ -1,8 +1,9 @@
-package actions
+package interop
 
 import (
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/actions"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -18,24 +19,24 @@ import (
 var _ interop.InteropBackend = (*testutils.MockInteropBackend)(nil)
 
 func TestInteropVerifier(gt *testing.T) {
-	t := NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
-	sd := e2eutils.Setup(t, dp, DefaultAlloc)
+	t := actions.NewDefaultTesting(gt)
+	dp := e2eutils.MakeDeployParams(t, actions.DefaultRollupTestParams)
+	sd := e2eutils.Setup(t, dp, actions.DefaultAlloc)
 	// Temporary work-around: interop needs to be active, for cross-safety to not be instant.
 	// The state genesis in this test is pre-interop however.
 	sd.RollupCfg.InteropTime = new(uint64)
 	logger := testlog.Logger(t, log.LevelDebug)
 	seqMockBackend := &testutils.MockInteropBackend{}
-	l1Miner, seqEng, seq := setupSequencerTest(t, sd, logger,
-		WithVerifierOpts(WithInteropBackend(seqMockBackend)))
+	l1Miner, seqEng, seq := actions.SetupSequencerTest(t, sd, logger,
+		actions.WithVerifierOpts(actions.WithInteropBackend(seqMockBackend)))
 
-	batcher := NewL2Batcher(logger, sd.RollupCfg, DefaultBatcherCfg(dp),
+	batcher := actions.NewL2Batcher(logger, sd.RollupCfg, actions.DefaultBatcherCfg(dp),
 		seq.RollupClient(), l1Miner.EthClient(), seqEng.EthClient(), seqEng.EngineClient(t, sd.RollupCfg))
 
 	verMockBackend := &testutils.MockInteropBackend{}
-	_, ver := setupVerifier(t, sd, logger,
+	_, ver := actions.SetupVerifier(t, sd, logger,
 		l1Miner.L1Client(t, sd.RollupCfg), l1Miner.BlobStore(), &sync.Config{},
-		WithInteropBackend(verMockBackend))
+		actions.WithInteropBackend(verMockBackend))
 
 	seq.ActL2PipelineFull(t)
 	ver.ActL2PipelineFull(t)

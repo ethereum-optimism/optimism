@@ -1,9 +1,11 @@
-package actions
+package derivation
 
 import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/actions"
+	helpers2 "github.com/ethereum-optimism/optimism/op-e2e/actions/upgrades/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -44,16 +46,16 @@ func TestBlockTimeBatchType(t *testing.T) {
 // window.
 // This is a regression test against the bug fixed in PR #4566
 func BatchInLastPossibleBlocks(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
-	t := NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
-	applyDeltaTimeOffset(dp, deltaTimeOffset)
+	t := actions.NewDefaultTesting(gt)
+	dp := e2eutils.MakeDeployParams(t, actions.DefaultRollupTestParams)
+	helpers2.ApplyDeltaTimeOffset(dp, deltaTimeOffset)
 	dp.DeployConfig.SequencerWindowSize = 4
 	dp.DeployConfig.L2BlockTime = 2
 
-	sd := e2eutils.Setup(t, dp, DefaultAlloc)
+	sd := e2eutils.Setup(t, dp, actions.DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 
-	sd, _, miner, sequencer, sequencerEngine, _, _, batcher := setupReorgTestActors(t, dp, sd, log)
+	sd, _, miner, sequencer, sequencerEngine, _, _, batcher := actions.SetupReorgTestActors(t, dp, sd, log)
 
 	signer := types.LatestSigner(sd.L2Cfg.Config)
 	cl := sequencerEngine.EthClient()
@@ -63,7 +65,7 @@ func BatchInLastPossibleBlocks(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 			ChainID:   sd.L2Cfg.Config.ChainID,
 			Nonce:     aliceNonce,
 			GasTipCap: big.NewInt(2 * params.GWei),
-			GasFeeCap: new(big.Int).Add(miner.l1Chain.CurrentBlock().BaseFee, big.NewInt(2*params.GWei)),
+			GasFeeCap: new(big.Int).Add(miner.L1Chain().CurrentBlock().BaseFee, big.NewInt(2*params.GWei)),
 			Gas:       params.TxGas,
 			To:        &dp.Addresses.Bob,
 			Value:     e2eutils.Ether(2),
@@ -78,7 +80,7 @@ func BatchInLastPossibleBlocks(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 		sequencer.ActL2EndBlock(t)
 	}
 	verifyChainStateOnSequencer := func(l1Number, unsafeHead, unsafeHeadOrigin, safeHead, safeHeadOrigin uint64) {
-		require.Equal(t, l1Number, miner.l1Chain.CurrentHeader().Number.Uint64())
+		require.Equal(t, l1Number, miner.L1Chain().CurrentHeader().Number.Uint64())
 		require.Equal(t, unsafeHead, sequencer.L2Unsafe().Number)
 		require.Equal(t, unsafeHeadOrigin, sequencer.L2Unsafe().L1Origin.Number)
 		require.Equal(t, safeHead, sequencer.L2Safe().Number)
@@ -155,8 +157,8 @@ func BatchInLastPossibleBlocks(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 // At this point it can verify that the batches where properly generated.
 // Note: It batches submits when possible.
 func LargeL1Gaps(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
-	t := NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
+	t := actions.NewDefaultTesting(gt)
+	dp := e2eutils.MakeDeployParams(t, actions.DefaultRollupTestParams)
 	dp.DeployConfig.L1BlockTime = 4
 	dp.DeployConfig.L2BlockTime = 2
 	dp.DeployConfig.SequencerWindowSize = 4
@@ -165,11 +167,11 @@ func LargeL1Gaps(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	dp.DeployConfig.L2GenesisFjordTimeOffset = nil
 	// TODO(client-pod#831): The Ecotone (and Fjord) activation blocks don't include user txs,
 	// so disabling these forks for now.
-	applyDeltaTimeOffset(dp, deltaTimeOffset)
-	sd := e2eutils.Setup(t, dp, DefaultAlloc)
+	helpers2.ApplyDeltaTimeOffset(dp, deltaTimeOffset)
+	sd := e2eutils.Setup(t, dp, actions.DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
 
-	sd, _, miner, sequencer, sequencerEngine, verifier, _, batcher := setupReorgTestActors(t, dp, sd, log)
+	sd, _, miner, sequencer, sequencerEngine, verifier, _, batcher := actions.SetupReorgTestActors(t, dp, sd, log)
 
 	signer := types.LatestSigner(sd.L2Cfg.Config)
 	cl := sequencerEngine.EthClient()
@@ -180,7 +182,7 @@ func LargeL1Gaps(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 			ChainID:   sd.L2Cfg.Config.ChainID,
 			Nonce:     aliceNonce,
 			GasTipCap: big.NewInt(2 * params.GWei),
-			GasFeeCap: new(big.Int).Add(miner.l1Chain.CurrentBlock().BaseFee, big.NewInt(2*params.GWei)),
+			GasFeeCap: new(big.Int).Add(miner.L1Chain().CurrentBlock().BaseFee, big.NewInt(2*params.GWei)),
 			Gas:       params.TxGas,
 			To:        &dp.Addresses.Bob,
 			Value:     e2eutils.Ether(2),
@@ -196,7 +198,7 @@ func LargeL1Gaps(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	}
 
 	verifyChainStateOnSequencer := func(l1Number, unsafeHead, unsafeHeadOrigin, safeHead, safeHeadOrigin uint64) {
-		require.Equal(t, l1Number, miner.l1Chain.CurrentHeader().Number.Uint64())
+		require.Equal(t, l1Number, miner.L1Chain().CurrentHeader().Number.Uint64())
 		require.Equal(t, unsafeHead, sequencer.L2Unsafe().Number)
 		require.Equal(t, unsafeHeadOrigin, sequencer.L2Unsafe().L1Origin.Number)
 		require.Equal(t, safeHead, sequencer.L2Safe().Number)
@@ -204,7 +206,7 @@ func LargeL1Gaps(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	}
 
 	verifyChainStateOnVerifier := func(l1Number, unsafeHead, unsafeHeadOrigin, safeHead, safeHeadOrigin uint64) {
-		require.Equal(t, l1Number, miner.l1Chain.CurrentHeader().Number.Uint64())
+		require.Equal(t, l1Number, miner.L1Chain().CurrentHeader().Number.Uint64())
 		require.Equal(t, unsafeHead, verifier.L2Unsafe().Number)
 		require.Equal(t, unsafeHeadOrigin, verifier.L2Unsafe().L1Origin.Number)
 		require.Equal(t, safeHead, verifier.L2Safe().Number)

@@ -5,6 +5,7 @@ import (
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
+	upgradesHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/upgrades/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/node/safedb"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -29,22 +30,22 @@ func TestDeriveChainFromNearL1Genesis(gt *testing.T) {
 	}
 	dp := e2eutils.MakeDeployParams(t, p)
 	// do not activate Delta hardfork for verifier
-	applyDeltaTimeOffset(dp, nil)
+	upgradesHelpers.ApplyDeltaTimeOffset(dp, nil)
 	sd := e2eutils.Setup(t, dp, DefaultAlloc)
 	logger := testlog.Logger(t, log.LevelInfo)
-	miner, seqEngine, sequencer := setupSequencerTest(t, sd, logger)
+	miner, seqEngine, sequencer := SetupSequencerTest(t, sd, logger)
 
 	miner.ActEmptyBlock(t)
 	require.EqualValues(gt, 1, miner.l1Chain.CurrentBlock().Number.Uint64())
 
-	ref, err := derive.L2BlockToBlockRef(sequencer.rollupCfg, seqEngine.l2Chain.Genesis())
+	ref, err := derive.L2BlockToBlockRef(sequencer.RollupCfg, seqEngine.l2Chain.Genesis())
 	require.NoError(gt, err)
 	require.EqualValues(gt, 0, ref.L1Origin.Number)
 
 	sequencer.ActL1HeadSignal(t)
 	sequencer.ActBuildToL1Head(t)
 	l2BlockNum := seqEngine.l2Chain.CurrentBlock().Number.Uint64()
-	ref, err = derive.L2BlockToBlockRef(sequencer.rollupCfg, seqEngine.l2Chain.GetBlockByNumber(l2BlockNum))
+	ref, err = derive.L2BlockToBlockRef(sequencer.RollupCfg, seqEngine.l2Chain.GetBlockByNumber(l2BlockNum))
 	require.NoError(gt, err)
 	require.EqualValues(gt, 1, ref.L1Origin.Number)
 
@@ -60,7 +61,7 @@ func TestDeriveChainFromNearL1Genesis(gt *testing.T) {
 	}, rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 
 	batcher.ActSubmitAll(t)
-	require.EqualValues(gt, l2BlockNum, batcher.l2BufferedBlock.Number)
+	require.EqualValues(gt, l2BlockNum, batcher.L2BufferedBlock.Number)
 
 	// confirm batch on L1
 	miner.ActL1StartBlock(12)(t)
@@ -89,7 +90,7 @@ func TestDeriveChainFromNearL1Genesis(gt *testing.T) {
 	l2Cl, err := sources.NewEngineClient(seqEngine.RPCClient(), logger, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 	require.NoError(gt, err)
 	verifier := NewL2Verifier(t, logger, sequencer.l1, miner.BlobStore(), altda.Disabled,
-		l2Cl, sequencer.rollupCfg, sequencer.syncCfg, safedb.Disabled, nil)
+		l2Cl, sequencer.RollupCfg, sequencer.syncCfg, safedb.Disabled, nil)
 	verifier.ActL2PipelineFull(t) // Should not get stuck in a reset loop forever
 	require.EqualValues(gt, l2BlockNum, seqEngine.l2Chain.CurrentSafeBlock().Number.Uint64())
 	require.EqualValues(gt, l2BlockNum, seqEngine.l2Chain.CurrentFinalBlock().Number.Uint64())

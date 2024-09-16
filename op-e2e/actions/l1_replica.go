@@ -38,7 +38,7 @@ type L1Replica struct {
 	log log.Logger
 
 	node *node.Node
-	eth  *eth.Ethereum
+	Eth  *eth.Ethereum
 
 	// L1 evm / chain
 	l1Chain    *core.BlockChain
@@ -90,7 +90,7 @@ func NewL1Replica(t Testing, log log.Logger, genesis *core.Genesis) *L1Replica {
 	return &L1Replica{
 		log:        log,
 		node:       n,
-		eth:        backend,
+		Eth:        backend,
 		l1Chain:    backend.BlockChain(),
 		l1Database: backend.ChainDb(),
 		l1Cfg:      genesis,

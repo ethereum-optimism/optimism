@@ -131,7 +131,7 @@ func runCrossLayerUserTest(gt *testing.T, test hardforkScheduledTest) {
 	require.Equal(t, dp.Secrets.Addresses().Batcher, dp.DeployConfig.BatchSenderAddress)
 	require.Equal(t, dp.Secrets.Addresses().Proposer, dp.DeployConfig.L2OutputOracleProposer)
 
-	miner, seqEngine, seq := setupSequencerTest(t, sd, log)
+	miner, seqEngine, seq := SetupSequencerTest(t, sd, log)
 	batcher := NewL2Batcher(log, sd.RollupCfg, DefaultBatcherCfg(dp),
 		seq.RollupClient(), miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 
@@ -199,7 +199,7 @@ func runCrossLayerUserTest(gt *testing.T, test hardforkScheduledTest) {
 	require.NoError(t, err)
 	require.True(t, infoTx.IsDepositTx())
 	// Should only be a system tx if regolith is not enabled
-	require.Equal(t, !seq.rollupCfg.IsRegolith(seq.L2Unsafe().Time), infoTx.IsSystemTx())
+	require.Equal(t, !seq.RollupCfg.IsRegolith(seq.L2Unsafe().Time), infoTx.IsSystemTx())
 
 	// regular L2 tx, in new L2 block
 	alice.L2.ActResetTxOpts(t)
@@ -320,5 +320,5 @@ func runCrossLayerUserTest(gt *testing.T, test hardforkScheduledTest) {
 	require.NoError(t, err)
 	require.True(t, infoTx.IsDepositTx())
 	// Should only be a system tx if regolith is not enabled
-	require.Equal(t, !seq.rollupCfg.IsRegolith(seq.L2Unsafe().Time), infoTx.IsSystemTx())
+	require.Equal(t, !seq.RollupCfg.IsRegolith(seq.L2Unsafe().Time), infoTx.IsSystemTx())
 }

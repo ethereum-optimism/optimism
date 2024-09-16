@@ -1,9 +1,10 @@
-package actions
+package sequencer
 
 import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/actions"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 
@@ -11,33 +12,12 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
-	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
-func setupSequencerTest(t Testing, sd *e2eutils.SetupData, log log.Logger, opts ...SequencerOpt) (*L1Miner, *L2Engine, *L2Sequencer) {
-	jwtPath := e2eutils.WriteDefaultJWT(t)
-	cfg := DefaultSequencerConfig()
-	for _, opt := range opts {
-		opt(cfg)
-	}
-
-	miner := NewL1Miner(t, log.New("role", "l1-miner"), sd.L1Cfg)
-
-	l1F, err := sources.NewL1Client(miner.RPCClient(), log, nil, sources.L1ClientDefaultConfig(sd.RollupCfg, false, sources.RPCKindStandard))
-	require.NoError(t, err)
-	engine := NewL2Engine(t, log.New("role", "sequencer-engine"), sd.L2Cfg, sd.RollupCfg.Genesis.L1, jwtPath, EngineWithP2P())
-	l2Cl, err := sources.NewEngineClient(engine.RPCClient(), log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
-	require.NoError(t, err)
-
-	sequencer := NewL2Sequencer(t, log.New("role", "sequencer"), l1F, miner.BlobStore(), altda.Disabled, l2Cl, sd.RollupCfg, 0, cfg.InteropBackend)
-	return miner, engine, sequencer
-}
-
 func TestL2Sequencer_SequencerDrift(gt *testing.T) {
-	t := NewDefaultTesting(gt)
+	t := actions.NewDefaultTesting(gt)
 	p := &e2eutils.TestParams{
 		MaxSequencerDrift:   20, // larger than L1 block time we simulate in this test (12)
 		SequencerWindowSize: 24,
@@ -45,9 +25,9 @@ func TestL2Sequencer_SequencerDrift(gt *testing.T) {
 		L1BlockTime:         12,
 	}
 	dp := e2eutils.MakeDeployParams(t, p)
-	sd := e2eutils.Setup(t, dp, DefaultAlloc)
+	sd := e2eutils.Setup(t, dp, actions.DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
-	miner, engine, sequencer := setupSequencerTest(t, sd, log)
+	miner, engine, sequencer := actions.SetupSequencerTest(t, sd, log)
 	miner.ActL1SetFeeRecipient(common.Address{'A'})
 
 	sequencer.ActL2PipelineFull(t)
@@ -61,7 +41,7 @@ func TestL2Sequencer_SequencerDrift(gt *testing.T) {
 			ChainID:   sd.L2Cfg.Config.ChainID,
 			Nonce:     n,
 			GasTipCap: big.NewInt(2 * params.GWei),
-			GasFeeCap: new(big.Int).Add(miner.l1Chain.CurrentBlock().BaseFee, big.NewInt(2*params.GWei)),
+			GasFeeCap: new(big.Int).Add(miner.L1Chain().CurrentBlock().BaseFee, big.NewInt(2*params.GWei)),
 			Gas:       params.TxGas,
 			To:        &dp.Addresses.Bob,
 			Value:     e2eutils.Ether(2),
@@ -79,7 +59,7 @@ func TestL2Sequencer_SequencerDrift(gt *testing.T) {
 	miner.ActL1StartBlock(12)(t)
 	miner.ActL1EndBlock(t)
 	sequencer.ActL1HeadSignal(t)
-	origin := miner.l1Chain.CurrentBlock()
+	origin := miner.L1Chain().CurrentBlock()
 
 	// L2 makes blocks to catch up
 	for sequencer.SyncStatus().UnsafeL2.Time+sd.RollupCfg.BlockTime < origin.Time {
@@ -104,18 +84,18 @@ func TestL2Sequencer_SequencerDrift(gt *testing.T) {
 	// We passed the sequencer drift: we can still keep the old origin, but can't include any txs
 	sequencer.ActL2KeepL1Origin(t)
 	sequencer.ActL2StartBlock(t)
-	require.True(t, engine.engineApi.ForcedEmpty(), "engine should not be allowed to include anything after sequencer drift is surpassed")
+	require.True(t, engine.EngineApi.ForcedEmpty(), "engine should not be allowed to include anything after sequencer drift is surpassed")
 }
 
 // TestL2Sequencer_SequencerOnlyReorg regression-tests a Goerli halt where the sequencer
 // would build an unsafe L2 block with a L1 origin that then gets reorged out,
 // while the verifier-codepath only ever sees the valid post-reorg L1 chain.
 func TestL2Sequencer_SequencerOnlyReorg(gt *testing.T) {
-	t := NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
-	sd := e2eutils.Setup(t, dp, DefaultAlloc)
+	t := actions.NewDefaultTesting(gt)
+	dp := e2eutils.MakeDeployParams(t, actions.DefaultRollupTestParams)
+	sd := e2eutils.Setup(t, dp, actions.DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
-	miner, _, sequencer := setupSequencerTest(t, sd, log)
+	miner, _, sequencer := actions.SetupSequencerTest(t, sd, log)
 
 	// Sequencer at first only recognizes the genesis as safe.
 	// The rest of the L1 chain will be incorporated as L1 origins into unsafe L2 blocks.

@@ -25,10 +25,10 @@ func setupEIP4844Test(t Testing, log log.Logger) (*e2eutils.SetupData, *e2eutils
 	dp.DeployConfig.L2GenesisEcotoneTimeOffset = &genesisActivation
 
 	sd := e2eutils.Setup(t, dp, DefaultAlloc)
-	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
+	miner, seqEngine, sequencer := SetupSequencerTest(t, sd, log)
 	miner.ActL1SetFeeRecipient(common.Address{'A'})
 	sequencer.ActL2PipelineFull(t)
-	verifEngine, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
+	verifEngine, verifier := SetupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), miner.BlobStore(), &sync.Config{})
 	return sd, dp, miner, sequencer, seqEngine, verifier, verifEngine
 }
 

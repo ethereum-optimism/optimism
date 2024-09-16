@@ -89,7 +89,7 @@ func NewL2Sequencer(t Testing, log log.Logger, l1 derive.L1Fetcher, blobSrc deri
 
 // ActL2StartBlock starts building of a new L2 block on top of the head
 func (s *L2Sequencer) ActL2StartBlock(t Testing) {
-	if !s.l2PipelineIdle {
+	if !s.L2PipelineIdle {
 		t.InvalidAction("cannot start L2 build when derivation is not idle")
 		return
 	}
@@ -191,22 +191,22 @@ func (s *L2Sequencer) ActBuildL2ToTime(t Testing, target uint64) {
 }
 
 func (s *L2Sequencer) ActBuildL2ToEcotone(t Testing) {
-	require.NotNil(t, s.rollupCfg.EcotoneTime, "cannot activate Ecotone when it is not scheduled")
-	for s.L2Unsafe().Time < *s.rollupCfg.EcotoneTime {
+	require.NotNil(t, s.RollupCfg.EcotoneTime, "cannot activate Ecotone when it is not scheduled")
+	for s.L2Unsafe().Time < *s.RollupCfg.EcotoneTime {
 		s.ActL2StartBlock(t)
 		s.ActL2EndBlock(t)
 	}
 }
 func (s *L2Sequencer) ActBuildL2ToFjord(t Testing) {
-	require.NotNil(t, s.rollupCfg.FjordTime, "cannot activate FjordTime when it is not scheduled")
-	for s.L2Unsafe().Time < *s.rollupCfg.FjordTime {
+	require.NotNil(t, s.RollupCfg.FjordTime, "cannot activate FjordTime when it is not scheduled")
+	for s.L2Unsafe().Time < *s.RollupCfg.FjordTime {
 		s.ActL2StartBlock(t)
 		s.ActL2EndBlock(t)
 	}
 }
 func (s *L2Sequencer) ActBuildL2ToGranite(t Testing) {
-	require.NotNil(t, s.rollupCfg.GraniteTime, "cannot activate GraniteTime when it is not scheduled")
-	for s.L2Unsafe().Time < *s.rollupCfg.GraniteTime {
+	require.NotNil(t, s.RollupCfg.GraniteTime, "cannot activate GraniteTime when it is not scheduled")
+	for s.L2Unsafe().Time < *s.RollupCfg.GraniteTime {
 		s.ActL2StartBlock(t)
 		s.ActL2EndBlock(t)
 	}

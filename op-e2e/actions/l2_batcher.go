@@ -106,12 +106,12 @@ type L2Batcher struct {
 
 	l1Signer types.Signer
 
-	l2ChannelOut     ChannelOutIface
+	L2ChannelOut     ChannelOutIface
 	l2Submitting     bool // when the channel out is being submitted, and not safe to write to without resetting
-	l2BufferedBlock  eth.L2BlockRef
+	L2BufferedBlock  eth.L2BlockRef
 	l2SubmittedBlock eth.L2BlockRef
 	l2BatcherCfg     *BatcherCfg
-	batcherAddr      common.Address
+	BatcherAddr      common.Address
 
 	LastSubmitted *types.Transaction
 }
@@ -126,7 +126,7 @@ func NewL2Batcher(log log.Logger, rollupCfg *rollup.Config, batcherCfg *BatcherC
 		engCl:         engCl,
 		l2BatcherCfg:  batcherCfg,
 		l1Signer:      types.LatestSignerForChainID(rollupCfg.L1ChainID),
-		batcherAddr:   crypto.PubkeyToAddress(batcherCfg.BatcherKey.PublicKey),
+		BatcherAddr:   crypto.PubkeyToAddress(batcherCfg.BatcherKey.PublicKey),
 	}
 }
 
@@ -144,7 +144,7 @@ func (s *L2Batcher) ActL2BatchBuffer(t Testing) {
 
 func (s *L2Batcher) Buffer(t Testing) error {
 	if s.l2Submitting { // break ongoing submitting work if necessary
-		s.l2ChannelOut = nil
+		s.L2ChannelOut = nil
 		s.l2Submitting = false
 	}
 	syncStatus, err := s.syncStatusAPI.SyncStatus(t.Ctx())
@@ -153,38 +153,38 @@ func (s *L2Batcher) Buffer(t Testing) error {
 	if s.l2SubmittedBlock == (eth.L2BlockRef{}) {
 		s.log.Info("Starting batch-submitter work at safe-head", "safe", syncStatus.SafeL2)
 		s.l2SubmittedBlock = syncStatus.SafeL2
-		s.l2BufferedBlock = syncStatus.SafeL2
-		s.l2ChannelOut = nil
+		s.L2BufferedBlock = syncStatus.SafeL2
+		s.L2ChannelOut = nil
 	}
 	// If it's lagging behind, catch it up.
 	if s.l2SubmittedBlock.Number < syncStatus.SafeL2.Number {
 		s.log.Warn("last submitted block lagged behind L2 safe head: batch submission will continue from the safe head now", "last", s.l2SubmittedBlock, "safe", syncStatus.SafeL2)
 		s.l2SubmittedBlock = syncStatus.SafeL2
-		s.l2BufferedBlock = syncStatus.SafeL2
-		s.l2ChannelOut = nil
+		s.L2BufferedBlock = syncStatus.SafeL2
+		s.L2ChannelOut = nil
 	}
 	// Add the next unsafe block to the channel
-	if s.l2BufferedBlock.Number >= syncStatus.UnsafeL2.Number {
-		if s.l2BufferedBlock.Number > syncStatus.UnsafeL2.Number || s.l2BufferedBlock.Hash != syncStatus.UnsafeL2.Hash {
+	if s.L2BufferedBlock.Number >= syncStatus.UnsafeL2.Number {
+		if s.L2BufferedBlock.Number > syncStatus.UnsafeL2.Number || s.L2BufferedBlock.Hash != syncStatus.UnsafeL2.Hash {
 			s.log.Error("detected a reorg in L2 chain vs previous buffered information, resetting to safe head now", "safe_head", syncStatus.SafeL2)
 			s.l2SubmittedBlock = syncStatus.SafeL2
-			s.l2BufferedBlock = syncStatus.SafeL2
-			s.l2ChannelOut = nil
+			s.L2BufferedBlock = syncStatus.SafeL2
+			s.L2ChannelOut = nil
 		} else {
 			s.log.Info("nothing left to submit")
 			return nil
 		}
 	}
-	block, err := s.l2.BlockByNumber(t.Ctx(), big.NewInt(int64(s.l2BufferedBlock.Number+1)))
+	block, err := s.l2.BlockByNumber(t.Ctx(), big.NewInt(int64(s.L2BufferedBlock.Number+1)))
 	require.NoError(t, err, "need l2 block %d from sync status", s.l2SubmittedBlock.Number+1)
-	if block.ParentHash() != s.l2BufferedBlock.Hash {
+	if block.ParentHash() != s.L2BufferedBlock.Hash {
 		s.log.Error("detected a reorg in L2 chain vs previous submitted information, resetting to safe head now", "safe_head", syncStatus.SafeL2)
 		s.l2SubmittedBlock = syncStatus.SafeL2
-		s.l2BufferedBlock = syncStatus.SafeL2
-		s.l2ChannelOut = nil
+		s.L2BufferedBlock = syncStatus.SafeL2
+		s.L2ChannelOut = nil
 	}
 	// Create channel if we don't have one yet
-	if s.l2ChannelOut == nil {
+	if s.L2ChannelOut == nil {
 		var ch ChannelOutIface
 		if s.l2BatcherCfg.GarbageCfg != nil {
 			ch, err = NewGarbageChannelOut(s.l2BatcherCfg.GarbageCfg)
@@ -210,29 +210,29 @@ func (s *L2Batcher) Buffer(t Testing) error {
 			}
 		}
 		require.NoError(t, err, "failed to create channel")
-		s.l2ChannelOut = ch
+		s.L2ChannelOut = ch
 	}
-	if err := s.l2ChannelOut.AddBlock(s.rollupCfg, block); err != nil {
+	if err := s.L2ChannelOut.AddBlock(s.rollupCfg, block); err != nil {
 		return err
 	}
 	ref, err := s.engCl.L2BlockRefByHash(t.Ctx(), block.Hash())
 	require.NoError(t, err, "failed to get L2BlockRef")
-	s.l2BufferedBlock = ref
+	s.L2BufferedBlock = ref
 	return nil
 }
 
 func (s *L2Batcher) ActL2ChannelClose(t Testing) {
 	// Don't run this action if there's no data to submit
-	if s.l2ChannelOut == nil {
+	if s.L2ChannelOut == nil {
 		t.InvalidAction("need to buffer data first, cannot batch submit with empty buffer")
 		return
 	}
-	require.NoError(t, s.l2ChannelOut.Close(), "must close channel before submitting it")
+	require.NoError(t, s.L2ChannelOut.Close(), "must close channel before submitting it")
 }
 
 func (s *L2Batcher) ReadNextOutputFrame(t Testing) []byte {
 	// Don't run this action if there's no data to submit
-	if s.l2ChannelOut == nil {
+	if s.L2ChannelOut == nil {
 		t.InvalidAction("need to buffer data first, cannot batch submit with empty buffer")
 		return nil
 	}
@@ -240,8 +240,8 @@ func (s *L2Batcher) ReadNextOutputFrame(t Testing) []byte {
 	data := new(bytes.Buffer)
 	data.WriteByte(derive.DerivationVersion0)
 	// subtract one, to account for the version byte
-	if _, err := s.l2ChannelOut.OutputFrame(data, s.l2BatcherCfg.MaxL1TxSize-1); err == io.EOF {
-		s.l2ChannelOut = nil
+	if _, err := s.L2ChannelOut.OutputFrame(data, s.l2BatcherCfg.MaxL1TxSize-1); err == io.EOF {
+		s.L2ChannelOut = nil
 		s.l2Submitting = false
 	} else if err != nil {
 		s.l2Submitting = false
@@ -263,7 +263,7 @@ func (s *L2Batcher) ActL2BatchSubmitRaw(t Testing, payload []byte, txOpts ...fun
 		payload = comm.TxData()
 	}
 
-	nonce, err := s.l1.PendingNonceAt(t.Ctx(), s.batcherAddr)
+	nonce, err := s.l1.PendingNonceAt(t.Ctx(), s.BatcherAddr)
 	require.NoError(t, err, "need batcher nonce")
 
 	gasTipCap := big.NewInt(2 * params.GWei)
@@ -334,7 +334,7 @@ func (s *L2Batcher) ActL2BatchSubmitMultiBlob(t Testing, numBlobs int) {
 	}
 
 	// Don't run this action if there's no data to submit
-	if s.l2ChannelOut == nil {
+	if s.L2ChannelOut == nil {
 		t.InvalidAction("need to buffer data first, cannot batch submit with empty buffer")
 		return
 	}
@@ -351,12 +351,12 @@ func (s *L2Batcher) ActL2BatchSubmitMultiBlob(t Testing, numBlobs int) {
 			// subtract one, to account for the version byte
 			l = s.l2BatcherCfg.MaxL1TxSize - 1
 		}
-		if _, err := s.l2ChannelOut.OutputFrame(data, l); err == io.EOF {
+		if _, err := s.L2ChannelOut.OutputFrame(data, l); err == io.EOF {
 			s.l2Submitting = false
 			if i < numBlobs-1 {
 				t.Fatalf("failed to fill up %d blobs, only filled %d", numBlobs, i+1)
 			}
-			s.l2ChannelOut = nil
+			s.L2ChannelOut = nil
 		} else if err != nil {
 			s.l2Submitting = false
 			t.Fatalf("failed to output channel data to frame: %v", err)
@@ -366,7 +366,7 @@ func (s *L2Batcher) ActL2BatchSubmitMultiBlob(t Testing, numBlobs int) {
 		require.NoError(t, blobs[i].FromData(data.Bytes()), "must turn data into blob")
 	}
 
-	nonce, err := s.l1.PendingNonceAt(t.Ctx(), s.batcherAddr)
+	nonce, err := s.l1.PendingNonceAt(t.Ctx(), s.BatcherAddr)
 	require.NoError(t, err, "need batcher nonce")
 
 	gasTipCap := big.NewInt(2 * params.GWei)
@@ -453,7 +453,7 @@ func (s *L2Batcher) ActL2BatchSubmitGarbageRaw(t Testing, outputFrame []byte, ki
 func (s *L2Batcher) ActBufferAll(t Testing) {
 	stat, err := s.syncStatusAPI.SyncStatus(t.Ctx())
 	require.NoError(t, err)
-	for s.l2BufferedBlock.Number < stat.UnsafeL2.Number {
+	for s.L2BufferedBlock.Number < stat.UnsafeL2.Number {
 		s.ActL2BatchBuffer(t)
 	}
 }
