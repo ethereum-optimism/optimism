@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -163,7 +164,7 @@ func (s *interopE2ESystem) prepareL1() (*fakebeacon.FakeBeacon, *geth.GethInstan
 	blockTimeL1 := uint64(6)
 	blobPath := s.t.TempDir()
 	bcn := fakebeacon.NewBeacon(s.logger.New("role", "l1_cl"),
-		filepath.Join(blobPath, "l1_cl"), genesisTimestampL1, blockTimeL1)
+		e2eutils.NewBlobStore(), genesisTimestampL1, blockTimeL1)
 	s.t.Cleanup(func() {
 		_ = bcn.Close()
 	})

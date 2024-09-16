@@ -1745,6 +1745,7 @@ workflows:
       - bedrock-go-tests:
           requires:
             - go-mod-download
+            - go-lint
             - cannon-build-test-vectors
             - cannon-go-lint-and-test
             - check-generated-mocks-op-node
