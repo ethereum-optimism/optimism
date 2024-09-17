@@ -101,6 +101,7 @@ contract OPStackManager is ISemver, Initializable {
         address proxyAdmin;
         address l1ChugSplashProxy;
         address resolvedDelegateProxy;
+        address anchorStateRegistry;
     }
 
     /// @notice Inputs required when initializing the OPStackManager. To avoid 'StackTooDeep' errors,
@@ -237,6 +238,8 @@ contract OPStackManager is ISemver, Initializable {
         );
         output.disputeGameFactoryProxy =
             DisputeGameFactory(deployProxy(l2ChainId, output.opChainProxyAdmin, "DisputeGameFactory"));
+        output.anchorStateRegistryProxy =
+            AnchorStateRegistry(deployProxy(l2ChainId, output.opChainProxyAdmin, "AnchorStateRegistry"));
 
         // Deploy legacy proxied contracts.
         output.l1StandardBridgeProxy = L1StandardBridge(
@@ -255,6 +258,12 @@ contract OPStackManager is ISemver, Initializable {
 
         // Now that all proxies are deployed, we can transfer ownership of the AddressManager to the ProxyAdmin.
         output.addressManager.transferOwnership(address(output.opChainProxyAdmin));
+
+        // The AnchorStateRegistry Implementation is not MCP Ready, and therefore requires an implementation per chain.
+        // It must be deployed after the DisputeGameFactoryProxy so that it can be provided as a constructor argument.
+        output.anchorStateRegistryImpl = AnchorStateRegistry(
+            Blueprint.deployFrom(blueprint.anchorStateRegistry, salt, abi.encode(output.disputeGameFactoryProxy))
+        );
 
         // -------- Set and Initialize Proxy Implementations --------
         Implementation storage impl;
