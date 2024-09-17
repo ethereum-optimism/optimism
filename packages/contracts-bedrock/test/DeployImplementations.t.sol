@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 import { Test, stdStorage, StdStorage } from "forge-std/Test.sol";
+import { stdToml } from "forge-std/StdToml.sol";
 
 import { DelayedWETH } from "src/dispute/DelayedWETH.sol";
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
@@ -30,6 +31,7 @@ import {
 contract DeployImplementationsInput_Test is Test {
     DeployImplementationsInput dii;
 
+    bytes32 salt = 0x1000000000000000000000000000000000000000000000000000000000000001;
     uint256 withdrawalDelaySeconds = 100;
     uint256 minProposalSizeBytes = 200;
     uint256 challengePeriodSeconds = 300;
@@ -44,16 +46,29 @@ contract DeployImplementationsInput_Test is Test {
     }
 
     function test_loadInputFile_succeeds() public {
-        // See `test_loadInputFile_succeeds` in `DeploySuperchain.t.sol` for a reference implementation.
-        // This test is currently skipped because loadInputFile is not implemented.
-        vm.skip(true);
+        string memory root = vm.projectRoot();
+        string memory path = string.concat(root, "/test/fixtures/test-deploy-implementations-in.toml");
+
+        dii.loadInputFile(path);
 
         // Compare the test inputs to the getter methods.
-        // assertEq(withdrawalDelaySeconds, dii.withdrawalDelaySeconds(), "100");
-        // assertEq(minProposalSizeBytes, dii.minProposalSizeBytes(), "200");
-        // assertEq(challengePeriodSeconds, dii.challengePeriodSeconds(), "300");
-        // assertEq(proofMaturityDelaySeconds, dii.proofMaturityDelaySeconds(), "400");
-        // assertEq(disputeGameFinalityDelaySeconds, dii.disputeGameFinalityDelaySeconds(), "500");
+        assertEq(salt, dii.salt(), "100");
+        assertEq(withdrawalDelaySeconds, dii.withdrawalDelaySeconds(), "200");
+        assertEq(minProposalSizeBytes, dii.minProposalSizeBytes(), "300");
+        assertEq(challengePeriodSeconds, dii.challengePeriodSeconds(), "400");
+        assertEq(proofMaturityDelaySeconds, dii.proofMaturityDelaySeconds(), "500");
+        assertEq(disputeGameFinalityDelaySeconds, dii.disputeGameFinalityDelaySeconds(), "600");
+        assertEq(release, dii.release(), "700");
+
+        // Addresses found below are contained within the fixture test file:
+        // test/fixtures/test-deploy-implementations-in.toml
+        SuperchainConfig fixtureSuperchainConfigProxy =
+            SuperchainConfig(address(0x1000000000000000000000000000000000000001));
+        ProtocolVersions fixtureProtocolVersionsProxy =
+            ProtocolVersions(address(0x1000000000000000000000000000000000000002));
+
+        assertEq(address(fixtureSuperchainConfigProxy), address(dii.superchainConfigProxy()), "800");
+        assertEq(address(fixtureProtocolVersionsProxy), address(dii.protocolVersionsProxy()), "900");
     }
 
     function test_getters_whenNotSet_revert() public {
@@ -108,6 +123,8 @@ contract DeployImplementationsInput_Test is Test {
 }
 
 contract DeployImplementationsOutput_Test is Test {
+    using stdToml for string;
+
     DeployImplementationsOutput dio;
 
     function setUp() public {
@@ -146,6 +163,7 @@ contract DeployImplementationsOutput_Test is Test {
         vm.etch(address(l1StandardBridgeImpl), hex"01");
         vm.etch(address(optimismMintableERC20FactoryImpl), hex"01");
         vm.etch(address(disputeGameFactoryImpl), hex"01");
+
         dio.set(dio.opsmProxy.selector, address(opsmProxy));
         dio.set(dio.optimismPortalImpl.selector, address(optimismPortalImpl));
         dio.set(dio.delayedWETHImpl.selector, address(delayedWETHImpl));
@@ -245,6 +263,72 @@ contract DeployImplementationsOutput_Test is Test {
         vm.expectRevert(expectedErr);
         dio.optimismMintableERC20FactoryImpl();
     }
+
+    function test_writeOutputFile_succeeds() public {
+        string memory root = vm.projectRoot();
+
+        // Use the expected data from the test fixture.
+        string memory expOutPath = string.concat(root, "/test/fixtures/test-deploy-implementations-out.toml");
+        string memory expOutToml = vm.readFile(expOutPath);
+
+        // Parse each field of expOutToml individually.
+        OPStackManager opsmProxy = OPStackManager(address(Proxy(payable(expOutToml.readAddress(".opsmProxy")))));
+        DelayedWETH delayedWETHImpl = DelayedWETH(payable(expOutToml.readAddress(".delayedWETHImpl")));
+        OptimismPortal2 optimismPortalImpl = OptimismPortal2(payable(expOutToml.readAddress(".optimismPortalImpl")));
+        PreimageOracle preimageOracleSingleton = PreimageOracle(expOutToml.readAddress(".preimageOracleSingleton"));
+        MIPS mipsSingleton = MIPS(expOutToml.readAddress(".mipsSingleton"));
+        SystemConfig systemConfigImpl = SystemConfig(expOutToml.readAddress(".systemConfigImpl"));
+        L1CrossDomainMessenger l1CrossDomainMessengerImpl =
+            L1CrossDomainMessenger(expOutToml.readAddress(".l1CrossDomainMessengerImpl"));
+        L1ERC721Bridge l1ERC721BridgeImpl = L1ERC721Bridge(expOutToml.readAddress(".l1ERC721BridgeImpl"));
+        L1StandardBridge l1StandardBridgeImpl =
+            L1StandardBridge(payable(expOutToml.readAddress(".l1StandardBridgeImpl")));
+        OptimismMintableERC20Factory optimismMintableERC20FactoryImpl =
+            OptimismMintableERC20Factory(expOutToml.readAddress(".optimismMintableERC20FactoryImpl"));
+        DisputeGameFactory disputeGameFactoryImpl =
+            DisputeGameFactory(expOutToml.readAddress(".disputeGameFactoryImpl"));
+
+        // Etch code at each address so the code checks pass when settings values.
+        vm.etch(address(opsmProxy), address(new Proxy(address(0))).code);
+        address opsmImpl = address(makeAddr("opsmImpl"));
+        vm.prank(address(0));
+        Proxy(payable(address(opsmProxy))).upgradeTo(opsmImpl);
+        vm.etch(address(opsmImpl), hex"01");
+        vm.etch(address(delayedWETHImpl), hex"01");
+        vm.etch(address(optimismPortalImpl), hex"01");
+        vm.etch(address(preimageOracleSingleton), hex"01");
+        vm.etch(address(mipsSingleton), hex"01");
+        vm.etch(address(systemConfigImpl), hex"01");
+        vm.etch(address(l1CrossDomainMessengerImpl), hex"01");
+        vm.etch(address(l1ERC721BridgeImpl), hex"01");
+        vm.etch(address(l1StandardBridgeImpl), hex"01");
+        vm.etch(address(optimismMintableERC20FactoryImpl), hex"01");
+        vm.etch(address(disputeGameFactoryImpl), hex"01");
+
+        dio.set(dio.opsmProxy.selector, address(opsmProxy));
+        dio.set(dio.delayedWETHImpl.selector, address(delayedWETHImpl));
+        dio.set(dio.optimismPortalImpl.selector, address(optimismPortalImpl));
+        dio.set(dio.preimageOracleSingleton.selector, address(preimageOracleSingleton));
+        dio.set(dio.mipsSingleton.selector, address(mipsSingleton));
+        dio.set(dio.systemConfigImpl.selector, address(systemConfigImpl));
+        dio.set(dio.l1CrossDomainMessengerImpl.selector, address(l1CrossDomainMessengerImpl));
+        dio.set(dio.l1ERC721BridgeImpl.selector, address(l1ERC721BridgeImpl));
+        dio.set(dio.l1StandardBridgeImpl.selector, address(l1StandardBridgeImpl));
+        dio.set(dio.optimismMintableERC20FactoryImpl.selector, address(optimismMintableERC20FactoryImpl));
+        dio.set(dio.disputeGameFactoryImpl.selector, address(disputeGameFactoryImpl));
+
+        // .testdata file must have a new line at the end. StdToml adds
+        string memory actOutPath = string.concat(root, "/.testdata/test-deploy-implementations-output.toml");
+        // StdToml.sol serializes TOML key-value pairs in lexicographical (alphabetical) order when writing to a TOML
+        // file.
+        dio.writeOutputFile(actOutPath);
+        string memory actOutToml = vm.readFile(actOutPath);
+
+        // Clean up before asserting so that we don't leave any files behind.
+        vm.removeFile(actOutPath);
+
+        assertEq(expOutToml, actOutToml);
+    }
 }
 
 contract DeployImplementations_Test is Test {
@@ -331,6 +415,37 @@ contract DeployImplementations_Test is Test {
         dio.checkOutput(dii);
     }
 
+    function getOutPathForFileIOTest() internal pure virtual returns (string memory) {
+        return "/.testdata/test-deploy-implementations-out.toml";
+    }
+
+    function test_run_io_succeeds() public {
+        string memory root = vm.projectRoot();
+        string memory inpath = string.concat(root, "/test/fixtures/test-deploy-implementations-in.toml");
+        string memory outpath = string.concat(root, getOutPathForFileIOTest());
+
+        // Addresses found below are contained within the fixture test file:
+        // test/fixtures/test-deploy-implementations-in.toml
+        SuperchainConfig superchainConfig = SuperchainConfig(address(0x1000000000000000000000000000000000000001));
+        ProtocolVersions protocolVersions = ProtocolVersions(address(0x1000000000000000000000000000000000000002));
+
+        vm.etch(address(superchainConfig), address(new Proxy(address(0))).code);
+        vm.prank(address(0));
+        Proxy(payable(address(superchainConfig))).changeAdmin(msg.sender);
+        vm.etch(address(protocolVersions), hex"01");
+
+        deployImplementations.run(inpath, outpath);
+
+        string memory actOutToml = vm.readFile(outpath);
+        string memory expOutToml =
+            vm.readFile(string.concat(root, "/test/fixtures/test-deploy-implementations-out.toml"));
+
+        // Clean up before asserting so that we don't leave any files behind.
+        vm.removeFile(outpath);
+
+        assertEq(expOutToml, actOutToml);
+    }
+
     function testFuzz_run_largeChallengePeriodSeconds_reverts(uint256 _challengePeriodSeconds) public {
         // Set the defaults.
         dii.set(dii.withdrawalDelaySeconds.selector, withdrawalDelaySeconds);
@@ -357,5 +472,10 @@ contract DeployImplementations_Test is Test {
 contract DeployImplementationsInterop_Test is DeployImplementations_Test {
     function createDeployImplementationsContract() internal override returns (DeployImplementations) {
         return new DeployImplementationsInterop();
+    }
+
+    // Avoiding unwanted interactions with file I/O tests.
+    function getOutPathForFileIOTest() internal pure override returns (string memory) {
+        return "/.testdata/test-deploy-implementations-interop-out.toml";
     }
 }

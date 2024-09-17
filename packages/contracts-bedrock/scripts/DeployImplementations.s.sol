@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 import { Script } from "forge-std/Script.sol";
+import { stdToml } from "forge-std/StdToml.sol";
 
 import { LibString } from "@solady/utils/LibString.sol";
 
@@ -46,6 +47,8 @@ import { BaseDeployIO } from "scripts/utils/BaseDeployIO.sol";
 
 // See DeploySuperchain.s.sol for detailed comments on the script architecture used here.
 contract DeployImplementationsInput is BaseDeployIO {
+    using stdToml for string;
+
     bytes32 internal _salt;
     uint256 internal _withdrawalDelaySeconds;
     uint256 internal _minProposalSizeBytes;
@@ -97,9 +100,20 @@ contract DeployImplementationsInput is BaseDeployIO {
         else revert("DeployImplementationsInput: unknown selector");
     }
 
-    function loadInputFile(string memory _infile) public pure {
-        _infile;
-        require(false, "DeployImplementationsInput: not implemented");
+    function loadInputFile(string memory _infile) public {
+        string memory toml = vm.readFile(_infile);
+
+        set(this.salt.selector, toml.readBytes32(".salt"));
+        set(this.withdrawalDelaySeconds.selector, toml.readUint(".withdrawalDelaySeconds"));
+        set(this.minProposalSizeBytes.selector, toml.readUint(".minProposalSizeBytes"));
+        set(this.challengePeriodSeconds.selector, toml.readUint(".challengePeriodSeconds"));
+        set(this.proofMaturityDelaySeconds.selector, toml.readUint(".proofMaturityDelaySeconds"));
+        set(this.disputeGameFinalityDelaySeconds.selector, toml.readUint(".disputeGameFinalityDelaySeconds"));
+
+        set(this.release.selector, toml.readString(".release"));
+
+        set(this.superchainConfigProxy.selector, toml.readAddress(".superchainConfigProxy"));
+        set(this.protocolVersionsProxy.selector, toml.readAddress(".protocolVersionsProxy"));
     }
 
     function salt() public view returns (bytes32) {
@@ -161,6 +175,8 @@ contract DeployImplementationsInput is BaseDeployIO {
 }
 
 contract DeployImplementationsOutput is BaseDeployIO {
+    using stdToml for string;
+
     OPStackManager internal _opsmProxy;
     DelayedWETH internal _delayedWETHImpl;
     OptimismPortal2 internal _optimismPortalImpl;
@@ -192,9 +208,20 @@ contract DeployImplementationsOutput is BaseDeployIO {
         // forgefmt: disable-end
     }
 
-    function writeOutputFile(string memory _outfile) public pure {
-        _outfile;
-        require(false, "DeployImplementationsOutput: not implemented");
+    function writeOutputFile(string memory _outfile) public {
+        string memory key = "dio-outfile";
+        vm.serializeAddress(key, "opsmProxy", address(this.opsmProxy()));
+        vm.serializeAddress(key, "delayedWETHImpl", address(this.delayedWETHImpl()));
+        vm.serializeAddress(key, "optimismPortalImpl", address(this.optimismPortalImpl()));
+        vm.serializeAddress(key, "preimageOracleSingleton", address(this.preimageOracleSingleton()));
+        vm.serializeAddress(key, "mipsSingleton", address(this.mipsSingleton()));
+        vm.serializeAddress(key, "systemConfigImpl", address(this.systemConfigImpl()));
+        vm.serializeAddress(key, "l1CrossDomainMessengerImpl", address(this.l1CrossDomainMessengerImpl()));
+        vm.serializeAddress(key, "l1ERC721BridgeImpl", address(this.l1ERC721BridgeImpl()));
+        vm.serializeAddress(key, "l1StandardBridgeImpl", address(this.l1StandardBridgeImpl()));
+        vm.serializeAddress(key, "optimismMintableERC20FactoryImpl", address(this.optimismMintableERC20FactoryImpl()));
+        string memory out = vm.serializeAddress(key, "disputeGameFactoryImpl", address(this.disputeGameFactoryImpl()));
+        vm.writeToml(out, _outfile);
     }
 
     function checkOutput(DeployImplementationsInput _dii) public {
@@ -441,13 +468,14 @@ contract DeployImplementationsOutput is BaseDeployIO {
 contract DeployImplementations is Script {
     // -------- Core Deployment Methods --------
 
-    function run(string memory _infile) public {
+    function run(string memory _infile, string memory _outfile) public {
         (DeployImplementationsInput dii, DeployImplementationsOutput dio) = etchIOContracts();
+
         dii.loadInputFile(_infile);
+
         run(dii, dio);
-        string memory outfile = ""; // This will be derived from input file name, e.g. `foo.in.toml` -> `foo.out.toml`
-        dio.writeOutputFile(outfile);
-        require(false, "DeployImplementations: run is not implemented");
+
+        dio.writeOutputFile(_outfile);
     }
 
     function run(DeployImplementationsInput _dii, DeployImplementationsOutput _dio) public {
