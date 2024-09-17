@@ -421,7 +421,7 @@ func (c *ChannelBuilder) PendingFrames() int {
 	return len(c.frames)
 }
 
-// NextFrame returns the next available frame.
+// NextFrame dequeues the next available frame.
 // HasFrame must be called prior to check if there's a next frame available.
 // Panics if called when there's no next frame.
 func (c *ChannelBuilder) NextFrame() frameData {

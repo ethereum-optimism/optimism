@@ -137,7 +137,8 @@ func (s *channelManager) removePendingChannel(channel *channel) {
 	s.channelQueue = append(s.channelQueue[:index], s.channelQueue[index+1:]...)
 }
 
-// nextTxData pops off s.datas & handles updating the internal state
+// nextTxData dequeues frames from the channel and returns them encoded in a transaction.
+// It also handles updating the internal state of the receiver.
 func (s *channelManager) nextTxData(channel *channel) (txData, error) {
 	if channel == nil || !channel.HasTxData() {
 		s.log.Trace("no next tx data")
@@ -148,23 +149,43 @@ func (s *channelManager) nextTxData(channel *channel) (txData, error) {
 	return tx, nil
 }
 
+// TxData returns the next tx data that should be submitted to L1.
+//
+// If the pending channel is
+// full, it only returns the remaining frames of this channel until it got
+// successfully fully sent to L1. It returns io.EOF if there's no pending tx data.
 func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
-	txData, err := s.txData(l1Head)
+	data, err := s.txData(l1Head)
 	assumedBlobs := s.currentChannel.cfg.UseBlobs
-	newCfg := s.cfgProvider.ChannelConfig(txData.CallData())
+	newCfg := s.cfgProvider.ChannelConfig(data.CallData())
 	if newCfg.UseBlobs != assumedBlobs { // TODO should we broaden this check to any change in config?
 		// Detected that our assumptions on DA
 		// type were wrong and we need to rebuild
 		// the channel manager state assuming
 		// a different DA type
-		blocks := s.blocks
-		s.channelQueue = []*channel{}
+		blocks := s.blocks // any blocks already added to channels
+		channelsWithPendingTransactions := []*channel{}
+		for _, channel := range s.channelQueue {
+			if len(channel.pendingTransactions) > 0 {
+				channelsWithPendingTransactions = append(channelsWithPendingTransactions, channel)
+			}
+		}
+		// Discard channels without pending transactions
+		s.channelQueue = channelsWithPendingTransactions
+
+		// Cache channel config
+		s.cfgLastClosedChannel = &newCfg
+
+		//
 		for _, block := range blocks {
-			s.AddL2Block(block)
+			err := s.AddL2Block(block)
+			if err != nil {
+				return txData{}, err
+			}
 		}
 		return s.txData(l1Head)
 	}
-	return txData, err
+	return data, err
 }
 
 // txData returns the next tx data that should be submitted to L1.
@@ -259,7 +280,7 @@ func (s *channelManager) ensureChannelWithSpace(l1Head eth.BlockID) error {
 	return nil
 }
 
-// registerL1Block registers the given block at the pending channel.
+// registerL1Block registers the given block at the current channel.
 func (s *channelManager) registerL1Block(l1Head eth.BlockID) {
 	s.currentChannel.CheckTimeout(l1Head.Number)
 	s.log.Debug("new L1-block registered at channel builder",
@@ -269,7 +290,7 @@ func (s *channelManager) registerL1Block(l1Head eth.BlockID) {
 	)
 }
 
-// processBlocks adds blocks from the blocks queue to the pending channel until
+// processBlocks adds blocks from the blocks queue to the current channel until
 // either the queue got exhausted or the channel is full.
 func (s *channelManager) processBlocks() error {
 	var (
@@ -319,6 +340,7 @@ func (s *channelManager) processBlocks() error {
 	return nil
 }
 
+// outputFrames generates frames for the current channel, and computes and logs the compression ratio
 func (s *channelManager) outputFrames() error {
 	if err := s.currentChannel.OutputFrames(); err != nil {
 		return fmt.Errorf("creating frames with channel builder: %w", err)
