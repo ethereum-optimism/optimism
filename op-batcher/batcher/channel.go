@@ -177,12 +177,12 @@ func (s *channel) NextTxData() txData {
 }
 
 func (s *channel) HasTxData() bool {
-	if s.IsFull() || !s.cfg.UseBlobs {
+	if s.IsFull() || // If the channel is full, we should start to submit it
+		!s.cfg.UseBlobs { // If using calldata, we only send one frame per tx
 		return s.channelBuilder.HasFrame()
 	}
-	// collect enough frames if channel is not full yet
-	// GK -- OR if the channel is full and we are using blobs??
-	return s.channelBuilder.PendingFrames() >= int(s.cfg.MaxFramesPerTx()) // Why isn't this checking the minimum frames per tx?
+	// Collect enough frames if channel is not full yet
+	return s.channelBuilder.PendingFrames() >= int(s.cfg.MaxFramesPerTx())
 }
 
 func (s *channel) IsFull() bool {
