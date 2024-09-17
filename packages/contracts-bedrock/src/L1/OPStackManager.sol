@@ -69,7 +69,6 @@ contract OPStackManager is ISemver, Initializable {
         // Fault proof contracts below.
         OptimismPortal2 optimismPortalProxy;
         DisputeGameFactory disputeGameFactoryProxy;
-        DisputeGameFactory disputeGameFactoryImpl;
         AnchorStateRegistry anchorStateRegistryProxy;
         AnchorStateRegistry anchorStateRegistryImpl;
         FaultDisputeGame faultDisputeGame;
@@ -206,8 +205,6 @@ contract OPStackManager is ISemver, Initializable {
         // -------- TODO: Placeholders --------
         // For contracts we don't yet deploy, we set the outputs to  dummy proxies so they have code to pass assertions.
         // We do these first, that way the disputeGameFactoryProxy is set when passed to the SystemConfig input.
-        output.disputeGameFactoryProxy = DisputeGameFactory(deployProxy(l2ChainId, output.opChainProxyAdmin, "1"));
-        output.disputeGameFactoryImpl = DisputeGameFactory(deployProxy(l2ChainId, output.opChainProxyAdmin, "2"));
         output.anchorStateRegistryProxy = AnchorStateRegistry(deployProxy(l2ChainId, output.opChainProxyAdmin, "3"));
         output.anchorStateRegistryImpl = AnchorStateRegistry(deployProxy(l2ChainId, output.opChainProxyAdmin, "4"));
         output.faultDisputeGame = FaultDisputeGame(deployProxy(l2ChainId, output.opChainProxyAdmin, "5"));
@@ -238,6 +235,8 @@ contract OPStackManager is ISemver, Initializable {
         output.optimismMintableERC20FactoryProxy = OptimismMintableERC20Factory(
             deployProxy(l2ChainId, output.opChainProxyAdmin, "OptimismMintableERC20Factory")
         );
+        output.disputeGameFactoryProxy =
+            DisputeGameFactory(deployProxy(l2ChainId, output.opChainProxyAdmin, "DisputeGameFactory"));
 
         // Deploy legacy proxied contracts.
         output.l1StandardBridgeProxy = L1StandardBridge(
@@ -284,6 +283,10 @@ contract OPStackManager is ISemver, Initializable {
         impl = getLatestImplementation("L1StandardBridge");
         data = encodeL1StandardBridgeInitializer(impl.initializer, output);
         upgradeAndCall(output.opChainProxyAdmin, address(output.l1StandardBridgeProxy), impl.logic, data);
+
+        impl = getLatestImplementation("DisputeGameFactory");
+        data = encodeDisputeGameFactoryInitializer(impl.initializer, _input);
+        upgradeAndCall(output.opChainProxyAdmin, address(output.disputeGameFactoryProxy), impl.logic, data);
 
         // -------- Finalize Deployment --------
         // Transfer ownership of the ProxyAdmin from this contract to the specified owner.
@@ -438,6 +441,18 @@ contract OPStackManager is ISemver, Initializable {
         return abi.encodeWithSelector(
             _selector, _output.l1CrossDomainMessengerProxy, superchainConfig, _output.systemConfigProxy
         );
+    }
+
+    function encodeDisputeGameFactoryInitializer(
+        bytes4 _selector,
+        DeployInput memory _input
+    )
+        internal
+        view
+        virtual
+        returns (bytes memory)
+    {
+        return abi.encodeWithSelector(_selector, _input.roles.opChainProxyAdminOwner);
     }
 
     /// @notice Returns default, standard config arguments for the SystemConfig initializer.

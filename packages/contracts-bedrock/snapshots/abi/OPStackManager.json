@@ -186,11 +186,6 @@
             "type": "address"
           },
           {
-            "internalType": "contract DisputeGameFactory",
-            "name": "disputeGameFactoryImpl",
-            "type": "address"
-          },
-          {
             "internalType": "contract AnchorStateRegistry",
             "name": "anchorStateRegistryProxy",
             "type": "address"

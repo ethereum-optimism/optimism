@@ -363,7 +363,7 @@ contract DeployImplementations is Script {
         vm.stopBroadcast();
         // forgefmt: disable-end
 
-        OPStackManager.ImplementationSetter[] memory setters = new OPStackManager.ImplementationSetter[](6);
+        OPStackManager.ImplementationSetter[] memory setters = new OPStackManager.ImplementationSetter[](7);
         setters[0] = OPStackManager.ImplementationSetter({
             name: "L1ERC721Bridge",
             info: OPStackManager.Implementation(address(_dio.l1ERC721BridgeImpl()), L1ERC721Bridge.initialize.selector)
@@ -388,6 +388,13 @@ contract DeployImplementations is Script {
         setters[5] = OPStackManager.ImplementationSetter({
             name: "L1StandardBridge",
             info: OPStackManager.Implementation(address(_dio.l1StandardBridgeImpl()), L1StandardBridge.initialize.selector)
+        });
+
+        setters[6] = OPStackManager.ImplementationSetter({
+            name: "DisputeGameFactory",
+            info: OPStackManager.Implementation(
+                address(_dio.disputeGameFactoryImpl()), DisputeGameFactory.initialize.selector
+            )
         });
 
         // This call contains a broadcast to deploy OPSM which is proxied.

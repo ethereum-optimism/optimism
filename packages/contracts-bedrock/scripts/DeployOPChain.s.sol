@@ -138,7 +138,6 @@ contract DeployOPChainOutput is BaseDeployIO {
     L1CrossDomainMessenger internal _l1CrossDomainMessengerProxy;
     OptimismPortal2 internal _optimismPortalProxy;
     DisputeGameFactory internal _disputeGameFactoryProxy;
-    DisputeGameFactory internal _disputeGameFactoryImpl;
     AnchorStateRegistry internal _anchorStateRegistryProxy;
     AnchorStateRegistry internal _anchorStateRegistryImpl;
     FaultDisputeGame internal _faultDisputeGame;
@@ -158,7 +157,6 @@ contract DeployOPChainOutput is BaseDeployIO {
         else if (sel == this.l1CrossDomainMessengerProxy.selector) _l1CrossDomainMessengerProxy = L1CrossDomainMessenger(_addr) ;
         else if (sel == this.optimismPortalProxy.selector) _optimismPortalProxy = OptimismPortal2(payable(_addr)) ;
         else if (sel == this.disputeGameFactoryProxy.selector) _disputeGameFactoryProxy = DisputeGameFactory(_addr) ;
-        else if (sel == this.disputeGameFactoryImpl.selector) _disputeGameFactoryImpl = DisputeGameFactory(_addr) ;
         else if (sel == this.anchorStateRegistryProxy.selector) _anchorStateRegistryProxy = AnchorStateRegistry(_addr) ;
         else if (sel == this.anchorStateRegistryImpl.selector) _anchorStateRegistryImpl = AnchorStateRegistry(_addr) ;
         else if (sel == this.faultDisputeGame.selector) _faultDisputeGame = FaultDisputeGame(_addr) ;
@@ -189,7 +187,6 @@ contract DeployOPChainOutput is BaseDeployIO {
         address[] memory addrs2 = Solarray.addresses(
             address(_optimismPortalProxy),
             address(_disputeGameFactoryProxy),
-            address(_disputeGameFactoryImpl),
             address(_anchorStateRegistryProxy),
             address(_anchorStateRegistryImpl),
             address(_faultDisputeGame),
@@ -245,11 +242,6 @@ contract DeployOPChainOutput is BaseDeployIO {
     function disputeGameFactoryProxy() public view returns (DisputeGameFactory) {
         DeployUtils.assertValidContractAddress(address(_disputeGameFactoryProxy));
         return _disputeGameFactoryProxy;
-    }
-
-    function disputeGameFactoryImpl() public view returns (DisputeGameFactory) {
-        DeployUtils.assertValidContractAddress(address(_disputeGameFactoryImpl));
-        return _disputeGameFactoryImpl;
     }
 
     function anchorStateRegistryProxy() public view returns (AnchorStateRegistry) {
@@ -448,7 +440,6 @@ contract DeployOPChain is Script {
         vm.label(address(deployOutput.l1CrossDomainMessengerProxy), "l1CrossDomainMessengerProxy");
         vm.label(address(deployOutput.optimismPortalProxy), "optimismPortalProxy");
         vm.label(address(deployOutput.disputeGameFactoryProxy), "disputeGameFactoryProxy");
-        vm.label(address(deployOutput.disputeGameFactoryImpl), "disputeGameFactoryImpl");
         vm.label(address(deployOutput.anchorStateRegistryProxy), "anchorStateRegistryProxy");
         vm.label(address(deployOutput.anchorStateRegistryImpl), "anchorStateRegistryImpl");
         vm.label(address(deployOutput.faultDisputeGame), "faultDisputeGame");
@@ -467,7 +458,6 @@ contract DeployOPChain is Script {
         _doo.set(_doo.l1CrossDomainMessengerProxy.selector, address(deployOutput.l1CrossDomainMessengerProxy));
         _doo.set(_doo.optimismPortalProxy.selector, address(deployOutput.optimismPortalProxy));
         _doo.set(_doo.disputeGameFactoryProxy.selector, address(deployOutput.disputeGameFactoryProxy));
-        _doo.set(_doo.disputeGameFactoryImpl.selector, address(deployOutput.disputeGameFactoryImpl));
         _doo.set(_doo.anchorStateRegistryProxy.selector, address(deployOutput.anchorStateRegistryProxy));
         _doo.set(_doo.anchorStateRegistryImpl.selector, address(deployOutput.anchorStateRegistryImpl));
         _doo.set(_doo.faultDisputeGame.selector, address(deployOutput.faultDisputeGame));

@@ -181,7 +181,6 @@ func TestEndToEndApply(t *testing.T) {
 			{"L1CrossDomainMessengerProxyAddress", chainState.L1CrossDomainMessengerProxyAddress},
 			{"OptimismPortalProxyAddress", chainState.OptimismPortalProxyAddress},
 			{"DisputeGameFactoryProxyAddress", chainState.DisputeGameFactoryProxyAddress},
-			{"DisputeGameFactoryImplAddress", chainState.DisputeGameFactoryImplAddress},
 			{"AnchorStateRegistryProxyAddress", chainState.AnchorStateRegistryProxyAddress},
 			{"AnchorStateRegistryImplAddress", chainState.AnchorStateRegistryImplAddress},
 			{"FaultDisputeGameAddress", chainState.FaultDisputeGameAddress},
