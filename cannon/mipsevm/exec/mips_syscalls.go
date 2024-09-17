@@ -59,12 +59,7 @@ const (
 	SysLlseek        = 4140
 	SysMinCore       = 4217
 	SysTgkill        = 4266
-)
-
-// Profiling-related syscalls
-// Should be able to ignore if we patch out prometheus calls and disable memprofiling
-// TODO(cp-903) - Update patching for mt-cannon so that these can be ignored
-const (
+	// Profiling-related syscalls
 	SysSetITimer    = 4104
 	SysTimerCreate  = 4257
 	SysTimerSetTime = 4258
