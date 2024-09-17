@@ -135,12 +135,16 @@ jobs:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: xlarge
+    parallelism: 2
     steps:
       - checkout
       - check-changed:
           patterns: cannon,packages/contracts-bedrock/src/cannon,op-preimage,go.mod
       - attach_workspace:
           at: "."
+      - restore_cache:
+          name: Restore Go modules cache
+          key: gomod-{{ checksum "go.sum" }}
       - run:
           name: prep Cannon results dir
           command: mkdir -p /tmp/test-results
@@ -157,8 +161,9 @@ jobs:
           name: Cannon Go tests
           command: |
             mkdir -p /testlogs
-            gotestsum --format=testname --junitfile=/tmp/test-results/cannon.xml --jsonfile=/testlogs/log.json \
-            -- -parallel=8 -coverpkg=github.com/ethereum-optimism/optimism/cannon/... -coverprofile=coverage.out ./...
+            gotestsum --format=testname --junitfile=/tmp/test-results/cannon_$CIRCLE_NODE_INDEX.xml --jsonfile=/testlogs/log_$CIRCLE_NODE_INDEX.json \
+            -- -parallel=8 -coverpkg=github.com/ethereum-optimism/optimism/cannon/... -coverprofile=coverage_$CIRCLE_NODE_INDEX.out ./... \
+            | circleci tests split --split-by=timings
           working_directory: cannon
       - run:
           name: upload Cannon coverage
