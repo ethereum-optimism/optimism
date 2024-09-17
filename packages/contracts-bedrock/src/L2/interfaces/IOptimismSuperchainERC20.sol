@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { IERC20Solady } from "src/dependency/interfaces/IERC20Solady.sol";
-import { ISuperchainERC20Extensions, ISuperchainERC20Errors } from "./ISuperchainERC20.sol";
+// Interfaces
+import { IERC20Solady } from "src/vendor/interfaces/IERC20Solady.sol";
+import { ISuperchainERC20Extensions, ISuperchainERC20Errors } from "src/L2/interfaces/ISuperchainERC20.sol";
 
 /// @title IOptimismSuperchainERC20Extension
 /// @notice This interface is available on the OptimismSuperchainERC20 contract.
