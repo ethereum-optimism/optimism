@@ -13,6 +13,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/fastlz"
+	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -79,7 +80,7 @@ func FuzzFjordCostFunction(f *testing.F) {
 		f.Add(seed)
 	}
 
-	cfg := DefaultSystemConfig(f)
+	cfg := e2esys.DefaultSystemConfig(f)
 	s := hexutil.Uint64(0)
 	cfg.DeployConfig.L2GenesisCanyonTimeOffset = &s
 	cfg.DeployConfig.L2GenesisDeltaTimeOffset = &s
