@@ -22,5 +22,5 @@ func BuildOpProgramClient(t *testing.T) string {
 	cmd.Stderr = &out
 	require.NoErrorf(t, cmd.Run(), "Failed to build op-program-client: %v", &out)
 	t.Log("Built op-program-client successfully")
-	return "../op-program/bin/op-program-client"
+	return "../../../op-program/bin/op-program-client"
 }
