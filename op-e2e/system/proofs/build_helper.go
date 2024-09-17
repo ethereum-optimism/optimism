@@ -16,7 +16,7 @@ func BuildOpProgramClient(t *testing.T) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "make", "op-program-client")
-	cmd.Dir = "../op-program"
+	cmd.Dir = "../../../op-program"
 	var out strings.Builder
 	cmd.Stdout = &out
 	cmd.Stderr = &out
