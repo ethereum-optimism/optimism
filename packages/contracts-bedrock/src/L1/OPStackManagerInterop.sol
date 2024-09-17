@@ -25,7 +25,7 @@ contract OPStackManagerInterop is OPStackManager {
         DeployOutput memory _output
     )
         internal
-        pure
+        view
         virtual
         override
         returns (bytes memory)
