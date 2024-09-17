@@ -205,7 +205,7 @@ contract DeploySuperchainOutput is CommonBase {
 
     // This function can be called to ensure all outputs are correct. Similar to `writeOutputFile`,
     // it fetches the output values using external calls to the getter methods for safety.
-    function checkOutput() public {
+    function checkOutput(DeploySuperchainInput) public {
         address[] memory addrs = Solarray.addresses(
             address(this.superchainProxyAdmin()),
             address(this.superchainConfigImpl()),
@@ -298,7 +298,7 @@ contract DeploySuperchain is Script {
         transferProxyAdminOwnership(_dsi, _dso);
 
         // Output assertions, to make sure outputs were assigned correctly.
-        _dso.checkOutput();
+        _dso.checkOutput(_dsi);
     }
 
     // -------- Deployment Steps --------

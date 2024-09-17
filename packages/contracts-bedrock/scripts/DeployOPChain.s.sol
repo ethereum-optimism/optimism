@@ -171,7 +171,7 @@ contract DeployOPChainOutput {
         require(false, "DeployOPChainOutput: not implemented");
     }
 
-    function checkOutput() public view {
+    function checkOutput(DeployOPChainInput _doi) public view {
         // With 16 addresses, we'd get a stack too deep error if we tried to do this inline as a
         // single call to `Solarray.addresses`. So we split it into two calls.
         address[] memory addrs1 = Solarray.addresses(
@@ -195,6 +195,8 @@ contract DeployOPChainOutput {
             address(_delayedWETHPermissionlessGameProxy)
         );
         DeployUtils.assertValidContractAddresses(Solarray.extend(addrs1, addrs2));
+
+        assertValidDeploy(_doi);
     }
 
     function opChainProxyAdmin() public view returns (ProxyAdmin) {
@@ -388,7 +390,7 @@ contract DeployOPChain is Script {
             _doo.delayedWETHPermissionlessGameProxy.selector, address(deployOutput.delayedWETHPermissionlessGameProxy)
         );
 
-        _doo.checkOutput();
+        _doo.checkOutput(_doi);
     }
 
     // -------- Utilities --------

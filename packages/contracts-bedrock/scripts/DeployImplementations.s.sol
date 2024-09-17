@@ -189,7 +189,7 @@ contract DeployImplementationsOutput {
         require(false, "DeployImplementationsOutput: not implemented");
     }
 
-    function checkOutput() public {
+    function checkOutput(DeployImplementationsInput) public {
         address[] memory addrs = Solarray.addresses(
             address(this.opsm()),
             address(this.optimismPortalImpl()),
@@ -291,7 +291,7 @@ contract DeployImplementations is Script {
         // Deploy the OP Stack Manager with the new implementations set.
         deployOPStackManager(_dii, _dio);
 
-        _dio.checkOutput();
+        _dio.checkOutput(_dii);
     }
 
     // -------- Deployment Steps --------
