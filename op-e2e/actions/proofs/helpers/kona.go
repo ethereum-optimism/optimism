@@ -69,9 +69,8 @@ func RunKonaNative(
 	cmd.Stderr = os.Stdout
 
 	status := cmd.Run()
-	switch status.(type) {
+	switch status := status.(type) {
 	case *exec.ExitError:
-		status := status.(*exec.ExitError)
 		if status.ExitCode() == 1 {
 			return claim.ErrClaimNotValid
 		}
