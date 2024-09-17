@@ -45,7 +45,6 @@ type L2OpchainDeployment struct {
 	// Fault proof contracts below.
 	OptimismPortalProxy                common.Address `json:"OptimismPortalProxy"`
 	DisputeGameFactoryProxy            common.Address `json:"DisputeGameFactoryProxy"`
-	DisputeGameFactoryImpl             common.Address `json:"DisputeGameFactoryImpl"`
 	AnchorStateRegistryProxy           common.Address `json:"AnchorStateRegistryProxy"`
 	AnchorStateRegistryImpl            common.Address `json:"AnchorStateRegistryImpl"`
 	FaultDisputeGame                   common.Address `json:"FaultDisputeGame"`

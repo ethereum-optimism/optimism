@@ -32,8 +32,8 @@
     "sourceCodeHash": "0xde4df0f9633dc0cdb1c9f634003ea5b0f7c5c1aebc407bc1b2f44c0ecf938649"
   },
   "src/L1/OPStackManager.sol": {
-    "initCodeHash": "0x31378d0ea88a358f517927f5bc530a5b958f43c5462e4a822388ec70bd45e8d4",
-    "sourceCodeHash": "0x9ed271fbb40f25528652bfecc10d2010a588629047b3aaed2b14247d2fa7b45e"
+    "initCodeHash": "0xfcb568c59e2b4fd927b27b3434db657b53571bf64f70bc8453aaf696eda9c3f9",
+    "sourceCodeHash": "0xfc9069d6967b9b90413fe391805509b178dd134b008a582e4dc64afe14cc1b2a"
   },
   "src/L1/OptimismPortal.sol": {
     "initCodeHash": "0xb7a7a28d5b3b88334e7cb4bc1c5fbbf9f691d934e907a2fed6a30e461eb1c0f6",

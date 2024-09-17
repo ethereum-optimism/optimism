@@ -39,7 +39,6 @@ type DeployOPChainOutput struct {
 	// Fault proof contracts below.
 	OptimismPortalProxy                common.Address
 	DisputeGameFactoryProxy            common.Address
-	DisputeGameFactoryImpl             common.Address
 	AnchorStateRegistryProxy           common.Address
 	AnchorStateRegistryImpl            common.Address
 	FaultDisputeGame                   common.Address

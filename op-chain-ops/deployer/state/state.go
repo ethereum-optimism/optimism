@@ -75,7 +75,6 @@ type ChainState struct {
 	L1CrossDomainMessengerProxyAddress        common.Address `json:"l1CrossDomainMessengerProxyAddress"`
 	OptimismPortalProxyAddress                common.Address `json:"optimismPortalProxyAddress"`
 	DisputeGameFactoryProxyAddress            common.Address `json:"disputeGameFactoryProxyAddress"`
-	DisputeGameFactoryImplAddress             common.Address `json:"disputeGameFactoryImplAddress"`
 	AnchorStateRegistryProxyAddress           common.Address `json:"anchorStateRegistryProxyAddress"`
 	AnchorStateRegistryImplAddress            common.Address `json:"anchorStateRegistryImplAddress"`
 	FaultDisputeGameAddress                   common.Address `json:"faultDisputeGameAddress"`
