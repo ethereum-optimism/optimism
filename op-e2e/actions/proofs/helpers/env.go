@@ -169,6 +169,7 @@ func (env *L2FaultProofEnv) RunFaultProofProgram(t helpers.Testing, l2ClaimBlock
 		defer fakeBeacon.Close()
 
 		err = RunKonaNative(t, workDir, env, env.Miner.HTTPEndpoint(), fakeBeacon.BeaconAddr(), env.Engine.HTTPEndpoint(), *fixtureInputs)
+		checkResult(t, err)
 	} else {
 		programCfg := NewOpProgramCfg(
 			t,
@@ -190,6 +191,7 @@ func (env *L2FaultProofEnv) RunFaultProofProgram(t helpers.Testing, l2ClaimBlock
 			return prefetcher.NewPrefetcher(logger, l1Cl, l1BlobFetcher, l2DebugCl, kv), nil
 		})
 		err = host.FaultProofProgram(t.Ctx(), env.log, programCfg, withInProcessPrefetcher)
+		checkResult(t, err)
 	}
 	tryDumpTestFixture(t, err, t.Name(), env, *fixtureInputs, workDir)
 }
