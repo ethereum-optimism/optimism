@@ -1,4 +1,4 @@
-package deployers
+package opsm
 
 import (
 	"fmt"

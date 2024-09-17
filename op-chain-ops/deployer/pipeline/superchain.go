@@ -44,6 +44,7 @@ func DeploySuperchain(ctx context.Context, env *Env, intent *state.Intent, st *s
 			Deployer:    env.Deployer,
 			Signer:      env.Signer,
 			Client:      env.L1Client,
+			Broadcaster: KeyedBroadcaster,
 			Handler: func(host *script.Host) error {
 				dso, err = opsm.DeploySuperchain(
 					host,

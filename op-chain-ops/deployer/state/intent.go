@@ -24,13 +24,16 @@ type Intent struct {
 
 	ContractArtifactsURL *ArtifactsURL `json:"contractArtifactsURL" toml:"contractArtifactsURL"`
 
-	Chains []ChainIntent `json:"chains" toml:"chains"`
+	Chains []*ChainIntent `json:"chains" toml:"chains"`
+
+	GlobalInitOverrides map[string]any `json:"globalInitOverrides" toml:"globalInitOverrides"`
 }
 
-func (c Intent) L1ChainIDBig() *big.Int {
+func (c *Intent) L1ChainIDBig() *big.Int {
 	return big.NewInt(int64(c.L1ChainID))
 }
-func (c Intent) Check() error {
+
+func (c *Intent) Check() error {
 	if c.L1ChainID == 0 {
 		return fmt.Errorf("l1ChainID must be set")
 	}
@@ -62,17 +65,17 @@ func (c Intent) Check() error {
 	return nil
 }
 
-func (c Intent) Chain(id common.Hash) (ChainIntent, error) {
+func (c *Intent) Chain(id common.Hash) (*ChainIntent, error) {
 	for i := range c.Chains {
 		if c.Chains[i].ID == id {
 			return c.Chains[i], nil
 		}
 	}
 
-	return ChainIntent{}, fmt.Errorf("chain %d not found", id)
+	return nil, fmt.Errorf("chain %d not found", id)
 }
 
-func (c Intent) WriteToFile(path string) error {
+func (c *Intent) WriteToFile(path string) error {
 	return jsonutil.WriteTOML(c, ioutil.ToAtomicFile(path, 0o755))
 }
 
@@ -89,7 +92,7 @@ type ChainIntent struct {
 
 	Roles ChainRoles `json:"roles" toml:"roles"`
 
-	Overrides map[string]any `json:"overrides" toml:"overrides"`
+	InitOverrides map[string]any `json:"initOverrides" toml:"initOverrides"`
 }
 
 type ChainRoles struct {

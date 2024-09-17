@@ -5,6 +5,8 @@ import (
 	"crypto/rand"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
+
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
@@ -61,6 +63,14 @@ func Init(ctx context.Context, env *Env, intent *state.Intent, st *state.State) 
 
 	if l1ChainID.Cmp(intent.L1ChainIDBig()) != 0 {
 		return fmt.Errorf("L1 chain ID mismatch: got %d, expected %d", l1ChainID, intent.L1ChainID)
+	}
+
+	deployerCode, err := env.L1Client.CodeAt(ctx, script.DeterministicDeployerAddress, nil)
+	if err != nil {
+		return fmt.Errorf("failed to get deployer code: %w", err)
+	}
+	if len(deployerCode) == 0 {
+		return fmt.Errorf("deterministic deployer is not deployed on this chain - please deploy it first")
 	}
 
 	// TODO: validate individual L2s

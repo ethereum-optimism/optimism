@@ -47,6 +47,7 @@ func DeployOPChain(ctx context.Context, env *Env, intent *state.Intent, st *stat
 			Deployer:    env.Deployer,
 			Signer:      env.Signer,
 			Client:      env.L1Client,
+			Broadcaster: KeyedBroadcaster,
 			Handler: func(host *script.Host) error {
 				host.ImportState(st.ImplementationsDeployment.StateDump)
 				dco, err = opsm.DeployOPChain(
@@ -72,7 +73,7 @@ func DeployOPChain(ctx context.Context, env *Env, intent *state.Intent, st *stat
 		return fmt.Errorf("error deploying OP chain: %w", err)
 	}
 
-	st.Chains = append(st.Chains, state.ChainState{
+	st.Chains = append(st.Chains, &state.ChainState{
 		ID: chainID,
 
 		ProxyAdminAddress:                         dco.OpChainProxyAdmin,

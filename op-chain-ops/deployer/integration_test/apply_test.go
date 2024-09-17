@@ -112,7 +112,7 @@ func TestEndToEndApply(t *testing.T) {
 		UseFaultProofs:       true,
 		FundDevAccounts:      true,
 		ContractArtifactsURL: (*state.ArtifactsURL)(artifactsURL),
-		Chains: []state.ChainIntent{
+		Chains: []*state.ChainIntent{
 			{
 				ID: id.Bytes32(),
 				Roles: state.ChainRoles{
@@ -196,5 +196,9 @@ func TestEndToEndApply(t *testing.T) {
 				require.NotEmpty(t, code, "contracts %s at %s for chain %s has no code", addr.name, addr.addr, chainState.ID)
 			})
 		}
+
+		t.Run("l2 genesis", func(t *testing.T) {
+			require.Greater(t, len(chainState.Genesis), 0)
+		})
 	}
 }
