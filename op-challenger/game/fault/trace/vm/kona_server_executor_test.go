@@ -26,7 +26,7 @@ func TestKonaFillHostCommand(t *testing.T) {
 		L2Claim:       common.Hash{0x44},
 		L2BlockNumber: big.NewInt(3333),
 	}
-	vmConfig := NewKonaServerExecutor()
+	vmConfig := NewKonaExecutor()
 
 	args, err := vmConfig.OracleCommand(cfg, dir, inputs)
 	require.NoError(t, err)

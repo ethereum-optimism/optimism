@@ -5,6 +5,7 @@ import (
 
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/proofs/helpers"
+	"github.com/ethereum-optimism/optimism/op-program/client/claim"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -63,7 +64,7 @@ func Test_ProgramAction_SequenceWindowExpired(gt *testing.T) {
 		nil,
 		helpers.LatestForkOnly,
 		runSequenceWindowExpireTest,
-		helpers.ExpectNoError(),
+		helpers.ExpectError(claim.ErrClaimNotValid),
 		helpers.WithL2Claim(common.HexToHash("0xdeadbeef")),
 	)
 }
