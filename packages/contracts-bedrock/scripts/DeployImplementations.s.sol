@@ -452,14 +452,16 @@ contract DeployImplementations is Script {
     // --- Fault Proofs Contracts ---
 
     // The fault proofs contracts are configured as follows:
-    //   - DisputeGameFactory: Proxied, bespoke per chain.
-    //   - AnchorStateRegistry: Proxied, bespoke per chain.
-    //   - FaultDisputeGame: Not proxied, bespoke per chain.
-    //   - PermissionedDisputeGame: Not proxied, bespoke per chain.
-    //   - DelayedWETH: Proxied, and two bespoke ones per chain (one for each DisputeGame).
-    //   - PreimageOracle: Not proxied, shared by all standard chains.
-    //   - MIPS: Not proxied, shared by all standard chains.
-    //   - OptimismPortal2: Proxied, shared by all standard chains.
+    // | Contract                | Proxied | Deployment                        | MCP Ready  |
+    // |-------------------------|---------|-----------------------------------|------------|
+    // | DisputeGameFactory      | Yes     | Bespoke                           | Yes        |
+    // | AnchorStateRegistry     | Yes     | Bespoke                           | No         |
+    // | FaultDisputeGame        | No      | Bespoke                           | No         |
+    // | PermissionedDisputeGame | No      | Bespoke                           | No         |
+    // | DelayedWETH             | Yes     | Two bespoke (one per DisputeGame) | No         |
+    // | PreimageOracle          | No      | Shared                            | N/A        |
+    // | MIPS                    | No      | Shared                            | N/A        |
+    // | OptimismPortal2         | Yes     | Shared                            | No         |
     //
     // This script only deploys the shared contracts. The bespoke contracts are deployed by
     // `DeployOPChain.s.sol`. When the shared contracts are proxied, the contracts deployed here are
@@ -471,6 +473,9 @@ contract DeployImplementations is Script {
     //   - DelayedWETH (implementation)
     //   - PreimageOracle (singleton)
     //   - MIPS (singleton)
+    //
+    // For contracts which are not MCP ready neither the Proxy nor the implementation can be shared, therefore they
+    // are deployed by `DeployOpChain.s.sol`.
 
     function deployOptimismPortalImpl(
         DeployImplementationsInput _dii,
