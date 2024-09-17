@@ -7,6 +7,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
+	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
+	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
+
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -19,7 +23,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
-	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
@@ -75,7 +78,7 @@ func TestPrecompiles(t *testing.T) {
 			op_e2e.InitParallel(t, op_e2e.UsesCannon)
 			ctx := context.Background()
 			genesisTime := hexutil.Uint64(0)
-			cfg := op_e2e.EcotoneSystemConfig(t, &genesisTime)
+			cfg := e2esys.EcotoneSystemConfig(t, &genesisTime)
 			// We don't need a verifier - just the sequencer is enough
 			delete(cfg.Nodes, "verifier")
 			// Use a small sequencer window size to avoid test timeout while waiting for empty blocks
@@ -101,7 +104,7 @@ func TestPrecompiles(t *testing.T) {
 			l2Head := agreedL2Output.BlockRef.Hash
 			l2OutputRoot := agreedL2Output.OutputRoot
 
-			receipt := op_e2e.SendL2Tx(t, cfg, l2Seq, aliceKey, func(opts *op_e2e.TxOpts) {
+			receipt := helpers.SendL2Tx(t, cfg, l2Seq, aliceKey, func(opts *helpers.TxOpts) {
 				opts.Gas = 1_000_000
 				opts.ToAddr = &test.address
 				opts.Nonce = 0
@@ -140,7 +143,7 @@ func TestPrecompiles(t *testing.T) {
 
 			l2Seq := sys.NodeClient("sequencer")
 			aliceKey := sys.Cfg.Secrets.Alice
-			receipt := op_e2e.SendL2Tx(t, sys.Cfg, l2Seq, aliceKey, func(opts *op_e2e.TxOpts) {
+			receipt := helpers.SendL2Tx(t, sys.Cfg, l2Seq, aliceKey, func(opts *helpers.TxOpts) {
 				opts.Gas = 1_000_000
 				opts.ToAddr = &test.address
 				opts.Nonce = 0
@@ -174,7 +177,7 @@ func TestGranitePrecompiles(t *testing.T) {
 	op_e2e.InitParallel(t, op_e2e.UsesCannon)
 	ctx := context.Background()
 	genesisTime := hexutil.Uint64(0)
-	cfg := op_e2e.GraniteSystemConfig(t, &genesisTime)
+	cfg := e2esys.GraniteSystemConfig(t, &genesisTime)
 	// We don't need a verifier - just the sequencer is enough
 	delete(cfg.Nodes, "verifier")
 	// Use a small sequencer window size to avoid test timeout while waiting for empty blocks
@@ -242,7 +245,7 @@ func TestGranitePrecompiles(t *testing.T) {
 	runCannon(t, ctx, sys, inputs)
 }
 
-func runCannon(t *testing.T, ctx context.Context, sys *op_e2e.System, inputs utils.LocalGameInputs, extraVmArgs ...string) {
+func runCannon(t *testing.T, ctx context.Context, sys *e2esys.System, inputs utils.LocalGameInputs, extraVmArgs ...string) {
 	l1Endpoint := sys.NodeEndpoint("l1").RPC()
 	l1Beacon := sys.L1BeaconEndpoint().RestHTTP()
 	rollupEndpoint := sys.RollupEndpoint("sequencer").RPC()

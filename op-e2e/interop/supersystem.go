@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
+
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/stretchr/testify/require"
 
@@ -26,7 +28,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen"
-	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/opnode"
@@ -82,7 +83,7 @@ type SuperSystem interface {
 	// get the user key for a user on an L2
 	UserKey(id, username string) ecdsa.PrivateKey
 	// send a transaction on an L2 on the given network, from the given user
-	SendL2Tx(network string, username string, applyTxOpts op_e2e.TxOptsFn) *types.Receipt
+	SendL2Tx(network string, username string, applyTxOpts helpers.TxOptsFn) *types.Receipt
 	// get the address for a user on an L2
 	Address(network string, username string) common.Address
 }
@@ -586,11 +587,11 @@ func (s *interopE2ESystem) L2IDs() []string {
 func (s *interopE2ESystem) SendL2Tx(
 	id string,
 	sender string,
-	applyTxOpts op_e2e.TxOptsFn,
+	applyTxOpts helpers.TxOptsFn,
 ) *types.Receipt {
 	senderSecret := s.UserKey(id, sender)
 	require.NotNil(s.t, senderSecret, "no secret found for sender %s", sender)
-	return op_e2e.SendL2TxWithID(
+	return helpers.SendL2TxWithID(
 		s.t,
 		s.l2s[id].chainID,
 		s.L2GethClient(id),

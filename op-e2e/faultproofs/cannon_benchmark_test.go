@@ -11,6 +11,9 @@ import (
 	"testing"
 	"time"
 
+	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
+	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
+
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -23,7 +26,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
-	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/ethereum-optimism/optimism/op-e2e/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
@@ -35,7 +37,7 @@ func TestBenchmarkCannon_FPP(t *testing.T) {
 
 	op_e2e.InitParallel(t, op_e2e.UsesCannon)
 	ctx := context.Background()
-	cfg := op_e2e.DefaultSystemConfig(t)
+	cfg := e2esys.DefaultSystemConfig(t)
 	// We don't need a verifier - just the sequencer is enough
 	delete(cfg.Nodes, "verifier")
 	// Use a small sequencer window size to avoid test timeout while waiting for empty blocks
@@ -102,7 +104,7 @@ func TestBenchmarkCannon_FPP(t *testing.T) {
 	// TODO(client-pod#906): Use maximum witness size for assertions against pages allocated by the VM
 }
 
-func createBigContracts(ctx context.Context, t *testing.T, cfg op_e2e.SystemConfig, client *ethclient.Client, key *ecdsa.PrivateKey, numContracts int) []common.Address {
+func createBigContracts(ctx context.Context, t *testing.T, cfg e2esys.SystemConfig, client *ethclient.Client, key *ecdsa.PrivateKey, numContracts int) []common.Address {
 	/*
 		contract Big {
 			bytes constant foo = hex"<24.4 KB of random data>";
@@ -162,7 +164,7 @@ func createBigContracts(ctx context.Context, t *testing.T, cfg op_e2e.SystemConf
 	return addrs
 }
 
-func callBigContracts(ctx context.Context, t *testing.T, cfg op_e2e.SystemConfig, client *ethclient.Client, key *ecdsa.PrivateKey, addrs []common.Address) *types.Receipt {
+func callBigContracts(ctx context.Context, t *testing.T, cfg e2esys.SystemConfig, client *ethclient.Client, key *ecdsa.PrivateKey, addrs []common.Address) *types.Receipt {
 	multicall3, err := bindings.NewMultiCall3(predeploys.MultiCall3Addr, client)
 	require.NoError(t, err)
 

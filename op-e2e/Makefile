@@ -17,7 +17,7 @@ test-external-%: pre-test
 	$(go_test) $(go_test_flags) --externalL2 ./external_$*/
 
 test-ws: pre-test
-	$(go_test) $(go_test_flags) . ./e2eutils/...
+	$(go_test) $(go_test_flags) ./system/... ./e2eutils/... ./opgeth/... ./interop/...
 .PHONY: test-ws
 
 test-actions: pre-test
@@ -25,7 +25,7 @@ test-actions: pre-test
 .PHONY: test-actions
 
 test-http: pre-test
-	OP_E2E_USE_HTTP=true $(go_test) $(go_test_flags) . ./e2eutils/...
+	OP_E2E_USE_HTTP=true $(go_test) $(go_test_flags) ./system/... ./e2eutils/... ./opgeth/... ./interop/...
 .PHONY: test-http
 
 test-cannon: pre-test
@@ -71,7 +71,7 @@ clean:
 .PHONY: clean
 
 fuzz:
-	go test -run NOTAREALTEST -tags cgo_test -v -fuzztime 10s -fuzz FuzzFjordCostFunction ./
-	go test -run NOTAREALTEST -tags cgo_test -v -fuzztime 10s -fuzz FuzzFastLzGethSolidity ./
-	go test -run NOTAREALTEST -tags cgo_test -v -fuzztime 10s -fuzz FuzzFastLzCgo ./
+	go test -run NOTAREALTEST -tags cgo_test -v -fuzztime 10s -fuzz FuzzFjordCostFunction ./opgeth
+	go test -run NOTAREALTEST -tags cgo_test -v -fuzztime 10s -fuzz FuzzFastLzGethSolidity ./opgeth
+	go test -run NOTAREALTEST -tags cgo_test -v -fuzztime 10s -fuzz FuzzFastLzCgo ./opgeth
 

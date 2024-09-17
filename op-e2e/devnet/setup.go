@@ -6,8 +6,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
@@ -29,7 +30,7 @@ type System struct {
 	L1     *ethclient.Client
 	L2     *ethclient.Client
 	Rollup *sources.RollupClient
-	Cfg    e2e.SystemConfig
+	Cfg    e2esys.SystemConfig
 }
 
 func NewSystem(ctx context.Context, lgr log.Logger) (sys *System, err error) {
@@ -69,7 +70,7 @@ func NewSystem(ctx context.Context, lgr log.Logger) (sys *System, err error) {
 	}
 
 	// Incomplete SystemConfig suffices for withdrawal test (only consumer right now)
-	sys.Cfg = e2e.SystemConfig{
+	sys.Cfg = e2esys.SystemConfig{
 		DeployConfig:  deployConfig,
 		L1Deployments: config.L1Deployments.Copy(),
 		Secrets:       secrets,
@@ -79,9 +80,9 @@ func NewSystem(ctx context.Context, lgr log.Logger) (sys *System, err error) {
 
 func (s System) NodeClient(role string) *ethclient.Client {
 	switch role {
-	case e2e.RoleL1:
+	case e2esys.RoleL1:
 		return s.L1
-	case e2e.RoleSeq, e2e.RoleVerif:
+	case e2esys.RoleSeq, e2esys.RoleVerif:
 		// we have only one L2 node
 		return s.L2
 	default:
@@ -94,7 +95,7 @@ func (s System) RollupClient(string) *sources.RollupClient {
 	return s.Rollup
 }
 
-func (s System) Config() e2e.SystemConfig {
+func (s System) Config() e2esys.SystemConfig {
 	return s.Cfg
 }
 
