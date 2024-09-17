@@ -237,6 +237,8 @@ contract OPStackManager is ISemver, Initializable {
         );
         output.disputeGameFactoryProxy =
             DisputeGameFactory(deployProxy(l2ChainId, output.opChainProxyAdmin, "DisputeGameFactory"));
+        output.anchorStateRegistryProxy =
+            AnchorStateRegistry(deployProxy(l2ChainId, output.opChainProxyAdmin, "AnchorStateRegistry"));
 
         // Deploy legacy proxied contracts.
         output.l1StandardBridgeProxy = L1StandardBridge(
