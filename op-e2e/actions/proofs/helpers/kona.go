@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
@@ -43,12 +42,11 @@ func RunKonaNative(
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(rollupConfigPath, ser, fs.ModePerm))
 
-	// Run the fault proof program from the state transition from L2 block 0 -> 1.
+	// Run the fault proof program from the state transition from L2 block L2Blocknumber - 1 -> L2BlockNumber.
 	vmCfg := vm.Config{
 		L1:               l1Rpc,
 		L1Beacon:         l1BeaconRpc,
 		L2:               l2Rpc,
-		Network:          "op-mainnet",
 		RollupConfigPath: rollupConfigPath,
 		Server:           konaHostPath,
 	}
@@ -62,7 +60,6 @@ func RunKonaNative(
 	hostCmd, err := vm.NewNativeKonaExecutor(konaClientPath).OracleCommand(vmCfg, workDir, inputs)
 	require.NoError(t, err)
 
-	fmt.Println(strings.Join(hostCmd, " "))
 	cmd := exec.Command(hostCmd[0], hostCmd[1:]...)
 	cmd.Dir = workDir
 	cmd.Stdout = os.Stdout
