@@ -9,9 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
+
 	"github.com/stretchr/testify/require"
 
-	e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-service/endpoint"
 )
@@ -37,7 +38,7 @@ func TestShim(t *testing.T) {
 
 	config.EthNodeVerbosity = config.LegacyLevelDebug
 
-	ec := (&e2e.ExternalRunner{
+	ec := (&e2esys.ExternalRunner{
 		Name:    "TestShim",
 		BinPath: shimPath,
 	}).Run(t)

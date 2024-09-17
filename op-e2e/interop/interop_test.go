@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen"
-	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen"
+	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
 )
 
 // TestInteropTrivial tests a simple interop scenario
@@ -60,7 +61,7 @@ func TestInteropTrivial(t *testing.T) {
 	s2.SendL2Tx(
 		chainA,
 		"Alice",
-		func(l2Opts *op_e2e.TxOpts) {
+		func(l2Opts *helpers.TxOpts) {
 			l2Opts.ToAddr = &bobAddr
 			l2Opts.Value = big.NewInt(1000000)
 			l2Opts.GasFeeCap = big.NewInt(1_000_000_000)
