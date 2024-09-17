@@ -93,6 +93,8 @@ func newBackend(t e2eutils.TestingBase, genesis *core.Genesis, jwtPath string, o
 		Name:        "l2-geth",
 		WSHost:      "127.0.0.1",
 		WSPort:      0,
+		HTTPHost:    "127.0.0.1",
+		HTTPPort:    0,
 		AuthAddr:    "127.0.0.1",
 		AuthPort:    0,
 		WSModules:   []string{"debug", "admin", "eth", "txpool", "net", "rpc", "web3", "personal"},

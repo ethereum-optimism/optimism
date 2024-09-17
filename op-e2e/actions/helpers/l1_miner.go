@@ -52,7 +52,11 @@ func NewL1Miner(t Testing, log log.Logger, genesis *core.Genesis) *L1Miner {
 	}
 }
 
-func (s *L1Miner) BlobStore() prefetcher.L1BlobSource {
+func (s *L1Miner) BlobSource() prefetcher.L1BlobSource {
+	return s.blobStore
+}
+
+func (s *L1Miner) BlobStore() *e2eutils.BlobsStore {
 	return s.blobStore
 }
 

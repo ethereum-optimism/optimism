@@ -67,6 +67,8 @@ func NewL1Replica(t Testing, log log.Logger, genesis *core.Genesis) *L1Replica {
 		Name:        "l1-geth",
 		WSHost:      "127.0.0.1",
 		WSPort:      0,
+		HTTPHost:    "127.0.0.1",
+		HTTPPort:    0,
 		WSModules:   []string{"debug", "admin", "eth", "txpool", "net", "rpc", "web3", "personal"},
 		HTTPModules: []string{"debug", "admin", "eth", "txpool", "net", "rpc", "web3", "personal"},
 		DataDir:     "", // in-memory

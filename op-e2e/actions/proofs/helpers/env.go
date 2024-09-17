@@ -8,6 +8,7 @@ import (
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
 	"github.com/ethereum-optimism/optimism/op-program/host"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
 	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
@@ -155,28 +156,42 @@ func (env *L2FaultProofEnv) RunFaultProofProgram(t helpers.Testing, l2ClaimBlock
 		apply(fixtureInputs)
 	}
 
-	// Run the fault proof program from the state transition from L2 block 0 -> 1.
-	programCfg := NewOpProgramCfg(
-		t,
-		env,
-		fixtureInputs,
-	)
-	withInProcessPrefetcher := host.WithPrefetcher(func(ctx context.Context, logger log.Logger, kv kvstore.KV, cfg *config.Config) (host.Prefetcher, error) {
-		// Set up in-process L1 sources
-		l1Cl := env.Miner.L1Client(t, env.sd.RollupCfg)
-		l1BlobFetcher := env.Miner.BlobStore()
+	// Run the fault proof program from the state transition from L2 block l2ClaimBlockNum - 1 -> l2ClaimBlockNum.
+	workDir := t.TempDir()
+	if IsKonaConfigured() {
+		fakeBeacon := fakebeacon.NewBeacon(
+			env.log,
+			env.Miner.BlobStore(),
+			env.sd.L1Cfg.Timestamp,
+			12,
+		)
+		require.NoError(t, fakeBeacon.Start("127.0.0.1:0"))
+		defer fakeBeacon.Close()
 
-		// Set up in-process L2 source
-		l2ClCfg := sources.L2ClientDefaultConfig(env.sd.RollupCfg, true)
-		l2RPC := env.Engine.RPCClient()
-		l2Client, err := host.NewL2Client(l2RPC, env.log, nil, &host.L2ClientConfig{L2ClientConfig: l2ClCfg, L2Head: cfg.L2Head})
-		require.NoError(t, err, "failed to create L2 client")
-		l2DebugCl := &host.L2Source{L2Client: l2Client, DebugClient: sources.NewDebugClient(l2RPC.CallContext)}
+		err = RunKonaNative(t, workDir, env, env.Miner.HTTPEndpoint(), fakeBeacon.BeaconAddr(), env.Engine.HTTPEndpoint(), *fixtureInputs)
+	} else {
+		programCfg := NewOpProgramCfg(
+			t,
+			env,
+			fixtureInputs,
+		)
+		withInProcessPrefetcher := host.WithPrefetcher(func(ctx context.Context, logger log.Logger, kv kvstore.KV, cfg *config.Config) (host.Prefetcher, error) {
+			// Set up in-process L1 sources
+			l1Cl := env.Miner.L1Client(t, env.sd.RollupCfg)
+			l1BlobFetcher := env.Miner.BlobSource()
 
-		return prefetcher.NewPrefetcher(logger, l1Cl, l1BlobFetcher, l2DebugCl, kv), nil
-	})
-	err = host.FaultProofProgram(t.Ctx(), env.log, programCfg, withInProcessPrefetcher)
-	tryDumpTestFixture(t, err, t.Name(), env, programCfg)
+			// Set up in-process L2 source
+			l2ClCfg := sources.L2ClientDefaultConfig(env.sd.RollupCfg, true)
+			l2RPC := env.Engine.RPCClient()
+			l2Client, err := host.NewL2Client(l2RPC, env.log, nil, &host.L2ClientConfig{L2ClientConfig: l2ClCfg, L2Head: cfg.L2Head})
+			require.NoError(t, err, "failed to create L2 client")
+			l2DebugCl := &host.L2Source{L2Client: l2Client, DebugClient: sources.NewDebugClient(l2RPC.CallContext)}
+
+			return prefetcher.NewPrefetcher(logger, l1Cl, l1BlobFetcher, l2DebugCl, kv), nil
+		})
+		err = host.FaultProofProgram(t.Ctx(), env.log, programCfg, withInProcessPrefetcher)
+	}
+	tryDumpTestFixture(t, err, t.Name(), env, *fixtureInputs, workDir)
 }
 
 type TestParam func(p *e2eutils.TestParams)
