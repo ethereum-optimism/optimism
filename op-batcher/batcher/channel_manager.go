@@ -154,6 +154,8 @@ func (s *channelManager) nextTxData(channel *channel) (txData, error) {
 // If the pending channel is
 // full, it only returns the remaining frames of this channel until it got
 // successfully fully sent to L1. It returns io.EOF if there's no pending tx data.
+//
+// It will generate the tx data internally, and switch DA type
 func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 	data, err := s.txData(l1Head)
 	assumedBlobs := s.currentChannel.cfg.UseBlobs
@@ -163,26 +165,10 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 		// type were wrong and we need to rebuild
 		// the channel manager state assuming
 		// a different DA type
-		blocks := s.blocks // any blocks already added to channels
-		channelsWithPendingTransactions := []*channel{}
 		for _, channel := range s.channelQueue {
-			if len(channel.pendingTransactions) > 0 {
-				channelsWithPendingTransactions = append(channelsWithPendingTransactions, channel)
-			}
+			channel.Rebuild(newCfg)
 		}
-		// Discard channels without pending transactions
-		s.channelQueue = channelsWithPendingTransactions
 
-		// Cache channel config
-		s.cfgLastClosedChannel = &newCfg
-
-		//
-		for _, block := range blocks {
-			err := s.AddL2Block(block)
-			if err != nil {
-				return txData{}, err
-			}
-		}
 		return s.txData(l1Head)
 	}
 	return data, err
@@ -468,36 +454,4 @@ func (s *channelManager) Close() error {
 		return ErrPendingAfterClose
 	}
 	return nil
-}
-
-func (s *channelManager) updateDATypeAndRebuild(p ChannelConfigProvider) {
-	// TODO
-	// if len(s.pendingTransactions) != 0 {
-	// 	// Channel has already started to be sent to L1
-	// 	// We should not modify the DA type, since this can cause
-	// 	// problems with transaction replacement / cancelling
-	// 	return
-	// }
-	// usingBlobsInitially := s.cfg.UseBlobs
-	// channelBytes := []byte{} // TODO use actual channel data
-	// s.cfg = p.ChannelConfig(channelBytes)
-	// if s.cfg.UseBlobs == usingBlobsInitially {
-	// 	// No change to DA type, proceed as planned
-	// 	return
-	// }
-	// // DA type has been changed, we need to rebuild the channel
-	// newChannelBuilder, err := NewChannelBuilder(s.cfg, s.channelBuilder.rollupCfg, s.LatestL1Origin().Number)
-	// if err != nil {
-	// 	panic(err)
-	// 	// TODO don't panic
-	// }
-	// for _, b := range s.channelBuilder.blocks {
-	// 	newChannelBuilder.AddBlock(b)
-	// 	// TODO error handling here.
-	// 	// TODO I wonder if we want to be rebuilding at a layer above in the channel manager,
-	// 	// because we could end up filling this channel and need to overflow into another one?
-	// }
-
-	// s.channelBuilder = newChannelBuilder
-
 }

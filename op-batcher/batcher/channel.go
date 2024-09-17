@@ -248,3 +248,21 @@ func (c *channel) OldestL2() eth.BlockID {
 func (s *channel) Close() {
 	s.channelBuilder.Close()
 }
+
+// Rebuild attempts to rebuild the channel with a new ChannelConfig. It either returns
+// a pointer to a new channel, or an error.
+func (s *channel) Rebuild(cfg *ChannelConfig) (*channel, error) {
+	nc := newChannel(
+		// TODO pass in cfg
+	)
+	s.cfg = *cfg
+	s.channelBuilder.cfg = *cfg
+	s.channelBuilder.
+	for _, b := range s.channelBuilder.Blocks() {
+		_, err := nc.channelBuilder.AddBlock(b)
+		if err != nil {
+			return nil,err
+		}
+	}
+
+}
