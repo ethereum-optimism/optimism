@@ -101,6 +101,7 @@ contract OPStackManager is ISemver, Initializable {
         address proxyAdmin;
         address l1ChugSplashProxy;
         address resolvedDelegateProxy;
+        address anchorStateRegistry;
     }
 
     /// @notice Inputs required when initializing the OPStackManager. To avoid 'StackTooDeep' errors,
