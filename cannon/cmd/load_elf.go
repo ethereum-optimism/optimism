@@ -4,15 +4,15 @@ import (
 	"debug/elf"
 	"fmt"
 
+	"github.com/urfave/cli/v2"
+
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 	"github.com/ethereum-optimism/optimism/cannon/serialize"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
-	"github.com/urfave/cli/v2"
-
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
 
@@ -99,7 +99,7 @@ func LoadELF(ctx *cli.Context) error {
 		case "stack":
 			err = program.PatchStack(state)
 		case "go":
-			err = program.PatchGo(elfProgram, state)
+			err = program.PatchGoGC(elfProgram, state)
 		default:
 			return fmt.Errorf("unrecognized form of patching: %q", typ)
 		}
