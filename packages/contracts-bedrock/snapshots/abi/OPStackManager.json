@@ -45,6 +45,11 @@
             "internalType": "address",
             "name": "resolvedDelegateProxy",
             "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "anchorStateRegistry",
+            "type": "address"
           }
         ],
         "internalType": "struct OPStackManager.Blueprints",
@@ -282,6 +287,11 @@
               {
                 "internalType": "address",
                 "name": "resolvedDelegateProxy",
+                "type": "address"
+              },
+              {
+                "internalType": "address",
+                "name": "anchorStateRegistry",
                 "type": "address"
               }
             ],
