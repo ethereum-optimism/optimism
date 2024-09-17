@@ -2119,7 +2119,12 @@ workflows:
       - cannon-prestate:
           requires:
             - go-mod-download
-      - contracts-bedrock-build
+      - contracts-bedrock-build:
+          build_command: |
+            # Note: scripts are included, to be available to op-e2e
+            forge build --skip test --deny-warnings
+          context:
+            - slack
       - go-e2e-test:
           name: op-e2e-cannon-tests<< matrix.variant >>
           matrix:
