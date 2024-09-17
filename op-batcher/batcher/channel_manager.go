@@ -149,12 +149,51 @@ func (s *channelManager) nextTxData(channel *channel) (txData, error) {
 	return tx, nil
 }
 
-// txData returns the next tx data that should be submitted to L1.
+// TxData returns the next tx data that should be submitted to L1.
 //
 // If the pending channel is
 // full, it only returns the remaining frames of this channel until it got
 // successfully fully sent to L1. It returns io.EOF if there's no pending tx data.
 func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
+	data, err := s.txData(l1Head)
+	assumedBlobs := s.currentChannel.cfg.UseBlobs
+	newCfg := s.cfgProvider.ChannelConfig(data.CallData())
+	if newCfg.UseBlobs != assumedBlobs { // TODO should we broaden this check to any change in config?
+		// Detected that our assumptions on DA
+		// type were wrong and we need to rebuild
+		// the channel manager state assuming
+		// a different DA type
+		blocks := s.blocks // any blocks already added to channels
+		channelsWithPendingTransactions := []*channel{}
+		for _, channel := range s.channelQueue {
+			if len(channel.pendingTransactions) > 0 {
+				channelsWithPendingTransactions = append(channelsWithPendingTransactions, channel)
+			}
+		}
+		// Discard channels without pending transactions
+		s.channelQueue = channelsWithPendingTransactions
+
+		// Cache channel config
+		s.cfgLastClosedChannel = &newCfg
+
+		//
+		for _, block := range blocks {
+			err := s.AddL2Block(block)
+			if err != nil {
+				return txData{}, err
+			}
+		}
+		return s.txData(l1Head)
+	}
+	return data, err
+}
+
+// txData returns the next tx data that should be submitted to L1.
+//
+// If the pending channel is
+// full, it only returns the remaining frames of this channel until it got
+// successfully fully sent to L1. It returns io.EOF if there's no pending tx data.
+func (s *channelManager) txData(l1Head eth.BlockID) (txData, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var firstWithTxData *channel
