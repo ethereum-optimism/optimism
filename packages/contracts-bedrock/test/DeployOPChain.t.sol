@@ -360,7 +360,7 @@ contract DeployOPChain_TestBase is Test {
         dsi.set(dsi.requiredProtocolVersion.selector, requiredProtocolVersion);
         dsi.set(dsi.recommendedProtocolVersion.selector, recommendedProtocolVersion);
 
-        DeployImplementations deployImplementations = new DeployImplementations();
+        DeployImplementations deployImplementations = createDeployImplementationsContract();
         (DeployImplementationsInput dii, DeployImplementationsOutput dio) = deployImplementations.etchIOContracts();
 
         deployOPChain = new DeployOPChain();
