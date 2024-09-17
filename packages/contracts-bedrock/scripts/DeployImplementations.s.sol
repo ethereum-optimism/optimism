@@ -2,7 +2,6 @@
 pragma solidity 0.8.15;
 
 import { Script } from "forge-std/Script.sol";
-import { CommonBase } from "forge-std/Base.sol";
 
 import { LibString } from "@solady/utils/LibString.sol";
 
@@ -36,9 +35,10 @@ import { Blueprint } from "src/libraries/Blueprint.sol";
 
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
+import { BaseDeployIO } from "scripts/utils/BaseDeployIO.sol";
 
 // See DeploySuperchain.s.sol for detailed comments on the script architecture used here.
-contract DeployImplementationsInput is CommonBase {
+contract DeployImplementationsInput is BaseDeployIO {
     bytes32 internal _salt;
     uint256 internal _withdrawalDelaySeconds;
     uint256 internal _minProposalSizeBytes;
@@ -153,7 +153,7 @@ contract DeployImplementationsInput is CommonBase {
     }
 }
 
-contract DeployImplementationsOutput {
+contract DeployImplementationsOutput is BaseDeployIO {
     OPStackManager internal _opsm;
     DelayedWETH internal _delayedWETHImpl;
     OptimismPortal2 internal _optimismPortalImpl;
@@ -205,6 +205,8 @@ contract DeployImplementationsOutput {
             address(this.disputeGameFactoryImpl())
         );
         DeployUtils.assertValidContractAddresses(addrs);
+
+        // TODO Also add the assertions for the implementation contracts from ChainAssertions.sol
     }
 
     function opsm() public returns (OPStackManager) {

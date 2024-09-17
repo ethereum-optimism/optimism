@@ -7,6 +7,7 @@ import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
+import { BaseDeployIO } from "scripts/utils/BaseDeployIO.sol";
 
 import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
 import { Constants } from "src/libraries/Constants.sol";
@@ -28,7 +29,7 @@ import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
 
-contract DeployOPChainInput {
+contract DeployOPChainInput is BaseDeployIO {
     address internal _opChainProxyAdminOwner;
     address internal _systemConfigOwner;
     address internal _batcher;
@@ -125,7 +126,7 @@ contract DeployOPChainInput {
     }
 }
 
-contract DeployOPChainOutput {
+contract DeployOPChainOutput is BaseDeployIO {
     ProxyAdmin internal _opChainProxyAdmin;
     AddressManager internal _addressManager;
     L1ERC721Bridge internal _l1ERC721BridgeProxy;

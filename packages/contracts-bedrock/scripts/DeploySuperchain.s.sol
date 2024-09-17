@@ -2,7 +2,6 @@
 pragma solidity 0.8.15;
 
 import { Script } from "forge-std/Script.sol";
-import { CommonBase } from "forge-std/Base.sol";
 import { stdToml } from "forge-std/StdToml.sol";
 
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
@@ -12,6 +11,7 @@ import { Proxy } from "src/universal/Proxy.sol";
 
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
+import { BaseDeployIO } from "scripts/utils/BaseDeployIO.sol";
 
 // This comment block defines the requirements and rationale for the architecture used in this forge
 // script, along with other scripts that are being written as new Superchain-first deploy scripts to
@@ -65,7 +65,10 @@ import { Solarray } from "scripts/libraries/Solarray.sol";
 //   - `doo` for DeployOPChainInput
 //   - `doo` for DeployOPChainOutput
 //   - etc.
-contract DeploySuperchainInput is CommonBase {
+
+// All contracts of the form `Deploy<X>Input` should inherit from `BaseDeployIO`, as it provides
+// shared functionality for all deploy scripts, such as access to cheat codes.
+contract DeploySuperchainInput is BaseDeployIO {
     using stdToml for string;
 
     // All inputs are set in storage individually. We put any roles first, followed by the remaining
@@ -169,7 +172,9 @@ contract DeploySuperchainInput is CommonBase {
     }
 }
 
-contract DeploySuperchainOutput is CommonBase {
+// All contracts of the form `Deploy<X>Output` should inherit from `BaseDeployIO`, as it provides
+// shared functionality for all deploy scripts, such as access to cheat codes.
+contract DeploySuperchainOutput is BaseDeployIO {
     // All outputs are stored in storage individually, with the same rationale as doing so for
     // inputs, and the same pattern is used below to expose the outputs.
     ProtocolVersions internal _protocolVersionsImpl;
@@ -223,6 +228,8 @@ contract DeploySuperchainOutput is CommonBase {
 
         require(actualSuperchainConfigImpl == address(_superchainConfigImpl), "100");
         require(actualProtocolVersionsImpl == address(_protocolVersionsImpl), "200");
+
+        // TODO Also add the assertions for the implementation contracts from ChainAssertions.sol
     }
 
     function superchainProxyAdmin() public view returns (ProxyAdmin) {
