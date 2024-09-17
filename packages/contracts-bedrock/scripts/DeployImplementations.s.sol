@@ -452,14 +452,16 @@ contract DeployImplementations is Script {
     // --- Fault Proofs Contracts ---
 
     // The fault proofs contracts are configured as follows:
-    //   - DisputeGameFactory: Proxied, bespoke per chain.
-    //   - AnchorStateRegistry: Proxied, bespoke per chain.
-    //   - FaultDisputeGame: Not proxied, bespoke per chain.
-    //   - PermissionedDisputeGame: Not proxied, bespoke per chain.
-    //   - DelayedWETH: Proxied, and two bespoke ones per chain (one for each DisputeGame).
-    //   - PreimageOracle: Not proxied, shared by all standard chains.
-    //   - MIPS: Not proxied, shared by all standard chains.
-    //   - OptimismPortal2: Proxied, shared by all standard chains.
+    // | Contract                | Proxied | Deployment                        |
+    // | ----------------------- | ------- | --------------------------------- |
+    // | DisputeGameFactory      | Yes     | Bespoke                           |
+    // | AnchorStateRegistry     | Yes     | Bespoke                           |
+    // | FaultDisputeGame        | No      | Bespoke                           |
+    // | PermissionedDisputeGame | No      | Bespoke                           |
+    // | DelayedWETH             | Yes     | Two bespoke (one per DisputeGame) |
+    // | PreimageOracle          | No      | Shared                            |
+    // | MIPS                    | No      | Shared                            |
+    // | OptimismPortal2         | Yes     | Shared                            |
     //
     // This script only deploys the shared contracts. The bespoke contracts are deployed by
     // `DeployOPChain.s.sol`. When the shared contracts are proxied, the contracts deployed here are
