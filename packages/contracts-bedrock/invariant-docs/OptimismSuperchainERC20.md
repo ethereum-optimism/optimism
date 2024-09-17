@@ -11,6 +11,6 @@
 
 
 ## many other assertion mode invariants are also defined  under `test/invariants/OptimismSuperchainERC20/fuzz/` .
-**Test:** [`OptimismSuperchainERC20#L79`](../test/invariants/OptimismSuperchainERC20#L79)
+**Test:** [`OptimismSuperchainERC20#L80`](../test/invariants/OptimismSuperchainERC20#L80)
 
 since setting`fail_on_revert=false` also ignores StdAssertion failures, this invariant explicitly asks the handler for assertion test failures 
