@@ -46,6 +46,7 @@ contract OPStackManager_Deploy_Test is DeployOPChain_TestBase {
         doi.set(doi.blobBaseFeeScalar.selector, blobBaseFeeScalar);
         doi.set(doi.l2ChainId.selector, l2ChainId);
         doi.set(doi.opsm.selector, address(opsm));
+        doi.set(doi.startingAnchorRoots.selector, startingAnchorRoots);
     }
 
     // This helper function is used to convert the input struct type defined in DeployOPChain.s.sol
@@ -62,7 +63,8 @@ contract OPStackManager_Deploy_Test is DeployOPChain_TestBase {
             }),
             basefeeScalar: _doi.basefeeScalar(),
             blobBasefeeScalar: _doi.blobBaseFeeScalar(),
-            l2ChainId: _doi.l2ChainId()
+            l2ChainId: _doi.l2ChainId(),
+            startingAnchorRoots: _doi.startingAnchorRoots()
         });
     }
 

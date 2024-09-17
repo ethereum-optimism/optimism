@@ -44,6 +44,7 @@ contract DeployOPChainInput is BaseDeployIO {
     uint32 internal _blobBaseFeeScalar;
     uint256 internal _l2ChainId;
     OPStackManager internal _opsm;
+    AnchorStateRegistry.StartingAnchorRoot[] internal _startingAnchorRoots;
 
     function set(bytes4 _sel, address _addr) public {
         require(_addr != address(0), "DeployOPChainInput: cannot set zero address");
@@ -65,6 +66,17 @@ contract DeployOPChainInput is BaseDeployIO {
         } else if (_sel == this.l2ChainId.selector) {
             require(_value != 0 && _value != block.chainid, "DeployOPChainInput: invalid l2ChainId");
             _l2ChainId = _value;
+        } else {
+            revert("DeployOPChainInput: unknown selector");
+        }
+    }
+
+    function set(bytes4 _sel, AnchorStateRegistry.StartingAnchorRoot[] memory _roots) public {
+        if (_sel == this.startingAnchorRoots.selector) {
+            require(_startingAnchorRoots.length == 0, "DeployOPChainInput: startingAnchorRoots already exists");
+            for (uint256 i = 0; i < _roots.length; i++) {
+                _startingAnchorRoots.push(_roots[i]);
+            }
         } else {
             revert("DeployOPChainInput: unknown selector");
         }
@@ -119,6 +131,15 @@ contract DeployOPChainInput is BaseDeployIO {
         require(_l2ChainId != 0, "DeployOPChainInput: not set");
         require(_l2ChainId != block.chainid, "DeployOPChainInput: invalid l2ChainId");
         return _l2ChainId;
+    }
+
+    function startingAnchorRoots() public view returns (AnchorStateRegistry.StartingAnchorRoot[] memory) {
+        // TODO: figure out how to assert this properly.
+        // Per mofi: It may make sense to not set any startingAnchor roots if you're running permissioned games for a
+        // new chain and you don't yet have a genesis state available for the initial anchor.
+        // And provided it'll remain permissioned unless the anchor state is fixed.
+        require(_startingAnchorRoots.length > 0, "DeployOPChainInput: not set");
+        return _startingAnchorRoots;
     }
 
     // TODO: Check that opsm is proxied and it has an implementation.
@@ -425,7 +446,8 @@ contract DeployOPChain is Script {
             roles: roles,
             basefeeScalar: _doi.basefeeScalar(),
             blobBasefeeScalar: _doi.blobBaseFeeScalar(),
-            l2ChainId: _doi.l2ChainId()
+            l2ChainId: _doi.l2ChainId(),
+            startingAnchorRoots: _doi.startingAnchorRoots()
         });
 
         vm.broadcast(msg.sender);

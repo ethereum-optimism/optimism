@@ -134,6 +134,35 @@
             "internalType": "uint256",
             "name": "l2ChainId",
             "type": "uint256"
+          },
+          {
+            "components": [
+              {
+                "internalType": "GameType",
+                "name": "gameType",
+                "type": "uint32"
+              },
+              {
+                "components": [
+                  {
+                    "internalType": "Hash",
+                    "name": "root",
+                    "type": "bytes32"
+                  },
+                  {
+                    "internalType": "uint256",
+                    "name": "l2BlockNumber",
+                    "type": "uint256"
+                  }
+                ],
+                "internalType": "struct OutputRoot",
+                "name": "outputRoot",
+                "type": "tuple"
+              }
+            ],
+            "internalType": "struct AnchorStateRegistry.StartingAnchorRoot[]",
+            "name": "startingAnchorRoots",
+            "type": "tuple[]"
           }
         ],
         "internalType": "struct OPStackManager.DeployInput",

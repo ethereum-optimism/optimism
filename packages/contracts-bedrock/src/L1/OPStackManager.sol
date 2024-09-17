@@ -55,6 +55,7 @@ contract OPStackManager is ISemver, Initializable {
         uint32 basefeeScalar;
         uint32 blobBasefeeScalar;
         uint256 l2ChainId;
+        AnchorStateRegistry.StartingAnchorRoot[] startingAnchorRoots;
     }
 
     /// @notice The full set of outputs from deploying a new OP Stack chain.
@@ -206,7 +207,6 @@ contract OPStackManager is ISemver, Initializable {
         // -------- TODO: Placeholders --------
         // For contracts we don't yet deploy, we set the outputs to  dummy proxies so they have code to pass assertions.
         // We do these first, that way the disputeGameFactoryProxy is set when passed to the SystemConfig input.
-        output.anchorStateRegistryProxy = AnchorStateRegistry(deployProxy(l2ChainId, output.opChainProxyAdmin, "3"));
         output.anchorStateRegistryImpl = AnchorStateRegistry(deployProxy(l2ChainId, output.opChainProxyAdmin, "4"));
         output.faultDisputeGame = FaultDisputeGame(deployProxy(l2ChainId, output.opChainProxyAdmin, "5"));
         output.permissionedDisputeGame = PermissionedDisputeGame(deployProxy(l2ChainId, output.opChainProxyAdmin, "6"));
@@ -293,9 +293,15 @@ contract OPStackManager is ISemver, Initializable {
         data = encodeL1StandardBridgeInitializer(impl.initializer, output);
         upgradeAndCall(output.opChainProxyAdmin, address(output.l1StandardBridgeProxy), impl.logic, data);
 
+        // TODO: also call setImplementation() once the dispute games are deployed.
         impl = getLatestImplementation("DisputeGameFactory");
         data = encodeDisputeGameFactoryInitializer(impl.initializer, _input);
         upgradeAndCall(output.opChainProxyAdmin, address(output.disputeGameFactoryProxy), impl.logic, data);
+
+        impl.logic = address(output.anchorStateRegistryImpl);
+        impl.initializer = AnchorStateRegistry.initialize.selector;
+        data = encodeAnchorStateRegistryInitializer(impl.initializer, _input);
+        upgradeAndCall(output.opChainProxyAdmin, address(output.anchorStateRegistryProxy), impl.logic, data);
 
         // -------- Finalize Deployment --------
         // Transfer ownership of the ProxyAdmin from this contract to the specified owner.
@@ -462,6 +468,18 @@ contract OPStackManager is ISemver, Initializable {
         returns (bytes memory)
     {
         return abi.encodeWithSelector(_selector, _input.roles.opChainProxyAdminOwner);
+    }
+
+    function encodeAnchorStateRegistryInitializer(
+        bytes4 _selector,
+        DeployInput memory _input
+    )
+        internal
+        view
+        virtual
+        returns (bytes memory)
+    {
+        return abi.encodeWithSelector(_selector, _input.startingAnchorRoots, superchainConfig);
     }
 
     /// @notice Returns default, standard config arguments for the SystemConfig initializer.

@@ -31,6 +31,8 @@ import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
 
+import "src/dispute/lib/Types.sol";
+
 contract DeployOPChainInput_Test is Test {
     DeployOPChainInput doi;
 
@@ -336,9 +338,18 @@ contract DeployOPChain_TestBase is Test {
     uint32 basefeeScalar = 100;
     uint32 blobBaseFeeScalar = 200;
     uint256 l2ChainId = 300;
+    AnchorStateRegistry.StartingAnchorRoot[] startingAnchorRoots;
     OPStackManager opsm = OPStackManager(address(0));
 
     function setUp() public virtual {
+        // Set defaults for reference types
+        startingAnchorRoots.push(
+            AnchorStateRegistry.StartingAnchorRoot({
+                gameType: GameTypes.CANNON,
+                outputRoot: OutputRoot({ root: Hash.wrap(keccak256("defaultOutputRoot")), l2BlockNumber: 400 })
+            })
+        );
+
         // Initialize deploy scripts.
         DeploySuperchain deploySuperchain = new DeploySuperchain();
         (DeploySuperchainInput dsi, DeploySuperchainOutput dso) = deploySuperchain.etchIOContracts();
@@ -389,7 +400,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         return keccak256(abi.encode(_seed, _i));
     }
 
-    function testFuzz_run_memory_succeeds(bytes32 _seed) public {
+    function testFuzz_run_memory_succeedsX(bytes32 _seed) public {
         opChainProxyAdminOwner = address(uint160(uint256(hash(_seed, 0))));
         systemConfigOwner = address(uint160(uint256(hash(_seed, 1))));
         batcher = address(uint160(uint256(hash(_seed, 2))));
@@ -399,6 +410,15 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         basefeeScalar = uint32(uint256(hash(_seed, 6)));
         blobBaseFeeScalar = uint32(uint256(hash(_seed, 7)));
         l2ChainId = uint256(uint256(hash(_seed, 8)));
+        uint256 numStartingAnchorRoots = bound(uint256(uint256(hash(_seed, 9))), 1, 10);
+        for (uint256 i = 0; i < numStartingAnchorRoots; i++) {
+            startingAnchorRoots.push(
+                AnchorStateRegistry.StartingAnchorRoot({
+                    gameType: GameTypes.CANNON,
+                    outputRoot: OutputRoot({ root: Hash.wrap(keccak256(abi.encode(_seed, i))), l2BlockNumber: 400 + i })
+                })
+            );
+        }
 
         doi.set(doi.opChainProxyAdminOwner.selector, opChainProxyAdminOwner);
         doi.set(doi.systemConfigOwner.selector, systemConfigOwner);
@@ -410,6 +430,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         doi.set(doi.blobBaseFeeScalar.selector, blobBaseFeeScalar);
         doi.set(doi.l2ChainId.selector, l2ChainId);
         doi.set(doi.opsm.selector, address(opsm)); // Not fuzzed since it must be an actual instance.
+        doi.set(doi.startingAnchorRoots.selector, startingAnchorRoots);
 
         deployOPChain.run(doi, doo);
 
