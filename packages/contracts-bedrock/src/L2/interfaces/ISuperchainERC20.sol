@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { IERC20Solady } from "src/dependency/interfaces/IERC20Solady.sol";
+// Interfaces
+import { IERC20Solady } from "src/vendor/interfaces/IERC20Solady.sol";
 
 /// @title ISuperchainERC20Extensions
 /// @notice Interface for the extensions to the ERC20 standard that are used by SuperchainERC20.
