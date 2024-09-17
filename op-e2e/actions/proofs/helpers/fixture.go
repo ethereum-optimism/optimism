@@ -10,7 +10,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/actions"
+	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-program/client/claim"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
 	"github.com/ethereum/go-ethereum/common"
@@ -48,7 +48,7 @@ type FixtureInputs struct {
 // Dumps a `fp-tests` test fixture to disk if the `OP_E2E_DUMP_FIXTURES` environment variable is set.
 //
 // [fp-tests]: https://github.com/ethereum-optimism/fp-tests
-func tryDumpTestFixture(t actions.Testing, result error, name string, env *L2FaultProofEnv, programCfg *config.Config) {
+func tryDumpTestFixture(t helpers.Testing, result error, name string, env *L2FaultProofEnv, programCfg *config.Config) {
 	if !dumpFixtures {
 		return
 	}
