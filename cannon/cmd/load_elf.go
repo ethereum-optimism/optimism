@@ -69,9 +69,11 @@ func vmTypeFromString(ctx *cli.Context) (VMType, error) {
 func LoadELF(ctx *cli.Context) error {
 	var createInitialState func(f *elf.File) (mipsevm.FPVMState, error)
 
+	allowGoGCPatch := false
 	if vmType, err := vmTypeFromString(ctx); err != nil {
 		return err
 	} else if vmType == cannonVMType {
+		allowGoGCPatch = true
 		createInitialState = func(f *elf.File) (mipsevm.FPVMState, error) {
 			return program.LoadELF(f, singlethreaded.CreateInitialState)
 		}
@@ -99,7 +101,11 @@ func LoadELF(ctx *cli.Context) error {
 		case "stack":
 			err = program.PatchStack(state)
 		case "go":
-			err = program.PatchGoGC(elfProgram, state)
+			if allowGoGCPatch {
+				err = program.PatchGoGC(elfProgram, state)
+			} else {
+				err = fmt.Errorf("patch type %q not allowed for vm type %q", typ, ctx.String(LoadELFVMTypeFlag.Name))
+			}
 		default:
 			return fmt.Errorf("unrecognized form of patching: %q", typ)
 		}
