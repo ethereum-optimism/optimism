@@ -1391,7 +1391,7 @@ jobs:
       SEMGREP_COMMIT: << pipeline.git.revision >>
     docker:
       - image: returntocorp/semgrep
-    resource_class: large
+    resource_class: xlarge
     steps:
       - checkout
       - unless:
