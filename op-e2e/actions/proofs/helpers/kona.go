@@ -12,7 +12,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
-	"github.com/ethereum-optimism/optimism/op-e2e/actions"
+	"github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	"github.com/ethereum-optimism/optimism/op-program/client/claim"
 	"github.com/stretchr/testify/require"
 )
@@ -29,7 +29,7 @@ func IsKonaConfigured() bool {
 }
 
 func RunKonaNative(
-	t actions.Testing,
+	t helpers.Testing,
 	workDir string,
 	env *L2FaultProofEnv,
 	l1Rpc string,

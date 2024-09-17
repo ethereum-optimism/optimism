@@ -48,7 +48,7 @@ type FixtureInputs struct {
 //
 // [fp-tests]: https://github.com/ethereum-optimism/fp-tests
 func tryDumpTestFixture(
-	t actions.Testing,
+	t helpers.Testing,
 	result error,
 	name string,
 	env *L2FaultProofEnv,
