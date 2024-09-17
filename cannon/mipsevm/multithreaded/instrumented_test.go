@@ -58,6 +58,10 @@ func TestInstrumentedState_MultithreadedProgram(t *testing.T) {
 }
 
 func TestInstrumentedState_Alloc(t *testing.T) {
+	if os.Getenv("SKIP_SLOW_TESTS") == "true" {
+		t.Skip("Skipping slow test because SKIP_SLOW_TESTS is enabled")
+	}
+
 	const MiB = 1024 * 1024
 
 	cases := []struct {
