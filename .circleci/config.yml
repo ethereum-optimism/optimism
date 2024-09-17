@@ -1599,7 +1599,7 @@ workflows:
           name: contracts-bedrock-build
           build_command: |
             # Note: scripts are included, to be available to op-e2e
-            forge build --skip test
+            forge build --skip test --deny-warnings
       - contracts-bedrock-tests:
           # Test everything except PreimageOracle.t.sol since it's slow.
           name: contracts-bedrock-tests
