@@ -10,7 +10,7 @@ import (
 )
 
 type DeployImplementationsInput struct {
-	Salt                            [32]byte
+	Salt                            common.Hash
 	WithdrawalDelaySeconds          *big.Int
 	MinProposalSizeBytes            *big.Int
 	ChallengePeriodSeconds          *big.Int

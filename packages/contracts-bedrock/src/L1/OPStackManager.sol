@@ -452,7 +452,7 @@ contract OPStackManager is ISemver, Initializable {
         virtual
         returns (ResourceMetering.ResourceConfig memory resourceConfig_, SystemConfig.Addresses memory opChainAddrs_)
     {
-        // We use assembly to easily from between IResourceMetering.ResourceConfig to ResourceMetering.ResourceConfig.
+        // We use assembly to easily convert from IResourceMetering.ResourceConfig to ResourceMetering.ResourceConfig.
         // This is required because we have not yet fully migrated the codebase to be interface-based.
         IResourceMetering.ResourceConfig memory resourceConfig = Constants.DEFAULT_RESOURCE_CONFIG();
         assembly ("memory-safe") {

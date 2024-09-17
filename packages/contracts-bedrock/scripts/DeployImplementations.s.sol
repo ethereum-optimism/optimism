@@ -96,6 +96,7 @@ contract DeployImplementationsInput is CommonBase {
     }
 
     function salt() public view returns (bytes32) {
+        // TODO check if implementations are deployed based on code+salt and skip deploy if so.
         return _salt;
     }
 
