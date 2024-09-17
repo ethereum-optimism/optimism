@@ -328,7 +328,7 @@ contract DeployImplementations_Test is Test {
 
         // Ensure that `checkOutput` passes. This is called by the `run` function during execution,
         // so this just acts as a sanity check. It reverts on failure.
-        dio.checkOutput();
+        dio.checkOutput(dii);
     }
 
     function testFuzz_run_largeChallengePeriodSeconds_reverts(uint256 _challengePeriodSeconds) public {

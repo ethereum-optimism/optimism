@@ -10,6 +10,7 @@ import (
 )
 
 type DeployImplementationsInput struct {
+	Salt                            common.Hash
 	WithdrawalDelaySeconds          *big.Int
 	MinProposalSizeBytes            *big.Int
 	ChallengePeriodSeconds          *big.Int
@@ -42,7 +43,7 @@ type DeployImplementationsOutput struct {
 	DisputeGameFactoryImpl           common.Address
 }
 
-func (output *DeployImplementationsOutput) CheckOutput() error {
+func (output *DeployImplementationsOutput) CheckOutput(input common.Address) error {
 	return nil
 }
 

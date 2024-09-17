@@ -33,13 +33,13 @@ import { OptimismPortalInterop } from "src/L1/OptimismPortalInterop.sol";
 import { SystemConfigInterop } from "src/L1/SystemConfigInterop.sol";
 
 import { Blueprint } from "src/libraries/Blueprint.sol";
-import { Config } from "scripts/libraries/Config.sol";
 
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
 
 // See DeploySuperchain.s.sol for detailed comments on the script architecture used here.
 contract DeployImplementationsInput is CommonBase {
+    bytes32 internal _salt;
     uint256 internal _withdrawalDelaySeconds;
     uint256 internal _minProposalSizeBytes;
     uint256 internal _challengePeriodSeconds;
@@ -85,9 +85,19 @@ contract DeployImplementationsInput is CommonBase {
         else revert("DeployImplementationsInput: unknown selector");
     }
 
+    function set(bytes4 sel, bytes32 _value) public {
+        if (sel == this.salt.selector) _salt = _value;
+        else revert("DeployImplementationsInput: unknown selector");
+    }
+
     function loadInputFile(string memory _infile) public pure {
         _infile;
         require(false, "DeployImplementationsInput: not implemented");
+    }
+
+    function salt() public view returns (bytes32) {
+        // TODO check if implementations are deployed based on code+salt and skip deploy if so.
+        return _salt;
     }
 
     function withdrawalDelaySeconds() public view returns (uint256) {
@@ -180,7 +190,7 @@ contract DeployImplementationsOutput {
         require(false, "DeployImplementationsOutput: not implemented");
     }
 
-    function checkOutput() public {
+    function checkOutput(DeployImplementationsInput) public {
         address[] memory addrs = Solarray.addresses(
             address(this.opsm()),
             address(this.optimismPortalImpl()),
@@ -282,7 +292,7 @@ contract DeployImplementations is Script {
         // Deploy the OP Stack Manager with the new implementations set.
         deployOPStackManager(_dii, _dio);
 
-        _dio.checkOutput();
+        _dio.checkOutput(_dii);
     }
 
     // -------- Deployment Steps --------
@@ -339,7 +349,7 @@ contract DeployImplementations is Script {
 
         // First we deploy the blueprints for the singletons deployed by OPSM.
         // forgefmt: disable-start
-        bytes32 salt = keccak256(bytes(Config.implSalt()));
+        bytes32 salt = _dii.salt();
         OPStackManager.Blueprints memory blueprints;
 
         vm.startBroadcast(msg.sender);
@@ -456,6 +466,7 @@ contract DeployImplementations is Script {
     // "implementations", and when shared contracts are not proxied, they are "singletons". So
     // here we deploy:
     //
+    //   - DisputeGameFactory (implementation)
     //   - OptimismPortal2 (implementation)
     //   - DelayedWETH (implementation)
     //   - PreimageOracle (singleton)

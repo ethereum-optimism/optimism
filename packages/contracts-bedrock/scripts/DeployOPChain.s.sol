@@ -8,6 +8,9 @@ import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
 
+import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
+import { Constants } from "src/libraries/Constants.sol";
+
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
 
 import { AddressManager } from "src/legacy/AddressManager.sol";
@@ -168,7 +171,7 @@ contract DeployOPChainOutput {
         require(false, "DeployOPChainOutput: not implemented");
     }
 
-    function checkOutput() public view {
+    function checkOutput(DeployOPChainInput _doi) public view {
         // With 16 addresses, we'd get a stack too deep error if we tried to do this inline as a
         // single call to `Solarray.addresses`. So we split it into two calls.
         address[] memory addrs1 = Solarray.addresses(
@@ -192,6 +195,8 @@ contract DeployOPChainOutput {
             address(_delayedWETHPermissionlessGameProxy)
         );
         DeployUtils.assertValidContractAddresses(Solarray.extend(addrs1, addrs2));
+
+        assertValidDeploy(_doi);
     }
 
     function opChainProxyAdmin() public view returns (ProxyAdmin) {
@@ -273,6 +278,46 @@ contract DeployOPChainOutput {
         DeployUtils.assertValidContractAddress(address(_delayedWETHPermissionlessGameProxy));
         return _delayedWETHPermissionlessGameProxy;
     }
+
+    // -------- Assertions on chain architecture --------
+
+    function assertValidDeploy(DeployOPChainInput _doi) internal view {
+        // TODO Add other assertions from ChainAssertions.sol here
+        assertValidSystemConfig(_doi);
+    }
+
+    function assertValidSystemConfig(DeployOPChainInput _doi) internal view {
+        // forgefmt: disable-start
+        require(systemConfigProxy().owner() == _doi.systemConfigOwner(), "SC10");
+        require(systemConfigProxy().basefeeScalar() == _doi.basefeeScalar(), "SC20");
+        require(systemConfigProxy().blobbasefeeScalar() == _doi.blobBaseFeeScalar(), "SC30");
+        require(systemConfigProxy().batcherHash() == bytes32(uint256(uint160(_doi.batcher()))), "SC40");
+        require(systemConfigProxy().gasLimit() == uint64(30000000), "SC50");// TODO allow other gas limits?
+        require(systemConfigProxy().unsafeBlockSigner() == _doi.unsafeBlockSigner(), "SC60");
+        require(systemConfigProxy().scalar() >> 248 == 1, "SC70");
+
+        IResourceMetering.ResourceConfig memory rconfig = Constants.DEFAULT_RESOURCE_CONFIG();
+        IResourceMetering.ResourceConfig memory outputConfig = systemConfigProxy().resourceConfig();
+        require(outputConfig.maxResourceLimit == rconfig.maxResourceLimit, "SC80");
+        require(outputConfig.elasticityMultiplier == rconfig.elasticityMultiplier, "SC90");
+        require(outputConfig.baseFeeMaxChangeDenominator == rconfig.baseFeeMaxChangeDenominator, "SC100");
+        require(outputConfig.systemTxMaxGas == rconfig.systemTxMaxGas, "SC110");
+        require(outputConfig.minimumBaseFee == rconfig.minimumBaseFee, "SC120");
+        require(outputConfig.maximumBaseFee == rconfig.maximumBaseFee, "SC130");
+
+        require(systemConfigProxy().startBlock() == block.number, "SC140");
+        require(systemConfigProxy().batchInbox() == _doi.opsm().chainIdToBatchInboxAddress(_doi.l2ChainId()), "SC150");
+
+        require(systemConfigProxy().l1CrossDomainMessenger() == address(l1CrossDomainMessengerProxy()), "SC160");
+        require(systemConfigProxy().l1ERC721Bridge() == address(l1ERC721BridgeProxy()), "SC170");
+        require(systemConfigProxy().l1StandardBridge() == address(l1StandardBridgeProxy()), "SC180");
+        require(systemConfigProxy().disputeGameFactory() == address(disputeGameFactoryProxy()), "SC190");
+        require(systemConfigProxy().optimismPortal() == address(optimismPortalProxy()), "SC200");
+        require(systemConfigProxy().optimismMintableERC20Factory() == address(optimismMintableERC20FactoryProxy()), "SC210");
+        (address gasPayingToken,) = systemConfigProxy().gasPayingToken();
+        require(gasPayingToken == Constants.ETHER, "SC220");
+        // forgefmt: disable-end
+    }
 }
 
 contract DeployOPChain is Script {
@@ -345,7 +390,7 @@ contract DeployOPChain is Script {
             _doo.delayedWETHPermissionlessGameProxy.selector, address(deployOutput.delayedWETHPermissionlessGameProxy)
         );
 
-        _doo.checkOutput();
+        _doo.checkOutput(_doi);
     }
 
     // -------- Utilities --------

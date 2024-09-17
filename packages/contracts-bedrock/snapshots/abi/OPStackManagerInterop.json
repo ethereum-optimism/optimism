@@ -58,6 +58,25 @@
   {
     "inputs": [
       {
+        "internalType": "uint256",
+        "name": "_l2ChainId",
+        "type": "uint256"
+      }
+    ],
+    "name": "chainIdToBatchInboxAddress",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "components": [
           {
             "components": [
@@ -437,17 +456,6 @@
       }
     ],
     "name": "AddressHasNoCode",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "string",
-        "name": "addressName",
-        "type": "string"
-      }
-    ],
-    "name": "AddressMismatch",
     "type": "error"
   },
   {

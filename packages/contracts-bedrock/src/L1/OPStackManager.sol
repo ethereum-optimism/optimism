@@ -2,10 +2,13 @@
 pragma solidity 0.8.15;
 
 import { Blueprint } from "src/libraries/Blueprint.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
+import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
+
 import { Proxy } from "src/universal/Proxy.sol";
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
@@ -145,9 +148,6 @@ contract OPStackManager is ISemver, Initializable {
 
     // -------- Errors --------
 
-    /// @notice Throw when two addresses do not match but are expected to.
-    error AddressMismatch(string addressName);
-
     /// @notice Thrown when an address is the zero address.
     error AddressNotFound(address who);
 
@@ -202,6 +202,20 @@ contract OPStackManager is ISemver, Initializable {
         uint256 l2ChainId = _input.l2ChainId;
         bytes32 salt = bytes32(_input.l2ChainId);
         DeployOutput memory output;
+
+        // -------- TODO: Placeholders --------
+        // For contracts we don't yet deploy, we set the outputs to  dummy proxies so they have code to pass assertions.
+        // We do these first, that way the disputeGameFactoryProxy is set when passed to the SystemConfig input.
+        output.disputeGameFactoryProxy = DisputeGameFactory(deployProxy(l2ChainId, output.opChainProxyAdmin, "1"));
+        output.disputeGameFactoryImpl = DisputeGameFactory(deployProxy(l2ChainId, output.opChainProxyAdmin, "2"));
+        output.anchorStateRegistryProxy = AnchorStateRegistry(deployProxy(l2ChainId, output.opChainProxyAdmin, "3"));
+        output.anchorStateRegistryImpl = AnchorStateRegistry(deployProxy(l2ChainId, output.opChainProxyAdmin, "4"));
+        output.faultDisputeGame = FaultDisputeGame(deployProxy(l2ChainId, output.opChainProxyAdmin, "5"));
+        output.permissionedDisputeGame = PermissionedDisputeGame(deployProxy(l2ChainId, output.opChainProxyAdmin, "6"));
+        output.delayedWETHPermissionedGameProxy =
+            DelayedWETH(payable(deployProxy(l2ChainId, output.opChainProxyAdmin, "7")));
+        output.delayedWETHPermissionlessGameProxy =
+            DelayedWETH(payable(deployProxy(l2ChainId, output.opChainProxyAdmin, "8")));
 
         // -------- Deploy Chain Singletons --------
 
@@ -264,11 +278,6 @@ contract OPStackManager is ISemver, Initializable {
         upgradeAndCall(output.opChainProxyAdmin, address(output.optimismMintableERC20FactoryProxy), impl.logic, data);
 
         impl = getLatestImplementation("L1CrossDomainMessenger");
-        // TODO add this check back in
-        // require(
-        //     impl.logic == referenceAddressManager.getAddress("OVM_L1CrossDomainMessenger"),
-        //     "OpStackManager: L1CrossDomainMessenger implementation mismatch"
-        // );
         data = encodeL1CrossDomainMessengerInitializer(impl.initializer, output);
         upgradeAndCall(output.opChainProxyAdmin, address(output.l1CrossDomainMessengerProxy), impl.logic, data);
 
@@ -276,44 +285,9 @@ contract OPStackManager is ISemver, Initializable {
         data = encodeL1StandardBridgeInitializer(impl.initializer, output);
         upgradeAndCall(output.opChainProxyAdmin, address(output.l1StandardBridgeProxy), impl.logic, data);
 
-        // -------- TODO: Placeholders --------
-        // For contracts we don't yet deploy, we set the outputs to  dummy proxies so they have code to pass assertions.
-        output.disputeGameFactoryProxy = DisputeGameFactory(deployProxy(l2ChainId, output.opChainProxyAdmin, "1"));
-        output.disputeGameFactoryImpl = DisputeGameFactory(deployProxy(l2ChainId, output.opChainProxyAdmin, "2"));
-        output.anchorStateRegistryProxy = AnchorStateRegistry(deployProxy(l2ChainId, output.opChainProxyAdmin, "3"));
-        output.anchorStateRegistryImpl = AnchorStateRegistry(deployProxy(l2ChainId, output.opChainProxyAdmin, "4"));
-        output.faultDisputeGame = FaultDisputeGame(deployProxy(l2ChainId, output.opChainProxyAdmin, "5"));
-        output.permissionedDisputeGame = PermissionedDisputeGame(deployProxy(l2ChainId, output.opChainProxyAdmin, "6"));
-        output.delayedWETHPermissionedGameProxy =
-            DelayedWETH(payable(deployProxy(l2ChainId, output.opChainProxyAdmin, "7")));
-        output.delayedWETHPermissionlessGameProxy =
-            DelayedWETH(payable(deployProxy(l2ChainId, output.opChainProxyAdmin, "8")));
-
         // -------- Finalize Deployment --------
         // Transfer ownership of the ProxyAdmin from this contract to the specified owner.
         output.opChainProxyAdmin.transferOwnership(_input.roles.opChainProxyAdminOwner);
-
-        // Correctness checks.
-        // TODO these currently fail in tests because the tests use dummy implementation addresses that have no code.
-        // if (output.systemConfigProxy.owner() != _input.roles.systemConfigOwner) {
-        //     revert AddressMismatch("systemConfigOwner");
-        // }
-        // if (output.systemConfigProxy.l1CrossDomainMessenger() != address(output.l1CrossDomainMessengerProxy)) {
-        //     revert AddressMismatch("l1CrossDomainMessengerProxy");
-        // }
-        // if (output.systemConfigProxy.l1ERC721Bridge() != address(output.l1ERC721BridgeProxy)) {
-        //     revert AddressMismatch("l1ERC721BridgeProxy");
-        // }
-        // if (output.systemConfigProxy.l1StandardBridge() != address(output.l1StandardBridgeProxy)) {
-        //     revert AddressMismatch("l1StandardBridgeProxy");
-        // }
-        // if (output.systemConfigProxy.optimismPortal() != address(output.optimismPortalProxy)) {
-        //     revert AddressMismatch("optimismPortalProxy");
-        // }
-        // if (
-        //     output.systemConfigProxy.optimismMintableERC20Factory() !=
-        // address(output.optimismMintableERC20FactoryProxy)
-        // ) revert AddressMismatch("optimismMintableERC20FactoryProxy");
 
         return output;
     }
@@ -337,7 +311,7 @@ contract OPStackManager is ISemver, Initializable {
     /// configuration's convention. This convention is `versionByte || keccak256(bytes32(chainId))[:19]`,
     /// where || denotes concatenation`, versionByte is 0x00, and chainId is a uint256.
     /// https://specs.optimism.io/protocol/configurability.html#consensus-parameters
-    function chainIdToBatchInboxAddress(uint256 _l2ChainId) internal pure returns (address) {
+    function chainIdToBatchInboxAddress(uint256 _l2ChainId) public pure returns (address) {
         bytes1 versionByte = 0x00;
         bytes32 hashedChainId = keccak256(bytes.concat(bytes32(_l2ChainId)));
         bytes19 first19Bytes = bytes19(hashedChainId);
@@ -403,7 +377,7 @@ contract OPStackManager is ISemver, Initializable {
         DeployOutput memory _output
     )
         internal
-        pure
+        view
         virtual
         returns (bytes memory)
     {
@@ -474,31 +448,33 @@ contract OPStackManager is ISemver, Initializable {
         DeployOutput memory _output
     )
         internal
-        pure
+        view
         virtual
-        returns (ResourceMetering.ResourceConfig memory, SystemConfig.Addresses memory)
+        returns (ResourceMetering.ResourceConfig memory resourceConfig_, SystemConfig.Addresses memory opChainAddrs_)
     {
-        // TODO do any of these need to be configurable? are these values correct?
-        ResourceMetering.ResourceConfig memory referenceResourceConfig = ResourceMetering.ResourceConfig({
-            maxResourceLimit: 2e7,
-            elasticityMultiplier: 10,
-            baseFeeMaxChangeDenominator: 8,
-            minimumBaseFee: 1e9,
-            systemTxMaxGas: 1e6,
-            maximumBaseFee: 340282366920938463463374607431768211455
-        });
+        // We use assembly to easily convert from IResourceMetering.ResourceConfig to ResourceMetering.ResourceConfig.
+        // This is required because we have not yet fully migrated the codebase to be interface-based.
+        IResourceMetering.ResourceConfig memory resourceConfig = Constants.DEFAULT_RESOURCE_CONFIG();
+        assembly ("memory-safe") {
+            resourceConfig_ := resourceConfig
+        }
 
-        SystemConfig.Addresses memory opChainAddrs = SystemConfig.Addresses({
+        opChainAddrs_ = SystemConfig.Addresses({
             l1CrossDomainMessenger: address(_output.l1CrossDomainMessengerProxy),
             l1ERC721Bridge: address(_output.l1ERC721BridgeProxy),
             l1StandardBridge: address(_output.l1StandardBridgeProxy),
             disputeGameFactory: address(_output.disputeGameFactoryProxy),
             optimismPortal: address(_output.optimismPortalProxy),
             optimismMintableERC20Factory: address(_output.optimismMintableERC20FactoryProxy),
-            gasPayingToken: address(0)
+            gasPayingToken: Constants.ETHER
         });
 
-        return (referenceResourceConfig, opChainAddrs);
+        assertValidContractAddress(opChainAddrs_.l1CrossDomainMessenger);
+        assertValidContractAddress(opChainAddrs_.l1ERC721Bridge);
+        assertValidContractAddress(opChainAddrs_.l1StandardBridge);
+        assertValidContractAddress(opChainAddrs_.disputeGameFactory);
+        assertValidContractAddress(opChainAddrs_.optimismPortal);
+        assertValidContractAddress(opChainAddrs_.optimismMintableERC20Factory);
     }
 
     /// @notice Makes an external call to the target to initialize the proxy with the specified data.

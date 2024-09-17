@@ -250,7 +250,7 @@ contract DeploySuperchain_Test is Test {
 
         // Ensure that `checkOutput` passes. This is called by the `run` function during execution,
         // so this just acts as a sanity check. It reverts on failure.
-        dso.checkOutput();
+        dso.checkOutput(dsi);
     }
 
     function test_run_io_succeeds() public {

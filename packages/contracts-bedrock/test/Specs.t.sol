@@ -846,6 +846,7 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "OPStackManager", _sel: OPStackManager.initialize.selector });
         _addSpec({ _name: "OPStackManager", _sel: OPStackManager.deploy.selector });
         _addSpec({ _name: "OPStackManager", _sel: OPStackManager.blueprints.selector });
+        _addSpec({ _name: "OPStackManager", _sel: OPStackManager.chainIdToBatchInboxAddress.selector });
 
         // OPStackManagerInterop
         _addSpec({ _name: "OPStackManagerInterop", _sel: _getSel("version()") });
@@ -857,6 +858,7 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "OPStackManagerInterop", _sel: OPStackManager.initialize.selector });
         _addSpec({ _name: "OPStackManagerInterop", _sel: OPStackManager.deploy.selector });
         _addSpec({ _name: "OPStackManagerInterop", _sel: OPStackManager.blueprints.selector });
+        _addSpec({ _name: "OPStackManagerInterop", _sel: OPStackManager.chainIdToBatchInboxAddress.selector });
 
         // DeputyGuardianModule
         _addSpec({
