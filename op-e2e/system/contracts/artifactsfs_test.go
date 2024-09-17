@@ -17,7 +17,7 @@ import (
 func TestArtifacts(t *testing.T) {
 	op_e2e.InitParallel(t)
 	logger := testlog.Logger(t, log.LevelWarn) // lower this log level to get verbose test dump of all artifacts
-	af := foundry.OpenArtifactsDir("../packages/contracts-bedrock/forge-artifacts")
+	af := foundry.OpenArtifactsDir("../../packages/contracts-bedrock/forge-artifacts")
 	artifacts, err := af.ListArtifacts()
 	require.NoError(t, err)
 	require.NotEmpty(t, artifacts)

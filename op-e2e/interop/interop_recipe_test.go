@@ -29,8 +29,8 @@ func TestInteropDevRecipe(t *testing.T) {
 	logger := testlog.Logger(t, log.LevelDebug)
 	require.NoError(t, worldCfg.Check(logger))
 
-	fa := foundry.OpenArtifactsDir("../packages/contracts-bedrock/forge-artifacts")
-	srcFS := foundry.NewSourceMapFS(os.DirFS("../packages/contracts-bedrock"))
+	fa := foundry.OpenArtifactsDir("../../packages/contracts-bedrock/forge-artifacts")
+	srcFS := foundry.NewSourceMapFS(os.DirFS("../../packages/contracts-bedrock"))
 
 	worldDeployment, worldOutput, err := interopgen.Deploy(logger, fa, srcFS, worldCfg)
 	require.NoError(t, err)
