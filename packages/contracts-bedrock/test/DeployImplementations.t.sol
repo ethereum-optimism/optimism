@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 import { Test, stdStorage, StdStorage } from "forge-std/Test.sol";
 
-import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
+import { DelayedWETH } from "src/dispute/DelayedWETH.sol";
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
 import { MIPS } from "src/cannon/MIPS.sol";
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";

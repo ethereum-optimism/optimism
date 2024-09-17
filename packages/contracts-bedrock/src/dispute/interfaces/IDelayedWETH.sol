@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { IWETH } from "src/dispute/interfaces/IWETH.sol";
+import { IWETH } from "src/universal/interfaces/IWETH.sol";
 
 /// @title IDelayedWETH
 /// @notice Interface for the DelayedWETH contract.

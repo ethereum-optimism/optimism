@@ -34,7 +34,7 @@ import { ResolvedDelegateProxy } from "src/legacy/ResolvedDelegateProxy.sol";
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
 import { PermissionedDisputeGame } from "src/dispute/PermissionedDisputeGame.sol";
-import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
+import { DelayedWETH } from "src/dispute/DelayedWETH.sol";
 import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
 import { MIPS } from "src/cannon/MIPS.sol";

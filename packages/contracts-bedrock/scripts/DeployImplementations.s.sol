@@ -12,7 +12,7 @@ import { L1ChugSplashProxy } from "src/legacy/L1ChugSplashProxy.sol";
 import { ResolvedDelegateProxy } from "src/legacy/ResolvedDelegateProxy.sol";
 import { AddressManager } from "src/legacy/AddressManager.sol";
 
-import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
+import { DelayedWETH } from "src/dispute/DelayedWETH.sol";
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
 import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
 import { MIPS } from "src/cannon/MIPS.sol";

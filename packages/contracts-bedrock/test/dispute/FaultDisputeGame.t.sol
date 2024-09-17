@@ -6,7 +6,7 @@ import { Vm } from "forge-std/Vm.sol";
 import { DisputeGameFactory_Init } from "test/dispute/DisputeGameFactory.t.sol";
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { FaultDisputeGame, IDisputeGame } from "src/dispute/FaultDisputeGame.sol";
-import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
+import { DelayedWETH } from "src/dispute/DelayedWETH.sol";
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
 
 import "src/dispute/lib/Types.sol";

@@ -7,7 +7,7 @@ import "src/dispute/lib/Errors.sol";
 import { Test } from "forge-std/Test.sol";
 import { DisputeGameFactory, IDisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
-import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
+import { DelayedWETH } from "src/dispute/DelayedWETH.sol";
 import { Proxy } from "src/universal/Proxy.sol";
 import { Burn } from "src/libraries/Burn.sol";
 import { CommonTest } from "test/setup/CommonTest.sol";

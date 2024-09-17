@@ -14,7 +14,7 @@ import { Constants } from "src/libraries/Constants.sol";
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
 
 import { AddressManager } from "src/legacy/AddressManager.sol";
-import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
+import { DelayedWETH } from "src/dispute/DelayedWETH.sol";
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
 import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";

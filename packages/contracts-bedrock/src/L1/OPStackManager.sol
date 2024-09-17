@@ -18,7 +18,7 @@ import { L1ChugSplashProxy } from "src/legacy/L1ChugSplashProxy.sol";
 import { ResolvedDelegateProxy } from "src/legacy/ResolvedDelegateProxy.sol";
 import { AddressManager } from "src/legacy/AddressManager.sol";
 
-import { DelayedWETH } from "src/dispute/weth/DelayedWETH.sol";
+import { DelayedWETH } from "src/dispute/DelayedWETH.sol";
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
 import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
