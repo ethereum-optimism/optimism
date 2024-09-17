@@ -63,6 +63,10 @@ for FILE in $CHANGED_FILES; do
       echo "skipping $FILE"
       continue
     fi
+    if [ ! -e "$FILE" ] ; then
+      echo "skipping $FILE since it was deleted"
+      continue
+    fi
 
     # Get the diff for the file.
     DIFF=$(git diff origin/develop...HEAD --unified=0 -- "$FILE")
