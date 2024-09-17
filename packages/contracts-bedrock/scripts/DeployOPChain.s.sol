@@ -309,14 +309,14 @@ contract DeployOPChainOutput is BaseDeployIO {
         require(systemConfig.unsafeBlockSigner() == _doi.unsafeBlockSigner(), "SC-60");
         require(systemConfig.scalar() >> 248 == 1, "SC-70");
 
-        IResourceMetering.ResourceConfig memory rconfig = Constants.DEFAULT_RESOURCE_CONFIG();
+        IResourceMetering.ResourceConfig memory rConfig = Constants.DEFAULT_RESOURCE_CONFIG();
         IResourceMetering.ResourceConfig memory outputConfig = systemConfig.resourceConfig();
-        require(outputConfig.maxResourceLimit == rconfig.maxResourceLimit, "SC-80");
-        require(outputConfig.elasticityMultiplier == rconfig.elasticityMultiplier, "SC-90");
-        require(outputConfig.baseFeeMaxChangeDenominator == rconfig.baseFeeMaxChangeDenominator, "SC-100");
-        require(outputConfig.systemTxMaxGas == rconfig.systemTxMaxGas, "SC-110");
-        require(outputConfig.minimumBaseFee == rconfig.minimumBaseFee, "SC-120");
-        require(outputConfig.maximumBaseFee == rconfig.maximumBaseFee, "SC-130");
+        require(outputConfig.maxResourceLimit == rConfig.maxResourceLimit, "SC-80");
+        require(outputConfig.elasticityMultiplier == rConfig.elasticityMultiplier, "SC-90");
+        require(outputConfig.baseFeeMaxChangeDenominator == rConfig.baseFeeMaxChangeDenominator, "SC-100");
+        require(outputConfig.systemTxMaxGas == rConfig.systemTxMaxGas, "SC-110");
+        require(outputConfig.minimumBaseFee == rConfig.minimumBaseFee, "SC-120");
+        require(outputConfig.maximumBaseFee == rConfig.maximumBaseFee, "SC-130");
 
         require(systemConfig.startBlock() == block.number, "SC-140");
         require(systemConfig.batchInbox() == _doi.opsm().chainIdToBatchInboxAddress(_doi.l2ChainId()), "SC-150");

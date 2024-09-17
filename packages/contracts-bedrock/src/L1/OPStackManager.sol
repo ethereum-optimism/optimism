@@ -466,8 +466,8 @@ contract OPStackManager is ISemver, Initializable {
             disputeGameFactory: address(_output.disputeGameFactoryProxy),
             optimismPortal: address(_output.optimismPortalProxy),
             optimismMintableERC20Factory: address(_output.optimismMintableERC20FactoryProxy),
-            gasPayingToken: Constants.ETHER // TODO the production standard config OPSM should not have custom gas token
-         });
+            gasPayingToken: Constants.ETHER
+        });
 
         assertValidContractAddress(opChainAddrs_.l1CrossDomainMessenger);
         assertValidContractAddress(opChainAddrs_.l1ERC721Bridge);
