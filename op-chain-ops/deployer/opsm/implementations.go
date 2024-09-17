@@ -42,7 +42,7 @@ type DeployImplementationsOutput struct {
 	DisputeGameFactoryImpl           common.Address
 }
 
-func (output *DeployImplementationsOutput) CheckOutput() error {
+func (output *DeployImplementationsOutput) CheckOutput(input common.Address) error {
 	return nil
 }
 

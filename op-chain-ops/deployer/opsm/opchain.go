@@ -48,7 +48,7 @@ type DeployOPChainOutput struct {
 	DelayedWETHPermissionlessGameProxy common.Address
 }
 
-func (output *DeployOPChainOutput) CheckOutput() error {
+func (output *DeployOPChainOutput) CheckOutput(input common.Address) error {
 	return nil
 }
 

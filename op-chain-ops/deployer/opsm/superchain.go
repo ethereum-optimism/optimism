@@ -34,7 +34,7 @@ type DeploySuperchainOutput struct {
 	ProtocolVersionsProxy common.Address
 }
 
-func (output *DeploySuperchainOutput) CheckOutput() error {
+func (output *DeploySuperchainOutput) CheckOutput(input common.Address) error {
 	return nil
 }
 
