@@ -461,7 +461,7 @@ contract DeployImplementations is Script {
     // | DelayedWETH             | Yes     | Two bespoke (one per DisputeGame) | No         |
     // | PreimageOracle          | No      | Shared                            | N/A        |
     // | MIPS                    | No      | Shared                            | N/A        |
-    // | OptimismPortal2         | Yes     | Shared                            | N/A        |
+    // | OptimismPortal2         | Yes     | Shared                            | No         |
     //
     // This script only deploys the shared contracts. The bespoke contracts are deployed by
     // `DeployOPChain.s.sol`. When the shared contracts are proxied, the contracts deployed here are
