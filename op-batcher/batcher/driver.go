@@ -42,6 +42,25 @@ type txRef struct {
 	isBlob   bool
 }
 
+func (r txRef) String() string {
+	return r.string(func(id txID) string { return id.String() })
+}
+
+func (r txRef) TerminalString() string {
+	return r.string(func(id txID) string { return id.TerminalString() })
+}
+
+func (r txRef) string(txIDStringer func(txID) string) string {
+	if r.isCancel {
+		if r.isBlob {
+			return "blob-cancellation"
+		} else {
+			return "calldata-cancellation"
+		}
+	}
+	return txIDStringer(r.id)
+}
+
 type L1Client interface {
 	HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error)
 	NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (uint64, error)
@@ -455,7 +474,6 @@ func (l *BatchSubmitter) publishStateToL1(queue *txmgr.Queue[txRef], receiptsCh 
 			return
 		}
 		err := l.publishTxToL1(l.killCtx, queue, receiptsCh, daGroup)
-
 		if err != nil {
 			if err != io.EOF {
 				l.Log.Error("Error publishing tx to l1", "err", err)
