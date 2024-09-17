@@ -456,6 +456,7 @@ contract DeployImplementations is Script {
     // "implementations", and when shared contracts are not proxied, they are "singletons". So
     // here we deploy:
     //
+    //   - DisputeGameFactory (implementation)
     //   - OptimismPortal2 (implementation)
     //   - DelayedWETH (implementation)
     //   - PreimageOracle (singleton)
