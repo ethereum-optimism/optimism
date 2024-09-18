@@ -587,9 +587,13 @@ jobs:
         description: Number of test jobs to run in parallel
         type: integer
         default: 4
-      test_command:
+      test_list:
         description: List of test files to run
         type: string
+      test_fuzz_runs:
+        description: Number of fuzz runs to apply
+        type: integer
+        default: 512
       test_timeout:
         description: Timeout for running tests
         type: string
@@ -599,6 +603,15 @@ jobs:
       - checkout
       - attach_workspace: { at: "." }
       - install-contracts-dependencies
+      - run:
+          name: Check if test list is empty
+          command: |
+            TEST_FILES=$(<<parameters.test_list>>)
+            if [ -z "$TEST_FILES" ]; then
+              echo "No test files to run. Exiting early."
+              circleci-agent step halt
+            fi
+          working_directory: packages/contracts-bedrock
       - check-changed:
           patterns: contracts-bedrock,op-node
       - restore_cache:
@@ -610,11 +623,11 @@ jobs:
             - golang-build-cache-contracts-bedrock-tests-{{ checksum "go.sum" }}
             - golang-build-cache-contracts-bedrock-tests-
       - run:
-          name: print dependencies
+          name: Print dependencies
           command: just dep-status
           working_directory: packages/contracts-bedrock
       - run:
-          name: print forge version
+          name: Print forge version
           command: forge --version
           working_directory: packages/contracts-bedrock
       - run:
@@ -622,18 +635,24 @@ jobs:
           command: bash scripts/ops/pull-artifacts.sh
           working_directory: packages/contracts-bedrock
       - run:
-          name: build go-ffi
+          name: Build go-ffi
           command: just build-go-ffi
           working_directory: packages/contracts-bedrock
       - run:
-          name: run tests
-          command: <<parameters.test_command>>
+          name: Run tests
+          command: |
+            TEST_FILES=$(<<parameters.test_list>>)
+            TEST_FILES=$(echo "$TEST_FILES" | circleci tests split --split-by=timings)
+            TEST_FILES=$(echo "$TEST_FILES" | sed 's|^test/||')
+            MATCH_PATH="./test/{$(echo "$TEST_FILES" | paste -sd "," -)}"
+            export FOUNDRY_INVARIANT_RUNS=<<parameters.test_fuzz_runs>>
+            forge test --deny-warnings --fuzz-runs <<parameters.test_fuzz_runs>> --match-path "$MATCH_PATH"
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
           no_output_timeout: <<parameters.test_timeout>>
       - run:
-          name: print failed test traces
+          name: Print failed test traces
           command: just test-rerun
           environment:
             FOUNDRY_PROFILE: ci
@@ -1626,23 +1645,19 @@ workflows:
           # Test everything except PreimageOracle.t.sol since it's slow.
           name: contracts-bedrock-tests
           test_parallelism: 4
-          test_command: |
-            TEST_FILES=$(find . -name "*.t.sol" -not -name "PreimageOracle.t.sol")
-            TEST_FILES=$(echo "$TEST_FILES" | circleci tests split --split-by=timings)
-            TEST_FILES=$(echo "$TEST_FILES" | sed 's|./test/||')
-            MATCH_PATH="./test/{$(echo "$TEST_FILES" | paste -sd "," -)}"
-            forge test --deny-warnings --match-path "$MATCH_PATH"
+          test_list: find test -name "*.t.sol" -not -name "PreimageOracle.t.sol"
       - contracts-bedrock-tests:
           # PreimageOracle test is slow, run it separately to unblock CI.
           name: contracts-bedrock-tests-preimage-oracle
           test_parallelism: 1
-          test_command: forge test --deny-warnings --match-path ./test/cannon/PreimageOracle.t.sol
+          test_list: find test -name "PreimageOracle.t.sol"
       - contracts-bedrock-tests:
-          # Heavily fuzz any fuzz tests that have been added or modified.
+          # Heavily fuzz any fuzz tests within added or modified test files.
           name: contracts-bedrock-tests-heavy-fuzz-modified
           test_parallelism: 1
+          test_list: git diff origin/develop...HEAD --name-only -- './test/**/*.t.sol' | sed 's|packages/contracts-bedrock/||'
           test_timeout: 1h
-          test_command: just test-heavy-fuzz-modified-tests
+          test_fuzz_runs: 10000
       - contracts-bedrock-coverage
       - contracts-bedrock-checks:
           requires:
