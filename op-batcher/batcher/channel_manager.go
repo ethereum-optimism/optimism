@@ -36,8 +36,9 @@ type channelManager struct {
 	// The latest L1 block from all the L2 blocks in the most recently closed channel
 	l1OriginLastClosedChannel eth.BlockID
 
-	// The ChannelConfig used by the most recently closed channel
-	cfgLastClosedChannel *ChannelConfig
+	// The default ChannelConfig to use when there is insufficient data to precisely
+	// compute the optimal one
+	defaultCfg *ChannelConfig
 
 	// last block hash - for reorg detection
 	tip common.Hash
@@ -54,10 +55,12 @@ type channelManager struct {
 }
 
 func NewChannelManager(log log.Logger, metr metrics.Metricer, cfgProvider ChannelConfigProvider, rollupCfg *rollup.Config) *channelManager {
+	defaultCfg := cfgProvider.ChannelConfigFull()
 	return &channelManager{
 		log:         log,
 		metr:        metr,
 		cfgProvider: cfgProvider,
+		defaultCfg:  &defaultCfg,
 		rollupCfg:   rollupCfg,
 		txChannels:  make(map[string]*channel),
 	}
@@ -177,6 +180,9 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 	if err != nil {
 		return data, err
 	}
+	// Cache ChannelConfig: it is our best estiamte for the optimal
+	// ChannelConfig for the next channel
+	s.defaultCfg = &newCfg
 	return s.txData(l1Head)
 }
 
@@ -240,12 +246,12 @@ func (s *channelManager) ensureChannelWithSpace(l1Head eth.BlockID) error {
 		return nil
 	}
 
-	// We reuse the ChannelConfig from the last closed channel.
+	// We reuse the ChannelConfig from the last channel.
 	// This will be reassessed at channel submission-time,
 	// but this is our best guess at the appropriate values for now.
 	var cfg ChannelConfig
-	if s.cfgLastClosedChannel != nil {
-		cfg = *s.cfgLastClosedChannel
+	if s.defaultCfg != nil {
+		cfg = *s.defaultCfg
 	} else {
 		cfg = s.cfgProvider.ChannelConfigFull()
 	}
@@ -347,7 +353,6 @@ func (s *channelManager) outputFrames() error {
 	if lastClosedL1Origin.Number > s.l1OriginLastClosedChannel.Number {
 		s.l1OriginLastClosedChannel = lastClosedL1Origin
 	}
-	s.cfgLastClosedChannel = &s.currentChannel.cfg
 
 	inBytes, outBytes := s.currentChannel.InputBytes(), s.currentChannel.OutputBytes()
 	s.metr.RecordChannelClosed(
