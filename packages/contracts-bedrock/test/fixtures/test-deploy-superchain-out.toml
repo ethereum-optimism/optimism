@@ -1,3 +1,16 @@
+[dsi]
+paused = false
+
+[dsi.protocolVersions]
+recommendedProtocolVersion = 2
+requiredProtocolVersion = 1
+
+[dsi.roles]
+guardian = "0xE5DbA98c65F4B9EB0aeEBb3674fE64f88509a1eC"
+protocolVersionsOwner = "0xeEB4cc05dC0dE43c465f97cfc703D165418CA93A"
+proxyAdminOwner = "0x51f0348a9fA2aAbaB45E82825Fbd13d406e04497"
+
+[dso]
 protocolVersionsImpl = "0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9"
 protocolVersionsProxy = "0x1d1499e622D69689cdf9004d05Ec547d650Ff211"
 superchainConfigImpl = "0xF62849F9A0B5Bf2913b396098F7c7019b51A820a"

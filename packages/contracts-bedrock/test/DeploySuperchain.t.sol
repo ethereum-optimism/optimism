@@ -67,9 +67,11 @@ contract DeploySuperchainInput_Test is Test {
 contract DeploySuperchainOutput_Test is Test {
     using stdToml for string;
 
+    DeploySuperchainInput dsi;
     DeploySuperchainOutput dso;
 
     function setUp() public {
+        dsi = new DeploySuperchainInput();
         dso = new DeploySuperchainOutput();
     }
 
@@ -144,15 +146,44 @@ contract DeploySuperchainOutput_Test is Test {
         string memory root = vm.projectRoot();
 
         // Use the expected data from the test fixture.
+        string memory expInPath = string.concat(root, "/test/fixtures/test-deploy-superchain-in.toml");
         string memory expOutPath = string.concat(root, "/test/fixtures/test-deploy-superchain-out.toml");
         string memory expOutToml = vm.readFile(expOutPath);
 
-        // Parse each field of expOutToml individually.
-        ProxyAdmin expSuperchainProxyAdmin = ProxyAdmin(expOutToml.readAddress(".superchainProxyAdmin"));
-        SuperchainConfig expSuperchainConfigImpl = SuperchainConfig(expOutToml.readAddress(".superchainConfigImpl"));
-        SuperchainConfig expSuperchainConfigProxy = SuperchainConfig(expOutToml.readAddress(".superchainConfigProxy"));
-        ProtocolVersions expProtocolVersionsImpl = ProtocolVersions(expOutToml.readAddress(".protocolVersionsImpl"));
-        ProtocolVersions expProtocolVersionsProxy = ProtocolVersions(expOutToml.readAddress(".protocolVersionsProxy"));
+        // Load the input file to use later when writing new output file.
+        dsi.loadInputFile(expInPath);
+
+        // Parse each field of expOutToml individually starting with inputs
+        bool paused = expOutToml.readBool(".dsi.paused");
+        assertEq(paused, dsi.paused(), "100");
+        ProtocolVersion requiredProtocolVersion =
+            ProtocolVersion.wrap(expOutToml.readUint(".dsi.protocolVersions.requiredProtocolVersion"));
+        assertEq(
+            ProtocolVersion.unwrap(requiredProtocolVersion),
+            ProtocolVersion.unwrap(dsi.requiredProtocolVersion()),
+            "200"
+        );
+        ProtocolVersion recommendedProtocolVersion =
+            ProtocolVersion.wrap(expOutToml.readUint(".dsi.protocolVersions.recommendedProtocolVersion"));
+        assertEq(
+            ProtocolVersion.unwrap(recommendedProtocolVersion),
+            ProtocolVersion.unwrap(dsi.recommendedProtocolVersion()),
+            "300"
+        );
+        address guardian = expOutToml.readAddress(".dsi.roles.guardian");
+        assertEq(guardian, dsi.guardian(), "400");
+        address protocolVersionsOwner = expOutToml.readAddress(".dsi.roles.protocolVersionsOwner");
+        assertEq(protocolVersionsOwner, dsi.protocolVersionsOwner(), "500");
+        address proxyAdminOwner = expOutToml.readAddress(".dsi.roles.proxyAdminOwner");
+        assertEq(proxyAdminOwner, dsi.proxyAdminOwner(), "600");
+        // Parse outputs
+        ProxyAdmin expSuperchainProxyAdmin = ProxyAdmin(expOutToml.readAddress(".dso.superchainProxyAdmin"));
+        SuperchainConfig expSuperchainConfigImpl = SuperchainConfig(expOutToml.readAddress(".dso.superchainConfigImpl"));
+        SuperchainConfig expSuperchainConfigProxy =
+            SuperchainConfig(expOutToml.readAddress(".dso.superchainConfigProxy"));
+        ProtocolVersions expProtocolVersionsImpl = ProtocolVersions(expOutToml.readAddress(".dso.protocolVersionsImpl"));
+        ProtocolVersions expProtocolVersionsProxy =
+            ProtocolVersions(expOutToml.readAddress(".dso.protocolVersionsProxy"));
 
         // Etch code at each address so the code checks pass when settings values.
         vm.etch(address(expSuperchainConfigImpl), hex"01");
@@ -168,7 +199,7 @@ contract DeploySuperchainOutput_Test is Test {
         dso.set(dso.protocolVersionsProxy.selector, address(expProtocolVersionsProxy));
 
         string memory actOutPath = string.concat(root, "/.testdata/test-deploy-superchain-output.toml");
-        dso.writeOutputFile(actOutPath);
+        dso.writeOutputFile(dsi, actOutPath);
         string memory actOutToml = vm.readFile(actOutPath);
 
         // Clean up before asserting so that we don't leave any files behind.

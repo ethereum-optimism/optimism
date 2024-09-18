@@ -195,17 +195,46 @@ contract DeploySuperchainOutput is BaseDeployIO {
         else revert("DeploySuperchainOutput: unknown selector");
     }
 
-    // Save the output to a TOML file.
-    // We fetch the output values using external calls to the getters to verify that all outputs are
-    // set correctly before writing them to the file.
-    function writeOutputFile(string memory _outfile) public {
-        string memory key = "dso-outfile";
-        vm.serializeAddress(key, "superchainProxyAdmin", address(this.superchainProxyAdmin()));
-        vm.serializeAddress(key, "superchainConfigImpl", address(this.superchainConfigImpl()));
-        vm.serializeAddress(key, "superchainConfigProxy", address(this.superchainConfigProxy()));
-        vm.serializeAddress(key, "protocolVersionsImpl", address(this.protocolVersionsImpl()));
-        string memory out = vm.serializeAddress(key, "protocolVersionsProxy", address(this.protocolVersionsProxy()));
-        vm.writeToml(out, _outfile);
+    function writeOutputFile(DeploySuperchainInput dsi, string memory _outfile) public {
+        string memory dsiKey = "dsi";
+        string memory dsiJson = vm.serializeBool(dsiKey, "paused", dsi.paused());
+
+        // Serialize the 'dsi.protocolVersions' section
+        string memory dsiProtocolVersionsKey = "dsi.protocolVersions";
+        string memory protocolVersionsJson = vm.serializeUint(
+            dsiProtocolVersionsKey, "requiredProtocolVersion", ProtocolVersion.unwrap(dsi.requiredProtocolVersion())
+        );
+        protocolVersionsJson = vm.serializeUint(
+            dsiProtocolVersionsKey,
+            "recommendedProtocolVersion",
+            ProtocolVersion.unwrap(dsi.recommendedProtocolVersion())
+        );
+
+        // Serialize the 'dsi.roles' section
+        string memory dsiRolesKey = "dsi.roles";
+        string memory rolesJson = vm.serializeAddress(dsiRolesKey, "proxyAdminOwner", dsi.proxyAdminOwner());
+        rolesJson = vm.serializeAddress(dsiRolesKey, "protocolVersionsOwner", dsi.protocolVersionsOwner());
+        rolesJson = vm.serializeAddress(dsiRolesKey, "guardian", dsi.guardian());
+
+        // Combine the 'dsi' sections
+        dsiJson = vm.serializeString(dsiKey, "protocolVersions", protocolVersionsJson);
+        dsiJson = vm.serializeString(dsiKey, "roles", rolesJson);
+
+        // Serialize the 'dso' section
+        string memory dsoKey = "dso";
+        string memory dsoJson =
+            vm.serializeAddress(dsoKey, "superchainProxyAdmin", address(this.superchainProxyAdmin()));
+        dsoJson = vm.serializeAddress(dsoKey, "superchainConfigImpl", address(this.superchainConfigImpl()));
+        dsoJson = vm.serializeAddress(dsoKey, "superchainConfigProxy", address(this.superchainConfigProxy()));
+        dsoJson = vm.serializeAddress(dsoKey, "protocolVersionsImpl", address(this.protocolVersionsImpl()));
+        dsoJson = vm.serializeAddress(dsoKey, "protocolVersionsProxy", address(this.protocolVersionsProxy()));
+
+        // Combine the final JSON output
+        string memory finalJson = vm.serializeString("root", dsiKey, dsiJson);
+        finalJson = vm.serializeString("root", dsoKey, dsoJson);
+
+        // Write the final JSON as TOML to the file
+        vm.writeToml(finalJson, _outfile);
     }
 
     // This function can be called to ensure all outputs are correct. Similar to `writeOutputFile`,
@@ -336,7 +365,7 @@ contract DeploySuperchain is Script {
         run(dsi, dso);
 
         // Write the output data to a file.
-        dso.writeOutputFile(_outfile);
+        dso.writeOutputFile(dsi, _outfile);
     }
 
     // This entrypoint is useful for testing purposes, as it doesn't use any file I/O.
