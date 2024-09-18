@@ -212,20 +212,48 @@ contract DeployImplementationsOutput is BaseDeployIO {
         // forgefmt: disable-end
     }
 
-    function writeOutputFile(string memory _outfile) public {
-        string memory key = "dio-outfile";
-        vm.serializeAddress(key, "opsmProxy", address(this.opsmProxy()));
-        vm.serializeAddress(key, "delayedWETHImpl", address(this.delayedWETHImpl()));
-        vm.serializeAddress(key, "optimismPortalImpl", address(this.optimismPortalImpl()));
-        vm.serializeAddress(key, "preimageOracleSingleton", address(this.preimageOracleSingleton()));
-        vm.serializeAddress(key, "mipsSingleton", address(this.mipsSingleton()));
-        vm.serializeAddress(key, "systemConfigImpl", address(this.systemConfigImpl()));
-        vm.serializeAddress(key, "l1CrossDomainMessengerImpl", address(this.l1CrossDomainMessengerImpl()));
-        vm.serializeAddress(key, "l1ERC721BridgeImpl", address(this.l1ERC721BridgeImpl()));
-        vm.serializeAddress(key, "l1StandardBridgeImpl", address(this.l1StandardBridgeImpl()));
-        vm.serializeAddress(key, "optimismMintableERC20FactoryImpl", address(this.optimismMintableERC20FactoryImpl()));
-        string memory out = vm.serializeAddress(key, "disputeGameFactoryImpl", address(this.disputeGameFactoryImpl()));
-        vm.writeToml(out, _outfile);
+    function writeOutputFile(DeployImplementationsInput dii, string memory _outfile) public {
+        string memory diiKey = "dii";
+        vm.serializeBytes32(diiKey, "salt", dii.salt());
+        vm.serializeString(diiKey, "release", dii.release());
+        vm.serializeAddress(diiKey, "superchainConfigProxy", address(dii.superchainConfigProxy()));
+        string memory diiJson =
+            vm.serializeAddress(diiKey, "protocolVersionsProxy", address(dii.protocolVersionsProxy()));
+
+        // Serialize the 'dii.faultProofs' section
+        string memory dsiFaultProofsKey = "dii.faultProofs";
+        vm.serializeUint(dsiFaultProofsKey, "withdrawalDelaySeconds", dii.withdrawalDelaySeconds());
+        vm.serializeUint(dsiFaultProofsKey, "minProposalSizeBytes", dii.minProposalSizeBytes());
+        vm.serializeUint(dsiFaultProofsKey, "challengePeriodSeconds", dii.challengePeriodSeconds());
+        vm.serializeUint(dsiFaultProofsKey, "proofMaturityDelaySeconds", dii.proofMaturityDelaySeconds());
+        string memory diiFaultProofsJson = vm.serializeUint(
+            dsiFaultProofsKey, "disputeGameFinalityDelaySeconds", dii.disputeGameFinalityDelaySeconds()
+        );
+
+        // Combine dii and dii.faultProofs JSON
+        diiJson = vm.serializeString(diiKey, "faultProofs", diiFaultProofsJson);
+
+        // Serialize the 'dio' section
+        string memory dioKey = "dio";
+        vm.serializeAddress(dioKey, "opsmProxy", address(this.opsmProxy()));
+        vm.serializeAddress(dioKey, "delayedWETHImpl", address(this.delayedWETHImpl()));
+        vm.serializeAddress(dioKey, "optimismPortalImpl", address(this.optimismPortalImpl()));
+        vm.serializeAddress(dioKey, "preimageOracleSingleton", address(this.preimageOracleSingleton()));
+        vm.serializeAddress(dioKey, "mipsSingleton", address(this.mipsSingleton()));
+        vm.serializeAddress(dioKey, "systemConfigImpl", address(this.systemConfigImpl()));
+        vm.serializeAddress(dioKey, "l1CrossDomainMessengerImpl", address(this.l1CrossDomainMessengerImpl()));
+        vm.serializeAddress(dioKey, "l1ERC721BridgeImpl", address(this.l1ERC721BridgeImpl()));
+        vm.serializeAddress(dioKey, "l1StandardBridgeImpl", address(this.l1StandardBridgeImpl()));
+        vm.serializeAddress(
+            dioKey, "optimismMintableERC20FactoryImpl", address(this.optimismMintableERC20FactoryImpl())
+        );
+        string memory dioJson =
+            vm.serializeAddress(dioKey, "disputeGameFactoryImpl", address(this.disputeGameFactoryImpl()));
+
+        // Combine the final JSON output
+        string memory finalJson = vm.serializeString("root", diiKey, diiJson);
+        finalJson = vm.serializeString("root", dioKey, dioJson);
+        vm.writeToml(finalJson, _outfile);
     }
 
     function checkOutput(DeployImplementationsInput _dii) public {
@@ -479,7 +507,7 @@ contract DeployImplementations is Script {
 
         run(dii, dio);
 
-        dio.writeOutputFile(_outfile);
+        dio.writeOutputFile(dii, _outfile);
     }
 
     function run(DeployImplementationsInput _dii, DeployImplementationsOutput _dio) public {

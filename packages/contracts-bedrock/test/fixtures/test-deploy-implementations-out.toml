@@ -1,3 +1,17 @@
+[dii]
+protocolVersionsProxy = "0xaa01156D192C047b65078DD11F7a3231c65f998C"
+release = "op-contracts/latest"
+salt = "0x1000000000000000000000000000000000000000000000000000000000000001"
+superchainConfigProxy = "0xF485FFA4948A22cee812316d0BfE9914894A3c79"
+
+[dii.faultProofs]
+challengePeriodSeconds = 300
+disputeGameFinalityDelaySeconds = 500
+minProposalSizeBytes = 200
+proofMaturityDelaySeconds = 400
+withdrawalDelaySeconds = 100
+
+[dio]
 delayedWETHImpl = "0x03A6a84cD762D9707A21605b548aaaB891562aAb"
 disputeGameFactoryImpl = "0x212224D2F2d262cd093eE13240ca4873fcCBbA3C"
 l1CrossDomainMessengerImpl = "0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9"

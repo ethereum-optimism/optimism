@@ -118,9 +118,11 @@ contract DeployImplementationsInput_Test is Test {
 contract DeployImplementationsOutput_Test is Test {
     using stdToml for string;
 
+    DeployImplementationsInput dii;
     DeployImplementationsOutput dio;
 
     function setUp() public {
+        dii = new DeployImplementationsInput();
         dio = new DeployImplementationsOutput();
     }
 
@@ -264,22 +266,25 @@ contract DeployImplementationsOutput_Test is Test {
         string memory expOutPath = string.concat(root, "/test/fixtures/test-deploy-implementations-out.toml");
         string memory expOutToml = vm.readFile(expOutPath);
 
+        // Load the input file to use later when writing new output file.
+        dii.loadInputFile(string.concat(root, "/test/fixtures/test-deploy-implementations-in.toml"));
+
         // Parse each field of expOutToml individually.
-        OPStackManager opsmProxy = OPStackManager(address(Proxy(payable(expOutToml.readAddress(".opsmProxy")))));
-        DelayedWETH delayedWETHImpl = DelayedWETH(payable(expOutToml.readAddress(".delayedWETHImpl")));
-        OptimismPortal2 optimismPortalImpl = OptimismPortal2(payable(expOutToml.readAddress(".optimismPortalImpl")));
-        PreimageOracle preimageOracleSingleton = PreimageOracle(expOutToml.readAddress(".preimageOracleSingleton"));
-        MIPS mipsSingleton = MIPS(expOutToml.readAddress(".mipsSingleton"));
-        SystemConfig systemConfigImpl = SystemConfig(expOutToml.readAddress(".systemConfigImpl"));
+        OPStackManager opsmProxy = OPStackManager(address(Proxy(payable(expOutToml.readAddress(".dio.opsmProxy")))));
+        DelayedWETH delayedWETHImpl = DelayedWETH(payable(expOutToml.readAddress(".dio.delayedWETHImpl")));
+        OptimismPortal2 optimismPortalImpl = OptimismPortal2(payable(expOutToml.readAddress(".dio.optimismPortalImpl")));
+        PreimageOracle preimageOracleSingleton = PreimageOracle(expOutToml.readAddress(".dio.preimageOracleSingleton"));
+        MIPS mipsSingleton = MIPS(expOutToml.readAddress(".dio.mipsSingleton"));
+        SystemConfig systemConfigImpl = SystemConfig(expOutToml.readAddress(".dio.systemConfigImpl"));
         L1CrossDomainMessenger l1CrossDomainMessengerImpl =
-            L1CrossDomainMessenger(expOutToml.readAddress(".l1CrossDomainMessengerImpl"));
-        L1ERC721Bridge l1ERC721BridgeImpl = L1ERC721Bridge(expOutToml.readAddress(".l1ERC721BridgeImpl"));
+            L1CrossDomainMessenger(expOutToml.readAddress(".dio.l1CrossDomainMessengerImpl"));
+        L1ERC721Bridge l1ERC721BridgeImpl = L1ERC721Bridge(expOutToml.readAddress(".dio.l1ERC721BridgeImpl"));
         L1StandardBridge l1StandardBridgeImpl =
-            L1StandardBridge(payable(expOutToml.readAddress(".l1StandardBridgeImpl")));
+            L1StandardBridge(payable(expOutToml.readAddress(".dio.l1StandardBridgeImpl")));
         OptimismMintableERC20Factory optimismMintableERC20FactoryImpl =
-            OptimismMintableERC20Factory(expOutToml.readAddress(".optimismMintableERC20FactoryImpl"));
+            OptimismMintableERC20Factory(expOutToml.readAddress(".dio.optimismMintableERC20FactoryImpl"));
         DisputeGameFactory disputeGameFactoryImpl =
-            DisputeGameFactory(expOutToml.readAddress(".disputeGameFactoryImpl"));
+            DisputeGameFactory(expOutToml.readAddress(".dio.disputeGameFactoryImpl"));
 
         // Etch code at each address so the code checks pass when settings values.
         vm.etch(address(opsmProxy), address(new Proxy(address(0))).code);
@@ -314,7 +319,7 @@ contract DeployImplementationsOutput_Test is Test {
         string memory actOutPath = string.concat(root, "/.testdata/test-deploy-implementations-output.toml");
         // StdToml.sol serializes TOML key-value pairs in lexicographical (alphabetical) order when writing to a TOML
         // file.
-        dio.writeOutputFile(actOutPath);
+        dio.writeOutputFile(dii, actOutPath);
         string memory actOutToml = vm.readFile(actOutPath);
 
         // Clean up before asserting so that we don't leave any files behind.
@@ -429,7 +434,7 @@ contract DeployImplementations_Test is Test {
             vm.readFile(string.concat(root, "/test/fixtures/test-deploy-implementations-out.toml"));
 
         // Clean up before asserting so that we don't leave any files behind.
-        vm.removeFile(outpath);
+        // vm.removeFile(outpath);
 
         assertEq(expOutToml, actOutToml);
     }
