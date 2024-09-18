@@ -2,10 +2,10 @@ package tests
 
 import (
 	"bytes"
+	"encoding/binary"
 	"os"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 
@@ -216,24 +216,31 @@ func FuzzStateHintRead(f *testing.F) {
 
 func FuzzStatePreimageRead(f *testing.F) {
 	versions := GetMipsVersionTestCases(f)
-	f.Fuzz(func(t *testing.T, addr uint32, count uint32, preimageOffset uint32, seed int64) {
+	f.Fuzz(func(t *testing.T, addr uint32, pc uint32, count uint32, preimageOffset uint32, seed int64) {
 		for _, v := range versions {
 			t.Run(v.Name, func(t *testing.T) {
+				effAddr := addr & 0xFF_FF_FF_FC
+				pc = pc & 0xFF_FF_FF_FC
+				preexistingMemoryVal := [4]byte{0xFF, 0xFF, 0xFF, 0xFF}
 				preimageValue := []byte("hello world")
-				if preimageOffset >= uint32(len(preimageValue)) {
+				preimageData := make([]byte, 0)
+				preimageData = binary.BigEndian.AppendUint64(preimageData, uint64(len(preimageValue)))
+				preimageData = append(preimageData, preimageValue...)
+				if preimageOffset >= uint32(len(preimageData)) || pc == effAddr {
 					t.SkipNow()
 				}
 				preimageKey := preimage.Keccak256Key(crypto.Keccak256Hash(preimageValue)).PreimageKey()
 				oracle := testutil.StaticOracle(t, preimageValue)
 
 				goVm := v.VMFactory(oracle, os.Stdout, os.Stderr, testutil.CreateLogger(),
-					testutil.WithRandomization(seed), testutil.WithPreimageKey(preimageKey), testutil.WithPreimageOffset(preimageOffset))
+					testutil.WithRandomization(seed), testutil.WithPreimageKey(preimageKey), testutil.WithPreimageOffset(preimageOffset), testutil.WithPCAndNextPC(pc))
 				state := goVm.GetState()
 				state.GetRegistersRef()[2] = exec.SysRead
 				state.GetRegistersRef()[4] = exec.FdPreimageRead
 				state.GetRegistersRef()[5] = addr
 				state.GetRegistersRef()[6] = count
 				state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
+				state.GetMemory().SetMemory(effAddr, binary.BigEndian.Uint32(preexistingMemoryVal[:]))
 				step := state.GetStep()
 
 				alignment := addr & 3
@@ -242,7 +249,7 @@ func FuzzStatePreimageRead(f *testing.F) {
 					writeLen = count
 				}
 				// Cap write length to remaining bytes of the preimage
-				preimageDataLen := uint32(len(preimageValue) + 8) // Data len includes a length prefix
+				preimageDataLen := uint32(len(preimageData))
 				if preimageOffset+writeLen > preimageDataLen {
 					writeLen = preimageDataLen - preimageOffset
 				}
@@ -254,18 +261,22 @@ func FuzzStatePreimageRead(f *testing.F) {
 				expected.Registers[2] = writeLen
 				expected.Registers[7] = 0 // no error
 				expected.PreimageOffset += writeLen
+				if writeLen > 0 {
+					// Expect a memory write
+					expectedMemory := [4]byte{0xFF, 0xFF, 0xFF, 0xFF}
+					for i := 0; i < int(writeLen); i++ {
+						dataIndex := int(preimageOffset) + i
+						memoryIndex := int(alignment) + i
+						expectedMemory[memoryIndex] = preimageData[dataIndex]
+					}
+					expected.ExpectMemoryWrite(effAddr, binary.BigEndian.Uint32(expectedMemory[:]))
+				}
 
 				stepWitness, err := goVm.Step(true)
 				require.NoError(t, err)
 				require.True(t, stepWitness.HasPreimage())
 
-				// TODO(cp-983) - Do stricter validation of expected memory
-				expected.Validate(t, state, testutil.SkipMemoryValidation)
-				if writeLen == 0 {
-					// Note: We are not asserting a memory root change when writeLen > 0 because we may not necessarily
-					// modify memory - it's possible we just write the leading zero bytes of the length prefix
-					require.Equal(t, expected.MemoryRoot, common.Hash(state.GetMemory().MerkleRoot()))
-				}
+				expected.Validate(t, state)
 				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, nil)
 			})
 		}

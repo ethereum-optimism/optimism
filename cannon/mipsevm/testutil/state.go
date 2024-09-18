@@ -48,6 +48,13 @@ func WithNextPC(nextPC uint32) StateOption {
 	}
 }
 
+func WithPCAndNextPC(pc uint32) StateOption {
+	return func(state StateMutator) {
+		state.SetPC(pc)
+		state.SetNextPC(pc + 4)
+	}
+}
+
 func WithHeap(addr uint32) StateOption {
 	return func(state StateMutator) {
 		state.SetHeap(addr)
