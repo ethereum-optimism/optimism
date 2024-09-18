@@ -48,9 +48,10 @@ type ChainsDB struct {
 
 func NewChainsDB(logDBs map[types.ChainID]LogStorage, heads HeadsStorage, l log.Logger) *ChainsDB {
 	return &ChainsDB{
-		logDBs: logDBs,
-		heads:  heads,
-		logger: l,
+		logDBs:           logDBs,
+		heads:            heads,
+		logger:           l,
+		maintenanceReady: make(chan struct{}, 1),
 	}
 }
 
@@ -79,7 +80,7 @@ func (db *ChainsDB) Resume() error {
 func (db *ChainsDB) StartCrossHeadMaintenance(ctx context.Context) {
 	go func() {
 		db.logger.Info("cross-head maintenance loop started")
-		// run the maintenance loop every 10 seconds for now
+		// run the maintenance loop every 1 seconds for now
 		ticker := time.NewTicker(time.Second * 1)
 		for {
 			select {
@@ -200,8 +201,7 @@ func (db *ChainsDB) UpdateCrossHeadsForChain(chainID types.ChainID, checker Safe
 // based on the provided SafetyChecker. The SafetyChecker is used to determine
 // the safety of each log entry in the database, and the cross-head associated with it.
 func (db *ChainsDB) UpdateCrossHeads(checker SafetyChecker) error {
-	currentHeads := db.heads.Current()
-	for chainID := range currentHeads.Chains {
+	for chainID := range db.logDBs {
 		err := db.UpdateCrossHeadsForChain(chainID, checker)
 		if err != nil {
 			return err
