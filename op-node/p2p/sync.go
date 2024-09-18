@@ -9,14 +9,11 @@ import (
 	"io"
 	"math/big"
 	"runtime/debug"
+	"sync"
 	"time"
 
-	g "github.com/anacrolix/generics"
-	"github.com/anacrolix/missinggo/v2/panicif"
-	"github.com/anacrolix/sync"
-
 	"github.com/anacrolix/chansync"
-	_ "github.com/anacrolix/envpprof"
+	g "github.com/anacrolix/generics"
 	"github.com/golang/snappy"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -400,7 +397,7 @@ func (s *SyncClient) onRangeRequest(ctx context.Context, req rangeRequest) {
 	s.startBlockNumber = req.start + 1
 	s.trimOutsideWanted()
 	s.addMissingWanted(log)
-	s.setNextPromote(s.endBlockNumber, req.end.ParentHash)
+	s.setNextPromote(s.endBlockNumber+1, req.end.ParentHash)
 	s.requestBlocksCond.Broadcast()
 	s.promoterCond.Broadcast()
 }
@@ -411,17 +408,18 @@ func (s *SyncClient) removeFromQuarantine(bn blockNumber, hash common.Hash) {
 	s.requestBlocksCond.Broadcast()
 }
 
-func (s *SyncClient) setNextPromote(bn blockNumber, hash common.Hash) {
-	if bn < s.startBlockNumber {
+func (s *SyncClient) setNextPromote(bnSucc blockNumber, hash common.Hash) {
+	// Passed in the next promote successor so we don't have issues with signedness.
+	if bnSucc <= s.startBlockNumber {
 		// We're finished syncing!
 		s.nextPromote.SetNone()
 		return
 	}
 	s.nextPromote.Set(nextPromote{
-		num:  bn,
+		num:  bnSucc - 1,
 		hash: hash,
 	})
-	s.deleteBadQuarantines(bn, hash)
+	s.deleteBadQuarantines(bnSucc-1, hash)
 }
 
 func (s *SyncClient) promotedBlock(payload *eth.ExecutionPayloadEnvelope) {
@@ -434,12 +432,10 @@ func (s *SyncClient) promotedBlock(payload *eth.ExecutionPayloadEnvelope) {
 	}
 	clear(wanted.quarantined)
 	s.requestBlocksCond.Broadcast()
-	panicif.True(wanted.finalHash.Set(payload.ExecutionPayload.BlockHash).Ok)
+	wanted.finalHash.Set(payload.ExecutionPayload.BlockHash)
 	wanted.done.Set()
 	wanted.promoted = true
-	// Should we pass through the just promoted block number so it can avoid wrap around instead?
-	panicif.Eq(0, bn)
-	s.setNextPromote(bn-1, payload.ExecutionPayload.ParentHash)
+	s.setNextPromote(bn, payload.ExecutionPayload.ParentHash)
 }
 
 func (s *SyncClient) deleteBadQuarantines(bn blockNumber, expected common.Hash) {
@@ -568,10 +564,14 @@ func (s *SyncClient) maybePromote(ctx context.Context) {
 		if len(wanted.quarantined) == 0 {
 			return
 		}
-		// Should have been trimmed due to knowing what the next hash should be.
-		panicif.GreaterThan(len(wanted.quarantined), 1)
+		if len(wanted.quarantined) > 1 {
+			// Should have been trimmed due to knowing what the next hash should be.
+			panic("expected invalid blocks to have been rejected already")
+		}
 		for hash, syncRes := range wanted.quarantined {
-			panicif.NotEq(hash, s.nextPromote.Value.hash)
+			if hash != s.nextPromote.Value.hash {
+				panic(fmt.Sprintf("expected only %v in quarantine, but found %v", s.nextPromote.Value.hash, hash))
+			}
 			s.tryPromote(ctx, syncRes)
 			// Paranoid. I know Go will shift things underneath us on maps if it can get away with
 			// it.
@@ -777,7 +777,7 @@ func (r requestResultErr) ResultCode() resultCode {
 }
 
 func (s *syncClientPeer) doRequestRecoveringPanic(
-	ctx context.Context, expectedBlockNum uint64,
+	ctx context.Context, expectedBlockNum blockNumber,
 ) (
 	envelope *eth.ExecutionPayloadEnvelope, err error,
 ) {
@@ -789,7 +789,7 @@ func (s *syncClientPeer) doRequestRecoveringPanic(
 }
 
 func (s *syncClientPeer) doRequest(
-	ctx context.Context, expectedBlockNum uint64,
+	ctx context.Context, expectedBlockNum blockNumber,
 ) (
 	envelope *eth.ExecutionPayloadEnvelope, err error,
 ) {

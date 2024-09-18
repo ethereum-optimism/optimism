@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 
 	g "github.com/anacrolix/generics"
-	"github.com/anacrolix/missinggo/v2/iter"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
@@ -156,7 +155,7 @@ func TestSystemP2PAltSyncLongStall(t *testing.T) {
 	}
 
 	// Approximately mirroring the replica count in prod.
-	for i := range iter.N(15) {
+	for i := 0; i < 15; i++ {
 		addSyncer(i)
 	}
 
