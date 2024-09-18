@@ -2,9 +2,6 @@ package db
 
 import (
 	"fmt"
-	"io"
-	"testing"
-
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
@@ -12,14 +9,17 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
 	backendTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
+	"io"
+	"testing"
 )
 
 func TestChainsDB_AddLog(t *testing.T) {
 	t.Run("UnknownChain", func(t *testing.T) {
 		db := NewChainsDB(nil, &stubHeadStorage{}, testlog.Logger(t, log.LevelDebug))
-		err := db.AddLog(types.ChainIDFromUInt64(2), backendTypes.TruncatedHash{}, eth.BlockID{}, 1234, 33, nil)
+		err := db.AddLog(types.ChainIDFromUInt64(2), backendTypes.TruncatedHash{}, eth.BlockID{}, 33, nil)
 		require.ErrorIs(t, err, ErrUnknownChain)
 	})
 
@@ -28,11 +28,14 @@ func TestChainsDB_AddLog(t *testing.T) {
 		logDB := &stubLogDB{}
 		db := NewChainsDB(map[types.ChainID]LogStorage{
 			chainID: logDB,
-		}, &stubHeadStorage{},
-			testlog.Logger(t, log.LevelDebug))
-		err := db.AddLog(chainID, backendTypes.TruncatedHash{}, eth.BlockID{}, 1234, 33, nil)
+		}, &stubHeadStorage{}, testlog.Logger(t, log.LevelDebug))
+		bl10 := eth.BlockID{Hash: common.Hash{0x10}, Number: 10}
+		err := db.SealBlock(chainID, common.Hash{0x9}, bl10, 1234)
+		require.NoError(t, err, err)
+		err = db.AddLog(chainID, backendTypes.TruncatedHash{}, bl10, 0, nil)
 		require.NoError(t, err, err)
 		require.Equal(t, 1, logDB.addLogCalls)
+		require.Equal(t, 1, logDB.sealBlockCalls)
 	})
 }
 
@@ -54,122 +57,6 @@ func TestChainsDB_Rewind(t *testing.T) {
 		require.NoError(t, err, err)
 		require.EqualValues(t, 23, logDB.headBlockNum)
 	})
-}
-
-func TestChainsDB_LastLogInBlock(t *testing.T) {
-	// using a chainID of 1 for simplicity
-	chainID := types.ChainIDFromUInt64(1)
-	// get default stubbed components
-	logDB, _, h := setupStubbedForUpdateHeads(chainID)
-	logDB.nextLogs = []nextLogResponse{
-		{10, 1, backendTypes.TruncatedHash{}, nil},
-		{10, 2, backendTypes.TruncatedHash{}, nil},
-		{10, 3, backendTypes.TruncatedHash{}, nil},
-		{10, 4, backendTypes.TruncatedHash{}, nil},
-		{11, 5, backendTypes.TruncatedHash{}, nil},
-	}
-
-	// The ChainsDB is real, but uses only stubbed components
-	db := NewChainsDB(
-		map[types.ChainID]LogStorage{
-			chainID: logDB},
-		&stubHeadStorage{h},
-		testlog.Logger(t, log.LevelDebug))
-
-	// LastLogInBlock is expected to:
-	// 1. get a block iterator for block 10 (stubbed)
-	// 2. scan through the iterator until the block number exceeds the target (10)
-	// 3. return the index of the last log in the block (4)
-	index, err := db.LastLogInBlock(chainID, 10)
-	require.NoError(t, err)
-	require.Equal(t, entrydb.EntryIdx(4), index)
-}
-
-func TestChainsDB_LastLogInBlockEOF(t *testing.T) {
-	// using a chainID of 1 for simplicity
-	chainID := types.ChainIDFromUInt64(1)
-	// get default stubbed components
-	logDB, _, h := setupStubbedForUpdateHeads(chainID)
-	logDB.nextLogs = []nextLogResponse{
-		{10, 5, backendTypes.TruncatedHash{}, nil},
-		{10, 6, backendTypes.TruncatedHash{}, nil},
-		{10, 7, backendTypes.TruncatedHash{}, nil},
-		{10, 8, backendTypes.TruncatedHash{}, nil},
-		{10, 9, backendTypes.TruncatedHash{}, nil},
-		{10, 10, backendTypes.TruncatedHash{}, nil},
-	}
-
-	// The ChainsDB is real, but uses only stubbed components
-	db := NewChainsDB(
-		map[types.ChainID]LogStorage{
-			chainID: logDB},
-		&stubHeadStorage{h},
-		testlog.Logger(t, log.LevelDebug))
-
-	// LastLogInBlock is expected to:
-	// 1. get a block iterator for block 10 (stubbed)
-	// 2. scan through the iterator and never find the target block
-	// return an error
-	index, err := db.LastLogInBlock(chainID, 10)
-	require.NoError(t, err)
-	require.Equal(t, entrydb.EntryIdx(10), index)
-}
-
-func TestChainsDB_LastLogInBlockNotFound(t *testing.T) {
-	// using a chainID of 1 for simplicity
-	chainID := types.ChainIDFromUInt64(1)
-	// get default stubbed components
-	logDB, _, h := setupStubbedForUpdateHeads(chainID)
-	logDB.nextLogs = []nextLogResponse{
-		{100, 5, backendTypes.TruncatedHash{}, nil},
-		{100, 6, backendTypes.TruncatedHash{}, nil},
-		{100, 7, backendTypes.TruncatedHash{}, nil},
-		{101, 8, backendTypes.TruncatedHash{}, nil},
-		{101, 9, backendTypes.TruncatedHash{}, nil},
-		{101, 10, backendTypes.TruncatedHash{}, nil},
-	}
-
-	// The ChainsDB is real, but uses only stubbed components
-	db := NewChainsDB(
-		map[types.ChainID]LogStorage{
-			chainID: logDB},
-		&stubHeadStorage{h},
-		testlog.Logger(t, log.LevelDebug))
-
-	// LastLogInBlock is expected to:
-	// 1. get a block iterator for block 10 (stubbed)
-	// 2. scan through the iterator and never find the target block
-	// return an error
-	_, err := db.LastLogInBlock(chainID, 10)
-	require.ErrorContains(t, err, "block 10 not found")
-}
-
-func TestChainsDB_LastLogInBlockError(t *testing.T) {
-	// using a chainID of 1 for simplicity
-	chainID := types.ChainIDFromUInt64(1)
-	// get default stubbed components
-	logDB, _, h := setupStubbedForUpdateHeads(chainID)
-	logDB.nextLogs = []nextLogResponse{
-		{10, 1, backendTypes.TruncatedHash{}, nil},
-		{10, 2, backendTypes.TruncatedHash{}, nil},
-		{10, 3, backendTypes.TruncatedHash{}, nil},
-		{0, 0, backendTypes.TruncatedHash{}, fmt.Errorf("some error")},
-		{11, 5, backendTypes.TruncatedHash{}, nil},
-	}
-
-	// The ChainsDB is real, but uses only stubbed components
-	db := NewChainsDB(
-		map[types.ChainID]LogStorage{
-			chainID: logDB},
-		&stubHeadStorage{h},
-		testlog.Logger(t, log.LevelDebug))
-
-	// LastLogInBlock is expected to:
-	// 1. get a block iterator for block 10 (stubbed)
-	// 2. scan through the iterator and encounter an error
-	// return an error
-	_, err := db.LastLogInBlock(chainID, 10)
-	require.ErrorContains(t, err, "some error")
 }
 
 func TestChainsDB_UpdateCrossHeads(t *testing.T) {
@@ -410,6 +297,7 @@ func (s *stubIterator) ExecMessage() (backendTypes.ExecutingMessage, error) {
 
 type stubLogDB struct {
 	addLogCalls          int
+	sealBlockCalls       int
 	headBlockNum         uint64
 	emIndex              int
 	executingMessages    []*backendTypes.ExecutingMessage
@@ -420,51 +308,55 @@ type stubLogDB struct {
 	containsResponse     containsResponse
 }
 
-// stubbed LastCheckpointBehind returns a stubbed iterator which was passed in to the struct
-func (s *stubLogDB) LastCheckpointBehind(entrydb.EntryIdx) (logs.Iterator, error) {
-	return s.lastCheckpointBehind, nil
-}
-
-func (s *stubLogDB) ClosestBlockIterator(blockNum uint64) (logs.Iterator, error) {
-	return &stubIterator{
-		index:    entrydb.EntryIdx(99),
-		nextLogs: s.nextLogs,
-	}, nil
-}
-
-func (s *stubLogDB) NextExecutingMessage(i logs.Iterator) (backendTypes.ExecutingMessage, error) {
-	// if error overload is set, return it to simulate a failure condition
-	if s.errOverload != nil && s.emIndex >= s.errAfter {
-		return backendTypes.ExecutingMessage{}, s.errOverload
-	}
-	// increment the iterator to mark advancement
-	i.(*stubIterator).index += 1
-	// return the next executing message
-	m := *s.executingMessages[s.emIndex]
-	// and increment to the next message for the next call
-	s.emIndex++
-	return m, nil
-}
-
-func (s *stubLogDB) ClosestBlockInfo(_ uint64) (uint64, backendTypes.TruncatedHash, error) {
-	panic("not implemented")
-}
-
-func (s *stubLogDB) AddLog(logHash backendTypes.TruncatedHash, block eth.BlockID, timestamp uint64, logIdx uint32, execMsg *backendTypes.ExecutingMessage) error {
+func (s *stubLogDB) AddLog(logHash backendTypes.TruncatedHash, parentBlock eth.BlockID, logIdx uint32, execMsg *backendTypes.ExecutingMessage) error {
 	s.addLogCalls++
 	return nil
 }
 
+func (s *stubLogDB) SealBlock(parentHash common.Hash, block eth.BlockID, timestamp uint64) error {
+	s.sealBlockCalls++
+	return nil
+}
+
+func (s *stubLogDB) LatestSealedBlockNum() (n uint64, ok bool) {
+	return s.headBlockNum, true
+}
+
+func (s *stubLogDB) FindSealedBlock(block eth.BlockID) (nextEntry entrydb.EntryIdx, err error) {
+	panic("not implemented")
+}
+
+func (s *stubLogDB) IteratorStartingAt(i entrydb.EntryIdx) (logs.Iterator, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+var _ LogStorage = (*stubLogDB)(nil)
+
+//
+//func (s *stubLogDB) NextExecutingMessage(i logs.Iterator) (backendTypes.ExecutingMessage, error) {
+//	// if error overload is set, return it to simulate a failure condition
+//	if s.errOverload != nil && s.emIndex >= s.errAfter {
+//		return backendTypes.ExecutingMessage{}, s.errOverload
+//	}
+//	// increment the iterator to mark advancement
+//	i.(*stubIterator).index += 1
+//	// return the next executing message
+//	m := *s.executingMessages[s.emIndex]
+//	// and increment to the next message for the next call
+//	s.emIndex++
+//	return m, nil
+//}
+
 type containsResponse struct {
-	contains bool
-	index    entrydb.EntryIdx
-	err      error
+	index entrydb.EntryIdx
+	err   error
 }
 
 // stubbed Contains records the arguments passed to it
 // it returns the response set in the struct, or an empty response
-func (s *stubLogDB) Contains(blockNum uint64, logIdx uint32, loghash backendTypes.TruncatedHash) (bool, entrydb.EntryIdx, error) {
-	return s.containsResponse.contains, s.containsResponse.index, s.containsResponse.err
+func (s *stubLogDB) Contains(blockNum uint64, logIdx uint32, logHash backendTypes.TruncatedHash) (nextIndex entrydb.EntryIdx, err error) {
+	return s.containsResponse.index, s.containsResponse.err
 }
 
 func (s *stubLogDB) Rewind(newHeadBlockNum uint64) error {

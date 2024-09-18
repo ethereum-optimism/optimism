@@ -1,7 +1,8 @@
 package db
 
 import (
-	"fmt"
+	"errors"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -115,7 +116,7 @@ func TestCheck(t *testing.T) {
 			1,
 			1,
 			backendTypes.TruncatedHash{1, 2, 3},
-			containsResponse{true, entrydb.EntryIdx(6), nil},
+			containsResponse{entrydb.EntryIdx(6), nil},
 			true,
 		},
 		{
@@ -126,7 +127,7 @@ func TestCheck(t *testing.T) {
 			1,
 			1,
 			backendTypes.TruncatedHash{1, 2, 3},
-			containsResponse{true, entrydb.EntryIdx(3), nil},
+			containsResponse{entrydb.EntryIdx(3), nil},
 			true,
 		},
 		{
@@ -137,7 +138,7 @@ func TestCheck(t *testing.T) {
 			1,
 			1,
 			backendTypes.TruncatedHash{1, 2, 3},
-			containsResponse{true, entrydb.EntryIdx(1), nil},
+			containsResponse{entrydb.EntryIdx(1), nil},
 			true,
 		},
 		{
@@ -148,7 +149,7 @@ func TestCheck(t *testing.T) {
 			1,
 			1,
 			backendTypes.TruncatedHash{1, 2, 3},
-			containsResponse{false, entrydb.EntryIdx(1), nil},
+			containsResponse{entrydb.EntryIdx(1), logs.ErrConflict},
 			false,
 		},
 		{
@@ -159,7 +160,7 @@ func TestCheck(t *testing.T) {
 			1,
 			1,
 			backendTypes.TruncatedHash{1, 2, 3},
-			containsResponse{true, entrydb.EntryIdx(100), nil},
+			containsResponse{entrydb.EntryIdx(100), nil},
 			false,
 		},
 		{
@@ -170,7 +171,7 @@ func TestCheck(t *testing.T) {
 			1,
 			1,
 			backendTypes.TruncatedHash{1, 2, 3},
-			containsResponse{true, entrydb.EntryIdx(5), nil},
+			containsResponse{entrydb.EntryIdx(5), nil},
 			false,
 		},
 		{
@@ -181,7 +182,7 @@ func TestCheck(t *testing.T) {
 			1,
 			1,
 			backendTypes.TruncatedHash{1, 2, 3},
-			containsResponse{true, entrydb.EntryIdx(3), nil},
+			containsResponse{entrydb.EntryIdx(3), nil},
 			false,
 		},
 		{
@@ -192,7 +193,7 @@ func TestCheck(t *testing.T) {
 			1,
 			1,
 			backendTypes.TruncatedHash{1, 2, 3},
-			containsResponse{false, entrydb.EntryIdx(0), fmt.Errorf("error")},
+			containsResponse{entrydb.EntryIdx(0), errors.New("error")},
 			false,
 		},
 	}

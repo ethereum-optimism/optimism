@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"io"
 	"path/filepath"
 	"sync/atomic"
@@ -94,7 +95,7 @@ func (su *SupervisorBackend) addFromRPC(ctx context.Context, logger log.Logger, 
 	if err != nil {
 		return fmt.Errorf("failed to create datadir for chain %v: %w", chainID, err)
 	}
-	logDB, err := logs.NewFromFile(logger, cm, path)
+	logDB, err := logs.NewFromFile(logger, cm, path, true)
 	if err != nil {
 		return fmt.Errorf("failed to create logdb for chain %v at %v: %w", chainID, path, err)
 	}
@@ -133,8 +134,9 @@ func (su *SupervisorBackend) Start(ctx context.Context) error {
 	if !su.started.CompareAndSwap(false, true) {
 		return errors.New("already started")
 	}
-	// initiate "Resume" on the chains db, which rewinds the database to the last block that is guaranteed to have been fully recorded
-	if err := su.db.Resume(); err != nil {
+	// initiate "ResumeFromLastSealedBlock" on the chains db,
+	// which rewinds the database to the last block that is guaranteed to have been fully recorded
+	if err := su.db.ResumeFromLastSealedBlock(); err != nil {
 		return fmt.Errorf("failed to resume chains db: %w", err)
 	}
 	// start chain monitors
@@ -144,8 +146,8 @@ func (su *SupervisorBackend) Start(ctx context.Context) error {
 		}
 	}
 	// start db maintenance loop
-	maintinenceCtx, cancel := context.WithCancel(context.Background())
-	su.db.StartCrossHeadMaintenance(maintinenceCtx)
+	maintenanceCtx, cancel := context.WithCancel(context.Background())
+	su.db.StartCrossHeadMaintenance(maintenanceCtx)
 	su.maintenanceCancel = cancel
 	return nil
 }
@@ -188,12 +190,15 @@ func (su *SupervisorBackend) CheckMessage(identifier types.Identifier, payloadHa
 	chainID := identifier.ChainID
 	blockNum := identifier.BlockNumber
 	logIdx := identifier.LogIndex
-	ok, i, err := su.db.Check(chainID, blockNum, uint32(logIdx), backendTypes.TruncateHash(payloadHash))
+	i, err := su.db.Check(chainID, blockNum, uint32(logIdx), backendTypes.TruncateHash(payloadHash))
+	if errors.Is(err, logs.ErrFuture) {
+		return types.Unsafe, nil
+	}
+	if errors.Is(err, logs.ErrConflict) {
+		return types.Invalid, nil
+	}
 	if err != nil {
 		return types.Invalid, fmt.Errorf("failed to check log: %w", err)
-	}
-	if !ok {
-		return types.Invalid, nil
 	}
 	safest := types.CrossUnsafe
 	// at this point we have the log entry, and we can check if it is safe by various criteria
@@ -231,16 +236,19 @@ func (su *SupervisorBackend) CheckMessages(
 // The block is considered safe if all logs in the block are safe
 // this is decided by finding the last log in the block and
 func (su *SupervisorBackend) CheckBlock(chainID *hexutil.U256, blockHash common.Hash, blockNumber hexutil.Uint64) (types.SafetyLevel, error) {
-	// TODO(#11612): this function ignores blockHash and assumes that the block in the db is the one we are looking for
-	// In order to check block hash, the database must *always* insert a block hash checkpoint, which is not currently done
 	safest := types.CrossUnsafe
 	// find the last log index in the block
-	i, err := su.db.LastLogInBlock(types.ChainID(*chainID), uint64(blockNumber))
-	// TODO(#11836) checking for EOF as a non-error case is a bit of a code smell
-	// and could potentially be incorrect if the given block number is intentionally far in the future
-	if err != nil && !errors.Is(err, io.EOF) {
+	id := eth.BlockID{Hash: blockHash, Number: uint64(blockNumber)}
+	i, err := su.db.FindSealedBlock(types.ChainID(*chainID), id)
+	if errors.Is(err, logs.ErrFuture) {
+		return types.Unsafe, nil
+	}
+	if errors.Is(err, logs.ErrConflict) {
+		return types.Invalid, nil
+	}
+	if err != nil {
 		su.logger.Error("failed to scan block", "err", err)
-		return types.Invalid, fmt.Errorf("failed to scan block: %w", err)
+		return "", err
 	}
 	// at this point we have the extent of the block, and we can check if it is safe by various criteria
 	for _, checker := range []db.SafetyChecker{
