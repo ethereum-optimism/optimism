@@ -259,6 +259,37 @@ contract DeployImplementationsOutput_Test is Test {
         dio.optimismMintableERC20FactoryImpl();
     }
 
+    function test_outputFileInputDataPrepended_succeeds() public {
+        string memory root = vm.projectRoot();
+
+        // Use the expected data from the test fixture.
+        string memory expOutPath = string.concat(root, "/test/fixtures/test-deploy-implementations-out.toml");
+        string memory expOutToml = vm.readFile(expOutPath);
+
+        // Load the input file to use later when writing new output file.
+        dii.loadInputFile(string.concat(root, "/test/fixtures/test-deploy-implementations-in.toml"));
+
+        address protocolVersionsProxy = expOutToml.readAddress(".dii.protocolVersionsProxy");
+        assertEq(protocolVersionsProxy, address(dii.protocolVersionsProxy()), "100");
+        string memory release = expOutToml.readString(".dii.release");
+        assertEq(release, dii.release(), "200");
+        bytes32 salt = expOutToml.readBytes32(".dii.salt");
+        assertEq(salt, dii.salt(), "300");
+        address superchainConfigProxy = expOutToml.readAddress(".dii.superchainConfigProxy");
+        assertEq(superchainConfigProxy, address(dii.superchainConfigProxy()), "400");
+        uint256 challengePeriodSeconds = expOutToml.readUint(".dii.faultProofs.challengePeriodSeconds");
+        assertEq(challengePeriodSeconds, dii.challengePeriodSeconds(), "500");
+        uint256 disputeGameFinalityDelaySeconds =
+            expOutToml.readUint(".dii.faultProofs.disputeGameFinalityDelaySeconds");
+        assertEq(disputeGameFinalityDelaySeconds, dii.disputeGameFinalityDelaySeconds(), "600");
+        uint256 minProposalSizeBytes = expOutToml.readUint(".dii.faultProofs.minProposalSizeBytes");
+        assertEq(minProposalSizeBytes, dii.minProposalSizeBytes(), "700");
+        uint256 proofMaturityDelaySeconds = expOutToml.readUint(".dii.faultProofs.proofMaturityDelaySeconds");
+        assertEq(proofMaturityDelaySeconds, dii.proofMaturityDelaySeconds(), "800");
+        uint256 withdrawalDelaySeconds = expOutToml.readUint(".dii.faultProofs.withdrawalDelaySeconds");
+        assertEq(withdrawalDelaySeconds, dii.withdrawalDelaySeconds(), "900");
+    }
+
     function test_writeOutputFile_succeeds() public {
         string memory root = vm.projectRoot();
 
@@ -269,7 +300,7 @@ contract DeployImplementationsOutput_Test is Test {
         // Load the input file to use later when writing new output file.
         dii.loadInputFile(string.concat(root, "/test/fixtures/test-deploy-implementations-in.toml"));
 
-        // Parse each field of expOutToml individually.
+        // Parse outputs
         OPStackManager opsmProxy = OPStackManager(address(Proxy(payable(expOutToml.readAddress(".dio.opsmProxy")))));
         DelayedWETH delayedWETHImpl = DelayedWETH(payable(expOutToml.readAddress(".dio.delayedWETHImpl")));
         OptimismPortal2 optimismPortalImpl = OptimismPortal2(payable(expOutToml.readAddress(".dio.optimismPortalImpl")));
@@ -303,6 +334,7 @@ contract DeployImplementationsOutput_Test is Test {
         vm.etch(address(optimismMintableERC20FactoryImpl), hex"01");
         vm.etch(address(disputeGameFactoryImpl), hex"01");
 
+        // Manually set the values in the DeployImplementationsOutput contract.
         dio.set(dio.opsmProxy.selector, address(opsmProxy));
         dio.set(dio.delayedWETHImpl.selector, address(delayedWETHImpl));
         dio.set(dio.optimismPortalImpl.selector, address(optimismPortalImpl));
@@ -315,9 +347,9 @@ contract DeployImplementationsOutput_Test is Test {
         dio.set(dio.optimismMintableERC20FactoryImpl.selector, address(optimismMintableERC20FactoryImpl));
         dio.set(dio.disputeGameFactoryImpl.selector, address(disputeGameFactoryImpl));
 
-        // .testdata file must have a new line at the end. StdToml adds
+        // File must end with a new line because forge-std/StdToml adds a new line at the end of the file.
         string memory actOutPath = string.concat(root, "/.testdata/test-deploy-implementations-output.toml");
-        // StdToml.sol serializes TOML key-value pairs in alphabetical order when writing to a TOML file.
+        // forge-std/StdToml serializes TOML key-value pairs in alphabetical order when writing to a TOML file.
         dio.writeOutputFile(dii, actOutPath);
         string memory actOutToml = vm.readFile(actOutPath);
 
