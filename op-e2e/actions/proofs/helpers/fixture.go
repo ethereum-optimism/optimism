@@ -44,7 +44,7 @@ type FixtureInputs struct {
 	L1Head        common.Hash `toml:"l1-head"`
 }
 
-// Dumps a `fp-tests` test fixture to disk if the `OP_E2E_DUMP_FIXTURES` environment variable is set.
+// Dumps a `fp-tests` test fixture to disk if the `OP_E2E_FPP_FIXTURE_DIR` environment variable is set.
 //
 // [fp-tests]: https://github.com/ethereum-optimism/fp-tests
 func tryDumpTestFixture(
