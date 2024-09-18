@@ -49,7 +49,7 @@ func NewDynamicEthChannelConfig(lgr log.Logger,
 	return dec
 }
 func (dec *DynamicEthChannelConfig) ChannelConfig(data []byte) ChannelConfig {
-	// TODO do a proper estimation/decision using full data
+	// TODO do a proper estimation/decision using actual data
 	return dec.ChannelConfigFull()
 }
 func (dec *DynamicEthChannelConfig) ChannelConfigFull() ChannelConfig {
