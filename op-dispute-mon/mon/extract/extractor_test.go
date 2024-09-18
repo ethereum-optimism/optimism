@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"math/big"
+	"sync"
 	"testing"
 	"time"
 
@@ -42,6 +43,8 @@ func TestExtractor_Extract(t *testing.T) {
 		require.Equal(t, 1, failed)
 		require.Zero(t, ignored)
 		require.Len(t, enriched, 0)
+		games.mu.Lock()
+		defer games.mu.Unlock()
 		require.Equal(t, 1, games.calls)
 		require.Equal(t, 1, creator.calls)
 		require.Equal(t, 0, creator.caller.metadataCalls)
@@ -187,13 +190,16 @@ func setupExtractorTest(t *testing.T, enrichers ...Enricher) (*Extractor, *mockG
 }
 
 type mockGameFetcher struct {
+	mu    sync.Mutex
 	calls int
 	err   error
 	games []gameTypes.GameMetadata
 }
 
 func (m *mockGameFetcher) FetchGames(_ context.Context, _ common.Hash, _ uint64) ([]gameTypes.GameMetadata, error) {
+	m.mu.Lock()
 	m.calls++
+	m.mu.Unlock()
 	if m.err != nil {
 		return nil, m.err
 	}
