@@ -30,7 +30,7 @@ func (input *DeployImplementationsInput) InputSet() bool {
 }
 
 type DeployImplementationsOutput struct {
-	Opsm                             common.Address
+	OpsmProxy                        common.Address
 	DelayedWETHImpl                  common.Address
 	OptimismPortalImpl               common.Address
 	PreimageOracleSingleton          common.Address

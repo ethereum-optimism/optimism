@@ -43,7 +43,7 @@ contract DeployOPChainInput is BaseDeployIO {
     uint32 internal _basefeeScalar;
     uint32 internal _blobBaseFeeScalar;
     uint256 internal _l2ChainId;
-    OPStackManager internal _opsm;
+    OPStackManager internal _opsmProxy;
 
     function set(bytes4 _sel, address _addr) public {
         require(_addr != address(0), "DeployOPChainInput: cannot set zero address");
@@ -53,7 +53,7 @@ contract DeployOPChainInput is BaseDeployIO {
         else if (_sel == this.unsafeBlockSigner.selector) _unsafeBlockSigner = _addr;
         else if (_sel == this.proposer.selector) _proposer = _addr;
         else if (_sel == this.challenger.selector) _challenger = _addr;
-        else if (_sel == this.opsm.selector) _opsm = OPStackManager(_addr);
+        else if (_sel == this.opsmProxy.selector) _opsmProxy = OPStackManager(_addr);
         else revert("DeployOPChainInput: unknown selector");
     }
 
@@ -122,9 +122,9 @@ contract DeployOPChainInput is BaseDeployIO {
     }
 
     // TODO: Check that opsm is proxied and it has an implementation.
-    function opsm() public view returns (OPStackManager) {
-        require(address(_opsm) != address(0), "DeployOPChainInput: not set");
-        return _opsm;
+    function opsmProxy() public view returns (OPStackManager) {
+        require(address(_opsmProxy) != address(0), "DeployOPChainInput: not set");
+        return _opsmProxy;
     }
 }
 
@@ -311,7 +311,7 @@ contract DeployOPChainOutput is BaseDeployIO {
         require(outputConfig.maximumBaseFee == rConfig.maximumBaseFee, "SC-130");
 
         require(systemConfig.startBlock() == block.number, "SC-140");
-        require(systemConfig.batchInbox() == _doi.opsm().chainIdToBatchInboxAddress(_doi.l2ChainId()), "SC-150");
+        require(systemConfig.batchInbox() == _doi.opsmProxy().chainIdToBatchInboxAddress(_doi.l2ChainId()), "SC-150");
 
         require(systemConfig.l1CrossDomainMessenger() == address(l1CrossDomainMessengerProxy()), "SC-160");
         require(systemConfig.l1ERC721Bridge() == address(l1ERC721BridgeProxy()), "SC-170");
@@ -333,7 +333,7 @@ contract DeployOPChainOutput is BaseDeployIO {
 
         require(address(messenger.PORTAL()) == address(optimismPortalProxy()), "L1xDM-30");
         require(address(messenger.portal()) == address(optimismPortalProxy()), "L1xDM-40");
-        require(address(messenger.superchainConfig()) == address(_doi.opsm().superchainConfig()), "L1xDM-50");
+        require(address(messenger.superchainConfig()) == address(_doi.opsmProxy().superchainConfig()), "L1xDM-50");
 
         bytes32 xdmSenderSlot = vm.load(address(messenger), bytes32(uint256(204)));
         require(address(uint160(uint256(xdmSenderSlot))) == Constants.DEFAULT_L2_SENDER, "L1xDM-60");
@@ -349,7 +349,7 @@ contract DeployOPChainOutput is BaseDeployIO {
         require(address(bridge.messenger()) == address(messenger), "L1SB-20");
         require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_STANDARD_BRIDGE, "L1SB-30");
         require(address(bridge.otherBridge()) == Predeploys.L2_STANDARD_BRIDGE, "L1SB-40");
-        require(address(bridge.superchainConfig()) == address(_doi.opsm().superchainConfig()), "L1SB-50");
+        require(address(bridge.superchainConfig()) == address(_doi.opsmProxy().superchainConfig()), "L1SB-50");
     }
 
     function assertValidOptimismMintableERC20Factory(DeployOPChainInput) internal view {
@@ -371,12 +371,12 @@ contract DeployOPChainOutput is BaseDeployIO {
 
         require(address(bridge.MESSENGER()) == address(l1CrossDomainMessengerProxy()), "LEB-30");
         require(address(bridge.messenger()) == address(l1CrossDomainMessengerProxy()), "LEB-40");
-        require(address(bridge.superchainConfig()) == address(_doi.opsm().superchainConfig()), "LEB-50");
+        require(address(bridge.superchainConfig()) == address(_doi.opsmProxy().superchainConfig()), "LEB-50");
     }
 
     function assertValidOptimismPortal(DeployOPChainInput _doi) internal view {
         OptimismPortal2 portal = optimismPortalProxy();
-        ISuperchainConfig superchainConfig = ISuperchainConfig(address(_doi.opsm().superchainConfig()));
+        ISuperchainConfig superchainConfig = ISuperchainConfig(address(_doi.opsmProxy().superchainConfig()));
 
         require(address(portal.disputeGameFactory()) == address(disputeGameFactoryProxy()), "OP-10");
         require(address(portal.systemConfig()) == address(systemConfigProxy()), "OP-20");
@@ -411,7 +411,7 @@ contract DeployOPChain is Script {
     }
 
     function run(DeployOPChainInput _doi, DeployOPChainOutput _doo) public {
-        OPStackManager opsm = _doi.opsm();
+        OPStackManager opsmProxy = _doi.opsmProxy();
 
         OPStackManager.Roles memory roles = OPStackManager.Roles({
             opChainProxyAdminOwner: _doi.opChainProxyAdminOwner(),
@@ -429,7 +429,7 @@ contract DeployOPChain is Script {
         });
 
         vm.broadcast(msg.sender);
-        OPStackManager.DeployOutput memory deployOutput = opsm.deploy(deployInput);
+        OPStackManager.DeployOutput memory deployOutput = opsmProxy.deploy(deployInput);
 
         vm.label(address(deployOutput.opChainProxyAdmin), "opChainProxyAdmin");
         vm.label(address(deployOutput.addressManager), "addressManager");

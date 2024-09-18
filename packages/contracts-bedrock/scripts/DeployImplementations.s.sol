@@ -155,7 +155,7 @@ contract DeployImplementationsInput is BaseDeployIO {
 }
 
 contract DeployImplementationsOutput is BaseDeployIO {
-    OPStackManager internal _opsm;
+    OPStackManager internal _opsmProxy;
     DelayedWETH internal _delayedWETHImpl;
     OptimismPortal2 internal _optimismPortalImpl;
     PreimageOracle internal _preimageOracleSingleton;
@@ -171,7 +171,7 @@ contract DeployImplementationsOutput is BaseDeployIO {
         require(_addr != address(0), "DeployImplementationsOutput: cannot set zero address");
 
         // forgefmt: disable-start
-        if (sel == this.opsm.selector) _opsm = OPStackManager(payable(_addr));
+        if (sel == this.opsmProxy.selector) _opsmProxy = OPStackManager(payable(_addr));
         else if (sel == this.optimismPortalImpl.selector) _optimismPortalImpl = OptimismPortal2(payable(_addr));
         else if (sel == this.delayedWETHImpl.selector) _delayedWETHImpl = DelayedWETH(payable(_addr));
         else if (sel == this.preimageOracleSingleton.selector) _preimageOracleSingleton = PreimageOracle(_addr);
@@ -193,7 +193,7 @@ contract DeployImplementationsOutput is BaseDeployIO {
 
     function checkOutput(DeployImplementationsInput) public {
         address[] memory addrs = Solarray.addresses(
-            address(this.opsm()),
+            address(this.opsmProxy()),
             address(this.optimismPortalImpl()),
             address(this.delayedWETHImpl()),
             address(this.preimageOracleSingleton()),
@@ -210,10 +210,10 @@ contract DeployImplementationsOutput is BaseDeployIO {
         // TODO Also add the assertions for the implementation contracts from ChainAssertions.sol
     }
 
-    function opsm() public returns (OPStackManager) {
-        DeployUtils.assertValidContractAddress(address(_opsm));
-        DeployUtils.assertImplementationSet(address(_opsm));
-        return _opsm;
+    function opsmProxy() public returns (OPStackManager) {
+        DeployUtils.assertValidContractAddress(address(_opsmProxy));
+        DeployUtils.assertImplementationSet(address(_opsmProxy));
+        return _opsmProxy;
     }
 
     function optimismPortalImpl() public view returns (OptimismPortal2) {
@@ -400,10 +400,10 @@ contract DeployImplementations is Script {
         });
 
         // This call contains a broadcast to deploy OPSM which is proxied.
-        OPStackManager opsm = createOPSMContract(_dii, _dio, blueprints, release, setters);
+        OPStackManager opsmProxy = createOPSMContract(_dii, _dio, blueprints, release, setters);
 
-        vm.label(address(opsm), "OPStackManager");
-        _dio.set(_dio.opsm.selector, address(opsm));
+        vm.label(address(opsmProxy), "OPStackManager");
+        _dio.set(_dio.opsmProxy.selector, address(opsmProxy));
     }
 
     // --- Core Contracts ---
