@@ -18,40 +18,44 @@ import (
 )
 
 func TestDownloadPrestate(t *testing.T) {
-	dir := t.TempDir()
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(r.URL.Path))
-	}))
-	defer server.Close()
-	hash := common.Hash{0xaa}
-	provider := NewMultiPrestateProvider(parseURL(t, server.URL), dir, &stubStateConverter{hash: hash})
-	path, err := provider.PrestatePath(hash)
-	require.NoError(t, err)
-	in, err := ioutil.OpenDecompressed(path)
-	require.NoError(t, err)
-	defer in.Close()
-	content, err := io.ReadAll(in)
-	require.NoError(t, err)
-	require.Equal(t, "/"+hash.Hex()+".bin.gz", string(content))
+	for _, ext := range supportedFileTypes {
+		t.Run(ext, func(t *testing.T) {
+			dir := t.TempDir()
+			server := prestateHTTPServer(ext)
+			defer server.Close()
+			hash := common.Hash{0xaa}
+			provider := NewMultiPrestateProvider(parseURL(t, server.URL), dir, &stubStateConverter{hash: hash})
+			path, err := provider.PrestatePath(hash)
+			require.NoError(t, err)
+			in, err := makePrestateReader(path)
+			require.NoError(t, err)
+			defer in.Close()
+			content, err := io.ReadAll(in)
+			require.NoError(t, err)
+			require.Equal(t, "/"+hash.Hex()+ext, string(content))
+		})
+	}
 }
 
 func TestCreateDirectory(t *testing.T) {
-	dir := t.TempDir()
-	dir = filepath.Join(dir, "test")
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(r.URL.Path))
-	}))
-	defer server.Close()
-	hash := common.Hash{0xaa}
-	provider := NewMultiPrestateProvider(parseURL(t, server.URL), dir, &stubStateConverter{hash: hash})
-	path, err := provider.PrestatePath(hash)
-	require.NoError(t, err)
-	in, err := ioutil.OpenDecompressed(path)
-	require.NoError(t, err)
-	defer in.Close()
-	content, err := io.ReadAll(in)
-	require.NoError(t, err)
-	require.Equal(t, "/"+hash.Hex()+".bin.gz", string(content))
+	for _, ext := range supportedFileTypes {
+		t.Run(ext, func(t *testing.T) {
+			dir := t.TempDir()
+			dir = filepath.Join(dir, "test")
+			server := prestateHTTPServer(ext)
+			defer server.Close()
+			hash := common.Hash{0xaa}
+			provider := NewMultiPrestateProvider(parseURL(t, server.URL), dir, &stubStateConverter{hash: hash})
+			path, err := provider.PrestatePath(hash)
+			require.NoError(t, err)
+			in, err := makePrestateReader(path)
+			require.NoError(t, err)
+			defer in.Close()
+			content, err := io.ReadAll(in)
+			require.NoError(t, err)
+			require.Equal(t, "/"+hash.Hex()+ext, string(content))
+		})
+	}
 }
 
 func TestExistingPrestate(t *testing.T) {
@@ -114,7 +118,7 @@ func TestStorePrestateWithCorrectExtension(t *testing.T) {
 			path, err := provider.PrestatePath(hash)
 			require.NoError(t, err)
 			require.Truef(t, strings.HasSuffix(path, ext), "Expected path %v to have extension %v", path, ext)
-			in, err := ioutil.OpenDecompressed(path)
+			in, err := makePrestateReader(path)
 			require.NoError(t, err)
 			defer in.Close()
 			content, err := io.ReadAll(in)
@@ -159,6 +163,24 @@ func parseURL(t *testing.T, str string) *url.URL {
 	parsed, err := url.Parse(str)
 	require.NoError(t, err)
 	return parsed
+}
+
+func prestateHTTPServer(ext string) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, ext) {
+			_, _ = w.Write([]byte(r.URL.Path))
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+}
+
+func makePrestateReader(path string) (io.ReadCloser, error) {
+	if strings.HasSuffix(path, ".gz") {
+		return os.Open(path)
+	} else {
+		return ioutil.OpenDecompressed(path)
+	}
 }
 
 type stubStateConverter struct {
