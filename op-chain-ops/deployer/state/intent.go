@@ -58,10 +58,6 @@ func (c *Intent) Check() error {
 		return fmt.Errorf("contractArtifactsURL must be set")
 	}
 
-	if c.ContractArtifactsURL.Scheme != "file" {
-		return fmt.Errorf("contractArtifactsURL must be a file URL")
-	}
-
 	return nil
 }
 

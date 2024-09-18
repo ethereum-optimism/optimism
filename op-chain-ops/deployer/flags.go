@@ -12,9 +12,9 @@ const (
 	EnvVarPrefix       = "DEPLOYER"
 	L1RPCURLFlagName   = "l1-rpc-url"
 	L1ChainIDFlagName  = "l1-chain-id"
+	L2ChainIDsFlagName = "l2-chain-ids"
 	WorkdirFlagName    = "workdir"
 	OutdirFlagName     = "outdir"
-	DevFlagName        = "dev"
 	PrivateKeyFlagName = "private-key"
 )
 
@@ -33,6 +33,11 @@ var (
 		EnvVars: prefixEnvVar("L1_CHAIN_ID"),
 		Value:   900,
 	}
+	L2ChainIDsFlag = &cli.StringFlag{
+		Name:    L2ChainIDsFlagName,
+		Usage:   "Comma-separated list of L2 chain IDs to deploy.",
+		EnvVars: prefixEnvVar("L2_CHAIN_IDS"),
+	}
 	WorkdirFlag = &cli.StringFlag{
 		Name:    WorkdirFlagName,
 		Usage:   "Directory storing intent and stage. Defaults to the current directory.",
@@ -41,12 +46,6 @@ var (
 		Aliases: []string{
 			OutdirFlagName,
 		},
-	}
-	DevFlag = &cli.BoolFlag{
-		Name: DevFlagName,
-		Usage: "Use development mode. This will use the development mnemonic to own the chain" +
-			" and fund dev accounts.",
-		EnvVars: prefixEnvVar("DEV"),
 	}
 
 	PrivateKeyFlag = &cli.StringFlag{
@@ -60,8 +59,8 @@ var GlobalFlags = append([]cli.Flag{}, oplog.CLIFlags(EnvVarPrefix)...)
 
 var InitFlags = []cli.Flag{
 	L1ChainIDFlag,
+	L2ChainIDsFlag,
 	WorkdirFlag,
-	DevFlag,
 }
 
 var ApplyFlags = []cli.Flag{

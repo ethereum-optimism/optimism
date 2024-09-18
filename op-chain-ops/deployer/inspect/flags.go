@@ -3,6 +3,8 @@ package inspect
 import (
 	"fmt"
 
+	op_service "github.com/ethereum-optimism/optimism/op-service"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
@@ -70,7 +72,7 @@ func readConfig(cliCtx *cli.Context) (cliConfig, error) {
 		return cfg, fmt.Errorf("chain-id argument is required")
 	}
 
-	chainID, err := chainIDStrToHash(chainIDStr)
+	chainID, err := op_service.Parse256BitChainID(chainIDStr)
 	if err != nil {
 		return cfg, fmt.Errorf("failed to parse chain ID: %w", err)
 	}
