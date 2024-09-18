@@ -384,11 +384,9 @@ func (s *channelManager) outputFrames() error {
 // AddL2Blocks adds a L2 blocks to the internal blocks queue. It returns ErrReorg
 // if any block does not extend the last block loaded into the state. If no
 // blocks were added yet, the parent hash check is skipped.
-func (s *channelManager) AddL2Blocks(mutex bool, blocks ...*types.Block) error {
-	if mutex {
-		s.mu.Lock()
-		defer s.mu.Unlock()
-	}
+func (s *channelManager) AddL2Blocks(blocks ...*types.Block) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	for _, block := range blocks {
 		if s.tip != (common.Hash{}) && s.tip != block.ParentHash() {
 			return ErrReorg
@@ -469,18 +467,20 @@ func (s *channelManager) Close() error {
 
 // Rebuild rebuilds the channel manager state with a new ChannelConfig.
 func (s *channelManager) Rebuild(cfg ChannelConfig) error {
+	s.log.Info("Rebuilding channelManager state with new ChannelConfig", "UseBlobs", cfg.UseBlobs)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	newChannelQueue := []*channel{}
+	blocksToRequeueInChannelManager := []*types.Block{}
 	for _, channel := range s.channelQueue {
 		if len(channel.pendingTransactions) > 0 {
 			newChannelQueue = append(newChannelQueue, channel)
 			continue
 		}
-		if err := s.AddL2Blocks(false, channel.channelBuilder.Blocks()...); err != nil {
-			return err
-		}
+		blocksToRequeueInChannelManager = append(blocksToRequeueInChannelManager, channel.channelBuilder.Blocks()...)
 	}
+	// We put the blocks back at the front of the queue:
+	s.blocks = append(blocksToRequeueInChannelManager, s.blocks...)
 	s.channelQueue = newChannelQueue
 	s.currentChannel = nil
 	return nil

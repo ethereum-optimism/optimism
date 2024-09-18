@@ -247,7 +247,7 @@ func (l *BatchSubmitter) loadBlockIntoState(ctx context.Context, blockNumber uin
 		return nil, fmt.Errorf("getting L2 block: %w", err)
 	}
 
-	if err := l.state.AddL2Blocks(true, block); err != nil {
+	if err := l.state.AddL2Blocks(block); err != nil {
 		return nil, fmt.Errorf("adding L2 block to state: %w", err)
 	}
 
