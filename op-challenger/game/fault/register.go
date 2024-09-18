@@ -77,7 +77,7 @@ func RegisterGameTypes(
 		registerTasks = append(registerTasks, NewAsteriscRegisterTask(faultTypes.AsteriscGameType, cfg, m, vm.NewOpProgramServerExecutor()))
 	}
 	if cfg.TraceTypeEnabled(faultTypes.TraceTypeAsteriscKona) {
-		registerTasks = append(registerTasks, NewAsteriscKonaRegisterTask(faultTypes.AsteriscKonaGameType, cfg, m, vm.NewKonaServerExecutor()))
+		registerTasks = append(registerTasks, NewAsteriscKonaRegisterTask(faultTypes.AsteriscKonaGameType, cfg, m, vm.NewKonaExecutor()))
 	}
 	if cfg.TraceTypeEnabled(faultTypes.TraceTypeFast) {
 		registerTasks = append(registerTasks, NewAlphabetRegisterTask(faultTypes.FastGameType))

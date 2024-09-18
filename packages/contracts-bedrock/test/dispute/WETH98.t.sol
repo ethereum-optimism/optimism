@@ -1,7 +1,11 @@
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Testing
 import { Test } from "forge-std/Test.sol";
-import { WETH98 } from "src/dispute/weth/WETH98.sol";
+
+// Contracts
+import { WETH98 } from "src/universal/WETH98.sol";
 
 contract WETH98_Test is Test {
     event Approval(address indexed src, address indexed guy, uint256 wad);

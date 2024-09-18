@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 	"github.com/ethereum-optimism/optimism/cannon/serialize"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
@@ -66,6 +66,11 @@ func CreateInitialState(pc, heapStart uint32) *State {
 	state.Heap = heapStart
 
 	return state
+}
+
+func (s *State) CreateVM(logger log.Logger, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, meta mipsevm.Metadata) mipsevm.FPVM {
+	logger.Info("Using cannon VM")
+	return NewInstrumentedState(s, po, stdOut, stdErr, meta)
 }
 
 type stateMarshaling struct {
@@ -201,9 +206,6 @@ func (s *State) EncodeWitness() ([]byte, common.Hash) {
 // LastHint 				   []byte
 func (s *State) Serialize(out io.Writer) error {
 	bout := serialize.NewBinaryWriter(out)
-	if err := bout.WriteUInt(versions.VersionSingleThreaded); err != nil {
-		return err
-	}
 
 	if err := s.Memory.Serialize(out); err != nil {
 		return err
@@ -251,13 +253,6 @@ func (s *State) Serialize(out io.Writer) error {
 
 func (s *State) Deserialize(in io.Reader) error {
 	bin := serialize.NewBinaryReader(in)
-	var version versions.StateVersion
-	if err := bin.ReadUInt(&version); err != nil {
-		return err
-	}
-	if version != versions.VersionSingleThreaded {
-		return fmt.Errorf("invalid state encoding version %d", version)
-	}
 	s.Memory = memory.NewMemory()
 	if err := s.Memory.Deserialize(in); err != nil {
 		return err

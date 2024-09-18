@@ -121,9 +121,19 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		return nil, NewCriticalError(fmt.Errorf("failed to create l1InfoTx: %w", err))
 	}
 
-	txs := make([]hexutil.Bytes, 0, 1+len(depositTxs)+len(upgradeTxs))
+	var afterForceIncludeTxs []hexutil.Bytes
+	if ba.rollupCfg.IsInterop(nextL2Time) {
+		depositsCompleteTx, err := DepositsCompleteBytes(seqNumber, l1Info)
+		if err != nil {
+			return nil, NewCriticalError(fmt.Errorf("failed to create depositsCompleteTx: %w", err))
+		}
+		afterForceIncludeTxs = append(afterForceIncludeTxs, depositsCompleteTx)
+	}
+
+	txs := make([]hexutil.Bytes, 0, 1+len(depositTxs)+len(afterForceIncludeTxs)+len(upgradeTxs))
 	txs = append(txs, l1InfoTx)
 	txs = append(txs, depositTxs...)
+	txs = append(txs, afterForceIncludeTxs...)
 	txs = append(txs, upgradeTxs...)
 
 	var withdrawals *types.Withdrawals

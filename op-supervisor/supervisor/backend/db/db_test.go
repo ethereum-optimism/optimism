@@ -6,17 +6,19 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/heads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
 	backendTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
 func TestChainsDB_AddLog(t *testing.T) {
 	t.Run("UnknownChain", func(t *testing.T) {
-		db := NewChainsDB(nil, &stubHeadStorage{})
+		db := NewChainsDB(nil, &stubHeadStorage{}, testlog.Logger(t, log.LevelDebug))
 		err := db.AddLog(types.ChainIDFromUInt64(2), backendTypes.TruncatedHash{}, eth.BlockID{}, 1234, 33, nil)
 		require.ErrorIs(t, err, ErrUnknownChain)
 	})
@@ -26,7 +28,8 @@ func TestChainsDB_AddLog(t *testing.T) {
 		logDB := &stubLogDB{}
 		db := NewChainsDB(map[types.ChainID]LogStorage{
 			chainID: logDB,
-		}, &stubHeadStorage{})
+		}, &stubHeadStorage{},
+			testlog.Logger(t, log.LevelDebug))
 		err := db.AddLog(chainID, backendTypes.TruncatedHash{}, eth.BlockID{}, 1234, 33, nil)
 		require.NoError(t, err, err)
 		require.Equal(t, 1, logDB.addLogCalls)
@@ -35,7 +38,7 @@ func TestChainsDB_AddLog(t *testing.T) {
 
 func TestChainsDB_Rewind(t *testing.T) {
 	t.Run("UnknownChain", func(t *testing.T) {
-		db := NewChainsDB(nil, &stubHeadStorage{})
+		db := NewChainsDB(nil, &stubHeadStorage{}, testlog.Logger(t, log.LevelDebug))
 		err := db.Rewind(types.ChainIDFromUInt64(2), 42)
 		require.ErrorIs(t, err, ErrUnknownChain)
 	})
@@ -45,7 +48,8 @@ func TestChainsDB_Rewind(t *testing.T) {
 		logDB := &stubLogDB{}
 		db := NewChainsDB(map[types.ChainID]LogStorage{
 			chainID: logDB,
-		}, &stubHeadStorage{})
+		}, &stubHeadStorage{},
+			testlog.Logger(t, log.LevelDebug))
 		err := db.Rewind(chainID, 23)
 		require.NoError(t, err, err)
 		require.EqualValues(t, 23, logDB.headBlockNum)
@@ -69,7 +73,8 @@ func TestChainsDB_LastLogInBlock(t *testing.T) {
 	db := NewChainsDB(
 		map[types.ChainID]LogStorage{
 			chainID: logDB},
-		&stubHeadStorage{h})
+		&stubHeadStorage{h},
+		testlog.Logger(t, log.LevelDebug))
 
 	// LastLogInBlock is expected to:
 	// 1. get a block iterator for block 10 (stubbed)
@@ -98,7 +103,8 @@ func TestChainsDB_LastLogInBlockEOF(t *testing.T) {
 	db := NewChainsDB(
 		map[types.ChainID]LogStorage{
 			chainID: logDB},
-		&stubHeadStorage{h})
+		&stubHeadStorage{h},
+		testlog.Logger(t, log.LevelDebug))
 
 	// LastLogInBlock is expected to:
 	// 1. get a block iterator for block 10 (stubbed)
@@ -127,7 +133,8 @@ func TestChainsDB_LastLogInBlockNotFound(t *testing.T) {
 	db := NewChainsDB(
 		map[types.ChainID]LogStorage{
 			chainID: logDB},
-		&stubHeadStorage{h})
+		&stubHeadStorage{h},
+		testlog.Logger(t, log.LevelDebug))
 
 	// LastLogInBlock is expected to:
 	// 1. get a block iterator for block 10 (stubbed)
@@ -154,7 +161,8 @@ func TestChainsDB_LastLogInBlockError(t *testing.T) {
 	db := NewChainsDB(
 		map[types.ChainID]LogStorage{
 			chainID: logDB},
-		&stubHeadStorage{h})
+		&stubHeadStorage{h},
+		testlog.Logger(t, log.LevelDebug))
 
 	// LastLogInBlock is expected to:
 	// 1. get a block iterator for block 10 (stubbed)
@@ -174,7 +182,8 @@ func TestChainsDB_UpdateCrossHeads(t *testing.T) {
 	db := NewChainsDB(
 		map[types.ChainID]LogStorage{
 			chainID: logDB},
-		&stubHeadStorage{h})
+		&stubHeadStorage{h},
+		testlog.Logger(t, log.LevelDebug))
 
 	// Update cross-heads is expected to:
 	// 1. get a last checkpoint iterator from the logDB (stubbed to be at 15)
@@ -198,7 +207,8 @@ func TestChainsDB_UpdateCrossHeadsBeyondLocal(t *testing.T) {
 	db := NewChainsDB(
 		map[types.ChainID]LogStorage{
 			chainID: logDB},
-		&stubHeadStorage{h})
+		&stubHeadStorage{h},
+		testlog.Logger(t, log.LevelDebug))
 
 	// Update cross-heads is expected to:
 	// 1. get a last checkpoint iterator from the logDB (stubbed to be at 15)
@@ -224,7 +234,8 @@ func TestChainsDB_UpdateCrossHeadsEOF(t *testing.T) {
 	db := NewChainsDB(
 		map[types.ChainID]LogStorage{
 			chainID: logDB},
-		&stubHeadStorage{h})
+		&stubHeadStorage{h},
+		testlog.Logger(t, log.LevelDebug))
 
 	// Update cross-heads is expected to:
 	// 1. get a last checkpoint iterator from the logDB (stubbed to be at 15)
@@ -250,7 +261,8 @@ func TestChainsDB_UpdateCrossHeadsError(t *testing.T) {
 	db := NewChainsDB(
 		map[types.ChainID]LogStorage{
 			chainID: logDB},
-		&stubHeadStorage{h})
+		&stubHeadStorage{h},
+		testlog.Logger(t, log.LevelDebug))
 
 	// Update cross-heads is expected to:
 	// 1. get a last checkpoint iterator from the logDB (stubbed to be at 10)

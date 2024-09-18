@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"math"
 	"math/rand"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -28,10 +29,18 @@ func (m *StateMutatorMultiThreaded) Randomize(randSeed int64) {
 
 	m.state.PreimageKey = testutil.RandHash(r)
 	m.state.PreimageOffset = r.Uint32()
-	m.state.Heap = r.Uint32()
 	m.state.Step = step
 	m.state.LastHint = testutil.RandHint(r)
 	m.state.StepsSinceLastContextSwitch = uint64(r.Intn(exec.SchedQuantum))
+
+	// Randomize memory-related fields
+	halfMemory := math.MaxUint32 / 2
+	m.state.Heap = uint32(r.Intn(halfMemory) + halfMemory)
+	m.state.LLReservationActive = r.Intn(2) == 1
+	if m.state.LLReservationActive {
+		m.state.LLAddress = uint32(r.Intn(halfMemory))
+		m.state.LLOwnerThread = uint32(r.Intn(10))
+	}
 
 	// Randomize threads
 	activeStackThreads := r.Intn(2) + 1

@@ -49,7 +49,7 @@ func (p *TrackingPreimageOracleReader) ReadPreimage(key [32]byte, offset uint32)
 	preimage := p.lastPreimage
 	if key != p.lastPreimageKey {
 		p.lastPreimageKey = key
-		data := p.po.GetPreimage(key)
+		data := p.GetPreimage(key)
 		// add the length prefix
 		preimage = make([]byte, 0, 8+len(data))
 		preimage = binary.BigEndian.AppendUint64(preimage, uint64(len(data)))
@@ -57,6 +57,9 @@ func (p *TrackingPreimageOracleReader) ReadPreimage(key [32]byte, offset uint32)
 		p.lastPreimage = preimage
 	}
 	p.lastPreimageOffset = offset
+	if offset >= uint32(len(preimage)) {
+		panic("Preimage offset out-of-bounds")
+	}
 	datLen = uint32(copy(dat[:], preimage[offset:]))
 	return
 }

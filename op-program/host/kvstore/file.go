@@ -15,26 +15,26 @@ import (
 // read/write mode for user/group/other, not executable.
 const filePermission = 0666
 
-// FileKV is a disk-backed key-value store, every key-value pair is a hex-encoded .txt file, with the value as content.
-// FileKV is safe for concurrent use with a single FileKV instance.
-// FileKV is safe for concurrent use between different FileKV instances of the same disk directory as long as the
+// fileKV is a disk-backed key-value store, every key-value pair is a hex-encoded .txt file, with the value as content.
+// fileKV is safe for concurrent use with a single fileKV instance.
+// fileKV is safe for concurrent use between different fileKV instances of the same disk directory as long as the
 // file system supports atomic renames.
-type FileKV struct {
+type fileKV struct {
 	sync.RWMutex
 	path string
 }
 
-// NewFileKV creates a FileKV that puts/gets pre-images as files in the given directory path.
+// newFileKV creates a fileKV that puts/gets pre-images as files in the given directory path.
 // The path must exist, or subsequent Put/Get calls will error when it does not.
-func NewFileKV(path string) *FileKV {
-	return &FileKV{path: path}
+func newFileKV(path string) *fileKV {
+	return &fileKV{path: path}
 }
 
-func (d *FileKV) pathKey(k common.Hash) string {
+func (d *fileKV) pathKey(k common.Hash) string {
 	return path.Join(d.path, k.String()+".txt")
 }
 
-func (d *FileKV) Put(k common.Hash, v []byte) error {
+func (d *fileKV) Put(k common.Hash, v []byte) error {
 	d.Lock()
 	defer d.Unlock()
 	f, err := openTempFile(d.path, k.String()+".txt.*")
@@ -72,7 +72,7 @@ func openTempFile(dir string, nameTemplate string) (*os.File, error) {
 	return f, nil
 }
 
-func (d *FileKV) Get(k common.Hash) ([]byte, error) {
+func (d *fileKV) Get(k common.Hash) ([]byte, error) {
 	d.RLock()
 	defer d.RUnlock()
 	f, err := os.OpenFile(d.pathKey(k), os.O_RDONLY, filePermission)
@@ -90,8 +90,8 @@ func (d *FileKV) Get(k common.Hash) ([]byte, error) {
 	return hex.DecodeString(string(dat))
 }
 
-func (d *FileKV) Close() error {
+func (d *fileKV) Close() error {
 	return nil
 }
 
-var _ KV = (*FileKV)(nil)
+var _ KV = (*fileKV)(nil)

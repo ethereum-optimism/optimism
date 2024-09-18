@@ -41,6 +41,8 @@ library MIPSSyscalls {
     uint32 internal constant SYS_FUTEX = 4238;
     uint32 internal constant SYS_OPEN = 4005;
     uint32 internal constant SYS_NANOSLEEP = 4166;
+    uint32 internal constant SYS_CLOCKGETTIME = 4263;
+    uint32 internal constant SYS_GETPID = 4020;
     // unused syscalls
     uint32 internal constant SYS_MUNMAP = 4091;
     uint32 internal constant SYS_GETAFFINITY = 4240;
@@ -74,7 +76,6 @@ library MIPSSyscalls {
     uint32 internal constant SYS_TIMERCREATE = 4257;
     uint32 internal constant SYS_TIMERSETTIME = 4258;
     uint32 internal constant SYS_TIMERDELETE = 4261;
-    uint32 internal constant SYS_CLOCKGETTIME = 4263;
 
     uint32 internal constant FD_STDIN = 0;
     uint32 internal constant FD_STDOUT = 1;
@@ -97,6 +98,9 @@ library MIPSSyscalls {
     uint32 internal constant FUTEX_EMPTY_ADDR = 0xFF_FF_FF_FF;
 
     uint32 internal constant SCHED_QUANTUM = 100_000;
+    uint32 internal constant HZ = 10_000_000;
+    uint32 internal constant CLOCK_GETTIME_REALTIME_FLAG = 0;
+    uint32 internal constant CLOCK_GETTIME_MONOTONIC_FLAG = 1;
     /// @notice Start of the data segment.
     uint32 internal constant PROGRAM_BREAK = 0x40000000;
     uint32 internal constant HEAP_END = 0x60000000;
@@ -198,13 +202,22 @@ library MIPSSyscalls {
     function handleSysRead(SysReadParams memory _args)
         internal
         view
-        returns (uint32 v0_, uint32 v1_, uint32 newPreimageOffset_, bytes32 newMemRoot_)
+        returns (
+            uint32 v0_,
+            uint32 v1_,
+            uint32 newPreimageOffset_,
+            bytes32 newMemRoot_,
+            bool memUpdated_,
+            uint32 memAddr_
+        )
     {
         unchecked {
             v0_ = uint32(0);
             v1_ = uint32(0);
             newMemRoot_ = _args.memRoot;
             newPreimageOffset_ = _args.preimageOffset;
+            memUpdated_ = false;
+            memAddr_ = 0;
 
             // args: _a0 = fd, _a1 = addr, _a2 = count
             // returns: v0_ = read, v1_ = err code
@@ -213,9 +226,10 @@ library MIPSSyscalls {
             }
             // pre-image oracle read
             else if (_args.a0 == FD_PREIMAGE_READ) {
+                uint32 effAddr = _args.a1 & 0xFFffFFfc;
                 // verify proof is correct, and get the existing memory.
                 // mask the addr to align it to 4 bytes
-                uint32 mem = MIPSMemory.readMem(_args.memRoot, _args.a1 & 0xFFffFFfc, _args.proofOffset);
+                uint32 mem = MIPSMemory.readMem(_args.memRoot, effAddr, _args.proofOffset);
                 // If the preimage key is a local key, localize it in the context of the caller.
                 if (uint8(_args.preimageKey[0]) == 1) {
                     _args.preimageKey = PreimageKeyLib.localize(_args.preimageKey, _args.localContext);
@@ -242,7 +256,9 @@ library MIPSSyscalls {
                 }
 
                 // Write memory back
-                newMemRoot_ = MIPSMemory.writeMem(_args.a1 & 0xFFffFFfc, _args.proofOffset, mem);
+                newMemRoot_ = MIPSMemory.writeMem(effAddr, _args.proofOffset, mem);
+                memUpdated_ = true;
+                memAddr_ = effAddr;
                 newPreimageOffset_ += uint32(datLen);
                 v0_ = uint32(datLen);
             }
@@ -256,7 +272,7 @@ library MIPSSyscalls {
                 v1_ = EBADF;
             }
 
-            return (v0_, v1_, newPreimageOffset_, newMemRoot_);
+            return (v0_, v1_, newPreimageOffset_, newMemRoot_, memUpdated_, memAddr_);
         }
     }
 

@@ -222,7 +222,7 @@ func TestQueue_Send(t *testing.T) {
 				require.Equal(t, c.queued, queued, msg)
 			}
 			// wait for the queue to drain (all txs complete or failed)
-			queue.Wait()
+			_ = queue.Wait()
 			duration := time.Since(start)
 			// expect the execution time within a certain window
 			now := time.Now()

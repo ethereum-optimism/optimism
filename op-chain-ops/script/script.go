@@ -39,6 +39,9 @@ type CallFrame struct {
 	LastOp vm.OpCode
 	LastPC uint64
 
+	// To reconstruct a create2 later, e.g. on broadcast
+	LastCreate2Salt [32]byte
+
 	// Reverts often happen in generated code.
 	// We want to fallback to logging the source-map position of
 	// the non-generated code, i.e. the origin of the last successful jump.
@@ -52,6 +55,15 @@ type CallFrame struct {
 	// Forge script does not support nested pranks on the same call-depth.
 	// Pranks can also be broadcasting.
 	Prank *Prank
+
+	// GasUsed keeps track of the amount of gas used by this call frame.
+	// This is useful for broadcasts, which sometimes cannot correctly
+	// estimate gas when sending transactions in parallel.
+	GasUsed uint64
+
+	// CallerNonce keeps track of the nonce of the caller who entered the callframe
+	// (nonce of pranked caller, if pranked).
+	CallerNonce uint64
 }
 
 // Host is an EVM executor that runs Forge scripts.
@@ -69,7 +81,7 @@ type Host struct {
 
 	precompiles map[common.Address]vm.PrecompiledContract
 
-	callStack []CallFrame
+	callStack []*CallFrame
 
 	// serializerStates are in-progress JSON payloads by name,
 	// for the serializeX family of cheat codes, see:
@@ -86,12 +98,64 @@ type Host struct {
 	srcMaps map[common.Address]*srcmap.SourceMap
 
 	onLabel []func(name string, addr common.Address)
+
+	hooks *Hooks
+
+	// isolateBroadcasts will flush the journal changes,
+	// and prepare the ephemeral tx context again,
+	// to make gas accounting of a broadcast sub-call more accurate.
+	isolateBroadcasts bool
+
+	// useCreate2Deployer uses the Create2Deployer for broadcasted
+	// create2 calls.
+	useCreate2Deployer bool
+}
+
+type HostOption func(h *Host)
+
+type BroadcastHook func(broadcast Broadcast)
+
+type Hooks struct {
+	OnBroadcast BroadcastHook
+}
+
+func WithBroadcastHook(hook BroadcastHook) HostOption {
+	return func(h *Host) {
+		h.hooks.OnBroadcast = hook
+	}
+}
+
+// WithIsolatedBroadcasts makes each broadcast clean the context,
+// by flushing the dirty storage changes, and preparing the ephemeral state again.
+// This then produces more accurate gas estimation for broadcast calls.
+// This is not compatible with state-snapshots: upon cleaning,
+// it is assumed that the state has to never revert back, similar to the state-dump guarantees.
+func WithIsolatedBroadcasts() HostOption {
+	return func(h *Host) {
+		h.isolateBroadcasts = true
+	}
+}
+
+// WithCreate2Deployer proxies each CREATE2 call through the CREATE2 deployer
+// contract located at 0x4e59b44847b379578588920cA78FbF26c0B4956C. This is the Arachnid
+// Create2Deployer contract Forge uses. See https://github.com/Arachnid/deterministic-deployment-proxy
+// for the implementation.
+func WithCreate2Deployer() HostOption {
+	return func(h *Host) {
+		h.useCreate2Deployer = true
+	}
 }
 
 // NewHost creates a Host that can load contracts from the given Artifacts FS,
 // and with an EVM initialized to the given executionContext.
 // Optionally src-map loading may be enabled, by providing a non-nil srcFS to read sources from.
-func NewHost(logger log.Logger, fs *foundry.ArtifactsFS, srcFS *foundry.SourceMapFS, executionContext Context) *Host {
+func NewHost(
+	logger log.Logger,
+	fs *foundry.ArtifactsFS,
+	srcFS *foundry.SourceMapFS,
+	executionContext Context,
+	options ...HostOption,
+) *Host {
 	h := &Host{
 		log:              logger,
 		af:               fs,
@@ -101,6 +165,13 @@ func NewHost(logger log.Logger, fs *foundry.ArtifactsFS, srcFS *foundry.SourceMa
 		precompiles:      make(map[common.Address]vm.PrecompiledContract),
 		srcFS:            srcFS,
 		srcMaps:          make(map[common.Address]*srcmap.SourceMap),
+		hooks: &Hooks{
+			OnBroadcast: func(broadcast Broadcast) {},
+		},
+	}
+
+	for _, opt := range options {
+		opt(h)
 	}
 
 	// Init a default chain config, with all the mainnet L1 forks activated
@@ -185,6 +256,7 @@ func NewHost(logger log.Logger, fs *foundry.ArtifactsFS, srcFS *foundry.SourceMa
 
 	// Hook up the Host to capture the EVM environment changes
 	trHooks := &tracing.Hooks{
+		OnEnter:         h.onEnter,
 		OnExit:          h.onExit,
 		OnOpcode:        h.onOpcode,
 		OnFault:         h.onFault,
@@ -304,6 +376,30 @@ func (h *Host) Wipe(addr common.Address) {
 	h.state.SetBalance(addr, uint256.NewInt(0), tracing.BalanceChangeUnspecified)
 }
 
+// SetNonce sets an account's nonce in state.
+func (h *Host) SetNonce(addr common.Address, nonce uint64) {
+	h.state.SetNonce(addr, nonce)
+}
+
+// GetNonce returs an account's nonce from state.
+func (h *Host) GetNonce(addr common.Address) uint64 {
+	return h.state.GetNonce(addr)
+}
+
+// ImportState imports a set of foundry.ForgeAllocs into the
+// host's state database. It does not erase existing state
+// when importing.
+func (h *Host) ImportState(allocs *foundry.ForgeAllocs) {
+	for addr, alloc := range allocs.Accounts {
+		h.state.SetBalance(addr, uint256.MustFromBig(alloc.Balance), tracing.BalanceChangeUnspecified)
+		h.state.SetNonce(addr, alloc.Nonce)
+		h.state.SetCode(addr, alloc.Code)
+		for key, value := range alloc.Storage {
+			h.state.SetState(addr, key, value)
+		}
+	}
+}
+
 // getPrecompile overrides any accounts during runtime, to insert special precompiles, if activated.
 func (h *Host) getPrecompile(rules params.Rules, original vm.PrecompiledContract, addr common.Address) vm.PrecompiledContract {
 	if p, ok := h.precompiles[addr]; ok {
@@ -333,6 +429,52 @@ func (h *Host) HasPrecompileOverride(addr common.Address) bool {
 	return ok
 }
 
+// onEnter is a trace-hook, which we use to apply changes to the state-DB, to simulate isolated broadcast calls,
+// for better gas estimation of the exact broadcast call execution.
+func (h *Host) onEnter(depth int, typ byte, from common.Address, to common.Address, input []byte, gas uint64, value *big.Int) {
+	if len(h.callStack) == 0 {
+		return
+	}
+	parentCallFrame := h.callStack[len(h.callStack)-1]
+	if parentCallFrame.Prank == nil {
+		return
+	}
+	// sanity check our callframe is set up correctly
+	if parentCallFrame.LastOp != vm.OpCode(typ) {
+		panic(fmt.Errorf("parent call-frame has invalid last Op: %d", typ))
+	}
+	if !parentCallFrame.Prank.Broadcast {
+		return
+	}
+	if to == VMAddr || to == ConsoleAddr { // no broadcasts to the cheatcode or console address
+		return
+	}
+
+	// Bump nonce value, such that a broadcast Call or CREATE2 appears like a tx
+	if parentCallFrame.LastOp == vm.CALL || parentCallFrame.LastOp == vm.CREATE2 {
+		sender := parentCallFrame.Ctx.Address()
+		if parentCallFrame.Prank.Sender != nil {
+			sender = *parentCallFrame.Prank.Sender
+		}
+		h.state.SetNonce(sender, h.state.GetNonce(sender)+1)
+	}
+
+	if h.isolateBroadcasts {
+		var dest *common.Address
+		switch parentCallFrame.LastOp {
+		case vm.CREATE, vm.CREATE2:
+			dest = nil // no destination address to warm up
+		case vm.CALL:
+			dest = &to
+		default:
+			return
+		}
+		h.state.Finalise(true)
+		// the prank msg.sender, if any, has already been applied to 'from' before onEnter
+		h.prelude(from, dest)
+	}
+}
+
 // onExit is a trace-hook, which we use to maintain an accurate view of functions, and log any revert warnings.
 func (h *Host) onExit(depth int, output []byte, gasUsed uint64, err error, reverted bool) {
 	// Note: onExit runs also when going deeper, exiting the context into a nested context.
@@ -345,6 +487,8 @@ func (h *Host) onExit(depth int, output []byte, gasUsed uint64, err error, rever
 			h.log.Warn("Revert", "addr", addr, "err", err, "revertData", hexutil.Bytes(output), "depth", depth)
 		}
 	}
+
+	h.callStack[len(h.callStack)-1].GasUsed += gasUsed
 	h.unwindCallstack(depth)
 }
 
@@ -361,6 +505,26 @@ func (h *Host) unwindCallstack(depth int) {
 		if len(h.callStack) > 1 {
 			parentCallFrame := h.callStack[len(h.callStack)-2]
 			if parentCallFrame.Prank != nil {
+				if parentCallFrame.Prank.Broadcast {
+					if parentCallFrame.LastOp == vm.DELEGATECALL {
+						h.log.Warn("Cannot broadcast a delegate-call. Ignoring broadcast hook.")
+					} else if parentCallFrame.LastOp == vm.STATICCALL {
+						h.log.Trace("Broadcast is active, ignoring static-call.")
+					} else {
+						currentCallFrame := h.callStack[len(h.callStack)-1]
+						bcast := NewBroadcast(parentCallFrame, currentCallFrame)
+						h.log.Debug(
+							"calling broadcast hook",
+							"from", bcast.From,
+							"to", bcast.To,
+							"input", bcast.Input,
+							"value", bcast.Value,
+							"type", bcast.Type,
+						)
+						h.hooks.OnBroadcast(bcast)
+					}
+				}
+
 				// While going back to the parent, restore the tx.origin.
 				// It will later be re-applied on sub-calls if the prank persists (if Repeat == true).
 				if parentCallFrame.Prank.Origin != nil {
@@ -372,7 +536,7 @@ func (h *Host) unwindCallstack(depth int) {
 			}
 		}
 		// Now pop the call-frame
-		h.callStack[len(h.callStack)-1] = CallFrame{} // don't hold on to the underlying call-frame resources
+		h.callStack[len(h.callStack)-1] = nil // don't hold on to the underlying call-frame resources
 		h.callStack = h.callStack[:len(h.callStack)-1]
 	}
 }
@@ -384,18 +548,19 @@ func (h *Host) onOpcode(pc uint64, op byte, gas, cost uint64, scope tracing.OpCo
 	// Check if we are entering a new depth, add it to the call-stack if so.
 	// We do this here, instead of onEnter, to capture an initialized scope.
 	if len(h.callStack) == 0 || h.callStack[len(h.callStack)-1].Depth < depth {
-		h.callStack = append(h.callStack, CallFrame{
-			Depth:  depth,
-			LastOp: vm.OpCode(op),
-			LastPC: pc,
-			Ctx:    scopeCtx,
+		h.callStack = append(h.callStack, &CallFrame{
+			Depth:       depth,
+			LastOp:      vm.OpCode(op),
+			LastPC:      pc,
+			Ctx:         scopeCtx,
+			CallerNonce: h.GetNonce(scopeCtx.Caller()),
 		})
 	}
 	// Sanity check that top of the call-stack matches the scope context now
 	if len(h.callStack) == 0 || h.callStack[len(h.callStack)-1].Ctx != scopeCtx {
 		panic("scope context changed without call-frame pop/push")
 	}
-	cf := &h.callStack[len(h.callStack)-1]
+	cf := h.callStack[len(h.callStack)-1]
 	if vm.OpCode(op) == vm.JUMPDEST { // remember the last PC before successful jump
 		cf.LastJumps = append(cf.LastJumps, cf.LastPC)
 		if len(cf.LastJumps) > jumpHistory {
@@ -405,6 +570,9 @@ func (h *Host) onOpcode(pc uint64, op byte, gas, cost uint64, scope tracing.OpCo
 	}
 	cf.LastOp = vm.OpCode(op)
 	cf.LastPC = pc
+	if cf.LastOp == vm.CREATE2 {
+		cf.LastCreate2Salt = scopeCtx.Stack.Back(3).Bytes32()
+	}
 }
 
 // onStorageChange is a trace-hook to capture state changes
@@ -429,7 +597,7 @@ func (h *Host) CurrentCall() CallFrame {
 	if len(h.callStack) == 0 {
 		return CallFrame{}
 	}
-	return h.callStack[len(h.callStack)-1]
+	return *h.callStack[len(h.callStack)-1]
 }
 
 // MsgSender returns the msg.sender of the current active EVM call-frame,

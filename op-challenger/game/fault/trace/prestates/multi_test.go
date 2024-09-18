@@ -167,5 +167,9 @@ type stubStateConverter struct {
 }
 
 func (s *stubStateConverter) ConvertStateToProof(path string) (*utils.ProofData, uint64, bool, error) {
+	// Return an error if we're given the wrong path
+	if _, err := os.Stat(path); err != nil {
+		return nil, 0, false, err
+	}
 	return &utils.ProofData{ClaimValue: s.hash}, 0, false, s.err
 }

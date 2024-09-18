@@ -113,8 +113,7 @@ func (c *Config) Check() error {
 }
 
 func (c *Config) FetchingEnabled() bool {
-	// TODO: Include Beacon URL once cancun is active on all chains we fault prove.
-	return c.L1URL != "" && c.L2URL != ""
+	return c.L1URL != "" && c.L2URL != "" && c.L1BeaconURL != ""
 }
 
 // NewConfig creates a Config with all optional values set to the CLI default value
@@ -139,7 +138,7 @@ func NewConfig(
 		L2ClaimBlockNumber:  l2ClaimBlockNum,
 		L1RPCKind:           sources.RPCKindStandard,
 		IsCustomChainConfig: isCustomConfig,
-		DataFormat:          types.DataFormatFile,
+		DataFormat:          types.DataFormatDirectory,
 	}
 }
 

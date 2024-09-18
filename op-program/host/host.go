@@ -16,7 +16,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/host/flags"
 	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
 	"github.com/ethereum-optimism/optimism/op-program/host/prefetcher"
-	"github.com/ethereum-optimism/optimism/op-program/host/types"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
@@ -28,6 +27,24 @@ import (
 type L2Source struct {
 	*L2Client
 	*sources.DebugClient
+}
+
+type Prefetcher interface {
+	Hint(hint string) error
+	GetPreimage(ctx context.Context, key common.Hash) ([]byte, error)
+}
+type PrefetcherCreator func(ctx context.Context, logger log.Logger, kv kvstore.KV, cfg *config.Config) (Prefetcher, error)
+
+type creatorsCfg struct {
+	prefetcher PrefetcherCreator
+}
+
+type ProgramOpt func(c *creatorsCfg)
+
+func WithPrefetcher(creator PrefetcherCreator) ProgramOpt {
+	return func(c *creatorsCfg) {
+		c.prefetcher = creator
+	}
 }
 
 func Main(logger log.Logger, cfg *config.Config) error {
@@ -43,7 +60,7 @@ func Main(logger log.Logger, cfg *config.Config) error {
 	if cfg.ServerMode {
 		preimageChan := preimage.ClientPreimageChannel()
 		hinterChan := preimage.ClientHinterChannel()
-		return PreimageServer(ctx, logger, cfg, preimageChan, hinterChan)
+		return PreimageServer(ctx, logger, cfg, preimageChan, hinterChan, makeDefaultPrefetcher)
 	}
 
 	if err := FaultProofProgram(ctx, logger, cfg); err != nil {
@@ -54,7 +71,13 @@ func Main(logger log.Logger, cfg *config.Config) error {
 }
 
 // FaultProofProgram is the programmatic entry-point for the fault proof program
-func FaultProofProgram(ctx context.Context, logger log.Logger, cfg *config.Config) error {
+func FaultProofProgram(ctx context.Context, logger log.Logger, cfg *config.Config, opts ...ProgramOpt) error {
+	creators := &creatorsCfg{
+		prefetcher: makeDefaultPrefetcher,
+	}
+	for _, opt := range opts {
+		opt(creators)
+	}
 	var (
 		serverErr chan error
 		pClientRW preimage.FileChannel
@@ -91,7 +114,7 @@ func FaultProofProgram(ctx context.Context, logger log.Logger, cfg *config.Confi
 	serverErr = make(chan error)
 	go func() {
 		defer close(serverErr)
-		serverErr <- PreimageServer(ctx, logger, cfg, pHostRW, hHostRW)
+		serverErr <- PreimageServer(ctx, logger, cfg, pHostRW, hHostRW, creators.prefetcher)
 	}()
 
 	var cmd *exec.Cmd
@@ -123,7 +146,7 @@ func FaultProofProgram(ctx context.Context, logger log.Logger, cfg *config.Confi
 // This method will block until both the hinter and preimage handlers complete.
 // If either returns an error both handlers are stopped.
 // The supplied preimageChannel and hintChannel will be closed before this function returns.
-func PreimageServer(ctx context.Context, logger log.Logger, cfg *config.Config, preimageChannel preimage.FileChannel, hintChannel preimage.FileChannel) error {
+func PreimageServer(ctx context.Context, logger log.Logger, cfg *config.Config, preimageChannel preimage.FileChannel, hintChannel preimage.FileChannel, prefetcherCreator PrefetcherCreator) error {
 	var serverDone chan error
 	var hinterDone chan error
 	logger.Info("Starting preimage server")
@@ -151,29 +174,25 @@ func PreimageServer(ctx context.Context, logger log.Logger, cfg *config.Config, 
 		logger.Info("Using in-memory storage")
 		kv = kvstore.NewMemKV()
 	} else {
-		logger.Info("Creating disk storage", "datadir", cfg.DataDir, "format", cfg.DataFormat)
 		if err := os.MkdirAll(cfg.DataDir, 0755); err != nil {
 			return fmt.Errorf("creating datadir: %w", err)
 		}
-		switch cfg.DataFormat {
-		case types.DataFormatFile:
-			kv = kvstore.NewFileKV(cfg.DataDir)
-		case types.DataFormatPebble:
-			kv = kvstore.NewPebbleKV(cfg.DataDir)
-		default:
-			return fmt.Errorf("invalid data format: %s", cfg.DataFormat)
+		store, err := kvstore.NewDiskKV(logger, cfg.DataDir, cfg.DataFormat)
+		if err != nil {
+			return fmt.Errorf("creating kvstore: %w", err)
 		}
+		kv = store
 	}
 
 	var (
 		getPreimage kvstore.PreimageSource
 		hinter      preimage.HintHandler
 	)
-	if cfg.FetchingEnabled() {
-		prefetch, err := makePrefetcher(ctx, logger, kv, cfg)
-		if err != nil {
-			return fmt.Errorf("failed to create prefetcher: %w", err)
-		}
+	prefetch, err := prefetcherCreator(ctx, logger, kv, cfg)
+	if err != nil {
+		return fmt.Errorf("failed to create prefetcher: %w", err)
+	}
+	if prefetch != nil {
 		getPreimage = func(key common.Hash) ([]byte, error) { return prefetch.GetPreimage(ctx, key) }
 		hinter = prefetch.Hint
 	} else {
@@ -202,7 +221,10 @@ func PreimageServer(ctx context.Context, logger log.Logger, cfg *config.Config, 
 	}
 }
 
-func makePrefetcher(ctx context.Context, logger log.Logger, kv kvstore.KV, cfg *config.Config) (*prefetcher.Prefetcher, error) {
+func makeDefaultPrefetcher(ctx context.Context, logger log.Logger, kv kvstore.KV, cfg *config.Config) (Prefetcher, error) {
+	if !cfg.FetchingEnabled() {
+		return nil, nil
+	}
 	logger.Info("Connecting to L1 node", "l1", cfg.L1URL)
 	l1RPC, err := client.NewRPC(ctx, logger, cfg.L1URL, client.WithDialBackoff(10))
 	if err != nil {

@@ -154,6 +154,10 @@ abstract contract Artifacts {
             return payable(Predeploys.SCHEMA_REGISTRY);
         } else if (digest == keccak256(bytes("EAS"))) {
             return payable(Predeploys.EAS);
+        } else if (digest == keccak256(bytes("OptimismSuperchainERC20Factory"))) {
+            return payable(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY);
+        } else if (digest == keccak256(bytes("OptimismSuperchainERC20Beacon"))) {
+            return payable(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON);
         }
         return payable(address(0));
     }

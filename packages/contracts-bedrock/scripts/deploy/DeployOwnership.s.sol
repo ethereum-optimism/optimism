@@ -11,10 +11,10 @@ import { GuardManager } from "safe-contracts/base/GuardManager.sol";
 
 import { Deployer } from "scripts/deploy/Deployer.sol";
 
-import { LivenessGuard } from "src/Safe/LivenessGuard.sol";
-import { LivenessModule } from "src/Safe/LivenessModule.sol";
-import { DeputyGuardianModule } from "src/Safe/DeputyGuardianModule.sol";
-import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
+import { LivenessGuard } from "src/safe/LivenessGuard.sol";
+import { LivenessModule } from "src/safe/LivenessModule.sol";
+import { DeputyGuardianModule } from "src/safe/DeputyGuardianModule.sol";
+import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
 
 import { Deploy } from "./Deploy.s.sol";
 
@@ -41,7 +41,7 @@ struct SecurityCouncilConfig {
 /// @notice Configuration for the Deputy Guardian Module
 struct DeputyGuardianModuleConfig {
     address deputyGuardian;
-    SuperchainConfig superchainConfig;
+    ISuperchainConfig superchainConfig;
 }
 
 /// @notice Configuration for the Guardian Safe.
@@ -89,7 +89,7 @@ contract DeployOwnership is Deploy {
             safeConfig: SafeConfig({ threshold: 1, owners: exampleGuardianOwners }),
             deputyGuardianModuleConfig: DeputyGuardianModuleConfig({
                 deputyGuardian: mustGetAddress("FoundationOperationsSafe"),
-                superchainConfig: SuperchainConfig(mustGetAddress("SuperchainConfig"))
+                superchainConfig: ISuperchainConfig(mustGetAddress("SuperchainConfig"))
             })
         });
     }

@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 
+	kvtypes "github.com/ethereum-optimism/optimism/op-program/host/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
@@ -45,8 +46,8 @@ func NewTraceProvider(logger log.Logger, m vm.Metricer, cfg vm.Config, vmCfg vm.
 		prestate:  prestate,
 		generator: vm.NewExecutor(logger, m, cfg, vmCfg, prestate, localInputs),
 		gameDepth: gameDepth,
-		preimageLoader: utils.NewPreimageLoader(func() utils.PreimageSource {
-			return kvstore.NewFileKV(vm.PreimageDir(dir))
+		preimageLoader: utils.NewPreimageLoader(func() (utils.PreimageSource, error) {
+			return kvstore.NewDiskKV(logger, vm.PreimageDir(dir), kvtypes.DataFormatFile)
 		}),
 		PrestateProvider: prestateProvider,
 		stateConverter:   &StateConverter{},
@@ -168,8 +169,8 @@ func NewTraceProviderForTest(logger log.Logger, m vm.Metricer, cfg *config.Confi
 		prestate:  cfg.CannonAbsolutePreState,
 		generator: vm.NewExecutor(logger, m, cfg.Cannon, vm.NewOpProgramServerExecutor(), cfg.CannonAbsolutePreState, localInputs),
 		gameDepth: gameDepth,
-		preimageLoader: utils.NewPreimageLoader(func() utils.PreimageSource {
-			return kvstore.NewFileKV(vm.PreimageDir(dir))
+		preimageLoader: utils.NewPreimageLoader(func() (utils.PreimageSource, error) {
+			return kvstore.NewDiskKV(logger, vm.PreimageDir(dir), kvtypes.DataFormatFile)
 		}),
 		stateConverter: NewStateConverter(),
 		cfg:            cfg.Cannon,

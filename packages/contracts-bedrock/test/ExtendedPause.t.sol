@@ -2,7 +2,6 @@
 pragma solidity 0.8.15;
 
 import { CommonTest } from "test/setup/CommonTest.sol";
-import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 
 /// @dev These tests are somewhat redundant with tests in the SuperchainConfig and other pausable contracts, however
 ///      it is worthwhile to pull them into one location to ensure that the behavior is consistent.

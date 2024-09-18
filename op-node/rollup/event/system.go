@@ -11,7 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-type System interface {
+type Registry interface {
 	// Register registers a named event-emitter, optionally processing events itself:
 	// deriver may be nil, not all registrants have to process events.
 	// A non-nil deriver may implement AttachEmitter to automatically attach the Emitter to it,
@@ -20,6 +20,10 @@ type System interface {
 	// Unregister removes a named emitter,
 	// also removing it from the set of events-receiving derivers (if registered with non-nil deriver).
 	Unregister(name string) (old Emitter)
+}
+
+type System interface {
+	Registry
 	// AddTracer registers a tracer to capture all event deriver/emitter work. It runs until RemoveTracer is called.
 	// Duplicate tracers are allowed.
 	AddTracer(t Tracer)
@@ -73,6 +77,10 @@ func (r *systemActor) RunEvent(ev AnnotatedEvent) {
 	if r.ctx.Err() != nil {
 		return
 	}
+	if r.sys.abort.Load() && !Is[CriticalErrorEvent](ev.Event) {
+		// if aborting, and not the CriticalErrorEvent itself, then do not process the event
+		return
+	}
 
 	prev := r.currentEvent
 	start := time.Now()
@@ -99,6 +107,9 @@ type Sys struct {
 
 	tracers     []Tracer
 	tracersLock sync.RWMutex
+
+	// if true, no events may be processed, except CriticalError itself
+	abort atomic.Bool
 }
 
 func NewSystem(log log.Logger, ex Executor) *Sys {
@@ -239,6 +250,12 @@ func (s *Sys) recordEmit(name string, ev AnnotatedEvent, derivContext uint64, em
 func (s *Sys) emit(name string, derivContext uint64, ev Event) {
 	emitContext := s.emitContext.Add(1)
 	annotated := AnnotatedEvent{Event: ev, EmitContext: emitContext}
+
+	// As soon as anything emits a critical event,
+	// make the system aware, before the executor event schedules it for processing.
+	if Is[CriticalErrorEvent](ev) {
+		s.abort.Store(true)
+	}
 
 	emitTime := time.Now()
 	s.recordEmit(name, annotated, derivContext, emitTime)

@@ -1,14 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { WETH98 } from "src/dispute/weth/WETH98.sol";
+// Contracts
+import { WETH98 } from "src/universal/WETH98.sol";
+import { L1Block } from "src/L2/L1Block.sol";
+import { ETHLiquidity } from "src/L2/ETHLiquidity.sol";
+
+// Libraries
 import { Unauthorized, NotCustomGasToken } from "src/libraries/errors/CommonErrors.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { L1Block } from "src/L2/L1Block.sol";
-import { IL2ToL2CrossDomainMessenger } from "src/L2/interfaces/IL2ToL2CrossDomainMessenger.sol";
-import { ETHLiquidity } from "src/L2/ETHLiquidity.sol";
-import { ISuperchainERC20Extensions } from "src/L2/interfaces/ISuperchainERC20.sol";
+
+// Interfaces
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
+import { IL2ToL2CrossDomainMessenger } from "src/L2/interfaces/IL2ToL2CrossDomainMessenger.sol";
+import { ISuperchainERC20Extensions } from "src/L2/interfaces/ISuperchainERC20.sol";
 
 /// @title SuperchainWETH
 /// @notice SuperchainWETH is a version of WETH that can be freely transfrered between chains
@@ -16,8 +21,8 @@ import { ISemver } from "src/universal/interfaces/ISemver.sol";
 ///         do not use a custom gas token.
 contract SuperchainWETH is WETH98, ISuperchainERC20Extensions, ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.2
-    string public constant version = "1.0.0-beta.2";
+    /// @custom:semver 1.0.0-beta.3
+    string public constant version = "1.0.0-beta.3";
 
     /// @inheritdoc WETH98
     function deposit() public payable override {

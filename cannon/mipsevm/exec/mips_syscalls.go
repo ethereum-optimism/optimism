@@ -14,19 +14,21 @@ import (
 
 // Syscall codes
 const (
-	SysMmap       = 4090
-	SysBrk        = 4045
-	SysClone      = 4120
-	SysExitGroup  = 4246
-	SysRead       = 4003
-	SysWrite      = 4004
-	SysFcntl      = 4055
-	SysExit       = 4001
-	SysSchedYield = 4162
-	SysGetTID     = 4222
-	SysFutex      = 4238
-	SysOpen       = 4005
-	SysNanosleep  = 4166
+	SysMmap         = 4090
+	SysBrk          = 4045
+	SysClone        = 4120
+	SysExitGroup    = 4246
+	SysRead         = 4003
+	SysWrite        = 4004
+	SysFcntl        = 4055
+	SysExit         = 4001
+	SysSchedYield   = 4162
+	SysGetTID       = 4222
+	SysFutex        = 4238
+	SysOpen         = 4005
+	SysNanosleep    = 4166
+	SysClockGetTime = 4263
+	SysGetpid       = 4020
 )
 
 // Noop Syscall codes
@@ -67,7 +69,6 @@ const (
 	SysTimerCreate  = 4257
 	SysTimerSetTime = 4258
 	SysTimerDelete  = 4261
-	SysClockGetTime = 4263
 )
 
 // File descriptors
@@ -132,7 +133,21 @@ const (
 
 // Other constants
 const (
+	// SchedQuantum is the number of steps dedicated for a thread before it's preempted. Effectively used to emulate thread "time slices"
 	SchedQuantum = 100_000
+
+	// HZ is the assumed clock rate of an emulated MIPS32 CPU.
+	// The value of HZ is a rough estimate of the Cannon instruction count / second on a typical machine.
+	// HZ is used to emulate the clock_gettime syscall used by guest programs that have a Go runtime.
+	// The Go runtime consumes the system time to determine when to initiate gc assists and for goroutine scheduling.
+	// A HZ value that is too low (i.e. lower than the emulation speed) results in the main goroutine attempting to assist with GC more often.
+	// Adjust this value accordingly as the emulation speed changes. The HZ value should be within the same order of magnitude as the emulation speed.
+	HZ = 10_000_000
+
+	// ClockGettimeRealtimeFlag is the clock_gettime clock id for Linux's realtime clock: https://github.com/torvalds/linux/blob/ad618736883b8970f66af799e34007475fe33a68/include/uapi/linux/time.h#L49
+	ClockGettimeRealtimeFlag = 0
+	// ClockGettimeMonotonicFlag is the clock_gettime clock id for Linux's monotonic clock: https://github.com/torvalds/linux/blob/ad618736883b8970f66af799e34007475fe33a68/include/uapi/linux/time.h#L50
+	ClockGettimeMonotonicFlag = 1
 )
 
 func GetSyscallArgs(registers *[32]uint32) (syscallNum, a0, a1, a2, a3 uint32) {
@@ -172,7 +187,7 @@ func HandleSysMmap(a0, a1, heap uint32) (v0, v1, newHeap uint32) {
 	return v0, v1, newHeap
 }
 
-func HandleSysRead(a0, a1, a2 uint32, preimageKey [32]byte, preimageOffset uint32, preimageReader PreimageReader, memory *memory.Memory, memTracker MemTracker) (v0, v1, newPreimageOffset uint32) {
+func HandleSysRead(a0, a1, a2 uint32, preimageKey [32]byte, preimageOffset uint32, preimageReader PreimageReader, memory *memory.Memory, memTracker MemTracker) (v0, v1, newPreimageOffset uint32, memUpdated bool, memAddr uint32) {
 	// args: a0 = fd, a1 = addr, a2 = count
 	// returns: v0 = read, v1 = err code
 	v0 = uint32(0)
@@ -200,6 +215,8 @@ func HandleSysRead(a0, a1, a2 uint32, preimageKey [32]byte, preimageOffset uint3
 		binary.BigEndian.PutUint32(outMem[:], mem)
 		copy(outMem[alignment:], dat[:datLen])
 		memory.SetMemory(effAddr, binary.BigEndian.Uint32(outMem[:]))
+		memUpdated = true
+		memAddr = effAddr
 		newPreimageOffset += datLen
 		v0 = datLen
 		//fmt.Printf("read %d pre-image bytes, new offset: %d, eff addr: %08x mem: %08x\n", datLen, m.state.PreimageOffset, effAddr, outMem)
@@ -211,7 +228,7 @@ func HandleSysRead(a0, a1, a2 uint32, preimageKey [32]byte, preimageOffset uint3
 		v1 = MipsEBADF
 	}
 
-	return v0, v1, newPreimageOffset
+	return v0, v1, newPreimageOffset, memUpdated, memAddr
 }
 
 func HandleSysWrite(a0, a1, a2 uint32, lastHint hexutil.Bytes, preimageKey [32]byte, preimageOffset uint32, oracle mipsevm.PreimageOracle, memory *memory.Memory, memTracker MemTracker, stdOut, stdErr io.Writer) (v0, v1 uint32, newLastHint hexutil.Bytes, newPreimageKey common.Hash, newPreimageOffset uint32) {

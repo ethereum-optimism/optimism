@@ -1,12 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Predeploys } from "src/libraries/Predeploys.sol";
+// Contracts
 import { StandardBridge } from "src/universal/StandardBridge.sol";
-import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
-import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { L1Block } from "src/L2/L1Block.sol";
+
+// Libraries
+import { Predeploys } from "src/libraries/Predeploys.sol";
+
+// Interfaces
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
+import { ICrossDomainMessenger } from "src/universal/interfaces/ICrossDomainMessenger.sol";
 
 /// @custom:proxied true
 /// @custom:predeploy 0x4200000000000000000000000000000000000010
@@ -67,7 +72,7 @@ contract L2StandardBridge is StandardBridge, ISemver {
     /// @param _otherBridge Contract for the corresponding bridge on the other chain.
     function initialize(StandardBridge _otherBridge) public initializer {
         __StandardBridge_init({
-            _messenger: CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER),
+            _messenger: ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER),
             _otherBridge: _otherBridge
         });
     }

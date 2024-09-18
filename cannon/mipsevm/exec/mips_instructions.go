@@ -5,6 +5,11 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 )
 
+const (
+	OpLoadLinked       = 0x30
+	OpStoreConditional = 0x38
+)
+
 func GetInstructionDetails(pc uint32, memory *memory.Memory) (insn, opcode, fun uint32) {
 	insn = memory.GetMemory(pc)
 	opcode = insn >> 26 // First 6-bits
@@ -13,7 +18,7 @@ func GetInstructionDetails(pc uint32, memory *memory.Memory) (insn, opcode, fun 
 	return insn, opcode, fun
 }
 
-func ExecMipsCoreStepLogic(cpu *mipsevm.CpuScalars, registers *[32]uint32, memory *memory.Memory, insn, opcode, fun uint32, memTracker MemTracker, stackTracker StackTracker) error {
+func ExecMipsCoreStepLogic(cpu *mipsevm.CpuScalars, registers *[32]uint32, memory *memory.Memory, insn, opcode, fun uint32, memTracker MemTracker, stackTracker StackTracker) (memUpdated bool, memAddr uint32, err error) {
 	// j-type j/jal
 	if opcode == 2 || opcode == 3 {
 		linkReg := uint32(0)
@@ -23,7 +28,8 @@ func ExecMipsCoreStepLogic(cpu *mipsevm.CpuScalars, registers *[32]uint32, memor
 		// Take top 4 bits of the next PC (its 256 MB region), and concatenate with the 26-bit offset
 		target := (cpu.NextPC & 0xF0000000) | ((insn & 0x03FFFFFF) << 2)
 		stackTracker.PushStack(cpu.PC, target)
-		return HandleJump(cpu, registers, linkReg, target)
+		err = HandleJump(cpu, registers, linkReg, target)
+		return
 	}
 
 	// register fetch
@@ -57,7 +63,8 @@ func ExecMipsCoreStepLogic(cpu *mipsevm.CpuScalars, registers *[32]uint32, memor
 	}
 
 	if (opcode >= 4 && opcode < 8) || opcode == 1 {
-		return HandleBranch(cpu, registers, opcode, insn, rtReg, rs)
+		err = HandleBranch(cpu, registers, opcode, insn, rtReg, rs)
+		return
 	}
 
 	storeAddr := uint32(0xFF_FF_FF_FF)
@@ -70,7 +77,7 @@ func ExecMipsCoreStepLogic(cpu *mipsevm.CpuScalars, registers *[32]uint32, memor
 		addr := rs & 0xFFFFFFFC
 		memTracker.TrackMemAccess(addr)
 		mem = memory.GetMemory(addr)
-		if opcode >= 0x28 && opcode != 0x30 {
+		if opcode >= 0x28 {
 			// store
 			storeAddr = addr
 			// store opcodes don't write back to a register
@@ -86,38 +93,46 @@ func ExecMipsCoreStepLogic(cpu *mipsevm.CpuScalars, registers *[32]uint32, memor
 			linkReg := uint32(0)
 			if fun == 9 {
 				linkReg = rdReg
+				stackTracker.PushStack(cpu.PC, rs)
+			} else {
+				stackTracker.PopStack()
 			}
-			stackTracker.PopStack()
-			return HandleJump(cpu, registers, linkReg, rs)
+			err = HandleJump(cpu, registers, linkReg, rs)
+			return
 		}
 
 		if fun == 0xa { // movz
-			return HandleRd(cpu, registers, rdReg, rs, rt == 0)
+			err = HandleRd(cpu, registers, rdReg, rs, rt == 0)
+			return
 		}
 		if fun == 0xb { // movn
-			return HandleRd(cpu, registers, rdReg, rs, rt != 0)
+			err = HandleRd(cpu, registers, rdReg, rs, rt != 0)
+			return
 		}
 
 		// lo and hi registers
 		// can write back
 		if fun >= 0x10 && fun < 0x1c {
-			return HandleHiLo(cpu, registers, fun, rs, rt, rdReg)
+			err = HandleHiLo(cpu, registers, fun, rs, rt, rdReg)
+			return
 		}
-	}
-
-	// store conditional, write a 1 to rt
-	if opcode == 0x38 && rtReg != 0 {
-		registers[rtReg] = 1
 	}
 
 	// write memory
 	if storeAddr != 0xFF_FF_FF_FF {
 		memTracker.TrackMemAccess(storeAddr)
 		memory.SetMemory(storeAddr, val)
+		memUpdated = true
+		memAddr = storeAddr
 	}
 
 	// write back the value to destination register
-	return HandleRd(cpu, registers, rdReg, val, true)
+	err = HandleRd(cpu, registers, rdReg, val, true)
+	return
+}
+
+func SignExtendImmediate(insn uint32) uint32 {
+	return SignExtend(insn&0xFFFF, 16)
 }
 
 func ExecuteMipsInstruction(insn, opcode, fun, rs, rt, mem uint32) uint32 {
@@ -270,10 +285,6 @@ func ExecuteMipsInstruction(insn, opcode, fun, rs, rt, mem uint32) uint32 {
 			val := rt << (24 - (rs&3)*8)
 			mask := uint32(0xFFFFFFFF) << (24 - (rs&3)*8)
 			return (mem & ^mask) | val
-		case 0x30: //  ll
-			return mem
-		case 0x38: //  sc
-			return rt
 		default:
 			panic("invalid instruction")
 		}
@@ -380,6 +391,7 @@ func HandleRd(cpu *mipsevm.CpuScalars, registers *[32]uint32, storeReg uint32, v
 		panic("invalid register")
 	}
 	if storeReg != 0 && conditional {
+		// Register 0 is a special register that always holds a value of 0
 		registers[storeReg] = val
 	}
 	cpu.PC = cpu.NextPC

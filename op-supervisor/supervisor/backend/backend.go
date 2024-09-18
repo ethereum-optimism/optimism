@@ -25,7 +25,6 @@ import (
 )
 
 type SupervisorBackend struct {
-	ctx     context.Context
 	started atomic.Bool
 	logger  log.Logger
 	m       Metrics
@@ -54,7 +53,7 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger, m Metrics, cfg
 	}
 
 	// create the chains db
-	db := db.NewChainsDB(map[types.ChainID]db.LogStorage{}, headTracker)
+	db := db.NewChainsDB(map[types.ChainID]db.LogStorage{}, headTracker, logger)
 
 	// create an empty map of chain monitors
 	chainMonitors := make(map[types.ChainID]*source.ChainMonitor, len(cfg.L2RPCs))
@@ -82,10 +81,11 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger, m Metrics, cfg
 // it does not expect to be called after the backend has been started
 func (su *SupervisorBackend) addFromRPC(ctx context.Context, logger log.Logger, rpc string) error {
 	// create the rpc client, which yields the chain id
-	rpcClient, chainID, err := createRpcClient(su.ctx, logger, rpc)
+	rpcClient, chainID, err := createRpcClient(ctx, logger, rpc)
 	if err != nil {
 		return err
 	}
+	su.logger.Info("adding from rpc connection", "rpc", rpc, "chainID", chainID)
 	// create metrics and a logdb for the chain
 	cm := newChainMetrics(chainID, su.m)
 	path, err := prepLogDBPath(chainID, su.dataDir)
@@ -136,15 +136,17 @@ func (su *SupervisorBackend) Start(ctx context.Context) error {
 		}
 	}
 	// start db maintenance loop
-	maintinenceCtx, cancel := context.WithCancel(ctx)
+	maintinenceCtx, cancel := context.WithCancel(context.Background())
 	su.db.StartCrossHeadMaintenance(maintinenceCtx)
 	su.maintenanceCancel = cancel
 	return nil
 }
 
+var errAlreadyStopped = errors.New("already stopped")
+
 func (su *SupervisorBackend) Stop(ctx context.Context) error {
 	if !su.started.CompareAndSwap(true, false) {
-		return errors.New("already stopped")
+		return errAlreadyStopped
 	}
 	// signal the maintenance loop to stop
 	su.maintenanceCancel()
@@ -173,9 +175,11 @@ func (su *SupervisorBackend) AddL2RPC(ctx context.Context, rpc string) error {
 	if err := su.Stop(ctx); err != nil {
 		return fmt.Errorf("failed to stop backend: %w", err)
 	}
+	su.logger.Info("temporarily stopped the backend to add a new L2 RPC", "rpc", rpc)
 	if err := su.addFromRPC(ctx, su.logger, rpc); err != nil {
 		return fmt.Errorf("failed to add chain monitor: %w", err)
 	}
+	su.logger.Info("added the new L2 RPC, starting supervisor again", "rpc", rpc)
 	return su.Start(ctx)
 }
 
@@ -231,7 +235,10 @@ func (su *SupervisorBackend) CheckBlock(chainID *hexutil.U256, blockHash common.
 	safest := types.CrossUnsafe
 	// find the last log index in the block
 	i, err := su.db.LastLogInBlock(types.ChainID(*chainID), uint64(blockNumber))
-	if err != nil {
+	// TODO(#11836) checking for EOF as a non-error case is a bit of a code smell
+	// and could potentially be incorrect if the given block number is intentionally far in the future
+	if err != nil && !errors.Is(err, io.EOF) {
+		su.logger.Error("failed to scan block", "err", err)
 		return types.Invalid, fmt.Errorf("failed to scan block: %w", err)
 	}
 	// at this point we have the extent of the block, and we can check if it is safe by various criteria

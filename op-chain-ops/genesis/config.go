@@ -230,9 +230,9 @@ type GasPriceOracleDeployConfig struct {
 	// Deprecated: Since Ecotone, this field is superseded by GasPriceOracleBaseFeeScalar and GasPriceOracleBlobBaseFeeScalar.
 	GasPriceOracleScalar uint64 `json:"gasPriceOracleScalar"`
 	// GasPriceOracleBaseFeeScalar represents the value of the base fee scalar used for fee calculations.
-	GasPriceOracleBaseFeeScalar uint32 `json:"gasPriceOracleBaseFeeScalar"`
+	GasPriceOracleBaseFeeScalar uint32 `json:"gasPriceOracleBaseFeeScalar" evm:"basefeeScalar"`
 	// GasPriceOracleBlobBaseFeeScalar represents the value of the blob base fee scalar used for fee calculations.
-	GasPriceOracleBlobBaseFeeScalar uint32 `json:"gasPriceOracleBlobBaseFeeScalar"`
+	GasPriceOracleBlobBaseFeeScalar uint32 `json:"gasPriceOracleBlobBaseFeeScalar" evm:"blobbasefeeScalar"`
 }
 
 var _ ConfigChecker = (*GasPriceOracleDeployConfig)(nil)
@@ -282,7 +282,7 @@ func (d *GasTokenDeployConfig) Check(log log.Logger) error {
 // OperatorDeployConfig configures the hot-key addresses for operations such as sequencing and batch-submission.
 type OperatorDeployConfig struct {
 	// P2PSequencerAddress is the address of the key the sequencer uses to sign blocks on the P2P layer.
-	P2PSequencerAddress common.Address `json:"p2pSequencerAddress"`
+	P2PSequencerAddress common.Address `json:"p2pSequencerAddress" evm:"p2pSequencerAddress"`
 	// BatchSenderAddress represents the initial sequencer account that authorizes batches.
 	// Transactions sent from this account to the batch inbox address are considered valid.
 	BatchSenderAddress common.Address `json:"batchSenderAddress"`
@@ -627,7 +627,7 @@ type OutputOracleDeployConfig struct {
 	L2OutputOracleSubmissionInterval uint64 `json:"l2OutputOracleSubmissionInterval"`
 	// L2OutputOracleStartingTimestamp is the starting timestamp for the L2OutputOracle.
 	// MUST be the same as the timestamp of the L2OO start block.
-	L2OutputOracleStartingTimestamp int `json:"l2OutputOracleStartingTimestamp"`
+	L2OutputOracleStartingTimestamp int64 `json:"l2OutputOracleStartingTimestamp"`
 	// L2OutputOracleStartingBlockNumber is the starting block number for the L2OutputOracle.
 	// Must be greater than or equal to the first Bedrock block. The first L2 output will correspond
 	// to this value plus the submission interval.
@@ -808,7 +808,7 @@ type DeployConfig struct {
 	// The L2 genesis timestamp does not affect the initial L2 account state:
 	// the storage of the L1Block contract at genesis is zeroed, since the adoption of
 	// the L2-genesis allocs-generation through solidity script.
-	L1StartingBlockTag *MarshalableRPCBlockNumberOrHash `json:"l1StartingBlockTag"`
+	L1StartingBlockTag *MarshalableRPCBlockNumberOrHash `json:"l1StartingBlockTag" evm:"-"`
 
 	// L1 contracts configuration.
 	// The deployer of the contracts chooses which sub-systems to deploy.
@@ -820,7 +820,7 @@ type DeployConfig struct {
 	L1DependenciesConfig
 
 	// Legacy, ignored, here for strict-JSON decoding to be accepted.
-	LegacyDeployConfig
+	LegacyDeployConfig `evm:"-"`
 }
 
 // Copy will deeply copy the DeployConfig. This does a JSON roundtrip to copy
