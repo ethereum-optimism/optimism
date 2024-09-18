@@ -138,14 +138,25 @@ func (r *Runner) runAndRecordOnce(ctx context.Context, traceType types.TraceType
 		recordError(err, traceType, r.m, r.log)
 		return
 	}
-	err = r.runOnce(ctx, traceType, prestateHash, localInputs, dir)
-	recordError(err, traceType, r.m, r.log)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		err = r.runOnce(ctx, traceType, prestateHash, localInputs, dir)
+		recordError(err, traceType, r.m, r.log)
+		wg.Done()
+	}()
 
 	if r.addMTCannonPrestate != (common.Hash{}) {
-		// reuse the trace directory
-		err := r.runMTCannonOnce(ctx, localInputs, dir)
-		recordError(err, traceType, r.m, r.log.With("mt-cannon", true))
+		wg.Add(1)
+		go func() {
+			// reuse the trace directory
+			err := r.runMTCannonOnce(ctx, localInputs, dir)
+			recordError(err, traceType, r.m, r.log.With("mt-cannon", true))
+			wg.Done()
+		}()
 	}
+	wg.Wait()
 }
 
 func (r *Runner) runOnce(ctx context.Context, traceType types.TraceType, prestateHash common.Hash, localInputs utils.LocalGameInputs, dir string) error {
