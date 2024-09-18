@@ -434,7 +434,7 @@ contract DeployImplementations_Test is Test {
             vm.readFile(string.concat(root, "/test/fixtures/test-deploy-implementations-out.toml"));
 
         // Clean up before asserting so that we don't leave any files behind.
-        // vm.removeFile(outpath);
+        vm.removeFile(outpath);
 
         assertEq(expOutToml, actOutToml);
     }
