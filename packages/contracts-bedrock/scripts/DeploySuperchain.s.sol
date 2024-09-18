@@ -117,17 +117,17 @@ contract DeploySuperchainInput is BaseDeployIO {
         string memory toml = vm.readFile(_infile);
 
         // Parse and set role inputs.
-        set(this.guardian.selector, toml.readAddress(".roles.guardian"));
-        set(this.protocolVersionsOwner.selector, toml.readAddress(".roles.protocolVersionsOwner"));
-        set(this.proxyAdminOwner.selector, toml.readAddress(".roles.proxyAdminOwner"));
+        set(this.guardian.selector, toml.readAddress(".dsi.roles.guardian"));
+        set(this.protocolVersionsOwner.selector, toml.readAddress(".dsi.roles.protocolVersionsOwner"));
+        set(this.proxyAdminOwner.selector, toml.readAddress(".dsi.roles.proxyAdminOwner"));
 
         // Parse and set other inputs.
-        set(this.paused.selector, toml.readBool(".paused"));
+        set(this.paused.selector, toml.readBool(".dsi.paused"));
 
-        uint256 recVersion = toml.readUint(".recommendedProtocolVersion");
+        uint256 recVersion = toml.readUint(".dsi.protocolVersions.recommendedProtocolVersion");
         set(this.recommendedProtocolVersion.selector, ProtocolVersion.wrap(recVersion));
 
-        uint256 reqVersion = toml.readUint(".requiredProtocolVersion");
+        uint256 reqVersion = toml.readUint(".dsi.protocolVersions.requiredProtocolVersion");
         set(this.requiredProtocolVersion.selector, ProtocolVersion.wrap(reqVersion));
     }
 
