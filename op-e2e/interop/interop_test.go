@@ -85,14 +85,16 @@ func TestInteropTrivial(t *testing.T) {
 	expectedBalance, _ = big.NewInt(0).SetString("10000000000000000000000000", 10)
 	require.Equal(t, expectedBalance, bobBalance)
 
-	emitterAddress := s2.DeployEmitterContract(chainA, "Alice")
-
-	fmt.Println("Address of Emitter:", emitterAddress)
-
+	s2.DeployEmitterContract(chainA, "Alice")
 	rec := s2.EmitData(chainA, "Alice", "0x1234567890abcdef")
 
 	fmt.Println("Result of emitting event:", rec)
 
-	time.Sleep(5 * time.Second)
+	s2.DeployEmitterContract(chainB, "Alice")
+	rec = s2.EmitData(chainB, "Alice", "0x1234567890abcdef")
+
+	fmt.Println("Result of emitting event:", rec)
+
+	time.Sleep(10 * time.Second)
 
 }
