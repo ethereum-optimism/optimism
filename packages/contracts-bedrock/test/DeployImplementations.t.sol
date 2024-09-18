@@ -266,7 +266,7 @@ contract DeployImplementationsOutput_Test is Test {
         string memory expOutPath = string.concat(root, "/test/fixtures/test-deploy-implementations-out.toml");
         string memory expOutToml = vm.readFile(expOutPath);
 
-        // Load the input file to use later when writing new output file.
+        // Parse each dii field of expOutToml
         dii.loadInputFile(string.concat(root, "/test/fixtures/test-deploy-implementations-in.toml"));
 
         address protocolVersionsProxy = expOutToml.readAddress(".dii.protocolVersionsProxy");
