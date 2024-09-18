@@ -5,6 +5,12 @@ import { Script } from "forge-std/Script.sol";
 
 import { LibString } from "@solady/utils/LibString.sol";
 
+import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
+import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
+
+import { Constants } from "src/libraries/Constants.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
+
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
 import { Proxy } from "src/universal/Proxy.sol";
 import { L1ChugSplashProxy } from "src/legacy/L1ChugSplashProxy.sol";
@@ -191,7 +197,7 @@ contract DeployImplementationsOutput is BaseDeployIO {
         require(false, "DeployImplementationsOutput: not implemented");
     }
 
-    function checkOutput(DeployImplementationsInput) public {
+    function checkOutput(DeployImplementationsInput _dii) public {
         address[] memory addrs = Solarray.addresses(
             address(this.opsmProxy()),
             address(this.optimismPortalImpl()),
@@ -207,7 +213,7 @@ contract DeployImplementationsOutput is BaseDeployIO {
         );
         DeployUtils.assertValidContractAddresses(addrs);
 
-        // TODO Also add the assertions for the implementation contracts from ChainAssertions.sol
+        assertValidDeploy(_dii);
     }
 
     function opsmProxy() public returns (OPStackManager) {
@@ -264,6 +270,168 @@ contract DeployImplementationsOutput is BaseDeployIO {
     function disputeGameFactoryImpl() public view returns (DisputeGameFactory) {
         DeployUtils.assertValidContractAddress(address(_disputeGameFactoryImpl));
         return _disputeGameFactoryImpl;
+    }
+
+    // -------- Deployment Assertions --------
+    function assertValidDeploy(DeployImplementationsInput _dii) public {
+        assertValidOpsmProxy(_dii);
+        assertValidOptimismPortalImpl(_dii);
+        assertValidDelayedWETHImpl(_dii);
+        assertValidPreimageOracleSingleton(_dii);
+        assertValidMipsSingleton(_dii);
+        assertValidSystemConfigImpl(_dii);
+        assertValidL1CrossDomainMessengerImpl(_dii);
+        assertValidL1ERC721BridgeImpl(_dii);
+        assertValidL1StandardBridgeImpl(_dii);
+        assertValidOptimismMintableERC20FactoryImpl(_dii);
+        assertValidDisputeGameFactoryImpl(_dii);
+    }
+
+    function assertValidOpsmProxy(DeployImplementationsInput _dii) internal {
+        // First we check the proxy as itself.
+        Proxy proxy = Proxy(payable(address(opsm())));
+        vm.prank(address(0));
+        address admin = proxy.admin();
+        require(admin == address(_dii.superchainProxyAdmin()), "OPSM-10");
+
+        // Then we check the proxy as OPSM.
+        DeployUtils.assertInitialized({ _contractAddress: address(opsm()), _slot: 0, _offset: 0 });
+        require(address(opsm().superchainConfig()) == address(_dii.superchainConfigProxy()), "OPSM-20");
+        require(address(opsm().protocolVersions()) == address(_dii.protocolVersionsProxy()), "OPSM-30");
+        require(LibString.eq(opsm().latestRelease(), _dii.release()), "OPSM-50"); // Initial release must be the latest.
+
+        // Lastly we check it's implementation.
+        vm.prank(address(0));
+        OPStackManager impl = OPStackManager(proxy.implementation());
+        DeployUtils.assertInitialized({ _contractAddress: address(impl), _slot: 0, _offset: 0 });
+        require(address(impl.superchainConfig()) == address(_dii.superchainConfigProxy()), "OPSM-60");
+        require(address(impl.protocolVersions()) == address(_dii.protocolVersionsProxy()), "OPSM-70");
+    }
+
+    function assertValidOptimismPortalImpl(DeployImplementationsInput) internal view {
+        OptimismPortal2 portal = optimismPortalImpl();
+
+        DeployUtils.assertInitialized({ _contractAddress: address(portal), _slot: 0, _offset: 0 });
+
+        require(address(portal.disputeGameFactory()) == address(0), "OP-10");
+        require(address(portal.systemConfig()) == address(0), "OP-20");
+        require(address(portal.superchainConfig()) == address(0), "OP-30");
+        require(portal.l2Sender() == Constants.DEFAULT_L2_SENDER, "OP-40");
+
+        // This slot is the custom gas token _balance and this check ensures
+        // that it stays unset for forwards compatibility with custom gas token.
+        require(vm.load(address(portal), bytes32(uint256(61))) == bytes32(0), "OP-50");
+    }
+
+    function assertValidDelayedWETHImpl(DeployImplementationsInput _dii) internal view {
+        DelayedWETH delayedWETH = delayedWETHImpl();
+
+        DeployUtils.assertInitialized({ _contractAddress: address(delayedWETH), _slot: 0, _offset: 0 });
+
+        require(delayedWETH.owner() == address(0), "DW-10");
+        require(delayedWETH.delay() == _dii.withdrawalDelaySeconds(), "DW-20");
+        require(delayedWETH.config() == ISuperchainConfig(address(0)), "DW-30");
+    }
+
+    function assertValidPreimageOracleSingleton(DeployImplementationsInput _dii) internal view {
+        PreimageOracle oracle = preimageOracleSingleton();
+
+        require(oracle.minProposalSize() == _dii.minProposalSizeBytes(), "PO-10");
+        require(oracle.challengePeriod() == _dii.challengePeriodSeconds(), "PO-20");
+    }
+
+    function assertValidMipsSingleton(DeployImplementationsInput) internal view {
+        MIPS mips = mipsSingleton();
+
+        require(address(mips.oracle()) == address(preimageOracleSingleton()), "MIPS-10");
+    }
+
+    function assertValidSystemConfigImpl(DeployImplementationsInput) internal view {
+        SystemConfig systemConfig = systemConfigImpl();
+
+        DeployUtils.assertInitialized({ _contractAddress: address(systemConfig), _slot: 0, _offset: 0 });
+
+        require(systemConfig.owner() == address(0xdead), "SC-10");
+        require(systemConfig.overhead() == 0, "SC-20");
+        require(systemConfig.scalar() == uint256(0x01) << 248, "SC-30");
+        require(systemConfig.basefeeScalar() == 0, "SC-40");
+        require(systemConfig.blobbasefeeScalar() == 0, "SC-50");
+        require(systemConfig.batcherHash() == bytes32(0), "SC-60");
+        require(systemConfig.gasLimit() == 1, "SC-70");
+        require(systemConfig.unsafeBlockSigner() == address(0), "SC-80");
+
+        IResourceMetering.ResourceConfig memory resourceConfig = systemConfig.resourceConfig();
+        require(resourceConfig.maxResourceLimit == 1, "SC-90");
+        require(resourceConfig.elasticityMultiplier == 1, "SC-100");
+        require(resourceConfig.baseFeeMaxChangeDenominator == 2, "SC-110");
+        require(resourceConfig.systemTxMaxGas == 0, "SC-120");
+        require(resourceConfig.minimumBaseFee == 0, "SC-130");
+        require(resourceConfig.maximumBaseFee == 0, "SC-140");
+
+        require(systemConfig.startBlock() == type(uint256).max, "SC-150");
+        require(systemConfig.batchInbox() == address(0), "SC-160");
+        require(systemConfig.l1CrossDomainMessenger() == address(0), "SC-170");
+        require(systemConfig.l1ERC721Bridge() == address(0), "SC-180");
+        require(systemConfig.l1StandardBridge() == address(0), "SC-190");
+        require(systemConfig.disputeGameFactory() == address(0), "SC-200");
+        require(systemConfig.optimismPortal() == address(0), "SC-210");
+        require(systemConfig.optimismMintableERC20Factory() == address(0), "SC-220");
+    }
+
+    function assertValidL1CrossDomainMessengerImpl(DeployImplementationsInput) internal view {
+        L1CrossDomainMessenger messenger = l1CrossDomainMessengerImpl();
+
+        DeployUtils.assertInitialized({ _contractAddress: address(messenger), _slot: 0, _offset: 20 });
+
+        require(address(messenger.OTHER_MESSENGER()) == Predeploys.L2_CROSS_DOMAIN_MESSENGER, "L1xDM-10");
+        require(address(messenger.otherMessenger()) == Predeploys.L2_CROSS_DOMAIN_MESSENGER, "L1xDM-20");
+        require(address(messenger.PORTAL()) == address(0), "L1xDM-30");
+        require(address(messenger.portal()) == address(0), "L1xDM-40");
+        require(address(messenger.superchainConfig()) == address(0), "L1xDM-50");
+
+        bytes32 xdmSenderSlot = vm.load(address(messenger), bytes32(uint256(204)));
+        require(address(uint160(uint256(xdmSenderSlot))) == Constants.DEFAULT_L2_SENDER, "L1xDM-60");
+    }
+
+    function assertValidL1ERC721BridgeImpl(DeployImplementationsInput) internal view {
+        L1ERC721Bridge bridge = l1ERC721BridgeImpl();
+
+        DeployUtils.assertInitialized({ _contractAddress: address(bridge), _slot: 0, _offset: 0 });
+
+        require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_ERC721_BRIDGE, "LEB-10");
+        require(address(bridge.otherBridge()) == Predeploys.L2_ERC721_BRIDGE, "LEB-20");
+        require(address(bridge.MESSENGER()) == address(0), "LEB-30");
+        require(address(bridge.messenger()) == address(0), "LEB-40");
+        require(address(bridge.superchainConfig()) == address(0), "LEB-50");
+    }
+
+    function assertValidL1StandardBridgeImpl(DeployImplementationsInput) internal view {
+        L1StandardBridge bridge = l1StandardBridgeImpl();
+
+        DeployUtils.assertInitialized({ _contractAddress: address(bridge), _slot: 0, _offset: 0 });
+
+        require(address(bridge.MESSENGER()) == address(0), "LSB-10");
+        require(address(bridge.messenger()) == address(0), "LSB-20");
+        require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_STANDARD_BRIDGE, "LSB-30");
+        require(address(bridge.otherBridge()) == Predeploys.L2_STANDARD_BRIDGE, "LSB-40");
+        require(address(bridge.superchainConfig()) == address(0), "LSB-50");
+    }
+
+    function assertValidOptimismMintableERC20FactoryImpl(DeployImplementationsInput) internal view {
+        OptimismMintableERC20Factory factory = optimismMintableERC20FactoryImpl();
+
+        DeployUtils.assertInitialized({ _contractAddress: address(factory), _slot: 0, _offset: 0 });
+
+        require(address(factory.BRIDGE()) == address(0), "OM-10");
+        require(address(factory.bridge()) == address(0), "OM-20");
+    }
+
+    function assertValidDisputeGameFactoryImpl(DeployImplementationsInput) internal view {
+        DisputeGameFactory factory = disputeGameFactoryImpl();
+
+        DeployUtils.assertInitialized({ _contractAddress: address(factory), _slot: 0, _offset: 0 });
+
+        require(address(factory.owner()) == address(0), "DG-10");
     }
 }
 

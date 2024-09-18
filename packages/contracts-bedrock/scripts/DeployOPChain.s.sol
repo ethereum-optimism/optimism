@@ -274,7 +274,7 @@ contract DeployOPChainOutput is BaseDeployIO {
         return _delayedWETHPermissionlessGameProxy;
     }
 
-    // -------- Assertions on chain architecture --------
+    // -------- Deployment Assertions --------
 
     function assertValidDeploy(DeployOPChainInput _doi) internal view {
         assertValidSystemConfig(_doi);

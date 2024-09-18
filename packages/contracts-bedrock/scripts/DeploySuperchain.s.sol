@@ -230,6 +230,7 @@ contract DeploySuperchainOutput is BaseDeployIO {
         require(actualProtocolVersionsImpl == address(_protocolVersionsImpl), "200");
 
         // TODO Also add the assertions for the implementation contracts from ChainAssertions.sol
+        assertValidDeploy(_dsi);
     }
 
     function superchainProxyAdmin() public view returns (ProxyAdmin) {
@@ -255,6 +256,60 @@ contract DeploySuperchainOutput is BaseDeployIO {
     function protocolVersionsProxy() public view returns (ProtocolVersions) {
         DeployUtils.assertValidContractAddress(address(_protocolVersionsProxy));
         return _protocolVersionsProxy;
+    }
+
+    // -------- Deployment Assertions --------
+    function assertValidDeploy(DeploySuperchainInput _dsi) public {
+        assertValidSuperchainProxyAdmin(_dsi);
+        assertValidSuperchainConfig(_dsi);
+        assertValidProtocolVersions(_dsi);
+    }
+
+    function assertValidSuperchainProxyAdmin(DeploySuperchainInput _dsi) internal view {
+        require(superchainProxyAdmin().owner() == _dsi.superchainProxyAdminOwner(), "SPA-10");
+    }
+
+    function assertValidSuperchainConfig(DeploySuperchainInput _dsi) internal {
+        // Proxy checks.
+        SuperchainConfig superchainConfig = superchainConfigProxy();
+        DeployUtils.assertInitialized({ _contractAddress: address(superchainConfig), _slot: 0, _offset: 0 });
+        require(superchainConfig.guardian() == _dsi.guardian(), "SC-10");
+        require(superchainConfig.paused() == _dsi.paused(), "SC-20");
+
+        vm.startPrank(address(0));
+        require(Proxy(payable(address(superchainConfig))).implementation() == address(superchainConfigImpl()), "SC-30");
+        require(Proxy(payable(address(superchainConfig))).admin() == address(superchainProxyAdmin()), "SC-40");
+        vm.stopPrank();
+
+        // Implementation checks
+        superchainConfig = superchainConfigImpl();
+        require(superchainConfig.guardian() == address(0), "SC-50");
+        require(superchainConfig.paused() == false, "SC-60");
+    }
+
+    function assertValidProtocolVersions(DeploySuperchainInput _dsi) internal {
+        // Proxy checks.
+        ProtocolVersions pv = protocolVersionsProxy();
+        DeployUtils.assertInitialized({ _contractAddress: address(pv), _slot: 0, _offset: 0 });
+        require(pv.owner() == _dsi.protocolVersionsOwner(), "PV-10");
+        require(
+            ProtocolVersion.unwrap(pv.required()) == ProtocolVersion.unwrap(_dsi.requiredProtocolVersion()), "PV-20"
+        );
+        require(
+            ProtocolVersion.unwrap(pv.recommended()) == ProtocolVersion.unwrap(_dsi.recommendedProtocolVersion()),
+            "PV-30"
+        );
+
+        vm.startPrank(address(0));
+        require(Proxy(payable(address(pv))).implementation() == address(protocolVersionsImpl()), "PV-40");
+        require(Proxy(payable(address(pv))).admin() == address(superchainProxyAdmin()), "PV-50");
+        vm.stopPrank();
+
+        // Implementation checks.
+        pv = protocolVersionsImpl();
+        require(pv.owner() == address(0xdead), "PV-60");
+        require(ProtocolVersion.unwrap(pv.required()) == 0, "PV-70");
+        require(ProtocolVersion.unwrap(pv.recommended()) == 0, "PV-80");
     }
 }
 
