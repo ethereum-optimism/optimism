@@ -931,7 +931,7 @@ jobs:
         description: Go Module Name
         type: string
     docker:
-      - image: <<pipeline.parameters.ci_builder_image>> # only used to enable codecov.
+      - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: xlarge
     steps:
       - checkout
@@ -944,12 +944,17 @@ jobs:
             - golang-build-cache-test-<<parameters.module>>-{{ checksum "go.sum" }}
             - golang-build-cache-test-
       - run:
+          name: Install components
+          command: |
+            go version
+            go install gotest.tools/gotestsum@v1.11.0
+      - run:
           name: prep results dir
-          command: mkdir -p /tmp/test-results &&  mkdir -p /testlogs
+          command: mkdir -p /tmp/test-results && mkdir -p /tmp/testlogs
       - run:
           name: run tests
           command: |
-            gotestsum --format=testname --junitfile=/tmp/test-results/<<parameters.module>>.xml --jsonfile=/testlogs/log.json \
+            gotestsum --format=testname --junitfile=/tmp/test-results/<<parameters.module>>.xml --jsonfile=/tmp/testlogs/log.json \
             -- -parallel=8 -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out ./...
           working_directory: <<parameters.module>>
       - save_cache:
@@ -960,7 +965,7 @@ jobs:
       - store_test_results:
           path: /tmp/test-results
       - store_artifacts:
-          path: /testlogs
+          path: /tmp/testlogs
           when: always
 
   go-e2e-test:
@@ -1649,25 +1654,17 @@ workflows:
           requires:
             - go-mod-download
       - fuzz-golang:
-          name: op-challenger-fuzz
-          package_name: op-challenger
-          on_changes: op-challenger
-          requires: ["go-mod-download"]
-      - fuzz-golang:
-          name: op-node-fuzz
-          package_name: op-node
-          on_changes: op-node
-          requires: ["go-mod-download"]
-      - fuzz-golang:
-          name: op-service-fuzz
-          package_name: op-service
-          on_changes: op-service
-          requires: ["go-mod-download"]
-      - fuzz-golang:
-          name: op-chain-ops-fuzz
-          package_name: op-chain-ops
-          on_changes: op-chain-ops
-          requires: ["go-mod-download"]
+          name: fuzz-golang-<<matrix.package_name>>
+          requires:
+            - go-mod-download
+          on_changes: <<matrix.package_name>>
+          matrix:
+            parameters:
+              package_name:
+                - op-challenger
+                - op-node
+                - op-service
+                - op-chain-ops
       - fuzz-golang:
           name: cannon-fuzz
           package_name: cannon
@@ -1681,50 +1678,28 @@ workflows:
           uses_artifacts: true
           requires: ["go-mod-download", "contracts-bedrock-build"]
       - go-test:
-          name: op-batcher-tests
-          module: op-batcher
-          requires: ["go-mod-download"]
-      - go-test:
-          name: op-chain-ops-tests
-          module: op-chain-ops
+          name: <<matrix.module>>-tests
+          requires:
+            - go-mod-download
+          matrix:
+            parameters:
+              module:
+                - op-batcher
+                - op-chain-ops
+                - op-node
+                - op-proposer
+                - op-challenger
+                - op-dispute-mon
+                - op-conductor
+                - op-program
+                - op-service
+                - op-supervisor
       - go-test-kurtosis:
           name: op-chain-ops-integration
           module: op-chain-ops
           test_directory: ./deployer/integration_test
           uses_artifacts: true
           requires: ["contracts-bedrock-build"]
-      - go-test:
-          name: op-node-tests
-          module: op-node
-          requires: ["go-mod-download"]
-      - go-test:
-          name: op-proposer-tests
-          module: op-proposer
-          requires: ["go-mod-download"]
-      - go-test:
-          name: op-challenger-tests
-          module: op-challenger
-          requires: ["go-mod-download"]
-      - go-test:
-          name: op-dispute-mon-tests
-          module: op-dispute-mon
-          requires: ["go-mod-download"]
-      - go-test:
-          name: op-conductor-tests
-          module: op-conductor
-          requires: ["go-mod-download"]
-      - go-test:
-          name: op-program-tests
-          module: op-program
-          requires: ["go-mod-download"]
-      - go-test:
-          name: op-service-tests
-          module: op-service
-          requires: ["go-mod-download"]
-      - go-test:
-          name: op-supervisor-tests
-          module: op-supervisor
-          requires: ["go-mod-download"]
       - go-e2e-test:
           name: op-e2e-HTTP-tests<< matrix.variant >>
           matrix:
@@ -1784,54 +1759,22 @@ workflows:
             - op-e2e-action-tests
             - op-e2e-action-tests-altda
       - docker-build:
-          name: op-node-docker-build
-          docker_name: op-node
+          name: <<matrix.docker_name>>-docker-build
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          save_image_tag: <<pipeline.git.revision>> # for devnet later
-      - docker-build:
-          name: op-batcher-docker-build
-          docker_name: op-batcher
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          save_image_tag: <<pipeline.git.revision>> # for devnet later
-      - docker-build:
-          name: op-program-docker-build
-          docker_name: op-program
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          # op-program is not part of the devnet, we don't save it.
-      - docker-build:
-          name: op-proposer-docker-build
-          docker_name: op-proposer
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          save_image_tag: <<pipeline.git.revision>> # for devnet later
-      - docker-build:
-          name: op-challenger-docker-build
-          docker_name: op-challenger
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          save_image_tag: <<pipeline.git.revision>> # for devnet later
-      - docker-build:
-          name: proofs-tools-docker-build
-          docker_name: proofs-tools
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-      - docker-build:
-          name: op-dispute-mon-docker-build
-          docker_name: op-dispute-mon
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          save_image_tag: <<pipeline.git.revision>> # for devnet later
-      - docker-build:
-          name: op-conductor-docker-build
-          docker_name: op-conductor
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          # op-conductor is not part of the devnet, we don't save it.
-      - docker-build:
-          name: da-server-docker-build
-          docker_name: da-server
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          save_image_tag: <<pipeline.git.revision>> # for devnet later
-      - docker-build:
-          name: op-supervisor-docker-build
-          docker_name: op-supervisor
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          # op-supervisor is not (yet) part of the devnet, we don't save it
+          save_image_tag: <<pipeline.git.revision>>
+          matrix:
+            parameters:
+              docker_name:
+                - op-node
+                - op-batcher
+                - op-program
+                - op-proposer
+                - op-challenger
+                - proofs-tools
+                - op-dispute-mon
+                - op-conductor
+                - da-server
+                - op-supervisor
       - cannon-prestate:
           requires:
             - go-mod-download
