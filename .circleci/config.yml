@@ -207,9 +207,10 @@ jobs:
       - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: xlarge
     parameters:
-      build_command:
+      skip_pattern:
+        description: Glob pattern of tests to skip
         type: string
-        default: just build
+        default: ""
     steps:
       - checkout
       - install-contracts-dependencies
@@ -232,7 +233,7 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: Build contracts
-          command: << parameters.build_command >>
+          command: forge build --deny-warnings --skip <<parameters.skip_pattern>>
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
@@ -1615,7 +1616,7 @@ workflows:
       - go-mod-download
       - contracts-bedrock-build:
           # Build with just core + script contracts.
-          build_command: forge build --skip test --deny-warnings
+          skip_pattern: test
       - contracts-bedrock-tests:
           # Test everything except PreimageOracle.t.sol since it's slow.
           name: contracts-bedrock-tests
@@ -2138,7 +2139,7 @@ workflows:
           requires:
             - go-mod-download
       - contracts-bedrock-build:
-          build_command: forge build --skip test
+          skip_pattern: test
           context:
             - slack
       - go-e2e-test:
