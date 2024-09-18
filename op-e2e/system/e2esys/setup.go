@@ -515,7 +515,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 
 	t.Log("Generating L2 genesis", "l2_allocs_mode", string(allocsMode))
 	l2Allocs := config.L2Allocs(allocsMode)
-	l2Genesis, err := genesis.BuildL2Genesis(cfg.DeployConfig, l2Allocs, l1Block)
+	l2Genesis, err := genesis.BuildL2Genesis(cfg.DeployConfig, l2Allocs, l1Block.Header())
 	if err != nil {
 		return nil, err
 	}

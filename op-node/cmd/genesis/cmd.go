@@ -191,13 +191,13 @@ var Subcommands = cli.Commands{
 			}
 
 			// Build the L2 genesis block
-			l2Genesis, err := genesis.BuildL2Genesis(config, l2Allocs, l1StartBlock)
+			l2Genesis, err := genesis.BuildL2Genesis(config, l2Allocs, l1StartBlock.Header())
 			if err != nil {
 				return fmt.Errorf("error creating l2 genesis: %w", err)
 			}
 
 			l2GenesisBlock := l2Genesis.ToBlock()
-			rollupConfig, err := config.RollupConfig(l1StartBlock, l2GenesisBlock.Hash(), l2GenesisBlock.Number().Uint64())
+			rollupConfig, err := config.RollupConfig(l1StartBlock.Header(), l2GenesisBlock.Hash(), l2GenesisBlock.Number().Uint64())
 			if err != nil {
 				return err
 			}

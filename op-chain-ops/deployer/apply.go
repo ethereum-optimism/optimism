@@ -162,5 +162,11 @@ func ApplyPipeline(
 			return fmt.Errorf("error in pipeline stage: %w", err)
 		}
 	}
+
+	st.AppliedIntent = intent
+	if err := env.WriteState(st); err != nil {
+		return fmt.Errorf("failed to write state: %w", err)
+	}
+
 	return nil
 }

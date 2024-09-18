@@ -1,7 +1,12 @@
 package state
 
 import (
+	"bytes"
+	"compress/gzip"
+	"encoding/json"
 	"fmt"
+
+	"github.com/ethereum/go-ethereum/core/types"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
@@ -94,4 +99,21 @@ type ChainState struct {
 	DelayedWETHPermissionlessGameProxyAddress common.Address `json:"delayedWETHPermissionlessGameProxyAddress"`
 
 	Genesis Base64Bytes `json:"genesis"`
+
+	StartBlock *types.Header `json:"startBlock"`
+}
+
+func (c *ChainState) UnmarshalGenesis() (*foundry.ForgeAllocs, error) {
+	gr, err := gzip.NewReader(bytes.NewReader(c.Genesis))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create gzip reader: %w", err)
+	}
+	defer gr.Close()
+
+	var allocs foundry.ForgeAllocs
+	if err := json.NewDecoder(gr).Decode(&allocs); err != nil {
+		return nil, fmt.Errorf("failed to decode genesis: %w", err)
+	}
+
+	return &allocs, nil
 }

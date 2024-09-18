@@ -26,7 +26,7 @@ type Intent struct {
 
 	Chains []*ChainIntent `json:"chains" toml:"chains"`
 
-	GlobalInitOverrides map[string]any `json:"globalInitOverrides" toml:"globalInitOverrides"`
+	GlobalDeployOverrides map[string]any `json:"globalDeployOverrides" toml:"globalDeployOverrides"`
 }
 
 func (c *Intent) L1ChainIDBig() *big.Int {
@@ -92,7 +92,7 @@ type ChainIntent struct {
 
 	Roles ChainRoles `json:"roles" toml:"roles"`
 
-	InitOverrides map[string]any `json:"initOverrides" toml:"initOverrides"`
+	DeployOverrides map[string]any `json:"deployOverrides" toml:"deployOverrides"`
 }
 
 type ChainRoles struct {
