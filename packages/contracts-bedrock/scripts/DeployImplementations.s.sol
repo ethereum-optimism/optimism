@@ -114,7 +114,10 @@ contract DeployImplementationsInput is BaseDeployIO {
         set(this.minProposalSizeBytes.selector, toml.readUint(".dii.faultProofs.minProposalSizeBytes"));
         set(this.challengePeriodSeconds.selector, toml.readUint(".dii.faultProofs.challengePeriodSeconds"));
         set(this.proofMaturityDelaySeconds.selector, toml.readUint(".dii.faultProofs.proofMaturityDelaySeconds"));
-        set(this.disputeGameFinalityDelaySeconds.selector, toml.readUint(".dii.faultProofs.disputeGameFinalityDelaySeconds"));
+        set(
+            this.disputeGameFinalityDelaySeconds.selector,
+            toml.readUint(".dii.faultProofs.disputeGameFinalityDelaySeconds")
+        );
     }
 
     function salt() public view returns (bytes32) {
