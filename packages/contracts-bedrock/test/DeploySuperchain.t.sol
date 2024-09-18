@@ -142,7 +142,7 @@ contract DeploySuperchainOutput_Test is Test {
         dso.protocolVersionsProxy();
     }
 
-    function test_writeOutputFile_succeeds() public {
+    function test_outputFileInputDataPrepended_succeeds() public {
         string memory root = vm.projectRoot();
 
         // Use the expected data from the test fixture.
@@ -153,7 +153,7 @@ contract DeploySuperchainOutput_Test is Test {
         // Load the input file to use later when writing new output file.
         dsi.loadInputFile(expInPath);
 
-        // Parse each field of expOutToml individually starting with inputs
+        // Parse each dsi field of expOutToml
         bool paused = expOutToml.readBool(".dsi.paused");
         assertEq(paused, dsi.paused(), "100");
         ProtocolVersion requiredProtocolVersion =
@@ -176,6 +176,19 @@ contract DeploySuperchainOutput_Test is Test {
         assertEq(protocolVersionsOwner, dsi.protocolVersionsOwner(), "500");
         address proxyAdminOwner = expOutToml.readAddress(".dsi.roles.proxyAdminOwner");
         assertEq(proxyAdminOwner, dsi.proxyAdminOwner(), "600");
+    }
+
+    function test_writeOutputFile_succeeds() public {
+        string memory root = vm.projectRoot();
+
+        // Use the expected data from the test fixture.
+        string memory expInPath = string.concat(root, "/test/fixtures/test-deploy-superchain-in.toml");
+        string memory expOutPath = string.concat(root, "/test/fixtures/test-deploy-superchain-out.toml");
+        string memory expOutToml = vm.readFile(expOutPath);
+
+        // Load the input file to use later when writing new output file.
+        dsi.loadInputFile(expInPath);
+
         // Parse outputs
         ProxyAdmin expSuperchainProxyAdmin = ProxyAdmin(expOutToml.readAddress(".dso.superchainProxyAdmin"));
         SuperchainConfig expSuperchainConfigImpl = SuperchainConfig(expOutToml.readAddress(".dso.superchainConfigImpl"));
