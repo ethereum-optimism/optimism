@@ -209,9 +209,7 @@ jobs:
     parameters:
       build_command:
         type: string
-        default: |
-          just prebuild
-          forge build --deny-warnings
+        default: just build
     steps:
       - checkout
       - install-contracts-dependencies
@@ -1616,10 +1614,8 @@ workflows:
     jobs:
       - go-mod-download
       - contracts-bedrock-build:
-          name: contracts-bedrock-build
-          build_command: |
-            # Note: scripts are included, to be available to op-e2e
-            forge build --skip test
+          # Build with just core + script contracts.
+          build_command: forge build --skip test --deny-warnings
       - contracts-bedrock-tests:
           # Test everything except PreimageOracle.t.sol since it's slow.
           name: contracts-bedrock-tests
@@ -1629,12 +1625,12 @@ workflows:
             TEST_FILES=$(echo "$TEST_FILES" | circleci tests split --split-by=timings)
             TEST_FILES=$(echo "$TEST_FILES" | sed 's|./test/||')
             MATCH_PATH="./test/{$(echo "$TEST_FILES" | paste -sd "," -)}"
-            forge test --match-path "$MATCH_PATH"
+            forge test --deny-warnings --match-path "$MATCH_PATH"
       - contracts-bedrock-tests:
           # PreimageOracle test is slow, run it separately to unblock CI.
           name: contracts-bedrock-tests-preimage-oracle
           test_parallelism: 1
-          test_command: forge test --match-path ./test/cannon/PreimageOracle.t.sol
+          test_command: forge test --deny-warnings --match-path ./test/cannon/PreimageOracle.t.sol
       - contracts-bedrock-tests:
           # Heavily fuzz any fuzz tests that have been added or modified.
           name: contracts-bedrock-tests-heavy-fuzz-modified
@@ -2141,7 +2137,10 @@ workflows:
       - cannon-prestate:
           requires:
             - go-mod-download
-      - contracts-bedrock-build
+      - contracts-bedrock-build:
+          build_command: forge build --skip test
+          context:
+            - slack
       - go-e2e-test:
           name: op-e2e-cannon-tests<< matrix.variant >>
           matrix:
