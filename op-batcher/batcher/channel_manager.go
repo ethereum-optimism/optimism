@@ -159,8 +159,6 @@ func (s *channelManager) nextTxData(channel *channel) (txData, error) {
 // automatically. When switching DA type, all channels which have not begun to be submitted
 // will be rebuilt with a new ChannelConfig.
 func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	data, err := s.txData(l1Head)
 	if s.currentChannel == nil {
 		s.log.Trace("no current channel")
@@ -175,18 +173,9 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 	// type were wrong and we need to rebuild
 	// the channel manager state assuming
 	// a different DA type
-
-	for i, channel := range s.channelQueue {
-		newChannel, err := channel.Rebuild(newCfg)
-		if err == nil {
-			// We may not be able to rebuild the channel if it has already begun to be submitted
-			s.channelQueue[i] = newChannel
-			if channel == s.currentChannel {
-				s.currentChannel = newChannel
-			}
-		} else {
-			s.log.Info(err.Error())
-		}
+	err = s.Rebuild(newCfg)
+	if err != nil {
+		return data, err
 	}
 	return s.txData(l1Head)
 }
@@ -392,20 +381,21 @@ func (s *channelManager) outputFrames() error {
 	return nil
 }
 
-// AddL2Block adds an L2 block to the internal blocks queue. It returns ErrReorg
-// if the block does not extend the last block loaded into the state. If no
+// AddL2Blocks adds a L2 blocks to the internal blocks queue. It returns ErrReorg
+// if any block does not extend the last block loaded into the state. If no
 // blocks were added yet, the parent hash check is skipped.
-// TODO how about a variadic version of this function, to avoid thrashing the mutex
-func (s *channelManager) AddL2Block(block *types.Block) error {
+func (s *channelManager) AddL2Blocks(blocks ...*types.Block) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.tip != (common.Hash{}) && s.tip != block.ParentHash() {
-		return ErrReorg
-	}
+	for _, block := range blocks {
+		if s.tip != (common.Hash{}) && s.tip != block.ParentHash() {
+			return ErrReorg
+		}
 
-	s.metr.RecordL2BlockInPendingQueue(block)
-	s.blocks = append(s.blocks, block)
-	s.tip = block.Hash()
+		s.metr.RecordL2BlockInPendingQueue(block)
+		s.blocks = append(s.blocks, block)
+		s.tip = block.Hash()
+	}
 
 	return nil
 }
@@ -472,5 +462,22 @@ func (s *channelManager) Close() error {
 		// Make it clear to the caller that there is remaining pending work.
 		return ErrPendingAfterClose
 	}
+	return nil
+}
+
+// Rebuild rebuilds the channel manager state with a new ChannelConfig.
+func (s *channelManager) Rebuild(cfg ChannelConfig) error {
+	newChannelQueue := []*channel{}
+	for _, channel := range s.channelQueue {
+		if len(channel.pendingTransactions) > 0 {
+			newChannelQueue = append(newChannelQueue, channel)
+			continue
+		}
+		if err := s.AddL2Blocks(channel.channelBuilder.Blocks()...); err != nil {
+			return err
+		}
+	}
+	s.channelQueue = newChannelQueue
+	s.currentChannel = nil
 	return nil
 }

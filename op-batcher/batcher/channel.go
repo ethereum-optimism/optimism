@@ -248,22 +248,3 @@ func (c *channel) OldestL2() eth.BlockID {
 func (s *channel) Close() {
 	s.channelBuilder.Close()
 }
-
-// Rebuild attempts to rebuild the channel with a new ChannelConfig. It either returns
-// a pointer to a new channel, or an error. Does not mutate the receiver.
-func (s *channel) Rebuild(cfg ChannelConfig) (*channel, error) {
-	if len(s.pendingTransactions) > 0 {
-		return nil, fmt.Errorf("cannot rebuild channel with pending transactions")
-	}
-	nc, err := newChannel(s.log, s.metr, cfg, &s.channelBuilder.rollupCfg, s.LatestL1Origin().Number)
-	if err != nil {
-		return nil, err
-	}
-	for _, b := range s.channelBuilder.Blocks() {
-		_, err := nc.channelBuilder.AddBlock(b)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return nc, nil
-}
