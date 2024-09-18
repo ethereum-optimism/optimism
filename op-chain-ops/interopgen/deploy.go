@@ -206,7 +206,7 @@ func deployL2ToL1(l1Host *script.Host, superCfg *SuperchainConfig, superDeployme
 		BasefeeScalar:          cfg.GasPriceOracleBaseFeeScalar,
 		BlobBaseFeeScalar:      cfg.GasPriceOracleBlobBaseFeeScalar,
 		L2ChainId:              new(big.Int).SetUint64(cfg.L2ChainID),
-		Opsm:                   superDeployment.Opsm,
+		OpsmProxy:              superDeployment.OpsmProxy,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to deploy L2 OP chain: %w", err)
