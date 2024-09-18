@@ -32,6 +32,9 @@ parameters:
   cannon_full_test_dispatch:
     type: boolean
     default: false
+  heavy_fuzz_test_dispatch:
+    type: boolean
+    default: false
   sdk_dispatch:
     type: boolean
     default: false
@@ -588,7 +591,7 @@ jobs:
         type: integer
         default: 4
       test_command:
-        description: List of test files to run
+        description: Command to run tests with
         type: string
       test_timeout:
         description: Timeout for running tests
@@ -2042,24 +2045,6 @@ workflows:
           requires:
             - hold
 
-  scheduled-todo-issues:
-    when:
-      equal: [ build_four_hours, <<pipeline.schedule.name>> ]
-    jobs:
-      - todo-issues:
-          name: todo-issue-checks
-          context:
-            - slack
-
-  scheduled-fpp:
-    when:
-      equal: [ build_four_hours, <<pipeline.schedule.name>> ]
-    jobs:
-      - fpp-verify:
-          context:
-            - slack
-            - oplabs-fpp-nodes
-
   develop-publish-contract-artifacts:
     when:
       or:
@@ -2114,6 +2099,41 @@ workflows:
           context:
             - slack
             - runtimeverification
+
+
+  scheduled-todo-issues:
+    when:
+      equal: [ build_four_hours, <<pipeline.schedule.name>> ]
+    jobs:
+      - todo-issues:
+          name: todo-issue-checks
+          context:
+            - slack
+
+  scheduled-fpp:
+    when:
+      equal: [ build_four_hours, <<pipeline.schedule.name>> ]
+    jobs:
+      - fpp-verify:
+          context:
+            - slack
+            - oplabs-fpp-nodes
+
+  scheduled-heavy-contracts-fuzz-tests:
+    when:
+      or:
+        - equal: [ build_daily, <<pipeline.schedule.name>> ]
+        - equal: [ true, << pipeline.parameters.heavy_fuzz_test_dispatch >> ]
+    jobs:
+      - contracts-bedrock-tests:
+          name: contracts-bedrock-tests-daily-heavy-fuzz
+          test_parallelism: 1
+          test_timeout: 8h
+          test_command: |
+            export FOUNDRY_INVARIANT_RUNS=500000
+            forge test --fuzz-runs 500000
+          context:
+            - slack
 
   scheduled-cannon-full-tests:
     when:

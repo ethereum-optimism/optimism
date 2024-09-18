@@ -373,8 +373,9 @@ contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
         // don't use multicall3's address
         vm.assume(_token != MULTICALL3_ADDRESS);
 
-        vm.assume(bytes(_name).length <= 32);
-        vm.assume(bytes(_symbol).length <= 32);
+        // Make sure the name and symbol are 32 bytes or less.
+        _name = bytes(_name).length <= 32 ? _name : string(bytes(_name)[:32]);
+        _symbol = bytes(_symbol).length <= 32 ? _symbol : string(bytes(_symbol)[:32]);
 
         vm.mockCall(_token, abi.encodeWithSelector(token.decimals.selector), abi.encode(18));
         vm.mockCall(_token, abi.encodeWithSelector(token.name.selector), abi.encode(_name));
