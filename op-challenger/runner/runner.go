@@ -36,9 +36,9 @@ type Metricer interface {
 	vm.Metricer
 	contractMetrics.ContractMetricer
 
-	RecordFailure(vmType types.TraceType)
-	RecordInvalid(vmType types.TraceType)
-	RecordSuccess(vmType types.TraceType)
+	RecordFailure(vmType string)
+	RecordInvalid(vmType string)
+	RecordSuccess(vmType string)
 }
 
 type Runner struct {
@@ -109,7 +109,7 @@ func (r *Runner) loop(ctx context.Context, traceType types.TraceType, client *so
 }
 
 func (r *Runner) runAndRecordOnce(ctx context.Context, traceType types.TraceType, client *sources.RollupClient, caller *batching.MultiCaller) {
-	recordError := func(err error, traceType types.TraceType, m Metricer, log log.Logger) {
+	recordError := func(err error, traceType string, m Metricer, log log.Logger) {
 		if errors.Is(err, ErrUnexpectedStatusCode) {
 			log.Error("Incorrect status code", "type", traceType, "err", err)
 			m.RecordInvalid(traceType)
@@ -124,18 +124,18 @@ func (r *Runner) runAndRecordOnce(ctx context.Context, traceType types.TraceType
 
 	prestateHash, err := r.getPrestateHash(ctx, traceType, caller)
 	if err != nil {
-		recordError(err, traceType, r.m, r.log)
+		recordError(err, traceType.String(), r.m, r.log)
 		return
 	}
 
 	localInputs, err := r.createGameInputs(ctx, client)
 	if err != nil {
-		recordError(err, traceType, r.m, r.log)
+		recordError(err, traceType.String(), r.m, r.log)
 		return
 	}
 	dir, err := r.prepDatadir(traceType)
 	if err != nil {
-		recordError(err, traceType, r.m, r.log)
+		recordError(err, traceType.String(), r.m, r.log)
 		return
 	}
 
@@ -143,7 +143,7 @@ func (r *Runner) runAndRecordOnce(ctx context.Context, traceType types.TraceType
 	wg.Add(1)
 	go func() {
 		err = r.runOnce(ctx, traceType, prestateHash, localInputs, dir)
-		recordError(err, traceType, r.m, r.log)
+		recordError(err, traceType.String(), r.m, r.log)
 		wg.Done()
 	}()
 
@@ -152,7 +152,7 @@ func (r *Runner) runAndRecordOnce(ctx context.Context, traceType types.TraceType
 		go func() {
 			// reuse the trace directory
 			err := r.runMTCannonOnce(ctx, localInputs, dir)
-			recordError(err, traceType, r.m, r.log.With("mt-cannon", true))
+			recordError(err, "mt-cannon", r.m, r.log.With("mt-cannon", true))
 			wg.Done()
 		}()
 	}
