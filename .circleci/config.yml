@@ -239,28 +239,24 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: Generate L2OO allocs
-          command: DEVNET_L2OO="true" make devnet-allocs
-      - run:
-          name: Copy L2OO allocs to .devnet-l2oo
-          command: cp -r .devnet/ .devnet-l2oo/
+          command: |
+            DEVNET_L2OO="true" make devnet-allocs
+            cp -r .devnet/ .devnet-l2oo/
       - run:
           name: Generate AltDA allocs
-          command: DEVNET_ALTDA="true" make devnet-allocs
-      - run:
-          name: Copy AltDA allocs to .devnet-altda
-          command: cp -r .devnet/ .devnet-altda/
+          command: |
+            DEVNET_ALTDA="true" make devnet-allocs
+            cp -r .devnet/ .devnet-altda/
       - run:
           name: Generate Generic AltDA allocs
-          command: DEVNET_ALTDA="true" GENERIC_ALTDA="true" make devnet-allocs
-      - run:
-          name: Copy AltDA allocs to .devnet-altda
-          command: cp -r .devnet/ .devnet-altda-generic/
+          command: |
+            DEVNET_ALTDA="true" GENERIC_ALTDA="true" make devnet-allocs
+            cp -r .devnet/ .devnet-altda-generic/
       - run:
           name: Generate MT-Cannon allocs
-          command: USE_MT_CANNON="true" make devnet-allocs
-      - run:
-          name: Copy MT-Cannon allocs to .devnet-mt-cannon
-          command: cp -r .devnet/ .devnet-mt-cannon/
+          command: |
+            USE_MT_CANNON="true" make devnet-allocs
+            cp -r .devnet/ .devnet-mt-cannon/
       - run:
           name: Generate default allocs
           command: make devnet-allocs
@@ -280,38 +276,13 @@ jobs:
             - "packages/contracts-bedrock/cache"
             - "packages/contracts-bedrock/artifacts"
             - "packages/contracts-bedrock/forge-artifacts"
-            - ".devnet/allocs-l1.json"
-            - ".devnet/allocs-l2-delta.json"
-            - ".devnet/allocs-l2-ecotone.json"
-            - ".devnet/allocs-l2-fjord.json"
-            - ".devnet/allocs-l2-granite.json"
-            - ".devnet/addresses.json"
-            - ".devnet-l2oo/allocs-l1.json"
-            - ".devnet-l2oo/addresses.json"
-            - ".devnet-l2oo/allocs-l2-delta.json"
-            - ".devnet-l2oo/allocs-l2-ecotone.json"
-            - ".devnet-l2oo/allocs-l2-fjord.json"
-            - ".devnet-l2oo/allocs-l2-granite.json"
-            - ".devnet-altda/allocs-l1.json"
-            - ".devnet-altda/addresses.json"
-            - ".devnet-altda/allocs-l2-delta.json"
-            - ".devnet-altda/allocs-l2-ecotone.json"
-            - ".devnet-altda/allocs-l2-fjord.json"
-            - ".devnet-altda/allocs-l2-granite.json"
-            - ".devnet-altda-generic/allocs-l1.json"
-            - ".devnet-altda-generic/addresses.json"
-            - ".devnet-altda-generic/allocs-l2-delta.json"
-            - ".devnet-altda-generic/allocs-l2-ecotone.json"
-            - ".devnet-altda-generic/allocs-l2-fjord.json"
-            - ".devnet-altda-generic/allocs-l2-granite.json"
-            - ".devnet-mt-cannon/allocs-l1.json"
-            - ".devnet-mt-cannon/addresses.json"
-            - ".devnet-mt-cannon/allocs-l2-delta.json"
-            - ".devnet-mt-cannon/allocs-l2-ecotone.json"
-            - ".devnet-mt-cannon/allocs-l2-fjord.json"
-            - ".devnet-mt-cannon/allocs-l2-granite.json"
             - "packages/contracts-bedrock/deploy-config/devnetL1.json"
             - "packages/contracts-bedrock/deployments/devnetL1"
+            - ".devnet"
+            - ".devnet-l2oo"
+            - ".devnet-altda"
+            - ".devnet-altda-generic"
+            - ".devnet-mt-cannon"
       - notify-failures-on-develop
 
   docker-build:
@@ -822,15 +793,6 @@ jobs:
           key: golang-build-cache-fuzz-golang-{{ checksum "go.sum" }}
           paths:
             - "/root/.cache/go-build"
-
-  l1-geth-version-check:
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    steps:
-      - checkout
-      - run:
-          name: "Check L1 geth version"
-          command: ./ops/scripts/geth-version-checker.sh || (echo "geth version is wrong, update ci-builder"; false)
 
   go-lint:
     docker:
@@ -1517,29 +1479,6 @@ jobs:
       - run:
           name: check-generated-mocks
           command: make generate-mocks-op-service && git diff --exit-code
-
-  check-values-match:
-    parameters:
-      pattern_file1:
-        type: string
-        default: ""
-      pattern_file2:
-        type: string
-        default: ""
-      file1_path:
-        type: string
-        default: ""
-      file2_path:
-        type: string
-        default: ""
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    steps:
-      - checkout
-      - run:
-          name: Verify Values Match
-          command: |
-            ./ops/scripts/ci-match-values-between-files.sh "<< parameters.file1_path >>" "<< parameters.pattern_file1 >>" "<< parameters.file2_path >>" "<< parameters.pattern_file2 >>"
 
   kontrol-tests:
     docker:
