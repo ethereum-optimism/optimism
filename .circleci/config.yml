@@ -690,8 +690,6 @@ jobs:
       - run-contracts-check:
           command: gas-snapshot-check
       - run-contracts-check:
-          command: autogen-invariant-docs
-      - run-contracts-check:
           command: snapshots-check-no-build
       - run-contracts-check:
           command: kontrol-deployment-check

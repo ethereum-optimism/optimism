@@ -13,9 +13,6 @@ build: prebuild
 build-go-ffi:
   cd scripts/go-ffi && go build
 
-autogen-invariant-docs:
-  go run ./scripts/autogen/generate-invariant-docs .
-
 test: build-go-ffi
   forge test
 
@@ -133,7 +130,7 @@ clean:
   rm -rf ./artifacts ./forge-artifacts ./cache ./scripts/go-ffi/go-ffi ./deployments/hardhat/*
   find ./.testdata -mindepth 1 -not -name '.gitkeep' -delete
 
-pre-pr-no-build: gas-snapshot-no-build snapshots-no-build semver-lock autogen-invariant-docs lint
+pre-pr-no-build: gas-snapshot-no-build snapshots-no-build semver-lock lint
 
 pre-pr: clean build-go-ffi build pre-pr-no-build
 
