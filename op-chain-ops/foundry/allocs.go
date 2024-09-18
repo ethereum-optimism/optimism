@@ -82,6 +82,10 @@ func (d *ForgeAllocs) Copy() *ForgeAllocs {
 	return &ForgeAllocs{Accounts: out}
 }
 
+func (d ForgeAllocs) MarshalJSON() ([]byte, error) {
+	return json.Marshal(d.Accounts)
+}
+
 func (d *ForgeAllocs) UnmarshalJSON(b []byte) error {
 	// forge, since integrating Alloy, likes to hex-encode everything.
 	type forgeAllocAccount struct {
