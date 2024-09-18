@@ -306,7 +306,7 @@ contract DeployOPChain_TestBase is Test {
     DeployOPChainOutput doo;
 
     // Define default inputs for DeploySuperchain.
-    address superchainProxyAdminOwner = makeAddr("defaultProxyAdminOwner");
+    address proxyAdminOwner = makeAddr("defaultProxyAdminOwner");
     address protocolVersionsOwner = makeAddr("defaultProtocolVersionsOwner");
     address guardian = makeAddr("defaultGuardian");
     bool paused = false;
@@ -342,7 +342,7 @@ contract DeployOPChain_TestBase is Test {
         // Initialize deploy scripts.
         DeploySuperchain deploySuperchain = new DeploySuperchain();
         (DeploySuperchainInput dsi, DeploySuperchainOutput dso) = deploySuperchain.etchIOContracts();
-        dsi.set(dsi.superchainProxyAdminOwner.selector, superchainProxyAdminOwner);
+        dsi.set(dsi.proxyAdminOwner.selector, proxyAdminOwner);
         dsi.set(dsi.protocolVersionsOwner.selector, protocolVersionsOwner);
         dsi.set(dsi.guardian.selector, guardian);
         dsi.set(dsi.paused.selector, paused);
