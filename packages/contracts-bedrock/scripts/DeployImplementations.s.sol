@@ -103,17 +103,18 @@ contract DeployImplementationsInput is BaseDeployIO {
     function loadInputFile(string memory _infile) public {
         string memory toml = vm.readFile(_infile);
 
-        set(this.salt.selector, toml.readBytes32(".salt"));
-        set(this.withdrawalDelaySeconds.selector, toml.readUint(".withdrawalDelaySeconds"));
-        set(this.minProposalSizeBytes.selector, toml.readUint(".minProposalSizeBytes"));
-        set(this.challengePeriodSeconds.selector, toml.readUint(".challengePeriodSeconds"));
-        set(this.proofMaturityDelaySeconds.selector, toml.readUint(".proofMaturityDelaySeconds"));
-        set(this.disputeGameFinalityDelaySeconds.selector, toml.readUint(".disputeGameFinalityDelaySeconds"));
+        set(this.salt.selector, toml.readBytes32(".dii.salt"));
 
-        set(this.release.selector, toml.readString(".release"));
+        set(this.release.selector, toml.readString(".dii.release"));
 
-        set(this.superchainConfigProxy.selector, toml.readAddress(".superchainConfigProxy"));
-        set(this.protocolVersionsProxy.selector, toml.readAddress(".protocolVersionsProxy"));
+        set(this.superchainConfigProxy.selector, toml.readAddress(".dii.superchainConfigProxy"));
+        set(this.protocolVersionsProxy.selector, toml.readAddress(".dii.protocolVersionsProxy"));
+
+        set(this.withdrawalDelaySeconds.selector, toml.readUint(".dii.faultProofs.withdrawalDelaySeconds"));
+        set(this.minProposalSizeBytes.selector, toml.readUint(".dii.faultProofs.minProposalSizeBytes"));
+        set(this.challengePeriodSeconds.selector, toml.readUint(".dii.faultProofs.challengePeriodSeconds"));
+        set(this.proofMaturityDelaySeconds.selector, toml.readUint(".dii.faultProofs.proofMaturityDelaySeconds"));
+        set(this.disputeGameFinalityDelaySeconds.selector, toml.readUint(".dii.faultProofs.disputeGameFinalityDelaySeconds"));
     }
 
     function salt() public view returns (bytes32) {

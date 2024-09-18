@@ -60,15 +60,8 @@ contract DeployImplementationsInput_Test is Test {
         assertEq(disputeGameFinalityDelaySeconds, dii.disputeGameFinalityDelaySeconds(), "600");
         assertEq(release, dii.release(), "700");
 
-        // Addresses found below are contained within the fixture test file:
-        // test/fixtures/test-deploy-implementations-in.toml
-        SuperchainConfig fixtureSuperchainConfigProxy =
-            SuperchainConfig(address(0x1000000000000000000000000000000000000001));
-        ProtocolVersions fixtureProtocolVersionsProxy =
-            ProtocolVersions(address(0x1000000000000000000000000000000000000002));
-
-        assertEq(address(fixtureSuperchainConfigProxy), address(dii.superchainConfigProxy()), "800");
-        assertEq(address(fixtureProtocolVersionsProxy), address(dii.protocolVersionsProxy()), "900");
+        assertEq(address(superchainConfigProxy), address(dii.superchainConfigProxy()), "800");
+        assertEq(address(protocolVersionsProxy), address(dii.protocolVersionsProxy()), "900");
     }
 
     function test_getters_whenNotSet_revert() public {
@@ -424,15 +417,10 @@ contract DeployImplementations_Test is Test {
         string memory inpath = string.concat(root, "/test/fixtures/test-deploy-implementations-in.toml");
         string memory outpath = string.concat(root, getOutPathForFileIOTest());
 
-        // Addresses found below are contained within the fixture test file:
-        // test/fixtures/test-deploy-implementations-in.toml
-        SuperchainConfig superchainConfig = SuperchainConfig(address(0x1000000000000000000000000000000000000001));
-        ProtocolVersions protocolVersions = ProtocolVersions(address(0x1000000000000000000000000000000000000002));
-
-        vm.etch(address(superchainConfig), address(new Proxy(address(0))).code);
+        vm.etch(address(superchainConfigProxy), address(new Proxy(address(0))).code);
         vm.prank(address(0));
-        Proxy(payable(address(superchainConfig))).changeAdmin(msg.sender);
-        vm.etch(address(protocolVersions), hex"01");
+        Proxy(payable(address(superchainConfigProxy))).changeAdmin(msg.sender);
+        vm.etch(address(protocolVersionsProxy), hex"01");
 
         deployImplementations.run(inpath, outpath);
 
