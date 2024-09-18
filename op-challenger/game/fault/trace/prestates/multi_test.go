@@ -27,7 +27,7 @@ func TestDownloadPrestate(t *testing.T) {
 			provider := NewMultiPrestateProvider(parseURL(t, server.URL), dir, &stubStateConverter{hash: hash})
 			path, err := provider.PrestatePath(hash)
 			require.NoError(t, err)
-			in, err := makePrestateReader(path)
+			in, err := os.Open(path)
 			require.NoError(t, err)
 			defer in.Close()
 			content, err := io.ReadAll(in)
@@ -48,7 +48,7 @@ func TestCreateDirectory(t *testing.T) {
 			provider := NewMultiPrestateProvider(parseURL(t, server.URL), dir, &stubStateConverter{hash: hash})
 			path, err := provider.PrestatePath(hash)
 			require.NoError(t, err)
-			in, err := makePrestateReader(path)
+			in, err := os.Open(path)
 			require.NoError(t, err)
 			defer in.Close()
 			content, err := io.ReadAll(in)
@@ -118,7 +118,7 @@ func TestStorePrestateWithCorrectExtension(t *testing.T) {
 			path, err := provider.PrestatePath(hash)
 			require.NoError(t, err)
 			require.Truef(t, strings.HasSuffix(path, ext), "Expected path %v to have extension %v", path, ext)
-			in, err := makePrestateReader(path)
+			in, err := os.Open(path)
 			require.NoError(t, err)
 			defer in.Close()
 			content, err := io.ReadAll(in)
@@ -173,14 +173,6 @@ func prestateHTTPServer(ext string) *httptest.Server {
 			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
-}
-
-func makePrestateReader(path string) (io.ReadCloser, error) {
-	if strings.HasSuffix(path, ".gz") {
-		return os.Open(path)
-	} else {
-		return ioutil.OpenDecompressed(path)
-	}
 }
 
 type stubStateConverter struct {

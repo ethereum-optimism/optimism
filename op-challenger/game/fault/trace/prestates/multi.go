@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
@@ -77,12 +76,7 @@ func (m *MultiPrestateProvider) fetchPrestate(hash common.Hash, fileType string,
 		return fmt.Errorf("%w from url %v: status %v", ErrPrestateUnavailable, prestateUrl, resp.StatusCode)
 	}
 	tmpFile := dest + ".tmp" + fileType // Preserve the file type extension so state decoding is applied correctly
-	var out *ioutil.AtomicWriter
-	if strings.HasSuffix(fileType, ".gz") {
-		out, err = ioutil.NewAtomicWriter(tmpFile, 0o644)
-	} else {
-		out, err = ioutil.NewAtomicWriterCompressed(tmpFile, 0o644)
-	}
+	out, err := ioutil.NewAtomicWriter(tmpFile, 0o644)
 	if err != nil {
 		return fmt.Errorf("failed to open atomic writer for %v: %w", dest, err)
 	}

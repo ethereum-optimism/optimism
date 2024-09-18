@@ -133,34 +133,38 @@ func (r *Runner) runAndRecordOnce(ctx context.Context, traceType types.TraceType
 		recordError(err, traceType.String(), r.m, r.log)
 		return
 	}
-	dir, err := r.prepDatadir(traceType)
-	if err != nil {
-		recordError(err, traceType.String(), r.m, r.log)
-		return
-	}
 
+	inputsLogger := r.log.New("l1", localInputs.L1Head, "l2", localInputs.L2Head, "l2Block", localInputs.L2BlockNumber, "claim", localInputs.L2Claim)
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
-		err = r.runOnce(ctx, traceType, prestateHash, localInputs, dir)
+		defer wg.Done()
+		dir, err := r.prepDatadir(traceType.String())
+		if err != nil {
+			recordError(err, traceType.String(), r.m, r.log)
+			return
+		}
+		err = r.runOnce(ctx, inputsLogger.With("type", traceType), traceType, prestateHash, localInputs, dir)
 		recordError(err, traceType.String(), r.m, r.log)
-		wg.Done()
 	}()
 
 	if r.addMTCannonPrestate != (common.Hash{}) {
 		wg.Add(1)
 		go func() {
-			// reuse the trace directory
-			err := r.runMTCannonOnce(ctx, localInputs, dir)
-			recordError(err, "mt-cannon", r.m, r.log.With("mt-cannon", true))
-			wg.Done()
+			defer wg.Done()
+			dir, err := r.prepDatadir("mt-cannon")
+			if err != nil {
+				recordError(err, traceType.String(), r.m, r.log)
+				return
+			}
+			err = r.runOnce(ctx, inputsLogger.With("type", "mt-cannon"), types.TraceTypeCannon, r.addMTCannonPrestate, localInputs, dir)
+			recordError(err, traceType.String(), r.m, r.log.With("mt-cannon", true))
 		}()
 	}
 	wg.Wait()
 }
 
-func (r *Runner) runOnce(ctx context.Context, traceType types.TraceType, prestateHash common.Hash, localInputs utils.LocalGameInputs, dir string) error {
-	logger := r.log.New("l1", localInputs.L1Head, "l2", localInputs.L2Head, "l2Block", localInputs.L2BlockNumber, "claim", localInputs.L2Claim, "type", traceType)
+func (r *Runner) runOnce(ctx context.Context, logger log.Logger, traceType types.TraceType, prestateHash common.Hash, localInputs utils.LocalGameInputs, dir string) error {
 	provider, err := createTraceProvider(logger, r.m, r.cfg, prestateHash, traceType, localInputs, dir)
 	if err != nil {
 		return fmt.Errorf("failed to create trace provider: %w", err)
@@ -175,24 +179,8 @@ func (r *Runner) runOnce(ctx context.Context, traceType types.TraceType, prestat
 	return nil
 }
 
-func (r *Runner) runMTCannonOnce(ctx context.Context, localInputs utils.LocalGameInputs, dir string) error {
-	logger := r.log.New("l1", localInputs.L1Head, "l2", localInputs.L2Head, "l2Block", localInputs.L2BlockNumber, "claim", localInputs.L2Claim, "type", "mt-cannon")
-	provider, err := createTraceProvider(logger, r.m, r.cfg, r.addMTCannonPrestate, types.TraceTypeCannon, localInputs, dir)
-	if err != nil {
-		return fmt.Errorf("failed to create trace provider: %w", err)
-	}
-	hash, err := provider.Get(ctx, types.RootPosition)
-	if err != nil {
-		return fmt.Errorf("failed to execute trace provider: %w", err)
-	}
-	if hash[0] != mipsevm.VMStatusValid {
-		return fmt.Errorf("%w: %v", ErrUnexpectedStatusCode, hash)
-	}
-	return nil
-}
-
-func (r *Runner) prepDatadir(traceType types.TraceType) (string, error) {
-	dir := filepath.Join(r.cfg.Datadir, traceType.String())
+func (r *Runner) prepDatadir(traceType string) (string, error) {
+	dir := filepath.Join(r.cfg.Datadir, traceType)
 	if err := os.RemoveAll(dir); err != nil {
 		return "", fmt.Errorf("failed to remove old dir: %w", err)
 	}
