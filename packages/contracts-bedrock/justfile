@@ -96,6 +96,26 @@ interfaces-check-no-build:
 # artifacts can cause the script to detect issues incorrectly.2
 interfaces-check: clean build interfaces-check-no-build
 
+# Checks that the size of the contracts is within the limit.
+size-check:
+  forge build --sizes --skip "/**/test/**" --skip "/**/scripts/**"
+
+# Checks that any contracts with a modified semver lock also have a modified semver version.
+# Does not build contracts.
+semver-diff-check-no-build:
+  ./scripts/checks/check-semver-diff.sh
+
+# Checks that any contracts with a modified semver lock also have a modified semver version.
+semver-diff-check: build semver-diff-check-no-build
+
+# Checks that semver natspec is equal to the actual semver version.
+# Does not build contracts.
+semver-natspec-check-no-build:
+  ./scripts/checks/check-semver-natspec-match.sh
+
+# Checks that semver natspec is equal to the actual semver version.
+semver-natspec-check: build semver-natspec-check-no-build
+
 semver-lock:
   forge script scripts/autogen/SemverLock.s.sol
 
