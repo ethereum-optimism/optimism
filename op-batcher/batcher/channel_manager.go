@@ -169,20 +169,17 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 	}
 	assumedBlobs := s.currentChannel.cfg.UseBlobs
 	newCfg := s.cfgProvider.ChannelConfig(data.CallData())
-	if newCfg.UseBlobs == assumedBlobs { // TODO should we broaden this check to any change in config?
+	if newCfg.UseBlobs == assumedBlobs {
+		// TODO should we broaden this check to any change in config?
 		return data, err
 	}
 	// We have detected that our assumptions on DA
 	// type were wrong and we need to rebuild
-	// the channel manager state assuming
-	// a different DA type
+	// the channel manager state
 	err = s.Rebuild(newCfg)
 	if err != nil {
 		return data, err
 	}
-	// Cache ChannelConfig: it is our best estiamte for the optimal
-	// ChannelConfig for the next channel
-	s.defaultCfg = &newCfg
 	return s.txData(l1Head)
 }
 
@@ -387,7 +384,7 @@ func (s *channelManager) outputFrames() error {
 }
 
 // AddL2Block adds an L2 block to the internal blocks queue. It returns ErrReorg
-// if any block does not extend the last block loaded into the state. If no
+// if the block does not extend the last block loaded into the state. If no
 // blocks were added yet, the parent hash check is skipped.
 func (s *channelManager) AddL2Block(block *types.Block) error {
 	s.mu.Lock()
@@ -469,11 +466,12 @@ func (s *channelManager) Close() error {
 	return nil
 }
 
-// Rebuild rebuilds the channel manager state with a new ChannelConfig.
-func (s *channelManager) Rebuild(cfg ChannelConfig) error {
-	s.log.Info("Rebuilding channelManager state with new ChannelConfig", "UseBlobs", cfg.UseBlobs)
+// Rebuild rebuilds the channel manager state by
+// rewinding blocks back from the channel queue, and setting the defaultCfg.
+func (s *channelManager) Rebuild(newCfg ChannelConfig) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.log.Info("Rebuilding channelManager state", "UseBlobs", newCfg.UseBlobs)
 	newChannelQueue := []*channel{}
 	blocksToRequeueInChannelManager := []*types.Block{}
 	for _, channel := range s.channelQueue {
@@ -487,5 +485,8 @@ func (s *channelManager) Rebuild(cfg ChannelConfig) error {
 	s.blocks = append(blocksToRequeueInChannelManager, s.blocks...)
 	s.channelQueue = newChannelQueue
 	s.currentChannel = nil
+	// Setting the defaultCfg will cause new channels
+	// to pick up the new ChannelConfig
+	s.defaultCfg = &newCfg
 	return nil
 }
