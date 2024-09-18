@@ -1,23 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-// Testing utilities
+// Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { Reverter } from "test/mocks/Callers.sol";
-import { StandardBridge } from "src/universal/StandardBridge.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
-import { L2ToL1MessagePasser } from "src/L2/L2ToL1MessagePasser.sol";
-import { Hashing } from "src/libraries/Hashing.sol";
-import { Types } from "src/libraries/Types.sol";
+
+// Contracts
+import { FeeVault } from "src/universal/FeeVault.sol";
+import { SequencerFeeVault } from "src/L2/SequencerFeeVault.sol";
 
 // Libraries
+import { Hashing } from "src/libraries/Hashing.sol";
+import { Types } from "src/libraries/Types.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-
-// Target contract dependencies
-import { FeeVault } from "src/universal/FeeVault.sol";
-
-// Target contract
-import { SequencerFeeVault } from "src/L2/SequencerFeeVault.sol";
 
 contract SequencerFeeVault_Test is CommonTest {
     address recipient;

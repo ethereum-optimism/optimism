@@ -68,9 +68,6 @@ EXCLUDE_CONTRACTS=(
     "ISuperchainConfig"
     "IOptimismPortal"
     "IL1BlockIsthmus"
-
-    # Need to make complex tweaks to the check script for this one
-    "ISystemConfigInterop"
 )
 
 # Find all JSON files in the forge-artifacts folder
@@ -187,17 +184,23 @@ for interface_file in $JSON_FILES; do
     # Base contracts aren't allowed to inherit from their interfaces in order
     # to guarantee a 1:1 match between interfaces and contracts. This means
     # that the interface will redefine types in the base contract. We normalize
-    # the ABI as if the interface and contract are the same name
+    # the ABI as if the interface and contract are the same name.
     normalize_abi() {
+        # Here we just remove the leading "I" from any contract, enum, or
+        # struct type. It's not beautiful but it's good enough for now. It
+        # would miss certain edge cases like if an interface really is using
+        # the contract type instead of the interface type but that's unlikely
+        # to happen in practice and should be an easy fix if it does.
         local abi="$1"
-        local interface_name="$2"
-        local contract_name="$3"
-        echo "${abi//$interface_name/$contract_name}"
+        abi="${abi//\"internalType\": \"contract I/\"internalType\": \"contract }"
+        abi="${abi//\"internalType\": \"enum I/\"internalType\": \"enum }"
+        abi="${abi//\"internalType\": \"struct I/\"internalType\": \"struct }"
+        echo "$abi"
     }
 
     # Normalize the ABIs
-    normalized_interface_abi=$(normalize_abi "$interface_abi" "$contract_name" "$contract_basename")
-    normalized_contract_abi="$contract_abi"
+    normalized_interface_abi=$(normalize_abi "$interface_abi")
+    normalized_contract_abi=$(normalize_abi "$contract_abi")
 
     # Use jq to compare the ABIs
     if ! diff_result=$(diff -u <(echo "$normalized_interface_abi" | jq -S .) <(echo "$normalized_contract_abi" | jq -S .)); then

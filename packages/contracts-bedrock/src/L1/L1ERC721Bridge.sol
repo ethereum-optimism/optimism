@@ -3,7 +3,6 @@ pragma solidity 0.8.15;
 
 // Contracts
 import { ERC721Bridge } from "src/universal/ERC721Bridge.sol";
-import { L2ERC721Bridge } from "src/L2/L2ERC721Bridge.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -14,6 +13,7 @@ import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { ICrossDomainMessenger } from "src/universal/interfaces/ICrossDomainMessenger.sol";
 import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
+import { IL2ERC721Bridge } from "src/L2/interfaces/IL2ERC721Bridge.sol";
 
 /// @custom:proxied true
 /// @title L1ERC721Bridge
@@ -29,8 +29,8 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
     ISuperchainConfig public superchainConfig;
 
     /// @notice Semantic version.
-    /// @custom:semver 2.1.1-beta.2
-    string public constant version = "2.1.1-beta.2";
+    /// @custom:semver 2.1.1-beta.3
+    string public constant version = "2.1.1-beta.3";
 
     /// @notice Constructs the L1ERC721Bridge contract.
     constructor() ERC721Bridge() {
@@ -109,7 +109,7 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
 
         // Construct calldata for _l2Token.finalizeBridgeERC721(_to, _tokenId)
         bytes memory message = abi.encodeWithSelector(
-            L2ERC721Bridge.finalizeBridgeERC721.selector, _remoteToken, _localToken, _from, _to, _tokenId, _extraData
+            IL2ERC721Bridge.finalizeBridgeERC721.selector, _remoteToken, _localToken, _from, _to, _tokenId, _extraData
         );
 
         // Lock token into bridge
