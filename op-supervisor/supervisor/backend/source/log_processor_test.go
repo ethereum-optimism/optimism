@@ -7,6 +7,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/heads"
 	backendTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
 	supTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -197,6 +199,26 @@ func (s *stubLogStorage) AddLog(chainID supTypes.ChainID, logHash backendTypes.T
 		logHash:   logHash,
 		execMsg:   execMsg,
 	})
+	return nil
+}
+
+func (s *stubLogStorage) LastLogInBlock(chainID supTypes.ChainID, blockNum uint64) (entrydb.EntryIdx, error) {
+	return 0, nil
+}
+
+func (s *stubLogStorage) Apply(f heads.OperationFn) error {
+	return nil
+}
+
+func (s *stubLogStorage) LatestBlockNum(chainID supTypes.ChainID) uint64 {
+	return 0
+}
+
+func (s *stubLogStorage) LastEntryIdx(chainID supTypes.ChainID) entrydb.EntryIdx {
+	return 0
+}
+
+func (s *stubLogStorage) Rewind(chain supTypes.ChainID, headBlockNum uint64) error {
 	return nil
 }
 

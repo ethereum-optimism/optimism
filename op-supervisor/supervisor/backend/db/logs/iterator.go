@@ -28,7 +28,7 @@ type iterator struct {
 // NextLog returns the next log in the iterator.
 // It scans forward until it finds an initiating event, returning the block number, log index, and event hash.
 func (i *iterator) NextLog() (blockNum uint64, logIdx uint32, evtHash types.TruncatedHash, outErr error) {
-	for i.nextEntryIdx <= i.db.lastEntryIdx() {
+	for i.nextEntryIdx <= i.db.LastEntryIdx() {
 		entryIdx := i.nextEntryIdx
 		entry, err := i.db.store.Read(entryIdx)
 		if err != nil {

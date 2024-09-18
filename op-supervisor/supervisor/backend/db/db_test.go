@@ -425,6 +425,10 @@ func (s *stubLogDB) LastCheckpointBehind(entrydb.EntryIdx) (logs.Iterator, error
 	return s.lastCheckpointBehind, nil
 }
 
+func (s *stubLogDB) LastEntryIdx() entrydb.EntryIdx {
+	return 0
+}
+
 func (s *stubLogDB) ClosestBlockIterator(blockNum uint64) (logs.Iterator, error) {
 	return &stubIterator{
 		index:    entrydb.EntryIdx(99),

@@ -111,7 +111,7 @@ func NewFromEntryStore(logger log.Logger, m Metrics, store EntryStore) (*DB, err
 	return db, nil
 }
 
-func (db *DB) lastEntryIdx() entrydb.EntryIdx {
+func (db *DB) LastEntryIdx() entrydb.EntryIdx {
 	return db.store.LastEntryIdx()
 }
 
@@ -120,12 +120,12 @@ func (db *DB) init() error {
 	if err := db.trimInvalidTrailingEntries(); err != nil {
 		return fmt.Errorf("failed to trim invalid trailing entries: %w", err)
 	}
-	if db.lastEntryIdx() < 0 {
+	if db.LastEntryIdx() < 0 {
 		// Database is empty so no context to load
 		return nil
 	}
 
-	lastCheckpoint := (db.lastEntryIdx() / searchCheckpointFrequency) * searchCheckpointFrequency
+	lastCheckpoint := (db.LastEntryIdx() / searchCheckpointFrequency) * searchCheckpointFrequency
 	i, err := db.newIterator(lastCheckpoint)
 	if err != nil {
 		return fmt.Errorf("failed to create iterator at last search checkpoint: %w", err)
@@ -144,7 +144,7 @@ func (db *DB) init() error {
 }
 
 func (db *DB) trimInvalidTrailingEntries() error {
-	i := db.lastEntryIdx()
+	i := db.LastEntryIdx()
 	for ; i >= 0; i-- {
 		entry, err := db.store.Read(i)
 		if err != nil {
@@ -166,8 +166,8 @@ func (db *DB) trimInvalidTrailingEntries() error {
 			}
 		}
 	}
-	if i < db.lastEntryIdx() {
-		db.log.Warn("Truncating unexpected trailing entries", "prev", db.lastEntryIdx(), "new", i)
+	if i < db.LastEntryIdx() {
+		db.log.Warn("Truncating unexpected trailing entries", "prev", db.LastEntryIdx(), "new", i)
 		return db.store.Truncate(i)
 	}
 	return nil
@@ -353,7 +353,7 @@ func (db *DB) newIterator(startCheckpointEntry entrydb.EntryIdx) (*iterator, err
 // the requested log.
 // Returns the index of the searchCheckpoint to begin reading from or an error
 func (db *DB) searchCheckpoint(blockNum uint64, logIdx uint32) (entrydb.EntryIdx, error) {
-	n := (db.lastEntryIdx() / searchCheckpointFrequency) + 1
+	n := (db.LastEntryIdx() / searchCheckpointFrequency) + 1
 	// Define x[-1] < target and x[n] >= target.
 	// Invariant: x[i-1] < target, x[j] >= target.
 	i, j := entrydb.EntryIdx(0), n
@@ -409,7 +409,7 @@ func (db *DB) AddLog(logHash types.TruncatedHash, block eth.BlockID, timestamp u
 	}
 	var entriesToAdd []entrydb.Entry
 	newContext := db.lastEntryContext
-	lastEntryIdx := db.lastEntryIdx()
+	lastEntryIdx := db.LastEntryIdx()
 
 	addEntry := func(entry entrydb.Entry) {
 		entriesToAdd = append(entriesToAdd, entry)

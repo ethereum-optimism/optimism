@@ -87,7 +87,6 @@ func TestInteropTrivial(t *testing.T) {
 
 	s2.DeployEmitterContract(chainA, "Alice")
 	rec := s2.EmitData(chainA, "Alice", "0x1234567890abcdef")
-
 	fmt.Println("Result of emitting event:", rec)
 
 	s2.DeployEmitterContract(chainB, "Alice")

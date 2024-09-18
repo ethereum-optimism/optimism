@@ -62,6 +62,10 @@ func (s *stubLogStore) LastCheckpointBehind(entrydb.EntryIdx) (logs.Iterator, er
 	panic("not supported")
 }
 
+func (s *stubLogStore) LastEntryIdx() entrydb.EntryIdx {
+	panic("not supported")
+}
+
 func (s *stubLogStore) ClosestBlockInfo(blockNum uint64) (uint64, types.TruncatedHash, error) {
 	if s.closestBlockErr != nil {
 		return 0, types.TruncatedHash{}, s.closestBlockErr

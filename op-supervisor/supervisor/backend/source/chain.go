@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/heads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -25,8 +26,13 @@ type Metrics interface {
 
 type Storage interface {
 	LogStorage
+	HeadsStorage
 	DatabaseRewinder
 	LatestBlockNum(chainID types.ChainID) uint64
+}
+
+type HeadsStorage interface {
+	Apply(op heads.OperationFn) error
 }
 
 // ChainMonitor monitors a source L2 chain, retrieving the data required to populate the database and perform

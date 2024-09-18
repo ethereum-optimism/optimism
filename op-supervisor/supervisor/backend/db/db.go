@@ -30,6 +30,7 @@ type LogStorage interface {
 	Contains(blockNum uint64, logIdx uint32, loghash backendTypes.TruncatedHash) (bool, entrydb.EntryIdx, error)
 	LastCheckpointBehind(entrydb.EntryIdx) (logs.Iterator, error)
 	NextExecutingMessage(logs.Iterator) (backendTypes.ExecutingMessage, error)
+	LastEntryIdx() entrydb.EntryIdx
 }
 
 type HeadsStorage interface {
@@ -159,18 +160,22 @@ func (db *ChainsDB) UpdateCrossHeadsForChain(chainID types.ChainID, checker Safe
 	// - if an error occurs
 	for {
 		exec, err := db.logDBs[chainID].NextExecutingMessage(i)
+		// if we have reached the end of the database,
+		// the x-head is at most the end of the database
 		if err == io.EOF {
-			break
+			xHead = db.LastEntryIdx(chainID)
 		} else if err != nil {
 			return fmt.Errorf("failed to read next executing message for chain %v: %w", chainID, err)
 		}
-		// if we are now beyond the local head, stop
-		if i.Index() > localHead {
+		// if we are now beyond the local head,
+		// trim the x-head to the local head and stop advancing
+		if i.Index() >= localHead {
+			xHead = localHead
 			break
 		}
 		// use the checker to determine if this message is safe
 		safe := checker.Check(
-			types.ChainIDFromUInt64(uint64(exec.Chain)),
+			chainID,
 			exec.BlockNum,
 			exec.LogIdx,
 			exec.Hash)
@@ -197,6 +202,11 @@ func (db *ChainsDB) UpdateCrossHeadsForChain(chainID types.ChainID, checker Safe
 	return nil
 }
 
+func (db *ChainsDB) Apply(op heads.OperationFn) error {
+	err := db.heads.Apply(op)
+	return err
+}
+
 // UpdateCrossHeads updates the cross-heads of all chains
 // based on the provided SafetyChecker. The SafetyChecker is used to determine
 // the safety of each log entry in the database, and the cross-head associated with it.
@@ -208,6 +218,10 @@ func (db *ChainsDB) UpdateCrossHeads(checker SafetyChecker) error {
 		}
 	}
 	return nil
+}
+
+func (db *ChainsDB) LastEntryIdx(chain types.ChainID) entrydb.EntryIdx {
+	return db.logDBs[chain].LastEntryIdx()
 }
 
 // LastLogInBlock scans through the logs of the given chain starting from the given block number,

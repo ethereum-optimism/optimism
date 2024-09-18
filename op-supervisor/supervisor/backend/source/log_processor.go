@@ -6,6 +6,8 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/heads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/source/contracts"
 	backendTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
 	supTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
@@ -16,6 +18,8 @@ import (
 
 type LogStorage interface {
 	AddLog(chain supTypes.ChainID, logHash backendTypes.TruncatedHash, block eth.BlockID, timestamp uint64, logIdx uint32, execMsg *backendTypes.ExecutingMessage) error
+	LastLogInBlock(chain supTypes.ChainID, blockNum uint64) (entrydb.EntryIdx, error)
+	LastEntryIdx(chain supTypes.ChainID) entrydb.EntryIdx
 }
 
 type EventDecoder interface {
@@ -24,14 +28,14 @@ type EventDecoder interface {
 
 type logProcessor struct {
 	chain        supTypes.ChainID
-	logStore     LogStorage
+	store        Storage
 	eventDecoder EventDecoder
 }
 
-func newLogProcessor(chain supTypes.ChainID, logStore LogStorage) *logProcessor {
+func newLogProcessor(chain supTypes.ChainID, store Storage) *logProcessor {
 	return &logProcessor{
 		chain:        chain,
-		logStore:     logStore,
+		store:        store,
 		eventDecoder: contracts.NewCrossL2Inbox(),
 	}
 }
@@ -51,15 +55,21 @@ func (p *logProcessor) ProcessLogs(_ context.Context, block eth.L1BlockRef, rcpt
 				// if the log is an executing message, store the message
 				execMsg = &msg
 			}
-			// executing messages have multiple entries in the database
-			// they should start with the initiating message and then include the execution
-			fmt.Println("p.chain", p.chain)
-			err = p.logStore.AddLog(p.chain, logHash, block.ID(), block.Time, uint32(l.Index), execMsg)
+			err = p.store.AddLog(p.chain, logHash, block.ID(), block.Time, uint32(l.Index), execMsg)
 			if err != nil {
 				return fmt.Errorf("failed to add log %d from block %v: %w", l.Index, block.ID(), err)
 			}
 		}
 	}
+	// get the last index of the db
+	lastIndex := p.store.LastEntryIdx(p.chain)
+	// update the chain heads to reflect the last log index
+	p.store.Apply(func(h *heads.Heads) error {
+		chainHeads := h.Get(p.chain)
+		chainHeads.Unsafe = lastIndex
+		h.Put(p.chain, chainHeads)
+		return nil
+	})
 	return nil
 }
 
