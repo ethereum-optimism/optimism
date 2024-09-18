@@ -202,22 +202,26 @@ contract DeployOPChainOutput is BaseDeployIO {
 
         // Serialize the 'doo' section
         string memory dooKey = "doo";
-        vm.serializeAddress(dooKey, "opChainProxyAdmin", address(_opChainProxyAdmin));
-        vm.serializeAddress(dooKey, "addressManager", address(_addressManager));
-        vm.serializeAddress(dooKey, "l1ERC721BridgeProxy", address(_l1ERC721BridgeProxy));
-        vm.serializeAddress(dooKey, "systemConfigProxy", address(_systemConfigProxy));
-        vm.serializeAddress(dooKey, "optimismMintableERC20FactoryProxy", address(_optimismMintableERC20FactoryProxy));
-        vm.serializeAddress(dooKey, "l1StandardBridgeProxy", address(_l1StandardBridgeProxy));
-        vm.serializeAddress(dooKey, "l1CrossDomainMessengerProxy", address(_l1CrossDomainMessengerProxy));
-        vm.serializeAddress(dooKey, "optimismPortalProxy", address(_optimismPortalProxy));
-        vm.serializeAddress(dooKey, "disputeGameFactoryProxy", address(_disputeGameFactoryProxy));
-        vm.serializeAddress(dooKey, "anchorStateRegistryProxy", address(_anchorStateRegistryProxy));
-        vm.serializeAddress(dooKey, "anchorStateRegistryImpl", address(_anchorStateRegistryImpl));
-        vm.serializeAddress(dooKey, "faultDisputeGame", address(_faultDisputeGame));
-        vm.serializeAddress(dooKey, "permissionedDisputeGame", address(_permissionedDisputeGame));
-        vm.serializeAddress(dooKey, "delayedWETHPermissionedGameProxy", address(_delayedWETHPermissionedGameProxy));
+        vm.serializeAddress(dooKey, "opChainProxyAdmin", address(this.opChainProxyAdmin()));
+        vm.serializeAddress(dooKey, "addressManager", address(this.addressManager()));
+        vm.serializeAddress(dooKey, "l1ERC721BridgeProxy", address(this.l1ERC721BridgeProxy()));
+        vm.serializeAddress(dooKey, "systemConfigProxy", address(this.systemConfigProxy()));
+        vm.serializeAddress(
+            dooKey, "optimismMintableERC20FactoryProxy", address(this.optimismMintableERC20FactoryProxy())
+        );
+        vm.serializeAddress(dooKey, "l1StandardBridgeProxy", address(this.l1StandardBridgeProxy()));
+        vm.serializeAddress(dooKey, "l1CrossDomainMessengerProxy", address(this.l1CrossDomainMessengerProxy()));
+        vm.serializeAddress(dooKey, "optimismPortalProxy", address(this.optimismPortalProxy()));
+        vm.serializeAddress(dooKey, "disputeGameFactoryProxy", address(this.disputeGameFactoryProxy()));
+        vm.serializeAddress(dooKey, "anchorStateRegistryProxy", address(this.anchorStateRegistryProxy()));
+        vm.serializeAddress(dooKey, "anchorStateRegistryImpl", address(this.anchorStateRegistryImpl()));
+        vm.serializeAddress(dooKey, "faultDisputeGame", address(this.faultDisputeGame()));
+        vm.serializeAddress(dooKey, "permissionedDisputeGame", address(this.permissionedDisputeGame()));
+        vm.serializeAddress(
+            dooKey, "delayedWETHPermissionedGameProxy", address(this.delayedWETHPermissionedGameProxy())
+        );
         string memory dooJson = vm.serializeAddress(
-            dooKey, "delayedWETHPermissionlessGameProxy", address(_delayedWETHPermissionlessGameProxy)
+            dooKey, "delayedWETHPermissionlessGameProxy", address(this.delayedWETHPermissionlessGameProxy())
         );
 
         // Combine the final JSON output

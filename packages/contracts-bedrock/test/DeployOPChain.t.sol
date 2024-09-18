@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
+import "forge-std/Console.sol";
 
 import { DeploySuperchainInput, DeploySuperchain, DeploySuperchainOutput } from "scripts/DeploySuperchain.s.sol";
 import {
@@ -330,63 +331,46 @@ contract DeployOPChainOutput_Test is Test {
         // Load the input file to use later when writing new output file.
         doi.loadInputFile(string.concat(root, "/test/fixtures/test-deploy-opchain-in.toml"));
 
-        // // Parse each field of expOutToml individually.
-        // OPStackManager opsmProxy = OPStackManager(address(Proxy(payable(expOutToml.readAddress(".dio.opsmProxy")))));
-        // DelayedWETH delayedWETHImpl = DelayedWETH(payable(expOutToml.readAddress(".dio.delayedWETHImpl")));
-        // OptimismPortal2 optimismPortalImpl =
-        // OptimismPortal2(payable(expOutToml.readAddress(".dio.optimismPortalImpl")));
-        // PreimageOracle preimageOracleSingleton =
-        // PreimageOracle(expOutToml.readAddress(".dio.preimageOracleSingleton"));
-        // MIPS mipsSingleton = MIPS(expOutToml.readAddress(".dio.mipsSingleton"));
-        // SystemConfig systemConfigImpl = SystemConfig(expOutToml.readAddress(".dio.systemConfigImpl"));
-        // L1CrossDomainMessenger l1CrossDomainMessengerImpl =
-        //     L1CrossDomainMessenger(expOutToml.readAddress(".dio.l1CrossDomainMessengerImpl"));
-        // L1ERC721Bridge l1ERC721BridgeImpl = L1ERC721Bridge(expOutToml.readAddress(".dio.l1ERC721BridgeImpl"));
-        // L1StandardBridge l1StandardBridgeImpl =
-        //     L1StandardBridge(payable(expOutToml.readAddress(".dio.l1StandardBridgeImpl")));
-        // OptimismMintableERC20Factory optimismMintableERC20FactoryImpl =
-        //     OptimismMintableERC20Factory(expOutToml.readAddress(".dio.optimismMintableERC20FactoryImpl"));
-        // DisputeGameFactory disputeGameFactoryImpl =
-        //     DisputeGameFactory(expOutToml.readAddress(".dio.disputeGameFactoryImpl"));
+        vm.etch(address(opChainProxyAdmin), hex"01");
+        vm.etch(address(addressManager), hex"01");
+        vm.etch(address(l1ERC721BridgeProxy), hex"01");
+        vm.etch(address(systemConfigProxy), hex"01");
+        vm.etch(address(optimismMintableERC20FactoryProxy), hex"01");
+        vm.etch(address(l1StandardBridgeProxy), hex"01");
+        vm.etch(address(l1CrossDomainMessengerProxy), hex"01");
+        vm.etch(address(optimismPortalProxy), hex"01");
+        vm.etch(address(disputeGameFactoryProxy), hex"01");
+        vm.etch(address(anchorStateRegistryProxy), hex"01");
+        vm.etch(address(anchorStateRegistryImpl), hex"01");
+        vm.etch(address(faultDisputeGame), hex"01");
+        vm.etch(address(permissionedDisputeGame), hex"01");
+        vm.etch(address(delayedWETHPermissionedGameProxy), hex"01");
+        vm.etch(address(delayedWETHPermissionlessGameProxy), hex"01");
 
-        // // Etch code at each address so the code checks pass when settings values.
-        // vm.etch(address(opsmProxy), address(new Proxy(address(0))).code);
-        // address opsmImpl = address(makeAddr("opsmImpl"));
-        // vm.prank(address(0));
-        // Proxy(payable(address(opsmProxy))).upgradeTo(opsmImpl);
-        // vm.etch(address(opsmImpl), hex"01");
-        // vm.etch(address(delayedWETHImpl), hex"01");
-        // vm.etch(address(optimismPortalImpl), hex"01");
-        // vm.etch(address(preimageOracleSingleton), hex"01");
-        // vm.etch(address(mipsSingleton), hex"01");
-        // vm.etch(address(systemConfigImpl), hex"01");
-        // vm.etch(address(l1CrossDomainMessengerImpl), hex"01");
-        // vm.etch(address(l1ERC721BridgeImpl), hex"01");
-        // vm.etch(address(l1StandardBridgeImpl), hex"01");
-        // vm.etch(address(optimismMintableERC20FactoryImpl), hex"01");
-        // vm.etch(address(disputeGameFactoryImpl), hex"01");
-
-        // dio.set(dio.opsmProxy.selector, address(opsmProxy));
-        // dio.set(dio.delayedWETHImpl.selector, address(delayedWETHImpl));
-        // dio.set(dio.optimismPortalImpl.selector, address(optimismPortalImpl));
-        // dio.set(dio.preimageOracleSingleton.selector, address(preimageOracleSingleton));
-        // dio.set(dio.mipsSingleton.selector, address(mipsSingleton));
-        // dio.set(dio.systemConfigImpl.selector, address(systemConfigImpl));
-        // dio.set(dio.l1CrossDomainMessengerImpl.selector, address(l1CrossDomainMessengerImpl));
-        // dio.set(dio.l1ERC721BridgeImpl.selector, address(l1ERC721BridgeImpl));
-        // dio.set(dio.l1StandardBridgeImpl.selector, address(l1StandardBridgeImpl));
-        // dio.set(dio.optimismMintableERC20FactoryImpl.selector, address(optimismMintableERC20FactoryImpl));
-        // dio.set(dio.disputeGameFactoryImpl.selector, address(disputeGameFactoryImpl));
+        doo.set(doo.opChainProxyAdmin.selector, address(opChainProxyAdmin));
+        doo.set(doo.addressManager.selector, address(addressManager));
+        doo.set(doo.l1ERC721BridgeProxy.selector, address(l1ERC721BridgeProxy));
+        doo.set(doo.systemConfigProxy.selector, address(systemConfigProxy));
+        doo.set(doo.optimismMintableERC20FactoryProxy.selector, address(optimismMintableERC20FactoryProxy));
+        doo.set(doo.l1StandardBridgeProxy.selector, address(l1StandardBridgeProxy));
+        doo.set(doo.l1CrossDomainMessengerProxy.selector, address(l1CrossDomainMessengerProxy));
+        doo.set(doo.optimismPortalProxy.selector, address(optimismPortalProxy));
+        doo.set(doo.disputeGameFactoryProxy.selector, address(disputeGameFactoryProxy));
+        doo.set(doo.anchorStateRegistryProxy.selector, address(anchorStateRegistryProxy));
+        doo.set(doo.anchorStateRegistryImpl.selector, address(anchorStateRegistryImpl));
+        doo.set(doo.faultDisputeGame.selector, address(faultDisputeGame));
+        doo.set(doo.permissionedDisputeGame.selector, address(permissionedDisputeGame));
+        doo.set(doo.delayedWETHPermissionedGameProxy.selector, address(delayedWETHPermissionedGameProxy));
+        doo.set(doo.delayedWETHPermissionlessGameProxy.selector, address(delayedWETHPermissionlessGameProxy));
 
         // .testdata file must have a new line at the end. StdToml adds
         string memory actOutPath = string.concat(root, "/.testdata/test-deploy-opchain-output.toml");
-        // StdToml.sol serializes TOML key-value pairs in lexicographical (alphabetical) order when writing to a TOML
-        // file.
+        // StdToml.sol serializes TOML key-value pairs in alphabetical order when writing to a TOML file.
         doo.writeOutputFile(doi, actOutPath);
         string memory actOutToml = vm.readFile(actOutPath);
 
         // Clean up before asserting so that we don't leave any files behind.
-        // vm.removeFile(actOutPath);
+        vm.removeFile(actOutPath);
 
         assertEq(expOutToml, actOutToml);
     }
