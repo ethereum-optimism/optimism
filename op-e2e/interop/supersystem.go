@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	emit "github.com/ethereum-optimism/optimism/op-e2e/interop/testdata"
+	emit "github.com/ethereum-optimism/optimism/op-e2e/interop/contracts"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
