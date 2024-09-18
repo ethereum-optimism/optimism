@@ -147,7 +147,7 @@ func TestEndToEndApply(t *testing.T) {
 		{"SuperchainConfigImpl", st.SuperchainDeployment.SuperchainConfigImplAddress},
 		{"ProtocolVersionsProxy", st.SuperchainDeployment.ProtocolVersionsProxyAddress},
 		{"ProtocolVersionsImpl", st.SuperchainDeployment.ProtocolVersionsImplAddress},
-		{"Opsm", st.ImplementationsDeployment.OpsmAddress},
+		{"OpsmProxy", st.ImplementationsDeployment.OpsmProxyAddress},
 		{"DelayedWETHImpl", st.ImplementationsDeployment.DelayedWETHImplAddress},
 		{"OptimismPortalImpl", st.ImplementationsDeployment.OptimismPortalImplAddress},
 		{"PreimageOracleSingleton", st.ImplementationsDeployment.PreimageOracleSingletonAddress},

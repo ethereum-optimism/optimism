@@ -77,7 +77,7 @@ func DeployImplementations(ctx context.Context, env *Env, intent *state.Intent, 
 	}
 
 	st.ImplementationsDeployment = &state.ImplementationsDeployment{
-		OpsmAddress:                             dio.OpsmProxy,
+		OpsmProxyAddress:                        dio.OpsmProxy,
 		DelayedWETHImplAddress:                  dio.DelayedWETHImpl,
 		OptimismPortalImplAddress:               dio.OptimismPortalImpl,
 		PreimageOracleSingletonAddress:          dio.PreimageOracleSingleton,
