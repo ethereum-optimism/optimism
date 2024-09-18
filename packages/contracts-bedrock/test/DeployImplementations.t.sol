@@ -317,8 +317,7 @@ contract DeployImplementationsOutput_Test is Test {
 
         // .testdata file must have a new line at the end. StdToml adds
         string memory actOutPath = string.concat(root, "/.testdata/test-deploy-implementations-output.toml");
-        // StdToml.sol serializes TOML key-value pairs in lexicographical (alphabetical) order when writing to a TOML
-        // file.
+        // StdToml.sol serializes TOML key-value pairs in alphabetical order when writing to a TOML file.
         dio.writeOutputFile(dii, actOutPath);
         string memory actOutToml = vm.readFile(actOutPath);
 
