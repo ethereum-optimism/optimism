@@ -426,7 +426,7 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config) error {
 	}
 	n.l2Driver = driver.NewDriver(
 		n.eventSys,
-		n.eventDrain, 
+		n.eventDrain,
 		&cfg.Driver,
 		&cfg.Rollup,
 		n.l2Source,
