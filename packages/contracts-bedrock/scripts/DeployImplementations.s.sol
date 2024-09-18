@@ -289,16 +289,16 @@ contract DeployImplementationsOutput is BaseDeployIO {
 
     function assertValidOpsmProxy(DeployImplementationsInput _dii) internal {
         // First we check the proxy as itself.
-        Proxy proxy = Proxy(payable(address(opsm())));
+        Proxy proxy = Proxy(payable(address(opsmProxy())));
         vm.prank(address(0));
         address admin = proxy.admin();
         require(admin == address(_dii.superchainProxyAdmin()), "OPSM-10");
 
         // Then we check the proxy as OPSM.
-        DeployUtils.assertInitialized({ _contractAddress: address(opsm()), _slot: 0, _offset: 0 });
-        require(address(opsm().superchainConfig()) == address(_dii.superchainConfigProxy()), "OPSM-20");
-        require(address(opsm().protocolVersions()) == address(_dii.protocolVersionsProxy()), "OPSM-30");
-        require(LibString.eq(opsm().latestRelease(), _dii.release()), "OPSM-50"); // Initial release must be the latest.
+        DeployUtils.assertInitialized({ _contractAddress: address(opsmProxy()), _slot: 0, _offset: 0 });
+        require(address(opsmProxy().superchainConfig()) == address(_dii.superchainConfigProxy()), "OPSM-20");
+        require(address(opsmProxy().protocolVersions()) == address(_dii.protocolVersionsProxy()), "OPSM-30");
+        require(LibString.eq(opsmProxy().latestRelease(), _dii.release()), "OPSM-50"); // Initial release must be the latest.
 
         // Lastly we check it's implementation.
         vm.prank(address(0));
