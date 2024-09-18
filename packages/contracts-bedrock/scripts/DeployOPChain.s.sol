@@ -76,18 +76,18 @@ contract DeployOPChainInput is BaseDeployIO {
     function loadInputFile(string memory _infile) public {
         string memory toml = vm.readFile(_infile);
 
-        set(this.opChainProxyAdminOwner.selector, toml.readAddress(".roles.opChainProxyAdminOwner"));
-        set(this.systemConfigOwner.selector, toml.readAddress(".roles..systemConfigOwner"));
-        set(this.batcher.selector, toml.readAddress(".roles..batcher"));
-        set(this.unsafeBlockSigner.selector, toml.readAddress(".roles.unsafeBlockSigner"));
-        set(this.proposer.selector, toml.readAddress(".roles.proposer"));
-        set(this.challenger.selector, toml.readAddress(".roles.challenger"));
+        set(this.opChainProxyAdminOwner.selector, toml.readAddress(".doi.roles.opChainProxyAdminOwner"));
+        set(this.systemConfigOwner.selector, toml.readAddress(".doi.roles..systemConfigOwner"));
+        set(this.batcher.selector, toml.readAddress(".doi.roles..batcher"));
+        set(this.unsafeBlockSigner.selector, toml.readAddress(".doi.roles.unsafeBlockSigner"));
+        set(this.proposer.selector, toml.readAddress(".doi.roles.proposer"));
+        set(this.challenger.selector, toml.readAddress(".doi.roles.challenger"));
 
-        set(this.basefeeScalar.selector, toml.readUint(".basefeeScalar"));
-        set(this.blobBaseFeeScalar.selector, toml.readUint(".blobBaseFeeScalar"));
-        set(this.l2ChainId.selector, toml.readUint(".l2ChainId"));
+        set(this.basefeeScalar.selector, toml.readUint(".doi.basefeeScalar"));
+        set(this.blobBaseFeeScalar.selector, toml.readUint(".doi.blobBaseFeeScalar"));
+        set(this.l2ChainId.selector, toml.readUint(".doi.l2ChainId"));
 
-        set(this.opsmProxy.selector, toml.readAddress(".opsmProxy"));
+        set(this.opsmProxy.selector, toml.readAddress(".doi.opsmProxy"));
     }
 
     function opChainProxyAdminOwner() public view returns (address) {
@@ -182,9 +182,48 @@ contract DeployOPChainOutput is BaseDeployIO {
         // forgefmt: disable-end
     }
 
-    function writeOutputFile(string memory _outfile) public pure {
-        _outfile;
-        require(false, "DeployOPChainOutput: not implemented");
+    function writeOutputFile(DeployOPChainInput doi, string memory _outfile) public {
+        string memory doiKey = "doi";
+        vm.serializeUint(doiKey, "basefeeScalar", doi.basefeeScalar());
+        vm.serializeUint(doiKey, "blobBaseFeeScalar", doi.blobBaseFeeScalar());
+        vm.serializeUint(doiKey, "l2ChainId", doi.l2ChainId());
+        string memory doiJson = vm.serializeAddress(doiKey, "opsmProxy", address(doi.opsmProxy()));
+
+        // Serialize the "doi.roles" section
+        string memory doiRolesKey = "doi.roles";
+        vm.serializeAddress(doiRolesKey, "opChainProxyAdminOwner", doi.opChainProxyAdminOwner());
+        vm.serializeAddress(doiRolesKey, "systemConfigOwner", doi.systemConfigOwner());
+        vm.serializeAddress(doiRolesKey, "batcher", doi.batcher());
+        vm.serializeAddress(doiRolesKey, "unsafeBlockSigner", doi.unsafeBlockSigner());
+        vm.serializeAddress(doiRolesKey, "proposer", doi.proposer());
+        string memory doiRolesJson = vm.serializeAddress(doiRolesKey, "challenger", doi.challenger());
+
+        doiJson = vm.serializeString(doiKey, "roles", doiRolesJson);
+
+        // Serialize the 'doo' section
+        string memory dooKey = "doo";
+        vm.serializeAddress(dooKey, "opChainProxyAdmin", address(_opChainProxyAdmin));
+        vm.serializeAddress(dooKey, "addressManager", address(_addressManager));
+        vm.serializeAddress(dooKey, "l1ERC721BridgeProxy", address(_l1ERC721BridgeProxy));
+        vm.serializeAddress(dooKey, "systemConfigProxy", address(_systemConfigProxy));
+        vm.serializeAddress(dooKey, "optimismMintableERC20FactoryProxy", address(_optimismMintableERC20FactoryProxy));
+        vm.serializeAddress(dooKey, "l1StandardBridgeProxy", address(_l1StandardBridgeProxy));
+        vm.serializeAddress(dooKey, "l1CrossDomainMessengerProxy", address(_l1CrossDomainMessengerProxy));
+        vm.serializeAddress(dooKey, "optimismPortalProxy", address(_optimismPortalProxy));
+        vm.serializeAddress(dooKey, "disputeGameFactoryProxy", address(_disputeGameFactoryProxy));
+        vm.serializeAddress(dooKey, "anchorStateRegistryProxy", address(_anchorStateRegistryProxy));
+        vm.serializeAddress(dooKey, "anchorStateRegistryImpl", address(_anchorStateRegistryImpl));
+        vm.serializeAddress(dooKey, "faultDisputeGame", address(_faultDisputeGame));
+        vm.serializeAddress(dooKey, "permissionedDisputeGame", address(_permissionedDisputeGame));
+        vm.serializeAddress(dooKey, "delayedWETHPermissionedGameProxy", address(_delayedWETHPermissionedGameProxy));
+        string memory dooJson = vm.serializeAddress(
+            dooKey, "delayedWETHPermissionlessGameProxy", address(_delayedWETHPermissionlessGameProxy)
+        );
+
+        // Combine the final JSON output
+        string memory finalJson = vm.serializeString("root", doiKey, doiJson);
+        finalJson = vm.serializeString("root", dooKey, dooJson);
+        vm.writeToml(finalJson, _outfile);
     }
 
     function checkOutput(DeployOPChainInput _doi) public view {
@@ -426,7 +465,7 @@ contract DeployOPChain is Script {
         doi.loadInputFile(_infile);
         run(doi, doo);
         string memory outfile = ""; // This will be derived from input file name, e.g. `foo.in.toml` -> `foo.out.toml`
-        doo.writeOutputFile(outfile);
+        doo.writeOutputFile(doi, outfile);
         require(false, "DeployOPChain: run is not implemented");
     }
 
