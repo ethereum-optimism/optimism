@@ -2122,7 +2122,7 @@ workflows:
         - equal: [ true, << pipeline.parameters.cannon_full_test_dispatch >> ]
     jobs:
       - contracts-bedrock-build:
-          build_command: forge build --skip test --skip scripts
+          skip_pattern: test
       - cannon-go-lint-and-test:
           requires:
             - contracts-bedrock-build
