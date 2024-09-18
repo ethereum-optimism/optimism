@@ -50,6 +50,27 @@ contract DeployOPChainInput_Test is Test {
         doi = new DeployOPChainInput();
     }
 
+    function test_loadInputFile_succeeds() public {
+        string memory root = vm.projectRoot();
+        string memory path = string.concat(root, "/test/fixtures/test-deploy-opchain-in.toml");
+
+        doi.loadInputFile(path);
+
+        // Input file has the same addresses set as the default addresses in this file.
+        assertEq(opChainProxyAdminOwner, doi.opChainProxyAdminOwner(), "100");
+        assertEq(systemConfigOwner, doi.systemConfigOwner(), "200");
+        assertEq(batcher, doi.batcher(), "300");
+        assertEq(unsafeBlockSigner, doi.unsafeBlockSigner(), "400");
+        assertEq(proposer, doi.proposer(), "500");
+        assertEq(challenger, doi.challenger(), "600");
+
+        assertEq(basefeeScalar, doi.basefeeScalar(), "700");
+        assertEq(blobBaseFeeScalar, doi.blobBaseFeeScalar(), "800");
+        assertEq(l2ChainId, doi.l2ChainId(), "900");
+
+        assertEq(address(opsm), address(doi.opsmProxy()), "1000");
+    }
+
     function test_set_succeeds() public {
         doi.set(doi.opChainProxyAdminOwner.selector, opChainProxyAdminOwner);
         doi.set(doi.systemConfigOwner.selector, systemConfigOwner);

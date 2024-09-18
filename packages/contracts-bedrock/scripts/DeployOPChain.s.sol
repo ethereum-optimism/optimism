@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 import { Script } from "forge-std/Script.sol";
+import { stdToml } from "forge-std/StdToml.sol";
 
 import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
@@ -32,6 +33,8 @@ import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
 
 contract DeployOPChainInput is BaseDeployIO {
+    using stdToml for string;
+
     address internal _opChainProxyAdminOwner;
     address internal _systemConfigOwner;
     address internal _batcher;
@@ -70,9 +73,21 @@ contract DeployOPChainInput is BaseDeployIO {
         }
     }
 
-    function loadInputFile(string memory _infile) public pure {
-        _infile;
-        require(false, "DeployOPChainInput: not implemented");
+    function loadInputFile(string memory _infile) public {
+        string memory toml = vm.readFile(_infile);
+
+        set(this.opChainProxyAdminOwner.selector, toml.readAddress(".roles.opChainProxyAdminOwner"));
+        set(this.systemConfigOwner.selector, toml.readAddress(".roles..systemConfigOwner"));
+        set(this.batcher.selector, toml.readAddress(".roles..batcher"));
+        set(this.unsafeBlockSigner.selector, toml.readAddress(".roles.unsafeBlockSigner"));
+        set(this.proposer.selector, toml.readAddress(".roles.proposer"));
+        set(this.challenger.selector, toml.readAddress(".roles.challenger"));
+
+        set(this.basefeeScalar.selector, toml.readUint(".basefeeScalar"));
+        set(this.blobBaseFeeScalar.selector, toml.readUint(".blobBaseFeeScalar"));
+        set(this.l2ChainId.selector, toml.readUint(".l2ChainId"));
+
+        set(this.opsmProxy.selector, toml.readAddress(".opsmProxy"));
     }
 
     function opChainProxyAdminOwner() public view returns (address) {
