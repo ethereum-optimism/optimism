@@ -247,7 +247,7 @@ func (l *BatchSubmitter) loadBlockIntoState(ctx context.Context, blockNumber uin
 		return nil, fmt.Errorf("getting L2 block: %w", err)
 	}
 
-	if err := l.state.AddL2Blocks(block); err != nil {
+	if err := l.state.AddL2Block(block); err != nil {
 		return nil, fmt.Errorf("adding L2 block to state: %w", err)
 	}
 
@@ -279,10 +279,11 @@ func (l *BatchSubmitter) calculateL2BlockRangeToStore(ctx context.Context) (eth.
 	// It lagging implies that the op-node processed some batches that were submitted prior to the current instance of the batcher being alive.
 	if l.lastStoredBlock == (eth.BlockID{}) {
 		l.Log.Info("Starting batch-submitter work at safe-head", "safe", syncStatus.SafeL2)
+		l.lastStoredBlock = syncStatus.SafeL2.ID()
 	} else if l.lastStoredBlock.Number < syncStatus.SafeL2.Number {
 		l.Log.Warn("Last submitted block lagged behind L2 safe head: batch submission will continue from the safe head now", "last", l.lastStoredBlock, "safe", syncStatus.SafeL2)
+		l.lastStoredBlock = syncStatus.SafeL2.ID()
 	}
-	l.lastStoredBlock = syncStatus.SafeL2.ID()
 
 	// Check if we should even attempt to load any blocks. TODO: May not need this check
 	if syncStatus.SafeL2.Number >= syncStatus.UnsafeL2.Number {

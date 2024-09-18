@@ -381,21 +381,20 @@ func (s *channelManager) outputFrames() error {
 	return nil
 }
 
-// AddL2Blocks adds a L2 blocks to the internal blocks queue. It returns ErrReorg
+// AddL2Block adds an L2 block to the internal blocks queue. It returns ErrReorg
 // if any block does not extend the last block loaded into the state. If no
 // blocks were added yet, the parent hash check is skipped.
-func (s *channelManager) AddL2Blocks(blocks ...*types.Block) error {
+func (s *channelManager) AddL2Block(block *types.Block) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for _, block := range blocks {
-		if s.tip != (common.Hash{}) && s.tip != block.ParentHash() {
-			return ErrReorg
-		}
 
-		s.metr.RecordL2BlockInPendingQueue(block)
-		s.blocks = append(s.blocks, block)
-		s.tip = block.Hash()
+	if s.tip != (common.Hash{}) && s.tip != block.ParentHash() {
+		return ErrReorg
 	}
+
+	s.metr.RecordL2BlockInPendingQueue(block)
+	s.blocks = append(s.blocks, block)
+	s.tip = block.Hash()
 
 	return nil
 }
