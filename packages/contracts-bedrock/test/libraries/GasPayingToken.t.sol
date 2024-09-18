@@ -57,15 +57,16 @@ contract GasPayingToken_Roundtrip_Test is Test {
     function testFuzz_setGetWithSanitize_succeeds(
         address _token,
         uint8 _decimals,
-        string memory _name,
-        string memory _symbol
+        string calldata _name,
+        string calldata _symbol
     )
         external
     {
         vm.assume(_token != address(0));
-        vm.assume(bytes(_name).length <= 32);
-        vm.assume(bytes(_symbol).length <= 32);
         vm.assume(_token != Constants.ETHER);
+
+        _name = bytes(_name).length <= 32 ? _name : string(bytes(_name)[:32]);
+        _symbol = bytes(_symbol).length <= 32 ? _symbol : string(bytes(_symbol)[:32]);
 
         GasPayingToken.set(_token, _decimals, GasPayingToken.sanitize(_name), GasPayingToken.sanitize(_symbol));
 
@@ -79,8 +80,16 @@ contract GasPayingToken_Roundtrip_Test is Test {
 
     /// @dev Differentially test `sanitize`.
     function testDiff_sanitize_succeeds(string memory _str) external pure {
-        vm.assume(bytes(_str).length <= 32);
-        vm.assume(bytes(_str).length > 0);
+        // Make sure the string is at least 1 byte long and at most 32 bytes long
+        _str = string.concat(_str, "x");
+
+        // Truncate the string to 32 bytes
+        // Clobbering the length of the string to 32 bytes is ugly but it works
+        assembly {
+            if gt(mload(_str), 0x20) {
+                mstore(_str, 0x20)
+            }
+        }
 
         bytes32 output;
         uint256 len = bytes(_str).length;
@@ -96,7 +105,8 @@ contract GasPayingToken_Roundtrip_Test is Test {
 
     /// @dev Test that `sanitize` fails when the input string is too long.
     function test_sanitize_stringTooLong_fails(string memory _str) external {
-        vm.assume(bytes(_str).length > 32);
+        // Make sure the string is at least 33 bytes long
+        _str = string.concat(_str, "reeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
 
         vm.expectRevert("GasPayingToken: string cannot be greater than 32 bytes");
 

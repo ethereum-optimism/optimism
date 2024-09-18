@@ -172,15 +172,17 @@ contract L1BlockCustomGasToken_Test is L1BlockTest {
     function testFuzz_setGasPayingToken_succeeds(
         address _token,
         uint8 _decimals,
-        string memory _name,
-        string memory _symbol
+        string calldata _name,
+        string calldata _symbol
     )
         external
     {
         vm.assume(_token != address(0));
         vm.assume(_token != Constants.ETHER);
-        vm.assume(bytes(_name).length <= 32);
-        vm.assume(bytes(_symbol).length <= 32);
+
+        // Make sure the name and symbol are 32 bytes or less.
+        _name = bytes(_name).length <= 32 ? _name : string(bytes(_name)[:32]);
+        _symbol = bytes(_symbol).length <= 32 ? _symbol : string(bytes(_symbol)[:32]);
 
         bytes32 name = bytes32(abi.encodePacked(_name));
         bytes32 symbol = bytes32(abi.encodePacked(_symbol));
