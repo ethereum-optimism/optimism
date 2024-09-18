@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
-import "forge-std/Console.sol";
+import { stdToml } from "forge-std/StdToml.sol";
 
 import { DeploySuperchainInput, DeploySuperchain, DeploySuperchainOutput } from "scripts/DeploySuperchain.s.sol";
 import {
@@ -129,6 +129,8 @@ contract DeployOPChainInput_Test is Test {
 }
 
 contract DeployOPChainOutput_Test is Test {
+    using stdToml for string;
+
     DeployOPChainInput doi;
     DeployOPChainOutput doo;
 
@@ -319,6 +321,39 @@ contract DeployOPChainOutput_Test is Test {
         doo.set(doo.delayedWETHPermissionlessGameProxy.selector, emptyAddr);
         vm.expectRevert(expectedErr);
         doo.delayedWETHPermissionlessGameProxy();
+    }
+
+    function test_outputFileInputDataPrepended_succeeds() public {
+        string memory root = vm.projectRoot();
+
+        // Use the expected data from the test fixture.
+        string memory expOutPath = string.concat(root, "/test/fixtures/test-deploy-opchain-out.toml");
+        string memory expOutToml = vm.readFile(expOutPath);
+
+        // Load the input file to use later when writing new output file.
+        doi.loadInputFile(string.concat(root, "/test/fixtures/test-deploy-opchain-in.toml"));
+
+        uint256 basefeeScalar = expOutToml.readUint(".doi.basefeeScalar");
+        assertEq(basefeeScalar, doi.basefeeScalar(), "100");
+        uint256 blobBaseFeeScalar = expOutToml.readUint(".doi.blobBaseFeeScalar");
+        assertEq(blobBaseFeeScalar, doi.blobBaseFeeScalar(), "200");
+        uint256 l2ChainId = expOutToml.readUint(".doi.l2ChainId");
+        assertEq(l2ChainId, doi.l2ChainId(), "300");
+        address opsmProxy = expOutToml.readAddress(".doi.opsmProxy");
+        assertEq(opsmProxy, address(doi.opsmProxy()), "400");
+
+        address batcher = expOutToml.readAddress(".doi.roles.batcher");
+        assertEq(batcher, doi.batcher(), "500");
+        address proposer = expOutToml.readAddress(".doi.roles.proposer");
+        assertEq(proposer, doi.proposer(), "600");
+        address challenger = expOutToml.readAddress(".doi.roles.challenger");
+        assertEq(challenger, doi.challenger(), "700");
+        address unsafeBlockSigner = expOutToml.readAddress(".doi.roles.unsafeBlockSigner");
+        assertEq(unsafeBlockSigner, doi.unsafeBlockSigner(), "800");
+        address systemConfigOwner = expOutToml.readAddress(".doi.roles.systemConfigOwner");
+        assertEq(systemConfigOwner, doi.systemConfigOwner(), "900");
+        address opChainProxyAdminOwner = expOutToml.readAddress(".doi.roles.opChainProxyAdminOwner");
+        assertEq(opChainProxyAdminOwner, doi.opChainProxyAdminOwner(), "1000");
     }
 
     function test_writeOutputFile_succeeds() public {
