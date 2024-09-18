@@ -159,7 +159,13 @@ func (s *channelManager) nextTxData(channel *channel) (txData, error) {
 // automatically. When switching DA type, all channels which have not begun to be submitted
 // will be rebuilt with a new ChannelConfig.
 func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	data, err := s.txData(l1Head)
+	if s.currentChannel == nil {
+		s.log.Trace("no current channel")
+		return data, err
+	}
 	assumedBlobs := s.currentChannel.cfg.UseBlobs
 	newCfg := s.cfgProvider.ChannelConfig(data.CallData())
 	if newCfg.UseBlobs == assumedBlobs { // TODO should we broaden this check to any change in config?
@@ -169,8 +175,7 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 	// type were wrong and we need to rebuild
 	// the channel manager state assuming
 	// a different DA type
-	s.mu.Lock()
-	defer s.mu.Unlock()
+
 	for i, channel := range s.channelQueue {
 		newChannel, err := channel.Rebuild(newCfg)
 		if err == nil {
@@ -249,10 +254,12 @@ func (s *channelManager) ensureChannelWithSpace(l1Head eth.BlockID) error {
 	// We reuse the ChannelConfig from the last closed channel.
 	// This will be reassessed at channel submission-time,
 	// but this is our best guess at the appropriate values for now.
-	if s.cfgLastClosedChannel == nil {
-		panic("Expected to find a cached ChannelConfig from the last closed channel")
+	var cfg ChannelConfig
+	if s.cfgLastClosedChannel != nil {
+		cfg = *s.cfgLastClosedChannel
+	} else {
+		cfg = s.cfgProvider.ChannelConfigFull()
 	}
-	cfg := *s.cfgLastClosedChannel
 
 	pc, err := newChannel(s.log, s.metr, cfg, s.rollupCfg, s.l1OriginLastClosedChannel.Number)
 	if err != nil {
