@@ -1,19 +1,17 @@
 package testutil
 
 import (
-	"math/rand"
-
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 )
 
 func RandomThread(randSeed int64) *multithreaded.ThreadState {
-	r := rand.New(rand.NewSource(randSeed))
+	r := testutil.NewRandHelper(randSeed)
 	thread := multithreaded.CreateEmptyThread()
 
-	pc := testutil.RandPC(r)
+	pc := r.RandPC()
 
-	thread.Registers = *testutil.RandRegisters(r)
+	thread.Registers = *r.RandRegisters()
 	thread.Cpu.PC = pc
 	thread.Cpu.NextPC = pc + 4
 	thread.Cpu.HI = r.Uint32()

@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"encoding/binary"
 	"fmt"
 	"slices"
 	"testing"
@@ -13,10 +14,13 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 )
 
-func CopyRegisters(state mipsevm.FPVMState) *[32]uint32 {
-	copy := new([32]uint32)
-	*copy = *state.GetRegistersRef()
-	return copy
+func AddHintLengthPrefix(data []byte) []byte {
+	dataLen := len(data)
+	prefixed := make([]byte, 0, dataLen+4)
+	prefixed = binary.BigEndian.AppendUint32(prefixed, uint32(dataLen))
+	prefixed = append(prefixed, data...)
+
+	return prefixed
 }
 
 type StateMutator interface {

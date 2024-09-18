@@ -3,6 +3,7 @@ package tests
 import (
 	"bytes"
 	"encoding/binary"
+	"math"
 	"os"
 	"testing"
 
@@ -285,43 +286,81 @@ func FuzzStatePreimageRead(f *testing.F) {
 
 func FuzzStateHintWrite(f *testing.F) {
 	versions := GetMipsVersionTestCases(f)
-	f.Fuzz(func(t *testing.T, addr uint32, count uint32, randSeed int64) {
+	f.Fuzz(func(t *testing.T, addr uint32, count uint32, hint1, hint2, hint3 []byte, randSeed int64) {
 		for _, v := range versions {
 			t.Run(v.Name, func(t *testing.T) {
-				preimageData := []byte("hello world")
-				preimageKey := preimage.Keccak256Key(crypto.Keccak256Hash(preimageData)).PreimageKey()
-				// TODO(cp-983) - use testutil.HintTrackingOracle, validate expected hints
-				oracle := testutil.StaticOracle(t, preimageData) // only used for hinting
+				// Make sure pc does not overlap with hint data in memory
+				pc := uint32(0)
+				if addr <= 8 {
+					addr += 8
+				}
 
+				r := testutil.NewRandHelper(randSeed)
+				oracle := &testutil.HintTrackingOracle{}
+
+				// Set up hint data
+				hints := [][]byte{hint1, hint2, hint3}
+				hintData := make([]byte, 0)
+				for _, hint := range hints {
+					prefixedHint := testutil.AddHintLengthPrefix(hint)
+					hintData = append(hintData, prefixedHint...)
+				}
+				lastHintLen := math.Round(r.Fraction() * float64(len(hintData)))
+				lastHint := hintData[:int(lastHintLen)]
+				expectedBytesToProcess := int(count) + int(lastHintLen)
+				if expectedBytesToProcess > len(hintData) {
+					// Add an extra hint to span the rest of the hint data
+					randomHint := r.RandomBytes(t, expectedBytesToProcess)
+					prefixedHint := testutil.AddHintLengthPrefix(randomHint)
+					hintData = append(hintData, prefixedHint...)
+					hints = append(hints, randomHint)
+				}
+
+				// Set up state
 				goVm := v.VMFactory(oracle, os.Stdout, os.Stderr, testutil.CreateLogger(),
-					testutil.WithRandomization(randSeed), testutil.WithPreimageKey(preimageKey))
+					testutil.WithRandomization(randSeed), testutil.WithLastHint(lastHint), testutil.WithPCAndNextPC(pc))
 				state := goVm.GetState()
 				state.GetRegistersRef()[2] = exec.SysWrite
 				state.GetRegistersRef()[4] = exec.FdHintWrite
 				state.GetRegistersRef()[5] = addr
 				state.GetRegistersRef()[6] = count
 				step := state.GetStep()
-
-				// Set random data at the target memory range
-				randBytes := testutil.RandomBytes(t, randSeed, count)
-				err := state.GetMemory().SetMemoryRange(addr, bytes.NewReader(randBytes))
+				err := state.GetMemory().SetMemoryRange(addr, bytes.NewReader(hintData[int(lastHintLen):]))
 				require.NoError(t, err)
-				// Set instruction
 				state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
 
+				// Set up expectations
 				expected := testutil.NewExpectedState(state)
 				expected.Step += 1
 				expected.PC = state.GetCpu().NextPC
 				expected.NextPC = state.GetCpu().NextPC + 4
 				expected.Registers[2] = count
 				expected.Registers[7] = 0 // no error
+				// Figure out hint expectations
+				var expectedHints [][]byte
+				expectedLastHint := make([]byte, 0)
+				byteIndex := 0
+				for _, hint := range hints {
+					hintDataLength := len(hint) + 4 // Hint data + prefix
+					hintLastByteIndex := hintDataLength + byteIndex - 1
+					if hintLastByteIndex < expectedBytesToProcess {
+						expectedHints = append(expectedHints, hint)
+					} else {
+						expectedLastHint = hintData[byteIndex:expectedBytesToProcess]
+						break
+					}
+					byteIndex += hintDataLength
+				}
+				expected.LastHint = expectedLastHint
 
+				// Run state transition
 				stepWitness, err := goVm.Step(true)
 				require.NoError(t, err)
 				require.False(t, stepWitness.HasPreimage())
 
-				// TODO(cp-983) - validate expected hints
-				expected.Validate(t, state, testutil.SkipHintValidation)
+				// Validate
+				require.Equal(t, expectedHints, oracle.Hints())
+				expected.Validate(t, state)
 				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, nil)
 			})
 		}
