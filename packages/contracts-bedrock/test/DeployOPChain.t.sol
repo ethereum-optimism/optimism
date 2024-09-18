@@ -330,7 +330,7 @@ contract DeployOPChainOutput_Test is Test {
         string memory expOutPath = string.concat(root, "/test/fixtures/test-deploy-opchain-out.toml");
         string memory expOutToml = vm.readFile(expOutPath);
 
-        // Load the input file to use later when writing new output file.
+        // Parse each doi field of expOutToml
         doi.loadInputFile(string.concat(root, "/test/fixtures/test-deploy-opchain-in.toml"));
 
         uint256 basefeeScalar = expOutToml.readUint(".doi.basefeeScalar");
