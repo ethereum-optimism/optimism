@@ -271,6 +271,9 @@ func TestBatcherAutoDA(t *testing.T) {
 	ethPrivKey := cfg.Secrets.Alice
 	fromAddr := cfg.Secrets.Addresses().Alice
 
+	// TODO ensure the batcher has already created a channel (but not started submitting it)
+	// before triggering the market manipulating L1 transactions
+
 	// Send deposit transactions in a loop to drive up L1 base fee
 	depAmount := big.NewInt(1_000_000_000_000)
 	const numDeps = 3
