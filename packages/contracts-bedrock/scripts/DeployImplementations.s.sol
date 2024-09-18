@@ -274,17 +274,17 @@ contract DeployImplementationsOutput is BaseDeployIO {
 
     // -------- Deployment Assertions --------
     function assertValidDeploy(DeployImplementationsInput _dii) public {
-        assertValidOpsmProxy(_dii);
-        assertValidOptimismPortalImpl(_dii);
         assertValidDelayedWETHImpl(_dii);
-        assertValidPreimageOracleSingleton(_dii);
-        assertValidMipsSingleton(_dii);
-        assertValidSystemConfigImpl(_dii);
+        assertValidDisputeGameFactoryImpl(_dii);
         assertValidL1CrossDomainMessengerImpl(_dii);
         assertValidL1ERC721BridgeImpl(_dii);
         assertValidL1StandardBridgeImpl(_dii);
+        assertValidMipsSingleton(_dii);
+        assertValidOpsmProxy(_dii);
         assertValidOptimismMintableERC20FactoryImpl(_dii);
-        assertValidDisputeGameFactoryImpl(_dii);
+        assertValidOptimismPortalImpl(_dii);
+        assertValidPreimageOracleSingleton(_dii);
+        assertValidSystemConfigImpl(_dii);
     }
 
     function assertValidOpsmProxy(DeployImplementationsInput _dii) internal {
@@ -313,14 +313,14 @@ contract DeployImplementationsOutput is BaseDeployIO {
 
         DeployUtils.assertInitialized({ _contractAddress: address(portal), _slot: 0, _offset: 0 });
 
-        require(address(portal.disputeGameFactory()) == address(0), "OP-10");
-        require(address(portal.systemConfig()) == address(0), "OP-20");
-        require(address(portal.superchainConfig()) == address(0), "OP-30");
-        require(portal.l2Sender() == Constants.DEFAULT_L2_SENDER, "OP-40");
+        require(address(portal.disputeGameFactory()) == address(0), "PORTAL-10");
+        require(address(portal.systemConfig()) == address(0), "PORTAL-20");
+        require(address(portal.superchainConfig()) == address(0), "PORTAL-30");
+        require(portal.l2Sender() == Constants.DEFAULT_L2_SENDER, "PORTAL-40");
 
         // This slot is the custom gas token _balance and this check ensures
         // that it stays unset for forwards compatibility with custom gas token.
-        require(vm.load(address(portal), bytes32(uint256(61))) == bytes32(0), "OP-50");
+        require(vm.load(address(portal), bytes32(uint256(61))) == bytes32(0), "PORTAL-50");
     }
 
     function assertValidDelayedWETHImpl(DeployImplementationsInput _dii) internal view {
@@ -351,31 +351,31 @@ contract DeployImplementationsOutput is BaseDeployIO {
 
         DeployUtils.assertInitialized({ _contractAddress: address(systemConfig), _slot: 0, _offset: 0 });
 
-        require(systemConfig.owner() == address(0xdead), "SC-10");
-        require(systemConfig.overhead() == 0, "SC-20");
-        require(systemConfig.scalar() == uint256(0x01) << 248, "SC-30");
-        require(systemConfig.basefeeScalar() == 0, "SC-40");
-        require(systemConfig.blobbasefeeScalar() == 0, "SC-50");
-        require(systemConfig.batcherHash() == bytes32(0), "SC-60");
-        require(systemConfig.gasLimit() == 1, "SC-70");
-        require(systemConfig.unsafeBlockSigner() == address(0), "SC-80");
+        require(systemConfig.owner() == address(0xdead), "SYSCON-10");
+        require(systemConfig.overhead() == 0, "SYSCON-20");
+        require(systemConfig.scalar() == uint256(0x01) << 248, "SYSCON-30");
+        require(systemConfig.basefeeScalar() == 0, "SYSCON-40");
+        require(systemConfig.blobbasefeeScalar() == 0, "SYSCON-50");
+        require(systemConfig.batcherHash() == bytes32(0), "SYSCON-60");
+        require(systemConfig.gasLimit() == 1, "SYSCON-70");
+        require(systemConfig.unsafeBlockSigner() == address(0), "SYSCON-80");
 
         IResourceMetering.ResourceConfig memory resourceConfig = systemConfig.resourceConfig();
-        require(resourceConfig.maxResourceLimit == 1, "SC-90");
-        require(resourceConfig.elasticityMultiplier == 1, "SC-100");
-        require(resourceConfig.baseFeeMaxChangeDenominator == 2, "SC-110");
-        require(resourceConfig.systemTxMaxGas == 0, "SC-120");
-        require(resourceConfig.minimumBaseFee == 0, "SC-130");
-        require(resourceConfig.maximumBaseFee == 0, "SC-140");
+        require(resourceConfig.maxResourceLimit == 1, "SYSCON-90");
+        require(resourceConfig.elasticityMultiplier == 1, "SYSCON-100");
+        require(resourceConfig.baseFeeMaxChangeDenominator == 2, "SYSCON-110");
+        require(resourceConfig.systemTxMaxGas == 0, "SYSCON-120");
+        require(resourceConfig.minimumBaseFee == 0, "SYSCON-130");
+        require(resourceConfig.maximumBaseFee == 0, "SYSCON-140");
 
-        require(systemConfig.startBlock() == type(uint256).max, "SC-150");
-        require(systemConfig.batchInbox() == address(0), "SC-160");
-        require(systemConfig.l1CrossDomainMessenger() == address(0), "SC-170");
-        require(systemConfig.l1ERC721Bridge() == address(0), "SC-180");
-        require(systemConfig.l1StandardBridge() == address(0), "SC-190");
-        require(systemConfig.disputeGameFactory() == address(0), "SC-200");
-        require(systemConfig.optimismPortal() == address(0), "SC-210");
-        require(systemConfig.optimismMintableERC20Factory() == address(0), "SC-220");
+        require(systemConfig.startBlock() == type(uint256).max, "SYSCON-150");
+        require(systemConfig.batchInbox() == address(0), "SYSCON-160");
+        require(systemConfig.l1CrossDomainMessenger() == address(0), "SYSCON-170");
+        require(systemConfig.l1ERC721Bridge() == address(0), "SYSCON-180");
+        require(systemConfig.l1StandardBridge() == address(0), "SYSCON-190");
+        require(systemConfig.disputeGameFactory() == address(0), "SYSCON-200");
+        require(systemConfig.optimismPortal() == address(0), "SYSCON-210");
+        require(systemConfig.optimismMintableERC20Factory() == address(0), "SYSCON-220");
     }
 
     function assertValidL1CrossDomainMessengerImpl(DeployImplementationsInput) internal view {
@@ -398,11 +398,11 @@ contract DeployImplementationsOutput is BaseDeployIO {
 
         DeployUtils.assertInitialized({ _contractAddress: address(bridge), _slot: 0, _offset: 0 });
 
-        require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_ERC721_BRIDGE, "LEB-10");
-        require(address(bridge.otherBridge()) == Predeploys.L2_ERC721_BRIDGE, "LEB-20");
-        require(address(bridge.MESSENGER()) == address(0), "LEB-30");
-        require(address(bridge.messenger()) == address(0), "LEB-40");
-        require(address(bridge.superchainConfig()) == address(0), "LEB-50");
+        require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_ERC721_BRIDGE, "L721B-10");
+        require(address(bridge.otherBridge()) == Predeploys.L2_ERC721_BRIDGE, "L721B-20");
+        require(address(bridge.MESSENGER()) == address(0), "L721B-30");
+        require(address(bridge.messenger()) == address(0), "L721B-40");
+        require(address(bridge.superchainConfig()) == address(0), "L721B-50");
     }
 
     function assertValidL1StandardBridgeImpl(DeployImplementationsInput) internal view {
@@ -410,11 +410,11 @@ contract DeployImplementationsOutput is BaseDeployIO {
 
         DeployUtils.assertInitialized({ _contractAddress: address(bridge), _slot: 0, _offset: 0 });
 
-        require(address(bridge.MESSENGER()) == address(0), "LSB-10");
-        require(address(bridge.messenger()) == address(0), "LSB-20");
-        require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_STANDARD_BRIDGE, "LSB-30");
-        require(address(bridge.otherBridge()) == Predeploys.L2_STANDARD_BRIDGE, "LSB-40");
-        require(address(bridge.superchainConfig()) == address(0), "LSB-50");
+        require(address(bridge.MESSENGER()) == address(0), "L1SB-10");
+        require(address(bridge.messenger()) == address(0), "L1SB-20");
+        require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_STANDARD_BRIDGE, "L1SB-30");
+        require(address(bridge.otherBridge()) == Predeploys.L2_STANDARD_BRIDGE, "L1SB-40");
+        require(address(bridge.superchainConfig()) == address(0), "L1SB-50");
     }
 
     function assertValidOptimismMintableERC20FactoryImpl(DeployImplementationsInput) internal view {
@@ -422,8 +422,8 @@ contract DeployImplementationsOutput is BaseDeployIO {
 
         DeployUtils.assertInitialized({ _contractAddress: address(factory), _slot: 0, _offset: 0 });
 
-        require(address(factory.BRIDGE()) == address(0), "OM-10");
-        require(address(factory.bridge()) == address(0), "OM-20");
+        require(address(factory.BRIDGE()) == address(0), "MERC20F-10");
+        require(address(factory.bridge()) == address(0), "MERC20F-20");
     }
 
     function assertValidDisputeGameFactoryImpl(DeployImplementationsInput) internal view {

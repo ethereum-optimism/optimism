@@ -273,18 +273,20 @@ contract DeploySuperchainOutput is BaseDeployIO {
         // Proxy checks.
         SuperchainConfig superchainConfig = superchainConfigProxy();
         DeployUtils.assertInitialized({ _contractAddress: address(superchainConfig), _slot: 0, _offset: 0 });
-        require(superchainConfig.guardian() == _dsi.guardian(), "SC-10");
-        require(superchainConfig.paused() == _dsi.paused(), "SC-20");
+        require(superchainConfig.guardian() == _dsi.guardian(), "SUPCON-10");
+        require(superchainConfig.paused() == _dsi.paused(), "SUPCON-20");
 
         vm.startPrank(address(0));
-        require(Proxy(payable(address(superchainConfig))).implementation() == address(superchainConfigImpl()), "SC-30");
-        require(Proxy(payable(address(superchainConfig))).admin() == address(superchainProxyAdmin()), "SC-40");
+        require(
+            Proxy(payable(address(superchainConfig))).implementation() == address(superchainConfigImpl()), "SUPCON-30"
+        );
+        require(Proxy(payable(address(superchainConfig))).admin() == address(superchainProxyAdmin()), "SUPCON-40");
         vm.stopPrank();
 
         // Implementation checks
         superchainConfig = superchainConfigImpl();
-        require(superchainConfig.guardian() == address(0), "SC-50");
-        require(superchainConfig.paused() == false, "SC-60");
+        require(superchainConfig.guardian() == address(0), "SUPCON-50");
+        require(superchainConfig.paused() == false, "SUPCON-60");
     }
 
     function assertValidProtocolVersions(DeploySuperchainInput _dsi) internal {
