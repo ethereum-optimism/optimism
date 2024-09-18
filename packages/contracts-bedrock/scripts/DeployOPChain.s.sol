@@ -312,7 +312,9 @@ contract DeployOPChainOutput is BaseDeployIO {
         require(outputConfig.maximumBaseFee == rConfig.maximumBaseFee, "SYSCON-130");
 
         require(systemConfig.startBlock() == block.number, "SYSCON-140");
-        require(systemConfig.batchInbox() == _doi.opsmProxy().chainIdToBatchInboxAddress(_doi.l2ChainId()), "SYSCON-150");
+        require(
+            systemConfig.batchInbox() == _doi.opsmProxy().chainIdToBatchInboxAddress(_doi.l2ChainId()), "SYSCON-150"
+        );
 
         require(systemConfig.l1CrossDomainMessenger() == address(l1CrossDomainMessengerProxy()), "SYSCON-160");
         require(systemConfig.l1ERC721Bridge() == address(l1ERC721BridgeProxy()), "SYSCON-170");

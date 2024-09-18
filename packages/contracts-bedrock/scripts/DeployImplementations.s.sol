@@ -298,7 +298,7 @@ contract DeployImplementationsOutput is BaseDeployIO {
         DeployUtils.assertInitialized({ _contractAddress: address(opsmProxy()), _slot: 0, _offset: 0 });
         require(address(opsmProxy().superchainConfig()) == address(_dii.superchainConfigProxy()), "OPSM-20");
         require(address(opsmProxy().protocolVersions()) == address(_dii.protocolVersionsProxy()), "OPSM-30");
-        require(LibString.eq(opsmProxy().latestRelease(), _dii.release()), "OPSM-50"); // Initial release must be the latest.
+        require(LibString.eq(opsmProxy().latestRelease(), _dii.release()), "OPSM-50"); // Initial release is latest.
 
         // Lastly we check it's implementation.
         vm.prank(address(0));
