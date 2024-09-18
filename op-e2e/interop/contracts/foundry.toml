@@ -6,7 +6,7 @@
 
 # Compilation settings
 src = 'src'
-out = 'test-artifacts'
+out = 'build'
 script = 'scripts'
 optimizer = true
 optimizer_runs = 999999

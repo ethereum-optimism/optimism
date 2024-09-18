@@ -31,7 +31,7 @@ var (
 
 // EmitMetaData contains all meta data concerning the Emit contract.
 var EmitMetaData = &bind.MetaData{
-	ABI: "[{\"type\":\"function\",\"name\":\"emitData\",\"inputs\":[{\"name\":\"data\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"event\",\"name\":\"DataEmitted\",\"inputs\":[{\"name\":\"data\",\"type\":\"bytes\",\"indexed\":true,\"internalType\":\"bytes\"}],\"anonymous\":false}]",
+	ABI: "[{\"type\":\"function\",\"name\":\"emitData\",\"inputs\":[{\"name\":\"_data\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"event\",\"name\":\"DataEmitted\",\"inputs\":[{\"name\":\"_data\",\"type\":\"bytes\",\"indexed\":true,\"internalType\":\"bytes\"}],\"anonymous\":false}]",
 	Bin: "0x6080604052348015600e575f80fd5b5060ff8061001b5f395ff3fe6080604052348015600e575f80fd5b50600436106026575f3560e01c8063d836083e14602a575b5f80fd5b60396035366004607c565b603b565b005b8181604051604992919060e3565b604051908190038120907fe00bbfe6f6f8f1bbed2da38e3f5a139c6f9da594ab248a3cf8b44fc73627772c905f90a25050565b5f8060208385031215608c575f80fd5b823567ffffffffffffffff8082111560a2575f80fd5b818501915085601f83011260b4575f80fd5b81358181111560c1575f80fd5b86602082850101111560d1575f80fd5b60209290920196919550909350505050565b818382375f910190815291905056fea164736f6c6343000819000a",
 }
 
@@ -204,23 +204,23 @@ func (_Emit *EmitTransactorRaw) Transact(opts *bind.TransactOpts, method string,
 
 // EmitData is a paid mutator transaction binding the contract method 0xd836083e.
 //
-// Solidity: function emitData(bytes data) returns()
-func (_Emit *EmitTransactor) EmitData(opts *bind.TransactOpts, data []byte) (*types.Transaction, error) {
-	return _Emit.contract.Transact(opts, "emitData", data)
+// Solidity: function emitData(bytes _data) returns()
+func (_Emit *EmitTransactor) EmitData(opts *bind.TransactOpts, _data []byte) (*types.Transaction, error) {
+	return _Emit.contract.Transact(opts, "emitData", _data)
 }
 
 // EmitData is a paid mutator transaction binding the contract method 0xd836083e.
 //
-// Solidity: function emitData(bytes data) returns()
-func (_Emit *EmitSession) EmitData(data []byte) (*types.Transaction, error) {
-	return _Emit.Contract.EmitData(&_Emit.TransactOpts, data)
+// Solidity: function emitData(bytes _data) returns()
+func (_Emit *EmitSession) EmitData(_data []byte) (*types.Transaction, error) {
+	return _Emit.Contract.EmitData(&_Emit.TransactOpts, _data)
 }
 
 // EmitData is a paid mutator transaction binding the contract method 0xd836083e.
 //
-// Solidity: function emitData(bytes data) returns()
-func (_Emit *EmitTransactorSession) EmitData(data []byte) (*types.Transaction, error) {
-	return _Emit.Contract.EmitData(&_Emit.TransactOpts, data)
+// Solidity: function emitData(bytes _data) returns()
+func (_Emit *EmitTransactorSession) EmitData(_data []byte) (*types.Transaction, error) {
+	return _Emit.Contract.EmitData(&_Emit.TransactOpts, _data)
 }
 
 // EmitDataEmittedIterator is returned from FilterDataEmitted and is used to iterate over the raw logs and unpacked data for DataEmitted events raised by the Emit contract.
@@ -298,15 +298,15 @@ type EmitDataEmitted struct {
 
 // FilterDataEmitted is a free log retrieval operation binding the contract event 0xe00bbfe6f6f8f1bbed2da38e3f5a139c6f9da594ab248a3cf8b44fc73627772c.
 //
-// Solidity: event DataEmitted(bytes indexed data)
-func (_Emit *EmitFilterer) FilterDataEmitted(opts *bind.FilterOpts, data [][]byte) (*EmitDataEmittedIterator, error) {
+// Solidity: event DataEmitted(bytes indexed _data)
+func (_Emit *EmitFilterer) FilterDataEmitted(opts *bind.FilterOpts, _data [][]byte) (*EmitDataEmittedIterator, error) {
 
-	var dataRule []interface{}
-	for _, dataItem := range data {
-		dataRule = append(dataRule, dataItem)
+	var _dataRule []interface{}
+	for _, _dataItem := range _data {
+		_dataRule = append(_dataRule, _dataItem)
 	}
 
-	logs, sub, err := _Emit.contract.FilterLogs(opts, "DataEmitted", dataRule)
+	logs, sub, err := _Emit.contract.FilterLogs(opts, "DataEmitted", _dataRule)
 	if err != nil {
 		return nil, err
 	}
@@ -315,15 +315,15 @@ func (_Emit *EmitFilterer) FilterDataEmitted(opts *bind.FilterOpts, data [][]byt
 
 // WatchDataEmitted is a free log subscription operation binding the contract event 0xe00bbfe6f6f8f1bbed2da38e3f5a139c6f9da594ab248a3cf8b44fc73627772c.
 //
-// Solidity: event DataEmitted(bytes indexed data)
-func (_Emit *EmitFilterer) WatchDataEmitted(opts *bind.WatchOpts, sink chan<- *EmitDataEmitted, data [][]byte) (event.Subscription, error) {
+// Solidity: event DataEmitted(bytes indexed _data)
+func (_Emit *EmitFilterer) WatchDataEmitted(opts *bind.WatchOpts, sink chan<- *EmitDataEmitted, _data [][]byte) (event.Subscription, error) {
 
-	var dataRule []interface{}
-	for _, dataItem := range data {
-		dataRule = append(dataRule, dataItem)
+	var _dataRule []interface{}
+	for _, _dataItem := range _data {
+		_dataRule = append(_dataRule, _dataItem)
 	}
 
-	logs, sub, err := _Emit.contract.WatchLogs(opts, "DataEmitted", dataRule)
+	logs, sub, err := _Emit.contract.WatchLogs(opts, "DataEmitted", _dataRule)
 	if err != nil {
 		return nil, err
 	}
@@ -357,7 +357,7 @@ func (_Emit *EmitFilterer) WatchDataEmitted(opts *bind.WatchOpts, sink chan<- *E
 
 // ParseDataEmitted is a log parse operation binding the contract event 0xe00bbfe6f6f8f1bbed2da38e3f5a139c6f9da594ab248a3cf8b44fc73627772c.
 //
-// Solidity: event DataEmitted(bytes indexed data)
+// Solidity: event DataEmitted(bytes indexed _data)
 func (_Emit *EmitFilterer) ParseDataEmitted(log types.Log) (*EmitDataEmitted, error) {
 	event := new(EmitDataEmitted)
 	if err := _Emit.contract.UnpackLog(event, "DataEmitted", log); err != nil {
