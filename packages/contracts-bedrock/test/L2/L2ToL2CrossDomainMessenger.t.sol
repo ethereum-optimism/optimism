@@ -194,8 +194,12 @@ contract L2ToL2CrossDomainMessengerTest is Test {
     )
         external
     {
+        // Ensure that the target contract is not a Forge contract.
+        assumeNotForgeAddress(_target);
+
         // Ensure that the target contract is not CrossL2Inbox or L2ToL2CrossDomainMessenger
-        vm.assume(_target != Predeploys.CROSS_L2_INBOX && _target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
+        vm.assume(_target != Predeploys.CROSS_L2_INBOX);
+        vm.assume(_target != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
 
         // Ensure that the target call is payable if value is sent
         if (_value > 0) assumePayable(_target);
