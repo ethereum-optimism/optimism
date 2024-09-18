@@ -157,8 +157,7 @@ func (s *channelManager) nextTxData(channel *channel) (txData, error) {
 //
 // It will generate the tx data internally, and decide whether to switch DA type
 // automatically. When switching DA type, all channels which have not begun to be submitted
-//
-//	will be rebuilt with a new ChannelConfig
+// will be rebuilt with a new ChannelConfig.
 func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 	data, err := s.txData(l1Head)
 	assumedBlobs := s.currentChannel.cfg.UseBlobs
@@ -177,6 +176,9 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 		if err == nil {
 			// We may not be able to rebuild the channel if it has already begun to be submitted
 			s.channelQueue[i] = newChannel
+			if channel == s.currentChannel {
+				s.currentChannel = newChannel
+			}
 		} else {
 			s.log.Info(err.Error())
 		}
