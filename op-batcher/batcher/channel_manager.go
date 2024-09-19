@@ -169,10 +169,11 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 	}
 	assumedBlobs := s.currentChannel.cfg.UseBlobs
 	newCfg := s.cfgProvider.ChannelConfig(data.CallData())
-	if newCfg.UseBlobs == assumedBlobs {
-		// TODO should we broaden this check to any change in config?
+	if newCfg.UseBlobs == assumedBlobs { // TODO should we broaden this check to any change in config?
+		s.log.Info("Recomputing optimal ChannelConfig: no need to switch DA type", "useBlobs", assumedBlobs)
 		return data, err
 	}
+	s.log.Info("Recomputing optimal ChannelConfig: changing DA type...", "useBlobsBefore", assumedBlobs, "useBlobsAfter", newCfg.UseBlobs)
 	// We have detected that our assumptions on DA
 	// type were wrong and we need to rebuild
 	// the channel manager state
