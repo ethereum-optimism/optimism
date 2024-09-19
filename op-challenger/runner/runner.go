@@ -48,6 +48,7 @@ type Runner struct {
 	addMTCannonPrestate    common.Hash
 	addMTCannonPrestateURL *url.URL
 	m                      Metricer
+	mtMetrics              Metricer
 
 	running    atomic.Bool
 	ctx        context.Context
@@ -57,12 +58,14 @@ type Runner struct {
 }
 
 func NewRunner(logger log.Logger, cfg *config.Config, mtCannonPrestate common.Hash, mtCannonPrestateURL *url.URL) *Runner {
+	m := NewMetrics()
 	return &Runner{
 		log:                    logger,
 		cfg:                    cfg,
 		addMTCannonPrestate:    mtCannonPrestate,
 		addMTCannonPrestateURL: mtCannonPrestateURL,
-		m:                      NewMetrics(),
+		m:                      m,
+		mtMetrics:              NewMTCannonMetrics(m),
 	}
 }
 
@@ -157,12 +160,12 @@ func (r *Runner) runAndRecordOnce(ctx context.Context, traceType types.TraceType
 			defer wg.Done()
 			dir, err := r.prepDatadir("mt-cannon")
 			if err != nil {
-				recordError(err, "mt-cannon", r.m, r.log)
+				recordError(err, "mt-cannon", r.mtMetrics, r.log)
 				return
 			}
 			logger := inputsLogger.With("type", "mt-cannon")
 			err = r.runMTOnce(ctx, logger, traceType, prestateHash, localInputs, dir)
-			recordError(err, traceType.String(), r.m, r.log.With("mt-cannon", true))
+			recordError(err, traceType.String(), r.mtMetrics, r.log.With("mt-cannon", true))
 		}()
 	}
 	wg.Wait()
@@ -184,7 +187,7 @@ func (r *Runner) runOnce(ctx context.Context, logger log.Logger, traceType types
 }
 
 func (r *Runner) runMTOnce(ctx context.Context, logger log.Logger, traceType types.TraceType, prestateHash common.Hash, localInputs utils.LocalGameInputs, dir string) error {
-	provider, err := createMTTraceProvider(logger, r.m, r.cfg.Cannon, r.addMTCannonPrestate, r.addMTCannonPrestateURL, types.TraceTypeCannon, localInputs, dir)
+	provider, err := createMTTraceProvider(logger, r.mtMetrics, r.cfg.Cannon, r.addMTCannonPrestate, r.addMTCannonPrestateURL, types.TraceTypeCannon, localInputs, dir)
 	if err != nil {
 		return fmt.Errorf("failed to create trace provider: %w", err)
 	}
