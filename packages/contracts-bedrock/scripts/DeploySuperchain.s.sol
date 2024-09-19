@@ -18,7 +18,7 @@ import { BaseDeployIO } from "scripts/utils/BaseDeployIO.sol";
 // complement the OP Stack Manager. The script architecture is a bit different than a standard forge
 // deployment script.
 //
-// There are three categories of users that are expected to interact with the scripts:
+// There are two categories of users that are expected to interact with the scripts:
 //   1. Solidity developers that want to use or test these scripts in a standard forge test environment.
 //   2. Go developers that want to run the deploy scripts as part of e2e testing with other aspects of the OP Stack.
 //
@@ -395,10 +395,8 @@ contract DeploySuperchain is Script {
 
     // -------- Utilities --------
 
-    // This etches the IO contracts into memory so that we can use them in tests. When using file IO
-    // we don't need to call this directly, as the `DeploySuperchain.run(file, file)` entrypoint
-    // handles it. But when interacting with the script programmatically (e.g. in a Solidity test),
-    // this must be called.
+    // This etches the IO contracts into memory so that we can use them in tests.
+    // When interacting with the script programmatically (e.g. in a Solidity test), this must be called.
     function etchIOContracts() public returns (DeploySuperchainInput dsi_, DeploySuperchainOutput dso_) {
         (dsi_, dso_) = getIOContracts();
         vm.etch(address(dsi_), type(DeploySuperchainInput).runtimeCode);
