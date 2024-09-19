@@ -228,32 +228,34 @@ contract DeploySuperchainOutput is BaseDeployIO {
         if (vm.exists(tempOutFile)) vm.removeFile(tempOutFile);
     }
 
-    function serializeInput(DeploySuperchainInput dsi, string memory inputRootKey) internal {
-        vm.serializeBool(inputRootKey, "paused", dsi.paused());
-        vm.serializeUint(inputRootKey, "requiredProtocolVersion", ProtocolVersion.unwrap(dsi.requiredProtocolVersion()));
+    function serializeInput(DeploySuperchainInput _dsi, string memory _inputRootKey) internal {
+        vm.serializeBool(_inputRootKey, "paused", _dsi.paused());
         vm.serializeUint(
-            inputRootKey, "recommendedProtocolVersion", ProtocolVersion.unwrap(dsi.recommendedProtocolVersion())
+            _inputRootKey, "requiredProtocolVersion", ProtocolVersion.unwrap(_dsi.requiredProtocolVersion())
+        );
+        vm.serializeUint(
+            _inputRootKey, "recommendedProtocolVersion", ProtocolVersion.unwrap(_dsi.recommendedProtocolVersion())
         );
     }
 
     function serializeInputRoles(
-        DeploySuperchainInput dsi,
-        string memory inputRolesKey
+        DeploySuperchainInput _dsi,
+        string memory _inputRolesKey
     )
         internal
         returns (string memory)
     {
-        vm.serializeAddress(inputRolesKey, "proxyAdminOwner", dsi.proxyAdminOwner());
-        vm.serializeAddress(inputRolesKey, "protocolVersionsOwner", dsi.protocolVersionsOwner());
-        return vm.serializeAddress(inputRolesKey, "guardian", dsi.guardian());
+        vm.serializeAddress(_inputRolesKey, "proxyAdminOwner", _dsi.proxyAdminOwner());
+        vm.serializeAddress(_inputRolesKey, "protocolVersionsOwner", _dsi.protocolVersionsOwner());
+        return vm.serializeAddress(_inputRolesKey, "guardian", _dsi.guardian());
     }
 
-    function serializeOutputs(string memory outputsKey) internal returns (string memory) {
-        vm.serializeAddress(outputsKey, "superchainProxyAdmin", address(this.superchainProxyAdmin()));
-        vm.serializeAddress(outputsKey, "superchainConfigImpl", address(this.superchainConfigImpl()));
-        vm.serializeAddress(outputsKey, "superchainConfigProxy", address(this.superchainConfigProxy()));
-        vm.serializeAddress(outputsKey, "protocolVersionsImpl", address(this.protocolVersionsImpl()));
-        return vm.serializeAddress(outputsKey, "protocolVersionsProxy", address(this.protocolVersionsProxy()));
+    function serializeOutputs(string memory _outputsKey) internal returns (string memory) {
+        vm.serializeAddress(_outputsKey, "superchainProxyAdmin", address(this.superchainProxyAdmin()));
+        vm.serializeAddress(_outputsKey, "superchainConfigImpl", address(this.superchainConfigImpl()));
+        vm.serializeAddress(_outputsKey, "superchainConfigProxy", address(this.superchainConfigProxy()));
+        vm.serializeAddress(_outputsKey, "protocolVersionsImpl", address(this.protocolVersionsImpl()));
+        return vm.serializeAddress(_outputsKey, "protocolVersionsProxy", address(this.protocolVersionsProxy()));
     }
 
     // This function can be called to ensure all outputs are correct. Similar to `writeOutputFile`,
