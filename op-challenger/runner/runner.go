@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sync"
@@ -42,10 +43,11 @@ type Metricer interface {
 }
 
 type Runner struct {
-	log                 log.Logger
-	cfg                 *config.Config
-	addMTCannonPrestate common.Hash
-	m                   Metricer
+	log                    log.Logger
+	cfg                    *config.Config
+	addMTCannonPrestate    common.Hash
+	addMTCannonPrestateURL *url.URL
+	m                      Metricer
 
 	running    atomic.Bool
 	ctx        context.Context
@@ -54,12 +56,13 @@ type Runner struct {
 	metricsSrv *httputil.HTTPServer
 }
 
-func NewRunner(logger log.Logger, cfg *config.Config, mtCannonPrestate common.Hash) *Runner {
+func NewRunner(logger log.Logger, cfg *config.Config, mtCannonPrestate common.Hash, mtCannonPrestateURL *url.URL) *Runner {
 	return &Runner{
-		log:                 logger,
-		cfg:                 cfg,
-		addMTCannonPrestate: mtCannonPrestate,
-		m:                   NewMetrics(),
+		log:                    logger,
+		cfg:                    cfg,
+		addMTCannonPrestate:    mtCannonPrestate,
+		addMTCannonPrestateURL: mtCannonPrestateURL,
+		m:                      NewMetrics(),
 	}
 }
 
@@ -148,16 +151,17 @@ func (r *Runner) runAndRecordOnce(ctx context.Context, traceType types.TraceType
 		recordError(err, traceType.String(), r.m, r.log)
 	}()
 
-	if r.addMTCannonPrestate != (common.Hash{}) {
+	if r.addMTCannonPrestate != (common.Hash{}) && r.addMTCannonPrestateURL != nil {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			dir, err := r.prepDatadir("mt-cannon")
 			if err != nil {
-				recordError(err, traceType.String(), r.m, r.log)
+				recordError(err, "mt-cannon", r.m, r.log)
 				return
 			}
-			err = r.runOnce(ctx, inputsLogger.With("type", "mt-cannon"), types.TraceTypeCannon, r.addMTCannonPrestate, localInputs, dir)
+			logger := inputsLogger.With("type", "mt-cannon")
+			err = r.runMTOnce(ctx, logger, traceType, prestateHash, localInputs, dir)
 			recordError(err, traceType.String(), r.m, r.log.With("mt-cannon", true))
 		}()
 	}
@@ -166,6 +170,21 @@ func (r *Runner) runAndRecordOnce(ctx context.Context, traceType types.TraceType
 
 func (r *Runner) runOnce(ctx context.Context, logger log.Logger, traceType types.TraceType, prestateHash common.Hash, localInputs utils.LocalGameInputs, dir string) error {
 	provider, err := createTraceProvider(logger, r.m, r.cfg, prestateHash, traceType, localInputs, dir)
+	if err != nil {
+		return fmt.Errorf("failed to create trace provider: %w", err)
+	}
+	hash, err := provider.Get(ctx, types.RootPosition)
+	if err != nil {
+		return fmt.Errorf("failed to execute trace provider: %w", err)
+	}
+	if hash[0] != mipsevm.VMStatusValid {
+		return fmt.Errorf("%w: %v", ErrUnexpectedStatusCode, hash)
+	}
+	return nil
+}
+
+func (r *Runner) runMTOnce(ctx context.Context, logger log.Logger, traceType types.TraceType, prestateHash common.Hash, localInputs utils.LocalGameInputs, dir string) error {
+	provider, err := createMTTraceProvider(logger, r.m, r.cfg.Cannon, r.addMTCannonPrestate, r.addMTCannonPrestateURL, types.TraceTypeCannon, localInputs, dir)
 	if err != nil {
 		return fmt.Errorf("failed to create trace provider: %w", err)
 	}
