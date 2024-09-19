@@ -33,6 +33,8 @@ import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC2
 
 import { GameType, GameTypes, Hash, OutputRoot } from "src/dispute/lib/Types.sol";
 
+import { console2 as console } from "forge-std/console2.sol";
+
 contract DeployOPChainInput_Test is Test {
     DeployOPChainInput doi;
 
@@ -360,6 +362,9 @@ contract DeployOPChain_TestBase is Test {
                 })
             })
         );
+
+        // The output of this line was used to generate the bytes string that I have hardcoded into apply_test.go
+        console.logBytes(abi.encode(startingAnchorRoots));
 
         // Initialize deploy scripts.
         DeploySuperchain deploySuperchain = new DeploySuperchain();

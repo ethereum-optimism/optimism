@@ -480,6 +480,7 @@ contract OPStackManager is ISemver, Initializable {
         virtual
         returns (bytes memory)
     {
+        // this line fails in the op-deployer tests because it is not passing in any data
         AnchorStateRegistry.StartingAnchorRoot[] memory startingAnchorRoots =
             abi.decode(_input.startingAnchorRoots, (AnchorStateRegistry.StartingAnchorRoot[]));
         return abi.encodeWithSelector(_selector, startingAnchorRoots, superchainConfig);
