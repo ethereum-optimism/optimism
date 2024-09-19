@@ -224,9 +224,7 @@ func FuzzStatePreimageRead(f *testing.F) {
 				pc = pc & 0xFF_FF_FF_FC
 				preexistingMemoryVal := [4]byte{0xFF, 0xFF, 0xFF, 0xFF}
 				preimageValue := []byte("hello world")
-				preimageData := make([]byte, 0)
-				preimageData = binary.BigEndian.AppendUint64(preimageData, uint64(len(preimageValue)))
-				preimageData = append(preimageData, preimageValue...)
+				preimageData := testutil.AddPreimageLengthPrefix(preimageValue)
 				if preimageOffset >= uint32(len(preimageData)) || pc == effAddr {
 					t.SkipNow()
 				}
@@ -265,11 +263,7 @@ func FuzzStatePreimageRead(f *testing.F) {
 				if writeLen > 0 {
 					// Expect a memory write
 					expectedMemory := [4]byte{0xFF, 0xFF, 0xFF, 0xFF}
-					for i := 0; i < int(writeLen); i++ {
-						dataIndex := int(preimageOffset) + i
-						memoryIndex := int(alignment) + i
-						expectedMemory[memoryIndex] = preimageData[dataIndex]
-					}
+					copy(expectedMemory[alignment:], preimageData[preimageOffset:preimageOffset+writeLen])
 					expected.ExpectMemoryWrite(effAddr, binary.BigEndian.Uint32(expectedMemory[:]))
 				}
 
@@ -295,10 +289,8 @@ func FuzzStateHintWrite(f *testing.F) {
 					addr += 8
 				}
 
-				r := testutil.NewRandHelper(randSeed)
-				oracle := &testutil.HintTrackingOracle{}
-
 				// Set up hint data
+				r := testutil.NewRandHelper(randSeed)
 				hints := [][]byte{hint1, hint2, hint3}
 				hintData := make([]byte, 0)
 				for _, hint := range hints {
@@ -317,6 +309,7 @@ func FuzzStateHintWrite(f *testing.F) {
 				}
 
 				// Set up state
+				oracle := &testutil.HintTrackingOracle{}
 				goVm := v.VMFactory(oracle, os.Stdout, os.Stderr, testutil.CreateLogger(),
 					testutil.WithRandomization(randSeed), testutil.WithLastHint(lastHint), testutil.WithPCAndNextPC(pc))
 				state := goVm.GetState()

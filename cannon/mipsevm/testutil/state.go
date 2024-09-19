@@ -22,6 +22,15 @@ func AddHintLengthPrefix(data []byte) []byte {
 	return prefixed
 }
 
+func AddPreimageLengthPrefix(data []byte) []byte {
+	dataLen := len(data)
+	prefixed := make([]byte, 0, dataLen+8)
+	prefixed = binary.BigEndian.AppendUint64(prefixed, uint64(dataLen))
+	prefixed = append(prefixed, data...)
+
+	return prefixed
+}
+
 type StateMutator interface {
 	SetPreimageKey(val common.Hash)
 	SetPreimageOffset(val uint32)
