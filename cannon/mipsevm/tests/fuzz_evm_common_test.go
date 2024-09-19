@@ -262,7 +262,7 @@ func FuzzStatePreimageRead(f *testing.F) {
 				expected.PreimageOffset += writeLen
 				if writeLen > 0 {
 					// Expect a memory write
-					expectedMemory := [4]byte{0xFF, 0xFF, 0xFF, 0xFF}
+					expectedMemory := preexistingMemoryVal
 					copy(expectedMemory[alignment:], preimageData[preimageOffset:preimageOffset+writeLen])
 					expected.ExpectMemoryWrite(effAddr, binary.BigEndian.Uint32(expectedMemory[:]))
 				}
