@@ -53,12 +53,21 @@ func NewChainMonitor(ctx context.Context, logger log.Logger, m Metrics, chainID 
 		Number: store.LatestBlockNum(chainID),
 	}
 
+	// Create the log processor and fetcher
 	processLogs := newLogProcessor(chainID, store)
 	fetchReceipts := newLogFetcher(cl, processLogs)
 	unsafeBlockProcessor := NewChainProcessor(logger, cl, chainID, startingHead, fetchReceipts, store)
 
-	unsafeProcessors := []HeadProcessor{unsafeBlockProcessor}
-	callback := newHeadUpdateProcessor(logger, unsafeProcessors, nil, nil)
+	// create head processors which only update the head
+	unsafeHeadProcessor := NewHeadPointerProcessor(chainID, store, types.Unsafe)
+	safeHeadProcessor := NewHeadPointerProcessor(chainID, store, types.Safe)
+	finalizedHeadProcessor := NewHeadPointerProcessor(chainID, store, types.Finalized)
+
+	unsafeProcessors := []HeadProcessor{unsafeBlockProcessor, unsafeHeadProcessor}
+	safeProcessors := []HeadProcessor{safeHeadProcessor}
+	finalizedProcessors := []HeadProcessor{finalizedHeadProcessor}
+
+	callback := newHeadUpdateProcessor(logger, unsafeProcessors, safeProcessors, finalizedProcessors)
 	headMonitor := NewHeadMonitor(logger, epochPollInterval, cl, callback)
 
 	return &ChainMonitor{

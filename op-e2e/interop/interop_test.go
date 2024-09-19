@@ -86,13 +86,20 @@ func TestInteropTrivial(t *testing.T) {
 	require.Equal(t, expectedBalance, bobBalance)
 
 	s2.DeployEmitterContract(chainA, "Alice")
-	rec := s2.EmitData(chainA, "Alice", "0x1234567890abcdef")
-	fmt.Println("Result of emitting event:", rec)
-
 	s2.DeployEmitterContract(chainB, "Alice")
-	rec = s2.EmitData(chainB, "Alice", "0x1234567890abcdef")
+	for i := 0; i < 5; i++ {
+		s2.EmitData(chainA, "Alice", fmt.Sprintf("0x1234567890abcdef%d", i))
+		s2.EmitData(chainA, "Alice", fmt.Sprintf("0x1234567890abcdef%d", i))
+		s2.EmitData(chainA, "Alice", fmt.Sprintf("0x1234567890abcdef%d", i))
+		s2.EmitData(chainA, "Alice", fmt.Sprintf("0x1234567890abcdef%d", i))
+		s2.EmitData(chainA, "Alice", fmt.Sprintf("0x1234567890abcdef%d", i))
 
-	fmt.Println("Result of emitting event:", rec)
+		s2.EmitData(chainB, "Alice", fmt.Sprintf("0x1234567890abcdef%d", i))
+		s2.EmitData(chainB, "Alice", fmt.Sprintf("0x1234567890abcdef%d", i))
+		s2.EmitData(chainB, "Alice", fmt.Sprintf("0x1234567890abcdef%d", i))
+		s2.EmitData(chainB, "Alice", fmt.Sprintf("0x1234567890abcdef%d", i))
+		s2.EmitData(chainB, "Alice", fmt.Sprintf("0x1234567890abcdef%d", i))
+	}
 
 	time.Sleep(10 * time.Second)
 

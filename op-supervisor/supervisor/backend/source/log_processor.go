@@ -7,7 +7,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/heads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/source/contracts"
 	backendTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
 	supTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
@@ -61,15 +60,6 @@ func (p *logProcessor) ProcessLogs(_ context.Context, block eth.L1BlockRef, rcpt
 			}
 		}
 	}
-	// get the last index of the db
-	lastIndex := p.store.LastEntryIdx(p.chain)
-	// update the chain heads to reflect the last log index
-	p.store.Apply(func(h *heads.Heads) error {
-		chainHeads := h.Get(p.chain)
-		chainHeads.Unsafe = lastIndex
-		h.Put(p.chain, chainHeads)
-		return nil
-	})
 	return nil
 }
 

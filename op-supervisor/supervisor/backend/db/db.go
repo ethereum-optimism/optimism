@@ -204,6 +204,7 @@ func (db *ChainsDB) UpdateCrossHeadsForChain(chainID types.ChainID, checker Safe
 
 func (db *ChainsDB) Apply(op heads.OperationFn) error {
 	err := db.heads.Apply(op)
+	fmt.Println("XLXL Latest Chain Heads: ", db.heads.Current())
 	return err
 }
 
@@ -238,7 +239,7 @@ func (db *ChainsDB) LastLogInBlock(chain types.ChainID, blockNum uint64) (entryd
 	ret := entrydb.EntryIdx(0)
 	// scan through using the iterator until the block number exceeds the target
 	for {
-		bn, index, _, err := iter.NextLog()
+		bn, _, _, err := iter.NextLog()
 		// if we have reached the end of the database, stop
 		if err == io.EOF {
 			break
@@ -249,12 +250,21 @@ func (db *ChainsDB) LastLogInBlock(chain types.ChainID, blockNum uint64) (entryd
 		}
 		// if we are now beyond the target block, stop withour updating the return value
 		if bn > blockNum {
+			// if we jumped over the target block without seeing it, use the first available index
+			// Note: this makes the assumption that local safety is implied to be the *next* block
+			// if no logs are present in the target block. This is like tracking "log finality"
+			// and it might indicate final blocks which are beyond the standard definition
+			if ret == 0 {
+				// using the iter.Index() instead of the potential return index from NextLog
+				// because the NextLog index tends to be 0 unexpectedly. Will need to investigate that
+				ret = iter.Index()
+			}
 			break
 		}
 		// only update the return value if the block number is the same
 		// it is possible the iterator started before the target block, or that the target block is not in the db
 		if bn == blockNum {
-			ret = entrydb.EntryIdx(index)
+			ret = iter.Index()
 		}
 	}
 	// if we never found the block, return an error

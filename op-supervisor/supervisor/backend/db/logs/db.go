@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	searchCheckpointFrequency = 256
+	searchCheckpointFrequency = 4
 
 	eventFlagIncrementLogIdx     = byte(1)
 	eventFlagHasExecutingMessage = byte(1) << 1
@@ -208,7 +208,7 @@ func (db *DB) ClosestBlockIterator(blockNum uint64) (Iterator, error) {
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
 	checkpointIdx, err := db.searchCheckpoint(blockNum, math.MaxUint32)
-	if err != nil {
+	if err != nil && err != io.EOF {
 		return nil, fmt.Errorf("no checkpoint at or before block %v found: %w", blockNum, err)
 	}
 	return db.newIterator(checkpointIdx)
