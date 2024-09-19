@@ -2633,7 +2633,6 @@ contract MIPS2_Test is CommonTest {
     }
 
     function test_preimage_write_succeeds() external {
-        uint32 pc = 0x0;
         uint32 insn = 0x0000000c; // syscall
         uint32 a1 = 0x4;
         uint32 a1_val = 0x0000abba;
