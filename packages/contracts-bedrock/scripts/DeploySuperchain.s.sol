@@ -201,41 +201,53 @@ contract DeploySuperchainOutput is BaseDeployIO {
     // we first write them to a temporary file, then prepend the contents of the temporary file
     // to the final output file.
     function writeOutputFile(DeploySuperchainInput dsi, string memory _outfile) public {
-        // Creating temporary inputs toml file
         string memory root = vm.projectRoot();
         string memory tempOutFile = string.concat(root, "/.tempdata/temp-deploy-superchain-out.toml");
 
+        // Serialize input values
         string memory inputRootKey = "inputRoot";
-        vm.serializeBool(inputRootKey, "paused", dsi.paused());
-        vm.serializeUint(inputRootKey, "requiredProtocolVersion", ProtocolVersion.unwrap(dsi.requiredProtocolVersion()));
-        vm.serializeUint(
-            inputRootKey, "recommendedProtocolVersion", ProtocolVersion.unwrap(dsi.recommendedProtocolVersion())
-        );
-
+        serializeInput(dsi, inputRootKey);
+        // Serialize roles section
         string memory inputRolesKey = "roles";
-        vm.serializeAddress(inputRolesKey, "proxyAdminOwner", dsi.proxyAdminOwner());
-        vm.serializeAddress(inputRolesKey, "protocolVersionsOwner", dsi.protocolVersionsOwner());
-        string memory rolesJson = vm.serializeAddress(inputRolesKey, "guardian", dsi.guardian());
-
+        string memory rolesJson = serializeInputRoles(dsi, inputRolesKey);
+        // Write serialized inputs to the temp file
         string memory inputsJson = vm.serializeString(inputRootKey, inputRolesKey, rolesJson);
         vm.writeToml(inputsJson, tempOutFile);
 
-        // Creating outputs toml file
+        // Serialize outputs
         string memory outputsKey = "outputs";
-        vm.serializeAddress(outputsKey, "superchainProxyAdmin", address(this.superchainProxyAdmin()));
-        vm.serializeAddress(outputsKey, "superchainConfigImpl", address(this.superchainConfigImpl()));
-        vm.serializeAddress(outputsKey, "superchainConfigProxy", address(this.superchainConfigProxy()));
-        vm.serializeAddress(outputsKey, "protocolVersionsImpl", address(this.protocolVersionsImpl()));
-        string memory outputsJson =
-            vm.serializeAddress(outputsKey, "protocolVersionsProxy", address(this.protocolVersionsProxy()));
+        string memory outputsJson = serializeOutputs(outputsKey);
         outputsJson = vm.serializeString("outputRootKey", outputsKey, outputsJson);
         vm.writeToml(outputsJson, _outfile);
 
+        // Prepend content to the final output file
         string memory tempFileToml = vm.readFile(tempOutFile);
         Executables.prependContentToFile(string.concat(tempFileToml, "\n"), _outfile);
 
         // Clean up temp file - test suite runs in parallel so have to check if file exists before we delete
         if (vm.exists(tempOutFile)) vm.removeFile(tempOutFile);
+    }
+
+    function serializeInput(DeploySuperchainInput dsi, string memory inputRootKey) internal {
+        vm.serializeBool(inputRootKey, "paused", dsi.paused());
+        vm.serializeUint(inputRootKey, "requiredProtocolVersion", ProtocolVersion.unwrap(dsi.requiredProtocolVersion()));
+        vm.serializeUint(
+            inputRootKey, "recommendedProtocolVersion", ProtocolVersion.unwrap(dsi.recommendedProtocolVersion())
+        );
+    }
+
+    function serializeInputRoles(DeploySuperchainInput dsi, string memory inputRolesKey) internal returns (string memory) {
+        vm.serializeAddress(inputRolesKey, "proxyAdminOwner", dsi.proxyAdminOwner());
+        vm.serializeAddress(inputRolesKey, "protocolVersionsOwner", dsi.protocolVersionsOwner());
+        return vm.serializeAddress(inputRolesKey, "guardian", dsi.guardian());
+    }
+
+    function serializeOutputs(string memory outputsKey) internal returns (string memory) {
+        vm.serializeAddress(outputsKey, "superchainProxyAdmin", address(this.superchainProxyAdmin()));
+        vm.serializeAddress(outputsKey, "superchainConfigImpl", address(this.superchainConfigImpl()));
+        vm.serializeAddress(outputsKey, "superchainConfigProxy", address(this.superchainConfigProxy()));
+        vm.serializeAddress(outputsKey, "protocolVersionsImpl", address(this.protocolVersionsImpl()));
+        return vm.serializeAddress(outputsKey, "protocolVersionsProxy", address(this.protocolVersionsProxy()));
     }
 
     // This function can be called to ensure all outputs are correct. Similar to `writeOutputFile`,
