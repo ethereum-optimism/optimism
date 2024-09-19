@@ -1775,6 +1775,7 @@ workflows:
       not:
         equal: [ scheduled_pipeline, << pipeline.trigger_source >> ]
     jobs:
+      # Wait for approval on the release
       - hold:
           type: approval
           filters:
@@ -1782,227 +1783,79 @@ workflows:
               only: /^(da-server|ci-builder(-rust)?|proofs-tools|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
+      # Standard (medium) cross-platform docker images go here
       - docker-build:
-          name: op-node-docker-release
-          filters:
-            tags:
-              only: /^op-node\/v.*/
-            branches:
-              ignore: /.*/
-          docker_name: op-node
+          matrix:
+            parameters:
+              docker_name:
+                - op-node
+                - op-batcher
+                - op-proposer
+                - op-challenger
+                - op-dispute-mon
+                - op-conductor
+                - da-server
+                - op-ufm
+                - op-supervisor
+          name: <<matrix.docker_name>>-docker-release
           docker_tags: <<pipeline.git.revision>>
-          requires: ['hold']
           platforms: "linux/amd64,linux/arm64"
           publish: true
           release: true
+          filters:
+            tags:
+              only: /^<<matrix.docker_name>>\/v.*/
+            branches:
+              ignore: /.*/
           context:
             - oplabs-gcr-release
+          requires:
+            - hold
+      # Checks for cross-platform images go here
       - check-cross-platform:
-          name: op-node-cross-platform
-          op_component: op-node
+          matrix:
+            parameters:
+              op_component:
+                - op-node
+                - op-batcher
+                - op-proposer
+                - op-challenger
+                - op-dispute-mon
+                - op-conductor
+                - da-server
+                - op-ufm
+                - op-supervisor
+          name: <<matrix.op_component>>-cross-platform
           requires:
             - op-node-docker-release
-      - docker-build:
-          name: op-batcher-docker-release
-          filters:
-            tags:
-              only: /^op-batcher\/v.*/
-            branches:
-              ignore: /.*/
-          docker_name: op-batcher
-          docker_tags: <<pipeline.git.revision>>
-          requires: ['hold']
-          platforms: "linux/amd64,linux/arm64"
-          publish: true
-          release: true
-          context:
-            - oplabs-gcr-release
-      - check-cross-platform:
-          name: op-batcher-cross-platform
-          op_component: op-batcher
-          requires:
             - op-batcher-docker-release
-      - docker-build:
-          name: op-proposer-docker-release
-          filters:
-            tags:
-              only: /^op-proposer\/v.*/
-            branches:
-              ignore: /.*/
-          docker_name: op-proposer
-          docker_tags: <<pipeline.git.revision>>
-          requires: ['hold']
-          platforms: "linux/amd64,linux/arm64"
-          publish: true
-          release: true
-          context:
-            - oplabs-gcr-release
-      - check-cross-platform:
-          name: op-proposer-cross-platform
-          op_component: op-proposer
-          requires:
             - op-proposer-docker-release
-      - docker-build:
-          name: op-challenger-docker-release
-          filters:
-            tags:
-              only: /^op-challenger\/v.*/
-            branches:
-              ignore: /.*/
-          docker_name: op-challenger
-          docker_tags: <<pipeline.git.revision>>
-          requires: ['hold']
-          platforms: "linux/amd64,linux/arm64"
-          publish: true
-          release: true
-          context:
-            - oplabs-gcr-release
-      - check-cross-platform:
-          name: op-challenger-cross-platform
-          op_component: op-challenger
-          requires:
             - op-challenger-docker-release
-      - docker-build:
-          name: op-dispute-mon-docker-release
-          filters:
-            tags:
-              only: /^op-dispute-mon\/v.*/
-            branches:
-              ignore: /.*/
-          docker_name: op-dispute-mon
-          docker_tags: <<pipeline.git.revision>>
-          requires: ['hold']
-          platforms: "linux/amd64,linux/arm64"
-          publish: true
-          release: true
-          context:
-            - oplabs-gcr-release
-      - check-cross-platform:
-          name: op-dispute-mon-cross-platform
-          op_component: op-dispute-mon
-          requires:
             - op-dispute-mon-docker-release
-      - docker-build:
-          name: op-conductor-docker-release
-          filters:
-            tags:
-              only: /^op-conductor\/v.*/
-            branches:
-              ignore: /.*/
-          docker_name: op-conductor
-          docker_tags: <<pipeline.git.revision>>
-          requires: ['hold']
-          platforms: "linux/amd64,linux/arm64"
-          publish: true
-          release: true
-          context:
-            - oplabs-gcr-release
-      - check-cross-platform:
-          name: op-conductor-cross-platform
-          op_component: op-conductor
-          requires:
             - op-conductor-docker-release
-      - docker-build:
-          name: da-server-docker-release
-          filters:
-            tags:
-              only: /^da-server\/v.*/
-            branches:
-              ignore: /.*/
-          docker_name: da-server
-          docker_tags: <<pipeline.git.revision>>
-          requires: ['hold']
-          platforms: "linux/amd64,linux/arm64"
-          publish: true
-          release: true
-          context:
-            - oplabs-gcr-release
-      - check-cross-platform:
-          name: da-server-cross-platform
-          op_component: da-server
-          requires:
             - da-server-docker-release
-      - docker-build:
-          name: op-ufm-docker-release
-          filters:
-            tags:
-              only: /^op-ufm\/v.*/
-            branches:
-              ignore: /.*/
-          docker_name: op-ufm
-          docker_tags: <<pipeline.git.revision>>
-          publish: true
-          release: true
-          context:
-            - oplabs-gcr-release
-          requires:
-            - hold
-      - docker-build:
-          name: op-supervisor-docker-release
-          filters:
-            tags:
-              only: /^op-supervisor\/v.*/
-            branches:
-              ignore: /.*/
-          docker_name: op-supervisor
-          docker_tags: <<pipeline.git.revision>>
-          requires: ['hold']
-          platforms: "linux/amd64,linux/arm64"
-          publish: true
-          release: true
-          context:
-            - oplabs-gcr-release
-      - check-cross-platform:
-          name: op-supervisor-cross-platform
-          op_component: op-supervisor
-          requires:
+            - op-ufm-docker-release
             - op-supervisor-docker-release
+      # Standard (xlarge) AMD-only docker images go here
       - docker-build:
-          name: proofs-tools-docker-release
-          filters:
-            tags:
-              only: /^proofs-tools\/v.*/
-            branches:
-              ignore: /.*/
-          docker_name: proofs-tools
-          docker_tags: <<pipeline.git.revision>>,latest
+          matrix:
+            parameters:
+              docker_name:
+                - ci-builder
+                - ci-builder-rust
+                - proofs-tools
+          name: <<matrix.docker_name>>-docker-release
+          resource_class: xlarge
+          docker_tags: <<pipeline.git.revision>>
           publish: true
           release: true
-          resource_class: xlarge
-          context:
-            - oplabs-gcr
-          requires:
-            - hold
-      - docker-build:
-          name: ci-builder-docker-release
           filters:
             tags:
-              only: /^ci-builder\/v.*/
+              only: /^<<matrix.docker_name>>\/v.*/
             branches:
               ignore: /.*/
-          docker_name: ci-builder
-          docker_tags: <<pipeline.git.revision>>,latest
-          publish: true
-          release: true
-          resource_class: xlarge
           context:
-            - oplabs-gcr
-          requires:
-            - hold
-      - docker-build:
-          name: ci-builder-rust-docker-release
-          filters:
-            tags:
-              only: /^ci-builder-rust\/v.*/
-            branches:
-              ignore: /.*/
-          docker_name: ci-builder-rust
-          docker_tags: <<pipeline.git.revision>>,latest
-          publish: true
-          release: true
-          resource_class: xlarge
-          context:
-            - oplabs-gcr
+            - oplabs-gcr-release
           requires:
             - hold
 
