@@ -50,6 +50,7 @@ type L2Verifier struct {
 
 	// L2 rollup
 	engine     *engine.EngineController
+	derivationMetrics *testutils.TestDerivationMetrics
 	derivation *derive.DerivationPipeline
 
 	safeHeadListener rollup.SafeHeadListener
@@ -162,6 +163,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 		log:               log,
 		Eng:               eng,
 		engine:            ec,
+		derivationMetrics: metrics,
 		derivation:        pipeline,
 		safeHeadListener:  safeHeadListener,
 		syncCfg:           syncCfg,
@@ -236,6 +238,10 @@ func (s *l2VerifierBackend) OverrideLeader(ctx context.Context) error {
 
 func (s *l2VerifierBackend) OnUnsafeL2Payload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) error {
 	return nil
+}
+
+func (s *L2Verifier) DerivationMetricsTracer() *testutils.TestDerivationMetrics {
+	return s.derivationMetrics
 }
 
 func (s *L2Verifier) L2Finalized() eth.L2BlockRef {
