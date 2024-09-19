@@ -32,7 +32,7 @@ library Executables {
         return abi.decode(Process.run(commands), (string));
     }
 
-    function prependContentToFile(string memory _contentToPrepend, string memory _outfile) public {
+    function prependContentToFile(string memory _contentToPrepend, string memory _outfile) internal {
         string[] memory command = new string[](3);
         command[0] = Executables.bash;
         command[1] = "-c";
