@@ -36,8 +36,10 @@ op-program-client-riscv:
 
 reproducible-prestate:
 	@docker build --output ./bin/ --progress plain -f Dockerfile.repro ../
-	@echo "Absolute prestate hash:"
+	@echo "Cannon Absolute prestate hash: "
 	@cat ./bin/prestate-proof.json | jq -r .pre
+	@echo "MT-Cannon Absolute prestate hash: "
+	@cat ./bin/prestate-proof-mt.json | jq -r .pre
 .PHONY: reproducible-prestate
 
 clean:
