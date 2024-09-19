@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 
@@ -52,7 +53,7 @@ func checkMTCannonFlags(ctx *cli.Context, cfg *config.Config) error {
 			return fmt.Errorf("both flag %v and %v must be set when running MT-Cannon traces", addMTCannonPrestateURLFlag.Name, addMTCannonPrestateFlag.Name)
 		}
 		if cfg.Cannon == (vm.Config{}) {
-			return fmt.Errorf("required Cannon vm configuration for mt-cannon traces is missing")
+			return errors.New("required Cannon vm configuration for mt-cannon traces is missing")
 		}
 	}
 	return nil
