@@ -70,7 +70,7 @@ func TestAtomicWriter_AbortAfterClose(t *testing.T) {
 	require.ErrorIs(t, f.Abort(), os.ErrClosed)
 }
 
-func TestAtomicWriter_ApplyGzip(t *testing.T) {
+func TestAtomicWriterCompressed_ApplyGzip(t *testing.T) {
 	tests := []struct {
 		name       string
 		filename   string
@@ -101,6 +101,40 @@ func TestAtomicWriter_ApplyGzip(t *testing.T) {
 			}
 
 			in, err := OpenDecompressed(path)
+			require.NoError(t, err)
+			readData, err := io.ReadAll(in)
+			require.NoError(t, err)
+			require.Equal(t, data, readData)
+		})
+	}
+}
+
+func TestAtomicWriter_ApplyGzip(t *testing.T) {
+	tests := []struct {
+		name     string
+		filename string
+	}{
+		{"Uncompressed", "test.notgz"},
+		{"Gzipped", "test.gz"},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			data := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0, 0, 0, 0, 0, 0, 0}
+			dir := t.TempDir()
+			path := filepath.Join(dir, test.filename)
+			out, err := NewAtomicWriter(path, 0o644)
+			require.NoError(t, err)
+			defer out.Close()
+			_, err = out.Write(data)
+			require.NoError(t, err)
+			require.NoError(t, out.Close())
+
+			writtenData, err := os.ReadFile(path)
+			require.NoError(t, err)
+			require.Equal(t, data, writtenData, "should not have compressed data on disk")
+
+			in, err := os.Open(path)
 			require.NoError(t, err)
 			readData, err := io.ReadAll(in)
 			require.NoError(t, err)
