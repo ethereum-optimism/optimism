@@ -1,23 +1,23 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-// Testing utilities
+// Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
+import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+
+// Contracts
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { Proxy } from "src/universal/Proxy.sol";
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
-import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-
-// Target contract dependencies
-import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
-import { Proxy } from "src/universal/Proxy.sol";
-import { L1Block } from "src/L2/L1Block.sol";
 import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
 
-// Target contract
+// Interfaces
+import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
 import { ISystemConfig } from "src/L1/interfaces/ISystemConfig.sol";
+import { IL1Block } from "src/L2/interfaces/IL1Block.sol";
 
 contract SystemConfig_Init is CommonTest {
     event ConfigUpdate(uint256 indexed version, ISystemConfig.UpdateType indexed updateType, bytes data);
@@ -467,7 +467,7 @@ contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
                 uint256(0), // value
                 uint64(200_000), // gasLimit
                 false, // isCreation,
-                abi.encodeCall(L1Block.setGasPayingToken, (address(token), 18, bytes32("Silly"), bytes32("SIL")))
+                abi.encodeCall(IL1Block.setGasPayingToken, (address(token), 18, bytes32("Silly"), bytes32("SIL")))
             )
         );
 

@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { L1Block } from "src/L2/L1Block.sol";
+// Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
+
+// Interfaces
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
+import { IL1Block } from "src/L2/interfaces/IL1Block.sol";
 
 /// @custom:legacy true
 /// @custom:proxied true
@@ -15,8 +18,8 @@ import { ISemver } from "src/universal/interfaces/ISemver.sol";
 ///        contract instead.
 contract L1BlockNumber is ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 1.1.1-beta.1
-    string public constant version = "1.1.1-beta.1";
+    /// @custom:semver 1.1.1-beta.2
+    string public constant version = "1.1.1-beta.2";
 
     /// @notice Returns the L1 block number.
     receive() external payable {
@@ -39,6 +42,6 @@ contract L1BlockNumber is ISemver {
     /// @notice Retrieves the latest L1 block number.
     /// @return Latest L1 block number.
     function getL1BlockNumber() public view returns (uint256) {
-        return L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).number();
+        return IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).number();
     }
 }
