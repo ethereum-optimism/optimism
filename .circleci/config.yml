@@ -565,6 +565,14 @@ jobs:
         description: Number of fuzz runs to apply
         type: integer
         default: 512
+      test_invariant_runs:
+        description: Number of invariant runs to apply
+        type: integer
+        default: 32
+      test_invariant_depth:
+        description: Depth of invariant runs
+        type: integer
+        default: 64
       test_timeout:
         description: Timeout for running tests
         type: string
@@ -616,7 +624,8 @@ jobs:
             TEST_FILES=$(echo "$TEST_FILES" | circleci tests split --split-by=timings)
             TEST_FILES=$(echo "$TEST_FILES" | sed 's|^test/||')
             MATCH_PATH="./test/{$(echo "$TEST_FILES" | paste -sd "," -)}"
-            export FOUNDRY_INVARIANT_RUNS=<<parameters.test_fuzz_runs>>
+            export FOUNDRY_INVARIANT_RUNS=<<parameters.test_invariant_runs>>
+            export FOUNDRY_INVARIANT_DEPTH=<<parameters.test_invariant_depth>>
             forge test --deny-warnings --fuzz-runs <<parameters.test_fuzz_runs>> --match-path "$MATCH_PATH"
           environment:
             FOUNDRY_PROFILE: ci
@@ -1596,6 +1605,8 @@ workflows:
           test_list: git diff origin/develop...HEAD --name-only -- './test/**/*.t.sol' | sed 's|packages/contracts-bedrock/||'
           test_timeout: 1h
           test_fuzz_runs: 10000
+          test_invariant_runs: 128
+          test_invariant_depth: 512
       - contracts-bedrock-coverage
       - contracts-bedrock-checks:
           requires:
