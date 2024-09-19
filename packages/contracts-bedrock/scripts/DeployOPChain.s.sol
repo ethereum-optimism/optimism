@@ -32,6 +32,8 @@ import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
 
+import { Executables } from "scripts/libraries/Executables.sol";
+
 contract DeployOPChainInput is BaseDeployIO {
     using stdToml for string;
 
@@ -76,18 +78,18 @@ contract DeployOPChainInput is BaseDeployIO {
     function loadInputFile(string memory _infile) public {
         string memory toml = vm.readFile(_infile);
 
-        set(this.opChainProxyAdminOwner.selector, toml.readAddress(".doi.roles.opChainProxyAdminOwner"));
-        set(this.systemConfigOwner.selector, toml.readAddress(".doi.roles..systemConfigOwner"));
-        set(this.batcher.selector, toml.readAddress(".doi.roles..batcher"));
-        set(this.unsafeBlockSigner.selector, toml.readAddress(".doi.roles.unsafeBlockSigner"));
-        set(this.proposer.selector, toml.readAddress(".doi.roles.proposer"));
-        set(this.challenger.selector, toml.readAddress(".doi.roles.challenger"));
+        set(this.opChainProxyAdminOwner.selector, toml.readAddress(".roles.opChainProxyAdminOwner"));
+        set(this.systemConfigOwner.selector, toml.readAddress(".roles.systemConfigOwner"));
+        set(this.batcher.selector, toml.readAddress(".roles.batcher"));
+        set(this.unsafeBlockSigner.selector, toml.readAddress(".roles.unsafeBlockSigner"));
+        set(this.proposer.selector, toml.readAddress(".roles.proposer"));
+        set(this.challenger.selector, toml.readAddress(".roles.challenger"));
 
-        set(this.basefeeScalar.selector, toml.readUint(".doi.basefeeScalar"));
-        set(this.blobBaseFeeScalar.selector, toml.readUint(".doi.blobBaseFeeScalar"));
-        set(this.l2ChainId.selector, toml.readUint(".doi.l2ChainId"));
+        set(this.basefeeScalar.selector, toml.readUint(".basefeeScalar"));
+        set(this.blobBaseFeeScalar.selector, toml.readUint(".blobBaseFeeScalar"));
+        set(this.l2ChainId.selector, toml.readUint(".l2ChainId"));
 
-        set(this.opsmProxy.selector, toml.readAddress(".doi.opsmProxy"));
+        set(this.opsmProxy.selector, toml.readAddress(".opsmProxy"));
     }
 
     function opChainProxyAdminOwner() public view returns (address) {
@@ -183,51 +185,77 @@ contract DeployOPChainOutput is BaseDeployIO {
     }
 
     function writeOutputFile(DeployOPChainInput doi, string memory _outfile) public {
-        string memory doiKey = "doi";
-        vm.serializeUint(doiKey, "basefeeScalar", doi.basefeeScalar());
-        vm.serializeUint(doiKey, "blobBaseFeeScalar", doi.blobBaseFeeScalar());
-        vm.serializeUint(doiKey, "l2ChainId", doi.l2ChainId());
-        string memory doiJson = vm.serializeAddress(doiKey, "opsmProxy", address(doi.opsmProxy()));
+        string memory root = vm.projectRoot();
+        string memory tempOutFile = string.concat(root, "/.tempdata/temp-deploy-opchain-out.toml");
 
-        // Serialize the "doi.roles" section
-        string memory doiRolesKey = "doi.roles";
-        vm.serializeAddress(doiRolesKey, "opChainProxyAdminOwner", doi.opChainProxyAdminOwner());
-        vm.serializeAddress(doiRolesKey, "systemConfigOwner", doi.systemConfigOwner());
-        vm.serializeAddress(doiRolesKey, "batcher", doi.batcher());
-        vm.serializeAddress(doiRolesKey, "unsafeBlockSigner", doi.unsafeBlockSigner());
-        vm.serializeAddress(doiRolesKey, "proposer", doi.proposer());
-        string memory doiRolesJson = vm.serializeAddress(doiRolesKey, "challenger", doi.challenger());
+        // Serialize input values
+        string memory inputRootKey = "inputRoot";
+        serializeInput(doi, inputRootKey);
+        // Serialize fault proofs section
+        string memory inputFaultProofsKey = "roles";
+        string memory faultProofsJson = serializeInputRoles(doi, inputFaultProofsKey);
+        // Write serialized inputs to the temp file
+        string memory inputsJson = vm.serializeString(inputRootKey, inputFaultProofsKey, faultProofsJson);
+        vm.writeToml(inputsJson, tempOutFile);
 
-        doiJson = vm.serializeString(doiKey, "roles", doiRolesJson);
+        // Serialize outputs
+        string memory outputsKey = "outputs";
+        string memory outputsJson = serializeOutputs(outputsKey);
+        outputsJson = vm.serializeString("outputRootKey", outputsKey, outputsJson);
+        vm.writeToml(outputsJson, _outfile);
 
-        // Serialize the 'doo' section
-        string memory dooKey = "doo";
-        vm.serializeAddress(dooKey, "opChainProxyAdmin", address(this.opChainProxyAdmin()));
-        vm.serializeAddress(dooKey, "addressManager", address(this.addressManager()));
-        vm.serializeAddress(dooKey, "l1ERC721BridgeProxy", address(this.l1ERC721BridgeProxy()));
-        vm.serializeAddress(dooKey, "systemConfigProxy", address(this.systemConfigProxy()));
+        // Prepend content to the final output file
+        string memory tempFileToml = vm.readFile(tempOutFile);
+        Executables.prependContentToFile(string.concat(tempFileToml, "\n"), _outfile);
+
+        // Clean up temp file - test suite runs in parallel so have to check if file exists before we delete
+        if (vm.exists(tempOutFile)) vm.removeFile(tempOutFile);
+    }
+
+    function serializeInput(DeployOPChainInput doi, string memory inputRootKey) internal {
+        vm.serializeUint(inputRootKey, "basefeeScalar", doi.basefeeScalar());
+        vm.serializeUint(inputRootKey, "blobBaseFeeScalar", doi.blobBaseFeeScalar());
+        vm.serializeUint(inputRootKey, "l2ChainId", doi.l2ChainId());
+        vm.serializeAddress(inputRootKey, "opsmProxy", address(doi.opsmProxy()));
+    }
+
+    function serializeInputRoles(
+        DeployOPChainInput doi,
+        string memory inputRolesKey
+    )
+        internal
+        returns (string memory)
+    {
+        vm.serializeAddress(inputRolesKey, "opChainProxyAdminOwner", doi.opChainProxyAdminOwner());
+        vm.serializeAddress(inputRolesKey, "systemConfigOwner", doi.systemConfigOwner());
+        vm.serializeAddress(inputRolesKey, "batcher", doi.batcher());
+        vm.serializeAddress(inputRolesKey, "unsafeBlockSigner", doi.unsafeBlockSigner());
+        vm.serializeAddress(inputRolesKey, "proposer", doi.proposer());
+        return vm.serializeAddress(inputRolesKey, "challenger", doi.challenger());
+    }
+
+    function serializeOutputs(string memory outputsKey) internal returns (string memory) {
+        vm.serializeAddress(outputsKey, "opChainProxyAdmin", address(this.opChainProxyAdmin()));
+        vm.serializeAddress(outputsKey, "addressManager", address(this.addressManager()));
+        vm.serializeAddress(outputsKey, "l1ERC721BridgeProxy", address(this.l1ERC721BridgeProxy()));
+        vm.serializeAddress(outputsKey, "systemConfigProxy", address(this.systemConfigProxy()));
         vm.serializeAddress(
-            dooKey, "optimismMintableERC20FactoryProxy", address(this.optimismMintableERC20FactoryProxy())
+            outputsKey, "optimismMintableERC20FactoryProxy", address(this.optimismMintableERC20FactoryProxy())
         );
-        vm.serializeAddress(dooKey, "l1StandardBridgeProxy", address(this.l1StandardBridgeProxy()));
-        vm.serializeAddress(dooKey, "l1CrossDomainMessengerProxy", address(this.l1CrossDomainMessengerProxy()));
-        vm.serializeAddress(dooKey, "optimismPortalProxy", address(this.optimismPortalProxy()));
-        vm.serializeAddress(dooKey, "disputeGameFactoryProxy", address(this.disputeGameFactoryProxy()));
-        vm.serializeAddress(dooKey, "anchorStateRegistryProxy", address(this.anchorStateRegistryProxy()));
-        vm.serializeAddress(dooKey, "anchorStateRegistryImpl", address(this.anchorStateRegistryImpl()));
-        vm.serializeAddress(dooKey, "faultDisputeGame", address(this.faultDisputeGame()));
-        vm.serializeAddress(dooKey, "permissionedDisputeGame", address(this.permissionedDisputeGame()));
+        vm.serializeAddress(outputsKey, "l1StandardBridgeProxy", address(this.l1StandardBridgeProxy()));
+        vm.serializeAddress(outputsKey, "l1CrossDomainMessengerProxy", address(this.l1CrossDomainMessengerProxy()));
+        vm.serializeAddress(outputsKey, "optimismPortalProxy", address(this.optimismPortalProxy()));
+        vm.serializeAddress(outputsKey, "disputeGameFactoryProxy", address(this.disputeGameFactoryProxy()));
+        vm.serializeAddress(outputsKey, "anchorStateRegistryProxy", address(this.anchorStateRegistryProxy()));
+        vm.serializeAddress(outputsKey, "anchorStateRegistryImpl", address(this.anchorStateRegistryImpl()));
+        vm.serializeAddress(outputsKey, "faultDisputeGame", address(this.faultDisputeGame()));
+        vm.serializeAddress(outputsKey, "permissionedDisputeGame", address(this.permissionedDisputeGame()));
         vm.serializeAddress(
-            dooKey, "delayedWETHPermissionedGameProxy", address(this.delayedWETHPermissionedGameProxy())
+            outputsKey, "delayedWETHPermissionedGameProxy", address(this.delayedWETHPermissionedGameProxy())
         );
-        string memory dooJson = vm.serializeAddress(
-            dooKey, "delayedWETHPermissionlessGameProxy", address(this.delayedWETHPermissionlessGameProxy())
+        return vm.serializeAddress(
+            outputsKey, "delayedWETHPermissionlessGameProxy", address(this.delayedWETHPermissionlessGameProxy())
         );
-
-        // Combine the final JSON output
-        string memory finalJson = vm.serializeString("root", doiKey, doiJson);
-        finalJson = vm.serializeString("root", dooKey, dooJson);
-        vm.writeToml(finalJson, _outfile);
     }
 
     function checkOutput(DeployOPChainInput _doi) public view {

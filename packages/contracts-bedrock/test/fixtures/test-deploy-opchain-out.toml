@@ -1,10 +1,9 @@
-[doi]
 basefeeScalar = 100
 blobBaseFeeScalar = 200
 l2ChainId = 300
 opsmProxy = "0x8049632Bb50856Ecfd853a49e2E5454ba9f2E6C4"
 
-[doi.roles]
+[roles]
 batcher = "0xB8F535E38411829701a1877eA30e48A1c372d315"
 challenger = "0x9591B1C38D7ae6c50aA134A72bcF85fBf690fe51"
 opChainProxyAdminOwner = "0x3686F099e679E3A8551ae44e9a4188cc6Cb45A0e"
@@ -12,7 +11,7 @@ proposer = "0x6bEf539e8319dACba4C2DaD055006E79682C0f32"
 systemConfigOwner = "0x9261212744f5b9E997d18981F58315B36Ad24F70"
 unsafeBlockSigner = "0x4cfCBd5880804f75D23101dd0EBFF35cDc7A328f"
 
-[doo]
+[outputs]
 addressManager = "0x2dc470f45dc61ea0a7f641FF71b146f75b393bC5"
 anchorStateRegistryImpl = "0x0E833a945a9E1fdEd3291fAcD9A4E36B8BE4B88a"
 anchorStateRegistryProxy = "0x14eC5bbfAd073F81c6A4459cDdD48eC87EB71de4"

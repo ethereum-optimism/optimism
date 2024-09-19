@@ -333,26 +333,26 @@ contract DeployOPChainOutput_Test is Test {
         // Parse each doi field of expOutToml
         doi.loadInputFile(string.concat(root, "/test/fixtures/test-deploy-opchain-in.toml"));
 
-        uint256 basefeeScalar = expOutToml.readUint(".doi.basefeeScalar");
+        uint256 basefeeScalar = expOutToml.readUint(".basefeeScalar");
         assertEq(basefeeScalar, doi.basefeeScalar(), "100");
-        uint256 blobBaseFeeScalar = expOutToml.readUint(".doi.blobBaseFeeScalar");
+        uint256 blobBaseFeeScalar = expOutToml.readUint(".blobBaseFeeScalar");
         assertEq(blobBaseFeeScalar, doi.blobBaseFeeScalar(), "200");
-        uint256 l2ChainId = expOutToml.readUint(".doi.l2ChainId");
+        uint256 l2ChainId = expOutToml.readUint(".l2ChainId");
         assertEq(l2ChainId, doi.l2ChainId(), "300");
-        address opsmProxy = expOutToml.readAddress(".doi.opsmProxy");
+        address opsmProxy = expOutToml.readAddress(".opsmProxy");
         assertEq(opsmProxy, address(doi.opsmProxy()), "400");
 
-        address batcher = expOutToml.readAddress(".doi.roles.batcher");
+        address batcher = expOutToml.readAddress(".roles.batcher");
         assertEq(batcher, doi.batcher(), "500");
-        address proposer = expOutToml.readAddress(".doi.roles.proposer");
+        address proposer = expOutToml.readAddress(".roles.proposer");
         assertEq(proposer, doi.proposer(), "600");
-        address challenger = expOutToml.readAddress(".doi.roles.challenger");
+        address challenger = expOutToml.readAddress(".roles.challenger");
         assertEq(challenger, doi.challenger(), "700");
-        address unsafeBlockSigner = expOutToml.readAddress(".doi.roles.unsafeBlockSigner");
+        address unsafeBlockSigner = expOutToml.readAddress(".roles.unsafeBlockSigner");
         assertEq(unsafeBlockSigner, doi.unsafeBlockSigner(), "800");
-        address systemConfigOwner = expOutToml.readAddress(".doi.roles.systemConfigOwner");
+        address systemConfigOwner = expOutToml.readAddress(".roles.systemConfigOwner");
         assertEq(systemConfigOwner, doi.systemConfigOwner(), "900");
-        address opChainProxyAdminOwner = expOutToml.readAddress(".doi.roles.opChainProxyAdminOwner");
+        address opChainProxyAdminOwner = expOutToml.readAddress(".roles.opChainProxyAdminOwner");
         assertEq(opChainProxyAdminOwner, doi.opChainProxyAdminOwner(), "1000");
     }
 
