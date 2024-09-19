@@ -30,8 +30,8 @@ type L2FaultProofEnv struct {
 	Sequencer *helpers.L2Sequencer
 	Engine    *helpers.L2Engine
 	engCl     *sources.EngineClient
-	sd        *e2eutils.SetupData
-	dp        *e2eutils.DeployParams
+	Sd        *e2eutils.SetupData
+	Dp        *e2eutils.DeployParams
 	Miner     *helpers.L1Miner
 	Alice     *helpers.CrossLayerUser
 }
@@ -107,8 +107,8 @@ func NewL2FaultProofEnv[c any](t helpers.Testing, testCfg *TestCfg[c], tp *e2eut
 		Sequencer: sequencer,
 		Engine:    engine,
 		engCl:     engCl,
-		sd:        sd,
-		dp:        dp,
+		Sd:        sd,
+		Dp:        dp,
 		Miner:     miner,
 		Alice:     alice,
 	}
@@ -149,7 +149,7 @@ func (env *L2FaultProofEnv) RunFaultProofProgram(t helpers.Testing, l2ClaimBlock
 		L2Claim:       common.Hash(claimRoot.OutputRoot),
 		L2Head:        preRoot.BlockRef.Hash,
 		L2OutputRoot:  common.Hash(preRoot.OutputRoot),
-		L2ChainID:     env.sd.RollupCfg.L2ChainID.Uint64(),
+		L2ChainID:     env.Sd.RollupCfg.L2ChainID.Uint64(),
 		L1Head:        l1Head.Hash(),
 	}
 	for _, apply := range fixtureInputParams {
@@ -162,7 +162,7 @@ func (env *L2FaultProofEnv) RunFaultProofProgram(t helpers.Testing, l2ClaimBlock
 		fakeBeacon := fakebeacon.NewBeacon(
 			env.log,
 			env.Miner.BlobStore(),
-			env.sd.L1Cfg.Timestamp,
+			env.Sd.L1Cfg.Timestamp,
 			12,
 		)
 		require.NoError(t, fakeBeacon.Start("127.0.0.1:0"))
@@ -178,11 +178,11 @@ func (env *L2FaultProofEnv) RunFaultProofProgram(t helpers.Testing, l2ClaimBlock
 		)
 		withInProcessPrefetcher := host.WithPrefetcher(func(ctx context.Context, logger log.Logger, kv kvstore.KV, cfg *config.Config) (host.Prefetcher, error) {
 			// Set up in-process L1 sources
-			l1Cl := env.Miner.L1Client(t, env.sd.RollupCfg)
+			l1Cl := env.Miner.L1Client(t, env.Sd.RollupCfg)
 			l1BlobFetcher := env.Miner.BlobSource()
 
 			// Set up in-process L2 source
-			l2ClCfg := sources.L2ClientDefaultConfig(env.sd.RollupCfg, true)
+			l2ClCfg := sources.L2ClientDefaultConfig(env.Sd.RollupCfg, true)
 			l2RPC := env.Engine.RPCClient()
 			l2Client, err := host.NewL2Client(l2RPC, env.log, nil, &host.L2ClientConfig{L2ClientConfig: l2ClCfg, L2Head: cfg.L2Head})
 			require.NoError(t, err, "failed to create L2 client")
@@ -238,7 +238,7 @@ func NewOpProgramCfg(
 	fi *FixtureInputs,
 	params ...OpProgramCfgParam,
 ) *config.Config {
-	dfault := config.NewConfig(env.sd.RollupCfg, env.sd.L2Cfg.Config, fi.L1Head, fi.L2Head, fi.L2OutputRoot, fi.L2Claim, fi.L2BlockNumber)
+	dfault := config.NewConfig(env.Sd.RollupCfg, env.Sd.L2Cfg.Config, fi.L1Head, fi.L2Head, fi.L2OutputRoot, fi.L2Claim, fi.L2BlockNumber)
 
 	if dumpFixtures {
 		dfault.DataDir = t.TempDir()
