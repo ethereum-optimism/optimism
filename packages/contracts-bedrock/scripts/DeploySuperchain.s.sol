@@ -228,7 +228,6 @@ contract DeploySuperchainOutput is BaseDeployIO {
         vm.serializeAddress(outputsKey, "protocolVersionsImpl", address(this.protocolVersionsImpl()));
         string memory outputsJson =
             vm.serializeAddress(outputsKey, "protocolVersionsProxy", address(this.protocolVersionsProxy()));
-
         outputsJson = vm.serializeString("outputRootKey", outputsKey, outputsJson);
         vm.writeToml(outputsJson, _outfile);
 
