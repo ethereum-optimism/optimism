@@ -31,7 +31,7 @@ import {
 contract DeployImplementationsInput_Test is Test {
     DeployImplementationsInput dii;
 
-    bytes32 salt = 0x1000000000000000000000000000000000000000000000000000000000000001;
+    bytes32 salt = bytes32(0);
     uint256 withdrawalDelaySeconds = 100;
     uint256 minProposalSizeBytes = 200;
     uint256 challengePeriodSeconds = 300;
@@ -269,24 +269,23 @@ contract DeployImplementationsOutput_Test is Test {
         // Parse each dii field of expOutToml
         dii.loadInputFile(string.concat(root, "/test/fixtures/test-deploy-implementations-in.toml"));
 
-        address protocolVersionsProxy = expOutToml.readAddress(".dii.protocolVersionsProxy");
+        address protocolVersionsProxy = expOutToml.readAddress(".protocolVersionsProxy");
         assertEq(protocolVersionsProxy, address(dii.protocolVersionsProxy()), "100");
-        string memory release = expOutToml.readString(".dii.release");
+        string memory release = expOutToml.readString(".release");
         assertEq(release, dii.release(), "200");
-        bytes32 salt = expOutToml.readBytes32(".dii.salt");
+        bytes32 salt = expOutToml.readBytes32(".salt");
         assertEq(salt, dii.salt(), "300");
-        address superchainConfigProxy = expOutToml.readAddress(".dii.superchainConfigProxy");
+        address superchainConfigProxy = expOutToml.readAddress(".superchainConfigProxy");
         assertEq(superchainConfigProxy, address(dii.superchainConfigProxy()), "400");
-        uint256 challengePeriodSeconds = expOutToml.readUint(".dii.faultProofs.challengePeriodSeconds");
+        uint256 challengePeriodSeconds = expOutToml.readUint(".faultProofs.challengePeriodSeconds");
         assertEq(challengePeriodSeconds, dii.challengePeriodSeconds(), "500");
-        uint256 disputeGameFinalityDelaySeconds =
-            expOutToml.readUint(".dii.faultProofs.disputeGameFinalityDelaySeconds");
+        uint256 disputeGameFinalityDelaySeconds = expOutToml.readUint(".faultProofs.disputeGameFinalityDelaySeconds");
         assertEq(disputeGameFinalityDelaySeconds, dii.disputeGameFinalityDelaySeconds(), "600");
-        uint256 minProposalSizeBytes = expOutToml.readUint(".dii.faultProofs.minProposalSizeBytes");
+        uint256 minProposalSizeBytes = expOutToml.readUint(".faultProofs.minProposalSizeBytes");
         assertEq(minProposalSizeBytes, dii.minProposalSizeBytes(), "700");
-        uint256 proofMaturityDelaySeconds = expOutToml.readUint(".dii.faultProofs.proofMaturityDelaySeconds");
+        uint256 proofMaturityDelaySeconds = expOutToml.readUint(".faultProofs.proofMaturityDelaySeconds");
         assertEq(proofMaturityDelaySeconds, dii.proofMaturityDelaySeconds(), "800");
-        uint256 withdrawalDelaySeconds = expOutToml.readUint(".dii.faultProofs.withdrawalDelaySeconds");
+        uint256 withdrawalDelaySeconds = expOutToml.readUint(".faultProofs.withdrawalDelaySeconds");
         assertEq(withdrawalDelaySeconds, dii.withdrawalDelaySeconds(), "900");
     }
 
@@ -301,21 +300,23 @@ contract DeployImplementationsOutput_Test is Test {
         dii.loadInputFile(string.concat(root, "/test/fixtures/test-deploy-implementations-in.toml"));
 
         // Parse outputs
-        OPStackManager opsmProxy = OPStackManager(address(Proxy(payable(expOutToml.readAddress(".dio.opsmProxy")))));
-        DelayedWETH delayedWETHImpl = DelayedWETH(payable(expOutToml.readAddress(".dio.delayedWETHImpl")));
-        OptimismPortal2 optimismPortalImpl = OptimismPortal2(payable(expOutToml.readAddress(".dio.optimismPortalImpl")));
-        PreimageOracle preimageOracleSingleton = PreimageOracle(expOutToml.readAddress(".dio.preimageOracleSingleton"));
-        MIPS mipsSingleton = MIPS(expOutToml.readAddress(".dio.mipsSingleton"));
-        SystemConfig systemConfigImpl = SystemConfig(expOutToml.readAddress(".dio.systemConfigImpl"));
+        OPStackManager opsmProxy = OPStackManager(address(Proxy(payable(expOutToml.readAddress(".outputs.opsmProxy")))));
+        DelayedWETH delayedWETHImpl = DelayedWETH(payable(expOutToml.readAddress(".outputs.delayedWETHImpl")));
+        OptimismPortal2 optimismPortalImpl =
+            OptimismPortal2(payable(expOutToml.readAddress(".outputs.optimismPortalImpl")));
+        PreimageOracle preimageOracleSingleton =
+            PreimageOracle(expOutToml.readAddress(".outputs.preimageOracleSingleton"));
+        MIPS mipsSingleton = MIPS(expOutToml.readAddress(".outputs.mipsSingleton"));
+        SystemConfig systemConfigImpl = SystemConfig(expOutToml.readAddress(".outputs.systemConfigImpl"));
         L1CrossDomainMessenger l1CrossDomainMessengerImpl =
-            L1CrossDomainMessenger(expOutToml.readAddress(".dio.l1CrossDomainMessengerImpl"));
-        L1ERC721Bridge l1ERC721BridgeImpl = L1ERC721Bridge(expOutToml.readAddress(".dio.l1ERC721BridgeImpl"));
+            L1CrossDomainMessenger(expOutToml.readAddress(".outputs.l1CrossDomainMessengerImpl"));
+        L1ERC721Bridge l1ERC721BridgeImpl = L1ERC721Bridge(expOutToml.readAddress(".outputs.l1ERC721BridgeImpl"));
         L1StandardBridge l1StandardBridgeImpl =
-            L1StandardBridge(payable(expOutToml.readAddress(".dio.l1StandardBridgeImpl")));
+            L1StandardBridge(payable(expOutToml.readAddress(".outputs.l1StandardBridgeImpl")));
         OptimismMintableERC20Factory optimismMintableERC20FactoryImpl =
-            OptimismMintableERC20Factory(expOutToml.readAddress(".dio.optimismMintableERC20FactoryImpl"));
+            OptimismMintableERC20Factory(expOutToml.readAddress(".outputs.optimismMintableERC20FactoryImpl"));
         DisputeGameFactory disputeGameFactoryImpl =
-            DisputeGameFactory(expOutToml.readAddress(".dio.disputeGameFactoryImpl"));
+            DisputeGameFactory(expOutToml.readAddress(".outputs.disputeGameFactoryImpl"));
 
         // Etch code at each address so the code checks pass when settings values.
         vm.etch(address(opsmProxy), address(new Proxy(address(0))).code);
@@ -347,9 +348,9 @@ contract DeployImplementationsOutput_Test is Test {
         dio.set(dio.optimismMintableERC20FactoryImpl.selector, address(optimismMintableERC20FactoryImpl));
         dio.set(dio.disputeGameFactoryImpl.selector, address(disputeGameFactoryImpl));
 
-        // File must end with a new line because forge-std/StdToml adds a new line at the end of the file.
+        // File must end with a new line because Foundry adds a new line at the end of the file.
         string memory actOutPath = string.concat(root, "/.testdata/test-deploy-implementations-output.toml");
-        // forge-std/StdToml serializes TOML key-value pairs in alphabetical order when writing to a TOML file.
+        // Foundry serializes TOML key-value pairs in alphabetical order when writing to a TOML file.
         dio.writeOutputFile(dii, actOutPath);
         string memory actOutToml = vm.readFile(actOutPath);
 

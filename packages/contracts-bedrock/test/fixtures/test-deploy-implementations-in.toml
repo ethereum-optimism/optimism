@@ -1,10 +1,9 @@
-[dii]
-salt = "0x1000000000000000000000000000000000000000000000000000000000000001"
+salt = "0x0000000000000000000000000000000000000000000000000000000000000000"
 release = "op-contracts/latest"
 superchainConfigProxy = "0xF485FFA4948A22cee812316d0BfE9914894A3c79"
 protocolVersionsProxy = "0xaa01156D192C047b65078DD11F7a3231c65f998C"
 
-[dii.faultProofs]
+[faultProofs]
 withdrawalDelaySeconds = 100
 minProposalSizeBytes = 200
 challengePeriodSeconds = 300

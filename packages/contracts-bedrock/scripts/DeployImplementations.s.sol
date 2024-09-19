@@ -44,6 +44,7 @@ import { Blueprint } from "src/libraries/Blueprint.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
 import { BaseDeployIO } from "scripts/utils/BaseDeployIO.sol";
+import { Executables } from "scripts/libraries/Executables.sol";
 
 // See DeploySuperchain.s.sol for detailed comments on the script architecture used here.
 contract DeployImplementationsInput is BaseDeployIO {
@@ -103,20 +104,19 @@ contract DeployImplementationsInput is BaseDeployIO {
     function loadInputFile(string memory _infile) public {
         string memory toml = vm.readFile(_infile);
 
-        set(this.salt.selector, toml.readBytes32(".dii.salt"));
+        set(this.salt.selector, toml.readBytes32(".salt"));
 
-        set(this.release.selector, toml.readString(".dii.release"));
+        set(this.release.selector, toml.readString(".release"));
 
-        set(this.superchainConfigProxy.selector, toml.readAddress(".dii.superchainConfigProxy"));
-        set(this.protocolVersionsProxy.selector, toml.readAddress(".dii.protocolVersionsProxy"));
+        set(this.superchainConfigProxy.selector, toml.readAddress(".superchainConfigProxy"));
+        set(this.protocolVersionsProxy.selector, toml.readAddress(".protocolVersionsProxy"));
 
-        set(this.withdrawalDelaySeconds.selector, toml.readUint(".dii.faultProofs.withdrawalDelaySeconds"));
-        set(this.minProposalSizeBytes.selector, toml.readUint(".dii.faultProofs.minProposalSizeBytes"));
-        set(this.challengePeriodSeconds.selector, toml.readUint(".dii.faultProofs.challengePeriodSeconds"));
-        set(this.proofMaturityDelaySeconds.selector, toml.readUint(".dii.faultProofs.proofMaturityDelaySeconds"));
+        set(this.withdrawalDelaySeconds.selector, toml.readUint(".faultProofs.withdrawalDelaySeconds"));
+        set(this.minProposalSizeBytes.selector, toml.readUint(".faultProofs.minProposalSizeBytes"));
+        set(this.challengePeriodSeconds.selector, toml.readUint(".faultProofs.challengePeriodSeconds"));
+        set(this.proofMaturityDelaySeconds.selector, toml.readUint(".faultProofs.proofMaturityDelaySeconds"));
         set(
-            this.disputeGameFinalityDelaySeconds.selector,
-            toml.readUint(".dii.faultProofs.disputeGameFinalityDelaySeconds")
+            this.disputeGameFinalityDelaySeconds.selector, toml.readUint(".faultProofs.disputeGameFinalityDelaySeconds")
         );
     }
 
@@ -213,47 +213,70 @@ contract DeployImplementationsOutput is BaseDeployIO {
     }
 
     function writeOutputFile(DeployImplementationsInput dii, string memory _outfile) public {
-        string memory diiKey = "dii";
-        vm.serializeBytes32(diiKey, "salt", dii.salt());
-        vm.serializeString(diiKey, "release", dii.release());
-        vm.serializeAddress(diiKey, "superchainConfigProxy", address(dii.superchainConfigProxy()));
-        string memory diiJson =
-            vm.serializeAddress(diiKey, "protocolVersionsProxy", address(dii.protocolVersionsProxy()));
+        string memory root = vm.projectRoot();
+        string memory tempOutFile = string.concat(root, "/.tempdata/temp-deploy-implementations-out.toml");
 
-        // Serialize the 'dii.faultProofs' section
-        string memory dsiFaultProofsKey = "dii.faultProofs";
-        vm.serializeUint(dsiFaultProofsKey, "withdrawalDelaySeconds", dii.withdrawalDelaySeconds());
-        vm.serializeUint(dsiFaultProofsKey, "minProposalSizeBytes", dii.minProposalSizeBytes());
-        vm.serializeUint(dsiFaultProofsKey, "challengePeriodSeconds", dii.challengePeriodSeconds());
-        vm.serializeUint(dsiFaultProofsKey, "proofMaturityDelaySeconds", dii.proofMaturityDelaySeconds());
-        string memory diiFaultProofsJson = vm.serializeUint(
-            dsiFaultProofsKey, "disputeGameFinalityDelaySeconds", dii.disputeGameFinalityDelaySeconds()
+        // Serialize input values
+        string memory inputRootKey = "inputRoot";
+        serializeInput(dii, inputRootKey);
+        // Serialize fault proofs section
+        string memory inputFaultProofsKey = "faultProofs";
+        string memory faultProofsJson = serializeInputFaultProofs(dii, inputFaultProofsKey);
+        // Write serialized inputs to the temp file
+        string memory inputsJson = vm.serializeString(inputRootKey, inputFaultProofsKey, faultProofsJson);
+        vm.writeToml(inputsJson, tempOutFile);
+
+        // Serialize outputs
+        string memory outputsKey = "outputs";
+        string memory outputsJson = serializeOutputs(outputsKey);
+        outputsJson = vm.serializeString("outputRootKey", outputsKey, outputsJson);
+        vm.writeToml(outputsJson, _outfile);
+
+        // Prepend content to the final output file
+        string memory tempFileToml = vm.readFile(tempOutFile);
+        Executables.prependContentToFile(string.concat(tempFileToml, "\n"), _outfile);
+
+        // Clean up temp file - test suite runs in parallel so have to check if file exists before we delete
+        if (vm.exists(tempOutFile)) vm.removeFile(tempOutFile);
+    }
+
+    function serializeInput(DeployImplementationsInput dii, string memory inputRootKey) internal {
+        vm.serializeBytes32(inputRootKey, "salt", dii.salt());
+        vm.serializeString(inputRootKey, "release", dii.release());
+        vm.serializeAddress(inputRootKey, "superchainConfigProxy", address(dii.superchainConfigProxy()));
+        vm.serializeAddress(inputRootKey, "protocolVersionsProxy", address(dii.protocolVersionsProxy()));
+    }
+
+    function serializeInputFaultProofs(
+        DeployImplementationsInput dii,
+        string memory inputFaultProofsKey
+    )
+        internal
+        returns (string memory)
+    {
+        vm.serializeUint(inputFaultProofsKey, "withdrawalDelaySeconds", dii.withdrawalDelaySeconds());
+        vm.serializeUint(inputFaultProofsKey, "minProposalSizeBytes", dii.minProposalSizeBytes());
+        vm.serializeUint(inputFaultProofsKey, "challengePeriodSeconds", dii.challengePeriodSeconds());
+        vm.serializeUint(inputFaultProofsKey, "proofMaturityDelaySeconds", dii.proofMaturityDelaySeconds());
+        return vm.serializeUint(
+            inputFaultProofsKey, "disputeGameFinalityDelaySeconds", dii.disputeGameFinalityDelaySeconds()
         );
+    }
 
-        // Combine dii and dii.faultProofs JSON
-        diiJson = vm.serializeString(diiKey, "faultProofs", diiFaultProofsJson);
-
-        // Serialize the 'dio' section
-        string memory dioKey = "dio";
-        vm.serializeAddress(dioKey, "opsmProxy", address(this.opsmProxy()));
-        vm.serializeAddress(dioKey, "delayedWETHImpl", address(this.delayedWETHImpl()));
-        vm.serializeAddress(dioKey, "optimismPortalImpl", address(this.optimismPortalImpl()));
-        vm.serializeAddress(dioKey, "preimageOracleSingleton", address(this.preimageOracleSingleton()));
-        vm.serializeAddress(dioKey, "mipsSingleton", address(this.mipsSingleton()));
-        vm.serializeAddress(dioKey, "systemConfigImpl", address(this.systemConfigImpl()));
-        vm.serializeAddress(dioKey, "l1CrossDomainMessengerImpl", address(this.l1CrossDomainMessengerImpl()));
-        vm.serializeAddress(dioKey, "l1ERC721BridgeImpl", address(this.l1ERC721BridgeImpl()));
-        vm.serializeAddress(dioKey, "l1StandardBridgeImpl", address(this.l1StandardBridgeImpl()));
+    function serializeOutputs(string memory outputsKey) internal returns (string memory) {
+        vm.serializeAddress(outputsKey, "opsmProxy", address(this.opsmProxy()));
+        vm.serializeAddress(outputsKey, "delayedWETHImpl", address(this.delayedWETHImpl()));
+        vm.serializeAddress(outputsKey, "optimismPortalImpl", address(this.optimismPortalImpl()));
+        vm.serializeAddress(outputsKey, "preimageOracleSingleton", address(this.preimageOracleSingleton()));
+        vm.serializeAddress(outputsKey, "mipsSingleton", address(this.mipsSingleton()));
+        vm.serializeAddress(outputsKey, "systemConfigImpl", address(this.systemConfigImpl()));
+        vm.serializeAddress(outputsKey, "l1CrossDomainMessengerImpl", address(this.l1CrossDomainMessengerImpl()));
+        vm.serializeAddress(outputsKey, "l1ERC721BridgeImpl", address(this.l1ERC721BridgeImpl()));
+        vm.serializeAddress(outputsKey, "l1StandardBridgeImpl", address(this.l1StandardBridgeImpl()));
         vm.serializeAddress(
-            dioKey, "optimismMintableERC20FactoryImpl", address(this.optimismMintableERC20FactoryImpl())
+            outputsKey, "optimismMintableERC20FactoryImpl", address(this.optimismMintableERC20FactoryImpl())
         );
-        string memory dioJson =
-            vm.serializeAddress(dioKey, "disputeGameFactoryImpl", address(this.disputeGameFactoryImpl()));
-
-        // Combine the final JSON output
-        string memory finalJson = vm.serializeString("root", diiKey, diiJson);
-        finalJson = vm.serializeString("root", dioKey, dioJson);
-        vm.writeToml(finalJson, _outfile);
+        return vm.serializeAddress(outputsKey, "disputeGameFactoryImpl", address(this.disputeGameFactoryImpl()));
     }
 
     function checkOutput(DeployImplementationsInput _dii) public {
