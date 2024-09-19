@@ -80,6 +80,11 @@ func runSequenceWindowExpire_ChannelCloseAfterWindowExpiry_Test(gt *testing.T, t
 	l2SafeHead := env.Engine.L2Chain().CurrentSafeBlock()
 	require.EqualValues(t, 0, l2SafeHead.Number.Uint64())
 
+	// Cache the next frame data before expiring the sequence window, but don't submit it yet.
+	env.Batcher.ActL2BatchBuffer(t)
+	env.Batcher.ActL2ChannelClose(t)
+	finalFrame := env.Batcher.ReadNextOutputFrame(t)
+
 	// Expire the sequence window by building `SequenceWindow + 1` empty blocks on L1.
 	for i := 0; i < int(tp.SequencerWindowSize)+1; i++ {
 		env.Alice.L1.ActResetTxOpts(t)
@@ -93,10 +98,8 @@ func runSequenceWindowExpire_ChannelCloseAfterWindowExpiry_Test(gt *testing.T, t
 		env.Miner.ActL1FinalizeNext(t)
 	}
 
-	// Instruct the batcher the channel on L1, after the sequence window + channel timeout has elapsed.
-	env.Batcher.ActL2BatchBuffer(t)
-	env.Batcher.ActL2ChannelClose(t)
-	env.Batcher.ActL2BatchSubmit(t)
+	// Instruct the batcher to closethe channel on L1, after the sequence window + channel timeout has elapsed.
+	env.Batcher.ActL2BatchSubmitRaw(t, finalFrame)
 	env.Miner.ActL1StartBlock(12)(t)
 	env.Miner.ActL1IncludeTxByHash(env.Batcher.LastSubmitted.Hash())(t)
 	env.Miner.ActL1EndBlock(t)
