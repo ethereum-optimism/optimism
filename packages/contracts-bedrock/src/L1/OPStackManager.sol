@@ -55,7 +55,7 @@ contract OPStackManager is ISemver, Initializable {
         uint32 basefeeScalar;
         uint32 blobBasefeeScalar;
         uint256 l2ChainId;
-        AnchorStateRegistry.StartingAnchorRoot[] startingAnchorRoots;
+        bytes startingAnchorRoots;
     }
 
     /// @notice The full set of outputs from deploying a new OP Stack chain.

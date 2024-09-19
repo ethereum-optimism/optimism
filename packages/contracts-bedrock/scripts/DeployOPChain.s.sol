@@ -133,13 +133,15 @@ contract DeployOPChainInput is BaseDeployIO {
         return _l2ChainId;
     }
 
-    function startingAnchorRoots() public view returns (AnchorStateRegistry.StartingAnchorRoot[] memory) {
+    function startingAnchorRoots() public view returns (bytes memory) {
         // TODO: figure out how to assert this properly.
         // Per mofi: It may make sense to not set any startingAnchor roots if you're running permissioned games for a
         // new chain and you don't yet have a genesis state available for the initial anchor.
         // And provided it'll remain permissioned unless the anchor state is fixed.
         require(_startingAnchorRoots.length > 0, "DeployOPChainInput: not set");
-        return _startingAnchorRoots;
+        // The op-deployer tooling does not support structs, therefore we need to
+        // return a more generic type for compatibility.
+        return abi.encode(_startingAnchorRoots);
     }
 
     // TODO: Check that opsm is proxied and it has an implementation.

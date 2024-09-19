@@ -17,10 +17,11 @@ type DeployOPChainInput struct {
 	Proposer               common.Address
 	Challenger             common.Address
 
-	BasefeeScalar     uint32
-	BlobBaseFeeScalar uint32
-	L2ChainId         *big.Int
-	Opsm              common.Address
+	BasefeeScalar       uint32
+	BlobBaseFeeScalar   uint32
+	L2ChainId           *big.Int
+	StartingAnchorRoots []byte
+	Opsm                common.Address
 }
 
 func (input *DeployOPChainInput) InputSet() bool {
