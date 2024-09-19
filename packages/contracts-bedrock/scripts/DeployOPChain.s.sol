@@ -184,16 +184,16 @@ contract DeployOPChainOutput is BaseDeployIO {
         // forgefmt: disable-end
     }
 
-    function writeOutputFile(DeployOPChainInput doi, string memory _outfile) public {
+    function writeOutputFile(DeployOPChainInput _doi, string memory _outfile) public {
         string memory root = vm.projectRoot();
         string memory tempOutFile = string.concat(root, "/.tempdata/temp-deploy-opchain-out.toml");
 
         // Serialize input values
         string memory inputRootKey = "inputRoot";
-        serializeInput(doi, inputRootKey);
+        serializeInput(_doi, inputRootKey);
         // Serialize fault proofs section
         string memory inputFaultProofsKey = "roles";
-        string memory faultProofsJson = serializeInputRoles(doi, inputFaultProofsKey);
+        string memory faultProofsJson = serializeInputRoles(_doi, inputFaultProofsKey);
         // Write serialized inputs to the temp file
         string memory inputsJson = vm.serializeString(inputRootKey, inputFaultProofsKey, faultProofsJson);
         vm.writeToml(inputsJson, tempOutFile);
@@ -212,49 +212,49 @@ contract DeployOPChainOutput is BaseDeployIO {
         if (vm.exists(tempOutFile)) vm.removeFile(tempOutFile);
     }
 
-    function serializeInput(DeployOPChainInput doi, string memory inputRootKey) internal {
-        vm.serializeUint(inputRootKey, "basefeeScalar", doi.basefeeScalar());
-        vm.serializeUint(inputRootKey, "blobBaseFeeScalar", doi.blobBaseFeeScalar());
-        vm.serializeUint(inputRootKey, "l2ChainId", doi.l2ChainId());
-        vm.serializeAddress(inputRootKey, "opsmProxy", address(doi.opsmProxy()));
+    function serializeInput(DeployOPChainInput _doi, string memory _inputRootKey) internal {
+        vm.serializeUint(_inputRootKey, "basefeeScalar", _doi.basefeeScalar());
+        vm.serializeUint(_inputRootKey, "blobBaseFeeScalar", _doi.blobBaseFeeScalar());
+        vm.serializeUint(_inputRootKey, "l2ChainId", _doi.l2ChainId());
+        vm.serializeAddress(_inputRootKey, "opsmProxy", address(_doi.opsmProxy()));
     }
 
     function serializeInputRoles(
-        DeployOPChainInput doi,
-        string memory inputRolesKey
+        DeployOPChainInput _doi,
+        string memory _inputRolesKey
     )
         internal
         returns (string memory)
     {
-        vm.serializeAddress(inputRolesKey, "opChainProxyAdminOwner", doi.opChainProxyAdminOwner());
-        vm.serializeAddress(inputRolesKey, "systemConfigOwner", doi.systemConfigOwner());
-        vm.serializeAddress(inputRolesKey, "batcher", doi.batcher());
-        vm.serializeAddress(inputRolesKey, "unsafeBlockSigner", doi.unsafeBlockSigner());
-        vm.serializeAddress(inputRolesKey, "proposer", doi.proposer());
-        return vm.serializeAddress(inputRolesKey, "challenger", doi.challenger());
+        vm.serializeAddress(_inputRolesKey, "opChainProxyAdminOwner", _doi.opChainProxyAdminOwner());
+        vm.serializeAddress(_inputRolesKey, "systemConfigOwner", _doi.systemConfigOwner());
+        vm.serializeAddress(_inputRolesKey, "batcher", _doi.batcher());
+        vm.serializeAddress(_inputRolesKey, "unsafeBlockSigner", _doi.unsafeBlockSigner());
+        vm.serializeAddress(_inputRolesKey, "proposer", _doi.proposer());
+        return vm.serializeAddress(_inputRolesKey, "challenger", _doi.challenger());
     }
 
-    function serializeOutputs(string memory outputsKey) internal returns (string memory) {
-        vm.serializeAddress(outputsKey, "opChainProxyAdmin", address(this.opChainProxyAdmin()));
-        vm.serializeAddress(outputsKey, "addressManager", address(this.addressManager()));
-        vm.serializeAddress(outputsKey, "l1ERC721BridgeProxy", address(this.l1ERC721BridgeProxy()));
-        vm.serializeAddress(outputsKey, "systemConfigProxy", address(this.systemConfigProxy()));
+    function serializeOutputs(string memory _outputsKey) internal returns (string memory) {
+        vm.serializeAddress(_outputsKey, "opChainProxyAdmin", address(this.opChainProxyAdmin()));
+        vm.serializeAddress(_outputsKey, "addressManager", address(this.addressManager()));
+        vm.serializeAddress(_outputsKey, "l1ERC721BridgeProxy", address(this.l1ERC721BridgeProxy()));
+        vm.serializeAddress(_outputsKey, "systemConfigProxy", address(this.systemConfigProxy()));
         vm.serializeAddress(
-            outputsKey, "optimismMintableERC20FactoryProxy", address(this.optimismMintableERC20FactoryProxy())
+            _outputsKey, "optimismMintableERC20FactoryProxy", address(this.optimismMintableERC20FactoryProxy())
         );
-        vm.serializeAddress(outputsKey, "l1StandardBridgeProxy", address(this.l1StandardBridgeProxy()));
-        vm.serializeAddress(outputsKey, "l1CrossDomainMessengerProxy", address(this.l1CrossDomainMessengerProxy()));
-        vm.serializeAddress(outputsKey, "optimismPortalProxy", address(this.optimismPortalProxy()));
-        vm.serializeAddress(outputsKey, "disputeGameFactoryProxy", address(this.disputeGameFactoryProxy()));
-        vm.serializeAddress(outputsKey, "anchorStateRegistryProxy", address(this.anchorStateRegistryProxy()));
-        vm.serializeAddress(outputsKey, "anchorStateRegistryImpl", address(this.anchorStateRegistryImpl()));
-        vm.serializeAddress(outputsKey, "faultDisputeGame", address(this.faultDisputeGame()));
-        vm.serializeAddress(outputsKey, "permissionedDisputeGame", address(this.permissionedDisputeGame()));
+        vm.serializeAddress(_outputsKey, "l1StandardBridgeProxy", address(this.l1StandardBridgeProxy()));
+        vm.serializeAddress(_outputsKey, "l1CrossDomainMessengerProxy", address(this.l1CrossDomainMessengerProxy()));
+        vm.serializeAddress(_outputsKey, "optimismPortalProxy", address(this.optimismPortalProxy()));
+        vm.serializeAddress(_outputsKey, "disputeGameFactoryProxy", address(this.disputeGameFactoryProxy()));
+        vm.serializeAddress(_outputsKey, "anchorStateRegistryProxy", address(this.anchorStateRegistryProxy()));
+        vm.serializeAddress(_outputsKey, "anchorStateRegistryImpl", address(this.anchorStateRegistryImpl()));
+        vm.serializeAddress(_outputsKey, "faultDisputeGame", address(this.faultDisputeGame()));
+        vm.serializeAddress(_outputsKey, "permissionedDisputeGame", address(this.permissionedDisputeGame()));
         vm.serializeAddress(
-            outputsKey, "delayedWETHPermissionedGameProxy", address(this.delayedWETHPermissionedGameProxy())
+            _outputsKey, "delayedWETHPermissionedGameProxy", address(this.delayedWETHPermissionedGameProxy())
         );
         return vm.serializeAddress(
-            outputsKey, "delayedWETHPermissionlessGameProxy", address(this.delayedWETHPermissionlessGameProxy())
+            _outputsKey, "delayedWETHPermissionlessGameProxy", address(this.delayedWETHPermissionlessGameProxy())
         );
     }
 
