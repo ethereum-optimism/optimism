@@ -55,6 +55,8 @@ contract OPStackManager is ISemver, Initializable {
         uint32 basefeeScalar;
         uint32 blobBasefeeScalar;
         uint256 l2ChainId;
+        // The correct type is AnchorStateRegistry.StartingAnchorRoot[] memory,
+        // but OP Deployer does not yet support structs.
         bytes startingAnchorRoots;
     }
 
@@ -207,7 +209,6 @@ contract OPStackManager is ISemver, Initializable {
         // -------- TODO: Placeholders --------
         // For contracts we don't yet deploy, we set the outputs to  dummy proxies so they have code to pass assertions.
         // We do these first, that way the disputeGameFactoryProxy is set when passed to the SystemConfig input.
-        output.anchorStateRegistryImpl = AnchorStateRegistry(deployProxy(l2ChainId, output.opChainProxyAdmin, "4"));
         output.faultDisputeGame = FaultDisputeGame(deployProxy(l2ChainId, output.opChainProxyAdmin, "5"));
         output.permissionedDisputeGame = PermissionedDisputeGame(deployProxy(l2ChainId, output.opChainProxyAdmin, "6"));
         output.delayedWETHPermissionedGameProxy =
@@ -479,7 +480,9 @@ contract OPStackManager is ISemver, Initializable {
         virtual
         returns (bytes memory)
     {
-        return abi.encodeWithSelector(_selector, _input.startingAnchorRoots, superchainConfig);
+        AnchorStateRegistry.StartingAnchorRoot[] memory startingAnchorRoots =
+            abi.decode(_input.startingAnchorRoots, (AnchorStateRegistry.StartingAnchorRoot[]));
+        return abi.encodeWithSelector(_selector, startingAnchorRoots, superchainConfig);
     }
 
     /// @notice Returns default, standard config arguments for the SystemConfig initializer.

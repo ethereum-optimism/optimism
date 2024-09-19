@@ -31,7 +31,7 @@ import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
 
-import "src/dispute/lib/Types.sol";
+import { GameType, GameTypes, Hash, OutputRoot } from "src/dispute/lib/Types.sol";
 
 contract DeployOPChainInput_Test is Test {
     DeployOPChainInput doi;
@@ -343,10 +343,21 @@ contract DeployOPChain_TestBase is Test {
 
     function setUp() public virtual {
         // Set defaults for reference types
+        uint256 cannonBlock = 400;
+        uint256 permissionedBlock = 500;
         startingAnchorRoots.push(
             AnchorStateRegistry.StartingAnchorRoot({
                 gameType: GameTypes.CANNON,
-                outputRoot: OutputRoot({ root: Hash.wrap(keccak256("defaultOutputRoot")), l2BlockNumber: 400 })
+                outputRoot: OutputRoot({ root: Hash.wrap(keccak256("defaultOutputRootCannon")), l2BlockNumber: cannonBlock })
+            })
+        );
+        startingAnchorRoots.push(
+            AnchorStateRegistry.StartingAnchorRoot({
+                gameType: GameTypes.PERMISSIONED_CANNON,
+                outputRoot: OutputRoot({
+                    root: Hash.wrap(keccak256("defaultOutputRootPermissioned")),
+                    l2BlockNumber: permissionedBlock
+                })
             })
         );
 
@@ -400,7 +411,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         return keccak256(abi.encode(_seed, _i));
     }
 
-    function testFuzz_run_memory_succeedsX(bytes32 _seed) public {
+    function testFuzz_run_memory_succeed(bytes32 _seed) public {
         opChainProxyAdminOwner = address(uint160(uint256(hash(_seed, 0))));
         systemConfigOwner = address(uint160(uint256(hash(_seed, 1))));
         batcher = address(uint160(uint256(hash(_seed, 2))));
@@ -409,16 +420,26 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         challenger = address(uint160(uint256(hash(_seed, 5))));
         basefeeScalar = uint32(uint256(hash(_seed, 6)));
         blobBaseFeeScalar = uint32(uint256(hash(_seed, 7)));
-        l2ChainId = uint256(uint256(hash(_seed, 8)));
-        uint256 numStartingAnchorRoots = bound(uint256(uint256(hash(_seed, 9))), 1, 10);
-        for (uint256 i = 0; i < numStartingAnchorRoots; i++) {
-            startingAnchorRoots.push(
-                AnchorStateRegistry.StartingAnchorRoot({
-                    gameType: GameTypes.CANNON,
-                    outputRoot: OutputRoot({ root: Hash.wrap(keccak256(abi.encode(_seed, i))), l2BlockNumber: 400 + i })
+        l2ChainId = uint256(hash(_seed, 8));
+
+        // Set the initial anchor states. The typical usage we expect is to pass in one root per game type.
+        uint256 cannonBlock = uint256(hash(_seed, 9));
+        uint256 permissionedBlock = uint256(hash(_seed, 10));
+        startingAnchorRoots.push(
+            AnchorStateRegistry.StartingAnchorRoot({
+                gameType: GameTypes.CANNON,
+                outputRoot: OutputRoot({ root: Hash.wrap(keccak256(abi.encode(_seed, 11))), l2BlockNumber: cannonBlock })
+            })
+        );
+        startingAnchorRoots.push(
+            AnchorStateRegistry.StartingAnchorRoot({
+                gameType: GameTypes.PERMISSIONED_CANNON,
+                outputRoot: OutputRoot({
+                    root: Hash.wrap(keccak256(abi.encode(_seed, 12))),
+                    l2BlockNumber: permissionedBlock
                 })
-            );
-        }
+            })
+        );
 
         doi.set(doi.opChainProxyAdminOwner.selector, opChainProxyAdminOwner);
         doi.set(doi.systemConfigOwner.selector, systemConfigOwner);
