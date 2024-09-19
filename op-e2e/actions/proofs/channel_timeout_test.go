@@ -39,7 +39,6 @@ func runChannelTimeoutTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 
 	// Finalize the block with the first channel frame on L1.
 	env.Miner.ActL1SafeNext(t)
-	env.Miner.ActL1FinalizeNext(t)
 
 	// Instruct the sequencer to derive the L2 chain from the data on L1 that the batcher just posted.
 	env.Sequencer.ActL1HeadSignal(t)
@@ -53,7 +52,6 @@ func runChannelTimeoutTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	for i := uint64(0); i < channelTimeout+1; i++ {
 		env.Miner.ActEmptyBlock(t)
 		env.Miner.ActL1SafeNext(t)
-		env.Miner.ActL1FinalizeNext(t)
 	}
 
 	// Instruct the sequencer to derive the L2 chain - the channel should now be timed out.
@@ -85,7 +83,6 @@ func runChannelTimeoutTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 
 		// Finalize the block with the frame data on L1.
 		env.Miner.ActL1SafeNext(t)
-		env.Miner.ActL1FinalizeNext(t)
 	}
 
 	// Instruct the sequencer to derive the L2 chain.
@@ -128,7 +125,6 @@ func runChannelTimeoutTest_CloseChannelLate(gt *testing.T, testCfg *helpers.Test
 
 	// Finalize the block with the first channel frame on L1.
 	env.Miner.ActL1SafeNext(t)
-	env.Miner.ActL1FinalizeNext(t)
 
 	// Instruct the sequencer to derive the L2 chain from the data on L1 that the batcher just posted.
 	env.Sequencer.ActL1HeadSignal(t)
@@ -142,7 +138,6 @@ func runChannelTimeoutTest_CloseChannelLate(gt *testing.T, testCfg *helpers.Test
 	for i := uint64(0); i < channelTimeout+1; i++ {
 		env.Miner.ActEmptyBlock(t)
 		env.Miner.ActL1SafeNext(t)
-		env.Miner.ActL1FinalizeNext(t)
 	}
 
 	// Instruct the sequencer to derive the L2 chain.
@@ -170,7 +165,6 @@ func runChannelTimeoutTest_CloseChannelLate(gt *testing.T, testCfg *helpers.Test
 
 	// Finalize the block with the second channel frame on L1.
 	env.Miner.ActL1SafeNext(t)
-	env.Miner.ActL1FinalizeNext(t)
 
 	// Instruct the sequencer to derive the L2 chain from the data on L1 that the batcher just posted.
 	env.Sequencer.ActL1HeadSignal(t)
@@ -189,7 +183,6 @@ func runChannelTimeoutTest_CloseChannelLate(gt *testing.T, testCfg *helpers.Test
 
 		// Finalize the block with the resubmitted channel frames on L1.
 		env.Miner.ActL1SafeNext(t)
-		env.Miner.ActL1FinalizeNext(t)
 	}
 
 	// Instruct the sequencer to derive the L2 chain.
