@@ -212,16 +212,16 @@ contract DeployImplementationsOutput is BaseDeployIO {
         // forgefmt: disable-end
     }
 
-    function writeOutputFile(DeployImplementationsInput dii, string memory _outfile) public {
+    function writeOutputFile(DeployImplementationsInput _dii, string memory _outfile) public {
         string memory root = vm.projectRoot();
         string memory tempOutFile = string.concat(root, "/.tempdata/temp-deploy-implementations-out.toml");
 
         // Serialize input values
         string memory inputRootKey = "inputRoot";
-        serializeInput(dii, inputRootKey);
+        serializeInput(_dii, inputRootKey);
         // Serialize fault proofs section
         string memory inputFaultProofsKey = "faultProofs";
-        string memory faultProofsJson = serializeInputFaultProofs(dii, inputFaultProofsKey);
+        string memory faultProofsJson = serializeInputFaultProofs(_dii, inputFaultProofsKey);
         // Write serialized inputs to the temp file
         string memory inputsJson = vm.serializeString(inputRootKey, inputFaultProofsKey, faultProofsJson);
         vm.writeToml(inputsJson, tempOutFile);
@@ -240,43 +240,43 @@ contract DeployImplementationsOutput is BaseDeployIO {
         if (vm.exists(tempOutFile)) vm.removeFile(tempOutFile);
     }
 
-    function serializeInput(DeployImplementationsInput dii, string memory inputRootKey) internal {
-        vm.serializeBytes32(inputRootKey, "salt", dii.salt());
-        vm.serializeString(inputRootKey, "release", dii.release());
-        vm.serializeAddress(inputRootKey, "superchainConfigProxy", address(dii.superchainConfigProxy()));
-        vm.serializeAddress(inputRootKey, "protocolVersionsProxy", address(dii.protocolVersionsProxy()));
+    function serializeInput(DeployImplementationsInput _dii, string memory _inputRootKey) internal {
+        vm.serializeBytes32(_inputRootKey, "salt", _dii.salt());
+        vm.serializeString(_inputRootKey, "release", _dii.release());
+        vm.serializeAddress(_inputRootKey, "superchainConfigProxy", address(_dii.superchainConfigProxy()));
+        vm.serializeAddress(_inputRootKey, "protocolVersionsProxy", address(_dii.protocolVersionsProxy()));
     }
 
     function serializeInputFaultProofs(
-        DeployImplementationsInput dii,
-        string memory inputFaultProofsKey
+        DeployImplementationsInput _dii,
+        string memory _inputFaultProofsKey
     )
         internal
         returns (string memory)
     {
-        vm.serializeUint(inputFaultProofsKey, "withdrawalDelaySeconds", dii.withdrawalDelaySeconds());
-        vm.serializeUint(inputFaultProofsKey, "minProposalSizeBytes", dii.minProposalSizeBytes());
-        vm.serializeUint(inputFaultProofsKey, "challengePeriodSeconds", dii.challengePeriodSeconds());
-        vm.serializeUint(inputFaultProofsKey, "proofMaturityDelaySeconds", dii.proofMaturityDelaySeconds());
+        vm.serializeUint(_inputFaultProofsKey, "withdrawalDelaySeconds", _dii.withdrawalDelaySeconds());
+        vm.serializeUint(_inputFaultProofsKey, "minProposalSizeBytes", _dii.minProposalSizeBytes());
+        vm.serializeUint(_inputFaultProofsKey, "challengePeriodSeconds", _dii.challengePeriodSeconds());
+        vm.serializeUint(_inputFaultProofsKey, "proofMaturityDelaySeconds", _dii.proofMaturityDelaySeconds());
         return vm.serializeUint(
-            inputFaultProofsKey, "disputeGameFinalityDelaySeconds", dii.disputeGameFinalityDelaySeconds()
+            _inputFaultProofsKey, "disputeGameFinalityDelaySeconds", _dii.disputeGameFinalityDelaySeconds()
         );
     }
 
-    function serializeOutputs(string memory outputsKey) internal returns (string memory) {
-        vm.serializeAddress(outputsKey, "opsmProxy", address(this.opsmProxy()));
-        vm.serializeAddress(outputsKey, "delayedWETHImpl", address(this.delayedWETHImpl()));
-        vm.serializeAddress(outputsKey, "optimismPortalImpl", address(this.optimismPortalImpl()));
-        vm.serializeAddress(outputsKey, "preimageOracleSingleton", address(this.preimageOracleSingleton()));
-        vm.serializeAddress(outputsKey, "mipsSingleton", address(this.mipsSingleton()));
-        vm.serializeAddress(outputsKey, "systemConfigImpl", address(this.systemConfigImpl()));
-        vm.serializeAddress(outputsKey, "l1CrossDomainMessengerImpl", address(this.l1CrossDomainMessengerImpl()));
-        vm.serializeAddress(outputsKey, "l1ERC721BridgeImpl", address(this.l1ERC721BridgeImpl()));
-        vm.serializeAddress(outputsKey, "l1StandardBridgeImpl", address(this.l1StandardBridgeImpl()));
+    function serializeOutputs(string memory _outputsKey) internal returns (string memory) {
+        vm.serializeAddress(_outputsKey, "opsmProxy", address(this.opsmProxy()));
+        vm.serializeAddress(_outputsKey, "delayedWETHImpl", address(this.delayedWETHImpl()));
+        vm.serializeAddress(_outputsKey, "optimismPortalImpl", address(this.optimismPortalImpl()));
+        vm.serializeAddress(_outputsKey, "preimageOracleSingleton", address(this.preimageOracleSingleton()));
+        vm.serializeAddress(_outputsKey, "mipsSingleton", address(this.mipsSingleton()));
+        vm.serializeAddress(_outputsKey, "systemConfigImpl", address(this.systemConfigImpl()));
+        vm.serializeAddress(_outputsKey, "l1CrossDomainMessengerImpl", address(this.l1CrossDomainMessengerImpl()));
+        vm.serializeAddress(_outputsKey, "l1ERC721BridgeImpl", address(this.l1ERC721BridgeImpl()));
+        vm.serializeAddress(_outputsKey, "l1StandardBridgeImpl", address(this.l1StandardBridgeImpl()));
         vm.serializeAddress(
-            outputsKey, "optimismMintableERC20FactoryImpl", address(this.optimismMintableERC20FactoryImpl())
+            _outputsKey, "optimismMintableERC20FactoryImpl", address(this.optimismMintableERC20FactoryImpl())
         );
-        return vm.serializeAddress(outputsKey, "disputeGameFactoryImpl", address(this.disputeGameFactoryImpl()));
+        return vm.serializeAddress(_outputsKey, "disputeGameFactoryImpl", address(this.disputeGameFactoryImpl()));
     }
 
     function checkOutput(DeployImplementationsInput _dii) public {
