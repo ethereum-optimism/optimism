@@ -22,6 +22,14 @@ clean:
 elf:
 	make -C ./testdata/example elf
 
+sanitize-program:
+	@if ! { mips-linux-gnu-objdump -d -j .text $$GUEST_PROGRAM | awk '{print $3}' | grep -Ew -m1 '(bgezal|bltzal)'; }; then \
+		echo "guest program is sanitized for unsupported instructions"; \
+	else \
+		echo "found unsupported instructions in the guest program"; \
+		exit 1; \
+	fi
+
 contract:
 	cd ../packages/contracts-bedrock && forge build
 
