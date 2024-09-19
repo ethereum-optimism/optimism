@@ -1958,13 +1958,13 @@ workflows:
           requires:
             - op-supervisor-docker-release
       - docker-build:
-          name: op-challenger-big-docker-release
+          name: proofs-tools-docker-release
           filters:
             tags:
-              only: /^op-challenger\/v.*/
+              only: /^proofs-tools\/v.*/
             branches:
               ignore: /.*/
-          docker_name: ci-builder
+          docker_name: proofs-tools
           docker_tags: <<pipeline.git.revision>>,latest
           publish: true
           release: true
@@ -1974,13 +1974,13 @@ workflows:
           requires:
             - hold
       - docker-build:
-          name: proofs-tools-docker-release
+          name: ci-builder-docker-release
           filters:
             tags:
-              only: /^proofs-tools\/v.*/
+              only: /^ci-builder\/v.*/
             branches:
               ignore: /.*/
-          docker_name: proofs-tools
+          docker_name: ci-builder
           docker_tags: <<pipeline.git.revision>>,latest
           publish: true
           release: true
