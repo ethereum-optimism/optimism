@@ -281,6 +281,7 @@ contract DeployImplementationsOutput is BaseDeployIO {
         assertValidL1StandardBridgeImpl(_dii);
         assertValidMipsSingleton(_dii);
         assertValidOpsmProxy(_dii);
+        assertValidOpsmImpl(_dii);
         assertValidOptimismMintableERC20FactoryImpl(_dii);
         assertValidOptimismPortalImpl(_dii);
         assertValidPreimageOracleSingleton(_dii);
@@ -292,20 +293,22 @@ contract DeployImplementationsOutput is BaseDeployIO {
         Proxy proxy = Proxy(payable(address(opsmProxy())));
         vm.prank(address(0));
         address admin = proxy.admin();
-        require(admin == address(_dii.superchainProxyAdmin()), "OPSM-10");
+        require(admin == address(_dii.superchainProxyAdmin()), "OPSMP-10");
 
         // Then we check the proxy as OPSM.
         DeployUtils.assertInitialized({ _contractAddress: address(opsmProxy()), _slot: 0, _offset: 0 });
-        require(address(opsmProxy().superchainConfig()) == address(_dii.superchainConfigProxy()), "OPSM-20");
-        require(address(opsmProxy().protocolVersions()) == address(_dii.protocolVersionsProxy()), "OPSM-30");
-        require(LibString.eq(opsmProxy().latestRelease(), _dii.release()), "OPSM-50"); // Initial release is latest.
+        require(address(opsmProxy().superchainConfig()) == address(_dii.superchainConfigProxy()), "OPSMP-20");
+        require(address(opsmProxy().protocolVersions()) == address(_dii.protocolVersionsProxy()), "OPSMP-30");
+        require(LibString.eq(opsmProxy().latestRelease(), _dii.release()), "OPSMP-50"); // Initial release is latest.
+    }
 
-        // Lastly we check its implementation.
+    function assertValidOpsmImpl(DeployImplementationsInput _dii) internal {
+        Proxy proxy = Proxy(payable(address(opsmProxy())));
         vm.prank(address(0));
         OPStackManager impl = OPStackManager(proxy.implementation());
         DeployUtils.assertInitialized({ _contractAddress: address(impl), _slot: 0, _offset: 0 });
-        require(address(impl.superchainConfig()) == address(_dii.superchainConfigProxy()), "OPSM-60");
-        require(address(impl.protocolVersions()) == address(_dii.protocolVersionsProxy()), "OPSM-70");
+        require(address(impl.superchainConfig()) == address(_dii.superchainConfigProxy()), "OPSMI-10");
+        require(address(impl.protocolVersions()) == address(_dii.protocolVersionsProxy()), "OPSMI-20");
     }
 
     function assertValidOptimismPortalImpl(DeployImplementationsInput) internal view {
