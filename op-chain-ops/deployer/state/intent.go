@@ -90,8 +90,6 @@ type SuperchainRoles struct {
 type ChainIntent struct {
 	ID common.Hash `json:"id" toml:"id"`
 
-	StartingAnchorRoots []byte `json:"startingAnchorRoots" toml:"startingAnchorRoots"`
-
 	Roles ChainRoles `json:"roles" toml:"roles"`
 
 	DeployOverrides map[string]any `json:"deployOverrides" toml:"deployOverrides"`
