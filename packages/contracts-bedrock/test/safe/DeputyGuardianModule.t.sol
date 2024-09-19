@@ -1,17 +1,22 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { ForgeArtifacts, Abi } from "scripts/libraries/ForgeArtifacts.sol";
 import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import "test/safe-tools/SafeTestTools.sol";
 
-import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
-import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
-import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
+// Contracts
 import { DeputyGuardianModule } from "src/safe/DeputyGuardianModule.sol";
 
+// Libraries
 import "src/dispute/lib/Types.sol";
+
+// Interfaces
+import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
+import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
+import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistry.sol";
 
 contract DeputyGuardianModule_TestInit is CommonTest, SafeTestTools {
     using SafeTestLib for SafeInstance;
@@ -152,13 +157,13 @@ contract DeputyGuardianModule_Unpause_TestFail is DeputyGuardianModule_Unpause_T
 
 contract DeputyGuardianModule_SetAnchorState_TestFail is DeputyGuardianModule_TestInit {
     function test_setAnchorState_notDeputyGuardian_reverts() external {
-        AnchorStateRegistry asr = AnchorStateRegistry(makeAddr("asr"));
+        IAnchorStateRegistry asr = IAnchorStateRegistry(makeAddr("asr"));
         vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector));
         deputyGuardianModule.setAnchorState(asr, IFaultDisputeGame(address(0)));
     }
 
     function test_setAnchorState_targetReverts_reverts() external {
-        AnchorStateRegistry asr = AnchorStateRegistry(makeAddr("asr"));
+        IAnchorStateRegistry asr = IAnchorStateRegistry(makeAddr("asr"));
         vm.mockCallRevert(
             address(asr),
             abi.encodeWithSelector(asr.setAnchorState.selector),
@@ -174,10 +179,10 @@ contract DeputyGuardianModule_SetAnchorState_TestFail is DeputyGuardianModule_Te
 
 contract DeputyGuardianModule_SetAnchorState_Test is DeputyGuardianModule_TestInit {
     function test_setAnchorState_succeeds() external {
-        AnchorStateRegistry asr = AnchorStateRegistry(makeAddr("asr"));
+        IAnchorStateRegistry asr = IAnchorStateRegistry(makeAddr("asr"));
         vm.mockCall(
             address(asr),
-            abi.encodeWithSelector(AnchorStateRegistry.setAnchorState.selector, IFaultDisputeGame(address(0))),
+            abi.encodeWithSelector(IAnchorStateRegistry.setAnchorState.selector, IFaultDisputeGame(address(0))),
             ""
         );
         vm.expectEmit(address(safeInstance.safe));

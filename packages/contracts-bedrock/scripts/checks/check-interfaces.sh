@@ -48,26 +48,24 @@ EXCLUDE_CONTRACTS=(
     "KontrolCheatsBase"
 
     # TODO: Interfaces that need to be fixed
-    "IPreimageOracle"
-    "IOptimismMintableERC721"
-    "IFaultDisputeGame"
     "IOptimismSuperchainERC20"
-    "IInitializable"
+    "IOptimismMintableERC721"
     "IOptimismMintableERC20"
     "ILegacyMintableERC20"
+    "IInitializable"
+    "IPreimageOracle"
+    "ICrossL2Inbox"
+    "IL2ToL2CrossDomainMessenger"
     "MintableAndBurnable"
-    "IDisputeGameFactory"
     "IWETH"
     "IDelayedWETH"
-    "IAnchorStateRegistry"
-    "ICrossL2Inbox"
-    "IL1CrossDomainMessenger"
-    "IL2ToL2CrossDomainMessenger"
+
+    # TODO: Kontrol interfaces that need to be removed
     "IL1ERC721Bridge"
     "IL1StandardBridge"
+    "IL1CrossDomainMessenger"
     "ISuperchainConfig"
     "IOptimismPortal"
-    "IL1BlockIsthmus"
 )
 
 # Find all JSON files in the forge-artifacts folder
