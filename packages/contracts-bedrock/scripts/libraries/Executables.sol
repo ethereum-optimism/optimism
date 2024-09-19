@@ -31,4 +31,20 @@ library Executables {
         commands[2] = "cast abi-encode 'f(string)' $(git rev-parse HEAD || cat .gitcommit)";
         return abi.decode(Process.run(commands), (string));
     }
+
+    function prependContentToFile(string memory _contentToPrepend, string memory _outfile) public {
+        string[] memory command = new string[](3);
+        command[0] = Executables.bash;
+        command[1] = "-c";
+        command[2] = string.concat(
+            "temp_file=${RANDOM}${RANDOM}_temp_file.toml && " // can't use timestamp because testsuite runs in parallel
+            "printf '",
+            _contentToPrepend,
+            "' | cat - ",
+            _outfile,
+            " > $temp_file && mv $temp_file ",
+            _outfile
+        );
+        Process.run(command);
+    }
 }

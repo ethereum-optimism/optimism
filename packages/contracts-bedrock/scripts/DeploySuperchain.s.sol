@@ -12,6 +12,8 @@ import { Proxy } from "src/universal/Proxy.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
 import { BaseDeployIO } from "scripts/utils/BaseDeployIO.sol";
+import { Executables } from "scripts/libraries/Executables.sol";
+import { Process } from "scripts/libraries/Process.sol";
 
 // This comment block defines the requirements and rationale for the architecture used in this forge
 // script, along with other scripts that are being written as new Superchain-first deploy scripts to
@@ -117,17 +119,17 @@ contract DeploySuperchainInput is BaseDeployIO {
         string memory toml = vm.readFile(_infile);
 
         // Parse and set role inputs.
-        set(this.guardian.selector, toml.readAddress(".dsi.roles.guardian"));
-        set(this.protocolVersionsOwner.selector, toml.readAddress(".dsi.roles.protocolVersionsOwner"));
-        set(this.proxyAdminOwner.selector, toml.readAddress(".dsi.roles.proxyAdminOwner"));
+        set(this.guardian.selector, toml.readAddress(".roles.guardian"));
+        set(this.protocolVersionsOwner.selector, toml.readAddress(".roles.protocolVersionsOwner"));
+        set(this.proxyAdminOwner.selector, toml.readAddress(".roles.proxyAdminOwner"));
 
         // Parse and set other inputs.
-        set(this.paused.selector, toml.readBool(".dsi.paused"));
+        set(this.paused.selector, vm.keyExistsToml(toml, ".paused") ? toml.readBool(".paused") : false);
 
-        uint256 recVersion = toml.readUint(".dsi.protocolVersions.recommendedProtocolVersion");
+        uint256 recVersion = toml.readUint(".recommendedProtocolVersion");
         set(this.recommendedProtocolVersion.selector, ProtocolVersion.wrap(recVersion));
 
-        uint256 reqVersion = toml.readUint(".dsi.protocolVersions.requiredProtocolVersion");
+        uint256 reqVersion = toml.readUint(".requiredProtocolVersion");
         set(this.requiredProtocolVersion.selector, ProtocolVersion.wrap(reqVersion));
     }
 
@@ -195,46 +197,49 @@ contract DeploySuperchainOutput is BaseDeployIO {
         else revert("DeploySuperchainOutput: unknown selector");
     }
 
+    // A temporary file is created when writing the final output because Foundry enforces
+    // alphabetical ordering when generating TOML files. To preserve the desired order of the outputs,
+    // we first write them to a temporary file, then prepend the contents of the temporary file
+    // to the final output file.
     function writeOutputFile(DeploySuperchainInput dsi, string memory _outfile) public {
-        string memory dsiKey = "dsi";
-        string memory dsiJson = vm.serializeBool(dsiKey, "paused", dsi.paused());
+        // Creating temporary inputs toml file
+        string memory root = vm.projectRoot();
+        string memory tempOutFile = string.concat(root, "/.tempdata/temp-deploy-superchain-out.toml");
 
-        // Serialize the 'dsi.protocolVersions' section
-        string memory dsiProtocolVersionsKey = "dsi.protocolVersions";
+        string memory inputRootKey = "inputRoot";
+        string memory inputsJson = vm.serializeBool(inputRootKey, "paused", dsi.paused());
         string memory protocolVersionsJson = vm.serializeUint(
-            dsiProtocolVersionsKey, "requiredProtocolVersion", ProtocolVersion.unwrap(dsi.requiredProtocolVersion())
+            inputRootKey, "requiredProtocolVersion", ProtocolVersion.unwrap(dsi.requiredProtocolVersion())
         );
         protocolVersionsJson = vm.serializeUint(
-            dsiProtocolVersionsKey,
-            "recommendedProtocolVersion",
-            ProtocolVersion.unwrap(dsi.recommendedProtocolVersion())
+            inputRootKey, "recommendedProtocolVersion", ProtocolVersion.unwrap(dsi.recommendedProtocolVersion())
         );
 
-        // Serialize the 'dsi.roles' section
-        string memory dsiRolesKey = "dsi.roles";
-        string memory rolesJson = vm.serializeAddress(dsiRolesKey, "proxyAdminOwner", dsi.proxyAdminOwner());
-        rolesJson = vm.serializeAddress(dsiRolesKey, "protocolVersionsOwner", dsi.protocolVersionsOwner());
-        rolesJson = vm.serializeAddress(dsiRolesKey, "guardian", dsi.guardian());
+        string memory inputRolesKey = "roles";
+        string memory rolesJson = vm.serializeAddress(inputRolesKey, "proxyAdminOwner", dsi.proxyAdminOwner());
+        vm.serializeAddress(inputRolesKey, "protocolVersionsOwner", dsi.protocolVersionsOwner());
+        rolesJson = vm.serializeAddress(inputRolesKey, "guardian", dsi.guardian());
 
-        // Combine the 'dsi' sections
-        dsiJson = vm.serializeString(dsiKey, "protocolVersions", protocolVersionsJson);
-        dsiJson = vm.serializeString(dsiKey, "roles", rolesJson);
+        inputsJson = vm.serializeString(inputRootKey, inputRolesKey, rolesJson);
+        vm.writeToml(inputsJson, tempOutFile);
 
-        // Serialize the 'dso' section
-        string memory dsoKey = "dso";
-        string memory dsoJson =
-            vm.serializeAddress(dsoKey, "superchainProxyAdmin", address(this.superchainProxyAdmin()));
-        dsoJson = vm.serializeAddress(dsoKey, "superchainConfigImpl", address(this.superchainConfigImpl()));
-        dsoJson = vm.serializeAddress(dsoKey, "superchainConfigProxy", address(this.superchainConfigProxy()));
-        dsoJson = vm.serializeAddress(dsoKey, "protocolVersionsImpl", address(this.protocolVersionsImpl()));
-        dsoJson = vm.serializeAddress(dsoKey, "protocolVersionsProxy", address(this.protocolVersionsProxy()));
+        // Creating outputs toml file
+        string memory outputsKey = "outputs";
+        string memory outputsJson =
+            vm.serializeAddress(outputsKey, "superchainProxyAdmin", address(this.superchainProxyAdmin()));
+        vm.serializeAddress(outputsKey, "superchainConfigImpl", address(this.superchainConfigImpl()));
+        vm.serializeAddress(outputsKey, "superchainConfigProxy", address(this.superchainConfigProxy()));
+        vm.serializeAddress(outputsKey, "protocolVersionsImpl", address(this.protocolVersionsImpl()));
+        outputsJson = vm.serializeAddress(outputsKey, "protocolVersionsProxy", address(this.protocolVersionsProxy()));
 
-        // Combine the final JSON output
-        string memory finalJson = vm.serializeString("root", dsiKey, dsiJson);
-        finalJson = vm.serializeString("root", dsoKey, dsoJson);
+        outputsJson = vm.serializeString("outputRootKey", outputsKey, outputsJson);
+        vm.writeToml(outputsJson, _outfile);
 
-        // Write the final JSON as TOML to the file
-        vm.writeToml(finalJson, _outfile);
+        string memory tempFileToml = vm.readFile(tempOutFile);
+        Executables.prependContentToFile(string.concat(tempFileToml, "\n"), _outfile);
+
+        // Clean up temp file - test suite runs in parallel so have to check if file exists before we delete
+        if (vm.exists(tempOutFile)) vm.removeFile(tempOutFile);
     }
 
     // This function can be called to ensure all outputs are correct. Similar to `writeOutputFile`,

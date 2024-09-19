@@ -154,27 +154,26 @@ contract DeploySuperchainOutput_Test is Test {
         dsi.loadInputFile(expInPath);
 
         // Parse each dsi field of expOutToml
-        bool paused = expOutToml.readBool(".dsi.paused");
+        bool paused = expOutToml.readBool(".paused");
         assertEq(paused, dsi.paused(), "100");
-        ProtocolVersion requiredProtocolVersion =
-            ProtocolVersion.wrap(expOutToml.readUint(".dsi.protocolVersions.requiredProtocolVersion"));
+        ProtocolVersion requiredProtocolVersion = ProtocolVersion.wrap(expOutToml.readUint(".requiredProtocolVersion"));
         assertEq(
             ProtocolVersion.unwrap(requiredProtocolVersion),
             ProtocolVersion.unwrap(dsi.requiredProtocolVersion()),
             "200"
         );
         ProtocolVersion recommendedProtocolVersion =
-            ProtocolVersion.wrap(expOutToml.readUint(".dsi.protocolVersions.recommendedProtocolVersion"));
+            ProtocolVersion.wrap(expOutToml.readUint(".recommendedProtocolVersion"));
         assertEq(
             ProtocolVersion.unwrap(recommendedProtocolVersion),
             ProtocolVersion.unwrap(dsi.recommendedProtocolVersion()),
             "300"
         );
-        address guardian = expOutToml.readAddress(".dsi.roles.guardian");
+        address guardian = expOutToml.readAddress(".roles.guardian");
         assertEq(guardian, dsi.guardian(), "400");
-        address protocolVersionsOwner = expOutToml.readAddress(".dsi.roles.protocolVersionsOwner");
+        address protocolVersionsOwner = expOutToml.readAddress(".roles.protocolVersionsOwner");
         assertEq(protocolVersionsOwner, dsi.protocolVersionsOwner(), "500");
-        address proxyAdminOwner = expOutToml.readAddress(".dsi.roles.proxyAdminOwner");
+        address proxyAdminOwner = expOutToml.readAddress(".roles.proxyAdminOwner");
         assertEq(proxyAdminOwner, dsi.proxyAdminOwner(), "600");
     }
 
@@ -190,13 +189,15 @@ contract DeploySuperchainOutput_Test is Test {
         dsi.loadInputFile(expInPath);
 
         // Parse outputs
-        ProxyAdmin expSuperchainProxyAdmin = ProxyAdmin(expOutToml.readAddress(".dso.superchainProxyAdmin"));
-        SuperchainConfig expSuperchainConfigImpl = SuperchainConfig(expOutToml.readAddress(".dso.superchainConfigImpl"));
+        ProxyAdmin expSuperchainProxyAdmin = ProxyAdmin(expOutToml.readAddress(".outputs.superchainProxyAdmin"));
+        SuperchainConfig expSuperchainConfigImpl =
+            SuperchainConfig(expOutToml.readAddress(".outputs.superchainConfigImpl"));
         SuperchainConfig expSuperchainConfigProxy =
-            SuperchainConfig(expOutToml.readAddress(".dso.superchainConfigProxy"));
-        ProtocolVersions expProtocolVersionsImpl = ProtocolVersions(expOutToml.readAddress(".dso.protocolVersionsImpl"));
+            SuperchainConfig(expOutToml.readAddress(".outputs.superchainConfigProxy"));
+        ProtocolVersions expProtocolVersionsImpl =
+            ProtocolVersions(expOutToml.readAddress(".outputs.protocolVersionsImpl"));
         ProtocolVersions expProtocolVersionsProxy =
-            ProtocolVersions(expOutToml.readAddress(".dso.protocolVersionsProxy"));
+            ProtocolVersions(expOutToml.readAddress(".outputs.protocolVersionsProxy"));
 
         // Etch code at each address so the code checks pass when settings values.
         vm.etch(address(expSuperchainConfigImpl), hex"01");
