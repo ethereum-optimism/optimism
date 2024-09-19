@@ -166,10 +166,13 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 	assumedBlobs := s.currentChannel.cfg.UseBlobs
 	newCfg := s.cfgProvider.ChannelConfig()
 	if newCfg.UseBlobs == assumedBlobs {
-		s.log.Info("Recomputing optimal ChannelConfig: no need to switch DA type", "useBlobs", assumedBlobs)
+		s.log.Info("Recomputing optimal ChannelConfig: no need to switch DA type",
+			"useBlobs", assumedBlobs)
 		return data, err
 	}
-	s.log.Info("Recomputing optimal ChannelConfig: changing DA type...", "useBlobsBefore", assumedBlobs, "useBlobsAfter", newCfg.UseBlobs)
+	s.log.Info("Recomputing optimal ChannelConfig: changing DA type...",
+		"useBlobsBefore", assumedBlobs,
+		"useBlobsAfter", newCfg.UseBlobs)
 	// We have detected that our assumptions on DA
 	// type were wrong and we need to rebuild
 	// the channel manager state
@@ -202,7 +205,6 @@ func (s *channelManager) txData(l1Head eth.BlockID) (txData, error) {
 	s.log.Debug("Requested tx data", "l1Head", l1Head, "txdata_pending", dataPending, "blocks_pending", len(s.blocks))
 
 	// Short circuit if there is pending tx data or the channel manager is closed.
-
 	if dataPending || s.closed {
 		return s.nextTxData(firstWithTxData)
 	}
