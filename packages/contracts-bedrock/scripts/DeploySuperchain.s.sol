@@ -206,30 +206,28 @@ contract DeploySuperchainOutput is BaseDeployIO {
         string memory tempOutFile = string.concat(root, "/.tempdata/temp-deploy-superchain-out.toml");
 
         string memory inputRootKey = "inputRoot";
-        string memory inputsJson = vm.serializeBool(inputRootKey, "paused", dsi.paused());
-        string memory protocolVersionsJson = vm.serializeUint(
-            inputRootKey, "requiredProtocolVersion", ProtocolVersion.unwrap(dsi.requiredProtocolVersion())
-        );
-        protocolVersionsJson = vm.serializeUint(
+        vm.serializeBool(inputRootKey, "paused", dsi.paused());
+        vm.serializeUint(inputRootKey, "requiredProtocolVersion", ProtocolVersion.unwrap(dsi.requiredProtocolVersion()));
+        vm.serializeUint(
             inputRootKey, "recommendedProtocolVersion", ProtocolVersion.unwrap(dsi.recommendedProtocolVersion())
         );
 
         string memory inputRolesKey = "roles";
-        string memory rolesJson = vm.serializeAddress(inputRolesKey, "proxyAdminOwner", dsi.proxyAdminOwner());
+        vm.serializeAddress(inputRolesKey, "proxyAdminOwner", dsi.proxyAdminOwner());
         vm.serializeAddress(inputRolesKey, "protocolVersionsOwner", dsi.protocolVersionsOwner());
-        rolesJson = vm.serializeAddress(inputRolesKey, "guardian", dsi.guardian());
+        string memory rolesJson = vm.serializeAddress(inputRolesKey, "guardian", dsi.guardian());
 
-        inputsJson = vm.serializeString(inputRootKey, inputRolesKey, rolesJson);
+        string memory inputsJson = vm.serializeString(inputRootKey, inputRolesKey, rolesJson);
         vm.writeToml(inputsJson, tempOutFile);
 
         // Creating outputs toml file
         string memory outputsKey = "outputs";
-        string memory outputsJson =
-            vm.serializeAddress(outputsKey, "superchainProxyAdmin", address(this.superchainProxyAdmin()));
+        vm.serializeAddress(outputsKey, "superchainProxyAdmin", address(this.superchainProxyAdmin()));
         vm.serializeAddress(outputsKey, "superchainConfigImpl", address(this.superchainConfigImpl()));
         vm.serializeAddress(outputsKey, "superchainConfigProxy", address(this.superchainConfigProxy()));
         vm.serializeAddress(outputsKey, "protocolVersionsImpl", address(this.protocolVersionsImpl()));
-        outputsJson = vm.serializeAddress(outputsKey, "protocolVersionsProxy", address(this.protocolVersionsProxy()));
+        string memory outputsJson =
+            vm.serializeAddress(outputsKey, "protocolVersionsProxy", address(this.protocolVersionsProxy()));
 
         outputsJson = vm.serializeString("outputRootKey", outputsKey, outputsJson);
         vm.writeToml(outputsJson, _outfile);
