@@ -21,7 +21,7 @@ type DeployOPChainInput struct {
 	BlobBaseFeeScalar   uint32
 	L2ChainId           *big.Int
 	StartingAnchorRoots []byte
-	Opsm                common.Address
+	OpsmProxy           common.Address
 }
 
 func (input *DeployOPChainInput) InputSet() bool {

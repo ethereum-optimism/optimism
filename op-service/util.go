@@ -130,5 +130,5 @@ func FindMonorepoRoot(startDir string) (string, error) {
 		}
 		dir = parentDir
 	}
-	return "", fmt.Errorf("monorepo root not found")
+	return "", errors.New("monorepo root not found")
 }

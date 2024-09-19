@@ -115,12 +115,12 @@ contract DeployImplementationsOutput_Test is Test {
     }
 
     function test_set_succeeds() public {
-        Proxy opsmProxy = new Proxy(address(0));
-        address opsmImpl = address(makeAddr("opsm"));
+        Proxy proxy = new Proxy(address(0));
+        address opsmImpl = address(makeAddr("opsmImpl"));
         vm.prank(address(0));
-        opsmProxy.upgradeTo(opsmImpl);
+        proxy.upgradeTo(opsmImpl);
 
-        OPStackManager opsm = OPStackManager(address(opsmProxy));
+        OPStackManager opsmProxy = OPStackManager(address(proxy));
         OptimismPortal2 optimismPortalImpl = OptimismPortal2(payable(makeAddr("optimismPortalImpl")));
         DelayedWETH delayedWETHImpl = DelayedWETH(payable(makeAddr("delayedWETHImpl")));
         PreimageOracle preimageOracleSingleton = PreimageOracle(makeAddr("preimageOracleSingleton"));
@@ -146,7 +146,7 @@ contract DeployImplementationsOutput_Test is Test {
         vm.etch(address(l1StandardBridgeImpl), hex"01");
         vm.etch(address(optimismMintableERC20FactoryImpl), hex"01");
         vm.etch(address(disputeGameFactoryImpl), hex"01");
-        dio.set(dio.opsm.selector, address(opsm));
+        dio.set(dio.opsmProxy.selector, address(opsmProxy));
         dio.set(dio.optimismPortalImpl.selector, address(optimismPortalImpl));
         dio.set(dio.delayedWETHImpl.selector, address(delayedWETHImpl));
         dio.set(dio.preimageOracleSingleton.selector, address(preimageOracleSingleton));
@@ -158,7 +158,7 @@ contract DeployImplementationsOutput_Test is Test {
         dio.set(dio.optimismMintableERC20FactoryImpl.selector, address(optimismMintableERC20FactoryImpl));
         dio.set(dio.disputeGameFactoryImpl.selector, address(disputeGameFactoryImpl));
 
-        assertEq(address(opsm), address(dio.opsm()), "50");
+        assertEq(address(opsmProxy), address(dio.opsmProxy()), "50");
         assertEq(address(optimismPortalImpl), address(dio.optimismPortalImpl()), "100");
         assertEq(address(delayedWETHImpl), address(dio.delayedWETHImpl()), "200");
         assertEq(address(preimageOracleSingleton), address(dio.preimageOracleSingleton()), "300");

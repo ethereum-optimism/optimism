@@ -63,7 +63,7 @@ func DeployOPChain(ctx context.Context, env *Env, intent *state.Intent, st *stat
 						BlobBaseFeeScalar:      801949,
 						L2ChainId:              chainID.Big(),
 						StartingAnchorRoots:    []byte{},
-						Opsm:                   st.ImplementationsDeployment.OpsmAddress,
+						OpsmProxy:              st.ImplementationsDeployment.OpsmProxyAddress,
 					},
 				)
 				return err

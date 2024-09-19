@@ -62,7 +62,7 @@ contract DeployOPChainInput_Test is Test {
         doi.set(doi.basefeeScalar.selector, basefeeScalar);
         doi.set(doi.blobBaseFeeScalar.selector, blobBaseFeeScalar);
         doi.set(doi.l2ChainId.selector, l2ChainId);
-        doi.set(doi.opsm.selector, address(opsm));
+        doi.set(doi.opsmProxy.selector, address(opsm));
         // Compare the default inputs to the getter methods.
         assertEq(opChainProxyAdminOwner, doi.opChainProxyAdminOwner(), "200");
         assertEq(systemConfigOwner, doi.systemConfigOwner(), "300");
@@ -73,7 +73,7 @@ contract DeployOPChainInput_Test is Test {
         assertEq(basefeeScalar, doi.basefeeScalar(), "800");
         assertEq(blobBaseFeeScalar, doi.blobBaseFeeScalar(), "900");
         assertEq(l2ChainId, doi.l2ChainId(), "1000");
-        assertEq(address(opsm), address(doi.opsm()), "1100");
+        assertEq(address(opsm), address(doi.opsmProxy()), "1100");
     }
 
     function test_getters_whenNotSet_revert() public {
@@ -385,7 +385,7 @@ contract DeployOPChain_TestBase is Test {
         deployImplementations.run(dii, dio);
 
         // Set the OPStackManager input for DeployOPChain.
-        opsm = dio.opsm();
+        opsm = dio.opsmProxy();
     }
 
     // See the function of the same name in the `DeployImplementations_Test` contract of
@@ -429,7 +429,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         doi.set(doi.basefeeScalar.selector, basefeeScalar);
         doi.set(doi.blobBaseFeeScalar.selector, blobBaseFeeScalar);
         doi.set(doi.l2ChainId.selector, l2ChainId);
-        doi.set(doi.opsm.selector, address(opsm)); // Not fuzzed since it must be an actual instance.
+        doi.set(doi.opsmProxy.selector, address(opsm)); // Not fuzzed since it must be an actual instance.
         doi.set(doi.startingAnchorRoots.selector, startingAnchorRoots);
 
         deployOPChain.run(doi, doo);

@@ -48,13 +48,15 @@ library DeployUtils {
         }
     }
 
-    // Asserts that for a given contract the value of a storage slot at an offset is 1. This
-    // is used to assert that a contract is initialized.
+    // Asserts that for a given contract the value of a storage slot at an offset is 1 or
+    // `type(uint8).max`. The value is set to 1 when a contract is initialized, and set to
+    // `type(uint8).max` when `_disableInitializers` is called.
     function assertInitialized(address _contractAddress, uint256 _slot, uint256 _offset) internal view {
         bytes32 slotVal = vm.load(_contractAddress, bytes32(_slot));
+        uint8 value = uint8((uint256(slotVal) >> (_offset * 8)) & 0xFF);
         require(
-            uint8((uint256(slotVal) >> (_offset * 8)) & 0xFF) == uint8(1),
-            "Storage value is not 1 at the given slot and offset"
+            value == 1 || value == type(uint8).max,
+            "Value at the given slot and offset does not indicate initialization"
         );
     }
 }
