@@ -236,7 +236,13 @@ contract DeploySuperchainOutput is BaseDeployIO {
         );
     }
 
-    function serializeInputRoles(DeploySuperchainInput dsi, string memory inputRolesKey) internal returns (string memory) {
+    function serializeInputRoles(
+        DeploySuperchainInput dsi,
+        string memory inputRolesKey
+    )
+        internal
+        returns (string memory)
+    {
         vm.serializeAddress(inputRolesKey, "proxyAdminOwner", dsi.proxyAdminOwner());
         vm.serializeAddress(inputRolesKey, "protocolVersionsOwner", dsi.protocolVersionsOwner());
         return vm.serializeAddress(inputRolesKey, "guardian", dsi.guardian());
