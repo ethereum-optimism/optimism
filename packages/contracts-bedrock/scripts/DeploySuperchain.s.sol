@@ -200,16 +200,16 @@ contract DeploySuperchainOutput is BaseDeployIO {
     // alphabetical ordering when generating TOML files. To preserve the desired order of the outputs,
     // we first write them to a temporary file, then prepend the contents of the temporary file
     // to the final output file.
-    function writeOutputFile(DeploySuperchainInput dsi, string memory _outfile) public {
+    function writeOutputFile(DeploySuperchainInput _dsi, string memory _outfile) public {
         string memory root = vm.projectRoot();
         string memory tempOutFile = string.concat(root, "/.tempdata/temp-deploy-superchain-out.toml");
 
         // Serialize input values
         string memory inputRootKey = "inputRoot";
-        serializeInput(dsi, inputRootKey);
+        serializeInput(_dsi, inputRootKey);
         // Serialize roles section
         string memory inputRolesKey = "roles";
-        string memory rolesJson = serializeInputRoles(dsi, inputRolesKey);
+        string memory rolesJson = serializeInputRoles(_dsi, inputRolesKey);
         // Write serialized inputs to the temp file
         string memory inputsJson = vm.serializeString(inputRootKey, inputRolesKey, rolesJson);
         vm.writeToml(inputsJson, tempOutFile);
