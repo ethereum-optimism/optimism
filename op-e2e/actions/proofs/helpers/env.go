@@ -38,7 +38,7 @@ type L2FaultProofEnv struct {
 
 func NewL2FaultProofEnv[c any](t helpers.Testing, testCfg *TestCfg[c], tp *e2eutils.TestParams, batcherCfg *helpers.BatcherCfg) *L2FaultProofEnv {
 	log := testlog.Logger(t, log.LvlDebug)
-	dp := NewDeployParams(t, func(dp *e2eutils.DeployParams) {
+	dp := NewDeployParams(t, tp, func(dp *e2eutils.DeployParams) {
 		genesisBlock := hexutil.Uint64(0)
 
 		// Enable cancun always
@@ -208,8 +208,8 @@ func NewTestParams(params ...TestParam) *e2eutils.TestParams {
 
 type DeployParam func(p *e2eutils.DeployParams)
 
-func NewDeployParams(t helpers.Testing, params ...DeployParam) *e2eutils.DeployParams {
-	dfault := e2eutils.MakeDeployParams(t, NewTestParams())
+func NewDeployParams(t helpers.Testing, tp *e2eutils.TestParams, params ...DeployParam) *e2eutils.DeployParams {
+	dfault := e2eutils.MakeDeployParams(t, tp)
 	for _, apply := range params {
 		apply(dfault)
 	}
