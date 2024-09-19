@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
@@ -15,7 +16,7 @@ const randomByteCalldataGas = params.TxDataNonZeroGasEIP2028
 type (
 	ChannelConfigProvider interface {
 		ChannelConfigFull() ChannelConfig
-		ChannelConfig(data []byte) ChannelConfig
+		ChannelConfig(txData) ChannelConfig
 	}
 
 	GasPricer interface {
@@ -48,9 +49,49 @@ func NewDynamicEthChannelConfig(lgr log.Logger,
 	dec.lastConfig = &dec.blobConfig
 	return dec
 }
-func (dec *DynamicEthChannelConfig) ChannelConfig(data []byte) ChannelConfig {
-	// TODO do a proper estimation/decision using actual data
-	return dec.ChannelConfigFull()
+
+// ChannelConfig will perform a detailed comparison of costs to submit the supplied
+// txData either as a single calldata transaction or as a single blob transaction
+// taking into account current market conditions. It returns a ChannelConfig
+// of the appropriate type depending on which DA type is cheaper.
+func (dec *DynamicEthChannelConfig) ChannelConfig(d txData) ChannelConfig {
+	ctx, cancel := context.WithTimeout(context.Background(), dec.timeout)
+	defer cancel()
+	tipCap, baseFee, blobBaseFee, err := dec.gasPricer.SuggestGasPriceCaps(ctx)
+	if err != nil {
+		dec.log.Warn("Error querying gas prices, returning last config", "err", err)
+		return *dec.lastConfig
+	}
+
+	// Calldata Calculation
+	callDataBytes := d.CallData()
+	callDataGas, err := core.IntrinsicGas(callDataBytes, nil, false, true, true, true)
+	callDataGas += params.TxGas
+	calldataPrice := new(big.Int).Add(baseFee, tipCap)
+	calldataCost := new(big.Int).Mul(big.NewInt(int64(callDataGas)), calldataPrice)
+
+	// Blob Calculation
+	blobs, err := d.Blobs()
+	blobGas := big.NewInt(params.BlobTxBlobGasPerBlob * int64(len(blobs)))
+	blobCost := new(big.Int).Mul(blobGas, blobBaseFee)
+	// blobs still have intrinsic calldata costs
+	blobCalldataCost := new(big.Int).Mul(big.NewInt(int64(params.TxGas)), calldataPrice)
+	blobCost = new(big.Int).Add(blobCost, blobCalldataCost)
+
+	lgr := dec.log.New("base_fee", baseFee, "blob_base_fee", blobBaseFee, "tip_cap", tipCap,
+		"calldata_cost", calldataCost,
+		"blob_cost", blobCost)
+
+	// Comparison
+	if blobCost.Cmp(calldataCost) > 0 {
+		lgr.Info("Using calldata channel config")
+		dec.lastConfig = &dec.calldataConfig
+		return dec.calldataConfig
+	}
+	lgr.Info("Using blob channel config")
+	dec.lastConfig = &dec.blobConfig
+	return dec.blobConfig
+
 }
 func (dec *DynamicEthChannelConfig) ChannelConfigFull() ChannelConfig {
 	ctx, cancel := context.WithTimeout(context.Background(), dec.timeout)
@@ -93,7 +134,7 @@ func (dec *DynamicEthChannelConfig) ChannelConfigFull() ChannelConfig {
 		"blob_data_bytes", blobDataBytes, "blob_cost", blobCost,
 		"cost_ratio", costRatio)
 
-	if ay.Cmp(bx) == 1 {
+	if ay.Cmp(bx) > 0 {
 		lgr.Info("Using calldata channel config")
 		dec.lastConfig = &dec.calldataConfig
 		return dec.calldataConfig

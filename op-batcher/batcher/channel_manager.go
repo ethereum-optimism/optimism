@@ -159,8 +159,8 @@ func (s *channelManager) nextTxData(channel *channel) (txData, error) {
 // successfully fully sent to L1. It returns io.EOF if there's no pending tx data.
 //
 // It will generate the tx data internally, and decide whether to switch DA type
-// automatically. When switching DA type, all channels which have not begun to be submitted
-// will be rebuilt with a new ChannelConfig.
+// automatically. When switching DA type, the channelManager state will be rebuilt
+// with a new ChannelConfig.
 func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 	data, err := s.txData(l1Head)
 	if s.currentChannel == nil {
@@ -168,7 +168,7 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 		return data, err
 	}
 	assumedBlobs := s.currentChannel.cfg.UseBlobs
-	newCfg := s.cfgProvider.ChannelConfig(data.CallData())
+	newCfg := s.cfgProvider.ChannelConfig(data)
 	if newCfg.UseBlobs == assumedBlobs { // TODO should we broaden this check to any change in config?
 		s.log.Info("Recomputing optimal ChannelConfig: no need to switch DA type", "useBlobs", assumedBlobs)
 		return data, err

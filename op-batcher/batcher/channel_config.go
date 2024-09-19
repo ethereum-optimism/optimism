@@ -59,7 +59,7 @@ func (cc ChannelConfig) ChannelConfigFull() ChannelConfig {
 
 // ChannelConfig returns a copy of the receiver. This allows the receiver to be a static
 // ChannelConfigProvider of itself.
-func (cc ChannelConfig) ChannelConfig(data []byte) ChannelConfig {
+func (cc ChannelConfig) ChannelConfig(data txData) ChannelConfig {
 	return cc
 }
 
