@@ -51,6 +51,6 @@ var RunTraceCommand = &cli.Command{
 
 var addMTCannonPrestate = &cli.StringFlag{
 	Name:    "add-mt-cannon-prestate",
-	Usage:   "After running Cannon traces, additionally use this prestate to run MT-Cannon",
+	Usage:   "Use this prestate to run MT-Cannon compatibility tests",
 	EnvVars: opservice.PrefixEnvVar(flags.EnvVarPrefix, "ADD_MT_CANNON_PRESTATE"),
 }
