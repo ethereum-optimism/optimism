@@ -300,7 +300,7 @@ contract DeployImplementationsOutput is BaseDeployIO {
         require(address(opsmProxy().protocolVersions()) == address(_dii.protocolVersionsProxy()), "OPSM-30");
         require(LibString.eq(opsmProxy().latestRelease(), _dii.release()), "OPSM-50"); // Initial release is latest.
 
-        // Lastly we check it's implementation.
+        // Lastly we check its implementation.
         vm.prank(address(0));
         OPStackManager impl = OPStackManager(proxy.implementation());
         DeployUtils.assertInitialized({ _contractAddress: address(impl), _slot: 0, _offset: 0 });
