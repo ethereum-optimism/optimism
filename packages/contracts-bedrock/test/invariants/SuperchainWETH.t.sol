@@ -1,14 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Testing
 import { StdUtils } from "forge-std/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
-
-import { Predeploys } from "src/libraries/Predeploys.sol";
-import { SuperchainWETH } from "src/L2/SuperchainWETH.sol";
-import { IL2ToL2CrossDomainMessenger } from "src/L2/interfaces/IL2ToL2CrossDomainMessenger.sol";
-
 import { CommonTest } from "test/setup/CommonTest.sol";
+
+// Libraries
+import { Predeploys } from "src/libraries/Predeploys.sol";
+
+// Interfaces
+import { ISuperchainWETH } from "src/L2/interfaces/ISuperchainWETH.sol";
+import { IL2ToL2CrossDomainMessenger } from "src/L2/interfaces/IL2ToL2CrossDomainMessenger.sol";
 
 /// @title SuperchainWETH_User
 /// @notice Actor contract that interacts with the SuperchainWETH contract.
@@ -26,7 +29,7 @@ contract SuperchainWETH_User is StdUtils {
     Vm internal vm;
 
     /// @notice The SuperchainWETH contract.
-    SuperchainWETH internal weth;
+    ISuperchainWETH internal weth;
 
     /// @notice Mapping of sent messages.
     mapping(bytes32 => bool) internal sent;
@@ -37,7 +40,7 @@ contract SuperchainWETH_User is StdUtils {
     /// @param _vm The Vm contract.
     /// @param _weth The SuperchainWETH contract.
     /// @param _balance The initial balance of the contract.
-    constructor(Vm _vm, SuperchainWETH _weth, uint256 _balance) {
+    constructor(Vm _vm, ISuperchainWETH _weth, uint256 _balance) {
         vm = _vm;
         weth = _weth;
         vm.deal(address(this), _balance);

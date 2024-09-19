@@ -14,15 +14,6 @@ import { OutputMode, Fork, ForkUtils } from "scripts/libraries/Config.sol";
 import { Executables } from "scripts/libraries/Executables.sol";
 
 // Contracts
-import { BaseFeeVault } from "src/L2/BaseFeeVault.sol";
-import { SequencerFeeVault } from "src/L2/SequencerFeeVault.sol";
-import { L1FeeVault } from "src/L2/L1FeeVault.sol";
-import { GasPriceOracle } from "src/L2/GasPriceOracle.sol";
-import { L1Block } from "src/L2/L1Block.sol";
-import { FeeVault } from "src/universal/FeeVault.sol";
-import { WETH } from "src/L2/WETH.sol";
-import { SuperchainWETH } from "src/L2/SuperchainWETH.sol";
-import { ETHLiquidity } from "src/L2/ETHLiquidity.sol";
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { DelayedWETH } from "src/dispute/DelayedWETH.sol";
 import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
@@ -50,6 +41,14 @@ import { IL2ERC721Bridge } from "src/L2/interfaces/IL2ERC721Bridge.sol";
 import { IOptimismMintableERC20Factory } from "src/universal/interfaces/IOptimismMintableERC20Factory.sol";
 import { IAddressManager } from "src/legacy/interfaces/IAddressManager.sol";
 import { IOptimismERC20Factory } from "src/L2/interfaces/IOptimismERC20Factory.sol";
+import { IBaseFeeVault } from "src/L2/interfaces/IBaseFeeVault.sol";
+import { ISequencerFeeVault } from "src/L2/interfaces/ISequencerFeeVault.sol";
+import { IL1FeeVault } from "src/L2/interfaces/IL1FeeVault.sol";
+import { IGasPriceOracle } from "src/L2/interfaces/IGasPriceOracle.sol";
+import { IL1Block } from "src/L2/interfaces/IL1Block.sol";
+import { ISuperchainWETH } from "src/L2/interfaces/ISuperchainWETH.sol";
+import { IETHLiquidity } from "src/L2/interfaces/IETHLiquidity.sol";
+import { IWETH } from "src/universal/interfaces/IWETH.sol";
 import { IGovernanceToken } from "src/governance/interfaces/IGovernanceToken.sol";
 import { ILegacyMessagePasser } from "src/legacy/interfaces/ILegacyMessagePasser.sol";
 
@@ -99,16 +98,16 @@ contract Setup {
     IOptimismMintableERC20Factory l2OptimismMintableERC20Factory =
         IOptimismMintableERC20Factory(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY);
     IL2ERC721Bridge l2ERC721Bridge = IL2ERC721Bridge(Predeploys.L2_ERC721_BRIDGE);
-    BaseFeeVault baseFeeVault = BaseFeeVault(payable(Predeploys.BASE_FEE_VAULT));
-    SequencerFeeVault sequencerFeeVault = SequencerFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET));
-    L1FeeVault l1FeeVault = L1FeeVault(payable(Predeploys.L1_FEE_VAULT));
-    GasPriceOracle gasPriceOracle = GasPriceOracle(Predeploys.GAS_PRICE_ORACLE);
-    L1Block l1Block = L1Block(Predeploys.L1_BLOCK_ATTRIBUTES);
+    IBaseFeeVault baseFeeVault = IBaseFeeVault(payable(Predeploys.BASE_FEE_VAULT));
+    ISequencerFeeVault sequencerFeeVault = ISequencerFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET));
+    IL1FeeVault l1FeeVault = IL1FeeVault(payable(Predeploys.L1_FEE_VAULT));
+    IGasPriceOracle gasPriceOracle = IGasPriceOracle(Predeploys.GAS_PRICE_ORACLE);
+    IL1Block l1Block = IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES);
     IGovernanceToken governanceToken = IGovernanceToken(Predeploys.GOVERNANCE_TOKEN);
     ILegacyMessagePasser legacyMessagePasser = ILegacyMessagePasser(Predeploys.LEGACY_MESSAGE_PASSER);
-    WETH weth = WETH(payable(Predeploys.WETH));
-    SuperchainWETH superchainWeth = SuperchainWETH(payable(Predeploys.SUPERCHAIN_WETH));
-    ETHLiquidity ethLiquidity = ETHLiquidity(Predeploys.ETH_LIQUIDITY);
+    IWETH weth = IWETH(payable(Predeploys.WETH));
+    ISuperchainWETH superchainWeth = ISuperchainWETH(payable(Predeploys.SUPERCHAIN_WETH));
+    IETHLiquidity ethLiquidity = IETHLiquidity(Predeploys.ETH_LIQUIDITY);
 
     // TODO: Replace with OptimismSuperchainERC20Factory when updating pragmas
     IOptimismERC20Factory l2OptimismSuperchainERC20Factory =

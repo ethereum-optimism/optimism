@@ -15,8 +15,6 @@ import { Process } from "scripts/libraries/Process.sol";
 import { SetPreinstalls } from "scripts/SetPreinstalls.s.sol";
 
 // Contracts
-import { L1Block } from "src/L2/L1Block.sol";
-import { GasPriceOracle } from "src/L2/GasPriceOracle.sol";
 import { SequencerFeeVault } from "src/L2/SequencerFeeVault.sol";
 import { BaseFeeVault } from "src/L2/BaseFeeVault.sol";
 import { L1FeeVault } from "src/L2/L1FeeVault.sol";
@@ -31,11 +29,13 @@ import { Preinstalls } from "src/libraries/Preinstalls.sol";
 
 // Interfaces
 import { IOptimismMintableERC20Factory } from "src/universal/interfaces/IOptimismMintableERC20Factory.sol";
-import { IL2CrossDomainMessenger } from "src/L2/interfaces/IL2CrossDomainMessenger.sol";
 import { IL2StandardBridge } from "src/L2/interfaces/IL2StandardBridge.sol";
 import { IL2ERC721Bridge } from "src/L2/interfaces/IL2ERC721Bridge.sol";
 import { IStandardBridge } from "src/universal/interfaces/IStandardBridge.sol";
 import { ICrossDomainMessenger } from "src/universal/interfaces/ICrossDomainMessenger.sol";
+import { IL2CrossDomainMessenger } from "src/L2/interfaces/IL2CrossDomainMessenger.sol";
+import { IGasPriceOracle } from "src/L2/interfaces/IGasPriceOracle.sol";
+import { IL1Block } from "src/L2/interfaces/IL1Block.sol";
 
 interface IInitializable {
     function initialize(address _addr) external;
@@ -568,14 +568,14 @@ contract L2Genesis is Deployer {
         require(Preinstalls.BeaconBlockRoots.code.length > 0, "L2Genesis: must have beacon-block-roots contract");
         console.log("Activating ecotone in GasPriceOracle contract");
 
-        vm.prank(L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).DEPOSITOR_ACCOUNT());
-        GasPriceOracle(Predeploys.GAS_PRICE_ORACLE).setEcotone();
+        vm.prank(IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).DEPOSITOR_ACCOUNT());
+        IGasPriceOracle(Predeploys.GAS_PRICE_ORACLE).setEcotone();
     }
 
     function activateFjord() public {
         console.log("Activating fjord in GasPriceOracle contract");
-        vm.prank(L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).DEPOSITOR_ACCOUNT());
-        GasPriceOracle(Predeploys.GAS_PRICE_ORACLE).setFjord();
+        vm.prank(IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).DEPOSITOR_ACCOUNT());
+        IGasPriceOracle(Predeploys.GAS_PRICE_ORACLE).setFjord();
     }
 
     /// @notice Sets the bytecode in state
