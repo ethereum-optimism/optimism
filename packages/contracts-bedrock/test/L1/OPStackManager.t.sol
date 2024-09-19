@@ -46,7 +46,7 @@ contract OPStackManager_Deploy_Test is DeployOPChain_TestBase {
         doi.set(doi.blobBaseFeeScalar.selector, blobBaseFeeScalar);
         doi.set(doi.l2ChainId.selector, l2ChainId);
         doi.set(doi.opsmProxy.selector, address(opsm));
-        doi.set(doi.startingAnchorRoots.selector, startingAnchorRoots);
+        doi.set(doi.startingAnchorRoots.selector, abi.encode(startingAnchorRoots));
     }
 
     // This helper function is used to convert the input struct type defined in DeployOPChain.s.sol

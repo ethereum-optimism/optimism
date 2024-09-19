@@ -44,7 +44,7 @@ contract DeployOPChainInput is BaseDeployIO {
     uint32 internal _blobBaseFeeScalar;
     uint256 internal _l2ChainId;
     OPStackManager internal _opsmProxy;
-    AnchorStateRegistry.StartingAnchorRoot[] internal _startingAnchorRoots;
+    bytes internal _startingAnchorRoots;
 
     function set(bytes4 _sel, address _addr) public {
         require(_addr != address(0), "DeployOPChainInput: cannot set zero address");
@@ -71,12 +71,9 @@ contract DeployOPChainInput is BaseDeployIO {
         }
     }
 
-    function set(bytes4 _sel, AnchorStateRegistry.StartingAnchorRoot[] memory _roots) public {
+    function set(bytes4 _sel, bytes memory _value) public {
         if (_sel == this.startingAnchorRoots.selector) {
-            require(_startingAnchorRoots.length == 0, "DeployOPChainInput: startingAnchorRoots already exists");
-            for (uint256 i = 0; i < _roots.length; i++) {
-                _startingAnchorRoots.push(_roots[i]);
-            }
+            _startingAnchorRoots = _value;
         } else {
             revert("DeployOPChainInput: unknown selector");
         }
@@ -135,7 +132,7 @@ contract DeployOPChainInput is BaseDeployIO {
 
     function startingAnchorRoots() public view returns (bytes memory) {
         require(_startingAnchorRoots.length > 0, "DeployOPChainInput: not set");
-        return abi.encode(_startingAnchorRoots);
+        return _startingAnchorRoots;
     }
 
     // TODO: Check that opsm is proxied and it has an implementation.

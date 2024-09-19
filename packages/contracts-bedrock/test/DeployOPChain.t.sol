@@ -456,7 +456,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         doi.set(doi.blobBaseFeeScalar.selector, blobBaseFeeScalar);
         doi.set(doi.l2ChainId.selector, l2ChainId);
         doi.set(doi.opsmProxy.selector, address(opsm)); // Not fuzzed since it must be an actual instance.
-        doi.set(doi.startingAnchorRoots.selector, startingAnchorRoots);
+        doi.set(doi.startingAnchorRoots.selector, abi.encode(startingAnchorRoots));
 
         deployOPChain.run(doi, doo);
 

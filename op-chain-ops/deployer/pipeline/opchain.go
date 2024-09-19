@@ -62,7 +62,7 @@ func DeployOPChain(ctx context.Context, env *Env, intent *state.Intent, st *stat
 						BasefeeScalar:          1368,
 						BlobBaseFeeScalar:      801949,
 						L2ChainId:              chainID.Big(),
-						StartingAnchorRoots:    []byte{},
+						StartingAnchorRoots:    thisIntent.StartingAnchorRoots,
 						OpsmProxy:              st.ImplementationsDeployment.OpsmProxyAddress,
 					},
 				)
