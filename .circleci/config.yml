@@ -1763,6 +1763,8 @@ workflows:
           skip_slow_tests: true
           notify: true
       - cannon-build-test-vectors
+      - todo-issues:
+          name: todo-issues-check
       - shellcheck/check:
           name: shell-check
           # We don't need the `exclude` key as the orb detects the `.shellcheckrc`

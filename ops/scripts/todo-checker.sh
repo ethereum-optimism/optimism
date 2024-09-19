@@ -65,10 +65,10 @@ for todo in $todos; do
     # * TODO(repo#<issue_number>): <description> (Default org "ethereum-optimism")
     # * TODO(org/repo#<issue_number>): <description>
     #
-    # Check if it's just a number
-    if [[ $ISSUE_REFERENCE =~ ^[0-9]+$ ]]; then
+    # Check if it's just a number or a number with a leading #
+    if [[ $ISSUE_REFERENCE =~ ^[0-9]+$ ]] || [[ $ISSUE_REFERENCE =~ ^#([0-9]+)$ ]]; then
         REPO_FULL="$ORG/$REPO"
-        ISSUE_NUM="$ISSUE_REFERENCE"
+        ISSUE_NUM="${ISSUE_REFERENCE#\#}"  # Remove leading # if present
     # Check for org_name/repo_name#number format
     elif [[ $ISSUE_REFERENCE =~ ^([^/]+)/([^#]+)#([0-9]+)$ ]]; then
         REPO_FULL="${BASH_REMATCH[1]}/${BASH_REMATCH[2]}"

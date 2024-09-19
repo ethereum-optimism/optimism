@@ -490,7 +490,7 @@ func (n *OpNode) initP2P(cfg *Config) (err error) {
 		panic("p2p node already initialized")
 	}
 	if n.p2pEnabled() {
-		// TODO(protocol-quest/97): Use EL Sync instead of CL Alt sync for fetching missing blocks in the payload queue.
+		// TODO(protocol-quest#97): Use EL Sync instead of CL Alt sync for fetching missing blocks in the payload queue.
 		n.p2pNode, err = p2p.NewNodeP2P(n.resourcesCtx, &cfg.Rollup, n.log, cfg.P2P, n, n.l2Source, n.runCfg, n.metrics, false)
 		if err != nil {
 			return

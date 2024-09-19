@@ -79,7 +79,7 @@ func NewNodeP2P(
 	}
 	if n.host == nil {
 		// See prior comment about n.host optionality:
-		// TODO(CLI-4016): host is not optional, NodeP2P as a whole is.
+		// TODO: host is not optional, NodeP2P as a whole is.
 		panic("host is not optional if p2p is enabled")
 	}
 	return &n, nil
