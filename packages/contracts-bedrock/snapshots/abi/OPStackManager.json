@@ -136,33 +136,9 @@
             "type": "uint256"
           },
           {
-            "components": [
-              {
-                "internalType": "GameType",
-                "name": "gameType",
-                "type": "uint32"
-              },
-              {
-                "components": [
-                  {
-                    "internalType": "Hash",
-                    "name": "root",
-                    "type": "bytes32"
-                  },
-                  {
-                    "internalType": "uint256",
-                    "name": "l2BlockNumber",
-                    "type": "uint256"
-                  }
-                ],
-                "internalType": "struct OutputRoot",
-                "name": "outputRoot",
-                "type": "tuple"
-              }
-            ],
-            "internalType": "struct AnchorStateRegistry.StartingAnchorRoot[]",
+            "internalType": "bytes",
             "name": "startingAnchorRoots",
-            "type": "tuple[]"
+            "type": "bytes"
           }
         ],
         "internalType": "struct OPStackManager.DeployInput",
