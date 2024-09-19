@@ -372,23 +372,33 @@ func FuzzStatePreimageWrite(f *testing.F) {
 	f.Fuzz(func(t *testing.T, addr uint32, count uint32, seed int64) {
 		for _, v := range versions {
 			t.Run(v.Name, func(t *testing.T) {
+				// Make sure pc does not overlap with preimage data in memory
+				pc := uint32(0)
+				if addr <= 8 {
+					addr += 8
+				}
+				effAddr := addr & 0xFF_FF_FF_FC
+				preexistingMemoryVal := [4]byte{0x12, 0x34, 0x56, 0x78}
 				preimageData := []byte("hello world")
 				preimageKey := preimage.Keccak256Key(crypto.Keccak256Hash(preimageData)).PreimageKey()
 				oracle := testutil.StaticOracle(t, preimageData)
 
 				goVm := v.VMFactory(oracle, os.Stdout, os.Stderr, testutil.CreateLogger(),
-					testutil.WithRandomization(seed), testutil.WithPreimageKey(preimageKey), testutil.WithPreimageOffset(128))
+					testutil.WithRandomization(seed), testutil.WithPreimageKey(preimageKey), testutil.WithPreimageOffset(128), testutil.WithPCAndNextPC(pc))
 				state := goVm.GetState()
 				state.GetRegistersRef()[2] = exec.SysWrite
 				state.GetRegistersRef()[4] = exec.FdPreimageWrite
 				state.GetRegistersRef()[5] = addr
 				state.GetRegistersRef()[6] = count
 				state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
+				state.GetMemory().SetMemory(effAddr, binary.BigEndian.Uint32(preexistingMemoryVal[:]))
 				step := state.GetStep()
 
-				sz := 4 - (addr & 0x3)
-				if sz < count {
-					count = sz
+				expectBytesWritten := count
+				alignment := addr & 0x3
+				sz := 4 - alignment
+				if sz < expectBytesWritten {
+					expectBytesWritten = sz
 				}
 
 				expected := testutil.NewExpectedState(state)
@@ -396,15 +406,21 @@ func FuzzStatePreimageWrite(f *testing.F) {
 				expected.PC = state.GetCpu().NextPC
 				expected.NextPC = state.GetCpu().NextPC + 4
 				expected.PreimageOffset = 0
-				expected.Registers[2] = count
+				expected.Registers[2] = expectBytesWritten
 				expected.Registers[7] = 0 // No error
+				expected.PreimageKey = preimageKey
+				if expectBytesWritten > 0 {
+					// Copy original preimage key, but shift it left by expectBytesWritten
+					copy(expected.PreimageKey[:], preimageKey[expectBytesWritten:])
+					// Copy memory data to rightmost expectedBytesWritten
+					copy(expected.PreimageKey[32-expectBytesWritten:], preexistingMemoryVal[alignment:])
+				}
 
 				stepWitness, err := goVm.Step(true)
 				require.NoError(t, err)
 				require.False(t, stepWitness.HasPreimage())
 
-				// TODO(cp-983) - validate preimage key
-				expected.Validate(t, state, testutil.SkipPreimageKeyValidation)
+				expected.Validate(t, state)
 				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, nil)
 			})
 		}
