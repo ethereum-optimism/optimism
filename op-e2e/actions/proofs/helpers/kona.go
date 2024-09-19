@@ -38,7 +38,7 @@ func RunKonaNative(
 ) error {
 	// Write rollup config to tempdir.
 	rollupConfigPath := filepath.Join(workDir, "rollup.json")
-	ser, err := json.Marshal(env.sd.RollupCfg)
+	ser, err := json.Marshal(env.Sd.RollupCfg)
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(rollupConfigPath, ser, fs.ModePerm))
 

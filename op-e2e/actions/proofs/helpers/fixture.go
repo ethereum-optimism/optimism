@@ -60,8 +60,8 @@ func tryDumpTestFixture(
 	}
 
 	name = convertToKebabCase(name)
-	rollupCfg := env.sd.RollupCfg
-	l2Genesis := env.sd.L2Cfg
+	rollupCfg := env.Sd.RollupCfg
+	l2Genesis := env.Sd.L2Cfg
 
 	var expectedStatus uint8
 	if result == nil {
