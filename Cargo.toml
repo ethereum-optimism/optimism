@@ -17,6 +17,11 @@ clap = { version = "4", features = ["derive", "env"] }
 jsonrpsee = {version = "0.24.4", features = ["server", "http-client", "macros"]}
 reqwest = "0.12.5"
 http = "1.1.0"
+dotenv = "0.15.0"
+tower = "0.4.13"
+http-body = "0.4.5"
+hyper = { version = "1.4.1", features = ["full"] }
+hyper-util = { version = "0.1", features = ["full"] }
 
 [dev-dependencies]
 anyhow = "1.0"

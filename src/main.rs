@@ -2,17 +2,20 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use clap::{arg, Parser};
+use dotenv::dotenv;
 use error::Error;
 use http::HeaderMap;
 use http::{header::AUTHORIZATION, HeaderValue};
 use jsonrpsee::http_client::HttpClientBuilder;
 use jsonrpsee::server::Server;
 use jsonrpsee::RpcModule;
+use proxy::ProxyLayer;
 use server::{EthApiServer, EthEngineApi};
 use tracing::{info, Level};
 use tracing_subscriber::EnvFilter;
 
 mod error;
+mod proxy;
 mod server;
 
 #[derive(Parser, Debug)]
@@ -51,6 +54,8 @@ type Result<T> = core::result::Result<T, Error>;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Load .env file
+    dotenv().ok();
     let args: Args = Args::parse();
 
     // Initialize logging
@@ -69,7 +74,7 @@ async fn main() -> Result<()> {
     );
     let l2_client = HttpClientBuilder::new()
         .set_headers(headers.clone())
-        .build(args.l2_url)
+        .build(args.l2_url.clone())
         .unwrap();
 
     let builder_client = HttpClientBuilder::new()
@@ -78,14 +83,16 @@ async fn main() -> Result<()> {
         .unwrap();
 
     let eth_engine_api = EthEngineApi::new(Arc::new(l2_client), Arc::new(builder_client));
-    let mut module = RpcModule::new(());
+    let mut module: RpcModule<()> = RpcModule::new(());
     module
         .merge(eth_engine_api.into_rpc())
         .map_err(|e| Error::InitRPCServerError(e.to_string()))?;
 
     // server setup
     info!("Starting server on :{}", args.rpc_port);
+    let service_builder = tower::ServiceBuilder::new().layer(ProxyLayer::new(args.l2_url));
     let server = Server::builder()
+        .set_http_middleware(service_builder)
         .build(
             format!("{}:{}", args.rpc_host, args.rpc_port)
                 .parse::<SocketAddr>()
@@ -94,7 +101,7 @@ async fn main() -> Result<()> {
         .await
         .map_err(|e| Error::InitRPCServerError(e.to_string()))?;
     let handle = server.start(module);
-    tokio::spawn(handle.stopped());
+    handle.stopped().await;
 
     Ok(())
 }
