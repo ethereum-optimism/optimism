@@ -458,7 +458,7 @@ contract DeployOPChain is Script {
             new AnchorStateRegistry.StartingAnchorRoot[](1);
         defaultStartingAnchorRoots[0] = AnchorStateRegistry.StartingAnchorRoot({
             gameType: GameTypes.PERMISSIONED_CANNON,
-            outputRoot: OutputRoot({ root: Hash.wrap(bytes32("0xdead")), l2BlockNumber: 0 })
+            outputRoot: OutputRoot({ root: Hash.wrap(bytes32(hex"dead")), l2BlockNumber: 0 })
         });
 
         OPStackManager.Roles memory roles = OPStackManager.Roles({
