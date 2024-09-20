@@ -460,6 +460,7 @@ contract DeployOPChain is Script {
             gameType: GameTypes.PERMISSIONED_CANNON,
             outputRoot: OutputRoot({ root: Hash.wrap(bytes32(hex"dead")), l2BlockNumber: 0 })
         });
+        _doi.set(_doi.startingAnchorRoots.selector, abi.encode(defaultStartingAnchorRoots));
 
         OPStackManager.Roles memory roles = OPStackManager.Roles({
             opChainProxyAdminOwner: _doi.opChainProxyAdminOwner(),
@@ -474,7 +475,7 @@ contract DeployOPChain is Script {
             basefeeScalar: _doi.basefeeScalar(),
             blobBasefeeScalar: _doi.blobBaseFeeScalar(),
             l2ChainId: _doi.l2ChainId(),
-            startingAnchorRoots: abi.encode(defaultStartingAnchorRoots)
+            startingAnchorRoots: _doi.startingAnchorRoots()
         });
 
         vm.broadcast(msg.sender);
