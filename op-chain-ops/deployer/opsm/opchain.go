@@ -20,7 +20,7 @@ type DeployOPChainInput struct {
 	BasefeeScalar     uint32
 	BlobBaseFeeScalar uint32
 	L2ChainId         *big.Int
-	Opsm              common.Address
+	OpsmProxy         common.Address
 }
 
 func (input *DeployOPChainInput) InputSet() bool {
@@ -39,7 +39,6 @@ type DeployOPChainOutput struct {
 	// Fault proof contracts below.
 	OptimismPortalProxy                common.Address
 	DisputeGameFactoryProxy            common.Address
-	DisputeGameFactoryImpl             common.Address
 	AnchorStateRegistryProxy           common.Address
 	AnchorStateRegistryImpl            common.Address
 	FaultDisputeGame                   common.Address

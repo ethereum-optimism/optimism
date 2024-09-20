@@ -55,6 +55,7 @@
   "systemConfigProxy": "0x4200000000000000000000000000000000000061",
   "optimismPortalProxy": "0x4200000000000000000000000000000000000062",
   "proxyAdminOwner": "0x0000000000000000000000000000000000000222",
+  "protocolVersionsProxy": "0x0000000000000000000000000000000000000000",
   "gasPriceOracleBaseFeeScalar": 0,
   "gasPriceOracleBlobBaseFeeScalar": 0,
   "gasPriceOracleOverhead": 2100,

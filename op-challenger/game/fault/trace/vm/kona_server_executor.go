@@ -46,7 +46,6 @@ func (s *KonaExecutor) OracleCommand(cfg Config, dataDir string, inputs utils.Lo
 
 	if cfg.RollupConfigPath != "" {
 		args = append(args, "--rollup-config-path", cfg.RollupConfigPath)
-		args = append(args, "--l2-chain-id", "0")
 	} else {
 		if cfg.Network == "" {
 			return nil, errors.New("network is not defined")

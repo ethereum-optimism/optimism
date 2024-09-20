@@ -62,7 +62,7 @@ func DeployOPChain(ctx context.Context, env *Env, intent *state.Intent, st *stat
 						BasefeeScalar:          1368,
 						BlobBaseFeeScalar:      801949,
 						L2ChainId:              chainID.Big(),
-						Opsm:                   st.ImplementationsDeployment.OpsmAddress,
+						OpsmProxy:              st.ImplementationsDeployment.OpsmProxyAddress,
 					},
 				)
 				return err
@@ -85,7 +85,6 @@ func DeployOPChain(ctx context.Context, env *Env, intent *state.Intent, st *stat
 		L1CrossDomainMessengerProxyAddress:        dco.L1CrossDomainMessengerProxy,
 		OptimismPortalProxyAddress:                dco.OptimismPortalProxy,
 		DisputeGameFactoryProxyAddress:            dco.DisputeGameFactoryProxy,
-		DisputeGameFactoryImplAddress:             dco.DisputeGameFactoryImpl,
 		AnchorStateRegistryProxyAddress:           dco.AnchorStateRegistryProxy,
 		AnchorStateRegistryImplAddress:            dco.AnchorStateRegistryImpl,
 		FaultDisputeGameAddress:                   dco.FaultDisputeGame,

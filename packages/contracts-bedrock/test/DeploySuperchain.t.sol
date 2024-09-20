@@ -284,8 +284,8 @@ contract DeploySuperchain_Test is Test {
         uint256 slot = zeroOutSlotForSelector(dsi.proxyAdminOwner.selector);
         vm.expectRevert("DeploySuperchainInput: proxyAdminOwner not set");
         deploySuperchain.run(dsi, dso);
-        vm.store(address(dsi), bytes32(slot), bytes32(uint256(uint160(defaultProxyAdminOwner)))); // Restore the value
-            // we just tested.
+        // Restore the value we just tested.
+        vm.store(address(dsi), bytes32(slot), bytes32(uint256(uint160(defaultProxyAdminOwner))));
 
         slot = zeroOutSlotForSelector(dsi.protocolVersionsOwner.selector);
         vm.expectRevert("DeploySuperchainInput: protocolVersionsOwner not set");

@@ -110,7 +110,7 @@ type ETHBackend interface {
 	SendTransaction(ctx context.Context, tx *types.Transaction) error
 
 	// These functions are used to estimate what the base fee & priority fee should be set to.
-	// TODO(CLI-3318): Maybe need a generic interface to support different RPC providers
+	// TODO: Maybe need a generic interface to support different RPC providers
 	HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error)
 	SuggestGasTipCap(ctx context.Context) (*big.Int, error)
 	// NonceAt returns the account nonce of the given account.
@@ -376,7 +376,7 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 	var txMessage types.TxData
 	if sidecar != nil {
 		if blobBaseFee == nil {
-			return nil, fmt.Errorf("expected non-nil blobBaseFee")
+			return nil, errors.New("expected non-nil blobBaseFee")
 		}
 		blobFeeCap := m.calcBlobFeeCap(blobBaseFee)
 		message := &types.BlobTx{
@@ -983,7 +983,7 @@ func updateFees(oldTip, oldFeeCap, newTip, newBaseFee *big.Int, isBlobTx bool, l
 		return newTip, newFeeCap
 	} else if newTip.Cmp(thresholdTip) >= 0 && newFeeCap.Cmp(thresholdFeeCap) < 0 {
 		// Tip has gone up, but base fee is flat or down.
-		// TODO(CLI-3714): Do we need to recalculate the FC here?
+		// TODO: Do we need to recalculate the FC here?
 		lgr.Debug("Using new tip and threshold feecap")
 		return newTip, thresholdFeeCap
 	} else if newTip.Cmp(thresholdTip) < 0 && newFeeCap.Cmp(thresholdFeeCap) >= 0 {
@@ -993,7 +993,7 @@ func updateFees(oldTip, oldFeeCap, newTip, newBaseFee *big.Int, isBlobTx bool, l
 		return thresholdTip, calcGasFeeCap(newBaseFee, thresholdTip)
 
 	} else {
-		// TODO(CLI-3713): Should we skip the bump in this case?
+		// TODO: Should we skip the bump in this case?
 		lgr.Debug("Using threshold tip and threshold feecap")
 		return thresholdTip, thresholdFeeCap
 	}
@@ -1036,19 +1036,19 @@ func errStringMatch(err, target error) bool {
 func finishBlobTx(message *types.BlobTx, chainID, tip, fee, blobFee, value *big.Int) error {
 	var o bool
 	if message.ChainID, o = uint256.FromBig(chainID); o {
-		return fmt.Errorf("ChainID overflow")
+		return errors.New("ChainID overflow")
 	}
 	if message.GasTipCap, o = uint256.FromBig(tip); o {
-		return fmt.Errorf("GasTipCap overflow")
+		return errors.New("GasTipCap overflow")
 	}
 	if message.GasFeeCap, o = uint256.FromBig(fee); o {
-		return fmt.Errorf("GasFeeCap overflow")
+		return errors.New("GasFeeCap overflow")
 	}
 	if message.BlobFeeCap, o = uint256.FromBig(blobFee); o {
-		return fmt.Errorf("BlobFeeCap overflow")
+		return errors.New("BlobFeeCap overflow")
 	}
 	if message.Value, o = uint256.FromBig(value); o {
-		return fmt.Errorf("Value overflow")
+		return errors.New("Value overflow")
 	}
 	return nil
 }

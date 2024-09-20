@@ -2,6 +2,7 @@ package interop
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math/big"
 	"testing"
@@ -99,6 +100,21 @@ func TestInteropTrivial(t *testing.T) {
 		s2.EmitData(chainB, "Alice", fmt.Sprintf("0x1234567890abcdef%d", i))
 		s2.EmitData(chainB, "Alice", fmt.Sprintf("0x1234567890abcdef%d", i))
 		s2.EmitData(chainB, "Alice", fmt.Sprintf("0x1234567890abcdef%d", i))
+	}
+
+	{
+		rec := s2.EmitData(chainA, "Alice", "0x1234567890abcdef")
+		out, err := json.MarshalIndent(rec, "  ", "  ")
+		require.NoError(t, err)
+		t.Log("Result on chain A:")
+		t.Log(string(out))
+	}
+	{
+		rec := s2.EmitData(chainB, "Alice", "0x1234567890abcdef")
+		out, err := json.MarshalIndent(rec, "  ", "  ")
+		require.NoError(t, err)
+		t.Log("Result on chain B:")
+		t.Log(string(out))
 	}
 
 	time.Sleep(10 * time.Second)

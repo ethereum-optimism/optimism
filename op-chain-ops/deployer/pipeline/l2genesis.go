@@ -40,7 +40,7 @@ func GenerateL2Genesis(ctx context.Context, env *Env, intent *state.Intent, st *
 		return fmt.Errorf("failed to get chain state: %w", err)
 	}
 
-	initCfg, err := state.CombineL2InitConfig(intent, thisIntent)
+	initCfg, err := state.CombineDeployConfig(intent, thisIntent, st, thisChainState)
 	if err != nil {
 		return fmt.Errorf("failed to combine L2 init config: %w", err)
 	}
@@ -63,7 +63,7 @@ func GenerateL2Genesis(ctx context.Context, env *Env, intent *state.Intent, st *
 						L1StandardBridgeProxy:       thisChainState.L1StandardBridgeProxyAddress,
 						L1ERC721BridgeProxy:         thisChainState.L1ERC721BridgeProxyAddress,
 					},
-					L2Config: initCfg,
+					L2Config: initCfg.L2InitializationConfig,
 				})
 				if err != nil {
 					return fmt.Errorf("failed to call L2Genesis script: %w", err)
@@ -93,6 +93,11 @@ func GenerateL2Genesis(ctx context.Context, env *Env, intent *state.Intent, st *
 		return fmt.Errorf("failed to close gzip writer: %w", err)
 	}
 	thisChainState.Genesis = buf.Bytes()
+	startHeader, err := env.L1Client.HeaderByNumber(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to get start block: %w", err)
+	}
+	thisChainState.StartBlock = startHeader
 
 	if err := env.WriteState(st); err != nil {
 		return fmt.Errorf("failed to write state: %w", err)

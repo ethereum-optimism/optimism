@@ -12,8 +12,6 @@ import { ISystemConfigV0 } from "scripts/interfaces/ISystemConfigV0.sol";
 
 // Contracts
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
-import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
-import { DelayedWETH } from "src/dispute/DelayedWETH.sol";
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
@@ -31,6 +29,8 @@ import { IOptimismPortal2 } from "src/L1/interfaces/IOptimismPortal2.sol";
 import { IL1ERC721Bridge } from "src/L1/interfaces/IL1ERC721Bridge.sol";
 import { IL1StandardBridge } from "src/L1/interfaces/IL1StandardBridge.sol";
 import { ProtocolVersion, IProtocolVersions } from "src/L1/interfaces/IProtocolVersions.sol";
+import { IDisputeGameFactory } from "src/dispute/interfaces/IDisputeGameFactory.sol";
+import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 import { IOptimismMintableERC20Factory } from "src/universal/interfaces/IOptimismMintableERC20Factory.sol";
 
 library ChainAssertions {
@@ -183,7 +183,7 @@ library ChainAssertions {
     /// @notice Asserts that the DisputeGameFactory is setup correctly
     function checkDisputeGameFactory(Types.ContractSet memory _contracts, address _expectedOwner) internal view {
         console.log("Running chain assertions on the DisputeGameFactory");
-        DisputeGameFactory factory = DisputeGameFactory(_contracts.DisputeGameFactory);
+        IDisputeGameFactory factory = IDisputeGameFactory(_contracts.DisputeGameFactory);
 
         // Check that the contract is initialized
         assertSlotValueIsOne({ _contractAddress: address(factory), _slot: 0, _offset: 0 });
@@ -202,7 +202,7 @@ library ChainAssertions {
         view
     {
         console.log("Running chain assertions on the DelayedWETH");
-        DelayedWETH weth = DelayedWETH(payable(_contracts.DelayedWETH));
+        IDelayedWETH weth = IDelayedWETH(payable(_contracts.DelayedWETH));
 
         // Check that the contract is initialized
         assertSlotValueIsOne({ _contractAddress: address(weth), _slot: 0, _offset: 0 });
@@ -228,7 +228,7 @@ library ChainAssertions {
         view
     {
         console.log("Running chain assertions on the permissioned DelayedWETH");
-        DelayedWETH weth = DelayedWETH(payable(_contracts.PermissionedDelayedWETH));
+        IDelayedWETH weth = IDelayedWETH(payable(_contracts.PermissionedDelayedWETH));
 
         // Check that the contract is initialized
         assertSlotValueIsOne({ _contractAddress: address(weth), _slot: 0, _offset: 0 });

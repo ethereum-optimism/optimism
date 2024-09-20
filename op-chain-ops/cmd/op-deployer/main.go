@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/inspect"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/urfave/cli/v2"
@@ -26,6 +28,11 @@ func main() {
 			Usage:  "applies a chain intent to the chain",
 			Flags:  cliapp.ProtectFlags(deployer.ApplyFlags),
 			Action: deployer.ApplyCLI(),
+		},
+		{
+			Name:        "inspect",
+			Usage:       "inspects the state of a deployment",
+			Subcommands: inspect.Commands,
 		},
 	}
 	app.Writer = os.Stdout

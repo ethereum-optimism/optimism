@@ -60,7 +60,7 @@ contract DeployOPChainInput_Test is Test {
         doi.set(doi.basefeeScalar.selector, basefeeScalar);
         doi.set(doi.blobBaseFeeScalar.selector, blobBaseFeeScalar);
         doi.set(doi.l2ChainId.selector, l2ChainId);
-        doi.set(doi.opsm.selector, address(opsm));
+        doi.set(doi.opsmProxy.selector, address(opsm));
         // Compare the default inputs to the getter methods.
         assertEq(opChainProxyAdminOwner, doi.opChainProxyAdminOwner(), "200");
         assertEq(systemConfigOwner, doi.systemConfigOwner(), "300");
@@ -71,7 +71,7 @@ contract DeployOPChainInput_Test is Test {
         assertEq(basefeeScalar, doi.basefeeScalar(), "800");
         assertEq(blobBaseFeeScalar, doi.blobBaseFeeScalar(), "900");
         assertEq(l2ChainId, doi.l2ChainId(), "1000");
-        assertEq(address(opsm), address(doi.opsm()), "1100");
+        assertEq(address(opsm), address(doi.opsmProxy()), "1100");
     }
 
     function test_getters_whenNotSet_revert() public {
@@ -121,7 +121,6 @@ contract DeployOPChainOutput_Test is Test {
     L1CrossDomainMessenger l1CrossDomainMessengerProxy = L1CrossDomainMessenger(makeAddr("l1CrossDomainMessengerProxy"));
     OptimismPortal2 optimismPortalProxy = OptimismPortal2(payable(makeAddr("optimismPortalProxy")));
     DisputeGameFactory disputeGameFactoryProxy = DisputeGameFactory(makeAddr("disputeGameFactoryProxy"));
-    DisputeGameFactory disputeGameFactoryImpl = DisputeGameFactory(makeAddr("disputeGameFactoryImpl"));
     AnchorStateRegistry anchorStateRegistryProxy = AnchorStateRegistry(makeAddr("anchorStateRegistryProxy"));
     AnchorStateRegistry anchorStateRegistryImpl = AnchorStateRegistry(makeAddr("anchorStateRegistryImpl"));
     FaultDisputeGame faultDisputeGame = FaultDisputeGame(makeAddr("faultDisputeGame"));
@@ -144,7 +143,6 @@ contract DeployOPChainOutput_Test is Test {
         vm.etch(address(l1CrossDomainMessengerProxy), hex"01");
         vm.etch(address(optimismPortalProxy), hex"01");
         vm.etch(address(disputeGameFactoryProxy), hex"01");
-        vm.etch(address(disputeGameFactoryImpl), hex"01");
         vm.etch(address(anchorStateRegistryProxy), hex"01");
         vm.etch(address(anchorStateRegistryImpl), hex"01");
         vm.etch(address(faultDisputeGame), hex"01");
@@ -161,7 +159,6 @@ contract DeployOPChainOutput_Test is Test {
         doo.set(doo.l1CrossDomainMessengerProxy.selector, address(l1CrossDomainMessengerProxy));
         doo.set(doo.optimismPortalProxy.selector, address(optimismPortalProxy));
         doo.set(doo.disputeGameFactoryProxy.selector, address(disputeGameFactoryProxy));
-        doo.set(doo.disputeGameFactoryImpl.selector, address(disputeGameFactoryImpl));
         doo.set(doo.anchorStateRegistryProxy.selector, address(anchorStateRegistryProxy));
         doo.set(doo.anchorStateRegistryImpl.selector, address(anchorStateRegistryImpl));
         doo.set(doo.faultDisputeGame.selector, address(faultDisputeGame));
@@ -178,7 +175,6 @@ contract DeployOPChainOutput_Test is Test {
         assertEq(address(l1CrossDomainMessengerProxy), address(doo.l1CrossDomainMessengerProxy()), "700");
         assertEq(address(optimismPortalProxy), address(doo.optimismPortalProxy()), "800");
         assertEq(address(disputeGameFactoryProxy), address(doo.disputeGameFactoryProxy()), "900");
-        assertEq(address(disputeGameFactoryImpl), address(doo.disputeGameFactoryImpl()), "1000");
         assertEq(address(anchorStateRegistryProxy), address(doo.anchorStateRegistryProxy()), "1100");
         assertEq(address(anchorStateRegistryImpl), address(doo.anchorStateRegistryImpl()), "1200");
         assertEq(address(faultDisputeGame), address(doo.faultDisputeGame()), "1300");
@@ -216,9 +212,6 @@ contract DeployOPChainOutput_Test is Test {
 
         vm.expectRevert(expectedErr);
         doo.disputeGameFactoryProxy();
-
-        vm.expectRevert(expectedErr);
-        doo.disputeGameFactoryImpl();
 
         vm.expectRevert(expectedErr);
         doo.anchorStateRegistryProxy();
@@ -278,10 +271,6 @@ contract DeployOPChainOutput_Test is Test {
         doo.set(doo.disputeGameFactoryProxy.selector, emptyAddr);
         vm.expectRevert(expectedErr);
         doo.disputeGameFactoryProxy();
-
-        doo.set(doo.disputeGameFactoryImpl.selector, emptyAddr);
-        vm.expectRevert(expectedErr);
-        doo.disputeGameFactoryImpl();
 
         doo.set(doo.anchorStateRegistryProxy.selector, emptyAddr);
         vm.expectRevert(expectedErr);
@@ -385,7 +374,7 @@ contract DeployOPChain_TestBase is Test {
         deployImplementations.run(dii, dio);
 
         // Set the OPStackManager input for DeployOPChain.
-        opsm = dio.opsm();
+        opsm = dio.opsmProxy();
     }
 
     // See the function of the same name in the `DeployImplementations_Test` contract of
@@ -420,7 +409,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         doi.set(doi.basefeeScalar.selector, basefeeScalar);
         doi.set(doi.blobBaseFeeScalar.selector, blobBaseFeeScalar);
         doi.set(doi.l2ChainId.selector, l2ChainId);
-        doi.set(doi.opsm.selector, address(opsm)); // Not fuzzed since it must be an actual instance.
+        doi.set(doi.opsmProxy.selector, address(opsm)); // Not fuzzed since it must be an actual instance.
 
         deployOPChain.run(doi, doo);
 

@@ -20,7 +20,7 @@ func vmFactory(state *State, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer
 
 func TestInstrumentedState_OpenMips(t *testing.T) {
 	t.Parallel()
-	// TODO(cp-903): Add mt-specific tests here
+	// TODO: Add mt-specific tests here
 	testutil.RunVMTests_OpenMips(t, CreateEmptyState, vmFactory, "clone.bin")
 }
 
@@ -58,6 +58,10 @@ func TestInstrumentedState_MultithreadedProgram(t *testing.T) {
 }
 
 func TestInstrumentedState_Alloc(t *testing.T) {
+	if os.Getenv("SKIP_SLOW_TESTS") == "true" {
+		t.Skip("Skipping slow test because SKIP_SLOW_TESTS is enabled")
+	}
+
 	const MiB = 1024 * 1024
 
 	cases := []struct {

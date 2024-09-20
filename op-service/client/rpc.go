@@ -35,6 +35,7 @@ type rpcConfig struct {
 	backoffAttempts  int
 	limit            float64
 	burst            int
+	lazy             bool
 }
 
 type RPCOption func(cfg *rpcConfig) error
@@ -74,6 +75,17 @@ func WithRateLimit(rateLimit float64, burst int) RPCOption {
 	}
 }
 
+// WithLazyDial makes the RPC client initialization defer the initial connection attempt,
+// and defer to later RPC requests upon subsequent dial errors.
+// Any dial-backoff option will be ignored if this option is used.
+// This is implemented by wrapping the inner RPC client with a LazyRPC.
+func WithLazyDial() RPCOption {
+	return func(cfg *rpcConfig) error {
+		cfg.lazy = true
+		return nil
+	}
+}
+
 // NewRPC returns the correct client.RPC instance for a given RPC url.
 func NewRPC(ctx context.Context, lgr log.Logger, addr string, opts ...RPCOption) (RPC, error) {
 	var cfg rpcConfig
@@ -87,12 +99,16 @@ func NewRPC(ctx context.Context, lgr log.Logger, addr string, opts ...RPCOption)
 		cfg.backoffAttempts = 1
 	}
 
-	underlying, err := dialRPCClientWithBackoff(ctx, lgr, addr, cfg.backoffAttempts, cfg.gethRPCOptions...)
-	if err != nil {
-		return nil, err
+	var wrapped RPC
+	if cfg.lazy {
+		wrapped = NewLazyRPC(addr, cfg.gethRPCOptions...)
+	} else {
+		underlying, err := dialRPCClientWithBackoff(ctx, lgr, addr, cfg.backoffAttempts, cfg.gethRPCOptions...)
+		if err != nil {
+			return nil, err
+		}
+		wrapped = &BaseRPCClient{c: underlying}
 	}
-
-	var wrapped RPC = &BaseRPCClient{c: underlying}
 
 	if cfg.limit != 0 {
 		wrapped = NewRateLimitingClient(wrapped, rate.Limit(cfg.limit), cfg.burst)

@@ -2,7 +2,6 @@
 pragma solidity 0.8.15;
 
 import { Script } from "forge-std/Script.sol";
-import { CommonBase } from "forge-std/Base.sol";
 import { stdToml } from "forge-std/StdToml.sol";
 
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
@@ -12,6 +11,7 @@ import { Proxy } from "src/universal/Proxy.sol";
 
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
+import { BaseDeployIO } from "scripts/utils/BaseDeployIO.sol";
 
 // This comment block defines the requirements and rationale for the architecture used in this forge
 // script, along with other scripts that are being written as new Superchain-first deploy scripts to
@@ -65,7 +65,10 @@ import { Solarray } from "scripts/libraries/Solarray.sol";
 //   - `doo` for DeployOPChainInput
 //   - `doo` for DeployOPChainOutput
 //   - etc.
-contract DeploySuperchainInput is CommonBase {
+
+// All contracts of the form `Deploy<X>Input` should inherit from `BaseDeployIO`, as it provides
+// shared functionality for all deploy scripts, such as access to cheat codes.
+contract DeploySuperchainInput is BaseDeployIO {
     using stdToml for string;
 
     // All inputs are set in storage individually. We put any roles first, followed by the remaining
@@ -169,7 +172,9 @@ contract DeploySuperchainInput is CommonBase {
     }
 }
 
-contract DeploySuperchainOutput is CommonBase {
+// All contracts of the form `Deploy<X>Output` should inherit from `BaseDeployIO`, as it provides
+// shared functionality for all deploy scripts, such as access to cheat codes.
+contract DeploySuperchainOutput is BaseDeployIO {
     // All outputs are stored in storage individually, with the same rationale as doing so for
     // inputs, and the same pattern is used below to expose the outputs.
     ProtocolVersions internal _protocolVersionsImpl;
@@ -205,7 +210,7 @@ contract DeploySuperchainOutput is CommonBase {
 
     // This function can be called to ensure all outputs are correct. Similar to `writeOutputFile`,
     // it fetches the output values using external calls to the getter methods for safety.
-    function checkOutput(DeploySuperchainInput) public {
+    function checkOutput(DeploySuperchainInput _dsi) public {
         address[] memory addrs = Solarray.addresses(
             address(this.superchainProxyAdmin()),
             address(this.superchainConfigImpl()),
@@ -223,6 +228,9 @@ contract DeploySuperchainOutput is CommonBase {
 
         require(actualSuperchainConfigImpl == address(_superchainConfigImpl), "100");
         require(actualProtocolVersionsImpl == address(_protocolVersionsImpl), "200");
+
+        // TODO Also add the assertions for the implementation contracts from ChainAssertions.sol
+        assertValidDeploy(_dsi);
     }
 
     function superchainProxyAdmin() public view returns (ProxyAdmin) {
@@ -248,6 +256,62 @@ contract DeploySuperchainOutput is CommonBase {
     function protocolVersionsProxy() public view returns (ProtocolVersions) {
         DeployUtils.assertValidContractAddress(address(_protocolVersionsProxy));
         return _protocolVersionsProxy;
+    }
+
+    // -------- Deployment Assertions --------
+    function assertValidDeploy(DeploySuperchainInput _dsi) public {
+        assertValidSuperchainProxyAdmin(_dsi);
+        assertValidSuperchainConfig(_dsi);
+        assertValidProtocolVersions(_dsi);
+    }
+
+    function assertValidSuperchainProxyAdmin(DeploySuperchainInput _dsi) internal view {
+        require(superchainProxyAdmin().owner() == _dsi.proxyAdminOwner(), "SPA-10");
+    }
+
+    function assertValidSuperchainConfig(DeploySuperchainInput _dsi) internal {
+        // Proxy checks.
+        SuperchainConfig superchainConfig = superchainConfigProxy();
+        DeployUtils.assertInitialized({ _contractAddress: address(superchainConfig), _slot: 0, _offset: 0 });
+        require(superchainConfig.guardian() == _dsi.guardian(), "SUPCON-10");
+        require(superchainConfig.paused() == _dsi.paused(), "SUPCON-20");
+
+        vm.startPrank(address(0));
+        require(
+            Proxy(payable(address(superchainConfig))).implementation() == address(superchainConfigImpl()), "SUPCON-30"
+        );
+        require(Proxy(payable(address(superchainConfig))).admin() == address(superchainProxyAdmin()), "SUPCON-40");
+        vm.stopPrank();
+
+        // Implementation checks
+        superchainConfig = superchainConfigImpl();
+        require(superchainConfig.guardian() == address(0), "SUPCON-50");
+        require(superchainConfig.paused() == false, "SUPCON-60");
+    }
+
+    function assertValidProtocolVersions(DeploySuperchainInput _dsi) internal {
+        // Proxy checks.
+        ProtocolVersions pv = protocolVersionsProxy();
+        DeployUtils.assertInitialized({ _contractAddress: address(pv), _slot: 0, _offset: 0 });
+        require(pv.owner() == _dsi.protocolVersionsOwner(), "PV-10");
+        require(
+            ProtocolVersion.unwrap(pv.required()) == ProtocolVersion.unwrap(_dsi.requiredProtocolVersion()), "PV-20"
+        );
+        require(
+            ProtocolVersion.unwrap(pv.recommended()) == ProtocolVersion.unwrap(_dsi.recommendedProtocolVersion()),
+            "PV-30"
+        );
+
+        vm.startPrank(address(0));
+        require(Proxy(payable(address(pv))).implementation() == address(protocolVersionsImpl()), "PV-40");
+        require(Proxy(payable(address(pv))).admin() == address(superchainProxyAdmin()), "PV-50");
+        vm.stopPrank();
+
+        // Implementation checks.
+        pv = protocolVersionsImpl();
+        require(pv.owner() == address(0xdead), "PV-60");
+        require(ProtocolVersion.unwrap(pv.required()) == 0, "PV-70");
+        require(ProtocolVersion.unwrap(pv.recommended()) == 0, "PV-80");
     }
 }
 

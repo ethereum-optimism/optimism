@@ -68,6 +68,12 @@ func CallScriptBroadcast(
 		return fmt.Errorf("failed to enable cheats: %w", err)
 	}
 
+	nonce, err := opts.Client.NonceAt(ctx, opts.Deployer, nil)
+	if err != nil {
+		return fmt.Errorf("failed to fetch nonce: %w", err)
+	}
+	h.SetNonce(opts.Deployer, nonce)
+
 	err = opts.Handler(h)
 	if err != nil {
 		return fmt.Errorf("failed to run handler: %w", err)

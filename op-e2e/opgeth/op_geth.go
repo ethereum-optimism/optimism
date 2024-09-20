@@ -70,7 +70,7 @@ func NewOpGeth(t testing.TB, ctx context.Context, cfg *e2esys.SystemConfig) (*Op
 		allocsMode = genesis.L2AllocsEcotone
 	}
 	l2Allocs := config.L2Allocs(allocsMode)
-	l2Genesis, err := genesis.BuildL2Genesis(cfg.DeployConfig, l2Allocs, l1Block)
+	l2Genesis, err := genesis.BuildL2Genesis(cfg.DeployConfig, l2Allocs, l1Block.Header())
 	require.NoError(t, err)
 	l2GenesisBlock := l2Genesis.ToBlock()
 
@@ -108,7 +108,7 @@ func NewOpGeth(t testing.TB, ctx context.Context, cfg *e2esys.SystemConfig) (*Op
 	require.NoError(t, err)
 
 	// Finally create the engine client
-	rollupCfg, err := cfg.DeployConfig.RollupConfig(l1Block, l2GenesisBlock.Hash(), l2GenesisBlock.NumberU64())
+	rollupCfg, err := cfg.DeployConfig.RollupConfig(l1Block.Header(), l2GenesisBlock.Hash(), l2GenesisBlock.NumberU64())
 	require.NoError(t, err)
 	rollupCfg.Genesis = rollupGenesis
 	l2Engine, err := sources.NewEngineClient(

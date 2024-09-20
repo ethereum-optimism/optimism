@@ -29,6 +29,9 @@ parameters:
   kontrol_dispatch:
     type: boolean
     default: false
+  cannon_full_test_dispatch:
+    type: boolean
+    default: false
   sdk_dispatch:
     type: boolean
     default: false
@@ -130,10 +133,35 @@ commands:
           branch_pattern: develop
           mentions: "<< parameters.mentions >>"
 
+  run-contracts-check:
+    parameters:
+      command:
+        description: Just command that runs the check
+        type: string
+    steps:
+      - run:
+          name: <<parameters.command>>
+          command: |
+            git reset --hard
+            just <<parameters.command>>
+            git diff --quiet --exit-code
+          working_directory: packages/contracts-bedrock
+          when: always
+          environment:
+            FOUNDRY_PROFILE: ci
+
 jobs:
   cannon-go-lint-and-test:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
+    parameters:
+      skip_slow_tests:
+        type: boolean
+        default: false
+      notify:
+        description: Whether to notify on failure
+        type: boolean
+        default: false
     resource_class: xlarge
     steps:
       - checkout
@@ -141,6 +169,9 @@ jobs:
           patterns: cannon,packages/contracts-bedrock/src/cannon,op-preimage,go.mod
       - attach_workspace:
           at: "."
+      - restore_cache:
+          name: Restore Go modules cache
+          key: gomod-{{ checksum "go.sum" }}
       - run:
           name: prep Cannon results dir
           command: mkdir -p /tmp/test-results
@@ -156,6 +187,7 @@ jobs:
       - run:
           name: Cannon Go tests
           command: |
+            export SKIP_SLOW_TESTS=<<parameters.skip_slow_tests>>
             mkdir -p /testlogs
             gotestsum --format=testname --junitfile=/tmp/test-results/cannon.xml --jsonfile=/testlogs/log.json \
             -- -parallel=8 -coverpkg=github.com/ethereum-optimism/optimism/cannon/... -coverprofile=coverage.out ./...
@@ -168,6 +200,11 @@ jobs:
       - store_artifacts:
           path: /testlogs
           when: always
+      - when:
+          condition: <<parameters.notify>>
+          steps:
+            - notify-failures-on-develop:
+                mentions: "@proofs-squad"
 
   cannon-build-test-vectors:
     docker:
@@ -187,11 +224,10 @@ jobs:
       - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: xlarge
     parameters:
-      build_command:
+      skip_pattern:
+        description: Glob pattern of tests to skip
         type: string
-        default: |
-          just prebuild
-          forge build --deny-warnings
+        default: ""
     steps:
       - checkout
       - install-contracts-dependencies
@@ -214,34 +250,30 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: Build contracts
-          command: << parameters.build_command >>
+          command: forge build --deny-warnings --skip <<parameters.skip_pattern>>
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
       - run:
           name: Generate L2OO allocs
-          command: DEVNET_L2OO="true" make devnet-allocs
-      - run:
-          name: Copy L2OO allocs to .devnet-l2oo
-          command: cp -r .devnet/ .devnet-l2oo/
+          command: |
+            DEVNET_L2OO="true" make devnet-allocs
+            cp -r .devnet/ .devnet-l2oo/
       - run:
           name: Generate AltDA allocs
-          command: DEVNET_ALTDA="true" make devnet-allocs
-      - run:
-          name: Copy AltDA allocs to .devnet-altda
-          command: cp -r .devnet/ .devnet-altda/
+          command: |
+            DEVNET_ALTDA="true" make devnet-allocs
+            cp -r .devnet/ .devnet-altda/
       - run:
           name: Generate Generic AltDA allocs
-          command: DEVNET_ALTDA="true" GENERIC_ALTDA="true" make devnet-allocs
-      - run:
-          name: Copy AltDA allocs to .devnet-altda
-          command: cp -r .devnet/ .devnet-altda-generic/
+          command: |
+            DEVNET_ALTDA="true" GENERIC_ALTDA="true" make devnet-allocs
+            cp -r .devnet/ .devnet-altda-generic/
       - run:
           name: Generate MT-Cannon allocs
-          command: USE_MT_CANNON="true" make devnet-allocs
-      - run:
-          name: Copy MT-Cannon allocs to .devnet-mt-cannon
-          command: cp -r .devnet/ .devnet-mt-cannon/
+          command: |
+            USE_MT_CANNON="true" make devnet-allocs
+            cp -r .devnet/ .devnet-mt-cannon/
       - run:
           name: Generate default allocs
           command: make devnet-allocs
@@ -261,38 +293,13 @@ jobs:
             - "packages/contracts-bedrock/cache"
             - "packages/contracts-bedrock/artifacts"
             - "packages/contracts-bedrock/forge-artifacts"
-            - ".devnet/allocs-l1.json"
-            - ".devnet/allocs-l2-delta.json"
-            - ".devnet/allocs-l2-ecotone.json"
-            - ".devnet/allocs-l2-fjord.json"
-            - ".devnet/allocs-l2-granite.json"
-            - ".devnet/addresses.json"
-            - ".devnet-l2oo/allocs-l1.json"
-            - ".devnet-l2oo/addresses.json"
-            - ".devnet-l2oo/allocs-l2-delta.json"
-            - ".devnet-l2oo/allocs-l2-ecotone.json"
-            - ".devnet-l2oo/allocs-l2-fjord.json"
-            - ".devnet-l2oo/allocs-l2-granite.json"
-            - ".devnet-altda/allocs-l1.json"
-            - ".devnet-altda/addresses.json"
-            - ".devnet-altda/allocs-l2-delta.json"
-            - ".devnet-altda/allocs-l2-ecotone.json"
-            - ".devnet-altda/allocs-l2-fjord.json"
-            - ".devnet-altda/allocs-l2-granite.json"
-            - ".devnet-altda-generic/allocs-l1.json"
-            - ".devnet-altda-generic/addresses.json"
-            - ".devnet-altda-generic/allocs-l2-delta.json"
-            - ".devnet-altda-generic/allocs-l2-ecotone.json"
-            - ".devnet-altda-generic/allocs-l2-fjord.json"
-            - ".devnet-altda-generic/allocs-l2-granite.json"
-            - ".devnet-mt-cannon/allocs-l1.json"
-            - ".devnet-mt-cannon/addresses.json"
-            - ".devnet-mt-cannon/allocs-l2-delta.json"
-            - ".devnet-mt-cannon/allocs-l2-ecotone.json"
-            - ".devnet-mt-cannon/allocs-l2-fjord.json"
-            - ".devnet-mt-cannon/allocs-l2-granite.json"
             - "packages/contracts-bedrock/deploy-config/devnetL1.json"
             - "packages/contracts-bedrock/deployments/devnetL1"
+            - ".devnet"
+            - ".devnet-l2oo"
+            - ".devnet-altda"
+            - ".devnet-altda-generic"
+            - ".devnet-mt-cannon"
       - notify-failures-on-develop
 
   docker-build:
@@ -568,9 +575,21 @@ jobs:
         description: Number of test jobs to run in parallel
         type: integer
         default: 4
-      test_command:
+      test_list:
         description: List of test files to run
         type: string
+      test_fuzz_runs:
+        description: Number of fuzz runs to apply
+        type: integer
+        default: 512
+      test_invariant_runs:
+        description: Number of invariant runs to apply
+        type: integer
+        default: 32
+      test_invariant_depth:
+        description: Depth of invariant runs
+        type: integer
+        default: 64
       test_timeout:
         description: Timeout for running tests
         type: string
@@ -580,6 +599,15 @@ jobs:
       - checkout
       - attach_workspace: { at: "." }
       - install-contracts-dependencies
+      - run:
+          name: Check if test list is empty
+          command: |
+            TEST_FILES=$(<<parameters.test_list>>)
+            if [ -z "$TEST_FILES" ]; then
+              echo "No test files to run. Exiting early."
+              circleci-agent step halt
+            fi
+          working_directory: packages/contracts-bedrock
       - check-changed:
           patterns: contracts-bedrock,op-node
       - restore_cache:
@@ -591,11 +619,11 @@ jobs:
             - golang-build-cache-contracts-bedrock-tests-{{ checksum "go.sum" }}
             - golang-build-cache-contracts-bedrock-tests-
       - run:
-          name: print dependencies
+          name: Print dependencies
           command: just dep-status
           working_directory: packages/contracts-bedrock
       - run:
-          name: print forge version
+          name: Print forge version
           command: forge --version
           working_directory: packages/contracts-bedrock
       - run:
@@ -603,18 +631,25 @@ jobs:
           command: bash scripts/ops/pull-artifacts.sh
           working_directory: packages/contracts-bedrock
       - run:
-          name: build go-ffi
+          name: Build go-ffi
           command: just build-go-ffi
           working_directory: packages/contracts-bedrock
       - run:
-          name: run tests
-          command: <<parameters.test_command>>
+          name: Run tests
+          command: |
+            TEST_FILES=$(<<parameters.test_list>>)
+            TEST_FILES=$(echo "$TEST_FILES" | circleci tests split --split-by=timings)
+            TEST_FILES=$(echo "$TEST_FILES" | sed 's|^test/||')
+            MATCH_PATH="./test/{$(echo "$TEST_FILES" | paste -sd "," -)}"
+            export FOUNDRY_INVARIANT_RUNS=<<parameters.test_invariant_runs>>
+            export FOUNDRY_INVARIANT_DEPTH=<<parameters.test_invariant_depth>>
+            forge test --deny-warnings --fuzz-runs <<parameters.test_fuzz_runs>> --match-path "$MATCH_PATH"
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
           no_output_timeout: <<parameters.test_timeout>>
       - run:
-          name: print failed test traces
+          name: Print failed test traces
           command: just test-rerun
           environment:
             FOUNDRY_PROFILE: ci
@@ -640,102 +675,28 @@ jobs:
       - setup_remote_docker:
           docker_layer_caching: true
       - run:
-          name: forge version
+          name: print forge version
           command: forge --version
-      - run:
-        # Semver lock must come second because one of the later steps may modify the cache & force a contracts rebuild.
-          name: semver lock
-          command: |
-            just semver-lock
-            git diff --exit-code semver-lock.json || echo "export SEMVER_LOCK_STATUS=1" >> "$BASH_ENV"
-          working_directory: packages/contracts-bedrock
-      - run:
-          name: check deploy configs
-          command: just validate-deploy-configs || echo "export DEPLOY_CONFIGS_STATUS=1" >> "$BASH_ENV"
-          working_directory: packages/contracts-bedrock
-      - run:
-          name: lint
-          command: |
-            just lint-check || echo "export LINT_STATUS=1" >> "$BASH_ENV"
-          working_directory: packages/contracts-bedrock
-      - run:
-          name: gas snapshot
-          command: |
-            just gas-snapshot-check || echo "export GAS_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
-          environment:
-            FOUNDRY_PROFILE: ci
-          working_directory: packages/contracts-bedrock
-          no_output_timeout: 15m
-      - run:
-          name: invariant docs
-          command: |
-            just autogen-invariant-docs
-            git diff --exit-code ./invariant-docs/*.md || echo "export INVARIANT_DOCS_STATUS=1" >> "$BASH_ENV"
-          working_directory: packages/contracts-bedrock
-      - run:
-          name: snapshots
-          command: |
-            just snapshots-check-no-build || echo "export SNAPSHOTS_STATUS=1" >> "$BASH_ENV"
-          working_directory: packages/contracts-bedrock
-      - run:
-          name: kontrol deployment
-          command: |
-            just kontrol-deployment-check || echo "export KONTROL_DEPLOYMENT_STATUS=1" >> "$BASH_ENV"
-          working_directory: packages/contracts-bedrock
-      - run:
-          name: interfaces
-          command: |
-            just interfaces-check-no-build || echo "export INTERFACES_STATUS=1" >> "$BASH_ENV"
-          working_directory: packages/contracts-bedrock
-      - run:
-          name: size check
-          command: |
-            forge build --sizes --skip "/**/test/**" --skip "/**/scripts/**" || echo "export SIZE_CHECK=1" >> "$BASH_ENV"
-          environment:
-            FOUNDRY_PROFILE: ci
-          working_directory: packages/contracts-bedrock
-      - run:
-          name: check statuses
-          command: |
-            if [[ "$LINT_STATUS" -ne 0 ]]; then
-              echo "Linting failed, see job output for details."
-              FAILED=1
-            fi
-            if [[ "$GAS_SNAPSHOT_STATUS" -ne 0 ]]; then
-              echo "Gas snapshot failed, see job output for details."
-              FAILED=1
-            fi
-            if [[ "$SEMVER_LOCK_STATUS" -ne 0 ]]; then
-              echo "Semver lock failed, see job output for details."
-              FAILED=1
-            fi
-            if [[ "$INVARIANT_DOCS_STATUS" -ne 0 ]]; then
-              echo "Invariant docs failed, see job output for details."
-              FAILED=1
-            fi
-            if [[ "$DEPLOY_CONFIGS_STATUS" -ne 0 ]]; then
-              echo "Deploy config check failed, see job output for details."
-              FAILED=1
-            fi
-            if [[ "$SNAPSHOTS_STATUS" -ne 0 ]]; then
-              echo "Snapshots check failed, see job output for details."
-              FAILED=1
-            fi
-            if [[ "$KONTROL_DEPLOYMENT_STATUS" -ne 0 ]]; then
-              echo "Kontrol deployment check failed, see job output for details."
-              FAILED=1
-            fi
-            if [[ "$INTERFACES_STATUS" -ne 0 ]]; then
-              echo "Interface check failed, see job output for details."
-              FAILED=1
-            fi
-            if [[ "$SIZE_CHECK" -ne 0 ]]; then
-              echo "Contract(s) exceed size limit, see job output for details."
-              FAILED=1
-            fi
-            if [[ "$FAILED" -ne 0 ]]; then
-              exit 1
-            fi
+      - run-contracts-check:
+          command: semver-lock
+      - run-contracts-check:
+          command: semver-diff-check-no-build
+      - run-contracts-check:
+          command: semver-natspec-check-no-build
+      - run-contracts-check:
+          command: validate-deploy-configs
+      - run-contracts-check:
+          command: lint
+      - run-contracts-check:
+          command: gas-snapshot-check
+      - run-contracts-check:
+          command: snapshots-check-no-build
+      - run-contracts-check:
+          command: kontrol-deployment-check
+      - run-contracts-check:
+          command: interfaces-check-no-build
+      - run-contracts-check:
+          command: size-check
 
   contracts-bedrock-validate-spacers:
     docker:
@@ -803,15 +764,6 @@ jobs:
           key: golang-build-cache-fuzz-golang-{{ checksum "go.sum" }}
           paths:
             - "/root/.cache/go-build"
-
-  l1-geth-version-check:
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    steps:
-      - checkout
-      - run:
-          name: "Check L1 geth version"
-          command: ./ops/scripts/geth-version-checker.sh || (echo "geth version is wrong, update ci-builder"; false)
 
   go-lint:
     docker:
@@ -913,7 +865,7 @@ jobs:
         description: Go Module Name
         type: string
     docker:
-      - image: <<pipeline.parameters.ci_builder_image>> # only used to enable codecov.
+      - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: xlarge
     steps:
       - checkout
@@ -926,12 +878,17 @@ jobs:
             - golang-build-cache-test-<<parameters.module>>-{{ checksum "go.sum" }}
             - golang-build-cache-test-
       - run:
+          name: Install components
+          command: |
+            go version
+            go install gotest.tools/gotestsum@v1.11.0
+      - run:
           name: prep results dir
-          command: mkdir -p /tmp/test-results &&  mkdir -p /testlogs
+          command: mkdir -p /tmp/test-results && mkdir -p /tmp/testlogs
       - run:
           name: run tests
           command: |
-            gotestsum --format=testname --junitfile=/tmp/test-results/<<parameters.module>>.xml --jsonfile=/testlogs/log.json \
+            gotestsum --format=testname --junitfile=/tmp/test-results/<<parameters.module>>.xml --jsonfile=/tmp/testlogs/log.json \
             -- -parallel=8 -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out ./...
           working_directory: <<parameters.module>>
       - save_cache:
@@ -942,7 +899,7 @@ jobs:
       - store_test_results:
           path: /tmp/test-results
       - store_artifacts:
-          path: /testlogs
+          path: /tmp/testlogs
           when: always
 
   go-e2e-test:
@@ -1371,7 +1328,7 @@ jobs:
       SEMGREP_COMMIT: << pipeline.git.revision >>
     docker:
       - image: returntocorp/semgrep
-    resource_class: large
+    resource_class: xlarge
     steps:
       - checkout
       - unless:
@@ -1392,11 +1349,10 @@ jobs:
             echo 'export SEMGREP_REPO_NAME=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME' >> $BASH_ENV
       - run:
           name: "Semgrep scan"
-          # --time shows which rules take the most time
           # --timeout (in seconds) limits the time per rule and file.
           #   SEMGREP_TIMEOUT is the same, but docs have conflicting defaults (5s in CLI flag, 1800 in some places)
           #    https://semgrep.dev/docs/troubleshooting/semgrep-app#if-the-job-is-aborted-due-to-taking-too-long
-          command: semgrep ci --time --timeout=100
+          command: semgrep ci --timeout=100
           # If semgrep hangs, stop the scan after 20m, to prevent a useless 5h job
           no_output_timeout: 20m
       - notify-failures-on-develop
@@ -1499,29 +1455,6 @@ jobs:
           name: check-generated-mocks
           command: make generate-mocks-op-service && git diff --exit-code
 
-  check-values-match:
-    parameters:
-      pattern_file1:
-        type: string
-        default: ""
-      pattern_file2:
-        type: string
-        default: ""
-      file1_path:
-        type: string
-        default: ""
-      file2_path:
-        type: string
-        default: ""
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    steps:
-      - checkout
-      - run:
-          name: Verify Values Match
-          command: |
-            ./ops/scripts/ci-match-values-between-files.sh "<< parameters.file1_path >>" "<< parameters.pattern_file1 >>" "<< parameters.file2_path >>" "<< parameters.pattern_file2 >>"
-
   kontrol-tests:
     docker:
       - image: << pipeline.parameters.ci_builder_image >>
@@ -1596,31 +1529,27 @@ workflows:
     jobs:
       - go-mod-download
       - contracts-bedrock-build:
-          name: contracts-bedrock-build
-          build_command: |
-            # Note: scripts are included, to be available to op-e2e
-            forge build --skip test
+          # Build with just core + script contracts.
+          skip_pattern: test
       - contracts-bedrock-tests:
           # Test everything except PreimageOracle.t.sol since it's slow.
           name: contracts-bedrock-tests
           test_parallelism: 4
-          test_command: |
-            TEST_FILES=$(find . -name "*.t.sol" -not -name "PreimageOracle.t.sol")
-            TEST_FILES=$(echo "$TEST_FILES" | circleci tests split --split-by=timings)
-            TEST_FILES=$(echo "$TEST_FILES" | sed 's|./test/||')
-            MATCH_PATH="./test/{$(echo "$TEST_FILES" | paste -sd "," -)}"
-            forge test --match-path "$MATCH_PATH"
+          test_list: find test -name "*.t.sol" -not -name "PreimageOracle.t.sol"
       - contracts-bedrock-tests:
           # PreimageOracle test is slow, run it separately to unblock CI.
           name: contracts-bedrock-tests-preimage-oracle
           test_parallelism: 1
-          test_command: forge test --match-path ./test/cannon/PreimageOracle.t.sol
+          test_list: find test -name "PreimageOracle.t.sol"
       - contracts-bedrock-tests:
-          # Heavily fuzz any fuzz tests that have been added or modified.
+          # Heavily fuzz any fuzz tests within added or modified test files.
           name: contracts-bedrock-tests-heavy-fuzz-modified
           test_parallelism: 1
+          test_list: git diff origin/develop...HEAD --name-only -- './test/**/*.t.sol' | sed 's|packages/contracts-bedrock/||'
           test_timeout: 1h
-          test_command: just test-heavy-fuzz-modified-tests
+          test_fuzz_runs: 10000
+          test_invariant_runs: 128
+          test_invariant_depth: 512
       - contracts-bedrock-coverage
       - contracts-bedrock-checks:
           requires:
@@ -1633,25 +1562,17 @@ workflows:
           requires:
             - go-mod-download
       - fuzz-golang:
-          name: op-challenger-fuzz
-          package_name: op-challenger
-          on_changes: op-challenger
-          requires: ["go-mod-download"]
-      - fuzz-golang:
-          name: op-node-fuzz
-          package_name: op-node
-          on_changes: op-node
-          requires: ["go-mod-download"]
-      - fuzz-golang:
-          name: op-service-fuzz
-          package_name: op-service
-          on_changes: op-service
-          requires: ["go-mod-download"]
-      - fuzz-golang:
-          name: op-chain-ops-fuzz
-          package_name: op-chain-ops
-          on_changes: op-chain-ops
-          requires: ["go-mod-download"]
+          name: fuzz-golang-<<matrix.package_name>>
+          requires:
+            - go-mod-download
+          on_changes: <<matrix.package_name>>
+          matrix:
+            parameters:
+              package_name:
+                - op-challenger
+                - op-node
+                - op-service
+                - op-chain-ops
       - fuzz-golang:
           name: cannon-fuzz
           package_name: cannon
@@ -1665,50 +1586,28 @@ workflows:
           uses_artifacts: true
           requires: ["go-mod-download", "contracts-bedrock-build"]
       - go-test:
-          name: op-batcher-tests
-          module: op-batcher
-          requires: ["go-mod-download"]
-      - go-test:
-          name: op-chain-ops-tests
-          module: op-chain-ops
+          name: <<matrix.module>>-tests
+          requires:
+            - go-mod-download
+          matrix:
+            parameters:
+              module:
+                - op-batcher
+                - op-chain-ops
+                - op-node
+                - op-proposer
+                - op-challenger
+                - op-dispute-mon
+                - op-conductor
+                - op-program
+                - op-service
+                - op-supervisor
       - go-test-kurtosis:
           name: op-chain-ops-integration
           module: op-chain-ops
           test_directory: ./deployer/integration_test
           uses_artifacts: true
           requires: ["contracts-bedrock-build"]
-      - go-test:
-          name: op-node-tests
-          module: op-node
-          requires: ["go-mod-download"]
-      - go-test:
-          name: op-proposer-tests
-          module: op-proposer
-          requires: ["go-mod-download"]
-      - go-test:
-          name: op-challenger-tests
-          module: op-challenger
-          requires: ["go-mod-download"]
-      - go-test:
-          name: op-dispute-mon-tests
-          module: op-dispute-mon
-          requires: ["go-mod-download"]
-      - go-test:
-          name: op-conductor-tests
-          module: op-conductor
-          requires: ["go-mod-download"]
-      - go-test:
-          name: op-program-tests
-          module: op-program
-          requires: ["go-mod-download"]
-      - go-test:
-          name: op-service-tests
-          module: op-service
-          requires: ["go-mod-download"]
-      - go-test:
-          name: op-supervisor-tests
-          module: op-supervisor
-          requires: ["go-mod-download"]
       - go-e2e-test:
           name: op-e2e-HTTP-tests<< matrix.variant >>
           matrix:
@@ -1768,54 +1667,22 @@ workflows:
             - op-e2e-action-tests
             - op-e2e-action-tests-altda
       - docker-build:
-          name: op-node-docker-build
-          docker_name: op-node
+          name: <<matrix.docker_name>>-docker-build
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          save_image_tag: <<pipeline.git.revision>> # for devnet later
-      - docker-build:
-          name: op-batcher-docker-build
-          docker_name: op-batcher
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          save_image_tag: <<pipeline.git.revision>> # for devnet later
-      - docker-build:
-          name: op-program-docker-build
-          docker_name: op-program
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          # op-program is not part of the devnet, we don't save it.
-      - docker-build:
-          name: op-proposer-docker-build
-          docker_name: op-proposer
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          save_image_tag: <<pipeline.git.revision>> # for devnet later
-      - docker-build:
-          name: op-challenger-docker-build
-          docker_name: op-challenger
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          save_image_tag: <<pipeline.git.revision>> # for devnet later
-      - docker-build:
-          name: proofs-tools-docker-build
-          docker_name: proofs-tools
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-      - docker-build:
-          name: op-dispute-mon-docker-build
-          docker_name: op-dispute-mon
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          save_image_tag: <<pipeline.git.revision>> # for devnet later
-      - docker-build:
-          name: op-conductor-docker-build
-          docker_name: op-conductor
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          # op-conductor is not part of the devnet, we don't save it.
-      - docker-build:
-          name: da-server-docker-build
-          docker_name: da-server
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          save_image_tag: <<pipeline.git.revision>> # for devnet later
-      - docker-build:
-          name: op-supervisor-docker-build
-          docker_name: op-supervisor
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          # op-supervisor is not (yet) part of the devnet, we don't save it
+          save_image_tag: <<pipeline.git.revision>>
+          matrix:
+            parameters:
+              docker_name:
+                - op-node
+                - op-batcher
+                - op-program
+                - op-proposer
+                - op-challenger
+                - proofs-tools
+                - op-dispute-mon
+                - op-conductor
+                - da-server
+                - op-supervisor
       - cannon-prestate:
           requires:
             - go-mod-download
@@ -1836,7 +1703,11 @@ workflows:
       - cannon-go-lint-and-test:
           requires:
             - contracts-bedrock-build
+          skip_slow_tests: true
+          notify: true
       - cannon-build-test-vectors
+      - todo-issues:
+          name: todo-issues-check
       - shellcheck/check:
           name: shell-check
           # We don't need the `exclude` key as the orb detects the `.shellcheckrc`
@@ -1849,6 +1720,7 @@ workflows:
       not:
         equal: [ scheduled_pipeline, << pipeline.trigger_source >> ]
     jobs:
+      # Wait for approval on the release
       - hold:
           type: approval
           filters:
@@ -1856,227 +1728,79 @@ workflows:
               only: /^(da-server|ci-builder(-rust)?|proofs-tools|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
+      # Standard (medium) cross-platform docker images go here
       - docker-build:
-          name: op-node-docker-release
-          filters:
-            tags:
-              only: /^op-node\/v.*/
-            branches:
-              ignore: /.*/
-          docker_name: op-node
+          matrix:
+            parameters:
+              docker_name:
+                - op-node
+                - op-batcher
+                - op-proposer
+                - op-challenger
+                - op-dispute-mon
+                - op-conductor
+                - da-server
+                - op-ufm
+                - op-supervisor
+          name: <<matrix.docker_name>>-docker-release
           docker_tags: <<pipeline.git.revision>>
-          requires: ['hold']
           platforms: "linux/amd64,linux/arm64"
           publish: true
           release: true
+          filters:
+            tags:
+              only: /^<<matrix.docker_name>>\/v.*/
+            branches:
+              ignore: /.*/
           context:
             - oplabs-gcr-release
+          requires:
+            - hold
+      # Checks for cross-platform images go here
       - check-cross-platform:
-          name: op-node-cross-platform
-          op_component: op-node
+          matrix:
+            parameters:
+              op_component:
+                - op-node
+                - op-batcher
+                - op-proposer
+                - op-challenger
+                - op-dispute-mon
+                - op-conductor
+                - da-server
+                - op-ufm
+                - op-supervisor
+          name: <<matrix.op_component>>-cross-platform
           requires:
             - op-node-docker-release
-      - docker-build:
-          name: op-batcher-docker-release
-          filters:
-            tags:
-              only: /^op-batcher\/v.*/
-            branches:
-              ignore: /.*/
-          docker_name: op-batcher
-          docker_tags: <<pipeline.git.revision>>
-          requires: ['hold']
-          platforms: "linux/amd64,linux/arm64"
-          publish: true
-          release: true
-          context:
-            - oplabs-gcr-release
-      - check-cross-platform:
-          name: op-batcher-cross-platform
-          op_component: op-batcher
-          requires:
             - op-batcher-docker-release
-      - docker-build:
-          name: op-proposer-docker-release
-          filters:
-            tags:
-              only: /^op-proposer\/v.*/
-            branches:
-              ignore: /.*/
-          docker_name: op-proposer
-          docker_tags: <<pipeline.git.revision>>
-          requires: ['hold']
-          platforms: "linux/amd64,linux/arm64"
-          publish: true
-          release: true
-          context:
-            - oplabs-gcr-release
-      - check-cross-platform:
-          name: op-proposer-cross-platform
-          op_component: op-proposer
-          requires:
             - op-proposer-docker-release
-      - docker-build:
-          name: op-challenger-docker-release
-          filters:
-            tags:
-              only: /^op-challenger\/v.*/
-            branches:
-              ignore: /.*/
-          docker_name: op-challenger
-          docker_tags: <<pipeline.git.revision>>
-          requires: ['hold']
-          platforms: "linux/amd64,linux/arm64"
-          publish: true
-          release: true
-          context:
-            - oplabs-gcr-release
-      - check-cross-platform:
-          name: op-challenger-cross-platform
-          op_component: op-challenger
-          requires:
             - op-challenger-docker-release
-      - docker-build:
-          name: op-dispute-mon-docker-release
-          filters:
-            tags:
-              only: /^op-dispute-mon\/v.*/
-            branches:
-              ignore: /.*/
-          docker_name: op-dispute-mon
-          docker_tags: <<pipeline.git.revision>>
-          requires: ['hold']
-          platforms: "linux/amd64,linux/arm64"
-          publish: true
-          release: true
-          context:
-            - oplabs-gcr-release
-      - check-cross-platform:
-          name: op-dispute-mon-cross-platform
-          op_component: op-dispute-mon
-          requires:
             - op-dispute-mon-docker-release
-      - docker-build:
-          name: op-conductor-docker-release
-          filters:
-            tags:
-              only: /^op-conductor\/v.*/
-            branches:
-              ignore: /.*/
-          docker_name: op-conductor
-          docker_tags: <<pipeline.git.revision>>
-          requires: ['hold']
-          platforms: "linux/amd64,linux/arm64"
-          publish: true
-          release: true
-          context:
-            - oplabs-gcr-release
-      - check-cross-platform:
-          name: op-conductor-cross-platform
-          op_component: op-conductor
-          requires:
             - op-conductor-docker-release
-      - docker-build:
-          name: da-server-docker-release
-          filters:
-            tags:
-              only: /^da-server\/v.*/
-            branches:
-              ignore: /.*/
-          docker_name: da-server
-          docker_tags: <<pipeline.git.revision>>
-          requires: ['hold']
-          platforms: "linux/amd64,linux/arm64"
-          publish: true
-          release: true
-          context:
-            - oplabs-gcr-release
-      - check-cross-platform:
-          name: da-server-cross-platform
-          op_component: da-server
-          requires:
             - da-server-docker-release
-      - docker-build:
-          name: op-ufm-docker-release
-          filters:
-            tags:
-              only: /^op-ufm\/v.*/
-            branches:
-              ignore: /.*/
-          docker_name: op-ufm
-          docker_tags: <<pipeline.git.revision>>
-          publish: true
-          release: true
-          context:
-            - oplabs-gcr-release
-          requires:
-            - hold
-      - docker-build:
-          name: op-supervisor-docker-release
-          filters:
-            tags:
-              only: /^op-supervisor\/v.*/
-            branches:
-              ignore: /.*/
-          docker_name: op-supervisor
-          docker_tags: <<pipeline.git.revision>>
-          requires: ['hold']
-          platforms: "linux/amd64,linux/arm64"
-          publish: true
-          release: true
-          context:
-            - oplabs-gcr-release
-      - check-cross-platform:
-          name: op-supervisor-cross-platform
-          op_component: op-supervisor
-          requires:
+            - op-ufm-docker-release
             - op-supervisor-docker-release
+      # Standard (xlarge) AMD-only docker images go here
       - docker-build:
-          name: op-challenger-big-docker-release
-          filters:
-            tags:
-              only: /^op-challenger\/v.*/
-            branches:
-              ignore: /.*/
-          docker_name: ci-builder
-          docker_tags: <<pipeline.git.revision>>,latest
+          matrix:
+            parameters:
+              docker_name:
+                - ci-builder
+                - ci-builder-rust
+                - proofs-tools
+          name: <<matrix.docker_name>>-docker-release
+          resource_class: xlarge
+          docker_tags: <<pipeline.git.revision>>
           publish: true
           release: true
-          resource_class: xlarge
-          context:
-            - oplabs-gcr
-          requires:
-            - hold
-      - docker-build:
-          name: proofs-tools-docker-release
           filters:
             tags:
-              only: /^proofs-tools\/v.*/
+              only: /^<<matrix.docker_name>>\/v.*/
             branches:
               ignore: /.*/
-          docker_name: proofs-tools
-          docker_tags: <<pipeline.git.revision>>,latest
-          publish: true
-          release: true
-          resource_class: xlarge
           context:
-            - oplabs-gcr
-          requires:
-            - hold
-      - docker-build:
-          name: ci-builder-rust-docker-release
-          filters:
-            tags:
-              only: /^ci-builder-rust\/v.*/
-            branches:
-              ignore: /.*/
-          docker_name: ci-builder-rust
-          docker_tags: <<pipeline.git.revision>>,latest
-          publish: true
-          release: true
-          resource_class: xlarge
-          context:
-            - oplabs-gcr
+            - oplabs-gcr-release
           requires:
             - hold
 
@@ -2119,7 +1843,10 @@ workflows:
       - cannon-prestate:
           requires:
             - go-mod-download
-      - contracts-bedrock-build
+      - contracts-bedrock-build:
+          skip_pattern: test
+          context:
+            - slack
       - go-e2e-test:
           name: op-e2e-cannon-tests<< matrix.variant >>
           matrix:
@@ -2150,6 +1877,20 @@ workflows:
             - slack
             - runtimeverification
 
+  scheduled-cannon-full-tests:
+    when:
+      or:
+        - equal: [ build_four_hours, <<pipeline.schedule.name>> ]
+        - equal: [ true, << pipeline.parameters.cannon_full_test_dispatch >> ]
+    jobs:
+      - contracts-bedrock-build:
+          skip_pattern: test
+      - cannon-go-lint-and-test:
+          requires:
+            - contracts-bedrock-build
+          context:
+            - slack
+
   scheduled-docker-publish:
     when:
       or:
@@ -2158,8 +1899,18 @@ workflows:
         - equal: [ true, << pipeline.parameters.docker_publish_dispatch >> ]
     jobs:
       - docker-build:
-          name: op-node-docker-publish
-          docker_name: op-node
+          matrix:
+            parameters:
+              docker_name:
+                - op-node
+                - op-batcher
+                - op-program
+                - op-proposer
+                - op-challenger
+                - op-dispute-mon
+                - op-conductor
+                - op-supervisor
+          name: <<matrix.docker_name>>-docker-publish
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           platforms: "linux/amd64,linux/arm64"
           publish: true
@@ -2167,108 +1918,20 @@ workflows:
             - oplabs-gcr
             - slack
       - check-cross-platform:
-          name: op-node-cross-platform
-          op_component: op-node
+          matrix:
+            parameters:
+              op_component:
+                - op-node
+                - op-batcher
+                - op-program
+                - op-proposer
+                - op-challenger
+                - op-dispute-mon
+                - op-conductor
+                - op-supervisor
+          name: <<matrix.op_component>>-cross-platform
           requires:
-            - op-node-docker-publish
-      - docker-build:
-          name: op-batcher-docker-publish
-          docker_name: op-batcher
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          platforms: "linux/amd64,linux/arm64"
-          publish: true
-          context:
-            - oplabs-gcr
-            - slack
-      - check-cross-platform:
-          name: op-batcher-cross-platform
-          op_component: op-batcher
-          requires:
-            - op-batcher-docker-publish
-      - docker-build:
-          name: op-program-docker-publish
-          docker_name: op-program
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          platforms: "linux/amd64,linux/arm64"
-          publish: true
-          context:
-            - oplabs-gcr
-            - slack
-      - check-cross-platform:
-          name: op-program-cross-platform
-          op_component: op-program
-          requires:
-            - op-program-docker-publish
-      - docker-build:
-          name: op-proposer-docker-publish
-          docker_name: op-proposer
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          platforms: "linux/amd64,linux/arm64"
-          publish: true
-          context:
-            - oplabs-gcr
-            - slack
-      - check-cross-platform:
-          name: op-proposer-cross-platform
-          op_component: op-proposer
-          requires:
-            - op-proposer-docker-publish
-      - docker-build:
-          name: op-challenger-docker-publish
-          docker_name: op-challenger
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          platforms: "linux/amd64,linux/arm64"
-          publish: true
-          context:
-            - oplabs-gcr
-            - slack
-      - check-cross-platform:
-          name: op-challenger-cross-platform
-          op_component: op-challenger
-          requires:
-            - op-challenger-docker-publish
-      - docker-build:
-          name: op-dispute-mon-docker-publish
-          docker_name: op-dispute-mon
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          platforms: "linux/amd64,linux/arm64"
-          publish: true
-          context:
-            - oplabs-gcr
-            - slack
-      - check-cross-platform:
-          name: op-dispute-mon-cross-platform
-          op_component: op-dispute-mon
-          requires:
-            - op-dispute-mon-docker-publish
-      - docker-build:
-          name: op-conductor-docker-publish
-          docker_name: op-conductor
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          platforms: "linux/amd64,linux/arm64"
-          publish: true
-          context:
-            - oplabs-gcr
-            - slack
-      - check-cross-platform:
-          name: op-conductor-cross-platform
-          op_component: op-conductor
-          requires:
-            - op-conductor-docker-publish
-      - docker-build:
-          name: op-supervisor-docker-publish
-          docker_name: op-supervisor
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          platforms: "linux/amd64,linux/arm64"
-          publish: true
-          context:
-            - oplabs-gcr
-            - slack
-      - check-cross-platform:
-          name: op-supervisor-cross-platform
-          op_component: op-supervisor
-          requires:
-            - op-supervisor-docker-publish
+            - <<matrix.op_component>>-docker-publish
       - docker-build:
           name: contracts-bedrock-docker-publish
           docker_name: contracts-bedrock

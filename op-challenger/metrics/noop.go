@@ -56,3 +56,7 @@ func (*NoopMetricsImpl) DecIdleExecutors()   {}
 
 func (*NoopMetricsImpl) CacheAdd(_ string, _ int, _ bool) {}
 func (*NoopMetricsImpl) CacheGet(_ string, _ bool)        {}
+
+func (m *NoopMetricsImpl) VmMetrics(vmType string) *VmMetrics {
+	return NewVmMetrics(m, vmType)
+}

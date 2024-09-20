@@ -14,7 +14,7 @@
     "type": "bool"
   },
   {
-    "bytes": "160",
+    "bytes": "192",
     "label": "blueprint",
     "offset": 0,
     "slot": "1",
@@ -24,21 +24,21 @@
     "bytes": "32",
     "label": "latestRelease",
     "offset": 0,
-    "slot": "6",
+    "slot": "7",
     "type": "string"
   },
   {
     "bytes": "32",
     "label": "implementations",
     "offset": 0,
-    "slot": "7",
+    "slot": "8",
     "type": "mapping(string => mapping(string => struct OPStackManager.Implementation))"
   },
   {
     "bytes": "32",
     "label": "systemConfigs",
     "offset": 0,
-    "slot": "8",
+    "slot": "9",
     "type": "mapping(uint256 => contract SystemConfig)"
   }
 ]
