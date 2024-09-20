@@ -4,6 +4,14 @@ pragma solidity ^0.8.0;
 /// @title IL2ToL2CrossDomainMessenger
 /// @notice Interface for the L2ToL2CrossDomainMessenger contract.
 interface IL2ToL2CrossDomainMessenger {
+    /// @notice The struct for a message within a message batch.
+    struct BatchableMessage {
+        address sender;
+        address target;
+        uint256 destination;
+        bytes message;
+    }
+
     /// @notice Retrieves the sender of the current cross domain message.
     /// @return _sender Address of the sender of the current cross domain message.
     function crossDomainMessageSender() external view returns (address _sender);
@@ -37,6 +45,21 @@ interface IL2ToL2CrossDomainMessenger {
         address _sender,
         address _target,
         bytes calldata _message
+    )
+        external
+        payable;
+
+    /// @notice Relays a batched message that was sent by the other CrossDomainMessenger contract. Can only be executed
+    /// via
+    ///         cross-chain call from the other messenger OR if the message was already received once and is currently
+    ///         being replayed.
+    /// @param _source              Chain ID of the source chain.
+    /// @param _nonce               Nonce of the message being relayed.
+    /// @param _batchedMessage      Batched message to iterate over and call.
+    function relayBatchedMessage(
+        uint256 _source,
+        uint256 _nonce,
+        BatchableMessage[] memory _batchedMessage
     )
         external
         payable;

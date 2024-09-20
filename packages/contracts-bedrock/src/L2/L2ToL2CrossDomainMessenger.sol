@@ -53,12 +53,22 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
     bytes32 internal constant CROSS_DOMAIN_MESSAGE_SOURCE_SLOT =
         0x711dfa3259c842fffc17d6e1f1e0fc5927756133a2345ca56b4cb8178589fee7;
 
+    /// @notice Storage slot controlling whether or not to batch cross domain messages.
+    ///         Equal to bytes32(uint256(keccak256("l2tol2crossdomainmessenger.isbatching")) - 1)
+    bytes32 internal constant CROSS_DOMAIN_MESSAGE_IS_BATCHING_SLOT =
+        0xaac43bf59350fd9eacb862eb14d57a59b0fbde3051d74d34d63145e0dcbc4ea8;
+
+    /// @notice Storage slot for storing the length of batched cross domain messages.
+    ///         Equal to bytes32(uint256(keccak256("l2tol2crossdomainmessenger.batchmessagecount")) - 1)
+    bytes32 internal constant CROSS_DOMAIN_BATCH_MESSAGE_COUNT_SLOT =
+        0x7b7a8507cffe44857faca837650e78002747b183d7a2fbb0c91586ae7b37deac;
+
     /// @notice Current message version identifier.
     uint16 public constant messageVersion = uint16(0);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.4
-    string public constant version = "1.0.0-beta.4";
+    /// @custom:semver 1.0.0-beta.5
+    string public constant version = "1.0.0-beta.5";
 
     /// @notice Mapping of message hashes to boolean receipt values. Note that a message will only be present in this
     ///         mapping if it has successfully been relayed on this chain, and can therefore not be relayed again.
@@ -93,6 +103,30 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
         }
     }
 
+    /// @notice Retrieves whether the current message is a batch.
+    /// @return _isBatching true if the cross domain messenger is batching messages.
+    function crossDomainMessageIsBatching() internal view returns (bool _isBatching) {
+        assembly {
+            _isBatching := tload(CROSS_DOMAIN_MESSAGE_IS_BATCHING_SLOT)
+        }
+    }
+
+    /// @notice The sent messages will be emitted in a batch.
+    function startBatching() external {
+        _storeIsBatching(true);
+    }
+
+    /// @notice Emit all messages from current batch.
+    function finishBatchingAndSend() external {
+        if (L2ToL2CrossDomainMessenger.crossDomainMessageIsBatching() == false) revert();
+
+        BatchableMessage[] memory allMessages = _processAllMessages();
+        _sendBatchedMessage(allMessages);
+
+        _storeIsBatching(false);
+        _clearAllMessages();
+    }
+
     /// @notice Sends a message to some target address on a destination chain. Note that if the call always reverts,
     ///         then the message will be unrelayable and any ETH sent will be permanently locked. The same will occur
     ///         if the target on the other chain is considered unsafe (see the _isUnsafeTarget() function).
@@ -104,14 +138,93 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
         if (_target == Predeploys.CROSS_L2_INBOX) revert MessageTargetCrossL2Inbox();
         if (_target == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER) revert MessageTargetL2ToL2CrossDomainMessenger();
 
-        bytes memory data = abi.encodeCall(
-            L2ToL2CrossDomainMessenger.relayMessage,
-            (_destination, block.chainid, messageNonce(), msg.sender, _target, _message)
-        );
+        if (L2ToL2CrossDomainMessenger.crossDomainMessageIsBatching() == true) {
+            BatchableMessage memory newMessage =
+                BatchableMessage({ sender: msg.sender, target: _target, destination: _destination, message: _message });
+            _appendBatchMessage(newMessage);
+        } else {
+            bytes memory data = abi.encodeCall(
+                L2ToL2CrossDomainMessenger.relayMessage,
+                (_destination, block.chainid, messageNonce(), msg.sender, _target, _message)
+            );
+            assembly {
+                log0(add(data, 0x20), mload(data))
+            }
+            msgNonce++;
+        }
+    }
+
+    /// @notice Sends a batched message to a destination chain. Note that if the call always reverts,
+    ///         then the message will be unrelayable and any ETH sent will be permanently locked. The same will occur
+    ///         if the target on the other chain is considered unsafe (see the _isUnsafeTarget() function).
+    /// @param _batchedMessage      Batched message to send to destination chain.
+    function _sendBatchedMessage(BatchableMessage[] memory _batchedMessage) internal {
+        for (uint256 i = 0; i < _batchedMessage.length; i++) {
+            BatchableMessage memory message = _batchedMessage[i];
+            if (message.destination == block.chainid) revert MessageDestinationSameChain();
+            if (message.target == Predeploys.CROSS_L2_INBOX) revert MessageTargetCrossL2Inbox();
+            if (message.target == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER) {
+                revert MessageTargetL2ToL2CrossDomainMessenger();
+            }
+        }
+
+        bytes memory data = abi.encodeCall(this.relayBatchedMessage, (block.chainid, messageNonce(), _batchedMessage));
+
         assembly {
             log0(add(data, 0x20), mload(data))
         }
+
         msgNonce++;
+    }
+
+    /// @notice Relays a batched message that was sent by the other CrossDomainMessenger contract. Can only be executed
+    /// via
+    ///         cross-chain call from the other messenger OR if the message was already received once and is currently
+    ///         being replayed.
+    /// @param _source              Chain ID of the source chain.
+    /// @param _nonce               Nonce of the message being relayed.
+    /// @param _batchedMessage      Batched message to iterate over and call.
+    function relayBatchedMessage(
+        uint256 _source,
+        uint256 _nonce,
+        BatchableMessage[] memory _batchedMessage
+    )
+        external
+        payable
+    {
+        if (msg.sender != Predeploys.CROSS_L2_INBOX) revert RelayMessageCallerNotCrossL2Inbox();
+        if (CrossL2Inbox(Predeploys.CROSS_L2_INBOX).origin() != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER) {
+            revert CrossL2InboxOriginNotL2ToL2CrossDomainMessenger();
+        }
+
+        for (uint256 i = 0; i < _batchedMessage.length; i++) {
+            BatchableMessage memory message = _batchedMessage[i];
+            if (message.destination != block.chainid) revert MessageDestinationNotRelayChain();
+            if (message.target == Predeploys.CROSS_L2_INBOX) revert MessageTargetCrossL2Inbox();
+            if (message.target == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER) {
+                revert MessageTargetL2ToL2CrossDomainMessenger();
+            }
+
+            bytes32 messageHash = keccak256(
+                abi.encode(message.destination, _source, _nonce, message.sender, message.target, message.message)
+            );
+            if (successfulMessages[messageHash]) {
+                revert MessageAlreadyRelayed();
+            }
+
+            _storeMessageMetadata(_source, message.sender);
+
+            bool success = SafeCall.call(message.target, 0, message.message);
+
+            if (success) {
+                successfulMessages[messageHash] = true;
+                emit RelayedMessage(messageHash);
+            } else {
+                emit FailedRelayedMessage(messageHash);
+            }
+
+            _storeMessageMetadata(0, address(0));
+        }
     }
 
     /// @notice Relays a message that was sent by the other CrossDomainMessenger contract. Can only be executed via
@@ -178,6 +291,167 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
         assembly {
             tstore(CROSS_DOMAIN_MESSAGE_SENDER_SLOT, _sender)
             tstore(CROSS_DOMAIN_MESSAGE_SOURCE_SLOT, _source)
+        }
+    }
+
+    /// @notice Internal function to append a new BatchableMessage to transient storage.
+    /// @param _batchMessage The BatchableMessage struct to store.
+    function _appendBatchMessage(BatchableMessage memory _batchMessage) internal {
+        uint256 length;
+        assembly {
+            length := tload(CROSS_DOMAIN_BATCH_MESSAGE_COUNT_SLOT)
+        }
+
+        bytes32 baseSlot = keccak256(abi.encodePacked(CROSS_DOMAIN_BATCH_MESSAGE_COUNT_SLOT, length));
+        address sender = _batchMessage.sender;
+        address target = _batchMessage.target;
+        uint256 destination = _batchMessage.destination;
+        bytes memory message = _batchMessage.message;
+        uint256 messageLength = _batchMessage.message.length;
+
+        assembly {
+            tstore(baseSlot, sender)
+            tstore(add(baseSlot, 1), target)
+            tstore(add(baseSlot, 2), destination)
+            tstore(add(baseSlot, 3), messageLength)
+        }
+
+        for (uint256 i = 0; i < messageLength; i += 32) {
+            bytes32 dataSlot = keccak256(abi.encodePacked(baseSlot, i / 32 + 4));
+            bytes32 chunk;
+            assembly {
+                chunk := mload(add(message, add(0x20, i)))
+                tstore(dataSlot, chunk)
+            }
+        }
+
+        assembly {
+            tstore(CROSS_DOMAIN_BATCH_MESSAGE_COUNT_SLOT, add(length, 1))
+        }
+    }
+
+    /// @notice Get the number of stored BatchableMessages in transient storage.
+    /// @return The number of messages stored.
+    function _getMessageCount() internal view returns (uint256) {
+        uint256 length;
+        assembly {
+            length := tload(CROSS_DOMAIN_BATCH_MESSAGE_COUNT_SLOT)
+        }
+        return length;
+    }
+
+    /// @notice Load a BatchableMessage from transient storage by index.
+    /// @param index The index of the message to load.
+    /// @return batchMessage The loaded BatchableMessage struct.
+    function _loadMessage(uint256 index) internal view returns (BatchableMessage memory batchMessage) {
+        uint256 length;
+
+        // Load the current length of the array from transient storage
+        assembly {
+            length := tload(CROSS_DOMAIN_BATCH_MESSAGE_COUNT_SLOT)
+        }
+
+        require(index < length, "Index out of bounds");
+
+        // Calculate the base slot for the message at the given index
+        bytes32 baseSlot = keccak256(abi.encodePacked(CROSS_DOMAIN_BATCH_MESSAGE_COUNT_SLOT, index));
+
+        address sender;
+        address target;
+        uint256 destination;
+        uint256 messageLength;
+        assembly {
+            sender := tload(baseSlot)
+            target := tload(add(baseSlot, 1))
+            destination := tload(add(baseSlot, 2))
+            messageLength := tload(add(baseSlot, 3))
+        }
+
+        batchMessage.sender = sender;
+        batchMessage.target = target;
+        batchMessage.destination = destination;
+        bytes memory message = new bytes(messageLength);
+
+        // Load the message bytes from transient storage
+        for (uint256 i = 0; i < messageLength; i += 32) {
+            bytes32 dataSlot = keccak256(abi.encodePacked(baseSlot, i / 32 + 4));
+            bytes32 chunk;
+            assembly {
+                chunk := tload(dataSlot)
+                mstore(add(message, add(0x20, i)), chunk)
+            }
+        }
+
+        batchMessage.message = message;
+    }
+
+    /// @notice Helper function to iterate over all BatchableMessages stored in transient storage.
+    function _processAllMessages() internal view returns (BatchableMessage[] memory) {
+        uint256 messageCount = _getMessageCount();
+        BatchableMessage[] memory allMessages = new BatchableMessage[](messageCount);
+
+        for (uint256 i = 0; i < messageCount; i++) {
+            BatchableMessage memory message = _loadMessage(i);
+            allMessages[i] = message;
+        }
+
+        return allMessages;
+    }
+
+    /// @notice Clear a specific BatchableMessage stored in transient storage by index.
+    /// @param index The index of the message to clear.
+    function _clearMessage(uint256 index) internal {
+        uint256 length;
+
+        assembly {
+            length := tload(CROSS_DOMAIN_BATCH_MESSAGE_COUNT_SLOT)
+        }
+
+        require(index < length, "Index out of bounds");
+
+        bytes32 baseSlot = keccak256(abi.encodePacked(CROSS_DOMAIN_BATCH_MESSAGE_COUNT_SLOT, index));
+
+        uint256 messageLength;
+        assembly {
+            messageLength := tload(add(baseSlot, 3)) // Load the message length
+        }
+
+        for (uint256 i = 0; i < messageLength; i += 32) {
+            bytes32 dataSlot = keccak256(abi.encodePacked(baseSlot, i / 32 + 4));
+            assembly {
+                tstore(dataSlot, 0) // Clear the message data slots
+            }
+        }
+
+        assembly {
+            tstore(baseSlot, 0)
+            tstore(add(baseSlot, 1), 0)
+            tstore(add(baseSlot, 2), 0)
+            tstore(add(baseSlot, 3), 0)
+        }
+    }
+
+    /**
+     * @notice Clear all BatchableMessages stored in transient storage.
+     */
+    function _clearAllMessages() internal {
+        uint256 messageCount = _getMessageCount();
+
+        for (uint256 i = 0; i < messageCount; i++) {
+            _clearMessage(i);
+        }
+
+        assembly {
+            tstore(CROSS_DOMAIN_BATCH_MESSAGE_COUNT_SLOT, 0)
+        }
+    }
+
+    /// @notice Store batching status in transient storage.
+    /// @param value The batching status.
+    function _storeIsBatching(bool value) internal {
+        // Use inline assembly to store the boolean value in transient storage
+        assembly {
+            tstore(CROSS_DOMAIN_MESSAGE_IS_BATCHING_SLOT, value)
         }
     }
 }
