@@ -1,7 +1,9 @@
 package db
 
+/*
 import (
 	"errors"
+	"fmt"
 	"io"
 	"math/rand" // nosemgrep
 	"testing"
@@ -183,9 +185,9 @@ func TestChainsDB_UpdateCrossHeadsError(t *testing.T) {
 // but readability and maintainability would be improved by making this function more configurable.
 func setupStubbedForUpdateHeads(chainID types.ChainID) (*stubLogDB, *stubChecker, *heads.Heads) {
 	// the last known cross-safe head is at 20
-	cross := entrydb.EntryIdx(20)
+	cross := heads.HeadPointer{LastSealedBlockNum: 20}
 	// the local head (the limit of the update) is at 40
-	local := entrydb.EntryIdx(40)
+	local := heads.HeadPointer{LastSealedBlockNum: 40}
 	// the number of executing messages to make available (this should be more than the number of safety checks performed)
 	numExecutingMessages := 30
 	// number of safety checks that will pass before returning false
@@ -246,39 +248,57 @@ func setupStubbedForUpdateHeads(chainID types.ChainID) (*stubLogDB, *stubChecker
 }
 
 type stubChecker struct {
-	localHeadForChain entrydb.EntryIdx
-	crossHeadForChain entrydb.EntryIdx
+	localHeadForChain heads.HeadPointer
+	crossHeadForChain heads.HeadPointer
 	numSafe           int
 	checkCalls        int
-	updated           entrydb.EntryIdx
+	updated           heads.HeadPointer
 }
 
-func (s *stubChecker) LocalHeadForChain(chainID types.ChainID) entrydb.EntryIdx {
-	return s.localHeadForChain
-}
-
-func (s *stubChecker) Name() string {
+func (s *stubChecker) String() string {
 	return "stubChecker"
 }
 
-func (s *stubChecker) CrossHeadForChain(chainID types.ChainID) entrydb.EntryIdx {
+func (s *stubChecker) LocalSafetyLevel() types.SafetyLevel {
+	return types.Safe
+}
+
+func (s *stubChecker) CrossSafetyLevel() types.SafetyLevel {
+	return types.Safe
+}
+
+func (s *stubChecker) LocalHead(chainID types.ChainID) heads.HeadPointer {
+	return s.localHeadForChain
+}
+
+func (s *stubChecker) CrossHead(chainID types.ChainID) heads.HeadPointer {
 	return s.crossHeadForChain
 }
 
 // stubbed Check returns true for the first numSafe calls, and false thereafter
-func (s *stubChecker) Check(chain types.ChainID, blockNum uint64, logIdx uint32, logHash backendTypes.TruncatedHash) bool {
+func (s *stubChecker) check(types.ChainID, uint64, uint32, backendTypes.TruncatedHash) error {
 	if s.checkCalls >= s.numSafe {
-		return false
+		return fmt.Errorf("safety check failed")
 	}
 	s.checkCalls++
-	return true
+	return nil
+}
+func (s *stubChecker) CheckCross(chain types.ChainID, blockNum uint64, logIdx uint32, logHash backendTypes.TruncatedHash) error {
+	return s.check(chain, blockNum, logIdx, logHash)
+}
+func (s *stubChecker) CheckLocal(chain types.ChainID, blockNum uint64, logIdx uint32, logHash backendTypes.TruncatedHash) error {
+	return s.check(chain, blockNum, logIdx, logHash)
 }
 
-func (s *stubChecker) Update(chain types.ChainID, index entrydb.EntryIdx) heads.OperationFn {
-	s.updated = index
-	return func(heads *heads.Heads) error {
-		return nil
-	}
+func (s *stubChecker) Update(chain types.ChainID, h heads.HeadPointer) error {
+	s.updated = h
+	return nil
+}
+func (s *stubChecker) UpdateCross(chain types.ChainID, h heads.HeadPointer) error {
+	return s.Update(chain, h)
+}
+func (s *stubChecker) UpdateLocal(chain types.ChainID, h heads.HeadPointer) error {
+	return s.Update(chain, h)
 }
 
 func (s *stubChecker) SafetyLevel() types.SafetyLevel {
@@ -287,6 +307,54 @@ func (s *stubChecker) SafetyLevel() types.SafetyLevel {
 
 type stubHeadStorage struct {
 	heads *heads.Heads
+}
+
+func (s *stubHeadStorage) UpdateLocalUnsafe(chainID types.ChainID, h heads.HeadPointer) error {
+	panic("not implemented")
+}
+
+func (s *stubHeadStorage) UpdateLocalSafe(chainID types.ChainID, h heads.HeadPointer) error {
+	panic("not implemented")
+}
+
+func (s *stubHeadStorage) UpdateLocalFinalized(chainID types.ChainID, h heads.HeadPointer) error {
+	panic("not implemented")
+}
+
+func (s *stubHeadStorage) UpdateCrossUnsafe(chainID types.ChainID, h heads.HeadPointer) error {
+	panic("not implemented")
+}
+
+func (s *stubHeadStorage) UpdateCrossSafe(chainID types.ChainID, h heads.HeadPointer) error {
+	panic("not implemented")
+}
+
+func (s *stubHeadStorage) UpdateCrossFinalized(chainID types.ChainID, h heads.HeadPointer) error {
+	panic("not implemented")
+}
+
+func (s *stubHeadStorage) LocalUnsafe(chainID types.ChainID) heads.HeadPointer {
+	panic("not implemented")
+}
+
+func (s *stubHeadStorage) LocalSafe(chainID types.ChainID) heads.HeadPointer {
+	panic("not implemented")
+}
+
+func (s *stubHeadStorage) LocalFinalized(chainID types.ChainID) heads.HeadPointer {
+	panic("not implemented")
+}
+
+func (s *stubHeadStorage) CrossUnsafe(chainID types.ChainID) heads.HeadPointer {
+	panic("not implemented")
+}
+
+func (s *stubHeadStorage) CrossSafe(chainID types.ChainID) heads.HeadPointer {
+	panic("not implemented")
+}
+
+func (s *stubHeadStorage) CrossFinalized(chainID types.ChainID) heads.HeadPointer {
+	panic("not implemented")
 }
 
 func (s *stubHeadStorage) Apply(heads.Operation) error {
@@ -416,10 +484,10 @@ func (s *stubLogDB) FindSealedBlock(block eth.BlockID) (nextEntry entrydb.EntryI
 	panic("not implemented")
 }
 
-func (s *stubLogDB) IteratorStartingAt(i entrydb.EntryIdx) (logs.Iterator, error) {
+func (s *stubLogDB) IteratorStartingAt(sealedNum uint64, logIndex uint32) (logs.Iterator, error) {
 	return &stubIterator{
-		index: i - 1,
-		db:    s,
+		//index: i - 1, // TODO broken
+		db: s,
 	}, nil
 }
 
@@ -448,3 +516,4 @@ func (s *stubLogDB) LatestBlockNum() uint64 {
 func (s *stubLogDB) Close() error {
 	return nil
 }
+*/

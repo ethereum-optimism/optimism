@@ -149,37 +149,10 @@ func (db *DB) updateEntryCountMetric() {
 	db.m.RecordDBEntryCount(db.store.Size())
 }
 
-func (db *DB) IteratorStartingAt(i entrydb.EntryIdx) (Iterator, error) {
+func (db *DB) IteratorStartingAt(sealedNum uint64, logIndex uint32) (Iterator, error) {
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
-	if i > db.lastEntryContext.nextEntryIndex {
-		return nil, ErrFuture
-	}
-	// TODO(#12031): Workaround while we not have IteratorStartingAt(heads.HeadPointer):
-	// scroll back from the index, to find block info.
-	idx := i
-	for ; idx >= 0; i-- {
-		entry, err := db.store.Read(idx)
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				continue // traverse to when we did have blocks
-			}
-			return nil, err
-		}
-		if entry.Type() == entrydb.TypeSearchCheckpoint {
-			break
-		}
-		if idx == 0 {
-			return nil, fmt.Errorf("empty DB, no block entry, cannot start at %d", i)
-		}
-	}
-	iter := db.newIterator(idx)
-	for iter.NextIndex() < i {
-		if _, err := iter.next(); err != nil {
-			return nil, errors.New("failed to process back up to the head pointer")
-		}
-	}
-	return iter, nil
+	return db.newIteratorAt(sealedNum, logIndex)
 }
 
 // FindSealedBlock finds the requested block, to check if it exists,
@@ -381,6 +354,9 @@ func (db *DB) newIterator(index entrydb.EntryIdx) *iterator {
 // to find the closest one with an equal or lower block number and equal or lower amount of seen logs.
 // Returns the index of the searchCheckpoint to begin reading from or an error.
 func (db *DB) searchCheckpoint(sealedBlockNum uint64, logsSince uint32) (entrydb.EntryIdx, error) {
+	if db.lastEntryContext.nextEntryIndex == 0 {
+		return 0, ErrFuture
+	}
 	n := (db.lastEntryIdx() / searchCheckpointFrequency) + 1
 	// Define: x is the array of known checkpoints
 	// Invariant: x[i] <= target, x[j] > target.

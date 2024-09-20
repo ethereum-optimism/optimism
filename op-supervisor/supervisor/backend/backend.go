@@ -191,7 +191,7 @@ func (su *SupervisorBackend) CheckMessage(identifier types.Identifier, payloadHa
 	chainID := identifier.ChainID
 	blockNum := identifier.BlockNumber
 	logIdx := identifier.LogIndex
-	i, err := su.db.Check(chainID, blockNum, uint32(logIdx), backendTypes.TruncateHash(payloadHash))
+	_, err := su.db.Check(chainID, blockNum, uint32(logIdx), backendTypes.TruncateHash(payloadHash))
 	if errors.Is(err, logs.ErrFuture) {
 		return types.Unsafe, nil
 	}
@@ -208,8 +208,15 @@ func (su *SupervisorBackend) CheckMessage(identifier types.Identifier, payloadHa
 		db.NewSafetyChecker(types.Safe, su.db),
 		db.NewSafetyChecker(types.Finalized, su.db),
 	} {
-		if i <= checker.CrossHeadForChain(chainID) {
-			safest = checker.SafetyLevel()
+		// check local safety limit first as it's more permissive
+		localPtr := checker.LocalHead(chainID)
+		if localPtr.WithinRange(blockNum, uint32(logIdx)) {
+			safest = checker.LocalSafetyLevel()
+		}
+		// check cross safety level
+		crossPtr := checker.CrossHead(chainID)
+		if crossPtr.WithinRange(blockNum, uint32(logIdx)) {
+			safest = checker.CrossSafetyLevel()
 		}
 	}
 	return safest, nil
@@ -240,7 +247,7 @@ func (su *SupervisorBackend) CheckBlock(chainID *hexutil.U256, blockHash common.
 	safest := types.CrossUnsafe
 	// find the last log index in the block
 	id := eth.BlockID{Hash: blockHash, Number: uint64(blockNumber)}
-	i, err := su.db.FindSealedBlock(types.ChainID(*chainID), id)
+	_, err := su.db.FindSealedBlock(types.ChainID(*chainID), id)
 	if errors.Is(err, logs.ErrFuture) {
 		return types.Unsafe, nil
 	}
@@ -257,8 +264,15 @@ func (su *SupervisorBackend) CheckBlock(chainID *hexutil.U256, blockHash common.
 		db.NewSafetyChecker(types.Safe, su.db),
 		db.NewSafetyChecker(types.Finalized, su.db),
 	} {
-		if i <= checker.CrossHeadForChain(types.ChainID(*chainID)) {
-			safest = checker.SafetyLevel()
+		// check local safety limit first as it's more permissive
+		localPtr := checker.LocalHead(types.ChainID(*chainID))
+		if localPtr.IsSealed(uint64(blockNumber)) {
+			safest = checker.LocalSafetyLevel()
+		}
+		// check cross safety level
+		crossPtr := checker.CrossHead(types.ChainID(*chainID))
+		if crossPtr.IsSealed(uint64(blockNumber)) {
+			safest = checker.CrossSafetyLevel()
 		}
 	}
 	return safest, nil
