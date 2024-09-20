@@ -1,16 +1,22 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Testing
+import { CommonTest } from "test/setup/CommonTest.sol";
+
+// Contracts
+import { computeCommitmentKeccak256 } from "src/L1/DataAvailabilityChallenge.sol";
+
+// Libraries
+import { Preinstalls } from "src/libraries/Preinstalls.sol";
+
+// Interfaces
 import {
     IDataAvailabilityChallenge,
     ChallengeStatus,
     Challenge,
     CommitmentType
 } from "src/L1/interfaces/IDataAvailabilityChallenge.sol";
-import { computeCommitmentKeccak256 } from "src/L1/DataAvailabilityChallenge.sol";
-import { Proxy } from "src/universal/Proxy.sol";
-import { CommonTest } from "test/setup/CommonTest.sol";
-import { Preinstalls } from "src/libraries/Preinstalls.sol";
 
 contract DataAvailabilityChallengeTest is CommonTest {
     function setUp() public virtual override {

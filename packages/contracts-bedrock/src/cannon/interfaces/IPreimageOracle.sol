@@ -88,4 +88,6 @@ interface IPreimageOracle {
         bytes calldata _input
     )
         external;
+
+    function minProposalSize() external view returns (uint256);
 }

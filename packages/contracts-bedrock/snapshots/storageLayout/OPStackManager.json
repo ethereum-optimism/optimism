@@ -39,6 +39,6 @@
     "label": "systemConfigs",
     "offset": 0,
     "slot": "9",
-    "type": "mapping(uint256 => contract SystemConfig)"
+    "type": "mapping(uint256 => contract ISystemConfig)"
   }
 ]

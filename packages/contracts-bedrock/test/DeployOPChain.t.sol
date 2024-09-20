@@ -3,7 +3,6 @@ pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
 
-import { DeploySuperchainInput, DeploySuperchain, DeploySuperchainOutput } from "scripts/DeploySuperchain.s.sol";
 import {
     DeployImplementationsInput,
     DeployImplementations,
@@ -11,25 +10,28 @@ import {
     DeployImplementationsOutput
 } from "scripts/DeployImplementations.s.sol";
 import { DeployOPChainInput, DeployOPChain, DeployOPChainOutput } from "scripts/DeployOPChain.s.sol";
+import { DeploySuperchainInput, DeploySuperchain, DeploySuperchainOutput } from "scripts/DeploySuperchain.s.sol";
 
-import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
-
-import { AddressManager } from "src/legacy/AddressManager.sol";
-import { DelayedWETH } from "src/dispute/DelayedWETH.sol";
-import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
-import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
-import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
-import { PermissionedDisputeGame } from "src/dispute/PermissionedDisputeGame.sol";
-
-import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
-import { ProtocolVersions, ProtocolVersion } from "src/L1/ProtocolVersions.sol";
 import { OPStackManager } from "src/L1/OPStackManager.sol";
-import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
-import { SystemConfig } from "src/L1/SystemConfig.sol";
-import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
-import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
-import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
-import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
+
+import { IProxyAdmin } from "src/universal/interfaces/IProxyAdmin.sol";
+import { IOptimismMintableERC20Factory } from "src/universal/interfaces/IOptimismMintableERC20Factory.sol";
+
+import { IAddressManager } from "src/legacy/interfaces/IAddressManager.sol";
+
+import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
+import { IDisputeGameFactory } from "src/dispute/interfaces/IDisputeGameFactory.sol";
+import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistry.sol";
+import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
+import { IPermissionedDisputeGame } from "src/dispute/interfaces/IPermissionedDisputeGame.sol";
+
+import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
+import { IProtocolVersions, ProtocolVersion } from "src/L1/interfaces/IProtocolVersions.sol";
+import { IOptimismPortal2 } from "src/L1/interfaces/IOptimismPortal2.sol";
+import { ISystemConfig } from "src/L1/interfaces/ISystemConfig.sol";
+import { IL1CrossDomainMessenger } from "src/L1/interfaces/IL1CrossDomainMessenger.sol";
+import { IL1ERC721Bridge } from "src/L1/interfaces/IL1ERC721Bridge.sol";
+import { IL1StandardBridge } from "src/L1/interfaces/IL1StandardBridge.sol";
 
 contract DeployOPChainInput_Test is Test {
     DeployOPChainInput doi;
@@ -111,23 +113,24 @@ contract DeployOPChainOutput_Test is Test {
 
     // Define default outputs to set.
     // We set these in storage because doing it locally in test_set_succeeds results in stack too deep.
-    ProxyAdmin opChainProxyAdmin = ProxyAdmin(makeAddr("optimismPortal2Impl"));
-    AddressManager addressManager = AddressManager(makeAddr("delayedWETHImpl"));
-    L1ERC721Bridge l1ERC721BridgeProxy = L1ERC721Bridge(makeAddr("l1ERC721BridgeProxy"));
-    SystemConfig systemConfigProxy = SystemConfig(makeAddr("systemConfigProxy"));
-    OptimismMintableERC20Factory optimismMintableERC20FactoryProxy =
-        OptimismMintableERC20Factory(makeAddr("optimismMintableERC20FactoryProxy"));
-    L1StandardBridge l1StandardBridgeProxy = L1StandardBridge(payable(makeAddr("l1StandardBridgeProxy")));
-    L1CrossDomainMessenger l1CrossDomainMessengerProxy = L1CrossDomainMessenger(makeAddr("l1CrossDomainMessengerProxy"));
-    OptimismPortal2 optimismPortalProxy = OptimismPortal2(payable(makeAddr("optimismPortalProxy")));
-    DisputeGameFactory disputeGameFactoryProxy = DisputeGameFactory(makeAddr("disputeGameFactoryProxy"));
-    AnchorStateRegistry anchorStateRegistryProxy = AnchorStateRegistry(makeAddr("anchorStateRegistryProxy"));
-    AnchorStateRegistry anchorStateRegistryImpl = AnchorStateRegistry(makeAddr("anchorStateRegistryImpl"));
-    FaultDisputeGame faultDisputeGame = FaultDisputeGame(makeAddr("faultDisputeGame"));
-    PermissionedDisputeGame permissionedDisputeGame = PermissionedDisputeGame(makeAddr("permissionedDisputeGame"));
-    DelayedWETH delayedWETHPermissionedGameProxy = DelayedWETH(payable(makeAddr("delayedWETHPermissionedGameProxy")));
-    DelayedWETH delayedWETHPermissionlessGameProxy =
-        DelayedWETH(payable(makeAddr("delayedWETHPermissionlessGameProxy")));
+    IProxyAdmin opChainProxyAdmin = IProxyAdmin(makeAddr("optimismPortal2Impl"));
+    IAddressManager addressManager = IAddressManager(makeAddr("delayedWETHImpl"));
+    IL1ERC721Bridge l1ERC721BridgeProxy = IL1ERC721Bridge(makeAddr("l1ERC721BridgeProxy"));
+    ISystemConfig systemConfigProxy = ISystemConfig(makeAddr("systemConfigProxy"));
+    IOptimismMintableERC20Factory optimismMintableERC20FactoryProxy =
+        IOptimismMintableERC20Factory(makeAddr("optimismMintableERC20FactoryProxy"));
+    IL1StandardBridge l1StandardBridgeProxy = IL1StandardBridge(payable(makeAddr("l1StandardBridgeProxy")));
+    IL1CrossDomainMessenger l1CrossDomainMessengerProxy =
+        IL1CrossDomainMessenger(makeAddr("l1CrossDomainMessengerProxy"));
+    IOptimismPortal2 optimismPortalProxy = IOptimismPortal2(payable(makeAddr("optimismPortalProxy")));
+    IDisputeGameFactory disputeGameFactoryProxy = IDisputeGameFactory(makeAddr("disputeGameFactoryProxy"));
+    IAnchorStateRegistry anchorStateRegistryProxy = IAnchorStateRegistry(makeAddr("anchorStateRegistryProxy"));
+    IAnchorStateRegistry anchorStateRegistryImpl = IAnchorStateRegistry(makeAddr("anchorStateRegistryImpl"));
+    IFaultDisputeGame faultDisputeGame = IFaultDisputeGame(makeAddr("faultDisputeGame"));
+    IPermissionedDisputeGame permissionedDisputeGame = IPermissionedDisputeGame(makeAddr("permissionedDisputeGame"));
+    IDelayedWETH delayedWETHPermissionedGameProxy = IDelayedWETH(payable(makeAddr("delayedWETHPermissionedGameProxy")));
+    IDelayedWETH delayedWETHPermissionlessGameProxy =
+        IDelayedWETH(payable(makeAddr("delayedWETHPermissionlessGameProxy")));
 
     function setUp() public {
         doo = new DeployOPChainOutput();
@@ -322,8 +325,8 @@ contract DeployOPChain_TestBase is Test {
     uint256 proofMaturityDelaySeconds = 400;
     uint256 disputeGameFinalityDelaySeconds = 500;
     string release = "op-contracts/latest";
-    SuperchainConfig superchainConfigProxy;
-    ProtocolVersions protocolVersionsProxy;
+    ISuperchainConfig superchainConfigProxy;
+    IProtocolVersions protocolVersionsProxy;
 
     // Define default inputs for DeployOPChain.
     // `opsm` is set during `setUp` since it is an output of the previous step.

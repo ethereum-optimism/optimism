@@ -1,14 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Testing
 import { Test, stdStorage, StdStorage } from "forge-std/Test.sol";
 import { stdToml } from "forge-std/StdToml.sol";
 
-import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
-import { Proxy } from "src/universal/Proxy.sol";
-import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
-import { ProtocolVersions, ProtocolVersion } from "src/L1/ProtocolVersions.sol";
+// Scripts
 import { DeploySuperchainInput, DeploySuperchain, DeploySuperchainOutput } from "scripts/DeploySuperchain.s.sol";
+
+// Interfaces
+import { IProxyAdmin } from "src/universal/interfaces/IProxyAdmin.sol";
+import { IProxy } from "src/universal/interfaces/IProxy.sol";
+import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
+import { IProtocolVersions, ProtocolVersion } from "src/L1/interfaces/IProtocolVersions.sol";
 
 contract DeploySuperchainInput_Test is Test {
     DeploySuperchainInput dsi;
@@ -77,11 +81,11 @@ contract DeploySuperchainOutput_Test is Test {
         // We don't fuzz, because we need code at the address, and we can't etch code if the fuzzer
         // provides precompiles, so we end up with a lot of boilerplate logic to get valid inputs.
         // Hardcoding a concrete set of valid addresses is simpler and still sufficient.
-        ProxyAdmin superchainProxyAdmin = ProxyAdmin(makeAddr("superchainProxyAdmin"));
-        SuperchainConfig superchainConfigImpl = SuperchainConfig(makeAddr("superchainConfigImpl"));
-        SuperchainConfig superchainConfigProxy = SuperchainConfig(makeAddr("superchainConfigProxy"));
-        ProtocolVersions protocolVersionsImpl = ProtocolVersions(makeAddr("protocolVersionsImpl"));
-        ProtocolVersions protocolVersionsProxy = ProtocolVersions(makeAddr("protocolVersionsProxy"));
+        IProxyAdmin superchainProxyAdmin = IProxyAdmin(makeAddr("superchainProxyAdmin"));
+        ISuperchainConfig superchainConfigImpl = ISuperchainConfig(makeAddr("superchainConfigImpl"));
+        ISuperchainConfig superchainConfigProxy = ISuperchainConfig(makeAddr("superchainConfigProxy"));
+        IProtocolVersions protocolVersionsImpl = IProtocolVersions(makeAddr("protocolVersionsImpl"));
+        IProtocolVersions protocolVersionsProxy = IProtocolVersions(makeAddr("protocolVersionsProxy"));
 
         // Ensure each address has code, since these are expected to be contracts.
         vm.etch(address(superchainProxyAdmin), hex"01");
@@ -148,11 +152,11 @@ contract DeploySuperchainOutput_Test is Test {
         string memory expOutToml = vm.readFile(expOutPath);
 
         // Parse each field of expOutToml individually.
-        ProxyAdmin expSuperchainProxyAdmin = ProxyAdmin(expOutToml.readAddress(".superchainProxyAdmin"));
-        SuperchainConfig expSuperchainConfigImpl = SuperchainConfig(expOutToml.readAddress(".superchainConfigImpl"));
-        SuperchainConfig expSuperchainConfigProxy = SuperchainConfig(expOutToml.readAddress(".superchainConfigProxy"));
-        ProtocolVersions expProtocolVersionsImpl = ProtocolVersions(expOutToml.readAddress(".protocolVersionsImpl"));
-        ProtocolVersions expProtocolVersionsProxy = ProtocolVersions(expOutToml.readAddress(".protocolVersionsProxy"));
+        IProxyAdmin expSuperchainProxyAdmin = IProxyAdmin(expOutToml.readAddress(".superchainProxyAdmin"));
+        ISuperchainConfig expSuperchainConfigImpl = ISuperchainConfig(expOutToml.readAddress(".superchainConfigImpl"));
+        ISuperchainConfig expSuperchainConfigProxy = ISuperchainConfig(expOutToml.readAddress(".superchainConfigProxy"));
+        IProtocolVersions expProtocolVersionsImpl = IProtocolVersions(expOutToml.readAddress(".protocolVersionsImpl"));
+        IProtocolVersions expProtocolVersionsProxy = IProtocolVersions(expOutToml.readAddress(".protocolVersionsProxy"));
 
         // Etch code at each address so the code checks pass when settings values.
         vm.etch(address(expSuperchainConfigImpl), hex"01");
@@ -238,8 +242,8 @@ contract DeploySuperchain_Test is Test {
 
         // Architecture assertions.
         // We prank as the zero address due to the Proxy's `proxyCallIfNotAdmin` modifier.
-        Proxy superchainConfigProxy = Proxy(payable(address(dso.superchainConfigProxy())));
-        Proxy protocolVersionsProxy = Proxy(payable(address(dso.protocolVersionsProxy())));
+        IProxy superchainConfigProxy = IProxy(payable(address(dso.superchainConfigProxy())));
+        IProxy protocolVersionsProxy = IProxy(payable(address(dso.protocolVersionsProxy())));
 
         vm.startPrank(address(0));
         assertEq(superchainConfigProxy.implementation(), address(dso.superchainConfigImpl()), "700");

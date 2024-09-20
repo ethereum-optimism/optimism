@@ -3,22 +3,26 @@ pragma solidity 0.8.15;
 
 import { Test, stdStorage, StdStorage } from "forge-std/Test.sol";
 
-import { DelayedWETH } from "src/dispute/DelayedWETH.sol";
-import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
-import { MIPS } from "src/cannon/MIPS.sol";
-import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
-
-import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
-import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
-import { OPStackManager } from "src/L1/OPStackManager.sol";
-import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
-import { SystemConfig } from "src/L1/SystemConfig.sol";
-import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
-import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
-import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
-import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
-import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
 import { Proxy } from "src/universal/Proxy.sol";
+import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
+
+import { OPStackManager } from "src/L1/OPStackManager.sol";
+
+import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
+import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
+import { IMIPS } from "src/cannon/interfaces/IMIPS.sol";
+import { IDisputeGameFactory } from "src/dispute/interfaces/IDisputeGameFactory.sol";
+
+import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
+import { IProtocolVersions } from "src/L1/interfaces/IProtocolVersions.sol";
+import { IOptimismPortal2 } from "src/L1/interfaces/IOptimismPortal2.sol";
+import { ISystemConfig } from "src/L1/interfaces/ISystemConfig.sol";
+import { IL1CrossDomainMessenger } from "src/L1/interfaces/IL1CrossDomainMessenger.sol";
+import { IL1ERC721Bridge } from "src/L1/interfaces/IL1ERC721Bridge.sol";
+import { IL1StandardBridge } from "src/L1/interfaces/IL1StandardBridge.sol";
+import { IOptimismMintableERC20Factory } from "src/universal/interfaces/IOptimismMintableERC20Factory.sol";
+import { IProxyAdmin } from "src/universal/interfaces/IProxyAdmin.sol";
+import { IProxy } from "src/universal/interfaces/IProxy.sol";
 
 import {
     DeployImplementationsInput,
@@ -36,8 +40,8 @@ contract DeployImplementationsInput_Test is Test {
     uint256 proofMaturityDelaySeconds = 400;
     uint256 disputeGameFinalityDelaySeconds = 500;
     string release = "op-contracts/latest";
-    SuperchainConfig superchainConfigProxy = SuperchainConfig(makeAddr("superchainConfigProxy"));
-    ProtocolVersions protocolVersionsProxy = ProtocolVersions(makeAddr("protocolVersionsProxy"));
+    ISuperchainConfig superchainConfigProxy = ISuperchainConfig(makeAddr("superchainConfigProxy"));
+    IProtocolVersions protocolVersionsProxy = IProtocolVersions(makeAddr("protocolVersionsProxy"));
 
     function setUp() public {
         dii = new DeployImplementationsInput();
@@ -93,7 +97,7 @@ contract DeployImplementationsInput_Test is Test {
         vm.expectRevert();
         dii.superchainProxyAdmin();
 
-        Proxy noAdminProxy = new Proxy(address(0));
+        IProxy noAdminProxy = IProxy(payable(new Proxy(address(0))));
         dii.set(dii.superchainConfigProxy.selector, address(noAdminProxy));
         vm.expectRevert("DeployImplementationsInput: not set");
         dii.superchainProxyAdmin();
@@ -102,7 +106,7 @@ contract DeployImplementationsInput_Test is Test {
     function test_superchainProxyAdmin_succeeds() public {
         Proxy proxyWithAdminSet = new Proxy(msg.sender);
         dii.set(dii.superchainConfigProxy.selector, address(proxyWithAdminSet));
-        ProxyAdmin proxyAdmin = dii.superchainProxyAdmin();
+        IProxyAdmin proxyAdmin = dii.superchainProxyAdmin();
         assertEq(address(msg.sender), address(proxyAdmin), "100");
     }
 }
@@ -121,18 +125,18 @@ contract DeployImplementationsOutput_Test is Test {
         proxy.upgradeTo(opsmImpl);
 
         OPStackManager opsmProxy = OPStackManager(address(proxy));
-        OptimismPortal2 optimismPortalImpl = OptimismPortal2(payable(makeAddr("optimismPortalImpl")));
-        DelayedWETH delayedWETHImpl = DelayedWETH(payable(makeAddr("delayedWETHImpl")));
-        PreimageOracle preimageOracleSingleton = PreimageOracle(makeAddr("preimageOracleSingleton"));
-        MIPS mipsSingleton = MIPS(makeAddr("mipsSingleton"));
-        SystemConfig systemConfigImpl = SystemConfig(makeAddr("systemConfigImpl"));
-        L1CrossDomainMessenger l1CrossDomainMessengerImpl =
-            L1CrossDomainMessenger(makeAddr("l1CrossDomainMessengerImpl"));
-        L1ERC721Bridge l1ERC721BridgeImpl = L1ERC721Bridge(makeAddr("l1ERC721BridgeImpl"));
-        L1StandardBridge l1StandardBridgeImpl = L1StandardBridge(payable(makeAddr("l1StandardBridgeImpl")));
-        OptimismMintableERC20Factory optimismMintableERC20FactoryImpl =
-            OptimismMintableERC20Factory(makeAddr("optimismMintableERC20FactoryImpl"));
-        DisputeGameFactory disputeGameFactoryImpl = DisputeGameFactory(makeAddr("disputeGameFactoryImpl"));
+        IOptimismPortal2 optimismPortalImpl = IOptimismPortal2(payable(makeAddr("optimismPortalImpl")));
+        IDelayedWETH delayedWETHImpl = IDelayedWETH(payable(makeAddr("delayedWETHImpl")));
+        IPreimageOracle preimageOracleSingleton = IPreimageOracle(makeAddr("preimageOracleSingleton"));
+        IMIPS mipsSingleton = IMIPS(makeAddr("mipsSingleton"));
+        ISystemConfig systemConfigImpl = ISystemConfig(makeAddr("systemConfigImpl"));
+        IL1CrossDomainMessenger l1CrossDomainMessengerImpl =
+            IL1CrossDomainMessenger(makeAddr("l1CrossDomainMessengerImpl"));
+        IL1ERC721Bridge l1ERC721BridgeImpl = IL1ERC721Bridge(makeAddr("l1ERC721BridgeImpl"));
+        IL1StandardBridge l1StandardBridgeImpl = IL1StandardBridge(payable(makeAddr("l1StandardBridgeImpl")));
+        IOptimismMintableERC20Factory optimismMintableERC20FactoryImpl =
+            IOptimismMintableERC20Factory(makeAddr("optimismMintableERC20FactoryImpl"));
+        IDisputeGameFactory disputeGameFactoryImpl = IDisputeGameFactory(makeAddr("disputeGameFactoryImpl"));
 
         vm.etch(address(opsmProxy), address(opsmProxy).code);
         vm.etch(address(opsmImpl), hex"01");
@@ -261,8 +265,8 @@ contract DeployImplementations_Test is Test {
     uint256 proofMaturityDelaySeconds = 400;
     uint256 disputeGameFinalityDelaySeconds = 500;
     string release = "op-contracts/latest";
-    SuperchainConfig superchainConfigProxy = SuperchainConfig(makeAddr("superchainConfigProxy"));
-    ProtocolVersions protocolVersionsProxy = ProtocolVersions(makeAddr("protocolVersionsProxy"));
+    ISuperchainConfig superchainConfigProxy = ISuperchainConfig(makeAddr("superchainConfigProxy"));
+    IProtocolVersions protocolVersionsProxy = IProtocolVersions(makeAddr("protocolVersionsProxy"));
 
     function setUp() public virtual {
         deployImplementations = new DeployImplementations();
@@ -287,15 +291,15 @@ contract DeployImplementations_Test is Test {
         proofMaturityDelaySeconds = uint256(hash(_seed, 3));
         disputeGameFinalityDelaySeconds = uint256(hash(_seed, 4));
         release = string(bytes.concat(hash(_seed, 5)));
-        protocolVersionsProxy = ProtocolVersions(address(uint160(uint256(hash(_seed, 7)))));
+        protocolVersionsProxy = IProtocolVersions(address(uint160(uint256(hash(_seed, 7)))));
 
         // Must configure the ProxyAdmin contract which is used to upgrade the OPSM's proxy contract.
-        ProxyAdmin superchainProxyAdmin = new ProxyAdmin(msg.sender);
-        superchainConfigProxy = SuperchainConfig(address(new Proxy(payable(address(superchainProxyAdmin)))));
+        IProxyAdmin superchainProxyAdmin = IProxyAdmin(address(new ProxyAdmin(msg.sender)));
+        superchainConfigProxy = ISuperchainConfig(address(new Proxy(payable(address(superchainProxyAdmin)))));
 
-        SuperchainConfig superchainConfigImpl = SuperchainConfig(address(uint160(uint256(hash(_seed, 6)))));
+        ISuperchainConfig superchainConfigImpl = ISuperchainConfig(address(uint160(uint256(hash(_seed, 6)))));
         vm.prank(address(superchainProxyAdmin));
-        Proxy(payable(address(superchainConfigProxy))).upgradeTo(address(superchainConfigImpl));
+        IProxy(payable(address(superchainConfigProxy))).upgradeTo(address(superchainConfigImpl));
 
         vm.etch(address(superchainProxyAdmin), address(superchainProxyAdmin).code);
         vm.etch(address(superchainConfigProxy), address(superchainConfigProxy).code);

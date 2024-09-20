@@ -7,14 +7,15 @@ import { DeployOPChainInput } from "scripts/DeployOPChain.s.sol";
 import { DeployOPChain_TestBase } from "test/DeployOPChain.t.sol";
 
 import { OPStackManager } from "src/L1/OPStackManager.sol";
-import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
-import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
+
+import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
+import { IProtocolVersions } from "src/L1/interfaces/IProtocolVersions.sol";
 
 // Exposes internal functions for testing.
 contract OPStackManager_Harness is OPStackManager {
     constructor(
-        SuperchainConfig _superchainConfig,
-        ProtocolVersions _protocolVersions
+        ISuperchainConfig _superchainConfig,
+        IProtocolVersions _protocolVersions
     )
         OPStackManager(_superchainConfig, _protocolVersions)
     { }
@@ -91,8 +92,8 @@ contract OPStackManager_InternalMethods_Test is Test {
     OPStackManager_Harness opsmHarness;
 
     function setUp() public {
-        SuperchainConfig superchainConfigProxy = SuperchainConfig(makeAddr("superchainConfig"));
-        ProtocolVersions protocolVersionsProxy = ProtocolVersions(makeAddr("protocolVersions"));
+        ISuperchainConfig superchainConfigProxy = ISuperchainConfig(makeAddr("superchainConfig"));
+        IProtocolVersions protocolVersionsProxy = IProtocolVersions(makeAddr("protocolVersions"));
         vm.etch(address(superchainConfigProxy), hex"01");
         vm.etch(address(protocolVersionsProxy), hex"01");
 

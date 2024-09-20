@@ -1,12 +1,26 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Proxy } from "src/universal/Proxy.sol";
-import { LibString } from "@solady/utils/LibString.sol";
 import { Vm } from "forge-std/Vm.sol";
+import { LibString } from "@solady/utils/LibString.sol";
+import { IProxy } from "src/universal/interfaces/IProxy.sol";
 
 library DeployUtils {
     Vm internal constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
+
+    /// @notice Deploy the contract with the given name and arguments via CREATE.
+    /// @param _name The name of the contract to deploy.
+    /// @param _args The arguments to pass to the contract's constructor.
+    /// @return The address of the deployed contract.
+    function deploy(string memory _name, bytes memory _args) internal returns (address) {
+        bytes memory bytecode = abi.encodePacked(vm.getCode(_name), _args);
+        address deployed;
+        assembly {
+            deployed := create(0, add(bytecode, 0x20), mload(bytecode))
+        }
+        require(deployed != address(0), "DeployImplementations: deployment failed");
+        return deployed;
+    }
 
     // This takes a sender and an identifier and returns a deterministic address based on the two.
     // The result is used to etch the input and output contracts to a deterministic address based on
@@ -26,7 +40,7 @@ library DeployUtils {
         // We prank as the zero address due to the Proxy's `proxyCallIfNotAdmin` modifier.
         // Pranking inside this function also means it can no longer be considered `view`.
         vm.prank(address(0));
-        address implementation = Proxy(payable(_proxy)).implementation();
+        address implementation = IProxy(payable(_proxy)).implementation();
         assertValidContractAddress(implementation);
     }
 

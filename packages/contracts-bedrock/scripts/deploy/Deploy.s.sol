@@ -25,16 +25,8 @@ import { ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
 import { ChainAssertions } from "scripts/deploy/ChainAssertions.sol";
 
 // Contracts
-import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
-import { AddressManager } from "src/legacy/AddressManager.sol";
-import { Proxy } from "src/universal/Proxy.sol";
-import { StandardBridge } from "src/universal/StandardBridge.sol";
-import { L1ChugSplashProxy } from "src/legacy/L1ChugSplashProxy.sol";
-import { ResolvedDelegateProxy } from "src/legacy/ResolvedDelegateProxy.sol";
-import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
-import { MIPS } from "src/cannon/MIPS.sol";
-import { MIPS2 } from "src/cannon/MIPS2.sol";
 import { StorageSetter } from "src/universal/StorageSetter.sol";
+import { AddressManager } from "src/legacy/AddressManager.sol";
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
@@ -43,6 +35,10 @@ import { Types } from "scripts/libraries/Types.sol";
 import "src/dispute/lib/Types.sol";
 
 // Interfaces
+import { IProxy } from "src/universal/interfaces/IProxy.sol";
+import { IProxyAdmin } from "src/universal/interfaces/IProxyAdmin.sol";
+import { IStandardBridge } from "src/universal/interfaces/IStandardBridge.sol";
+import { IOptimismMintableERC20Factory } from "src/universal/interfaces/IOptimismMintableERC20Factory.sol";
 import { IOptimismPortal } from "src/L1/interfaces/IOptimismPortal.sol";
 import { IOptimismPortal2 } from "src/L1/interfaces/IOptimismPortal2.sol";
 import { IOptimismPortalInterop } from "src/L1/interfaces/IOptimismPortalInterop.sol";
@@ -60,8 +56,12 @@ import { IDisputeGameFactory } from "src/dispute/interfaces/IDisputeGameFactory.
 import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
 import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistry.sol";
+import { IMIPS } from "src/cannon/interfaces/IMIPS.sol";
+import { IMIPS2 } from "src/cannon/interfaces/IMIPS2.sol";
 import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
-import { IOptimismMintableERC20Factory } from "src/universal/interfaces/IOptimismMintableERC20Factory.sol";
+import { IAddressManager } from "src/legacy/interfaces/IAddressManager.sol";
+import { IL1ChugSplashProxy } from "src/legacy/interfaces/IL1ChugSplashProxy.sol";
+import { IResolvedDelegateProxy } from "src/legacy/interfaces/IResolvedDelegateProxy.sol";
 
 /// @title Deploy
 /// @notice Script used to deploy a bedrock system. The entire system is deployed within the `run` function.
@@ -240,7 +240,7 @@ contract Deploy is Deployer {
         address proxyAdmin = mustGetAddress("ProxyAdmin");
 
         bytes memory data =
-            abi.encodeCall(ProxyAdmin.upgradeAndCall, (payable(_proxy), _implementation, _innerCallData));
+            abi.encodeCall(IProxyAdmin.upgradeAndCall, (payable(_proxy), _implementation, _innerCallData));
 
         Safe safe = Safe(mustGetAddress("SystemOwnerSafe"));
         _callViaSafe({ _safe: safe, _target: proxyAdmin, _data: data });
@@ -248,7 +248,7 @@ contract Deploy is Deployer {
 
     /// @notice Transfer ownership of the ProxyAdmin contract to the final system owner
     function transferProxyAdminOwnership() public broadcast {
-        ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
+        IProxyAdmin proxyAdmin = IProxyAdmin(mustGetAddress("ProxyAdmin"));
         address owner = proxyAdmin.owner();
         address safe = mustGetAddress("SystemOwnerSafe");
         if (owner != safe) {
@@ -262,7 +262,7 @@ contract Deploy is Deployer {
     ///         have been performed on the proxy.
     /// @param _name The name of the proxy to transfer ownership of.
     function transferProxyToProxyAdmin(string memory _name) public broadcast {
-        Proxy proxy = Proxy(mustGetAddress(_name));
+        IProxy proxy = IProxy(mustGetAddress(_name));
         address proxyAdmin = mustGetAddress("ProxyAdmin");
         proxy.changeAdmin(proxyAdmin);
         console.log("Proxy %s ownership transferred to ProxyAdmin at: %s", _name, proxyAdmin);
@@ -296,11 +296,11 @@ contract Deploy is Deployer {
 
         console.log("Deploying a fresh OP Stack with existing SuperchainConfig and ProtocolVersions");
 
-        Proxy scProxy = Proxy(_superchainConfigProxy);
+        IProxy scProxy = IProxy(_superchainConfigProxy);
         save("SuperchainConfig", scProxy.implementation());
         save("SuperchainConfigProxy", _superchainConfigProxy);
 
-        Proxy pvProxy = Proxy(_protocolVersionsProxy);
+        IProxy pvProxy = IProxy(_protocolVersionsProxy);
         save("ProtocolVersions", pvProxy.implementation());
         save("ProtocolVersionsProxy", _protocolVersionsProxy);
 
@@ -550,10 +550,12 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the AddressManager
     function deployAddressManager() public broadcast returns (address addr_) {
+        // Can't use _deploy here because AddressManager transfers over to the msg.sender which
+        // ends up being the Create2Deployer because foundry hijacks create2 and pipes it through
+        // the Create2Deployer.
         console.log("Deploying AddressManager");
-        AddressManager manager = new AddressManager();
+        IAddressManager manager = IAddressManager(address(new AddressManager()));
         require(manager.owner() == msg.sender);
-
         save("AddressManager", address(manager));
         console.log("AddressManager deployed at %s", address(manager));
         addr_ = address(manager);
@@ -561,19 +563,15 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the ProxyAdmin
     function deployProxyAdmin() public broadcast returns (address addr_) {
-        console.log("Deploying ProxyAdmin");
-        ProxyAdmin admin = new ProxyAdmin({ _owner: msg.sender });
+        IProxyAdmin admin = IProxyAdmin(_deploy("ProxyAdmin", abi.encode(msg.sender)));
         require(admin.owner() == msg.sender);
 
-        AddressManager addressManager = AddressManager(mustGetAddress("AddressManager"));
+        IAddressManager addressManager = IAddressManager(mustGetAddress("AddressManager"));
         if (admin.addressManager() != addressManager) {
             admin.setAddressManager(addressManager);
         }
-
         require(admin.addressManager() == addressManager);
 
-        save("ProxyAdmin", address(admin));
-        console.log("ProxyAdmin deployed at %s", address(admin));
         addr_ = address(admin);
     }
 
@@ -593,26 +591,27 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the L1StandardBridgeProxy using a ChugSplashProxy
     function deployL1StandardBridgeProxy() public broadcast returns (address addr_) {
-        console.log("Deploying proxy for L1StandardBridge");
         address proxyAdmin = mustGetAddress("ProxyAdmin");
-        L1ChugSplashProxy proxy = new L1ChugSplashProxy(proxyAdmin);
-
+        IL1ChugSplashProxy proxy = IL1ChugSplashProxy(
+            payable(
+                _deploy({ _name: "L1ChugSplashProxy", _nickname: "L1StandardBridgeProxy", _args: abi.encode(proxyAdmin) })
+            )
+        );
         require(EIP1967Helper.getAdmin(address(proxy)) == proxyAdmin);
-
-        save("L1StandardBridgeProxy", address(proxy));
-        console.log("L1StandardBridgeProxy deployed at %s", address(proxy));
         addr_ = address(proxy);
     }
 
     /// @notice Deploy the L1CrossDomainMessengerProxy using a ResolvedDelegateProxy
     function deployL1CrossDomainMessengerProxy() public broadcast returns (address addr_) {
-        console.log("Deploying proxy for L1CrossDomainMessenger");
-        AddressManager addressManager = AddressManager(mustGetAddress("AddressManager"));
-        ResolvedDelegateProxy proxy = new ResolvedDelegateProxy(addressManager, "OVM_L1CrossDomainMessenger");
-
-        save("L1CrossDomainMessengerProxy", address(proxy));
-        console.log("L1CrossDomainMessengerProxy deployed at %s", address(proxy));
-
+        IResolvedDelegateProxy proxy = IResolvedDelegateProxy(
+            payable(
+                _deploy({
+                    _name: "ResolvedDelegateProxy",
+                    _nickname: "L1CrossDomainMessengerProxy",
+                    _args: abi.encode(mustGetAddress("AddressManager"), "OVM_L1CrossDomainMessenger")
+                })
+            )
+        );
         addr_ = address(proxy);
     }
 
@@ -635,27 +634,20 @@ contract Deploy is Deployer {
         broadcast
         returns (address addr_)
     {
-        console.log(string.concat("Deploying ERC1967 proxy for ", _name));
-        Proxy proxy = new Proxy({ _admin: _proxyOwner });
-
+        IProxy proxy = IProxy(payable(_deploy({ _name: "Proxy", _nickname: _name, _args: abi.encode(_proxyOwner) })));
         require(EIP1967Helper.getAdmin(address(proxy)) == _proxyOwner);
-
-        save(_name, address(proxy));
-        console.log("   at %s", address(proxy));
         addr_ = address(proxy);
     }
 
     /// @notice Deploy the DataAvailabilityChallengeProxy
     function deployDataAvailabilityChallengeProxy() public broadcast returns (address addr_) {
-        console.log("Deploying proxy for DataAvailabilityChallenge");
         address proxyAdmin = mustGetAddress("ProxyAdmin");
-        Proxy proxy = new Proxy({ _admin: proxyAdmin });
-
+        IProxy proxy = IProxy(
+            payable(
+                _deploy({ _name: "Proxy", _nickname: "DataAvailabilityChallengeProxy", _args: abi.encode(proxyAdmin) })
+            )
+        );
         require(EIP1967Helper.getAdmin(address(proxy)) == proxyAdmin);
-
-        save("DataAvailabilityChallengeProxy", address(proxy));
-        console.log("DataAvailabilityChallengeProxy deployed at %s", address(proxy));
-
         addr_ = address(proxy);
     }
 
@@ -810,13 +802,11 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the PreimageOracle
     function deployPreimageOracle() public broadcast returns (address addr_) {
-        console.log("Deploying PreimageOracle implementation");
-        PreimageOracle preimageOracle = new PreimageOracle{ salt: _implSalt() }({
-            _minProposalSize: cfg.preimageOracleMinProposalSize(),
-            _challengePeriod: cfg.preimageOracleChallengePeriod()
-        });
-        save("PreimageOracle", address(preimageOracle));
-        console.log("PreimageOracle deployed at %s", address(preimageOracle));
+        IPreimageOracle preimageOracle = IPreimageOracle(
+            _deploy(
+                "PreimageOracle", abi.encode(cfg.preimageOracleMinProposalSize(), cfg.preimageOracleChallengePeriod())
+            )
+        );
 
         addr_ = address(preimageOracle);
     }
@@ -833,17 +823,13 @@ contract Deploy is Deployer {
 
     /// @notice Deploy MIPS
     function _deployMips() internal returns (address addr_) {
-        console.log("Deploying Mips implementation");
-        MIPS mips = new MIPS{ salt: _implSalt() }(IPreimageOracle(mustGetAddress("PreimageOracle")));
-        console.log("MIPS deployed at %s", address(mips));
+        IMIPS mips = IMIPS(_deploy("MIPS", abi.encode(IPreimageOracle(mustGetAddress("PreimageOracle")))));
         addr_ = address(mips);
     }
 
     /// @notice Deploy MIPS2
     function _deployMips2() internal returns (address addr_) {
-        console.log("Deploying Mips2 implementation");
-        MIPS2 mips2 = new MIPS2{ salt: _implSalt() }(IPreimageOracle(mustGetAddress("PreimageOracle")));
-        console.log("MIPS2 deployed at %s", address(mips2));
+        IMIPS2 mips2 = IMIPS2(_deploy("MIPS2", abi.encode(IPreimageOracle(mustGetAddress("PreimageOracle")))));
         addr_ = address(mips2);
     }
 
@@ -851,7 +837,6 @@ contract Deploy is Deployer {
     function deployAnchorStateRegistry() public broadcast returns (address addr_) {
         IAnchorStateRegistry anchorStateRegistry =
             IAnchorStateRegistry(_deploy("AnchorStateRegistry", abi.encode(mustGetAddress("DisputeGameFactoryProxy"))));
-
         addr_ = address(anchorStateRegistry);
     }
 
@@ -904,7 +889,7 @@ contract Deploy is Deployer {
     /// @notice Transfer ownership of the address manager to the ProxyAdmin
     function transferAddressManagerOwnership() public broadcast {
         console.log("Transferring AddressManager ownership to ProxyAdmin");
-        AddressManager addressManager = AddressManager(mustGetAddress("AddressManager"));
+        IAddressManager addressManager = IAddressManager(mustGetAddress("AddressManager"));
         address owner = addressManager.owner();
         address proxyAdmin = mustGetAddress("ProxyAdmin");
         if (owner != proxyAdmin) {
@@ -1106,7 +1091,7 @@ contract Deploy is Deployer {
     /// @notice Initialize the L1StandardBridge
     function initializeL1StandardBridge() public broadcast {
         console.log("Upgrading and initializing L1StandardBridge proxy");
-        ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
+        IProxyAdmin proxyAdmin = IProxyAdmin(mustGetAddress("ProxyAdmin"));
         address l1StandardBridgeProxy = mustGetAddress("L1StandardBridgeProxy");
         address l1StandardBridge = mustGetAddress("L1StandardBridge");
         address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
@@ -1115,14 +1100,14 @@ contract Deploy is Deployer {
 
         uint256 proxyType = uint256(proxyAdmin.proxyType(l1StandardBridgeProxy));
         Safe safe = Safe(mustGetAddress("SystemOwnerSafe"));
-        if (proxyType != uint256(ProxyAdmin.ProxyType.CHUGSPLASH)) {
+        if (proxyType != uint256(IProxyAdmin.ProxyType.CHUGSPLASH)) {
             _callViaSafe({
                 _safe: safe,
                 _target: address(proxyAdmin),
-                _data: abi.encodeCall(ProxyAdmin.setProxyType, (l1StandardBridgeProxy, ProxyAdmin.ProxyType.CHUGSPLASH))
+                _data: abi.encodeCall(IProxyAdmin.setProxyType, (l1StandardBridgeProxy, IProxyAdmin.ProxyType.CHUGSPLASH))
             });
         }
-        require(uint256(proxyAdmin.proxyType(l1StandardBridgeProxy)) == uint256(ProxyAdmin.ProxyType.CHUGSPLASH));
+        require(uint256(proxyAdmin.proxyType(l1StandardBridgeProxy)) == uint256(IProxyAdmin.ProxyType.CHUGSPLASH));
 
         _upgradeAndCallViaSafe({
             _proxy: payable(l1StandardBridgeProxy),
@@ -1190,7 +1175,7 @@ contract Deploy is Deployer {
     /// @notice initializeL1CrossDomainMessenger
     function initializeL1CrossDomainMessenger() public broadcast {
         console.log("Upgrading and initializing L1CrossDomainMessenger proxy");
-        ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
+        IProxyAdmin proxyAdmin = IProxyAdmin(mustGetAddress("ProxyAdmin"));
         address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
         address l1CrossDomainMessenger = mustGetAddress("L1CrossDomainMessenger");
         address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
@@ -1199,14 +1184,16 @@ contract Deploy is Deployer {
 
         uint256 proxyType = uint256(proxyAdmin.proxyType(l1CrossDomainMessengerProxy));
         Safe safe = Safe(mustGetAddress("SystemOwnerSafe"));
-        if (proxyType != uint256(ProxyAdmin.ProxyType.RESOLVED)) {
+        if (proxyType != uint256(IProxyAdmin.ProxyType.RESOLVED)) {
             _callViaSafe({
                 _safe: safe,
                 _target: address(proxyAdmin),
-                _data: abi.encodeCall(ProxyAdmin.setProxyType, (l1CrossDomainMessengerProxy, ProxyAdmin.ProxyType.RESOLVED))
+                _data: abi.encodeCall(
+                    IProxyAdmin.setProxyType, (l1CrossDomainMessengerProxy, IProxyAdmin.ProxyType.RESOLVED)
+                )
             });
         }
-        require(uint256(proxyAdmin.proxyType(l1CrossDomainMessengerProxy)) == uint256(ProxyAdmin.ProxyType.RESOLVED));
+        require(uint256(proxyAdmin.proxyType(l1CrossDomainMessengerProxy)) == uint256(IProxyAdmin.ProxyType.RESOLVED));
 
         string memory contractName = "OVM_L1CrossDomainMessenger";
         string memory implName = proxyAdmin.implementationName(l1CrossDomainMessenger);
@@ -1214,7 +1201,7 @@ contract Deploy is Deployer {
             _callViaSafe({
                 _safe: safe,
                 _target: address(proxyAdmin),
-                _data: abi.encodeCall(ProxyAdmin.setImplementationName, (l1CrossDomainMessengerProxy, contractName))
+                _data: abi.encodeCall(IProxyAdmin.setImplementationName, (l1CrossDomainMessengerProxy, contractName))
             });
         }
         require(
@@ -1529,7 +1516,7 @@ contract Deploy is Deployer {
                 weth: weth,
                 gameType: GameTypes.ALPHABET,
                 absolutePrestate: outputAbsolutePrestate,
-                faultVm: IBigStepper(new AlphabetVM(outputAbsolutePrestate, PreimageOracle(mustGetAddress("PreimageOracle")))),
+                faultVm: IBigStepper(new AlphabetVM(outputAbsolutePrestate, IPreimageOracle(mustGetAddress("PreimageOracle")))),
                 // The max depth for the alphabet trace is always 3. Add 1 because split depth is fully inclusive.
                 maxGameDepth: cfg.faultGameSplitDepth() + 3 + 1,
                 maxClockDuration: Duration.wrap(uint64(cfg.faultGameMaxClockDuration()))
@@ -1544,7 +1531,9 @@ contract Deploy is Deployer {
         IDelayedWETH weth = IDelayedWETH(mustGetAddress("DelayedWETHProxy"));
 
         Claim outputAbsolutePrestate = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
-        PreimageOracle fastOracle = new PreimageOracle(cfg.preimageOracleMinProposalSize(), 0);
+        IPreimageOracle fastOracle = IPreimageOracle(
+            _deploy("PreimageOracle", "FastPreimageOracle", abi.encode(cfg.preimageOracleMinProposalSize(), 0))
+        );
         _setFaultGameImplementation({
             _factory: factory,
             _allowUpgrade: _allowUpgrade,
@@ -1677,26 +1666,26 @@ contract Deploy is Deployer {
 
     /// @notice Deploys a contract via CREATE2.
     /// @param _name The name of the contract.
-    /// @param _constructorParams The constructor parameters.
-    function _deploy(string memory _name, bytes memory _constructorParams) internal returns (address addr_) {
-        return _deploy(_name, _name, _constructorParams);
+    /// @param _args The constructor args.
+    function _deploy(string memory _name, bytes memory _args) internal returns (address addr_) {
+        return _deploy(_name, _name, _args);
     }
 
     /// @notice Deploys a contract via CREATE2.
     /// @param _name The name of the contract.
     /// @param _nickname The nickname of the contract.
-    /// @param _constructorParams The constructor parameters.
+    /// @param _args The constructor args.
     function _deploy(
         string memory _name,
         string memory _nickname,
-        bytes memory _constructorParams
+        bytes memory _args
     )
         internal
         returns (address addr_)
     {
         console.log("Deploying %s", _nickname);
-        bytes32 salt = _implSalt();
-        bytes memory initCode = abi.encodePacked(vm.getCode(_name), _constructorParams);
+        bytes32 salt = keccak256(abi.encode(_implSalt(), _nickname));
+        bytes memory initCode = abi.encodePacked(vm.getCode(_name), _args);
         address preComputedAddress = vm.computeCreate2Address(salt, keccak256(initCode));
         require(preComputedAddress.code.length == 0, "Deploy: contract already deployed");
         assembly {

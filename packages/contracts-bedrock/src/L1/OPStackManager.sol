@@ -6,34 +6,33 @@ import { Constants } from "src/libraries/Constants.sol";
 
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
-import { ISemver } from "src/universal/interfaces/ISemver.sol";
-import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
-
 import { Proxy } from "src/universal/Proxy.sol";
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
-import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
-import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
 
 import { L1ChugSplashProxy } from "src/legacy/L1ChugSplashProxy.sol";
 import { ResolvedDelegateProxy } from "src/legacy/ResolvedDelegateProxy.sol";
-import { AddressManager } from "src/legacy/AddressManager.sol";
 
-import { DelayedWETH } from "src/dispute/DelayedWETH.sol";
-import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
-import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
-import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
-import { PermissionedDisputeGame } from "src/dispute/PermissionedDisputeGame.sol";
 import { GameTypes } from "src/dispute/lib/Types.sol";
 
-import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
-import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
-import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
-import { SystemConfig } from "src/L1/SystemConfig.sol";
-import { ResourceMetering } from "src/L1/ResourceMetering.sol";
-import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
-import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
-import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
-import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
+
+import { IAddressManager } from "src/legacy/interfaces/IAddressManager.sol";
+
+import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
+import { IDisputeGameFactory } from "src/dispute/interfaces/IDisputeGameFactory.sol";
+import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistry.sol";
+import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
+import { IPermissionedDisputeGame } from "src/dispute/interfaces/IPermissionedDisputeGame.sol";
+
+import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
+import { IProtocolVersions } from "src/L1/interfaces/IProtocolVersions.sol";
+import { IOptimismPortal2 } from "src/L1/interfaces/IOptimismPortal2.sol";
+import { ISystemConfig } from "src/L1/interfaces/ISystemConfig.sol";
+import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
+import { IL1CrossDomainMessenger } from "src/L1/interfaces/IL1CrossDomainMessenger.sol";
+import { IL1ERC721Bridge } from "src/L1/interfaces/IL1ERC721Bridge.sol";
+import { IL1StandardBridge } from "src/L1/interfaces/IL1StandardBridge.sol";
+import { IOptimismMintableERC20Factory } from "src/universal/interfaces/IOptimismMintableERC20Factory.sol";
 
 /// @custom:proxied true
 contract OPStackManager is ISemver, Initializable {
@@ -60,21 +59,21 @@ contract OPStackManager is ISemver, Initializable {
     /// @notice The full set of outputs from deploying a new OP Stack chain.
     struct DeployOutput {
         ProxyAdmin opChainProxyAdmin;
-        AddressManager addressManager;
-        L1ERC721Bridge l1ERC721BridgeProxy;
-        SystemConfig systemConfigProxy;
-        OptimismMintableERC20Factory optimismMintableERC20FactoryProxy;
-        L1StandardBridge l1StandardBridgeProxy;
-        L1CrossDomainMessenger l1CrossDomainMessengerProxy;
+        IAddressManager addressManager;
+        IL1ERC721Bridge l1ERC721BridgeProxy;
+        ISystemConfig systemConfigProxy;
+        IOptimismMintableERC20Factory optimismMintableERC20FactoryProxy;
+        IL1StandardBridge l1StandardBridgeProxy;
+        IL1CrossDomainMessenger l1CrossDomainMessengerProxy;
         // Fault proof contracts below.
-        OptimismPortal2 optimismPortalProxy;
-        DisputeGameFactory disputeGameFactoryProxy;
-        AnchorStateRegistry anchorStateRegistryProxy;
-        AnchorStateRegistry anchorStateRegistryImpl;
-        FaultDisputeGame faultDisputeGame;
-        PermissionedDisputeGame permissionedDisputeGame;
-        DelayedWETH delayedWETHPermissionedGameProxy;
-        DelayedWETH delayedWETHPermissionlessGameProxy;
+        IOptimismPortal2 optimismPortalProxy;
+        IDisputeGameFactory disputeGameFactoryProxy;
+        IAnchorStateRegistry anchorStateRegistryProxy;
+        IAnchorStateRegistry anchorStateRegistryImpl;
+        IFaultDisputeGame faultDisputeGame;
+        IPermissionedDisputeGame permissionedDisputeGame;
+        IDelayedWETH delayedWETHPermissionedGameProxy;
+        IDelayedWETH delayedWETHPermissionlessGameProxy;
     }
 
     /// @notice The logic address and initializer selector for an implementation contract.
@@ -115,14 +114,14 @@ contract OPStackManager is ISemver, Initializable {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 1.0.0-beta.3
-    string public constant version = "1.0.0-beta.3";
+    /// @custom:semver 1.0.0-beta.4
+    string public constant version = "1.0.0-beta.4";
 
     /// @notice Address of the SuperchainConfig contract shared by all chains.
-    SuperchainConfig public immutable superchainConfig;
+    ISuperchainConfig public immutable superchainConfig;
 
     /// @notice Address of the ProtocolVersions contract shared by all chains.
-    ProtocolVersions public immutable protocolVersions;
+    IProtocolVersions public immutable protocolVersions;
 
     /// @notice Addresses of the Blueprint contracts.
     /// This is internal because if public the autogenerated getter method would return a tuple of
@@ -137,14 +136,14 @@ contract OPStackManager is ISemver, Initializable {
     mapping(string => mapping(string => Implementation)) public implementations;
 
     /// @notice Maps an L2 Chain ID to the SystemConfig for that chain.
-    mapping(uint256 => SystemConfig) public systemConfigs;
+    mapping(uint256 => ISystemConfig) public systemConfigs;
 
     // -------- Events --------
 
     /// @notice Emitted when a new OP Stack chain is deployed.
     /// @param l2ChainId The chain ID of the new chain.
     /// @param systemConfig The address of the new chain's SystemConfig contract.
-    event Deployed(uint256 indexed l2ChainId, SystemConfig indexed systemConfig);
+    event Deployed(uint256 indexed l2ChainId, ISystemConfig indexed systemConfig);
 
     // -------- Errors --------
 
@@ -170,7 +169,7 @@ contract OPStackManager is ISemver, Initializable {
 
     /// @notice OPSM is proxied. Therefore the `initialize` function replaces most constructor logic for this contract.
 
-    constructor(SuperchainConfig _superchainConfig, ProtocolVersions _protocolVersions) {
+    constructor(ISuperchainConfig _superchainConfig, IProtocolVersions _protocolVersions) {
         assertValidContractAddress(address(_superchainConfig));
         assertValidContractAddress(address(_protocolVersions));
         superchainConfig = _superchainConfig;
@@ -206,14 +205,14 @@ contract OPStackManager is ISemver, Initializable {
         // -------- TODO: Placeholders --------
         // For contracts we don't yet deploy, we set the outputs to  dummy proxies so they have code to pass assertions.
         // We do these first, that way the disputeGameFactoryProxy is set when passed to the SystemConfig input.
-        output.anchorStateRegistryProxy = AnchorStateRegistry(deployProxy(l2ChainId, output.opChainProxyAdmin, "3"));
-        output.anchorStateRegistryImpl = AnchorStateRegistry(deployProxy(l2ChainId, output.opChainProxyAdmin, "4"));
-        output.faultDisputeGame = FaultDisputeGame(deployProxy(l2ChainId, output.opChainProxyAdmin, "5"));
-        output.permissionedDisputeGame = PermissionedDisputeGame(deployProxy(l2ChainId, output.opChainProxyAdmin, "6"));
+        output.anchorStateRegistryProxy = IAnchorStateRegistry(deployProxy(l2ChainId, output.opChainProxyAdmin, "3"));
+        output.anchorStateRegistryImpl = IAnchorStateRegistry(deployProxy(l2ChainId, output.opChainProxyAdmin, "4"));
+        output.faultDisputeGame = IFaultDisputeGame(deployProxy(l2ChainId, output.opChainProxyAdmin, "5"));
+        output.permissionedDisputeGame = IPermissionedDisputeGame(deployProxy(l2ChainId, output.opChainProxyAdmin, "6"));
         output.delayedWETHPermissionedGameProxy =
-            DelayedWETH(payable(deployProxy(l2ChainId, output.opChainProxyAdmin, "7")));
+            IDelayedWETH(payable(deployProxy(l2ChainId, output.opChainProxyAdmin, "7")));
         output.delayedWETHPermissionlessGameProxy =
-            DelayedWETH(payable(deployProxy(l2ChainId, output.opChainProxyAdmin, "8")));
+            IDelayedWETH(payable(deployProxy(l2ChainId, output.opChainProxyAdmin, "8")));
 
         // -------- Deploy Chain Singletons --------
 
@@ -221,7 +220,7 @@ contract OPStackManager is ISemver, Initializable {
         // this contract, and then transfer ownership to the specified owner at the end of deployment.
         // The AddressManager is used to store the implementation for the L1CrossDomainMessenger
         // due to it's usage of the legacy ResolvedDelegateProxy.
-        output.addressManager = AddressManager(Blueprint.deployFrom(blueprint.addressManager, salt));
+        output.addressManager = IAddressManager(Blueprint.deployFrom(blueprint.addressManager, salt));
         output.opChainProxyAdmin =
             ProxyAdmin(Blueprint.deployFrom(blueprint.proxyAdmin, salt, abi.encode(address(this))));
         output.opChainProxyAdmin.setAddressManager(output.addressManager);
@@ -229,26 +228,26 @@ contract OPStackManager is ISemver, Initializable {
         // -------- Deploy Proxy Contracts --------
 
         // Deploy ERC-1967 proxied contracts.
-        output.l1ERC721BridgeProxy = L1ERC721Bridge(deployProxy(l2ChainId, output.opChainProxyAdmin, "L1ERC721Bridge"));
+        output.l1ERC721BridgeProxy = IL1ERC721Bridge(deployProxy(l2ChainId, output.opChainProxyAdmin, "L1ERC721Bridge"));
         output.optimismPortalProxy =
-            OptimismPortal2(payable(deployProxy(l2ChainId, output.opChainProxyAdmin, "OptimismPortal")));
-        output.systemConfigProxy = SystemConfig(deployProxy(l2ChainId, output.opChainProxyAdmin, "SystemConfig"));
-        output.optimismMintableERC20FactoryProxy = OptimismMintableERC20Factory(
+            IOptimismPortal2(payable(deployProxy(l2ChainId, output.opChainProxyAdmin, "OptimismPortal")));
+        output.systemConfigProxy = ISystemConfig(deployProxy(l2ChainId, output.opChainProxyAdmin, "SystemConfig"));
+        output.optimismMintableERC20FactoryProxy = IOptimismMintableERC20Factory(
             deployProxy(l2ChainId, output.opChainProxyAdmin, "OptimismMintableERC20Factory")
         );
         output.disputeGameFactoryProxy =
-            DisputeGameFactory(deployProxy(l2ChainId, output.opChainProxyAdmin, "DisputeGameFactory"));
+            IDisputeGameFactory(deployProxy(l2ChainId, output.opChainProxyAdmin, "DisputeGameFactory"));
         output.anchorStateRegistryProxy =
-            AnchorStateRegistry(deployProxy(l2ChainId, output.opChainProxyAdmin, "AnchorStateRegistry"));
+            IAnchorStateRegistry(deployProxy(l2ChainId, output.opChainProxyAdmin, "AnchorStateRegistry"));
 
         // Deploy legacy proxied contracts.
-        output.l1StandardBridgeProxy = L1StandardBridge(
+        output.l1StandardBridgeProxy = IL1StandardBridge(
             payable(Blueprint.deployFrom(blueprint.l1ChugSplashProxy, salt, abi.encode(output.opChainProxyAdmin)))
         );
         output.opChainProxyAdmin.setProxyType(address(output.l1StandardBridgeProxy), ProxyAdmin.ProxyType.CHUGSPLASH);
 
         string memory contractName = "OVM_L1CrossDomainMessenger";
-        output.l1CrossDomainMessengerProxy = L1CrossDomainMessenger(
+        output.l1CrossDomainMessengerProxy = IL1CrossDomainMessenger(
             Blueprint.deployFrom(blueprint.resolvedDelegateProxy, salt, abi.encode(output.addressManager, contractName))
         );
         output.opChainProxyAdmin.setProxyType(
@@ -261,7 +260,7 @@ contract OPStackManager is ISemver, Initializable {
 
         // The AnchorStateRegistry Implementation is not MCP Ready, and therefore requires an implementation per chain.
         // It must be deployed after the DisputeGameFactoryProxy so that it can be provided as a constructor argument.
-        output.anchorStateRegistryImpl = AnchorStateRegistry(
+        output.anchorStateRegistryImpl = IAnchorStateRegistry(
             Blueprint.deployFrom(blueprint.anchorStateRegistry, salt, abi.encode(output.disputeGameFactoryProxy))
         );
 
@@ -393,7 +392,7 @@ contract OPStackManager is ISemver, Initializable {
         virtual
         returns (bytes memory)
     {
-        (ResourceMetering.ResourceConfig memory referenceResourceConfig, SystemConfig.Addresses memory opChainAddrs) =
+        (IResourceMetering.ResourceConfig memory referenceResourceConfig, ISystemConfig.Addresses memory opChainAddrs) =
             defaultSystemConfigParams(selector, _input, _output);
 
         return abi.encodeWithSelector(
@@ -474,7 +473,7 @@ contract OPStackManager is ISemver, Initializable {
         internal
         view
         virtual
-        returns (ResourceMetering.ResourceConfig memory resourceConfig_, SystemConfig.Addresses memory opChainAddrs_)
+        returns (IResourceMetering.ResourceConfig memory resourceConfig_, ISystemConfig.Addresses memory opChainAddrs_)
     {
         // We use assembly to easily convert from IResourceMetering.ResourceConfig to ResourceMetering.ResourceConfig.
         // This is required because we have not yet fully migrated the codebase to be interface-based.
@@ -483,7 +482,7 @@ contract OPStackManager is ISemver, Initializable {
             resourceConfig_ := resourceConfig
         }
 
-        opChainAddrs_ = SystemConfig.Addresses({
+        opChainAddrs_ = ISystemConfig.Addresses({
             l1CrossDomainMessenger: address(_output.l1CrossDomainMessengerProxy),
             l1ERC721Bridge: address(_output.l1ERC721BridgeProxy),
             l1StandardBridge: address(_output.l1StandardBridgeProxy),

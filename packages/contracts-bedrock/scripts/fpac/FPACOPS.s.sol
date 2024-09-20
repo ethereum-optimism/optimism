@@ -5,18 +5,18 @@ pragma solidity 0.8.15;
 import { StdAssertions } from "forge-std/StdAssertions.sol";
 import "scripts/deploy/Deploy.s.sol";
 
-// Contracts
-import { Proxy } from "src/universal/Proxy.sol";
-
 // Libraries
 import "src/dispute/lib/Types.sol";
 
 // Interfaces
+import { IProxy } from "src/universal/interfaces/IProxy.sol";
 import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
 import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistry.sol";
 import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
 import { IPermissionedDisputeGame } from "src/dispute/interfaces/IPermissionedDisputeGame.sol";
+import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
+import { IMIPS } from "src/cannon/interfaces/IMIPS.sol";
 
 /// @notice Deploys the Fault Proof Alpha Chad contracts.
 contract FPACOPS is Deploy, StdAssertions {
@@ -78,7 +78,7 @@ contract FPACOPS is Deploy, StdAssertions {
         console.log("Initializing DisputeGameFactoryProxy with DisputeGameFactory.");
 
         address dgfProxy = mustGetAddress("DisputeGameFactoryProxy");
-        Proxy(payable(dgfProxy)).upgradeToAndCall(
+        IProxy(payable(dgfProxy)).upgradeToAndCall(
             mustGetAddress("DisputeGameFactory"), abi.encodeCall(IDisputeGameFactory.initialize, msg.sender)
         );
 
@@ -93,7 +93,7 @@ contract FPACOPS is Deploy, StdAssertions {
 
         address wethProxy = mustGetAddress("DelayedWETHProxy");
         address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
-        Proxy(payable(wethProxy)).upgradeToAndCall(
+        IProxy(payable(wethProxy)).upgradeToAndCall(
             mustGetAddress("DelayedWETH"),
             abi.encodeCall(IDelayedWETH.initialize, (msg.sender, ISuperchainConfig(superchainConfigProxy)))
         );
@@ -121,7 +121,7 @@ contract FPACOPS is Deploy, StdAssertions {
         });
 
         address asrProxy = mustGetAddress("AnchorStateRegistryProxy");
-        Proxy(payable(asrProxy)).upgradeToAndCall(
+        IProxy(payable(asrProxy)).upgradeToAndCall(
             mustGetAddress("AnchorStateRegistry"),
             abi.encodeCall(IAnchorStateRegistry.initialize, (roots, superchainConfig))
         );
@@ -136,7 +136,7 @@ contract FPACOPS is Deploy, StdAssertions {
         dgf.transferOwnership(_systemOwnerSafe);
 
         // Transfer the admin rights of the DisputeGameFactoryProxy to the ProxyAdmin.
-        Proxy prox = Proxy(payable(address(dgf)));
+        IProxy prox = IProxy(payable(address(dgf)));
         prox.changeAdmin(_proxyAdmin);
     }
 
@@ -149,7 +149,7 @@ contract FPACOPS is Deploy, StdAssertions {
         weth.transferOwnership(_systemOwnerSafe);
 
         // Transfer the admin rights of the DelayedWETHProxy to the ProxyAdmin.
-        Proxy prox = Proxy(payable(address(weth)));
+        IProxy prox = IProxy(payable(address(weth)));
         prox.changeAdmin(_proxyAdmin);
     }
 
@@ -158,7 +158,7 @@ contract FPACOPS is Deploy, StdAssertions {
         IAnchorStateRegistry asr = IAnchorStateRegistry(mustGetAddress("AnchorStateRegistryProxy"));
 
         // Transfer the admin rights of the AnchorStateRegistryProxy to the ProxyAdmin.
-        Proxy prox = Proxy(payable(address(asr)));
+        IProxy prox = IProxy(payable(address(asr)));
         prox.changeAdmin(_proxyAdmin);
     }
 
@@ -182,11 +182,11 @@ contract FPACOPS is Deploy, StdAssertions {
         // Check the config elements in the deployed contracts.
         ChainAssertions.checkOptimismPortal2(contracts, cfg, false);
 
-        PreimageOracle oracle = PreimageOracle(mustGetAddress("PreimageOracle"));
+        IPreimageOracle oracle = IPreimageOracle(mustGetAddress("PreimageOracle"));
         assertEq(oracle.minProposalSize(), cfg.preimageOracleMinProposalSize());
         assertEq(oracle.challengePeriod(), cfg.preimageOracleChallengePeriod());
 
-        MIPS mips = MIPS(mustGetAddress("Mips"));
+        IMIPS mips = IMIPS(mustGetAddress("Mips"));
         assertEq(address(mips.oracle()), address(oracle));
 
         // Check the AnchorStateRegistry configuration.
