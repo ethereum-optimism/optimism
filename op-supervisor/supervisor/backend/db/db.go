@@ -190,6 +190,7 @@ func (db *ChainsDB) UpdateCrossHeadsForChain(chainID types.ChainID, checker Safe
 		// if we would exceed the local head, then abort
 		if iter.NextIndex() > localHead {
 			xHead = localHead // clip to local head
+			updated = localHead != xHead
 			break
 		}
 		exec := iter.ExecMessage()
@@ -209,7 +210,6 @@ func (db *ChainsDB) UpdateCrossHeadsForChain(chainID types.ChainID, checker Safe
 		xHead = iter.NextIndex()
 		updated = true
 	}
-
 	// have the checker create an update to the x-head in question, and apply that update
 	err = db.heads.Apply(checker.Update(chainID, xHead))
 	if err != nil {
@@ -219,8 +219,10 @@ func (db *ChainsDB) UpdateCrossHeadsForChain(chainID types.ChainID, checker Safe
 	// this allows for the maintenance loop to handle cascading updates
 	// instead of waiting for the next scheduled update
 	if updated {
-		db.logger.Debug("heads were updated, requesting maintenance")
+		db.logger.Info("Promoting cross-head", "head", xHead, "safety-level", checker.SafetyLevel())
 		db.RequestMaintenance()
+	} else {
+		db.logger.Info("No cross-head update", "head", xHead, "safety-level", checker.SafetyLevel())
 	}
 	return nil
 }

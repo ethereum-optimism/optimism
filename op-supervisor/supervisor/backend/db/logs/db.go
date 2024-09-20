@@ -161,6 +161,9 @@ func (db *DB) IteratorStartingAt(i entrydb.EntryIdx) (Iterator, error) {
 	for ; idx >= 0; i-- {
 		entry, err := db.store.Read(idx)
 		if err != nil {
+			if errors.Is(err, io.EOF) {
+				continue // traverse to when we did have blocks
+			}
 			return nil, err
 		}
 		if entry.Type() == entrydb.TypeSearchCheckpoint {
@@ -310,11 +313,11 @@ func (db *DB) newIteratorAt(blockNum uint64, logIndex uint32) (*iterator, error)
 		if _, n, _ := iter.SealedBlock(); n == blockNum { // we may already have it exactly
 			break
 		}
-		if err := iter.NextBlock(); err == io.EOF {
+		if err := iter.NextBlock(); errors.Is(err, ErrFuture) {
 			db.log.Trace("ran out of data, could not find block", "nextIndex", iter.NextIndex(), "target", blockNum)
 			return nil, ErrFuture
 		} else if err != nil {
-			db.log.Error("failed to read next block", "nextIndex", iter.NextIndex(), "target", blockNum)
+			db.log.Error("failed to read next block", "nextIndex", iter.NextIndex(), "target", blockNum, "err", err)
 			return nil, err
 		}
 		h, num, ok := iter.SealedBlock()
