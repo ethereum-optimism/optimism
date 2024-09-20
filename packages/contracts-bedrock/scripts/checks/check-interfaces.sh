@@ -3,8 +3,9 @@ set -euo pipefail
 
 # This script checks for ABI consistency between interfaces and their corresponding contracts.
 # It compares the ABIs of interfaces (files starting with 'I') with their implementation contracts,
-# excluding constructors and certain predefined files. The script reports any differences found
-# and exits with an error if inconsistencies are detected.
+# excluding certain predefined files. Constructors are expected to be represented in interfaces by a
+# pseudo-constructor function `__constructor__(...)` with arguments the same as the contract's constructor.
+# The script reports any differences found and exits with an error if inconsistencies are detected.
 # NOTE: Script is fast enough but could be parallelized if necessary.
 
 # Parse flags
