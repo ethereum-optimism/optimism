@@ -50,6 +50,11 @@
             "internalType": "address",
             "name": "anchorStateRegistry",
             "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "permissionedDisputeGame",
+            "type": "address"
           }
         ],
         "internalType": "struct OPStackManager.Blueprints",
@@ -297,6 +302,11 @@
               {
                 "internalType": "address",
                 "name": "anchorStateRegistry",
+                "type": "address"
+              },
+              {
+                "internalType": "address",
+                "name": "permissionedDisputeGame",
                 "type": "address"
               }
             ],

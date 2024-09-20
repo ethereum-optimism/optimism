@@ -11,6 +11,7 @@ import { BaseDeployIO } from "scripts/utils/BaseDeployIO.sol";
 
 import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
 import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
+import { IBigStepper } from "src/dispute/interfaces/IBigStepper.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 
@@ -23,7 +24,7 @@ import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
 import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
 import { PermissionedDisputeGame } from "src/dispute/PermissionedDisputeGame.sol";
-import { GameType, GameTypes, Hash, OutputRoot } from "src/dispute/lib/Types.sol";
+import { Claim, GameType, GameTypes, Hash, OutputRoot } from "src/dispute/lib/Types.sol";
 
 import { OPStackManager } from "src/L1/OPStackManager.sol";
 import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
@@ -201,7 +202,7 @@ contract DeployOPChainOutput is BaseDeployIO {
             address(_disputeGameFactoryProxy),
             address(_anchorStateRegistryProxy),
             address(_anchorStateRegistryImpl),
-            address(_faultDisputeGame),
+            // address(_faultDisputeGame),
             address(_permissionedDisputeGame),
             address(_delayedWETHPermissionedGameProxy),
             address(_delayedWETHPermissionlessGameProxy)
@@ -289,8 +290,8 @@ contract DeployOPChainOutput is BaseDeployIO {
     // -------- Deployment Assertions --------
 
     function assertValidDeploy(DeployOPChainInput _doi) internal {
-        assertValidAnchorStateRegistryProxy(_doi);
         assertValidAnchorStateRegistryImpl(_doi);
+        assertValidAnchorStateRegistryProxy(_doi);
         assertValidDelayedWETHs(_doi);
         assertValidDisputeGameFactory(_doi);
         assertValidL1CrossDomainMessenger(_doi);
@@ -298,9 +299,23 @@ contract DeployOPChainOutput is BaseDeployIO {
         assertValidL1StandardBridge(_doi);
         assertValidOptimismMintableERC20Factory(_doi);
         assertValidOptimismPortal(_doi);
+        assertValidPermissionedDisputeGame(_doi);
         assertValidSystemConfig(_doi);
-        // TODO Other FP assertions like the dispute games, anchor state registry, etc.
-        // TODO add initialization assertions
+    }
+
+    function assertValidPermissionedDisputeGame(DeployOPChainInput _doi) internal view {
+        PermissionedDisputeGame game = permissionedDisputeGame();
+
+        require(GameType.unwrap(game.gameType()) == GameType.unwrap(GameTypes.PERMISSIONED_CANNON), "DPG-10");
+        require(Claim.unwrap(game.absolutePrestate()) == bytes32(hex"dead"), "DPG-20");
+
+        OPStackManager opsm = _doi.opsmProxy();
+        (address mips,) = opsm.implementations(opsm.latestRelease(), "MIPS");
+        require(game.vm() == IBigStepper(mips), "DPG-30");
+
+        require(address(game.weth()) == address(delayedWETHPermissionedGameProxy()), "DPG-40");
+        require(address(game.anchorStateRegistry()) == address(anchorStateRegistryProxy()), "DPG-50");
+        require(game.l2ChainId() == _doi.l2ChainId(), "DPG-60");
     }
 
     function assertValidAnchorStateRegistryProxy(DeployOPChainInput) internal {
@@ -436,7 +451,14 @@ contract DeployOPChainOutput is BaseDeployIO {
     }
 
     function assertValidDisputeGameFactory(DeployOPChainInput) internal view {
-        // TODO add in once FP support is added.
+        DisputeGameFactory factory = disputeGameFactoryProxy();
+
+        DeployUtils.assertInitialized({ _contractAddress: address(factory), _slot: 0, _offset: 0 });
+
+        require(
+            address(factory.gameImpls(GameTypes.PERMISSIONED_CANNON)) == address(permissionedDisputeGame()), "DF-10"
+        );
+        require(factory.owner() == address(opChainProxyAdmin()), "DF-20");
     }
 
     function assertValidDelayedWETHs(DeployOPChainInput) internal view {
@@ -480,7 +502,7 @@ contract DeployOPChain is Script {
         vm.label(address(deployOutput.disputeGameFactoryProxy), "disputeGameFactoryProxy");
         vm.label(address(deployOutput.anchorStateRegistryProxy), "anchorStateRegistryProxy");
         vm.label(address(deployOutput.anchorStateRegistryImpl), "anchorStateRegistryImpl");
-        vm.label(address(deployOutput.faultDisputeGame), "faultDisputeGame");
+        // vm.label(address(deployOutput.faultDisputeGame), "faultDisputeGame");
         vm.label(address(deployOutput.permissionedDisputeGame), "permissionedDisputeGame");
         vm.label(address(deployOutput.delayedWETHPermissionedGameProxy), "delayedWETHPermissionedGameProxy");
         vm.label(address(deployOutput.delayedWETHPermissionlessGameProxy), "delayedWETHPermissionlessGameProxy");
@@ -498,7 +520,7 @@ contract DeployOPChain is Script {
         _doo.set(_doo.disputeGameFactoryProxy.selector, address(deployOutput.disputeGameFactoryProxy));
         _doo.set(_doo.anchorStateRegistryProxy.selector, address(deployOutput.anchorStateRegistryProxy));
         _doo.set(_doo.anchorStateRegistryImpl.selector, address(deployOutput.anchorStateRegistryImpl));
-        _doo.set(_doo.faultDisputeGame.selector, address(deployOutput.faultDisputeGame));
+        // _doo.set(_doo.faultDisputeGame.selector, address(deployOutput.faultDisputeGame));
         _doo.set(_doo.permissionedDisputeGame.selector, address(deployOutput.permissionedDisputeGame));
         _doo.set(_doo.delayedWETHPermissionedGameProxy.selector, address(deployOutput.delayedWETHPermissionedGameProxy));
         _doo.set(

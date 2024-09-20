@@ -23,6 +23,7 @@ import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
 import { MIPS } from "src/cannon/MIPS.sol";
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
+import { PermissionedDisputeGame } from "src/dispute/PermissionedDisputeGame.sol";
 
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
@@ -514,10 +515,11 @@ contract DeployImplementations is Script {
         blueprints.l1ChugSplashProxy = deployBytecode(Blueprint.blueprintDeployerBytecode(type(L1ChugSplashProxy).creationCode), salt);
         blueprints.resolvedDelegateProxy = deployBytecode(Blueprint.blueprintDeployerBytecode(type(ResolvedDelegateProxy).creationCode), salt);
         blueprints.anchorStateRegistry = deployBytecode(Blueprint.blueprintDeployerBytecode(type(AnchorStateRegistry).creationCode), salt);
+        blueprints.permissionedDisputeGame = deployBytecode(Blueprint.blueprintDeployerBytecode(type(PermissionedDisputeGame).creationCode), salt);
         vm.stopBroadcast();
         // forgefmt: disable-end
 
-        OPStackManager.ImplementationSetter[] memory setters = new OPStackManager.ImplementationSetter[](7);
+        OPStackManager.ImplementationSetter[] memory setters = new OPStackManager.ImplementationSetter[](9);
         setters[0] = OPStackManager.ImplementationSetter({
             name: "L1ERC721Bridge",
             info: OPStackManager.Implementation(address(_dio.l1ERC721BridgeImpl()), L1ERC721Bridge.initialize.selector)
@@ -543,12 +545,21 @@ contract DeployImplementations is Script {
             name: "L1StandardBridge",
             info: OPStackManager.Implementation(address(_dio.l1StandardBridgeImpl()), L1StandardBridge.initialize.selector)
         });
-
         setters[6] = OPStackManager.ImplementationSetter({
             name: "DisputeGameFactory",
             info: OPStackManager.Implementation(
                 address(_dio.disputeGameFactoryImpl()), DisputeGameFactory.initialize.selector
             )
+        });
+        setters[7] = OPStackManager.ImplementationSetter({
+            name: "DelayedWETH",
+            info: OPStackManager.Implementation(address(_dio.delayedWETHImpl()), DelayedWETH.initialize.selector)
+        });
+        setters[8] = OPStackManager.ImplementationSetter({
+            name: "MIPS",
+            // MIPS is a singleton for all chains, so it doesn't need to be initialized, so the
+            // selector is just `bytes4(0)`.
+            info: OPStackManager.Implementation(address(_dio.mipsSingleton()), bytes4(0))
         });
 
         // This call contains a broadcast to deploy OPSM which is proxied.
@@ -617,14 +628,14 @@ contract DeployImplementations is Script {
     // The fault proofs contracts are configured as follows:
     // | Contract                | Proxied | Deployment                        | MCP Ready  |
     // |-------------------------|---------|-----------------------------------|------------|
-    // | DisputeGameFactory      | Yes     | Bespoke                           | Yes        |  X
-    // | AnchorStateRegistry     | Yes     | Bespoke                           | No         |  X
-    // | FaultDisputeGame        | No      | Bespoke                           | No         |  Todo
-    // | PermissionedDisputeGame | No      | Bespoke                           | No         |  Todo
-    // | DelayedWETH             | Yes     | Two bespoke (one per DisputeGame) | No         |  Todo: Proxies.
-    // | PreimageOracle          | No      | Shared                            | N/A        |  X
-    // | MIPS                    | No      | Shared                            | N/A        |  X
-    // | OptimismPortal2         | Yes     | Shared                            | No         |  X
+    // | DisputeGameFactory      | Yes     | Bespoke                           | Yes        |
+    // | AnchorStateRegistry     | Yes     | Bespoke                           | No         |
+    // | FaultDisputeGame        | No      | Bespoke                           | No         | Not yet supported by OPCM
+    // | PermissionedDisputeGame | No      | Bespoke                           | No         |
+    // | DelayedWETH             | Yes     | Two bespoke (one per DisputeGame) | No         |
+    // | PreimageOracle          | No      | Shared                            | N/A        |
+    // | MIPS                    | No      | Shared                            | N/A        |
+    // | OptimismPortal2         | Yes     | Shared                            | No         |
     //
     // This script only deploys the shared contracts. The bespoke contracts are deployed by
     // `DeployOPChain.s.sol`. When the shared contracts are proxied, the contracts deployed here are
