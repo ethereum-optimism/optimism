@@ -138,10 +138,10 @@ func check(
 	index, err := chainsDB.logDBs[chain].Contains(blockNum, logIdx, logHash)
 	if err != nil {
 		if errors.Is(err, logs.ErrFuture) {
-			return false // TODO
+			return false // TODO(#12031)
 		}
 		if errors.Is(err, logs.ErrConflict) {
-			return false // TODO
+			return false // TODO(#12031)
 		}
 		return false
 	}

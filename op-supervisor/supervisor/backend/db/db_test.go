@@ -3,7 +3,7 @@ package db
 import (
 	"errors"
 	"io"
-	"math/rand"
+	"math/rand" // nosemgrep
 	"testing"
 
 	"github.com/stretchr/testify/require"
