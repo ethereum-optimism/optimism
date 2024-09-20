@@ -1,7 +1,16 @@
 package db
 
 import (
-	"fmt"
+	"errors"
+	"io"
+	"math/rand"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
+
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
@@ -9,11 +18,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
 	backendTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/stretchr/testify/require"
-	"io"
-	"testing"
 )
 
 func TestChainsDB_AddLog(t *testing.T) {
@@ -65,6 +69,9 @@ func TestChainsDB_UpdateCrossHeads(t *testing.T) {
 	// get default stubbed components
 	logDB, checker, h := setupStubbedForUpdateHeads(chainID)
 
+	checker.numSafe = 1
+	xSafe := checker.crossHeadForChain
+
 	// The ChainsDB is real, but uses only stubbed components
 	db := NewChainsDB(
 		map[types.ChainID]LogStorage{
@@ -72,14 +79,10 @@ func TestChainsDB_UpdateCrossHeads(t *testing.T) {
 		&stubHeadStorage{h},
 		testlog.Logger(t, log.LevelDebug))
 
-	// Update cross-heads is expected to:
-	// 1. get a last checkpoint iterator from the logDB (stubbed to be at 15)
-	// 2. progress the iterator to the next log (16) because the first safety check will pass
-	// 3. fail the second safety check
-	// 4. update the cross-heads to the last successful safety check (16)
 	err := db.UpdateCrossHeads(checker)
 	require.NoError(t, err)
-	require.Equal(t, entrydb.EntryIdx(16), checker.updated)
+	// found a safe executing message, and no new initiating messages
+	require.Equal(t, xSafe+1, checker.updated)
 }
 
 func TestChainsDB_UpdateCrossHeadsBeyondLocal(t *testing.T) {
@@ -87,8 +90,10 @@ func TestChainsDB_UpdateCrossHeadsBeyondLocal(t *testing.T) {
 	chainID := types.ChainIDFromUInt64(1)
 	// get default stubbed components
 	logDB, checker, h := setupStubbedForUpdateHeads(chainID)
-	// set the safety checker to pass 99 times, effeciively allowing all messages to be safe
+	// set the safety checker to pass 99 times, effectively allowing all messages to be safe
 	checker.numSafe = 99
+
+	startLocalSafe := checker.localHeadForChain
 
 	// The ChainsDB is real, but uses only stubbed components
 	db := NewChainsDB(
@@ -103,7 +108,7 @@ func TestChainsDB_UpdateCrossHeadsBeyondLocal(t *testing.T) {
 	// 3. exceed the local head, and update the cross-head to the local head (40)
 	err := db.UpdateCrossHeads(checker)
 	require.NoError(t, err)
-	require.Equal(t, entrydb.EntryIdx(40), checker.updated)
+	require.Equal(t, startLocalSafe, checker.updated)
 }
 
 func TestChainsDB_UpdateCrossHeadsEOF(t *testing.T) {
@@ -112,9 +117,10 @@ func TestChainsDB_UpdateCrossHeadsEOF(t *testing.T) {
 	// get default stubbed components
 	logDB, checker, h := setupStubbedForUpdateHeads(chainID)
 	// set the log DB to return an EOF error when trying to get the next executing message
-	// after processing 10 messages as safe (with more messages available to be safe)
-	logDB.errOverload = io.EOF
-	logDB.errAfter = 10
+	// after processing 10 message (with more messages available to be safe)
+	logDB.nextLogs = logDB.nextLogs[:checker.crossHeadForChain+11]
+	// This is a legacy test, the local head is further than the DB content...
+
 	checker.numSafe = 99
 
 	// The ChainsDB is real, but uses only stubbed components
@@ -125,12 +131,11 @@ func TestChainsDB_UpdateCrossHeadsEOF(t *testing.T) {
 		testlog.Logger(t, log.LevelDebug))
 
 	// Update cross-heads is expected to:
-	// 1. get a last checkpoint iterator from the logDB (stubbed to be at 15)
-	// 2. after processing 10 messages as safe, fail to find any executing messages (EOF)
-	// 3. update to the last successful safety check (25) without returning an error
+	// - process 10 logs as safe, 5 of which execute something
+	// - update cross-safe to what was there
 	err := db.UpdateCrossHeads(checker)
 	require.NoError(t, err)
-	require.Equal(t, entrydb.EntryIdx(25), checker.updated)
+	require.Equal(t, checker.crossHeadForChain+11, checker.updated)
 }
 
 func TestChainsDB_UpdateCrossHeadsError(t *testing.T) {
@@ -140,8 +145,18 @@ func TestChainsDB_UpdateCrossHeadsError(t *testing.T) {
 	logDB, checker, h := setupStubbedForUpdateHeads(chainID)
 	// set the log DB to return an error when trying to get the next executing message
 	// after processing 3 messages as safe (with more messages available to be safe)
-	logDB.errOverload = fmt.Errorf("some error")
-	logDB.errAfter = 3
+
+	executed := 0
+	for i, e := range logDB.nextLogs {
+		if executed == 3 {
+			logDB.nextLogs[i].err = errors.New("some error")
+		}
+		if entrydb.EntryIdx(i) > checker.crossHeadForChain && e.execIdx >= 0 {
+			executed++
+		}
+	}
+
+	// everything is safe until error
 	checker.numSafe = 99
 
 	// The ChainsDB is real, but uses only stubbed components
@@ -167,8 +182,6 @@ func TestChainsDB_UpdateCrossHeadsError(t *testing.T) {
 // this isn't an issue for now, as all tests can modify the stubbed components directly after calling this function.
 // but readability and maintainability would be improved by making this function more configurable.
 func setupStubbedForUpdateHeads(chainID types.ChainID) (*stubLogDB, *stubChecker, *heads.Heads) {
-	// the checkpoint starts somewhere behind the last known cross-safe head
-	checkpoint := entrydb.EntryIdx(15)
 	// the last known cross-safe head is at 20
 	cross := entrydb.EntryIdx(20)
 	// the local head (the limit of the update) is at 40
@@ -177,15 +190,10 @@ func setupStubbedForUpdateHeads(chainID types.ChainID) (*stubLogDB, *stubChecker
 	numExecutingMessages := 30
 	// number of safety checks that will pass before returning false
 	numSafe := 1
-	// number of calls to nextExecutingMessage before potentially returning an error
-	errAfter := 4
 
 	// set up stubbed logDB
 	logDB := &stubLogDB{}
-	// the log DB will start the iterator at the checkpoint index
-	logDB.lastCheckpointBehind = &stubIterator{checkpoint, 0, nil}
-	// rig the log DB to return an error after a certain number of calls to NextExecutingMessage
-	logDB.errAfter = errAfter
+
 	// set up stubbed executing messages that the ChainsDB can pass to the checker
 	logDB.executingMessages = []*backendTypes.ExecutingMessage{}
 	for i := 0; i < numExecutingMessages; i++ {
@@ -194,6 +202,31 @@ func setupStubbedForUpdateHeads(chainID types.ChainID) (*stubLogDB, *stubChecker
 			BlockNum: uint64(100 + int(i/3)),
 			LogIdx:   uint32(i),
 			Hash:     backendTypes.TruncatedHash{},
+		})
+	}
+
+	rng := rand.New(rand.NewSource(123))
+	blockNum := uint64(100)
+	logIndex := uint32(0)
+	executedCount := 0
+	for i := entrydb.EntryIdx(0); i <= local; i++ {
+		var logHash backendTypes.TruncatedHash
+		rng.Read(logHash[:])
+
+		execIndex := -1
+		// All the even messages have an executing message
+		if i%2 == 0 {
+			execIndex = rng.Intn(len(logDB.executingMessages))
+			executedCount += 1
+		}
+		var msgErr error
+
+		logDB.nextLogs = append(logDB.nextLogs, nextLogResponse{
+			blockNum: blockNum,
+			logIdx:   logIndex,
+			evtHash:  logHash,
+			err:      msgErr,
+			execIdx:  execIndex,
 		})
 	}
 
@@ -269,43 +302,100 @@ func (s *stubHeadStorage) Current() *heads.Heads {
 
 type nextLogResponse struct {
 	blockNum uint64
-	logIdx   uint32
-	evtHash  backendTypes.TruncatedHash
-	err      error
+
+	logIdx uint32
+
+	evtHash backendTypes.TruncatedHash
+
+	err error
+
+	// -1 if not executing
+	execIdx int
 }
+
 type stubIterator struct {
-	index        entrydb.EntryIdx
-	nextLogIndex int
-	nextLogs     []nextLogResponse
+	index entrydb.EntryIdx
+
+	db *stubLogDB
 }
 
-func (s *stubIterator) NextLog() (uint64, uint32, backendTypes.TruncatedHash, error) {
-	if s.nextLogIndex >= len(s.nextLogs) {
-		return 0, 0, backendTypes.TruncatedHash{}, io.EOF
+func (s *stubIterator) End() error {
+	return nil // only used for DB-loading. The stub is already loaded
+}
+
+func (s *stubIterator) NextInitMsg() error {
+	s.index += 1
+	if s.index >= entrydb.EntryIdx(len(s.db.nextLogs)) {
+		return io.EOF
 	}
-	r := s.nextLogs[s.nextLogIndex]
-	s.nextLogIndex++
-	return r.blockNum, r.logIdx, r.evtHash, r.err
+	e := s.db.nextLogs[s.index]
+	return e.err
 }
 
-func (s *stubIterator) Index() entrydb.EntryIdx {
-	return s.index
+func (s *stubIterator) NextExecMsg() error {
+	for {
+		s.index += 1
+		if s.index >= entrydb.EntryIdx(len(s.db.nextLogs)) {
+			return io.EOF
+		}
+		e := s.db.nextLogs[s.index]
+		if e.err != nil {
+			return e.err
+		}
+		if e.execIdx >= 0 {
+			return nil
+		}
+	}
 }
-func (s *stubIterator) ExecMessage() (backendTypes.ExecutingMessage, error) {
-	panic("not implemented")
+
+func (s *stubIterator) NextBlock() error {
+	panic("not yet supported")
 }
+
+func (s *stubIterator) NextIndex() entrydb.EntryIdx {
+	return s.index + 1
+}
+
+func (s *stubIterator) SealedBlock() (hash backendTypes.TruncatedHash, num uint64, ok bool) {
+	panic("not yet supported")
+}
+
+func (s *stubIterator) InitMessage() (hash backendTypes.TruncatedHash, logIndex uint32, ok bool) {
+	if s.index < 0 {
+		return backendTypes.TruncatedHash{}, 0, false
+	}
+	if s.index >= entrydb.EntryIdx(len(s.db.nextLogs)) {
+		return backendTypes.TruncatedHash{}, 0, false
+	}
+	e := s.db.nextLogs[s.index]
+	return e.evtHash, e.logIdx, true
+}
+
+func (s *stubIterator) ExecMessage() *backendTypes.ExecutingMessage {
+	if s.index < 0 {
+		return nil
+	}
+	if s.index >= entrydb.EntryIdx(len(s.db.nextLogs)) {
+		return nil
+	}
+	e := s.db.nextLogs[s.index]
+	if e.execIdx < 0 {
+		return nil
+	}
+	return s.db.executingMessages[e.execIdx]
+}
+
+var _ logs.Iterator = (*stubIterator)(nil)
 
 type stubLogDB struct {
-	addLogCalls          int
-	sealBlockCalls       int
-	headBlockNum         uint64
-	emIndex              int
-	executingMessages    []*backendTypes.ExecutingMessage
-	nextLogs             []nextLogResponse
-	lastCheckpointBehind *stubIterator
-	errOverload          error
-	errAfter             int
-	containsResponse     containsResponse
+	addLogCalls    int
+	sealBlockCalls int
+	headBlockNum   uint64
+
+	executingMessages []*backendTypes.ExecutingMessage
+	nextLogs          []nextLogResponse
+
+	containsResponse containsResponse
 }
 
 func (s *stubLogDB) AddLog(logHash backendTypes.TruncatedHash, parentBlock eth.BlockID, logIdx uint32, execMsg *backendTypes.ExecutingMessage) error {
@@ -327,26 +417,13 @@ func (s *stubLogDB) FindSealedBlock(block eth.BlockID) (nextEntry entrydb.EntryI
 }
 
 func (s *stubLogDB) IteratorStartingAt(i entrydb.EntryIdx) (logs.Iterator, error) {
-	//TODO implement me
-	panic("implement me")
+	return &stubIterator{
+		index: i - 1,
+		db:    s,
+	}, nil
 }
 
 var _ LogStorage = (*stubLogDB)(nil)
-
-//
-//func (s *stubLogDB) NextExecutingMessage(i logs.Iterator) (backendTypes.ExecutingMessage, error) {
-//	// if error overload is set, return it to simulate a failure condition
-//	if s.errOverload != nil && s.emIndex >= s.errAfter {
-//		return backendTypes.ExecutingMessage{}, s.errOverload
-//	}
-//	// increment the iterator to mark advancement
-//	i.(*stubIterator).index += 1
-//	// return the next executing message
-//	m := *s.executingMessages[s.emIndex]
-//	// and increment to the next message for the next call
-//	s.emIndex++
-//	return m, nil
-//}
 
 type containsResponse struct {
 	index entrydb.EntryIdx

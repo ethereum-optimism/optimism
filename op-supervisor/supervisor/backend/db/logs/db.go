@@ -155,9 +155,28 @@ func (db *DB) IteratorStartingAt(i entrydb.EntryIdx) (Iterator, error) {
 	if i > db.lastEntryContext.nextEntryIndex {
 		return nil, ErrFuture
 	}
-	// TODO this iterator is semi-broken;
-	//  inferred entries will not be added if starting from an incomplete block or log
-	return db.newIterator(i), nil
+	// TODO(#12031): Workaround while we not have IteratorStartingAt(heads.HeadPointer):
+	// scroll back from the index, to find block info.
+	idx := i
+	for ; idx >= 0; i-- {
+		entry, err := db.store.Read(idx)
+		if err != nil {
+			return nil, err
+		}
+		if entry.Type() == entrydb.TypeSearchCheckpoint {
+			break
+		}
+		if idx == 0 {
+			return nil, fmt.Errorf("empty DB, no block entry, cannot start at %d", i)
+		}
+	}
+	iter := db.newIterator(idx)
+	for iter.NextIndex() < i {
+		if _, err := iter.next(); err != nil {
+			return nil, errors.New("failed to process back up to the head pointer")
+		}
+	}
+	return iter, nil
 }
 
 // FindSealedBlock finds the requested block, to check if it exists,
@@ -477,14 +496,6 @@ func (db *DB) readSearchCheckpoint(entryIdx entrydb.EntryIdx) (searchCheckpoint,
 		return searchCheckpoint{}, fmt.Errorf("failed to read entry %v: %w", entryIdx, err)
 	}
 	return newSearchCheckpointFromEntry(data)
-}
-
-func (db *DB) readCanonicalHash(entryIdx entrydb.EntryIdx) (canonicalHash, error) {
-	data, err := db.store.Read(entryIdx)
-	if err != nil {
-		return canonicalHash{}, fmt.Errorf("failed to read entry %v: %w", entryIdx, err)
-	}
-	return newCanonicalHashFromEntry(data)
 }
 
 func (db *DB) Close() error {

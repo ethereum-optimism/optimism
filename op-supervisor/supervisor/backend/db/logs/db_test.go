@@ -162,6 +162,7 @@ func TestAddLog(t *testing.T) {
 				require.NoError(t, err)
 				bl17 := eth.BlockID{Hash: createHash(17), Number: 17}
 				err = db.SealBlock(bl16.Hash, bl17, 5003)
+				require.NoError(t, err)
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				require.EqualValues(t, 2+2+1+1+2+1+1+2, m.entryCount, "should not output new searchCheckpoint for every block")
