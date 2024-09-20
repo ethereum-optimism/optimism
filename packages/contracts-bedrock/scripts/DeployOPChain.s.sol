@@ -70,11 +70,6 @@ contract DeployOPChainInput is BaseDeployIO {
         }
     }
 
-    function loadInputFile(string memory _infile) public pure {
-        _infile;
-        require(false, "DeployOPChainInput: not implemented");
-    }
-
     function opChainProxyAdminOwner() public view returns (address) {
         require(_opChainProxyAdminOwner != address(0), "DeployOPChainInput: not set");
         return _opChainProxyAdminOwner;
@@ -165,11 +160,6 @@ contract DeployOPChainOutput is BaseDeployIO {
         else if (sel == this.delayedWETHPermissionlessGameProxy.selector) _delayedWETHPermissionlessGameProxy = DelayedWETH(payable(_addr)) ;
         else revert("DeployOPChainOutput: unknown selector");
         // forgefmt: disable-end
-    }
-
-    function writeOutputFile(string memory _outfile) public pure {
-        _outfile;
-        require(false, "DeployOPChainOutput: not implemented");
     }
 
     function checkOutput(DeployOPChainInput _doi) public view {
@@ -406,14 +396,6 @@ contract DeployOPChainOutput is BaseDeployIO {
 
 contract DeployOPChain is Script {
     // -------- Core Deployment Methods --------
-    function run(string memory _infile) public {
-        (DeployOPChainInput doi, DeployOPChainOutput doo) = etchIOContracts();
-        doi.loadInputFile(_infile);
-        run(doi, doo);
-        string memory outfile = ""; // This will be derived from input file name, e.g. `foo.in.toml` -> `foo.out.toml`
-        doo.writeOutputFile(outfile);
-        require(false, "DeployOPChain: run is not implemented");
-    }
 
     function run(DeployOPChainInput _doi, DeployOPChainOutput _doo) public {
         OPStackManager opsmProxy = _doi.opsmProxy();

@@ -43,19 +43,6 @@ contract DeployImplementationsInput_Test is Test {
         dii = new DeployImplementationsInput();
     }
 
-    function test_loadInputFile_succeeds() public {
-        // See `test_loadInputFile_succeeds` in `DeploySuperchain.t.sol` for a reference implementation.
-        // This test is currently skipped because loadInputFile is not implemented.
-        vm.skip(true);
-
-        // Compare the test inputs to the getter methods.
-        // assertEq(withdrawalDelaySeconds, dii.withdrawalDelaySeconds(), "100");
-        // assertEq(minProposalSizeBytes, dii.minProposalSizeBytes(), "200");
-        // assertEq(challengePeriodSeconds, dii.challengePeriodSeconds(), "300");
-        // assertEq(proofMaturityDelaySeconds, dii.proofMaturityDelaySeconds(), "400");
-        // assertEq(disputeGameFinalityDelaySeconds, dii.disputeGameFinalityDelaySeconds(), "500");
-    }
-
     function test_getters_whenNotSet_revert() public {
         vm.expectRevert("DeployImplementationsInput: not set");
         dii.withdrawalDelaySeconds();
