@@ -13,6 +13,8 @@ interface IL1ChugSplashProxy {
     function setCode(bytes memory _code) external;
     function setOwner(address _owner) external;
     function setStorage(bytes32 _key, bytes32 _value) external;
+
+    function __constructor__(address _owner) external;
 }
 
 /// @title IStaticL1ChugSplashProxy

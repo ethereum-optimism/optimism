@@ -47,4 +47,6 @@ interface IGovernanceToken {
     function transfer(address to, uint256 amount) external returns (bool);
     function transferFrom(address from, address to, uint256 amount) external returns (bool);
     function transferOwnership(address newOwner) external;
+
+    function __constructor__() external;
 }

@@ -3,8 +3,9 @@ set -euo pipefail
 
 # This script checks for ABI consistency between interfaces and their corresponding contracts.
 # It compares the ABIs of interfaces (files starting with 'I') with their implementation contracts,
-# excluding constructors and certain predefined files. The script reports any differences found
-# and exits with an error if inconsistencies are detected.
+# excluding certain predefined files. Constructors are expected to be represented in interfaces by a
+# pseudo-constructor function `__constructor__(...)` with arguments the same as the contract's constructor.
+# The script reports any differences found and exits with an error if inconsistencies are detected.
 # NOTE: Script is fast enough but could be parallelized if necessary.
 
 # Parse flags
@@ -59,6 +60,7 @@ EXCLUDE_CONTRACTS=(
     "MintableAndBurnable"
     "IWETH"
     "IDelayedWETH"
+    "IResolvedDelegateProxy"
 
     # TODO: Kontrol interfaces that need to be removed
     "IL1ERC721Bridge"
@@ -175,8 +177,8 @@ for interface_file in $JSON_FILES; do
     fi
 
     # Extract and compare ABIs excluding constructors
-    interface_abi=$(jq '[.abi[] | select(.type != "constructor")]' < "$interface_file")
-    contract_abi=$(jq '[.abi[] | select(.type != "constructor")]' < "$corresponding_contract_file")
+    interface_abi=$(jq '[.abi[]]' < "$interface_file")
+    contract_abi=$(jq '[.abi[]]' < "$corresponding_contract_file")
 
     # Function to normalize ABI by replacing interface name with contract name.
     # Base contracts aren't allowed to inherit from their interfaces in order
@@ -190,9 +192,15 @@ for interface_file in $JSON_FILES; do
         # the contract type instead of the interface type but that's unlikely
         # to happen in practice and should be an easy fix if it does.
         local abi="$1"
+
+        # Remove the leading "I" from types.
         abi="${abi//\"internalType\": \"contract I/\"internalType\": \"contract }"
         abi="${abi//\"internalType\": \"enum I/\"internalType\": \"enum }"
         abi="${abi//\"internalType\": \"struct I/\"internalType\": \"struct }"
+
+        # Handle translating pseudo-constructors.
+        abi=$(echo "$abi" | jq 'map(if .type == "function" and .name == "__constructor__" then .type = "constructor" | del(.name) | del(.outputs) else . end)')
+
         echo "$abi"
     }
 
@@ -201,7 +209,7 @@ for interface_file in $JSON_FILES; do
     normalized_contract_abi=$(normalize_abi "$contract_abi")
 
     # Use jq to compare the ABIs
-    if ! diff_result=$(diff -u <(echo "$normalized_interface_abi" | jq -S .) <(echo "$normalized_contract_abi" | jq -S .)); then
+    if ! diff_result=$(diff -u <(echo "$normalized_interface_abi" | jq 'sort') <(echo "$normalized_contract_abi" | jq 'sort')); then
         if ! grep -q "^$contract_name$" "$REPORTED_INTERFACES_FILE"; then
             echo "$contract_name" >> "$REPORTED_INTERFACES_FILE"
             if ! is_excluded "$contract_name"; then

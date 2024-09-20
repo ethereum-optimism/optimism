@@ -15,4 +15,6 @@ interface IL2ERC721Bridge is IERC721Bridge {
         external;
     function initialize(address payable _l1ERC721Bridge) external;
     function version() external view returns (string memory);
+
+    function __constructor__() external;
 }
