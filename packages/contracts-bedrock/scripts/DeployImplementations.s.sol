@@ -637,7 +637,7 @@ contract DeployImplementations is Script {
     // | Contract                | Proxied | Deployment                        | MCP Ready  |
     // |-------------------------|---------|-----------------------------------|------------|
     // | DisputeGameFactory      | Yes     | Bespoke                           | Yes        |  X
-    // | AnchorStateRegistry     | Yes     | Bespoke                           | No         |  WIP
+    // | AnchorStateRegistry     | Yes     | Bespoke                           | No         |  X
     // | FaultDisputeGame        | No      | Bespoke                           | No         |  Todo
     // | PermissionedDisputeGame | No      | Bespoke                           | No         |  Todo
     // | DelayedWETH             | Yes     | Two bespoke (one per DisputeGame) | No         |  Todo: Proxies.
