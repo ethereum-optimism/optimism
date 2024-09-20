@@ -2,9 +2,6 @@ package inspect
 
 import (
 	"fmt"
-	"math/big"
-	"strconv"
-	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
@@ -92,25 +89,4 @@ func GenesisAndRollup(globalState *state.State, chainID common.Hash) (*core.Gene
 	}
 
 	return l2GenesisBuilt, rollupConfig, nil
-}
-
-func chainIDStrToHash(in string) (common.Hash, error) {
-	var chainIDBig *big.Int
-	if strings.HasPrefix(in, "0x") {
-		in = strings.TrimPrefix(in, "0x")
-		var ok bool
-		chainIDBig, ok = new(big.Int).SetString(in, 16)
-		if !ok {
-			return common.Hash{}, fmt.Errorf("failed to parse chain ID %s", in)
-		}
-	} else {
-		inUint, err := strconv.ParseUint(in, 10, 64)
-		if err != nil {
-			return common.Hash{}, fmt.Errorf("failed to parse chain ID %s: %w", in, err)
-		}
-
-		chainIDBig = new(big.Int).SetUint64(inUint)
-	}
-
-	return common.BigToHash(chainIDBig), nil
 }
