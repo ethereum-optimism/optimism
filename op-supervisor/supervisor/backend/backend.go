@@ -68,8 +68,9 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger, m Metrics, cfg
 	}
 
 	// from the RPC strings, have the supervisor backend create a chain monitor
+	// don't start the monitor yet, as we will start all monitors at once when Start is called
 	for _, rpc := range cfg.L2RPCs {
-		err := super.addFromRPC(ctx, logger, rpc)
+		err := super.addFromRPC(ctx, logger, rpc, false)
 		if err != nil {
 			return nil, fmt.Errorf("failed to add chain monitor for rpc %v: %w", rpc, err)
 		}
@@ -79,7 +80,8 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger, m Metrics, cfg
 
 // addFromRPC adds a chain monitor to the supervisor backend from an rpc endpoint
 // it does not expect to be called after the backend has been started
-func (su *SupervisorBackend) addFromRPC(ctx context.Context, logger log.Logger, rpc string) error {
+// it will start the monitor if shouldStart is true
+func (su *SupervisorBackend) addFromRPC(ctx context.Context, logger log.Logger, rpc string, shouldStart bool) error {
 	// create the rpc client, which yields the chain id
 	rpcClient, chainID, err := createRpcClient(ctx, logger, rpc)
 	if err != nil {
@@ -96,12 +98,18 @@ func (su *SupervisorBackend) addFromRPC(ctx context.Context, logger log.Logger, 
 	if err != nil {
 		return fmt.Errorf("failed to create logdb for chain %v at %v: %w", chainID, path, err)
 	}
+	if su.chainMonitors[chainID] != nil {
+		return fmt.Errorf("chain monitor for chain %v already exists", chainID)
+	}
 	monitor, err := source.NewChainMonitor(ctx, logger, cm, chainID, rpc, rpcClient, su.db)
 	if err != nil {
 		return fmt.Errorf("failed to create monitor for rpc %v: %w", rpc, err)
 	}
-	if su.chainMonitors[chainID] != nil {
-		return fmt.Errorf("chain monitor for chain %v already exists", chainID)
+	// start the monitor if requested
+	if shouldStart {
+		if err := monitor.Start(); err != nil {
+			return fmt.Errorf("failed to start monitor for rpc %v: %w", rpc, err)
+		}
 	}
 	su.chainMonitors[chainID] = monitor
 	su.db.AddLogDB(chainID, logDB)
@@ -172,15 +180,8 @@ func (su *SupervisorBackend) Close() error {
 // AddL2RPC adds a new L2 chain to the supervisor backend
 // it stops and restarts the backend to add the new chain
 func (su *SupervisorBackend) AddL2RPC(ctx context.Context, rpc string) error {
-	if err := su.Stop(ctx); err != nil {
-		return fmt.Errorf("failed to stop backend: %w", err)
-	}
-	su.logger.Info("temporarily stopped the backend to add a new L2 RPC", "rpc", rpc)
-	if err := su.addFromRPC(ctx, su.logger, rpc); err != nil {
-		return fmt.Errorf("failed to add chain monitor: %w", err)
-	}
-	su.logger.Info("added the new L2 RPC, starting supervisor again", "rpc", rpc)
-	return su.Start(ctx)
+	// start the monitor immediately, as the backend is assumed to already be running
+	return su.addFromRPC(ctx, su.logger, rpc, true)
 }
 
 func (su *SupervisorBackend) CheckMessage(identifier types.Identifier, payloadHash common.Hash) (types.SafetyLevel, error) {
