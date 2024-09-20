@@ -1,31 +1,31 @@
-[submodule "packages/contracts-bedrock/lib/openzeppelin-contracts-upgradeable"]
-	path = packages/contracts-bedrock/lib/openzeppelin-contracts-upgradeable
+[submodule "op-contracts/lib/openzeppelin-contracts-upgradeable"]
+	path = op-contracts/lib/openzeppelin-contracts-upgradeable
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable
-[submodule "packages/contracts-bedrock/lib/openzeppelin-contracts"]
-	path = packages/contracts-bedrock/lib/openzeppelin-contracts
+[submodule "op-contracts/lib/openzeppelin-contracts"]
+	path = op-contracts/lib/openzeppelin-contracts
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts
-[submodule "packages/contracts-bedrock/lib/solmate"]
-	path = packages/contracts-bedrock/lib/solmate
+[submodule "op-contracts/lib/solmate"]
+	path = op-contracts/lib/solmate
 	url = https://github.com/transmissions11/solmate
-[submodule "packages/contracts-bedrock/lib/forge-std"]
-	path = packages/contracts-bedrock/lib/forge-std
+[submodule "op-contracts/lib/forge-std"]
+	path = op-contracts/lib/forge-std
 	url = https://github.com/foundry-rs/forge-std
-[submodule "packages/contracts-bedrock/lib/safe-contracts"]
-	path = packages/contracts-bedrock/lib/safe-contracts
+[submodule "op-contracts/lib/safe-contracts"]
+	path = op-contracts/lib/safe-contracts
 	url = https://github.com/safe-global/safe-contracts
 	branch = v1.4.0
-[submodule "packages/contracts-bedrock/lib/kontrol-cheatcodes"]
-	path = packages/contracts-bedrock/lib/kontrol-cheatcodes
+[submodule "op-contracts/lib/kontrol-cheatcodes"]
+	path = op-contracts/lib/kontrol-cheatcodes
 	url = https://github.com/runtimeverification/kontrol-cheatcodes
-[submodule "packages/contracts-bedrock/lib/solady"]
-	path = packages/contracts-bedrock/lib/solady
+[submodule "op-contracts/lib/solady"]
+	path = op-contracts/lib/solady
 	url = https://github.com/Vectorized/solady
-[submodule "packages/contracts-bedrock/lib/lib-keccak"]
-	path = packages/contracts-bedrock/lib/lib-keccak
+[submodule "op-contracts/lib/lib-keccak"]
+	path = op-contracts/lib/lib-keccak
 	url = https://github.com/ethereum-optimism/lib-keccak
-[submodule "packages/contracts-bedrock/lib/automate"]
-	path = packages/contracts-bedrock/lib/automate
+[submodule "op-contracts/lib/automate"]
+	path = op-contracts/lib/automate
 	url = https://github.com/gelatodigital/automate
-[submodule "packages/contracts-bedrock/lib/openzeppelin-contracts-v5"]
-	path = packages/contracts-bedrock/lib/openzeppelin-contracts-v5
+[submodule "op-contracts/lib/openzeppelin-contracts-v5"]
+	path = op-contracts/lib/openzeppelin-contracts-v5
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts

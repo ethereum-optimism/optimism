@@ -114,7 +114,7 @@ commands:
     steps:
       - run:
           command: just install
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
 
   notify-failures-on-develop:
     description: "Notify Slack"
@@ -145,7 +145,7 @@ commands:
             git reset --hard
             just <<parameters.command>>
             git diff --quiet --exit-code
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
           when: always
           environment:
             FOUNDRY_PROFILE: ci
@@ -166,7 +166,7 @@ jobs:
     steps:
       - checkout
       - check-changed:
-          patterns: cannon,packages/contracts-bedrock/src/cannon,op-preimage,go.mod
+          patterns: cannon,op-contracts/src/cannon,op-preimage,go.mod
       - attach_workspace:
           at: "."
       - restore_cache:
@@ -219,7 +219,7 @@ jobs:
           command: python3 maketests.py && git diff --exit-code
           working_directory: cannon/mipsevm/tests/open_mips_tests
 
-  contracts-bedrock-build:
+  op-contracts-build:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: xlarge
@@ -247,13 +247,13 @@ jobs:
       - run:
           name: Pull artifacts
           command: bash scripts/ops/pull-artifacts.sh
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
       - run:
           name: Build contracts
           command: forge build --deny-warnings --skip <<parameters.skip_pattern>>
           environment:
             FOUNDRY_PROFILE: ci
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
       - run:
           name: Generate L2OO allocs
           command: |
@@ -290,11 +290,11 @@ jobs:
       - persist_to_workspace:
           root: "."
           paths:
-            - "packages/contracts-bedrock/cache"
-            - "packages/contracts-bedrock/artifacts"
-            - "packages/contracts-bedrock/forge-artifacts"
-            - "packages/contracts-bedrock/deploy-config/devnetL1.json"
-            - "packages/contracts-bedrock/deployments/devnetL1"
+            - "op-contracts/cache"
+            - "op-contracts/artifacts"
+            - "op-contracts/forge-artifacts"
+            - "op-contracts/deploy-config/devnetL1.json"
+            - "op-contracts/deployments/devnetL1"
             - ".devnet"
             - ".devnet-l2oo"
             - ".devnet-altda"
@@ -539,7 +539,7 @@ jobs:
             docker pull $image_name || exit 1
             docker run $image_name <<parameters.op_component>> --version || exit 1
 
-  contracts-bedrock-coverage:
+  op-contracts-coverage:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: xlarge
@@ -547,11 +547,11 @@ jobs:
       - checkout
       - install-contracts-dependencies
       - check-changed:
-          patterns: contracts-bedrock,op-node
+          patterns: op-contracts,op-node
       - run:
           name: print forge version
           command: forge --version
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
       # We do not use the pre-built contracts becuase forge coverage uses different optimizer settings
       - run:
           name: test and generate coverage
@@ -559,14 +559,14 @@ jobs:
           no_output_timeout: 18m
           environment:
             FOUNDRY_PROFILE: ci
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
       - run:
           name: upload coverage
-          command: codecov --verbose --clean --flags contracts-bedrock-tests
+          command: codecov --verbose --clean --flags op-contracts-tests
           environment:
             FOUNDRY_PROFILE: ci
 
-  contracts-bedrock-tests:
+  op-contracts-tests:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: xlarge
@@ -607,33 +607,33 @@ jobs:
               echo "No test files to run. Exiting early."
               circleci-agent step halt
             fi
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
       - check-changed:
-          patterns: contracts-bedrock,op-node
+          patterns: op-contracts,op-node
       - restore_cache:
           name: Restore Go modules cache
           key: gomod-{{ checksum "go.sum" }}
       - restore_cache:
           name: Restore Go build cache
           keys:
-            - golang-build-cache-contracts-bedrock-tests-{{ checksum "go.sum" }}
-            - golang-build-cache-contracts-bedrock-tests-
+            - golang-build-cache-op-contracts-tests-{{ checksum "go.sum" }}
+            - golang-build-cache-op-contracts-tests-
       - run:
           name: Print dependencies
           command: just dep-status
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
       - run:
           name: Print forge version
           command: forge --version
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
       - run:
           name: Pull artifacts
           command: bash scripts/ops/pull-artifacts.sh
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
       - run:
           name: Build go-ffi
           command: just build-go-ffi
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
       - run:
           name: Run tests
           command: |
@@ -646,23 +646,23 @@ jobs:
             forge test --deny-warnings --fuzz-runs <<parameters.test_fuzz_runs>> --match-path "$MATCH_PATH"
           environment:
             FOUNDRY_PROFILE: ci
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
           no_output_timeout: <<parameters.test_timeout>>
       - run:
           name: Print failed test traces
           command: just test-rerun
           environment:
             FOUNDRY_PROFILE: ci
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
           when: on_fail
       - save_cache:
           name: Save Go build cache
-          key: golang-build-cache-contracts-bedrock-tests-{{ checksum "go.sum" }}
+          key: golang-build-cache-op-contracts-tests-{{ checksum "go.sum" }}
           paths:
             - "/root/.cache/go-build"
       - notify-failures-on-develop
 
-  contracts-bedrock-checks:
+  op-contracts-checks:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: xlarge
@@ -671,7 +671,7 @@ jobs:
       - attach_workspace: { at: "." }
       - install-contracts-dependencies
       - check-changed:
-          patterns: contracts-bedrock,op-node
+          patterns: op-contracts,op-node
       - setup_remote_docker:
           docker_layer_caching: true
       - run:
@@ -698,7 +698,7 @@ jobs:
       - run-contracts-check:
           command: size-check
 
-  contracts-bedrock-validate-spacers:
+  op-contracts-validate-spacers:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: medium
@@ -707,11 +707,11 @@ jobs:
       - attach_workspace: { at: "." }
       - install-contracts-dependencies
       - check-changed:
-          patterns: contracts-bedrock
+          patterns: op-contracts
       - run:
           name: validate spacers
           command: just validate-spacers-no-build
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
 
   todo-issues:
     machine:
@@ -959,7 +959,7 @@ jobs:
                 name: Set OP_E2E_USE_MT_CANNON = true
                 command: echo 'export OP_E2E_USE_MT_CANNON=true' >> $BASH_ENV
       - check-changed:
-          patterns: op-(.+),cannon,contracts-bedrock
+          patterns: op-(.+),cannon,op-contracts
       - run:
           name: prep results dir
           command: mkdir -p /tmp/test-results
@@ -983,9 +983,9 @@ jobs:
             cp /tmp/workspace/.devnet<<parameters.variant>>/allocs-l2-granite.json .devnet/allocs-l2-granite.json
             cp /tmp/workspace/.devnet<<parameters.variant>>/allocs-l1.json .devnet/allocs-l1.json
             cp /tmp/workspace/.devnet<<parameters.variant>>/addresses.json .devnet/addresses.json
-            cp -r /tmp/workspace/packages/contracts-bedrock/forge-artifacts packages/contracts-bedrock/forge-artifacts
-            cp /tmp/workspace/packages/contracts-bedrock/deploy-config/devnetL1.json packages/contracts-bedrock/deploy-config/devnetL1.json
-            cp -r /tmp/workspace/packages/contracts-bedrock/deployments/devnetL1 packages/contracts-bedrock/deployments/devnetL1
+            cp -r /tmp/workspace/op-contracts/forge-artifacts op-contracts/forge-artifacts
+            cp /tmp/workspace/op-contracts/deploy-config/devnetL1.json op-contracts/deploy-config/devnetL1.json
+            cp -r /tmp/workspace/op-contracts/deployments/devnetL1 op-contracts/deployments/devnetL1
       - run:
           name: print go's available MIPS targets
           command: go tool dist list | grep mips
@@ -1297,19 +1297,19 @@ jobs:
           command: |
             cat broadcast/Deploy.s.sol/900/run-latest.json || echo "No deployment file found"
           when: on_fail
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
       - run:
           name: Log devnet config
           command: |
             cat deploy-config/devnetL1.json || echo "No devnet config found"
           when: on_fail
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
       - run:
           name: Log artifacts directory
           command: |
             ls -R forge-artifacts || echo "No forge artifacts found"
           when: on_fail
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
       - save_cache:
           name: Save Go build cache
           key: golang-build-cache-devnet-{{ checksum "go.sum" }}
@@ -1464,7 +1464,7 @@ jobs:
       - install-contracts-dependencies
       - check-changed:
           no_go_deps: "true"
-          patterns: contracts-bedrock/test/kontrol,contracts-bedrock/src/L1/OptimismPortal\.sol,contracts-bedrock/src/L1/OptimismPortal2\.sol,contracts-bedrock/src/L1/L1CrossDomainMessenger\.sol,contracts-bedrock/src/L1/L1ERC721Bridge\.sol,contracts-bedrock/src/L1/L1StandardBridge\.sol,contracts-bedrock/src/L1/ResourceMetering\.sol,contracts-bedrock/src/universal/StandardBridge\.sol,contracts-bedrock/src/universal/ERC721Bridge\.sol,contracts-bedrock/src/universal/CrossDomainMessenger\.sol
+          patterns: op-contracts/test/kontrol,op-contracts/src/L1/OptimismPortal\.sol,op-contracts/src/L1/OptimismPortal2\.sol,op-contracts/src/L1/L1CrossDomainMessenger\.sol,op-contracts/src/L1/L1ERC721Bridge\.sol,op-contracts/src/L1/L1StandardBridge\.sol,op-contracts/src/L1/ResourceMetering\.sol,op-contracts/src/universal/StandardBridge\.sol,op-contracts/src/universal/ERC721Bridge\.sol,op-contracts/src/universal/CrossDomainMessenger\.sol
       - setup_remote_docker:
           docker_layer_caching: true
       - run:
@@ -1484,7 +1484,7 @@ jobs:
                   "repository": "optimism"
                 }
               }'
-          working_directory: ./packages/contracts-bedrock
+          working_directory: ./op-contracts
       - notify-failures-on-develop
 
   publish-contract-artifacts:
@@ -1503,17 +1503,17 @@ jobs:
       - run:
           name: Pull artifacts
           command: bash scripts/ops/pull-artifacts.sh
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
       - run:
           name: Build contracts
           environment:
             FOUNDRY_PROFILE: ci
           command: just build
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
       - run:
           name: Publish artifacts
           command: bash scripts/ops/publish-artifacts.sh
-          working_directory: packages/contracts-bedrock
+          working_directory: op-contracts
 
 workflows:
   main:
@@ -1528,35 +1528,35 @@ workflows:
             equal: [ scheduled_pipeline, << pipeline.trigger_source >> ]
     jobs:
       - go-mod-download
-      - contracts-bedrock-build:
+      - op-contracts-build:
           # Build with just core + script contracts.
           skip_pattern: test
-      - contracts-bedrock-tests:
+      - op-contracts-tests:
           # Test everything except PreimageOracle.t.sol since it's slow.
-          name: contracts-bedrock-tests
+          name: op-contracts-tests
           test_parallelism: 4
           test_list: find test -name "*.t.sol" -not -name "PreimageOracle.t.sol"
-      - contracts-bedrock-tests:
+      - op-contracts-tests:
           # PreimageOracle test is slow, run it separately to unblock CI.
-          name: contracts-bedrock-tests-preimage-oracle
+          name: op-contracts-tests-preimage-oracle
           test_parallelism: 1
           test_list: find test -name "PreimageOracle.t.sol"
-      - contracts-bedrock-tests:
+      - op-contracts-tests:
           # Heavily fuzz any fuzz tests within added or modified test files.
-          name: contracts-bedrock-tests-heavy-fuzz-modified
+          name: op-contracts-tests-heavy-fuzz-modified
           test_parallelism: 1
-          test_list: git diff origin/develop...HEAD --name-only -- './test/**/*.t.sol' | sed 's|packages/contracts-bedrock/||'
+          test_list: git diff origin/develop...HEAD --name-only -- './test/**/*.t.sol' | sed 's|op-contracts/||'
           test_timeout: 1h
           test_fuzz_runs: 10000
           test_invariant_runs: 128
           test_invariant_depth: 512
-      - contracts-bedrock-coverage
-      - contracts-bedrock-checks:
+      - op-contracts-coverage
+      - op-contracts-checks:
           requires:
-            - contracts-bedrock-build
-      - contracts-bedrock-validate-spacers:
+            - op-contracts-build
+      - op-contracts-validate-spacers:
           requires:
-            - contracts-bedrock-build
+            - op-contracts-build
       - semgrep-scan
       - go-lint:
           requires:
@@ -1576,15 +1576,15 @@ workflows:
       - fuzz-golang:
           name: cannon-fuzz
           package_name: cannon
-          on_changes: cannon,packages/contracts-bedrock/src/cannon
+          on_changes: cannon,op-contracts/src/cannon
           uses_artifacts: true
-          requires: ["go-mod-download", "contracts-bedrock-build"]
+          requires: ["go-mod-download", "op-contracts-build"]
       - fuzz-golang:
           name: op-e2e-fuzz
           package_name: op-e2e
-          on_changes: op-e2e,packages/contracts-bedrock/src
+          on_changes: op-e2e,op-contracts/src
           uses_artifacts: true
-          requires: ["go-mod-download", "contracts-bedrock-build"]
+          requires: ["go-mod-download", "op-contracts-build"]
       - go-test:
           name: <<matrix.module>>-tests
           requires:
@@ -1607,7 +1607,7 @@ workflows:
           module: op-chain-ops
           test_directory: ./deployer/integration_test
           uses_artifacts: true
-          requires: ["contracts-bedrock-build"]
+          requires: ["op-contracts-build"]
       - go-e2e-test:
           name: op-e2e-HTTP-tests<< matrix.variant >>
           matrix:
@@ -1618,7 +1618,7 @@ workflows:
           parallelism: 4
           requires:
             - go-mod-download
-            - contracts-bedrock-build
+            - op-contracts-build
       - go-e2e-test:
           name: op-e2e-action-tests<< matrix.variant >>
           matrix:
@@ -1629,14 +1629,14 @@ workflows:
           parallelism: 1
           requires:
             - go-mod-download
-            - contracts-bedrock-build
+            - op-contracts-build
       - go-e2e-test:
           name: op-e2e-fault-proof-tests
           module: op-e2e
           target: test-fault-proofs
           parallelism: 4
           requires:
-            - contracts-bedrock-build
+            - op-contracts-build
             - cannon-prestate
       - op-program-compat:
           requires:
@@ -1691,7 +1691,7 @@ workflows:
             parameters:
               variant: ["default", "altda", "altda-generic"]
           requires:
-            - contracts-bedrock-build
+            - op-contracts-build
             - op-batcher-docker-build
             - op-proposer-docker-build
             - op-node-docker-build
@@ -1702,7 +1702,7 @@ workflows:
       - check-generated-mocks-op-service
       - cannon-go-lint-and-test:
           requires:
-            - contracts-bedrock-build
+            - op-contracts-build
           skip_slow_tests: true
           notify: true
       - cannon-build-test-vectors
@@ -1713,7 +1713,7 @@ workflows:
           # We don't need the `exclude` key as the orb detects the `.shellcheckrc`
           dir: .
           ignore-dirs:
-            ./packages/contracts-bedrock/lib
+            ./op-contracts/lib
 
   release:
     when:
@@ -1843,7 +1843,7 @@ workflows:
       - cannon-prestate:
           requires:
             - go-mod-download
-      - contracts-bedrock-build:
+      - op-contracts-build:
           skip_pattern: test
           context:
             - slack
@@ -1858,7 +1858,7 @@ workflows:
           notify: true
           mentions: "@proofs-squad"
           requires:
-            - contracts-bedrock-build
+            - op-contracts-build
             - cannon-prestate
           context:
             - slack
@@ -1883,11 +1883,11 @@ workflows:
         - equal: [ build_four_hours, <<pipeline.schedule.name>> ]
         - equal: [ true, << pipeline.parameters.cannon_full_test_dispatch >> ]
     jobs:
-      - contracts-bedrock-build:
+      - op-contracts-build:
           skip_pattern: test
       - cannon-go-lint-and-test:
           requires:
-            - contracts-bedrock-build
+            - op-contracts-build
           context:
             - slack
 
@@ -1933,8 +1933,8 @@ workflows:
           requires:
             - <<matrix.op_component>>-docker-publish
       - docker-build:
-          name: contracts-bedrock-docker-publish
-          docker_name: contracts-bedrock
+          name: op-contracts-docker-publish
+          docker_name: op-contracts
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           resource_class: xlarge
           publish: true

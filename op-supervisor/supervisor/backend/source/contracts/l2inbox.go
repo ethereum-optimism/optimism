@@ -7,12 +7,12 @@ import (
 	"io"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-contracts/snapshots"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/solabi"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	backendTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
-	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/snapshots"
 	"github.com/ethereum/go-ethereum/common"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"

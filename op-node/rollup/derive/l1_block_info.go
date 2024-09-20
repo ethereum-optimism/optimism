@@ -30,7 +30,7 @@ const (
 	// an additional 15k to ensure that the DepositsComplete call does not run out of gas.
 	// GasBenchMark_L1BlockIsthmus_DepositsComplete:test_depositsComplete_benchmark() (gas: 7768)
 	// GasBenchMark_L1BlockIsthmus_DepositsComplete_Warm:test_depositsComplete_benchmark() (gas: 5768)
-	// see `test_depositsComplete_benchmark` at: `/packages/contracts-bedrock/test/BenchmarkTest.t.sol`
+	// see `test_depositsComplete_benchmark` at: `/op-contracts/test/BenchmarkTest.t.sol`
 	DepositsCompleteGas = uint64(21_000 + 15_000)
 )
 

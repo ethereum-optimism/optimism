@@ -73,7 +73,7 @@ The Cannon contracts:
 - `PreimageOracle.sol`: implements the pre-image oracle ABI, to support the instruction execution pre-image requests.
 
 The smart-contracts are integrated into the Optimism monorepo contracts:
-[`../packages/contracts-bedrock/src/cannon`](../packages/contracts-bedrock/src/cannon)
+[`../op-contracts/src/cannon`](../op-contracts/src/cannon)
 
 ## `mipsevm`
 

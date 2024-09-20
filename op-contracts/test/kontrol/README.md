@@ -27,7 +27,7 @@
 >
 > KEVM is a tool that enables formal verification of smart contracts on the Ethereum blockchain. It provides a mathematical foundation for specifying and implementing smart contracts. Developers can use KEVM to rigorously reason about the behavior of their smart contracts, ensuring correctness and reducing the likelihood of vulnerabilities in the contract code.
 
-This document details the Kontrol setup used in this repo to run various proofs against the contracts in the [`contracts-bedrock`](../../) directory.
+This document details the Kontrol setup used in this repo to run various proofs against the contracts in the [`op-contracts`](../../) directory.
 
 ### Directory structure
 
@@ -127,7 +127,7 @@ It might be necessary to set some of the existing tests from [`test`](../L1) as 
 #### Add function signatures to [`KontrolInterfaces`](./proofs/interfaces/KontrolInterfaces.sol)
 
 So far we've got all the state updates ready to be added to the initial configuration of each proof, but we cannot yet write any proof about the function. We still need to add the relevant signatures into `KontrolInterfaces`. The reason for having `KontrolInterfaces` instead of using directly the contracts is to reduce the amount of compiled contracts by Kontrol.
-In the future there might interfaces for all contracts under `contracts-bedrock`, which would imply the removal of `KontrolInterfaces`.
+In the future there might interfaces for all contracts under `op-contracts`, which would imply the removal of `KontrolInterfaces`.
 
 #### Write the proof
 

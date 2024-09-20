@@ -63,7 +63,7 @@ func NewSystem(ctx context.Context, lgr log.Logger) (sys *System, err error) {
 	if err != nil {
 		return nil, err
 	}
-	deployConfigPath := filepath.Join(root, "packages", "contracts-bedrock", "deploy-config", "devnetL1.json")
+	deployConfigPath := filepath.Join(root, "op-contracts", "deploy-config", "devnetL1.json")
 	deployConfig, err := genesis.NewDeployConfig(deployConfigPath)
 	if err != nil {
 		return nil, err

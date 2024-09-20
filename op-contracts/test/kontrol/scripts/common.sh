@@ -33,7 +33,7 @@ usage_make_summary() {
   exit 0
 }
 
-# Set Run Directory <root>/packages/contracts-bedrock
+# Set Run Directory <root>/op-contracts
 WORKSPACE_DIR=$( cd "$SCRIPT_HOME/../../.." >/dev/null 2>&1 && pwd )
 pushd "$WORKSPACE_DIR" > /dev/null || exit
 

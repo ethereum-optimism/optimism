@@ -13,7 +13,7 @@ if [[ "${1:-}" == "--no-diff" ]]; then
     no_diff=true
 fi
 
-# Grab the directory of the contracts-bedrock package
+# Grab the directory of the op-contracts package
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 CONTRACTS_BASE=$(dirname "$(dirname "$SCRIPT_DIR")")
 

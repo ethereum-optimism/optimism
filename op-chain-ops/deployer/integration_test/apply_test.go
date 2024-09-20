@@ -64,7 +64,7 @@ func TestEndToEndApply(t *testing.T) {
 	_, testFilename, _, ok := runtime.Caller(0)
 	require.Truef(t, ok, "failed to get test filename")
 	monorepoDir := path.Join(path.Dir(testFilename), "..", "..", "..")
-	artifactsDir := path.Join(monorepoDir, "packages", "contracts-bedrock", "forge-artifacts")
+	artifactsDir := path.Join(monorepoDir, "op-contracts", "forge-artifacts")
 
 	enclaveCtx := kurtosisutil.StartEnclave(t, ctx, lgr, "github.com/ethpandaops/ethereum-package", TestParams)
 

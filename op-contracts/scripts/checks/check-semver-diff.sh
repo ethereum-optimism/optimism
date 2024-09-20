@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Grab the directory of the contracts-bedrock package.
+# Grab the directory of the op-contracts package.
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 # Load semver-utils.
@@ -22,7 +22,7 @@ if ! git diff origin/develop...HEAD --name-only | grep -q "$SEMVER_LOCK"; then
 fi
 
 # Get the upstream semver-lock.json.
-git show origin/develop:packages/contracts-bedrock/semver-lock.json > "$temp_dir/upstream_semver_lock.json"
+git show origin/develop:op-contracts/semver-lock.json > "$temp_dir/upstream_semver_lock.json"
 
 # Copy the local semver-lock.json.
 cp "$SEMVER_LOCK" "$temp_dir/local_semver_lock.json"
@@ -56,7 +56,7 @@ for contract in $changed_contracts; do
     # Extract the old and new source files.
     old_source_file="$temp_dir/old_${contract##*/}"
     new_source_file="$temp_dir/new_${contract##*/}"
-    git show origin/develop:packages/contracts-bedrock/"$contract" > "$old_source_file" 2>/dev/null || true
+    git show origin/develop:op-contracts/"$contract" > "$old_source_file" 2>/dev/null || true
     cp "$contract" "$new_source_file"
 
     # Extract the old and new versions.

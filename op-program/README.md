@@ -51,4 +51,4 @@ After running `make reproducible-prestate`, the following files can be found in
 The `prestate-proof.json` file is what contains the absolute pre-state hash under
 the `.pre` key that is also used by the [contracts][ctb] deploy script.
 
-[ctb]: ../packages/contracts-bedrock/
+[ctb]: ../op-contracts/

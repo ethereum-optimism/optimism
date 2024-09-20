@@ -1,13 +1,13 @@
 """
 Description:
     Unescapes the JSON produced by the stateDiff modifier
-    defined in contracts-bedrock/scripts/deploy/Deploy.s.sol
+    defined in op-contracts/scripts/deploy/Deploy.s.sol
     This script is used in ../make-summary-deployment.sh
 
 Usage:
     After producing a state diff JSON with the stateDiff modifier
     (e.g. by executing KontrolDeployment::runKontrolDeployment), the JSON is
-    saved under contracts-bedrock/snapshots/state-diff/Deploy.json. To unescape
+    saved under op-contracts/snapshots/state-diff/Deploy.json. To unescape
     it, run: python3 clean_json.py $path_to_state_diff_json
     The unescaped JSON will rewrite the input file
 """
