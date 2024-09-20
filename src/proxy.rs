@@ -16,9 +16,7 @@ pub struct ProxyLayer {
 
 impl ProxyLayer {
     pub fn new(target_url: String) -> Self {
-        ProxyLayer {
-            target_url,
-        }
+        ProxyLayer { target_url }
     }
 }
 
