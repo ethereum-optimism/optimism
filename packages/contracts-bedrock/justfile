@@ -1,20 +1,50 @@
-prebuild:
-  ./scripts/checks/check-foundry-install.sh
+########################################################
+#                        INSTALL                       #
+########################################################
 
-dep-status:
-  git submodule status
-
+# Installs dependencies.
 install:
   forge install
 
+# Shows the status of the git submodules.
+dep-status:
+  git submodule status
+
+
+########################################################
+#                         BUILD                        #
+########################################################
+
+# Checks that the correct version of Foundry is installed.
+prebuild:
+  ./scripts/checks/check-foundry-install.sh
+
+# Builds the contracts.
 build: prebuild
   forge build
 
+# Builds the go-ffi tool for contract tests.
 build-go-ffi:
   cd scripts/go-ffi && go build
 
+# Cleans build artifacts and deployments.
+# Removes everything inside of .testdata (except the .gitkeep file).
+clean:
+  rm -rf ./artifacts ./forge-artifacts ./cache ./scripts/go-ffi/go-ffi ./deployments/hardhat/*
+  find ./.testdata -mindepth 1 -not -name '.gitkeep' -delete
+
+
+########################################################
+#                         TEST                         #
+########################################################
+
+# Runs standard contract tests.
 test: build-go-ffi
   forge test
+
+# Runs standard contract tests with rerun flag.
+test-rerun: build-go-ffi
+  forge test --rerun -vvv
 
 # Run Kontrol tests and build all dependencies.
 test-kontrol: build-go-ffi build kontrol-summary-full test-kontrol-no-build
@@ -23,35 +53,42 @@ test-kontrol: build-go-ffi build kontrol-summary-full test-kontrol-no-build
 test-kontrol-no-build:
   ./test/kontrol/scripts/run-kontrol.sh script
 
-test-rerun: build-go-ffi
-  forge test --rerun -vvv
-
-genesis:
-  forge script scripts/L2Genesis.s.sol:L2Genesis --sig 'runWithStateDump()'
-
+# Runs contract coverage.
 coverage: build-go-ffi
   forge coverage || (bash -c "forge coverage 2>&1 | grep -q 'Stack too deep' && echo -e '\\033[1;33mWARNING\\033[0m: Coverage failed with stack too deep, so overriding and exiting successfully' && exit 0 || exit 1")
 
+# Runs contract coverage with lcov.
 coverage-lcov: build-go-ffi
   forge coverage --report lcov || (bash -c "forge coverage --report lcov 2>&1 | grep -q 'Stack too deep' && echo -e '\\033[1;33mWARNING\\033[0m: Coverage failed with stack too deep, so overriding and exiting successfully' && exit 0 || exit 1")
 
+
+########################################################
+#                        DEPLOY                        #
+########################################################
+
+# Generates the L2 genesis state.
+genesis:
+  forge script scripts/L2Genesis.s.sol:L2Genesis --sig 'runWithStateDump()'
+
+# Deploys the contracts.
 deploy:
   ./scripts/deploy/deploy.sh
 
+
+########################################################
+#                       SNAPSHOTS                      #
+########################################################
+
+# Generates a gas snapshot without building.
 gas-snapshot-no-build:
   forge snapshot --match-contract GasBenchMark
 
-statediff:
-  ./scripts/utils/statediff.sh && git diff --exit-code
-
+# Generates a gas snapshot.
 gas-snapshot: build-go-ffi gas-snapshot-no-build
 
-gas-snapshot-check: build-go-ffi
-  forge snapshot --match-contract GasBenchMark --check
-
-# Check that the Kontrol deployment script has not changed.
-kontrol-deployment-check:
-  ./scripts/checks/check-kontrol-deployment.sh
+# Checks that the state diff is up to date.
+statediff:
+  ./scripts/utils/statediff.sh && git diff --exit-code
 
 # Generates default Kontrol summary.
 kontrol-summary:
@@ -68,6 +105,10 @@ kontrol-summary-full: kontrol-summary kontrol-summary-fp
 snapshots-abi-storage:
   go run ./scripts/autogen/generate-snapshots .
 
+# Updates the semver-lock.json file.
+semver-lock:
+  forge script scripts/autogen/SemverLock.s.sol
+
 # Generates core snapshots without building contracts. Currently just an alias for
 # snapshots-abi-storage because we no longer run Kontrol snapshots here. Run
 # kontrol-summary-full to build the Kontrol summaries if necessary.
@@ -75,6 +116,22 @@ snapshots-no-build: snapshots-abi-storage
 
 # Builds contracts and then generates core snapshots.
 snapshots: build snapshots-no-build
+
+
+########################################################
+#                        CHECKS                        #
+########################################################
+
+# Checks that the gas snapshot is up to date without building.
+gas-snapshot-check-no-build:
+  forge snapshot --match-contract GasBenchMark --check
+
+# Checks that the gas snapshot is up to date.
+gas-snapshot-check: build-go-ffi gas-snapshot-check-no-build
+
+# Checks that the Kontrol deployment script has not changed.
+kontrol-deployment-check:
+  ./scripts/checks/check-kontrol-deployment.sh
 
 # Checks if the snapshots are up to date without building.
 snapshots-check-no-build:
@@ -113,40 +170,40 @@ semver-natspec-check-no-build:
 # Checks that semver natspec is equal to the actual semver version.
 semver-natspec-check: build semver-natspec-check-no-build
 
-semver-lock:
-  forge script scripts/autogen/SemverLock.s.sol
-
-validate-deploy-configs:
-  ./scripts/checks/check-deploy-configs.sh
-
-validate-spacers-no-build:
-  go run ./scripts/checks/spacers
-
-validate-spacers: build validate-spacers-no-build
-
-# Cleans build artifacts and deployments.
-# Removes everything inside of .testdata (except the .gitkeep file).
-clean:
-  rm -rf ./artifacts ./forge-artifacts ./cache ./scripts/go-ffi/go-ffi ./deployments/hardhat/*
-  find ./.testdata -mindepth 1 -not -name '.gitkeep' -delete
-
-pre-pr-no-build: gas-snapshot-no-build snapshots-no-build semver-lock lint
-
-pre-pr: clean build-go-ffi build pre-pr-no-build
-
-pre-pr-full: test validate-deploy-configs validate-spacers pre-pr
-
+# Checks that forge test names are correctly formatted.
 lint-forge-tests-check:
   go run ./scripts/checks/names
 
-lint-contracts-check:
+# Checks that contracts are properly linted.
+lint-check:
   forge fmt --check
 
-lint-check: lint-contracts-check
+# Checks that the deploy configs are valid.
+validate-deploy-configs:
+  ./scripts/checks/check-deploy-configs.sh
 
-lint-contracts-fix:
+# Checks that spacer variables are correctly inserted without building.
+validate-spacers-no-build:
+  go run ./scripts/checks/spacers
+
+# Checks that spacer variables are correctly inserted.
+validate-spacers: build validate-spacers-no-build
+
+# TODO: Also run lint-forge-tests-check but we need to fix the test names first.
+# Runs all checks.
+check: gas-snapshot-check-no-build kontrol-deployment-check snapshots-check-no-build lint-check semver-diff-check-no-build semver-natspec-check-no-build validate-deploy-configs validate-spacers-no-build interfaces-check-no-build
+
+
+########################################################
+#                      DEV TOOLS                       #
+########################################################
+
+# Cleans, builds, lints, and runs all checks.
+pre-pr: clean build-go-ffi build lint gas-snapshot-no-build snapshots-no-build semver-lock check
+
+# Fixes linting errors.
+lint-fix:
   forge fmt
 
-lint-fix: lint-contracts-fix
-
+# Fixes linting errors and checks that the code is correctly formatted.
 lint: lint-fix lint-check
