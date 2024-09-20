@@ -19,14 +19,14 @@ import { BaseDeployIO } from "scripts/utils/BaseDeployIO.sol";
 // deployment script.
 //
 // There are three categories of users that are expected to interact with the scripts:
-//   1. End users that want to run live contract deployments.
+//   1. End users that want to run live contract deployments. These users are expected to run these scripts via
+//      'op-deployer' which uses a go interface to interact with the scripts.
 //   2. Solidity developers that want to use or test these scripts in a standard forge test environment.
 //   3. Go developers that want to run the deploy scripts as part of e2e testing with other aspects of the OP Stack.
 //
 // We want each user to interact with the scripts in the way that's simplest for their use case:
-//   1. End users: TOML input files that define config, and TOML output files with all output data.
-//   2. Solidity developers: Direct calls to the script, with the input and output contracts configured.
-//   3. Go developers: The forge scripts can be executed directly in Go.
+//   1. Solidity developers: Direct calls to the script, with the input and output contracts configured.
+//   2. Go developers: The forge scripts can be executed directly in Go.
 //
 // The following architecture is used to meet the requirements of each user. We use this file's
 // `DeploySuperchain` script as an example, but it applies to other scripts as well.
@@ -39,7 +39,7 @@ import { BaseDeployIO } from "scripts/utils/BaseDeployIO.sol";
 //
 // Because the core script performs calls to the input and output contracts, Go developers can
 // intercept calls to these addresses (analogous to how forge intercepts calls to the `Vm` address
-// to execute cheatcodes), to avoid the need for file I/O or hardcoding the input/output values.
+// to execute cheatcodes), to avoid the need for hardcoding the input/output values.
 //
 // Public getter methods on the input and output contracts allow individual fields to be accessed
 // in a strong, type-safe manner (as opposed to a single struct getter where the caller may
@@ -110,27 +110,6 @@ contract DeploySuperchainInput is BaseDeployIO {
         else revert("DeploySuperchainInput: unknown selector");
     }
 
-    // Load the input from a TOML file.
-    // When setting inputs from a TOML file, we use the setter methods instead of writing directly
-    // to storage. This allows us to validate each input as it is set.
-    function loadInputFile(string memory _infile) public {
-        string memory toml = vm.readFile(_infile);
-
-        // Parse and set role inputs.
-        set(this.guardian.selector, toml.readAddress(".roles.guardian"));
-        set(this.protocolVersionsOwner.selector, toml.readAddress(".roles.protocolVersionsOwner"));
-        set(this.proxyAdminOwner.selector, toml.readAddress(".roles.proxyAdminOwner"));
-
-        // Parse and set other inputs.
-        set(this.paused.selector, toml.readBool(".paused"));
-
-        uint256 recVersion = toml.readUint(".recommendedProtocolVersion");
-        set(this.recommendedProtocolVersion.selector, ProtocolVersion.wrap(recVersion));
-
-        uint256 reqVersion = toml.readUint(".requiredProtocolVersion");
-        set(this.requiredProtocolVersion.selector, ProtocolVersion.wrap(reqVersion));
-    }
-
     // Each input field is exposed via it's own getter method. Using public storage variables here
     // would be less verbose, but would also be more error-prone, as it would require the caller to
     // validate that each input is set before accessing it. With getter methods, we can automatically
@@ -195,21 +174,8 @@ contract DeploySuperchainOutput is BaseDeployIO {
         else revert("DeploySuperchainOutput: unknown selector");
     }
 
-    // Save the output to a TOML file.
-    // We fetch the output values using external calls to the getters to verify that all outputs are
-    // set correctly before writing them to the file.
-    function writeOutputFile(string memory _outfile) public {
-        string memory key = "dso-outfile";
-        vm.serializeAddress(key, "superchainProxyAdmin", address(this.superchainProxyAdmin()));
-        vm.serializeAddress(key, "superchainConfigImpl", address(this.superchainConfigImpl()));
-        vm.serializeAddress(key, "superchainConfigProxy", address(this.superchainConfigProxy()));
-        vm.serializeAddress(key, "protocolVersionsImpl", address(this.protocolVersionsImpl()));
-        string memory out = vm.serializeAddress(key, "protocolVersionsProxy", address(this.protocolVersionsProxy()));
-        vm.writeToml(out, _outfile);
-    }
-
-    // This function can be called to ensure all outputs are correct. Similar to `writeOutputFile`,
-    // it fetches the output values using external calls to the getter methods for safety.
+    // This function can be called to ensure all outputs are correct.
+    // It fetches the output values using external calls to the getter methods for safety.
     function checkOutput(DeploySuperchainInput _dsi) public {
         address[] memory addrs = Solarray.addresses(
             address(this.superchainProxyAdmin()),
@@ -322,24 +288,6 @@ contract DeploySuperchainOutput is BaseDeployIO {
 contract DeploySuperchain is Script {
     // -------- Core Deployment Methods --------
 
-    // This entrypoint is for end-users to deploy from an input file and write to an output file.
-    // In this usage, we don't need the input and output contract functionality, so we deploy them
-    // here and abstract that architectural detail away from the end user.
-    function run(string memory _infile, string memory _outfile) public {
-        // End-user without file IO, so etch the IO helper contracts.
-        (DeploySuperchainInput dsi, DeploySuperchainOutput dso) = etchIOContracts();
-
-        // Load the input file into the input contract.
-        dsi.loadInputFile(_infile);
-
-        // Run the deployment script and write outputs to the DeploySuperchainOutput contract.
-        run(dsi, dso);
-
-        // Write the output data to a file.
-        dso.writeOutputFile(_outfile);
-    }
-
-    // This entrypoint is useful for testing purposes, as it doesn't use any file I/O.
     function run(DeploySuperchainInput _dsi, DeploySuperchainOutput _dso) public {
         // Notice that we do not do any explicit verification here that inputs are set. This is because
         // the verification happens elsewhere:
@@ -449,10 +397,8 @@ contract DeploySuperchain is Script {
 
     // -------- Utilities --------
 
-    // This etches the IO contracts into memory so that we can use them in tests. When using file IO
-    // we don't need to call this directly, as the `DeploySuperchain.run(file, file)` entrypoint
-    // handles it. But when interacting with the script programmatically (e.g. in a Solidity test),
-    // this must be called.
+    // This etches the IO contracts into memory so that we can use them in tests.
+    // When interacting with the script programmatically (e.g. in a Solidity test), this must be called.
     function etchIOContracts() public returns (DeploySuperchainInput dsi_, DeploySuperchainOutput dso_) {
         (dsi_, dso_) = getIOContracts();
         vm.etch(address(dsi_), type(DeploySuperchainInput).runtimeCode);

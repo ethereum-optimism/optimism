@@ -12,7 +12,6 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 // Contracts
 import { Proxy } from "src/universal/Proxy.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
-import { FaultDisputeGame, IDisputeGame } from "src/dispute/FaultDisputeGame.sol";
 
 // Libraries
 import { Types } from "src/libraries/Types.sol";
@@ -28,6 +27,8 @@ import "src/libraries/PortalErrors.sol";
 import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
 import { IL1Block } from "src/L2/interfaces/IL1Block.sol";
 import { IOptimismPortal2 } from "src/L1/interfaces/IOptimismPortal2.sol";
+import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
+import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
 
 contract OptimismPortal2_Test is CommonTest {
     address depositor;
@@ -423,7 +424,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
     // Reusable default values for a test withdrawal
     Types.WithdrawalTransaction _defaultTx;
 
-    FaultDisputeGame game;
+    IFaultDisputeGame game;
     uint256 _proposedGameIndex;
     uint256 _proposedBlockNumber;
     bytes32 _stateRoot;
@@ -462,7 +463,7 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
     /// @dev Setup the system for a ready-to-use state.
     function setUp() public virtual override {
         _proposedBlockNumber = 0xFF;
-        game = FaultDisputeGame(
+        game = IFaultDisputeGame(
             payable(
                 address(
                     disputeGameFactory.create(

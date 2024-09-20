@@ -133,6 +133,23 @@ commands:
           branch_pattern: develop
           mentions: "<< parameters.mentions >>"
 
+  run-contracts-check:
+    parameters:
+      command:
+        description: Just command that runs the check
+        type: string
+    steps:
+      - run:
+          name: <<parameters.command>>
+          command: |
+            git reset --hard
+            just <<parameters.command>>
+            git diff --quiet --exit-code
+          working_directory: packages/contracts-bedrock
+          when: always
+          environment:
+            FOUNDRY_PROFILE: ci
+
 jobs:
   cannon-go-lint-and-test:
     docker:
@@ -658,102 +675,28 @@ jobs:
       - setup_remote_docker:
           docker_layer_caching: true
       - run:
-          name: forge version
+          name: print forge version
           command: forge --version
-      - run:
-        # Semver lock must come second because one of the later steps may modify the cache & force a contracts rebuild.
-          name: semver lock
-          command: |
-            just semver-lock
-            git diff --exit-code semver-lock.json || echo "export SEMVER_LOCK_STATUS=1" >> "$BASH_ENV"
-          working_directory: packages/contracts-bedrock
-      - run:
-          name: check deploy configs
-          command: just validate-deploy-configs || echo "export DEPLOY_CONFIGS_STATUS=1" >> "$BASH_ENV"
-          working_directory: packages/contracts-bedrock
-      - run:
-          name: lint
-          command: |
-            just lint-check || echo "export LINT_STATUS=1" >> "$BASH_ENV"
-          working_directory: packages/contracts-bedrock
-      - run:
-          name: gas snapshot
-          command: |
-            just gas-snapshot-check || echo "export GAS_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
-          environment:
-            FOUNDRY_PROFILE: ci
-          working_directory: packages/contracts-bedrock
-          no_output_timeout: 15m
-      - run:
-          name: invariant docs
-          command: |
-            just autogen-invariant-docs
-            git diff --exit-code ./invariant-docs/*.md || echo "export INVARIANT_DOCS_STATUS=1" >> "$BASH_ENV"
-          working_directory: packages/contracts-bedrock
-      - run:
-          name: snapshots
-          command: |
-            just snapshots-check-no-build || echo "export SNAPSHOTS_STATUS=1" >> "$BASH_ENV"
-          working_directory: packages/contracts-bedrock
-      - run:
-          name: kontrol deployment
-          command: |
-            just kontrol-deployment-check || echo "export KONTROL_DEPLOYMENT_STATUS=1" >> "$BASH_ENV"
-          working_directory: packages/contracts-bedrock
-      - run:
-          name: interfaces
-          command: |
-            just interfaces-check-no-build || echo "export INTERFACES_STATUS=1" >> "$BASH_ENV"
-          working_directory: packages/contracts-bedrock
-      - run:
-          name: size check
-          command: |
-            forge build --sizes --skip "/**/test/**" --skip "/**/scripts/**" || echo "export SIZE_CHECK=1" >> "$BASH_ENV"
-          environment:
-            FOUNDRY_PROFILE: ci
-          working_directory: packages/contracts-bedrock
-      - run:
-          name: check statuses
-          command: |
-            if [[ "$LINT_STATUS" -ne 0 ]]; then
-              echo "Linting failed, see job output for details."
-              FAILED=1
-            fi
-            if [[ "$GAS_SNAPSHOT_STATUS" -ne 0 ]]; then
-              echo "Gas snapshot failed, see job output for details."
-              FAILED=1
-            fi
-            if [[ "$SEMVER_LOCK_STATUS" -ne 0 ]]; then
-              echo "Semver lock failed, see job output for details."
-              FAILED=1
-            fi
-            if [[ "$INVARIANT_DOCS_STATUS" -ne 0 ]]; then
-              echo "Invariant docs failed, see job output for details."
-              FAILED=1
-            fi
-            if [[ "$DEPLOY_CONFIGS_STATUS" -ne 0 ]]; then
-              echo "Deploy config check failed, see job output for details."
-              FAILED=1
-            fi
-            if [[ "$SNAPSHOTS_STATUS" -ne 0 ]]; then
-              echo "Snapshots check failed, see job output for details."
-              FAILED=1
-            fi
-            if [[ "$KONTROL_DEPLOYMENT_STATUS" -ne 0 ]]; then
-              echo "Kontrol deployment check failed, see job output for details."
-              FAILED=1
-            fi
-            if [[ "$INTERFACES_STATUS" -ne 0 ]]; then
-              echo "Interface check failed, see job output for details."
-              FAILED=1
-            fi
-            if [[ "$SIZE_CHECK" -ne 0 ]]; then
-              echo "Contract(s) exceed size limit, see job output for details."
-              FAILED=1
-            fi
-            if [[ "$FAILED" -ne 0 ]]; then
-              exit 1
-            fi
+      - run-contracts-check:
+          command: semver-lock
+      - run-contracts-check:
+          command: semver-diff-check-no-build
+      - run-contracts-check:
+          command: semver-natspec-check-no-build
+      - run-contracts-check:
+          command: validate-deploy-configs
+      - run-contracts-check:
+          command: lint
+      - run-contracts-check:
+          command: gas-snapshot-check
+      - run-contracts-check:
+          command: snapshots-check-no-build
+      - run-contracts-check:
+          command: kontrol-deployment-check
+      - run-contracts-check:
+          command: interfaces-check-no-build
+      - run-contracts-check:
+          command: size-check
 
   contracts-bedrock-validate-spacers:
     docker:
@@ -885,7 +828,7 @@ jobs:
           command: |
             echo "deb [trusted=yes] https://apt.fury.io/kurtosis-tech/ /" | sudo tee /etc/apt/sources.list.d/kurtosis.list
             sudo apt update
-            sudo apt install kurtosis-cli
+            sudo apt install kurtosis-cli=1.3.0
             kurtosis engine start
       - checkout
       - when:
@@ -1763,6 +1706,8 @@ workflows:
           skip_slow_tests: true
           notify: true
       - cannon-build-test-vectors
+      - todo-issues:
+          name: todo-issues-check
       - shellcheck/check:
           name: shell-check
           # We don't need the `exclude` key as the orb detects the `.shellcheckrc`

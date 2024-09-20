@@ -10,11 +10,13 @@ import (
 	"testing"
 	"time"
 
+	emit "github.com/ethereum-optimism/optimism/op-e2e/interop/contracts"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -86,6 +88,12 @@ type SuperSystem interface {
 	SendL2Tx(network string, username string, applyTxOpts helpers.TxOptsFn) *types.Receipt
 	// get the address for a user on an L2
 	Address(network string, username string) common.Address
+	// Deploy the Emitter Contract, which emits Event Logs
+	DeployEmitterContract(network string, username string) common.Address
+	// Use the Emitter Contract to emit an Event Log
+	EmitData(network string, username string, data string) *types.Receipt
+	// Access a contract on a network by name
+	Contract(network string, contractName string) interface{}
 }
 
 // NewSuperSystem creates a new SuperSystem from a recipe. It creates an interopE2ESystem.
@@ -123,6 +131,7 @@ type l2Set struct {
 	batcher      *bss.BatcherService
 	operatorKeys map[devkeys.ChainOperatorRole]ecdsa.PrivateKey
 	userKeys     map[string]ecdsa.PrivateKey
+	contracts    map[string]interface{}
 }
 
 // prepareHDWallet creates a new HD wallet to derive keys from
@@ -401,6 +410,7 @@ func (s *interopE2ESystem) newL2(id string, l2Out *interopgen.L2Output) l2Set {
 		batcher:      batcher,
 		operatorKeys: operatorKeys,
 		userKeys:     make(map[string]ecdsa.PrivateKey),
+		contracts:    make(map[string]interface{}),
 	}
 }
 
@@ -591,12 +601,60 @@ func (s *interopE2ESystem) SendL2Tx(
 ) *types.Receipt {
 	senderSecret := s.UserKey(id, sender)
 	require.NotNil(s.t, senderSecret, "no secret found for sender %s", sender)
+	nonce, err := s.L2GethClient(id).PendingNonceAt(context.Background(), crypto.PubkeyToAddress(senderSecret.PublicKey))
+	require.NoError(s.t, err, "failed to get nonce")
+	newApply := func(opts *helpers.TxOpts) {
+		applyTxOpts(opts)
+		opts.Nonce = nonce
+	}
 	return helpers.SendL2TxWithID(
 		s.t,
 		s.l2s[id].chainID,
 		s.L2GethClient(id),
 		&senderSecret,
-		applyTxOpts)
+		newApply)
+}
+
+func (s *interopE2ESystem) DeployEmitterContract(
+	id string,
+	sender string,
+) common.Address {
+	secret := s.UserKey(id, sender)
+	auth, err := bind.NewKeyedTransactorWithChainID(&secret, s.l2s[id].chainID)
+	require.NoError(s.t, err)
+	auth.GasLimit = uint64(3000000)
+	auth.GasPrice = big.NewInt(20000000000)
+	address, _, _, err := emit.DeployEmit(auth, s.L2GethClient(id))
+	require.NoError(s.t, err)
+	contract, err := emit.NewEmit(address, s.L2GethClient(id))
+	require.NoError(s.t, err)
+	s.l2s[id].contracts["emitter"] = contract
+	return address
+}
+
+func (s *interopE2ESystem) EmitData(
+	id string,
+	sender string,
+	data string,
+) *types.Receipt {
+	secret := s.UserKey(id, sender)
+	auth, err := bind.NewKeyedTransactorWithChainID(&secret, s.l2s[id].chainID)
+
+	require.NoError(s.t, err)
+
+	auth.GasLimit = uint64(3000000)
+	auth.GasPrice = big.NewInt(20000000000)
+
+	contract := s.Contract(id, "emitter").(*emit.Emit)
+	tx, err := contract.EmitTransactor.EmitData(auth, []byte(data))
+	require.NoError(s.t, err)
+	receipt, err := bind.WaitMined(context.Background(), s.L2GethClient(id), tx)
+	require.NoError(s.t, err)
+	return receipt
+}
+
+func (s *interopE2ESystem) Contract(id string, name string) interface{} {
+	return s.l2s[id].contracts[name]
 }
 
 func mustDial(t *testing.T, logger log.Logger) func(v string) *rpc.Client {

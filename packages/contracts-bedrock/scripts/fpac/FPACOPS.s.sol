@@ -1,13 +1,22 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Proxy } from "src/universal/Proxy.sol";
-import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
-import { AnchorStateRegistry, IAnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
-import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
+// Scripts
 import { StdAssertions } from "forge-std/StdAssertions.sol";
-import "src/dispute/lib/Types.sol";
 import "scripts/deploy/Deploy.s.sol";
+
+// Contracts
+import { Proxy } from "src/universal/Proxy.sol";
+
+// Libraries
+import "src/dispute/lib/Types.sol";
+
+// Interfaces
+import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
+import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistry.sol";
+import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
+import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
+import { IPermissionedDisputeGame } from "src/dispute/interfaces/IPermissionedDisputeGame.sol";
 
 /// @notice Deploys the Fault Proof Alpha Chad contracts.
 contract FPACOPS is Deploy, StdAssertions {
@@ -70,11 +79,11 @@ contract FPACOPS is Deploy, StdAssertions {
 
         address dgfProxy = mustGetAddress("DisputeGameFactoryProxy");
         Proxy(payable(dgfProxy)).upgradeToAndCall(
-            mustGetAddress("DisputeGameFactory"), abi.encodeCall(DisputeGameFactory.initialize, msg.sender)
+            mustGetAddress("DisputeGameFactory"), abi.encodeCall(IDisputeGameFactory.initialize, msg.sender)
         );
 
         // Set the initialization bonds for the FaultDisputeGame and PermissionedDisputeGame.
-        DisputeGameFactory dgf = DisputeGameFactory(dgfProxy);
+        IDisputeGameFactory dgf = IDisputeGameFactory(dgfProxy);
         dgf.setInitBond(GameTypes.CANNON, 0.08 ether);
         dgf.setInitBond(GameTypes.PERMISSIONED_CANNON, 0.08 ether);
     }
@@ -86,7 +95,7 @@ contract FPACOPS is Deploy, StdAssertions {
         address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
         Proxy(payable(wethProxy)).upgradeToAndCall(
             mustGetAddress("DelayedWETH"),
-            abi.encodeCall(DelayedWETH.initialize, (msg.sender, ISuperchainConfig(superchainConfigProxy)))
+            abi.encodeCall(IDelayedWETH.initialize, (msg.sender, ISuperchainConfig(superchainConfigProxy)))
         );
     }
 
@@ -95,15 +104,15 @@ contract FPACOPS is Deploy, StdAssertions {
         address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
         ISuperchainConfig superchainConfig = ISuperchainConfig(superchainConfigProxy);
 
-        AnchorStateRegistry.StartingAnchorRoot[] memory roots = new AnchorStateRegistry.StartingAnchorRoot[](2);
-        roots[0] = AnchorStateRegistry.StartingAnchorRoot({
+        IAnchorStateRegistry.StartingAnchorRoot[] memory roots = new IAnchorStateRegistry.StartingAnchorRoot[](2);
+        roots[0] = IAnchorStateRegistry.StartingAnchorRoot({
             gameType: GameTypes.CANNON,
             outputRoot: OutputRoot({
                 root: Hash.wrap(cfg.faultGameGenesisOutputRoot()),
                 l2BlockNumber: cfg.faultGameGenesisBlock()
             })
         });
-        roots[1] = AnchorStateRegistry.StartingAnchorRoot({
+        roots[1] = IAnchorStateRegistry.StartingAnchorRoot({
             gameType: GameTypes.PERMISSIONED_CANNON,
             outputRoot: OutputRoot({
                 root: Hash.wrap(cfg.faultGameGenesisOutputRoot()),
@@ -114,14 +123,14 @@ contract FPACOPS is Deploy, StdAssertions {
         address asrProxy = mustGetAddress("AnchorStateRegistryProxy");
         Proxy(payable(asrProxy)).upgradeToAndCall(
             mustGetAddress("AnchorStateRegistry"),
-            abi.encodeCall(AnchorStateRegistry.initialize, (roots, superchainConfig))
+            abi.encodeCall(IAnchorStateRegistry.initialize, (roots, superchainConfig))
         );
     }
 
     /// @notice Transfers admin rights of the `DisputeGameFactoryProxy` to the `ProxyAdmin` and sets the
     ///         `DisputeGameFactory` owner to the `SystemOwnerSafe`.
     function transferDGFOwnershipFinal(address _proxyAdmin, address _systemOwnerSafe) internal broadcast {
-        DisputeGameFactory dgf = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
+        IDisputeGameFactory dgf = IDisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
 
         // Transfer the ownership of the DisputeGameFactory to the SystemOwnerSafe.
         dgf.transferOwnership(_systemOwnerSafe);
@@ -134,7 +143,7 @@ contract FPACOPS is Deploy, StdAssertions {
     /// @notice Transfers admin rights of the `DelayedWETHProxy` to the `ProxyAdmin` and sets the
     ///         `DelayedWETH` owner to the `SystemOwnerSafe`.
     function transferWethOwnershipFinal(address _proxyAdmin, address _systemOwnerSafe) internal broadcast {
-        DelayedWETH weth = DelayedWETH(mustGetAddress("DelayedWETHProxy"));
+        IDelayedWETH weth = IDelayedWETH(mustGetAddress("DelayedWETHProxy"));
 
         // Transfer the ownership of the DelayedWETH to the SystemOwnerSafe.
         weth.transferOwnership(_systemOwnerSafe);
@@ -146,7 +155,7 @@ contract FPACOPS is Deploy, StdAssertions {
 
     /// @notice Transfers admin rights of the `AnchorStateRegistryProxy` to the `ProxyAdmin`.
     function transferAnchorStateOwnershipFinal(address _proxyAdmin) internal broadcast {
-        AnchorStateRegistry asr = AnchorStateRegistry(mustGetAddress("AnchorStateRegistryProxy"));
+        IAnchorStateRegistry asr = IAnchorStateRegistry(mustGetAddress("AnchorStateRegistryProxy"));
 
         // Transfer the admin rights of the AnchorStateRegistryProxy to the ProxyAdmin.
         Proxy prox = Proxy(payable(address(asr)));
@@ -163,7 +172,7 @@ contract FPACOPS is Deploy, StdAssertions {
 
         // Ensure the contracts are owned by the correct entities.
         address dgfProxyAddr = mustGetAddress("DisputeGameFactoryProxy");
-        DisputeGameFactory dgfProxy = DisputeGameFactory(dgfProxyAddr);
+        IDisputeGameFactory dgfProxy = IDisputeGameFactory(dgfProxyAddr);
         assertEq(address(uint160(uint256(vm.load(dgfProxyAddr, Constants.PROXY_OWNER_ADDRESS)))), _proxyAdmin);
         ChainAssertions.checkDisputeGameFactory(contracts, _systemOwnerSafe);
         address wethProxyAddr = mustGetAddress("DelayedWETHProxy");
@@ -181,7 +190,7 @@ contract FPACOPS is Deploy, StdAssertions {
         assertEq(address(mips.oracle()), address(oracle));
 
         // Check the AnchorStateRegistry configuration.
-        AnchorStateRegistry asr = AnchorStateRegistry(mustGetAddress("AnchorStateRegistryProxy"));
+        IAnchorStateRegistry asr = IAnchorStateRegistry(mustGetAddress("AnchorStateRegistryProxy"));
         (Hash root1, uint256 l2BlockNumber1) = asr.anchors(GameTypes.CANNON);
         (Hash root2, uint256 l2BlockNumber2) = asr.anchors(GameTypes.PERMISSIONED_CANNON);
         assertEq(root1.raw(), cfg.faultGameGenesisOutputRoot());
@@ -190,7 +199,7 @@ contract FPACOPS is Deploy, StdAssertions {
         assertEq(l2BlockNumber2, cfg.faultGameGenesisBlock());
 
         // Check the FaultDisputeGame configuration.
-        FaultDisputeGame gameImpl = FaultDisputeGame(payable(address(dgfProxy.gameImpls(GameTypes.CANNON))));
+        IFaultDisputeGame gameImpl = IFaultDisputeGame(payable(address(dgfProxy.gameImpls(GameTypes.CANNON))));
         assertEq(gameImpl.maxGameDepth(), cfg.faultGameMaxDepth());
         assertEq(gameImpl.splitDepth(), cfg.faultGameSplitDepth());
         assertEq(gameImpl.clockExtension().raw(), cfg.faultGameClockExtension());
@@ -201,8 +210,8 @@ contract FPACOPS is Deploy, StdAssertions {
         assertEq(address(gameImpl.vm()), address(mips));
 
         // Check the security override yoke configuration.
-        PermissionedDisputeGame soyGameImpl =
-            PermissionedDisputeGame(payable(address(dgfProxy.gameImpls(GameTypes.PERMISSIONED_CANNON))));
+        IPermissionedDisputeGame soyGameImpl =
+            IPermissionedDisputeGame(payable(address(dgfProxy.gameImpls(GameTypes.PERMISSIONED_CANNON))));
         assertEq(soyGameImpl.proposer(), cfg.l2OutputOracleProposer());
         assertEq(soyGameImpl.challenger(), cfg.l2OutputOracleChallenger());
         assertEq(soyGameImpl.maxGameDepth(), cfg.faultGameMaxDepth());
