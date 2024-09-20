@@ -93,7 +93,7 @@ func (dec *DynamicEthChannelConfig) ChannelConfig() ChannelConfig {
 		"blob_data_bytes", blobDataBytes, "blob_cost", blobCost,
 		"cost_ratio", costRatio)
 
-	if ay.Cmp(bx) > 0 {
+	if ay.Cmp(bx) == 1 {
 		lgr.Info("Using calldata channel config")
 		dec.lastConfig = &dec.calldataConfig
 		return dec.calldataConfig

@@ -158,15 +158,17 @@ func (s *channelManager) nextTxData(channel *channel) (txData, error) {
 // automatically. When switching DA type, the channelManager state will be rebuilt
 // with a new ChannelConfig.
 func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
-	data, err := s.txData(l1Head)
-	if s.currentChannel == nil {
-		s.log.Trace("no current channel")
+	channel, data, err := s.txData(l1Head)
+	if err != nil {
 		return data, err
 	}
-	assumedBlobs := s.currentChannel.cfg.UseBlobs
+	if channel != nil && !channel.NoneSubmitted() {
+		return data, err
+	}
+	assumedBlobs := s.defaultCfg.UseBlobs
 	newCfg := s.cfgProvider.ChannelConfig()
 	if newCfg.UseBlobs == assumedBlobs {
-		s.log.Info("Recomputing optimal ChannelConfig: no need to switch DA type",
+		s.log.Debug("Recomputing optimal ChannelConfig: no need to switch DA type",
 			"useBlobs", assumedBlobs)
 		return data, err
 	}
@@ -174,15 +176,16 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 		"useBlobsBefore", assumedBlobs,
 		"useBlobsAfter", newCfg.UseBlobs)
 	// We have detected that our assumptions on DA
-	// type were wrong and we need to rebuild
-	// the channel manager state
-	err = s.Rebuild(newCfg)
+	// type were wrong and we need to requeue
+	// the data currently in channels
+	err = s.Requeue(newCfg)
 	if err != nil {
 		return data, err
 	}
 	// Finally, call the inner function to get txData
 	// with the new config
-	return s.txData(l1Head)
+	_, data, err = s.txData(l1Head)
+	return data, err
 }
 
 // txData returns the next tx data that should be submitted to L1.
@@ -190,7 +193,7 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 // If the current channel is
 // full, it only returns the remaining frames of this channel until it got
 // successfully fully sent to L1. It returns io.EOF if there's no pending tx data.
-func (s *channelManager) txData(l1Head eth.BlockID) (txData, error) {
+func (s *channelManager) txData(l1Head eth.BlockID) (*channel, txData, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var firstWithTxData *channel
@@ -206,22 +209,23 @@ func (s *channelManager) txData(l1Head eth.BlockID) (txData, error) {
 
 	// Short circuit if there is pending tx data or the channel manager is closed.
 	if dataPending || s.closed {
-		return s.nextTxData(firstWithTxData)
+		d, err := s.nextTxData(firstWithTxData)
+		return firstWithTxData, d, err
 	}
 
 	// No pending tx data, so we have to add new blocks to the channel
 
 	// If we have no saved blocks, we will not be able to create valid frames
 	if len(s.blocks) == 0 {
-		return txData{}, io.EOF
+		return nil, txData{}, io.EOF
 	}
 
 	if err := s.ensureChannelWithSpace(l1Head); err != nil {
-		return txData{}, err
+		return nil, txData{}, err
 	}
 
 	if err := s.processBlocks(); err != nil {
-		return txData{}, err
+		return nil, txData{}, err
 	}
 
 	// Register current L1 head only after all pending blocks have been
@@ -230,10 +234,11 @@ func (s *channelManager) txData(l1Head eth.BlockID) (txData, error) {
 	s.registerL1Block(l1Head)
 
 	if err := s.outputFrames(); err != nil {
-		return txData{}, err
+		return nil, txData{}, err
 	}
 
-	return s.nextTxData(s.currentChannel)
+	d, err := s.nextTxData(s.currentChannel)
+	return s.currentChannel, d, err
 }
 
 // ensureChannelWithSpace ensures currentChannel is populated with a channel that has
@@ -461,16 +466,16 @@ func (s *channelManager) Close() error {
 	return nil
 }
 
-// Rebuild rebuilds the channel manager state by
+// Requeue rebuilds the channel manager state by
 // rewinding blocks back from the channel queue, and setting the defaultCfg.
-func (s *channelManager) Rebuild(newCfg ChannelConfig) error {
+func (s *channelManager) Requeue(newCfg ChannelConfig) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.log.Info("Rebuilding channelManager state", "UseBlobs", newCfg.UseBlobs)
 	newChannelQueue := []*channel{}
 	blocksToRequeueInChannelManager := []*types.Block{}
 	for _, channel := range s.channelQueue {
-		if len(channel.pendingTransactions) > 0 {
+		if !channel.NoneSubmitted() {
 			newChannelQueue = append(newChannelQueue, channel)
 			continue
 		}
