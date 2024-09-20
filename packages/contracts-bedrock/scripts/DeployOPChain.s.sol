@@ -444,21 +444,21 @@ contract DeployOPChain is Script {
     function run(DeployOPChainInput _doi, DeployOPChainOutput _doo) public {
         OPStackManager opsmProxy = _doi.opsmProxy();
 
-        // WARNING: For now always hardcode the starting anchor roots to 0xdead. This is because we
-        // currently only support deploying straight to permissioned games, and the roots do not
-        // matter for that, as long as they are non-zero. To update to a permissioned game, we
-        // will need to update the starting anchor roots. You can
-        // `console.logBytes(abi.encode(defaultStartingAnchorRoots))` to get the bytes that are hardcoded
-        // into `op-chain-ops/deployer/pipeline/opchain.go`
+        // WARNING: For now always hardcode the starting permissioned game anchor root to 0xdead,
+        // and we do not set anything for the permissioned game. This is because we currently only
+        // support deploying straight to permissioned games, and the starting root does not
+        // matter for that, as long as it is non-zero, since no games will be played. We do not
+        // deploy the permissionless game (and therefore do not set a starting root for it here)
+        // because to to update to the permissionless game, we will need to update its starting
+        // anchor root and deploy a new permissioned dispute game contract anyway.
+        //
+        // You can `console.logBytes(abi.encode(defaultStartingAnchorRoots))` to get the bytes that
+        // are hardcoded into `op-chain-ops/deployer/pipeline/opchain.go`
         AnchorStateRegistry.StartingAnchorRoot[] memory defaultStartingAnchorRoots =
-            new AnchorStateRegistry.StartingAnchorRoot[](2);
+            new AnchorStateRegistry.StartingAnchorRoot[](1);
         defaultStartingAnchorRoots[0] = AnchorStateRegistry.StartingAnchorRoot({
-            gameType: GameTypes.CANNON,
-            outputRoot: OutputRoot({ root: Hash.wrap(keccak256("0xdead")), l2BlockNumber: 0 })
-        });
-        defaultStartingAnchorRoots[1] = AnchorStateRegistry.StartingAnchorRoot({
             gameType: GameTypes.PERMISSIONED_CANNON,
-            outputRoot: OutputRoot({ root: Hash.wrap(keccak256("0xdead")), l2BlockNumber: 0 })
+            outputRoot: OutputRoot({ root: Hash.wrap(bytes32("0xdead")), l2BlockNumber: 0 })
         });
 
         OPStackManager.Roles memory roles = OPStackManager.Roles({
