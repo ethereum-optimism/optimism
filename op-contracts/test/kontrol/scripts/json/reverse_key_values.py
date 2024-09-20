@@ -2,7 +2,7 @@
 Description:
     Reverses the key-value pairs of a given JSON
     The use case for this script within the project is to reverse the key-value
-    pairs of the auto generated file contracts-bedrock/deployments/hardhat/.deployment
+    pairs of the auto generated file op-contracts/deployments/hardhat/.deployment
     so that it can be fed as the `--contract-names` argument to `kontrol summary`
     This script is used in ../make-summary-deployment.sh
 

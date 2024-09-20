@@ -5,15 +5,15 @@ comment:
   behavior: default
   require_changes: true
   flags:
-    - contracts-bedrock-tests
+    - op-contracts-tests
 
 ignore:
   - "op-e2e"
   - "**/*.t.sol"
-  - "packages/contracts-bedrock/test/**/*.sol"
-  - "packages/contracts-bedrock/scripts/**/*.sol"
-  - "packages/contracts-bedrock/contracts/vendor/WETH9.sol"
-  - 'packages/contracts-bedrock/contracts/EAS/**/*.sol'
+  - "op-contracts/test/**/*.sol"
+  - "op-contracts/scripts/**/*.sol"
+  - "op-contracts/contracts/vendor/WETH9.sol"
+  - 'op-contracts/contracts/EAS/**/*.sol'
 coverage:
   status:
     patch:
@@ -30,9 +30,9 @@ flag_management:
   # Note: flags should have the same name as the circleci job in which they
   # are uploaded.
   individual_flags:
-    - name: contracts-bedrock-tests
+    - name: op-contracts-tests
       paths:
-        - packages/contracts-bedrock/src
+        - op-contracts/src
       statuses:
         - type: patch
           target: 100%

@@ -7,7 +7,7 @@
 !/op-bootnode
 !/op-chain-ops
 !/op-challenger
-!/packages/contracts-bedrock/snapshots
+!/op-contracts/snapshots
 !/op-dispute-mon
 !/op-conductor
 !/op-node

@@ -9,14 +9,14 @@ PYTHON?=python3
 help: ## Prints this help message
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
-build: build-go build-contracts ## Builds Go components and contracts-bedrock
+build: build-go build-contracts ## Builds Go components and op-contracts
 .PHONY: build
 
 build-go: submodules op-node op-proposer op-batcher ## Builds op-node, op-proposer and op-batcher
 .PHONY: build-go
 
 build-contracts:
-	(cd packages/contracts-bedrock && just build)
+	(cd op-contracts && just build)
 .PHONY: build-contracts
 
 lint-go: ## Lints Go code with specific linters
@@ -79,14 +79,14 @@ cross-op-node: ## Builds cross-platform Docker image for op-node
 			op-node
 .PHONY: golang-docker
 
-contracts-bedrock-docker: ## Builds Docker image for Bedrock contracts
+op-contracts-docker: ## Builds Docker image for contracts
 	IMAGE_TAGS=$$(git rev-parse HEAD),latest \
 	docker buildx bake \
 			--progress plain \
 			--load \
 			-f docker-bake.hcl \
-		  contracts-bedrock
-.PHONY: contracts-bedrock-docker
+		  op-contracts
+.PHONY: op-contracts-docker
 
 submodules: ## Updates git submodules
 	git submodule update --init --recursive
@@ -181,7 +181,7 @@ pre-devnet: submodules $(DEVNET_CANNON_PRESTATE_FILES)
 .PHONY: pre-devnet
 
 devnet-up: pre-devnet ## Starts the local devnet
-	./ops/scripts/newer-file.sh .devnet/allocs-l1.json ./packages/contracts-bedrock \
+	./ops/scripts/newer-file.sh .devnet/allocs-l1.json ./op-contracts \
 		|| make devnet-allocs
 	PYTHONPATH=./bedrock-devnet $(PYTHON) ./bedrock-devnet/main.py --monorepo-dir=.
 .PHONY: devnet-up
@@ -195,7 +195,7 @@ devnet-down: ## Stops the local devnet
 .PHONY: devnet-down
 
 devnet-clean: ## Cleans up local devnet environment
-	rm -rf ./packages/contracts-bedrock/deployments/devnetL1
+	rm -rf ./op-contracts/deployments/devnetL1
 	rm -rf ./.devnet
 	cd ./ops-bedrock && docker compose down
 	docker image ls 'ops-bedrock*' --format='{{.Repository}}' | xargs -r docker rmi
@@ -215,7 +215,7 @@ test-unit: ## Runs unit tests for all components
 	make -C ./op-proposer test
 	make -C ./op-batcher test
 	make -C ./op-e2e test
-	(cd packages/contracts-bedrock && just test)
+	(cd op-contracts && just test)
 .PHONY: test-unit
 
 # Remove the baseline-commit to generate a base reading & show all issues

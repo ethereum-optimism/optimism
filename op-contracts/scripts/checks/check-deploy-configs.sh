@@ -8,7 +8,7 @@ code=0
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 CONTRACTS_BASE=$(dirname "$(dirname "$SCRIPT_DIR")")
-MONOREPO_BASE=$(dirname "$(dirname "$CONTRACTS_BASE")")
+MONOREPO_BASE=$(dirname "$CONTRACTS_BASE")
 
 for config in "$CONTRACTS_BASE"/deploy-config/*.json; do
     # shellcheck disable=SC2086

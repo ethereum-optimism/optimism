@@ -68,6 +68,7 @@ The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vuln
 ├── <a href="./op-bootnode">op-bootnode</a>: Standalone op-node discovery bootnode
 ├── <a href="./op-chain-ops">op-chain-ops</a>: State surgery utilities
 ├── <a href="./op-challenger">op-challenger</a>: Dispute game challenge agent
+├── <a href="./op-contracts">op-contracts</a>: OP Stack smart contracts
 ├── <a href="./op-e2e">op-e2e</a>: End-to-End testing of all bedrock components in Go
 ├── <a href="./op-node">op-node</a>: rollup consensus-layer client
 ├── <a href="./op-preimage">op-preimage</a>: Go bindings for Preimage Oracle
@@ -78,8 +79,6 @@ The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vuln
 ├── <a href="./op-wheel">op-wheel</a>: Database utilities
 ├── <a href="./ops">ops</a>: Various operational packages
 ├── <a href="./ops-bedrock">ops-bedrock</a>: Bedrock devnet work
-├── <a href="./packages">packages</a>
-│   ├── <a href="./packages/contracts-bedrock">contracts-bedrock</a>: OP Stack smart contracts
 ├── <a href="./proxyd">proxyd</a>: Configurable RPC request router and proxy
 ├── <a href="./specs">specs</a>: Specs of the rollup starting at the Bedrock upgrade
 </pre>
@@ -128,7 +127,7 @@ The primary development branch is [`develop`](https://github.com/ethereum-optimi
 `develop` contains the most up-to-date software that remains backwards compatible with the latest experimental [network deployments](https://community.optimism.io/docs/useful-tools/networks/).
 If you're making a backwards compatible change, please direct your pull request towards `develop`.
 
-**Changes to contracts within `packages/contracts-bedrock/src` are usually NOT considered backwards compatible.**
+**Changes to contracts within `op-contracts/src` are usually NOT considered backwards compatible.**
 Some exceptions to this rule exist for cases in which we absolutely must deploy some new contract after a tag has already been fully deployed.
 If you're changing or adding a contract and you're unsure about which branch to make a PR into, default to using a feature branch.
 Feature branches are typically used when there are conflicts between 2 projects touching the same code, to avoid conflicts from merging both into `develop`.

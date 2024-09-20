@@ -1432,7 +1432,7 @@ contract Deploy is Deployer {
     ///         from the config.
     function _loadDevnetStMipsAbsolutePrestate() internal returns (Claim mipsAbsolutePrestate_) {
         // Fetch the absolute prestate dump
-        string memory filePath = string.concat(vm.projectRoot(), "/../../op-program/bin/prestate-proof.json");
+        string memory filePath = string.concat(vm.projectRoot(), "/../op-program/bin/prestate-proof.json");
         string[] memory commands = new string[](3);
         commands[0] = "bash";
         commands[1] = "-c";
@@ -1452,7 +1452,7 @@ contract Deploy is Deployer {
     ///         from the config.
     function _loadDevnetMtMipsAbsolutePrestate() internal returns (Claim mipsAbsolutePrestate_) {
         // Fetch the absolute prestate dump
-        string memory filePath = string.concat(vm.projectRoot(), "/../../op-program/bin/prestate-proof-mt.json");
+        string memory filePath = string.concat(vm.projectRoot(), "/../op-program/bin/prestate-proof-mt.json");
         string[] memory commands = new string[](3);
         commands[0] = "bash";
         commands[1] = "-c";

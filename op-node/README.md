@@ -74,9 +74,9 @@ generate a genesis file with these predeploys configured correctly given
 an L1 RPC URL, a deploy config, L2 genesis allocs and a L1 deployments artifact.
 
 The deploy config contains all of the config required to deploy the
-system. Examples can be found in `packages/contracts-bedrock/deploy-config`. Each
+system. Examples can be found in `op-contracts/deploy-config`. Each
 deploy config file is a JSON file. The L2 allocs can be generated using a forge script
-in the `contracts-bedrock` package and the L1 deployments are a JSON file that is the
+in the `op-contracts` package and the L1 deployments are a JSON file that is the
 output of doing a L1 contracts deployment.
 
 Example usage:

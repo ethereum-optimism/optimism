@@ -19,11 +19,11 @@ jobs:
         uses: crytic/slither-action@v0.4.0
         id: slither
         with:
-          target: packages/contracts-bedrock
-          slither-config: packages/contracts-bedrock/slither.config.json
+          target: op-contracts
+          slither-config: op-contracts/slither.config.json
           fail-on: config
           sarif: results.sarif
-          slither-args: --triage-database packages/contracts-bedrock/slither.db.json
+          slither-args: --triage-database op-contracts/slither.db.json
 
       - name: Upload SARIF file
         uses: github/codeql-action/upload-sarif@v3

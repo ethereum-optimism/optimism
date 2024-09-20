@@ -30,11 +30,11 @@ COPY .git/ ./.git
 COPY .gitmodules ./.gitmodules
 
 RUN git submodule update --init --recursive \
-    && cd packages/contracts-bedrock \
+    && cd op-contracts \
     && just build \
     && echo $(git rev-parse HEAD) > .gitcommit
 
-FROM --platform=linux/amd64 debian:bookworm-20240812-slim as contracts-bedrock
+FROM --platform=linux/amd64 debian:bookworm-20240812-slim as op-contracts
 
 RUN apt-get update && apt-get install -y \
   curl \
@@ -63,11 +63,11 @@ RUN svm install 0.8.25 && \
 # Not to be confused with OP, this is a OnePassword CLI tool.
 COPY --from=1password/op:2 /usr/local/bin/op /usr/local/bin/op
 
-RUN mkdir -p /opt/optimism/packages/contracts-bedrock
+RUN mkdir -p /opt/optimism/op-contracts
 
-COPY --from=base /opt/optimism/packages/contracts-bedrock /opt/optimism/packages/contracts-bedrock
+COPY --from=base /opt/optimism/op-contracts /opt/optimism/op-contracts
 COPY --from=base /opt/optimism/versions.json /opt/optimism/versions.json
 
-WORKDIR /opt/optimism/packages/contracts-bedrock
+WORKDIR /opt/optimism/op-contracts
 
 CMD ["echo", "Override this command to use this image."]

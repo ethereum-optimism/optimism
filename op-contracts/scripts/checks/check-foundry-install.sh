@@ -2,7 +2,7 @@
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 CONTRACTS_BASE=$(dirname "$(dirname "$SCRIPT_DIR")")
-MONOREPO_BASE=$(dirname "$(dirname "$CONTRACTS_BASE")")
+MONOREPO_BASE=$(dirname "$CONTRACTS_BASE")
 VERSIONS_FILE="${MONOREPO_BASE}/versions.json"
 
 if ! command -v forge &> /dev/null

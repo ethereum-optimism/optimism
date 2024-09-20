@@ -54,7 +54,7 @@ type AbiSpecStorageLayoutEntry struct {
 func main() {
 	flag.Parse()
 	if flag.NArg() != 1 {
-		fmt.Println("Expected path of contracts-bedrock as CLI argument")
+		fmt.Println("Expected path of op-contracts as CLI argument")
 		os.Exit(1)
 	}
 	rootDir := flag.Arg(0)

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Grab the directory of the contracts-bedrock package
+# Grab the directory of the op-contracts package
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 CONTRACTS_BASE=$(dirname "$(dirname "$SCRIPT_DIR")")
 ARTIFACTS_DIR="$CONTRACTS_BASE/forge-artifacts"

@@ -26,8 +26,8 @@ func TestInteropTrivial(t *testing.T) {
 		GenesisTimestamp: uint64(time.Now().Unix() + 3), // start chain 3 seconds from now
 	}
 	worldResources := worldResourcePaths{
-		foundryArtifacts: "../../packages/contracts-bedrock/forge-artifacts",
-		sourceMap:        "../../packages/contracts-bedrock",
+		foundryArtifacts: "../../op-contracts/forge-artifacts",
+		sourceMap:        "../../op-contracts",
 	}
 
 	// create a super system from the recipe

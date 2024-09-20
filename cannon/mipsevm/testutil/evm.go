@@ -58,7 +58,7 @@ func TestContractsSetup(t require.TestingT, version MipsVersion) *ContractMetada
 
 // loadArtifacts loads the Cannon contracts, from the contracts package.
 func loadArtifacts(version MipsVersion) (*Artifacts, error) {
-	artifactFS := foundry.OpenArtifactsDir("../../../packages/contracts-bedrock/forge-artifacts")
+	artifactFS := foundry.OpenArtifactsDir("../../../op-contracts/forge-artifacts")
 	var mips *foundry.Artifact
 	var err error
 	switch version {
@@ -159,7 +159,7 @@ func MarkdownTracer() *tracing.Hooks {
 }
 
 func SourceMapTracer(t require.TestingT, version MipsVersion, mips *foundry.Artifact, oracle *foundry.Artifact, addrs *Addresses) *tracing.Hooks {
-	srcFS := foundry.NewSourceMapFS(os.DirFS("../../../packages/contracts-bedrock"))
+	srcFS := foundry.NewSourceMapFS(os.DirFS("../../../op-contracts"))
 	var mipsSrcMap *srcmap.SourceMap
 	var err error
 	switch version {

@@ -1,6 +1,6 @@
 # `ctb-go-ffi`
 
-A lightweight binary for utilities accessed via `forge`'s `ffi` cheatcode in the `contracts-bedrock` test suite.
+A lightweight binary for utilities accessed via `forge`'s `ffi` cheatcode in the `op-contracts` test suite.
 
 <pre>
 ├── go-ffi

@@ -64,7 +64,7 @@ See the [Optimism Developer Docs](https://docs.optimism.io/chain/addresses) for 
 ### Contributing Guide
 
 Contributions to the OP Stack are always welcome.
-Please refer to the [CONTRIBUTING.md](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/CONTRIBUTING.md) for more information about how to contribute to the OP Stack smart contracts.
+Please refer to the [CONTRIBUTING.md](https://github.com/ethereum-optimism/optimism/blob/develop/op-contracts/CONTRIBUTING.md) for more information about how to contribute to the OP Stack smart contracts.
 
 ### Style Guide
 

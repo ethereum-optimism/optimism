@@ -72,7 +72,7 @@ func init() {
 	defaultL1AllocsPath := filepath.Join(root, ".devnet", "allocs-l1.json")
 	defaultL2AllocsDir := filepath.Join(root, ".devnet")
 	defaultL1DeploymentsPath := filepath.Join(root, ".devnet", "addresses.json")
-	defaultDeployConfigPath := filepath.Join(root, "packages", "contracts-bedrock", "deploy-config", "devnetL1.json")
+	defaultDeployConfigPath := filepath.Join(root, "op-contracts", "deploy-config", "devnetL1.json")
 
 	flag.StringVar(&l1AllocsPath, "l1-allocs", defaultL1AllocsPath, "")
 	flag.StringVar(&l2AllocsDir, "l2-allocs-dir", defaultL2AllocsDir, "")
