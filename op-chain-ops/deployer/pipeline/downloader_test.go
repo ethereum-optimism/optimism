@@ -36,7 +36,7 @@ func TestDownloadArtifacts(t *testing.T) {
 		require.NoError(t, cleanup())
 	}()
 
-	info, err := fs.Stat("forge-artifacts/WETH98.sol/WETH98.json")
+	info, err := fs.Stat("WETH98.sol/WETH98.json")
 	require.NoError(t, err)
 	require.Greater(t, info.Size(), int64(0))
 }
