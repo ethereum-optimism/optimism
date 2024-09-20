@@ -108,7 +108,11 @@ func untar(dir string, tr *tar.Reader) error {
 			return fmt.Errorf("failed to read tar header: %w", err)
 		}
 
-		dst := path.Join(dir, hdr.Name)
+		cleanedName := path.Clean(hdr.Name)
+		if strings.Contains(cleanedName, "..") {
+			return fmt.Errorf("invalid file path: %s", hdr.Name)
+		}
+		dst := path.Join(dir, cleanedName)
 		if hdr.FileInfo().IsDir() {
 			if err := os.MkdirAll(dst, 0o755); err != nil {
 				return fmt.Errorf("failed to create directory: %w", err)
