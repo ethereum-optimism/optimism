@@ -22,8 +22,4 @@ interface IAnchorStateRegistry {
     ///         the FaultDisputeGame contract and stores it in the registry if the new anchor state is valid and the
     ///         state is newer than the current anchor state.
     function tryUpdateAnchorState() external;
-
-    /// @notice Sets the anchor state given the game.
-    /// @param _game The game to set the anchor state for.
-    function setAnchorState(IFaultDisputeGame _game) external;
 }

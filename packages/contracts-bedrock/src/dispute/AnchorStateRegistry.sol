@@ -12,7 +12,7 @@ import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
 
 import "src/dispute/lib/Types.sol";
 import { Unauthorized } from "src/libraries/errors/CommonErrors.sol";
-import { UnregisteredGame, InvalidGameStatus } from "src/dispute/lib/Errors.sol";
+import { UnregisteredGame, InvalidGameStatus, GameNotNewer } from "src/dispute/lib/Errors.sol";
 
 /// @custom:proxied true
 /// @title AnchorStateRegistry
@@ -34,15 +34,29 @@ contract AnchorStateRegistry is Initializable, IAnchorStateRegistry, ISemver {
     /// @notice DisputeGameFactory address.
     IDisputeGameFactory internal immutable DISPUTE_GAME_FACTORY;
 
+    /// @notice The delay between when a dispute game is resolved and when a withdrawal proven against it may be
+    ///         finalized.
+    uint256 internal immutable DISPUTE_GAME_FINALITY_DELAY_SECONDS;
+
     /// @inheritdoc IAnchorStateRegistry
     mapping(GameType => OutputRoot) public anchors;
 
     /// @notice Address of the SuperchainConfig contract.
     ISuperchainConfig public superchainConfig;
 
+    /// @notice Mapping from game to whether it has been blacklisted.
+    mapping (IFaultDisputeGame => bool) internal blacklisted;
+
+    /// @notice Mapping from game type to a linked list of games that resolved in favor of the defender.
+    mapping (GameType => IFaultDisputeGame[]) internal games;
+
+    /// @notice Mapping from game type to the index of the game in games array that is the anchor.
+    mapping (GameType => uint256) internal anchorGameIndex;
+
     /// @param _disputeGameFactory DisputeGameFactory address.
-    constructor(IDisputeGameFactory _disputeGameFactory) {
+    constructor(IDisputeGameFactory _disputeGameFactory, uint256 _disputeGameFinalityDelaySeconds) {
         DISPUTE_GAME_FACTORY = _disputeGameFactory;
+        DISPUTE_GAME_FINALITY_DELAY_SECONDS = _disputeGameFinalityDelaySeconds;
         _disableInitializers();
     }
 
@@ -70,7 +84,6 @@ contract AnchorStateRegistry is Initializable, IAnchorStateRegistry, ISemver {
 
     /// @inheritdoc IAnchorStateRegistry
     function tryUpdateAnchorState() external {
-        // Grab the game and game data.
         IFaultDisputeGame game = IFaultDisputeGame(msg.sender);
         (GameType gameType, Claim rootClaim, bytes memory extraData) = game.gameData();
 
@@ -82,40 +95,37 @@ contract AnchorStateRegistry is Initializable, IAnchorStateRegistry, ISemver {
         // Must be a valid game.
         if (address(factoryRegisteredGame) != address(game)) revert UnregisteredGame();
 
-        // No need to update anything if the anchor state is already newer.
-        if (game.l2BlockNumber() <= anchors[gameType].l2BlockNumber) {
-            return;
+        // Add this game to the list of successful games as long as it resolved for the defender.
+        if (game.status() == GameStatus.DEFENDER_WINS) {
+            games[gameType].push(game);
         }
 
-        // Must be a game that resolved in favor of the state.
-        if (game.status() != GameStatus.DEFENDER_WINS) {
-            return;
+        // Binary search for the most recent game that has passed the finality delay (air-gap) and
+        // has not been blacklisted.
+        uint256 start = anchorGameIndex[gameType];
+        uint256 end = games[gameType].length;
+        uint256 mid;
+        uint256 res = type(uint256).max;
+        while (start < end) {
+            mid = (start + end) / 2;
+            IFaultDisputeGame tgt = games[gameType][mid];
+            if (block.timestamp >= tgt.resolvedAt().raw() + DISPUTE_GAME_FINALITY_DELAY_SECONDS) {
+                // If the game is not blacklisted, it is a potential result.
+                if (!blacklisted[tgt]) {
+                    res = mid;
+                }
+
+                // Continue searching anyway.
+                start = mid + 1;
+            } else {
+                end = mid;
+            }
         }
 
-        // Actually update the anchor state.
-        anchors[gameType] = OutputRoot({ l2BlockNumber: game.l2BlockNumber(), root: Hash.wrap(game.rootClaim().raw()) });
-    }
-
-    /// @inheritdoc IAnchorStateRegistry
-    function setAnchorState(IFaultDisputeGame _game) external {
-        if (msg.sender != superchainConfig.guardian()) revert Unauthorized();
-
-        // Get the metadata of the game.
-        (GameType gameType, Claim rootClaim, bytes memory extraData) = _game.gameData();
-
-        // Grab the verified address of the game based on the game data.
-        // slither-disable-next-line unused-return
-        (IDisputeGame factoryRegisteredGame,) =
-            DISPUTE_GAME_FACTORY.games({ _gameType: gameType, _rootClaim: rootClaim, _extraData: extraData });
-
-        // Must be a valid game.
-        if (address(factoryRegisteredGame) != address(_game)) revert UnregisteredGame();
-
-        // The game must have resolved in favor of the root claim.
-        if (_game.status() != GameStatus.DEFENDER_WINS) revert InvalidGameStatus();
-
-        // Update the anchor.
-        anchors[gameType] =
-            OutputRoot({ l2BlockNumber: _game.l2BlockNumber(), root: Hash.wrap(_game.rootClaim().raw()) });
+        // If a valid game was found, update the anchor state.
+        if (res != type(uint256).max) {
+            IFaultDisputeGame found = games[gameType][res];
+            anchors[gameType] = OutputRoot({ l2BlockNumber: found.l2BlockNumber(), root: Hash.wrap(found.rootClaim().raw()) });
+        }
     }
 }
