@@ -2,27 +2,15 @@ package versions
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
 	"github.com/ethereum-optimism/optimism/cannon/serialize"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
-)
-
-type StateVersion uint8
-
-const (
-	VersionSingleThreaded StateVersion = iota
-	VersionMultiThreaded
-)
-
-var (
-	ErrUnknownVersion   = errors.New("unknown version")
-	ErrJsonNotSupported = errors.New("json not supported")
 )
 
 func LoadStateFromFile(path string) (*VersionedState, error) {
@@ -40,15 +28,25 @@ func LoadStateFromFile(path string) (*VersionedState, error) {
 func NewFromState(state mipsevm.FPVMState) (*VersionedState, error) {
 	switch state := state.(type) {
 	case *singlethreaded.State:
+		if !arch.IsMips32 {
+			return nil, ErrUnsupportedMipsArch
+		}
 		return &VersionedState{
 			Version:   VersionSingleThreaded,
 			FPVMState: state,
 		}, nil
 	case *multithreaded.State:
-		return &VersionedState{
-			Version:   VersionMultiThreaded,
-			FPVMState: state,
-		}, nil
+		if arch.IsMips32 {
+			return &VersionedState{
+				Version:   VersionMultiThreaded,
+				FPVMState: state,
+			}, nil
+		} else {
+			return &VersionedState{
+				Version:   VersionMultiThreaded64,
+				FPVMState: state,
+			}, nil
+		}
 	default:
 		return nil, fmt.Errorf("%w: %T", ErrUnknownVersion, state)
 	}

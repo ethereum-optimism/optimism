@@ -13,3 +13,4 @@ state.json
 *.pprof
 *.out
 bin
+exec/embeds

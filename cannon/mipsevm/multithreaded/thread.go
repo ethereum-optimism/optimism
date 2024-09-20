@@ -8,11 +8,11 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 )
 
-// TOOD: infer size based on arch
+// TODO: infer size based on arch
 // SERIALIZED_THREAD_SIZE is the size of a serialized ThreadState object
 // const SERIALIZED_THREAD_SIZE = 166
 const SERIALIZED_THREAD_SIZE = 322

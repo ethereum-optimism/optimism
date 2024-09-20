@@ -1,0 +1,38 @@
+//go:build !cannon32 && !cannon64
+// +build !cannon32,!cannon64
+
+package versions
+
+import (
+	"fmt"
+	"io"
+
+	"github.com/ethereum-optimism/optimism/cannon/serialize"
+	"github.com/ethereum-optimism/optimism/op-service/ioutil"
+)
+
+func DetectVersion(path string) (StateVersion, error) {
+	if !serialize.IsBinaryFile(path) {
+		return VersionSingleThreaded, nil
+	}
+
+	var f io.ReadCloser
+	f, err := ioutil.OpenDecompressed(path)
+	if err != nil {
+		return 0, fmt.Errorf("failed to open file %q: %w", path, err)
+	}
+	defer f.Close()
+
+	var ver StateVersion
+	bin := serialize.NewBinaryReader(f)
+	if err := bin.ReadUInt(&ver); err != nil {
+		return 0, err
+	}
+
+	switch ver {
+	case VersionSingleThreaded, VersionMultiThreaded, VersionMultiThreaded64:
+		return ver, nil
+	default:
+		return 0, fmt.Errorf("%w: %d", ErrUnknownVersion, ver)
+	}
+}

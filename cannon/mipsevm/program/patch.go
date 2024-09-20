@@ -66,7 +66,7 @@ func PatchStack(st mipsevm.FPVMState) error {
 	st.GetRegistersRef()[29] = sp
 
 	storeMem := func(addr Word, v Word) {
-		var dat [4]byte
+		var dat [WordSizeBytes]byte
 		arch.ByteOrderWord.PutWord(dat[:], v)
 		_ = st.GetMemory().SetMemoryRange(addr, bytes.NewReader(dat[:]))
 	}

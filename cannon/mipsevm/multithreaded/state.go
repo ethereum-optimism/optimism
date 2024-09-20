@@ -19,7 +19,7 @@ import (
 
 // STATE_WITNESS_SIZE is the size of the state witness encoding in bytes.
 // TODO: infer size based on arch
-//const STATE_WITNESS_SIZE = 172 (for 32-bit)
+// const STATE_WITNESS_SIZE = 172 (for 32-bit)
 const STATE_WITNESS_SIZE = 188 // on 64-bit arch
 const (
 	MEMROOT_WITNESS_OFFSET                    = 0

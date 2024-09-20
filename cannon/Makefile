@@ -16,8 +16,18 @@ endif
 cannon:
 	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v $(LDFLAGS) -o ./bin/cannon .
 
+# TODO: remove
 cannon-mt:
 	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build --tags=cannon64 -v $(LDFLAGS) -o ./bin/cannon .
+
+cannon32:
+	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build --tags=cannon32 -v $(LDFLAGS) -o ./exec/embeds/cannon32 .
+
+cannon64:
+	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build --tags=cannon64 -v $(LDFLAGS) -o ./exec/embeds/cannon64 .
+
+cannon-router: cannon32 cannon64
+	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v $(LDFLAGS) -o ./bin/cannon .
 
 clean:
 	rm -rf bin
@@ -48,6 +58,9 @@ fuzz:
 
 .PHONY: \
 	cannon \
+	cannon32 \
+	cannon64 \
+	cannon-router \
 	clean \
 	test \
 	lint \

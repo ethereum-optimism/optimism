@@ -30,7 +30,7 @@ func ExecMipsCoreStepLogic(cpu *mipsevm.CpuScalars, registers *[32]Word, memory 
 			linkReg = 31
 		}
 		// Take top 4 bits of the next PC (its 256 MB region), and concatenate with the 26-bit offset
-		target := (cpu.NextPC & SignExtend(0xF0000000, 32)) | Word((insn & 0x03FFFFFF) << 2)
+		target := (cpu.NextPC & SignExtend(0xF0000000, 32)) | Word((insn&0x03FFFFFF)<<2)
 		stackTracker.PushStack(cpu.PC, target)
 		err = HandleJump(cpu, registers, linkReg, target)
 		return

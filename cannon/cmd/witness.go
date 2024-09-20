@@ -1,3 +1,6 @@
+//go:build cannon32 || cannon64
+// +build cannon32 cannon64
+
 package cmd
 
 import (
