@@ -30,16 +30,6 @@ contract DeployAuthSystemInput_Test is Test {
         }
     }
 
-    function test_loadInputFile_succeeds() public {
-        string memory root = vm.projectRoot();
-        string memory path = string.concat(root, "/test/fixtures/test-deploy-auth-system-in.toml");
-
-        dasi.loadInputFile(path);
-
-        assertEq(threshold, dasi.threshold(), "100");
-        assertEq(owners.length, dasi.owners().length, "200");
-    }
-
     function test_getters_whenNotSet_revert() public {
         vm.expectRevert("DeployAuthSystemInput: threshold not set");
         dasi.threshold();
@@ -87,27 +77,6 @@ contract DeployAuthSystemOutput_Test is Test {
         daso.set(daso.safe.selector, emptyAddr);
         vm.expectRevert(expectedErr);
         daso.safe();
-    }
-
-    function test_writeOutputFile_succeeds() public {
-        string memory root = vm.projectRoot();
-
-        string memory expOutPath = string.concat(root, "/test/fixtures/test-deploy-auth-system-out.toml");
-        string memory expOutToml = vm.readFile(expOutPath);
-
-        address expSafe = expOutToml.readAddress(".safe");
-
-        vm.etch(expSafe, hex"01");
-
-        daso.set(daso.safe.selector, expSafe);
-
-        string memory actOutPath = string.concat(root, "/.testdata/test-deploy-auth-system-output.toml");
-        daso.writeOutputFile(actOutPath);
-        string memory actOutToml = vm.readFile(actOutPath);
-
-        vm.removeFile(actOutPath);
-
-        assertEq(expOutToml, actOutToml);
     }
 }
 
@@ -164,20 +133,6 @@ contract DeployAuthSystem_Test is Test {
         // relationships.
 
         daso.checkOutput();
-    }
-
-    function test_run_io_succeeds() public {
-        string memory root = vm.projectRoot();
-        string memory inpath = string.concat(root, "/test/fixtures/test-deploy-auth-system-in.toml");
-        string memory outpath = string.concat(root, "/.testdata/test-deploy-auth-system-out.toml");
-
-        deployAuthSystem.run(inpath, outpath);
-
-        string memory actOutToml = vm.readFile(outpath);
-        string memory expOutToml = vm.readFile(string.concat(root, "/test/fixtures/test-deploy-auth-system-out.toml"));
-
-        vm.removeFile(outpath);
-        assertEq(expOutToml, actOutToml);
     }
 
     function test_run_NullInput_reverts() public {

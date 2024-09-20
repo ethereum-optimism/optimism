@@ -97,11 +97,6 @@ contract DeployImplementationsInput is BaseDeployIO {
         else revert("DeployImplementationsInput: unknown selector");
     }
 
-    function loadInputFile(string memory _infile) public pure {
-        _infile;
-        require(false, "DeployImplementationsInput: not implemented");
-    }
-
     function salt() public view returns (bytes32) {
         // TODO check if implementations are deployed based on code+salt and skip deploy if so.
         return _salt;
@@ -190,11 +185,6 @@ contract DeployImplementationsOutput is BaseDeployIO {
         else if (sel == this.disputeGameFactoryImpl.selector) _disputeGameFactoryImpl = DisputeGameFactory(_addr);
         else revert("DeployImplementationsOutput: unknown selector");
         // forgefmt: disable-end
-    }
-
-    function writeOutputFile(string memory _outfile) public pure {
-        _outfile;
-        require(false, "DeployImplementationsOutput: not implemented");
     }
 
     function checkOutput(DeployImplementationsInput _dii) public {
@@ -440,15 +430,6 @@ contract DeployImplementationsOutput is BaseDeployIO {
 
 contract DeployImplementations is Script {
     // -------- Core Deployment Methods --------
-
-    function run(string memory _infile) public {
-        (DeployImplementationsInput dii, DeployImplementationsOutput dio) = etchIOContracts();
-        dii.loadInputFile(_infile);
-        run(dii, dio);
-        string memory outfile = ""; // This will be derived from input file name, e.g. `foo.in.toml` -> `foo.out.toml`
-        dio.writeOutputFile(outfile);
-        require(false, "DeployImplementations: run is not implemented");
-    }
 
     function run(DeployImplementationsInput _dii, DeployImplementationsOutput _dio) public {
         // Deploy the implementations.
