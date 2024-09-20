@@ -1,0 +1,22 @@
+[package]
+name = "rollup-boost"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+alloy-primitives = "0.8.3"
+alloy = { version = "0.3.6", features = ["eips", "rpc-types"] }
+alloy-rpc-types-engine = { version = "0.3.6", features = ["serde"] }
+alloy-rpc-types-eth = { version = "0.3.6", features = ["serde"] }
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1.4"
+tracing-subscriber = { version = "0.3.11", features = ["env-filter"] }
+serde = { version = "1", features = ["derive"] }
+thiserror = "1.0"
+clap = { version = "4", features = ["derive", "env"] }
+jsonrpsee = {version = "0.24.4", features = ["server", "http-client", "macros"]}
+reqwest = "0.12.5"
+http = "1.1.0"
+
+[dev-dependencies]
+anyhow = "1.0"
