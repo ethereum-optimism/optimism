@@ -187,7 +187,7 @@ func (r *Runner) runOnce(ctx context.Context, logger log.Logger, traceType types
 }
 
 func (r *Runner) runMTOnce(ctx context.Context, logger log.Logger, localInputs utils.LocalGameInputs, dir string) error {
-	provider, err := createMTTraceProvider(logger, metrics.NewVmMetrics(r.m, "mt-cannon"), r.cfg.Cannon, r.addMTCannonPrestate, r.addMTCannonPrestateURL, types.TraceTypeCannon, localInputs, dir)
+	provider, err := createMTTraceProvider(logger, metrics.NewVmMetrics(r.m, mtCannonType), r.cfg.Cannon, r.addMTCannonPrestate, r.addMTCannonPrestateURL, types.TraceTypeCannon, localInputs, dir)
 	if err != nil {
 		return fmt.Errorf("failed to create trace provider: %w", err)
 	}
