@@ -18,9 +18,11 @@ import { BaseDeployIO } from "scripts/utils/BaseDeployIO.sol";
 // complement the OP Stack Manager. The script architecture is a bit different than a standard forge
 // deployment script.
 //
-// There are two categories of users that are expected to interact with the scripts:
-//   1. Solidity developers that want to use or test these scripts in a standard forge test environment.
-//   2. Go developers that want to run the deploy scripts as part of e2e testing with other aspects of the OP Stack.
+// There are three categories of users that are expected to interact with the scripts:
+//   1. End users that want to run live contract deployments. These users are expected to run these scripts via
+//      'op-deployer' which uses a go interface to interact with the scripts.
+//   2. Solidity developers that want to use or test these scripts in a standard forge test environment.
+//   3. Go developers that want to run the deploy scripts as part of e2e testing with other aspects of the OP Stack.
 //
 // We want each user to interact with the scripts in the way that's simplest for their use case:
 //   1. Solidity developers: Direct calls to the script, with the input and output contracts configured.
