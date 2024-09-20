@@ -1,8 +1,11 @@
 package db
 
 import (
+	"errors"
+
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/heads"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
 	backendTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
@@ -132,11 +135,17 @@ func check(
 	// exist at the blockNum and logIdx
 	// have a hash that matches the provided hash (implicit in the Contains call), and
 	// be less than or equal to the local head for the chain
-	exists, index, err := chainsDB.logDBs[chain].Contains(blockNum, logIdx, logHash)
+	index, err := chainsDB.logDBs[chain].Contains(blockNum, logIdx, logHash)
 	if err != nil {
+		if errors.Is(err, logs.ErrFuture) {
+			return false // TODO(#12031)
+		}
+		if errors.Is(err, logs.ErrConflict) {
+			return false // TODO(#12031)
+		}
 		return false
 	}
-	return exists && index <= localHead
+	return index <= localHead
 }
 
 // Check checks if the log entry is safe, provided a local head for the chain
