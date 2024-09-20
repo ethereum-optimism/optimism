@@ -59,6 +59,7 @@ EXCLUDE_CONTRACTS=(
     "MintableAndBurnable"
     "IWETH"
     "IDelayedWETH"
+    "IResolvedDelegateProxy"
 
     # TODO: Kontrol interfaces that need to be removed
     "IL1ERC721Bridge"
