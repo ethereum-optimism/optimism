@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"strings"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
