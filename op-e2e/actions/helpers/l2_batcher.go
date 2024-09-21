@@ -157,15 +157,6 @@ func (s *L2Batcher) Buffer(t Testing) error {
 type BlockModifier = func(block *types.Block)
 
 func (s *L2Batcher) BufferWithOpts(t Testing, opts ...BlockModifier) error {
-	block, err := s.l2.BlockByNumber(t.Ctx(), big.NewInt(int64(s.L2BufferedBlock.Number+1)))
-	require.NoError(t, err, "need l2 block %d from sync status", s.l2SubmittedBlock.Number+1)
-	for _, f := range opts {
-		f(block)
-	}
-	return s.BufferBlock(t, block)
-}
-
-func (s *L2Batcher) BufferBlock(t Testing, block *types.Block) error {
 	if s.l2Submitting { // break ongoing submitting work if necessary
 		s.L2ChannelOut = nil
 		s.l2Submitting = false
@@ -198,12 +189,21 @@ func (s *L2Batcher) BufferBlock(t Testing, block *types.Block) error {
 			return nil
 		}
 	}
+
+	block, err := s.l2.BlockByNumber(t.Ctx(), big.NewInt(int64(s.L2BufferedBlock.Number+1)))
+	require.NoError(t, err, "need l2 block %d from sync status", s.l2SubmittedBlock.Number+1)
 	if block.ParentHash() != s.L2BufferedBlock.Hash {
 		s.log.Error("detected a reorg in L2 chain vs previous submitted information, resetting to safe head now", "safe_head", syncStatus.SafeL2)
 		s.l2SubmittedBlock = syncStatus.SafeL2
 		s.L2BufferedBlock = syncStatus.SafeL2
 		s.L2ChannelOut = nil
 	}
+
+	// Apply modifications to the block
+	for _, f := range opts {
+		f(block)
+	}
+
 	// Create channel if we don't have one yet
 	if s.L2ChannelOut == nil {
 		var ch ChannelOutIface
