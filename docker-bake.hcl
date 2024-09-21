@@ -241,14 +241,14 @@ target "contracts-bedrock" {
 }
 
 target "op-deployer" {
-  dockerfile = "./ops/docker/Dockerfile.packages"
+  dockerfile = "ops/docker/op-stack-go/Dockerfile"
   context = "."
   args = {
     GIT_COMMIT = "${GIT_COMMIT}"
     GIT_DATE = "${GIT_DATE}"
     OP_DEPLOYER_VERSION = "${OP_DEPLOYER_VERSION}"
   }
-  target = "op-deployer"
+  target = "op-deployer-target"
   platforms = split(",", PLATFORMS)
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-deployer:${tag}"]
 }
