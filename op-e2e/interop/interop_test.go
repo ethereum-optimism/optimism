@@ -95,6 +95,6 @@ func TestInteropTrivial(t *testing.T) {
 
 	fmt.Println("Result of emitting event:", rec)
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(60 * time.Second)
 
 }
