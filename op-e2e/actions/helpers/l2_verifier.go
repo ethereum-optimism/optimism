@@ -49,9 +49,9 @@ type L2Verifier struct {
 	drainer event.Drainer
 
 	// L2 rollup
-	engine     *engine.EngineController
+	engine            *engine.EngineController
 	derivationMetrics *testutils.TestDerivationMetrics
-	derivation *derive.DerivationPipeline
+	derivation        *derive.DerivationPipeline
 
 	safeHeadListener rollup.SafeHeadListener
 	syncCfg          *sync.Config
@@ -89,7 +89,8 @@ type safeDB interface {
 func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	blobsSrc derive.L1BlobsFetcher, altDASrc driver.AltDAIface,
 	eng L2API, cfg *rollup.Config, syncCfg *sync.Config, safeHeadListener safeDB,
-	interopBackend interop.InteropBackend) *L2Verifier {
+	interopBackend interop.InteropBackend,
+) *L2Verifier {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
