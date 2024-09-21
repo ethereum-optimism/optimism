@@ -71,30 +71,38 @@ func PatchStack(st mipsevm.FPVMState) error {
 		_ = st.GetMemory().SetMemoryRange(addr, bytes.NewReader(dat[:]))
 	}
 
-	// TODO: fix offsets for mips-64
+	auxv3Offset := sp + WordSizeBytes*10
+	randomness := []byte("4;byfairdiceroll")
+	randomness = pad(randomness)
+	_ = st.GetMemory().SetMemoryRange(auxv3Offset, bytes.NewReader(randomness))
+
+	envp0Offset := auxv3Offset + Word(len(randomness))
+	envar := append([]byte("GODEBUG=memprofilerate=0"), 0x0)
+	envar = pad(envar)
+	_ = st.GetMemory().SetMemoryRange(envp0Offset, bytes.NewReader(envar))
+
+	argv0Offset := envp0Offset + Word(len(envar))
+	programName := append([]byte("op-program"), 0x0)
+	programName = pad(programName)
+	_ = st.GetMemory().SetMemoryRange(argv0Offset, bytes.NewReader(programName))
 
 	// init argc, argv, aux on stack
-	storeMem(sp+WordSizeBytes*0, 1)                   // argc = 1 (argument count)
-	storeMem(sp+WordSizeBytes*1, sp+WordSizeBytes*21) // argv[0]
-	storeMem(sp+WordSizeBytes*2, 0)                   // argv[1] = terminating
-	storeMem(sp+WordSizeBytes*3, sp+WordSizeBytes*14) // envp[0] = x (offset to first env var)
-	storeMem(sp+WordSizeBytes*4, 0)                   // envp[1] = terminating
-	storeMem(sp+WordSizeBytes*5, 6)                   // auxv[0] = _AT_PAGESZ = 6 (key)
-	storeMem(sp+WordSizeBytes*6, 4096)                // auxv[1] = page size of 4 KiB (value) - (== minPhysPageSize)
-	storeMem(sp+WordSizeBytes*7, 25)                  // auxv[2] = AT_RANDOM
-	storeMem(sp+WordSizeBytes*8, sp+WordSizeBytes*10) // auxv[3] = address of 16 bytes containing random value
-	storeMem(sp+WordSizeBytes*9, 0)                   // auxv[term] = 0
-
-	_ = st.GetMemory().SetMemoryRange(sp+WordSizeBytes*10, bytes.NewReader([]byte("4;byfairdiceroll"))) // 16 bytes of "randomness"
-
-	// append 4 extra zero bytes to end at Word alignment
-	envar := append([]byte("GODEBUG=memprofilerate=0"), 0x0, 0x0, 0x0, 0x0)
-	_ = st.GetMemory().SetMemoryRange(sp+WordSizeBytes*14, bytes.NewReader(envar))
-
-	// 24 bytes for GODEBUG=memprofilerate=0 + WordSizeBytes null bytes
-	// Then append program name + 2 null bytes for Word alignment
-	programName := append([]byte("op-program"), 0x0, 0x0)
-	_ = st.GetMemory().SetMemoryRange(sp+WordSizeBytes*21, bytes.NewReader(programName))
+	storeMem(sp+WordSizeBytes*0, 1)           // argc = 1 (argument count)
+	storeMem(sp+WordSizeBytes*1, argv0Offset) // argv[0]
+	storeMem(sp+WordSizeBytes*2, 0)           // argv[1] = terminating
+	storeMem(sp+WordSizeBytes*3, envp0Offset) // envp[0] = x (offset to first env var)
+	storeMem(sp+WordSizeBytes*4, 0)           // envp[1] = terminating
+	storeMem(sp+WordSizeBytes*5, 6)           // auxv[0] = _AT_PAGESZ = 6 (key)
+	storeMem(sp+WordSizeBytes*6, 4096)        // auxv[1] = page size of 4 KiB (value) - (== minPhysPageSize)
+	storeMem(sp+WordSizeBytes*7, 25)          // auxv[2] = AT_RANDOM
+	storeMem(sp+WordSizeBytes*8, auxv3Offset) // auxv[3] = address of 16 bytes containing random value
+	storeMem(sp+WordSizeBytes*9, 0)           // auxv[term] = 0
 
 	return nil
+}
+
+// pad adds appropriate padding to buf to end at Word alignment
+func pad(buf []byte) []byte {
+	bytesToAlignment := (WordSizeBytes - len(buf)%WordSizeBytes) % WordSizeBytes
+	return append(buf, make([]byte, bytesToAlignment)...)
 }
