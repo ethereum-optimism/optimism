@@ -65,7 +65,7 @@ func (lvl SafetyLevel) String() string {
 
 func (lvl SafetyLevel) Valid() bool {
 	switch lvl {
-	case Finalized, Safe, CrossUnsafe, Unsafe:
+	case CrossFinalized, Finalized, Safe, CrossUnsafe, Unsafe:
 		return true
 	default:
 		return false

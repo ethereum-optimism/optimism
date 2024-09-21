@@ -183,12 +183,11 @@ func (db *DB) FindSealedBlock(block eth.BlockID) (nextEntry entrydb.EntryIdx, er
 func (db *DB) LatestSealedBlockNum() (n uint64, ok bool) {
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
+	if db.lastEntryContext.nextEntryIndex == 0 {
+		return 0, false // empty DB, time to add the first seal
+	}
 	if !db.lastEntryContext.hasCompleteBlock() {
-		if db.lastEntryContext.blockNum == 0 {
-			db.log.Debug("No DB contents yet")
-		} else {
-			db.log.Debug("New block is already in progress", "num", db.lastEntryContext.blockNum)
-		}
+		db.log.Debug("New block is already in progress", "num", db.lastEntryContext.blockNum)
 	}
 	return db.lastEntryContext.blockNum, true
 }

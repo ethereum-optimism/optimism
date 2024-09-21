@@ -106,6 +106,8 @@ func (s *ChainProcessor) worker() {
 			s.log.Debug("Continuing with next block",
 				"newTarget", target+1, "lastHead", x)
 			continue // instantly continue processing, no need to idle
+		} else {
+			s.log.Debug("Idling block-processing, reached latest block", "head", target)
 		}
 		if s.synchronous {
 			s.out <- struct{}{}

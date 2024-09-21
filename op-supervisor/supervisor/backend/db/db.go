@@ -98,7 +98,7 @@ func (db *ChainsDB) AddLogDB(chain types.ChainID, logDB LogStorage) {
 func (db *ChainsDB) ResumeFromLastSealedBlock() error {
 	for chain, logStore := range db.logDBs {
 		headNum, ok := logStore.LatestSealedBlockNum()
-		if ok {
+		if !ok {
 			// db must be empty, nothing to rewind to
 			db.logger.Info("Resuming, but found no DB contents", "chain", chain)
 			continue
@@ -205,7 +205,7 @@ func (db *ChainsDB) UpdateCrossHeadsForChain(chainID types.ChainID, checker Safe
 			// We can only drop the logsSince value to 0 if the block is not seen.
 			if sealedBlockNum > xHead.LastSealedBlockNum {
 				// if we would exceed the local head, then abort
-				if localHead.WithinRange(sealedBlockNum, 0) {
+				if !localHead.WithinRange(sealedBlockNum, 0) {
 					break
 				}
 				xHead = heads.HeadPointer{
@@ -229,7 +229,7 @@ func (db *ChainsDB) UpdateCrossHeadsForChain(chainID types.ChainID, checker Safe
 			break
 		}
 		// if we would exceed the local head, then abort
-		if localHead.WithinRange(sealedBlockNum, logIdx) {
+		if !localHead.WithinRange(sealedBlockNum, logIdx) {
 			break
 		}
 
@@ -269,10 +269,10 @@ func (db *ChainsDB) UpdateCrossHeadsForChain(chainID types.ChainID, checker Safe
 	// this allows for the maintenance loop to handle cascading updates
 	// instead of waiting for the next scheduled update
 	if updated {
-		db.logger.Info("Promoting cross-head", "head", xHead, "safety-level", checker.CrossSafetyLevel())
+		db.logger.Info("Promoting cross-head", "chain", chainID, "head", xHead, "safety-level", checker.CrossSafetyLevel())
 		db.RequestMaintenance()
 	} else {
-		db.logger.Info("No cross-head update", "head", xHead, "safety-level", checker.CrossSafetyLevel())
+		db.logger.Info("No cross-head update", "chain", chainID, "head", xHead, "safety-level", checker.CrossSafetyLevel())
 	}
 	return nil
 }
