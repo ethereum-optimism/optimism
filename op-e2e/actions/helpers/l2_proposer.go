@@ -84,6 +84,10 @@ func (f fakeTxMgr) API() rpc.API {
 	panic("unimplemented")
 }
 
+func (f fakeTxMgr) SuggestGasPriceCaps(context.Context) (*big.Int, *big.Int, *big.Int, error) {
+	panic("unimplemented")
+}
+
 func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Client, rollupCl *sources.RollupClient) *L2Proposer {
 	proposerConfig := proposer.ProposerConfig{
 		PollInterval:           time.Second,
