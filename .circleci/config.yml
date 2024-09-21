@@ -41,9 +41,6 @@ parameters:
   publish_contract_artifacts_dispatch:
     type: boolean
     default: false
-  publish_foundry_minimal_dispatch:
-    type: boolean
-    default: false
 
 orbs:
   go: circleci/go@1.8.0
