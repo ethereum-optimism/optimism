@@ -1,3 +1,26 @@
+GITCOMMIT ?= $(shell git rev-parse HEAD)
+GITDATE ?= $(shell git show -s --format='%ct')
+
+# Find the github tag that points to this commit. If none are found, set the version string to "untagged"
+# Prioritizes release tag, if one exists, over tags suffixed with "-rc"
+VERSION ?= $(shell tags=$$(git tag --points-at $(GITCOMMIT) | grep '^op-deployer/' | sed 's/op-deployer\///' | sort -V); \
+             preferred_tag=$$(echo "$$tags" | grep -v -- '-rc' | tail -n 1); \
+             if [ -z "$$preferred_tag" ]; then \
+                 if [ -z "$$tags" ]; then \
+                     echo "untagged"; \
+                 else \
+                     echo "$$tags" | tail -n 1; \
+                 fi \
+             else \
+                 echo $$preferred_tag; \
+             fi)
+
+LDFLAGSSTRING +=-X main.GitCommit=$(GITCOMMIT)
+LDFLAGSSTRING +=-X main.GitDate=$(GITDATE)
+LDFLAGSSTRING +=-X github.com/ethereum-optimism/optimism/op-chain-ops/deployer/version.Version=$(VERSION)
+LDFLAGSSTRING +=-X github.com/ethereum-optimism/optimism/op-chain-ops/deployer/version.Meta=$(VERSION_META)
+LDFLAGS := -ldflags "$(LDFLAGSSTRING)"
+
 # Use the old Apple linker to workaround broken xcode - https://github.com/golang/go/issues/65169
 ifeq ($(shell uname),Darwin)
 	FUZZLDFLAGS := -ldflags=-extldflags=-Wl,-ld_classic
@@ -13,7 +36,7 @@ test:
 	go test ./...
 
 op-deployer:
-	go build -o ./bin/op-deployer ./cmd/op-deployer/main.go
+	GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) CGO_ENABLED=0 go build -v $(LDFLAGS) -o ./bin/op-deployer ./cmd/op-deployer/main.go
 
 fuzz:
 	go test $(FUZZLDFLAGS) -run NOTAREALTEST -v -fuzztime 10s -fuzz=FuzzEncodeDecodeWithdrawal ./crossdomain
