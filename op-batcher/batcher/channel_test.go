@@ -1,6 +1,7 @@
 package batcher
 
 import (
+	"fmt"
 	"io"
 	"testing"
 
@@ -23,6 +24,14 @@ func zeroFrameTxID(fn uint16) txID {
 	return txID{frameID{frameNumber: fn}}
 }
 
+func newChannelWithChannelOut(log log.Logger, metr metrics.Metricer, cfg ChannelConfig, rollupCfg *rollup.Config, latestL1OriginBlockNum uint64) (*channel, error) {
+	channelOut, err := NewChannelOut(cfg, rollupCfg)
+	if err != nil {
+		return nil, fmt.Errorf("creating channel out: %w", err)
+	}
+	return newChannel(log, metr, cfg, rollupCfg, latestL1OriginBlockNum, channelOut)
+}
+
 // TestChannelTimeout tests that the channel manager
 // correctly identifies when a pending channel is timed out.
 func TestChannelTimeout(t *testing.T) {
@@ -33,7 +42,7 @@ func TestChannelTimeout(t *testing.T) {
 		CompressorConfig: compressor.Config{
 			CompressionAlgo: derive.Zlib,
 		},
-	}, &rollup.Config{})
+	}, &rollup.Config{}, nil)
 	m.Clear(eth.BlockID{})
 
 	// Pending channel is nil so is cannot be timed out
@@ -77,7 +86,7 @@ func TestChannelManager_NextTxData(t *testing.T) {
 	log := testlog.Logger(t, log.LevelCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{CompressorConfig: compressor.Config{
 		CompressionAlgo: derive.Zlib,
-	}}, &rollup.Config{})
+	}}, &rollup.Config{}, nil)
 	m.Clear(eth.BlockID{})
 
 	// Nil pending channel should return EOF
@@ -121,7 +130,7 @@ func TestChannel_NextTxData_singleFrameTx(t *testing.T) {
 	require := require.New(t)
 	const n = 6
 	lgr := testlog.Logger(t, log.LevelWarn)
-	ch, err := newChannel(lgr, metrics.NoopMetrics, ChannelConfig{
+	ch, err := newChannelWithChannelOut(lgr, metrics.NoopMetrics, ChannelConfig{
 		UseBlobs:        false,
 		TargetNumFrames: n,
 		CompressorConfig: compressor.Config{
@@ -162,7 +171,7 @@ func TestChannel_NextTxData_multiFrameTx(t *testing.T) {
 	require := require.New(t)
 	const n = eth.MaxBlobsPerBlobTx
 	lgr := testlog.Logger(t, log.LevelWarn)
-	ch, err := newChannel(lgr, metrics.NoopMetrics, ChannelConfig{
+	ch, err := newChannelWithChannelOut(lgr, metrics.NoopMetrics, ChannelConfig{
 		UseBlobs:        true,
 		TargetNumFrames: n,
 		CompressorConfig: compressor.Config{
@@ -217,7 +226,7 @@ func TestChannelTxConfirmed(t *testing.T) {
 		CompressorConfig: compressor.Config{
 			CompressionAlgo: derive.Zlib,
 		},
-	}, &rollup.Config{})
+	}, &rollup.Config{}, nil)
 	m.Clear(eth.BlockID{})
 
 	// Let's add a valid pending transaction to the channel manager
@@ -268,7 +277,7 @@ func TestChannelTxFailed(t *testing.T) {
 	log := testlog.Logger(t, log.LevelCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{CompressorConfig: compressor.Config{
 		CompressionAlgo: derive.Zlib,
-	}}, &rollup.Config{})
+	}}, &rollup.Config{}, nil)
 	m.Clear(eth.BlockID{})
 
 	// Let's add a valid pending transaction to the channel

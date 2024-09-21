@@ -18,6 +18,8 @@ import (
 
 var ErrReorg = errors.New("block does not extend existing chain")
 
+type ChannelOutFactory func(cfg ChannelConfig, rollupCfg *rollup.Config) (derive.ChannelOut, error)
+
 // channelManager stores a contiguous set of blocks & turns them into channels.
 // Upon receiving tx confirmation (or a tx failure), it does channel error handling.
 //
@@ -31,6 +33,8 @@ type channelManager struct {
 	metr        metrics.Metricer
 	cfgProvider ChannelConfigProvider
 	rollupCfg   *rollup.Config
+
+	outFactory ChannelOutFactory
 
 	// All blocks since the last request for new tx data.
 	blocks queue.Queue[*types.Block]
@@ -52,15 +56,33 @@ type channelManager struct {
 	closed bool
 }
 
-func NewChannelManager(log log.Logger, metr metrics.Metricer, cfgProvider ChannelConfigProvider, rollupCfg *rollup.Config) *channelManager {
+func NewChannelManager(log log.Logger, metr metrics.Metricer, cfgProvider ChannelConfigProvider, rollupCfg *rollup.Config, outFactory ChannelOutFactory) *channelManager {
+	if outFactory == nil {
+		outFactory = NewChannelOut
+	}
 	return &channelManager{
 		log:         log,
 		metr:        metr,
 		cfgProvider: cfgProvider,
 		defaultCfg:  cfgProvider.ChannelConfig(),
 		rollupCfg:   rollupCfg,
+		outFactory:  outFactory,
 		txChannels:  make(map[string]*channel),
 	}
+}
+
+func NewChannelOut(cfg ChannelConfig, rollupCfg *rollup.Config) (derive.ChannelOut, error) {
+	spec := rollup.NewChainSpec(rollupCfg)
+	if cfg.BatchType == derive.SpanBatchType {
+		return derive.NewSpanChannelOut(
+			cfg.CompressorConfig.TargetOutputSize, cfg.CompressorConfig.CompressionAlgo,
+			spec, derive.WithMaxBlocksPerSpanBatch(cfg.MaxBlocksPerSpanBatch))
+	}
+	comp, err := cfg.CompressorConfig.NewCompressor()
+	if err != nil {
+		return nil, err
+	}
+	return derive.NewSingularChannelOut(comp, spec)
 }
 
 // Clear clears the entire state of the channel manager.
@@ -265,7 +287,13 @@ func (s *channelManager) ensureChannelWithSpace(l1Head eth.BlockID) error {
 	// This will be reassessed at channel submission-time,
 	// but this is our best guess at the appropriate values for now.
 	cfg := s.defaultCfg
-	pc, err := newChannel(s.log, s.metr, cfg, s.rollupCfg, s.l1OriginLastClosedChannel.Number)
+
+	channelOut, err := s.outFactory(cfg, s.rollupCfg)
+	if err != nil {
+		return fmt.Errorf("creating channel out: %w", err)
+	}
+
+	pc, err := newChannel(s.log, s.metr, cfg, s.rollupCfg, s.l1OriginLastClosedChannel.Number, channelOut)
 	if err != nil {
 		return fmt.Errorf("creating new channel: %w", err)
 	}
