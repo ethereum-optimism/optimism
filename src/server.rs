@@ -159,7 +159,7 @@ impl EngineApiServer for EthEngineApi {
         fork_choice_state: ForkchoiceState,
         payload_attributes: Option<PayloadAttributes>,
     ) -> RpcResult<ForkchoiceUpdated> {
-        self.l2_client
+        self.builder_client
             .fork_choice_updated_v3(fork_choice_state, payload_attributes)
             .await
             .map_err(|e| match e {
@@ -175,7 +175,7 @@ impl EngineApiServer for EthEngineApi {
     }
 
     async fn get_payload_v3(&self, payload_id: PayloadId) -> RpcResult<ExecutionPayloadV3> {
-        self.l2_client
+        self.builder_client
             .get_payload_v3(payload_id)
             .await
             .map_err(|e| match e {
@@ -196,7 +196,7 @@ impl EngineApiServer for EthEngineApi {
         versioned_hashes: Vec<B256>,
         parent_beacon_block_root: B256,
     ) -> RpcResult<PayloadStatus> {
-        self.l2_client
+        self.builder_client
             .new_payload_v3(payload, versioned_hashes, parent_beacon_block_root)
             .await
             .map_err(|e| match e {
