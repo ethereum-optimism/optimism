@@ -15,7 +15,7 @@ import (
 )
 
 // TODO(optimism#11032) Make these configurable and a sensible default
-const epochPollInterval = 30 * time.Second
+const epochPollInterval = 3 * time.Second
 const pollInterval = 2 * time.Second
 const trustRpc = false
 const rpcKind = sources.RPCKindStandard

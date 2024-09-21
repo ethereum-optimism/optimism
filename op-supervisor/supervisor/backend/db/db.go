@@ -261,18 +261,18 @@ func (db *ChainsDB) UpdateCrossHeadsForChain(chainID types.ChainID, checker Safe
 		}
 		updated = true
 	}
-	err = checker.UpdateCross(chainID, xHead)
-	if err != nil {
-		return fmt.Errorf("failed to update cross-head for chain %v: %w", chainID, err)
-	}
 	// if any chain was updated, we can trigger a maintenance request
 	// this allows for the maintenance loop to handle cascading updates
 	// instead of waiting for the next scheduled update
 	if updated {
 		db.logger.Info("Promoting cross-head", "chain", chainID, "head", xHead, "safety-level", checker.CrossSafetyLevel())
+		err = checker.UpdateCross(chainID, xHead)
+		if err != nil {
+			return fmt.Errorf("failed to update cross-head for chain %v: %w", chainID, err)
+		}
 		db.RequestMaintenance()
 	} else {
-		db.logger.Info("No cross-head update", "chain", chainID, "head", xHead, "safety-level", checker.CrossSafetyLevel())
+		db.logger.Debug("No cross-head update", "chain", chainID, "head", xHead, "safety-level", checker.CrossSafetyLevel())
 	}
 	return nil
 }

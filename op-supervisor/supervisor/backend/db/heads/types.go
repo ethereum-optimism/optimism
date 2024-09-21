@@ -60,6 +60,26 @@ func (h *Heads) Get(id types.ChainID) ChainHeads {
 	if !ok {
 		return ChainHeads{}
 	}
+	// init to genesis
+	if chain.LocalFinalized == (HeadPointer{}) && chain.Unsafe.LastSealedBlockNum == 0 {
+		chain.LocalFinalized = chain.Unsafe
+	}
+	// Make sure the data is consistent
+	if chain.LocalSafe == (HeadPointer{}) {
+		chain.LocalSafe = chain.LocalFinalized
+	}
+	if chain.Unsafe == (HeadPointer{}) {
+		chain.Unsafe = chain.LocalSafe
+	}
+	if chain.CrossFinalized == (HeadPointer{}) && chain.LocalFinalized.LastSealedBlockNum == 0 {
+		chain.CrossFinalized = chain.LocalFinalized
+	}
+	if chain.CrossSafe == (HeadPointer{}) {
+		chain.CrossSafe = chain.CrossFinalized
+	}
+	if chain.CrossUnsafe == (HeadPointer{}) {
+		chain.CrossUnsafe = chain.CrossSafe
+	}
 	return chain
 }
 

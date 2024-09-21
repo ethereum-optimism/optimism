@@ -49,7 +49,7 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger, m Metrics, cfg
 	}
 
 	// create the head tracker
-	headTracker, err := heads.NewHeadTracker(filepath.Join(cfg.Datadir, "heads.json"))
+	headTracker, err := heads.NewHeadTracker(logger, filepath.Join(cfg.Datadir, "heads.json"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to load existing heads: %w", err)
 	}
