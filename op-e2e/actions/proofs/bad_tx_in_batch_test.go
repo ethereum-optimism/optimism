@@ -29,7 +29,7 @@ func runBadTxInBatchTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	err := env.Batcher.BufferWithOpts(t, func(block *types.Block) {
 		// Replace the tx with one that has a bad signature.
 		txs := block.Transactions()
-		newTx, err := txs[1].WithSignature(env.Alice.L2.Env.Signer, make([]byte, 65))
+		newTx, err := txs[1].WithSignature(env.Alice.L2.Signer(), make([]byte, 65))
 		txs[1] = newTx
 		require.NoError(t, err)
 	})
@@ -94,7 +94,7 @@ func runBadTxInBatch_FirstInBadBatch_Test(gt *testing.T, testCfg *helpers.TestCf
 	err := env.Batcher.BufferWithOpts(t, func(block *types.Block) {
 		// Replace the tx with one that has a bad signature.
 		txs := block.Transactions()
-		newTx, err := txs[1].WithSignature(env.Alice.L2.Env.Signer, make([]byte, 65))
+		newTx, err := txs[1].WithSignature(env.Alice.L2.Signer(), make([]byte, 65))
 		txs[1] = newTx
 		require.NoError(t, err)
 	})
