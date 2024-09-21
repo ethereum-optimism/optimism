@@ -2,9 +2,12 @@ package inspect
 
 import (
 	"fmt"
-	"math/big"
-	"strconv"
-	"strings"
+
+	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/pipeline"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum/go-ethereum/core"
 
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
@@ -18,40 +21,72 @@ func GenesisCLI(cliCtx *cli.Context) error {
 		return err
 	}
 
-	st, err := bootstrapState(cfg)
+	env := &pipeline.Env{Workdir: cfg.Workdir}
+	globalState, err := env.ReadState()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to read intent: %w", err)
 	}
 
-	genesis, err := st.ChainState.UnmarshalGenesis()
+	l2Genesis, _, err := GenesisAndRollup(globalState, cfg.ChainID)
 	if err != nil {
-		return fmt.Errorf("failed to unmarshal genesis: %w", err)
+		return fmt.Errorf("failed to generate genesis block: %w", err)
 	}
 
-	if err := jsonutil.WriteJSON(genesis, ioutil.ToStdOutOrFileOrNoop(cfg.Outfile, 0o666)); err != nil {
+	if err := jsonutil.WriteJSON(l2Genesis, ioutil.ToStdOutOrFileOrNoop(cfg.Outfile, 0o666)); err != nil {
 		return fmt.Errorf("failed to write genesis: %w", err)
 	}
 
 	return nil
 }
 
-func chainIDStrToHash(in string) (common.Hash, error) {
-	var chainIDBig *big.Int
-	if strings.HasPrefix(in, "0x") {
-		in = strings.TrimPrefix(in, "0x")
-		var ok bool
-		chainIDBig, ok = new(big.Int).SetString(in, 16)
-		if !ok {
-			return common.Hash{}, fmt.Errorf("failed to parse chain ID %s", in)
-		}
-	} else {
-		inUint, err := strconv.ParseUint(in, 10, 64)
-		if err != nil {
-			return common.Hash{}, fmt.Errorf("failed to parse chain ID %s: %w", in, err)
-		}
-
-		chainIDBig = new(big.Int).SetUint64(inUint)
+func GenesisAndRollup(globalState *state.State, chainID common.Hash) (*core.Genesis, *rollup.Config, error) {
+	if globalState.AppliedIntent == nil {
+		return nil, nil, fmt.Errorf("chain state is not applied - run op-deployer apply")
 	}
 
-	return common.BigToHash(chainIDBig), nil
+	chainIntent, err := globalState.AppliedIntent.Chain(chainID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get applied chain intent: %w", err)
+	}
+
+	chainState, err := globalState.Chain(chainID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get chain ID %s: %w", chainID.String(), err)
+	}
+
+	l2Allocs, err := chainState.UnmarshalAllocs()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to unmarshal genesis: %w", err)
+	}
+
+	config, err := state.CombineDeployConfig(
+		globalState.AppliedIntent,
+		chainIntent,
+		globalState,
+		chainState,
+	)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to combine L2 init config: %w", err)
+	}
+
+	l2GenesisBuilt, err := genesis.BuildL2Genesis(&config, l2Allocs, chainState.StartBlock)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to build L2 genesis: %w", err)
+	}
+	l2GenesisBlock := l2GenesisBuilt.ToBlock()
+
+	rollupConfig, err := config.RollupConfig(
+		chainState.StartBlock,
+		l2GenesisBlock.Hash(),
+		l2GenesisBlock.Number().Uint64(),
+	)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to build rollup config: %w", err)
+	}
+
+	if err := rollupConfig.Check(); err != nil {
+		return nil, nil, fmt.Errorf("generated rollup config does not pass validation: %w", err)
+	}
+
+	return l2GenesisBuilt, rollupConfig, nil
 }
