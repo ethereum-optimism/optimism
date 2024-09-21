@@ -136,6 +136,14 @@ func (s *L2Batcher) SubmittingData() bool {
 	return s.l2Submitting
 }
 
+// Reset the batcher state, clearing any buffered data.
+func (s *L2Batcher) Reset() {
+	s.L2ChannelOut = nil
+	s.l2Submitting = false
+	s.L2BufferedBlock = eth.L2BlockRef{}
+	s.l2SubmittedBlock = eth.L2BlockRef{}
+}
+
 // ActL2BatchBuffer adds the next L2 block to the batch buffer.
 // If the buffer is being submitted, the buffer is wiped.
 func (s *L2Batcher) ActL2BatchBuffer(t Testing) {
@@ -143,6 +151,21 @@ func (s *L2Batcher) ActL2BatchBuffer(t Testing) {
 }
 
 func (s *L2Batcher) Buffer(t Testing) error {
+	return s.BufferWithOpts(t)
+}
+
+type BlockModifier = func(block *types.Block)
+
+func (s *L2Batcher) BufferWithOpts(t Testing, opts ...BlockModifier) error {
+	block, err := s.l2.BlockByNumber(t.Ctx(), big.NewInt(int64(s.L2BufferedBlock.Number+1)))
+	require.NoError(t, err, "need l2 block %d from sync status", s.l2SubmittedBlock.Number+1)
+	for _, f := range opts {
+		f(block)
+	}
+	return s.BufferBlock(t, block)
+}
+
+func (s *L2Batcher) BufferBlock(t Testing, block *types.Block) error {
 	if s.l2Submitting { // break ongoing submitting work if necessary
 		s.L2ChannelOut = nil
 		s.l2Submitting = false
@@ -175,8 +198,6 @@ func (s *L2Batcher) Buffer(t Testing) error {
 			return nil
 		}
 	}
-	block, err := s.l2.BlockByNumber(t.Ctx(), big.NewInt(int64(s.L2BufferedBlock.Number+1)))
-	require.NoError(t, err, "need l2 block %d from sync status", s.l2SubmittedBlock.Number+1)
 	if block.ParentHash() != s.L2BufferedBlock.Hash {
 		s.log.Error("detected a reorg in L2 chain vs previous submitted information, resetting to safe head now", "safe_head", syncStatus.SafeL2)
 		s.l2SubmittedBlock = syncStatus.SafeL2
