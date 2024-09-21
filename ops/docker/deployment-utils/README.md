@@ -1,4 +1,4 @@
-# foundry-minimal
+# deployment-utils
 
 This image provides a minimal set of Foundry and Bash tools for use with builder images like Kurtosis. It contains the
 following packages:

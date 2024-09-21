@@ -41,6 +41,9 @@ parameters:
   publish_contract_artifacts_dispatch:
     type: boolean
     default: false
+  publish_foundry_minimal_dispatch:
+    type: boolean
+    default: false
 
 orbs:
   go: circleci/go@1.8.0
@@ -1683,6 +1686,7 @@ workflows:
                 - op-conductor
                 - da-server
                 - op-supervisor
+                - op-deployer
       - cannon-prestate:
           requires:
             - go-mod-download
@@ -1742,6 +1746,7 @@ workflows:
                 - da-server
                 - op-ufm
                 - op-supervisor
+                - op-deployer
           name: <<matrix.docker_name>>-docker-release
           docker_tags: <<pipeline.git.revision>>
           platforms: "linux/amd64,linux/arm64"
@@ -1770,6 +1775,7 @@ workflows:
                 - da-server
                 - op-ufm
                 - op-supervisor
+                - op-deployer
           name: <<matrix.op_component>>-cross-platform
           requires:
             - op-node-docker-release
@@ -1781,6 +1787,7 @@ workflows:
             - da-server-docker-release
             - op-ufm-docker-release
             - op-supervisor-docker-release
+            - op-deployer-docker-release
       # Standard (xlarge) AMD-only docker images go here
       - docker-build:
           matrix:

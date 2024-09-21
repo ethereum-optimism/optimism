@@ -130,7 +130,7 @@ func Apply(ctx context.Context, cfg ApplyConfig) error {
 
 type pipelineStage struct {
 	name  string
-	stage pipeline.Stage
+	apply pipeline.Stage
 }
 
 func ApplyPipeline(
@@ -175,8 +175,8 @@ func ApplyPipeline(
 	}
 
 	for _, stage := range pline {
-		if err := stage.stage(ctx, env, artifactsFS, intent, st); err != nil {
-			return fmt.Errorf("error in pipeline stage: %w", err)
+		if err := stage.apply(ctx, env, artifactsFS, intent, st); err != nil {
+			return fmt.Errorf("error in pipeline stage apply: %w", err)
 		}
 	}
 
