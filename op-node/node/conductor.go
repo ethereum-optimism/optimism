@@ -40,27 +40,20 @@ func NewConductorClient(cfg *Config, log log.Logger, metrics *metrics.Metrics) c
 	}
 }
 
-// Initialize initializes the conductor client, make sure the remote service is reachable.
-func (c *ConductorClient) Initialize(ctx context.Context) error {
-	apiClient, err := retry.Do(ctx, 60, retry.Fixed(5*time.Second), func() (*conductorRpc.APIClient, error) {
-		conductorRpcClient, err := dial.DialRPCClientWithTimeout(ctx, c.cfg.ConductorRpcTimeout, c.log, c.cfg.ConductorRpc)
-		if err != nil {
-			c.log.Warn("failed to dial conductor RPC", "err", err)
-			return nil, fmt.Errorf("failed to dial conductor RPC: %w", err)
-		}
-
-		c.log.Info("conductor connected")
-		return conductorRpc.NewAPIClient(conductorRpcClient), nil
-	})
-	if err != nil {
-		return err
+// Initialize initializes the conductor client.
+func (c *ConductorClient) initialize() error {
+	if c.apiClient != nil {
+		return nil
 	}
-
-	c.apiClient = apiClient
+	conductorRpcClient, err := dial.DialRPCClientWithTimeout(context.Background(), time.Minute*1, c.log, c.cfg.ConductorRpc)
+	if err != nil {
+		return fmt.Errorf("failed to dial conductor RPC: %w", err)
+	}
+	c.apiClient = conductorRpc.NewAPIClient(conductorRpcClient)
 	return nil
 }
 
-// Enabled returns true if conductor is enabled.
+// Enabled returns true if the conductor is enabled.
 func (c *ConductorClient) Enabled(ctx context.Context) bool {
 	return true
 }
@@ -71,6 +64,9 @@ func (c *ConductorClient) Leader(ctx context.Context) (bool, error) {
 		return true, nil
 	}
 
+	if err := c.initialize(); err != nil {
+		return false, err
+	}
 	ctx, cancel := context.WithTimeout(ctx, c.cfg.ConductorRpcTimeout)
 	defer cancel()
 
@@ -89,6 +85,9 @@ func (c *ConductorClient) CommitUnsafePayload(ctx context.Context, payload *eth.
 		return nil
 	}
 
+	if err := c.initialize(); err != nil {
+		return err
+	}
 	ctx, cancel := context.WithTimeout(ctx, c.cfg.ConductorRpcTimeout)
 	defer cancel()
 

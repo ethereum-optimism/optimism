@@ -617,9 +617,6 @@ func (d *Sequencer) Init(ctx context.Context, active bool) error {
 	d.emitter.Emit(engine.ForkchoiceRequestEvent{})
 
 	if active {
-		if err := d.conductor.Initialize(ctx); err != nil {
-			return fmt.Errorf("failed to initialize sequencer conductor: %w", err)
-		}
 		return d.forceStart()
 	} else {
 		if err := d.listener.SequencerStopped(); err != nil {
