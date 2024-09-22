@@ -80,7 +80,7 @@ type DriverSetup struct {
 	Metr             metrics.Metricer
 	RollupConfig     *rollup.Config
 	Config           BatcherConfig
-	Txmgr            *txmgr.SimpleTxManager
+	Txmgr            txmgr.TxManager
 	L1Client         L1Client
 	EndpointProvider dial.L2EndpointProvider
 	ChannelConfig    ChannelConfigProvider
