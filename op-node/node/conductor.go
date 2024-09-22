@@ -40,7 +40,7 @@ func NewConductorClient(cfg *Config, log log.Logger, metrics *metrics.Metrics) c
 	}
 }
 
-// Initialize implements conductor.SequencerConductor.
+// Initialize initializes the conductor client, make sure the remote service is reachable.
 func (c *ConductorClient) Initialize(ctx context.Context) error {
 	apiClient, err := retry.Do(ctx, 60, retry.Fixed(5*time.Second), func() (*conductorRpc.APIClient, error) {
 		conductorRpcClient, err := dial.DialRPCClientWithTimeout(ctx, c.cfg.ConductorRpcTimeout, c.log, c.cfg.ConductorRpc)
@@ -58,6 +58,11 @@ func (c *ConductorClient) Initialize(ctx context.Context) error {
 
 	c.apiClient = apiClient
 	return nil
+}
+
+// Enabled returns true if conductor is enabled.
+func (c *ConductorClient) Enabled(ctx context.Context) bool {
+	return true
 }
 
 // Leader returns true if this node is the leader sequencer.

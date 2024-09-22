@@ -105,6 +105,14 @@ type FakeConductor struct {
 
 var _ conductor.SequencerConductor = &FakeConductor{}
 
+func (c *FakeConductor) Enabled(ctx context.Context) bool {
+	return true
+}
+
+func (c *FakeConductor) Initialize(ctx context.Context) error {
+	return nil
+}
+
 func (c *FakeConductor) Leader(ctx context.Context) (bool, error) {
 	return c.leader, nil
 }

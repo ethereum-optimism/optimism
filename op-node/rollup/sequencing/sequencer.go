@@ -713,6 +713,10 @@ func (d *Sequencer) OverrideLeader(ctx context.Context) error {
 	return d.conductor.OverrideLeader(ctx)
 }
 
+func (d *Sequencer) ConductorEnabled(ctx context.Context) bool {
+	return d.conductor.Enabled(ctx)
+}
+
 func (d *Sequencer) Close() {
 	d.conductor.Close()
 	d.asyncGossip.Stop()
