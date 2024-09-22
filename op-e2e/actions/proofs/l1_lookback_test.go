@@ -11,13 +11,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const numL2Blocks = 1 << 3
-
-func runL1LookbackTest(gt *testing.T, testCfg *helpers.TestCfg[uint64]) {
+func runL1LookbackTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	t := actionsHelpers.NewDefaultTesting(gt)
 	tp := helpers.NewTestParams()
 	env := helpers.NewL2FaultProofEnv(t, testCfg, tp, helpers.NewBatcherCfg())
 
+	const numL2Blocks = 8
 	for i := 0; i < numL2Blocks; i++ {
 		// Create an empty L2 block.
 		env.Sequencer.ActL2StartBlock(t)
@@ -46,10 +45,10 @@ func runL1LookbackTest(gt *testing.T, testCfg *helpers.TestCfg[uint64]) {
 	require.EqualValues(t, numL2Blocks, l2SafeHead.Number.Uint64())
 
 	// Run the FPP on the configured L2 block.
-	env.RunFaultProofProgram(t, testCfg.Custom, testCfg.CheckResult, testCfg.InputParams...)
+	env.RunFaultProofProgram(t, numL2Blocks/2, testCfg.CheckResult, testCfg.InputParams...)
 }
 
-func runL1LookbackTest_ReopenChannel(gt *testing.T, testCfg *helpers.TestCfg[uint64]) {
+func runL1LookbackTest_ReopenChannel(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	t := actionsHelpers.NewDefaultTesting(gt)
 	tp := helpers.NewTestParams()
 	env := helpers.NewL2FaultProofEnv(t, testCfg, tp, helpers.NewBatcherCfg())
@@ -89,6 +88,7 @@ func runL1LookbackTest_ReopenChannel(gt *testing.T, testCfg *helpers.TestCfg[uin
 	env.Miner.ActL1EndBlock(t)
 	env.Miner.ActL1SafeNext(t)
 
+	const numL2Blocks = 8
 	for i := 1; i < numL2Blocks; i++ {
 		// Create an empty L2 block.
 		env.Sequencer.ActL2StartBlock(t)
@@ -117,23 +117,23 @@ func runL1LookbackTest_ReopenChannel(gt *testing.T, testCfg *helpers.TestCfg[uin
 	require.EqualValues(t, numL2Blocks, l2SafeHead.Number.Uint64())
 
 	// Run the FPP on the configured L2 block.
-	env.RunFaultProofProgram(t, testCfg.Custom, testCfg.CheckResult, testCfg.InputParams...)
+	env.RunFaultProofProgram(t, numL2Blocks/2, testCfg.CheckResult, testCfg.InputParams...)
 }
 
 func Test_ProgramAction_L1Lookback(gt *testing.T) {
-	matrix := helpers.NewMatrix[uint64]()
+	matrix := helpers.NewMatrix[any]()
 	defer matrix.Run(gt)
 
 	matrix.AddTestCase(
 		"HonestClaim",
-		numL2Blocks/2,
+		nil,
 		helpers.LatestForkOnly,
 		runL1LookbackTest,
 		helpers.ExpectNoError(),
 	)
 	matrix.AddTestCase(
 		"JunkClaim",
-		numL2Blocks/2,
+		nil,
 		helpers.LatestForkOnly,
 		runL1LookbackTest,
 		helpers.ExpectError(claim.ErrClaimNotValid),
@@ -141,14 +141,14 @@ func Test_ProgramAction_L1Lookback(gt *testing.T) {
 	)
 	matrix.AddTestCase(
 		"HonestClaim-ReopenChannel",
-		numL2Blocks/2,
+		nil,
 		helpers.LatestForkOnly,
 		runL1LookbackTest_ReopenChannel,
 		helpers.ExpectNoError(),
 	)
 	matrix.AddTestCase(
 		"JunkClaim-ReopenChannel",
-		numL2Blocks/2,
+		nil,
 		helpers.LatestForkOnly,
 		runL1LookbackTest_ReopenChannel,
 		helpers.ExpectError(claim.ErrClaimNotValid),
