@@ -45,11 +45,11 @@ func (c *ConductorClient) Initialize(ctx context.Context) error {
 	apiClient, err := retry.Do(ctx, 60, retry.Fixed(5*time.Second), func() (*conductorRpc.APIClient, error) {
 		conductorRpcClient, err := dial.DialRPCClientWithTimeout(ctx, c.cfg.ConductorRpcTimeout, c.log, c.cfg.ConductorRpc)
 		if err != nil {
-			log.Warn("failed to dial conductor RPC", "err", err)
+			c.log.Warn("failed to dial conductor RPC", "err", err)
 			return nil, fmt.Errorf("failed to dial conductor RPC: %w", err)
 		}
 
-		log.Info("conductor connected")
+		c.log.Info("conductor connected")
 		return conductorRpc.NewAPIClient(conductorRpcClient), nil
 	})
 	if err != nil {
