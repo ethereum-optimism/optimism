@@ -28,6 +28,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
@@ -139,6 +140,16 @@ func (c *OpConductor) initSequencerControl(ctx context.Context) error {
 	}
 	node := sources.NewRollupClient(nc)
 	c.ctrl = client.NewSequencerControl(exec, node)
+
+	enabled, err := retry.Do(ctx, 60, retry.Fixed(5*time.Second), func() (bool, error) {
+		return c.ctrl.ConductorEnabled(ctx)
+	})
+	if err != nil {
+		return errors.Wrap(err, "failed to connect to sequencer")
+	}
+	if !enabled {
+		return errors.New("conductor is not enabled on sequencer, exiting...")
+	}
 
 	return c.updateSequencerActiveStatus()
 }
