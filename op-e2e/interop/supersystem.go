@@ -416,7 +416,8 @@ func (s *interopE2ESystem) newL2(id string, l2Out *interopgen.L2Output) l2Set {
 
 // prepareSupervisor creates a new supervisor for the system
 func (s *interopE2ESystem) prepareSupervisor() *supervisor.SupervisorService {
-	logger := s.logger.New("role", "supervisor")
+	// Be verbose with op-supervisor, it's in early test phase
+	logger := testlog.Logger(s.t, log.LevelDebug).New("role", "supervisor")
 	cfg := supervisorConfig.Config{
 		MetricsConfig: metrics.CLIConfig{
 			Enabled: false,

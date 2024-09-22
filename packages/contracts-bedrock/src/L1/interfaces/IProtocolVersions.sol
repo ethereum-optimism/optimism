@@ -25,4 +25,6 @@ interface IProtocolVersions {
     function setRequired(ProtocolVersion _required) external;
     function transferOwnership(address newOwner) external;
     function version() external view returns (string memory);
+
+    function __constructor__() external;
 }

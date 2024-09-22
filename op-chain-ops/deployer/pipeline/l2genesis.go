@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
-	"os"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opsm"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
@@ -16,19 +15,10 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-func GenerateL2Genesis(ctx context.Context, env *Env, intent *state.Intent, st *state.State, chainID common.Hash) error {
+func GenerateL2Genesis(ctx context.Context, env *Env, artifactsFS foundry.StatDirFs, intent *state.Intent, st *state.State, chainID common.Hash) error {
 	lgr := env.Logger.New("stage", "generate-l2-genesis")
 
 	lgr.Info("generating L2 genesis", "id", chainID.Hex())
-
-	var artifactsFS foundry.StatDirFs
-	var err error
-	if intent.ContractArtifactsURL.Scheme == "file" {
-		fs := os.DirFS(intent.ContractArtifactsURL.Path)
-		artifactsFS = fs.(foundry.StatDirFs)
-	} else {
-		return fmt.Errorf("only file:// artifacts URLs are supported")
-	}
 
 	thisIntent, err := intent.Chain(chainID)
 	if err != nil {
@@ -92,7 +82,7 @@ func GenerateL2Genesis(ctx context.Context, env *Env, intent *state.Intent, st *
 	if err := gw.Close(); err != nil {
 		return fmt.Errorf("failed to close gzip writer: %w", err)
 	}
-	thisChainState.Genesis = buf.Bytes()
+	thisChainState.Allocs = buf.Bytes()
 	startHeader, err := env.L1Client.HeaderByNumber(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to get start block: %w", err)

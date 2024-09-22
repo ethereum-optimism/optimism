@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math/big"
-	"os"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 
@@ -14,7 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
 
-func DeploySuperchain(ctx context.Context, env *Env, intent *state.Intent, st *state.State) error {
+func DeploySuperchain(ctx context.Context, env *Env, artifactsFS foundry.StatDirFs, intent *state.Intent, st *state.State) error {
 	lgr := env.Logger.New("stage", "deploy-superchain")
 
 	if !shouldDeploySuperchain(intent, st) {
@@ -24,17 +23,9 @@ func DeploySuperchain(ctx context.Context, env *Env, intent *state.Intent, st *s
 
 	lgr.Info("deploying superchain")
 
-	var artifactsFS foundry.StatDirFs
-	var err error
-	if intent.ContractArtifactsURL.Scheme == "file" {
-		fs := os.DirFS(intent.ContractArtifactsURL.Path)
-		artifactsFS = fs.(foundry.StatDirFs)
-	} else {
-		return fmt.Errorf("only file:// artifacts URLs are supported")
-	}
-
 	var dump *foundry.ForgeAllocs
 	var dso opsm.DeploySuperchainOutput
+	var err error
 	err = CallScriptBroadcast(
 		ctx,
 		CallScriptBroadcastOpts{

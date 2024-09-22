@@ -18,7 +18,12 @@ var logProcessorChainID = supTypes.ChainIDFromUInt64(4)
 
 func TestLogProcessor(t *testing.T) {
 	ctx := context.Background()
-	block1 := eth.L1BlockRef{Number: 100, Hash: common.Hash{0x11}, Time: 1111}
+	block1 := eth.L1BlockRef{
+		ParentHash: common.Hash{0x42},
+		Number:     100,
+		Hash:       common.Hash{0x11},
+		Time:       1111,
+	}
 	t.Run("NoOutputWhenLogsAreEmpty", func(t *testing.T) {
 		store := &stubLogStorage{}
 		processor := newLogProcessor(logProcessorChainID, store)
@@ -59,30 +64,36 @@ func TestLogProcessor(t *testing.T) {
 
 		err := processor.ProcessLogs(ctx, block1, rcpts)
 		require.NoError(t, err)
-		expected := []storedLog{
+		expectedLogs := []storedLog{
 			{
-				block:     block1.ID(),
-				timestamp: block1.Time,
-				logIdx:    0,
-				logHash:   logToLogHash(rcpts[0].Logs[0]),
-				execMsg:   nil,
+				parent:  block1.ParentID(),
+				logIdx:  0,
+				logHash: logToLogHash(rcpts[0].Logs[0]),
+				execMsg: nil,
 			},
 			{
-				block:     block1.ID(),
-				timestamp: block1.Time,
-				logIdx:    0,
-				logHash:   logToLogHash(rcpts[0].Logs[1]),
-				execMsg:   nil,
+				parent:  block1.ParentID(),
+				logIdx:  0,
+				logHash: logToLogHash(rcpts[0].Logs[1]),
+				execMsg: nil,
 			},
 			{
-				block:     block1.ID(),
-				timestamp: block1.Time,
-				logIdx:    0,
-				logHash:   logToLogHash(rcpts[1].Logs[0]),
-				execMsg:   nil,
+				parent:  block1.ParentID(),
+				logIdx:  0,
+				logHash: logToLogHash(rcpts[1].Logs[0]),
+				execMsg: nil,
 			},
 		}
-		require.Equal(t, expected, store.logs)
+		require.Equal(t, expectedLogs, store.logs)
+
+		expectedBlocks := []storedSeal{
+			{
+				parent:    block1.ParentHash,
+				block:     block1.ID(),
+				timestamp: block1.Time,
+			},
+		}
+		require.Equal(t, expectedBlocks, store.seals)
 	})
 
 	t.Run("IncludeExecutingMessage", func(t *testing.T) {
@@ -115,14 +126,22 @@ func TestLogProcessor(t *testing.T) {
 		require.NoError(t, err)
 		expected := []storedLog{
 			{
-				block:     block1.ID(),
-				timestamp: block1.Time,
-				logIdx:    0,
-				logHash:   logToLogHash(rcpts[0].Logs[0]),
-				execMsg:   &execMsg,
+				parent:  block1.ParentID(),
+				logIdx:  0,
+				logHash: logToLogHash(rcpts[0].Logs[0]),
+				execMsg: &execMsg,
 			},
 		}
 		require.Equal(t, expected, store.logs)
+
+		expectedBlocks := []storedSeal{
+			{
+				parent:    block1.ParentHash,
+				block:     block1.ID(),
+				timestamp: block1.Time,
+			},
+		}
+		require.Equal(t, expectedBlocks, store.seals)
 	})
 }
 
@@ -183,29 +202,46 @@ func TestToLogHash(t *testing.T) {
 }
 
 type stubLogStorage struct {
-	logs []storedLog
+	logs  []storedLog
+	seals []storedSeal
 }
 
-func (s *stubLogStorage) AddLog(chainID supTypes.ChainID, logHash backendTypes.TruncatedHash, block eth.BlockID, timestamp uint64, logIdx uint32, execMsg *backendTypes.ExecutingMessage) error {
+func (s *stubLogStorage) SealBlock(chainID supTypes.ChainID, parentHash common.Hash, block eth.BlockID, timestamp uint64) error {
 	if logProcessorChainID != chainID {
 		return fmt.Errorf("chain id mismatch, expected %v but got %v", logProcessorChainID, chainID)
 	}
-	s.logs = append(s.logs, storedLog{
+	s.seals = append(s.seals, storedSeal{
+		parent:    parentHash,
 		block:     block,
 		timestamp: timestamp,
-		logIdx:    logIdx,
-		logHash:   logHash,
-		execMsg:   execMsg,
 	})
 	return nil
 }
 
-type storedLog struct {
+func (s *stubLogStorage) AddLog(chainID supTypes.ChainID, logHash backendTypes.TruncatedHash, parentBlock eth.BlockID, logIdx uint32, execMsg *backendTypes.ExecutingMessage) error {
+	if logProcessorChainID != chainID {
+		return fmt.Errorf("chain id mismatch, expected %v but got %v", logProcessorChainID, chainID)
+	}
+	s.logs = append(s.logs, storedLog{
+		parent:  parentBlock,
+		logIdx:  logIdx,
+		logHash: logHash,
+		execMsg: execMsg,
+	})
+	return nil
+}
+
+type storedSeal struct {
+	parent    common.Hash
 	block     eth.BlockID
 	timestamp uint64
-	logIdx    uint32
-	logHash   backendTypes.TruncatedHash
-	execMsg   *backendTypes.ExecutingMessage
+}
+
+type storedLog struct {
+	parent  eth.BlockID
+	logIdx  uint32
+	logHash backendTypes.TruncatedHash
+	execMsg *backendTypes.ExecutingMessage
 }
 
 type EventDecoderFn func(*ethTypes.Log) (backendTypes.ExecutingMessage, error)

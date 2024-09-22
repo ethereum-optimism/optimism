@@ -130,6 +130,10 @@ func (s *BasicUser[B]) SetUserEnv(env *BasicUserEnv[B]) {
 	s.env = env
 }
 
+func (s *BasicUser[B]) Signer() types.Signer {
+	return s.env.Signer
+}
+
 func (s *BasicUser[B]) signerFn(address common.Address, tx *types.Transaction) (*types.Transaction, error) {
 	if address != s.address {
 		return nil, bind.ErrNotAuthorized

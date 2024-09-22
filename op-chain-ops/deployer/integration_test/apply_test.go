@@ -197,7 +197,7 @@ func TestEndToEndApply(t *testing.T) {
 		}
 
 		t.Run("l2 genesis", func(t *testing.T) {
-			require.Greater(t, len(chainState.Genesis), 0)
+			require.Greater(t, len(chainState.Allocs), 0)
 		})
 	}
 }

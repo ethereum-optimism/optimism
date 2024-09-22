@@ -50,4 +50,6 @@ interface IL2OutputOracle {
     function startingTimestamp() external view returns (uint256);
     function submissionInterval() external view returns (uint256);
     function version() external view returns (string memory);
+
+    function __constructor__() external;
 }
