@@ -9,6 +9,8 @@ import (
 // SequencerConductor is an interface for the driver to communicate with the sequencer conductor.
 // It is used to determine if the current node is the active sequencer, and to commit unsafe payloads to the conductor log.
 type SequencerConductor interface {
+	// Initialize initializes the conductor client, make sure the remote service is reachable.
+	Initialize(ctx context.Context) error
 	// Leader returns true if this node is the leader sequencer.
 	Leader(ctx context.Context) (bool, error)
 	// CommitUnsafePayload commits an unsafe payload to the conductor FSM.
@@ -23,6 +25,11 @@ type SequencerConductor interface {
 type NoOpConductor struct{}
 
 var _ SequencerConductor = &NoOpConductor{}
+
+// Initialize returns nil if remote is reachable. NoOpConductor always returns nil.
+func (c *NoOpConductor) Initialize(ctx context.Context) error {
+	return nil
+}
 
 // Leader returns true if this node is the leader sequencer. NoOpConductor always returns true.
 func (c *NoOpConductor) Leader(ctx context.Context) (bool, error) {

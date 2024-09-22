@@ -32,7 +32,7 @@ type ConductorClient struct {
 var _ conductor.SequencerConductor = &ConductorClient{}
 
 // NewConductorClient returns a new conductor client for the op-conductor RPC service.
-func NewConductorClient(cfg *Config, log log.Logger, metrics *metrics.Metrics) *ConductorClient {
+func NewConductorClient(cfg *Config, log log.Logger, metrics *metrics.Metrics) conductor.SequencerConductor {
 	return &ConductorClient{
 		cfg:     cfg,
 		metrics: metrics,
@@ -40,16 +40,23 @@ func NewConductorClient(cfg *Config, log log.Logger, metrics *metrics.Metrics) *
 	}
 }
 
-// Initialize initializes the conductor client.
-func (c *ConductorClient) initialize() error {
-	if c.apiClient != nil {
-		return nil
-	}
-	conductorRpcClient, err := dial.DialRPCClientWithTimeout(context.Background(), time.Minute*1, c.log, c.cfg.ConductorRpc)
+// Initialize implements conductor.SequencerConductor.
+func (c *ConductorClient) Initialize(ctx context.Context) error {
+	apiClient, err := retry.Do(ctx, 60, retry.Fixed(5*time.Second), func() (*conductorRpc.APIClient, error) {
+		conductorRpcClient, err := dial.DialRPCClientWithTimeout(ctx, c.cfg.ConductorRpcTimeout, c.log, c.cfg.ConductorRpc)
+		if err != nil {
+			log.Warn("failed to dial conductor RPC", "err", err)
+			return nil, fmt.Errorf("failed to dial conductor RPC: %w", err)
+		}
+
+		log.Info("conductor connected")
+		return conductorRpc.NewAPIClient(conductorRpcClient), nil
+	})
 	if err != nil {
-		return fmt.Errorf("failed to dial conductor RPC: %w", err)
+		return err
 	}
-	c.apiClient = conductorRpc.NewAPIClient(conductorRpcClient)
+
+	c.apiClient = apiClient
 	return nil
 }
 
@@ -59,9 +66,6 @@ func (c *ConductorClient) Leader(ctx context.Context) (bool, error) {
 		return true, nil
 	}
 
-	if err := c.initialize(); err != nil {
-		return false, err
-	}
 	ctx, cancel := context.WithTimeout(ctx, c.cfg.ConductorRpcTimeout)
 	defer cancel()
 
@@ -80,9 +84,6 @@ func (c *ConductorClient) CommitUnsafePayload(ctx context.Context, payload *eth.
 		return nil
 	}
 
-	if err := c.initialize(); err != nil {
-		return err
-	}
 	ctx, cancel := context.WithTimeout(ctx, c.cfg.ConductorRpcTimeout)
 	defer cancel()
 
