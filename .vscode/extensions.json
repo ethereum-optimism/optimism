@@ -1,7 +1,0 @@
-{
-  "recommendations": [
-    "editorconfig.editorconfig",
-    "nomicfoundation.hardhat-solidity",
-    "golang.go"
-  ]
-}

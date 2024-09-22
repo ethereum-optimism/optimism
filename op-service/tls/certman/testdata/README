@@ -1,3 +1,0 @@
-Test certificates generated with the following command:
-
-openssl req -new -newkey rsa:2048 -days 365 -nodes -x509 -sha256 -keyout server.key -out server.crt

@@ -1,3 +1,0 @@
-# ops
-
-Various operational packages
