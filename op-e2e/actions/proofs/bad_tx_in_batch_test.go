@@ -72,7 +72,7 @@ func runBadTxInBatchTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	env.RunFaultProofProgram(t, l2SafeHead.Number.Uint64(), testCfg.CheckResult, testCfg.InputParams...)
 }
 
-func runBadTxInBatch_FirstInBadBatch_Test(gt *testing.T, testCfg *helpers.TestCfg[any]) {
+func runBadTxInBatch_ResubmitBadFirstFrame_Test(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	t := actionsHelpers.NewDefaultTesting(gt)
 	env := helpers.NewL2FaultProofEnv(t, testCfg, helpers.NewTestParams(), helpers.NewBatcherCfg())
 
@@ -157,17 +157,17 @@ func Test_ProgramAction_BadTxInBatch(gt *testing.T) {
 		helpers.WithL2Claim(common.HexToHash("0xdeadbeef")),
 	)
 	matrix.AddTestCase(
-		"FirstInBadBatch-HonestClaim",
+		"ResubmitBadFirstFrame-HonestClaim",
 		nil,
 		helpers.LatestForkOnly,
-		runBadTxInBatch_FirstInBadBatch_Test,
+		runBadTxInBatch_ResubmitBadFirstFrame_Test,
 		helpers.ExpectNoError(),
 	)
 	matrix.AddTestCase(
-		"FirstInBadBatch-JunkClaim",
+		"ResubmitBadFirstFrame-JunkClaim",
 		nil,
 		helpers.LatestForkOnly,
-		runBadTxInBatch_FirstInBadBatch_Test,
+		runBadTxInBatch_ResubmitBadFirstFrame_Test,
 		helpers.ExpectError(claim.ErrClaimNotValid),
 		helpers.WithL2Claim(common.HexToHash("0xdeadbeef")),
 	)
