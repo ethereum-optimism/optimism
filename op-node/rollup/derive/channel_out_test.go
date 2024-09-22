@@ -61,7 +61,7 @@ var channelTypes = []struct {
 	{
 		Name: "Span",
 		ChannelOut: func(t *testing.T, rcfg *rollup.Config) ChannelOut {
-			cout, err := NewSpanChannelOut(0, big.NewInt(0), 128_000, Zlib, rollup.NewChainSpec(rcfg))
+			cout, err := NewSpanChannelOut(128_000, Zlib, rollup.NewChainSpec(rcfg))
 			require.NoError(t, err)
 			return cout
 		},
@@ -111,9 +111,8 @@ func TestOutputFrameNoEmptyLastFrame(t *testing.T) {
 			cout := tcase.ChannelOut(t, &rollupCfg)
 
 			rng := rand.New(rand.NewSource(0x543331))
-			chainID := big.NewInt(0)
 			txCount := 1
-			singularBatch := RandomSingularBatch(rng, txCount, chainID)
+			singularBatch := RandomSingularBatch(rng, txCount, rollupCfg.L2ChainID)
 
 			err := cout.AddSingularBatch(singularBatch, 0)
 			var written uint64
@@ -236,7 +235,7 @@ func SpanChannelAndBatches(t *testing.T, targetOutputSize uint64, numBatches int
 	chainID := rollupCfg.L2ChainID
 	txCount := 1
 	genesisTime := rollupCfg.Genesis.L2Time
-	cout, err := NewSpanChannelOut(genesisTime, chainID, targetOutputSize, algo, rollup.NewChainSpec(&rollupCfg), opts...)
+	cout, err := NewSpanChannelOut(targetOutputSize, algo, rollup.NewChainSpec(&rollupCfg), opts...)
 	require.NoError(t, err)
 	batches := make([]*SingularBatch, 0, numBatches)
 	// adding the first batch should not cause an error
