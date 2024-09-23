@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/heads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
-	backendTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -25,8 +24,8 @@ var (
 type LogStorage interface {
 	io.Closer
 
-	AddLog(logHash backendTypes.TruncatedHash, parentBlock eth.BlockID,
-		logIdx uint32, execMsg *backendTypes.ExecutingMessage) error
+	AddLog(logHash common.Hash, parentBlock eth.BlockID,
+		logIdx uint32, execMsg *types.ExecutingMessage) error
 
 	SealBlock(parentHash common.Hash, block eth.BlockID, timestamp uint64) error
 
@@ -45,7 +44,7 @@ type LogStorage interface {
 	// returns ErrConflict if the log does not match the canonical chain.
 	// returns ErrFuture if the log is out of reach.
 	// returns nil if the log is known and matches the canonical chain.
-	Contains(blockNum uint64, logIdx uint32, logHash backendTypes.TruncatedHash) (nextIndex entrydb.EntryIdx, err error)
+	Contains(blockNum uint64, logIdx uint32, logHash common.Hash) (nextIndex entrydb.EntryIdx, err error)
 }
 
 var _ LogStorage = (*logs.DB)(nil)
@@ -125,7 +124,7 @@ func (db *ChainsDB) StartCrossHeadMaintenance(ctx context.Context) {
 }
 
 // Check calls the underlying logDB to determine if the given log entry is safe with respect to the checker's criteria.
-func (db *ChainsDB) Check(chain types.ChainID, blockNum uint64, logIdx uint32, logHash backendTypes.TruncatedHash) (entrydb.EntryIdx, error) {
+func (db *ChainsDB) Check(chain types.ChainID, blockNum uint64, logIdx uint32, logHash common.Hash) (entrydb.EntryIdx, error) {
 	logDB, ok := db.logDBs[chain]
 	if !ok {
 		return 0, fmt.Errorf("%w: %v", ErrUnknownChain, chain)
@@ -267,7 +266,7 @@ func (db *ChainsDB) SealBlock(chain types.ChainID, parentHash common.Hash, block
 	return logDB.SealBlock(parentHash, block, timestamp)
 }
 
-func (db *ChainsDB) AddLog(chain types.ChainID, logHash backendTypes.TruncatedHash, parentBlock eth.BlockID, logIdx uint32, execMsg *backendTypes.ExecutingMessage) error {
+func (db *ChainsDB) AddLog(chain types.ChainID, logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *types.ExecutingMessage) error {
 	logDB, ok := db.logDBs[chain]
 	if !ok {
 		return fmt.Errorf("%w: %v", ErrUnknownChain, chain)
