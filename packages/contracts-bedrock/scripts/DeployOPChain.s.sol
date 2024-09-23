@@ -46,7 +46,6 @@ contract DeployOPChainInput is BaseDeployIO {
     uint32 internal _blobBaseFeeScalar;
     uint256 internal _l2ChainId;
     OPStackManager internal _opsmProxy;
-    bytes internal _startingAnchorRoots;
 
     function set(bytes4 _sel, address _addr) public {
         require(_addr != address(0), "DeployOPChainInput: cannot set zero address");
@@ -68,14 +67,6 @@ contract DeployOPChainInput is BaseDeployIO {
         } else if (_sel == this.l2ChainId.selector) {
             require(_value != 0 && _value != block.chainid, "DeployOPChainInput: invalid l2ChainId");
             _l2ChainId = _value;
-        } else {
-            revert("DeployOPChainInput: unknown selector");
-        }
-    }
-
-    function set(bytes4 _sel, bytes memory _value) public {
-        if (_sel == this.startingAnchorRoots.selector) {
-            _startingAnchorRoots = _value;
         } else {
             revert("DeployOPChainInput: unknown selector");
         }
@@ -127,9 +118,24 @@ contract DeployOPChainInput is BaseDeployIO {
         return _l2ChainId;
     }
 
-    function startingAnchorRoots() public view returns (bytes memory) {
-        require(_startingAnchorRoots.length > 0, "DeployOPChainInput: not set");
-        return _startingAnchorRoots;
+    function startingAnchorRoots() public pure returns (bytes memory) {
+        // WARNING: For now always hardcode the starting permissioned game anchor root to 0xdead,
+        // and we do not set anything for the permissioned game. This is because we currently only
+        // support deploying straight to permissioned games, and the starting root does not
+        // matter for that, as long as it is non-zero, since no games will be played. We do not
+        // deploy the permissionless game (and therefore do not set a starting root for it here)
+        // because to to update to the permissionless game, we will need to update its starting
+        // anchor root and deploy a new permissioned dispute game contract anyway.
+        //
+        // You can `console.logBytes(abi.encode(defaultStartingAnchorRoots))` to get the bytes that
+        // are hardcoded into `op-chain-ops/deployer/pipeline/opchain.go`
+        AnchorStateRegistry.StartingAnchorRoot[] memory defaultStartingAnchorRoots =
+                    new AnchorStateRegistry.StartingAnchorRoot[](1);
+        defaultStartingAnchorRoots[0] = AnchorStateRegistry.StartingAnchorRoot({
+            gameType: GameTypes.PERMISSIONED_CANNON,
+            outputRoot: OutputRoot({ root: Hash.wrap(bytes32(hex"dead")), l2BlockNumber: 0 })
+        });
+        return abi.encode(defaultStartingAnchorRoots);
     }
 
     // TODO: Check that opsm is proxied and it has an implementation.
@@ -443,24 +449,6 @@ contract DeployOPChain is Script {
 
     function run(DeployOPChainInput _doi, DeployOPChainOutput _doo) public {
         OPStackManager opsmProxy = _doi.opsmProxy();
-
-        // WARNING: For now always hardcode the starting permissioned game anchor root to 0xdead,
-        // and we do not set anything for the permissioned game. This is because we currently only
-        // support deploying straight to permissioned games, and the starting root does not
-        // matter for that, as long as it is non-zero, since no games will be played. We do not
-        // deploy the permissionless game (and therefore do not set a starting root for it here)
-        // because to to update to the permissionless game, we will need to update its starting
-        // anchor root and deploy a new permissioned dispute game contract anyway.
-        //
-        // You can `console.logBytes(abi.encode(defaultStartingAnchorRoots))` to get the bytes that
-        // are hardcoded into `op-chain-ops/deployer/pipeline/opchain.go`
-        AnchorStateRegistry.StartingAnchorRoot[] memory defaultStartingAnchorRoots =
-            new AnchorStateRegistry.StartingAnchorRoot[](1);
-        defaultStartingAnchorRoots[0] = AnchorStateRegistry.StartingAnchorRoot({
-            gameType: GameTypes.PERMISSIONED_CANNON,
-            outputRoot: OutputRoot({ root: Hash.wrap(bytes32(hex"dead")), l2BlockNumber: 0 })
-        });
-        _doi.set(_doi.startingAnchorRoots.selector, abi.encode(defaultStartingAnchorRoots));
 
         OPStackManager.Roles memory roles = OPStackManager.Roles({
             opChainProxyAdminOwner: _doi.opChainProxyAdminOwner(),

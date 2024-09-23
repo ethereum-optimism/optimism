@@ -267,7 +267,7 @@ contract OPStackManager is ISemver, Initializable {
         );
 
         // -------- Set and Initialize Proxy Implementations --------
-        Implementation storage impl;
+        Implementation memory impl;
         bytes memory data;
 
         impl = getLatestImplementation("L1ERC721Bridge");
@@ -352,9 +352,14 @@ contract OPStackManager is ISemver, Initializable {
         return Blueprint.deployFrom(blueprint.proxy, salt, abi.encode(_proxyAdmin));
     }
 
-    /// @notice Returns the implementation data for a contract name.
-    function getLatestImplementation(string memory _name) internal view returns (Implementation storage) {
-        return implementations[latestRelease][_name];
+    /// @notice Returns the implementation data for a contract name. Makes a copy of the internal
+    //  Implementation struct in storage to prevent accidental mutation of the internal data.
+    function getLatestImplementation(string memory _name) internal view returns (Implementation memory) {
+        Implementation storage impl = implementations[latestRelease][_name];
+        return Implementation({
+            logic: impl.logic,
+            initializer: impl.initializer
+        });
     }
 
     // -------- Initializer Encoding --------
