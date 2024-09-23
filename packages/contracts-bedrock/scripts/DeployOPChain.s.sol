@@ -130,7 +130,7 @@ contract DeployOPChainInput is BaseDeployIO {
         // You can `console.logBytes(abi.encode(defaultStartingAnchorRoots))` to get the bytes that
         // are hardcoded into `op-chain-ops/deployer/pipeline/opchain.go`
         AnchorStateRegistry.StartingAnchorRoot[] memory defaultStartingAnchorRoots =
-                    new AnchorStateRegistry.StartingAnchorRoot[](1);
+            new AnchorStateRegistry.StartingAnchorRoot[](1);
         defaultStartingAnchorRoots[0] = AnchorStateRegistry.StartingAnchorRoot({
             gameType: GameTypes.PERMISSIONED_CANNON,
             outputRoot: OutputRoot({ root: Hash.wrap(bytes32(hex"dead")), l2BlockNumber: 0 })

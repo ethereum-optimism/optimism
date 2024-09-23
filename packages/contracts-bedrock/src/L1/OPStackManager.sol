@@ -356,10 +356,7 @@ contract OPStackManager is ISemver, Initializable {
     //  Implementation struct in storage to prevent accidental mutation of the internal data.
     function getLatestImplementation(string memory _name) internal view returns (Implementation memory) {
         Implementation storage impl = implementations[latestRelease][_name];
-        return Implementation({
-            logic: impl.logic,
-            initializer: impl.initializer
-        });
+        return Implementation({ logic: impl.logic, initializer: impl.initializer });
     }
 
     // -------- Initializer Encoding --------
