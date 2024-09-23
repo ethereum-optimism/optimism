@@ -105,9 +105,13 @@ commands:
           environment:
             CHECK_CHANGED_NO_GO_DEPS: "<<parameters.no_go_deps>>"
           command: |
-            cd ops/check-changed
-            pip3 install -r requirements.txt
-            python3 main.py "<<parameters.patterns>>"
+            echo "hello"
+#            cd ops/check-changed
+#            python3 -m venv venv
+#            source venv/bin/activate
+#            pip3 install -r requirements.txt
+#            python3 main.py "<<parameters.patterns>>"
+
 
   install-contracts-dependencies:
     description: "Install the dependencies for the smart contracts"
