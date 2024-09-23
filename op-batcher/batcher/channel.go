@@ -171,6 +171,7 @@ func (s *channel) NextTxData() txData {
 
 	id := txdata.ID().String()
 	s.log.Debug("returning next tx data", "id", id, "num_frames", len(txdata.frames), "as_blob", txdata.asBlob)
+	s.pendingTransactions[id] = txdata
 
 	return txdata
 }

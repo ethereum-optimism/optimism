@@ -137,12 +137,14 @@ func (s *channelManager) removePendingChannel(channel *channel) {
 }
 
 // nextTxData dequeues frames from the channel and returns them encoded in a transaction.
+// It also updates the internal tx -> channels mapping
 func (s *channelManager) nextTxData(channel *channel) (txData, error) {
 	if channel == nil || !channel.HasTxData() {
 		s.log.Trace("no next tx data")
 		return txData{}, io.EOF // TODO: not enough data error instead
 	}
 	tx := channel.NextTxData()
+	s.txChannels[tx.ID().String()] = channel
 	return tx, nil
 }
 
@@ -156,14 +158,6 @@ func (s *channelManager) nextTxData(channel *channel) (txData, error) {
 // automatically. When switching DA type, the channelManager state will be rebuilt
 // with a new ChannelConfig.
 func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
-
-	var data txData
-	var channel *channel
-	defer func() {
-		if len(data.frames) > 0 && channel != nil {
-			s.txChannels[data.ID().String()] = channel
-		}
-	}()
 
 	channel, data, err := s.txData(l1Head)
 	if err != nil {
@@ -195,6 +189,11 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 	return data, err
 }
 
+// TODO instead of wrapping this function, we should refactor it
+// so it returns the channel to call nextTxData on. It can still create
+// a channel if necessary. Then we will know whether to rebuild state
+// or not
+// whether
 // txData returns the next tx data that should be submitted to L1.
 //
 // If the current channel is
