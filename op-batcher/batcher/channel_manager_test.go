@@ -483,3 +483,50 @@ func TestChannelManager_ChannelCreation(t *testing.T) {
 		})
 	}
 }
+
+func TestChannelManager_Requeue(t *testing.T) {
+	l := testlog.Logger(t, log.LevelCrit)
+	cfg := channelManagerTestConfig(1000, derive.SpanBatchType)
+	m := NewChannelManager(l, metrics.NoopMetrics, cfg, &defaultTestRollupConfig)
+
+	// Seed channel manager with a single block
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	blockA := derivetest.RandomL2BlockWithChainId(rng, 1000, defaultTestRollupConfig.L2ChainID)
+	require.NoError(t, m.AddL2Block(blockA))
+
+	// This is the snapshot of channel manager state we want to reinstate
+	require.Equal(t, m.blocks, []*types.Block{blockA})
+	require.Empty(t, m.channelQueue)
+
+	// Trigger the blocks -> channelQueue data pipelining
+	require.NoError(t, m.ensureChannelWithSpace(eth.BlockID{}))
+	require.NotEmpty(t, m.channelQueue)
+	require.NoError(t, m.processBlocks())
+	require.Empty(t, m.blocks)
+
+	// Call the function we are testing
+	require.NoError(t, m.Requeue(m.defaultCfg))
+
+	// Ensure we got back to the state above
+	require.Equal(t, m.blocks, []*types.Block{blockA})
+	require.Empty(t, m.channelQueue)
+
+	// Trigger the blocks -> channelQueue data pipelining again
+	require.NoError(t, m.ensureChannelWithSpace(eth.BlockID{}))
+	require.NotEmpty(t, m.channelQueue)
+	require.NoError(t, m.processBlocks())
+	require.Empty(t, m.blocks)
+
+	// Now mark the 0th channel in the queue as already
+	// starting to send on chain
+	channel0 := m.channelQueue[0]
+	channel0.pendingTransactions["foo"] = txData{}
+	require.False(t, channel0.NoneSubmitted())
+
+	// Call the function we are testing
+	require.NoError(t, m.Requeue(m.defaultCfg))
+
+	// The rewind shouldn't affect the pending channel
+	require.Contains(t, m.channelQueue, channel0)
+	require.Empty(t, m.blocks)
+}
