@@ -126,6 +126,14 @@ func (l *logContext) ExecMessage() *types.ExecutingMessage {
 	return nil
 }
 
+func (l *logContext) Pointer() (hash types.TruncatedHash, num uint64, timestamp uint64, logsSince uint32, ok bool) {
+	if l.need != 0 {
+		ok = false
+		return
+	}
+	return l.blockHash, l.blockNum, l.timestamp, l.logsSince, true
+}
+
 // ApplyEntry applies an entry on top of the current state.
 func (l *logContext) ApplyEntry(entry entrydb.Entry) error {
 	// Wrap processEntry to add common useful error message info

@@ -13,6 +13,7 @@ import (
 
 type IteratorState interface {
 	NextIndex() entrydb.EntryIdx
+	Pointer() (hash common.Hash, num uint64, timestamp uint64, logsSince uint32, ok bool)
 	SealedBlock() (hash common.Hash, num uint64, ok bool)
 	InitMessage() (hash common.Hash, logIndex uint32, ok bool)
 	ExecMessage() *types.ExecutingMessage
@@ -23,6 +24,7 @@ type Iterator interface {
 	NextInitMsg() error
 	NextExecMsg() error
 	NextBlock() error
+	TraverseConditional(fn func(state IteratorState) error) error
 	IteratorState
 }
 
@@ -105,6 +107,25 @@ func (i *iterator) NextBlock() error {
 	}
 }
 
+func (i *iterator) TraverseConditional(fn func(state IteratorState) error) error {
+	var snapshot logContext
+	for {
+		snapshot = i.current // copy the iterator state
+		_, err := i.next()
+		if err != nil {
+			i.current = snapshot
+			return err
+		}
+		if i.current.need != 0 { // skip intermediate states
+			continue
+		}
+		if err := fn(&i.current); err != nil {
+			i.current = snapshot
+			return err
+		}
+	}
+}
+
 // Read and apply the next entry.
 func (i *iterator) next() (entrydb.EntryType, error) {
 	index := i.current.nextEntryIndex
@@ -141,4 +162,8 @@ func (i *iterator) InitMessage() (hash common.Hash, logIndex uint32, ok bool) {
 // ExecMessage returns the current executing message, if any is available.
 func (i *iterator) ExecMessage() *types.ExecutingMessage {
 	return i.current.ExecMessage()
+}
+
+func (i *iterator) Pointer() (hash types.TruncatedHash, num uint64, timestamp uint64, logsSince uint32, ok bool) {
+	return i.current.Pointer()
 }
