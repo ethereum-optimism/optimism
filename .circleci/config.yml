@@ -818,9 +818,8 @@ jobs:
         description: Test directory
         type: string
         default: "./..."
-    machine:
-      image: <<pipeline.parameters.base_image>> # only used to enable codecov.
-    resource_class: xlarge
+    machine: true
+    resource_class: ethereum-optimism/e2-standard-16
     steps:
       - run:
           name: Install components
@@ -1145,8 +1144,8 @@ jobs:
           mentions: "@proofs-squad"
 
   devnet:
-    machine:
-      image: <<pipeline.parameters.base_image>>
+    machine: true
+    resource_class: ethereum-optimism/e2-standard-16
     parameters:
       variant:
         type: string
