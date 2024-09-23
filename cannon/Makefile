@@ -13,8 +13,15 @@ ifeq ($(shell uname),Darwin)
 	FUZZLDFLAGS := -ldflags=-extldflags=-Wl,-ld_classic
 endif
 
-cannon:
-	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v $(LDFLAGS) -o ./bin/cannon .
+cannon-impl:
+	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v $(LDFLAGS) -o ./bin/cannon-impl .
+
+cannon-embeds: cannon-impl
+	@cp bin/cannon-impl ./multicannon/embeds/cannon-0
+	@cp bin/cannon-impl ./multicannon/embeds/cannon-1
+
+cannon: cannon-embeds
+	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v $(LDFLAGS) -o ./bin/cannon ./multicannon/
 
 clean:
 	rm -rf bin

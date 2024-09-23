@@ -118,15 +118,19 @@ func LoadELF(ctx *cli.Context) error {
 	return serialize.Write(ctx.Path(LoadELFOutFlag.Name), versionedState, OutFilePerm)
 }
 
-var LoadELFCommand = &cli.Command{
-	Name:        "load-elf",
-	Usage:       "Load ELF file into Cannon state",
-	Description: "Load ELF file into Cannon state",
-	Action:      LoadELF,
-	Flags: []cli.Flag{
-		LoadELFVMTypeFlag,
-		LoadELFPathFlag,
-		LoadELFOutFlag,
-		LoadELFMetaFlag,
-	},
+func CreateLoadELFCommand(action cli.ActionFunc) *cli.Command {
+	return &cli.Command{
+		Name:        "load-elf",
+		Usage:       "Load ELF file into Cannon state",
+		Description: "Load ELF file into Cannon state",
+		Action:      action,
+		Flags: []cli.Flag{
+			LoadELFVMTypeFlag,
+			LoadELFPathFlag,
+			LoadELFOutFlag,
+			LoadELFMetaFlag,
+		},
+	}
 }
+
+var LoadELFCommand = CreateLoadELFCommand(LoadELF)
