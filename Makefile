@@ -148,7 +148,7 @@ cannon-prestate: op-program cannon ## Generates prestate using cannon and op-pro
 .PHONY: cannon-prestate
 
 cannon-prestate-mt: op-program cannon ## Generates prestate using cannon and op-program in the multithreaded cannon format
-	./cannon/bin/cannon load-elf --single multi --type cannon-mt --path op-program/bin/op-program-client.elf --out op-program/bin/prestate-mt.bin.gz --meta op-program/bin/meta-mt.json
+	./cannon/bin/cannon load-elf --version multi --type cannon-mt --path op-program/bin/op-program-client.elf --out op-program/bin/prestate-mt.bin.gz --meta op-program/bin/meta-mt.json
 	./cannon/bin/cannon run --proof-at '=0' --stop-at '=1' --input op-program/bin/prestate-mt.bin.gz --meta op-program/bin/meta-mt.json --proof-fmt 'op-program/bin/%d-mt.json' --output ""
 	mv op-program/bin/0-mt.json op-program/bin/prestate-proof-mt.json
 .PHONY: cannon-prestate-mt
