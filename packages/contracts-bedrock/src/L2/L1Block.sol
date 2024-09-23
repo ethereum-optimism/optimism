@@ -3,7 +3,14 @@ pragma solidity 0.8.15;
 
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { Constants } from "src/libraries/Constants.sol";
+import { StaticConfig, ConfigType } from "src/libraries/StaticConfig.sol";
 import { GasPayingToken, IGasToken } from "src/libraries/GasPayingToken.sol";
+import { IFeeVault } from "src/universal/interfaces/IFeeVault.sol";
+import { ICrossDomainMessenger } from "src/universal/interfaces/ICrossDomainMessenger.sol";
+import { IStandardBridge } from "src/universal/interfaces/IStandardBridge.sol";
+import { IERC721Bridge } from "src/universal/interfaces/IERC721Bridge.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Encoding } from "src/libraries/Encoding.sol";
 import "src/libraries/L1BlockErrors.sol";
 
 /// @custom:proxied true
@@ -16,6 +23,21 @@ import "src/libraries/L1BlockErrors.sol";
 contract L1Block is ISemver, IGasToken {
     /// @notice Event emitted when the gas paying token is set.
     event GasPayingTokenSet(address indexed token, uint8 indexed decimals, bytes32 name, bytes32 symbol);
+
+    /// @notice
+    bytes32 internal BASE_FEE_VAULT_CONFIG_SLOT = bytes32(uint256(keccak256("opstack.basefeevaultconfig")) - 1);
+    /// @notice
+    bytes32 internal L1_FEE_VAULT_CONFIG_SLOT = bytes32(uint256(keccak256("opstack.l1feevaultconfig")) - 1);
+    /// @notice
+    bytes32 internal SEQUENCER_FEE_VAULT_CONFIG_SLOT = bytes32(uint256(keccak256("opstack.sequencerfeevaultconfig")) - 1);
+    /// @notice
+    bytes32 internal L1_CROSS_DOMAIN_MESSENGER_ADDRESS_SLOT = bytes32(uint256(keccak256("opstack.l1crossdomainmessengeraddress")) - 1);
+    /// @notice
+    bytes32 internal L1_ERC_721_BRIDGE_ADDRESS_SLOT = bytes32(uint256(keccak256("opstack.l1erc721bridgeaddress")) - 1);
+    /// @notice
+    bytes32 internal L1_STANDARD_BRIDGE_ADDRESS_SLOT = bytes32(uint256(keccak256("opstack.l1standardbridgeaddress")) - 1);
+    /// @notice
+    bytes32 internal REMOTE_CHAIN_ID_SLOT = bytes32(uint256(keccak256("opstack.remotechainid")) - 1);
 
     /// @notice Address of the special depositor account.
     function DEPOSITOR_ACCOUNT() public pure returns (address addr_) {
@@ -168,6 +190,30 @@ contract L1Block is ISemver, IGasToken {
         }
     }
 
+    /// @notice Sets static configuration options for the L2 system. Can only be called by the special
+    ///         depositor account.
+    /// @param _type  The type of configuration to set.
+    /// @param _value The encoded value with which to set the configuration.
+    function setConfig(ConfigType _type, bytes calldata _value) public virtual {
+        if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
+
+        if (_type == ConfigType.SET_GAS_PAYING_TOKEN) {
+            _setGasPayingToken(_value);
+        } else if (_type == ConfigType.SET_BASE_FEE_VAULT_CONFIG) {
+            _setBaseFeeVaultConfig(_value);
+        }
+    }
+
+    /// @notice Internal method to set the gas paying token.
+    /// @param _value The encoded value with which to set the gas paying token.
+    function _setGasPayingToken(bytes calldata _value) internal {
+        (address token, uint8 decimals, bytes32 name, bytes32 symbol) = StaticConfig.decodeSetGasPayingToken(_value);
+
+        GasPayingToken.set({ _token: token, _decimals: decimals, _name: name, _symbol: symbol });
+
+        emit GasPayingTokenSet({ token: token, decimals: decimals, name: name, symbol: symbol });
+    }
+
     /// @notice Sets the gas paying token for the L2 system. Can only be called by the special
     ///         depositor account. This function is not called on every L2 block but instead
     ///         only called by specially crafted L1 deposit transactions.
@@ -177,5 +223,39 @@ contract L1Block is ISemver, IGasToken {
         GasPayingToken.set({ _token: _token, _decimals: _decimals, _name: _name, _symbol: _symbol });
 
         emit GasPayingTokenSet({ token: _token, decimals: _decimals, name: _name, symbol: _symbol });
+    }
+
+    /// @notice
+    function setHolocene() external {
+        if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
+
+        bytes32 baseFeeVaultConfig = _feeVaultConfig(Predeploys.BASE_FEE_VAULT);
+        bytes32 l1FeeVaultConfig = _feeVaultConfig(Predeploys.L1_FEE_VAULT);
+        bytes32 sequencerFeeVaultConfig = _feeVaultConfig(Predeploys.SEQUENCER_FEE_WALLET);
+        address otherMessenger = address(ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).otherMessenger());
+        address otherBridge = address(IStandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).otherBridge());
+        address other721Bridge = IERC721Bridge(Predeploys.L2_ERC721_BRIDGE).otherBridge();
+
+        // TODO:
+        address remoteChainId = IERC721Bridge(Predeploys.L2_ERC721_BRIDGE).remoteChainId();
+
+        assembly {
+            sstore(BASE_FEE_VAULT_CONFIG_SLOT, baseFeeVaultConfig)
+            sstore(L1_FEE_VAULT_CONFIG_SLOT, l1FeeVaultConfig)
+            sstore(SEQUENCER_FEE_VAULT_CONFIG_SLOT, sequencerFeeVaultConfig)
+            sstore(L1_CROSS_DOMAIN_MESSENGER_ADDRESS_SLOT, otherMessenger)
+            sstore(L1_STANDARD_BRIDGE_ADDRESS_SLOT, otherBridge)
+            sstore(L1_ERC_721_BRIDGE_ADDRESS_SLOT, other721Bridge)
+            sstore(REMOTE_CHAIN_ID_SLOT, remoteChainId)
+        }
+    }
+
+    function _setBaseFeeVaultConfig(bytes memory _value) internal {
+        // StaticConfig.decodeSetBaseFeeVaultConfig(_value);
+    }
+
+    function _feeVaultConfig(address _addr) internal returns (bytes32) {
+        (address recipient, uint256 amount, IFeeVault.WithdrawalNetwork network) = IFeeVault(_addr).config();
+        return Encoding.encodeFeeVaultConfig(recipient, amount, network);
     }
 }

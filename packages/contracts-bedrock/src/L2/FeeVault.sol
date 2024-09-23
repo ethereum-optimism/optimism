@@ -83,6 +83,13 @@ abstract contract FeeVault {
         network_ = WITHDRAWAL_NETWORK;
     }
 
+    /// @notice Returns the configuration of the FeeVault.
+    function config() external view returns (address recipient_, uint256 amount_, WithdrawalNetwork network_) {
+        recipient_ = RECIPIENT;
+        amount_ = MIN_WITHDRAWAL_AMOUNT;
+        network_ = WITHDRAWAL_NETWORK;
+    }
+
     /// @notice Triggers a withdrawal of funds to the fee wallet on L1 or L2.
     function withdraw() external {
         require(

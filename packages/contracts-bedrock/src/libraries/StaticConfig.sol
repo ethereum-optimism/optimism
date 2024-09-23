@@ -1,6 +1,27 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+// TODO: ifeevault
+import { FeeVault } from "src/universal/FeeVault.sol";
+
+/// @notice Enum representing different types of configurations that can be set on L1BlockIsthmus.
+/// @custom:value SET_GAS_PAYING_TOKEN  Represents the config type for setting the gas paying token.
+/// @custom:value
+/// @custom:value ADD_DEPENDENCY        Represents the config type for adding a chain to the interop dependency set.
+/// @custom:value REMOVE_DEPENDENCY     Represents the config type for removing a chain from the interop dependency set.
+enum ConfigType {
+    SET_GAS_PAYING_TOKEN,
+    SET_BASE_FEE_VAULT_CONFIG,
+    SET_L1_FEE_VAULT_CONFIG,
+    SET_SEQUENCER_FEE_VAULT_CONFIG,
+    SET_L1_CROSS_DOMAIN_MESSENGER_ADDRESS,
+    SET_L1_ERC_721_BRIDGE_ADDRESS,
+    SET_L1_STANDARD_BRIDGE_ADDRESS,
+    SET_REMOTE_CHAIN_ID,
+    ADD_DEPENDENCY,
+    REMOVE_DEPENDENCY
+}
+
 /// @title StaticConfig
 /// @notice Library for encoding and decoding static configuration data.
 library StaticConfig {
@@ -55,6 +76,36 @@ library StaticConfig {
     /// @param _data Encoded static configuration data.
     /// @return Decoded chain ID of the dependency to remove.
     function decodeRemoveDependency(bytes memory _data) internal pure returns (uint256) {
+        return abi.decode(_data, (uint256));
+    }
+
+    /// @notice
+    function encodeSetFeeVaultConfig(address _recipient, uint256 _min, FeeVault.WithdrawalNetwork _network) internal pure returns (bytes memory) {
+        return abi.encode(_recipient, _min, _network);
+    }
+
+    /// @notice
+    function decodeSetFeeVaultConfig(bytes memory _data) internal pure returns (address, uint256, FeeVault.WithdrawalNetwork) {
+        return abi.decode(_data, (address, uint256, FeeVault.WithdrawalNetwork));
+    }
+
+    /// @notice
+    function encodeSetAddress(address _address) internal pure returns (bytes memory) {
+        return abi.encode(_address);
+    }
+
+    /// @notice
+    function decodeSetAddress(bytes memory _data) internal pure returns (address) {
+        return abi.decode(_data, (address));
+    }
+
+    /// @notice
+    function encodeSetRemoteChainId(uint256 _chainId) internal pure returns (bytes memory) {
+        return abi.encode(_chainId);
+    }
+
+    /// @notice
+    function decodeSetRemoteChainId(bytes memory _data) internal pure returns (uint256) {
         return abi.decode(_data, (uint256));
     }
 }

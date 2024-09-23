@@ -7,7 +7,7 @@ import { L1Block } from "src/L2/L1Block.sol";
 // Libraries
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
-import { StaticConfig } from "src/libraries/StaticConfig.sol";
+import { StaticConfig, ConfigType } from "src/libraries/StaticConfig.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import "src/libraries/L1BlockErrors.sol";
 
@@ -97,26 +97,14 @@ contract L1BlockInterop is L1Block {
     ///         depositor account.
     /// @param _type  The type of configuration to set.
     /// @param _value The encoded value with which to set the configuration.
-    function setConfig(ConfigType _type, bytes calldata _value) external {
-        if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
+    function setConfig(ConfigType _type, bytes calldata _value) public override {
+        super.setConfig(_type, _value);
 
-        if (_type == ConfigType.SET_GAS_PAYING_TOKEN) {
-            _setGasPayingToken(_value);
-        } else if (_type == ConfigType.ADD_DEPENDENCY) {
+        if (_type == ConfigType.ADD_DEPENDENCY) {
             _addDependency(_value);
         } else if (_type == ConfigType.REMOVE_DEPENDENCY) {
             _removeDependency(_value);
         }
-    }
-
-    /// @notice Internal method to set the gas paying token.
-    /// @param _value The encoded value with which to set the gas paying token.
-    function _setGasPayingToken(bytes calldata _value) internal {
-        (address token, uint8 decimals, bytes32 name, bytes32 symbol) = StaticConfig.decodeSetGasPayingToken(_value);
-
-        GasPayingToken.set({ _token: token, _decimals: decimals, _name: name, _symbol: symbol });
-
-        emit GasPayingTokenSet({ token: token, decimals: decimals, name: name, symbol: symbol });
     }
 
     /// @notice Internal method to add a dependency to the interop dependency set.

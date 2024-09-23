@@ -4,6 +4,8 @@ pragma solidity 0.8.15;
 // Contracts
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { FeeVault } from "src/universal/FeeVault.sol";
+import { StaticConfig, ConfigType } from "src/libraries/StaticConfig.sol";
 
 // Libraries
 import { Storage } from "src/libraries/Storage.sol";
@@ -12,7 +14,7 @@ import { GasPayingToken, IGasToken } from "src/libraries/GasPayingToken.sol";
 
 // Interfaces
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
-import { IOptimismPortal } from "src/L1/interfaces/IOptimismPortal.sol";
+import { IOptimismPortal2 as IOptimismPortal } from "src/L1/interfaces/IOptimismPortal2.sol";
 import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
 
 /// @custom:proxied true
@@ -206,18 +208,38 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
 
         Storage.setAddress(UNSAFE_BLOCK_SIGNER_SLOT, _unsafeBlockSigner);
         Storage.setAddress(BATCH_INBOX_SLOT, _batchInbox);
-        Storage.setAddress(L1_CROSS_DOMAIN_MESSENGER_SLOT, _addresses.l1CrossDomainMessenger);
-        Storage.setAddress(L1_ERC_721_BRIDGE_SLOT, _addresses.l1ERC721Bridge);
-        Storage.setAddress(L1_STANDARD_BRIDGE_SLOT, _addresses.l1StandardBridge);
-        Storage.setAddress(DISPUTE_GAME_FACTORY_SLOT, _addresses.disputeGameFactory);
+
         Storage.setAddress(OPTIMISM_PORTAL_SLOT, _addresses.optimismPortal);
+        Storage.setAddress(DISPUTE_GAME_FACTORY_SLOT, _addresses.disputeGameFactory);
         Storage.setAddress(OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT, _addresses.optimismMintableERC20Factory);
 
+        _setAddress(L1_CROSS_DOMAIN_MESSENGER_SLOT, _addresses.l1CrossDomainMessenger, ConfigType.SET_L1_CROSS_DOMAIN_MESSENGER_ADDRESS);
+        _setAddress(L1_ERC_721_BRIDGE_SLOT, _addresses.l1ERC721Bridge, ConfigType.SET_L1_ERC_721_BRIDGE_ADDRESS);
+        _setAddress(L1_STANDARD_BRIDGE_SLOT, _addresses.l1StandardBridge, ConfigType.SET_L1_STANDARD_BRIDGE_ADDRESS);
+
+        _setRemoteChainID();
         _setStartBlock();
         _setGasPayingToken(_addresses.gasPayingToken);
 
         _setResourceConfig(_config);
         require(_gasLimit >= minimumGasLimit(), "SystemConfig: gas limit too low");
+    }
+
+    /// @notice
+    function _setAddress(bytes32 _slot, address _addr, ConfigType _type) internal {
+        Storage.setAddress(_slot, _addr);
+        IOptimismPortal(payable(optimismPortal())).setConfig({
+            _type: _type,
+            _value: StaticConfig.encodeSetAddress(_addr)
+        });
+    }
+
+    /// @notice
+    function _setRemoteChainID() internal {
+        IOptimismPortal(payable(optimismPortal())).setConfig({
+            _type: ConfigType.SET_REMOTE_CHAIN_ID,
+            _value: StaticConfig.encodeSetRemoteChainId(block.chainid)
+        });
     }
 
     /// @notice Returns the minimum L2 gas limit that can be safely set for the system to
@@ -407,6 +429,29 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     /// @param _gasLimit New gas limit.
     function setGasLimit(uint64 _gasLimit) external onlyOwner {
         _setGasLimit(_gasLimit);
+    }
+
+    /// @notice
+    function setBaseFeeVaultConfig(address _recipient, uint256 _min, FeeVault.WithdrawalNetwork _network) external onlyOwner {
+        _setFeeVaultConfig(ConfigType.SET_BASE_FEE_VAULT_CONFIG, _recipient, _min, _network);
+    }
+
+    /// @notice
+    function setL1FeeVaultConfig(address _recipient, uint256 _min, FeeVault.WithdrawalNetwork _network) external onlyOwner {
+        _setFeeVaultConfig(ConfigType.SET_L1_FEE_VAULT_CONFIG, _recipient, _min, _network);
+    }
+
+    /// @notice
+    function setSequencerFeeVaultConfig(address _recipient, uint256 _min, FeeVault.WithdrawalNetwork _network) external onlyOwner {
+        _setFeeVaultConfig(ConfigType.SET_SEQUENCER_FEE_VAULT_CONFIG, _recipient, _min, _network);
+    }
+
+    /// @notice
+    function _setFeeVaultConfig(ConfigType _type, address _recipient, uint256 _min, FeeVault.WithdrawalNetwork _network) internal {
+        IOptimismPortal(payable(optimismPortal())).setConfig({
+            _type: _type,
+            _value: StaticConfig.encodeSetFeeVaultConfig(_recipient, _min, _network)
+        });
     }
 
     /// @notice Internal function for updating the L2 gas limit.
