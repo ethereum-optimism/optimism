@@ -109,7 +109,8 @@ contract OPStackManager is ISemver, Initializable {
         address l1ChugSplashProxy;
         address resolvedDelegateProxy;
         address anchorStateRegistry;
-        address permissionedDisputeGame;
+        address permissionedDisputeGame1;
+        address permissionedDisputeGame2;
     }
 
     /// @notice Inputs required when initializing the OPStackManager. To avoid 'StackTooDeep' errors,
@@ -274,7 +275,10 @@ contract OPStackManager is ISemver, Initializable {
         // While not a proxy, we deploy the PermissionedDisputeGame here as well because it's bespoke per chain.
         output.permissionedDisputeGame = PermissionedDisputeGame(
             Blueprint.deployFrom(
-                blueprint.permissionedDisputeGame, salt, encodePermissionedDisputeGameConstructor(_input, output)
+                blueprint.permissionedDisputeGame1,
+                blueprint.permissionedDisputeGame2,
+                salt,
+                encodePermissionedDisputeGameConstructor(_input, output)
             )
         );
 

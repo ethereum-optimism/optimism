@@ -515,7 +515,7 @@ contract DeployImplementations is Script {
         blueprints.l1ChugSplashProxy = deployBytecode(Blueprint.blueprintDeployerBytecode(type(L1ChugSplashProxy).creationCode), salt);
         blueprints.resolvedDelegateProxy = deployBytecode(Blueprint.blueprintDeployerBytecode(type(ResolvedDelegateProxy).creationCode), salt);
         blueprints.anchorStateRegistry = deployBytecode(Blueprint.blueprintDeployerBytecode(type(AnchorStateRegistry).creationCode), salt);
-        blueprints.permissionedDisputeGame = deployBytecode(Blueprint.blueprintDeployerBytecode(type(PermissionedDisputeGame).creationCode), salt);
+        (blueprints.permissionedDisputeGame1, blueprints.permissionedDisputeGame2)  = this.deployBigBytecode(Blueprint.blueprintDeployerBytecode(type(PermissionedDisputeGame).creationCode), salt);
         vm.stopBroadcast();
         // forgefmt: disable-end
 
@@ -741,6 +741,23 @@ contract DeployImplementations is Script {
             newContract_ := create2(0, add(_bytecode, 0x20), mload(_bytecode), _salt)
         }
         require(newContract_ != address(0), "DeployImplementations: create2 failed");
+    }
+
+    function deployBigBytecode(
+        bytes calldata _bytecode,
+        bytes32 _salt
+    )
+        external
+        returns (address newContract1_, address newContract2_)
+    {
+        // Preamble needs 3 bytes.
+        uint256 maxInitCodeSize = 24576 - 3;
+        require(_bytecode.length > maxInitCodeSize, "DeployImplementations: Use deployBytecode instead");
+
+        bytes memory part1 = _bytecode[0:maxInitCodeSize - 1];
+        bytes memory part2 = _bytecode[maxInitCodeSize:_bytecode.length - 1];
+        newContract1_ = deployBytecode(Blueprint.blueprintDeployerBytecode(part1), _salt);
+        newContract2_ = deployBytecode(Blueprint.blueprintDeployerBytecode(part2), _salt);
     }
 }
 
