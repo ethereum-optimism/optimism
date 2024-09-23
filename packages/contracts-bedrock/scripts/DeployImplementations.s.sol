@@ -10,6 +10,7 @@ import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
 
 import { Constants } from "src/libraries/Constants.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Bytes } from "src/libraries/Bytes.sol";
 
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
 import { Proxy } from "src/universal/Proxy.sol";
@@ -515,7 +516,7 @@ contract DeployImplementations is Script {
         blueprints.l1ChugSplashProxy = deployBytecode(Blueprint.blueprintDeployerBytecode(type(L1ChugSplashProxy).creationCode), salt);
         blueprints.resolvedDelegateProxy = deployBytecode(Blueprint.blueprintDeployerBytecode(type(ResolvedDelegateProxy).creationCode), salt);
         blueprints.anchorStateRegistry = deployBytecode(Blueprint.blueprintDeployerBytecode(type(AnchorStateRegistry).creationCode), salt);
-        (blueprints.permissionedDisputeGame1, blueprints.permissionedDisputeGame2)  = this.deployBigBytecode(type(PermissionedDisputeGame).creationCode, salt);
+        (blueprints.permissionedDisputeGame1, blueprints.permissionedDisputeGame2)  = deployBigBytecode(type(PermissionedDisputeGame).creationCode, salt);
         vm.stopBroadcast();
         // forgefmt: disable-end
 
@@ -744,18 +745,20 @@ contract DeployImplementations is Script {
     }
 
     function deployBigBytecode(
-        bytes calldata _bytecode,
+        bytes memory _bytecode,
         bytes32 _salt
     )
-        external
+        public
         returns (address newContract1_, address newContract2_)
     {
         // Preamble needs 3 bytes.
         uint256 maxInitCodeSize = 24576 - 3;
         require(_bytecode.length > maxInitCodeSize, "DeployImplementations: Use deployBytecode instead");
 
-        bytes memory part1 = Blueprint.blueprintDeployerBytecode(_bytecode[0:maxInitCodeSize]);
-        bytes memory part2 = Blueprint.blueprintDeployerBytecode(_bytecode[maxInitCodeSize:_bytecode.length]);
+        bytes memory part1Slice = Bytes.slice(_bytecode, 0, maxInitCodeSize);
+        bytes memory part1 = Blueprint.blueprintDeployerBytecode(part1Slice);
+        bytes memory part2Slice = Bytes.slice(_bytecode, maxInitCodeSize, _bytecode.length - maxInitCodeSize);
+        bytes memory part2 = Blueprint.blueprintDeployerBytecode(part2Slice);
 
         newContract1_ = deployBytecode(part1, _salt);
         newContract2_ = deployBytecode(part2, _salt);
