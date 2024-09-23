@@ -491,8 +491,8 @@ type MockChannelManager struct {
 	*channelManager
 }
 
-func (m *MockChannelManager) Requeue(cfg ChannelConfig) error {
-	args := m.Called(cfg)
+func (m *MockChannelManager) Requeue(newCfg ChannelConfig) error {
+	args := m.Called(newCfg)
 	return args.Error(0)
 }
 
@@ -600,11 +600,11 @@ func TestChannelManager_TxData(t *testing.T) {
 			require.True(t, m.channelQueue[0].IsFull())
 
 			if tc.chooseBlobsWhenChannelCreated != tc.chooseBlobsWhenChannelSubmitted {
-				m.AssertCalled(t, "Requeue", cfg)
+				m.AssertCalled(t, "Requeue", mock.Anything)
 			} else {
-				m.AssertNotCalled(t, "Requeue", cfg)
+				m.AssertNotCalled(t, "Requeue", mock.Anything)
 			}
-			// TODO assert defaultCfg updated correctly
+			require.True(t, tc.chooseBlobsWhenChannelSubmitted, m.defaultCfg.UseBlobs)
 		})
 	}
 
