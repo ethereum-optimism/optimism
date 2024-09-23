@@ -15,6 +15,7 @@ import { Constants } from "src/libraries/Constants.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
+import { Proxy } from "src/universal/Proxy.sol";
 
 import { AddressManager } from "src/legacy/AddressManager.sol";
 import { DelayedWETH } from "src/dispute/DelayedWETH.sol";
@@ -22,6 +23,7 @@ import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
 import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
 import { PermissionedDisputeGame } from "src/dispute/PermissionedDisputeGame.sol";
+import { GameType, GameTypes, Hash, OutputRoot } from "src/dispute/lib/Types.sol";
 
 import { OPStackManager } from "src/L1/OPStackManager.sol";
 import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
@@ -116,6 +118,26 @@ contract DeployOPChainInput is BaseDeployIO {
         return _l2ChainId;
     }
 
+    function startingAnchorRoots() public pure returns (bytes memory) {
+        // WARNING: For now always hardcode the starting permissioned game anchor root to 0xdead,
+        // and we do not set anything for the permissioned game. This is because we currently only
+        // support deploying straight to permissioned games, and the starting root does not
+        // matter for that, as long as it is non-zero, since no games will be played. We do not
+        // deploy the permissionless game (and therefore do not set a starting root for it here)
+        // because to to update to the permissionless game, we will need to update its starting
+        // anchor root and deploy a new permissioned dispute game contract anyway.
+        //
+        // You can `console.logBytes(abi.encode(defaultStartingAnchorRoots))` to get the bytes that
+        // are hardcoded into `op-chain-ops/deployer/opsm/opchain.go`
+        AnchorStateRegistry.StartingAnchorRoot[] memory defaultStartingAnchorRoots =
+            new AnchorStateRegistry.StartingAnchorRoot[](1);
+        defaultStartingAnchorRoots[0] = AnchorStateRegistry.StartingAnchorRoot({
+            gameType: GameTypes.PERMISSIONED_CANNON,
+            outputRoot: OutputRoot({ root: Hash.wrap(bytes32(hex"dead")), l2BlockNumber: 0 })
+        });
+        return abi.encode(defaultStartingAnchorRoots);
+    }
+
     // TODO: Check that opsm is proxied and it has an implementation.
     function opsmProxy() public view returns (OPStackManager) {
         require(address(_opsmProxy) != address(0), "DeployOPChainInput: not set");
@@ -162,7 +184,7 @@ contract DeployOPChainOutput is BaseDeployIO {
         // forgefmt: disable-end
     }
 
-    function checkOutput(DeployOPChainInput _doi) public view {
+    function checkOutput(DeployOPChainInput _doi) public {
         // With 16 addresses, we'd get a stack too deep error if we tried to do this inline as a
         // single call to `Solarray.addresses`. So we split it into two calls.
         address[] memory addrs1 = Solarray.addresses(
@@ -266,7 +288,9 @@ contract DeployOPChainOutput is BaseDeployIO {
 
     // -------- Deployment Assertions --------
 
-    function assertValidDeploy(DeployOPChainInput _doi) internal view {
+    function assertValidDeploy(DeployOPChainInput _doi) internal {
+        assertValidAnchorStateRegistryProxy(_doi);
+        assertValidAnchorStateRegistryImpl(_doi);
         assertValidDelayedWETHs(_doi);
         assertValidDisputeGameFactory(_doi);
         assertValidL1CrossDomainMessenger(_doi);
@@ -277,6 +301,32 @@ contract DeployOPChainOutput is BaseDeployIO {
         assertValidSystemConfig(_doi);
         // TODO Other FP assertions like the dispute games, anchor state registry, etc.
         // TODO add initialization assertions
+    }
+
+    function assertValidAnchorStateRegistryProxy(DeployOPChainInput) internal {
+        // First we check the proxy as itself.
+        Proxy proxy = Proxy(payable(address(anchorStateRegistryProxy())));
+        vm.prank(address(0));
+        address admin = proxy.admin();
+        require(admin == address(opChainProxyAdmin()), "ANCHORP-10");
+
+        // Then we check the proxy as ASR.
+        DeployUtils.assertInitialized({ _contractAddress: address(anchorStateRegistryProxy()), _slot: 0, _offset: 0 });
+
+        vm.prank(address(0));
+        address impl = proxy.implementation();
+        require(impl == address(anchorStateRegistryImpl()), "ANCHORP-20");
+        require(
+            address(anchorStateRegistryProxy().disputeGameFactory()) == address(disputeGameFactoryProxy()), "ANCHORP-30"
+        );
+    }
+
+    function assertValidAnchorStateRegistryImpl(DeployOPChainInput) internal view {
+        AnchorStateRegistry registry = anchorStateRegistryImpl();
+
+        DeployUtils.assertInitialized({ _contractAddress: address(registry), _slot: 0, _offset: 0 });
+
+        require(address(registry.disputeGameFactory()) == address(disputeGameFactoryProxy()), "ANCHORI-10");
     }
 
     function assertValidSystemConfig(DeployOPChainInput _doi) internal view {
@@ -412,7 +462,8 @@ contract DeployOPChain is Script {
             roles: roles,
             basefeeScalar: _doi.basefeeScalar(),
             blobBasefeeScalar: _doi.blobBaseFeeScalar(),
-            l2ChainId: _doi.l2ChainId()
+            l2ChainId: _doi.l2ChainId(),
+            startingAnchorRoots: _doi.startingAnchorRoots()
         });
 
         vm.broadcast(msg.sender);

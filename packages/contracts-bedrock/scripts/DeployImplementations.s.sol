@@ -617,14 +617,14 @@ contract DeployImplementations is Script {
     // The fault proofs contracts are configured as follows:
     // | Contract                | Proxied | Deployment                        | MCP Ready  |
     // |-------------------------|---------|-----------------------------------|------------|
-    // | DisputeGameFactory      | Yes     | Bespoke                           | Yes        |
-    // | AnchorStateRegistry     | Yes     | Bespoke                           | No         |
-    // | FaultDisputeGame        | No      | Bespoke                           | No         |
-    // | PermissionedDisputeGame | No      | Bespoke                           | No         |
-    // | DelayedWETH             | Yes     | Two bespoke (one per DisputeGame) | No         |
-    // | PreimageOracle          | No      | Shared                            | N/A        |
-    // | MIPS                    | No      | Shared                            | N/A        |
-    // | OptimismPortal2         | Yes     | Shared                            | No         |
+    // | DisputeGameFactory      | Yes     | Bespoke                           | Yes        |  X
+    // | AnchorStateRegistry     | Yes     | Bespoke                           | No         |  X
+    // | FaultDisputeGame        | No      | Bespoke                           | No         |  Todo
+    // | PermissionedDisputeGame | No      | Bespoke                           | No         |  Todo
+    // | DelayedWETH             | Yes     | Two bespoke (one per DisputeGame) | No         |  Todo: Proxies.
+    // | PreimageOracle          | No      | Shared                            | N/A        |  X
+    // | MIPS                    | No      | Shared                            | N/A        |  X
+    // | OptimismPortal2         | Yes     | Shared                            | No         |  X
     //
     // This script only deploys the shared contracts. The bespoke contracts are deployed by
     // `DeployOPChain.s.sol`. When the shared contracts are proxied, the contracts deployed here are

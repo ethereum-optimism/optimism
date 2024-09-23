@@ -55,6 +55,9 @@ contract OPStackManager is ISemver, Initializable {
         uint32 basefeeScalar;
         uint32 blobBasefeeScalar;
         uint256 l2ChainId;
+        // The correct type is AnchorStateRegistry.StartingAnchorRoot[] memory,
+        // but OP Deployer does not yet support structs.
+        bytes startingAnchorRoots;
     }
 
     /// @notice The full set of outputs from deploying a new OP Stack chain.
@@ -115,8 +118,8 @@ contract OPStackManager is ISemver, Initializable {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 1.0.0-beta.3
-    string public constant version = "1.0.0-beta.3";
+    /// @custom:semver 1.0.0-beta.4
+    string public constant version = "1.0.0-beta.4";
 
     /// @notice Address of the SuperchainConfig contract shared by all chains.
     SuperchainConfig public immutable superchainConfig;
@@ -206,8 +209,6 @@ contract OPStackManager is ISemver, Initializable {
         // -------- TODO: Placeholders --------
         // For contracts we don't yet deploy, we set the outputs to  dummy proxies so they have code to pass assertions.
         // We do these first, that way the disputeGameFactoryProxy is set when passed to the SystemConfig input.
-        output.anchorStateRegistryProxy = AnchorStateRegistry(deployProxy(l2ChainId, output.opChainProxyAdmin, "3"));
-        output.anchorStateRegistryImpl = AnchorStateRegistry(deployProxy(l2ChainId, output.opChainProxyAdmin, "4"));
         output.faultDisputeGame = FaultDisputeGame(deployProxy(l2ChainId, output.opChainProxyAdmin, "5"));
         output.permissionedDisputeGame = PermissionedDisputeGame(deployProxy(l2ChainId, output.opChainProxyAdmin, "6"));
         output.delayedWETHPermissionedGameProxy =
@@ -266,7 +267,7 @@ contract OPStackManager is ISemver, Initializable {
         );
 
         // -------- Set and Initialize Proxy Implementations --------
-        Implementation storage impl;
+        Implementation memory impl;
         bytes memory data;
 
         impl = getLatestImplementation("L1ERC721Bridge");
@@ -293,9 +294,15 @@ contract OPStackManager is ISemver, Initializable {
         data = encodeL1StandardBridgeInitializer(impl.initializer, output);
         upgradeAndCall(output.opChainProxyAdmin, address(output.l1StandardBridgeProxy), impl.logic, data);
 
+        // TODO: also call setImplementation() once the dispute games are deployed.
         impl = getLatestImplementation("DisputeGameFactory");
         data = encodeDisputeGameFactoryInitializer(impl.initializer, _input);
         upgradeAndCall(output.opChainProxyAdmin, address(output.disputeGameFactoryProxy), impl.logic, data);
+
+        impl.logic = address(output.anchorStateRegistryImpl);
+        impl.initializer = AnchorStateRegistry.initialize.selector;
+        data = encodeAnchorStateRegistryInitializer(impl.initializer, _input);
+        upgradeAndCall(output.opChainProxyAdmin, address(output.anchorStateRegistryProxy), impl.logic, data);
 
         // -------- Finalize Deployment --------
         // Transfer ownership of the ProxyAdmin from this contract to the specified owner.
@@ -345,9 +352,11 @@ contract OPStackManager is ISemver, Initializable {
         return Blueprint.deployFrom(blueprint.proxy, salt, abi.encode(_proxyAdmin));
     }
 
-    /// @notice Returns the implementation data for a contract name.
-    function getLatestImplementation(string memory _name) internal view returns (Implementation storage) {
-        return implementations[latestRelease][_name];
+    /// @notice Returns the implementation data for a contract name. Makes a copy of the internal
+    //  Implementation struct in storage to prevent accidental mutation of the internal data.
+    function getLatestImplementation(string memory _name) internal view returns (Implementation memory) {
+        Implementation storage impl = implementations[latestRelease][_name];
+        return Implementation({ logic: impl.logic, initializer: impl.initializer });
     }
 
     // -------- Initializer Encoding --------
@@ -462,6 +471,21 @@ contract OPStackManager is ISemver, Initializable {
         returns (bytes memory)
     {
         return abi.encodeWithSelector(_selector, _input.roles.opChainProxyAdminOwner);
+    }
+
+    function encodeAnchorStateRegistryInitializer(
+        bytes4 _selector,
+        DeployInput memory _input
+    )
+        internal
+        view
+        virtual
+        returns (bytes memory)
+    {
+        // this line fails in the op-deployer tests because it is not passing in any data
+        AnchorStateRegistry.StartingAnchorRoot[] memory startingAnchorRoots =
+            abi.decode(_input.startingAnchorRoots, (AnchorStateRegistry.StartingAnchorRoot[]));
+        return abi.encodeWithSelector(_selector, startingAnchorRoots, superchainConfig);
     }
 
     /// @notice Returns default, standard config arguments for the SystemConfig initializer.

@@ -134,6 +134,11 @@
             "internalType": "uint256",
             "name": "l2ChainId",
             "type": "uint256"
+          },
+          {
+            "internalType": "bytes",
+            "name": "startingAnchorRoots",
+            "type": "bytes"
           }
         ],
         "internalType": "struct OPStackManager.DeployInput",
