@@ -128,7 +128,7 @@ contract DeployOPChainInput is BaseDeployIO {
         // anchor root and deploy a new permissioned dispute game contract anyway.
         //
         // You can `console.logBytes(abi.encode(defaultStartingAnchorRoots))` to get the bytes that
-        // are hardcoded into `op-chain-ops/deployer/pipeline/opchain.go`
+        // are hardcoded into `op-chain-ops/deployer/opsm/opchain.go`
         AnchorStateRegistry.StartingAnchorRoot[] memory defaultStartingAnchorRoots =
             new AnchorStateRegistry.StartingAnchorRoot[](1);
         defaultStartingAnchorRoots[0] = AnchorStateRegistry.StartingAnchorRoot({
