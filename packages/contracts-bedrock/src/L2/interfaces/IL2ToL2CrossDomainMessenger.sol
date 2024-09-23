@@ -11,8 +11,9 @@ interface IL2ToL2CrossDomainMessenger {
     /// @return Returns true if the message corresponding to the `_msgHash` was successfully relayed.
     function successfulMessages(bytes32 _msgHash) external view returns (bool);
 
-    /// @notice Retrieves the next message nonce. Message version will be added to the upper two bytes of the message
-    ///         nonce. Message version allows us to treat messages as having different structures.
+    /// @notice Retrieves the next message nonce. Message version will be added to the upper two
+    ///         bytes of the message nonce. Message version allows us to treat messages as having
+    ///         different structures.
     /// @return Nonce of the next message to be sent, with added message version.
     function messageNonce() external view returns (uint256);
 
