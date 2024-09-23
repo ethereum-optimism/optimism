@@ -154,7 +154,7 @@ func (r *Runner) runAndRecordOnce(ctx context.Context, traceType types.TraceType
 		recordError(err, traceType.String(), r.m, r.log)
 	}()
 
-	if r.addMTCannonPrestate != (common.Hash{}) && r.addMTCannonPrestateURL != nil {
+	if traceType == types.TraceTypeCannon && r.addMTCannonPrestate != (common.Hash{}) && r.addMTCannonPrestateURL != nil {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
