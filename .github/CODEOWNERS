@@ -19,12 +19,13 @@
 
 /op-conductor   @ethereum-optimism/op-conductor @ethereum-optimism/go-reviewers
 
-/cannon         @ethereum-optimism/proofs @ethereum-optimism/go-reviewers
-/op-challenger  @ethereum-optimism/proofs @ethereum-optimism/go-reviewers
-/op-dispute-mon @ethereum-optimism/proofs @ethereum-optimism/go-reviewers
-/op-preimage    @ethereum-optimism/proofs @ethereum-optimism/go-reviewers
-/op-program     @ethereum-optimism/proofs @ethereum-optimism/go-reviewers
+/cannon                @ethereum-optimism/proofs @ethereum-optimism/go-reviewers
+/op-challenger         @ethereum-optimism/proofs @ethereum-optimism/go-reviewers
+/op-dispute-mon        @ethereum-optimism/proofs @ethereum-optimism/go-reviewers
+/op-preimage           @ethereum-optimism/proofs @ethereum-optimism/go-reviewers
+/op-program            @ethereum-optimism/proofs @ethereum-optimism/go-reviewers
 /op-e2e/actions/proofs @ethereum-optimism/proofs @ethereum-optimism/go-reviewers
+/op-e2e/faultproofs    @ethereum-optimism/proofs @ethereum-optimism/go-reviewers
 
 # Ops
 /.circleci       @ethereum-optimism/monorepo-ops-reviewers
