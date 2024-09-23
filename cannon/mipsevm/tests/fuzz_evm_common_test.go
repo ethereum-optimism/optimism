@@ -150,7 +150,17 @@ func FuzzStateSyscallFcntl(f *testing.F) {
 				expected.Step += 1
 				expected.PC = state.GetCpu().NextPC
 				expected.NextPC = state.GetCpu().NextPC + 4
-				if cmd == 3 {
+				if cmd == 1 {
+					switch fd {
+					case exec.FdStdin, exec.FdStdout, exec.FdStderr,
+						exec.FdPreimageRead, exec.FdHintRead, exec.FdPreimageWrite, exec.FdHintWrite:
+						expected.Registers[2] = 0
+						expected.Registers[7] = 0
+					default:
+						expected.Registers[2] = 0xFF_FF_FF_FF
+						expected.Registers[7] = exec.MipsEBADF
+					}
+				} else if cmd == 3 {
 					switch fd {
 					case exec.FdStdin, exec.FdPreimageRead, exec.FdHintRead:
 						expected.Registers[2] = 0
