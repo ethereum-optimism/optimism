@@ -206,7 +206,7 @@ target "proofs-tools" {
   dockerfile = "./ops/docker/proofs-tools/Dockerfile"
   context = "."
   args = {
-    CHALLENGER_VERSION="2fcbe4bab16a682bd51c2f0e6bd9be7f8d81c7a1"
+    CHALLENGER_VERSION="90700b9bb37080961747420882b14578577d47cc"
     KONA_VERSION="kona-client-v0.1.0-alpha.3"
     ASTERISC_VERSION="v1.0.2"
   }
