@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	EntrySize = 24
+	EntrySize = 34
 )
 
 type EntryIdx int64

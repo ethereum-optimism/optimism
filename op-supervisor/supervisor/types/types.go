@@ -13,6 +13,14 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
+type ExecutingMessage struct {
+	Chain     uint32 // same as ChainID for now, but will be indirect, i.e. translated to full ID, later
+	BlockNum  uint64
+	LogIdx    uint32
+	Timestamp uint64
+	Hash      common.Hash
+}
+
 type Message struct {
 	Identifier  Identifier  `json:"identifier"`
 	PayloadHash common.Hash `json:"payloadHash"`
