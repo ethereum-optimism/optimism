@@ -839,7 +839,7 @@ jobs:
           name: prep results dir
           command: |
             # Make sure the workspace is properly owned
-            sudo chown -R $USER:$USER .
+            chown -R $USER:$USER .
             mkdir -p /tmp/test-results
             mkdir -p /tmp/testlogs
       - run:
