@@ -540,7 +540,7 @@ func TestChannelManager_TxData(t *testing.T) {
 			cfg := newFakeDynamicEthChannelConfig(l, 1000)
 
 			cfg.chooseBlobs = tc.chooseBlobsWhenChannelCreated
-			m := NewChannelManager(l, metrics.NoopMetrics, cfg, &defaultTestRollupConfig)
+			m := NewChannelManager(l, metrics.NoopMetrics, cfg, defaultTestRollupConfig)
 			require.Equal(t, tc.chooseBlobsWhenChannelCreated, m.defaultCfg.UseBlobs)
 
 			// Seed channel manager with blocks
@@ -591,7 +591,7 @@ func TestChannelManager_TxData(t *testing.T) {
 func TestChannelManager_Requeue(t *testing.T) {
 	l := testlog.Logger(t, log.LevelCrit)
 	cfg := channelManagerTestConfig(100, derive.SingularBatchType)
-	m := NewChannelManager(l, metrics.NoopMetrics, cfg, &defaultTestRollupConfig)
+	m := NewChannelManager(l, metrics.NoopMetrics, cfg, defaultTestRollupConfig)
 
 	// Seed channel manager with blocks
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
