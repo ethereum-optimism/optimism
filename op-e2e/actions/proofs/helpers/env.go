@@ -34,6 +34,7 @@ type L2FaultProofEnv struct {
 	Dp        *e2eutils.DeployParams
 	Miner     *helpers.L1Miner
 	Alice     *helpers.CrossLayerUser
+	Bob       *helpers.CrossLayerUser
 }
 
 func NewL2FaultProofEnv[c any](t helpers.Testing, testCfg *TestCfg[c], tp *e2eutils.TestParams, batcherCfg *helpers.BatcherCfg) *L2FaultProofEnv {
@@ -100,6 +101,9 @@ func NewL2FaultProofEnv[c any](t helpers.Testing, testCfg *TestCfg[c], tp *e2eut
 	alice := helpers.NewCrossLayerUser(log, dp.Secrets.Alice, rand.New(rand.NewSource(0xa57b)))
 	alice.L1.SetUserEnv(l1UserEnv)
 	alice.L2.SetUserEnv(l2UserEnv)
+	bob := helpers.NewCrossLayerUser(log, dp.Secrets.Bob, rand.New(rand.NewSource(0xbeef)))
+	bob.L1.SetUserEnv(l1UserEnv)
+	bob.L2.SetUserEnv(l2UserEnv)
 
 	return &L2FaultProofEnv{
 		log:       log,
@@ -111,6 +115,7 @@ func NewL2FaultProofEnv[c any](t helpers.Testing, testCfg *TestCfg[c], tp *e2eut
 		Dp:        dp,
 		Miner:     miner,
 		Alice:     alice,
+		Bob:       bob,
 	}
 }
 

@@ -150,13 +150,9 @@ func (s *L2Batcher) ActL2BatchBuffer(t Testing) {
 	require.NoError(t, s.Buffer(t), "failed to add block to channel")
 }
 
-func (s *L2Batcher) Buffer(t Testing) error {
-	return s.BufferWithOpts(t)
-}
-
 type BlockModifier = func(block *types.Block)
 
-func (s *L2Batcher) BufferWithOpts(t Testing, opts ...BlockModifier) error {
+func (s *L2Batcher) Buffer(t Testing, opts ...BlockModifier) error {
 	if s.l2Submitting { // break ongoing submitting work if necessary
 		s.L2ChannelOut = nil
 		s.l2Submitting = false

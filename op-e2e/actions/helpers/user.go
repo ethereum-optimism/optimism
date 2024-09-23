@@ -235,9 +235,7 @@ func (s *BasicUser[B]) LastTxReceipt(t Testing) *types.Receipt {
 	return receipt
 }
 
-// ActMakeTx makes a tx with the predetermined contents (see randomization and other actions)
-// and sends it to the tx pool
-func (s *BasicUser[B]) ActMakeTx(t Testing) {
+func (s *BasicUser[B]) MakeTransaction(t Testing) *types.Transaction {
 	gas, err := s.env.EthCl.EstimateGas(t.Ctx(), ethereum.CallMsg{
 		From:      s.address,
 		To:        s.txToAddr,
@@ -247,7 +245,7 @@ func (s *BasicUser[B]) ActMakeTx(t Testing) {
 		Data:      s.txCallData,
 	})
 	require.NoError(t, err, "gas estimation should pass")
-	tx := types.MustSignNewTx(s.account, s.env.Signer, &types.DynamicFeeTx{
+	return types.MustSignNewTx(s.account, s.env.Signer, &types.DynamicFeeTx{
 		To:        s.txToAddr,
 		GasFeeCap: s.txOpts.GasFeeCap,
 		GasTipCap: s.txOpts.GasTipCap,
@@ -257,7 +255,13 @@ func (s *BasicUser[B]) ActMakeTx(t Testing) {
 		Gas:       gas,
 		Data:      s.txCallData,
 	})
-	err = s.env.EthCl.SendTransaction(t.Ctx(), tx)
+}
+
+// ActMakeTx makes a tx with the predetermined contents (see randomization and other actions)
+// and sends it to the tx pool
+func (s *BasicUser[B]) ActMakeTx(t Testing) {
+	tx := s.MakeTransaction(t)
+	err := s.env.EthCl.SendTransaction(t.Ctx(), tx)
 	require.NoError(t, err, "must send tx")
 	s.lastTxHash = tx.Hash()
 	// reset the calldata
