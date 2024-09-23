@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/crypto"
+
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
 
@@ -72,7 +74,7 @@ func WithGameAddress(addr common.Address) Option {
 
 func WithPrivKey(key *ecdsa.PrivateKey) Option {
 	return func(c *config.Config) {
-		c.TxMgrConfig.PrivateKey = e2eutils.EncodePrivKeyToString(key)
+		c.TxMgrConfig.PrivateKey = crypto.EncodePrivKeyToString(key)
 	}
 }
 

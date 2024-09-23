@@ -5,17 +5,19 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ethereum/go-ethereum/common"
+	ethTypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
+
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/source/contracts"
 	backendTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
 	supTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
-	"github.com/ethereum/go-ethereum/common"
-	ethTypes "github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 )
 
 type LogStorage interface {
-	AddLog(chain supTypes.ChainID, logHash backendTypes.TruncatedHash, block eth.BlockID, timestamp uint64, logIdx uint32, execMsg *backendTypes.ExecutingMessage) error
+	SealBlock(chain supTypes.ChainID, parentHash common.Hash, block eth.BlockID, timestamp uint64) error
+	AddLog(chain supTypes.ChainID, logHash backendTypes.TruncatedHash, parentBlock eth.BlockID, logIdx uint32, execMsg *backendTypes.ExecutingMessage) error
 }
 
 type EventDecoder interface {
@@ -53,12 +55,14 @@ func (p *logProcessor) ProcessLogs(_ context.Context, block eth.L1BlockRef, rcpt
 			}
 			// executing messages have multiple entries in the database
 			// they should start with the initiating message and then include the execution
-			fmt.Println("p.chain", p.chain)
-			err = p.logStore.AddLog(p.chain, logHash, block.ID(), block.Time, uint32(l.Index), execMsg)
+			err = p.logStore.AddLog(p.chain, logHash, block.ParentID(), uint32(l.Index), execMsg)
 			if err != nil {
 				return fmt.Errorf("failed to add log %d from block %v: %w", l.Index, block.ID(), err)
 			}
 		}
+	}
+	if err := p.logStore.SealBlock(p.chain, block.ParentHash, block.ID(), block.Time); err != nil {
+		return fmt.Errorf("failed to seal block %s: %w", block.ID(), err)
 	}
 	return nil
 }

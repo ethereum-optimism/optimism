@@ -1,2 +1,0 @@
-# `InvariantTest.sol` Invariants
-

@@ -1,35 +1,41 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
+// Testing
 import { Test } from "forge-std/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { DisputeGameFactory_Init } from "test/dispute/DisputeGameFactory.t.sol";
-import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
-import { FaultDisputeGame, IDisputeGame } from "src/dispute/FaultDisputeGame.sol";
-import { DelayedWETH } from "src/dispute/DelayedWETH.sol";
-import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
+import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 
-import "src/dispute/lib/Types.sol";
-import "src/dispute/lib/Errors.sol";
+// Contracts
+import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
+import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
+import { DisputeActor, HonestDisputeActor } from "test/actors/FaultDisputeActors.sol";
+
+// Libraries
 import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { RLPWriter } from "src/libraries/rlp/RLPWriter.sol";
 import { LibClock } from "src/dispute/lib/LibUDT.sol";
 import { LibPosition } from "src/dispute/lib/LibPosition.sol";
+import "src/dispute/lib/Types.sol";
+import "src/dispute/lib/Errors.sol";
+
+// Interfaces
+import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
 import { IPreimageOracle } from "src/dispute/interfaces/IBigStepper.sol";
 import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistry.sol";
-import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
-
-import { DisputeActor, HonestDisputeActor } from "test/actors/FaultDisputeActors.sol";
+import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
+import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 
 contract FaultDisputeGame_Init is DisputeGameFactory_Init {
     /// @dev The type of the game being tested.
     GameType internal constant GAME_TYPE = GameType.wrap(0);
 
     /// @dev The implementation of the game.
-    FaultDisputeGame internal gameImpl;
+    IFaultDisputeGame internal gameImpl;
     /// @dev The `Clone` proxy of the game.
-    FaultDisputeGame internal gameProxy;
+    IFaultDisputeGame internal gameProxy;
 
     /// @dev The extra data passed to the game for initialization.
     bytes internal extraData;
@@ -51,23 +57,27 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
         AlphabetVM _vm = new AlphabetVM(absolutePrestate, oracle);
 
         // Deploy an implementation of the fault game
-        gameImpl = new FaultDisputeGame({
-            _gameType: GAME_TYPE,
-            _absolutePrestate: absolutePrestate,
-            _maxGameDepth: 2 ** 3,
-            _splitDepth: 2 ** 2,
-            _clockExtension: Duration.wrap(3 hours),
-            _maxClockDuration: Duration.wrap(3.5 days),
-            _vm: _vm,
-            _weth: delayedWeth,
-            _anchorStateRegistry: anchorStateRegistry,
-            _l2ChainId: 10
-        });
+        gameImpl = IFaultDisputeGame(
+            address(
+                new FaultDisputeGame({
+                    _gameType: GAME_TYPE,
+                    _absolutePrestate: absolutePrestate,
+                    _maxGameDepth: 2 ** 3,
+                    _splitDepth: 2 ** 2,
+                    _clockExtension: Duration.wrap(3 hours),
+                    _maxClockDuration: Duration.wrap(3.5 days),
+                    _vm: _vm,
+                    _weth: delayedWeth,
+                    _anchorStateRegistry: anchorStateRegistry,
+                    _l2ChainId: 10
+                })
+            )
+        );
 
         // Register the game implementation with the factory.
         disputeGameFactory.setImplementation(GAME_TYPE, gameImpl);
         // Create a new game.
-        gameProxy = FaultDisputeGame(payable(address(disputeGameFactory.create(GAME_TYPE, rootClaim, extraData))));
+        gameProxy = IFaultDisputeGame(payable(address(disputeGameFactory.create(GAME_TYPE, rootClaim, extraData))));
 
         // Check immutables
         assertEq(gameProxy.gameType().raw(), GAME_TYPE.raw());
@@ -125,7 +135,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
             _clockExtension: Duration.wrap(3 hours),
             _maxClockDuration: Duration.wrap(3.5 days),
             _vm: alphabetVM,
-            _weth: DelayedWETH(payable(address(0))),
+            _weth: IDelayedWETH(payable(address(0))),
             _anchorStateRegistry: IAnchorStateRegistry(address(0)),
             _l2ChainId: 10
         });
@@ -156,7 +166,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
             _clockExtension: Duration.wrap(3 hours),
             _maxClockDuration: Duration.wrap(3.5 days),
             _vm: alphabetVM,
-            _weth: DelayedWETH(payable(address(0))),
+            _weth: IDelayedWETH(payable(address(0))),
             _anchorStateRegistry: IAnchorStateRegistry(address(0)),
             _l2ChainId: 10
         });
@@ -178,7 +188,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
             _clockExtension: Duration.wrap(3 hours),
             _maxClockDuration: Duration.wrap(3.5 days),
             _vm: alphabetVM,
-            _weth: DelayedWETH(payable(address(0))),
+            _weth: IDelayedWETH(payable(address(0))),
             _anchorStateRegistry: IAnchorStateRegistry(address(0)),
             _l2ChainId: 10
         });
@@ -200,7 +210,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
             _clockExtension: Duration.wrap(3 hours),
             _maxClockDuration: Duration.wrap(3.5 days),
             _vm: alphabetVM,
-            _weth: DelayedWETH(payable(address(0))),
+            _weth: IDelayedWETH(payable(address(0))),
             _anchorStateRegistry: IAnchorStateRegistry(address(0)),
             _l2ChainId: 10
         });
@@ -230,7 +240,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
             _clockExtension: Duration.wrap(_clockExtension),
             _maxClockDuration: Duration.wrap(_maxClockDuration),
             _vm: alphabetVM,
-            _weth: DelayedWETH(payable(address(0))),
+            _weth: IDelayedWETH(payable(address(0))),
             _anchorStateRegistry: IAnchorStateRegistry(address(0)),
             _l2ChainId: 10
         });
@@ -278,7 +288,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         Claim claim = _dummyClaim();
         vm.expectRevert(abi.encodeWithSelector(UnexpectedRootClaim.selector, claim));
         gameProxy =
-            FaultDisputeGame(payable(address(disputeGameFactory.create(GAME_TYPE, claim, abi.encode(_blockNumber)))));
+            IFaultDisputeGame(payable(address(disputeGameFactory.create(GAME_TYPE, claim, abi.encode(_blockNumber)))));
     }
 
     /// @dev Tests that the proxy receives ETH from the dispute game factory.
@@ -287,7 +297,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         vm.deal(address(this), _value);
 
         assertEq(address(gameProxy).balance, 0);
-        gameProxy = FaultDisputeGame(
+        gameProxy = IFaultDisputeGame(
             payable(address(disputeGameFactory.create{ value: _value }(GAME_TYPE, ROOT_CLAIM, abi.encode(1))))
         );
         assertEq(address(gameProxy).balance, 0);
@@ -315,7 +325,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
         Claim claim = _dummyClaim();
         vm.expectRevert(abi.encodeWithSelector(BadExtraData.selector));
-        gameProxy = FaultDisputeGame(payable(address(disputeGameFactory.create(GAME_TYPE, claim, _extraData))));
+        gameProxy = IFaultDisputeGame(payable(address(disputeGameFactory.create(GAME_TYPE, claim, _extraData))));
     }
 
     /// @dev Tests that the game is initialized with the correct data.
@@ -2568,10 +2578,10 @@ contract FaultDispute_1v1_Actors_Test is FaultDisputeGame_Init {
 
 contract ClaimCreditReenter {
     Vm internal immutable vm;
-    FaultDisputeGame internal immutable GAME;
+    IFaultDisputeGame internal immutable GAME;
     uint256 public numCalls;
 
-    constructor(FaultDisputeGame _gameProxy, Vm _vm) {
+    constructor(IFaultDisputeGame _gameProxy, Vm _vm) {
         GAME = _gameProxy;
         vm = _vm;
     }

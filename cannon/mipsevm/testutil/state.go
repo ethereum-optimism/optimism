@@ -1,8 +1,8 @@
 package testutil
 
 import (
+	"encoding/binary"
 	"fmt"
-	"slices"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -13,10 +13,22 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 )
 
-func CopyRegisters(state mipsevm.FPVMState) *[32]uint32 {
-	copy := new([32]uint32)
-	*copy = *state.GetRegistersRef()
-	return copy
+func AddHintLengthPrefix(data []byte) []byte {
+	dataLen := len(data)
+	prefixed := make([]byte, 0, dataLen+4)
+	prefixed = binary.BigEndian.AppendUint32(prefixed, uint32(dataLen))
+	prefixed = append(prefixed, data...)
+
+	return prefixed
+}
+
+func AddPreimageLengthPrefix(data []byte) []byte {
+	dataLen := len(data)
+	prefixed := make([]byte, 0, dataLen+8)
+	prefixed = binary.BigEndian.AppendUint64(prefixed, uint64(dataLen))
+	prefixed = append(prefixed, data...)
+
+	return prefixed
 }
 
 type StateMutator interface {
@@ -45,6 +57,13 @@ func WithPC(pc uint32) StateOption {
 func WithNextPC(nextPC uint32) StateOption {
 	return func(state StateMutator) {
 		state.SetNextPC(nextPC)
+	}
+}
+
+func WithPCAndNextPC(pc uint32) StateOption {
+	return func(state StateMutator) {
+		state.SetPC(pc)
+		state.SetNextPC(pc + 4)
 	}
 }
 
@@ -150,19 +169,8 @@ func (e *ExpectedState) ExpectMemoryWrite(addr uint32, val uint32) {
 	e.MemoryRoot = e.expectedMemory.MerkleRoot()
 }
 
-type StateValidationFlags int
-
-// TODO(cp-983) - Remove these validation hacks
-const (
-	SkipMemoryValidation StateValidationFlags = iota
-	SkipHintValidation
-	SkipPreimageKeyValidation
-)
-
-func (e *ExpectedState) Validate(t testing.TB, actualState mipsevm.FPVMState, flags ...StateValidationFlags) {
-	if !slices.Contains(flags, SkipPreimageKeyValidation) {
-		require.Equal(t, e.PreimageKey, actualState.GetPreimageKey(), fmt.Sprintf("Expect preimageKey = %v", e.PreimageKey))
-	}
+func (e *ExpectedState) Validate(t testing.TB, actualState mipsevm.FPVMState) {
+	require.Equal(t, e.PreimageKey, actualState.GetPreimageKey(), fmt.Sprintf("Expect preimageKey = %v", e.PreimageKey))
 	require.Equal(t, e.PreimageOffset, actualState.GetPreimageOffset(), fmt.Sprintf("Expect preimageOffset = %v", e.PreimageOffset))
 	require.Equal(t, e.PC, actualState.GetCpu().PC, fmt.Sprintf("Expect PC = 0x%x", e.PC))
 	require.Equal(t, e.NextPC, actualState.GetCpu().NextPC, fmt.Sprintf("Expect nextPC = 0x%x", e.NextPC))
@@ -172,11 +180,7 @@ func (e *ExpectedState) Validate(t testing.TB, actualState mipsevm.FPVMState, fl
 	require.Equal(t, e.ExitCode, actualState.GetExitCode(), fmt.Sprintf("Expect exitCode = 0x%x", e.ExitCode))
 	require.Equal(t, e.Exited, actualState.GetExited(), fmt.Sprintf("Expect exited = %v", e.Exited))
 	require.Equal(t, e.Step, actualState.GetStep(), fmt.Sprintf("Expect step = %d", e.Step))
-	if !slices.Contains(flags, SkipHintValidation) {
-		require.Equal(t, e.LastHint, actualState.GetLastHint(), fmt.Sprintf("Expect lastHint = %v", e.LastHint))
-	}
+	require.Equal(t, e.LastHint, actualState.GetLastHint(), fmt.Sprintf("Expect lastHint = %v", e.LastHint))
 	require.Equal(t, e.Registers, *actualState.GetRegistersRef(), fmt.Sprintf("Expect registers = %v", e.Registers))
-	if !slices.Contains(flags, SkipMemoryValidation) {
-		require.Equal(t, e.MemoryRoot, common.Hash(actualState.GetMemory().MerkleRoot()), fmt.Sprintf("Expect memory root = %v", e.MemoryRoot))
-	}
+	require.Equal(t, e.MemoryRoot, common.Hash(actualState.GetMemory().MerkleRoot()), fmt.Sprintf("Expect memory root = %v", e.MemoryRoot))
 }

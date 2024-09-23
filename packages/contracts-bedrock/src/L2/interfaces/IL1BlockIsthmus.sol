@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-interface IL1BlockIsthmus {
-    type ConfigType is uint8;
+enum ConfigType {
+    SET_GAS_PAYING_TOKEN,
+    ADD_DEPENDENCY,
+    REMOVE_DEPENDENCY
+}
 
+interface IL1BlockIsthmus {
     error AlreadyDependency();
     error CantRemovedDependency();
     error DependencySetSizeTooLarge();

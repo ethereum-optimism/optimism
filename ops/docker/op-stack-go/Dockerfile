@@ -101,6 +101,11 @@ ARG OP_SUPERVISOR_VERSION=v0.0.0
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build cd op-supervisor && make op-supervisor  \
   GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE  VERSION="$OP_SUPERVISOR_VERSION"
 
+FROM --platform=$BUILDPLATFORM builder AS op-deployer-builder
+ARG OP_NODE_VERSION=v0.0.0
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build cd op-chain-ops && make op-deployer  \
+  GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_DEPLOYER_VERSION"
+
 FROM --platform=$TARGETPLATFORM $TARGET_BASE_IMAGE AS cannon-target
 COPY --from=cannon-builder /app/cannon/bin/cannon /usr/local/bin/
 CMD ["cannon"]
@@ -150,3 +155,7 @@ CMD ["da-server"]
 FROM --platform=$TARGETPLATFORM $TARGET_BASE_IMAGE AS op-supervisor-target
 COPY --from=op-supervisor-builder /app/op-supervisor/bin/op-supervisor /usr/local/bin/
 CMD ["op-supervisor"]
+
+FROM --platform=$TARGETPLATFORM $TARGET_BASE_IMAGE AS op-deployer-target
+COPY --from=op-deployer-builder /app/op-chain-ops/bin/op-deployer /usr/local/bin/
+CMD ["op-deployer"]
