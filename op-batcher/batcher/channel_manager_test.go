@@ -17,7 +17,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -486,16 +485,6 @@ func TestChannelManager_ChannelCreation(t *testing.T) {
 	}
 }
 
-type MockChannelManager struct {
-	mock.Mock
-	*channelManager
-}
-
-func (m *MockChannelManager) Requeue(newCfg ChannelConfig) error {
-	args := m.Called(newCfg)
-	return args.Error(0)
-}
-
 type FakeDynamicEthChannelConfig struct {
 	DynamicEthChannelConfig
 	chooseBlobs bool
@@ -538,10 +527,10 @@ func TestChannelManager_TxData(t *testing.T) {
 	}
 
 	tt := []TestCase{
-		// {"blobs->blobs", true, true},
-		// {"calldata->calldata", false, false},
+		{"blobs->blobs", true, true},
+		{"calldata->calldata", false, false},
 		{"blobs->calldata", true, false},
-		// {"calldata->blobs", false, true}
+		{"calldata->blobs", false, true},
 	}
 
 	for _, tc := range tt {
@@ -551,10 +540,8 @@ func TestChannelManager_TxData(t *testing.T) {
 			cfg := newFakeDynamicEthChannelConfig(l, 1000)
 
 			cfg.chooseBlobs = tc.chooseBlobsWhenChannelCreated
-			n := NewChannelManager(l, metrics.NoopMetrics, cfg, &defaultTestRollupConfig)
-			m := MockChannelManager{channelManager: n}
+			m := NewChannelManager(l, metrics.NoopMetrics, cfg, &defaultTestRollupConfig)
 			require.Equal(t, tc.chooseBlobsWhenChannelCreated, m.defaultCfg.UseBlobs)
-			m.On("Requeue", mock.Anything).Return(nil)
 
 			// Seed channel manager with blocks
 			rng := rand.New(rand.NewSource(time.Now().UnixNano()))
@@ -579,32 +566,23 @@ func TestChannelManager_TxData(t *testing.T) {
 
 			// Add a block and call TxData until
 			// we get some data to submit
+			var data txData
 			for {
 				m.blocks = []*types.Block{blockA}
 				// Call TxData a sceond time to to handle requeuing any channels
 				// which started to fill but were not sent yet
-				data, err := m.TxData(eth.BlockID{})
-				t.Log(len(data.frames), err)
-				t.Log(m.channelQueue[0].channelBuilder.co.InputBytes())
+				data, err = m.TxData(eth.BlockID{})
 				if err == nil {
 					break
 				}
 				if !errors.Is(err, io.EOF) { // We allow for an EOF error here
 					t.Fatal(err)
 				}
-
 			}
 
-			// TODO here we want to ensure there is a channel with data inside of it
-			// but which has not yet been sent
 			require.True(t, m.channelQueue[0].IsFull())
-
-			if tc.chooseBlobsWhenChannelCreated != tc.chooseBlobsWhenChannelSubmitted {
-				m.AssertCalled(t, "Requeue", mock.Anything)
-			} else {
-				m.AssertNotCalled(t, "Requeue", mock.Anything)
-			}
-			require.True(t, tc.chooseBlobsWhenChannelSubmitted, m.defaultCfg.UseBlobs)
+			require.Equal(t, tc.chooseBlobsWhenChannelSubmitted, data.asBlob)
+			require.Equal(t, tc.chooseBlobsWhenChannelSubmitted, m.defaultCfg.UseBlobs)
 		})
 	}
 
