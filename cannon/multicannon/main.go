@@ -12,7 +12,7 @@ import (
 
 func main() {
 	app := cli.NewApp()
-	app.Name = "cannon"
+	app.Name = "multicannon"
 	app.Usage = "MIPS Fault Proof tool"
 	app.Description = "MIPS Fault Proof tool"
 	app.Commands = []*cli.Command{

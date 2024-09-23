@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/cannon/cmd"
@@ -13,7 +15,7 @@ func Run(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	return ExecuteCannon(ctx.Args().Slice(), version)
+	return ExecuteCannon(os.Args[1:], version)
 }
 
 var RunCommand = cmd.CreateRunCommand(Run)
