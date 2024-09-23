@@ -754,8 +754,8 @@ contract DeployImplementations is Script {
         uint256 maxInitCodeSize = 24576 - 3;
         require(_bytecode.length > maxInitCodeSize, "DeployImplementations: Use deployBytecode instead");
 
-        bytes memory part1 = _bytecode[0:maxInitCodeSize - 1];
-        bytes memory part2 = _bytecode[maxInitCodeSize:_bytecode.length - 1];
+        bytes memory part1 = _bytecode[0:maxInitCodeSize];
+        bytes memory part2 = _bytecode[maxInitCodeSize:_bytecode.length];
         newContract1_ = deployBytecode(Blueprint.blueprintDeployerBytecode(part1), _salt);
         newContract2_ = deployBytecode(Blueprint.blueprintDeployerBytecode(part2), _salt);
     }
