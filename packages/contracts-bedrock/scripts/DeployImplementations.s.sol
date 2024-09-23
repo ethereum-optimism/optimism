@@ -515,7 +515,7 @@ contract DeployImplementations is Script {
         blueprints.l1ChugSplashProxy = deployBytecode(Blueprint.blueprintDeployerBytecode(type(L1ChugSplashProxy).creationCode), salt);
         blueprints.resolvedDelegateProxy = deployBytecode(Blueprint.blueprintDeployerBytecode(type(ResolvedDelegateProxy).creationCode), salt);
         blueprints.anchorStateRegistry = deployBytecode(Blueprint.blueprintDeployerBytecode(type(AnchorStateRegistry).creationCode), salt);
-        (blueprints.permissionedDisputeGame1, blueprints.permissionedDisputeGame2)  = this.deployBigBytecode(Blueprint.blueprintDeployerBytecode(type(PermissionedDisputeGame).creationCode), salt);
+        (blueprints.permissionedDisputeGame1, blueprints.permissionedDisputeGame2)  = this.deployBigBytecode(type(PermissionedDisputeGame).creationCode, salt);
         vm.stopBroadcast();
         // forgefmt: disable-end
 
