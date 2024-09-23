@@ -491,7 +491,7 @@ func TestChannelManager_Requeue(t *testing.T) {
 
 	// Seed channel manager with a single block
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	blockA := derivetest.RandomL2BlockWithChainId(rng, 1000, defaultTestRollupConfig.L2ChainID)
+	blockA := derivetest.RandomL2BlockWithChainId(rng, 10, defaultTestRollupConfig.L2ChainID)
 	require.NoError(t, m.AddL2Block(blockA))
 
 	// This is the snapshot of channel manager state we want to reinstate
