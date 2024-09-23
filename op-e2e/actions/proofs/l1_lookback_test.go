@@ -60,9 +60,10 @@ func runL1LookbackTest_ReopenChannel(gt *testing.T, testCfg *helpers.TestCfg[any
 	env.Alice.L2.ActMakeTx(t)
 	env.Engine.ActL2IncludeTx(env.Alice.Address())(t)
 	env.Sequencer.ActL2EndBlock(t)
+	l2BlockBeforeDerive := env.Engine.L2Chain().CurrentBlock()
 
 	// Buffer the L2 block in the batcher.
-	env.Batcher.ActBufferAll(t)
+	env.Batcher.ActL2BatchBuffer(t)
 	env.Batcher.ActL2BatchSubmit(t)
 
 	// Include the frame on L1.
@@ -72,8 +73,7 @@ func runL1LookbackTest_ReopenChannel(gt *testing.T, testCfg *helpers.TestCfg[any
 	env.Miner.ActL1SafeNext(t)
 
 	// Re-submit the first L2 block frame w/ different transaction data.
-	env.Batcher.Reset()
-	err := env.Batcher.BufferWithOpts(t, func(block *types.Block) {
+	err := env.Batcher.Buffer(t, func(block *types.Block) {
 		env.Bob.L2.ActResetTxOpts(t)
 		env.Bob.L2.ActSetTxToAddr(&env.Dp.Addresses.Mallory)
 		tx := env.Bob.L2.MakeTransaction(t)
@@ -111,6 +111,10 @@ func runL1LookbackTest_ReopenChannel(gt *testing.T, testCfg *helpers.TestCfg[any
 	// Instruct the sequencer to derive the L2 chain from the data on L1 that the batcher just posted.
 	env.Sequencer.ActL1HeadSignal(t)
 	env.Sequencer.ActL2PipelineFull(t)
+
+	// Ensure that the correct block was derived.
+	l2BlockAfterDerive := env.Engine.L2Chain().GetBlockByNumber(1)
+	require.EqualValues(t, l2BlockAfterDerive.Hash(), l2BlockBeforeDerive.Hash())
 
 	// Ensure that the safe head has advanced to `NumL2Blocks`.
 	l2SafeHead := env.Engine.L2Chain().CurrentSafeBlock()

@@ -26,7 +26,7 @@ func runBadTxInBatchTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	env.Alice.L2.ActCheckReceiptStatusOfLastTx(true)(t)
 
 	// Instruct the batcher to submit a faulty channel, with an invalid tx.
-	err := env.Batcher.BufferWithOpts(t, func(block *types.Block) {
+	err := env.Batcher.Buffer(t, func(block *types.Block) {
 		// Replace the tx with one that has a bad signature.
 		txs := block.Transactions()
 		newTx, err := txs[1].WithSignature(env.Alice.L2.Signer(), make([]byte, 65))
@@ -91,7 +91,7 @@ func runBadTxInBatch_ResubmitBadFirstFrame_Test(gt *testing.T, testCfg *helpers.
 	// Instruct the batcher to submit a faulty channel, with an invalid tx in the second block
 	// within the span batch.
 	env.Batcher.ActL2BatchBuffer(t)
-	err := env.Batcher.BufferWithOpts(t, func(block *types.Block) {
+	err := env.Batcher.Buffer(t, func(block *types.Block) {
 		// Replace the tx with one that has a bad signature.
 		txs := block.Transactions()
 		newTx, err := txs[1].WithSignature(env.Alice.L2.Signer(), make([]byte, 65))
