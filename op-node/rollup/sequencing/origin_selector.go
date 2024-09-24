@@ -12,6 +12,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -43,6 +44,16 @@ func NewL1OriginSelector(ctx context.Context, log log.Logger, cfg *rollup.Config
 		spec: rollup.NewChainSpec(cfg),
 		l1:   l1,
 	}
+}
+
+func (los *L1OriginSelector) OnEvent(ev event.Event) bool {
+	switch ev.(type) {
+	case rollup.ResetEvent:
+		los.reset()
+	default:
+		return false
+	}
+	return true
 }
 
 // FindL1Origin determines what the next L1 Origin should be.
@@ -86,7 +97,7 @@ func (los *L1OriginSelector) findL1Origin(ctx context.Context, l2Head eth.L2Bloc
 	}
 
 	// Otherwise, we need to find the next L1 origin block in order to continue producing blocks.
-	log.Warn("Next L2 block time is past the sequencer drift + current origin time")
+	log.Warn("Next L2 block time is past the sequencer drift + current origin time, attempting to wait for fetch of next L1 origin")
 
 	nextOrigin, ok := <-c
 	if !ok {
@@ -134,7 +145,7 @@ func (los *L1OriginSelector) maybeSetNextOrigin(nextOrigin eth.L1BlockRef) {
 	defer los.mu.Unlock()
 
 	// Set the next origin if it is the immediate child of the current origin.
-	if los.currentOrigin.Number+1 == nextOrigin.Number {
+	if nextOrigin.ParentHash == los.currentOrigin.Hash {
 		los.nextOrigin = nextOrigin
 	}
 }
@@ -181,5 +192,14 @@ func (los *L1OriginSelector) fetch(number uint64, c chan<- eth.L1BlockRef) {
 	}
 
 	los.maybeSetNextOrigin(nextOrigin)
+
 	c <- nextOrigin
+}
+
+func (los *L1OriginSelector) reset() {
+	los.mu.Lock()
+	defer los.mu.Unlock()
+
+	los.currentOrigin = eth.L1BlockRef{}
+	los.nextOrigin = eth.L1BlockRef{}
 }
