@@ -1049,6 +1049,9 @@ jobs:
           name: Restore cannon prestate cache
           key: cannon-prestate-{{ checksum "./cannon/bin/cannon" }}-{{ checksum "op-program/bin/op-program-client.elf" }}
       - run:
+          name: Sanitize op-program guest
+          command: make -f cannon/Makefile sanitize-program GUEST_PROGRAM=op-program/bin/op-program-client.elf
+      - run:
           name: generate cannon prestate
           command: make cannon-prestate
       - save_cache:
