@@ -16,7 +16,7 @@ import (
 type StateVersion uint8
 
 const (
-	// VersionSingleThreaded is the version of the Cannon STF found in op-contracts/v1.6.0 - https://github.com/ethereum-optimism/optimism/tree/op-contracts/v1.6.0
+	// VersionSingleThreaded is the version of the Cannon STF found in op-contracts/v1.6.0 - https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.6.0/packages/contracts-bedrock/src/cannon/MIPS.sol
 	VersionSingleThreaded StateVersion = iota
 	VersionMultiThreaded
 )
