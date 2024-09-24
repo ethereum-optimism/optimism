@@ -323,7 +323,7 @@ contract DeployOPChain_TestBase is Test {
     uint256 challengePeriodSeconds = 300;
     uint256 proofMaturityDelaySeconds = 400;
     uint256 disputeGameFinalityDelaySeconds = 500;
-    string release = "op-contracts/latest";
+    string release = "dev-release"; // this means implementation contracts will be deployed
     SuperchainConfig superchainConfigProxy;
     ProtocolVersions protocolVersionsProxy;
 
@@ -393,6 +393,11 @@ contract DeployOPChain_TestBase is Test {
         dii.set(dii.release.selector, release);
         dii.set(dii.superchainConfigProxy.selector, address(superchainConfigProxy));
         dii.set(dii.protocolVersionsProxy.selector, address(protocolVersionsProxy));
+        // End users of the DeployImplementations contract will need to set the `standardVersionsToml`.
+        string memory standardVersionsTomlPath =
+            string.concat(vm.projectRoot(), "/test/fixtures/standard-versions.toml");
+        string memory standardVersionsToml = vm.readFile(standardVersionsTomlPath);
+        dii.set(dii.standardVersionsToml.selector, standardVersionsToml);
         deployImplementations.run(dii, dio);
 
         // Set the OPStackManager input for DeployOPChain.

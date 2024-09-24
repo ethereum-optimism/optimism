@@ -115,6 +115,7 @@ func TestEndToEndApply(t *testing.T) {
 		UseFaultProofs:       true,
 		FundDevAccounts:      true,
 		ContractArtifactsURL: (*state.ArtifactsURL)(artifactsURL),
+		ContractsRelease:     "dev",
 		Chains: []*state.ChainIntent{
 			{
 				ID: id.Bytes32(),

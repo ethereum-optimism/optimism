@@ -23,6 +23,7 @@ type DeployImplementationsInput struct {
 	UseInterop            bool // if true, deploy Interop implementations
 
 	SuperchainProxyAdmin common.Address
+	StandardVersionsToml string // contents of 'standard-versions.toml' file
 }
 
 func (input *DeployImplementationsInput) InputSet() bool {
@@ -31,6 +32,7 @@ func (input *DeployImplementationsInput) InputSet() bool {
 
 type DeployImplementationsOutput struct {
 	OpsmProxy                        common.Address
+	OpsmImpl                         common.Address
 	DelayedWETHImpl                  common.Address
 	OptimismPortalImpl               common.Address
 	PreimageOracleSingleton          common.Address

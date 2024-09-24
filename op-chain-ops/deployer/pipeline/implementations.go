@@ -46,10 +46,11 @@ func DeployImplementations(ctx context.Context, env *Env, artifactsFS foundry.St
 						ChallengePeriodSeconds:          big.NewInt(86400),
 						ProofMaturityDelaySeconds:       big.NewInt(604800),
 						DisputeGameFinalityDelaySeconds: big.NewInt(302400),
-						Release:                         "op-contracts/v1.6.0",
+						Release:                         intent.ContractsRelease,
 						SuperchainConfigProxy:           st.SuperchainDeployment.SuperchainConfigProxyAddress,
 						ProtocolVersionsProxy:           st.SuperchainDeployment.ProtocolVersionsProxyAddress,
 						SuperchainProxyAdmin:            st.SuperchainDeployment.ProxyAdminAddress,
+						StandardVersionsToml:            opsm.StandardVersionsData,
 						UseInterop:                      false,
 					},
 				)

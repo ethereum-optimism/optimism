@@ -39,6 +39,8 @@ type OPSMImplementationsConfig struct {
 	FaultProof SuperFaultProofConfig
 
 	UseInterop bool // to deploy Interop implementation contracts, instead of the regular ones.
+
+	StandardVersionsToml string // serialized string of superchain-registry 'standard-versions.toml' file
 }
 
 type SuperchainConfig struct {
