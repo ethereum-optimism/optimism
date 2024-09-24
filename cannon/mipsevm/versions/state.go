@@ -103,3 +103,14 @@ func (s *VersionedState) MarshalJSON() ([]byte, error) {
 	}
 	return json.Marshal(s.FPVMState)
 }
+
+func (s StateVersion) String() string {
+	switch s {
+	case VersionSingleThreaded:
+		return "singlethreaded"
+	case VersionMultiThreaded:
+		return "multithreaded"
+	default:
+		return "unknown"
+	}
+}

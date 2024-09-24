@@ -17,6 +17,8 @@ RUN apk add --no-cache make gcc musl-dev linux-headers git jq bash
 # We copy the go.mod/sum first, so the `go mod download` does not have to re-run if dependencies do not change.
 COPY ./go.mod /app/go.mod
 COPY ./go.sum /app/go.sum
+# used to checkout older cannon tags
+COPY ./.git /app/.git
 
 WORKDIR /app
 
@@ -46,8 +48,16 @@ ARG TARGETARCH
 # Build the Go services, utilizing caches and share the many common packages.
 # The "id" defaults to the value of "target", the cache will thus be reused during this build.
 # "sharing" defaults to "shared", the cache will thus be available to other concurrent docker builds.
+FROM --platform=$BUILDPLATFORM builder AS cannon-builder-0
+ARG PREV_CANNON_VERSION=v1.0.0-alpha.1
+RUN git checkout cannon/$PREV_CANNON_VERSION
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build cd cannon && make cannon  \
+  GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$PREV_CANNON_VERSION"
+
 FROM --platform=$BUILDPLATFORM builder AS cannon-builder
-ARG CANNON_VERSION=v0.0.0
+ARG CANNON_VERSION=v1.1.0
+COPY --from=cannon-builder-0 /app/cannon/bin/cannon ./cannon/multicannon/embeds/cannon-0
+COPY --from=cannon-builder-0 /app/cannon/bin/cannon ./cannon/multicannon/embeds/cannon-1
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build cd cannon && make cannon  \
   GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$CANNON_VERSION"
 

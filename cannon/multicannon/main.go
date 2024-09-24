@@ -19,6 +19,7 @@ func main() {
 		LoadELFCommand,
 		WitnessCommand,
 		RunCommand,
+		ListCommand,
 	}
 	ctx := ctxinterrupt.WithSignalWaiterMain(context.Background())
 	err := app.RunContext(ctx, os.Args)

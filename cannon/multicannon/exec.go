@@ -14,6 +14,8 @@ import (
 //go:embed embeds
 var vmFS embed.FS
 
+const baseDir = "embeds"
+
 func ExecuteCannon(args []string, ver versions.StateVersion) error {
 	switch ver {
 	case versions.VersionSingleThreaded, versions.VersionMultiThreaded:
@@ -64,5 +66,5 @@ func extractTempFile(name string, data []byte) (string, error) {
 }
 
 func vmFilename(ver versions.StateVersion) string {
-	return fmt.Sprintf("embeds/cannon-%d", ver)
+	return fmt.Sprintf("%s/cannon-%d", baseDir, ver)
 }
