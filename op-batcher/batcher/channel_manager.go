@@ -15,7 +15,10 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-var ErrReorg = errors.New("block does not extend existing chain")
+var (
+	ErrReorg            = errors.New("block does not extend existing chain")
+	ErrInsufficientData = errors.New("insufficient data")
+)
 
 // channelManager stores a contiguous set of blocks & turns them into channels.
 // Upon receiving tx confirmation (or a tx failure), it does channel error handling.
@@ -135,8 +138,6 @@ func (s *channelManager) removePendingChannel(channel *channel) {
 	}
 	s.channelQueue = append(s.channelQueue[:index], s.channelQueue[index+1:]...)
 }
-
-var ErrInsufficientData = errors.New("insufficient data")
 
 // nextTxData dequeues frames from the channel and returns them encoded in a transaction.
 // It also updates the internal tx -> channels mapping
