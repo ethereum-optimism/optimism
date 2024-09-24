@@ -66,7 +66,6 @@ func (l *LazyRPC) CallContext(ctx context.Context, result any, method string, ar
 	if err := l.dial(ctx); err != nil {
 		return err
 	}
-	fmt.Println("checkpoin 1")
 	return l.inner.CallContext(ctx, result, method, args...)
 }
 
