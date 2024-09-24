@@ -558,7 +558,7 @@ func TestChannelManager_TxData(t *testing.T) {
 
 			// Seed channel manager with a block
 			rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-			blockA := derivetest.RandomL2BlockWithChainId(rng, 10, defaultTestRollupConfig.L2ChainID)
+			blockA := derivetest.RandomL2BlockWithChainId(rng, 200, defaultTestRollupConfig.L2ChainID)
 			m.blocks = []*types.Block{blockA}
 
 			// Call TxData a first time to trigger blocks->channels pipeline
