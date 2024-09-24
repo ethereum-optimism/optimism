@@ -171,9 +171,6 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 	if err != nil {
 		return emptyTxData, err
 	}
-	if channel == nil {
-		panic("nil channel and nil err returned from getReadyChannel")
-	}
 	// If the channel has already started being submitted,
 	// return now and ensure no requeueing happens
 	if !channel.NoneSubmitted() {
