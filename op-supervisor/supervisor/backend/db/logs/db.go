@@ -210,12 +210,11 @@ func (db *DB) FindSealedBlock(block eth.BlockID) (nextEntry entrydb.EntryIdx, er
 func (db *DB) LatestSealedBlockNum() (n uint64, ok bool) {
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
+	if db.lastEntryContext.nextEntryIndex == 0 {
+		return 0, false // empty DB, time to add the first seal
+	}
 	if !db.lastEntryContext.hasCompleteBlock() {
-		if db.lastEntryContext.blockNum == 0 {
-			db.log.Debug("No DB contents yet")
-		} else {
-			db.log.Debug("New block is already in progress", "num", db.lastEntryContext.blockNum)
-		}
+		db.log.Debug("New block is already in progress", "num", db.lastEntryContext.blockNum)
 	}
 	return db.lastEntryContext.blockNum, true
 }
@@ -381,6 +380,9 @@ func (db *DB) newIterator(index entrydb.EntryIdx) *iterator {
 // to find the closest one with an equal or lower block number and equal or lower amount of seen logs.
 // Returns the index of the searchCheckpoint to begin reading from or an error.
 func (db *DB) searchCheckpoint(sealedBlockNum uint64, logsSince uint32) (entrydb.EntryIdx, error) {
+	if db.lastEntryContext.nextEntryIndex == 0 {
+		return 0, ErrFuture // empty DB, everything is in the future
+	}
 	n := (db.lastEntryIdx() / searchCheckpointFrequency) + 1
 	// Define: x is the array of known checkpoints
 	// Invariant: x[i] <= target, x[j] > target.
