@@ -10,7 +10,7 @@ import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
-import { OPStackManager } from "src/L1/OPStackManager.sol";
+import { OPContractsManager } from "src/L1/OPContractsManager.sol";
 import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
@@ -106,11 +106,11 @@ contract DeployImplementationsOutput_Test is Test {
 
     function test_set_succeeds() public {
         Proxy proxy = new Proxy(address(0));
-        address opsmImpl = address(makeAddr("opsmImpl"));
+        address opcmImpl = address(makeAddr("opcmImpl"));
         vm.prank(address(0));
-        proxy.upgradeTo(opsmImpl);
+        proxy.upgradeTo(opcmImpl);
 
-        OPStackManager opsmProxy = OPStackManager(address(proxy));
+        OPContractsManager opcmProxy = OPContractsManager(address(proxy));
         OptimismPortal2 optimismPortalImpl = OptimismPortal2(payable(makeAddr("optimismPortalImpl")));
         DelayedWETH delayedWETHImpl = DelayedWETH(payable(makeAddr("delayedWETHImpl")));
         PreimageOracle preimageOracleSingleton = PreimageOracle(makeAddr("preimageOracleSingleton"));
@@ -124,8 +124,8 @@ contract DeployImplementationsOutput_Test is Test {
             OptimismMintableERC20Factory(makeAddr("optimismMintableERC20FactoryImpl"));
         DisputeGameFactory disputeGameFactoryImpl = DisputeGameFactory(makeAddr("disputeGameFactoryImpl"));
 
-        vm.etch(address(opsmProxy), address(opsmProxy).code);
-        vm.etch(address(opsmImpl), hex"01");
+        vm.etch(address(opcmProxy), address(opcmProxy).code);
+        vm.etch(address(opcmImpl), hex"01");
         vm.etch(address(optimismPortalImpl), hex"01");
         vm.etch(address(delayedWETHImpl), hex"01");
         vm.etch(address(preimageOracleSingleton), hex"01");
@@ -136,7 +136,7 @@ contract DeployImplementationsOutput_Test is Test {
         vm.etch(address(l1StandardBridgeImpl), hex"01");
         vm.etch(address(optimismMintableERC20FactoryImpl), hex"01");
         vm.etch(address(disputeGameFactoryImpl), hex"01");
-        dio.set(dio.opsmProxy.selector, address(opsmProxy));
+        dio.set(dio.opcmProxy.selector, address(opcmProxy));
         dio.set(dio.optimismPortalImpl.selector, address(optimismPortalImpl));
         dio.set(dio.delayedWETHImpl.selector, address(delayedWETHImpl));
         dio.set(dio.preimageOracleSingleton.selector, address(preimageOracleSingleton));
@@ -148,7 +148,7 @@ contract DeployImplementationsOutput_Test is Test {
         dio.set(dio.optimismMintableERC20FactoryImpl.selector, address(optimismMintableERC20FactoryImpl));
         dio.set(dio.disputeGameFactoryImpl.selector, address(disputeGameFactoryImpl));
 
-        assertEq(address(opsmProxy), address(dio.opsmProxy()), "50");
+        assertEq(address(opcmProxy), address(dio.opcmProxy()), "50");
         assertEq(address(optimismPortalImpl), address(dio.optimismPortalImpl()), "100");
         assertEq(address(delayedWETHImpl), address(dio.delayedWETHImpl()), "200");
         assertEq(address(preimageOracleSingleton), address(dio.preimageOracleSingleton()), "300");
@@ -413,7 +413,7 @@ contract DeployImplementations_Test is Test {
         string memory release = string(bytes.concat(hash(_seed, 5)));
         protocolVersionsProxy = ProtocolVersions(address(uint160(uint256(hash(_seed, 7)))));
 
-        // Must configure the ProxyAdmin contract which is used to upgrade the OPSM's proxy contract.
+        // Must configure the ProxyAdmin contract which is used to upgrade the OPCM's proxy contract.
         ProxyAdmin superchainProxyAdmin = new ProxyAdmin(msg.sender);
         superchainConfigProxy = SuperchainConfig(address(new Proxy(payable(address(superchainProxyAdmin)))));
 

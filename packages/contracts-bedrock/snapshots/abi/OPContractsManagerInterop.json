@@ -62,7 +62,7 @@
             "type": "address"
           }
         ],
-        "internalType": "struct OPStackManager.Blueprints",
+        "internalType": "struct OPContractsManager.Blueprints",
         "name": "",
         "type": "tuple"
       }
@@ -126,7 +126,7 @@
                 "type": "address"
               }
             ],
-            "internalType": "struct OPStackManager.Roles",
+            "internalType": "struct OPContractsManager.Roles",
             "name": "roles",
             "type": "tuple"
           },
@@ -151,7 +151,7 @@
             "type": "bytes"
           }
         ],
-        "internalType": "struct OPStackManager.DeployInput",
+        "internalType": "struct OPContractsManager.DeployInput",
         "name": "_input",
         "type": "tuple"
       }
@@ -236,7 +236,7 @@
             "type": "address"
           }
         ],
-        "internalType": "struct OPStackManager.DeployOutput",
+        "internalType": "struct OPContractsManager.DeployOutput",
         "name": "",
         "type": "tuple"
       }
@@ -320,7 +320,7 @@
                 "type": "address"
               }
             ],
-            "internalType": "struct OPStackManager.Blueprints",
+            "internalType": "struct OPContractsManager.Blueprints",
             "name": "blueprints",
             "type": "tuple"
           },
@@ -344,12 +344,12 @@
                     "type": "bytes4"
                   }
                 ],
-                "internalType": "struct OPStackManager.Implementation",
+                "internalType": "struct OPContractsManager.Implementation",
                 "name": "info",
                 "type": "tuple"
               }
             ],
-            "internalType": "struct OPStackManager.ImplementationSetter[]",
+            "internalType": "struct OPContractsManager.ImplementationSetter[]",
             "name": "setters",
             "type": "tuple[]"
           },
@@ -364,7 +364,7 @@
             "type": "bool"
           }
         ],
-        "internalType": "struct OPStackManager.InitializerInputs",
+        "internalType": "struct OPContractsManager.InitializerInputs",
         "name": "_initializerInputs",
         "type": "tuple"
       }

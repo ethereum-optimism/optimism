@@ -40,7 +40,7 @@ import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
 
 /// @custom:proxied true
-contract OPStackManager is ISemver, Initializable {
+contract OPContractsManager is ISemver, Initializable {
     // -------- Structs --------
 
     /// @notice Represents the roles that can be set when deploying a standard OP Stack chain.
@@ -113,7 +113,7 @@ contract OPStackManager is ISemver, Initializable {
         address permissionedDisputeGame2;
     }
 
-    /// @notice Inputs required when initializing the OPStackManager. To avoid 'StackTooDeep' errors,
+    /// @notice Inputs required when initializing the OPContractsManager. To avoid 'StackTooDeep' errors,
     /// all necessary inputs (excluding immutables) for initialization are bundled together in this struct.
     struct InitializerInputs {
         Blueprints blueprints;
@@ -133,7 +133,7 @@ contract OPStackManager is ISemver, Initializable {
     /// @notice Address of the ProtocolVersions contract shared by all chains.
     ProtocolVersions public immutable protocolVersions;
 
-    /// @notice The latest release of the OP Stack Manager, as a string of the format `op-contracts/vX.Y.Z`.
+    /// @notice The latest release of the OP Contracts Manager, as a string of the format `op-contracts/vX.Y.Z`.
     string public latestRelease;
 
     /// @notice Maps a release version to a contract name to it's implementation data.
@@ -181,7 +181,7 @@ contract OPStackManager is ISemver, Initializable {
 
     // -------- Methods --------
 
-    /// @notice OPSM is proxied. Therefore the `initialize` function replaces most constructor logic for this contract.
+    /// @notice OPCM is proxied. Therefore the `initialize` function replaces most constructor logic for this contract.
 
     constructor(SuperchainConfig _superchainConfig, ProtocolVersions _protocolVersions) {
         assertValidContractAddress(address(_superchainConfig));

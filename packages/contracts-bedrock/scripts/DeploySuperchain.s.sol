@@ -15,7 +15,7 @@ import { BaseDeployIO } from "scripts/utils/BaseDeployIO.sol";
 
 // This comment block defines the requirements and rationale for the architecture used in this forge
 // script, along with other scripts that are being written as new Superchain-first deploy scripts to
-// complement the OP Stack Manager. The script architecture is a bit different than a standard forge
+// complement the OP Contracts Manager. The script architecture is a bit different than a standard forge
 // deployment script.
 //
 // There are three categories of users that are expected to interact with the scripts:

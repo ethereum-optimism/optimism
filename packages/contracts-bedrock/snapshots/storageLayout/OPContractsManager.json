@@ -25,7 +25,7 @@
     "label": "implementations",
     "offset": 0,
     "slot": "2",
-    "type": "mapping(string => mapping(string => struct OPStackManager.Implementation))"
+    "type": "mapping(string => mapping(string => struct OPContractsManager.Implementation))"
   },
   {
     "bytes": "32",
@@ -39,7 +39,7 @@
     "label": "blueprint",
     "offset": 0,
     "slot": "4",
-    "type": "struct OPStackManager.Blueprints"
+    "type": "struct OPContractsManager.Blueprints"
   },
   {
     "bytes": "1600",
