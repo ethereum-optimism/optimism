@@ -165,6 +165,8 @@ func (s *channelManager) nextTxData(channel *channel) (txData, error) {
 // When switching DA type, the channelManager state will be rebuilt
 // with a new ChannelConfig.
 func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	channel, err := s.getReadyChannel(l1Head)
 	if err != nil {
 		return emptyTxData, err
@@ -202,9 +204,6 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 
 // getReadyChannel returns the next channel ready to submit data, or an error.
 func (s *channelManager) getReadyChannel(l1Head eth.BlockID) (*channel, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	var firstWithTxData *channel
 	for _, ch := range s.channelQueue {
 		if ch.HasTxData() {
@@ -480,9 +479,6 @@ func (s *channelManager) Close() error {
 // Requeue rebuilds the channel manager state by
 // rewinding blocks back from the channel queue, and setting the defaultCfg.
 func (s *channelManager) Requeue(newCfg ChannelConfig) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	newChannelQueue := []*channel{}
 	blocksToRequeueInChannelManager := []*types.Block{}
 	for _, channel := range s.channelQueue {
