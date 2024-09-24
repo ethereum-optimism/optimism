@@ -40,3 +40,8 @@ deploy-config/devnetL1.json
 
 # Getting Started guide deploy config
 deploy-config/getting-started.json
+
+# Upgrade bundles
+scripts/upgrades/**/bundle.json
+scripts/upgrades/**/temp
+scripts/upgrades/**/outputs
