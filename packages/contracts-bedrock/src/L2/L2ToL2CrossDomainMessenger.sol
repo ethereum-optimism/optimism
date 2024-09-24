@@ -114,7 +114,6 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
         if (_target == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER) revert MessageTargetL2ToL2CrossDomainMessenger();
 
         _msgHash = keccak256(abi.encode(_destination, block.chainid, messageNonce(), msg.sender, _target, _message));
-
         bytes memory data = abi.encodeCall(L2ToL2CrossDomainMessenger.relayMessage, _msgHash);
         assembly {
             log0(add(data, 0x20), mload(data))

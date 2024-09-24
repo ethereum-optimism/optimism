@@ -99,7 +99,7 @@ contract L2ToL2CrossDomainMessengerTest is Test {
             logs[0].data,
             abi.encodeCall(
                 L2ToL2CrossDomainMessenger.relayMessage,
-                (_destination, block.chainid, messageNonce, address(this), _target, _message)
+                keccak256(abi.encode(_destination, block.chainid, messageNonce, address(this), _target, _message))
             )
         );
 
@@ -227,14 +227,18 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         hoax(Predeploys.CROSS_L2_INBOX, _value);
 
         // Call the relayMessage function
-        l2ToL2CrossDomainMessenger.relayMessage{ value: _value }({
-            _destination: block.chainid, // ensure the destination is the chain of L2ToL2CrossDomainMessenger
-            _source: _source,
-            _nonce: _nonce,
-            _sender: _sender,
-            _target: _target,
-            _message: _message
-        });
+        l2ToL2CrossDomainMessenger.relayMessage{ value: _value }(
+            keccak256(
+                abi.encode(
+                    block.chainid, // ensure the destination is the chain of L2ToL2CrossDomainMessenger
+                    _source,
+                    _nonce,
+                    _sender,
+                    _target,
+                    _message
+                )
+            )
+        );
 
         // Check that successfulMessages mapping updates the message hash correctly
         assertEq(
@@ -305,14 +309,18 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         hoax(Predeploys.CROSS_L2_INBOX, _value);
 
         // Call the relayMessage function
-        l2ToL2CrossDomainMessenger.relayMessage{ value: _value }({
-            _destination: block.chainid, // ensure the destination is the chain of L2ToL2CrossDomainMessenger
-            _source: _source,
-            _nonce: _nonce,
-            _sender: _sender,
-            _target: target,
-            _message: message
-        });
+        l2ToL2CrossDomainMessenger.relayMessage{ value: _value }(
+            keccak256(
+                abi.encode(
+                    block.chainid, // ensure the destination is the chain of L2ToL2CrossDomainMessenger
+                    _source,
+                    _nonce,
+                    _sender,
+                    target,
+                    message
+                )
+            )
+        );
 
         // Check that successfulMessages mapping updates the message hash correctly
         assertEq(
@@ -345,14 +353,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
 
         vm.expectRevert(ReentrantCall.selector);
 
-        l2ToL2CrossDomainMessenger.relayMessage({
-            _destination: block.chainid,
-            _source: _source,
-            _nonce: _nonce,
-            _sender: _sender,
-            _target: address(0),
-            _message: ""
-        });
+        l2ToL2CrossDomainMessenger.relayMessage(
+            keccak256(abi.encode(block.chainid, _source, _nonce, _sender, address(0), ""))
+        );
 
         // Ensure the function still reverts if `expectRevert` succeeds
         revert();
@@ -397,14 +400,18 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         hoax(Predeploys.CROSS_L2_INBOX, _value);
 
         // Call the relayMessage function
-        l2ToL2CrossDomainMessenger.relayMessage{ value: _value }({
-            _destination: block.chainid, // ensure the destination is the chain of L2ToL2CrossDomainMessenger
-            _source: _source1,
-            _nonce: _nonce,
-            _sender: _sender1,
-            _target: target,
-            _message: message
-        });
+        l2ToL2CrossDomainMessenger.relayMessage{ value: _value }(
+            keccak256(
+                abi.encode(
+                    block.chainid, // ensure the destination is the chain of L2ToL2CrossDomainMessenger
+                    _source1,
+                    _nonce,
+                    _sender1,
+                    target,
+                    message
+                )
+            )
+        );
 
         // Check that entered slot is cleared after the function call
         assertEq(l2ToL2CrossDomainMessenger.entered(), false);
@@ -435,14 +442,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         vm.expectRevert(RelayMessageCallerNotCrossL2Inbox.selector);
 
         // Call `relayMessage` with the current contract as the caller to provoke revert
-        l2ToL2CrossDomainMessenger.relayMessage{ value: _value }({
-            _destination: _destination,
-            _source: _source,
-            _nonce: _nonce,
-            _sender: _sender,
-            _target: _target,
-            _message: _message
-        });
+        l2ToL2CrossDomainMessenger.relayMessage{ value: _value }(
+            keccak256(abi.encode(_destination, _source, _nonce, _sender, _target, _message))
+        );
     }
 
     /// @dev Tests that the `relayMessage` function reverts when CrossL2Inbox's origin is not
@@ -472,14 +474,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         vm.expectRevert(CrossL2InboxOriginNotL2ToL2CrossDomainMessenger.selector);
 
         // Call `relayMessage` with invalid CrossL2Inbox origin to provoke revert
-        l2ToL2CrossDomainMessenger.relayMessage{ value: _value }({
-            _destination: _destination,
-            _source: _source,
-            _nonce: _nonce,
-            _sender: _sender,
-            _target: _target,
-            _message: _message
-        });
+        l2ToL2CrossDomainMessenger.relayMessage{ value: _value }(
+            keccak256(abi.encode(_destination, _source, _nonce, _sender, _target, _message))
+        );
     }
 
     /// @dev Tests that the `relayMessage` function reverts when the destination is not the relay chain.
@@ -511,14 +508,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         vm.expectRevert(MessageDestinationNotRelayChain.selector);
 
         // Call `relayMessage`
-        l2ToL2CrossDomainMessenger.relayMessage{ value: _value }({
-            _destination: _destination,
-            _source: _source,
-            _nonce: _nonce,
-            _sender: _sender,
-            _target: _target,
-            _message: _message
-        });
+        l2ToL2CrossDomainMessenger.relayMessage{ value: _value }(
+            keccak256(abi.encode(_destination, _source, _nonce, _sender, _target, _message))
+        );
     }
 
     /// @dev Tests that the `relayMessage` function reverts when the message target is CrossL2Inbox.
@@ -546,14 +538,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
 
         // Call `relayMessage` with CrossL2Inbox as the target to provoke revert. The current chain is the destination
         // to prevent revert due to invalid destination
-        l2ToL2CrossDomainMessenger.relayMessage{ value: _value }({
-            _destination: block.chainid,
-            _source: _source,
-            _nonce: _nonce,
-            _sender: _sender,
-            _target: Predeploys.CROSS_L2_INBOX,
-            _message: _message
-        });
+        l2ToL2CrossDomainMessenger.relayMessage{ value: _value }(
+            keccak256(abi.encode(block.chainid, _source, _nonce, _sender, Predeploys.CROSS_L2_INBOX, _message))
+        );
     }
 
     /// @dev Tests that the `relayMessage` function reverts when the message target is L2ToL2CrossDomainMessenger.
@@ -581,14 +568,13 @@ contract L2ToL2CrossDomainMessengerTest is Test {
 
         // Call `relayMessage` with L2ToL2CrossDomainMessenger as the target to provoke revert. The current chain is the
         // destination to prevent revert due to invalid destination
-        l2ToL2CrossDomainMessenger.relayMessage{ value: _value }({
-            _destination: block.chainid,
-            _source: _source,
-            _nonce: _nonce,
-            _sender: _sender,
-            _target: Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
-            _message: _message
-        });
+        l2ToL2CrossDomainMessenger.relayMessage{ value: _value }(
+            keccak256(
+                abi.encode(
+                    block.chainid, _source, _nonce, _sender, Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, _message
+                )
+            )
+        );
     }
 
     /// @dev Tests that the `relayMessage` function reverts when the message has already been relayed.
@@ -632,14 +618,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
 
         // First call to `relayMessage` should succeed. The current chain is the destination to prevent revert due to
         // invalid destination
-        l2ToL2CrossDomainMessenger.relayMessage{ value: _value }({
-            _destination: block.chainid,
-            _source: _source,
-            _nonce: _nonce,
-            _sender: _sender,
-            _target: _target,
-            _message: _message
-        });
+        l2ToL2CrossDomainMessenger.relayMessage{ value: _value }(
+            keccak256(abi.encode(block.chainid, _source, _nonce, _sender, _target, _message))
+        );
 
         // Ensure caller is CrossL2Inbox to prevent a revert from the caller check and that it has sufficient value
         hoax(Predeploys.CROSS_L2_INBOX, _value);
@@ -648,14 +629,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         vm.expectRevert(MessageAlreadyRelayed.selector);
 
         // Call `relayMessage` again. The current chain is the destination to prevent revert due to invalid destination
-        l2ToL2CrossDomainMessenger.relayMessage{ value: _value }({
-            _destination: block.chainid,
-            _source: _source,
-            _nonce: _nonce,
-            _sender: _sender,
-            _target: _target,
-            _message: _message
-        });
+        l2ToL2CrossDomainMessenger.relayMessage{ value: _value }(
+            keccak256(abi.encode(block.chainid, _source, _nonce, _sender, _target, _message))
+        );
     }
 
     /// @dev Tests that the `relayMessage` function reverts when the target call fails.
@@ -694,14 +670,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
             keccak256(abi.encode(block.chainid, _source, _nonce, _sender, _target, _message))
         );
 
-        l2ToL2CrossDomainMessenger.relayMessage{ value: _value }({
-            _destination: block.chainid,
-            _source: _source,
-            _nonce: _nonce,
-            _sender: _sender,
-            _target: _target,
-            _message: _message
-        });
+        l2ToL2CrossDomainMessenger.relayMessage{ value: _value }(
+            keccak256(abi.encode(block.chainid, _source, _nonce, _sender, _target, _message))
+        );
     }
 
     /// @dev Tests that the `crossDomainMessageSender` function returns the correct value.
