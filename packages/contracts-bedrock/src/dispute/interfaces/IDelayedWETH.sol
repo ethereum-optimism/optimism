@@ -27,4 +27,6 @@ interface IDelayedWETH is IWETH {
     function withdraw(address _guy, uint256 _wad) external;
     function withdrawals(address _owner, address _guy) external view returns (uint256, uint256);
     function version() external view returns (string memory);
+
+    function __constructor__(uint256 _delay) external;
 }
