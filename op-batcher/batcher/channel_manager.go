@@ -141,7 +141,11 @@ var ErrInsufficientData = errors.New("insufficient data")
 // nextTxData dequeues frames from the channel and returns them encoded in a transaction.
 // It also updates the internal tx -> channels mapping
 func (s *channelManager) nextTxData(channel *channel) (txData, error) {
-	if channel == nil || !channel.HasTxData() {
+	if channel == nil {
+		s.log.Trace("no channel")
+		return txData{}, io.EOF
+	}
+	if !channel.HasTxData() {
 		s.log.Trace("no next tx data")
 		return txData{}, ErrInsufficientData
 	}
@@ -167,7 +171,7 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 	if !channel.HasTxData() {
 		return emptyTxData, ErrInsufficientData
 	}
-	if channel != nil && !channel.NoneSubmitted() {
+	if !channel.NoneSubmitted() {
 		return s.nextTxData(channel)
 	}
 	newCfg := s.cfgProvider.ChannelConfig()
@@ -184,12 +188,19 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 	// the data currently in channels
 	err = s.Requeue(newCfg)
 	return emptyTxData, err
+	// Return nothing for now, a future TxData invocation
+	// will cause a new channel to be built
 }
 
-// getReadyChannel returns the next channel ready to submit data.
+// getReadyChannel returns the next channel ready to submit data, or an error.
 func (s *channelManager) getReadyChannel(l1Head eth.BlockID) (*channel, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	if s.closed {
+		return nil, io.EOF
+	}
+
 	var firstWithTxData *channel
 	for _, ch := range s.channelQueue {
 		if ch.HasTxData() {
@@ -201,8 +212,8 @@ func (s *channelManager) getReadyChannel(l1Head eth.BlockID) (*channel, error) {
 	dataPending := firstWithTxData != nil
 	s.log.Debug("Requested tx data", "l1Head", l1Head, "txdata_pending", dataPending, "blocks_pending", len(s.blocks))
 
-	// Short circuit if there is pending tx data or the channel manager is closed.
-	if dataPending || s.closed {
+	// Short circuit if there is pending tx data
+	if dataPending {
 		return firstWithTxData, nil
 	}
 
