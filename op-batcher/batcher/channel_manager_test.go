@@ -609,7 +609,7 @@ func TestChannelManager_Requeue(t *testing.T) {
 	require.NotContains(t, m.blocks, blockA)
 
 	// Call the function we are testing
-	require.NoError(t, m.Requeue(m.defaultCfg))
+	m.Requeue(m.defaultCfg)
 
 	// Ensure we got back to the state above
 	require.Equal(t, m.blocks, stateSnapshot)
@@ -630,7 +630,7 @@ func TestChannelManager_Requeue(t *testing.T) {
 	require.False(t, channel0.NoneSubmitted())
 
 	// Call the function we are testing
-	require.NoError(t, m.Requeue(m.defaultCfg))
+	m.Requeue(m.defaultCfg)
 
 	// The requeue shouldn't affect the pending channel
 	require.Contains(t, m.channelQueue, channel0)

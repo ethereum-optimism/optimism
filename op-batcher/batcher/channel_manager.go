@@ -168,6 +168,9 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 	if err != nil {
 		return emptyTxData, err
 	}
+	if channel == nil {
+		panic("nil channel and nil err returned from getReadyChannel")
+	}
 	if !channel.HasTxData() {
 		return emptyTxData, ErrInsufficientData
 	}
@@ -186,20 +189,21 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 	// We have detected that our assumptions on DA
 	// type were wrong and we need to requeue
 	// the data currently in channels
-	err = s.Requeue(newCfg)
-	return emptyTxData, err
-	// Return nothing for now, a future TxData invocation
-	// will cause a new channel to be built
+	s.Requeue(newCfg)
+	channel, err = s.getReadyChannel(l1Head)
+	if err != nil {
+		return emptyTxData, err
+	}
+	if !channel.HasTxData() {
+		return emptyTxData, ErrInsufficientData
+	}
+	return s.nextTxData(channel)
 }
 
 // getReadyChannel returns the next channel ready to submit data, or an error.
 func (s *channelManager) getReadyChannel(l1Head eth.BlockID) (*channel, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
-	if s.closed {
-		return nil, io.EOF
-	}
 
 	var firstWithTxData *channel
 	for _, ch := range s.channelQueue {
@@ -212,9 +216,13 @@ func (s *channelManager) getReadyChannel(l1Head eth.BlockID) (*channel, error) {
 	dataPending := firstWithTxData != nil
 	s.log.Debug("Requested tx data", "l1Head", l1Head, "txdata_pending", dataPending, "blocks_pending", len(s.blocks))
 
-	// Short circuit if there is pending tx data
+	// Short circuit if there is pending tx data or the channel manager is closed
 	if dataPending {
 		return firstWithTxData, nil
+	}
+
+	if s.closed {
+		return nil, io.EOF
 	}
 
 	// No pending tx data, so we have to add new blocks to the channel
@@ -471,7 +479,7 @@ func (s *channelManager) Close() error {
 
 // Requeue rebuilds the channel manager state by
 // rewinding blocks back from the channel queue, and setting the defaultCfg.
-func (s *channelManager) Requeue(newCfg ChannelConfig) error {
+func (s *channelManager) Requeue(newCfg ChannelConfig) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.log.Info("Rebuilding channelManager state", "UseBlobs", newCfg.UseBlobs)
@@ -491,5 +499,4 @@ func (s *channelManager) Requeue(newCfg ChannelConfig) error {
 	// Setting the defaultCfg will cause new channels
 	// to pick up the new ChannelConfig
 	s.defaultCfg = newCfg
-	return nil
 }
