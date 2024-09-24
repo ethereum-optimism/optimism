@@ -19,8 +19,8 @@ import (
 
 // STATE_WITNESS_SIZE is the size of the state witness encoding in bytes.
 // TODO: infer size based on arch
-// const STATE_WITNESS_SIZE = 172 (for 32-bit)
-const STATE_WITNESS_SIZE = 188 // on 64-bit arch
+const STATE_WITNESS_SIZE = 172 // (for 32-bit)
+// const STATE_WITNESS_SIZE = 196 // on 64-bit arch
 const (
 	MEMROOT_WITNESS_OFFSET                    = 0
 	PREIMAGE_KEY_WITNESS_OFFSET               = MEMROOT_WITNESS_OFFSET + 32
@@ -32,7 +32,7 @@ const (
 	EXITCODE_WITNESS_OFFSET                   = LL_OWNER_THREAD_OFFSET + arch.WordSizeBytes
 	EXITED_WITNESS_OFFSET                     = EXITCODE_WITNESS_OFFSET + 1
 	STEP_WITNESS_OFFSET                       = EXITED_WITNESS_OFFSET + 1
-	STEPS_SINCE_CONTEXT_SWITCH_WITNESS_OFFSET = STEP_WITNESS_OFFSET + arch.WordSizeBytes
+	STEPS_SINCE_CONTEXT_SWITCH_WITNESS_OFFSET = STEP_WITNESS_OFFSET + 8
 	WAKEUP_WITNESS_OFFSET                     = STEPS_SINCE_CONTEXT_SWITCH_WITNESS_OFFSET + 8
 	TRAVERSE_RIGHT_WITNESS_OFFSET             = WAKEUP_WITNESS_OFFSET + arch.WordSizeBytes
 	LEFT_THREADS_ROOT_WITNESS_OFFSET          = TRAVERSE_RIGHT_WITNESS_OFFSET + 1
@@ -100,7 +100,7 @@ func CreateInitialState(pc, heapStart Word) *State {
 }
 
 func (s *State) CreateVM(logger log.Logger, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, meta mipsevm.Metadata) mipsevm.FPVM {
-	logger.Info("Using cannon multithreaded VM")
+	logger.Info("Using cannon multithreaded VM. is_32=%v", arch.IsMips32)
 	return NewInstrumentedState(s, po, stdOut, stdErr, logger, meta)
 }
 
@@ -427,7 +427,7 @@ func GetStateHashFn() mipsevm.HashFn {
 
 func stateHashFromWitness(sw []byte) common.Hash {
 	if len(sw) != STATE_WITNESS_SIZE {
-		panic("Invalid witness length")
+		panic(fmt.Sprintf("Invalid witness length. Got %d, expected %d", len(sw), STATE_WITNESS_SIZE))
 	}
 	hash := crypto.Keccak256Hash(sw)
 	exitCode := sw[EXITCODE_WITNESS_OFFSET]

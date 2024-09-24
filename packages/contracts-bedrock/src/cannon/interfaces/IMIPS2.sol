@@ -14,4 +14,6 @@ interface IMIPS2 is ISemver {
 
     function oracle() external view returns (IPreimageOracle oracle_);
     function step(bytes memory _stateData, bytes memory _proof, bytes32 _localContext) external returns (bytes32);
+
+    function __constructor__(IPreimageOracle _oracle) external;
 }

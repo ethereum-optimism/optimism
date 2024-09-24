@@ -46,8 +46,18 @@ ARG TARGETARCH
 # Build the Go services, utilizing caches and share the many common packages.
 # The "id" defaults to the value of "target", the cache will thus be reused during this build.
 # "sharing" defaults to "shared", the cache will thus be available to other concurrent docker builds.
+FROM --platform=$BUILDPLATFORM builder AS cannon-builder-0
+ARG PREV_CANNON_VERSION=v1.0.0-alpha.1
+# used to checkout older cannon tags
+COPY --from=builder /app/.git /app/.git
+RUN git checkout cannon/$PREV_CANNON_VERSION
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build cd cannon && make cannon  \
+  GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$PREV_CANNON_VERSION"
+
 FROM --platform=$BUILDPLATFORM builder AS cannon-builder
-ARG CANNON_VERSION=v0.0.0
+ARG CANNON_VERSION=v1.1.0
+COPY --from=cannon-builder-0 /app/cannon/bin/cannon ./cannon/multicannon/embeds/cannon-0
+COPY --from=cannon-builder-0 /app/cannon/bin/cannon ./cannon/multicannon/embeds/cannon-1
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build cd cannon && make cannon  \
   GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$CANNON_VERSION"
 
@@ -101,6 +111,11 @@ ARG OP_SUPERVISOR_VERSION=v0.0.0
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build cd op-supervisor && make op-supervisor  \
   GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE  VERSION="$OP_SUPERVISOR_VERSION"
 
+FROM --platform=$BUILDPLATFORM builder AS op-deployer-builder
+ARG OP_NODE_VERSION=v0.0.0
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build cd op-chain-ops && make op-deployer  \
+  GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_DEPLOYER_VERSION"
+
 FROM --platform=$TARGETPLATFORM $TARGET_BASE_IMAGE AS cannon-target
 COPY --from=cannon-builder /app/cannon/bin/cannon /usr/local/bin/
 CMD ["cannon"]
@@ -150,3 +165,7 @@ CMD ["da-server"]
 FROM --platform=$TARGETPLATFORM $TARGET_BASE_IMAGE AS op-supervisor-target
 COPY --from=op-supervisor-builder /app/op-supervisor/bin/op-supervisor /usr/local/bin/
 CMD ["op-supervisor"]
+
+FROM --platform=$TARGETPLATFORM $TARGET_BASE_IMAGE AS op-deployer-target
+COPY --from=op-deployer-builder /app/op-chain-ops/bin/op-deployer /usr/local/bin/
+CMD ["op-deployer"]

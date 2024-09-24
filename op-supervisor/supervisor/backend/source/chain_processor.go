@@ -49,7 +49,7 @@ func NewChainProcessor(log log.Logger, client BlockByNumberSource, chain types.C
 }
 
 func (s *ChainProcessor) OnNewHead(ctx context.Context, head eth.L1BlockRef) {
-	s.log.Debug("Processing chain", "chain", s.chain, "head", head)
+	s.log.Debug("Processing chain", "chain", s.chain, "head", head, "last", s.lastBlock)
 	if head.Number <= s.lastBlock.Number {
 		s.log.Info("head is not newer than last processed block", "head", head, "lastBlock", s.lastBlock)
 		return

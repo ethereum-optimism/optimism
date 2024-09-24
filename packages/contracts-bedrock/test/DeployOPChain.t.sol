@@ -31,6 +31,8 @@ import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
 
+import { GameType, GameTypes, Hash, OutputRoot } from "src/dispute/lib/Types.sol";
+
 contract DeployOPChainInput_Test is Test {
     DeployOPChainInput doi;
 
@@ -336,9 +338,29 @@ contract DeployOPChain_TestBase is Test {
     uint32 basefeeScalar = 100;
     uint32 blobBaseFeeScalar = 200;
     uint256 l2ChainId = 300;
+    AnchorStateRegistry.StartingAnchorRoot[] startingAnchorRoots;
     OPStackManager opsm = OPStackManager(address(0));
 
     function setUp() public virtual {
+        // Set defaults for reference types
+        uint256 cannonBlock = 400;
+        uint256 permissionedBlock = 500;
+        startingAnchorRoots.push(
+            AnchorStateRegistry.StartingAnchorRoot({
+                gameType: GameTypes.CANNON,
+                outputRoot: OutputRoot({ root: Hash.wrap(keccak256("defaultOutputRootCannon")), l2BlockNumber: cannonBlock })
+            })
+        );
+        startingAnchorRoots.push(
+            AnchorStateRegistry.StartingAnchorRoot({
+                gameType: GameTypes.PERMISSIONED_CANNON,
+                outputRoot: OutputRoot({
+                    root: Hash.wrap(keccak256("defaultOutputRootPermissioned")),
+                    l2BlockNumber: permissionedBlock
+                })
+            })
+        );
+
         // Initialize deploy scripts.
         DeploySuperchain deploySuperchain = new DeploySuperchain();
         (DeploySuperchainInput dsi, DeploySuperchainOutput dso) = deploySuperchain.etchIOContracts();
@@ -389,7 +411,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         return keccak256(abi.encode(_seed, _i));
     }
 
-    function testFuzz_run_memory_succeeds(bytes32 _seed) public {
+    function testFuzz_run_memory_succeed(bytes32 _seed) public {
         opChainProxyAdminOwner = address(uint160(uint256(hash(_seed, 0))));
         systemConfigOwner = address(uint160(uint256(hash(_seed, 1))));
         batcher = address(uint160(uint256(hash(_seed, 2))));
@@ -398,7 +420,26 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         challenger = address(uint160(uint256(hash(_seed, 5))));
         basefeeScalar = uint32(uint256(hash(_seed, 6)));
         blobBaseFeeScalar = uint32(uint256(hash(_seed, 7)));
-        l2ChainId = uint256(uint256(hash(_seed, 8)));
+        l2ChainId = uint256(hash(_seed, 8));
+
+        // Set the initial anchor states. The typical usage we expect is to pass in one root per game type.
+        uint256 cannonBlock = uint256(hash(_seed, 9));
+        uint256 permissionedBlock = uint256(hash(_seed, 10));
+        startingAnchorRoots.push(
+            AnchorStateRegistry.StartingAnchorRoot({
+                gameType: GameTypes.CANNON,
+                outputRoot: OutputRoot({ root: Hash.wrap(keccak256(abi.encode(_seed, 11))), l2BlockNumber: cannonBlock })
+            })
+        );
+        startingAnchorRoots.push(
+            AnchorStateRegistry.StartingAnchorRoot({
+                gameType: GameTypes.PERMISSIONED_CANNON,
+                outputRoot: OutputRoot({
+                    root: Hash.wrap(keccak256(abi.encode(_seed, 12))),
+                    l2BlockNumber: permissionedBlock
+                })
+            })
+        );
 
         doi.set(doi.opChainProxyAdminOwner.selector, opChainProxyAdminOwner);
         doi.set(doi.systemConfigOwner.selector, systemConfigOwner);

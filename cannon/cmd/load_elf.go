@@ -1,6 +1,3 @@
-//go:build cannon32 || cannon64
-// +build cannon32 cannon64
-
 package cmd
 
 import (
@@ -15,25 +12,43 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 	"github.com/ethereum-optimism/optimism/cannon/serialize"
+	openum "github.com/ethereum-optimism/optimism/op-service/enum"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
 
-type VMType string
-
 var (
-	cannonVMType VMType = "cannon"
-	mtVMType     VMType = "cannon-mt"
+	LoadELFVMTypeFlag = &cli.StringFlag{
+		Name:     "type",
+		Usage:    "VM type to create state for. Valid options: " + openum.EnumString(stateVersions()),
+		Required: true,
+	}
+	LoadELFPathFlag = &cli.PathFlag{
+		Name:      "path",
+		Usage:     "Path to 32/64-bit big-endian MIPS ELF file",
+		TakesFile: true,
+		Required:  true,
+	}
+	LoadELFOutFlag = &cli.PathFlag{
+		Name:     "out",
+		Usage:    "Output path to write state to. State is dumped to stdout if set to '-'. Not written if empty. Use file extension '.bin', '.bin.gz', or '.json' for binary, compressed binary, or JSON formats.",
+		Value:    "state.json",
+		Required: false,
+	}
+	LoadELFMetaFlag = &cli.PathFlag{
+		Name:     "meta",
+		Usage:    "Write metadata file, for symbol lookup during program execution. None if empty.",
+		Value:    "meta.json",
+		Required: false,
+	}
 )
 
-func vmTypeFromString(ctx *cli.Context) (VMType, error) {
-	if vmTypeStr := ctx.String(LoadELFVMTypeFlag.Name); vmTypeStr == string(cannonVMType) {
-		return cannonVMType, nil
-	} else if vmTypeStr == string(mtVMType) {
-		return mtVMType, nil
-	} else {
-		return "", fmt.Errorf("unknown VM type %q", vmTypeStr)
+func stateVersions() []string {
+	vers := make([]string, len(versions.StateVersionTypes))
+	for i, v := range versions.StateVersionTypes {
+		vers[i] = v.String()
 	}
+	return vers
 }
 
 func LoadELF(ctx *cli.Context) error {
@@ -49,9 +64,12 @@ func LoadELF(ctx *cli.Context) error {
 	var createInitialState func(f *elf.File) (mipsevm.FPVMState, error)
 
 	var patcher = program.PatchStack
-	if vmType, err := vmTypeFromString(ctx); err != nil {
+	ver, err := versions.ParseStateVersion(ctx.String(LoadELFVMTypeFlag.Name))
+	if err != nil {
 		return err
-	} else if vmType == cannonVMType {
+	}
+	switch ver {
+	case versions.VersionSingleThreaded:
 		createInitialState = func(f *elf.File) (mipsevm.FPVMState, error) {
 			return program.LoadELF(f, singlethreaded.CreateInitialState)
 		}
@@ -62,12 +80,12 @@ func LoadELF(ctx *cli.Context) error {
 			}
 			return program.PatchStack(state)
 		}
-	} else if vmType == mtVMType {
+	case versions.VersionMultiThreaded, versions.VersionMultiThreaded64:
 		createInitialState = func(f *elf.File) (mipsevm.FPVMState, error) {
 			return program.LoadELF(f, multithreaded.CreateInitialState)
 		}
-	} else {
-		return fmt.Errorf("invalid VM type: %q", vmType)
+	default:
+		return fmt.Errorf("unsupported state version: %d (%s)", ver, ver.String())
 	}
 
 	state, err := createInitialState(elfProgram)
@@ -92,6 +110,21 @@ func LoadELF(ctx *cli.Context) error {
 		return fmt.Errorf("failed to create versioned state: %w", err)
 	}
 	return serialize.Write(ctx.Path(LoadELFOutFlag.Name), versionedState, OutFilePerm)
+}
+
+func CreateLoadELFCommand(action cli.ActionFunc) *cli.Command {
+	return &cli.Command{
+		Name:        "load-elf",
+		Usage:       "Load ELF file into Cannon state",
+		Description: "Load ELF file into Cannon state",
+		Action:      action,
+		Flags: []cli.Flag{
+			LoadELFVMTypeFlag,
+			LoadELFPathFlag,
+			LoadELFOutFlag,
+			LoadELFMetaFlag,
+		},
+	}
 }
 
 var LoadELFCommand = CreateLoadELFCommand(LoadELF)

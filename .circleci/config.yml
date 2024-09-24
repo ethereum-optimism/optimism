@@ -714,6 +714,10 @@ jobs:
           working_directory: packages/contracts-bedrock
 
   todo-issues:
+    parameters:
+      check_closed:
+        type: boolean
+        default: true
     machine:
       image: <<pipeline.parameters.base_image>>
     steps:
@@ -723,7 +727,7 @@ jobs:
           command: sudo apt-get install -y ripgrep
       - run:
           name: Check TODO issues
-          command: ./ops/scripts/todo-checker.sh --verbose
+          command: ./ops/scripts/todo-checker.sh --verbose <<#parameters.check_closed>> --check-closed <</parameters.check_closed>>
       - notify-failures-on-develop
 
   fuzz-golang:
@@ -828,7 +832,7 @@ jobs:
           command: |
             echo "deb [trusted=yes] https://apt.fury.io/kurtosis-tech/ /" | sudo tee /etc/apt/sources.list.d/kurtosis.list
             sudo apt update
-            sudo apt install kurtosis-cli
+            sudo apt install kurtosis-cli=1.3.0
             kurtosis engine start
       - checkout
       - when:
@@ -1683,6 +1687,7 @@ workflows:
                 - op-conductor
                 - da-server
                 - op-supervisor
+                - op-deployer
       - cannon-prestate:
           requires:
             - go-mod-download
@@ -1708,6 +1713,7 @@ workflows:
       - cannon-build-test-vectors
       - todo-issues:
           name: todo-issues-check
+          check_closed: false
       - shellcheck/check:
           name: shell-check
           # We don't need the `exclude` key as the orb detects the `.shellcheckrc`
@@ -1742,6 +1748,7 @@ workflows:
                 - da-server
                 - op-ufm
                 - op-supervisor
+                - op-deployer
           name: <<matrix.docker_name>>-docker-release
           docker_tags: <<pipeline.git.revision>>
           platforms: "linux/amd64,linux/arm64"
@@ -1770,6 +1777,7 @@ workflows:
                 - da-server
                 - op-ufm
                 - op-supervisor
+                - op-deployer
           name: <<matrix.op_component>>-cross-platform
           requires:
             - op-node-docker-release
@@ -1781,6 +1789,7 @@ workflows:
             - da-server-docker-release
             - op-ufm-docker-release
             - op-supervisor-docker-release
+            - op-deployer-docker-release
       # Standard (xlarge) AMD-only docker images go here
       - docker-build:
           matrix:

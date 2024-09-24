@@ -5,6 +5,8 @@ import (
 	"crypto/rand"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -16,7 +18,7 @@ func IsSupportedStateVersion(version int) bool {
 	return version == 1
 }
 
-func Init(ctx context.Context, env *Env, intent *state.Intent, st *state.State) error {
+func Init(ctx context.Context, env *Env, artifactsFS foundry.StatDirFs, intent *state.Intent, st *state.State) error {
 	lgr := env.Logger.New("stage", "init")
 	lgr.Info("initializing pipeline")
 
@@ -73,7 +75,7 @@ func Init(ctx context.Context, env *Env, intent *state.Intent, st *state.State) 
 		return fmt.Errorf("deterministic deployer is not deployed on this chain - please deploy it first")
 	}
 
-	// TODO: validate individual L2s
+	// TODO: validate individual
 
 	return nil
 }

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"path"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
@@ -44,4 +46,4 @@ func (e *Env) WriteState(st *state.State) error {
 	return st.WriteToFile(statePath)
 }
 
-type Stage func(ctx context.Context, env *Env, intent *state.Intent, state2 *state.State) error
+type Stage func(ctx context.Context, env *Env, artifactsFS foundry.StatDirFs, intent *state.Intent, state2 *state.State) error

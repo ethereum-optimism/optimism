@@ -9,11 +9,6 @@ import { Executables } from "scripts/libraries/Executables.sol";
 import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
 import { Process } from "scripts/libraries/Process.sol";
 
-// Contracts
-import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
-import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
-import { PermissionedDisputeGame } from "src/dispute/PermissionedDisputeGame.sol";
-
 // Libraries
 import { LibString } from "@solady/utils/LibString.sol";
 import { Constants } from "src/libraries/Constants.sol";
@@ -26,6 +21,7 @@ import { ISystemConfig } from "src/L1/interfaces/ISystemConfig.sol";
 import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
 import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
 import { ProtocolVersion } from "src/L1/interfaces/IProtocolVersions.sol";
+import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistry.sol";
 
 /// @title Initializer_Test
 /// @dev Ensures that the `initialize()` function on contracts cannot be called more than
@@ -372,7 +368,7 @@ contract Initializer_Test is Bridge_Initializer {
                 target: address(anchorStateRegistry),
                 initCalldata: abi.encodeCall(
                     anchorStateRegistry.initialize,
-                    (new AnchorStateRegistry.StartingAnchorRoot[](1), ISuperchainConfig(address(0)))
+                    (new IAnchorStateRegistry.StartingAnchorRoot[](1), ISuperchainConfig(address(0)))
                 )
             })
         );
@@ -383,7 +379,7 @@ contract Initializer_Test is Bridge_Initializer {
                 target: address(anchorStateRegistry),
                 initCalldata: abi.encodeCall(
                     anchorStateRegistry.initialize,
-                    (new AnchorStateRegistry.StartingAnchorRoot[](1), ISuperchainConfig(address(0)))
+                    (new IAnchorStateRegistry.StartingAnchorRoot[](1), ISuperchainConfig(address(0)))
                 )
             })
         );

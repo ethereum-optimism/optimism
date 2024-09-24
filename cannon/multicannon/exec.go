@@ -1,28 +1,35 @@
-//go:build !cannon32 && !cannon64
-// +build !cannon32,!cannon64
-
-package exec
+package main
 
 import (
-	_ "embed"
+	"embed"
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
+	"slices"
 	"syscall"
+
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 )
 
-//go:embed embeds/cannon32
-var cannon32 []byte
+// use the all directive to ensure the .gitkeep file is retained and avoid compiler errors
 
-//go:embed embeds/cannon64
-var cannon64 []byte
+//go:embed all:embeds
+var vmFS embed.FS
 
-func ExecuteCannon(args []string, isCannon32 bool) error {
-	cannonProgramName, cannonProgramBin := "cannon32", cannon32
-	if !isCannon32 {
-		cannonProgramName, cannonProgramBin = "cannon64", cannon64
+const baseDir = "embeds"
+
+func ExecuteCannon(args []string, ver versions.StateVersion) error {
+	if !slices.Contains(versions.StateVersionTypes, ver) {
+		return errors.New("unsupported version")
 	}
 
-	cannonProgramPath, err := extractTempFile(cannonProgramName, cannonProgramBin)
+	cannonProgramName := vmFilename(ver)
+	cannonProgramBin, err := vmFS.ReadFile(cannonProgramName)
+	if err != nil {
+		return err
+	}
+	cannonProgramPath, err := extractTempFile(filepath.Base(cannonProgramName), cannonProgramBin)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error extracting %s: %v\n", cannonProgramName, err)
 		os.Exit(1)
@@ -36,6 +43,7 @@ func ExecuteCannon(args []string, isCannon32 bool) error {
 
 	execArgs := append([]string{cannonProgramName}, args...)
 
+	// nosemgrep: go.lang.security.audit.dangerous-syscall-exec.dangerous-syscall-exec
 	if err := syscall.Exec(cannonProgramPath, execArgs, os.Environ()); err != nil {
 		fmt.Fprintf(os.Stderr, "Error executing %s: %v\n", cannonProgramName, err)
 		os.Exit(1)
@@ -57,4 +65,8 @@ func extractTempFile(name string, data []byte) (string, error) {
 	}
 
 	return tempFile.Name(), nil
+}
+
+func vmFilename(ver versions.StateVersion) string {
+	return fmt.Sprintf("%s/cannon-%d", baseDir, ver)
 }

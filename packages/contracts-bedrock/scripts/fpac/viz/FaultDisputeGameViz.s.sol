@@ -1,17 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
+// Testing
+import { FaultDisputeGame_Init } from "test/dispute/FaultDisputeGame.t.sol";
+
+// Scripts
 import { Script } from "forge-std/Script.sol";
 import { console2 as console } from "forge-std/console2.sol";
-
-import { FaultDisputeGame_Init } from "test/dispute/FaultDisputeGame.t.sol";
-import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
-import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
-import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
 import { Process } from "scripts/libraries/Process.sol";
 
+// Libraries
 import "src/dispute/lib/Types.sol";
 import "src/dispute/lib/Errors.sol";
+
+// Interfaces
+import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
 
 /**
  * @title FaultDisputeGameViz
@@ -43,7 +46,7 @@ contract FaultDisputeGameViz is Script, FaultDisputeGame_Init {
      * @dev Entry point
      */
     function remote(address _addr) public {
-        gameProxy = FaultDisputeGame(payable(_addr));
+        gameProxy = IFaultDisputeGame(payable(_addr));
         buildGraph();
         console.log("Saved graph to `./dispute_game.svg");
     }

@@ -1,6 +1,3 @@
-//go:build cannon32 || cannon64
-// +build cannon32 cannon64
-
 package cmd
 
 import (
@@ -42,13 +39,17 @@ func Witness(ctx *cli.Context) error {
 	return nil
 }
 
-var WitnessCommand = &cli.Command{
-	Name:        "witness",
-	Usage:       "Convert a Cannon JSON state into a binary witness",
-	Description: "Convert a Cannon JSON state into a binary witness. The hash of the witness is written to stdout",
-	Action:      Witness,
-	Flags: []cli.Flag{
-		WitnessInputFlag,
-		WitnessOutputFlag,
-	},
+func CreateWitnessCommand(action cli.ActionFunc) *cli.Command {
+	return &cli.Command{
+		Name:        "witness",
+		Usage:       "Convert a Cannon JSON state into a binary witness",
+		Description: "Convert a Cannon JSON state into a binary witness. The hash of the witness is written to stdout",
+		Action:      action,
+		Flags: []cli.Flag{
+			WitnessInputFlag,
+			WitnessOutputFlag,
+		},
+	}
 }
+
+var WitnessCommand = CreateWitnessCommand(Witness)

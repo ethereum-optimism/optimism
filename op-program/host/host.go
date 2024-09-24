@@ -217,6 +217,10 @@ func PreimageServer(ctx context.Context, logger log.Logger, cfg *config.Config, 
 		return err
 	case <-ctx.Done():
 		logger.Info("Shutting down")
+		if errors.Is(ctx.Err(), context.Canceled) {
+			// We were asked to shutdown by the context being cancelled so don't treat it as an error condition.
+			return nil
+		}
 		return ctx.Err()
 	}
 }

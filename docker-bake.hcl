@@ -61,6 +61,10 @@ variable "OP_SUPERVISOR_VERSION" {
   default = "${GIT_VERSION}"
 }
 
+variable "PREV_CANNON_VERSION" {
+  default = "${GIT_VERSION}"
+}
+
 variable "CANNON_VERSION" {
   default = "${GIT_VERSION}"
 }
@@ -69,6 +73,9 @@ variable "OP_CONDUCTOR_VERSION" {
   default = "${GIT_VERSION}"
 }
 
+variable "OP_DEPLOYER_VERSION" {
+  default = "${GIT_VERSION}"
+}
 
 target "op-node" {
   dockerfile = "ops/docker/op-stack-go/Dockerfile"
@@ -192,6 +199,7 @@ target "cannon" {
   args = {
     GIT_COMMIT = "${GIT_COMMIT}"
     GIT_DATE = "${GIT_DATE}"
+    PREV_CANNON_VERSION = "${PREV_CANNON_VERSION}"
     CANNON_VERSION = "${CANNON_VERSION}"
   }
   target = "cannon-target"
@@ -203,7 +211,7 @@ target "proofs-tools" {
   dockerfile = "./ops/docker/proofs-tools/Dockerfile"
   context = "."
   args = {
-    CHALLENGER_VERSION="v1.1.0"
+    CHALLENGER_VERSION="90700b9bb37080961747420882b14578577d47cc"
     KONA_VERSION="kona-client-v0.1.0-alpha.3"
     ASTERISC_VERSION="v1.0.2"
   }
@@ -235,4 +243,17 @@ target "contracts-bedrock" {
   # See comment in Dockerfile.packages for why we only build for linux/amd64.
   platforms = ["linux/amd64"]
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/contracts-bedrock:${tag}"]
+}
+
+target "op-deployer" {
+  dockerfile = "ops/docker/op-stack-go/Dockerfile"
+  context = "."
+  args = {
+    GIT_COMMIT = "${GIT_COMMIT}"
+    GIT_DATE = "${GIT_DATE}"
+    OP_DEPLOYER_VERSION = "${OP_DEPLOYER_VERSION}"
+  }
+  target = "op-deployer-target"
+  platforms = split(",", PLATFORMS)
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-deployer:${tag}"]
 }

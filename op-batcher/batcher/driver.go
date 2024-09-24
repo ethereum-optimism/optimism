@@ -80,7 +80,7 @@ type DriverSetup struct {
 	Metr             metrics.Metricer
 	RollupConfig     *rollup.Config
 	Config           BatcherConfig
-	Txmgr            *txmgr.SimpleTxManager
+	Txmgr            txmgr.TxManager
 	L1Client         L1Client
 	EndpointProvider dial.L2EndpointProvider
 	ChannelConfig    ChannelConfigProvider
@@ -286,7 +286,7 @@ func (l *BatchSubmitter) calculateL2BlockRangeToStore(ctx context.Context) (eth.
 
 	// Check if we should even attempt to load any blocks. TODO: May not need this check
 	if syncStatus.SafeL2.Number >= syncStatus.UnsafeL2.Number {
-		return eth.BlockID{}, eth.BlockID{}, errors.New("L2 safe head ahead of L2 unsafe head")
+		return eth.BlockID{}, eth.BlockID{}, fmt.Errorf("L2 safe head(%d) ahead of L2 unsafe head(%d)", syncStatus.SafeL2.Number, syncStatus.UnsafeL2.Number)
 	}
 
 	return l.lastStoredBlock, syncStatus.UnsafeL2.ID(), nil
