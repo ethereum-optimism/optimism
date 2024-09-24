@@ -507,7 +507,7 @@ contract DeployImplementations is Script {
     {
         ProxyAdmin proxyAdmin = _dii.superchainProxyAdmin();
 
-        vm.startBroadcast(msg.sender);
+        vm.broadcast(msg.sender);
         Proxy proxy = new Proxy(address(msg.sender));
 
         deployOPContractsManagerImpl(_dii, _dio);
@@ -515,6 +515,8 @@ contract DeployImplementations is Script {
 
         OPStackManager.InitializerInputs memory initializerInputs =
             OPStackManager.InitializerInputs(_blueprints, _setters, _release, true);
+
+        vm.startBroadcast(msg.sender);
         proxy.upgradeToAndCall(
             address(opsmImpl), abi.encodeWithSelector(opsmImpl.initialize.selector, initializerInputs)
         );
@@ -732,6 +734,7 @@ contract DeployImplementations is Script {
         SuperchainConfig superchainConfigProxy = _dii.superchainConfigProxy();
         ProtocolVersions protocolVersionsProxy = _dii.protocolVersionsProxy();
 
+        vm.broadcast(msg.sender);
         // TODO: Eventually we will want to select the correct implementation based on the release.
         OPStackManager impl = new OPStackManager(superchainConfigProxy, protocolVersionsProxy);
 
@@ -1007,7 +1010,7 @@ contract DeployImplementationsInterop is DeployImplementations {
     {
         ProxyAdmin proxyAdmin = _dii.superchainProxyAdmin();
 
-        vm.startBroadcast(msg.sender);
+        vm.broadcast(msg.sender);
         Proxy proxy = new Proxy(address(msg.sender));
 
         deployOPContractsManagerImpl(_dii, _dio); // overriding function
@@ -1015,6 +1018,8 @@ contract DeployImplementationsInterop is DeployImplementations {
 
         OPStackManager.InitializerInputs memory initializerInputs =
             OPStackManager.InitializerInputs(_blueprints, _setters, _release, true);
+
+        vm.startBroadcast(msg.sender);
         proxy.upgradeToAndCall(
             address(opsmImpl), abi.encodeWithSelector(opsmImpl.initialize.selector, initializerInputs)
         );
@@ -1090,6 +1095,7 @@ contract DeployImplementationsInterop is DeployImplementations {
         SuperchainConfig superchainConfigProxy = _dii.superchainConfigProxy();
         ProtocolVersions protocolVersionsProxy = _dii.protocolVersionsProxy();
 
+        vm.broadcast(msg.sender);
         // TODO: Eventually we will want to select the correct implementation based on the release.
         OPStackManager impl = new OPStackManagerInterop(superchainConfigProxy, protocolVersionsProxy);
 
