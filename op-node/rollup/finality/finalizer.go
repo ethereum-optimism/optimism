@@ -253,6 +253,12 @@ func (fi *Finalizer) tryFinalize() {
 func (fi *Finalizer) onDerivedSafeBlock(l2Safe eth.L2BlockRef, derivedFrom eth.L1BlockRef) {
 	fi.mu.Lock()
 	defer fi.mu.Unlock()
+
+	// TODO: stop finalizing blocks post-interop based on L1 local finality
+	//if !fi.cfg.IsInterop(fi.cfg.TimestampForBlock(l2Safe.Number)) {
+	//	return nil
+	//}
+
 	// remember the last L2 block that we fully derived from the given finality data
 	if len(fi.finalityData) == 0 || fi.finalityData[len(fi.finalityData)-1].L1Block.Number < derivedFrom.Number {
 		// prune finality data if necessary, before appending any data.
