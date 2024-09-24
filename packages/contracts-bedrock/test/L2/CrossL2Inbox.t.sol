@@ -461,11 +461,38 @@ contract CrossL2InboxTest is Test {
             returnData: abi.encode(true)
         });
 
+        // Ensure is not a deposit transaction
+        vm.mockCall({
+            callee: Predeploys.L1_BLOCK_ATTRIBUTES,
+            data: abi.encodeWithSelector(IL1BlockIsthmus.isDeposit.selector),
+            returnData: abi.encode(false)
+        });
+
         // Look for the emit ExecutingMessage event
         vm.expectEmit(Predeploys.CROSS_L2_INBOX);
         emit CrossL2Inbox.ExecutingMessage(_messageHash, _id);
 
         // Call the validateMessage function
+        crossL2Inbox.validateMessage(_id, _messageHash);
+    }
+
+    function testFuzz_validateMessage_isDeposit_reverts(
+        ICrossL2Inbox.Identifier calldata _id,
+        bytes32 _messageHash
+    )
+        external
+    {
+        // Ensure it is a deposit transaction
+        vm.mockCall({
+            callee: Predeploys.L1_BLOCK_ATTRIBUTES,
+            data: abi.encodeWithSelector(IL1BlockIsthmus.isDeposit.selector),
+            returnData: abi.encode(true)
+        });
+
+        // Expect a revert with the NoExecutingDeposits selector
+        vm.expectRevert(NoExecutingDeposits.selector);
+
+        // Call the executeMessage function
         crossL2Inbox.validateMessage(_id, _messageHash);
     }
 
@@ -478,6 +505,13 @@ contract CrossL2InboxTest is Test {
         external
         setInteropStart
     {
+        // Ensure is not a deposit transaction
+        vm.mockCall({
+            callee: Predeploys.L1_BLOCK_ATTRIBUTES,
+            data: abi.encodeWithSelector(IL1BlockIsthmus.isDeposit.selector),
+            returnData: abi.encode(false)
+        });
+
         // Ensure that the id's timestamp is invalid (greater than the current block timestamp)
         vm.assume(_id.timestamp > block.timestamp);
 
@@ -499,6 +533,13 @@ contract CrossL2InboxTest is Test {
     {
         // Ensure that the id's timestamp is invalid (less than or equal to interopStartTime)
         _id.timestamp = bound(_id.timestamp, 0, crossL2Inbox.interopStart());
+
+        // Ensure is not a deposit transaction
+        vm.mockCall({
+            callee: Predeploys.L1_BLOCK_ATTRIBUTES,
+            data: abi.encodeWithSelector(IL1BlockIsthmus.isDeposit.selector),
+            returnData: abi.encode(false)
+        });
 
         // Expect a revert with the InvalidTimestamp selector
         vm.expectRevert(InvalidTimestamp.selector);
@@ -524,6 +565,13 @@ contract CrossL2InboxTest is Test {
         vm.mockCall({
             callee: Predeploys.L1_BLOCK_ATTRIBUTES,
             data: abi.encodeWithSelector(L1BlockIsInDependencySetSelector, _id.chainId),
+            returnData: abi.encode(false)
+        });
+
+        // Ensure is not a deposit transaction
+        vm.mockCall({
+            callee: Predeploys.L1_BLOCK_ATTRIBUTES,
+            data: abi.encodeWithSelector(IL1BlockIsthmus.isDeposit.selector),
             returnData: abi.encode(false)
         });
 
