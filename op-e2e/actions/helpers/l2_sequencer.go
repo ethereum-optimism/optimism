@@ -57,7 +57,7 @@ func NewL2Sequencer(t Testing, log log.Logger, l1 derive.L1Fetcher, blobSrc deri
 	attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1, eng)
 	seqConfDepthL1 := confdepth.NewConfDepth(seqConfDepth, ver.syncStatus.L1Head, l1)
 	l1OriginSelector := &MockL1OriginSelector{
-		actual: sequencing.NewL1OriginSelector(log, cfg, seqConfDepthL1),
+		actual: sequencing.NewL1OriginSelector(t.Ctx(), log, cfg, seqConfDepthL1),
 	}
 	metr := metrics.NoopMetrics
 	seqStateListener := node.DisabledConfigPersistence{}
