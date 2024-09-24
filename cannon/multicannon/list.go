@@ -21,7 +21,7 @@ func List(ctx *cli.Context) error {
 			fmt.Printf("filename: %s\tversion: %s\n", entry.Name(), "unknown")
 			continue
 		}
-		ver, err := strconv.Atoi(toks[1])
+		ver, err := strconv.ParseUint(toks[1], 10, 8)
 		if err != nil {
 			fmt.Printf("filename: %s\tversion: %s\n", entry.Name(), "unknown")
 			continue
