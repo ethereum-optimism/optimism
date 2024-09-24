@@ -113,8 +113,11 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
         if (_target == Predeploys.CROSS_L2_INBOX) revert MessageTargetCrossL2Inbox();
         if (_target == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER) revert MessageTargetL2ToL2CrossDomainMessenger();
 
-        _msgHash = keccak256(abi.encode(_destination, block.chainid, messageNonce(), msg.sender, _target, _message));
-        bytes memory data = abi.encodeCall(L2ToL2CrossDomainMessenger.relayMessage, _msgHash);
+        (uint256 _source, uint256 _messageNonce, address _sender) = (block.chainid, messageNonce(), msg.sender);
+        bytes memory data = abi.encodeCall(
+            L2ToL2CrossDomainMessenger.relayMessage, (_destination, _source, _messageNonce, _sender, _target, _message)
+        );
+        _msgHash = _relayMessageHash(_destination, _source, _messageNonce, _sender, _target, _message);
         assembly {
             log0(add(data, 0x20), mload(data))
         }
@@ -125,22 +128,35 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
     /// @notice Relays a message that was sent by the other CrossDomainMessenger contract. Can only be executed via
     ///         cross-chain call from the other messenger OR if the message was already received once and is currently
     ///         being replayed.
-    /// @param messageHash The hash of the encoded message to be relayed.
-    function relayMessage(bytes32 messageHash) external payable nonReentrant {
+    /// @param _destination Chain ID of the destination chain.
+    /// @param _source      Chain ID of the source chain.
+    /// @param _nonce       Nonce of the message being relayed.
+    /// @param _sender      Address of the user who sent the message.
+    /// @param _target      Address that the message is targeted at.
+    /// @param _message     Message payload to call target with.
+    function relayMessage(
+        uint256 _destination,
+        uint256 _source,
+        uint256 _nonce,
+        address _sender,
+        address _target,
+        bytes memory _message
+    )
+        external
+        payable
+        nonReentrant
+    {
         if (msg.sender != Predeploys.CROSS_L2_INBOX) revert RelayMessageCallerNotCrossL2Inbox();
         if (CrossL2Inbox(Predeploys.CROSS_L2_INBOX).origin() != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER) {
             revert CrossL2InboxOriginNotL2ToL2CrossDomainMessenger();
         }
-
-        (uint256 _destination, uint256 _source, uint256 _nonce, address _sender, address _target, bytes memory _message)
-        = abi.decode(abi.encodePacked(messageHash), (uint256, uint256, uint256, address, address, bytes));
-
         if (_destination != block.chainid) revert MessageDestinationNotRelayChain();
         if (_target == Predeploys.CROSS_L2_INBOX) revert MessageTargetCrossL2Inbox();
         if (_target == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER) {
             revert MessageTargetL2ToL2CrossDomainMessenger();
         }
 
+        bytes32 messageHash = _relayMessageHash(_destination, _source, _nonce, _sender, _target, _message);
         if (successfulMessages[messageHash]) {
             revert MessageAlreadyRelayed();
         }
@@ -164,6 +180,30 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
     /// @return Nonce of the next message to be sent, with added message version.
     function messageNonce() public view returns (uint256) {
         return Encoding.encodeVersionedNonce(msgNonce, messageVersion);
+    }
+
+    /// @notice Generates a unique hash for a message to be relayed across chains. This hash is
+    ///         used to identify the message and ensure it is not relayed more than once.
+    /// @param _destination Chain ID of the destination chain.
+    /// @param _source Chain ID of the source chain.
+    /// @param _nonce Unique nonce associated with the message to prevent replay attacks.
+    /// @param _sender Address of the user who originally sent the message.
+    /// @param _target Address of the contract or wallet that the message is targeting on the destination chain.
+    /// @param _message The message payload to be relayed to the target on the destination chain.
+    /// @return Hash of the encoded message parameters, used to uniquely identify the message.
+    function _relayMessageHash(
+        uint256 _destination,
+        uint256 _source,
+        uint256 _nonce,
+        address _sender,
+        address _target,
+        bytes memory _message
+    )
+        internal
+        pure
+        returns (bytes32)
+    {
+        return keccak256(abi.encode(_destination, _source, _nonce, _sender, _target, _message));
     }
 
     /// @notice Stores message data such as sender and source in transient storage.
