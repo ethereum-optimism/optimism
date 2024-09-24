@@ -11,7 +11,9 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 )
 
-//go:embed embeds
+// use the all directive to ensure the .gitkeep file is retained and avoid compiler errors
+
+//go:embed all:embeds
 var vmFS embed.FS
 
 const baseDir = "embeds"
