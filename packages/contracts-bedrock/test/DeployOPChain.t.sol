@@ -478,8 +478,12 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         address batcherActual = address(uint160(uint256(doo.systemConfigProxy().batcherHash())));
         assertEq(batcherActual, batcher, "2300");
         assertEq(address(doo.systemConfigProxy().unsafeBlockSigner()), unsafeBlockSigner, "2400");
-        // assertEq(address(...proposer()), proposer, "2500"); // TODO once we deploy dispute games.
-        // assertEq(address(...challenger()), challenger, "2600"); // TODO once we deploy dispute games.
+        assertEq(address(doo.permissionedDisputeGame().proposer()), proposer, "2500");
+        assertEq(address(doo.permissionedDisputeGame().challenger()), challenger, "2600");
+
+        // TODO once we deploy the Permissionaless Dispute Game
+        // assertEq(address(doo.faultDisputeGame().proposer()), proposer, "2700");
+        // assertEq(address(doo.faultDisputeGame().challenger()), challenger, "2800");
 
         // Most architecture assertions are handled within the OP Stack Manager itself and therefore
         // we only assert on the things that are not visible onchain.
