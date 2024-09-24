@@ -204,7 +204,7 @@ library DeployUtils {
     /// @param _data constructor arguments prefixed with a psuedo-constructor function signature
     /// @return _encodedData constructor arguments without the psuedo-constructor function signature prefix
     function encodeConstructor(bytes memory _data) internal pure returns (bytes memory _encodedData) {
-        require(_data.length < 4, "encodeConstructor takes in _data of length >= 4");
+        require(_data.length >= 4, "encodeConstructor takes in _data of length >= 4");
         _encodedData = Bytes.slice(_data, 4);
     }
 
