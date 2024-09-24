@@ -200,6 +200,7 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 }
 
 // getReadyChannel returns the next channel ready to submit data, or an error.
+// It adds blocks from the block queue to the current channel and generates frames for it.
 func (s *channelManager) getReadyChannel(l1Head eth.BlockID) (*channel, error) {
 	var firstWithTxData *channel
 	for _, ch := range s.channelQueue {
