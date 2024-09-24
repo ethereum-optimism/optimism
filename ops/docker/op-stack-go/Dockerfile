@@ -49,7 +49,7 @@ ARG TARGETARCH
 FROM --platform=$BUILDPLATFORM builder AS cannon-builder-0
 ARG PREV_CANNON_VERSION=v1.0.0-alpha.1
 # used to checkout older cannon tags
-COPY --from=builder ./.git /app/.git
+COPY --from=builder /app/.git /app/.git
 RUN git checkout cannon/$PREV_CANNON_VERSION
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build cd cannon && make cannon  \
   GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$PREV_CANNON_VERSION"
