@@ -15,8 +15,8 @@ import (
 	supTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
-type LogStorage interface {
-	SealBlock(chain supTypes.ChainID, parentHash common.Hash, block eth.BlockID, timestamp uint64) error
+type ChainsDBClientForLogProcessor interface {
+	SealBlock(chain supTypes.ChainID, block eth.L2BlockRef) error
 	AddLog(chain supTypes.ChainID, logHash backendTypes.TruncatedHash, parentBlock eth.BlockID, logIdx uint32, execMsg *backendTypes.ExecutingMessage) error
 }
 
@@ -26,11 +26,11 @@ type EventDecoder interface {
 
 type logProcessor struct {
 	chain        supTypes.ChainID
-	logStore     LogStorage
+	logStore     ChainsDBClientForLogProcessor
 	eventDecoder EventDecoder
 }
 
-func newLogProcessor(chain supTypes.ChainID, logStore LogStorage) *logProcessor {
+func newLogProcessor(chain supTypes.ChainID, logStore ChainsDBClientForLogProcessor) *logProcessor {
 	return &logProcessor{
 		chain:        chain,
 		logStore:     logStore,
@@ -40,7 +40,7 @@ func newLogProcessor(chain supTypes.ChainID, logStore LogStorage) *logProcessor 
 
 // ProcessLogs processes logs from a block and stores them in the log storage
 // for any logs that are related to executing messages, they are decoded and stored
-func (p *logProcessor) ProcessLogs(_ context.Context, block eth.L1BlockRef, rcpts ethTypes.Receipts) error {
+func (p *logProcessor) ProcessLogs(_ context.Context, block eth.L2BlockRef, rcpts ethTypes.Receipts) error {
 	for _, rcpt := range rcpts {
 		for _, l := range rcpt.Logs {
 			// log hash represents the hash of *this* log as a potentially initiating message
@@ -61,7 +61,7 @@ func (p *logProcessor) ProcessLogs(_ context.Context, block eth.L1BlockRef, rcpt
 			}
 		}
 	}
-	if err := p.logStore.SealBlock(p.chain, block.ParentHash, block.ID(), block.Time); err != nil {
+	if err := p.logStore.SealBlock(p.chain, block); err != nil {
 		return fmt.Errorf("failed to seal block %s: %w", block.ID(), err)
 	}
 	return nil

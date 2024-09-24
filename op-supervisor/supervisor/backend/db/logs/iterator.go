@@ -22,7 +22,7 @@ type Iterator interface {
 	NextInitMsg() error
 	NextExecMsg() error
 	NextBlock() error
-	TraverseConditional(fn func(state IteratorState) error) error
+	TraverseConditional(traverseConditionalFn) error
 	IteratorState
 }
 
@@ -31,6 +31,8 @@ type iterator struct {
 	current     logContext
 	entriesRead int64
 }
+
+type traverseConditionalFn func(state IteratorState) error
 
 // End traverses the iterator to the end of the DB.
 // It does not return io.EOF or ErrFuture.
@@ -105,7 +107,7 @@ func (i *iterator) NextBlock() error {
 	}
 }
 
-func (i *iterator) TraverseConditional(fn func(state IteratorState) error) error {
+func (i *iterator) TraverseConditional(fn traverseConditionalFn) error {
 	var snapshot logContext
 	for {
 		snapshot = i.current // copy the iterator state

@@ -25,7 +25,7 @@ type Metrics interface {
 }
 
 type Storage interface {
-	LogStorage
+	ChainsDBClientForLogProcessor
 	Heads() db.HeadsStorage
 	DatabaseRewinder
 	LatestBlockNum(chainID types.ChainID) (num uint64, ok bool)
@@ -49,6 +49,8 @@ func NewChainMonitor(ctx context.Context, logger log.Logger, m Metrics, chainID 
 	// Create the log processor and fetcher
 	processLogs := newLogProcessor(chainID, store)
 	unsafeBlockProcessor := NewChainProcessor(logger, cl, chainID, processLogs, store)
+
+	// Create views into the logs
 
 	// create head processors which only update the head
 	unsafeHeadProcessor := OnNewHead(chainID, store.Heads().UpdateLocalUnsafe)
