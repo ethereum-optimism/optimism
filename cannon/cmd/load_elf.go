@@ -21,7 +21,6 @@ var (
 	LoadELFVMTypeFlag = &cli.StringFlag{
 		Name:     "type",
 		Usage:    "VM type to create state for. Valid options: " + openum.EnumString(stateVersions()),
-		Value:    versions.VersionSingleThreaded.String(),
 		Required: true,
 	}
 	LoadELFPathFlag = &cli.PathFlag{

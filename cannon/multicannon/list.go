@@ -19,12 +19,14 @@ func List(ctx *cli.Context) error {
 		filename := entry.Name()
 		toks := strings.Split(filename, "-")
 		if len(toks) != 2 {
-			fmt.Printf("filename: %s\tversion: %s\n", entry.Name(), "unknown")
+			continue
+		}
+		if toks[0] != "cannon" {
 			continue
 		}
 		ver, err := strconv.ParseUint(toks[1], 10, 8)
 		if err != nil {
-			fmt.Printf("filename: %s\tversion: %s\n", entry.Name(), "unknown")
+			fmt.Printf("filename: %s\tversion: %s (%d)\n", entry.Name(), "unknown", ver)
 			continue
 		}
 		fmt.Printf("filename: %s\tversion: %s\n", entry.Name(), versions.StateVersion(ver))
