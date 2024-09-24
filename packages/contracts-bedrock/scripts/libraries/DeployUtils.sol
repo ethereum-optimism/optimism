@@ -199,6 +199,8 @@ library DeployUtils {
         return address(uint160(uint256(keccak256(abi.encode(_sender, _identifier)))));
     }
 
+    /// @notice Strips the first 4 bytes of `_data` and returns the remaining bytes
+    ///         If `_data` is not greater than 4 bytes, it returns empty bytes type.
     function encodeConstructor(bytes memory _data) internal pure returns (bytes memory _encodedData) {
         _encodedData = _data.length > 4 ? Bytes.slice(_data, 4) : new bytes(0);
     }

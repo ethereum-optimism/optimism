@@ -1760,6 +1760,7 @@ contract Deploy is Deployer {
         require(dac.resolverRefundPercentage() == daResolverRefundPercentage);
     }
 
+    /// @notice unsafe cast from uint256 to Duration User Defined Type.
     function _unsafeCastUint256ToDuartion(uint256 _u) internal pure returns (Duration d_) {
         assembly {
             d_ := _u
