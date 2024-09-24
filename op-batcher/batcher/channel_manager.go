@@ -161,8 +161,8 @@ func (s *channelManager) nextTxData(channel *channel) (txData, error) {
 // full, it only returns the remaining frames of this channel until it got
 // successfully fully sent to L1. It returns io.EOF if there's no pending tx data.
 //
-// It will generate the tx data internally, and decide whether to switch DA type
-// automatically. When switching DA type, the channelManager state will be rebuilt
+// It will decide whether to switch DA type automatically.
+// When switching DA type, the channelManager state will be rebuilt
 // with a new ChannelConfig.
 func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 	channel, err := s.getReadyChannel(l1Head)
@@ -172,21 +172,26 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 	if channel == nil {
 		panic("nil channel and nil err returned from getReadyChannel")
 	}
+	// If the channel has already started being submitted,
+	// return now and ensure no requeueing happens
 	if !channel.NoneSubmitted() {
 		return s.nextTxData(channel)
 	}
+
+	// Call provider method to reassess optimal DA type
 	newCfg := s.cfgProvider.ChannelConfig()
+
+	// No change:
 	if newCfg.UseBlobs == s.defaultCfg.UseBlobs {
 		s.log.Debug("Recomputing optimal ChannelConfig: no need to switch DA type",
 			"useBlobs", s.defaultCfg.UseBlobs)
 		return s.nextTxData(channel)
 	}
-	s.log.Info("Recomputing optimal ChannelConfig: changing DA type...",
+
+	// Change:
+	s.log.Info("Recomputing optimal ChannelConfig: changing DA type and requeing blocks...",
 		"useBlobsBefore", s.defaultCfg.UseBlobs,
 		"useBlobsAfter", newCfg.UseBlobs)
-	// We have detected that our assumptions on DA
-	// type were wrong and we need to requeue
-	// the data currently in channels
 	s.Requeue(newCfg)
 	channel, err = s.getReadyChannel(l1Head)
 	if err != nil {
@@ -477,7 +482,7 @@ func (s *channelManager) Close() error {
 func (s *channelManager) Requeue(newCfg ChannelConfig) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.log.Info("Rebuilding channelManager state", "UseBlobs", newCfg.UseBlobs)
+
 	newChannelQueue := []*channel{}
 	blocksToRequeueInChannelManager := []*types.Block{}
 	for _, channel := range s.channelQueue {
@@ -487,8 +492,10 @@ func (s *channelManager) Requeue(newCfg ChannelConfig) {
 		}
 		blocksToRequeueInChannelManager = append(blocksToRequeueInChannelManager, channel.channelBuilder.Blocks()...)
 	}
+
 	// We put the blocks back at the front of the queue:
 	s.blocks = append(blocksToRequeueInChannelManager, s.blocks...)
+	// Channels which where already being submitted are put back
 	s.channelQueue = newChannelQueue
 	s.currentChannel = nil
 	// Setting the defaultCfg will cause new channels

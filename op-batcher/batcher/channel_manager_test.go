@@ -485,6 +485,9 @@ func TestChannelManager_ChannelCreation(t *testing.T) {
 	}
 }
 
+// FakeDynamicEthChannelConfig is a ChannelConfigProvider which always returns
+// either a blob- or calldata-based config depending on its internal chooseBlob
+// switch.
 type FakeDynamicEthChannelConfig struct {
 	DynamicEthChannelConfig
 	chooseBlobs bool
@@ -513,11 +516,21 @@ func newFakeDynamicEthChannelConfig(lgr log.Logger,
 	blobCfg.InitRatioCompressor(1, derive.Brotli)
 
 	return &FakeDynamicEthChannelConfig{
-		chooseBlobs:             false,
-		DynamicEthChannelConfig: *NewDynamicEthChannelConfig(lgr, reqTimeout, &mockGasPricer{}, blobCfg, calldataCfg),
+		chooseBlobs: false,
+		DynamicEthChannelConfig: *NewDynamicEthChannelConfig(
+			lgr,
+			reqTimeout,
+			&mockGasPricer{},
+			blobCfg,
+			calldataCfg),
 	}
 }
 
+// TestChannelManager_TxData seeds the channel manager with blocks and triggers the
+// blocks->channels pipeline multiple times. Values are chosen such that a channel
+// is created under one set of market conditions, and then submitted under a different
+// set of market conditions. The test asserts that the DA type is changed at channel
+// submission time.
 func TestChannelManager_TxData(t *testing.T) {
 
 	type TestCase struct {
@@ -543,18 +556,18 @@ func TestChannelManager_TxData(t *testing.T) {
 			m := NewChannelManager(l, metrics.NoopMetrics, cfg, defaultTestRollupConfig)
 			require.Equal(t, tc.chooseBlobsWhenChannelCreated, m.defaultCfg.UseBlobs)
 
-			// Seed channel manager with blocks
+			// Seed channel manager with a block
 			rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 			blockA := derivetest.RandomL2BlockWithChainId(rng, 10, defaultTestRollupConfig.L2ChainID)
 			m.blocks = []*types.Block{blockA}
 
 			// Call TxData a first time to trigger blocks->channels pipeline
 			_, err := m.TxData(eth.BlockID{})
+			require.ErrorIs(t, err, ErrInsufficientData)
 
 			// The test requires us to have something in the channel queue
 			// at this point, but not yet ready to send and not full
 			require.NotEmpty(t, m.channelQueue)
-			require.ErrorIs(t, err, ErrInsufficientData)
 			require.False(t, m.channelQueue[0].IsFull())
 
 			// Simulate updated market conditions
@@ -584,6 +597,12 @@ func TestChannelManager_TxData(t *testing.T) {
 
 }
 
+// TestChannelManager_Requeue sees the channel manager with blocks,
+// takes a state snapshot, triggers the blocks->channels pipeline,
+// and then calls Requeue. Finally, it asserts the channel manager's
+// state is equal to the snapshot. It repeats this for a channel
+// which has a pending transaction and verifies that Requeue is then
+// a noop.
 func TestChannelManager_Requeue(t *testing.T) {
 	l := testlog.Logger(t, log.LevelCrit)
 	cfg := channelManagerTestConfig(100, derive.SingularBatchType)
