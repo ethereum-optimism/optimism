@@ -15,9 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-var (
-	ErrReorg = errors.New("block does not extend existing chain")
-)
+var ErrReorg = errors.New("block does not extend existing chain")
 
 // channelManager stores a contiguous set of blocks & turns them into channels.
 // Upon receiving tx confirmation (or a tx failure), it does channel error handling.
@@ -143,7 +141,7 @@ func (s *channelManager) removePendingChannel(channel *channel) {
 func (s *channelManager) nextTxData(channel *channel) (txData, error) {
 	if channel == nil || !channel.HasTxData() {
 		s.log.Trace("no next tx data")
-		return txData{}, io.EOF
+		return txData{}, io.EOF // TODO: not enough data error instead
 	}
 	tx := channel.NextTxData()
 	s.txChannels[tx.ID().String()] = channel
