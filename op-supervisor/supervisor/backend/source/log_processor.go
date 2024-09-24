@@ -14,9 +14,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
-type LogStorage interface {
-	SealBlock(chain types.ChainID, parentHash common.Hash, block eth.BlockID, timestamp uint64) error
-	AddLog(chain types.ChainID, logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *types.ExecutingMessage) error
+type ChainsDBClientForLogProcessor interface {
+	SealBlock(chain supTypes.ChainID, block eth.L2BlockRef) error
+	AddLog(chain supTypes.ChainID, logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *backendTypes.ExecutingMessage) error
 }
 
 type EventDecoder interface {
@@ -39,7 +39,7 @@ func newLogProcessor(chain types.ChainID, logStore LogStorage) *logProcessor {
 
 // ProcessLogs processes logs from a block and stores them in the log storage
 // for any logs that are related to executing messages, they are decoded and stored
-func (p *logProcessor) ProcessLogs(_ context.Context, block eth.L1BlockRef, rcpts ethTypes.Receipts) error {
+func (p *logProcessor) ProcessLogs(_ context.Context, block eth.L2BlockRef, rcpts ethTypes.Receipts) error {
 	for _, rcpt := range rcpts {
 		for _, l := range rcpt.Logs {
 			// log hash represents the hash of *this* log as a potentially initiating message
@@ -60,7 +60,7 @@ func (p *logProcessor) ProcessLogs(_ context.Context, block eth.L1BlockRef, rcpt
 			}
 		}
 	}
-	if err := p.logStore.SealBlock(p.chain, block.ParentHash, block.ID(), block.Time); err != nil {
+	if err := p.logStore.SealBlock(p.chain, block); err != nil {
 		return fmt.Errorf("failed to seal block %s: %w", block.ID(), err)
 	}
 	return nil

@@ -14,6 +14,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/heads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/safety"
+	backendTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -71,17 +73,20 @@ type HeadsStorage interface {
 type ChainsDB struct {
 	logDBs           map[types.ChainID]LogStorage
 	heads            HeadsStorage
+	safetyIndex      safety.SafetyIndex
 	maintenanceReady chan struct{}
 	logger           log.Logger
 }
 
 func NewChainsDB(logDBs map[types.ChainID]LogStorage, heads HeadsStorage, l log.Logger) *ChainsDB {
-	return &ChainsDB{
+	ret := &ChainsDB{
 		logDBs:           logDBs,
 		heads:            heads,
 		logger:           l,
 		maintenanceReady: make(chan struct{}, 1),
 	}
+	ret.safetyIndex = safety.NewRecentSafetyIndex(l, ret)
+	return ret
 }
 
 func (db *ChainsDB) AddLogDB(chain types.ChainID, logDB LogStorage) {
@@ -89,6 +94,14 @@ func (db *ChainsDB) AddLogDB(chain types.ChainID, logDB LogStorage) {
 		log.Warn("overwriting existing logDB for chain", "chain", chain)
 	}
 	db.logDBs[chain] = logDB
+}
+
+func (db *ChainsDB) IteratorStartingAt(chain types.ChainID, sealedNum uint64, logIndex uint32) (logs.Iterator, error) {
+	logDB, ok := db.logDBs[chain]
+	if !ok {
+		return nil, fmt.Errorf("%w: %v", ErrUnknownChain, chain)
+	}
+	return logDB.IteratorStartingAt(sealedNum, logIndex)
 }
 
 // ResumeFromLastSealedBlock prepares the chains db to resume recording events after a restart.
@@ -136,12 +149,17 @@ func (db *ChainsDB) StartCrossHeadMaintenance(ctx context.Context) {
 }
 
 // Check calls the underlying logDB to determine if the given log entry is safe with respect to the checker's criteria.
-func (db *ChainsDB) Check(chain types.ChainID, blockNum uint64, logIdx uint32, logHash common.Hash) (entrydb.EntryIdx, error) {
+func (db *ChainsDB) Check(chain types.ChainID, blockNum uint64, logIdx uint32, logHash common.Hash) (common.Hash, error) {
 	logDB, ok := db.logDBs[chain]
 	if !ok {
-		return 0, fmt.Errorf("%w: %v", ErrUnknownChain, chain)
+		return backendTypes.TruncatedHash{}, fmt.Errorf("%w: %v", ErrUnknownChain, chain)
 	}
-	return logDB.Contains(blockNum, logIdx, logHash)
+	_, err := logDB.Contains(blockNum, logIdx, logHash)
+	if err != nil {
+		return backendTypes.TruncatedHash{}, err
+	}
+	// TODO: need to get the actual block hash for this log entry
+	return backendTypes.TruncatedHash{}, nil
 }
 
 // RequestMaintenance requests that the maintenance loop update the cross-heads
@@ -312,20 +330,35 @@ func (db *ChainsDB) LatestBlockNum(chain types.ChainID) (num uint64, ok bool) {
 	return logDB.LatestSealedBlockNum()
 }
 
-func (db *ChainsDB) SealBlock(chain types.ChainID, parentHash common.Hash, block eth.BlockID, timestamp uint64) error {
-	logDB, ok := db.logDBs[chain]
-	if !ok {
-		return fmt.Errorf("%w: %v", ErrUnknownChain, chain)
-	}
-	return logDB.SealBlock(parentHash, block, timestamp)
-}
-
-func (db *ChainsDB) AddLog(chain types.ChainID, logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *types.ExecutingMessage) error {
+func (db *ChainsDB) AddLog(
+	chain types.ChainID,
+	logHash backendTypes.TruncatedHash,
+	parentBlock eth.BlockID,
+	logIdx uint32,
+	execMsg *backendTypes.ExecutingMessage) error {
 	logDB, ok := db.logDBs[chain]
 	if !ok {
 		return fmt.Errorf("%w: %v", ErrUnknownChain, chain)
 	}
 	return logDB.AddLog(logHash, parentBlock, logIdx, execMsg)
+}
+
+func (db *ChainsDB) SealBlock(
+	chain types.ChainID,
+	block eth.L2BlockRef) error {
+	logDB, ok := db.logDBs[chain]
+	if !ok {
+		return fmt.Errorf("%w: %v", ErrUnknownChain, chain)
+	}
+	err := logDB.SealBlock(block.ParentHash, block.ID(), block.Time)
+	if err != nil {
+		return fmt.Errorf("failed to seal block %v: %w", block, err)
+	}
+	err = db.safetyIndex.UpdateLocalUnsafe(chain, block)
+	if err != nil {
+		return fmt.Errorf("failed to update local-unsafe: %w", err)
+	}
+	return nil
 }
 
 func (db *ChainsDB) Rewind(chain types.ChainID, headBlockNum uint64) error {
