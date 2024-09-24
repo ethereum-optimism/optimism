@@ -49,7 +49,7 @@ func (l *LazyRPC) dial(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to dial: %w", err)
 	}
-	l.inner = &BaseRPCClient{c: underlying}
+	l.inner = NewBaseRPCClient(underlying)
 	return nil
 }
 
@@ -66,6 +66,7 @@ func (l *LazyRPC) CallContext(ctx context.Context, result any, method string, ar
 	if err := l.dial(ctx); err != nil {
 		return err
 	}
+	fmt.Println("checkpoin 1")
 	return l.inner.CallContext(ctx, result, method, args...)
 }
 
