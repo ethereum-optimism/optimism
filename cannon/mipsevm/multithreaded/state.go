@@ -18,9 +18,6 @@ import (
 )
 
 // STATE_WITNESS_SIZE is the size of the state witness encoding in bytes.
-// TODO: infer size based on arch
-const STATE_WITNESS_SIZE = 172 // (for 32-bit)
-// const STATE_WITNESS_SIZE = 196 // on 64-bit arch
 const (
 	MEMROOT_WITNESS_OFFSET                    = 0
 	PREIMAGE_KEY_WITNESS_OFFSET               = MEMROOT_WITNESS_OFFSET + 32
@@ -38,6 +35,9 @@ const (
 	LEFT_THREADS_ROOT_WITNESS_OFFSET          = TRAVERSE_RIGHT_WITNESS_OFFSET + 1
 	RIGHT_THREADS_ROOT_WITNESS_OFFSET         = LEFT_THREADS_ROOT_WITNESS_OFFSET + 32
 	THREAD_ID_WITNESS_OFFSET                  = RIGHT_THREADS_ROOT_WITNESS_OFFSET + 32
+
+	// 172 bytes and 196 for 32 and 64-bit respectively
+	STATE_WITNESS_SIZE = THREAD_ID_WITNESS_OFFSET + arch.WordSizeBytes
 )
 
 type State struct {
