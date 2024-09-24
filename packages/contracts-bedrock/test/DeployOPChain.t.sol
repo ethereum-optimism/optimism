@@ -482,7 +482,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         assertEq(address(doo.permissionedDisputeGame().proposer()), proposer, "2500");
         assertEq(address(doo.permissionedDisputeGame().challenger()), challenger, "2600");
 
-        // TODO once we deploy the Permissionaless Dispute Game
+        // TODO once we deploy the Permissionless Dispute Game
         // assertEq(address(doo.faultDisputeGame().proposer()), proposer, "2700");
         // assertEq(address(doo.faultDisputeGame().challenger()), challenger, "2800");
 
