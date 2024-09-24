@@ -44,6 +44,7 @@ func ExecuteCannon(args []string, ver versions.StateVersion) error {
 
 	execArgs := append([]string{cannonProgramName}, args...)
 
+	// nosemgrep: go.lang.security.audit.dangerous-syscall-exec.dangerous-syscall-exec
 	if err := syscall.Exec(cannonProgramPath, execArgs, os.Environ()); err != nil {
 		fmt.Fprintf(os.Stderr, "Error executing %s: %v\n", cannonProgramName, err)
 		os.Exit(1)
