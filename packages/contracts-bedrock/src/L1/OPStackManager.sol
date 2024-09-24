@@ -124,8 +124,8 @@ contract OPStackManager is ISemver, Initializable {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 1.0.0-beta.5
-    string public constant version = "1.0.0-beta.5";
+    /// @custom:semver 1.0.0-beta.6
+    string public constant version = "1.0.0-beta.6";
 
     /// @notice Address of the SuperchainConfig contract shared by all chains.
     SuperchainConfig public immutable superchainConfig;
@@ -334,6 +334,7 @@ contract OPStackManager is ISemver, Initializable {
         // Transfer ownership of the ProxyAdmin from this contract to the specified owner.
         output.opChainProxyAdmin.transferOwnership(_input.roles.opChainProxyAdminOwner);
 
+        emit Deployed(l2ChainId, output.systemConfigProxy);
         return output;
     }
 

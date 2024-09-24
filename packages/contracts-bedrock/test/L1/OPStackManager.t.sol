@@ -9,6 +9,7 @@ import { DeployOPChain_TestBase } from "test/DeployOPChain.t.sol";
 import { OPStackManager } from "src/L1/OPStackManager.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
+import { SystemConfig } from "src/L1/SystemConfig.sol";
 
 // Exposes internal functions for testing.
 contract OPStackManager_Harness is OPStackManager {
@@ -32,6 +33,8 @@ contract OPStackManager_Harness is OPStackManager {
 // happen.
 contract OPStackManager_Deploy_Test is DeployOPChain_TestBase {
     using stdStorage for StdStorage;
+
+    event Deployed(uint256 indexed l2ChainId, SystemConfig indexed systemConfig);
 
     function setUp() public override {
         DeployOPChain_TestBase.setUp();
@@ -83,6 +86,8 @@ contract OPStackManager_Deploy_Test is DeployOPChain_TestBase {
     }
 
     function test_deploy_succeeds() public {
+        vm.expectEmit(true, false, true, true); // TODO precompute the system config address.
+        emit Deployed(doi.l2ChainId(), SystemConfig(address(1)));
         opsm.deploy(toOPSMDeployInput(doi));
     }
 }
