@@ -512,8 +512,8 @@ func newFakeDynamicEthChannelConfig(lgr log.Logger,
 		TargetNumFrames: 3, // gets closest to amortized fixed tx costs
 		UseBlobs:        true,
 	}
-	calldataCfg.InitRatioCompressor(1, derive.Brotli)
-	blobCfg.InitRatioCompressor(1, derive.Brotli)
+	calldataCfg.InitNoneCompressor()
+	blobCfg.InitNoneCompressor()
 
 	return &FakeDynamicEthChannelConfig{
 		chooseBlobs: false,
@@ -609,7 +609,7 @@ func TestChannelManager_Requeue(t *testing.T) {
 	m := NewChannelManager(l, metrics.NoopMetrics, cfg, defaultTestRollupConfig)
 
 	// Seed channel manager with blocks
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	rng := rand.New(rand.NewSource(99))
 	blockA := derivetest.RandomL2BlockWithChainId(rng, 10, defaultTestRollupConfig.L2ChainID)
 	blockB := derivetest.RandomL2BlockWithChainId(rng, 10, defaultTestRollupConfig.L2ChainID)
 
