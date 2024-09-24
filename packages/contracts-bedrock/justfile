@@ -31,7 +31,6 @@ build-go-ffi:
 # Removes everything inside of .testdata (except the .gitkeep file).
 clean:
   rm -rf ./artifacts ./forge-artifacts ./cache ./scripts/go-ffi/go-ffi ./deployments/hardhat/*
-  find ./.testdata -mindepth 1 -not -name '.gitkeep' -delete
 
 
 ########################################################
