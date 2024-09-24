@@ -99,8 +99,8 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
     /// @param _destination Chain ID of the destination chain.
     /// @param _target      Target contract or wallet address.
     /// @param _message     Message payload to call target with.
-    /// @return _msgHash The hash of the message being sent, which is used for tracking and
-    ///                  relaying the message.
+    /// @return _msgHash The hash of the message being sent, which can be used for tracking whether
+    ///                  the message has successfully been relayed.
     function sendMessage(
         uint256 _destination,
         address _target,
