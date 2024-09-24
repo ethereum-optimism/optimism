@@ -50,6 +50,16 @@
             "internalType": "address",
             "name": "anchorStateRegistry",
             "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "permissionedDisputeGame1",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "permissionedDisputeGame2",
+            "type": "address"
           }
         ],
         "internalType": "struct OPStackManager.Blueprints",
@@ -298,6 +308,16 @@
                 "internalType": "address",
                 "name": "anchorStateRegistry",
                 "type": "address"
+              },
+              {
+                "internalType": "address",
+                "name": "permissionedDisputeGame1",
+                "type": "address"
+              },
+              {
+                "internalType": "address",
+                "name": "permissionedDisputeGame2",
+                "type": "address"
               }
             ],
             "internalType": "struct OPStackManager.Blueprints",
@@ -497,6 +517,11 @@
   {
     "inputs": [],
     "name": "EmptyInitcode",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "IdentityPrecompileCallFailed",
     "type": "error"
   },
   {
