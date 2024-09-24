@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 	"github.com/ethereum-optimism/optimism/cannon/serialize"
+	openum "github.com/ethereum-optimism/optimism/op-service/enum"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
@@ -19,9 +20,9 @@ import (
 var (
 	LoadELFVMTypeFlag = &cli.StringFlag{
 		Name:     "type",
-		Usage:    "VM type to create state for. Options are 'cannon' (default), 'cannon-mt'",
-		Value:    "cannon",
-		Required: false,
+		Usage:    "VM type to create state for. Valid options: " + openum.EnumString(stateVersions()),
+		Value:    versions.VersionSingleThreaded.String(),
+		Required: true,
 	}
 	LoadELFPathFlag = &cli.PathFlag{
 		Name:      "path",
@@ -43,21 +44,12 @@ var (
 	}
 )
 
-type VMType string
-
-var (
-	cannonVMType VMType = "cannon"
-	mtVMType     VMType = "cannon-mt"
-)
-
-func vmTypeFromString(ctx *cli.Context) (VMType, error) {
-	if vmTypeStr := ctx.String(LoadELFVMTypeFlag.Name); vmTypeStr == string(cannonVMType) {
-		return cannonVMType, nil
-	} else if vmTypeStr == string(mtVMType) {
-		return mtVMType, nil
-	} else {
-		return "", fmt.Errorf("unknown VM type %q", vmTypeStr)
+func stateVersions() []string {
+	vers := make([]string, len(versions.StateVersionTypes))
+	for i, v := range versions.StateVersionTypes {
+		vers[i] = v.String()
 	}
+	return vers
 }
 
 func LoadELF(ctx *cli.Context) error {
@@ -73,9 +65,12 @@ func LoadELF(ctx *cli.Context) error {
 	var createInitialState func(f *elf.File) (mipsevm.FPVMState, error)
 
 	var patcher = program.PatchStack
-	if vmType, err := vmTypeFromString(ctx); err != nil {
+	ver, err := versions.ParseStateVersion(ctx.String(LoadELFVMTypeFlag.Name))
+	if err != nil {
 		return err
-	} else if vmType == cannonVMType {
+	}
+	switch ver {
+	case versions.VersionSingleThreaded:
 		createInitialState = func(f *elf.File) (mipsevm.FPVMState, error) {
 			return program.LoadELF(f, singlethreaded.CreateInitialState)
 		}
@@ -86,12 +81,12 @@ func LoadELF(ctx *cli.Context) error {
 			}
 			return program.PatchStack(state)
 		}
-	} else if vmType == mtVMType {
+	case versions.VersionMultiThreaded:
 		createInitialState = func(f *elf.File) (mipsevm.FPVMState, error) {
 			return program.LoadELF(f, multithreaded.CreateInitialState)
 		}
-	} else {
-		return fmt.Errorf("invalid VM type: %q", vmType)
+	default:
+		return fmt.Errorf("unsupported state version: %d (%s)", ver, ver.String())
 	}
 
 	state, err := createInitialState(elfProgram)

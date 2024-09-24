@@ -25,6 +25,8 @@ var (
 	ErrJsonNotSupported = errors.New("json not supported")
 )
 
+var StateVersionTypes = []StateVersion{VersionSingleThreaded, VersionMultiThreaded}
+
 func LoadStateFromFile(path string) (*VersionedState, error) {
 	if !serialize.IsBinaryFile(path) {
 		// Always use singlethreaded for JSON states
@@ -112,5 +114,16 @@ func (s StateVersion) String() string {
 		return "multithreaded"
 	default:
 		return "unknown"
+	}
+}
+
+func ParseStateVersion(ver string) (StateVersion, error) {
+	switch ver {
+	case "singlethreaded":
+		return VersionSingleThreaded, nil
+	case "multithreaded":
+		return VersionMultiThreaded, nil
+	default:
+		return StateVersion(0), errors.New("unknown state version")
 	}
 }

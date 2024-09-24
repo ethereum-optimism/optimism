@@ -35,8 +35,8 @@ RUN --mount=type=cache,target=/root/.cache/go-build cd op-program && make op-pro
     GOOS=linux GOARCH=mips GOMIPS=softfloat GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_PROGRAM_VERSION"
 
 # Run the op-program-client.elf binary directly through cannon's load-elf subcommand.
-RUN /app/cannon/bin/cannon load-elf --version single --path /app/op-program/bin/op-program-client.elf --out /app/op-program/bin/prestate.json --meta ""
-RUN /app/cannon/bin/cannon load-elf --version multi --type cannon-mt --path /app/op-program/bin/op-program-client.elf --out /app/op-program/bin/prestate-mt.bin.gz --meta ""
+RUN /app/cannon/bin/cannon load-elf --type singlethreaded --path /app/op-program/bin/op-program-client.elf --out /app/op-program/bin/prestate.json --meta ""
+RUN /app/cannon/bin/cannon load-elf --type multithreaded --path /app/op-program/bin/op-program-client.elf --out /app/op-program/bin/prestate-mt.bin.gz --meta ""
 
 # Generate the prestate proof containing the absolute pre-state hash.
 RUN /app/cannon/bin/cannon run --proof-at '=0' --stop-at '=1' --input /app/op-program/bin/prestate.json --meta "" --proof-fmt '/app/op-program/bin/%d.json' --output ""
