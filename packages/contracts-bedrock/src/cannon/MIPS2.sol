@@ -57,8 +57,8 @@ contract MIPS2 is ISemver {
     }
 
     /// @notice The semantic version of the MIPS2 contract.
-    /// @custom:semver 1.0.0-beta.10
-    string public constant version = "1.0.0-beta.10";
+    /// @custom:semver 1.0.0-beta.11
+    string public constant version = "1.0.0-beta.11";
 
     /// @notice The preimage oracle contract.
     IPreimageOracle internal immutable ORACLE;
@@ -698,6 +698,7 @@ contract MIPS2 is ISemver {
         internal
         returns (bytes32 out_)
     {
+        // Note: no need to reset _state.wakeup.  If we're here, the wakeup field has already been reset
         // Clear the futex state
         _thread.futexAddr = sys.FUTEX_EMPTY_ADDR;
         _thread.futexVal = 0;
@@ -711,7 +712,6 @@ contract MIPS2 is ISemver {
         sys.handleSyscallUpdates(cpu, _thread.registers, v0, v1);
         setStateCpuScalars(_thread, cpu);
 
-        _state.wakeup = sys.FUTEX_EMPTY_ADDR;
         updateCurrentThreadRoot();
         out_ = outputState();
     }
