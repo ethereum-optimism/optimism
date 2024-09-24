@@ -480,17 +480,17 @@ func (s *channelManager) Close() error {
 // rewinding blocks back from the channel queue, and setting the defaultCfg.
 func (s *channelManager) Requeue(newCfg ChannelConfig) {
 	newChannelQueue := []*channel{}
-	blocksToRequeueInChannelManager := []*types.Block{}
+	blocksToRequeue := []*types.Block{}
 	for _, channel := range s.channelQueue {
 		if !channel.NoneSubmitted() {
 			newChannelQueue = append(newChannelQueue, channel)
 			continue
 		}
-		blocksToRequeueInChannelManager = append(blocksToRequeueInChannelManager, channel.channelBuilder.Blocks()...)
+		blocksToRequeue = append(blocksToRequeue, channel.channelBuilder.Blocks()...)
 	}
 
 	// We put the blocks back at the front of the queue:
-	s.blocks = append(blocksToRequeueInChannelManager, s.blocks...)
+	s.blocks = append(blocksToRequeue, s.blocks...)
 	// Channels which where already being submitted are put back
 	s.channelQueue = newChannelQueue
 	s.currentChannel = nil
