@@ -213,4 +213,50 @@ library Encoding {
             _batcherHash
         );
     }
+
+    /// @notice Returns an appropriately encoded call to L1Block.setL1BlockValuesHolocene
+    /// @param baseFeeScalar       L1 base fee Scalar
+    /// @param blobBaseFeeScalar   L1 blob base fee Scalar
+    /// @param sequenceNumber      Number of L2 blocks since epoch start.
+    /// @param timestamp           L1 timestamp.
+    /// @param number              L1 blocknumber.
+    /// @param baseFee             L1 base fee.
+    /// @param blobBaseFee         L1 blob base fee.
+    /// @param hash                L1 blockhash.
+    /// @param batcherHash         Versioned hash to authenticate batcher by.
+    /// @param eip1559Elasticity   EIP-1559 elasticity parameter
+    /// @param eip1559Denominator EIP-1559 denominator parameter
+    function encodeSetL1BlockValuesHolocene(
+        uint32 baseFeeScalar,
+        uint32 blobBaseFeeScalar,
+        uint64 sequenceNumber,
+        uint64 timestamp,
+        uint64 number,
+        uint256 baseFee,
+        uint256 blobBaseFee,
+        bytes32 hash,
+        bytes32 batcherHash,
+        uint64 eip1559Elasticity,
+        uint64 eip1559Denominator
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
+        bytes4 functionSignature = bytes4(keccak256("setL1BlockValuesHolocene()"));
+        return abi.encodePacked(
+            functionSignature,
+            baseFeeScalar,
+            blobBaseFeeScalar,
+            sequenceNumber,
+            timestamp,
+            number,
+            baseFee,
+            blobBaseFee,
+            hash,
+            batcherHash,
+            eip1559Elasticity,
+            eip1559Denominator
+        );
+    }
 }
