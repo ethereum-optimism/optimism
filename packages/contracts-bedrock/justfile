@@ -28,10 +28,8 @@ build-go-ffi:
   cd scripts/go-ffi && go build
 
 # Cleans build artifacts and deployments.
-# Removes everything inside of .testdata (except the .gitkeep file).
 clean:
   rm -rf ./artifacts ./forge-artifacts ./cache ./scripts/go-ffi/go-ffi ./deployments/hardhat/*
-  find ./.testdata -mindepth 1 -not -name '.gitkeep' -delete
 
 
 ########################################################

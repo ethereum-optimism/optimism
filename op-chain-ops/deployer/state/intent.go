@@ -24,6 +24,8 @@ type Intent struct {
 
 	ContractArtifactsURL *ArtifactsURL `json:"contractArtifactsURL" toml:"contractArtifactsURL"`
 
+	ContractsRelease string `json:"contractsVersion" toml:"contractsVersion"`
+
 	Chains []*ChainIntent `json:"chains" toml:"chains"`
 
 	GlobalDeployOverrides map[string]any `json:"globalDeployOverrides" toml:"globalDeployOverrides"`

@@ -35,7 +35,7 @@ contract DeployImplementationsInput_Test is Test {
     uint256 challengePeriodSeconds = 300;
     uint256 proofMaturityDelaySeconds = 400;
     uint256 disputeGameFinalityDelaySeconds = 500;
-    string release = "op-contracts/latest";
+    string release = "dev-release"; // this means implementation contracts will be deployed
     SuperchainConfig superchainConfigProxy = SuperchainConfig(makeAddr("superchainConfigProxy"));
     ProtocolVersions protocolVersionsProxy = ProtocolVersions(makeAddr("protocolVersionsProxy"));
 
@@ -70,6 +70,9 @@ contract DeployImplementationsInput_Test is Test {
 
         vm.expectRevert("DeployImplementationsInput: not set");
         dii.superchainProxyAdmin();
+
+        vm.expectRevert("DeployImplementationsInput: not set");
+        dii.standardVersionsToml();
     }
 
     function test_superchainProxyAdmin_whenNotSet_reverts() public {
@@ -247,13 +250,18 @@ contract DeployImplementations_Test is Test {
     uint256 challengePeriodSeconds = 300;
     uint256 proofMaturityDelaySeconds = 400;
     uint256 disputeGameFinalityDelaySeconds = 500;
-    string release = "op-contracts/latest";
     SuperchainConfig superchainConfigProxy = SuperchainConfig(makeAddr("superchainConfigProxy"));
     ProtocolVersions protocolVersionsProxy = ProtocolVersions(makeAddr("protocolVersionsProxy"));
 
     function setUp() public virtual {
         deployImplementations = new DeployImplementations();
         (dii, dio) = deployImplementations.etchIOContracts();
+
+        // End users of the DeployImplementations contract will need to set the `standardVersionsToml`.
+        string memory standardVersionsTomlPath =
+            string.concat(vm.projectRoot(), "/test/fixtures/standard-versions.toml");
+        string memory standardVersionsToml = vm.readFile(standardVersionsTomlPath);
+        dii.set(dii.standardVersionsToml.selector, standardVersionsToml);
     }
 
     // By deploying the `DeployImplementations` contract with this virtual function, we provide a
@@ -267,13 +275,142 @@ contract DeployImplementations_Test is Test {
         return keccak256(abi.encode(_seed, _i));
     }
 
+    function test_deployImplementation_succeeds() public {
+        string memory deployContractsRelease = "dev-release";
+        dii.set(dii.release.selector, deployContractsRelease);
+        deployImplementations.deploySystemConfigImpl(dii, dio);
+        assertTrue(address(0) != address(dio.systemConfigImpl()));
+    }
+
+    function test_reuseImplementation_succeeds() public {
+        // All hardcoded addresses below are taken from the superchain-registry config:
+        // https://github.com/ethereum-optimism/superchain-registry/blob/be65d22f8128cf0c4e5b4e1f677daf86843426bf/validation/standard/standard-versions.toml#L11
+        string memory testRelease = "op-contracts/v1.6.0";
+        dii.set(dii.release.selector, testRelease);
+
+        deployImplementations.deploySystemConfigImpl(dii, dio);
+        address srSystemConfigImpl = address(0xF56D96B2535B932656d3c04Ebf51baBff241D886);
+        vm.etch(address(srSystemConfigImpl), hex"01");
+        assertEq(srSystemConfigImpl, address(dio.systemConfigImpl()));
+
+        address srL1CrossDomainMessengerImpl = address(0xD3494713A5cfaD3F5359379DfA074E2Ac8C6Fd65);
+        vm.etch(address(srL1CrossDomainMessengerImpl), hex"01");
+        deployImplementations.deployL1CrossDomainMessengerImpl(dii, dio);
+        assertEq(srL1CrossDomainMessengerImpl, address(dio.l1CrossDomainMessengerImpl()));
+
+        address srL1ERC721BridgeImpl = address(0xAE2AF01232a6c4a4d3012C5eC5b1b35059caF10d);
+        vm.etch(address(srL1ERC721BridgeImpl), hex"01");
+        deployImplementations.deployL1ERC721BridgeImpl(dii, dio);
+        assertEq(srL1ERC721BridgeImpl, address(dio.l1ERC721BridgeImpl()));
+
+        address srL1StandardBridgeImpl = address(0x64B5a5Ed26DCb17370Ff4d33a8D503f0fbD06CfF);
+        vm.etch(address(srL1StandardBridgeImpl), hex"01");
+        deployImplementations.deployL1StandardBridgeImpl(dii, dio);
+        assertEq(srL1StandardBridgeImpl, address(dio.l1StandardBridgeImpl()));
+
+        address srOptimismMintableERC20FactoryImpl = address(0xE01efbeb1089D1d1dB9c6c8b135C934C0734c846);
+        vm.etch(address(srOptimismMintableERC20FactoryImpl), hex"01");
+        deployImplementations.deployOptimismMintableERC20FactoryImpl(dii, dio);
+        assertEq(srOptimismMintableERC20FactoryImpl, address(dio.optimismMintableERC20FactoryImpl()));
+
+        address srOptimismPortalImpl = address(0xe2F826324b2faf99E513D16D266c3F80aE87832B);
+        vm.etch(address(srOptimismPortalImpl), hex"01");
+        deployImplementations.deployOptimismPortalImpl(dii, dio);
+        assertEq(srOptimismPortalImpl, address(dio.optimismPortalImpl()));
+
+        address srDelayedWETHImpl = address(0x71e966Ae981d1ce531a7b6d23DC0f27B38409087);
+        vm.etch(address(srDelayedWETHImpl), hex"01");
+        deployImplementations.deployDelayedWETHImpl(dii, dio);
+        assertEq(srDelayedWETHImpl, address(dio.delayedWETHImpl()));
+
+        address srPreimageOracleSingleton = address(0x9c065e11870B891D214Bc2Da7EF1f9DDFA1BE277);
+        vm.etch(address(srPreimageOracleSingleton), hex"01");
+        deployImplementations.deployPreimageOracleSingleton(dii, dio);
+        assertEq(srPreimageOracleSingleton, address(dio.preimageOracleSingleton()));
+
+        address srMipsSingleton = address(0x16e83cE5Ce29BF90AD9Da06D2fE6a15d5f344ce4);
+        vm.etch(address(srMipsSingleton), hex"01");
+        deployImplementations.deployMipsSingleton(dii, dio);
+        assertEq(srMipsSingleton, address(dio.mipsSingleton()));
+
+        address srDisputeGameFactoryImpl = address(0xc641A33cab81C559F2bd4b21EA34C290E2440C2B);
+        vm.etch(address(srDisputeGameFactoryImpl), hex"01");
+        deployImplementations.deployDisputeGameFactoryImpl(dii, dio);
+        assertEq(srDisputeGameFactoryImpl, address(dio.disputeGameFactoryImpl()));
+    }
+
+    function test_deployAtNonExistentRelease_reverts() public {
+        string memory unknownRelease = "op-contracts/v0.0.0";
+        dii.set(dii.release.selector, unknownRelease);
+
+        bytes memory expectedErr =
+            bytes(string.concat("DeployImplementations: failed to deploy release ", unknownRelease));
+
+        vm.expectRevert(expectedErr);
+        deployImplementations.deploySystemConfigImpl(dii, dio);
+
+        vm.expectRevert(expectedErr);
+        deployImplementations.deployL1CrossDomainMessengerImpl(dii, dio);
+
+        vm.expectRevert(expectedErr);
+        deployImplementations.deployL1ERC721BridgeImpl(dii, dio);
+
+        vm.expectRevert(expectedErr);
+        deployImplementations.deployL1StandardBridgeImpl(dii, dio);
+
+        vm.expectRevert(expectedErr);
+        deployImplementations.deployOptimismMintableERC20FactoryImpl(dii, dio);
+
+        // TODO: Uncomment the code below when OPContractsManager is deployed based on release. Superchain-registry
+        // doesn't contain OPContractsManager yet.
+        // dii.set(dii.superchainConfigProxy.selector, address(superchainConfigProxy));
+        // dii.set(dii.protocolVersionsProxy.selector, address(protocolVersionsProxy));
+        // vm.etch(address(superchainConfigProxy), hex"01");
+        // vm.etch(address(protocolVersionsProxy), hex"01");
+        // vm.expectRevert(expectedErr);
+        // deployImplementations.deployOPContractsManagerImpl(dii, dio);
+
+        dii.set(dii.proofMaturityDelaySeconds.selector, 1);
+        dii.set(dii.disputeGameFinalityDelaySeconds.selector, 2);
+        vm.expectRevert(expectedErr);
+        deployImplementations.deployOptimismPortalImpl(dii, dio);
+
+        dii.set(dii.withdrawalDelaySeconds.selector, 1);
+        vm.expectRevert(expectedErr);
+        deployImplementations.deployDelayedWETHImpl(dii, dio);
+
+        dii.set(dii.minProposalSizeBytes.selector, 1);
+        dii.set(dii.challengePeriodSeconds.selector, 2);
+        vm.expectRevert(expectedErr);
+        deployImplementations.deployPreimageOracleSingleton(dii, dio);
+
+        address preImageOracleSingleton = makeAddr("preImageOracleSingleton");
+        vm.etch(address(preImageOracleSingleton), hex"01");
+        dio.set(dio.preimageOracleSingleton.selector, preImageOracleSingleton);
+        vm.expectRevert(expectedErr);
+        deployImplementations.deployMipsSingleton(dii, dio);
+
+        vm.expectRevert(expectedErr); // fault proof contracts don't exist at this release
+        deployImplementations.deployDisputeGameFactoryImpl(dii, dio);
+    }
+
+    function test_noContractExistsAtRelease_reverts() public {
+        string memory unknownRelease = "op-contracts/v1.3.0";
+        dii.set(dii.release.selector, unknownRelease);
+        bytes memory expectedErr =
+            bytes(string.concat("DeployImplementations: failed to deploy release ", unknownRelease));
+
+        vm.expectRevert(expectedErr); // fault proof contracts don't exist at this release
+        deployImplementations.deployDisputeGameFactoryImpl(dii, dio);
+    }
+
     function testFuzz_run_memory_succeeds(bytes32 _seed) public {
         withdrawalDelaySeconds = uint256(hash(_seed, 0));
         minProposalSizeBytes = uint256(hash(_seed, 1));
         challengePeriodSeconds = bound(uint256(hash(_seed, 2)), 0, type(uint64).max);
         proofMaturityDelaySeconds = uint256(hash(_seed, 3));
         disputeGameFinalityDelaySeconds = uint256(hash(_seed, 4));
-        release = string(bytes.concat(hash(_seed, 5)));
+        string memory release = string(bytes.concat(hash(_seed, 5)));
         protocolVersionsProxy = ProtocolVersions(address(uint160(uint256(hash(_seed, 7)))));
 
         // Must configure the ProxyAdmin contract which is used to upgrade the OPSM's proxy contract.
@@ -325,6 +462,7 @@ contract DeployImplementations_Test is Test {
         dii.set(dii.challengePeriodSeconds.selector, challengePeriodSeconds);
         dii.set(dii.proofMaturityDelaySeconds.selector, proofMaturityDelaySeconds);
         dii.set(dii.disputeGameFinalityDelaySeconds.selector, disputeGameFinalityDelaySeconds);
+        string memory release = "dev-release";
         dii.set(dii.release.selector, release);
         dii.set(dii.superchainConfigProxy.selector, address(superchainConfigProxy));
         dii.set(dii.protocolVersionsProxy.selector, address(protocolVersionsProxy));

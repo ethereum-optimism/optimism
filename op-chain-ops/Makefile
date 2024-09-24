@@ -44,4 +44,8 @@ fuzz:
 	go test $(FUZZLDFLAGS) -run NOTAREALTEST -v -fuzztime 10s -fuzz=FuzzAliasing ./crossdomain
 	go test $(FUZZLDFLAGS) -run NOTAREALTEST -v -fuzztime 10s -fuzz=FuzzVersionedNonce ./crossdomain
 
-.PHONY: test fuzz op-deployer
+
+sync-standard-version:
+	curl -Lo ./deployer/opsm/standard-versions.toml https://raw.githubusercontent.com/ethereum-optimism/superchain-registry/refs/heads/main/validation/standard/standard-versions.toml
+
+.PHONY: test fuzz op-deployer sync-standard-version
