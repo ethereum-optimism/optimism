@@ -2,9 +2,10 @@ package main
 
 import (
 	"fmt"
-	"github.com/urfave/cli/v2"
 	"strconv"
 	"strings"
+
+	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 )

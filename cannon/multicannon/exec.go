@@ -3,9 +3,9 @@ package main
 import (
 	"embed"
 	"errors"
-	"path/filepath"
 	"fmt"
 	"os"
+	"path/filepath"
 	"syscall"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
