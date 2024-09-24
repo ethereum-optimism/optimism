@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opsm"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
@@ -31,6 +32,37 @@ func Init(ctx context.Context, env *Env, artifactsFS foundry.StatDirFs, intent *
 		_, err := rand.Read(st.Create2Salt[:])
 		if err != nil {
 			return fmt.Errorf("failed to generate CREATE2 salt: %w", err)
+		}
+	}
+
+	if intent.OPSMAddress != (common.Address{}) {
+		env.Logger.Info("using provided OPSM address, populating state", "address", intent.OPSMAddress.Hex())
+
+		if intent.ContractsRelease == "dev" {
+			env.Logger.Warn("using dev release with existing OPSM, this field will be ignored")
+		}
+
+		opsmContract := opsm.NewContract(intent.OPSMAddress, env.L1Client)
+		protocolVersions, err := opsmContract.ProtocolVersions(ctx)
+		if err != nil {
+			return fmt.Errorf("error getting protocol versions address: %w", err)
+		}
+		superchainConfig, err := opsmContract.SuperchainConfig(ctx)
+		if err != nil {
+			return fmt.Errorf("error getting superchain config address: %w", err)
+		}
+		env.Logger.Debug(
+			"populating protocol versions and superchain config addresses",
+			"protocolVersions", protocolVersions.Hex(),
+			"superchainConfig", superchainConfig.Hex(),
+		)
+
+		st.SuperchainDeployment = &state.SuperchainDeployment{
+			ProtocolVersionsProxyAddress: protocolVersions,
+			SuperchainConfigProxyAddress: superchainConfig,
+		}
+		st.ImplementationsDeployment = &state.ImplementationsDeployment{
+			OpsmProxyAddress: intent.OPSMAddress,
 		}
 	}
 

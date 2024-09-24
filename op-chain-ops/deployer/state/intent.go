@@ -3,6 +3,7 @@ package state
 import (
 	"fmt"
 	"math/big"
+	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
@@ -25,6 +26,8 @@ type Intent struct {
 	ContractArtifactsURL *ArtifactsURL `json:"contractArtifactsURL" toml:"contractArtifactsURL"`
 
 	ContractsRelease string `json:"contractsVersion" toml:"contractsVersion"`
+
+	OPSMAddress common.Address `json:"opsmAddress" toml:"opsmAddress"`
 
 	Chains []*ChainIntent `json:"chains" toml:"chains"`
 
@@ -58,6 +61,10 @@ func (c *Intent) Check() error {
 
 	if c.ContractArtifactsURL == nil {
 		return fmt.Errorf("contractArtifactsURL must be set")
+	}
+
+	if c.ContractsRelease != "dev" && !strings.HasPrefix(c.ContractsRelease, "op-contracts/") {
+		return fmt.Errorf("contractsVersion must be either the literal \"dev\" or start with \"op-contracts/\"")
 	}
 
 	return nil

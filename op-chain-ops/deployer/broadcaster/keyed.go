@@ -162,7 +162,7 @@ func (t *KeyedBroadcaster) Broadcast(ctx context.Context) ([]BroadcastResult, er
 			)
 		}
 
-		results = append(results, outRes)
+		results[i] = outRes
 	}
 	return results, txErr.ErrorOrNil()
 }
@@ -203,6 +203,10 @@ func (t *KeyedBroadcaster) broadcast(ctx context.Context, bcast script.Broadcast
 
 	t.mgr.SendAsync(ctx, candidate, ch)
 	return ch, id
+}
+
+func (t *KeyedBroadcaster) Sender() common.Address {
+	return t.mgr.From()
 }
 
 // padGasLimit calculates the gas limit for a transaction based on the intrinsic gas and the gas used by

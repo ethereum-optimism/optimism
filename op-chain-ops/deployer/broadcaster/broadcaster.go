@@ -11,6 +11,7 @@ import (
 type Broadcaster interface {
 	Broadcast(ctx context.Context) ([]BroadcastResult, error)
 	Hook(bcast script.Broadcast)
+	Sender() common.Address
 }
 
 type BroadcastResult struct {

@@ -1,12 +1,19 @@
 package opsm
 
 import (
+	"context"
 	"fmt"
 	"math/big"
+	"strings"
 
-	"github.com/ethereum/go-ethereum/common"
-
+	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/broadcaster"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/holiman/uint256"
 )
 
 // PermissionedGameStartingAnchorRoots is a root of bytes32(hex"dead") for the permissioned game at block 0,
@@ -45,7 +52,6 @@ type DeployOPChainOutput struct {
 	OptimismMintableERC20FactoryProxy common.Address
 	L1StandardBridgeProxy             common.Address
 	L1CrossDomainMessengerProxy       common.Address
-
 	// Fault proof contracts below.
 	OptimismPortalProxy                common.Address
 	DisputeGameFactoryProxy            common.Address
@@ -96,4 +102,203 @@ func DeployOPChain(host *script.Host, input DeployOPChainInput) (DeployOPChainOu
 	}
 
 	return dco, nil
+}
+
+// opsmRoles is an internal struct used to pass the roles to OPSM. See opsmDeployInput for more info.
+type opsmRoles struct {
+	OpChainProxyAdminOwner common.Address
+	SystemConfigOwner      common.Address
+	Batcher                common.Address
+	UnsafeBlockSigner      common.Address
+	Proposer               common.Address
+	Challenger             common.Address
+}
+
+// opsmDeployInput is the input struct for the deploy method of the OPStackManager contract. We
+// define a separate struct here to match what the OPSM contract expects.
+type opsmDeployInput struct {
+	Roles               opsmRoles
+	BasefeeScalar       uint32
+	BlobBasefeeScalar   uint32
+	L2ChainId           *big.Int
+	StartingAnchorRoots []byte
+}
+
+// decodeOutputABIJSON defines an ABI for a fake method called "decodeOutput" that returns the
+// DeployOutput struct. This allows the code in the deployer to decode directly into a struct
+// using Geth's ABI library.
+const decodeOutputABIJSON = `
+[
+  {
+    "type": "function",
+    "name": "decodeOutput",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "output",
+        "indexed": false,
+		"type": "tuple",
+        "components": [
+          {
+            "name": "opChainProxyAdmin",
+            "type": "address"
+          },
+          {
+            "name": "addressManager",
+            "type": "address"
+          },
+          {
+            "name": "l1ERC721BridgeProxy",
+            "type": "address"
+          },
+          {
+            "name": "systemConfigProxy",
+            "type": "address"
+          },
+          {
+            "name": "optimismMintableERC20FactoryProxy",
+            "type": "address"
+          },
+          {
+            "name": "l1StandardBridgeProxy",
+            "type": "address"
+          },
+          {
+            "name": "l1CrossDomainMessengerProxy",
+            "type": "address"
+          },
+          {
+            "name": "optimismPortalProxy",
+            "type": "address"
+          },
+          {
+            "name": "disputeGameFactoryProxy",
+            "type": "address"
+          },
+          {
+            "name": "anchorStateRegistryProxy",
+            "type": "address"
+          },
+          {
+            "name": "anchorStateRegistryImpl",
+            "type": "address"
+          },
+          {
+            "name": "faultDisputeGame",
+            "type": "address",
+            "internalType": "contract FaultDisputeGame"
+          },
+          {
+            "name": "permissionedDisputeGame",
+            "type": "address"
+          },
+          {
+            "name": "delayedWETHPermissionedGameProxy",
+            "type": "address"
+          },
+          {
+            "name": "delayedWETHPermissionlessGameProxy",
+            "type": "address"
+          }
+        ]
+      }
+    ]
+  }
+]
+`
+
+var decodeOutputABI abi.ABI
+
+// DeployOPChainRaw deploys an OP Chain using a raw call to a pre-deployed OPSM contract.
+func DeployOPChainRaw(
+	ctx context.Context,
+	l1 *ethclient.Client,
+	bcast broadcaster.Broadcaster,
+	artifacts foundry.StatDirFs,
+	input DeployOPChainInput,
+) (DeployOPChainOutput, error) {
+	var out DeployOPChainOutput
+
+	artifactsFS := &foundry.ArtifactsFS{FS: artifacts}
+	opsmArtifacts, err := artifactsFS.ReadArtifact("OPStackManager.sol", "OPStackManager")
+	if err != nil {
+		return out, fmt.Errorf("failed to read OPStackManager artifact: %w", err)
+	}
+
+	opsmABI := opsmArtifacts.ABI
+	calldata, err := opsmABI.Pack("deploy", opsmDeployInput{
+		Roles: opsmRoles{
+			OpChainProxyAdminOwner: input.OpChainProxyAdminOwner,
+			SystemConfigOwner:      input.SystemConfigOwner,
+			Batcher:                input.Batcher,
+			UnsafeBlockSigner:      input.UnsafeBlockSigner,
+			Proposer:               input.Proposer,
+			Challenger:             input.Challenger,
+		},
+		BasefeeScalar:       input.BasefeeScalar,
+		BlobBasefeeScalar:   input.BlobBaseFeeScalar,
+		L2ChainId:           input.L2ChainId,
+		StartingAnchorRoots: input.StartingAnchorRoots(),
+	})
+	if err != nil {
+		return out, fmt.Errorf("failed to pack deploy input: %w", err)
+	}
+
+	nonce, err := l1.NonceAt(ctx, bcast.Sender(), nil)
+	if err != nil {
+		return out, fmt.Errorf("failed to read nonce: %w", err)
+	}
+
+	bcast.Hook(script.Broadcast{
+		From:  bcast.Sender(),
+		To:    input.OpsmProxy,
+		Input: calldata,
+		Value: (*hexutil.U256)(uint256.NewInt(0)),
+		// use hardcoded 19MM gas for now since this is roughly what we've seen this deployment cost.
+		GasUsed: 19_000_000,
+		Type:    script.BroadcastCall,
+		Nonce:   nonce,
+	})
+
+	results, err := bcast.Broadcast(ctx)
+	if err != nil {
+		return out, fmt.Errorf("failed to broadcast OP chain deployment: %w", err)
+	}
+
+	deployedEvent := opsmABI.Events["Deployed"]
+	res := results[0]
+
+	for _, log := range res.Receipt.Logs {
+		if log.Topics[0] != deployedEvent.ID {
+			continue
+		}
+
+		type EventData struct {
+			DeployOutput []byte
+		}
+		var data EventData
+		if err := opsmABI.UnpackIntoInterface(&data, "Deployed", log.Data); err != nil {
+			return out, fmt.Errorf("failed to unpack Deployed event: %w", err)
+		}
+
+		type OutputData struct {
+			Output DeployOPChainOutput
+		}
+		var outData OutputData
+		if err := decodeOutputABI.UnpackIntoInterface(&outData, "decodeOutput", data.DeployOutput); err != nil {
+			return out, fmt.Errorf("failed to unpack DeployOutput: %w", err)
+		}
+
+		return outData.Output, nil
+	}
+
+	return out, fmt.Errorf("failed to find Deployed event")
+}
+
+func init() {
+	var err error
+	decodeOutputABI, err = abi.JSON(strings.NewReader(decodeOutputABIJSON))
+	if err != nil {
+		panic(fmt.Sprintf("failed to parse decodeOutput ABI: %v", err))
+	}
 }
