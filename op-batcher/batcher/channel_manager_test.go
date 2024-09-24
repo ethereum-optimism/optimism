@@ -581,6 +581,7 @@ func TestChannelManager_TxData(t *testing.T) {
 			}
 
 			require.True(t, m.channelQueue[0].IsFull())
+			require.Equal(t, tc.chooseBlobsWhenChannelSubmitted, m.channelQueue[0].cfg.UseBlobs)
 			require.Equal(t, tc.chooseBlobsWhenChannelSubmitted, data.asBlob)
 			require.Equal(t, tc.chooseBlobsWhenChannelSubmitted, m.defaultCfg.UseBlobs)
 		})

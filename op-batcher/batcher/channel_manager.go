@@ -158,20 +158,19 @@ func (s *channelManager) nextTxData(channel *channel) (txData, error) {
 // automatically. When switching DA type, the channelManager state will be rebuilt
 // with a new ChannelConfig.
 func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
-
-	channel, data, err := s.txData(l1Head)
+	channel, err := s.getReadyChannel(l1Head)
 	if err != nil {
-		return data, err
+		return emptyTxData, err
 	}
 	if channel != nil && !channel.NoneSubmitted() {
-		return data, err
+		return s.nextTxData(channel)
 	}
 	assumedBlobs := s.defaultCfg.UseBlobs
 	newCfg := s.cfgProvider.ChannelConfig()
 	if newCfg.UseBlobs == assumedBlobs {
 		s.log.Debug("Recomputing optimal ChannelConfig: no need to switch DA type",
 			"useBlobs", assumedBlobs)
-		return data, err
+		return s.nextTxData(channel)
 	}
 	s.log.Info("Recomputing optimal ChannelConfig: changing DA type...",
 		"useBlobsBefore", assumedBlobs,
@@ -181,25 +180,15 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 	// the data currently in channels
 	err = s.Requeue(newCfg)
 	if err != nil {
-		return data, err
+		return emptyTxData, err
 	}
 	// Finally, call the inner function to get txData
 	// with the new config
-	_, data, err = s.txData(l1Head)
-	return data, err
+	return s.nextTxData(channel)
 }
 
-// TODO instead of wrapping this function, we should refactor it
-// so it returns the channel to call nextTxData on. It can still create
-// a channel if necessary. Then we will know whether to rebuild state
-// or not
-// whether
-// txData returns the next tx data that should be submitted to L1.
-//
-// If the current channel is
-// full, it only returns the remaining frames of this channel until it got
-// successfully fully sent to L1. It returns io.EOF if there's no pending tx data.
-func (s *channelManager) txData(l1Head eth.BlockID) (*channel, txData, error) {
+// getReadyChannel returns the next channel ready to submit data.
+func (s *channelManager) getReadyChannel(l1Head eth.BlockID) (*channel, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var firstWithTxData *channel
@@ -215,23 +204,22 @@ func (s *channelManager) txData(l1Head eth.BlockID) (*channel, txData, error) {
 
 	// Short circuit if there is pending tx data or the channel manager is closed.
 	if dataPending || s.closed {
-		d, err := s.nextTxData(firstWithTxData)
-		return firstWithTxData, d, err
+		return firstWithTxData, nil
 	}
 
 	// No pending tx data, so we have to add new blocks to the channel
 
 	// If we have no saved blocks, we will not be able to create valid frames
 	if len(s.blocks) == 0 {
-		return nil, txData{}, io.EOF
+		return nil, io.EOF
 	}
 
 	if err := s.ensureChannelWithSpace(l1Head); err != nil {
-		return nil, txData{}, err
+		return nil, err
 	}
 
 	if err := s.processBlocks(); err != nil {
-		return nil, txData{}, err
+		return nil, err
 	}
 
 	// Register current L1 head only after all pending blocks have been
@@ -240,11 +228,10 @@ func (s *channelManager) txData(l1Head eth.BlockID) (*channel, txData, error) {
 	s.registerL1Block(l1Head)
 
 	if err := s.outputFrames(); err != nil {
-		return nil, txData{}, err
+		return nil, err
 	}
 
-	d, err := s.nextTxData(s.currentChannel)
-	return s.currentChannel, d, err
+	return s.currentChannel, nil
 }
 
 // ensureChannelWithSpace ensures currentChannel is populated with a channel that has
