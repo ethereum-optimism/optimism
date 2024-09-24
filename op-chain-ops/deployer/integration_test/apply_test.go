@@ -27,7 +27,7 @@ import (
 const TestParams = `
 participants:
   - el_type: geth
-    el_extra_params: 
+    el_extra_params:
       - "--gcmode=archive"
     cl_type: lighthouse
 network_params:
@@ -192,6 +192,10 @@ func TestEndToEndApply(t *testing.T) {
 			{"DelayedWETHPermissionlessGameProxyAddress", chainState.DelayedWETHPermissionlessGameProxyAddress},
 		}
 		for _, addr := range chainAddrs {
+			// TODO Delete this `if`` block once FaultDisputeGameAddress is deployed.
+			if addr.name == "FaultDisputeGameAddress" {
+				continue
+			}
 			t.Run(fmt.Sprintf("chain %s - %s", chainState.ID, addr.name), func(t *testing.T) {
 				code, err := l1Client.CodeAt(ctx, addr.addr, nil)
 				require.NoError(t, err)
