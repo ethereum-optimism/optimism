@@ -361,9 +361,10 @@ contract DeployOPChain_TestBase is Test {
             })
         );
 
-        // Initialize deploy scripts.
+        // Configure and deploy Superchain contracts
         DeploySuperchain deploySuperchain = new DeploySuperchain();
         (DeploySuperchainInput dsi, DeploySuperchainOutput dso) = deploySuperchain.etchIOContracts();
+
         dsi.set(dsi.proxyAdminOwner.selector, proxyAdminOwner);
         dsi.set(dsi.protocolVersionsOwner.selector, protocolVersionsOwner);
         dsi.set(dsi.guardian.selector, guardian);
@@ -371,20 +372,16 @@ contract DeployOPChain_TestBase is Test {
         dsi.set(dsi.requiredProtocolVersion.selector, requiredProtocolVersion);
         dsi.set(dsi.recommendedProtocolVersion.selector, recommendedProtocolVersion);
 
-        DeployImplementations deployImplementations = createDeployImplementationsContract();
-        (DeployImplementationsInput dii, DeployImplementationsOutput dio) = deployImplementations.etchIOContracts();
-
-        deployOPChain = new DeployOPChain();
-        (doi, doo) = deployOPChain.etchIOContracts();
-
-        // Deploy the superchain contracts.
         deploySuperchain.run(dsi, dso);
 
         // Populate the inputs for DeployImplementations based on the output of DeploySuperchain.
         superchainConfigProxy = dso.superchainConfigProxy();
         protocolVersionsProxy = dso.protocolVersionsProxy();
 
-        // Deploy the implementations.
+        // Configure and deploy Implementation contracts
+        DeployImplementations deployImplementations = createDeployImplementationsContract();
+        (DeployImplementationsInput dii, DeployImplementationsOutput dio) = deployImplementations.etchIOContracts();
+
         dii.set(dii.withdrawalDelaySeconds.selector, withdrawalDelaySeconds);
         dii.set(dii.minProposalSizeBytes.selector, minProposalSizeBytes);
         dii.set(dii.challengePeriodSeconds.selector, challengePeriodSeconds);
@@ -400,7 +397,11 @@ contract DeployOPChain_TestBase is Test {
         dii.set(dii.standardVersionsToml.selector, standardVersionsToml);
         deployImplementations.run(dii, dio);
 
-        // Set the OPStackManager input for DeployOPChain.
+        // Deploy DeployOpChain, but defer populating the input values to the test suites inheriting this contract.
+        deployOPChain = new DeployOPChain();
+        (doi, doo) = deployOPChain.etchIOContracts();
+
+        // Set the OPStackManager address as input to DeployOPChain.
         opsm = dio.opsmProxy();
     }
 
@@ -478,8 +479,12 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         address batcherActual = address(uint160(uint256(doo.systemConfigProxy().batcherHash())));
         assertEq(batcherActual, batcher, "2300");
         assertEq(address(doo.systemConfigProxy().unsafeBlockSigner()), unsafeBlockSigner, "2400");
-        // assertEq(address(...proposer()), proposer, "2500"); // TODO once we deploy dispute games.
-        // assertEq(address(...challenger()), challenger, "2600"); // TODO once we deploy dispute games.
+        assertEq(address(doo.permissionedDisputeGame().proposer()), proposer, "2500");
+        assertEq(address(doo.permissionedDisputeGame().challenger()), challenger, "2600");
+
+        // TODO once we deploy the Permissionless Dispute Game
+        // assertEq(address(doo.faultDisputeGame().proposer()), proposer, "2700");
+        // assertEq(address(doo.faultDisputeGame().challenger()), challenger, "2800");
 
         // Most architecture assertions are handled within the OP Stack Manager itself and therefore
         // we only assert on the things that are not visible onchain.
