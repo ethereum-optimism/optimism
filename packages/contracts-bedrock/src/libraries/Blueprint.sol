@@ -20,6 +20,9 @@ library Blueprint {
     /// @notice Thrown when parsing a blueprint preamble and the resulting initcode is empty.
     error EmptyInitcode();
 
+    /// @notice Thrown when call to the identity precompile fails.
+    error IdentityPrecompileCallFailed();
+
     /// @notice Thrown when parsing a blueprint preamble and the bytecode does not contain the expected prefix bytes.
     error NotABlueprint();
 
@@ -105,7 +108,7 @@ library Blueprint {
             success := staticcall(gas(), 0x04, inputData, initcodeLength, outputData, initcodeLength)
         }
 
-        if (!success) revert DeploymentFailed();
+        if (!success) revert IdentityPrecompileCallFailed();
         return Preamble(ercVersion, preambleData, initcode);
     }
 

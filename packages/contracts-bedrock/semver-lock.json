@@ -32,7 +32,7 @@
     "sourceCodeHash": "0xde4df0f9633dc0cdb1c9f634003ea5b0f7c5c1aebc407bc1b2f44c0ecf938649"
   },
   "src/L1/OPStackManager.sol": {
-    "initCodeHash": "0xc7f2c86b47f1a74532979fd229a4bb0864b9b0026f29a198d15db71cab739093",
+    "initCodeHash": "0x5b451782192b8429f6822c88270c4f0dbd10342518c5695ecf4dff7b5ebfb4e4",
     "sourceCodeHash": "0x76dc02823148d0c104828bb3355a3bd8d2e60357643b592e6a789e090b08f954"
   },
   "src/L1/OptimismPortal.sol": {

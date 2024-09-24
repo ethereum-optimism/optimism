@@ -521,6 +521,11 @@
   },
   {
     "inputs": [],
+    "name": "IdentityPrecompileCallFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidChainId",
     "type": "error"
   },
