@@ -136,12 +136,14 @@ func (s *channelManager) removePendingChannel(channel *channel) {
 	s.channelQueue = append(s.channelQueue[:index], s.channelQueue[index+1:]...)
 }
 
+var ErrInsufficientData = errors.New("insufficient data")
+
 // nextTxData dequeues frames from the channel and returns them encoded in a transaction.
 // It also updates the internal tx -> channels mapping
 func (s *channelManager) nextTxData(channel *channel) (txData, error) {
 	if channel == nil || !channel.HasTxData() {
 		s.log.Trace("no next tx data")
-		return txData{}, io.EOF // TODO: not enough data error instead
+		return txData{}, ErrInsufficientData
 	}
 	tx := channel.NextTxData()
 	s.txChannels[tx.ID().String()] = channel
@@ -162,29 +164,26 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 	if err != nil {
 		return emptyTxData, err
 	}
+	if !channel.HasTxData() {
+		return emptyTxData, ErrInsufficientData
+	}
 	if channel != nil && !channel.NoneSubmitted() {
 		return s.nextTxData(channel)
 	}
-	assumedBlobs := s.defaultCfg.UseBlobs
 	newCfg := s.cfgProvider.ChannelConfig()
-	if newCfg.UseBlobs == assumedBlobs {
+	if newCfg.UseBlobs == s.defaultCfg.UseBlobs {
 		s.log.Debug("Recomputing optimal ChannelConfig: no need to switch DA type",
-			"useBlobs", assumedBlobs)
+			"useBlobs", s.defaultCfg.UseBlobs)
 		return s.nextTxData(channel)
 	}
 	s.log.Info("Recomputing optimal ChannelConfig: changing DA type...",
-		"useBlobsBefore", assumedBlobs,
+		"useBlobsBefore", s.defaultCfg.UseBlobs,
 		"useBlobsAfter", newCfg.UseBlobs)
 	// We have detected that our assumptions on DA
 	// type were wrong and we need to requeue
 	// the data currently in channels
 	err = s.Requeue(newCfg)
-	if err != nil {
-		return emptyTxData, err
-	}
-	// Finally, call the inner function to get txData
-	// with the new config
-	return s.nextTxData(channel)
+	return emptyTxData, err
 }
 
 // getReadyChannel returns the next channel ready to submit data.
