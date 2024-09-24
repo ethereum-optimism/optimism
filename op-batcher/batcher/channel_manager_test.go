@@ -545,23 +545,22 @@ func TestChannelManager_TxData(t *testing.T) {
 
 			// Seed channel manager with blocks
 			rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-			blockA := derivetest.RandomL2BlockWithChainId(rng, 100, defaultTestRollupConfig.L2ChainID)
+			blockA := derivetest.RandomL2BlockWithChainId(rng, 10, defaultTestRollupConfig.L2ChainID)
 			m.blocks = []*types.Block{blockA}
 
 			// Call TxData a first time to trigger blocks->channels pipeline
 			_, err := m.TxData(eth.BlockID{})
-			// We allow for an EOF error here, because there is not
-			// enough data to send yet
-			if !errors.Is(err, io.EOF) {
-				require.NoError(t, err)
-			}
+
 			// The test requires us to have something in the channel queue
-			// at this point
+			// at this point, but not yet ready to send and not full
 			require.NotEmpty(t, m.channelQueue)
+			require.ErrorIs(t, err, ErrInsufficientData)
+			require.False(t, m.channelQueue[0].IsFull())
 
 			// Simulate updated market conditions
 			// by possibly flipping the state of the
 			// fake channel provider
+			l.Info("updating market conditions", "chooseBlobs", tc.chooseBlobsWhenChannelSubmitted)
 			cfg.chooseBlobs = tc.chooseBlobsWhenChannelSubmitted
 
 			// Add a block and call TxData until
@@ -569,19 +568,15 @@ func TestChannelManager_TxData(t *testing.T) {
 			var data txData
 			for {
 				m.blocks = []*types.Block{blockA}
-				// Call TxData a sceond time to to handle requeuing any channels
-				// which started to fill but were not sent yet
 				data, err = m.TxData(eth.BlockID{})
-				if err == nil {
+				if err == nil && data.Len() > 0 {
 					break
 				}
-				if !errors.Is(err, io.EOF) { // We allow for an EOF error here
-					t.Fatal(err)
+				if !errors.Is(err, ErrInsufficientData) {
+					require.NoError(t, err)
 				}
 			}
 
-			require.True(t, m.channelQueue[0].IsFull())
-			require.Equal(t, tc.chooseBlobsWhenChannelSubmitted, m.channelQueue[0].cfg.UseBlobs)
 			require.Equal(t, tc.chooseBlobsWhenChannelSubmitted, data.asBlob)
 			require.Equal(t, tc.chooseBlobsWhenChannelSubmitted, m.defaultCfg.UseBlobs)
 		})
