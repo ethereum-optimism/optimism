@@ -361,9 +361,10 @@ contract DeployOPChain_TestBase is Test {
             })
         );
 
-        // Initialize deploy scripts.
+        // Configure and deploy Superchain contracts
         DeploySuperchain deploySuperchain = new DeploySuperchain();
         (DeploySuperchainInput dsi, DeploySuperchainOutput dso) = deploySuperchain.etchIOContracts();
+
         dsi.set(dsi.proxyAdminOwner.selector, proxyAdminOwner);
         dsi.set(dsi.protocolVersionsOwner.selector, protocolVersionsOwner);
         dsi.set(dsi.guardian.selector, guardian);
@@ -371,20 +372,16 @@ contract DeployOPChain_TestBase is Test {
         dsi.set(dsi.requiredProtocolVersion.selector, requiredProtocolVersion);
         dsi.set(dsi.recommendedProtocolVersion.selector, recommendedProtocolVersion);
 
-        DeployImplementations deployImplementations = createDeployImplementationsContract();
-        (DeployImplementationsInput dii, DeployImplementationsOutput dio) = deployImplementations.etchIOContracts();
-
-        deployOPChain = new DeployOPChain();
-        (doi, doo) = deployOPChain.etchIOContracts();
-
-        // Deploy the superchain contracts.
         deploySuperchain.run(dsi, dso);
 
         // Populate the inputs for DeployImplementations based on the output of DeploySuperchain.
         superchainConfigProxy = dso.superchainConfigProxy();
         protocolVersionsProxy = dso.protocolVersionsProxy();
 
-        // Deploy the implementations.
+        // Configure and deploy Implementation contracts
+        DeployImplementations deployImplementations = createDeployImplementationsContract();
+        (DeployImplementationsInput dii, DeployImplementationsOutput dio) = deployImplementations.etchIOContracts();
+
         dii.set(dii.withdrawalDelaySeconds.selector, withdrawalDelaySeconds);
         dii.set(dii.minProposalSizeBytes.selector, minProposalSizeBytes);
         dii.set(dii.challengePeriodSeconds.selector, challengePeriodSeconds);
@@ -400,7 +397,11 @@ contract DeployOPChain_TestBase is Test {
         dii.set(dii.standardVersionsToml.selector, standardVersionsToml);
         deployImplementations.run(dii, dio);
 
-        // Set the OPStackManager input for DeployOPChain.
+        // Deploy DeployOpChain, but defer populating the input values to the test suites inheriting this contract.
+        deployOPChain = new DeployOPChain();
+        (doi, doo) = deployOPChain.etchIOContracts();
+
+        // Set the OPStackManager address as input to DeployOPChain.
         opsm = dio.opsmProxy();
     }
 
