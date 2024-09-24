@@ -171,9 +171,6 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 	if channel == nil {
 		panic("nil channel and nil err returned from getReadyChannel")
 	}
-	if !channel.HasTxData() {
-		return emptyTxData, ErrInsufficientData
-	}
 	if !channel.NoneSubmitted() {
 		return s.nextTxData(channel)
 	}
@@ -193,9 +190,6 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 	channel, err = s.getReadyChannel(l1Head)
 	if err != nil {
 		return emptyTxData, err
-	}
-	if !channel.HasTxData() {
-		return emptyTxData, ErrInsufficientData
 	}
 	return s.nextTxData(channel)
 }
