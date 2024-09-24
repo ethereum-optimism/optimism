@@ -563,7 +563,7 @@ func TestChannelManager_TxData(t *testing.T) {
 
 			// Call TxData a first time to trigger blocks->channels pipeline
 			_, err := m.TxData(eth.BlockID{})
-			require.ErrorIs(t, err, ErrInsufficientData)
+			require.ErrorIs(t, err, io.EOF)
 
 			// The test requires us to have something in the channel queue
 			// at this point, but not yet ready to send and not full
@@ -585,7 +585,7 @@ func TestChannelManager_TxData(t *testing.T) {
 				if err == nil && data.Len() > 0 {
 					break
 				}
-				if !errors.Is(err, ErrInsufficientData) {
+				if !errors.Is(err, io.EOF) {
 					require.NoError(t, err)
 				}
 			}

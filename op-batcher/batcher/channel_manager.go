@@ -16,8 +16,7 @@ import (
 )
 
 var (
-	ErrReorg            = errors.New("block does not extend existing chain")
-	ErrInsufficientData = errors.New("insufficient data")
+	ErrReorg = errors.New("block does not extend existing chain")
 )
 
 // channelManager stores a contiguous set of blocks & turns them into channels.
@@ -142,13 +141,9 @@ func (s *channelManager) removePendingChannel(channel *channel) {
 // nextTxData dequeues frames from the channel and returns them encoded in a transaction.
 // It also updates the internal tx -> channels mapping
 func (s *channelManager) nextTxData(channel *channel) (txData, error) {
-	if channel == nil {
-		s.log.Trace("no channel")
-		return txData{}, io.EOF
-	}
-	if !channel.HasTxData() {
+	if channel == nil || !channel.HasTxData() {
 		s.log.Trace("no next tx data")
-		return txData{}, ErrInsufficientData
+		return txData{}, io.EOF
 	}
 	tx := channel.NextTxData()
 	s.txChannels[tx.ID().String()] = channel
