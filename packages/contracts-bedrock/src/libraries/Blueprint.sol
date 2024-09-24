@@ -80,14 +80,13 @@ library Blueprint {
         bytes memory preambleData = new bytes(dataLength);
         if (nLengthBytes != 0) {
             uint256 dataStart = 3 + nLengthBytes;
-            // We don't currently use the preamble data, so unlike the initcode loop below, we avoid
-            // using assembly here and stick with Solidity for readability.
+            // This loop is very small, so not worth using the identity precompile like we do with initcode below.
             for (uint256 i = 0; i < dataLength; i++) {
                 preambleData[i] = _bytecode[dataStart + i];
             }
         }
 
-        // Parsing the initcode byte-by-byte is too costly for long initcode, perform a staticcall
+        // Parsing the initcode byte-by-byte is too costly for long initcode, so we perform a staticcall
         // to the identity precompile at address(0x04) to copy the initcode.
         uint256 initcodeStart = 3 + nLengthBytes + dataLength;
         uint256 initcodeLength = _bytecode.length - initcodeStart;

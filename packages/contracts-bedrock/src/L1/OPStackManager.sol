@@ -542,7 +542,7 @@ contract OPStackManager is ISemver, Initializable {
         returns (bytes memory)
     {
         return abi.encode(
-            GameType.wrap(1),
+            GameType.wrap(1), // Permissioned Cannon
             Claim.wrap(bytes32(hex"dead")), // absolutePrestate
             73, // maxGameDepth
             30, // splitDepth

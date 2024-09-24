@@ -2,8 +2,6 @@
 pragma solidity 0.8.15;
 
 import { Script } from "forge-std/Script.sol";
-import { VmSafe } from "forge-std/Vm.sol";
-import { console } from "forge-std/console.sol";
 
 import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
@@ -492,11 +490,6 @@ contract DeployOPChain is Script {
 
         vm.broadcast(msg.sender);
         OPStackManager.DeployOutput memory deployOutput = opsmProxy.deploy(deployInput);
-        VmSafe.Gas memory gas = vm.lastCallGas();
-        console.log("gasLimit", gas.gasLimit);
-        console.log("gasTotalUsed", gas.gasTotalUsed);
-        console.log("gasMemoryUsed", gas.gasMemoryUsed);
-        console.log("gasRemaining", gas.gasRemaining);
 
         vm.label(address(deployOutput.opChainProxyAdmin), "opChainProxyAdmin");
         vm.label(address(deployOutput.addressManager), "addressManager");
