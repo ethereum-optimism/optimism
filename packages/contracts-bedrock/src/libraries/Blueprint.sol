@@ -56,7 +56,7 @@ library Blueprint {
     /// @notice Given bytecode as a sequence of bytes, parse the blueprint preamble and deconstruct
     /// the bytecode into the ERC version, preamble data and initcode. Reverts if the bytecode is
     /// not a valid blueprint contract according to ERC-5202.
-    function parseBlueprintPreamble(bytes memory _bytecode) internal pure returns (Preamble memory) {
+    function parseBlueprintPreamble(bytes memory _bytecode) internal view returns (Preamble memory) {
         if (_bytecode.length < 2 || _bytecode[0] != 0xFE || _bytecode[1] != 0x71) {
             revert NotABlueprint();
         }
@@ -77,18 +77,35 @@ library Blueprint {
         bytes memory preambleData = new bytes(dataLength);
         if (nLengthBytes != 0) {
             uint256 dataStart = 3 + nLengthBytes;
+            // We don't currently use the preamble data, so unlike the initcode loop below, we avoid
+            // using assembly here and stick with Solidity for readability.
             for (uint256 i = 0; i < dataLength; i++) {
                 preambleData[i] = _bytecode[dataStart + i];
             }
         }
 
+        // Parsing the initcode byte-by-byte is too costly for long initcode, perform a staticcall
+        // to the identity precompile at address(0x04) to copy the initcode.
         uint256 initcodeStart = 3 + nLengthBytes + dataLength;
-        bytes memory initcode = new bytes(_bytecode.length - initcodeStart);
-        for (uint256 i = 0; i < initcode.length; i++) {
-            initcode[i] = _bytecode[initcodeStart + i];
-        }
-        if (initcode.length == 0) revert EmptyInitcode();
+        uint256 initcodeLength = _bytecode.length - initcodeStart;
+        if (initcodeLength == 0) revert EmptyInitcode();
 
+        bytes memory initcode = new bytes(initcodeLength);
+        bool success;
+        assembly ("memory-safe") {
+            // Calculate the memory address of the input data (initcode) within _bytecode.
+            // - add(_bytecode, 32): Moves past the length field to the start of _bytecode's data.
+            // - add(..., initcodeStart): Adds the offset to reach the initcode within _bytecode.
+            let inputData := add(add(_bytecode, 32), initcodeStart)
+
+            // Calculate the memory address for the output data in initcode.
+            let outputData := add(initcode, 32)
+
+            // Perform the staticcall to the identity precompile.
+            success := staticcall(gas(), 0x04, inputData, initcodeLength, outputData, initcodeLength)
+        }
+
+        if (!success) revert DeploymentFailed();
         return Preamble(ercVersion, preambleData, initcode);
     }
 

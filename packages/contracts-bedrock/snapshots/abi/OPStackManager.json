@@ -53,7 +53,12 @@
           },
           {
             "internalType": "address",
-            "name": "permissionedDisputeGame",
+            "name": "permissionedDisputeGame1",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "permissionedDisputeGame2",
             "type": "address"
           }
         ],
@@ -306,7 +311,12 @@
               },
               {
                 "internalType": "address",
-                "name": "permissionedDisputeGame",
+                "name": "permissionedDisputeGame1",
+                "type": "address"
+              },
+              {
+                "internalType": "address",
+                "name": "permissionedDisputeGame2",
                 "type": "address"
               }
             ],

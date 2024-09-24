@@ -35,7 +35,7 @@
     "type": "mapping(uint256 => contract SystemConfig)"
   },
   {
-    "bytes": "224",
+    "bytes": "256",
     "label": "blueprint",
     "offset": 0,
     "slot": "4",
@@ -45,7 +45,7 @@
     "bytes": "1600",
     "label": "__gap",
     "offset": 0,
-    "slot": "11",
+    "slot": "12",
     "type": "uint256[50]"
   }
 ]
