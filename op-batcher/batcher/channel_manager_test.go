@@ -567,7 +567,7 @@ func TestChannelManager_TxData(t *testing.T) {
 			require.Equal(t, tc.chooseBlobsWhenChannelCreated, m.defaultCfg.UseBlobs)
 
 			// Seed channel manager with a block
-			rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+			rng := rand.New(rand.NewSource(99))
 			blockA := derivetest.RandomL2BlockWithChainId(rng, 200, defaultTestRollupConfig.L2ChainID)
 			m.blocks = []*types.Block{blockA}
 
