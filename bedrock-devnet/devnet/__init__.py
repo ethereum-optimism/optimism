@@ -11,6 +11,7 @@ import http.client
 from multiprocessing import Process, Queue
 import concurrent.futures
 from collections import namedtuple
+from . import log_setup
 
 
 pjoin = os.path.join
