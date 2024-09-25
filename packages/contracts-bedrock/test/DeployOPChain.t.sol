@@ -30,6 +30,7 @@ import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
+import { Proxy } from "src/universal/Proxy.sol";
 
 import { GameType, GameTypes, Hash, OutputRoot } from "src/dispute/lib/Types.sol";
 
@@ -52,6 +53,15 @@ contract DeployOPChainInput_Test is Test {
         doi = new DeployOPChainInput();
     }
 
+    function buildOpcmProxy() public returns (Proxy opcmProxy) {
+        opcmProxy = new Proxy(address(0));
+        OPContractsManager opcmImpl = OPContractsManager(address(makeAddr("opcmImpl")));
+        vm.prank(address(0));
+        opcmProxy.upgradeTo(address(opcmImpl));
+        vm.etch(address(opcmProxy), address(opcmProxy).code);
+        vm.etch(address(opcmImpl), hex"01");
+    }
+
     function test_set_succeeds() public {
         doi.set(doi.opChainProxyAdminOwner.selector, opChainProxyAdminOwner);
         doi.set(doi.systemConfigOwner.selector, systemConfigOwner);
@@ -62,7 +72,10 @@ contract DeployOPChainInput_Test is Test {
         doi.set(doi.basefeeScalar.selector, basefeeScalar);
         doi.set(doi.blobBaseFeeScalar.selector, blobBaseFeeScalar);
         doi.set(doi.l2ChainId.selector, l2ChainId);
-        doi.set(doi.opcmProxy.selector, address(opcm));
+
+        (Proxy opcmProxy) = buildOpcmProxy();
+        doi.set(doi.opcmProxy.selector, address(opcmProxy));
+
         // Compare the default inputs to the getter methods.
         assertEq(opChainProxyAdminOwner, doi.opChainProxyAdminOwner(), "200");
         assertEq(systemConfigOwner, doi.systemConfigOwner(), "300");
@@ -73,7 +86,7 @@ contract DeployOPChainInput_Test is Test {
         assertEq(basefeeScalar, doi.basefeeScalar(), "800");
         assertEq(blobBaseFeeScalar, doi.blobBaseFeeScalar(), "900");
         assertEq(l2ChainId, doi.l2ChainId(), "1000");
-        assertEq(address(opcm), address(doi.opcmProxy()), "1100");
+        assertEq(address(opcmProxy), address(doi.opcmProxy()), "1100");
     }
 
     function test_getters_whenNotSet_revert() public {
