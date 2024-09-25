@@ -1673,6 +1673,12 @@ workflows:
             - op-e2e-fault-proof-tests
             - op-e2e-action-tests
             - op-e2e-action-tests-altda
+            # Not needed for the devnet but we want to make sure they build successfully
+            - cannon-docker-build
+            - op-dispute-mon-docker-build
+            - op-program-docker-build
+            - op-supervisor-docker-build
+            - proofs-tools-docker-build
       - docker-build:
           name: <<matrix.docker_name>>-docker-build
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
