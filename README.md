@@ -23,15 +23,7 @@ cargo run -- [OPTIONS]
 
 ### Environment Variables
 
-You can also set the options using environment variables:
-
-- `JWT_TOKEN`
-- `L2_URL`
-- `BUILDER_URL`
-- `RPC_HOST`
-- `RPC_PORT`
-- `TRACING`
-- `LOG_LEVEL`
+You can also set the options using environment variables. See .env.example to use the default values.
 
 ### Example
 

@@ -6,8 +6,10 @@ edition = "2021"
 [dependencies]
 alloy-primitives = "0.8.3"
 alloy = { version = "0.3.6", features = ["eips", "rpc-types"] }
-alloy-rpc-types-engine = { version = "0.3.6", features = ["serde"] }
-alloy-rpc-types-eth = { version = "0.3.6", features = ["serde"] }
+op-alloy-rpc-types-engine = "0.2.12"
+op-alloy-rpc-types = "0.2.12"
+alloy-rpc-types-engine = "0.3.6"
+alloy-rpc-types-eth = "0.3.6"
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1.4"
 tracing-subscriber = { version = "0.3.11", features = ["env-filter"] }
@@ -20,8 +22,12 @@ http = "1.1.0"
 dotenv = "0.15.0"
 tower = "0.4.13"
 http-body = "0.4.5"
+http-body-util = "0.1.2"
 hyper = { version = "1.4.1", features = ["full"] }
 hyper-util = { version = "0.1", features = ["full"] }
+serde_json = "1.0.96"
+reth-rpc-layer = { git = "https://github.com/paradigmxyz/reth.git", branch = "main" }
+reth-optimism-payload-builder = { git = "https://github.com/paradigmxyz/reth.git", branch = "main", features = ["optimism"] }
 
 [dev-dependencies]
 anyhow = "1.0"
