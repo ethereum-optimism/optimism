@@ -432,6 +432,8 @@ contract Deploy is Deployer {
         deployERC1967Proxy("PermissionedDelayedWETHProxy");
         deployERC1967Proxy("AnchorStateRegistryProxy");
 
+        deployAnchorStateRegistry();
+
         transferAddressManagerOwnership(); // to the ProxyAdmin
     }
 
@@ -451,7 +453,6 @@ contract Deploy is Deployer {
         deployDelayedWETH();
         deployPreimageOracle();
         deployMips();
-        deployAnchorStateRegistry();
     }
 
     /// @notice Initialize all of the proxies by upgrading to the correct proxy and calling the initialize function
