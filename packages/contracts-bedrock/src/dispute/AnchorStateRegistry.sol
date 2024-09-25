@@ -1,18 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Contracts
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
-import { ISemver } from "src/universal/interfaces/ISemver.sol";
 
-import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistry.sol";
-import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
-import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
-import { IDisputeGameFactory } from "src/dispute/interfaces/IDisputeGameFactory.sol";
-import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
-
+// Libraries
 import "src/dispute/lib/Types.sol";
 import { Unauthorized } from "src/libraries/errors/CommonErrors.sol";
 import { UnregisteredGame, InvalidGameStatus } from "src/dispute/lib/Errors.sol";
+
+// Interfaces
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
+import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
+import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
+import { IDisputeGameFactory } from "src/dispute/interfaces/IDisputeGameFactory.sol";
+import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
 
 /// @custom:proxied true
 /// @title AnchorStateRegistry
@@ -20,7 +22,7 @@ import { UnregisteredGame, InvalidGameStatus } from "src/dispute/lib/Errors.sol"
 ///         FaultDisputeGame type. The anchor state is the latest state that has been proposed on L1 and was not
 ///         challenged within the challenge period. By using stored anchor states, new FaultDisputeGame instances can
 ///         be initialized with a more recent starting state which reduces the amount of required offchain computation.
-contract AnchorStateRegistry is Initializable, IAnchorStateRegistry, ISemver {
+contract AnchorStateRegistry is Initializable, ISemver {
     /// @notice Describes an initial anchor state for a game type.
     struct StartingAnchorRoot {
         GameType gameType;
@@ -28,17 +30,17 @@ contract AnchorStateRegistry is Initializable, IAnchorStateRegistry, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 2.0.1-beta.1
-    string public constant version = "2.0.1-beta.1";
+    /// @custom:semver 2.0.1-beta.3
+    string public constant version = "2.0.1-beta.3";
 
     /// @notice DisputeGameFactory address.
     IDisputeGameFactory internal immutable DISPUTE_GAME_FACTORY;
 
-    /// @inheritdoc IAnchorStateRegistry
+    /// @notice Returns the anchor state for the given game type.
     mapping(GameType => OutputRoot) public anchors;
 
     /// @notice Address of the SuperchainConfig contract.
-    SuperchainConfig public superchainConfig;
+    ISuperchainConfig public superchainConfig;
 
     /// @param _disputeGameFactory DisputeGameFactory address.
     constructor(IDisputeGameFactory _disputeGameFactory) {
@@ -51,7 +53,7 @@ contract AnchorStateRegistry is Initializable, IAnchorStateRegistry, ISemver {
     /// @param _superchainConfig The address of the SuperchainConfig contract.
     function initialize(
         StartingAnchorRoot[] memory _startingAnchorRoots,
-        SuperchainConfig _superchainConfig
+        ISuperchainConfig _superchainConfig
     )
         public
         initializer
@@ -63,12 +65,15 @@ contract AnchorStateRegistry is Initializable, IAnchorStateRegistry, ISemver {
         superchainConfig = _superchainConfig;
     }
 
-    /// @inheritdoc IAnchorStateRegistry
+    /// @notice Returns the DisputeGameFactory address.
+    /// @return DisputeGameFactory address.
     function disputeGameFactory() external view returns (IDisputeGameFactory) {
         return DISPUTE_GAME_FACTORY;
     }
 
-    /// @inheritdoc IAnchorStateRegistry
+    /// @notice Callable by FaultDisputeGame contracts to update the anchor state. Pulls the anchor state directly from
+    ///         the FaultDisputeGame contract and stores it in the registry if the new anchor state is valid and the
+    ///         state is newer than the current anchor state.
     function tryUpdateAnchorState() external {
         // Grab the game and game data.
         IFaultDisputeGame game = IFaultDisputeGame(msg.sender);
@@ -96,7 +101,8 @@ contract AnchorStateRegistry is Initializable, IAnchorStateRegistry, ISemver {
         anchors[gameType] = OutputRoot({ l2BlockNumber: game.l2BlockNumber(), root: Hash.wrap(game.rootClaim().raw()) });
     }
 
-    /// @inheritdoc IAnchorStateRegistry
+    /// @notice Sets the anchor state given the game.
+    /// @param _game The game to set the anchor state for.
     function setAnchorState(IFaultDisputeGame _game) external {
         if (msg.sender != superchainConfig.guardian()) revert Unauthorized();
 

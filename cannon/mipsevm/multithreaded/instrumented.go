@@ -73,7 +73,9 @@ func (m *InstrumentedState) Step(proof bool) (wit *mipsevm.StepWitness, err erro
 
 	if proof {
 		memProof := m.memoryTracker.MemProof()
+		memProof2 := m.memoryTracker.MemProof2()
 		wit.ProofData = append(wit.ProofData, memProof[:]...)
+		wit.ProofData = append(wit.ProofData, memProof2[:]...)
 		lastPreimageKey, lastPreimage, lastPreimageOffset := m.preimageOracle.LastPreimage()
 		if lastPreimageOffset != ^uint32(0) {
 			wit.PreimageOffset = lastPreimageOffset

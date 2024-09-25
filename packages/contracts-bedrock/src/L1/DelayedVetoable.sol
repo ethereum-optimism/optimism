@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Interfaces
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
 
 /// @title DelayedVetoable

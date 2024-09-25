@@ -1,6 +1,8 @@
 package foundry
 
 import (
+	"encoding/json"
+	"math/big"
 	"os"
 	"testing"
 
@@ -95,4 +97,25 @@ func TestForgeAllocs_FromState(t *testing.T) {
 		allocs.Accounts[contract].Storage[crypto.Keccak256Hash([]byte("hello"))])
 	require.Equal(t, "0", allocs.Accounts[contract].Balance.String())
 	require.Equal(t, uint64(30), allocs.Accounts[contract].Nonce)
+}
+
+func TestForgeAllocs_Marshaling(t *testing.T) {
+	data := &ForgeAllocs{
+		Accounts: map[common.Address]types.Account{
+			common.HexToAddress("0x12345"): {
+				Balance: big.NewInt(12345),
+				Code:    []byte{0x01, 0x02, 0x03},
+				Nonce:   123,
+				Storage: map[common.Hash]common.Hash{
+					common.HexToHash("0x12345"): common.HexToHash("0x12345"),
+				},
+			},
+		},
+	}
+
+	out, err := json.Marshal(data)
+	require.NoError(t, err)
+
+	var in ForgeAllocs
+	require.NoError(t, json.Unmarshal(out, &in))
 }

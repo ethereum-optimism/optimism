@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/ethereum-optimism/optimism/cannon/serialize"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -14,16 +13,20 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
+	"github.com/ethereum-optimism/optimism/cannon/serialize"
 )
 
 // STATE_WITNESS_SIZE is the size of the state witness encoding in bytes.
-const STATE_WITNESS_SIZE = 163
+const STATE_WITNESS_SIZE = 172
 const (
 	MEMROOT_WITNESS_OFFSET                    = 0
 	PREIMAGE_KEY_WITNESS_OFFSET               = MEMROOT_WITNESS_OFFSET + 32
 	PREIMAGE_OFFSET_WITNESS_OFFSET            = PREIMAGE_KEY_WITNESS_OFFSET + 32
 	HEAP_WITNESS_OFFSET                       = PREIMAGE_OFFSET_WITNESS_OFFSET + 4
-	EXITCODE_WITNESS_OFFSET                   = HEAP_WITNESS_OFFSET + 4
+	LL_RESERVATION_ACTIVE_OFFSET              = HEAP_WITNESS_OFFSET + 4
+	LL_ADDRESS_OFFSET                         = LL_RESERVATION_ACTIVE_OFFSET + 1
+	LL_OWNER_THREAD_OFFSET                    = LL_ADDRESS_OFFSET + 4
+	EXITCODE_WITNESS_OFFSET                   = LL_OWNER_THREAD_OFFSET + 4
 	EXITED_WITNESS_OFFSET                     = EXITCODE_WITNESS_OFFSET + 1
 	STEP_WITNESS_OFFSET                       = EXITED_WITNESS_OFFSET + 1
 	STEPS_SINCE_CONTEXT_SWITCH_WITNESS_OFFSET = STEP_WITNESS_OFFSET + 8
@@ -40,7 +43,10 @@ type State struct {
 	PreimageKey    common.Hash
 	PreimageOffset uint32 // note that the offset includes the 8-byte length prefix
 
-	Heap uint32 // to handle mmap growth
+	Heap                uint32 // to handle mmap growth
+	LLReservationActive bool   // Whether there is an active memory reservation initiated via the LL (load linked) op
+	LLAddress           uint32 // The "linked" memory address reserved via the LL (load linked) op
+	LLOwnerThread       uint32 // The id of the thread that holds the reservation on LLAddress
 
 	ExitCode uint8
 	Exited   bool
@@ -64,16 +70,19 @@ func CreateEmptyState() *State {
 	initThread := CreateEmptyThread()
 
 	return &State{
-		Memory:           memory.NewMemory(),
-		Heap:             0,
-		ExitCode:         0,
-		Exited:           false,
-		Step:             0,
-		Wakeup:           exec.FutexEmptyAddr,
-		TraverseRight:    false,
-		LeftThreadStack:  []*ThreadState{initThread},
-		RightThreadStack: []*ThreadState{},
-		NextThreadId:     initThread.ThreadId + 1,
+		Memory:              memory.NewMemory(),
+		Heap:                0,
+		LLReservationActive: false,
+		LLAddress:           0,
+		LLOwnerThread:       0,
+		ExitCode:            0,
+		Exited:              false,
+		Step:                0,
+		Wakeup:              exec.FutexEmptyAddr,
+		TraverseRight:       false,
+		LeftThreadStack:     []*ThreadState{initThread},
+		RightThreadStack:    []*ThreadState{},
+		NextThreadId:        initThread.ThreadId + 1,
 	}
 }
 
@@ -187,6 +196,9 @@ func (s *State) EncodeWitness() ([]byte, common.Hash) {
 	out = append(out, s.PreimageKey[:]...)
 	out = binary.BigEndian.AppendUint32(out, s.PreimageOffset)
 	out = binary.BigEndian.AppendUint32(out, s.Heap)
+	out = mipsevm.AppendBoolToWitness(out, s.LLReservationActive)
+	out = binary.BigEndian.AppendUint32(out, s.LLAddress)
+	out = binary.BigEndian.AppendUint32(out, s.LLOwnerThread)
 	out = append(out, s.ExitCode)
 	out = mipsevm.AppendBoolToWitness(out, s.Exited)
 
@@ -264,6 +276,15 @@ func (s *State) Serialize(out io.Writer) error {
 	if err := bout.WriteUInt(s.Heap); err != nil {
 		return err
 	}
+	if err := bout.WriteBool(s.LLReservationActive); err != nil {
+		return err
+	}
+	if err := bout.WriteUInt(s.LLAddress); err != nil {
+		return err
+	}
+	if err := bout.WriteUInt(s.LLOwnerThread); err != nil {
+		return err
+	}
 	if err := bout.WriteUInt(s.ExitCode); err != nil {
 		return err
 	}
@@ -322,6 +343,15 @@ func (s *State) Deserialize(in io.Reader) error {
 		return err
 	}
 	if err := bin.ReadUInt(&s.Heap); err != nil {
+		return err
+	}
+	if err := bin.ReadBool(&s.LLReservationActive); err != nil {
+		return err
+	}
+	if err := bin.ReadUInt(&s.LLAddress); err != nil {
+		return err
+	}
+	if err := bin.ReadUInt(&s.LLOwnerThread); err != nil {
 		return err
 	}
 	if err := bin.ReadUInt(&s.ExitCode); err != nil {

@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	e2e "github.com/ethereum-optimism/optimism/op-e2e"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-e2e/system/bridge"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
 func TestDevnet(t *testing.T) {
@@ -29,7 +29,7 @@ func TestDevnet(t *testing.T) {
 	})
 	t.Run("Withdrawal", func(t *testing.T) {
 		t.Parallel()
-		e2e.RunWithdrawalsTest(t, sys)
+		bridge.RunWithdrawalsTest(t, sys)
 	})
 }
 

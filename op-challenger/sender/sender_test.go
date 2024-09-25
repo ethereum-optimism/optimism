@@ -3,6 +3,7 @@ package sender
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"sync"
 	"testing"
 	"time"
@@ -128,6 +129,10 @@ func (s *stubTxMgr) Send(ctx context.Context, candidate txmgr.TxCandidate) (*typ
 	return <-ch, nil
 }
 
+func (s *stubTxMgr) SendAsync(ctx context.Context, candidate txmgr.TxCandidate, ch chan txmgr.SendResponse) {
+	panic("unimplemented")
+}
+
 func (s *stubTxMgr) recordTx(candidate txmgr.TxCandidate) chan *types.Receipt {
 	s.m.Lock()
 	defer s.m.Unlock()
@@ -176,4 +181,8 @@ func (s *stubTxMgr) API() rpc.API {
 }
 
 func (s *stubTxMgr) Close() {
+}
+
+func (s *stubTxMgr) SuggestGasPriceCaps(context.Context) (*big.Int, *big.Int, *big.Int, error) {
+	panic("unimplemented")
 }

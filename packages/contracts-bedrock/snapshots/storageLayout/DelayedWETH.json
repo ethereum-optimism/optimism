@@ -53,13 +53,13 @@
     "label": "withdrawals",
     "offset": 0,
     "slot": "103",
-    "type": "mapping(address => mapping(address => struct IDelayedWETH.WithdrawalRequest))"
+    "type": "mapping(address => mapping(address => struct DelayedWETH.WithdrawalRequest))"
   },
   {
     "bytes": "20",
     "label": "config",
     "offset": 0,
     "slot": "104",
-    "type": "contract SuperchainConfig"
+    "type": "contract ISuperchainConfig"
   }
 ]

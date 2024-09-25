@@ -10,12 +10,71 @@ import (
 )
 
 const (
-	EntrySize = 24
+	EntrySize = 34
 )
 
 type EntryIdx int64
 
 type Entry [EntrySize]byte
+
+func (entry Entry) Type() EntryType {
+	return EntryType(entry[0])
+}
+
+type EntryTypeFlag uint8
+
+const (
+	FlagSearchCheckpoint EntryTypeFlag = 1 << TypeSearchCheckpoint
+	FlagCanonicalHash    EntryTypeFlag = 1 << TypeCanonicalHash
+	FlagInitiatingEvent  EntryTypeFlag = 1 << TypeInitiatingEvent
+	FlagExecutingLink    EntryTypeFlag = 1 << TypeExecutingLink
+	FlagExecutingCheck   EntryTypeFlag = 1 << TypeExecutingCheck
+	FlagPadding          EntryTypeFlag = 1 << TypePadding
+	// for additional padding
+	FlagPadding2 EntryTypeFlag = FlagPadding << 1
+)
+
+func (ex EntryTypeFlag) Any(v EntryTypeFlag) bool {
+	return ex&v != 0
+}
+
+func (ex *EntryTypeFlag) Add(v EntryTypeFlag) {
+	*ex = *ex | v
+}
+
+func (ex *EntryTypeFlag) Remove(v EntryTypeFlag) {
+	*ex = *ex &^ v
+}
+
+type EntryType uint8
+
+const (
+	TypeSearchCheckpoint EntryType = iota
+	TypeCanonicalHash
+	TypeInitiatingEvent
+	TypeExecutingLink
+	TypeExecutingCheck
+	TypePadding
+)
+
+func (d EntryType) String() string {
+	switch d {
+	case TypeSearchCheckpoint:
+		return "searchCheckpoint"
+	case TypeCanonicalHash:
+		return "canonicalHash"
+	case TypeInitiatingEvent:
+		return "initiatingEvent"
+	case TypeExecutingLink:
+		return "executingLink"
+	case TypeExecutingCheck:
+		return "executingCheck"
+	case TypePadding:
+		return "padding"
+	default:
+		return fmt.Sprintf("unknown-%d", uint8(d))
+	}
+}
 
 // dataAccess defines a minimal API required to manipulate the actual stored data.
 // It is a subset of the os.File API but could (theoretically) be satisfied by an in-memory implementation for testing.
@@ -54,7 +113,7 @@ func NewEntryDB(logger log.Logger, path string) (*EntryDB, error) {
 		lastEntryIdx: EntryIdx(size - 1),
 	}
 	if size*EntrySize != info.Size() {
-		logger.Warn("File size is nut a multiple of entry size. Truncating to last complete entry", "fileSize", size, "entrySize", EntrySize)
+		logger.Warn("File size is not a multiple of entry size. Truncating to last complete entry", "fileSize", size, "entrySize", EntrySize)
 		if err := db.recover(); err != nil {
 			return nil, fmt.Errorf("failed to recover database at %v: %w", path, err)
 		}

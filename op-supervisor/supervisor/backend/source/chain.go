@@ -26,7 +26,7 @@ type Metrics interface {
 type Storage interface {
 	LogStorage
 	DatabaseRewinder
-	LatestBlockNum(chainID types.ChainID) uint64
+	LatestBlockNum(chainID types.ChainID) (num uint64, ok bool)
 }
 
 // ChainMonitor monitors a source L2 chain, retrieving the data required to populate the database and perform
@@ -43,8 +43,13 @@ func NewChainMonitor(ctx context.Context, logger log.Logger, m Metrics, chainID 
 		return nil, err
 	}
 
+	latest, ok := store.LatestBlockNum(chainID)
+	if !ok {
+		logger.Warn("")
+	}
+
 	startingHead := eth.L1BlockRef{
-		Number: store.LatestBlockNum(chainID),
+		Number: latest,
 	}
 
 	processLogs := newLogProcessor(chainID, store)

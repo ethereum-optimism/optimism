@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-// Testing utilities
+// Testing
 import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
 import { Reverter, ConfigurableCaller } from "test/mocks/Callers.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
@@ -11,12 +11,11 @@ import { Hashing } from "src/libraries/Hashing.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Types } from "src/libraries/Types.sol";
 import { Constants } from "src/libraries/Constants.sol";
-
-// Target contract dependencies
-import { L2CrossDomainMessenger } from "src/L2/L2CrossDomainMessenger.sol";
-import { L2ToL1MessagePasser } from "src/L2/L2ToL1MessagePasser.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
-import { OptimismPortal } from "src/L1/OptimismPortal.sol";
+
+// Interfaces
+import { IL2CrossDomainMessenger } from "src/L2/interfaces/IL2CrossDomainMessenger.sol";
+import { IL2ToL1MessagePasser } from "src/L2/interfaces/IL2ToL1MessagePasser.sol";
 
 contract L2CrossDomainMessenger_Test is Bridge_Initializer {
     /// @dev Receiver address for testing
@@ -24,8 +23,8 @@ contract L2CrossDomainMessenger_Test is Bridge_Initializer {
 
     /// @dev Tests that the implementation is initialized correctly.
     function test_constructor_succeeds() external view {
-        L2CrossDomainMessenger impl =
-            L2CrossDomainMessenger(EIP1967Helper.getImplementation(deploy.mustGetAddress("L2CrossDomainMessenger")));
+        IL2CrossDomainMessenger impl =
+            IL2CrossDomainMessenger(EIP1967Helper.getImplementation(deploy.mustGetAddress("L2CrossDomainMessenger")));
         assertEq(address(impl.OTHER_MESSENGER()), address(0));
         assertEq(address(impl.otherMessenger()), address(0));
         assertEq(address(impl.l1CrossDomainMessenger()), address(0));
@@ -51,7 +50,7 @@ contract L2CrossDomainMessenger_Test is Bridge_Initializer {
         vm.expectCall(
             address(l2ToL1MessagePasser),
             abi.encodeWithSelector(
-                L2ToL1MessagePasser.initiateWithdrawal.selector,
+                IL2ToL1MessagePasser.initiateWithdrawal.selector,
                 address(l1CrossDomainMessenger),
                 l2CrossDomainMessenger.baseGas(hex"ff", 100),
                 xDomainCallData
@@ -239,7 +238,7 @@ contract L2CrossDomainMessenger_Test is Bridge_Initializer {
         vm.expectCall(
             address(l2ToL1MessagePasser),
             abi.encodeWithSelector(
-                L2ToL1MessagePasser.initiateWithdrawal.selector,
+                IL2ToL1MessagePasser.initiateWithdrawal.selector,
                 address(l1CrossDomainMessenger),
                 l2CrossDomainMessenger.baseGas(hex"ff", 100),
                 xDomainCallData

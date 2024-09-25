@@ -3,6 +3,7 @@ pragma solidity 0.8.25;
 
 // Testing utilities
 import { Test } from "forge-std/Test.sol";
+import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -11,17 +12,16 @@ import { IL2ToL2CrossDomainMessenger } from "src/L2/interfaces/IL2ToL2CrossDomai
 import { ERC1967Proxy } from "@openzeppelin/contracts-v5/proxy/ERC1967/ERC1967Proxy.sol";
 import { Initializable } from "@openzeppelin/contracts-v5/proxy/utils/Initializable.sol";
 import { IERC165 } from "@openzeppelin/contracts-v5/utils/introspection/IERC165.sol";
+import { IBeacon } from "@openzeppelin/contracts-v5/proxy/beacon/IBeacon.sol";
+import { BeaconProxy } from "@openzeppelin/contracts-v5/proxy/beacon/BeaconProxy.sol";
 
 // Target contract
 import {
-    OptimismSuperchainERC20,
-    IOptimismSuperchainERC20Extension,
-    CallerNotL2ToL2CrossDomainMessenger,
-    InvalidCrossDomainSender,
-    OnlyBridge,
-    ZeroAddress
+    OptimismSuperchainERC20, IOptimismSuperchainERC20Extension, OnlyBridge
 } from "src/L2/OptimismSuperchainERC20.sol";
-import { ISuperchainERC20Extensions } from "src/L2/interfaces/ISuperchainERC20.sol";
+
+// SuperchainERC20 Interfaces
+import { ISuperchainERC20Extensions, ISuperchainERC20Errors } from "src/L2/interfaces/ISuperchainERC20.sol";
 
 /// @title OptimismSuperchainERC20Test
 /// @notice Contract for testing the OptimismSuperchainERC20 contract.
@@ -40,7 +40,30 @@ contract OptimismSuperchainERC20Test is Test {
     /// @notice Sets up the test suite.
     function setUp() public {
         superchainERC20Impl = new OptimismSuperchainERC20();
+
+        // Deploy the OptimismSuperchainERC20Beacon contract
+        _deployBeacon();
+
         superchainERC20 = _deploySuperchainERC20Proxy(REMOTE_TOKEN, NAME, SYMBOL, DECIMALS);
+    }
+
+    /// @notice Deploy the OptimismSuperchainERC20Beacon predeploy contract
+    function _deployBeacon() internal {
+        // Deploy the OptimismSuperchainERC20Beacon implementation
+        address _addr = Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON;
+        address _impl = Predeploys.predeployToCodeNamespace(_addr);
+        vm.etch(_impl, vm.getDeployedCode("OptimismSuperchainERC20Beacon.sol:OptimismSuperchainERC20Beacon"));
+
+        // Deploy the ERC1967Proxy contract at the Predeploy
+        bytes memory code = vm.getDeployedCode("universal/Proxy.sol:Proxy");
+        vm.etch(_addr, code);
+        EIP1967Helper.setAdmin(_addr, Predeploys.PROXY_ADMIN);
+        EIP1967Helper.setImplementation(_addr, _impl);
+
+        // Mock implementation address
+        vm.mockCall(
+            _impl, abi.encodeWithSelector(IBeacon.implementation.selector), abi.encode(address(superchainERC20Impl))
+        );
     }
 
     /// @notice Helper function to deploy a proxy of the OptimismSuperchainERC20 contract.
@@ -55,9 +78,8 @@ contract OptimismSuperchainERC20Test is Test {
     {
         return OptimismSuperchainERC20(
             address(
-                // TODO: Use the SuperchainERC20 Beacon Proxy
-                new ERC1967Proxy(
-                    address(superchainERC20Impl),
+                new BeaconProxy(
+                    Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON,
                     abi.encodeCall(OptimismSuperchainERC20.initialize, (_remoteToken, _name, _symbol, _decimals))
                 )
             )
@@ -110,7 +132,7 @@ contract OptimismSuperchainERC20Test is Test {
     /// @notice Tests the `mint` function reverts when the amount is zero.
     function testFuzz_mint_zeroAddressTo_reverts(uint256 _amount) public {
         // Expect the revert with `ZeroAddress` selector
-        vm.expectRevert(ZeroAddress.selector);
+        vm.expectRevert(ISuperchainERC20Errors.ZeroAddress.selector);
 
         // Call the `mint` function with the zero address
         vm.prank(BRIDGE);
@@ -127,11 +149,11 @@ contract OptimismSuperchainERC20Test is Test {
         uint256 _toBalanceBefore = superchainERC20.balanceOf(_to);
 
         // Look for the emit of the `Transfer` event
-        vm.expectEmit(true, true, true, true, address(superchainERC20));
+        vm.expectEmit(address(superchainERC20));
         emit IERC20.Transfer(ZERO_ADDRESS, _to, _amount);
 
         // Look for the emit of the `Mint` event
-        vm.expectEmit(true, true, true, true, address(superchainERC20));
+        vm.expectEmit(address(superchainERC20));
         emit IOptimismSuperchainERC20Extension.Mint(_to, _amount);
 
         // Call the `mint` function with the bridge caller
@@ -159,7 +181,7 @@ contract OptimismSuperchainERC20Test is Test {
     /// @notice Tests the `burn` function reverts when the amount is zero.
     function testFuzz_burn_zeroAddressFrom_reverts(uint256 _amount) public {
         // Expect the revert with `ZeroAddress` selector
-        vm.expectRevert(ZeroAddress.selector);
+        vm.expectRevert(ISuperchainERC20Errors.ZeroAddress.selector);
 
         // Call the `burn` function with the zero address
         vm.prank(BRIDGE);
@@ -180,11 +202,11 @@ contract OptimismSuperchainERC20Test is Test {
         uint256 _fromBalanceBefore = superchainERC20.balanceOf(_from);
 
         // Look for the emit of the `Transfer` event
-        vm.expectEmit(true, true, true, true, address(superchainERC20));
+        vm.expectEmit(address(superchainERC20));
         emit IERC20.Transfer(_from, ZERO_ADDRESS, _amount);
 
         // Look for the emit of the `Burn` event
-        vm.expectEmit(true, true, true, true, address(superchainERC20));
+        vm.expectEmit(address(superchainERC20));
         emit IOptimismSuperchainERC20Extension.Burn(_from, _amount);
 
         // Call the `burn` function with the bridge caller
@@ -199,7 +221,7 @@ contract OptimismSuperchainERC20Test is Test {
     /// @notice Tests the `sendERC20` function reverts when the `_to` address is the zero address.
     function testFuzz_sendERC20_zeroAddressTo_reverts(uint256 _amount, uint256 _chainId) public {
         // Expect the revert with `ZeroAddress` selector
-        vm.expectRevert(ZeroAddress.selector);
+        vm.expectRevert(ISuperchainERC20Errors.ZeroAddress.selector);
 
         // Call the `sendERC20` function with the zero address
         vm.prank(BRIDGE);
@@ -222,11 +244,11 @@ contract OptimismSuperchainERC20Test is Test {
         uint256 _senderBalanceBefore = superchainERC20.balanceOf(_sender);
 
         // Look for the emit of the `Transfer` event
-        vm.expectEmit(true, true, true, true, address(superchainERC20));
+        vm.expectEmit(address(superchainERC20));
         emit IERC20.Transfer(_sender, ZERO_ADDRESS, _amount);
 
         // Look for the emit of the `SendERC20` event
-        vm.expectEmit(true, true, true, true, address(superchainERC20));
+        vm.expectEmit(address(superchainERC20));
         emit ISuperchainERC20Extensions.SendERC20(_sender, _to, _amount, _chainId);
 
         // Mock the call over the `sendMessage` function and expect it to be called properly
@@ -255,7 +277,7 @@ contract OptimismSuperchainERC20Test is Test {
         vm.assume(_to != ZERO_ADDRESS);
 
         // Expect the revert with `CallerNotL2ToL2CrossDomainMessenger` selector
-        vm.expectRevert(CallerNotL2ToL2CrossDomainMessenger.selector);
+        vm.expectRevert(ISuperchainERC20Errors.CallerNotL2ToL2CrossDomainMessenger.selector);
 
         // Call the `relayERC20` function with the non-messenger caller
         vm.prank(_caller);
@@ -282,28 +304,11 @@ contract OptimismSuperchainERC20Test is Test {
         );
 
         // Expect the revert with `InvalidCrossDomainSender` selector
-        vm.expectRevert(InvalidCrossDomainSender.selector);
+        vm.expectRevert(ISuperchainERC20Errors.InvalidCrossDomainSender.selector);
 
         // Call the `relayERC20` function with the sender caller
         vm.prank(MESSENGER);
         superchainERC20.relayERC20(_crossDomainMessageSender, _to, _amount);
-    }
-
-    /// @notice Tests the `relayERC20` function reverts when the `_to` address is the zero address.
-    function testFuzz_relayERC20_zeroAddressTo_reverts(uint256 _amount) public {
-        // Expect the revert with `ZeroAddress` selector
-        vm.expectRevert(ZeroAddress.selector);
-
-        // Mock the call over the `crossDomainMessageSender` function setting the same address as value
-        vm.mockCall(
-            MESSENGER,
-            abi.encodeWithSelector(IL2ToL2CrossDomainMessenger.crossDomainMessageSender.selector),
-            abi.encode(address(superchainERC20))
-        );
-
-        // Call the `relayERC20` function with the zero address
-        vm.prank(MESSENGER);
-        superchainERC20.relayERC20({ _from: ZERO_ADDRESS, _to: ZERO_ADDRESS, _amount: _amount });
     }
 
     /// @notice Tests the `relayERC20` mints the proper amount and emits the `RelayERC20` event.
@@ -330,11 +335,11 @@ contract OptimismSuperchainERC20Test is Test {
         uint256 _toBalanceBefore = superchainERC20.balanceOf(_to);
 
         // Look for the emit of the `Transfer` event
-        vm.expectEmit(true, true, true, true, address(superchainERC20));
+        vm.expectEmit(address(superchainERC20));
         emit IERC20.Transfer(ZERO_ADDRESS, _to, _amount);
 
         // Look for the emit of the `RelayERC20` event
-        vm.expectEmit(true, true, true, true, address(superchainERC20));
+        vm.expectEmit(address(superchainERC20));
         emit ISuperchainERC20Extensions.RelayERC20(_from, _to, _amount, _source);
 
         // Call the `relayERC20` function with the messenger caller

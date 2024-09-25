@@ -37,8 +37,6 @@ The directory is structured as follows
 ├── <a href="./pausability-lemmas.md">pausability-lemmas.md</a>: File containing the necessary lemmas for this project
 ├── <a href="./deployment">deployment</a>: Custom deploy sequence for Kontrol proofs and tests for its <a href="https://github.com/runtimeverification/kontrol/pull/271">fast summarization</a>
 │   ├── <a href="./deployment/KontrolDeployment.sol">KontrolDeployment.sol</a>: Deployment sequence for Kontrol proofs
-│   ├── <a href="./deployment/DeploymentSummary.t.sol">DeploymentSummary.t.sol</a>: Tests for the summarization of classic deployment
-│   └── <a href="./deployment/DeploymentSummaryFaultProofs.t.sol">DeploymentSummaryFaultProofs.t.sol</a>: Tests for the summarization of fault proofs deployment
 ├── <a href="./proofs">proofs</a>: Where the proofs (tests) themselves live
 │   ├── *.k.sol</a>: Symbolic property tests for contracts
 │   ├── <a href="./proofs/interfaces">interfaces</a>: Interface files for src contracts, to avoid unnecessary compilation of contracts

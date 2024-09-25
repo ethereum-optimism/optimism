@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/solabi"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
-	backendTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/snapshots"
 	"github.com/ethereum/go-ethereum/common"
@@ -48,20 +47,20 @@ func NewCrossL2Inbox() *CrossL2Inbox {
 	}
 }
 
-func (i *CrossL2Inbox) DecodeExecutingMessageLog(l *ethTypes.Log) (backendTypes.ExecutingMessage, error) {
+func (i *CrossL2Inbox) DecodeExecutingMessageLog(l *ethTypes.Log) (types.ExecutingMessage, error) {
 	if l.Address != i.contract.Addr() {
-		return backendTypes.ExecutingMessage{}, fmt.Errorf("%w: log not from CrossL2Inbox", ErrEventNotFound)
+		return types.ExecutingMessage{}, fmt.Errorf("%w: log not from CrossL2Inbox", ErrEventNotFound)
 	}
 	// use DecodeEvent to check the name of the event
 	// but the actual decoding is done manually to extract the contract identifier
 	name, _, err := i.contract.DecodeEvent(l)
 	if errors.Is(err, batching.ErrUnknownEvent) {
-		return backendTypes.ExecutingMessage{}, fmt.Errorf("%w: %v", ErrEventNotFound, err.Error())
+		return types.ExecutingMessage{}, fmt.Errorf("%w: %v", ErrEventNotFound, err.Error())
 	} else if err != nil {
-		return backendTypes.ExecutingMessage{}, fmt.Errorf("failed to decode event: %w", err)
+		return types.ExecutingMessage{}, fmt.Errorf("failed to decode event: %w", err)
 	}
 	if name != eventExecutingMessage {
-		return backendTypes.ExecutingMessage{}, fmt.Errorf("%w: event %v not an ExecutingMessage event", ErrEventNotFound, name)
+		return types.ExecutingMessage{}, fmt.Errorf("%w: event %v not an ExecutingMessage event", ErrEventNotFound, name)
 	}
 	// the second topic is the hash of the payload (the first is the event ID)
 	msgHash := l.Topics[1]
@@ -69,14 +68,14 @@ func (i *CrossL2Inbox) DecodeExecutingMessageLog(l *ethTypes.Log) (backendTypes.
 	identifierBytes := bytes.NewReader(l.Data[32:])
 	identifier, err := identifierFromBytes(identifierBytes)
 	if err != nil {
-		return backendTypes.ExecutingMessage{}, fmt.Errorf("failed to read contract identifier: %w", err)
+		return types.ExecutingMessage{}, fmt.Errorf("failed to read contract identifier: %w", err)
 	}
 	chainID, err := types.ChainIDFromBig(identifier.ChainId).ToUInt32()
 	if err != nil {
-		return backendTypes.ExecutingMessage{}, fmt.Errorf("failed to convert chain ID %v to uint32: %w", identifier.ChainId, err)
+		return types.ExecutingMessage{}, fmt.Errorf("failed to convert chain ID %v to uint32: %w", identifier.ChainId, err)
 	}
 	hash := payloadHashToLogHash(msgHash, identifier.Origin)
-	return backendTypes.ExecutingMessage{
+	return types.ExecutingMessage{
 		Chain:     chainID,
 		Hash:      hash,
 		BlockNum:  identifier.BlockNumber.Uint64(),
@@ -126,9 +125,9 @@ func identifierFromBytes(identifierBytes io.Reader) (contractIdentifier, error) 
 // to the log the referenced initiating message.
 // TODO: this function is duplicated between contracts and backend/source/log_processor.go
 // to avoid a circular dependency. It should be reorganized to avoid this duplication.
-func payloadHashToLogHash(payloadHash common.Hash, addr common.Address) backendTypes.TruncatedHash {
+func payloadHashToLogHash(payloadHash common.Hash, addr common.Address) common.Hash {
 	msg := make([]byte, 0, 2*common.HashLength)
 	msg = append(msg, addr.Bytes()...)
 	msg = append(msg, payloadHash.Bytes()...)
-	return backendTypes.TruncateHash(crypto.Keccak256Hash(msg))
+	return crypto.Keccak256Hash(msg)
 }

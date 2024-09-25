@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { L2ToL1MessagePasser } from "src/L2/L2ToL1MessagePasser.sol";
+// Libraries
 import { SafeCall } from "src/libraries/SafeCall.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
+
+// Interfaces
+import { IL2ToL1MessagePasser } from "src/L2/interfaces/IL2ToL1MessagePasser.sol";
 
 /// @title FeeVault
 /// @notice The FeeVault contract contains the basic logic for the various different vault contracts
@@ -102,7 +105,7 @@ abstract contract FeeVault {
             bool success = SafeCall.send(RECIPIENT, value);
             require(success, "FeeVault: failed to send ETH to L2 fee recipient");
         } else {
-            L2ToL1MessagePasser(payable(Predeploys.L2_TO_L1_MESSAGE_PASSER)).initiateWithdrawal{ value: value }({
+            IL2ToL1MessagePasser(payable(Predeploys.L2_TO_L1_MESSAGE_PASSER)).initiateWithdrawal{ value: value }({
                 _target: RECIPIENT,
                 _gasLimit: WITHDRAWAL_MIN_GAS,
                 _data: hex""

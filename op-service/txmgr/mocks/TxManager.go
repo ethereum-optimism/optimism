@@ -4,6 +4,7 @@ package mocks
 
 import (
 	context "context"
+	big "math/big"
 
 	common "github.com/ethereum/go-ethereum/common"
 
@@ -118,6 +119,55 @@ func (_m *TxManager) Send(ctx context.Context, candidate txmgr.TxCandidate) (*ty
 	}
 
 	return r0, r1
+}
+
+// SendAsync provides a mock function with given fields: ctx, candidate, ch
+func (_m *TxManager) SendAsync(ctx context.Context, candidate txmgr.TxCandidate, ch chan txmgr.SendResponse) {
+	_m.Called(ctx, candidate, ch)
+}
+
+// SuggestGasPriceCaps provides a mock function with given fields: ctx
+func (_m *TxManager) SuggestGasPriceCaps(ctx context.Context) (*big.Int, *big.Int, *big.Int, error) {
+	ret := _m.Called(ctx)
+
+	var r0 *big.Int
+	var r1 *big.Int
+	var r2 *big.Int
+	var r3 error
+	if rf, ok := ret.Get(0).(func(context.Context) (*big.Int, *big.Int, *big.Int, error)); ok {
+		return rf(ctx)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context) *big.Int); ok {
+		r0 = rf(ctx)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*big.Int)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context) *big.Int); ok {
+		r1 = rf(ctx)
+	} else {
+		if ret.Get(1) != nil {
+			r1 = ret.Get(1).(*big.Int)
+		}
+	}
+
+	if rf, ok := ret.Get(2).(func(context.Context) *big.Int); ok {
+		r2 = rf(ctx)
+	} else {
+		if ret.Get(2) != nil {
+			r2 = ret.Get(2).(*big.Int)
+		}
+	}
+
+	if rf, ok := ret.Get(3).(func(context.Context) error); ok {
+		r3 = rf(ctx)
+	} else {
+		r3 = ret.Error(3)
+	}
+
+	return r0, r1, r2, r3
 }
 
 type mockConstructorTestingTNewTxManager interface {

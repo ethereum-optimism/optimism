@@ -76,7 +76,7 @@ func CLIFlagsWithCategory(envPrefix string, category string) []cli.Flag {
 		&cli.StringFlag{
 			Name:     ListenAddrFlagName,
 			Usage:    "pprof listening address",
-			Value:    defaultListenAddr, // TODO(CLI-4159): Switch to 127.0.0.1
+			Value:    defaultListenAddr, // TODO: Switch to 127.0.0.1
 			EnvVars:  opservice.PrefixEnvVar(envPrefix, "PPROF_ADDR"),
 			Category: category,
 		},

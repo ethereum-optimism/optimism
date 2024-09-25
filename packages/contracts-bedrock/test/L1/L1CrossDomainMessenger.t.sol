@@ -13,10 +13,10 @@ import { Encoding } from "src/libraries/Encoding.sol";
 import { Constants } from "src/libraries/Constants.sol";
 
 // Target contract dependencies
-import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
-import { OptimismPortal } from "src/L1/OptimismPortal.sol";
-import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
-import { SystemConfig } from "src/L1/SystemConfig.sol";
+import { IL1CrossDomainMessenger } from "src/L1/interfaces/IL1CrossDomainMessenger.sol";
+import { IOptimismPortal } from "src/L1/interfaces/IOptimismPortal.sol";
+import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
+import { ISystemConfig } from "src/L1/interfaces/ISystemConfig.sol";
 
 contract L1CrossDomainMessenger_Test is Bridge_Initializer {
     /// @dev The receiver address
@@ -29,7 +29,7 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
     /// @notice Marked virtual to be overridden in
     ///         test/kontrol/deployment/DeploymentSummary.t.sol
     function test_constructor_succeeds() external virtual {
-        L1CrossDomainMessenger impl = L1CrossDomainMessenger(deploy.mustGetAddress("L1CrossDomainMessenger"));
+        IL1CrossDomainMessenger impl = IL1CrossDomainMessenger(deploy.mustGetAddress("L1CrossDomainMessenger"));
         assertEq(address(impl.superchainConfig()), address(0));
         assertEq(address(impl.PORTAL()), address(0));
         assertEq(address(impl.portal()), address(0));
@@ -60,7 +60,7 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
         vm.expectCall(
             address(optimismPortal),
             abi.encodeWithSelector(
-                OptimismPortal.depositTransaction.selector,
+                IOptimismPortal.depositTransaction.selector,
                 Predeploys.L2_CROSS_DOMAIN_MESSENGER,
                 0,
                 l1CrossDomainMessenger.baseGas(hex"ff", 100),
@@ -605,7 +605,7 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
 
     /// @dev Tests that the superchain config is called by the messengers paused function
     function test_pause_callsSuperchainConfig_succeeds() external {
-        vm.expectCall(address(superchainConfig), abi.encodeWithSelector(SuperchainConfig.paused.selector));
+        vm.expectCall(address(superchainConfig), abi.encodeWithSelector(ISuperchainConfig.paused.selector));
         l1CrossDomainMessenger.paused();
     }
 
@@ -632,7 +632,7 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
         vm.expectCall(
             address(optimismPortal),
             abi.encodeWithSelector(
-                OptimismPortal.depositTransaction.selector,
+                IOptimismPortal.depositTransaction.selector,
                 Predeploys.L2_CROSS_DOMAIN_MESSENGER,
                 0,
                 l1CrossDomainMessenger.baseGas(hex"ff", 100),
@@ -770,7 +770,7 @@ contract L1CrossDomainMessenger_ReinitReentryTest is Bridge_Initializer {
 
             // call the initializer function
             l1CrossDomainMessenger.initialize(
-                SuperchainConfig(superchainConfig), OptimismPortal(optimismPortal), SystemConfig(systemConfig)
+                ISuperchainConfig(superchainConfig), IOptimismPortal(optimismPortal), ISystemConfig(systemConfig)
             );
 
             // attempt to re-replay the withdrawal

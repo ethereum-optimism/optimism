@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-// Testing utilities
+// Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
 
-// Contract imports
-import { Unauthorized, NotCustomGasToken } from "src/libraries/errors/CommonErrors.sol";
+// Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Unauthorized, NotCustomGasToken } from "src/libraries/errors/CommonErrors.sol";
+
+// Interfaces
 import { IL2ToL2CrossDomainMessenger } from "src/L2/interfaces/IL2ToL2CrossDomainMessenger.sol";
-import { ETHLiquidity } from "src/L2/ETHLiquidity.sol";
+import { IETHLiquidity } from "src/L2/interfaces/IETHLiquidity.sol";
 
 /// @title SuperchainWETH_Test
 /// @notice Contract for testing the SuperchainWETH contract.
@@ -148,7 +150,7 @@ contract SuperchainWETH_Test is CommonTest {
         emit Transfer(_caller, address(0), _amount);
         vm.expectEmit(address(superchainWeth));
         emit SendERC20(_caller, _recipient, _amount, _chainId);
-        vm.expectCall(Predeploys.ETH_LIQUIDITY, abi.encodeCall(ETHLiquidity.burn, ()), 1);
+        vm.expectCall(Predeploys.ETH_LIQUIDITY, abi.encodeCall(IETHLiquidity.burn, ()), 1);
         vm.expectCall(
             Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
             abi.encodeCall(
@@ -190,7 +192,7 @@ contract SuperchainWETH_Test is CommonTest {
         emit Transfer(alice, address(0), _amount);
         vm.expectEmit(address(superchainWeth));
         emit SendERC20(alice, bob, _amount, _chainId);
-        vm.expectCall(Predeploys.ETH_LIQUIDITY, abi.encodeCall(ETHLiquidity.burn, ()), 0);
+        vm.expectCall(Predeploys.ETH_LIQUIDITY, abi.encodeCall(IETHLiquidity.burn, ()), 0);
         vm.expectCall(
             Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
             abi.encodeCall(
@@ -255,7 +257,7 @@ contract SuperchainWETH_Test is CommonTest {
         // Act
         vm.expectEmit(address(superchainWeth));
         emit RelayERC20(_sender, bob, _amount, _chainId);
-        vm.expectCall(Predeploys.ETH_LIQUIDITY, abi.encodeCall(ETHLiquidity.mint, (_amount)), 1);
+        vm.expectCall(Predeploys.ETH_LIQUIDITY, abi.encodeCall(IETHLiquidity.mint, (_amount)), 1);
         vm.prank(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
         superchainWeth.relayERC20(_sender, bob, _amount);
 
@@ -298,7 +300,7 @@ contract SuperchainWETH_Test is CommonTest {
         // Act
         vm.expectEmit(address(superchainWeth));
         emit RelayERC20(_sender, bob, _amount, _chainId);
-        vm.expectCall(Predeploys.ETH_LIQUIDITY, abi.encodeCall(ETHLiquidity.mint, (_amount)), 0);
+        vm.expectCall(Predeploys.ETH_LIQUIDITY, abi.encodeCall(IETHLiquidity.mint, (_amount)), 0);
         vm.prank(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
         superchainWeth.relayERC20(_sender, bob, _amount);
 

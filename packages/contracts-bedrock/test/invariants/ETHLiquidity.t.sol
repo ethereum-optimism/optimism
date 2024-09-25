@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Testing
 import { StdUtils } from "forge-std/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
-
-import { Predeploys } from "src/libraries/Predeploys.sol";
-import { ETHLiquidity } from "src/L2/ETHLiquidity.sol";
-
 import { CommonTest } from "test/setup/CommonTest.sol";
+
+// Libraries
+import { Predeploys } from "src/libraries/Predeploys.sol";
+
+// Interfaces
+import { IETHLiquidity } from "src/L2/interfaces/IETHLiquidity.sol";
 
 /// @title ETHLiquidity_User
 /// @notice Actor contract that interacts with the ETHLiquidity contract. Always pretends to be the
@@ -20,12 +23,12 @@ contract ETHLiquidity_User is StdUtils {
     Vm internal vm;
 
     /// @notice The ETHLiquidity contract.
-    ETHLiquidity internal liquidity;
+    IETHLiquidity internal liquidity;
 
     /// @param _vm The Vm contract.
     /// @param _liquidity The ETHLiquidity contract.
     /// @param _balance The initial balance of the contract.
-    constructor(Vm _vm, ETHLiquidity _liquidity, uint256 _balance) {
+    constructor(Vm _vm, IETHLiquidity _liquidity, uint256 _balance) {
         vm = _vm;
         liquidity = _liquidity;
         vm.deal(Predeploys.SUPERCHAIN_WETH, _balance);

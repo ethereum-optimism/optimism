@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/crypto"
+
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
 
@@ -72,7 +74,7 @@ func WithGameAddress(addr common.Address) Option {
 
 func WithPrivKey(key *ecdsa.PrivateKey) Option {
 	return func(c *config.Config) {
-		c.TxMgrConfig.PrivateKey = e2eutils.EncodePrivKeyToString(key)
+		c.TxMgrConfig.PrivateKey = crypto.EncodePrivKeyToString(key)
 	}
 }
 
@@ -106,7 +108,12 @@ func applyCannonConfig(c *config.Config, t *testing.T, rollupCfg *rollup.Config,
 	root := FindMonorepoRoot(t)
 	c.Cannon.VmBin = root + "cannon/bin/cannon"
 	c.Cannon.Server = root + "op-program/bin/op-program"
-	c.CannonAbsolutePreState = root + "op-program/bin/prestate.json"
+	if e2eutils.UseMTCannon() {
+		t.Log("Using MT-Cannon absolute prestate")
+		c.CannonAbsolutePreState = root + "op-program/bin/prestate-mt.bin.gz"
+	} else {
+		c.CannonAbsolutePreState = root + "op-program/bin/prestate.json"
+	}
 	c.Cannon.SnapshotFreq = 10_000_000
 
 	genesisBytes, err := json.Marshal(l2Genesis)

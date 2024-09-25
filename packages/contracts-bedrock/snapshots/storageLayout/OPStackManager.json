@@ -1,30 +1,51 @@
 [
   {
-    "bytes": "160",
-    "label": "blueprint",
+    "bytes": "1",
+    "label": "_initialized",
     "offset": 0,
     "slot": "0",
-    "type": "struct OPStackManager.Blueprints"
+    "type": "uint8"
+  },
+  {
+    "bytes": "1",
+    "label": "_initializing",
+    "offset": 1,
+    "slot": "0",
+    "type": "bool"
   },
   {
     "bytes": "32",
     "label": "latestRelease",
     "offset": 0,
-    "slot": "5",
+    "slot": "1",
     "type": "string"
   },
   {
     "bytes": "32",
     "label": "implementations",
     "offset": 0,
-    "slot": "6",
+    "slot": "2",
     "type": "mapping(string => mapping(string => struct OPStackManager.Implementation))"
   },
   {
     "bytes": "32",
     "label": "systemConfigs",
     "offset": 0,
-    "slot": "7",
+    "slot": "3",
     "type": "mapping(uint256 => contract SystemConfig)"
+  },
+  {
+    "bytes": "256",
+    "label": "blueprint",
+    "offset": 0,
+    "slot": "4",
+    "type": "struct OPStackManager.Blueprints"
+  },
+  {
+    "bytes": "1600",
+    "label": "__gap",
+    "offset": 0,
+    "slot": "12",
+    "type": "uint256[50]"
   }
 ]

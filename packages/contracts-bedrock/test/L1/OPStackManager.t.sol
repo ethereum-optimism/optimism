@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Test } from "forge-std/Test.sol";
+import { Test, stdStorage, StdStorage } from "forge-std/Test.sol";
 
 import { DeployOPChainInput } from "scripts/DeployOPChain.s.sol";
 import { DeployOPChain_TestBase } from "test/DeployOPChain.t.sol";
@@ -9,15 +9,15 @@ import { DeployOPChain_TestBase } from "test/DeployOPChain.t.sol";
 import { OPStackManager } from "src/L1/OPStackManager.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
+import { SystemConfig } from "src/L1/SystemConfig.sol";
 
 // Exposes internal functions for testing.
 contract OPStackManager_Harness is OPStackManager {
     constructor(
         SuperchainConfig _superchainConfig,
-        ProtocolVersions _protocolVersions,
-        Blueprints memory _blueprints
+        ProtocolVersions _protocolVersions
     )
-        OPStackManager(_superchainConfig, _protocolVersions, _blueprints)
+        OPStackManager(_superchainConfig, _protocolVersions)
     { }
 
     function chainIdToBatchInboxAddress_exposed(uint256 l2ChainId) public pure returns (address) {
@@ -32,42 +32,63 @@ contract OPStackManager_Harness is OPStackManager {
 // we can use its setup to deploy the implementations similarly to how a real deployment would
 // happen.
 contract OPStackManager_Deploy_Test is DeployOPChain_TestBase {
+    using stdStorage for StdStorage;
+
+    event Deployed(uint256 indexed l2ChainId, SystemConfig indexed systemConfig);
+
+    function setUp() public override {
+        DeployOPChain_TestBase.setUp();
+
+        doi.set(doi.opChainProxyAdminOwner.selector, opChainProxyAdminOwner);
+        doi.set(doi.systemConfigOwner.selector, systemConfigOwner);
+        doi.set(doi.batcher.selector, batcher);
+        doi.set(doi.unsafeBlockSigner.selector, unsafeBlockSigner);
+        doi.set(doi.proposer.selector, proposer);
+        doi.set(doi.challenger.selector, challenger);
+        doi.set(doi.basefeeScalar.selector, basefeeScalar);
+        doi.set(doi.blobBaseFeeScalar.selector, blobBaseFeeScalar);
+        doi.set(doi.l2ChainId.selector, l2ChainId);
+        doi.set(doi.opsmProxy.selector, address(opsm));
+    }
+
     // This helper function is used to convert the input struct type defined in DeployOPChain.s.sol
     // to the input struct type defined in OPStackManager.sol.
-    function toOPSMDeployInput(DeployOPChainInput.Input memory input)
-        internal
-        pure
-        returns (OPStackManager.DeployInput memory)
-    {
+    function toOPSMDeployInput(DeployOPChainInput _doi) internal view returns (OPStackManager.DeployInput memory) {
         return OPStackManager.DeployInput({
             roles: OPStackManager.Roles({
-                opChainProxyAdminOwner: input.roles.opChainProxyAdminOwner,
-                systemConfigOwner: input.roles.systemConfigOwner,
-                batcher: input.roles.batcher,
-                unsafeBlockSigner: input.roles.unsafeBlockSigner,
-                proposer: input.roles.proposer,
-                challenger: input.roles.challenger
+                opChainProxyAdminOwner: _doi.opChainProxyAdminOwner(),
+                systemConfigOwner: _doi.systemConfigOwner(),
+                batcher: _doi.batcher(),
+                unsafeBlockSigner: _doi.unsafeBlockSigner(),
+                proposer: _doi.proposer(),
+                challenger: _doi.challenger()
             }),
-            basefeeScalar: input.basefeeScalar,
-            blobBasefeeScalar: input.blobBaseFeeScalar,
-            l2ChainId: input.l2ChainId
+            basefeeScalar: _doi.basefeeScalar(),
+            blobBasefeeScalar: _doi.blobBaseFeeScalar(),
+            l2ChainId: _doi.l2ChainId(),
+            startingAnchorRoots: _doi.startingAnchorRoots()
         });
     }
 
     function test_deploy_l2ChainIdEqualsZero_reverts() public {
-        deployOPChainInput.l2ChainId = 0;
+        OPStackManager.DeployInput memory deployInput = toOPSMDeployInput(doi);
+        deployInput.l2ChainId = 0;
         vm.expectRevert(OPStackManager.InvalidChainId.selector);
-        deployImplementationsOutput.opsm.deploy(toOPSMDeployInput(deployOPChainInput));
+        opsm.deploy(deployInput);
     }
 
     function test_deploy_l2ChainIdEqualsCurrentChainId_reverts() public {
-        deployOPChainInput.l2ChainId = block.chainid;
+        OPStackManager.DeployInput memory deployInput = toOPSMDeployInput(doi);
+        deployInput.l2ChainId = block.chainid;
+
         vm.expectRevert(OPStackManager.InvalidChainId.selector);
-        deployImplementationsOutput.opsm.deploy(toOPSMDeployInput(deployOPChainInput));
+        opsm.deploy(deployInput);
     }
 
     function test_deploy_succeeds() public {
-        deployImplementationsOutput.opsm.deploy(toOPSMDeployInput(deployOPChainInput));
+        vm.expectEmit(true, false, true, true); // TODO precompute the system config address.
+        emit Deployed(doi.l2ChainId(), SystemConfig(address(1)));
+        opsm.deploy(toOPSMDeployInput(doi));
     }
 }
 
@@ -76,16 +97,14 @@ contract OPStackManager_InternalMethods_Test is Test {
     OPStackManager_Harness opsmHarness;
 
     function setUp() public {
+        SuperchainConfig superchainConfigProxy = SuperchainConfig(makeAddr("superchainConfig"));
+        ProtocolVersions protocolVersionsProxy = ProtocolVersions(makeAddr("protocolVersions"));
+        vm.etch(address(superchainConfigProxy), hex"01");
+        vm.etch(address(protocolVersionsProxy), hex"01");
+
         opsmHarness = new OPStackManager_Harness({
-            _superchainConfig: SuperchainConfig(makeAddr("superchainConfig")),
-            _protocolVersions: ProtocolVersions(makeAddr("protocolVersions")),
-            _blueprints: OPStackManager.Blueprints({
-                addressManager: makeAddr("addressManager"),
-                proxy: makeAddr("proxy"),
-                proxyAdmin: makeAddr("proxyAdmin"),
-                l1ChugSplashProxy: makeAddr("l1ChugSplashProxy"),
-                resolvedDelegateProxy: makeAddr("resolvedDelegateProxy")
-            })
+            _superchainConfig: superchainConfigProxy,
+            _protocolVersions: protocolVersionsProxy
         });
     }
 

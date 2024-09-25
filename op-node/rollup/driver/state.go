@@ -26,8 +26,6 @@ import (
 type SyncStatus = eth.SyncStatus
 
 type Driver struct {
-	eventSys event.System
-
 	statusTracker SyncStatusTracker
 
 	*SyncDeriver
@@ -100,7 +98,6 @@ func (s *Driver) Start() error {
 func (s *Driver) Close() error {
 	s.driverCancel()
 	s.wg.Wait()
-	s.eventSys.Stop()
 	s.sequencer.Close()
 	return nil
 }
@@ -279,27 +276,6 @@ func (s *Driver) eventLoop() {
 		case <-s.driverCtx.Done():
 			return
 		}
-	}
-}
-
-// OnEvent handles broadcasted events.
-// The Driver itself is a deriver to catch system-critical events.
-// Other event-handling should be encapsulated into standalone derivers.
-func (s *Driver) OnEvent(ev event.Event) bool {
-	switch x := ev.(type) {
-	case rollup.CriticalErrorEvent:
-		s.Log.Error("Derivation process critical error", "err", x.Err)
-		// we need to unblock event-processing to be able to close
-		go func() {
-			logger := s.Log
-			err := s.Close()
-			if err != nil {
-				logger.Error("Failed to shutdown driver on critical error", "err", err)
-			}
-		}()
-		return true
-	default:
-		return false
 	}
 }
 

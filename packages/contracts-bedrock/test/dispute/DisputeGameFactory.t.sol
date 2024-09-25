@@ -1,14 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
+// Testing
+import { Test } from "forge-std/Test.sol";
+import { CommonTest } from "test/setup/CommonTest.sol";
+
+// Contracts
+import { Proxy } from "src/universal/Proxy.sol";
+
+// Libraries
 import "src/dispute/lib/Types.sol";
 import "src/dispute/lib/Errors.sol";
 
-import { Test } from "forge-std/Test.sol";
-import { DisputeGameFactory, IDisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
+// Interfaces
+import { IDisputeGameFactory } from "src/dispute/interfaces/IDisputeGameFactory.sol";
 import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
-import { Proxy } from "src/universal/Proxy.sol";
-import { CommonTest } from "test/setup/CommonTest.sol";
 
 contract DisputeGameFactory_Init is CommonTest {
     FakeClone fakeClone;

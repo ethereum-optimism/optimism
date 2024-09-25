@@ -17,6 +17,17 @@ type AtomicWriter struct {
 // NOTE: It's vital to check if an error is returned from Close() as it may indicate the file could not be renamed
 // If path ends in .gz the contents written will be gzipped.
 func NewAtomicWriterCompressed(path string, perm os.FileMode) (*AtomicWriter, error) {
+	return newAtomicWriter(path, perm, true)
+}
+
+// NewAtomicWriter creates a io.WriteCloser that performs an atomic write.
+// The contents are initially written to a temporary file and only renamed into place when the writer is closed.
+// NOTE: It's vital to check if an error is returned from Close() as it may indicate the file could not be renamed
+func NewAtomicWriter(path string, perm os.FileMode) (*AtomicWriter, error) {
+	return newAtomicWriter(path, perm, false)
+}
+
+func newAtomicWriter(path string, perm os.FileMode, compressByFileType bool) (*AtomicWriter, error) {
 	f, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path))
 	if err != nil {
 		return nil, err
@@ -25,10 +36,14 @@ func NewAtomicWriterCompressed(path string, perm os.FileMode) (*AtomicWriter, er
 		_ = f.Close()
 		return nil, err
 	}
+	out := io.WriteCloser(f)
+	if compressByFileType {
+		out = CompressByFileType(path, f)
+	}
 	return &AtomicWriter{
 		dest: path,
 		temp: f.Name(),
-		out:  CompressByFileType(path, f),
+		out:  out,
 	}, nil
 }
 

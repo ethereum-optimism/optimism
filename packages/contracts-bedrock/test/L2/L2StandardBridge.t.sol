@@ -1,33 +1,33 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-// Testing utilities
-import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
-
-// Target contract is imported by the `Bridge_Initializer`
-import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
+// Testing
 import { stdStorage, StdStorage } from "forge-std/Test.sol";
-import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
-import { L2ToL1MessagePasser } from "src/L2/L2ToL1MessagePasser.sol";
+import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
+
+// Contracts
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
 
 // Libraries
+import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Types } from "src/libraries/Types.sol";
 
-// Target contract dependencies
-import { L2StandardBridge } from "src/L2/L2StandardBridge.sol";
-import { Predeploys } from "src/libraries/Predeploys.sol";
-import { StandardBridge } from "src/universal/StandardBridge.sol";
-import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
+// Interfaces
+import { ICrossDomainMessenger } from "src/universal/interfaces/ICrossDomainMessenger.sol";
+import { IStandardBridge } from "src/universal/interfaces/IStandardBridge.sol";
+import { IL2ToL1MessagePasser } from "src/L2/interfaces/IL2ToL1MessagePasser.sol";
+import { IL2StandardBridge } from "src/L2/interfaces/IL2StandardBridge.sol";
 
 contract L2StandardBridge_Test is Bridge_Initializer {
     using stdStorage for StdStorage;
 
     /// @dev Test that the bridge's constructor sets the correct values.
     function test_constructor_succeeds() external view {
-        L2StandardBridge impl =
-            L2StandardBridge(payable(EIP1967Helper.getImplementation(deploy.mustGetAddress("L2StandardBridge"))));
+        IL2StandardBridge impl =
+            IL2StandardBridge(payable(EIP1967Helper.getImplementation(deploy.mustGetAddress("L2StandardBridge"))));
         // The implementation contract is initialized with a 0 L1 bridge address,
         // but the L2 cross-domain-messenger is always set to the predeploy address for both proxy and implementation.
         assertEq(address(impl.MESSENGER()), Predeploys.L2_CROSS_DOMAIN_MESSENGER, "constructor zero check MESSENGER");
@@ -57,10 +57,10 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         uint256 nonce = l2CrossDomainMessenger.messageNonce();
 
         bytes memory message =
-            abi.encodeWithSelector(StandardBridge.finalizeBridgeETH.selector, alice, alice, 100, hex"");
+            abi.encodeWithSelector(IStandardBridge.finalizeBridgeETH.selector, alice, alice, 100, hex"");
         uint64 baseGas = l2CrossDomainMessenger.baseGas(message, 200_000);
         bytes memory withdrawalData = abi.encodeWithSelector(
-            CrossDomainMessenger.relayMessage.selector,
+            ICrossDomainMessenger.relayMessage.selector,
             nonce,
             address(l2StandardBridge),
             address(l1StandardBridge),
@@ -108,7 +108,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         vm.expectCall(
             address(l2CrossDomainMessenger),
             abi.encodeWithSelector(
-                CrossDomainMessenger.sendMessage.selector,
+                ICrossDomainMessenger.sendMessage.selector,
                 address(l1StandardBridge),
                 message,
                 200_000 // StandardBridge's RECEIVE_DEFAULT_GAS_LIMIT
@@ -118,7 +118,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         vm.expectCall(
             Predeploys.L2_TO_L1_MESSAGE_PASSER,
             abi.encodeWithSelector(
-                L2ToL1MessagePasser.initiateWithdrawal.selector,
+                IL2ToL1MessagePasser.initiateWithdrawal.selector,
                 address(l1CrossDomainMessenger),
                 baseGas,
                 withdrawalData
@@ -278,11 +278,11 @@ contract PreBridgeERC20 is Bridge_Initializer {
         assertEq(ERC20(_l2Token).balanceOf(alice), 100);
         uint256 nonce = l2CrossDomainMessenger.messageNonce();
         bytes memory message = abi.encodeWithSelector(
-            StandardBridge.finalizeBridgeERC20.selector, address(L1Token), _l2Token, alice, alice, 100, hex""
+            IStandardBridge.finalizeBridgeERC20.selector, address(L1Token), _l2Token, alice, alice, 100, hex""
         );
         uint64 baseGas = l2CrossDomainMessenger.baseGas(message, 1000);
         bytes memory withdrawalData = abi.encodeWithSelector(
-            CrossDomainMessenger.relayMessage.selector,
+            ICrossDomainMessenger.relayMessage.selector,
             nonce,
             address(l2StandardBridge),
             address(l1StandardBridge),
@@ -317,13 +317,13 @@ contract PreBridgeERC20 is Bridge_Initializer {
 
         vm.expectCall(
             address(l2CrossDomainMessenger),
-            abi.encodeWithSelector(CrossDomainMessenger.sendMessage.selector, address(l1StandardBridge), message, 1000)
+            abi.encodeWithSelector(ICrossDomainMessenger.sendMessage.selector, address(l1StandardBridge), message, 1000)
         );
 
         vm.expectCall(
             Predeploys.L2_TO_L1_MESSAGE_PASSER,
             abi.encodeWithSelector(
-                L2ToL1MessagePasser.initiateWithdrawal.selector,
+                IL2ToL1MessagePasser.initiateWithdrawal.selector,
                 address(l1CrossDomainMessenger),
                 baseGas,
                 withdrawalData
@@ -416,11 +416,11 @@ contract PreBridgeERC20To is Bridge_Initializer {
         assertEq(ERC20(L2Token).balanceOf(alice), 100);
         uint256 nonce = l2CrossDomainMessenger.messageNonce();
         bytes memory message = abi.encodeWithSelector(
-            StandardBridge.finalizeBridgeERC20.selector, address(L1Token), _l2Token, alice, bob, 100, hex""
+            IStandardBridge.finalizeBridgeERC20.selector, address(L1Token), _l2Token, alice, bob, 100, hex""
         );
         uint64 baseGas = l2CrossDomainMessenger.baseGas(message, 1000);
         bytes memory withdrawalData = abi.encodeWithSelector(
-            CrossDomainMessenger.relayMessage.selector,
+            ICrossDomainMessenger.relayMessage.selector,
             nonce,
             address(l2StandardBridge),
             address(l1StandardBridge),
@@ -480,13 +480,13 @@ contract PreBridgeERC20To is Bridge_Initializer {
 
         vm.expectCall(
             address(l2CrossDomainMessenger),
-            abi.encodeWithSelector(CrossDomainMessenger.sendMessage.selector, address(l1StandardBridge), message, 1000)
+            abi.encodeWithSelector(ICrossDomainMessenger.sendMessage.selector, address(l1StandardBridge), message, 1000)
         );
 
         vm.expectCall(
             Predeploys.L2_TO_L1_MESSAGE_PASSER,
             abi.encodeWithSelector(
-                L2ToL1MessagePasser.initiateWithdrawal.selector,
+                IL2ToL1MessagePasser.initiateWithdrawal.selector,
                 address(l1CrossDomainMessenger),
                 baseGas,
                 withdrawalData
@@ -524,7 +524,7 @@ contract L2StandardBridge_Bridge_Test is Bridge_Initializer {
     function test_finalizeBridgeETH_sendToSelf_reverts() external {
         vm.mockCall(
             address(l2StandardBridge.messenger()),
-            abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
+            abi.encodeWithSelector(ICrossDomainMessenger.xDomainMessageSender.selector),
             abi.encode(address(l2StandardBridge.OTHER_BRIDGE()))
         );
         vm.deal(address(l2CrossDomainMessenger), 100);
@@ -537,7 +537,7 @@ contract L2StandardBridge_Bridge_Test is Bridge_Initializer {
     function test_finalizeBridgeETH_sendToMessenger_reverts() external {
         vm.mockCall(
             address(l2StandardBridge.messenger()),
-            abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
+            abi.encodeWithSelector(ICrossDomainMessenger.xDomainMessageSender.selector),
             abi.encode(address(l2StandardBridge.OTHER_BRIDGE()))
         );
         vm.deal(address(l2CrossDomainMessenger), 100);
@@ -551,7 +551,7 @@ contract L2StandardBridge_Bridge_Test is Bridge_Initializer {
         uint256 nonce = l2CrossDomainMessenger.messageNonce();
 
         bytes memory message =
-            abi.encodeWithSelector(StandardBridge.finalizeBridgeETH.selector, alice, alice, _value, _extraData);
+            abi.encodeWithSelector(IStandardBridge.finalizeBridgeETH.selector, alice, alice, _value, _extraData);
 
         vm.expectCall(
             address(l2StandardBridge),
@@ -563,7 +563,7 @@ contract L2StandardBridge_Bridge_Test is Bridge_Initializer {
             address(l2CrossDomainMessenger),
             _value,
             abi.encodeWithSelector(
-                CrossDomainMessenger.sendMessage.selector, address(l1StandardBridge), message, _minGasLimit
+                ICrossDomainMessenger.sendMessage.selector, address(l1StandardBridge), message, _minGasLimit
             )
         );
 
@@ -604,14 +604,14 @@ contract L2StandardBridge_Bridge_Test is Bridge_Initializer {
         );
 
         bytes memory message =
-            abi.encodeWithSelector(StandardBridge.finalizeBridgeETH.selector, alice, bob, _value, _extraData);
+            abi.encodeWithSelector(IStandardBridge.finalizeBridgeETH.selector, alice, bob, _value, _extraData);
 
         // the L2 bridge should call
         // L2CrossDomainMessenger.sendMessage
         vm.expectCall(
             address(l2CrossDomainMessenger),
             abi.encodeWithSelector(
-                CrossDomainMessenger.sendMessage.selector, address(l1StandardBridge), message, _minGasLimit
+                ICrossDomainMessenger.sendMessage.selector, address(l1StandardBridge), message, _minGasLimit
             )
         );
 
@@ -654,7 +654,7 @@ contract L2StandardBridge_FinalizeBridgeETH_Test is Bridge_Initializer {
         address messenger = address(l2StandardBridge.messenger());
         vm.mockCall(
             messenger,
-            abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
+            abi.encodeWithSelector(ICrossDomainMessenger.xDomainMessageSender.selector),
             abi.encode(address(l2StandardBridge.OTHER_BRIDGE()))
         );
         vm.deal(messenger, 100);
@@ -674,7 +674,7 @@ contract L2StandardBridge_FinalizeBridgeETH_Test is Bridge_Initializer {
         address messenger = address(l2StandardBridge.messenger());
         vm.mockCall(
             messenger,
-            abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
+            abi.encodeWithSelector(ICrossDomainMessenger.xDomainMessageSender.selector),
             abi.encode(address(l2StandardBridge.OTHER_BRIDGE()))
         );
         vm.deal(address(l2CrossDomainMessenger), 1);

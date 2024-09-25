@@ -134,7 +134,7 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		allocsMode = genesis.L2AllocsEcotone
 	}
 	l2Allocs := config.L2Allocs(allocsMode)
-	l2Genesis, err := genesis.BuildL2Genesis(deployConf, l2Allocs, l1Block)
+	l2Genesis, err := genesis.BuildL2Genesis(deployConf, l2Allocs, l1Block.Header())
 	require.NoError(t, err, "failed to create l2 genesis")
 	if alloc.PrefundTestUsers {
 		for _, addr := range deployParams.Addresses.All() {
@@ -248,4 +248,9 @@ func UseL2OO() bool {
 func UseAltDA() bool {
 	return (os.Getenv("OP_E2E_USE_ALTDA") == "true" ||
 		os.Getenv("DEVNET_ALTDA") == "true")
+}
+
+func UseMTCannon() bool {
+	return (os.Getenv("OP_E2E_USE_MT_CANNON") == "true" ||
+		os.Getenv("USE_MT_CANNON") == "true")
 }

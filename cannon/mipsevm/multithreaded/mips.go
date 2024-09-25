@@ -75,8 +75,13 @@ func (m *InstrumentedState) handleSyscall() error {
 		return nil
 	case exec.SysRead:
 		var newPreimageOffset uint32
-		v0, v1, newPreimageOffset = exec.HandleSysRead(a0, a1, a2, m.state.PreimageKey, m.state.PreimageOffset, m.preimageOracle, m.state.Memory, m.memoryTracker)
+		var memUpdated bool
+		var memAddr uint32
+		v0, v1, newPreimageOffset, memUpdated, memAddr = exec.HandleSysRead(a0, a1, a2, m.state.PreimageKey, m.state.PreimageOffset, m.preimageOracle, m.state.Memory, m.memoryTracker)
 		m.state.PreimageOffset = newPreimageOffset
+		if memUpdated {
+			m.handleMemoryUpdate(memAddr)
+		}
 	case exec.SysWrite:
 		var newLastHint hexutil.Bytes
 		var newPreimageKey common.Hash
@@ -100,15 +105,16 @@ func (m *InstrumentedState) handleSyscall() error {
 		return nil
 	case exec.SysFutex:
 		// args: a0 = addr, a1 = op, a2 = val, a3 = timeout
+		effAddr := a0 & 0xFFffFFfc
 		switch a1 {
 		case exec.FutexWaitPrivate:
-			m.memoryTracker.TrackMemAccess(a0)
-			mem := m.state.Memory.GetMemory(a0)
+			m.memoryTracker.TrackMemAccess(effAddr)
+			mem := m.state.Memory.GetMemory(effAddr)
 			if mem != a2 {
 				v0 = exec.SysErrorSignal
 				v1 = exec.MipsEAGAIN
 			} else {
-				thread.FutexAddr = a0
+				thread.FutexAddr = effAddr
 				thread.FutexVal = a2
 				if a3 == 0 {
 					thread.FutexTimeoutStep = exec.FutexNoTimeout
@@ -121,7 +127,7 @@ func (m *InstrumentedState) handleSyscall() error {
 		case exec.FutexWakePrivate:
 			// Trigger thread traversal starting from the left stack until we find one waiting on the wakeup
 			// address
-			m.state.Wakeup = a0
+			m.state.Wakeup = effAddr
 			// Don't indicate to the program that we've woken up a waiting thread, as there are no guarantees.
 			// The woken up thread should indicate this in userspace.
 			v0 = 0
@@ -143,6 +149,32 @@ func (m *InstrumentedState) handleSyscall() error {
 	case exec.SysOpen:
 		v0 = exec.SysErrorSignal
 		v1 = exec.MipsEBADF
+	case exec.SysClockGetTime:
+		switch a0 {
+		case exec.ClockGettimeRealtimeFlag, exec.ClockGettimeMonotonicFlag:
+			v0, v1 = 0, 0
+			var secs, nsecs uint32
+			if a0 == exec.ClockGettimeMonotonicFlag {
+				// monotonic clock_gettime is used by Go guest programs for goroutine scheduling and to implement
+				// `time.Sleep` (and other sleep related operations).
+				secs = uint32(m.state.Step / exec.HZ)
+				nsecs = uint32((m.state.Step % exec.HZ) * (1_000_000_000 / exec.HZ))
+			} // else realtime set to Unix Epoch
+
+			effAddr := a1 & 0xFFffFFfc
+			m.memoryTracker.TrackMemAccess(effAddr)
+			m.state.Memory.SetMemory(effAddr, secs)
+			m.handleMemoryUpdate(effAddr)
+			m.memoryTracker.TrackMemAccess2(effAddr + 4)
+			m.state.Memory.SetMemory(effAddr+4, nsecs)
+			m.handleMemoryUpdate(effAddr + 4)
+		default:
+			v0 = exec.SysErrorSignal
+			v1 = exec.MipsEINVAL
+		}
+	case exec.SysGetpid:
+		v0 = 0
+		v1 = 0
 	case exec.SysMunmap:
 	case exec.SysGetAffinity:
 	case exec.SysMadvise:
@@ -173,7 +205,6 @@ func (m *InstrumentedState) handleSyscall() error {
 	case exec.SysTimerCreate:
 	case exec.SysTimerSetTime:
 	case exec.SysTimerDelete:
-	case exec.SysClockGetTime:
 	default:
 		m.Traceback()
 		panic(fmt.Sprintf("unrecognized syscall: %d", syscallNum))
@@ -225,8 +256,9 @@ func (m *InstrumentedState) mipsStep() error {
 			m.onWaitComplete(thread, true)
 			return nil
 		} else {
-			m.memoryTracker.TrackMemAccess(thread.FutexAddr)
-			mem := m.state.Memory.GetMemory(thread.FutexAddr)
+			effAddr := thread.FutexAddr & 0xFFffFFfc
+			m.memoryTracker.TrackMemAccess(effAddr)
+			mem := m.state.Memory.GetMemory(effAddr)
 			if thread.FutexVal == mem {
 				// still got expected value, continue sleeping, try next thread.
 				m.preemptThread(thread)
@@ -263,11 +295,75 @@ func (m *InstrumentedState) mipsStep() error {
 		return m.handleSyscall()
 	}
 
+	// Handle RMW (read-modify-write) ops
+	if opcode == exec.OpLoadLinked || opcode == exec.OpStoreConditional {
+		return m.handleRMWOps(insn, opcode)
+	}
+
 	// Exec the rest of the step logic
-	return exec.ExecMipsCoreStepLogic(m.state.getCpuRef(), m.state.GetRegistersRef(), m.state.Memory, insn, opcode, fun, m.memoryTracker, m.stackTracker)
+	memUpdated, memAddr, err := exec.ExecMipsCoreStepLogic(m.state.getCpuRef(), m.state.GetRegistersRef(), m.state.Memory, insn, opcode, fun, m.memoryTracker, m.stackTracker)
+	if err != nil {
+		return err
+	}
+	if memUpdated {
+		m.handleMemoryUpdate(memAddr)
+	}
+
+	return nil
+}
+
+func (m *InstrumentedState) handleMemoryUpdate(memAddr uint32) {
+	if memAddr == m.state.LLAddress {
+		// Reserved address was modified, clear the reservation
+		m.clearLLMemoryReservation()
+	}
+}
+
+func (m *InstrumentedState) clearLLMemoryReservation() {
+	m.state.LLReservationActive = false
+	m.state.LLAddress = 0
+	m.state.LLOwnerThread = 0
+}
+
+// handleRMWOps handles LL and SC operations which provide the primitives to implement read-modify-write operations
+func (m *InstrumentedState) handleRMWOps(insn, opcode uint32) error {
+	baseReg := (insn >> 21) & 0x1F
+	base := m.state.GetRegistersRef()[baseReg]
+	rtReg := (insn >> 16) & 0x1F
+	offset := exec.SignExtendImmediate(insn)
+
+	effAddr := (base + offset) & 0xFFFFFFFC
+	m.memoryTracker.TrackMemAccess(effAddr)
+	mem := m.state.Memory.GetMemory(effAddr)
+
+	var retVal uint32
+	threadId := m.state.GetCurrentThread().ThreadId
+	if opcode == exec.OpLoadLinked {
+		retVal = mem
+		m.state.LLReservationActive = true
+		m.state.LLAddress = effAddr
+		m.state.LLOwnerThread = threadId
+	} else if opcode == exec.OpStoreConditional {
+		// Check if our memory reservation is still intact
+		if m.state.LLReservationActive && m.state.LLOwnerThread == threadId && m.state.LLAddress == effAddr {
+			// Complete atomic update: set memory and return 1 for success
+			m.clearLLMemoryReservation()
+			rt := m.state.GetRegistersRef()[rtReg]
+			m.state.Memory.SetMemory(effAddr, rt)
+			retVal = 1
+		} else {
+			// Atomic update failed, return 0 for failure
+			retVal = 0
+		}
+	} else {
+		panic(fmt.Sprintf("Invalid instruction passed to handleRMWOps (opcode %08x)", opcode))
+	}
+
+	return exec.HandleRd(m.state.getCpuRef(), m.state.GetRegistersRef(), rtReg, retVal, true)
 }
 
 func (m *InstrumentedState) onWaitComplete(thread *ThreadState, isTimedOut bool) {
+	// Note: no need to reset m.state.Wakeup.  If we're here, the Wakeup field has already been reset
 	// Clear the futex state
 	thread.FutexAddr = exec.FutexEmptyAddr
 	thread.FutexVal = 0
@@ -281,9 +377,6 @@ func (m *InstrumentedState) onWaitComplete(thread *ThreadState, isTimedOut bool)
 		v1 = exec.MipsETIMEDOUT
 	}
 	exec.HandleSyscallUpdates(&thread.Cpu, &thread.Registers, v0, v1)
-
-	// Clear wakeup signal
-	m.state.Wakeup = exec.FutexEmptyAddr
 }
 
 func (m *InstrumentedState) preemptThread(thread *ThreadState) bool {

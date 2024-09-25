@@ -4,15 +4,16 @@ import (
 	"bytes"
 	"debug/elf"
 	"encoding/binary"
+	"errors"
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 )
 
-// TODO(cp-903) Consider breaking up go patching into performance and threading-related patches so we can
-// selectively apply the perf patching to MTCannon
-func PatchGo(f *elf.File, st mipsevm.FPVMState) error {
+// PatchGoGC patches out garbage-collection-related symbols to disable garbage collection
+// and improves performance by patching out floating-point-related symbols
+func PatchGoGC(f *elf.File, st mipsevm.FPVMState) error {
 	symbols, err := f.Symbols()
 	if err != nil {
 		return fmt.Errorf("failed to read symbols data, cannot patch program: %w", err)
@@ -52,12 +53,13 @@ func PatchGo(f *elf.File, st mipsevm.FPVMState) error {
 	return nil
 }
 
+// PatchStack sets up the program's initial stack frame and stack pointer
 func PatchStack(st mipsevm.FPVMState) error {
 	// setup stack pointer
 	sp := uint32(0x7f_ff_d0_00)
 	// allocate 1 page for the initial stack data, and 16KB = 4 pages for the stack to grow
 	if err := st.GetMemory().SetMemoryRange(sp-4*memory.PageSize, bytes.NewReader(make([]byte, 5*memory.PageSize))); err != nil {
-		return fmt.Errorf("failed to allocate page for stack content")
+		return errors.New("failed to allocate page for stack content")
 	}
 	st.GetRegistersRef()[29] = sp
 

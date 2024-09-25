@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Contracts
 import { L1Block } from "src/L2/L1Block.sol";
+
+// Libraries
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
 import { StaticConfig } from "src/libraries/StaticConfig.sol";
