@@ -8,19 +8,19 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
-	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 )
 
+type ChainCfg interface {
+}
+
 type Env struct {
-	Workdir  string
-	L1Client *ethclient.Client
-	Signer   opcrypto.SignerFn
-	Deployer common.Address
-	Logger   log.Logger
+	Workdir        string
+	L1BroadcastCfg *BroadcastCfg
+	Deployer       common.Address
+	Logger         log.Logger
 }
 
 func (e *Env) ReadIntent() (*state.Intent, error) {

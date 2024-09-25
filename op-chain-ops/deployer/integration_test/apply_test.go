@@ -97,9 +97,11 @@ func TestEndToEndApply(t *testing.T) {
 	require.NoError(t, err)
 
 	env := &pipeline.Env{
-		Workdir:  t.TempDir(),
-		L1Client: l1Client,
-		Signer:   signer,
+		Workdir: t.TempDir(),
+		L1BroadcastCfg: &pipeline.BroadcastCfg{
+			Signer: signer,
+			Client: l1Client,
+		},
 		Deployer: deployerAddr,
 		Logger:   lgr,
 	}
@@ -190,7 +192,6 @@ func makeIntent(
 		require.NoError(t, err)
 		return addr
 	}
-
 	intent := &state.Intent{
 		L1ChainID: l1ChainID.Uint64(),
 		SuperchainRoles: state.SuperchainRoles{

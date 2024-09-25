@@ -6,11 +6,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -39,13 +40,10 @@ func GenerateL2Genesis(ctx context.Context, env *Env, artifactsFS foundry.StatDi
 	err = CallScriptBroadcast(
 		ctx,
 		CallScriptBroadcastOpts{
-			L1ChainID:   big.NewInt(int64(intent.L1ChainID)),
 			Logger:      lgr,
 			ArtifactsFS: artifactsFS,
 			Deployer:    env.Deployer,
-			Signer:      env.Signer,
-			Client:      env.L1Client,
-			Broadcaster: DiscardBroadcaster,
+			Broadcaster: broadcaster.DiscardBroadcaster(),
 			Handler: func(host *script.Host) error {
 				err := opcm.L2Genesis(host, &opcm.L2GenesisInput{
 					L1Deployments: opcm.L1Deployments{
@@ -83,11 +81,25 @@ func GenerateL2Genesis(ctx context.Context, env *Env, artifactsFS foundry.StatDi
 		return fmt.Errorf("failed to close gzip writer: %w", err)
 	}
 	thisChainState.Allocs = buf.Bytes()
-	startHeader, err := env.L1Client.HeaderByNumber(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("failed to get start block: %w", err)
+	if env.L1BroadcastCfg != nil {
+		startHeader, err := env.L1BroadcastCfg.Client.HeaderByNumber(ctx, nil)
+		if err != nil {
+			return fmt.Errorf("failed to get start block: %w", err)
+		}
+		thisChainState.StartBlock = startHeader
+	} else {
+		l1Genesis, err := genesis.NewL1Genesis(&genesis.DeployConfig{
+			L2InitializationConfig: genesis.L2InitializationConfig{
+				L2CoreDeployConfig: genesis.L2CoreDeployConfig{
+					L1ChainID: intent.L1ChainID,
+				},
+			},
+		})
+		if err != nil {
+			return fmt.Errorf("failed to build L1 genesis: %w", err)
+		}
+		thisChainState.StartBlock = l1Genesis.ToBlock().Header()
 	}
-	thisChainState.StartBlock = startHeader
 
 	if err := env.WriteState(st); err != nil {
 		return fmt.Errorf("failed to write state: %w", err)

@@ -26,16 +26,19 @@ func DeploySuperchain(ctx context.Context, env *Env, artifactsFS foundry.StatDir
 	var dump *foundry.ForgeAllocs
 	var dso opcm.DeploySuperchainOutput
 	var err error
+
+	bcaster, err := NewL1Broadcaster(env.L1BroadcastCfg, lgr, big.NewInt(int64(intent.L1ChainID)), env.Deployer)
+	if err != nil {
+		return fmt.Errorf("error creating l1 broadcaster: %w", err)
+	}
+
 	err = CallScriptBroadcast(
 		ctx,
 		CallScriptBroadcastOpts{
-			L1ChainID:   big.NewInt(int64(intent.L1ChainID)),
 			Logger:      lgr,
 			ArtifactsFS: artifactsFS,
 			Deployer:    env.Deployer,
-			Signer:      env.Signer,
-			Client:      env.L1Client,
-			Broadcaster: KeyedBroadcaster,
+			Broadcaster: bcaster,
 			Handler: func(host *script.Host) error {
 				dso, err = opcm.DeploySuperchain(
 					host,

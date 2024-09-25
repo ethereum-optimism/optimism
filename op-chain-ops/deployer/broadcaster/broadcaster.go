@@ -11,6 +11,7 @@ import (
 type Broadcaster interface {
 	Broadcast(ctx context.Context) ([]BroadcastResult, error)
 	Hook(bcast script.Broadcast)
+	PrepareHost(ctx context.Context, host *script.Host) error
 }
 
 type BroadcastResult struct {

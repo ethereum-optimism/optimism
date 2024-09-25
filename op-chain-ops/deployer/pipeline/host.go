@@ -14,41 +14,37 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-type BroadcasterFactory func(opts CallScriptBroadcastOpts) (broadcaster.Broadcaster, error)
+type BroadcastCfg struct {
+	Client *ethclient.Client
+	Signer opcrypto.SignerFn
+}
 
-func KeyedBroadcaster(opts CallScriptBroadcastOpts) (broadcaster.Broadcaster, error) {
+func NewL1Broadcaster(cfg *BroadcastCfg, lgr log.Logger, chainID *big.Int, deployer common.Address) (broadcaster.Broadcaster, error) {
+	if cfg == nil {
+		return broadcaster.DiscardBroadcaster(), nil
+	}
+
 	return broadcaster.NewKeyedBroadcaster(broadcaster.KeyedBroadcasterOpts{
-		Logger:  opts.Logger,
-		ChainID: opts.L1ChainID,
-		Client:  opts.Client,
-		Signer:  opts.Signer,
-		From:    opts.Deployer,
+		Logger:  lgr,
+		ChainID: chainID,
+		Client:  cfg.Client,
+		Signer:  cfg.Signer,
+		From:    deployer,
 	})
 }
 
-func DiscardBroadcaster(opts CallScriptBroadcastOpts) (broadcaster.Broadcaster, error) {
-	return broadcaster.DiscardBroadcaster(), nil
-}
-
 type CallScriptBroadcastOpts struct {
-	L1ChainID   *big.Int
 	Logger      log.Logger
 	ArtifactsFS foundry.StatDirFs
 	Deployer    common.Address
-	Signer      opcrypto.SignerFn
-	Client      *ethclient.Client
 	Handler     func(host *script.Host) error
-	Broadcaster BroadcasterFactory
+	Broadcaster broadcaster.Broadcaster
 }
 
 func CallScriptBroadcast(
 	ctx context.Context,
 	opts CallScriptBroadcastOpts,
 ) error {
-	bcaster, err := opts.Broadcaster(opts)
-	if err != nil {
-		return fmt.Errorf("failed to create broadcaster: %w", err)
-	}
 
 	scriptCtx := script.DefaultContext
 	scriptCtx.Sender = opts.Deployer
@@ -59,7 +55,7 @@ func CallScriptBroadcast(
 		artifacts,
 		nil,
 		scriptCtx,
-		script.WithBroadcastHook(bcaster.Hook),
+		script.WithBroadcastHook(opts.Broadcaster.Hook),
 		script.WithIsolatedBroadcasts(),
 		script.WithCreate2Deployer(),
 	)
@@ -68,18 +64,16 @@ func CallScriptBroadcast(
 		return fmt.Errorf("failed to enable cheats: %w", err)
 	}
 
-	nonce, err := opts.Client.NonceAt(ctx, opts.Deployer, nil)
-	if err != nil {
-		return fmt.Errorf("failed to fetch nonce: %w", err)
+	if err := opts.Broadcaster.PrepareHost(ctx, h); err != nil {
+		return fmt.Errorf("failed to prepare host: %w", err)
 	}
-	h.SetNonce(opts.Deployer, nonce)
 
-	err = opts.Handler(h)
+	err := opts.Handler(h)
 	if err != nil {
 		return fmt.Errorf("failed to run handler: %w", err)
 	}
 
-	if _, err := bcaster.Broadcast(ctx); err != nil {
+	if _, err := opts.Broadcaster.Broadcast(ctx); err != nil {
 		return fmt.Errorf("failed to broadcast: %w", err)
 	}
 
