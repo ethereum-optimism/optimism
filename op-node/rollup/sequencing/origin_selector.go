@@ -12,6 +12,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/event"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
@@ -47,7 +48,9 @@ func NewL1OriginSelector(ctx context.Context, log log.Logger, cfg *rollup.Config
 }
 
 func (los *L1OriginSelector) OnEvent(ev event.Event) bool {
-	switch ev.(type) {
+	switch x := ev.(type) {
+	case engine.ForkchoiceUpdateEvent:
+		los.onForkchoiceUpdate(x.UnsafeL2Head)
 	case rollup.ResetEvent:
 		los.reset()
 	default:
@@ -150,6 +153,18 @@ func (los *L1OriginSelector) maybeSetNextOrigin(nextOrigin eth.L1BlockRef) {
 	}
 }
 
+func (los *L1OriginSelector) onForkchoiceUpdate(unsafeL2Head eth.L2BlockRef) {
+	currentOrigin, nextOrigin, err := los.CurrentAndNextOrigin(los.ctx, unsafeL2Head)
+	if err != nil {
+		log.Error("Failed to get current and next L1 origin on forkchoice update", "err", err)
+		return
+	}
+
+	c := make(chan eth.L1BlockRef, 1)
+	los.tryFetchNextOrigin(currentOrigin, nextOrigin, c)
+	<-c
+}
+
 // tryFetchNextOrigin schedules a fetch for the next L1 origin block if it is not already set.
 // This method always closes the channel, even if the next origin is already set.
 func (los *L1OriginSelector) tryFetchNextOrigin(currentOrigin, nextOrigin eth.L1BlockRef, c chan<- eth.L1BlockRef) {
@@ -172,9 +187,7 @@ func (los *L1OriginSelector) tryFetchNextOrigin(currentOrigin, nextOrigin eth.L1
 
 func (los *L1OriginSelector) fetch(number uint64, c chan<- eth.L1BlockRef) {
 	defer close(c)
-	// Attempt to find the next L1 origin block, where the next origin is the immediate child of
-	// the current origin block.
-	// The L1 source can be shimmed to hide new L1 blocks and enforce a sequencer confirmation distance.
+
 	fetchCtx, cancel := context.WithTimeout(los.ctx, 10*time.Second)
 	defer cancel()
 
