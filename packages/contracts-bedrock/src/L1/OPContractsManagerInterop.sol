@@ -20,7 +20,7 @@ contract OPContractsManagerInterop is OPContractsManager {
     // The `SystemConfigInterop` contract has an extra `address _dependencyManager` argument
     // that we must account for.
     function encodeSystemConfigInitializer(
-        bytes4 selector,
+        bytes4 _selector,
         DeployInput memory _input,
         DeployOutput memory _output
     )
@@ -31,7 +31,7 @@ contract OPContractsManagerInterop is OPContractsManager {
         returns (bytes memory)
     {
         (ResourceMetering.ResourceConfig memory referenceResourceConfig, SystemConfig.Addresses memory opChainAddrs) =
-            defaultSystemConfigParams(selector, _input, _output);
+            defaultSystemConfigParams(_selector, _input, _output);
 
         // TODO For now we assume that the dependency manager is the same as the proxy admin owner.
         // This is currently undefined since it's not part of the standard config, so we may need
@@ -41,7 +41,7 @@ contract OPContractsManagerInterop is OPContractsManager {
         address dependencyManager = address(_input.roles.opChainProxyAdminOwner);
 
         return abi.encodeWithSelector(
-            selector,
+            _selector,
             _input.roles.systemConfigOwner,
             _input.basefeeScalar,
             _input.blobBasefeeScalar,

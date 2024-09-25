@@ -164,13 +164,13 @@ contract DeploySuperchainOutput is BaseDeployIO {
 
     // This method lets each field be set individually. The selector of an output's getter method
     // is used to determine which field to set.
-    function set(bytes4 sel, address _address) public {
+    function set(bytes4 _sel, address _address) public {
         require(_address != address(0), "DeploySuperchainOutput: cannot set zero address");
-        if (sel == this.superchainProxyAdmin.selector) _superchainProxyAdmin = ProxyAdmin(_address);
-        else if (sel == this.superchainConfigImpl.selector) _superchainConfigImpl = SuperchainConfig(_address);
-        else if (sel == this.superchainConfigProxy.selector) _superchainConfigProxy = SuperchainConfig(_address);
-        else if (sel == this.protocolVersionsImpl.selector) _protocolVersionsImpl = ProtocolVersions(_address);
-        else if (sel == this.protocolVersionsProxy.selector) _protocolVersionsProxy = ProtocolVersions(_address);
+        if (_sel == this.superchainProxyAdmin.selector) _superchainProxyAdmin = ProxyAdmin(_address);
+        else if (_sel == this.superchainConfigImpl.selector) _superchainConfigImpl = SuperchainConfig(_address);
+        else if (_sel == this.superchainConfigProxy.selector) _superchainConfigProxy = SuperchainConfig(_address);
+        else if (_sel == this.protocolVersionsImpl.selector) _protocolVersionsImpl = ProtocolVersions(_address);
+        else if (_sel == this.protocolVersionsProxy.selector) _protocolVersionsProxy = ProtocolVersions(_address);
         else revert("DeploySuperchainOutput: unknown selector");
     }
 

@@ -69,21 +69,21 @@ contract DelayedVetoable is ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.1-beta.1
-    string public constant version = "1.0.1-beta.1";
+    /// @custom:semver 1.0.1-beta.2
+    string public constant version = "1.0.1-beta.2";
 
     /// @notice Sets the target admin during contract deployment.
-    /// @param vetoer_ Address of the vetoer.
-    /// @param initiator_ Address of the initiator.
-    /// @param target_ Address of the target.
-    /// @param operatingDelay_ Time to delay when the system is operational.
-    constructor(address vetoer_, address initiator_, address target_, uint256 operatingDelay_) {
+    /// @param _vetoer Address of the vetoer.
+    /// @param _initiator Address of the initiator.
+    /// @param _target Address of the target.
+    /// @param _operatingDelay Time to delay when the system is operational.
+    constructor(address _vetoer, address _initiator, address _target, uint256 _operatingDelay) {
         // Note that the _delay value is not set here. Having an initial delay of 0 is helpful
         // during the deployment of a new system.
-        VETOER = vetoer_;
-        INITIATOR = initiator_;
-        TARGET = target_;
-        OPERATING_DELAY = operatingDelay_;
+        VETOER = _vetoer;
+        INITIATOR = _initiator;
+        TARGET = _target;
+        OPERATING_DELAY = _operatingDelay;
     }
 
     /// @notice Gets the initiator
@@ -111,10 +111,10 @@ contract DelayedVetoable is ISemver {
     }
 
     /// @notice Gets entries in the _queuedAt mapping.
-    /// @param callHash The hash of the call data.
+    /// @param _callHash The hash of the call data.
     /// @return queuedAt_ The time the callHash was recorded.
-    function queuedAt(bytes32 callHash) external readOrHandle returns (uint256 queuedAt_) {
-        queuedAt_ = _queuedAt[callHash];
+    function queuedAt(bytes32 _callHash) external readOrHandle returns (uint256 queuedAt_) {
+        queuedAt_ = _queuedAt[_callHash];
     }
 
     /// @notice Used for all calls that pass data to the contract.
@@ -176,9 +176,9 @@ contract DelayedVetoable is ISemver {
     }
 
     /// @notice Forwards the call to the target and halts the call frame.
-    function _forwardAndHalt(bytes32 callHash) internal {
+    function _forwardAndHalt(bytes32 _callHash) internal {
         // Forward the call
-        emit Forwarded(callHash, msg.data);
+        emit Forwarded(_callHash, msg.data);
         (bool success, bytes memory returndata) = TARGET.call(msg.data);
         if (success == true) {
             assembly {
