@@ -14,6 +14,7 @@ import (
 	"golang.org/x/exp/maps"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
 	mttestutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
@@ -21,15 +22,17 @@ import (
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 )
 
+type Word = arch.Word
+
 func TestEVM_MT_LL(t *testing.T) {
 	var tracer *tracing.Hooks
 
 	cases := []struct {
 		name    string
-		base    uint32
+		base    Word
 		offset  int
-		value   uint32
-		effAddr uint32
+		value   Word
+		effAddr Word
 		rtReg   int
 	}{
 		{name: "Aligned effAddr", base: 0x00_00_00_01, offset: 0x0133, value: 0xABCD, effAddr: 0x00_00_01_34, rtReg: 5},
@@ -44,7 +47,7 @@ func TestEVM_MT_LL(t *testing.T) {
 			t.Run(tName, func(t *testing.T) {
 				rtReg := c.rtReg
 				baseReg := 6
-				pc := uint32(0x44)
+				pc := Word(0x44)
 				insn := uint32((0b11_0000 << 26) | (baseReg & 0x1F << 21) | (rtReg & 0x1F << 16) | (0xFFFF & c.offset))
 				goVm, state, contracts := setup(t, i, nil)
 				step := state.GetStep()
@@ -53,11 +56,11 @@ func TestEVM_MT_LL(t *testing.T) {
 				state.GetCurrentThread().Cpu.PC = pc
 				state.GetCurrentThread().Cpu.NextPC = pc + 4
 				state.GetMemory().SetMemory(pc, insn)
-				state.GetMemory().SetMemory(c.effAddr, c.value)
+				state.GetMemory().SetWord(c.effAddr, c.value)
 				state.GetRegistersRef()[baseReg] = c.base
 				if withExistingReservation {
 					state.LLReservationActive = true
-					state.LLAddress = c.effAddr + uint32(4)
+					state.LLAddress = c.effAddr + Word(4)
 					state.LLOwnerThread = 123
 				} else {
 					state.LLReservationActive = false
@@ -105,12 +108,12 @@ func TestEVM_MT_SC(t *testing.T) {
 
 	cases := []struct {
 		name     string
-		base     uint32
+		base     Word
 		offset   int
-		value    uint32
-		effAddr  uint32
+		value    Word
+		effAddr  Word
 		rtReg    int
-		threadId uint32
+		threadId Word
 	}{
 		{name: "Aligned effAddr", base: 0x00_00_00_01, offset: 0x0133, value: 0xABCD, effAddr: 0x00_00_01_34, rtReg: 5, threadId: 4},
 		{name: "Aligned effAddr, signed extended", base: 0x00_00_00_01, offset: 0xFF33, value: 0xABCD, effAddr: 0xFF_FF_FF_34, rtReg: 5, threadId: 4},
@@ -125,14 +128,14 @@ func TestEVM_MT_SC(t *testing.T) {
 			t.Run(tName, func(t *testing.T) {
 				rtReg := c.rtReg
 				baseReg := 6
-				pc := uint32(0x44)
+				pc := Word(0x44)
 				insn := uint32((0b11_1000 << 26) | (baseReg & 0x1F << 21) | (rtReg & 0x1F << 16) | (0xFFFF & c.offset))
 				goVm, state, contracts := setup(t, i, nil)
 				mttestutil.InitializeSingleThread(i*23456, state, i%2 == 1)
 				step := state.GetStep()
 
 				// Define LL-related params
-				var llAddress, llOwnerThread uint32
+				var llAddress, llOwnerThread Word
 				if v.matchEffAddr {
 					llAddress = c.effAddr
 				} else {
@@ -158,10 +161,10 @@ func TestEVM_MT_SC(t *testing.T) {
 				// Setup expectations
 				expected := mttestutil.NewExpectedMTState(state)
 				expected.ExpectStep()
-				var retVal uint32
+				var retVal Word
 				if v.shouldSucceed {
 					retVal = 1
-					expected.ExpectMemoryWrite(c.effAddr, c.value)
+					expected.ExpectMemoryWordWrite(c.effAddr, c.value)
 					expected.LLReservationActive = false
 					expected.LLAddress = 0
 					expected.LLOwnerThread = 0
@@ -207,10 +210,10 @@ func TestEVM_MT_SysRead_Preimage(t *testing.T) {
 
 	cases := []struct {
 		name           string
-		addr           uint32
-		count          uint32
-		writeLen       uint32
-		preimageOffset uint32
+		addr           Word
+		count          Word
+		writeLen       Word
+		preimageOffset Word
 		prestateMem    uint32
 		postateMem     uint32
 		shouldPanic    bool
@@ -243,7 +246,7 @@ func TestEVM_MT_SysRead_Preimage(t *testing.T) {
 				step := state.GetStep()
 
 				// Define LL-related params
-				var llAddress, llOwnerThread uint32
+				var llAddress, llOwnerThread Word
 				if v.matchEffAddr {
 					llAddress = effAddr
 				} else {
@@ -315,7 +318,7 @@ func TestEVM_MT_StoreOpsClearMemReservation(t *testing.T) {
 		{name: "no reservation, mismatched addr", llReservationActive: false, matchThreadId: true, matchEffAddr: false, shouldClearReservation: false},
 	}
 
-	pc := uint32(0x04)
+	pc := Word(0x04)
 	rt := uint32(0x12_34_56_78)
 	baseReg := 5
 	rtReg := 6
@@ -343,7 +346,7 @@ func TestEVM_MT_StoreOpsClearMemReservation(t *testing.T) {
 				step := state.GetStep()
 
 				// Define LL-related params
-				var llAddress, llOwnerThread uint32
+				var llAddress, llOwnerThread Word
 				if v.matchEffAddr {
 					llAddress = c.effAddr
 				} else {

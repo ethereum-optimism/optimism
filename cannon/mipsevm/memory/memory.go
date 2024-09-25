@@ -241,6 +241,7 @@ func (m *Memory) GetMemory(addr Word) uint32 {
 	return binary.BigEndian.Uint32(p.Data[pageAddr : pageAddr+4])
 }
 
+// GetWord is effectively a double-word memory access on MIPS64
 func (m *Memory) GetWord(addr Word) Word {
 	bits := ^Word(0) - arch.AddressMask
 	// addr must be aligned to 8 bytes

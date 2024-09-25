@@ -162,6 +162,9 @@ jobs:
         description: Whether to notify on failure
         type: boolean
         default: false
+      mips64:
+        type: boolean
+        default: false
     resource_class: xlarge
     steps:
       - checkout
@@ -185,13 +188,26 @@ jobs:
             make lint
           working_directory: cannon
       - run:
-          name: Cannon Go tests
+          name: Cannon Go 32-bit tests
           command: |
             export SKIP_SLOW_TESTS=<<parameters.skip_slow_tests>>
             mkdir -p /testlogs
             gotestsum --format=testname --junitfile=/tmp/test-results/cannon.xml --jsonfile=/testlogs/log.json \
             -- -parallel=8 -coverpkg=github.com/ethereum-optimism/optimism/cannon/... -coverprofile=coverage.out ./...
           working_directory: cannon
+          when:
+            condition:
+              not: <<parameters.mips64>>
+      - run:
+          name: Cannon Go 64-bit tests
+          command: |
+            export SKIP_SLOW_TESTS=<<parameters.skip_slow_tests>>
+            mkdir -p /testlogs
+            gotestsum --format=testname --junitfile=/tmp/test-results/cannon.xml --jsonfile=/testlogs/log.json \
+            -- -tags=cannon64 -parallel=8 -coverpkg=github.com/ethereum-optimism/optimism/cannon/... -coverprofile=coverage.out ./...
+          working_directory: cannon
+          when:
+            condition: <<parameters.mips64>>
       - run:
           name: upload Cannon coverage
           command: codecov --verbose --clean --flags cannon-go-tests

@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
@@ -133,7 +134,7 @@ func TestEVM_SysRead_Preimage(t *testing.T) {
 		addr           uint32
 		count          uint32
 		writeLen       uint32
-		preimageOffset uint32
+		preimageOffset arch.Word
 		prestateMem    uint32
 		postateMem     uint32
 		shouldPanic    bool

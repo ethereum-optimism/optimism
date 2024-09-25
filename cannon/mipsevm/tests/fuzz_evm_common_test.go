@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
@@ -217,11 +218,11 @@ func FuzzStateHintRead(f *testing.F) {
 
 func FuzzStatePreimageRead(f *testing.F) {
 	versions := GetMipsVersionTestCases(f)
-	f.Fuzz(func(t *testing.T, addr uint32, pc uint32, count uint32, preimageOffset uint32, seed int64) {
+	f.Fuzz(func(t *testing.T, addr arch.Word, pc arch.Word, count arch.Word, preimageOffset arch.Word, seed int64) {
 		for _, v := range versions {
 			t.Run(v.Name, func(t *testing.T) {
-				effAddr := addr & 0xFF_FF_FF_FC
-				pc = pc & 0xFF_FF_FF_FC
+				effAddr := addr & arch.AddressMask
+				pc = pc & arch.AddressMask
 				preexistingMemoryVal := [4]byte{0xFF, 0xFF, 0xFF, 0xFF}
 				preimageValue := []byte("hello world")
 				preimageData := testutil.AddPreimageLengthPrefix(preimageValue)
@@ -242,7 +243,7 @@ func FuzzStatePreimageRead(f *testing.F) {
 				state.GetMemory().SetMemory(effAddr, binary.BigEndian.Uint32(preexistingMemoryVal[:]))
 				step := state.GetStep()
 
-				alignment := addr & 3
+				alignment := addr & arch.ExtMask
 				writeLen := 4 - alignment
 				if count < writeLen {
 					writeLen = count
@@ -362,7 +363,7 @@ func FuzzStateHintWrite(f *testing.F) {
 
 func FuzzStatePreimageWrite(f *testing.F) {
 	versions := GetMipsVersionTestCases(f)
-	f.Fuzz(func(t *testing.T, addr uint32, count uint32, seed int64) {
+	f.Fuzz(func(t *testing.T, addr arch.Word, count arch.Word, seed int64) {
 		for _, v := range versions {
 			t.Run(v.Name, func(t *testing.T) {
 				// Make sure pc does not overlap with preimage data in memory
@@ -370,7 +371,7 @@ func FuzzStatePreimageWrite(f *testing.F) {
 				if addr <= 8 {
 					addr += 8
 				}
-				effAddr := addr & 0xFF_FF_FF_FC
+				effAddr := addr & arch.AddressMask
 				preexistingMemoryVal := [4]byte{0x12, 0x34, 0x56, 0x78}
 				preimageData := []byte("hello world")
 				preimageKey := preimage.Keccak256Key(crypto.Keccak256Hash(preimageData)).PreimageKey()
@@ -388,7 +389,7 @@ func FuzzStatePreimageWrite(f *testing.F) {
 				step := state.GetStep()
 
 				expectBytesWritten := count
-				alignment := addr & 0x3
+				alignment := addr & arch.ExtMask
 				sz := 4 - alignment
 				if sz < expectBytesWritten {
 					expectBytesWritten = sz
