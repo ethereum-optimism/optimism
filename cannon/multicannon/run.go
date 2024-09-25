@@ -16,6 +16,7 @@ func Run(ctx *cli.Context) error {
 			return err
 		}
 		fmt.Println("use `--input <valid input file> --help` to get more detailed help")
+		return nil
 	}
 
 	inputPath, err := parsePathFlag(os.Args[1:], "--input")
