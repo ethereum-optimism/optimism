@@ -345,10 +345,8 @@ jobs:
         description: Docker resoruce class
         type: string
         default: medium
-    machine:
-      image: <<pipeline.parameters.base_image>>
-      resource_class: "<<parameters.resource_class>>"
-      docker_layer_caching: true  # we rely on this for faster builds, and actively warm it up for builds with common stages
+    machine: true
+    resource_class: ethereum-optimism/e2-standard-16
     steps:
       - checkout
       - attach_workspace:
@@ -886,9 +884,8 @@ jobs:
     environment:
       DEVNET_L2OO: 'false'
       OP_E2E_USE_L2OO: 'false'
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: xlarge
+    machine: true
+    resource_class: ethereum-optimism/e2-standard-16
     parallelism: <<parameters.parallelism>>
     steps:
       - checkout
@@ -921,14 +918,6 @@ jobs:
       - run:
           name: prep results dir
           command: mkdir -p /tmp/test-results
-      - restore_cache:
-          name: Restore Go modules cache
-          key: gomod-{{ checksum "go.sum" }}
-      - restore_cache:
-          name: Restore Go build cache
-          keys:
-            - golang-build-cache-e2e-{{ checksum "go.sum" }}
-            - golang-build-cache-e2e-
       - attach_workspace:
           at: /tmp/workspace
       - run:
@@ -969,11 +958,6 @@ jobs:
           when: always
       - store_test_results:
           path: /tmp/test-results
-      - save_cache:
-          name: Save Go build cache
-          key: golang-build-cache-e2e-{{ checksum "go.sum" }}
-          paths:
-            - "/root/.cache/go-build"
       - when:
           condition: "<<parameters.notify>>"
           steps:
