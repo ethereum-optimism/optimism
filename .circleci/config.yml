@@ -1151,22 +1151,6 @@ jobs:
             - run:
                 name: Set GENERIC_ALTDA = true
                 command: echo 'export GENERIC_ALTDA=true' >> $BASH_ENV
-      - restore_cache:
-          name: Restore Go modules cache
-          key: gomod-{{ checksum "go.sum" }}
-      - restore_cache:
-          name: Restore Go build cache
-          keys:
-            - golang-build-cache-devnet-{{ checksum "go.sum" }}
-            - golang-build-cache-devnet-
-      - run:
-          name: Install latest golang
-          command: |
-            VER=$(jq -r .go < versions.json)
-            sudo rm -rf /usr/local/go
-            wget "https://go.dev/dl/go${VER}.linux-amd64.tar.gz" -O - | sudo tar -C /usr/local -xz
-            export PATH=$PATH:/usr/local/go/bin
-            go version
       - run:
           name: Install Geth
           command: |
@@ -1177,22 +1161,6 @@ jobs:
           name: Install eth2-testnet-genesis
           command: |
             go install -v github.com/protolambda/eth2-testnet-genesis@$(jq -r .eth2_testnet_genesis < versions.json)
-      - run:
-          name: foundryup
-          command: |
-            curl -L https://foundry.paradigm.xyz | bash
-            source $HOME/.bashrc
-            foundryup
-            echo 'export PATH=$HOME/.foundry/bin:$PATH' >> $BASH_ENV
-            source $HOME/.bashrc
-            forge --version
-      - run:
-          name: Install Just
-          command: |
-            VER=$(jq -r .just < versions.json)
-            curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to $HOME/bin --tag "${VER}"
-            echo 'export PATH="${PATH}:$HOME/bin"' >> $BASH_ENV
-      - install-contracts-dependencies
       - when:
           condition:
             not:
@@ -1290,11 +1258,6 @@ jobs:
             ls -R forge-artifacts || echo "No forge artifacts found"
           when: on_fail
           working_directory: packages/contracts-bedrock
-      - save_cache:
-          name: Save Go build cache
-          key: golang-build-cache-devnet-{{ checksum "go.sum" }}
-          paths:
-            - /home/circleci/.cache/go-build
 
   semgrep-scan:
     parameters:
