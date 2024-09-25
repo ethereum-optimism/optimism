@@ -474,6 +474,12 @@
         "type": "uint256"
       },
       {
+        "indexed": true,
+        "internalType": "address",
+        "name": "deployer",
+        "type": "address"
+      },
+      {
         "indexed": false,
         "internalType": "bytes",
         "name": "deployOutput",

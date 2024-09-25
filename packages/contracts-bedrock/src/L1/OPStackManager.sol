@@ -159,10 +159,13 @@ contract OPStackManager is ISemver, Initializable {
     // -------- Events --------
 
     /// @notice Emitted when a new OP Stack chain is deployed.
-    /// @param outputVersion The version that indicates how to decode the `deployOutput` argument.
-    /// @param l2ChainId The chain ID of the new chain.
-    /// @param deployOutput The abi-encoded output of the deployment.
-    event Deployed(uint256 indexed outputVersion, uint256 indexed l2ChainId, bytes deployOutput);
+    /// @param outputVersion Version that indicates how to decode the `deployOutput` argument.
+    /// @param l2ChainId Chain ID of the new chain.
+    /// @param deployer Address that deployed the chain.
+    /// @param deployOutput ABI-encoded output of the deployment.
+    event Deployed(
+        uint256 indexed outputVersion, uint256 indexed l2ChainId, address indexed deployer, bytes deployOutput
+    );
 
     // -------- Errors --------
 
@@ -339,7 +342,7 @@ contract OPStackManager is ISemver, Initializable {
         // Transfer ownership of the ProxyAdmin from this contract to the specified owner.
         output.opChainProxyAdmin.transferOwnership(_input.roles.opChainProxyAdminOwner);
 
-        emit Deployed(OUTPUT_VERSION, l2ChainId, abi.encode(output));
+        emit Deployed(OUTPUT_VERSION, l2ChainId, msg.sender, abi.encode(output));
         return output;
     }
 
