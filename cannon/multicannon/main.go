@@ -6,15 +6,26 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ethereum-optimism/optimism/cannon/multicannon/version"
+	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"github.com/urfave/cli/v2"
 )
+
+var (
+	GitCommit = ""
+	GitDate   = ""
+)
+
+// VersionWithMeta holds the textual version string including the metadata.
+var VersionWithMeta = opservice.FormatVersion(version.Version, GitCommit, GitDate, version.Meta)
 
 func main() {
 	app := cli.NewApp()
 	app.Name = "multicannon"
 	app.Usage = "MIPS Fault Proof tool"
 	app.Description = "MIPS Fault Proof tool"
+	app.Version = VersionWithMeta
 	app.Commands = []*cli.Command{
 		LoadELFCommand,
 		WitnessCommand,
