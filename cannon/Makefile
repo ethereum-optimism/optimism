@@ -13,6 +13,8 @@ ifeq ($(shell uname),Darwin)
 	FUZZLDFLAGS := -ldflags=-extldflags=-Wl,-ld_classic
 endif
 
+.DEFAULT_GOAL := cannon
+
 cannon-impl:
 	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v $(LDFLAGS) -o ./bin/cannon-impl .
 
