@@ -16,7 +16,8 @@ contract PredeploysBaseTest is CommonTest {
     function _isInterop(address _addr) internal pure returns (bool) {
         return _addr == Predeploys.CROSS_L2_INBOX || _addr == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER
             || _addr == Predeploys.SUPERCHAIN_WETH || _addr == Predeploys.ETH_LIQUIDITY
-            || _addr == Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY || _addr == Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON;
+            || _addr == Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY || _addr == Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON
+            || _addr == Predeploys.SUPERCHAIN_ERC20_BRIDGE;
     }
 
     /// @dev Returns true if the address is a predeploy that has a different code in the interop mode.

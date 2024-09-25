@@ -11,6 +11,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { IOptimismERC20Factory } from "src/L2/interfaces/IOptimismERC20Factory.sol";
+import { IMintableAndBurnableERC20 } from "src/L2/interfaces/IMintableAndBurnableERC20.sol";
 
 /// @notice Thrown when the decimals of the tokens are not the same.
 error InvalidDecimals();
@@ -23,14 +24,6 @@ error InvalidSuperchainERC20Address();
 
 /// @notice Thrown when the remote addresses of the tokens are not the same.
 error InvalidTokenPair();
-
-/// TODO: Define a better naming convention for this interface.
-/// @notice Interface for minting and burning tokens in the L2StandardBridge.
-///         Used for StandardL2ERC20, OptimismMintableERC20 and OptimismSuperchainERC20.
-interface MintableAndBurnable is IERC20 {
-    function mint(address, uint256) external;
-    function burn(address, uint256) external;
-}
 
 /// @custom:proxied true
 /// @custom:predeploy 0x4200000000000000000000000000000000000010
@@ -47,9 +40,9 @@ contract L2StandardBridgeInterop is L2StandardBridge {
     event Converted(address indexed from, address indexed to, address indexed caller, uint256 amount);
 
     /// @notice Semantic version.
-    /// @custom:semver +interop
+    /// @custom:semver +interop-beta.1
     function version() public pure override returns (string memory) {
-        return string.concat(super.version(), "+interop");
+        return string.concat(super.version(), "+interop-beta.1");
     }
 
     /// @notice Converts `amount` of `from` token to `to` token.
@@ -59,8 +52,8 @@ contract L2StandardBridgeInterop is L2StandardBridge {
     function convert(address _from, address _to, uint256 _amount) external {
         _validatePair(_from, _to);
 
-        MintableAndBurnable(_from).burn(msg.sender, _amount);
-        MintableAndBurnable(_to).mint(msg.sender, _amount);
+        IMintableAndBurnableERC20(_from).burn(msg.sender, _amount);
+        IMintableAndBurnableERC20(_to).mint(msg.sender, _amount);
 
         emit Converted(_from, _to, msg.sender, _amount);
     }
