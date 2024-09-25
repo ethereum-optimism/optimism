@@ -491,9 +491,11 @@ func TestChannelManager_ChannelCreation(t *testing.T) {
 type FakeDynamicEthChannelConfig struct {
 	DynamicEthChannelConfig
 	chooseBlobs bool
+	assessments int
 }
 
 func (f *FakeDynamicEthChannelConfig) ChannelConfig() ChannelConfig {
+	f.assessments++
 	if f.chooseBlobs {
 		return f.blobConfig
 	}
@@ -537,13 +539,21 @@ func TestChannelManager_TxData(t *testing.T) {
 		name                            string
 		chooseBlobsWhenChannelCreated   bool
 		chooseBlobsWhenChannelSubmitted bool
+
+		// * One when the channelManager was created
+		// * One when the channel is about to be submitted
+		// * Potentially one more if the replacement channel is about to be submitted,
+		//   this only happens when going from calldata->blobs because
+		//   the channel is no longer ready to send until more data
+		//   is added.
+		numExpectedAssessments int
 	}
 
 	tt := []TestCase{
-		{"blobs->blobs", true, true},
-		{"calldata->calldata", false, false},
-		{"blobs->calldata", true, false},
-		{"calldata->blobs", false, true},
+		{"blobs->blobs", true, true, 2},
+		{"calldata->calldata", false, false, 2},
+		{"blobs->calldata", true, false, 2},
+		{"calldata->blobs", false, true, 3},
 	}
 
 	for _, tc := range tt {
@@ -590,6 +600,7 @@ func TestChannelManager_TxData(t *testing.T) {
 				}
 			}
 
+			require.Equal(t, tc.numExpectedAssessments, cfg.assessments)
 			require.Equal(t, tc.chooseBlobsWhenChannelSubmitted, data.asBlob)
 			require.Equal(t, tc.chooseBlobsWhenChannelSubmitted, m.defaultCfg.UseBlobs)
 		})
