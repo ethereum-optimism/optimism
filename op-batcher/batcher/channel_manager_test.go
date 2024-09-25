@@ -597,7 +597,7 @@ func TestChannelManager_TxData(t *testing.T) {
 
 }
 
-// TestChannelManager_Requeue sees the channel manager with blocks,
+// TestChannelManager_Requeue seeds the channel manager with blocks,
 // takes a state snapshot, triggers the blocks->channels pipeline,
 // and then calls Requeue. Finally, it asserts the channel manager's
 // state is equal to the snapshot. It repeats this for a channel
