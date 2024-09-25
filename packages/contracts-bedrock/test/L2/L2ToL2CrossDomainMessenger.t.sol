@@ -91,8 +91,14 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         vm.recordLogs();
 
         // Call the sendMessage function
-        bytes32 msgHash = l2ToL2CrossDomainMessenger.sendMessage({ _destination: _destination, _target: _target, _message: _message });
-        assertEq(msgHash, Hashing.hashL2toL2CrossDomainMessengerRelayMessage(_destination, block.chainid, messageNonce, address(this), _target, _message));
+        bytes32 msgHash =
+            l2ToL2CrossDomainMessenger.sendMessage({ _destination: _destination, _target: _target, _message: _message });
+        assertEq(
+            msgHash,
+            Hashing.hashL2toL2CrossDomainMessengerRelayMessage(
+                _destination, block.chainid, messageNonce, address(this), _target, _message
+            )
+        );
 
         // Check that the event was emitted with the correct parameters
         Vm.Log[] memory logs = vm.getRecordedLogs();
@@ -219,7 +225,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         // Look for correct emitted event
         vm.expectEmit(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
         emit L2ToL2CrossDomainMessenger.RelayedMessage(
-            Hashing.hashL2toL2CrossDomainMessengerRelayMessage(block.chainid, _source, _nonce, _sender, _target, _message)
+            Hashing.hashL2toL2CrossDomainMessengerRelayMessage(
+                block.chainid, _source, _nonce, _sender, _target, _message
+            )
         );
 
         // Ensure the target contract is called with the correct parameters
@@ -241,7 +249,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         // Check that successfulMessages mapping updates the message hash correctly
         assertEq(
             l2ToL2CrossDomainMessenger.successfulMessages(
-                Hashing.hashL2toL2CrossDomainMessengerRelayMessage(block.chainid, _source, _nonce, _sender, _target, _message)
+                Hashing.hashL2toL2CrossDomainMessengerRelayMessage(
+                    block.chainid, _source, _nonce, _sender, _target, _message
+                )
             ),
             true
         );
@@ -319,7 +329,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         // Check that successfulMessages mapping updates the message hash correctly
         assertEq(
             l2ToL2CrossDomainMessenger.successfulMessages(
-                Hashing.hashL2toL2CrossDomainMessengerRelayMessage(block.chainid, _source, _nonce, _sender, target, message)
+                Hashing.hashL2toL2CrossDomainMessengerRelayMessage(
+                    block.chainid, _source, _nonce, _sender, target, message
+                )
             ),
             true
         );
@@ -389,7 +401,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         // Look for correct emitted event
         vm.expectEmit(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
         emit L2ToL2CrossDomainMessenger.FailedRelayedMessage(
-            Hashing.hashL2toL2CrossDomainMessengerRelayMessage(block.chainid, _source1, _nonce, _sender1, target, message)
+            Hashing.hashL2toL2CrossDomainMessengerRelayMessage(
+                block.chainid, _source1, _nonce, _sender1, target, message
+            )
         );
 
         // Ensure the target contract is called with the correct parameters
@@ -629,7 +643,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         // Look for correct emitted event for first call.
         vm.expectEmit(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
         emit L2ToL2CrossDomainMessenger.RelayedMessage(
-            Hashing.hashL2toL2CrossDomainMessengerRelayMessage(block.chainid, _source, _nonce, _sender, _target, _message)
+            Hashing.hashL2toL2CrossDomainMessengerRelayMessage(
+                block.chainid, _source, _nonce, _sender, _target, _message
+            )
         );
 
         // First call to `relayMessage` should succeed. The current chain is the destination to prevent revert due to
@@ -693,7 +709,9 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         // Look for correct emitted event
         vm.expectEmit(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
         emit L2ToL2CrossDomainMessenger.FailedRelayedMessage(
-            Hashing.hashL2toL2CrossDomainMessengerRelayMessage(block.chainid, _source, _nonce, _sender, _target, _message)
+            Hashing.hashL2toL2CrossDomainMessengerRelayMessage(
+                block.chainid, _source, _nonce, _sender, _target, _message
+            )
         );
 
         l2ToL2CrossDomainMessenger.relayMessage{ value: _value }({

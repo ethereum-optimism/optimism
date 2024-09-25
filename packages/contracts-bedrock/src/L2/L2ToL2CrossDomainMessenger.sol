@@ -118,8 +118,14 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
         bytes memory data = abi.encodeCall(
             L2ToL2CrossDomainMessenger.relayMessage, (_destination, source, nonce, sender, _target, _message)
         );
-        _msgHash =
-            Hashing.hashL2toL2CrossDomainMessengerRelayMessage(_destination, source, nonce, sender, _target, _message);
+        _msgHash = Hashing.hashL2toL2CrossDomainMessengerRelayMessage({
+            _destination: _destination,
+            _source: source,
+            _nonce: nonce,
+            _sender: sender,
+            _target: _target,
+            _message: _message
+        });
         assembly {
             log0(add(data, 0x20), mload(data))
         }
@@ -157,9 +163,14 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
             revert MessageTargetL2ToL2CrossDomainMessenger();
         }
 
-        bytes32 messageHash = Hashing.hashL2toL2CrossDomainMessengerRelayMessage(
-            _destination, _source, _nonce, _sender, _target, _message
-        );
+        bytes32 messageHash = Hashing.hashL2toL2CrossDomainMessengerRelayMessage({
+            _destination: _destination,
+            _source: _source,
+            _nonce: _nonce,
+            _sender: _sender,
+            _target: _target,
+            _message: _message
+        });
         if (successfulMessages[messageHash]) {
             revert MessageAlreadyRelayed();
         }
