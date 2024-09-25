@@ -9,6 +9,7 @@ import (
 	"sort"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -59,6 +60,21 @@ type Memory struct {
 	lastPage     [2]*CachedPage
 }
 
+func (m *Memory) debugme() string {
+	var h common.Hash
+	zero := make([]byte, 4, 4)
+	for x, y := range m.nodes {
+		b := []byte(fmt.Sprintf("%x", x))
+		h = crypto.Keccak256Hash(h[:], b[:])
+		if y != nil {
+			h = crypto.Keccak256Hash(h[:], y[:])
+		} else {
+			h = crypto.Keccak256Hash(h[:], zero)
+		}
+	}
+	return fmt.Sprintf("%x", h)
+}
+
 func NewMemory() *Memory {
 	return &Memory{
 		nodes:        make(map[uint64]*[32]byte),
@@ -81,8 +97,8 @@ func (m *Memory) ForEachPage(fn func(pageIndex Word, page *Page) error) error {
 }
 
 func (m *Memory) invalidate(addr Word) {
-	// addr must be aligned to 4 bytes
-	if addr&0x3 != 0 {
+	// addr must be aligned
+	if addr&arch.ExtMask != 0 {
 		panic(fmt.Errorf("unaligned memory access: %x", addr))
 	}
 
@@ -146,17 +162,17 @@ func (m *Memory) MerkleProof(addr Word) (out [MEM_PROOF_SIZE]byte) {
 }
 
 func (m *Memory) traverseBranch(parent uint64, addr Word, depth uint8) (proof [][32]byte) {
-	if depth == WordSize-5 {
-		proof = make([][32]byte, 0, WordSize-5+1)
+	if depth == 32-5 {
+		proof = make([][32]byte, 0, 32-5+1)
 		proof = append(proof, m.MerkleizeSubtree(parent))
 		return
 	}
-	if depth > WordSize-5 {
+	if depth > 32-5 {
 		panic("traversed too deep")
 	}
 	self := parent << 1
 	sibling := self | 1
-	if addr&(1<<(WordSize-1-depth)) != 0 {
+	if addr&(1<<(31-depth)) != 0 {
 		self, sibling = sibling, self
 	}
 	proof = m.traverseBranch(self, addr, depth+1)
@@ -253,8 +269,7 @@ func (m *Memory) GetWord(addr Word) Word {
 		return 0
 	}
 	pageAddr := addr & PageAddrMask
-	// TODO: replace with arch.IsMips32
-	if WordSize == 32 {
+	if arch.IsMips32 {
 		return Word(binary.BigEndian.Uint32(p.Data[pageAddr : pageAddr+arch.WordSizeBytes]))
 	} else {
 		return Word(binary.BigEndian.Uint64(p.Data[pageAddr : pageAddr+arch.WordSizeBytes]))
