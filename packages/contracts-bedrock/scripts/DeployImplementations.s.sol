@@ -759,10 +759,13 @@ contract DeployImplementations is Script {
     // | AnchorStateRegistry     | Yes     | Bespoke                           | No         |
     // | FaultDisputeGame        | No      | Bespoke                           | No         | Not yet supported by OPCM
     // | PermissionedDisputeGame | No      | Bespoke                           | No         |
-    // | DelayedWETH             | Yes     | Two bespoke (one per DisputeGame) | Yes        |
+    // | DelayedWETH             | Yes     | Two bespoke (one per DisputeGame) | Yes *️⃣     |
     // | PreimageOracle          | No      | Shared                            | N/A        |
     // | MIPS                    | No      | Shared                            | N/A        |
-    // | OptimismPortal2         | Yes     | Shared                            | Yes        |
+    // | OptimismPortal2         | Yes     | Shared                            | Yes *️⃣     |
+    //
+    // - *️⃣ These contracts have immutable values which are intended to be constant for all contracts within a
+    //   Superchain, and are therefore MCP ready for any chain using the Standard Configuration.
     //
     // This script only deploys the shared contracts. The bespoke contracts are deployed by
     // `DeployOPChain.s.sol`. When the shared contracts are proxied, the contracts deployed here are
