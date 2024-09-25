@@ -124,8 +124,8 @@ contract OPContractsManager is ISemver, Initializable {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 1.0.0-beta.7
-    string public constant version = "1.0.0-beta.7";
+    /// @custom:semver 1.0.0-beta.8
+    string public constant version = "1.0.0-beta.8";
 
     /// @notice Represents the interface version so consumers know how to decode the DeployOutput struct
     /// that's emitted in the `Deployed` event. Whenever that struct changes, a new version should be used.
@@ -432,7 +432,7 @@ contract OPContractsManager is ISemver, Initializable {
 
     /// @notice Helper method for encoding the SystemConfig initializer data.
     function encodeSystemConfigInitializer(
-        bytes4 selector,
+        bytes4 _selector,
         DeployInput memory _input,
         DeployOutput memory _output
     )
@@ -442,10 +442,10 @@ contract OPContractsManager is ISemver, Initializable {
         returns (bytes memory)
     {
         (ResourceMetering.ResourceConfig memory referenceResourceConfig, SystemConfig.Addresses memory opChainAddrs) =
-            defaultSystemConfigParams(selector, _input, _output);
+            defaultSystemConfigParams(_selector, _input, _output);
 
         return abi.encodeWithSelector(
-            selector,
+            _selector,
             _input.roles.systemConfigOwner,
             _input.basefeeScalar,
             _input.blobBasefeeScalar,

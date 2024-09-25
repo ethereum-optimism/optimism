@@ -21,7 +21,7 @@ interface IDelayedWETH is IWETH {
     function initialize(address _owner, ISuperchainConfig _config) external;
     function owner() external view returns (address);
     function recover(uint256 _wad) external;
-    function transferOwnership(address newOwner) external;
+    function transferOwnership(address newOwner) external; // nosemgrep
     function renounceOwnership() external;
     function unlock(address _guy, uint256 _wad) external;
     function withdraw(address _guy, uint256 _wad) external;

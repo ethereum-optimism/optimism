@@ -94,8 +94,8 @@ contract DeployConfig is Script {
 
     function read(string memory _path) public {
         console.log("DeployConfig: reading file %s", _path);
-        try vm.readFile(_path) returns (string memory data) {
-            _json = data;
+        try vm.readFile(_path) returns (string memory data_) {
+            _json = data_;
         } catch {
             require(false, string.concat("Cannot find deploy config file at ", _path));
         }
@@ -191,14 +191,14 @@ contract DeployConfig is Script {
     }
 
     function l1StartingBlockTag() public returns (bytes32) {
-        try vm.parseJsonBytes32(_json, "$.l1StartingBlockTag") returns (bytes32 tag) {
-            return tag;
+        try vm.parseJsonBytes32(_json, "$.l1StartingBlockTag") returns (bytes32 tag_) {
+            return tag_;
         } catch {
-            try vm.parseJsonString(_json, "$.l1StartingBlockTag") returns (string memory tag) {
-                return _getBlockByTag(tag);
+            try vm.parseJsonString(_json, "$.l1StartingBlockTag") returns (string memory tag_) {
+                return _getBlockByTag(tag_);
             } catch {
-                try vm.parseJsonUint(_json, "$.l1StartingBlockTag") returns (uint256 tag) {
-                    return _getBlockByTag(vm.toString(tag));
+                try vm.parseJsonUint(_json, "$.l1StartingBlockTag") returns (uint256 tag_) {
+                    return _getBlockByTag(vm.toString(tag_));
                 } catch { }
             }
         }
@@ -266,32 +266,48 @@ contract DeployConfig is Script {
         return abi.decode(res, (bytes32));
     }
 
-    function _readOr(string memory json, string memory key, bool defaultValue) internal view returns (bool) {
-        return vm.keyExistsJson(json, key) ? json.readBool(key) : defaultValue;
+    function _readOr(string memory _jsonInp, string memory _key, bool _defaultValue) internal view returns (bool) {
+        return vm.keyExistsJson(_jsonInp, _key) ? _jsonInp.readBool(_key) : _defaultValue;
     }
 
-    function _readOr(string memory json, string memory key, uint256 defaultValue) internal view returns (uint256) {
-        return (vm.keyExistsJson(json, key) && !_isNull(json, key)) ? json.readUint(key) : defaultValue;
+    function _readOr(
+        string memory _jsonInp,
+        string memory _key,
+        uint256 _defaultValue
+    )
+        internal
+        view
+        returns (uint256)
+    {
+        return (vm.keyExistsJson(_jsonInp, _key) && !_isNull(_json, _key)) ? _jsonInp.readUint(_key) : _defaultValue;
     }
 
-    function _readOr(string memory json, string memory key, address defaultValue) internal view returns (address) {
-        return vm.keyExistsJson(json, key) ? json.readAddress(key) : defaultValue;
+    function _readOr(
+        string memory _jsonInp,
+        string memory _key,
+        address _defaultValue
+    )
+        internal
+        view
+        returns (address)
+    {
+        return vm.keyExistsJson(_jsonInp, _key) ? _jsonInp.readAddress(_key) : _defaultValue;
     }
 
-    function _isNull(string memory json, string memory key) internal pure returns (bool) {
-        string memory value = json.readString(key);
+    function _isNull(string memory _jsonInp, string memory _key) internal pure returns (bool) {
+        string memory value = _jsonInp.readString(_key);
         return (keccak256(bytes(value)) == keccak256(bytes("null")));
     }
 
     function _readOr(
-        string memory json,
-        string memory key,
-        string memory defaultValue
+        string memory _jsonInp,
+        string memory _key,
+        string memory _defaultValue
     )
         internal
         view
         returns (string memory)
     {
-        return vm.keyExists(json, key) ? json.readString(key) : defaultValue;
+        return vm.keyExists(_jsonInp, _key) ? _jsonInp.readString(_key) : _defaultValue;
     }
 }
