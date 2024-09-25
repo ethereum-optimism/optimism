@@ -436,13 +436,14 @@ contract Deploy is Deployer {
         IProxyAdmin admin = new IProxyAdmin{ salt: _implSalt() }({ _owner: msg.sender });
         require(admin.owner() == msg.sender);
 
-        IAddressManager addressManager = IAddressManager(mustGetAddress("AddressManager"));
-        if (admin.addressManager() != addressManager) {
-            admin.setAddressManager(addressManager);
+        // The AddressManager is only required for OP Chains
+        if (!_isSuperchain) {
+            IAddressManager addressManager = IAddressManager(mustGetAddress("AddressManager"));
+            if (admin.addressManager() != addressManager) {
+                admin.setAddressManager(addressManager);
+            }
+            require(admin.addressManager() == addressManager);
         }
-
-        require(admin.addressManager() == addressManager);
-
         save(proxyAdminName, address(admin));
         console.log("%s deployed at %s", proxyAdminName, address(admin));
         addr_ = address(admin);
