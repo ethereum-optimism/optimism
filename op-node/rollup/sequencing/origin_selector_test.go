@@ -371,7 +371,6 @@ func TestOriginSelectorRespectsConfDepth(t *testing.T) {
 		Time:     27,
 	}
 
-	// l1.ExpectL1BlockRefByHash(a.Hash, a, nil)
 	confDepthL1 := confdepth.NewConfDepth(10, func() eth.L1BlockRef { return b }, l1)
 	s := NewL1OriginSelector(ctx, log, cfg, confDepthL1)
 	s.currentOrigin = a
@@ -621,6 +620,8 @@ func TestOriginSelectorHandlesLateL1Blocks(t *testing.T) {
 	require.Equal(t, a, next, "must stay on a because the L1 time may not be higher than the L2 time")
 }
 
+// TestOriginSelectorMiscEvent ensures that the origin selector ignores miscellaneous events,
+// but instead returns false to indicate that the event was not handled.
 func TestOriginSelectorMiscEvent(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
