@@ -53,6 +53,7 @@ import { IL1CrossDomainMessenger } from "src/L1/interfaces/IL1CrossDomainMesseng
 import { IL2OutputOracle } from "src/L1/interfaces/IL2OutputOracle.sol";
 import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
 import { ISystemConfig } from "src/L1/interfaces/ISystemConfig.sol";
+import { ISystemConfigInterop } from "src/L1/interfaces/ISystemConfigInterop.sol";
 import { IDataAvailabilityChallenge } from "src/L1/interfaces/IDataAvailabilityChallenge.sol";
 import { IL1ERC721Bridge } from "src/L1/interfaces/IL1ERC721Bridge.sol";
 import { IL1StandardBridge } from "src/L1/interfaces/IL1StandardBridge.sol";
@@ -670,7 +671,12 @@ contract Deploy is Deployer {
     /// @notice Deploy the SuperchainConfig contract
     function deploySuperchainConfig() public broadcast {
         ISuperchainConfig superchainConfig = ISuperchainConfig(
-            DeployUtils.create2AndSave({ _save: this, _salt: _implSalt(), _name: "SuperchainConfig", _args: hex"" })
+            DeployUtils.create2AndSave({
+                _save: this,
+                _salt: _implSalt(),
+                _name: "SuperchainConfig",
+                _args: abi.encodeCall(ISuperchainConfig.__constructor__, ())
+            })
         );
 
         require(superchainConfig.guardian() == address(0));
@@ -681,7 +687,12 @@ contract Deploy is Deployer {
     /// @notice Deploy the L1CrossDomainMessenger
     function deployL1CrossDomainMessenger() public broadcast returns (address addr_) {
         IL1CrossDomainMessenger messenger = IL1CrossDomainMessenger(
-            DeployUtils.create2AndSave({ _save: this, _salt: _implSalt(), _name: "L1CrossDomainMessenger", _args: hex"" })
+            DeployUtils.create2AndSave({
+                _save: this,
+                _salt: _implSalt(),
+                _name: "L1CrossDomainMessenger",
+                _args: abi.encodeCall(IL1CrossDomainMessenger.__constructor__, ())
+            })
         );
 
         // Override the `L1CrossDomainMessenger` contract to the deployed implementation. This is necessary
@@ -700,7 +711,12 @@ contract Deploy is Deployer {
             console.log("Attempting to deploy OptimismPortal with interop, this config is a noop");
         }
 
-        addr_ = DeployUtils.create2AndSave({ _save: this, _salt: _implSalt(), _name: "OptimismPortal", _args: hex"" });
+        addr_ = DeployUtils.create2AndSave({
+            _save: this,
+            _salt: _implSalt(),
+            _name: "OptimismPortal",
+            _args: abi.encodeCall(IOptimismPortal.__constructor__, ())
+        });
 
         // Override the `OptimismPortal` contract to the deployed implementation. This is necessary
         // to check the `OptimismPortal` implementation alongside dependent contracts, which
@@ -755,7 +771,12 @@ contract Deploy is Deployer {
     /// @notice Deploy the L2OutputOracle
     function deployL2OutputOracle() public broadcast returns (address addr_) {
         IL2OutputOracle oracle = IL2OutputOracle(
-            DeployUtils.create2AndSave({ _save: this, _salt: _implSalt(), _name: "L2OutputOracle", _args: hex"" })
+            DeployUtils.create2AndSave({
+                _save: this,
+                _salt: _implSalt(),
+                _name: "L2OutputOracle",
+                _args: abi.encodeCall(IL2OutputOracle.__constructor__, ())
+            })
         );
 
         // Override the `L2OutputOracle` contract to the deployed implementation. This is necessary
@@ -780,7 +801,7 @@ contract Deploy is Deployer {
                 _save: this,
                 _salt: _implSalt(),
                 _name: "OptimismMintableERC20Factory",
-                _args: hex""
+                _args: abi.encodeCall(IOptimismMintableERC20Factory.__constructor__, ())
             })
         );
 
@@ -797,7 +818,12 @@ contract Deploy is Deployer {
     /// @notice Deploy the DisputeGameFactory
     function deployDisputeGameFactory() public broadcast returns (address addr_) {
         IDisputeGameFactory factory = IDisputeGameFactory(
-            DeployUtils.create2AndSave({ _save: this, _salt: _implSalt(), _name: "DisputeGameFactory", _args: hex"" })
+            DeployUtils.create2AndSave({
+                _save: this,
+                _salt: _implSalt(),
+                _name: "DisputeGameFactory",
+                _args: abi.encodeCall(IDisputeGameFactory.__constructor__, ())
+            })
         );
 
         // Override the `DisputeGameFactory` contract to the deployed implementation. This is necessary to check the
@@ -839,7 +865,12 @@ contract Deploy is Deployer {
     /// @notice Deploy the ProtocolVersions
     function deployProtocolVersions() public broadcast returns (address addr_) {
         IProtocolVersions versions = IProtocolVersions(
-            DeployUtils.create2AndSave({ _save: this, _salt: _implSalt(), _name: "ProtocolVersions", _args: hex"" })
+            DeployUtils.create2AndSave({
+                _save: this,
+                _salt: _implSalt(),
+                _name: "ProtocolVersions",
+                _args: abi.encodeCall(IProtocolVersions.__constructor__, ())
+            })
         );
 
         // Override the `ProtocolVersions` contract to the deployed implementation. This is necessary
@@ -917,11 +948,16 @@ contract Deploy is Deployer {
                 _save: this,
                 _salt: _implSalt(),
                 _name: "SystemConfigInterop",
-                _args: hex""
+                _args: abi.encodeCall(ISystemConfigInterop.__constructor__, ())
             });
             save("SystemConfig", addr_);
         } else {
-            addr_ = DeployUtils.create2AndSave({ _save: this, _salt: _implSalt(), _name: "SystemConfig", _args: hex"" });
+            addr_ = DeployUtils.create2AndSave({
+                _save: this,
+                _salt: _implSalt(),
+                _name: "SystemConfig",
+                _args: abi.encodeCall(ISystemConfig.__constructor__, ())
+            });
         }
 
         // Override the `SystemConfig` contract to the deployed implementation. This is necessary
@@ -935,7 +971,12 @@ contract Deploy is Deployer {
     /// @notice Deploy the L1StandardBridge
     function deployL1StandardBridge() public broadcast returns (address addr_) {
         IL1StandardBridge bridge = IL1StandardBridge(
-            DeployUtils.create2AndSave({ _save: this, _salt: _implSalt(), _name: "L1StandardBridge", _args: hex"" })
+            DeployUtils.create2AndSave({
+                _save: this,
+                _salt: _implSalt(),
+                _name: "L1StandardBridge",
+                _args: abi.encodeCall(IL1StandardBridge.__constructor__, ())
+            })
         );
 
         // Override the `L1StandardBridge` contract to the deployed implementation. This is necessary
@@ -951,7 +992,12 @@ contract Deploy is Deployer {
     /// @notice Deploy the L1ERC721Bridge
     function deployL1ERC721Bridge() public broadcast returns (address addr_) {
         IL1ERC721Bridge bridge = IL1ERC721Bridge(
-            DeployUtils.create2AndSave({ _save: this, _salt: _implSalt(), _name: "L1ERC721Bridge", _args: hex"" })
+            DeployUtils.create2AndSave({
+                _save: this,
+                _salt: _implSalt(),
+                _name: "L1ERC721Bridge",
+                _args: abi.encodeCall(IL1ERC721Bridge.__constructor__, ())
+            })
         );
 
         // Override the `L1ERC721Bridge` contract to the deployed implementation. This is necessary
@@ -986,7 +1032,7 @@ contract Deploy is Deployer {
                 _save: this,
                 _salt: _implSalt(),
                 _name: "DataAvailabilityChallenge",
-                _args: hex""
+                _args: abi.encodeCall(IDataAvailabilityChallenge.__constructor__, ())
             })
         );
         addr_ = address(dac);
