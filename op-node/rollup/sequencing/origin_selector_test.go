@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/confdepth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/engine"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
@@ -63,13 +64,84 @@ func TestOriginSelectorFetchCurrentError(t *testing.T) {
 }
 
 // TestOriginSelectorAdvances ensures that the origin selector
-// advances the origin
+// advances the origin with the internal cache
 //
-// There are 2 L1 blocks at time 20 & 25. The L2 Head is at time 24.
+// There are 3 L1 blocks at times 20, 22, 24. The L2 Head is at time 24.
 // The next L2 time is 26 which is after the next L1 block time. There
 // is no conf depth to stop the origin selection so block `b` should
-// be the next L1 origin
+// be the next L1 origin, and then block `c` is the subsequent L1 origin.
 func TestOriginSelectorAdvances(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	log := testlog.Logger(t, log.LevelCrit)
+	cfg := &rollup.Config{
+		MaxSequencerDrift: 500,
+		BlockTime:         2,
+	}
+	l1 := &testutils.MockL1Source{}
+	defer l1.AssertExpectations(t)
+	a := eth.L1BlockRef{
+		Hash:   common.Hash{'a'},
+		Number: 10,
+		Time:   20,
+	}
+	b := eth.L1BlockRef{
+		Hash:       common.Hash{'b'},
+		Number:     11,
+		Time:       22,
+		ParentHash: a.Hash,
+	}
+	c := eth.L1BlockRef{
+		Hash:       common.Hash{'c'},
+		Number:     12,
+		Time:       24,
+		ParentHash: b.Hash,
+	}
+	l2Head := eth.L2BlockRef{
+		L1Origin: a.ID(),
+		Time:     24,
+	}
+
+	s := NewL1OriginSelector(ctx, log, cfg, l1)
+	s.currentOrigin = a
+	s.nextOrigin = b
+
+	// Trigger the background fetch via a forkchoice update.
+	// This should be a no-op because the next origin is already cached.
+	handled := s.OnEvent(engine.ForkchoiceUpdateEvent{UnsafeL2Head: l2Head})
+	require.True(t, handled)
+
+	next, err := s.FindL1Origin(ctx, l2Head)
+	require.Nil(t, err)
+	require.Equal(t, b, next)
+
+	l2Head = eth.L2BlockRef{
+		L1Origin: b.ID(),
+		Time:     26,
+	}
+
+	// The origin is still `b` because the next origin has not been fetched yet.
+	next, err = s.FindL1Origin(ctx, l2Head)
+	require.Nil(t, err)
+	require.Equal(t, b, next)
+
+	l1.ExpectL1BlockRefByNumber(c.Number, c, nil)
+
+	// Trigger the background fetch via a forkchoice update.
+	// This will actually fetch the next origin because the internal cache is empty.
+	handled = s.OnEvent(engine.ForkchoiceUpdateEvent{UnsafeL2Head: l2Head})
+	require.True(t, handled)
+
+	// The next origin should be `c` now.
+	next, err = s.FindL1Origin(ctx, l2Head)
+	require.Nil(t, err)
+	require.Equal(t, c, next)
+}
+
+// TestOriginSelectorHandlesReset ensures that the origin selector
+// resets its internal cached state on derivation pipeline resets.
+func TestOriginSelectorHandlesReset(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -100,80 +172,30 @@ func TestOriginSelectorAdvances(t *testing.T) {
 	s.currentOrigin = a
 	s.nextOrigin = b
 
-	c := make(chan eth.L1BlockRef, 1)
-	next, err := s.findL1Origin(ctx, l2Head, c)
+	next, err := s.FindL1Origin(ctx, l2Head)
 	require.Nil(t, err)
 	require.Equal(t, b, next)
 
-	// Wait for the origin selector's background fetch to finish.
-	// This fetch should not be triggered because the next origin is already known.
-	select {
-	case _, ok := <-c:
-		require.False(t, ok)
-	default:
-		t.Fatal("expected the background fetch to have not run")
-	}
-}
+	// Trigger the pipeline reset
+	handled := s.OnEvent(rollup.ResetEvent{})
+	require.True(t, handled)
 
-// TestOriginSelectorNextOrigin ensures that the origin selector
-// handles the case where the L2 Head is based on the internal next origin.
-//
-// There are 2 L1 blocks at time 20 & 25. The L2 Head is at time 24.
-// The next L2 time is 26 which is after the next L1 block time. There
-// is no conf depth to stop the origin selection so block `b` should
-// be the next L1 origin
-func TestOriginSelectorAdvancesFromCache(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	// The next origin should be `a` now, but we need to fetch it
+	// because the internal cache was reset.
+	l1.ExpectL1BlockRefByHash(a.Hash, a, nil)
 
-	log := testlog.Logger(t, log.LevelCrit)
-	cfg := &rollup.Config{
-		MaxSequencerDrift: 500,
-		BlockTime:         2,
-	}
-	l1 := &testutils.MockL1Source{}
-	defer l1.AssertExpectations(t)
-	a := eth.L1BlockRef{
-		Hash:   common.Hash{'a'},
-		Number: 10,
-		Time:   20,
-	}
-	b := eth.L1BlockRef{
-		Hash:       common.Hash{'b'},
-		Number:     11,
-		Time:       25,
-		ParentHash: a.Hash,
-	}
-	l2Head := eth.L2BlockRef{
-		L1Origin: a.ID(),
-		Time:     24,
-	}
-
-	// This is called as part of the background prefetch job
-	l1.ExpectL1BlockRefByNumber(b.Number, b, nil)
-
-	s := NewL1OriginSelector(ctx, log, cfg, l1)
-	s.nextOrigin = a
-
-	c := make(chan eth.L1BlockRef, 1)
-	next, err := s.findL1Origin(ctx, l2Head, c)
+	next, err = s.FindL1Origin(ctx, l2Head)
 	require.Nil(t, err)
 	require.Equal(t, a, next)
-
-	// Wait for the origin selector's background fetch to finish.
-	// This fetch should be triggered because the next origin is not already known.
-	next, ok := <-c
-	require.True(t, ok)
-	require.Equal(t, b, next)
 }
 
-// TestOriginSelectorPrefetchesNextOrigin ensures that the origin selector
-// prefetches the next origin when it can.
+// TestOriginSelectorFetchesNextOrigin ensures that the origin selector
+// fetches the next origin when a fcu is received and the internal cache is empty
 //
 // The next L2 time is 26 which is after the next L1 block time. There
 // is no conf depth to stop the origin selection so block `b` will
 // be the next L1 origin as soon as it is fetched.
-func TestOriginSelectorPrefetchesNextOrigin(t *testing.T) {
+func TestOriginSelectorFetchesNextOrigin(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -206,31 +228,23 @@ func TestOriginSelectorPrefetchesNextOrigin(t *testing.T) {
 	s := NewL1OriginSelector(ctx, log, cfg, l1)
 	s.currentOrigin = a
 
-	c := make(chan eth.L1BlockRef, 1)
-	next, err := s.findL1Origin(ctx, l2Head, c)
+	next, err := s.FindL1Origin(ctx, l2Head)
 	require.Nil(t, err)
 	require.Equal(t, a, next)
 
-	// Wait for the origin selector's background fetch to finish.
-	// This fetch should be triggered because the next origin is not already known.
-	next, ok := <-c
-	require.True(t, ok)
-	require.Equal(t, b, next)
+	// Selection is stable until the next origin is fetched
+	next, err = s.FindL1Origin(ctx, l2Head)
+	require.Nil(t, err)
+	require.Equal(t, a, next)
+
+	// Trigger the background fetch via a forkchoice update
+	handled := s.OnEvent(engine.ForkchoiceUpdateEvent{UnsafeL2Head: l2Head})
+	require.True(t, handled)
 
 	// The next origin should be `b` now.
-	c = make(chan eth.L1BlockRef, 1)
-	next, err = s.findL1Origin(ctx, l2Head, c)
+	next, err = s.FindL1Origin(ctx, l2Head)
 	require.Nil(t, err)
 	require.Equal(t, b, next)
-
-	// Wait for the origin selector's background fetch to finish.
-	// This fetch should not be triggered because the next origin is already known.
-	select {
-	case _, ok := <-c:
-		require.False(t, ok)
-	default:
-		t.Fatal("expected the background fetch to have not run")
-	}
 }
 
 // TestOriginSelectorRespectsOriginTiming ensures that the origin selector
@@ -272,19 +286,9 @@ func TestOriginSelectorRespectsOriginTiming(t *testing.T) {
 	s.currentOrigin = a
 	s.nextOrigin = b
 
-	c := make(chan eth.L1BlockRef, 1)
-	next, err := s.findL1Origin(ctx, l2Head, c)
+	next, err := s.FindL1Origin(ctx, l2Head)
 	require.Nil(t, err)
 	require.Equal(t, a, next)
-
-	// Wait for the origin selector's background fetch to finish.
-	// This fetch should not be triggered because the next origin is already known.
-	select {
-	case _, ok := <-c:
-		require.False(t, ok)
-	default:
-		t.Fatal("expected the background fetch to have not run")
-	}
 }
 
 // TestOriginSelectorRespectsSeqDrift
@@ -328,19 +332,9 @@ func TestOriginSelectorRespectsSeqDrift(t *testing.T) {
 
 	s := NewL1OriginSelector(ctx, log, cfg, l1)
 
-	c := make(chan eth.L1BlockRef, 1)
-	next, err := s.findL1Origin(ctx, l2Head, c)
+	next, err := s.FindL1Origin(ctx, l2Head)
 	require.NoError(t, err)
 	require.Equal(t, b, next)
-
-	// Wait for the origin selector's background fetch to finish.
-	// This fetch should already be completed because findL1Origin would have waited for it.
-	select {
-	case _, ok := <-c:
-		require.False(t, ok)
-	default:
-		t.Fatal("expected the background fetch to have already completed")
-	}
 }
 
 // TestOriginSelectorRespectsConfDepth ensures that the origin selector
@@ -382,15 +376,9 @@ func TestOriginSelectorRespectsConfDepth(t *testing.T) {
 	s := NewL1OriginSelector(ctx, log, cfg, confDepthL1)
 	s.currentOrigin = a
 
-	c := make(chan eth.L1BlockRef, 1)
-	next, err := s.findL1Origin(ctx, l2Head, c)
+	next, err := s.FindL1Origin(ctx, l2Head)
 	require.Nil(t, err)
 	require.Equal(t, a, next)
-
-	// Wait for the origin selector's background fetch to finish.
-	// This fetch should not return a new origin because the conf depth has not been met.
-	_, ok := <-c
-	require.False(t, ok)
 }
 
 // TestOriginSelectorStrictConfDepth ensures that the origin selector will maintain the sequencer conf depth,
@@ -434,18 +422,8 @@ func TestOriginSelectorStrictConfDepth(t *testing.T) {
 	confDepthL1 := confdepth.NewConfDepth(10, func() eth.L1BlockRef { return b }, l1)
 	s := NewL1OriginSelector(ctx, log, cfg, confDepthL1)
 
-	c := make(chan eth.L1BlockRef, 1)
-	_, err := s.findL1Origin(ctx, l2Head, c)
+	_, err := s.FindL1Origin(ctx, l2Head)
 	require.ErrorContains(t, err, "sequencer time drift")
-
-	// Wait for the origin selector's background fetch to finish.
-	// This fetch should already be completed because findL1Origin would have waited for it.
-	select {
-	case _, ok := <-c:
-		require.False(t, ok)
-	default:
-		t.Fatal("expected the background fetch to have already completed")
-	}
 }
 
 func u64ptr(n uint64) *uint64 {
@@ -473,32 +451,17 @@ func TestOriginSelector_FjordSeqDrift(t *testing.T) {
 		Number: 10,
 		Time:   20,
 	}
-	b := eth.L1BlockRef{
-		Hash:   common.Hash{'b'},
-		Number: 11,
-		Time:   22,
-	}
 	l2Head := eth.L2BlockRef{
 		L1Origin: a.ID(),
 		Time:     27, // next L2 block time would be past pre-Fjord seq drift
 	}
 
-	// This is called as part of the background prefetch job
-	l1.ExpectL1BlockRefByNumber(a.Number+1, b, nil)
-
 	s := NewL1OriginSelector(ctx, log, cfg, l1)
 	s.currentOrigin = a
 
-	c := make(chan eth.L1BlockRef, 1)
-	l1O, err := s.findL1Origin(ctx, l2Head, c)
+	next, err := s.FindL1Origin(ctx, l2Head)
 	require.NoError(t, err, "with Fjord activated, have increased max seq drift")
-	require.Equal(t, a, l1O)
-
-	// Wait for the origin selector's background fetch to finish.
-	// This fetch should be triggered because the next origin is not already known.
-	next, ok := <-c
-	require.True(t, ok)
-	require.Equal(t, b, next)
+	require.Equal(t, a, next)
 }
 
 // TestOriginSelectorSeqDriftRespectsNextOriginTime
@@ -538,19 +501,9 @@ func TestOriginSelectorSeqDriftRespectsNextOriginTime(t *testing.T) {
 	s.currentOrigin = a
 	s.nextOrigin = b
 
-	c := make(chan eth.L1BlockRef, 1)
-	next, err := s.findL1Origin(ctx, l2Head, c)
+	next, err := s.FindL1Origin(ctx, l2Head)
 	require.Nil(t, err)
 	require.Equal(t, a, next)
-
-	// Wait for the origin selector's background fetch to finish.
-	// This fetch should not be triggered because the next origin is already known.
-	select {
-	case _, ok := <-c:
-		require.False(t, ok)
-	default:
-		t.Fatal("expected the background fetch to have not run")
-	}
 }
 
 // TestOriginSelectorSeqDriftRespectsNextOriginTimeNoCache
@@ -593,19 +546,9 @@ func TestOriginSelectorSeqDriftRespectsNextOriginTimeNoCache(t *testing.T) {
 	s := NewL1OriginSelector(ctx, log, cfg, l1)
 	s.currentOrigin = a
 
-	c := make(chan eth.L1BlockRef, 1)
-	next, err := s.findL1Origin(ctx, l2Head, c)
+	next, err := s.FindL1Origin(ctx, l2Head)
 	require.Nil(t, err)
 	require.Equal(t, a, next)
-
-	// Wait for the origin selector's background fetch to finish.
-	// This fetch should already be completed because findL1Origin would have waited for it.
-	select {
-	case _, ok := <-c:
-		require.False(t, ok)
-	default:
-		t.Fatal("expected the background fetch to have already completed")
-	}
 }
 
 // TestOriginSelectorHandlesLateL1Blocks tests the forced repeat of the previous origin,
@@ -665,45 +608,34 @@ func TestOriginSelectorHandlesLateL1Blocks(t *testing.T) {
 	confDepthL1 := confdepth.NewConfDepth(2, func() eth.L1BlockRef { return l1Head }, l1)
 	s := NewL1OriginSelector(ctx, log, cfg, confDepthL1)
 
-	ch := make(chan eth.L1BlockRef, 1)
-	_, err := s.findL1Origin(ctx, l2Head, ch)
+	_, err := s.FindL1Origin(ctx, l2Head)
 	require.ErrorContains(t, err, "sequencer time drift")
-
-	// Wait for the origin selector's background fetch to finish.
-	// This fetch should already be completed because findL1Origin would have waited for it.
-	select {
-	case _, ok := <-ch:
-		require.False(t, ok)
-	default:
-		t.Fatal("expected the background fetch to have already completed")
-	}
 
 	l1Head = c
-	ch = make(chan eth.L1BlockRef, 1)
-	_, err = s.findL1Origin(ctx, l2Head, ch)
+	_, err = s.FindL1Origin(ctx, l2Head)
 	require.ErrorContains(t, err, "sequencer time drift")
 
-	// Wait for the origin selector's background fetch to finish.
-	// This fetch should already be completed because findL1Origin would have waited for it.
-	select {
-	case _, ok := <-ch:
-		require.False(t, ok)
-	default:
-		t.Fatal("expected the background fetch to have already completed")
-	}
-
 	l1Head = d
-	ch = make(chan eth.L1BlockRef, 1)
-	next, err := s.findL1Origin(ctx, l2Head, ch)
+	next, err := s.FindL1Origin(ctx, l2Head)
 	require.Nil(t, err)
 	require.Equal(t, a, next, "must stay on a because the L1 time may not be higher than the L2 time")
+}
 
-	// Wait for the origin selector's background fetch to finish.
-	// This fetch should already be completed because findL1Origin would have waited for it.
-	select {
-	case _, ok := <-ch:
-		require.False(t, ok)
-	default:
-		t.Fatal("expected the background fetch to have already completed")
+func TestOriginSelectorMiscEvent(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	log := testlog.Logger(t, log.LevelCrit)
+	cfg := &rollup.Config{
+		MaxSequencerDrift: 8,
+		BlockTime:         2,
 	}
+	l1 := &testutils.MockL1Source{}
+	defer l1.AssertExpectations(t)
+
+	s := NewL1OriginSelector(ctx, log, cfg, l1)
+
+	// This event is not handled
+	handled := s.OnEvent(rollup.L1TemporaryErrorEvent{})
+	require.False(t, handled)
 }

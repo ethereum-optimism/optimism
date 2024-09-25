@@ -63,20 +63,10 @@ func (los *L1OriginSelector) OnEvent(ev event.Event) bool {
 // The L1 Origin is either the L2 Head's Origin, or the following L1 block
 // if the next L2 block's time is greater than or equal to the L2 Head's Origin.
 func (los *L1OriginSelector) FindL1Origin(ctx context.Context, l2Head eth.L2BlockRef) (eth.L1BlockRef, error) {
-	c := make(chan eth.L1BlockRef, 1)
-	return los.findL1Origin(ctx, l2Head, c)
-}
-
-// findL1Origin determines what the next L1 Origin should be.
-// This private method receives a channel to send the next L1 origin block to,
-// and may be used in tests to provide deterministic concurrency behavior.
-func (los *L1OriginSelector) findL1Origin(ctx context.Context, l2Head eth.L2BlockRef, c chan eth.L1BlockRef) (eth.L1BlockRef, error) {
 	currentOrigin, nextOrigin, err := los.CurrentAndNextOrigin(ctx, l2Head)
 	if err != nil {
-		close(c)
 		return eth.L1BlockRef{}, err
 	}
-	los.tryFetchNextOrigin(currentOrigin, nextOrigin, c)
 
 	// If the next L2 block time is greater than the next origin block's time, we can choose to
 	// start building on top of the next origin. Sequencer implementation has some leeway here and
@@ -100,11 +90,14 @@ func (los *L1OriginSelector) findL1Origin(ctx context.Context, l2Head eth.L2Bloc
 	}
 
 	// Otherwise, we need to find the next L1 origin block in order to continue producing blocks.
-	log.Warn("Next L2 block time is past the sequencer drift + current origin time, attempting to wait for fetch of next L1 origin")
+	log.Warn("Next L2 block time is past the sequencer drift + current origin time, attempting to fetch next L1 origin")
 
-	nextOrigin, ok := <-c
-	if !ok {
-		return eth.L1BlockRef{}, fmt.Errorf("cannot build next L2 block past current L1 origin %s by more than sequencer time drift, and failed to find next L1 origin", currentOrigin)
+	if nextOrigin == (eth.L1BlockRef{}) {
+		// If the next origin is not set, we need to fetch it now.
+		nextOrigin, err = los.fetch(ctx, currentOrigin.Number+1)
+		if err != nil {
+			return eth.L1BlockRef{}, fmt.Errorf("cannot build next L2 block past current L1 origin %s by more than sequencer time drift, and failed to find next L1 origin: %w", currentOrigin, err)
+		}
 	}
 
 	// Once again check if the next origin is ahead of the L2 head, and return the current origin if it is.
@@ -160,35 +153,27 @@ func (los *L1OriginSelector) onForkchoiceUpdate(unsafeL2Head eth.L2BlockRef) {
 		return
 	}
 
-	c := make(chan eth.L1BlockRef, 1)
-	los.tryFetchNextOrigin(currentOrigin, nextOrigin, c)
-	<-c
+	los.tryFetchNextOrigin(currentOrigin, nextOrigin)
 }
 
 // tryFetchNextOrigin schedules a fetch for the next L1 origin block if it is not already set.
 // This method always closes the channel, even if the next origin is already set.
-func (los *L1OriginSelector) tryFetchNextOrigin(currentOrigin, nextOrigin eth.L1BlockRef, c chan<- eth.L1BlockRef) {
+func (los *L1OriginSelector) tryFetchNextOrigin(currentOrigin, nextOrigin eth.L1BlockRef) {
 	// If the next origin is already set, we don't need to do anything.
 	if nextOrigin != (eth.L1BlockRef{}) {
-		close(c)
 		return
 	}
 
 	// If the current origin is not set, we can't schedule the next origin check.
 	if currentOrigin == (eth.L1BlockRef{}) {
-		close(c)
 		return
 	}
 
-	go func() {
-		los.fetch(currentOrigin.Number+1, c)
-	}()
+	los.fetch(los.ctx, currentOrigin.Number+1)
 }
 
-func (los *L1OriginSelector) fetch(number uint64, c chan<- eth.L1BlockRef) {
-	defer close(c)
-
-	fetchCtx, cancel := context.WithTimeout(los.ctx, 10*time.Second)
+func (los *L1OriginSelector) fetch(ctx context.Context, number uint64) (eth.L1BlockRef, error) {
+	fetchCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	// Attempt to find the next L1 origin block, where the next origin is the immediate child of
@@ -201,12 +186,12 @@ func (los *L1OriginSelector) fetch(number uint64, c chan<- eth.L1BlockRef) {
 		} else {
 			log.Error("Failed to get next L1 origin", "err", err)
 		}
-		return
+		return eth.L1BlockRef{}, err
 	}
 
 	los.maybeSetNextOrigin(nextOrigin)
 
-	c <- nextOrigin
+	return nextOrigin, nil
 }
 
 func (los *L1OriginSelector) reset() {
