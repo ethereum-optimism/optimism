@@ -81,7 +81,7 @@ contract DeploySuperchainInput is BaseDeployIO {
     // Role inputs.
     address internal _guardian;
     address internal _protocolVersionsOwner;
-    address internal _proxyAdminOwner;
+    address internal _superchainProxyAdminOwner;
 
     // Other inputs.
     bool internal _paused;
@@ -94,7 +94,7 @@ contract DeploySuperchainInput is BaseDeployIO {
         require(_address != address(0), "DeploySuperchainInput: cannot set zero address");
         if (_sel == this.guardian.selector) _guardian = _address;
         else if (_sel == this.protocolVersionsOwner.selector) _protocolVersionsOwner = _address;
-        else if (_sel == this.proxyAdminOwner.selector) _proxyAdminOwner = _address;
+        else if (_sel == this.superchainProxyAdminOwner.selector) _superchainProxyAdminOwner = _address;
         else revert("DeploySuperchainInput: unknown selector");
     }
 
@@ -115,9 +115,9 @@ contract DeploySuperchainInput is BaseDeployIO {
     // validate that each input is set before accessing it. With getter methods, we can automatically
     // validate that each input is set before allowing any field to be accessed.
 
-    function proxyAdminOwner() public view returns (address) {
-        require(_proxyAdminOwner != address(0), "DeploySuperchainInput: proxyAdminOwner not set");
-        return _proxyAdminOwner;
+    function superchainProxyAdminOwner() public view returns (address) {
+        require(_superchainProxyAdminOwner != address(0), "DeploySuperchainInput: superchainProxyAdminOwner not set");
+        return _superchainProxyAdminOwner;
     }
 
     function protocolVersionsOwner() public view returns (address) {
@@ -232,7 +232,7 @@ contract DeploySuperchainOutput is BaseDeployIO {
     }
 
     function assertValidSuperchainProxyAdmin(DeploySuperchainInput _dsi) internal view {
-        require(superchainProxyAdmin().owner() == _dsi.proxyAdminOwner(), "SPA-10");
+        require(superchainProxyAdmin().owner() == _dsi.superchainProxyAdminOwner(), "SPA-10");
     }
 
     function assertValidSuperchainConfig(DeploySuperchainInput _dsi) internal {
@@ -386,13 +386,13 @@ contract DeploySuperchain is Script {
     }
 
     function transferProxyAdminOwnership(DeploySuperchainInput _dsi, DeploySuperchainOutput _dso) public {
-        address proxyAdminOwner = _dsi.proxyAdminOwner();
+        address superchainProxyAdminOwner = _dsi.superchainProxyAdminOwner();
 
         ProxyAdmin superchainProxyAdmin = _dso.superchainProxyAdmin();
         DeployUtils.assertValidContractAddress(address(superchainProxyAdmin));
 
         vm.broadcast(msg.sender);
-        superchainProxyAdmin.transferOwnership(proxyAdminOwner);
+        superchainProxyAdmin.transferOwnership(superchainProxyAdminOwner);
     }
 
     // -------- Utilities --------
