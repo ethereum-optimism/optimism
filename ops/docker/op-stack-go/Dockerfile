@@ -51,8 +51,7 @@ ARG TARGETARCH
 #FROM --platform=$BUILDPLATFORM us-docker.pkg.dev/oplabs-tools-artifacts/images/op-challenger:v1.1.0 AS cannon-builder-0
 
 FROM --platform=$BUILDPLATFORM builder AS cannon-builder
-# note: bump this CANNON_VERSION when the VM behavior changes
-ARG CANNON_VERSION=v1.0.0
+ARG CANNON_VERSION=v0.0.0
 # uncomment these lines once there's a new Cannon version available
 #COPY --from=cannon-builder-0 /usr/local/bin/cannon ./cannon/multicannon/embeds/cannon-0
 #COPY --from=cannon-builder-0 /usr/local/bin/cannon ./cannon/multicannon/embeds/cannon-1
