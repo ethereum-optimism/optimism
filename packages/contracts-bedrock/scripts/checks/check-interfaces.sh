@@ -210,10 +210,10 @@ for interface_file in $JSON_FILES; do
 
     # Check if the contract ABI has no constructor but the interface is missing __constructor__
     contract_has_constructor=$(echo "$normalized_contract_abi" | jq 'any(.[]; .type == "constructor")')
-    interface_has_pseudo_constructor=$(echo "$normalized_interface_abi" | jq 'any(.[]; .type == "constructor")')
+    interface_has_default_pseudo_constructor=$(echo "$normalized_interface_abi" | jq 'any(.[]; .type == "constructor" and .inputs == [])')
 
     # If any contract has no constructor and its corresponding interface also does not have one, flag it as a detected issue
-    if [ "$contract_has_constructor" = false ] && [ "$interface_has_pseudo_constructor" = false ]; then
+    if [ "$contract_has_constructor" = false ] && [ "$interface_has_default_pseudo_constructor" = false ]; then
         if ! grep -q "^$contract_name$" "$REPORTED_INTERFACES_FILE"; then
             echo "$contract_name" >> "$REPORTED_INTERFACES_FILE"
             if ! is_excluded "$contract_name"; then
@@ -227,7 +227,7 @@ for interface_file in $JSON_FILES; do
 
     # removes the pseudo constructor json entry from the interface files where the corresponding contract file has no constructor
     # this is to ensure it is not flagged as a diff in the next step below
-    if [ "$contract_has_constructor" = false ] && [ "$interface_has_pseudo_constructor" = true ]; then
+    if [ "$contract_has_constructor" = false ] && [ "$interface_has_default_pseudo_constructor" ]; then
       normalized_interface_abi=$(echo "$normalized_interface_abi" | jq 'map(select(.type != "constructor"))')
     fi
 
