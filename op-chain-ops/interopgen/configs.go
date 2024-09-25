@@ -46,8 +46,8 @@ type OPCMImplementationsConfig struct {
 type SuperchainConfig struct {
 	Deployer common.Address
 
-	SuperchainProxyAdminOwner common.Address
-	ProtocolVersionsOwner     common.Address
+	ProxyAdminOwner       common.Address
+	ProtocolVersionsOwner common.Address
 
 	Paused bool
 
@@ -60,8 +60,8 @@ func (c *SuperchainConfig) Check(log log.Logger) error {
 	if c.Deployer == (common.Address{}) {
 		return errors.New("missing superchain deployer address")
 	}
-	if c.SuperchainProxyAdminOwner == (common.Address{}) {
-		return errors.New("missing superchain SuperchainProxyAdminOwner address")
+	if c.ProxyAdminOwner == (common.Address{}) {
+		return errors.New("missing superchain ProxyAdminOwner address")
 	}
 	if err := c.SuperchainL1DeployConfig.Check(log); err != nil {
 		return err

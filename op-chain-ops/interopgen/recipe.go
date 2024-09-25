@@ -64,9 +64,9 @@ func (r *InteropDevRecipe) Build(addrs devkeys.Addresses) (*WorldConfig, error) 
 	l1Cfg.Prefund[superchainConfigGuardian] = Ether(10_000_000)
 
 	superchainCfg := &SuperchainConfig{
-		SuperchainProxyAdminOwner: superchainProxyAdmin,
-		ProtocolVersionsOwner:     superchainProtocolVersionsOwner,
-		Deployer:                  superchainDeployer,
+		ProxyAdminOwner:       superchainProxyAdmin,
+		ProtocolVersionsOwner: superchainProtocolVersionsOwner,
+		Deployer:              superchainDeployer,
 		Implementations: OPCMImplementationsConfig{
 			Release: "dev",
 			FaultProof: SuperFaultProofConfig{
