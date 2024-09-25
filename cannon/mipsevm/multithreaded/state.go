@@ -36,7 +36,7 @@ const (
 	RIGHT_THREADS_ROOT_WITNESS_OFFSET         = LEFT_THREADS_ROOT_WITNESS_OFFSET + 32
 	THREAD_ID_WITNESS_OFFSET                  = RIGHT_THREADS_ROOT_WITNESS_OFFSET + 32
 
-	// 172 bytes and 196 for 32 and 64-bit respectively
+	// 172 and 196 bytes for 32 and 64-bit respectively
 	STATE_WITNESS_SIZE = THREAD_ID_WITNESS_OFFSET + arch.WordSizeBytes
 )
 

@@ -12,16 +12,26 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 )
 
-// TODO: infer size based on arch
-// SERIALIZED_THREAD_SIZE is the size of a serialized ThreadState object
-// const SERIALIZED_THREAD_SIZE = 166
-const SERIALIZED_THREAD_SIZE = 322
+const (
+	THREAD_ID_STATE_WITNESS_OFFSET           = 0
+	THREAD_EXIT_CODE_WITNESS_OFFSET          = THREAD_ID_STATE_WITNESS_OFFSET + arch.WordSizeBytes
+	THREAD_EXITED_WITNESS_OFFSET             = THREAD_EXIT_CODE_WITNESS_OFFSET + 1
+	THREAD_FUTEX_ADDR_WITNESS_OFFSET         = THREAD_EXITED_WITNESS_OFFSET + 1
+	THREAD_FUTEX_VAL_WITNESS_OFFSET          = THREAD_FUTEX_ADDR_WITNESS_OFFSET + arch.WordSizeBytes
+	THREAD_FUTEX_TIMEOUT_STEP_WITNESS_OFFSET = THREAD_FUTEX_VAL_WITNESS_OFFSET + arch.WordSizeBytes
+	THREAD_FUTEX_CPU_WITNESS_OFFSET          = THREAD_FUTEX_TIMEOUT_STEP_WITNESS_OFFSET + 8
+	THREAD_REGISTERS_WITNESS_OFFSET          = THREAD_FUTEX_CPU_WITNESS_OFFSET + (4 * arch.WordSizeBytes)
 
-// THREAD_WITNESS_SIZE is the size of a thread witness encoded in bytes.
-//
-//	It consists of the active thread serialized and concatenated with the
-//	32 byte hash onion of the active thread stack without the active thread
-const THREAD_WITNESS_SIZE = SERIALIZED_THREAD_SIZE + 32
+	// SERIALIZED_THREAD_SIZE is the size of a serialized ThreadState object
+	// 166 and 322 bytes for 32 and 64-bit respectively
+	SERIALIZED_THREAD_SIZE = THREAD_REGISTERS_WITNESS_OFFSET + (32 * arch.WordSizeBytes)
+
+	// THREAD_WITNESS_SIZE is the size of a thread witness encoded in bytes.
+	//
+	//	It consists of the active thread serialized and concatenated with the
+	//	32 byte hash onion of the active thread stack without the active thread
+	THREAD_WITNESS_SIZE = SERIALIZED_THREAD_SIZE + 32
+)
 
 // The empty thread root - keccak256(bytes32(0) ++ bytes32(0))
 var EmptyThreadsRoot common.Hash = common.HexToHash("0xad3228b676f7d3cd4284a5443f17f1962b36e491b30a40b2405849e597ba5fb5")

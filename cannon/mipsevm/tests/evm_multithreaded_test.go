@@ -326,8 +326,8 @@ func TestEVM_MT_StoreOpsClearMemReservation(t *testing.T) {
 		name    string
 		opcode  int
 		offset  int
-		base    uint32
-		effAddr uint32
+		base    Word
+		effAddr Word
 		preMem  uint32
 		postMem uint32
 	}{
@@ -462,7 +462,7 @@ func TestEVM_SysClone_Successful(t *testing.T) {
 
 	for i, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			stackPtr := uint32(100)
+			stackPtr := Word(100)
 
 			goVm, state, contracts := setup(t, i, nil)
 			mttestutil.InitializeSingleThread(i*333, state, c.traverseRight)
@@ -517,7 +517,7 @@ func TestEVM_SysGetTID(t *testing.T) {
 	var tracer *tracing.Hooks
 	cases := []struct {
 		name     string
-		threadId uint32
+		threadId Word
 	}{
 		{"zero", 0},
 		{"non-zero", 11},
@@ -573,8 +573,8 @@ func TestEVM_SysExit(t *testing.T) {
 			mttestutil.SetupThreads(int64(i*1111), state, i%2 == 0, c.threadCount, 0)
 
 			state.Memory.SetMemory(state.GetPC(), syscallInsn)
-			state.GetRegistersRef()[2] = exec.SysExit     // Set syscall number
-			state.GetRegistersRef()[4] = uint32(exitCode) // The first argument (exit code)
+			state.GetRegistersRef()[2] = exec.SysExit   // Set syscall number
+			state.GetRegistersRef()[4] = Word(exitCode) // The first argument (exit code)
 			step := state.Step
 
 			// Set up expectations
@@ -657,11 +657,11 @@ func TestEVM_SysFutex_WaitPrivate(t *testing.T) {
 	var tracer *tracing.Hooks
 	cases := []struct {
 		name             string
-		addressParam     uint32
-		effAddr          uint32
-		targetValue      uint32
-		actualValue      uint32
-		timeout          uint32
+		addressParam     Word
+		effAddr          Word
+		targetValue      Word
+		actualValue      Word
+		timeout          Word
 		shouldFail       bool
 		shouldSetTimeout bool
 	}{
@@ -724,8 +724,8 @@ func TestEVM_SysFutex_WakePrivate(t *testing.T) {
 	var tracer *tracing.Hooks
 	cases := []struct {
 		name                string
-		addressParam        uint32
-		effAddr             uint32
+		addressParam        Word
+		effAddr             Word
 		activeThreadCount   int
 		inactiveThreadCount int
 		traverseRight       bool
@@ -975,7 +975,7 @@ func TestEVM_SysClockGettimeRealtime(t *testing.T) {
 	testEVM_SysClockGettime(t, exec.ClockGettimeRealtimeFlag)
 }
 
-func testEVM_SysClockGettime(t *testing.T, clkid uint32) {
+func testEVM_SysClockGettime(t *testing.T, clkid Word) {
 	var tracer *tracing.Hooks
 
 	llVariations := []struct {
@@ -999,7 +999,7 @@ func testEVM_SysClockGettime(t *testing.T, clkid uint32) {
 
 	cases := []struct {
 		name         string
-		timespecAddr uint32
+		timespecAddr Word
 	}{
 		{"aligned timespec address", 0x1000},
 		{"unaligned timespec address", 0x1003},
@@ -1015,7 +1015,7 @@ func testEVM_SysClockGettime(t *testing.T, clkid uint32) {
 				step := state.Step
 
 				// Define LL-related params
-				var llAddress, llOwnerThread uint32
+				var llAddress, llOwnerThread Word
 				if v.matchEffAddr {
 					llAddress = effAddr
 				} else if v.matchEffAddr2 {
@@ -1042,10 +1042,10 @@ func testEVM_SysClockGettime(t *testing.T, clkid uint32) {
 				expected.ActiveThread().Registers[2] = 0
 				expected.ActiveThread().Registers[7] = 0
 				next := state.Step + 1
-				var secs, nsecs uint32
+				var secs, nsecs Word
 				if clkid == exec.ClockGettimeMonotonicFlag {
-					secs = uint32(next / exec.HZ)
-					nsecs = uint32((next % exec.HZ) * (1_000_000_000 / exec.HZ))
+					secs = Word(next / exec.HZ)
+					nsecs = Word((next % exec.HZ) * (1_000_000_000 / exec.HZ))
 				}
 				expected.ExpectMemoryWrite(effAddr, secs)
 				expected.ExpectMemoryWrite(effAddr2, nsecs)
@@ -1072,7 +1072,7 @@ func TestEVM_SysClockGettimeNonMonotonic(t *testing.T) {
 	var tracer *tracing.Hooks
 	goVm, state, contracts := setup(t, 2101, nil)
 
-	timespecAddr := uint32(0x1000)
+	timespecAddr := Word(0x1000)
 	state.Memory.SetMemory(state.GetPC(), syscallInsn)
 	state.GetRegistersRef()[2] = exec.SysClockGetTime // Set syscall number
 	state.GetRegistersRef()[4] = 0xDEAD               // a0 - invalid clockid
@@ -1197,9 +1197,9 @@ func TestEVM_NormalTraversalStep_HandleWaitingThread(t *testing.T) {
 		step            uint64
 		activeStackSize int
 		otherStackSize  int
-		futexAddr       uint32
-		targetValue     uint32
-		actualValue     uint32
+		futexAddr       Word
+		targetValue     Word
+		actualValue     Word
 		timeoutStep     uint64
 		shouldWakeup    bool
 		shouldTimeout   bool
