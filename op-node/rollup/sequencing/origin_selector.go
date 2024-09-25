@@ -92,8 +92,11 @@ func (los *L1OriginSelector) FindL1Origin(ctx context.Context, l2Head eth.L2Bloc
 	log.Warn("Next L2 block time is past the sequencer drift + current origin time")
 
 	if nextOrigin == (eth.L1BlockRef{}) {
+		fetchCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+
 		// If the next origin is not set, we need to fetch it now.
-		nextOrigin, err = los.fetch(ctx, currentOrigin.Number+1)
+		nextOrigin, err = los.fetch(fetchCtx, currentOrigin.Number+1)
 		if err != nil {
 			return eth.L1BlockRef{}, fmt.Errorf("cannot build next L2 block past current L1 origin %s by more than sequencer time drift, and failed to find next L1 origin: %w", currentOrigin, err)
 		}
@@ -146,18 +149,23 @@ func (los *L1OriginSelector) maybeSetNextOrigin(nextOrigin eth.L1BlockRef) {
 }
 
 func (los *L1OriginSelector) onForkchoiceUpdate(unsafeL2Head eth.L2BlockRef) {
-	currentOrigin, nextOrigin, err := los.CurrentAndNextOrigin(los.ctx, unsafeL2Head)
+	// Only allow a relatively small window for fetching the next origin, as this is performed
+	// on a best-effort basis.
+	ctx, cancel := context.WithTimeout(los.ctx, 500*time.Millisecond)
+	defer cancel()
+
+	currentOrigin, nextOrigin, err := los.CurrentAndNextOrigin(ctx, unsafeL2Head)
 	if err != nil {
 		log.Error("Failed to get current and next L1 origin on forkchoice update", "err", err)
 		return
 	}
 
-	los.tryFetchNextOrigin(currentOrigin, nextOrigin)
+	los.tryFetchNextOrigin(ctx, currentOrigin, nextOrigin)
 }
 
 // tryFetchNextOrigin schedules a fetch for the next L1 origin block if it is not already set.
 // This method always closes the channel, even if the next origin is already set.
-func (los *L1OriginSelector) tryFetchNextOrigin(currentOrigin, nextOrigin eth.L1BlockRef) {
+func (los *L1OriginSelector) tryFetchNextOrigin(ctx context.Context, currentOrigin, nextOrigin eth.L1BlockRef) {
 	// If the next origin is already set, we don't need to do anything.
 	if nextOrigin != (eth.L1BlockRef{}) {
 		return
@@ -168,7 +176,7 @@ func (los *L1OriginSelector) tryFetchNextOrigin(currentOrigin, nextOrigin eth.L1
 		return
 	}
 
-	if _, err := los.fetch(los.ctx, currentOrigin.Number+1); err != nil {
+	if _, err := los.fetch(ctx, currentOrigin.Number+1); err != nil {
 		if errors.Is(err, ethereum.NotFound) {
 			log.Debug("No next potential L1 origin found")
 		} else {
@@ -178,13 +186,10 @@ func (los *L1OriginSelector) tryFetchNextOrigin(currentOrigin, nextOrigin eth.L1
 }
 
 func (los *L1OriginSelector) fetch(ctx context.Context, number uint64) (eth.L1BlockRef, error) {
-	fetchCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-
 	// Attempt to find the next L1 origin block, where the next origin is the immediate child of
 	// the current origin block.
 	// The L1 source can be shimmed to hide new L1 blocks and enforce a sequencer confirmation distance.
-	nextOrigin, err := los.l1.L1BlockRefByNumber(fetchCtx, number)
+	nextOrigin, err := los.l1.L1BlockRefByNumber(ctx, number)
 	if err != nil {
 		return eth.L1BlockRef{}, err
 	}
