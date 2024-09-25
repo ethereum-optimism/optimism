@@ -30,4 +30,6 @@ interface ISuperchainWETH {
     function transferFrom(address src, address dst, uint256 wad) external returns (bool);
     function version() external view returns (string memory);
     function withdraw(uint256 wad) external;
+
+    function __constructor__() external;
 }

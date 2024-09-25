@@ -82,4 +82,6 @@ interface IOptimismPortal {
     function superchainConfig() external view returns (ISuperchainConfig);
     function systemConfig() external view returns (ISystemConfig);
     function version() external pure returns (string memory);
+
+    function __constructor__() external;
 }

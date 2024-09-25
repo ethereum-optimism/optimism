@@ -23,6 +23,7 @@ import { LibStateDiff } from "scripts/libraries/LibStateDiff.sol";
 import { Process } from "scripts/libraries/Process.sol";
 import { ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
 import { ChainAssertions } from "scripts/deploy/ChainAssertions.sol";
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Contracts
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
@@ -41,6 +42,7 @@ import { Constants } from "src/libraries/Constants.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Types } from "scripts/libraries/Types.sol";
 import "src/dispute/lib/Types.sol";
+import { LibClaim, Duration } from "src/dispute/lib/LibUDT.sol";
 
 // Interfaces
 import { IOptimismPortal } from "src/L1/interfaces/IOptimismPortal.sol";
@@ -51,6 +53,7 @@ import { IL1CrossDomainMessenger } from "src/L1/interfaces/IL1CrossDomainMesseng
 import { IL2OutputOracle } from "src/L1/interfaces/IL2OutputOracle.sol";
 import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
 import { ISystemConfig } from "src/L1/interfaces/ISystemConfig.sol";
+import { ISystemConfigInterop } from "src/L1/interfaces/ISystemConfigInterop.sol";
 import { IDataAvailabilityChallenge } from "src/L1/interfaces/IDataAvailabilityChallenge.sol";
 import { IL1ERC721Bridge } from "src/L1/interfaces/IL1ERC721Bridge.sol";
 import { IL1StandardBridge } from "src/L1/interfaces/IL1StandardBridge.sol";
@@ -58,6 +61,8 @@ import { IProtocolVersions, ProtocolVersion } from "src/L1/interfaces/IProtocolV
 import { IBigStepper } from "src/dispute/interfaces/IBigStepper.sol";
 import { IDisputeGameFactory } from "src/dispute/interfaces/IDisputeGameFactory.sol";
 import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
+import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
+import { IPermissionedDisputeGame } from "src/dispute/interfaces/IPermissionedDisputeGame.sol";
 import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistry.sol";
 import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
@@ -665,7 +670,14 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the SuperchainConfig contract
     function deploySuperchainConfig() public broadcast {
-        ISuperchainConfig superchainConfig = ISuperchainConfig(_deploy("SuperchainConfig", hex""));
+        ISuperchainConfig superchainConfig = ISuperchainConfig(
+            DeployUtils.create2AndSave({
+                _save: this,
+                _salt: _implSalt(),
+                _name: "SuperchainConfig",
+                _args: abi.encodeCall(ISuperchainConfig.__constructor__, ())
+            })
+        );
 
         require(superchainConfig.guardian() == address(0));
         bytes32 initialized = vm.load(address(superchainConfig), bytes32(0));
@@ -674,7 +686,14 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the L1CrossDomainMessenger
     function deployL1CrossDomainMessenger() public broadcast returns (address addr_) {
-        IL1CrossDomainMessenger messenger = IL1CrossDomainMessenger(_deploy("L1CrossDomainMessenger", hex""));
+        IL1CrossDomainMessenger messenger = IL1CrossDomainMessenger(
+            DeployUtils.create2AndSave({
+                _save: this,
+                _salt: _implSalt(),
+                _name: "L1CrossDomainMessenger",
+                _args: abi.encodeCall(IL1CrossDomainMessenger.__constructor__, ())
+            })
+        );
 
         // Override the `L1CrossDomainMessenger` contract to the deployed implementation. This is necessary
         // to check the `L1CrossDomainMessenger` implementation alongside dependent contracts, which
@@ -692,7 +711,12 @@ contract Deploy is Deployer {
             console.log("Attempting to deploy OptimismPortal with interop, this config is a noop");
         }
 
-        addr_ = _deploy("OptimismPortal", hex"");
+        addr_ = DeployUtils.create2AndSave({
+            _save: this,
+            _salt: _implSalt(),
+            _name: "OptimismPortal",
+            _args: abi.encodeCall(IOptimismPortal.__constructor__, ())
+        });
 
         // Override the `OptimismPortal` contract to the deployed implementation. This is necessary
         // to check the `OptimismPortal` implementation alongside dependent contracts, which
@@ -710,15 +734,30 @@ contract Deploy is Deployer {
         );
 
         if (cfg.useInterop()) {
-            addr_ = _deploy(
-                "OptimismPortalInterop",
-                abi.encode(cfg.proofMaturityDelaySeconds(), cfg.disputeGameFinalityDelaySeconds())
-            );
+            addr_ = DeployUtils.create2AndSave({
+                _save: this,
+                _salt: _implSalt(),
+                _name: "OptimismPortalInterop",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(
+                        IOptimismPortalInterop.__constructor__,
+                        (cfg.proofMaturityDelaySeconds(), cfg.disputeGameFinalityDelaySeconds())
+                    )
+                )
+            });
             save("OptimismPortal2", addr_);
         } else {
-            addr_ = _deploy(
-                "OptimismPortal2", abi.encode(cfg.proofMaturityDelaySeconds(), cfg.disputeGameFinalityDelaySeconds())
-            );
+            addr_ = DeployUtils.create2AndSave({
+                _save: this,
+                _salt: _implSalt(),
+                _name: "OptimismPortal2",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(
+                        IOptimismPortal2.__constructor__,
+                        (cfg.proofMaturityDelaySeconds(), cfg.disputeGameFinalityDelaySeconds())
+                    )
+                )
+            });
         }
 
         // Override the `OptimismPortal2` contract to the deployed implementation. This is necessary
@@ -731,7 +770,14 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the L2OutputOracle
     function deployL2OutputOracle() public broadcast returns (address addr_) {
-        IL2OutputOracle oracle = IL2OutputOracle(_deploy("L2OutputOracle", hex""));
+        IL2OutputOracle oracle = IL2OutputOracle(
+            DeployUtils.create2AndSave({
+                _save: this,
+                _salt: _implSalt(),
+                _name: "L2OutputOracle",
+                _args: abi.encodeCall(IL2OutputOracle.__constructor__, ())
+            })
+        );
 
         // Override the `L2OutputOracle` contract to the deployed implementation. This is necessary
         // to check the `L2OutputOracle` implementation alongside dependent contracts, which
@@ -750,8 +796,14 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the OptimismMintableERC20Factory
     function deployOptimismMintableERC20Factory() public broadcast returns (address addr_) {
-        IOptimismMintableERC20Factory factory =
-            IOptimismMintableERC20Factory(_deploy("OptimismMintableERC20Factory", hex""));
+        IOptimismMintableERC20Factory factory = IOptimismMintableERC20Factory(
+            DeployUtils.create2AndSave({
+                _save: this,
+                _salt: _implSalt(),
+                _name: "OptimismMintableERC20Factory",
+                _args: abi.encodeCall(IOptimismMintableERC20Factory.__constructor__, ())
+            })
+        );
 
         // Override the `OptimismMintableERC20Factory` contract to the deployed implementation. This is necessary
         // to check the `OptimismMintableERC20Factory` implementation alongside dependent contracts, which
@@ -765,7 +817,14 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the DisputeGameFactory
     function deployDisputeGameFactory() public broadcast returns (address addr_) {
-        IDisputeGameFactory factory = IDisputeGameFactory(_deploy("DisputeGameFactory", hex""));
+        IDisputeGameFactory factory = IDisputeGameFactory(
+            DeployUtils.create2AndSave({
+                _save: this,
+                _salt: _implSalt(),
+                _name: "DisputeGameFactory",
+                _args: abi.encodeCall(IDisputeGameFactory.__constructor__, ())
+            })
+        );
 
         // Override the `DisputeGameFactory` contract to the deployed implementation. This is necessary to check the
         // `DisputeGameFactory` implementation alongside dependent contracts, which are always proxies.
@@ -777,7 +836,16 @@ contract Deploy is Deployer {
     }
 
     function deployDelayedWETH() public broadcast returns (address addr_) {
-        IDelayedWETH weth = IDelayedWETH(payable(_deploy("DelayedWETH", abi.encode(cfg.faultGameWithdrawalDelay()))));
+        IDelayedWETH weth = IDelayedWETH(
+            DeployUtils.create2AndSave({
+                _save: this,
+                _salt: _implSalt(),
+                _name: "DelayedWETH",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(IDelayedWETH.__constructor__, (cfg.faultGameWithdrawalDelay()))
+                )
+            })
+        );
 
         // Override the `DelayedWETH` contract to the deployed implementation. This is necessary
         // to check the `DelayedWETH` implementation alongside dependent contracts, which are
@@ -796,7 +864,14 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the ProtocolVersions
     function deployProtocolVersions() public broadcast returns (address addr_) {
-        IProtocolVersions versions = IProtocolVersions(_deploy("ProtocolVersions", hex""));
+        IProtocolVersions versions = IProtocolVersions(
+            DeployUtils.create2AndSave({
+                _save: this,
+                _salt: _implSalt(),
+                _name: "ProtocolVersions",
+                _args: abi.encodeCall(IProtocolVersions.__constructor__, ())
+            })
+        );
 
         // Override the `ProtocolVersions` contract to the deployed implementation. This is necessary
         // to check the `ProtocolVersions` implementation alongside dependent contracts, which
@@ -849,8 +924,19 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the AnchorStateRegistry
     function deployAnchorStateRegistry() public broadcast returns (address addr_) {
-        IAnchorStateRegistry anchorStateRegistry =
-            IAnchorStateRegistry(_deploy("AnchorStateRegistry", abi.encode(mustGetAddress("DisputeGameFactoryProxy"))));
+        IAnchorStateRegistry anchorStateRegistry = IAnchorStateRegistry(
+            DeployUtils.create2AndSave({
+                _save: this,
+                _salt: _implSalt(),
+                _name: "AnchorStateRegistry",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(
+                        IAnchorStateRegistry.__constructor__,
+                        (IDisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy")))
+                    )
+                )
+            })
+        );
 
         addr_ = address(anchorStateRegistry);
     }
@@ -858,10 +944,20 @@ contract Deploy is Deployer {
     /// @notice Deploy the SystemConfig
     function deploySystemConfig() public broadcast returns (address addr_) {
         if (cfg.useInterop()) {
-            addr_ = _deploy("SystemConfigInterop", hex"");
+            addr_ = DeployUtils.create2AndSave({
+                _save: this,
+                _salt: _implSalt(),
+                _name: "SystemConfigInterop",
+                _args: abi.encodeCall(ISystemConfigInterop.__constructor__, ())
+            });
             save("SystemConfig", addr_);
         } else {
-            addr_ = _deploy("SystemConfig", hex"");
+            addr_ = DeployUtils.create2AndSave({
+                _save: this,
+                _salt: _implSalt(),
+                _name: "SystemConfig",
+                _args: abi.encodeCall(ISystemConfig.__constructor__, ())
+            });
         }
 
         // Override the `SystemConfig` contract to the deployed implementation. This is necessary
@@ -874,7 +970,14 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the L1StandardBridge
     function deployL1StandardBridge() public broadcast returns (address addr_) {
-        IL1StandardBridge bridge = IL1StandardBridge(payable(_deploy("L1StandardBridge", hex"")));
+        IL1StandardBridge bridge = IL1StandardBridge(
+            DeployUtils.create2AndSave({
+                _save: this,
+                _salt: _implSalt(),
+                _name: "L1StandardBridge",
+                _args: abi.encodeCall(IL1StandardBridge.__constructor__, ())
+            })
+        );
 
         // Override the `L1StandardBridge` contract to the deployed implementation. This is necessary
         // to check the `L1StandardBridge` implementation alongside dependent contracts, which
@@ -888,7 +991,14 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the L1ERC721Bridge
     function deployL1ERC721Bridge() public broadcast returns (address addr_) {
-        IL1ERC721Bridge bridge = IL1ERC721Bridge(_deploy("L1ERC721Bridge", hex""));
+        IL1ERC721Bridge bridge = IL1ERC721Bridge(
+            DeployUtils.create2AndSave({
+                _save: this,
+                _salt: _implSalt(),
+                _name: "L1ERC721Bridge",
+                _args: abi.encodeCall(IL1ERC721Bridge.__constructor__, ())
+            })
+        );
 
         // Override the `L1ERC721Bridge` contract to the deployed implementation. This is necessary
         // to check the `L1ERC721Bridge` implementation alongside dependent contracts, which
@@ -917,8 +1027,14 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the DataAvailabilityChallenge
     function deployDataAvailabilityChallenge() public broadcast returns (address addr_) {
-        IDataAvailabilityChallenge dac =
-            IDataAvailabilityChallenge(payable(_deploy("DataAvailabilityChallenge", hex"")));
+        IDataAvailabilityChallenge dac = IDataAvailabilityChallenge(
+            DeployUtils.create2AndSave({
+                _save: this,
+                _salt: _implSalt(),
+                _name: "DataAvailabilityChallenge",
+                _args: abi.encodeCall(IDataAvailabilityChallenge.__constructor__, ())
+            })
+        );
         addr_ = address(dac);
     }
 
@@ -1578,49 +1694,66 @@ contract Deploy is Deployer {
         }
 
         uint32 rawGameType = GameType.unwrap(_params.gameType);
+
+        // Redefine _param variable to avoid stack too deep error during compilation
+        FaultDisputeGameParams memory _params_ = _params;
         if (rawGameType != GameTypes.PERMISSIONED_CANNON.raw()) {
             _factory.setImplementation(
-                _params.gameType,
+                _params_.gameType,
                 IDisputeGame(
-                    _deploy(
-                        "FaultDisputeGame",
-                        string.concat("FaultDisputeGame_", vm.toString(rawGameType)),
-                        abi.encode(
-                            _params.gameType,
-                            _params.absolutePrestate,
-                            _params.maxGameDepth,
-                            cfg.faultGameSplitDepth(),
-                            cfg.faultGameClockExtension(),
-                            _params.maxClockDuration,
-                            _params.faultVm,
-                            _params.weth,
-                            IAnchorStateRegistry(mustGetAddress("AnchorStateRegistryProxy")),
-                            cfg.l2ChainID()
+                    DeployUtils.create2AndSave({
+                        _save: this,
+                        _salt: _implSalt(),
+                        _name: "FaultDisputeGame",
+                        _nick: string.concat("FaultDisputeGame_", vm.toString(rawGameType)),
+                        _args: DeployUtils.encodeConstructor(
+                            abi.encodeCall(
+                                IFaultDisputeGame.__constructor__,
+                                (
+                                    _params_.gameType,
+                                    _params_.absolutePrestate,
+                                    _params_.maxGameDepth,
+                                    cfg.faultGameSplitDepth(),
+                                    Duration.wrap(uint64(cfg.faultGameClockExtension())),
+                                    _params_.maxClockDuration,
+                                    _params_.faultVm,
+                                    _params_.weth,
+                                    IAnchorStateRegistry(mustGetAddress("AnchorStateRegistryProxy")),
+                                    cfg.l2ChainID()
+                                )
+                            )
                         )
-                    )
+                    })
                 )
             );
         } else {
             _factory.setImplementation(
-                _params.gameType,
+                _params_.gameType,
                 IDisputeGame(
-                    _deploy(
-                        "PermissionedDisputeGame",
-                        abi.encode(
-                            _params.gameType,
-                            _params.absolutePrestate,
-                            _params.maxGameDepth,
-                            cfg.faultGameSplitDepth(),
-                            cfg.faultGameClockExtension(),
-                            _params.maxClockDuration,
-                            _params.faultVm,
-                            _params.weth,
-                            _params.anchorStateRegistry,
-                            cfg.l2ChainID(),
-                            cfg.l2OutputOracleProposer(),
-                            cfg.l2OutputOracleChallenger()
+                    DeployUtils.create2AndSave({
+                        _save: this,
+                        _salt: _implSalt(),
+                        _name: "PermissionedDisputeGame",
+                        _args: DeployUtils.encodeConstructor(
+                            abi.encodeCall(
+                                IPermissionedDisputeGame.__constructor__,
+                                (
+                                    _params_.gameType,
+                                    _params_.absolutePrestate,
+                                    _params_.maxGameDepth,
+                                    cfg.faultGameSplitDepth(),
+                                    Duration.wrap(uint64(cfg.faultGameClockExtension())),
+                                    _params_.maxClockDuration,
+                                    _params_.faultVm,
+                                    _params_.weth,
+                                    _params_.anchorStateRegistry,
+                                    cfg.l2ChainID(),
+                                    cfg.l2OutputOracleProposer(),
+                                    cfg.l2OutputOracleChallenger()
+                                )
+                            )
                         )
-                    )
+                    })
                 )
             );
         }
@@ -1673,37 +1806,5 @@ contract Deploy is Deployer {
         require(dac.resolveWindow() == daResolveWindow);
         require(dac.bondSize() == daBondSize);
         require(dac.resolverRefundPercentage() == daResolverRefundPercentage);
-    }
-
-    /// @notice Deploys a contract via CREATE2.
-    /// @param _name The name of the contract.
-    /// @param _constructorParams The constructor parameters.
-    function _deploy(string memory _name, bytes memory _constructorParams) internal returns (address addr_) {
-        return _deploy(_name, _name, _constructorParams);
-    }
-
-    /// @notice Deploys a contract via CREATE2.
-    /// @param _name The name of the contract.
-    /// @param _nickname The nickname of the contract.
-    /// @param _constructorParams The constructor parameters.
-    function _deploy(
-        string memory _name,
-        string memory _nickname,
-        bytes memory _constructorParams
-    )
-        internal
-        returns (address addr_)
-    {
-        console.log("Deploying %s", _nickname);
-        bytes32 salt = _implSalt();
-        bytes memory initCode = abi.encodePacked(vm.getCode(_name), _constructorParams);
-        address preComputedAddress = vm.computeCreate2Address(salt, keccak256(initCode));
-        require(preComputedAddress.code.length == 0, "Deploy: contract already deployed");
-        assembly {
-            addr_ := create2(0, add(initCode, 0x20), mload(initCode), salt)
-        }
-        require(addr_ != address(0), "deployment failed");
-        save(_nickname, addr_);
-        console.log("%s deployed at %s", _nickname, addr_);
     }
 }

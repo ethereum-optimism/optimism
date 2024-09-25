@@ -18,4 +18,6 @@ interface IL1CrossDomainMessenger is ICrossDomainMessenger {
     function superchainConfig() external view returns (address);
     function systemConfig() external view returns (address);
     function version() external view returns (string memory);
+
+    function __constructor__() external;
 }
