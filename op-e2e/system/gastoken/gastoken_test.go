@@ -2,7 +2,6 @@ package gastoken
 
 import (
 	"context"
-	"fmt"
 	"math/big"
 	"testing"
 	"time"
@@ -440,34 +439,6 @@ func TestCustomGasToken(t *testing.T) {
 	checkFeeWithdrawal(t, enabled)
 }
 
-// callViaSafe will use the Safe smart account at safeAddress to send a transaction to target using the provided data. The transaction signature is constructed from
-// the supplied opts.
-func callViaSafe(opts *bind.TransactOpts, client *ethclient.Client, safeAddress common.Address, target common.Address, data []byte) (*types.Transaction, error) {
-	signature := [65]byte{}
-	copy(signature[12:], opts.From[:])
-	signature[64] = uint8(1)
-
-	safe, err := bindings.NewSafe(safeAddress, client)
-	if err != nil {
-		return nil, err
-	}
-
-	owners, err := safe.GetOwners(&bind.CallOpts{})
-	if err != nil {
-		return nil, err
-	}
-
-	isOwner, err := safe.IsOwner(&bind.CallOpts{}, opts.From)
-	if err != nil {
-		return nil, err
-	}
-	if !isOwner {
-		return nil, fmt.Errorf("address %s is not in owners list %s", opts.From, owners)
-	}
-
-	return safe.ExecTransaction(opts, target, big.NewInt(0), data, 0, big.NewInt(0), big.NewInt(0), big.NewInt(0), common.Address{}, common.Address{}, signature[:])
-}
-
 // setCustomGasToeken enables the Custom Gas Token feature on a chain where it wasn't enabled at genesis.
 // It reads existing parameters from the SystemConfig contract, inserts the supplied cgtAddress and reinitializes that contract.
 // To do this it uses the ProxyAdmin and StorageSetter from the supplied cfg.
@@ -518,27 +489,18 @@ func setCustomGasToken(t *testing.T, cfg e2esys.SystemConfig, sys *e2esys.System
 	proxyAdmin, err := bindings.NewProxyAdmin(cfg.L1Deployments.ProxyAdmin, l1Client)
 	require.NoError(t, err)
 
-	// Compute Proxy Admin Owner (this is a SAFE with 1 owner)
-	proxyAdminOwner, err := proxyAdmin.Owner(&bind.CallOpts{})
-	require.NoError(t, err)
-
 	// Deploy a new StorageSetter contract
 	storageSetterAddr, tx, _, err := bindings.DeployStorageSetter(deployerOpts, l1Client)
 	waitForTx(t, tx, err, l1Client)
 
-	// Set up a signer which controls the Proxy Admin Owner SAFE
-	safeOwnerOpts, err := bind.NewKeyedTransactorWithChainID(cfg.Secrets.Deployer, cfg.L1ChainIDBig())
+	// Set up a signer which controls the Proxy Admin.
+	// The deploy config's finalSystemOwner is the owner of the ProxyAdmin as well as the SystemConfig,
+	// so we can use that address for the proxy admin owner.
+	proxyAdminOwnerOpts, err := bind.NewKeyedTransactorWithChainID(cfg.Secrets.SysCfgOwner, cfg.L1ChainIDBig())
 	require.NoError(t, err)
 
-	// Encode calldata for upgrading SystemConfigProxy to the StorageSetter implementation
-	proxyAdminABI, err := bindings.ProxyAdminMetaData.GetAbi()
-	require.NoError(t, err)
-	encodedUpgradeCall, err := proxyAdminABI.Pack("upgrade",
-		cfg.L1Deployments.SystemConfigProxy, storageSetterAddr)
-	require.NoError(t, err)
-
-	// Execute the upgrade SystemConfigProxy -> StorageSetter
-	tx, err = callViaSafe(safeOwnerOpts, l1Client, proxyAdminOwner, cfg.L1Deployments.ProxyAdmin, encodedUpgradeCall)
+	// Execute the upgrade SystemConfigProxy -> StorageSetter via ProxyAdmin
+	tx, err = proxyAdmin.Upgrade(proxyAdminOwnerOpts, cfg.L1Deployments.SystemConfigProxy, storageSetterAddr)
 	waitForTx(t, tx, err, l1Client)
 
 	// Bind a StorageSetter to the SystemConfigProxy address
@@ -554,13 +516,8 @@ func setCustomGasToken(t *testing.T, cfg e2esys.SystemConfig, sys *e2esys.System
 	require.NoError(t, err)
 	require.Equal(t, currentSlotValue, [32]byte{0})
 
-	// Prepare calldata for SystemConfigProxy -> SystemConfig upgrade
-	encodedUpgradeCall, err = proxyAdminABI.Pack("upgrade",
-		cfg.L1Deployments.SystemConfigProxy, cfg.L1Deployments.SystemConfig)
-	require.NoError(t, err)
-
 	// Execute SystemConfigProxy -> SystemConfig upgrade
-	tx, err = callViaSafe(safeOwnerOpts, l1Client, proxyAdminOwner, cfg.L1Deployments.ProxyAdmin, encodedUpgradeCall)
+	tx, err = proxyAdmin.Upgrade(proxyAdminOwnerOpts, cfg.L1Deployments.SystemConfigProxy, cfg.L1Deployments.SystemConfig)
 	waitForTx(t, tx, err, l1Client)
 
 	// Reinitialise with existing initializer values but with custom gas token set

@@ -29,7 +29,7 @@ contract DisputeGameFactory_Init is CommonTest {
         fakeClone = new FakeClone();
 
         // Transfer ownership of the factory to the test contract.
-        vm.prank(deploy.mustGetAddress("SystemOwnerSafe"));
+        vm.prank(disputeGameFactory.owner());
         disputeGameFactory.transferOwnership(address(this));
     }
 }
