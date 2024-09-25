@@ -60,6 +60,8 @@ fuzz:
 
 .PHONY: \
 	cannon \
+	cannon-impl \
+	cannon-embeds \
 	clean \
 	test \
 	lint \
