@@ -191,8 +191,9 @@ contract Deploy is Deployer {
     ////////////////////////////////////////////////////////////////
 
     /// @notice Transfer ownership of the ProxyAdmin contract to the final system owner
-    function transferProxyAdminOwnership() public broadcast {
-        IProxyAdmin proxyAdmin = IProxyAdmin(mustGetAddress("ProxyAdmin"));
+    function transferProxyAdminOwnership(bool _isSuperchain) public broadcast {
+        string memory proxyAdminName = _isSuperchain ? "SuperchainProxyAdmin" : "ProxyAdmin";
+        IProxyAdmin proxyAdmin = IProxyAdmin(mustGetAddress(proxyAdminName));
         address owner = proxyAdmin.owner();
 
         address finalSystemOwner = cfg.finalSystemOwner();
@@ -200,17 +201,6 @@ contract Deploy is Deployer {
             proxyAdmin.transferOwnership(finalSystemOwner);
             console.log("ProxyAdmin ownership transferred to final system owner at: %s", finalSystemOwner);
         }
-    }
-
-    /// @notice Transfer ownership of a Proxy to the ProxyAdmin contract
-    ///         This is expected to be used in conjusting with deployERC1967ProxyWithOwner after setup actions
-    ///         have been performed on the proxy.
-    /// @param _name The name of the proxy to transfer ownership of.
-    function transferProxyToProxyAdmin(string memory _name) public broadcast {
-        IProxy proxy = IProxy(mustGetAddress(_name));
-        address proxyAdmin = mustGetAddress("ProxyAdmin");
-        proxy.changeAdmin(proxyAdmin);
-        console.log("Proxy %s ownership transferred to ProxyAdmin at: %s", _name, proxyAdmin);
     }
 
     ////////////////////////////////////////////////////////////////
@@ -276,12 +266,8 @@ contract Deploy is Deployer {
     function _run(bool _needsSuperchain) internal {
         console.log("start of L1 Deploy!");
 
-        // Deploy a new ProxyAdmin and AddressManager
-        // This proxy will be used on the SuperchainConfig and ProtocolVersions contracts, as well as the contracts
-        // in the OP Chain system.
-        setupAdmin();
-
         if (_needsSuperchain) {
+            deployProxyAdmin({ _isSuperchain: true });
             setupSuperchain();
             console.log("set up superchain!");
         }
@@ -293,6 +279,8 @@ contract Deploy is Deployer {
                 setupOpAltDA();
             }
         }
+
+        setupOpChainAdmin();
         setupOpChain();
         console.log("set up op chain!");
     }
@@ -302,9 +290,9 @@ contract Deploy is Deployer {
     ////////////////////////////////////////////////////////////////
 
     /// @notice Deploy the address manager and proxy admin contracts.
-    function setupAdmin() public {
+    function setupOpChainAdmin() public {
         deployAddressManager();
-        deployProxyAdmin();
+        deployProxyAdmin({ _isSuperchain: false });
     }
 
     /// @notice Deploy a full system with a new SuperchainConfig
@@ -315,12 +303,12 @@ contract Deploy is Deployer {
         console.log("Setting up Superchain");
 
         // Deploy the SuperchainConfigProxy
-        deployERC1967Proxy("SuperchainConfigProxy");
+        deployERC1967ProxyWithOwner("SuperchainConfigProxy", mustGetAddress("SupechainProxyAdmin"));
         deploySuperchainConfig();
         initializeSuperchainConfig();
 
         // Deploy the ProtocolVersionsProxy
-        deployERC1967Proxy("ProtocolVersionsProxy");
+        deployERC1967ProxyWithOwner("ProtocolVersionsProxy", mustGetAddress("SupechainProxyAdmin"));
         deployProtocolVersions();
         initializeProtocolVersions();
     }
@@ -346,7 +334,7 @@ contract Deploy is Deployer {
 
         transferDisputeGameFactoryOwnership();
         transferDelayedWETHOwnership();
-        transferProxyAdminOwnership();
+        transferProxyAdminOwnership({ _isSuperchain: false });
     }
 
     /// @notice Deploy all of the OP Chain specific contracts
@@ -441,15 +429,11 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy the ProxyAdmin
-    function deployProxyAdmin() public broadcast returns (address addr_) {
-        IProxyAdmin admin = IProxyAdmin(
-            DeployUtils.create2AndSave({
-                _save: this,
-                _salt: _implSalt(),
-                _name: "ProxyAdmin",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IProxyAdmin.__constructor__, (msg.sender)))
-            })
-        );
+    function deployProxyAdmin(bool _isSuperchain) public broadcast returns (address addr_) {
+        string memory proxyAdminName = _isSuperchain ? "SuperchainProxyAdmin" : "ProxyAdmin";
+
+        console.log("Deploying %s", proxyAdminName);
+        IProxyAdmin admin = new IProxyAdmin{ salt: _implSalt() }({ _owner: msg.sender });
         require(admin.owner() == msg.sender);
 
         IAddressManager addressManager = IAddressManager(mustGetAddress("AddressManager"));
@@ -458,6 +442,9 @@ contract Deploy is Deployer {
         }
 
         require(admin.addressManager() == addressManager);
+
+        save(proxyAdminName, address(admin));
+        console.log("%s deployed at %s", proxyAdminName, address(admin));
         addr_ = address(admin);
     }
 
@@ -933,7 +920,7 @@ contract Deploy is Deployer {
         address payable superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
         address payable superchainConfig = mustGetAddress("SuperchainConfig");
 
-        IProxyAdmin proxyAdmin = IProxyAdmin(payable(mustGetAddress("ProxyAdmin")));
+        IProxyAdmin proxyAdmin = IProxyAdmin(payable(mustGetAddress("SupechainProxyAdmin")));
         proxyAdmin.upgradeAndCall({
             _proxy: superchainConfigProxy,
             _implementation: superchainConfig,
@@ -1345,7 +1332,7 @@ contract Deploy is Deployer {
         uint256 requiredProtocolVersion = cfg.requiredProtocolVersion();
         uint256 recommendedProtocolVersion = cfg.recommendedProtocolVersion();
 
-        IProxyAdmin proxyAdmin = IProxyAdmin(payable(mustGetAddress("ProxyAdmin")));
+        IProxyAdmin proxyAdmin = IProxyAdmin(payable(mustGetAddress("SupechainProxyAdmin")));
         proxyAdmin.upgradeAndCall({
             _proxy: payable(protocolVersionsProxy),
             _implementation: protocolVersions,
