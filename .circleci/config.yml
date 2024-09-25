@@ -1065,6 +1065,9 @@ jobs:
           name: Restore cannon prestate cache
           key: cannon-prestate-{{ checksum "./cannon/bin/cannon" }}-{{ checksum "op-program/bin/op-program-client.elf" }}
       - run:
+          name: Sanitize op-program guest
+          command: make -f cannon/Makefile sanitize-program GUEST_PROGRAM=op-program/bin/op-program-client.elf
+      - run:
           name: generate cannon prestate
           command: make cannon-prestate
       - save_cache:
@@ -1686,6 +1689,12 @@ workflows:
             - op-e2e-fault-proof-tests
             - op-e2e-action-tests
             - op-e2e-action-tests-altda
+            # Not needed for the devnet but we want to make sure they build successfully
+            - cannon-docker-build
+            - op-dispute-mon-docker-build
+            - op-program-docker-build
+            - op-supervisor-docker-build
+            - proofs-tools-docker-build
       - docker-build:
           name: <<matrix.docker_name>>-docker-build
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
@@ -1704,6 +1713,7 @@ workflows:
                 - da-server
                 - op-supervisor
                 - op-deployer
+                - cannon
       - cannon-prestate:
           requires:
             - go-mod-download
@@ -1747,7 +1757,7 @@ workflows:
           type: approval
           filters:
             tags:
-              only: /^(da-server|ci-builder(-rust)?|proofs-tools|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
+              only: /^(da-server|ci-builder(-rust)?|proofs-tools|cannon|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
       # Standard (medium) cross-platform docker images go here
@@ -1765,6 +1775,7 @@ workflows:
                 - op-ufm
                 - op-supervisor
                 - op-deployer
+                - cannon
           name: <<matrix.docker_name>>-docker-release
           docker_tags: <<pipeline.git.revision>>
           platforms: "linux/amd64,linux/arm64"
@@ -1794,6 +1805,7 @@ workflows:
                 - op-ufm
                 - op-supervisor
                 - op-deployer
+                - cannon
           name: <<matrix.op_component>>-cross-platform
           requires:
             - op-node-docker-release
@@ -1806,6 +1818,7 @@ workflows:
             - op-ufm-docker-release
             - op-supervisor-docker-release
             - op-deployer-docker-release
+            - cannon-docker-release
       # Standard (xlarge) AMD-only docker images go here
       - docker-build:
           matrix:
@@ -1935,6 +1948,7 @@ workflows:
                 - op-dispute-mon
                 - op-conductor
                 - op-supervisor
+                - cannon
           name: <<matrix.docker_name>>-docker-publish
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           platforms: "linux/amd64,linux/arm64"
@@ -1954,6 +1968,7 @@ workflows:
                 - op-dispute-mon
                 - op-conductor
                 - op-supervisor
+                - cannon
           name: <<matrix.op_component>>-cross-platform
           requires:
             - <<matrix.op_component>>-docker-publish

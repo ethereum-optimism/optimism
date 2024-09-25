@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opsm"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
@@ -47,8 +47,8 @@ func GenerateL2Genesis(ctx context.Context, env *Env, artifactsFS foundry.StatDi
 			Client:      env.L1Client,
 			Broadcaster: DiscardBroadcaster,
 			Handler: func(host *script.Host) error {
-				err := opsm.L2Genesis(host, &opsm.L2GenesisInput{
-					L1Deployments: opsm.L1Deployments{
+				err := opcm.L2Genesis(host, &opcm.L2GenesisInput{
+					L1Deployments: opcm.L1Deployments{
 						L1CrossDomainMessengerProxy: thisChainState.L1CrossDomainMessengerProxyAddress,
 						L1StandardBridgeProxy:       thisChainState.L1StandardBridgeProxyAddress,
 						L1ERC721BridgeProxy:         thisChainState.L1ERC721BridgeProxyAddress,

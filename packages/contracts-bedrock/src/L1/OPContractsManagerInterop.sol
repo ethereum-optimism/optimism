@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { OPStackManager } from "src/L1/OPStackManager.sol";
+import { OPContractsManager } from "src/L1/OPContractsManager.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
@@ -9,12 +9,12 @@ import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { SystemConfigInterop } from "src/L1/SystemConfigInterop.sol";
 
 /// @custom:proxied true
-contract OPStackManagerInterop is OPStackManager {
+contract OPContractsManagerInterop is OPContractsManager {
     constructor(
         SuperchainConfig _superchainConfig,
         ProtocolVersions _protocolVersions
     )
-        OPStackManager(_superchainConfig, _protocolVersions)
+        OPContractsManager(_superchainConfig, _protocolVersions)
     { }
 
     // The `SystemConfigInterop` contract has an extra `address _dependencyManager` argument

@@ -3,10 +3,11 @@ package db
 import (
 	"errors"
 
+	"github.com/ethereum/go-ethereum/common"
+
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/heads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
-	backendTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -21,7 +22,7 @@ const (
 type SafetyChecker interface {
 	LocalHeadForChain(chainID types.ChainID) entrydb.EntryIdx
 	CrossHeadForChain(chainID types.ChainID) entrydb.EntryIdx
-	Check(chain types.ChainID, blockNum uint64, logIdx uint32, logHash backendTypes.TruncatedHash) bool
+	Check(chain types.ChainID, blockNum uint64, logIdx uint32, logHash common.Hash) bool
 	Update(chain types.ChainID, index entrydb.EntryIdx) heads.OperationFn
 	Name() string
 	SafetyLevel() types.SafetyLevel
@@ -129,7 +130,7 @@ func check(
 	chain types.ChainID,
 	blockNum uint64,
 	logIdx uint32,
-	logHash backendTypes.TruncatedHash) bool {
+	logHash common.Hash) bool {
 
 	// for the Check to be valid, the log must:
 	// exist at the blockNum and logIdx
@@ -150,13 +151,13 @@ func check(
 
 // Check checks if the log entry is safe, provided a local head for the chain
 // it passes on the local head this checker is concerned with, along with its view of the database
-func (c *unsafeChecker) Check(chain types.ChainID, blockNum uint64, logIdx uint32, logHash backendTypes.TruncatedHash) bool {
+func (c *unsafeChecker) Check(chain types.ChainID, blockNum uint64, logIdx uint32, logHash common.Hash) bool {
 	return check(c.chainsDB, c.LocalHeadForChain(chain), chain, blockNum, logIdx, logHash)
 }
-func (c *safeChecker) Check(chain types.ChainID, blockNum uint64, logIdx uint32, logHash backendTypes.TruncatedHash) bool {
+func (c *safeChecker) Check(chain types.ChainID, blockNum uint64, logIdx uint32, logHash common.Hash) bool {
 	return check(c.chainsDB, c.LocalHeadForChain(chain), chain, blockNum, logIdx, logHash)
 }
-func (c *finalizedChecker) Check(chain types.ChainID, blockNum uint64, logIdx uint32, logHash backendTypes.TruncatedHash) bool {
+func (c *finalizedChecker) Check(chain types.ChainID, blockNum uint64, logIdx uint32, logHash common.Hash) bool {
 	return check(c.chainsDB, c.LocalHeadForChain(chain), chain, blockNum, logIdx, logHash)
 }
 

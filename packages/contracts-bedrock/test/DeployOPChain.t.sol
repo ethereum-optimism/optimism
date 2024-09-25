@@ -23,7 +23,7 @@ import { PermissionedDisputeGame } from "src/dispute/PermissionedDisputeGame.sol
 
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { ProtocolVersions, ProtocolVersion } from "src/L1/ProtocolVersions.sol";
-import { OPStackManager } from "src/L1/OPStackManager.sol";
+import { OPContractsManager } from "src/L1/OPContractsManager.sol";
 import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
@@ -46,7 +46,7 @@ contract DeployOPChainInput_Test is Test {
     uint32 basefeeScalar = 100;
     uint32 blobBaseFeeScalar = 200;
     uint256 l2ChainId = 300;
-    OPStackManager opsm = OPStackManager(makeAddr("opsm"));
+    OPContractsManager opcm = OPContractsManager(makeAddr("opcm"));
 
     function setUp() public {
         doi = new DeployOPChainInput();
@@ -62,7 +62,7 @@ contract DeployOPChainInput_Test is Test {
         doi.set(doi.basefeeScalar.selector, basefeeScalar);
         doi.set(doi.blobBaseFeeScalar.selector, blobBaseFeeScalar);
         doi.set(doi.l2ChainId.selector, l2ChainId);
-        doi.set(doi.opsmProxy.selector, address(opsm));
+        doi.set(doi.opcmProxy.selector, address(opcm));
         // Compare the default inputs to the getter methods.
         assertEq(opChainProxyAdminOwner, doi.opChainProxyAdminOwner(), "200");
         assertEq(systemConfigOwner, doi.systemConfigOwner(), "300");
@@ -73,7 +73,7 @@ contract DeployOPChainInput_Test is Test {
         assertEq(basefeeScalar, doi.basefeeScalar(), "800");
         assertEq(blobBaseFeeScalar, doi.blobBaseFeeScalar(), "900");
         assertEq(l2ChainId, doi.l2ChainId(), "1000");
-        assertEq(address(opsm), address(doi.opsmProxy()), "1100");
+        assertEq(address(opcm), address(doi.opcmProxy()), "1100");
     }
 
     function test_getters_whenNotSet_revert() public {
@@ -323,12 +323,12 @@ contract DeployOPChain_TestBase is Test {
     uint256 challengePeriodSeconds = 300;
     uint256 proofMaturityDelaySeconds = 400;
     uint256 disputeGameFinalityDelaySeconds = 500;
-    string release = "op-contracts/latest";
+    string release = "dev-release"; // this means implementation contracts will be deployed
     SuperchainConfig superchainConfigProxy;
     ProtocolVersions protocolVersionsProxy;
 
     // Define default inputs for DeployOPChain.
-    // `opsm` is set during `setUp` since it is an output of the previous step.
+    // `opcm` is set during `setUp` since it is an output of the previous step.
     address opChainProxyAdminOwner = makeAddr("defaultOPChainProxyAdminOwner");
     address systemConfigOwner = makeAddr("defaultSystemConfigOwner");
     address batcher = makeAddr("defaultBatcher");
@@ -339,7 +339,7 @@ contract DeployOPChain_TestBase is Test {
     uint32 blobBaseFeeScalar = 200;
     uint256 l2ChainId = 300;
     AnchorStateRegistry.StartingAnchorRoot[] startingAnchorRoots;
-    OPStackManager opsm = OPStackManager(address(0));
+    OPContractsManager opcm = OPContractsManager(address(0));
 
     function setUp() public virtual {
         // Set defaults for reference types
@@ -361,9 +361,10 @@ contract DeployOPChain_TestBase is Test {
             })
         );
 
-        // Initialize deploy scripts.
+        // Configure and deploy Superchain contracts
         DeploySuperchain deploySuperchain = new DeploySuperchain();
         (DeploySuperchainInput dsi, DeploySuperchainOutput dso) = deploySuperchain.etchIOContracts();
+
         dsi.set(dsi.proxyAdminOwner.selector, proxyAdminOwner);
         dsi.set(dsi.protocolVersionsOwner.selector, protocolVersionsOwner);
         dsi.set(dsi.guardian.selector, guardian);
@@ -371,20 +372,16 @@ contract DeployOPChain_TestBase is Test {
         dsi.set(dsi.requiredProtocolVersion.selector, requiredProtocolVersion);
         dsi.set(dsi.recommendedProtocolVersion.selector, recommendedProtocolVersion);
 
-        DeployImplementations deployImplementations = createDeployImplementationsContract();
-        (DeployImplementationsInput dii, DeployImplementationsOutput dio) = deployImplementations.etchIOContracts();
-
-        deployOPChain = new DeployOPChain();
-        (doi, doo) = deployOPChain.etchIOContracts();
-
-        // Deploy the superchain contracts.
         deploySuperchain.run(dsi, dso);
 
         // Populate the inputs for DeployImplementations based on the output of DeploySuperchain.
         superchainConfigProxy = dso.superchainConfigProxy();
         protocolVersionsProxy = dso.protocolVersionsProxy();
 
-        // Deploy the implementations.
+        // Configure and deploy Implementation contracts
+        DeployImplementations deployImplementations = createDeployImplementationsContract();
+        (DeployImplementationsInput dii, DeployImplementationsOutput dio) = deployImplementations.etchIOContracts();
+
         dii.set(dii.withdrawalDelaySeconds.selector, withdrawalDelaySeconds);
         dii.set(dii.minProposalSizeBytes.selector, minProposalSizeBytes);
         dii.set(dii.challengePeriodSeconds.selector, challengePeriodSeconds);
@@ -393,10 +390,19 @@ contract DeployOPChain_TestBase is Test {
         dii.set(dii.release.selector, release);
         dii.set(dii.superchainConfigProxy.selector, address(superchainConfigProxy));
         dii.set(dii.protocolVersionsProxy.selector, address(protocolVersionsProxy));
+        // End users of the DeployImplementations contract will need to set the `standardVersionsToml`.
+        string memory standardVersionsTomlPath =
+            string.concat(vm.projectRoot(), "/test/fixtures/standard-versions.toml");
+        string memory standardVersionsToml = vm.readFile(standardVersionsTomlPath);
+        dii.set(dii.standardVersionsToml.selector, standardVersionsToml);
         deployImplementations.run(dii, dio);
 
-        // Set the OPStackManager input for DeployOPChain.
-        opsm = dio.opsmProxy();
+        // Deploy DeployOpChain, but defer populating the input values to the test suites inheriting this contract.
+        deployOPChain = new DeployOPChain();
+        (doi, doo) = deployOPChain.etchIOContracts();
+
+        // Set the OPContractsManager input for DeployOPChain.
+        opcm = dio.opcmProxy();
     }
 
     // See the function of the same name in the `DeployImplementations_Test` contract of
@@ -450,11 +456,11 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         doi.set(doi.basefeeScalar.selector, basefeeScalar);
         doi.set(doi.blobBaseFeeScalar.selector, blobBaseFeeScalar);
         doi.set(doi.l2ChainId.selector, l2ChainId);
-        doi.set(doi.opsmProxy.selector, address(opsm)); // Not fuzzed since it must be an actual instance.
+        doi.set(doi.opcmProxy.selector, address(opcm)); // Not fuzzed since it must be an actual instance.
 
         deployOPChain.run(doi, doo);
 
-        // TODO Add fault proof contract assertions below once OPSM fully supports them.
+        // TODO Add fault proof contract assertions below once OPCM fully supports them.
 
         // Assert that individual input fields were properly set based on the inputs.
         assertEq(opChainProxyAdminOwner, doi.opChainProxyAdminOwner(), "100");
@@ -473,10 +479,14 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         address batcherActual = address(uint160(uint256(doo.systemConfigProxy().batcherHash())));
         assertEq(batcherActual, batcher, "2300");
         assertEq(address(doo.systemConfigProxy().unsafeBlockSigner()), unsafeBlockSigner, "2400");
-        // assertEq(address(...proposer()), proposer, "2500"); // TODO once we deploy dispute games.
-        // assertEq(address(...challenger()), challenger, "2600"); // TODO once we deploy dispute games.
+        assertEq(address(doo.permissionedDisputeGame().proposer()), proposer, "2500");
+        assertEq(address(doo.permissionedDisputeGame().challenger()), challenger, "2600");
 
-        // Most architecture assertions are handled within the OP Stack Manager itself and therefore
+        // TODO once we deploy the Permissionless Dispute Game
+        // assertEq(address(doo.faultDisputeGame().proposer()), proposer, "2700");
+        // assertEq(address(doo.faultDisputeGame().challenger()), challenger, "2800");
+
+        // Most architecture assertions are handled within the OP Contracts Manager itself and therefore
         // we only assert on the things that are not visible onchain.
         // TODO add these assertions: AddressManager, Proxy, ProxyAdmin, etc.
     }

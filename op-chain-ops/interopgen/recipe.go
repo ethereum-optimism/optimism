@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/params"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 )
@@ -61,12 +62,13 @@ func (r *InteropDevRecipe) Build(addrs devkeys.Addresses) (*WorldConfig, error) 
 	l1Cfg.Prefund[superchainDeployer] = Ether(10_000_000)
 	l1Cfg.Prefund[superchainProxyAdmin] = Ether(10_000_000)
 	l1Cfg.Prefund[superchainConfigGuardian] = Ether(10_000_000)
+
 	superchainCfg := &SuperchainConfig{
 		ProxyAdminOwner:       superchainProxyAdmin,
 		ProtocolVersionsOwner: superchainProtocolVersionsOwner,
 		Deployer:              superchainDeployer,
-		Implementations: OPSMImplementationsConfig{
-			Release: "op-contracts/0.0.1",
+		Implementations: OPCMImplementationsConfig{
+			Release: "dev",
 			FaultProof: SuperFaultProofConfig{
 				WithdrawalDelaySeconds:          big.NewInt(604800),
 				MinProposalSizeBytes:            big.NewInt(10000),
@@ -74,7 +76,8 @@ func (r *InteropDevRecipe) Build(addrs devkeys.Addresses) (*WorldConfig, error) 
 				ProofMaturityDelaySeconds:       big.NewInt(12),
 				DisputeGameFinalityDelaySeconds: big.NewInt(6),
 			},
-			UseInterop: true,
+			UseInterop:           true,
+			StandardVersionsToml: opcm.StandardVersionsData,
 		},
 		SuperchainL1DeployConfig: genesis.SuperchainL1DeployConfig{
 			RequiredProtocolVersion:    params.OPStackSupport,

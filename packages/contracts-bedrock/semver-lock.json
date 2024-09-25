@@ -31,9 +31,9 @@
     "initCodeHash": "0x433fac9de52d8ce8fc3471b78ef6cc9cff1019f480c9ad91b6e09ab8738a8edb",
     "sourceCodeHash": "0xde4df0f9633dc0cdb1c9f634003ea5b0f7c5c1aebc407bc1b2f44c0ecf938649"
   },
-  "src/L1/OPStackManager.sol": {
-    "initCodeHash": "0x4bffecbd95e63f9bd04ab8e3c6a804cc25e0cd151ebeb7f8d6b9330332e6eb20",
-    "sourceCodeHash": "0x850f1eacc77f1a5c680625196618bc4b4332cb68924d9eddd57c749bedcd7c94"
+  "src/L1/OPContractsManager.sol": {
+    "initCodeHash": "0x92c72b75206e756742df25d67d295e4479e65db1473948b8f53cb4ca642025d5",
+    "sourceCodeHash": "0x5e04124ee67298d2f1245139baf7de79dee421d2c031c6e5abe0cd3b1bdbdb32"
   },
   "src/L1/OptimismPortal.sol": {
     "initCodeHash": "0xbe2c0c81b3459014f287d8c89cdc0d27dde5d1f44e5d024fa1e4773ddc47c190",
@@ -68,8 +68,8 @@
     "sourceCodeHash": "0x2dc2284cf7c68e743da50e4113e96ffeab435de2390aeba2eab2f1e8ca411ce9"
   },
   "src/L2/CrossL2Inbox.sol": {
-    "initCodeHash": "0x79c5deb404605b42ef917b5e7308a9015dacfb71225d957a634e6d0a3a5bc621",
-    "sourceCodeHash": "0xd219408d99f627770dfcdb3243a183dec7429372787f0aec3bdbff5b3c294f2a"
+    "initCodeHash": "0x0ee27866b4bf864a0b68ab25ea9559d7f2722b0396d02f2e8e089c6a1a5a6a93",
+    "sourceCodeHash": "0xe6f453049035e0d77e4d7a92904b448bc17e04dd3d99e738b9af20e20986ce64"
   },
   "src/L2/ETHLiquidity.sol": {
     "initCodeHash": "0x713c18f95a6a746d0703f475f3ae10c106c9b9ecb64d881a2e61b8969b581371",
@@ -144,8 +144,8 @@
     "sourceCodeHash": "0xba4674e1846afbbc708877332a38dfabd4b8d1e48ce07d8ebf0a45c9f27f16b0"
   },
   "src/cannon/MIPS2.sol": {
-    "initCodeHash": "0xd9da47f735b7a655a25ae0e867b467620a2cb537eb65d184a361f5ea4174d384",
-    "sourceCodeHash": "0x3a6d83a7d46eb267f6778f8ae116383fe3c14ad553d90b6c761fafeef22ae29c"
+    "initCodeHash": "0x67fb4107e25561ffcb3a9b6653f695e125773408d626a92036ea4b0814797021",
+    "sourceCodeHash": "0x5f4851e04dc9369552c94fb23aee8e8ca4ea9a9602917f0abb3b5f1347460bd5"
   },
   "src/cannon/PreimageOracle.sol": {
     "initCodeHash": "0x801e52f9c8439fcf7089575fa93272dfb874641dbfc7d82f36d979c987271c0b",

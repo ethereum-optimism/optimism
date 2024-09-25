@@ -1,13 +1,14 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
-	"syscall"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 )
@@ -19,7 +20,7 @@ var vmFS embed.FS
 
 const baseDir = "embeds"
 
-func ExecuteCannon(args []string, ver versions.StateVersion) error {
+func ExecuteCannon(ctx context.Context, args []string, ver versions.StateVersion) error {
 	if !slices.Contains(versions.StateVersionTypes, ver) {
 		return errors.New("unsupported version")
 	}
@@ -41,15 +42,24 @@ func ExecuteCannon(args []string, ver versions.StateVersion) error {
 		os.Exit(1)
 	}
 
-	execArgs := append([]string{cannonProgramName}, args...)
-
-	// nosemgrep: go.lang.security.audit.dangerous-syscall-exec.dangerous-syscall-exec
-	if err := syscall.Exec(cannonProgramPath, execArgs, os.Environ()); err != nil {
-		fmt.Fprintf(os.Stderr, "Error executing %s: %v\n", cannonProgramName, err)
-		os.Exit(1)
+	// nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command
+	cmd := exec.CommandContext(ctx, cannonProgramPath, args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err = cmd.Start()
+	if err != nil {
+		return fmt.Errorf("unable to launch cannon-impl program: %w", err)
 	}
-
-	panic("unreachable")
+	if err := cmd.Wait(); err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			// relay exit code to the parent process
+			os.Exit(exitErr.ExitCode())
+		} else {
+			return fmt.Errorf("failed to wait for cannon-impl program: %w", err)
+		}
+	}
+	return nil
 }
 
 func extractTempFile(name string, data []byte) (string, error) {

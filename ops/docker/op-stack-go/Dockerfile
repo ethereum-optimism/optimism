@@ -46,18 +46,15 @@ ARG TARGETARCH
 # Build the Go services, utilizing caches and share the many common packages.
 # The "id" defaults to the value of "target", the cache will thus be reused during this build.
 # "sharing" defaults to "shared", the cache will thus be available to other concurrent docker builds.
-FROM --platform=$BUILDPLATFORM builder AS cannon-builder-0
-ARG PREV_CANNON_VERSION=v1.0.0-alpha.1
-# used to checkout older cannon tags
-COPY --from=builder /app/.git /app/.git
-RUN git checkout cannon/$PREV_CANNON_VERSION
-RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build cd cannon && make cannon  \
-  GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$PREV_CANNON_VERSION"
+
+# For now fetch the v1 cannon binary from the op-challenger image
+#FROM --platform=$BUILDPLATFORM us-docker.pkg.dev/oplabs-tools-artifacts/images/op-challenger:v1.1.0 AS cannon-builder-0
 
 FROM --platform=$BUILDPLATFORM builder AS cannon-builder
-ARG CANNON_VERSION=v1.1.0
-COPY --from=cannon-builder-0 /app/cannon/bin/cannon ./cannon/multicannon/embeds/cannon-0
-COPY --from=cannon-builder-0 /app/cannon/bin/cannon ./cannon/multicannon/embeds/cannon-1
+ARG CANNON_VERSION=v0.0.0
+# uncomment these lines once there's a new Cannon version available
+#COPY --from=cannon-builder-0 /usr/local/bin/cannon ./cannon/multicannon/embeds/cannon-0
+#COPY --from=cannon-builder-0 /usr/local/bin/cannon ./cannon/multicannon/embeds/cannon-1
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build cd cannon && make cannon  \
   GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$CANNON_VERSION"
 
@@ -118,6 +115,7 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
 
 FROM --platform=$TARGETPLATFORM $TARGET_BASE_IMAGE AS cannon-target
 COPY --from=cannon-builder /app/cannon/bin/cannon /usr/local/bin/
+COPY --from=cannon-builder /app/cannon/multicannon/embeds/* /usr/local/bin/
 CMD ["cannon"]
 
 FROM --platform=$TARGETPLATFORM $TARGET_BASE_IMAGE AS op-program-target

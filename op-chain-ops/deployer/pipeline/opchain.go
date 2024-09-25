@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opsm"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
@@ -27,7 +27,7 @@ func DeployOPChain(ctx context.Context, env *Env, artifactsFS foundry.StatDirFs,
 		return fmt.Errorf("failed to get chain intent: %w", err)
 	}
 
-	var dco opsm.DeployOPChainOutput
+	var dco opcm.DeployOPChainOutput
 	err = CallScriptBroadcast(
 		ctx,
 		CallScriptBroadcastOpts{
@@ -40,9 +40,9 @@ func DeployOPChain(ctx context.Context, env *Env, artifactsFS foundry.StatDirFs,
 			Broadcaster: KeyedBroadcaster,
 			Handler: func(host *script.Host) error {
 				host.ImportState(st.ImplementationsDeployment.StateDump)
-				dco, err = opsm.DeployOPChain(
+				dco, err = opcm.DeployOPChain(
 					host,
-					opsm.DeployOPChainInput{
+					opcm.DeployOPChainInput{
 						OpChainProxyAdminOwner: thisIntent.Roles.ProxyAdminOwner,
 						SystemConfigOwner:      thisIntent.Roles.SystemConfigOwner,
 						Batcher:                thisIntent.Roles.Batcher,
@@ -52,7 +52,7 @@ func DeployOPChain(ctx context.Context, env *Env, artifactsFS foundry.StatDirFs,
 						BasefeeScalar:          1368,
 						BlobBaseFeeScalar:      801949,
 						L2ChainId:              chainID.Big(),
-						OpsmProxy:              st.ImplementationsDeployment.OpsmProxyAddress,
+						OpcmProxy:              st.ImplementationsDeployment.OpcmProxyAddress,
 					},
 				)
 				return err

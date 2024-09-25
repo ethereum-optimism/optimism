@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 
@@ -11,9 +12,30 @@ import (
 )
 
 func List(ctx *cli.Context) error {
-	entries, err := vmFS.ReadDir(baseDir)
+	return list()
+}
+
+func list() error {
+	fmt.Println("Available cannon versions:")
+	artifacts, err := getArtifacts()
 	if err != nil {
 		return err
+	}
+	for _, art := range artifacts {
+		if art.isValid() {
+			fmt.Printf("filename: %s\tversion: %s (%d)\n", art.filename, versions.StateVersion(art.ver), art.ver)
+		} else {
+			fmt.Printf("filename: %s\tversion: %s\n", art.filename, "unknown")
+		}
+	}
+	return nil
+}
+
+func getArtifacts() ([]artifact, error) {
+	var ret []artifact
+	entries, err := vmFS.ReadDir(baseDir)
+	if err != nil {
+		return nil, err
 	}
 	for _, entry := range entries {
 		filename := entry.Name()
@@ -26,12 +48,21 @@ func List(ctx *cli.Context) error {
 		}
 		ver, err := strconv.ParseUint(toks[1], 10, 8)
 		if err != nil {
-			fmt.Printf("filename: %s\tversion: %s (%d)\n", entry.Name(), "unknown", ver)
+			ret = append(ret, artifact{filename, math.MaxUint64})
 			continue
 		}
-		fmt.Printf("filename: %s\tversion: %s\n", entry.Name(), versions.StateVersion(ver))
+		ret = append(ret, artifact{filename, ver})
 	}
-	return nil
+	return ret, nil
+}
+
+type artifact struct {
+	filename string
+	ver      uint64
+}
+
+func (a artifact) isValid() bool {
+	return a.ver != math.MaxUint64
 }
 
 var ListCommand = &cli.Command{

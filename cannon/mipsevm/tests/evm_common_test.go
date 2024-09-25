@@ -116,7 +116,7 @@ func TestEVM(t *testing.T) {
 	}
 }
 
-func TestEVMSingleStep(t *testing.T) {
+func TestEVMSingleStep_Jump(t *testing.T) {
 	var tracer *tracing.Hooks
 
 	versions := GetMipsVersionTestCases(t)
@@ -150,6 +150,69 @@ func TestEVMSingleStep(t *testing.T) {
 				expected.NextPC = tt.expectNextPC
 				if tt.expectLink {
 					expected.Registers[31] = state.GetPC() + 8
+				}
+
+				stepWitness, err := goVm.Step(true)
+				require.NoError(t, err)
+
+				// Check expectations
+				expected.Validate(t, state)
+				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, tracer)
+			})
+		}
+	}
+}
+
+func TestEVMSingleStep_Add(t *testing.T) {
+	var tracer *tracing.Hooks
+
+	versions := GetMipsVersionTestCases(t)
+	cases := []struct {
+		name      string
+		insn      uint32
+		ifImm     bool
+		rs        uint32
+		rt        uint32
+		imm       uint16
+		expectRD  uint32
+		expectImm uint32
+	}{
+		{name: "add", insn: 0x02_32_40_20, ifImm: false, rs: uint32(12), rt: uint32(20), expectRD: uint32(32)},                         // add t0, s1, s2
+		{name: "addu", insn: 0x02_32_40_21, ifImm: false, rs: uint32(12), rt: uint32(20), expectRD: uint32(32)},                        // addu t0, s1, s2
+		{name: "addi", insn: 0x22_28_00_28, ifImm: true, rs: uint32(4), rt: uint32(1), imm: uint16(40), expectImm: uint32(44)},         // addi t0, s1, 40
+		{name: "addi sign", insn: 0x22_28_ff_fe, ifImm: true, rs: uint32(2), rt: uint32(1), imm: uint16(0xfffe), expectImm: uint32(0)}, // addi t0, s1, -2
+		{name: "addiu", insn: 0x26_28_00_28, ifImm: true, rs: uint32(4), rt: uint32(1), imm: uint16(40), expectImm: uint32(44)},        // addiu t0, s1, 40
+	}
+
+	for _, v := range versions {
+		for i, tt := range cases {
+			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
+			t.Run(testName, func(t *testing.T) {
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPC(0), testutil.WithNextPC(4))
+				state := goVm.GetState()
+				if tt.ifImm {
+					state.GetRegistersRef()[8] = tt.rt
+					state.GetRegistersRef()[17] = tt.rs
+				} else {
+					state.GetRegistersRef()[17] = tt.rs
+					state.GetRegistersRef()[18] = tt.rt
+				}
+				state.GetMemory().SetMemory(0, tt.insn)
+				step := state.GetStep()
+
+				// Setup expectations
+				expected := testutil.NewExpectedState(state)
+				expected.Step += 1
+				expected.PC = 4
+				expected.NextPC = 8
+
+				if tt.ifImm {
+					expected.Registers[8] = tt.expectImm
+					expected.Registers[17] = tt.rs
+				} else {
+					expected.Registers[8] = tt.expectRD
+					expected.Registers[17] = tt.rs
+					expected.Registers[18] = tt.rt
 				}
 
 				stepWitness, err := goVm.Step(true)
