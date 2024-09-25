@@ -220,7 +220,41 @@ func makeIntent(
 	st := &state.State{
 		Version: 1,
 	}
-	return intent, st
+
+	require.NoError(t, deployer.ApplyPipeline(
+		ctx,
+		env,
+		intent,
+		st,
+	))
+
+	addrs := []struct {
+		name string
+		addr common.Address
+	}{
+		{"SuperchainProxyAdmin", st.SuperchainDeployment.ProxyAdminAddress},
+		{"SuperchainConfigProxy", st.SuperchainDeployment.SuperchainConfigProxyAddress},
+		{"SuperchainConfigImpl", st.SuperchainDeployment.SuperchainConfigImplAddress},
+		{"ProtocolVersionsProxy", st.SuperchainDeployment.ProtocolVersionsProxyAddress},
+		{"ProtocolVersionsImpl", st.SuperchainDeployment.ProtocolVersionsImplAddress},
+		{"OpcmProxy", st.ImplementationsDeployment.OpcmProxyAddress},
+		{"DelayedWETHImpl", st.ImplementationsDeployment.DelayedWETHImplAddress},
+		{"OptimismPortalImpl", st.ImplementationsDeployment.OptimismPortalImplAddress},
+		{"PreimageOracleSingleton", st.ImplementationsDeployment.PreimageOracleSingletonAddress},
+		{"MipsSingleton", st.ImplementationsDeployment.MipsSingletonAddress},
+		{"SystemConfigImpl", st.ImplementationsDeployment.SystemConfigImplAddress},
+		{"L1CrossDomainMessengerImpl", st.ImplementationsDeployment.L1CrossDomainMessengerImplAddress},
+		{"L1ERC721BridgeImpl", st.ImplementationsDeployment.L1ERC721BridgeImplAddress},
+		{"L1StandardBridgeImpl", st.ImplementationsDeployment.L1StandardBridgeImplAddress},
+		{"OptimismMintableERC20FactoryImpl", st.ImplementationsDeployment.OptimismMintableERC20FactoryImplAddress},
+		{"DisputeGameFactoryImpl", st.ImplementationsDeployment.DisputeGameFactoryImplAddress},
+	}
+	for _, addr := range addrs {
+		t.Run(addr.name, func(t *testing.T) {
+			code, err := l1Client.CodeAt(ctx, addr.addr, nil)
+			require.NoError(t, err)
+			require.NotEmpty(t, code, "contracts %s at %s has no code", addr.name, addr.addr)
+		})
 }
 
 func validateOPChainDeployment(t *testing.T, ctx context.Context, l1Client *ethclient.Client, st *state.State) {

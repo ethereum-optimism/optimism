@@ -1,4 +1,4 @@
-package opsm
+package opcm
 
 import "embed"
 

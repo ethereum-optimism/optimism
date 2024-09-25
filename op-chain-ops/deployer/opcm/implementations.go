@@ -1,4 +1,4 @@
-package opsm
+package opcm
 
 import (
 	"fmt"
@@ -16,7 +16,7 @@ type DeployImplementationsInput struct {
 	ChallengePeriodSeconds          *big.Int
 	ProofMaturityDelaySeconds       *big.Int
 	DisputeGameFinalityDelaySeconds *big.Int
-	// Release version to set OPSM implementations for, of the format `op-contracts/vX.Y.Z`.
+	// Release version to set OPCM implementations for, of the format `op-contracts/vX.Y.Z`.
 	Release               string
 	SuperchainConfigProxy common.Address
 	ProtocolVersionsProxy common.Address
@@ -31,8 +31,8 @@ func (input *DeployImplementationsInput) InputSet() bool {
 }
 
 type DeployImplementationsOutput struct {
-	OpsmProxy                        common.Address
-	OpsmImpl                         common.Address
+	OpcmProxy                        common.Address
+	OpcmImpl                         common.Address
 	DelayedWETHImpl                  common.Address
 	OptimismPortalImpl               common.Address
 	PreimageOracleSingleton          common.Address
@@ -84,12 +84,12 @@ func DeployImplementations(
 	}
 	defer cleanupDeploy()
 
-	opsmContract := "OPStackManager"
+	opcmContract := "OPContractsManager"
 	if input.UseInterop {
-		opsmContract = "OPStackManagerInterop"
+		opcmContract = "OPContractsManagerInterop"
 	}
-	if err := host.RememberOnLabel("OPStackManager", opsmContract+".sol", opsmContract); err != nil {
-		return output, fmt.Errorf("failed to link OPStackManager label: %w", err)
+	if err := host.RememberOnLabel("OPContractsManager", opcmContract+".sol", opcmContract); err != nil {
+		return output, fmt.Errorf("failed to link OPContractsManager label: %w", err)
 	}
 
 	// So we can see in detail where the SystemConfig interop initializer fails

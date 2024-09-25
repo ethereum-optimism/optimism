@@ -496,26 +496,30 @@ func Run(ctx *cli.Context) error {
 	return nil
 }
 
-var RunCommand = &cli.Command{
-	Name:        "run",
-	Usage:       "Run VM step(s) and generate proof data to replicate onchain.",
-	Description: "Run VM step(s) and generate proof data to replicate onchain. See flags to match when to output a proof, a snapshot, or to stop early.",
-	Action:      Run,
-	Flags: []cli.Flag{
-		RunInputFlag,
-		RunOutputFlag,
-		RunProofAtFlag,
-		RunProofFmtFlag,
-		RunSnapshotAtFlag,
-		RunSnapshotFmtFlag,
-		RunStopAtFlag,
-		RunStopAtPreimageFlag,
-		RunStopAtPreimageTypeFlag,
-		RunStopAtPreimageLargerThanFlag,
-		RunMetaFlag,
-		RunInfoAtFlag,
-		RunPProfCPU,
-		RunDebugFlag,
-		RunDebugInfoFlag,
-	},
+func CreateRunCommand(action cli.ActionFunc) *cli.Command {
+	return &cli.Command{
+		Name:        "run",
+		Usage:       "Run VM step(s) and generate proof data to replicate onchain.",
+		Description: "Run VM step(s) and generate proof data to replicate onchain. See flags to match when to output a proof, a snapshot, or to stop early.",
+		Action:      action,
+		Flags: []cli.Flag{
+			RunInputFlag,
+			RunOutputFlag,
+			RunProofAtFlag,
+			RunProofFmtFlag,
+			RunSnapshotAtFlag,
+			RunSnapshotFmtFlag,
+			RunStopAtFlag,
+			RunStopAtPreimageFlag,
+			RunStopAtPreimageTypeFlag,
+			RunStopAtPreimageLargerThanFlag,
+			RunMetaFlag,
+			RunInfoAtFlag,
+			RunPProfCPU,
+			RunDebugFlag,
+			RunDebugInfoFlag,
+		},
+	}
 }
+
+var RunCommand = CreateRunCommand(Run)

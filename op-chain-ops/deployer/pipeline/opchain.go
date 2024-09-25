@@ -7,7 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/broadcaster"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opsm"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opczm"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
@@ -29,7 +29,7 @@ func DeployOPChain(ctx context.Context, env *Env, artifactsFS foundry.StatDirFs,
 		return fmt.Errorf("failed to get chain intent: %w", err)
 	}
 
-	input := opsm.DeployOPChainInput{
+	input := opcm.DeployOPChainInput{
 		OpChainProxyAdminOwner: thisIntent.Roles.ProxyAdminOwner,
 		SystemConfigOwner:      thisIntent.Roles.SystemConfigOwner,
 		Batcher:                thisIntent.Roles.Batcher,
@@ -39,10 +39,10 @@ func DeployOPChain(ctx context.Context, env *Env, artifactsFS foundry.StatDirFs,
 		BasefeeScalar:          1368,
 		BlobBaseFeeScalar:      801949,
 		L2ChainId:              chainID.Big(),
-		OpsmProxy:              st.ImplementationsDeployment.OpsmProxyAddress,
+		OpcmProxy:              st.ImplementationsDeployment.OpcmProxyAddress,
 	}
 
-	var dco opsm.DeployOPChainOutput
+	var dco opcm.DeployOPChainOutput
 	if intent.OPSMAddress == (common.Address{}) {
 		err = CallScriptBroadcast(
 			ctx,
@@ -57,7 +57,7 @@ func DeployOPChain(ctx context.Context, env *Env, artifactsFS foundry.StatDirFs,
 				Handler: func(host *script.Host) error {
 					host.ImportState(st.ImplementationsDeployment.StateDump)
 
-					dco, err = opsm.DeployOPChain(
+					dco, err = opcm.DeployOPChain(
 						host,
 						input,
 					)
@@ -69,7 +69,7 @@ func DeployOPChain(ctx context.Context, env *Env, artifactsFS foundry.StatDirFs,
 			return fmt.Errorf("error deploying OP chain: %w", err)
 		}
 	} else {
-		lgr.Info("deploying using existing OPSM", "address", intent.OPSMAddress.Hex())
+		lgr.Info("deploying using existing OPCM", "address", intent.OPSMAddress.Hex())
 
 		bcaster, err := broadcaster.NewKeyedBroadcaster(broadcaster.KeyedBroadcasterOpts{
 			Logger:  lgr,
@@ -81,7 +81,7 @@ func DeployOPChain(ctx context.Context, env *Env, artifactsFS foundry.StatDirFs,
 		if err != nil {
 			return fmt.Errorf("failed to create broadcaster: %w", err)
 		}
-		dco, err = opsm.DeployOPChainRaw(
+		dco, err = opcm.DeployOPChainRaw(
 			ctx,
 			env.L1Client,
 			bcaster,

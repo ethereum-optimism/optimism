@@ -1,4 +1,4 @@
-package opsm
+package opcm
 
 import (
 	"context"
@@ -33,7 +33,7 @@ type DeployOPChainInput struct {
 	BasefeeScalar     uint32
 	BlobBaseFeeScalar uint32
 	L2ChainId         *big.Int
-	OpsmProxy         common.Address
+	OpcmProxy         common.Address
 }
 
 func (input *DeployOPChainInput) InputSet() bool {
