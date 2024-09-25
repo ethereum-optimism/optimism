@@ -84,13 +84,12 @@ func (los *L1OriginSelector) FindL1Origin(ctx context.Context, l2Head eth.L2Bloc
 	pastSeqDrift := l2Head.Time+los.cfg.BlockTime-currentOrigin.Time > msd
 
 	// If we are not past the max sequencer drift, we can just return the current origin.
-	// Alternatively, if the next origin is ahead of the L2 head, we must return the current origin.
-	if !pastSeqDrift || (nextOrigin != (eth.L1BlockRef{}) && l2Head.Time+los.cfg.BlockTime < nextOrigin.Time) {
+	if !pastSeqDrift {
 		return currentOrigin, nil
 	}
 
 	// Otherwise, we need to find the next L1 origin block in order to continue producing blocks.
-	log.Warn("Next L2 block time is past the sequencer drift + current origin time, attempting to fetch next L1 origin")
+	log.Warn("Next L2 block time is past the sequencer drift + current origin time")
 
 	if nextOrigin == (eth.L1BlockRef{}) {
 		// If the next origin is not set, we need to fetch it now.
@@ -100,7 +99,7 @@ func (los *L1OriginSelector) FindL1Origin(ctx context.Context, l2Head eth.L2Bloc
 		}
 	}
 
-	// Once again check if the next origin is ahead of the L2 head, and return the current origin if it is.
+	// If the next origin is ahead of the L2 head, we must return the current origin.
 	if l2Head.Time+los.cfg.BlockTime < nextOrigin.Time {
 		return currentOrigin, nil
 	}
@@ -169,7 +168,13 @@ func (los *L1OriginSelector) tryFetchNextOrigin(currentOrigin, nextOrigin eth.L1
 		return
 	}
 
-	los.fetch(los.ctx, currentOrigin.Number+1)
+	if _, err := los.fetch(los.ctx, currentOrigin.Number+1); err != nil {
+		if errors.Is(err, ethereum.NotFound) {
+			log.Debug("No next potential L1 origin found")
+		} else {
+			log.Error("Failed to get next origin", "err", err)
+		}
+	}
 }
 
 func (los *L1OriginSelector) fetch(ctx context.Context, number uint64) (eth.L1BlockRef, error) {
@@ -181,11 +186,6 @@ func (los *L1OriginSelector) fetch(ctx context.Context, number uint64) (eth.L1Bl
 	// The L1 source can be shimmed to hide new L1 blocks and enforce a sequencer confirmation distance.
 	nextOrigin, err := los.l1.L1BlockRefByNumber(fetchCtx, number)
 	if err != nil {
-		if errors.Is(err, ethereum.NotFound) {
-			log.Debug("No next potential L1 origin found")
-		} else {
-			log.Error("Failed to get next L1 origin", "err", err)
-		}
 		return eth.L1BlockRef{}, err
 	}
 

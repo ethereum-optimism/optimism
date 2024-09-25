@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
@@ -61,6 +62,57 @@ func TestOriginSelectorFetchCurrentError(t *testing.T) {
 
 	_, err = s.FindL1Origin(ctx, l2Head)
 	require.ErrorContains(t, err, "test error")
+}
+
+// TestOriginSelectorFetchNextError ensures that the origin selector
+// gracefully handles an error when fetching the next origin from the
+// forkchoice update event.
+func TestOriginSelectorFetchNextError(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	log := testlog.Logger(t, log.LevelCrit)
+	cfg := &rollup.Config{
+		MaxSequencerDrift: 500,
+		BlockTime:         2,
+	}
+	l1 := &testutils.MockL1Source{}
+	defer l1.AssertExpectations(t)
+	a := eth.L1BlockRef{
+		Hash:   common.Hash{'a'},
+		Number: 10,
+		Time:   20,
+	}
+	b := eth.L1BlockRef{
+		Hash:   common.Hash{'b'},
+		Number: 11,
+	}
+	l2Head := eth.L2BlockRef{
+		L1Origin: a.ID(),
+		Time:     24,
+	}
+
+	s := NewL1OriginSelector(ctx, log, cfg, l1)
+	s.currentOrigin = a
+
+	next, err := s.FindL1Origin(ctx, l2Head)
+	require.Nil(t, err)
+	require.Equal(t, a, next)
+
+	l1.ExpectL1BlockRefByNumber(b.Number, eth.L1BlockRef{}, ethereum.NotFound)
+
+	handled := s.OnEvent(engine.ForkchoiceUpdateEvent{UnsafeL2Head: l2Head})
+	require.True(t, handled)
+
+	l1.ExpectL1BlockRefByNumber(b.Number, eth.L1BlockRef{}, errors.New("test error"))
+
+	handled = s.OnEvent(engine.ForkchoiceUpdateEvent{UnsafeL2Head: l2Head})
+	require.True(t, handled)
+
+	// The next origin should still be `a` because the fetch failed.
+	next, err = s.FindL1Origin(ctx, l2Head)
+	require.Nil(t, err)
+	require.Equal(t, a, next)
 }
 
 // TestOriginSelectorAdvances ensures that the origin selector
