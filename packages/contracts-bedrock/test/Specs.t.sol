@@ -843,6 +843,7 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "OPContractsManager", _sel: _getSel("latestRelease()") });
         _addSpec({ _name: "OPContractsManager", _sel: _getSel("implementations(string,string)") });
         _addSpec({ _name: "OPContractsManager", _sel: _getSel("systemConfigs(uint256)") });
+        _addSpec({ _name: "OPContractsManager", _sel: _getSel("OUTPUT_VERSION()") });
         _addSpec({ _name: "OPContractsManager", _sel: OPContractsManager.initialize.selector });
         _addSpec({ _name: "OPContractsManager", _sel: OPContractsManager.deploy.selector });
         _addSpec({ _name: "OPContractsManager", _sel: OPContractsManager.blueprints.selector });
@@ -855,6 +856,7 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "OPContractsManagerInterop", _sel: _getSel("latestRelease()") });
         _addSpec({ _name: "OPContractsManagerInterop", _sel: _getSel("implementations(string,string)") });
         _addSpec({ _name: "OPContractsManagerInterop", _sel: _getSel("systemConfigs(uint256)") });
+        _addSpec({ _name: "OPContractsManagerInterop", _sel: _getSel("OUTPUT_VERSION()") });
         _addSpec({ _name: "OPContractsManagerInterop", _sel: OPContractsManager.initialize.selector });
         _addSpec({ _name: "OPContractsManagerInterop", _sel: OPContractsManager.deploy.selector });
         _addSpec({ _name: "OPContractsManagerInterop", _sel: OPContractsManager.blueprints.selector });
