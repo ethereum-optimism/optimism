@@ -322,8 +322,8 @@ func (s *L2Batcher) ActL2BatchSubmitMultiBlob(t Testing, numBlobs int) {
 	if s.l2BatcherCfg.DataAvailabilityType != batcherFlags.BlobsType {
 		t.InvalidAction("ActL2BatchSubmitMultiBlob only available for Blobs DA type")
 		return
-	} else if numBlobs > 6 || numBlobs < 1 {
-		t.InvalidAction("invalid number of blobs %d, must be within [1,6]", numBlobs)
+	} else if numBlobs > eth.MaxBlobsPerBlobTx || numBlobs < 1 {
+		t.InvalidAction("invalid number of blobs %d, must be within [1,%d]", numBlobs, eth.MaxBlobsPerBlobTx)
 	}
 
 	// Don't run this action if there's no data to submit
