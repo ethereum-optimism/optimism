@@ -85,6 +85,7 @@ func DeployOPChain(ctx context.Context, env *Env, artifactsFS foundry.StatDirFs,
 			ctx,
 			env.L1Client,
 			bcaster,
+			env.Deployer,
 			artifactsFS,
 			input,
 		)

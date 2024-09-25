@@ -214,6 +214,7 @@ func DeployOPChainRaw(
 	ctx context.Context,
 	l1 *ethclient.Client,
 	bcast broadcaster.Broadcaster,
+	deployer common.Address,
 	artifacts foundry.StatDirFs,
 	input DeployOPChainInput,
 ) (DeployOPChainOutput, error) {
@@ -244,13 +245,13 @@ func DeployOPChainRaw(
 		return out, fmt.Errorf("failed to pack deploy input: %w", err)
 	}
 
-	nonce, err := l1.NonceAt(ctx, bcast.Sender(), nil)
+	nonce, err := l1.NonceAt(ctx, deployer, nil)
 	if err != nil {
 		return out, fmt.Errorf("failed to read nonce: %w", err)
 	}
 
 	bcast.Hook(script.Broadcast{
-		From:  bcast.Sender(),
+		From:  deployer,
 		To:    input.OpcmProxy,
 		Input: calldata,
 		Value: (*hexutil.U256)(uint256.NewInt(0)),

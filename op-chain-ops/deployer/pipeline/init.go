@@ -57,6 +57,9 @@ func Init(ctx context.Context, env *Env, artifactsFS foundry.StatDirFs, intent *
 			"superchainConfig", superchainConfig.Hex(),
 		)
 
+		// The below fields are the only ones required to perform an OP Chain
+		// deployment via an existing OPCM contract. All the others are used
+		// for deploying the OPCM itself, which isn't necessary in this case.
 		st.SuperchainDeployment = &state.SuperchainDeployment{
 			ProtocolVersionsProxyAddress: protocolVersions,
 			SuperchainConfigProxyAddress: superchainConfig,

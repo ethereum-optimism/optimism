@@ -205,10 +205,6 @@ func (t *KeyedBroadcaster) broadcast(ctx context.Context, bcast script.Broadcast
 	return ch, id
 }
 
-func (t *KeyedBroadcaster) Sender() common.Address {
-	return t.mgr.From()
-}
-
 // padGasLimit calculates the gas limit for a transaction based on the intrinsic gas and the gas used by
 // the underlying call. Values are multiplied by a pad factor to account for any discrepancies. The output
 // is clamped to the block gas limit since Geth will reject transactions that exceed it before letting them
