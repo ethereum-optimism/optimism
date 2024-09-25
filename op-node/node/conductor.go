@@ -53,7 +53,7 @@ func (c *ConductorClient) initialize() error {
 	return nil
 }
 
-// Enabled returns true if the conductor is enabled.
+// Enabled returns true if the conductor is enabled, and since the conductor client is initialized, the conductor is always enabled.
 func (c *ConductorClient) Enabled(ctx context.Context) bool {
 	return true
 }

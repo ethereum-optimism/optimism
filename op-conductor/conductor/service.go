@@ -142,7 +142,16 @@ func (c *OpConductor) initSequencerControl(ctx context.Context) error {
 	c.ctrl = client.NewSequencerControl(exec, node)
 
 	enabled, err := retry.Do(ctx, 60, retry.Fixed(5*time.Second), func() (bool, error) {
-		return c.ctrl.ConductorEnabled(ctx)
+		enabled, err := c.ctrl.ConductorEnabled(ctx)
+		if rpcErr, ok := err.(rpc.Error); ok {
+			errCode := rpcErr.ErrorCode()
+			errText := strings.ToLower(err.Error())
+			if errCode == -32601 || strings.Contains(errText, "method not found") { // method not found error
+				c.log.Warn("Warning: conductorEnabled method not found, please upgrade your op-node to the latest version, continuing...")
+				return true, nil
+			}
+		}
+		return enabled, err
 	})
 	if err != nil {
 		return errors.Wrap(err, "failed to connect to sequencer")
