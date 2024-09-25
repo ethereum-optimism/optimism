@@ -65,9 +65,10 @@ func Init(cfg InitConfig) error {
 	}
 
 	intent := &state.Intent{
-		L1ChainID:       cfg.L1ChainID,
-		UseFaultProofs:  true,
-		FundDevAccounts: true,
+		L1ChainID:        cfg.L1ChainID,
+		UseFaultProofs:   true,
+		FundDevAccounts:  true,
+		ContractsRelease: "dev",
 	}
 
 	l1ChainIDBig := intent.L1ChainIDBig()

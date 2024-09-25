@@ -17,6 +17,19 @@
   },
   {
     "inputs": [],
+    "name": "OUTPUT_VERSION",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "blueprints",
     "outputs": [
       {
@@ -451,14 +464,26 @@
       {
         "indexed": true,
         "internalType": "uint256",
+        "name": "outputVersion",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
         "name": "l2ChainId",
         "type": "uint256"
       },
       {
         "indexed": true,
-        "internalType": "contract SystemConfig",
-        "name": "systemConfig",
+        "internalType": "address",
+        "name": "deployer",
         "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes",
+        "name": "deployOutput",
+        "type": "bytes"
       }
     ],
     "name": "Deployed",

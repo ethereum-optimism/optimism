@@ -34,7 +34,9 @@ contract OPContractsManager_Harness is OPContractsManager {
 contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase {
     using stdStorage for StdStorage;
 
-    event Deployed(uint256 indexed l2ChainId, SystemConfig indexed systemConfig);
+    event Deployed(
+        uint256 indexed outputVersion, uint256 indexed l2ChainId, address indexed deployer, bytes deployOutput
+    );
 
     function setUp() public override {
         DeployOPChain_TestBase.setUp();
@@ -86,8 +88,8 @@ contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase {
     }
 
     function test_deploy_succeeds() public {
-        vm.expectEmit(true, false, true, true); // TODO precompute the system config address.
-        emit Deployed(doi.l2ChainId(), SystemConfig(address(1)));
+        vm.expectEmit(true, true, true, false); // TODO precompute the expected `deployOutput`.
+        emit Deployed(0, doi.l2ChainId(), address(this), bytes(""));
         opcm.deploy(toOPCMDeployInput(doi));
     }
 }
