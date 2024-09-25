@@ -588,6 +588,8 @@ func TestChannelManager_TxData(t *testing.T) {
 				if !errors.Is(err, io.EOF) {
 					require.NoError(t, err)
 				}
+				// We don't want this to be changed prematurely
+				require.Equal(t, tc.chooseBlobsWhenChannelCreated, m.defaultCfg.UseBlobs)
 			}
 
 			require.Equal(t, tc.chooseBlobsWhenChannelSubmitted, data.asBlob)
