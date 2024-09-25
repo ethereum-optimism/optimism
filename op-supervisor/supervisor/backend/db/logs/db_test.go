@@ -81,6 +81,92 @@ func TestEmptyDbDoesNotFindEntry(t *testing.T) {
 		})
 }
 
+func TestLatestSealedBlockNum(t *testing.T) {
+	t.Run("Empty case", func(t *testing.T) {
+		runDBTest(t,
+			func(t *testing.T, db *DB, m *stubMetrics) {},
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				n, ok := db.LatestSealedBlockNum()
+				require.False(t, ok, "empty db expected")
+				require.Zero(t, n)
+				idx, err := db.searchCheckpoint(0, 0)
+				require.ErrorIs(t, err, ErrFuture, "no checkpoint in empty db")
+				require.Zero(t, idx)
+			})
+	})
+	t.Run("Zero case", func(t *testing.T) {
+		genesis := eth.BlockID{Hash: createHash(0), Number: 0}
+		runDBTest(t,
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				require.NoError(t, db.SealBlock(common.Hash{}, genesis, 5000), "seal genesis")
+			},
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				n, ok := db.LatestSealedBlockNum()
+				require.True(t, ok, "genesis block expected")
+				require.Equal(t, genesis.Number, n)
+				idx, err := db.searchCheckpoint(0, 0)
+				require.NoError(t, err)
+				require.Zero(t, idx, "genesis block as checkpoint 0")
+			})
+	})
+	t.Run("Later genesis case", func(t *testing.T) {
+		genesis := eth.BlockID{Hash: createHash(10), Number: 10}
+		runDBTest(t,
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				require.NoError(t, db.SealBlock(common.Hash{}, genesis, 5000), "seal genesis")
+			},
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				n, ok := db.LatestSealedBlockNum()
+				require.True(t, ok, "genesis block expected")
+				require.Equal(t, genesis.Number, n)
+				idx, err := db.searchCheckpoint(genesis.Number, 0)
+				require.NoError(t, err)
+				require.Zero(t, idx, "anchor block as checkpoint 0")
+				_, err = db.searchCheckpoint(0, 0)
+				require.ErrorIs(t, err, ErrSkipped, "no checkpoint before genesis")
+			})
+	})
+	t.Run("Block 1 case", func(t *testing.T) {
+		genesis := eth.BlockID{Hash: createHash(0), Number: 0}
+		block1 := eth.BlockID{Hash: createHash(1), Number: 1}
+		runDBTest(t,
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				require.NoError(t, db.SealBlock(common.Hash{}, genesis, 5000), "seal genesis")
+				require.NoError(t, db.SealBlock(genesis.Hash, block1, 5001), "seal block 1")
+			},
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				n, ok := db.LatestSealedBlockNum()
+				require.True(t, ok, "block 1 expected")
+				require.Equal(t, block1.Number, n)
+				idx, err := db.searchCheckpoint(block1.Number, 0)
+				require.NoError(t, err)
+				require.Equal(t, entrydb.EntryIdx(0), idx, "checkpoint 0 still for block 1")
+			})
+	})
+	t.Run("Using checkpoint case", func(t *testing.T) {
+		genesis := eth.BlockID{Hash: createHash(0), Number: 0}
+		runDBTest(t,
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				require.NoError(t, db.SealBlock(common.Hash{}, genesis, 5000), "seal genesis")
+				for i := 1; i <= 260; i++ {
+					id := eth.BlockID{Hash: createHash(i), Number: uint64(i)}
+					require.NoError(t, db.SealBlock(createHash(i-1), id, 5001), "seal block %d", i)
+				}
+			},
+			func(t *testing.T, db *DB, m *stubMetrics) {
+				n, ok := db.LatestSealedBlockNum()
+				require.True(t, ok, "latest block expected")
+				expected := uint64(260)
+				require.Equal(t, expected, n)
+				idx, err := db.searchCheckpoint(expected, 0)
+				require.NoError(t, err)
+				// It costs 2 entries per block, so if we add more than 1 checkpoint worth of blocks,
+				// then we get to checkpoint 2
+				require.Equal(t, entrydb.EntryIdx(searchCheckpointFrequency*2), idx, "checkpoint 1 reached")
+			})
+	})
+}
+
 func TestAddLog(t *testing.T) {
 	t.Run("BlockZero", func(t *testing.T) {
 		// There are no logs in the genesis block so recording an entry for block 0 should be rejected.
