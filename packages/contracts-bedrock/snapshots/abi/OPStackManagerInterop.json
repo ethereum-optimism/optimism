@@ -50,6 +50,16 @@
             "internalType": "address",
             "name": "anchorStateRegistry",
             "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "permissionedDisputeGame1",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "permissionedDisputeGame2",
+            "type": "address"
           }
         ],
         "internalType": "struct OPStackManager.Blueprints",
@@ -134,6 +144,11 @@
             "internalType": "uint256",
             "name": "l2ChainId",
             "type": "uint256"
+          },
+          {
+            "internalType": "bytes",
+            "name": "startingAnchorRoots",
+            "type": "bytes"
           }
         ],
         "internalType": "struct OPStackManager.DeployInput",
@@ -292,6 +307,16 @@
               {
                 "internalType": "address",
                 "name": "anchorStateRegistry",
+                "type": "address"
+              },
+              {
+                "internalType": "address",
+                "name": "permissionedDisputeGame1",
+                "type": "address"
+              },
+              {
+                "internalType": "address",
+                "name": "permissionedDisputeGame2",
                 "type": "address"
               }
             ],
@@ -492,6 +517,11 @@
   {
     "inputs": [],
     "name": "EmptyInitcode",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "IdentityPrecompileCallFailed",
     "type": "error"
   },
   {

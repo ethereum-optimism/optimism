@@ -4,15 +4,15 @@ import (
 	"debug/elf"
 	"fmt"
 
+	"github.com/urfave/cli/v2"
+
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 	"github.com/ethereum-optimism/optimism/cannon/serialize"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
-	"github.com/urfave/cli/v2"
-
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
 
@@ -29,15 +29,9 @@ var (
 		TakesFile: true,
 		Required:  true,
 	}
-	LoadELFPatchFlag = &cli.StringSliceFlag{
-		Name:     "patch",
-		Usage:    "Type of patching to do",
-		Value:    cli.NewStringSlice("go", "stack"),
-		Required: false,
-	}
 	LoadELFOutFlag = &cli.PathFlag{
 		Name:     "out",
-		Usage:    "Output path to write JSON state to. State is dumped to stdout if set to -. Not written if empty.",
+		Usage:    "Output path to write state to. State is dumped to stdout if set to '-'. Not written if empty. Use file extension '.bin', '.bin.gz', or '.json' for binary, compressed binary, or JSON formats.",
 		Value:    "state.json",
 		Required: false,
 	}
@@ -67,21 +61,6 @@ func vmTypeFromString(ctx *cli.Context) (VMType, error) {
 }
 
 func LoadELF(ctx *cli.Context) error {
-	var createInitialState func(f *elf.File) (mipsevm.FPVMState, error)
-
-	if vmType, err := vmTypeFromString(ctx); err != nil {
-		return err
-	} else if vmType == cannonVMType {
-		createInitialState = func(f *elf.File) (mipsevm.FPVMState, error) {
-			return program.LoadELF(f, singlethreaded.CreateInitialState)
-		}
-	} else if vmType == mtVMType {
-		createInitialState = func(f *elf.File) (mipsevm.FPVMState, error) {
-			return program.LoadELF(f, multithreaded.CreateInitialState)
-		}
-	} else {
-		return fmt.Errorf("invalid VM type: %q", vmType)
-	}
 	elfPath := ctx.Path(LoadELFPathFlag.Name)
 	elfProgram, err := elf.Open(elfPath)
 	if err != nil {
@@ -90,22 +69,38 @@ func LoadELF(ctx *cli.Context) error {
 	if elfProgram.Machine != elf.EM_MIPS {
 		return fmt.Errorf("ELF is not big-endian MIPS R3000, but got %q", elfProgram.Machine.String())
 	}
+
+	var createInitialState func(f *elf.File) (mipsevm.FPVMState, error)
+
+	var patcher = program.PatchStack
+	if vmType, err := vmTypeFromString(ctx); err != nil {
+		return err
+	} else if vmType == cannonVMType {
+		createInitialState = func(f *elf.File) (mipsevm.FPVMState, error) {
+			return program.LoadELF(f, singlethreaded.CreateInitialState)
+		}
+		patcher = func(state mipsevm.FPVMState) error {
+			err := program.PatchGoGC(elfProgram, state)
+			if err != nil {
+				return err
+			}
+			return program.PatchStack(state)
+		}
+	} else if vmType == mtVMType {
+		createInitialState = func(f *elf.File) (mipsevm.FPVMState, error) {
+			return program.LoadELF(f, multithreaded.CreateInitialState)
+		}
+	} else {
+		return fmt.Errorf("invalid VM type: %q", vmType)
+	}
+
 	state, err := createInitialState(elfProgram)
 	if err != nil {
 		return fmt.Errorf("failed to load ELF data into VM state: %w", err)
 	}
-	for _, typ := range ctx.StringSlice(LoadELFPatchFlag.Name) {
-		switch typ {
-		case "stack":
-			err = program.PatchStack(state)
-		case "go":
-			err = program.PatchGo(elfProgram, state)
-		default:
-			return fmt.Errorf("unrecognized form of patching: %q", typ)
-		}
-		if err != nil {
-			return fmt.Errorf("failed to apply patch %s: %w", typ, err)
-		}
+	err = patcher(state)
+	if err != nil {
+		return fmt.Errorf("failed to patch state: %w", err)
 	}
 	meta, err := program.MakeMetadata(elfProgram)
 	if err != nil {
@@ -125,13 +120,12 @@ func LoadELF(ctx *cli.Context) error {
 
 var LoadELFCommand = &cli.Command{
 	Name:        "load-elf",
-	Usage:       "Load ELF file into Cannon JSON state",
-	Description: "Load ELF file into Cannon JSON state, optionally patch out functions",
+	Usage:       "Load ELF file into Cannon state",
+	Description: "Load ELF file into Cannon state",
 	Action:      LoadELF,
 	Flags: []cli.Flag{
 		LoadELFVMTypeFlag,
 		LoadELFPathFlag,
-		LoadELFPatchFlag,
 		LoadELFOutFlag,
 		LoadELFMetaFlag,
 	},

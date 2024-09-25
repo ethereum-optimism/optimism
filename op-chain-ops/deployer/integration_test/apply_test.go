@@ -27,6 +27,8 @@ import (
 const TestParams = `
 participants:
   - el_type: geth
+    el_extra_params:
+      - "--gcmode=archive"
     cl_type: lighthouse
 network_params:
   prefunded_accounts: '{ "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266": { "balance": "1000000ETH" } }'
@@ -41,6 +43,7 @@ network_params:
   }'
   network_id: "77799777"
   seconds_per_slot: 3
+  genesis_delay: 0
 `
 
 type deployerKey struct{}
@@ -56,7 +59,7 @@ func (d *deployerKey) String() string {
 func TestEndToEndApply(t *testing.T) {
 	kurtosisutil.Test(t)
 
-	lgr := testlog.Logger(t, slog.LevelInfo)
+	lgr := testlog.Logger(t, slog.LevelDebug)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -112,6 +115,7 @@ func TestEndToEndApply(t *testing.T) {
 		UseFaultProofs:       true,
 		FundDevAccounts:      true,
 		ContractArtifactsURL: (*state.ArtifactsURL)(artifactsURL),
+		ContractsRelease:     "dev",
 		Chains: []*state.ChainIntent{
 			{
 				ID: id.Bytes32(),
@@ -147,7 +151,7 @@ func TestEndToEndApply(t *testing.T) {
 		{"SuperchainConfigImpl", st.SuperchainDeployment.SuperchainConfigImplAddress},
 		{"ProtocolVersionsProxy", st.SuperchainDeployment.ProtocolVersionsProxyAddress},
 		{"ProtocolVersionsImpl", st.SuperchainDeployment.ProtocolVersionsImplAddress},
-		{"Opsm", st.ImplementationsDeployment.OpsmAddress},
+		{"OpsmProxy", st.ImplementationsDeployment.OpsmProxyAddress},
 		{"DelayedWETHImpl", st.ImplementationsDeployment.DelayedWETHImplAddress},
 		{"OptimismPortalImpl", st.ImplementationsDeployment.OptimismPortalImplAddress},
 		{"PreimageOracleSingleton", st.ImplementationsDeployment.PreimageOracleSingletonAddress},
@@ -189,6 +193,10 @@ func TestEndToEndApply(t *testing.T) {
 			{"DelayedWETHPermissionlessGameProxyAddress", chainState.DelayedWETHPermissionlessGameProxyAddress},
 		}
 		for _, addr := range chainAddrs {
+			// TODO Delete this `if`` block once FaultDisputeGameAddress is deployed.
+			if addr.name == "FaultDisputeGameAddress" {
+				continue
+			}
 			t.Run(fmt.Sprintf("chain %s - %s", chainState.ID, addr.name), func(t *testing.T) {
 				code, err := l1Client.CodeAt(ctx, addr.addr, nil)
 				require.NoError(t, err)
@@ -197,7 +205,7 @@ func TestEndToEndApply(t *testing.T) {
 		}
 
 		t.Run("l2 genesis", func(t *testing.T) {
-			require.Greater(t, len(chainState.Genesis), 0)
+			require.Greater(t, len(chainState.Allocs), 0)
 		})
 	}
 }

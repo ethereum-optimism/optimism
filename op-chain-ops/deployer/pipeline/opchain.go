@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math/big"
-	"os"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opsm"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
@@ -13,7 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-func DeployOPChain(ctx context.Context, env *Env, intent *state.Intent, st *state.State, chainID common.Hash) error {
+func DeployOPChain(ctx context.Context, env *Env, artifactsFS foundry.StatDirFs, intent *state.Intent, st *state.State, chainID common.Hash) error {
 	lgr := env.Logger.New("stage", "deploy-opchain")
 
 	if !shouldDeployOPChain(intent, st, chainID) {
@@ -22,15 +21,6 @@ func DeployOPChain(ctx context.Context, env *Env, intent *state.Intent, st *stat
 	}
 
 	lgr.Info("deploying OP chain", "id", chainID.Hex())
-
-	var artifactsFS foundry.StatDirFs
-	var err error
-	if intent.ContractArtifactsURL.Scheme == "file" {
-		fs := os.DirFS(intent.ContractArtifactsURL.Path)
-		artifactsFS = fs.(foundry.StatDirFs)
-	} else {
-		return fmt.Errorf("only file:// artifacts URLs are supported")
-	}
 
 	thisIntent, err := intent.Chain(chainID)
 	if err != nil {
@@ -62,7 +52,7 @@ func DeployOPChain(ctx context.Context, env *Env, intent *state.Intent, st *stat
 						BasefeeScalar:          1368,
 						BlobBaseFeeScalar:      801949,
 						L2ChainId:              chainID.Big(),
-						Opsm:                   st.ImplementationsDeployment.OpsmAddress,
+						OpsmProxy:              st.ImplementationsDeployment.OpsmProxyAddress,
 					},
 				)
 				return err

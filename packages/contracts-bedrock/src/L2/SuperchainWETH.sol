@@ -3,8 +3,6 @@ pragma solidity 0.8.15;
 
 // Contracts
 import { WETH98 } from "src/universal/WETH98.sol";
-import { L1Block } from "src/L2/L1Block.sol";
-import { ETHLiquidity } from "src/L2/ETHLiquidity.sol";
 
 // Libraries
 import { Unauthorized, NotCustomGasToken } from "src/libraries/errors/CommonErrors.sol";
@@ -14,6 +12,8 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { IL2ToL2CrossDomainMessenger } from "src/L2/interfaces/IL2ToL2CrossDomainMessenger.sol";
 import { ISuperchainERC20Extensions } from "src/L2/interfaces/ISuperchainERC20.sol";
+import { IL1Block } from "src/L2/interfaces/IL1Block.sol";
+import { IETHLiquidity } from "src/L2/interfaces/IETHLiquidity.sol";
 
 /// @title SuperchainWETH
 /// @notice SuperchainWETH is a version of WETH that can be freely transfrered between chains
@@ -21,18 +21,18 @@ import { ISuperchainERC20Extensions } from "src/L2/interfaces/ISuperchainERC20.s
 ///         do not use a custom gas token.
 contract SuperchainWETH is WETH98, ISuperchainERC20Extensions, ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.3
-    string public constant version = "1.0.0-beta.3";
+    /// @custom:semver 1.0.0-beta.4
+    string public constant version = "1.0.0-beta.4";
 
     /// @inheritdoc WETH98
     function deposit() public payable override {
-        if (L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isCustomGasToken()) revert NotCustomGasToken();
+        if (IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isCustomGasToken()) revert NotCustomGasToken();
         super.deposit();
     }
 
     /// @inheritdoc WETH98
     function withdraw(uint256 wad) public override {
-        if (L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isCustomGasToken()) revert NotCustomGasToken();
+        if (IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isCustomGasToken()) revert NotCustomGasToken();
         super.withdraw(wad);
     }
 
@@ -42,8 +42,8 @@ contract SuperchainWETH is WETH98, ISuperchainERC20Extensions, ISemver {
         _burn(msg.sender, wad);
 
         // Burn to ETHLiquidity contract.
-        if (!L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isCustomGasToken()) {
-            ETHLiquidity(Predeploys.ETH_LIQUIDITY).burn{ value: wad }();
+        if (!IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isCustomGasToken()) {
+            IETHLiquidity(Predeploys.ETH_LIQUIDITY).burn{ value: wad }();
         }
 
         // Send message to other chain.
@@ -65,8 +65,8 @@ contract SuperchainWETH is WETH98, ISuperchainERC20Extensions, ISemver {
         if (messenger.crossDomainMessageSender() != address(this)) revert Unauthorized();
 
         // Mint from ETHLiquidity contract.
-        if (!L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isCustomGasToken()) {
-            ETHLiquidity(Predeploys.ETH_LIQUIDITY).mint(wad);
+        if (!IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isCustomGasToken()) {
+            IETHLiquidity(Predeploys.ETH_LIQUIDITY).mint(wad);
         }
 
         // Get source chain ID.

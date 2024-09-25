@@ -3,8 +3,9 @@ set -euo pipefail
 
 # This script checks for ABI consistency between interfaces and their corresponding contracts.
 # It compares the ABIs of interfaces (files starting with 'I') with their implementation contracts,
-# excluding constructors and certain predefined files. The script reports any differences found
-# and exits with an error if inconsistencies are detected.
+# excluding certain predefined files. Constructors are expected to be represented in interfaces by a
+# pseudo-constructor function `__constructor__(...)` with arguments the same as the contract's constructor.
+# The script reports any differences found and exits with an error if inconsistencies are detected.
 # NOTE: Script is fast enough but could be parallelized if necessary.
 
 # Parse flags
@@ -48,29 +49,25 @@ EXCLUDE_CONTRACTS=(
     "KontrolCheatsBase"
 
     # TODO: Interfaces that need to be fixed
-    "IPreimageOracle"
-    "IOptimismMintableERC721"
-    "IFaultDisputeGame"
     "IOptimismSuperchainERC20"
-    "IInitializable"
+    "IOptimismMintableERC721"
     "IOptimismMintableERC20"
     "ILegacyMintableERC20"
+    "IInitializable"
+    "IPreimageOracle"
+    "ICrossL2Inbox"
+    "IL2ToL2CrossDomainMessenger"
     "MintableAndBurnable"
-    "IDisputeGameFactory"
     "IWETH"
     "IDelayedWETH"
-    "IAnchorStateRegistry"
-    "ICrossL2Inbox"
-    "IL1CrossDomainMessenger"
-    "IL2ToL2CrossDomainMessenger"
+    "IResolvedDelegateProxy"
+
+    # TODO: Kontrol interfaces that need to be removed
     "IL1ERC721Bridge"
     "IL1StandardBridge"
+    "IL1CrossDomainMessenger"
     "ISuperchainConfig"
     "IOptimismPortal"
-    "IL1BlockIsthmus"
-
-    # Need to make complex tweaks to the check script for this one
-    "ISystemConfigInterop"
 )
 
 # Find all JSON files in the forge-artifacts folder
@@ -180,27 +177,39 @@ for interface_file in $JSON_FILES; do
     fi
 
     # Extract and compare ABIs excluding constructors
-    interface_abi=$(jq '[.abi[] | select(.type != "constructor")]' < "$interface_file")
-    contract_abi=$(jq '[.abi[] | select(.type != "constructor")]' < "$corresponding_contract_file")
+    interface_abi=$(jq '[.abi[]]' < "$interface_file")
+    contract_abi=$(jq '[.abi[]]' < "$corresponding_contract_file")
 
     # Function to normalize ABI by replacing interface name with contract name.
     # Base contracts aren't allowed to inherit from their interfaces in order
     # to guarantee a 1:1 match between interfaces and contracts. This means
     # that the interface will redefine types in the base contract. We normalize
-    # the ABI as if the interface and contract are the same name
+    # the ABI as if the interface and contract are the same name.
     normalize_abi() {
+        # Here we just remove the leading "I" from any contract, enum, or
+        # struct type. It's not beautiful but it's good enough for now. It
+        # would miss certain edge cases like if an interface really is using
+        # the contract type instead of the interface type but that's unlikely
+        # to happen in practice and should be an easy fix if it does.
         local abi="$1"
-        local interface_name="$2"
-        local contract_name="$3"
-        echo "${abi//$interface_name/$contract_name}"
+
+        # Remove the leading "I" from types.
+        abi="${abi//\"internalType\": \"contract I/\"internalType\": \"contract }"
+        abi="${abi//\"internalType\": \"enum I/\"internalType\": \"enum }"
+        abi="${abi//\"internalType\": \"struct I/\"internalType\": \"struct }"
+
+        # Handle translating pseudo-constructors.
+        abi=$(echo "$abi" | jq 'map(if .type == "function" and .name == "__constructor__" then .type = "constructor" | del(.name) | del(.outputs) else . end)')
+
+        echo "$abi"
     }
 
     # Normalize the ABIs
-    normalized_interface_abi=$(normalize_abi "$interface_abi" "$contract_name" "$contract_basename")
-    normalized_contract_abi="$contract_abi"
+    normalized_interface_abi=$(normalize_abi "$interface_abi")
+    normalized_contract_abi=$(normalize_abi "$contract_abi")
 
     # Use jq to compare the ABIs
-    if ! diff_result=$(diff -u <(echo "$normalized_interface_abi" | jq -S .) <(echo "$normalized_contract_abi" | jq -S .)); then
+    if ! diff_result=$(diff -u <(echo "$normalized_interface_abi" | jq 'sort') <(echo "$normalized_contract_abi" | jq 'sort')); then
         if ! grep -q "^$contract_name$" "$REPORTED_INTERFACES_FILE"; then
             echo "$contract_name" >> "$REPORTED_INTERFACES_FILE"
             if ! is_excluded "$contract_name"; then

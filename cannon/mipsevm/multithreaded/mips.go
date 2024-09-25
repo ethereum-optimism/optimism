@@ -363,6 +363,7 @@ func (m *InstrumentedState) handleRMWOps(insn, opcode uint32) error {
 }
 
 func (m *InstrumentedState) onWaitComplete(thread *ThreadState, isTimedOut bool) {
+	// Note: no need to reset m.state.Wakeup.  If we're here, the Wakeup field has already been reset
 	// Clear the futex state
 	thread.FutexAddr = exec.FutexEmptyAddr
 	thread.FutexVal = 0
@@ -376,9 +377,6 @@ func (m *InstrumentedState) onWaitComplete(thread *ThreadState, isTimedOut bool)
 		v1 = exec.MipsETIMEDOUT
 	}
 	exec.HandleSyscallUpdates(&thread.Cpu, &thread.Registers, v0, v1)
-
-	// Clear wakeup signal
-	m.state.Wakeup = exec.FutexEmptyAddr
 }
 
 func (m *InstrumentedState) preemptThread(thread *ThreadState) bool {

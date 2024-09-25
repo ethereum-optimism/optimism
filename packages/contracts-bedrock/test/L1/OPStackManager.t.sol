@@ -9,6 +9,7 @@ import { DeployOPChain_TestBase } from "test/DeployOPChain.t.sol";
 import { OPStackManager } from "src/L1/OPStackManager.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
+import { SystemConfig } from "src/L1/SystemConfig.sol";
 
 // Exposes internal functions for testing.
 contract OPStackManager_Harness is OPStackManager {
@@ -33,6 +34,8 @@ contract OPStackManager_Harness is OPStackManager {
 contract OPStackManager_Deploy_Test is DeployOPChain_TestBase {
     using stdStorage for StdStorage;
 
+    event Deployed(uint256 indexed l2ChainId, SystemConfig indexed systemConfig);
+
     function setUp() public override {
         DeployOPChain_TestBase.setUp();
 
@@ -45,7 +48,7 @@ contract OPStackManager_Deploy_Test is DeployOPChain_TestBase {
         doi.set(doi.basefeeScalar.selector, basefeeScalar);
         doi.set(doi.blobBaseFeeScalar.selector, blobBaseFeeScalar);
         doi.set(doi.l2ChainId.selector, l2ChainId);
-        doi.set(doi.opsm.selector, address(opsm));
+        doi.set(doi.opsmProxy.selector, address(opsm));
     }
 
     // This helper function is used to convert the input struct type defined in DeployOPChain.s.sol
@@ -62,7 +65,8 @@ contract OPStackManager_Deploy_Test is DeployOPChain_TestBase {
             }),
             basefeeScalar: _doi.basefeeScalar(),
             blobBasefeeScalar: _doi.blobBaseFeeScalar(),
-            l2ChainId: _doi.l2ChainId()
+            l2ChainId: _doi.l2ChainId(),
+            startingAnchorRoots: _doi.startingAnchorRoots()
         });
     }
 
@@ -82,6 +86,8 @@ contract OPStackManager_Deploy_Test is DeployOPChain_TestBase {
     }
 
     function test_deploy_succeeds() public {
+        vm.expectEmit(true, false, true, true); // TODO precompute the system config address.
+        emit Deployed(doi.l2ChainId(), SystemConfig(address(1)));
         opsm.deploy(toOPSMDeployInput(doi));
     }
 }

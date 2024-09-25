@@ -1,16 +1,19 @@
 package db
 
 import (
-	"fmt"
+	"errors"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/heads"
-	backendTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/stretchr/testify/require"
 )
 
 // TestHeadsForChain tests the heads for a chain,
@@ -102,7 +105,7 @@ func TestCheck(t *testing.T) {
 		chainID          types.ChainID
 		blockNum         uint64
 		logIdx           uint32
-		loghash          backendTypes.TruncatedHash
+		loghash          common.Hash
 		containsResponse containsResponse
 		expected         bool
 	}{
@@ -114,8 +117,8 @@ func TestCheck(t *testing.T) {
 			types.ChainIDFromUInt64(1),
 			1,
 			1,
-			backendTypes.TruncatedHash{1, 2, 3},
-			containsResponse{true, entrydb.EntryIdx(6), nil},
+			common.Hash{1, 2, 3},
+			containsResponse{entrydb.EntryIdx(6), nil},
 			true,
 		},
 		{
@@ -125,8 +128,8 @@ func TestCheck(t *testing.T) {
 			types.ChainIDFromUInt64(1),
 			1,
 			1,
-			backendTypes.TruncatedHash{1, 2, 3},
-			containsResponse{true, entrydb.EntryIdx(3), nil},
+			common.Hash{1, 2, 3},
+			containsResponse{entrydb.EntryIdx(3), nil},
 			true,
 		},
 		{
@@ -136,8 +139,8 @@ func TestCheck(t *testing.T) {
 			types.ChainIDFromUInt64(1),
 			1,
 			1,
-			backendTypes.TruncatedHash{1, 2, 3},
-			containsResponse{true, entrydb.EntryIdx(1), nil},
+			common.Hash{1, 2, 3},
+			containsResponse{entrydb.EntryIdx(1), nil},
 			true,
 		},
 		{
@@ -147,8 +150,8 @@ func TestCheck(t *testing.T) {
 			types.ChainIDFromUInt64(1),
 			1,
 			1,
-			backendTypes.TruncatedHash{1, 2, 3},
-			containsResponse{false, entrydb.EntryIdx(1), nil},
+			common.Hash{1, 2, 3},
+			containsResponse{entrydb.EntryIdx(1), logs.ErrConflict},
 			false,
 		},
 		{
@@ -158,8 +161,8 @@ func TestCheck(t *testing.T) {
 			types.ChainIDFromUInt64(1),
 			1,
 			1,
-			backendTypes.TruncatedHash{1, 2, 3},
-			containsResponse{true, entrydb.EntryIdx(100), nil},
+			common.Hash{1, 2, 3},
+			containsResponse{entrydb.EntryIdx(100), nil},
 			false,
 		},
 		{
@@ -169,8 +172,8 @@ func TestCheck(t *testing.T) {
 			types.ChainIDFromUInt64(1),
 			1,
 			1,
-			backendTypes.TruncatedHash{1, 2, 3},
-			containsResponse{true, entrydb.EntryIdx(5), nil},
+			common.Hash{1, 2, 3},
+			containsResponse{entrydb.EntryIdx(5), nil},
 			false,
 		},
 		{
@@ -180,8 +183,8 @@ func TestCheck(t *testing.T) {
 			types.ChainIDFromUInt64(1),
 			1,
 			1,
-			backendTypes.TruncatedHash{1, 2, 3},
-			containsResponse{true, entrydb.EntryIdx(3), nil},
+			common.Hash{1, 2, 3},
+			containsResponse{entrydb.EntryIdx(3), nil},
 			false,
 		},
 		{
@@ -191,8 +194,8 @@ func TestCheck(t *testing.T) {
 			types.ChainIDFromUInt64(1),
 			1,
 			1,
-			backendTypes.TruncatedHash{1, 2, 3},
-			containsResponse{false, entrydb.EntryIdx(0), fmt.Errorf("error")},
+			common.Hash{1, 2, 3},
+			containsResponse{entrydb.EntryIdx(0), errors.New("error")},
 			false,
 		},
 	}

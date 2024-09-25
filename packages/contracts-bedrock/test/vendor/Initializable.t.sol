@@ -1,25 +1,27 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { LibString } from "@solady/utils/LibString.sol";
+// Testing
 import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
+
+// Scripts
 import { Executables } from "scripts/libraries/Executables.sol";
+import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
+import { Process } from "scripts/libraries/Process.sol";
+
+// Libraries
+import { LibString } from "@solady/utils/LibString.sol";
 import { Constants } from "src/libraries/Constants.sol";
-import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
-import { ICrossDomainMessenger } from "src/universal/interfaces/ICrossDomainMessenger.sol";
-import { StandardBridge } from "src/universal/StandardBridge.sol";
+import { GameTypes } from "src/dispute/lib/Types.sol";
+import "src/dispute/lib/Types.sol";
+import "scripts/deploy/Deployer.sol";
+
+// Interfaces
 import { ISystemConfig } from "src/L1/interfaces/ISystemConfig.sol";
 import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
 import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
-import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
-import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
-import { PermissionedDisputeGame } from "src/dispute/PermissionedDisputeGame.sol";
-import { GameTypes } from "src/dispute/lib/Types.sol";
-import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
-import { Process } from "scripts/libraries/Process.sol";
 import { ProtocolVersion } from "src/L1/interfaces/IProtocolVersions.sol";
-import "src/dispute/lib/Types.sol";
-import "scripts/deploy/Deployer.sol";
+import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistry.sol";
 
 /// @title Initializer_Test
 /// @dev Ensures that the `initialize()` function on contracts cannot be called more than
@@ -264,9 +266,7 @@ contract Initializer_Test is Bridge_Initializer {
             InitializeableContract({
                 name: "L2CrossDomainMessenger",
                 target: address(l2CrossDomainMessenger),
-                initCalldata: abi.encodeCall(
-                    l2CrossDomainMessenger.initialize, (CrossDomainMessenger(address(l1CrossDomainMessenger)))
-                )
+                initCalldata: abi.encodeCall(l2CrossDomainMessenger.initialize, (l1CrossDomainMessenger))
             })
         );
         // L1StandardBridgeImpl
@@ -275,8 +275,7 @@ contract Initializer_Test is Bridge_Initializer {
                 name: "L1StandardBridge",
                 target: deploy.mustGetAddress("L1StandardBridge"),
                 initCalldata: abi.encodeCall(
-                    l1StandardBridge.initialize,
-                    (ICrossDomainMessenger(address(l1CrossDomainMessenger)), superchainConfig, systemConfig)
+                    l1StandardBridge.initialize, (l1CrossDomainMessenger, superchainConfig, systemConfig)
                 )
             })
         );
@@ -286,8 +285,7 @@ contract Initializer_Test is Bridge_Initializer {
                 name: "L1StandardBridgeProxy",
                 target: address(l1StandardBridge),
                 initCalldata: abi.encodeCall(
-                    l1StandardBridge.initialize,
-                    (ICrossDomainMessenger(address(l1CrossDomainMessenger)), superchainConfig, systemConfig)
+                    l1StandardBridge.initialize, (l1CrossDomainMessenger, superchainConfig, systemConfig)
                 )
             })
         );
@@ -296,7 +294,7 @@ contract Initializer_Test is Bridge_Initializer {
             InitializeableContract({
                 name: "L2StandardBridge",
                 target: address(l2StandardBridge),
-                initCalldata: abi.encodeCall(l2StandardBridge.initialize, (StandardBridge(payable(l1StandardBridge))))
+                initCalldata: abi.encodeCall(l2StandardBridge.initialize, (l1StandardBridge))
             })
         );
         // L2StandardBridgeInterop
@@ -304,7 +302,7 @@ contract Initializer_Test is Bridge_Initializer {
             InitializeableContract({
                 name: "L2StandardBridgeInterop",
                 target: address(l2StandardBridge),
-                initCalldata: abi.encodeCall(l2StandardBridge.initialize, (StandardBridge(payable(l1StandardBridge))))
+                initCalldata: abi.encodeCall(l2StandardBridge.initialize, (l1StandardBridge))
             })
         );
         // L1ERC721BridgeImpl
@@ -312,9 +310,7 @@ contract Initializer_Test is Bridge_Initializer {
             InitializeableContract({
                 name: "L1ERC721Bridge",
                 target: deploy.mustGetAddress("L1ERC721Bridge"),
-                initCalldata: abi.encodeCall(
-                    l1ERC721Bridge.initialize, (ICrossDomainMessenger(address(l1CrossDomainMessenger)), superchainConfig)
-                )
+                initCalldata: abi.encodeCall(l1ERC721Bridge.initialize, (l1CrossDomainMessenger, superchainConfig))
             })
         );
         // L1ERC721BridgeProxy
@@ -322,9 +318,7 @@ contract Initializer_Test is Bridge_Initializer {
             InitializeableContract({
                 name: "L1ERC721BridgeProxy",
                 target: address(l1ERC721Bridge),
-                initCalldata: abi.encodeCall(
-                    l1ERC721Bridge.initialize, (ICrossDomainMessenger(address(l1CrossDomainMessenger)), superchainConfig)
-                )
+                initCalldata: abi.encodeCall(l1ERC721Bridge.initialize, (l1CrossDomainMessenger, superchainConfig))
             })
         );
         // L2ERC721Bridge
@@ -374,7 +368,7 @@ contract Initializer_Test is Bridge_Initializer {
                 target: address(anchorStateRegistry),
                 initCalldata: abi.encodeCall(
                     anchorStateRegistry.initialize,
-                    (new AnchorStateRegistry.StartingAnchorRoot[](1), ISuperchainConfig(address(0)))
+                    (new IAnchorStateRegistry.StartingAnchorRoot[](1), ISuperchainConfig(address(0)))
                 )
             })
         );
@@ -385,7 +379,7 @@ contract Initializer_Test is Bridge_Initializer {
                 target: address(anchorStateRegistry),
                 initCalldata: abi.encodeCall(
                     anchorStateRegistry.initialize,
-                    (new AnchorStateRegistry.StartingAnchorRoot[](1), ISuperchainConfig(address(0)))
+                    (new IAnchorStateRegistry.StartingAnchorRoot[](1), ISuperchainConfig(address(0)))
                 )
             })
         );

@@ -33,6 +33,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
@@ -265,6 +266,9 @@ type SystemConfig struct {
 
 	// Explicitly disable batcher, for tests that rely on unsafe L2 payloads
 	DisableBatcher bool
+
+	// Explicitly disable setting `RollupSequencerHTTP` to forward txs from sentry nodes
+	DisableTxForwarder bool
 
 	// Configure data-availability type that is used by the batcher.
 	DataAvailabilityType batcherFlags.DataAvailabilityType
@@ -515,7 +519,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 
 	t.Log("Generating L2 genesis", "l2_allocs_mode", string(allocsMode))
 	l2Allocs := config.L2Allocs(allocsMode)
-	l2Genesis, err := genesis.BuildL2Genesis(cfg.DeployConfig, l2Allocs, l1Block)
+	l2Genesis, err := genesis.BuildL2Genesis(cfg.DeployConfig, l2Allocs, l1Block.Header())
 	if err != nil {
 		return nil, err
 	}
@@ -610,25 +614,44 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		return nil, err
 	}
 
+	// Ordered such that the Sequencer is initialized first. Setup this way so that
+	// the `RollupSequencerHTTP` GethOption can be supplied to any sentry nodes.
+	l2Nodes := []string{RoleSeq}
 	for name := range cfg.Nodes {
-		if name == RoleL1 {
-			return nil, fmt.Errorf("node name %s is reserved for L1 node", RoleL1)
+		if name == RoleSeq {
+			continue
 		}
+		l2Nodes = append(l2Nodes, name)
+	}
+
+	for _, name := range l2Nodes {
 		var ethClient services.EthInstance
 		if cfg.ExternalL2Shim == "" {
+			if name != RoleSeq && !cfg.DisableTxForwarder {
+				cfg.GethOptions[name] = append(cfg.GethOptions[name], func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error {
+					ethCfg.RollupSequencerHTTP = sys.EthInstances[RoleSeq].UserRPC().RPC()
+					return nil
+				})
+			}
+
 			l2Geth, err := geth.InitL2(name, l2Genesis, cfg.JWTFilePath, cfg.GethOptions[name]...)
 			if err != nil {
 				return nil, err
 			}
-			err = l2Geth.Node.Start()
-			if err != nil {
+			if err := l2Geth.Node.Start(); err != nil {
 				return nil, err
 			}
+
 			ethClient = l2Geth
 		} else {
 			if len(cfg.GethOptions[name]) > 0 {
 				t.Skip("External L2 nodes do not support configuration through GethOptions")
 			}
+
+			if name != RoleSeq && !cfg.DisableTxForwarder {
+				cfg.Loggers[name].Warn("External L2 nodes do not support `RollupSequencerHTTP` configuration. No tx forwarding support.")
+			}
+
 			ethClient = (&ExternalRunner{
 				Name:    name,
 				BinPath: cfg.ExternalL2Shim,
@@ -636,6 +659,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 				JWTPath: cfg.JWTFilePath,
 			}).Run(t)
 		}
+
 		sys.EthInstances[name] = ethClient
 	}
 

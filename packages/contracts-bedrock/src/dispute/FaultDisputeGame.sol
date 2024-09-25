@@ -1,29 +1,63 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
+// Libraries
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
-
-import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
-import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
-import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
-import { IInitializable } from "src/dispute/interfaces/IInitializable.sol";
-import { IBigStepper, IPreimageOracle } from "src/dispute/interfaces/IBigStepper.sol";
-import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistry.sol";
-
+import { FixedPointMathLib } from "@solady/utils/FixedPointMathLib.sol";
 import { Clone } from "@solady/utils/Clone.sol";
-import { Types } from "src/libraries/Types.sol";
-import { ISemver } from "src/universal/interfaces/ISemver.sol";
-
 import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { RLPReader } from "src/libraries/rlp/RLPReader.sol";
 import "src/dispute/lib/Types.sol";
 import "src/dispute/lib/Errors.sol";
 
+// Interfaces
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
+import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
+import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
+import { IBigStepper, IPreimageOracle } from "src/dispute/interfaces/IBigStepper.sol";
+import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistry.sol";
+
 /// @title FaultDisputeGame
 /// @notice An implementation of the `IFaultDisputeGame` interface.
-contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
+contract FaultDisputeGame is Clone, ISemver {
+    ////////////////////////////////////////////////////////////////
+    //                         Structs                            //
+    ////////////////////////////////////////////////////////////////
+
+    /// @notice The `ClaimData` struct represents the data associated with a Claim.
+    struct ClaimData {
+        uint32 parentIndex;
+        address counteredBy;
+        address claimant;
+        uint128 bond;
+        Claim claim;
+        Position position;
+        Clock clock;
+    }
+
+    /// @notice The `ResolutionCheckpoint` struct represents the data associated with an in-progress claim resolution.
+    struct ResolutionCheckpoint {
+        bool initialCheckpointComplete;
+        uint32 subgameIndex;
+        Position leftmostPosition;
+        address counteredBy;
+    }
+
+    ////////////////////////////////////////////////////////////////
+    //                         Events                             //
+    ////////////////////////////////////////////////////////////////
+
+    /// @notice Emitted when the game is resolved.
+    /// @param status The status of the game after resolution.
+    event Resolved(GameStatus indexed status);
+
+    /// @notice Emitted when a new claim is added to the DAG by `claimant`
+    /// @param parentIndex The index within the `claimData` array of the parent claim
+    /// @param claim The claim being added
+    /// @param claimant The address of the claimant
+    event Move(uint256 indexed parentIndex, Claim indexed claim, address indexed claimant);
+
     ////////////////////////////////////////////////////////////////
     //                         State Vars                         //
     ////////////////////////////////////////////////////////////////
@@ -70,8 +104,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     uint256 internal constant HEADER_BLOCK_NUMBER_INDEX = 8;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.3.1-beta.2
-    string public constant version = "1.3.1-beta.2";
+    /// @custom:semver 1.3.1-beta.3
+    string public constant version = "1.3.1-beta.3";
 
     /// @notice The starting timestamp of the game
     Timestamp public createdAt;
@@ -79,7 +113,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @notice The timestamp of the game's global resolution.
     Timestamp public resolvedAt;
 
-    /// @inheritdoc IDisputeGame
+    /// @notice Returns the current status of the game.
     GameStatus public status;
 
     /// @notice Flag for the `initialize` function to prevent re-initialization.
@@ -178,7 +212,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         L2_CHAIN_ID = _l2ChainId;
     }
 
-    /// @inheritdoc IInitializable
+    /// @notice Initializes the contract.
+    /// @dev This function may only be called once.
     function initialize() public payable virtual {
         // SAFETY: Any revert in this function will bubble up to the DisputeGameFactory and
         // prevent the game from being created.
@@ -255,7 +290,17 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     //                  `IFaultDisputeGame` impl                  //
     ////////////////////////////////////////////////////////////////
 
-    /// @inheritdoc IFaultDisputeGame
+    /// @notice Perform an instruction step via an on-chain fault proof processor.
+    /// @dev This function should point to a fault proof processor in order to execute
+    ///      a step in the fault proof program on-chain. The interface of the fault proof
+    ///      processor contract should adhere to the `IBigStepper` interface.
+    /// @param _claimIndex The index of the challenged claim within `claimData`.
+    /// @param _isAttack Whether or not the step is an attack or a defense.
+    /// @param _stateData The stateData of the step is the preimage of the claim at the given
+    ///        prestate, which is at `_stateIndex` if the move is an attack and `_claimIndex` if
+    ///        the move is a defense. If the step is an attack on the first instruction, it is
+    ///        the absolute prestate of the fault proof VM.
+    /// @param _proof Proof to access memory nodes in the VM's merkle state tree.
     function step(
         uint256 _claimIndex,
         bool _isAttack,
@@ -452,17 +497,28 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         emit Move(_challengeIndex, _claim, msg.sender);
     }
 
-    /// @inheritdoc IFaultDisputeGame
+    /// @notice Attack a disagreed upon `Claim`.
+    /// @param _disputed The `Claim` being attacked.
+    /// @param _parentIndex Index of the `Claim` to attack in the `claimData` array. This must match the `_disputed`
+    /// claim.
+    /// @param _claim The `Claim` at the relative attack position.
     function attack(Claim _disputed, uint256 _parentIndex, Claim _claim) external payable {
         move(_disputed, _parentIndex, _claim, true);
     }
 
-    /// @inheritdoc IFaultDisputeGame
+    /// @notice Defend an agreed upon `Claim`.
+    /// @notice _disputed The `Claim` being defended.
+    /// @param _parentIndex Index of the claim to defend in the `claimData` array. This must match the `_disputed`
+    /// claim.
+    /// @param _claim The `Claim` at the relative defense position.
     function defend(Claim _disputed, uint256 _parentIndex, Claim _claim) external payable {
         move(_disputed, _parentIndex, _claim, false);
     }
 
-    /// @inheritdoc IFaultDisputeGame
+    /// @notice Posts the requested local data to the VM's `PreimageOralce`.
+    /// @param _ident The local identifier of the data to post.
+    /// @param _execLeafIdx The index of the leaf claim in an execution subgame that requires the local data for a step.
+    /// @param _partOffset The offset of the data to post.
     function addLocalData(uint256 _ident, uint256 _execLeafIdx, uint256 _partOffset) external {
         // INVARIANT: Local data can only be added if the game is currently in progress.
         if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
@@ -501,7 +557,10 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         }
     }
 
-    /// @inheritdoc IFaultDisputeGame
+    /// @notice Returns the number of children that still need to be resolved in order to fully resolve a subgame rooted
+    ///         at `_claimIndex`.
+    /// @param _claimIndex The subgame root claim's index within `claimData`.
+    /// @return numRemainingChildren_ The number of children that still need to be checked to resolve the subgame.
     function getNumToResolve(uint256 _claimIndex) public view returns (uint256 numRemainingChildren_) {
         ResolutionCheckpoint storage checkpoint = resolutionCheckpoints[_claimIndex];
         uint256[] storage challengeIndices = subgames[_claimIndex];
@@ -510,17 +569,17 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         numRemainingChildren_ = challengeIndicesLen - checkpoint.subgameIndex;
     }
 
-    /// @inheritdoc IFaultDisputeGame
+    /// @notice The l2BlockNumber of the disputed output root in the `L2OutputOracle`.
     function l2BlockNumber() public pure returns (uint256 l2BlockNumber_) {
         l2BlockNumber_ = _getArgUint256(0x54);
     }
 
-    /// @inheritdoc IFaultDisputeGame
+    /// @notice Only the starting block number of the game.
     function startingBlockNumber() external view returns (uint256 startingBlockNumber_) {
         startingBlockNumber_ = startingOutputRoot.l2BlockNumber;
     }
 
-    /// @inheritdoc IFaultDisputeGame
+    /// @notice Starting output root and block number of the game.
     function startingRootHash() external view returns (Hash startingRootHash_) {
         startingRootHash_ = startingOutputRoot.root;
     }
@@ -577,7 +636,12 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     //                    `IDisputeGame` impl                     //
     ////////////////////////////////////////////////////////////////
 
-    /// @inheritdoc IDisputeGame
+    /// @notice If all necessary information has been gathered, this function should mark the game
+    ///         status as either `CHALLENGER_WINS` or `DEFENDER_WINS` and return the status of
+    ///         the resolved game. It is at this stage that the bonds should be awarded to the
+    ///         necessary parties.
+    /// @dev May only be called if the `status` is `IN_PROGRESS`.
+    /// @return status_ The status of the game after resolution.
     function resolve() external returns (GameStatus status_) {
         // INVARIANT: Resolution cannot occur unless the game is currently in progress.
         if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
@@ -596,7 +660,17 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         ANCHOR_STATE_REGISTRY.tryUpdateAnchorState();
     }
 
-    /// @inheritdoc IFaultDisputeGame
+    /// @notice Resolves the subgame rooted at the given claim index. `_numToResolve` specifies how many children of
+    ///         the subgame will be checked in this call. If `_numToResolve` is less than the number of children, an
+    ///         internal cursor will be updated and this function may be called again to complete resolution of the
+    ///         subgame.
+    /// @dev This function must be called bottom-up in the DAG
+    ///      A subgame is a tree of claims that has a maximum depth of 1.
+    ///      A subgame root claims is valid if, and only if, all of its child claims are invalid.
+    ///      At the deepest level in the DAG, a claim is invalid if there's a successful step against it.
+    /// @param _claimIndex The index of the subgame root claim to resolve.
+    /// @param _numToResolve The number of subgames to resolve in this call. If the input is `0`, and this is the first
+    ///                      page, this function will attempt to check all of the subgame's children at once.
     function resolveClaim(uint256 _claimIndex, uint256 _numToResolve) external {
         // INVARIANT: Resolution cannot occur unless the game is currently in progress.
         if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
@@ -698,34 +772,51 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         }
     }
 
-    /// @inheritdoc IDisputeGame
-    function gameType() public view override returns (GameType gameType_) {
+    /// @notice Getter for the game type.
+    /// @dev The reference impl should be entirely different depending on the type (fault, validity)
+    ///      i.e. The game type should indicate the security model.
+    /// @return gameType_ The type of proof system being used.
+    function gameType() public view returns (GameType gameType_) {
         gameType_ = GAME_TYPE;
     }
 
-    /// @inheritdoc IDisputeGame
+    /// @notice Getter for the creator of the dispute game.
+    /// @dev `clones-with-immutable-args` argument #1
+    /// @return creator_ The creator of the dispute game.
     function gameCreator() public pure returns (address creator_) {
         creator_ = _getArgAddress(0x00);
     }
 
-    /// @inheritdoc IDisputeGame
+    /// @notice Getter for the root claim.
+    /// @dev `clones-with-immutable-args` argument #2
+    /// @return rootClaim_ The root claim of the DisputeGame.
     function rootClaim() public pure returns (Claim rootClaim_) {
         rootClaim_ = Claim.wrap(_getArgBytes32(0x14));
     }
 
-    /// @inheritdoc IDisputeGame
+    /// @notice Getter for the parent hash of the L1 block when the dispute game was created.
+    /// @dev `clones-with-immutable-args` argument #3
+    /// @return l1Head_ The parent hash of the L1 block when the dispute game was created.
     function l1Head() public pure returns (Hash l1Head_) {
         l1Head_ = Hash.wrap(_getArgBytes32(0x34));
     }
 
-    /// @inheritdoc IDisputeGame
+    /// @notice Getter for the extra data.
+    /// @dev `clones-with-immutable-args` argument #4
+    /// @return extraData_ Any extra data supplied to the dispute game contract by the creator.
     function extraData() public pure returns (bytes memory extraData_) {
         // The extra data starts at the second word within the cwia calldata and
         // is 32 bytes long.
         extraData_ = _getArgBytes(0x54, 0x20);
     }
 
-    /// @inheritdoc IDisputeGame
+    /// @notice A compliant implementation of this interface should return the components of the
+    ///         game UUID's preimage provided in the cwia payload. The preimage of the UUID is
+    ///         constructed as `keccak256(gameType . rootClaim . extraData)` where `.` denotes
+    ///         concatenation.
+    /// @return gameType_ The type of proof system being used.
+    /// @return rootClaim_ The root claim of the DisputeGame.
+    /// @return extraData_ Any extra data supplied to the dispute game contract by the creator.
     function gameData() external view returns (GameType gameType_, Claim rootClaim_, bytes memory extraData_) {
         gameType_ = gameType();
         rootClaim_ = rootClaim();

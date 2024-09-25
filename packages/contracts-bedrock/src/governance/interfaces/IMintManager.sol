@@ -16,4 +16,6 @@ interface IMintManager {
     function renounceOwnership() external;
     function transferOwnership(address newOwner) external;
     function upgrade(address _newMintManager) external;
+
+    function __constructor__(address _upgrader, address _governanceToken) external;
 }

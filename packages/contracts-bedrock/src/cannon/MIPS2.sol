@@ -57,8 +57,8 @@ contract MIPS2 is ISemver {
     }
 
     /// @notice The semantic version of the MIPS2 contract.
-    /// @custom:semver 1.0.0-beta.10
-    string public constant version = "1.0.0-beta.10";
+    /// @custom:semver 1.0.0-beta.11
+    string public constant version = "1.0.0-beta.11";
 
     /// @notice The preimage oracle contract.
     IPreimageOracle internal immutable ORACLE;
@@ -202,7 +202,7 @@ contract MIPS2 is ISemver {
                 // check timeout first
                 if (state.step > thread.futexTimeoutStep) {
                     // timeout! Allow execution
-                    return onWaitComplete(state, thread, true);
+                    return onWaitComplete(thread, true);
                 } else {
                     uint32 mem = MIPSMemory.readMem(
                         state.memRoot, thread.futexAddr & 0xFFffFFfc, MIPSMemory.memoryProofOffset(MEM_PROOF_OFFSET, 1)
@@ -214,7 +214,7 @@ contract MIPS2 is ISemver {
                     } else {
                         // wake thread up, the value at its address changed!
                         // Userspace can turn thread back to sleep if it was too sporadic.
-                        return onWaitComplete(state, thread, false);
+                        return onWaitComplete(thread, false);
                     }
                 }
             }
@@ -690,14 +690,8 @@ contract MIPS2 is ISemver {
     }
 
     /// @notice Completes the FUTEX_WAIT syscall.
-    function onWaitComplete(
-        State memory _state,
-        ThreadState memory _thread,
-        bool _isTimedOut
-    )
-        internal
-        returns (bytes32 out_)
-    {
+    function onWaitComplete(ThreadState memory _thread, bool _isTimedOut) internal returns (bytes32 out_) {
+        // Note: no need to reset State.wakeup.  If we're here, the wakeup field has already been reset
         // Clear the futex state
         _thread.futexAddr = sys.FUTEX_EMPTY_ADDR;
         _thread.futexVal = 0;
@@ -711,7 +705,6 @@ contract MIPS2 is ISemver {
         sys.handleSyscallUpdates(cpu, _thread.registers, v0, v1);
         setStateCpuScalars(_thread, cpu);
 
-        _state.wakeup = sys.FUTEX_EMPTY_ADDR;
         updateCurrentThreadRoot();
         out_ = outputState();
     }

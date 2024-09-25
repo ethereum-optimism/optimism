@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"fmt"
 	"io"
-	"math/big"
 
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -65,11 +64,11 @@ func WithMaxBlocksPerSpanBatch(maxBlock int) SpanChannelOutOption {
 	}
 }
 
-func NewSpanChannelOut(genesisTimestamp uint64, chainID *big.Int, targetOutputSize uint64, compressionAlgo CompressionAlgo, chainSpec *rollup.ChainSpec, opts ...SpanChannelOutOption) (*SpanChannelOut, error) {
+func NewSpanChannelOut(targetOutputSize uint64, compressionAlgo CompressionAlgo, chainSpec *rollup.ChainSpec, opts ...SpanChannelOutOption) (*SpanChannelOut, error) {
 	c := &SpanChannelOut{
 		id:        ChannelID{},
 		frame:     0,
-		spanBatch: NewSpanBatch(genesisTimestamp, chainID),
+		spanBatch: NewSpanBatch(chainSpec.L2GenesisTime(), chainSpec.L2ChainID()),
 		rlp:       [2]*bytes.Buffer{{}, {}},
 		target:    targetOutputSize,
 		chainSpec: chainSpec,

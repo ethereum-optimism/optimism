@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math/big"
-	"os"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opsm"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
@@ -12,7 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 )
 
-func DeployImplementations(ctx context.Context, env *Env, intent *state.Intent, st *state.State) error {
+func DeployImplementations(ctx context.Context, env *Env, artifactsFS foundry.StatDirFs, intent *state.Intent, st *state.State) error {
 	lgr := env.Logger.New("stage", "deploy-implementations")
 
 	if !shouldDeployImplementations(intent, st) {
@@ -22,17 +21,9 @@ func DeployImplementations(ctx context.Context, env *Env, intent *state.Intent, 
 
 	lgr.Info("deploying implementations")
 
-	var artifactsFS foundry.StatDirFs
-	var err error
-	if intent.ContractArtifactsURL.Scheme == "file" {
-		fs := os.DirFS(intent.ContractArtifactsURL.Path)
-		artifactsFS = fs.(foundry.StatDirFs)
-	} else {
-		return fmt.Errorf("only file:// artifacts URLs are supported")
-	}
-
 	var dump *foundry.ForgeAllocs
 	var dio opsm.DeployImplementationsOutput
+	var err error
 	err = CallScriptBroadcast(
 		ctx,
 		CallScriptBroadcastOpts{
@@ -49,15 +40,17 @@ func DeployImplementations(ctx context.Context, env *Env, intent *state.Intent, 
 				dio, err = opsm.DeployImplementations(
 					host,
 					opsm.DeployImplementationsInput{
+						Salt:                            st.Create2Salt,
 						WithdrawalDelaySeconds:          big.NewInt(604800),
 						MinProposalSizeBytes:            big.NewInt(126000),
 						ChallengePeriodSeconds:          big.NewInt(86400),
 						ProofMaturityDelaySeconds:       big.NewInt(604800),
 						DisputeGameFinalityDelaySeconds: big.NewInt(302400),
-						Release:                         "op-contracts/v1.6.0",
+						Release:                         intent.ContractsRelease,
 						SuperchainConfigProxy:           st.SuperchainDeployment.SuperchainConfigProxyAddress,
 						ProtocolVersionsProxy:           st.SuperchainDeployment.ProtocolVersionsProxyAddress,
 						SuperchainProxyAdmin:            st.SuperchainDeployment.ProxyAdminAddress,
+						StandardVersionsToml:            opsm.StandardVersionsData,
 						UseInterop:                      false,
 					},
 				)
@@ -77,7 +70,7 @@ func DeployImplementations(ctx context.Context, env *Env, intent *state.Intent, 
 	}
 
 	st.ImplementationsDeployment = &state.ImplementationsDeployment{
-		OpsmAddress:                             dio.Opsm,
+		OpsmProxyAddress:                        dio.OpsmProxy,
 		DelayedWETHImplAddress:                  dio.DelayedWETHImpl,
 		OptimismPortalImplAddress:               dio.OptimismPortalImpl,
 		PreimageOracleSingletonAddress:          dio.PreimageOracleSingleton,

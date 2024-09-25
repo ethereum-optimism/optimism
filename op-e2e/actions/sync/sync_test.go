@@ -35,7 +35,7 @@ import (
 )
 
 func newSpanChannelOut(t actionsHelpers.StatefulTesting, e e2eutils.SetupData) derive.ChannelOut {
-	channelOut, err := derive.NewSpanChannelOut(e.RollupCfg.Genesis.L2Time, e.RollupCfg.L2ChainID, 128_000, derive.Zlib, rollup.NewChainSpec(e.RollupCfg))
+	channelOut, err := derive.NewSpanChannelOut(128_000, derive.Zlib, rollup.NewChainSpec(e.RollupCfg))
 	require.NoError(t, err)
 	return channelOut
 }

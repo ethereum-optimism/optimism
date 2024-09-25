@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
-	"os"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opsm"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
@@ -16,19 +15,10 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-func GenerateL2Genesis(ctx context.Context, env *Env, intent *state.Intent, st *state.State, chainID common.Hash) error {
+func GenerateL2Genesis(ctx context.Context, env *Env, artifactsFS foundry.StatDirFs, intent *state.Intent, st *state.State, chainID common.Hash) error {
 	lgr := env.Logger.New("stage", "generate-l2-genesis")
 
 	lgr.Info("generating L2 genesis", "id", chainID.Hex())
-
-	var artifactsFS foundry.StatDirFs
-	var err error
-	if intent.ContractArtifactsURL.Scheme == "file" {
-		fs := os.DirFS(intent.ContractArtifactsURL.Path)
-		artifactsFS = fs.(foundry.StatDirFs)
-	} else {
-		return fmt.Errorf("only file:// artifacts URLs are supported")
-	}
 
 	thisIntent, err := intent.Chain(chainID)
 	if err != nil {
@@ -40,7 +30,7 @@ func GenerateL2Genesis(ctx context.Context, env *Env, intent *state.Intent, st *
 		return fmt.Errorf("failed to get chain state: %w", err)
 	}
 
-	initCfg, err := state.CombineL2InitConfig(intent, thisIntent)
+	initCfg, err := state.CombineDeployConfig(intent, thisIntent, st, thisChainState)
 	if err != nil {
 		return fmt.Errorf("failed to combine L2 init config: %w", err)
 	}
@@ -63,7 +53,7 @@ func GenerateL2Genesis(ctx context.Context, env *Env, intent *state.Intent, st *
 						L1StandardBridgeProxy:       thisChainState.L1StandardBridgeProxyAddress,
 						L1ERC721BridgeProxy:         thisChainState.L1ERC721BridgeProxyAddress,
 					},
-					L2Config: initCfg,
+					L2Config: initCfg.L2InitializationConfig,
 				})
 				if err != nil {
 					return fmt.Errorf("failed to call L2Genesis script: %w", err)
@@ -92,7 +82,12 @@ func GenerateL2Genesis(ctx context.Context, env *Env, intent *state.Intent, st *
 	if err := gw.Close(); err != nil {
 		return fmt.Errorf("failed to close gzip writer: %w", err)
 	}
-	thisChainState.Genesis = buf.Bytes()
+	thisChainState.Allocs = buf.Bytes()
+	startHeader, err := env.L1Client.HeaderByNumber(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to get start block: %w", err)
+	}
+	thisChainState.StartBlock = startHeader
 
 	if err := env.WriteState(st); err != nil {
 		return fmt.Errorf("failed to write state: %w", err)

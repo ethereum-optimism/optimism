@@ -732,6 +732,8 @@ type L1DependenciesConfig struct {
 
 	// DAChallengeProxy represents the L1 address of the DataAvailabilityChallenge contract.
 	DAChallengeProxy common.Address `json:"daChallengeProxy"`
+
+	ProtocolVersionsProxy common.Address `json:"protocolVersionsProxy"`
 }
 
 // DependencyContext is the contextual configuration needed to verify the L1 dependencies,
@@ -877,7 +879,7 @@ func (d *DeployConfig) SetDeployments(deployments *L1Deployments) {
 
 // RollupConfig converts a DeployConfig to a rollup.Config. If Ecotone is active at genesis, the
 // Overhead value is considered a noop.
-func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHash common.Hash, l2GenesisBlockNumber uint64) (*rollup.Config, error) {
+func (d *DeployConfig) RollupConfig(l1StartBlock *types.Header, l2GenesisBlockHash common.Hash, l2GenesisBlockNumber uint64) (*rollup.Config, error) {
 	if d.OptimismPortalProxy == (common.Address{}) {
 		return nil, errors.New("OptimismPortalProxy cannot be address(0)")
 	}
@@ -894,17 +896,19 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 		}
 	}
 
+	l1StartTime := l1StartBlock.Time
+
 	return &rollup.Config{
 		Genesis: rollup.Genesis{
 			L1: eth.BlockID{
 				Hash:   l1StartBlock.Hash(),
-				Number: l1StartBlock.NumberU64(),
+				Number: l1StartBlock.Number.Uint64(),
 			},
 			L2: eth.BlockID{
 				Hash:   l2GenesisBlockHash,
 				Number: l2GenesisBlockNumber,
 			},
-			L2Time: l1StartBlock.Time(),
+			L2Time: l1StartBlock.Time,
 			SystemConfig: eth.SystemConfig{
 				BatcherAddr: d.BatchSenderAddress,
 				Overhead:    eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(d.GasPriceOracleOverhead))),
@@ -912,23 +916,24 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 				GasLimit:    uint64(d.L2GenesisBlockGasLimit),
 			},
 		},
-		BlockTime:              d.L2BlockTime,
-		MaxSequencerDrift:      d.MaxSequencerDrift,
-		SeqWindowSize:          d.SequencerWindowSize,
-		ChannelTimeoutBedrock:  d.ChannelTimeoutBedrock,
-		L1ChainID:              new(big.Int).SetUint64(d.L1ChainID),
-		L2ChainID:              new(big.Int).SetUint64(d.L2ChainID),
-		BatchInboxAddress:      d.BatchInboxAddress,
-		DepositContractAddress: d.OptimismPortalProxy,
-		L1SystemConfigAddress:  d.SystemConfigProxy,
-		RegolithTime:           d.RegolithTime(l1StartBlock.Time()),
-		CanyonTime:             d.CanyonTime(l1StartBlock.Time()),
-		DeltaTime:              d.DeltaTime(l1StartBlock.Time()),
-		EcotoneTime:            d.EcotoneTime(l1StartBlock.Time()),
-		FjordTime:              d.FjordTime(l1StartBlock.Time()),
-		GraniteTime:            d.GraniteTime(l1StartBlock.Time()),
-		InteropTime:            d.InteropTime(l1StartBlock.Time()),
-		AltDAConfig:            altDA,
+		BlockTime:               d.L2BlockTime,
+		MaxSequencerDrift:       d.MaxSequencerDrift,
+		SeqWindowSize:           d.SequencerWindowSize,
+		ChannelTimeoutBedrock:   d.ChannelTimeoutBedrock,
+		L1ChainID:               new(big.Int).SetUint64(d.L1ChainID),
+		L2ChainID:               new(big.Int).SetUint64(d.L2ChainID),
+		BatchInboxAddress:       d.BatchInboxAddress,
+		DepositContractAddress:  d.OptimismPortalProxy,
+		L1SystemConfigAddress:   d.SystemConfigProxy,
+		RegolithTime:            d.RegolithTime(l1StartTime),
+		CanyonTime:              d.CanyonTime(l1StartTime),
+		DeltaTime:               d.DeltaTime(l1StartTime),
+		EcotoneTime:             d.EcotoneTime(l1StartTime),
+		FjordTime:               d.FjordTime(l1StartTime),
+		GraniteTime:             d.GraniteTime(l1StartTime),
+		InteropTime:             d.InteropTime(l1StartTime),
+		ProtocolVersionsAddress: d.ProtocolVersionsProxy,
+		AltDAConfig:             altDA,
 	}, nil
 }
 

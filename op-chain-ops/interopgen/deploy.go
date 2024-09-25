@@ -172,6 +172,7 @@ func deploySuperchainToL1(l1Host *script.Host, superCfg *SuperchainConfig) (*Sup
 		ProtocolVersionsProxy:           superDeployment.ProtocolVersionsProxy,
 		SuperchainProxyAdmin:            superDeployment.SuperchainProxyAdmin,
 		UseInterop:                      superCfg.Implementations.UseInterop,
+		StandardVersionsToml:            opsm.StandardVersionsData,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to deploy Implementations contracts: %w", err)
@@ -206,7 +207,7 @@ func deployL2ToL1(l1Host *script.Host, superCfg *SuperchainConfig, superDeployme
 		BasefeeScalar:          cfg.GasPriceOracleBaseFeeScalar,
 		BlobBaseFeeScalar:      cfg.GasPriceOracleBlobBaseFeeScalar,
 		L2ChainId:              new(big.Int).SetUint64(cfg.L2ChainID),
-		Opsm:                   superDeployment.Opsm,
+		OpsmProxy:              superDeployment.OpsmProxy,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to deploy L2 OP chain: %w", err)
@@ -289,7 +290,7 @@ func completeL2(l2Host *script.Host, cfg *L2Config, l1Block *types.Block, deploy
 		},
 	}
 	// l1Block is used to determine genesis time.
-	l2Genesis, err := genesis.NewL2Genesis(deployCfg, l1Block)
+	l2Genesis, err := genesis.NewL2Genesis(deployCfg, l1Block.Header())
 	if err != nil {
 		return nil, fmt.Errorf("failed to build L2 genesis config: %w", err)
 	}
@@ -314,7 +315,7 @@ func completeL2(l2Host *script.Host, cfg *L2Config, l1Block *types.Block, deploy
 	l2Genesis.Alloc = allocs.Accounts
 	l2GenesisBlock := l2Genesis.ToBlock()
 
-	rollupCfg, err := deployCfg.RollupConfig(l1Block, l2GenesisBlock.Hash(), l2GenesisBlock.NumberU64())
+	rollupCfg, err := deployCfg.RollupConfig(l1Block.Header(), l2GenesisBlock.Hash(), l2GenesisBlock.NumberU64())
 	if err != nil {
 		return nil, fmt.Errorf("failed to build L2 rollup config: %w", err)
 	}

@@ -1,7 +1,12 @@
 package state
 
 import (
+	"bytes"
+	"compress/gzip"
+	"encoding/json"
 	"fmt"
+
+	"github.com/ethereum/go-ethereum/core/types"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
@@ -60,7 +65,7 @@ type SuperchainDeployment struct {
 }
 
 type ImplementationsDeployment struct {
-	OpsmAddress                             common.Address       `json:"opsmAddress"`
+	OpsmProxyAddress                        common.Address       `json:"opsmProxyAddress"`
 	DelayedWETHImplAddress                  common.Address       `json:"delayedWETHImplAddress"`
 	OptimismPortalImplAddress               common.Address       `json:"optimismPortalImplAddress"`
 	PreimageOracleSingletonAddress          common.Address       `json:"preimageOracleSingletonAddress"`
@@ -93,5 +98,22 @@ type ChainState struct {
 	DelayedWETHPermissionedGameProxyAddress   common.Address `json:"delayedWETHPermissionedGameProxyAddress"`
 	DelayedWETHPermissionlessGameProxyAddress common.Address `json:"delayedWETHPermissionlessGameProxyAddress"`
 
-	Genesis Base64Bytes `json:"genesis"`
+	Allocs Base64Bytes `json:"allocs"`
+
+	StartBlock *types.Header `json:"startBlock"`
+}
+
+func (c *ChainState) UnmarshalAllocs() (*foundry.ForgeAllocs, error) {
+	gr, err := gzip.NewReader(bytes.NewReader(c.Allocs))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create gzip reader: %w", err)
+	}
+	defer gr.Close()
+
+	var allocs foundry.ForgeAllocs
+	if err := json.NewDecoder(gr).Decode(&allocs); err != nil {
+		return nil, fmt.Errorf("failed to decode allocs: %w", err)
+	}
+
+	return &allocs, nil
 }

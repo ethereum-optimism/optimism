@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Testing
 import { Vm } from "forge-std/Vm.sol";
 import { StdUtils } from "forge-std/StdUtils.sol";
-import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
 import { FaultDisputeGame_Init } from "test/dispute/FaultDisputeGame.t.sol";
 
+// Libraries
 import "src/dispute/lib/Types.sol";
 import "src/dispute/lib/Errors.sol";
+
+// Interfaces
+import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
 
 contract FaultDisputeGame_Solvency_Invariant is FaultDisputeGame_Init {
     Claim internal constant ROOT_CLAIM = Claim.wrap(bytes32(uint256(10)));
@@ -73,12 +77,12 @@ contract FaultDisputeGame_Solvency_Invariant is FaultDisputeGame_Init {
 }
 
 contract RandomClaimActor is StdUtils {
-    FaultDisputeGame internal immutable GAME;
+    IFaultDisputeGame internal immutable GAME;
     Vm internal immutable VM;
 
     uint256 public totalBonded;
 
-    constructor(FaultDisputeGame _gameProxy, Vm _vm) {
+    constructor(IFaultDisputeGame _gameProxy, Vm _vm) {
         GAME = _gameProxy;
         VM = _vm;
     }

@@ -18,4 +18,6 @@ interface IDelayedVetoable {
     function target() external returns (address target_);
     function version() external view returns (string memory);
     function vetoer() external returns (address vetoer_);
+
+    function __constructor__(address vetoer_, address initiator_, address target_, uint256 operatingDelay_) external;
 }

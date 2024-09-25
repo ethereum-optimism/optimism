@@ -669,7 +669,7 @@ func TestTxMgr_EstimateGasFails(t *testing.T) {
 	lastNonce := tx.Nonce()
 
 	// Mock gas estimation failure.
-	h.gasPricer.err = fmt.Errorf("execution error")
+	h.gasPricer.err = errors.New("execution error")
 	_, err = h.mgr.craftTx(context.Background(), candidate)
 	require.ErrorContains(t, err, "failed to estimate gas")
 
@@ -686,7 +686,7 @@ func TestTxMgr_SigningFails(t *testing.T) {
 	cfg := configWithNumConfs(1)
 	cfg.Signer = func(ctx context.Context, from common.Address, tx *types.Transaction) (*types.Transaction, error) {
 		if errorSigning {
-			return nil, fmt.Errorf("signer error")
+			return nil, errors.New("signer error")
 		} else {
 			return tx, nil
 		}

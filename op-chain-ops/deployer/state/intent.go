@@ -24,9 +24,11 @@ type Intent struct {
 
 	ContractArtifactsURL *ArtifactsURL `json:"contractArtifactsURL" toml:"contractArtifactsURL"`
 
+	ContractsRelease string `json:"contractsVersion" toml:"contractsVersion"`
+
 	Chains []*ChainIntent `json:"chains" toml:"chains"`
 
-	GlobalInitOverrides map[string]any `json:"globalInitOverrides" toml:"globalInitOverrides"`
+	GlobalDeployOverrides map[string]any `json:"globalDeployOverrides" toml:"globalDeployOverrides"`
 }
 
 func (c *Intent) L1ChainIDBig() *big.Int {
@@ -56,10 +58,6 @@ func (c *Intent) Check() error {
 
 	if c.ContractArtifactsURL == nil {
 		return fmt.Errorf("contractArtifactsURL must be set")
-	}
-
-	if c.ContractArtifactsURL.Scheme != "file" {
-		return fmt.Errorf("contractArtifactsURL must be a file URL")
 	}
 
 	return nil
@@ -92,7 +90,7 @@ type ChainIntent struct {
 
 	Roles ChainRoles `json:"roles" toml:"roles"`
 
-	InitOverrides map[string]any `json:"initOverrides" toml:"initOverrides"`
+	DeployOverrides map[string]any `json:"deployOverrides" toml:"deployOverrides"`
 }
 
 type ChainRoles struct {

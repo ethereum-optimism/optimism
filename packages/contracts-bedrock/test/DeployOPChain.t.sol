@@ -31,6 +31,8 @@ import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
 
+import { GameType, GameTypes, Hash, OutputRoot } from "src/dispute/lib/Types.sol";
+
 contract DeployOPChainInput_Test is Test {
     DeployOPChainInput doi;
 
@@ -60,7 +62,7 @@ contract DeployOPChainInput_Test is Test {
         doi.set(doi.basefeeScalar.selector, basefeeScalar);
         doi.set(doi.blobBaseFeeScalar.selector, blobBaseFeeScalar);
         doi.set(doi.l2ChainId.selector, l2ChainId);
-        doi.set(doi.opsm.selector, address(opsm));
+        doi.set(doi.opsmProxy.selector, address(opsm));
         // Compare the default inputs to the getter methods.
         assertEq(opChainProxyAdminOwner, doi.opChainProxyAdminOwner(), "200");
         assertEq(systemConfigOwner, doi.systemConfigOwner(), "300");
@@ -71,7 +73,7 @@ contract DeployOPChainInput_Test is Test {
         assertEq(basefeeScalar, doi.basefeeScalar(), "800");
         assertEq(blobBaseFeeScalar, doi.blobBaseFeeScalar(), "900");
         assertEq(l2ChainId, doi.l2ChainId(), "1000");
-        assertEq(address(opsm), address(doi.opsm()), "1100");
+        assertEq(address(opsm), address(doi.opsmProxy()), "1100");
     }
 
     function test_getters_whenNotSet_revert() public {
@@ -321,7 +323,7 @@ contract DeployOPChain_TestBase is Test {
     uint256 challengePeriodSeconds = 300;
     uint256 proofMaturityDelaySeconds = 400;
     uint256 disputeGameFinalityDelaySeconds = 500;
-    string release = "op-contracts/latest";
+    string release = "dev-release"; // this means implementation contracts will be deployed
     SuperchainConfig superchainConfigProxy;
     ProtocolVersions protocolVersionsProxy;
 
@@ -336,12 +338,33 @@ contract DeployOPChain_TestBase is Test {
     uint32 basefeeScalar = 100;
     uint32 blobBaseFeeScalar = 200;
     uint256 l2ChainId = 300;
+    AnchorStateRegistry.StartingAnchorRoot[] startingAnchorRoots;
     OPStackManager opsm = OPStackManager(address(0));
 
     function setUp() public virtual {
-        // Initialize deploy scripts.
+        // Set defaults for reference types
+        uint256 cannonBlock = 400;
+        uint256 permissionedBlock = 500;
+        startingAnchorRoots.push(
+            AnchorStateRegistry.StartingAnchorRoot({
+                gameType: GameTypes.CANNON,
+                outputRoot: OutputRoot({ root: Hash.wrap(keccak256("defaultOutputRootCannon")), l2BlockNumber: cannonBlock })
+            })
+        );
+        startingAnchorRoots.push(
+            AnchorStateRegistry.StartingAnchorRoot({
+                gameType: GameTypes.PERMISSIONED_CANNON,
+                outputRoot: OutputRoot({
+                    root: Hash.wrap(keccak256("defaultOutputRootPermissioned")),
+                    l2BlockNumber: permissionedBlock
+                })
+            })
+        );
+
+        // Configure and deploy Superchain contracts
         DeploySuperchain deploySuperchain = new DeploySuperchain();
         (DeploySuperchainInput dsi, DeploySuperchainOutput dso) = deploySuperchain.etchIOContracts();
+
         dsi.set(dsi.proxyAdminOwner.selector, proxyAdminOwner);
         dsi.set(dsi.protocolVersionsOwner.selector, protocolVersionsOwner);
         dsi.set(dsi.guardian.selector, guardian);
@@ -349,20 +372,16 @@ contract DeployOPChain_TestBase is Test {
         dsi.set(dsi.requiredProtocolVersion.selector, requiredProtocolVersion);
         dsi.set(dsi.recommendedProtocolVersion.selector, recommendedProtocolVersion);
 
-        DeployImplementations deployImplementations = createDeployImplementationsContract();
-        (DeployImplementationsInput dii, DeployImplementationsOutput dio) = deployImplementations.etchIOContracts();
-
-        deployOPChain = new DeployOPChain();
-        (doi, doo) = deployOPChain.etchIOContracts();
-
-        // Deploy the superchain contracts.
         deploySuperchain.run(dsi, dso);
 
         // Populate the inputs for DeployImplementations based on the output of DeploySuperchain.
         superchainConfigProxy = dso.superchainConfigProxy();
         protocolVersionsProxy = dso.protocolVersionsProxy();
 
-        // Deploy the implementations.
+        // Configure and deploy Implementation contracts
+        DeployImplementations deployImplementations = createDeployImplementationsContract();
+        (DeployImplementationsInput dii, DeployImplementationsOutput dio) = deployImplementations.etchIOContracts();
+
         dii.set(dii.withdrawalDelaySeconds.selector, withdrawalDelaySeconds);
         dii.set(dii.minProposalSizeBytes.selector, minProposalSizeBytes);
         dii.set(dii.challengePeriodSeconds.selector, challengePeriodSeconds);
@@ -371,10 +390,19 @@ contract DeployOPChain_TestBase is Test {
         dii.set(dii.release.selector, release);
         dii.set(dii.superchainConfigProxy.selector, address(superchainConfigProxy));
         dii.set(dii.protocolVersionsProxy.selector, address(protocolVersionsProxy));
+        // End users of the DeployImplementations contract will need to set the `standardVersionsToml`.
+        string memory standardVersionsTomlPath =
+            string.concat(vm.projectRoot(), "/test/fixtures/standard-versions.toml");
+        string memory standardVersionsToml = vm.readFile(standardVersionsTomlPath);
+        dii.set(dii.standardVersionsToml.selector, standardVersionsToml);
         deployImplementations.run(dii, dio);
 
-        // Set the OPStackManager input for DeployOPChain.
-        opsm = dio.opsm();
+        // Deploy DeployOpChain, but defer populating the input values to the test suites inheriting this contract.
+        deployOPChain = new DeployOPChain();
+        (doi, doo) = deployOPChain.etchIOContracts();
+
+        // Set the OPStackManager address as input to DeployOPChain.
+        opsm = dio.opsmProxy();
     }
 
     // See the function of the same name in the `DeployImplementations_Test` contract of
@@ -389,7 +417,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         return keccak256(abi.encode(_seed, _i));
     }
 
-    function testFuzz_run_memory_succeeds(bytes32 _seed) public {
+    function testFuzz_run_memory_succeed(bytes32 _seed) public {
         opChainProxyAdminOwner = address(uint160(uint256(hash(_seed, 0))));
         systemConfigOwner = address(uint160(uint256(hash(_seed, 1))));
         batcher = address(uint160(uint256(hash(_seed, 2))));
@@ -398,7 +426,26 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         challenger = address(uint160(uint256(hash(_seed, 5))));
         basefeeScalar = uint32(uint256(hash(_seed, 6)));
         blobBaseFeeScalar = uint32(uint256(hash(_seed, 7)));
-        l2ChainId = uint256(uint256(hash(_seed, 8)));
+        l2ChainId = uint256(hash(_seed, 8));
+
+        // Set the initial anchor states. The typical usage we expect is to pass in one root per game type.
+        uint256 cannonBlock = uint256(hash(_seed, 9));
+        uint256 permissionedBlock = uint256(hash(_seed, 10));
+        startingAnchorRoots.push(
+            AnchorStateRegistry.StartingAnchorRoot({
+                gameType: GameTypes.CANNON,
+                outputRoot: OutputRoot({ root: Hash.wrap(keccak256(abi.encode(_seed, 11))), l2BlockNumber: cannonBlock })
+            })
+        );
+        startingAnchorRoots.push(
+            AnchorStateRegistry.StartingAnchorRoot({
+                gameType: GameTypes.PERMISSIONED_CANNON,
+                outputRoot: OutputRoot({
+                    root: Hash.wrap(keccak256(abi.encode(_seed, 12))),
+                    l2BlockNumber: permissionedBlock
+                })
+            })
+        );
 
         doi.set(doi.opChainProxyAdminOwner.selector, opChainProxyAdminOwner);
         doi.set(doi.systemConfigOwner.selector, systemConfigOwner);
@@ -409,7 +456,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         doi.set(doi.basefeeScalar.selector, basefeeScalar);
         doi.set(doi.blobBaseFeeScalar.selector, blobBaseFeeScalar);
         doi.set(doi.l2ChainId.selector, l2ChainId);
-        doi.set(doi.opsm.selector, address(opsm)); // Not fuzzed since it must be an actual instance.
+        doi.set(doi.opsmProxy.selector, address(opsm)); // Not fuzzed since it must be an actual instance.
 
         deployOPChain.run(doi, doo);
 
@@ -432,8 +479,12 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         address batcherActual = address(uint160(uint256(doo.systemConfigProxy().batcherHash())));
         assertEq(batcherActual, batcher, "2300");
         assertEq(address(doo.systemConfigProxy().unsafeBlockSigner()), unsafeBlockSigner, "2400");
-        // assertEq(address(...proposer()), proposer, "2500"); // TODO once we deploy dispute games.
-        // assertEq(address(...challenger()), challenger, "2600"); // TODO once we deploy dispute games.
+        assertEq(address(doo.permissionedDisputeGame().proposer()), proposer, "2500");
+        assertEq(address(doo.permissionedDisputeGame().challenger()), challenger, "2600");
+
+        // TODO once we deploy the Permissionless Dispute Game
+        // assertEq(address(doo.faultDisputeGame().proposer()), proposer, "2700");
+        // assertEq(address(doo.faultDisputeGame().challenger()), challenger, "2800");
 
         // Most architecture assertions are handled within the OP Stack Manager itself and therefore
         // we only assert on the things that are not visible onchain.

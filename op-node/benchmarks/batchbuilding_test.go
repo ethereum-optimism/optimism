@@ -87,15 +87,16 @@ var (
 
 // channelOutByType returns a channel out of the given type as a helper for the benchmarks
 func channelOutByType(b *testing.B, batchType uint, cd compressorDetails) (derive.ChannelOut, error) {
-	chainID := big.NewInt(333)
-	rollupConfig := new(rollup.Config)
+	rollupConfig := &rollup.Config{
+		L2ChainID: big.NewInt(333),
+	}
 	if batchType == derive.SingularBatchType {
 		compressor, err := cd.Compressor()
 		require.NoError(b, err)
 		return derive.NewSingularChannelOut(compressor, rollup.NewChainSpec(rollupConfig))
 	}
 	if batchType == derive.SpanBatchType {
-		return derive.NewSpanChannelOut(0, chainID, cd.config.TargetOutputSize, cd.config.CompressionAlgo, rollup.NewChainSpec(rollupConfig))
+		return derive.NewSpanChannelOut(cd.config.TargetOutputSize, cd.config.CompressionAlgo, rollup.NewChainSpec(rollupConfig))
 	}
 	return nil, fmt.Errorf("unsupported batch type: %d", batchType)
 }
