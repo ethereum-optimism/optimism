@@ -124,8 +124,12 @@ contract OPStackManager is ISemver, Initializable {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 1.0.0-beta.6
-    string public constant version = "1.0.0-beta.6";
+    /// @custom:semver 1.0.0-beta.7
+    string public constant version = "1.0.0-beta.7";
+
+    /// @notice Represents the interface version so consumers know how to decode the DeployOutput struct
+    /// that's emitted in the `Deployed` event. Whenever that struct changes, a new version should be used.
+    uint256 public constant OUTPUT_VERSION = 0;
 
     /// @notice Address of the SuperchainConfig contract shared by all chains.
     SuperchainConfig public immutable superchainConfig;
@@ -155,9 +159,10 @@ contract OPStackManager is ISemver, Initializable {
     // -------- Events --------
 
     /// @notice Emitted when a new OP Stack chain is deployed.
+    /// @param outputVersion The version that indicates how to decode the `deployOutput` argument.
     /// @param l2ChainId The chain ID of the new chain.
     /// @param deployOutput The abi-encoded output of the deployment.
-    event Deployed(uint256 indexed l2ChainId, bytes deployOutput);
+    event Deployed(uint256 indexed outputVersion, uint256 indexed l2ChainId, bytes deployOutput);
 
     // -------- Errors --------
 
@@ -334,7 +339,7 @@ contract OPStackManager is ISemver, Initializable {
         // Transfer ownership of the ProxyAdmin from this contract to the specified owner.
         output.opChainProxyAdmin.transferOwnership(_input.roles.opChainProxyAdminOwner);
 
-        emit Deployed(l2ChainId, abi.encode(output));
+        emit Deployed(OUTPUT_VERSION, l2ChainId, abi.encode(output));
         return output;
     }
 
