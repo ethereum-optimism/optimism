@@ -354,7 +354,7 @@
   },
   {
     "inputs": [],
-    "name": "setL1BlockValuesIsthmus",
+    "name": "setL1BlockValuesInterop",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

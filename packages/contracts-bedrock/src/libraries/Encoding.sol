@@ -184,7 +184,7 @@ library Encoding {
     /// @param _blobBaseFee         L1 blob base fee.
     /// @param _hash                L1 blockhash.
     /// @param _batcherHash         Versioned hash to authenticate batcher by.
-    function encodeSetL1BlockValuesIsthmus(
+    function encodeSetL1BlockValuesInterop(
         uint32 _baseFeeScalar,
         uint32 _blobBaseFeeScalar,
         uint64 _sequenceNumber,
@@ -199,7 +199,7 @@ library Encoding {
         pure
         returns (bytes memory)
     {
-        bytes4 functionSignature = bytes4(keccak256("setL1BlockValuesIsthmus()"));
+        bytes4 functionSignature = bytes4(keccak256("setL1BlockValuesInterop()"));
         return abi.encodePacked(
             functionSignature,
             _baseFeeScalar,
