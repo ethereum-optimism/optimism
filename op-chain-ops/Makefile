@@ -46,6 +46,7 @@ fuzz:
 
 
 sync-standard-version:
-	curl -Lo ./deployer/opcm/standard-versions.toml https://raw.githubusercontent.com/ethereum-optimism/superchain-registry/refs/heads/main/validation/standard/standard-versions.toml
+	curl -Lo ./deployer/opcm/standard-versions-mainnet.toml https://raw.githubusercontent.com/ethereum-optimism/superchain-registry/refs/heads/main/validation/standard/standard-versions-mainnet.toml
+	curl -Lo ./deployer/opcm/standard-versions-sepolia.toml https://raw.githubusercontent.com/ethereum-optimism/superchain-registry/refs/heads/main/validation/standard/standard-versions-sepolia.toml
 
 .PHONY: test fuzz op-deployer sync-standard-version
