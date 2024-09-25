@@ -139,9 +139,10 @@ contract DeployOPChainInput is BaseDeployIO {
         return abi.encode(defaultStartingAnchorRoots);
     }
 
-    // TODO: Check that opcm is proxied and it has an implementation.
-    function opcmProxy() public view returns (OPContractsManager) {
+    function opcmProxy() public returns (OPContractsManager) {
         require(address(_opcmProxy) != address(0), "DeployOPChainInput: not set");
+        DeployUtils.assertValidContractAddress(address(_opcmProxy));
+        DeployUtils.assertImplementationSet(address(_opcmProxy));
         return _opcmProxy;
     }
 }
@@ -303,7 +304,7 @@ contract DeployOPChainOutput is BaseDeployIO {
         assertValidSystemConfig(_doi);
     }
 
-    function assertValidPermissionedDisputeGame(DeployOPChainInput _doi) internal view {
+    function assertValidPermissionedDisputeGame(DeployOPChainInput _doi) internal {
         PermissionedDisputeGame game = permissionedDisputeGame();
 
         require(GameType.unwrap(game.gameType()) == GameType.unwrap(GameTypes.PERMISSIONED_CANNON), "DPG-10");
@@ -344,7 +345,7 @@ contract DeployOPChainOutput is BaseDeployIO {
         require(address(registry.disputeGameFactory()) == address(disputeGameFactoryProxy()), "ANCHORI-10");
     }
 
-    function assertValidSystemConfig(DeployOPChainInput _doi) internal view {
+    function assertValidSystemConfig(DeployOPChainInput _doi) internal {
         SystemConfig systemConfig = systemConfigProxy();
 
         DeployUtils.assertInitialized({ _contractAddress: address(systemConfig), _slot: 0, _offset: 0 });
@@ -383,7 +384,7 @@ contract DeployOPChainOutput is BaseDeployIO {
         require(gasPayingToken == Constants.ETHER, "SYSCON-220");
     }
 
-    function assertValidL1CrossDomainMessenger(DeployOPChainInput _doi) internal view {
+    function assertValidL1CrossDomainMessenger(DeployOPChainInput _doi) internal {
         L1CrossDomainMessenger messenger = l1CrossDomainMessengerProxy();
 
         DeployUtils.assertInitialized({ _contractAddress: address(messenger), _slot: 0, _offset: 20 });
@@ -399,7 +400,7 @@ contract DeployOPChainOutput is BaseDeployIO {
         require(address(uint160(uint256(xdmSenderSlot))) == Constants.DEFAULT_L2_SENDER, "L1xDM-60");
     }
 
-    function assertValidL1StandardBridge(DeployOPChainInput _doi) internal view {
+    function assertValidL1StandardBridge(DeployOPChainInput _doi) internal {
         L1StandardBridge bridge = l1StandardBridgeProxy();
         L1CrossDomainMessenger messenger = l1CrossDomainMessengerProxy();
 
@@ -421,7 +422,7 @@ contract DeployOPChainOutput is BaseDeployIO {
         require(factory.bridge() == address(l1StandardBridgeProxy()), "MERC20F-20");
     }
 
-    function assertValidL1ERC721Bridge(DeployOPChainInput _doi) internal view {
+    function assertValidL1ERC721Bridge(DeployOPChainInput _doi) internal {
         L1ERC721Bridge bridge = l1ERC721BridgeProxy();
 
         DeployUtils.assertInitialized({ _contractAddress: address(bridge), _slot: 0, _offset: 0 });
@@ -434,7 +435,7 @@ contract DeployOPChainOutput is BaseDeployIO {
         require(address(bridge.superchainConfig()) == address(_doi.opcmProxy().superchainConfig()), "L721B-50");
     }
 
-    function assertValidOptimismPortal(DeployOPChainInput _doi) internal view {
+    function assertValidOptimismPortal(DeployOPChainInput _doi) internal {
         OptimismPortal2 portal = optimismPortalProxy();
         ISuperchainConfig superchainConfig = ISuperchainConfig(address(_doi.opcmProxy().superchainConfig()));
 
