@@ -286,11 +286,11 @@ contract Deploy is Deployer {
     /// @notice Deploy a new OP Chain using an existing SuperchainConfig and ProtocolVersions
     /// @param _superchainConfigProxy Address of the existing SuperchainConfig proxy
     /// @param _protocolVersionsProxy Address of the existing ProtocolVersions proxy
-    /// @param includeDump Whether to include a state dump after deployment
+    /// @param _includeDump Whether to include a state dump after deployment
     function runWithSuperchain(
         address payable _superchainConfigProxy,
         address payable _protocolVersionsProxy,
-        bool includeDump
+        bool _includeDump
     )
         public
     {
@@ -311,7 +311,7 @@ contract Deploy is Deployer {
 
         _run(false);
 
-        if (includeDump) {
+        if (_includeDump) {
             vm.dumpState(Config.stateDumpPath(""));
         }
     }

@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/heads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
-	backendTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -25,8 +24,8 @@ var (
 type LogStorage interface {
 	io.Closer
 
-	AddLog(logHash backendTypes.TruncatedHash, parentBlock eth.BlockID,
-		logIdx uint32, execMsg *backendTypes.ExecutingMessage) error
+	AddLog(logHash common.Hash, parentBlock eth.BlockID,
+		logIdx uint32, execMsg *types.ExecutingMessage) error
 
 	SealBlock(parentHash common.Hash, block eth.BlockID, timestamp uint64) error
 
@@ -40,19 +39,31 @@ type LogStorage interface {
 	// returns ErrDifferent if the known block does not match
 	FindSealedBlock(block eth.BlockID) (nextEntry entrydb.EntryIdx, err error)
 
-	IteratorStartingAt(i entrydb.EntryIdx) (logs.Iterator, error)
+	IteratorStartingAt(sealedNum uint64, logsSince uint32) (logs.Iterator, error)
 
 	// returns ErrConflict if the log does not match the canonical chain.
 	// returns ErrFuture if the log is out of reach.
 	// returns nil if the log is known and matches the canonical chain.
-	Contains(blockNum uint64, logIdx uint32, logHash backendTypes.TruncatedHash) (nextIndex entrydb.EntryIdx, err error)
+	Contains(blockNum uint64, logIdx uint32, logHash common.Hash) (nextIndex entrydb.EntryIdx, err error)
 }
 
 var _ LogStorage = (*logs.DB)(nil)
 
 type HeadsStorage interface {
-	Current() *heads.Heads
-	Apply(op heads.Operation) error
+	CrossUnsafe(id types.ChainID) heads.HeadPointer
+	CrossSafe(id types.ChainID) heads.HeadPointer
+	CrossFinalized(id types.ChainID) heads.HeadPointer
+	LocalUnsafe(id types.ChainID) heads.HeadPointer
+	LocalSafe(id types.ChainID) heads.HeadPointer
+	LocalFinalized(id types.ChainID) heads.HeadPointer
+
+	UpdateCrossUnsafe(id types.ChainID, pointer heads.HeadPointer) error
+	UpdateCrossSafe(id types.ChainID, pointer heads.HeadPointer) error
+	UpdateCrossFinalized(id types.ChainID, pointer heads.HeadPointer) error
+
+	UpdateLocalUnsafe(id types.ChainID, pointer heads.HeadPointer) error
+	UpdateLocalSafe(id types.ChainID, pointer heads.HeadPointer) error
+	UpdateLocalFinalized(id types.ChainID, pointer heads.HeadPointer) error
 }
 
 // ChainsDB is a database that stores logs and heads for multiple chains.
@@ -86,7 +97,7 @@ func (db *ChainsDB) AddLogDB(chain types.ChainID, logDB LogStorage) {
 func (db *ChainsDB) ResumeFromLastSealedBlock() error {
 	for chain, logStore := range db.logDBs {
 		headNum, ok := logStore.LatestSealedBlockNum()
-		if ok {
+		if !ok {
 			// db must be empty, nothing to rewind to
 			db.logger.Info("Resuming, but found no DB contents", "chain", chain)
 			continue
@@ -125,7 +136,7 @@ func (db *ChainsDB) StartCrossHeadMaintenance(ctx context.Context) {
 }
 
 // Check calls the underlying logDB to determine if the given log entry is safe with respect to the checker's criteria.
-func (db *ChainsDB) Check(chain types.ChainID, blockNum uint64, logIdx uint32, logHash backendTypes.TruncatedHash) (entrydb.EntryIdx, error) {
+func (db *ChainsDB) Check(chain types.ChainID, blockNum uint64, logIdx uint32, logHash common.Hash) (entrydb.EntryIdx, error) {
 	logDB, ok := db.logDBs[chain]
 	if !ok {
 		return 0, fmt.Errorf("%w: %v", ErrUnknownChain, chain)
@@ -156,7 +167,7 @@ func (db *ChainsDB) updateAllHeads() error {
 		safeChecker,
 		finalizedChecker} {
 		if err := db.UpdateCrossHeads(checker); err != nil {
-			return fmt.Errorf("failed to update cross-heads for safety level %v: %w", checker.Name(), err)
+			return fmt.Errorf("failed to update cross-heads for safety level %s: %w", checker, err)
 		}
 	}
 	return nil
@@ -166,13 +177,14 @@ func (db *ChainsDB) updateAllHeads() error {
 // the provided checker controls which heads are considered.
 func (db *ChainsDB) UpdateCrossHeadsForChain(chainID types.ChainID, checker SafetyChecker) error {
 	// start with the xsafe head of the chain
-	xHead := checker.CrossHeadForChain(chainID)
+	xHead := checker.CrossHead(chainID)
 	// advance as far as the local head
-	localHead := checker.LocalHeadForChain(chainID)
-	// get an iterator for the last checkpoint behind the x-head
-	iter, err := db.logDBs[chainID].IteratorStartingAt(xHead)
+	localHead := checker.LocalHead(chainID)
+	// get an iterator for the next item
+	iter, err := db.logDBs[chainID].IteratorStartingAt(xHead.LastSealedBlockNum, xHead.LogsSince)
 	if err != nil {
-		return fmt.Errorf("failed to rewind cross-safe head for chain %v: %w", chainID, err)
+		return fmt.Errorf("failed to open iterator at sealed block %d logsSince %d for chain %v: %w",
+			xHead.LastSealedBlockNum, xHead.LogsSince, chainID, err)
 	}
 	// track if we updated the cross-head
 	updated := false
@@ -182,49 +194,90 @@ func (db *ChainsDB) UpdateCrossHeadsForChain(chainID types.ChainID, checker Safe
 	// - when we reach a message that is not safe
 	// - if an error occurs
 	for {
-		if err := iter.NextExecMsg(); err == io.EOF {
+		if err := iter.NextInitMsg(); errors.Is(err, logs.ErrFuture) {
+			// We ran out of events, but there can still be empty blocks.
+			// Take the last block we've processed, and try to update the x-head with it.
+			sealedBlockHash, sealedBlockNum, ok := iter.SealedBlock()
+			if !ok {
+				break
+			}
+			// We can only drop the logsSince value to 0 if the block is not seen.
+			if sealedBlockNum > xHead.LastSealedBlockNum {
+				// if we would exceed the local head, then abort
+				if !localHead.WithinRange(sealedBlockNum, 0) {
+					break
+				}
+				xHead = heads.HeadPointer{
+					LastSealedBlockHash: sealedBlockHash,
+					LastSealedBlockNum:  sealedBlockNum,
+					LogsSince:           0,
+				}
+				updated = true
+			}
 			break
 		} else if err != nil {
 			return fmt.Errorf("failed to read next executing message for chain %v: %w", chainID, err)
 		}
+
+		sealedBlockHash, sealedBlockNum, ok := iter.SealedBlock()
+		if !ok {
+			break
+		}
+		_, logIdx, ok := iter.InitMessage()
+		if !ok {
+			break
+		}
 		// if we would exceed the local head, then abort
-		if iter.NextIndex() > localHead {
-			xHead = localHead // clip to local head
-			updated = localHead != xHead
+		if !localHead.WithinRange(sealedBlockNum, logIdx) {
 			break
 		}
+
+		// Check the executing message, if any
 		exec := iter.ExecMessage()
-		if exec == nil {
-			panic("expected executing message after traversing to one without error")
-		}
-		// use the checker to determine if this message is safe
-		safe := checker.Check(
-			types.ChainIDFromUInt64(uint64(exec.Chain)),
-			exec.BlockNum,
-			exec.LogIdx,
-			exec.Hash)
-		if !safe {
-			break
+		if exec != nil {
+			// Use the checker to determine if this message exists in the canonical chain,
+			// within the view of the checker's safety level
+			if err := checker.CheckCross(
+				types.ChainIDFromUInt64(uint64(exec.Chain)),
+				exec.BlockNum,
+				exec.LogIdx,
+				exec.Hash); err != nil {
+				if errors.Is(err, logs.ErrConflict) {
+					db.logger.Error("Bad executing message!", "err", err)
+				} else if errors.Is(err, logs.ErrFuture) {
+					db.logger.Warn("Executing message references future message", "err", err)
+				} else {
+					db.logger.Error("Failed to check executing message")
+				}
+				break
+			}
 		}
 		// if all is well, prepare the x-head update to this point
-		xHead = iter.NextIndex()
+		xHead = heads.HeadPointer{
+			LastSealedBlockHash: sealedBlockHash,
+			LastSealedBlockNum:  sealedBlockNum,
+			LogsSince:           logIdx + 1,
+		}
 		updated = true
-	}
-	// have the checker create an update to the x-head in question, and apply that update
-	err = db.heads.Apply(checker.Update(chainID, xHead))
-	if err != nil {
-		return fmt.Errorf("failed to update cross-head for chain %v: %w", chainID, err)
 	}
 	// if any chain was updated, we can trigger a maintenance request
 	// this allows for the maintenance loop to handle cascading updates
 	// instead of waiting for the next scheduled update
 	if updated {
-		db.logger.Info("Promoting cross-head", "head", xHead, "safety-level", checker.SafetyLevel())
+		db.logger.Info("Promoting cross-head", "chain", chainID, "head", xHead, "safety-level", checker.CrossSafetyLevel())
+		err = checker.UpdateCross(chainID, xHead)
+		if err != nil {
+			return fmt.Errorf("failed to update cross-head for chain %v: %w", chainID, err)
+		}
 		db.RequestMaintenance()
 	} else {
-		db.logger.Info("No cross-head update", "head", xHead, "safety-level", checker.SafetyLevel())
+		db.logger.Debug("No cross-head update", "chain", chainID, "head", xHead, "safety-level", checker.CrossSafetyLevel())
 	}
 	return nil
+}
+
+func (db *ChainsDB) Heads() HeadsStorage {
+	return db.heads
 }
 
 // UpdateCrossHeads updates the cross-heads of all chains
@@ -267,7 +320,7 @@ func (db *ChainsDB) SealBlock(chain types.ChainID, parentHash common.Hash, block
 	return logDB.SealBlock(parentHash, block, timestamp)
 }
 
-func (db *ChainsDB) AddLog(chain types.ChainID, logHash backendTypes.TruncatedHash, parentBlock eth.BlockID, logIdx uint32, execMsg *backendTypes.ExecutingMessage) error {
+func (db *ChainsDB) AddLog(chain types.ChainID, logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *types.ExecutingMessage) error {
 	logDB, ok := db.logDBs[chain]
 	if !ok {
 		return fmt.Errorf("%w: %v", ErrUnknownChain, chain)

@@ -162,7 +162,7 @@ func (t *KeyedBroadcaster) Broadcast(ctx context.Context) ([]BroadcastResult, er
 			)
 		}
 
-		results = append(results, outRes)
+		results[i] = outRes
 	}
 	return results, txErr.ErrorOrNil()
 }

@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
@@ -31,6 +32,40 @@ func Init(ctx context.Context, env *Env, artifactsFS foundry.StatDirFs, intent *
 		_, err := rand.Read(st.Create2Salt[:])
 		if err != nil {
 			return fmt.Errorf("failed to generate CREATE2 salt: %w", err)
+		}
+	}
+
+	if intent.OPCMAddress != (common.Address{}) {
+		env.Logger.Info("using provided OPCM address, populating state", "address", intent.OPCMAddress.Hex())
+
+		if intent.ContractsRelease == "dev" {
+			env.Logger.Warn("using dev release with existing OPCM, this field will be ignored")
+		}
+
+		opcmContract := opcm.NewContract(intent.OPCMAddress, env.L1Client)
+		protocolVersions, err := opcmContract.ProtocolVersions(ctx)
+		if err != nil {
+			return fmt.Errorf("error getting protocol versions address: %w", err)
+		}
+		superchainConfig, err := opcmContract.SuperchainConfig(ctx)
+		if err != nil {
+			return fmt.Errorf("error getting superchain config address: %w", err)
+		}
+		env.Logger.Debug(
+			"populating protocol versions and superchain config addresses",
+			"protocolVersions", protocolVersions.Hex(),
+			"superchainConfig", superchainConfig.Hex(),
+		)
+
+		// The below fields are the only ones required to perform an OP Chain
+		// deployment via an existing OPCM contract. All the others are used
+		// for deploying the OPCM itself, which isn't necessary in this case.
+		st.SuperchainDeployment = &state.SuperchainDeployment{
+			ProtocolVersionsProxyAddress: protocolVersions,
+			SuperchainConfigProxyAddress: superchainConfig,
+		}
+		st.ImplementationsDeployment = &state.ImplementationsDeployment{
+			OpcmProxyAddress: intent.OPCMAddress,
 		}
 	}
 

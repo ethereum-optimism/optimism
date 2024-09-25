@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opsm"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
@@ -22,7 +22,7 @@ func DeployImplementations(ctx context.Context, env *Env, artifactsFS foundry.St
 	lgr.Info("deploying implementations")
 
 	var dump *foundry.ForgeAllocs
-	var dio opsm.DeployImplementationsOutput
+	var dio opcm.DeployImplementationsOutput
 	var err error
 	err = CallScriptBroadcast(
 		ctx,
@@ -37,19 +37,20 @@ func DeployImplementations(ctx context.Context, env *Env, artifactsFS foundry.St
 			Handler: func(host *script.Host) error {
 				host.SetEnvVar("IMPL_SALT", st.Create2Salt.Hex()[2:])
 				host.ImportState(st.SuperchainDeployment.StateDump)
-				dio, err = opsm.DeployImplementations(
+				dio, err = opcm.DeployImplementations(
 					host,
-					opsm.DeployImplementationsInput{
+					opcm.DeployImplementationsInput{
 						Salt:                            st.Create2Salt,
 						WithdrawalDelaySeconds:          big.NewInt(604800),
 						MinProposalSizeBytes:            big.NewInt(126000),
 						ChallengePeriodSeconds:          big.NewInt(86400),
 						ProofMaturityDelaySeconds:       big.NewInt(604800),
 						DisputeGameFinalityDelaySeconds: big.NewInt(302400),
-						Release:                         "op-contracts/v1.6.0",
+						Release:                         intent.ContractsRelease,
 						SuperchainConfigProxy:           st.SuperchainDeployment.SuperchainConfigProxyAddress,
 						ProtocolVersionsProxy:           st.SuperchainDeployment.ProtocolVersionsProxyAddress,
 						SuperchainProxyAdmin:            st.SuperchainDeployment.ProxyAdminAddress,
+						StandardVersionsToml:            opcm.StandardVersionsData,
 						UseInterop:                      false,
 					},
 				)
@@ -69,7 +70,7 @@ func DeployImplementations(ctx context.Context, env *Env, artifactsFS foundry.St
 	}
 
 	st.ImplementationsDeployment = &state.ImplementationsDeployment{
-		OpsmProxyAddress:                        dio.OpsmProxy,
+		OpcmProxyAddress:                        dio.OpcmProxy,
 		DelayedWETHImplAddress:                  dio.DelayedWETHImpl,
 		OptimismPortalImplAddress:               dio.OptimismPortalImpl,
 		PreimageOracleSingletonAddress:          dio.PreimageOracleSingleton,

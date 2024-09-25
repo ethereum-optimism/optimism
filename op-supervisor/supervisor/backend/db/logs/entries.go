@@ -4,8 +4,10 @@ import (
 	"encoding/binary"
 	"fmt"
 
+	"github.com/ethereum/go-ethereum/common"
+
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // searchCheckpoint is both a checkpoint for searching, as well as a checkpoint for sealing blocks.
@@ -48,10 +50,10 @@ func (s searchCheckpoint) encode() entrydb.Entry {
 }
 
 type canonicalHash struct {
-	hash types.TruncatedHash
+	hash common.Hash
 }
 
-func newCanonicalHash(hash types.TruncatedHash) canonicalHash {
+func newCanonicalHash(hash common.Hash) canonicalHash {
 	return canonicalHash{hash: hash}
 }
 
@@ -59,21 +61,19 @@ func newCanonicalHashFromEntry(data entrydb.Entry) (canonicalHash, error) {
 	if data.Type() != entrydb.TypeCanonicalHash {
 		return canonicalHash{}, fmt.Errorf("%w: attempting to decode canonical hash but was type %s", ErrDataCorruption, data.Type())
 	}
-	var truncated types.TruncatedHash
-	copy(truncated[:], data[1:21])
-	return newCanonicalHash(truncated), nil
+	return newCanonicalHash(common.Hash(data[1:33])), nil
 }
 
 func (c canonicalHash) encode() entrydb.Entry {
 	var entry entrydb.Entry
 	entry[0] = uint8(entrydb.TypeCanonicalHash)
-	copy(entry[1:21], c.hash[:])
+	copy(entry[1:33], c.hash[:])
 	return entry
 }
 
 type initiatingEvent struct {
 	hasExecMsg bool
-	logHash    types.TruncatedHash
+	logHash    common.Hash
 }
 
 func newInitiatingEventFromEntry(data entrydb.Entry) (initiatingEvent, error) {
@@ -83,11 +83,11 @@ func newInitiatingEventFromEntry(data entrydb.Entry) (initiatingEvent, error) {
 	flags := data[1]
 	return initiatingEvent{
 		hasExecMsg: flags&eventFlagHasExecutingMessage != 0,
-		logHash:    types.TruncatedHash(data[2:22]),
+		logHash:    common.Hash(data[2:34]),
 	}, nil
 }
 
-func newInitiatingEvent(logHash types.TruncatedHash, hasExecMsg bool) initiatingEvent {
+func newInitiatingEvent(logHash common.Hash, hasExecMsg bool) initiatingEvent {
 	return initiatingEvent{
 		hasExecMsg: hasExecMsg,
 		logHash:    logHash,
@@ -104,7 +104,7 @@ func (i initiatingEvent) encode() entrydb.Entry {
 		flags = flags | eventFlagHasExecutingMessage
 	}
 	data[1] = flags
-	copy(data[2:22], i.logHash[:])
+	copy(data[2:34], i.logHash[:])
 	return data
 }
 
@@ -157,10 +157,10 @@ func (e executingLink) encode() entrydb.Entry {
 }
 
 type executingCheck struct {
-	hash types.TruncatedHash
+	hash common.Hash
 }
 
-func newExecutingCheck(hash types.TruncatedHash) executingCheck {
+func newExecutingCheck(hash common.Hash) executingCheck {
 	return executingCheck{hash: hash}
 }
 
@@ -168,24 +168,22 @@ func newExecutingCheckFromEntry(data entrydb.Entry) (executingCheck, error) {
 	if data.Type() != entrydb.TypeExecutingCheck {
 		return executingCheck{}, fmt.Errorf("%w: attempting to decode executing check but was type %s", ErrDataCorruption, data.Type())
 	}
-	var hash types.TruncatedHash
-	copy(hash[:], data[1:21])
-	return newExecutingCheck(hash), nil
+	return newExecutingCheck(common.Hash(data[1:33])), nil
 }
 
 // encode creates an executing check entry
-// type 4: "executing check" <type><event-hash: 20 bytes> = 21 bytes
+// type 4: "executing check" <type><event-hash: 32 bytes> = 33 bytes
 func (e executingCheck) encode() entrydb.Entry {
 	var entry entrydb.Entry
 	entry[0] = uint8(entrydb.TypeExecutingCheck)
-	copy(entry[1:21], e.hash[:])
+	copy(entry[1:33], e.hash[:])
 	return entry
 }
 
 type paddingEntry struct{}
 
 // encoding of the padding entry
-// type 5: "padding" <type><padding: 23 bytes> = 24 bytes
+// type 5: "padding" <type><padding: 33 bytes> = 34 bytes
 func (e paddingEntry) encode() entrydb.Entry {
 	var entry entrydb.Entry
 	entry[0] = uint8(entrydb.TypePadding)

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { OPStackManager } from "src/L1/OPStackManager.sol";
+import { OPContractsManager } from "src/L1/OPContractsManager.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
@@ -9,18 +9,18 @@ import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { SystemConfigInterop } from "src/L1/SystemConfigInterop.sol";
 
 /// @custom:proxied true
-contract OPStackManagerInterop is OPStackManager {
+contract OPContractsManagerInterop is OPContractsManager {
     constructor(
         SuperchainConfig _superchainConfig,
         ProtocolVersions _protocolVersions
     )
-        OPStackManager(_superchainConfig, _protocolVersions)
+        OPContractsManager(_superchainConfig, _protocolVersions)
     { }
 
     // The `SystemConfigInterop` contract has an extra `address _dependencyManager` argument
     // that we must account for.
     function encodeSystemConfigInitializer(
-        bytes4 selector,
+        bytes4 _selector,
         DeployInput memory _input,
         DeployOutput memory _output
     )
@@ -31,7 +31,7 @@ contract OPStackManagerInterop is OPStackManager {
         returns (bytes memory)
     {
         (ResourceMetering.ResourceConfig memory referenceResourceConfig, SystemConfig.Addresses memory opChainAddrs) =
-            defaultSystemConfigParams(selector, _input, _output);
+            defaultSystemConfigParams(_selector, _input, _output);
 
         // TODO For now we assume that the dependency manager is the same as the proxy admin owner.
         // This is currently undefined since it's not part of the standard config, so we may need
@@ -41,7 +41,7 @@ contract OPStackManagerInterop is OPStackManager {
         address dependencyManager = address(_input.roles.opChainProxyAdminOwner);
 
         return abi.encodeWithSelector(
-            selector,
+            _selector,
             _input.roles.systemConfigOwner,
             _input.basefeeScalar,
             _input.blobBasefeeScalar,

@@ -4,19 +4,20 @@ pragma solidity 0.8.15;
 import { Test, stdStorage, StdStorage } from "forge-std/Test.sol";
 
 import { DeployOPChainInput } from "scripts/DeployOPChain.s.sol";
-import { DeployOPChain_TestBase } from "test/DeployOPChain.t.sol";
+import { DeployOPChain_TestBase } from "test/opcm/DeployOPChain.t.sol";
 
-import { OPStackManager } from "src/L1/OPStackManager.sol";
+import { OPContractsManager } from "src/L1/OPContractsManager.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
+import { SystemConfig } from "src/L1/SystemConfig.sol";
 
 // Exposes internal functions for testing.
-contract OPStackManager_Harness is OPStackManager {
+contract OPContractsManager_Harness is OPContractsManager {
     constructor(
         SuperchainConfig _superchainConfig,
         ProtocolVersions _protocolVersions
     )
-        OPStackManager(_superchainConfig, _protocolVersions)
+        OPContractsManager(_superchainConfig, _protocolVersions)
     { }
 
     function chainIdToBatchInboxAddress_exposed(uint256 l2ChainId) public pure returns (address) {
@@ -25,13 +26,17 @@ contract OPStackManager_Harness is OPStackManager {
 }
 
 // Unlike other test suites, we intentionally do not inherit from CommonTest or Setup. This is
-// because OPStackManager acts as a deploy script, so we start from a clean slate here and
-// work OPStackManager's deployment into the existing test setup, instead of using the existing
-// test setup to deploy OPStackManager. We do however inherit from DeployOPChain_TestBase so
+// because OPContractsManager acts as a deploy script, so we start from a clean slate here and
+// work OPContractsManager's deployment into the existing test setup, instead of using the existing
+// test setup to deploy OPContractsManager. We do however inherit from DeployOPChain_TestBase so
 // we can use its setup to deploy the implementations similarly to how a real deployment would
 // happen.
-contract OPStackManager_Deploy_Test is DeployOPChain_TestBase {
+contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase {
     using stdStorage for StdStorage;
+
+    event Deployed(
+        uint256 indexed outputVersion, uint256 indexed l2ChainId, address indexed deployer, bytes deployOutput
+    );
 
     function setUp() public override {
         DeployOPChain_TestBase.setUp();
@@ -45,14 +50,14 @@ contract OPStackManager_Deploy_Test is DeployOPChain_TestBase {
         doi.set(doi.basefeeScalar.selector, basefeeScalar);
         doi.set(doi.blobBaseFeeScalar.selector, blobBaseFeeScalar);
         doi.set(doi.l2ChainId.selector, l2ChainId);
-        doi.set(doi.opsmProxy.selector, address(opsm));
+        doi.set(doi.opcmProxy.selector, address(opcm));
     }
 
     // This helper function is used to convert the input struct type defined in DeployOPChain.s.sol
-    // to the input struct type defined in OPStackManager.sol.
-    function toOPSMDeployInput(DeployOPChainInput _doi) internal view returns (OPStackManager.DeployInput memory) {
-        return OPStackManager.DeployInput({
-            roles: OPStackManager.Roles({
+    // to the input struct type defined in OPContractsManager.sol.
+    function toOPCMDeployInput(DeployOPChainInput _doi) internal view returns (OPContractsManager.DeployInput memory) {
+        return OPContractsManager.DeployInput({
+            roles: OPContractsManager.Roles({
                 opChainProxyAdminOwner: _doi.opChainProxyAdminOwner(),
                 systemConfigOwner: _doi.systemConfigOwner(),
                 batcher: _doi.batcher(),
@@ -68,28 +73,30 @@ contract OPStackManager_Deploy_Test is DeployOPChain_TestBase {
     }
 
     function test_deploy_l2ChainIdEqualsZero_reverts() public {
-        OPStackManager.DeployInput memory deployInput = toOPSMDeployInput(doi);
+        OPContractsManager.DeployInput memory deployInput = toOPCMDeployInput(doi);
         deployInput.l2ChainId = 0;
-        vm.expectRevert(OPStackManager.InvalidChainId.selector);
-        opsm.deploy(deployInput);
+        vm.expectRevert(OPContractsManager.InvalidChainId.selector);
+        opcm.deploy(deployInput);
     }
 
     function test_deploy_l2ChainIdEqualsCurrentChainId_reverts() public {
-        OPStackManager.DeployInput memory deployInput = toOPSMDeployInput(doi);
+        OPContractsManager.DeployInput memory deployInput = toOPCMDeployInput(doi);
         deployInput.l2ChainId = block.chainid;
 
-        vm.expectRevert(OPStackManager.InvalidChainId.selector);
-        opsm.deploy(deployInput);
+        vm.expectRevert(OPContractsManager.InvalidChainId.selector);
+        opcm.deploy(deployInput);
     }
 
     function test_deploy_succeeds() public {
-        opsm.deploy(toOPSMDeployInput(doi));
+        vm.expectEmit(true, true, true, false); // TODO precompute the expected `deployOutput`.
+        emit Deployed(0, doi.l2ChainId(), address(this), bytes(""));
+        opcm.deploy(toOPCMDeployInput(doi));
     }
 }
 
 // These tests use the harness which exposes internal functions for testing.
-contract OPStackManager_InternalMethods_Test is Test {
-    OPStackManager_Harness opsmHarness;
+contract OPContractsManager_InternalMethods_Test is Test {
+    OPContractsManager_Harness opcmHarness;
 
     function setUp() public {
         SuperchainConfig superchainConfigProxy = SuperchainConfig(makeAddr("superchainConfig"));
@@ -97,7 +104,7 @@ contract OPStackManager_InternalMethods_Test is Test {
         vm.etch(address(superchainConfigProxy), hex"01");
         vm.etch(address(protocolVersionsProxy), hex"01");
 
-        opsmHarness = new OPStackManager_Harness({
+        opcmHarness = new OPContractsManager_Harness({
             _superchainConfig: superchainConfigProxy,
             _protocolVersions: protocolVersionsProxy
         });
@@ -109,12 +116,12 @@ contract OPStackManager_InternalMethods_Test is Test {
         //   2. Hash it and manually take the first 19 bytes, and prefixed it with 0x00.
         uint256 chainId = 1234;
         address expected = 0x0017FA14b0d73Aa6A26D6b8720c1c84b50984f5C;
-        address actual = opsmHarness.chainIdToBatchInboxAddress_exposed(chainId);
+        address actual = opcmHarness.chainIdToBatchInboxAddress_exposed(chainId);
         vm.assertEq(expected, actual);
 
         chainId = type(uint256).max;
         expected = 0x00a9C584056064687E149968cBaB758a3376D22A;
-        actual = opsmHarness.chainIdToBatchInboxAddress_exposed(chainId);
+        actual = opcmHarness.chainIdToBatchInboxAddress_exposed(chainId);
         vm.assertEq(expected, actual);
     }
 }

@@ -49,7 +49,7 @@ func (l *LazyRPC) dial(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to dial: %w", err)
 	}
-	l.inner = &BaseRPCClient{c: underlying}
+	l.inner = NewBaseRPCClient(underlying)
 	return nil
 }
 

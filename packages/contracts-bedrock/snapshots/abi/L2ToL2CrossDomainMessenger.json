@@ -5,7 +5,7 @@
     "outputs": [
       {
         "internalType": "address",
-        "name": "_sender",
+        "name": "sender_",
         "type": "address"
       }
     ],
@@ -18,7 +18,7 @@
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "_source",
+        "name": "source_",
         "type": "uint256"
       }
     ],

@@ -33,12 +33,14 @@ type SuperFaultProofConfig struct {
 	DisputeGameFinalityDelaySeconds *big.Int
 }
 
-type OPSMImplementationsConfig struct {
+type OPCMImplementationsConfig struct {
 	Release string
 
 	FaultProof SuperFaultProofConfig
 
 	UseInterop bool // to deploy Interop implementation contracts, instead of the regular ones.
+
+	StandardVersionsToml string // serialized string of superchain-registry 'standard-versions.toml' file
 }
 
 type SuperchainConfig struct {
@@ -49,7 +51,7 @@ type SuperchainConfig struct {
 
 	Paused bool
 
-	Implementations OPSMImplementationsConfig
+	Implementations OPCMImplementationsConfig
 
 	genesis.SuperchainL1DeployConfig
 }

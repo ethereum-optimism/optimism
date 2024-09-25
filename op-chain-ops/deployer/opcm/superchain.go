@@ -1,4 +1,4 @@
-package opsm
+package opcm
 
 import (
 	"fmt"
@@ -14,7 +14,7 @@ import (
 )
 
 type DeploySuperchainInput struct {
-	ProxyAdminOwner            common.Address         `toml:"proxyAdminOwner"`
+	SuperchainProxyAdminOwner  common.Address         `toml:"superchainProxyAdminOwner"`
 	ProtocolVersionsOwner      common.Address         `toml:"protocolVersionsOwner"`
 	Guardian                   common.Address         `toml:"guardian"`
 	Paused                     bool                   `toml:"paused"`
