@@ -9,7 +9,6 @@ import (
 	"sort"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -58,21 +57,6 @@ type Memory struct {
 	// this prevents map lookups each instruction
 	lastPageKeys [2]Word
 	lastPage     [2]*CachedPage
-}
-
-func (m *Memory) debugme() string {
-	var h common.Hash
-	zero := make([]byte, 4, 4)
-	for x, y := range m.nodes {
-		b := []byte(fmt.Sprintf("%x", x))
-		h = crypto.Keccak256Hash(h[:], b[:])
-		if y != nil {
-			h = crypto.Keccak256Hash(h[:], y[:])
-		} else {
-			h = crypto.Keccak256Hash(h[:], zero)
-		}
-	}
-	return fmt.Sprintf("%x", h)
 }
 
 func NewMemory() *Memory {
@@ -134,7 +118,7 @@ func (m *Memory) MerkleizeSubtree(gindex uint64) [32]byte {
 			pageGindex := (1 << depthIntoPage) | (gindex & ((1 << depthIntoPage) - 1))
 			return p.MerkleizeSubtree(pageGindex)
 		} else {
-			return zeroHashes[MemProofLeafCount-1] // page does not exist
+			return zeroHashes[MemProofLeafCount-l] // page does not exist
 		}
 	}
 	n, ok := m.nodes[gindex]
