@@ -94,6 +94,7 @@ func (s *ChainProcessor) nextNum() uint64 {
 func (s *ChainProcessor) worker() {
 	defer s.wg.Done()
 
+	delay := time.NewTicker(time.Second * 5)
 	for {
 		if s.ctx.Err() != nil { // check if we are closing down
 			return
@@ -115,11 +116,12 @@ func (s *ChainProcessor) worker() {
 		// await next time we process, or detect shutdown
 		select {
 		case <-s.ctx.Done():
+			delay.Stop()
 			return
 		case <-s.newHead:
 			s.log.Debug("Responding to new head signal")
 			continue
-		case <-time.After(time.Second * 5):
+		case <-delay.C:
 			s.log.Debug("Checking for updates")
 			continue
 		}
