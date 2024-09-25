@@ -398,9 +398,10 @@ contract Deploy is Deployer {
         mustGetAddress("AddressManager");
         mustGetAddress("ProxyAdmin");
 
-        deployProxies();
         deployImplementations();
-        initializeImplementations();
+
+        deployProxies();
+        initializeProxies();
 
         setAlphabetFaultGameImplementation({ _allowUpgrade: false });
         setFastFaultGameImplementation({ _allowUpgrade: false });
@@ -453,9 +454,9 @@ contract Deploy is Deployer {
         deployAnchorStateRegistry();
     }
 
-    /// @notice Initialize all of the implementations
-    function initializeImplementations() public {
-        console.log("Initializing implementations");
+    /// @notice Initialize all of the proxies by upgrading to the correct proxy and calling the initialize function
+    function initializeProxies() public {
+        console.log("Initializing proxies");
         // Selectively initialize either the original OptimismPortal or the new OptimismPortal2. Since this will upgrade
         // the proxy, we cannot initialize both.
         if (cfg.useFaultProofs()) {
