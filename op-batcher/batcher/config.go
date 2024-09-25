@@ -6,13 +6,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/urfave/cli/v2"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
@@ -146,8 +146,8 @@ func (c *CLIConfig) Check() error {
 		return fmt.Errorf("unknown data availability type: %q", c.DataAvailabilityType)
 	}
 	// we want to enforce it for both blobs and auto
-	if c.DataAvailabilityType != flags.CalldataType && c.TargetNumFrames > params.MaxBlobGasPerBlock/params.BlobTxBlobGasPerBlob {
-		return fmt.Errorf("too many frames for blob transactions, max %d", params.MaxBlobGasPerBlock/params.BlobTxBlobGasPerBlob)
+	if c.DataAvailabilityType != flags.CalldataType && c.TargetNumFrames > eth.MaxBlobsPerBlobTx {
+		return fmt.Errorf("too many frames for blob transactions, max %d", eth.MaxBlobsPerBlobTx)
 	}
 	if err := c.MetricsConfig.Check(); err != nil {
 		return err
