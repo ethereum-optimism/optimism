@@ -21,7 +21,7 @@ func main() {
 		RunCommand,
 		ListCommand,
 	}
-	ctx := ctxinterrupt.WithSignalWaiterMain(context.Background())
+	ctx := ctxinterrupt.WithCancelOnInterrupt(context.Background())
 	err := app.RunContext(ctx, os.Args)
 	if err != nil {
 		if errors.Is(err, ctx.Err()) {

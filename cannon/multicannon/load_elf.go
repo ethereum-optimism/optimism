@@ -9,11 +9,15 @@ import (
 )
 
 func LoadELF(ctx *cli.Context) error {
-	ver, err := versions.ParseStateVersion(ctx.String(cmd.LoadELFVMTypeFlag.Name))
+	typ, err := parseFlag(os.Args[1:], "--type")
 	if err != nil {
 		return err
 	}
-	return ExecuteCannon(os.Args[1:], ver)
+	ver, err := versions.ParseStateVersion(typ)
+	if err != nil {
+		return err
+	}
+	return ExecuteCannon(ctx.Context, os.Args[1:], ver)
 }
 
 var LoadELFCommand = cmd.CreateLoadELFCommand(LoadELF)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"errors"
 	"fmt"
@@ -18,11 +19,11 @@ var vmFS embed.FS
 
 const baseDir = "embeds"
 
-func ExecuteCannon(args []string, ver versions.StateVersion) error {
+func ExecuteCannon(ctx context.Context, args []string, ver versions.StateVersion) error {
 	switch ver {
 	case versions.VersionSingleThreaded, versions.VersionMultiThreaded:
 	default:
-		return errors.New("unsupported verrsion")
+		return errors.New("unsupported version")
 	}
 
 	cannonProgramName := vmFilename(ver)
@@ -43,7 +44,7 @@ func ExecuteCannon(args []string, ver versions.StateVersion) error {
 	}
 
 	// nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command
-	cmd := exec.Command(cannonProgramPath, args...)
+	cmd := exec.CommandContext(ctx, cannonProgramPath, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err = cmd.Start()

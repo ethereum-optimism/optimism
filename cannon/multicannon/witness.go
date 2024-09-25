@@ -10,12 +10,15 @@ import (
 )
 
 func Witness(ctx *cli.Context) error {
-	inputPath := ctx.Path(cmd.RunInputFlag.Name)
+	inputPath, err := parsePathFlag(os.Args[1:], "--input")
+	if err != nil {
+		return err
+	}
 	version, err := versions.DetectVersion(inputPath)
 	if err != nil {
 		return err
 	}
-	return ExecuteCannon(os.Args[1:], version)
+	return ExecuteCannon(ctx.Context, os.Args[1:], version)
 }
 
 var WitnessCommand = cmd.CreateWitnessCommand(Witness)
