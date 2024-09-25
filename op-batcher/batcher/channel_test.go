@@ -86,8 +86,8 @@ func TestChannelManager_NextTxData(t *testing.T) {
 	require.Equal(t, txData{}, returnedTxData)
 
 	// Set the pending channel
-	// The nextTxData function should still return EOF
-	// since the pending channel has no frames
+	// The nextTxData function should still return io.EOF
+	// since the current channel has no frames
 	require.NoError(t, m.ensureChannelWithSpace(eth.BlockID{}))
 	channel := m.currentChannel
 	require.NotNil(t, channel)

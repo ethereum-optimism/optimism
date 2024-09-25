@@ -40,7 +40,7 @@ import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
 
 /// @custom:proxied true
-contract OPStackManager is ISemver, Initializable {
+contract OPContractsManager is ISemver, Initializable {
     // -------- Structs --------
 
     /// @notice Represents the roles that can be set when deploying a standard OP Stack chain.
@@ -113,7 +113,7 @@ contract OPStackManager is ISemver, Initializable {
         address permissionedDisputeGame2;
     }
 
-    /// @notice Inputs required when initializing the OPStackManager. To avoid 'StackTooDeep' errors,
+    /// @notice Inputs required when initializing the OPContractsManager. To avoid 'StackTooDeep' errors,
     /// all necessary inputs (excluding immutables) for initialization are bundled together in this struct.
     struct InitializerInputs {
         Blueprints blueprints;
@@ -124,8 +124,12 @@ contract OPStackManager is ISemver, Initializable {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 1.0.0-beta.6
-    string public constant version = "1.0.0-beta.6";
+    /// @custom:semver 1.0.0-beta.7
+    string public constant version = "1.0.0-beta.7";
+
+    /// @notice Represents the interface version so consumers know how to decode the DeployOutput struct
+    /// that's emitted in the `Deployed` event. Whenever that struct changes, a new version should be used.
+    uint256 public constant OUTPUT_VERSION = 0;
 
     /// @notice Address of the SuperchainConfig contract shared by all chains.
     SuperchainConfig public immutable superchainConfig;
@@ -133,7 +137,7 @@ contract OPStackManager is ISemver, Initializable {
     /// @notice Address of the ProtocolVersions contract shared by all chains.
     ProtocolVersions public immutable protocolVersions;
 
-    /// @notice The latest release of the OP Stack Manager, as a string of the format `op-contracts/vX.Y.Z`.
+    /// @notice The latest release of the OP Contracts Manager, as a string of the format `op-contracts/vX.Y.Z`.
     string public latestRelease;
 
     /// @notice Maps a release version to a contract name to it's implementation data.
@@ -155,9 +159,13 @@ contract OPStackManager is ISemver, Initializable {
     // -------- Events --------
 
     /// @notice Emitted when a new OP Stack chain is deployed.
-    /// @param l2ChainId The chain ID of the new chain.
-    /// @param systemConfig The address of the new chain's SystemConfig contract.
-    event Deployed(uint256 indexed l2ChainId, SystemConfig indexed systemConfig);
+    /// @param outputVersion Version that indicates how to decode the `deployOutput` argument.
+    /// @param l2ChainId Chain ID of the new chain.
+    /// @param deployer Address that deployed the chain.
+    /// @param deployOutput ABI-encoded output of the deployment.
+    event Deployed(
+        uint256 indexed outputVersion, uint256 indexed l2ChainId, address indexed deployer, bytes deployOutput
+    );
 
     // -------- Errors --------
 
@@ -181,7 +189,7 @@ contract OPStackManager is ISemver, Initializable {
 
     // -------- Methods --------
 
-    /// @notice OPSM is proxied. Therefore the `initialize` function replaces most constructor logic for this contract.
+    /// @notice OPCM is proxied. Therefore the `initialize` function replaces most constructor logic for this contract.
 
     constructor(SuperchainConfig _superchainConfig, ProtocolVersions _protocolVersions) {
         assertValidContractAddress(address(_superchainConfig));
@@ -334,7 +342,7 @@ contract OPStackManager is ISemver, Initializable {
         // Transfer ownership of the ProxyAdmin from this contract to the specified owner.
         output.opChainProxyAdmin.transferOwnership(_input.roles.opChainProxyAdminOwner);
 
-        emit Deployed(l2ChainId, output.systemConfigProxy);
+        emit Deployed(OUTPUT_VERSION, l2ChainId, msg.sender, abi.encode(output));
         return output;
     }
 

@@ -33,7 +33,7 @@ type SuperFaultProofConfig struct {
 	DisputeGameFinalityDelaySeconds *big.Int
 }
 
-type OPSMImplementationsConfig struct {
+type OPCMImplementationsConfig struct {
 	Release string
 
 	FaultProof SuperFaultProofConfig
@@ -51,7 +51,7 @@ type SuperchainConfig struct {
 
 	Paused bool
 
-	Implementations OPSMImplementationsConfig
+	Implementations OPCMImplementationsConfig
 
 	genesis.SuperchainL1DeployConfig
 }
