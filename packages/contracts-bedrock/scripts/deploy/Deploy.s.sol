@@ -303,12 +303,12 @@ contract Deploy is Deployer {
         console.log("Setting up Superchain");
 
         // Deploy the SuperchainConfigProxy
-        deployERC1967ProxyWithOwner("SuperchainConfigProxy", mustGetAddress("SupechainProxyAdmin"));
+        deployERC1967ProxyWithOwner("SuperchainConfigProxy", mustGetAddress("SuperchainProxyAdmin"));
         deploySuperchainConfig();
         initializeSuperchainConfig();
 
         // Deploy the ProtocolVersionsProxy
-        deployERC1967ProxyWithOwner("ProtocolVersionsProxy", mustGetAddress("SupechainProxyAdmin"));
+        deployERC1967ProxyWithOwner("ProtocolVersionsProxy", mustGetAddress("SuperchainProxyAdmin"));
         deployProtocolVersions();
         initializeProtocolVersions();
     }
@@ -921,7 +921,7 @@ contract Deploy is Deployer {
         address payable superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
         address payable superchainConfig = mustGetAddress("SuperchainConfig");
 
-        IProxyAdmin proxyAdmin = IProxyAdmin(payable(mustGetAddress("SupechainProxyAdmin")));
+        IProxyAdmin proxyAdmin = IProxyAdmin(payable(mustGetAddress("SuperchainProxyAdmin")));
         proxyAdmin.upgradeAndCall({
             _proxy: superchainConfigProxy,
             _implementation: superchainConfig,
@@ -1333,7 +1333,7 @@ contract Deploy is Deployer {
         uint256 requiredProtocolVersion = cfg.requiredProtocolVersion();
         uint256 recommendedProtocolVersion = cfg.recommendedProtocolVersion();
 
-        IProxyAdmin proxyAdmin = IProxyAdmin(payable(mustGetAddress("SupechainProxyAdmin")));
+        IProxyAdmin proxyAdmin = IProxyAdmin(payable(mustGetAddress("SuperchainProxyAdmin")));
         proxyAdmin.upgradeAndCall({
             _proxy: payable(protocolVersionsProxy),
             _implementation: protocolVersions,
