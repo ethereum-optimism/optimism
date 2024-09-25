@@ -7,7 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/broadcaster"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opczm"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
@@ -43,7 +43,7 @@ func DeployOPChain(ctx context.Context, env *Env, artifactsFS foundry.StatDirFs,
 	}
 
 	var dco opcm.DeployOPChainOutput
-	if intent.OPSMAddress == (common.Address{}) {
+	if intent.OPCMAddress == (common.Address{}) {
 		err = CallScriptBroadcast(
 			ctx,
 			CallScriptBroadcastOpts{
@@ -69,7 +69,7 @@ func DeployOPChain(ctx context.Context, env *Env, artifactsFS foundry.StatDirFs,
 			return fmt.Errorf("error deploying OP chain: %w", err)
 		}
 	} else {
-		lgr.Info("deploying using existing OPCM", "address", intent.OPSMAddress.Hex())
+		lgr.Info("deploying using existing OPCM", "address", intent.OPCMAddress.Hex())
 
 		bcaster, err := broadcaster.NewKeyedBroadcaster(broadcaster.KeyedBroadcasterOpts{
 			Logger:  lgr,

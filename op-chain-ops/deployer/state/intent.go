@@ -27,7 +27,7 @@ type Intent struct {
 
 	ContractsRelease string `json:"contractsVersion" toml:"contractsVersion"`
 
-	OPSMAddress common.Address `json:"opsmAddress" toml:"opsmAddress"`
+	OPCMAddress common.Address `json:"opcmAddress" toml:"opcmAddress"`
 
 	Chains []*ChainIntent `json:"chains" toml:"chains"`
 

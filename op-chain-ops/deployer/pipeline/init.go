@@ -5,7 +5,7 @@ import (
 	"crypto/rand"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opsm"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
@@ -35,19 +35,19 @@ func Init(ctx context.Context, env *Env, artifactsFS foundry.StatDirFs, intent *
 		}
 	}
 
-	if intent.OPSMAddress != (common.Address{}) {
-		env.Logger.Info("using provided OPSM address, populating state", "address", intent.OPSMAddress.Hex())
+	if intent.OPCMAddress != (common.Address{}) {
+		env.Logger.Info("using provided OPCM address, populating state", "address", intent.OPCMAddress.Hex())
 
 		if intent.ContractsRelease == "dev" {
-			env.Logger.Warn("using dev release with existing OPSM, this field will be ignored")
+			env.Logger.Warn("using dev release with existing OPCM, this field will be ignored")
 		}
 
-		opsmContract := opsm.NewContract(intent.OPSMAddress, env.L1Client)
-		protocolVersions, err := opsmContract.ProtocolVersions(ctx)
+		opcmContract := opcm.NewContract(intent.OPCMAddress, env.L1Client)
+		protocolVersions, err := opcmContract.ProtocolVersions(ctx)
 		if err != nil {
 			return fmt.Errorf("error getting protocol versions address: %w", err)
 		}
-		superchainConfig, err := opsmContract.SuperchainConfig(ctx)
+		superchainConfig, err := opcmContract.SuperchainConfig(ctx)
 		if err != nil {
 			return fmt.Errorf("error getting superchain config address: %w", err)
 		}
@@ -62,7 +62,7 @@ func Init(ctx context.Context, env *Env, artifactsFS foundry.StatDirFs, intent *
 			SuperchainConfigProxyAddress: superchainConfig,
 		}
 		st.ImplementationsDeployment = &state.ImplementationsDeployment{
-			OpsmProxyAddress: intent.OPSMAddress,
+			OpcmProxyAddress: intent.OPCMAddress,
 		}
 	}
 

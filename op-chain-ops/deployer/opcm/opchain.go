@@ -104,8 +104,8 @@ func DeployOPChain(host *script.Host, input DeployOPChainInput) (DeployOPChainOu
 	return dco, nil
 }
 
-// opsmRoles is an internal struct used to pass the roles to OPSM. See opsmDeployInput for more info.
-type opsmRoles struct {
+// opcmRoles is an internal struct used to pass the roles to OPSM. See opcmDeployInput for more info.
+type opcmRoles struct {
 	OpChainProxyAdminOwner common.Address
 	SystemConfigOwner      common.Address
 	Batcher                common.Address
@@ -114,10 +114,10 @@ type opsmRoles struct {
 	Challenger             common.Address
 }
 
-// opsmDeployInput is the input struct for the deploy method of the OPStackManager contract. We
+// opcmDeployInput is the input struct for the deploy method of the OPStackManager contract. We
 // define a separate struct here to match what the OPSM contract expects.
-type opsmDeployInput struct {
-	Roles               opsmRoles
+type opcmDeployInput struct {
+	Roles               opcmRoles
 	BasefeeScalar       uint32
 	BlobBasefeeScalar   uint32
 	L2ChainId           *big.Int
@@ -220,14 +220,14 @@ func DeployOPChainRaw(
 	var out DeployOPChainOutput
 
 	artifactsFS := &foundry.ArtifactsFS{FS: artifacts}
-	opsmArtifacts, err := artifactsFS.ReadArtifact("OPStackManager.sol", "OPStackManager")
+	opcmArtifacts, err := artifactsFS.ReadArtifact("OPContractsManager.sol", "OPContractsManager")
 	if err != nil {
 		return out, fmt.Errorf("failed to read OPStackManager artifact: %w", err)
 	}
 
-	opsmABI := opsmArtifacts.ABI
-	calldata, err := opsmABI.Pack("deploy", opsmDeployInput{
-		Roles: opsmRoles{
+	opcmABI := opcmArtifacts.ABI
+	calldata, err := opcmABI.Pack("deploy", opcmDeployInput{
+		Roles: opcmRoles{
 			OpChainProxyAdminOwner: input.OpChainProxyAdminOwner,
 			SystemConfigOwner:      input.SystemConfigOwner,
 			Batcher:                input.Batcher,
@@ -251,7 +251,7 @@ func DeployOPChainRaw(
 
 	bcast.Hook(script.Broadcast{
 		From:  bcast.Sender(),
-		To:    input.OpsmProxy,
+		To:    input.OpcmProxy,
 		Input: calldata,
 		Value: (*hexutil.U256)(uint256.NewInt(0)),
 		// use hardcoded 19MM gas for now since this is roughly what we've seen this deployment cost.
@@ -265,7 +265,7 @@ func DeployOPChainRaw(
 		return out, fmt.Errorf("failed to broadcast OP chain deployment: %w", err)
 	}
 
-	deployedEvent := opsmABI.Events["Deployed"]
+	deployedEvent := opcmABI.Events["Deployed"]
 	res := results[0]
 
 	for _, log := range res.Receipt.Logs {
@@ -277,7 +277,7 @@ func DeployOPChainRaw(
 			DeployOutput []byte
 		}
 		var data EventData
-		if err := opsmABI.UnpackIntoInterface(&data, "Deployed", log.Data); err != nil {
+		if err := opcmABI.UnpackIntoInterface(&data, "Deployed", log.Data); err != nil {
 			return out, fmt.Errorf("failed to unpack Deployed event: %w", err)
 		}
 

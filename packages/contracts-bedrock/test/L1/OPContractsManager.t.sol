@@ -90,7 +90,7 @@ contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase {
     function test_deploy_succeeds() public {
         vm.expectEmit(true, true, true, false); // TODO precompute the expected `deployOutput`.
         emit Deployed(0, doi.l2ChainId(), address(this), bytes(""));
-        opsm.deploy(toOPCMDeployInput(doi));
+        opcm.deploy(toOPCMDeployInput(doi));
     }
 }
 
