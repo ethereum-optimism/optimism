@@ -10,7 +10,7 @@ import { Executables } from "scripts/libraries/Executables.sol";
 import { ForgeArtifacts, Abi, AbiEntry } from "scripts/libraries/ForgeArtifacts.sol";
 
 // Contracts
-import { OPStackManager } from "src/L1/OPStackManager.sol";
+import { OPContractsManager } from "src/L1/OPContractsManager.sol";
 
 // Interfaces
 import { IOptimismPortal } from "src/L1/interfaces/IOptimismPortal.sol";
@@ -836,29 +836,29 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "WETH98", _sel: _getSel("transferFrom(address,address,uint256)") });
         _addSpec({ _name: "WETH98", _sel: _getSel("withdraw(uint256)") });
 
-        // OPStackManager
-        _addSpec({ _name: "OPStackManager", _sel: _getSel("version()") });
-        _addSpec({ _name: "OPStackManager", _sel: _getSel("superchainConfig()") });
-        _addSpec({ _name: "OPStackManager", _sel: _getSel("protocolVersions()") });
-        _addSpec({ _name: "OPStackManager", _sel: _getSel("latestRelease()") });
-        _addSpec({ _name: "OPStackManager", _sel: _getSel("implementations(string,string)") });
-        _addSpec({ _name: "OPStackManager", _sel: _getSel("systemConfigs(uint256)") });
-        _addSpec({ _name: "OPStackManager", _sel: OPStackManager.initialize.selector });
-        _addSpec({ _name: "OPStackManager", _sel: OPStackManager.deploy.selector });
-        _addSpec({ _name: "OPStackManager", _sel: OPStackManager.blueprints.selector });
-        _addSpec({ _name: "OPStackManager", _sel: OPStackManager.chainIdToBatchInboxAddress.selector });
+        // OPContractsManager
+        _addSpec({ _name: "OPContractsManager", _sel: _getSel("version()") });
+        _addSpec({ _name: "OPContractsManager", _sel: _getSel("superchainConfig()") });
+        _addSpec({ _name: "OPContractsManager", _sel: _getSel("protocolVersions()") });
+        _addSpec({ _name: "OPContractsManager", _sel: _getSel("latestRelease()") });
+        _addSpec({ _name: "OPContractsManager", _sel: _getSel("implementations(string,string)") });
+        _addSpec({ _name: "OPContractsManager", _sel: _getSel("systemConfigs(uint256)") });
+        _addSpec({ _name: "OPContractsManager", _sel: OPContractsManager.initialize.selector });
+        _addSpec({ _name: "OPContractsManager", _sel: OPContractsManager.deploy.selector });
+        _addSpec({ _name: "OPContractsManager", _sel: OPContractsManager.blueprints.selector });
+        _addSpec({ _name: "OPContractsManager", _sel: OPContractsManager.chainIdToBatchInboxAddress.selector });
 
-        // OPStackManagerInterop
-        _addSpec({ _name: "OPStackManagerInterop", _sel: _getSel("version()") });
-        _addSpec({ _name: "OPStackManagerInterop", _sel: _getSel("superchainConfig()") });
-        _addSpec({ _name: "OPStackManagerInterop", _sel: _getSel("protocolVersions()") });
-        _addSpec({ _name: "OPStackManagerInterop", _sel: _getSel("latestRelease()") });
-        _addSpec({ _name: "OPStackManagerInterop", _sel: _getSel("implementations(string,string)") });
-        _addSpec({ _name: "OPStackManagerInterop", _sel: _getSel("systemConfigs(uint256)") });
-        _addSpec({ _name: "OPStackManagerInterop", _sel: OPStackManager.initialize.selector });
-        _addSpec({ _name: "OPStackManagerInterop", _sel: OPStackManager.deploy.selector });
-        _addSpec({ _name: "OPStackManagerInterop", _sel: OPStackManager.blueprints.selector });
-        _addSpec({ _name: "OPStackManagerInterop", _sel: OPStackManager.chainIdToBatchInboxAddress.selector });
+        // OPContractsManagerInterop
+        _addSpec({ _name: "OPContractsManagerInterop", _sel: _getSel("version()") });
+        _addSpec({ _name: "OPContractsManagerInterop", _sel: _getSel("superchainConfig()") });
+        _addSpec({ _name: "OPContractsManagerInterop", _sel: _getSel("protocolVersions()") });
+        _addSpec({ _name: "OPContractsManagerInterop", _sel: _getSel("latestRelease()") });
+        _addSpec({ _name: "OPContractsManagerInterop", _sel: _getSel("implementations(string,string)") });
+        _addSpec({ _name: "OPContractsManagerInterop", _sel: _getSel("systemConfigs(uint256)") });
+        _addSpec({ _name: "OPContractsManagerInterop", _sel: OPContractsManager.initialize.selector });
+        _addSpec({ _name: "OPContractsManagerInterop", _sel: OPContractsManager.deploy.selector });
+        _addSpec({ _name: "OPContractsManagerInterop", _sel: OPContractsManager.blueprints.selector });
+        _addSpec({ _name: "OPContractsManagerInterop", _sel: OPContractsManager.chainIdToBatchInboxAddress.selector });
 
         // DeputyGuardianModule
         _addSpec({

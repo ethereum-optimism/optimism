@@ -28,7 +28,7 @@ import { PermissionedDisputeGame } from "src/dispute/PermissionedDisputeGame.sol
 
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
-import { OPStackManager } from "src/L1/OPStackManager.sol";
+import { OPContractsManager } from "src/L1/OPContractsManager.sol";
 import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
@@ -36,7 +36,7 @@ import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
 
-import { OPStackManagerInterop } from "src/L1/OPStackManagerInterop.sol";
+import { OPContractsManagerInterop } from "src/L1/OPContractsManagerInterop.sol";
 import { OptimismPortalInterop } from "src/L1/OptimismPortalInterop.sol";
 import { SystemConfigInterop } from "src/L1/SystemConfigInterop.sol";
 
@@ -55,7 +55,7 @@ contract DeployImplementationsInput is BaseDeployIO {
     uint256 internal _proofMaturityDelaySeconds;
     uint256 internal _disputeGameFinalityDelaySeconds;
 
-    // The release version to set OPSM implementations for, of the format `op-contracts/vX.Y.Z`.
+    // The release version to set OPCM implementations for, of the format `op-contracts/vX.Y.Z`.
     string internal _release;
 
     // Outputs from DeploySuperchain.s.sol.
@@ -166,8 +166,8 @@ contract DeployImplementationsInput is BaseDeployIO {
 }
 
 contract DeployImplementationsOutput is BaseDeployIO {
-    OPStackManager internal _opsmProxy;
-    OPStackManager internal _opsmImpl;
+    OPContractsManager internal _opcmProxy;
+    OPContractsManager internal _opcmImpl;
     DelayedWETH internal _delayedWETHImpl;
     OptimismPortal2 internal _optimismPortalImpl;
     PreimageOracle internal _preimageOracleSingleton;
@@ -183,8 +183,8 @@ contract DeployImplementationsOutput is BaseDeployIO {
         require(_addr != address(0), "DeployImplementationsOutput: cannot set zero address");
 
         // forgefmt: disable-start
-        if (sel == this.opsmProxy.selector) _opsmProxy = OPStackManager(payable(_addr));
-        else if (sel == this.opsmImpl.selector) _opsmImpl = OPStackManager(payable(_addr));
+        if (sel == this.opcmProxy.selector) _opcmProxy = OPContractsManager(payable(_addr));
+        else if (sel == this.opcmImpl.selector) _opcmImpl = OPContractsManager(payable(_addr));
         else if (sel == this.optimismPortalImpl.selector) _optimismPortalImpl = OptimismPortal2(payable(_addr));
         else if (sel == this.delayedWETHImpl.selector) _delayedWETHImpl = DelayedWETH(payable(_addr));
         else if (sel == this.preimageOracleSingleton.selector) _preimageOracleSingleton = PreimageOracle(_addr);
@@ -203,8 +203,8 @@ contract DeployImplementationsOutput is BaseDeployIO {
         // With 12 addresses, we'd get a stack too deep error if we tried to do this inline as a
         // single call to `Solarray.addresses`. So we split it into two calls.
         address[] memory addrs1 = Solarray.addresses(
-            address(this.opsmProxy()),
-            address(this.opsmImpl()),
+            address(this.opcmProxy()),
+            address(this.opcmImpl()),
             address(this.optimismPortalImpl()),
             address(this.delayedWETHImpl()),
             address(this.preimageOracleSingleton()),
@@ -225,15 +225,15 @@ contract DeployImplementationsOutput is BaseDeployIO {
         assertValidDeploy(_dii);
     }
 
-    function opsmProxy() public returns (OPStackManager) {
-        DeployUtils.assertValidContractAddress(address(_opsmProxy));
-        DeployUtils.assertImplementationSet(address(_opsmProxy));
-        return _opsmProxy;
+    function opcmProxy() public returns (OPContractsManager) {
+        DeployUtils.assertValidContractAddress(address(_opcmProxy));
+        DeployUtils.assertImplementationSet(address(_opcmProxy));
+        return _opcmProxy;
     }
 
-    function opsmImpl() public view returns (OPStackManager) {
-        DeployUtils.assertValidContractAddress(address(_opsmImpl));
-        return _opsmImpl;
+    function opcmImpl() public view returns (OPContractsManager) {
+        DeployUtils.assertValidContractAddress(address(_opcmImpl));
+        return _opcmImpl;
     }
 
     function optimismPortalImpl() public view returns (OptimismPortal2) {
@@ -294,35 +294,35 @@ contract DeployImplementationsOutput is BaseDeployIO {
         assertValidL1ERC721BridgeImpl(_dii);
         assertValidL1StandardBridgeImpl(_dii);
         assertValidMipsSingleton(_dii);
-        assertValidOpsmProxy(_dii);
-        assertValidOpsmImpl(_dii);
+        assertValidOpcmProxy(_dii);
+        assertValidOpcmImpl(_dii);
         assertValidOptimismMintableERC20FactoryImpl(_dii);
         assertValidOptimismPortalImpl(_dii);
         assertValidPreimageOracleSingleton(_dii);
         assertValidSystemConfigImpl(_dii);
     }
 
-    function assertValidOpsmProxy(DeployImplementationsInput _dii) internal {
+    function assertValidOpcmProxy(DeployImplementationsInput _dii) internal {
         // First we check the proxy as itself.
-        Proxy proxy = Proxy(payable(address(opsmProxy())));
+        Proxy proxy = Proxy(payable(address(opcmProxy())));
         vm.prank(address(0));
         address admin = proxy.admin();
-        require(admin == address(_dii.superchainProxyAdmin()), "OPSMP-10");
+        require(admin == address(_dii.superchainProxyAdmin()), "OPCMP-10");
 
-        // Then we check the proxy as OPSM.
-        DeployUtils.assertInitialized({ _contractAddress: address(opsmProxy()), _slot: 0, _offset: 0 });
-        require(address(opsmProxy().superchainConfig()) == address(_dii.superchainConfigProxy()), "OPSMP-20");
-        require(address(opsmProxy().protocolVersions()) == address(_dii.protocolVersionsProxy()), "OPSMP-30");
-        require(LibString.eq(opsmProxy().latestRelease(), _dii.release()), "OPSMP-50"); // Initial release is latest.
+        // Then we check the proxy as OPCM.
+        DeployUtils.assertInitialized({ _contractAddress: address(opcmProxy()), _slot: 0, _offset: 0 });
+        require(address(opcmProxy().superchainConfig()) == address(_dii.superchainConfigProxy()), "OPCMP-20");
+        require(address(opcmProxy().protocolVersions()) == address(_dii.protocolVersionsProxy()), "OPCMP-30");
+        require(LibString.eq(opcmProxy().latestRelease(), _dii.release()), "OPCMP-50"); // Initial release is latest.
     }
 
-    function assertValidOpsmImpl(DeployImplementationsInput _dii) internal {
-        Proxy proxy = Proxy(payable(address(opsmProxy())));
+    function assertValidOpcmImpl(DeployImplementationsInput _dii) internal {
+        Proxy proxy = Proxy(payable(address(opcmProxy())));
         vm.prank(address(0));
-        OPStackManager impl = OPStackManager(proxy.implementation());
+        OPContractsManager impl = OPContractsManager(proxy.implementation());
         DeployUtils.assertInitialized({ _contractAddress: address(impl), _slot: 0, _offset: 0 });
-        require(address(impl.superchainConfig()) == address(_dii.superchainConfigProxy()), "OPSMI-10");
-        require(address(impl.protocolVersions()) == address(_dii.protocolVersionsProxy()), "OPSMI-20");
+        require(address(impl.superchainConfig()) == address(_dii.superchainConfigProxy()), "OPCMI-10");
+        require(address(impl.protocolVersions()) == address(_dii.protocolVersionsProxy()), "OPCMI-20");
     }
 
     function assertValidOptimismPortalImpl(DeployImplementationsInput) internal view {
@@ -468,42 +468,42 @@ contract DeployImplementations is Script {
         deployMipsSingleton(_dii, _dio);
         deployDisputeGameFactoryImpl(_dii, _dio);
 
-        // Deploy the OP Stack Manager with the new implementations set.
-        deployOPStackManager(_dii, _dio);
+        // Deploy the OP Contracts Manager with the new implementations set.
+        deployOPContractsManager(_dii, _dio);
 
         _dio.checkOutput(_dii);
     }
 
     // -------- Deployment Steps --------
 
-    // --- OP Stack Manager ---
+    // --- OP Contracts Manager ---
 
-    function opsmSystemConfigSetter(
+    function opcmSystemConfigSetter(
         DeployImplementationsInput,
         DeployImplementationsOutput _dio
     )
         internal
         view
         virtual
-        returns (OPStackManager.ImplementationSetter memory)
+        returns (OPContractsManager.ImplementationSetter memory)
     {
-        return OPStackManager.ImplementationSetter({
+        return OPContractsManager.ImplementationSetter({
             name: "SystemConfig",
-            info: OPStackManager.Implementation(address(_dio.systemConfigImpl()), SystemConfig.initialize.selector)
+            info: OPContractsManager.Implementation(address(_dio.systemConfigImpl()), SystemConfig.initialize.selector)
         });
     }
 
-    // Deploy and initialize a proxied OPStackManager.
-    function createOPSMContract(
+    // Deploy and initialize a proxied OPContractsManager.
+    function createOPCMContract(
         DeployImplementationsInput _dii,
         DeployImplementationsOutput _dio,
-        OPStackManager.Blueprints memory _blueprints,
+        OPContractsManager.Blueprints memory _blueprints,
         string memory _release,
-        OPStackManager.ImplementationSetter[] memory _setters
+        OPContractsManager.ImplementationSetter[] memory _setters
     )
         internal
         virtual
-        returns (OPStackManager opsmProxy_)
+        returns (OPContractsManager opcmProxy_)
     {
         ProxyAdmin proxyAdmin = _dii.superchainProxyAdmin();
 
@@ -511,29 +511,35 @@ contract DeployImplementations is Script {
         Proxy proxy = new Proxy(address(msg.sender));
 
         deployOPContractsManagerImpl(_dii, _dio);
-        OPStackManager opsmImpl = _dio.opsmImpl();
+        OPContractsManager opcmImpl = _dio.opcmImpl();
 
-        OPStackManager.InitializerInputs memory initializerInputs =
-            OPStackManager.InitializerInputs(_blueprints, _setters, _release, true);
+        OPContractsManager.InitializerInputs memory initializerInputs =
+            OPContractsManager.InitializerInputs(_blueprints, _setters, _release, true);
 
         vm.startBroadcast(msg.sender);
         proxy.upgradeToAndCall(
-            address(opsmImpl), abi.encodeWithSelector(opsmImpl.initialize.selector, initializerInputs)
+            address(opcmImpl), abi.encodeWithSelector(opcmImpl.initialize.selector, initializerInputs)
         );
 
         proxy.changeAdmin(address(proxyAdmin)); // transfer ownership of Proxy contract to the ProxyAdmin contract
         vm.stopBroadcast();
 
-        opsmProxy_ = OPStackManager(address(proxy));
+        opcmProxy_ = OPContractsManager(address(proxy));
     }
 
-    function deployOPStackManager(DeployImplementationsInput _dii, DeployImplementationsOutput _dio) public virtual {
+    function deployOPContractsManager(
+        DeployImplementationsInput _dii,
+        DeployImplementationsOutput _dio
+    )
+        public
+        virtual
+    {
         string memory release = _dii.release();
 
-        // First we deploy the blueprints for the singletons deployed by OPSM.
+        // First we deploy the blueprints for the singletons deployed by OPCM.
         // forgefmt: disable-start
         bytes32 salt = _dii.salt();
-        OPStackManager.Blueprints memory blueprints;
+        OPContractsManager.Blueprints memory blueprints;
 
         vm.startBroadcast(msg.sender);
         blueprints.addressManager = deployBytecode(Blueprint.blueprintDeployerBytecode(type(AddressManager).creationCode), salt);
@@ -546,54 +552,56 @@ contract DeployImplementations is Script {
         vm.stopBroadcast();
         // forgefmt: disable-end
 
-        OPStackManager.ImplementationSetter[] memory setters = new OPStackManager.ImplementationSetter[](9);
-        setters[0] = OPStackManager.ImplementationSetter({
+        OPContractsManager.ImplementationSetter[] memory setters = new OPContractsManager.ImplementationSetter[](9);
+        setters[0] = OPContractsManager.ImplementationSetter({
             name: "L1ERC721Bridge",
-            info: OPStackManager.Implementation(address(_dio.l1ERC721BridgeImpl()), L1ERC721Bridge.initialize.selector)
+            info: OPContractsManager.Implementation(address(_dio.l1ERC721BridgeImpl()), L1ERC721Bridge.initialize.selector)
         });
-        setters[1] = OPStackManager.ImplementationSetter({
+        setters[1] = OPContractsManager.ImplementationSetter({
             name: "OptimismPortal",
-            info: OPStackManager.Implementation(address(_dio.optimismPortalImpl()), OptimismPortal2.initialize.selector)
+            info: OPContractsManager.Implementation(address(_dio.optimismPortalImpl()), OptimismPortal2.initialize.selector)
         });
-        setters[2] = opsmSystemConfigSetter(_dii, _dio);
-        setters[3] = OPStackManager.ImplementationSetter({
+        setters[2] = opcmSystemConfigSetter(_dii, _dio);
+        setters[3] = OPContractsManager.ImplementationSetter({
             name: "OptimismMintableERC20Factory",
-            info: OPStackManager.Implementation(
+            info: OPContractsManager.Implementation(
                 address(_dio.optimismMintableERC20FactoryImpl()), OptimismMintableERC20Factory.initialize.selector
             )
         });
-        setters[4] = OPStackManager.ImplementationSetter({
+        setters[4] = OPContractsManager.ImplementationSetter({
             name: "L1CrossDomainMessenger",
-            info: OPStackManager.Implementation(
+            info: OPContractsManager.Implementation(
                 address(_dio.l1CrossDomainMessengerImpl()), L1CrossDomainMessenger.initialize.selector
             )
         });
-        setters[5] = OPStackManager.ImplementationSetter({
+        setters[5] = OPContractsManager.ImplementationSetter({
             name: "L1StandardBridge",
-            info: OPStackManager.Implementation(address(_dio.l1StandardBridgeImpl()), L1StandardBridge.initialize.selector)
+            info: OPContractsManager.Implementation(
+                address(_dio.l1StandardBridgeImpl()), L1StandardBridge.initialize.selector
+            )
         });
-        setters[6] = OPStackManager.ImplementationSetter({
+        setters[6] = OPContractsManager.ImplementationSetter({
             name: "DisputeGameFactory",
-            info: OPStackManager.Implementation(
+            info: OPContractsManager.Implementation(
                 address(_dio.disputeGameFactoryImpl()), DisputeGameFactory.initialize.selector
             )
         });
-        setters[7] = OPStackManager.ImplementationSetter({
+        setters[7] = OPContractsManager.ImplementationSetter({
             name: "DelayedWETH",
-            info: OPStackManager.Implementation(address(_dio.delayedWETHImpl()), DelayedWETH.initialize.selector)
+            info: OPContractsManager.Implementation(address(_dio.delayedWETHImpl()), DelayedWETH.initialize.selector)
         });
-        setters[8] = OPStackManager.ImplementationSetter({
+        setters[8] = OPContractsManager.ImplementationSetter({
             name: "MIPS",
             // MIPS is a singleton for all chains, so it doesn't need to be initialized, so the
             // selector is just `bytes4(0)`.
-            info: OPStackManager.Implementation(address(_dio.mipsSingleton()), bytes4(0))
+            info: OPContractsManager.Implementation(address(_dio.mipsSingleton()), bytes4(0))
         });
 
-        // This call contains a broadcast to deploy OPSM which is proxied.
-        OPStackManager opsmProxy = createOPSMContract(_dii, _dio, blueprints, release, setters);
+        // This call contains a broadcast to deploy OPCM which is proxied.
+        OPContractsManager opcmProxy = createOPCMContract(_dii, _dio, blueprints, release, setters);
 
-        vm.label(address(opsmProxy), "OPStackManager");
-        _dio.set(_dio.opsmProxy.selector, address(opsmProxy));
+        vm.label(address(opcmProxy), "OPContractsManager");
+        _dio.set(_dio.opcmProxy.selector, address(opcmProxy));
     }
 
     // --- Core Contracts ---
@@ -736,10 +744,10 @@ contract DeployImplementations is Script {
 
         vm.broadcast(msg.sender);
         // TODO: Eventually we will want to select the correct implementation based on the release.
-        OPStackManager impl = new OPStackManager(superchainConfigProxy, protocolVersionsProxy);
+        OPContractsManager impl = new OPContractsManager(superchainConfigProxy, protocolVersionsProxy);
 
-        vm.label(address(impl), "OPStackManagerImpl");
-        _dio.set(_dio.opsmImpl.selector, address(impl));
+        vm.label(address(impl), "OPContractsManagerImpl");
+        _dio.set(_dio.opcmImpl.selector, address(impl));
     }
 
     // --- Fault Proofs Contracts ---
@@ -968,7 +976,7 @@ contract DeployImplementations is Script {
 // architecture, this comment block documents how to update the deploy scripts to support new features.
 //
 // Using the base scripts and contracts (DeploySuperchain, DeployImplementations, DeployOPChain, and
-// the corresponding OPStackManager) deploys a standard chain. For nonstandard and in-development
+// the corresponding OPContractsManager) deploys a standard chain. For nonstandard and in-development
 // features we need to modify some or all of those contracts, and we do that via inheritance. Using
 // interop as an example, they've made the following changes to L1 contracts:
 //   - `OptimismPortalInterop is OptimismPortal`: A different portal implementation is used, and
@@ -981,32 +989,32 @@ contract DeployImplementations is Script {
 // Similar to how inheritance was used to develop the new portal and system config contracts, we use
 // inheritance to modify up to all of the deployer contracts. For this interop example, what this
 // means is we need:
-//   - An `OPStackManagerInterop is OPStackManager` that knows how to encode the calldata for the
+//   - An `OPContractsManagerInterop is OPContractsManager` that knows how to encode the calldata for the
 //     new system config initializer.
 //   - A `DeployImplementationsInterop is DeployImplementations` that:
 //     - Deploys OptimismPortalInterop instead of OptimismPortal.
 //     - Deploys SystemConfigInterop instead of SystemConfig.
-//     - Deploys OPStackManagerInterop instead of OPStackManager, which contains the updated logic
+//     - Deploys OPContractsManagerInterop instead of OPContractsManager, which contains the updated logic
 //       for encoding the SystemConfig initializer.
-//     - Updates the OPSM release setter logic to use the updated initializer.
+//     - Updates the OPCM release setter logic to use the updated initializer.
 //  - A `DeployOPChainInterop is DeployOPChain` that allows the updated input parameter to be passed.
 //
 // Most of the complexity in the above flow comes from the the new input for the updated SystemConfig
 // initializer. If all function signatures were the same, all we'd have to change is the contract
-// implementations that are deployed then set in the OPSM. For now, to simplify things until we
+// implementations that are deployed then set in the OPCM. For now, to simplify things until we
 // resolve https://github.com/ethereum-optimism/optimism/issues/11783, we just assume this new role
 // is the same as the proxy admin owner.
 contract DeployImplementationsInterop is DeployImplementations {
-    function createOPSMContract(
+    function createOPCMContract(
         DeployImplementationsInput _dii,
         DeployImplementationsOutput _dio,
-        OPStackManager.Blueprints memory _blueprints,
+        OPContractsManager.Blueprints memory _blueprints,
         string memory _release,
-        OPStackManager.ImplementationSetter[] memory _setters
+        OPContractsManager.ImplementationSetter[] memory _setters
     )
         internal
         override
-        returns (OPStackManager opsmProxy_)
+        returns (OPContractsManager opcmProxy_)
     {
         ProxyAdmin proxyAdmin = _dii.superchainProxyAdmin();
 
@@ -1014,20 +1022,20 @@ contract DeployImplementationsInterop is DeployImplementations {
         Proxy proxy = new Proxy(address(msg.sender));
 
         deployOPContractsManagerImpl(_dii, _dio); // overriding function
-        OPStackManager opsmImpl = _dio.opsmImpl();
+        OPContractsManager opcmImpl = _dio.opcmImpl();
 
-        OPStackManager.InitializerInputs memory initializerInputs =
-            OPStackManager.InitializerInputs(_blueprints, _setters, _release, true);
+        OPContractsManager.InitializerInputs memory initializerInputs =
+            OPContractsManager.InitializerInputs(_blueprints, _setters, _release, true);
 
         vm.startBroadcast(msg.sender);
         proxy.upgradeToAndCall(
-            address(opsmImpl), abi.encodeWithSelector(opsmImpl.initialize.selector, initializerInputs)
+            address(opcmImpl), abi.encodeWithSelector(opcmImpl.initialize.selector, initializerInputs)
         );
 
         proxy.changeAdmin(address(proxyAdmin)); // transfer ownership of Proxy contract to the ProxyAdmin contract
         vm.stopBroadcast();
 
-        opsmProxy_ = OPStackManagerInterop(address(proxy));
+        opcmProxy_ = OPContractsManagerInterop(address(proxy));
     }
 
     function deployOptimismPortalImpl(
@@ -1097,24 +1105,26 @@ contract DeployImplementationsInterop is DeployImplementations {
 
         vm.broadcast(msg.sender);
         // TODO: Eventually we will want to select the correct implementation based on the release.
-        OPStackManager impl = new OPStackManagerInterop(superchainConfigProxy, protocolVersionsProxy);
+        OPContractsManager impl = new OPContractsManagerInterop(superchainConfigProxy, protocolVersionsProxy);
 
-        vm.label(address(impl), "OPStackManagerImpl");
-        _dio.set(_dio.opsmImpl.selector, address(impl));
+        vm.label(address(impl), "OPContractsManagerImpl");
+        _dio.set(_dio.opcmImpl.selector, address(impl));
     }
 
-    function opsmSystemConfigSetter(
+    function opcmSystemConfigSetter(
         DeployImplementationsInput,
         DeployImplementationsOutput _dio
     )
         internal
         view
         override
-        returns (OPStackManager.ImplementationSetter memory)
+        returns (OPContractsManager.ImplementationSetter memory)
     {
-        return OPStackManager.ImplementationSetter({
+        return OPContractsManager.ImplementationSetter({
             name: "SystemConfig",
-            info: OPStackManager.Implementation(address(_dio.systemConfigImpl()), SystemConfigInterop.initialize.selector)
+            info: OPContractsManager.Implementation(
+                address(_dio.systemConfigImpl()), SystemConfigInterop.initialize.selector
+            )
         });
     }
 }
