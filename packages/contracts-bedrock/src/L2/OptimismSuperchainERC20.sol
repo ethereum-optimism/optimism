@@ -50,9 +50,9 @@ contract OptimismSuperchainERC20 is
     }
 
     /// @notice Returns the storage for the OptimismSuperchainERC20Metadata.
-    function _getStorage() private pure returns (OptimismSuperchainERC20Metadata storage _storage) {
+    function _getStorage() private pure returns (OptimismSuperchainERC20Metadata storage storage_) {
         assembly {
-            _storage.slot := OPTIMISM_SUPERCHAIN_ERC20_METADATA_SLOT
+            storage_.slot := OPTIMISM_SUPERCHAIN_ERC20_METADATA_SLOT
         }
     }
 

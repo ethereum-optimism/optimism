@@ -18,12 +18,12 @@ interface IL2ToL2CrossDomainMessenger {
     function messageNonce() external view returns (uint256);
 
     /// @notice Retrieves the sender of the current cross domain message.
-    /// @return _sender Address of the sender of the current cross domain message.
-    function crossDomainMessageSender() external view returns (address _sender);
+    /// @return sender_ Address of the sender of the current cross domain message.
+    function crossDomainMessageSender() external view returns (address sender_);
 
     /// @notice Retrieves the source of the current cross domain message.
-    /// @return _source Chain ID of the source of the current cross domain message.
-    function crossDomainMessageSource() external view returns (uint256 _source);
+    /// @return source_ Chain ID of the source of the current cross domain message.
+    function crossDomainMessageSource() external view returns (uint256 source_);
 
     /// @notice Sends a message to some target address on a destination chain. Note that if the call
     ///         always reverts, then the message will be unrelayable, and any ETH sent will be
