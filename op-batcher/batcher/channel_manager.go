@@ -193,7 +193,11 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 }
 
 // getReadyChannel returns the next channel ready to submit data, or an error.
-// It adds blocks from the block queue to the current channel and generates frames for it.
+// It will create a new channel if necessary.
+// If there is no data ready to send, it adds blocks from the block queue
+// to the current channel and generates frames for it.
+// Always returns nil and the io.EOF sentinel error when
+// there is no channel with txData
 func (s *channelManager) getReadyChannel(l1Head eth.BlockID) (*channel, error) {
 	var firstWithTxData *channel
 	for _, ch := range s.channelQueue {
@@ -239,7 +243,11 @@ func (s *channelManager) getReadyChannel(l1Head eth.BlockID) (*channel, error) {
 		return nil, err
 	}
 
-	return s.currentChannel, nil
+	if s.currentChannel.HasTxData() {
+		return s.currentChannel, nil
+	}
+
+	return nil, io.EOF
 }
 
 // ensureChannelWithSpace ensures currentChannel is populated with a channel that has
