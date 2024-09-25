@@ -48,13 +48,12 @@ ARG TARGETARCH
 # "sharing" defaults to "shared", the cache will thus be available to other concurrent docker builds.
 
 # For now fetch the v1 cannon binary from the op-challenger image
-#FROM --platform=$BUILDPLATFORM us-docker.pkg.dev/oplabs-tools-artifacts/images/op-challenger:v1.1.0 AS cannon-builder-0
+FROM --platform=$BUILDPLATFORM us-docker.pkg.dev/oplabs-tools-artifacts/images/op-challenger:v1.1.0 AS cannon-builder-0
 
 FROM --platform=$BUILDPLATFORM builder AS cannon-builder
-ARG CANNON_VERSION=v0.0.0
-# uncomment these lines once there's a new Cannon version available
-#COPY --from=cannon-builder-0 /usr/local/bin/cannon ./cannon/multicannon/embeds/cannon-0
-#COPY --from=cannon-builder-0 /usr/local/bin/cannon ./cannon/multicannon/embeds/cannon-1
+# note: bump this CANNON_VERSION when the VM behavior changes
+ARG CANNON_VERSION=v2.0.0
+COPY --from=cannon-builder-0 /usr/local/bin/cannon ./cannon/multicannon/embeds/cannon-0
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build cd cannon && make cannon  \
   GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$CANNON_VERSION"
 

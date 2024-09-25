@@ -124,7 +124,7 @@ func applyCannonConfig(c *config.Config, t *testing.T, rollupCfg *rollup.Config,
 		t.Log("Using MT-Cannon absolute prestate")
 		c.CannonAbsolutePreState = root + "op-program/bin/prestate-mt.bin.gz"
 	} else {
-		c.CannonAbsolutePreState = root + "op-program/bin/prestate.json"
+		c.CannonAbsolutePreState = root + "op-program/bin/prestate.bin.gz"
 	}
 	c.Cannon.SnapshotFreq = 10_000_000
 

@@ -69,7 +69,7 @@ func LoadELF(ctx *cli.Context) error {
 		return err
 	}
 	switch ver {
-	case versions.VersionSingleThreaded:
+	case versions.VersionSingleThreadedGetFd:
 		createInitialState = func(f *elf.File) (mipsevm.FPVMState, error) {
 			return program.LoadELF(f, singlethreaded.CreateInitialState)
 		}
