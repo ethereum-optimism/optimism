@@ -27,9 +27,6 @@ cannon-embeds: cannon32-impl cannon64-impl
 cannon: cannon-embeds
 	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v $(LDFLAGS) -o ./bin/cannon ./multicannon/
 
-cannon-router: cannon32 cannon64
-	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v $(LDFLAGS) -o ./bin/cannon .
-
 clean:
 	rm -rf bin multicannon/embeds/cannon*
 
