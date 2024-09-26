@@ -19,6 +19,7 @@ import { DeputyGuardianModule } from "src/safe/DeputyGuardianModule.sol";
 import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
 
 import { Deploy } from "./Deploy.s.sol";
+
 /// @notice Configuration for a Safe
 
 struct SafeConfig {

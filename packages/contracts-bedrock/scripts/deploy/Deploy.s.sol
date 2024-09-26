@@ -436,7 +436,8 @@ contract Deploy is Deployer {
 
         // Include the proxyAdminName in the salt to prevent a create2 collision when both the Superchain and an OP
         // Chain are being setup.
-        IProxyAdmin admin = new IProxyAdmin{ salt: keccak256(abi.encode(_implSalt(), proxyAdminName)) }({ _owner: msg.sender });
+        ProxyAdmin admin =
+            new ProxyAdmin{ salt: keccak256(abi.encode(_implSalt(), proxyAdminName)) }({ _owner: msg.sender });
         require(admin.owner() == msg.sender);
 
         // The AddressManager is only required for OP Chains
