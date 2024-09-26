@@ -2,7 +2,6 @@ package safety
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/heads"
@@ -22,16 +21,7 @@ type View struct {
 }
 
 func (vi *View) Cross() (heads.HeadPointer, error) {
-	parentHash, parentNum, timestamp, logsSince, ok := vi.iter.Pointer()
-	if !ok {
-		return heads.HeadPointer{}, fmt.Errorf("no db content yet: %w", logs.ErrFuture)
-	}
-	return heads.HeadPointer{
-		LastSealedBlockHash: parentHash,
-		LastSealedBlockNum:  parentNum,
-		LastSealedTimestamp: timestamp,
-		LogsSince:           logsSince,
-	}, nil
+	return vi.iter.HeadPointer()
 }
 
 func (vi *View) Local() (heads.HeadPointer, error) {

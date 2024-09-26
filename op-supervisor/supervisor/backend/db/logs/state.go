@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/heads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -126,12 +127,16 @@ func (l *logContext) ExecMessage() *types.ExecutingMessage {
 	return nil
 }
 
-func (l *logContext) Pointer() (hash common.Hash, num uint64, timestamp uint64, logsSince uint32, ok bool) {
+func (l *logContext) HeadPointer() (heads.HeadPointer, error) {
 	if l.need != 0 {
-		ok = false
-		return
+		return heads.HeadPointer{}, errors.New("cannot provide head pointer while state is incomplete")
 	}
-	return l.blockHash, l.blockNum, l.timestamp, l.logsSince, true
+	return heads.HeadPointer{
+		LastSealedBlockHash: l.blockHash,
+		LastSealedBlockNum:  l.blockNum,
+		LastSealedTimestamp: l.timestamp,
+		LogsSince:           l.logsSince,
+	}, nil
 }
 
 // ApplyEntry applies an entry on top of the current state.
