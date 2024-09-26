@@ -43,7 +43,7 @@ contract:
 test: elf contract
 	go test -v ./...
 
-diff-%-cannon: cannon
+diff-%-cannon: cannon elf
 	$$OTHER_CANNON load-elf --type $* --path ./testdata/example/bin/hello.elf --out ./bin/prestate-other.bin.gz --meta ""
 	./bin/cannon   load-elf --type $* --path ./testdata/example/bin/hello.elf --out ./bin/prestate.bin.gz --meta ""
 	@cmp ./bin/prestate-other.bin.gz ./bin/prestate.bin.gz
