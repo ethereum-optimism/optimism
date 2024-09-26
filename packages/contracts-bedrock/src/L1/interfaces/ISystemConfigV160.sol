@@ -3,7 +3,9 @@ pragma solidity ^0.8.0;
 
 import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
 
-/// @dev This interface corresponds to the v1.6.0 version of the SystemConfig contract.
+/// @notice This interface corresponds to the op-contracts/v1.6.0 release of the SystemConfig
+/// contract, which has a semver of 2.2.0 as specified in
+/// https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts%2Fv1.6.0
 interface ISystemConfigV160 {
     enum UpdateType {
         BATCHER,
