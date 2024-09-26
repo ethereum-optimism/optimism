@@ -1165,7 +1165,7 @@ jobs:
           command: make cannon
       - run:
           name: Verify the Cannon STF
-          command: make -f cannon/Makefile cannon-stf-verify
+          command: make -f cannon/Makefile -C ./cannon cannon-stf-verify
       - save_cache:
           name: Save Go build cache
           key: golang-build-cache-cannon-stf-verify-{{ checksum "go.sum" }}
