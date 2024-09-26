@@ -168,29 +168,30 @@ func TestEVMSingleStep_Operators(t *testing.T) {
 	versions := GetMipsVersionTestCases(t)
 	cases := []struct {
 		name      string
-		insn      uint32
-		ifImm     bool
+		isImm     bool
 		rs        uint32
 		rt        uint32
 		imm       uint16
+		funct     uint32
+		opcode    uint32
 		expectRes uint32
 	}{
-		{name: "add", insn: 0x02_32_40_20, ifImm: false, rs: uint32(12), rt: uint32(20), expectRes: uint32(32)},                        // add t0, s1, s2
-		{name: "addu", insn: 0x02_32_40_21, ifImm: false, rs: uint32(12), rt: uint32(20), expectRes: uint32(32)},                       // addu t0, s1, s2
-		{name: "addi", insn: 0x22_28_00_28, ifImm: true, rs: uint32(4), rt: uint32(1), imm: uint16(40), expectRes: uint32(44)},         // addi t0, s1, 40
-		{name: "addi sign", insn: 0x22_28_ff_fe, ifImm: true, rs: uint32(2), rt: uint32(1), imm: uint16(0xfffe), expectRes: uint32(0)}, // addi t0, s1, -2
-		{name: "addiu", insn: 0x26_28_00_28, ifImm: true, rs: uint32(4), rt: uint32(1), imm: uint16(40), expectRes: uint32(44)},        // addiu t0, s1, 40
-		{name: "sub", insn: 0x02_32_40_22, ifImm: false, rs: uint32(20), rt: uint32(12), expectRes: uint32(8)},                         // sub t0, s1, s2
-		{name: "subu", insn: 0x02_32_40_23, ifImm: false, rs: uint32(20), rt: uint32(12), expectRes: uint32(8)},                        // subu t0, s1, s2
-		{name: "and", insn: 0x02_32_40_24, ifImm: false, rs: uint32(1200), rt: uint32(490), expectRes: uint32(160)},                    // and t0, s1, s2
-		{name: "andi", insn: 0x32_28_00_28, ifImm: true, rs: uint32(4), rt: uint32(1), imm: uint16(40), expectRes: uint32(0)},          // andi t0, s1, 40
-		{name: "or", insn: 0x02_32_40_25, ifImm: false, rs: uint32(1200), rt: uint32(490), expectRes: uint32(1530)},                    // or t0, s1, s2
-		{name: "ori", insn: 0x36_28_00_28, ifImm: true, rs: uint32(4), rt: uint32(1), imm: uint16(40), expectRes: uint32(44)},          // ori t0, s1, 40
-		{name: "xor", insn: 0x02_32_40_26, ifImm: false, rs: uint32(1200), rt: uint32(490), expectRes: uint32(1370)},                   // xor t0, s1, s2
-		{name: "xori", insn: 0x3A_28_00_28, ifImm: true, rs: uint32(4), rt: uint32(1), imm: uint16(40), expectRes: uint32(44)},         // xori t0, s1, 40
-		{name: "nor", insn: 0x02_32_40_27, ifImm: false, rs: uint32(1200), rt: uint32(490), expectRes: uint32(4294965765)},             // nor t0, s1, s2
-		{name: "slt", insn: 0x02_32_40_2A, ifImm: false, rs: 0xFF_FF_FF_FE, rt: uint32(5), expectRes: uint32(1)},                       // slt t0, s1, s2
-		{name: "sltU", insn: 0x02_32_40_2B, ifImm: false, rs: uint32(1200), rt: uint32(490), expectRes: uint32(0)},                     // sltu t0, s1, s2
+		{name: "add", funct: 0x20, isImm: false, rs: uint32(12), rt: uint32(20), expectRes: uint32(32)},                        // add t0, s1, s2
+		{name: "addu", funct: 0x21, isImm: false, rs: uint32(12), rt: uint32(20), expectRes: uint32(32)},                       // addu t0, s1, s2
+		{name: "addi", opcode: 0x8, isImm: true, rs: uint32(4), rt: uint32(1), imm: uint16(40), expectRes: uint32(44)},         // addi t0, s1, 40
+		{name: "addi sign", opcode: 0x8, isImm: true, rs: uint32(2), rt: uint32(1), imm: uint16(0xfffe), expectRes: uint32(0)}, // addi t0, s1, -2
+		{name: "addiu", opcode: 0x9, isImm: true, rs: uint32(4), rt: uint32(1), imm: uint16(40), expectRes: uint32(44)},        // addiu t0, s1, 40
+		{name: "sub", funct: 0x22, isImm: false, rs: uint32(20), rt: uint32(12), expectRes: uint32(8)},                         // sub t0, s1, s2
+		{name: "subu", funct: 0x23, isImm: false, rs: uint32(20), rt: uint32(12), expectRes: uint32(8)},                        // subu t0, s1, s2
+		{name: "and", funct: 0x24, isImm: false, rs: uint32(1200), rt: uint32(490), expectRes: uint32(160)},                    // and t0, s1, s2
+		{name: "andi", opcode: 0xc, isImm: true, rs: uint32(4), rt: uint32(1), imm: uint16(40), expectRes: uint32(0)},          // andi t0, s1, 40
+		{name: "or", funct: 0x25, isImm: false, rs: uint32(1200), rt: uint32(490), expectRes: uint32(1530)},                    // or t0, s1, s2
+		{name: "ori", opcode: 0xd, isImm: true, rs: uint32(4), rt: uint32(1), imm: uint16(40), expectRes: uint32(44)},          // ori t0, s1, 40
+		{name: "xor", funct: 0x26, isImm: false, rs: uint32(1200), rt: uint32(490), expectRes: uint32(1370)},                   // xor t0, s1, s2
+		{name: "xori", opcode: 0xe, isImm: true, rs: uint32(4), rt: uint32(1), imm: uint16(40), expectRes: uint32(44)},         // xori t0, s1, 40
+		{name: "nor", funct: 0x27, isImm: false, rs: uint32(1200), rt: uint32(490), expectRes: uint32(4294965765)},             // nor t0, s1, s2
+		{name: "slt", funct: 0x2a, isImm: false, rs: 0xFF_FF_FF_FE, rt: uint32(5), expectRes: uint32(1)},                       // slt t0, s1, s2
+		{name: "sltu", funct: 0x2b, isImm: false, rs: uint32(1200), rt: uint32(490), expectRes: uint32(0)},                     // sltu t0, s1, s2
 	}
 
 	for _, v := range versions {
@@ -199,14 +200,17 @@ func TestEVMSingleStep_Operators(t *testing.T) {
 			t.Run(testName, func(t *testing.T) {
 				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPC(0), testutil.WithNextPC(4))
 				state := goVm.GetState()
-				if tt.ifImm {
+				var insn uint32
+				if tt.isImm {
+					insn = tt.opcode<<26 | uint32(17)<<21 | uint32(8)<<16 | uint32(tt.imm)
 					state.GetRegistersRef()[8] = tt.rt
 					state.GetRegistersRef()[17] = tt.rs
 				} else {
+					insn = uint32(17)<<21 | uint32(18)<<16 | uint32(8)<<11 | tt.funct
 					state.GetRegistersRef()[17] = tt.rs
 					state.GetRegistersRef()[18] = tt.rt
 				}
-				state.GetMemory().SetMemory(0, tt.insn)
+				state.GetMemory().SetMemory(0, insn)
 				step := state.GetStep()
 
 				// Setup expectations
@@ -214,15 +218,7 @@ func TestEVMSingleStep_Operators(t *testing.T) {
 				expected.Step += 1
 				expected.PC = 4
 				expected.NextPC = 8
-
-				if tt.ifImm {
-					expected.Registers[8] = tt.expectRes
-					expected.Registers[17] = tt.rs
-				} else {
-					expected.Registers[8] = tt.expectRes
-					expected.Registers[17] = tt.rs
-					expected.Registers[18] = tt.rt
-				}
+				expected.Registers[8] = tt.expectRes
 
 				stepWitness, err := goVm.Step(true)
 				require.NoError(t, err)
