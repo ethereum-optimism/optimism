@@ -178,7 +178,7 @@ jobs:
           key: gomod-{{ checksum "go.sum" }}
       - run:
           name: prep Cannon results dir
-          command: mkdir -p /tmp/test-results
+          command: mkdir -p /tmp/test-results-<<pipeline.number>>
       - run:
           name: build Cannon example binaries
           command: make elf # only compile ELF binaries with Go, we do not have MIPS GCC for creating the debug-dumps.
@@ -192,17 +192,17 @@ jobs:
           name: Cannon Go tests
           command: |
             export SKIP_SLOW_TESTS=<<parameters.skip_slow_tests>>
-            mkdir -p /testlogs
-            gotestsum --format=testname --junitfile=/tmp/test-results/cannon.xml --jsonfile=/testlogs/log.json \
+            mkdir -p /tmp/testlogs-<<pipeline.number>>
+            gotestsum --format=testname --junitfile=/tmp/test-results-<<pipeline.number>>/cannon.xml --jsonfile=/tmp/testlogs-<<pipeline.number>>/log.json \
             -- -parallel=8 -coverpkg=github.com/ethereum-optimism/optimism/cannon/... -coverprofile=coverage.out ./...
           working_directory: cannon
       - run:
           name: upload Cannon coverage
           command: codecov --verbose --clean --flags cannon-go-tests
       - store_test_results:
-          path: /tmp/test-results
+          path: /tmp/test-results-<<pipeline.number>>
       - store_artifacts:
-          path: /testlogs
+          path: /tmp/testlogs-<<pipeline.number>>
           when: always
       - when:
           condition: <<parameters.notify>>
@@ -346,7 +346,7 @@ jobs:
         type: string
         default: medium
     machine: true
-    resource_class: ethereum-optimism/e2-standard-16
+    resource_class: ethereum-optimism/e2-standard-4
     steps:
       - checkout
       - attach_workspace:
@@ -773,7 +773,7 @@ jobs:
 
   go-lint:
     machine: true
-    resource_class: ethereum-optimism/e2-standard-16
+    resource_class: ethereum-optimism/e2-standard-4
     steps:
       - checkout
       - run:
@@ -798,7 +798,7 @@ jobs:
         type: string
         default: "./..."
     machine: true
-    resource_class: ethereum-optimism/e2-standard-16
+    resource_class: ethereum-optimism/e2-standard-4
     steps:
       - run:
           name: Install components
@@ -815,23 +815,23 @@ jobs:
           command: |
             # Make sure the workspace is properly owned
             chown -R $USER:$USER .
-            mkdir -p /tmp/test-results
-            mkdir -p /tmp/testlogs
+            mkdir -p /tmp/test-results-<<pipeline.number>>
+            mkdir -p /tmp/tmp/testlogs-<<pipeline.number>>-<<pipeline.number>>
       - run:
           name: run tests
           command: |
             ENABLE_KURTOSIS=true gotestsum \
               --format=testname \
-              --junitfile=/tmp/test-results/<<parameters.module>>.xml \
-              --jsonfile=/tmp/testlogs/log.json \
+              --junitfile=/tmp/test-results-<<pipeline.number>>/<<parameters.module>>.xml \
+              --jsonfile=/tmp/tmp/testlogs-<<pipeline.number>>-<<pipeline.number>>/log.json \
               -- -parallel=8 \
               -coverpkg=github.com/ethereum-optimism/optimism/... \
               -coverprofile=coverage.out <<parameters.test_directory>>
           working_directory: <<parameters.module>>
       - store_test_results:
-          path: /tmp/test-results
+          path: /tmp/test-results-<<pipeline.number>>
       - store_artifacts:
-          path: /tmp/testlogs
+          path: /tmp/tmp/testlogs-<<pipeline.number>>-<<pipeline.number>>
           when: always
 
   go-test:
@@ -840,22 +840,22 @@ jobs:
         description: Go Module Name
         type: string
     machine: true
-    resource_class: ethereum-optimism/e2-standard-16
+    resource_class: ethereum-optimism/e2-standard-4
     steps:
       - checkout
       - run:
           name: prep results dir
-          command: mkdir -p /tmp/test-results && mkdir -p /tmp/testlogs
+          command: mkdir -p /tmp/test-results-<<pipeline.number>> && mkdir -p /tmp/tmp/testlogs-<<pipeline.number>>-<<pipeline.number>>
       - run:
           name: run tests
           command: |
-            gotestsum --format=testname --junitfile=/tmp/test-results/<<parameters.module>>.xml --jsonfile=/tmp/testlogs/log.json \
+            gotestsum --format=testname --junitfile=/tmp/test-results-<<pipeline.number>>/<<parameters.module>>.xml --jsonfile=/tmp/tmp/testlogs-<<pipeline.number>>-<<pipeline.number>>/log.json \
             -- -parallel=8 -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out ./...
           working_directory: <<parameters.module>>
       - store_test_results:
-          path: /tmp/test-results
+          path: /tmp/test-results-<<pipeline.number>>
       - store_artifacts:
-          path: /tmp/testlogs
+          path: /tmp/tmp/testlogs-<<pipeline.number>>-<<pipeline.number>>
           when: always
 
   go-e2e-test:
@@ -885,7 +885,7 @@ jobs:
       DEVNET_L2OO: 'false'
       OP_E2E_USE_L2OO: 'false'
     machine: true
-    resource_class: ethereum-optimism/e2-standard-16
+    resource_class: ethereum-optimism/e2-standard-4
     parallelism: <<parameters.parallelism>>
     steps:
       - checkout
@@ -917,7 +917,7 @@ jobs:
           patterns: op-(.+),cannon,contracts-bedrock
       - run:
           name: prep results dir
-          command: mkdir -p /tmp/test-results
+          command: mkdir -p /tmp/test-results-<<pipeline.number>>
       - attach_workspace:
           at: /tmp/workspace
       - run:
@@ -940,7 +940,7 @@ jobs:
           name: run tests
           no_output_timeout: 20m
           command: |
-            mkdir -p /testlogs
+            mkdir -p /tmp/tmp/testlogs-<<pipeline.number>>-<<pipeline.number>>
 
             # The below env var gets overridden when running make test-cannon, but we
             # need to explicitly set it here to prevent Cannon from running when we don't
@@ -948,16 +948,16 @@ jobs:
             export OP_E2E_CANNON_ENABLED="false"
             # Note: We don't use circle CI test splits because we need to split by test name, not by package. There is an additional
             # constraint that gotestsum does not currently (nor likely will) accept files from different pacakges when building.
-            JUNIT_FILE=/tmp/test-results/<<parameters.module>>_<<parameters.target>>.xml JSON_LOG_FILE=/testlogs/test.log make <<parameters.target>>
+            JUNIT_FILE=/tmp/test-results-<<pipeline.number>>/<<parameters.module>>_<<parameters.target>>.xml JSON_LOG_FILE=/tmp/tmp/testlogs-<<pipeline.number>>-<<pipeline.number>>/test.log make <<parameters.target>>
           working_directory: <<parameters.module>>
       - store_artifacts:
-          path: /testlogs
+          path: /tmp/tmp/testlogs-<<pipeline.number>>-<<pipeline.number>>
           when: always
       - store_artifacts:
-          path: /tmp/test-results
+          path: /tmp/test-results-<<pipeline.number>>
           when: always
       - store_test_results:
-          path: /tmp/test-results
+          path: /tmp/test-results-<<pipeline.number>>
       - when:
           condition: "<<parameters.notify>>"
           steps:
@@ -1084,7 +1084,7 @@ jobs:
 
   devnet:
     machine: true
-    resource_class: ethereum-optimism/e2-standard-16
+    resource_class: ethereum-optimism/e2-standard-4
     parameters:
       variant:
         type: string
