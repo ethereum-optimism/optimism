@@ -216,9 +216,11 @@ contract DeployOPChainOutput is BaseDeployIO {
             address(_anchorStateRegistryImpl),
             // address(_faultDisputeGame),
             address(_permissionedDisputeGame),
-            address(_delayedWETHPermissionedGameProxy),
-            address(_delayedWETHPermissionlessGameProxy)
+            address(_delayedWETHPermissionedGameProxy)
         );
+        // TODO: Eventually switch from Permissioned to Permissionless. Add this address back in.
+        // address(_delayedWETHPermissionlessGameProxy)
+
         DeployUtils.assertValidContractAddresses(Solarray.extend(addrs1, addrs2));
 
         assertValidDeploy(_doi);
@@ -295,7 +297,8 @@ contract DeployOPChainOutput is BaseDeployIO {
     }
 
     function delayedWETHPermissionlessGameProxy() public view returns (DelayedWETH) {
-        DeployUtils.assertValidContractAddress(address(_delayedWETHPermissionlessGameProxy));
+        // TODO: Eventually switch from Permissioned to Permissionless. Add this check back in.
+        // DeployUtils.assertValidContractAddress(address(_delayedWETHPermissionlessGameProxy));
         return _delayedWETHPermissionlessGameProxy;
     }
 
@@ -518,7 +521,8 @@ contract DeployOPChain is Script {
         // vm.label(address(deployOutput.faultDisputeGame), "faultDisputeGame");
         vm.label(address(deployOutput.permissionedDisputeGame), "permissionedDisputeGame");
         vm.label(address(deployOutput.delayedWETHPermissionedGameProxy), "delayedWETHPermissionedGameProxy");
-        vm.label(address(deployOutput.delayedWETHPermissionlessGameProxy), "delayedWETHPermissionlessGameProxy");
+        // TODO: Eventually switch from Permissioned to Permissionless.
+        // vm.label(address(deployOutput.delayedWETHPermissionlessGameProxy), "delayedWETHPermissionlessGameProxy");
 
         _doo.set(_doo.opChainProxyAdmin.selector, address(deployOutput.opChainProxyAdmin));
         _doo.set(_doo.addressManager.selector, address(deployOutput.addressManager));
@@ -536,9 +540,11 @@ contract DeployOPChain is Script {
         // _doo.set(_doo.faultDisputeGame.selector, address(deployOutput.faultDisputeGame));
         _doo.set(_doo.permissionedDisputeGame.selector, address(deployOutput.permissionedDisputeGame));
         _doo.set(_doo.delayedWETHPermissionedGameProxy.selector, address(deployOutput.delayedWETHPermissionedGameProxy));
-        _doo.set(
-            _doo.delayedWETHPermissionlessGameProxy.selector, address(deployOutput.delayedWETHPermissionlessGameProxy)
-        );
+        // TODO: Eventually switch from Permissioned to Permissionless.
+        // _doo.set(
+        //     _doo.delayedWETHPermissionlessGameProxy.selector,
+        // address(deployOutput.delayedWETHPermissionlessGameProxy)
+        // );
 
         _doo.checkOutput(_doi);
     }

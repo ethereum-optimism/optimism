@@ -126,8 +126,8 @@ contract OPContractsManager is ISemver, Initializable {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 1.0.0-beta.10
-    string public constant version = "1.0.0-beta.10";
+    /// @custom:semver 1.0.0-beta.11
+    string public constant version = "1.0.0-beta.11";
 
     /// @notice Represents the interface version so consumers know how to decode the DeployOutput struct
     /// that's emitted in the `Deployed` event. Whenever that struct changes, a new version should be used.
@@ -282,10 +282,7 @@ contract OPContractsManager is ISemver, Initializable {
             Blueprint.deployFrom(blueprint.anchorStateRegistry, salt, abi.encode(output.disputeGameFactoryProxy))
         );
 
-        // We have two delayed WETH contracts per chain, one for each of the permissioned and permissionless games.
-        output.delayedWETHPermissionlessGameProxy = DelayedWETH(
-            payable(deployProxy(l2ChainId, output.opChainProxyAdmin, saltMixer, "DelayedWETHPermissionlessGame"))
-        );
+        // Eventually we will switch from DelayedWETHPermissionedGameProxy to DelayedWETHPermissionlessGameProxy.
         output.delayedWETHPermissionedGameProxy = DelayedWETH(
             payable(deployProxy(l2ChainId, output.opChainProxyAdmin, saltMixer, "DelayedWETHPermissionedGame"))
         );
@@ -330,8 +327,8 @@ contract OPContractsManager is ISemver, Initializable {
 
         impl = getLatestImplementation("DelayedWETH");
         data = encodeDelayedWETHInitializer(impl.initializer, _input);
+        // Eventually we will switch from DelayedWETHPermissionedGameProxy to DelayedWETHPermissionlessGameProxy.
         upgradeAndCall(output.opChainProxyAdmin, address(output.delayedWETHPermissionedGameProxy), impl.logic, data);
-        upgradeAndCall(output.opChainProxyAdmin, address(output.delayedWETHPermissionlessGameProxy), impl.logic, data);
 
         // We set the initial owner to this contract, set game implementations, then transfer ownership.
         impl = getLatestImplementation("DisputeGameFactory");
