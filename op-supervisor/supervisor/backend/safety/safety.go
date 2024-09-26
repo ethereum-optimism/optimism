@@ -32,7 +32,7 @@ type ChainsDBClient interface {
 	Check(chainID types.ChainID, blockNum uint64, logIdx uint32, logHash common.Hash) (h common.Hash, err error)
 }
 
-type RecentSafetyIndex struct {
+type safetyIndex struct {
 	log log.Logger
 
 	chains ChainsDBClient
@@ -48,8 +48,8 @@ type RecentSafetyIndex struct {
 	finalizedL1 eth.L1BlockRef
 }
 
-func NewRecentSafetyIndex(log log.Logger, chains ChainsDBClient) *RecentSafetyIndex {
-	return &RecentSafetyIndex{
+func NewRecentSafetyIndex(log log.Logger, chains ChainsDBClient) *safetyIndex {
+	return &safetyIndex{
 		log:         log,
 		chains:      chains,
 		unsafe:      make(map[types.ChainID]*View),
@@ -60,7 +60,7 @@ func NewRecentSafetyIndex(log log.Logger, chains ChainsDBClient) *RecentSafetyIn
 }
 
 // UpdateLocalUnsafe updates the local-unsafe view for the given chain, and advances the cross-unsafe status.
-func (r *RecentSafetyIndex) UpdateLocalUnsafe(chainID types.ChainID, ref eth.L2BlockRef) error {
+func (r *safetyIndex) UpdateLocalUnsafe(chainID types.ChainID, ref eth.L2BlockRef) error {
 	view, ok := r.safe[chainID]
 	if !ok {
 		iter, err := r.chains.IteratorStartingAt(chainID, ref.Number, 0)
@@ -91,7 +91,7 @@ func (r *RecentSafetyIndex) UpdateLocalUnsafe(chainID types.ChainID, ref eth.L2B
 }
 
 // advanceCrossUnsafe calls Process on all cross-unsafe views.
-func (r *RecentSafetyIndex) advanceCrossUnsafe() {
+func (r *safetyIndex) advanceCrossUnsafe() {
 	for chID, view := range r.unsafe {
 		if err := view.Process(); err != nil {
 			r.log.Error("Failed to update cross-unsafe view", "chain", chID, "err", err)
@@ -100,7 +100,7 @@ func (r *RecentSafetyIndex) advanceCrossUnsafe() {
 }
 
 // UpdateLocalSafe updates the local-safe view for the given chain, and advances the cross-safe status.
-func (r *RecentSafetyIndex) UpdateLocalSafe(
+func (r *safetyIndex) UpdateLocalSafe(
 	chainID types.ChainID, at eth.L1BlockRef, ref eth.L2BlockRef) error {
 	view, ok := r.safe[chainID]
 	if !ok {
@@ -137,7 +137,7 @@ func (r *RecentSafetyIndex) UpdateLocalSafe(
 }
 
 // advanceCrossSafe calls Process on all cross-safe views, and advances the finalized safety status.
-func (r *RecentSafetyIndex) advanceCrossSafe() {
+func (r *safetyIndex) advanceCrossSafe() {
 	for chID, view := range r.safe {
 		if err := view.Process(); err != nil {
 			r.log.Error("Failed to update cross-safe view", "chain", chID, "err", err)
@@ -148,7 +148,7 @@ func (r *RecentSafetyIndex) advanceCrossSafe() {
 }
 
 // UpdateFinalizeL1 updates the finalized L1 block, and advances the finalized safety status.
-func (r *RecentSafetyIndex) UpdateFinalizeL1(ref eth.L1BlockRef) error {
+func (r *safetyIndex) UpdateFinalizeL1(ref eth.L1BlockRef) error {
 	if ref.Number <= r.finalizedL1.Number {
 		return fmt.Errorf("ignoring old L1 finality signal of %s, already have %s", ref, r.finalizedL1)
 	}
@@ -159,7 +159,7 @@ func (r *RecentSafetyIndex) UpdateFinalizeL1(ref eth.L1BlockRef) error {
 
 // advanceFinalized should be called whenever the finalized L1 block, or the cross-safe history, changes.
 // This then promotes the irreversible cross-safe L2 blocks to a finalized safety status.
-func (r *RecentSafetyIndex) advanceFinalized() {
+func (r *safetyIndex) advanceFinalized() {
 	// Whatever was considered cross-safe at the finalized block-height can
 	// now be considered finalized, since the inputs have become irreversible.
 	for chID, view := range r.safe {
@@ -182,7 +182,7 @@ func (r *RecentSafetyIndex) advanceFinalized() {
 }
 
 // UnsafeL2 returns the latest unsafe L2 block of the given chain.
-func (r *RecentSafetyIndex) UnsafeL2(chainID types.ChainID) (heads.HeadPointer, error) {
+func (r *safetyIndex) UnsafeL2(chainID types.ChainID) (heads.HeadPointer, error) {
 	view, ok := r.unsafe[chainID]
 	if !ok {
 		return heads.HeadPointer{}, fmt.Errorf("no unsafe data for chain %s", chainID)
@@ -191,7 +191,7 @@ func (r *RecentSafetyIndex) UnsafeL2(chainID types.ChainID) (heads.HeadPointer, 
 }
 
 // CrossUnsafeL2 returns the latest cross-unsafe L2 block of the given chain.
-func (r *RecentSafetyIndex) CrossUnsafeL2(chainID types.ChainID) (heads.HeadPointer, error) {
+func (r *safetyIndex) CrossUnsafeL2(chainID types.ChainID) (heads.HeadPointer, error) {
 	view, ok := r.unsafe[chainID]
 	if !ok {
 		return heads.HeadPointer{}, fmt.Errorf("no cross-unsafe data for chain %s", chainID)
@@ -200,7 +200,7 @@ func (r *RecentSafetyIndex) CrossUnsafeL2(chainID types.ChainID) (heads.HeadPoin
 }
 
 // LocalSafeL2 returns the latest local-safe L2 block of the given chain.
-func (r *RecentSafetyIndex) LocalSafeL2(chainID types.ChainID) (heads.HeadPointer, error) {
+func (r *safetyIndex) LocalSafeL2(chainID types.ChainID) (heads.HeadPointer, error) {
 	view, ok := r.safe[chainID]
 	if !ok {
 		return heads.HeadPointer{}, fmt.Errorf("no local-safe data for chain %s", chainID)
@@ -209,7 +209,7 @@ func (r *RecentSafetyIndex) LocalSafeL2(chainID types.ChainID) (heads.HeadPointe
 }
 
 // CrossSafeL2 returns the latest cross-safe L2 block of the given chain.
-func (r *RecentSafetyIndex) CrossSafeL2(chainID types.ChainID) (heads.HeadPointer, error) {
+func (r *safetyIndex) CrossSafeL2(chainID types.ChainID) (heads.HeadPointer, error) {
 	view, ok := r.safe[chainID]
 	if !ok {
 		return heads.HeadPointer{}, fmt.Errorf("no cross-safe data for chain %s", chainID)
@@ -218,7 +218,7 @@ func (r *RecentSafetyIndex) CrossSafeL2(chainID types.ChainID) (heads.HeadPointe
 }
 
 // FinalizedL2 returns the latest finalized L2 block of the given chain.
-func (r *RecentSafetyIndex) FinalizedL2(chainId types.ChainID) (eth.BlockID, error) {
+func (r *safetyIndex) FinalizedL2(chainId types.ChainID) (eth.BlockID, error) {
 	finalized, ok := r.finalized[chainId]
 	if !ok {
 		return eth.BlockID{}, fmt.Errorf("not seen finalized data of chain %s at finalized L1 block %s", chainId, r.finalizedL1)
@@ -226,4 +226,41 @@ func (r *RecentSafetyIndex) FinalizedL2(chainId types.ChainID) (eth.BlockID, err
 	return finalized, nil
 }
 
-var _ SafetyIndex = (*RecentSafetyIndex)(nil)
+// ValidWithinUnsafeView checks if the given executing message is in the database.
+// unsafe view is meant to represent all of the database, and so no boundary checks are needed.
+func (r *safetyIndex) ValidWithinUnsafeView(_ uint64, execMsg *types.ExecutingMessage) error {
+	execChainID := types.ChainIDFromUInt64(uint64(execMsg.Chain))
+	_, err := r.chains.Check(execChainID, execMsg.BlockNum, execMsg.LogIdx, execMsg.Hash)
+	return err
+}
+
+// ValidWithinSafeView checks if the given executing message is within the database,
+// and within the L1 view of the caller.
+func (r *safetyIndex) ValidWithinSafeView(l1View uint64, execMsg *types.ExecutingMessage) error {
+	execChainID := types.ChainIDFromUInt64(uint64(execMsg.Chain))
+
+	// Check that the initiating message, which was pulled in by the executing message,
+	// does indeed exist. And in which L2 block it exists (if any).
+	l2BlockHash, err := r.chains.Check(execChainID, execMsg.BlockNum, execMsg.LogIdx, execMsg.Hash)
+	if err != nil {
+		return err
+	}
+	// if the executing message falls within the execFinalized range, then nothing to check
+	execFinalized, ok := r.finalized[execChainID]
+	if ok && execFinalized.Number > execMsg.BlockNum {
+		return nil
+	}
+	// check if the L1 block of the executing message is known
+	execL1Block, ok := r.derivedFrom[execChainID][l2BlockHash]
+	if !ok {
+		return logs.ErrFuture // TODO need to distinguish between same-data future, and new-data future
+	}
+	// check if the L1 block is within the view
+	if execL1Block.Number > l1View {
+		return fmt.Errorf("exec message depends on L2 block %s:%d, derived from L1 block %s, not within view yet: %w",
+			l2BlockHash, execMsg.BlockNum, execL1Block, logs.ErrFuture)
+	}
+	return nil
+}
+
+var _ SafetyIndex = (*safetyIndex)(nil)
