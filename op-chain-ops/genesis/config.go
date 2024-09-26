@@ -253,7 +253,7 @@ func (d *GasPriceOracleDeployConfig) FeeScalar() [32]byte {
 	if d.GasPriceOracleScalar != 0 {
 		return common.BigToHash(big.NewInt(int64(d.GasPriceOracleScalar)))
 	}
-	return eth.EncodeScalar(eth.EcotoneScalars{
+	return eth.EncodeEcotoneScalars(eth.L1Scalars{
 		BlobBaseFeeScalar: d.GasPriceOracleBlobBaseFeeScalar,
 		BaseFeeScalar:     d.GasPriceOracleBaseFeeScalar,
 	})

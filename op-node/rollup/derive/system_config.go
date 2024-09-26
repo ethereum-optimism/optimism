@@ -112,7 +112,7 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 			return NewCriticalError(errors.New("too many bytes"))
 		}
 		if rollupCfg.IsEcotone(l1Time) {
-			if err := eth.CheckEcotoneL1SystemConfigScalar(scalar); err != nil {
+			if err := eth.CheckL1SystemConfigScalar(scalar); err != nil {
 				return nil // ignore invalid scalars, retain the old system-config scalar
 			}
 			// retain the scalar data in encoded form

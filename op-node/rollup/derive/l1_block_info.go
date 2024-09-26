@@ -482,7 +482,7 @@ func L1InfoDeposit(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNumber 
 			// The L2 spec states to use the MIN_BLOB_GASPRICE from EIP-4844 if not yet active on L1.
 			l1BlockInfo.BlobBaseFee = big.NewInt(1)
 		}
-		scalars, err := sysCfg.EcotoneScalars()
+		scalars, err := sysCfg.L1Scalars()
 		if err != nil {
 			return nil, err
 		}

@@ -25,7 +25,7 @@ func TestGasPriceOracleFeeUpdates(t *testing.T) {
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	defer ctxCancel()
 
-	maxScalars := eth.EcotoneScalars{
+	maxScalars := eth.L1Scalars{
 		BaseFeeScalar:     math.MaxUint32,
 		BlobBaseFeeScalar: math.MaxUint32,
 	}
@@ -76,7 +76,7 @@ func TestGasPriceOracleFeeUpdates(t *testing.T) {
 	require.Equal(t, blobBaseFeeScalar, maxScalars.BlobBaseFeeScalar)
 
 	// Now modify the scalar value & ensure that the gas params can be modified
-	normalScalars := eth.EcotoneScalars{
+	normalScalars := eth.L1Scalars{
 		BaseFeeScalar:     1e6,
 		BlobBaseFeeScalar: 1e6,
 	}
