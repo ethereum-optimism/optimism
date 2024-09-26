@@ -398,9 +398,10 @@ contract Deploy is Deployer {
         mustGetAddress("AddressManager");
         mustGetAddress("ProxyAdmin");
 
-        deployProxies();
         deployImplementations();
-        initializeImplementations();
+
+        deployOpChain();
+        initializeOpChain();
 
         setAlphabetFaultGameImplementation({ _allowUpgrade: false });
         setFastFaultGameImplementation({ _allowUpgrade: false });
@@ -411,9 +412,9 @@ contract Deploy is Deployer {
         transferDelayedWETHOwnership();
     }
 
-    /// @notice Deploy all of the proxies
-    function deployProxies() public {
-        console.log("Deploying proxies");
+    /// @notice Deploy all of the OP Chain specific contracts
+    function deployOpChain() public {
+        console.log("Deploying OP Chain contracts");
 
         deployERC1967Proxy("OptimismPortalProxy");
         deployERC1967Proxy("SystemConfigProxy");
@@ -430,6 +431,8 @@ contract Deploy is Deployer {
         deployERC1967Proxy("DelayedWETHProxy");
         deployERC1967Proxy("PermissionedDelayedWETHProxy");
         deployERC1967Proxy("AnchorStateRegistryProxy");
+
+        deployAnchorStateRegistry();
 
         transferAddressManagerOwnership(); // to the ProxyAdmin
     }
@@ -450,12 +453,12 @@ contract Deploy is Deployer {
         deployDelayedWETH();
         deployPreimageOracle();
         deployMips();
-        deployAnchorStateRegistry();
     }
 
-    /// @notice Initialize all of the implementations
-    function initializeImplementations() public {
-        console.log("Initializing implementations");
+    /// @notice Initialize all of the proxies in an OP Chain by upgrading to the correct proxy and calling the
+    /// initialize function
+    function initializeOpChain() public {
+        console.log("Initializing Op Chain proxies");
         // Selectively initialize either the original OptimismPortal or the new OptimismPortal2. Since this will upgrade
         // the proxy, we cannot initialize both.
         if (cfg.useFaultProofs()) {
