@@ -330,7 +330,6 @@ contract OPContractsManager is ISemver, Initializable {
         output.disputeGameFactoryProxy.setImplementation(
             GameTypes.PERMISSIONED_CANNON, IDisputeGame(address(output.permissionedDisputeGame))
         );
-        output.disputeGameFactoryProxy.setInitBond(GameTypes.PERMISSIONED_CANNON, 0.08 ether);
         output.disputeGameFactoryProxy.transferOwnership(address(output.opChainProxyAdmin));
 
         impl.logic = address(output.anchorStateRegistryImpl);
