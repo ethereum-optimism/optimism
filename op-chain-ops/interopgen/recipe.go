@@ -77,7 +77,7 @@ func (r *InteropDevRecipe) Build(addrs devkeys.Addresses) (*WorldConfig, error) 
 				DisputeGameFinalityDelaySeconds: big.NewInt(6),
 			},
 			UseInterop:           true,
-			StandardVersionsToml: opcm.StandardVersionsData,
+			StandardVersionsToml: opcm.StandardVersionsMainnetData,
 		},
 		SuperchainL1DeployConfig: genesis.SuperchainL1DeployConfig{
 			RequiredProtocolVersion:    params.OPStackSupport,
