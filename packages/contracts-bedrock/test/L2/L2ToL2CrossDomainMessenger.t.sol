@@ -7,6 +7,7 @@ import { Vm } from "forge-std/Vm.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Hashing } from "src/libraries/Hashing.sol";
 
 // Target contract
 import {
@@ -90,7 +91,14 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         vm.recordLogs();
 
         // Call the sendMessage function
-        l2ToL2CrossDomainMessenger.sendMessage({ _destination: _destination, _target: _target, _message: _message });
+        bytes32 msgHash =
+            l2ToL2CrossDomainMessenger.sendMessage({ _destination: _destination, _target: _target, _message: _message });
+        assertEq(
+            msgHash,
+            Hashing.hashL2toL2CrossDomainMessengerRelayMessage(
+                _destination, block.chainid, messageNonce, address(this), _target, _message
+            )
+        );
 
         // Check that the event was emitted with the correct parameters
         Vm.Log[] memory logs = vm.getRecordedLogs();

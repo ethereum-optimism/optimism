@@ -21,8 +21,8 @@ import { IETHLiquidity } from "src/L2/interfaces/IETHLiquidity.sol";
 ///         do not use a custom gas token.
 contract SuperchainWETH is WETH98, ISuperchainERC20Extensions, ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.4
-    string public constant version = "1.0.0-beta.4";
+    /// @custom:semver 1.0.0-beta.5
+    string public constant version = "1.0.0-beta.5";
 
     /// @inheritdoc WETH98
     function deposit() public payable override {

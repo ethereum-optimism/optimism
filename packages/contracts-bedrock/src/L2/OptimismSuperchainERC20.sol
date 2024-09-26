@@ -63,8 +63,8 @@ contract OptimismSuperchainERC20 is
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.3
-    string public constant version = "1.0.0-beta.3";
+    /// @custom:semver 1.0.0-beta.4
+    string public constant version = "1.0.0-beta.4";
 
     /// @notice Constructs the OptimismSuperchainERC20 contract.
     constructor() {

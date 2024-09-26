@@ -2,6 +2,7 @@
 pragma solidity 0.8.25;
 
 import { Encoding } from "src/libraries/Encoding.sol";
+import { Hashing } from "src/libraries/Hashing.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { CrossL2Inbox } from "src/L2/CrossL2Inbox.sol";
 import { IL2ToL2CrossDomainMessenger } from "src/L2/interfaces/IL2ToL2CrossDomainMessenger.sol";
@@ -57,8 +58,8 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
     uint16 public constant messageVersion = uint16(0);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.5
-    string public constant version = "1.0.0-beta.5";
+    /// @custom:semver 1.0.0-beta.6
+    string public constant version = "1.0.0-beta.6";
 
     /// @notice Mapping of message hashes to boolean receipt values. Note that a message will only be present in this
     ///         mapping if it has successfully been relayed on this chain, and can therefore not be relayed again.
@@ -99,15 +100,32 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
     /// @param _destination Chain ID of the destination chain.
     /// @param _target      Target contract or wallet address.
     /// @param _message     Message payload to call target with.
-    function sendMessage(uint256 _destination, address _target, bytes calldata _message) external {
+    /// @return msgHash_ The hash of the message being sent, which can be used for tracking whether
+    ///                  the message has successfully been relayed.
+    function sendMessage(
+        uint256 _destination,
+        address _target,
+        bytes calldata _message
+    )
+        external
+        returns (bytes32 msgHash_)
+    {
         if (_destination == block.chainid) revert MessageDestinationSameChain();
         if (_target == Predeploys.CROSS_L2_INBOX) revert MessageTargetCrossL2Inbox();
         if (_target == Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER) revert MessageTargetL2ToL2CrossDomainMessenger();
 
+        (uint256 source, uint256 nonce, address sender) = (block.chainid, messageNonce(), msg.sender);
         bytes memory data = abi.encodeCall(
-            L2ToL2CrossDomainMessenger.relayMessage,
-            (_destination, block.chainid, messageNonce(), msg.sender, _target, _message)
+            L2ToL2CrossDomainMessenger.relayMessage, (_destination, source, nonce, sender, _target, _message)
         );
+        msgHash_ = Hashing.hashL2toL2CrossDomainMessengerRelayMessage({
+            _destination: _destination,
+            _source: source,
+            _nonce: nonce,
+            _sender: sender,
+            _target: _target,
+            _message: _message
+        });
         assembly {
             log0(add(data, 0x20), mload(data))
         }
@@ -145,7 +163,14 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
             revert MessageTargetL2ToL2CrossDomainMessenger();
         }
 
-        bytes32 messageHash = keccak256(abi.encode(_destination, _source, _nonce, _sender, _target, _message));
+        bytes32 messageHash = Hashing.hashL2toL2CrossDomainMessengerRelayMessage({
+            _destination: _destination,
+            _source: _source,
+            _nonce: _nonce,
+            _sender: _sender,
+            _target: _target,
+            _message: _message
+        });
         if (successfulMessages[messageHash]) {
             revert MessageAlreadyRelayed();
         }
