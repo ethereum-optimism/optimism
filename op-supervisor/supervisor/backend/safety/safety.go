@@ -83,19 +83,20 @@ func (r *safetyIndex) UpdateLocalUnsafe(chainID types.ChainID, ref eth.L2BlockRe
 	} else if err := view.UpdateLocal(eth.L1BlockRef{}, ref); err != nil {
 		return fmt.Errorf("failed to update local-unsafe: %w", err)
 	}
-	r.advanceCrossUnsafe()
 	local, _ := r.unsafe[chainID].Local()
-	cross, _ := r.unsafe[chainID].Cross()
-	r.log.Debug("Updated unsafe head", "chainID", chainID, "local", local, "cross", cross)
+	r.log.Debug("Updated local unsafe head", "chainID", chainID, "local", local)
+	r.advanceCrossUnsafe()
 	return nil
 }
 
 // advanceCrossUnsafe calls Process on all cross-unsafe views.
 func (r *safetyIndex) advanceCrossUnsafe() {
-	for chID, view := range r.unsafe {
+	for chainID, view := range r.unsafe {
 		if err := view.Process(); err != nil {
-			r.log.Error("Failed to update cross-unsafe view", "chain", chID, "err", err)
+			r.log.Error("Failed to update cross-unsafe view", "chain", chainID, "err", err)
 		}
+		cross, _ := r.unsafe[chainID].Cross()
+		r.log.Debug("Updated cross unsafe head", "chainID", chainID, "cross", cross)
 	}
 }
 
@@ -132,16 +133,20 @@ func (r *safetyIndex) UpdateLocalSafe(
 		r.derivedFrom[chainID] = m
 	}
 	m[ref.Hash] = at
+	local, _ := r.safe[chainID].Local()
+	r.log.Debug("Updated local safe head", "chainID", chainID, "local", local)
 	r.advanceCrossSafe()
 	return nil
 }
 
 // advanceCrossSafe calls Process on all cross-safe views, and advances the finalized safety status.
 func (r *safetyIndex) advanceCrossSafe() {
-	for chID, view := range r.safe {
+	for chainID, view := range r.safe {
 		if err := view.Process(); err != nil {
-			r.log.Error("Failed to update cross-safe view", "chain", chID, "err", err)
+			r.log.Error("Failed to update cross-safe view", "chain", chainID, "err", err)
 		}
+		cross, _ := r.safe[chainID].Cross()
+		r.log.Debug("Updated local safe head", "chainID", chainID, "cross", cross)
 	}
 	r.advanceFinalized()
 	// TODO prune any L2 derivedFrom entry older than the L2 finalized entry
@@ -153,6 +158,7 @@ func (r *safetyIndex) UpdateFinalizeL1(ref eth.L1BlockRef) error {
 		return fmt.Errorf("ignoring old L1 finality signal of %s, already have %s", ref, r.finalizedL1)
 	}
 	r.finalizedL1 = ref
+	r.log.Debug("Updated L1 finalized head", "L1finalized", ref)
 	r.advanceFinalized()
 	return nil
 }
@@ -162,21 +168,23 @@ func (r *safetyIndex) UpdateFinalizeL1(ref eth.L1BlockRef) error {
 func (r *safetyIndex) advanceFinalized() {
 	// Whatever was considered cross-safe at the finalized block-height can
 	// now be considered finalized, since the inputs have become irreversible.
-	for chID, view := range r.safe {
+	for chainID, view := range r.safe {
 		crossSafe, err := view.Cross()
 		if err != nil {
-			r.log.Info("Failed to get cross-safe data, cannot finalize", "chain", chID, "err", err)
+			r.log.Info("Failed to get cross-safe data, cannot finalize", "chain", chainID, "err", err)
 			continue
 		}
 		// TODO we need to consider older cross-safe data,
 		//  if we want to finalize something at all on longer lagging finality signal.
 		// Could consider just iterating over all derivedFrom contents?
-		l1Dep := r.derivedFrom[chID][crossSafe.LastSealedBlockHash]
+		l1Dep := r.derivedFrom[chainID][crossSafe.LastSealedBlockHash]
 		if l1Dep.Number < r.finalizedL1.Number {
 			// TODO Temporary: truncated hashes have been replaced with full hashes
 			fullHash := common.Hash{}
 			fullHash.SetBytes(crossSafe.LastSealedBlockHash[:])
-			r.finalized[chID] = eth.BlockID{Hash: fullHash, Number: crossSafe.LastSealedBlockNum}
+			r.finalized[chainID] = eth.BlockID{Hash: fullHash, Number: crossSafe.LastSealedBlockNum}
+			finalized := r.finalized[chainID]
+			r.log.Debug("Updated finalized head", "chainID", chainID, "finalized", finalized)
 		}
 	}
 }
