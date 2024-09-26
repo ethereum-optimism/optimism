@@ -33,7 +33,7 @@ type RegisterTask struct {
 	gameType               faultTypes.GameType
 	skipPrestateValidation bool
 
-	getPrestateProvider func(prestateHash common.Hash) (faultTypes.PrestateProvider, error)
+	getPrestateProvider func(ctx context.Context, prestateHash common.Hash) (faultTypes.PrestateProvider, error)
 	newTraceAccessor    func(
 		logger log.Logger,
 		m metrics.Metricer,
@@ -49,7 +49,7 @@ type RegisterTask struct {
 }
 
 func NewCannonRegisterTask(gameType faultTypes.GameType, cfg *config.Config, m caching.Metrics, serverExecutor vm.OracleServerExecutor) *RegisterTask {
-	stateConverter := cannon.NewStateConverter()
+	stateConverter := cannon.NewStateConverter(cfg.Cannon)
 	return &RegisterTask{
 		gameType: gameType,
 		// Don't validate the absolute prestate or genesis output root for permissioned games
@@ -63,7 +63,7 @@ func NewCannonRegisterTask(gameType faultTypes.GameType, cfg *config.Config, m c
 			cfg.CannonAbsolutePreStateBaseURL,
 			cfg.CannonAbsolutePreState,
 			filepath.Join(cfg.Datadir, "cannon-prestates"),
-			func(path string) faultTypes.PrestateProvider {
+			func(ctx context.Context, path string) faultTypes.PrestateProvider {
 				return vm.NewPrestateProvider(path, stateConverter)
 			}),
 		newTraceAccessor: func(
@@ -95,7 +95,7 @@ func NewAsteriscRegisterTask(gameType faultTypes.GameType, cfg *config.Config, m
 			cfg.AsteriscAbsolutePreStateBaseURL,
 			cfg.AsteriscAbsolutePreState,
 			filepath.Join(cfg.Datadir, "asterisc-prestates"),
-			func(path string) faultTypes.PrestateProvider {
+			func(ctx context.Context, path string) faultTypes.PrestateProvider {
 				return vm.NewPrestateProvider(path, stateConverter)
 			}),
 		newTraceAccessor: func(
@@ -127,7 +127,7 @@ func NewAsteriscKonaRegisterTask(gameType faultTypes.GameType, cfg *config.Confi
 			cfg.AsteriscKonaAbsolutePreStateBaseURL,
 			cfg.AsteriscKonaAbsolutePreState,
 			filepath.Join(cfg.Datadir, "asterisc-kona-prestates"),
-			func(path string) faultTypes.PrestateProvider {
+			func(ctx context.Context, path string) faultTypes.PrestateProvider {
 				return vm.NewPrestateProvider(path, stateConverter)
 			}),
 		newTraceAccessor: func(
@@ -151,7 +151,7 @@ func NewAsteriscKonaRegisterTask(gameType faultTypes.GameType, cfg *config.Confi
 func NewAlphabetRegisterTask(gameType faultTypes.GameType) *RegisterTask {
 	return &RegisterTask{
 		gameType: gameType,
-		getPrestateProvider: func(_ common.Hash) (faultTypes.PrestateProvider, error) {
+		getPrestateProvider: func(_ context.Context, _ common.Hash) (faultTypes.PrestateProvider, error) {
 			return alphabet.PrestateProvider, nil
 		},
 		newTraceAccessor: func(
@@ -178,15 +178,15 @@ func cachePrestates(
 	prestateBaseURL *url.URL,
 	preStatePath string,
 	prestateDir string,
-	newPrestateProvider func(path string) faultTypes.PrestateProvider,
-) func(prestateHash common.Hash) (faultTypes.PrestateProvider, error) {
+	newPrestateProvider func(ctx context.Context, path string) faultTypes.PrestateProvider,
+) func(ctx context.Context, prestateHash common.Hash) (faultTypes.PrestateProvider, error) {
 	prestateSource := prestates.NewPrestateSource(prestateBaseURL, preStatePath, prestateDir, stateConverter)
-	prestateProviderCache := prestates.NewPrestateProviderCache(m, fmt.Sprintf("prestates-%v", gameType), func(prestateHash common.Hash) (faultTypes.PrestateProvider, error) {
-		prestatePath, err := prestateSource.PrestatePath(prestateHash)
+	prestateProviderCache := prestates.NewPrestateProviderCache(m, fmt.Sprintf("prestates-%v", gameType), func(ctx context.Context, prestateHash common.Hash) (faultTypes.PrestateProvider, error) {
+		prestatePath, err := prestateSource.PrestatePath(ctx, prestateHash)
 		if err != nil {
 			return nil, fmt.Errorf("required prestate %v not available: %w", prestateHash, err)
 		}
-		return newPrestateProvider(prestatePath), nil
+		return newPrestateProvider(ctx, prestatePath), nil
 	})
 	return prestateProviderCache.GetOrCreate
 }
@@ -219,7 +219,7 @@ func (e *RegisterTask) Register(
 			return nil, fmt.Errorf("failed to load prestate hash for game %v: %w", game.Proxy, err)
 		}
 
-		vmPrestateProvider, err := e.getPrestateProvider(requiredPrestatehash)
+		vmPrestateProvider, err := e.getPrestateProvider(ctx, requiredPrestatehash)
 		if err != nil {
 			return nil, fmt.Errorf("required prestate %v not available for game %v: %w", requiredPrestatehash, game.Proxy, err)
 		}
