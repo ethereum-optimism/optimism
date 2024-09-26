@@ -40,6 +40,7 @@ func DeployOPChain(ctx context.Context, env *Env, artifactsFS foundry.StatDirFs,
 		BlobBaseFeeScalar:      801949,
 		L2ChainId:              chainID.Big(),
 		OpcmProxy:              st.ImplementationsDeployment.OpcmProxyAddress,
+		SaltMixer:              "",
 	}
 
 	var dco opcm.DeployOPChainOutput
