@@ -47,6 +47,7 @@ contract DeployOPChainInput is BaseDeployIO {
     uint32 internal _blobBaseFeeScalar;
     uint256 internal _l2ChainId;
     OPContractsManager internal _opcmProxy;
+    string internal _saltMixer;
 
     function set(bytes4 _sel, address _addr) public {
         require(_addr != address(0), "DeployOPChainInput: cannot set zero address");
@@ -71,6 +72,12 @@ contract DeployOPChainInput is BaseDeployIO {
         } else {
             revert("DeployOPChainInput: unknown selector");
         }
+    }
+
+    function set(bytes4 _sel, string memory _value) public {
+        require((bytes(_value).length != 0), "DeployImplementationsInput: cannot set empty string");
+        if (_sel == this.saltMixer.selector) _saltMixer = _value;
+        else revert("DeployOPChainInput: unknown selector");
     }
 
     function opChainProxyAdminOwner() public view returns (address) {
@@ -144,6 +151,10 @@ contract DeployOPChainInput is BaseDeployIO {
         DeployUtils.assertValidContractAddress(address(_opcmProxy));
         DeployUtils.assertImplementationSet(address(_opcmProxy));
         return _opcmProxy;
+    }
+
+    function saltMixer() public view returns (string memory) {
+        return _saltMixer;
     }
 }
 
@@ -486,7 +497,8 @@ contract DeployOPChain is Script {
             basefeeScalar: _doi.basefeeScalar(),
             blobBasefeeScalar: _doi.blobBaseFeeScalar(),
             l2ChainId: _doi.l2ChainId(),
-            startingAnchorRoots: _doi.startingAnchorRoots()
+            startingAnchorRoots: _doi.startingAnchorRoots(),
+            saltMixer: _doi.saltMixer()
         });
 
         vm.broadcast(msg.sender);

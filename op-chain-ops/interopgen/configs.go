@@ -75,7 +75,8 @@ type L2Config struct {
 	Challenger        common.Address
 	SystemConfigOwner common.Address
 	genesis.L2InitializationConfig
-	Prefund map[common.Address]*big.Int
+	Prefund   map[common.Address]*big.Int
+	SaltMixer string
 }
 
 func (c *L2Config) Check(log log.Logger) error {

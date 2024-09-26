@@ -48,6 +48,7 @@ contract DeployOPChainInput_Test is Test {
     uint32 blobBaseFeeScalar = 200;
     uint256 l2ChainId = 300;
     OPContractsManager opcm = OPContractsManager(makeAddr("opcm"));
+    string saltMixer = "saltMixer";
 
     function setUp() public {
         doi = new DeployOPChainInput();
@@ -353,6 +354,7 @@ contract DeployOPChain_TestBase is Test {
     uint256 l2ChainId = 300;
     AnchorStateRegistry.StartingAnchorRoot[] startingAnchorRoots;
     OPContractsManager opcm = OPContractsManager(address(0));
+    string saltMixer = "defaultSaltMixer";
 
     function setUp() public virtual {
         // Set defaults for reference types
@@ -470,6 +472,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         doi.set(doi.blobBaseFeeScalar.selector, blobBaseFeeScalar);
         doi.set(doi.l2ChainId.selector, l2ChainId);
         doi.set(doi.opcmProxy.selector, address(opcm)); // Not fuzzed since it must be an actual instance.
+        doi.set(doi.saltMixer.selector, saltMixer);
 
         deployOPChain.run(doi, doo);
 
@@ -485,6 +488,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         assertEq(basefeeScalar, doi.basefeeScalar(), "700");
         assertEq(blobBaseFeeScalar, doi.blobBaseFeeScalar(), "800");
         assertEq(l2ChainId, doi.l2ChainId(), "900");
+        assertEq(saltMixer, doi.saltMixer(), "1000");
 
         // Assert inputs were properly passed through to the contract initializers.
         assertEq(address(doo.opChainProxyAdmin().owner()), opChainProxyAdminOwner, "2100");
