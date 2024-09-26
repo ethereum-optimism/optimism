@@ -1566,9 +1566,6 @@ workflows:
             - op-service-tests
             - op-supervisor-tests
             - op-e2e-HTTP-tests
-            - op-e2e-fault-proof-tests
-            - op-e2e-action-tests
-            - op-e2e-action-tests-altda
             # Not needed for the devnet but we want to make sure they build successfully
             - cannon-docker-build
             - op-dispute-mon-docker-build
