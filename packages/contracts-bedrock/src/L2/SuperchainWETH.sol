@@ -21,8 +21,8 @@ import { IETHLiquidity } from "src/L2/interfaces/IETHLiquidity.sol";
 ///         do not use a custom gas token.
 contract SuperchainWETH is WETH98, ISuperchainERC20Extensions, ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.4
-    string public constant version = "1.0.0-beta.4";
+    /// @custom:semver 1.0.0-beta.5
+    string public constant version = "1.0.0-beta.5";
 
     /// @inheritdoc WETH98
     function deposit() public payable override {
@@ -61,8 +61,8 @@ contract SuperchainWETH is WETH98, ISuperchainERC20Extensions, ISemver {
     function relayERC20(address from, address dst, uint256 wad) external {
         // Receive message from other chain.
         IL2ToL2CrossDomainMessenger messenger = IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
-        if (msg.sender != address(messenger)) revert Unauthorized();
-        if (messenger.crossDomainMessageSender() != address(this)) revert Unauthorized();
+        if (msg.sender != address(messenger)) revert CallerNotL2ToL2CrossDomainMessenger();
+        if (messenger.crossDomainMessageSender() != address(this)) revert InvalidCrossDomainSender();
 
         // Mint from ETHLiquidity contract.
         if (!IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isCustomGasToken()) {

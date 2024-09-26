@@ -3,13 +3,23 @@ pragma solidity ^0.8.0;
 
 // Interfaces
 import { IERC20Solady } from "src/vendor/interfaces/IERC20Solady.sol";
-import { ISuperchainERC20Extensions, ISuperchainERC20Errors } from "src/L2/interfaces/ISuperchainERC20.sol";
+
+/// @title IOptimismSuperchainERC20Errors
+/// @notice Interface containing the errors added in the OptimismSuperchainERC20 implementation.
+interface IOptimismSuperchainERC20Errors {
+    /// @notice Thrown when attempting to perform an operation and the account is the zero address.
+    error ZeroAddress();
+
+    /// @notice Thrown when attempting to mint or burn tokens and the function caller is not the StandardBridge or the
+    /// SuperchainERC20Bridge.
+    error OnlyAuthorizedBridge();
+}
 
 /// @title IOptimismSuperchainERC20Extension
 /// @notice This interface is available on the OptimismSuperchainERC20 contract.
 ///         We declare it as a separate interface so that it can be used in
 ///         custom implementations of SuperchainERC20.
-interface IOptimismSuperchainERC20Extension is ISuperchainERC20Extensions, ISuperchainERC20Errors {
+interface IOptimismSuperchainERC20Extension is IOptimismSuperchainERC20Errors {
     /// @notice Emitted whenever tokens are minted for an account.
     /// @param account Address of the account tokens are being minted for.
     /// @param amount  Amount of tokens minted.

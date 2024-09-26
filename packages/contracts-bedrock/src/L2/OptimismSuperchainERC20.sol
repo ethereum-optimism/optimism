@@ -5,13 +5,9 @@ import { IOptimismSuperchainERC20Extension } from "src/L2/interfaces/IOptimismSu
 import { IL2ToL2CrossDomainMessenger } from "src/L2/interfaces/IL2ToL2CrossDomainMessenger.sol";
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { ERC20 } from "@solady/tokens/ERC20.sol";
-import { SuperchainERC20 } from "src/L2/SuperchainERC20.sol";
-import { Initializable } from "@openzeppelin/contracts-v5/proxy/utils/Initializable.sol";
 import { ERC165 } from "@openzeppelin/contracts-v5/utils/introspection/ERC165.sol";
-
-/// @notice Thrown when attempting to mint or burn tokens and the function caller is not the StandardBridge.
-error OnlyBridge();
+import { ERC20 } from "@solady/tokens/ERC20.sol";
+import { Initializable } from "@openzeppelin/contracts-v5/proxy/utils/Initializable.sol";
 
 /// @custom:proxied true
 /// @title OptimismSuperchainERC20
@@ -21,16 +17,7 @@ error OnlyBridge();
 ///         token, turning it fungible and interoperable across the superchain. Likewise, it also enables the inverse
 ///         conversion path.
 ///         Moreover, it builds on top of the L2ToL2CrossDomainMessenger for both replay protection and domain binding.
-contract OptimismSuperchainERC20 is
-    IOptimismSuperchainERC20Extension,
-    SuperchainERC20,
-    ISemver,
-    Initializable,
-    ERC165
-{
-    /// @notice Address of the StandardBridge Predeploy.
-    address internal constant BRIDGE = Predeploys.L2_STANDARD_BRIDGE;
-
+contract OptimismSuperchainERC20 is ERC20, Initializable, ERC165, IOptimismSuperchainERC20Extension, ISemver {
     /// @notice Storage slot that the OptimismSuperchainERC20Metadata struct is stored at.
     /// keccak256(abi.encode(uint256(keccak256("optimismSuperchainERC20.metadata")) - 1)) & ~bytes32(uint256(0xff));
     bytes32 internal constant OPTIMISM_SUPERCHAIN_ERC20_METADATA_SLOT =
@@ -57,14 +44,16 @@ contract OptimismSuperchainERC20 is
     }
 
     /// @notice A modifier that only allows the bridge to call
-    modifier onlyBridge() {
-        if (msg.sender != BRIDGE) revert OnlyBridge();
+    modifier onlyAuthorizedBridge() {
+        if (msg.sender != Predeploys.L2_STANDARD_BRIDGE && msg.sender != Predeploys.SUPERCHAIN_ERC20_BRIDGE) {
+            revert OnlyAuthorizedBridge();
+        }
         _;
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.2
-    string public constant version = "1.0.0-beta.2";
+    /// @custom:semver 1.0.0-beta.3
+    string public constant version = "1.0.0-beta.3";
 
     /// @notice Constructs the OptimismSuperchainERC20 contract.
     constructor() {
@@ -95,7 +84,7 @@ contract OptimismSuperchainERC20 is
     /// @notice Allows the L2StandardBridge to mint tokens.
     /// @param _to     Address to mint tokens to.
     /// @param _amount Amount of tokens to mint.
-    function mint(address _to, uint256 _amount) external virtual onlyBridge {
+    function mint(address _to, uint256 _amount) external virtual onlyAuthorizedBridge {
         if (_to == address(0)) revert ZeroAddress();
 
         _mint(_to, _amount);
@@ -106,7 +95,7 @@ contract OptimismSuperchainERC20 is
     /// @notice Allows the L2StandardBridge to burn tokens.
     /// @param _from   Address to burn tokens from.
     /// @param _amount Amount of tokens to burn.
-    function burn(address _from, uint256 _amount) external virtual onlyBridge {
+    function burn(address _from, uint256 _amount) external virtual onlyAuthorizedBridge {
         if (_from == address(0)) revert ZeroAddress();
 
         _burn(_from, _amount);
