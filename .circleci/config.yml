@@ -791,7 +791,7 @@ jobs:
           name: run Go linter
           command: |
             # Identify how many cores it defaults to
-            golangci-lint --help | grep concurrency
+            golangci-lint run --help | grep concurrency
             make lint-go
           working_directory: .
       - save_cache:
