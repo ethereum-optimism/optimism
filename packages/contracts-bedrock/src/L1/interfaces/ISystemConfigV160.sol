@@ -3,8 +3,10 @@ pragma solidity ^0.8.0;
 
 import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
 
-/// @notice This interface corresponds to the Custom Gas Token version of the SystemConfig contract.
-interface ISystemConfig {
+/// @notice This interface corresponds to the op-contracts/v1.6.0 release of the SystemConfig
+/// contract, which has a semver of 2.2.0 as specified in
+/// https://github.com/ethereum-optimism/optimism/releases/tag/op-contracts%2Fv1.6.0
+interface ISystemConfigV160 {
     enum UpdateType {
         BATCHER,
         GAS_CONFIG,
@@ -19,7 +21,6 @@ interface ISystemConfig {
         address disputeGameFactory;
         address optimismPortal;
         address optimismMintableERC20Factory;
-        address gasPayingToken;
     }
 
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);

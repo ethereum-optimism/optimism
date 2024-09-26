@@ -7,6 +7,7 @@ import { LibString } from "@solady/utils/LibString.sol";
 
 import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
 import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
+import { ISystemConfigV160 } from "src/L1/interfaces/ISystemConfigV160.sol";
 
 import { Constants } from "src/libraries/Constants.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -479,7 +480,7 @@ contract DeployImplementations is Script {
     // --- OP Contracts Manager ---
 
     function opcmSystemConfigSetter(
-        DeployImplementationsInput,
+        DeployImplementationsInput _dii,
         DeployImplementationsOutput _dio
     )
         internal
@@ -487,9 +488,19 @@ contract DeployImplementations is Script {
         virtual
         returns (OPContractsManager.ImplementationSetter memory)
     {
+        // When configuring OPCM during Solidity tests, we are using the latest SystemConfig.sol
+        // version in this repo, which contains Custom Gas Token (CGT) features. This CGT version
+        // has a different `initialize` signature than the SystemConfig version that was released
+        // as part of `op-contracts/v1.6.0`, which is no longer in the repo. When running this
+        // script's bytecode for a production deploy of OPCM at `op-contracts/v1.6.0`, we need to
+        // use the ISystemConfigV160 interface instead of ISystemConfig. Therefore the selector used
+        // is a function of the `release` passed in by the caller.
+        bytes4 selector = LibString.eq(_dii.release(), "op-contracts/v1.6.0")
+            ? ISystemConfigV160.initialize.selector
+            : SystemConfig.initialize.selector;
         return OPContractsManager.ImplementationSetter({
             name: "SystemConfig",
-            info: OPContractsManager.Implementation(address(_dio.systemConfigImpl()), SystemConfig.initialize.selector)
+            info: OPContractsManager.Implementation(address(_dio.systemConfigImpl()), selector)
         });
     }
 

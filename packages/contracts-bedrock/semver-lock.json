@@ -32,8 +32,8 @@
     "sourceCodeHash": "0xde4df0f9633dc0cdb1c9f634003ea5b0f7c5c1aebc407bc1b2f44c0ecf938649"
   },
   "src/L1/OPContractsManager.sol": {
-    "initCodeHash": "0xfc35bbfe19cb5345288d314ade85538a65ad213a7163133c0044b5556b180836",
-    "sourceCodeHash": "0x597bb234e83560d0e120b83334e152269d5fcdba2f8743bdd7594cc79098c15f"
+    "initCodeHash": "0x15ace86b1d389d02654392e10c3d444000f22e549ad2736cd5a869e4d862ddc8",
+    "sourceCodeHash": "0xffb7698ab51b7ea58460146de3d094d8e2f869c1425d289832855062c77692a8"
   },
   "src/L1/OptimismPortal.sol": {
     "initCodeHash": "0xbe2c0c81b3459014f287d8c89cdc0d27dde5d1f44e5d024fa1e4773ddc47c190",

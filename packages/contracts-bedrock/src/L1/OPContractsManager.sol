@@ -12,6 +12,7 @@ import { IBigStepper } from "src/dispute/interfaces/IBigStepper.sol";
 import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistry.sol";
 import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
+import { ISystemConfigV160 } from "src/L1/interfaces/ISystemConfigV160.sol";
 
 import { Proxy } from "src/universal/Proxy.sol";
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
@@ -126,8 +127,8 @@ contract OPContractsManager is ISemver, Initializable {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 1.0.0-beta.11
-    string public constant version = "1.0.0-beta.11";
+    /// @custom:semver 1.0.0-beta.12
+    string public constant version = "1.0.0-beta.12";
 
     /// @notice Represents the interface version so consumers know how to decode the DeployOutput struct
     /// that's emitted in the `Deployed` event. Whenever that struct changes, a new version should be used.
@@ -309,7 +310,10 @@ contract OPContractsManager is ISemver, Initializable {
         data = encodeOptimismPortalInitializer(impl.initializer, output);
         upgradeAndCall(output.opChainProxyAdmin, address(output.optimismPortalProxy), impl.logic, data);
 
+        // First we upgrade the implementation so it's version can be retrieved, then we initialize
+        // it afterwards. See the comments in encodeSystemConfigInitializer to learn more.
         impl = getLatestImplementation("SystemConfig");
+        output.opChainProxyAdmin.upgrade(payable(address(output.systemConfigProxy)), impl.logic);
         data = encodeSystemConfigInitializer(impl.initializer, _input, output);
         upgradeAndCall(output.opChainProxyAdmin, address(output.systemConfigProxy), impl.logic, data);
 
@@ -450,21 +454,48 @@ contract OPContractsManager is ISemver, Initializable {
         virtual
         returns (bytes memory)
     {
-        (ResourceMetering.ResourceConfig memory referenceResourceConfig, SystemConfig.Addresses memory opChainAddrs) =
-            defaultSystemConfigParams(_selector, _input, _output);
+        // We inspect the SystemConfig contract and determine it's signature here. This is required
+        // because this OPCM contract is being developed in a repository that no longer contains the
+        // SystemConfig contract that was released as part of `op-contracts/v1.6.0`, but in production
+        // it needs to support that version, in addition to the version currently on develop.
+        string memory semver = _output.systemConfigProxy.version();
+        if (keccak256(abi.encode(semver)) == keccak256(abi.encode(string("2.2.0")))) {
+            // We are using the op-contracts/v1.6.0 SystemConfig contract.
+            (
+                ResourceMetering.ResourceConfig memory referenceResourceConfig,
+                ISystemConfigV160.Addresses memory opChainAddrs
+            ) = defaultSystemConfigV160Params(_selector, _input, _output);
 
-        return abi.encodeWithSelector(
-            _selector,
-            _input.roles.systemConfigOwner,
-            _input.basefeeScalar,
-            _input.blobBasefeeScalar,
-            bytes32(uint256(uint160(_input.roles.batcher))), // batcherHash
-            30_000_000, // gasLimit, TODO should this be an input?
-            _input.roles.unsafeBlockSigner,
-            referenceResourceConfig,
-            chainIdToBatchInboxAddress(_input.l2ChainId),
-            opChainAddrs
-        );
+            return abi.encodeWithSelector(
+                _selector,
+                _input.roles.systemConfigOwner,
+                _input.basefeeScalar,
+                _input.blobBasefeeScalar,
+                bytes32(uint256(uint160(_input.roles.batcher))), // batcherHash
+                30_000_000, // gasLimit, TODO should this be an input?
+                _input.roles.unsafeBlockSigner,
+                referenceResourceConfig,
+                chainIdToBatchInboxAddress(_input.l2ChainId),
+                opChainAddrs
+            );
+        } else {
+            // We are using the latest SystemConfig contract from the repo.
+            (ResourceMetering.ResourceConfig memory referenceResourceConfig, SystemConfig.Addresses memory opChainAddrs)
+            = defaultSystemConfigParams(_selector, _input, _output);
+
+            return abi.encodeWithSelector(
+                _selector,
+                _input.roles.systemConfigOwner,
+                _input.basefeeScalar,
+                _input.blobBasefeeScalar,
+                bytes32(uint256(uint160(_input.roles.batcher))), // batcherHash
+                30_000_000, // gasLimit, TODO should this be an input?
+                _input.roles.unsafeBlockSigner,
+                referenceResourceConfig,
+                chainIdToBatchInboxAddress(_input.l2ChainId),
+                opChainAddrs
+            );
+        }
     }
 
     /// @notice Helper method for encoding the OptimismMintableERC20Factory initializer data.
@@ -602,6 +633,45 @@ contract OPContractsManager is ISemver, Initializable {
             optimismPortal: address(_output.optimismPortalProxy),
             optimismMintableERC20Factory: address(_output.optimismMintableERC20FactoryProxy),
             gasPayingToken: Constants.ETHER
+        });
+
+        assertValidContractAddress(opChainAddrs_.l1CrossDomainMessenger);
+        assertValidContractAddress(opChainAddrs_.l1ERC721Bridge);
+        assertValidContractAddress(opChainAddrs_.l1StandardBridge);
+        assertValidContractAddress(opChainAddrs_.disputeGameFactory);
+        assertValidContractAddress(opChainAddrs_.optimismPortal);
+        assertValidContractAddress(opChainAddrs_.optimismMintableERC20Factory);
+    }
+
+    /// @notice Returns default, standard config arguments for the SystemConfig initializer.
+    /// This is used by subclasses to reduce code duplication.
+    function defaultSystemConfigV160Params(
+        bytes4, /* selector */
+        DeployInput memory, /* _input */
+        DeployOutput memory _output
+    )
+        internal
+        view
+        virtual
+        returns (
+            ResourceMetering.ResourceConfig memory resourceConfig_,
+            ISystemConfigV160.Addresses memory opChainAddrs_
+        )
+    {
+        // We use assembly to easily convert from IResourceMetering.ResourceConfig to ResourceMetering.ResourceConfig.
+        // This is required because we have not yet fully migrated the codebase to be interface-based.
+        IResourceMetering.ResourceConfig memory resourceConfig = Constants.DEFAULT_RESOURCE_CONFIG();
+        assembly ("memory-safe") {
+            resourceConfig_ := resourceConfig
+        }
+
+        opChainAddrs_ = ISystemConfigV160.Addresses({
+            l1CrossDomainMessenger: address(_output.l1CrossDomainMessengerProxy),
+            l1ERC721Bridge: address(_output.l1ERC721BridgeProxy),
+            l1StandardBridge: address(_output.l1StandardBridgeProxy),
+            disputeGameFactory: address(_output.disputeGameFactoryProxy),
+            optimismPortal: address(_output.optimismPortalProxy),
+            optimismMintableERC20Factory: address(_output.optimismMintableERC20FactoryProxy)
         });
 
         assertValidContractAddress(opChainAddrs_.l1CrossDomainMessenger);
