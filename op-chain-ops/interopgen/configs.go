@@ -40,7 +40,7 @@ type OPCMImplementationsConfig struct {
 
 	UseInterop bool // to deploy Interop implementation contracts, instead of the regular ones.
 
-	StandardVersionsToml string // serialized string of superchain-registry 'standard-versions.toml' file
+	StandardVersionsToml string // serialized string of superchain-registry 'standard-versions-mainnet.toml' file
 }
 
 type SuperchainConfig struct {

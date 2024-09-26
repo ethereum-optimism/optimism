@@ -23,7 +23,7 @@ type DeployImplementationsInput struct {
 	UseInterop            bool // if true, deploy Interop implementations
 
 	SuperchainProxyAdmin common.Address
-	StandardVersionsToml string // contents of 'standard-versions.toml' file
+	StandardVersionsToml string // contents of 'standard-versions-mainnet.toml' or 'standard-versions-sepolia.toml' file
 }
 
 func (input *DeployImplementationsInput) InputSet() bool {
