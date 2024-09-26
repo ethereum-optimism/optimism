@@ -83,6 +83,7 @@ contract OPContractsManager is ISemver, Initializable {
         FaultDisputeGame faultDisputeGame;
         PermissionedDisputeGame permissionedDisputeGame;
         DelayedWETH delayedWETHPermissionedGameProxy;
+        DelayedWETH delayedWETHPermissionlessGameProxy;
     }
 
     /// @notice The logic address and initializer selector for an implementation contract.
