@@ -1128,16 +1128,6 @@ jobs:
             - run:
                 name: Set GENERIC_ALTDA = true
                 command: echo 'export GENERIC_ALTDA=true' >> $BASH_ENV
-      - run:
-          name: Install Geth
-          command: |
-            VER=$(jq -r .geth_release < versions.json)
-            wget "https://gethstore.blob.core.windows.net/builds/geth-alltools-linux-amd64-${VER}.tar.gz" -O - | tar xz
-            sudo cp "geth-alltools-linux-amd64-${VER}"/* /usr/local/bin
-      - run:
-          name: Install eth2-testnet-genesis
-          command: |
-            go install -v github.com/protolambda/eth2-testnet-genesis@$(jq -r .eth2_testnet_genesis < versions.json)
       - when:
           condition:
             not:
