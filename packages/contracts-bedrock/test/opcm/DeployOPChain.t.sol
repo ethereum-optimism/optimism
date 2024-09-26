@@ -142,8 +142,9 @@ contract DeployOPChainOutput_Test is Test {
     FaultDisputeGame faultDisputeGame = FaultDisputeGame(makeAddr("faultDisputeGame"));
     PermissionedDisputeGame permissionedDisputeGame = PermissionedDisputeGame(makeAddr("permissionedDisputeGame"));
     DelayedWETH delayedWETHPermissionedGameProxy = DelayedWETH(payable(makeAddr("delayedWETHPermissionedGameProxy")));
-    DelayedWETH delayedWETHPermissionlessGameProxy =
-        DelayedWETH(payable(makeAddr("delayedWETHPermissionlessGameProxy")));
+    // TODO: Eventually switch from Permissioned to Permissionless.
+    // DelayedWETH delayedWETHPermissionlessGameProxy =
+    //     DelayedWETH(payable(makeAddr("delayedWETHPermissionlessGameProxy")));
 
     function setUp() public {
         doo = new DeployOPChainOutput();
@@ -164,7 +165,8 @@ contract DeployOPChainOutput_Test is Test {
         vm.etch(address(faultDisputeGame), hex"01");
         vm.etch(address(permissionedDisputeGame), hex"01");
         vm.etch(address(delayedWETHPermissionedGameProxy), hex"01");
-        vm.etch(address(delayedWETHPermissionlessGameProxy), hex"01");
+        // TODO: Eventually switch from Permissioned to Permissionless.
+        // vm.etch(address(delayedWETHPermissionlessGameProxy), hex"01");
 
         doo.set(doo.opChainProxyAdmin.selector, address(opChainProxyAdmin));
         doo.set(doo.addressManager.selector, address(addressManager));
@@ -180,7 +182,8 @@ contract DeployOPChainOutput_Test is Test {
         doo.set(doo.faultDisputeGame.selector, address(faultDisputeGame));
         doo.set(doo.permissionedDisputeGame.selector, address(permissionedDisputeGame));
         doo.set(doo.delayedWETHPermissionedGameProxy.selector, address(delayedWETHPermissionedGameProxy));
-        doo.set(doo.delayedWETHPermissionlessGameProxy.selector, address(delayedWETHPermissionlessGameProxy));
+        // TODO: Eventually switch from Permissioned to Permissionless.
+        // doo.set(doo.delayedWETHPermissionlessGameProxy.selector, address(delayedWETHPermissionlessGameProxy));
 
         assertEq(address(opChainProxyAdmin), address(doo.opChainProxyAdmin()), "100");
         assertEq(address(addressManager), address(doo.addressManager()), "200");
@@ -196,7 +199,9 @@ contract DeployOPChainOutput_Test is Test {
         assertEq(address(faultDisputeGame), address(doo.faultDisputeGame()), "1300");
         assertEq(address(permissionedDisputeGame), address(doo.permissionedDisputeGame()), "1400");
         assertEq(address(delayedWETHPermissionedGameProxy), address(doo.delayedWETHPermissionedGameProxy()), "1500");
-        assertEq(address(delayedWETHPermissionlessGameProxy), address(doo.delayedWETHPermissionlessGameProxy()), "1600");
+        // TODO: Eventually switch from Permissioned to Permissionless.
+        // assertEq(address(delayedWETHPermissionlessGameProxy), address(doo.delayedWETHPermissionlessGameProxy()),
+        // "1600");
     }
 
     function test_getters_whenNotSet_revert() public {
@@ -244,8 +249,9 @@ contract DeployOPChainOutput_Test is Test {
         vm.expectRevert(expectedErr);
         doo.delayedWETHPermissionedGameProxy();
 
-        vm.expectRevert(expectedErr);
-        doo.delayedWETHPermissionlessGameProxy();
+        // TODO: Eventually switch from Permissioned to Permissionless.
+        // vm.expectRevert(expectedErr);
+        // doo.delayedWETHPermissionlessGameProxy();
     }
 
     function test_getters_whenAddrHasNoCode_reverts() public {
@@ -308,9 +314,10 @@ contract DeployOPChainOutput_Test is Test {
         vm.expectRevert(expectedErr);
         doo.delayedWETHPermissionedGameProxy();
 
-        doo.set(doo.delayedWETHPermissionlessGameProxy.selector, emptyAddr);
-        vm.expectRevert(expectedErr);
-        doo.delayedWETHPermissionlessGameProxy();
+        // TODO: Eventually switch from Permissioned to Permissionless.
+        // doo.set(doo.delayedWETHPermissionlessGameProxy.selector, emptyAddr);
+        // vm.expectRevert(expectedErr);
+        // doo.delayedWETHPermissionlessGameProxy();
     }
 }
 
