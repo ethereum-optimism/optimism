@@ -779,8 +779,6 @@ jobs:
       - run:
           name: run Go linter
           command: |
-            # Identify how many cores it defaults to
-            golangci-lint --help | grep concurrency
             make lint-go
           working_directory: .
 
@@ -816,22 +814,22 @@ jobs:
             # Make sure the workspace is properly owned
             chown -R $USER:$USER .
             mkdir -p /tmp/test-results-<<pipeline.number>>
-            mkdir -p /tmp/tmp/testlogs-<<pipeline.number>>-<<pipeline.number>>
+            mkdir -p /tmp/testlogs-<<pipeline.number>>-<<pipeline.number>>
       - run:
           name: run tests
           command: |
             ENABLE_KURTOSIS=true gotestsum \
               --format=testname \
               --junitfile=/tmp/test-results-<<pipeline.number>>/<<parameters.module>>.xml \
-              --jsonfile=/tmp/tmp/testlogs-<<pipeline.number>>-<<pipeline.number>>/log.json \
-              -- -parallel=8 \
+              --jsonfile=/tmp/testlogs-<<pipeline.number>>-<<pipeline.number>>/log.json \
+              -- -parallel=4 \
               -coverpkg=github.com/ethereum-optimism/optimism/... \
               -coverprofile=coverage.out <<parameters.test_directory>>
           working_directory: <<parameters.module>>
       - store_test_results:
           path: /tmp/test-results-<<pipeline.number>>
       - store_artifacts:
-          path: /tmp/tmp/testlogs-<<pipeline.number>>-<<pipeline.number>>
+          path: /tmp/testlogs-<<pipeline.number>>-<<pipeline.number>>
           when: always
 
   go-test:
@@ -845,17 +843,17 @@ jobs:
       - checkout
       - run:
           name: prep results dir
-          command: mkdir -p /tmp/test-results-<<pipeline.number>> && mkdir -p /tmp/tmp/testlogs-<<pipeline.number>>-<<pipeline.number>>
+          command: mkdir -p /tmp/test-results-<<pipeline.number>> && mkdir -p /tmp/testlogs-<<pipeline.number>>-<<pipeline.number>>
       - run:
           name: run tests
           command: |
-            gotestsum --format=testname --junitfile=/tmp/test-results-<<pipeline.number>>/<<parameters.module>>.xml --jsonfile=/tmp/tmp/testlogs-<<pipeline.number>>-<<pipeline.number>>/log.json \
-            -- -parallel=8 -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out ./...
+            gotestsum --format=testname --junitfile=/tmp/test-results-<<pipeline.number>>/<<parameters.module>>.xml --jsonfile=/tmp/testlogs-<<pipeline.number>>-<<pipeline.number>>/log.json \
+            -- -parallel=4 -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out ./...
           working_directory: <<parameters.module>>
       - store_test_results:
           path: /tmp/test-results-<<pipeline.number>>
       - store_artifacts:
-          path: /tmp/tmp/testlogs-<<pipeline.number>>-<<pipeline.number>>
+          path: /tmp/testlogs-<<pipeline.number>>-<<pipeline.number>>
           when: always
 
   go-e2e-test:
@@ -940,7 +938,7 @@ jobs:
           name: run tests
           no_output_timeout: 20m
           command: |
-            mkdir -p /tmp/tmp/testlogs-<<pipeline.number>>-<<pipeline.number>>
+            mkdir -p /tmp/testlogs-<<pipeline.number>>-<<pipeline.number>>
 
             # The below env var gets overridden when running make test-cannon, but we
             # need to explicitly set it here to prevent Cannon from running when we don't
@@ -948,10 +946,10 @@ jobs:
             export OP_E2E_CANNON_ENABLED="false"
             # Note: We don't use circle CI test splits because we need to split by test name, not by package. There is an additional
             # constraint that gotestsum does not currently (nor likely will) accept files from different pacakges when building.
-            JUNIT_FILE=/tmp/test-results-<<pipeline.number>>/<<parameters.module>>_<<parameters.target>>.xml JSON_LOG_FILE=/tmp/tmp/testlogs-<<pipeline.number>>-<<pipeline.number>>/test.log make <<parameters.target>>
+            JUNIT_FILE=/tmp/test-results-<<pipeline.number>>/<<parameters.module>>_<<parameters.target>>.xml JSON_LOG_FILE=/tmp/testlogs-<<pipeline.number>>-<<pipeline.number>>/test.log make <<parameters.target>>
           working_directory: <<parameters.module>>
       - store_artifacts:
-          path: /tmp/tmp/testlogs-<<pipeline.number>>-<<pipeline.number>>
+          path: /tmp/testlogs-<<pipeline.number>>-<<pipeline.number>>
           when: always
       - store_artifacts:
           path: /tmp/test-results-<<pipeline.number>>
