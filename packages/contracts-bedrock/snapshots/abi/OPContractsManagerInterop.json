@@ -247,11 +247,6 @@
             "internalType": "contract DelayedWETH",
             "name": "delayedWETHPermissionedGameProxy",
             "type": "address"
-          },
-          {
-            "internalType": "contract DelayedWETH",
-            "name": "delayedWETHPermissionlessGameProxy",
-            "type": "address"
           }
         ],
         "internalType": "struct OPContractsManager.DeployOutput",
