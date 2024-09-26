@@ -53,8 +53,8 @@ diff-%-cannon: cannon
 		echo "Generated different prestates"; \
 		exit 1; \
 	fi
-	$$OTHER_CANNON run --proof-at '=0' --stop-at '=100000000' --input=/tmp/out32.bin.gz  --output ./bin/out-other.bin.gz --meta ""
-	./bin/cannon    run --proof-at '=0' --stop-at '=100000000' --input=/tmp/out32.bin.gz  --output ./bin/out.bin.gz --meta ""
+	$$OTHER_CANNON run --proof-at '=0' --stop-at '=100000000' --input=./bin/prestate.bin.gz  --output ./bin/out-other.bin.gz --meta ""
+	./bin/cannon   run --proof-at '=0' --stop-at '=100000000' --input=./bin/prestate.bin.gz  --output ./bin/out.bin.gz --meta ""
 	@cmp ./bin/out-other.bin.gz ./bin/out.bin.gz
 	@if [ $$? -eq 0 ]; then \
 		echo "Generated identical states"; \
