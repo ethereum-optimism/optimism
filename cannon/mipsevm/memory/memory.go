@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"io"
 	"math/bits"
+	"slices"
 	"sort"
 
 	"github.com/ethereum/go-ethereum/crypto"
+	"golang.org/x/exp/maps"
 )
 
 // Note: 2**12 = 4 KiB, the min phys page size in the Go runtime.
@@ -299,7 +301,11 @@ func (m *Memory) Serialize(out io.Writer) error {
 	if err := binary.Write(out, binary.BigEndian, uint32(m.PageCount())); err != nil {
 		return err
 	}
-	for pageIndex, page := range m.pages {
+	indexes := maps.Keys(m.pages)
+	// iterate sorted map keys for consistent serialization
+	slices.Sort(indexes)
+	for _, pageIndex := range indexes {
+		page := m.pages[pageIndex]
 		if err := binary.Write(out, binary.BigEndian, pageIndex); err != nil {
 			return err
 		}
