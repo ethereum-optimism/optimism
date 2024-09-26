@@ -496,8 +496,12 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         assertEq(address(doo.permissionedDisputeGame().challenger()), challenger, "2600");
 
         // TODO once we deploy the Permissionless Dispute Game
-        // assertEq(address(doo.faultDisputeGame().proposer()), proposer, "2700");
-        // assertEq(address(doo.faultDisputeGame().challenger()), challenger, "2800");
+        // assertEq(address(doo.faultDisputeGame().proposer()), proposer, "2610");
+        // assertEq(address(doo.faultDisputeGame().challenger()), challenger, "2620");
+
+        // Verify that the initial bonds are zero.
+        assertEq(doo.disputeGameFactoryProxy().initBonds(GameTypes.CANNON), 0, "2700");
+        assertEq(doo.disputeGameFactoryProxy().initBonds(GameTypes.PERMISSIONED_CANNON), 0, "2800");
 
         // Most architecture assertions are handled within the OP Contracts Manager itself and therefore
         // we only assert on the things that are not visible onchain.
