@@ -38,6 +38,15 @@ func TestDetectVersion(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, VersionMultiThreaded, version)
 	})
+
+	t.Run("MultiThreaded64Binary", func(t *testing.T) {
+		state, err := NewFromState(multithreaded.CreateEmptyState())
+		require.NoError(t, err)
+		path := writeToFile(t, "state.bin.gz", state)
+		version, err := DetectVersion(path)
+		require.NoError(t, err)
+		require.Equal(t, VersionMultiThreaded, version)
+	})
 }
 
 func TestDetectVersionInvalid(t *testing.T) {

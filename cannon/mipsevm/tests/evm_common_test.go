@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
@@ -98,13 +99,13 @@ func TestEVM(t *testing.T) {
 						"mipsevm produced different state than EVM at step %d", state.GetStep())
 				}
 				if exitGroup {
-					require.NotEqual(t, uint32(testutil.EndAddr), goVm.GetState().GetPC(), "must not reach end")
+					require.NotEqual(t, arch.Word(testutil.EndAddr), goVm.GetState().GetPC(), "must not reach end")
 					require.True(t, goVm.GetState().GetExited(), "must set exited state")
 					require.Equal(t, uint8(1), goVm.GetState().GetExitCode(), "must exit with 1")
 				} else if expectPanic {
-					require.NotEqual(t, uint32(testutil.EndAddr), state.GetPC(), "must not reach end")
+					require.NotEqual(t, arch.Word(testutil.EndAddr), state.GetPC(), "must not reach end")
 				} else {
-					require.Equal(t, uint32(testutil.EndAddr), state.GetPC(), "must reach end")
+					require.Equal(t, arch.Word(testutil.EndAddr), state.GetPC(), "must reach end")
 					// inspect test result
 					done, result := state.GetMemory().GetMemory(testutil.BaseAddrEnd+4), state.GetMemory().GetMemory(testutil.BaseAddrEnd+8)
 					require.Equal(t, done, uint32(1), "must be done")
@@ -121,10 +122,10 @@ func TestEVMSingleStep_Jump(t *testing.T) {
 	versions := GetMipsVersionTestCases(t)
 	cases := []struct {
 		name         string
-		pc           uint32
-		nextPC       uint32
+		pc           arch.Word
+		nextPC       arch.Word
 		insn         uint32
-		expectNextPC uint32
+		expectNextPC arch.Word
 		expectLink   bool
 	}{
 		{name: "j MSB set target", pc: 0, nextPC: 4, insn: 0x0A_00_00_02, expectNextPC: 0x08_00_00_08},                                           // j 0x02_00_00_02
@@ -237,17 +238,17 @@ func TestEVM_MMap(t *testing.T) {
 	versions := GetMipsVersionTestCases(t)
 	cases := []struct {
 		name         string
-		heap         uint32
-		address      uint32
-		size         uint32
+		heap         arch.Word
+		address      arch.Word
+		size         arch.Word
 		shouldFail   bool
-		expectedHeap uint32
+		expectedHeap arch.Word
 	}{
-		{name: "Increment heap by max value", heap: program.HEAP_START, address: 0, size: ^uint32(0), shouldFail: true},
-		{name: "Increment heap to 0", heap: program.HEAP_START, address: 0, size: ^uint32(0) - program.HEAP_START + 1, shouldFail: true},
-		{name: "Increment heap to previous page", heap: program.HEAP_START, address: 0, size: ^uint32(0) - program.HEAP_START - memory.PageSize + 1, shouldFail: true},
-		{name: "Increment max page size", heap: program.HEAP_START, address: 0, size: ^uint32(0) & ^uint32(memory.PageAddrMask), shouldFail: true},
-		{name: "Increment max page size from 0", heap: 0, address: 0, size: ^uint32(0) & ^uint32(memory.PageAddrMask), shouldFail: true},
+		{name: "Increment heap by max value", heap: program.HEAP_START, address: 0, size: ^arch.Word(0), shouldFail: true},
+		{name: "Increment heap to 0", heap: program.HEAP_START, address: 0, size: ^arch.Word(0) - program.HEAP_START + 1, shouldFail: true},
+		{name: "Increment heap to previous page", heap: program.HEAP_START, address: 0, size: ^arch.Word(0) - program.HEAP_START - memory.PageSize + 1, shouldFail: true},
+		{name: "Increment max page size", heap: program.HEAP_START, address: 0, size: ^arch.Word(0) & ^arch.Word(memory.PageAddrMask), shouldFail: true},
+		{name: "Increment max page size from 0", heap: 0, address: 0, size: ^arch.Word(0) & ^arch.Word(memory.PageAddrMask), shouldFail: true},
 		{name: "Increment heap at limit", heap: program.HEAP_END, address: 0, size: 1, shouldFail: true},
 		{name: "Increment heap to limit", heap: program.HEAP_END - memory.PageSize, address: 0, size: 1, shouldFail: false, expectedHeap: program.HEAP_END},
 		{name: "Increment heap within limit", heap: program.HEAP_END - 2*memory.PageSize, address: 0, size: 1, shouldFail: false, expectedHeap: program.HEAP_END - memory.PageSize},
@@ -464,10 +465,10 @@ func TestEVMSysWriteHint(t *testing.T) {
 				state := goVm.GetState()
 				state.GetRegistersRef()[2] = exec.SysWrite
 				state.GetRegistersRef()[4] = exec.FdHintWrite
-				state.GetRegistersRef()[5] = uint32(tt.memOffset)
-				state.GetRegistersRef()[6] = uint32(tt.bytesToWrite)
+				state.GetRegistersRef()[5] = arch.Word(tt.memOffset)
+				state.GetRegistersRef()[6] = arch.Word(tt.bytesToWrite)
 
-				err := state.GetMemory().SetMemoryRange(uint32(tt.memOffset), bytes.NewReader(tt.hintData))
+				err := state.GetMemory().SetMemoryRange(arch.Word(tt.memOffset), bytes.NewReader(tt.hintData))
 				require.NoError(t, err)
 				state.GetMemory().SetMemory(state.GetPC(), insn)
 				step := state.GetStep()
@@ -477,8 +478,8 @@ func TestEVMSysWriteHint(t *testing.T) {
 				expected.PC = state.GetCpu().NextPC
 				expected.NextPC = state.GetCpu().NextPC + 4
 				expected.LastHint = tt.expectedLastHint
-				expected.Registers[2] = uint32(tt.bytesToWrite) // Return count of bytes written
-				expected.Registers[7] = 0                       // no Error
+				expected.Registers[2] = arch.Word(tt.bytesToWrite) // Return count of bytes written
+				expected.Registers[7] = 0                          // no Error
 
 				stepWitness, err := goVm.Step(true)
 				require.NoError(t, err)
@@ -497,7 +498,7 @@ func TestEVMFault(t *testing.T) {
 	versions := GetMipsVersionTestCases(t)
 	cases := []struct {
 		name   string
-		nextPC uint32
+		nextPC arch.Word
 		insn   uint32
 	}{
 		{"illegal instruction", 0, 0xFF_FF_FF_FF},

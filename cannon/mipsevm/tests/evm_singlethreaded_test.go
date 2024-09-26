@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
@@ -133,7 +134,7 @@ func TestEVM_SysRead_Preimage(t *testing.T) {
 		addr           uint32
 		count          uint32
 		writeLen       uint32
-		preimageOffset uint32
+		preimageOffset arch.Word
 		prestateMem    uint32
 		postateMem     uint32
 		shouldPanic    bool
@@ -157,7 +158,7 @@ func TestEVM_SysRead_Preimage(t *testing.T) {
 	}
 	for i, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			effAddr := 0xFFffFFfc & c.addr
+			effAddr := arch.AddressMask & c.addr
 			preimageKey := preimage.Keccak256Key(crypto.Keccak256Hash(preimageValue)).PreimageKey()
 			oracle := testutil.StaticOracle(t, preimageValue)
 			goVm := v.VMFactory(oracle, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPreimageKey(preimageKey), testutil.WithPreimageOffset(c.preimageOffset))
