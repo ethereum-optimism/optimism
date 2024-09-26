@@ -63,6 +63,8 @@ contract OPContractsManager is ISemver, Initializable {
         // The correct type is AnchorStateRegistry.StartingAnchorRoot[] memory,
         // but OP Deployer does not yet support structs.
         bytes startingAnchorRoots;
+        // The salt mixer is used as part of making the resulting salt unique.
+        string saltMixer;
     }
 
     /// @notice The full set of outputs from deploying a new OP Stack chain.
@@ -125,8 +127,8 @@ contract OPContractsManager is ISemver, Initializable {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 1.0.0-beta.9
-    string public constant version = "1.0.0-beta.9";
+    /// @custom:semver 1.0.0-beta.11
+    string public constant version = "1.0.0-beta.11";
 
     /// @notice Represents the interface version so consumers know how to decode the DeployOutput struct
     /// that's emitted in the `Deployed` event. Whenever that struct changes, a new version should be used.
@@ -188,6 +190,9 @@ contract OPContractsManager is ISemver, Initializable {
     /// @notice Thrown when the latest release is not set upon initialization.
     error LatestReleaseNotSet();
 
+    /// @notice Thrown when the starting anchor roots are not provided.
+    error InvalidStartingAnchorRoots();
+
     // -------- Methods --------
 
     /// @notice OPCM is proxied. Therefore the `initialize` function replaces most constructor logic for this contract.
@@ -219,10 +224,11 @@ contract OPContractsManager is ISemver, Initializable {
     function deploy(DeployInput calldata _input) external returns (DeployOutput memory) {
         assertValidInputs(_input);
 
-        // TODO Determine how we want to choose salt, e.g. are we concerned about chain ID squatting
-        // since this approach means a chain ID can only be used once.
         uint256 l2ChainId = _input.l2ChainId;
-        bytes32 salt = bytes32(_input.l2ChainId);
+
+        // The salt for a non-proxy contract is a function of the chain ID and the salt mixer.
+        string memory saltMixer = _input.saltMixer;
+        bytes32 salt = keccak256(abi.encode(l2ChainId, saltMixer));
         DeployOutput memory output;
 
         // -------- Deploy Chain Singletons --------
@@ -239,17 +245,19 @@ contract OPContractsManager is ISemver, Initializable {
         // -------- Deploy Proxy Contracts --------
 
         // Deploy ERC-1967 proxied contracts.
-        output.l1ERC721BridgeProxy = L1ERC721Bridge(deployProxy(l2ChainId, output.opChainProxyAdmin, "L1ERC721Bridge"));
+        output.l1ERC721BridgeProxy =
+            L1ERC721Bridge(deployProxy(l2ChainId, output.opChainProxyAdmin, saltMixer, "L1ERC721Bridge"));
         output.optimismPortalProxy =
-            OptimismPortal2(payable(deployProxy(l2ChainId, output.opChainProxyAdmin, "OptimismPortal")));
-        output.systemConfigProxy = SystemConfig(deployProxy(l2ChainId, output.opChainProxyAdmin, "SystemConfig"));
+            OptimismPortal2(payable(deployProxy(l2ChainId, output.opChainProxyAdmin, saltMixer, "OptimismPortal")));
+        output.systemConfigProxy =
+            SystemConfig(deployProxy(l2ChainId, output.opChainProxyAdmin, saltMixer, "SystemConfig"));
         output.optimismMintableERC20FactoryProxy = OptimismMintableERC20Factory(
-            deployProxy(l2ChainId, output.opChainProxyAdmin, "OptimismMintableERC20Factory")
+            deployProxy(l2ChainId, output.opChainProxyAdmin, saltMixer, "OptimismMintableERC20Factory")
         );
         output.disputeGameFactoryProxy =
-            DisputeGameFactory(deployProxy(l2ChainId, output.opChainProxyAdmin, "DisputeGameFactory"));
+            DisputeGameFactory(deployProxy(l2ChainId, output.opChainProxyAdmin, saltMixer, "DisputeGameFactory"));
         output.anchorStateRegistryProxy =
-            AnchorStateRegistry(deployProxy(l2ChainId, output.opChainProxyAdmin, "AnchorStateRegistry"));
+            AnchorStateRegistry(deployProxy(l2ChainId, output.opChainProxyAdmin, saltMixer, "AnchorStateRegistry"));
 
         // Deploy legacy proxied contracts.
         output.l1StandardBridgeProxy = L1StandardBridge(
@@ -275,11 +283,10 @@ contract OPContractsManager is ISemver, Initializable {
             Blueprint.deployFrom(blueprint.anchorStateRegistry, salt, abi.encode(output.disputeGameFactoryProxy))
         );
 
-        // We have two delayed WETH contracts per chain, one for each of the permissioned and permissionless games.
-        output.delayedWETHPermissionlessGameProxy =
-            DelayedWETH(payable(deployProxy(l2ChainId, output.opChainProxyAdmin, "DelayedWETHPermissionlessGame")));
-        output.delayedWETHPermissionedGameProxy =
-            DelayedWETH(payable(deployProxy(l2ChainId, output.opChainProxyAdmin, "DelayedWETHPermissionedGame")));
+        // Eventually we will switch from DelayedWETHPermissionedGameProxy to DelayedWETHPermissionlessGameProxy.
+        output.delayedWETHPermissionedGameProxy = DelayedWETH(
+            payable(deployProxy(l2ChainId, output.opChainProxyAdmin, saltMixer, "DelayedWETHPermissionedGame"))
+        );
 
         // While not a proxy, we deploy the PermissionedDisputeGame here as well because it's bespoke per chain.
         output.permissionedDisputeGame = PermissionedDisputeGame(
@@ -324,8 +331,8 @@ contract OPContractsManager is ISemver, Initializable {
 
         impl = getLatestImplementation("DelayedWETH");
         data = encodeDelayedWETHInitializer(impl.initializer, _input);
+        // Eventually we will switch from DelayedWETHPermissionedGameProxy to DelayedWETHPermissionlessGameProxy.
         upgradeAndCall(output.opChainProxyAdmin, address(output.delayedWETHPermissionedGameProxy), impl.logic, data);
-        upgradeAndCall(output.opChainProxyAdmin, address(output.delayedWETHPermissionlessGameProxy), impl.logic, data);
 
         // We set the initial owner to this contract, set game implementations, then transfer ownership.
         impl = getLatestImplementation("DisputeGameFactory");
@@ -362,6 +369,8 @@ contract OPContractsManager is ISemver, Initializable {
         if (_input.roles.unsafeBlockSigner == address(0)) revert InvalidRoleAddress("unsafeBlockSigner");
         if (_input.roles.proposer == address(0)) revert InvalidRoleAddress("proposer");
         if (_input.roles.challenger == address(0)) revert InvalidRoleAddress("challenger");
+
+        if (_input.startingAnchorRoots.length == 0) revert InvalidStartingAnchorRoots();
     }
 
     /// @notice Maps an L2 chain ID to an L1 batch inbox address as defined by the standard
@@ -376,17 +385,18 @@ contract OPContractsManager is ISemver, Initializable {
     }
 
     /// @notice Deterministically deploys a new proxy contract owned by the provided ProxyAdmin.
-    /// The salt is computed as a function of the L2 chain ID and the contract name. This is required
-    /// because we deploy many identical proxies, so they each require a unique salt for determinism.
+    /// The salt is computed as a function of the L2 chain ID, the salt mixer and the contract name.
+    /// This is required because we deploy many identical proxies, so they each require a unique salt for determinism.
     function deployProxy(
         uint256 _l2ChainId,
         ProxyAdmin _proxyAdmin,
+        string memory _saltMixer,
         string memory _contractName
     )
         internal
         returns (address)
     {
-        bytes32 salt = keccak256(abi.encode(_l2ChainId, _contractName));
+        bytes32 salt = keccak256(abi.encode(_l2ChainId, _saltMixer, _contractName));
         return Blueprint.deployFrom(blueprint.proxy, salt, abi.encode(_proxyAdmin));
     }
 
