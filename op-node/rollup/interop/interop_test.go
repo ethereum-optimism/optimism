@@ -122,7 +122,7 @@ func TestInteropDeriver(t *testing.T) {
 			DerivedFrom: derivedFrom,
 		})
 		interopBackend.ExpectCheckBlock(
-			chainID, firstLocalSafe.Number, supervisortypes.CrossSafe, nil)
+			chainID, firstLocalSafe.Number, supervisortypes.LocalSafe, nil)
 		l2Source.ExpectL2BlockRefByNumber(firstLocalSafe.Number, firstLocalSafe, nil)
 		interopDeriver.OnEvent(engine.CrossSafeUpdateEvent{
 			CrossSafe: crossSafe,
