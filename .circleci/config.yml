@@ -835,12 +835,8 @@ jobs:
           when: always
 
   go-test:
-    parameters:
-      module:
-        description: Go Module Name
-        type: string
     machine: true
-    resource_class: ethereum-optimism/e2-standard-4
+    resource_class: ethereum-optimism/e2-standard-16
     steps:
       - checkout
       - run:
@@ -849,9 +845,25 @@ jobs:
       - run:
           name: run tests
           command: |
-            gotestsum --format=testname --junitfile=/tmp/test-results-<<pipeline.number>>/<<parameters.module>>.xml --jsonfile=/tmp/testlogs-<<pipeline.number>>/log.json \
-            -- -parallel=4 -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out ./...
-          working_directory: <<parameters.module>>
+            packages=(
+              op-batcher
+              op-chain-ops
+              op-node
+              op-proposer
+              op-challenger
+              op-dispute-mon
+              op-conductor
+              op-program
+              op-service
+              op-supervisor
+            )
+            formatted_packages=""
+            for package in "${packages[@]}"; do
+              formatted_packages="$formatted_packages ./$package/..."
+            done
+            
+            gotestsum --format=testname --junitfile=/tmp/test-results-<<pipeline.number>>/results.xml --jsonfile=/tmp/testlogs-<<pipeline.number>>/log.json \
+            -- -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out $formatted_packages
       - store_test_results:
           path: /tmp/test-results-<<pipeline.number>>
       - store_artifacts:
@@ -1492,20 +1504,7 @@ workflows:
           uses_artifacts: true
           requires: ["go-mod-download", "contracts-bedrock-build"]
       - go-test:
-          name: <<matrix.module>>-tests
-          matrix:
-            parameters:
-              module:
-                - op-batcher
-                - op-chain-ops
-                - op-node
-                - op-proposer
-                - op-challenger
-                - op-dispute-mon
-                - op-conductor
-                - op-program
-                - op-service
-                - op-supervisor
+          name: go-tests
       - go-test-kurtosis:
           name: op-chain-ops-integration
           module: op-chain-ops
@@ -1544,34 +1543,34 @@ workflows:
       - op-program-compat:
           requires:
             - op-program-tests
-      - bedrock-go-tests:
-          requires:
-            - go-mod-download
-            - go-lint
-            - cannon-build-test-vectors
-            - cannon-go-lint-and-test
-            - check-generated-mocks-op-node
-            - check-generated-mocks-op-service
-            - go-mod-download
-            - op-batcher-tests
-            - op-chain-ops-tests
-            - op-chain-ops-integration
-            - op-node-tests
-            - op-proposer-tests
-            - op-challenger-tests
-            - op-dispute-mon-tests
-            - op-conductor-tests
-            - op-program-tests
-            - op-program-compat
-            - op-service-tests
-            - op-supervisor-tests
-            - op-e2e-HTTP-tests
-            # Not needed for the devnet but we want to make sure they build successfully
-            - cannon-docker-build
-            - op-dispute-mon-docker-build
-            - op-program-docker-build
-            - op-supervisor-docker-build
-            - proofs-tools-docker-build
+#      - bedrock-go-tests:
+#          requires:
+#            - go-mod-download
+#            - go-lint
+#            - cannon-build-test-vectors
+#            - cannon-go-lint-and-test
+#            - check-generated-mocks-op-node
+#            - check-generated-mocks-op-service
+#            - go-mod-download
+#            - op-batcher-tests
+#            - op-chain-ops-tests
+#            - op-chain-ops-integration
+#            - op-node-tests
+#            - op-proposer-tests
+#            - op-challenger-tests
+#            - op-dispute-mon-tests
+#            - op-conductor-tests
+#            - op-program-tests
+#            - op-program-compat
+#            - op-service-tests
+#            - op-supervisor-tests
+#            - op-e2e-HTTP-tests
+#            # Not needed for the devnet but we want to make sure they build successfully
+#            - cannon-docker-build
+#            - op-dispute-mon-docker-build
+#            - op-program-docker-build
+#            - op-supervisor-docker-build
+#            - proofs-tools-docker-build
       - docker-build:
           name: <<matrix.docker_name>>-docker-build
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
