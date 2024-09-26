@@ -74,6 +74,12 @@ func (r *RollupClient) OverrideLeader(ctx context.Context) error {
 	return r.rpc.CallContext(ctx, nil, "admin_overrideLeader")
 }
 
+func (r *RollupClient) ConductorEnabled(ctx context.Context) (bool, error) {
+	var result bool
+	err := r.rpc.CallContext(ctx, &result, "admin_conductorEnabled")
+	return result, err
+}
+
 func (r *RollupClient) SetLogLevel(ctx context.Context, lvl slog.Level) error {
 	return r.rpc.CallContext(ctx, nil, "admin_setLogLevel", lvl.String())
 }
