@@ -154,8 +154,6 @@ contract DeployOPChainInput is BaseDeployIO {
     }
 
     function saltMixer() public view returns (string memory) {
-        // TODO: Temporarily allowing empty 'saltMixer' to be provided.
-        // require(bytes(_saltMixer).length != 0, "DeployOPChainInput: not set");
         return _saltMixer;
     }
 }

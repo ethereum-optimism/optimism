@@ -192,9 +192,6 @@ contract OPContractsManager is ISemver, Initializable {
     /// @notice Thrown when the starting anchor roots are not provided.
     error InvalidStartingAnchorRoots();
 
-    /// @notice Thrown when the salt mixer is not provided.
-    error InvalidSaltMixer();
-
     // -------- Methods --------
 
     /// @notice OPCM is proxied. Therefore the `initialize` function replaces most constructor logic for this contract.
@@ -373,8 +370,6 @@ contract OPContractsManager is ISemver, Initializable {
         if (_input.roles.challenger == address(0)) revert InvalidRoleAddress("challenger");
 
         if (_input.startingAnchorRoots.length == 0) revert InvalidStartingAnchorRoots();
-        // TODO: Temporarily allowing empty 'saltMixer' to be provided.
-        // if (bytes(_saltMixer).length == 0) revert InvalidSaltMixer();
     }
 
     /// @notice Maps an L2 chain ID to an L1 batch inbox address as defined by the standard
