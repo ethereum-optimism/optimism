@@ -12,6 +12,7 @@ import (
 
 var _ NextFrameProvider = &FrameQueue{}
 
+//go:generate mockery --name NextDataProvider --case snake
 type NextDataProvider interface {
 	NextData(context.Context) ([]byte, error)
 	Origin() eth.L1BlockRef
@@ -46,7 +47,7 @@ func (fq *FrameQueue) NextFrame(ctx context.Context) (Frame, error) {
 	// the frame queue each time after pulling out only a single frame.
 
 	if fq.cfg.IsHolocene(fq.Origin().Time) {
-		// TODO: reset frame queue once at Holocene L1 origin block
+		// TODO(12157): reset frame queue once at Holocene L1 origin block
 		fq.prune()
 	}
 
