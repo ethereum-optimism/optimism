@@ -572,11 +572,6 @@
   },
   {
     "inputs": [],
-    "name": "InvalidSaltMixer",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "InvalidStartingAnchorRoots",
     "type": "error"
   },
