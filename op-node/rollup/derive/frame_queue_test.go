@@ -2,6 +2,7 @@ package derive
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"log/slog"
 	"testing"
@@ -131,7 +132,7 @@ func testFrameQueue_NextFrame(t *testing.T, holocene bool) {
 
 	gotFrames := make([]Frame, 0, len(expFrames))
 	for i := 0; i <= len(inFrames); i++ { // make sure we hit EOF case
-		frame, err := fq.NextFrame(nil)
+		frame, err := fq.NextFrame(context.Background())
 		if err != nil {
 			require.ErrorIs(t, err, io.EOF)
 			break
