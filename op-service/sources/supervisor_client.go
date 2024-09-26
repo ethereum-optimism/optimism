@@ -74,7 +74,7 @@ func (cl *SupervisorClient) CheckBlock(ctx context.Context,
 		"supervisor_checkBlock",
 		(*hexutil.U256)(&chainID), blockHash, hexutil.Uint64(blockNumber))
 	if err != nil {
-		return types.Unsafe, fmt.Errorf("failed to check Block %s:%d (chain %s): %w", blockHash, blockNumber, chainID, err)
+		return types.LocalUnsafe, fmt.Errorf("failed to check Block %s:%d (chain %s): %w", blockHash, blockNumber, chainID, err)
 	}
 	return result, nil
 }

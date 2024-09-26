@@ -162,6 +162,11 @@
             "internalType": "bytes",
             "name": "startingAnchorRoots",
             "type": "bytes"
+          },
+          {
+            "internalType": "string",
+            "name": "saltMixer",
+            "type": "string"
           }
         ],
         "internalType": "struct OPContractsManager.DeployInput",
@@ -563,6 +568,11 @@
       }
     ],
     "name": "InvalidRoleAddress",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidStartingAnchorRoots",
     "type": "error"
   },
   {

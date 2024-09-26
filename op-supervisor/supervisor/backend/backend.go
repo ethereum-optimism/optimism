@@ -192,7 +192,7 @@ func (su *SupervisorBackend) CheckMessage(identifier types.Identifier, payloadHa
 	logIdx := identifier.LogIndex
 	_, err := su.db.Check(chainID, blockNum, uint32(logIdx), payloadHash)
 	if errors.Is(err, logs.ErrFuture) {
-		return types.Unsafe, nil
+		return types.LocalUnsafe, nil
 	}
 	if errors.Is(err, logs.ErrConflict) {
 		return types.Invalid, nil
@@ -203,9 +203,9 @@ func (su *SupervisorBackend) CheckMessage(identifier types.Identifier, payloadHa
 	safest := types.CrossUnsafe
 	// at this point we have the log entry, and we can check if it is safe by various criteria
 	for _, checker := range []db.SafetyChecker{
-		db.NewSafetyChecker(types.Unsafe, su.db),
-		db.NewSafetyChecker(types.Safe, su.db),
-		db.NewSafetyChecker(types.Finalized, su.db),
+		db.NewSafetyChecker(db.Unsafe, su.db),
+		db.NewSafetyChecker(db.Safe, su.db),
+		db.NewSafetyChecker(db.Finalized, su.db),
 	} {
 		// check local safety limit first as it's more permissive
 		localPtr := checker.LocalHead(chainID)
@@ -248,7 +248,7 @@ func (su *SupervisorBackend) CheckBlock(chainID *hexutil.U256, blockHash common.
 	id := eth.BlockID{Hash: blockHash, Number: uint64(blockNumber)}
 	_, err := su.db.FindSealedBlock(types.ChainID(*chainID), id)
 	if errors.Is(err, logs.ErrFuture) {
-		return types.Unsafe, nil
+		return types.LocalUnsafe, nil
 	}
 	if errors.Is(err, logs.ErrConflict) {
 		return types.Invalid, nil
@@ -259,9 +259,9 @@ func (su *SupervisorBackend) CheckBlock(chainID *hexutil.U256, blockHash common.
 	}
 	// at this point we have the extent of the block, and we can check if it is safe by various criteria
 	for _, checker := range []db.SafetyChecker{
-		db.NewSafetyChecker(types.Unsafe, su.db),
-		db.NewSafetyChecker(types.Safe, su.db),
-		db.NewSafetyChecker(types.Finalized, su.db),
+		db.NewSafetyChecker(db.Unsafe, su.db),
+		db.NewSafetyChecker(db.Safe, su.db),
+		db.NewSafetyChecker(db.Finalized, su.db),
 	} {
 		// check local safety limit first as it's more permissive
 		localPtr := checker.LocalHead(types.ChainID(*chainID))

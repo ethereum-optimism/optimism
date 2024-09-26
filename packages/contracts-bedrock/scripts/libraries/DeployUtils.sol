@@ -8,6 +8,7 @@ import { Artifacts } from "scripts/Artifacts.s.sol";
 
 // Libraries
 import { LibString } from "@solady/utils/LibString.sol";
+import { Bytes } from "src/libraries/Bytes.sol";
 
 // Contracts
 import { Proxy } from "src/universal/Proxy.sol";
@@ -196,6 +197,15 @@ library DeployUtils {
     /// @return Deterministic address.
     function toIOAddress(address _sender, string memory _identifier) internal pure returns (address) {
         return address(uint160(uint256(keccak256(abi.encode(_sender, _identifier)))));
+    }
+
+    /// @notice Strips the first 4 bytes of `_data` and returns the remaining bytes
+    ///         If `_data` is not greater than 4 bytes, it returns empty bytes type.
+    /// @param _data constructor arguments prefixed with a psuedo-constructor function signature
+    /// @return encodedData_ constructor arguments without the psuedo-constructor function signature prefix
+    function encodeConstructor(bytes memory _data) internal pure returns (bytes memory encodedData_) {
+        require(_data.length >= 4, "encodeConstructor takes in _data of length >= 4");
+        encodedData_ = Bytes.slice(_data, 4);
     }
 
     /// @notice Asserts that the given address is a valid contract address.

@@ -11,7 +11,7 @@ import { StaticConfig } from "src/libraries/StaticConfig.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import "src/libraries/L1BlockErrors.sol";
 
-/// @notice Enum representing different types of configurations that can be set on L1BlockIsthmus.
+/// @notice Enum representing different types of configurations that can be set on L1BlockInterop.
 /// @custom:value SET_GAS_PAYING_TOKEN  Represents the config type for setting the gas paying token.
 /// @custom:value ADD_DEPENDENCY        Represents the config type for adding a chain to the interop dependency set.
 /// @custom:value REMOVE_DEPENDENCY     Represents the config type for removing a chain from the interop dependency set.
@@ -23,9 +23,9 @@ enum ConfigType {
 
 /// @custom:proxied true
 /// @custom:predeploy 0x4200000000000000000000000000000000000015
-/// @title L1BlockIsthmus
-/// @notice Isthmus extenstions of L1Block.
-contract L1BlockIsthmus is L1Block {
+/// @title L1BlockInterop
+/// @notice Interop extenstions of L1Block.
+contract L1BlockInterop is L1Block {
     using EnumerableSet for EnumerableSet.UintSet;
 
     /// @notice Event emitted when a new dependency is added to the interop dependency set.
@@ -42,9 +42,9 @@ contract L1BlockIsthmus is L1Block {
     /// keccak256(abi.encode(uint256(keccak256("l1Block.identifier.isDeposit")) - 1)) & ~bytes32(uint256(0xff))
     uint256 internal constant IS_DEPOSIT_SLOT = 0x921bd3a089295c6e5540e8fba8195448d253efd6f2e3e495b499b627dc36a300;
 
-    /// @custom:semver +isthmus
+    /// @custom:semver +interop
     function version() public pure override returns (string memory) {
-        return string.concat(super.version(), "+isthmus");
+        return string.concat(super.version(), "+interop");
     }
 
     /// @notice Returns whether the call was triggered from a a deposit or not.
@@ -70,10 +70,10 @@ contract L1BlockIsthmus is L1Block {
         return uint8(dependencySet.length());
     }
 
-    /// @notice Updates the `isDeposit` flag and sets the L1 block values for an Isthmus upgraded chain.
+    /// @notice Updates the `isDeposit` flag and sets the L1 block values for an Interop upgraded chain.
     ///         It updates the L1 block values through the `setL1BlockValuesEcotone` function.
     ///         It forwards the calldata to the internally-used `setL1BlockValuesEcotone` function.
-    function setL1BlockValuesIsthmus() external {
+    function setL1BlockValuesInterop() external {
         // Set the isDeposit flag to true.
         assembly {
             sstore(IS_DEPOSIT_SLOT, 1)

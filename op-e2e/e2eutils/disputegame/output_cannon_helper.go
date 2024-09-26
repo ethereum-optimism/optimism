@@ -47,23 +47,23 @@ func (g *OutputCannonGameHelper) StartChallenger(ctx context.Context, name strin
 	return c
 }
 
-type honestActorConfig struct {
-	prestateBlock  uint64
-	poststateBlock uint64
-	challengerOpts []challenger.Option
+type HonestActorConfig struct {
+	PrestateBlock  uint64
+	PoststateBlock uint64
+	ChallengerOpts []challenger.Option
 }
 
-type HonestActorOpt func(cfg *honestActorConfig)
+type HonestActorOpt func(cfg *HonestActorConfig)
 
 func WithClaimedL2BlockNumber(num uint64) HonestActorOpt {
-	return func(cfg *honestActorConfig) {
-		cfg.poststateBlock = num
+	return func(cfg *HonestActorConfig) {
+		cfg.PoststateBlock = num
 	}
 }
 
 func WithPrivKey(privKey *ecdsa.PrivateKey) HonestActorOpt {
-	return func(cfg *honestActorConfig) {
-		cfg.challengerOpts = append(cfg.challengerOpts, challenger.WithPrivKey(privKey))
+	return func(cfg *HonestActorConfig) {
+		cfg.ChallengerOpts = append(cfg.ChallengerOpts, challenger.WithPrivKey(privKey))
 	}
 }
 
@@ -75,21 +75,21 @@ func (g *OutputCannonGameHelper) CreateHonestActor(ctx context.Context, l2Node s
 	g.Require.NoError(err, "Failed to load block range")
 	splitDepth := g.SplitDepth(ctx)
 	rollupClient := g.System.RollupClient(l2Node)
-	actorCfg := &honestActorConfig{
-		prestateBlock:  realPrestateBlock,
-		poststateBlock: realPostStateBlock,
-		challengerOpts: g.defaultChallengerOptions(),
+	actorCfg := &HonestActorConfig{
+		PrestateBlock:  realPrestateBlock,
+		PoststateBlock: realPostStateBlock,
+		ChallengerOpts: g.defaultChallengerOptions(),
 	}
 	for _, option := range options {
 		option(actorCfg)
 	}
 
-	cfg := challenger.NewChallengerConfig(g.T, g.System, l2Node, actorCfg.challengerOpts...)
+	cfg := challenger.NewChallengerConfig(g.T, g.System, l2Node, actorCfg.ChallengerOpts...)
 	dir := filepath.Join(cfg.Datadir, "honest")
-	prestateProvider := outputs.NewPrestateProvider(rollupClient, actorCfg.prestateBlock)
+	prestateProvider := outputs.NewPrestateProvider(rollupClient, actorCfg.PrestateBlock)
 	l1Head := g.GetL1Head(ctx)
 	accessor, err := outputs.NewOutputCannonTraceAccessor(
-		logger, metrics.NoopMetrics, cfg.Cannon, vm.NewOpProgramServerExecutor(), l2Client, prestateProvider, cfg.CannonAbsolutePreState, rollupClient, dir, l1Head, splitDepth, actorCfg.prestateBlock, actorCfg.poststateBlock)
+		logger, metrics.NoopMetrics, cfg.Cannon, vm.NewOpProgramServerExecutor(), l2Client, prestateProvider, cfg.CannonAbsolutePreState, rollupClient, dir, l1Head, splitDepth, actorCfg.PrestateBlock, actorCfg.PoststateBlock)
 	g.Require.NoError(err, "Failed to create output cannon trace accessor")
 	return NewOutputHonestHelper(g.T, g.Require, &g.OutputGameHelper, g.Game, accessor)
 }

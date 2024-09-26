@@ -34,6 +34,7 @@ type DeployOPChainInput struct {
 	BlobBaseFeeScalar uint32
 	L2ChainId         *big.Int
 	OpcmProxy         common.Address
+	SaltMixer         string
 }
 
 func (input *DeployOPChainInput) InputSet() bool {

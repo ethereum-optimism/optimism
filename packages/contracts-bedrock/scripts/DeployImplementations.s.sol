@@ -7,6 +7,7 @@ import { LibString } from "@solady/utils/LibString.sol";
 
 import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
 import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
+import { ISystemConfigV160 } from "src/L1/interfaces/ISystemConfigV160.sol";
 
 import { Constants } from "src/libraries/Constants.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -64,41 +65,41 @@ contract DeployImplementationsInput is BaseDeployIO {
 
     string internal _standardVersionsToml;
 
-    function set(bytes4 sel, uint256 _value) public {
+    function set(bytes4 _sel, uint256 _value) public {
         require(_value != 0, "DeployImplementationsInput: cannot set zero value");
 
-        if (sel == this.withdrawalDelaySeconds.selector) {
+        if (_sel == this.withdrawalDelaySeconds.selector) {
             _withdrawalDelaySeconds = _value;
-        } else if (sel == this.minProposalSizeBytes.selector) {
+        } else if (_sel == this.minProposalSizeBytes.selector) {
             _minProposalSizeBytes = _value;
-        } else if (sel == this.challengePeriodSeconds.selector) {
+        } else if (_sel == this.challengePeriodSeconds.selector) {
             require(_value <= type(uint64).max, "DeployImplementationsInput: challengePeriodSeconds too large");
             _challengePeriodSeconds = _value;
-        } else if (sel == this.proofMaturityDelaySeconds.selector) {
+        } else if (_sel == this.proofMaturityDelaySeconds.selector) {
             _proofMaturityDelaySeconds = _value;
-        } else if (sel == this.disputeGameFinalityDelaySeconds.selector) {
+        } else if (_sel == this.disputeGameFinalityDelaySeconds.selector) {
             _disputeGameFinalityDelaySeconds = _value;
         } else {
             revert("DeployImplementationsInput: unknown selector");
         }
     }
 
-    function set(bytes4 sel, string memory _value) public {
+    function set(bytes4 _sel, string memory _value) public {
         require(!LibString.eq(_value, ""), "DeployImplementationsInput: cannot set empty string");
-        if (sel == this.release.selector) _release = _value;
-        else if (sel == this.standardVersionsToml.selector) _standardVersionsToml = _value;
+        if (_sel == this.release.selector) _release = _value;
+        else if (_sel == this.standardVersionsToml.selector) _standardVersionsToml = _value;
         else revert("DeployImplementationsInput: unknown selector");
     }
 
-    function set(bytes4 sel, address _addr) public {
+    function set(bytes4 _sel, address _addr) public {
         require(_addr != address(0), "DeployImplementationsInput: cannot set zero address");
-        if (sel == this.superchainConfigProxy.selector) _superchainConfigProxy = SuperchainConfig(_addr);
-        else if (sel == this.protocolVersionsProxy.selector) _protocolVersionsProxy = ProtocolVersions(_addr);
+        if (_sel == this.superchainConfigProxy.selector) _superchainConfigProxy = SuperchainConfig(_addr);
+        else if (_sel == this.protocolVersionsProxy.selector) _protocolVersionsProxy = ProtocolVersions(_addr);
         else revert("DeployImplementationsInput: unknown selector");
     }
 
-    function set(bytes4 sel, bytes32 _value) public {
-        if (sel == this.salt.selector) _salt = _value;
+    function set(bytes4 _sel, bytes32 _value) public {
+        if (_sel == this.salt.selector) _salt = _value;
         else revert("DeployImplementationsInput: unknown selector");
     }
 
@@ -179,22 +180,22 @@ contract DeployImplementationsOutput is BaseDeployIO {
     OptimismMintableERC20Factory internal _optimismMintableERC20FactoryImpl;
     DisputeGameFactory internal _disputeGameFactoryImpl;
 
-    function set(bytes4 sel, address _addr) public {
+    function set(bytes4 _sel, address _addr) public {
         require(_addr != address(0), "DeployImplementationsOutput: cannot set zero address");
 
         // forgefmt: disable-start
-        if (sel == this.opcmProxy.selector) _opcmProxy = OPContractsManager(payable(_addr));
-        else if (sel == this.opcmImpl.selector) _opcmImpl = OPContractsManager(payable(_addr));
-        else if (sel == this.optimismPortalImpl.selector) _optimismPortalImpl = OptimismPortal2(payable(_addr));
-        else if (sel == this.delayedWETHImpl.selector) _delayedWETHImpl = DelayedWETH(payable(_addr));
-        else if (sel == this.preimageOracleSingleton.selector) _preimageOracleSingleton = PreimageOracle(_addr);
-        else if (sel == this.mipsSingleton.selector) _mipsSingleton = MIPS(_addr);
-        else if (sel == this.systemConfigImpl.selector) _systemConfigImpl = SystemConfig(_addr);
-        else if (sel == this.l1CrossDomainMessengerImpl.selector) _l1CrossDomainMessengerImpl = L1CrossDomainMessenger(_addr);
-        else if (sel == this.l1ERC721BridgeImpl.selector) _l1ERC721BridgeImpl = L1ERC721Bridge(_addr);
-        else if (sel == this.l1StandardBridgeImpl.selector) _l1StandardBridgeImpl = L1StandardBridge(payable(_addr));
-        else if (sel == this.optimismMintableERC20FactoryImpl.selector) _optimismMintableERC20FactoryImpl = OptimismMintableERC20Factory(_addr);
-        else if (sel == this.disputeGameFactoryImpl.selector) _disputeGameFactoryImpl = DisputeGameFactory(_addr);
+        if (_sel == this.opcmProxy.selector) _opcmProxy = OPContractsManager(payable(_addr));
+        else if (_sel == this.opcmImpl.selector) _opcmImpl = OPContractsManager(payable(_addr));
+        else if (_sel == this.optimismPortalImpl.selector) _optimismPortalImpl = OptimismPortal2(payable(_addr));
+        else if (_sel == this.delayedWETHImpl.selector) _delayedWETHImpl = DelayedWETH(payable(_addr));
+        else if (_sel == this.preimageOracleSingleton.selector) _preimageOracleSingleton = PreimageOracle(_addr);
+        else if (_sel == this.mipsSingleton.selector) _mipsSingleton = MIPS(_addr);
+        else if (_sel == this.systemConfigImpl.selector) _systemConfigImpl = SystemConfig(_addr);
+        else if (_sel == this.l1CrossDomainMessengerImpl.selector) _l1CrossDomainMessengerImpl = L1CrossDomainMessenger(_addr);
+        else if (_sel == this.l1ERC721BridgeImpl.selector) _l1ERC721BridgeImpl = L1ERC721Bridge(_addr);
+        else if (_sel == this.l1StandardBridgeImpl.selector) _l1StandardBridgeImpl = L1StandardBridge(payable(_addr));
+        else if (_sel == this.optimismMintableERC20FactoryImpl.selector) _optimismMintableERC20FactoryImpl = OptimismMintableERC20Factory(_addr);
+        else if (_sel == this.disputeGameFactoryImpl.selector) _disputeGameFactoryImpl = DisputeGameFactory(_addr);
         else revert("DeployImplementationsOutput: unknown selector");
         // forgefmt: disable-end
     }
@@ -479,7 +480,7 @@ contract DeployImplementations is Script {
     // --- OP Contracts Manager ---
 
     function opcmSystemConfigSetter(
-        DeployImplementationsInput,
+        DeployImplementationsInput _dii,
         DeployImplementationsOutput _dio
     )
         internal
@@ -487,9 +488,19 @@ contract DeployImplementations is Script {
         virtual
         returns (OPContractsManager.ImplementationSetter memory)
     {
+        // When configuring OPCM during Solidity tests, we are using the latest SystemConfig.sol
+        // version in this repo, which contains Custom Gas Token (CGT) features. This CGT version
+        // has a different `initialize` signature than the SystemConfig version that was released
+        // as part of `op-contracts/v1.6.0`, which is no longer in the repo. When running this
+        // script's bytecode for a production deploy of OPCM at `op-contracts/v1.6.0`, we need to
+        // use the ISystemConfigV160 interface instead of ISystemConfig. Therefore the selector used
+        // is a function of the `release` passed in by the caller.
+        bytes4 selector = LibString.eq(_dii.release(), "op-contracts/v1.6.0")
+            ? ISystemConfigV160.initialize.selector
+            : SystemConfig.initialize.selector;
         return OPContractsManager.ImplementationSetter({
             name: "SystemConfig",
-            info: OPContractsManager.Implementation(address(_dio.systemConfigImpl()), SystemConfig.initialize.selector)
+            info: OPContractsManager.Implementation(address(_dio.systemConfigImpl()), selector)
         });
     }
 

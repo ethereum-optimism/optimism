@@ -18,7 +18,7 @@ interface IAnchorStateRegistry {
 
     event Initialized(uint8 version);
 
-    function anchors(GameType) external view returns (Hash root, uint256 l2BlockNumber);
+    function anchors(GameType) external view returns (Hash root, uint256 l2BlockNumber); // nosemgrep
     function disputeGameFactory() external view returns (IDisputeGameFactory);
     function initialize(
         StartingAnchorRoot[] memory _startingAnchorRoots,

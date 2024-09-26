@@ -115,7 +115,7 @@ func NewChecker(t types.SafetyLevel, c *ChainsDB) SafetyChecker {
 	case Unsafe:
 		return &checker{
 			chains:      c,
-			localSafety: types.Unsafe,
+			localSafety: types.LocalUnsafe,
 			crossSafety: types.CrossUnsafe,
 			updateCross: c.heads.UpdateCrossUnsafe,
 			updateLocal: c.heads.UpdateLocalUnsafe,
@@ -127,7 +127,7 @@ func NewChecker(t types.SafetyLevel, c *ChainsDB) SafetyChecker {
 	case Safe:
 		return &checker{
 			chains:      c,
-			localSafety: types.Safe,
+			localSafety: types.LocalSafe,
 			crossSafety: types.CrossSafe,
 			updateCross: c.heads.UpdateCrossSafe,
 			updateLocal: c.heads.UpdateLocalSafe,
@@ -140,7 +140,7 @@ func NewChecker(t types.SafetyLevel, c *ChainsDB) SafetyChecker {
 		return &checker{
 			chains:      c,
 			localSafety: types.Finalized,
-			crossSafety: types.CrossFinalized,
+			crossSafety: types.Finalized,
 			updateCross: c.heads.UpdateCrossFinalized,
 			updateLocal: c.heads.UpdateLocalFinalized,
 			crossHead:   c.heads.CrossFinalized,

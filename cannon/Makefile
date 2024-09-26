@@ -13,6 +13,8 @@ ifeq ($(shell uname),Darwin)
 	FUZZLDFLAGS := -ldflags=-extldflags=-Wl,-ld_classic
 endif
 
+.DEFAULT_GOAL := cannon
+
 cannon-impl:
 	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v $(LDFLAGS) -o ./bin/cannon-impl .
 
@@ -43,6 +45,26 @@ contract:
 test: elf contract
 	go test -v ./...
 
+diff-%-cannon: cannon elf
+	$$OTHER_CANNON load-elf --type $* --path ./testdata/example/bin/hello.elf --out ./bin/prestate-other.bin.gz --meta ""
+	./bin/cannon   load-elf --type $* --path ./testdata/example/bin/hello.elf --out ./bin/prestate.bin.gz --meta ""
+	@cmp ./bin/prestate-other.bin.gz ./bin/prestate.bin.gz
+	@if [ $$? -eq 0 ]; then \
+		echo "Generated identical prestates"; \
+	else \
+		echo "Generated different prestates"; \
+		exit 1; \
+	fi
+	$$OTHER_CANNON run --proof-at '=0' --stop-at '=100000000' --input=./bin/prestate.bin.gz  --output ./bin/out-other.bin.gz --meta ""
+	./bin/cannon   run --proof-at '=0' --stop-at '=100000000' --input=./bin/prestate.bin.gz  --output ./bin/out.bin.gz --meta ""
+	@cmp ./bin/out-other.bin.gz ./bin/out.bin.gz
+	@if [ $$? -eq 0 ]; then \
+		echo "Generated identical states"; \
+	else \
+		echo "Generated different prestates"; \
+		exit 1; \
+	fi
+
 fuzz:
   # Common vm tests
 	go test $(FUZZLDFLAGS) -run NOTAREALTEST -v -fuzztime 10s -fuzz=FuzzStateSyscallBrk ./mipsevm/tests
@@ -60,7 +82,10 @@ fuzz:
 
 .PHONY: \
 	cannon \
+	cannon-impl \
+	cannon-embeds \
 	clean \
 	test \
 	lint \
-	fuzz
+	fuzz \
+	diff-%-cannon

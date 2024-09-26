@@ -34,6 +34,7 @@ type driverClient interface {
 	SequencerActive(context.Context) (bool, error)
 	OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error
 	OverrideLeader(ctx context.Context) error
+	ConductorEnabled(ctx context.Context) (bool, error)
 }
 
 type SafeDBReader interface {
@@ -96,6 +97,13 @@ func (n *adminAPI) OverrideLeader(ctx context.Context) error {
 	recordDur := n.M.RecordRPCServerRequest("admin_overrideLeader")
 	defer recordDur()
 	return n.dr.OverrideLeader(ctx)
+}
+
+// ConductorEnabled returns true if the sequencer conductor is enabled.
+func (n *adminAPI) ConductorEnabled(ctx context.Context) (bool, error) {
+	recordDur := n.M.RecordRPCServerRequest("admin_conductorEnabled")
+	defer recordDur()
+	return n.dr.ConductorEnabled(ctx)
 }
 
 type nodeAPI struct {

@@ -617,8 +617,6 @@ func (d *Sequencer) Init(ctx context.Context, active bool) error {
 	d.emitter.Emit(engine.ForkchoiceRequestEvent{})
 
 	if active {
-		// TODO(#11121): should the conductor be checked on startup?
-		// The conductor was previously not being checked in this case, but that may be a bug.
 		return d.forceStart()
 	} else {
 		if err := d.listener.SequencerStopped(); err != nil {
@@ -710,6 +708,10 @@ func (d *Sequencer) SetMaxSafeLag(ctx context.Context, v uint64) error {
 
 func (d *Sequencer) OverrideLeader(ctx context.Context) error {
 	return d.conductor.OverrideLeader(ctx)
+}
+
+func (d *Sequencer) ConductorEnabled(ctx context.Context) bool {
+	return d.conductor.Enabled(ctx)
 }
 
 func (d *Sequencer) Close() {
