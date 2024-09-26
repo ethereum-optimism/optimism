@@ -272,6 +272,7 @@ contract Deploy is Deployer {
             console.log("set up superchain!");
         }
 
+        setupOpChainAdmin();
         if (cfg.useAltDA()) {
             bytes32 typeHash = keccak256(bytes(cfg.daCommitmentType()));
             bytes32 keccakHash = keccak256(bytes("KeccakCommitment"));
@@ -280,7 +281,6 @@ contract Deploy is Deployer {
             }
         }
 
-        setupOpChainAdmin();
         setupOpChain();
         console.log("set up op chain!");
     }
