@@ -14,9 +14,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
+type LogStorage interface {
+	SealBlock(chain types.ChainID, block eth.L2BlockRef) error
+	AddLog(chain types.ChainID, logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *types.ExecutingMessage) error
+}
+
 type ChainsDBClientForLogProcessor interface {
-	SealBlock(chain supTypes.ChainID, block eth.L2BlockRef) error
-	AddLog(chain supTypes.ChainID, logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *backendTypes.ExecutingMessage) error
+	SealBlock(chain types.ChainID, block eth.L2BlockRef) error
+	AddLog(chain types.ChainID, logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *types.ExecutingMessage) error
 }
 
 type EventDecoder interface {

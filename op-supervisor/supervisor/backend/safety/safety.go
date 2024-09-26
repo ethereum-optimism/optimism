@@ -9,7 +9,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/heads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
-	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -30,7 +29,7 @@ type SafetyIndex interface {
 
 type ChainsDBClient interface {
 	IteratorStartingAt(chainID types.ChainID, sealedNum uint64, logIndex uint32) (logs.Iterator, error)
-	Check(chainID types.ChainID, blockNum uint64, logIdx uint32, logHash suptypes.TruncatedHash) (h suptypes.TruncatedHash, err error)
+	Check(chainID types.ChainID, blockNum uint64, logIdx uint32, logHash common.Hash) (h common.Hash, err error)
 }
 
 type RecentSafetyIndex struct {
@@ -43,7 +42,7 @@ type RecentSafetyIndex struct {
 	finalized map[types.ChainID]eth.BlockID
 
 	// remember what each non-finalized L2 block is derived from
-	derivedFrom map[types.ChainID]map[suptypes.TruncatedHash]eth.L1BlockRef
+	derivedFrom map[types.ChainID]map[common.Hash]eth.L1BlockRef
 
 	// the last received L1 finality signal.
 	finalizedL1 eth.L1BlockRef
@@ -56,7 +55,7 @@ func NewRecentSafetyIndex(log log.Logger, chains ChainsDBClient) *RecentSafetyIn
 		unsafe:      make(map[types.ChainID]*View),
 		safe:        make(map[types.ChainID]*View),
 		finalized:   make(map[types.ChainID]eth.BlockID),
-		derivedFrom: make(map[types.ChainID]map[suptypes.TruncatedHash]eth.L1BlockRef),
+		derivedFrom: make(map[types.ChainID]map[common.Hash]eth.L1BlockRef),
 	}
 }
 
@@ -72,7 +71,7 @@ func (r *RecentSafetyIndex) UpdateLocalUnsafe(chainID types.ChainID, ref eth.L2B
 			chainID: chainID,
 			iter:    iter,
 			localView: heads.HeadPointer{
-				LastSealedBlockHash: suptypes.TruncateHash(ref.Hash),
+				LastSealedBlockHash: ref.Hash,
 				LastSealedBlockNum:  ref.Number,
 				LastSealedTimestamp: ref.Time,
 				LogsSince:           0,
@@ -113,7 +112,7 @@ func (r *RecentSafetyIndex) UpdateLocalSafe(
 			chainID: chainID,
 			iter:    iter,
 			localView: heads.HeadPointer{
-				LastSealedBlockHash: suptypes.TruncateHash(ref.Hash),
+				LastSealedBlockHash: ref.Hash,
 				LastSealedBlockNum:  ref.Number,
 				LastSealedTimestamp: ref.Time,
 				LogsSince:           0,
@@ -129,10 +128,10 @@ func (r *RecentSafetyIndex) UpdateLocalSafe(
 	// register what this L2 block is derived from
 	m, ok := r.derivedFrom[chainID]
 	if !ok {
-		m = make(map[suptypes.TruncatedHash]eth.L1BlockRef)
+		m = make(map[common.Hash]eth.L1BlockRef)
 		r.derivedFrom[chainID] = m
 	}
-	m[suptypes.TruncateHash(ref.Hash)] = at
+	m[ref.Hash] = at
 	r.advanceCrossSafe()
 	return nil
 }

@@ -15,7 +15,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/heads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/safety"
-	backendTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -152,14 +151,14 @@ func (db *ChainsDB) StartCrossHeadMaintenance(ctx context.Context) {
 func (db *ChainsDB) Check(chain types.ChainID, blockNum uint64, logIdx uint32, logHash common.Hash) (common.Hash, error) {
 	logDB, ok := db.logDBs[chain]
 	if !ok {
-		return backendTypes.TruncatedHash{}, fmt.Errorf("%w: %v", ErrUnknownChain, chain)
+		return common.Hash{}, fmt.Errorf("%w: %v", ErrUnknownChain, chain)
 	}
 	_, err := logDB.Contains(blockNum, logIdx, logHash)
 	if err != nil {
-		return backendTypes.TruncatedHash{}, err
+		return common.Hash{}, err
 	}
 	// TODO: need to get the actual block hash for this log entry
-	return backendTypes.TruncatedHash{}, nil
+	return common.Hash{}, nil
 }
 
 // RequestMaintenance requests that the maintenance loop update the cross-heads
@@ -332,10 +331,10 @@ func (db *ChainsDB) LatestBlockNum(chain types.ChainID) (num uint64, ok bool) {
 
 func (db *ChainsDB) AddLog(
 	chain types.ChainID,
-	logHash backendTypes.TruncatedHash,
+	logHash common.Hash,
 	parentBlock eth.BlockID,
 	logIdx uint32,
-	execMsg *backendTypes.ExecutingMessage) error {
+	execMsg *types.ExecutingMessage) error {
 	logDB, ok := db.logDBs[chain]
 	if !ok {
 		return fmt.Errorf("%w: %v", ErrUnknownChain, chain)

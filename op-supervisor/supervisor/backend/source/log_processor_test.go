@@ -205,7 +205,7 @@ type stubLogStorage struct {
 	seals []storedSeal
 }
 
-func (s *stubLogStorage) SealBlock(chainID supTypes.ChainID, block eth.L2BlockRef) error {
+func (s *stubLogStorage) SealBlock(chainID types.ChainID, block eth.L2BlockRef) error {
 	if logProcessorChainID != chainID {
 		return fmt.Errorf("chain id mismatch, expected %v but got %v", logProcessorChainID, chainID)
 	}

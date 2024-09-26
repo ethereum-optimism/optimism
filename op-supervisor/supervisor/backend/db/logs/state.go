@@ -126,7 +126,7 @@ func (l *logContext) ExecMessage() *types.ExecutingMessage {
 	return nil
 }
 
-func (l *logContext) Pointer() (hash types.TruncatedHash, num uint64, timestamp uint64, logsSince uint32, ok bool) {
+func (l *logContext) Pointer() (hash common.Hash, num uint64, timestamp uint64, logsSince uint32, ok bool) {
 	if l.need != 0 {
 		ok = false
 		return

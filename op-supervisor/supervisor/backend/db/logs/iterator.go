@@ -166,6 +166,6 @@ func (i *iterator) ExecMessage() *types.ExecutingMessage {
 	return i.current.ExecMessage()
 }
 
-func (i *iterator) Pointer() (hash types.TruncatedHash, num uint64, timestamp uint64, logsSince uint32, ok bool) {
+func (i *iterator) Pointer() (hash common.Hash, num uint64, timestamp uint64, logsSince uint32, ok bool) {
 	return i.current.Pointer()
 }

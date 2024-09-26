@@ -7,7 +7,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/heads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
-	suptypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -19,7 +18,7 @@ type View struct {
 	localView        heads.HeadPointer
 	localDerivedFrom eth.L1BlockRef
 
-	validWithinView func(l1View uint64, execMsg *suptypes.ExecutingMessage) error
+	validWithinView func(l1View uint64, execMsg *types.ExecutingMessage) error
 }
 
 func (vi *View) Cross() (heads.HeadPointer, error) {
@@ -44,7 +43,7 @@ func (vi *View) Local() (heads.HeadPointer, error) {
 
 func (vi *View) UpdateLocal(at eth.L1BlockRef, ref eth.L2BlockRef) error {
 	vi.localView = heads.HeadPointer{
-		LastSealedBlockHash: suptypes.TruncateHash(ref.Hash),
+		LastSealedBlockHash: ref.Hash,
 		LastSealedBlockNum:  ref.Number,
 		//LastSealedTimestamp: ref.Time,
 		LogsSince: 0,
@@ -103,7 +102,7 @@ func (vi *View) Process() error {
 
 // ValidWithinUnsafeView checks if the given executing message is in the database.
 // unsafe view is meant to represent all of the database, and so no boundary checks are needed.
-func (r *RecentSafetyIndex) ValidWithinUnsafeView(_ uint64, execMsg *suptypes.ExecutingMessage) error {
+func (r *RecentSafetyIndex) ValidWithinUnsafeView(_ uint64, execMsg *types.ExecutingMessage) error {
 	execChainID := types.ChainIDFromUInt64(uint64(execMsg.Chain))
 	_, err := r.chains.Check(execChainID, execMsg.BlockNum, execMsg.LogIdx, execMsg.Hash)
 	return err
@@ -111,7 +110,7 @@ func (r *RecentSafetyIndex) ValidWithinUnsafeView(_ uint64, execMsg *suptypes.Ex
 
 // ValidWithinSafeView checks if the given executing message is within the database,
 // and within the L1 view of the caller.
-func (r *RecentSafetyIndex) ValidWithinSafeView(l1View uint64, execMsg *suptypes.ExecutingMessage) error {
+func (r *RecentSafetyIndex) ValidWithinSafeView(l1View uint64, execMsg *types.ExecutingMessage) error {
 	execChainID := types.ChainIDFromUInt64(uint64(execMsg.Chain))
 
 	// Check that the initiating message, which was pulled in by the executing message,
