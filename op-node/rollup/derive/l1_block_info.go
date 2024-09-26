@@ -495,10 +495,9 @@ func L1InfoDeposit(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNumber 
 			}
 			data = out
 		} else if isHoloceneButNotFirstBlock(rollupCfg, l2Timestamp) {
-			fmt.Println("holocene-ing")
 			out, err := l1BlockInfo.marshalBinaryHolocene()
 			if err != nil {
-				return nil, fmt.Errorf("failed to marshal Isthmus l1 block info: %w", err)
+				return nil, fmt.Errorf("failed to marshal Holocene l1 block info: %w", err)
 			}
 			data = out
 		} else {

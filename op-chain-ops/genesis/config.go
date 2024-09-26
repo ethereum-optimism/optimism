@@ -421,7 +421,6 @@ func (d *UpgradeScheduleDeployConfig) forks() []Fork {
 		{L2GenesisTimeOffset: d.L2GenesisEcotoneTimeOffset, Name: string(L2AllocsEcotone)},
 		{L2GenesisTimeOffset: d.L2GenesisFjordTimeOffset, Name: string(L2AllocsFjord)},
 		{L2GenesisTimeOffset: d.L2GenesisGraniteTimeOffset, Name: string(L2AllocsGranite)},
-		{L2GenesisTimeOffset: d.L2GenesisHoloceneTimeOffset, Name: string(L2AllocsHolocene)},
 	}
 }
 
@@ -877,8 +876,8 @@ func (d *DeployConfig) SetDeployments(deployments *L1Deployments) {
 	d.DAChallengeProxy = deployments.DataAvailabilityChallengeProxy
 }
 
-// FeeScalar returns the raw serialized fee scalar. Uses pre-Ecotone if legacy config is present,
-// otherwise uses the post-Ecotone scalar serialization.
+// FeeScalar returns the raw serialized fee scalar. Uses pre-Ecotone if legacy config is present.
+// Uses holocene serialization if holocene is active at genesis. Otherwise, uses ecotone serialization.
 func (d *DeployConfig) FeeScalar() [32]byte {
 	if d.GasPriceOracleScalar != 0 {
 		return common.BigToHash(big.NewInt(int64(d.GasPriceOracleScalar)))
