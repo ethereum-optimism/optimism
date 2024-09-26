@@ -84,8 +84,6 @@ contract OPContractsManager is ISemver, Initializable {
         PermissionedDisputeGame permissionedDisputeGame;
         DelayedWETH delayedWETHPermissionedGameProxy;
     }
-    // TODO: Eventually switch from Permissioned to Permissionless
-    // DelayedWETH delayedWETHPermissionlessGameProxy;
 
     /// @notice The logic address and initializer selector for an implementation contract.
     struct Implementation {
@@ -283,11 +281,7 @@ contract OPContractsManager is ISemver, Initializable {
             Blueprint.deployFrom(blueprint.anchorStateRegistry, salt, abi.encode(output.disputeGameFactoryProxy))
         );
 
-        // We have two delayed WETH contracts per chain, one for each of the permissioned and permissionless games.
-        // TODO: Eventually switch from Permissioned to Permissionless.
-        // output.delayedWETHPermissionlessGameProxy = DelayedWETH(
-        //     payable(deployProxy(l2ChainId, output.opChainProxyAdmin, saltMixer, "DelayedWETHPermissionlessGame"))
-        // );
+        // Eventually we will switch from DelayedWETHPermissionedGameProxy to DelayedWETHPermissionlessGameProxy.
         output.delayedWETHPermissionedGameProxy = DelayedWETH(
             payable(deployProxy(l2ChainId, output.opChainProxyAdmin, saltMixer, "DelayedWETHPermissionedGame"))
         );
@@ -332,10 +326,8 @@ contract OPContractsManager is ISemver, Initializable {
 
         impl = getLatestImplementation("DelayedWETH");
         data = encodeDelayedWETHInitializer(impl.initializer, _input);
+        // Eventually we will switch from DelayedWETHPermissionedGameProxy to DelayedWETHPermissionlessGameProxy.
         upgradeAndCall(output.opChainProxyAdmin, address(output.delayedWETHPermissionedGameProxy), impl.logic, data);
-        // TODO: Eventually switch from Permissioned to Permissionless.
-        //upgradeAndCall(output.opChainProxyAdmin, address(output.delayedWETHPermissionlessGameProxy), impl.logic,
-        // data);
 
         // We set the initial owner to this contract, set game implementations, then transfer ownership.
         impl = getLatestImplementation("DisputeGameFactory");
