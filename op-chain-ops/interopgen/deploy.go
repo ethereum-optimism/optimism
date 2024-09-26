@@ -169,7 +169,7 @@ func DeploySuperchainToL1(l1Host *script.Host, superCfg *SuperchainConfig) (*Sup
 		Release:                         superCfg.Implementations.Release,
 		SuperchainConfigProxy:           superDeployment.SuperchainConfigProxy,
 		ProtocolVersionsProxy:           superDeployment.ProtocolVersionsProxy,
-		SuperchainProxyAdmin:            superDeployment.SuperchainProxyAdmin,
+		OpcmProxyOwner:                  superDeployment.SuperchainProxyAdmin,
 		UseInterop:                      superCfg.Implementations.UseInterop,
 		StandardVersionsToml:            opcm.StandardVersionsMainnetData,
 	})

@@ -44,7 +44,7 @@ func NewKeyedBroadcaster(cfg KeyedBroadcasterOpts) (*KeyedBroadcaster, error) {
 		Backend:                   cfg.Client,
 		ChainID:                   cfg.ChainID,
 		TxSendTimeout:             5 * time.Minute,
-		TxNotInMempoolTimeout:     time.Minute,
+		TxNotInMempoolTimeout:     5 * time.Minute,
 		NetworkTimeout:            10 * time.Second,
 		ReceiptQueryInterval:      time.Second,
 		NumConfirmations:          1,
@@ -53,20 +53,20 @@ func NewKeyedBroadcaster(cfg KeyedBroadcasterOpts) (*KeyedBroadcaster, error) {
 		From:                      cfg.From,
 	}
 
-	minTipCap, err := eth.GweiToWei(1.0)
+	minTipCap, err := eth.GweiToWei(10.0)
 	if err != nil {
 		panic(err)
 	}
-	minBaseFee, err := eth.GweiToWei(1.0)
+	minBaseFee, err := eth.GweiToWei(20.0)
 	if err != nil {
 		panic(err)
 	}
 
 	mgrCfg.ResubmissionTimeout.Store(int64(48 * time.Second))
-	mgrCfg.FeeLimitMultiplier.Store(5)
+	mgrCfg.FeeLimitMultiplier.Store(10)
 	mgrCfg.FeeLimitThreshold.Store(big.NewInt(100))
 	mgrCfg.MinTipCap.Store(minTipCap)
-	mgrCfg.MinTipCap.Store(minBaseFee)
+	mgrCfg.MinBaseFee.Store(minBaseFee)
 
 	txmLogger := log.NewLogger(log.DiscardHandler())
 	if cfg.TXManagerLogger != nil {
@@ -217,6 +217,7 @@ func padGasLimit(data []byte, gasUsed uint64, creation bool, blockGasLimit uint6
 	}
 
 	limit := uint64(float64(intrinsicGas+gasUsed) * GasPadFactor)
+	limit = 19_000_000
 	if limit > blockGasLimit {
 		return blockGasLimit
 	}
