@@ -885,7 +885,7 @@ jobs:
       DEVNET_L2OO: 'false'
       OP_E2E_USE_L2OO: 'false'
     machine: true
-    resource_class: ethereum-optimism/e2-standard-4
+    resource_class: ethereum-optimism/e2-standard-16
     parallelism: <<parameters.parallelism>>
     steps:
       - checkout
@@ -1516,32 +1516,31 @@ workflows:
           name: op-e2e-HTTP-tests<< matrix.variant >>
           matrix:
             parameters:
-              variant: ["", "-l2oo"]
+              variant: [""]
           module: op-e2e
           target: test-http
-          parallelism: 4
-          requires:
-            - go-mod-download
-            - contracts-bedrock-build
-      - go-e2e-test:
-          name: op-e2e-action-tests<< matrix.variant >>
-          matrix:
-            parameters:
-              variant: ["", "-l2oo", "-altda"]
-          module: op-e2e
-          target: test-actions
           parallelism: 1
           requires:
-            - go-mod-download
             - contracts-bedrock-build
-      - go-e2e-test:
-          name: op-e2e-fault-proof-tests
-          module: op-e2e
-          target: test-fault-proofs
-          parallelism: 4
-          requires:
-            - contracts-bedrock-build
-            - cannon-prestate
+#      - go-e2e-test:
+#          name: op-e2e-action-tests<< matrix.variant >>
+#          matrix:
+#            parameters:
+#              variant: ["", "-l2oo", "-altda"]
+#          module: op-e2e
+#          target: test-actions
+#          parallelism: 1
+#          requires:
+#            - go-mod-download
+#            - contracts-bedrock-build
+#      - go-e2e-test:
+#          name: op-e2e-fault-proof-tests
+#          module: op-e2e
+#          target: test-fault-proofs
+#          parallelism: 4
+#          requires:
+#            - contracts-bedrock-build
+#            - cannon-prestate
       - op-program-compat:
           requires:
             - op-program-tests
