@@ -127,8 +127,8 @@ contract OPContractsManager is ISemver, Initializable {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 1.0.0-beta.12
-    string public constant version = "1.0.0-beta.12";
+    /// @custom:semver 1.0.0-beta.13
+    string public constant version = "1.0.0-beta.13";
 
     /// @notice Represents the interface version so consumers know how to decode the DeployOutput struct
     /// that's emitted in the `Deployed` event. Whenever that struct changes, a new version should be used.
@@ -592,7 +592,7 @@ contract OPContractsManager is ISemver, Initializable {
     {
         return abi.encode(
             GameType.wrap(1), // Permissioned Cannon
-            Claim.wrap(bytes32(hex"dead")), // absolutePrestate
+            Claim.wrap(bytes32(hex"038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c")), // absolutePrestate
             73, // maxGameDepth
             30, // splitDepth
             Duration.wrap(3 hours), // clockExtension

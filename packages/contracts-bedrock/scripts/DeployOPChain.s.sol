@@ -322,7 +322,13 @@ contract DeployOPChainOutput is BaseDeployIO {
         PermissionedDisputeGame game = permissionedDisputeGame();
 
         require(GameType.unwrap(game.gameType()) == GameType.unwrap(GameTypes.PERMISSIONED_CANNON), "DPG-10");
-        require(Claim.unwrap(game.absolutePrestate()) == bytes32(hex"dead"), "DPG-20");
+        // This hex string is the absolutePrestate of the latest op-program release, see where the
+        // `EXPECTED_PRESTATE_HASH` is defined in `config.yml`.
+        require(
+            Claim.unwrap(game.absolutePrestate())
+                == bytes32(hex"038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
+            "DPG-20"
+        );
 
         OPContractsManager opcm = _doi.opcmProxy();
         (address mips,) = opcm.implementations(opcm.latestRelease(), "MIPS");
