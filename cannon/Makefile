@@ -46,7 +46,7 @@ test: elf contract
 diff-%-cannon: cannon
 	$$OTHER_CANNON load-elf --type $* --path ./testdata/example/bin/hello.elf --out ./bin/prestate-other.bin.gz --meta ""
 	./bin/cannon   load-elf --type $* --path ./testdata/example/bin/hello.elf --out ./bin/prestate.bin.gz --meta ""
-	@cmp -s ./bin/prestate-other.bin.gz ./bin/prestate.bin.gz
+	@cmp ./bin/prestate-other.bin.gz ./bin/prestate.bin.gz
 	@if [ $$? -eq 0 ]; then \
 		echo "Generated identical prestates"; \
 	else \
@@ -55,7 +55,7 @@ diff-%-cannon: cannon
 	fi
 	$$OTHER_CANNON run --proof-at '=0' --stop-at '=100000000' --input=/tmp/out32.bin.gz  --output ./bin/out-other.bin.gz --meta ""
 	./bin/cannon    run --proof-at '=0' --stop-at '=100000000' --input=/tmp/out32.bin.gz  --output ./bin/out.bin.gz --meta ""
-	@cmp -s ./bin/out-other.bin.gz ./bin/out.bin.gz
+	@cmp ./bin/out-other.bin.gz ./bin/out.bin.gz
 	@if [ $$? -eq 0 ]; then \
 		echo "Generated identical states"; \
 	else \
