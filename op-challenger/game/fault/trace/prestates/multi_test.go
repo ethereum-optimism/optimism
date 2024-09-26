@@ -26,7 +26,7 @@ func TestDownloadPrestate(t *testing.T) {
 			defer server.Close()
 			hash := common.Hash{0xaa}
 			provider := NewMultiPrestateProvider(parseURL(t, server.URL), dir, &stubStateConverter{hash: hash})
-			path, err := provider.PrestatePath(hash)
+			path, err := provider.PrestatePath(context.Background(), hash)
 			require.NoError(t, err)
 			in, err := os.Open(path)
 			require.NoError(t, err)
@@ -47,7 +47,7 @@ func TestCreateDirectory(t *testing.T) {
 			defer server.Close()
 			hash := common.Hash{0xaa}
 			provider := NewMultiPrestateProvider(parseURL(t, server.URL), dir, &stubStateConverter{hash: hash})
-			path, err := provider.PrestatePath(hash)
+			path, err := provider.PrestatePath(context.Background(), hash)
 			require.NoError(t, err)
 			in, err := os.Open(path)
 			require.NoError(t, err)
@@ -67,7 +67,7 @@ func TestExistingPrestate(t *testing.T) {
 	err := ioutil.WriteCompressedBytes(expectedFile, []byte("expected content"), os.O_WRONLY|os.O_CREATE, 0o644)
 	require.NoError(t, err)
 
-	path, err := provider.PrestatePath(hash)
+	path, err := provider.PrestatePath(context.Background(), hash)
 	require.NoError(t, err)
 	require.Equal(t, expectedFile, path)
 	in, err := ioutil.OpenDecompressed(path)
@@ -88,7 +88,7 @@ func TestMissingPrestate(t *testing.T) {
 	defer server.Close()
 	hash := common.Hash{0xaa}
 	provider := NewMultiPrestateProvider(parseURL(t, server.URL), dir, &stubStateConverter{hash: hash})
-	path, err := provider.PrestatePath(hash)
+	path, err := provider.PrestatePath(context.Background(), hash)
 	require.ErrorIs(t, err, ErrPrestateUnavailable)
 	_, err = os.Stat(path)
 	require.ErrorIs(t, err, os.ErrNotExist)
@@ -116,7 +116,7 @@ func TestStorePrestateWithCorrectExtension(t *testing.T) {
 			defer server.Close()
 			hash := common.Hash{0xaa}
 			provider := NewMultiPrestateProvider(parseURL(t, server.URL), dir, &stubStateConverter{hash: hash})
-			path, err := provider.PrestatePath(hash)
+			path, err := provider.PrestatePath(context.Background(), hash)
 			require.NoError(t, err)
 			require.Truef(t, strings.HasSuffix(path, ext), "Expected path %v to have extension %v", path, ext)
 			in, err := os.Open(path)
@@ -137,7 +137,7 @@ func TestDetectInvalidPrestate(t *testing.T) {
 	defer server.Close()
 	hash := common.Hash{0xaa}
 	provider := NewMultiPrestateProvider(parseURL(t, server.URL), dir, &stubStateConverter{hash: hash, err: errors.New("boom")})
-	_, err := provider.PrestatePath(hash)
+	_, err := provider.PrestatePath(context.Background(), hash)
 	require.ErrorIs(t, err, ErrPrestateUnavailable)
 	entries, err := os.ReadDir(dir)
 	require.NoError(t, err)
@@ -153,7 +153,7 @@ func TestDetectPrestateWithWrongHash(t *testing.T) {
 	hash := common.Hash{0xaa}
 	actualHash := common.Hash{0xbb}
 	provider := NewMultiPrestateProvider(parseURL(t, server.URL), dir, &stubStateConverter{hash: actualHash})
-	_, err := provider.PrestatePath(hash)
+	_, err := provider.PrestatePath(context.Background(), hash)
 	require.ErrorIs(t, err, ErrPrestateUnavailable)
 	entries, err := os.ReadDir(dir)
 	require.NoError(t, err)

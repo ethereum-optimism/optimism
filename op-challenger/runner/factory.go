@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/url"
@@ -18,6 +19,7 @@ import (
 )
 
 func createTraceProvider(
+	ctx context.Context,
 	logger log.Logger,
 	m vm.Metricer,
 	cfg *config.Config,
@@ -30,7 +32,7 @@ func createTraceProvider(
 	case types.TraceTypeCannon:
 		serverExecutor := vm.NewOpProgramServerExecutor()
 		stateConverter := cannon.NewStateConverter(cfg.Cannon)
-		prestate, err := getPrestate(prestateHash, cfg.CannonAbsolutePreStateBaseURL, cfg.CannonAbsolutePreState, dir, stateConverter)
+		prestate, err := getPrestate(ctx, prestateHash, cfg.CannonAbsolutePreStateBaseURL, cfg.CannonAbsolutePreState, dir, stateConverter)
 		if err != nil {
 			return nil, err
 		}
@@ -39,7 +41,7 @@ func createTraceProvider(
 	case types.TraceTypeAsterisc:
 		serverExecutor := vm.NewOpProgramServerExecutor()
 		stateConverter := asterisc.NewStateConverter()
-		prestate, err := getPrestate(prestateHash, cfg.AsteriscAbsolutePreStateBaseURL, cfg.AsteriscAbsolutePreState, dir, stateConverter)
+		prestate, err := getPrestate(ctx, prestateHash, cfg.AsteriscAbsolutePreStateBaseURL, cfg.AsteriscAbsolutePreState, dir, stateConverter)
 		if err != nil {
 			return nil, err
 		}
@@ -48,7 +50,7 @@ func createTraceProvider(
 	case types.TraceTypeAsteriscKona:
 		serverExecutor := vm.NewKonaExecutor()
 		stateConverter := asterisc.NewStateConverter()
-		prestate, err := getPrestate(prestateHash, cfg.AsteriscKonaAbsolutePreStateBaseURL, cfg.AsteriscKonaAbsolutePreState, dir, stateConverter)
+		prestate, err := getPrestate(ctx, prestateHash, cfg.AsteriscKonaAbsolutePreStateBaseURL, cfg.AsteriscKonaAbsolutePreState, dir, stateConverter)
 		if err != nil {
 			return nil, err
 		}
@@ -59,12 +61,12 @@ func createTraceProvider(
 }
 
 func createMTTraceProvider(
+	ctx context.Context,
 	logger log.Logger,
 	m vm.Metricer,
 	vmConfig vm.Config,
 	prestateHash common.Hash,
 	absolutePrestateBaseURL *url.URL,
-	traceType types.TraceType,
 	localInputs utils.LocalGameInputs,
 	dir string,
 ) (types.TraceProvider, error) {
@@ -72,7 +74,7 @@ func createMTTraceProvider(
 	stateConverter := cannon.NewStateConverter(vmConfig)
 
 	prestateSource := prestates.NewMultiPrestateProvider(absolutePrestateBaseURL, filepath.Join(dir, "prestates"), stateConverter)
-	prestatePath, err := prestateSource.PrestatePath(prestateHash)
+	prestatePath, err := prestateSource.PrestatePath(ctx, prestateHash)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get prestate %v: %w", prestateHash, err)
 	}
@@ -80,14 +82,14 @@ func createMTTraceProvider(
 	return cannon.NewTraceProvider(logger, m, vmConfig, executor, prestateProvider, prestatePath, localInputs, dir, 42), nil
 }
 
-func getPrestate(prestateHash common.Hash, prestateBaseUrl *url.URL, prestatePath string, dataDir string, stateConverter vm.StateConverter) (string, error) {
+func getPrestate(ctx context.Context, prestateHash common.Hash, prestateBaseUrl *url.URL, prestatePath string, dataDir string, stateConverter vm.StateConverter) (string, error) {
 	prestateSource := prestates.NewPrestateSource(
 		prestateBaseUrl,
 		prestatePath,
 		filepath.Join(dataDir, "prestates"),
 		stateConverter)
 
-	prestate, err := prestateSource.PrestatePath(prestateHash)
+	prestate, err := prestateSource.PrestatePath(ctx, prestateHash)
 	if err != nil {
 		return "", fmt.Errorf("failed to get prestate %v: %w", prestateHash, err)
 	}
