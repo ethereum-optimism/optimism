@@ -561,7 +561,7 @@ contract OPContractsManager is ISemver, Initializable {
     {
         return abi.encode(
             GameType.wrap(1), // Permissioned Cannon
-            Claim.wrap(bytes32(hex"dead")), // absolutePrestate
+            Claim.wrap(bytes32(hex"038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c")), // absolutePrestate
             73, // maxGameDepth
             30, // splitDepth
             Duration.wrap(3 hours), // clockExtension
