@@ -1,6 +1,7 @@
 package prestates
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -180,7 +181,7 @@ type stubStateConverter struct {
 	hash common.Hash
 }
 
-func (s *stubStateConverter) ConvertStateToProof(path string) (*utils.ProofData, uint64, bool, error) {
+func (s *stubStateConverter) ConvertStateToProof(_ context.Context, path string) (*utils.ProofData, uint64, bool, error) {
 	// Return an error if we're given the wrong path
 	if _, err := os.Stat(path); err != nil {
 		return nil, 0, false, err

@@ -49,7 +49,7 @@ type RegisterTask struct {
 }
 
 func NewCannonRegisterTask(gameType faultTypes.GameType, cfg *config.Config, m caching.Metrics, serverExecutor vm.OracleServerExecutor) *RegisterTask {
-	stateConverter := cannon.NewStateConverter()
+	stateConverter := cannon.NewStateConverter(cfg.Cannon)
 	return &RegisterTask{
 		gameType: gameType,
 		// Don't validate the absolute prestate or genesis output root for permissioned games

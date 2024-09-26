@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/urfave/cli/v2"
 )
 
@@ -26,10 +27,11 @@ var (
 )
 
 type response struct {
-	WitnessHash common.Hash `json:"witnessHash"`
-	Step        uint64      `json:"step"`
-	Exited      bool        `json:"exited"`
-	ExitCode    uint8       `json:"exitCode"`
+	WitnessHash common.Hash   `json:"witnessHash"`
+	Witness     hexutil.Bytes `json:"witness"`
+	Step        uint64        `json:"step"`
+	Exited      bool          `json:"exited"`
+	ExitCode    uint8         `json:"exitCode"`
 }
 
 func Witness(ctx *cli.Context) error {
@@ -47,6 +49,7 @@ func Witness(ctx *cli.Context) error {
 	}
 	output := response{
 		WitnessHash: h,
+		Witness:     witness,
 		Step:        state.GetStep(),
 		Exited:      state.GetExited(),
 		ExitCode:    state.GetExitCode(),

@@ -1,6 +1,7 @@
 package prestates
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -91,7 +92,8 @@ func (m *MultiPrestateProvider) fetchPrestate(hash common.Hash, fileType string,
 		return fmt.Errorf("failed to close file %v: %w", dest, err)
 	}
 	// Verify the prestate actually matches the expected hash before moving it into the final destination
-	proof, _, _, err := m.stateConverter.ConvertStateToProof(tmpFile)
+	// TODO: This provider is completely missing context usage....
+	proof, _, _, err := m.stateConverter.ConvertStateToProof(context.Background(), tmpFile)
 	if err != nil || proof.ClaimValue != hash {
 		// Treat invalid prestates as unavailable. Often servers return a 404 page with 200 status code
 		_ = os.Remove(tmpFile) // Best effort attempt to clean up the temporary file
