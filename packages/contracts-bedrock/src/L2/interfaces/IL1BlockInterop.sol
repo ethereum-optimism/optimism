@@ -55,4 +55,6 @@ interface IL1BlockInterop {
     function setL1BlockValuesInterop() external;
     function timestamp() external view returns (uint64);
     function version() external pure returns (string memory);
+
+    function __constructor__() external;
 }

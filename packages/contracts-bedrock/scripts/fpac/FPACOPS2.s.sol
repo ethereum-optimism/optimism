@@ -91,12 +91,14 @@ contract FPACOPS2 is Deploy, StdAssertions {
     function deployCannonDisputeGame() internal broadcast {
         console.log("Deploying CannonFaultDisputeGame implementation");
 
-        save(
-            "CannonFaultDisputeGame",
-            address(
-                _deploy(
-                    "FaultDisputeGame",
-                    abi.encode(
+        DeployUtils.create2AndSave({
+            _save: this,
+            _name: "FaultDisputeGame",
+            _nick: "CannonFaultDisputeGame",
+            _args: DeployUtils.encodeConstructor(
+                abi.encodeCall(
+                    IFaultDisputeGame.__constructor__,
+                    (
                         GameTypes.CANNON,
                         loadMipsAbsolutePrestate(),
                         cfg.faultGameMaxDepth(),
@@ -109,20 +111,22 @@ contract FPACOPS2 is Deploy, StdAssertions {
                         cfg.l2ChainID()
                     )
                 )
-            )
-        );
+            ),
+            _salt: _implSalt()
+        });
     }
 
     /// @notice Deploys the PermissionedDisputeGame.
     function deployPermissionedDisputeGame() internal broadcast {
         console.log("Deploying PermissionedDisputeGame implementation");
 
-        save(
-            "PermissionedDisputeGame",
-            address(
-                _deploy(
-                    "PermissionedDisputeGame",
-                    abi.encode(
+        DeployUtils.create2AndSave({
+            _save: this,
+            _name: "PermissionedDisputeGame",
+            _args: DeployUtils.encodeConstructor(
+                abi.encodeCall(
+                    IPermissionedDisputeGame.__constructor__,
+                    (
                         GameTypes.PERMISSIONED_CANNON,
                         loadMipsAbsolutePrestate(),
                         cfg.faultGameMaxDepth(),
@@ -137,8 +141,9 @@ contract FPACOPS2 is Deploy, StdAssertions {
                         cfg.l2OutputOracleChallenger()
                     )
                 )
-            )
-        );
+            ),
+            _salt: _implSalt()
+        });
     }
 
     /// @notice Initializes the DelayedWETH proxy.

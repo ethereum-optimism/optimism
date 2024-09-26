@@ -18,12 +18,12 @@ interface IL2ToL2CrossDomainMessenger {
     function messageNonce() external view returns (uint256);
 
     /// @notice Retrieves the sender of the current cross domain message.
-    /// @return _sender Address of the sender of the current cross domain message.
-    function crossDomainMessageSender() external view returns (address _sender);
+    /// @return sender_ Address of the sender of the current cross domain message.
+    function crossDomainMessageSender() external view returns (address sender_);
 
     /// @notice Retrieves the source of the current cross domain message.
-    /// @return _source Chain ID of the source of the current cross domain message.
-    function crossDomainMessageSource() external view returns (uint256 _source);
+    /// @return source_ Chain ID of the source of the current cross domain message.
+    function crossDomainMessageSource() external view returns (uint256 source_);
 
     /// @notice Sends a message to some target address on a destination chain. Note that if the call
     ///         always reverts, then the message will be unrelayable, and any ETH sent will be
@@ -32,7 +32,15 @@ interface IL2ToL2CrossDomainMessenger {
     /// @param _destination Chain ID of the destination chain.
     /// @param _target      Target contract or wallet address.
     /// @param _message     Message to trigger the target address with.
-    function sendMessage(uint256 _destination, address _target, bytes calldata _message) external;
+    /// @return msgHash_ The hash of the message being sent, which can be used for tracking whether
+    ///                  the message has successfully been relayed.
+    function sendMessage(
+        uint256 _destination,
+        address _target,
+        bytes calldata _message
+    )
+        external
+        returns (bytes32 msgHash_);
 
     /// @notice Relays a message that was sent by the other CrossDomainMessenger contract. Can only
     ///         be executed via cross-chain call from the other messenger OR if the message was

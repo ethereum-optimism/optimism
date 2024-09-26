@@ -93,16 +93,16 @@ func FuzzL1InfoEcotoneRoundTrip(f *testing.F) {
 		if !cmp.Equal(in, out, cmp.Comparer(testutils.BigEqual)) {
 			t.Fatalf("The Ecotone data did not round trip correctly. in: %v. out: %v", in, out)
 		}
-		enc, err = in.marshalBinaryIsthmus()
+		enc, err = in.marshalBinaryInterop()
 		if err != nil {
-			t.Fatalf("Failed to marshal Isthmus binary: %v", err)
+			t.Fatalf("Failed to marshal Interop binary: %v", err)
 		}
-		err = out.unmarshalBinaryIsthmus(enc)
+		err = out.unmarshalBinaryInterop(enc)
 		if err != nil {
-			t.Fatalf("Failed to unmarshal Isthmus binary: %v", err)
+			t.Fatalf("Failed to unmarshal Interop binary: %v", err)
 		}
 		if !cmp.Equal(in, out, cmp.Comparer(testutils.BigEqual)) {
-			t.Fatalf("The Isthmus data did not round trip correctly. in: %v. out: %v", in, out)
+			t.Fatalf("The Interop data did not round trip correctly. in: %v. out: %v", in, out)
 		}
 
 	})

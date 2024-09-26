@@ -13,7 +13,7 @@ import { DeploySuperchainInput, DeploySuperchain, DeploySuperchainOutput } from 
 contract DeploySuperchainInput_Test is Test {
     DeploySuperchainInput dsi;
 
-    address proxyAdminOwner = makeAddr("defaultProxyAdminOwner");
+    address superchainProxyAdminOwner = makeAddr("superchainProxyAdminOwner");
     address protocolVersionsOwner = makeAddr("defaultProtocolVersionsOwner");
     address guardian = makeAddr("defaultGuardian");
     bool paused = false;
@@ -25,8 +25,8 @@ contract DeploySuperchainInput_Test is Test {
     }
 
     function test_getters_whenNotSet_revert() public {
-        vm.expectRevert("DeploySuperchainInput: proxyAdminOwner not set");
-        dsi.proxyAdminOwner();
+        vm.expectRevert("DeploySuperchainInput: superchainProxyAdminOwner not set");
+        dsi.superchainProxyAdminOwner();
 
         vm.expectRevert("DeploySuperchainInput: protocolVersionsOwner not set");
         dsi.protocolVersionsOwner();
@@ -151,7 +151,7 @@ contract DeploySuperchain_Test is Test {
         // Generate random input values from the seed. This doesn't give us the benefit of the forge
         // fuzzer's dictionary, but that's ok because we are just testing that values are set and
         // passed correctly.
-        address proxyAdminOwner = address(uint160(uint256(hash(_seed, 0))));
+        address superchainProxyAdminOwner = address(uint160(uint256(hash(_seed, 0))));
         address protocolVersionsOwner = address(uint160(uint256(hash(_seed, 1))));
         address guardian = address(uint160(uint256(hash(_seed, 2))));
         bool paused = bool(uint8(uint256(hash(_seed, 3))) % 2 == 0);
@@ -159,7 +159,7 @@ contract DeploySuperchain_Test is Test {
         ProtocolVersion recommendedProtocolVersion = ProtocolVersion.wrap(uint256(hash(_seed, 5)));
 
         // Set the input values on the input contract.
-        dsi.set(dsi.proxyAdminOwner.selector, proxyAdminOwner);
+        dsi.set(dsi.superchainProxyAdminOwner.selector, superchainProxyAdminOwner);
         dsi.set(dsi.protocolVersionsOwner.selector, protocolVersionsOwner);
         dsi.set(dsi.guardian.selector, guardian);
         dsi.set(dsi.paused.selector, paused);
@@ -170,7 +170,7 @@ contract DeploySuperchain_Test is Test {
         deploySuperchain.run(dsi, dso);
 
         // Assert inputs were properly passed through to the contract initializers.
-        assertEq(address(dso.superchainProxyAdmin().owner()), proxyAdminOwner, "100");
+        assertEq(address(dso.superchainProxyAdmin().owner()), superchainProxyAdminOwner, "100");
         assertEq(address(dso.protocolVersionsProxy().owner()), protocolVersionsOwner, "200");
         assertEq(address(dso.superchainConfigProxy().guardian()), guardian, "300");
         assertEq(dso.superchainConfigProxy().paused(), paused, "400");
@@ -196,7 +196,7 @@ contract DeploySuperchain_Test is Test {
 
     function test_run_NullInput_reverts() public {
         // Set default values for all inputs.
-        dsi.set(dsi.proxyAdminOwner.selector, defaultProxyAdminOwner);
+        dsi.set(dsi.superchainProxyAdminOwner.selector, defaultProxyAdminOwner);
         dsi.set(dsi.protocolVersionsOwner.selector, defaultProtocolVersionsOwner);
         dsi.set(dsi.guardian.selector, defaultGuardian);
         dsi.set(dsi.paused.selector, defaultPaused);
@@ -207,8 +207,8 @@ contract DeploySuperchain_Test is Test {
         // methods to set the zero address, so we use StdStorage. We can't use the `checked_write`
         // method, because it does a final call to test that the value was set correctly, but for us
         // that would revert. Therefore we use StdStorage to find the slot, then we write to it.
-        uint256 slot = zeroOutSlotForSelector(dsi.proxyAdminOwner.selector);
-        vm.expectRevert("DeploySuperchainInput: proxyAdminOwner not set");
+        uint256 slot = zeroOutSlotForSelector(dsi.superchainProxyAdminOwner.selector);
+        vm.expectRevert("DeploySuperchainInput: superchainProxyAdminOwner not set");
         deploySuperchain.run(dsi, dso);
         // Restore the value we just tested.
         vm.store(address(dsi), bytes32(slot), bytes32(uint256(uint160(defaultProxyAdminOwner))));

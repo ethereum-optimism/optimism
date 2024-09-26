@@ -4,7 +4,7 @@ pragma solidity 0.8.15;
 import { Test, stdStorage, StdStorage } from "forge-std/Test.sol";
 
 import { DeployOPChainInput } from "scripts/DeployOPChain.s.sol";
-import { DeployOPChain_TestBase } from "test/DeployOPChain.t.sol";
+import { DeployOPChain_TestBase } from "test/opcm/DeployOPChain.t.sol";
 
 import { OPContractsManager } from "src/L1/OPContractsManager.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
@@ -34,7 +34,9 @@ contract OPContractsManager_Harness is OPContractsManager {
 contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase {
     using stdStorage for StdStorage;
 
-    event Deployed(uint256 indexed l2ChainId, SystemConfig indexed systemConfig);
+    event Deployed(
+        uint256 indexed outputVersion, uint256 indexed l2ChainId, address indexed deployer, bytes deployOutput
+    );
 
     function setUp() public override {
         DeployOPChain_TestBase.setUp();
@@ -86,8 +88,8 @@ contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase {
     }
 
     function test_deploy_succeeds() public {
-        vm.expectEmit(true, false, true, true); // TODO precompute the system config address.
-        emit Deployed(doi.l2ChainId(), SystemConfig(address(1)));
+        vm.expectEmit(true, true, true, false); // TODO precompute the expected `deployOutput`.
+        emit Deployed(0, doi.l2ChainId(), address(this), bytes(""));
         opcm.deploy(toOPCMDeployInput(doi));
     }
 }

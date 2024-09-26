@@ -30,7 +30,8 @@ import (
 )
 
 type RegisterTask struct {
-	gameType faultTypes.GameType
+	gameType               faultTypes.GameType
+	skipPrestateValidation bool
 
 	getPrestateProvider func(prestateHash common.Hash) (faultTypes.PrestateProvider, error)
 	newTraceAccessor    func(
@@ -51,6 +52,10 @@ func NewCannonRegisterTask(gameType faultTypes.GameType, cfg *config.Config, m c
 	stateConverter := cannon.NewStateConverter()
 	return &RegisterTask{
 		gameType: gameType,
+		// Don't validate the absolute prestate or genesis output root for permissioned games
+		// Only trusted actors participate in these games so they aren't expected to reach the step() call and
+		// are often configured without valid prestates but the challenger should still resolve the games.
+		skipPrestateValidation: gameType == faultTypes.PermissionedGameType,
 		getPrestateProvider: cachePrestates(
 			gameType,
 			stateConverter,
@@ -244,9 +249,12 @@ func (e *RegisterTask) Register(
 			}
 			return accessor, nil
 		}
-		prestateValidator := NewPrestateValidator(e.gameType.String(), contract.GetAbsolutePrestateHash, vmPrestateProvider)
-		startingValidator := NewPrestateValidator("output root", contract.GetStartingRootHash, prestateProvider)
-		return NewGamePlayer(ctx, systemClock, l1Clock, logger, m, dir, game.Proxy, txSender, contract, syncValidator, []Validator{prestateValidator, startingValidator}, creator, l1HeaderSource, selective, claimants)
+		var validators []Validator
+		if !e.skipPrestateValidation {
+			validators = append(validators, NewPrestateValidator(e.gameType.String(), contract.GetAbsolutePrestateHash, vmPrestateProvider))
+			validators = append(validators, NewPrestateValidator("output root", contract.GetStartingRootHash, prestateProvider))
+		}
+		return NewGamePlayer(ctx, systemClock, l1Clock, logger, m, dir, game.Proxy, txSender, contract, syncValidator, validators, creator, l1HeaderSource, selective, claimants)
 	}
 	err := registerOracle(ctx, m, oracles, gameFactory, caller, e.gameType)
 	if err != nil {

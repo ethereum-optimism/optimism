@@ -139,9 +139,10 @@ contract DeployOPChainInput is BaseDeployIO {
         return abi.encode(defaultStartingAnchorRoots);
     }
 
-    // TODO: Check that opcm is proxied and it has an implementation.
-    function opcmProxy() public view returns (OPContractsManager) {
+    function opcmProxy() public returns (OPContractsManager) {
         require(address(_opcmProxy) != address(0), "DeployOPChainInput: not set");
+        DeployUtils.assertValidContractAddress(address(_opcmProxy));
+        DeployUtils.assertImplementationSet(address(_opcmProxy));
         return _opcmProxy;
     }
 }
@@ -163,24 +164,24 @@ contract DeployOPChainOutput is BaseDeployIO {
     DelayedWETH internal _delayedWETHPermissionedGameProxy;
     DelayedWETH internal _delayedWETHPermissionlessGameProxy;
 
-    function set(bytes4 sel, address _addr) public {
+    function set(bytes4 _sel, address _addr) public {
         require(_addr != address(0), "DeployOPChainOutput: cannot set zero address");
         // forgefmt: disable-start
-        if (sel == this.opChainProxyAdmin.selector) _opChainProxyAdmin = ProxyAdmin(_addr) ;
-        else if (sel == this.addressManager.selector) _addressManager = AddressManager(_addr) ;
-        else if (sel == this.l1ERC721BridgeProxy.selector) _l1ERC721BridgeProxy = L1ERC721Bridge(_addr) ;
-        else if (sel == this.systemConfigProxy.selector) _systemConfigProxy = SystemConfig(_addr) ;
-        else if (sel == this.optimismMintableERC20FactoryProxy.selector) _optimismMintableERC20FactoryProxy = OptimismMintableERC20Factory(_addr) ;
-        else if (sel == this.l1StandardBridgeProxy.selector) _l1StandardBridgeProxy = L1StandardBridge(payable(_addr)) ;
-        else if (sel == this.l1CrossDomainMessengerProxy.selector) _l1CrossDomainMessengerProxy = L1CrossDomainMessenger(_addr) ;
-        else if (sel == this.optimismPortalProxy.selector) _optimismPortalProxy = OptimismPortal2(payable(_addr)) ;
-        else if (sel == this.disputeGameFactoryProxy.selector) _disputeGameFactoryProxy = DisputeGameFactory(_addr) ;
-        else if (sel == this.anchorStateRegistryProxy.selector) _anchorStateRegistryProxy = AnchorStateRegistry(_addr) ;
-        else if (sel == this.anchorStateRegistryImpl.selector) _anchorStateRegistryImpl = AnchorStateRegistry(_addr) ;
-        else if (sel == this.faultDisputeGame.selector) _faultDisputeGame = FaultDisputeGame(_addr) ;
-        else if (sel == this.permissionedDisputeGame.selector) _permissionedDisputeGame = PermissionedDisputeGame(_addr) ;
-        else if (sel == this.delayedWETHPermissionedGameProxy.selector) _delayedWETHPermissionedGameProxy = DelayedWETH(payable(_addr)) ;
-        else if (sel == this.delayedWETHPermissionlessGameProxy.selector) _delayedWETHPermissionlessGameProxy = DelayedWETH(payable(_addr)) ;
+        if (_sel == this.opChainProxyAdmin.selector) _opChainProxyAdmin = ProxyAdmin(_addr) ;
+        else if (_sel == this.addressManager.selector) _addressManager = AddressManager(_addr) ;
+        else if (_sel == this.l1ERC721BridgeProxy.selector) _l1ERC721BridgeProxy = L1ERC721Bridge(_addr) ;
+        else if (_sel == this.systemConfigProxy.selector) _systemConfigProxy = SystemConfig(_addr) ;
+        else if (_sel == this.optimismMintableERC20FactoryProxy.selector) _optimismMintableERC20FactoryProxy = OptimismMintableERC20Factory(_addr) ;
+        else if (_sel == this.l1StandardBridgeProxy.selector) _l1StandardBridgeProxy = L1StandardBridge(payable(_addr)) ;
+        else if (_sel == this.l1CrossDomainMessengerProxy.selector) _l1CrossDomainMessengerProxy = L1CrossDomainMessenger(_addr) ;
+        else if (_sel == this.optimismPortalProxy.selector) _optimismPortalProxy = OptimismPortal2(payable(_addr)) ;
+        else if (_sel == this.disputeGameFactoryProxy.selector) _disputeGameFactoryProxy = DisputeGameFactory(_addr) ;
+        else if (_sel == this.anchorStateRegistryProxy.selector) _anchorStateRegistryProxy = AnchorStateRegistry(_addr) ;
+        else if (_sel == this.anchorStateRegistryImpl.selector) _anchorStateRegistryImpl = AnchorStateRegistry(_addr) ;
+        else if (_sel == this.faultDisputeGame.selector) _faultDisputeGame = FaultDisputeGame(_addr) ;
+        else if (_sel == this.permissionedDisputeGame.selector) _permissionedDisputeGame = PermissionedDisputeGame(_addr) ;
+        else if (_sel == this.delayedWETHPermissionedGameProxy.selector) _delayedWETHPermissionedGameProxy = DelayedWETH(payable(_addr)) ;
+        else if (_sel == this.delayedWETHPermissionlessGameProxy.selector) _delayedWETHPermissionlessGameProxy = DelayedWETH(payable(_addr)) ;
         else revert("DeployOPChainOutput: unknown selector");
         // forgefmt: disable-end
     }
@@ -303,7 +304,7 @@ contract DeployOPChainOutput is BaseDeployIO {
         assertValidSystemConfig(_doi);
     }
 
-    function assertValidPermissionedDisputeGame(DeployOPChainInput _doi) internal view {
+    function assertValidPermissionedDisputeGame(DeployOPChainInput _doi) internal {
         PermissionedDisputeGame game = permissionedDisputeGame();
 
         require(GameType.unwrap(game.gameType()) == GameType.unwrap(GameTypes.PERMISSIONED_CANNON), "DPG-10");
@@ -344,7 +345,7 @@ contract DeployOPChainOutput is BaseDeployIO {
         require(address(registry.disputeGameFactory()) == address(disputeGameFactoryProxy()), "ANCHORI-10");
     }
 
-    function assertValidSystemConfig(DeployOPChainInput _doi) internal view {
+    function assertValidSystemConfig(DeployOPChainInput _doi) internal {
         SystemConfig systemConfig = systemConfigProxy();
 
         DeployUtils.assertInitialized({ _contractAddress: address(systemConfig), _slot: 0, _offset: 0 });
@@ -383,7 +384,7 @@ contract DeployOPChainOutput is BaseDeployIO {
         require(gasPayingToken == Constants.ETHER, "SYSCON-220");
     }
 
-    function assertValidL1CrossDomainMessenger(DeployOPChainInput _doi) internal view {
+    function assertValidL1CrossDomainMessenger(DeployOPChainInput _doi) internal {
         L1CrossDomainMessenger messenger = l1CrossDomainMessengerProxy();
 
         DeployUtils.assertInitialized({ _contractAddress: address(messenger), _slot: 0, _offset: 20 });
@@ -399,7 +400,7 @@ contract DeployOPChainOutput is BaseDeployIO {
         require(address(uint160(uint256(xdmSenderSlot))) == Constants.DEFAULT_L2_SENDER, "L1xDM-60");
     }
 
-    function assertValidL1StandardBridge(DeployOPChainInput _doi) internal view {
+    function assertValidL1StandardBridge(DeployOPChainInput _doi) internal {
         L1StandardBridge bridge = l1StandardBridgeProxy();
         L1CrossDomainMessenger messenger = l1CrossDomainMessengerProxy();
 
@@ -421,7 +422,7 @@ contract DeployOPChainOutput is BaseDeployIO {
         require(factory.bridge() == address(l1StandardBridgeProxy()), "MERC20F-20");
     }
 
-    function assertValidL1ERC721Bridge(DeployOPChainInput _doi) internal view {
+    function assertValidL1ERC721Bridge(DeployOPChainInput _doi) internal {
         L1ERC721Bridge bridge = l1ERC721BridgeProxy();
 
         DeployUtils.assertInitialized({ _contractAddress: address(bridge), _slot: 0, _offset: 0 });
@@ -434,7 +435,7 @@ contract DeployOPChainOutput is BaseDeployIO {
         require(address(bridge.superchainConfig()) == address(_doi.opcmProxy().superchainConfig()), "L721B-50");
     }
 
-    function assertValidOptimismPortal(DeployOPChainInput _doi) internal view {
+    function assertValidOptimismPortal(DeployOPChainInput _doi) internal {
         OptimismPortal2 portal = optimismPortalProxy();
         ISuperchainConfig superchainConfig = ISuperchainConfig(address(_doi.opcmProxy().superchainConfig()));
 

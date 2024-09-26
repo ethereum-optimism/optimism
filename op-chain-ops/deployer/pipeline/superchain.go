@@ -40,7 +40,7 @@ func DeploySuperchain(ctx context.Context, env *Env, artifactsFS foundry.StatDir
 				dso, err = opcm.DeploySuperchain(
 					host,
 					opcm.DeploySuperchainInput{
-						ProxyAdminOwner:            intent.SuperchainRoles.ProxyAdminOwner,
+						SuperchainProxyAdminOwner:  intent.SuperchainRoles.ProxyAdminOwner,
 						ProtocolVersionsOwner:      intent.SuperchainRoles.ProtocolVersionsOwner,
 						Guardian:                   intent.SuperchainRoles.Guardian,
 						Paused:                     false,
