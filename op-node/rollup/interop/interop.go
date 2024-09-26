@@ -101,7 +101,7 @@ func (d *InteropDeriver) OnEvent(ev event.Event) bool {
 			break
 		}
 		switch blockSafety {
-		case types.CrossUnsafe, types.CrossSafe, types.CrossFinalized:
+		case types.CrossUnsafe, types.CrossSafe, types.Finalized:
 			// Hold off on promoting higher than cross-unsafe,
 			// this will happen once we verify it to be local-safe first.
 			d.emitter.Emit(engine.PromoteCrossUnsafeEvent{Ref: candidate})
