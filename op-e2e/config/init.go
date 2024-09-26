@@ -120,6 +120,7 @@ func init() {
 		}
 		l2Allocs[mode] = allocs
 	}
+	mustL2Allocs(genesis.L2AllocsHolocene)
 	mustL2Allocs(genesis.L2AllocsGranite)
 	mustL2Allocs(genesis.L2AllocsFjord)
 	mustL2Allocs(genesis.L2AllocsEcotone)

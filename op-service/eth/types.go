@@ -450,16 +450,16 @@ func DecodeScalar(scalar [32]byte) (L1Scalars, error) {
 	}
 }
 
-// EncodeScalar encodes the L1Scalars into a 32-byte scalar value
+// EncodeEcotoneScalar encodes the L1Scalars into a 32-byte scalar value
 // for the Ecotone serialization format.
-func EncodeEcotoneScalars(scalars L1Scalars) (scalar [32]byte) {
+func EncodeEcotoneScalar(scalars L1Scalars) (scalar [32]byte) {
 	scalar[0] = L1ScalarEcotone
 	binary.BigEndian.PutUint32(scalar[24:28], scalars.BlobBaseFeeScalar)
 	binary.BigEndian.PutUint32(scalar[28:32], scalars.BaseFeeScalar)
 	return
 }
 
-// EncodeScalar encodes the L1Scalars into a 32-byte scalar value
+// EncodeHoloceneScalar encodes the L1Scalars into a 32-byte scalar value
 // for the Holocene serialization format.
 func EncodeHoloceneScalars(scalars L1Scalars) (scalar [32]byte) {
 	scalar[0] = L1ScalarHolocene

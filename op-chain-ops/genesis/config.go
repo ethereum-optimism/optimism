@@ -233,6 +233,10 @@ type GasPriceOracleDeployConfig struct {
 	GasPriceOracleBaseFeeScalar uint32 `json:"gasPriceOracleBaseFeeScalar" evm:"basefeeScalar"`
 	// GasPriceOracleBlobBaseFeeScalar represents the value of the blob base fee scalar used for fee calculations.
 	GasPriceOracleBlobBaseFeeScalar uint32 `json:"gasPriceOracleBlobBaseFeeScalar" evm:"blobbasefeeScalar"`
+	// GasPriceOracleOperatorFeeScalar represents the value of the base fee scalar used for fee calculations.
+	GasPriceOracleOperatorFeeScalar uint32 `json:"gasPriceOracleOperatorFeeScalar" evm:"operatorfeeScalar"`
+	// GasPriceOracleOperatorFeeConstant represents the value of the blob base fee scalar used for fee calculations.
+	GasPriceOracleOperatorFeeConstant uint64 `json:"gasPriceOracleOperatorFeeConstant" evm:"operatorfeeConstant"`
 }
 
 var _ ConfigChecker = (*GasPriceOracleDeployConfig)(nil)
@@ -245,18 +249,6 @@ func (d *GasPriceOracleDeployConfig) Check(log log.Logger) error {
 		log.Warn("GasPriceOracleBlobBaseFeeScalar is 0")
 	}
 	return nil
-}
-
-// FeeScalar returns the raw serialized fee scalar. Uses pre-Ecotone if legacy config is present,
-// otherwise uses the post-Ecotone scalar serialization.
-func (d *GasPriceOracleDeployConfig) FeeScalar() [32]byte {
-	if d.GasPriceOracleScalar != 0 {
-		return common.BigToHash(big.NewInt(int64(d.GasPriceOracleScalar)))
-	}
-	return eth.EncodeEcotoneScalars(eth.L1Scalars{
-		BlobBaseFeeScalar: d.GasPriceOracleBlobBaseFeeScalar,
-		BaseFeeScalar:     d.GasPriceOracleBaseFeeScalar,
-	})
 }
 
 // GasTokenDeployConfig configures the optional custom gas token functionality.
@@ -342,6 +334,9 @@ type UpgradeScheduleDeployConfig struct {
 	// L2GenesisGraniteTimeOffset is the number of seconds after genesis block that Granite hard fork activates.
 	// Set it to 0 to activate at genesis. Nil to disable Granite.
 	L2GenesisGraniteTimeOffset *hexutil.Uint64 `json:"l2GenesisGraniteTimeOffset,omitempty"`
+	// L2GenesisHoloceneTimeOffset is the number of seconds after genesis block that Holocene hard fork activates.
+	// Set it to 0 to activate at genesis. Nil to disable Holocene.
+	L2GenesisHoloceneTimeOffset *hexutil.Uint64 `json:"l2GenesisHoloceneTimeOffset,omitempty"`
 	// L2GenesisInteropTimeOffset is the number of seconds after genesis block that the Interop hard fork activates.
 	// Set it to 0 to activate at genesis. Nil to disable Interop.
 	L2GenesisInteropTimeOffset *hexutil.Uint64 `json:"l2GenesisInteropTimeOffset,omitempty"`
@@ -390,6 +385,10 @@ func (d *UpgradeScheduleDeployConfig) GraniteTime(genesisTime uint64) *uint64 {
 	return offsetToUpgradeTime(d.L2GenesisGraniteTimeOffset, genesisTime)
 }
 
+func (d *UpgradeScheduleDeployConfig) HoloceneTime(genesisTime uint64) *uint64 {
+	return offsetToUpgradeTime(d.L2GenesisHoloceneTimeOffset, genesisTime)
+}
+
 func (d *UpgradeScheduleDeployConfig) InteropTime(genesisTime uint64) *uint64 {
 	return offsetToUpgradeTime(d.L2GenesisInteropTimeOffset, genesisTime)
 }
@@ -422,6 +421,7 @@ func (d *UpgradeScheduleDeployConfig) forks() []Fork {
 		{L2GenesisTimeOffset: d.L2GenesisEcotoneTimeOffset, Name: string(L2AllocsEcotone)},
 		{L2GenesisTimeOffset: d.L2GenesisFjordTimeOffset, Name: string(L2AllocsFjord)},
 		{L2GenesisTimeOffset: d.L2GenesisGraniteTimeOffset, Name: string(L2AllocsGranite)},
+		{L2GenesisTimeOffset: d.L2GenesisHoloceneTimeOffset, Name: string(L2AllocsHolocene)},
 	}
 }
 
@@ -877,6 +877,29 @@ func (d *DeployConfig) SetDeployments(deployments *L1Deployments) {
 	d.DAChallengeProxy = deployments.DataAvailabilityChallengeProxy
 }
 
+// FeeScalar returns the raw serialized fee scalar. Uses pre-Ecotone if legacy config is present,
+// otherwise uses the post-Ecotone scalar serialization.
+func (d *DeployConfig) FeeScalar() [32]byte {
+	if d.GasPriceOracleScalar != 0 {
+		return common.BigToHash(big.NewInt(int64(d.GasPriceOracleScalar)))
+	}
+
+	// Only if holocene is active at genesis, use the holocene serialization.
+	if d.L2GenesisHoloceneTimeOffset != nil && *d.L2GenesisHoloceneTimeOffset == 0 {
+		return eth.EncodeHoloceneScalars(eth.L1Scalars{
+			BlobBaseFeeScalar:   d.GasPriceOracleBlobBaseFeeScalar,
+			BaseFeeScalar:       d.GasPriceOracleBaseFeeScalar,
+			OperatorFeeScalar:   d.GasPriceOracleOperatorFeeScalar,
+			OperatorFeeConstant: d.GasPriceOracleOperatorFeeConstant,
+		})
+	}
+	// Otherwise, use the ecotone serialization.
+	return eth.EncodeEcotoneScalar(eth.L1Scalars{
+		BlobBaseFeeScalar: d.GasPriceOracleBlobBaseFeeScalar,
+		BaseFeeScalar:     d.GasPriceOracleBaseFeeScalar,
+	})
+}
+
 // RollupConfig converts a DeployConfig to a rollup.Config. If Ecotone is active at genesis, the
 // Overhead value is considered a noop.
 func (d *DeployConfig) RollupConfig(l1StartBlock *types.Header, l2GenesisBlockHash common.Hash, l2GenesisBlockNumber uint64) (*rollup.Config, error) {
@@ -931,6 +954,7 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Header, l2GenesisBlockHa
 		EcotoneTime:             d.EcotoneTime(l1StartTime),
 		FjordTime:               d.FjordTime(l1StartTime),
 		GraniteTime:             d.GraniteTime(l1StartTime),
+		HoloceneTime:            d.HoloceneTime(l1StartTime),
 		InteropTime:             d.InteropTime(l1StartTime),
 		ProtocolVersionsAddress: d.ProtocolVersionsProxy,
 		AltDAConfig:             altDA,

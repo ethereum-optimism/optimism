@@ -66,7 +66,7 @@ func TestL1Scalars(t *testing.T) {
 
 func FuzzEncodeScalar(f *testing.F) {
 	f.Fuzz(func(t *testing.T, blobBaseFeeScalar uint32, baseFeeScalar uint32) {
-		encoded := EncodeEcotoneScalars(L1Scalars{BlobBaseFeeScalar: blobBaseFeeScalar, BaseFeeScalar: baseFeeScalar})
+		encoded := EncodeEcotoneScalar(L1Scalars{BlobBaseFeeScalar: blobBaseFeeScalar, BaseFeeScalar: baseFeeScalar})
 		scalars, err := DecodeScalar(encoded)
 		require.NoError(t, err)
 		require.Equal(t, blobBaseFeeScalar, scalars.BlobBaseFeeScalar)

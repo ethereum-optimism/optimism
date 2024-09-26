@@ -62,7 +62,9 @@ func NewOpGeth(t testing.TB, ctx context.Context, cfg *e2esys.SystemConfig) (*Op
 
 	var allocsMode genesis.L2AllocsMode
 	allocsMode = genesis.L2AllocsDelta
-	if graniteTime := cfg.DeployConfig.GraniteTime(l1Block.Time()); graniteTime != nil && *graniteTime <= 0 {
+	if holoceneTime := cfg.DeployConfig.HoloceneTime(l1Block.Time()); holoceneTime != nil && *holoceneTime <= 0 {
+		allocsMode = genesis.L2AllocsHolocene
+	} else if graniteTime := cfg.DeployConfig.GraniteTime(l1Block.Time()); graniteTime != nil && *graniteTime <= 0 {
 		allocsMode = genesis.L2AllocsGranite
 	} else if fjordTime := cfg.DeployConfig.FjordTime(l1Block.Time()); fjordTime != nil && *fjordTime <= 0 {
 		allocsMode = genesis.L2AllocsFjord
