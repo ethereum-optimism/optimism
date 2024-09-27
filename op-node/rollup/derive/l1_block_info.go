@@ -441,10 +441,6 @@ func isInteropButNotFirstBlock(rollupCfg *rollup.Config, l2Timestamp uint64) boo
 // isHoloceneButNotFirstBlock returns whether the specified block is subject to the Holocene upgrade,
 // but is not the activation block itself.
 func isHoloceneButNotFirstBlock(rollupCfg *rollup.Config, l2Timestamp uint64) bool {
-	// Since we use the pre-holocene L1 tx one last time during the upgrade block,
-	// we must disallow the deposit-txs from using the CrossL2Inbox during this block.
-	// If the CrossL2Inbox does not exist yet, then it is safe,
-	// but we have to ensure that the spec and code puts any Interop upgrade-txs after the user deposits.
 	return rollupCfg.IsHolocene(l2Timestamp) && !rollupCfg.IsHoloceneActivationBlock(l2Timestamp)
 }
 
