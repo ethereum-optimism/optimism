@@ -145,6 +145,7 @@ func (d *InteropDeriver) OnEvent(ev event.Event) bool {
 				Ref:         candidate,
 				DerivedFrom: derivedFrom,
 			})
+		case types.Finalized:
 			// TODO(#11673): once we have interop reorg support, we need to clean stale blocks also.
 			delete(d.derivedFrom, candidate.Hash)
 			d.emitter.Emit(engine.PromoteSafeEvent{
