@@ -32,8 +32,8 @@
     "sourceCodeHash": "0xde4df0f9633dc0cdb1c9f634003ea5b0f7c5c1aebc407bc1b2f44c0ecf938649"
   },
   "src/L1/OPContractsManager.sol": {
-    "initCodeHash": "0x4379a4a89a8db3ca0072b4cecf63e33d78567b86c82c02fb91f21db856c8a1e4",
-    "sourceCodeHash": "0xd82855264e87a5021cd1ff517a3e0da46b82bd84caa881d5a8289270a82e83ea"
+    "initCodeHash": "0xf64b41f5ec9a94ddbac484f2bdcb5792bf71e66ed6197d172cfd4592311f9b85",
+    "sourceCodeHash": "0x0ac3668c5f1ccbd49713a4e079f0dafb5cc45eca8de33e0faf0f01b1b989da89"
   },
   "src/L1/OptimismPortal.sol": {
     "initCodeHash": "0xbe2c0c81b3459014f287d8c89cdc0d27dde5d1f44e5d024fa1e4773ddc47c190",
@@ -112,8 +112,8 @@
     "sourceCodeHash": "0xd08a2e6514dbd44e16aa312a1b27b2841a9eab5622cbd05a39c30f543fad673c"
   },
   "src/L2/L2ToL2CrossDomainMessenger.sol": {
-    "initCodeHash": "0x652e07372d45f0f861aa65b4a73db55871291b875ced02df893a405419de723a",
-    "sourceCodeHash": "0xc3e73c2d9abf3c7853d2505a83e475d58e96ab5fc5ad7770d04dea5feb9e5717"
+    "initCodeHash": "0x6f19eb8ff0950156b65cd92872240c0153ac5f3b6f0861d57bf561fdbcacbeac",
+    "sourceCodeHash": "0xfea53344596d735eff3be945ed1300dc75a6f8b7b2c02c0043af5b0036f5f239"
   },
   "src/L2/OptimismSuperchainERC20.sol": {
     "initCodeHash": "0xe3dbb0851669708901a4c6bb7ad7d55f9896deeec02cbe53ac58d689ff95b88b",

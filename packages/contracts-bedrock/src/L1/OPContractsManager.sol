@@ -342,7 +342,7 @@ contract OPContractsManager is ISemver, Initializable {
         output.disputeGameFactoryProxy.setImplementation(
             GameTypes.PERMISSIONED_CANNON, IDisputeGame(address(output.permissionedDisputeGame))
         );
-        output.disputeGameFactoryProxy.transferOwnership(address(output.opChainProxyAdmin));
+        output.disputeGameFactoryProxy.transferOwnership(address(_input.roles.opChainProxyAdminOwner));
 
         impl.logic = address(output.anchorStateRegistryImpl);
         impl.initializer = AnchorStateRegistry.initialize.selector;

@@ -48,8 +48,8 @@ interface ISystemConfigV160 {
     function gasPayingTokenSymbol() external view returns (string memory symbol_);
     function initialize(
         address _owner,
-        uint32 _basefeeScalar,
-        uint32 _blobbasefeeScalar,
+        uint256 _basefeeScalar,
+        uint256 _blobbasefeeScalar,
         bytes32 _batcherHash,
         uint64 _gasLimit,
         address _unsafeBlockSigner,
