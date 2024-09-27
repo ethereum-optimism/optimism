@@ -69,7 +69,6 @@ func (s *channelManager) Clear(l1OriginLastClosedChannel eth.BlockID) {
 	defer s.mu.Unlock()
 	s.log.Trace("clearing channel manager state")
 	s.blocks.Clear()
-	// DELETEME: writing to block queue
 	s.l1OriginLastClosedChannel = l1OriginLastClosedChannel
 	s.tip = common.Hash{}
 	s.closed = false
