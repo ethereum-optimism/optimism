@@ -33,8 +33,8 @@ contract PreimageOracle is ISemver {
     uint256 public constant PRECOMPILE_CALL_RESERVED_GAS = 100_000;
 
     /// @notice The semantic version of the Preimage Oracle contract.
-    /// @custom:semver 1.1.3-beta.3
-    string public constant version = "1.1.3-beta.3";
+    /// @custom:semver 1.1.3-beta.4
+    string public constant version = "1.1.3-beta.4";
 
     ////////////////////////////////////////////////////////////////
     //                 Authorized Preimage Parts                  //
@@ -129,7 +129,7 @@ contract PreimageOracle is ISemver {
         dat_ = preimageParts[_key][_offset];
     }
 
-    /// @notice Loads of local data part into the preimage oracle.
+    /// @notice Loads local data parts into the preimage oracle.
     /// @param _ident The identifier of the local data.
     /// @param _localContext The local key context for the preimage oracle. Optionally, can be set as a constant
     ///                      if the caller only requires one set of local keys.
