@@ -19,7 +19,7 @@ contract OptimismSuperchainERC20Factory is IOptimismSuperchainERC20Factory, ISem
     mapping(address superchainToken => address remoteToken) public deployments;
 
     /// @notice Emitted when an OptimismSuperchainERC20 is deployed.
-    /// @param superchainToken  Address of the SuperchainERC20 deployment.
+    /// @param superchainToken  Address of the OptimismSuperchainERC20 deployment.
     /// @param remoteToken      Address of the corresponding token on the remote chain.
     /// @param deployer         Address of the account that deployed the token.
     event OptimismSuperchainERC20Created(

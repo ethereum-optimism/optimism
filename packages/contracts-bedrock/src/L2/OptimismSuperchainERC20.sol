@@ -13,9 +13,9 @@ import { Initializable } from "@openzeppelin/contracts-v5/proxy/utils/Initializa
 /// @title OptimismSuperchainERC20
 /// @notice OptimismSuperchainERC20 is a standard extension of the base ERC20 token contract that unifies ERC20 token
 ///         bridging to make it fungible across the Superchain. This construction allows the L2StandardBridge to burn
-///         and mint tokens. This makes it possible to convert a valid OptimismMintableERC20 token to a SuperchainERC20
-///         token, turning it fungible and interoperable across the superchain. Likewise, it also enables the inverse
-///         conversion path.
+///         and mint tokens. This makes it possible to convert a valid OptimismMintableERC20 token to a
+///         OptimismSuperchainERC20 token, turning it fungible and interoperable across the superchain. Likewise, it
+///         also enables the inverse conversion path.
 ///         Moreover, it builds on top of the L2ToL2CrossDomainMessenger for both replay protection and domain binding.
 contract OptimismSuperchainERC20 is ERC20, Initializable, ERC165, IOptimismSuperchainERC20Extension, ISemver {
     /// @notice Storage slot that the OptimismSuperchainERC20Metadata struct is stored at.
@@ -81,7 +81,7 @@ contract OptimismSuperchainERC20 is ERC20, Initializable, ERC165, IOptimismSuper
         _storage.decimals = _decimals;
     }
 
-    /// @notice Allows the L2StandardBridge and SuperchainERC20Bridge bridges to mint tokens.
+    /// @notice Allows the L2StandardBridge and SuperchainERC20Bridge to mint tokens.
     /// @param _to     Address to mint tokens to.
     /// @param _amount Amount of tokens to mint.
     function mint(address _to, uint256 _amount) external virtual onlyAuthorizedBridge {
@@ -92,7 +92,7 @@ contract OptimismSuperchainERC20 is ERC20, Initializable, ERC165, IOptimismSuper
         emit Mint(_to, _amount);
     }
 
-    /// @notice Allows the L2StandardBridge and SuperchainERC20Bridge bridges to burn tokens.
+    /// @notice Allows the L2StandardBridge and SuperchainERC20Bridge to burn tokens.
     /// @param _from   Address to burn tokens from.
     /// @param _amount Amount of tokens to burn.
     function burn(address _from, uint256 _amount) external virtual onlyAuthorizedBridge {

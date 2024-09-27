@@ -17,8 +17,8 @@ import { IOptimismSuperchainERC20Factory } from "src/L2/interfaces/IOptimismSupe
 /// @notice Contract for testing the SuperchainERC20Bridge contract.
 contract SuperchainERC20BridgeTest is Bridge_Initializer {
     address internal constant ZERO_ADDRESS = address(0);
-    string internal constant NAME = "SuperchainERC20";
-    string internal constant SYMBOL = "SCE";
+    string internal constant NAME = "OptimismSuperchainERC20";
+    string internal constant SYMBOL = "OSE";
     address internal constant REMOTE_TOKEN = address(0x123);
 
     event Transfer(address indexed from, address indexed to, uint256 value);
