@@ -422,10 +422,5 @@
     "inputs": [],
     "name": "NotCustomGasToken",
     "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ZeroAddress",
-    "type": "error"
   }
 ]

@@ -5,24 +5,23 @@ pragma solidity 0.8.15;
 import { WETH98 } from "src/universal/WETH98.sol";
 
 // Libraries
-import { Unauthorized, NotCustomGasToken } from "src/libraries/errors/CommonErrors.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 
 // Interfaces
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { IL2ToL2CrossDomainMessenger } from "src/L2/interfaces/IL2ToL2CrossDomainMessenger.sol";
-import { ISuperchainERC20Extensions } from "src/L2/interfaces/ISuperchainERC20.sol";
 import { IL1Block } from "src/L2/interfaces/IL1Block.sol";
 import { IETHLiquidity } from "src/L2/interfaces/IETHLiquidity.sol";
+import { ISuperchainWETH } from "src/L2/interfaces/ISuperchainWETH.sol";
 
 /// @title SuperchainWETH
 /// @notice SuperchainWETH is a version of WETH that can be freely transfrered between chains
 ///         within the superchain. SuperchainWETH can be converted into native ETH on chains that
 ///         do not use a custom gas token.
-contract SuperchainWETH is WETH98, ISuperchainERC20Extensions, ISemver {
+contract SuperchainWETH is WETH98, ISuperchainWETH, ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.6
-    string public constant version = "1.0.0-beta.6";
+    /// @custom:semver 1.0.0-beta.7
+    string public constant version = "1.0.0-beta.7";
 
     /// @inheritdoc WETH98
     function deposit() public payable override {
@@ -36,7 +35,7 @@ contract SuperchainWETH is WETH98, ISuperchainERC20Extensions, ISemver {
         super.withdraw(wad);
     }
 
-    /// @inheritdoc ISuperchainERC20Extensions
+    /// @inheritdoc ISuperchainWETH
     function sendERC20(address dst, uint256 wad, uint256 chainId) public {
         // Burn from user's balance.
         _burn(msg.sender, wad);
@@ -57,7 +56,7 @@ contract SuperchainWETH is WETH98, ISuperchainERC20Extensions, ISemver {
         emit SendERC20(msg.sender, dst, wad, chainId);
     }
 
-    /// @inheritdoc ISuperchainERC20Extensions
+    /// @inheritdoc ISuperchainWETH
     function relayERC20(address from, address dst, uint256 wad) external {
         // Receive message from other chain.
         IL2ToL2CrossDomainMessenger messenger = IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);

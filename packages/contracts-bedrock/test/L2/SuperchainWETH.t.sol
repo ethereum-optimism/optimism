@@ -11,7 +11,7 @@ import { NotCustomGasToken } from "src/libraries/errors/CommonErrors.sol";
 // Interfaces
 import { IL2ToL2CrossDomainMessenger } from "src/L2/interfaces/IL2ToL2CrossDomainMessenger.sol";
 import { IETHLiquidity } from "src/L2/interfaces/IETHLiquidity.sol";
-import { ISuperchainERC20Errors } from "src/L2/interfaces/ISuperchainERC20.sol";
+import { ISuperchainWETH } from "src/L2/interfaces/ISuperchainWETH.sol";
 
 /// @title SuperchainWETH_Test
 /// @notice Contract for testing the SuperchainWETH contract.
@@ -321,7 +321,7 @@ contract SuperchainWETH_Test is CommonTest {
         // Nothing to arrange.
 
         // Act
-        vm.expectRevert(ISuperchainERC20Errors.CallerNotL2ToL2CrossDomainMessenger.selector);
+        vm.expectRevert(ISuperchainWETH.CallerNotL2ToL2CrossDomainMessenger.selector);
         vm.prank(alice);
         superchainWeth.relayERC20(_sender, bob, _amount);
 
@@ -346,7 +346,7 @@ contract SuperchainWETH_Test is CommonTest {
         );
 
         // Act
-        vm.expectRevert(ISuperchainERC20Errors.InvalidCrossDomainSender.selector);
+        vm.expectRevert(ISuperchainWETH.InvalidCrossDomainSender.selector);
         vm.prank(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
         superchainWeth.relayERC20(_sender, bob, _amount);
 
