@@ -70,7 +70,8 @@ func (s *channel) TxFailed(id string) {
 // TxConfirmed marks a transaction as confirmed on L1. Unfortunately even if all frames in
 // a channel have been marked as confirmed on L1 the channel may be invalid & need to be
 // resubmitted.
-// This function may reset the pending channel if the pending channel has timed out.
+// This function may reset the pending channel if the pending channel has timed out, in this case
+// the blocks from the channel are returned so that they can be requeued.
 func (s *channel) TxConfirmed(id string, inclusionBlock eth.BlockID) (bool, []*types.Block) {
 	s.metr.RecordBatchTxSubmitted()
 	s.log.Debug("marked transaction as confirmed", "id", id, "block", inclusionBlock)

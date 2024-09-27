@@ -87,7 +87,7 @@ func ChannelManagerReturnsErrReorg(t *testing.T, batchType uint) {
 	require.NoError(t, m.AddL2Block(c))
 	require.ErrorIs(t, m.AddL2Block(x), ErrReorg)
 
-	require.Equal(t, []*types.Block{a, b, c}, m.blocks)
+	require.Equal(t, []*types.Block{a, b, c}, m.blocks.slice)
 }
 
 // ChannelManagerReturnsErrReorgWhenDrained ensures that the channel manager
@@ -161,7 +161,7 @@ func ChannelManager_Clear(t *testing.T, batchType uint) {
 	_, err := m.nextTxData(m.currentChannel)
 	require.NoError(err)
 	require.NotNil(m.l1OriginLastClosedChannel)
-	require.Len(m.blocks, 0)
+	require.Len(m.blocks.slice, 0)
 	require.Equal(newL1Tip, m.tip)
 	require.Len(m.currentChannel.pendingTransactions, 1)
 
@@ -172,7 +172,7 @@ func ChannelManager_Clear(t *testing.T, batchType uint) {
 		ParentHash: a.Hash(),
 	}, nil, nil, nil)
 	require.NoError(m.AddL2Block(b))
-	require.Len(m.blocks, 1)
+	require.Len(m.blocks.slice, 1)
 	require.Equal(b.Hash(), m.tip)
 
 	safeL1Origin := eth.BlockID{
@@ -182,7 +182,7 @@ func ChannelManager_Clear(t *testing.T, batchType uint) {
 	m.Clear(safeL1Origin)
 
 	// Check that the entire channel manager state cleared
-	require.Empty(m.blocks)
+	require.Empty(m.blocks.slice)
 	require.Equal(uint64(123), m.l1OriginLastClosedChannel.Number)
 	require.Equal(common.Hash{}, m.tip)
 	require.Nil(m.currentChannel)
@@ -569,7 +569,7 @@ func TestChannelManager_TxData(t *testing.T) {
 			// Seed channel manager with a block
 			rng := rand.New(rand.NewSource(99))
 			blockA := derivetest.RandomL2BlockWithChainId(rng, 200, defaultTestRollupConfig.L2ChainID)
-			m.blocks = []*types.Block{blockA}
+			m.blocks.slice = []*types.Block{blockA}
 
 			// Call TxData a first time to trigger blocks->channels pipeline
 			_, err := m.TxData(eth.BlockID{})
@@ -590,7 +590,7 @@ func TestChannelManager_TxData(t *testing.T) {
 			// we get some data to submit
 			var data txData
 			for {
-				m.blocks = []*types.Block{blockA}
+				m.blocks.slice = []*types.Block{blockA}
 				data, err = m.TxData(eth.BlockID{})
 				if err == nil && data.Len() > 0 {
 					break
@@ -627,7 +627,7 @@ func TestChannelManager_Requeue(t *testing.T) {
 	// This is the snapshot of channel manager state we want to reinstate
 	// when we requeue
 	stateSnapshot := []*types.Block{blockA, blockB}
-	m.blocks = stateSnapshot
+	m.blocks.slice = stateSnapshot
 	require.Empty(t, m.channelQueue)
 
 	// Trigger the blocks -> channelQueue data pipelining
@@ -636,13 +636,13 @@ func TestChannelManager_Requeue(t *testing.T) {
 	require.NoError(t, m.processBlocks())
 
 	// Assert that at least one block was processed into the channel
-	require.NotContains(t, m.blocks, blockA)
+	require.NotContains(t, m.blocks.slice, blockA)
 
 	// Call the function we are testing
 	m.Requeue(m.defaultCfg)
 
 	// Ensure we got back to the state above
-	require.Equal(t, m.blocks, stateSnapshot)
+	require.Equal(t, m.blocks.slice, stateSnapshot)
 	require.Empty(t, m.channelQueue)
 
 	// Trigger the blocks -> channelQueue data pipelining again
@@ -651,7 +651,7 @@ func TestChannelManager_Requeue(t *testing.T) {
 	require.NoError(t, m.processBlocks())
 
 	// Assert that at least one block was processed into the channel
-	require.NotContains(t, m.blocks, blockA)
+	require.NotContains(t, m.blocks.slice, blockA)
 
 	// Now mark the 0th channel in the queue as already
 	// starting to send on chain
@@ -664,5 +664,5 @@ func TestChannelManager_Requeue(t *testing.T) {
 
 	// The requeue shouldn't affect the pending channel
 	require.Contains(t, m.channelQueue, channel0)
-	require.NotContains(t, m.blocks, blockA)
+	require.NotContains(t, m.blocks.slice, blockA)
 }
