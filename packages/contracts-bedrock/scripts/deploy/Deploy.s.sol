@@ -678,7 +678,7 @@ contract Deploy is Deployer {
                 _save: this,
                 _salt: _implSalt(),
                 _name: "SuperchainConfig",
-                _args: abi.encodeCall(ISuperchainConfig.__constructor__, ())
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(ISuperchainConfig.__constructor__, ()))
             })
         );
 
@@ -694,7 +694,7 @@ contract Deploy is Deployer {
                 _save: this,
                 _salt: _implSalt(),
                 _name: "L1CrossDomainMessenger",
-                _args: abi.encodeCall(IL1CrossDomainMessenger.__constructor__, ())
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IL1CrossDomainMessenger.__constructor__, ()))
             })
         );
 
@@ -718,7 +718,7 @@ contract Deploy is Deployer {
             _save: this,
             _salt: _implSalt(),
             _name: "OptimismPortal",
-            _args: abi.encodeCall(IOptimismPortal.__constructor__, ())
+            _args: DeployUtils.encodeConstructor(abi.encodeCall(IOptimismPortal.__constructor__, ()))
         });
 
         // Override the `OptimismPortal` contract to the deployed implementation. This is necessary
@@ -778,7 +778,7 @@ contract Deploy is Deployer {
                 _save: this,
                 _salt: _implSalt(),
                 _name: "L2OutputOracle",
-                _args: abi.encodeCall(IL2OutputOracle.__constructor__, ())
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IL2OutputOracle.__constructor__, ()))
             })
         );
 
@@ -804,7 +804,7 @@ contract Deploy is Deployer {
                 _save: this,
                 _salt: _implSalt(),
                 _name: "OptimismMintableERC20Factory",
-                _args: abi.encodeCall(IOptimismMintableERC20Factory.__constructor__, ())
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IOptimismMintableERC20Factory.__constructor__, ()))
             })
         );
 
@@ -825,7 +825,7 @@ contract Deploy is Deployer {
                 _save: this,
                 _salt: _implSalt(),
                 _name: "DisputeGameFactory",
-                _args: abi.encodeCall(IDisputeGameFactory.__constructor__, ())
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IDisputeGameFactory.__constructor__, ()))
             })
         );
 
@@ -872,7 +872,7 @@ contract Deploy is Deployer {
                 _save: this,
                 _salt: _implSalt(),
                 _name: "ProtocolVersions",
-                _args: abi.encodeCall(IProtocolVersions.__constructor__, ())
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IProtocolVersions.__constructor__, ()))
             })
         );
 
@@ -951,7 +951,7 @@ contract Deploy is Deployer {
                 _save: this,
                 _salt: _implSalt(),
                 _name: "SystemConfigInterop",
-                _args: abi.encodeCall(ISystemConfigInterop.__constructor__, ())
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(ISystemConfigInterop.__constructor__, ()))
             });
             save("SystemConfig", addr_);
         } else {
@@ -959,7 +959,7 @@ contract Deploy is Deployer {
                 _save: this,
                 _salt: _implSalt(),
                 _name: "SystemConfig",
-                _args: abi.encodeCall(ISystemConfig.__constructor__, ())
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(ISystemConfig.__constructor__, ()))
             });
         }
 
@@ -978,7 +978,7 @@ contract Deploy is Deployer {
                 _save: this,
                 _salt: _implSalt(),
                 _name: "L1StandardBridge",
-                _args: abi.encodeCall(IL1StandardBridge.__constructor__, ())
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IL1StandardBridge.__constructor__, ()))
             })
         );
 
@@ -999,7 +999,7 @@ contract Deploy is Deployer {
                 _save: this,
                 _salt: _implSalt(),
                 _name: "L1ERC721Bridge",
-                _args: abi.encodeCall(IL1ERC721Bridge.__constructor__, ())
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IL1ERC721Bridge.__constructor__, ()))
             })
         );
 
@@ -1035,7 +1035,7 @@ contract Deploy is Deployer {
                 _save: this,
                 _salt: _implSalt(),
                 _name: "DataAvailabilityChallenge",
-                _args: abi.encodeCall(IDataAvailabilityChallenge.__constructor__, ())
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IDataAvailabilityChallenge.__constructor__, ()))
             })
         );
         addr_ = address(dac);
