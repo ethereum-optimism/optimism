@@ -111,6 +111,7 @@ func (d *InteropDeriver) onLocalUnsafeUpdate(x engine.UnsafeUpdateEvent) {
 	defer cancel()
 	if err := d.backend.UpdateLocalUnsafe(ctx, d.chainID, x.Ref); err != nil {
 		d.log.Warn("Failed to signal unsafe L2 head to interop backend", "head", x.Ref, "err", err)
+		// still continue to try and do a cross-unsafe update
 	}
 	// Now that the op-supervisor is aware of the new local-unsafe block, we want to check if cross-unsafe changed.
 	d.emitter.Emit(engine.RequestCrossUnsafeEvent{})
@@ -122,18 +123,24 @@ func (d *InteropDeriver) onLocalSafeUpdate(x engine.LocalSafeUpdateEvent) {
 	defer cancel()
 	if err := d.backend.UpdateLocalSafe(ctx, d.chainID, x.DerivedFrom, x.Ref); err != nil {
 		d.log.Debug("Failed to signal derived-from update to interop backend", "derivedFrom", x.DerivedFrom, "block", x.Ref)
+		// still continue to try and do a cross-safe update
 	}
 	// Now that the op-supervisor is aware of the new local-safe block, we want to check if cross-safe changed.
 	d.emitter.Emit(engine.RequestCrossSafeEvent{})
 }
 
 func (d *InteropDeriver) onFinalizedL1(x finality.FinalizeL1Event) {
+	if !d.cfg.IsInterop(x.FinalizedL1.Time) {
+		return
+	}
 	d.log.Debug("Signaling finalized L1 update to interop backend", "finalized", x.FinalizedL1)
 	ctx, cancel := context.WithTimeout(d.driverCtx, rpcTimeout)
 	defer cancel()
 	if err := d.backend.UpdateFinalizedL1(ctx, d.chainID, x.FinalizedL1); err != nil {
 		d.log.Warn("Failed to signal finalized L1 block to interop backend", "finalized", x.FinalizedL1, "err", err)
 	}
+	// New L2 blocks may be ready to finalize now that the backend knows of new L1 finalized info.
+	d.emitter.Emit(engine.RequestFinalizedUpdateEvent{})
 }
 
 func (d *InteropDeriver) onCrossUnsafe(x engine.CrossUnsafeUpdateEvent) error {
@@ -142,8 +149,8 @@ func (d *InteropDeriver) onCrossUnsafe(x engine.CrossUnsafeUpdateEvent) error {
 	}
 
 	// Pre-interop the engine itself handles promotion to cross-unsafe.
-	// Check if the next block (still unsafe) can be promoted to cross-unsafe.
-	if !d.cfg.IsInterop(d.cfg.TimestampForBlock(x.CrossUnsafe.Number + 1)) {
+	// Start checking cross-unsafe once the local-unsafe block is in the interop update.
+	if !d.cfg.IsInterop(x.LocalUnsafe.Time) {
 		return nil
 	}
 	ctx, cancel := context.WithTimeout(d.driverCtx, rpcTimeout)
@@ -181,8 +188,8 @@ func (d *InteropDeriver) onCrossSafeUpdateEvent(x engine.CrossSafeUpdateEvent) e
 		return nil // nothing left to promote
 	}
 	// Pre-interop the engine itself handles promotion to cross-safe.
-	// Check if the next block (not yet cross-safe) can be promoted to cross-safe.
-	if !d.cfg.IsInterop(d.cfg.TimestampForBlock(x.CrossSafe.Number + 1)) {
+	// Start checking cross-safe once the local-safe block is in the interop update.
+	if !d.cfg.IsInterop(x.LocalSafe.Time) {
 		return nil
 	}
 	ctx, cancel := context.WithTimeout(d.driverCtx, rpcTimeout)
@@ -222,6 +229,9 @@ func (d *InteropDeriver) onCrossSafeUpdateEvent(x engine.CrossSafeUpdateEvent) e
 }
 
 func (d *InteropDeriver) onFinalizedUpdate(x engine.FinalizedUpdateEvent) error {
+	// Note: we have to check interop fork, but finality may be pre-fork activation until we update.
+	// We may want to change this to only start checking finality once the local head is past the activation.
+
 	ctx, cancel := context.WithTimeout(d.driverCtx, rpcTimeout)
 	defer cancel()
 

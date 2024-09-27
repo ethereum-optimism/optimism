@@ -42,7 +42,11 @@ func TestInteropVerifier(gt *testing.T) {
 	ver.ActL2PipelineFull(t)
 
 	l2ChainID := types.ChainIDFromBig(sd.RollupCfg.L2ChainID)
-	seqMockBackend.ExpectCheckBlock(l2ChainID, 1, types.LocalUnsafe, nil)
+	seqMockBackend.OnUnsafeView(l2ChainID, func(request types.ReferenceView) (result types.ReferenceView, err error) {
+		require.Equal(t, uint64(1), request.Local.Number)
+		require.Equal(t, uint64(0), request.Cross.Number)
+		return request, nil
+	})
 	// create an unsafe L2 block
 	seq.ActL2StartBlock(t)
 	seq.ActL2EndBlock(t)
@@ -56,7 +60,13 @@ func TestInteropVerifier(gt *testing.T) {
 
 	// promote it to cross-unsafe in the backend
 	// and see if the node picks up on it
-	seqMockBackend.ExpectCheckBlock(l2ChainID, 1, types.CrossUnsafe, nil)
+	seqMockBackend.OnUnsafeView(l2ChainID, func(request types.ReferenceView) (result types.ReferenceView, err error) {
+		require.Equal(t, uint64(1), request.Local.Number)
+		require.Equal(t, uint64(0), request.Cross.Number)
+		out := request
+		out.Cross = request.Local
+		return out, nil
+	})
 	seq.ActInteropBackendCheck(t)
 	seq.ActL2PipelineFull(t)
 	seqMockBackend.AssertExpectations(t)
@@ -74,7 +84,7 @@ func TestInteropVerifier(gt *testing.T) {
 	l1Miner.ActL1EndBlock(t)
 
 	// Sync the L1 block, to verify the L2 block as local-safe.
-	seqMockBackend.ExpectCheckBlock(l2ChainID, 1, types.CrossUnsafe, nil) // not cross-safe yet
+	seqMockBackend.ExpectAnyUpdateLocalUnsafe(l2ChainID, nil)
 	seq.ActL1HeadSignal(t)
 	seq.ActL2PipelineFull(t)
 	seqMockBackend.AssertExpectations(t)
@@ -86,7 +96,13 @@ func TestInteropVerifier(gt *testing.T) {
 	require.Equal(t, uint64(0), status.SafeL2.Number)
 
 	// Now mark it as cross-safe
-	seqMockBackend.ExpectCheckBlock(l2ChainID, 1, types.CrossSafe, nil)
+	seqMockBackend.OnSafeView(l2ChainID, func(request types.ReferenceView) (result types.ReferenceView, err error) {
+		require.Equal(t, uint64(1), request.Local.Number)
+		require.Equal(t, uint64(0), request.Cross.Number)
+		out := request
+		out.Cross = request.Local
+		return out, nil
+	})
 	seq.ActInteropBackendCheck(t)
 	seq.ActL2PipelineFull(t)
 	seqMockBackend.AssertExpectations(t)
@@ -99,8 +115,18 @@ func TestInteropVerifier(gt *testing.T) {
 	require.Equal(t, uint64(0), status.FinalizedL2.Number)
 
 	// The verifier might not see the L2 block that was just derived from L1 as cross-verified yet.
-	verMockBackend.ExpectCheckBlock(l2ChainID, 1, types.LocalUnsafe, nil) // for the local unsafe check
-	verMockBackend.ExpectCheckBlock(l2ChainID, 1, types.LocalUnsafe, nil) // for the local safe check
+	verMockBackend.OnUnsafeView(l2ChainID, func(request types.ReferenceView) (result types.ReferenceView, err error) {
+		require.Equal(t, uint64(1), request.Local.Number)
+		require.Equal(t, uint64(0), request.Cross.Number)
+		// Don't promote the Cross value yet
+		return request, nil
+	})
+	verMockBackend.OnSafeView(l2ChainID, func(request types.ReferenceView) (result types.ReferenceView, err error) {
+		require.Equal(t, uint64(1), request.Local.Number)
+		require.Equal(t, uint64(0), request.Cross.Number)
+		// Don't promote the Cross value yet
+		return request, nil
+	})
 	ver.ActL1HeadSignal(t)
 	ver.ActL2PipelineFull(t)
 	verMockBackend.AssertExpectations(t)
