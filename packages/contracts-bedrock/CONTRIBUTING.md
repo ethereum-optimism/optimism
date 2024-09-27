@@ -39,7 +39,7 @@ If you have any questions about the smart contracts, please feel free to ask the
 
 #### How Do I Submit a Good Enhancement Suggestion?
 
-Enhancement suggestions are tracked as [GitHub issues](/issues).
+Enhancement suggestions are tracked as [GitHub issues](https://github.com/ethereum-optimism/optimism/issues).
 
 - Use a **clear and descriptive title** for the issue to identify the suggestion.
 - Provide a **step-by-step** description of the suggested enhancement in as many details as possible.
