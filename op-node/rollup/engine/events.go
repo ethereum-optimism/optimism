@@ -435,7 +435,7 @@ func (d *EngDeriver) OnEvent(ev event.Event) bool {
 			return true
 		}
 		d.ec.SetFinalizedHead(x.Ref)
-		d.emitter.Emit(FinalizedUpdateEvent{Ref: x.Ref})
+		d.emitter.Emit(FinalizedUpdateEvent(x))
 		// Try to apply the forkchoice changes
 		d.emitter.Emit(TryUpdateEngineEvent{})
 	case RequestFinalizedUpdateEvent:
