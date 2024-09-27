@@ -40,8 +40,8 @@ func (vi *View) UpdateLocal(at eth.L1BlockRef, ref eth.L2BlockRef) error {
 	}
 	vi.localDerivedFrom = at
 
-	// TODO(devnet 2) reorg check against existing DB
-	// TODO localView may be larger than what DB contents we have
+	// TODO(#11693): reorg check against existing DB
+	// TODO(#12186): localView may be larger than what DB contents we have
 	return nil
 }
 
@@ -51,7 +51,7 @@ func (vi *View) Process() error {
 		if !ok {
 			return logs.ErrFuture // maybe a more specific error for no-genesis case?
 		}
-		// TODO: reorg check in the future. To make sure that what we traverse is still canonical.
+		// TODO(#11693): reorg check in the future. To make sure that what we traverse is still canonical.
 		_ = hash
 		// check if L2 block is within view
 		if !vi.localView.WithinRange(num, 0) {
@@ -71,7 +71,7 @@ func (vi *View) Process() error {
 			// relative to the L1 view of current message.
 			// And check if the message is valid to execute at all
 			// (i.e. if it exists on the initiating side).
-			// TODO(devnet2): it's inaccurate to check with the view of the local-unsafe
+			// TODO(#12187): it's inaccurate to check with the view of the local-unsafe
 			// it should be limited to the L1 view at the time of the inclusion of execution of the message.
 			err := vi.validWithinView(vi.localDerivedFrom.Number, execMsg)
 			if err != nil {

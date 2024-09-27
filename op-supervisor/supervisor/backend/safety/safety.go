@@ -173,15 +173,12 @@ func (r *safetyIndex) advanceFinalized() {
 			r.log.Info("Failed to get cross-safe data, cannot finalize", "chain", chainID, "err", err)
 			continue
 		}
-		// TODO we need to consider older cross-safe data,
+		// TODO(#12184): we need to consider older cross-safe data,
 		//  if we want to finalize something at all on longer lagging finality signal.
 		// Could consider just iterating over all derivedFrom contents?
 		l1Dep := r.derivedFrom[chainID][crossSafe.LastSealedBlockHash]
 		if l1Dep.Number < r.finalizedL1.Number {
-			// TODO Temporary: truncated hashes have been replaced with full hashes
-			fullHash := common.Hash{}
-			fullHash.SetBytes(crossSafe.LastSealedBlockHash[:])
-			r.finalized[chainID] = eth.BlockID{Hash: fullHash, Number: crossSafe.LastSealedBlockNum}
+			r.finalized[chainID] = eth.BlockID{Hash: crossSafe.LastSealedBlockHash, Number: crossSafe.LastSealedBlockNum}
 			finalized := r.finalized[chainID]
 			r.log.Debug("Updated finalized head", "chainID", chainID, "finalized", finalized)
 		}
@@ -260,7 +257,7 @@ func (r *safetyIndex) ValidWithinSafeView(l1View uint64, execMsg *types.Executin
 	// check if the L1 block of the executing message is known
 	execL1Block, ok := r.derivedFrom[execChainID][l2BlockHash]
 	if !ok {
-		return logs.ErrFuture // TODO need to distinguish between same-data future, and new-data future
+		return logs.ErrFuture // TODO(#12185) need to distinguish between same-data future, and new-data future
 	}
 	// check if the L1 block is within the view
 	if execL1Block.Number > l1View {

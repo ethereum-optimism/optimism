@@ -108,7 +108,7 @@ func (db *ChainsDB) Check(chain types.ChainID, blockNum uint64, logIdx uint32, l
 	if err != nil {
 		return common.Hash{}, err
 	}
-	// TODO: need to get the actual block hash for this log entry
+	// TODO(#11693): need to get the actual block hash for this log entry for reorg detection
 	return common.Hash{}, nil
 }
 
