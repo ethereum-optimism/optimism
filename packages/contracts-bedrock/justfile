@@ -163,7 +163,7 @@ semver-diff-check: build semver-diff-check-no-build
 # Checks that semver natspec is equal to the actual semver version.
 # Does not build contracts.
 semver-natspec-check-no-build:
-  ./scripts/checks/check-semver-natspec-match.sh
+    go run ./scripts/checks/semver-natspec
 
 # Checks that semver natspec is equal to the actual semver version.
 semver-natspec-check: build semver-natspec-check-no-build
