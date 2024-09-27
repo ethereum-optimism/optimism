@@ -1,13 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Testing
 import { Test } from "forge-std/Test.sol";
+import { SimpleStorage } from "test/universal/Proxy.t.sol";
+
+// Contracts
 import { Proxy } from "src/universal/Proxy.sol";
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
-import { SimpleStorage } from "test/universal/Proxy.t.sol";
+import { AddressManager } from "src/legacy/AddressManager.sol";
 import { L1ChugSplashProxy } from "src/legacy/L1ChugSplashProxy.sol";
 import { ResolvedDelegateProxy } from "src/legacy/ResolvedDelegateProxy.sol";
-import { AddressManager } from "src/legacy/AddressManager.sol";
+
+// Interfaces
+import { IAddressManager } from "src/legacy/interfaces/IAddressManager.sol";
 
 contract ProxyAdmin_Test is Test {
     address alice = address(64);
@@ -45,7 +51,7 @@ contract ProxyAdmin_Test is Test {
         // Set the address of the address manager in the admin so that it
         // can resolve the implementation address of legacy
         // ResolvedDelegateProxy based proxies.
-        admin.setAddressManager(addressManager);
+        admin.setAddressManager(IAddressManager(address(addressManager)));
         // Set the reverse lookup of the ResolvedDelegateProxy
         // proxy
         admin.setImplementationName(address(resolved), "a");
@@ -67,7 +73,7 @@ contract ProxyAdmin_Test is Test {
 
     function test_setAddressManager_notOwner_reverts() external {
         vm.expectRevert("Ownable: caller is not the owner");
-        admin.setAddressManager(AddressManager((address(0))));
+        admin.setAddressManager(IAddressManager((address(0))));
     }
 
     function test_setImplementationName_notOwner_reverts() external {
