@@ -108,8 +108,9 @@ func (s *channelManager) TxConfirmed(_id txID, inclusionBlock eth.BlockID) {
 		done, blocks := channel.TxConfirmed(id, inclusionBlock)
 		if done {
 			s.removePendingChannel(channel)
-		} else {
-			s.blocks.Prepend(blocks...)
+			if len(blocks) > 0 {
+				s.blocks.Prepend(blocks...)
+			}
 		}
 	} else {
 		s.log.Warn("transaction from unknown channel marked as confirmed", "id", id)
