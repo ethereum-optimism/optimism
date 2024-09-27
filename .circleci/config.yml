@@ -335,9 +335,21 @@ jobs:
 
             echo "Setting GIT_VERSION=$GIT_VERSION"
             
-            IMAGES="<<parameters.targets>>"
-            IFS=' '
-            for target in $IMAGES; do
+            IMAGES=(
+              op-node
+              op-batcher
+              op-program
+              op-proposer
+              op-challenger
+              proofs-tools
+              op-dispute-mon
+              op-conductor
+              da-server
+              op-supervisor
+              op-deployer
+              cannon
+            )
+            for target in "${IMAGES[@]}"; do
               echo "Building for platforms $PLATFORMS and then loading into docker"
               docker buildx bake \
               --progress plain \
@@ -1462,20 +1474,7 @@ workflows:
 #            - op-program-docker-build
 #            - op-supervisor-docker-build
 #            - proofs-tools-docker-build
-      - docker-build-pr:
-          docker_name:
-            - op-node
-            - op-batcher
-            - op-program
-            - op-proposer
-            - op-challenger
-            - proofs-tools
-            - op-dispute-mon
-            - op-conductor
-            - da-server
-            - op-supervisor
-            - op-deployer
-            - cannon
+      - docker-build-pr
       - cannon-prestate:
           requires:
             - go-mod-download
