@@ -149,7 +149,6 @@ func (r *safetyIndex) advanceCrossSafe() {
 		r.log.Debug("Updated local safe head", "chainID", chainID, "cross", cross)
 	}
 	r.advanceFinalized()
-	// TODO prune any L2 derivedFrom entry older than the L2 finalized entry
 }
 
 // UpdateFinalizeL1 updates the finalized L1 block, and advances the finalized safety status.
