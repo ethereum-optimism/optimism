@@ -128,8 +128,8 @@ contract OPContractsManager is ISemver, Initializable {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 1.0.0-beta.14
-    string public constant version = "1.0.0-beta.14";
+    /// @custom:semver 1.0.0-beta.15
+    string public constant version = "1.0.0-beta.15";
 
     /// @notice Represents the interface version so consumers know how to decode the DeployOutput struct
     /// that's emitted in the `Deployed` event. Whenever that struct changes, a new version should be used.
@@ -342,7 +342,7 @@ contract OPContractsManager is ISemver, Initializable {
         output.disputeGameFactoryProxy.setImplementation(
             GameTypes.PERMISSIONED_CANNON, IDisputeGame(address(output.permissionedDisputeGame))
         );
-        output.disputeGameFactoryProxy.transferOwnership(address(output.opChainProxyAdmin));
+        output.disputeGameFactoryProxy.transferOwnership(address(_input.roles.opChainProxyAdminOwner));
 
         impl.logic = address(output.anchorStateRegistryImpl);
         impl.initializer = AnchorStateRegistry.initialize.selector;

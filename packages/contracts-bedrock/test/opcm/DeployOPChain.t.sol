@@ -417,6 +417,7 @@ contract DeployOPChain_TestBase is Test {
             string.concat(vm.projectRoot(), "/test/fixtures/standard-versions.toml");
         string memory standardVersionsToml = vm.readFile(standardVersionsTomlPath);
         dii.set(dii.standardVersionsToml.selector, standardVersionsToml);
+        dii.set(dii.opcmProxyOwner.selector, address(1));
         deployImplementations.run(dii, dio);
 
         // Deploy DeployOpChain, but defer populating the input values to the test suites inheriting this contract.

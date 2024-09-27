@@ -41,8 +41,8 @@ func InitCLI() func(ctx *cli.Context) error {
 		outdir := ctx.String(OutdirFlagName)
 
 		l2ChainIDsRaw := ctx.String(L2ChainIDsFlagName)
-		l2ChainIDsStr := strings.Split(l2ChainIDsRaw, ",")
-		l2ChainIDs := make([]common.Hash, 0, len(l2ChainIDsStr))
+		l2ChainIDsStr := strings.Split(strings.TrimSpace(l2ChainIDsRaw), ",")
+		l2ChainIDs := make([]common.Hash, len(l2ChainIDsStr))
 		for _, idStr := range l2ChainIDsStr {
 			id, err := op_service.Parse256BitChainID(idStr)
 			if err != nil {
@@ -66,7 +66,6 @@ func Init(cfg InitConfig) error {
 
 	intent := &state.Intent{
 		L1ChainID:        cfg.L1ChainID,
-		UseFaultProofs:   true,
 		FundDevAccounts:  true,
 		ContractsRelease: "dev",
 	}

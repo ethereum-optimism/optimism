@@ -17,17 +17,11 @@ type Intent struct {
 
 	SuperchainRoles SuperchainRoles `json:"superchainRoles" toml:"superchainRoles"`
 
-	UseFaultProofs bool `json:"useFaultProofs" toml:"useFaultProofs"`
-
-	UseAltDA bool `json:"useAltDA" toml:"useAltDA"`
-
 	FundDevAccounts bool `json:"fundDevAccounts" toml:"fundDevAccounts"`
 
 	ContractArtifactsURL *ArtifactsURL `json:"contractArtifactsURL" toml:"contractArtifactsURL"`
 
-	ContractsRelease string `json:"contractsVersion" toml:"contractsVersion"`
-
-	OPCMAddress common.Address `json:"opcmAddress" toml:"opcmAddress"`
+	ContractsRelease string `json:"contractsRelease" toml:"contractsRelease"`
 
 	Chains []*ChainIntent `json:"chains" toml:"chains"`
 
@@ -43,31 +37,11 @@ func (c *Intent) Check() error {
 		return fmt.Errorf("l1ChainID must be set")
 	}
 
-	if c.UseFaultProofs && c.UseAltDA {
-		return fmt.Errorf("cannot use both fault proofs and alt-DA")
+	if c.ContractsRelease == "dev" {
+		return c.checkDev()
 	}
 
-	if c.SuperchainRoles.ProxyAdminOwner == emptyAddress {
-		return fmt.Errorf("proxyAdminOwner must be set")
-	}
-
-	if c.SuperchainRoles.ProtocolVersionsOwner == emptyAddress {
-		c.SuperchainRoles.ProtocolVersionsOwner = c.SuperchainRoles.ProxyAdminOwner
-	}
-
-	if c.SuperchainRoles.Guardian == emptyAddress {
-		c.SuperchainRoles.Guardian = c.SuperchainRoles.ProxyAdminOwner
-	}
-
-	if c.ContractArtifactsURL == nil {
-		return fmt.Errorf("contractArtifactsURL must be set")
-	}
-
-	if c.ContractsRelease != "dev" && !strings.HasPrefix(c.ContractsRelease, "op-contracts/") {
-		return fmt.Errorf("contractsVersion must be either the literal \"dev\" or start with \"op-contracts/\"")
-	}
-
-	return nil
+	return c.checkProd()
 }
 
 func (c *Intent) Chain(id common.Hash) (*ChainIntent, error) {
@@ -82,6 +56,34 @@ func (c *Intent) Chain(id common.Hash) (*ChainIntent, error) {
 
 func (c *Intent) WriteToFile(path string) error {
 	return jsonutil.WriteTOML(c, ioutil.ToAtomicFile(path, 0o755))
+}
+
+func (c *Intent) checkDev() error {
+	if c.SuperchainRoles.ProxyAdminOwner == emptyAddress {
+		return fmt.Errorf("proxyAdminOwner must be set")
+	}
+
+	if c.SuperchainRoles.ProtocolVersionsOwner == emptyAddress {
+		c.SuperchainRoles.ProtocolVersionsOwner = c.SuperchainRoles.ProxyAdminOwner
+	}
+
+	if c.SuperchainRoles.Guardian == emptyAddress {
+		c.SuperchainRoles.Guardian = c.SuperchainRoles.ProxyAdminOwner
+	}
+
+	if c.ContractArtifactsURL == nil {
+		return fmt.Errorf("contractArtifactsURL must be set in dev mode")
+	}
+
+	return nil
+}
+
+func (c *Intent) checkProd() error {
+	if !strings.HasPrefix(c.ContractsRelease, "op-contracts/") {
+		return fmt.Errorf("contractsVersion must be either the literal \"dev\" or start with \"op-contracts/\"")
+	}
+
+	return nil
 }
 
 type SuperchainRoles struct {

@@ -471,7 +471,7 @@ contract DeployOPChainOutput is BaseDeployIO {
         require(vm.load(address(portal), bytes32(uint256(61))) == bytes32(0));
     }
 
-    function assertValidDisputeGameFactory(DeployOPChainInput) internal view {
+    function assertValidDisputeGameFactory(DeployOPChainInput _doi) internal view {
         DisputeGameFactory factory = disputeGameFactoryProxy();
 
         DeployUtils.assertInitialized({ _contractAddress: address(factory), _slot: 0, _offset: 0 });
@@ -479,7 +479,7 @@ contract DeployOPChainOutput is BaseDeployIO {
         require(
             address(factory.gameImpls(GameTypes.PERMISSIONED_CANNON)) == address(permissionedDisputeGame()), "DF-10"
         );
-        require(factory.owner() == address(opChainProxyAdmin()), "DF-20");
+        require(factory.owner() == address(_doi.opChainProxyAdminOwner()), "DF-20");
     }
 
     function assertValidDelayedWETHs(DeployOPChainInput) internal view {
