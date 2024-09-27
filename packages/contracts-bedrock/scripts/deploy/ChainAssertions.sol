@@ -10,9 +10,6 @@ import { DeployConfig } from "scripts/deploy/DeployConfig.s.sol";
 import { Deployer } from "scripts/deploy/Deployer.sol";
 import { ISystemConfigV0 } from "scripts/interfaces/ISystemConfigV0.sol";
 
-// Contracts
-import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
-
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";

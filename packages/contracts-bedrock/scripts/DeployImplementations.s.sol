@@ -885,7 +885,7 @@ contract DeployImplementations is Script {
         if (existingImplementation != address(0)) {
             singleton = MIPS(payable(existingImplementation));
         } else if (isDevelopRelease(release)) {
-            IPreimageOracle preimageOracle = IPreimageOracle(_dio.preimageOracleSingleton());
+            IPreimageOracle preimageOracle = IPreimageOracle(address(_dio.preimageOracleSingleton()));
             vm.broadcast(msg.sender);
             singleton = new MIPS(preimageOracle);
         } else {

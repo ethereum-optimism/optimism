@@ -10,8 +10,8 @@ import { Artifacts } from "scripts/Artifacts.s.sol";
 import { LibString } from "@solady/utils/LibString.sol";
 import { Bytes } from "src/libraries/Bytes.sol";
 
-// Contracts
-import { Proxy } from "src/universal/Proxy.sol";
+// Interfaces
+import { IProxy } from "src/universal/interfaces/IProxy.sol";
 
 library DeployUtils {
     Vm internal constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
@@ -221,7 +221,7 @@ library DeployUtils {
         // We prank as the zero address due to the Proxy's `proxyCallIfNotAdmin` modifier.
         // Pranking inside this function also means it can no longer be considered `view`.
         vm.prank(address(0));
-        address implementation = Proxy(payable(_proxy)).implementation();
+        address implementation = IProxy(payable(_proxy)).implementation();
         assertValidContractAddress(implementation);
     }
 

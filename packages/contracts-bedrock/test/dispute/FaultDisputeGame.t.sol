@@ -54,7 +54,7 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
         // Set preimage oracle challenge period to something arbitrary (4 seconds) just so we can
         // actually test the clock extensions later on. This is not a realistic value.
         PreimageOracle oracle = new PreimageOracle(0, 4);
-        AlphabetVM _vm = new AlphabetVM(absolutePrestate, oracle);
+        AlphabetVM _vm = new AlphabetVM(absolutePrestate, IPreimageOracle(address(oracle)));
 
         // Deploy an implementation of the fault game
         gameImpl = IFaultDisputeGame(
@@ -123,7 +123,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     /// @dev Tests that the constructor of the `FaultDisputeGame` reverts when the `MAX_GAME_DEPTH` parameter is
     ///      greater  than `LibPosition.MAX_POSITION_BITLEN - 1`.
     function testFuzz_constructor_maxDepthTooLarge_reverts(uint256 _maxGameDepth) public {
-        AlphabetVM alphabetVM = new AlphabetVM(absolutePrestate, new PreimageOracle(0, 0));
+        AlphabetVM alphabetVM = new AlphabetVM(absolutePrestate, IPreimageOracle(address(new PreimageOracle(0, 0))));
 
         _maxGameDepth = bound(_maxGameDepth, LibPosition.MAX_POSITION_BITLEN, type(uint256).max - 1);
         vm.expectRevert(MaxDepthTooLarge.selector);
@@ -148,7 +148,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         _challengePeriod = bound(_challengePeriod, uint256(type(uint64).max) + 1, type(uint256).max);
 
         PreimageOracle oracle = new PreimageOracle(0, 0);
-        AlphabetVM alphabetVM = new AlphabetVM(absolutePrestate, oracle);
+        AlphabetVM alphabetVM = new AlphabetVM(absolutePrestate, IPreimageOracle(address(oracle)));
 
         // PreimageOracle constructor will revert if the challenge period is too large, so we need
         // to mock the call to pretend this is a bugged implementation where the challenge period
@@ -175,7 +175,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     /// @dev Tests that the constructor of the `FaultDisputeGame` reverts when the `_splitDepth`
     ///      parameter is greater than or equal to the `MAX_GAME_DEPTH`
     function testFuzz_constructor_invalidSplitDepth_reverts(uint256 _splitDepth) public {
-        AlphabetVM alphabetVM = new AlphabetVM(absolutePrestate, new PreimageOracle(0, 0));
+        AlphabetVM alphabetVM = new AlphabetVM(absolutePrestate, IPreimageOracle(address(new PreimageOracle(0, 0))));
 
         uint256 maxGameDepth = 2 ** 3;
         _splitDepth = bound(_splitDepth, maxGameDepth - 1, type(uint256).max);
@@ -197,7 +197,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     /// @dev Tests that the constructor of the `FaultDisputeGame` reverts when the `_splitDepth`
     ///      parameter is less than the minimum split depth (currently 2).
     function testFuzz_constructor_lowSplitDepth_reverts(uint256 _splitDepth) public {
-        AlphabetVM alphabetVM = new AlphabetVM(absolutePrestate, new PreimageOracle(0, 0));
+        AlphabetVM alphabetVM = new AlphabetVM(absolutePrestate, IPreimageOracle(address(new PreimageOracle(0, 0))));
 
         uint256 minSplitDepth = 2;
         _splitDepth = bound(_splitDepth, 0, minSplitDepth - 1);
@@ -224,7 +224,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     )
         public
     {
-        AlphabetVM alphabetVM = new AlphabetVM(absolutePrestate, new PreimageOracle(0, 0));
+        AlphabetVM alphabetVM = new AlphabetVM(absolutePrestate, IPreimageOracle(address(new PreimageOracle(0, 0))));
 
         // Force the clock extension * 2 to be greater than the max clock duration, but keep things within
         // bounds of the uint64 type.

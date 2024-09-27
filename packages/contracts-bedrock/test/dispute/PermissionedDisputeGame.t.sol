@@ -47,7 +47,7 @@ contract PermissionedDisputeGame_Init is DisputeGameFactory_Init {
         // Set the extra data for the game creation
         extraData = abi.encode(l2BlockNumber);
 
-        AlphabetVM _vm = new AlphabetVM(absolutePrestate, new PreimageOracle(0, 0));
+        AlphabetVM _vm = new AlphabetVM(absolutePrestate, IPreimageOracle(address(new PreimageOracle(0, 0))));
 
         // Use a 7 day delayed WETH to simulate withdrawals.
         IDelayedWETH _weth = IDelayedWETH(payable(new DelayedWETH(7 days)));
