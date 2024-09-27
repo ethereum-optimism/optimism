@@ -93,21 +93,23 @@ func Init(ctx context.Context, env *Env, artifactsFS foundry.StatDirFs, intent *
 		return immutableErr("fundDevAccounts", st.AppliedIntent.FundDevAccounts, intent.FundDevAccounts)
 	}
 
-	l1ChainID, err := env.L1Client.ChainID(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get L1 chain ID: %w", err)
-	}
+	if env.L1BroadcastCfg != nil {
+		l1ChainID, err := env.L1BroadcastCfg.Client.ChainID(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to get L1 chain ID: %w", err)
+		}
 
-	if l1ChainID.Cmp(intent.L1ChainIDBig()) != 0 {
-		return fmt.Errorf("L1 chain ID mismatch: got %d, expected %d", l1ChainID, intent.L1ChainID)
-	}
+		if l1ChainID.Cmp(intent.L1ChainIDBig()) != 0 {
+			return fmt.Errorf("L1 chain ID mismatch: got %d, expected %d", l1ChainID, intent.L1ChainID)
+		}
 
-	deployerCode, err := env.L1Client.CodeAt(ctx, script.DeterministicDeployerAddress, nil)
-	if err != nil {
-		return fmt.Errorf("failed to get deployer code: %w", err)
-	}
-	if len(deployerCode) == 0 {
-		return fmt.Errorf("deterministic deployer is not deployed on this chain - please deploy it first")
+		deployerCode, err := env.L1BroadcastCfg.Client.CodeAt(ctx, script.DeterministicDeployerAddress, nil)
+		if err != nil {
+			return fmt.Errorf("failed to get deployer code: %w", err)
+		}
+		if len(deployerCode) == 0 {
+			return fmt.Errorf("deterministic deployer is not deployed on this chain - please deploy it first")
+		}
 	}
 
 	// TODO: validate individual

@@ -18,3 +18,7 @@ func (d *discardBroadcaster) Broadcast(ctx context.Context) ([]BroadcastResult, 
 }
 
 func (d *discardBroadcaster) Hook(bcast script.Broadcast) {}
+
+func (d *discardBroadcaster) PrepareHost(ctx context.Context, host *script.Host) error {
+	return nil
+}

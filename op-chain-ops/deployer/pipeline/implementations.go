@@ -24,16 +24,19 @@ func DeployImplementations(ctx context.Context, env *Env, artifactsFS foundry.St
 	var dump *foundry.ForgeAllocs
 	var dio opcm.DeployImplementationsOutput
 	var err error
+
+	bcaster, err := NewL1Broadcaster(env.L1BroadcastCfg, lgr, big.NewInt(int64(intent.L1ChainID)), env.Deployer)
+	if err != nil {
+		return fmt.Errorf("error creating l1 broadcaster: %w", err)
+	}
+
 	err = CallScriptBroadcast(
 		ctx,
 		CallScriptBroadcastOpts{
-			L1ChainID:   big.NewInt(int64(intent.L1ChainID)),
 			Logger:      lgr,
 			ArtifactsFS: artifactsFS,
 			Deployer:    env.Deployer,
-			Signer:      env.Signer,
-			Client:      env.L1Client,
-			Broadcaster: KeyedBroadcaster,
+			Broadcaster: bcaster,
 			Handler: func(host *script.Host) error {
 				host.SetEnvVar("IMPL_SALT", st.Create2Salt.Hex()[2:])
 				host.ImportState(st.SuperchainDeployment.StateDump)

@@ -28,6 +28,7 @@ type KeyedBroadcaster struct {
 	mgr    txmgr.TxManager
 	bcasts []script.Broadcast
 	client *ethclient.Client
+	from   common.Address
 }
 
 type KeyedBroadcasterOpts struct {
@@ -88,7 +89,17 @@ func NewKeyedBroadcaster(cfg KeyedBroadcasterOpts) (*KeyedBroadcaster, error) {
 		lgr:    cfg.Logger,
 		mgr:    mgr,
 		client: cfg.Client,
+		from:   cfg.From,
 	}, nil
+}
+
+func (t *KeyedBroadcaster) PrepareHost(ctx context.Context, host *script.Host) error {
+	nonce, err := t.client.NonceAt(ctx, t.from, nil)
+	if err != nil {
+		return fmt.Errorf("failed to fetch nonce: %w", err)
+	}
+	host.SetNonce(t.from, nonce)
+	return nil
 }
 
 func (t *KeyedBroadcaster) Hook(bcast script.Broadcast) {

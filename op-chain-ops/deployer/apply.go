@@ -81,25 +81,32 @@ func Apply(ctx context.Context, cfg ApplyConfig) error {
 		return fmt.Errorf("invalid config for apply: %w", err)
 	}
 
-	l1Client, err := ethclient.Dial(cfg.L1RPCUrl)
-	if err != nil {
-		return fmt.Errorf("failed to connect to L1 RPC: %w", err)
+	var l1BroadcastCfg *pipeline.BroadcastCfg
+	if cfg.L1RPCUrl != "genesis" {
+		l1Client, err := ethclient.Dial(cfg.L1RPCUrl)
+		if err != nil {
+			return fmt.Errorf("failed to connect to L1 RPC: %w", err)
+		}
+
+		chainID, err := l1Client.ChainID(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to get chain ID: %w", err)
+		}
+
+		signer := opcrypto.SignerFnFromBind(opcrypto.PrivateKeySignerFn(cfg.privateKeyECDSA, chainID))
+		l1BroadcastCfg = &pipeline.BroadcastCfg{
+			Client: l1Client,
+			Signer: signer,
+		}
 	}
 
-	chainID, err := l1Client.ChainID(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get chain ID: %w", err)
-	}
-
-	signer := opcrypto.SignerFnFromBind(opcrypto.PrivateKeySignerFn(cfg.privateKeyECDSA, chainID))
 	deployer := crypto.PubkeyToAddress(cfg.privateKeyECDSA.PublicKey)
 
 	env := &pipeline.Env{
-		Workdir:  cfg.Workdir,
-		L1Client: l1Client,
-		Logger:   cfg.Logger,
-		Signer:   signer,
-		Deployer: deployer,
+		Workdir:        cfg.Workdir,
+		L1BroadcastCfg: l1BroadcastCfg,
+		Logger:         cfg.Logger,
+		Deployer:       deployer,
 	}
 
 	intent, err := env.ReadIntent()
