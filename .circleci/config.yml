@@ -407,11 +407,6 @@ jobs:
 
             echo "Setting GIT_VERSION=$GIT_VERSION"
 
-            # Create, start (bootstrap) and use a *named* docker builder
-            # This allows us to cross-build multi-platform,
-            # and naming allows us to use the DLC (docker-layer-cache)
-            docker buildx create --driver=docker-container --name=buildx-build --bootstrap --use
-
             DOCKER_OUTPUT_DESTINATION=""
             if [ "<<parameters.publish>>" == "true" ]; then
               gcloud auth configure-docker <<parameters.registry>>
@@ -437,7 +432,6 @@ jobs:
             # Let them cook!
             docker buildx bake \
               --progress plain \
-              --builder=buildx-build \
               -f docker-bake.hcl \
               $DOCKER_OUTPUT_DESTINATION \
               <<parameters.docker_name>>
