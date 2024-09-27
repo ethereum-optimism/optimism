@@ -13,6 +13,7 @@ import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistry.sol";
 import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
 import { ISystemConfigV160 } from "src/L1/interfaces/ISystemConfigV160.sol";
+import { IAddressManager } from "src/legacy/interfaces/IAddressManager.sol";
 
 import { Proxy } from "src/universal/Proxy.sol";
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
@@ -127,8 +128,8 @@ contract OPContractsManager is ISemver, Initializable {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 1.0.0-beta.13
-    string public constant version = "1.0.0-beta.13";
+    /// @custom:semver 1.0.0-beta.14
+    string public constant version = "1.0.0-beta.14";
 
     /// @notice Represents the interface version so consumers know how to decode the DeployOutput struct
     /// that's emitted in the `Deployed` event. Whenever that struct changes, a new version should be used.
@@ -240,7 +241,7 @@ contract OPContractsManager is ISemver, Initializable {
         output.addressManager = AddressManager(Blueprint.deployFrom(blueprint.addressManager, salt));
         output.opChainProxyAdmin =
             ProxyAdmin(Blueprint.deployFrom(blueprint.proxyAdmin, salt, abi.encode(address(this))));
-        output.opChainProxyAdmin.setAddressManager(output.addressManager);
+        output.opChainProxyAdmin.setAddressManager(IAddressManager(address(output.addressManager)));
 
         // -------- Deploy Proxy Contracts --------
 

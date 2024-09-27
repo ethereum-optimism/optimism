@@ -7,7 +7,6 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 // Contracts
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { Proxy } from "src/universal/Proxy.sol";
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
