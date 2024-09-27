@@ -482,8 +482,15 @@ contract DeployOPChainOutput is BaseDeployIO {
         require(factory.owner() == address(opChainProxyAdmin()), "DF-20");
     }
 
-    function assertValidDelayedWETHs(DeployOPChainInput) internal view {
-        // TODO add in once FP support is added.
+    function assertValidDelayedWETHs(DeployOPChainInput _doi) internal {
+        DelayedWETH permissioned = delayedWETHPermissionedGameProxy();
+
+        require(permissioned.owner() == address(_doi.opChainProxyAdminOwner()), "DWETH-10");
+
+        Proxy proxy = Proxy(payable(address(permissioned)));
+        vm.prank(address(0));
+        address admin = proxy.admin();
+        require(admin == address(opChainProxyAdmin()), "DWETH-20");
     }
 }
 
