@@ -69,7 +69,6 @@ func CreateInitialState(pc, heapStart uint32) *State {
 }
 
 func (s *State) CreateVM(logger log.Logger, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, meta mipsevm.Metadata) mipsevm.FPVM {
-	logger.Info("Using cannon VM")
 	return NewInstrumentedState(s, po, stdOut, stdErr, meta)
 }
 
