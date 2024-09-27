@@ -345,10 +345,8 @@ jobs:
         description: Docker resoruce class
         type: string
         default: medium
-    machine:
-      image: <<pipeline.parameters.base_image>>
-      resource_class: "<<parameters.resource_class>>"
-      docker_layer_caching: true
+    machine: true
+    resource_class: ethereum-optimism/e2-standard-4
     steps:
       - checkout
       - attach_workspace:
@@ -1437,17 +1435,17 @@ workflows:
             parameters:
               docker_name:
                 - op-node
-                - op-batcher
-                - op-program
-                - op-proposer
-                - op-challenger
-                - proofs-tools
-                - op-dispute-mon
-                - op-conductor
-                - da-server
-                - op-supervisor
-                - op-deployer
-                - cannon
+#                - op-batcher
+#                - op-program
+#                - op-proposer
+#                - op-challenger
+#                - proofs-tools
+#                - op-dispute-mon
+#                - op-conductor
+#                - da-server
+#                - op-supervisor
+#                - op-deployer
+#                - cannon
       - cannon-prestate:
           requires:
             - go-mod-download
