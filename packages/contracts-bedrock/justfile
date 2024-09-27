@@ -197,7 +197,11 @@ check: gas-snapshot-check-no-build kontrol-deployment-check snapshots-check-no-b
 ########################################################
 
 # Cleans, builds, lints, and runs all checks.
-pre-pr: clean build-go-ffi build lint gas-snapshot-no-build snapshots-no-build semver-lock check
+pre-pr: clean pre-pr-no-build
+
+# Builds, lints, and runs all checks. Sometimes a bad cache causes issues, in which case the above
+# `pre-pr` is preferred. But in most cases this will be sufficient and much faster then a full build.
+pre-pr-no-build: build-go-ffi build lint gas-snapshot-no-build snapshots-no-build semver-lock check
 
 # Fixes linting errors.
 lint-fix:
