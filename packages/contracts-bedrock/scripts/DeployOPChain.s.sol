@@ -307,7 +307,7 @@ contract DeployOPChainOutput is BaseDeployIO {
     function assertValidDeploy(DeployOPChainInput _doi) internal {
         assertValidAnchorStateRegistryImpl(_doi);
         assertValidAnchorStateRegistryProxy(_doi);
-        assertValidDelayedWETHs(_doi);
+        assertValidDelayedWETH(_doi);
         assertValidDisputeGameFactory(_doi);
         assertValidL1CrossDomainMessenger(_doi);
         assertValidL1ERC721Bridge(_doi);
@@ -482,8 +482,15 @@ contract DeployOPChainOutput is BaseDeployIO {
         require(factory.owner() == address(_doi.opChainProxyAdminOwner()), "DF-20");
     }
 
-    function assertValidDelayedWETHs(DeployOPChainInput) internal view {
-        // TODO add in once FP support is added.
+    function assertValidDelayedWETH(DeployOPChainInput _doi) internal {
+        DelayedWETH permissioned = delayedWETHPermissionedGameProxy();
+
+        require(permissioned.owner() == address(_doi.opChainProxyAdminOwner()), "DWETH-10");
+
+        Proxy proxy = Proxy(payable(address(permissioned)));
+        vm.prank(address(0));
+        address admin = proxy.admin();
+        require(admin == address(opChainProxyAdmin()), "DWETH-20");
     }
 }
 

@@ -128,8 +128,8 @@ contract OPContractsManager is ISemver, Initializable {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 1.0.0-beta.15
-    string public constant version = "1.0.0-beta.15";
+    /// @custom:semver 1.0.0-beta.16
+    string public constant version = "1.0.0-beta.16";
 
     /// @notice Represents the interface version so consumers know how to decode the DeployOutput struct
     /// that's emitted in the `Deployed` event. Whenever that struct changes, a new version should be used.
@@ -433,8 +433,6 @@ contract OPContractsManager is ISemver, Initializable {
         virtual
         returns (bytes memory)
     {
-        _output;
-        // TODO make GameTypes.CANNON an input once FPs are supported
         return abi.encodeWithSelector(
             _selector,
             _output.disputeGameFactoryProxy,
@@ -473,7 +471,7 @@ contract OPContractsManager is ISemver, Initializable {
                 _input.basefeeScalar,
                 _input.blobBasefeeScalar,
                 bytes32(uint256(uint160(_input.roles.batcher))), // batcherHash
-                30_000_000, // gasLimit, TODO should this be an input?
+                30_000_000,
                 _input.roles.unsafeBlockSigner,
                 referenceResourceConfig,
                 chainIdToBatchInboxAddress(_input.l2ChainId),
@@ -490,7 +488,7 @@ contract OPContractsManager is ISemver, Initializable {
                 _input.basefeeScalar,
                 _input.blobBasefeeScalar,
                 bytes32(uint256(uint160(_input.roles.batcher))), // batcherHash
-                30_000_000, // gasLimit, TODO should this be an input?
+                30_000_000,
                 _input.roles.unsafeBlockSigner,
                 referenceResourceConfig,
                 chainIdToBatchInboxAddress(_input.l2ChainId),
