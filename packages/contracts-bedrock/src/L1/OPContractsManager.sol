@@ -69,7 +69,7 @@ contract OPContractsManager is ISemver, Initializable {
         ProxyAdmin opChainProxyAdmin;
         IAddressManager addressManager;
         IL1ERC721Bridge l1ERC721BridgeProxy;
-        ISystemConfigV160 systemConfigProxy;
+        ISystemConfig systemConfigProxy;
         OptimismMintableERC20Factory optimismMintableERC20FactoryProxy;
         IL1StandardBridge l1StandardBridgeProxy;
         IL1CrossDomainMessenger l1CrossDomainMessengerProxy;
@@ -247,7 +247,7 @@ contract OPContractsManager is ISemver, Initializable {
         output.optimismPortalProxy =
             IOptimismPortal2(payable(deployProxy(l2ChainId, output.opChainProxyAdmin, saltMixer, "OptimismPortal")));
         output.systemConfigProxy =
-            ISystemConfigV160(deployProxy(l2ChainId, output.opChainProxyAdmin, saltMixer, "SystemConfig"));
+            ISystemConfig(deployProxy(l2ChainId, output.opChainProxyAdmin, saltMixer, "SystemConfig"));
         output.optimismMintableERC20FactoryProxy = OptimismMintableERC20Factory(
             deployProxy(l2ChainId, output.opChainProxyAdmin, saltMixer, "OptimismMintableERC20Factory")
         );
