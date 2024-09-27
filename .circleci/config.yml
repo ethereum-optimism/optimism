@@ -312,7 +312,7 @@ jobs:
     parameters:
       targets:
         description: Docker buildx bake targets
-        type: array
+        type: string
     machine: true
     resource_class: ethereum-optimism/e2-standard-4
     steps:
