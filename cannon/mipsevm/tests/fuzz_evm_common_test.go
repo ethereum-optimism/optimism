@@ -51,13 +51,13 @@ func FuzzStateSyscallBrk(f *testing.F) {
 
 func FuzzStateSyscallMmap(f *testing.F) {
 	// Add special cases for large memory allocation
-	f.Add(uint32(0), uint32(0x1000), uint32(program.HEAP_END), int64(1))
-	f.Add(uint32(0), uint32(1<<31), uint32(program.HEAP_START), int64(2))
+	f.Add(Word(0), Word(0x1000), Word(program.HEAP_END), int64(1))
+	f.Add(Word(0), Word(1<<31), Word(program.HEAP_START), int64(2))
 	// Check edge case - just within bounds
-	f.Add(uint32(0), uint32(0x1000), uint32(program.HEAP_END-4096), int64(3))
+	f.Add(Word(0), Word(0x1000), Word(program.HEAP_END-4096), int64(3))
 
 	versions := GetMipsVersionTestCases(f)
-	f.Fuzz(func(t *testing.T, addr uint32, siz uint32, heap uint32, seed int64) {
+	f.Fuzz(func(t *testing.T, addr Word, siz Word, heap Word, seed int64) {
 		for _, v := range versions {
 			t.Run(v.Name, func(t *testing.T) {
 				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(),
@@ -113,7 +113,7 @@ func FuzzStateSyscallExitGroup(f *testing.F) {
 					testutil.WithRandomization(seed))
 				state := goVm.GetState()
 				state.GetRegistersRef()[2] = exec.SysExitGroup
-				state.GetRegistersRef()[4] = uint32(exitCode)
+				state.GetRegistersRef()[4] = Word(exitCode)
 				state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
 				step := state.GetStep()
 
@@ -135,7 +135,7 @@ func FuzzStateSyscallExitGroup(f *testing.F) {
 
 func FuzzStateSyscallFcntl(f *testing.F) {
 	versions := GetMipsVersionTestCases(f)
-	f.Fuzz(func(t *testing.T, fd uint32, cmd uint32, seed int64) {
+	f.Fuzz(func(t *testing.T, fd Word, cmd Word, seed int64) {
 		for _, v := range versions {
 			t.Run(v.Name, func(t *testing.T) {
 				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(),
@@ -181,7 +181,7 @@ func FuzzStateSyscallFcntl(f *testing.F) {
 
 func FuzzStateHintRead(f *testing.F) {
 	versions := GetMipsVersionTestCases(f)
-	f.Fuzz(func(t *testing.T, addr uint32, count uint32, seed int64) {
+	f.Fuzz(func(t *testing.T, addr Word, count Word, seed int64) {
 		for _, v := range versions {
 			t.Run(v.Name, func(t *testing.T) {
 				preimageData := []byte("hello world")
@@ -226,7 +226,7 @@ func FuzzStatePreimageRead(f *testing.F) {
 				preexistingMemoryVal := [4]byte{0xFF, 0xFF, 0xFF, 0xFF}
 				preimageValue := []byte("hello world")
 				preimageData := testutil.AddPreimageLengthPrefix(preimageValue)
-				if preimageOffset >= uint32(len(preimageData)) || pc == effAddr {
+				if preimageOffset >= Word(len(preimageData)) || pc == effAddr {
 					t.SkipNow()
 				}
 				preimageKey := preimage.Keccak256Key(crypto.Keccak256Hash(preimageValue)).PreimageKey()
@@ -249,7 +249,7 @@ func FuzzStatePreimageRead(f *testing.F) {
 					writeLen = count
 				}
 				// Cap write length to remaining bytes of the preimage
-				preimageDataLen := uint32(len(preimageData))
+				preimageDataLen := Word(len(preimageData))
 				if preimageOffset+writeLen > preimageDataLen {
 					writeLen = preimageDataLen - preimageOffset
 				}
@@ -281,11 +281,11 @@ func FuzzStatePreimageRead(f *testing.F) {
 
 func FuzzStateHintWrite(f *testing.F) {
 	versions := GetMipsVersionTestCases(f)
-	f.Fuzz(func(t *testing.T, addr uint32, count uint32, hint1, hint2, hint3 []byte, randSeed int64) {
+	f.Fuzz(func(t *testing.T, addr Word, count Word, hint1, hint2, hint3 []byte, randSeed int64) {
 		for _, v := range versions {
 			t.Run(v.Name, func(t *testing.T) {
 				// Make sure pc does not overlap with hint data in memory
-				pc := uint32(0)
+				pc := Word(0)
 				if addr <= 8 {
 					addr += 8
 				}
@@ -367,7 +367,7 @@ func FuzzStatePreimageWrite(f *testing.F) {
 		for _, v := range versions {
 			t.Run(v.Name, func(t *testing.T) {
 				// Make sure pc does not overlap with preimage data in memory
-				pc := uint32(0)
+				pc := Word(0)
 				if addr <= 8 {
 					addr += 8
 				}

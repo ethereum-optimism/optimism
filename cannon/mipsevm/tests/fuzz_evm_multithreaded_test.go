@@ -14,13 +14,13 @@ import (
 
 func FuzzStateSyscallCloneMT(f *testing.F) {
 	v := GetMultiThreadedTestCase(f)
-	f.Fuzz(func(t *testing.T, nextThreadId, stackPtr uint32, seed int64) {
+	f.Fuzz(func(t *testing.T, nextThreadId, stackPtr Word, seed int64) {
 		goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(seed))
 		state := mttestutil.GetMtState(t, goVm)
 		// Update existing threads to avoid collision with nextThreadId
 		if mttestutil.FindThread(state, nextThreadId) != nil {
 			for i, t := range mttestutil.GetAllThreads(state) {
-				t.ThreadId = nextThreadId - uint32(i+1)
+				t.ThreadId = nextThreadId - Word(i+1)
 			}
 		}
 

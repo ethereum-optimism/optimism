@@ -170,29 +170,29 @@ func TestEVMSingleStep_Operators(t *testing.T) {
 	cases := []struct {
 		name      string
 		isImm     bool
-		rs        uint32
-		rt        uint32
+		rs        Word
+		rt        Word
 		imm       uint16
 		funct     uint32
 		opcode    uint32
-		expectRes uint32
+		expectRes Word
 	}{
-		{name: "add", funct: 0x20, isImm: false, rs: uint32(12), rt: uint32(20), expectRes: uint32(32)},                        // add t0, s1, s2
-		{name: "addu", funct: 0x21, isImm: false, rs: uint32(12), rt: uint32(20), expectRes: uint32(32)},                       // addu t0, s1, s2
-		{name: "addi", opcode: 0x8, isImm: true, rs: uint32(4), rt: uint32(1), imm: uint16(40), expectRes: uint32(44)},         // addi t0, s1, 40
-		{name: "addi sign", opcode: 0x8, isImm: true, rs: uint32(2), rt: uint32(1), imm: uint16(0xfffe), expectRes: uint32(0)}, // addi t0, s1, -2
-		{name: "addiu", opcode: 0x9, isImm: true, rs: uint32(4), rt: uint32(1), imm: uint16(40), expectRes: uint32(44)},        // addiu t0, s1, 40
-		{name: "sub", funct: 0x22, isImm: false, rs: uint32(20), rt: uint32(12), expectRes: uint32(8)},                         // sub t0, s1, s2
-		{name: "subu", funct: 0x23, isImm: false, rs: uint32(20), rt: uint32(12), expectRes: uint32(8)},                        // subu t0, s1, s2
-		{name: "and", funct: 0x24, isImm: false, rs: uint32(1200), rt: uint32(490), expectRes: uint32(160)},                    // and t0, s1, s2
-		{name: "andi", opcode: 0xc, isImm: true, rs: uint32(4), rt: uint32(1), imm: uint16(40), expectRes: uint32(0)},          // andi t0, s1, 40
-		{name: "or", funct: 0x25, isImm: false, rs: uint32(1200), rt: uint32(490), expectRes: uint32(1530)},                    // or t0, s1, s2
-		{name: "ori", opcode: 0xd, isImm: true, rs: uint32(4), rt: uint32(1), imm: uint16(40), expectRes: uint32(44)},          // ori t0, s1, 40
-		{name: "xor", funct: 0x26, isImm: false, rs: uint32(1200), rt: uint32(490), expectRes: uint32(1370)},                   // xor t0, s1, s2
-		{name: "xori", opcode: 0xe, isImm: true, rs: uint32(4), rt: uint32(1), imm: uint16(40), expectRes: uint32(44)},         // xori t0, s1, 40
-		{name: "nor", funct: 0x27, isImm: false, rs: uint32(1200), rt: uint32(490), expectRes: uint32(4294965765)},             // nor t0, s1, s2
-		{name: "slt", funct: 0x2a, isImm: false, rs: 0xFF_FF_FF_FE, rt: uint32(5), expectRes: uint32(1)},                       // slt t0, s1, s2
-		{name: "sltu", funct: 0x2b, isImm: false, rs: uint32(1200), rt: uint32(490), expectRes: uint32(0)},                     // sltu t0, s1, s2
+		{name: "add", funct: 0x20, isImm: false, rs: Word(12), rt: Word(20), expectRes: Word(32)},                        // add t0, s1, s2
+		{name: "addu", funct: 0x21, isImm: false, rs: Word(12), rt: Word(20), expectRes: Word(32)},                       // addu t0, s1, s2
+		{name: "addi", opcode: 0x8, isImm: true, rs: Word(4), rt: Word(1), imm: uint16(40), expectRes: Word(44)},         // addi t0, s1, 40
+		{name: "addi sign", opcode: 0x8, isImm: true, rs: Word(2), rt: Word(1), imm: uint16(0xfffe), expectRes: Word(0)}, // addi t0, s1, -2
+		{name: "addiu", opcode: 0x9, isImm: true, rs: Word(4), rt: Word(1), imm: uint16(40), expectRes: Word(44)},        // addiu t0, s1, 40
+		{name: "sub", funct: 0x22, isImm: false, rs: Word(20), rt: Word(12), expectRes: Word(8)},                         // sub t0, s1, s2
+		{name: "subu", funct: 0x23, isImm: false, rs: Word(20), rt: Word(12), expectRes: Word(8)},                        // subu t0, s1, s2
+		{name: "and", funct: 0x24, isImm: false, rs: Word(1200), rt: Word(490), expectRes: Word(160)},                    // and t0, s1, s2
+		{name: "andi", opcode: 0xc, isImm: true, rs: Word(4), rt: Word(1), imm: uint16(40), expectRes: Word(0)},          // andi t0, s1, 40
+		{name: "or", funct: 0x25, isImm: false, rs: Word(1200), rt: Word(490), expectRes: Word(1530)},                    // or t0, s1, s2
+		{name: "ori", opcode: 0xd, isImm: true, rs: Word(4), rt: Word(1), imm: uint16(40), expectRes: Word(44)},          // ori t0, s1, 40
+		{name: "xor", funct: 0x26, isImm: false, rs: Word(1200), rt: Word(490), expectRes: Word(1370)},                   // xor t0, s1, s2
+		{name: "xori", opcode: 0xe, isImm: true, rs: Word(4), rt: Word(1), imm: uint16(40), expectRes: Word(44)},         // xori t0, s1, 40
+		{name: "nor", funct: 0x27, isImm: false, rs: Word(1200), rt: Word(490), expectRes: Word(4294965765)},             // nor t0, s1, s2
+		{name: "slt", funct: 0x2a, isImm: false, rs: 0xFF_FF_FF_FE, rt: Word(5), expectRes: Word(1)},                     // slt t0, s1, s2
+		{name: "sltu", funct: 0x2b, isImm: false, rs: Word(1200), rt: Word(490), expectRes: Word(0)},                     // sltu t0, s1, s2
 	}
 
 	for _, v := range versions {

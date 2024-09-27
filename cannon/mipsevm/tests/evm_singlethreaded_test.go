@@ -21,10 +21,10 @@ func TestEVM_LL(t *testing.T) {
 
 	cases := []struct {
 		name    string
-		base    uint32
+		base    Word
 		offset  int
-		value   uint32
-		effAddr uint32
+		value   Word
+		effAddr Word
 		rtReg   int
 	}{
 		{name: "Aligned effAddr", base: 0x00_00_00_01, offset: 0x0133, value: 0xABCD, effAddr: 0x00_00_01_34, rtReg: 5},
@@ -38,12 +38,12 @@ func TestEVM_LL(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			rtReg := c.rtReg
 			baseReg := 6
-			pc := uint32(0x44)
+			pc := Word(0x44)
 			insn := uint32((0b11_0000 << 26) | (baseReg & 0x1F << 21) | (rtReg & 0x1F << 16) | (0xFFFF & c.offset))
 			goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPC(pc), testutil.WithNextPC(pc+4))
 			state := goVm.GetState()
 			state.GetMemory().SetMemory(pc, insn)
-			state.GetMemory().SetMemory(c.effAddr, c.value)
+			state.GetMemory().SetWord(c.effAddr, c.value)
 			state.GetRegistersRef()[baseReg] = c.base
 			step := state.GetStep()
 
@@ -71,10 +71,10 @@ func TestEVM_SC(t *testing.T) {
 
 	cases := []struct {
 		name    string
-		base    uint32
+		base    Word
 		offset  int
-		value   uint32
-		effAddr uint32
+		value   Word
+		effAddr Word
 		rtReg   int
 	}{
 		{name: "Aligned effAddr", base: 0x00_00_00_01, offset: 0x0133, value: 0xABCD, effAddr: 0x00_00_01_34, rtReg: 5},
@@ -88,7 +88,7 @@ func TestEVM_SC(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			rtReg := c.rtReg
 			baseReg := 6
-			pc := uint32(0x44)
+			pc := Word(0x44)
 			insn := uint32((0b11_1000 << 26) | (baseReg & 0x1F << 21) | (rtReg & 0x1F << 16) | (0xFFFF & c.offset))
 			goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPC(pc), testutil.WithNextPC(pc+4))
 			state := goVm.GetState()
@@ -104,7 +104,7 @@ func TestEVM_SC(t *testing.T) {
 			expected.NextPC = pc + 8
 			expectedMemory := memory.NewMemory()
 			expectedMemory.SetMemory(pc, insn)
-			expectedMemory.SetMemory(c.effAddr, c.value)
+			expectedMemory.SetWord(c.effAddr, c.value)
 			expected.MemoryRoot = expectedMemory.MerkleRoot()
 			if rtReg != 0 {
 				expected.Registers[rtReg] = 1 // 1 for success
@@ -131,10 +131,10 @@ func TestEVM_SysRead_Preimage(t *testing.T) {
 
 	cases := []struct {
 		name           string
-		addr           uint32
-		count          uint32
-		writeLen       uint32
-		preimageOffset arch.Word
+		addr           Word
+		count          Word
+		writeLen       Word
+		preimageOffset Word
 		prestateMem    uint32
 		postateMem     uint32
 		shouldPanic    bool

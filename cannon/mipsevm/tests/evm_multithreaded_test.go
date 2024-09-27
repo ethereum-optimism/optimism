@@ -319,7 +319,7 @@ func TestEVM_MT_StoreOpsClearMemReservation(t *testing.T) {
 	}
 
 	pc := Word(0x04)
-	rt := uint32(0x12_34_56_78)
+	rt := Word(0x12_34_56_78)
 	baseReg := 5
 	rtReg := 6
 	cases := []struct {
@@ -396,13 +396,13 @@ func TestEVM_SysClone_FlagHandling(t *testing.T) {
 
 	cases := []struct {
 		name  string
-		flags uint32
+		flags Word
 		valid bool
 	}{
 		{"the supported flags bitmask", exec.ValidCloneFlags, true},
 		{"no flags", 0, false},
-		{"all flags", ^uint32(0), false},
-		{"all unsupported flags", ^uint32(exec.ValidCloneFlags), false},
+		{"all flags", ^Word(0), false},
+		{"all unsupported flags", ^Word(exec.ValidCloneFlags), false},
 		{"a few supported flags", exec.CloneFs | exec.CloneSysvsem, false},
 		{"one supported flag", exec.CloneFs, false},
 		{"mixed supported and unsupported flags", exec.CloneFs | exec.CloneParentSettid, false},
@@ -473,7 +473,7 @@ func TestEVM_SysClone_Successful(t *testing.T) {
 			step := state.GetStep()
 
 			// Sanity-check assumptions
-			require.Equal(t, uint32(1), state.NextThreadId)
+			require.Equal(t, Word(1), state.NextThreadId)
 
 			// Setup expectations
 			expected := mttestutil.NewExpectedMTState(state)
@@ -681,7 +681,7 @@ func TestEVM_SysFutex_WaitPrivate(t *testing.T) {
 			step := state.GetStep()
 
 			state.Memory.SetMemory(state.GetPC(), syscallInsn)
-			state.Memory.SetMemory(c.effAddr, c.actualValue)
+			state.Memory.SetWord(c.effAddr, c.actualValue)
 			state.GetRegistersRef()[2] = exec.SysFutex // Set syscall number
 			state.GetRegistersRef()[4] = c.addressParam
 			state.GetRegistersRef()[5] = exec.FutexWaitPrivate
@@ -803,7 +803,7 @@ func TestEVM_SysFutex_UnsupportedOp(t *testing.T) {
 	const FUTEX_CMP_REQUEUE_PI = 12
 	const FUTEX_LOCK_PI2 = 13
 
-	unsupportedFutexOps := map[string]uint32{
+	unsupportedFutexOps := map[string]Word{
 		"FUTEX_WAIT":                    FUTEX_WAIT,
 		"FUTEX_WAKE":                    FUTEX_WAKE,
 		"FUTEX_FD":                      FUTEX_FD,
@@ -892,7 +892,7 @@ func runPreemptSyscall(t *testing.T, syscallName string, syscallNum uint32) {
 				mttestutil.SetupThreads(int64(i*3259), state, traverseRight, c.activeThreads, c.inactiveThreads)
 
 				state.Memory.SetMemory(state.GetPC(), syscallInsn)
-				state.GetRegistersRef()[2] = syscallNum // Set syscall number
+				state.GetRegistersRef()[2] = Word(syscallNum) // Set syscall number
 				step := state.Step
 
 				// Set up post-state expectations
@@ -1047,8 +1047,8 @@ func testEVM_SysClockGettime(t *testing.T, clkid Word) {
 					secs = Word(next / exec.HZ)
 					nsecs = Word((next % exec.HZ) * (1_000_000_000 / exec.HZ))
 				}
-				expected.ExpectMemoryWrite(effAddr, secs)
-				expected.ExpectMemoryWrite(effAddr2, nsecs)
+				expected.ExpectMemoryWordWrite(effAddr, secs)
+				expected.ExpectMemoryWordWrite(effAddr2, nsecs)
 				if v.shouldClearReservation {
 					expected.LLReservationActive = false
 					expected.LLAddress = 0
@@ -1134,7 +1134,7 @@ func TestEVM_NoopSyscall(t *testing.T) {
 			goVm, state, contracts := setup(t, int(noopVal), nil)
 
 			state.Memory.SetMemory(state.GetPC(), syscallInsn)
-			state.GetRegistersRef()[2] = noopVal // Set syscall number
+			state.GetRegistersRef()[2] = Word(noopVal) // Set syscall number
 			step := state.Step
 
 			// Set up post-state expectations
@@ -1181,7 +1181,7 @@ func TestEVM_UnsupportedSyscall(t *testing.T) {
 			goVm, state, contracts := setup(t, i*3434, nil)
 			// Setup basic getThreadId syscall instruction
 			state.Memory.SetMemory(state.GetPC(), syscallInsn)
-			state.GetRegistersRef()[2] = syscallNum
+			state.GetRegistersRef()[2] = Word(syscallNum)
 
 			// Set up post-state expectations
 			require.Panics(t, func() { _, _ = goVm.Step(true) })
@@ -1237,7 +1237,7 @@ func TestEVM_NormalTraversalStep_HandleWaitingThread(t *testing.T) {
 				activeThread.FutexAddr = c.futexAddr
 				activeThread.FutexVal = c.targetValue
 				activeThread.FutexTimeoutStep = c.timeoutStep
-				state.GetMemory().SetMemory(effAddr, c.actualValue)
+				state.GetMemory().SetWord(effAddr, c.actualValue)
 
 				// Set up post-state expectations
 				expected := mttestutil.NewExpectedMTState(state)
@@ -1331,14 +1331,14 @@ func TestEVM_NormalTraversal_Full(t *testing.T) {
 }
 
 func TestEVM_WakeupTraversalStep(t *testing.T) {
-	addr := uint32(0x1234)
-	wakeupVal := uint32(0x999)
+	addr := Word(0x1234)
+	wakeupVal := Word(0x999)
 	var tracer *tracing.Hooks
 	cases := []struct {
 		name              string
-		wakeupAddr        uint32
-		futexAddr         uint32
-		targetVal         uint32
+		wakeupAddr        Word
+		futexAddr         Word
+		targetVal         Word
 		traverseRight     bool
 		activeStackSize   int
 		otherStackSize    int
@@ -1376,7 +1376,7 @@ func TestEVM_WakeupTraversalStep(t *testing.T) {
 			step := state.Step
 
 			state.Wakeup = c.wakeupAddr
-			state.GetMemory().SetMemory(c.wakeupAddr&arch.AddressMask, wakeupVal)
+			state.GetMemory().SetWord(c.wakeupAddr&arch.AddressMask, wakeupVal)
 			activeThread := state.GetCurrentThread()
 			activeThread.FutexAddr = c.futexAddr
 			activeThread.FutexVal = c.targetVal
