@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
 	"github.com/ethereum-optimism/optimism/cannon/serialize"
@@ -11,11 +12,11 @@ import (
 )
 
 func TestNewFromState(t *testing.T) {
-	t.Run("singlethreaded", func(t *testing.T) {
+	t.Run("singlethreaded-getfd", func(t *testing.T) {
 		actual, err := NewFromState(singlethreaded.CreateEmptyState())
 		require.NoError(t, err)
 		require.IsType(t, &singlethreaded.State{}, actual.FPVMState)
-		require.Equal(t, VersionSingleThreaded, actual.Version)
+		require.Equal(t, VersionSingleThreadedGetFd, actual.Version)
 	})
 
 	t.Run("multithreaded", func(t *testing.T) {
@@ -27,16 +28,6 @@ func TestNewFromState(t *testing.T) {
 }
 
 func TestLoadStateFromFile(t *testing.T) {
-	t.Run("SinglethreadedFromJSON", func(t *testing.T) {
-		expected, err := NewFromState(singlethreaded.CreateEmptyState())
-		require.NoError(t, err)
-
-		path := writeToFile(t, "state.json", expected)
-		actual, err := LoadStateFromFile(path)
-		require.NoError(t, err)
-		require.Equal(t, expected, actual)
-	})
-
 	t.Run("SinglethreadedFromBinary", func(t *testing.T) {
 		expected, err := NewFromState(singlethreaded.CreateEmptyState())
 		require.NoError(t, err)
@@ -58,14 +49,26 @@ func TestLoadStateFromFile(t *testing.T) {
 	})
 }
 
-func TestMultithreadedDoesNotSupportJSON(t *testing.T) {
-	state, err := NewFromState(multithreaded.CreateEmptyState())
-	require.NoError(t, err)
+func TestVersionsOtherThanZeroDoNotSupportJSON(t *testing.T) {
+	tests := []struct {
+		version     StateVersion
+		createState func() mipsevm.FPVMState
+	}{
+		{VersionSingleThreadedGetFd, func() mipsevm.FPVMState { return singlethreaded.CreateEmptyState() }},
+		{VersionMultiThreaded, func() mipsevm.FPVMState { return multithreaded.CreateEmptyState() }},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.version.String(), func(t *testing.T) {
+			state, err := NewFromState(test.createState())
+			require.NoError(t, err)
 
-	dir := t.TempDir()
-	path := filepath.Join(dir, "test.json")
-	err = serialize.Write(path, state, 0o644)
-	require.ErrorIs(t, err, ErrJsonNotSupported)
+			dir := t.TempDir()
+			path := filepath.Join(dir, "test.json")
+			err = serialize.Write(path, state, 0o644)
+			require.ErrorIs(t, err, ErrJsonNotSupported)
+		})
+	}
 }
 
 func writeToFile(t *testing.T, filename string, data serialize.Serializable) string {
