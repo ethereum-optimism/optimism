@@ -48,7 +48,7 @@ type safetyIndex struct {
 	finalizedL1 eth.L1BlockRef
 }
 
-func NewRecentSafetyIndex(log log.Logger, chains ChainsDBClient) *safetyIndex {
+func NewSafetyIndex(log log.Logger, chains ChainsDBClient) *safetyIndex {
 	return &safetyIndex{
 		log:         log,
 		chains:      chains,

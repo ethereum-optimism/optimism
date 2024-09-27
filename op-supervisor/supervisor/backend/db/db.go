@@ -60,7 +60,7 @@ func NewChainsDB(logDBs map[types.ChainID]LogStorage, l log.Logger) *ChainsDB {
 		logDBs: logDBs,
 		logger: l,
 	}
-	ret.safetyIndex = safety.NewRecentSafetyIndex(l, ret)
+	ret.safetyIndex = safety.NewSafetyIndex(l, ret)
 	return ret
 }
 
