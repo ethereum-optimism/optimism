@@ -30,8 +30,6 @@ import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
 import { PermissionedDisputeGame } from "src/dispute/PermissionedDisputeGame.sol";
 
-import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
-import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
 import { OPContractsManager } from "src/L1/OPContractsManager.sol";
 import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";

@@ -15,14 +15,10 @@ import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
 import { ISystemConfigV160 } from "src/L1/interfaces/ISystemConfigV160.sol";
 import { IAddressManager } from "src/legacy/interfaces/IAddressManager.sol";
 
-import { Proxy } from "src/universal/Proxy.sol";
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
-import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
-import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
 
 import { L1ChugSplashProxy } from "src/legacy/L1ChugSplashProxy.sol";
 import { ResolvedDelegateProxy } from "src/legacy/ResolvedDelegateProxy.sol";
-import { AddressManager } from "src/legacy/AddressManager.sol";
 
 import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 import { IDisputeGameFactory } from "src/dispute/interfaces/IDisputeGameFactory.sol";
@@ -71,7 +67,7 @@ contract OPContractsManager is ISemver, Initializable {
     /// @notice The full set of outputs from deploying a new OP Stack chain.
     struct DeployOutput {
         ProxyAdmin opChainProxyAdmin;
-        AddressManager addressManager;
+        IAddressManager addressManager;
         IL1ERC721Bridge l1ERC721BridgeProxy;
         ISystemConfigV160 systemConfigProxy;
         OptimismMintableERC20Factory optimismMintableERC20FactoryProxy;
@@ -238,10 +234,10 @@ contract OPContractsManager is ISemver, Initializable {
         // this contract, and then transfer ownership to the specified owner at the end of deployment.
         // The AddressManager is used to store the implementation for the L1CrossDomainMessenger
         // due to it's usage of the legacy ResolvedDelegateProxy.
-        output.addressManager = AddressManager(Blueprint.deployFrom(blueprint.addressManager, salt));
+        output.addressManager = IAddressManager(Blueprint.deployFrom(blueprint.addressManager, salt));
         output.opChainProxyAdmin =
             ProxyAdmin(Blueprint.deployFrom(blueprint.proxyAdmin, salt, abi.encode(address(this))));
-        output.opChainProxyAdmin.setAddressManager(IAddressManager(address(output.addressManager)));
+        output.opChainProxyAdmin.setAddressManager(output.addressManager);
 
         // -------- Deploy Proxy Contracts --------
 
@@ -617,10 +613,7 @@ contract OPContractsManager is ISemver, Initializable {
         internal
         view
         virtual
-        returns (
-            IResourceMetering.ResourceConfig memory resourceConfig_,
-            ISystemConfig.Addresses memory opChainAddrs_
-        )
+        returns (IResourceMetering.ResourceConfig memory resourceConfig_, ISystemConfig.Addresses memory opChainAddrs_)
     {
         // We use assembly to easily convert from IResourceMetering.ResourceConfig to ResourceMetering.ResourceConfig.
         // This is required because we have not yet fully migrated the codebase to be interface-based.
