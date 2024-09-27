@@ -8,11 +8,7 @@ import { ISystemConfig } from "src/L1/interfaces/ISystemConfig.sol";
 
 interface IL1CrossDomainMessengerV160 is ICrossDomainMessenger {
     function PORTAL() external view returns (address);
-    function initialize(
-        ISuperchainConfig _superchainConfig,
-        IOptimismPortal _portal
-    )
-        external;
+    function initialize(ISuperchainConfig _superchainConfig, IOptimismPortal _portal) external;
     function portal() external view returns (address);
     function superchainConfig() external view returns (address);
     function systemConfig() external view returns (address);

@@ -509,10 +509,10 @@ contract DeployImplementations is Script {
         DeployImplementationsInput _dii,
         DeployImplementationsOutput _dio
     )
-    internal
-    view
-    virtual
-    returns (OPContractsManager.ImplementationSetter memory)
+        internal
+        view
+        virtual
+        returns (OPContractsManager.ImplementationSetter memory)
     {
         bytes4 selector = LibString.eq(_dii.release(), "op-contracts/v1.6.0")
             ? IL1CrossDomainMessengerV160.initialize.selector
@@ -527,10 +527,10 @@ contract DeployImplementations is Script {
         DeployImplementationsInput _dii,
         DeployImplementationsOutput _dio
     )
-    internal
-    view
-    virtual
-    returns (OPContractsManager.ImplementationSetter memory)
+        internal
+        view
+        virtual
+        returns (OPContractsManager.ImplementationSetter memory)
     {
         bytes4 selector = LibString.eq(_dii.release(), "op-contracts/v1.6.0")
             ? IL1StandardBridgeV160.initialize.selector

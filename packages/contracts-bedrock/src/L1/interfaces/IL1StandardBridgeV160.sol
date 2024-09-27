@@ -62,11 +62,7 @@ interface IL1StandardBridgeV160 is IStandardBridge {
     )
         external
         payable;
-    function initialize(
-        ICrossDomainMessenger _messenger,
-        ISuperchainConfig _superchainConfig
-    )
-        external;
+    function initialize(ICrossDomainMessenger _messenger, ISuperchainConfig _superchainConfig) external;
     function l2TokenBridge() external view returns (address);
     function superchainConfig() external view returns (ISuperchainConfig);
     function systemConfig() external view returns (ISystemConfig);
