@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/queue"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -32,7 +33,7 @@ type channelManager struct {
 	rollupCfg   *rollup.Config
 
 	// All blocks since the last request for new tx data.
-	blocks Queue[*types.Block]
+	blocks queue.Queue[*types.Block]
 	// The latest L1 block from all the L2 blocks in the most recently closed channel
 	l1OriginLastClosedChannel eth.BlockID
 	// The default ChannelConfig to use for the next channel
