@@ -65,6 +65,9 @@ diff-%-cannon: cannon elf
 		exit 1; \
 	fi
 
+cannon-stf-verify:
+	@docker build --progress plain -f Dockerfile.diff ../
+
 fuzz:
   # Common vm tests
 	go test $(FUZZLDFLAGS) -run NOTAREALTEST -v -fuzztime 10s -fuzz=FuzzStateSyscallBrk ./mipsevm/tests
@@ -88,4 +91,5 @@ fuzz:
 	test \
 	lint \
 	fuzz \
-	diff-%-cannon
+	diff-%-cannon \
+	cannon-stf-verify

@@ -1146,6 +1146,32 @@ jobs:
       - notify-failures-on-develop:
           mentions: "@proofs-squad"
 
+  cannon-stf-verify:
+    docker:
+      - image: <<pipeline.parameters.ci_builder_image>>
+    steps:
+      - checkout
+      - setup_remote_docker
+      - restore_cache:
+          name: Restore Go modules cache
+          key: gomod-{{ checksum "go.sum" }}
+      - restore_cache:
+          name: Restore Go build cache
+          keys:
+            - golang-build-cache-cannon-stf-verify-{{ checksum "go.sum" }}
+            - golang-build-cache-cannon-stf-verify-
+      - run:
+          name: Build cannon
+          command: make cannon
+      - run:
+          name: Verify the Cannon STF
+          command: make -C ./cannon cannon-stf-verify
+      - save_cache:
+          name: Save Go build cache
+          key: golang-build-cache-cannon-stf-verify-{{ checksum "go.sum" }}
+          paths:
+            - "/root/.cache/go-build"
+
   devnet:
     machine:
       image: <<pipeline.parameters.base_image>>
@@ -1867,6 +1893,9 @@ workflows:
       - cannon-prestate:
           requires:
             - go-mod-download
+      - cannon-stf-verify:
+          requires:
+            - go-mod-download
       - contracts-bedrock-build:
           skip_pattern: test
           context:
@@ -1884,6 +1913,7 @@ workflows:
           requires:
             - contracts-bedrock-build
             - cannon-prestate
+            - cannon-stf-verify
           context:
             - slack
 
