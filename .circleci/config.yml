@@ -309,10 +309,6 @@ jobs:
   docker-build-pr:
     environment:
       DOCKER_BUILDKIT: 1
-    parameters:
-      targets:
-        description: Docker buildx bake targets
-        type: string
     machine: true
     resource_class: ethereum-optimism/e2-standard-4
     steps:
