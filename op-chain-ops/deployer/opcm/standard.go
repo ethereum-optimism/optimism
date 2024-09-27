@@ -42,7 +42,7 @@ func ManagerImplementationAddrFor(chainID uint64) (common.Address, error) {
 	switch chainID {
 	case 11155111:
 		// Generated using the bootstrap command on 09/26/2024.
-		return common.HexToAddress("0x5458b475b554c888c5c3bc01e806c60b3231d8b2"), nil
+		return common.HexToAddress("0x24985ef36d99dcd35d76a9841ca1d5ecebdc157b"), nil
 	default:
 		return common.Address{}, fmt.Errorf("unsupported chain ID: %d", chainID)
 	}
