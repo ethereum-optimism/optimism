@@ -124,8 +124,8 @@
     "sourceCodeHash": "0x5e58b7c867fafa49fe39d68d83875425e9cf94f05f2835bdcdaa08fc8bc6b68e"
   },
   "src/L2/OptimismSuperchainERC20Factory.sol": {
-    "initCodeHash": "0x98011045722178751e4a1112892f7d9a11bc1f5e42ac18205b6d30a1f1476d24",
-    "sourceCodeHash": "0x9e72b2a77d82fcf3963734232ba9faff9d63962594a032041c2561f0a9f1b0b5"
+    "initCodeHash": "0x43ec413140b05bfb83ec453b0d4f82b33a2d560bf8c76405d08de17565b87053",
+    "sourceCodeHash": "0x3dc742f350bf100f92fd32769c99668cddf1f9cf6782dcff0bb1243b7c7ed186"
   },
   "src/L2/SequencerFeeVault.sol": {
     "initCodeHash": "0x2e6551705e493bacba8cffe22e564d5c401ae5bb02577a5424e0d32784e13e74",
@@ -136,8 +136,8 @@
     "sourceCodeHash": "0xb11ce94fd6165d8ca86eebafc7235e0875380d1a5d4e8b267ff0c6477083b21c"
   },
   "src/L2/SuperchainWETH.sol": {
-    "initCodeHash": "0x702ff6dc90e7e02085e95e3510590cce9bf44a7ea06bfbb8f7a47e203a8809b2",
-    "sourceCodeHash": "0x823ded4da0dc1f44bc87b5e46d0a1c90c76f76e0f36c294c5410c4755886c925"
+    "initCodeHash": "0xe87f7012ac3050250d6cc6ca371ec09ec888b991603e531e3a97485c751d586b",
+    "sourceCodeHash": "0x720f4a6f4157558214c9943c49dc28702b7695b91ab1413a4f1c0ca216a97877"
   },
   "src/L2/WETH.sol": {
     "initCodeHash": "0xfb253765520690623f177941c2cd9eba23e4c6d15063bccdd5e98081329d8956",
