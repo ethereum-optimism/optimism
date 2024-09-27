@@ -17,84 +17,89 @@ import (
 
 func TestPruneFrameQueue(t *testing.T) {
 	for _, tt := range []struct {
-		desc string
-		fs   []testFrame
-		exp  []testFrame
+		desc     string
+		frames   []testFrame
+		expected []testFrame
 	}{
 		{
-			desc: "empty",
-			fs:   []testFrame{},
-			exp:  []testFrame{},
+			desc:     "empty",
+			frames:   []testFrame{},
+			expected: []testFrame{},
 		},
 		{
-			desc: "one",
-			fs:   []testFrame{"a:2:"},
-			exp:  []testFrame{"a:2:"},
+			desc:     "one",
+			frames:   []testFrame{"a:2:"},
+			expected: []testFrame{"a:2:"},
 		},
 		{
-			desc: "one-last",
-			fs:   []testFrame{"a:2:!"},
-			exp:  []testFrame{"a:2:!"},
+			desc:     "one-last",
+			frames:   []testFrame{"a:2:!"},
+			expected: []testFrame{"a:2:!"},
 		},
 		{
-			desc: "last-new",
-			fs:   []testFrame{"a:2:!", "b:0:"},
-			exp:  []testFrame{"a:2:!", "b:0:"},
+			desc:     "last-new",
+			frames:   []testFrame{"a:2:!", "b:0:"},
+			expected: []testFrame{"a:2:!", "b:0:"},
 		},
 		{
-			desc: "last-ooo",
-			fs:   []testFrame{"a:2:!", "b:1:"},
-			exp:  []testFrame{"a:2:!"},
+			desc:     "last-ooo",
+			frames:   []testFrame{"a:2:!", "b:1:"},
+			expected: []testFrame{"a:2:!"},
 		},
 		{
-			desc: "middle-lastooo",
-			fs:   []testFrame{"b:1:", "a:2:!"},
-			exp:  []testFrame{"b:1:"},
+			desc:     "middle-lastooo",
+			frames:   []testFrame{"b:1:", "a:2:!"},
+			expected: []testFrame{"b:1:"},
 		},
 		{
-			desc: "middle-first",
-			fs:   []testFrame{"b:1:", "a:0:"},
-			exp:  []testFrame{"a:0:"},
+			desc:     "middle-first",
+			frames:   []testFrame{"b:1:", "a:0:"},
+			expected: []testFrame{"a:0:"},
 		},
 		{
-			desc: "last-first",
-			fs:   []testFrame{"b:1:!", "a:0:"},
-			exp:  []testFrame{"b:1:!", "a:0:"},
+			desc:     "last-first",
+			frames:   []testFrame{"b:1:!", "a:0:"},
+			expected: []testFrame{"b:1:!", "a:0:"},
 		},
 		{
-			desc: "last-ooo",
-			fs:   []testFrame{"b:1:!", "b:2:"},
-			exp:  []testFrame{"b:1:!"},
+			desc:     "last-ooo",
+			frames:   []testFrame{"b:1:!", "b:2:"},
+			expected: []testFrame{"b:1:!"},
 		},
 		{
-			desc: "ooo",
-			fs:   []testFrame{"b:1:", "b:3:"},
-			exp:  []testFrame{"b:1:"},
+			desc:     "ooo",
+			frames:   []testFrame{"b:1:", "b:3:"},
+			expected: []testFrame{"b:1:"},
 		},
 		{
-			desc: "other-ooo",
-			fs:   []testFrame{"b:1:", "c:3:"},
-			exp:  []testFrame{"b:1:"},
+			desc:     "other-ooo",
+			frames:   []testFrame{"b:1:", "c:3:"},
+			expected: []testFrame{"b:1:"},
 		},
 		{
-			desc: "other-ooo-last",
-			fs:   []testFrame{"b:1:", "c:3:", "b:2:!"},
-			exp:  []testFrame{"b:1:", "b:2:!"},
+			desc:     "other-ooo-last",
+			frames:   []testFrame{"b:1:", "c:3:", "b:2:!"},
+			expected: []testFrame{"b:1:", "b:2:!"},
 		},
 		{
-			desc: "first-discards-multiple",
-			fs:   []testFrame{"c:0:", "c:1:", "c:2:", "d:0:", "c:3:!"},
-			exp:  []testFrame{"d:0:"},
+			desc:     "ooo-resubmit",
+			frames:   []testFrame{"b:1:", "b:3:!", "b:2:", "b:3:!"},
+			expected: []testFrame{"b:1:", "b:2:", "b:3:!"},
 		},
 		{
-			desc: "complex",
-			fs:   []testFrame{"b:1:", "b:2:!", "a:0:", "c:1:!", "a:1:", "a:2:!", "c:0:", "c:1:", "d:0:", "c:2:!", "e:0:"},
-			exp:  []testFrame{"b:1:", "b:2:!", "a:0:", "a:1:", "a:2:!", "e:0:"},
+			desc:     "first-discards-multiple",
+			frames:   []testFrame{"c:0:", "c:1:", "c:2:", "d:0:", "c:3:!"},
+			expected: []testFrame{"d:0:"},
+		},
+		{
+			desc:     "complex",
+			frames:   []testFrame{"b:1:", "b:2:!", "a:0:", "c:1:!", "a:1:", "a:2:!", "c:0:", "c:1:", "d:0:", "c:2:!", "e:0:"},
+			expected: []testFrame{"b:1:", "b:2:!", "a:0:", "a:1:", "a:2:!", "e:0:"},
 		},
 	} {
 		t.Run(tt.desc, func(t *testing.T) {
-			pfs := pruneFrameQueue(testFramesToFrames(tt.fs...))
-			require.Equal(t, testFramesToFrames(tt.exp...), pfs)
+			pfs := pruneFrameQueue(testFramesToFrames(tt.frames...))
+			require.Equal(t, testFramesToFrames(tt.expected...), pfs)
 		})
 	}
 }
