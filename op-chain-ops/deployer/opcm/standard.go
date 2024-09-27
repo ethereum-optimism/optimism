@@ -3,6 +3,7 @@ package opcm
 import (
 	"embed"
 	"fmt"
+
 	"github.com/ethereum-optimism/superchain-registry/superchain"
 	"github.com/ethereum/go-ethereum/common"
 )

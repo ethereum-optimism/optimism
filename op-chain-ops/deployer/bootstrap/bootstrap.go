@@ -5,6 +5,9 @@ import (
 	"crypto/ecdsa"
 	"crypto/rand"
 	"fmt"
+	"math/big"
+	"strings"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/pipeline"
@@ -21,8 +24,6 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
-	"math/big"
-	"strings"
 )
 
 type OPCMConfig struct {

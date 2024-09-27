@@ -3,7 +3,6 @@ package pipeline
 import (
 	"context"
 	"fmt"
-	"github.com/ethereum/go-ethereum/common"
 	"math/big"
 	"strings"
 

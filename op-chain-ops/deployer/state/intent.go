@@ -2,11 +2,12 @@ package state
 
 import (
 	"fmt"
+	"math/big"
+	"strings"
+
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 	"github.com/ethereum/go-ethereum/common"
-	"math/big"
-	"strings"
 )
 
 var emptyAddress common.Address

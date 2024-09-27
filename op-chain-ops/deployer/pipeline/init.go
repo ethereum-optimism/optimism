@@ -4,9 +4,10 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"strings"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
-	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 
