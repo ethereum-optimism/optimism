@@ -306,6 +306,47 @@ jobs:
             - ".devnet-mt-cannon"
       - notify-failures-on-develop
 
+  docker-build-pr:
+    environment:
+      DOCKER_BUILDKIT: 1
+    parameters:
+      targets:
+        description: Docker buildx bake targets
+        type: array
+    machine: true
+    resource_class: ethereum-optimism/e2-standard-4
+    steps:
+      - checkout
+      - run:
+          command: mkdir -p /tmp/docker_images
+      - run:
+          name: Build
+          command: |
+            # Check to see if DOCKER_HUB_READ_ONLY_TOKEN is set (i.e. we are in repo) before attempting to use secrets.
+            # Building should work without this read only login, but may get rate limited.
+            if [[ -v DOCKER_HUB_READ_ONLY_TOKEN ]]; then
+              echo "$DOCKER_HUB_READ_ONLY_TOKEN" | docker login -u "$DOCKER_HUB_READ_ONLY_USER" --password-stdin
+            fi
+
+            export GIT_COMMIT="$(git rev-parse HEAD)"
+            export GIT_DATE="$(git show -s --format='%ct')"
+            export PLATFORMS="linux/amd64"
+            export GIT_VERSION="untagged"
+
+            echo "Setting GIT_VERSION=$GIT_VERSION"
+            
+            IMAGES="<<parameters.targets>>"
+            IFS=' '
+            for target in $IMAGES; do
+              echo "Building for platforms $PLATFORMS and then loading into docker"
+              docker buildx bake \
+              --progress plain \
+              -f docker-bake.hcl \
+              --load \
+              $target
+            done
+          no_output_timeout: 45m
+
   docker-build:
     environment:
       DOCKER_BUILDKIT: 1
@@ -1421,25 +1462,20 @@ workflows:
 #            - op-program-docker-build
 #            - op-supervisor-docker-build
 #            - proofs-tools-docker-build
-      - docker-build:
-          name: <<matrix.docker_name>>-docker-build
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          save_image_tag: <<pipeline.git.revision>>
-          matrix:
-            parameters:
-              docker_name:
-                - op-node
-#                - op-batcher
-#                - op-program
-#                - op-proposer
-#                - op-challenger
-#                - proofs-tools
-#                - op-dispute-mon
-#                - op-conductor
-#                - da-server
-#                - op-supervisor
-#                - op-deployer
-#                - cannon
+      - docker-build-pr:
+          docker_name:
+            - op-node
+            - op-batcher
+            - op-program
+            - op-proposer
+            - op-challenger
+            - proofs-tools
+            - op-dispute-mon
+            - op-conductor
+            - da-server
+            - op-supervisor
+            - op-deployer
+            - cannon
       - cannon-prestate:
           requires:
             - go-mod-download
