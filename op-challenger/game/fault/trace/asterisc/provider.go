@@ -125,7 +125,7 @@ func (p *AsteriscTraceProvider) loadProof(ctx context.Context, i uint64) (*utils
 		file, err = ioutil.OpenDecompressed(path)
 		if errors.Is(err, os.ErrNotExist) {
 			// Expected proof wasn't generated, check if we reached the end of execution
-			proof, step, exited, err := p.stateConverter.ConvertStateToProof(vm.FinalStatePath(p.dir, p.cfg.BinarySnapshots))
+			proof, step, exited, err := p.stateConverter.ConvertStateToProof(ctx, vm.FinalStatePath(p.dir, p.cfg.BinarySnapshots))
 			if err != nil {
 				return nil, err
 			}
@@ -185,7 +185,7 @@ func (p *AsteriscTraceProviderForTest) FindStep(ctx context.Context, start uint6
 		return 0, fmt.Errorf("generate asterisc trace (until preimage read): %w", err)
 	}
 	// Load the step from the state asterisc finished with
-	_, step, exited, err := p.stateConverter.ConvertStateToProof(vm.FinalStatePath(p.dir, p.cfg.BinarySnapshots))
+	_, step, exited, err := p.stateConverter.ConvertStateToProof(ctx, vm.FinalStatePath(p.dir, p.cfg.BinarySnapshots))
 	if err != nil {
 		return 0, fmt.Errorf("failed to load final state: %w", err)
 	}

@@ -16,7 +16,7 @@ type stubConverter struct {
 	hash common.Hash
 }
 
-func (s *stubConverter) ConvertStateToProof(statePath string) (*utils.ProofData, uint64, bool, error) {
+func (s *stubConverter) ConvertStateToProof(_ context.Context, _ string) (*utils.ProofData, uint64, bool, error) {
 	if s.err != nil {
 		return nil, 0, false, s.err
 	}

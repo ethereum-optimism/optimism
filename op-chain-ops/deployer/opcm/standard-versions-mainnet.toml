@@ -1,5 +1,3 @@
-standard_release = "op-contracts/v1.6.0"
-
 [releases]
 
 # Contracts which are

@@ -16,6 +16,7 @@ func Run(ctx *cli.Context) error {
 			return err
 		}
 		fmt.Println("use `--input <valid input file> --help` to get more detailed help")
+		return nil
 	}
 
 	inputPath, err := parsePathFlag(os.Args[1:], "--input")
@@ -29,7 +30,6 @@ func Run(ctx *cli.Context) error {
 	return ExecuteCannon(ctx.Context, os.Args[1:], version)
 }
 
-// var RunCommand = cmd.CreateRunCommand(Run)
 var RunCommand = &cli.Command{
 	Name:            "run",
 	Usage:           "Run VM step(s) and generate proof data to replicate onchain.",

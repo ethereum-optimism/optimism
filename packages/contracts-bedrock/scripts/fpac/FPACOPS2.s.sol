@@ -5,13 +5,11 @@ pragma solidity 0.8.15;
 import { StdAssertions } from "forge-std/StdAssertions.sol";
 import "scripts/deploy/Deploy.s.sol";
 
-// Contracts
-import { Proxy } from "src/universal/Proxy.sol";
-
 // Libraries
 import "src/dispute/lib/Types.sol";
 
 // Interfaces
+import { IProxy } from "src/universal/interfaces/IProxy.sol";
 import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
 import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistry.sol";
 import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
@@ -91,12 +89,14 @@ contract FPACOPS2 is Deploy, StdAssertions {
     function deployCannonDisputeGame() internal broadcast {
         console.log("Deploying CannonFaultDisputeGame implementation");
 
-        save(
-            "CannonFaultDisputeGame",
-            address(
-                _deploy(
-                    "FaultDisputeGame",
-                    abi.encode(
+        DeployUtils.create2AndSave({
+            _save: this,
+            _name: "FaultDisputeGame",
+            _nick: "CannonFaultDisputeGame",
+            _args: DeployUtils.encodeConstructor(
+                abi.encodeCall(
+                    IFaultDisputeGame.__constructor__,
+                    (
                         GameTypes.CANNON,
                         loadMipsAbsolutePrestate(),
                         cfg.faultGameMaxDepth(),
@@ -109,20 +109,22 @@ contract FPACOPS2 is Deploy, StdAssertions {
                         cfg.l2ChainID()
                     )
                 )
-            )
-        );
+            ),
+            _salt: _implSalt()
+        });
     }
 
     /// @notice Deploys the PermissionedDisputeGame.
     function deployPermissionedDisputeGame() internal broadcast {
         console.log("Deploying PermissionedDisputeGame implementation");
 
-        save(
-            "PermissionedDisputeGame",
-            address(
-                _deploy(
-                    "PermissionedDisputeGame",
-                    abi.encode(
+        DeployUtils.create2AndSave({
+            _save: this,
+            _name: "PermissionedDisputeGame",
+            _args: DeployUtils.encodeConstructor(
+                abi.encodeCall(
+                    IPermissionedDisputeGame.__constructor__,
+                    (
                         GameTypes.PERMISSIONED_CANNON,
                         loadMipsAbsolutePrestate(),
                         cfg.faultGameMaxDepth(),
@@ -137,8 +139,9 @@ contract FPACOPS2 is Deploy, StdAssertions {
                         cfg.l2OutputOracleChallenger()
                     )
                 )
-            )
-        );
+            ),
+            _salt: _implSalt()
+        });
     }
 
     /// @notice Initializes the DelayedWETH proxy.
@@ -147,7 +150,7 @@ contract FPACOPS2 is Deploy, StdAssertions {
 
         address wethProxy = mustGetAddress("DelayedWETHProxy");
         address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
-        Proxy(payable(wethProxy)).upgradeToAndCall(
+        IProxy(payable(wethProxy)).upgradeToAndCall(
             mustGetAddress("DelayedWETH"),
             abi.encodeCall(IDelayedWETH.initialize, (msg.sender, ISuperchainConfig(superchainConfigProxy)))
         );
@@ -159,7 +162,7 @@ contract FPACOPS2 is Deploy, StdAssertions {
 
         address wethProxy = mustGetAddress("PermissionedDelayedWETHProxy");
         address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
-        Proxy(payable(wethProxy)).upgradeToAndCall(
+        IProxy(payable(wethProxy)).upgradeToAndCall(
             mustGetAddress("DelayedWETH"),
             abi.encodeCall(IDelayedWETH.initialize, (msg.sender, ISuperchainConfig(superchainConfigProxy)))
         );
@@ -176,7 +179,7 @@ contract FPACOPS2 is Deploy, StdAssertions {
         weth.transferOwnership(_systemOwnerSafe);
 
         // Transfer the admin rights of the DelayedWETHProxy to the ProxyAdmin.
-        Proxy prox = Proxy(payable(address(weth)));
+        IProxy prox = IProxy(payable(address(weth)));
         prox.changeAdmin(_proxyAdmin);
     }
 
@@ -191,7 +194,7 @@ contract FPACOPS2 is Deploy, StdAssertions {
         weth.transferOwnership(_systemOwnerSafe);
 
         // Transfer the admin rights of the DelayedWETHProxy to the ProxyAdmin.
-        Proxy prox = Proxy(payable(address(weth)));
+        IProxy prox = IProxy(payable(address(weth)));
         prox.changeAdmin(_proxyAdmin);
     }
 
@@ -220,12 +223,12 @@ contract FPACOPS2 is Deploy, StdAssertions {
         ChainAssertions.checkPermissionedDelayedWETH(contracts, cfg, true, _systemOwnerSafe);
 
         // Verify PreimageOracle configuration.
-        PreimageOracle oracle = PreimageOracle(mustGetAddress("PreimageOracle"));
+        IPreimageOracle oracle = IPreimageOracle(mustGetAddress("PreimageOracle"));
         assertEq(oracle.minProposalSize(), cfg.preimageOracleMinProposalSize());
         assertEq(oracle.challengePeriod(), cfg.preimageOracleChallengePeriod());
 
         // Verify MIPS configuration.
-        MIPS mips = MIPS(mustGetAddress("Mips"));
+        IMIPS mips = IMIPS(mustGetAddress("Mips"));
         assertEq(address(mips.oracle()), address(oracle));
 
         // Grab ASR

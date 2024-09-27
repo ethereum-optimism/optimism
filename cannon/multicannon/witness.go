@@ -6,7 +6,6 @@ import (
 
 	"github.com/urfave/cli/v2"
 
-	"github.com/ethereum-optimism/optimism/cannon/cmd"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 )
 
@@ -16,6 +15,7 @@ func Witness(ctx *cli.Context) error {
 			return err
 		}
 		fmt.Println("use `--input <valid input file> --help` to get more detailed help")
+		return nil
 	}
 
 	inputPath, err := parsePathFlag(os.Args[1:], "--input")
@@ -29,4 +29,10 @@ func Witness(ctx *cli.Context) error {
 	return ExecuteCannon(ctx.Context, os.Args[1:], version)
 }
 
-var WitnessCommand = cmd.CreateWitnessCommand(Witness)
+var WitnessCommand = &cli.Command{
+	Name:            "witness",
+	Usage:           "Convert a Cannon JSON state into a binary witness",
+	Description:     "Convert a Cannon JSON state into a binary witness. Basic data about the state is printed to stdout in JSON format.",
+	Action:          Witness,
+	SkipFlagParsing: true,
+}

@@ -41,8 +41,9 @@ var (
 )
 
 const (
-	cannonGameType   uint32 = 0
-	alphabetGameType uint32 = 255
+	cannonGameType       uint32 = 0
+	permissionedGameType uint32 = 1
+	alphabetGameType     uint32 = 255
 )
 
 type GameCfg struct {
@@ -95,13 +96,28 @@ type FactoryHelper struct {
 	Factory     *bindings.DisputeGameFactory
 }
 
-func NewFactoryHelper(t *testing.T, ctx context.Context, system DisputeSystem) *FactoryHelper {
+type FactoryCfg struct {
+	PrivKey *ecdsa.PrivateKey
+}
+
+type FactoryOption func(c *FactoryCfg)
+
+func WithFactoryPrivKey(privKey *ecdsa.PrivateKey) FactoryOption {
+	return func(c *FactoryCfg) {
+		c.PrivKey = privKey
+	}
+}
+
+func NewFactoryHelper(t *testing.T, ctx context.Context, system DisputeSystem, opts ...FactoryOption) *FactoryHelper {
 	require := require.New(t)
 	client := system.NodeClient("l1")
 	chainID, err := client.ChainID(ctx)
 	require.NoError(err)
-	privKey := TestKey
-	opts, err := bind.NewKeyedTransactorWithChainID(privKey, chainID)
+	factoryCfg := &FactoryCfg{PrivKey: TestKey}
+	for _, opt := range opts {
+		opt(factoryCfg)
+	}
+	txOpts, err := bind.NewKeyedTransactorWithChainID(factoryCfg.PrivKey, chainID)
 	require.NoError(err)
 
 	l1Deployments := system.L1Deployments()
@@ -114,8 +130,8 @@ func NewFactoryHelper(t *testing.T, ctx context.Context, system DisputeSystem) *
 		Require:     require,
 		System:      system,
 		Client:      client,
-		Opts:        opts,
-		PrivKey:     privKey,
+		Opts:        txOpts,
+		PrivKey:     factoryCfg.PrivKey,
 		Factory:     factory,
 		FactoryAddr: factoryAddr,
 	}
@@ -152,6 +168,14 @@ func (h *FactoryHelper) StartOutputCannonGameWithCorrectRoot(ctx context.Context
 }
 
 func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, l2Node string, l2BlockNumber uint64, rootClaim common.Hash, opts ...GameOpt) *OutputCannonGameHelper {
+	return h.startOutputCannonGameOfType(ctx, l2Node, l2BlockNumber, rootClaim, cannonGameType, opts...)
+}
+
+func (h *FactoryHelper) StartPermissionedGame(ctx context.Context, l2Node string, l2BlockNumber uint64, rootClaim common.Hash, opts ...GameOpt) *OutputCannonGameHelper {
+	return h.startOutputCannonGameOfType(ctx, l2Node, l2BlockNumber, rootClaim, permissionedGameType, opts...)
+}
+
+func (h *FactoryHelper) startOutputCannonGameOfType(ctx context.Context, l2Node string, l2BlockNumber uint64, rootClaim common.Hash, gameType uint32, opts ...GameOpt) *OutputCannonGameHelper {
 	cfg := NewGameCfg(opts...)
 	logger := testlog.Logger(h.T, log.LevelInfo).New("role", "OutputCannonGameHelper")
 	rollupClient := h.System.RollupClient(l2Node)
@@ -163,7 +187,7 @@ func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, l2Node string
 	defer cancel()
 
 	tx, err := transactions.PadGasEstimate(h.Opts, 2, func(opts *bind.TransactOpts) (*types.Transaction, error) {
-		return h.Factory.Create(opts, cannonGameType, rootClaim, extraData)
+		return h.Factory.Create(opts, gameType, rootClaim, extraData)
 	})
 	h.Require.NoError(err, "create fault dispute game")
 	rcpt, err := wait.ForReceiptOK(ctx, h.Client, tx.Hash())

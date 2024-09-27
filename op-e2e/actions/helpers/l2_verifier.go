@@ -241,6 +241,10 @@ func (s *l2VerifierBackend) OnUnsafeL2Payload(ctx context.Context, envelope *eth
 	return nil
 }
 
+func (s *l2VerifierBackend) ConductorEnabled(ctx context.Context) (bool, error) {
+	return false, nil
+}
+
 func (s *L2Verifier) DerivationMetricsTracer() *testutils.TestDerivationMetrics {
 	return s.derivationMetrics
 }

@@ -3,22 +3,22 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "vetoer_",
+        "name": "_vetoer",
         "type": "address"
       },
       {
         "internalType": "address",
-        "name": "initiator_",
+        "name": "_initiator",
         "type": "address"
       },
       {
         "internalType": "address",
-        "name": "target_",
+        "name": "_target",
         "type": "address"
       },
       {
         "internalType": "uint256",
-        "name": "operatingDelay_",
+        "name": "_operatingDelay",
         "type": "uint256"
       }
     ],
@@ -59,7 +59,7 @@
     "inputs": [
       {
         "internalType": "bytes32",
-        "name": "callHash",
+        "name": "_callHash",
         "type": "bytes32"
       }
     ],
