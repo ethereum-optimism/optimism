@@ -4,21 +4,16 @@ pragma solidity 0.8.15;
 import { OptimismMintableERC721 } from "src/universal/OptimismMintableERC721.sol";
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import { IL1Block } from "src/L2/interfaces/IL1Block.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
 
 /// @title OptimismMintableERC721Factory
 /// @notice Factory contract for creating OptimismMintableERC721 contracts.
-/// @custom:legacy true
-///         While this contract is in the "universal" directory, it is not maintained as part
-///         of the L1 deployments. This contract needs to be modified to read from storage
-///         rather than use immutables to be deployed on L1 safely due to allow for all
-///         L2 networks to use the same implementation.
+///         This contract could in theory live on both L1 and L2 but it is not widely
+///         used and is therefore set up to work on L2. This could be abstracted in the
+///         future to be deployable on L1 as well.
 contract OptimismMintableERC721Factory is ISemver {
-    /// @notice Address of the ERC721 bridge on this network.
-    address internal bridge;
-
-    /// @custom:legacy true
-    /// @notice Chain ID for the remote network.
-    uint256 internal remoteChainId;
+    // TODO: check storage layout
 
     /// @notice Tracks addresses created by this factory.
     mapping(address => bool) public isOptimismMintableERC721;
@@ -31,40 +26,30 @@ contract OptimismMintableERC721Factory is ISemver {
 
     /// @notice Semantic version.
     /// @custom:semver 1.4.1-beta.3
-    string public constant version = "1.4.1-beta.3";
-
-    /// @notice The semver MUST be bumped any time that there is a change in
+    ///         The semver MUST be bumped any time that there is a change in
     ///         the OptimismMintableERC721 token contract since this contract
     ///         is responsible for deploying OptimismMintableERC721 contracts.
-    /// @param _bridge Address of the ERC721 bridge on this network.
-    /// @param _remoteChainId Chain ID for the remote network.
-    constructor() {
-        __disableInitializers();
-    }
+    /// @custom:semver 1.4.1-beta.2
+    string public constant version = "1.4.1-beta.3";
 
-    function initialize(address _bridge, uint256 _remoteChainId) public initializer {
-        bridge = _bridge;
-        remoteChainId = _remoteChainId;
-    }
-
-    /// @notice
+    /// @notice TODO: call L1Block
     function REMOTE_CHAIN_ID() external view returns (uint256) {
-        return remoteChainId;
+        return remoteChainId();
     }
 
-    /// @notice
-    function remoteChainId() external virtual view returns (uint256) {
-        return remoteChainId;
+    /// @notice TODO: call L1Block
+    function remoteChainId() public view returns (uint256) {
+        return IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).remoteChainId();
     }
 
-    /// @notice
-    function BRIDGE() external virtual view returns (address) {
-        return bridge;
+    /// @notice TODO: call L1Block
+    function BRIDGE() external view returns (address) {
+        return bridge();
     }
 
-    /// @notice
-    function bridge() external virtual view returns (address) {
-        return bridge;
+    /// @notice TODO: call L1Block
+    function bridge() public view returns (address) {
+        return IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).l1ERC721Bridge();
     }
 
     /// @notice Address of the ERC721 bridge on this network.
@@ -93,7 +78,7 @@ contract OptimismMintableERC721Factory is ISemver {
 
         bytes32 salt = keccak256(abi.encode(_remoteToken, _name, _symbol));
         address localToken =
-            address(new OptimismMintableERC721{ salt: salt }(BRIDGE, REMOTE_CHAIN_ID, _remoteToken, _name, _symbol));
+            address(new OptimismMintableERC721{ salt: salt }(bridge(), remoteChainId(), _remoteToken, _name, _symbol));
 
         isOptimismMintableERC721[localToken] = true;
         emit OptimismMintableERC721Created(localToken, _remoteToken, msg.sender);

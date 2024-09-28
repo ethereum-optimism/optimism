@@ -11,16 +11,6 @@ import { StaticConfig, ConfigType } from "src/libraries/StaticConfig.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import "src/libraries/L1BlockErrors.sol";
 
-/// @notice Enum representing different types of configurations that can be set on L1BlockInterop.
-/// @custom:value SET_GAS_PAYING_TOKEN  Represents the config type for setting the gas paying token.
-/// @custom:value ADD_DEPENDENCY        Represents the config type for adding a chain to the interop dependency set.
-/// @custom:value REMOVE_DEPENDENCY     Represents the config type for removing a chain from the interop dependency set.
-enum ConfigType {
-    SET_GAS_PAYING_TOKEN,
-    ADD_DEPENDENCY,
-    REMOVE_DEPENDENCY
-}
-
 /// @custom:proxied true
 /// @custom:predeploy 0x4200000000000000000000000000000000000015
 /// @title L1BlockInterop

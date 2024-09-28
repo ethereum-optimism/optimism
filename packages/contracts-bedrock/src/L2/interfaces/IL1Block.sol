@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import { ConfigType } from "src/libraries/StaticConfig.sol";
+import { IFeeVault } from "src/universal/interfaces/IFeeVault.sol";
 
 interface IL1Block {
     error NotDepositor();
@@ -39,6 +40,22 @@ interface IL1Block {
     function setL1BlockValuesEcotone() external;
     function timestamp() external view returns (uint64);
     function version() external pure returns (string memory);
+    function baseFeeVaultConfig()
+        external
+        view
+        returns (address recipient, uint256 amount, IFeeVault.WithdrawalNetwork network);
+    function l1FeeVaultConfig()
+        external
+        view
+        returns (address recipient, uint256 amount, IFeeVault.WithdrawalNetwork network);
+    function sequencerFeeVaultConfig()
+        external
+        view
+        returns (address recipient, uint256 amount, IFeeVault.WithdrawalNetwork network);
+    function l1CrossDomainMessenger() external view returns (address);
+    function l1StandardBridge() external view returns (address);
+    function l1ERC721Bridge() external view returns (address);
+    function remoteChainId() external view returns (uint256);
 
     function __constructor__() external;
 }

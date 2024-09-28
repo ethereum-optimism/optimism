@@ -9,8 +9,10 @@ import { IFeeVault } from "src/universal/interfaces/IFeeVault.sol";
 import { ICrossDomainMessenger } from "src/universal/interfaces/ICrossDomainMessenger.sol";
 import { IStandardBridge } from "src/universal/interfaces/IStandardBridge.sol";
 import { IERC721Bridge } from "src/universal/interfaces/IERC721Bridge.sol";
+import { IOptimismMintableERC721Factory } from "src/L2/interfaces/IOptimismMintableERC721Factory.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
+import { Storage } from "src/libraries/Storage.sol";
 import "src/libraries/L1BlockErrors.sol";
 
 /// @custom:proxied true
@@ -25,19 +27,23 @@ contract L1Block is ISemver, IGasToken {
     event GasPayingTokenSet(address indexed token, uint8 indexed decimals, bytes32 name, bytes32 symbol);
 
     /// @notice
-    bytes32 internal BASE_FEE_VAULT_CONFIG_SLOT = bytes32(uint256(keccak256("opstack.basefeevaultconfig")) - 1);
+    bytes32 internal constant BASE_FEE_VAULT_CONFIG_SLOT = bytes32(uint256(keccak256("opstack.basefeevaultconfig")) - 1);
     /// @notice
-    bytes32 internal L1_FEE_VAULT_CONFIG_SLOT = bytes32(uint256(keccak256("opstack.l1feevaultconfig")) - 1);
+    bytes32 internal constant L1_FEE_VAULT_CONFIG_SLOT = bytes32(uint256(keccak256("opstack.l1feevaultconfig")) - 1);
     /// @notice
-    bytes32 internal SEQUENCER_FEE_VAULT_CONFIG_SLOT = bytes32(uint256(keccak256("opstack.sequencerfeevaultconfig")) - 1);
+    bytes32 internal constant SEQUENCER_FEE_VAULT_CONFIG_SLOT =
+        bytes32(uint256(keccak256("opstack.sequencerfeevaultconfig")) - 1);
     /// @notice
-    bytes32 internal L1_CROSS_DOMAIN_MESSENGER_ADDRESS_SLOT = bytes32(uint256(keccak256("opstack.l1crossdomainmessengeraddress")) - 1);
+    bytes32 internal constant L1_CROSS_DOMAIN_MESSENGER_ADDRESS_SLOT =
+        bytes32(uint256(keccak256("opstack.l1crossdomainmessengeraddress")) - 1);
     /// @notice
-    bytes32 internal L1_ERC_721_BRIDGE_ADDRESS_SLOT = bytes32(uint256(keccak256("opstack.l1erc721bridgeaddress")) - 1);
+    bytes32 internal constant L1_ERC_721_BRIDGE_ADDRESS_SLOT =
+        bytes32(uint256(keccak256("opstack.l1erc721bridgeaddress")) - 1);
     /// @notice
-    bytes32 internal L1_STANDARD_BRIDGE_ADDRESS_SLOT = bytes32(uint256(keccak256("opstack.l1standardbridgeaddress")) - 1);
+    bytes32 internal constant L1_STANDARD_BRIDGE_ADDRESS_SLOT =
+        bytes32(uint256(keccak256("opstack.l1standardbridgeaddress")) - 1);
     /// @notice
-    bytes32 internal REMOTE_CHAIN_ID_SLOT = bytes32(uint256(keccak256("opstack.remotechainid")) - 1);
+    bytes32 internal constant REMOTE_CHAIN_ID_SLOT = bytes32(uint256(keccak256("opstack.remotechainid")) - 1);
 
     /// @notice Address of the special depositor account.
     function DEPOSITOR_ACCOUNT() public pure returns (address addr_) {
@@ -204,6 +210,11 @@ contract L1Block is ISemver, IGasToken {
         }
     }
 
+    // @notice
+    function _setBaseFeeVaultConfig(bytes memory _value) internal {
+        // StaticConfig.decodeSetBaseFeeVaultConfig(_value);
+    }
+
     /// @notice Internal method to set the gas paying token.
     /// @param _value The encoded value with which to set the gas paying token.
     function _setGasPayingToken(bytes calldata _value) internal {
@@ -215,8 +226,7 @@ contract L1Block is ISemver, IGasToken {
     }
 
     /// @notice Sets the gas paying token for the L2 system. Can only be called by the special
-    ///         depositor account. This function is not called on every L2 block but instead
-    ///         only called by specially crafted L1 deposit transactions.
+    ///         depositor account, initiated by a deposit transaction from L1.
     function setGasPayingToken(address _token, uint8 _decimals, bytes32 _name, bytes32 _symbol) external {
         if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
 
@@ -228,34 +238,77 @@ contract L1Block is ISemver, IGasToken {
     /// @notice
     function setHolocene() external {
         if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
+        // TODO set holocene activation to true
 
-        bytes32 baseFeeVaultConfig = _feeVaultConfig(Predeploys.BASE_FEE_VAULT);
-        bytes32 l1FeeVaultConfig = _feeVaultConfig(Predeploys.L1_FEE_VAULT);
-        bytes32 sequencerFeeVaultConfig = _feeVaultConfig(Predeploys.SEQUENCER_FEE_WALLET);
-        address otherMessenger = address(ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).otherMessenger());
-        address otherBridge = address(IStandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).otherBridge());
-        address other721Bridge = IERC721Bridge(Predeploys.L2_ERC721_BRIDGE).otherBridge();
-
-        // TODO:
-        address remoteChainId = IERC721Bridge(Predeploys.L2_ERC721_BRIDGE).remoteChainId();
-
-        assembly {
-            sstore(BASE_FEE_VAULT_CONFIG_SLOT, baseFeeVaultConfig)
-            sstore(L1_FEE_VAULT_CONFIG_SLOT, l1FeeVaultConfig)
-            sstore(SEQUENCER_FEE_VAULT_CONFIG_SLOT, sequencerFeeVaultConfig)
-            sstore(L1_CROSS_DOMAIN_MESSENGER_ADDRESS_SLOT, otherMessenger)
-            sstore(L1_STANDARD_BRIDGE_ADDRESS_SLOT, otherBridge)
-            sstore(L1_ERC_721_BRIDGE_ADDRESS_SLOT, other721Bridge)
-            sstore(REMOTE_CHAIN_ID_SLOT, remoteChainId)
-        }
+        Storage.setBytes32(BASE_FEE_VAULT_CONFIG_SLOT, _feeVaultConfig(Predeploys.BASE_FEE_VAULT));
+        Storage.setBytes32(L1_FEE_VAULT_CONFIG_SLOT, _feeVaultConfig(Predeploys.L1_FEE_VAULT));
+        Storage.setBytes32(SEQUENCER_FEE_VAULT_CONFIG_SLOT, _feeVaultConfig(Predeploys.SEQUENCER_FEE_WALLET));
+        Storage.setAddress(
+            L1_CROSS_DOMAIN_MESSENGER_ADDRESS_SLOT,
+            address(ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).otherMessenger())
+        );
+        Storage.setAddress(
+            L1_STANDARD_BRIDGE_ADDRESS_SLOT,
+            address(IStandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).otherBridge())
+        );
+        Storage.setAddress(
+            L1_ERC_721_BRIDGE_ADDRESS_SLOT, address(IERC721Bridge(Predeploys.L2_ERC721_BRIDGE).otherBridge())
+        );
+        Storage.setUint(
+            REMOTE_CHAIN_ID_SLOT, IOptimismMintableERC721Factory(Predeploys.L2_ERC721_BRIDGE).remoteChainId()
+        );
     }
 
-    function _setBaseFeeVaultConfig(bytes memory _value) internal {
-        // StaticConfig.decodeSetBaseFeeVaultConfig(_value);
+    /// @notice
+    function baseFeeVaultConfig()
+        public
+        view
+        returns (address recipient, uint256 amount, IFeeVault.WithdrawalNetwork network)
+    {
+        return Encoding.decodeFeeVaultConfig(Storage.getBytes32(BASE_FEE_VAULT_CONFIG_SLOT));
     }
 
+    /// @notice
+    function l1FeeVaultConfig()
+        public
+        view
+        returns (address recipient, uint256 amount, IFeeVault.WithdrawalNetwork network)
+    {
+        return Encoding.decodeFeeVaultConfig(Storage.getBytes32(L1_FEE_VAULT_CONFIG_SLOT));
+    }
+
+    /// @notice
+    function sequencerFeeVaultConfig()
+        public
+        view
+        returns (address recipient, uint256 amount, IFeeVault.WithdrawalNetwork network)
+    {
+        return Encoding.decodeFeeVaultConfig(Storage.getBytes32(SEQUENCER_FEE_VAULT_CONFIG_SLOT));
+    }
+
+    /// @notice
+    function l1CrossDomainMessenger() public view returns (address) {
+        return Storage.getAddress(L1_CROSS_DOMAIN_MESSENGER_ADDRESS_SLOT);
+    }
+
+    /// @notice
+    function l1StandardBridge() public view returns (address) {
+        return Storage.getAddress(L1_STANDARD_BRIDGE_ADDRESS_SLOT);
+    }
+
+    /// @notice
+    function l1ERC721Bridge() public view returns (address) {
+        return Storage.getAddress(L1_ERC_721_BRIDGE_ADDRESS_SLOT);
+    }
+
+    /// @notice
+    function remoteChainId() public view returns (uint256) {
+        return Storage.getUint(REMOTE_CHAIN_ID_SLOT);
+    }
+
+    /// @notice
     function _feeVaultConfig(address _addr) internal returns (bytes32) {
-        (address recipient, uint256 amount, IFeeVault.WithdrawalNetwork network) = IFeeVault(_addr).config();
+        (address recipient, uint256 amount, IFeeVault.WithdrawalNetwork network) = IFeeVault(payable(_addr)).config();
         return Encoding.encodeFeeVaultConfig(recipient, amount, network);
     }
 }

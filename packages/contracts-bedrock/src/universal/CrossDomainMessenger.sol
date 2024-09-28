@@ -320,6 +320,10 @@ abstract contract CrossDomainMessenger is
         return xDomainMsgSender;
     }
 
+    /* Need to move the storage slot to L2, put a spacer in L2
+    function otherMessenger() public virtual view returns (CrossDomainMessenger);
+    */
+
     /// @notice Retrieves the address of the paired CrossDomainMessenger contract on the other chain
     ///         Public getter is legacy and will be removed in the future. Use `otherMessenger()` instead.
     /// @return CrossDomainMessenger contract on the other chain.

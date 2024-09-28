@@ -80,12 +80,24 @@ library StaticConfig {
     }
 
     /// @notice
-    function encodeSetFeeVaultConfig(address _recipient, uint256 _min, FeeVault.WithdrawalNetwork _network) internal pure returns (bytes memory) {
+    function encodeSetFeeVaultConfig(
+        address _recipient,
+        uint256 _min,
+        FeeVault.WithdrawalNetwork _network
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
         return abi.encode(_recipient, _min, _network);
     }
 
     /// @notice
-    function decodeSetFeeVaultConfig(bytes memory _data) internal pure returns (address, uint256, FeeVault.WithdrawalNetwork) {
+    function decodeSetFeeVaultConfig(bytes memory _data)
+        internal
+        pure
+        returns (address, uint256, FeeVault.WithdrawalNetwork)
+    {
         return abi.decode(_data, (address, uint256, FeeVault.WithdrawalNetwork));
     }
 

@@ -376,7 +376,8 @@ contract DeploySuperchain is Script {
         superchainProxyAdmin.upgradeAndCall(
             payable(address(superchainConfigProxy)),
             address(superchainConfigImpl),
-            abi.encodeCall(ISuperchainConfig.initialize, (guardian, paused))
+            // TODO: upgrader role
+            abi.encodeCall(ISuperchainConfig.initialize, (guardian, guardian, paused))
         );
         vm.stopBroadcast();
 

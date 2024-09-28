@@ -1,21 +1,5 @@
 [
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_bridge",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_remoteChainId",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "nonpayable",
-    "type": "constructor"
-  },
-  {
     "inputs": [],
     "name": "BRIDGE",
     "outputs": [
@@ -104,6 +88,7 @@
   },
   {
     "inputs": [],
+<<<<<<< HEAD
     "name": "remoteChainID",
     "outputs": [
       {
@@ -117,6 +102,22 @@
   },
   {
     "inputs": [],
+||||||| parent of 1eb9745c8 (progress)
+=======
+    "name": "remoteChainId",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+>>>>>>> 1eb9745c8 (progress)
     "name": "version",
     "outputs": [
       {

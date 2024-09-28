@@ -139,14 +139,26 @@ library Encoding {
     }
 
     /// @notice
-    function encodeFeeVaultConfig(address _recipient, uint256 _amount, IFeeVault.WithdrawalNetwork _network) internal pure returns (bytes32) {
+    function encodeFeeVaultConfig(
+        address _recipient,
+        uint256 _amount,
+        IFeeVault.WithdrawalNetwork _network
+    )
+        internal
+        pure
+        returns (bytes32)
+    {
         uint256 network = uint256(_network);
         if (_amount > type(uint88).max) revert UnsafeCast();
         return bytes32(network << 248 | _amount << 160 | uint256(uint160(_recipient)));
     }
 
     /// @notice
-    function decodeFeeVaultConfig(bytes32 _data) internal pure returns (address recipient_, uint256 amount_, IFeeVault.WithdrawalNetwork network_) {
+    function decodeFeeVaultConfig(bytes32 _data)
+        internal
+        pure
+        returns (address recipient_, uint256 amount_, IFeeVault.WithdrawalNetwork network_)
+    {
         recipient_ = address(uint160(uint256(_data) & uint256(type(uint160).max)));
         amount_ = uint256(_data) & uint256(type(uint88).max) << 160;
         network_ = IFeeVault.WithdrawalNetwork(uint8(bytes1(_data >> 248)));

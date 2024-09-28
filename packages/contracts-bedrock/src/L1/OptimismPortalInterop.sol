@@ -31,7 +31,7 @@ contract OptimismPortalInterop is OptimismPortal2 {
     /// @notice Sets static configuration options for the L2 system.
     /// @param _type  Type of configuration to set.
     /// @param _value Encoded value of the configuration.
-    function setConfig(ConfigType _type, bytes memory _value) external {
+    function setConfig(ConfigType _type, bytes memory _value) external override {
         if (msg.sender != address(systemConfig)) revert Unauthorized();
 
         // Set L2 deposit gas as used without paying burning gas. Ensures that deposits cannot use too much L2 gas.
