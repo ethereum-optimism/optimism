@@ -1458,6 +1458,7 @@ workflows:
                 - op-program
                 - op-service
                 - op-supervisor
+                - packages/contracts-bedrock/scripts/checks/semver-natspec
       - go-test-kurtosis:
           name: op-chain-ops-integration
           module: op-chain-ops

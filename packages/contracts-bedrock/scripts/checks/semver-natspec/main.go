@@ -36,11 +36,11 @@ type Artifacts struct {
 	} `json:"output"`
 }
 
-var ConstantVersionPattern = regexp.MustCompile(`string.*constant.*version\s+=\s+"([^"]+)"`)
+var ConstantVersionPattern = regexp.MustCompile(`string.*constant.*version\s+=\s+"([^"]+)";`)
 
 var FunctionVersionPattern = regexp.MustCompile(`^\s+return\s+"((?P<major>0|[1-9]\d*)\.(?P<minor>0|[1-9]\d*)\.(?P<patch>0|[1-9]\d*)(?:-(?P<prerelease>(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+(?P<buildmetadata>[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?)";$`)
 
-var InteropVersionPattern = regexp.MustCompile(`^\s+return\s+string\.concat\(super\.version\(\), "(\+interop(.*)?)"\);`)
+var InteropVersionPattern = regexp.MustCompile(`^\s+return\s+string\.concat\(super\.version\(\), "((.*)\+interop(.*)?)"\);`)
 
 func main() {
 	if err := run(); err != nil {
