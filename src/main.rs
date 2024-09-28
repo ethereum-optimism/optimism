@@ -68,6 +68,11 @@ async fn main() -> Result<()> {
     dotenv().ok();
     let args: Args = Args::parse();
 
+    // Initialize logging
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::new(args.log_level.to_string())) // Set the log level
+        .init();
+
     // Handle JWT secret
     let jwt_secret = match (args.jwt_path, args.jwt_token) {
         (Some(file), None) => {
@@ -85,11 +90,6 @@ async fn main() -> Result<()> {
             ));
         }
     };
-
-    // Initialize logging
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::new(args.log_level.to_string())) // Set the log level
-        .init();
 
     // Initialize the l2 client
     let l2_client = create_client(&args.l2_url, jwt_secret)?;
@@ -141,4 +141,102 @@ fn create_client(
         .set_http_middleware(client_middleware)
         .build(url)
         .map_err(|e| Error::InitRPCClient(e.to_string()))
+}
+
+#[cfg(test)]
+mod tests {
+    use assert_cmd::Command;
+    use jsonrpsee::core::client::ClientT;
+    use jsonrpsee::http_client::transport::Error as TransportError;
+    use jsonrpsee::{
+        core::ClientError,
+        rpc_params,
+        server::{ServerBuilder, ServerHandle},
+    };
+    use predicates::prelude::*;
+    use reth_rpc_layer::{AuthLayer, JwtAuthValidator};
+    use std::result::Result;
+
+    use super::*;
+
+    const AUTH_PORT: u32 = 8551;
+    const AUTH_ADDR: &str = "0.0.0.0";
+    const SECRET: &str = "f79ae8046bc11c9927afe911db7143c51a806c4a537cc08e0d37140b0192f430";
+
+    #[test]
+    fn test_invalid_args() {
+        let mut cmd = Command::cargo_bin("rollup-boost").unwrap();
+        cmd.arg("--invalid-arg");
+
+        cmd.assert().failure().stderr(predicate::str::contains(
+            "error: unexpected argument '--invalid-arg' found",
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_create_client() {
+        valid_jwt().await;
+        invalid_jwt().await;
+    }
+
+    async fn valid_jwt() {
+        let secret = JwtSecret::from_hex(SECRET).unwrap();
+        let url = format!("http://{}:{}", AUTH_ADDR, AUTH_PORT);
+        let client = create_client(url.as_str(), secret);
+        let response = send_request(client.unwrap()).await;
+        assert!(response.is_ok());
+        assert_eq!(response.unwrap(), "You are the dark lord");
+    }
+
+    async fn invalid_jwt() {
+        let secret = JwtSecret::random();
+        let url = format!("http://{}:{}", AUTH_ADDR, AUTH_PORT);
+        let client = create_client(url.as_str(), secret);
+        let response = send_request(client.unwrap()).await;
+        assert!(response.is_err());
+        assert!(matches!(
+            response.unwrap_err(),
+            ClientError::Transport(e)
+                if matches!(e.downcast_ref::<TransportError>(), Some(TransportError::Rejected { status_code: 401 }))
+        ));
+    }
+
+    async fn send_request(
+        client: HttpClient<AuthClientService<HttpBackend>>,
+    ) -> Result<String, ClientError> {
+        let server = spawn_server().await;
+
+        let response = client
+            .request::<String, _>("greet_melkor", rpc_params![])
+            .await;
+
+        server.stop().unwrap();
+        server.stopped().await;
+
+        response
+    }
+
+    /// Spawn a new RPC server equipped with a `JwtLayer` auth middleware.
+    async fn spawn_server() -> ServerHandle {
+        let secret = JwtSecret::from_hex(SECRET).unwrap();
+        let addr = format!("{AUTH_ADDR}:{AUTH_PORT}");
+        let validator = JwtAuthValidator::new(secret);
+        let layer = AuthLayer::new(validator);
+        let middleware = tower::ServiceBuilder::default().layer(layer);
+
+        // Create a layered server
+        let server = ServerBuilder::default()
+            .set_http_middleware(middleware)
+            .build(addr.parse::<SocketAddr>().unwrap())
+            .await
+            .unwrap();
+
+        // Create a mock rpc module
+        let mut module = RpcModule::new(());
+        module
+            .register_method("greet_melkor", |_, _, _| "You are the dark lord")
+            .unwrap();
+
+        server.start(module)
+    }
 }

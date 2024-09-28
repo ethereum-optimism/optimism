@@ -103,3 +103,113 @@ where
         Box::pin(fut)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::net::SocketAddr;
+
+    use jsonrpsee::{
+        core::{client::ClientT, ClientError},
+        http_client::HttpClient,
+        rpc_params,
+        server::{ServerBuilder, ServerHandle},
+        types::{ErrorCode, ErrorObject},
+        RpcModule,
+    };
+
+    use super::*;
+
+    const PORT: u32 = 8552;
+    const ADDR: &str = "0.0.0.0";
+    const PROXY_PORT: u32 = 8553;
+
+    #[tokio::test]
+    async fn test_proxy_service() {
+        proxy_success().await;
+        proxy_failure().await;
+        does_not_proxy_engine_method().await;
+    }
+
+    async fn proxy_success() {
+        let response = send_request("greet_melkor").await;
+        assert!(response.is_ok());
+        assert_eq!(response.unwrap(), "You are the dark lord");
+    }
+
+    async fn proxy_failure() {
+        let response = send_request("non_existent_method").await;
+        assert!(response.is_err());
+        let expected_error = ErrorObject::from(ErrorCode::MethodNotFound).into_owned();
+        assert!(matches!(
+            response.unwrap_err(),
+            ClientError::Call(e) if e == expected_error
+        ));
+    }
+
+    async fn does_not_proxy_engine_method() {
+        let response = send_request("engine_method").await;
+        assert!(response.is_ok());
+        assert_eq!(response.unwrap(), "engine response");
+    }
+
+    async fn send_request(method: &str) -> Result<String, ClientError> {
+        let server = spawn_server().await;
+        let proxy_server = spawn_proxy_server().await;
+        let proxy_client = HttpClient::builder()
+            .build(format!("http://{ADDR}:{PORT}"))
+            .unwrap();
+
+        let response = proxy_client
+            .request::<String, _>(method, rpc_params![])
+            .await;
+
+        server.stop().unwrap();
+        server.stopped().await;
+        proxy_server.stop().unwrap();
+        proxy_server.stopped().await;
+
+        response
+    }
+
+    async fn spawn_server() -> ServerHandle {
+        let server = ServerBuilder::default()
+            .build(
+                format!("{ADDR}:{PROXY_PORT}")
+                    .parse::<SocketAddr>()
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        // Create a mock rpc module
+        let mut module = RpcModule::new(());
+        module
+            .register_method("greet_melkor", |_, _, _| "You are the dark lord")
+            .unwrap();
+
+        server.start(module)
+    }
+
+    /// Spawn a new RPC server with a proxy layer.
+    async fn spawn_proxy_server() -> ServerHandle {
+        let addr = format!("{ADDR}:{PORT}");
+        let proxy_layer = ProxyLayer::new(format!("http://{ADDR}:{PROXY_PORT}").parse().unwrap());
+        // Create a layered server
+        let server = ServerBuilder::default()
+            .set_http_middleware(tower::ServiceBuilder::new().layer(proxy_layer))
+            .build(addr.parse::<SocketAddr>().unwrap())
+            .await
+            .unwrap();
+
+        // Create a mock rpc module
+        let mut module = RpcModule::new(());
+        module
+            .register_method("engine_method", |_, _, _| "engine response")
+            .unwrap();
+        module
+            .register_method("non_existent_method", |_, _, _| "no proxy response")
+            .unwrap();
+
+        server.start(module)
+    }
+}

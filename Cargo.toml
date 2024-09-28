@@ -26,8 +26,10 @@ http-body-util = "0.1.2"
 hyper = { version = "1.4.1", features = ["full"] }
 hyper-util = { version = "0.1", features = ["full"] }
 serde_json = "1.0.96"
-reth-rpc-layer = { git = "https://github.com/paradigmxyz/reth.git", branch = "main" }
-reth-optimism-payload-builder = { git = "https://github.com/paradigmxyz/reth.git", branch = "main", features = ["optimism"] }
+reth-rpc-layer = { git = "https://github.com/paradigmxyz/reth.git", tag = "v1.0.7" }
+reth-optimism-payload-builder = { git = "https://github.com/paradigmxyz/reth.git", tag = "v1.0.7", features = ["optimism"] }
 
 [dev-dependencies]
 anyhow = "1.0"
+assert_cmd = "2.0.10"
+predicates = "3.1.2"
