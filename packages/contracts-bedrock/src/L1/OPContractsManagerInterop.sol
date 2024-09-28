@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+import { Constants } from "src/libraries/Constants.sol";
 import { OPContractsManager } from "src/L1/OPContractsManager.sol";
 import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
 import { IProtocolVersions } from "src/L1/interfaces/IProtocolVersions.sol";
 import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
 import { ISystemConfig } from "src/L1/interfaces/ISystemConfig.sol";
-import { ISystemConfigInterop } from "src/L1/interfaces/ISystemConfigInterop.sol";
 
 /// @custom:proxied true
 contract OPContractsManagerInterop is OPContractsManager {
@@ -53,5 +53,42 @@ contract OPContractsManagerInterop is OPContractsManager {
             opChainAddrs,
             dependencyManager
         );
+    }
+
+    /// @notice Returns default, standard config arguments for the SystemConfig initializer.
+    /// This is used by subclasses to reduce code duplication.
+    function defaultSystemConfigParams(
+        bytes4, /* selector */
+        DeployInput memory, /* _input */
+        DeployOutput memory _output
+    )
+        internal
+        view
+        virtual
+        returns (IResourceMetering.ResourceConfig memory resourceConfig_, ISystemConfig.Addresses memory opChainAddrs_)
+    {
+        // We use assembly to easily convert from IResourceMetering.ResourceConfig to ResourceMetering.ResourceConfig.
+        // This is required because we have not yet fully migrated the codebase to be interface-based.
+        IResourceMetering.ResourceConfig memory resourceConfig = Constants.DEFAULT_RESOURCE_CONFIG();
+        assembly ("memory-safe") {
+            resourceConfig_ := resourceConfig
+        }
+
+        opChainAddrs_ = ISystemConfig.Addresses({
+            l1CrossDomainMessenger: address(_output.l1CrossDomainMessengerProxy),
+            l1ERC721Bridge: address(_output.l1ERC721BridgeProxy),
+            l1StandardBridge: address(_output.l1StandardBridgeProxy),
+            disputeGameFactory: address(_output.disputeGameFactoryProxy),
+            optimismPortal: address(_output.optimismPortalProxy),
+            optimismMintableERC20Factory: address(_output.optimismMintableERC20FactoryProxy),
+            gasPayingToken: Constants.ETHER
+        });
+
+        assertValidContractAddress(opChainAddrs_.l1CrossDomainMessenger);
+        assertValidContractAddress(opChainAddrs_.l1ERC721Bridge);
+        assertValidContractAddress(opChainAddrs_.l1StandardBridge);
+        assertValidContractAddress(opChainAddrs_.disputeGameFactory);
+        assertValidContractAddress(opChainAddrs_.optimismPortal);
+        assertValidContractAddress(opChainAddrs_.optimismMintableERC20Factory);
     }
 }
