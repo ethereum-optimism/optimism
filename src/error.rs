@@ -2,8 +2,10 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum Error {
-    #[error("Invalid jwt token: {0}")]
-    InvalidJWTToken(String),
+    #[error("Invalid arguments: {0}")]
+    InvalidArgs(String),
+    #[error("Error Initializing RPC Client: {0}")]
+    InitRPCClient(String),
     #[error("Error Initializing RPC Server: {0}")]
-    InitRPCServerError(String),
+    InitRPCServer(String),
 }
