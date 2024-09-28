@@ -307,7 +307,7 @@ contract L1Block is ISemver, IGasToken {
     }
 
     /// @notice
-    function _feeVaultConfig(address _addr) internal returns (bytes32) {
+    function _feeVaultConfig(address _addr) internal view returns (bytes32) {
         (address recipient, uint256 amount, IFeeVault.WithdrawalNetwork network) = IFeeVault(payable(_addr)).config();
         return Encoding.encodeFeeVaultConfig(recipient, amount, network);
     }

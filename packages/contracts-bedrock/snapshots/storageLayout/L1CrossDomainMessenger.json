@@ -113,10 +113,10 @@
   },
   {
     "bytes": "20",
-    "label": "otherMessenger",
+    "label": "spacer_207_0_20",
     "offset": 0,
     "slot": "207",
-    "type": "contract CrossDomainMessenger"
+    "type": "address"
   },
   {
     "bytes": "1376",

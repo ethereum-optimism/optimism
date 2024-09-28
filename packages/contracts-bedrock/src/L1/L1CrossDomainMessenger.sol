@@ -19,6 +19,13 @@ import { IOptimismPortal } from "src/L1/interfaces/IOptimismPortal.sol";
 ///         for sending and receiving data on the L1 side. Users are encouraged to use this
 ///         interface instead of interacting with lower-level contracts directly.
 contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
+
+    /* no need for this to be in storage
+    /// @notice CrossDomainMessenger contract on the other chain.
+    /// @custom:network-specific
+    CrossDomainMessenger public otherMessenger;
+    */
+
     /// @notice Contract of the SuperchainConfig.
     ISuperchainConfig public superchainConfig;
 
@@ -57,7 +64,12 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
         superchainConfig = _superchainConfig;
         portal = _portal;
         systemConfig = _systemConfig;
-        __CrossDomainMessenger_init({ _otherMessenger: CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER) });
+        __CrossDomainMessenger_init();
+    }
+
+    /// @notice
+    function otherMessenger() public pure override returns (CrossDomainMessenger) {
+        return CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
     }
 
     /// @inheritdoc CrossDomainMessenger
@@ -86,7 +98,7 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
 
     /// @inheritdoc CrossDomainMessenger
     function _isOtherMessenger() internal view override returns (bool) {
-        return msg.sender == address(portal) && portal.l2Sender() == address(otherMessenger);
+        return msg.sender == address(portal) && portal.l2Sender() == address(otherMessenger());
     }
 
     /// @inheritdoc CrossDomainMessenger

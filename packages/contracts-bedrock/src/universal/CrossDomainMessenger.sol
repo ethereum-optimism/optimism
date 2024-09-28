@@ -34,7 +34,7 @@ contract CrossDomainMessengerLegacySpacer1 {
     /// @custom:legacy
     /// @custom:spacer OwnableUpgradeable's _owner
     /// @notice Spacer for backwards compatibility.
-    ///         Come from OpenZeppelin OwnableUpgradeable.
+    ///         Comes from OpenZeppelin OwnableUpgradeable.
     address private spacer_51_0_20;
 
     /// @custom:legacy
@@ -135,9 +135,10 @@ abstract contract CrossDomainMessenger is
     ///         successfully executed on the first attempt.
     mapping(bytes32 => bool) public failedMessages;
 
-    /// @notice CrossDomainMessenger contract on the other chain.
-    /// @custom:network-specific
-    CrossDomainMessenger public otherMessenger;
+    /// @custom:legacy
+    /// @custom:spacer CrossDomainMessenger
+    /// @notice Spacer for backwards compatibility.
+    address private spacer_207_0_20;
 
     /// @notice Reserve extra slots in the storage layout for future upgrades.
     ///         A gap size of 43 was chosen here, so that the first slot used in a child contract
@@ -183,7 +184,7 @@ abstract contract CrossDomainMessenger is
         // guarantee the property that the call to the target contract will always have at least
         // the minimum gas limit specified by the user.
         _sendMessage({
-            _to: address(otherMessenger),
+            _to: address(otherMessenger()),
             _gasLimit: baseGas(_message, _minGasLimit),
             _value: msg.value,
             _data: abi.encodeWithSelector(
@@ -320,16 +321,15 @@ abstract contract CrossDomainMessenger is
         return xDomainMsgSender;
     }
 
-    /* Need to move the storage slot to L2, put a spacer in L2
+    /// @notice
     function otherMessenger() public virtual view returns (CrossDomainMessenger);
-    */
 
     /// @notice Retrieves the address of the paired CrossDomainMessenger contract on the other chain
     ///         Public getter is legacy and will be removed in the future. Use `otherMessenger()` instead.
     /// @return CrossDomainMessenger contract on the other chain.
     /// @custom:legacy
     function OTHER_MESSENGER() public view returns (CrossDomainMessenger) {
-        return otherMessenger;
+        return otherMessenger();
     }
 
     /// @notice Retrieves the next message nonce. Message version will be added to the upper two
@@ -376,8 +376,7 @@ abstract contract CrossDomainMessenger is
     }
 
     /// @notice Initializer.
-    /// @param _otherMessenger CrossDomainMessenger contract on the other chain.
-    function __CrossDomainMessenger_init(CrossDomainMessenger _otherMessenger) internal onlyInitializing {
+    function __CrossDomainMessenger_init() internal onlyInitializing {
         // We only want to set the xDomainMsgSender to the default value if it hasn't been initialized yet,
         // meaning that this is a fresh contract deployment.
         // This prevents resetting the xDomainMsgSender to the default value during an upgrade, which would enable
@@ -385,7 +384,6 @@ abstract contract CrossDomainMessenger is
         if (xDomainMsgSender == address(0)) {
             xDomainMsgSender = Constants.DEFAULT_L2_SENDER;
         }
-        otherMessenger = _otherMessenger;
     }
 
     /// @notice Sends a low-level message to the other messenger. Needs to be implemented by child
