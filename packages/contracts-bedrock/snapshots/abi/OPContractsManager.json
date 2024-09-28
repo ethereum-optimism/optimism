@@ -2,12 +2,12 @@
   {
     "inputs": [
       {
-        "internalType": "contract SuperchainConfig",
+        "internalType": "contract ISuperchainConfig",
         "name": "_superchainConfig",
         "type": "address"
       },
       {
-        "internalType": "contract ProtocolVersions",
+        "internalType": "contract IProtocolVersions",
         "name": "_protocolVersions",
         "type": "address"
       }
@@ -184,17 +184,17 @@
             "type": "address"
           },
           {
-            "internalType": "contract AddressManager",
+            "internalType": "contract IAddressManager",
             "name": "addressManager",
             "type": "address"
           },
           {
-            "internalType": "contract L1ERC721Bridge",
+            "internalType": "contract IL1ERC721Bridge",
             "name": "l1ERC721BridgeProxy",
             "type": "address"
           },
           {
-            "internalType": "contract SystemConfig",
+            "internalType": "contract ISystemConfig",
             "name": "systemConfigProxy",
             "type": "address"
           },
@@ -204,52 +204,52 @@
             "type": "address"
           },
           {
-            "internalType": "contract L1StandardBridge",
+            "internalType": "contract IL1StandardBridge",
             "name": "l1StandardBridgeProxy",
             "type": "address"
           },
           {
-            "internalType": "contract L1CrossDomainMessenger",
+            "internalType": "contract IL1CrossDomainMessenger",
             "name": "l1CrossDomainMessengerProxy",
             "type": "address"
           },
           {
-            "internalType": "contract OptimismPortal2",
+            "internalType": "contract IOptimismPortal2",
             "name": "optimismPortalProxy",
             "type": "address"
           },
           {
-            "internalType": "contract DisputeGameFactory",
+            "internalType": "contract IDisputeGameFactory",
             "name": "disputeGameFactoryProxy",
             "type": "address"
           },
           {
-            "internalType": "contract AnchorStateRegistry",
+            "internalType": "contract IAnchorStateRegistry",
             "name": "anchorStateRegistryProxy",
             "type": "address"
           },
           {
-            "internalType": "contract AnchorStateRegistry",
+            "internalType": "contract IAnchorStateRegistry",
             "name": "anchorStateRegistryImpl",
             "type": "address"
           },
           {
-            "internalType": "contract FaultDisputeGame",
+            "internalType": "contract IFaultDisputeGame",
             "name": "faultDisputeGame",
             "type": "address"
           },
           {
-            "internalType": "contract PermissionedDisputeGame",
+            "internalType": "contract IPermissionedDisputeGame",
             "name": "permissionedDisputeGame",
             "type": "address"
           },
           {
-            "internalType": "contract DelayedWETH",
+            "internalType": "contract IDelayedWETH",
             "name": "delayedWETHPermissionedGameProxy",
             "type": "address"
           },
           {
-            "internalType": "contract DelayedWETH",
+            "internalType": "contract IDelayedWETH",
             "name": "delayedWETHPermissionlessGameProxy",
             "type": "address"
           }
@@ -410,7 +410,7 @@
     "name": "protocolVersions",
     "outputs": [
       {
-        "internalType": "contract ProtocolVersions",
+        "internalType": "contract IProtocolVersions",
         "name": "",
         "type": "address"
       }
@@ -423,7 +423,7 @@
     "name": "superchainConfig",
     "outputs": [
       {
-        "internalType": "contract SuperchainConfig",
+        "internalType": "contract ISuperchainConfig",
         "name": "",
         "type": "address"
       }
@@ -442,7 +442,7 @@
     "name": "systemConfigs",
     "outputs": [
       {
-        "internalType": "contract SystemConfig",
+        "internalType": "contract ISystemConfig",
         "name": "",
         "type": "address"
       }

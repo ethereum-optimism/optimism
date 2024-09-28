@@ -2,17 +2,17 @@
 pragma solidity 0.8.15;
 
 import { OPContractsManager } from "src/L1/OPContractsManager.sol";
-import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
-import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
-import { ResourceMetering } from "src/L1/ResourceMetering.sol";
-import { SystemConfig } from "src/L1/SystemConfig.sol";
-import { SystemConfigInterop } from "src/L1/SystemConfigInterop.sol";
+import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
+import { IProtocolVersions } from "src/L1/interfaces/IProtocolVersions.sol";
+import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
+import { ISystemConfig } from "src/L1/interfaces/ISystemConfig.sol";
+import { ISystemConfigInterop } from "src/L1/interfaces/ISystemConfigInterop.sol";
 
 /// @custom:proxied true
 contract OPContractsManagerInterop is OPContractsManager {
     constructor(
-        SuperchainConfig _superchainConfig,
-        ProtocolVersions _protocolVersions
+        ISuperchainConfig _superchainConfig,
+        IProtocolVersions _protocolVersions
     )
         OPContractsManager(_superchainConfig, _protocolVersions)
     { }
@@ -30,7 +30,7 @@ contract OPContractsManagerInterop is OPContractsManager {
         override
         returns (bytes memory)
     {
-        (ResourceMetering.ResourceConfig memory referenceResourceConfig, SystemConfig.Addresses memory opChainAddrs) =
+        (IResourceMetering.ResourceConfig memory referenceResourceConfig, ISystemConfig.Addresses memory opChainAddrs) =
             defaultSystemConfigParams(_selector, _input, _output);
 
         // TODO For now we assume that the dependency manager is the same as the proxy admin owner.

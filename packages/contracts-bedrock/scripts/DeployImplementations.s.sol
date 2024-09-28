@@ -7,6 +7,7 @@ import { LibString } from "@solady/utils/LibString.sol";
 
 import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
 import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
+import { IProtocolVersions } from "src/L1/interfaces/IProtocolVersions.sol";
 import { ISystemConfigV160 } from "src/L1/interfaces/ISystemConfigV160.sol";
 import { IL1CrossDomainMessengerV160 } from "src/L1/interfaces/IL1CrossDomainMessengerV160.sol";
 import { IL1StandardBridgeV160 } from "src/L1/interfaces/IL1StandardBridgeV160.sol";
@@ -29,8 +30,6 @@ import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
 import { PermissionedDisputeGame } from "src/dispute/PermissionedDisputeGame.sol";
 
-import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
-import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
 import { OPContractsManager } from "src/L1/OPContractsManager.sol";
 import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
@@ -62,8 +61,8 @@ contract DeployImplementationsInput is BaseDeployIO {
     string internal _release;
 
     // Outputs from DeploySuperchain.s.sol.
-    SuperchainConfig internal _superchainConfigProxy;
-    ProtocolVersions internal _protocolVersionsProxy;
+    ISuperchainConfig internal _superchainConfigProxy;
+    IProtocolVersions internal _protocolVersionsProxy;
 
     string internal _standardVersionsToml;
 
@@ -97,8 +96,8 @@ contract DeployImplementationsInput is BaseDeployIO {
 
     function set(bytes4 _sel, address _addr) public {
         require(_addr != address(0), "DeployImplementationsInput: cannot set zero address");
-        if (_sel == this.superchainConfigProxy.selector) _superchainConfigProxy = SuperchainConfig(_addr);
-        else if (_sel == this.protocolVersionsProxy.selector) _protocolVersionsProxy = ProtocolVersions(_addr);
+        if (_sel == this.superchainConfigProxy.selector) _superchainConfigProxy = ISuperchainConfig(_addr);
+        else if (_sel == this.protocolVersionsProxy.selector) _protocolVersionsProxy = IProtocolVersions(_addr);
         else if (_sel == this.opcmProxyOwner.selector) _opcmProxyOwner = _addr;
         else revert("DeployImplementationsInput: unknown selector");
     }
@@ -151,12 +150,12 @@ contract DeployImplementationsInput is BaseDeployIO {
         return _standardVersionsToml;
     }
 
-    function superchainConfigProxy() public view returns (SuperchainConfig) {
+    function superchainConfigProxy() public view returns (ISuperchainConfig) {
         require(address(_superchainConfigProxy) != address(0), "DeployImplementationsInput: not set");
         return _superchainConfigProxy;
     }
 
-    function protocolVersionsProxy() public view returns (ProtocolVersions) {
+    function protocolVersionsProxy() public view returns (IProtocolVersions) {
         require(address(_protocolVersionsProxy) != address(0), "DeployImplementationsInput: not set");
         return _protocolVersionsProxy;
     }
@@ -777,8 +776,8 @@ contract DeployImplementations is Script {
         public
         virtual
     {
-        SuperchainConfig superchainConfigProxy = _dii.superchainConfigProxy();
-        ProtocolVersions protocolVersionsProxy = _dii.protocolVersionsProxy();
+        ISuperchainConfig superchainConfigProxy = _dii.superchainConfigProxy();
+        IProtocolVersions protocolVersionsProxy = _dii.protocolVersionsProxy();
 
         vm.broadcast(msg.sender);
         // TODO: Eventually we will want to select the correct implementation based on the release.
@@ -1147,8 +1146,8 @@ contract DeployImplementationsInterop is DeployImplementations {
         public
         override
     {
-        SuperchainConfig superchainConfigProxy = _dii.superchainConfigProxy();
-        ProtocolVersions protocolVersionsProxy = _dii.protocolVersionsProxy();
+        ISuperchainConfig superchainConfigProxy = _dii.superchainConfigProxy();
+        IProtocolVersions protocolVersionsProxy = _dii.protocolVersionsProxy();
 
         vm.broadcast(msg.sender);
         // TODO: Eventually we will want to select the correct implementation based on the release.
