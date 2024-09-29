@@ -62,7 +62,7 @@ func run() error {
 	writeStderr("working directory: %s", cwd)
 
 	artifactsDir := filepath.Join(cwd, "forge-artifacts")
-	srcDir := cwd
+	srcDir := filepath.Join(cwd, "src")
 
 	artifactFiles, err := glob(artifactsDir, ".json")
 	if err != nil {
@@ -192,7 +192,7 @@ func run() error {
 func glob(dir string, ext string) (map[string]string, error) {
 	out := make(map[string]string)
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if filepath.Ext(path) == ext {
+		if !info.IsDir() && filepath.Ext(path) == ext {
 			out[strings.TrimSuffix(filepath.Base(path), ext)] = path
 		}
 		return nil
