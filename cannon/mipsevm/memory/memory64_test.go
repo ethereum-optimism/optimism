@@ -1,5 +1,5 @@
-//go:build !cannon64
-// +build !cannon64
+//go:build cannon64
+// +build cannon64
 
 package memory
 
@@ -15,26 +15,28 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMemoryMerkleProof(t *testing.T) {
+// These tests are mostly copied from memory_test.go. With a few tweaks for 64-bit.
+
+func TestMemory64MerkleProof(t *testing.T) {
 	t.Run("nearly empty tree", func(t *testing.T) {
 		m := NewMemory()
-		m.SetWord(0x10000, 0xaabbccdd)
+		m.SetWord(0x10000, 0xAABBCCDD_EEFF1122)
 		proof := m.MerkleProof(0x10000)
-		require.Equal(t, uint32(0xaabbccdd), binary.BigEndian.Uint32(proof[:4]))
-		for i := 0; i < 32-5; i++ {
+		require.Equal(t, uint64(0xAABBCCDD_EEFF1122), binary.BigEndian.Uint64(proof[:8]))
+		for i := 0; i < 64-5; i++ {
 			require.Equal(t, zeroHashes[i][:], proof[32+i*32:32+i*32+32], "empty siblings")
 		}
 	})
 	t.Run("fuller tree", func(t *testing.T) {
 		m := NewMemory()
 		m.SetWord(0x10000, 0xaabbccdd)
-		m.SetWord(0x80004, 42)
+		m.SetWord(0x80008, 42)
 		m.SetWord(0x13370000, 123)
 		root := m.MerkleRoot()
-		proof := m.MerkleProof(0x80004)
-		require.Equal(t, uint32(42), binary.BigEndian.Uint32(proof[4:8]))
+		proof := m.MerkleProof(0x80008)
+		require.Equal(t, uint64(42), binary.BigEndian.Uint64(proof[8:16]))
 		node := *(*[32]byte)(proof[:32])
-		path := uint32(0x80004) >> 5
+		path := uint32(0x80008) >> 5
 		for i := 32; i < len(proof); i += 32 {
 			sib := *(*[32]byte)(proof[i : i+32])
 			if path&1 != 0 {
@@ -48,37 +50,37 @@ func TestMemoryMerkleProof(t *testing.T) {
 	})
 }
 
-func TestMemoryMerkleRoot(t *testing.T) {
+func TestMemory64MerkleRoot(t *testing.T) {
 	t.Run("empty", func(t *testing.T) {
 		m := NewMemory()
 		root := m.MerkleRoot()
-		require.Equal(t, zeroHashes[32-5], root, "fully zeroed memory should have expected zero hash")
+		require.Equal(t, zeroHashes[64-5], root, "fully zeroed memory should have expected zero hash")
 	})
 	t.Run("empty page", func(t *testing.T) {
 		m := NewMemory()
 		m.SetWord(0xF000, 0)
 		root := m.MerkleRoot()
-		require.Equal(t, zeroHashes[32-5], root, "fully zeroed memory should have expected zero hash")
+		require.Equal(t, zeroHashes[64-5], root, "fully zeroed memory should have expected zero hash")
 	})
 	t.Run("single page", func(t *testing.T) {
 		m := NewMemory()
 		m.SetWord(0xF000, 1)
 		root := m.MerkleRoot()
-		require.NotEqual(t, zeroHashes[32-5], root, "non-zero memory")
+		require.NotEqual(t, zeroHashes[64-5], root, "non-zero memory")
 	})
 	t.Run("repeat zero", func(t *testing.T) {
 		m := NewMemory()
 		m.SetWord(0xF000, 0)
-		m.SetWord(0xF004, 0)
+		m.SetWord(0xF008, 0)
 		root := m.MerkleRoot()
-		require.Equal(t, zeroHashes[32-5], root, "zero still")
+		require.Equal(t, zeroHashes[64-5], root, "zero still")
 	})
 	t.Run("two empty pages", func(t *testing.T) {
 		m := NewMemory()
 		m.SetWord(PageSize*3, 0)
 		m.SetWord(PageSize*10, 0)
 		root := m.MerkleRoot()
-		require.Equal(t, zeroHashes[32-5], root, "zero still")
+		require.Equal(t, zeroHashes[64-5], root, "zero still")
 	})
 	t.Run("random few pages", func(t *testing.T) {
 		m := NewMemory()
@@ -105,27 +107,25 @@ func TestMemoryMerkleRoot(t *testing.T) {
 	t.Run("invalidate page", func(t *testing.T) {
 		m := NewMemory()
 		m.SetWord(0xF000, 0)
-		require.Equal(t, zeroHashes[32-5], m.MerkleRoot(), "zero at first")
-		m.SetWord(0xF004, 1)
-		require.NotEqual(t, zeroHashes[32-5], m.MerkleRoot(), "non-zero")
-		m.SetWord(0xF004, 0)
-		require.Equal(t, zeroHashes[32-5], m.MerkleRoot(), "zero again")
+		require.Equal(t, zeroHashes[64-5], m.MerkleRoot(), "zero at first")
+		m.SetWord(0xF008, 1)
+		require.NotEqual(t, zeroHashes[64-5], m.MerkleRoot(), "non-zero")
+		m.SetWord(0xF008, 0)
+		require.Equal(t, zeroHashes[64-5], m.MerkleRoot(), "zero again")
 	})
 }
 
-func TestMemoryReadWrite(t *testing.T) {
-
+func TestMemory64ReadWrite(t *testing.T) {
 	t.Run("large random", func(t *testing.T) {
 		m := NewMemory()
 		data := make([]byte, 20_000)
 		_, err := rand.Read(data[:])
 		require.NoError(t, err)
 		require.NoError(t, m.SetMemoryRange(0, bytes.NewReader(data)))
-		for _, i := range []Word{0, 4, 1000, 20_000 - 4} {
+		for _, i := range []Word{0, 8, 1000, 20_000 - 8} {
 			v := m.GetWord(i)
-			expected := binary.BigEndian.Uint32(data[i : i+4])
+			expected := binary.BigEndian.Uint64(data[i : i+8])
 			require.Equalf(t, expected, v, "read at %d", i)
-			require.Equalf(t, expected, m.GetUint32(i), "read at %d", i)
 		}
 	})
 
@@ -142,71 +142,90 @@ func TestMemoryReadWrite(t *testing.T) {
 
 	t.Run("read-write", func(t *testing.T) {
 		m := NewMemory()
-		m.SetWord(12, 0xAABBCCDD)
-		require.Equal(t, uint32(0xAABBCCDD), m.GetWord(12))
-		require.Equal(t, uint32(0xAABBCCDD), m.GetUint32(12))
-		m.SetWord(12, 0xAABB1CDD)
-		require.Equal(t, uint32(0xAABB1CDD), m.GetWord(12))
-		require.Equal(t, uint32(0xAABB1CDD), m.GetUint32(12))
+		m.SetWord(16, 0xAABBCCDD_EEFF1122)
+		require.Equal(t, Word(0xAABBCCDD_EEFF1122), m.GetWord(16))
+		require.Equal(t, uint32(0xAABBCCDD), m.GetUint32(16))
+		require.Equal(t, uint32(0xEEFF1122), m.GetUint32(20))
+		m.SetWord(16, 0xAABB1CDD_EEFF1122)
+		require.Equal(t, Word(0xAABB1CDD_EEFF1122), m.GetWord(16))
+		require.Equal(t, uint32(0xAABB1CDD), m.GetUint32(16))
+		require.Equal(t, uint32(0xEEFF1122), m.GetUint32(20))
+		m.SetWord(16, 0xAABB1CDD_EEFF1123)
+		require.Equal(t, Word(0xAABB1CDD_EEFF1123), m.GetWord(16))
+		require.Equal(t, uint32(0xAABB1CDD), m.GetUint32(16))
+		require.Equal(t, uint32(0xEEFF1123), m.GetUint32(20))
 	})
 
 	t.Run("unaligned read", func(t *testing.T) {
 		m := NewMemory()
-		m.SetWord(12, 0xAABBCCDD)
-		m.SetWord(16, 0x11223344)
-		require.Panics(t, func() {
-			m.GetWord(13)
-			m.GetUint32(13)
-		})
-		require.Panics(t, func() {
-			m.GetWord(14)
-			m.GetUint32(14)
-		})
-		require.Panics(t, func() {
-			m.GetWord(15)
-			m.GetUint32(15)
-		})
-		require.Equal(t, uint32(0x11223344), m.GetWord(16))
-		require.Equal(t, uint32(0x11223344), m.GetUint32(16))
-		require.Equal(t, uint32(0), m.GetWord(20))
-		require.Equal(t, uint32(0), m.GetUint32(20))
-		require.Equal(t, uint32(0xAABBCCDD), m.GetWord(12))
-		require.Equal(t, uint32(0xAABBCCDD), m.GetUint32(12))
+		m.SetWord(16, 0xAABBCCDD_EEFF1122)
+		m.SetWord(24, 0x11223344_55667788)
+		for i := Word(17); i < 24; i++ {
+			require.Panics(t, func() {
+				m.GetWord(i)
+			})
+			if i != 20 {
+				require.Panics(t, func() {
+					m.GetUint32(i)
+				})
+			}
+		}
+		require.Equal(t, Word(0x11223344_55667788), m.GetWord(24))
+		require.Equal(t, uint32(0x11223344), m.GetUint32(24))
+		require.Equal(t, Word(0), m.GetWord(32))
+		require.Equal(t, uint32(0), m.GetUint32(32))
+		require.Equal(t, Word(0xAABBCCDD_EEFF1122), m.GetWord(16))
+		require.Equal(t, uint32(0xAABBCCDD), m.GetUint32(16))
+
+		require.Equal(t, uint32(0xEEFF1122), m.GetUint32(20))
+		require.Equal(t, uint32(0x55667788), m.GetUint32(28))
 	})
 
 	t.Run("unaligned write", func(t *testing.T) {
 		m := NewMemory()
-		m.SetWord(12, 0xAABBCCDD)
+		m.SetWord(16, 0xAABBCCDD_EEFF1122)
 		require.Panics(t, func() {
-			m.SetWord(13, 0x11223344)
+			m.SetWord(17, 0x11223344)
 		})
 		require.Panics(t, func() {
-			m.SetWord(14, 0x11223344)
+			m.SetWord(18, 0x11223344)
 		})
 		require.Panics(t, func() {
-			m.SetWord(15, 0x11223344)
+			m.SetWord(19, 0x11223344)
 		})
-		require.Equal(t, uint32(0xAABBCCDD), m.GetWord(12))
-		require.Equal(t, uint32(0xAABBCCDD), m.GetUint32(12))
+		require.Panics(t, func() {
+			m.SetWord(20, 0x11223344)
+		})
+		require.Panics(t, func() {
+			m.SetWord(21, 0x11223344)
+		})
+		require.Panics(t, func() {
+			m.SetWord(22, 0x11223344)
+		})
+		require.Panics(t, func() {
+			m.SetWord(23, 0x11223344)
+		})
+		require.Equal(t, Word(0xAABBCCDD_EEFF1122), m.GetWord(16))
+		require.Equal(t, uint32(0xAABBCCDD), m.GetUint32(16))
 	})
 }
 
-func TestMemoryJSON(t *testing.T) {
+func TestMemory64JSON(t *testing.T) {
 	m := NewMemory()
-	m.SetWord(8, 0xAABBCCDD)
+	m.SetWord(8, 0xAABBCCDD_EEFF1122)
 	dat, err := json.Marshal(m)
 	require.NoError(t, err)
 	var res Memory
 	require.NoError(t, json.Unmarshal(dat, &res))
-	require.Equal(t, uint32(0xAABBCCDD), res.GetWord(8))
+	require.Equal(t, Word(0xAABBCCDD_EEFF1122), res.GetWord(8))
 	require.Equal(t, uint32(0xAABBCCDD), res.GetUint32(8))
 }
 
-func TestMemoryCopy(t *testing.T) {
+func TestMemory64Copy(t *testing.T) {
 	m := NewMemory()
-	m.SetWord(0x8000, 123)
+	m.SetWord(0xAABBCCDD_8000, 0x000000_AABB)
 	mcpy := m.Copy()
-	require.Equal(t, Word(123), mcpy.GetWord(0x8000))
-	require.Equal(t, Word(123), mcpy.GetUint32(0x8000))
+	require.Equal(t, Word(0xAABB), mcpy.GetWord(0xAABBCCDD_8000))
+	require.Equal(t, uint32(0), mcpy.GetUint32(0xAABBCCDD_8000))
 	require.Equal(t, m.MerkleRoot(), mcpy.MerkleRoot())
 }
