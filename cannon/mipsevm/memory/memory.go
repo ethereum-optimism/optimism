@@ -24,9 +24,8 @@ const (
 	MaxPageCount      = 1 << PageKeySize
 	PageKeyMask       = MaxPageCount - 1
 	MemProofLeafCount = arch.MemProofLeafCount
+	MemProofSize      = arch.MemProofSize
 )
-
-const MEM_PROOF_SIZE = arch.MemProofSize
 
 type Word = arch.Word
 
@@ -99,8 +98,9 @@ func (m *Memory) invalidate(addr Word) {
 		return
 	}
 
-	// find the gindex of the first page covering the address
-	gindex := ((uint64(1) << 32) | uint64(addr)) >> PageAddrSize
+	// find the gindex of the first page covering the address: i.e. (1 << WordSize) | (addr >> PageAddrSize)
+	// Avoid 64-bit overflow by setting the bit preceding the highest bit in the word.
+	gindex := (uint64(1) << (WordSize - PageAddrSize)) | uint64(addr>>PageAddrSize)
 
 	for gindex > 0 {
 		m.nodes[gindex] = nil
@@ -138,7 +138,7 @@ func (m *Memory) MerkleizeSubtree(gindex uint64) [32]byte {
 	return r
 }
 
-func (m *Memory) MerkleProof(addr Word) (out [MEM_PROOF_SIZE]byte) {
+func (m *Memory) MerkleProof(addr Word) (out [MemProofSize]byte) {
 	proof := m.traverseBranch(1, addr, 0)
 	// encode the proof
 	for i := 0; i < MemProofLeafCount; i++ {
@@ -148,17 +148,17 @@ func (m *Memory) MerkleProof(addr Word) (out [MEM_PROOF_SIZE]byte) {
 }
 
 func (m *Memory) traverseBranch(parent uint64, addr Word, depth uint8) (proof [][32]byte) {
-	if depth == 32-5 {
-		proof = make([][32]byte, 0, 32-5+1)
+	if depth == WordSize-5 {
+		proof = make([][32]byte, 0, WordSize-5+1)
 		proof = append(proof, m.MerkleizeSubtree(parent))
 		return
 	}
-	if depth > 32-5 {
+	if depth > WordSize-5 {
 		panic("traversed too deep")
 	}
 	self := parent << 1
 	sibling := self | 1
-	if addr&(1<<(31-depth)) != 0 {
+	if addr&(1<<((WordSize-1)-depth)) != 0 {
 		self, sibling = sibling, self
 	}
 	proof = m.traverseBranch(self, addr, depth+1)
@@ -193,7 +193,7 @@ func (m *Memory) pageLookup(pageIndex Word) (*CachedPage, bool) {
 }
 
 func (m *Memory) SetMemory(addr Word, v uint32) {
-	// addr must be aligned to 4 bytes
+	// addr must be aligned to WordSizeBytes bytes
 	if addr&arch.ExtMask != 0 {
 		panic(fmt.Errorf("unaligned memory access: %x", addr))
 	}
