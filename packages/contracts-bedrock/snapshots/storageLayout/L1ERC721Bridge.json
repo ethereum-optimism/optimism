@@ -29,10 +29,10 @@
   },
   {
     "bytes": "20",
-    "label": "otherBridge",
+    "label": "spacer_2_0_20",
     "offset": 0,
     "slot": "2",
-    "type": "contract ERC721Bridge"
+    "type": "address"
   },
   {
     "bytes": "1472",
