@@ -166,7 +166,7 @@ func TestEVM_SysRead_Preimage(t *testing.T) {
 			step := state.GetStep()
 
 			// Set up state
-			state.GetRegistersRef()[2] = exec.SysRead
+			state.GetRegistersRef()[2] = arch.SysRead
 			state.GetRegistersRef()[4] = exec.FdPreimageRead
 			state.GetRegistersRef()[5] = c.addr
 			state.GetRegistersRef()[6] = c.count

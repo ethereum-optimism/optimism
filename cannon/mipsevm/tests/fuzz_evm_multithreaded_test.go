@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
 	mttestutil "github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded/testutil"
@@ -27,7 +28,7 @@ func FuzzStateSyscallCloneMT(f *testing.F) {
 		// Setup
 		state.NextThreadId = nextThreadId
 		state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
-		state.GetRegistersRef()[2] = exec.SysClone
+		state.GetRegistersRef()[2] = arch.SysClone
 		state.GetRegistersRef()[4] = exec.ValidCloneFlags
 		state.GetRegistersRef()[5] = stackPtr
 		step := state.GetStep()
