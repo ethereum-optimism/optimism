@@ -12,11 +12,11 @@ import (
 )
 
 func TestNewFromState(t *testing.T) {
-	t.Run("singlethreaded-getfd", func(t *testing.T) {
+	t.Run("singlethreaded-2", func(t *testing.T) {
 		actual, err := NewFromState(singlethreaded.CreateEmptyState())
 		require.NoError(t, err)
 		require.IsType(t, &singlethreaded.State{}, actual.FPVMState)
-		require.Equal(t, VersionSingleThreadedGetFd, actual.Version)
+		require.Equal(t, VersionSingleThreaded2, actual.Version)
 	})
 
 	t.Run("multithreaded", func(t *testing.T) {
@@ -54,7 +54,7 @@ func TestVersionsOtherThanZeroDoNotSupportJSON(t *testing.T) {
 		version     StateVersion
 		createState func() mipsevm.FPVMState
 	}{
-		{VersionSingleThreadedGetFd, func() mipsevm.FPVMState { return singlethreaded.CreateEmptyState() }},
+		{VersionSingleThreaded2, func() mipsevm.FPVMState { return singlethreaded.CreateEmptyState() }},
 		{VersionMultiThreaded, func() mipsevm.FPVMState { return multithreaded.CreateEmptyState() }},
 	}
 	for _, test := range tests {

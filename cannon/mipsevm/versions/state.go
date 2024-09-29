@@ -19,7 +19,8 @@ const (
 	// VersionSingleThreaded is the version of the Cannon STF found in op-contracts/v1.6.0 - https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.6.0/packages/contracts-bedrock/src/cannon/MIPS.sol
 	VersionSingleThreaded StateVersion = iota
 	VersionMultiThreaded
-	VersionSingleThreadedGetFd
+	// VersionSingleThreaded2 is based on VersionSingleThreaded with the addition of support for fcntl(F_GETFD) syscall
+	VersionSingleThreaded2
 )
 
 var (
@@ -27,7 +28,7 @@ var (
 	ErrJsonNotSupported = errors.New("json not supported")
 )
 
-var StateVersionTypes = []StateVersion{VersionSingleThreaded, VersionMultiThreaded, VersionSingleThreadedGetFd}
+var StateVersionTypes = []StateVersion{VersionSingleThreaded, VersionMultiThreaded, VersionSingleThreaded2}
 
 func LoadStateFromFile(path string) (*VersionedState, error) {
 	if !serialize.IsBinaryFile(path) {
@@ -45,7 +46,7 @@ func NewFromState(state mipsevm.FPVMState) (*VersionedState, error) {
 	switch state := state.(type) {
 	case *singlethreaded.State:
 		return &VersionedState{
-			Version:   VersionSingleThreadedGetFd,
+			Version:   VersionSingleThreaded2,
 			FPVMState: state,
 		}, nil
 	case *multithreaded.State:
@@ -80,7 +81,7 @@ func (s *VersionedState) Deserialize(in io.Reader) error {
 	}
 
 	switch s.Version {
-	case VersionSingleThreadedGetFd:
+	case VersionSingleThreaded2:
 		state := &singlethreaded.State{}
 		if err := state.Deserialize(in); err != nil {
 			return err
@@ -114,8 +115,8 @@ func (s StateVersion) String() string {
 		return "singlethreaded"
 	case VersionMultiThreaded:
 		return "multithreaded"
-	case VersionSingleThreadedGetFd:
-		return "singlethreaded-getfd"
+	case VersionSingleThreaded2:
+		return "singlethreaded-2"
 	default:
 		return "unknown"
 	}
@@ -127,8 +128,8 @@ func ParseStateVersion(ver string) (StateVersion, error) {
 		return VersionSingleThreaded, nil
 	case "multithreaded":
 		return VersionMultiThreaded, nil
-	case "singlethreaded-getfd":
-		return VersionSingleThreadedGetFd, nil
+	case "singlethreaded-2":
+		return VersionSingleThreaded2, nil
 	default:
 		return StateVersion(0), errors.New("unknown state version")
 	}

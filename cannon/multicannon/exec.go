@@ -21,7 +21,7 @@ const baseDir = "embeds"
 
 func ExecuteCannon(ctx context.Context, args []string, ver versions.StateVersion) error {
 	switch ver {
-	case versions.VersionSingleThreaded, versions.VersionSingleThreadedGetFd, versions.VersionMultiThreaded:
+	case versions.VersionSingleThreaded, versions.VersionSingleThreaded2, versions.VersionMultiThreaded:
 	default:
 		return errors.New("unsupported version")
 	}

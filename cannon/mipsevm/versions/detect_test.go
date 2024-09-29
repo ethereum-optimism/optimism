@@ -52,7 +52,7 @@ func TestDetectVersion(t *testing.T) {
 		path := writeToFile(t, "state.bin.gz", state)
 		version, err := DetectVersion(path)
 		require.NoError(t, err)
-		require.Equal(t, VersionSingleThreadedGetFd, version)
+		require.Equal(t, VersionSingleThreaded2, version)
 	})
 
 	t.Run("MultiThreadedBinary", func(t *testing.T) {
