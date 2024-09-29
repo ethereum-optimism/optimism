@@ -25,13 +25,13 @@ func (m *InstrumentedState) handleSyscall() error {
 
 	//fmt.Printf("syscall: %d\n", syscallNum)
 	switch syscallNum {
-	case exec.SysMmap:
+	case arch.SysMmap:
 		var newHeap Word
 		v0, v1, newHeap = exec.HandleSysMmap(a0, a1, m.state.Heap)
 		m.state.Heap = newHeap
-	case exec.SysBrk:
+	case arch.SysBrk:
 		v0 = program.PROGRAM_BREAK
-	case exec.SysClone: // clone
+	case arch.SysClone: // clone
 		// a0 = flag bitmask, a1 = stack pointer
 		if exec.ValidCloneFlags != a0 {
 			m.state.Exited = true
@@ -72,11 +72,11 @@ func (m *InstrumentedState) handleSyscall() error {
 		// to ensure we are tracking in the context of the new thread
 		m.stackTracker.PushStack(stackCaller, stackTarget)
 		return nil
-	case exec.SysExitGroup:
+	case arch.SysExitGroup:
 		m.state.Exited = true
 		m.state.ExitCode = uint8(a0)
 		return nil
-	case exec.SysRead:
+	case arch.SysRead:
 		var newPreimageOffset Word
 		var memUpdated bool
 		var memAddr Word
@@ -85,7 +85,7 @@ func (m *InstrumentedState) handleSyscall() error {
 		if memUpdated {
 			m.handleMemoryUpdate(memAddr)
 		}
-	case exec.SysWrite:
+	case arch.SysWrite:
 		var newLastHint hexutil.Bytes
 		var newPreimageKey common.Hash
 		var newPreimageOffset Word
@@ -93,12 +93,12 @@ func (m *InstrumentedState) handleSyscall() error {
 		m.state.LastHint = newLastHint
 		m.state.PreimageKey = newPreimageKey
 		m.state.PreimageOffset = newPreimageOffset
-	case exec.SysFcntl:
+	case arch.SysFcntl:
 		v0, v1 = exec.HandleSysFcntl(a0, a1)
-	case exec.SysGetTID:
+	case arch.SysGetTID:
 		v0 = thread.ThreadId
 		v1 = 0
-	case exec.SysExit:
+	case arch.SysExit:
 		thread.Exited = true
 		thread.ExitCode = uint8(a0)
 		if m.lastThreadRemaining() {
@@ -106,7 +106,7 @@ func (m *InstrumentedState) handleSyscall() error {
 			m.state.ExitCode = uint8(a0)
 		}
 		return nil
-	case exec.SysFutex:
+	case arch.SysFutex:
 		// args: a0 = addr, a1 = op, a2 = val, a3 = timeout
 		effAddr := a0 & arch.AddressMask
 		switch a1 {
@@ -143,16 +143,16 @@ func (m *InstrumentedState) handleSyscall() error {
 			v0 = exec.SysErrorSignal
 			v1 = exec.MipsEINVAL
 		}
-	case exec.SysSchedYield, exec.SysNanosleep:
+	case arch.SysSchedYield, arch.SysNanosleep:
 		v0 = 0
 		v1 = 0
 		exec.HandleSyscallUpdates(&thread.Cpu, &thread.Registers, v0, v1)
 		m.preemptThread(thread)
 		return nil
-	case exec.SysOpen:
+	case arch.SysOpen:
 		v0 = exec.SysErrorSignal
 		v1 = exec.MipsEBADF
-	case exec.SysClockGetTime:
+	case arch.SysClockGetTime:
 		switch a0 {
 		case exec.ClockGettimeRealtimeFlag, exec.ClockGettimeMonotonicFlag:
 			v0, v1 = 0, 0
@@ -175,44 +175,45 @@ func (m *InstrumentedState) handleSyscall() error {
 			v0 = exec.SysErrorSignal
 			v1 = exec.MipsEINVAL
 		}
-	case exec.SysGetpid:
+	case arch.SysGetpid:
 		v0 = 0
 		v1 = 0
-	case exec.SysMunmap:
-	case exec.SysGetAffinity:
-	case exec.SysMadvise:
-	case exec.SysRtSigprocmask:
-	case exec.SysSigaltstack:
-	case exec.SysRtSigaction:
-	case exec.SysPrlimit64:
-	// TODO: may be needed for 64-bit Cannon
-	// case exec.SysGetRtLimit:
-	case exec.SysClose:
-	case exec.SysPread64:
-	case exec.SysFstat64:
-	case exec.SysOpenAt:
-	case exec.SysReadlink:
-	case exec.SysReadlinkAt:
-	case exec.SysIoctl:
-	case exec.SysEpollCreate1:
-	case exec.SysPipe2:
-	case exec.SysEpollCtl:
-	case exec.SysEpollPwait:
-	case exec.SysGetRandom:
-	case exec.SysUname:
-	case exec.SysStat64:
-	case exec.SysGetuid:
-	case exec.SysGetgid:
-	case exec.SysLlseek:
-	case exec.SysMinCore:
-	case exec.SysTgkill:
-	case exec.SysSetITimer:
-	case exec.SysTimerCreate:
-	case exec.SysTimerSetTime:
-	case exec.SysTimerDelete:
+	case arch.SysMunmap:
+	case arch.SysGetAffinity:
+	case arch.SysMadvise:
+	case arch.SysRtSigprocmask:
+	case arch.SysSigaltstack:
+	case arch.SysRtSigaction:
+	case arch.SysPrlimit64:
+	case arch.SysClose:
+	case arch.SysPread64:
+	case arch.SysFstat:
+	case arch.SysOpenAt:
+	case arch.SysReadlink:
+	case arch.SysReadlinkAt:
+	case arch.SysIoctl:
+	case arch.SysEpollCreate1:
+	case arch.SysPipe2:
+	case arch.SysEpollCtl:
+	case arch.SysEpollPwait:
+	case arch.SysGetRandom:
+	case arch.SysUname:
+	case arch.SysGetuid:
+	case arch.SysGetgid:
+	case arch.SysMinCore:
+	case arch.SysTgkill:
+	case arch.SysSetITimer:
+	case arch.SysTimerCreate:
+	case arch.SysTimerSetTime:
+	case arch.SysTimerDelete:
 	default:
-		m.Traceback()
-		panic(fmt.Sprintf("unrecognized syscall: %d", syscallNum))
+		// These syscalls have the same values on 64-bit. So we use if-stmts here to avoid "duplicate case" compiler error for the cannon64 build
+		if arch.IsMips32 && syscallNum == arch.SysFstat64 || syscallNum == arch.SysStat64 || syscallNum == arch.SysLlseek {
+			// noop
+		} else {
+			m.Traceback()
+			panic(fmt.Sprintf("unrecognized syscall: %d", syscallNum))
+		}
 	}
 
 	exec.HandleSyscallUpdates(&thread.Cpu, &thread.Registers, v0, v1)
