@@ -106,10 +106,12 @@ contract L1StandardBridge is StandardBridge, ISemver {
     {
         superchainConfig = _superchainConfig;
         systemConfig = _systemConfig;
-        __StandardBridge_init({
-            _messenger: _messenger,
-            _otherBridge: StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE))
-        });
+        __StandardBridge_init({ _messenger: _messenger });
+    }
+
+    /// @notice
+    function otherBridge() public override view returns (StandardBridge) {
+        return StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE));
     }
 
     /// @inheritdoc StandardBridge
@@ -242,7 +244,7 @@ contract L1StandardBridge is StandardBridge, ISemver {
     /// @notice Retrieves the access of the corresponding L2 bridge contract.
     /// @return Address of the corresponding L2 bridge contract.
     function l2TokenBridge() external view returns (address) {
-        return address(otherBridge);
+        return address(otherBridge());
     }
 
     /// @notice Internal function for initiating an ETH deposit.

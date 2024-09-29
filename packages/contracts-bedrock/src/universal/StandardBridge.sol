@@ -40,9 +40,10 @@ abstract contract StandardBridge is Initializable {
     /// @custom:network-specific
     ICrossDomainMessenger public messenger;
 
-    /// @notice Corresponding bridge on the other domain.
-    /// @custom:network-specific
-    StandardBridge public otherBridge;
+    /// @custom:legacy
+    /// @custom:spacer otherBridge
+    /// @notice Spacer for backwards compatibility.
+    address private spacer_4_0_20;
 
     /// @notice Reserve extra slots (to a total of 50) in the storage layout for future upgrades.
     ///         A gap size of 45 was chosen here, so that the first slot used in a child contract
@@ -106,7 +107,7 @@ abstract contract StandardBridge is Initializable {
     /// @notice Ensures that the caller is a cross-chain message from the other bridge.
     modifier onlyOtherBridge() {
         require(
-            msg.sender == address(messenger) && messenger.xDomainMessageSender() == address(otherBridge),
+            msg.sender == address(messenger) && messenger.xDomainMessageSender() == address(otherBridge()),
             "StandardBridge: function can only be called from the other bridge"
         );
         _;
@@ -114,16 +115,11 @@ abstract contract StandardBridge is Initializable {
 
     /// @notice Initializer.
     /// @param _messenger   Contract for CrossDomainMessenger on this network.
-    /// @param _otherBridge Contract for the other StandardBridge contract.
-    function __StandardBridge_init(
-        ICrossDomainMessenger _messenger,
-        StandardBridge _otherBridge
-    )
+    function __StandardBridge_init(ICrossDomainMessenger _messenger)
         internal
         onlyInitializing
     {
         messenger = _messenger;
-        otherBridge = _otherBridge;
     }
 
     /// @notice Allows EOAs to bridge ETH by sending directly to the bridge.
@@ -146,13 +142,16 @@ abstract contract StandardBridge is Initializable {
     function MESSENGER() external view returns (ICrossDomainMessenger) {
         return messenger;
     }
+    
+    /// @notice
+    function otherBridge() public virtual view returns (StandardBridge);
 
     /// @notice Getter for the other bridge contract.
     ///         Public getter is legacy and will be removed in the future. Use `otherBridge` instead.
     /// @return Contract of the bridge on the other network.
     /// @custom:legacy
     function OTHER_BRIDGE() external view returns (StandardBridge) {
-        return otherBridge;
+        return otherBridge();
     }
 
     /// @notice This function should return true if the contract is paused.
@@ -329,7 +328,7 @@ abstract contract StandardBridge is Initializable {
         _emitETHBridgeInitiated(_from, _to, _amount, _extraData);
 
         messenger.sendMessage{ value: _amount }({
-            _target: address(otherBridge),
+            _target: address(otherBridge()),
             _message: abi.encodeWithSelector(this.finalizeBridgeETH.selector, _from, _to, _amount, _extraData),
             _minGasLimit: _minGasLimit
         });
@@ -374,7 +373,7 @@ abstract contract StandardBridge is Initializable {
         _emitERC20BridgeInitiated(_localToken, _remoteToken, _from, _to, _amount, _extraData);
 
         messenger.sendMessage({
-            _target: address(otherBridge),
+            _target: address(otherBridge()),
             _message: abi.encodeWithSelector(
                 this.finalizeBridgeERC20.selector,
                 // Because this call will be executed on the remote chain, we reverse the order of

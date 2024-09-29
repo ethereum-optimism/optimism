@@ -255,13 +255,7 @@
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "contract StandardBridge",
-        "name": "_otherBridge",
-        "type": "address"
-      }
-    ],
+    "inputs": [],
     "name": "initialize",
     "outputs": [],
     "stateMutability": "nonpayable",

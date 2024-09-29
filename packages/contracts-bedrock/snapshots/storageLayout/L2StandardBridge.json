@@ -43,10 +43,10 @@
   },
   {
     "bytes": "20",
-    "label": "otherBridge",
+    "label": "spacer_4_0_20",
     "offset": 0,
     "slot": "4",
-    "type": "contract StandardBridge"
+    "type": "address"
   },
   {
     "bytes": "1440",
