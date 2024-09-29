@@ -592,7 +592,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     /// @notice Sets static configuration options for the L2 system.
     /// @param _type  Type of configuration to set.
     /// @param _value Encoded value of the configuration.
-    function setConfig(ConfigType _type, bytes memory _value) external virtual {
+    function setConfig(ConfigType _type, bytes memory _value) external {
         if (msg.sender != address(systemConfig)) revert Unauthorized();
 
         // Set L2 deposit gas as used without paying burning gas. Ensures that deposits cannot use too much L2 gas.
@@ -614,7 +614,10 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         );
     }
 
-    //
+    /// @notice Updates a L2 predeploy
+    /// .       TODO: can skip system config likely and just
+    /// .       if (msg.sender != ISuperchainConfig.upgrader()) revert Unauthorized();
+    /// .       this removes the need to have the system config know about the superchain config
     function upgrade(address payable _proxy, address _implementation) external {
         if (msg.sender != address(systemConfig)) revert Unauthorized();
 
