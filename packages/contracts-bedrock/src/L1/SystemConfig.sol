@@ -4,7 +4,7 @@ pragma solidity 0.8.15;
 // Contracts
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { FeeVault } from "src/universal/FeeVault.sol";
+import { IFeeVault } from "src/L2/interfaces/IFeeVault.sol";
 import { StaticConfig, ConfigType } from "src/libraries/StaticConfig.sol";
 
 // Libraries
@@ -12,6 +12,7 @@ import { Storage } from "src/libraries/Storage.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { GasPayingToken, IGasToken } from "src/libraries/GasPayingToken.sol";
 import { Unauthorized } from "src/libraries/errors/CommonErrors.sol";
+import { Types } from "src/libraries/Types.sol";
 
 // Interfaces
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
@@ -462,7 +463,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     function setBaseFeeVaultConfig(
         address _recipient,
         uint256 _min,
-        FeeVault.WithdrawalNetwork _network
+        Types.WithdrawalNetwork _network
     )
         external
         onlyOwner
@@ -474,7 +475,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     function setL1FeeVaultConfig(
         address _recipient,
         uint256 _min,
-        FeeVault.WithdrawalNetwork _network
+        Types.WithdrawalNetwork _network
     )
         external
         onlyOwner
@@ -486,7 +487,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     function setSequencerFeeVaultConfig(
         address _recipient,
         uint256 _min,
-        FeeVault.WithdrawalNetwork _network
+        Types.WithdrawalNetwork _network
     )
         external
         onlyOwner
@@ -499,7 +500,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         ConfigType _type,
         address _recipient,
         uint256 _min,
-        FeeVault.WithdrawalNetwork _network
+        Types.WithdrawalNetwork _network
     )
         internal
     {

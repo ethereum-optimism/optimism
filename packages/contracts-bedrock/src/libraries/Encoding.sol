@@ -4,7 +4,6 @@ pragma solidity ^0.8.0;
 import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { RLPWriter } from "src/libraries/rlp/RLPWriter.sol";
-import { IFeeVault } from "src/universal/interfaces/IFeeVault.sol";
 
 /// @title Encoding
 /// @notice Encoding handles Optimism's various different encoding schemes.
@@ -142,7 +141,7 @@ library Encoding {
     function encodeFeeVaultConfig(
         address _recipient,
         uint256 _amount,
-        IFeeVault.WithdrawalNetwork _network
+        Types.WithdrawalNetwork _network
     )
         internal
         pure
@@ -157,11 +156,11 @@ library Encoding {
     function decodeFeeVaultConfig(bytes32 _data)
         internal
         pure
-        returns (address recipient_, uint256 amount_, IFeeVault.WithdrawalNetwork network_)
+        returns (address recipient_, uint256 amount_, Types.WithdrawalNetwork network_)
     {
         recipient_ = address(uint160(uint256(_data) & uint256(type(uint160).max)));
         amount_ = uint256(_data) & uint256(type(uint88).max) << 160;
-        network_ = IFeeVault.WithdrawalNetwork(uint8(bytes1(_data >> 248)));
+        network_ = Types.WithdrawalNetwork(uint8(bytes1(_data >> 248)));
     }
 
     /// @notice Returns an appropriately encoded call to L1Block.setL1BlockValuesEcotone

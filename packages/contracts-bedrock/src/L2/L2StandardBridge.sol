@@ -70,13 +70,11 @@ contract L2StandardBridge is StandardBridge, ISemver {
 
     /// @notice Initializer.
     function initialize() public initializer {
-        __StandardBridge_init({
-            _messenger: ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER)
-        });
+        __StandardBridge_init({ _messenger: ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER) });
     }
 
     /// @notice
-    function otherBridge() public override view returns (StandardBridge) {
+    function otherBridge() public view override returns (StandardBridge) {
         return StandardBridge(payable(IL1Block(payable(Predeploys.L1_BLOCK_ATTRIBUTES)).l1StandardBridge()));
     }
 

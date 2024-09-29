@@ -7,6 +7,7 @@ import { Reverter } from "test/mocks/Callers.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 // Contracts
+import { FeeVault } from "src/L2/FeeVault.sol";
 import { SequencerFeeVault } from "src/L2/SequencerFeeVault.sol";
 
 // Libraries
@@ -109,16 +110,7 @@ contract SequencerFeeVault_L2Withdrawal_Test is CommonTest {
         super.setUp();
 
         // Alter the deployment to use WithdrawalNetwork.L2
-        vm.etch(
-            EIP1967Helper.getImplementation(Predeploys.SEQUENCER_FEE_WALLET),
-            address(
-                new SequencerFeeVault(
-                    deploy.cfg().sequencerFeeVaultRecipient(),
-                    deploy.cfg().sequencerFeeVaultMinimumWithdrawalAmount(),
-                    Types.WithdrawalNetwork.L2
-                )
-            ).code
-        );
+        vm.etch(EIP1967Helper.getImplementation(Predeploys.SEQUENCER_FEE_WALLET), address(new SequencerFeeVault()).code);
 
         recipient = deploy.cfg().sequencerFeeVaultRecipient();
     }

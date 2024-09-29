@@ -45,7 +45,7 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
     }
 
     /// @notice
-    function otherBridge() public override view returns (ERC721Bridge) {
+    function otherBridge() public pure override returns (ERC721Bridge) {
         return ERC721Bridge(payable(Predeploys.L2_ERC721_BRIDGE));
     }
 

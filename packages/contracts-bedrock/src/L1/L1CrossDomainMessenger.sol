@@ -19,7 +19,6 @@ import { IOptimismPortal } from "src/L1/interfaces/IOptimismPortal.sol";
 ///         for sending and receiving data on the L1 side. Users are encouraged to use this
 ///         interface instead of interacting with lower-level contracts directly.
 contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
-
     /* no need for this to be in storage
     /// @notice CrossDomainMessenger contract on the other chain.
     /// @custom:network-specific

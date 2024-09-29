@@ -115,10 +115,7 @@ abstract contract StandardBridge is Initializable {
 
     /// @notice Initializer.
     /// @param _messenger   Contract for CrossDomainMessenger on this network.
-    function __StandardBridge_init(ICrossDomainMessenger _messenger)
-        internal
-        onlyInitializing
-    {
+    function __StandardBridge_init(ICrossDomainMessenger _messenger) internal onlyInitializing {
         messenger = _messenger;
     }
 
@@ -142,9 +139,9 @@ abstract contract StandardBridge is Initializable {
     function MESSENGER() external view returns (ICrossDomainMessenger) {
         return messenger;
     }
-    
+
     /// @notice
-    function otherBridge() public virtual view returns (StandardBridge);
+    function otherBridge() public view virtual returns (StandardBridge);
 
     /// @notice Getter for the other bridge contract.
     ///         Public getter is legacy and will be removed in the future. Use `otherBridge` instead.

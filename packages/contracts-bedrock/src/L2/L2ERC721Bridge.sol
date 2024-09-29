@@ -32,19 +32,16 @@ contract L2ERC721Bridge is ERC721Bridge, ISemver {
 
     /// @notice Constructs the L2ERC721Bridge contract.
     constructor() ERC721Bridge() {
-        initialize({ _l1ERC721Bridge: payable(address(0)) });
+        initialize();
     }
 
     /// @notice Initializes the contract.
-    /// @param _l1ERC721Bridge Address of the ERC721 bridge contract on the other network.
-    function initialize(address payable _l1ERC721Bridge) public initializer {
-        __ERC721Bridge_init({
-            _messenger: ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER)
-        });
+    function initialize() public initializer {
+        __ERC721Bridge_init({ _messenger: ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER) });
     }
 
     /// @notice
-    function otherBridge() public override view returns (ERC721Bridge) {
+    function otherBridge() public view override returns (ERC721Bridge) {
         return ERC721Bridge(IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).l1ERC721Bridge());
     }
 

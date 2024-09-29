@@ -110,7 +110,7 @@ contract L1StandardBridge is StandardBridge, ISemver {
     }
 
     /// @notice
-    function otherBridge() public override view returns (StandardBridge) {
+    function otherBridge() public pure override returns (StandardBridge) {
         return StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE));
     }
 
@@ -243,7 +243,7 @@ contract L1StandardBridge is StandardBridge, ISemver {
     /// @custom:legacy
     /// @notice Retrieves the access of the corresponding L2 bridge contract.
     /// @return Address of the corresponding L2 bridge contract.
-    function l2TokenBridge() external view returns (address) {
+    function l2TokenBridge() external pure returns (address) {
         return address(otherBridge());
     }
 

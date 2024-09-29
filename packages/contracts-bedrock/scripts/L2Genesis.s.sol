@@ -17,7 +17,7 @@ import { BaseFeeVault } from "src/L2/BaseFeeVault.sol";
 import { L1FeeVault } from "src/L2/L1FeeVault.sol";
 import { OptimismSuperchainERC20Beacon } from "src/L2/OptimismSuperchainERC20Beacon.sol";
 import { OptimismMintableERC721Factory } from "src/L2/OptimismMintableERC721Factory.sol";
-import { FeeVault } from "src/universal/FeeVault.sol";
+import { IFeeVault } from "src/L2/interfaces/IFeeVault.sol";
 import { GovernanceToken } from "src/governance/GovernanceToken.sol";
 
 // Libraries
@@ -334,11 +334,7 @@ contract L2Genesis is Deployer {
 
     /// @notice This predeploy is following the safety invariant #2,
     function setSequencerFeeVault() public {
-        SequencerFeeVault vault = new SequencerFeeVault({
-            _recipient: cfg.sequencerFeeVaultRecipient(),
-            _minWithdrawalAmount: cfg.sequencerFeeVaultMinimumWithdrawalAmount(),
-            _withdrawalNetwork: Types.WithdrawalNetwork(cfg.sequencerFeeVaultWithdrawalNetwork())
-        });
+        SequencerFeeVault vault = new SequencerFeeVault();
 
         address impl = Predeploys.predeployToCodeNamespace(Predeploys.SEQUENCER_FEE_WALLET);
         console.log("Setting %s implementation at: %s", "SequencerFeeVault", impl);
@@ -417,11 +413,7 @@ contract L2Genesis is Deployer {
 
     /// @notice This predeploy is following the safety invariant #2.
     function setBaseFeeVault() public {
-        BaseFeeVault vault = new BaseFeeVault({
-            _recipient: cfg.baseFeeVaultRecipient(),
-            _minWithdrawalAmount: cfg.baseFeeVaultMinimumWithdrawalAmount(),
-            _withdrawalNetwork: Types.WithdrawalNetwork(cfg.baseFeeVaultWithdrawalNetwork())
-        });
+        BaseFeeVault vault = new BaseFeeVault();
 
         address impl = Predeploys.predeployToCodeNamespace(Predeploys.BASE_FEE_VAULT);
         console.log("Setting %s implementation at: %s", "BaseFeeVault", impl);
@@ -434,11 +426,7 @@ contract L2Genesis is Deployer {
 
     /// @notice This predeploy is following the safety invariant #2.
     function setL1FeeVault() public {
-        L1FeeVault vault = new L1FeeVault({
-            _recipient: cfg.l1FeeVaultRecipient(),
-            _minWithdrawalAmount: cfg.l1FeeVaultMinimumWithdrawalAmount(),
-            _withdrawalNetwork: Types.WithdrawalNetwork(cfg.l1FeeVaultWithdrawalNetwork())
-        });
+        L1FeeVault vault = new L1FeeVault();
 
         address impl = Predeploys.predeployToCodeNamespace(Predeploys.L1_FEE_VAULT);
         console.log("Setting %s implementation at: %s", "L1FeeVault", impl);

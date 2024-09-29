@@ -5,7 +5,7 @@ import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { StaticConfig, ConfigType } from "src/libraries/StaticConfig.sol";
 import { GasPayingToken, IGasToken } from "src/libraries/GasPayingToken.sol";
-import { IFeeVault } from "src/universal/interfaces/IFeeVault.sol";
+import { IFeeVault, Types as ITypes } from "src/L2/interfaces/IFeeVault.sol";
 import { ICrossDomainMessenger } from "src/universal/interfaces/ICrossDomainMessenger.sol";
 import { IStandardBridge } from "src/universal/interfaces/IStandardBridge.sol";
 import { IERC721Bridge } from "src/universal/interfaces/IERC721Bridge.sol";
@@ -13,6 +13,7 @@ import { IOptimismMintableERC721Factory } from "src/L2/interfaces/IOptimismMinta
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Storage } from "src/libraries/Storage.sol";
+import { Types } from "src/libraries/Types.sol";
 import "src/libraries/L1BlockErrors.sol";
 
 /// @custom:proxied true
@@ -263,7 +264,7 @@ contract L1Block is ISemver, IGasToken {
     function baseFeeVaultConfig()
         public
         view
-        returns (address recipient, uint256 amount, IFeeVault.WithdrawalNetwork network)
+        returns (address recipient, uint256 amount, Types.WithdrawalNetwork network)
     {
         return Encoding.decodeFeeVaultConfig(Storage.getBytes32(BASE_FEE_VAULT_CONFIG_SLOT));
     }
@@ -272,7 +273,7 @@ contract L1Block is ISemver, IGasToken {
     function l1FeeVaultConfig()
         public
         view
-        returns (address recipient, uint256 amount, IFeeVault.WithdrawalNetwork network)
+        returns (address recipient, uint256 amount, Types.WithdrawalNetwork network)
     {
         return Encoding.decodeFeeVaultConfig(Storage.getBytes32(L1_FEE_VAULT_CONFIG_SLOT));
     }
@@ -281,7 +282,7 @@ contract L1Block is ISemver, IGasToken {
     function sequencerFeeVaultConfig()
         public
         view
-        returns (address recipient, uint256 amount, IFeeVault.WithdrawalNetwork network)
+        returns (address recipient, uint256 amount, Types.WithdrawalNetwork network)
     {
         return Encoding.decodeFeeVaultConfig(Storage.getBytes32(SEQUENCER_FEE_VAULT_CONFIG_SLOT));
     }
@@ -308,7 +309,8 @@ contract L1Block is ISemver, IGasToken {
 
     /// @notice
     function _feeVaultConfig(address _addr) internal view returns (bytes32) {
-        (address recipient, uint256 amount, IFeeVault.WithdrawalNetwork network) = IFeeVault(payable(_addr)).config();
-        return Encoding.encodeFeeVaultConfig(recipient, amount, network);
+        // compiler issue with type here
+        (address recipient, uint256 amount, ITypes.WithdrawalNetwork network) = IFeeVault(payable(_addr)).config();
+        return Encoding.encodeFeeVaultConfig(recipient, amount, Types.WithdrawalNetwork(uint8(network)));
     }
 }

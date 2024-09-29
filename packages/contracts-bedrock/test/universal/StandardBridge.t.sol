@@ -21,7 +21,7 @@ contract StandardBridgeTester is StandardBridge {
         return _isCorrectTokenPair(_mintableToken, _otherToken);
     }
 
-    function otherBridge() public view override returns (StandardBridge) {
+    function otherBridge() public pure override returns (StandardBridge) {
         return StandardBridge(payable(address(0)));
     }
 

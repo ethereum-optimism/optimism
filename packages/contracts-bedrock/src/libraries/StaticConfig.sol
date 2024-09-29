@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-// TODO: ifeevault
-import { FeeVault } from "src/universal/FeeVault.sol";
+import { Types } from "src/libraries/Types.sol";
 
 /// @notice Enum representing different types of configurations that can be set on L1BlockIsthmus.
 /// @custom:value SET_GAS_PAYING_TOKEN  Represents the config type for setting the gas paying token.
@@ -83,7 +82,7 @@ library StaticConfig {
     function encodeSetFeeVaultConfig(
         address _recipient,
         uint256 _min,
-        FeeVault.WithdrawalNetwork _network
+        Types.WithdrawalNetwork _network
     )
         internal
         pure
@@ -96,9 +95,9 @@ library StaticConfig {
     function decodeSetFeeVaultConfig(bytes memory _data)
         internal
         pure
-        returns (address, uint256, FeeVault.WithdrawalNetwork)
+        returns (address, uint256, Types.WithdrawalNetwork)
     {
-        return abi.decode(_data, (address, uint256, FeeVault.WithdrawalNetwork));
+        return abi.decode(_data, (address, uint256, Types.WithdrawalNetwork));
     }
 
     /// @notice

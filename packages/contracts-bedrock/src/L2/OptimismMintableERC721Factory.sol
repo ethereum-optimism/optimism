@@ -14,7 +14,6 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 ///         future to be deployable on L1 as well.
 contract OptimismMintableERC721Factory is ISemver {
     // TODO: check storage layout
-
     /// @notice Tracks addresses created by this factory.
     mapping(address => bool) public isOptimismMintableERC721;
 
@@ -50,16 +49,6 @@ contract OptimismMintableERC721Factory is ISemver {
     /// @notice TODO: call L1Block
     function bridge() public view returns (address) {
         return IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).l1ERC721Bridge();
-    }
-
-    /// @notice Address of the ERC721 bridge on this network.
-    function bridge() external view returns (address) {
-        return BRIDGE;
-    }
-
-    /// @notice Chain ID for the remote network.
-    function remoteChainID() external view returns (uint256) {
-        return REMOTE_CHAIN_ID;
     }
 
     /// @notice Creates an instance of the standard ERC721.

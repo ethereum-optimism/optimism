@@ -322,7 +322,7 @@ abstract contract CrossDomainMessenger is
     }
 
     /// @notice
-    function otherMessenger() public virtual view returns (CrossDomainMessenger);
+    function otherMessenger() public view virtual returns (CrossDomainMessenger);
 
     /// @notice Retrieves the address of the paired CrossDomainMessenger contract on the other chain
     ///         Public getter is legacy and will be removed in the future. Use `otherMessenger()` instead.

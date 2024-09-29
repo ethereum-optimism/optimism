@@ -17,7 +17,7 @@ abstract contract ERC721Bridge is Initializable {
     ICrossDomainMessenger public messenger;
 
     /// @custom:legacy
-    /// @custom:spacer otherBridge 
+    /// @custom:spacer otherBridge
     /// @notice Spacer for backwards compatibility.
     address private spacer_2_0_20;
 
@@ -80,7 +80,7 @@ abstract contract ERC721Bridge is Initializable {
     }
 
     /// @notice
-    function otherBridge() public virtual view returns (ERC721Bridge);
+    function otherBridge() public view virtual returns (ERC721Bridge);
 
     /// @notice Legacy getter for other bridge address.
     ///         Public getter is legacy and will be removed in the future. Use `otherBridge` instead.
