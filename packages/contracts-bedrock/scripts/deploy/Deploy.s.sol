@@ -455,7 +455,6 @@ contract Deploy is Deployer {
             }
             require(admin.addressManager() == addressManager);
         }
-        save(proxyAdminName, address(admin));
         console.log("%s deployed at %s", proxyAdminName, address(admin));
         addr_ = address(admin);
     }
