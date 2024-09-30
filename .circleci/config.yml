@@ -1729,7 +1729,6 @@ workflows:
           requires:
             - contracts-bedrock-build
             - cannon-prestate
-            - cannon-stf-verify
           context:
             - slack
 
