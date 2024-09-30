@@ -304,6 +304,7 @@ func (s *channelManager) registerL1Block(l1Head eth.BlockID) {
 func (s *channelManager) processBlocks() error {
 	var (
 		blocksAdded int
+		_chFullErr  *ChannelFullError // throw away, just for type checking
 		latestL2ref eth.L2BlockRef
 	)
 	for i := 0; ; i++ {
@@ -313,7 +314,7 @@ func (s *channelManager) processBlocks() error {
 		}
 
 		l1info, err := s.currentChannel.AddBlock(block)
-		if errors.Is(err, new(ChannelFullError)) {
+		if errors.As(err, &_chFullErr) {
 			// current block didn't get added because channel is already full
 			s.blocks.Prepend(block)
 			break

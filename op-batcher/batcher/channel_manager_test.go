@@ -665,5 +665,6 @@ func TestChannelManager_Requeue(t *testing.T) {
 
 	// The requeue shouldn't affect the pending channel
 	require.Contains(t, m.channelQueue, channel0)
+
 	require.NotContains(t, m.blocks, blockA)
 }
