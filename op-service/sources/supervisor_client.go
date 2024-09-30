@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -68,7 +67,12 @@ func (cl *SupervisorClient) AddL2RPC(
 
 func (cl *SupervisorClient) UnsafeView(ctx context.Context, chainID types.ChainID, unsafe types.ReferenceView) (types.ReferenceView, error) {
 	var result types.ReferenceView
-	err := cl.client.CallContext(ctx, &result, "supervisor_unsafeView", (*hexutil.U256)(&chainID), unsafe)
+	err := cl.client.CallContext(
+		ctx,
+		&result,
+		"supervisor_unsafeView",
+		chainID,
+		unsafe)
 	if err != nil {
 		return types.ReferenceView{}, fmt.Errorf("failed to share unsafe block view %s (chain %s): %w", unsafe, chainID, err)
 	}
@@ -77,7 +81,12 @@ func (cl *SupervisorClient) UnsafeView(ctx context.Context, chainID types.ChainI
 
 func (cl *SupervisorClient) SafeView(ctx context.Context, chainID types.ChainID, safe types.ReferenceView) (types.ReferenceView, error) {
 	var result types.ReferenceView
-	err := cl.client.CallContext(ctx, &result, "supervisor_safeView", (*hexutil.U256)(&chainID), safe)
+	err := cl.client.CallContext(
+		ctx,
+		&result,
+		"supervisor_safeView",
+		chainID,
+		safe)
 	if err != nil {
 		return types.ReferenceView{}, fmt.Errorf("failed to share safe block view %s (chain %s): %w", safe, chainID, err)
 	}

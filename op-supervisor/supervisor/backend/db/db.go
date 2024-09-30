@@ -10,6 +10,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/heads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/safety"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
@@ -199,4 +200,48 @@ func (db *ChainsDB) Close() error {
 		}
 	}
 	return combined
+}
+
+func (db *ChainsDB) UpdateLocalUnsafe(chain types.ChainID, head eth.L2BlockRef) error {
+	err := db.safetyIndex.UpdateLocalUnsafe(chain, head)
+	if err != nil {
+		return fmt.Errorf("failed to update local-unsafe: %w", err)
+	}
+	return nil
+}
+
+func (db *ChainsDB) UpdateLocalSafe(chain types.ChainID, derivedFrom eth.L1BlockRef, lastDerived eth.L2BlockRef) error {
+	err := db.safetyIndex.UpdateLocalSafe(chain, derivedFrom, lastDerived)
+	if err != nil {
+		return fmt.Errorf("failed to update local-safe: %w", err)
+	}
+	return nil
+}
+
+func (db *ChainsDB) UpdateFinalizedL1(finalized eth.L1BlockRef) error {
+	return db.safetyIndex.UpdateFinalizeL1(finalized)
+}
+
+func (db *ChainsDB) UnsafeView(chainID types.ChainID, unsafe types.ReferenceView) (heads.HeadPointer, heads.HeadPointer, error) {
+	u, err := db.safetyIndex.UnsafeL2(chainID)
+	if err != nil {
+		return heads.HeadPointer{}, heads.HeadPointer{}, err
+	}
+	xu, err := db.safetyIndex.CrossUnsafeL2(chainID)
+	if err != nil {
+		return heads.HeadPointer{}, heads.HeadPointer{}, err
+	}
+	return u, xu, nil
+}
+
+func (db *ChainsDB) SafeView(chainID types.ChainID, unsafe types.ReferenceView) (heads.HeadPointer, heads.HeadPointer, error) {
+	s, err := db.safetyIndex.UnsafeL2(chainID)
+	if err != nil {
+		return heads.HeadPointer{}, heads.HeadPointer{}, err
+	}
+	xs, err := db.safetyIndex.CrossUnsafeL2(chainID)
+	if err != nil {
+		return heads.HeadPointer{}, heads.HeadPointer{}, err
+	}
+	return s, xs, nil
 }

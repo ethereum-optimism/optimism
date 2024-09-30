@@ -37,6 +37,8 @@ var _ frontend.Backend = (*SupervisorBackend)(nil)
 
 var _ io.Closer = (*SupervisorBackend)(nil)
 
+var errAlreadyStopped = errors.New("already stopped")
+
 func NewSupervisorBackend(ctx context.Context, logger log.Logger, m Metrics, cfg *config.Config) (*SupervisorBackend, error) {
 	// attempt to prepare the data directory
 	if err := prepDataDir(cfg.Datadir); err != nil {
@@ -74,7 +76,7 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger, m Metrics, cfg
 // it will start the monitor if shouldStart is true
 func (su *SupervisorBackend) addFromRPC(ctx context.Context, logger log.Logger, rpc string, shouldStart bool) error {
 	// create the rpc client, which yields the chain id
-	rpcClient, chainID, err := createRpcClient(ctx, logger, rpc)
+	rpcClient, chainID, err := clientForL2(ctx, logger, rpc)
 	if err != nil {
 		return err
 	}
@@ -107,7 +109,7 @@ func (su *SupervisorBackend) addFromRPC(ctx context.Context, logger log.Logger, 
 	return nil
 }
 
-func createRpcClient(ctx context.Context, logger log.Logger, rpc string) (client.RPC, types.ChainID, error) {
+func clientForL2(ctx context.Context, logger log.Logger, rpc string) (client.RPC, types.ChainID, error) {
 	ethClient, err := dial.DialEthClientWithTimeout(ctx, 10*time.Second, logger, rpc)
 	if err != nil {
 		return nil, types.ChainID{}, fmt.Errorf("failed to connect to rpc %v: %w", rpc, err)
@@ -137,8 +139,6 @@ func (su *SupervisorBackend) Start(ctx context.Context) error {
 	}
 	return nil
 }
-
-var errAlreadyStopped = errors.New("already stopped")
 
 func (su *SupervisorBackend) Stop(ctx context.Context) error {
 	if !su.started.CompareAndSwap(true, false) {
@@ -225,6 +225,56 @@ func (su *SupervisorBackend) CheckBlock(chainID *hexutil.U256, blockHash common.
 	}
 	safest := su.db.Safest(types.ChainID(*chainID), uint64(blockNumber), 0)
 	return safest, nil
+}
+
+func (su *SupervisorBackend) UpdateLocalUnsafe(chainID types.ChainID, head eth.L2BlockRef) {
+	su.db.UpdateLocalUnsafe(chainID, head)
+}
+
+func (su *SupervisorBackend) UpdateLocalSafe(chainID types.ChainID, derivedFrom eth.L1BlockRef, lastDerived eth.L2BlockRef) {
+	su.db.UpdateLocalSafe(chainID, derivedFrom, lastDerived)
+}
+
+func (su *SupervisorBackend) UpdateFinalizedL1(chainID types.ChainID, finalized eth.L1BlockRef) {
+	su.db.UpdateFinalizedL1(finalized)
+}
+
+func (su *SupervisorBackend) UnsafeView(ctx context.Context, chainID types.ChainID, unsafe types.ReferenceView) (types.ReferenceView, error) {
+	u, xu, err := su.db.UnsafeView(chainID, unsafe)
+	if err != nil {
+		return types.ReferenceView{}, fmt.Errorf("failed to get unsafe view: %w", err)
+	}
+	return types.ReferenceView{
+		Local: eth.BlockID{
+			Hash:   u.LastSealedBlockHash,
+			Number: u.LastSealedBlockNum,
+		},
+		Cross: eth.BlockID{
+			Hash:   xu.LastSealedBlockHash,
+			Number: xu.LastSealedBlockNum,
+		},
+	}, nil
+}
+
+func (su *SupervisorBackend) SafeView(ctx context.Context, chainID types.ChainID, safe types.ReferenceView) (types.ReferenceView, error) {
+	s, xs, err := su.db.SafeView(chainID, safe)
+	if err != nil {
+		return types.ReferenceView{}, fmt.Errorf("failed to get safe view: %w", err)
+	}
+	return types.ReferenceView{
+		Local: eth.BlockID{
+			Hash:   s.LastSealedBlockHash,
+			Number: s.LastSealedBlockNum,
+		},
+		Cross: eth.BlockID{
+			Hash:   xs.LastSealedBlockHash,
+			Number: xs.LastSealedBlockNum,
+		},
+	}, nil
+}
+
+func (su *SupervisorBackend) Finalized(ctx context.Context, chainID types.ChainID) (eth.BlockID, error) {
+	return eth.BlockID{}, nil
 }
 
 func (su *SupervisorBackend) DerivedFrom(
