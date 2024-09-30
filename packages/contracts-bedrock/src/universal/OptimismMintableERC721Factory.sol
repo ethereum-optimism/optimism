@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Contracts
 import { OptimismMintableERC721 } from "src/universal/OptimismMintableERC721.sol";
+
+// Interfaces
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
 
 /// @title OptimismMintableERC721Factory
@@ -23,8 +26,8 @@ contract OptimismMintableERC721Factory is ISemver {
     event OptimismMintableERC721Created(address indexed localToken, address indexed remoteToken, address deployer);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.4.1-beta.2
-    string public constant version = "1.4.1-beta.2";
+    /// @custom:semver 1.4.1-beta.3
+    string public constant version = "1.4.1-beta.3";
 
     /// @notice The semver MUST be bumped any time that there is a change in
     ///         the OptimismMintableERC721 token contract since this contract

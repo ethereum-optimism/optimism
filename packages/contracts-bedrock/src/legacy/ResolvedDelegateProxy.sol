@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { AddressManager } from "src/legacy/AddressManager.sol";
+// Contracts
+import { IAddressManager } from "src/legacy/interfaces/IAddressManager.sol";
 
 /// @custom:legacy true
 /// @title ResolvedDelegateProxy
@@ -20,11 +21,11 @@ contract ResolvedDelegateProxy {
     ///         implementation address will be resolved from. Same concept here as with the above
     ///         mapping. Also generally unsafe but fine if the implementation doesn't keep a mapping
     ///         in the second storage slot.
-    mapping(address => AddressManager) private addressManager;
+    mapping(address => IAddressManager) private addressManager;
 
     /// @param _addressManager  Address of the AddressManager.
     /// @param _implementationName implementationName of the contract to proxy to.
-    constructor(AddressManager _addressManager, string memory _implementationName) {
+    constructor(IAddressManager _addressManager, string memory _implementationName) {
         addressManager[address(this)] = _addressManager;
         implementationName[address(this)] = _implementationName;
     }

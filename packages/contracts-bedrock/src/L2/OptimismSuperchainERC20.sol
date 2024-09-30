@@ -1,14 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import { IOptimismSuperchainERC20Extension } from "src/L2/interfaces/IOptimismSuperchainERC20.sol";
-import { IL2ToL2CrossDomainMessenger } from "src/L2/interfaces/IL2ToL2CrossDomainMessenger.sol";
-import { ISemver } from "src/universal/interfaces/ISemver.sol";
-import { Predeploys } from "src/libraries/Predeploys.sol";
-import { ERC20 } from "@solady/tokens/ERC20.sol";
-import { SuperchainERC20 } from "src/L2/SuperchainERC20.sol";
+// Contracts
 import { Initializable } from "@openzeppelin/contracts-v5/proxy/utils/Initializable.sol";
 import { ERC165 } from "@openzeppelin/contracts-v5/utils/introspection/ERC165.sol";
+import { ERC20 } from "@solady/tokens/ERC20.sol";
+import { SuperchainERC20 } from "src/L2/SuperchainERC20.sol";
+
+// Libraries
+import { Predeploys } from "src/libraries/Predeploys.sol";
+
+// Interfaces
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
+import { IOptimismSuperchainERC20Extension } from "src/L2/interfaces/IOptimismSuperchainERC20.sol";
+import { IL2ToL2CrossDomainMessenger } from "src/L2/interfaces/IL2ToL2CrossDomainMessenger.sol";
 
 /// @notice Thrown when attempting to mint or burn tokens and the function caller is not the StandardBridge.
 error OnlyBridge();
@@ -63,8 +68,8 @@ contract OptimismSuperchainERC20 is
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.4
-    string public constant version = "1.0.0-beta.4";
+    /// @custom:semver 1.0.0-beta.6
+    string public constant version = "1.0.0-beta.6";
 
     /// @notice Constructs the OptimismSuperchainERC20 contract.
     constructor() {

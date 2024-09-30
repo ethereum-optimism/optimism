@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
+// Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { TransientContext, TransientReentrancyAware } from "src/libraries/TransientContext.sol";
+import { SafeCall } from "src/libraries/SafeCall.sol";
+
+// Interfaces
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { ICrossL2Inbox } from "src/L2/interfaces/ICrossL2Inbox.sol";
-import { SafeCall } from "src/libraries/SafeCall.sol";
 import { IDependencySet } from "src/L2/interfaces/IDependencySet.sol";
 import { IL1BlockInterop } from "src/L2/interfaces/IL1BlockInterop.sol";
 
@@ -65,8 +68,8 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
     address internal constant DEPOSITOR_ACCOUNT = 0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAd0001;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.8
-    string public constant version = "1.0.0-beta.8";
+    /// @custom:semver 1.0.0-beta.9
+    string public constant version = "1.0.0-beta.9";
 
     /// @notice Emitted when a cross chain message is being executed.
     /// @param msgHash Hash of message payload being executed.

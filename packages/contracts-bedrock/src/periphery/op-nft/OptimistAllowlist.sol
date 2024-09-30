@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { ISemver } from "src/universal/interfaces/ISemver.sol";
+// Contracts
 import { AttestationStation } from "src/periphery/op-nft/AttestationStation.sol";
 import { OptimistConstants } from "src/periphery/op-nft/libraries/OptimistConstants.sol";
+
+// Interfaces
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
 
 /// @title  OptimistAllowlist
 /// @notice Source of truth for whether an address is able to mint an Optimist NFT.
@@ -31,8 +34,8 @@ contract OptimistAllowlist is ISemver {
     address public immutable OPTIMIST_INVITER;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.1.1-beta.1
-    string public constant version = "1.1.1-beta.1";
+    /// @custom:semver 1.1.1-beta.2
+    string public constant version = "1.1.1-beta.2";
 
     /// @param _attestationStation    Address of the AttestationStation contract.
     /// @param _allowlistAttestor     Address of the allowlist attestor.

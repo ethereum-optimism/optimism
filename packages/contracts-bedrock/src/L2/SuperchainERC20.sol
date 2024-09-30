@@ -1,10 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import { ISuperchainERC20Extensions, ISuperchainERC20Errors } from "src/L2/interfaces/ISuperchainERC20.sol";
+// Contracts
 import { ERC20 } from "@solady/tokens/ERC20.sol";
-import { IL2ToL2CrossDomainMessenger } from "src/L2/interfaces/IL2ToL2CrossDomainMessenger.sol";
+
+// Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
+
+// Interfaces
+import { IL2ToL2CrossDomainMessenger } from "src/L2/interfaces/IL2ToL2CrossDomainMessenger.sol";
+import { ISuperchainERC20Extensions, ISuperchainERC20Errors } from "src/L2/interfaces/ISuperchainERC20.sol";
 
 /// @title SuperchainERC20
 /// @notice SuperchainERC20 is a standard extension of the base ERC20 token contract that unifies ERC20 token

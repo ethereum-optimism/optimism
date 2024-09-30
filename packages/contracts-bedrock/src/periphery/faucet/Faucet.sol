@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { IFaucetAuthModule } from "src/periphery/faucet/authmodules/IFaucetAuthModule.sol";
+// Libraries
 import { SafeCall } from "src/libraries/SafeCall.sol";
 import { SafeSend } from "src/universal/SafeSend.sol";
+
+// Interfaces
+import { IFaucetAuthModule } from "src/periphery/faucet/authmodules/IFaucetAuthModule.sol";
 
 /// @title  Faucet
 /// @notice Faucet contract that drips ETH to users.

@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { ISemver } from "src/universal/interfaces/ISemver.sol";
+// Contracts
 import { FeeVault } from "src/universal/FeeVault.sol";
+
+// Libraries
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
 
 /// @custom:proxied true
 /// @custom:predeploy 0x4200000000000000000000000000000000000011
@@ -10,8 +13,8 @@ import { FeeVault } from "src/universal/FeeVault.sol";
 /// @notice The SequencerFeeVault is the contract that holds any fees paid to the Sequencer during
 ///         transaction processing and block production.
 contract SequencerFeeVault is FeeVault, ISemver {
-    /// @custom:semver 1.5.0-beta.2
-    string public constant version = "1.5.0-beta.2";
+    /// @custom:semver 1.5.0-beta.3
+    string public constant version = "1.5.0-beta.3";
 
     /// @notice Constructs the SequencerFeeVault contract.
     /// @param _recipient           Wallet that will receive the fees.
