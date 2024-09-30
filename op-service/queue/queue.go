@@ -5,6 +5,9 @@ type Queue[T any] []T
 
 // Enqueue adds the elements to the back of the queue.
 func (q *Queue[T]) Enqueue(t ...T) {
+	if len(t) == 0 {
+		return
+	}
 	*q = append(*q, t...)
 }
 
@@ -22,8 +25,11 @@ func (q *Queue[T]) Dequeue() (T, bool) {
 }
 
 // Prepend inserts the elements at the front of the queue,
-// preserving their order.
+// preserving their order. A noop if t is empty.
 func (q *Queue[T]) Prepend(t ...T) {
+	if len(t) == 0 {
+		return
+	}
 	*q = append(t, *q...)
 }
 
