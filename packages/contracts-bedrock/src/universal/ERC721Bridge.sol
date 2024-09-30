@@ -12,9 +12,10 @@ abstract contract ERC721Bridge is Initializable {
     /// @notice Spacer to avoid packing into the initializer slot
     bytes30 private spacer_0_2_30;
 
-    /// @notice Messenger contract on this domain.
-    /// @custom:network-specific
-    ICrossDomainMessenger public messenger;
+    /// @custom:legacy
+    /// @custom:spacer messenger 
+    /// @notice Spacer for backwards compatibility.
+    address private spacer_1_0_20;
 
     /// @custom:legacy
     /// @custom:spacer otherBridge
@@ -58,25 +59,26 @@ abstract contract ERC721Bridge is Initializable {
 
     /// @notice Ensures that the caller is a cross-chain message from the other bridge.
     modifier onlyOtherBridge() {
+        ICrossDomainMessenger crossDomainMessenger = messenger(); 
         require(
-            msg.sender == address(messenger) && messenger.xDomainMessageSender() == address(otherBridge()),
+            msg.sender == address(crossDomainMessenger) && crossDomainMessenger.xDomainMessageSender() == address(otherBridge()),
             "ERC721Bridge: function can only be called from the other bridge"
         );
         _;
     }
 
     /// @notice Initializer.
-    /// @param _messenger   Contract of the CrossDomainMessenger on this network.
-    function __ERC721Bridge_init(ICrossDomainMessenger _messenger) internal onlyInitializing {
-        messenger = _messenger;
-    }
+    function __ERC721Bridge_init() internal onlyInitializing { }
+
+    /// @notice
+    function messenger() public virtual view returns (ICrossDomainMessenger);
 
     /// @notice Legacy getter for messenger contract.
     ///         Public getter is legacy and will be removed in the future. Use `messenger` instead.
     /// @return Messenger contract on this domain.
     /// @custom:legacy
     function MESSENGER() external view returns (ICrossDomainMessenger) {
-        return messenger;
+        return messenger();
     }
 
     /// @notice

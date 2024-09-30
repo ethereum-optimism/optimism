@@ -42,12 +42,12 @@ contract OptimismMintableERC721Factory is ISemver {
     }
 
     /// @notice TODO: type should be more strict
-    function BRIDGE() external view returns (address) {
+    function BRIDGE() external pure returns (address) {
         return bridge();
     }
 
-    /// @notice
-    function bridge() public view returns (address) {
+    /// @notice TODO: stronger type
+    function bridge() public pure returns (address) {
         return Predeploys.L2_ERC721_BRIDGE;
     }
 

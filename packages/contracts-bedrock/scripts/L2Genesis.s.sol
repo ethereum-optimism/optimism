@@ -272,14 +272,14 @@ contract L2Genesis is Deployer {
         setDeployerWhitelist(); // 2
         // 3,4,5: legacy, not used in OP-Stack.
         setWETH(); // 6: WETH (not behind a proxy)
-        setL2CrossDomainMessenger(_l1Dependencies.l1CrossDomainMessengerProxy); // 7
+        setL2CrossDomainMessenger(); // 7
         // 8,9,A,B,C,D,E: legacy, not used in OP-Stack.
         setGasPriceOracle(); // f
-        setL2StandardBridge(_l1Dependencies.l1StandardBridgeProxy); // 10
+        setL2StandardBridge(); // 10
         setSequencerFeeVault(); // 11
         setOptimismMintableERC20Factory(); // 12
         setL1BlockNumber(); // 13
-        setL2ERC721Bridge(_l1Dependencies.l1ERC721BridgeProxy); // 14
+        setL2ERC721Bridge(); // 14
         setL1Block(); // 15
         setL2ToL1MessagePasser(); // 16
         setOptimismMintableERC721Factory(); // 17
@@ -312,7 +312,7 @@ contract L2Genesis is Deployer {
     }
 
     /// @notice This predeploy is following the safety invariant #1.
-    function setL2CrossDomainMessenger(address payable _l1CrossDomainMessengerProxy) public {
+    function setL2CrossDomainMessenger() public {
         address impl = _setImplementationCode(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
 
         IL2CrossDomainMessenger(impl).initialize();
@@ -321,7 +321,7 @@ contract L2Genesis is Deployer {
     }
 
     /// @notice This predeploy is following the safety invariant #1.
-    function setL2StandardBridge(address payable _l1StandardBridgeProxy) public {
+    function setL2StandardBridge() public {
         address impl;
         if (cfg.useInterop()) {
             string memory cname = "L2StandardBridgeInterop";
@@ -339,7 +339,7 @@ contract L2Genesis is Deployer {
     }
 
     /// @notice This predeploy is following the safety invariant #1.
-    function setL2ERC721Bridge(address payable _l1ERC721BridgeProxy) public {
+    function setL2ERC721Bridge() public {
         address impl = _setImplementationCode(Predeploys.L2_ERC721_BRIDGE);
 
         IL2ERC721Bridge(impl).initialize();
