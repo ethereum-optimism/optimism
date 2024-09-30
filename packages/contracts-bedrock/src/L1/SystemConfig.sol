@@ -474,7 +474,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
 
     /// @notice
     function _setFeeVaultConfig(
-        ConfigType _type,
+        Types.ConfigType _type,
         address _recipient,
         uint256 _min,
         Types.WithdrawalNetwork _network

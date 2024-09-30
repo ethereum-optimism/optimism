@@ -19,15 +19,22 @@ import { Encoding } from "src/libraries/Encoding.sol";
 import { Constants } from "src/libraries/Constants.sol";
 
 contract SequencerFeeVault_Test is CommonTest {
-    /// @dev Tests that the l1 fee wallet is correct.
+    function setUp() public override {
+        super.setUp();
+        assertEq(uint8(deploy.cfg().sequencerFeeVaultWithdrawalNetwork()), uint8(IFeeVault.WithdrawalNetwork.L1));
+    }
+
+    /// @dev Tests that the sequencer fee wallet is correct.
     function test_constructor_succeeds() external view {
-        assertEq(sequencerFeeVault.l1FeeWallet(), deploy.cfg().sequencerFeeVaultRecipient());
-        assertEq(sequencerFeeVault.RECIPIENT(), deploy.cfg().sequencerFeeVaultRecipient());
-        assertEq(sequencerFeeVault.recipient(), deploy.cfg().sequencerFeeVaultRecipient());
-        assertEq(sequencerFeeVault.MIN_WITHDRAWAL_AMOUNT(), deploy.cfg().sequencerFeeVaultMinimumWithdrawalAmount());
-        assertEq(sequencerFeeVault.minWithdrawalAmount(), deploy.cfg().sequencerFeeVaultMinimumWithdrawalAmount());
-        assertEq(uint8(sequencerFeeVault.WITHDRAWAL_NETWORK()), uint8(Types.WithdrawalNetwork.L1));
-        assertEq(uint8(sequencerFeeVault.withdrawalNetwork()), uint8(Types.WithdrawalNetwork.L1));
+        address recipient = deploy.cfg().sequencerFeeVaultRecipient();
+        uint256 amount = deploy.cfg().sequencerFeeVaultMinimumWithdrawalAmount();
+        assertEq(sequencerFeeVault.l1FeeWallet(), recipient);
+        assertEq(sequencerFeeVault.RECIPIENT(), recipient);
+        assertEq(sequencerFeeVault.recipient(), recipient);
+        assertEq(sequencerFeeVault.MIN_WITHDRAWAL_AMOUNT(), amount);
+        assertEq(sequencerFeeVault.minWithdrawalAmount(), amount);
+        assertEq(uint8(sequencerFeeVault.WITHDRAWAL_NETWORK()), uint8(IFeeVault.WithdrawalNetwork.L1));
+        assertEq(uint8(sequencerFeeVault.withdrawalNetwork()), uint8(IFeeVault.WithdrawalNetwork.L1));
     }
 
     /// @dev Tests that the fee vault is able to receive ETH.
@@ -111,6 +118,19 @@ contract SequencerFeeVault_L2Withdrawal_Test is CommonTest {
         });
         vm.prank(Constants.DEPOSITOR_ACCOUNT);
         l1Block.setConfig(ConfigType.SET_SEQUENCER_FEE_VAULT_CONFIG, abi.encode(sequencerFeeVaultConfig));
+    }
+
+    /// @dev Tests that the sequencer fee wallet is correct.
+    function test_constructor_succeeds() external view {
+        address recipient = deploy.cfg().sequencerFeeVaultRecipient();
+        uint256 amount = deploy.cfg().sequencerFeeVaultMinimumWithdrawalAmount();
+        assertEq(sequencerFeeVault.l1FeeWallet(), recipient);
+        assertEq(sequencerFeeVault.RECIPIENT(), recipient);
+        assertEq(sequencerFeeVault.recipient(), recipient);
+        assertEq(sequencerFeeVault.MIN_WITHDRAWAL_AMOUNT(), amount);
+        assertEq(sequencerFeeVault.minWithdrawalAmount(), amount);
+        assertEq(uint8(sequencerFeeVault.WITHDRAWAL_NETWORK()), uint8(IFeeVault.WithdrawalNetwork.L2));
+        assertEq(uint8(sequencerFeeVault.withdrawalNetwork()), uint8(IFeeVault.WithdrawalNetwork.L2));
     }
 
     /// @dev Tests that `withdraw` successfully initiates a withdrawal to L2.

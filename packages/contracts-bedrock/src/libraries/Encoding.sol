@@ -147,9 +147,8 @@ library Encoding {
         pure
         returns (bytes32)
     {
-        uint256 network = uint256(_network);
         if (_amount > type(uint88).max) revert UnsafeCast();
-        return bytes32(network << 248 | _amount << 160 | uint256(uint160(_recipient)));
+        return bytes32(uint256(_network) << 248 | _amount << 160 | uint256(uint160(_recipient)));
     }
 
     /// @notice

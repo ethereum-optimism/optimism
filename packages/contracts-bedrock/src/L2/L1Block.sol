@@ -267,30 +267,18 @@ contract L1Block is ISemver, IGasToken {
     }
 
     /// @notice
-    function baseFeeVaultConfig()
-        public
-        view
-        returns (address recipient, uint256 amount, Types.WithdrawalNetwork network)
-    {
-        return Encoding.decodeFeeVaultConfig(Storage.getBytes32(BASE_FEE_VAULT_CONFIG_SLOT));
+    function baseFeeVaultConfig() public view returns (address recipient_, uint256 amount_, Types.WithdrawalNetwork network_) {
+        (recipient_, amount_, network_) = Encoding.decodeFeeVaultConfig(Storage.getBytes32(BASE_FEE_VAULT_CONFIG_SLOT));
     }
 
     /// @notice
-    function l1FeeVaultConfig()
-        public
-        view
-        returns (address recipient, uint256 amount, Types.WithdrawalNetwork network)
-    {
-        return Encoding.decodeFeeVaultConfig(Storage.getBytes32(L1_FEE_VAULT_CONFIG_SLOT));
+    function l1FeeVaultConfig() public view returns (address recipient_, uint256 amount_, Types.WithdrawalNetwork network_) {
+        (recipient_, amount_, network_) = Encoding.decodeFeeVaultConfig(Storage.getBytes32(L1_FEE_VAULT_CONFIG_SLOT));
     }
 
     /// @notice
-    function sequencerFeeVaultConfig()
-        public
-        view
-        returns (address recipient, uint256 amount, Types.WithdrawalNetwork network)
-    {
-        return Encoding.decodeFeeVaultConfig(Storage.getBytes32(SEQUENCER_FEE_VAULT_CONFIG_SLOT));
+    function sequencerFeeVaultConfig() public view returns (address recipient_, uint256 amount_, Types.WithdrawalNetwork network_) {
+        (recipient_, amount_, network_) = Encoding.decodeFeeVaultConfig(Storage.getBytes32(SEQUENCER_FEE_VAULT_CONFIG_SLOT));
     }
 
     /// @notice
