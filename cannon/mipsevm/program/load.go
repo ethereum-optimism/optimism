@@ -45,7 +45,7 @@ func LoadELF[T mipsevm.FPVMState](f *elf.File, initState CreateInitialFPVMState[
 		if prog.Vaddr+prog.Memsz >= uint64(1<<32) {
 			return empty, fmt.Errorf("program %d out of 32-bit mem range: %x - %x (size: %x)", i, prog.Vaddr, prog.Vaddr+prog.Memsz, prog.Memsz)
 		}
-		if arch.IsMips32 && prog.Vaddr+prog.Memsz >= HEAP_START {
+		if prog.Vaddr+prog.Memsz >= HEAP_START {
 			return empty, fmt.Errorf("program %d overlaps with heap: %x - %x (size: %x). The heap start offset must be reconfigured", i, prog.Vaddr, prog.Vaddr+prog.Memsz, prog.Memsz)
 		}
 		if err := s.GetMemory().SetMemoryRange(Word(prog.Vaddr), r); err != nil {

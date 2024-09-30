@@ -103,6 +103,6 @@ func PatchStack(st mipsevm.FPVMState) error {
 
 // pad adds appropriate padding to buf to end at Word alignment
 func pad(buf []byte) []byte {
-	bytesToAlignment := (WordSizeBytes - len(buf)%WordSizeBytes) % WordSizeBytes
+	bytesToAlignment := WordSizeBytes - len(buf)%WordSizeBytes
 	return append(buf, make([]byte, bytesToAlignment)...)
 }

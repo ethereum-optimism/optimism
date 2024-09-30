@@ -304,6 +304,12 @@ func (m *InstrumentedState) mipsStep() error {
 	if opcode == exec.OpLoadLinked || opcode == exec.OpStoreConditional {
 		return m.handleRMWOps(insn, opcode)
 	}
+	if opcode == exec.OpLoadLinked64 || opcode == exec.OpStoreConditional64 {
+		if arch.IsMips32 {
+			panic(fmt.Sprintf("invalid instruction: %x", insn))
+		}
+		return m.handleRMWOps(insn, opcode)
+	}
 
 	// Exec the rest of the step logic
 	memUpdated, memAddr, err := exec.ExecMipsCoreStepLogic(m.state.getCpuRef(), m.state.GetRegistersRef(), m.state.Memory, insn, opcode, fun, m.memoryTracker, m.stackTracker)

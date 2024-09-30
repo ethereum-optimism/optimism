@@ -384,7 +384,7 @@ func TestState_EncodeThreadProof_EmptyThreadStackPanic(t *testing.T) {
 	}
 }
 
-func TestStateWitnessSizee(t *testing.T) {
+func TestStateWitnessSize(t *testing.T) {
 	expectedWitnessSize := 172
 	if !arch.IsMips32 {
 		expectedWitnessSize = 196

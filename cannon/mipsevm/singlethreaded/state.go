@@ -203,7 +203,7 @@ func (s *State) EncodeWitness() ([]byte, common.Hash) {
 // ExitCode                    uint8
 // Exited                      uint8 - 0 for false, 1 for true
 // Step                        uint64
-// Registers                   [32Word]
+// Registers                   [32]Word
 // len(LastHint)			   Word (0 when LastHint is nil)
 // LastHint 				   []byte
 func (s *State) Serialize(out io.Writer) error {

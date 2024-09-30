@@ -93,6 +93,9 @@ func (s *VersionedState) Deserialize(in io.Reader) error {
 
 	switch s.Version {
 	case VersionSingleThreaded:
+		if !arch.IsMips32 {
+			return ErrUnsupportedMipsArch
+		}
 		state := &singlethreaded.State{}
 		if err := state.Deserialize(in); err != nil {
 			return err

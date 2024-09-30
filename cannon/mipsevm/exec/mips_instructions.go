@@ -7,13 +7,15 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 
-	// TODO: MIPS64 port. Replace with a custom library
+	// TODO(#12205): MIPS64 port. Replace with a custom library
 	u128 "lukechampine.com/uint128"
 )
 
 const (
-	OpLoadLinked       = 0x30
-	OpStoreConditional = 0x38
+	OpLoadLinked         = 0x30
+	OpStoreConditional   = 0x38
+	OpLoadLinked64       = 0x34
+	OpStoreConditional64 = 0x3c
 )
 
 func GetInstructionDetails(pc Word, memory *memory.Memory) (insn, opcode, fun uint32) {
@@ -31,7 +33,7 @@ func ExecMipsCoreStepLogic(cpu *mipsevm.CpuScalars, registers *[32]Word, memory 
 		if opcode == 3 {
 			linkReg = 31
 		}
-		// Take top 4 bits of the next PC (its 256 MB region), and concatenate with the 26-bit offset
+		// Take the top bits of the next PC (its 256 MB region), and concatenate with the 26-bit offset
 		target := (cpu.NextPC & SignExtend(0xF0000000, 32)) | Word((insn&0x03FFFFFF)<<2)
 		stackTracker.PushStack(cpu.PC, target)
 		err = HandleJump(cpu, registers, linkReg, target)
@@ -46,7 +48,13 @@ func ExecMipsCoreStepLogic(cpu *mipsevm.CpuScalars, registers *[32]Word, memory 
 	// R-type or I-type (stores rt)
 	rs = registers[(insn>>21)&0x1F]
 	rdReg := rtReg
-	if opcode == 0 || opcode == 0x1c {
+	if opcode == 0x27 || opcode == 0x1A || opcode == 0x1B { // 64-bit opcodes lwu, ldl, ldr
+		assertMips64(insn)
+		// store rt value with store
+		rt = registers[rtReg]
+		// store actual rt with lwu, ldl and ldr
+		rdReg = rtReg
+	} else if opcode == 0 || opcode == 0x1c {
 		// R-type (stores rd)
 		rt = registers[rtReg]
 		rdReg = Word((insn >> 11) & 0x1F)
@@ -64,12 +72,7 @@ func ExecMipsCoreStepLogic(cpu *mipsevm.CpuScalars, registers *[32]Word, memory 
 		// store rt value with store
 		rt = registers[rtReg]
 
-		// store actual rt with lwl and lwr
-		rdReg = rtReg
-	} else if opcode == 0x27 || opcode == 0x1A || opcode == 0x1B { // 64-bit opcodes
-		// store rt value with store
-		rt = registers[rtReg]
-		// store actual rt with ldl and ldr
+		// store actual rt with lwl, ldl, and lwr
 		rdReg = rtReg
 	}
 
@@ -89,8 +92,10 @@ func ExecMipsCoreStepLogic(cpu *mipsevm.CpuScalars, registers *[32]Word, memory 
 		memTracker.TrackMemAccess(addr)
 		mem = memory.GetWord(addr)
 		if opcode >= 0x28 {
-			// store for 32-bit and certain 64-bit opcodes
-			if arch.IsMips32 || opcode != 0x30 && opcode != 0x34 && opcode != 0x37 {
+			// store for 32-bit
+			// for 64-bit: ld (0x37) is the only non-store opcode >= 0x28
+			// SAFETY: On 32-bit mode, 0x37 will be considered an invalid opcode by ExecuteMipsInstruction
+			if arch.IsMips32 || opcode != 0x37 {
 				// store
 				storeAddr = addr
 				// store opcodes don't write back to a register
@@ -153,13 +158,19 @@ func SignExtendImmediate(insn uint32) Word {
 	return SignExtend(Word(insn&0xFFFF), 16)
 }
 
-func ExecuteMipsInstruction(insn uint32, opcode uint32, fun uint32, rs, rt, mem Word) Word {
-	assertMips64 := func() {
-		if arch.IsMips32 {
-			panic(fmt.Sprintf("invalid instruction: %x", insn))
-		}
+func assertMips64(insn uint32) {
+	if arch.IsMips32 {
+		panic(fmt.Sprintf("invalid instruction: %x", insn))
 	}
+}
 
+func assertMips64Fun(fun uint32) {
+	if arch.IsMips32 {
+		panic(fmt.Sprintf("invalid instruction func: %x", fun))
+	}
+}
+
+func ExecuteMipsInstruction(insn uint32, opcode uint32, fun uint32, rs, rt, mem Word) Word {
 	if opcode == 0 || (opcode >= 8 && opcode < 0xF) || (!arch.IsMips32 && (opcode == 0x18 || opcode == 0x19)) {
 		// transform ArithLogI to SPECIAL
 		switch opcode {
@@ -221,13 +232,13 @@ func ExecuteMipsInstruction(insn uint32, opcode uint32, fun uint32, rs, rt, mem 
 		case 0x13: // mtlo
 			return rs
 		case 0x14: // dsllv
-			assertMips64()
+			assertMips64(insn)
 			return rt
 		case 0x16: // dsrlv
-			assertMips64()
+			assertMips64(insn)
 			return rt
 		case 0x17: // dsrav
-			assertMips64()
+			assertMips64(insn)
 			return rt
 		case 0x18: // mult
 			return rs
@@ -238,16 +249,16 @@ func ExecuteMipsInstruction(insn uint32, opcode uint32, fun uint32, rs, rt, mem 
 		case 0x1b: // divu
 			return rs
 		case 0x1C: // dmult
-			assertMips64()
+			assertMips64(insn)
 			return rs
 		case 0x1D: // dmultu
-			assertMips64()
+			assertMips64(insn)
 			return rs
 		case 0x1E: // ddiv
-			assertMips64()
+			assertMips64(insn)
 			return rs
 		case 0x1F: // ddivu
-			assertMips64()
+			assertMips64(insn)
 			return rs
 		// The rest includes transformed R-type arith imm instructions
 		case 0x20: // add
@@ -277,34 +288,34 @@ func ExecuteMipsInstruction(insn uint32, opcode uint32, fun uint32, rs, rt, mem 
 			}
 			return 0
 		case 0x2c: // dadd
-			assertMips64()
+			assertMips64(insn)
 			return rs + rt
 		case 0x2d: // daddu
-			assertMips64()
+			assertMips64(insn)
 			return rs + rt
 		case 0x2e: // dsub
-			assertMips64()
+			assertMips64(insn)
 			return rs - rt
 		case 0x2f: // dsubu
-			assertMips64()
+			assertMips64(insn)
 			return rs - rt
 		case 0x38: // dsll
-			assertMips64()
+			assertMips64(insn)
 			return rt << ((insn >> 6) & 0x1f)
 		case 0x3A: // dsrl
-			assertMips64()
+			assertMips64(insn)
 			return rt >> ((insn >> 6) & 0x1f)
 		case 0x3B: // dsra
-			assertMips64()
+			assertMips64(insn)
 			return Word(int64(rt) >> ((insn >> 6) & 0x1f))
 		case 0x3C: // dsll32
-			assertMips64()
+			assertMips64(insn)
 			return rt << (((insn >> 6) & 0x1f) + 32)
 		case 0x3E: // dsll32
-			assertMips64()
+			assertMips64(insn)
 			return rt >> (((insn >> 6) & 0x1f) + 32)
 		case 0x3F: // dsll32
-			assertMips64()
+			assertMips64(insn)
 			return Word(int64(rt) >> (((insn >> 6) & 0x1f) + 32))
 		default:
 			panic(fmt.Sprintf("invalid instruction: %x", insn))
@@ -340,7 +351,7 @@ func ExecuteMipsInstruction(insn uint32, opcode uint32, fun uint32, rs, rt, mem 
 			mask := Word(uint32(0xFFFFFFFF) << ((rs & 3) * 8))
 			return SignExtend(((rt & ^mask)|val)&0xFFFFFFFF, 32)
 		case 0x23: // lw
-			// TODO: port to MIPS64
+			// TODO(#12205): port to MIPS64
 			return mem
 			//return SignExtend((mem>>(32-((rs&0x4)<<3)))&0xFFFFFFFF, 32)
 		case 0x24: // lbu
@@ -367,61 +378,52 @@ func ExecuteMipsInstruction(insn uint32, opcode uint32, fun uint32, rs, rt, mem 
 			mask := ^Word(0) ^ Word(0xFFFF<<sl)
 			return (mem & mask) | val
 		case 0x2a: //  swl
-			// TODO: port to MIPS64
+			// TODO(#12205): port to MIPS64
 			val := rt >> ((rs & 3) * 8)
 			mask := uint32(0xFFFFFFFF) >> ((rs & 3) * 8)
 			return (mem & Word(^mask)) | val
 		case 0x2b: //  sw
-			// TODO: port to MIPS64
+			// TODO(#12205): port to MIPS64
 			return rt
 		case 0x2e: //  swr
-			// TODO: port to MIPS64
+			// TODO(#12205): port to MIPS64
 			val := rt << (24 - (rs&3)*8)
 			mask := uint32(0xFFFFFFFF) << (24 - (rs&3)*8)
 			return (mem & Word(^mask)) | val
 
 		// MIPS64
 		case 0x1A: // ldl
-			assertMips64()
+			assertMips64(insn)
 			sl := (rs & 0x7) << 3
 			val := mem << sl
 			mask := ^Word(0) << sl
 			return val | (rt & ^mask)
 		case 0x1B: // ldr
-			assertMips64()
+			assertMips64(insn)
 			sr := 56 - ((rs & 0x7) << 3)
 			val := mem >> sr
 			mask := ^Word(0) << (64 - sr)
 			return val | (rt & mask)
 		case 0x27: // lwu
-			assertMips64()
+			assertMips64(insn)
 			return (mem >> (32 - ((rs & 0x4) << 3))) & 0xFFFFFFFF
 		case 0x2C: // sdl
-			assertMips64()
+			assertMips64(insn)
 			sr := (rs & 0x7) << 3
 			val := rt >> sr
 			mask := ^Word(0) >> sr
 			return val | (mem & ^mask)
 		case 0x2D: // sdr
-			assertMips64()
+			assertMips64(insn)
 			sl := 56 - ((rs & 0x7) << 3)
 			val := rt << sl
 			mask := ^Word(0) << sl
 			return val | (mem & ^mask)
-		case 0x34: // lld
-			assertMips64()
-			return mem
 		case 0x37: // ld
-			assertMips64()
+			assertMips64(insn)
 			return mem
-		case 0x3C: // scd
-			assertMips64()
-			sl := (rs & 0x7) << 3
-			val := rt << sl
-			mask := ^Word(0) << sl
-			return (mem & ^mask) | val
 		case 0x3F: // sd
-			assertMips64()
+			assertMips64(insn)
 			sl := (rs & 0x7) << 3
 			val := rt << sl
 			mask := ^Word(0) << sl
@@ -504,24 +506,31 @@ func HandleHiLo(cpu *mipsevm.CpuScalars, registers *[32]Word, fun uint32, rs Wor
 		cpu.HI = SignExtend(Word(uint32(rs)%uint32(rt)), 32)
 		cpu.LO = SignExtend(Word(uint32(rs)/uint32(rt)), 32)
 	case 0x14: // dsllv
+		assertMips64Fun(fun)
 		val = rt << (rs & 0x3F)
 	case 0x16: // dsrlv
+		assertMips64Fun(fun)
 		val = rt >> (rs & 0x3F)
 	case 0x17: // dsrav
+		assertMips64Fun(fun)
 		val = Word(int64(rt) >> (rs & 0x3F))
 	case 0x1c: // dmult
-		// TODO: Port to MIPS64. Is signed multiply needed for dmult
+		// TODO(#12205): port to MIPS64. Is signed multiply needed for dmult
+		assertMips64Fun(fun)
 		acc := u128.From64(uint64(rs)).Mul(u128.From64(uint64(rt)))
 		cpu.HI = Word(acc.Hi)
 		cpu.LO = Word(acc.Lo)
 	case 0x1d: // dmultu
+		assertMips64Fun(fun)
 		acc := u128.From64(uint64(rs)).Mul(u128.From64(uint64(rt)))
 		cpu.HI = Word(acc.Hi)
 		cpu.LO = Word(acc.Lo)
 	case 0x1e: // ddiv
+		assertMips64Fun(fun)
 		cpu.HI = Word(int64(rs) % int64(rt))
 		cpu.LO = Word(int64(rs) / int64(rt))
 	case 0x1f: // ddivu
+		assertMips64Fun(fun)
 		cpu.HI = rs % rt
 		cpu.LO = rs / rt
 	}

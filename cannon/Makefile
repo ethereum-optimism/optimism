@@ -24,7 +24,7 @@ cannon64-impl:
 cannon-embeds: cannon32-impl cannon64-impl
 	@cp bin/cannon32-impl ./multicannon/embeds/cannon-0
 	@cp bin/cannon32-impl ./multicannon/embeds/cannon-1
-	@cp bin/cannon64-impl ./multicannon/embeds/cannon-2
+	@cp bin/cannon64-impl ./multicannon/embeds/cannon-3
 
 cannon: cannon-embeds
 	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v $(LDFLAGS) -o ./bin/cannon ./multicannon/
@@ -89,8 +89,6 @@ fuzz:
 	cannon64-impl \
 	cannon-embeds \
 	cannon \
-	cannon-impl \
-	cannon-embeds \
 	clean \
 	test \
 	lint \

@@ -16,7 +16,6 @@ import (
 
 // Note: 2**12 = 4 KiB, the min phys page size in the Go runtime.
 const (
-	WordSize          = arch.WordSize
 	PageAddrSize      = arch.PageAddrSize
 	PageKeySize       = arch.PageKeySize
 	PageSize          = 1 << PageAddrSize
