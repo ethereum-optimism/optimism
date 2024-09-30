@@ -123,7 +123,7 @@ func identifierFromBytes(identifierBytes io.Reader) (contractIdentifier, error) 
 // which is then hashed again. This is the hash that is stored in the log storage.
 // The logHash can then be used to traverse from the executing message
 // to the log the referenced initiating message.
-// TODO: this function is duplicated between contracts and backend/source/log_processor.go
+// TODO(#12424): this function is duplicated between contracts and backend/source/log_processor.go
 // to avoid a circular dependency. It should be reorganized to avoid this duplication.
 func payloadHashToLogHash(payloadHash common.Hash, addr common.Address) common.Hash {
 	msg := make([]byte, 0, 2*common.HashLength)
