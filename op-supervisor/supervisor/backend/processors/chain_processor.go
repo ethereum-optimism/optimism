@@ -1,4 +1,4 @@
-package source
+package processors
 
 import (
 	"context"
@@ -166,7 +166,7 @@ func (s *ChainProcessor) update(nextNum uint64) error {
 	return nil
 }
 
-func (s *ChainProcessor) OnNewHead(ctx context.Context, head eth.BlockRef) error {
+func (s *ChainProcessor) OnNewHead(head eth.BlockRef) error {
 	// update the latest target
 	s.lastHead.Store(head.Number)
 	// signal that we have something to process

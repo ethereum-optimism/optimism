@@ -4,10 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"sync/atomic"
 
-	"github.com/ethereum-optimism/optimism/op-supervisor/config"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 
@@ -16,6 +14,7 @@ import (
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
+	"github.com/ethereum-optimism/optimism/op-supervisor/config"
 	"github.com/ethereum-optimism/optimism/op-supervisor/metrics"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/frontend"
@@ -23,7 +22,6 @@ import (
 
 type Backend interface {
 	frontend.Backend
-	io.Closer
 }
 
 // SupervisorService implements the full-environment bells and whistles around the Supervisor.
@@ -149,6 +147,11 @@ func (su *SupervisorService) initRPCServer(cfg *config.Config) error {
 		Service:       &frontend.QueryFrontend{Supervisor: su.backend},
 		Authenticated: false,
 	})
+	server.AddAPI(rpc.API{
+		Namespace:     "supervisor",
+		Service:       &frontend.UpdatesFrontend{Supervisor: su.backend},
+		Authenticated: false,
+	})
 	su.rpcServer = server
 	return nil
 }
@@ -180,7 +183,7 @@ func (su *SupervisorService) Stop(ctx context.Context) error {
 		}
 	}
 	if su.backend != nil {
-		if err := su.backend.Close(); err != nil {
+		if err := su.backend.Stop(ctx); err != nil {
 			result = errors.Join(result, fmt.Errorf("failed to close supervisor backend: %w", err))
 		}
 	}
