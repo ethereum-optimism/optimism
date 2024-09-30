@@ -3,6 +3,7 @@ package entrydb
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -12,6 +13,14 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
+
+type TestEntryType uint8
+
+func (typ TestEntryType) String() string {
+	return fmt.Sprintf("%d", uint8(typ))
+}
+
+type TestEntry = Entry[TestEntryType]
 
 func TestReadWrite(t *testing.T) {
 	t.Run("BasicReadWrite", func(t *testing.T) {
@@ -114,7 +123,7 @@ func TestTruncateTrailingPartialEntries(t *testing.T) {
 	copy(invalidData[EntrySize:], entry2[:])
 	invalidData[len(invalidData)-1] = 3 // Some invalid trailing data
 	require.NoError(t, os.WriteFile(file, invalidData, 0o644))
-	db, err := NewEntryDB(logger, file)
+	db, err := NewEntryDB[TestEntryType](logger, file)
 	require.NoError(t, err)
 	defer db.Close()
 
@@ -177,19 +186,19 @@ func TestWriteErrors(t *testing.T) {
 	})
 }
 
-func requireRead(t *testing.T, db *EntryDB, idx EntryIdx, expected Entry) {
+func requireRead(t *testing.T, db *EntryDB[TestEntryType], idx EntryIdx, expected TestEntry) {
 	actual, err := db.Read(idx)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
 }
 
-func createEntry(i byte) Entry {
-	return Entry(bytes.Repeat([]byte{i}, EntrySize))
+func createEntry(i byte) TestEntry {
+	return TestEntry(bytes.Repeat([]byte{i}, EntrySize))
 }
 
-func createEntryDB(t *testing.T) *EntryDB {
+func createEntryDB(t *testing.T) *EntryDB[TestEntryType] {
 	logger := testlog.Logger(t, log.LvlInfo)
-	db, err := NewEntryDB(logger, filepath.Join(t.TempDir(), "entries.db"))
+	db, err := NewEntryDB[TestEntryType](logger, filepath.Join(t.TempDir(), "entries.db"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, db.Close())
@@ -197,9 +206,9 @@ func createEntryDB(t *testing.T) *EntryDB {
 	return db
 }
 
-func createEntryDBWithStubData() (*EntryDB, *stubDataAccess) {
+func createEntryDBWithStubData() (*EntryDB[TestEntryType], *stubDataAccess) {
 	stubData := &stubDataAccess{}
-	db := &EntryDB{data: stubData, lastEntryIdx: -1}
+	db := &EntryDB[TestEntryType]{data: stubData, lastEntryIdx: -1}
 	return db, stubData
 }
 
