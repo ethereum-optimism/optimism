@@ -226,6 +226,7 @@ contract Setup {
         l1Block.setConfig(ConfigType.SET_L1_ERC_721_BRIDGE_ADDRESS, abi.encode(l1ERC721Bridge));
         l1Block.setConfig(ConfigType.SET_REMOTE_CHAIN_ID, abi.encode(deploy.cfg().l1ChainID()));
         l1Block.setConfig(ConfigType.SET_L1_CROSS_DOMAIN_MESSENGER_ADDRESS, abi.encode(l1CrossDomainMessenger));
+        l1Block.setConfig(ConfigType.SET_L1_STANDARD_BRIDGE_ADDRESS, abi.encode(l1StandardBridge));
         vm.stopPrank();
 
         // L2 predeploys
