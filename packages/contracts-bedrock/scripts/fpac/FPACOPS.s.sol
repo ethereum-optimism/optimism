@@ -22,11 +22,11 @@ contract FPACOPS is Deploy, StdAssertions {
     //                        ENTRYPOINTS                         //
     ////////////////////////////////////////////////////////////////
 
-    function deployFPAC(address _proxyAdmin, address _systemOwnerSafe, address _superchainConfigProxy) public {
+    function deployFPAC(address _proxyAdmin, address _finalSystemOwner, address _superchainConfigProxy) public {
         console.log("Deploying a fresh FPAC system and OptimismPortal2 implementation.");
 
         prankDeployment("ProxyAdmin", msg.sender);
-        prankDeployment("SystemOwnerSafe", msg.sender);
+        prankDeployment("FinalSystemOwner", msg.sender);
         prankDeployment("SuperchainConfigProxy", _superchainConfigProxy);
 
         // Deploy the proxies.
@@ -54,14 +54,14 @@ contract FPACOPS is Deploy, StdAssertions {
         // Deploy the Permissioned Cannon Fault game implementation and set it as game ID = 1.
         setPermissionedCannonFaultGameImplementation({ _allowUpgrade: false });
 
-        // Transfer ownership of the DisputeGameFactory to the SystemOwnerSafe, and transfer the administrative rights
+        // Transfer ownership of the DisputeGameFactory to the FinalSystemOwner, and transfer the administrative rights
         // of the DisputeGameFactoryProxy to the ProxyAdmin.
-        transferDGFOwnershipFinal({ _proxyAdmin: _proxyAdmin, _systemOwnerSafe: _systemOwnerSafe });
-        transferWethOwnershipFinal({ _proxyAdmin: _proxyAdmin, _systemOwnerSafe: _systemOwnerSafe });
+        transferDGFOwnershipFinal({ _proxyAdmin: _proxyAdmin, _finalSystemOwner: _finalSystemOwner });
+        transferWethOwnershipFinal({ _proxyAdmin: _proxyAdmin, _finalSystemOwner: _finalSystemOwner });
         transferAnchorStateOwnershipFinal({ _proxyAdmin: _proxyAdmin });
 
         // Run post-deployment assertions.
-        postDeployAssertions({ _proxyAdmin: _proxyAdmin, _systemOwnerSafe: _systemOwnerSafe });
+        postDeployAssertions({ _proxyAdmin: _proxyAdmin, _finalSystemOwner: _finalSystemOwner });
 
         // Print overview
         printConfigReview();
@@ -126,12 +126,12 @@ contract FPACOPS is Deploy, StdAssertions {
     }
 
     /// @notice Transfers admin rights of the `DisputeGameFactoryProxy` to the `ProxyAdmin` and sets the
-    ///         `DisputeGameFactory` owner to the `SystemOwnerSafe`.
-    function transferDGFOwnershipFinal(address _proxyAdmin, address _systemOwnerSafe) internal broadcast {
+    ///         `DisputeGameFactory` owner to the `FinalSystemOwner`.
+    function transferDGFOwnershipFinal(address _proxyAdmin, address _finalSystemOwner) internal broadcast {
         IDisputeGameFactory dgf = IDisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
 
-        // Transfer the ownership of the DisputeGameFactory to the SystemOwnerSafe.
-        dgf.transferOwnership(_systemOwnerSafe);
+        // Transfer the ownership of the DisputeGameFactory to the FinalSystemOwner.
+        dgf.transferOwnership(_finalSystemOwner);
 
         // Transfer the admin rights of the DisputeGameFactoryProxy to the ProxyAdmin.
         IProxy prox = IProxy(payable(address(dgf)));
@@ -139,12 +139,12 @@ contract FPACOPS is Deploy, StdAssertions {
     }
 
     /// @notice Transfers admin rights of the `DelayedWETHProxy` to the `ProxyAdmin` and sets the
-    ///         `DelayedWETH` owner to the `SystemOwnerSafe`.
-    function transferWethOwnershipFinal(address _proxyAdmin, address _systemOwnerSafe) internal broadcast {
+    ///         `DelayedWETH` owner to the `FinalSystemOwner`.
+    function transferWethOwnershipFinal(address _proxyAdmin, address _finalSystemOwner) internal broadcast {
         IDelayedWETH weth = IDelayedWETH(mustGetAddress("DelayedWETHProxy"));
 
-        // Transfer the ownership of the DelayedWETH to the SystemOwnerSafe.
-        weth.transferOwnership(_systemOwnerSafe);
+        // Transfer the ownership of the DelayedWETH to the FinalSystemOwner.
+        weth.transferOwnership(_finalSystemOwner);
 
         // Transfer the admin rights of the DelayedWETHProxy to the ProxyAdmin.
         IProxy prox = IProxy(payable(address(weth)));
@@ -161,7 +161,7 @@ contract FPACOPS is Deploy, StdAssertions {
     }
 
     /// @notice Checks that the deployed system is configured correctly.
-    function postDeployAssertions(address _proxyAdmin, address _systemOwnerSafe) internal view {
+    function postDeployAssertions(address _proxyAdmin, address _finalSystemOwner) internal view {
         Types.ContractSet memory contracts = _proxiesUnstrict();
         contracts.OptimismPortal2 = mustGetAddress("OptimismPortal2");
 
@@ -172,10 +172,10 @@ contract FPACOPS is Deploy, StdAssertions {
         address dgfProxyAddr = mustGetAddress("DisputeGameFactoryProxy");
         IDisputeGameFactory dgfProxy = IDisputeGameFactory(dgfProxyAddr);
         assertEq(address(uint160(uint256(vm.load(dgfProxyAddr, Constants.PROXY_OWNER_ADDRESS)))), _proxyAdmin);
-        ChainAssertions.checkDisputeGameFactory(contracts, _systemOwnerSafe);
+        ChainAssertions.checkDisputeGameFactory(contracts, _finalSystemOwner);
         address wethProxyAddr = mustGetAddress("DelayedWETHProxy");
         assertEq(address(uint160(uint256(vm.load(wethProxyAddr, Constants.PROXY_OWNER_ADDRESS)))), _proxyAdmin);
-        ChainAssertions.checkDelayedWETH(contracts, cfg, true, _systemOwnerSafe);
+        ChainAssertions.checkDelayedWETH(contracts, cfg, true, _finalSystemOwner);
 
         // Check the config elements in the deployed contracts.
         ChainAssertions.checkOptimismPortal2(contracts, cfg, false);
