@@ -23,3 +23,10 @@ func (q *Queue[T]) Clear() {
 func (q *Queue[T]) Len() int {
 	return len(*q)
 }
+func (q *Queue[T]) Peek() (T, bool) {
+	if len(*q) > 0 {
+		return (*q)[0], true
+	}
+	var zeroValue T
+	return zeroValue, false
+}
