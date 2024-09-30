@@ -190,7 +190,7 @@ contract Deploy is Deployer {
     //            State Changing Helper Functions                 //
     ////////////////////////////////////////////////////////////////
 
-    /// @notice Transfer ownership of the IProxyAdmin contract to the final system owner
+    /// @notice Transfer ownership of the ProxyAdmin contract to the final system owner
     function transferProxyAdminOwnership() public broadcast {
         IProxyAdmin proxyAdmin = IProxyAdmin(mustGetAddress("ProxyAdmin"));
         address owner = proxyAdmin.owner();
@@ -198,11 +198,11 @@ contract Deploy is Deployer {
         address finalSystemOwner = cfg.finalSystemOwner();
         if (owner != finalSystemOwner) {
             proxyAdmin.transferOwnership(finalSystemOwner);
-            console.log("IProxyAdmin ownership transferred to final system owner at: %s", finalSystemOwner);
+            console.log("ProxyAdmin ownership transferred to final system owner at: %s", finalSystemOwner);
         }
     }
 
-    /// @notice Transfer ownership of a Proxy to the IProxyAdmin contract
+    /// @notice Transfer ownership of a Proxy to the ProxyAdmin contract
     ///         This is expected to be used in conjusting with deployERC1967ProxyWithOwner after setup actions
     ///         have been performed on the proxy.
     /// @param _name The name of the proxy to transfer ownership of.
@@ -210,7 +210,7 @@ contract Deploy is Deployer {
         IProxy proxy = IProxy(mustGetAddress(_name));
         address proxyAdmin = mustGetAddress("ProxyAdmin");
         proxy.changeAdmin(proxyAdmin);
-        console.log("Proxy %s ownership transferred to IProxyAdmin at: %s", _name, proxyAdmin);
+        console.log("Proxy %s ownership transferred to ProxyAdmin at: %s", _name, proxyAdmin);
     }
 
     ////////////////////////////////////////////////////////////////
@@ -276,7 +276,7 @@ contract Deploy is Deployer {
     function _run(bool _needsSuperchain) internal {
         console.log("start of L1 Deploy!");
 
-        // Deploy a new IProxyAdmin and AddressManager
+        // Deploy a new ProxyAdmin and AddressManager
         // This proxy will be used on the SuperchainConfig and ProtocolVersions contracts, as well as the contracts
         // in the OP Chain system.
         setupAdmin();
@@ -371,7 +371,7 @@ contract Deploy is Deployer {
 
         deployAnchorStateRegistry();
 
-        transferAddressManagerOwnership(); // to the IProxyAdmin
+        transferAddressManagerOwnership(); // to the ProxyAdmin
     }
 
     /// @notice Deploy all of the implementations
@@ -440,7 +440,7 @@ contract Deploy is Deployer {
         addr_ = address(manager);
     }
 
-    /// @notice Deploy the IProxyAdmin
+    /// @notice Deploy the ProxyAdmin
     function deployProxyAdmin() public broadcast returns (address addr_) {
         IProxyAdmin admin = IProxyAdmin(
             DeployUtils.create2AndSave({
@@ -510,7 +510,7 @@ contract Deploy is Deployer {
         addr_ = address(proxy);
     }
 
-    /// @notice Deploys an ERC1967Proxy contract with the IProxyAdmin as the owner.
+    /// @notice Deploys an ERC1967Proxy contract with the ProxyAdmin as the owner.
     /// @param _name The name of the proxy contract to be deployed.
     /// @return addr_ The address of the deployed proxy contract.
     function deployERC1967Proxy(string memory _name) public returns (address addr_) {
@@ -897,7 +897,7 @@ contract Deploy is Deployer {
         addr_ = address(bridge);
     }
 
-    /// @notice Transfer ownership of the address manager to the IProxyAdmin
+    /// @notice Transfer ownership of the address manager to the ProxyAdmin
     function transferAddressManagerOwnership() public broadcast {
         console.log("Transferring AddressManager ownership to IProxyAdmin");
         IAddressManager addressManager = IAddressManager(mustGetAddress("AddressManager"));
