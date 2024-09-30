@@ -819,6 +819,12 @@ func (m *SimpleTxManager) increaseGasPrice(ctx context.Context, tx *types.Transa
 			"gasFeeCap", bumpedFee, "gasTipCap", bumpedTip)
 	}
 
+	if tx.Gas() > gas {
+		// Don't bump the gas limit down if the passed-in gas limit is higher than
+		// what was originally specified.
+		gas = tx.Gas()
+	}
+
 	var newTx *types.Transaction
 	if tx.Type() == types.BlobTxType {
 		// Blob transactions have an additional blob gas price we must specify, so we must make sure it is

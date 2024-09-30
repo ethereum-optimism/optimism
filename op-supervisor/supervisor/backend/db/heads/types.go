@@ -13,6 +13,7 @@ type HeadPointer struct {
 	// LastSealedBlockHash is the last fully-processed block
 	LastSealedBlockHash common.Hash
 	LastSealedBlockNum  uint64
+	LastSealedTimestamp uint64
 
 	// Number of logs that have been verified since the LastSealedBlock.
 	// These logs are contained in the block that builds on top of the LastSealedBlock.

@@ -391,12 +391,22 @@ func (h *Host) GetNonce(addr common.Address) uint64 {
 // when importing.
 func (h *Host) ImportState(allocs *foundry.ForgeAllocs) {
 	for addr, alloc := range allocs.Accounts {
-		h.state.SetBalance(addr, uint256.MustFromBig(alloc.Balance), tracing.BalanceChangeUnspecified)
-		h.state.SetNonce(addr, alloc.Nonce)
-		h.state.SetCode(addr, alloc.Code)
-		for key, value := range alloc.Storage {
-			h.state.SetState(addr, key, value)
-		}
+		h.ImportAccount(addr, alloc)
+	}
+}
+
+func (h *Host) ImportAccount(addr common.Address, account types.Account) {
+	var balance *uint256.Int
+	if account.Balance == nil {
+		balance = uint256.NewInt(0)
+	} else {
+		balance = uint256.MustFromBig(account.Balance)
+	}
+	h.state.SetBalance(addr, balance, tracing.BalanceChangeUnspecified)
+	h.state.SetNonce(addr, account.Nonce)
+	h.state.SetCode(addr, account.Code)
+	for key, value := range account.Storage {
+		h.state.SetState(addr, key, value)
 	}
 }
 
