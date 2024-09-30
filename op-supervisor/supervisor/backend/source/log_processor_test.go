@@ -25,7 +25,7 @@ func TestLogProcessor(t *testing.T) {
 	}
 	t.Run("NoOutputWhenLogsAreEmpty", func(t *testing.T) {
 		store := &stubLogStorage{}
-		processor := newLogProcessor(logProcessorChainID, store)
+		processor := NewLogProcessor(logProcessorChainID, store)
 
 		err := processor.ProcessLogs(ctx, block1, ethTypes.Receipts{})
 		require.NoError(t, err)
@@ -59,7 +59,7 @@ func TestLogProcessor(t *testing.T) {
 			},
 		}
 		store := &stubLogStorage{}
-		processor := newLogProcessor(logProcessorChainID, store)
+		processor := NewLogProcessor(logProcessorChainID, store)
 
 		err := processor.ProcessLogs(ctx, block1, rcpts)
 		require.NoError(t, err)
@@ -115,7 +115,7 @@ func TestLogProcessor(t *testing.T) {
 			Hash:      common.Hash{0xaa},
 		}
 		store := &stubLogStorage{}
-		processor := newLogProcessor(types.ChainID{4}, store)
+		processor := NewLogProcessor(types.ChainID{4}, store)
 		processor.eventDecoder = EventDecoderFn(func(l *ethTypes.Log) (types.ExecutingMessage, error) {
 			require.Equal(t, rcpts[0].Logs[0], l)
 			return execMsg, nil

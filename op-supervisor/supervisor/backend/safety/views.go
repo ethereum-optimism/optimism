@@ -2,6 +2,7 @@ package safety
 
 import (
 	"errors"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/heads"
@@ -26,7 +27,7 @@ func (vi *View) Cross() (heads.HeadPointer, error) {
 
 func (vi *View) Local() (heads.HeadPointer, error) {
 	if vi.localView == (heads.HeadPointer{}) {
-		return heads.HeadPointer{}, logs.ErrFuture
+		return heads.HeadPointer{}, entrydb.ErrFuture
 	}
 	return vi.localView, nil
 }
@@ -49,13 +50,13 @@ func (vi *View) Process() error {
 	err := vi.iter.TraverseConditional(func(state logs.IteratorState) error {
 		hash, num, ok := state.SealedBlock()
 		if !ok {
-			return logs.ErrFuture // maybe a more specific error for no-genesis case?
+			return entrydb.ErrFuture // maybe a more specific error for no-genesis case?
 		}
 		// TODO(#11693): reorg check in the future. To make sure that what we traverse is still canonical.
 		_ = hash
 		// check if L2 block is within view
 		if !vi.localView.WithinRange(num, 0) {
-			return logs.ErrFuture
+			return entrydb.ErrFuture
 		}
 		_, initLogIndex, ok := state.InitMessage()
 		if !ok {
@@ -63,7 +64,7 @@ func (vi *View) Process() error {
 		}
 		// check if the message is within view
 		if !vi.localView.WithinRange(num, initLogIndex) {
-			return logs.ErrFuture
+			return entrydb.ErrFuture
 		}
 		// check if it is an executing message. If so, check the dependency
 		if execMsg := state.ExecMessage(); execMsg != nil {
@@ -83,7 +84,7 @@ func (vi *View) Process() error {
 	if err == nil {
 		panic("expected reader to complete with an exit-error")
 	}
-	if errors.Is(err, logs.ErrFuture) {
+	if errors.Is(err, entrydb.ErrFuture) {
 		// register the new cross-safe block as cross-safe up to the current L1 view
 		return nil
 	}

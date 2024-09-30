@@ -21,6 +21,9 @@ type QueryBackend interface {
 	CheckMessages(messages []types.Message, minSafety types.SafetyLevel) error
 	CheckBlock(chainID *hexutil.U256, blockHash common.Hash, blockNumber hexutil.Uint64) (types.SafetyLevel, error)
 	DerivedFrom(ctx context.Context, chainID types.ChainID, blockHash common.Hash, blockNumber uint64) (eth.BlockRef, error)
+	UnsafeView(ctx context.Context, chainID types.ChainID, unsafe types.ReferenceView) (types.ReferenceView, error)
+	SafeView(ctx context.Context, chainID types.ChainID, safe types.ReferenceView) (types.ReferenceView, error)
+	Finalized(ctx context.Context, chainID types.ChainID) (eth.BlockID, error)
 }
 
 type UpdatesBackend interface {
@@ -32,6 +35,7 @@ type UpdatesBackend interface {
 type Backend interface {
 	AdminBackend
 	QueryBackend
+	UpdatesBackend
 }
 
 type QueryFrontend struct {
@@ -53,23 +57,19 @@ func (q *QueryFrontend) CheckMessages(
 }
 
 func (q *QueryFrontend) UnsafeView(ctx context.Context, chainID types.ChainID, unsafe types.ReferenceView) (types.ReferenceView, error) {
-	// TODO(#12358): attach to backend
-	return types.ReferenceView{}, nil
+	return q.Supervisor.UnsafeView(ctx, chainID, unsafe)
 }
 
 func (q *QueryFrontend) SafeView(ctx context.Context, chainID types.ChainID, safe types.ReferenceView) (types.ReferenceView, error) {
-	// TODO(#12358): attach to backend
-	return types.ReferenceView{}, nil
+	return q.Supervisor.SafeView(ctx, chainID, safe)
 }
 
 func (q *QueryFrontend) Finalized(ctx context.Context, chainID types.ChainID) (eth.BlockID, error) {
-	// TODO(#12358): attach to backend
-	return eth.BlockID{}, nil
+	return q.Supervisor.Finalized(ctx, chainID)
 }
 
 func (q *QueryFrontend) DerivedFrom(ctx context.Context, chainID types.ChainID, blockHash common.Hash, blockNumber uint64) (eth.BlockRef, error) {
-	// TODO(#12358): attach to backend
-	return eth.BlockRef{}, nil
+	return q.Supervisor.DerivedFrom(ctx, chainID, blockHash, blockNumber)
 }
 
 type AdminFrontend struct {

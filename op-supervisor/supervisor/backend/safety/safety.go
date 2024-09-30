@@ -2,6 +2,7 @@ package safety
 
 import (
 	"fmt"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -146,7 +147,7 @@ func (r *safetyIndex) advanceCrossSafe() {
 			r.log.Error("Failed to update cross-safe view", "chain", chainID, "err", err)
 		}
 		cross, _ := r.safe[chainID].Cross()
-		r.log.Debug("Updated local safe head", "chainID", chainID, "cross", cross)
+		r.log.Debug("Updated cross safe head", "chainID", chainID, "cross", cross)
 	}
 	r.advanceFinalized()
 }
@@ -257,12 +258,12 @@ func (r *safetyIndex) ValidWithinSafeView(l1View uint64, execMsg *types.Executin
 	// check if the L1 block of the executing message is known
 	execL1Block, ok := r.derivedFrom[execChainID][l2BlockHash]
 	if !ok {
-		return logs.ErrFuture // TODO(#12185) need to distinguish between same-data future, and new-data future
+		return entrydb.ErrFuture // TODO(#12185) need to distinguish between same-data future, and new-data future
 	}
 	// check if the L1 block is within the view
 	if execL1Block.Number > l1View {
 		return fmt.Errorf("exec message depends on L2 block %s:%d, derived from L1 block %s, not within view yet: %w",
-			l2BlockHash, execMsg.BlockNum, execL1Block, logs.ErrFuture)
+			l2BlockHash, execMsg.BlockNum, execL1Block, entrydb.ErrFuture)
 	}
 	return nil
 }

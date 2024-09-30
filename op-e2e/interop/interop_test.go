@@ -2,7 +2,6 @@ package interop
 
 import (
 	"context"
-	"fmt"
 	"math/big"
 	"testing"
 	"time"
@@ -86,14 +85,12 @@ func TestInteropTrivial(t *testing.T) {
 	require.Equal(t, expectedBalance, bobBalance)
 
 	s2.DeployEmitterContract(chainA, "Alice")
-	rec := s2.EmitData(chainA, "Alice", "0x1234567890abcdef")
-
-	fmt.Println("Result of emitting event:", rec)
-
 	s2.DeployEmitterContract(chainB, "Alice")
-	rec = s2.EmitData(chainB, "Alice", "0x1234567890abcdef")
+	for i := 0; i < 1; i++ {
+		s2.EmitData(chainA, "Alice", "0x1234567890abcdef")
 
-	fmt.Println("Result of emitting event:", rec)
+		s2.EmitData(chainB, "Alice", "0x1234567890abcdef")
+	}
 
 	time.Sleep(60 * time.Second)
 

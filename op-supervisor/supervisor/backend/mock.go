@@ -60,6 +60,27 @@ func (m *MockBackend) DerivedFrom(ctx context.Context, t types.ChainID, parentHa
 	return eth.BlockRef{}, nil
 }
 
+func (m *MockBackend) UnsafeView(ctx context.Context, chainID types.ChainID, unsafe types.ReferenceView) (types.ReferenceView, error) {
+	return types.ReferenceView{}, nil
+}
+
+func (m *MockBackend) SafeView(ctx context.Context, chainID types.ChainID, safe types.ReferenceView) (types.ReferenceView, error) {
+	return types.ReferenceView{}, nil
+}
+
+func (m *MockBackend) Finalized(ctx context.Context, chainID types.ChainID) (eth.BlockID, error) {
+	return eth.BlockID{}, nil
+}
+
+func (m *MockBackend) UpdateLocalUnsafe(chainID types.ChainID, head eth.BlockRef) {
+}
+
+func (m *MockBackend) UpdateLocalSafe(chainID types.ChainID, derivedFrom eth.BlockRef, lastDerived eth.BlockRef) {
+}
+
+func (m *MockBackend) UpdateFinalizedL1(chainID types.ChainID, finalized eth.BlockRef) {
+}
+
 func (m *MockBackend) Close() error {
 	return nil
 }

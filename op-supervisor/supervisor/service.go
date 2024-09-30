@@ -149,6 +149,11 @@ func (su *SupervisorService) initRPCServer(cfg *config.Config) error {
 		Service:       &frontend.QueryFrontend{Supervisor: su.backend},
 		Authenticated: false,
 	})
+	server.AddAPI(rpc.API{
+		Namespace:     "supervisor",
+		Service:       &frontend.UpdatesFrontend{Supervisor: su.backend},
+		Authenticated: false,
+	})
 	su.rpcServer = server
 	return nil
 }

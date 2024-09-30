@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
 	"io"
 	"sync/atomic"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-supervisor/config"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
@@ -29,13 +31,15 @@ type SupervisorBackend struct {
 	m       Metrics
 	dataDir string
 
-	chainMonitors map[types.ChainID]*source.ChainMonitor
-	db            *db.ChainsDB
+	chainProcessors map[types.ChainID]*source.ChainProcessor
+	db              *db.ChainsDB
 }
 
 var _ frontend.Backend = (*SupervisorBackend)(nil)
 
 var _ io.Closer = (*SupervisorBackend)(nil)
+
+var errAlreadyStopped = errors.New("already stopped")
 
 func NewSupervisorBackend(ctx context.Context, logger log.Logger, m Metrics, cfg *config.Config) (*SupervisorBackend, error) {
 	// attempt to prepare the data directory
@@ -47,15 +51,15 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger, m Metrics, cfg
 	db := db.NewChainsDB(map[types.ChainID]db.LogStorage{}, logger)
 
 	// create an empty map of chain monitors
-	chainMonitors := make(map[types.ChainID]*source.ChainMonitor, len(cfg.L2RPCs))
+	chainProcessors := make(map[types.ChainID]*source.ChainProcessor, len(cfg.L2RPCs))
 
 	// create the supervisor backend
 	super := &SupervisorBackend{
-		logger:        logger,
-		m:             m,
-		dataDir:       cfg.Datadir,
-		chainMonitors: chainMonitors,
-		db:            db,
+		logger:          logger,
+		m:               m,
+		dataDir:         cfg.Datadir,
+		chainProcessors: chainProcessors,
+		db:              db,
 	}
 
 	// from the RPC strings, have the supervisor backend create a chain monitor
@@ -72,9 +76,9 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger, m Metrics, cfg
 // addFromRPC adds a chain monitor to the supervisor backend from an rpc endpoint
 // it does not expect to be called after the backend has been started
 // it will start the monitor if shouldStart is true
-func (su *SupervisorBackend) addFromRPC(ctx context.Context, logger log.Logger, rpc string, shouldStart bool) error {
+func (su *SupervisorBackend) addFromRPC(ctx context.Context, logger log.Logger, rpc string, _ bool) error {
 	// create the rpc client, which yields the chain id
-	rpcClient, chainID, err := createRpcClient(ctx, logger, rpc)
+	rpcClient, chainID, err := clientForL2(ctx, logger, rpc)
 	if err != nil {
 		return err
 	}
@@ -89,25 +93,29 @@ func (su *SupervisorBackend) addFromRPC(ctx context.Context, logger log.Logger, 
 	if err != nil {
 		return fmt.Errorf("failed to create logdb for chain %v at %v: %w", chainID, path, err)
 	}
-	if su.chainMonitors[chainID] != nil {
+	if su.chainProcessors[chainID] != nil {
 		return fmt.Errorf("chain monitor for chain %v already exists", chainID)
 	}
-	monitor, err := source.NewChainMonitor(ctx, logger, cm, chainID, rpc, rpcClient, su.db)
+	// create a client like the monitor would have
+	cl, err := source.NewL1Client(
+		ctx,
+		logger,
+		cm,
+		rpc,
+		rpcClient, 2*time.Second,
+		false,
+		sources.RPCKindStandard)
 	if err != nil {
-		return fmt.Errorf("failed to create monitor for rpc %v: %w", rpc, err)
+		return err
 	}
-	// start the monitor if requested
-	if shouldStart {
-		if err := monitor.Start(); err != nil {
-			return fmt.Errorf("failed to start monitor for rpc %v: %w", rpc, err)
-		}
-	}
-	su.chainMonitors[chainID] = monitor
+	logProcessor := source.NewLogProcessor(chainID, su.db)
+	chainProcessor := source.NewChainProcessor(logger, cl, chainID, logProcessor, su.db)
+	su.chainProcessors[chainID] = chainProcessor
 	su.db.AddLogDB(chainID, logDB)
 	return nil
 }
 
-func createRpcClient(ctx context.Context, logger log.Logger, rpc string) (client.RPC, types.ChainID, error) {
+func clientForL2(ctx context.Context, logger log.Logger, rpc string) (client.RPC, types.ChainID, error) {
 	ethClient, err := dial.DialEthClientWithTimeout(ctx, 10*time.Second, logger, rpc)
 	if err != nil {
 		return nil, types.ChainID{}, fmt.Errorf("failed to connect to rpc %v: %w", rpc, err)
@@ -129,33 +137,19 @@ func (su *SupervisorBackend) Start(ctx context.Context) error {
 	if err := su.db.ResumeFromLastSealedBlock(); err != nil {
 		return fmt.Errorf("failed to resume chains db: %w", err)
 	}
-	// start chain monitors
-	for _, monitor := range su.chainMonitors {
-		if err := monitor.Start(); err != nil {
-			return fmt.Errorf("failed to start chain monitor: %w", err)
-		}
-	}
 	return nil
 }
-
-var errAlreadyStopped = errors.New("already stopped")
 
 func (su *SupervisorBackend) Stop(ctx context.Context) error {
 	if !su.started.CompareAndSwap(true, false) {
 		return errAlreadyStopped
 	}
-	// collect errors from stopping chain monitors
-	var errs error
-	for _, monitor := range su.chainMonitors {
-		if err := monitor.Stop(); err != nil {
-			errs = errors.Join(errs, fmt.Errorf("failed to stop chain monitor: %w", err))
-		}
+	// close all chain processors
+	for _, processor := range su.chainProcessors {
+		processor.Close()
 	}
 	// close the database
-	if err := su.db.Close(); err != nil {
-		errs = errors.Join(errs, fmt.Errorf("failed to close database: %w", err))
-	}
-	return errs
+	return su.db.Close()
 }
 
 func (su *SupervisorBackend) Close() error {
@@ -175,10 +169,10 @@ func (su *SupervisorBackend) CheckMessage(identifier types.Identifier, payloadHa
 	blockNum := identifier.BlockNumber
 	logIdx := identifier.LogIndex
 	_, err := su.db.Check(chainID, blockNum, uint32(logIdx), payloadHash)
-	if errors.Is(err, logs.ErrFuture) {
+	if errors.Is(err, entrydb.ErrFuture) {
 		return types.LocalUnsafe, nil
 	}
-	if errors.Is(err, logs.ErrConflict) {
+	if errors.Is(err, entrydb.ErrConflict) {
 		return types.Invalid, nil
 	}
 	if err != nil {
@@ -213,10 +207,10 @@ func (su *SupervisorBackend) CheckBlock(chainID *hexutil.U256, blockHash common.
 	// find the last log index in the block
 	id := eth.BlockID{Hash: blockHash, Number: uint64(blockNumber)}
 	_, err := su.db.FindSealedBlock(types.ChainID(*chainID), id)
-	if errors.Is(err, logs.ErrFuture) {
+	if errors.Is(err, entrydb.ErrFuture) {
 		return types.LocalUnsafe, nil
 	}
-	if errors.Is(err, logs.ErrConflict) {
+	if errors.Is(err, entrydb.ErrConflict) {
 		return types.Invalid, nil
 	}
 	if err != nil {
@@ -225,6 +219,65 @@ func (su *SupervisorBackend) CheckBlock(chainID *hexutil.U256, blockHash common.
 	}
 	safest := su.db.Safest(types.ChainID(*chainID), uint64(blockNumber), 0)
 	return safest, nil
+}
+
+func (su *SupervisorBackend) UpdateLocalUnsafe(chainID types.ChainID, head eth.BlockRef) {
+	// l2 to l1 block ref
+	ref := eth.BlockRef{
+		ParentHash: head.ParentHash,
+		Hash:       head.Hash,
+		Number:     head.Number,
+		Time:       head.Time,
+	}
+	ctx := context.Background()
+	su.chainProcessors[chainID].OnNewHead(ctx, ref)
+	su.db.UpdateLocalUnsafe(chainID, head)
+}
+
+func (su *SupervisorBackend) UpdateLocalSafe(chainID types.ChainID, derivedFrom eth.BlockRef, lastDerived eth.BlockRef) {
+	su.db.UpdateLocalSafe(chainID, derivedFrom, lastDerived)
+}
+
+func (su *SupervisorBackend) UpdateFinalizedL1(chainID types.ChainID, finalized eth.BlockRef) {
+	su.db.UpdateFinalizedL1(finalized)
+}
+
+func (su *SupervisorBackend) UnsafeView(ctx context.Context, chainID types.ChainID, unsafe types.ReferenceView) (types.ReferenceView, error) {
+	u, xu, err := su.db.UnsafeView(chainID, unsafe)
+	if err != nil {
+		return types.ReferenceView{}, fmt.Errorf("failed to get unsafe view: %w", err)
+	}
+	return types.ReferenceView{
+		Local: eth.BlockID{
+			Hash:   u.LastSealedBlockHash,
+			Number: u.LastSealedBlockNum,
+		},
+		Cross: eth.BlockID{
+			Hash:   xu.LastSealedBlockHash,
+			Number: xu.LastSealedBlockNum,
+		},
+	}, nil
+}
+
+func (su *SupervisorBackend) SafeView(ctx context.Context, chainID types.ChainID, safe types.ReferenceView) (types.ReferenceView, error) {
+	s, xs, err := su.db.SafeView(chainID, safe)
+	if err != nil {
+		return types.ReferenceView{}, fmt.Errorf("failed to get safe view: %w", err)
+	}
+	return types.ReferenceView{
+		Local: eth.BlockID{
+			Hash:   s.LastSealedBlockHash,
+			Number: s.LastSealedBlockNum,
+		},
+		Cross: eth.BlockID{
+			Hash:   xs.LastSealedBlockHash,
+			Number: xs.LastSealedBlockNum,
+		},
+	}, nil
+}
+
+func (su *SupervisorBackend) Finalized(ctx context.Context, chainID types.ChainID) (eth.BlockID, error) {
+	return eth.BlockID{}, nil
 }
 
 func (su *SupervisorBackend) DerivedFrom(
