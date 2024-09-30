@@ -1677,7 +1677,7 @@ workflows:
 
   scheduled-fpp:
     when:
-      equal: [ build_four_hours, <<pipeline.schedule.name>> ]
+      equal: [ build_hourly, <<pipeline.schedule.name>> ]
     jobs:
       - fpp-verify:
           context:
