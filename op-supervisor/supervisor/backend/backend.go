@@ -226,3 +226,12 @@ func (su *SupervisorBackend) CheckBlock(chainID *hexutil.U256, blockHash common.
 	safest := su.db.Safest(types.ChainID(*chainID), uint64(blockNumber), 0)
 	return safest, nil
 }
+
+func (su *SupervisorBackend) DerivedFrom(
+	ctx context.Context,
+	chainID types.ChainID,
+	blockHash common.Hash,
+	blockNumber uint64) (eth.L1BlockRef, error) {
+	// TODO
+	return eth.L1BlockRef{}, nil
+}
