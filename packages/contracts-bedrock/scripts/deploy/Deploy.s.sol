@@ -315,7 +315,9 @@ contract Deploy is Deployer {
         // Run the deployment script.
         deploySuperchain.run(dsi, dso);
         save("SuperchainConfigProxy", address(dso.superchainConfigProxy()));
+        save("SuperchainConfig", address(dso.superchainConfigImpl()));
         save("ProtocolVersionsProxy", address(dso.protocolVersionsProxy()));
+        save("ProtocolVersions", address(dso.protocolVersionsImpl()));
     }
 
     /// @notice Deploy a new OP Chain, with an existing SuperchainConfig provided
