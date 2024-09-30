@@ -223,6 +223,9 @@ contract Setup {
         governanceToken.transferOwnership(finalSystemOwner);
         vm.stopPrank();
 
+        // These calls by the depositor account simulate the SystemConfig setting setting the
+        // network specific configuration into L2. Ideally there is a library that automatically
+        // translates TransactionDeposited and ConfigUpdate events into the appropriate calls
         // TODO: sort out using StaticTypes library vs abi.encode
         vm.startPrank(Constants.DEPOSITOR_ACCOUNT);
         l1Block.setConfig(ConfigType.SET_L1_ERC_721_BRIDGE_ADDRESS, abi.encode(l1ERC721Bridge));
@@ -236,7 +239,16 @@ contract Setup {
             _network: IFeeVault.WithdrawalNetwork(deploy.cfg().sequencerFeeVaultWithdrawalNetwork())
         });
         l1Block.setConfig(ConfigType.SET_SEQUENCER_FEE_VAULT_CONFIG, abi.encode(sequencerFeeVaultConfig));
+
+        // TODO: set other fee vault configs
+
         vm.stopPrank();
+
+        // Reset the ResourceConfig gas used to 0
+        bytes32 slot = vm.load(address(optimismPortal), bytes32(uint256(1)));
+        slot = bytes32(uint256(slot) & ~(uint256(type(uint64).max) << 128));
+        vm.store(address(optimismPortal), bytes32(uint256(1)), slot);
+        vm.store(address(optimismPortal2), bytes32(uint256(1)), slot);
 
         // L2 predeploys
         labelPredeploy(Predeploys.L2_STANDARD_BRIDGE);

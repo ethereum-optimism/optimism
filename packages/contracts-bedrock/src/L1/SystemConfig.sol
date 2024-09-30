@@ -339,7 +339,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     ///         to set the token address. This prevents the token address from being changed
     ///         and makes it explicitly opt-in to use custom gas token.
     /// @param _token Address of the gas paying token.
-    function _setGasPayingToken(address _token) internal virtual {
+    function _setGasPayingToken(address _token) internal {
         if (_token != address(0) && _token != Constants.ETHER && !isCustomGasToken()) {
             require(
                 ERC20(_token).decimals() == GAS_PAYING_TOKEN_DECIMALS, "SystemConfig: bad decimals of gas paying token"
@@ -347,15 +347,17 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
             bytes32 name = GasPayingToken.sanitize(ERC20(_token).name());
             bytes32 symbol = GasPayingToken.sanitize(ERC20(_token).symbol());
 
-            // Set the gas paying token in storage and in the OptimismPortal.
+            // Set the gas paying token in storage and call the OptimismPortal.
             GasPayingToken.set({ _token: _token, _decimals: GAS_PAYING_TOKEN_DECIMALS, _name: name, _symbol: symbol });
-            // TODO: modify to use setConfig
-            IOptimismPortal(payable(optimismPortal())).setGasPayingToken({
-                _token: _token,
-                _decimals: GAS_PAYING_TOKEN_DECIMALS,
-                _name: name,
-                _symbol: symbol
-            });
+            IOptimismPortal(payable(optimismPortal())).setConfig(
+                ConfigType.SET_GAS_PAYING_TOKEN,
+                StaticConfig.encodeSetGasPayingToken({
+                    _token: _token,
+                    _decimals: GAS_PAYING_TOKEN_DECIMALS,
+                    _name: name,
+                    _symbol: symbol
+                })
+            );
         }
     }
 
@@ -543,6 +545,9 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
                 == _config.maxResourceLimit,
             "SystemConfig: precision loss with target resource limit"
         );
+
+        // TODO: maxResourceLimit must be large enough to handle the SystemConfig.initialize
+        //       call
 
         _resourceConfig = _config;
     }
