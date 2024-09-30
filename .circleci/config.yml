@@ -1171,6 +1171,8 @@ jobs:
           key: golang-build-cache-cannon-stf-verify-{{ checksum "go.sum" }}
           paths:
             - "/root/.cache/go-build"
+      - notify-failures-on-develop:
+          mentions: "@proofs-squad"
 
   semgrep-scan:
     parameters:
@@ -1708,6 +1710,8 @@ workflows:
       - cannon-stf-verify:
           requires:
             - go-mod-download
+          context:
+            - slack
       - contracts-bedrock-build:
           skip_pattern: test
           context:
@@ -1725,7 +1729,6 @@ workflows:
           requires:
             - contracts-bedrock-build
             - cannon-prestate
-            - cannon-stf-verify
           context:
             - slack
 
