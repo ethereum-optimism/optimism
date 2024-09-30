@@ -12,7 +12,7 @@ permissions:
 jobs:
   docker-image:
     name: Publish Docker Image
-    runs-on: ubuntu-latest
+    runs-on: warp-ubuntu-latest-x64-16x
 
     steps:
       - name: Checkout sources
