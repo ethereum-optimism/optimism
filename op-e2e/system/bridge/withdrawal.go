@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/config"
+
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
 
@@ -17,7 +19,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
@@ -33,7 +34,7 @@ type CommonSystem interface {
 // balance changes on L1 and L2 and has to include gas fees in the balance checks.
 // It does not check that the withdrawal can be executed prior to the end of the finality period.
 func RunWithdrawalsTest(t *testing.T, sys CommonSystem) {
-	t.Logf("WithdrawalsTest: running with FP == %t", e2eutils.UseFaultProofs())
+	t.Logf("WithdrawalsTest: running with allocType == %s", sys.Config().AllocType)
 	cfg := sys.Config()
 
 	l1Client := sys.NodeClient(e2esys.RoleL1)
@@ -112,7 +113,7 @@ func RunWithdrawalsTest(t *testing.T, sys CommonSystem) {
 	require.NoError(t, err)
 
 	t.Log("WithdrawalsTest: ProveAndFinalizeWithdrawal...")
-	proveReceipt, finalizeReceipt, resolveClaimReceipt, resolveReceipt := helpers.ProveAndFinalizeWithdrawal(t, cfg, sys, e2esys.RoleVerif, ethPrivKey, receipt)
+	proveReceipt, finalizeReceipt, resolveClaimReceipt, resolveReceipt := helpers.ProveAndFinalizeWithdrawal(t, cfg, sys, e2esys.RoleVerif, ethPrivKey, receipt, sys.Config().AllocType)
 
 	// Verify balance after withdrawal
 	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
@@ -129,7 +130,7 @@ func RunWithdrawalsTest(t *testing.T, sys CommonSystem) {
 	proveFee := new(big.Int).Mul(new(big.Int).SetUint64(proveReceipt.GasUsed), proveReceipt.EffectiveGasPrice)
 	finalizeFee := new(big.Int).Mul(new(big.Int).SetUint64(finalizeReceipt.GasUsed), finalizeReceipt.EffectiveGasPrice)
 	fees = new(big.Int).Add(proveFee, finalizeFee)
-	if e2eutils.UseFaultProofs() {
+	if sys.Config().AllocType == config.AllocTypeStandard {
 		resolveClaimFee := new(big.Int).Mul(new(big.Int).SetUint64(resolveClaimReceipt.GasUsed), resolveClaimReceipt.EffectiveGasPrice)
 		resolveFee := new(big.Int).Mul(new(big.Int).SetUint64(resolveReceipt.GasUsed), resolveReceipt.EffectiveGasPrice)
 		fees = new(big.Int).Add(fees, resolveClaimFee)

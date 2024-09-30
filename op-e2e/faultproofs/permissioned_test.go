@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/config"
+
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
@@ -26,7 +28,7 @@ func TestPermissionedGameType(t *testing.T) {
 	gameFactory.StartChallenger(ctx, "TowerDefense",
 		challenger.WithValidPrestateRequired(),
 		challenger.WithInvalidCannonPrestate(),
-		challenger.WithPermissioned(t, sys.RollupConfig, sys.L2GenesisCfg),
+		challenger.WithPermissioned(t, sys.RollupConfig, sys.L2GenesisCfg, config.AllocTypeFromEnv()),
 		challenger.WithPrivKey(sys.Cfg.Secrets.Alice),
 	)
 
