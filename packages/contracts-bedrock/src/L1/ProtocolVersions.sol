@@ -5,9 +5,7 @@ import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/O
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { Storage } from "src/libraries/Storage.sol";
 import { Constants } from "src/libraries/Constants.sol";
-
-/// @notice ProtocolVersion is a numeric identifier of the protocol version.
-type ProtocolVersion is uint256;
+import { ProtocolVersion } from "src/L1/interfaces/IProtocolVersions.sol";
 
 /// @custom:proxied true
 /// @title ProtocolVersions
