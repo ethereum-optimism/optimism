@@ -109,18 +109,18 @@ library ChainAssertions {
             require(config.optimismPortal() == _contracts.OptimismPortal, "CHECK-SCFG-200");
             require(config.optimismMintableERC20Factory() == _contracts.OptimismMintableERC20Factory, "CHECK-SCFG-210");
         } else {
-            require(config.owner() == address(0xdead), "CHECK-SCFG-220");
+            require(config.owner() == address(0), "CHECK-SCFG-220");
             require(config.overhead() == 0, "CHECK-SCFG-230");
-            require(config.scalar() == uint256(0x01) << 248, "CHECK-SCFG-240"); // version 1
+            require(config.scalar() == 0, "CHECK-SCFG-240");
             require(config.basefeeScalar() == 0, "CHECK-SCFG-250");
             require(config.blobbasefeeScalar() == 0, "CHECK-SCFG-260");
             require(config.batcherHash() == bytes32(0), "CHECK-SCFG-270");
-            require(config.gasLimit() == 1, "CHECK-SCFG-280");
+            require(config.gasLimit() == 0, "CHECK-SCFG-280");
             require(config.unsafeBlockSigner() == address(0), "CHECK-SCFG-290");
             // Check _config
-            require(resourceConfig.maxResourceLimit == 1, "CHECK-SCFG-300");
-            require(resourceConfig.elasticityMultiplier == 1, "CHECK-SCFG-310");
-            require(resourceConfig.baseFeeMaxChangeDenominator == 2, "CHECK-SCFG-320");
+            require(resourceConfig.maxResourceLimit == 0, "CHECK-SCFG-300");
+            require(resourceConfig.elasticityMultiplier == 0, "CHECK-SCFG-310");
+            require(resourceConfig.baseFeeMaxChangeDenominator == 0, "CHECK-SCFG-320");
             require(resourceConfig.systemTxMaxGas == 0, "CHECK-SCFG-330");
             require(resourceConfig.minimumBaseFee == 0, "CHECK-SCFG-340");
             require(resourceConfig.maximumBaseFee == 0, "CHECK-SCFG-350");

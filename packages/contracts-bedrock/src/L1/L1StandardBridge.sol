@@ -84,6 +84,9 @@ contract L1StandardBridge is StandardBridge, ISemver {
     /// @notice Address of the SystemConfig contract.
     ISystemConfig public systemConfig;
 
+    /// @notice
+    ICrossDomainMessenger internal crossDomainMessenger;
+
     /// @notice Constructs the L1StandardBridge contract.
     constructor() StandardBridge() {
         initialize({
@@ -106,12 +109,18 @@ contract L1StandardBridge is StandardBridge, ISemver {
     {
         superchainConfig = _superchainConfig;
         systemConfig = _systemConfig;
-        __StandardBridge_init({ _messenger: _messenger });
+        crossDomainMessenger = _messenger;
+        __StandardBridge_init();
     }
 
     /// @notice
     function otherBridge() public pure override returns (StandardBridge) {
         return StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE));
+    }
+
+    // TODO:
+    function messenger() public view override returns (ICrossDomainMessenger) {
+        return ICrossDomainMessenger(crossDomainMessenger);
     }
 
     /// @inheritdoc StandardBridge

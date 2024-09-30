@@ -128,7 +128,8 @@ contract SystemConfigInterop_Test is CommonTest {
                 l1StandardBridge: address(0),
                 optimismPortal: address(optimismPortal),
                 optimismMintableERC20Factory: address(0),
-                gasPayingToken: _token
+                gasPayingToken: _token,
+                superchainConfig: address(0)
             })
         });
     }

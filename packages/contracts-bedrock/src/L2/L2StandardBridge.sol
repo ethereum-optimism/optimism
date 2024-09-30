@@ -63,19 +63,13 @@ contract L2StandardBridge is StandardBridge, ISemver {
         return "1.11.1-beta.2";
     }
 
-    /// @notice Constructs the L2StandardBridge contract.
-    constructor() StandardBridge() {
-        initialize();
-    }
-
-    /// @notice Initializer.
-    function initialize() public initializer {
-        __StandardBridge_init({ _messenger: ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER) });
+    function otherBridge() public override view returns (StandardBridge) {
+        return StandardBridge(payable(IL1Block(payable(Predeploys.L1_BLOCK_ATTRIBUTES)).l1StandardBridge()));
     }
 
     /// @notice
-    function otherBridge() public view override returns (StandardBridge) {
-        return StandardBridge(payable(IL1Block(payable(Predeploys.L1_BLOCK_ATTRIBUTES)).l1StandardBridge()));
+    function messenger() public override view returns (ICrossDomainMessenger) {
+        return ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
     }
 
     /// @notice Allows EOAs to bridge ETH by sending directly to the bridge.

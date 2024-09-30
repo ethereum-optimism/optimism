@@ -13,6 +13,7 @@ import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { SecureMerkleTrie } from "src/libraries/trie/SecureMerkleTrie.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { ConfigType } from "src/libraries/StaticConfig.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import "src/libraries/PortalErrors.sol";
 
@@ -572,17 +573,17 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         emit TransactionDeposited(from, _to, DEPOSIT_VERSION, opaqueData);
     }
 
-    /// @notice Sets the gas paying token for the L2 system. This token is used as the
-    ///         L2 native asset. Only the SystemConfig contract can call this function.
-    function setGasPayingToken(address _token, uint8 _decimals, bytes32 _name, bytes32 _symbol) external {
+    /// @notice Sets static configuration options for the L2 system.
+    /// @param _type  Type of configuration to set.
+    /// @param _value Encoded value of the configuration.
+    function setConfig(ConfigType _type, bytes memory _value) external {
         if (msg.sender != address(systemConfig)) revert Unauthorized();
 
         // Set L2 deposit gas as used without paying burning gas. Ensures that deposits cannot use too much L2 gas.
-        // This value must be large enough to cover the cost of calling `L1Block.setGasPayingToken`.
+        // This value must be large enough to cover the cost of calling `L1Block.setConfig`.
         useGas(SYSTEM_DEPOSIT_GAS_LIMIT);
 
-        // Emit the special deposit transaction directly that sets the gas paying
-        // token in the L1Block predeploy contract.
+        // Emit the special deposit transaction directly that sets the config in the L1Block predeploy contract.
         emit TransactionDeposited(
             Constants.DEPOSITOR_ACCOUNT,
             Predeploys.L1_BLOCK_ATTRIBUTES,
@@ -592,7 +593,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
                 uint256(0), // value
                 uint64(SYSTEM_DEPOSIT_GAS_LIMIT), // gasLimit
                 false, // isCreation,
-                abi.encodeCall(IL1Block.setGasPayingToken, (_token, _decimals, _name, _symbol))
+                abi.encodeCall(IL1Block.setConfig, (_type, _value))
             )
         );
     }

@@ -36,6 +36,8 @@ contract L2ERC721Bridge is ERC721Bridge, ISemver {
     }
 
     /// @notice Initializes the contract.
+    /// TODO: this should not be initializable, this should have messenger be abstract in the base
+    ///       only the L1 contract should be initializable
     function initialize() public initializer {
         __ERC721Bridge_init({ _messenger: ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER) });
     }

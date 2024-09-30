@@ -204,10 +204,15 @@ contract L1Block is ISemver, IGasToken {
     function setConfig(ConfigType _type, bytes calldata _value) public virtual {
         if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
 
+        // TODO: sort out StaticType library encoding/decoding vs just using abi.encode/decode
         if (_type == ConfigType.SET_GAS_PAYING_TOKEN) {
             _setGasPayingToken(_value);
         } else if (_type == ConfigType.SET_BASE_FEE_VAULT_CONFIG) {
             _setBaseFeeVaultConfig(_value);
+        } else if (_type == ConfigType.SET_L1_ERC_721_BRIDGE_ADDRESS) {
+            Storage.setAddress(L1_ERC_721_BRIDGE_ADDRESS_SLOT, abi.decode(_value, (address)));
+        } else if (_type == ConfigType.SET_REMOTE_CHAIN_ID) {
+            Storage.setUint(REMOTE_CHAIN_ID_SLOT, abi.decode(_value, (uint256)));
         }
     }
 

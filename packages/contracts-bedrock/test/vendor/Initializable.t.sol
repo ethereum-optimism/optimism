@@ -57,7 +57,7 @@ contract Initializer_Test is Bridge_Initializer {
             InitializeableContract({
                 name: "SuperchainConfig",
                 target: deploy.mustGetAddress("SuperchainConfig"),
-                initCalldata: abi.encodeCall(superchainConfig.initialize, (address(0), false))
+                initCalldata: abi.encodeCall(superchainConfig.initialize, (address(0), address(0), false))
             })
         );
         // SuperchainConfigProxy
@@ -65,7 +65,7 @@ contract Initializer_Test is Bridge_Initializer {
             InitializeableContract({
                 name: "SuperchainConfigProxy",
                 target: address(superchainConfig),
-                initCalldata: abi.encodeCall(superchainConfig.initialize, (address(0), false))
+                initCalldata: abi.encodeCall(superchainConfig.initialize, (address(0), address(0), false))
             })
         );
         // L1CrossDomainMessengerImpl
@@ -198,7 +198,8 @@ contract Initializer_Test is Bridge_Initializer {
                             disputeGameFactory: address(0),
                             optimismPortal: address(0),
                             optimismMintableERC20Factory: address(0),
-                            gasPayingToken: Constants.ETHER
+                            gasPayingToken: Constants.ETHER,
+                            superchainConfig: address(0)
                         })
                     )
                 )
@@ -234,7 +235,8 @@ contract Initializer_Test is Bridge_Initializer {
                             disputeGameFactory: address(0),
                             optimismPortal: address(0),
                             optimismMintableERC20Factory: address(0),
-                            gasPayingToken: Constants.ETHER
+                            gasPayingToken: Constants.ETHER,
+                            superchainConfig: address(0)
                         })
                     )
                 )
@@ -265,7 +267,7 @@ contract Initializer_Test is Bridge_Initializer {
             InitializeableContract({
                 name: "L2CrossDomainMessenger",
                 target: address(l2CrossDomainMessenger),
-                initCalldata: abi.encodeCall(l2CrossDomainMessenger.initialize, (l1CrossDomainMessenger))
+                initCalldata: abi.encodeCall(l2CrossDomainMessenger.initialize, ())
             })
         );
         // L1StandardBridgeImpl
@@ -325,7 +327,7 @@ contract Initializer_Test is Bridge_Initializer {
             InitializeableContract({
                 name: "L2ERC721Bridge",
                 target: address(l2ERC721Bridge),
-                initCalldata: abi.encodeCall(l2ERC721Bridge.initialize, (payable(address(l1ERC721Bridge))))
+                initCalldata: abi.encodeCall(l2ERC721Bridge.initialize, ())
             })
         );
         // OptimismMintableERC20FactoryImpl

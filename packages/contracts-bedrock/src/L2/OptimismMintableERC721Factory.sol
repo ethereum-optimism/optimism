@@ -36,19 +36,19 @@ contract OptimismMintableERC721Factory is ISemver {
         return remoteChainId();
     }
 
-    /// @notice TODO: call L1Block
+    /// @notice
     function remoteChainId() public view returns (uint256) {
         return IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).remoteChainId();
     }
 
-    /// @notice TODO: call L1Block
+    /// @notice TODO: type should be more strict
     function BRIDGE() external view returns (address) {
         return bridge();
     }
 
-    /// @notice TODO: call L1Block
+    /// @notice
     function bridge() public view returns (address) {
-        return IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).l1ERC721Bridge();
+        return Predeploys.L2_ERC721_BRIDGE;
     }
 
     /// @notice Creates an instance of the standard ERC721.

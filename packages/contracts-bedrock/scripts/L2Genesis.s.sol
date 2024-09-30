@@ -45,6 +45,24 @@ struct L1Dependencies {
     address payable l1ERC721BridgeProxy;
 }
 
+/// Note:
+/// There are a 2 main options for how to do genesis
+/// - git tag based where you must use a specific git tag to create a genesis
+///   for a release. this would mean that we only support a single hardfork in
+///   the L2Genesis script
+/// - flag for creating an arbitrary L2 genesis. This would look like a library
+///   per contracts release that contains the released bytecode and then there is
+///   a call to `vm.etch` with different bytecode per hardfork
+///
+///   The flag approach i think will be better, it means that improvements to the overall
+///   deploy script will apply to previous hardforks as well, also decouples the dependency
+///   on a particular version of foundry, ie if a feature is removed then we don't need to go
+///   back and backport fixes to old tags.
+///   Therefore the genesis script should work as follows:
+///   - check to see if a fork is configured
+///   - if no, use dev bytecode with vm.getDeployedCode
+///   - if yes, use the library to get the hardcoded bytecode
+
 /// @title L2Genesis
 /// @notice Generates the genesis state for the L2 network.
 ///         The following safety invariants are used when setting state:
@@ -297,11 +315,9 @@ contract L2Genesis is Deployer {
     function setL2CrossDomainMessenger(address payable _l1CrossDomainMessengerProxy) public {
         address impl = _setImplementationCode(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
 
-        IL2CrossDomainMessenger(impl).initialize({ _l1CrossDomainMessenger: ICrossDomainMessenger(address(0)) });
+        IL2CrossDomainMessenger(impl).initialize();
 
-        IL2CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).initialize({
-            _l1CrossDomainMessenger: ICrossDomainMessenger(_l1CrossDomainMessengerProxy)
-        });
+        IL2CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).initialize();
     }
 
     /// @notice This predeploy is following the safety invariant #1.
@@ -316,20 +332,19 @@ contract L2Genesis is Deployer {
             impl = _setImplementationCode(Predeploys.L2_STANDARD_BRIDGE);
         }
 
-        IL2StandardBridge(payable(impl)).initialize({ _otherBridge: IStandardBridge(payable(address(0))) });
+        // TODO: interfaces also need an update
+        IL2StandardBridge(payable(impl)).initialize();
 
-        IL2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).initialize({
-            _otherBridge: IStandardBridge(_l1StandardBridgeProxy)
-        });
+        IL2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).initialize();
     }
 
     /// @notice This predeploy is following the safety invariant #1.
     function setL2ERC721Bridge(address payable _l1ERC721BridgeProxy) public {
         address impl = _setImplementationCode(Predeploys.L2_ERC721_BRIDGE);
 
-        IL2ERC721Bridge(impl).initialize({ _l1ERC721Bridge: payable(address(0)) });
+        IL2ERC721Bridge(impl).initialize();
 
-        IL2ERC721Bridge(Predeploys.L2_ERC721_BRIDGE).initialize({ _l1ERC721Bridge: payable(_l1ERC721BridgeProxy) });
+        IL2ERC721Bridge(Predeploys.L2_ERC721_BRIDGE).initialize();
     }
 
     /// @notice This predeploy is following the safety invariant #2,

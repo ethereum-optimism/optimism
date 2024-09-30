@@ -615,9 +615,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     }
 
     /// @notice Updates a L2 predeploy
-    /// .       TODO: can skip system config likely and just
-    /// .       if (msg.sender != ISuperchainConfig.upgrader()) revert Unauthorized();
-    /// .       this removes the need to have the system config know about the superchain config
+    ///         TODO: can skip system config likely and just
+    ///         if (msg.sender != ISuperchainConfig.upgrader()) revert Unauthorized();
+    ///         this removes the need to have the system config know about the superchain config
     function upgrade(address payable _proxy, address _implementation) external {
         if (msg.sender != address(systemConfig)) revert Unauthorized();
 

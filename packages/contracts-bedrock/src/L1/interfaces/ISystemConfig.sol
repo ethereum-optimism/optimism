@@ -20,6 +20,7 @@ interface ISystemConfig {
         address optimismPortal;
         address optimismMintableERC20Factory;
         address gasPayingToken;
+        address superchainConfig;
     }
 
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
