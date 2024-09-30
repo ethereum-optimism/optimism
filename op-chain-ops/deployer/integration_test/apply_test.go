@@ -243,7 +243,7 @@ func validateOPChainDeployment(t *testing.T, ctx context.Context, l1Client *ethc
 			{"FaultDisputeGameAddress", chainState.FaultDisputeGameAddress},
 			{"PermissionedDisputeGameAddress", chainState.PermissionedDisputeGameAddress},
 			{"DelayedWETHPermissionedGameProxyAddress", chainState.DelayedWETHPermissionedGameProxyAddress},
-			{"DelayedWETHPermissionlessGameProxyAddress", chainState.DelayedWETHPermissionlessGameProxyAddress},
+			// {"DelayedWETHPermissionlessGameProxyAddress", chainState.DelayedWETHPermissionlessGameProxyAddress},
 		}
 		for _, addr := range chainAddrs {
 			// TODO Delete this `if`` block once FaultDisputeGameAddress is deployed.

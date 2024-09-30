@@ -50,7 +50,7 @@ func DeployImplementations(ctx context.Context, env *Env, artifactsFS foundry.St
 						SuperchainConfigProxy:           st.SuperchainDeployment.SuperchainConfigProxyAddress,
 						ProtocolVersionsProxy:           st.SuperchainDeployment.ProtocolVersionsProxyAddress,
 						SuperchainProxyAdmin:            st.SuperchainDeployment.ProxyAdminAddress,
-						StandardVersionsToml:            opcm.StandardVersionsData,
+						StandardVersionsToml:            opcm.StandardVersionsMainnetData,
 						UseInterop:                      false,
 					},
 				)

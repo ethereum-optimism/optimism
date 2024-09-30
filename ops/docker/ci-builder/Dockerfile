@@ -54,10 +54,10 @@ COPY ./versions.json ./versions.json
 RUN go install github.com/ethereum/go-ethereum/cmd/abigen@$(jq -r .abigen < versions.json)
 RUN go install github.com/ethereum/go-ethereum/cmd/geth@$(jq -r .geth < versions.json)
 
-RUN go install gotest.tools/gotestsum@v1.11.0
-RUN go install github.com/vektra/mockery/v2@v2.28.1
-RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.54.2
-RUN go install github.com/mikefarah/yq/v4@v4.43.1
+RUN go install gotest.tools/gotestsum@v1.12.0
+RUN go install github.com/vektra/mockery/v2@v2.46.0
+RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.61.0
+RUN go install github.com/mikefarah/yq/v4@v4.44.3
 
 # Strip binaries to reduce size
 RUN strip /go/bin/gotestsum && \

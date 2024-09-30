@@ -1,6 +1,7 @@
 package asterisc
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -83,7 +84,7 @@ func NewStateConverter() *StateConverter {
 	return &StateConverter{}
 }
 
-func (c *StateConverter) ConvertStateToProof(statePath string) (*utils.ProofData, uint64, bool, error) {
+func (c *StateConverter) ConvertStateToProof(_ context.Context, statePath string) (*utils.ProofData, uint64, bool, error) {
 	state, err := parseState(statePath)
 	if err != nil {
 		return nil, 0, false, fmt.Errorf("cannot read final state: %w", err)

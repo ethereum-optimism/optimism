@@ -32,7 +32,7 @@ type ConductorClient struct {
 var _ conductor.SequencerConductor = &ConductorClient{}
 
 // NewConductorClient returns a new conductor client for the op-conductor RPC service.
-func NewConductorClient(cfg *Config, log log.Logger, metrics *metrics.Metrics) *ConductorClient {
+func NewConductorClient(cfg *Config, log log.Logger, metrics *metrics.Metrics) conductor.SequencerConductor {
 	return &ConductorClient{
 		cfg:     cfg,
 		metrics: metrics,
@@ -51,6 +51,11 @@ func (c *ConductorClient) initialize() error {
 	}
 	c.apiClient = conductorRpc.NewAPIClient(conductorRpcClient)
 	return nil
+}
+
+// Enabled returns true if the conductor is enabled, and since the conductor client is initialized, the conductor is always enabled.
+func (c *ConductorClient) Enabled(ctx context.Context) bool {
+	return true
 }
 
 // Leader returns true if this node is the leader sequencer.
