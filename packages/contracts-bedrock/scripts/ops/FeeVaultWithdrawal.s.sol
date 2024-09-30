@@ -65,7 +65,7 @@ contract FeeVaultWithdrawal is Script {
     }
 
     /// @notice Logs the information relevant to the user.
-    function log(uint256 _balance, address _recipient, address _vault) internal view {
+    function log(uint256 _balance, address _recipient, address _vault) internal pure {
         string memory logline = string.concat(
             "Withdrawing ", vm.toString(_balance), " to ", vm.toString(_recipient), " from ", vm.toString(_vault)
         );
