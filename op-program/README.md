@@ -45,7 +45,7 @@ After running `make reproducible-prestate`, the following files can be found in
 [./bin/](./bin/):
 - [`op-program`](./bin/op-program)
 - [`op-program-client.elf`](./bin/op-program-client.elf)
-- [`prestate.json`](./bin/prestate.json)
+- [`prestate.bin.gz`](./bin/prestate.bin.gz)
 - [`prestate-proof.json`](./bin/prestate-proof.json)
 
 The `prestate-proof.json` file is what contains the absolute pre-state hash under

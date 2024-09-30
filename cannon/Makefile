@@ -19,7 +19,7 @@ cannon-impl:
 	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v $(LDFLAGS) -o ./bin/cannon-impl .
 
 cannon-embeds: cannon-impl
-	@cp bin/cannon-impl ./multicannon/embeds/cannon-0
+	@cp bin/cannon-impl ./multicannon/embeds/cannon-2
 	@cp bin/cannon-impl ./multicannon/embeds/cannon-1
 
 cannon: cannon-embeds

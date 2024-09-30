@@ -1613,7 +1613,7 @@ contract MIPS_Test is CommonTest {
         assertEq(postState, outputState(expect), "unexpected post state");
     }
 
-    function test_fcntl_succeeds() external {
+    function test_fcntl_getfl_succeeds() external {
         uint32 insn = 0x0000000c; // syscall
         (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
         state.registers[2] = 4055; // fcntl syscall
@@ -1636,6 +1636,25 @@ contract MIPS_Test is CommonTest {
         expect.registers[4] = state.registers[4];
         expect.registers[2] = 1;
         postState = mips.step(encodeState(state), proof, 0);
+        assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    function test_fcntl_getfd_succeeds() external {
+        uint32 insn = 0x0000000c; // syscall
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        state.registers[2] = 4055; // fcntl syscall
+        state.registers[4] = 0x0; // a0
+        state.registers[5] = 0x1; // a1
+
+        MIPS.State memory expect;
+        expect.memRoot = state.memRoot;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
+        expect.step = state.step + 1;
+        expect.registers[2] = 0;
+        expect.registers[5] = state.registers[5];
+
+        bytes32 postState = mips.step(encodeState(state), proof, 0);
         assertEq(postState, outputState(expect), "unexpected post state");
     }
 
