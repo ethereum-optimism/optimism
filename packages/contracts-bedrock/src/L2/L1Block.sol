@@ -213,6 +213,10 @@ contract L1Block is ISemver, IGasToken {
             Storage.setAddress(L1_ERC_721_BRIDGE_ADDRESS_SLOT, abi.decode(_value, (address)));
         } else if (_type == ConfigType.SET_REMOTE_CHAIN_ID) {
             Storage.setUint(REMOTE_CHAIN_ID_SLOT, abi.decode(_value, (uint256)));
+        } else if (_type == ConfigType.SET_L1_CROSS_DOMAIN_MESSENGER_ADDRESS) {
+            Storage.setAddress(L1_CROSS_DOMAIN_MESSENGER_ADDRESS_SLOT, abi.decode(_value, (address)));
+        } else if (_type == ConfigType.SET_L1_STANDARD_BRIDGE_ADDRESS) {
+            Storage.setAddress(L1_STANDARD_BRIDGE_ADDRESS_SLOT, abi.decode(_value, (address)));
         }
     }
 
