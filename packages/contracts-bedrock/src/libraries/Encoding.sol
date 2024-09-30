@@ -159,7 +159,7 @@ library Encoding {
         returns (address recipient_, uint256 amount_, Types.WithdrawalNetwork network_)
     {
         recipient_ = address(uint160(uint256(_data) & uint256(type(uint160).max)));
-        amount_ = uint256(_data) & uint256(type(uint88).max) << 160;
+        amount_ = (uint256(_data) & uint256(type(uint88).max) << 160) >> 160;
         network_ = Types.WithdrawalNetwork(uint8(bytes1(_data >> 248)));
     }
 

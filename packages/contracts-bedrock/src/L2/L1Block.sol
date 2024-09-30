@@ -208,7 +208,7 @@ contract L1Block is ISemver, IGasToken {
         if (_type == ConfigType.SET_GAS_PAYING_TOKEN) {
             _setGasPayingToken(_value);
         } else if (_type == ConfigType.SET_BASE_FEE_VAULT_CONFIG) {
-            _setBaseFeeVaultConfig(_value);
+            Storage.setBytes32(BASE_FEE_VAULT_CONFIG_SLOT, abi.decode(_value, (bytes32)));
         } else if (_type == ConfigType.SET_L1_ERC_721_BRIDGE_ADDRESS) {
             Storage.setAddress(L1_ERC_721_BRIDGE_ADDRESS_SLOT, abi.decode(_value, (address)));
         } else if (_type == ConfigType.SET_REMOTE_CHAIN_ID) {
@@ -217,12 +217,9 @@ contract L1Block is ISemver, IGasToken {
             Storage.setAddress(L1_CROSS_DOMAIN_MESSENGER_ADDRESS_SLOT, abi.decode(_value, (address)));
         } else if (_type == ConfigType.SET_L1_STANDARD_BRIDGE_ADDRESS) {
             Storage.setAddress(L1_STANDARD_BRIDGE_ADDRESS_SLOT, abi.decode(_value, (address)));
+        } else if (_type == ConfigType.SET_SEQUENCER_FEE_VAULT_CONFIG) {
+            Storage.setBytes32(SEQUENCER_FEE_VAULT_CONFIG_SLOT, abi.decode(_value, (bytes32)));
         }
-    }
-
-    // @notice
-    function _setBaseFeeVaultConfig(bytes memory _value) internal {
-        // StaticConfig.decodeSetBaseFeeVaultConfig(_value);
     }
 
     /// @notice Internal method to set the gas paying token.
@@ -316,7 +313,7 @@ contract L1Block is ISemver, IGasToken {
         return Storage.getUint(REMOTE_CHAIN_ID_SLOT);
     }
 
-    /// @notice
+    /// @notice perhaps rename this to something migration related
     function _feeVaultConfig(address _addr) internal view returns (bytes32) {
         // compiler issue with type here
         (address recipient, uint256 amount, ITypes.WithdrawalNetwork network) = IFeeVault(payable(_addr)).config();

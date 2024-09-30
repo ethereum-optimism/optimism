@@ -6,6 +6,7 @@ import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/O
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { IFeeVault } from "src/L2/interfaces/IFeeVault.sol";
 import { StaticConfig, ConfigType } from "src/libraries/StaticConfig.sol";
+import { Encoding } from "src/libraries/Encoding.sol";
 
 // Libraries
 import { Storage } from "src/libraries/Storage.sol";
@@ -482,7 +483,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     {
         IOptimismPortal(payable(optimismPortal())).setConfig({
             _type: _type,
-            _value: StaticConfig.encodeSetFeeVaultConfig(_recipient, _min, _network)
+            _value: abi.encode(Encoding.encodeFeeVaultConfig(_recipient, _min, _network))
         });
     }
 

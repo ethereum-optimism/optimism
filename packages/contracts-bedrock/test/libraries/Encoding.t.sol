@@ -11,6 +11,9 @@ import { LegacyCrossDomainUtils } from "src/libraries/LegacyCrossDomainUtils.sol
 // Target contract
 import { Encoding } from "src/libraries/Encoding.sol";
 
+// Interfaces
+import { IFeeVault } from "src/L2/interfaces/IFeeVault.sol";
+
 contract Encoding_Test is CommonTest {
     /// @dev Tests encoding and decoding a nonce and version.
     function testFuzz_nonceVersioning_succeeds(uint240 _nonce, uint16 _version) external pure {
@@ -92,5 +95,22 @@ contract Encoding_Test is CommonTest {
         bytes memory _txn = ffi.encodeDepositTransaction(t);
 
         assertEq(txn, _txn);
+    }
+
+    // using a bool simulates the 2 enum values that exist
+    function testFuzz_encodeFeeVaultConfig_succeeds(
+        address _recipient,
+        uint88 _amount,
+        bool _network
+    )
+        public
+        pure
+    {
+        IFeeVault.WithdrawalNetwork _withdrawalNetwork = _network ? IFeeVault.WithdrawalNetwork.L1 : IFeeVault.WithdrawalNetwork.L2;
+        bytes32 encoded = Encoding.encodeFeeVaultConfig(_recipient, uint256(_amount), _withdrawalNetwork);
+        (address recipient, uint256 amount, IFeeVault.WithdrawalNetwork withdrawalNetwork) = Encoding.decodeFeeVaultConfig(encoded);
+        assertEq(_recipient, recipient, "bad recipient");
+        assertEq(uint256(_amount), amount, "bad amount");
+        assertEq(uint256(withdrawalNetwork), uint256(withdrawalNetwork), "bad network");
     }
 }
