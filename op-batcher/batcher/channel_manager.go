@@ -308,7 +308,7 @@ func (s *channelManager) processBlocks() error {
 		latestL2ref eth.L2BlockRef
 	)
 	for i := 0; ; i++ {
-		block, ok := s.blocks.Dequeue()
+		block, ok := s.blocks.Peek()
 		if !ok {
 			break
 		}
@@ -316,12 +316,11 @@ func (s *channelManager) processBlocks() error {
 		l1info, err := s.currentChannel.AddBlock(block)
 		if errors.As(err, &_chFullErr) {
 			// current block didn't get added because channel is already full
-			s.blocks.Prepend(block)
 			break
 		} else if err != nil {
-			s.blocks.Prepend(block)
 			return fmt.Errorf("adding block[%d] to channel builder: %w", i, err)
 		}
+		_, _ = s.blocks.Dequeue()
 		s.log.Debug("Added block to channel", "id", s.currentChannel.ID(), "block", eth.ToBlockID(block))
 
 		blocksAdded += 1
