@@ -195,7 +195,6 @@ contract DeploySuperchainOutput is BaseDeployIO {
         require(actualSuperchainConfigImpl == address(_superchainConfigImpl), "100");
         require(actualProtocolVersionsImpl == address(_protocolVersionsImpl), "200");
 
-        // TODO Also add the assertions for the implementation contracts from ChainAssertions.sol
         assertValidDeploy(_dsi);
     }
 

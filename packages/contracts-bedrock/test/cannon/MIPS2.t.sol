@@ -1,13 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
+
+// Contracts
 import { MIPS2 } from "src/cannon/MIPS2.sol";
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
+
+// Libraries
 import { MIPSSyscalls as sys } from "src/cannon/libraries/MIPSSyscalls.sol";
 import { MIPSInstructions as ins } from "src/cannon/libraries/MIPSInstructions.sol";
-import "src/dispute/lib/Types.sol";
 import { InvalidExitedValue, InvalidMemoryProof, InvalidSecondMemoryProof } from "src/cannon/libraries/CannonErrors.sol";
+import "src/dispute/lib/Types.sol";
+
+// Interfaces
+import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
 
 contract ThreadStack {
     bytes32 internal constant EMPTY_THREAD_ROOT = hex"ad3228b676f7d3cd4284a5443f17f1962b36e491b30a40b2405849e597ba5fb5";
@@ -127,7 +135,7 @@ contract MIPS2_Test is CommonTest {
     function setUp() public virtual override {
         super.setUp();
         oracle = new PreimageOracle(0, 0);
-        mips = new MIPS2(oracle);
+        mips = new MIPS2(IPreimageOracle(address(oracle)));
         threading = new Threading();
         vm.store(address(mips), 0x0, bytes32(abi.encode(address(oracle))));
         vm.label(address(oracle), "PreimageOracle");

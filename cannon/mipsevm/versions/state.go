@@ -20,6 +20,8 @@ const (
 	// VersionSingleThreaded is the version of the Cannon STF found in op-contracts/v1.6.0 - https://github.com/ethereum-optimism/optimism/blob/op-contracts/v1.6.0/packages/contracts-bedrock/src/cannon/MIPS.sol
 	VersionSingleThreaded StateVersion = iota
 	VersionMultiThreaded
+	// VersionSingleThreaded2 is based on VersionSingleThreaded with the addition of support for fcntl(F_GETFD) syscall
+	VersionSingleThreaded2
 	VersionMultiThreaded64
 )
 
@@ -29,7 +31,7 @@ var (
 	ErrUnsupportedMipsArch = errors.New("mips architecture is not supported")
 )
 
-var StateVersionTypes = []StateVersion{VersionSingleThreaded, VersionMultiThreaded, VersionMultiThreaded64}
+var StateVersionTypes = []StateVersion{VersionSingleThreaded, VersionMultiThreaded, VersionSingleThreaded2, VersionMultiThreaded64}
 
 func LoadStateFromFile(path string) (*VersionedState, error) {
 	if !serialize.IsBinaryFile(path) {
@@ -50,7 +52,7 @@ func NewFromState(state mipsevm.FPVMState) (*VersionedState, error) {
 			return nil, ErrUnsupportedMipsArch
 		}
 		return &VersionedState{
-			Version:   VersionSingleThreaded,
+			Version:   VersionSingleThreaded2,
 			FPVMState: state,
 		}, nil
 	case *multithreaded.State:
@@ -92,7 +94,7 @@ func (s *VersionedState) Deserialize(in io.Reader) error {
 	}
 
 	switch s.Version {
-	case VersionSingleThreaded:
+	case VersionSingleThreaded2:
 		if !arch.IsMips32 {
 			return ErrUnsupportedMipsArch
 		}
@@ -145,6 +147,8 @@ func (s StateVersion) String() string {
 		return "singlethreaded"
 	case VersionMultiThreaded:
 		return "multithreaded"
+	case VersionSingleThreaded2:
+		return "singlethreaded-2"
 	case VersionMultiThreaded64:
 		return "multithreaded64"
 	default:
@@ -158,6 +162,8 @@ func ParseStateVersion(ver string) (StateVersion, error) {
 		return VersionSingleThreaded, nil
 	case "multithreaded":
 		return VersionMultiThreaded, nil
+	case "singlethreaded-2":
+		return VersionSingleThreaded2, nil
 	case "multithreaded64":
 		return VersionMultiThreaded64, nil
 	default:

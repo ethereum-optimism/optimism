@@ -123,6 +123,7 @@ type opcmDeployInput struct {
 	BlobBasefeeScalar   uint32
 	L2ChainId           *big.Int
 	StartingAnchorRoots []byte
+	SaltMixer           string
 }
 
 // decodeOutputABIJSON defines an ABI for a fake method called "decodeOutput" that returns the
@@ -241,6 +242,7 @@ func DeployOPChainRaw(
 		BlobBasefeeScalar:   input.BlobBaseFeeScalar,
 		L2ChainId:           input.L2ChainId,
 		StartingAnchorRoots: input.StartingAnchorRoots(),
+		SaltMixer:           input.SaltMixer,
 	})
 	if err != nil {
 		return out, fmt.Errorf("failed to pack deploy input: %w", err)

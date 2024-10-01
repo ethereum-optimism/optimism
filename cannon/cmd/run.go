@@ -373,6 +373,7 @@ func Run(ctx *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to load state: %w", err)
 	}
+	l.Info("Loaded input state", "version", state.Version)
 	vm := state.CreateVM(l, po, outLog, errLog, meta)
 	debugProgram := ctx.Bool(RunDebugFlag.Name)
 	if debugProgram {

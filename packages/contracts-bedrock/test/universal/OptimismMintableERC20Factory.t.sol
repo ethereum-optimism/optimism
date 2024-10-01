@@ -9,9 +9,9 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 // Contracts
 import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
-import { Proxy } from "src/universal/Proxy.sol";
 
 // Interfaces
+import { IProxy } from "src/universal/interfaces/IProxy.sol";
 import { IOptimismMintableERC20Factory } from "src/universal/interfaces/IOptimismMintableERC20Factory.sol";
 
 contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
@@ -33,7 +33,7 @@ contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
 
     /// @notice Tests that the upgrade is successful.
     function test_upgrading_succeeds() external {
-        Proxy proxy = Proxy(deploy.mustGetAddress("OptimismMintableERC20FactoryProxy"));
+        IProxy proxy = IProxy(deploy.mustGetAddress("OptimismMintableERC20FactoryProxy"));
         // Check an unused slot before upgrading.
         bytes32 slot21Before = vm.load(address(l1OptimismMintableERC20Factory), bytes32(uint256(21)));
         assertEq(bytes32(0), slot21Before);

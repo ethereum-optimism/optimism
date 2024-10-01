@@ -22,8 +22,11 @@ cannon64-impl:
 	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build --tags=cannon64 -v $(LDFLAGS) -o ./bin/cannon64-impl .
 
 cannon-embeds: cannon32-impl cannon64-impl
-	@cp bin/cannon32-impl ./multicannon/embeds/cannon-0
+	# singlethreaded-v2
+	@cp bin/cannon32-impl ./multicannon/embeds/cannon-2
+	# multithreaded
 	@cp bin/cannon32-impl ./multicannon/embeds/cannon-1
+	# 64-bit multithreaded
 	@cp bin/cannon64-impl ./multicannon/embeds/cannon-3
 
 cannon: cannon-embeds
@@ -69,6 +72,9 @@ diff-%-cannon: cannon elf
 		exit 1; \
 	fi
 
+cannon-stf-verify:
+	@docker build --progress plain -f Dockerfile.diff ../
+
 fuzz:
   # Common vm tests
 	go test $(FUZZLDFLAGS) -run NOTAREALTEST -v -fuzztime 10s -fuzz=FuzzStateSyscallBrk ./mipsevm/tests
@@ -93,4 +99,5 @@ fuzz:
 	test \
 	lint \
 	fuzz \
-	diff-%-cannon
+	diff-%-cannon \
+	cannon-stf-verify

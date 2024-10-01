@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -25,8 +24,7 @@ type Metrics interface {
 }
 
 type Storage interface {
-	LogStorage
-	Heads() db.HeadsStorage
+	ChainsDBClientForLogProcessor
 	DatabaseRewinder
 	LatestBlockNum(chainID types.ChainID) (num uint64, ok bool)
 }
@@ -50,16 +48,9 @@ func NewChainMonitor(ctx context.Context, logger log.Logger, m Metrics, chainID 
 	processLogs := newLogProcessor(chainID, store)
 	unsafeBlockProcessor := NewChainProcessor(logger, cl, chainID, processLogs, store)
 
-	// create head processors which only update the head
-	unsafeHeadProcessor := OnNewHead(chainID, store.Heads().UpdateLocalUnsafe)
-	safeHeadProcessor := OnNewHead(chainID, store.Heads().UpdateLocalSafe)
-	finalizedHeadProcessor := OnNewHead(chainID, store.Heads().UpdateLocalFinalized)
+	unsafeProcessors := []HeadProcessor{unsafeBlockProcessor}
 
-	unsafeProcessors := []HeadProcessor{unsafeBlockProcessor, unsafeHeadProcessor}
-	safeProcessors := []HeadProcessor{safeHeadProcessor}
-	finalizedProcessors := []HeadProcessor{finalizedHeadProcessor}
-
-	callback := newHeadUpdateProcessor(logger, unsafeProcessors, safeProcessors, finalizedProcessors)
+	callback := newHeadUpdateProcessor(logger, unsafeProcessors, nil, nil)
 	headMonitor := NewHeadMonitor(logger, epochPollInterval, cl, callback)
 
 	return &ChainMonitor{

@@ -216,9 +216,11 @@ contract DeployOPChainOutput is BaseDeployIO {
             address(_anchorStateRegistryImpl),
             // address(_faultDisputeGame),
             address(_permissionedDisputeGame),
-            address(_delayedWETHPermissionedGameProxy),
-            address(_delayedWETHPermissionlessGameProxy)
+            address(_delayedWETHPermissionedGameProxy)
         );
+        // TODO: Eventually switch from Permissioned to Permissionless. Add this address back in.
+        // address(_delayedWETHPermissionlessGameProxy)
+
         DeployUtils.assertValidContractAddresses(Solarray.extend(addrs1, addrs2));
 
         assertValidDeploy(_doi);
@@ -295,7 +297,8 @@ contract DeployOPChainOutput is BaseDeployIO {
     }
 
     function delayedWETHPermissionlessGameProxy() public view returns (DelayedWETH) {
-        DeployUtils.assertValidContractAddress(address(_delayedWETHPermissionlessGameProxy));
+        // TODO: Eventually switch from Permissioned to Permissionless. Add this check back in.
+        // DeployUtils.assertValidContractAddress(address(_delayedWETHPermissionlessGameProxy));
         return _delayedWETHPermissionlessGameProxy;
     }
 
@@ -304,7 +307,7 @@ contract DeployOPChainOutput is BaseDeployIO {
     function assertValidDeploy(DeployOPChainInput _doi) internal {
         assertValidAnchorStateRegistryImpl(_doi);
         assertValidAnchorStateRegistryProxy(_doi);
-        assertValidDelayedWETHs(_doi);
+        assertValidDelayedWETH(_doi);
         assertValidDisputeGameFactory(_doi);
         assertValidL1CrossDomainMessenger(_doi);
         assertValidL1ERC721Bridge(_doi);
@@ -319,7 +322,13 @@ contract DeployOPChainOutput is BaseDeployIO {
         PermissionedDisputeGame game = permissionedDisputeGame();
 
         require(GameType.unwrap(game.gameType()) == GameType.unwrap(GameTypes.PERMISSIONED_CANNON), "DPG-10");
-        require(Claim.unwrap(game.absolutePrestate()) == bytes32(hex"dead"), "DPG-20");
+        // This hex string is the absolutePrestate of the latest op-program release, see where the
+        // `EXPECTED_PRESTATE_HASH` is defined in `config.yml`.
+        require(
+            Claim.unwrap(game.absolutePrestate())
+                == bytes32(hex"038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
+            "DPG-20"
+        );
 
         OPContractsManager opcm = _doi.opcmProxy();
         (address mips,) = opcm.implementations(opcm.latestRelease(), "MIPS");
@@ -462,7 +471,7 @@ contract DeployOPChainOutput is BaseDeployIO {
         require(vm.load(address(portal), bytes32(uint256(61))) == bytes32(0));
     }
 
-    function assertValidDisputeGameFactory(DeployOPChainInput) internal view {
+    function assertValidDisputeGameFactory(DeployOPChainInput _doi) internal view {
         DisputeGameFactory factory = disputeGameFactoryProxy();
 
         DeployUtils.assertInitialized({ _contractAddress: address(factory), _slot: 0, _offset: 0 });
@@ -470,11 +479,18 @@ contract DeployOPChainOutput is BaseDeployIO {
         require(
             address(factory.gameImpls(GameTypes.PERMISSIONED_CANNON)) == address(permissionedDisputeGame()), "DF-10"
         );
-        require(factory.owner() == address(opChainProxyAdmin()), "DF-20");
+        require(factory.owner() == address(_doi.opChainProxyAdminOwner()), "DF-20");
     }
 
-    function assertValidDelayedWETHs(DeployOPChainInput) internal view {
-        // TODO add in once FP support is added.
+    function assertValidDelayedWETH(DeployOPChainInput _doi) internal {
+        DelayedWETH permissioned = delayedWETHPermissionedGameProxy();
+
+        require(permissioned.owner() == address(_doi.opChainProxyAdminOwner()), "DWETH-10");
+
+        Proxy proxy = Proxy(payable(address(permissioned)));
+        vm.prank(address(0));
+        address admin = proxy.admin();
+        require(admin == address(opChainProxyAdmin()), "DWETH-20");
     }
 }
 
@@ -518,7 +534,8 @@ contract DeployOPChain is Script {
         // vm.label(address(deployOutput.faultDisputeGame), "faultDisputeGame");
         vm.label(address(deployOutput.permissionedDisputeGame), "permissionedDisputeGame");
         vm.label(address(deployOutput.delayedWETHPermissionedGameProxy), "delayedWETHPermissionedGameProxy");
-        vm.label(address(deployOutput.delayedWETHPermissionlessGameProxy), "delayedWETHPermissionlessGameProxy");
+        // TODO: Eventually switch from Permissioned to Permissionless.
+        // vm.label(address(deployOutput.delayedWETHPermissionlessGameProxy), "delayedWETHPermissionlessGameProxy");
 
         _doo.set(_doo.opChainProxyAdmin.selector, address(deployOutput.opChainProxyAdmin));
         _doo.set(_doo.addressManager.selector, address(deployOutput.addressManager));
@@ -536,9 +553,11 @@ contract DeployOPChain is Script {
         // _doo.set(_doo.faultDisputeGame.selector, address(deployOutput.faultDisputeGame));
         _doo.set(_doo.permissionedDisputeGame.selector, address(deployOutput.permissionedDisputeGame));
         _doo.set(_doo.delayedWETHPermissionedGameProxy.selector, address(deployOutput.delayedWETHPermissionedGameProxy));
-        _doo.set(
-            _doo.delayedWETHPermissionlessGameProxy.selector, address(deployOutput.delayedWETHPermissionlessGameProxy)
-        );
+        // TODO: Eventually switch from Permissioned to Permissionless.
+        // _doo.set(
+        //     _doo.delayedWETHPermissionlessGameProxy.selector,
+        // address(deployOutput.delayedWETHPermissionlessGameProxy)
+        // );
 
         _doo.checkOutput(_doi);
     }

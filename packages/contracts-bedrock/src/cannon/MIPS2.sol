@@ -57,8 +57,8 @@ contract MIPS2 is ISemver {
     }
 
     /// @notice The semantic version of the MIPS2 contract.
-    /// @custom:semver 1.0.0-beta.12
-    string public constant version = "1.0.0-beta.12";
+    /// @custom:semver 1.0.0-beta.13
+    string public constant version = "1.0.0-beta.13";
 
     /// @notice The preimage oracle contract.
     IPreimageOracle internal immutable ORACLE;

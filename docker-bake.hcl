@@ -61,10 +61,6 @@ variable "OP_SUPERVISOR_VERSION" {
   default = "${GIT_VERSION}"
 }
 
-variable "PREV_CANNON_VERSION" {
-  default = "${GIT_VERSION}"
-}
-
 variable "CANNON_VERSION" {
   default = "${GIT_VERSION}"
 }
@@ -199,7 +195,6 @@ target "cannon" {
   args = {
     GIT_COMMIT = "${GIT_COMMIT}"
     GIT_DATE = "${GIT_DATE}"
-    PREV_CANNON_VERSION = "${PREV_CANNON_VERSION}"
     CANNON_VERSION = "${CANNON_VERSION}"
   }
   target = "cannon-target"
