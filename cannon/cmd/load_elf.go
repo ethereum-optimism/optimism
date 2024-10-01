@@ -25,7 +25,7 @@ var (
 	}
 	LoadELFPathFlag = &cli.PathFlag{
 		Name:      "path",
-		Usage:     "Path to 32-bit big-endian MIPS ELF file",
+		Usage:     "Path to 32/64-bit big-endian MIPS ELF file",
 		TakesFile: true,
 		Required:  true,
 	}
@@ -69,7 +69,7 @@ func LoadELF(ctx *cli.Context) error {
 		return err
 	}
 	switch ver {
-	case versions.VersionSingleThreaded:
+	case versions.VersionSingleThreaded2:
 		createInitialState = func(f *elf.File) (mipsevm.FPVMState, error) {
 			return program.LoadELF(f, singlethreaded.CreateInitialState)
 		}
@@ -80,7 +80,7 @@ func LoadELF(ctx *cli.Context) error {
 			}
 			return program.PatchStack(state)
 		}
-	case versions.VersionMultiThreaded:
+	case versions.VersionMultiThreaded, versions.VersionMultiThreaded64:
 		createInitialState = func(f *elf.File) (mipsevm.FPVMState, error) {
 			return program.LoadELF(f, multithreaded.CreateInitialState)
 		}

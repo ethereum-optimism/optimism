@@ -20,7 +20,7 @@ var _ interop.InteropBackend = (*testutils.MockInteropBackend)(nil)
 
 func TestInteropVerifier(gt *testing.T) {
 	t := helpers.NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams)
+	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
 	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
 	// Temporary work-around: interop needs to be active, for cross-safety to not be instant.
 	// The state genesis in this test is pre-interop however.

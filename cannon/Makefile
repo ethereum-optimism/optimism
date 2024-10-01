@@ -15,18 +15,25 @@ endif
 
 .DEFAULT_GOAL := cannon
 
-cannon-impl:
-	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v $(LDFLAGS) -o ./bin/cannon-impl .
+cannon32-impl:
+	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build --tags=cannon32 -v $(LDFLAGS) -o ./bin/cannon32-impl .
 
-cannon-embeds: cannon-impl
-	@cp bin/cannon-impl ./multicannon/embeds/cannon-0
-	@cp bin/cannon-impl ./multicannon/embeds/cannon-1
+cannon64-impl:
+	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build --tags=cannon64 -v $(LDFLAGS) -o ./bin/cannon64-impl .
+
+cannon-embeds: cannon32-impl cannon64-impl
+	# singlethreaded-v2
+	@cp bin/cannon32-impl ./multicannon/embeds/cannon-2
+	# multithreaded
+	@cp bin/cannon32-impl ./multicannon/embeds/cannon-1
+	# 64-bit multithreaded
+	@cp bin/cannon64-impl ./multicannon/embeds/cannon-3
 
 cannon: cannon-embeds
 	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v $(LDFLAGS) -o ./bin/cannon ./multicannon/
 
 clean:
-	rm -rf bin
+	rm -rf bin multicannon/embeds/cannon*
 
 elf:
 	make -C ./testdata/example elf
@@ -84,9 +91,10 @@ fuzz:
 	go test $(FUZZLDFLAGS) -run NOTAREALTEST -v -fuzztime 10s -fuzz=FuzzStateSyscallCloneMT ./mipsevm/tests
 
 .PHONY: \
-	cannon \
-	cannon-impl \
+	cannon32-impl \
+	cannon64-impl \
 	cannon-embeds \
+	cannon \
 	clean \
 	test \
 	lint \

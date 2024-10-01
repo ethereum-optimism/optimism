@@ -167,6 +167,11 @@
             "internalType": "string",
             "name": "saltMixer",
             "type": "string"
+          },
+          {
+            "internalType": "uint64",
+            "name": "gasLimit",
+            "type": "uint64"
           }
         ],
         "internalType": "struct OPContractsManager.DeployInput",

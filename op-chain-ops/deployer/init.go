@@ -1,7 +1,9 @@
 package deployer
 
 import (
+	"errors"
 	"fmt"
+	"os"
 	"path"
 	"strings"
 
@@ -12,6 +14,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/urfave/cli/v2"
 )
+
+var V160ArtifactsURL = state.MustParseArtifactsURL("https://storage.googleapis.com/oplabs-contract-artifacts/artifacts-v1-155f65e7dcbea1b7b3d37a0fc39cc8b6a1c03b6c5b677886ca2420e10e9c1ea6.tar.gz")
 
 type InitConfig struct {
 	L1ChainID  uint64
@@ -43,12 +47,12 @@ func InitCLI() func(ctx *cli.Context) error {
 		l2ChainIDsRaw := ctx.String(L2ChainIDsFlagName)
 		l2ChainIDsStr := strings.Split(strings.TrimSpace(l2ChainIDsRaw), ",")
 		l2ChainIDs := make([]common.Hash, len(l2ChainIDsStr))
-		for _, idStr := range l2ChainIDsStr {
+		for i, idStr := range l2ChainIDsStr {
 			id, err := op_service.Parse256BitChainID(idStr)
 			if err != nil {
 				return fmt.Errorf("invalid chain ID: %w", err)
 			}
-			l2ChainIDs = append(l2ChainIDs, id)
+			l2ChainIDs[i] = id
 		}
 
 		return Init(InitConfig{
@@ -65,9 +69,10 @@ func Init(cfg InitConfig) error {
 	}
 
 	intent := &state.Intent{
-		L1ChainID:        cfg.L1ChainID,
-		FundDevAccounts:  true,
-		ContractsRelease: "dev",
+		L1ChainID:            cfg.L1ChainID,
+		FundDevAccounts:      true,
+		ContractsRelease:     "op-contracts/v1.6.0",
+		ContractArtifactsURL: V160ArtifactsURL,
 	}
 
 	l1ChainIDBig := intent.L1ChainIDBig()
@@ -109,6 +114,17 @@ func Init(cfg InitConfig) error {
 
 	st := &state.State{
 		Version: 1,
+	}
+
+	stat, err := os.Stat(cfg.Outdir)
+	if errors.Is(err, os.ErrNotExist) {
+		if err := os.MkdirAll(cfg.Outdir, 0755); err != nil {
+			return fmt.Errorf("failed to create outdir: %w", err)
+		}
+	} else if err != nil {
+		return fmt.Errorf("failed to stat outdir: %w", err)
+	} else if !stat.IsDir() {
+		return fmt.Errorf("outdir is not a directory")
 	}
 
 	if err := intent.WriteToFile(path.Join(cfg.Outdir, "intent.toml")); err != nil {

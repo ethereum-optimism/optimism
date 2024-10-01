@@ -20,7 +20,6 @@ func vmFactory(state *State, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer
 
 func TestInstrumentedState_OpenMips(t *testing.T) {
 	t.Parallel()
-	// TODO: Add mt-specific tests here
 	testutil.RunVMTests_OpenMips(t, CreateEmptyState, vmFactory, "clone.bin")
 }
 
@@ -41,7 +40,7 @@ func TestInstrumentedState_MultithreadedProgram(t *testing.T) {
 
 	var stdOutBuf, stdErrBuf bytes.Buffer
 	us := NewInstrumentedState(state, oracle, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr), testutil.CreateLogger(), nil)
-	for i := 0; i < 1_000_000; i++ {
+	for i := 0; i < 2_000_000; i++ {
 		if us.GetState().GetExited() {
 			break
 		}

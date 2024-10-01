@@ -66,7 +66,7 @@ func (vi *View) Process() error {
 			return logs.ErrFuture
 		}
 		// check if it is an executing message. If so, check the dependency
-		if execMsg := state.ExecMessage(); execMsg == nil {
+		if execMsg := state.ExecMessage(); execMsg != nil {
 			// Check if executing message is within cross L2 view,
 			// relative to the L1 view of current message.
 			// And check if the message is valid to execute at all

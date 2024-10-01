@@ -9,21 +9,24 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 )
+
+type Word = arch.Word
 
 func (m *InstrumentedState) handleSyscall() error {
 	thread := m.state.GetCurrentThread()
 
 	syscallNum, a0, a1, a2, a3 := exec.GetSyscallArgs(m.state.GetRegistersRef())
-	v0 := uint32(0)
-	v1 := uint32(0)
+	v0 := Word(0)
+	v1 := Word(0)
 
 	//fmt.Printf("syscall: %d\n", syscallNum)
 	switch syscallNum {
 	case exec.SysMmap:
-		var newHeap uint32
+		var newHeap Word
 		v0, v1, newHeap = exec.HandleSysMmap(a0, a1, m.state.Heap)
 		m.state.Heap = newHeap
 	case exec.SysBrk:
@@ -74,9 +77,9 @@ func (m *InstrumentedState) handleSyscall() error {
 		m.state.ExitCode = uint8(a0)
 		return nil
 	case exec.SysRead:
-		var newPreimageOffset uint32
+		var newPreimageOffset Word
 		var memUpdated bool
-		var memAddr uint32
+		var memAddr Word
 		v0, v1, newPreimageOffset, memUpdated, memAddr = exec.HandleSysRead(a0, a1, a2, m.state.PreimageKey, m.state.PreimageOffset, m.preimageOracle, m.state.Memory, m.memoryTracker)
 		m.state.PreimageOffset = newPreimageOffset
 		if memUpdated {
@@ -85,7 +88,7 @@ func (m *InstrumentedState) handleSyscall() error {
 	case exec.SysWrite:
 		var newLastHint hexutil.Bytes
 		var newPreimageKey common.Hash
-		var newPreimageOffset uint32
+		var newPreimageOffset Word
 		v0, v1, newLastHint, newPreimageKey, newPreimageOffset = exec.HandleSysWrite(a0, a1, a2, m.state.LastHint, m.state.PreimageKey, m.state.PreimageOffset, m.preimageOracle, m.state.Memory, m.memoryTracker, m.stdOut, m.stdErr)
 		m.state.LastHint = newLastHint
 		m.state.PreimageKey = newPreimageKey
@@ -105,11 +108,11 @@ func (m *InstrumentedState) handleSyscall() error {
 		return nil
 	case exec.SysFutex:
 		// args: a0 = addr, a1 = op, a2 = val, a3 = timeout
-		effAddr := a0 & 0xFFffFFfc
+		effAddr := a0 & arch.AddressMask
 		switch a1 {
 		case exec.FutexWaitPrivate:
 			m.memoryTracker.TrackMemAccess(effAddr)
-			mem := m.state.Memory.GetMemory(effAddr)
+			mem := m.state.Memory.GetWord(effAddr)
 			if mem != a2 {
 				v0 = exec.SysErrorSignal
 				v1 = exec.MipsEAGAIN
@@ -153,20 +156,20 @@ func (m *InstrumentedState) handleSyscall() error {
 		switch a0 {
 		case exec.ClockGettimeRealtimeFlag, exec.ClockGettimeMonotonicFlag:
 			v0, v1 = 0, 0
-			var secs, nsecs uint32
+			var secs, nsecs Word
 			if a0 == exec.ClockGettimeMonotonicFlag {
 				// monotonic clock_gettime is used by Go guest programs for goroutine scheduling and to implement
 				// `time.Sleep` (and other sleep related operations).
-				secs = uint32(m.state.Step / exec.HZ)
-				nsecs = uint32((m.state.Step % exec.HZ) * (1_000_000_000 / exec.HZ))
+				secs = Word(m.state.Step / exec.HZ)
+				nsecs = Word((m.state.Step % exec.HZ) * (1_000_000_000 / exec.HZ))
 			} // else realtime set to Unix Epoch
 
-			effAddr := a1 & 0xFFffFFfc
+			effAddr := a1 & arch.AddressMask
 			m.memoryTracker.TrackMemAccess(effAddr)
-			m.state.Memory.SetMemory(effAddr, secs)
+			m.state.Memory.SetWord(effAddr, secs)
 			m.handleMemoryUpdate(effAddr)
 			m.memoryTracker.TrackMemAccess2(effAddr + 4)
-			m.state.Memory.SetMemory(effAddr+4, nsecs)
+			m.state.Memory.SetWord(effAddr+4, nsecs)
 			m.handleMemoryUpdate(effAddr + 4)
 		default:
 			v0 = exec.SysErrorSignal
@@ -182,6 +185,8 @@ func (m *InstrumentedState) handleSyscall() error {
 	case exec.SysSigaltstack:
 	case exec.SysRtSigaction:
 	case exec.SysPrlimit64:
+	// TODO(#12205): may be needed for 64-bit Cannon
+	// case exec.SysGetRtLimit:
 	case exec.SysClose:
 	case exec.SysPread64:
 	case exec.SysFstat64:
@@ -256,9 +261,9 @@ func (m *InstrumentedState) mipsStep() error {
 			m.onWaitComplete(thread, true)
 			return nil
 		} else {
-			effAddr := thread.FutexAddr & 0xFFffFFfc
+			effAddr := thread.FutexAddr & arch.AddressMask
 			m.memoryTracker.TrackMemAccess(effAddr)
-			mem := m.state.Memory.GetMemory(effAddr)
+			mem := m.state.Memory.GetWord(effAddr)
 			if thread.FutexVal == mem {
 				// still got expected value, continue sleeping, try next thread.
 				m.preemptThread(thread)
@@ -299,6 +304,12 @@ func (m *InstrumentedState) mipsStep() error {
 	if opcode == exec.OpLoadLinked || opcode == exec.OpStoreConditional {
 		return m.handleRMWOps(insn, opcode)
 	}
+	if opcode == exec.OpLoadLinked64 || opcode == exec.OpStoreConditional64 {
+		if arch.IsMips32 {
+			panic(fmt.Sprintf("invalid instruction: %x", insn))
+		}
+		return m.handleRMWOps(insn, opcode)
+	}
 
 	// Exec the rest of the step logic
 	memUpdated, memAddr, err := exec.ExecMipsCoreStepLogic(m.state.getCpuRef(), m.state.GetRegistersRef(), m.state.Memory, insn, opcode, fun, m.memoryTracker, m.stackTracker)
@@ -312,7 +323,7 @@ func (m *InstrumentedState) mipsStep() error {
 	return nil
 }
 
-func (m *InstrumentedState) handleMemoryUpdate(memAddr uint32) {
+func (m *InstrumentedState) handleMemoryUpdate(memAddr Word) {
 	if memAddr == m.state.LLAddress {
 		// Reserved address was modified, clear the reservation
 		m.clearLLMemoryReservation()
@@ -329,27 +340,32 @@ func (m *InstrumentedState) clearLLMemoryReservation() {
 func (m *InstrumentedState) handleRMWOps(insn, opcode uint32) error {
 	baseReg := (insn >> 21) & 0x1F
 	base := m.state.GetRegistersRef()[baseReg]
-	rtReg := (insn >> 16) & 0x1F
+	rtReg := Word((insn >> 16) & 0x1F)
 	offset := exec.SignExtendImmediate(insn)
 
-	effAddr := (base + offset) & 0xFFFFFFFC
+	effAddr := (base + offset) & arch.AddressMask
 	m.memoryTracker.TrackMemAccess(effAddr)
-	mem := m.state.Memory.GetMemory(effAddr)
+	mem := m.state.Memory.GetWord(effAddr)
 
-	var retVal uint32
+	var retVal Word
 	threadId := m.state.GetCurrentThread().ThreadId
-	if opcode == exec.OpLoadLinked {
+	if opcode == exec.OpLoadLinked || opcode == exec.OpLoadLinked64 {
 		retVal = mem
 		m.state.LLReservationActive = true
 		m.state.LLAddress = effAddr
 		m.state.LLOwnerThread = threadId
-	} else if opcode == exec.OpStoreConditional {
+	} else if opcode == exec.OpStoreConditional || opcode == exec.OpStoreConditional64 {
+		// TODO(#12205): Determine bits affected by coherence stores on 64-bits
 		// Check if our memory reservation is still intact
 		if m.state.LLReservationActive && m.state.LLOwnerThread == threadId && m.state.LLAddress == effAddr {
 			// Complete atomic update: set memory and return 1 for success
 			m.clearLLMemoryReservation()
 			rt := m.state.GetRegistersRef()[rtReg]
-			m.state.Memory.SetMemory(effAddr, rt)
+			if opcode == exec.OpStoreConditional {
+				m.state.Memory.SetMemory(effAddr, uint32(rt))
+			} else {
+				m.state.Memory.SetWord(effAddr, rt)
+			}
 			retVal = 1
 		} else {
 			// Atomic update failed, return 0 for failure
@@ -370,8 +386,8 @@ func (m *InstrumentedState) onWaitComplete(thread *ThreadState, isTimedOut bool)
 	thread.FutexTimeoutStep = 0
 
 	// Complete the FUTEX_WAIT syscall
-	v0 := uint32(0)
-	v1 := uint32(0)
+	v0 := Word(0)
+	v1 := Word(0)
 	if isTimedOut {
 		v0 = exec.SysErrorSignal
 		v1 = exec.MipsETIMEDOUT

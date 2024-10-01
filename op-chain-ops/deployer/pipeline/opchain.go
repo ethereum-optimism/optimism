@@ -40,6 +40,7 @@ func DeployOPChain(ctx context.Context, env *Env, artifactsFS foundry.StatDirFs,
 		L2ChainId:              chainID.Big(),
 		OpcmProxy:              st.ImplementationsDeployment.OpcmProxyAddress,
 		SaltMixer:              st.Create2Salt.String(), // passing through salt generated at state initialization
+		GasLimit:               30_000_000,              // TODO: make this configurable
 	}
 
 	var dco opcm.DeployOPChainOutput

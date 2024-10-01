@@ -77,6 +77,7 @@ type L2Config struct {
 	genesis.L2InitializationConfig
 	Prefund   map[common.Address]*big.Int
 	SaltMixer string
+	GasLimit  uint64
 }
 
 func (c *L2Config) Check(log log.Logger) error {

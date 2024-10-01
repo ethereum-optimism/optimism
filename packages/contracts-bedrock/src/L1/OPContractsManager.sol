@@ -59,6 +59,7 @@ contract OPContractsManager is ISemver, Initializable {
         bytes startingAnchorRoots;
         // The salt mixer is used as part of making the resulting salt unique.
         string saltMixer;
+        uint64 gasLimit;
     }
 
     /// @notice The full set of outputs from deploying a new OP Stack chain.
@@ -464,7 +465,7 @@ contract OPContractsManager is ISemver, Initializable {
                 _input.basefeeScalar,
                 _input.blobBasefeeScalar,
                 bytes32(uint256(uint160(_input.roles.batcher))), // batcherHash
-                30_000_000,
+                _input.gasLimit,
                 _input.roles.unsafeBlockSigner,
                 referenceResourceConfig,
                 chainIdToBatchInboxAddress(_input.l2ChainId),
@@ -483,7 +484,7 @@ contract OPContractsManager is ISemver, Initializable {
                 _input.basefeeScalar,
                 _input.blobBasefeeScalar,
                 bytes32(uint256(uint160(_input.roles.batcher))), // batcherHash
-                30_000_000,
+                _input.gasLimit,
                 _input.roles.unsafeBlockSigner,
                 referenceResourceConfig,
                 chainIdToBatchInboxAddress(_input.l2ChainId),

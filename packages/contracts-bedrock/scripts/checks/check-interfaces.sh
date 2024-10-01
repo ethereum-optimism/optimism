@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Warn users of Mac OSX who have not ever upgraded bash from the default that they may experience
+# performance issues.
+if [ "${BASH_VERSINFO[0]}" -lt 5 ]; then
+    echo "WARNING: your bash installation is very old, and may cause this script to run extremely slowly. Please upgrade bash to at least version 5 if you have performance issues."
+fi
+
 # This script checks for ABI consistency between interfaces and their corresponding contracts.
 # It compares the ABIs of interfaces (files starting with 'I') with their implementation contracts,
 # excluding certain predefined files. Constructors are expected to be represented in interfaces by a

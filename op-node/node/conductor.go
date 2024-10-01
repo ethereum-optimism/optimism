@@ -91,12 +91,11 @@ func (c *ConductorClient) CommitUnsafePayload(ctx context.Context, payload *eth.
 	ctx, cancel := context.WithTimeout(ctx, c.cfg.ConductorRpcTimeout)
 	defer cancel()
 
-	// extra bool return value is required for the generic, can be ignored.
-	_, err := retry.Do(ctx, 2, retry.Fixed(50*time.Millisecond), func() (bool, error) {
+	err := retry.Do0(ctx, 2, retry.Fixed(50*time.Millisecond), func() error {
 		record := c.metrics.RecordRPCClientRequest("conductor_commitUnsafePayload")
 		err := c.apiClient.CommitUnsafePayload(ctx, payload)
 		record(err)
-		return true, err
+		return err
 	})
 	return err
 }
