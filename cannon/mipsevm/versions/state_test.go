@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
 	"github.com/ethereum-optimism/optimism/cannon/serialize"
@@ -47,6 +48,10 @@ func TestLoadStateFromFile(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, expected, actual)
 	})
+}
+
+func TestLoadStateFromFile64(t *testing.T) {
+	t.Skip("TODO(#12205): Test asserting that cannon64 fails to decode a 32-bit state")
 }
 
 func TestVersionsOtherThanZeroDoNotSupportJSON(t *testing.T) {

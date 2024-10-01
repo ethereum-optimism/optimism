@@ -362,9 +362,9 @@ func (m *InstrumentedState) handleRMWOps(insn, opcode uint32) error {
 			m.clearLLMemoryReservation()
 			rt := m.state.GetRegistersRef()[rtReg]
 			if opcode == exec.OpStoreConditional {
-				m.state.Memory.SetWord(effAddr, rt)
+				m.state.Memory.SetMemory(effAddr, uint32(rt))
 			} else {
-				m.state.Memory.SetMemory(effAddr, rt)
+				m.state.Memory.SetWord(effAddr, rt)
 			}
 			retVal = 1
 		} else {
