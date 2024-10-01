@@ -1,4 +1,4 @@
-FROM golang:1.21.3-alpine3.18 as builder
+FROM golang:1.22.7-alpine3.20 as builder
 
 RUN apk add --no-cache make gcc musl-dev linux-headers git jq bash
 
@@ -28,11 +28,11 @@ ARG TARGETOS TARGETARCH
 
 # Build the cannon, op-program, and op-program-client.elf binaries.
 RUN --mount=type=cache,target=/root/.cache/go-build cd cannon && make cannon  \
-    GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$CANNON_VERSION"
+  GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$CANNON_VERSION"
 RUN --mount=type=cache,target=/root/.cache/go-build cd op-program && make op-program-host  \
-    GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_PROGRAM_VERSION"
+  GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_PROGRAM_VERSION"
 RUN --mount=type=cache,target=/root/.cache/go-build cd op-program && make op-program-client-mips  \
-    GOOS=linux GOARCH=mips GOMIPS=softfloat GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_PROGRAM_VERSION"
+  GOOS=linux GOARCH=mips GOMIPS=softfloat GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_PROGRAM_VERSION"
 
 # Run the op-program-client.elf binary directly through cannon's load-elf subcommand.
 RUN /app/cannon/bin/cannon load-elf --type singlethreaded-2 --path /app/op-program/bin/op-program-client.elf --out /app/op-program/bin/prestate.bin.gz --meta ""
