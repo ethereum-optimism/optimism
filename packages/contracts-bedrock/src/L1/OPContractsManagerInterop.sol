@@ -46,7 +46,7 @@ contract OPContractsManagerInterop is OPContractsManager {
             _input.basefeeScalar,
             _input.blobBasefeeScalar,
             bytes32(uint256(uint160(_input.roles.batcher))), // batcherHash
-            30_000_000, // gasLimit TODO make this configurable?
+            _input.gasLimit,
             _input.roles.unsafeBlockSigner,
             referenceResourceConfig,
             chainIdToBatchInboxAddress(_input.l2ChainId),
