@@ -33,7 +33,7 @@ import { IL1StandardBridge } from "src/L1/interfaces/IL1StandardBridge.sol";
 import { IOptimismMintableERC20Factory } from "src/universal/interfaces/IOptimismMintableERC20Factory.sol";
 import { IProxy } from "src/universal/interfaces/IProxy.sol";
 
-import { Duration, GameType, GameTypes, Hash, OutputRoot } from "src/dispute/lib/Types.sol";
+import { Claim, Duration, GameType, GameTypes, Hash, OutputRoot } from "src/dispute/lib/Types.sol";
 
 contract DeployOPChainInput_Test is Test {
     DeployOPChainInput doi;
@@ -520,6 +520,12 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         assertEq(l2ChainId, doi.l2ChainId(), "900");
         assertEq(saltMixer, doi.saltMixer(), "1000");
         assertEq(gasLimit, doi.gasLimit(), "1100");
+        assertEq(disputeGameType, GameType.unwrap(doi.disputeGameType()), "1200");
+        assertEq(disputeAbsolutePrestate, Claim.unwrap(doi.disputeAbsolutePrestate()), "1300");
+        assertEq(disputeMaxGameDepth, doi.disputeMaxGameDepth(), "1400");
+        assertEq(disputeSplitDepth, doi.disputeSplitDepth(), "1500");
+        assertEq(disputeClockExtension, Duration.unwrap(doi.disputeClockExtension()), "1600");
+        assertEq(disputeMaxClockDuration, Duration.unwrap(doi.disputeMaxClockDuration()), "1700");
 
         // Assert inputs were properly passed through to the contract initializers.
         assertEq(address(doo.opChainProxyAdmin().owner()), opChainProxyAdminOwner, "2100");
