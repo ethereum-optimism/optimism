@@ -30,5 +30,5 @@ COPY --from=cannon-v2 /usr/local/bin/cannon /usr/local/bin/cannon-v2
 # verify the latest singlethreaded VM behavior against cannon-v2
 RUN cd cannon && make diff-singlethreaded-2-cannon -e OTHER_CANNON=/usr/local/bin/cannon-v2
 RUN --mount=type=cache,target=/root/.cache/go-build cd cannon && \
-    make diff-singlethreaded-2-cannon -e OTHER_CANNON=/usr/local/bin/cannon-v2 \
-    GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE
+  make diff-singlethreaded-2-cannon -e OTHER_CANNON=/usr/local/bin/cannon-v2 \
+  GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE

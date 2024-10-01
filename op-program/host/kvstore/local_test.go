@@ -20,7 +20,7 @@ func TestLocalPreimageSource(t *testing.T) {
 		L2OutputRoot:       common.HexToHash("0x2222"),
 		L2Claim:            common.HexToHash("0x3333"),
 		L2ClaimBlockNumber: 1234,
-		L2ChainConfig:      params.GoerliChainConfig,
+		L2ChainConfig:      params.SepoliaChainConfig,
 	}
 	source := NewLocalPreimageSource(cfg)
 	tests := []struct {
