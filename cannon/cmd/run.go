@@ -11,19 +11,19 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
 	"github.com/ethereum-optimism/optimism/cannon/serialize"
+	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
+	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/pkg/profile"
 	"github.com/urfave/cli/v2"
-
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
-	preimage "github.com/ethereum-optimism/optimism/op-preimage"
-	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
 
 var (
@@ -128,7 +128,7 @@ type Proof struct {
 
 	OracleKey    hexutil.Bytes `json:"oracle-key,omitempty"`
 	OracleValue  hexutil.Bytes `json:"oracle-value,omitempty"`
-	OracleOffset uint32        `json:"oracle-offset,omitempty"`
+	OracleOffset arch.Word     `json:"oracle-offset,omitempty"`
 }
 
 type rawHint string
@@ -288,7 +288,7 @@ func Run(ctx *cli.Context) error {
 
 	stopAtAnyPreimage := false
 	var stopAtPreimageKeyPrefix []byte
-	stopAtPreimageOffset := uint32(0)
+	stopAtPreimageOffset := arch.Word(0)
 	if ctx.IsSet(RunStopAtPreimageFlag.Name) {
 		val := ctx.String(RunStopAtPreimageFlag.Name)
 		parts := strings.Split(val, "@")
@@ -297,11 +297,11 @@ func Run(ctx *cli.Context) error {
 		}
 		stopAtPreimageKeyPrefix = common.FromHex(parts[0])
 		if len(parts) == 2 {
-			x, err := strconv.ParseUint(parts[1], 10, 32)
+			x, err := strconv.ParseUint(parts[1], 10, arch.WordSizeBytes)
 			if err != nil {
 				return fmt.Errorf("invalid preimage offset: %w", err)
 			}
-			stopAtPreimageOffset = uint32(x)
+			stopAtPreimageOffset = arch.Word(x)
 		}
 	} else {
 		switch ctx.String(RunStopAtPreimageTypeFlag.Name) {
@@ -463,7 +463,7 @@ func Run(ctx *cli.Context) error {
 		}
 
 		lastPreimageKey, lastPreimageValue, lastPreimageOffset := vm.LastPreimage()
-		if lastPreimageOffset != ^uint32(0) {
+		if lastPreimageOffset != ^arch.Word(0) {
 			if stopAtAnyPreimage {
 				l.Info("Stopping at preimage read")
 				break

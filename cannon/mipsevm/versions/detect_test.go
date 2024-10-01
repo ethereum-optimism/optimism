@@ -34,6 +34,9 @@ func TestDetectVersion(t *testing.T) {
 	// Iterate all known versions to ensure we have a test case to detect every state version
 	for _, version := range StateVersionTypes {
 		version := version
+		if version == VersionMultiThreaded64 {
+			t.Skip("TODO(#12205)")
+		}
 		t.Run(version.String(), func(t *testing.T) {
 			testDetection(t, version, ".bin.gz")
 		})

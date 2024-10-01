@@ -49,6 +49,10 @@ func TestLoadStateFromFile(t *testing.T) {
 	})
 }
 
+func TestLoadStateFromFile64(t *testing.T) {
+	t.Skip("TODO(#12205): Test asserting that cannon64 fails to decode a 32-bit state")
+}
+
 func TestVersionsOtherThanZeroDoNotSupportJSON(t *testing.T) {
 	tests := []struct {
 		version     StateVersion
