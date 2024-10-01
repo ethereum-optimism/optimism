@@ -321,7 +321,10 @@ contract DeploySuperchain is Script {
         // broadcaster needs to be the deployer since they are set to the initial proxy admin owner.
         vm.broadcast(msg.sender);
         IProxyAdmin superchainProxyAdmin = IProxyAdmin(
-            DeployUtils.create1({ _name: "ProxyAdmin", _args: abi.encodeCall(IProxyAdmin.__constructor__, (msg.sender)) })
+            DeployUtils.create1({
+                _name: "ProxyAdmin",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IProxyAdmin.__constructor__, (msg.sender)))
+            })
         );
 
         vm.label(address(superchainProxyAdmin), "SuperchainProxyAdmin");
@@ -334,13 +337,13 @@ contract DeploySuperchain is Script {
         ISuperchainConfig superchainConfigImpl = ISuperchainConfig(
             DeployUtils.create1({
                 _name: "SuperchainConfig",
-                _args: abi.encodeCall(ISuperchainConfig.__constructor__, ())
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(ISuperchainConfig.__constructor__, ()))
             })
         );
         IProtocolVersions protocolVersionsImpl = IProtocolVersions(
             DeployUtils.create1({
                 _name: "ProtocolVersions",
-                _args: abi.encodeCall(IProtocolVersions.__constructor__, ())
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IProtocolVersions.__constructor__, ()))
             })
         );
         vm.stopBroadcast();
@@ -363,7 +366,9 @@ contract DeploySuperchain is Script {
         ISuperchainConfig superchainConfigProxy = ISuperchainConfig(
             DeployUtils.create1({
                 _name: "Proxy",
-                _args: abi.encodeCall(IProxy.__constructor__, (address(superchainProxyAdmin)))
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(IProxy.__constructor__, (address(superchainProxyAdmin)))
+                )
             })
         );
         superchainProxyAdmin.upgradeAndCall(
@@ -389,7 +394,9 @@ contract DeploySuperchain is Script {
         IProtocolVersions protocolVersionsProxy = IProtocolVersions(
             DeployUtils.create1({
                 _name: "Proxy",
-                _args: abi.encodeCall(IProxy.__constructor__, (address(superchainProxyAdmin)))
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(IProxy.__constructor__, (address(superchainProxyAdmin)))
+                )
             })
         );
         superchainProxyAdmin.upgradeAndCall(
