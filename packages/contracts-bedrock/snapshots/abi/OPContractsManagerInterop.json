@@ -179,7 +179,7 @@
       {
         "components": [
           {
-            "internalType": "contract ProxyAdmin",
+            "internalType": "contract IProxyAdmin",
             "name": "opChainProxyAdmin",
             "type": "address"
           },
@@ -199,7 +199,7 @@
             "type": "address"
           },
           {
-            "internalType": "contract OptimismMintableERC20Factory",
+            "internalType": "contract IOptimismMintableERC20Factory",
             "name": "optimismMintableERC20FactoryProxy",
             "type": "address"
           },
