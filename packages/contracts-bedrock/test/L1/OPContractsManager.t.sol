@@ -71,7 +71,8 @@ contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase {
             blobBasefeeScalar: _doi.blobBaseFeeScalar(),
             l2ChainId: _doi.l2ChainId(),
             startingAnchorRoots: _doi.startingAnchorRoots(),
-            saltMixer: _doi.saltMixer()
+            saltMixer: _doi.saltMixer(),
+            gasLimit: _doi.gasLimit()
         });
     }
 

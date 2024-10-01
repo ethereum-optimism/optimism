@@ -362,6 +362,7 @@ contract DeployOPChain_TestBase is Test {
     AnchorStateRegistry.StartingAnchorRoot[] startingAnchorRoots;
     OPContractsManager opcm = OPContractsManager(address(0));
     string saltMixer = "defaultSaltMixer";
+    uint64 gasLimit = 30_000_000;
 
     function setUp() public virtual {
         // Set defaults for reference types
@@ -481,6 +482,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         doi.set(doi.l2ChainId.selector, l2ChainId);
         doi.set(doi.opcmProxy.selector, address(opcm)); // Not fuzzed since it must be an actual instance.
         doi.set(doi.saltMixer.selector, saltMixer);
+        doi.set(doi.gasLimit.selector, gasLimit);
 
         deployOPChain.run(doi, doo);
 

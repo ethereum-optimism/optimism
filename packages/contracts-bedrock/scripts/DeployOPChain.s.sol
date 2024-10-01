@@ -48,6 +48,7 @@ contract DeployOPChainInput is BaseDeployIO {
     uint256 internal _l2ChainId;
     OPContractsManager internal _opcmProxy;
     string internal _saltMixer;
+    uint64 internal _gasLimit;
 
     function set(bytes4 _sel, address _addr) public {
         require(_addr != address(0), "DeployOPChainInput: cannot set zero address");
@@ -69,6 +70,8 @@ contract DeployOPChainInput is BaseDeployIO {
         } else if (_sel == this.l2ChainId.selector) {
             require(_value != 0 && _value != block.chainid, "DeployOPChainInput: invalid l2ChainId");
             _l2ChainId = _value;
+        } else if (_sel == this.gasLimit.selector) {
+            _gasLimit = SafeCast.toUint64(_value);
         } else {
             revert("DeployOPChainInput: unknown selector");
         }
@@ -155,6 +158,10 @@ contract DeployOPChainInput is BaseDeployIO {
 
     function saltMixer() public view returns (string memory) {
         return _saltMixer;
+    }
+
+    function gasLimit() public view returns (uint64) {
+        return _gasLimit;
     }
 }
 
@@ -514,7 +521,8 @@ contract DeployOPChain is Script {
             blobBasefeeScalar: _doi.blobBaseFeeScalar(),
             l2ChainId: _doi.l2ChainId(),
             startingAnchorRoots: _doi.startingAnchorRoots(),
-            saltMixer: _doi.saltMixer()
+            saltMixer: _doi.saltMixer(),
+            gasLimit: _doi.gasLimit()
         });
 
         vm.broadcast(msg.sender);

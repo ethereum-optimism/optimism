@@ -35,6 +35,7 @@ type DeployOPChainInput struct {
 	L2ChainId         *big.Int
 	OpcmProxy         common.Address
 	SaltMixer         string
+	GasLimit          uint64
 }
 
 func (input *DeployOPChainInput) InputSet() bool {
@@ -124,6 +125,7 @@ type opcmDeployInput struct {
 	L2ChainId           *big.Int
 	StartingAnchorRoots []byte
 	SaltMixer           string
+	GasLimit            uint64
 }
 
 // decodeOutputABIJSON defines an ABI for a fake method called "decodeOutput" that returns the
@@ -243,6 +245,7 @@ func DeployOPChainRaw(
 		L2ChainId:           input.L2ChainId,
 		StartingAnchorRoots: input.StartingAnchorRoots(),
 		SaltMixer:           input.SaltMixer,
+		GasLimit:            input.GasLimit,
 	})
 	if err != nil {
 		return out, fmt.Errorf("failed to pack deploy input: %w", err)
