@@ -349,18 +349,23 @@ func (m *InstrumentedState) handleRMWOps(insn, opcode uint32) error {
 
 	var retVal Word
 	threadId := m.state.GetCurrentThread().ThreadId
-	if opcode == exec.OpLoadLinked {
+	if opcode == exec.OpLoadLinked || opcode == exec.OpLoadLinked64 {
 		retVal = mem
 		m.state.LLReservationActive = true
 		m.state.LLAddress = effAddr
 		m.state.LLOwnerThread = threadId
-	} else if opcode == exec.OpStoreConditional {
+	} else if opcode == exec.OpStoreConditional || opcode == exec.OpStoreConditional64 {
+		// TODO(#12205): Determine bits affected by coherence stores on 64-bits
 		// Check if our memory reservation is still intact
 		if m.state.LLReservationActive && m.state.LLOwnerThread == threadId && m.state.LLAddress == effAddr {
 			// Complete atomic update: set memory and return 1 for success
 			m.clearLLMemoryReservation()
 			rt := m.state.GetRegistersRef()[rtReg]
-			m.state.Memory.SetWord(effAddr, rt)
+			if opcode == exec.OpStoreConditional {
+				m.state.Memory.SetWord(effAddr, rt)
+			} else {
+				m.state.Memory.SetMemory(effAddr, rt)
+			}
 			retVal = 1
 		} else {
 			// Atomic update failed, return 0 for failure
