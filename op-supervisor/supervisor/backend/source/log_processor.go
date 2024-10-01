@@ -34,7 +34,7 @@ type logProcessor struct {
 	eventDecoder EventDecoder
 }
 
-func newLogProcessor(chain types.ChainID, logStore LogStorage) *logProcessor {
+func NewLogProcessor(chain types.ChainID, logStore LogStorage) *logProcessor {
 	return &logProcessor{
 		chain:        chain,
 		logStore:     logStore,

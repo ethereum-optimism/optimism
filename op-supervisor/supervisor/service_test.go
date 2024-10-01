@@ -6,11 +6,8 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-supervisor/config"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-service/dial"
@@ -61,12 +58,18 @@ func TestSupervisorService(t *testing.T) {
 		cl, err := dial.DialRPCClientWithTimeout(context.Background(), time.Second*5, logger, endpoint)
 		require.NoError(t, err)
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-		var dest types.SafetyLevel
-		err = cl.CallContext(ctx, &dest, "supervisor_checkBlock",
-			(*hexutil.U256)(uint256.NewInt(1)), common.Hash{0xab}, hexutil.Uint64(123))
+		var result types.ReferenceView
+		chainID := types.ChainIDFromUInt64(1)
+		unsafe := types.ReferenceView{}
+		err = cl.CallContext(
+			ctx,
+			&result,
+			"supervisor_unsafeView",
+			chainID,
+			unsafe)
 		cancel()
 		require.NoError(t, err)
-		require.Equal(t, types.CrossUnsafe, dest, "expecting mock to return cross-unsafe")
+		require.Equal(t, types.ReferenceView{}, result, "expecting mock to return empty reference view")
 		cl.Close()
 	}
 	require.NoError(t, supervisor.Stop(context.Background()), "stop service")
