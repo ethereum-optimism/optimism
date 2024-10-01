@@ -9,13 +9,15 @@ import { DeployOPChain_TestBase } from "test/opcm/DeployOPChain.t.sol";
 import { OPContractsManager } from "src/L1/OPContractsManager.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
+import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
+import { IProtocolVersions } from "src/L1/interfaces/IProtocolVersions.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 
 // Exposes internal functions for testing.
 contract OPContractsManager_Harness is OPContractsManager {
     constructor(
-        SuperchainConfig _superchainConfig,
-        ProtocolVersions _protocolVersions
+        ISuperchainConfig _superchainConfig,
+        IProtocolVersions _protocolVersions
     )
         OPContractsManager(_superchainConfig, _protocolVersions)
     { }
@@ -68,7 +70,8 @@ contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase {
             basefeeScalar: _doi.basefeeScalar(),
             blobBasefeeScalar: _doi.blobBaseFeeScalar(),
             l2ChainId: _doi.l2ChainId(),
-            startingAnchorRoots: _doi.startingAnchorRoots()
+            startingAnchorRoots: _doi.startingAnchorRoots(),
+            saltMixer: _doi.saltMixer()
         });
     }
 
@@ -99,8 +102,8 @@ contract OPContractsManager_InternalMethods_Test is Test {
     OPContractsManager_Harness opcmHarness;
 
     function setUp() public {
-        SuperchainConfig superchainConfigProxy = SuperchainConfig(makeAddr("superchainConfig"));
-        ProtocolVersions protocolVersionsProxy = ProtocolVersions(makeAddr("protocolVersions"));
+        ISuperchainConfig superchainConfigProxy = ISuperchainConfig(makeAddr("superchainConfig"));
+        IProtocolVersions protocolVersionsProxy = IProtocolVersions(makeAddr("protocolVersions"));
         vm.etch(address(superchainConfigProxy), hex"01");
         vm.etch(address(protocolVersionsProxy), hex"01");
 

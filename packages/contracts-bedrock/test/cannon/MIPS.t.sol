@@ -1,13 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
+
+// Contracts
 import { MIPS } from "src/cannon/MIPS.sol";
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
+
+// Libraries
 import { MIPSInstructions } from "src/cannon/libraries/MIPSInstructions.sol";
 import { MIPSSyscalls as sys } from "src/cannon/libraries/MIPSSyscalls.sol";
 import { InvalidExitedValue, InvalidMemoryProof } from "src/cannon/libraries/CannonErrors.sol";
 import "src/dispute/lib/Types.sol";
+
+// Interfaces
+import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
 
 contract MIPS_Test is CommonTest {
     MIPS internal mips;
@@ -16,7 +24,7 @@ contract MIPS_Test is CommonTest {
     function setUp() public virtual override {
         super.setUp();
         oracle = new PreimageOracle(0, 0);
-        mips = new MIPS(oracle);
+        mips = new MIPS(IPreimageOracle(address(oracle)));
         vm.store(address(mips), 0x0, bytes32(abi.encode(address(oracle))));
         vm.label(address(oracle), "PreimageOracle");
         vm.label(address(mips), "MIPS");
@@ -1605,7 +1613,7 @@ contract MIPS_Test is CommonTest {
         assertEq(postState, outputState(expect), "unexpected post state");
     }
 
-    function test_fcntl_succeeds() external {
+    function test_fcntl_getfl_succeeds() external {
         uint32 insn = 0x0000000c; // syscall
         (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
         state.registers[2] = 4055; // fcntl syscall
@@ -1628,6 +1636,25 @@ contract MIPS_Test is CommonTest {
         expect.registers[4] = state.registers[4];
         expect.registers[2] = 1;
         postState = mips.step(encodeState(state), proof, 0);
+        assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    function test_fcntl_getfd_succeeds() external {
+        uint32 insn = 0x0000000c; // syscall
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        state.registers[2] = 4055; // fcntl syscall
+        state.registers[4] = 0x0; // a0
+        state.registers[5] = 0x1; // a1
+
+        MIPS.State memory expect;
+        expect.memRoot = state.memRoot;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
+        expect.step = state.step + 1;
+        expect.registers[2] = 0;
+        expect.registers[5] = state.registers[5];
+
+        bytes32 postState = mips.step(encodeState(state), proof, 0);
         assertEq(postState, outputState(expect), "unexpected post state");
     }
 

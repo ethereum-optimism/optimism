@@ -35,7 +35,7 @@ type PrestateSource interface {
 	// PrestatePath returns the path to the prestate file to use for the game.
 	// The provided prestateHash may be used to differentiate between different states but no guarantee is made that
 	// the returned prestate matches the supplied hash.
-	PrestatePath(prestateHash common.Hash) (string, error)
+	PrestatePath(ctx context.Context, prestateHash common.Hash) (string, error)
 }
 
 type RollupClient interface {

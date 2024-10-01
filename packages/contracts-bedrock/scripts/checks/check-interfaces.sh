@@ -45,29 +45,31 @@ EXCLUDE_CONTRACTS=(
     "ISchemaResolver"
     "ISchemaRegistry"
 
-    # Kontrol
+    # TODO: Interfaces that need to be fixed are below this line
+    # ----------------------------------------------------------
+
+    # Inlined interface, needs to be replaced.
+    "IInitializable"
+
+    # Missing various functions.
+    "IPreimageOracle"
+    "ILegacyMintableERC20"
+    "IOptimismMintableERC20"
+    "IOptimismMintableERC721"
+    "IOptimismSuperchainERC20"
+
+    # Doesn't start with "I"
+    "MintableAndBurnable"
     "KontrolCheatsBase"
 
-    # TODO: Interfaces that need to be fixed
-    "IOptimismSuperchainERC20"
-    "IOptimismMintableERC721"
-    "IOptimismMintableERC20"
-    "ILegacyMintableERC20"
-    "IInitializable"
-    "IPreimageOracle"
-    "ICrossL2Inbox"
-    "IL2ToL2CrossDomainMessenger"
-    "MintableAndBurnable"
+    # Currently inherit from interface, needs to be fixed.
     "IWETH"
     "IDelayedWETH"
-    "IResolvedDelegateProxy"
+    "IL2ToL2CrossDomainMessenger"
+    "ICrossL2Inbox"
 
-    # TODO: Kontrol interfaces that need to be removed
-    "IL1ERC721Bridge"
-    "IL1StandardBridge"
-    "IL1CrossDomainMessenger"
-    "ISuperchainConfig"
-    "IOptimismPortal"
+    # Solidity complains about receive but contract doens't have it.
+    "IResolvedDelegateProxy"
 )
 
 # Find all JSON files in the forge-artifacts folder

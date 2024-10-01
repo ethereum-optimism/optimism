@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/bootstrap"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/version"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 
@@ -40,6 +42,11 @@ func main() {
 			Usage:  "applies a chain intent to the chain",
 			Flags:  cliapp.ProtectFlags(deployer.ApplyFlags),
 			Action: deployer.ApplyCLI(),
+		},
+		{
+			Name:        "bootstrap",
+			Usage:       "bootstraps global contract instances",
+			Subcommands: bootstrap.Commands,
 		},
 		{
 			Name:        "inspect",

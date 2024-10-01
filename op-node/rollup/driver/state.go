@@ -483,6 +483,10 @@ func (s *Driver) OverrideLeader(ctx context.Context) error {
 	return s.sequencer.OverrideLeader(ctx)
 }
 
+func (s *Driver) ConductorEnabled(ctx context.Context) (bool, error) {
+	return s.sequencer.ConductorEnabled(ctx), nil
+}
+
 // SyncStatus blocks the driver event loop and captures the syncing status.
 func (s *Driver) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
 	return s.statusTracker.SyncStatus(), nil

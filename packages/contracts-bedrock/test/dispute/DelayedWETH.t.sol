@@ -22,7 +22,7 @@ contract DelayedWETH_Init is CommonTest {
         super.setUp();
 
         // Transfer ownership of delayed WETH to the test contract.
-        vm.prank(deploy.mustGetAddress("SystemOwnerSafe"));
+        vm.prank(delayedWeth.owner());
         delayedWeth.transferOwnership(address(this));
     }
 }

@@ -32,7 +32,7 @@
     "label": "systemConfigs",
     "offset": 0,
     "slot": "3",
-    "type": "mapping(uint256 => contract SystemConfig)"
+    "type": "mapping(uint256 => contract ISystemConfig)"
   },
   {
     "bytes": "256",

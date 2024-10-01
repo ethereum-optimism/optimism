@@ -7,6 +7,10 @@ import { LibString } from "@solady/utils/LibString.sol";
 
 import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
 import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
+import { IProtocolVersions } from "src/L1/interfaces/IProtocolVersions.sol";
+import { ISystemConfigV160 } from "src/L1/interfaces/ISystemConfigV160.sol";
+import { IL1CrossDomainMessengerV160 } from "src/L1/interfaces/IL1CrossDomainMessengerV160.sol";
+import { IL1StandardBridgeV160 } from "src/L1/interfaces/IL1StandardBridgeV160.sol";
 
 import { Constants } from "src/libraries/Constants.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -26,8 +30,6 @@ import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
 import { PermissionedDisputeGame } from "src/dispute/PermissionedDisputeGame.sol";
 
-import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
-import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
 import { OPContractsManager } from "src/L1/OPContractsManager.sol";
 import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
@@ -59,10 +61,12 @@ contract DeployImplementationsInput is BaseDeployIO {
     string internal _release;
 
     // Outputs from DeploySuperchain.s.sol.
-    SuperchainConfig internal _superchainConfigProxy;
-    ProtocolVersions internal _protocolVersionsProxy;
+    ISuperchainConfig internal _superchainConfigProxy;
+    IProtocolVersions internal _protocolVersionsProxy;
 
     string internal _standardVersionsToml;
+
+    address internal _opcmProxyOwner;
 
     function set(bytes4 _sel, uint256 _value) public {
         require(_value != 0, "DeployImplementationsInput: cannot set zero value");
@@ -92,8 +96,9 @@ contract DeployImplementationsInput is BaseDeployIO {
 
     function set(bytes4 _sel, address _addr) public {
         require(_addr != address(0), "DeployImplementationsInput: cannot set zero address");
-        if (_sel == this.superchainConfigProxy.selector) _superchainConfigProxy = SuperchainConfig(_addr);
-        else if (_sel == this.protocolVersionsProxy.selector) _protocolVersionsProxy = ProtocolVersions(_addr);
+        if (_sel == this.superchainConfigProxy.selector) _superchainConfigProxy = ISuperchainConfig(_addr);
+        else if (_sel == this.protocolVersionsProxy.selector) _protocolVersionsProxy = IProtocolVersions(_addr);
+        else if (_sel == this.opcmProxyOwner.selector) _opcmProxyOwner = _addr;
         else revert("DeployImplementationsInput: unknown selector");
     }
 
@@ -145,23 +150,19 @@ contract DeployImplementationsInput is BaseDeployIO {
         return _standardVersionsToml;
     }
 
-    function superchainConfigProxy() public view returns (SuperchainConfig) {
+    function superchainConfigProxy() public view returns (ISuperchainConfig) {
         require(address(_superchainConfigProxy) != address(0), "DeployImplementationsInput: not set");
         return _superchainConfigProxy;
     }
 
-    function protocolVersionsProxy() public view returns (ProtocolVersions) {
+    function protocolVersionsProxy() public view returns (IProtocolVersions) {
         require(address(_protocolVersionsProxy) != address(0), "DeployImplementationsInput: not set");
         return _protocolVersionsProxy;
     }
 
-    function superchainProxyAdmin() public returns (ProxyAdmin) {
-        SuperchainConfig proxy = this.superchainConfigProxy();
-        // Can infer the superchainProxyAdmin from the superchainConfigProxy.
-        vm.prank(address(0));
-        ProxyAdmin proxyAdmin = ProxyAdmin(Proxy(payable(address(proxy))).admin());
-        require(address(proxyAdmin) != address(0), "DeployImplementationsInput: not set");
-        return proxyAdmin;
+    function opcmProxyOwner() public view returns (address) {
+        require(address(_opcmProxyOwner) != address(0), "DeployImplementationsInput: not set");
+        return _opcmProxyOwner;
     }
 }
 
@@ -307,7 +308,7 @@ contract DeployImplementationsOutput is BaseDeployIO {
         Proxy proxy = Proxy(payable(address(opcmProxy())));
         vm.prank(address(0));
         address admin = proxy.admin();
-        require(admin == address(_dii.superchainProxyAdmin()), "OPCMP-10");
+        require(admin == address(_dii.opcmProxyOwner()), "OPCMP-10");
 
         // Then we check the proxy as OPCM.
         DeployUtils.assertInitialized({ _contractAddress: address(opcmProxy()), _slot: 0, _offset: 0 });
@@ -479,7 +480,7 @@ contract DeployImplementations is Script {
     // --- OP Contracts Manager ---
 
     function opcmSystemConfigSetter(
-        DeployImplementationsInput,
+        DeployImplementationsInput _dii,
         DeployImplementationsOutput _dio
     )
         internal
@@ -487,9 +488,55 @@ contract DeployImplementations is Script {
         virtual
         returns (OPContractsManager.ImplementationSetter memory)
     {
+        // When configuring OPCM during Solidity tests, we are using the latest SystemConfig.sol
+        // version in this repo, which contains Custom Gas Token (CGT) features. This CGT version
+        // has a different `initialize` signature than the SystemConfig version that was released
+        // as part of `op-contracts/v1.6.0`, which is no longer in the repo. When running this
+        // script's bytecode for a production deploy of OPCM at `op-contracts/v1.6.0`, we need to
+        // use the ISystemConfigV160 interface instead of ISystemConfig. Therefore the selector used
+        // is a function of the `release` passed in by the caller.
+        bytes4 selector = LibString.eq(_dii.release(), "op-contracts/v1.6.0")
+            ? ISystemConfigV160.initialize.selector
+            : SystemConfig.initialize.selector;
         return OPContractsManager.ImplementationSetter({
             name: "SystemConfig",
-            info: OPContractsManager.Implementation(address(_dio.systemConfigImpl()), SystemConfig.initialize.selector)
+            info: OPContractsManager.Implementation(address(_dio.systemConfigImpl()), selector)
+        });
+    }
+
+    function l1CrossDomainMessengerConfigSetter(
+        DeployImplementationsInput _dii,
+        DeployImplementationsOutput _dio
+    )
+        internal
+        view
+        virtual
+        returns (OPContractsManager.ImplementationSetter memory)
+    {
+        bytes4 selector = LibString.eq(_dii.release(), "op-contracts/v1.6.0")
+            ? IL1CrossDomainMessengerV160.initialize.selector
+            : L1CrossDomainMessenger.initialize.selector;
+        return OPContractsManager.ImplementationSetter({
+            name: "L1CrossDomainMessenger",
+            info: OPContractsManager.Implementation(address(_dio.l1CrossDomainMessengerImpl()), selector)
+        });
+    }
+
+    function l1StandardBridgeConfigSetter(
+        DeployImplementationsInput _dii,
+        DeployImplementationsOutput _dio
+    )
+        internal
+        view
+        virtual
+        returns (OPContractsManager.ImplementationSetter memory)
+    {
+        bytes4 selector = LibString.eq(_dii.release(), "op-contracts/v1.6.0")
+            ? IL1StandardBridgeV160.initialize.selector
+            : L1StandardBridge.initialize.selector;
+        return OPContractsManager.ImplementationSetter({
+            name: "L1StandardBridge",
+            info: OPContractsManager.Implementation(address(_dio.l1StandardBridgeImpl()), selector)
         });
     }
 
@@ -505,7 +552,7 @@ contract DeployImplementations is Script {
         virtual
         returns (OPContractsManager opcmProxy_)
     {
-        ProxyAdmin proxyAdmin = _dii.superchainProxyAdmin();
+        address opcmProxyOwner = _dii.opcmProxyOwner();
 
         vm.broadcast(msg.sender);
         Proxy proxy = new Proxy(address(msg.sender));
@@ -521,7 +568,7 @@ contract DeployImplementations is Script {
             address(opcmImpl), abi.encodeWithSelector(opcmImpl.initialize.selector, initializerInputs)
         );
 
-        proxy.changeAdmin(address(proxyAdmin)); // transfer ownership of Proxy contract to the ProxyAdmin contract
+        proxy.changeAdmin(address(opcmProxyOwner)); // transfer ownership of Proxy contract to the ProxyAdmin contract
         vm.stopBroadcast();
 
         opcmProxy_ = OPContractsManager(address(proxy));
@@ -568,18 +615,8 @@ contract DeployImplementations is Script {
                 address(_dio.optimismMintableERC20FactoryImpl()), OptimismMintableERC20Factory.initialize.selector
             )
         });
-        setters[4] = OPContractsManager.ImplementationSetter({
-            name: "L1CrossDomainMessenger",
-            info: OPContractsManager.Implementation(
-                address(_dio.l1CrossDomainMessengerImpl()), L1CrossDomainMessenger.initialize.selector
-            )
-        });
-        setters[5] = OPContractsManager.ImplementationSetter({
-            name: "L1StandardBridge",
-            info: OPContractsManager.Implementation(
-                address(_dio.l1StandardBridgeImpl()), L1StandardBridge.initialize.selector
-            )
-        });
+        setters[4] = l1CrossDomainMessengerConfigSetter(_dii, _dio);
+        setters[5] = l1StandardBridgeConfigSetter(_dii, _dio);
         setters[6] = OPContractsManager.ImplementationSetter({
             name: "DisputeGameFactory",
             info: OPContractsManager.Implementation(
@@ -739,8 +776,8 @@ contract DeployImplementations is Script {
         public
         virtual
     {
-        SuperchainConfig superchainConfigProxy = _dii.superchainConfigProxy();
-        ProtocolVersions protocolVersionsProxy = _dii.protocolVersionsProxy();
+        ISuperchainConfig superchainConfigProxy = _dii.superchainConfigProxy();
+        IProtocolVersions protocolVersionsProxy = _dii.protocolVersionsProxy();
 
         vm.broadcast(msg.sender);
         // TODO: Eventually we will want to select the correct implementation based on the release.
@@ -874,7 +911,7 @@ contract DeployImplementations is Script {
         if (existingImplementation != address(0)) {
             singleton = MIPS(payable(existingImplementation));
         } else if (isDevelopRelease(release)) {
-            IPreimageOracle preimageOracle = IPreimageOracle(_dio.preimageOracleSingleton());
+            IPreimageOracle preimageOracle = IPreimageOracle(address(_dio.preimageOracleSingleton()));
             vm.broadcast(msg.sender);
             singleton = new MIPS(preimageOracle);
         } else {
@@ -1025,7 +1062,7 @@ contract DeployImplementationsInterop is DeployImplementations {
         override
         returns (OPContractsManager opcmProxy_)
     {
-        ProxyAdmin proxyAdmin = _dii.superchainProxyAdmin();
+        address opcmProxyOwner = _dii.opcmProxyOwner();
 
         vm.broadcast(msg.sender);
         Proxy proxy = new Proxy(address(msg.sender));
@@ -1041,7 +1078,7 @@ contract DeployImplementationsInterop is DeployImplementations {
             address(opcmImpl), abi.encodeWithSelector(opcmImpl.initialize.selector, initializerInputs)
         );
 
-        proxy.changeAdmin(address(proxyAdmin)); // transfer ownership of Proxy contract to the ProxyAdmin contract
+        proxy.changeAdmin(opcmProxyOwner); // transfer ownership of Proxy contract to the ProxyAdmin contract
         vm.stopBroadcast();
 
         opcmProxy_ = OPContractsManagerInterop(address(proxy));
@@ -1109,8 +1146,8 @@ contract DeployImplementationsInterop is DeployImplementations {
         public
         override
     {
-        SuperchainConfig superchainConfigProxy = _dii.superchainConfigProxy();
-        ProtocolVersions protocolVersionsProxy = _dii.protocolVersionsProxy();
+        ISuperchainConfig superchainConfigProxy = _dii.superchainConfigProxy();
+        IProtocolVersions protocolVersionsProxy = _dii.protocolVersionsProxy();
 
         vm.broadcast(msg.sender);
         // TODO: Eventually we will want to select the correct implementation based on the release.

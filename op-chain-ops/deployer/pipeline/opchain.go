@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -40,58 +39,31 @@ func DeployOPChain(ctx context.Context, env *Env, artifactsFS foundry.StatDirFs,
 		BlobBaseFeeScalar:      801949,
 		L2ChainId:              chainID.Big(),
 		OpcmProxy:              st.ImplementationsDeployment.OpcmProxyAddress,
+		SaltMixer:              st.Create2Salt.String(), // passing through salt generated at state initialization
 	}
 
 	var dco opcm.DeployOPChainOutput
-	if intent.OPCMAddress == (common.Address{}) {
-		err = CallScriptBroadcast(
-			ctx,
-			CallScriptBroadcastOpts{
-				L1ChainID:   big.NewInt(int64(intent.L1ChainID)),
-				Logger:      lgr,
-				ArtifactsFS: artifactsFS,
-				Deployer:    env.Deployer,
-				Signer:      env.Signer,
-				Client:      env.L1Client,
-				Broadcaster: KeyedBroadcaster,
-				Handler: func(host *script.Host) error {
-					host.ImportState(st.ImplementationsDeployment.StateDump)
-
-					dco, err = opcm.DeployOPChain(
-						host,
-						input,
-					)
-					return err
-				},
-			},
-		)
-		if err != nil {
-			return fmt.Errorf("error deploying OP chain: %w", err)
-		}
-	} else {
-		lgr.Info("deploying using existing OPCM", "address", intent.OPCMAddress.Hex())
-
-		bcaster, err := broadcaster.NewKeyedBroadcaster(broadcaster.KeyedBroadcasterOpts{
-			Logger:  lgr,
-			ChainID: big.NewInt(int64(intent.L1ChainID)),
-			Client:  env.L1Client,
-			Signer:  env.Signer,
-			From:    env.Deployer,
-		})
-		if err != nil {
-			return fmt.Errorf("failed to create broadcaster: %w", err)
-		}
-		dco, err = opcm.DeployOPChainRaw(
-			ctx,
-			env.L1Client,
-			bcaster,
-			env.Deployer,
-			artifactsFS,
-			input,
-		)
-		if err != nil {
-			return fmt.Errorf("error deploying OP chain: %w", err)
-		}
+	lgr.Info("deploying using existing OPCM", "address", st.ImplementationsDeployment.OpcmProxyAddress.Hex())
+	bcaster, err := broadcaster.NewKeyedBroadcaster(broadcaster.KeyedBroadcasterOpts{
+		Logger:  lgr,
+		ChainID: big.NewInt(int64(intent.L1ChainID)),
+		Client:  env.L1Client,
+		Signer:  env.Signer,
+		From:    env.Deployer,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create broadcaster: %w", err)
+	}
+	dco, err = opcm.DeployOPChainRaw(
+		ctx,
+		env.L1Client,
+		bcaster,
+		env.Deployer,
+		artifactsFS,
+		input,
+	)
+	if err != nil {
+		return fmt.Errorf("error deploying OP chain: %w", err)
 	}
 
 	st.Chains = append(st.Chains, &state.ChainState{

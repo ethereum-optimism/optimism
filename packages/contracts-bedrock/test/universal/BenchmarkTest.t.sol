@@ -10,7 +10,7 @@ import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
 // Libraries
 import { Types } from "src/libraries/Types.sol";
 import { SafeCall } from "src/libraries/SafeCall.sol";
-import { L1BlockIsthmus } from "src/L2/L1BlockIsthmus.sol";
+import { L1BlockInterop } from "src/L2/L1BlockInterop.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 
 // Interfaces
@@ -254,13 +254,13 @@ contract GasBenchMark_L1Block_SetValuesEcotone_Warm is GasBenchMark_L1Block {
     }
 }
 
-contract GasBenchMark_L1BlockIsthmus is GasBenchMark_L1Block {
-    L1BlockIsthmus l1BlockIsthmus;
+contract GasBenchMark_L1BlockInterop is GasBenchMark_L1Block {
+    L1BlockInterop l1BlockInterop;
 
     function setUp() public virtual override {
         super.setUp();
-        l1BlockIsthmus = new L1BlockIsthmus();
-        setValuesCalldata = Encoding.encodeSetL1BlockValuesIsthmus(
+        l1BlockInterop = new L1BlockInterop();
+        setValuesCalldata = Encoding.encodeSetL1BlockValuesInterop(
             type(uint32).max,
             type(uint32).max,
             type(uint64).max,
@@ -274,42 +274,42 @@ contract GasBenchMark_L1BlockIsthmus is GasBenchMark_L1Block {
     }
 }
 
-contract GasBenchMark_L1BlockIsthmus_SetValuesIsthmus is GasBenchMark_L1BlockIsthmus {
-    function test_setL1BlockValuesIsthmus_benchmark() external {
-        SafeCall.call({ _target: address(l1BlockIsthmus), _calldata: setValuesCalldata });
+contract GasBenchMark_L1BlockInterop_SetValuesInterop is GasBenchMark_L1BlockInterop {
+    function test_setL1BlockValuesInterop_benchmark() external {
+        SafeCall.call({ _target: address(l1BlockInterop), _calldata: setValuesCalldata });
     }
 }
 
-contract GasBenchMark_L1BlockIsthmus_SetValuesIsthmus_Warm is GasBenchMark_L1BlockIsthmus {
+contract GasBenchMark_L1BlockInterop_SetValuesInterop_Warm is GasBenchMark_L1BlockInterop {
     function setUp() public virtual override {
-        SafeCall.call({ _target: address(l1BlockIsthmus), _calldata: setValuesCalldata });
+        SafeCall.call({ _target: address(l1BlockInterop), _calldata: setValuesCalldata });
     }
 
-    function test_setL1BlockValuesIsthmus_benchmark() external {
-        SafeCall.call({ _target: address(l1BlockIsthmus), _calldata: setValuesCalldata });
+    function test_setL1BlockValuesInterop_benchmark() external {
+        SafeCall.call({ _target: address(l1BlockInterop), _calldata: setValuesCalldata });
     }
 }
 
-contract GasBenchMark_L1BlockIsthmus_DepositsComplete is GasBenchMark_L1BlockIsthmus {
+contract GasBenchMark_L1BlockInterop_DepositsComplete is GasBenchMark_L1BlockInterop {
     function test_depositsComplete_benchmark() external {
         SafeCall.call({
-            _target: address(l1BlockIsthmus),
-            _calldata: abi.encodeWithSelector(l1BlockIsthmus.depositsComplete.selector)
+            _target: address(l1BlockInterop),
+            _calldata: abi.encodeWithSelector(l1BlockInterop.depositsComplete.selector)
         });
     }
 }
 
-contract GasBenchMark_L1BlockIsthmus_DepositsComplete_Warm is GasBenchMark_L1BlockIsthmus {
+contract GasBenchMark_L1BlockInterop_DepositsComplete_Warm is GasBenchMark_L1BlockInterop {
     function setUp() public virtual override {
         super.setUp();
         // Set the isDeposit flag to true so then we can benchmark when it is reset.
-        SafeCall.call({ _target: address(l1BlockIsthmus), _calldata: setValuesCalldata });
+        SafeCall.call({ _target: address(l1BlockInterop), _calldata: setValuesCalldata });
     }
 
     function test_depositsComplete_benchmark() external {
         SafeCall.call({
-            _target: address(l1BlockIsthmus),
-            _calldata: abi.encodeWithSelector(l1BlockIsthmus.depositsComplete.selector)
+            _target: address(l1BlockInterop),
+            _calldata: abi.encodeWithSelector(l1BlockInterop.depositsComplete.selector)
         });
     }
 }

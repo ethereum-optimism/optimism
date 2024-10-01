@@ -198,7 +198,6 @@ func makeIntent(
 			ProtocolVersionsOwner: addrFor(devkeys.SuperchainDeployerKey.Key(l1ChainID)),
 			Guardian:              addrFor(devkeys.SuperchainConfigGuardianKey.Key(l1ChainID)),
 		},
-		UseFaultProofs:       true,
 		FundDevAccounts:      true,
 		ContractArtifactsURL: (*state.ArtifactsURL)(artifactsURL),
 		ContractsRelease:     "dev",
@@ -239,11 +238,10 @@ func validateOPChainDeployment(t *testing.T, ctx context.Context, l1Client *ethc
 			{"OptimismPortalProxyAddress", chainState.OptimismPortalProxyAddress},
 			{"DisputeGameFactoryProxyAddress", chainState.DisputeGameFactoryProxyAddress},
 			{"AnchorStateRegistryProxyAddress", chainState.AnchorStateRegistryProxyAddress},
-			{"AnchorStateRegistryImplAddress", chainState.AnchorStateRegistryImplAddress},
 			{"FaultDisputeGameAddress", chainState.FaultDisputeGameAddress},
 			{"PermissionedDisputeGameAddress", chainState.PermissionedDisputeGameAddress},
 			{"DelayedWETHPermissionedGameProxyAddress", chainState.DelayedWETHPermissionedGameProxyAddress},
-			{"DelayedWETHPermissionlessGameProxyAddress", chainState.DelayedWETHPermissionlessGameProxyAddress},
+			// {"DelayedWETHPermissionlessGameProxyAddress", chainState.DelayedWETHPermissionlessGameProxyAddress},
 		}
 		for _, addr := range chainAddrs {
 			// TODO Delete this `if`` block once FaultDisputeGameAddress is deployed.

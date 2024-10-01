@@ -122,8 +122,8 @@ library Hashing {
         );
     }
 
-    /// @notice Generates a unique hash for a message to be relayed across chains. This hash is
-    ///         used to identify the message and ensure it is not relayed more than once.
+    /// @notice Generates a unique hash for cross l2 messages. This hash is used to identify
+    ///         the message and ensure it is not relayed more than once.
     /// @param _destination Chain ID of the destination chain.
     /// @param _source Chain ID of the source chain.
     /// @param _nonce Unique nonce associated with the message to prevent replay attacks.
@@ -131,7 +131,7 @@ library Hashing {
     /// @param _target Address of the contract or wallet that the message is targeting on the destination chain.
     /// @param _message The message payload to be relayed to the target on the destination chain.
     /// @return Hash of the encoded message parameters, used to uniquely identify the message.
-    function hashL2toL2CrossDomainMessengerRelayMessage(
+    function hashL2toL2CrossDomainMessage(
         uint256 _destination,
         uint256 _source,
         uint256 _nonce,

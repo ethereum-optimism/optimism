@@ -21,7 +21,7 @@ type Source interface {
 }
 
 type LogProcessor interface {
-	ProcessLogs(ctx context.Context, block eth.L1BlockRef, receipts gethtypes.Receipts) error
+	ProcessLogs(ctx context.Context, block eth.L2BlockRef, receipts gethtypes.Receipts) error
 }
 
 type DatabaseRewinder interface {
@@ -130,7 +130,13 @@ func (s *ChainProcessor) worker() {
 
 func (s *ChainProcessor) update(nextNum uint64) error {
 	ctx, cancel := context.WithTimeout(s.ctx, time.Second*10)
-	next, err := s.client.L1BlockRefByNumber(ctx, nextNum)
+	nextL1, err := s.client.L1BlockRefByNumber(ctx, nextNum)
+	next := eth.L2BlockRef{
+		Hash:       nextL1.Hash,
+		ParentHash: nextL1.ParentHash,
+		Number:     nextL1.Number,
+		Time:       nextL1.Time,
+	}
 	cancel()
 	if err != nil {
 		return fmt.Errorf("failed to fetch next block: %w", err)

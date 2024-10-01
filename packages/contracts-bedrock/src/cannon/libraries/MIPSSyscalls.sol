@@ -347,7 +347,7 @@ library MIPSSyscalls {
     /// retrieve the file-descriptor R/W flags.
     /// @param _a0 The file descriptor.
     /// @param _a1 The control command.
-    /// @param v0_ The file status flag (only supported command is F_GETFL), or -1 on error.
+    /// @param v0_ The file status flag (only supported commands are F_GETFD and F_GETFL), or -1 on error.
     /// @param v1_ An error number, or 0 if there is no error.
     function handleSysFcntl(uint32 _a0, uint32 _a1) internal pure returns (uint32 v0_, uint32 v1_) {
         unchecked {
@@ -355,8 +355,19 @@ library MIPSSyscalls {
             v1_ = uint32(0);
 
             // args: _a0 = fd, _a1 = cmd
-            if (_a1 == 3) {
-                // F_GETFL: get file descriptor flags
+            if (_a1 == 1) {
+                // F_GETFD: get file descriptor flags
+                if (
+                    _a0 == FD_STDIN || _a0 == FD_STDOUT || _a0 == FD_STDERR || _a0 == FD_PREIMAGE_READ
+                        || _a0 == FD_HINT_READ || _a0 == FD_PREIMAGE_WRITE || _a0 == FD_HINT_WRITE
+                ) {
+                    v0_ = 0; // No flags set
+                } else {
+                    v0_ = 0xFFffFFff;
+                    v1_ = EBADF;
+                }
+            } else if (_a1 == 3) {
+                // F_GETFL: get file status flags
                 if (_a0 == FD_STDIN || _a0 == FD_PREIMAGE_READ || _a0 == FD_HINT_READ) {
                     v0_ = 0; // O_RDONLY
                 } else if (_a0 == FD_STDOUT || _a0 == FD_STDERR || _a0 == FD_PREIMAGE_WRITE || _a0 == FD_HINT_WRITE) {

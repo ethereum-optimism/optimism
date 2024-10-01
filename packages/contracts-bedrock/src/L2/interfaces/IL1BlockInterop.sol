@@ -7,7 +7,7 @@ enum ConfigType {
     REMOVE_DEPENDENCY
 }
 
-interface IL1BlockIsthmus {
+interface IL1BlockInterop {
     error AlreadyDependency();
     error CantRemovedDependency();
     error DependencySetSizeTooLarge();
@@ -52,9 +52,12 @@ interface IL1BlockIsthmus {
     )
         external;
     function setL1BlockValuesEcotone() external;
-    function setL1BlockValuesIsthmus() external;
+    function setL1BlockValuesHolocene() external;
+    function setL1BlockValuesInterop() external;
     function timestamp() external view returns (uint64);
     function version() external pure returns (string memory);
+    function eip1559Denominator() external view returns (uint64);
+    function eip1559Elasticity() external view returns (uint64);
 
     function __constructor__() external;
 }

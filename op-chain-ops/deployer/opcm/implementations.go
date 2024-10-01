@@ -22,7 +22,7 @@ type DeployImplementationsInput struct {
 	ProtocolVersionsProxy common.Address
 	UseInterop            bool // if true, deploy Interop implementations
 
-	SuperchainProxyAdmin common.Address
+	OpcmProxyOwner       common.Address
 	StandardVersionsToml string // contents of 'standard-versions-mainnet.toml' or 'standard-versions-sepolia.toml' file
 }
 

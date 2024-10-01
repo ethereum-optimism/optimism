@@ -349,23 +349,6 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 
 	gasLimit := candidate.GasLimit
 
-	// If the gas limit is set, we can use that as the gas
-	if gasLimit == 0 {
-		// Calculate the intrinsic gas for the transaction
-		gas, err := m.backend.EstimateGas(ctx, ethereum.CallMsg{
-			From:      m.cfg.From,
-			To:        candidate.To,
-			GasTipCap: gasTipCap,
-			GasFeeCap: gasFeeCap,
-			Data:      candidate.TxData,
-			Value:     candidate.Value,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to estimate gas: %w", errutil.TryAddRevertReason(err))
-		}
-		gasLimit = gas
-	}
-
 	var sidecar *types.BlobTxSidecar
 	var blobHashes []common.Hash
 	if len(candidate.Blobs) > 0 {
@@ -375,6 +358,28 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 		if sidecar, blobHashes, err = MakeSidecar(candidate.Blobs); err != nil {
 			return nil, fmt.Errorf("failed to make sidecar: %w", err)
 		}
+	}
+
+	// If the gas limit is set, we can use that as the gas
+	if gasLimit == 0 {
+		// Calculate the intrinsic gas for the transaction
+		callMsg := ethereum.CallMsg{
+			From:      m.cfg.From,
+			To:        candidate.To,
+			GasTipCap: gasTipCap,
+			GasFeeCap: gasFeeCap,
+			Data:      candidate.TxData,
+			Value:     candidate.Value,
+		}
+		if len(blobHashes) > 0 {
+			callMsg.BlobGasFeeCap = blobBaseFee
+			callMsg.BlobHashes = blobHashes
+		}
+		gas, err := m.backend.EstimateGas(ctx, callMsg)
+		if err != nil {
+			return nil, fmt.Errorf("failed to estimate gas: %w", errutil.TryAddRevertReason(err))
+		}
+		gasLimit = gas
 	}
 
 	var txMessage types.TxData
@@ -812,6 +817,12 @@ func (m *SimpleTxManager) increaseGasPrice(ctx context.Context, tx *types.Transa
 		// approach as of v1.13.6.
 		m.l.Debug("re-estimated gas differs", "tx", tx.Hash(), "oldgas", tx.Gas(), "newgas", gas,
 			"gasFeeCap", bumpedFee, "gasTipCap", bumpedTip)
+	}
+
+	if tx.Gas() > gas {
+		// Don't bump the gas limit down if the passed-in gas limit is higher than
+		// what was originally specified.
+		gas = tx.Gas()
 	}
 
 	var newTx *types.Transaction

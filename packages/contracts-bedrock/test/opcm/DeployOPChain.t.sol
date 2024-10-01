@@ -48,6 +48,7 @@ contract DeployOPChainInput_Test is Test {
     uint32 blobBaseFeeScalar = 200;
     uint256 l2ChainId = 300;
     OPContractsManager opcm = OPContractsManager(makeAddr("opcm"));
+    string saltMixer = "saltMixer";
 
     function setUp() public {
         doi = new DeployOPChainInput();
@@ -141,8 +142,9 @@ contract DeployOPChainOutput_Test is Test {
     FaultDisputeGame faultDisputeGame = FaultDisputeGame(makeAddr("faultDisputeGame"));
     PermissionedDisputeGame permissionedDisputeGame = PermissionedDisputeGame(makeAddr("permissionedDisputeGame"));
     DelayedWETH delayedWETHPermissionedGameProxy = DelayedWETH(payable(makeAddr("delayedWETHPermissionedGameProxy")));
-    DelayedWETH delayedWETHPermissionlessGameProxy =
-        DelayedWETH(payable(makeAddr("delayedWETHPermissionlessGameProxy")));
+    // TODO: Eventually switch from Permissioned to Permissionless.
+    // DelayedWETH delayedWETHPermissionlessGameProxy =
+    //     DelayedWETH(payable(makeAddr("delayedWETHPermissionlessGameProxy")));
 
     function setUp() public {
         doo = new DeployOPChainOutput();
@@ -163,7 +165,8 @@ contract DeployOPChainOutput_Test is Test {
         vm.etch(address(faultDisputeGame), hex"01");
         vm.etch(address(permissionedDisputeGame), hex"01");
         vm.etch(address(delayedWETHPermissionedGameProxy), hex"01");
-        vm.etch(address(delayedWETHPermissionlessGameProxy), hex"01");
+        // TODO: Eventually switch from Permissioned to Permissionless.
+        // vm.etch(address(delayedWETHPermissionlessGameProxy), hex"01");
 
         doo.set(doo.opChainProxyAdmin.selector, address(opChainProxyAdmin));
         doo.set(doo.addressManager.selector, address(addressManager));
@@ -179,7 +182,8 @@ contract DeployOPChainOutput_Test is Test {
         doo.set(doo.faultDisputeGame.selector, address(faultDisputeGame));
         doo.set(doo.permissionedDisputeGame.selector, address(permissionedDisputeGame));
         doo.set(doo.delayedWETHPermissionedGameProxy.selector, address(delayedWETHPermissionedGameProxy));
-        doo.set(doo.delayedWETHPermissionlessGameProxy.selector, address(delayedWETHPermissionlessGameProxy));
+        // TODO: Eventually switch from Permissioned to Permissionless.
+        // doo.set(doo.delayedWETHPermissionlessGameProxy.selector, address(delayedWETHPermissionlessGameProxy));
 
         assertEq(address(opChainProxyAdmin), address(doo.opChainProxyAdmin()), "100");
         assertEq(address(addressManager), address(doo.addressManager()), "200");
@@ -195,7 +199,9 @@ contract DeployOPChainOutput_Test is Test {
         assertEq(address(faultDisputeGame), address(doo.faultDisputeGame()), "1300");
         assertEq(address(permissionedDisputeGame), address(doo.permissionedDisputeGame()), "1400");
         assertEq(address(delayedWETHPermissionedGameProxy), address(doo.delayedWETHPermissionedGameProxy()), "1500");
-        assertEq(address(delayedWETHPermissionlessGameProxy), address(doo.delayedWETHPermissionlessGameProxy()), "1600");
+        // TODO: Eventually switch from Permissioned to Permissionless.
+        // assertEq(address(delayedWETHPermissionlessGameProxy), address(doo.delayedWETHPermissionlessGameProxy()),
+        // "1600");
     }
 
     function test_getters_whenNotSet_revert() public {
@@ -243,8 +249,9 @@ contract DeployOPChainOutput_Test is Test {
         vm.expectRevert(expectedErr);
         doo.delayedWETHPermissionedGameProxy();
 
-        vm.expectRevert(expectedErr);
-        doo.delayedWETHPermissionlessGameProxy();
+        // TODO: Eventually switch from Permissioned to Permissionless.
+        // vm.expectRevert(expectedErr);
+        // doo.delayedWETHPermissionlessGameProxy();
     }
 
     function test_getters_whenAddrHasNoCode_reverts() public {
@@ -307,9 +314,10 @@ contract DeployOPChainOutput_Test is Test {
         vm.expectRevert(expectedErr);
         doo.delayedWETHPermissionedGameProxy();
 
-        doo.set(doo.delayedWETHPermissionlessGameProxy.selector, emptyAddr);
-        vm.expectRevert(expectedErr);
-        doo.delayedWETHPermissionlessGameProxy();
+        // TODO: Eventually switch from Permissioned to Permissionless.
+        // doo.set(doo.delayedWETHPermissionlessGameProxy.selector, emptyAddr);
+        // vm.expectRevert(expectedErr);
+        // doo.delayedWETHPermissionlessGameProxy();
     }
 }
 
@@ -353,6 +361,7 @@ contract DeployOPChain_TestBase is Test {
     uint256 l2ChainId = 300;
     AnchorStateRegistry.StartingAnchorRoot[] startingAnchorRoots;
     OPContractsManager opcm = OPContractsManager(address(0));
+    string saltMixer = "defaultSaltMixer";
 
     function setUp() public virtual {
         // Set defaults for reference types
@@ -408,6 +417,7 @@ contract DeployOPChain_TestBase is Test {
             string.concat(vm.projectRoot(), "/test/fixtures/standard-versions.toml");
         string memory standardVersionsToml = vm.readFile(standardVersionsTomlPath);
         dii.set(dii.standardVersionsToml.selector, standardVersionsToml);
+        dii.set(dii.opcmProxyOwner.selector, address(1));
         deployImplementations.run(dii, dio);
 
         // Deploy DeployOpChain, but defer populating the input values to the test suites inheriting this contract.
@@ -470,6 +480,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         doi.set(doi.blobBaseFeeScalar.selector, blobBaseFeeScalar);
         doi.set(doi.l2ChainId.selector, l2ChainId);
         doi.set(doi.opcmProxy.selector, address(opcm)); // Not fuzzed since it must be an actual instance.
+        doi.set(doi.saltMixer.selector, saltMixer);
 
         deployOPChain.run(doi, doo);
 
@@ -485,6 +496,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         assertEq(basefeeScalar, doi.basefeeScalar(), "700");
         assertEq(blobBaseFeeScalar, doi.blobBaseFeeScalar(), "800");
         assertEq(l2ChainId, doi.l2ChainId(), "900");
+        assertEq(saltMixer, doi.saltMixer(), "1000");
 
         // Assert inputs were properly passed through to the contract initializers.
         assertEq(address(doo.opChainProxyAdmin().owner()), opChainProxyAdminOwner, "2100");
@@ -496,8 +508,12 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         assertEq(address(doo.permissionedDisputeGame().challenger()), challenger, "2600");
 
         // TODO once we deploy the Permissionless Dispute Game
-        // assertEq(address(doo.faultDisputeGame().proposer()), proposer, "2700");
-        // assertEq(address(doo.faultDisputeGame().challenger()), challenger, "2800");
+        // assertEq(address(doo.faultDisputeGame().proposer()), proposer, "2610");
+        // assertEq(address(doo.faultDisputeGame().challenger()), challenger, "2620");
+
+        // Verify that the initial bonds are zero.
+        assertEq(doo.disputeGameFactoryProxy().initBonds(GameTypes.CANNON), 0, "2700");
+        assertEq(doo.disputeGameFactoryProxy().initBonds(GameTypes.PERMISSIONED_CANNON), 0, "2800");
 
         // Most architecture assertions are handled within the OP Contracts Manager itself and therefore
         // we only assert on the things that are not visible onchain.

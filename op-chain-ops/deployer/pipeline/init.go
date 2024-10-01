@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
@@ -19,7 +20,7 @@ func IsSupportedStateVersion(version int) bool {
 	return version == 1
 }
 
-func Init(ctx context.Context, env *Env, artifactsFS foundry.StatDirFs, intent *state.Intent, st *state.State) error {
+func Init(ctx context.Context, env *Env, _ foundry.StatDirFs, intent *state.Intent, st *state.State) error {
 	lgr := env.Logger.New("stage", "init")
 	lgr.Info("initializing pipeline")
 
@@ -35,37 +36,31 @@ func Init(ctx context.Context, env *Env, artifactsFS foundry.StatDirFs, intent *
 		}
 	}
 
-	if intent.OPCMAddress != (common.Address{}) {
-		env.Logger.Info("using provided OPCM address, populating state", "address", intent.OPCMAddress.Hex())
-
-		if intent.ContractsRelease == "dev" {
-			env.Logger.Warn("using dev release with existing OPCM, this field will be ignored")
-		}
-
-		opcmContract := opcm.NewContract(intent.OPCMAddress, env.L1Client)
-		protocolVersions, err := opcmContract.ProtocolVersions(ctx)
+	if strings.HasPrefix(intent.ContractsRelease, "op-contracts") {
+		superCfg, err := opcm.SuperchainFor(intent.L1ChainID)
 		if err != nil {
-			return fmt.Errorf("error getting protocol versions address: %w", err)
+			return fmt.Errorf("error getting superchain config: %w", err)
 		}
-		superchainConfig, err := opcmContract.SuperchainConfig(ctx)
-		if err != nil {
-			return fmt.Errorf("error getting superchain config address: %w", err)
-		}
-		env.Logger.Debug(
-			"populating protocol versions and superchain config addresses",
-			"protocolVersions", protocolVersions.Hex(),
-			"superchainConfig", superchainConfig.Hex(),
-		)
 
-		// The below fields are the only ones required to perform an OP Chain
-		// deployment via an existing OPCM contract. All the others are used
-		// for deploying the OPCM itself, which isn't necessary in this case.
+		proxyAdmin, err := opcm.ManagerOwnerAddrFor(intent.L1ChainID)
+		if err != nil {
+			return fmt.Errorf("error getting superchain proxy admin address: %w", err)
+		}
+
+		// Have to do this weird pointer thing below because the Superchain Registry defines its
+		// own Address type.
 		st.SuperchainDeployment = &state.SuperchainDeployment{
-			ProtocolVersionsProxyAddress: protocolVersions,
-			SuperchainConfigProxyAddress: superchainConfig,
+			ProxyAdminAddress:            proxyAdmin,
+			ProtocolVersionsProxyAddress: common.Address(*superCfg.Config.ProtocolVersionsAddr),
+			SuperchainConfigProxyAddress: common.Address(*superCfg.Config.SuperchainConfigAddr),
+		}
+
+		opcmProxy, err := opcm.ManagerImplementationAddrFor(intent.L1ChainID)
+		if err != nil {
+			return fmt.Errorf("error getting OPCM proxy address: %w", err)
 		}
 		st.ImplementationsDeployment = &state.ImplementationsDeployment{
-			OpcmProxyAddress: intent.OPCMAddress,
+			OpcmProxyAddress: opcmProxy,
 		}
 	}
 
@@ -79,14 +74,6 @@ func Init(ctx context.Context, env *Env, artifactsFS foundry.StatDirFs, intent *
 	// fields have changed.
 	if st.AppliedIntent.L1ChainID != intent.L1ChainID {
 		return immutableErr("L1ChainID", st.AppliedIntent.L1ChainID, intent.L1ChainID)
-	}
-
-	if st.AppliedIntent.UseFaultProofs != intent.UseFaultProofs {
-		return immutableErr("useFaultProofs", st.AppliedIntent.UseFaultProofs, intent.UseFaultProofs)
-	}
-
-	if st.AppliedIntent.UseAltDA != intent.UseAltDA {
-		return immutableErr("useAltDA", st.AppliedIntent.UseAltDA, intent.UseAltDA)
 	}
 
 	if st.AppliedIntent.FundDevAccounts != intent.FundDevAccounts {

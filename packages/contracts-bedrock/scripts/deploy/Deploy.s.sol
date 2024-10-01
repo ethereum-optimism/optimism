@@ -9,12 +9,6 @@ import { stdJson } from "forge-std/StdJson.sol";
 import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
-// Safe
-import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
-import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
-import { GnosisSafeProxyFactory as SafeProxyFactory } from "safe-contracts/proxies/GnosisSafeProxyFactory.sol";
-import { Enum as SafeOps } from "safe-contracts/common/Enum.sol";
-
 // Scripts
 import { Deployer } from "scripts/deploy/Deployer.sol";
 import { Chains } from "scripts/libraries/Chains.sol";
@@ -26,25 +20,19 @@ import { ChainAssertions } from "scripts/deploy/ChainAssertions.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Contracts
-import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
 import { AddressManager } from "src/legacy/AddressManager.sol";
-import { Proxy } from "src/universal/Proxy.sol";
-import { StandardBridge } from "src/universal/StandardBridge.sol";
-import { L1ChugSplashProxy } from "src/legacy/L1ChugSplashProxy.sol";
-import { ResolvedDelegateProxy } from "src/legacy/ResolvedDelegateProxy.sol";
-import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
-import { MIPS } from "src/cannon/MIPS.sol";
-import { MIPS2 } from "src/cannon/MIPS2.sol";
 import { StorageSetter } from "src/universal/StorageSetter.sol";
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Types } from "scripts/libraries/Types.sol";
-import "src/dispute/lib/Types.sol";
 import { LibClaim, Duration } from "src/dispute/lib/LibUDT.sol";
+import "src/dispute/lib/Types.sol";
 
 // Interfaces
+import { IProxy } from "src/universal/interfaces/IProxy.sol";
+import { IProxyAdmin } from "src/universal/interfaces/IProxyAdmin.sol";
 import { IOptimismPortal } from "src/L1/interfaces/IOptimismPortal.sol";
 import { IOptimismPortal2 } from "src/L1/interfaces/IOptimismPortal2.sol";
 import { IOptimismPortalInterop } from "src/L1/interfaces/IOptimismPortalInterop.sol";
@@ -65,8 +53,13 @@ import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol"
 import { IPermissionedDisputeGame } from "src/dispute/interfaces/IPermissionedDisputeGame.sol";
 import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistry.sol";
+import { IMIPS } from "src/cannon/interfaces/IMIPS.sol";
+import { IMIPS2 } from "src/cannon/interfaces/IMIPS2.sol";
 import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
 import { IOptimismMintableERC20Factory } from "src/universal/interfaces/IOptimismMintableERC20Factory.sol";
+import { IAddressManager } from "src/legacy/interfaces/IAddressManager.sol";
+import { IL1ChugSplashProxy } from "src/legacy/interfaces/IL1ChugSplashProxy.sol";
+import { IResolvedDelegateProxy } from "src/legacy/interfaces/IResolvedDelegateProxy.sol";
 
 /// @title Deploy
 /// @notice Script used to deploy a bedrock system. The entire system is deployed within the `run` function.
@@ -197,80 +190,17 @@ contract Deploy is Deployer {
     //            State Changing Helper Functions                 //
     ////////////////////////////////////////////////////////////////
 
-    /// @notice Gets the address of the SafeProxyFactory and Safe singleton for use in deploying a new GnosisSafe.
-    function _getSafeFactory() internal returns (SafeProxyFactory safeProxyFactory_, Safe safeSingleton_) {
-        if (getAddress("SafeProxyFactory") != address(0)) {
-            // The SafeProxyFactory is already saved, we can just use it.
-            safeProxyFactory_ = SafeProxyFactory(getAddress("SafeProxyFactory"));
-            safeSingleton_ = Safe(getAddress("SafeSingleton"));
-            return (safeProxyFactory_, safeSingleton_);
-        }
-
-        // These are the standard create2 deployed contracts. First we'll check if they are deployed,
-        // if not we'll deploy new ones, though not at these addresses.
-        address safeProxyFactory = 0xa6B71E26C5e0845f74c812102Ca7114b6a896AB2;
-        address safeSingleton = 0xd9Db270c1B5E3Bd161E8c8503c55cEABeE709552;
-
-        safeProxyFactory.code.length == 0
-            ? safeProxyFactory_ = new SafeProxyFactory()
-            : safeProxyFactory_ = SafeProxyFactory(safeProxyFactory);
-
-        safeSingleton.code.length == 0 ? safeSingleton_ = new Safe() : safeSingleton_ = Safe(payable(safeSingleton));
-
-        save("SafeProxyFactory", address(safeProxyFactory_));
-        save("SafeSingleton", address(safeSingleton_));
-    }
-
-    /// @notice Make a call from the Safe contract to an arbitrary address with arbitrary data
-    function _callViaSafe(Safe _safe, address _target, bytes memory _data) internal {
-        // This is the signature format used when the caller is also the signer.
-        bytes memory signature = abi.encodePacked(uint256(uint160(msg.sender)), bytes32(0), uint8(1));
-
-        _safe.execTransaction({
-            to: _target,
-            value: 0,
-            data: _data,
-            operation: SafeOps.Operation.Call,
-            safeTxGas: 0,
-            baseGas: 0,
-            gasPrice: 0,
-            gasToken: address(0),
-            refundReceiver: payable(address(0)),
-            signatures: signature
-        });
-    }
-
-    /// @notice Call from the Safe contract to the Proxy Admin's upgrade and call method
-    function _upgradeAndCallViaSafe(address _proxy, address _implementation, bytes memory _innerCallData) internal {
-        address proxyAdmin = mustGetAddress("ProxyAdmin");
-
-        bytes memory data =
-            abi.encodeCall(ProxyAdmin.upgradeAndCall, (payable(_proxy), _implementation, _innerCallData));
-
-        Safe safe = Safe(mustGetAddress("SystemOwnerSafe"));
-        _callViaSafe({ _safe: safe, _target: proxyAdmin, _data: data });
-    }
-
     /// @notice Transfer ownership of the ProxyAdmin contract to the final system owner
-    function transferProxyAdminOwnership() public broadcast {
-        ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
+    function transferProxyAdminOwnership(bool _isSuperchain) public broadcast {
+        string memory proxyAdminName = _isSuperchain ? "SuperchainProxyAdmin" : "ProxyAdmin";
+        IProxyAdmin proxyAdmin = IProxyAdmin(mustGetAddress(proxyAdminName));
         address owner = proxyAdmin.owner();
-        address safe = mustGetAddress("SystemOwnerSafe");
-        if (owner != safe) {
-            proxyAdmin.transferOwnership(safe);
-            console.log("ProxyAdmin ownership transferred to Safe at: %s", safe);
-        }
-    }
 
-    /// @notice Transfer ownership of a Proxy to the ProxyAdmin contract
-    ///         This is expected to be used in conjusting with deployERC1967ProxyWithOwner after setup actions
-    ///         have been performed on the proxy.
-    /// @param _name The name of the proxy to transfer ownership of.
-    function transferProxyToProxyAdmin(string memory _name) public broadcast {
-        Proxy proxy = Proxy(mustGetAddress(_name));
-        address proxyAdmin = mustGetAddress("ProxyAdmin");
-        proxy.changeAdmin(proxyAdmin);
-        console.log("Proxy %s ownership transferred to ProxyAdmin at: %s", _name, proxyAdmin);
+        address finalSystemOwner = cfg.finalSystemOwner();
+        if (owner != finalSystemOwner) {
+            proxyAdmin.transferOwnership(finalSystemOwner);
+            console.log("ProxyAdmin ownership transferred to final system owner at: %s", finalSystemOwner);
+        }
     }
 
     ////////////////////////////////////////////////////////////////
@@ -301,11 +231,11 @@ contract Deploy is Deployer {
 
         console.log("Deploying a fresh OP Stack with existing SuperchainConfig and ProtocolVersions");
 
-        Proxy scProxy = Proxy(_superchainConfigProxy);
+        IProxy scProxy = IProxy(_superchainConfigProxy);
         save("SuperchainConfig", scProxy.implementation());
         save("SuperchainConfigProxy", _superchainConfigProxy);
 
-        Proxy pvProxy = Proxy(_protocolVersionsProxy);
+        IProxy pvProxy = IProxy(_protocolVersionsProxy);
         save("ProtocolVersions", pvProxy.implementation());
         save("ProtocolVersionsProxy", _protocolVersionsProxy);
 
@@ -335,19 +265,14 @@ contract Deploy is Deployer {
     /// @notice Internal function containing the deploy logic.
     function _run(bool _needsSuperchain) internal {
         console.log("start of L1 Deploy!");
-        deploySafe("SystemOwnerSafe");
-        console.log("deployed Safe!");
-
-        // Deploy a new ProxyAdmin and AddressManager
-        // This proxy will be used on the SuperchainConfig and ProtocolVersions contracts, as well as the contracts
-        // in the OP Chain system.
-        setupAdmin();
 
         if (_needsSuperchain) {
+            deployProxyAdmin({ _isSuperchain: true });
             setupSuperchain();
             console.log("set up superchain!");
         }
 
+        setupOpChainAdmin();
         if (cfg.useAltDA()) {
             bytes32 typeHash = keccak256(bytes(cfg.daCommitmentType()));
             bytes32 keccakHash = keccak256(bytes("KeccakCommitment"));
@@ -355,6 +280,7 @@ contract Deploy is Deployer {
                 setupOpAltDA();
             }
         }
+
         setupOpChain();
         console.log("set up op chain!");
     }
@@ -364,10 +290,9 @@ contract Deploy is Deployer {
     ////////////////////////////////////////////////////////////////
 
     /// @notice Deploy the address manager and proxy admin contracts.
-    function setupAdmin() public {
+    function setupOpChainAdmin() public {
         deployAddressManager();
-        deployProxyAdmin();
-        transferProxyAdminOwnership();
+        deployProxyAdmin({ _isSuperchain: false });
     }
 
     /// @notice Deploy a full system with a new SuperchainConfig
@@ -378,12 +303,12 @@ contract Deploy is Deployer {
         console.log("Setting up Superchain");
 
         // Deploy the SuperchainConfigProxy
-        deployERC1967Proxy("SuperchainConfigProxy");
+        deployERC1967ProxyWithOwner("SuperchainConfigProxy", mustGetAddress("SuperchainProxyAdmin"));
         deploySuperchainConfig();
         initializeSuperchainConfig();
 
         // Deploy the ProtocolVersionsProxy
-        deployERC1967Proxy("ProtocolVersionsProxy");
+        deployERC1967ProxyWithOwner("ProtocolVersionsProxy", mustGetAddress("SuperchainProxyAdmin"));
         deployProtocolVersions();
         initializeProtocolVersions();
     }
@@ -394,7 +319,6 @@ contract Deploy is Deployer {
 
         // Ensure that the requisite contracts are deployed
         mustGetAddress("SuperchainConfigProxy");
-        mustGetAddress("SystemOwnerSafe");
         mustGetAddress("AddressManager");
         mustGetAddress("ProxyAdmin");
 
@@ -410,6 +334,7 @@ contract Deploy is Deployer {
 
         transferDisputeGameFactoryOwnership();
         transferDelayedWETHOwnership();
+        transferProxyAdminOwnership({ _isSuperchain: false });
     }
 
     /// @notice Deploy all of the OP Chain specific contracts
@@ -492,70 +417,6 @@ contract Deploy is Deployer {
     //              Non-Proxied Deployment Functions              //
     ////////////////////////////////////////////////////////////////
 
-    /// @notice Deploy the Safe
-    function deploySafe(string memory _name) public broadcast returns (address addr_) {
-        address[] memory owners = new address[](0);
-        addr_ = deploySafe(_name, owners, 1, true);
-    }
-
-    /// @notice Deploy a new Safe contract. If the keepDeployer option is used to enable further setup actions, then
-    ///         the removeDeployerFromSafe() function should be called on that safe after setup is complete.
-    ///         Note this function does not have the broadcast modifier.
-    /// @param _name The name of the Safe to deploy.
-    /// @param _owners The owners of the Safe.
-    /// @param _threshold The threshold of the Safe.
-    /// @param _keepDeployer Wether or not the deployer address will be added as an owner of the Safe.
-    function deploySafe(
-        string memory _name,
-        address[] memory _owners,
-        uint256 _threshold,
-        bool _keepDeployer
-    )
-        public
-        returns (address addr_)
-    {
-        bytes32 salt = keccak256(abi.encode(_name, _implSalt()));
-        console.log("Deploying safe: %s with salt %s", _name, vm.toString(salt));
-        (SafeProxyFactory safeProxyFactory, Safe safeSingleton) = _getSafeFactory();
-
-        if (_keepDeployer) {
-            address[] memory expandedOwners = new address[](_owners.length + 1);
-            // By always adding msg.sender first we know that the previousOwner will be SENTINEL_OWNERS, which makes it
-            // easier to call removeOwner later.
-            expandedOwners[0] = msg.sender;
-            for (uint256 i = 0; i < _owners.length; i++) {
-                expandedOwners[i + 1] = _owners[i];
-            }
-            _owners = expandedOwners;
-        }
-
-        bytes memory initData = abi.encodeCall(
-            Safe.setup, (_owners, _threshold, address(0), hex"", address(0), address(0), 0, payable(address(0)))
-        );
-        addr_ = address(safeProxyFactory.createProxyWithNonce(address(safeSingleton), initData, uint256(salt)));
-
-        save(_name, addr_);
-        console.log("New safe: %s deployed at %s\n    Note that this safe is owned by the deployer key", _name, addr_);
-    }
-
-    /// @notice If the keepDeployer option was used with deploySafe(), this function can be used to remove the deployer.
-    ///         Note this function does not have the broadcast modifier.
-    function removeDeployerFromSafe(string memory _name, uint256 _newThreshold) public {
-        Safe safe = Safe(mustGetAddress(_name));
-
-        // The sentinel address is used to mark the start and end of the linked list of owners in the Safe.
-        address sentinelOwners = address(0x1);
-
-        // Because deploySafe() always adds msg.sender first (if keepDeployer is true), we know that the previousOwner
-        // will be sentinelOwners.
-        _callViaSafe({
-            _safe: safe,
-            _target: address(safe),
-            _data: abi.encodeCall(OwnerManager.removeOwner, (sentinelOwners, msg.sender, _newThreshold))
-        });
-        console.log("Removed deployer owner from ", _name);
-    }
-
     /// @notice Deploy the AddressManager
     function deployAddressManager() public broadcast returns (address addr_) {
         console.log("Deploying AddressManager");
@@ -568,20 +429,33 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy the ProxyAdmin
-    function deployProxyAdmin() public broadcast returns (address addr_) {
-        console.log("Deploying ProxyAdmin");
-        ProxyAdmin admin = new ProxyAdmin({ _owner: msg.sender });
+    function deployProxyAdmin(bool _isSuperchain) public broadcast returns (address addr_) {
+        string memory proxyAdminName = _isSuperchain ? "SuperchainProxyAdmin" : "ProxyAdmin";
+
+        console.log("Deploying %s", proxyAdminName);
+
+        // Include the proxyAdminName in the salt to prevent a create2 collision when both the Superchain and an OP
+        // Chain are being setup.
+        IProxyAdmin admin = IProxyAdmin(
+            DeployUtils.create2AndSave({
+                _save: this,
+                _salt: keccak256(abi.encode(_implSalt(), proxyAdminName)),
+                _name: "ProxyAdmin",
+                _nick: proxyAdminName,
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IProxyAdmin.__constructor__, (msg.sender)))
+            })
+        );
         require(admin.owner() == msg.sender);
 
-        AddressManager addressManager = AddressManager(mustGetAddress("AddressManager"));
-        if (admin.addressManager() != addressManager) {
-            admin.setAddressManager(addressManager);
+        // The AddressManager is only required for OP Chains
+        if (!_isSuperchain) {
+            IAddressManager addressManager = IAddressManager(mustGetAddress("AddressManager"));
+            if (admin.addressManager() != addressManager) {
+                admin.setAddressManager(addressManager);
+            }
+            require(admin.addressManager() == addressManager);
         }
-
-        require(admin.addressManager() == addressManager);
-
-        save("ProxyAdmin", address(admin));
-        console.log("ProxyAdmin deployed at %s", address(admin));
+        console.log("%s deployed at %s", proxyAdminName, address(admin));
         addr_ = address(admin);
     }
 
@@ -601,26 +475,36 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the L1StandardBridgeProxy using a ChugSplashProxy
     function deployL1StandardBridgeProxy() public broadcast returns (address addr_) {
-        console.log("Deploying proxy for L1StandardBridge");
         address proxyAdmin = mustGetAddress("ProxyAdmin");
-        L1ChugSplashProxy proxy = new L1ChugSplashProxy(proxyAdmin);
-
+        IL1ChugSplashProxy proxy = IL1ChugSplashProxy(
+            DeployUtils.create2AndSave({
+                _save: this,
+                _salt: _implSalt(),
+                _name: "L1ChugSplashProxy",
+                _nick: "L1StandardBridgeProxy",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IL1ChugSplashProxy.__constructor__, (proxyAdmin)))
+            })
+        );
         require(EIP1967Helper.getAdmin(address(proxy)) == proxyAdmin);
-
-        save("L1StandardBridgeProxy", address(proxy));
-        console.log("L1StandardBridgeProxy deployed at %s", address(proxy));
         addr_ = address(proxy);
     }
 
     /// @notice Deploy the L1CrossDomainMessengerProxy using a ResolvedDelegateProxy
     function deployL1CrossDomainMessengerProxy() public broadcast returns (address addr_) {
-        console.log("Deploying proxy for L1CrossDomainMessenger");
-        AddressManager addressManager = AddressManager(mustGetAddress("AddressManager"));
-        ResolvedDelegateProxy proxy = new ResolvedDelegateProxy(addressManager, "OVM_L1CrossDomainMessenger");
-
-        save("L1CrossDomainMessengerProxy", address(proxy));
-        console.log("L1CrossDomainMessengerProxy deployed at %s", address(proxy));
-
+        IResolvedDelegateProxy proxy = IResolvedDelegateProxy(
+            DeployUtils.create2AndSave({
+                _save: this,
+                _salt: _implSalt(),
+                _name: "ResolvedDelegateProxy",
+                _nick: "L1CrossDomainMessengerProxy",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(
+                        IResolvedDelegateProxy.__constructor__,
+                        (IAddressManager(mustGetAddress("AddressManager")), "OVM_L1CrossDomainMessenger")
+                    )
+                )
+            })
+        );
         addr_ = address(proxy);
     }
 
@@ -643,27 +527,32 @@ contract Deploy is Deployer {
         broadcast
         returns (address addr_)
     {
-        console.log(string.concat("Deploying ERC1967 proxy for ", _name));
-        Proxy proxy = new Proxy({ _admin: _proxyOwner });
-
+        IProxy proxy = IProxy(
+            DeployUtils.create2AndSave({
+                _save: this,
+                _salt: keccak256(abi.encode(_implSalt(), _name)),
+                _name: "Proxy",
+                _nick: _name,
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IProxy.__constructor__, (_proxyOwner)))
+            })
+        );
         require(EIP1967Helper.getAdmin(address(proxy)) == _proxyOwner);
-
-        save(_name, address(proxy));
-        console.log("   at %s", address(proxy));
         addr_ = address(proxy);
     }
 
     /// @notice Deploy the DataAvailabilityChallengeProxy
     function deployDataAvailabilityChallengeProxy() public broadcast returns (address addr_) {
-        console.log("Deploying proxy for DataAvailabilityChallenge");
         address proxyAdmin = mustGetAddress("ProxyAdmin");
-        Proxy proxy = new Proxy({ _admin: proxyAdmin });
-
+        IProxy proxy = IProxy(
+            DeployUtils.create2AndSave({
+                _save: this,
+                _salt: _implSalt(),
+                _name: "Proxy",
+                _nick: "DataAvailabilityChallengeProxy",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IProxy.__constructor__, (proxyAdmin)))
+            })
+        );
         require(EIP1967Helper.getAdmin(address(proxy)) == proxyAdmin);
-
-        save("DataAvailabilityChallengeProxy", address(proxy));
-        console.log("DataAvailabilityChallengeProxy deployed at %s", address(proxy));
-
         addr_ = address(proxy);
     }
 
@@ -678,7 +567,7 @@ contract Deploy is Deployer {
                 _save: this,
                 _salt: _implSalt(),
                 _name: "SuperchainConfig",
-                _args: abi.encodeCall(ISuperchainConfig.__constructor__, ())
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(ISuperchainConfig.__constructor__, ()))
             })
         );
 
@@ -694,7 +583,7 @@ contract Deploy is Deployer {
                 _save: this,
                 _salt: _implSalt(),
                 _name: "L1CrossDomainMessenger",
-                _args: abi.encodeCall(IL1CrossDomainMessenger.__constructor__, ())
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IL1CrossDomainMessenger.__constructor__, ()))
             })
         );
 
@@ -718,7 +607,7 @@ contract Deploy is Deployer {
             _save: this,
             _salt: _implSalt(),
             _name: "OptimismPortal",
-            _args: abi.encodeCall(IOptimismPortal.__constructor__, ())
+            _args: DeployUtils.encodeConstructor(abi.encodeCall(IOptimismPortal.__constructor__, ()))
         });
 
         // Override the `OptimismPortal` contract to the deployed implementation. This is necessary
@@ -778,7 +667,7 @@ contract Deploy is Deployer {
                 _save: this,
                 _salt: _implSalt(),
                 _name: "L2OutputOracle",
-                _args: abi.encodeCall(IL2OutputOracle.__constructor__, ())
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IL2OutputOracle.__constructor__, ()))
             })
         );
 
@@ -804,7 +693,7 @@ contract Deploy is Deployer {
                 _save: this,
                 _salt: _implSalt(),
                 _name: "OptimismMintableERC20Factory",
-                _args: abi.encodeCall(IOptimismMintableERC20Factory.__constructor__, ())
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IOptimismMintableERC20Factory.__constructor__, ()))
             })
         );
 
@@ -825,7 +714,7 @@ contract Deploy is Deployer {
                 _save: this,
                 _salt: _implSalt(),
                 _name: "DisputeGameFactory",
-                _args: abi.encodeCall(IDisputeGameFactory.__constructor__, ())
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IDisputeGameFactory.__constructor__, ()))
             })
         );
 
@@ -872,7 +761,7 @@ contract Deploy is Deployer {
                 _save: this,
                 _salt: _implSalt(),
                 _name: "ProtocolVersions",
-                _args: abi.encodeCall(IProtocolVersions.__constructor__, ())
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IProtocolVersions.__constructor__, ()))
             })
         );
 
@@ -888,41 +777,33 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the PreimageOracle
     function deployPreimageOracle() public broadcast returns (address addr_) {
-        console.log("Deploying PreimageOracle implementation");
-        PreimageOracle preimageOracle = new PreimageOracle{ salt: _implSalt() }({
-            _minProposalSize: cfg.preimageOracleMinProposalSize(),
-            _challengePeriod: cfg.preimageOracleChallengePeriod()
-        });
-        save("PreimageOracle", address(preimageOracle));
-        console.log("PreimageOracle deployed at %s", address(preimageOracle));
-
+        IPreimageOracle preimageOracle = IPreimageOracle(
+            DeployUtils.create2AndSave({
+                _save: this,
+                _salt: _implSalt(),
+                _name: "PreimageOracle",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(
+                        IPreimageOracle.__constructor__,
+                        (cfg.preimageOracleMinProposalSize(), cfg.preimageOracleChallengePeriod())
+                    )
+                )
+            })
+        );
         addr_ = address(preimageOracle);
     }
 
     /// @notice Deploy Mips VM. Deploys either MIPS or MIPS2 depending on the environment
     function deployMips() public broadcast returns (address addr_) {
-        if (Config.useMultithreadedCannon()) {
-            addr_ = _deployMips2();
-        } else {
-            addr_ = _deployMips();
-        }
+        addr_ = DeployUtils.create2AndSave({
+            _save: this,
+            _salt: _implSalt(),
+            _name: Config.useMultithreadedCannon() ? "MIPS2" : "MIPS",
+            _args: DeployUtils.encodeConstructor(
+                abi.encodeCall(IMIPS2.__constructor__, (IPreimageOracle(mustGetAddress("PreimageOracle"))))
+            )
+        });
         save("Mips", address(addr_));
-    }
-
-    /// @notice Deploy MIPS
-    function _deployMips() internal returns (address addr_) {
-        console.log("Deploying Mips implementation");
-        MIPS mips = new MIPS{ salt: _implSalt() }(IPreimageOracle(mustGetAddress("PreimageOracle")));
-        console.log("MIPS deployed at %s", address(mips));
-        addr_ = address(mips);
-    }
-
-    /// @notice Deploy MIPS2
-    function _deployMips2() internal returns (address addr_) {
-        console.log("Deploying Mips2 implementation");
-        MIPS2 mips2 = new MIPS2{ salt: _implSalt() }(IPreimageOracle(mustGetAddress("PreimageOracle")));
-        console.log("MIPS2 deployed at %s", address(mips2));
-        addr_ = address(mips2);
     }
 
     /// @notice Deploy the AnchorStateRegistry
@@ -951,7 +832,7 @@ contract Deploy is Deployer {
                 _save: this,
                 _salt: _implSalt(),
                 _name: "SystemConfigInterop",
-                _args: abi.encodeCall(ISystemConfigInterop.__constructor__, ())
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(ISystemConfigInterop.__constructor__, ()))
             });
             save("SystemConfig", addr_);
         } else {
@@ -959,7 +840,7 @@ contract Deploy is Deployer {
                 _save: this,
                 _salt: _implSalt(),
                 _name: "SystemConfig",
-                _args: abi.encodeCall(ISystemConfig.__constructor__, ())
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(ISystemConfig.__constructor__, ()))
             });
         }
 
@@ -978,7 +859,7 @@ contract Deploy is Deployer {
                 _save: this,
                 _salt: _implSalt(),
                 _name: "L1StandardBridge",
-                _args: abi.encodeCall(IL1StandardBridge.__constructor__, ())
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IL1StandardBridge.__constructor__, ()))
             })
         );
 
@@ -999,7 +880,7 @@ contract Deploy is Deployer {
                 _save: this,
                 _salt: _implSalt(),
                 _name: "L1ERC721Bridge",
-                _args: abi.encodeCall(IL1ERC721Bridge.__constructor__, ())
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IL1ERC721Bridge.__constructor__, ()))
             })
         );
 
@@ -1016,8 +897,8 @@ contract Deploy is Deployer {
 
     /// @notice Transfer ownership of the address manager to the ProxyAdmin
     function transferAddressManagerOwnership() public broadcast {
-        console.log("Transferring AddressManager ownership to ProxyAdmin");
-        AddressManager addressManager = AddressManager(mustGetAddress("AddressManager"));
+        console.log("Transferring AddressManager ownership to IProxyAdmin");
+        IAddressManager addressManager = IAddressManager(mustGetAddress("AddressManager"));
         address owner = addressManager.owner();
         address proxyAdmin = mustGetAddress("ProxyAdmin");
         if (owner != proxyAdmin) {
@@ -1035,7 +916,7 @@ contract Deploy is Deployer {
                 _save: this,
                 _salt: _implSalt(),
                 _name: "DataAvailabilityChallenge",
-                _args: abi.encodeCall(IDataAvailabilityChallenge.__constructor__, ())
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IDataAvailabilityChallenge.__constructor__, ()))
             })
         );
         addr_ = address(dac);
@@ -1049,10 +930,12 @@ contract Deploy is Deployer {
     function initializeSuperchainConfig() public broadcast {
         address payable superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
         address payable superchainConfig = mustGetAddress("SuperchainConfig");
-        _upgradeAndCallViaSafe({
+
+        IProxyAdmin proxyAdmin = IProxyAdmin(payable(mustGetAddress("SuperchainProxyAdmin")));
+        proxyAdmin.upgradeAndCall({
             _proxy: superchainConfigProxy,
             _implementation: superchainConfig,
-            _innerCallData: abi.encodeCall(ISuperchainConfig.initialize, (cfg.superchainConfigGuardian(), false))
+            _data: abi.encodeCall(ISuperchainConfig.initialize, (cfg.superchainConfigGuardian(), false))
         });
 
         ChainAssertions.checkSuperchainConfig({ _contracts: _proxiesUnstrict(), _cfg: cfg, _isPaused: false });
@@ -1064,10 +947,11 @@ contract Deploy is Deployer {
         address disputeGameFactoryProxy = mustGetAddress("DisputeGameFactoryProxy");
         address disputeGameFactory = mustGetAddress("DisputeGameFactory");
 
-        _upgradeAndCallViaSafe({
+        IProxyAdmin proxyAdmin = IProxyAdmin(payable(mustGetAddress("ProxyAdmin")));
+        proxyAdmin.upgradeAndCall({
             _proxy: payable(disputeGameFactoryProxy),
             _implementation: disputeGameFactory,
-            _innerCallData: abi.encodeCall(IDisputeGameFactory.initialize, (msg.sender))
+            _data: abi.encodeCall(IDisputeGameFactory.initialize, (msg.sender))
         });
 
         string memory version = IDisputeGameFactory(disputeGameFactoryProxy).version();
@@ -1082,10 +966,11 @@ contract Deploy is Deployer {
         address delayedWETH = mustGetAddress("DelayedWETH");
         address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
 
-        _upgradeAndCallViaSafe({
+        IProxyAdmin proxyAdmin = IProxyAdmin(payable(mustGetAddress("ProxyAdmin")));
+        proxyAdmin.upgradeAndCall({
             _proxy: payable(delayedWETHProxy),
             _implementation: delayedWETH,
-            _innerCallData: abi.encodeCall(IDelayedWETH.initialize, (msg.sender, ISuperchainConfig(superchainConfigProxy)))
+            _data: abi.encodeCall(IDelayedWETH.initialize, (msg.sender, ISuperchainConfig(superchainConfigProxy)))
         });
 
         string memory version = IDelayedWETH(payable(delayedWETHProxy)).version();
@@ -1105,10 +990,11 @@ contract Deploy is Deployer {
         address delayedWETH = mustGetAddress("DelayedWETH");
         address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
 
-        _upgradeAndCallViaSafe({
+        IProxyAdmin proxyAdmin = IProxyAdmin(payable(mustGetAddress("ProxyAdmin")));
+        proxyAdmin.upgradeAndCall({
             _proxy: payable(delayedWETHProxy),
             _implementation: delayedWETH,
-            _innerCallData: abi.encodeCall(IDelayedWETH.initialize, (msg.sender, ISuperchainConfig(superchainConfigProxy)))
+            _data: abi.encodeCall(IDelayedWETH.initialize, (msg.sender, ISuperchainConfig(superchainConfigProxy)))
         });
 
         string memory version = IDelayedWETH(payable(delayedWETHProxy)).version();
@@ -1165,10 +1051,11 @@ contract Deploy is Deployer {
             })
         });
 
-        _upgradeAndCallViaSafe({
+        IProxyAdmin proxyAdmin = IProxyAdmin(payable(mustGetAddress("ProxyAdmin")));
+        proxyAdmin.upgradeAndCall({
             _proxy: payable(anchorStateRegistryProxy),
             _implementation: anchorStateRegistry,
-            _innerCallData: abi.encodeCall(IAnchorStateRegistry.initialize, (roots, superchainConfig))
+            _data: abi.encodeCall(IAnchorStateRegistry.initialize, (roots, superchainConfig))
         });
 
         string memory version = IAnchorStateRegistry(payable(anchorStateRegistryProxy)).version();
@@ -1188,10 +1075,11 @@ contract Deploy is Deployer {
             customGasTokenAddress = cfg.customGasTokenAddress();
         }
 
-        _upgradeAndCallViaSafe({
+        IProxyAdmin proxyAdmin = IProxyAdmin(payable(mustGetAddress("ProxyAdmin")));
+        proxyAdmin.upgradeAndCall({
             _proxy: payable(systemConfigProxy),
             _implementation: systemConfig,
-            _innerCallData: abi.encodeCall(
+            _data: abi.encodeCall(
                 ISystemConfig.initialize,
                 (
                     cfg.finalSystemOwner(),
@@ -1225,7 +1113,7 @@ contract Deploy is Deployer {
     /// @notice Initialize the L1StandardBridge
     function initializeL1StandardBridge() public broadcast {
         console.log("Upgrading and initializing L1StandardBridge proxy");
-        ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
+        IProxyAdmin proxyAdmin = IProxyAdmin(mustGetAddress("ProxyAdmin"));
         address l1StandardBridgeProxy = mustGetAddress("L1StandardBridgeProxy");
         address l1StandardBridge = mustGetAddress("L1StandardBridge");
         address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
@@ -1233,20 +1121,15 @@ contract Deploy is Deployer {
         address systemConfigProxy = mustGetAddress("SystemConfigProxy");
 
         uint256 proxyType = uint256(proxyAdmin.proxyType(l1StandardBridgeProxy));
-        Safe safe = Safe(mustGetAddress("SystemOwnerSafe"));
-        if (proxyType != uint256(ProxyAdmin.ProxyType.CHUGSPLASH)) {
-            _callViaSafe({
-                _safe: safe,
-                _target: address(proxyAdmin),
-                _data: abi.encodeCall(ProxyAdmin.setProxyType, (l1StandardBridgeProxy, ProxyAdmin.ProxyType.CHUGSPLASH))
-            });
+        if (proxyType != uint256(IProxyAdmin.ProxyType.CHUGSPLASH)) {
+            proxyAdmin.setProxyType(l1StandardBridgeProxy, IProxyAdmin.ProxyType.CHUGSPLASH);
         }
-        require(uint256(proxyAdmin.proxyType(l1StandardBridgeProxy)) == uint256(ProxyAdmin.ProxyType.CHUGSPLASH));
+        require(uint256(proxyAdmin.proxyType(l1StandardBridgeProxy)) == uint256(IProxyAdmin.ProxyType.CHUGSPLASH));
 
-        _upgradeAndCallViaSafe({
+        proxyAdmin.upgradeAndCall({
             _proxy: payable(l1StandardBridgeProxy),
             _implementation: l1StandardBridge,
-            _innerCallData: abi.encodeCall(
+            _data: abi.encodeCall(
                 IL1StandardBridge.initialize,
                 (
                     ICrossDomainMessenger(l1CrossDomainMessengerProxy),
@@ -1270,10 +1153,11 @@ contract Deploy is Deployer {
         address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
         address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
 
-        _upgradeAndCallViaSafe({
+        IProxyAdmin proxyAdmin = IProxyAdmin(payable(mustGetAddress("ProxyAdmin")));
+        proxyAdmin.upgradeAndCall({
             _proxy: payable(l1ERC721BridgeProxy),
             _implementation: l1ERC721Bridge,
-            _innerCallData: abi.encodeCall(
+            _data: abi.encodeCall(
                 IL1ERC721Bridge.initialize,
                 (ICrossDomainMessenger(payable(l1CrossDomainMessengerProxy)), ISuperchainConfig(superchainConfigProxy))
             )
@@ -1293,10 +1177,11 @@ contract Deploy is Deployer {
         address optimismMintableERC20Factory = mustGetAddress("OptimismMintableERC20Factory");
         address l1StandardBridgeProxy = mustGetAddress("L1StandardBridgeProxy");
 
-        _upgradeAndCallViaSafe({
+        IProxyAdmin proxyAdmin = IProxyAdmin(payable(mustGetAddress("ProxyAdmin")));
+        proxyAdmin.upgradeAndCall({
             _proxy: payable(optimismMintableERC20FactoryProxy),
             _implementation: optimismMintableERC20Factory,
-            _innerCallData: abi.encodeCall(IOptimismMintableERC20Factory.initialize, (l1StandardBridgeProxy))
+            _data: abi.encodeCall(IOptimismMintableERC20Factory.initialize, (l1StandardBridgeProxy))
         });
 
         IOptimismMintableERC20Factory factory = IOptimismMintableERC20Factory(optimismMintableERC20FactoryProxy);
@@ -1309,7 +1194,7 @@ contract Deploy is Deployer {
     /// @notice initializeL1CrossDomainMessenger
     function initializeL1CrossDomainMessenger() public broadcast {
         console.log("Upgrading and initializing L1CrossDomainMessenger proxy");
-        ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
+        IProxyAdmin proxyAdmin = IProxyAdmin(mustGetAddress("ProxyAdmin"));
         address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
         address l1CrossDomainMessenger = mustGetAddress("L1CrossDomainMessenger");
         address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
@@ -1317,34 +1202,25 @@ contract Deploy is Deployer {
         address systemConfigProxy = mustGetAddress("SystemConfigProxy");
 
         uint256 proxyType = uint256(proxyAdmin.proxyType(l1CrossDomainMessengerProxy));
-        Safe safe = Safe(mustGetAddress("SystemOwnerSafe"));
-        if (proxyType != uint256(ProxyAdmin.ProxyType.RESOLVED)) {
-            _callViaSafe({
-                _safe: safe,
-                _target: address(proxyAdmin),
-                _data: abi.encodeCall(ProxyAdmin.setProxyType, (l1CrossDomainMessengerProxy, ProxyAdmin.ProxyType.RESOLVED))
-            });
+        if (proxyType != uint256(IProxyAdmin.ProxyType.RESOLVED)) {
+            proxyAdmin.setProxyType(l1CrossDomainMessengerProxy, IProxyAdmin.ProxyType.RESOLVED);
         }
-        require(uint256(proxyAdmin.proxyType(l1CrossDomainMessengerProxy)) == uint256(ProxyAdmin.ProxyType.RESOLVED));
+        require(uint256(proxyAdmin.proxyType(l1CrossDomainMessengerProxy)) == uint256(IProxyAdmin.ProxyType.RESOLVED));
 
         string memory contractName = "OVM_L1CrossDomainMessenger";
         string memory implName = proxyAdmin.implementationName(l1CrossDomainMessenger);
         if (keccak256(bytes(contractName)) != keccak256(bytes(implName))) {
-            _callViaSafe({
-                _safe: safe,
-                _target: address(proxyAdmin),
-                _data: abi.encodeCall(ProxyAdmin.setImplementationName, (l1CrossDomainMessengerProxy, contractName))
-            });
+            proxyAdmin.setImplementationName(l1CrossDomainMessengerProxy, contractName);
         }
         require(
             keccak256(bytes(proxyAdmin.implementationName(l1CrossDomainMessengerProxy)))
                 == keccak256(bytes(contractName))
         );
 
-        _upgradeAndCallViaSafe({
+        proxyAdmin.upgradeAndCall({
             _proxy: payable(l1CrossDomainMessengerProxy),
             _implementation: l1CrossDomainMessenger,
-            _innerCallData: abi.encodeCall(
+            _data: abi.encodeCall(
                 IL1CrossDomainMessenger.initialize,
                 (
                     ISuperchainConfig(superchainConfigProxy),
@@ -1367,10 +1243,11 @@ contract Deploy is Deployer {
         address l2OutputOracleProxy = mustGetAddress("L2OutputOracleProxy");
         address l2OutputOracle = mustGetAddress("L2OutputOracle");
 
-        _upgradeAndCallViaSafe({
+        IProxyAdmin proxyAdmin = IProxyAdmin(payable(mustGetAddress("ProxyAdmin")));
+        proxyAdmin.upgradeAndCall({
             _proxy: payable(l2OutputOracleProxy),
             _implementation: l2OutputOracle,
-            _innerCallData: abi.encodeCall(
+            _data: abi.encodeCall(
                 IL2OutputOracle.initialize,
                 (
                     cfg.l2OutputOracleSubmissionInterval(),
@@ -1405,10 +1282,11 @@ contract Deploy is Deployer {
         address systemConfigProxy = mustGetAddress("SystemConfigProxy");
         address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
 
-        _upgradeAndCallViaSafe({
+        IProxyAdmin proxyAdmin = IProxyAdmin(payable(mustGetAddress("ProxyAdmin")));
+        proxyAdmin.upgradeAndCall({
             _proxy: payable(optimismPortalProxy),
             _implementation: optimismPortal,
-            _innerCallData: abi.encodeCall(
+            _data: abi.encodeCall(
                 IOptimismPortal.initialize,
                 (
                     IL2OutputOracle(l2OutputOracleProxy),
@@ -1434,10 +1312,11 @@ contract Deploy is Deployer {
         address systemConfigProxy = mustGetAddress("SystemConfigProxy");
         address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
 
-        _upgradeAndCallViaSafe({
+        IProxyAdmin proxyAdmin = IProxyAdmin(payable(mustGetAddress("ProxyAdmin")));
+        proxyAdmin.upgradeAndCall({
             _proxy: payable(optimismPortalProxy),
             _implementation: optimismPortal2,
-            _innerCallData: abi.encodeCall(
+            _data: abi.encodeCall(
                 IOptimismPortal2.initialize,
                 (
                     IDisputeGameFactory(disputeGameFactoryProxy),
@@ -1464,10 +1343,11 @@ contract Deploy is Deployer {
         uint256 requiredProtocolVersion = cfg.requiredProtocolVersion();
         uint256 recommendedProtocolVersion = cfg.recommendedProtocolVersion();
 
-        _upgradeAndCallViaSafe({
+        IProxyAdmin proxyAdmin = IProxyAdmin(payable(mustGetAddress("SuperchainProxyAdmin")));
+        proxyAdmin.upgradeAndCall({
             _proxy: payable(protocolVersionsProxy),
             _implementation: protocolVersions,
-            _innerCallData: abi.encodeCall(
+            _data: abi.encodeCall(
                 IProtocolVersions.initialize,
                 (
                     finalSystemOwner,
@@ -1489,13 +1369,13 @@ contract Deploy is Deployer {
         console.log("Transferring DisputeGameFactory ownership to Safe");
         IDisputeGameFactory disputeGameFactory = IDisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
         address owner = disputeGameFactory.owner();
+        address finalSystemOwner = cfg.finalSystemOwner();
 
-        address safe = mustGetAddress("SystemOwnerSafe");
-        if (owner != safe) {
-            disputeGameFactory.transferOwnership(safe);
-            console.log("DisputeGameFactory ownership transferred to Safe at: %s", safe);
+        if (owner != finalSystemOwner) {
+            disputeGameFactory.transferOwnership(finalSystemOwner);
+            console.log("DisputeGameFactory ownership transferred to final system owner at: %s", finalSystemOwner);
         }
-        ChainAssertions.checkDisputeGameFactory({ _contracts: _proxies(), _expectedOwner: safe });
+        ChainAssertions.checkDisputeGameFactory({ _contracts: _proxies(), _expectedOwner: finalSystemOwner });
     }
 
     /// @notice Transfer ownership of the DelayedWETH contract to the final system owner
@@ -1504,12 +1384,17 @@ contract Deploy is Deployer {
         IDelayedWETH weth = IDelayedWETH(mustGetAddress("DelayedWETHProxy"));
         address owner = weth.owner();
 
-        address safe = mustGetAddress("SystemOwnerSafe");
-        if (owner != safe) {
-            weth.transferOwnership(safe);
-            console.log("DelayedWETH ownership transferred to Safe at: %s", safe);
+        address finalSystemOwner = cfg.finalSystemOwner();
+        if (owner != finalSystemOwner) {
+            weth.transferOwnership(finalSystemOwner);
+            console.log("DelayedWETH ownership transferred to final system owner at: %s", finalSystemOwner);
         }
-        ChainAssertions.checkDelayedWETH({ _contracts: _proxies(), _cfg: cfg, _isProxy: true, _expectedOwner: safe });
+        ChainAssertions.checkDelayedWETH({
+            _contracts: _proxies(),
+            _cfg: cfg,
+            _isProxy: true,
+            _expectedOwner: finalSystemOwner
+        });
     }
 
     /// @notice Transfer ownership of the permissioned DelayedWETH contract to the final system owner
@@ -1518,16 +1403,16 @@ contract Deploy is Deployer {
         IDelayedWETH weth = IDelayedWETH(mustGetAddress("PermissionedDelayedWETHProxy"));
         address owner = weth.owner();
 
-        address safe = mustGetAddress("SystemOwnerSafe");
-        if (owner != safe) {
-            weth.transferOwnership(safe);
-            console.log("DelayedWETH ownership transferred to Safe at: %s", safe);
+        address finalSystemOwner = cfg.finalSystemOwner();
+        if (owner != finalSystemOwner) {
+            weth.transferOwnership(finalSystemOwner);
+            console.log("DelayedWETH ownership transferred to final system owner at: %s", finalSystemOwner);
         }
         ChainAssertions.checkPermissionedDelayedWETH({
             _contracts: _proxies(),
             _cfg: cfg,
             _isProxy: true,
-            _expectedOwner: safe
+            _expectedOwner: finalSystemOwner
         });
     }
 
@@ -1648,7 +1533,7 @@ contract Deploy is Deployer {
                 weth: weth,
                 gameType: GameTypes.ALPHABET,
                 absolutePrestate: outputAbsolutePrestate,
-                faultVm: IBigStepper(new AlphabetVM(outputAbsolutePrestate, PreimageOracle(mustGetAddress("PreimageOracle")))),
+                faultVm: IBigStepper(new AlphabetVM(outputAbsolutePrestate, IPreimageOracle(mustGetAddress("PreimageOracle")))),
                 // The max depth for the alphabet trace is always 3. Add 1 because split depth is fully inclusive.
                 maxGameDepth: cfg.faultGameSplitDepth() + 3 + 1,
                 maxClockDuration: Duration.wrap(uint64(cfg.faultGameMaxClockDuration()))
@@ -1663,7 +1548,17 @@ contract Deploy is Deployer {
         IDelayedWETH weth = IDelayedWETH(mustGetAddress("DelayedWETHProxy"));
 
         Claim outputAbsolutePrestate = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
-        PreimageOracle fastOracle = new PreimageOracle(cfg.preimageOracleMinProposalSize(), 0);
+        IPreimageOracle fastOracle = IPreimageOracle(
+            DeployUtils.create2AndSave({
+                _save: this,
+                _salt: _implSalt(),
+                _name: "PreimageOracle",
+                _nick: "FastPreimageOracle",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(IPreimageOracle.__constructor__, (cfg.preimageOracleMinProposalSize(), 0))
+                )
+            })
+        );
         _setFaultGameImplementation({
             _factory: factory,
             _allowUpgrade: _allowUpgrade,
@@ -1791,10 +1686,11 @@ contract Deploy is Deployer {
         uint256 daBondSize = cfg.daBondSize();
         uint256 daResolverRefundPercentage = cfg.daResolverRefundPercentage();
 
-        _upgradeAndCallViaSafe({
+        IProxyAdmin proxyAdmin = IProxyAdmin(payable(mustGetAddress("ProxyAdmin")));
+        proxyAdmin.upgradeAndCall({
             _proxy: payable(dataAvailabilityChallengeProxy),
             _implementation: dataAvailabilityChallenge,
-            _innerCallData: abi.encodeCall(
+            _data: abi.encodeCall(
                 IDataAvailabilityChallenge.initialize,
                 (finalSystemOwner, daChallengeWindow, daResolveWindow, daBondSize, daResolverRefundPercentage)
             )
