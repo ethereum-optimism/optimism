@@ -34,6 +34,26 @@ const (
 	FlagPadding2 EntryTypeFlag = FlagPadding << 1
 )
 
+var FlagNames = map[EntryTypeFlag]string{
+	FlagSearchCheckpoint: "searchCheckpoint",
+	FlagCanonicalHash:    "canonicalHash",
+	FlagInitiatingEvent:  "initiatingEvent",
+	FlagExecutingLink:    "executingLink",
+	FlagExecutingCheck:   "executingCheck",
+	FlagPadding:          "padding",
+	FlagPadding2:         "padding2",
+}
+
+func EntryFlagsToStrings(flags EntryTypeFlag) []string {
+	res := make([]string, 0, 8)
+	for k, v := range FlagNames {
+		if flags.Any(k) {
+			res = append(res, v)
+		}
+	}
+	return res
+}
+
 func (ex EntryTypeFlag) Any(v EntryTypeFlag) bool {
 	return ex&v != 0
 }
