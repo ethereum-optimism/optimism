@@ -106,12 +106,14 @@ func (s *channelManager) TxConfirmed(_id txID, inclusionBlock eth.BlockID) {
 	id := _id.String()
 	if channel, ok := s.txChannels[id]; ok {
 		delete(s.txChannels, id)
-		done, blocks := channel.TxConfirmed(id, inclusionBlock)
+		done, timedOut := channel.TxConfirmed(id, inclusionBlock)
+		if timedOut {
+			s.log.Warn("channel timed out")
+			s.Clear(eth.BlockID{})
+			return
+		}
 		if done {
 			s.removePendingChannel(channel)
-			if len(blocks) > 0 {
-				s.blocks.Prepend(blocks...)
-			}
 		}
 	} else {
 		s.log.Warn("transaction from unknown channel marked as confirmed", "id", id)
@@ -490,6 +492,8 @@ func (s *channelManager) Requeue(newCfg ChannelConfig) {
 	}
 
 	// We put the blocks back at the front of the queue:
+	// Here it is safe to prepend because we know nothing can have
+	// dequeued anything since we dequeued blockstorequeue
 	s.blocks.Prepend(blocksToRequeue...)
 	// Channels which where already being submitted are put back
 	s.channelQueue = newChannelQueue
