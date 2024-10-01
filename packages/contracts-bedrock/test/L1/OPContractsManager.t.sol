@@ -51,6 +51,13 @@ contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase {
         doi.set(doi.l2ChainId.selector, l2ChainId);
         doi.set(doi.opcmProxy.selector, address(opcm));
         doi.set(doi.gasLimit.selector, gasLimit);
+
+        doi.set(doi.disputeGameType.selector, disputeGameType);
+        doi.set(doi.disputeAbsolutePrestate.selector, disputeAbsolutePrestate);
+        doi.set(doi.disputeMaxGameDepth.selector, disputeMaxGameDepth);
+        doi.set(doi.disputeSplitDepth.selector, disputeSplitDepth);
+        doi.set(doi.disputeClockExtension.selector, disputeClockExtension);
+        doi.set(doi.disputeMaxClockDuration.selector, disputeMaxClockDuration);
     }
 
     // This helper function is used to convert the input struct type defined in DeployOPChain.s.sol
@@ -70,7 +77,13 @@ contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase {
             l2ChainId: _doi.l2ChainId(),
             startingAnchorRoots: _doi.startingAnchorRoots(),
             saltMixer: _doi.saltMixer(),
-            gasLimit: _doi.gasLimit()
+            gasLimit: _doi.gasLimit(),
+            disputeGameType: _doi.disputeGameType(),
+            disputeAbsolutePrestate: _doi.disputeAbsolutePrestate(),
+            disputeMaxGameDepth: _doi.disputeMaxGameDepth(),
+            disputeSplitDepth: _doi.disputeSplitDepth(),
+            disputeClockExtension: _doi.disputeClockExtension(),
+            disputeMaxClockDuration: _doi.disputeMaxClockDuration()
         });
     }
 
