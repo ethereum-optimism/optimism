@@ -6,9 +6,10 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 	"github.com/ethereum/go-ethereum/common"
@@ -51,6 +52,7 @@ func NewKeyedBroadcaster(cfg KeyedBroadcasterOpts) (*KeyedBroadcaster, error) {
 		SafeAbortNonceTooLowCount: 3,
 		Signer:                    cfg.Signer,
 		From:                      cfg.From,
+		GasPriceEstimator:         DeployerGasPriceEstimator,
 	}
 
 	minTipCap, err := eth.GweiToWei(1.0)
