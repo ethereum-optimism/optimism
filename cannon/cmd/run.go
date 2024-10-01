@@ -297,7 +297,7 @@ func Run(ctx *cli.Context) error {
 		}
 		stopAtPreimageKeyPrefix = common.FromHex(parts[0])
 		if len(parts) == 2 {
-			x, err := strconv.ParseUint(parts[1], 10, arch.WordSizeBytes)
+			x, err := strconv.ParseUint(parts[1], 10, arch.WordSize)
 			if err != nil {
 				return fmt.Errorf("invalid preimage offset: %w", err)
 			}
