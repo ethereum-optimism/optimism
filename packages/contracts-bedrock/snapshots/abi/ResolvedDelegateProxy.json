@@ -2,7 +2,7 @@
   {
     "inputs": [
       {
-        "internalType": "contract AddressManager",
+        "internalType": "contract IAddressManager",
         "name": "_addressManager",
         "type": "address"
       },

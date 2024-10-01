@@ -76,10 +76,15 @@ for contract in $changed_contracts; do
     # increased properly.
     # Check if the version changed.
     if [ "$old_version" = "$new_version" ]; then
-        echo "❌ Error: $contract has changes in semver-lock.json but no version change"
-        echo "   Old version: $old_version"
-        echo "   New version: $new_version"
-        has_errors=true
+        # If both versions start with "+", ignore the equality
+        if [[ "$old_version" == +* ]] && [[ "$new_version" == +* ]]; then
+            echo "✅ $contract: version unchanged but starts with '+' ($old_version)"
+        else
+            echo "❌ Error: $contract has changes in semver-lock.json but no version change"
+            echo "   Old version: $old_version"
+            echo "   New version: $new_version"
+            has_errors=true
+        fi
     else
         echo "✅ $contract: version changed from $old_version to $new_version"
     fi

@@ -1,16 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+// Contracts
+import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
+
+// Libraries
 import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { SafeCall } from "src/libraries/SafeCall.sol";
+import { Constants } from "src/libraries/Constants.sol";
+
+// Interfaces
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IOptimismMintableERC20, ILegacyMintableERC20 } from "src/universal/interfaces/IOptimismMintableERC20.sol";
 import { ICrossDomainMessenger } from "src/universal/interfaces/ICrossDomainMessenger.sol";
-import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
-import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
-import { Constants } from "src/libraries/Constants.sol";
 
 /// @custom:upgradeable
 /// @title StandardBridge

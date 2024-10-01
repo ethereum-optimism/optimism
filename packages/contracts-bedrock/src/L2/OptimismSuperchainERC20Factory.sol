@@ -1,12 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import { IOptimismERC20Factory } from "src/L2/interfaces/IOptimismERC20Factory.sol";
-import { ISemver } from "src/universal/interfaces/ISemver.sol";
-import { OptimismSuperchainERC20 } from "src/L2/OptimismSuperchainERC20.sol";
-import { Predeploys } from "src/libraries/Predeploys.sol";
+// Contracts
 import { BeaconProxy } from "@openzeppelin/contracts-v5/proxy/beacon/BeaconProxy.sol";
+import { OptimismSuperchainERC20 } from "src/L2/OptimismSuperchainERC20.sol";
+
+// Libraries
 import { CREATE3 } from "@rari-capital/solmate/src/utils/CREATE3.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
+
+// Interfaces
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
+import { IOptimismERC20Factory } from "src/L2/interfaces/IOptimismERC20Factory.sol";
 
 /// @custom:proxied
 /// @custom:predeployed 0x4200000000000000000000000000000000000026
@@ -27,8 +32,8 @@ contract OptimismSuperchainERC20Factory is IOptimismERC20Factory, ISemver {
     );
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.2
-    string public constant version = "1.0.0-beta.2";
+    /// @custom:semver 1.0.0-beta.3
+    string public constant version = "1.0.0-beta.3";
 
     /// @notice Deploys a OptimismSuperchainERC20 Beacon Proxy using CREATE3.
     /// @param _remoteToken      Address of the remote token.

@@ -1,14 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { ISemver } from "src/universal/interfaces/ISemver.sol";
-import { IPreimageOracle } from "./interfaces/IPreimageOracle.sol";
-import { PreimageKeyLib } from "./PreimageKeyLib.sol";
+// Libraries
+import { PreimageKeyLib } from "src/cannon/PreimageKeyLib.sol";
 import { MIPSInstructions as ins } from "src/cannon/libraries/MIPSInstructions.sol";
 import { MIPSSyscalls as sys } from "src/cannon/libraries/MIPSSyscalls.sol";
 import { MIPSState as st } from "src/cannon/libraries/MIPSState.sol";
 import { MIPSMemory } from "src/cannon/libraries/MIPSMemory.sol";
 import { InvalidRMWInstruction } from "src/cannon/libraries/CannonErrors.sol";
+
+// Interfaces
+import { ISemver } from "src/universal/interfaces/ISemver.sol";
+import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
 
 /// @title MIPS
 /// @notice The MIPS contract emulates a single MIPS instruction.
@@ -45,8 +48,8 @@ contract MIPS is ISemver {
     }
 
     /// @notice The semantic version of the MIPS contract.
-    /// @custom:semver 1.2.1-beta.1
-    string public constant version = "1.2.1-beta.1";
+    /// @custom:semver 1.2.1-beta.2
+    string public constant version = "1.2.1-beta.2";
 
     /// @notice The preimage oracle contract.
     IPreimageOracle internal immutable ORACLE;

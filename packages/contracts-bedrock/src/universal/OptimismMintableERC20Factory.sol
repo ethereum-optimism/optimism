@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Contracts
 import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
+
+// Interfaces
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { IOptimismERC20Factory } from "src/L2/interfaces/IOptimismERC20Factory.sol";
@@ -48,8 +51,8 @@ contract OptimismMintableERC20Factory is ISemver, Initializable, IOptimismERC20F
     ///         the OptimismMintableERC20 token contract since this contract
     ///         is responsible for deploying OptimismMintableERC20 contracts.
     /// @notice Semantic version.
-    /// @custom:semver 1.10.1-beta.3
-    string public constant version = "1.10.1-beta.3";
+    /// @custom:semver 1.10.1-beta.4
+    string public constant version = "1.10.1-beta.4";
 
     /// @notice Constructs the OptimismMintableERC20Factory contract.
     constructor() {

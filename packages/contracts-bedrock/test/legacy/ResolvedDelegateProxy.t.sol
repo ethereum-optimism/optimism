@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-// Testing utilities
+// Testing
 import { Test } from "forge-std/Test.sol";
 
-// Target contract dependencies
+// Contracts
 import { AddressManager } from "src/legacy/AddressManager.sol";
-
-// Target contract
 import { ResolvedDelegateProxy } from "src/legacy/ResolvedDelegateProxy.sol";
+
+// Interfaces
+import { IAddressManager } from "src/legacy/interfaces/IAddressManager.sol";
 
 contract ResolvedDelegateProxy_Test is Test {
     AddressManager internal addressManager;
@@ -23,7 +24,9 @@ contract ResolvedDelegateProxy_Test is Test {
         addressManager.setAddress("SimpleImplementation", address(impl));
 
         // Set up the proxy.
-        proxy = SimpleImplementation(address(new ResolvedDelegateProxy(addressManager, "SimpleImplementation")));
+        proxy = SimpleImplementation(
+            address(new ResolvedDelegateProxy(IAddressManager(address(addressManager)), "SimpleImplementation"))
+        );
     }
 
     /// @dev Tests that the proxy properly bubbles up returndata when the delegatecall succeeds.
@@ -43,7 +46,9 @@ contract ResolvedDelegateProxy_Test is Test {
     ///      address manager is not set.
     function test_fallback_addressManagerNotSet_reverts() public {
         AddressManager am = new AddressManager();
-        SimpleImplementation p = SimpleImplementation(address(new ResolvedDelegateProxy(am, "SimpleImplementation")));
+        SimpleImplementation p = SimpleImplementation(
+            address(new ResolvedDelegateProxy(IAddressManager(address(am)), "SimpleImplementation"))
+        );
 
         vm.expectRevert("ResolvedDelegateProxy: target address must be initialized");
         p.foo(0);

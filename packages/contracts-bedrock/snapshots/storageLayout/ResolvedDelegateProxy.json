@@ -11,6 +11,6 @@
     "label": "addressManager",
     "offset": 0,
     "slot": "1",
-    "type": "mapping(address => contract AddressManager)"
+    "type": "mapping(address => contract IAddressManager)"
   }
 ]
