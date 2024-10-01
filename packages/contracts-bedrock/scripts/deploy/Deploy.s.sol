@@ -269,7 +269,7 @@ contract Deploy is Deployer {
             setupSuperchain();
             console.log("set up superchain!");
         }
-
+        deployImplementations();
         setupOpChain();
         if (cfg.useAltDA()) {
             bytes32 typeHash = keccak256(bytes(cfg.daCommitmentType()));
@@ -324,8 +324,6 @@ contract Deploy is Deployer {
         mustGetAddress("SuperchainConfigProxy");
         mustGetAddress("AddressManager");
         mustGetAddress("ProxyAdmin");
-
-        deployImplementations();
 
         deployOpChain();
         initializeOpChain();
