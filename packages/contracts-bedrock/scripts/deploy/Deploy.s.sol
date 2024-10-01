@@ -270,7 +270,7 @@ contract Deploy is Deployer {
             console.log("set up superchain!");
         }
 
-        setupOpChainAdmin();
+        setupOpChain();
         if (cfg.useAltDA()) {
             bytes32 typeHash = keccak256(bytes(cfg.daCommitmentType()));
             bytes32 keccakHash = keccak256(bytes("KeccakCommitment"));
@@ -278,20 +278,12 @@ contract Deploy is Deployer {
                 setupOpAltDA();
             }
         }
-
-        setupOpChain();
         console.log("set up op chain!");
     }
 
     ////////////////////////////////////////////////////////////////
     //           High Level Deployment Functions                  //
     ////////////////////////////////////////////////////////////////
-
-    /// @notice Deploy the address manager and proxy admin contracts.
-    function setupOpChainAdmin() public {
-        deployAddressManager();
-        deployProxyAdmin({ _isSuperchain: false });
-    }
 
     /// @notice Deploy a full system with a new SuperchainConfig
     ///         The Superchain system has 2 singleton contracts which lie outside of an OP Chain:
@@ -324,6 +316,8 @@ contract Deploy is Deployer {
     /// @notice Deploy a new OP Chain, with an existing SuperchainConfig provided
     function setupOpChain() public {
         console.log("Deploying OP Chain");
+        deployAddressManager();
+        deployProxyAdmin({ _isSuperchain: false });
 
         // Ensure that the requisite contracts are deployed
         mustGetAddress("SuperchainConfigProxy");
