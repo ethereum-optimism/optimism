@@ -30,12 +30,18 @@ type DeployOPChainInput struct {
 	Proposer               common.Address
 	Challenger             common.Address
 
-	BasefeeScalar     uint32
-	BlobBaseFeeScalar uint32
-	L2ChainId         *big.Int
-	OpcmProxy         common.Address
-	SaltMixer         string
-	GasLimit          uint64
+	BasefeeScalar           uint32
+	BlobBaseFeeScalar       uint32
+	L2ChainId               *big.Int
+	OpcmProxy               common.Address
+	SaltMixer               string
+	GasLimit                uint64
+	DisputeGameType         uint32
+	DisputeAbsolutePrestate common.Hash
+	DisputeMaxGameDepth     uint64
+	DisputeSplitDepth       uint64
+	DisputeClockExtension   uint64
+	DisputeMaxClockDuration uint64
 }
 
 func (input *DeployOPChainInput) InputSet() bool {
@@ -119,13 +125,19 @@ type opcmRoles struct {
 // opcmDeployInput is the input struct for the deploy method of the OPStackManager contract. We
 // define a separate struct here to match what the OPSM contract expects.
 type opcmDeployInput struct {
-	Roles               opcmRoles
-	BasefeeScalar       uint32
-	BlobBasefeeScalar   uint32
-	L2ChainId           *big.Int
-	StartingAnchorRoots []byte
-	SaltMixer           string
-	GasLimit            uint64
+	Roles                   opcmRoles
+	BasefeeScalar           uint32
+	BlobBasefeeScalar       uint32
+	L2ChainId               *big.Int
+	StartingAnchorRoots     []byte
+	SaltMixer               string
+	GasLimit                uint64
+	DisputeGameType         uint32
+	DisputeAbsolutePrestate common.Hash
+	DisputeMaxGameDepth     uint64
+	DisputeSplitDepth       uint64
+	DisputeClockExtension   uint64
+	DisputeMaxClockDuration uint64
 }
 
 // decodeOutputABIJSON defines an ABI for a fake method called "decodeOutput" that returns the
@@ -240,12 +252,18 @@ func DeployOPChainRaw(
 			Proposer:               input.Proposer,
 			Challenger:             input.Challenger,
 		},
-		BasefeeScalar:       input.BasefeeScalar,
-		BlobBasefeeScalar:   input.BlobBaseFeeScalar,
-		L2ChainId:           input.L2ChainId,
-		StartingAnchorRoots: input.StartingAnchorRoots(),
-		SaltMixer:           input.SaltMixer,
-		GasLimit:            input.GasLimit,
+		BasefeeScalar:           input.BasefeeScalar,
+		BlobBasefeeScalar:       input.BlobBaseFeeScalar,
+		L2ChainId:               input.L2ChainId,
+		StartingAnchorRoots:     input.StartingAnchorRoots(),
+		SaltMixer:               input.SaltMixer,
+		GasLimit:                input.GasLimit,
+		DisputeGameType:         input.DisputeGameType,
+		DisputeAbsolutePrestate: input.DisputeAbsolutePrestate,
+		DisputeMaxGameDepth:     input.DisputeMaxGameDepth,
+		DisputeSplitDepth:       input.DisputeSplitDepth,
+		DisputeClockExtension:   input.DisputeClockExtension,
+		DisputeMaxClockDuration: input.DisputeMaxClockDuration,
 	})
 	if err != nil {
 		return out, fmt.Errorf("failed to pack deploy input: %w", err)
