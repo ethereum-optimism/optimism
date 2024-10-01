@@ -12,6 +12,7 @@ import (
 	"time"
 
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
+	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -37,7 +38,7 @@ func TestBenchmarkCannon_FPP(t *testing.T) {
 
 	op_e2e.InitParallel(t, op_e2e.UsesCannon)
 	ctx := context.Background()
-	cfg := e2esys.DefaultSystemConfig(t)
+	cfg := e2esys.DefaultSystemConfig(t, e2esys.WithAllocType(config.AllocTypeFromEnv()))
 	// We don't need a verifier - just the sequencer is enough
 	delete(cfg.Nodes, "verifier")
 	// Use a small sequencer window size to avoid test timeout while waiting for empty blocks
