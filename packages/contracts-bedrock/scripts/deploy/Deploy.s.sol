@@ -274,10 +274,13 @@ contract Deploy is Deployer {
         } else {
             deployImplementations();
         }
-        if (!cfg.useFaultProofs()) {
-            deployOptimismPortal();
-            deployL2OutputOracle();
-        }
+
+        // TODO: We should only need to deploy these contracts if cfg.useFaultProofs() is false
+        // however some op-e2e tests fail if they are not found. Always deploying them is
+        // OK for now, but not ideal.
+        deployOptimismPortal();
+        deployL2OutputOracle();
+
         deployOpChain();
         if (cfg.useAltDA()) {
             bytes32 typeHash = keccak256(bytes(cfg.daCommitmentType()));
