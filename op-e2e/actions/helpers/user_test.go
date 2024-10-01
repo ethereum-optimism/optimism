@@ -155,7 +155,7 @@ func runCrossLayerUserTest(gt *testing.T, test hardforkScheduledTest) {
 		seq.RollupClient(), miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 
 	var proposer *L2Proposer
-	if test.allocType == config.AllocTypeStandard {
+	if test.allocType.UsesProofs() {
 		optimismPortal2Contract, err := bindingspreview.NewOptimismPortal2(sd.DeploymentsL1.OptimismPortalProxy, miner.EthClient())
 		require.NoError(t, err)
 		respectedGameType, err := optimismPortal2Contract.RespectedGameType(&bind.CallOpts{})
@@ -309,7 +309,7 @@ func runCrossLayerUserTest(gt *testing.T, test hardforkScheduledTest) {
 	miner.ActL1EndBlock(t)
 
 	// If using fault proofs we need to resolve the game
-	if test.allocType == config.AllocTypeStandard {
+	if test.allocType.UsesProofs() {
 		// Resolve the root claim
 		alice.ActResolveClaim(t)
 		miner.ActL1StartBlock(12)(t)

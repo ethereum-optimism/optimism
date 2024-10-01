@@ -797,11 +797,11 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 
 	// L2Output Submitter
 	var proposerCLIConfig *l2os.CLIConfig
-	if cfg.AllocType == config.AllocTypeStandard {
+	if cfg.AllocType.UsesProofs() {
 		proposerCLIConfig = &l2os.CLIConfig{
 			L1EthRpc:          sys.EthInstances[RoleL1].UserRPC().RPC(),
 			RollupRpc:         sys.RollupNodes[RoleSeq].UserRPC().RPC(),
-			DGFAddress:        config.L1Deployments(config.AllocTypeStandard).DisputeGameFactoryProxy.Hex(),
+			DGFAddress:        config.L1Deployments(cfg.AllocType).DisputeGameFactoryProxy.Hex(),
 			ProposalInterval:  6 * time.Second,
 			DisputeGameType:   254, // Fast game type
 			PollInterval:      500 * time.Millisecond,
@@ -816,7 +816,7 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 		proposerCLIConfig = &l2os.CLIConfig{
 			L1EthRpc:          sys.EthInstances[RoleL1].UserRPC().RPC(),
 			RollupRpc:         sys.RollupNodes[RoleSeq].UserRPC().RPC(),
-			L2OOAddress:       config.L1Deployments(config.AllocTypeL2OO).L2OutputOracleProxy.Hex(),
+			L2OOAddress:       config.L1Deployments(cfg.AllocType).L2OutputOracleProxy.Hex(),
 			PollInterval:      500 * time.Millisecond,
 			TxMgrConfig:       setuputils.NewTxMgrConfig(sys.EthInstances[RoleL1].UserRPC(), cfg.Secrets.Proposer),
 			AllowNonFinalized: cfg.NonFinalizedProposals,

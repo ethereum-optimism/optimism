@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -39,24 +40,22 @@ const (
 )
 
 func (a AllocType) Check() error {
-	switch a {
-	case AllocTypeStandard, AllocTypeAltDA, AllocTypeL2OO, AllocTypeMTCannon:
-		return nil
-	default:
+	if !slices.Contains(allocTypes, a) {
 		return fmt.Errorf("unknown alloc type: %q", a)
 	}
+	return nil
 }
 
-func (a AllocType) SupportsProofs() bool {
+func (a AllocType) UsesProofs() bool {
 	switch a {
-	case AllocTypeStandard, AllocTypeMTCannon:
+	case AllocTypeStandard, AllocTypeMTCannon, AllocTypeAltDA:
 		return true
 	default:
 		return false
 	}
 }
 
-var allocTypes = []AllocType{AllocTypeStandard, AllocTypeAltDA, AllocTypeL2OO}
+var allocTypes = []AllocType{AllocTypeStandard, AllocTypeAltDA, AllocTypeL2OO, AllocTypeMTCannon}
 
 var (
 	// All of the following variables are set in the init function

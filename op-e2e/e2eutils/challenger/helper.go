@@ -124,10 +124,8 @@ func applyCannonConfig(c *config.Config, t *testing.T, rollupCfg *rollup.Config,
 	if allocType == e2econfig.AllocTypeMTCannon {
 		t.Log("Using MT-Cannon absolute prestate")
 		c.CannonAbsolutePreState = root + "op-program/bin/prestate-mt.bin.gz"
-	} else if allocType == e2econfig.AllocTypeStandard {
-		c.CannonAbsolutePreState = root + "op-program/bin/prestate.bin.gz"
 	} else {
-		panic(fmt.Sprintf("unknown alloc type: %v", allocType))
+		c.CannonAbsolutePreState = root + "op-program/bin/prestate.bin.gz"
 	}
 	c.Cannon.SnapshotFreq = 10_000_000
 

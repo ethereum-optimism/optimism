@@ -118,7 +118,7 @@ func NewFactoryHelper(t *testing.T, ctx context.Context, system DisputeSystem, o
 	require.NoError(err)
 
 	allocType := config.AllocTypeFromEnv()
-	require.True(allocType.SupportsProofs(), "AllocType %v does not support proofs", allocType)
+	require.True(allocType.UsesProofs(), "AllocType %v does not support proofs", allocType)
 
 	factoryCfg := &FactoryCfg{PrivKey: TestKey}
 	for _, opt := range opts {

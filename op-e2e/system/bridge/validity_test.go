@@ -431,7 +431,7 @@ func testMixedWithdrawalValidity(t *testing.T, allocType config.AllocType) {
 			// Wait for the finalization period, then we can finalize this withdrawal.
 			require.NotEqual(t, cfg.L1Deployments.L2OutputOracleProxy, common.Address{})
 			var blockNumber uint64
-			if allocType == config.AllocTypeStandard {
+			if allocType.UsesProofs() {
 				blockNumber, err = wait.ForGamePublished(ctx, l1Client, cfg.L1Deployments.OptimismPortalProxy, cfg.L1Deployments.DisputeGameFactoryProxy, receipt.BlockNumber)
 			} else {
 				blockNumber, err = wait.ForOutputRootPublished(ctx, l1Client, cfg.L1Deployments.L2OutputOracleProxy, receipt.BlockNumber)
@@ -537,7 +537,7 @@ func testMixedWithdrawalValidity(t *testing.T, allocType config.AllocType) {
 			} else {
 				require.NoError(t, err)
 
-				if allocType == config.AllocTypeStandard {
+				if allocType.UsesProofs() {
 					// Start a challenger to resolve claims and games once the clock expires
 					factoryHelper := disputegame.NewFactoryHelper(t, ctx, sys)
 					factoryHelper.StartChallenger(ctx, "Challenger",
@@ -565,7 +565,7 @@ func testMixedWithdrawalValidity(t *testing.T, allocType config.AllocType) {
 				// Wait for finalization and then create the Finalized Withdrawal Transaction
 				ctx, withdrawalCancel := context.WithTimeout(context.Background(), 60*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 				defer withdrawalCancel()
-				if allocType == config.AllocTypeStandard {
+				if allocType.UsesProofs() {
 					err = wait.ForWithdrawalCheck(ctx, l1Client, withdrawal, cfg.L1Deployments.OptimismPortalProxy, transactor.Account.L1Opts.From)
 					require.NoError(t, err)
 				} else {

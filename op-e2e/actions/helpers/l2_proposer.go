@@ -120,7 +120,7 @@ func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Cl
 
 	var l2OutputOracle *bindings.L2OutputOracleCaller
 	var disputeGameFactory *bindings.DisputeGameFactoryCaller
-	if cfg.AllocType == config.AllocTypeStandard {
+	if cfg.AllocType.UsesProofs() {
 		disputeGameFactory, err = bindings.NewDisputeGameFactoryCaller(*cfg.DisputeGameFactoryAddr, l1)
 		require.NoError(t, err)
 	} else {
@@ -158,7 +158,7 @@ func (p *L2Proposer) sendTx(t Testing, data []byte) {
 	require.NoError(t, err)
 
 	var addr common.Address
-	if p.allocType == config.AllocTypeStandard {
+	if p.allocType.UsesProofs() {
 		addr = *p.disputeGameFactoryAddr
 	} else {
 		addr = *p.l2OutputOracleAddr
@@ -226,7 +226,7 @@ func toCallArg(msg ethereum.CallMsg) interface{} {
 }
 
 func (p *L2Proposer) fetchNextOutput(t Testing) (*eth.OutputResponse, bool, error) {
-	if p.allocType == config.AllocTypeStandard {
+	if p.allocType.UsesProofs() {
 		output, shouldPropose, err := p.driver.FetchDGFOutput(t.Ctx())
 		if err != nil || !shouldPropose {
 			return nil, false, err
@@ -262,7 +262,7 @@ func (p *L2Proposer) ActMakeProposalTx(t Testing) {
 	}
 
 	var txData []byte
-	if p.allocType == config.AllocTypeStandard {
+	if p.allocType.UsesProofs() {
 		tx, err := p.driver.ProposeL2OutputDGFTxCandidate(context.Background(), output)
 		require.NoError(t, err)
 		txData = tx.TxData

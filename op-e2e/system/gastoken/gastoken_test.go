@@ -191,7 +191,7 @@ func testCustomGasToken(t *testing.T, allocType config.AllocType) {
 		proveFee := new(big.Int).Mul(new(big.Int).SetUint64(proveReceipt.GasUsed), proveReceipt.EffectiveGasPrice)
 		finalizeFee := new(big.Int).Mul(new(big.Int).SetUint64(finalizeReceipt.GasUsed), finalizeReceipt.EffectiveGasPrice)
 		fees = new(big.Int).Add(proveFee, finalizeFee)
-		if allocType == config.AllocTypeStandard {
+		if allocType.UsesProofs() {
 			resolveClaimFee := new(big.Int).Mul(new(big.Int).SetUint64(resolveClaimReceipt.GasUsed), resolveClaimReceipt.EffectiveGasPrice)
 			resolveFee := new(big.Int).Mul(new(big.Int).SetUint64(resolveReceipt.GasUsed), resolveReceipt.EffectiveGasPrice)
 			fees = new(big.Int).Add(fees, resolveClaimFee)
@@ -337,7 +337,7 @@ func testCustomGasToken(t *testing.T, allocType config.AllocType) {
 		proveReceipt, finalizeReceipt, resolveClaimReceipt, resolveReceipt := helpers.ProveAndFinalizeWithdrawal(t, cfg, sys, "verifier", cfg.Secrets.Alice, receipt, allocType)
 		require.Equal(t, types.ReceiptStatusSuccessful, proveReceipt.Status)
 		require.Equal(t, types.ReceiptStatusSuccessful, finalizeReceipt.Status)
-		if allocType == config.AllocTypeStandard {
+		if allocType.UsesProofs() {
 			require.Equal(t, types.ReceiptStatusSuccessful, resolveClaimReceipt.Status)
 			require.Equal(t, types.ReceiptStatusSuccessful, resolveReceipt.Status)
 		}

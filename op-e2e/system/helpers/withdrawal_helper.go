@@ -102,23 +102,24 @@ func ProveAndFinalizeWithdrawal(
 	l2NodeName string,
 	ethPrivKey *ecdsa.PrivateKey,
 	l2WithdrawalReceipt *types.Receipt,
-	allocType config.AllocType,
 ) (*types.Receipt, *types.Receipt, *types.Receipt, *types.Receipt) {
-	params, proveReceipt := ProveWithdrawal(t, cfg, clients, l2NodeName, ethPrivKey, l2WithdrawalReceipt, allocType)
-	finalizeReceipt, resolveClaimReceipt, resolveReceipt := FinalizeWithdrawal(t, cfg, clients.NodeClient("l1"), ethPrivKey, proveReceipt, params, allocType)
+	params, proveReceipt := ProveWithdrawal(t, cfg, clients, l2NodeName, ethPrivKey, l2WithdrawalReceipt)
+	finalizeReceipt, resolveClaimReceipt, resolveReceipt := FinalizeWithdrawal(t, cfg, clients.NodeClient("l1"), ethPrivKey, proveReceipt, params)
 	return proveReceipt, finalizeReceipt, resolveClaimReceipt, resolveReceipt
 }
 
-func ProveWithdrawal(t *testing.T, cfg e2esys.SystemConfig, clients ClientProvider, l2NodeName string, ethPrivKey *ecdsa.PrivateKey, l2WithdrawalReceipt *types.Receipt, allocType config.AllocType) (withdrawals.ProvenWithdrawalParameters, *types.Receipt) {
+func ProveWithdrawal(t *testing.T, cfg e2esys.SystemConfig, clients ClientProvider, l2NodeName string, ethPrivKey *ecdsa.PrivateKey, l2WithdrawalReceipt *types.Receipt) (withdrawals.ProvenWithdrawalParameters, *types.Receipt) {
 	// Get l2BlockNumber for proof generation
 	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	defer cancel()
+
+	allocType := cfg.AllocType
 
 	l1Client := clients.NodeClient(e2esys.RoleL1)
 	var blockNumber uint64
 	var err error
 	l1Deployments := config.L1Deployments(allocType)
-	if allocType == config.AllocTypeStandard {
+	if allocType.UsesProofs() {
 		blockNumber, err = wait.ForGamePublished(ctx, l1Client, l1Deployments.OptimismPortalProxy, l1Deployments.DisputeGameFactoryProxy, l2WithdrawalReceipt.BlockNumber)
 		require.NoError(t, err)
 	} else {
@@ -179,14 +180,14 @@ func ProveWithdrawal(t *testing.T, cfg e2esys.SystemConfig, clients ClientProvid
 }
 
 func ProveWithdrawalParameters(ctx context.Context, proofCl withdrawals.ProofClient, l2ReceiptCl withdrawals.ReceiptClient, l2BlockCl withdrawals.BlockClient, txHash common.Hash, header *types.Header, l2OutputOracleContract *bindings.L2OutputOracleCaller, disputeGameFactoryContract *bindings.DisputeGameFactoryCaller, optimismPortal2Contract *bindingspreview.OptimismPortal2Caller, allocType config.AllocType) (withdrawals.ProvenWithdrawalParameters, error) {
-	if allocType == config.AllocTypeStandard {
+	if allocType.UsesProofs() {
 		return withdrawals.ProveWithdrawalParametersFaultProofs(ctx, proofCl, l2ReceiptCl, l2BlockCl, txHash, disputeGameFactoryContract, optimismPortal2Contract)
 	} else {
 		return withdrawals.ProveWithdrawalParameters(ctx, proofCl, l2ReceiptCl, l2BlockCl, txHash, header, l2OutputOracleContract)
 	}
 }
 
-func FinalizeWithdrawal(t *testing.T, cfg e2esys.SystemConfig, l1Client *ethclient.Client, privKey *ecdsa.PrivateKey, withdrawalProofReceipt *types.Receipt, params withdrawals.ProvenWithdrawalParameters, allocType config.AllocType) (*types.Receipt, *types.Receipt, *types.Receipt) {
+func FinalizeWithdrawal(t *testing.T, cfg e2esys.SystemConfig, l1Client *ethclient.Client, privKey *ecdsa.PrivateKey, withdrawalProofReceipt *types.Receipt, params withdrawals.ProvenWithdrawalParameters) (*types.Receipt, *types.Receipt, *types.Receipt) {
 	// Wait for finalization and then create the Finalized Withdrawal Transaction
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	defer cancel()
@@ -200,13 +201,15 @@ func FinalizeWithdrawal(t *testing.T, cfg e2esys.SystemConfig, l1Client *ethclie
 		Data:     params.Data,
 	}
 
+	allocType := cfg.AllocType
+
 	opts, err := bind.NewKeyedTransactorWithChainID(privKey, cfg.L1ChainIDBig())
 	require.NoError(t, err)
 
 	var resolveClaimReceipt *types.Receipt
 	var resolveReceipt *types.Receipt
 	l1Deployments := config.L1Deployments(allocType)
-	if allocType == config.AllocTypeStandard {
+	if allocType.UsesProofs() {
 		portal2, err := bindingspreview.NewOptimismPortal2(l1Deployments.OptimismPortalProxy, l1Client)
 		require.NoError(t, err)
 
