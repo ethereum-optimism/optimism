@@ -278,7 +278,7 @@ contract Deploy is Deployer {
             deployOptimismPortal();
             deployL2OutputOracle();
         }
-        setupOpChain();
+        deployOpChain();
         if (cfg.useAltDA()) {
             bytes32 typeHash = keccak256(bytes(cfg.daCommitmentType()));
             bytes32 keccakHash = keccak256(bytes("KeccakCommitment"));
@@ -322,32 +322,17 @@ contract Deploy is Deployer {
         save("ProtocolVersions", address(dso.protocolVersionsImpl()));
     }
 
-    /// @notice Deploy a new OP Chain, with an existing SuperchainConfig provided
-    function setupOpChain() public {
+    /// @notice Deploy all of the OP Chain specific contracts
+    function deployOpChain() public {
         console.log("Deploying OP Chain");
         deployAddressManager();
         deployProxyAdmin({ _isSuperchain: false });
+        transferAddressManagerOwnership(); // to the ProxyAdmin
 
         // Ensure that the requisite contracts are deployed
         mustGetAddress("SuperchainConfigProxy");
         mustGetAddress("AddressManager");
         mustGetAddress("ProxyAdmin");
-
-        deployOpChain();
-        initializeOpChain();
-
-        setAlphabetFaultGameImplementation({ _allowUpgrade: false });
-        setFastFaultGameImplementation({ _allowUpgrade: false });
-        setCannonFaultGameImplementation({ _allowUpgrade: false });
-        setPermissionedCannonFaultGameImplementation({ _allowUpgrade: false });
-
-        transferDisputeGameFactoryOwnership();
-        transferDelayedWETHOwnership();
-    }
-
-    /// @notice Deploy all of the OP Chain specific contracts
-    function deployOpChain() public {
-        console.log("Deploying OP Chain contracts");
 
         deployERC1967Proxy("OptimismPortalProxy");
         deployERC1967Proxy("SystemConfigProxy");
@@ -367,7 +352,15 @@ contract Deploy is Deployer {
 
         deployAnchorStateRegistry();
 
-        transferAddressManagerOwnership(); // to the ProxyAdmin
+        initializeOpChain();
+
+        setAlphabetFaultGameImplementation({ _allowUpgrade: false });
+        setFastFaultGameImplementation({ _allowUpgrade: false });
+        setCannonFaultGameImplementation({ _allowUpgrade: false });
+        setPermissionedCannonFaultGameImplementation({ _allowUpgrade: false });
+
+        transferDisputeGameFactoryOwnership();
+        transferDelayedWETHOwnership();
     }
 
     /// @notice Deploy all of the implementations
