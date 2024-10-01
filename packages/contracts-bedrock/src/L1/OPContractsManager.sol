@@ -124,8 +124,8 @@ contract OPContractsManager is ISemver, Initializable {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 1.0.0-beta.17
-    string public constant version = "1.0.0-beta.17";
+    /// @custom:semver 1.0.0-beta.18
+    string public constant version = "1.0.0-beta.18";
 
     /// @notice Represents the interface version so consumers know how to decode the DeployOutput struct
     /// that's emitted in the `Deployed` event. Whenever that struct changes, a new version should be used.
@@ -449,50 +449,38 @@ contract OPContractsManager is ISemver, Initializable {
         virtual
         returns (bytes memory)
     {
-        // We inspect the SystemConfig contract and determine it's signature here. This is required
-        // because this OPCM contract is being developed in a repository that no longer contains the
-        // SystemConfig contract that was released as part of `op-contracts/v1.6.0`, but in production
-        // it needs to support that version, in addition to the version currently on develop.
+        // At a minimum, we always need the initializer data used by the `op-contracts/v1.6.0`
+        // version of the SystemConfig contract, which has a semver of 2.2.0.
+        (
+            IResourceMetering.ResourceConfig memory referenceResourceConfig,
+            ISystemConfigV160.Addresses memory opChainAddrs
+        ) = defaultSystemConfigV160Params(_selector, _input, _output);
+
+        bytes memory data = abi.encodeWithSelector(
+            _selector,
+            _input.roles.systemConfigOwner,
+            _input.basefeeScalar,
+            _input.blobBasefeeScalar,
+            bytes32(uint256(uint160(_input.roles.batcher))), // batcherHash
+            30_000_000,
+            _input.roles.unsafeBlockSigner,
+            referenceResourceConfig,
+            chainIdToBatchInboxAddress(_input.l2ChainId),
+            opChainAddrs
+        );
+
+        // If we are using that version, we return the data as is.
         string memory semver = _output.systemConfigProxy.version();
         if (keccak256(abi.encode(semver)) == keccak256(abi.encode(string("2.2.0")))) {
-            // We are using the op-contracts/v1.6.0 SystemConfig contract.
-            (
-                IResourceMetering.ResourceConfig memory referenceResourceConfig,
-                ISystemConfigV160.Addresses memory opChainAddrs
-            ) = defaultSystemConfigV160Params(_selector, _input, _output);
-
-            return abi.encodeWithSelector(
-                _selector,
-                _input.roles.systemConfigOwner,
-                _input.basefeeScalar,
-                _input.blobBasefeeScalar,
-                bytes32(uint256(uint160(_input.roles.batcher))), // batcherHash
-                30_000_000,
-                _input.roles.unsafeBlockSigner,
-                referenceResourceConfig,
-                chainIdToBatchInboxAddress(_input.l2ChainId),
-                opChainAddrs
-            );
-        } else {
-            // We are using the latest SystemConfig contract from the repo.
-            (
-                IResourceMetering.ResourceConfig memory referenceResourceConfig,
-                ISystemConfig.Addresses memory opChainAddrs
-            ) = defaultSystemConfigParams(_selector, _input, _output);
-
-            return abi.encodeWithSelector(
-                _selector,
-                _input.roles.systemConfigOwner,
-                _input.basefeeScalar,
-                _input.blobBasefeeScalar,
-                bytes32(uint256(uint160(_input.roles.batcher))), // batcherHash
-                30_000_000,
-                _input.roles.unsafeBlockSigner,
-                referenceResourceConfig,
-                chainIdToBatchInboxAddress(_input.l2ChainId),
-                opChainAddrs
-            );
+            return data;
         }
+
+        // If the SystemConfig contract is not 2.2.0, it's a later version that contains Custom Gas
+        // Token code, so we append a gas token of ETH to the calldata. If we always append this
+        // regardless of the version, ABI decoding of the calldata fails in the 2.2.0 version.
+        // Simply appending this works because the SystemConfig.Addresses struct is the last argument,
+        // and the gas token address is the last entry in that struct.
+        return bytes.concat(data, abi.encode(Constants.ETHER));
     }
 
     /// @notice Helper method for encoding the OptimismMintableERC20Factory initializer data.
@@ -601,43 +589,6 @@ contract OPContractsManager is ISemver, Initializable {
             _input.roles.proposer,
             _input.roles.challenger
         );
-    }
-
-    /// @notice Returns default, standard config arguments for the SystemConfig initializer.
-    /// This is used by subclasses to reduce code duplication.
-    function defaultSystemConfigParams(
-        bytes4, /* selector */
-        DeployInput memory, /* _input */
-        DeployOutput memory _output
-    )
-        internal
-        view
-        virtual
-        returns (IResourceMetering.ResourceConfig memory resourceConfig_, ISystemConfig.Addresses memory opChainAddrs_)
-    {
-        // We use assembly to easily convert from IResourceMetering.ResourceConfig to ResourceMetering.ResourceConfig.
-        // This is required because we have not yet fully migrated the codebase to be interface-based.
-        IResourceMetering.ResourceConfig memory resourceConfig = Constants.DEFAULT_RESOURCE_CONFIG();
-        assembly ("memory-safe") {
-            resourceConfig_ := resourceConfig
-        }
-
-        opChainAddrs_ = ISystemConfig.Addresses({
-            l1CrossDomainMessenger: address(_output.l1CrossDomainMessengerProxy),
-            l1ERC721Bridge: address(_output.l1ERC721BridgeProxy),
-            l1StandardBridge: address(_output.l1StandardBridgeProxy),
-            disputeGameFactory: address(_output.disputeGameFactoryProxy),
-            optimismPortal: address(_output.optimismPortalProxy),
-            optimismMintableERC20Factory: address(_output.optimismMintableERC20FactoryProxy),
-            gasPayingToken: Constants.ETHER
-        });
-
-        assertValidContractAddress(opChainAddrs_.l1CrossDomainMessenger);
-        assertValidContractAddress(opChainAddrs_.l1ERC721Bridge);
-        assertValidContractAddress(opChainAddrs_.l1StandardBridge);
-        assertValidContractAddress(opChainAddrs_.disputeGameFactory);
-        assertValidContractAddress(opChainAddrs_.optimismPortal);
-        assertValidContractAddress(opChainAddrs_.optimismMintableERC20Factory);
     }
 
     /// @notice Returns default, standard config arguments for the SystemConfig initializer.
