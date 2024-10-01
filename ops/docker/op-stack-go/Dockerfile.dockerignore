@@ -2,8 +2,6 @@
 # node_modules, packages (contains git submodules and node modules etc.), devnet dirs etc. all add up a lot.
 *
 
-# keep .git for multicannon
-!/.git
 !/cannon
 !/op-batcher
 !/op-bootnode

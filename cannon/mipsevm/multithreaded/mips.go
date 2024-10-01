@@ -185,7 +185,7 @@ func (m *InstrumentedState) handleSyscall() error {
 	case exec.SysSigaltstack:
 	case exec.SysRtSigaction:
 	case exec.SysPrlimit64:
-	// TODO: may be needed for 64-bit Cannon
+	// TODO(#12205): may be needed for 64-bit Cannon
 	// case exec.SysGetRtLimit:
 	case exec.SysClose:
 	case exec.SysPread64:

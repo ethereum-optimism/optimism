@@ -19,7 +19,7 @@ const (
 	AddressMask = arch.AddressMask
 )
 
-// TODO: redefine syscalls for MIPS64
+// TODO(#12205): redefine syscalls for MIPS64
 // Syscall codes
 const (
 	SysMmap         = 4090
