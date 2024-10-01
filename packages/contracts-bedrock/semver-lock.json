@@ -80,12 +80,12 @@
     "sourceCodeHash": "0x4f21025d4b5c9c74cf7040db6f8e9ce605b82931e3012fee51d3f5d9fbd7b73f"
   },
   "src/L2/L1Block.sol": {
-    "initCodeHash": "0x48d118de2a69fb0fbf6a8da4603025e12da1360da8fb70a5e56342ba64b3ff5f",
-    "sourceCodeHash": "0x04d25cbf0c4ea5025b0dd3f79f0a32f6623ddb869cff35649072ab3ad964b310"
+    "initCodeHash": "0xd12353c5bf71c6765cc9292eecf262f216e67f117f4ba6287796a5207dbca00f",
+    "sourceCodeHash": "0xfe3a9585d9bfca8428e12759cab68a3114374e5c37371cfe08bb1976a9a5a041"
   },
   "src/L2/L1BlockInterop.sol": {
-    "initCodeHash": "0x7f87e0b8be9801cb242c469ec7999eb80221f65063aedd4ca4923a5e0fb0e5a7",
-    "sourceCodeHash": "0x722071a9d08dcbeda9cdaadeb2dd679a8bc192563e4a0439f4cd74439fa75581"
+    "initCodeHash": "0x77b3b2151fe14ea36a640469115a5e4de27f7654a9606a9d0701522c6a4ad887",
+    "sourceCodeHash": "0x7417677643e1df1ae1782513b94c7821097b9529d3f8626c3bcb8b3a9ae0d180"
   },
   "src/L2/L1FeeVault.sol": {
     "initCodeHash": "0x3bfcd57e25ad54b66c374f63e24e33a6cf107044aa8f5f69ef21202c380b5c5b",
