@@ -269,7 +269,7 @@ contract Deploy is Deployer {
             setupSuperchain();
             console.log("set up superchain!");
         }
-        if(cfg.useInterop()) {
+        if (cfg.useInterop()) {
             deployImplementationsInterop();
         } else {
             deployImplementations();
