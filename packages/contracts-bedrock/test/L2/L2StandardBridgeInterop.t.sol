@@ -9,7 +9,8 @@ import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 
 // Interfaces
-import { IL2StandardBridgeInterop, IMintableAndBurnable } from "src/L2/interfaces/IL2StandardBridgeInterop.sol";
+import { IMintableAndBurnableERC20 } from "src/L2/interfaces/IMintableAndBurnableERC20.sol";
+import { IL2StandardBridgeInterop } from "src/L2/interfaces/IL2StandardBridgeInterop.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { IOptimismMintableERC20 } from "src/universal/interfaces/IOptimismMintableERC20.sol";
@@ -202,9 +203,11 @@ contract L2StandardBridgeInterop_LegacyToSuper_Test is L2StandardBridgeInterop_T
 
         // Mock and expect the `burn` and `mint` functions
         _mockAndExpect(
-            _from, abi.encodeWithSelector(IMintableAndBurnable.burn.selector, _caller, _amount), abi.encode()
+            _from, abi.encodeWithSelector(IMintableAndBurnableERC20.burn.selector, _caller, _amount), abi.encode()
         );
-        _mockAndExpect(_to, abi.encodeWithSelector(IMintableAndBurnable.mint.selector, _caller, _amount), abi.encode());
+        _mockAndExpect(
+            _to, abi.encodeWithSelector(IMintableAndBurnableERC20.mint.selector, _caller, _amount), abi.encode()
+        );
 
         // Act
         vm.prank(_caller);
@@ -358,9 +361,11 @@ contract L2StandardBridgeInterop_SuperToLegacy_Test is L2StandardBridgeInterop_T
 
         // Mock and expect the `burn` and `mint` functions
         _mockAndExpect(
-            _from, abi.encodeWithSelector(IMintableAndBurnable.burn.selector, _caller, _amount), abi.encode()
+            _from, abi.encodeWithSelector(IMintableAndBurnableERC20.burn.selector, _caller, _amount), abi.encode()
         );
-        _mockAndExpect(_to, abi.encodeWithSelector(IMintableAndBurnable.mint.selector, _caller, _amount), abi.encode());
+        _mockAndExpect(
+            _to, abi.encodeWithSelector(IMintableAndBurnableERC20.mint.selector, _caller, _amount), abi.encode()
+        );
 
         // Act
         vm.prank(_caller);

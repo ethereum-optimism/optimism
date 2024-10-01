@@ -10,14 +10,14 @@ import { IL2ToL2CrossDomainMessenger } from "src/L2/interfaces/IL2ToL2CrossDomai
 
 // Target contract
 import { ISuperchainERC20Bridge } from "src/L2/interfaces/ISuperchainERC20Bridge.sol";
-import { IOptimismSuperchainERC20 } from "src/L2/interfaces/IOptimismSuperchainERC20.sol";
+import { ISuperchainERC20 } from "src/L2/interfaces/ISuperchainERC20.sol";
 import { IOptimismSuperchainERC20Factory } from "src/L2/interfaces/IOptimismSuperchainERC20Factory.sol";
 
 /// @title SuperchainERC20BridgeTest
 /// @notice Contract for testing the SuperchainERC20Bridge contract.
 contract SuperchainERC20BridgeTest is Bridge_Initializer {
     address internal constant ZERO_ADDRESS = address(0);
-    string internal constant NAME = "OptimismSuperchainERC20";
+    string internal constant NAME = "SuperchainERC20";
     string internal constant SYMBOL = "OSE";
     address internal constant REMOTE_TOKEN = address(0x123);
 
@@ -29,14 +29,14 @@ contract SuperchainERC20BridgeTest is Bridge_Initializer {
 
     event RelayERC20(address indexed token, address indexed from, address indexed to, uint256 amount, uint256 source);
 
-    IOptimismSuperchainERC20 public superchainERC20;
+    ISuperchainERC20 public superchainERC20;
 
     /// @notice Sets up the test suite.
     function setUp() public override {
         super.enableInterop();
         super.setUp();
 
-        superchainERC20 = IOptimismSuperchainERC20(
+        superchainERC20 = ISuperchainERC20(
             IOptimismSuperchainERC20Factory(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY).deploy(
                 REMOTE_TOKEN, NAME, SYMBOL, 18
             )
@@ -57,7 +57,7 @@ contract SuperchainERC20BridgeTest is Bridge_Initializer {
 
         // Mint some tokens to the sender so then they can be sent
         vm.prank(Predeploys.SUPERCHAIN_ERC20_BRIDGE);
-        superchainERC20.mint(_sender, _amount);
+        superchainERC20.__superchainMint(_sender, _amount);
 
         // Get the total supply and balance of `_sender` before the send to compare later on the assertions
         uint256 _totalSupplyBefore = superchainERC20.totalSupply();

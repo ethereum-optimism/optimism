@@ -116,8 +116,8 @@
     "sourceCodeHash": "0x4b806cc85cead74c8df34ab08f4b6c6a95a1a387a335ec8a7cb2de4ea4e1cf41"
   },
   "src/L2/OptimismSuperchainERC20.sol": {
-    "initCodeHash": "0x749dacbd29aad60c71c1e1878b21854c796759fb7a5ddc549b96ab9e39bb62b8",
-    "sourceCodeHash": "0xd067ddabbeb6fe1c3886100b16c905b57dfd44f5e6e893323217fe4e642285d4"
+    "initCodeHash": "0xfdb4acd9496a7d3949f71e7e98786ff909730a8ad62d33cf7e29765dceecc6db",
+    "sourceCodeHash": "0x2502433e4b622e1697ca071f91a95b08fa40fdb03bfd958c44b2033a47df2010"
   },
   "src/L2/OptimismSuperchainERC20Beacon.sol": {
     "initCodeHash": "0x99ce8095b23c124850d866cbc144fee6cee05dbc6bb5d83acadfe00b90cf42c7",
@@ -131,9 +131,13 @@
     "initCodeHash": "0x2e6551705e493bacba8cffe22e564d5c401ae5bb02577a5424e0d32784e13e74",
     "sourceCodeHash": "0xd56922cb04597dea469c65e5a49d4b3c50c171e603601e6f41da9517cae0b11a"
   },
+  "src/L2/SuperchainERC20.sol": {
+    "initCodeHash": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+    "sourceCodeHash": "0xddd32f6332510e63d8c98d70321e058b71eda02e6b32a9b6e41540c58d1e653e"
+  },
   "src/L2/SuperchainERC20Bridge.sol": {
-    "initCodeHash": "0x802574bf35587e9a8dc2416e91b9fd1411c75d219545b8b55d25a75452459b10",
-    "sourceCodeHash": "0xb11ce94fd6165d8ca86eebafc7235e0875380d1a5d4e8b267ff0c6477083b21c"
+    "initCodeHash": "0x77d3173e1f269f6bf57f85685abecb4979a7d7d3c672c7afa2a648b66228122f",
+    "sourceCodeHash": "0xf0749a0b9366a06981d2a8f66a55ce1a37e3d5d7dd77704f618741c18cd79009"
   },
   "src/L2/SuperchainWETH.sol": {
     "initCodeHash": "0xf30071df59d85e0e8a552845031aca8d6f0261762e1b4ea1b28ff30379eaa20e",

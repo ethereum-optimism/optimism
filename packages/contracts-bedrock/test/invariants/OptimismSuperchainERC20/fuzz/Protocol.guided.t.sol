@@ -2,7 +2,7 @@
 pragma solidity ^0.8.25;
 
 import { MockL2ToL2CrossDomainMessenger } from "../helpers/MockL2ToL2CrossDomainMessenger.t.sol";
-import { OptimismSuperchainERC20 } from "src/L2/OptimismSuperchainERC20.sol";
+import { SuperchainERC20 } from "src/L2/SuperchainERC20.sol";
 import { ProtocolHandler } from "../handlers/Protocol.t.sol";
 import { EnumerableMap } from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import { CompatibleAssert } from "../helpers/CompatibleAssert.t.sol";
@@ -21,7 +21,7 @@ contract ProtocolGuided is ProtocolHandler, CompatibleAssert {
         validateTokenDeployParams(params)
     {
         chainId = bound(chainId, 0, MAX_CHAINS - 1);
-        OptimismSuperchainERC20 supertoken = _deploySupertoken(
+        SuperchainERC20 supertoken = _deploySupertoken(
             remoteTokens[params.remoteTokenIndex],
             WORDS[params.nameIndex],
             WORDS[params.symbolIndex],
@@ -41,7 +41,7 @@ contract ProtocolGuided is ProtocolHandler, CompatibleAssert {
     /// @custom:property calls to relayERC20 always succeed as long as the cross-domain caller is valid
     function fuzz_relayERC20(uint256 messageIndex) external {
         MockL2ToL2CrossDomainMessenger.CrossChainMessage memory messageToRelay = MESSENGER.messageQueue(messageIndex);
-        OptimismSuperchainERC20 destinationToken = OptimismSuperchainERC20(messageToRelay.crossDomainMessageSender);
+        SuperchainERC20 destinationToken = SuperchainERC20(messageToRelay.crossDomainMessageSender);
         uint256 destinationSupplyBefore = destinationToken.totalSupply();
         uint256 destinationBalanceBefore = destinationToken.balanceOf(messageToRelay.recipient);
 

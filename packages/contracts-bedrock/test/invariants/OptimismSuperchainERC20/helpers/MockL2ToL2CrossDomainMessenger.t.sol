@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.25;
 
-import { OptimismSuperchainERC20 } from "src/L2/OptimismSuperchainERC20.sol";
+import { SuperchainERC20 } from "src/L2/SuperchainERC20.sol";
 import { SafeCall } from "src/libraries/SafeCall.sol";
 
 contract MockL2ToL2CrossDomainMessenger {
@@ -41,9 +41,9 @@ contract MockL2ToL2CrossDomainMessenger {
     )
         external
         view
-        returns (OptimismSuperchainERC20)
+        returns (SuperchainERC20)
     {
-        return OptimismSuperchainERC20(superTokenAddresses[destinationChainId][superTokenInitDeploySalts[sender]]);
+        return SuperchainERC20(superTokenAddresses[destinationChainId][superTokenInitDeploySalts[sender]]);
     }
 
     function setCrossDomainMessageSender(address sender) external {

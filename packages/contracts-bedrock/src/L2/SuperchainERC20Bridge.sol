@@ -6,7 +6,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 
 // Interfaces
 import { ISuperchainERC20Bridge } from "src/L2/interfaces/ISuperchainERC20Bridge.sol";
-import { IMintableAndBurnableERC20 } from "src/L2/interfaces/IMintableAndBurnableERC20.sol";
+import { ISuperchainERC20 } from "src/L2/interfaces/ISuperchainERC20.sol";
 import { IL2ToL2CrossDomainMessenger } from "src/L2/interfaces/IL2ToL2CrossDomainMessenger.sol";
 
 /// @custom:proxied true
@@ -29,7 +29,7 @@ contract SuperchainERC20Bridge is ISuperchainERC20Bridge {
     /// @param _amount  Amount of tokens to send.
     /// @param _chainId Chain ID of the destination chain.
     function sendERC20(address _token, address _to, uint256 _amount, uint256 _chainId) external {
-        IMintableAndBurnableERC20(_token).burn(msg.sender, _amount);
+        ISuperchainERC20(_token).__superchainBurn(msg.sender, _amount);
 
         bytes memory message = abi.encodeCall(this.relayERC20, (_token, msg.sender, _to, _amount));
         IL2ToL2CrossDomainMessenger(MESSENGER).sendMessage(_chainId, address(this), message);
@@ -51,7 +51,7 @@ contract SuperchainERC20Bridge is ISuperchainERC20Bridge {
 
         uint256 source = IL2ToL2CrossDomainMessenger(MESSENGER).crossDomainMessageSource();
 
-        IMintableAndBurnableERC20(_token).mint(_to, _amount);
+        ISuperchainERC20(_token).__superchainMint(_to, _amount);
 
         emit RelayERC20(_token, _from, _to, _amount, source);
     }
