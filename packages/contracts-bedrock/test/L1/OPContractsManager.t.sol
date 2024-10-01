@@ -7,11 +7,8 @@ import { DeployOPChainInput } from "scripts/DeployOPChain.s.sol";
 import { DeployOPChain_TestBase } from "test/opcm/DeployOPChain.t.sol";
 
 import { OPContractsManager } from "src/L1/OPContractsManager.sol";
-import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
-import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
 import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
 import { IProtocolVersions } from "src/L1/interfaces/IProtocolVersions.sol";
-import { SystemConfig } from "src/L1/SystemConfig.sol";
 
 // Exposes internal functions for testing.
 contract OPContractsManager_Harness is OPContractsManager {

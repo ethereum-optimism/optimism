@@ -10,7 +10,7 @@ import "src/dispute/lib/Types.sol";
 
 // Interfaces
 import { IProxy } from "src/universal/interfaces/IProxy.sol";
-import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
+import { IMIPS } from "src/cannon/interfaces/IMIPS.sol";
 import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistry.sol";
 import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";

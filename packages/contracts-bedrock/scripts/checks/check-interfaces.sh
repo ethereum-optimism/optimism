@@ -73,6 +73,7 @@ EXCLUDE_CONTRACTS=(
     "IDelayedWETH"
     "IL2ToL2CrossDomainMessenger"
     "ICrossL2Inbox"
+    "ISystemConfigInterop"
 
     # Solidity complains about receive but contract doens't have it.
     "IResolvedDelegateProxy"

@@ -15,10 +15,7 @@ import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
 import { ISystemConfigV160 } from "src/L1/interfaces/ISystemConfigV160.sol";
 import { IAddressManager } from "src/legacy/interfaces/IAddressManager.sol";
 
-import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
-
-import { L1ChugSplashProxy } from "src/legacy/L1ChugSplashProxy.sol";
-import { ResolvedDelegateProxy } from "src/legacy/ResolvedDelegateProxy.sol";
+import { IProxyAdmin } from "src/universal/interfaces/IProxyAdmin.sol";
 
 import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 import { IDisputeGameFactory } from "src/dispute/interfaces/IDisputeGameFactory.sol";
@@ -35,7 +32,7 @@ import { ISystemConfigV160 } from "src/L1/interfaces/ISystemConfigV160.sol";
 import { IL1CrossDomainMessenger } from "src/L1/interfaces/IL1CrossDomainMessenger.sol";
 import { IL1ERC721Bridge } from "src/L1/interfaces/IL1ERC721Bridge.sol";
 import { IL1StandardBridge } from "src/L1/interfaces/IL1StandardBridge.sol";
-import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
+import { IOptimismMintableERC20Factory } from "src/universal/interfaces/IOptimismMintableERC20Factory.sol";
 
 /// @custom:proxied true
 contract OPContractsManager is ISemver, Initializable {
@@ -67,11 +64,11 @@ contract OPContractsManager is ISemver, Initializable {
 
     /// @notice The full set of outputs from deploying a new OP Stack chain.
     struct DeployOutput {
-        ProxyAdmin opChainProxyAdmin;
+        IProxyAdmin opChainProxyAdmin;
         IAddressManager addressManager;
         IL1ERC721Bridge l1ERC721BridgeProxy;
         ISystemConfig systemConfigProxy;
-        OptimismMintableERC20Factory optimismMintableERC20FactoryProxy;
+        IOptimismMintableERC20Factory optimismMintableERC20FactoryProxy;
         IL1StandardBridge l1StandardBridgeProxy;
         IL1CrossDomainMessenger l1CrossDomainMessengerProxy;
         // Fault proof contracts below.
@@ -125,8 +122,8 @@ contract OPContractsManager is ISemver, Initializable {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 1.0.0-beta.18
-    string public constant version = "1.0.0-beta.18";
+    /// @custom:semver 1.0.0-beta.19
+    string public constant version = "1.0.0-beta.19";
 
     /// @notice Represents the interface version so consumers know how to decode the DeployOutput struct
     /// that's emitted in the `Deployed` event. Whenever that struct changes, a new version should be used.
@@ -237,7 +234,7 @@ contract OPContractsManager is ISemver, Initializable {
         // due to it's usage of the legacy ResolvedDelegateProxy.
         output.addressManager = IAddressManager(Blueprint.deployFrom(blueprint.addressManager, salt));
         output.opChainProxyAdmin =
-            ProxyAdmin(Blueprint.deployFrom(blueprint.proxyAdmin, salt, abi.encode(address(this))));
+            IProxyAdmin(Blueprint.deployFrom(blueprint.proxyAdmin, salt, abi.encode(address(this))));
         output.opChainProxyAdmin.setAddressManager(output.addressManager);
 
         // -------- Deploy Proxy Contracts --------
@@ -249,7 +246,7 @@ contract OPContractsManager is ISemver, Initializable {
             IOptimismPortal2(payable(deployProxy(l2ChainId, output.opChainProxyAdmin, saltMixer, "OptimismPortal")));
         output.systemConfigProxy =
             ISystemConfig(deployProxy(l2ChainId, output.opChainProxyAdmin, saltMixer, "SystemConfig"));
-        output.optimismMintableERC20FactoryProxy = OptimismMintableERC20Factory(
+        output.optimismMintableERC20FactoryProxy = IOptimismMintableERC20Factory(
             deployProxy(l2ChainId, output.opChainProxyAdmin, saltMixer, "OptimismMintableERC20Factory")
         );
         output.disputeGameFactoryProxy =
@@ -261,14 +258,14 @@ contract OPContractsManager is ISemver, Initializable {
         output.l1StandardBridgeProxy = IL1StandardBridge(
             payable(Blueprint.deployFrom(blueprint.l1ChugSplashProxy, salt, abi.encode(output.opChainProxyAdmin)))
         );
-        output.opChainProxyAdmin.setProxyType(address(output.l1StandardBridgeProxy), ProxyAdmin.ProxyType.CHUGSPLASH);
+        output.opChainProxyAdmin.setProxyType(address(output.l1StandardBridgeProxy), IProxyAdmin.ProxyType.CHUGSPLASH);
 
         string memory contractName = "OVM_L1CrossDomainMessenger";
         output.l1CrossDomainMessengerProxy = IL1CrossDomainMessenger(
             Blueprint.deployFrom(blueprint.resolvedDelegateProxy, salt, abi.encode(output.addressManager, contractName))
         );
         output.opChainProxyAdmin.setProxyType(
-            address(output.l1CrossDomainMessengerProxy), ProxyAdmin.ProxyType.RESOLVED
+            address(output.l1CrossDomainMessengerProxy), IProxyAdmin.ProxyType.RESOLVED
         );
         output.opChainProxyAdmin.setImplementationName(address(output.l1CrossDomainMessengerProxy), contractName);
 
@@ -387,7 +384,7 @@ contract OPContractsManager is ISemver, Initializable {
     /// This is required because we deploy many identical proxies, so they each require a unique salt for determinism.
     function deployProxy(
         uint256 _l2ChainId,
-        ProxyAdmin _proxyAdmin,
+        IProxyAdmin _proxyAdmin,
         string memory _saltMixer,
         string memory _contractName
     )
@@ -683,7 +680,7 @@ contract OPContractsManager is ISemver, Initializable {
     /// @notice Makes an external call to the target to initialize the proxy with the specified data.
     /// First performs safety checks to ensure the target, implementation, and proxy admin are valid.
     function upgradeAndCall(
-        ProxyAdmin _proxyAdmin,
+        IProxyAdmin _proxyAdmin,
         address _target,
         address _implementation,
         bytes memory _data

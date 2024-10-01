@@ -4,10 +4,10 @@ pragma solidity 0.8.15;
 import { Script } from "forge-std/Script.sol";
 import { stdToml } from "forge-std/StdToml.sol";
 
-import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
-import { ProtocolVersions, ProtocolVersion } from "src/L1/ProtocolVersions.sol";
-import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
-import { Proxy } from "src/universal/Proxy.sol";
+import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
+import { IProtocolVersions, ProtocolVersion } from "src/L1/interfaces/IProtocolVersions.sol";
+import { IProxyAdmin } from "src/universal/interfaces/IProxyAdmin.sol";
+import { IProxy } from "src/universal/interfaces/IProxy.sol";
 
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Solarray } from "scripts/libraries/Solarray.sol";
@@ -156,21 +156,21 @@ contract DeploySuperchainInput is BaseDeployIO {
 contract DeploySuperchainOutput is BaseDeployIO {
     // All outputs are stored in storage individually, with the same rationale as doing so for
     // inputs, and the same pattern is used below to expose the outputs.
-    ProtocolVersions internal _protocolVersionsImpl;
-    ProtocolVersions internal _protocolVersionsProxy;
-    SuperchainConfig internal _superchainConfigImpl;
-    SuperchainConfig internal _superchainConfigProxy;
-    ProxyAdmin internal _superchainProxyAdmin;
+    IProtocolVersions internal _protocolVersionsImpl;
+    IProtocolVersions internal _protocolVersionsProxy;
+    ISuperchainConfig internal _superchainConfigImpl;
+    ISuperchainConfig internal _superchainConfigProxy;
+    IProxyAdmin internal _superchainProxyAdmin;
 
     // This method lets each field be set individually. The selector of an output's getter method
     // is used to determine which field to set.
     function set(bytes4 _sel, address _address) public {
         require(_address != address(0), "DeploySuperchainOutput: cannot set zero address");
-        if (_sel == this.superchainProxyAdmin.selector) _superchainProxyAdmin = ProxyAdmin(_address);
-        else if (_sel == this.superchainConfigImpl.selector) _superchainConfigImpl = SuperchainConfig(_address);
-        else if (_sel == this.superchainConfigProxy.selector) _superchainConfigProxy = SuperchainConfig(_address);
-        else if (_sel == this.protocolVersionsImpl.selector) _protocolVersionsImpl = ProtocolVersions(_address);
-        else if (_sel == this.protocolVersionsProxy.selector) _protocolVersionsProxy = ProtocolVersions(_address);
+        if (_sel == this.superchainProxyAdmin.selector) _superchainProxyAdmin = IProxyAdmin(_address);
+        else if (_sel == this.superchainConfigImpl.selector) _superchainConfigImpl = ISuperchainConfig(_address);
+        else if (_sel == this.superchainConfigProxy.selector) _superchainConfigProxy = ISuperchainConfig(_address);
+        else if (_sel == this.protocolVersionsImpl.selector) _protocolVersionsImpl = IProtocolVersions(_address);
+        else if (_sel == this.protocolVersionsProxy.selector) _protocolVersionsProxy = IProtocolVersions(_address);
         else revert("DeploySuperchainOutput: unknown selector");
     }
 
@@ -188,8 +188,8 @@ contract DeploySuperchainOutput is BaseDeployIO {
 
         // To read the implementations we prank as the zero address due to the proxyCallIfNotAdmin modifier.
         vm.startPrank(address(0));
-        address actualSuperchainConfigImpl = Proxy(payable(address(_superchainConfigProxy))).implementation();
-        address actualProtocolVersionsImpl = Proxy(payable(address(_protocolVersionsProxy))).implementation();
+        address actualSuperchainConfigImpl = IProxy(payable(address(_superchainConfigProxy))).implementation();
+        address actualProtocolVersionsImpl = IProxy(payable(address(_protocolVersionsProxy))).implementation();
         vm.stopPrank();
 
         require(actualSuperchainConfigImpl == address(_superchainConfigImpl), "100");
@@ -198,27 +198,27 @@ contract DeploySuperchainOutput is BaseDeployIO {
         assertValidDeploy(_dsi);
     }
 
-    function superchainProxyAdmin() public view returns (ProxyAdmin) {
+    function superchainProxyAdmin() public view returns (IProxyAdmin) {
         // This does not have to be a contract address, it could be an EOA.
         return _superchainProxyAdmin;
     }
 
-    function superchainConfigImpl() public view returns (SuperchainConfig) {
+    function superchainConfigImpl() public view returns (ISuperchainConfig) {
         DeployUtils.assertValidContractAddress(address(_superchainConfigImpl));
         return _superchainConfigImpl;
     }
 
-    function superchainConfigProxy() public view returns (SuperchainConfig) {
+    function superchainConfigProxy() public view returns (ISuperchainConfig) {
         DeployUtils.assertValidContractAddress(address(_superchainConfigProxy));
         return _superchainConfigProxy;
     }
 
-    function protocolVersionsImpl() public view returns (ProtocolVersions) {
+    function protocolVersionsImpl() public view returns (IProtocolVersions) {
         DeployUtils.assertValidContractAddress(address(_protocolVersionsImpl));
         return _protocolVersionsImpl;
     }
 
-    function protocolVersionsProxy() public view returns (ProtocolVersions) {
+    function protocolVersionsProxy() public view returns (IProtocolVersions) {
         DeployUtils.assertValidContractAddress(address(_protocolVersionsProxy));
         return _protocolVersionsProxy;
     }
@@ -236,16 +236,16 @@ contract DeploySuperchainOutput is BaseDeployIO {
 
     function assertValidSuperchainConfig(DeploySuperchainInput _dsi) internal {
         // Proxy checks.
-        SuperchainConfig superchainConfig = superchainConfigProxy();
+        ISuperchainConfig superchainConfig = superchainConfigProxy();
         DeployUtils.assertInitialized({ _contractAddress: address(superchainConfig), _slot: 0, _offset: 0 });
         require(superchainConfig.guardian() == _dsi.guardian(), "SUPCON-10");
         require(superchainConfig.paused() == _dsi.paused(), "SUPCON-20");
 
         vm.startPrank(address(0));
         require(
-            Proxy(payable(address(superchainConfig))).implementation() == address(superchainConfigImpl()), "SUPCON-30"
+            IProxy(payable(address(superchainConfig))).implementation() == address(superchainConfigImpl()), "SUPCON-30"
         );
-        require(Proxy(payable(address(superchainConfig))).admin() == address(superchainProxyAdmin()), "SUPCON-40");
+        require(IProxy(payable(address(superchainConfig))).admin() == address(superchainProxyAdmin()), "SUPCON-40");
         vm.stopPrank();
 
         // Implementation checks
@@ -256,7 +256,7 @@ contract DeploySuperchainOutput is BaseDeployIO {
 
     function assertValidProtocolVersions(DeploySuperchainInput _dsi) internal {
         // Proxy checks.
-        ProtocolVersions pv = protocolVersionsProxy();
+        IProtocolVersions pv = protocolVersionsProxy();
         DeployUtils.assertInitialized({ _contractAddress: address(pv), _slot: 0, _offset: 0 });
         require(pv.owner() == _dsi.protocolVersionsOwner(), "PV-10");
         require(
@@ -268,8 +268,8 @@ contract DeploySuperchainOutput is BaseDeployIO {
         );
 
         vm.startPrank(address(0));
-        require(Proxy(payable(address(pv))).implementation() == address(protocolVersionsImpl()), "PV-40");
-        require(Proxy(payable(address(pv))).admin() == address(superchainProxyAdmin()), "PV-50");
+        require(IProxy(payable(address(pv))).implementation() == address(protocolVersionsImpl()), "PV-40");
+        require(IProxy(payable(address(pv))).admin() == address(superchainProxyAdmin()), "PV-50");
         vm.stopPrank();
 
         // Implementation checks.
@@ -320,7 +320,12 @@ contract DeploySuperchain is Script {
         // contract. If we provide no argument, the foundry default sender would be the broadcaster during test, but the
         // broadcaster needs to be the deployer since they are set to the initial proxy admin owner.
         vm.broadcast(msg.sender);
-        ProxyAdmin superchainProxyAdmin = new ProxyAdmin(msg.sender);
+        IProxyAdmin superchainProxyAdmin = IProxyAdmin(
+            DeployUtils.create1({
+                _name: "ProxyAdmin",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IProxyAdmin.__constructor__, (msg.sender)))
+            })
+        );
 
         vm.label(address(superchainProxyAdmin), "SuperchainProxyAdmin");
         _dso.set(_dso.superchainProxyAdmin.selector, address(superchainProxyAdmin));
@@ -329,8 +334,18 @@ contract DeploySuperchain is Script {
     function deploySuperchainImplementationContracts(DeploySuperchainInput, DeploySuperchainOutput _dso) public {
         // Deploy implementation contracts.
         vm.startBroadcast(msg.sender);
-        SuperchainConfig superchainConfigImpl = new SuperchainConfig();
-        ProtocolVersions protocolVersionsImpl = new ProtocolVersions();
+        ISuperchainConfig superchainConfigImpl = ISuperchainConfig(
+            DeployUtils.create1({
+                _name: "SuperchainConfig",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(ISuperchainConfig.__constructor__, ()))
+            })
+        );
+        IProtocolVersions protocolVersionsImpl = IProtocolVersions(
+            DeployUtils.create1({
+                _name: "ProtocolVersions",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IProtocolVersions.__constructor__, ()))
+            })
+        );
         vm.stopBroadcast();
 
         vm.label(address(superchainConfigImpl), "SuperchainConfigImpl");
@@ -344,15 +359,22 @@ contract DeploySuperchain is Script {
         address guardian = _dsi.guardian();
         bool paused = _dsi.paused();
 
-        ProxyAdmin superchainProxyAdmin = _dso.superchainProxyAdmin();
-        SuperchainConfig superchainConfigImpl = _dso.superchainConfigImpl();
+        IProxyAdmin superchainProxyAdmin = _dso.superchainProxyAdmin();
+        ISuperchainConfig superchainConfigImpl = _dso.superchainConfigImpl();
 
         vm.startBroadcast(msg.sender);
-        SuperchainConfig superchainConfigProxy = SuperchainConfig(address(new Proxy(address(superchainProxyAdmin))));
+        ISuperchainConfig superchainConfigProxy = ISuperchainConfig(
+            DeployUtils.create1({
+                _name: "Proxy",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(IProxy.__constructor__, (address(superchainProxyAdmin)))
+                )
+            })
+        );
         superchainProxyAdmin.upgradeAndCall(
             payable(address(superchainConfigProxy)),
             address(superchainConfigImpl),
-            abi.encodeCall(SuperchainConfig.initialize, (guardian, paused))
+            abi.encodeCall(ISuperchainConfig.initialize, (guardian, paused))
         );
         vm.stopBroadcast();
 
@@ -365,16 +387,23 @@ contract DeploySuperchain is Script {
         ProtocolVersion requiredProtocolVersion = _dsi.requiredProtocolVersion();
         ProtocolVersion recommendedProtocolVersion = _dsi.recommendedProtocolVersion();
 
-        ProxyAdmin superchainProxyAdmin = _dso.superchainProxyAdmin();
-        ProtocolVersions protocolVersionsImpl = _dso.protocolVersionsImpl();
+        IProxyAdmin superchainProxyAdmin = _dso.superchainProxyAdmin();
+        IProtocolVersions protocolVersionsImpl = _dso.protocolVersionsImpl();
 
         vm.startBroadcast(msg.sender);
-        ProtocolVersions protocolVersionsProxy = ProtocolVersions(address(new Proxy(address(superchainProxyAdmin))));
+        IProtocolVersions protocolVersionsProxy = IProtocolVersions(
+            DeployUtils.create1({
+                _name: "Proxy",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(IProxy.__constructor__, (address(superchainProxyAdmin)))
+                )
+            })
+        );
         superchainProxyAdmin.upgradeAndCall(
             payable(address(protocolVersionsProxy)),
             address(protocolVersionsImpl),
             abi.encodeCall(
-                ProtocolVersions.initialize,
+                IProtocolVersions.initialize,
                 (protocolVersionsOwner, requiredProtocolVersion, recommendedProtocolVersion)
             )
         );
@@ -387,7 +416,7 @@ contract DeploySuperchain is Script {
     function transferProxyAdminOwnership(DeploySuperchainInput _dsi, DeploySuperchainOutput _dso) public {
         address superchainProxyAdminOwner = _dsi.superchainProxyAdminOwner();
 
-        ProxyAdmin superchainProxyAdmin = _dso.superchainProxyAdmin();
+        IProxyAdmin superchainProxyAdmin = _dso.superchainProxyAdmin();
         DeployUtils.assertValidContractAddress(address(superchainProxyAdmin));
 
         vm.broadcast(msg.sender);

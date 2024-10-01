@@ -11,26 +11,27 @@ import {
     DeployImplementationsOutput
 } from "scripts/DeployImplementations.s.sol";
 import { DeployOPChainInput, DeployOPChain, DeployOPChainOutput } from "scripts/DeployOPChain.s.sol";
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
-import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
+import { IProxyAdmin } from "src/universal/interfaces/IProxyAdmin.sol";
 
-import { AddressManager } from "src/legacy/AddressManager.sol";
-import { DelayedWETH } from "src/dispute/DelayedWETH.sol";
-import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
-import { AnchorStateRegistry } from "src/dispute/AnchorStateRegistry.sol";
-import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
-import { PermissionedDisputeGame } from "src/dispute/PermissionedDisputeGame.sol";
+import { IAddressManager } from "src/legacy/interfaces/IAddressManager.sol";
+import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
+import { IDisputeGameFactory } from "src/dispute/interfaces/IDisputeGameFactory.sol";
+import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistry.sol";
+import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
+import { IPermissionedDisputeGame } from "src/dispute/interfaces/IPermissionedDisputeGame.sol";
 
-import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
-import { ProtocolVersions, ProtocolVersion } from "src/L1/ProtocolVersions.sol";
+import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
+import { IProtocolVersions, ProtocolVersion } from "src/L1/interfaces/IProtocolVersions.sol";
 import { OPContractsManager } from "src/L1/OPContractsManager.sol";
-import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
-import { SystemConfig } from "src/L1/SystemConfig.sol";
-import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
-import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
-import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
-import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
-import { Proxy } from "src/universal/Proxy.sol";
+import { IOptimismPortal2 } from "src/L1/interfaces/IOptimismPortal2.sol";
+import { ISystemConfig } from "src/L1/interfaces/ISystemConfig.sol";
+import { IL1CrossDomainMessenger } from "src/L1/interfaces/IL1CrossDomainMessenger.sol";
+import { IL1ERC721Bridge } from "src/L1/interfaces/IL1ERC721Bridge.sol";
+import { IL1StandardBridge } from "src/L1/interfaces/IL1StandardBridge.sol";
+import { IOptimismMintableERC20Factory } from "src/universal/interfaces/IOptimismMintableERC20Factory.sol";
+import { IProxy } from "src/universal/interfaces/IProxy.sol";
 
 import { GameType, GameTypes, Hash, OutputRoot } from "src/dispute/lib/Types.sol";
 
@@ -54,8 +55,13 @@ contract DeployOPChainInput_Test is Test {
         doi = new DeployOPChainInput();
     }
 
-    function buildOpcmProxy() public returns (Proxy opcmProxy) {
-        opcmProxy = new Proxy(address(0));
+    function buildOpcmProxy() public returns (IProxy opcmProxy) {
+        opcmProxy = IProxy(
+            DeployUtils.create1({
+                _name: "Proxy",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IProxy.__constructor__, (address(0))))
+            })
+        );
         OPContractsManager opcmImpl = OPContractsManager(address(makeAddr("opcmImpl")));
         vm.prank(address(0));
         opcmProxy.upgradeTo(address(opcmImpl));
@@ -74,7 +80,7 @@ contract DeployOPChainInput_Test is Test {
         doi.set(doi.blobBaseFeeScalar.selector, blobBaseFeeScalar);
         doi.set(doi.l2ChainId.selector, l2ChainId);
 
-        (Proxy opcmProxy) = buildOpcmProxy();
+        (IProxy opcmProxy) = buildOpcmProxy();
         doi.set(doi.opcmProxy.selector, address(opcmProxy));
 
         // Compare the default inputs to the getter methods.
@@ -127,21 +133,22 @@ contract DeployOPChainOutput_Test is Test {
 
     // Define default outputs to set.
     // We set these in storage because doing it locally in test_set_succeeds results in stack too deep.
-    ProxyAdmin opChainProxyAdmin = ProxyAdmin(makeAddr("optimismPortal2Impl"));
-    AddressManager addressManager = AddressManager(makeAddr("delayedWETHImpl"));
-    L1ERC721Bridge l1ERC721BridgeProxy = L1ERC721Bridge(makeAddr("l1ERC721BridgeProxy"));
-    SystemConfig systemConfigProxy = SystemConfig(makeAddr("systemConfigProxy"));
-    OptimismMintableERC20Factory optimismMintableERC20FactoryProxy =
-        OptimismMintableERC20Factory(makeAddr("optimismMintableERC20FactoryProxy"));
-    L1StandardBridge l1StandardBridgeProxy = L1StandardBridge(payable(makeAddr("l1StandardBridgeProxy")));
-    L1CrossDomainMessenger l1CrossDomainMessengerProxy = L1CrossDomainMessenger(makeAddr("l1CrossDomainMessengerProxy"));
-    OptimismPortal2 optimismPortalProxy = OptimismPortal2(payable(makeAddr("optimismPortalProxy")));
-    DisputeGameFactory disputeGameFactoryProxy = DisputeGameFactory(makeAddr("disputeGameFactoryProxy"));
-    AnchorStateRegistry anchorStateRegistryProxy = AnchorStateRegistry(makeAddr("anchorStateRegistryProxy"));
-    AnchorStateRegistry anchorStateRegistryImpl = AnchorStateRegistry(makeAddr("anchorStateRegistryImpl"));
-    FaultDisputeGame faultDisputeGame = FaultDisputeGame(makeAddr("faultDisputeGame"));
-    PermissionedDisputeGame permissionedDisputeGame = PermissionedDisputeGame(makeAddr("permissionedDisputeGame"));
-    DelayedWETH delayedWETHPermissionedGameProxy = DelayedWETH(payable(makeAddr("delayedWETHPermissionedGameProxy")));
+    IProxyAdmin opChainProxyAdmin = IProxyAdmin(makeAddr("optimismPortal2Impl"));
+    IAddressManager addressManager = IAddressManager(makeAddr("delayedWETHImpl"));
+    IL1ERC721Bridge l1ERC721BridgeProxy = IL1ERC721Bridge(makeAddr("l1ERC721BridgeProxy"));
+    ISystemConfig systemConfigProxy = ISystemConfig(makeAddr("systemConfigProxy"));
+    IOptimismMintableERC20Factory optimismMintableERC20FactoryProxy =
+        IOptimismMintableERC20Factory(makeAddr("optimismMintableERC20FactoryProxy"));
+    IL1StandardBridge l1StandardBridgeProxy = IL1StandardBridge(payable(makeAddr("l1StandardBridgeProxy")));
+    IL1CrossDomainMessenger l1CrossDomainMessengerProxy =
+        IL1CrossDomainMessenger(makeAddr("l1CrossDomainMessengerProxy"));
+    IOptimismPortal2 optimismPortalProxy = IOptimismPortal2(payable(makeAddr("optimismPortalProxy")));
+    IDisputeGameFactory disputeGameFactoryProxy = IDisputeGameFactory(makeAddr("disputeGameFactoryProxy"));
+    IAnchorStateRegistry anchorStateRegistryProxy = IAnchorStateRegistry(makeAddr("anchorStateRegistryProxy"));
+    IAnchorStateRegistry anchorStateRegistryImpl = IAnchorStateRegistry(makeAddr("anchorStateRegistryImpl"));
+    IFaultDisputeGame faultDisputeGame = IFaultDisputeGame(makeAddr("faultDisputeGame"));
+    IPermissionedDisputeGame permissionedDisputeGame = IPermissionedDisputeGame(makeAddr("permissionedDisputeGame"));
+    IDelayedWETH delayedWETHPermissionedGameProxy = IDelayedWETH(payable(makeAddr("delayedWETHPermissionedGameProxy")));
     // TODO: Eventually switch from Permissioned to Permissionless.
     // DelayedWETH delayedWETHPermissionlessGameProxy =
     //     DelayedWETH(payable(makeAddr("delayedWETHPermissionlessGameProxy")));
@@ -345,8 +352,8 @@ contract DeployOPChain_TestBase is Test {
     uint256 proofMaturityDelaySeconds = 400;
     uint256 disputeGameFinalityDelaySeconds = 500;
     string release = "dev-release"; // this means implementation contracts will be deployed
-    SuperchainConfig superchainConfigProxy;
-    ProtocolVersions protocolVersionsProxy;
+    ISuperchainConfig superchainConfigProxy;
+    IProtocolVersions protocolVersionsProxy;
 
     // Define default inputs for DeployOPChain.
     // `opcm` is set during `setUp` since it is an output of the previous step.
@@ -359,7 +366,7 @@ contract DeployOPChain_TestBase is Test {
     uint32 basefeeScalar = 100;
     uint32 blobBaseFeeScalar = 200;
     uint256 l2ChainId = 300;
-    AnchorStateRegistry.StartingAnchorRoot[] startingAnchorRoots;
+    IAnchorStateRegistry.StartingAnchorRoot[] startingAnchorRoots;
     OPContractsManager opcm = OPContractsManager(address(0));
     string saltMixer = "defaultSaltMixer";
     uint64 gasLimit = 30_000_000;
@@ -369,13 +376,13 @@ contract DeployOPChain_TestBase is Test {
         uint256 cannonBlock = 400;
         uint256 permissionedBlock = 500;
         startingAnchorRoots.push(
-            AnchorStateRegistry.StartingAnchorRoot({
+            IAnchorStateRegistry.StartingAnchorRoot({
                 gameType: GameTypes.CANNON,
                 outputRoot: OutputRoot({ root: Hash.wrap(keccak256("defaultOutputRootCannon")), l2BlockNumber: cannonBlock })
             })
         );
         startingAnchorRoots.push(
-            AnchorStateRegistry.StartingAnchorRoot({
+            IAnchorStateRegistry.StartingAnchorRoot({
                 gameType: GameTypes.PERMISSIONED_CANNON,
                 outputRoot: OutputRoot({
                     root: Hash.wrap(keccak256("defaultOutputRootPermissioned")),
@@ -456,13 +463,13 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         uint256 cannonBlock = uint256(hash(_seed, 9));
         uint256 permissionedBlock = uint256(hash(_seed, 10));
         startingAnchorRoots.push(
-            AnchorStateRegistry.StartingAnchorRoot({
+            IAnchorStateRegistry.StartingAnchorRoot({
                 gameType: GameTypes.CANNON,
                 outputRoot: OutputRoot({ root: Hash.wrap(keccak256(abi.encode(_seed, 11))), l2BlockNumber: cannonBlock })
             })
         );
         startingAnchorRoots.push(
-            AnchorStateRegistry.StartingAnchorRoot({
+            IAnchorStateRegistry.StartingAnchorRoot({
                 gameType: GameTypes.PERMISSIONED_CANNON,
                 outputRoot: OutputRoot({
                     root: Hash.wrap(keccak256(abi.encode(_seed, 12))),
