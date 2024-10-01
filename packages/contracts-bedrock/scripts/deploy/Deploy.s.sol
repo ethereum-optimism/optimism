@@ -413,7 +413,6 @@ contract Deploy is Deployer {
             initializeOptimismPortal2();
         } else {
             initializeOptimismPortal();
-            initializeL2OutputOracle();
         }
 
         initializeSystemConfig();
