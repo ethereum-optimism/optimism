@@ -1220,8 +1220,8 @@ func TestIncreaseGasPrice(t *testing.T) {
 				_, newTx, err := doGasPriceIncrease(t, 100, 2200, 100, 2000, overPrice)
 				require.NoError(t, err)
 				t.Log("Vals:", newTx.GasFeeCap(), newTx.GasTipCap())
-				require.True(t, newTx.GasFeeCap().Cmp(big.NewInt(5302)) == 0, "new tx fee must be based on the original value")
-				require.True(t, newTx.GasTipCap().Cmp(big.NewInt(242)) == 0, "new tx tip must be based no the original value")
+				require.Zero(t, newTx.GasFeeCap().Cmp(big.NewInt(5302)), "new tx fee must be based on the original value")
+				require.Zero(t, newTx.GasTipCap().Cmp(big.NewInt(242)), "new tx tip must be based no the original value")
 			},
 		},
 		{
