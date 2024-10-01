@@ -182,7 +182,7 @@ func (s *State) ExpireCommitments(origin eth.BlockID) error {
 }
 
 // ExpireChallenges moves challenges from the active state map to the expired state map.
-// challenges are considered expired when the oirgin is beyond the challenge's resolve window.
+// challenges are considered expired when the origin is beyond the challenge's resolve window.
 // This function processes challenges in order of inclusion until it finds a commitment which has not expired.
 // This function must be called for every block because there is no contract event to expire challenges.
 func (s *State) ExpireChallenges(origin eth.BlockID) {
