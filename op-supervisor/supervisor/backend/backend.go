@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-supervisor/config"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
@@ -29,8 +30,8 @@ type SupervisorBackend struct {
 	m       Metrics
 	dataDir string
 
-	chainMonitors map[types.ChainID]*source.ChainMonitor
-	db            *db.ChainsDB
+	chainProcessors map[types.ChainID]*source.ChainProcessor
+	db              *db.ChainsDB
 }
 
 var _ frontend.Backend = (*SupervisorBackend)(nil)
@@ -49,15 +50,15 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger, m Metrics, cfg
 	db := db.NewChainsDB(map[types.ChainID]db.LogStorage{}, logger)
 
 	// create an empty map of chain monitors
-	chainMonitors := make(map[types.ChainID]*source.ChainMonitor, len(cfg.L2RPCs))
+	chainProcessors := make(map[types.ChainID]*source.ChainProcessor, len(cfg.L2RPCs))
 
 	// create the supervisor backend
 	super := &SupervisorBackend{
-		logger:        logger,
-		m:             m,
-		dataDir:       cfg.Datadir,
-		chainMonitors: chainMonitors,
-		db:            db,
+		logger:          logger,
+		m:               m,
+		dataDir:         cfg.Datadir,
+		chainProcessors: chainProcessors,
+		db:              db,
 	}
 
 	// from the RPC strings, have the supervisor backend create a chain monitor
@@ -74,7 +75,7 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger, m Metrics, cfg
 // addFromRPC adds a chain monitor to the supervisor backend from an rpc endpoint
 // it does not expect to be called after the backend has been started
 // it will start the monitor if shouldStart is true
-func (su *SupervisorBackend) addFromRPC(ctx context.Context, logger log.Logger, rpc string, shouldStart bool) error {
+func (su *SupervisorBackend) addFromRPC(ctx context.Context, logger log.Logger, rpc string, _ bool) error {
 	// create the rpc client, which yields the chain id
 	rpcClient, chainID, err := clientForL2(ctx, logger, rpc)
 	if err != nil {
@@ -91,20 +92,24 @@ func (su *SupervisorBackend) addFromRPC(ctx context.Context, logger log.Logger, 
 	if err != nil {
 		return fmt.Errorf("failed to create logdb for chain %v at %v: %w", chainID, path, err)
 	}
-	if su.chainMonitors[chainID] != nil {
+	if su.chainProcessors[chainID] != nil {
 		return fmt.Errorf("chain monitor for chain %v already exists", chainID)
 	}
-	monitor, err := source.NewChainMonitor(ctx, logger, cm, chainID, rpc, rpcClient, su.db)
+	// create a client like the monitor would have
+	cl, err := source.NewL1Client(
+		ctx,
+		logger,
+		cm,
+		rpc,
+		rpcClient, 2*time.Second,
+		false,
+		sources.RPCKindStandard)
 	if err != nil {
-		return fmt.Errorf("failed to create monitor for rpc %v: %w", rpc, err)
+		return err
 	}
-	// start the monitor if requested
-	if shouldStart {
-		if err := monitor.Start(); err != nil {
-			return fmt.Errorf("failed to start monitor for rpc %v: %w", rpc, err)
-		}
-	}
-	su.chainMonitors[chainID] = monitor
+	logProcessor := source.NewLogProcessor(chainID, su.db)
+	chainProcessor := source.NewChainProcessor(logger, cl, chainID, logProcessor, su.db)
+	su.chainProcessors[chainID] = chainProcessor
 	su.db.AddLogDB(chainID, logDB)
 	return nil
 }
@@ -131,12 +136,6 @@ func (su *SupervisorBackend) Start(ctx context.Context) error {
 	if err := su.db.ResumeFromLastSealedBlock(); err != nil {
 		return fmt.Errorf("failed to resume chains db: %w", err)
 	}
-	// start chain monitors
-	for _, monitor := range su.chainMonitors {
-		if err := monitor.Start(); err != nil {
-			return fmt.Errorf("failed to start chain monitor: %w", err)
-		}
-	}
 	return nil
 }
 
@@ -144,18 +143,12 @@ func (su *SupervisorBackend) Stop(ctx context.Context) error {
 	if !su.started.CompareAndSwap(true, false) {
 		return errAlreadyStopped
 	}
-	// collect errors from stopping chain monitors
-	var errs error
-	for _, monitor := range su.chainMonitors {
-		if err := monitor.Stop(); err != nil {
-			errs = errors.Join(errs, fmt.Errorf("failed to stop chain monitor: %w", err))
-		}
+	// close all chain processors
+	for _, processor := range su.chainProcessors {
+		processor.Close()
 	}
 	// close the database
-	if err := su.db.Close(); err != nil {
-		errs = errors.Join(errs, fmt.Errorf("failed to close database: %w", err))
-	}
-	return errs
+	return su.db.Close()
 }
 
 func (su *SupervisorBackend) Close() error {
@@ -228,6 +221,15 @@ func (su *SupervisorBackend) CheckBlock(chainID *hexutil.U256, blockHash common.
 }
 
 func (su *SupervisorBackend) UpdateLocalUnsafe(chainID types.ChainID, head eth.L2BlockRef) {
+	// l2 to l1 block ref
+	ref := eth.L1BlockRef{
+		ParentHash: head.ParentHash,
+		Hash:       head.Hash,
+		Number:     head.Number,
+		Time:       head.Time,
+	}
+	ctx := context.Background()
+	su.chainProcessors[chainID].OnNewHead(ctx, ref)
 	su.db.UpdateLocalUnsafe(chainID, head)
 }
 
