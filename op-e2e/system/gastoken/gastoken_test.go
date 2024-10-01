@@ -185,7 +185,7 @@ func testCustomGasToken(t *testing.T, allocType config.AllocType) {
 		startETHBalanceBeforeFinalize, err := l1Client.BalanceAt(context.Background(), fromAddr, nil)
 		require.NoError(t, err)
 
-		proveReceipt, finalizeReceipt, resolveClaimReceipt, resolveReceipt := helpers.ProveAndFinalizeWithdrawal(t, cfg, sys, "verifier", ethPrivKey, receipt, allocType)
+		proveReceipt, finalizeReceipt, resolveClaimReceipt, resolveReceipt := helpers.ProveAndFinalizeWithdrawal(t, cfg, sys, "verifier", ethPrivKey, receipt)
 
 		// Verify L1 ETH balance change
 		proveFee := new(big.Int).Mul(new(big.Int).SetUint64(proveReceipt.GasUsed), proveReceipt.EffectiveGasPrice)
@@ -334,7 +334,7 @@ func testCustomGasToken(t *testing.T, allocType config.AllocType) {
 		withdrawnAmount := it.Event.Value
 
 		// Finalize the withdrawal
-		proveReceipt, finalizeReceipt, resolveClaimReceipt, resolveReceipt := helpers.ProveAndFinalizeWithdrawal(t, cfg, sys, "verifier", cfg.Secrets.Alice, receipt, allocType)
+		proveReceipt, finalizeReceipt, resolveClaimReceipt, resolveReceipt := helpers.ProveAndFinalizeWithdrawal(t, cfg, sys, "verifier", cfg.Secrets.Alice, receipt)
 		require.Equal(t, types.ReceiptStatusSuccessful, proveReceipt.Status)
 		require.Equal(t, types.ReceiptStatusSuccessful, finalizeReceipt.Status)
 		if allocType.UsesProofs() {
