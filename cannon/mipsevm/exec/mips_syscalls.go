@@ -314,7 +314,7 @@ func HandleSysFcntl(a0, a1 Word) (v0, v1 Word) {
 		case FdStdin, FdStdout, FdStderr, FdPreimageRead, FdHintRead, FdPreimageWrite, FdHintWrite:
 			v0 = 0 // No flags set
 		default:
-			v0 = 0xFFffFFff
+			v0 = ^Word(0)
 			v1 = MipsEBADF
 		}
 	} else if a1 == 3 { // F_GETFL: get file status flags
