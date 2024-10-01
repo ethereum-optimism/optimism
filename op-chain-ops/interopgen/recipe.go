@@ -249,7 +249,9 @@ func InteropL2DevConfig(l1ChainID, l2ChainID uint64, addrs devkeys.Addresses) (*
 				UseAltDA: false,
 			},
 		},
-		Prefund: make(map[common.Address]*big.Int),
+		Prefund:   make(map[common.Address]*big.Int),
+		SaltMixer: "",
+		GasLimit:  30_000_000,
 	}
 
 	// TODO(#11887): consider making the number of prefunded keys configurable.

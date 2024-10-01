@@ -499,6 +499,7 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         assertEq(blobBaseFeeScalar, doi.blobBaseFeeScalar(), "800");
         assertEq(l2ChainId, doi.l2ChainId(), "900");
         assertEq(saltMixer, doi.saltMixer(), "1000");
+        assertEq(gasLimit, doi.gasLimit(), "1100");
 
         // Assert inputs were properly passed through to the contract initializers.
         assertEq(address(doo.opChainProxyAdmin().owner()), opChainProxyAdminOwner, "2100");
