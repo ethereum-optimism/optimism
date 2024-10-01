@@ -278,6 +278,7 @@ contract Deploy is Deployer {
                 setupOpAltDA();
             }
         }
+        transferProxyAdminOwnership({ _isSuperchain: false });
         console.log("set up op chain!");
     }
 
@@ -336,7 +337,6 @@ contract Deploy is Deployer {
 
         transferDisputeGameFactoryOwnership();
         transferDelayedWETHOwnership();
-        transferProxyAdminOwnership({ _isSuperchain: false });
     }
 
     /// @notice Deploy all of the OP Chain specific contracts
