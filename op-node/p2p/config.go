@@ -59,7 +59,7 @@ type SetupP2P interface {
 	BanThreshold() float64
 	BanDuration() time.Duration
 	GossipSetupConfigurables
-	ReqRespSyncEnabled() bool
+	ReqRespSyncConfig() ReqRespSyncConfig
 }
 
 // ScoringParams defines the various types of peer scoring parameters.
@@ -127,10 +127,16 @@ type Config struct {
 	// Underlying store that hosts connection-gater and peerstore data.
 	Store ds.Batching
 
-	EnableReqRespSync   bool
+	ReqRespSync         ReqRespSyncConfig
 	SyncOnlyReqToStatic bool
 
 	EnablePingService bool
+}
+
+type ReqRespSyncConfig struct {
+	Enabled         bool
+	ConfigureClient func(*SyncClient)
+	ConfigureServer func(*ReqRespServer)
 }
 
 func DefaultConnManager(conf *Config) (connmgr.ConnManager, error) {
@@ -169,8 +175,8 @@ func (conf *Config) BanDuration() time.Duration {
 	return conf.BanningDuration
 }
 
-func (conf *Config) ReqRespSyncEnabled() bool {
-	return conf.EnableReqRespSync
+func (conf *Config) ReqRespSyncConfig() ReqRespSyncConfig {
+	return conf.ReqRespSync
 }
 
 const maxMeshParam = 1000

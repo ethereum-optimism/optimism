@@ -8,10 +8,12 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"runtime/debug"
 	"sync"
-	"sync/atomic"
 	"time"
 
+	"github.com/anacrolix/chansync"
+	g "github.com/anacrolix/generics"
 	"github.com/golang/snappy"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -25,6 +27,12 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+)
+
+const (
+	// How many payloads to allow to be cached. They will always be preferred to stack against the
+	// top of the active request.
+	quarantineLimit = 10
 )
 
 // StreamCtxFn provides a new context to use when handling stream requests
@@ -54,18 +62,15 @@ const (
 	peerServerBlocksRateLimit rate.Limit = 4
 	// Allow a peer to request 30s of blocks at once
 	peerServerBlocksBurst = 15
-	// If the client hits a request error, it counts as a lot of rate-limit tokens for syncing from that peer:
-	// we rather sync from other servers. We'll try again later,
-	// and eventually kick the peer based on degraded scoring if it's really not serving us well.
-	// TODO: Use a backoff rather than this mechanism.
-	clientErrRateCost = peerServerBlocksBurst
 )
 
+type resultCode byte
+
 const (
-	ResultCodeSuccess     byte = 0
-	ResultCodeNotFoundErr byte = 1
-	ResultCodeInvalidErr  byte = 2
-	ResultCodeUnknownErr  byte = 3
+	ResultCodeSuccess     resultCode = 0
+	ResultCodeNotFoundErr resultCode = 1
+	ResultCodeInvalidErr  resultCode = 2
+	ResultCodeUnknownErr  resultCode = 3
 )
 
 var resultCodeString = []string{
@@ -98,54 +103,18 @@ type newStreamFn func(ctx context.Context, peerId peer.ID, protocolId ...protoco
 
 type receivePayloadFn func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayloadEnvelope) error
 
+func (r receivePayloadFn) OnUnsafeL2Payload(ctx context.Context, from peer.ID, msg *eth.ExecutionPayloadEnvelope, _ PayloadSource) error {
+	return r(ctx, from, msg)
+}
+
 type rangeRequest struct {
 	start uint64
 	end   eth.L2BlockRef
-	id    uint64
 }
 
 type syncResult struct {
 	payload *eth.ExecutionPayloadEnvelope
 	peer    peer.ID
-}
-
-type peerRequest struct {
-	num        uint64
-	rangeReqId uint64
-}
-
-type inFlightCheck struct {
-	num    uint64
-	result chan bool
-}
-
-type requestIdMap struct {
-	requests map[uint64]bool
-	mu       sync.Mutex
-}
-
-func newRequestIdMap() *requestIdMap {
-	return &requestIdMap{
-		requests: make(map[uint64]bool),
-	}
-}
-
-func (r *requestIdMap) set(key uint64, value bool) {
-	r.mu.Lock()
-	r.requests[key] = value
-	r.mu.Unlock()
-}
-
-func (r *requestIdMap) get(key uint64) bool {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.requests[key]
-}
-
-func (r *requestIdMap) delete(key uint64) {
-	r.mu.Lock()
-	delete(r.requests, key)
-	r.mu.Unlock()
 }
 
 type SyncClientMetrics interface {
@@ -179,10 +148,10 @@ type SyncPeerScorer interface {
 //   - Requests for data that's already in the quarantine are not repeated
 //   - Data already in the quarantine that is trusted is attempted to be promoted.
 //
-// - Peers each have their own routine for processing requests.
+// - Peers each has their own routine for processing requests.
 //   - They fetch the requested block by number, parse and validate it, and then send it back to the main loop
 //   - If peers fail to fetch or process it, or fail to send it back to the main loop within timeout,
-//     then the doRequest returns an error. It then marks the in-flight request as completed.
+//     then doRequest returns an error. It then marks the in-flight request as completed.
 //
 // - Main loop receives results synchronously with the range requests
 //   - The result is removed from in-flight tracker
@@ -223,6 +192,7 @@ type SyncPeerScorer interface {
 // If the user does sync a long range of blocks through this mechanism,
 // it does end up traversing through the chain, but receives the blocks in reverse order.
 // It is up to the user to persist the blocks for later processing, or drop & resync them if persistence is limited.
+// TODO: Should this be renamed to AltSyncClient?
 type SyncClient struct {
 	log log.Logger
 
@@ -231,37 +201,17 @@ type SyncClient struct {
 	metrics   SyncClientMetrics
 	appScorer SyncPeerScorer
 
-	newStreamFn     newStreamFn
-	payloadByNumber protocol.ID
+	newStreamFn        newStreamFn
+	payloadByNumber    protocol.ID
+	NewPeerRateLimiter func() *rate.Limiter
 
 	peersLock sync.Mutex
 	// syncing worker per peer
 	peers map[peer.ID]context.CancelFunc
 
-	// trusted blocks are, or have been, canonical at one point.
-	// Everything that's trusted is acceptable to pass to the sync receiver,
-	// but we target to just sync the blocks of the latest canonical view of the chain.
-	trusted *simplelru.LRU[common.Hash, struct{}]
+	syncClientRequestState
 
-	// quarantine is a LRU of untrusted results: blocks that could not be verified yet
-	quarantine *simplelru.LRU[common.Hash, syncResult]
-	// quarantineByNum indexes the quarantine contents by number.
-	// No duplicates here, only the latest quarantine write is indexed.
-	// This map is cleared upon evictions of items from the quarantine LRU
-	quarantineByNum map[uint64]common.Hash
-
-	// inFlight requests are not repeated
-	inFlight       *requestIdMap
-	inFlightChecks chan inFlightCheck
-
-	rangeRequests       chan rangeRequest
-	activeRangeRequests *requestIdMap
-	rangeReqId          uint64
-	peerRequests        chan peerRequest
-
-	results chan syncResult
-
-	receivePayload receivePayloadFn
+	receivePayload L2PayloadIn
 
 	// Global rate limiter for all peers.
 	globalRL *rate.Limiter
@@ -281,41 +231,57 @@ type SyncClient struct {
 	syncOnlyReqToStatic bool
 }
 
-func NewSyncClient(log log.Logger, cfg *rollup.Config, host HostNewStream, rcv receivePayloadFn, metrics SyncClientMetrics, appScorer SyncPeerScorer) *SyncClient {
+type syncClientRequestState struct {
+	mu          sync.Mutex
+	nextPromote g.Option[nextPromote]
+	// These are *inclusive*.
+	endBlockNumber    blockNumber
+	startBlockNumber  blockNumber
+	wanted            map[blockNumber]*wantedBlock
+	requestBlocksCond chansync.BroadcastCond
+	promoterCond      chansync.BroadcastCond
+}
+
+type nextPromote struct {
+	num  blockNumber
+	hash common.Hash
+}
+
+func NewSyncClient(
+	log log.Logger,
+	cfg *rollup.Config,
+	host HostNewStream,
+	rcv L2PayloadIn,
+	metrics SyncClientMetrics,
+	appScorer SyncPeerScorer,
+) *SyncClient {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	c := &SyncClient{
-		log:                 log,
-		cfg:                 cfg,
-		metrics:             metrics,
-		appScorer:           appScorer,
-		newStreamFn:         host.NewStream,
-		payloadByNumber:     PayloadByNumberProtocolID(cfg.L2ChainID),
-		peers:               make(map[peer.ID]context.CancelFunc),
-		quarantineByNum:     make(map[uint64]common.Hash),
-		rangeRequests:       make(chan rangeRequest), // blocking
-		activeRangeRequests: newRequestIdMap(),
-		peerRequests:        make(chan peerRequest, 128),
-		results:             make(chan syncResult, 128),
-		inFlight:            newRequestIdMap(),
-		inFlightChecks:      make(chan inFlightCheck, 128),
-		globalRL:            rate.NewLimiter(globalServerBlocksRateLimit, globalServerBlocksBurst),
-		resCtx:              ctx,
-		resCancel:           cancel,
-		receivePayload:      rcv,
+		log:       log,
+		cfg:       cfg,
+		metrics:   metrics,
+		appScorer: appScorer,
+
+		newStreamFn:     host.NewStream,
+		payloadByNumber: PayloadByNumberProtocolID(cfg.L2ChainID),
+		// Implement the same rate limits as the server does per-peer,
+		// so we don't be too aggressive to the server.
+		NewPeerRateLimiter: func() *rate.Limiter {
+			return rate.NewLimiter(peerServerBlocksRateLimit, peerServerBlocksBurst)
+		},
+
+		peers:          make(map[peer.ID]context.CancelFunc),
+		globalRL:       rate.NewLimiter(globalServerBlocksRateLimit, globalServerBlocksBurst),
+		resCtx:         ctx,
+		resCancel:      cancel,
+		receivePayload: rcv,
 	}
 	if extra, ok := host.(ExtraHostFeatures); ok && extra.SyncOnlyReqToStatic() {
 		c.extra = extra
 		c.syncOnlyReqToStatic = true
 	}
 
-	// never errors with positive LRU cache size
-	// TODO: if we had an LRU based on on total payloads size, instead of payload count,
-	//  we can safely buffer more data in the happy case.
-	q, _ := simplelru.NewLRU[common.Hash, syncResult](100, c.onQuarantineEvict)
-	c.quarantine = q
-	trusted, _ := simplelru.NewLRU[common.Hash, struct{}](10000, nil)
-	c.trusted = trusted
 	return c
 }
 
@@ -323,7 +289,7 @@ func (s *SyncClient) Start() {
 	s.peersLock.Lock()
 	s.wg.Add(1)
 	s.peersLock.Unlock()
-	go s.mainLoop()
+	go s.promoter(s.resCtx)
 }
 
 func (s *SyncClient) AddPeer(id peer.ID) {
@@ -333,7 +299,7 @@ func (s *SyncClient) AddPeer(id peer.ID) {
 		return
 	}
 	if _, ok := s.peers[id]; ok {
-		s.log.Warn("cannot register peer for sync duties, peer was already registered", "peer", id)
+		s.log.Debug("cannot register peer for sync duties, peer was already registered", "peer", id)
 		return
 	}
 	s.wg.Add(1)
@@ -348,7 +314,7 @@ func (s *SyncClient) RemovePeer(id peer.ID) {
 	defer s.peersLock.Unlock()
 	cancel, ok := s.peers[id]
 	if !ok {
-		s.log.Warn("cannot remove peer from sync duties, peer was not registered", "peer", id)
+		s.log.Debug("cannot remove peer from sync duties, peer was not registered", "peer", id)
 		return
 	}
 	cancel() // once loop exits
@@ -366,65 +332,56 @@ func (s *SyncClient) Close() error {
 	return nil
 }
 
-func (s *SyncClient) RequestL2Range(ctx context.Context, start, end eth.L2BlockRef) (uint64, error) {
+func (s *SyncClient) RequestL2Range(ctx context.Context, start, end eth.L2BlockRef) error {
 	if end == (eth.L2BlockRef{}) {
 		s.log.Debug("P2P sync client received range signal, but cannot sync open-ended chain: need sync target to verify blocks through parent-hashes", "start", start)
-		return 0, nil
+		return nil
 	}
-	// Create shared rangeReqId so associated peerRequests can all be cancelled by setting a single flag
-	rangeReqId := atomic.AddUint64(&s.rangeReqId, 1)
-	// need to flag request as active before adding request to s.rangeRequests to avoid race
-	s.activeRangeRequests.set(rangeReqId, true)
-
-	// synchronize requests with the main loop for state access
-	select {
-	case s.rangeRequests <- rangeRequest{start: start.Number, end: end, id: rangeReqId}:
-		return rangeReqId, nil
-	case <-ctx.Done():
-		s.activeRangeRequests.delete(rangeReqId)
-		return rangeReqId, fmt.Errorf("too busy with P2P results/requests: %w", ctx.Err())
-	}
+	s.onRangeRequest(ctx, rangeRequest{start: start.Number, end: end})
+	return nil
 }
 
-const (
-	maxRequestScheduling = time.Second * 3
-	maxResultProcessing  = time.Second * 3
-)
+// This just emulates old behaviour for a test. It's probably pointless.
+func (s *syncClientRequestState) isInFlight(ctx context.Context, num blockNumber) (inFlight bool, _ error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	wanted := s.getWantedBlock(num)
+	if wanted == nil {
+		return
+	}
+	inFlight = len(wanted.quarantined) != 0 || wanted.done.IsSet()
+	return
+}
 
-func (s *SyncClient) mainLoop() {
-	defer s.wg.Done()
-	for {
-		select {
-		case req := <-s.rangeRequests:
-			ctx, cancel := context.WithTimeout(s.resCtx, maxRequestScheduling)
-			s.onRangeRequest(ctx, req)
-			cancel()
-		case res := <-s.results:
-			ctx, cancel := context.WithTimeout(s.resCtx, maxResultProcessing)
-			s.onResult(ctx, res)
-			cancel()
-		case check := <-s.inFlightChecks:
-			s.log.Info("Checking in flight", "num", check.num)
-			check.result <- s.inFlight.get(check.num)
-		case <-s.resCtx.Done():
-			s.log.Info("stopped P2P req-resp L2 block sync client")
-			return
+// go-ethereum should expose a method for this.
+type blockNumber = uint64
+
+func (s *syncClientRequestState) trimOutsideWanted() {
+	for num, wanted := range s.wanted {
+		if num < s.startBlockNumber || num > s.endBlockNumber {
+			wanted.done.Set()
+			delete(s.wanted, num)
 		}
 	}
 }
 
-func (s *SyncClient) isInFlight(ctx context.Context, num uint64) (bool, error) {
-	check := inFlightCheck{num: num, result: make(chan bool, 1)}
-	select {
-	case s.inFlightChecks <- check:
-	case <-ctx.Done():
-		return false, errors.New("context cancelled when publishing in flight check")
-	}
-	select {
-	case res := <-check.result:
-		return res, nil
-	case <-ctx.Done():
-		return false, errors.New("context cancelled while waiting for in flight check response")
+func (s *syncClientRequestState) addMissingWanted(log log.Logger) {
+	g.MakeMapIfNilWithCap(&s.wanted, s.endBlockNumber-s.startBlockNumber+1)
+	for num := s.endBlockNumber; num >= s.startBlockNumber; num-- {
+		log.Debug("Scheduling P2P block request", "num", num)
+		blockState, ok := s.wanted[num]
+		if ok {
+			blockState.promoted = false
+			blockState.done.Clear()
+			blockState.finalHash.SetNone()
+			continue
+		}
+		wanted := &wantedBlock{
+			num: num,
+			// Set to the smallest amount that still ensures no single peer blocks us. Old behaviour was essentially 1.
+			requestConcurrency: chansync.NewSemaphore(2),
+		}
+		s.wanted[num] = wanted
 	}
 }
 
@@ -432,118 +389,321 @@ func (s *SyncClient) isInFlight(ctx context.Context, num uint64) (bool, error) {
 // This function transforms requested block ranges into work for each peer.
 func (s *SyncClient) onRangeRequest(ctx context.Context, req rangeRequest) {
 	log := s.log.New("target", req.start, "end", req.end)
-	log.Info("processing L2 range request", "rangeReqId", req.id)
+	log.Info("processing L2 range request")
 
-	// add req head to trusted set of blocks
-	s.trusted.Add(req.end.Hash, struct{}{})
-	s.trusted.Add(req.end.ParentHash, struct{}{})
-
-	// Now try to fetch lower numbers than current end, to traverse back towards the updated start.
-	for i := uint64(0); ; i++ {
-		num := req.end.Number - 1 - i
-		if num <= req.start {
-			return
-		}
-		// check if we have something in quarantine already
-		if h, ok := s.quarantineByNum[num]; ok {
-			if s.trusted.Contains(h) { // if we trust it, try to promote it.
-				s.tryPromote(h)
-			}
-			// Don't fetch things that we have a candidate for already.
-			// We'll evict it from quarantine by finding a conflict, or if we sync enough other blocks
-			continue
-		}
-
-		if s.inFlight.get(num) {
-			log.Debug("request still in-flight, not rescheduling sync request", "num", num)
-			continue // request still in flight
-		}
-		pr := peerRequest{num: num, rangeReqId: req.id}
-
-		log.Debug("Scheduling P2P block request", "num", num, "rangeReqId", req.id)
-		// schedule number
-		select {
-		case s.peerRequests <- pr:
-			s.inFlight.set(num, true)
-		case <-ctx.Done():
-			log.Info("did not schedule full P2P sync range", "current", num, "err", ctx.Err())
-			return
-		default: // peers may all be busy processing requests already
-			log.Info("no peers ready to handle block requests for more P2P requests for L2 block history", "current", num)
-			return
-		}
-	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.endBlockNumber = req.end.Number - 1
+	s.startBlockNumber = req.start + 1
+	s.trimOutsideWanted()
+	s.addMissingWanted(log)
+	s.setNextPromote(s.endBlockNumber+1, req.end.ParentHash)
+	s.requestBlocksCond.Broadcast()
+	s.promoterCond.Broadcast()
 }
 
-func (s *SyncClient) onQuarantineEvict(key common.Hash, value syncResult) {
-	delete(s.quarantineByNum, uint64(value.payload.ExecutionPayload.BlockNumber))
-	s.metrics.PayloadsQuarantineSize(s.quarantine.Len())
-	if !s.trusted.Contains(key) {
-		s.log.Debug("evicting untrusted payload from quarantine", "id", value.payload.ExecutionPayload.ID(), "peer", value.peer)
-		// Down-score peer for having provided us a bad block that never turned out to be canonical
-		s.appScorer.onRejectedPayload(value.peer)
-	} else {
-		s.log.Debug("evicting trusted payload from quarantine", "id", value.payload.ExecutionPayload.ID(), "peer", value.peer)
-	}
+func (s *SyncClient) removeFromQuarantine(bn blockNumber, hash common.Hash) {
+	wanted := s.getWantedBlock(bn)
+	g.MustDelete(wanted.quarantined, hash)
+	s.requestBlocksCond.Broadcast()
 }
 
-func (s *SyncClient) tryPromote(h common.Hash) {
-	parentRes, ok := s.quarantine.Get(h)
-	if ok {
-		// Simply reschedule the result, to get it (and possibly its parents) out of quarantine without recursion.
-		// s.results is buffered, but skip the promotion if the channel is full as it would cause a deadlock.
-		select {
-		case s.results <- parentRes:
-		default:
-			s.log.Debug("failed to signal block for promotion: sync client is too busy", "h", h)
-		}
-	} else {
-		s.log.Debug("cannot find block in quarantine, nothing to promote", "h", h)
-	}
-}
-
-func (s *SyncClient) promote(ctx context.Context, res syncResult) {
-	s.log.Debug("promoting p2p sync result", "payload", res.payload.ExecutionPayload.ID(), "peer", res.peer)
-
-	if err := s.receivePayload(ctx, res.peer, res.payload); err != nil {
-		s.log.Warn("failed to promote payload, receiver error", "err", err)
+func (s *SyncClient) setNextPromote(bnSucc blockNumber, hash common.Hash) {
+	// Passed in the next promote successor so we don't have issues with signedness.
+	if bnSucc <= s.startBlockNumber {
+		// We're finished syncing!
+		s.nextPromote.SetNone()
 		return
 	}
-	s.trusted.Add(res.payload.ExecutionPayload.BlockHash, struct{}{})
-	if s.quarantine.Remove(res.payload.ExecutionPayload.BlockHash) {
-		s.log.Debug("promoted previously p2p-synced block from quarantine to main", "id", res.payload.ExecutionPayload.ID())
-	} else {
-		s.log.Debug("promoted new p2p-synced block to main", "id", res.payload.ExecutionPayload.ID())
+	s.nextPromote.Set(nextPromote{
+		num:  bnSucc - 1,
+		hash: hash,
+	})
+	s.deleteBadQuarantines(bnSucc-1, hash)
+}
+
+func (s *SyncClient) promotedBlock(payload *eth.ExecutionPayloadEnvelope) {
+	// Should we check what the previous nextPromote state was?
+	bn := blockNumber(payload.ExecutionPayload.BlockNumber)
+	wanted := s.getWantedBlock(bn)
+	if len(wanted.quarantined) != 0 {
+		// Quarantine count lowered.
+		s.requestBlocksCond.Broadcast()
 	}
+	clear(wanted.quarantined)
+	s.requestBlocksCond.Broadcast()
+	wanted.finalHash.Set(payload.ExecutionPayload.BlockHash)
+	wanted.done.Set()
+	wanted.promoted = true
+	s.setNextPromote(bn, payload.ExecutionPayload.ParentHash)
+}
 
-	// Mark parent block as trusted, so that we can promote it once we receive it / find it
-	s.trusted.Add(res.payload.ExecutionPayload.ParentHash, struct{}{})
-
-	// Try to promote the parent block too, if any: previous unverifiable data may now be canonical
-	s.tryPromote(res.payload.ExecutionPayload.ParentHash)
-
-	// In case we don't have the parent, and what we have in quarantine is wrong,
-	// clear what we buffered in favor of fetching something else.
-	if h, ok := s.quarantineByNum[uint64(res.payload.ExecutionPayload.BlockNumber)-1]; ok {
-		s.quarantine.Remove(h)
+func (s *SyncClient) deleteBadQuarantines(bn blockNumber, expected common.Hash) {
+	wanted := s.getWantedBlock(bn)
+	for hash, syncRes := range wanted.quarantined {
+		if hash != expected {
+			s.log.Debug("evicting untrusted payload from quarantine",
+				"id", syncRes.payload.ExecutionPayload.ID(),
+				"peer", syncRes.peer)
+			// Down-score peer for having provided us a bad block that never turned out to be canonical
+			s.appScorer.onRejectedPayload(syncRes.peer)
+			delete(wanted.quarantined, hash)
+			s.requestBlocksCond.Broadcast()
+		}
 	}
 }
 
-// onResult is exclusively called by the main loop, and has thus direct access to the request bookkeeping state.
-// This function verifies if the result is canonical, and either promotes the result or moves the result into quarantine.
-func (s *SyncClient) onResult(ctx context.Context, res syncResult) {
+func (s *SyncClient) tryPromote(ctx context.Context, res syncResult) {
+	s.log.Debug("promoting p2p sync result", "payload", res.payload.ExecutionPayload.ID(), "peer", res.peer)
+
+	blockNumber := blockNumber(res.payload.ExecutionPayload.BlockNumber)
+	// Does this actually return an error if the block is bad? The code doesn't suggest so.
+	// Fortunately the driver will timeout and reset the L2 request range but that's not ideal. Also
+	// it seems this is handled by posting a message, which means we don't need to unlock to make
+	// the call?
+	s.mu.Unlock()
+	err := s.receivePayload.OnUnsafeL2Payload(ctx, res.peer, res.payload, PayloadSourceAltSync)
+	s.mu.Lock()
+	// Should we log err here first?
+	if s.getWantedBlock(blockNumber) == nil {
+		// The range was altered to not include this block number while we were sending the payload.
+		return
+	}
+	if err != nil {
+		s.log.Warn("failed to promote payload, receiver error", "err", err)
+		s.removeFromQuarantine(blockNumber, res.payload.ExecutionPayload.BlockHash)
+	}
+	stillNextPromote := s.nextPromote.Ok && s.nextPromote.Value.hash == res.payload.ExecutionPayload.BlockHash && s.nextPromote.Value.num == blockNumber
+	// If we still want the block number, but no longer want to promote this next then we leave it
+	// in quarantine so can resubmit it later if it becomes trusted again. When we promote its
+	// child, we will know if this block is valid immediately and can promote it again or evict it.
+	if stillNextPromote {
+		s.promotedBlock(res.payload)
+	}
+}
+
+func (s *SyncClient) onResultUnlocked(res syncResult) {
 	payload := res.payload.ExecutionPayload
 	s.log.Debug("processing p2p sync result", "payload", payload.ID(), "peer", res.peer)
-	// Clean up the in-flight request, we have a result now.
-	s.inFlight.delete(uint64(payload.BlockNumber))
+	blockNum := blockNumber(payload.BlockNumber)
 	// Always put it in quarantine first. If promotion fails because the receiver is too busy, this functions as cache.
-	s.quarantine.Add(payload.BlockHash, res)
-	s.quarantineByNum[uint64(payload.BlockNumber)] = payload.BlockHash
-	s.metrics.PayloadsQuarantineSize(s.quarantine.Len())
-	// If we know this block is canonical, then promote it
-	if s.trusted.Contains(payload.BlockHash) {
-		s.promote(ctx, res)
+	s.mu.Lock()
+	// panics suck
+	defer s.mu.Unlock()
+	wanted := s.getWantedBlock(blockNum)
+	if wanted == nil {
+		// We've moved on.
+		return
 	}
+	if wanted.done.IsSet() {
+		// Late arrival and we know what we should have received.
+		if wanted.finalHash.Ok {
+			if res.payload.ExecutionPayload.BlockHash != wanted.finalHash.Value {
+				s.appScorer.onRejectedPayload(res.peer)
+			}
+			// We could score the peer for sending us a block here, but maybe they stalled on
+			// purpose. Let's just reward the one that answered first.
+		}
+		return
+	}
+	if g.MapContains(wanted.quarantined, payload.BlockHash) {
+		// We already have this block, this peer was just slow. Don't score them just as we do
+		// elsewhere.
+		return
+	}
+	if !s.trimQuarantinedBelow(blockNum) {
+		// Can't fit this block there are higher priority blocks.
+		return
+	}
+	g.MakeMapIfNil(&wanted.quarantined)
+	wanted.quarantined[payload.BlockHash] = res
+	s.doPayloadsQuarantineSizeMetric()
+	s.promoterCond.Broadcast()
+}
+
+func (s *SyncClient) trimQuarantinedBelow(below blockNumber) bool {
+	count := 0
+	for bn := below; bn <= s.endBlockNumber; bn++ {
+		count += len(s.getWantedBlock(bn).quarantined)
+	}
+	return s.trimQuarantineCache(below, count-quarantineLimit+1)
+}
+
+func (s *SyncClient) doPayloadsQuarantineSizeMetric() {
+	size := 0
+	for _, wanted := range s.wanted {
+		size += len(wanted.quarantined)
+	}
+	//fmt.Printf("payloads quarantine size: %v\n", size)
+	s.metrics.PayloadsQuarantineSize(size)
+}
+
+// This enforces sequential handling of promoting blocks to the driver. I assume this was a desired
+// feature, it's probably expensive to run them.
+func (s *SyncClient) promoter(ctx context.Context) {
+	defer s.wg.Done()
+	for {
+		s.mu.Lock()
+		s.maybePromote(ctx)
+		cond := s.promoterCond.Signaled()
+		s.mu.Unlock()
+		select {
+		case <-cond:
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+func (s *SyncClient) maybePromote(ctx context.Context) {
+	for {
+		if !s.nextPromote.Ok {
+			return
+		}
+		wanted := s.getWantedBlock(s.nextPromote.Value.num)
+		if len(wanted.quarantined) == 0 {
+			return
+		}
+		if len(wanted.quarantined) > 1 {
+			// Should have been trimmed due to knowing what the next hash should be.
+			panic("expected invalid blocks to have been rejected already")
+		}
+		for hash, syncRes := range wanted.quarantined {
+			if hash != s.nextPromote.Value.hash {
+				panic(fmt.Sprintf("expected only %v in quarantine, but found %v", s.nextPromote.Value.hash, hash))
+			}
+			s.tryPromote(ctx, syncRes)
+			// Paranoid. I know Go will shift things underneath us on maps if it can get away with
+			// it.
+			break
+		}
+	}
+}
+
+func (s *syncClientPeer) requestAndHandleResult(ctx context.Context, wanted *wantedBlock) (err error) {
+	// We already established the peer is available w.r.t. rate-limiting,
+	// and this is the only loop over this peer, so we can request now.
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	go func() {
+		defer cancel()
+		select {
+		case <-wanted.done.On():
+		case <-ctx.Done():
+		}
+	}()
+	start := time.Now()
+
+	resultCode := ResultCodeSuccess
+	num := wanted.num
+
+	envelope, err := s.doRequestRecoveringPanic(ctx, num)
+
+	if err != nil {
+		log.Warn("failed p2p sync request", "num", num, "err", err)
+		resultCode = ResultCodeNotFoundErr
+		sendResponseError := true
+
+		var re requestResultErr
+		if errors.As(err, &re) {
+			resultCode = re.ResultCode()
+			if resultCode == ResultCodeNotFoundErr {
+				sendResponseError = false // don't penalize peer for this error
+			}
+		}
+
+		if sendResponseError {
+			s.appScorer.onResponseError(s.remoteId)
+			// If we hit an error, then count it as many requests.
+			// We'd like to avoid making more requests for a while, so back off.
+			s.lastRequestError = time.Now()
+		}
+	} else {
+		s.onResultUnlocked(syncResult{payload: envelope, peer: s.remoteId})
+		log.Debug("completed p2p sync request", "num", num)
+		s.appScorer.onValidResponse(s.remoteId)
+	}
+
+	took := time.Since(start)
+	s.metrics.ClientPayloadByNumberEvent(num, byte(resultCode), took)
+	return
+}
+
+func (s *syncClientPeer) requestBlocks(ctx context.Context) (err error) {
+	quarantineCount := 0
+	for bn := s.endBlockNumber; bn >= s.startBlockNumber; bn-- {
+		wanted := s.getWantedBlock(bn)
+		if wanted == nil {
+			// Request range has been altered.
+			break
+		}
+		// Don't bother to quarantine more than one block for each number.
+		if len(wanted.quarantined) != 0 {
+			quarantineCount += len(wanted.quarantined)
+			continue
+		}
+		if wanted.done.IsSet() {
+			continue
+		}
+		if quarantineCount >= quarantineLimit {
+			if !s.trimQuarantineCache(bn, quarantineCount-quarantineLimit+1) {
+				return
+			}
+		}
+		// Our quarantine count could be invalid.
+		return s.reserveAndRequest(ctx, wanted)
+	}
+	return
+}
+
+// Waits for reservations and then does the request if appropriate.
+func (s *syncClientPeer) reserveAndRequest(ctx context.Context, wanted *wantedBlock) (err error) {
+	s.mu.Unlock()
+	defer s.mu.Lock()
+	r := s.rl.Reserve()
+	if !r.OK() {
+		panic(s.rl)
+	}
+	// Undo the reservation if we never get to request. We do the peer reservation first so we don't
+	// tie up other peers.
+	requested := false
+	defer func() {
+		if !requested {
+			r.Cancel()
+		}
+	}()
+	// Wait for the peer reservation to be ready.
+	select {
+	case <-ctx.Done():
+		return context.Cause(ctx)
+	case <-wanted.done.On():
+		return
+	case <-time.After(r.Delay()):
+	}
+	select {
+	default:
+		// Too many on this block.
+		return
+	case wanted.requestConcurrency.Acquire() <- struct{}{}:
+	}
+	// Releasing our slot on the block could free up another peer.
+	defer s.requestBlocksCond.Broadcast()
+	defer func() {
+		<-wanted.requestConcurrency.Release()
+	}()
+	err = s.globalRL.Wait(ctx)
+	if err != nil {
+		err = fmt.Errorf("waiting for global rate limiter: %w", err)
+		return
+	}
+	err = s.requestAndHandleResult(ctx, wanted)
+	requested = true
+	if err != nil {
+		err = fmt.Errorf("requesting block %v: %w", wanted.num, err)
+	}
+	return
 }
 
 // peerLoop for syncing from a single peer
@@ -556,85 +716,51 @@ func (s *SyncClient) peerLoop(ctx context.Context, id peer.ID) {
 		s.peersLock.Unlock()
 	}()
 
-	log := s.log.New("peer", id)
-	log.Info("Starting P2P sync client event loop")
-
-	// Implement the same rate limits as the server does per-peer,
-	// so we don't be too aggressive to the server.
-	rl := rate.NewLimiter(peerServerBlocksRateLimit, peerServerBlocksBurst)
-
-	// if onlyReqToStatic is on, ensure that only static peers are dealing with the request
-	peerRequests := s.peerRequests
-	if s.syncOnlyReqToStatic && !s.extra.IsStatic(id) {
-		// for non-static peers, set peerRequests to nil
-		// this will effectively make the peer loop not perform outgoing sync-requests.
-		// while sync-requests will block, the loop may still process other events (if added in the future).
-		peerRequests = nil
+	peer := &syncClientPeer{
+		SyncClient: s,
+		rl:         s.NewPeerRateLimiter(),
+		remoteId:   id,
 	}
+	peer.Run(ctx)
+}
 
+func (s *syncClientPeer) Run(ctx context.Context) {
+	log := s.log.New("peer", s.remoteId)
+	log.Info("Starting P2P sync client event loop")
 	for {
-		// wait for a global allocation to be available
-		if err := s.globalRL.Wait(ctx); err != nil {
-			return
+		s.mu.Lock()
+		// if onlyReqToStatic is on, ensure that only static peers are dealing with the request.
+		// Take this before requesting blocks, so if we return for whatever reason we can jump
+		// straight back in if our preconditions changed.
+		requestBlocksSignal := s.requestBlocksCond.Signaled()
+		if s.syncOnlyReqToStatic && !s.extra.IsStatic(s.remoteId) {
+			// for non-static peers, set requestBlocksCond to nil
+			// this will effectively make the peer loop not perform outgoing sync-requests.
+			// while sync-requests will block, the loop may still process other events (if added in the future).
+			requestBlocksSignal = nil
+		} else {
+			err := s.requestBlocks(ctx)
+			if err != nil {
+				log.Warn("error requesting blocks", "err", err)
+				naughtyBoyChan := make(chan struct{})
+				requestBlocksSignal = naughtyBoyChan
+				// Calculated approximately from the penalty that was applied to the peer rate
+				// limiter in the code that used to artificially apply tokens to achieve backoff.
+				time.AfterFunc(5*time.Second, func() { close(naughtyBoyChan) })
+			}
 		}
-		// wait for peer to be available for more work
-		if err := rl.Wait(ctx); err != nil {
-			return
-		}
-
+		s.mu.Unlock()
 		// once the peer is available, wait for a sync request.
 		select {
-		case pr := <-peerRequests:
-			if !s.activeRangeRequests.get(pr.rangeReqId) {
-				log.Debug("dropping cancelled p2p sync request", "num", pr.num)
-				s.inFlight.delete(pr.num)
-				continue
-			}
-
-			// We already established the peer is available w.r.t. rate-limiting,
-			// and this is the only loop over this peer, so we can request now.
-			start := time.Now()
-
-			resultCode := ResultCodeSuccess
-			err := panicGuard(s.doRequest)(ctx, id, pr.num)
-			if err != nil {
-				s.inFlight.delete(pr.num)
-				log.Warn("failed p2p sync request", "num", pr.num, "err", err)
-				resultCode = ResultCodeNotFoundErr
-				sendResponseError := true
-
-				if re, ok := err.(requestResultErr); ok {
-					resultCode = re.ResultCode()
-					if resultCode == ResultCodeNotFoundErr {
-						log.Warn("cancelling p2p sync range request", "rangeReqId", pr.rangeReqId)
-						s.activeRangeRequests.delete(pr.rangeReqId)
-						sendResponseError = false // don't penalize peer for this error
-					}
-				}
-
-				if sendResponseError {
-					s.appScorer.onResponseError(id)
-				}
-
-				// If we hit an error, then count it as many requests.
-				// We'd like to avoid making more requests for a while, so back off.
-				if err := rl.WaitN(ctx, clientErrRateCost); err != nil {
-					return
-				}
-			} else {
-				log.Debug("completed p2p sync request", "num", pr.num)
-				s.appScorer.onValidResponse(id)
-			}
-
-			took := time.Since(start)
-			s.metrics.ClientPayloadByNumberEvent(pr.num, resultCode, took)
+		case <-requestBlocksSignal:
 		case <-ctx.Done():
 			return
 		}
 	}
+
 }
 
-type requestResultErr byte
+type requestResultErr resultCode
 
 func (r requestResultErr) Error() string {
 	var errStr string
@@ -646,26 +772,47 @@ func (r requestResultErr) Error() string {
 	return fmt.Sprintf("peer failed to serve request with code %d: %s", uint8(r), errStr)
 }
 
-func (r requestResultErr) ResultCode() byte {
-	return byte(r)
+func (r requestResultErr) ResultCode() resultCode {
+	return resultCode(r)
 }
 
-func (s *SyncClient) doRequest(ctx context.Context, id peer.ID, expectedBlockNum uint64) error {
+func (s *syncClientPeer) doRequestRecoveringPanic(
+	ctx context.Context, expectedBlockNum blockNumber,
+) (
+	envelope *eth.ExecutionPayloadEnvelope, err error,
+) {
+	err = panicGuard(s.log, fmt.Sprintf("doing alt sync request to %v", s.remoteId), func() (err error) {
+		envelope, err = s.doRequest(ctx, expectedBlockNum)
+		return
+	})
+	return
+}
+
+func (s *syncClientPeer) doRequest(
+	ctx context.Context, expectedBlockNum blockNumber,
+) (
+	envelope *eth.ExecutionPayloadEnvelope, err error,
+) {
 	// open stream to peer
 	reqCtx, reqCancel := context.WithTimeout(ctx, streamTimeout)
-	str, err := s.newStreamFn(reqCtx, id, s.payloadByNumber)
+	str, err := s.newStreamFn(reqCtx, s.remoteId, s.payloadByNumber)
 	reqCancel()
 	if err != nil {
-		return fmt.Errorf("failed to open stream: %w", err)
+		err = fmt.Errorf("failed to open stream: %w", err)
+		return
 	}
 	defer str.Close()
 	// set write timeout (if available)
 	_ = str.SetWriteDeadline(time.Now().Add(clientWriteRequestTimeout))
-	if err := binary.Write(str, binary.LittleEndian, expectedBlockNum); err != nil {
-		return fmt.Errorf("failed to write request (%d): %w", expectedBlockNum, err)
+	err = binary.Write(str, binary.LittleEndian, expectedBlockNum)
+	if err != nil {
+		err = fmt.Errorf("failed to write request (%d): %w", expectedBlockNum, err)
+		return
 	}
-	if err := str.CloseWrite(); err != nil {
-		return fmt.Errorf("failed to close writer side while making request: %w", err)
+	err = str.CloseWrite()
+	if err != nil {
+		err = fmt.Errorf("failed to close writer side while making request: %w", err)
+		return
 	}
 
 	// set read timeout (if available)
@@ -676,18 +823,24 @@ func (s *SyncClient) doRequest(ctx context.Context, id peer.ID, expectedBlockNum
 	// or output more data than desired (zip-bomb)
 	r := io.LimitReader(str, maxGossipSize)
 	var result [1]byte
-	if _, err := io.ReadFull(r, result[:]); err != nil {
-		return fmt.Errorf("failed to read result part of response: %w", err)
+	_, err = io.ReadFull(r, result[:])
+	if err != nil {
+		err = fmt.Errorf("failed to read result code: %w", err)
+		return
 	}
-	if res := result[0]; res != 0 {
-		return requestResultErr(res)
+	if res := resultCode(result[0]); res != ResultCodeSuccess {
+		err = requestResultErr(res)
+		return
 	}
 	var versionData [4]byte
-	if _, err := io.ReadFull(r, versionData[:]); err != nil {
-		return fmt.Errorf("failed to read version part of response: %w", err)
+	_, err = io.ReadFull(r, versionData[:])
+	if err != nil {
+		err = fmt.Errorf("failed to read version part of response: %w", err)
+		return
 	}
 
 	// payload is SSZ encoded with Snappy framed compression
+	// snappy sux, gross
 	r = snappy.NewReader(r)
 	r = io.LimitReader(r, maxGossipSize)
 
@@ -695,40 +848,50 @@ func (s *SyncClient) doRequest(ctx context.Context, id peer.ID, expectedBlockNum
 	// The server does not prepend it, nor would we trust a claimed length anyway, so we buffer the data we get.
 	data, err := io.ReadAll(r)
 	if err != nil {
-		return fmt.Errorf("failed to read response: %w", err)
+		err = fmt.Errorf("failed to read response: %w", err)
+		return
 	}
 
 	version := binary.LittleEndian.Uint32(versionData[:])
 	isCanyon := s.cfg.IsCanyon(s.cfg.TimestampForBlock(expectedBlockNum))
-	envelope, err := readExecutionPayload(version, data, isCanyon)
+	envelope, err = readExecutionPayload(version, data, isCanyon)
 	if err != nil {
-		return err
+		err = fmt.Errorf("reading execution payload: %w", err)
+		return
 	}
-	if err := str.CloseRead(); err != nil {
-		return fmt.Errorf("failed to close reading side")
+	err = str.CloseRead()
+	if err != nil {
+		err = fmt.Errorf("failed to close reading side: %w", err)
+		return
 	}
-	if err := verifyBlock(envelope, expectedBlockNum); err != nil {
-		return fmt.Errorf("received execution payload is invalid: %w", err)
+	err = verifyBlock(envelope, expectedBlockNum)
+	if err != nil {
+		err = fmt.Errorf("received execution payload is invalid: %w", err)
+		return
 	}
-	select {
-	case s.results <- syncResult{payload: envelope, peer: id}:
-	case <-ctx.Done():
-		return fmt.Errorf("failed to process response, sync client is too busy: %w", err)
-	}
-	return nil
+	return
 }
 
-// panicGuard is a generic function that takes another function with generic arguments and returns an error.
-// It recovers from any panic that occurs during the execution of the function.
-func panicGuard[T, S, U any](fn func(T, S, U) error) func(T, S, U) error {
-	return func(arg0 T, arg1 S, arg2 U) (err error) {
-		defer func() {
-			if r := recover(); r != nil {
-				err = fmt.Errorf("recovered from a panic: %v", r)
-			}
-		}()
-		return fn(arg0, arg1, arg2)
-	}
+// Modelled on "net/http".conn.serve's panic handler. Retained separately for testing purposes. Logs
+// the panic details, and returns the function error. Possibly f should not return an error.
+func panicGuard(logger log.Logger, msg string, f func() error, logAttrs ...any) (err error) {
+	defer func() {
+		r := recover()
+		if r == nil {
+			return
+		}
+		// I'd make this crit but clearly someone sees it fairly regularly and it is libp2p...
+		logger.Error(
+			fmt.Sprintf("panic %s: %v\n%s", msg, r, debug.Stack()),
+			logAttrs...)
+		// This shouldn't be possible, since f can't assign an error if it panicked.
+		if err != nil {
+			logger.Error(fmt.Sprintf("unhandled error %s: %v", msg, err))
+		}
+		err = fmt.Errorf("panic: %v", r)
+	}()
+	err = f()
+	return
 }
 
 // readExecutionPayload will unmarshal the supplied data into an ExecutionPayloadEnvelope.
@@ -793,7 +956,7 @@ type ReqRespServer struct {
 	peerRateLimits *simplelru.LRU[peer.ID, *peerStat]
 	peerStatsLock  sync.Mutex
 
-	globalRequestsRL *rate.Limiter
+	GlobalRequestsRL *rate.Limiter
 }
 
 func NewReqRespServer(cfg *rollup.Config, l2 L2Chain, metrics ReqRespServerMetrics) *ReqRespServer {
@@ -808,7 +971,7 @@ func NewReqRespServer(cfg *rollup.Config, l2 L2Chain, metrics ReqRespServerMetri
 		l2:               l2,
 		metrics:          metrics,
 		peerRateLimits:   peerRateLimits,
-		globalRequestsRL: globalRequestsRL,
+		GlobalRequestsRL: globalRequestsRL,
 	}
 }
 
@@ -828,6 +991,7 @@ func (srv *ReqRespServer) HandleSyncRequest(ctx context.Context, log log.Logger,
 	req, err := srv.handleSyncRequest(ctx, stream)
 	cancel()
 
+	// Doesn't look like rate limiting gets special treatment.
 	resultCode := ResultCodeSuccess
 	if err != nil {
 		log.Warn("failed to serve p2p sync request", "req", req, "err", err)
@@ -839,11 +1003,11 @@ func (srv *ReqRespServer) HandleSyncRequest(ctx context.Context, log log.Logger,
 			resultCode = ResultCodeUnknownErr
 		}
 		// try to write error code, so the other peer can understand the reason for failure.
-		_, _ = stream.Write([]byte{resultCode})
+		_, _ = stream.Write([]byte{byte(resultCode)})
 	} else {
 		log.Debug("successfully served sync response", "req", req)
 	}
-	srv.metrics.ServerPayloadByNumberEvent(req, resultCode, time.Since(start))
+	srv.metrics.ServerPayloadByNumberEvent(req, byte(resultCode), time.Since(start))
 }
 
 var errInvalidRequest = errors.New("invalid request")
@@ -851,18 +1015,12 @@ var errInvalidRequest = errors.New("invalid request")
 func (srv *ReqRespServer) handleSyncRequest(ctx context.Context, stream network.Stream) (uint64, error) {
 	peerId := stream.Conn().RemotePeer()
 
-	// take a token from the global rate-limiter,
-	// to make sure there's not too much concurrent server work between different peers.
-	if err := srv.globalRequestsRL.Wait(ctx); err != nil {
-		return 0, fmt.Errorf("timed out waiting for global sync rate limit: %w", err)
-	}
-
 	// find rate limiting data of peer, or add otherwise
 	srv.peerStatsLock.Lock()
 	ps, _ := srv.peerRateLimits.Get(peerId)
 	if ps == nil {
 		ps = &peerStat{
-			Requests: rate.NewLimiter(peerServerBlocksRateLimit, peerServerBlocksBurst),
+			Requests: rate.NewLimiter(rate.Inf, 0),
 		}
 		srv.peerRateLimits.Add(peerId, ps)
 		ps.Requests.Reserve() // count the hit, but make it delay the next request rather than immediately waiting
@@ -877,6 +1035,13 @@ func (srv *ReqRespServer) handleSyncRequest(ctx context.Context, stream network.
 		}
 	}
 	srv.peerStatsLock.Unlock()
+
+	// Take the global rate limiter after the peer-specific one so as not to waste tokens on peers that can't advance.
+	// take a token from the global rate-limiter,
+	// to make sure there's not too much concurrent server work between different peers.
+	if err := srv.GlobalRequestsRL.Wait(ctx); err != nil {
+		return 0, fmt.Errorf("timed out waiting for global sync rate limit: %w", err)
+	}
 
 	// Set read deadline, if available
 	_ = stream.SetReadDeadline(time.Now().Add(serverReadRequestTimeout))
@@ -943,4 +1108,45 @@ func (srv *ReqRespServer) handleSyncRequest(ctx context.Context, stream network.
 	}
 
 	return req, nil
+}
+
+// State for blocks that are or have been requested through the sync client.
+type wantedBlock struct {
+	num                blockNumber
+	requestConcurrency chansync.Semaphore
+	// On when we've either promoted the block, or no longer want it.
+	done chansync.Flag
+	// Whether we're done because we submitted a block upstream. If we get a request for a range
+	// that includes a block that's been promoted, we should get it again.
+	promoted bool
+	// This prevents duplicate requests when one delivers.
+	quarantined map[common.Hash]syncResult
+	// The correct hash when it becomes known. Can be used to score late replies.
+	finalHash g.Option[common.Hash]
+}
+
+type syncClientPeer struct {
+	*SyncClient
+	lastRequestError time.Time
+	rl               *rate.Limiter
+	remoteId         peer.ID
+}
+
+// Returns the request state. Can be nil if the request range has been altered.
+func (s *syncClientRequestState) getWantedBlock(blockNum blockNumber) *wantedBlock {
+	return s.wanted[blockNum]
+}
+
+// Returns true if all the space required was trimmed from quarantined payloads before the given
+// block number.
+func (s *SyncClient) trimQuarantineCache(before blockNumber, spaceRequired int) bool {
+	for num := s.startBlockNumber; spaceRequired > 0 && num < before; num++ {
+		wanted := s.getWantedBlock(num)
+		for hash := range wanted.quarantined {
+			delete(wanted.quarantined, hash)
+			s.requestBlocksCond.Broadcast()
+			spaceRequired--
+		}
+	}
+	return spaceRequired <= 0
 }

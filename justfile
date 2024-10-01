@@ -42,3 +42,10 @@ check-slither:
 
 upgrade-slither:
   jq '.slither = $v' --arg v $(just print-slither) <<<$(cat versions.json) > versions.json
+
+check:
+    go test -failfast -run @ ./... > /dev/null
+
+# Run unit tests for all components.
+test-components:
+    go test -failfast ./op-{node,proposer,batcher,e2e}/...

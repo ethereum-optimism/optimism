@@ -91,7 +91,7 @@ type OpNode struct {
 }
 
 // The OpNode handles incoming gossip
-var _ p2p.GossipIn = (*OpNode)(nil)
+var _ p2p.L2PayloadIn = (*OpNode)(nil)
 
 // New creates a new OpNode instance.
 // The provided ctx argument is for the span of initialization only;
@@ -424,8 +424,25 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config) error {
 	} else {
 		n.safeDB = safedb.Disabled
 	}
-	n.l2Driver = driver.NewDriver(n.eventSys, n.eventDrain, &cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source,
-		n.supervisor, n.beacon, n, n, n.log, n.metrics, cfg.ConfigPersistence, n.safeDB, &cfg.Sync, sequencerConductor, altDA)
+	n.l2Driver = driver.NewDriver(
+		n.eventSys,
+		n.eventDrain,
+		&cfg.Driver,
+		&cfg.Rollup,
+		n.l2Source,
+		n.l1Source,
+		n.supervisor,
+		n.beacon,
+		n,
+		n,
+		n.log,
+		n.metrics,
+		cfg.ConfigPersistence,
+		n.safeDB,
+		&cfg.Sync,
+		sequencerConductor,
+		altDA,
+	)
 	return nil
 }
 
@@ -591,13 +608,21 @@ func (n *OpNode) PublishL2Payload(ctx context.Context, envelope *eth.ExecutionPa
 	return nil
 }
 
-func (n *OpNode) OnUnsafeL2Payload(ctx context.Context, from peer.ID, envelope *eth.ExecutionPayloadEnvelope) error {
+func (n *OpNode) OnUnsafeL2Payload(
+	ctx context.Context,
+	from peer.ID,
+	envelope *eth.ExecutionPayloadEnvelope,
+	source p2p.PayloadSource,
+) error {
 	// ignore if it's from ourselves
 	if n.p2pEnabled() && from == n.p2pNode.Host().ID() {
 		return nil
 	}
 
-	n.tracer.OnUnsafeL2Payload(ctx, from, envelope)
+	err := n.tracer.OnUnsafeL2Payload(ctx, from, envelope, source)
+	if err != nil {
+		n.log.Warn("error notifying tracer of unsafe l2 payload", "err", err)
+	}
 
 	n.log.Info("Received signed execution payload from p2p", "id", envelope.ExecutionPayload.ID(), "peer", from,
 		"txs", len(envelope.ExecutionPayload.Transactions))
@@ -614,6 +639,10 @@ func (n *OpNode) OnUnsafeL2Payload(ctx context.Context, from peer.ID, envelope *
 }
 
 func (n *OpNode) RequestL2Range(ctx context.Context, start, end eth.L2BlockRef) error {
+	// I don't think this is set soon enough in Stop.
+	if n.closed.Load() {
+		return errors.New("OpNode closed")
+	}
 	if n.p2pEnabled() && n.p2pNode.AltSyncEnabled() {
 		if unixTimeStale(start.Time, 12*time.Hour) {
 			n.log.Debug(

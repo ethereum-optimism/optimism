@@ -33,7 +33,7 @@ import (
 
 // NodeP2P is a p2p node, which can be used to gossip messages.
 type NodeP2P struct {
-	host        host.Host                      // p2p host (optional, may be nil)
+	host        host.Host                      // p2p host
 	gater       gating.BlockingConnectionGater // p2p gater, to ban/unban peers with, may be nil even with p2p enabled
 	scorer      Scorer                         // writes score-updates to the peerstore and keeps metrics of score changes
 	connMgr     connmgr.ConnManager            // p2p conn manager, to keep a reliable number of peers, may be nil even with p2p enabled
@@ -57,7 +57,7 @@ func NewNodeP2P(
 	rollupCfg *rollup.Config,
 	log log.Logger,
 	setup SetupP2P,
-	gossipIn GossipIn,
+	gossipIn L2PayloadIn,
 	l2Chain L2Chain,
 	runCfg GossipRuntimeConfig,
 	metrics metrics.Metricer,
@@ -90,7 +90,7 @@ func (n *NodeP2P) init(
 	rollupCfg *rollup.Config,
 	log log.Logger,
 	setup SetupP2P,
-	gossipIn GossipIn,
+	gossipIn L2PayloadIn,
 	l2Chain L2Chain,
 	runCfg GossipRuntimeConfig,
 	metrics metrics.Metricer,
@@ -127,9 +127,10 @@ func (n *NodeP2P) init(
 	} else {
 		n.appScorer = &NoopApplicationScorer{}
 	}
+	rrsConfig := setup.ReqRespSyncConfig()
 	// Activate the P2P req-resp sync if enabled by feature-flag.
-	if setup.ReqRespSyncEnabled() && !elSyncEnabled {
-		n.syncCl = NewSyncClient(log, rollupCfg, n.host, gossipIn.OnUnsafeL2Payload, metrics, n.appScorer)
+	if rrsConfig.Enabled && !elSyncEnabled {
+		n.syncCl = NewSyncClient(log, rollupCfg, n.host, gossipIn, metrics, n.appScorer)
 		n.host.Network().Notify(&network.NotifyBundle{
 			ConnectedF: func(nw network.Network, conn network.Conn) {
 				n.syncCl.AddPeer(conn.RemotePeer())
@@ -141,13 +142,20 @@ func (n *NodeP2P) init(
 				}
 			},
 		})
+		if c := rrsConfig.ConfigureClient; c != nil {
+			c(n.syncCl)
+		}
 		n.syncCl.Start()
 		// the host may already be connected to peers, add them all to the sync client
 		for _, peerID := range n.host.Network().Peers() {
 			n.syncCl.AddPeer(peerID)
 		}
-		if l2Chain != nil { // Only enable serving side of req-resp sync if we have a data-source, to make minimal P2P testing easy
+		// Only enable serving side of req-resp sync if we have a data-source, to make minimal P2P testing easy
+		if l2Chain != nil {
 			n.syncSrv = NewReqRespServer(rollupCfg, l2Chain, metrics)
+			if c := rrsConfig.ConfigureServer; c != nil {
+				c(n.syncSrv)
+			}
 			// register the sync protocol with libp2p host
 			payloadByNumber := MakeStreamHandler(resourcesCtx, log.New("serve", "payloads_by_number"), n.syncSrv.HandleSyncRequest)
 			n.host.SetStreamHandler(PayloadByNumberProtocolID(rollupCfg.L2ChainID), payloadByNumber)
@@ -198,8 +206,7 @@ func (n *NodeP2P) RequestL2Range(ctx context.Context, start, end eth.L2BlockRef)
 	if !n.AltSyncEnabled() {
 		return fmt.Errorf("cannot request range %s - %s, req-resp sync is not enabled", start, end)
 	}
-	_, err := n.syncCl.RequestL2Range(ctx, start, end)
-	return err
+	return n.syncCl.RequestL2Range(ctx, start, end)
 }
 
 func (n *NodeP2P) Host() host.Host {

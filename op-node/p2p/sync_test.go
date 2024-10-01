@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/anacrolix/chansync"
+
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -171,7 +173,7 @@ func TestSinglePeerSync(t *testing.T) {
 	defer cl.Close()
 
 	// request to start syncing between 10 and 20
-	_, err = cl.RequestL2Range(ctx, payloads.getBlockRef(10), payloads.getBlockRef(20))
+	err = cl.RequestL2Range(ctx, payloads.getBlockRef(10), payloads.getBlockRef(20))
 	require.NoError(t, err)
 
 	// and wait for the sync results to come in (in reverse order)
@@ -199,12 +201,17 @@ func TestMultiPeerSync(t *testing.T) {
 	cfg, payloads := setupSyncTestData(100)
 
 	// Buffered channel of all blocks requested from any client.
-	requested := make(chan uint64, 100)
+	var requestedMu sync.Mutex
+	requested := make([]uint64, 0, 100)
+	var requestedCond chansync.BroadcastCond
 
 	setupPeer := func(ctx context.Context, h host.Host) (*SyncClient, chan *eth.ExecutionPayloadEnvelope) {
 		// Serving payloads: just load them from the map, if they exist
 		servePayload := mockPayloadFn(func(n uint64) (*eth.ExecutionPayloadEnvelope, error) {
-			requested <- n
+			requestedMu.Lock()
+			requested = append(requested, n)
+			requestedMu.Unlock()
+			requestedCond.Broadcast()
 			p, ok := payloads.getPayload(n)
 			if !ok {
 				return nil, ethereum.NotFound
@@ -258,7 +265,7 @@ func TestMultiPeerSync(t *testing.T) {
 	defer clC.Close()
 
 	// request to start syncing between 10 and 90
-	_, err = clA.RequestL2Range(ctx, payloads.getBlockRef(10), payloads.getBlockRef(90))
+	err = clA.RequestL2Range(ctx, payloads.getBlockRef(10), payloads.getBlockRef(90))
 	require.NoError(t, err)
 
 	// With such large range to request we are going to hit the rate-limits of B and C,
@@ -267,6 +274,7 @@ func TestMultiPeerSync(t *testing.T) {
 		e := <-recvA
 		p := e.ExecutionPayload
 		exp, ok := payloads.getPayload(uint64(p.BlockNumber))
+		t.Logf("i: %v, bn: %v", i, p.BlockNumber)
 		require.True(t, ok, "expecting known payload")
 		require.Equal(t, exp.ExecutionPayload.BlockHash, p.BlockHash, "expecting the correct payload")
 	}
@@ -274,14 +282,13 @@ func TestMultiPeerSync(t *testing.T) {
 	// now see if B can sync a range, and fill the gap with a re-request
 	bl25, _ := payloads.getPayload(25) // temporarily remove it from the available payloads. This will create a gap
 	payloads.deletePayload(25)
-	rangeReqId, err := clB.RequestL2Range(ctx, payloads.getBlockRef(20), payloads.getBlockRef(30))
-
+	err = clB.RequestL2Range(ctx, payloads.getBlockRef(20), payloads.getBlockRef(30))
 	require.NoError(t, err)
-	require.True(t, clB.activeRangeRequests.get(rangeReqId), "expecting range request to be active")
 
 	for i := uint64(29); i > 25; i-- {
 		p := <-recvB
 		exp, ok := payloads.getPayload(uint64(p.ExecutionPayload.BlockNumber))
+		t.Logf("i: %v, bn: %v", i, p.ExecutionPayload.BlockNumber)
 		require.True(t, ok, "expecting known payload")
 		require.Equal(t, exp.ExecutionPayload.BlockHash, p.ExecutionPayload.BlockHash, "expecting the correct payload")
 	}
@@ -289,22 +296,23 @@ func TestMultiPeerSync(t *testing.T) {
 	// Wait for the request for block 25 to be made
 	ctx, cancelFunc := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancelFunc()
-	requestMade := false
-	for requestMade != true {
-		select {
-		case blockNum := <-requested:
+findRequest:
+	for {
+		requestedMu.Lock()
+		for _, blockNum := range requested {
 			if blockNum == 25 {
-				requestMade = true
+				requestedMu.Unlock()
+				break findRequest
 			}
+		}
+		cond := requestedCond.Signaled()
+		requestedMu.Unlock()
+		select {
+		case <-cond:
 		case <-ctx.Done():
 			t.Fatal("Did not request block 25 in a reasonable time")
 		}
 	}
-
-	// the request for 25 should fail. See:
-	// server: WARN  peer requested unknown block by number   num=25
-	// client: WARN  failed p2p sync request    num=25 err="peer failed to serve request with code 1"
-	require.Zero(t, len(recvB), "there is a gap, should not see other payloads yet")
 
 	// race-condition fix: the request for 25 is expected to error, but is marked as complete in the peer-loop.
 	// But the re-request checks the status in the main loop, and it may thus look like it's still in-flight,
@@ -320,12 +328,11 @@ func TestMultiPeerSync(t *testing.T) {
 			break
 		}
 	}
-	require.False(t, clB.activeRangeRequests.get(rangeReqId), "expecting range request to be cancelled")
 
 	// Add back the block
 	payloads.addPayload(bl25)
 	// And request a range again, 25 is there now, and 21-24 should follow quickly (some may already have been fetched and wait in quarantine)
-	_, err = clB.RequestL2Range(ctx, payloads.getBlockRef(20), payloads.getBlockRef(26))
+	err = clB.RequestL2Range(ctx, payloads.getBlockRef(20), payloads.getBlockRef(26))
 	require.NoError(t, err)
 	for i := uint64(25); i > 20; i-- {
 		p := <-recvB
@@ -356,9 +363,16 @@ func TestNetworkNotifyAddPeerAndRemovePeer(t *testing.T) {
 	require.NoError(t, err, "failed to launch host B")
 	defer hostB.Close()
 
-	syncCl := NewSyncClient(log, cfg, hostA, func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayloadEnvelope) error {
-		return nil
-	}, metrics.NoopMetrics, &NoopApplicationScorer{})
+	syncCl := NewSyncClient(
+		log,
+		cfg,
+		hostA,
+		receivePayloadFn(func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayloadEnvelope) error {
+			return nil
+		}),
+		metrics.NoopMetrics,
+		&NoopApplicationScorer{},
+	)
 
 	waitChan := make(chan struct{}, 1)
 	hostA.Network().Notify(&network.NotifyBundle{
@@ -400,12 +414,13 @@ func TestNetworkNotifyAddPeerAndRemovePeer(t *testing.T) {
 }
 
 func TestPanicGuard(t *testing.T) {
-	mockPanickingFn := func(ctx context.Context, id peer.ID, expectedBlockNum uint64) error {
+	mockPanickingFn := func() error {
 		panic("gotcha")
 	}
 	require.NotPanics(t, func() {
-		err := panicGuard(mockPanickingFn)(context.Background(), peer.ID(""), 37)
-		require.EqualError(t, err, "recovered from a panic: gotcha")
+		log.Root()
+		err := panicGuard(log.Root(), "testing panic guard", mockPanickingFn)
+		require.EqualError(t, err, "panic: gotcha")
 	})
 }
 

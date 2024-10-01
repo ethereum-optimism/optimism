@@ -216,13 +216,15 @@ func logValidationResult(self peer.ID, msg string, log log.Logger, fn pubsub.Val
 
 func guardGossipValidator(log log.Logger, fn pubsub.ValidatorEx) pubsub.ValidatorEx {
 	return func(ctx context.Context, id peer.ID, message *pubsub.Message) (result pubsub.ValidationResult) {
-		defer func() {
-			if err := recover(); err != nil {
-				log.Error("gossip validation panic", "err", err, "peer", id)
-				result = pubsub.ValidationReject
-			}
-		}()
-		return fn(ctx, id, message)
+		err := panicGuard(log, "gossip validation", func() error {
+			result = fn(ctx, id, message)
+			return nil
+		}, "peer", id)
+		// If there's an error here, it is a panic that has been logged already.
+		if err != nil {
+			result = pubsub.ValidationReject
+		}
+		return
 	}
 }
 
@@ -250,7 +252,12 @@ func (sb *seenBlocks) markSeen(h common.Hash) {
 	sb.blockHashes = append(sb.blockHashes, h)
 }
 
-func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, blockVersion eth.BlockVersion) pubsub.ValidatorEx {
+func BuildBlocksValidator(
+	log log.Logger,
+	cfg *rollup.Config,
+	runCfg GossipRuntimeConfig,
+	blockVersion eth.BlockVersion,
+) pubsub.ValidatorEx {
 
 	// Seen block hashes per block height
 	// uint64 -> *seenBlocks
@@ -441,8 +448,17 @@ func verifyBlockSignature(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 	return pubsub.ValidationAccept
 }
 
-type GossipIn interface {
-	OnUnsafeL2Payload(ctx context.Context, from peer.ID, msg *eth.ExecutionPayloadEnvelope) error
+type PayloadSource string
+
+const (
+	PayloadSourceAltSync PayloadSource = "alt-sync"
+	PayloadSourceGossip  PayloadSource = "gossip"
+)
+
+type L2PayloadInFunc func(ctx context.Context, from peer.ID, msg *eth.ExecutionPayloadEnvelope, _ PayloadSource) error
+
+type L2PayloadIn interface {
+	OnUnsafeL2Payload(ctx context.Context, from peer.ID, msg *eth.ExecutionPayloadEnvelope, _ PayloadSource) error
 }
 
 type GossipTopicInfo interface {
@@ -570,7 +586,14 @@ func (p *publisher) Close() error {
 	return errors.Join(e1, e2)
 }
 
-func JoinGossip(self peer.ID, ps *pubsub.PubSub, log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, gossipIn GossipIn) (GossipOut, error) {
+func JoinGossip(
+	self peer.ID,
+	ps *pubsub.PubSub,
+	log log.Logger,
+	cfg *rollup.Config,
+	runCfg GossipRuntimeConfig,
+	gossipIn L2PayloadIn,
+) (GossipOut, error) {
 	p2pCtx, p2pCancel := context.WithCancel(context.Background())
 
 	v1Logger := log.New("topic", "blocksV1")
@@ -608,7 +631,14 @@ func JoinGossip(self peer.ID, ps *pubsub.PubSub, log log.Logger, cfg *rollup.Con
 	}, nil
 }
 
-func newBlockTopic(ctx context.Context, topicId string, ps *pubsub.PubSub, log log.Logger, gossipIn GossipIn, validator pubsub.ValidatorEx) (*blockTopic, error) {
+func newBlockTopic(
+	ctx context.Context,
+	topicId string,
+	ps *pubsub.PubSub,
+	log log.Logger,
+	l2payloadIn L2PayloadIn,
+	validator pubsub.ValidatorEx,
+) (*blockTopic, error) {
 	err := ps.RegisterTopicValidator(topicId,
 		validator,
 		pubsub.WithValidatorTimeout(3*time.Second),
@@ -636,7 +666,7 @@ func newBlockTopic(ctx context.Context, topicId string, ps *pubsub.PubSub, log l
 		return nil, fmt.Errorf("failed to subscribe to blocks gossip topic: %w", err)
 	}
 
-	subscriber := MakeSubscriber(log, BlocksHandler(gossipIn.OnUnsafeL2Payload))
+	subscriber := MakeSubscriber(log, BlocksHandler(l2payloadIn.OnUnsafeL2Payload))
 	go subscriber(ctx, subscription)
 
 	return &blockTopic{
@@ -649,13 +679,13 @@ func newBlockTopic(ctx context.Context, topicId string, ps *pubsub.PubSub, log l
 type TopicSubscriber func(ctx context.Context, sub *pubsub.Subscription)
 type MessageHandler func(ctx context.Context, from peer.ID, msg any) error
 
-func BlocksHandler(onBlock func(ctx context.Context, from peer.ID, msg *eth.ExecutionPayloadEnvelope) error) MessageHandler {
+func BlocksHandler(onBlock L2PayloadInFunc) MessageHandler {
 	return func(ctx context.Context, from peer.ID, msg any) error {
 		payload, ok := msg.(*eth.ExecutionPayloadEnvelope)
 		if !ok {
 			return fmt.Errorf("expected topic validator to parse and validate data into execution payload, but got %T", msg)
 		}
-		return onBlock(ctx, from, payload)
+		return onBlock(ctx, from, payload, PayloadSourceGossip)
 	}
 }
 

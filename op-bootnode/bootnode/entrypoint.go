@@ -26,7 +26,7 @@ import (
 
 type gossipNoop struct{}
 
-func (g *gossipNoop) OnUnsafeL2Payload(_ context.Context, _ peer.ID, _ *eth.ExecutionPayloadEnvelope) error {
+func (g *gossipNoop) OnUnsafeL2Payload(_ context.Context, _ peer.ID, _ *eth.ExecutionPayloadEnvelope, _ p2p.PayloadSource) error {
 	return nil
 }
 
@@ -62,9 +62,9 @@ func Main(cliCtx *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to load p2p config: %w", err)
 	}
-	if p2pConfig.EnableReqRespSync {
+	if p2pConfig.ReqRespSync.Enabled {
 		logger.Warn("req-resp sync is enabled, bootnode does not support this feature")
-		p2pConfig.EnableReqRespSync = false
+		p2pConfig.ReqRespSync.Enabled = false
 	}
 
 	p2pNode, err := p2p.NewNodeP2P(ctx, config, logger, p2pConfig, &gossipNoop{}, &l2Chain{}, &gossipConfig{}, m, false)

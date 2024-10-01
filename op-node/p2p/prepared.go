@@ -24,7 +24,7 @@ type Prepared struct {
 	LocalNode *enode.LocalNode
 	UDPv5     *discover.UDPv5
 
-	EnableReqRespSync bool
+	ReqRespSync ReqRespSyncConfig
 }
 
 var _ SetupP2P = (*Prepared)(nil)
@@ -89,6 +89,6 @@ func (p *Prepared) Disabled() bool {
 	return false
 }
 
-func (p *Prepared) ReqRespSyncEnabled() bool {
-	return p.EnableReqRespSync
+func (p *Prepared) ReqRespSyncConfig() ReqRespSyncConfig {
+	return p.ReqRespSync
 }
