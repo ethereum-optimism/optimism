@@ -111,7 +111,7 @@ func RunWithdrawalsTest(t *testing.T, sys CommonSystem) {
 	require.NoError(t, err)
 
 	t.Log("WithdrawalsTest: ProveAndFinalizeWithdrawal...")
-	proveReceipt, finalizeReceipt, resolveClaimReceipt, resolveReceipt := helpers.ProveAndFinalizeWithdrawal(t, cfg, sys, e2esys.RoleVerif, ethPrivKey, receipt, sys.Config().AllocType)
+	proveReceipt, finalizeReceipt, resolveClaimReceipt, resolveReceipt := helpers.ProveAndFinalizeWithdrawal(t, cfg, sys, e2esys.RoleVerif, ethPrivKey, receipt)
 
 	// Verify balance after withdrawal
 	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)

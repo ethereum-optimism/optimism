@@ -922,7 +922,7 @@ jobs:
             equal: ['-mt-cannon', <<parameters.variant>>]
           steps:
             - run:
-                name: Set OP_E2E_USE_MT_CANNON = true
+                name: Set OP_E2E_ALLOC_TYPE = mt-cannon
                 command: echo 'export OP_E2E_ALLOC_TYPE=mt-cannon' >> $BASH_ENV
       - check-changed:
           patterns: op-(.+),cannon,contracts-bedrock
