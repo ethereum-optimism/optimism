@@ -274,6 +274,10 @@ contract Deploy is Deployer {
         } else {
             deployImplementations();
         }
+        if (!cfg.useFaultProofs()) {
+            deployOptimismPortal();
+            deployL2OutputOracle();
+        }
         setupOpChain();
         if (cfg.useAltDA()) {
             bytes32 typeHash = keccak256(bytes(cfg.daCommitmentType()));
@@ -368,14 +372,13 @@ contract Deploy is Deployer {
 
     /// @notice Deploy all of the implementations
     function deployImplementations() public {
+        // TODO: Replace the actions in this function with a call to DeployImplementationsInterop.run()
         console.log("Deploying implementations");
         deployL1CrossDomainMessenger();
         deployOptimismMintableERC20Factory();
         deploySystemConfig();
         deployL1StandardBridge();
         deployL1ERC721Bridge();
-        deployOptimismPortal(); // todo: pull this out into an override option after DeployImplementations runs
-        deployL2OutputOracle();
 
         // Fault proofs
         deployOptimismPortal2();
@@ -387,13 +390,13 @@ contract Deploy is Deployer {
 
     /// @notice Deploy all of the implementations
     function deployImplementationsInterop() public {
+        // TODO: Replace the actions in this function with a call to DeployImplementationsInterop.run()
         console.log("Deploying implementations");
         deployL1CrossDomainMessenger();
         deployOptimismMintableERC20Factory();
         deploySystemConfigInterop();
         deployL1StandardBridge();
         deployL1ERC721Bridge();
-        deployL2OutputOracle();
 
         // Fault proofs
         deployOptimismPortalInterop();
@@ -414,6 +417,7 @@ contract Deploy is Deployer {
             initializeOptimismPortal2();
         } else {
             initializeOptimismPortal();
+            initializeL2OutputOracle();
         }
 
         initializeSystemConfig();
@@ -421,7 +425,6 @@ contract Deploy is Deployer {
         initializeL1ERC721Bridge();
         initializeOptimismMintableERC20Factory();
         initializeL1CrossDomainMessenger();
-        initializeL2OutputOracle();
         initializeDisputeGameFactory();
         initializeDelayedWETH();
         initializePermissionedDelayedWETH();
