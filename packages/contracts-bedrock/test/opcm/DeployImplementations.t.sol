@@ -96,9 +96,8 @@ contract DeployImplementationsOutput_Test is Test {
     }
 
     function test_set_succeeds() public {
-        IProxy proxy = IProxy(
-            DeployUtils.create1({ _name: "Proxy", _args: abi.encodeCall(IProxyAdmin.__constructor__, (address(0))) })
-        );
+        IProxy proxy =
+            IProxy(DeployUtils.create1({ _name: "Proxy", _args: abi.encodeCall(IProxy.__constructor__, (address(0))) }));
         address opcmImpl = address(makeAddr("opcmImpl"));
         vm.prank(address(0));
         proxy.upgradeTo(opcmImpl);
