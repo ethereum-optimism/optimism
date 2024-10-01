@@ -7,8 +7,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	e2econfig "github.com/ethereum-optimism/optimism/op-e2e/config"
-
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
@@ -252,7 +250,7 @@ func runCannon(t *testing.T, ctx context.Context, sys *e2esys.System, inputs uti
 	l1Beacon := sys.L1BeaconEndpoint().RestHTTP()
 	rollupEndpoint := sys.RollupEndpoint("sequencer").RPC()
 	l2Endpoint := sys.NodeEndpoint("sequencer").RPC()
-	cannonOpts := challenger.WithCannon(t, sys.RollupCfg(), sys.L2Genesis(), e2econfig.AllocTypeFromEnv())
+	cannonOpts := challenger.WithCannon(t, sys)
 	dir := t.TempDir()
 	proofsDir := filepath.Join(dir, "cannon-proofs")
 	cfg := config.NewConfig(common.Address{}, l1Endpoint, l1Beacon, rollupEndpoint, l2Endpoint, dir)
