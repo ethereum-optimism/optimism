@@ -146,7 +146,7 @@ func (r *safetyIndex) advanceCrossSafe() {
 			r.log.Error("Failed to update cross-safe view", "chain", chainID, "err", err)
 		}
 		cross, _ := r.safe[chainID].Cross()
-		r.log.Debug("Updated local safe head", "chainID", chainID, "cross", cross)
+		r.log.Debug("Updated cross safe head", "chainID", chainID, "cross", cross)
 	}
 	r.advanceFinalized()
 }

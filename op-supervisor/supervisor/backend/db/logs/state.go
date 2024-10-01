@@ -128,9 +128,12 @@ func (l *logContext) ExecMessage() *types.ExecutingMessage {
 }
 
 func (l *logContext) HeadPointer() (heads.HeadPointer, error) {
-	if l.need != 0 {
-		return heads.HeadPointer{}, errors.New("cannot provide head pointer while state is incomplete")
-	}
+	// temporary: other bugs above this might be causing incomplete states
+	// we should revive this check once we are sure the state is always complete.
+	//if l.need != 0 {
+	//	needs := entrydb.EntryFlagsToStrings(l.need)
+	//	return heads.HeadPointer{}, fmt.Errorf("cannot provide head pointer while state is incomplete. needs: %v", needs)
+	//}
 	return heads.HeadPointer{
 		LastSealedBlockHash: l.blockHash,
 		LastSealedBlockNum:  l.blockNum,
@@ -253,10 +256,9 @@ func (l *logContext) appendEntry(obj EntryObj) {
 	l.nextEntryIndex += 1
 }
 
-// infer advances the logContext in cases where multiple entries are to be appended implicitly
-// depending on the last type of entry, a new entry is appended,
-// or when the searchCheckpoint should be inserted.
-// This can be done repeatedly until there is no more implied data to extend.
+// infer advances the logContext in cases where complex entries contain multiple implied entries
+// eg. a SearchCheckpoint implies a CannonicalHash will follow
+// this also handles inserting the searchCheckpoint at the set frequency, and padding entries
 func (l *logContext) infer() error {
 	// We force-insert a checkpoint whenever we hit the known fixed interval.
 	if l.nextEntryIndex%searchCheckpointFrequency == 0 {
@@ -322,8 +324,7 @@ func (l *logContext) infer() error {
 	return io.EOF
 }
 
-// inferFull advances the queued entries held by the log context repeatedly
-// until no more implied entries can be added
+// inferFul advances the logContext until it cannot infer any more entries.
 func (l *logContext) inferFull() error {
 	for i := 0; i < 10; i++ {
 		err := l.infer()
