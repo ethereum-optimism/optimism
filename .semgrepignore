@@ -41,3 +41,5 @@ packages/contracts-bedrock/src/L2/SuperchainWETH.sol
 packages/contracts-bedrock/src/L2/interfaces/ISuperchainWETH.sol
 packages/contracts-bedrock/src/governance/GovernanceToken.sol
 packages/contracts-bedrock/src/governance/interfaces/IGovernanceToken.sol
+packages/contracts-bedrock/src/dispute/interfaces/IFaultDisputeGame.sol
+packages/contracts-bedrock/src/dispute/interfaces/IPermissionedDisputeGame.sol
