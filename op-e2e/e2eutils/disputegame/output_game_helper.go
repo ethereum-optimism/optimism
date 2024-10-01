@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/config"
+
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/preimages"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
@@ -40,10 +42,11 @@ type OutputGameHelper struct {
 	Addr                  common.Address
 	CorrectOutputProvider *outputs.OutputTraceProvider
 	System                DisputeSystem
+	AllocType             config.AllocType
 }
 
 func NewOutputGameHelper(t *testing.T, require *require.Assertions, client *ethclient.Client, opts *bind.TransactOpts, privKey *ecdsa.PrivateKey,
-	game contracts.FaultDisputeGameContract, factoryAddr common.Address, addr common.Address, correctOutputProvider *outputs.OutputTraceProvider, system DisputeSystem) *OutputGameHelper {
+	game contracts.FaultDisputeGameContract, factoryAddr common.Address, addr common.Address, correctOutputProvider *outputs.OutputTraceProvider, system DisputeSystem, allocType config.AllocType) *OutputGameHelper {
 	return &OutputGameHelper{
 		T:                     t,
 		Require:               require,
@@ -55,6 +58,7 @@ func NewOutputGameHelper(t *testing.T, require *require.Assertions, client *ethc
 		Addr:                  addr,
 		CorrectOutputProvider: correctOutputProvider,
 		System:                system,
+		AllocType:             allocType,
 	}
 }
 

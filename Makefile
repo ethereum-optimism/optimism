@@ -206,6 +206,19 @@ devnet-allocs: pre-devnet ## Generates allocations for the local devnet
 	PYTHONPATH=./bedrock-devnet $(PYTHON) ./bedrock-devnet/main.py --monorepo-dir=. --allocs
 .PHONY: devnet-allocs
 
+devnet-allocs-tests:
+	DEVNET_L2OO=true make devnet-allocs
+	cp -r .devnet/ .devnet-l2oo/
+	DEVNET_ALTDA=true make devnet-allocs
+	cp -r .devnet/ .devnet-alt-da/
+	DEVNET_ALTDA=false GENERIC_ALTDA=true make devnet-allocs
+	cp -r .devnet/ .devnet-alt-da-generic/
+	USE_MT_CANNON=true make devnet-allocs
+	cp -r .devnet/ .devnet-mt-cannon
+	make devnet-allocs
+	cp -r .devnet/ .devnet-standard/
+.PHONY: devnet-allocs-tests
+
 devnet-logs: ## Displays logs for the local devnet
 	@(cd ./ops-bedrock && docker compose logs -f)
 .PHONY: devnet-logs

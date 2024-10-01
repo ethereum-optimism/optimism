@@ -255,28 +255,9 @@ jobs:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
       - run:
-          name: Generate L2OO allocs
+          name: Generate allocs
           command: |
-            DEVNET_L2OO="true" make devnet-allocs
-            cp -r .devnet/ .devnet-l2oo/
-      - run:
-          name: Generate AltDA allocs
-          command: |
-            DEVNET_ALTDA="true" make devnet-allocs
-            cp -r .devnet/ .devnet-altda/
-      - run:
-          name: Generate Generic AltDA allocs
-          command: |
-            DEVNET_ALTDA="true" GENERIC_ALTDA="true" make devnet-allocs
-            cp -r .devnet/ .devnet-altda-generic/
-      - run:
-          name: Generate MT-Cannon allocs
-          command: |
-            USE_MT_CANNON="true" make devnet-allocs
-            cp -r .devnet/ .devnet-mt-cannon/
-      - run:
-          name: Generate default allocs
-          command: make devnet-allocs
+            make devnet-allocs-tests
       - save_cache:
           name: Save Go modules cache
           key: gomod-contracts-build-{{ checksum "go.sum" }}
@@ -296,9 +277,10 @@ jobs:
             - "packages/contracts-bedrock/deploy-config/devnetL1.json"
             - "packages/contracts-bedrock/deployments/devnetL1"
             - ".devnet"
+            - ".devnet-standard"
             - ".devnet-l2oo"
-            - ".devnet-altda"
-            - ".devnet-altda-generic"
+            - ".devnet-alt-da"
+            - ".devnet-alt-da-generic"
             - ".devnet-mt-cannon"
       - notify-failures-on-develop
 
@@ -929,9 +911,6 @@ jobs:
         description: Slack user or group to mention when notifying of failures
         type: string
         default: ""
-    environment:
-      DEVNET_L2OO: 'false'
-      OP_E2E_USE_L2OO: 'false'
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: xlarge
@@ -940,28 +919,11 @@ jobs:
       - checkout
       - when:
           condition:
-            equal: ['-l2oo', <<parameters.variant>>]
-          steps:
-            - run:
-                name: Set DEVNET_L2OO = true
-                command: echo 'export DEVNET_L2OO=true' >> $BASH_ENV
-            - run:
-                name: Set OP_E2E_USE_L2OO = true
-                command: echo 'export OP_E2E_USE_L2OO=true' >> $BASH_ENV
-      - when:
-          condition:
-            equal: ['-altda', <<parameters.variant>>]
-          steps:
-            - run:
-                name: Set OP_E2E_USE_ALTDA = true
-                command: echo 'export OP_E2E_USE_ALTDA=true' >> $BASH_ENV
-      - when:
-          condition:
             equal: ['-mt-cannon', <<parameters.variant>>]
           steps:
             - run:
-                name: Set OP_E2E_USE_MT_CANNON = true
-                command: echo 'export OP_E2E_USE_MT_CANNON=true' >> $BASH_ENV
+                name: Set OP_E2E_ALLOC_TYPE = mt-cannon
+                command: echo 'export OP_E2E_ALLOC_TYPE=mt-cannon' >> $BASH_ENV
       - check-changed:
           patterns: op-(.+),cannon,contracts-bedrock
       - run:
@@ -981,12 +943,7 @@ jobs:
           name: Load devnet-allocs and artifacts
           command: |
             mkdir -p .devnet
-            cp /tmp/workspace/.devnet<<parameters.variant>>/allocs-l2-delta.json .devnet/allocs-l2-delta.json
-            cp /tmp/workspace/.devnet<<parameters.variant>>/allocs-l2-ecotone.json .devnet/allocs-l2-ecotone.json
-            cp /tmp/workspace/.devnet<<parameters.variant>>/allocs-l2-fjord.json .devnet/allocs-l2-fjord.json
-            cp /tmp/workspace/.devnet<<parameters.variant>>/allocs-l2-granite.json .devnet/allocs-l2-granite.json
-            cp /tmp/workspace/.devnet<<parameters.variant>>/allocs-l1.json .devnet/allocs-l1.json
-            cp /tmp/workspace/.devnet<<parameters.variant>>/addresses.json .devnet/addresses.json
+            cp -r /tmp/workspace/.devnet* .
             cp -r /tmp/workspace/packages/contracts-bedrock/forge-artifacts packages/contracts-bedrock/forge-artifacts
             cp /tmp/workspace/packages/contracts-bedrock/deploy-config/devnetL1.json packages/contracts-bedrock/deploy-config/devnetL1.json
             cp -r /tmp/workspace/packages/contracts-bedrock/deployments/devnetL1 packages/contracts-bedrock/deployments/devnetL1
@@ -1470,21 +1427,15 @@ workflows:
           uses_artifacts: true
           requires: ["contracts-bedrock-build"]
       - go-e2e-test:
-          name: op-e2e-HTTP-tests<< matrix.variant >>
-          matrix:
-            parameters:
-              variant: ["", "-l2oo"]
+          name: op-e2e-HTTP-tests
           module: op-e2e
           target: test-http
-          parallelism: 4
+          parallelism: 8
           requires:
             - go-mod-download
             - contracts-bedrock-build
       - go-e2e-test:
-          name: op-e2e-action-tests<< matrix.variant >>
-          matrix:
-            parameters:
-              variant: ["", "-l2oo", "-altda"]
+          name: op-e2e-action-tests
           module: op-e2e
           target: test-actions
           parallelism: 1
@@ -1526,7 +1477,6 @@ workflows:
             - op-e2e-HTTP-tests
             - op-e2e-fault-proof-tests
             - op-e2e-action-tests
-            - op-e2e-action-tests-altda
             # Not needed for the devnet but we want to make sure they build successfully
             - cannon-docker-build
             - op-dispute-mon-docker-build

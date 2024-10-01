@@ -19,6 +19,8 @@ import (
 
 type L2AllocsMode string
 
+type L2AllocsModeMap map[L2AllocsMode]*foundry.ForgeAllocs
+
 const (
 	L2AllocsDelta   L2AllocsMode = "delta"
 	L2AllocsEcotone L2AllocsMode = "ecotone"
