@@ -42,6 +42,7 @@ func LoadELF[T mipsevm.FPVMState](f *elf.File, initState CreateInitialFPVMState[
 			}
 		}
 
+		// TOOD(#12205)
 		if prog.Vaddr+prog.Memsz >= uint64(1<<32) {
 			return empty, fmt.Errorf("program %d out of 32-bit mem range: %x - %x (size: %x)", i, prog.Vaddr, prog.Vaddr+prog.Memsz, prog.Memsz)
 		}
