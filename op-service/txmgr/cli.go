@@ -419,9 +419,9 @@ type Config struct {
 	Signer opcrypto.SignerFn
 	From   common.Address
 
-	// GasPriceEstimator is used to estimate the gas price for a transaction.
+	// GasPriceEstimatorFn is used to estimate the gas price for a transaction.
 	// If nil, DefaultGasPriceEstimatorFn is used.
-	GasPriceEstimator GasPriceEstimatorFn
+	GasPriceEstimatorFn GasPriceEstimatorFn
 }
 
 func (m *Config) Check() error {

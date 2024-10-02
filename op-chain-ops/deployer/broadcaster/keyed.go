@@ -52,7 +52,7 @@ func NewKeyedBroadcaster(cfg KeyedBroadcasterOpts) (*KeyedBroadcaster, error) {
 		SafeAbortNonceTooLowCount: 3,
 		Signer:                    cfg.Signer,
 		From:                      cfg.From,
-		GasPriceEstimator:         DeployerGasPriceEstimator,
+		GasPriceEstimatorFn:       DeployerGasPriceEstimator,
 	}
 
 	minTipCap, err := eth.GweiToWei(1.0)

@@ -164,10 +164,6 @@ func NewSimpleTxManagerFromConfig(name string, l log.Logger, m metrics.TxMetrice
 	if err := conf.Check(); err != nil {
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}
-	calldataGPE := DefaultGasPriceEstimatorFn
-	if conf.GasPriceEstimator != nil {
-		calldataGPE = conf.GasPriceEstimator
-	}
 
 	return &SimpleTxManager{
 		chainID:             conf.ChainID,
@@ -176,7 +172,7 @@ func NewSimpleTxManagerFromConfig(name string, l log.Logger, m metrics.TxMetrice
 		backend:             conf.Backend,
 		l:                   l.New("service", name),
 		metr:                m,
-		gasPriceEstimatorFn: calldataGPE,
+		gasPriceEstimatorFn: conf.GasPriceEstimatorFn,
 	}, nil
 }
 
@@ -884,7 +880,12 @@ func (m *SimpleTxManager) SuggestGasPriceCaps(ctx context.Context) (*big.Int, *b
 	cCtx, cancel := context.WithTimeout(ctx, m.cfg.NetworkTimeout)
 	defer cancel()
 
-	tip, baseFee, blobFee, err := m.gasPriceEstimatorFn(cCtx, m.backend)
+	estimatorFn := m.gasPriceEstimatorFn
+	if estimatorFn == nil {
+		estimatorFn = DefaultGasPriceEstimatorFn
+	}
+
+	tip, baseFee, blobFee, err := estimatorFn(cCtx, m.backend)
 	if err != nil {
 		m.metr.RPCError()
 		return nil, nil, nil, fmt.Errorf("failed to get gas price estimates: %w", err)
