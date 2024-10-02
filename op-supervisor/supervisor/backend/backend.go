@@ -220,9 +220,9 @@ func (su *SupervisorBackend) CheckBlock(chainID *hexutil.U256, blockHash common.
 	return safest, nil
 }
 
-func (su *SupervisorBackend) UpdateLocalUnsafe(chainID types.ChainID, head eth.L2BlockRef) {
+func (su *SupervisorBackend) UpdateLocalUnsafe(chainID types.ChainID, head eth.BlockRef) {
 	// l2 to l1 block ref
-	ref := eth.L1BlockRef{
+	ref := eth.BlockRef{
 		ParentHash: head.ParentHash,
 		Hash:       head.Hash,
 		Number:     head.Number,
@@ -233,11 +233,11 @@ func (su *SupervisorBackend) UpdateLocalUnsafe(chainID types.ChainID, head eth.L
 	su.db.UpdateLocalUnsafe(chainID, head)
 }
 
-func (su *SupervisorBackend) UpdateLocalSafe(chainID types.ChainID, derivedFrom eth.L1BlockRef, lastDerived eth.L2BlockRef) {
+func (su *SupervisorBackend) UpdateLocalSafe(chainID types.ChainID, derivedFrom eth.BlockRef, lastDerived eth.BlockRef) {
 	su.db.UpdateLocalSafe(chainID, derivedFrom, lastDerived)
 }
 
-func (su *SupervisorBackend) UpdateFinalizedL1(chainID types.ChainID, finalized eth.L1BlockRef) {
+func (su *SupervisorBackend) UpdateFinalizedL1(chainID types.ChainID, finalized eth.BlockRef) {
 	su.db.UpdateFinalizedL1(finalized)
 }
 
