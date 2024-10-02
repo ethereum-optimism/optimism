@@ -868,6 +868,10 @@ jobs:
       module:
         description: Go Module Name
         type: string
+      uses_artifacts:
+        description: Uses contract artifacts
+        type: boolean
+        default: false
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: xlarge
@@ -882,6 +886,10 @@ jobs:
           keys:
             - golang-build-cache-test-<<parameters.module>>-{{ checksum "go.sum" }}
             - golang-build-cache-test-
+      - when:
+          condition: <<parameters.uses_artifacts>>
+          steps:
+            - attach_workspace: { at: "." }
       - run:
           name: Install components
           command: |
@@ -1427,7 +1435,6 @@ workflows:
             parameters:
               module:
                 - op-batcher
-                - op-chain-ops
                 - op-node
                 - op-proposer
                 - op-challenger
@@ -1439,6 +1446,13 @@ workflows:
       - go-test:
           name: semver-natspec-tests
           module: packages/contracts-bedrock/scripts/checks/semver-natspec
+      - go-test:
+          name: op-chain-ops-tests
+          module: op-chain-ops
+          uses_artifacts: true
+          requires:
+            - go-mod-download
+            - contracts-bedrock-build
       - go-test-kurtosis:
           name: op-chain-ops-integration
           module: op-chain-ops
