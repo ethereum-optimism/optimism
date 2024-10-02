@@ -170,6 +170,26 @@ contract Deploy is Deployer {
         });
     }
 
+    /// @notice Returns the impl addresses, not reverting if any are unset.
+    function _implsUnstrict() internal view returns (Types.ContractSet memory proxies_) {
+        proxies_ = Types.ContractSet({
+            L1CrossDomainMessenger: getAddress("L1CrossDomainMessenger"),
+            L1StandardBridge: getAddress("L1StandardBridge"),
+            L2OutputOracle: getAddress("L2OutputOracle"),
+            DisputeGameFactory: getAddress("DisputeGameFactory"),
+            DelayedWETH: getAddress("DelayedWETH"),
+            PermissionedDelayedWETH: getAddress("PermissionedDelayedWETH"),
+            AnchorStateRegistry: getAddress("AnchorStateRegistry"),
+            OptimismMintableERC20Factory: getAddress("OptimismMintableERC20Factory"),
+            OptimismPortal: getAddress("OptimismPortal"),
+            OptimismPortal2: getAddress("OptimismPortal"),
+            SystemConfig: getAddress("SystemConfig"),
+            L1ERC721Bridge: getAddress("L1ERC721Bridge"),
+            ProtocolVersions: getAddress("ProtocolVersions"),
+            SuperchainConfig: getAddress("SuperchainConfig")
+        });
+    }
+
     ////////////////////////////////////////////////////////////////
     //            State Changing Helper Functions                 //
     ////////////////////////////////////////////////////////////////
