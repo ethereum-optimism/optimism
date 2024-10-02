@@ -25,9 +25,9 @@ const (
 	DepositsCompleteSignature   = "depositsComplete()"
 	L1InfoArguments             = 8
 	L1InfoBedrockLen            = 4 + 32*L1InfoArguments
-	L1InfoEcotoneLen            = 4 + 32*5 // after Ecotone upgrade, args are packed into 5 32-byte slots
-	L1InfoHoloceneLen           = 4 + 32*6
-	DepositsCompleteLen         = 4 // only the selector
+	L1InfoEcotoneLen            = 4 + 32*5         // after Ecotone upgrade, args are packed into 5 32-byte slots
+	L1InfoHoloceneLen           = 4 + 32*5 + 4 + 8 // after Holocene upgrade, additionally pack in operator fee scalar and constant
+	DepositsCompleteLen         = 4                // only the selector
 	// DepositsCompleteGas allocates 21k gas for intrinsic tx costs, and
 	// an additional 15k to ensure that the DepositsComplete call does not run out of gas.
 	// GasBenchMark_L1BlockInterop_DepositsComplete:test_depositsComplete_benchmark() (gas: 7768)
@@ -252,9 +252,6 @@ func (info *L1BlockInfo) marshalBinaryHolocene() ([]byte, error) {
 		return nil, err
 	}
 	if err := binary.Write(w, binary.BigEndian, info.OperatorFeeConstant); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(w, binary.BigEndian, uint32(0)); err != nil {
 		return nil, err
 	}
 	return w.Bytes(), nil
