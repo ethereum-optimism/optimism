@@ -827,8 +827,6 @@ jobs:
           command: |
             go version
             go install gotest.tools/gotestsum@v1.11.0
-            curl -L https://foundry.paradigm.xyz | bash
-            foundryup
       - run:
           name: Install Kurtosis
           command: |
