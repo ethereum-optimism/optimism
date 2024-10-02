@@ -434,6 +434,8 @@ contract Deploy is Deployer {
 
         Types.ContractSet memory contracts = _implsUnstrict();
         ChainAssertions.checkL1CrossDomainMessenger({ _contracts: contracts, _vm: vm, _isProxy: false });
+        ChainAssertions.checkOptimismPortal2({ _contracts: contracts, _cfg: cfg, _isProxy: false });
+
     }
 
     /// @notice Initialize all of the proxies in an OP Chain by upgrading to the correct proxy and calling the
@@ -645,33 +647,6 @@ contract Deploy is Deployer {
         Types.ContractSet memory contracts = _proxiesUnstrict();
         contracts.OptimismPortal = addr_;
         ChainAssertions.checkOptimismPortal({ _contracts: contracts, _cfg: cfg, _isProxy: false });
-    }
-
-    /// @notice Deploy the OptimismPortal2
-    function deployOptimismPortal2() public broadcast returns (address addr_) {
-        // Could also verify this inside DeployConfig but doing it here is a bit more reliable.
-        require(
-            uint32(cfg.respectedGameType()) == cfg.respectedGameType(), "Deploy: respectedGameType must fit into uint32"
-        );
-
-        addr_ = DeployUtils.create2AndSave({
-            _save: this,
-            _salt: _implSalt(),
-            _name: "OptimismPortal2",
-            _args: DeployUtils.encodeConstructor(
-                abi.encodeCall(
-                    IOptimismPortal2.__constructor__,
-                    (cfg.proofMaturityDelaySeconds(), cfg.disputeGameFinalityDelaySeconds())
-                )
-            )
-        });
-
-        // Override the `OptimismPortal2` contract to the deployed implementation. This is necessary
-        // to check the `OptimismPortal2` implementation alongside dependent contracts, which
-        // are always proxies.
-        Types.ContractSet memory contracts = _proxiesUnstrict();
-        contracts.OptimismPortal2 = addr_;
-        ChainAssertions.checkOptimismPortal2({ _contracts: contracts, _cfg: cfg, _isProxy: false });
     }
 
     /// @notice Deploy the OptimismPortalInterop contract
