@@ -3,6 +3,7 @@ package opcm
 import (
 	"embed"
 	"fmt"
+
 	"github.com/BurntSushi/toml"
 
 	"github.com/ethereum-optimism/superchain-registry/superchain"

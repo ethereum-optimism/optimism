@@ -3,8 +3,6 @@ package integration_test
 import (
 	"context"
 	"fmt"
-	"github.com/ethereum-optimism/optimism/op-service/testutils/anvil"
-	crypto "github.com/ethereum/go-ethereum/crypto"
 	"log/slog"
 	"math/big"
 	"net/url"
@@ -13,6 +11,9 @@ import (
 	"runtime"
 	"testing"
 	"time"
+
+	"github.com/ethereum-optimism/optimism/op-service/testutils/anvil"
+	crypto "github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 	"github.com/holiman/uint256"
