@@ -202,7 +202,7 @@ func (db *ChainsDB) Close() error {
 	return combined
 }
 
-func (db *ChainsDB) UpdateLocalUnsafe(chain types.ChainID, head eth.L2BlockRef) error {
+func (db *ChainsDB) UpdateLocalUnsafe(chain types.ChainID, head eth.BlockRef) error {
 	err := db.safetyIndex.UpdateLocalUnsafe(chain, head)
 	if err != nil {
 		return fmt.Errorf("failed to update local-unsafe: %w", err)
@@ -210,7 +210,7 @@ func (db *ChainsDB) UpdateLocalUnsafe(chain types.ChainID, head eth.L2BlockRef) 
 	return nil
 }
 
-func (db *ChainsDB) UpdateLocalSafe(chain types.ChainID, derivedFrom eth.L1BlockRef, lastDerived eth.L2BlockRef) error {
+func (db *ChainsDB) UpdateLocalSafe(chain types.ChainID, derivedFrom eth.BlockRef, lastDerived eth.BlockRef) error {
 	err := db.safetyIndex.UpdateLocalSafe(chain, derivedFrom, lastDerived)
 	if err != nil {
 		return fmt.Errorf("failed to update local-safe: %w", err)
@@ -218,7 +218,7 @@ func (db *ChainsDB) UpdateLocalSafe(chain types.ChainID, derivedFrom eth.L1Block
 	return nil
 }
 
-func (db *ChainsDB) UpdateFinalizedL1(finalized eth.L1BlockRef) error {
+func (db *ChainsDB) UpdateFinalizedL1(finalized eth.BlockRef) error {
 	return db.safetyIndex.UpdateFinalizeL1(finalized)
 }
 

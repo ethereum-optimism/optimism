@@ -72,13 +72,13 @@ func (m *MockBackend) Finalized(ctx context.Context, chainID types.ChainID) (eth
 	return eth.BlockID{}, nil
 }
 
-func (m *MockBackend) UpdateLocalUnsafe(chainID types.ChainID, head eth.L2BlockRef) {
+func (m *MockBackend) UpdateLocalUnsafe(chainID types.ChainID, head eth.BlockRef) {
 }
 
-func (m *MockBackend) UpdateLocalSafe(chainID types.ChainID, derivedFrom eth.L1BlockRef, lastDerived eth.L2BlockRef) {
+func (m *MockBackend) UpdateLocalSafe(chainID types.ChainID, derivedFrom eth.BlockRef, lastDerived eth.BlockRef) {
 }
 
-func (m *MockBackend) UpdateFinalizedL1(chainID types.ChainID, finalized eth.L1BlockRef) {
+func (m *MockBackend) UpdateFinalizedL1(chainID types.ChainID, finalized eth.BlockRef) {
 }
 
 func (m *MockBackend) Close() error {
