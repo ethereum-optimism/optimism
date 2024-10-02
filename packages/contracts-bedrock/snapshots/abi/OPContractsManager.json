@@ -172,6 +172,36 @@
             "internalType": "uint64",
             "name": "gasLimit",
             "type": "uint64"
+          },
+          {
+            "internalType": "GameType",
+            "name": "disputeGameType",
+            "type": "uint32"
+          },
+          {
+            "internalType": "Claim",
+            "name": "disputeAbsolutePrestate",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint256",
+            "name": "disputeMaxGameDepth",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "disputeSplitDepth",
+            "type": "uint256"
+          },
+          {
+            "internalType": "Duration",
+            "name": "disputeClockExtension",
+            "type": "uint64"
+          },
+          {
+            "internalType": "Duration",
+            "name": "disputeMaxClockDuration",
+            "type": "uint64"
           }
         ],
         "internalType": "struct OPContractsManager.DeployInput",
