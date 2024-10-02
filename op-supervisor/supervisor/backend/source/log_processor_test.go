@@ -17,7 +17,7 @@ var logProcessorChainID = types.ChainIDFromUInt64(4)
 
 func TestLogProcessor(t *testing.T) {
 	ctx := context.Background()
-	block1 := eth.L2BlockRef{
+	block1 := eth.BlockRef{
 		ParentHash: common.Hash{0x42},
 		Number:     100,
 		Hash:       common.Hash{0x11},
@@ -205,7 +205,7 @@ type stubLogStorage struct {
 	seals []storedSeal
 }
 
-func (s *stubLogStorage) SealBlock(chainID types.ChainID, block eth.L2BlockRef) error {
+func (s *stubLogStorage) SealBlock(chainID types.ChainID, block eth.BlockRef) error {
 	if logProcessorChainID != chainID {
 		return fmt.Errorf("chain id mismatch, expected %v but got %v", logProcessorChainID, chainID)
 	}
