@@ -24,6 +24,18 @@ func (q *Queue[T]) Dequeue() (T, bool) {
 	return t, true
 }
 
+// DequeueN removes N elements from the front of the queue
+// (if there are enough) and returns a slice of those elements. Returns
+// a nil slice and false if there are insufficient elements to dequeue.
+func (q *Queue[T]) DequeueN(N int) ([]T, bool) {
+	if len(*q) < N {
+		return nil, false
+	}
+	t := (*q)[0:N]
+	*q = (*q)[N:]
+	return t, true
+}
+
 // Prepend inserts the elements at the front of the queue,
 // preserving their order. A noop if t is empty.
 func (q *Queue[T]) Prepend(t ...T) {
@@ -44,7 +56,7 @@ func (q *Queue[T]) Len() int {
 }
 
 // Peek returns the single element at the front of the queue
-// (if there is one) without removing it Returns a zero value and
+// (if there is one) without removing it. Returns a zero value and
 // false if there is no element to peek at.
 func (q *Queue[T]) Peek() (T, bool) {
 	if len(*q) > 0 {
@@ -52,4 +64,16 @@ func (q *Queue[T]) Peek() (T, bool) {
 	}
 	var zeroValue T
 	return zeroValue, false
+}
+
+// PeekN returns the elements in Nth position int the queue
+// Returns a zero value and false if there are insufficient elements
+// in the queue..
+func (q *Queue[T]) PeekN(N int) (T, bool) {
+	if len(*q) <= N {
+		var zeroValue T
+		return zeroValue, false
+	}
+	t := (*q)[N]
+	return t, true
 }

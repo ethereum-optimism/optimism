@@ -7,7 +7,7 @@ import (
 )
 
 func TestQueue(t *testing.T) {
-	t.Run("enqueue/sequeue", func(t *testing.T) {
+	t.Run("enqueue amd dequeue", func(t *testing.T) {
 		q := Queue[int]{}
 		q.Enqueue(1, 2, 3, 4)
 
@@ -58,7 +58,36 @@ func TestQueue(t *testing.T) {
 		require.False(t, peekOk)
 		require.Equal(t, 0, p)
 	})
-	t.Run("enqueue/clear", func(t *testing.T) {
+
+	t.Run("peekN and deqeueueN", func(t *testing.T) {
+		q := Queue[int]{}
+		q.Enqueue(1, 2, 3, 4)
+
+		p, peekOk := q.PeekN(1)
+		require.True(t, peekOk)
+		require.Equal(t, 2, p)
+
+		p, peekOk = q.PeekN(2)
+		require.Equal(t, 3, p)
+		require.True(t, peekOk)
+		require.Equal(t, 4, q.Len())
+
+		p, peekOk = q.PeekN(4)
+		require.Equal(t, 0, p)
+		require.False(t, peekOk)
+
+		d, dequeueOk := q.DequeueN(1)
+		require.Equal(t, []int{1}, d)
+		require.True(t, dequeueOk)
+		require.Equal(t, 3, q.Len())
+
+		d, dequeueOk = q.DequeueN(3)
+		require.Equal(t, []int{2, 3, 4}, d)
+		require.True(t, dequeueOk)
+		require.Equal(t, 0, q.Len())
+	})
+
+	t.Run("enqueue and clear", func(t *testing.T) {
 		q := Queue[int]{}
 		q.Enqueue(5, 6, 7)
 

@@ -307,8 +307,9 @@ func (s *channelManager) processBlocks() error {
 		_chFullErr  *ChannelFullError // throw away, just for type checking
 		latestL2ref eth.L2BlockRef
 	)
+
 	for i := 0; ; i++ {
-		block, ok := s.blocks.Peek()
+		block, ok := s.blocks.PeekN(i)
 		if !ok {
 			break
 		}
@@ -320,7 +321,6 @@ func (s *channelManager) processBlocks() error {
 		} else if err != nil {
 			return fmt.Errorf("adding block[%d] to channel builder: %w", i, err)
 		}
-		_, _ = s.blocks.Dequeue()
 		s.log.Debug("Added block to channel", "id", s.currentChannel.ID(), "block", eth.ToBlockID(block))
 
 		blocksAdded += 1
@@ -331,6 +331,8 @@ func (s *channelManager) processBlocks() error {
 			break
 		}
 	}
+
+	_, _ = s.blocks.DequeueN(blocksAdded)
 
 	s.metr.RecordL2BlocksAdded(latestL2ref,
 		blocksAdded,
