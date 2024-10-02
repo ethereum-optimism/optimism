@@ -15,7 +15,7 @@ type View struct {
 	iter logs.Iterator
 
 	localView        heads.HeadPointer
-	localDerivedFrom eth.L1BlockRef
+	localDerivedFrom eth.BlockRef
 
 	validWithinView func(l1View uint64, execMsg *types.ExecutingMessage) error
 }
@@ -31,7 +31,7 @@ func (vi *View) Local() (heads.HeadPointer, error) {
 	return vi.localView, nil
 }
 
-func (vi *View) UpdateLocal(at eth.L1BlockRef, ref eth.L2BlockRef) error {
+func (vi *View) UpdateLocal(at eth.BlockRef, ref eth.BlockRef) error {
 	vi.localView = heads.HeadPointer{
 		LastSealedBlockHash: ref.Hash,
 		LastSealedBlockNum:  ref.Number,

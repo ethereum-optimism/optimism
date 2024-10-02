@@ -21,7 +21,7 @@ type Source interface {
 }
 
 type LogProcessor interface {
-	ProcessLogs(ctx context.Context, block eth.L2BlockRef, receipts gethtypes.Receipts) error
+	ProcessLogs(ctx context.Context, block eth.BlockRef, receipts gethtypes.Receipts) error
 }
 
 type DatabaseRewinder interface {
@@ -29,9 +29,9 @@ type DatabaseRewinder interface {
 	LatestBlockNum(chain types.ChainID) (num uint64, ok bool)
 }
 
-type BlockProcessorFn func(ctx context.Context, block eth.L1BlockRef) error
+type BlockProcessorFn func(ctx context.Context, block eth.BlockRef) error
 
-func (fn BlockProcessorFn) ProcessBlock(ctx context.Context, block eth.L1BlockRef) error {
+func (fn BlockProcessorFn) ProcessBlock(ctx context.Context, block eth.BlockRef) error {
 	return fn(ctx, block)
 }
 
@@ -131,7 +131,7 @@ func (s *ChainProcessor) worker() {
 func (s *ChainProcessor) update(nextNum uint64) error {
 	ctx, cancel := context.WithTimeout(s.ctx, time.Second*10)
 	nextL1, err := s.client.L1BlockRefByNumber(ctx, nextNum)
-	next := eth.L2BlockRef{
+	next := eth.BlockRef{
 		Hash:       nextL1.Hash,
 		ParentHash: nextL1.ParentHash,
 		Number:     nextL1.Number,
@@ -166,7 +166,7 @@ func (s *ChainProcessor) update(nextNum uint64) error {
 	return nil
 }
 
-func (s *ChainProcessor) OnNewHead(ctx context.Context, head eth.L1BlockRef) error {
+func (s *ChainProcessor) OnNewHead(ctx context.Context, head eth.BlockRef) error {
 	// update the latest target
 	s.lastHead.Store(head.Number)
 	// signal that we have something to process
