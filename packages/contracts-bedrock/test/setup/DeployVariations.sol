@@ -7,7 +7,8 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract DeployVariations_Test is CommonTest {
     function setUp() public override {
-        // prevent calling the base CommonTest.setUp() function
+        // Prevent calling the base CommonTest.setUp() function, as we will run it within the test functions
+        // after setting the feature flags
     }
 
     // Enable features which should be possible to enable or disable regardless of other options.
@@ -21,12 +22,14 @@ contract DeployVariations_Test is CommonTest {
         }
     }
 
+    /// @dev It should be possible to enable Fault Proofs with any mix of CGT and Alt-DA.
     function testFuzz_enableFaultProofs(bool _enableCGT, bool _enableAltDa) public virtual {
         enableAddOns(_enableCGT, _enableAltDa);
         super.enableFaultProofs();
         super.setUp();
     }
 
+    /// @dev It should be possible to enable Fault Proofs and Interop with any mix of CGT and Alt-DA.
     function test_enableInteropAndFaultProofs(bool _enableCGT, bool _enableAltDa) public virtual {
         enableAddOns(_enableCGT, _enableAltDa);
         super.enableInterop();
