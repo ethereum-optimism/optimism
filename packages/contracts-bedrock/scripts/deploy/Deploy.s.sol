@@ -431,6 +431,9 @@ contract Deploy is Deployer {
         save("DelayedWETH", address(dio.delayedWETHImpl()));
         save("PreimageOracle", address(dio.preimageOracleSingleton()));
         save("Mips", address(dio.mipsSingleton()));
+
+        Types.ContractSet memory contracts = _implsUnstrict();
+        ChainAssertions.checkL1CrossDomainMessenger({ _contracts: contracts, _vm: vm, _isProxy: false });
     }
 
     /// @notice Initialize all of the proxies in an OP Chain by upgrading to the correct proxy and calling the
@@ -621,27 +624,6 @@ contract Deploy is Deployer {
         require(superchainConfig.guardian() == address(0));
         bytes32 initialized = vm.load(address(superchainConfig), bytes32(0));
         require(initialized != 0);
-    }
-
-    /// @notice Deploy the L1CrossDomainMessenger
-    function deployL1CrossDomainMessenger() public broadcast returns (address addr_) {
-        IL1CrossDomainMessenger messenger = IL1CrossDomainMessenger(
-            DeployUtils.create2AndSave({
-                _save: this,
-                _salt: _implSalt(),
-                _name: "L1CrossDomainMessenger",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IL1CrossDomainMessenger.__constructor__, ()))
-            })
-        );
-
-        // Override the `L1CrossDomainMessenger` contract to the deployed implementation. This is necessary
-        // to check the `L1CrossDomainMessenger` implementation alongside dependent contracts, which
-        // are always proxies.
-        Types.ContractSet memory contracts = _proxiesUnstrict();
-        contracts.L1CrossDomainMessenger = address(messenger);
-        ChainAssertions.checkL1CrossDomainMessenger({ _contracts: contracts, _vm: vm, _isProxy: false });
-
-        addr_ = address(messenger);
     }
 
     /// @notice Deploy the OptimismPortal
