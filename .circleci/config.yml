@@ -821,12 +821,15 @@ jobs:
     machine:
       image: <<pipeline.parameters.base_image>> # only used to enable codecov.
     resource_class: xlarge
+    circleci_ip_ranges: true
     steps:
       - run:
           name: Install components
           command: |
             go version
             go install gotest.tools/gotestsum@v1.11.0
+            curl -L https://foundry.paradigm.xyz | bash
+            foundryup
       - run:
           name: Install Kurtosis
           command: |
@@ -849,7 +852,7 @@ jobs:
       - run:
           name: run tests
           command: |
-            ENABLE_KURTOSIS=true gotestsum \
+            ENABLE_KURTOSIS=true ENABLE_ANVIL=true gotestsum \
               --format=testname \
               --junitfile=/tmp/test-results/<<parameters.module>>.xml \
               --jsonfile=/tmp/testlogs/log.json \
