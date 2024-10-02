@@ -39,8 +39,6 @@ interface ISuperchainWETH {
     /// @param _dst     Address to relay tokens to.
     /// @param _wad     Amount of tokens to relay.
     function relayERC20(address _from, address _dst, uint256 _wad) external;
-
-    function __constructor__() external;
 }
 
 interface ISuperchainWETHERC20 is IWETH, ISuperchainWETH { }
