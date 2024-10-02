@@ -666,3 +666,65 @@ func TestChannelManager_Requeue(t *testing.T) {
 	require.Contains(t, m.channelQueue, channel0)
 	require.NotContains(t, m.blocks, blockA)
 }
+
+func BenchmarkChannelManager_TxData(t *testing.B) {
+	for n := 0; n < t.N; n++ {
+		t.StopTimer()
+		l := testlog.Logger(t, log.LevelCrit)
+		cfg := newFakeDynamicEthChannelConfig(l, 1000)
+		cfg.calldataConfig.InitRatioCompressor(0.3, derive.Brotli10)
+
+		cfg.chooseBlobs = true
+		m := NewChannelManager(l, metrics.NoopMetrics, cfg, defaultTestRollupConfig)
+
+		rng := rand.New(rand.NewSource(99))
+		// Add many more blocks
+		for i := 0; i < 500; i++ {
+			block := derivetest.RandomL2BlockWithChainId(rng, 1, defaultTestRollupConfig.L2ChainID)
+			m.blocks = append(m.blocks, block)
+		}
+
+		// Call TxData a first time to trigger blocks->channels pipeline
+		_, err := m.TxData(eth.BlockID{})
+		require.ErrorIs(t, err, io.EOF)
+
+		// The test requires us to have something in the channel queue
+		// at this point, but not yet ready to send and not full
+		require.NotEmpty(t, m.channelQueue)
+		require.False(t, m.channelQueue[0].IsFull())
+
+		// Simulate updated market conditions
+		// by flipping the state of the
+		// fake channel provider
+		l.Info("updating market conditions")
+		cfg.chooseBlobs = false
+
+		// Add many more blocks
+		for i := 0; i < 500; i++ {
+			block := derivetest.RandomL2BlockWithChainId(rng, 1, defaultTestRollupConfig.L2ChainID)
+			m.blocks = append(m.blocks, block)
+		}
+
+		// Call TxData until
+		// we get some data to submit.
+		// We expect >400 blocks to get requeued
+		// And this should be enough to fill
+		// a calldata channel
+
+		// Time how long it takes to generate the
+		// next txdata
+		t.StartTimer()
+		var data txData
+		for {
+			data, err = m.TxData(eth.BlockID{})
+			if err == nil && data.Len() > 0 {
+				break
+			}
+			if !errors.Is(err, io.EOF) {
+				require.NoError(t, err)
+			}
+		}
+		require.Equal(t, false, data.asBlob)
+	}
+
+}
