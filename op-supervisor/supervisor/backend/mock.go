@@ -56,8 +56,8 @@ func (m *MockBackend) CheckBlock(chainID *hexutil.U256, blockHash common.Hash, b
 	return types.CrossUnsafe, nil
 }
 
-func (m *MockBackend) DerivedFrom(ctx context.Context, t types.ChainID, parentHash common.Hash, n uint64) (eth.L1BlockRef, error) {
-	return eth.L1BlockRef{}, nil
+func (m *MockBackend) DerivedFrom(ctx context.Context, t types.ChainID, parentHash common.Hash, n uint64) (eth.BlockRef, error) {
+	return eth.BlockRef{}, nil
 }
 
 func (m *MockBackend) Close() error {
