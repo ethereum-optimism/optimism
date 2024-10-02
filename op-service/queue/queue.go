@@ -66,9 +66,9 @@ func (q *Queue[T]) Peek() (T, bool) {
 	return zeroValue, false
 }
 
-// PeekN returns the elements in Nth position int the queue
+// PeekN returns the element in Nth position in the queue
 // Returns a zero value and false if there are insufficient elements
-// in the queue..
+// in the queue.
 func (q *Queue[T]) PeekN(N int) (T, bool) {
 	if len(*q) <= N {
 		var zeroValue T
