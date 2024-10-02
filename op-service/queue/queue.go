@@ -15,13 +15,12 @@ func (q *Queue[T]) Enqueue(t ...T) {
 // (if there is one) and returns it. Returns a zero value and false
 // if there is no element to dequeue.
 func (q *Queue[T]) Dequeue() (T, bool) {
-	if len(*q) == 0 {
+	el, ok := q.DequeueN(1)
+	if !ok {
 		var zeroValue T
 		return zeroValue, false
 	}
-	t := (*q)[0]
-	*q = (*q)[1:]
-	return t, true
+	return el[0], true
 }
 
 // DequeueN removes N elements from the front of the queue
@@ -59,11 +58,7 @@ func (q *Queue[T]) Len() int {
 // (if there is one) without removing it. Returns a zero value and
 // false if there is no element to peek at.
 func (q *Queue[T]) Peek() (T, bool) {
-	if len(*q) > 0 {
-		return (*q)[0], true
-	}
-	var zeroValue T
-	return zeroValue, false
+	return q.PeekN(0)
 }
 
 // PeekN returns the element in Nth position in the queue
