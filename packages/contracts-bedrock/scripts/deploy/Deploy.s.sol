@@ -144,26 +144,6 @@ contract Deploy is Deployer {
         return keccak256(bytes(Config.implSalt()));
     }
 
-    /// @notice Returns the proxy addresses. If a proxy is not found, it will have address(0).
-    function _proxies() internal view returns (Types.ContractSet memory proxies_) {
-        proxies_ = Types.ContractSet({
-            L1CrossDomainMessenger: mustGetAddress("L1CrossDomainMessengerProxy"),
-            L1StandardBridge: mustGetAddress("L1StandardBridgeProxy"),
-            L2OutputOracle: mustGetAddress("L2OutputOracleProxy"),
-            DisputeGameFactory: mustGetAddress("DisputeGameFactoryProxy"),
-            DelayedWETH: mustGetAddress("DelayedWETHProxy"),
-            PermissionedDelayedWETH: mustGetAddress("PermissionedDelayedWETHProxy"),
-            AnchorStateRegistry: mustGetAddress("AnchorStateRegistryProxy"),
-            OptimismMintableERC20Factory: mustGetAddress("OptimismMintableERC20FactoryProxy"),
-            OptimismPortal: mustGetAddress("OptimismPortalProxy"),
-            OptimismPortal2: mustGetAddress("OptimismPortalProxy"),
-            SystemConfig: mustGetAddress("SystemConfigProxy"),
-            L1ERC721Bridge: mustGetAddress("L1ERC721BridgeProxy"),
-            ProtocolVersions: mustGetAddress("ProtocolVersionsProxy"),
-            SuperchainConfig: mustGetAddress("SuperchainConfigProxy")
-        });
-    }
-
     /// @notice Returns the proxy addresses, not reverting if any are unset.
     function _proxiesUnstrict() internal view returns (Types.ContractSet memory proxies_) {
         proxies_ = Types.ContractSet({
@@ -275,13 +255,19 @@ contract Deploy is Deployer {
             deployImplementations();
         }
 
+        // Deploy Legacy Optimism Portal contract
+        deployOptimismPortal();
+
+        // Deploy Current OPChain Contracts
+        deployOpChain();
+
         // TODO: We should only need to deploy these contracts if cfg.useFaultProofs() is false
         // however some op-e2e tests fail if they are not found. Always deploying them is
         // OK for now, but not ideal.
-        deployOptimismPortal();
+        deployERC1967Proxy("L2OutputOracleProxy");
         deployL2OutputOracle();
+        initializeL2OutputOracle();
 
-        deployOpChain();
         if (cfg.useAltDA()) {
             bytes32 typeHash = keccak256(bytes(cfg.daCommitmentType()));
             bytes32 keccakHash = keccak256(bytes("KeccakCommitment"));
@@ -348,7 +334,6 @@ contract Deploy is Deployer {
         // enabled to prevent a nastier refactor to the deploy scripts. In the future, the L2OutputOracle will be
         // removed. If fault proofs are not enabled, the DisputeGameFactory proxy will be unused.
         deployERC1967Proxy("DisputeGameFactoryProxy");
-        deployERC1967Proxy("L2OutputOracleProxy");
         deployERC1967Proxy("DelayedWETHProxy");
         deployERC1967Proxy("PermissionedDelayedWETHProxy");
         deployERC1967Proxy("AnchorStateRegistryProxy");
@@ -1106,7 +1091,7 @@ contract Deploy is Deployer {
         string memory version = config.version();
         console.log("SystemConfig version: %s", version);
 
-        ChainAssertions.checkSystemConfig({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
+        ChainAssertions.checkSystemConfig({ _contracts: _proxiesUnstrict(), _cfg: cfg, _isProxy: true });
     }
 
     /// @notice Initialize the L1StandardBridge
@@ -1141,7 +1126,7 @@ contract Deploy is Deployer {
         string memory version = IL1StandardBridge(payable(l1StandardBridgeProxy)).version();
         console.log("L1StandardBridge version: %s", version);
 
-        ChainAssertions.checkL1StandardBridge({ _contracts: _proxies(), _isProxy: true });
+        ChainAssertions.checkL1StandardBridge({ _contracts: _proxiesUnstrict(), _isProxy: true });
     }
 
     /// @notice Initialize the L1ERC721Bridge
@@ -1166,7 +1151,7 @@ contract Deploy is Deployer {
         string memory version = bridge.version();
         console.log("L1ERC721Bridge version: %s", version);
 
-        ChainAssertions.checkL1ERC721Bridge({ _contracts: _proxies(), _isProxy: true });
+        ChainAssertions.checkL1ERC721Bridge({ _contracts: _proxiesUnstrict(), _isProxy: true });
     }
 
     /// @notice Initialize the OptimismMintableERC20Factory
@@ -1187,7 +1172,7 @@ contract Deploy is Deployer {
         string memory version = factory.version();
         console.log("OptimismMintableERC20Factory version: %s", version);
 
-        ChainAssertions.checkOptimismMintableERC20Factory({ _contracts: _proxies(), _isProxy: true });
+        ChainAssertions.checkOptimismMintableERC20Factory({ _contracts: _proxiesUnstrict(), _isProxy: true });
     }
 
     /// @notice initializeL1CrossDomainMessenger
@@ -1233,7 +1218,7 @@ contract Deploy is Deployer {
         string memory version = messenger.version();
         console.log("L1CrossDomainMessenger version: %s", version);
 
-        ChainAssertions.checkL1CrossDomainMessenger({ _contracts: _proxies(), _vm: vm, _isProxy: true });
+        ChainAssertions.checkL1CrossDomainMessenger({ _contracts: _proxiesUnstrict(), _vm: vm, _isProxy: true });
     }
 
     /// @notice Initialize the L2OutputOracle
@@ -1265,7 +1250,7 @@ contract Deploy is Deployer {
         console.log("L2OutputOracle version: %s", version);
 
         ChainAssertions.checkL2OutputOracle({
-            _contracts: _proxies(),
+            _contracts: _proxiesUnstrict(),
             _cfg: cfg,
             _l2OutputOracleStartingTimestamp: cfg.l2OutputOracleStartingTimestamp(),
             _isProxy: true
@@ -1299,7 +1284,7 @@ contract Deploy is Deployer {
         string memory version = portal.version();
         console.log("OptimismPortal version: %s", version);
 
-        ChainAssertions.checkOptimismPortal({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
+        ChainAssertions.checkOptimismPortal({ _contracts: _proxiesUnstrict(), _cfg: cfg, _isProxy: true });
     }
 
     /// @notice Initialize the OptimismPortal2
@@ -1330,7 +1315,7 @@ contract Deploy is Deployer {
         string memory version = portal.version();
         console.log("OptimismPortal2 version: %s", version);
 
-        ChainAssertions.checkOptimismPortal2({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
+        ChainAssertions.checkOptimismPortal2({ _contracts: _proxiesUnstrict(), _cfg: cfg, _isProxy: true });
     }
 
     /// @notice Transfer ownership of the DisputeGameFactory contract to the final system owner
@@ -1344,7 +1329,7 @@ contract Deploy is Deployer {
             disputeGameFactory.transferOwnership(finalSystemOwner);
             console.log("DisputeGameFactory ownership transferred to final system owner at: %s", finalSystemOwner);
         }
-        ChainAssertions.checkDisputeGameFactory({ _contracts: _proxies(), _expectedOwner: finalSystemOwner });
+        ChainAssertions.checkDisputeGameFactory({ _contracts: _proxiesUnstrict(), _expectedOwner: finalSystemOwner });
     }
 
     /// @notice Transfer ownership of the DelayedWETH contract to the final system owner
@@ -1359,7 +1344,7 @@ contract Deploy is Deployer {
             console.log("DelayedWETH ownership transferred to final system owner at: %s", finalSystemOwner);
         }
         ChainAssertions.checkDelayedWETH({
-            _contracts: _proxies(),
+            _contracts: _proxiesUnstrict(),
             _cfg: cfg,
             _isProxy: true,
             _expectedOwner: finalSystemOwner
@@ -1378,7 +1363,7 @@ contract Deploy is Deployer {
             console.log("DelayedWETH ownership transferred to final system owner at: %s", finalSystemOwner);
         }
         ChainAssertions.checkPermissionedDelayedWETH({
-            _contracts: _proxies(),
+            _contracts: _proxiesUnstrict(),
             _cfg: cfg,
             _isProxy: true,
             _expectedOwner: finalSystemOwner
