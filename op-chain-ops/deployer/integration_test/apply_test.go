@@ -298,6 +298,7 @@ func TestApplyExistingOPCM(t *testing.T) {
 
 	l1ChainID := big.NewInt(11155111)
 	dk, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
+	require.NoError(t, err)
 	// index 0 from Anvil's test set
 	priv, err := crypto.HexToECDSA("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
 	require.NoError(t, err)
