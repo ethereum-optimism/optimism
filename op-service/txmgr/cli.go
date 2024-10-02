@@ -420,8 +420,8 @@ type Config struct {
 	From   common.Address
 
 	// GasPriceEstimator is used to estimate the gas price for a transaction.
-	// If nil, DefaultGasPriceEstimator is used.
-	GasPriceEstimator GasPriceEstimator
+	// If nil, DefaultGasPriceEstimatorFn is used.
+	GasPriceEstimator GasPriceEstimatorFn
 }
 
 func (m *Config) Check() error {

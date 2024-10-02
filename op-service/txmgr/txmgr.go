@@ -137,10 +137,10 @@ type SimpleTxManager struct {
 	name    string
 	chainID *big.Int
 
-	backend ETHBackend
-	l       log.Logger
-	metr    metrics.TxMetricer
-	gpe     GasPriceEstimator
+	backend             ETHBackend
+	l                   log.Logger
+	metr                metrics.TxMetricer
+	gasPriceEstimatorFn GasPriceEstimatorFn
 
 	nonce     *uint64
 	nonceLock sync.RWMutex
@@ -164,19 +164,19 @@ func NewSimpleTxManagerFromConfig(name string, l log.Logger, m metrics.TxMetrice
 	if err := conf.Check(); err != nil {
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}
-	calldataGPE := DefaultGasPriceEstimator
+	calldataGPE := DefaultGasPriceEstimatorFn
 	if conf.GasPriceEstimator != nil {
 		calldataGPE = conf.GasPriceEstimator
 	}
 
 	return &SimpleTxManager{
-		chainID: conf.ChainID,
-		name:    name,
-		cfg:     conf,
-		backend: conf.Backend,
-		l:       l.New("service", name),
-		metr:    m,
-		gpe:     calldataGPE,
+		chainID:             conf.ChainID,
+		name:                name,
+		cfg:                 conf,
+		backend:             conf.Backend,
+		l:                   l.New("service", name),
+		metr:                m,
+		gasPriceEstimatorFn: calldataGPE,
 	}, nil
 }
 
@@ -884,7 +884,7 @@ func (m *SimpleTxManager) SuggestGasPriceCaps(ctx context.Context) (*big.Int, *b
 	cCtx, cancel := context.WithTimeout(ctx, m.cfg.NetworkTimeout)
 	defer cancel()
 
-	tip, baseFee, blobFee, err := m.gpe(cCtx, m.backend)
+	tip, baseFee, blobFee, err := m.gasPriceEstimatorFn(cCtx, m.backend)
 	if err != nil {
 		m.metr.RPCError()
 		return nil, nil, nil, fmt.Errorf("failed to get gas price estimates: %w", err)

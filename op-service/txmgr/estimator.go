@@ -8,9 +8,9 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 )
 
-type GasPriceEstimator func(ctx context.Context, backend ETHBackend) (*big.Int, *big.Int, *big.Int, error)
+type GasPriceEstimatorFn func(ctx context.Context, backend ETHBackend) (*big.Int, *big.Int, *big.Int, error)
 
-func DefaultGasPriceEstimator(ctx context.Context, backend ETHBackend) (*big.Int, *big.Int, *big.Int, error) {
+func DefaultGasPriceEstimatorFn(ctx context.Context, backend ETHBackend) (*big.Int, *big.Int, *big.Int, error) {
 	tip, err := backend.SuggestGasTipCap(ctx)
 	if err != nil {
 		return nil, nil, nil, err
