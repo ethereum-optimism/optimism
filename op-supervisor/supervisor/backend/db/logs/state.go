@@ -128,12 +128,10 @@ func (l *logContext) ExecMessage() *types.ExecutingMessage {
 }
 
 func (l *logContext) HeadPointer() (heads.HeadPointer, error) {
-	// temporary: other bugs above this might be causing incomplete states
-	// we should revive this check once we are sure the state is always complete.
-	//if l.need != 0 {
-	//	needs := entrydb.EntryFlagsToStrings(l.need)
-	//	return heads.HeadPointer{}, fmt.Errorf("cannot provide head pointer while state is incomplete. needs: %v", needs)
-	//}
+	if l.need != 0 {
+		needs := entrydb.EntryFlagsToStrings(l.need)
+		return heads.HeadPointer{}, fmt.Errorf("(LastSealedBlockHash) cannot provide head pointer while state is incomplete. needs: %v", needs)
+	}
 	return heads.HeadPointer{
 		LastSealedBlockHash: l.blockHash,
 		LastSealedBlockNum:  l.blockNum,
