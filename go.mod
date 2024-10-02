@@ -15,7 +15,7 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0
 	github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3
 	github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20240910145426-b3905c89e8ac
-	github.com/ethereum/go-ethereum v1.14.10
+	github.com/ethereum/go-ethereum v1.14.11
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/golang/snappy v0.0.5-0.20220116011046-fa5810519dcb
 	github.com/google/go-cmp v0.6.0
@@ -251,7 +251,7 @@ require (
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
 
-replace github.com/ethereum/go-ethereum v1.14.10 => github.com/0x00101010/op-geth v0.0.0-20241001162641-bddb6fed0314
+replace github.com/ethereum/go-ethereum v1.14.11 => github.com/0x00101010/op-geth v0.0.0-20241002211323-d5a96613c22b
 
 // replace github.com/ethereum/go-ethereum => ../op-geth
 
