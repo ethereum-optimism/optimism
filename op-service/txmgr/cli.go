@@ -418,6 +418,10 @@ type Config struct {
 	// Signer is used to sign transactions when the gas price is increased.
 	Signer opcrypto.SignerFn
 	From   common.Address
+
+	// GasPriceEstimatorFn is used to estimate the gas price for a transaction.
+	// If nil, DefaultGasPriceEstimatorFn is used.
+	GasPriceEstimatorFn GasPriceEstimatorFn
 }
 
 func (m *Config) Check() error {
