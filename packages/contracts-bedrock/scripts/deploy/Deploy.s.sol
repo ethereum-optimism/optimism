@@ -321,7 +321,7 @@ contract Deploy is Deployer {
         // First run assertions for the ProtocolVersions and SuperchainConfig proxy contracts.
         Types.ContractSet memory contracts = _proxiesUnstrict();
         ChainAssertions.checkProtocolVersions({ _contracts: contracts, _cfg: cfg, _isProxy: true });
-        ChainAssertions.checkSuperchainConfig({ _contracts: contracts, _cfg: cfg, _isPaused: false, _isProxy: true });
+        ChainAssertions.checkSuperchainConfig({ _contracts: contracts, _cfg: cfg, _isProxy: true, _isPaused: false });
 
         // Then replace the ProtocolVersions proxy with the implementation address and run assertions on it.
         contracts.ProtocolVersions = mustGetAddress("ProtocolVersions");
