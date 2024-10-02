@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/solabi"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/snapshots"
 	"github.com/ethereum/go-ethereum/common"
@@ -45,6 +46,37 @@ func NewCrossL2Inbox() *CrossL2Inbox {
 	return &CrossL2Inbox{
 		contract: batching.NewBoundContract(abi, predeploys.CrossL2InboxAddr),
 	}
+}
+
+func (i *CrossL2Inbox) ExecuteMessage(
+	identifier types.Identifier,
+	address common.Address,
+	payload []byte) (txmgr.TxCandidate, error) {
+	type boundIdentifier struct {
+		Origin      common.Address
+		BlockNumber *big.Int
+		LogIndex    *big.Int
+		Timestamp   *big.Int
+		chainId     *big.Int
+	}
+
+	chainIDBig, err := identifier.ChainID.ToUInt32()
+	if err != nil {
+		return txmgr.TxCandidate{}, fmt.Errorf("failed to convert chain ID to big.Int: %w", err)
+	}
+
+	serializedIdentifier := boundIdentifier{
+		Origin:      identifier.Origin,
+		BlockNumber: big.NewInt(int64(identifier.BlockNumber)),
+		LogIndex:    big.NewInt(int64(identifier.LogIndex)),
+		Timestamp:   big.NewInt(int64(identifier.Timestamp)),
+		chainId:     big.NewInt(int64(chainIDBig)),
+	}
+
+	return i.contract.Call("executeMessage",
+		serializedIdentifier,
+		address,
+		payload).ToTxCandidate()
 }
 
 func (i *CrossL2Inbox) DecodeExecutingMessageLog(l *ethTypes.Log) (types.ExecutingMessage, error) {

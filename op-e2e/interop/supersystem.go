@@ -53,6 +53,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	supervisorConfig "github.com/ethereum-optimism/optimism/op-supervisor/config"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/source/contracts"
+	supervisorTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // SuperSystem is an interface for the system (collection of connected resources)
@@ -92,6 +94,8 @@ type SuperSystem interface {
 	DeployEmitterContract(network string, username string) common.Address
 	// Use the Emitter Contract to emit an Event Log
 	EmitData(network string, username string, data string) *types.Receipt
+	// Call the CrossL2Inbox ExecuteMessage function
+	ExecuteMessage(network string, sender string, identifier supervisorTypes.Identifier, address string, payload []byte) *types.Receipt
 	// Access a contract on a network by name
 	Contract(network string, contractName string) interface{}
 }
@@ -410,7 +414,9 @@ func (s *interopE2ESystem) newL2(id string, l2Out *interopgen.L2Output) l2Set {
 		batcher:      batcher,
 		operatorKeys: operatorKeys,
 		userKeys:     make(map[string]ecdsa.PrivateKey),
-		contracts:    make(map[string]interface{}),
+		contracts: map[string]interface{}{
+			"CrossL2Inbox": contracts.NewCrossL2Inbox(),
+		},
 	}
 }
 
@@ -631,6 +637,23 @@ func (s *interopE2ESystem) DeployEmitterContract(
 	require.NoError(s.t, err)
 	s.l2s[id].contracts["emitter"] = contract
 	return address
+}
+
+func (s *interopE2ESystem) ExecuteMessage(
+	id string,
+	sender string,
+	identifier supervisorTypes.Identifier,
+	address string,
+	payload []byte,
+) *types.Receipt {
+	addr := s.Address(id, address)
+	contract := s.l2s[id].contracts["CrossL2Inbox"].(*contracts.CrossL2Inbox)
+	candidate, err := contract.ExecuteMessage(identifier, addr, payload)
+	require.NoError(s.t, err)
+	return s.SendL2Tx(id, sender, func(opts *helpers.TxOpts) {
+		opts.ToAddr = candidate.To
+		opts.Data = candidate.TxData
+	})
 }
 
 func (s *interopE2ESystem) EmitData(

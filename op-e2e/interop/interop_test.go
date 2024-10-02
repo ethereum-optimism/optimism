@@ -10,6 +10,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
+	supervisorTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // TestInteropTrivial tests a simple interop scenario
@@ -91,6 +92,16 @@ func TestInteropTrivial(t *testing.T) {
 
 		s2.EmitData(chainB, "Alice", "0x1234567890abcdef")
 	}
+
+	identifier := supervisorTypes.Identifier{
+		Origin:      bobAddr,
+		BlockNumber: 1,
+		LogIndex:    1,
+		Timestamp:   1,
+		ChainID:     supervisorTypes.ChainIDFromUInt64(900200), // need to make chainID selection better
+	}
+
+	s2.ExecuteMessage(chainA, "Alice", identifier, "Alice", []byte("0x1234567890abcdef"))
 
 	time.Sleep(60 * time.Second)
 
