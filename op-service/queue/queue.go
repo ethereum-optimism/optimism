@@ -15,12 +15,13 @@ func (q *Queue[T]) Enqueue(t ...T) {
 // (if there is one) and returns it. Returns a zero value and false
 // if there is no element to dequeue.
 func (q *Queue[T]) Dequeue() (T, bool) {
-	el, ok := q.DequeueN(1)
-	if !ok {
+	if len(*q) == 0 {
 		var zeroValue T
 		return zeroValue, false
 	}
-	return el[0], true
+	t := (*q)[0]
+	*q = (*q)[1:]
+	return t, true
 }
 
 // DequeueN removes N elements from the front of the queue
