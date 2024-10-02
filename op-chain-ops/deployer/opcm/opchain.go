@@ -39,8 +39,8 @@ type DeployOPChainInput struct {
 
 	DisputeGameType         uint32
 	DisputeAbsolutePrestate common.Hash
-	DisputeMaxGameDepth     *big.Int
-	DisputeSplitDepth       *big.Int
+	DisputeMaxGameDepth     uint64
+	DisputeSplitDepth       uint64
 	DisputeClockExtension   uint64
 	DisputeMaxClockDuration uint64
 }
@@ -261,8 +261,8 @@ func DeployOPChainRaw(
 		GasLimit:                input.GasLimit,
 		DisputeGameType:         input.DisputeGameType,
 		DisputeAbsolutePrestate: input.DisputeAbsolutePrestate,
-		DisputeMaxGameDepth:     input.DisputeMaxGameDepth,
-		DisputeSplitDepth:       input.DisputeSplitDepth,
+		DisputeMaxGameDepth:     new(big.Int).SetUint64(input.DisputeMaxGameDepth),
+		DisputeSplitDepth:       new(big.Int).SetUint64(input.DisputeSplitDepth),
 		DisputeClockExtension:   input.DisputeClockExtension,
 		DisputeMaxClockDuration: input.DisputeMaxClockDuration,
 	})
