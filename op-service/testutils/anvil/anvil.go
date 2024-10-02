@@ -29,6 +29,7 @@ type Runner struct {
 	stderr    io.ReadCloser
 	logger    log.Logger
 	startedCh chan struct{}
+	wg        sync.WaitGroup
 }
 
 func New(l1RPCURL string, logger log.Logger) (*Runner, error) {
@@ -63,6 +64,7 @@ func (r *Runner) Start(ctx context.Context) error {
 		return err
 	}
 
+	r.wg.Add(2)
 	go r.outputStream(r.stdout)
 	go r.outputStream(r.stderr)
 
@@ -80,10 +82,13 @@ func (r *Runner) Stop() error {
 		return err
 	}
 
+	// make sure the output streams close
+	defer r.wg.Wait()
 	return r.proc.Wait()
 }
 
 func (r *Runner) outputStream(stream io.ReadCloser) {
+	defer r.wg.Done()
 	scanner := bufio.NewScanner(stream)
 	listenLine := fmt.Sprintf("Listening on 127.0.0.1:%d", AnvilPort)
 	started := sync.OnceFunc(func() {
