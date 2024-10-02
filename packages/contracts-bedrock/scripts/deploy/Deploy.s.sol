@@ -255,32 +255,21 @@ contract Deploy is Deployer {
             deployImplementations();
         }
 
-        // Deploy the Legacy Optimism Portal contract. We need to do this before deployOpChain, because
-        // it
-
-
         // Deploy Current OPChain Contracts
         deployOpChain();
 
-        // Deploy Legacy L2OO Proxy contract
-        deployERC1967ProxyWithOwner("L2OutputOracleProxy", msg.sender);
-
-        vm.broadcast(msg.sender);
-        IProxy(mustGetAddress("L2OutputOracleProxy")).changeAdmin(mustGetAddress("ProxyAdmin"));
-        // vm.stopBroadcast();
-
+        // Deploy and setup the legacy (pre-faultproofs) contracts
+        deployERC1967Proxy("L2OutputOracleProxy");
         deployL2OutputOracle();
         initializeL2OutputOracle();
-        deployOptimismPortal();
+
+        // The OptimismPortalProxy contract is used both with and without Fault Proofs enabled, and is deployed by
+        // deployOPChain. So we only need to deploy the legacy OptimismPortal implementation and initialize with it
+        // when Fault Proofs are disabled.
         if(!cfg.useFaultProofs()) {
+            deployOptimismPortal();
             initializeOptimismPortal();
         }
-
-        // TODO: We should only need to deploy these contracts if cfg.useFaultProofs() is false
-        // however some op-e2e tests fail if they are not found. Always deploying them is
-        // OK for now, but not ideal.
-
-
 
         if (cfg.useAltDA()) {
             bytes32 typeHash = keccak256(bytes(cfg.daCommitmentType()));
@@ -405,8 +394,8 @@ contract Deploy is Deployer {
     /// initialize function
     function initializeOpChain() public {
         console.log("Initializing Op Chain proxies");
-        // Selectively initialize either the original OptimismPortal or the new OptimismPortal2. Since this will upgrade
-        // the proxy, we cannot initialize both.
+        // The OptimismPortal Proxy is shared between the legacy and current deployment path, so we should initialize
+        // the OptimismPortal2 only if using FaultProofs.
         if (cfg.useFaultProofs()) {
             console.log("Fault proofs enabled. Initializing the OptimismPortal proxy with the OptimismPortal2.");
             initializeOptimismPortal2();
