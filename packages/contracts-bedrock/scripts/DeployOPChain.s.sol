@@ -83,9 +83,9 @@ contract DeployOPChainInput is BaseDeployIO {
         } else if (_sel == this.disputeGameType.selector) {
             _disputeGameType = GameType.wrap(SafeCast.toUint32(_value));
         } else if (_sel == this.disputeMaxGameDepth.selector) {
-            _disputeMaxGameDepth = _value;
+            _disputeMaxGameDepth = SafeCast.toUint64(_value);
         } else if (_sel == this.disputeSplitDepth.selector) {
-            _disputeSplitDepth = _value;
+            _disputeSplitDepth = SafeCast.toUint64(_value);
         } else if (_sel == this.disputeClockExtension.selector) {
             _disputeClockExtension = Duration.wrap(SafeCast.toUint64(_value));
         } else if (_sel == this.disputeMaxClockDuration.selector) {
