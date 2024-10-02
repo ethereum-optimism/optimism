@@ -255,18 +255,32 @@ contract Deploy is Deployer {
             deployImplementations();
         }
 
-        // Deploy Legacy Optimism Portal contract
-        deployOptimismPortal();
+        // Deploy the Legacy Optimism Portal contract. We need to do this before deployOpChain, because
+        // it
+
 
         // Deploy Current OPChain Contracts
         deployOpChain();
 
+        // Deploy Legacy L2OO Proxy contract
+        deployERC1967ProxyWithOwner("L2OutputOracleProxy", msg.sender);
+
+        vm.broadcast(msg.sender);
+        IProxy(mustGetAddress("L2OutputOracleProxy")).changeAdmin(mustGetAddress("ProxyAdmin"));
+        // vm.stopBroadcast();
+
+        deployL2OutputOracle();
+        initializeL2OutputOracle();
+        deployOptimismPortal();
+        if(!cfg.useFaultProofs()) {
+            initializeOptimismPortal();
+        }
+
         // TODO: We should only need to deploy these contracts if cfg.useFaultProofs() is false
         // however some op-e2e tests fail if they are not found. Always deploying them is
         // OK for now, but not ideal.
-        deployERC1967Proxy("L2OutputOracleProxy");
-        deployL2OutputOracle();
-        initializeL2OutputOracle();
+
+
 
         if (cfg.useAltDA()) {
             bytes32 typeHash = keccak256(bytes(cfg.daCommitmentType()));
@@ -396,8 +410,6 @@ contract Deploy is Deployer {
         if (cfg.useFaultProofs()) {
             console.log("Fault proofs enabled. Initializing the OptimismPortal proxy with the OptimismPortal2.");
             initializeOptimismPortal2();
-        } else {
-            initializeOptimismPortal();
         }
 
         initializeSystemConfig();
