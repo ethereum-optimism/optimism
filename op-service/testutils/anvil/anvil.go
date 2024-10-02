@@ -36,8 +36,6 @@ func New(l1RPCURL string, logger log.Logger) (*Runner, error) {
 	proc := exec.Command(
 		"anvil",
 		"--fork-url", l1RPCURL,
-		"--block-time",
-		"1",
 		"--port",
 		strconv.Itoa(AnvilPort),
 	)
