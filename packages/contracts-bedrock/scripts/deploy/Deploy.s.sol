@@ -318,12 +318,18 @@ contract Deploy is Deployer {
         save("ProtocolVersionsProxy", address(dso.protocolVersionsProxy()));
         save("ProtocolVersions", address(dso.protocolVersionsImpl()));
 
-        // Run chain assertions.
-        // Run assertions for ProtocolVersions and SuperchainConfig proxy contracts.
-        ChainAssertions.checkProtocolVersions({ _contracts: _proxiesUnstrict(), _cfg: cfg, _isProxy: true });
-        ChainAssertions.checkSuperchainConfig({ _contracts: _proxiesUnstrict(), _cfg: cfg, _isPaused: false });
-        // TODO: Add assertions for SuperchainConfig and ProtocolVersions impl contracts.
-        // TODO: Add assertions for SuperchainProxyAdmin.
+        // First run assertions for the ProtocolVersions and SuperchainConfig proxy contracts.
+        Types.ContractSet memory contracts = _proxiesUnstrict();
+        ChainAssertions.checkProtocolVersions({ _contracts: contracts, _cfg: cfg, _isProxy: true });
+        ChainAssertions.checkSuperchainConfig({ _contracts: contracts, _cfg: cfg, _isProxy: true, _isPaused: false });
+
+        // Then replace the ProtocolVersions proxy with the implementation address and run assertions on it.
+        contracts.ProtocolVersions = mustGetAddress("ProtocolVersions");
+        ChainAssertions.checkProtocolVersions({ _contracts: contracts, _cfg: cfg, _isProxy: false });
+
+        // Finally replace the SuperchainConfig proxy with the implementation address and run assertions on it.
+        contracts.SuperchainConfig = mustGetAddress("SuperchainConfig");
+        ChainAssertions.checkSuperchainConfig({ _contracts: contracts, _cfg: cfg, _isPaused: false, _isProxy: false });
     }
 
     /// @notice Deploy all of the OP Chain specific contracts

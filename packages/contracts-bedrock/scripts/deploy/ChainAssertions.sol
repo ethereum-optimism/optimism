@@ -422,7 +422,8 @@ library ChainAssertions {
     function checkSuperchainConfig(
         Types.ContractSet memory _contracts,
         DeployConfig _cfg,
-        bool _isPaused
+        bool _isPaused,
+        bool _isProxy
     )
         internal
         view
@@ -433,8 +434,13 @@ library ChainAssertions {
         // Check that the contract is initialized
         assertSlotValueIsOne({ _contractAddress: address(superchainConfig), _slot: 0, _offset: 0 });
 
-        require(superchainConfig.guardian() == _cfg.superchainConfigGuardian());
-        require(superchainConfig.paused() == _isPaused);
+        if (_isProxy) {
+            require(superchainConfig.guardian() == _cfg.superchainConfigGuardian());
+            require(superchainConfig.paused() == _isPaused);
+        } else {
+            require(superchainConfig.guardian() == address(0));
+            require(superchainConfig.paused() == false);
+        }
     }
 
     /// @dev Asserts that for a given contract the value of a storage slot at an offset is 1.
