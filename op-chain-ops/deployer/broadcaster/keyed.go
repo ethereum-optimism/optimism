@@ -6,9 +6,10 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 	"github.com/ethereum/go-ethereum/common"
@@ -51,6 +52,7 @@ func NewKeyedBroadcaster(cfg KeyedBroadcasterOpts) (*KeyedBroadcaster, error) {
 		SafeAbortNonceTooLowCount: 3,
 		Signer:                    cfg.Signer,
 		From:                      cfg.From,
+		GasPriceEstimatorFn:       DeployerGasPriceEstimator,
 	}
 
 	minTipCap, err := eth.GweiToWei(1.0)
@@ -66,7 +68,7 @@ func NewKeyedBroadcaster(cfg KeyedBroadcasterOpts) (*KeyedBroadcaster, error) {
 	mgrCfg.FeeLimitMultiplier.Store(5)
 	mgrCfg.FeeLimitThreshold.Store(big.NewInt(100))
 	mgrCfg.MinTipCap.Store(minTipCap)
-	mgrCfg.MinTipCap.Store(minBaseFee)
+	mgrCfg.MinBaseFee.Store(minBaseFee)
 
 	txmLogger := log.NewLogger(log.DiscardHandler())
 	if cfg.TXManagerLogger != nil {
@@ -162,7 +164,7 @@ func (t *KeyedBroadcaster) Broadcast(ctx context.Context) ([]BroadcastResult, er
 			)
 		}
 
-		results = append(results, outRes)
+		results[i] = outRes
 	}
 	return results, txErr.ErrorOrNil()
 }

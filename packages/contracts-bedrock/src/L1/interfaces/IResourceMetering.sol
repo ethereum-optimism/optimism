@@ -21,5 +21,7 @@ interface IResourceMetering {
 
     event Initialized(uint8 version);
 
-    function params() external view returns (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum);
+    function params() external view returns (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum); // nosemgrep
+
+    function __constructor__() external;
 }

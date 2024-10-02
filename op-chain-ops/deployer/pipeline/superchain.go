@@ -7,7 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opsm"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -24,7 +24,7 @@ func DeploySuperchain(ctx context.Context, env *Env, artifactsFS foundry.StatDir
 	lgr.Info("deploying superchain")
 
 	var dump *foundry.ForgeAllocs
-	var dso opsm.DeploySuperchainOutput
+	var dso opcm.DeploySuperchainOutput
 	var err error
 	err = CallScriptBroadcast(
 		ctx,
@@ -37,10 +37,10 @@ func DeploySuperchain(ctx context.Context, env *Env, artifactsFS foundry.StatDir
 			Client:      env.L1Client,
 			Broadcaster: KeyedBroadcaster,
 			Handler: func(host *script.Host) error {
-				dso, err = opsm.DeploySuperchain(
+				dso, err = opcm.DeploySuperchain(
 					host,
-					opsm.DeploySuperchainInput{
-						ProxyAdminOwner:            intent.SuperchainRoles.ProxyAdminOwner,
+					opcm.DeploySuperchainInput{
+						SuperchainProxyAdminOwner:  intent.SuperchainRoles.ProxyAdminOwner,
 						ProtocolVersionsOwner:      intent.SuperchainRoles.ProtocolVersionsOwner,
 						Guardian:                   intent.SuperchainRoles.Guardian,
 						Paused:                     false,

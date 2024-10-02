@@ -1,8 +1,0 @@
-paused = false
-requiredProtocolVersion = 1
-recommendedProtocolVersion = 2
-
-[roles]
-proxyAdminOwner = "0x51f0348a9fA2aAbaB45E82825Fbd13d406e04497"
-protocolVersionsOwner = "0xeEB4cc05dC0dE43c465f97cfc703D165418CA93A"
-guardian = "0xE5DbA98c65F4B9EB0aeEBb3674fE64f88509a1eC"

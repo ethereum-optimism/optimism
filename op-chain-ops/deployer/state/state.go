@@ -61,11 +61,11 @@ type SuperchainDeployment struct {
 	SuperchainConfigImplAddress  common.Address       `json:"superchainConfigImplAddress"`
 	ProtocolVersionsProxyAddress common.Address       `json:"protocolVersionsProxyAddress"`
 	ProtocolVersionsImplAddress  common.Address       `json:"protocolVersionsImplAddress"`
-	StateDump                    *foundry.ForgeAllocs `json:"stateDump"`
+	StateDump                    *foundry.ForgeAllocs `json:"-"`
 }
 
 type ImplementationsDeployment struct {
-	OpsmProxyAddress                        common.Address       `json:"opsmProxyAddress"`
+	OpcmProxyAddress                        common.Address       `json:"opcmProxyAddress"`
 	DelayedWETHImplAddress                  common.Address       `json:"delayedWETHImplAddress"`
 	OptimismPortalImplAddress               common.Address       `json:"optimismPortalImplAddress"`
 	PreimageOracleSingletonAddress          common.Address       `json:"preimageOracleSingletonAddress"`
@@ -76,7 +76,7 @@ type ImplementationsDeployment struct {
 	L1StandardBridgeImplAddress             common.Address       `json:"l1StandardBridgeImplAddress"`
 	OptimismMintableERC20FactoryImplAddress common.Address       `json:"optimismMintableERC20FactoryImplAddress"`
 	DisputeGameFactoryImplAddress           common.Address       `json:"disputeGameFactoryImplAddress"`
-	StateDump                               *foundry.ForgeAllocs `json:"stateDump"`
+	StateDump                               *foundry.ForgeAllocs `json:"-"`
 }
 
 type ChainState struct {

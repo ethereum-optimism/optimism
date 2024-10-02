@@ -35,7 +35,7 @@ contract OptimismSuperchainERC20Factory is IOptimismSuperchainERC20Factory, ISem
     /// @param _name             Name of the OptimismSuperchainERC20.
     /// @param _symbol           Symbol of the OptimismSuperchainERC20.
     /// @param _decimals         Decimals of the OptimismSuperchainERC20.
-    /// @return _superchainERC20 Address of the OptimismSuperchainERC20 deployment.
+    /// @return superchainERC20_ Address of the OptimismSuperchainERC20 deployment.
     function deploy(
         address _remoteToken,
         string memory _name,
@@ -43,7 +43,7 @@ contract OptimismSuperchainERC20Factory is IOptimismSuperchainERC20Factory, ISem
         uint8 _decimals
     )
         external
-        returns (address _superchainERC20)
+        returns (address superchainERC20_)
     {
         bytes memory initCallData =
             abi.encodeCall(OptimismSuperchainERC20.initialize, (_remoteToken, _name, _symbol, _decimals));
@@ -53,10 +53,10 @@ contract OptimismSuperchainERC20Factory is IOptimismSuperchainERC20Factory, ISem
         );
 
         bytes32 salt = keccak256(abi.encode(_remoteToken, _name, _symbol, _decimals));
-        _superchainERC20 = CREATE3.deploy({ salt: salt, creationCode: creationCode, value: 0 });
+        superchainERC20_ = CREATE3.deploy({ salt: salt, creationCode: creationCode, value: 0 });
 
-        deployments[_superchainERC20] = _remoteToken;
+        deployments[superchainERC20_] = _remoteToken;
 
-        emit OptimismSuperchainERC20Created(_superchainERC20, _remoteToken, msg.sender);
+        emit OptimismSuperchainERC20Created(superchainERC20_, _remoteToken, msg.sender);
     }
 }

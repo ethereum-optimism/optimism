@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 // Contracts
 import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
-import { L1BlockIsthmus, ConfigType } from "src/L2/L1BlockIsthmus.sol";
+import { L1BlockInterop, ConfigType } from "src/L2/L1BlockInterop.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -23,9 +23,9 @@ contract OptimismPortalInterop is OptimismPortal2 {
         OptimismPortal2(_proofMaturityDelaySeconds, _disputeGameFinalityDelaySeconds)
     { }
 
-    /// @custom:semver +interop
+    /// @custom:semver +interop-beta.1
     function version() public pure override returns (string memory) {
-        return string.concat(super.version(), "+interop");
+        return string.concat(super.version(), "+interop-beta.1");
     }
 
     /// @notice Sets static configuration options for the L2 system.
@@ -48,7 +48,7 @@ contract OptimismPortalInterop is OptimismPortal2 {
                 uint256(0), // value
                 uint64(SYSTEM_DEPOSIT_GAS_LIMIT), // gasLimit
                 false, // isCreation,
-                abi.encodeCall(L1BlockIsthmus.setConfig, (_type, _value))
+                abi.encodeCall(L1BlockInterop.setConfig, (_type, _value))
             )
         );
     }

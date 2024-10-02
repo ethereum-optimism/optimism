@@ -195,7 +195,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		require.Equal(t, l1InfoTx, []byte(attrs.Transactions[0]))
 		require.True(t, attrs.NoTxPool)
 	})
-	t.Run("new origin with deposits on post-Isthmus", func(t *testing.T) {
+	t.Run("new origin with deposits on post-Interop", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
 		l1Fetcher := &testutils.MockL1Source{}
 		defer l1Fetcher.AssertExpectations(t)
@@ -247,7 +247,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		require.True(t, attrs.NoTxPool)
 	})
 
-	t.Run("same origin without deposits on post-Isthmus", func(t *testing.T) {
+	t.Run("same origin without deposits on post-Interop", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
 		l1Fetcher := &testutils.MockL1Source{}
 		defer l1Fetcher.AssertExpectations(t)

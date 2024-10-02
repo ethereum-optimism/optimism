@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Warn users of Mac OSX who have not ever upgraded bash from the default that they may experience
+# performance issues.
+if [ "${BASH_VERSINFO[0]}" -lt 5 ]; then
+    echo "WARNING: your bash installation is very old, and may cause this script to run extremely slowly. Please upgrade bash to at least version 5 if you have performance issues."
+fi
+
 # This script checks for ABI consistency between interfaces and their corresponding contracts.
 # It compares the ABIs of interfaces (files starting with 'I') with their implementation contracts,
 # excluding certain predefined files. Constructors are expected to be represented in interfaces by a
@@ -45,29 +51,32 @@ EXCLUDE_CONTRACTS=(
     "ISchemaResolver"
     "ISchemaRegistry"
 
-    # Kontrol
+    # TODO: Interfaces that need to be fixed are below this line
+    # ----------------------------------------------------------
+
+    # Inlined interface, needs to be replaced.
+    "IInitializable"
+
+    # Missing various functions.
+    "IPreimageOracle"
+    "ILegacyMintableERC20"
+    "IOptimismMintableERC20"
+    "IOptimismMintableERC721"
+    "IOptimismSuperchainERC20"
+
+    # Doesn't start with "I"
+    "MintableAndBurnable"
     "KontrolCheatsBase"
 
-    # TODO: Interfaces that need to be fixed
-    "IOptimismSuperchainERC20"
-    "IOptimismMintableERC721"
-    "IOptimismMintableERC20"
-    "ILegacyMintableERC20"
-    "IInitializable"
-    "IPreimageOracle"
-    "ICrossL2Inbox"
-    "IL2ToL2CrossDomainMessenger"
-    "MintableAndBurnable"
+    # Currently inherit from interface, needs to be fixed.
     "IWETH"
     "IDelayedWETH"
-    "IResolvedDelegateProxy"
+    "IL2ToL2CrossDomainMessenger"
+    "ICrossL2Inbox"
+    "ISystemConfigInterop"
 
-    # TODO: Kontrol interfaces that need to be removed
-    "IL1ERC721Bridge"
-    "IL1StandardBridge"
-    "IL1CrossDomainMessenger"
-    "ISuperchainConfig"
-    "IOptimismPortal"
+    # Solidity complains about receive but contract doens't have it.
+    "IResolvedDelegateProxy"
 )
 
 # Find all JSON files in the forge-artifacts folder
@@ -207,6 +216,29 @@ for interface_file in $JSON_FILES; do
     # Normalize the ABIs
     normalized_interface_abi=$(normalize_abi "$interface_abi")
     normalized_contract_abi=$(normalize_abi "$contract_abi")
+
+    # Check if the contract ABI has no constructor but the interface is missing __constructor__
+    contract_has_constructor=$(echo "$normalized_contract_abi" | jq 'any(.[]; .type == "constructor")')
+    interface_has_default_pseudo_constructor=$(echo "$normalized_interface_abi" | jq 'any(.[]; .type == "constructor" and .inputs == [])')
+
+    # If any contract has no constructor and its corresponding interface also does not have one, flag it as a detected issue
+    if [ "$contract_has_constructor" = false ] && [ "$interface_has_default_pseudo_constructor" = false ]; then
+        if ! grep -q "^$contract_name$" "$REPORTED_INTERFACES_FILE"; then
+            echo "$contract_name" >> "$REPORTED_INTERFACES_FILE"
+            if ! is_excluded "$contract_name"; then
+                echo "Issue found in ABI for interface $contract_name from file $interface_file."
+                echo "Interface $contract_name must have a function named '__constructor__' as the corresponding contract has no constructor in its ABI."
+                issues_detected=true
+            fi
+        fi
+        continue
+    fi
+
+    # removes the pseudo constructor json entry from the interface files where the corresponding contract file has no constructor
+    # this is to ensure it is not flagged as a diff in the next step below
+    if [ "$contract_has_constructor" = false ] && [ "$interface_has_default_pseudo_constructor" ]; then
+      normalized_interface_abi=$(echo "$normalized_interface_abi" | jq 'map(select(.type != "constructor"))')
+    fi
 
     # Use jq to compare the ABIs
     if ! diff_result=$(diff -u <(echo "$normalized_interface_abi" | jq 'sort') <(echo "$normalized_contract_abi" | jq 'sort')); then

@@ -11,6 +11,8 @@ import http.client
 from multiprocessing import Process, Queue
 import concurrent.futures
 from collections import namedtuple
+# This import is necessary for devnet logs to be shown.
+from . import log_setup
 
 
 pjoin = os.path.join

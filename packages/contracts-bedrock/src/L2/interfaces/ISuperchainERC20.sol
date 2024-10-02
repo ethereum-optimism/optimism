@@ -37,4 +37,6 @@ interface ISuperchainERC20Extension is ISuperchainERC20Errors {
 
 /// @title ISuperchainERC20
 /// @notice Combines Solady's ERC20 interface with the SuperchainERC20Extension interface.
-interface ISuperchainERC20 is IERC20Solady, ISuperchainERC20Extension { }
+interface ISuperchainERC20 is IERC20Solady, ISuperchainERC20Extension {
+    function __constructor__() external;
+}
