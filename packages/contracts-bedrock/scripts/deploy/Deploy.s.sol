@@ -435,7 +435,7 @@ contract Deploy is Deployer {
         Types.ContractSet memory contracts = _implsUnstrict();
         ChainAssertions.checkL1CrossDomainMessenger({ _contracts: contracts, _vm: vm, _isProxy: false });
         ChainAssertions.checkOptimismPortal2({ _contracts: contracts, _cfg: cfg, _isProxy: false });
-
+        ChainAssertions.checkOptimismMintableERC20Factory({ _contracts: contracts, _isProxy: false });
     }
 
     /// @notice Initialize all of the proxies in an OP Chain by upgrading to the correct proxy and calling the
@@ -701,27 +701,6 @@ contract Deploy is Deployer {
         });
 
         addr_ = address(oracle);
-    }
-
-    /// @notice Deploy the OptimismMintableERC20Factory
-    function deployOptimismMintableERC20Factory() public broadcast returns (address addr_) {
-        IOptimismMintableERC20Factory factory = IOptimismMintableERC20Factory(
-            DeployUtils.create2AndSave({
-                _save: this,
-                _salt: _implSalt(),
-                _name: "OptimismMintableERC20Factory",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IOptimismMintableERC20Factory.__constructor__, ()))
-            })
-        );
-
-        // Override the `OptimismMintableERC20Factory` contract to the deployed implementation. This is necessary
-        // to check the `OptimismMintableERC20Factory` implementation alongside dependent contracts, which
-        // are always proxies.
-        Types.ContractSet memory contracts = _proxiesUnstrict();
-        contracts.OptimismMintableERC20Factory = address(factory);
-        ChainAssertions.checkOptimismMintableERC20Factory({ _contracts: contracts, _isProxy: false });
-
-        addr_ = address(factory);
     }
 
     /// @notice Deploy the DisputeGameFactory
