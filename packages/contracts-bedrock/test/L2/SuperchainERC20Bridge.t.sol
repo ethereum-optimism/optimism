@@ -49,6 +49,16 @@ contract SuperchainERC20BridgeTest is Bridge_Initializer {
         vm.expectCall(_receiver, _calldata);
     }
 
+    /// @notice Tests the `sendERC20` function reverts when the address `_to` is zero.
+    function testFuzz_sendERC20_zeroAddressTo_reverts(address _sender, uint256 _amount, uint256 _chainId) public {
+        // Expect the revert with `ZeroAddress` selector
+        vm.expectRevert(ISuperchainERC20Bridge.ZeroAddress.selector);
+
+        // Call the `sendERC20` function with the zero address as `_to`
+        vm.prank(_sender);
+        superchainERC20Bridge.sendERC20(address(superchainERC20), ZERO_ADDRESS, _amount, _chainId);
+    }
+
     /// @notice Tests the `sendERC20` function burns the sender tokens, sends the message, and emits the `SendERC20`
     /// event.
     function testFuzz_sendERC20_succeeds(address _sender, address _to, uint256 _amount, uint256 _chainId) external {

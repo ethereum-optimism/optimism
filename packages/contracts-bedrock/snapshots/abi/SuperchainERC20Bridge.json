@@ -151,5 +151,10 @@
     "inputs": [],
     "name": "InvalidCrossDomainSender",
     "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ZeroAddress",
+    "type": "error"
   }
 ]

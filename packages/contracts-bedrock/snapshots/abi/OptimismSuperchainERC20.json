@@ -488,7 +488,7 @@
         "type": "uint256"
       }
     ],
-    "name": "SuperchainBurn",
+    "name": "SuperchainBurnt",
     "type": "event"
   },
   {
@@ -507,7 +507,7 @@
         "type": "uint256"
       }
     ],
-    "name": "SuperchainMint",
+    "name": "SuperchainMinted",
     "type": "event"
   },
   {

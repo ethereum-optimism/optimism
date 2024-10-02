@@ -7,9 +7,6 @@ import { IERC20Solady } from "src/vendor/interfaces/IERC20Solady.sol";
 /// @title ISuperchainERC20Errors
 /// @notice Interface containing the errors added in the SuperchainERC20 implementation.
 interface ISuperchainERC20Errors {
-    /// @notice Thrown when attempting to perform an operation and the account is the zero address.
-    error ZeroAddress();
-
     /// @notice Thrown when attempting to mint or burn tokens and the function caller is not the SuperchainERC20Bridge.
     error OnlySuperchainERC20Bridge();
 }
@@ -20,12 +17,12 @@ interface ISuperchainERC20Extension is ISuperchainERC20Errors {
     /// @notice Emitted whenever tokens are minted for by the SuperchainERC20Bridge.
     /// @param account Address of the account tokens are being minted for.
     /// @param amount  Amount of tokens minted.
-    event SuperchainMint(address indexed account, uint256 amount);
+    event SuperchainMinted(address indexed account, uint256 amount);
 
     /// @notice Emitted whenever tokens are burned by the SuperchainERC20Bridge.
     /// @param account Address of the account tokens are being burned from.
     /// @param amount  Amount of tokens burned.
-    event SuperchainBurn(address indexed account, uint256 amount);
+    event SuperchainBurnt(address indexed account, uint256 amount);
 
     /// @notice Allows the SuperchainERC20Bridge to mint tokens.
     /// @param _to     Address to mint tokens to.

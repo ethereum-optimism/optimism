@@ -62,16 +62,6 @@ contract SuperchainERC20Test is Test {
         superchainERC20.__superchainMint(_to, _amount);
     }
 
-    /// @notice Tests the `mint` function reverts when the amount is zero.
-    function testFuzz___superchainMint_zeroAddressTo_reverts(uint256 _amount) public {
-        // Expect the revert with `ZeroAddress` selector
-        vm.expectRevert(ISuperchainERC20Errors.ZeroAddress.selector);
-
-        // Call the `mint` function with the zero address
-        vm.prank(SUPERCHAIN_ERC20_BRIDGE);
-        superchainERC20.__superchainMint({ _to: ZERO_ADDRESS, _amount: _amount });
-    }
-
     /// @notice Tests the `mint` succeeds and emits the `Mint` event.
     function testFuzz___superchainMint_succeeds(address _to, uint256 _amount) public {
         // Ensure `_to` is not the zero address
@@ -85,9 +75,9 @@ contract SuperchainERC20Test is Test {
         vm.expectEmit(address(superchainERC20));
         emit IERC20.Transfer(ZERO_ADDRESS, _to, _amount);
 
-        // Look for the emit of the `SuperchainMint` event
+        // Look for the emit of the `SuperchainMinted` event
         vm.expectEmit(address(superchainERC20));
-        emit ISuperchainERC20Extension.SuperchainMint(_to, _amount);
+        emit ISuperchainERC20Extension.SuperchainMinted(_to, _amount);
 
         // Call the `mint` function with the bridge caller
         vm.prank(SUPERCHAIN_ERC20_BRIDGE);
@@ -117,17 +107,7 @@ contract SuperchainERC20Test is Test {
         superchainERC20.__superchainBurn(_from, _amount);
     }
 
-    /// @notice Tests the `burn` function reverts when the amount is zero.
-    function testFuzz___superchainBurn_zeroAddressFrom_reverts(uint256 _amount) public {
-        // Expect the revert with `ZeroAddress` selector
-        vm.expectRevert(ISuperchainERC20Errors.ZeroAddress.selector);
-
-        // Call the `burn` function with the zero address
-        vm.prank(SUPERCHAIN_ERC20_BRIDGE);
-        superchainERC20.__superchainBurn({ _from: ZERO_ADDRESS, _amount: _amount });
-    }
-
-    /// @notice Tests the `burn` burns the amount and emits the `Burn` event.
+    /// @notice Tests the `burn` burns the amount and emits the `SuperchainBurnt` event.
     function testFuzz___superchainBurn_succeeds(address _from, uint256 _amount) public {
         // Ensure `_from` is not the zero address
         vm.assume(_from != ZERO_ADDRESS);
@@ -144,9 +124,9 @@ contract SuperchainERC20Test is Test {
         vm.expectEmit(address(superchainERC20));
         emit IERC20.Transfer(_from, ZERO_ADDRESS, _amount);
 
-        // Look for the emit of the `Burn` event
+        // Look for the emit of the `SuperchainBurnt` event
         vm.expectEmit(address(superchainERC20));
-        emit ISuperchainERC20Extension.SuperchainBurn(_from, _amount);
+        emit ISuperchainERC20Extension.SuperchainBurnt(_from, _amount);
 
         // Call the `burn` function with the bridge caller
         vm.prank(SUPERCHAIN_ERC20_BRIDGE);

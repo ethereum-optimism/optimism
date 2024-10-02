@@ -20,7 +20,6 @@ import {
     IOptimismSuperchainERC20Extension,
     IOptimismSuperchainERC20Errors
 } from "src/L2/interfaces/IOptimismSuperchainERC20.sol";
-import { ISuperchainERC20Errors } from "src/L2/interfaces/ISuperchainERC20.sol";
 
 /// @title OptimismSuperchainERC20Test
 /// @notice Contract for testing the OptimismSuperchainERC20 contract.
@@ -133,7 +132,7 @@ contract OptimismSuperchainERC20Test is Test {
     /// @notice Tests the `mint` function reverts when the amount is zero.
     function testFuzz_mint_zeroAddressTo_reverts(uint256 _amount) public {
         // Expect the revert with `ZeroAddress` selector
-        vm.expectRevert(ISuperchainERC20Errors.ZeroAddress.selector);
+        vm.expectRevert(IOptimismSuperchainERC20Errors.ZeroAddress.selector);
 
         // Call the `mint` function with the zero address
         vm.prank(L2_BRIDGE);
@@ -182,7 +181,7 @@ contract OptimismSuperchainERC20Test is Test {
     /// @notice Tests the `burn` function reverts when the amount is zero.
     function testFuzz_burn_zeroAddressFrom_reverts(uint256 _amount) public {
         // Expect the revert with `ZeroAddress` selector
-        vm.expectRevert(ISuperchainERC20Errors.ZeroAddress.selector);
+        vm.expectRevert(IOptimismSuperchainERC20Errors.ZeroAddress.selector);
 
         // Call the `burn` function with the zero address
         vm.prank(L2_BRIDGE);

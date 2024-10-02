@@ -27,21 +27,17 @@ abstract contract SuperchainERC20 is ERC20, ISuperchainERC20Extension, ISemver {
     /// @param _to     Address to mint tokens to.
     /// @param _amount Amount of tokens to mint.
     function __superchainMint(address _to, uint256 _amount) external virtual onlySuperchainERC20Bridge {
-        if (_to == address(0)) revert ZeroAddress();
-
         _mint(_to, _amount);
 
-        emit SuperchainMint(_to, _amount);
+        emit SuperchainMinted(_to, _amount);
     }
 
     /// @notice Allows the SuperchainERC20Bridge to burn tokens.
     /// @param _from   Address to burn tokens from.
     /// @param _amount Amount of tokens to burn.
     function __superchainBurn(address _from, uint256 _amount) external virtual onlySuperchainERC20Bridge {
-        if (_from == address(0)) revert ZeroAddress();
-
         _burn(_from, _amount);
 
-        emit SuperchainBurn(_from, _amount);
+        emit SuperchainBurnt(_from, _amount);
     }
 }

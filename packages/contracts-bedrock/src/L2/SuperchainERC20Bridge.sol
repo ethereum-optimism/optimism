@@ -29,6 +29,8 @@ contract SuperchainERC20Bridge is ISuperchainERC20Bridge {
     /// @param _amount  Amount of tokens to send.
     /// @param _chainId Chain ID of the destination chain.
     function sendERC20(address _token, address _to, uint256 _amount, uint256 _chainId) external {
+        if (_to == address(0)) revert ZeroAddress();
+
         ISuperchainERC20(_token).__superchainBurn(msg.sender, _amount);
 
         bytes memory message = abi.encodeCall(this.relayERC20, (_token, msg.sender, _to, _amount));

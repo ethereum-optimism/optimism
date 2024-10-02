@@ -8,6 +8,9 @@ import { IERC20Solady } from "src/vendor/interfaces/IERC20Solady.sol";
 /// @title IOptimismSuperchainERC20Errors
 /// @notice Interface containing the errors added in the OptimismSuperchainERC20 implementation.
 interface IOptimismSuperchainERC20Errors {
+    /// @notice Thrown when attempting to perform an operation and the account is the zero address.
+    error ZeroAddress();
+
     /// @notice Thrown when attempting to mint or burn tokens and the function caller is not the L2StandardBridge
     error OnlyL2StandardBridge();
 }
