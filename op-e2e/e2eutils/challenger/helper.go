@@ -12,7 +12,6 @@ import (
 	"time"
 
 	e2econfig "github.com/ethereum-optimism/optimism/op-e2e/config"
-
 	"github.com/ethereum-optimism/optimism/op-service/crypto"
 
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -39,6 +38,11 @@ type EndpointProvider interface {
 	L1BeaconEndpoint() endpoint.RestHTTP
 }
 
+type System interface {
+	RollupCfg() *rollup.Config
+	L2Genesis() *core.Genesis
+	AllocType() e2econfig.AllocType
+}
 type Helper struct {
 	log     log.Logger
 	t       *testing.T
@@ -142,17 +146,17 @@ func applyCannonConfig(c *config.Config, t *testing.T, rollupCfg *rollup.Config,
 	c.Cannon.RollupConfigPath = rollupFile
 }
 
-func WithCannon(t *testing.T, rollupCfg *rollup.Config, l2Genesis *core.Genesis, allocType e2econfig.AllocType) Option {
+func WithCannon(t *testing.T, system System) Option {
 	return func(c *config.Config) {
 		c.TraceTypes = append(c.TraceTypes, types.TraceTypeCannon)
-		applyCannonConfig(c, t, rollupCfg, l2Genesis, allocType)
+		applyCannonConfig(c, t, system.RollupCfg(), system.L2Genesis(), system.AllocType())
 	}
 }
 
-func WithPermissioned(t *testing.T, rollupCfg *rollup.Config, l2Genesis *core.Genesis, allocType e2econfig.AllocType) Option {
+func WithPermissioned(t *testing.T, system System) Option {
 	return func(c *config.Config) {
 		c.TraceTypes = append(c.TraceTypes, types.TraceTypePermissioned)
-		applyCannonConfig(c, t, rollupCfg, l2Genesis, allocType)
+		applyCannonConfig(c, t, system.RollupCfg(), system.L2Genesis(), system.AllocType())
 	}
 }
 

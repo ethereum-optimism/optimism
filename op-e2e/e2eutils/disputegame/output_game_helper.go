@@ -42,7 +42,6 @@ type OutputGameHelper struct {
 	Addr                  common.Address
 	CorrectOutputProvider *outputs.OutputTraceProvider
 	System                DisputeSystem
-	AllocType             config.AllocType
 }
 
 func NewOutputGameHelper(t *testing.T, require *require.Assertions, client *ethclient.Client, opts *bind.TransactOpts, privKey *ecdsa.PrivateKey,
@@ -58,7 +57,6 @@ func NewOutputGameHelper(t *testing.T, require *require.Assertions, client *ethc
 		Addr:                  addr,
 		CorrectOutputProvider: correctOutputProvider,
 		System:                system,
-		AllocType:             allocType,
 	}
 }
 
