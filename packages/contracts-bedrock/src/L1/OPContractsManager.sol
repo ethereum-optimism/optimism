@@ -593,7 +593,7 @@ contract OPContractsManager is ISemver, Initializable {
         returns (bytes memory)
     {
         return abi.encode(
-            _input.disputeGameType, // Permissioned Cannon
+            _input.disputeGameType,
             _input.disputeAbsolutePrestate,
             _input.disputeMaxGameDepth,
             _input.disputeSplitDepth,

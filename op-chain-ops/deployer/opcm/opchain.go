@@ -30,16 +30,17 @@ type DeployOPChainInput struct {
 	Proposer               common.Address
 	Challenger             common.Address
 
-	BasefeeScalar           uint32
-	BlobBaseFeeScalar       uint32
-	L2ChainId               *big.Int
-	OpcmProxy               common.Address
-	SaltMixer               string
-	GasLimit                uint64
+	BasefeeScalar     uint32
+	BlobBaseFeeScalar uint32
+	L2ChainId         *big.Int
+	OpcmProxy         common.Address
+	SaltMixer         string
+	GasLimit          uint64
+
 	DisputeGameType         uint32
 	DisputeAbsolutePrestate common.Hash
-	DisputeMaxGameDepth     uint64
-	DisputeSplitDepth       uint64
+	DisputeMaxGameDepth     *big.Int
+	DisputeSplitDepth       *big.Int
 	DisputeClockExtension   uint64
 	DisputeMaxClockDuration uint64
 }
@@ -134,8 +135,8 @@ type opcmDeployInput struct {
 	GasLimit                uint64
 	DisputeGameType         uint32
 	DisputeAbsolutePrestate common.Hash
-	DisputeMaxGameDepth     uint64
-	DisputeSplitDepth       uint64
+	DisputeMaxGameDepth     *big.Int
+	DisputeSplitDepth       *big.Int
 	DisputeClockExtension   uint64
 	DisputeMaxClockDuration uint64
 }

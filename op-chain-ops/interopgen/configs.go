@@ -80,8 +80,8 @@ type L2Config struct {
 	GasLimit                uint64
 	DisputeGameType         uint32
 	DisputeAbsolutePrestate common.Hash
-	DisputeMaxGameDepth     uint64
-	DisputeSplitDepth       uint64
+	DisputeMaxGameDepth     *big.Int
+	DisputeSplitDepth       *big.Int
 	DisputeClockExtension   uint64
 	DisputeMaxClockDuration uint64
 }
