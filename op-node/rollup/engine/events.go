@@ -323,6 +323,27 @@ func (d *EngDeriver) OnEvent(ev event.Event) bool {
 			}
 		} else {
 			d.log.Info("successfully processed payload", "ref", ref, "txs", len(x.Envelope.ExecutionPayload.Transactions))
+			payload := x.Envelope.ExecutionPayload
+			if payload != nil {
+				latestBlockTimeStamp := uint64(payload.Timestamp)
+
+				currentTime := uint64(time.Now().Unix())
+
+				if latestBlockTimeStamp <= currentTime {
+					timeDiff := currentTime - latestBlockTimeStamp
+
+					if timeDiff < 2 {
+						// Node is healthy
+						d.log.Info("Node is healthy, time difference within last 2 seconds", "time_diff", timeDiff)
+					} else {
+						// Node is stale
+						d.log.Warn("Node is stale, time difference greater than 2 seconds", "time_diff", timeDiff)
+					}
+				} else {
+					d.log.Info("Cannot compute time difference, block timestamp is in the future",
+						"current_timestamp", currentTime, "block_timestamp", latestBlockTimeStamp)
+				}
+			}
 		}
 	case ForkchoiceRequestEvent:
 		d.emitter.Emit(ForkchoiceUpdateEvent{
