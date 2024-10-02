@@ -323,3 +323,62 @@ func TestApplyExistingOPCM(t *testing.T) {
 
 	validateOPChainDeployment(t, ctx, l1Client, st)
 }
+
+func TestL2BlockTimeOverride(t *testing.T) {
+	kurtosisutil.Test(t)
+
+	lgr := testlog.Logger(t, slog.LevelDebug)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	enclaveCtx := kurtosisutil.StartEnclave(t, ctx, lgr, "github.com/ethpandaops/ethereum-package", TestParams)
+
+	service, err := enclaveCtx.GetServiceContext("el-1-geth-lighthouse")
+	require.NoError(t, err)
+
+	ip := service.GetMaybePublicIPAddress()
+	ports := service.GetPublicPorts()
+	rpcURL := fmt.Sprintf("http://%s:%d", ip, ports["rpc"].GetNumber())
+	l1Client, err := ethclient.Dial(rpcURL)
+	require.NoError(t, err)
+
+	depKey := new(deployerKey)
+	l1ChainID := big.NewInt(77799777)
+	dk, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
+	require.NoError(t, err)
+	pk, err := dk.Secret(depKey)
+	require.NoError(t, err)
+	signer := opcrypto.SignerFnFromBind(opcrypto.PrivateKeySignerFn(pk, l1ChainID))
+
+	id := uint256.NewInt(1)
+
+	deployerAddr, err := dk.Address(depKey)
+	require.NoError(t, err)
+
+	env := &pipeline.Env{
+		Workdir:  t.TempDir(),
+		L1Client: l1Client,
+		Signer:   signer,
+		Deployer: deployerAddr,
+		Logger:   lgr,
+	}
+
+	intent, st := makeIntent(t, l1ChainID, dk, id)
+
+	intent.GlobalDeployOverrides = map[string]interface{}{
+		"l2BlockTime": float64(3),
+	}
+
+	require.NoError(t, deployer.ApplyPipeline(
+		ctx,
+		env,
+		intent,
+		st,
+	))
+
+	cfg, err := state.CombineDeployConfig(intent, &state.ChainIntent{}, st, st.Chains[0])
+	require.NoError(t, err)
+
+	require.Equal(t, uint64(3), cfg.L2InitializationConfig.L2CoreDeployConfig.L2BlockTime, "L2 block time should be 3 seconds")
+}
