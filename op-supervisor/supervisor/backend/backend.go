@@ -231,7 +231,7 @@ func (su *SupervisorBackend) DerivedFrom(
 	ctx context.Context,
 	chainID types.ChainID,
 	blockHash common.Hash,
-	blockNumber uint64) (eth.L1BlockRef, error) {
+	blockNumber uint64) (eth.BlockRef, error) {
 	// TODO
-	return eth.L1BlockRef{}, nil
+	return eth.BlockRef{}, nil
 }
