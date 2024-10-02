@@ -266,7 +266,7 @@ contract Deploy is Deployer {
         // The OptimismPortalProxy contract is used both with and without Fault Proofs enabled, and is deployed by
         // deployOPChain. So we only need to deploy the legacy OptimismPortal implementation and initialize with it
         // when Fault Proofs are disabled.
-        if(!cfg.useFaultProofs()) {
+        if (!cfg.useFaultProofs()) {
             deployOptimismPortal();
             initializeOptimismPortal();
         }
