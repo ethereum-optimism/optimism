@@ -17,5 +17,5 @@ make cannon-prestate chain=<chain-name>
 _Description_: Deploys a fully fresh FPAC system to the passed chain. All args after the `args=` are forwarded to `forge script`.
 
 ```sh
-make deploy-fresh chain=<chain-name> proxy-admin=<chain-proxy-admin-addr> system-owner-safe=<chain-safe-addr> [args=<forge-script-args>]
+make deploy-fresh chain=<chain-name> proxy-admin=<chain-proxy-admin-addr> final-system-owner=<chain-safe-addr> [args=<forge-script-args>]
 ```

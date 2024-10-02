@@ -5,14 +5,12 @@ pragma solidity 0.8.15;
 import { StdAssertions } from "forge-std/StdAssertions.sol";
 import "scripts/deploy/Deploy.s.sol";
 
-// Contracts
-import { Proxy } from "src/universal/Proxy.sol";
-
 // Libraries
 import "src/dispute/lib/Types.sol";
 
 // Interfaces
-import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
+import { IProxy } from "src/universal/interfaces/IProxy.sol";
+import { IMIPS } from "src/cannon/interfaces/IMIPS.sol";
 import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistry.sol";
 import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
@@ -32,13 +30,13 @@ contract FPACOPS2 is Deploy, StdAssertions {
     ///         AnchorStateRegistry. Does not deploy a new DisputeGameFactory. System
     ///         Owner is responsible for updating implementations later.
     /// @param _proxyAdmin Address of the ProxyAdmin contract to transfer ownership to.
-    /// @param _systemOwnerSafe Address of the SystemOwner.
+    /// @param _finalSystemOwner Address of the SystemOwner.
     /// @param _superchainConfigProxy Address of the SuperchainConfig proxy contract.
     /// @param _disputeGameFactoryProxy Address of the DisputeGameFactory proxy contract.
     /// @param _anchorStateRegistryProxy Address of the AnchorStateRegistry proxy contract.
     function deployFPAC2(
         address _proxyAdmin,
-        address _systemOwnerSafe,
+        address _finalSystemOwner,
         address _superchainConfigProxy,
         address _disputeGameFactoryProxy,
         address _anchorStateRegistryProxy
@@ -49,7 +47,7 @@ contract FPACOPS2 is Deploy, StdAssertions {
 
         // Prank required deployments.
         prankDeployment("ProxyAdmin", msg.sender);
-        prankDeployment("SystemOwnerSafe", msg.sender);
+        prankDeployment("FinalSystemOwner", msg.sender);
         prankDeployment("SuperchainConfigProxy", _superchainConfigProxy);
         prankDeployment("DisputeGameFactoryProxy", _disputeGameFactoryProxy);
         prankDeployment("AnchorStateRegistryProxy", _anchorStateRegistryProxy);
@@ -73,11 +71,11 @@ contract FPACOPS2 is Deploy, StdAssertions {
         deployPermissionedDisputeGame();
 
         // Transfer ownership of DelayedWETH to ProxyAdmin.
-        transferWethOwnershipFinal({ _proxyAdmin: _proxyAdmin, _systemOwnerSafe: _systemOwnerSafe });
-        transferPermissionedWETHOwnershipFinal({ _proxyAdmin: _proxyAdmin, _systemOwnerSafe: _systemOwnerSafe });
+        transferWethOwnershipFinal({ _proxyAdmin: _proxyAdmin, _finalSystemOwner: _finalSystemOwner });
+        transferPermissionedWETHOwnershipFinal({ _proxyAdmin: _proxyAdmin, _finalSystemOwner: _finalSystemOwner });
 
         // Run post-deployment assertions.
-        postDeployAssertions({ _proxyAdmin: _proxyAdmin, _systemOwnerSafe: _systemOwnerSafe });
+        postDeployAssertions({ _proxyAdmin: _proxyAdmin, _finalSystemOwner: _finalSystemOwner });
 
         // Print overview.
         printConfigReview();
@@ -91,12 +89,14 @@ contract FPACOPS2 is Deploy, StdAssertions {
     function deployCannonDisputeGame() internal broadcast {
         console.log("Deploying CannonFaultDisputeGame implementation");
 
-        save(
-            "CannonFaultDisputeGame",
-            address(
-                _deploy(
-                    "FaultDisputeGame",
-                    abi.encode(
+        DeployUtils.create2AndSave({
+            _save: this,
+            _name: "FaultDisputeGame",
+            _nick: "CannonFaultDisputeGame",
+            _args: DeployUtils.encodeConstructor(
+                abi.encodeCall(
+                    IFaultDisputeGame.__constructor__,
+                    (
                         GameTypes.CANNON,
                         loadMipsAbsolutePrestate(),
                         cfg.faultGameMaxDepth(),
@@ -109,20 +109,22 @@ contract FPACOPS2 is Deploy, StdAssertions {
                         cfg.l2ChainID()
                     )
                 )
-            )
-        );
+            ),
+            _salt: _implSalt()
+        });
     }
 
     /// @notice Deploys the PermissionedDisputeGame.
     function deployPermissionedDisputeGame() internal broadcast {
         console.log("Deploying PermissionedDisputeGame implementation");
 
-        save(
-            "PermissionedDisputeGame",
-            address(
-                _deploy(
-                    "PermissionedDisputeGame",
-                    abi.encode(
+        DeployUtils.create2AndSave({
+            _save: this,
+            _name: "PermissionedDisputeGame",
+            _args: DeployUtils.encodeConstructor(
+                abi.encodeCall(
+                    IPermissionedDisputeGame.__constructor__,
+                    (
                         GameTypes.PERMISSIONED_CANNON,
                         loadMipsAbsolutePrestate(),
                         cfg.faultGameMaxDepth(),
@@ -137,8 +139,9 @@ contract FPACOPS2 is Deploy, StdAssertions {
                         cfg.l2OutputOracleChallenger()
                     )
                 )
-            )
-        );
+            ),
+            _salt: _implSalt()
+        });
     }
 
     /// @notice Initializes the DelayedWETH proxy.
@@ -147,7 +150,7 @@ contract FPACOPS2 is Deploy, StdAssertions {
 
         address wethProxy = mustGetAddress("DelayedWETHProxy");
         address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
-        Proxy(payable(wethProxy)).upgradeToAndCall(
+        IProxy(payable(wethProxy)).upgradeToAndCall(
             mustGetAddress("DelayedWETH"),
             abi.encodeCall(IDelayedWETH.initialize, (msg.sender, ISuperchainConfig(superchainConfigProxy)))
         );
@@ -159,44 +162,50 @@ contract FPACOPS2 is Deploy, StdAssertions {
 
         address wethProxy = mustGetAddress("PermissionedDelayedWETHProxy");
         address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
-        Proxy(payable(wethProxy)).upgradeToAndCall(
+        IProxy(payable(wethProxy)).upgradeToAndCall(
             mustGetAddress("DelayedWETH"),
             abi.encodeCall(IDelayedWETH.initialize, (msg.sender, ISuperchainConfig(superchainConfigProxy)))
         );
     }
 
     /// @notice Transfers admin rights of the `DelayedWETHProxy` to the `ProxyAdmin` and sets the
-    ///         `DelayedWETH` owner to the `SystemOwnerSafe`.
-    function transferWethOwnershipFinal(address _proxyAdmin, address _systemOwnerSafe) internal broadcast {
+    ///         `DelayedWETH` owner to the `FinalSystemOwner`.
+    function transferWethOwnershipFinal(address _proxyAdmin, address _finalSystemOwner) internal broadcast {
         console.log("Transferring ownership of DelayedWETHProxy");
 
         IDelayedWETH weth = IDelayedWETH(mustGetAddress("DelayedWETHProxy"));
 
-        // Transfer the ownership of the DelayedWETH to the SystemOwnerSafe.
-        weth.transferOwnership(_systemOwnerSafe);
+        // Transfer the ownership of the DelayedWETH to the FinalSystemOwner.
+        weth.transferOwnership(_finalSystemOwner);
 
         // Transfer the admin rights of the DelayedWETHProxy to the ProxyAdmin.
-        Proxy prox = Proxy(payable(address(weth)));
+        IProxy prox = IProxy(payable(address(weth)));
         prox.changeAdmin(_proxyAdmin);
     }
 
     /// @notice Transfers admin rights of the permissioned `DelayedWETHProxy` to the `ProxyAdmin`
-    ///         and sets the `DelayedWETH` owner to the `SystemOwnerSafe`.
-    function transferPermissionedWETHOwnershipFinal(address _proxyAdmin, address _systemOwnerSafe) internal broadcast {
+    ///         and sets the `DelayedWETH` owner to the `FinalSystemOwner`.
+    function transferPermissionedWETHOwnershipFinal(
+        address _proxyAdmin,
+        address _finalSystemOwner
+    )
+        internal
+        broadcast
+    {
         console.log("Transferring ownership of permissioned DelayedWETHProxy");
 
         IDelayedWETH weth = IDelayedWETH(mustGetAddress("PermissionedDelayedWETHProxy"));
 
-        // Transfer the ownership of the DelayedWETH to the SystemOwnerSafe.
-        weth.transferOwnership(_systemOwnerSafe);
+        // Transfer the ownership of the DelayedWETH to the FinalSystemOwner.
+        weth.transferOwnership(_finalSystemOwner);
 
         // Transfer the admin rights of the DelayedWETHProxy to the ProxyAdmin.
-        Proxy prox = Proxy(payable(address(weth)));
+        IProxy prox = IProxy(payable(address(weth)));
         prox.changeAdmin(_proxyAdmin);
     }
 
     /// @notice Checks that the deployed system is configured correctly.
-    function postDeployAssertions(address _proxyAdmin, address _systemOwnerSafe) internal view {
+    function postDeployAssertions(address _proxyAdmin, address _finalSystemOwner) internal view {
         Types.ContractSet memory contracts = _proxiesUnstrict();
 
         // Ensure that `useFaultProofs` is set to `true`.
@@ -215,17 +224,17 @@ contract FPACOPS2 is Deploy, StdAssertions {
         assertEq(address(uint160(uint256(vm.load(soyWethProxyAddr, Constants.PROXY_OWNER_ADDRESS)))), _proxyAdmin);
 
         // Run standard assertions for DGF and DelayedWETH.
-        ChainAssertions.checkDisputeGameFactory(contracts, _systemOwnerSafe);
-        ChainAssertions.checkDelayedWETH(contracts, cfg, true, _systemOwnerSafe);
-        ChainAssertions.checkPermissionedDelayedWETH(contracts, cfg, true, _systemOwnerSafe);
+        ChainAssertions.checkDisputeGameFactory(contracts, _finalSystemOwner);
+        ChainAssertions.checkDelayedWETH(contracts, cfg, true, _finalSystemOwner);
+        ChainAssertions.checkPermissionedDelayedWETH(contracts, cfg, true, _finalSystemOwner);
 
         // Verify PreimageOracle configuration.
-        PreimageOracle oracle = PreimageOracle(mustGetAddress("PreimageOracle"));
+        IPreimageOracle oracle = IPreimageOracle(mustGetAddress("PreimageOracle"));
         assertEq(oracle.minProposalSize(), cfg.preimageOracleMinProposalSize());
         assertEq(oracle.challengePeriod(), cfg.preimageOracleChallengePeriod());
 
         // Verify MIPS configuration.
-        MIPS mips = MIPS(mustGetAddress("Mips"));
+        IMIPS mips = IMIPS(mustGetAddress("Mips"));
         assertEq(address(mips.oracle()), address(oracle));
 
         // Grab ASR

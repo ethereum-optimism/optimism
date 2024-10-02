@@ -30,28 +30,27 @@ var (
 	L1ChainIDFlag = &cli.Uint64Flag{
 		Name:    L1ChainIDFlagName,
 		Usage:   "Chain ID of the L1 chain.",
-		EnvVars: prefixEnvVar("L1_CHAIN_ID"),
+		EnvVars: PrefixEnvVar("L1_CHAIN_ID"),
 		Value:   900,
 	}
 	L2ChainIDsFlag = &cli.StringFlag{
 		Name:    L2ChainIDsFlagName,
 		Usage:   "Comma-separated list of L2 chain IDs to deploy.",
-		EnvVars: prefixEnvVar("L2_CHAIN_IDS"),
+		EnvVars: PrefixEnvVar("L2_CHAIN_IDS"),
 	}
 	WorkdirFlag = &cli.StringFlag{
 		Name:    WorkdirFlagName,
 		Usage:   "Directory storing intent and stage. Defaults to the current directory.",
-		EnvVars: prefixEnvVar("WORKDIR"),
+		EnvVars: PrefixEnvVar("WORKDIR"),
 		Value:   cwd(),
 		Aliases: []string{
 			OutdirFlagName,
 		},
 	}
-
 	PrivateKeyFlag = &cli.StringFlag{
 		Name:    PrivateKeyFlagName,
 		Usage:   "Private key of the deployer account.",
-		EnvVars: prefixEnvVar("PRIVATE_KEY"),
+		EnvVars: PrefixEnvVar("PRIVATE_KEY"),
 	}
 )
 
@@ -69,7 +68,7 @@ var ApplyFlags = []cli.Flag{
 	PrivateKeyFlag,
 }
 
-func prefixEnvVar(name string) []string {
+func PrefixEnvVar(name string) []string {
 	return op_service.PrefixEnvVar(EnvVarPrefix, name)
 }
 

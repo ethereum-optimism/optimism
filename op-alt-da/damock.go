@@ -141,7 +141,7 @@ func (s *FakeDAServer) Start() error {
 	// Override the HandleGet/Put method registrations
 	mux := http.NewServeMux()
 	mux.HandleFunc("/get/", s.HandleGet)
-	mux.HandleFunc("/put/", s.HandlePut)
+	mux.HandleFunc("/put", s.HandlePut)
 	s.httpServer.Handler = mux
 	return nil
 }

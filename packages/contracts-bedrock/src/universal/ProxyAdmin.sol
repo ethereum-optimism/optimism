@@ -1,13 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Contracts
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-import { Proxy } from "src/universal/Proxy.sol";
-import { AddressManager } from "src/legacy/AddressManager.sol";
-import { L1ChugSplashProxy } from "src/legacy/L1ChugSplashProxy.sol";
+
+// Libraries
 import { Constants } from "src/libraries/Constants.sol";
-import { IStaticERC1967Proxy } from "src/universal/interfaces/IStaticERC1967Proxy.sol";
+
+// Interfaces
+import { IAddressManager } from "src/legacy/interfaces/IAddressManager.sol";
+import { IL1ChugSplashProxy } from "src/legacy/interfaces/IL1ChugSplashProxy.sol";
 import { IStaticL1ChugSplashProxy } from "src/legacy/interfaces/IL1ChugSplashProxy.sol";
+import { IStaticERC1967Proxy } from "src/universal/interfaces/IStaticERC1967Proxy.sol";
+import { IProxy } from "src/universal/interfaces/IProxy.sol";
 
 /// @title ProxyAdmin
 /// @notice This is an auxiliary contract meant to be assigned as the admin of an ERC1967 Proxy,
@@ -34,7 +39,7 @@ contract ProxyAdmin is Ownable {
 
     /// @notice The address of the address manager, this is required to manage the
     ///         ResolvedDelegateProxy type.
-    AddressManager public addressManager;
+    IAddressManager public addressManager;
 
     /// @notice A legacy upgrading indicator used by the old Chugsplash Proxy.
     bool internal upgrading;
@@ -63,7 +68,7 @@ contract ProxyAdmin is Ownable {
     /// @notice Set the address of the AddressManager. This is required to manage legacy
     ///         ResolvedDelegateProxy type proxy contracts.
     /// @param _address Address of the AddressManager.
-    function setAddressManager(AddressManager _address) external onlyOwner {
+    function setAddressManager(IAddressManager _address) external onlyOwner {
         addressManager = _address;
     }
 
@@ -131,9 +136,9 @@ contract ProxyAdmin is Ownable {
     function changeProxyAdmin(address payable _proxy, address _newAdmin) external onlyOwner {
         ProxyType ptype = proxyType[_proxy];
         if (ptype == ProxyType.ERC1967) {
-            Proxy(_proxy).changeAdmin(_newAdmin);
+            IProxy(_proxy).changeAdmin(_newAdmin);
         } else if (ptype == ProxyType.CHUGSPLASH) {
-            L1ChugSplashProxy(_proxy).setOwner(_newAdmin);
+            IL1ChugSplashProxy(_proxy).setOwner(_newAdmin);
         } else if (ptype == ProxyType.RESOLVED) {
             addressManager.transferOwnership(_newAdmin);
         } else {
@@ -147,9 +152,9 @@ contract ProxyAdmin is Ownable {
     function upgrade(address payable _proxy, address _implementation) public onlyOwner {
         ProxyType ptype = proxyType[_proxy];
         if (ptype == ProxyType.ERC1967) {
-            Proxy(_proxy).upgradeTo(_implementation);
+            IProxy(_proxy).upgradeTo(_implementation);
         } else if (ptype == ProxyType.CHUGSPLASH) {
-            L1ChugSplashProxy(_proxy).setStorage(
+            IL1ChugSplashProxy(_proxy).setStorage(
                 Constants.PROXY_IMPLEMENTATION_ADDRESS, bytes32(uint256(uint160(_implementation)))
             );
         } else if (ptype == ProxyType.RESOLVED) {
@@ -178,7 +183,7 @@ contract ProxyAdmin is Ownable {
     {
         ProxyType ptype = proxyType[_proxy];
         if (ptype == ProxyType.ERC1967) {
-            Proxy(_proxy).upgradeToAndCall{ value: msg.value }(_implementation, _data);
+            IProxy(_proxy).upgradeToAndCall{ value: msg.value }(_implementation, _data);
         } else {
             // reverts if proxy type is unknown
             upgrade(_proxy, _implementation);

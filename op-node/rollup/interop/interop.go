@@ -101,12 +101,13 @@ func (d *InteropDeriver) OnEvent(ev event.Event) bool {
 			break
 		}
 		switch blockSafety {
-		case types.CrossUnsafe, types.CrossSafe, types.CrossFinalized:
+		case types.CrossUnsafe, types.CrossSafe, types.Finalized:
 			// Hold off on promoting higher than cross-unsafe,
 			// this will happen once we verify it to be local-safe first.
 			d.emitter.Emit(engine.PromoteCrossUnsafeEvent{Ref: candidate})
 		}
 	case engine.LocalSafeUpdateEvent:
+		d.log.Debug("Local safe update event", "block", x.Ref.Hash, "derivedFrom", x.DerivedFrom)
 		d.derivedFrom[x.Ref.Hash] = x.DerivedFrom
 		d.emitter.Emit(engine.RequestCrossSafeEvent{})
 	case engine.CrossSafeUpdateEvent:
@@ -132,10 +133,12 @@ func (d *InteropDeriver) OnEvent(ev event.Event) bool {
 		}
 		derivedFrom, ok := d.derivedFrom[candidate.Hash]
 		if !ok {
+			d.log.Warn("Unknown block candidate source, cannot promote block safety", "block", candidate, "safety", blockSafety)
 			break
 		}
 		switch blockSafety {
 		case types.CrossSafe:
+			d.log.Info("Verified cross-safe block", "block", candidate, "derivedFrom", derivedFrom)
 			// TODO(#11673): once we have interop reorg support, we need to clean stale blocks also.
 			delete(d.derivedFrom, candidate.Hash)
 			d.emitter.Emit(engine.PromoteSafeEvent{

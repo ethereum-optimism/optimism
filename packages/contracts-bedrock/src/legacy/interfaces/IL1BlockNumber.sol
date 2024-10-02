@@ -11,4 +11,6 @@ interface IL1BlockNumber is ISemver {
     receive() external payable;
 
     function getL1BlockNumber() external view returns (uint256);
+
+    function __constructor__() external;
 }

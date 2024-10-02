@@ -268,13 +268,13 @@ library ForgeArtifacts {
 
     /// @notice Returns the function ABIs of all L1 contracts.
     function getContractFunctionAbis(
-        string memory path,
-        string[] memory pathExcludes
+        string memory _path,
+        string[] memory _pathExcludes
     )
         internal
         returns (Abi[] memory abis_)
     {
-        string[] memory contractNames = getContractNames(path, pathExcludes);
+        string[] memory contractNames = getContractNames(_path, _pathExcludes);
         abis_ = new Abi[](contractNames.length);
 
         for (uint256 i; i < contractNames.length; i++) {

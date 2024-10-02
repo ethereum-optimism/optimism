@@ -29,10 +29,10 @@ contract DelayedVetoable_Init is Test {
         delayedVetoable = IDelayedVetoable(
             address(
                 new DelayedVetoable({
-                    initiator_: initiator,
-                    vetoer_: vetoer,
-                    target_: address(target),
-                    operatingDelay_: operatingDelay
+                    _initiator: initiator,
+                    _vetoer: vetoer,
+                    _target: address(target),
+                    _operatingDelay: operatingDelay
                 })
             )
         );

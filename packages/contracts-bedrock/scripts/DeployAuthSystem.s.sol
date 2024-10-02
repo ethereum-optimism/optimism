@@ -49,8 +49,8 @@ contract DeployAuthSystemInput is CommonBase {
 contract DeployAuthSystemOutput is CommonBase {
     Safe internal _safe;
 
-    function set(bytes4 sel, address _address) public {
-        if (sel == this.safe.selector) _safe = Safe(payable(_address));
+    function set(bytes4 _sel, address _address) public {
+        if (_sel == this.safe.selector) _safe = Safe(payable(_address));
         else revert("DeployAuthSystemOutput: unknown selector");
     }
 

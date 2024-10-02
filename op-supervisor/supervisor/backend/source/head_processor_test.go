@@ -16,8 +16,9 @@ func TestHeadUpdateProcessor(t *testing.T) {
 		logger := testlog.Logger(t, log.LvlInfo)
 		processed := make([]eth.L1BlockRef, 3)
 		makeProcessor := func(idx int) HeadProcessor {
-			return HeadProcessorFn(func(_ context.Context, head eth.L1BlockRef) {
+			return HeadProcessorFn(func(_ context.Context, head eth.L1BlockRef) error {
 				processed[idx] = head
+				return nil
 			})
 		}
 		headUpdates := newHeadUpdateProcessor(logger, []HeadProcessor{makeProcessor(0), makeProcessor(1), makeProcessor(2)}, nil, nil)
@@ -30,8 +31,9 @@ func TestHeadUpdateProcessor(t *testing.T) {
 		logger := testlog.Logger(t, log.LvlInfo)
 		processed := make([]eth.L1BlockRef, 3)
 		makeProcessor := func(idx int) HeadProcessor {
-			return HeadProcessorFn(func(_ context.Context, head eth.L1BlockRef) {
+			return HeadProcessorFn(func(_ context.Context, head eth.L1BlockRef) error {
 				processed[idx] = head
+				return nil
 			})
 		}
 		headUpdates := newHeadUpdateProcessor(logger, nil, []HeadProcessor{makeProcessor(0), makeProcessor(1), makeProcessor(2)}, nil)
@@ -44,8 +46,9 @@ func TestHeadUpdateProcessor(t *testing.T) {
 		logger := testlog.Logger(t, log.LvlInfo)
 		processed := make([]eth.L1BlockRef, 3)
 		makeProcessor := func(idx int) HeadProcessor {
-			return HeadProcessorFn(func(_ context.Context, head eth.L1BlockRef) {
+			return HeadProcessorFn(func(_ context.Context, head eth.L1BlockRef) error {
 				processed[idx] = head
+				return nil
 			})
 		}
 		headUpdates := newHeadUpdateProcessor(logger, nil, nil, []HeadProcessor{makeProcessor(0), makeProcessor(1), makeProcessor(2)})

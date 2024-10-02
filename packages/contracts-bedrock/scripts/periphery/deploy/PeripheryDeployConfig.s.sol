@@ -40,8 +40,8 @@ contract PeripheryDeployConfig is Script {
 
     constructor(string memory _path) {
         console.log("PeripheryDeployConfig: reading file %s", _path);
-        try vm.readFile(_path) returns (string memory data) {
-            _json = data;
+        try vm.readFile(_path) returns (string memory data_) {
+            _json = data_;
         } catch {
             console.log("Warning: unable to read config. Do not deploy unless you are not using config.");
             return;
