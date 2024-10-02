@@ -261,7 +261,7 @@ func TestEVM_MT_SysRead_Preimage(t *testing.T) {
 				// Set up state
 				state.PreimageKey = preimageKey
 				state.PreimageOffset = c.preimageOffset
-				state.GetRegistersRef()[2] = exec.SysRead
+				state.GetRegistersRef()[2] = arch.SysRead
 				state.GetRegistersRef()[4] = exec.FdPreimageRead
 				state.GetRegistersRef()[5] = c.addr
 				state.GetRegistersRef()[6] = c.count
@@ -414,7 +414,7 @@ func TestEVM_SysClone_FlagHandling(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			state := multithreaded.CreateEmptyState()
 			state.Memory.SetMemory(state.GetPC(), syscallInsn)
-			state.GetRegistersRef()[2] = exec.SysClone // Set syscall number
+			state.GetRegistersRef()[2] = arch.SysClone // Set syscall number
 			state.GetRegistersRef()[4] = c.flags       // Set first argument
 			curStep := state.Step
 
@@ -467,7 +467,7 @@ func TestEVM_SysClone_Successful(t *testing.T) {
 			goVm, state, contracts := setup(t, i, nil)
 			mttestutil.InitializeSingleThread(i*333, state, c.traverseRight)
 			state.Memory.SetMemory(state.GetPC(), syscallInsn)
-			state.GetRegistersRef()[2] = exec.SysClone        // the syscall number
+			state.GetRegistersRef()[2] = arch.SysClone        // the syscall number
 			state.GetRegistersRef()[4] = exec.ValidCloneFlags // a0 - first argument, clone flags
 			state.GetRegistersRef()[5] = stackPtr             // a1 - the stack pointer
 			step := state.GetStep()
@@ -530,7 +530,7 @@ func TestEVM_SysGetTID(t *testing.T) {
 
 			state.GetCurrentThread().ThreadId = c.threadId
 			state.Memory.SetMemory(state.GetPC(), syscallInsn)
-			state.GetRegistersRef()[2] = exec.SysGetTID // Set syscall number
+			state.GetRegistersRef()[2] = arch.SysGetTID // Set syscall number
 			step := state.Step
 
 			// Set up post-state expectations
@@ -573,7 +573,7 @@ func TestEVM_SysExit(t *testing.T) {
 			mttestutil.SetupThreads(int64(i*1111), state, i%2 == 0, c.threadCount, 0)
 
 			state.Memory.SetMemory(state.GetPC(), syscallInsn)
-			state.GetRegistersRef()[2] = exec.SysExit   // Set syscall number
+			state.GetRegistersRef()[2] = arch.SysExit   // Set syscall number
 			state.GetRegistersRef()[4] = Word(exitCode) // The first argument (exit code)
 			step := state.Step
 
@@ -682,7 +682,7 @@ func TestEVM_SysFutex_WaitPrivate(t *testing.T) {
 
 			state.Memory.SetMemory(state.GetPC(), syscallInsn)
 			state.Memory.SetWord(c.effAddr, c.actualValue)
-			state.GetRegistersRef()[2] = exec.SysFutex // Set syscall number
+			state.GetRegistersRef()[2] = arch.SysFutex // Set syscall number
 			state.GetRegistersRef()[4] = c.addressParam
 			state.GetRegistersRef()[5] = exec.FutexWaitPrivate
 			state.GetRegistersRef()[6] = c.targetValue
@@ -752,7 +752,7 @@ func TestEVM_SysFutex_WakePrivate(t *testing.T) {
 			step := state.Step
 
 			state.Memory.SetMemory(state.GetPC(), syscallInsn)
-			state.GetRegistersRef()[2] = exec.SysFutex // Set syscall number
+			state.GetRegistersRef()[2] = arch.SysFutex // Set syscall number
 			state.GetRegistersRef()[4] = c.addressParam
 			state.GetRegistersRef()[5] = exec.FutexWakePrivate
 
@@ -837,7 +837,7 @@ func TestEVM_SysFutex_UnsupportedOp(t *testing.T) {
 			step := state.GetStep()
 
 			state.Memory.SetMemory(state.GetPC(), syscallInsn)
-			state.GetRegistersRef()[2] = exec.SysFutex // Set syscall number
+			state.GetRegistersRef()[2] = arch.SysFutex // Set syscall number
 			state.GetRegistersRef()[5] = op
 
 			// Setup expectations
@@ -863,11 +863,11 @@ func TestEVM_SysFutex_UnsupportedOp(t *testing.T) {
 }
 
 func TestEVM_SysYield(t *testing.T) {
-	runPreemptSyscall(t, "SysSchedYield", exec.SysSchedYield)
+	runPreemptSyscall(t, "SysSchedYield", arch.SysSchedYield)
 }
 
 func TestEVM_SysNanosleep(t *testing.T) {
-	runPreemptSyscall(t, "SysNanosleep", exec.SysNanosleep)
+	runPreemptSyscall(t, "SysNanosleep", arch.SysNanosleep)
 }
 
 func runPreemptSyscall(t *testing.T, syscallName string, syscallNum uint32) {
@@ -922,7 +922,7 @@ func TestEVM_SysOpen(t *testing.T) {
 	goVm, state, contracts := setup(t, 5512, nil)
 
 	state.Memory.SetMemory(state.GetPC(), syscallInsn)
-	state.GetRegistersRef()[2] = exec.SysOpen // Set syscall number
+	state.GetRegistersRef()[2] = arch.SysOpen // Set syscall number
 	step := state.Step
 
 	// Set up post-state expectations
@@ -947,7 +947,7 @@ func TestEVM_SysGetPID(t *testing.T) {
 	goVm, state, contracts := setup(t, 1929, nil)
 
 	state.Memory.SetMemory(state.GetPC(), syscallInsn)
-	state.GetRegistersRef()[2] = exec.SysGetpid // Set syscall number
+	state.GetRegistersRef()[2] = arch.SysGetpid // Set syscall number
 	step := state.Step
 
 	// Set up post-state expectations
@@ -1030,7 +1030,7 @@ func testEVM_SysClockGettime(t *testing.T, clkid Word) {
 				}
 
 				state.Memory.SetMemory(state.GetPC(), syscallInsn)
-				state.GetRegistersRef()[2] = exec.SysClockGetTime // Set syscall number
+				state.GetRegistersRef()[2] = arch.SysClockGetTime // Set syscall number
 				state.GetRegistersRef()[4] = clkid                // a0
 				state.GetRegistersRef()[5] = c.timespecAddr       // a1
 				state.LLReservationActive = v.llReservationActive
@@ -1074,7 +1074,7 @@ func TestEVM_SysClockGettimeNonMonotonic(t *testing.T) {
 
 	timespecAddr := Word(0x1000)
 	state.Memory.SetMemory(state.GetPC(), syscallInsn)
-	state.GetRegistersRef()[2] = exec.SysClockGetTime // Set syscall number
+	state.GetRegistersRef()[2] = arch.SysClockGetTime // Set syscall number
 	state.GetRegistersRef()[4] = 0xDEAD               // a0 - invalid clockid
 	state.GetRegistersRef()[5] = timespecAddr         // a1
 	step := state.Step
@@ -1103,6 +1103,7 @@ var NoopSyscalls = map[string]uint32{
 	"SysPrlimit64":     4338,
 	"SysClose":         4006,
 	"SysPread64":       4200,
+	"SysFstat":         4108,
 	"SysFstat64":       4215,
 	"SysOpenAt":        4288,
 	"SysReadlink":      4085,
@@ -1162,7 +1163,7 @@ func TestEVM_UnsupportedSyscall(t *testing.T) {
 	var tracer *tracing.Hooks
 
 	var NoopSyscallNums = maps.Values(NoopSyscalls)
-	var SupportedSyscalls = []uint32{exec.SysMmap, exec.SysBrk, exec.SysClone, exec.SysExitGroup, exec.SysRead, exec.SysWrite, exec.SysFcntl, exec.SysExit, exec.SysSchedYield, exec.SysGetTID, exec.SysFutex, exec.SysOpen, exec.SysNanosleep, exec.SysClockGetTime, exec.SysGetpid}
+	var SupportedSyscalls = []uint32{arch.SysMmap, arch.SysBrk, arch.SysClone, arch.SysExitGroup, arch.SysRead, arch.SysWrite, arch.SysFcntl, arch.SysExit, arch.SysSchedYield, arch.SysGetTID, arch.SysFutex, arch.SysOpen, arch.SysNanosleep, arch.SysClockGetTime, arch.SysGetpid}
 	unsupportedSyscalls := make([]uint32, 0, 400)
 	for i := 4000; i < 4400; i++ {
 		candidate := uint32(i)
@@ -1476,7 +1477,7 @@ func TestEVM_SchedQuantumThreshold(t *testing.T) {
 			goVm, state, contracts := setup(t, i*789, nil)
 			// Setup basic getThreadId syscall instruction
 			state.Memory.SetMemory(state.GetPC(), syscallInsn)
-			state.GetRegistersRef()[2] = exec.SysGetTID // Set syscall number
+			state.GetRegistersRef()[2] = arch.SysGetTID // Set syscall number
 			state.StepsSinceLastContextSwitch = c.stepsSinceLastContextSwitch
 			step := state.Step
 

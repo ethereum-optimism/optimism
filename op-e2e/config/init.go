@@ -212,15 +212,3 @@ func initAllocType(root string, allocType AllocType) {
 	dc.SetDeployments(l1Deployments)
 	deployConfigsByType[allocType] = dc
 }
-
-func AllocTypeFromEnv() AllocType {
-	allocType := os.Getenv("OP_E2E_ALLOC_TYPE")
-	if allocType == "" {
-		return DefaultAllocType
-	}
-	out := AllocType(allocType)
-	if err := out.Check(); err != nil {
-		panic(err)
-	}
-	return out
-}

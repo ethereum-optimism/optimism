@@ -33,7 +33,7 @@ import { IL1StandardBridge } from "src/L1/interfaces/IL1StandardBridge.sol";
 import { IOptimismMintableERC20Factory } from "src/universal/interfaces/IOptimismMintableERC20Factory.sol";
 import { IProxy } from "src/universal/interfaces/IProxy.sol";
 
-import { GameType, GameTypes, Hash, OutputRoot } from "src/dispute/lib/Types.sol";
+import { Claim, Duration, GameType, GameTypes, Hash, OutputRoot } from "src/dispute/lib/Types.sol";
 
 contract DeployOPChainInput_Test is Test {
     DeployOPChainInput doi;
@@ -370,6 +370,13 @@ contract DeployOPChain_TestBase is Test {
     OPContractsManager opcm = OPContractsManager(address(0));
     string saltMixer = "defaultSaltMixer";
     uint64 gasLimit = 30_000_000;
+    // Configurable dispute game parameters.
+    uint32 disputeGameType = GameType.unwrap(GameTypes.PERMISSIONED_CANNON);
+    bytes32 disputeAbsolutePrestate = hex"038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c";
+    uint256 disputeMaxGameDepth = 73;
+    uint256 disputeSplitDepth = 30;
+    uint64 disputeClockExtension = Duration.unwrap(Duration.wrap(3 hours));
+    uint64 disputeMaxClockDuration = Duration.unwrap(Duration.wrap(3.5 days));
 
     function setUp() public virtual {
         // Set defaults for reference types
@@ -490,6 +497,12 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         doi.set(doi.opcmProxy.selector, address(opcm)); // Not fuzzed since it must be an actual instance.
         doi.set(doi.saltMixer.selector, saltMixer);
         doi.set(doi.gasLimit.selector, gasLimit);
+        doi.set(doi.disputeGameType.selector, disputeGameType);
+        doi.set(doi.disputeAbsolutePrestate.selector, disputeAbsolutePrestate);
+        doi.set(doi.disputeMaxGameDepth.selector, disputeMaxGameDepth);
+        doi.set(doi.disputeSplitDepth.selector, disputeSplitDepth);
+        doi.set(doi.disputeClockExtension.selector, disputeClockExtension);
+        doi.set(doi.disputeMaxClockDuration.selector, disputeMaxClockDuration);
 
         deployOPChain.run(doi, doo);
 
@@ -507,6 +520,12 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         assertEq(l2ChainId, doi.l2ChainId(), "900");
         assertEq(saltMixer, doi.saltMixer(), "1000");
         assertEq(gasLimit, doi.gasLimit(), "1100");
+        assertEq(disputeGameType, GameType.unwrap(doi.disputeGameType()), "1200");
+        assertEq(disputeAbsolutePrestate, Claim.unwrap(doi.disputeAbsolutePrestate()), "1300");
+        assertEq(disputeMaxGameDepth, doi.disputeMaxGameDepth(), "1400");
+        assertEq(disputeSplitDepth, doi.disputeSplitDepth(), "1500");
+        assertEq(disputeClockExtension, Duration.unwrap(doi.disputeClockExtension()), "1600");
+        assertEq(disputeMaxClockDuration, Duration.unwrap(doi.disputeMaxClockDuration()), "1700");
 
         // Assert inputs were properly passed through to the contract initializers.
         assertEq(address(doo.opChainProxyAdmin().owner()), opChainProxyAdminOwner, "2100");

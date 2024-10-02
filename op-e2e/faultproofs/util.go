@@ -50,8 +50,14 @@ func WithSequencerWindowSize(size uint64) faultDisputeConfigOpts {
 	}
 }
 
+func WithAllocType(allocType config.AllocType) faultDisputeConfigOpts {
+	return func(cfg *e2esys.SystemConfig) {
+		cfg.AllocType = allocType
+	}
+}
+
 func StartFaultDisputeSystem(t *testing.T, opts ...faultDisputeConfigOpts) (*e2esys.System, *ethclient.Client) {
-	cfg := e2esys.DefaultSystemConfig(t, e2esys.WithAllocType(config.AllocTypeFromEnv()))
+	cfg := e2esys.DefaultSystemConfig(t)
 	delete(cfg.Nodes, "verifier")
 	cfg.Nodes["sequencer"].SafeDBPath = t.TempDir()
 	cfg.DeployConfig.SequencerWindowSize = 4

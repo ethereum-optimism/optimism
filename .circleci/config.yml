@@ -917,9 +917,6 @@ jobs:
 
   go-e2e-test:
     parameters:
-      variant:
-        type: string
-        default: ''
       module:
         description: Go Module Name
         type: string
@@ -944,13 +941,6 @@ jobs:
     parallelism: <<parameters.parallelism>>
     steps:
       - checkout
-      - when:
-          condition:
-            equal: ['-mt-cannon', <<parameters.variant>>]
-          steps:
-            - run:
-                name: Set OP_E2E_ALLOC_TYPE = mt-cannon
-                command: echo 'export OP_E2E_ALLOC_TYPE=mt-cannon' >> $BASH_ENV
       - check-changed:
           patterns: op-(.+),cannon,contracts-bedrock
       - run:
@@ -988,7 +978,7 @@ jobs:
             # want it to.
             export OP_E2E_CANNON_ENABLED="false"
             # Note: We don't use circle CI test splits because we need to split by test name, not by package. There is an additional
-            # constraint that gotestsum does not currently (nor likely will) accept files from different pacakges when building.
+            # constraint that gotestsum does not currently (nor likely will) accept files from different packages when building.
             JUNIT_FILE=/tmp/test-results/<<parameters.module>>_<<parameters.target>>.xml JSON_LOG_FILE=/testlogs/test.log make <<parameters.target>>
           working_directory: <<parameters.module>>
       - store_artifacts:
@@ -1700,13 +1690,10 @@ workflows:
           context:
             - slack
       - go-e2e-test:
-          name: op-e2e-cannon-tests<< matrix.variant >>
-          matrix:
-            parameters:
-              variant: ["", "-mt-cannon"]
+          name: op-e2e-cannon-tests
           module: op-e2e
           target: test-cannon
-          parallelism: 4
+          parallelism: 8
           notify: true
           mentions: "@proofs-squad"
           requires:

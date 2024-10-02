@@ -24,7 +24,7 @@ import { IDisputeGameFactory } from "src/dispute/interfaces/IDisputeGameFactory.
 import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistry.sol";
 import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
 import { IPermissionedDisputeGame } from "src/dispute/interfaces/IPermissionedDisputeGame.sol";
-import { Claim, GameType, GameTypes, Hash, OutputRoot } from "src/dispute/lib/Types.sol";
+import { Claim, Duration, GameType, GameTypes, Hash, OutputRoot } from "src/dispute/lib/Types.sol";
 
 import { OPContractsManager } from "src/L1/OPContractsManager.sol";
 import { IOptimismPortal2 } from "src/L1/interfaces/IOptimismPortal2.sol";
@@ -50,6 +50,14 @@ contract DeployOPChainInput is BaseDeployIO {
     string internal _saltMixer;
     uint64 internal _gasLimit;
 
+    // Configurable dispute game inputs
+    GameType internal _disputeGameType;
+    Claim internal _disputeAbsolutePrestate;
+    uint256 internal _disputeMaxGameDepth;
+    uint256 internal _disputeSplitDepth;
+    Duration internal _disputeClockExtension;
+    Duration internal _disputeMaxClockDuration;
+
     function set(bytes4 _sel, address _addr) public {
         require(_addr != address(0), "DeployOPChainInput: cannot set zero address");
         if (_sel == this.opChainProxyAdminOwner.selector) _opChainProxyAdminOwner = _addr;
@@ -72,6 +80,16 @@ contract DeployOPChainInput is BaseDeployIO {
             _l2ChainId = _value;
         } else if (_sel == this.gasLimit.selector) {
             _gasLimit = SafeCast.toUint64(_value);
+        } else if (_sel == this.disputeGameType.selector) {
+            _disputeGameType = GameType.wrap(SafeCast.toUint32(_value));
+        } else if (_sel == this.disputeMaxGameDepth.selector) {
+            _disputeMaxGameDepth = SafeCast.toUint64(_value);
+        } else if (_sel == this.disputeSplitDepth.selector) {
+            _disputeSplitDepth = SafeCast.toUint64(_value);
+        } else if (_sel == this.disputeClockExtension.selector) {
+            _disputeClockExtension = Duration.wrap(SafeCast.toUint64(_value));
+        } else if (_sel == this.disputeMaxClockDuration.selector) {
+            _disputeMaxClockDuration = Duration.wrap(SafeCast.toUint64(_value));
         } else {
             revert("DeployOPChainInput: unknown selector");
         }
@@ -81,6 +99,11 @@ contract DeployOPChainInput is BaseDeployIO {
         require((bytes(_value).length != 0), "DeployImplementationsInput: cannot set empty string");
         if (_sel == this.saltMixer.selector) _saltMixer = _value;
         else revert("DeployOPChainInput: unknown selector");
+    }
+
+    function set(bytes4 _sel, bytes32 _value) public {
+        if (_sel == this.disputeAbsolutePrestate.selector) _disputeAbsolutePrestate = Claim.wrap(_value);
+        else revert("DeployImplementationsInput: unknown selector");
     }
 
     function opChainProxyAdminOwner() public view returns (address) {
@@ -162,6 +185,30 @@ contract DeployOPChainInput is BaseDeployIO {
 
     function gasLimit() public view returns (uint64) {
         return _gasLimit;
+    }
+
+    function disputeGameType() public view returns (GameType) {
+        return _disputeGameType;
+    }
+
+    function disputeAbsolutePrestate() public view returns (Claim) {
+        return _disputeAbsolutePrestate;
+    }
+
+    function disputeMaxGameDepth() public view returns (uint256) {
+        return _disputeMaxGameDepth;
+    }
+
+    function disputeSplitDepth() public view returns (uint256) {
+        return _disputeSplitDepth;
+    }
+
+    function disputeClockExtension() public view returns (Duration) {
+        return _disputeClockExtension;
+    }
+
+    function disputeMaxClockDuration() public view returns (Duration) {
+        return _disputeMaxClockDuration;
     }
 }
 
@@ -522,7 +569,13 @@ contract DeployOPChain is Script {
             l2ChainId: _doi.l2ChainId(),
             startingAnchorRoots: _doi.startingAnchorRoots(),
             saltMixer: _doi.saltMixer(),
-            gasLimit: _doi.gasLimit()
+            gasLimit: _doi.gasLimit(),
+            disputeGameType: _doi.disputeGameType(),
+            disputeAbsolutePrestate: _doi.disputeAbsolutePrestate(),
+            disputeMaxGameDepth: _doi.disputeMaxGameDepth(),
+            disputeSplitDepth: _doi.disputeSplitDepth(),
+            disputeClockExtension: _doi.disputeClockExtension(),
+            disputeMaxClockDuration: _doi.disputeMaxClockDuration()
         });
 
         vm.broadcast(msg.sender);

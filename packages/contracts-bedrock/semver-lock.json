@@ -32,8 +32,8 @@
     "sourceCodeHash": "0xde4df0f9633dc0cdb1c9f634003ea5b0f7c5c1aebc407bc1b2f44c0ecf938649"
   },
   "src/L1/OPContractsManager.sol": {
-    "initCodeHash": "0x44fa611dcacad2f61c8ca7ef970e580800b5070d10f9a2a4c04459d6cf4cd180",
-    "sourceCodeHash": "0xe66886dd90cef90525f5ba2310c9e9d2d910c81c283f9b7cbfcd57c5091473c6"
+    "initCodeHash": "0xd58cb3978affc5c1457cdd498ff8420c90aef804d4c3b62cf42ab2691986d6d2",
+    "sourceCodeHash": "0x7bfa6eff76176649fe600303cd60009a0f6e282cbaec55836b5ea1f8875cbeb5"
   },
   "src/L1/OptimismPortal.sol": {
     "initCodeHash": "0xbe2c0c81b3459014f287d8c89cdc0d27dde5d1f44e5d024fa1e4773ddc47c190",
@@ -48,8 +48,8 @@
     "sourceCodeHash": "0x6401b81f04093863557ef46192f56793daa0d412618065383ab353b2ed2929d8"
   },
   "src/L1/ProtocolVersions.sol": {
-    "initCodeHash": "0x8f033874dd8b36615b2209d553660dcff1ff91ca2bad3ca1de7b441dbfba4842",
-    "sourceCodeHash": "0x5a7e91e02224e02a5a4bbf0fea7e9bd4a1168e2fe5e787023c9a75bcb6c26204"
+    "initCodeHash": "0xf7a9ed8c772cfb1234988fd6fd195dc21615b216bb39e728e7699b875040d902",
+    "sourceCodeHash": "0x92f15d62361bffc305f0db48a5676329f8e5ed2e454f8c8ff83ef7d3667d7f01"
   },
   "src/L1/SuperchainConfig.sol": {
     "initCodeHash": "0xfca12d9016c746e5c275b186e0ca40cfd65cf45a5665aab7589a669fea3abb47",
@@ -140,12 +140,12 @@
     "sourceCodeHash": "0x2ab6be69795109a1ee04c5693a34d6ce0ff90b62e404cdeb18178bab18d06784"
   },
   "src/cannon/MIPS.sol": {
-    "initCodeHash": "0x3992081512da36af76b707aee7d8ef9e084c54fb1dc9f8ce9989ed16d1216f01",
-    "sourceCodeHash": "0x7630362c20fbca071452031b88c9384d3215c4f2cbee24c7989901de63b0c178"
+    "initCodeHash": "0xa9a9db7bedf25800f20c947df10310c64beb2ead8eb6be991c83189e975df0fe",
+    "sourceCodeHash": "0x83aabf115ac0ad407868e633a521602c41d86864d82198e6abbf69d33daaea65"
   },
   "src/cannon/MIPS2.sol": {
-    "initCodeHash": "0x590be819d8f02a7f9eb04ddc447f93ccbfd8bc9339f7c2e65336f9805b6c9a66",
-    "sourceCodeHash": "0x5bc0ab24cf926953b2ea9eb40b929821e280a7181c6cb18e7954bc3f7dc59be1"
+    "initCodeHash": "0xbb203b0d83efddfa0f664dbc63ec55844318b48fe8133758307f64e87c892a47",
+    "sourceCodeHash": "0x16614cc0e6abf7e81e1e5dc2c0773ee7101cb38af40e0907a8800ca7eddd3b5a"
   },
   "src/cannon/PreimageOracle.sol": {
     "initCodeHash": "0xa0b19e18561da9990c95ebea9750dd901f73147b32b8b234eca0f35073c5a970",

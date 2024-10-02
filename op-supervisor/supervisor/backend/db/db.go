@@ -167,7 +167,7 @@ func (db *ChainsDB) AddLog(
 
 func (db *ChainsDB) SealBlock(
 	chain types.ChainID,
-	block eth.L2BlockRef) error {
+	block eth.BlockRef) error {
 	logDB, ok := db.logDBs[chain]
 	if !ok {
 		return fmt.Errorf("%w: %v", ErrUnknownChain, chain)

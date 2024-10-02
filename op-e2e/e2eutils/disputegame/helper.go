@@ -83,6 +83,7 @@ type DisputeSystem interface {
 	L1Deployments() *genesis.L1Deployments
 	RollupCfg() *rollup.Config
 	L2Genesis() *core.Genesis
+	AllocType() config.AllocType
 
 	AdvanceTime(time.Duration)
 }
@@ -117,7 +118,7 @@ func NewFactoryHelper(t *testing.T, ctx context.Context, system DisputeSystem, o
 	chainID, err := client.ChainID(ctx)
 	require.NoError(err)
 
-	allocType := config.AllocTypeFromEnv()
+	allocType := system.AllocType()
 	require.True(allocType.UsesProofs(), "AllocType %v does not support proofs", allocType)
 
 	factoryCfg := &FactoryCfg{PrivKey: TestKey}

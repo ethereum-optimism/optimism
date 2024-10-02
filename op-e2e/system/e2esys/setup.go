@@ -404,6 +404,10 @@ func (sys *System) L2Genesis() *core.Genesis {
 	return sys.L2GenesisCfg
 }
 
+func (sys *System) AllocType() config.AllocType {
+	return sys.Cfg.AllocType
+}
+
 func (sys *System) L1Slot(l1Timestamp uint64) uint64 {
 	return (l1Timestamp - uint64(sys.Cfg.DeployConfig.L1GenesisBlockTimestamp)) /
 		sys.Cfg.DeployConfig.L1BlockTime
