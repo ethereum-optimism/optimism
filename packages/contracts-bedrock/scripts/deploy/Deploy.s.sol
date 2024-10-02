@@ -251,7 +251,7 @@ contract Deploy is Deployer {
 
         // Set up the Superchain if needed.
         if (_needsSuperchain) {
-            setupSuperchain();
+            deploySuperchain();
         }
 
         if (cfg.useInterop()) {
@@ -296,7 +296,7 @@ contract Deploy is Deployer {
     ///         The Superchain system has 2 singleton contracts which lie outside of an OP Chain:
     ///         1. The SuperchainConfig contract
     ///         2. The ProtocolVersions contract
-    function setupSuperchain() public {
+    function deploySuperchain() public {
         console.log("Setting up Superchain");
         DeploySuperchain deploySuperchain = new DeploySuperchain();
         (DeploySuperchainInput dsi, DeploySuperchainOutput dso) = deploySuperchain.etchIOContracts();
