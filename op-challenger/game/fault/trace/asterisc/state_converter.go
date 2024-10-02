@@ -1,17 +1,20 @@
 package asterisc
 
 import (
+	"bytes"
 	"context"
-	"encoding/binary"
+	"encoding/json"
 	"fmt"
-	"io"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"os/exec"
 
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
-	"github.com/ethereum-optimism/optimism/cannon/serialize"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
+	"github.com/ethereum-optimism/optimism/op-service/serialize"
 )
 
 var asteriscWitnessLen = 362
@@ -19,81 +22,11 @@ var asteriscWitnessLen = 362
 // The state struct will be read from json.
 // other fields included in json are specific to FPVM implementation, and not required for trace provider.
 type VMState struct {
-	PC        uint64      `json:"pc"`
-	Exited    bool        `json:"exited"`
-	Step      uint64      `json:"step"`
-	Witness   []byte      `json:"witness"`
-	StateHash common.Hash `json:"stateHash"`
-}
-
-// Because the binary file is provided by Asterisc with all of its fields,
-// we must keep in mind the rest of the fields that aren't used, but still serialized.
-func (s *VMState) Deserialize(in io.Reader) error {
-	bin := serialize.NewBinaryReader(in)
-
-	// Memory
-	var pageCount uint64
-	if err := binary.Read(in, binary.BigEndian, &pageCount); err != nil {
-		return err
-	}
-	for i := uint64(0); i < pageCount; i++ {
-		var pageIndex uint64
-		var page [4096]byte
-		if err := binary.Read(in, binary.BigEndian, &pageIndex); err != nil {
-			return err
-		}
-		if _, err := io.ReadFull(in, page[:]); err != nil {
-			return err
-		}
-	}
-
-	var preimageKey common.Hash
-	if err := bin.ReadHash(&preimageKey); err != nil { //PreimageKey
-		return err
-	}
-	var preimageOffset uint64
-	if err := bin.ReadUInt(&preimageOffset); err != nil { // PreimageOffset
-		return err
-	}
-	if err := bin.ReadUInt(&s.PC); err != nil {
-		return err
-	}
-	var exitCode uint8
-	if err := bin.ReadUInt(&exitCode); err != nil { // ExitCode
-		return err
-	}
-	if err := bin.ReadBool(&s.Exited); err != nil {
-		return err
-	}
-	if err := bin.ReadUInt(&s.Step); err != nil {
-		return err
-	}
-	var heap uint64
-	if err := bin.ReadUInt(&heap); err != nil { // Heap
-		return err
-	}
-	var loadReservation uint64
-	if err := bin.ReadUInt(&loadReservation); err != nil { // LoadReservation
-		return err
-	}
-	for i := 0; i < 32; i++ {
-		var register uint64
-		if err := bin.ReadUInt(&register); err != nil { // Registers
-			return err
-		}
-	}
-	var lastHint []byte
-	if err := bin.ReadBytes(&lastHint); err != nil { // LastHint
-		return err
-	}
-	if err := bin.ReadBytes(&s.Witness); err != nil {
-		return err
-	}
-	if err := bin.ReadHash(&s.StateHash); err != nil {
-		return err
-	}
-
-	return nil
+	PC        uint64        `json:"pc"`
+	Exited    bool          `json:"exited"`
+	Step      uint64        `json:"step"`
+	Witness   hexutil.Bytes `json:"witness"`
+	StateHash common.Hash   `json:"stateHash"`
 }
 
 func (state *VMState) validateStateHash() error {
@@ -140,27 +73,36 @@ func parseState(path string) (*VMState, error) {
 }
 
 type StateConverter struct {
+	vmConfig    vm.Config
+	cmdExecutor func(ctx context.Context, binary string, args ...string) (stdOut string, stdErr string, err error)
 }
 
-func NewStateConverter() *StateConverter {
-	return &StateConverter{}
+func NewStateConverter(vmConfig vm.Config) *StateConverter {
+	return &StateConverter{
+		vmConfig:    vmConfig,
+		cmdExecutor: runCmd,
+	}
 }
 
-func (c *StateConverter) ConvertStateToProof(_ context.Context, statePath string) (*utils.ProofData, uint64, bool, error) {
-	state, err := parseState(statePath)
+func (c *StateConverter) ConvertStateToProof(ctx context.Context, statePath string) (*utils.ProofData, uint64, bool, error) {
+	stdOut, stdErr, err := c.cmdExecutor(ctx, c.vmConfig.VmBin, "witness", "--input", statePath)
 	if err != nil {
-		return nil, 0, false, fmt.Errorf("cannot read final state: %w", err)
+		return nil, 0, false, fmt.Errorf("state conversion failed: %w (%s)", err, stdErr)
+	}
+	var data VMState
+	if err := json.Unmarshal([]byte(stdOut), &data); err != nil {
+		return nil, 0, false, fmt.Errorf("failed to parse state data: %w", err)
 	}
 	// Extend the trace out to the full length using a no-op instruction that doesn't change any state
 	// No execution is done, so no proof-data or oracle values are required.
 	return &utils.ProofData{
-		ClaimValue:   state.StateHash,
-		StateData:    state.Witness,
+		ClaimValue:   data.StateHash,
+		StateData:    data.Witness,
 		ProofData:    []byte{},
 		OracleKey:    nil,
 		OracleValue:  nil,
 		OracleOffset: 0,
-	}, state.Step, state.Exited, nil
+	}, data.Step, data.Exited, nil
 }
 
 func LoadVMStateFromFile(path string) (*VMState, error) {
@@ -168,4 +110,16 @@ func LoadVMStateFromFile(path string) (*VMState, error) {
 		return jsonutil.LoadJSON[VMState](path)
 	}
 	return serialize.LoadSerializedBinary[VMState](path)
+}
+
+func runCmd(ctx context.Context, binary string, args ...string) (stdOut string, stdErr string, err error) {
+	var outBuf bytes.Buffer
+	var errBuf bytes.Buffer
+	cmd := exec.CommandContext(ctx, binary, args...)
+	cmd.Stdout = &outBuf
+	cmd.Stderr = &errBuf
+	err = cmd.Run()
+	stdOut = outBuf.String()
+	stdErr = errBuf.String()
+	return
 }
