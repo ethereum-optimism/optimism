@@ -624,7 +624,7 @@ contract Deploy is Deployer {
         ChainAssertions.checkOptimismPortal({ _contracts: contracts, _cfg: cfg, _isProxy: false });
     }
 
-    /// @notice Deploy the OptimismPortal2
+    /// @notice Deploy the OptimismPortal2 (used in FPACOPS)
     function deployOptimismPortal2() public broadcast returns (address addr_) {
         // Could also verify this inside DeployConfig but doing it here is a bit more reliable.
         require(
@@ -705,7 +705,7 @@ contract Deploy is Deployer {
         addr_ = address(weth);
     }
 
-    /// @notice Deploy the PreimageOracle
+    /// @notice Deploy the PreimageOracle (Used in FPACOPS)
     function deployPreimageOracle() public broadcast returns (address addr_) {
         IPreimageOracle preimageOracle = IPreimageOracle(
             DeployUtils.create2AndSave({
@@ -724,6 +724,7 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy Mips VM. Deploys either MIPS or MIPS2 depending on the environment
+    /// (Used in FPACOPS)
     function deployMips() public broadcast returns (address addr_) {
         addr_ = DeployUtils.create2AndSave({
             _save: this,
@@ -736,7 +737,7 @@ contract Deploy is Deployer {
         save("Mips", address(addr_));
     }
 
-    /// @notice Deploy the AnchorStateRegistry
+    /// @notice Deploy the AnchorStateRegistry (Used in FPACOPS)
     function deployAnchorStateRegistry() public broadcast returns (address addr_) {
         IAnchorStateRegistry anchorStateRegistry = IAnchorStateRegistry(
             DeployUtils.create2AndSave({
