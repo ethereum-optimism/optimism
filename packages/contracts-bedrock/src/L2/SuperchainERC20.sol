@@ -4,7 +4,7 @@ pragma solidity 0.8.25;
 import { ISuperchainERC20Extension } from "src/L2/interfaces/ISuperchainERC20.sol";
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { ERC20 } from "@solady/tokens/ERC20.sol";
+import { ERC20 } from "@solady-v0.0.245/tokens/ERC20.sol";
 
 /// @title SuperchainERC20
 /// @notice SuperchainERC20 is a standard extension of the base ERC20 token contract that unifies ERC20 token
@@ -18,9 +18,9 @@ abstract contract SuperchainERC20 is ERC20, ISuperchainERC20Extension, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.1
+    /// @custom:semver 1.0.0-beta.2
     function version() external pure virtual returns (string memory) {
-        return "1.0.0-beta.1";
+        return "1.0.0-beta.2";
     }
 
     /// @notice Allows the SuperchainERC20Bridge to mint tokens.
