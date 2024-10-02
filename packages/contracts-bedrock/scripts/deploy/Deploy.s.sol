@@ -603,27 +603,6 @@ contract Deploy is Deployer {
         require(initialized != 0);
     }
 
-    /// @notice Deploy the L1CrossDomainMessenger
-    function deployL1CrossDomainMessenger() public broadcast returns (address addr_) {
-        IL1CrossDomainMessenger messenger = IL1CrossDomainMessenger(
-            DeployUtils.create2AndSave({
-                _save: this,
-                _salt: _implSalt(),
-                _name: "L1CrossDomainMessenger",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IL1CrossDomainMessenger.__constructor__, ()))
-            })
-        );
-
-        // Override the `L1CrossDomainMessenger` contract to the deployed implementation. This is necessary
-        // to check the `L1CrossDomainMessenger` implementation alongside dependent contracts, which
-        // are always proxies.
-        Types.ContractSet memory contracts = _proxiesUnstrict();
-        contracts.L1CrossDomainMessenger = address(messenger);
-        ChainAssertions.checkL1CrossDomainMessenger({ _contracts: contracts, _vm: vm, _isProxy: false });
-
-        addr_ = address(messenger);
-    }
-
     /// @notice Deploy the OptimismPortal
     function deployOptimismPortal() public broadcast returns (address addr_) {
         if (cfg.useInterop()) {
@@ -672,34 +651,6 @@ contract Deploy is Deployer {
         ChainAssertions.checkOptimismPortal2({ _contracts: contracts, _cfg: cfg, _isProxy: false });
     }
 
-    /// @notice Deploy the OptimismPortalInterop contract
-    function deployOptimismPortalInterop() public broadcast returns (address addr_) {
-        // Could also verify this inside DeployConfig but doing it here is a bit more reliable.
-        require(
-            uint32(cfg.respectedGameType()) == cfg.respectedGameType(), "Deploy: respectedGameType must fit into uint32"
-        );
-
-        addr_ = DeployUtils.create2AndSave({
-            _save: this,
-            _salt: _implSalt(),
-            _name: "OptimismPortalInterop",
-            _args: DeployUtils.encodeConstructor(
-                abi.encodeCall(
-                    IOptimismPortalInterop.__constructor__,
-                    (cfg.proofMaturityDelaySeconds(), cfg.disputeGameFinalityDelaySeconds())
-                )
-            )
-        });
-        save("OptimismPortal2", addr_);
-
-        // Override the `OptimismPortal2` contract to the deployed implementation. This is necessary
-        // to check the `OptimismPortal2` implementation alongside dependent contracts, which
-        // are always proxies.
-        Types.ContractSet memory contracts = _proxiesUnstrict();
-        contracts.OptimismPortal2 = addr_;
-        ChainAssertions.checkOptimismPortal2({ _contracts: contracts, _cfg: cfg, _isProxy: false });
-    }
-
     /// @notice Deploy the L2OutputOracle
     function deployL2OutputOracle() public broadcast returns (address addr_) {
         IL2OutputOracle oracle = IL2OutputOracle(
@@ -726,47 +677,7 @@ contract Deploy is Deployer {
         addr_ = address(oracle);
     }
 
-    /// @notice Deploy the OptimismMintableERC20Factory
-    function deployOptimismMintableERC20Factory() public broadcast returns (address addr_) {
-        IOptimismMintableERC20Factory factory = IOptimismMintableERC20Factory(
-            DeployUtils.create2AndSave({
-                _save: this,
-                _salt: _implSalt(),
-                _name: "OptimismMintableERC20Factory",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IOptimismMintableERC20Factory.__constructor__, ()))
-            })
-        );
-
-        // Override the `OptimismMintableERC20Factory` contract to the deployed implementation. This is necessary
-        // to check the `OptimismMintableERC20Factory` implementation alongside dependent contracts, which
-        // are always proxies.
-        Types.ContractSet memory contracts = _proxiesUnstrict();
-        contracts.OptimismMintableERC20Factory = address(factory);
-        ChainAssertions.checkOptimismMintableERC20Factory({ _contracts: contracts, _isProxy: false });
-
-        addr_ = address(factory);
-    }
-
-    /// @notice Deploy the DisputeGameFactory
-    function deployDisputeGameFactory() public broadcast returns (address addr_) {
-        IDisputeGameFactory factory = IDisputeGameFactory(
-            DeployUtils.create2AndSave({
-                _save: this,
-                _salt: _implSalt(),
-                _name: "DisputeGameFactory",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IDisputeGameFactory.__constructor__, ()))
-            })
-        );
-
-        // Override the `DisputeGameFactory` contract to the deployed implementation. This is necessary to check the
-        // `DisputeGameFactory` implementation alongside dependent contracts, which are always proxies.
-        Types.ContractSet memory contracts = _proxiesUnstrict();
-        contracts.DisputeGameFactory = address(factory);
-        ChainAssertions.checkDisputeGameFactory({ _contracts: contracts, _expectedOwner: address(0) });
-
-        addr_ = address(factory);
-    }
-
+    /// @notice Deploy the DelayedWETH. (Used in FPACOPS)
     function deployDelayedWETH() public broadcast returns (address addr_) {
         IDelayedWETH weth = IDelayedWETH(
             DeployUtils.create2AndSave({
@@ -842,77 +753,6 @@ contract Deploy is Deployer {
         );
 
         addr_ = address(anchorStateRegistry);
-    }
-
-    /// @notice Deploy the SystemConfig
-    function deploySystemConfig() public broadcast returns (address addr_) {
-        addr_ = DeployUtils.create2AndSave({
-            _save: this,
-            _salt: _implSalt(),
-            _name: "SystemConfig",
-            _args: DeployUtils.encodeConstructor(abi.encodeCall(ISystemConfig.__constructor__, ()))
-        });
-    }
-
-    /// @notice Deploy the SystemConfigInterop contract
-    function deploySystemConfigInterop() public broadcast returns (address addr_) {
-        addr_ = DeployUtils.create2AndSave({
-            _save: this,
-            _salt: _implSalt(),
-            _name: "SystemConfigInterop",
-            _args: DeployUtils.encodeConstructor(abi.encodeCall(ISystemConfigInterop.__constructor__, ()))
-        });
-        save("SystemConfig", addr_);
-
-        // Override the `SystemConfig` contract to the deployed implementation. This is necessary
-        // to check the `SystemConfig` implementation alongside dependent contracts, which
-        // are always proxies.
-        Types.ContractSet memory contracts = _proxiesUnstrict();
-        contracts.SystemConfig = addr_;
-        ChainAssertions.checkSystemConfig({ _contracts: contracts, _cfg: cfg, _isProxy: false });
-    }
-
-    /// @notice Deploy the L1StandardBridge
-    function deployL1StandardBridge() public broadcast returns (address addr_) {
-        IL1StandardBridge bridge = IL1StandardBridge(
-            DeployUtils.create2AndSave({
-                _save: this,
-                _salt: _implSalt(),
-                _name: "L1StandardBridge",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IL1StandardBridge.__constructor__, ()))
-            })
-        );
-
-        // Override the `L1StandardBridge` contract to the deployed implementation. This is necessary
-        // to check the `L1StandardBridge` implementation alongside dependent contracts, which
-        // are always proxies.
-        Types.ContractSet memory contracts = _proxiesUnstrict();
-        contracts.L1StandardBridge = address(bridge);
-        ChainAssertions.checkL1StandardBridge({ _contracts: contracts, _isProxy: false });
-
-        addr_ = address(bridge);
-    }
-
-    /// @notice Deploy the L1ERC721Bridge
-    function deployL1ERC721Bridge() public broadcast returns (address addr_) {
-        IL1ERC721Bridge bridge = IL1ERC721Bridge(
-            DeployUtils.create2AndSave({
-                _save: this,
-                _salt: _implSalt(),
-                _name: "L1ERC721Bridge",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IL1ERC721Bridge.__constructor__, ()))
-            })
-        );
-
-        // Override the `L1ERC721Bridge` contract to the deployed implementation. This is necessary
-        // to check the `L1ERC721Bridge` implementation alongside dependent contracts, which
-        // are always proxies.
-        Types.ContractSet memory contracts = _proxiesUnstrict();
-        contracts.L1ERC721Bridge = address(bridge);
-
-        ChainAssertions.checkL1ERC721Bridge({ _contracts: contracts, _isProxy: false });
-
-        addr_ = address(bridge);
     }
 
     /// @notice Transfer ownership of the address manager to the ProxyAdmin
