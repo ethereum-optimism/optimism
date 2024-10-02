@@ -400,77 +400,54 @@ const (
 	L1ScalarBedrock = byte(0)
 	// L1ScalarEcotone is new in Ecotone, allowing configuration of both a regular and a blobs scalar.
 	L1ScalarEcotone = byte(1)
-	// L1ScalarHolocene is new in Holocene, allowing configuration of operator scalars.
-	L1ScalarHolocene = byte(2)
 )
 
-// The scalars used starting in Holocene
-type L1Scalars struct {
-	BlobBaseFeeScalar   uint32
-	BaseFeeScalar       uint32
-	OperatorFeeScalar   uint32
-	OperatorFeeConstant uint64
+type EcotoneScalars struct {
+	BlobBaseFeeScalar uint32
+	BaseFeeScalar     uint32
 }
 
-func (sysCfg *SystemConfig) L1Scalars() (L1Scalars, error) {
-	if err := CheckL1SystemConfigScalar(sysCfg.Scalar); err != nil {
+func (sysCfg *SystemConfig) EcotoneScalars() (EcotoneScalars, error) {
+	if err := CheckEcotoneL1SystemConfigScalar(sysCfg.Scalar); err != nil {
 		if errors.Is(err, ErrBedrockScalarPaddingNotEmpty) {
 			// L2 spec mandates we set baseFeeScalar to MaxUint32 if there are non-zero bytes in
 			// the padding area.
-			return L1Scalars{BlobBaseFeeScalar: 0, BaseFeeScalar: math.MaxUint32}, nil
+			return EcotoneScalars{BlobBaseFeeScalar: 0, BaseFeeScalar: math.MaxUint32}, nil
 		}
-		return L1Scalars{}, err
+		return EcotoneScalars{}, err
 	}
 	return DecodeScalar(sysCfg.Scalar)
 }
 
 // DecodeScalar decodes the blobBaseFeeScalar and baseFeeScalar from a 32-byte scalar value.
 // It uses the first byte to determine the scalar format.
-func DecodeScalar(scalar [32]byte) (L1Scalars, error) {
+func DecodeScalar(scalar [32]byte) (EcotoneScalars, error) {
 	switch scalar[0] {
 	case L1ScalarBedrock:
-		return L1Scalars{
+		return EcotoneScalars{
 			BlobBaseFeeScalar: 0,
 			BaseFeeScalar:     binary.BigEndian.Uint32(scalar[28:32]),
 		}, nil
 	case L1ScalarEcotone:
-		return L1Scalars{
+		return EcotoneScalars{
 			BlobBaseFeeScalar: binary.BigEndian.Uint32(scalar[24:28]),
 			BaseFeeScalar:     binary.BigEndian.Uint32(scalar[28:32]),
 		}, nil
-	case L1ScalarHolocene:
-		return L1Scalars{
-			OperatorFeeScalar:   binary.BigEndian.Uint32(scalar[12:16]),
-			OperatorFeeConstant: binary.BigEndian.Uint64(scalar[16:24]),
-			BlobBaseFeeScalar:   binary.BigEndian.Uint32(scalar[24:28]),
-			BaseFeeScalar:       binary.BigEndian.Uint32(scalar[28:32]),
-		}, nil
 	default:
-		return L1Scalars{}, fmt.Errorf("unexpected system config scalar: %x", scalar)
+		return EcotoneScalars{}, fmt.Errorf("unexpected system config scalar: %x", scalar)
 	}
 }
 
-// EncodeEcotoneScalar encodes the L1Scalars into a 32-byte scalar value
+// EncodeScalar encodes the EcotoneScalars into a 32-byte scalar value
 // for the Ecotone serialization format.
-func EncodeEcotoneScalar(scalars L1Scalars) (scalar [32]byte) {
+func EncodeScalar(scalars EcotoneScalars) (scalar [32]byte) {
 	scalar[0] = L1ScalarEcotone
 	binary.BigEndian.PutUint32(scalar[24:28], scalars.BlobBaseFeeScalar)
 	binary.BigEndian.PutUint32(scalar[28:32], scalars.BaseFeeScalar)
 	return
 }
 
-// EncodeHoloceneScalar encodes the L1Scalars into a 32-byte scalar value
-// for the Holocene serialization format.
-func EncodeHoloceneScalars(scalars L1Scalars) (scalar [32]byte) {
-	scalar[0] = L1ScalarHolocene
-	binary.BigEndian.PutUint32(scalar[12:16], scalars.OperatorFeeScalar)
-	binary.BigEndian.PutUint64(scalar[16:24], scalars.OperatorFeeConstant)
-	binary.BigEndian.PutUint32(scalar[24:28], scalars.BlobBaseFeeScalar)
-	binary.BigEndian.PutUint32(scalar[28:32], scalars.BaseFeeScalar)
-	return
-}
-
-func CheckL1SystemConfigScalar(scalar [32]byte) error {
+func CheckEcotoneL1SystemConfigScalar(scalar [32]byte) error {
 	versionByte := scalar[0]
 	switch versionByte {
 	case L1ScalarBedrock:
@@ -481,11 +458,6 @@ func CheckL1SystemConfigScalar(scalar [32]byte) error {
 	case L1ScalarEcotone:
 		if ([23]byte)(scalar[1:24]) != ([23]byte{}) { // check padding
 			return fmt.Errorf("invalid version 1 scalar padding: %x", scalar[1:24])
-		}
-		return nil
-	case L1ScalarHolocene:
-		if ([7]byte)(scalar[1:8]) != ([7]byte{}) { // check padding
-			return fmt.Errorf("invalid version 2 scalar padding: %x", scalar[1:8])
 		}
 		return nil
 	default:

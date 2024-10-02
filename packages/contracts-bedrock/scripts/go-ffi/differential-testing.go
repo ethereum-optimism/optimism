@@ -473,7 +473,7 @@ func DiffTestUtils() {
 		blobbasefeeScalar, err := strconv.ParseUint(args[2], 10, 32)
 		checkErr(err, "Error decoding blobbasefeeScalar")
 
-		encoded := eth.EncodeEcotoneScalar(eth.L1Scalars{
+		encoded := eth.EncodeScalar(eth.EcotoneScalars{
 			BaseFeeScalar:     uint32(basefeeScalar),
 			BlobBaseFeeScalar: uint32(blobbasefeeScalar),
 		})

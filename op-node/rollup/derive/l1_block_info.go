@@ -70,8 +70,6 @@ type L1BlockInfo struct {
 	BaseFeeScalar     uint32   // added by Ecotone upgrade
 	BlobBaseFeeScalar uint32   // added by Ecotone upgrade
 
-	Eip1559Denominator  uint64 // added by Holocene upgrade
-	Eip1559Elasticity   uint64 // added by Holocene upgrade
 	OperatorFeeScalar   uint32 // added by Holocene upgrade
 	OperatorFeeConstant uint64 // added by Holocene upgrade
 }
@@ -209,8 +207,6 @@ func (info *L1BlockInfo) marshalBinaryInterop() ([]byte, error) {
 // | 32      | BlobBaseFee              |
 // | 32      | BlockHash                |
 // | 32      | BatcherHash              |
-// | 8       | Eip1559Denominator       |
-// | 8       | Eip1559Elasticity        |
 // | 4       | OperatorFeeScalar        |
 // | 8       | OperatorFeeConstant      |
 // +---------+--------------------------+
@@ -250,12 +246,6 @@ func (info *L1BlockInfo) marshalBinaryHolocene() ([]byte, error) {
 	}
 	// ABI encoding will perform the left-padding with zeroes to 32 bytes, matching the "batcherHash" SystemConfig format and version 0 byte.
 	if err := solabi.WriteAddress(w, info.BatcherAddr); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(w, binary.BigEndian, info.Eip1559Denominator); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(w, binary.BigEndian, info.Eip1559Elasticity); err != nil {
 		return nil, err
 	}
 	if err := binary.Write(w, binary.BigEndian, info.OperatorFeeScalar); err != nil {
@@ -400,12 +390,6 @@ func (info *L1BlockInfo) unmarshalBinaryHolocene(data []byte) error {
 	if info.BatcherAddr, err = solabi.ReadAddress(r); err != nil {
 		return err
 	}
-	if err := binary.Read(r, binary.BigEndian, &info.Eip1559Denominator); err != nil {
-		return ErrInvalidFormat
-	}
-	if err := binary.Read(r, binary.BigEndian, &info.Eip1559Elasticity); err != nil {
-		return ErrInvalidFormat
-	}
 	if err := binary.Read(r, binary.BigEndian, &info.OperatorFeeScalar); err != nil {
 		return ErrInvalidFormat
 	}
@@ -478,7 +462,7 @@ func L1InfoDeposit(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNumber 
 			// The L2 spec states to use the MIN_BLOB_GASPRICE from EIP-4844 if not yet active on L1.
 			l1BlockInfo.BlobBaseFee = big.NewInt(1)
 		}
-		scalars, err := sysCfg.L1Scalars()
+		scalars, err := sysCfg.EcotoneScalars()
 		if err != nil {
 			return nil, err
 		}
