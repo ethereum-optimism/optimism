@@ -17,6 +17,7 @@ import { LibStateDiff } from "scripts/libraries/LibStateDiff.sol";
 import { Process } from "scripts/libraries/Process.sol";
 import { ChainAssertions } from "scripts/deploy/ChainAssertions.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
+import { DeploySuperchainInput, DeploySuperchain, DeploySuperchainOutput } from "scripts/DeploySuperchain.s.sol";
 
 // Contracts
 import { AddressManager } from "src/legacy/AddressManager.sol";
@@ -298,16 +299,26 @@ contract Deploy is Deployer {
     ///         2. The ProtocolVersions contract
     function setupSuperchain() public {
         console.log("Setting up Superchain");
+        DeploySuperchain deploySuperchain = new DeploySuperchain();
+        (DeploySuperchainInput dsi, DeploySuperchainOutput dso) = deploySuperchain.etchIOContracts();
 
-        // Deploy the SuperchainConfigProxy
-        deployERC1967ProxyWithOwner("SuperchainConfigProxy", mustGetAddress("SuperchainProxyAdmin"));
-        deploySuperchainConfig();
-        initializeSuperchainConfig();
+        // Set the input values on the input contract.
+        dsi.set(dsi.superchainProxyAdminOwner.selector, mustGetAddress("SuperchainProxyAdmin"));
+        // TODO: when DeployAuthSystem is done, finalSystemOwner should be replaced with the Foundation Upgrades Safe
+        dsi.set(dsi.protocolVersionsOwner.selector, cfg.finalSystemOwner());
+        dsi.set(dsi.guardian.selector, cfg.superchainConfigGuardian());
+        dsi.set(dsi.paused.selector, false);
 
-        // Deploy the ProtocolVersionsProxy
-        deployERC1967ProxyWithOwner("ProtocolVersionsProxy", mustGetAddress("SuperchainProxyAdmin"));
-        deployProtocolVersions();
-        initializeProtocolVersions();
+        dsi.set(dsi.requiredProtocolVersion.selector, ProtocolVersion.wrap(cfg.requiredProtocolVersion()));
+        dsi.set(dsi.recommendedProtocolVersion.selector, ProtocolVersion.wrap(cfg.recommendedProtocolVersion()));
+
+        // Run the deployment script.
+        deploySuperchain.run(dsi, dso);
+        save("superchainProxyAdmin", address(dso.superchainProxyAdmin()));
+        save("SuperchainConfigProxy", address(dso.superchainConfigProxy()));
+        save("SuperchainConfig", address(dso.superchainConfigImpl()));
+        save("ProtocolVersionsProxy", address(dso.protocolVersionsProxy()));
+        save("ProtocolVersions", address(dso.protocolVersionsImpl()));
     }
 
     /// @notice Deploy a new OP Chain, with an existing SuperchainConfig provided
@@ -751,27 +762,6 @@ contract Deploy is Deployer {
         addr_ = address(weth);
     }
 
-    /// @notice Deploy the ProtocolVersions
-    function deployProtocolVersions() public broadcast returns (address addr_) {
-        IProtocolVersions versions = IProtocolVersions(
-            DeployUtils.create2AndSave({
-                _save: this,
-                _salt: _implSalt(),
-                _name: "ProtocolVersions",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IProtocolVersions.__constructor__, ()))
-            })
-        );
-
-        // Override the `ProtocolVersions` contract to the deployed implementation. This is necessary
-        // to check the `ProtocolVersions` implementation alongside dependent contracts, which
-        // are always proxies.
-        Types.ContractSet memory contracts = _proxiesUnstrict();
-        contracts.ProtocolVersions = address(versions);
-        ChainAssertions.checkProtocolVersions({ _contracts: contracts, _cfg: cfg, _isProxy: false });
-
-        addr_ = address(versions);
-    }
-
     /// @notice Deploy the PreimageOracle
     function deployPreimageOracle() public broadcast returns (address addr_) {
         IPreimageOracle preimageOracle = IPreimageOracle(
@@ -922,21 +912,6 @@ contract Deploy is Deployer {
     ////////////////////////////////////////////////////////////////
     //                    Initialize Functions                    //
     ////////////////////////////////////////////////////////////////
-
-    /// @notice Initialize the SuperchainConfig
-    function initializeSuperchainConfig() public broadcast {
-        address payable superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
-        address payable superchainConfig = mustGetAddress("SuperchainConfig");
-
-        IProxyAdmin proxyAdmin = IProxyAdmin(payable(mustGetAddress("SuperchainProxyAdmin")));
-        proxyAdmin.upgradeAndCall({
-            _proxy: superchainConfigProxy,
-            _implementation: superchainConfig,
-            _data: abi.encodeCall(ISuperchainConfig.initialize, (cfg.superchainConfigGuardian(), false))
-        });
-
-        ChainAssertions.checkSuperchainConfig({ _contracts: _proxiesUnstrict(), _cfg: cfg, _isPaused: false });
-    }
 
     /// @notice Initialize the DisputeGameFactory
     function initializeDisputeGameFactory() public broadcast {
@@ -1329,36 +1304,6 @@ contract Deploy is Deployer {
         console.log("OptimismPortal2 version: %s", version);
 
         ChainAssertions.checkOptimismPortal2({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
-    }
-
-    function initializeProtocolVersions() public broadcast {
-        console.log("Upgrading and initializing ProtocolVersions proxy");
-        address protocolVersionsProxy = mustGetAddress("ProtocolVersionsProxy");
-        address protocolVersions = mustGetAddress("ProtocolVersions");
-
-        address finalSystemOwner = cfg.finalSystemOwner();
-        uint256 requiredProtocolVersion = cfg.requiredProtocolVersion();
-        uint256 recommendedProtocolVersion = cfg.recommendedProtocolVersion();
-
-        IProxyAdmin proxyAdmin = IProxyAdmin(payable(mustGetAddress("SuperchainProxyAdmin")));
-        proxyAdmin.upgradeAndCall({
-            _proxy: payable(protocolVersionsProxy),
-            _implementation: protocolVersions,
-            _data: abi.encodeCall(
-                IProtocolVersions.initialize,
-                (
-                    finalSystemOwner,
-                    ProtocolVersion.wrap(requiredProtocolVersion),
-                    ProtocolVersion.wrap(recommendedProtocolVersion)
-                )
-            )
-        });
-
-        IProtocolVersions versions = IProtocolVersions(protocolVersionsProxy);
-        string memory version = versions.version();
-        console.log("ProtocolVersions version: %s", version);
-
-        ChainAssertions.checkProtocolVersions({ _contracts: _proxiesUnstrict(), _cfg: cfg, _isProxy: true });
     }
 
     /// @notice Transfer ownership of the DisputeGameFactory contract to the final system owner
