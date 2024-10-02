@@ -169,16 +169,21 @@ contract Deploy is Deployer {
     ////////////////////////////////////////////////////////////////
 
     /// @notice Transfer ownership of the ProxyAdmin contract to the final system owner
-    function transferProxyAdminOwnership(bool _isSuperchain) public broadcast {
-        string memory proxyAdminName = _isSuperchain ? "SuperchainProxyAdmin" : "ProxyAdmin";
-        IProxyAdmin proxyAdmin = IProxyAdmin(mustGetAddress(proxyAdminName));
-        address owner = proxyAdmin.owner();
+    function transferProxyAdminOwnership() public broadcast {
+        // Get the ProxyAdmin contract.
+        IProxyAdmin proxyAdmin = IProxyAdmin(mustGetAddress("ProxyAdmin"));
 
+        // Transfer ownership to the final system owner if necessary.
+        address owner = proxyAdmin.owner();
         address finalSystemOwner = cfg.finalSystemOwner();
         if (owner != finalSystemOwner) {
             proxyAdmin.transferOwnership(finalSystemOwner);
             console.log("ProxyAdmin ownership transferred to final system owner at: %s", finalSystemOwner);
         }
+
+        // Make sure the ProxyAdmin owner is set to the final system owner.
+        owner = proxyAdmin.owner();
+        require(owner == finalSystemOwner, "Deploy: ProxyAdmin ownership not transferred to final system owner");
     }
 
     ////////////////////////////////////////////////////////////////
@@ -244,11 +249,11 @@ contract Deploy is Deployer {
     function _run(bool _needsSuperchain) internal {
         console.log("start of L1 Deploy!");
 
+        // Set up the Superchain if needed.
         if (_needsSuperchain) {
-            deployProxyAdmin({ _isSuperchain: true });
             setupSuperchain();
-            console.log("set up superchain!");
         }
+
         if (cfg.useInterop()) {
             deployImplementationsInterop();
         } else {
@@ -278,7 +283,8 @@ contract Deploy is Deployer {
                 setupOpAltDA();
             }
         }
-        transferProxyAdminOwnership({ _isSuperchain: false });
+
+        transferProxyAdminOwnership();
         console.log("set up op chain!");
     }
 
@@ -296,29 +302,35 @@ contract Deploy is Deployer {
         (DeploySuperchainInput dsi, DeploySuperchainOutput dso) = deploySuperchain.etchIOContracts();
 
         // Set the input values on the input contract.
-        dsi.set(dsi.superchainProxyAdminOwner.selector, mustGetAddress("SuperchainProxyAdmin"));
         // TODO: when DeployAuthSystem is done, finalSystemOwner should be replaced with the Foundation Upgrades Safe
         dsi.set(dsi.protocolVersionsOwner.selector, cfg.finalSystemOwner());
+        dsi.set(dsi.superchainProxyAdminOwner.selector, cfg.finalSystemOwner());
         dsi.set(dsi.guardian.selector, cfg.superchainConfigGuardian());
         dsi.set(dsi.paused.selector, false);
-
         dsi.set(dsi.requiredProtocolVersion.selector, ProtocolVersion.wrap(cfg.requiredProtocolVersion()));
         dsi.set(dsi.recommendedProtocolVersion.selector, ProtocolVersion.wrap(cfg.recommendedProtocolVersion()));
 
         // Run the deployment script.
         deploySuperchain.run(dsi, dso);
-        save("superchainProxyAdmin", address(dso.superchainProxyAdmin()));
+        save("SuperchainProxyAdmin", address(dso.superchainProxyAdmin()));
         save("SuperchainConfigProxy", address(dso.superchainConfigProxy()));
         save("SuperchainConfig", address(dso.superchainConfigImpl()));
         save("ProtocolVersionsProxy", address(dso.protocolVersionsProxy()));
         save("ProtocolVersions", address(dso.protocolVersionsImpl()));
+
+        // Run chain assertions.
+        // Run assertions for ProtocolVersions and SuperchainConfig proxy contracts.
+        ChainAssertions.checkProtocolVersions({ _contracts: _proxiesUnstrict(), _cfg: cfg, _isProxy: true });
+        ChainAssertions.checkSuperchainConfig({ _contracts: _proxiesUnstrict(), _cfg: cfg, _isPaused: false });
+        // TODO: Add assertions for SuperchainConfig and ProtocolVersions impl contracts.
+        // TODO: Add assertions for SuperchainProxyAdmin.
     }
 
     /// @notice Deploy all of the OP Chain specific contracts
     function deployOpChain() public {
         console.log("Deploying OP Chain");
         deployAddressManager();
-        deployProxyAdmin({ _isSuperchain: false });
+        deployProxyAdmin();
         transferAddressManagerOwnership(); // to the ProxyAdmin
 
         // Ensure that the requisite contracts are deployed
@@ -435,34 +447,31 @@ contract Deploy is Deployer {
         addr_ = address(manager);
     }
 
-    /// @notice Deploy the ProxyAdmin
-    function deployProxyAdmin(bool _isSuperchain) public broadcast returns (address addr_) {
-        string memory proxyAdminName = _isSuperchain ? "SuperchainProxyAdmin" : "ProxyAdmin";
-
-        console.log("Deploying %s", proxyAdminName);
-
-        // Include the proxyAdminName in the salt to prevent a create2 collision when both the Superchain and an OP
-        // Chain are being setup.
+    /// @notice Deploys the ProxyAdmin contract. Should NOT be used for the Superchain.
+    function deployProxyAdmin() public broadcast returns (address addr_) {
+        // Deploy the ProxyAdmin contract.
         IProxyAdmin admin = IProxyAdmin(
             DeployUtils.create2AndSave({
                 _save: this,
-                _salt: keccak256(abi.encode(_implSalt(), proxyAdminName)),
+                _salt: _implSalt(),
                 _name: "ProxyAdmin",
-                _nick: proxyAdminName,
                 _args: DeployUtils.encodeConstructor(abi.encodeCall(IProxyAdmin.__constructor__, (msg.sender)))
             })
         );
+
+        // Make sure the owner was set to the deployer.
         require(admin.owner() == msg.sender);
 
-        // The AddressManager is only required for OP Chains
-        if (!_isSuperchain) {
-            IAddressManager addressManager = IAddressManager(mustGetAddress("AddressManager"));
-            if (admin.addressManager() != addressManager) {
-                admin.setAddressManager(addressManager);
-            }
-            require(admin.addressManager() == addressManager);
+        // Set the address manager if it is not already set.
+        IAddressManager addressManager = IAddressManager(mustGetAddress("AddressManager"));
+        if (admin.addressManager() != addressManager) {
+            admin.setAddressManager(addressManager);
         }
-        console.log("%s deployed at %s", proxyAdminName, address(admin));
+
+        // Make sure the address manager is set properly.
+        require(admin.addressManager() == addressManager);
+
+        // Return the address of the deployed contract.
         addr_ = address(admin);
     }
 
