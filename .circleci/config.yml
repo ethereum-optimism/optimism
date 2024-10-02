@@ -302,6 +302,28 @@ jobs:
             - ".devnet-mt-cannon"
       - notify-failures-on-develop
 
+  check-kontrol-build:
+    docker:
+      - image: <<pipeline.parameters.ci_builder_image>>
+    resource_class: xlarge
+    steps:
+      - checkout
+      - attach_workspace: { at: "." }
+      - install-contracts-dependencies
+      - check-changed:
+          patterns: contracts-bedrock
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - run:
+          name: Run Kontrol build
+          command: just kontrol-summary-full
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: Build Kontrol summary files
+          command: forge build ./test/kontrol/proofs
+          working_directory: packages/contracts-bedrock
+      - notify-failures-on-develop
+
   docker-build:
     environment:
       DOCKER_BUILDKIT: 1
@@ -1354,6 +1376,9 @@ workflows:
       - contracts-bedrock-build:
           # Build with just core + script contracts.
           skip_pattern: test
+      - check-kontrol-build:
+          requires:
+            - contracts-bedrock-build
       - contracts-bedrock-tests:
           # Test everything except PreimageOracle.t.sol since it's slow.
           name: contracts-bedrock-tests
