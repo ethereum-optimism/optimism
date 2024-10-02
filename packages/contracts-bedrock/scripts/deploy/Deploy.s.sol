@@ -269,8 +269,12 @@ contract Deploy is Deployer {
             setupSuperchain();
             console.log("set up superchain!");
         }
-
-        setupOpChainAdmin();
+        if (cfg.useInterop()) {
+            deployImplementationsInterop();
+        } else {
+            deployImplementations();
+        }
+        setupOpChain();
         if (cfg.useAltDA()) {
             bytes32 typeHash = keccak256(bytes(cfg.daCommitmentType()));
             bytes32 keccakHash = keccak256(bytes("KeccakCommitment"));
@@ -278,20 +282,13 @@ contract Deploy is Deployer {
                 setupOpAltDA();
             }
         }
-
-        setupOpChain();
+        transferProxyAdminOwnership({ _isSuperchain: false });
         console.log("set up op chain!");
     }
 
     ////////////////////////////////////////////////////////////////
     //           High Level Deployment Functions                  //
     ////////////////////////////////////////////////////////////////
-
-    /// @notice Deploy the address manager and proxy admin contracts.
-    function setupOpChainAdmin() public {
-        deployAddressManager();
-        deployProxyAdmin({ _isSuperchain: false });
-    }
 
     /// @notice Deploy a full system with a new SuperchainConfig
     ///         The Superchain system has 2 singleton contracts which lie outside of an OP Chain:
@@ -324,13 +321,13 @@ contract Deploy is Deployer {
     /// @notice Deploy a new OP Chain, with an existing SuperchainConfig provided
     function setupOpChain() public {
         console.log("Deploying OP Chain");
+        deployAddressManager();
+        deployProxyAdmin({ _isSuperchain: false });
 
         // Ensure that the requisite contracts are deployed
         mustGetAddress("SuperchainConfigProxy");
         mustGetAddress("AddressManager");
         mustGetAddress("ProxyAdmin");
-
-        deployImplementations();
 
         deployOpChain();
         initializeOpChain();
@@ -342,7 +339,6 @@ contract Deploy is Deployer {
 
         transferDisputeGameFactoryOwnership();
         transferDelayedWETHOwnership();
-        transferProxyAdminOwnership({ _isSuperchain: false });
     }
 
     /// @notice Deploy all of the OP Chain specific contracts
@@ -378,10 +374,29 @@ contract Deploy is Deployer {
         deploySystemConfig();
         deployL1StandardBridge();
         deployL1ERC721Bridge();
-        deployOptimismPortal();
+        deployOptimismPortal(); // todo: pull this out into an override option after DeployImplementations runs
         deployL2OutputOracle();
+
         // Fault proofs
         deployOptimismPortal2();
+        deployDisputeGameFactory();
+        deployDelayedWETH();
+        deployPreimageOracle();
+        deployMips();
+    }
+
+    /// @notice Deploy all of the implementations
+    function deployImplementationsInterop() public {
+        console.log("Deploying implementations");
+        deployL1CrossDomainMessenger();
+        deployOptimismMintableERC20Factory();
+        deploySystemConfigInterop();
+        deployL1StandardBridge();
+        deployL1ERC721Bridge();
+        deployL2OutputOracle();
+
+        // Fault proofs
+        deployOptimismPortalInterop();
         deployDisputeGameFactory();
         deployDelayedWETH();
         deployPreimageOracle();
@@ -633,32 +648,45 @@ contract Deploy is Deployer {
             uint32(cfg.respectedGameType()) == cfg.respectedGameType(), "Deploy: respectedGameType must fit into uint32"
         );
 
-        if (cfg.useInterop()) {
-            addr_ = DeployUtils.create2AndSave({
-                _save: this,
-                _salt: _implSalt(),
-                _name: "OptimismPortalInterop",
-                _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(
-                        IOptimismPortalInterop.__constructor__,
-                        (cfg.proofMaturityDelaySeconds(), cfg.disputeGameFinalityDelaySeconds())
-                    )
+        addr_ = DeployUtils.create2AndSave({
+            _save: this,
+            _salt: _implSalt(),
+            _name: "OptimismPortal2",
+            _args: DeployUtils.encodeConstructor(
+                abi.encodeCall(
+                    IOptimismPortal2.__constructor__,
+                    (cfg.proofMaturityDelaySeconds(), cfg.disputeGameFinalityDelaySeconds())
                 )
-            });
-            save("OptimismPortal2", addr_);
-        } else {
-            addr_ = DeployUtils.create2AndSave({
-                _save: this,
-                _salt: _implSalt(),
-                _name: "OptimismPortal2",
-                _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(
-                        IOptimismPortal2.__constructor__,
-                        (cfg.proofMaturityDelaySeconds(), cfg.disputeGameFinalityDelaySeconds())
-                    )
+            )
+        });
+
+        // Override the `OptimismPortal2` contract to the deployed implementation. This is necessary
+        // to check the `OptimismPortal2` implementation alongside dependent contracts, which
+        // are always proxies.
+        Types.ContractSet memory contracts = _proxiesUnstrict();
+        contracts.OptimismPortal2 = addr_;
+        ChainAssertions.checkOptimismPortal2({ _contracts: contracts, _cfg: cfg, _isProxy: false });
+    }
+
+    /// @notice Deploy the OptimismPortalInterop contract
+    function deployOptimismPortalInterop() public broadcast returns (address addr_) {
+        // Could also verify this inside DeployConfig but doing it here is a bit more reliable.
+        require(
+            uint32(cfg.respectedGameType()) == cfg.respectedGameType(), "Deploy: respectedGameType must fit into uint32"
+        );
+
+        addr_ = DeployUtils.create2AndSave({
+            _save: this,
+            _salt: _implSalt(),
+            _name: "OptimismPortalInterop",
+            _args: DeployUtils.encodeConstructor(
+                abi.encodeCall(
+                    IOptimismPortalInterop.__constructor__,
+                    (cfg.proofMaturityDelaySeconds(), cfg.disputeGameFinalityDelaySeconds())
                 )
-            });
-        }
+            )
+        });
+        save("OptimismPortal2", addr_);
 
         // Override the `OptimismPortal2` contract to the deployed implementation. This is necessary
         // to check the `OptimismPortal2` implementation alongside dependent contracts, which
@@ -814,22 +842,23 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the SystemConfig
     function deploySystemConfig() public broadcast returns (address addr_) {
-        if (cfg.useInterop()) {
-            addr_ = DeployUtils.create2AndSave({
-                _save: this,
-                _salt: _implSalt(),
-                _name: "SystemConfigInterop",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(ISystemConfigInterop.__constructor__, ()))
-            });
-            save("SystemConfig", addr_);
-        } else {
-            addr_ = DeployUtils.create2AndSave({
-                _save: this,
-                _salt: _implSalt(),
-                _name: "SystemConfig",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(ISystemConfig.__constructor__, ()))
-            });
-        }
+        addr_ = DeployUtils.create2AndSave({
+            _save: this,
+            _salt: _implSalt(),
+            _name: "SystemConfig",
+            _args: DeployUtils.encodeConstructor(abi.encodeCall(ISystemConfig.__constructor__, ()))
+        });
+    }
+
+    /// @notice Deploy the SystemConfigInterop contract
+    function deploySystemConfigInterop() public broadcast returns (address addr_) {
+        addr_ = DeployUtils.create2AndSave({
+            _save: this,
+            _salt: _implSalt(),
+            _name: "SystemConfigInterop",
+            _args: DeployUtils.encodeConstructor(abi.encodeCall(ISystemConfigInterop.__constructor__, ()))
+        });
+        save("SystemConfig", addr_);
 
         // Override the `SystemConfig` contract to the deployed implementation. This is necessary
         // to check the `SystemConfig` implementation alongside dependent contracts, which
