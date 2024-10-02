@@ -18,6 +18,12 @@ import { Process } from "scripts/libraries/Process.sol";
 import { ChainAssertions } from "scripts/deploy/ChainAssertions.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { DeploySuperchainInput, DeploySuperchain, DeploySuperchainOutput } from "scripts/DeploySuperchain.s.sol";
+import {
+    DeployImplementationsInput,
+    DeployImplementations,
+    DeployImplementationsInterop,
+    DeployImplementationsOutput
+} from "scripts/DeployImplementations.s.sol";
 
 // Contracts
 import { AddressManager } from "src/legacy/AddressManager.sol";
@@ -254,11 +260,7 @@ contract Deploy is Deployer {
             deploySuperchain();
         }
 
-        if (cfg.useInterop()) {
-            deployImplementationsInterop();
-        } else {
-            deployImplementations();
-        }
+        deployImplementations({ _isInterop: cfg.useInterop() });
 
         // Deploy Current OPChain Contracts
         deployOpChain();
@@ -298,8 +300,8 @@ contract Deploy is Deployer {
     ///         2. The ProtocolVersions contract
     function deploySuperchain() public {
         console.log("Setting up Superchain");
-        DeploySuperchain deploySuperchain = new DeploySuperchain();
-        (DeploySuperchainInput dsi, DeploySuperchainOutput dso) = deploySuperchain.etchIOContracts();
+        DeploySuperchain ds = new DeploySuperchain();
+        (DeploySuperchainInput dsi, DeploySuperchainOutput dso) = ds.etchIOContracts();
 
         // Set the input values on the input contract.
         // TODO: when DeployAuthSystem is done, finalSystemOwner should be replaced with the Foundation Upgrades Safe
@@ -311,7 +313,7 @@ contract Deploy is Deployer {
         dsi.set(dsi.recommendedProtocolVersion.selector, ProtocolVersion.wrap(cfg.recommendedProtocolVersion()));
 
         // Run the deployment script.
-        deploySuperchain.run(dsi, dso);
+        ds.run(dsi, dso);
         save("SuperchainProxyAdmin", address(dso.superchainProxyAdmin()));
         save("SuperchainConfigProxy", address(dso.superchainConfigProxy()));
         save("SuperchainConfig", address(dso.superchainConfigImpl()));
@@ -373,39 +375,42 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy all of the implementations
-    function deployImplementations() public {
-        // TODO: Replace the actions in this function with a call to DeployImplementationsInterop.run()
+    function deployImplementations(bool _isInterop) public {
         console.log("Deploying implementations");
-        deployL1CrossDomainMessenger();
-        deployOptimismMintableERC20Factory();
-        deploySystemConfig();
-        deployL1StandardBridge();
-        deployL1ERC721Bridge();
+        DeployImplementations di = new DeployImplementations();
+        (DeployImplementationsInput dii, DeployImplementationsOutput dio) = di.etchIOContracts();
+
+        dii.set(dii.withdrawalDelaySeconds.selector, cfg.faultGameWithdrawalDelay());
+        dii.set(dii.minProposalSizeBytes.selector, cfg.preimageOracleMinProposalSize());
+        dii.set(dii.challengePeriodSeconds.selector, cfg.preimageOracleChallengePeriod());
+        dii.set(dii.proofMaturityDelaySeconds.selector, cfg.proofMaturityDelaySeconds());
+        dii.set(dii.disputeGameFinalityDelaySeconds.selector, cfg.disputeGameFinalityDelaySeconds());
+        string memory release = "dev";
+        dii.set(dii.release.selector, release);
+        dii.set(
+            dii.standardVersionsToml.selector, string.concat(vm.projectRoot(), "/test/fixtures/standard-versions.toml")
+        );
+        dii.set(dii.superchainConfigProxy.selector, mustGetAddress("SuperchainConfigProxy"));
+        dii.set(dii.protocolVersionsProxy.selector, mustGetAddress("ProtocolVersionsProxy"));
+        dii.set(dii.opcmProxyOwner.selector, cfg.finalSystemOwner());
+
+        if (_isInterop) {
+            di = DeployImplementations(new DeployImplementationsInterop());
+        }
+        di.run(dii, dio);
+
+        save("L1CrossDomainMessenger", address(dio.l1CrossDomainMessengerImpl()));
+        save("OptimismMintableERC20Factory", address(dio.optimismMintableERC20FactoryImpl()));
+        save("SystemConfig", address(dio.systemConfigImpl()));
+        save("L1StandardBridge", address(dio.l1StandardBridgeImpl()));
+        save("L1ERC721Bridge", address(dio.l1ERC721BridgeImpl()));
 
         // Fault proofs
-        deployOptimismPortal2();
-        deployDisputeGameFactory();
-        deployDelayedWETH();
-        deployPreimageOracle();
-        deployMips();
-    }
-
-    /// @notice Deploy all of the implementations
-    function deployImplementationsInterop() public {
-        // TODO: Replace the actions in this function with a call to DeployImplementationsInterop.run()
-        console.log("Deploying implementations");
-        deployL1CrossDomainMessenger();
-        deployOptimismMintableERC20Factory();
-        deploySystemConfigInterop();
-        deployL1StandardBridge();
-        deployL1ERC721Bridge();
-
-        // Fault proofs
-        deployOptimismPortalInterop();
-        deployDisputeGameFactory();
-        deployDelayedWETH();
-        deployPreimageOracle();
-        deployMips();
+        save("OptimismPortal2", address(dio.optimismPortalImpl()));
+        save("DisputeGameFactory", address(dio.disputeGameFactoryImpl()));
+        save("DelayedWETH", address(dio.delayedWETHImpl()));
+        save("PreimageOracle", address(dio.preimageOracleSingleton()));
+        save("Mips", address(dio.mipsSingleton()));
     }
 
     /// @notice Initialize all of the proxies in an OP Chain by upgrading to the correct proxy and calling the
