@@ -895,7 +895,7 @@ jobs:
       - run:
           name: run tests
           command: |
-            ENABLE_ANVIL=true gotestsum --format=testname --junitfile=/tmp/test-results/<<parameters.module>>.xml --jsonfile=/tmp/testlogs/log.json \
+            ENABLE_ANVIL=true SEPOLIA_RPC_URL="https://ci-sepolia-l1.optimism.io" gotestsum --format=testname --junitfile=/tmp/test-results/<<parameters.module>>.xml --jsonfile=/tmp/testlogs/log.json \
             -- -parallel=8 -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out ./...
           working_directory: <<parameters.module>>
       - save_cache:

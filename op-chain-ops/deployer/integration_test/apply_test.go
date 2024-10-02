@@ -267,12 +267,7 @@ func validateOPChainDeployment(t *testing.T, ctx context.Context, l1Client *ethc
 func TestApplyExistingOPCM(t *testing.T) {
 	anvil.Test(t)
 
-	var forkRPCUrl string
-	if os.Getenv("CIRCLECI") == "true" {
-		forkRPCUrl = "https://ci-sepolia-l1.optimism.io"
-	} else {
-		forkRPCUrl = os.Getenv("SEPOLIA_RPC_URL")
-	}
+	forkRPCUrl := os.Getenv("SEPOLIA_RPC_URL")
 	if forkRPCUrl == "" {
 		t.Skip("no fork RPC URL provided")
 	}
