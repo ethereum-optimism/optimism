@@ -58,7 +58,7 @@ func (s *channel) TxFailed(id string) {
 		// Note: when the batcher is changed to send multiple frames per tx,
 		// this needs to be changed to iterate over all frames of the tx data
 		// and re-queue them.
-		s.channelBuilder.EnqueueFrames(data.Frames()...)
+		s.channelBuilder.Rewind(data.Frames()[0])
 		delete(s.pendingTransactions, id)
 	} else {
 		s.log.Warn("unknown transaction marked as failed", "id", id)

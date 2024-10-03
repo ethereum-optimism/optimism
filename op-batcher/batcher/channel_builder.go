@@ -77,6 +77,8 @@ type ChannelBuilder struct {
 	oldestL2 eth.BlockID
 	// frames data queue, to be send as txs
 	frames queue.Queue[frameData]
+	// frameCursor is an index into the frames data queue, points at the next frame
+	frameCursor int
 	// total frames counter
 	numFrames int
 	// total amount of output data of all frames created yet
@@ -423,24 +425,28 @@ func (c *ChannelBuilder) PendingFrames() int {
 	return c.frames.Len()
 }
 
-// NextFrame dequeues the next available frame.
+// NextFrame returns the next available frame and increments the frameCursor
 // HasFrame must be called prior to check if there's a next frame available.
 // Panics if called when there's no next frame.
 func (c *ChannelBuilder) NextFrame() frameData {
-	f, ok := c.frames.Dequeue()
-	if !ok {
+	if len(c.frames) <= c.frameCursor {
 		panic("no next frame")
 	}
-	return f
+	c.frameCursor++
+	return c.frames[c.frameCursor]
 }
 
-// EnqueueFrames enqueues the frames back to the internal frames queue. Panics if not of
-// the same channel.
-func (c *ChannelBuilder) EnqueueFrames(frames ...frameData) {
-	for _, f := range frames {
-		if f.id.chID != c.ID() {
+// Rewind decrements the frameCursor to point at the supplied frame.
+// Panics if the frame is not in this channel.
+func (c *ChannelBuilder) Rewind(frame frameData) {
+	for i, f := range c.frames {
+		if f.id.chID != frame.id.chID {
 			panic("wrong channel")
 		}
+		if f.id.frameNumber == frame.id.frameNumber {
+			c.frameCursor = i
+			return
+		}
 	}
-	c.frames.Enqueue(frames...)
+	panic("frame not found")
 }

@@ -34,6 +34,9 @@ type channelManager struct {
 
 	// All blocks since the last request for new tx data.
 	blocks queue.Queue[*types.Block]
+	// blockCursor is an index into blocks queue. It points at the next block
+	// to build a channel with
+	blockCursor int
 	// The latest L1 block from all the L2 blocks in the most recently closed channel
 	l1OriginLastClosedChannel eth.BlockID
 	// The default ChannelConfig to use for the next channel
@@ -87,10 +90,6 @@ func (s *channelManager) TxFailed(_id txID) {
 	if channel, ok := s.txChannels[id]; ok {
 		delete(s.txChannels, id)
 		channel.TxFailed(id)
-		if s.closed && channel.NoneSubmitted() {
-			s.log.Info("Channel has no submitted transactions, clearing for shutdown", "chID", channel.ID())
-			s.removePendingChannel(channel)
-		}
 	} else {
 		s.log.Warn("transaction from unknown channel marked as failed", "id", id)
 	}
@@ -106,11 +105,15 @@ func (s *channelManager) TxConfirmed(_id txID, inclusionBlock eth.BlockID) {
 	id := _id.String()
 	if channel, ok := s.txChannels[id]; ok {
 		delete(s.txChannels, id)
-		done, blocks := channel.TxConfirmed(id, inclusionBlock)
-		if done {
-			s.removePendingChannel(channel)
-			if len(blocks) > 0 {
-				s.blocks.Prepend(blocks...)
+		_, blocks := channel.TxConfirmed(id, inclusionBlock)
+		timedOut := len(blocks) > 0 // TODO simplify API of channel.TxConfirmed
+		if timedOut {
+			blockHash := channel.channelBuilder.blocks[0].Hash()
+			for i, b := range s.blocks {
+				if b.Hash() == blockHash {
+					s.blockCursor = i
+					s.channelQueue = s.channelQueue[:0]
+				}
 			}
 		}
 	} else {
@@ -121,6 +124,9 @@ func (s *channelManager) TxConfirmed(_id txID, inclusionBlock eth.BlockID) {
 }
 
 // removePendingChannel removes the given completed channel from the manager's state.
+// We only do this on Close or when the blocks in the channel became safe
+// (being confirmed on L1 is insufficient, we may need to resubmit the channel to
+// meet strict ordering rules).
 func (s *channelManager) removePendingChannel(channel *channel) {
 	if s.currentChannel == channel {
 		s.currentChannel = nil
@@ -308,7 +314,7 @@ func (s *channelManager) processBlocks() error {
 		latestL2ref eth.L2BlockRef
 	)
 
-	for i := 0; ; i++ {
+	for i := s.blockCursor; ; i++ {
 		block, ok := s.blocks.PeekN(i)
 		if !ok {
 			break
@@ -332,7 +338,7 @@ func (s *channelManager) processBlocks() error {
 		}
 	}
 
-	_, _ = s.blocks.DequeueN(blocksAdded)
+	s.blockCursor += blocksAdded
 
 	s.metr.RecordL2BlocksAdded(latestL2ref,
 		blocksAdded,
@@ -491,11 +497,12 @@ func (s *channelManager) Requeue(newCfg ChannelConfig) {
 	}
 	s.channelQueue = s.channelQueue[:len(s.channelQueue)-1]
 
-	// We put the blocks back at the front of the queue:
-	// Here it is safe to prepend because we know nothing can have
-	// dequeued anything since we dequeued blocksToRequeue,
-	// therefore the block ordering will be preserved
-	s.blocks.Prepend(channelToDiscard.channelBuilder.Blocks()...)
+	blockHash := channelToDiscard.channelBuilder.blocks[0].Hash()
+	for i, b := range s.blocks {
+		if b.Hash() == blockHash {
+			s.blockCursor = i
+		}
+	}
 	s.currentChannel = nil
 	// Setting the defaultCfg will cause new channels
 	// to pick up the new ChannelConfig
