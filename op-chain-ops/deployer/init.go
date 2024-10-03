@@ -15,7 +15,7 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-var V160ArtifactsURL = state.MustParseArtifactsURL("https://storage.googleapis.com/oplabs-contract-artifacts/artifacts-v1-155f65e7dcbea1b7b3d37a0fc39cc8b6a1c03b6c5b677886ca2420e10e9c1ea6.tar.gz")
+var V160ArtifactsURL = state.MustParseArtifactsURL("https://storage.googleapis.com/oplabs-contract-artifacts/artifacts-v1-ee07c78c3d8d4cd8f7a933c050f5afeebaa281b57b226cc6f092b19de2a8d61f.tar.gz")
 
 type InitConfig struct {
 	L1ChainID  uint64
