@@ -1175,6 +1175,9 @@ jobs:
       diff_branch:
         type: string
         default: develop
+      scan_command:
+        type: string
+        default: semgrep ci --timeout=100
     environment:
       TEMPORARY_BASELINE_REF: << parameters.diff_branch >>
       SEMGREP_REPO_URL: << pipeline.project.git_url >>
@@ -1206,7 +1209,7 @@ jobs:
           # --timeout (in seconds) limits the time per rule and file.
           #   SEMGREP_TIMEOUT is the same, but docs have conflicting defaults (5s in CLI flag, 1800 in some places)
           #    https://semgrep.dev/docs/troubleshooting/semgrep-app#if-the-job-is-aborted-due-to-taking-too-long
-          command: semgrep ci --timeout=100
+          command: << parameters.scan_command >>
           # If semgrep hangs, stop the scan after 20m, to prevent a useless 5h job
           no_output_timeout: 20m
       - notify-failures-on-develop
@@ -1415,6 +1418,9 @@ workflows:
           requires:
             - contracts-bedrock-build
       - semgrep-scan
+      - semgrep-scan:
+          name: semgrep-scan-local
+          scan_command: semgrep scan --timeout=100 --config=./.semgrep --strict --error .
       - go-lint:
           requires:
             - go-mod-download
