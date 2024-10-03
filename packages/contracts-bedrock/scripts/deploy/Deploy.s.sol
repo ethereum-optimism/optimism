@@ -809,6 +809,9 @@ contract Deploy is Deployer {
             _name: "SystemConfig",
             _args: DeployUtils.encodeConstructor(abi.encodeCall(ISystemConfig.__constructor__, ()))
         });
+        Types.ContractSet memory contracts = _proxiesUnstrict();
+        contracts.SystemConfig = addr_;
+        ChainAssertions.checkSystemConfig({ _contracts: contracts, _cfg: cfg, _isProxy: false });
     }
 
     /// @notice Deploy the SystemConfigInterop contract
@@ -826,7 +829,7 @@ contract Deploy is Deployer {
         // are always proxies.
         Types.ContractSet memory contracts = _proxiesUnstrict();
         contracts.SystemConfig = addr_;
-        ChainAssertions.checkSystemConfig({ _contracts: contracts, _cfg: cfg, _isProxy: false });
+        ChainAssertions.checkSystemConfigInterop({ _contracts: contracts, _cfg: cfg, _isProxy: false });
     }
 
     /// @notice Deploy the L1StandardBridge
