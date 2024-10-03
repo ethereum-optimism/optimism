@@ -266,6 +266,8 @@ func (d *EngDeriver) AttachEmitter(em event.Emitter) {
 	d.emitter = em
 }
 
+const blockTimeThreshold uint64 = 2
+
 func (d *EngDeriver) OnEvent(ev event.Event) bool {
 	switch x := ev.(type) {
 	case TryBackupUnsafeReorgEvent:
@@ -332,12 +334,14 @@ func (d *EngDeriver) OnEvent(ev event.Event) bool {
 				if latestBlockTimeStamp <= currentTime {
 					timeDiff := currentTime - latestBlockTimeStamp
 
-					if timeDiff < 2 {
+					if timeDiff < blockTimeThreshold {
 						// Node is healthy
-						d.log.Info("Node is healthy, time difference within last 2 seconds", "time_diff", timeDiff)
+						d.log.Info("Node is healthy, time difference within threshold",
+							"time_diff", timeDiff, "threshold", blockTimeThreshold)
 					} else {
 						// Node is stale
-						d.log.Warn("Node is stale, time difference greater than 2 seconds", "time_diff", timeDiff)
+						d.log.Warn("Node is stale, time difference exceeds threshold",
+							"time_diff", timeDiff, "threshold", blockTimeThreshold)
 					}
 				} else {
 					d.log.Info("Cannot compute time difference, block timestamp is in the future",
