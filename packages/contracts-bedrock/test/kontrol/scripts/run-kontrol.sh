@@ -38,7 +38,8 @@ kontrol_prove() {
     $tests \
     --init-node-from-diff $state_diff \
     --kore-rpc-command 'kore-rpc-booster --equation-max-recursion 100' \
-    --xml-test-report
+    --xml-test-report \
+    --bmc-depth 1
   return $?
 }
 
