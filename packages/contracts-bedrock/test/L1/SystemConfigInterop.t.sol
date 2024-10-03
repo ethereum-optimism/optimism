@@ -6,7 +6,7 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 
 // Contracts
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { ConfigType } from "src/L2/L1BlockIsthmus.sol";
+import { ConfigType } from "src/L2/L1BlockInterop.sol";
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";

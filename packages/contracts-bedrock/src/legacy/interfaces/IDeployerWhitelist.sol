@@ -17,4 +17,6 @@ interface IDeployerWhitelist {
     function setWhitelistedDeployer(address _deployer, bool _isWhitelisted) external;
     function version() external view returns (string memory);
     function whitelist(address) external view returns (bool);
+
+    function __constructor__() external;
 }

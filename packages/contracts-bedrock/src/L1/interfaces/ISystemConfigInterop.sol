@@ -28,18 +28,6 @@ interface ISystemConfigInterop {
     function gasPayingToken() external view returns (address addr_, uint8 decimals_);
     function gasPayingTokenName() external view returns (string memory name_);
     function gasPayingTokenSymbol() external view returns (string memory symbol_);
-    function initialize(
-        address _owner,
-        uint32 _basefeeScalar,
-        uint32 _blobbasefeeScalar,
-        bytes32 _batcherHash,
-        uint64 _gasLimit,
-        address _unsafeBlockSigner,
-        IResourceMetering.ResourceConfig memory _config,
-        address _batchInbox,
-        ISystemConfig.Addresses memory _addresses
-    )
-        external;
     function isCustomGasToken() external view returns (bool);
     function l1CrossDomainMessenger() external view returns (address addr_);
     function l1ERC721Bridge() external view returns (address addr_);
@@ -59,7 +47,7 @@ interface ISystemConfigInterop {
     function setGasLimit(uint64 _gasLimit) external;
     function setUnsafeBlockSigner(address _unsafeBlockSigner) external;
     function startBlock() external view returns (uint256 startBlock_);
-    function transferOwnership(address newOwner) external;
+    function transferOwnership(address newOwner) external; // nosemgrep
     function unsafeBlockSigner() external view returns (address addr_);
 
     function addDependency(uint256 _chainId) external;
@@ -79,4 +67,6 @@ interface ISystemConfigInterop {
     )
         external;
     function version() external pure returns (string memory);
+
+    function __constructor__() external;
 }

@@ -471,7 +471,7 @@ func (s *interopE2ESystem) SupervisorClient() *sources.SupervisorClient {
 // their creation can't be safely skipped or reordered at this time
 func (s *interopE2ESystem) prepare(t *testing.T, w worldResourcePaths) {
 	s.t = t
-	s.logger = testlog.Logger(s.t, log.LevelInfo)
+	s.logger = testlog.Logger(s.t, log.LevelDebug)
 	s.hdWallet = s.prepareHDWallet()
 	s.worldDeployment, s.worldOutput = s.prepareWorld(w)
 

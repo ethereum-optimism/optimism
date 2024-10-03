@@ -91,4 +91,6 @@ interface IL2StandardBridgeInterop is IStandardBridge {
 
     function convert(address _from, address _to, uint256 _amount) external;
     function version() external pure returns (string memory);
+
+    function __constructor__() external;
 }

@@ -56,8 +56,9 @@ func NewL2Sequencer(t Testing, log log.Logger, l1 derive.L1Fetcher, blobSrc deri
 	ver := NewL2Verifier(t, log, l1, blobSrc, altDASrc, eng, cfg, &sync.Config{}, safedb.Disabled, interopBackend)
 	attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1, eng)
 	seqConfDepthL1 := confdepth.NewConfDepth(seqConfDepth, ver.syncStatus.L1Head, l1)
+	originSelector := sequencing.NewL1OriginSelector(t.Ctx(), log, cfg, seqConfDepthL1)
 	l1OriginSelector := &MockL1OriginSelector{
-		actual: sequencing.NewL1OriginSelector(log, cfg, seqConfDepthL1),
+		actual: originSelector,
 	}
 	metr := metrics.NoopMetrics
 	seqStateListener := node.DisabledConfigPersistence{}
@@ -78,6 +79,7 @@ func NewL2Sequencer(t Testing, log log.Logger, l1 derive.L1Fetcher, blobSrc deri
 		},
 	}
 	ver.eventSys.Register("sequencer", seq, opts)
+	ver.eventSys.Register("origin-selector", originSelector, opts)
 	require.NoError(t, seq.Init(t.Ctx(), true))
 	return &L2Sequencer{
 		L2Verifier:              ver,

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
+// TODO: Migrate this script to use DeployUtils
 
 import { console2 as console } from "forge-std/console2.sol";
 import { Script } from "forge-std/Script.sol";

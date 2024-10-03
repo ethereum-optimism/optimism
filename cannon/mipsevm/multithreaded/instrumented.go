@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 )
 
@@ -77,7 +78,7 @@ func (m *InstrumentedState) Step(proof bool) (wit *mipsevm.StepWitness, err erro
 		wit.ProofData = append(wit.ProofData, memProof[:]...)
 		wit.ProofData = append(wit.ProofData, memProof2[:]...)
 		lastPreimageKey, lastPreimage, lastPreimageOffset := m.preimageOracle.LastPreimage()
-		if lastPreimageOffset != ^uint32(0) {
+		if lastPreimageOffset != ^arch.Word(0) {
 			wit.PreimageOffset = lastPreimageOffset
 			wit.PreimageKey = lastPreimageKey
 			wit.PreimageValue = lastPreimage
@@ -90,7 +91,7 @@ func (m *InstrumentedState) CheckInfiniteLoop() bool {
 	return false
 }
 
-func (m *InstrumentedState) LastPreimage() ([32]byte, []byte, uint32) {
+func (m *InstrumentedState) LastPreimage() ([32]byte, []byte, arch.Word) {
 	return m.preimageOracle.LastPreimage()
 }
 
@@ -111,7 +112,7 @@ func (m *InstrumentedState) Traceback() {
 	m.stackTracker.Traceback()
 }
 
-func (m *InstrumentedState) LookupSymbol(addr uint32) string {
+func (m *InstrumentedState) LookupSymbol(addr arch.Word) string {
 	if m.meta == nil {
 		return ""
 	}

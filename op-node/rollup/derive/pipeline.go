@@ -77,14 +77,14 @@ type DerivationPipeline struct {
 
 // NewDerivationPipeline creates a DerivationPipeline, to turn L1 data into L2 block-inputs.
 func NewDerivationPipeline(log log.Logger, rollupCfg *rollup.Config, l1Fetcher L1Fetcher, l1Blobs L1BlobsFetcher,
-	altDA AltDAInputFetcher, l2Source L2Source, metrics Metrics) *DerivationPipeline {
-
+	altDA AltDAInputFetcher, l2Source L2Source, metrics Metrics,
+) *DerivationPipeline {
 	// Pull stages
 	l1Traversal := NewL1Traversal(log, rollupCfg, l1Fetcher)
 	dataSrc := NewDataSourceFactory(log, rollupCfg, l1Fetcher, l1Blobs, altDA) // auxiliary stage for L1Retrieval
 	l1Src := NewL1Retrieval(log, dataSrc, l1Traversal)
-	frameQueue := NewFrameQueue(log, l1Src)
-	bank := NewChannelBank(log, rollupCfg, frameQueue, l1Fetcher, metrics)
+	frameQueue := NewFrameQueue(log, rollupCfg, l1Src)
+	bank := NewChannelBank(log, rollupCfg, frameQueue, metrics)
 	chInReader := NewChannelInReader(rollupCfg, log, bank, metrics)
 	batchQueue := NewBatchQueue(log, rollupCfg, chInReader, l2Source)
 	attrBuilder := NewFetchingAttributesBuilder(rollupCfg, l1Fetcher, l2Source)

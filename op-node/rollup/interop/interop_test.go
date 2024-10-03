@@ -61,7 +61,7 @@ func TestInteropDeriver(t *testing.T) {
 		firstLocalUnsafe := testutils.NextRandomL2Ref(rng, 2, crossUnsafe, crossUnsafe.L1Origin)
 		lastLocalUnsafe := testutils.NextRandomL2Ref(rng, 2, firstLocalUnsafe, firstLocalUnsafe.L1Origin)
 		interopBackend.ExpectCheckBlock(
-			chainID, firstLocalUnsafe.Number, supervisortypes.Unsafe, nil)
+			chainID, firstLocalUnsafe.Number, supervisortypes.LocalUnsafe, nil)
 		l2Source.ExpectL2BlockRefByNumber(firstLocalUnsafe.Number, firstLocalUnsafe, nil)
 		interopDeriver.OnEvent(engine.CrossUnsafeUpdateEvent{
 			CrossUnsafe: crossUnsafe,
@@ -122,7 +122,7 @@ func TestInteropDeriver(t *testing.T) {
 			DerivedFrom: derivedFrom,
 		})
 		interopBackend.ExpectCheckBlock(
-			chainID, firstLocalSafe.Number, supervisortypes.Safe, nil)
+			chainID, firstLocalSafe.Number, supervisortypes.LocalSafe, nil)
 		l2Source.ExpectL2BlockRefByNumber(firstLocalSafe.Number, firstLocalSafe, nil)
 		interopDeriver.OnEvent(engine.CrossSafeUpdateEvent{
 			CrossSafe: crossSafe,

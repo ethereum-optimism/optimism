@@ -14,11 +14,12 @@ import (
 	batcherFlags "github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
 func setupEIP4844Test(t helpers.Testing, log log.Logger) (*e2eutils.SetupData, *e2eutils.DeployParams, *helpers.L1Miner, *helpers.L2Sequencer, *helpers.L2Engine, *helpers.L2Verifier, *helpers.L2Engine) {
-	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams)
+	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
 	genesisActivation := hexutil.Uint64(0)
 	dp.DeployConfig.L1CancunTimeOffset = &genesisActivation
 	dp.DeployConfig.L2GenesisCanyonTimeOffset = &genesisActivation
@@ -104,10 +105,10 @@ func TestEIP4844MultiBlobs(gt *testing.T) {
 	sequencer.ActBuildToL1Head(t)
 
 	// submit all new L2 blocks
-	batcher.ActSubmitAllMultiBlobs(t, 6)
+	batcher.ActSubmitAllMultiBlobs(t, eth.MaxBlobsPerBlobTx)
 	batchTx := batcher.LastSubmitted
 	require.Equal(t, uint8(types.BlobTxType), batchTx.Type(), "batch tx must be blob-tx")
-	require.Len(t, batchTx.BlobTxSidecar().Blobs, 6)
+	require.Len(t, batchTx.BlobTxSidecar().Blobs, eth.MaxBlobsPerBlobTx)
 
 	// new L1 block with L2 batch
 	miner.ActL1StartBlock(12)(t)

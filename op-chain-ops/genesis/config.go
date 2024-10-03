@@ -1017,6 +1017,10 @@ func (d *L1Deployments) Check(deployConfig *DeployConfig) error {
 				name == "DisputeGameFactoryProxy") {
 			continue
 		}
+		if deployConfig.UseFaultProofs &&
+			(name == "OptimismPortal") {
+			continue
+		}
 		if !deployConfig.UseAltDA &&
 			(name == "DataAvailabilityChallenge" ||
 				name == "DataAvailabilityChallengeProxy") {

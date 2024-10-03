@@ -28,7 +28,7 @@ var _ mipsevm.FPVM = (*InstrumentedState)(nil)
 func NewInstrumentedState(state *State, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, meta mipsevm.Metadata) *InstrumentedState {
 	var sleepCheck mipsevm.SymbolMatcher
 	if meta == nil {
-		sleepCheck = func(addr uint32) bool { return false }
+		sleepCheck = func(addr Word) bool { return false }
 	} else {
 		sleepCheck = meta.CreateSymbolMatcher("runtime.notesleep")
 	}
@@ -75,7 +75,7 @@ func (m *InstrumentedState) Step(proof bool) (wit *mipsevm.StepWitness, err erro
 		memProof := m.memoryTracker.MemProof()
 		wit.ProofData = append(wit.ProofData, memProof[:]...)
 		lastPreimageKey, lastPreimage, lastPreimageOffset := m.preimageOracle.LastPreimage()
-		if lastPreimageOffset != ^uint32(0) {
+		if lastPreimageOffset != ^Word(0) {
 			wit.PreimageOffset = lastPreimageOffset
 			wit.PreimageKey = lastPreimageKey
 			wit.PreimageValue = lastPreimage
@@ -88,7 +88,7 @@ func (m *InstrumentedState) CheckInfiniteLoop() bool {
 	return m.sleepCheck(m.state.GetPC())
 }
 
-func (m *InstrumentedState) LastPreimage() ([32]byte, []byte, uint32) {
+func (m *InstrumentedState) LastPreimage() ([32]byte, []byte, Word) {
 	return m.preimageOracle.LastPreimage()
 }
 
@@ -109,7 +109,7 @@ func (m *InstrumentedState) Traceback() {
 	m.stackTracker.Traceback()
 }
 
-func (m *InstrumentedState) LookupSymbol(addr uint32) string {
+func (m *InstrumentedState) LookupSymbol(addr Word) string {
 	if m.meta == nil {
 		return ""
 	}

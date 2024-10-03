@@ -20,7 +20,7 @@ var _ interop.InteropBackend = (*testutils.MockInteropBackend)(nil)
 
 func TestInteropVerifier(gt *testing.T) {
 	t := helpers.NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams)
+	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
 	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
 	// Temporary work-around: interop needs to be active, for cross-safety to not be instant.
 	// The state genesis in this test is pre-interop however.
@@ -42,7 +42,7 @@ func TestInteropVerifier(gt *testing.T) {
 	ver.ActL2PipelineFull(t)
 
 	l2ChainID := types.ChainIDFromBig(sd.RollupCfg.L2ChainID)
-	seqMockBackend.ExpectCheckBlock(l2ChainID, 1, types.Unsafe, nil)
+	seqMockBackend.ExpectCheckBlock(l2ChainID, 1, types.LocalUnsafe, nil)
 	// create an unsafe L2 block
 	seq.ActL2StartBlock(t)
 	seq.ActL2EndBlock(t)
@@ -99,8 +99,8 @@ func TestInteropVerifier(gt *testing.T) {
 	require.Equal(t, uint64(0), status.FinalizedL2.Number)
 
 	// The verifier might not see the L2 block that was just derived from L1 as cross-verified yet.
-	verMockBackend.ExpectCheckBlock(l2ChainID, 1, types.Unsafe, nil) // for the local unsafe check
-	verMockBackend.ExpectCheckBlock(l2ChainID, 1, types.Unsafe, nil) // for the local safe check
+	verMockBackend.ExpectCheckBlock(l2ChainID, 1, types.LocalUnsafe, nil) // for the local unsafe check
+	verMockBackend.ExpectCheckBlock(l2ChainID, 1, types.LocalUnsafe, nil) // for the local safe check
 	ver.ActL1HeadSignal(t)
 	ver.ActL2PipelineFull(t)
 	verMockBackend.AssertExpectations(t)

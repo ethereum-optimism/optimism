@@ -20,4 +20,6 @@ interface IFeeVault {
     function totalProcessed() external view returns (uint256);
     function withdraw() external;
     function withdrawalNetwork() external view returns (WithdrawalNetwork network_);
+
+    function __constructor__() external;
 }

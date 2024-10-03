@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"path/filepath"
 	"sync/atomic"
 	"time"
 
@@ -18,7 +17,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/config"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/heads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/source"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/frontend"
@@ -33,8 +31,6 @@ type SupervisorBackend struct {
 
 	chainMonitors map[types.ChainID]*source.ChainMonitor
 	db            *db.ChainsDB
-
-	maintenanceCancel context.CancelFunc
 }
 
 var _ frontend.Backend = (*SupervisorBackend)(nil)
@@ -47,14 +43,8 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger, m Metrics, cfg
 		return nil, err
 	}
 
-	// create the head tracker
-	headTracker, err := heads.NewHeadTracker(filepath.Join(cfg.Datadir, "heads.json"))
-	if err != nil {
-		return nil, fmt.Errorf("failed to load existing heads: %w", err)
-	}
-
 	// create the chains db
-	db := db.NewChainsDB(map[types.ChainID]db.LogStorage{}, headTracker, logger)
+	db := db.NewChainsDB(map[types.ChainID]db.LogStorage{}, logger)
 
 	// create an empty map of chain monitors
 	chainMonitors := make(map[types.ChainID]*source.ChainMonitor, len(cfg.L2RPCs))
@@ -145,10 +135,6 @@ func (su *SupervisorBackend) Start(ctx context.Context) error {
 			return fmt.Errorf("failed to start chain monitor: %w", err)
 		}
 	}
-	// start db maintenance loop
-	maintenanceCtx, cancel := context.WithCancel(context.Background())
-	su.db.StartCrossHeadMaintenance(maintenanceCtx)
-	su.maintenanceCancel = cancel
 	return nil
 }
 
@@ -158,8 +144,6 @@ func (su *SupervisorBackend) Stop(ctx context.Context) error {
 	if !su.started.CompareAndSwap(true, false) {
 		return errAlreadyStopped
 	}
-	// signal the maintenance loop to stop
-	su.maintenanceCancel()
 	// collect errors from stopping chain monitors
 	var errs error
 	for _, monitor := range su.chainMonitors {
@@ -190,9 +174,9 @@ func (su *SupervisorBackend) CheckMessage(identifier types.Identifier, payloadHa
 	chainID := identifier.ChainID
 	blockNum := identifier.BlockNumber
 	logIdx := identifier.LogIndex
-	i, err := su.db.Check(chainID, blockNum, uint32(logIdx), payloadHash)
+	_, err := su.db.Check(chainID, blockNum, uint32(logIdx), payloadHash)
 	if errors.Is(err, logs.ErrFuture) {
-		return types.Unsafe, nil
+		return types.LocalUnsafe, nil
 	}
 	if errors.Is(err, logs.ErrConflict) {
 		return types.Invalid, nil
@@ -200,17 +184,7 @@ func (su *SupervisorBackend) CheckMessage(identifier types.Identifier, payloadHa
 	if err != nil {
 		return types.Invalid, fmt.Errorf("failed to check log: %w", err)
 	}
-	safest := types.CrossUnsafe
-	// at this point we have the log entry, and we can check if it is safe by various criteria
-	for _, checker := range []db.SafetyChecker{
-		db.NewSafetyChecker(types.Unsafe, su.db),
-		db.NewSafetyChecker(types.Safe, su.db),
-		db.NewSafetyChecker(types.Finalized, su.db),
-	} {
-		if i <= checker.CrossHeadForChain(chainID) {
-			safest = checker.SafetyLevel()
-		}
-	}
+	safest := su.db.Safest(chainID, blockNum, uint32(logIdx))
 	return safest, nil
 }
 
@@ -236,12 +210,11 @@ func (su *SupervisorBackend) CheckMessages(
 // The block is considered safe if all logs in the block are safe
 // this is decided by finding the last log in the block and
 func (su *SupervisorBackend) CheckBlock(chainID *hexutil.U256, blockHash common.Hash, blockNumber hexutil.Uint64) (types.SafetyLevel, error) {
-	safest := types.CrossUnsafe
 	// find the last log index in the block
 	id := eth.BlockID{Hash: blockHash, Number: uint64(blockNumber)}
-	i, err := su.db.FindSealedBlock(types.ChainID(*chainID), id)
+	_, err := su.db.FindSealedBlock(types.ChainID(*chainID), id)
 	if errors.Is(err, logs.ErrFuture) {
-		return types.Unsafe, nil
+		return types.LocalUnsafe, nil
 	}
 	if errors.Is(err, logs.ErrConflict) {
 		return types.Invalid, nil
@@ -250,15 +223,6 @@ func (su *SupervisorBackend) CheckBlock(chainID *hexutil.U256, blockHash common.
 		su.logger.Error("failed to scan block", "err", err)
 		return "", err
 	}
-	// at this point we have the extent of the block, and we can check if it is safe by various criteria
-	for _, checker := range []db.SafetyChecker{
-		db.NewSafetyChecker(types.Unsafe, su.db),
-		db.NewSafetyChecker(types.Safe, su.db),
-		db.NewSafetyChecker(types.Finalized, su.db),
-	} {
-		if i <= checker.CrossHeadForChain(types.ChainID(*chainID)) {
-			safest = checker.SafetyLevel()
-		}
-	}
+	safest := su.db.Safest(types.ChainID(*chainID), uint64(blockNumber), 0)
 	return safest, nil
 }

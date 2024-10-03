@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/config"
+
 	bindingspreview "github.com/ethereum-optimism/optimism/op-node/bindings/preview"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -24,6 +26,7 @@ type hardforkScheduledTest struct {
 	ecotoneTime  *hexutil.Uint64
 	fjordTime    *hexutil.Uint64
 	runToFork    string
+	allocType    config.AllocType
 }
 
 func (tc *hardforkScheduledTest) SetFork(fork string, v uint64) {
@@ -51,6 +54,14 @@ func (tc *hardforkScheduledTest) fork(fork string) **hexutil.Uint64 {
 	}
 }
 
+func TestCrossLayerUser_Standard(t *testing.T) {
+	testCrossLayerUser(t, config.AllocTypeStandard)
+}
+
+func TestCrossLayerUser_L2OO(t *testing.T) {
+	testCrossLayerUser(t, config.AllocTypeL2OO)
+}
+
 // TestCrossLayerUser tests that common actions of the CrossLayerUser actor work in various hardfork configurations:
 // - transact on L1
 // - transact on L2
@@ -59,7 +70,7 @@ func (tc *hardforkScheduledTest) fork(fork string) **hexutil.Uint64 {
 // - prove tx on L1
 // - wait 1 week + 1 second
 // - finalize withdrawal on L1
-func TestCrossLayerUser(t *testing.T) {
+func testCrossLayerUser(t *testing.T, allocType config.AllocType) {
 	futureTime := uint64(20)
 	farFutureTime := uint64(2000)
 
@@ -75,14 +86,18 @@ func TestCrossLayerUser(t *testing.T) {
 		fork := fork
 		t.Run("fork_"+fork, func(t *testing.T) {
 			t.Run("at_genesis", func(t *testing.T) {
-				tc := hardforkScheduledTest{}
+				tc := hardforkScheduledTest{
+					allocType: allocType,
+				}
 				for _, f := range forks[:i+1] { // activate, all up to and incl this fork, at genesis
 					tc.SetFork(f, 0)
 				}
 				runCrossLayerUserTest(t, tc)
 			})
 			t.Run("after_genesis", func(t *testing.T) {
-				tc := hardforkScheduledTest{}
+				tc := hardforkScheduledTest{
+					allocType: allocType,
+				}
 				for _, f := range forks[:i] { // activate, all up to this fork, at genesis
 					tc.SetFork(f, 0)
 				}
@@ -92,7 +107,9 @@ func TestCrossLayerUser(t *testing.T) {
 				runCrossLayerUserTest(t, tc)
 			})
 			t.Run("not_yet", func(t *testing.T) {
-				tc := hardforkScheduledTest{}
+				tc := hardforkScheduledTest{
+					allocType: allocType,
+				}
 				for _, f := range forks[:i] { // activate, all up to this fork, at genesis
 					tc.SetFork(f, 0)
 				}
@@ -109,7 +126,9 @@ func TestCrossLayerUser(t *testing.T) {
 
 func runCrossLayerUserTest(gt *testing.T, test hardforkScheduledTest) {
 	t := NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, DefaultRollupTestParams)
+	params := DefaultRollupTestParams()
+	params.AllocType = test.allocType
+	dp := e2eutils.MakeDeployParams(t, params)
 	// This overwrites all deploy-config settings,
 	// so even when the deploy-config defaults change, we test the right transitions.
 	dp.DeployConfig.L2GenesisRegolithTimeOffset = test.regolithTime
@@ -136,7 +155,7 @@ func runCrossLayerUserTest(gt *testing.T, test hardforkScheduledTest) {
 		seq.RollupClient(), miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 
 	var proposer *L2Proposer
-	if e2eutils.UseFaultProofs() {
+	if test.allocType.UsesProofs() {
 		optimismPortal2Contract, err := bindingspreview.NewOptimismPortal2(sd.DeploymentsL1.OptimismPortalProxy, miner.EthClient())
 		require.NoError(t, err)
 		respectedGameType, err := optimismPortal2Contract.RespectedGameType(&bind.CallOpts{})
@@ -148,6 +167,7 @@ func runCrossLayerUserTest(gt *testing.T, test hardforkScheduledTest) {
 			DisputeGameType:        respectedGameType,
 			ProposerKey:            dp.Secrets.Proposer,
 			AllowNonFinalized:      true,
+			AllocType:              test.allocType,
 		}, miner.EthClient(), seq.RollupClient())
 	} else {
 		proposer = NewL2Proposer(t, log, &ProposerCfg{
@@ -155,6 +175,7 @@ func runCrossLayerUserTest(gt *testing.T, test hardforkScheduledTest) {
 			ProposerKey:           dp.Secrets.Proposer,
 			ProposalRetryInterval: 3 * time.Second,
 			AllowNonFinalized:     true,
+			AllocType:             test.allocType,
 		}, miner.EthClient(), seq.RollupClient())
 	}
 
@@ -171,7 +192,7 @@ func runCrossLayerUserTest(gt *testing.T, test hardforkScheduledTest) {
 		EthCl:          l1Cl,
 		Signer:         types.LatestSigner(sd.L1Cfg.Config),
 		AddressCorpora: addresses,
-		Bindings:       NewL1Bindings(t, l1Cl),
+		Bindings:       NewL1Bindings(t, l1Cl, test.allocType),
 	}
 	l2UserEnv := &BasicUserEnv[*L2Bindings]{
 		EthCl:          l2Cl,
@@ -180,7 +201,7 @@ func runCrossLayerUserTest(gt *testing.T, test hardforkScheduledTest) {
 		Bindings:       NewL2Bindings(t, l2Cl, l2ProofCl),
 	}
 
-	alice := NewCrossLayerUser(log, dp.Secrets.Alice, rand.New(rand.NewSource(1234)))
+	alice := NewCrossLayerUser(log, dp.Secrets.Alice, rand.New(rand.NewSource(1234)), test.allocType)
 	alice.L1.SetUserEnv(l1UserEnv)
 	alice.L2.SetUserEnv(l2UserEnv)
 
@@ -288,7 +309,7 @@ func runCrossLayerUserTest(gt *testing.T, test hardforkScheduledTest) {
 	miner.ActL1EndBlock(t)
 
 	// If using fault proofs we need to resolve the game
-	if e2eutils.UseFaultProofs() {
+	if test.allocType.UsesProofs() {
 		// Resolve the root claim
 		alice.ActResolveClaim(t)
 		miner.ActL1StartBlock(12)(t)

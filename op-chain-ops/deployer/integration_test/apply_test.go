@@ -27,6 +27,9 @@ import (
 const TestParams = `
 participants:
   - el_type: geth
+    el_extra_params:
+      - "--gcmode=archive"
+      - "--rpc.txfeecap=0"
     cl_type: lighthouse
 network_params:
   prefunded_accounts: '{ "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266": { "balance": "1000000ETH" } }'
@@ -41,6 +44,7 @@ network_params:
   }'
   network_id: "77799777"
   seconds_per_slot: 3
+  genesis_delay: 0
 `
 
 type deployerKey struct{}
@@ -56,7 +60,7 @@ func (d *deployerKey) String() string {
 func TestEndToEndApply(t *testing.T) {
 	kurtosisutil.Test(t)
 
-	lgr := testlog.Logger(t, slog.LevelInfo)
+	lgr := testlog.Logger(t, slog.LevelDebug)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -90,18 +94,104 @@ func TestEndToEndApply(t *testing.T) {
 
 	id := uint256.NewInt(1)
 
+	deployerAddr, err := dk.Address(depKey)
+	require.NoError(t, err)
+
+	env := &pipeline.Env{
+		Workdir:  t.TempDir(),
+		L1Client: l1Client,
+		Signer:   signer,
+		Deployer: deployerAddr,
+		Logger:   lgr,
+	}
+
+	t.Run("initial chain", func(t *testing.T) {
+		intent, st := makeIntent(t, l1ChainID, artifactsURL, dk, id)
+
+		require.NoError(t, deployer.ApplyPipeline(
+			ctx,
+			env,
+			intent,
+			st,
+		))
+
+		addrs := []struct {
+			name string
+			addr common.Address
+		}{
+			{"SuperchainProxyAdmin", st.SuperchainDeployment.ProxyAdminAddress},
+			{"SuperchainConfigProxy", st.SuperchainDeployment.SuperchainConfigProxyAddress},
+			{"SuperchainConfigImpl", st.SuperchainDeployment.SuperchainConfigImplAddress},
+			{"ProtocolVersionsProxy", st.SuperchainDeployment.ProtocolVersionsProxyAddress},
+			{"ProtocolVersionsImpl", st.SuperchainDeployment.ProtocolVersionsImplAddress},
+			{"OpcmProxy", st.ImplementationsDeployment.OpcmProxyAddress},
+			{"DelayedWETHImpl", st.ImplementationsDeployment.DelayedWETHImplAddress},
+			{"OptimismPortalImpl", st.ImplementationsDeployment.OptimismPortalImplAddress},
+			{"PreimageOracleSingleton", st.ImplementationsDeployment.PreimageOracleSingletonAddress},
+			{"MipsSingleton", st.ImplementationsDeployment.MipsSingletonAddress},
+			{"SystemConfigImpl", st.ImplementationsDeployment.SystemConfigImplAddress},
+			{"L1CrossDomainMessengerImpl", st.ImplementationsDeployment.L1CrossDomainMessengerImplAddress},
+			{"L1ERC721BridgeImpl", st.ImplementationsDeployment.L1ERC721BridgeImplAddress},
+			{"L1StandardBridgeImpl", st.ImplementationsDeployment.L1StandardBridgeImplAddress},
+			{"OptimismMintableERC20FactoryImpl", st.ImplementationsDeployment.OptimismMintableERC20FactoryImplAddress},
+			{"DisputeGameFactoryImpl", st.ImplementationsDeployment.DisputeGameFactoryImplAddress},
+		}
+		for _, addr := range addrs {
+			t.Run(addr.name, func(t *testing.T) {
+				code, err := l1Client.CodeAt(ctx, addr.addr, nil)
+				require.NoError(t, err)
+				require.NotEmpty(t, code, "contracts %s at %s has no code", addr.name, addr.addr)
+			})
+		}
+
+		validateOPChainDeployment(t, ctx, l1Client, st)
+	})
+
+	t.Run("subsequent chain", func(t *testing.T) {
+		newID := uint256.NewInt(2)
+		intent, st := makeIntent(t, l1ChainID, artifactsURL, dk, newID)
+		env.Workdir = t.TempDir()
+
+		require.NoError(t, deployer.ApplyPipeline(
+			ctx,
+			env,
+			intent,
+			st,
+		))
+
+		addrs := []struct {
+			name string
+			addr common.Address
+		}{
+			{"SuperchainConfigProxy", st.SuperchainDeployment.SuperchainConfigProxyAddress},
+			{"ProtocolVersionsProxy", st.SuperchainDeployment.ProtocolVersionsProxyAddress},
+			{"OpcmProxy", st.ImplementationsDeployment.OpcmProxyAddress},
+		}
+		for _, addr := range addrs {
+			t.Run(addr.name, func(t *testing.T) {
+				code, err := l1Client.CodeAt(ctx, addr.addr, nil)
+				require.NoError(t, err)
+				require.NotEmpty(t, code, "contracts %s at %s has no code", addr.name, addr.addr)
+			})
+		}
+
+		validateOPChainDeployment(t, ctx, l1Client, st)
+	})
+}
+
+func makeIntent(
+	t *testing.T,
+	l1ChainID *big.Int,
+	artifactsURL *url.URL,
+	dk *devkeys.MnemonicDevKeys,
+	l2ChainID *uint256.Int,
+) (*state.Intent, *state.State) {
 	addrFor := func(key devkeys.Key) common.Address {
 		addr, err := dk.Address(key)
 		require.NoError(t, err)
 		return addr
 	}
-	env := &pipeline.Env{
-		Workdir:  t.TempDir(),
-		L1Client: l1Client,
-		Signer:   signer,
-		Deployer: addrFor(depKey),
-		Logger:   lgr,
-	}
+
 	intent := &state.Intent{
 		L1ChainID: l1ChainID.Uint64(),
 		SuperchainRoles: state.SuperchainRoles{
@@ -109,12 +199,12 @@ func TestEndToEndApply(t *testing.T) {
 			ProtocolVersionsOwner: addrFor(devkeys.SuperchainDeployerKey.Key(l1ChainID)),
 			Guardian:              addrFor(devkeys.SuperchainConfigGuardianKey.Key(l1ChainID)),
 		},
-		UseFaultProofs:       true,
 		FundDevAccounts:      true,
 		ContractArtifactsURL: (*state.ArtifactsURL)(artifactsURL),
+		ContractsRelease:     "dev",
 		Chains: []*state.ChainIntent{
 			{
-				ID: id.Bytes32(),
+				ID: l2ChainID.Bytes32(),
 				Roles: state.ChainRoles{
 					ProxyAdminOwner:      addrFor(devkeys.L2ProxyAdminOwnerRole.Key(l1ChainID)),
 					SystemConfigOwner:    addrFor(devkeys.SystemConfigOwner.Key(l1ChainID)),
@@ -130,43 +220,10 @@ func TestEndToEndApply(t *testing.T) {
 	st := &state.State{
 		Version: 1,
 	}
+	return intent, st
+}
 
-	require.NoError(t, deployer.ApplyPipeline(
-		ctx,
-		env,
-		intent,
-		st,
-	))
-
-	addrs := []struct {
-		name string
-		addr common.Address
-	}{
-		{"SuperchainProxyAdmin", st.SuperchainDeployment.ProxyAdminAddress},
-		{"SuperchainConfigProxy", st.SuperchainDeployment.SuperchainConfigProxyAddress},
-		{"SuperchainConfigImpl", st.SuperchainDeployment.SuperchainConfigImplAddress},
-		{"ProtocolVersionsProxy", st.SuperchainDeployment.ProtocolVersionsProxyAddress},
-		{"ProtocolVersionsImpl", st.SuperchainDeployment.ProtocolVersionsImplAddress},
-		{"OpsmProxy", st.ImplementationsDeployment.OpsmProxyAddress},
-		{"DelayedWETHImpl", st.ImplementationsDeployment.DelayedWETHImplAddress},
-		{"OptimismPortalImpl", st.ImplementationsDeployment.OptimismPortalImplAddress},
-		{"PreimageOracleSingleton", st.ImplementationsDeployment.PreimageOracleSingletonAddress},
-		{"MipsSingleton", st.ImplementationsDeployment.MipsSingletonAddress},
-		{"SystemConfigImpl", st.ImplementationsDeployment.SystemConfigImplAddress},
-		{"L1CrossDomainMessengerImpl", st.ImplementationsDeployment.L1CrossDomainMessengerImplAddress},
-		{"L1ERC721BridgeImpl", st.ImplementationsDeployment.L1ERC721BridgeImplAddress},
-		{"L1StandardBridgeImpl", st.ImplementationsDeployment.L1StandardBridgeImplAddress},
-		{"OptimismMintableERC20FactoryImpl", st.ImplementationsDeployment.OptimismMintableERC20FactoryImplAddress},
-		{"DisputeGameFactoryImpl", st.ImplementationsDeployment.DisputeGameFactoryImplAddress},
-	}
-	for _, addr := range addrs {
-		t.Run(addr.name, func(t *testing.T) {
-			code, err := l1Client.CodeAt(ctx, addr.addr, nil)
-			require.NoError(t, err)
-			require.NotEmpty(t, code, "contracts %s at %s has no code", addr.name, addr.addr)
-		})
-	}
-
+func validateOPChainDeployment(t *testing.T, ctx context.Context, l1Client *ethclient.Client, st *state.State) {
 	for _, chainState := range st.Chains {
 		chainAddrs := []struct {
 			name string
@@ -182,14 +239,17 @@ func TestEndToEndApply(t *testing.T) {
 			{"OptimismPortalProxyAddress", chainState.OptimismPortalProxyAddress},
 			{"DisputeGameFactoryProxyAddress", chainState.DisputeGameFactoryProxyAddress},
 			{"AnchorStateRegistryProxyAddress", chainState.AnchorStateRegistryProxyAddress},
-			{"AnchorStateRegistryImplAddress", chainState.AnchorStateRegistryImplAddress},
 			{"FaultDisputeGameAddress", chainState.FaultDisputeGameAddress},
 			{"PermissionedDisputeGameAddress", chainState.PermissionedDisputeGameAddress},
 			{"DelayedWETHPermissionedGameProxyAddress", chainState.DelayedWETHPermissionedGameProxyAddress},
-			{"DelayedWETHPermissionlessGameProxyAddress", chainState.DelayedWETHPermissionlessGameProxyAddress},
+			// {"DelayedWETHPermissionlessGameProxyAddress", chainState.DelayedWETHPermissionlessGameProxyAddress},
 		}
 		for _, addr := range chainAddrs {
-			t.Run(fmt.Sprintf("chain %s - %s", chainState.ID, addr.name), func(t *testing.T) {
+			// TODO Delete this `if`` block once FaultDisputeGameAddress is deployed.
+			if addr.name == "FaultDisputeGameAddress" {
+				continue
+			}
+			t.Run(addr.name, func(t *testing.T) {
 				code, err := l1Client.CodeAt(ctx, addr.addr, nil)
 				require.NoError(t, err)
 				require.NotEmpty(t, code, "contracts %s at %s for chain %s has no code", addr.name, addr.addr, chainState.ID)

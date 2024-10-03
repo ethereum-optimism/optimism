@@ -118,7 +118,7 @@ func TestMemoryReadWrite(t *testing.T) {
 		_, err := rand.Read(data[:])
 		require.NoError(t, err)
 		require.NoError(t, m.SetMemoryRange(0, bytes.NewReader(data)))
-		for _, i := range []uint32{0, 4, 1000, 20_000 - 4} {
+		for _, i := range []Word{0, 4, 1000, 20_000 - 4} {
 			v := m.GetMemory(i)
 			expected := binary.BigEndian.Uint32(data[i : i+4])
 			require.Equalf(t, expected, v, "read at %d", i)
@@ -129,7 +129,7 @@ func TestMemoryReadWrite(t *testing.T) {
 		m := NewMemory()
 		data := []byte(strings.Repeat("under the big bright yellow sun ", 40))
 		require.NoError(t, m.SetMemoryRange(0x1337, bytes.NewReader(data)))
-		res, err := io.ReadAll(m.ReadMemoryRange(0x1337-10, uint32(len(data)+20)))
+		res, err := io.ReadAll(m.ReadMemoryRange(0x1337-10, Word(len(data)+20)))
 		require.NoError(t, err)
 		require.Equal(t, make([]byte, 10), res[:10], "empty start")
 		require.Equal(t, data, res[10:len(res)-10], "result")
