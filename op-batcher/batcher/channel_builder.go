@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/queue"
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
@@ -75,7 +76,7 @@ type ChannelBuilder struct {
 	// oldestL2 is the oldest L2 block of all the L2 blocks that have been added to the channel
 	oldestL2 eth.BlockID
 	// frames data queue, to be send as txs
-	frames []frameData
+	frames queue.Queue[frameData]
 	// total frames counter
 	numFrames int
 	// total amount of output data of all frames created yet
@@ -387,7 +388,7 @@ func (c *ChannelBuilder) outputFrame() error {
 		id:   frameID{chID: c.co.ID(), frameNumber: fn},
 		data: buf.Bytes(),
 	}
-	c.frames = append(c.frames, frame)
+	c.frames.Enqueue(frame)
 	c.numFrames++
 	c.outputBytes += len(frame.data)
 	return err // possibly io.EOF (last frame)
@@ -413,25 +414,23 @@ func (c *ChannelBuilder) TotalFrames() int {
 // Call OutputFrames before to create new frames from the channel out
 // compression pipeline.
 func (c *ChannelBuilder) HasFrame() bool {
-	return len(c.frames) > 0
+	return c.frames.Len() > 0
 }
 
 // PendingFrames returns the number of pending frames in the frames queue.
 // It is larger zero iff HasFrame() returns true.
 func (c *ChannelBuilder) PendingFrames() int {
-	return len(c.frames)
+	return c.frames.Len()
 }
 
 // NextFrame dequeues the next available frame.
 // HasFrame must be called prior to check if there's a next frame available.
 // Panics if called when there's no next frame.
 func (c *ChannelBuilder) NextFrame() frameData {
-	if len(c.frames) == 0 {
+	f, ok := c.frames.Dequeue()
+	if !ok {
 		panic("no next frame")
 	}
-
-	f := c.frames[0]
-	c.frames = c.frames[1:]
 	return f
 }
 
@@ -442,6 +441,6 @@ func (c *ChannelBuilder) PushFrames(frames ...frameData) {
 		if f.id.chID != c.ID() {
 			panic("wrong channel")
 		}
-		c.frames = append(c.frames, f)
 	}
+	c.frames.Enqueue(frames...)
 }
