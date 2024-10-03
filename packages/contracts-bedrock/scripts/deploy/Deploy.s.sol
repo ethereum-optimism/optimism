@@ -436,7 +436,6 @@ contract Deploy is Deployer {
         ChainAssertions.checkL1CrossDomainMessenger({ _contracts: contracts, _vm: vm, _isProxy: false });
         ChainAssertions.checkOptimismPortal2({ _contracts: contracts, _cfg: cfg, _isProxy: false });
         ChainAssertions.checkOptimismMintableERC20Factory({ _contracts: contracts, _isProxy: false });
-        ChainAssertions.checkSystemConfig({ _contracts: contracts, _cfg: cfg, _isProxy: false });
         ChainAssertions.checkDisputeGameFactory({ _contracts: contracts, _expectedOwner: address(0), _isProxy: false });
         ChainAssertions.checkDelayedWETH({
             _contracts: contracts,
@@ -448,6 +447,11 @@ contract Deploy is Deployer {
             _oracle: IPreimageOracle(address(dio.preimageOracleSingleton())),
             _cfg: cfg
         });
+        if (_isInterop) {
+            ChainAssertions.checkSystemConfigInterop({ _contracts: contracts, _cfg: cfg, _isProxy: false });
+        } else {
+            ChainAssertions.checkSystemConfig({ _contracts: contracts, _cfg: cfg, _isProxy: false });
+        }
     }
 
     /// @notice Initialize all of the proxies in an OP Chain by upgrading to the correct proxy and calling the
@@ -701,37 +705,6 @@ contract Deploy is Deployer {
         );
 
         addr_ = address(anchorStateRegistry);
-    }
-
-    /// @notice Deploy the SystemConfig
-    function deploySystemConfig() public broadcast returns (address addr_) {
-        addr_ = DeployUtils.create2AndSave({
-            _save: this,
-            _salt: _implSalt(),
-            _name: "SystemConfig",
-            _args: DeployUtils.encodeConstructor(abi.encodeCall(ISystemConfig.__constructor__, ()))
-        });
-        Types.ContractSet memory contracts = _proxiesUnstrict();
-        contracts.SystemConfig = addr_;
-        ChainAssertions.checkSystemConfig({ _contracts: contracts, _cfg: cfg, _isProxy: false });
-    }
-
-    /// @notice Deploy the SystemConfigInterop contract
-    function deploySystemConfigInterop() public broadcast returns (address addr_) {
-        addr_ = DeployUtils.create2AndSave({
-            _save: this,
-            _salt: _implSalt(),
-            _name: "SystemConfigInterop",
-            _args: DeployUtils.encodeConstructor(abi.encodeCall(ISystemConfigInterop.__constructor__, ()))
-        });
-        save("SystemConfig", addr_);
-
-        // Override the `SystemConfig` contract to the deployed implementation. This is necessary
-        // to check the `SystemConfig` implementation alongside dependent contracts, which
-        // are always proxies.
-        Types.ContractSet memory contracts = _proxiesUnstrict();
-        contracts.SystemConfig = addr_;
-        ChainAssertions.checkSystemConfigInterop({ _contracts: contracts, _cfg: cfg, _isProxy: false });
     }
 
     /// @notice Deploy the L1StandardBridge
