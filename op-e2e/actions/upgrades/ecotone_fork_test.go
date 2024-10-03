@@ -42,7 +42,7 @@ func verifyCodeHashMatches(t helpers.Testing, client *ethclient.Client, address 
 
 func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	t := helpers.NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams)
+	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
 	ecotoneOffset := hexutil.Uint64(4)
 
 	log := testlog.Logger(t, log.LevelDebug)
@@ -240,7 +240,7 @@ func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 // TestEcotoneBeforeL1 tests that the L2 Ecotone fork can activate before L1 Dencun does
 func TestEcotoneBeforeL1(gt *testing.T) {
 	t := helpers.NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams)
+	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
 	offset := hexutil.Uint64(0)
 	farOffset := hexutil.Uint64(10000)
 	dp.DeployConfig.L2GenesisRegolithTimeOffset = &offset

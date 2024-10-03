@@ -162,6 +162,9 @@ jobs:
         description: Whether to notify on failure
         type: boolean
         default: false
+      mips64:
+        type: boolean
+        default: false
     resource_class: xlarge
     steps:
       - checkout
@@ -184,14 +187,29 @@ jobs:
           command: |
             make lint
           working_directory: cannon
-      - run:
-          name: Cannon Go tests
-          command: |
-            export SKIP_SLOW_TESTS=<<parameters.skip_slow_tests>>
-            mkdir -p /testlogs
-            gotestsum --format=testname --junitfile=/tmp/test-results/cannon.xml --jsonfile=/testlogs/log.json \
-            -- -parallel=8 -coverpkg=github.com/ethereum-optimism/optimism/cannon/... -coverprofile=coverage.out ./...
-          working_directory: cannon
+      - when:
+          condition:
+            not: <<parameters.mips64>>
+          steps:
+            - run:
+                name: Cannon Go 32-bit tests
+                command: |
+                  export SKIP_SLOW_TESTS=<<parameters.skip_slow_tests>>
+                  mkdir -p /testlogs
+                  gotestsum --format=testname --junitfile=/tmp/test-results/cannon.xml --jsonfile=/testlogs/log.json \
+                  -- -parallel=8 -coverpkg=github.com/ethereum-optimism/optimism/cannon/... -coverprofile=coverage.out ./...
+                working_directory: cannon
+      - when:
+          condition: <<parameters.mips64>>
+          steps:
+            - run:
+                name: Cannon Go 64-bit tests
+                command: |
+                  export SKIP_SLOW_TESTS=<<parameters.skip_slow_tests>>
+                  mkdir -p /testlogs
+                  gotestsum --format=testname --junitfile=/tmp/test-results/cannon.xml --jsonfile=/testlogs/log.json \
+                  -- --tags=cannon64 -parallel=8 -coverpkg=github.com/ethereum-optimism/optimism/cannon/... -coverprofile=coverage.out ./...
+                working_directory: cannon
       - run:
           name: upload Cannon coverage
           command: codecov --verbose --clean --flags cannon-go-tests
@@ -255,28 +273,9 @@ jobs:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
       - run:
-          name: Generate L2OO allocs
+          name: Generate allocs
           command: |
-            DEVNET_L2OO="true" make devnet-allocs
-            cp -r .devnet/ .devnet-l2oo/
-      - run:
-          name: Generate AltDA allocs
-          command: |
-            DEVNET_ALTDA="true" make devnet-allocs
-            cp -r .devnet/ .devnet-altda/
-      - run:
-          name: Generate Generic AltDA allocs
-          command: |
-            DEVNET_ALTDA="true" GENERIC_ALTDA="true" make devnet-allocs
-            cp -r .devnet/ .devnet-altda-generic/
-      - run:
-          name: Generate MT-Cannon allocs
-          command: |
-            USE_MT_CANNON="true" make devnet-allocs
-            cp -r .devnet/ .devnet-mt-cannon/
-      - run:
-          name: Generate default allocs
-          command: make devnet-allocs
+            make devnet-allocs-tests
       - save_cache:
           name: Save Go modules cache
           key: gomod-contracts-build-{{ checksum "go.sum" }}
@@ -296,10 +295,33 @@ jobs:
             - "packages/contracts-bedrock/deploy-config/devnetL1.json"
             - "packages/contracts-bedrock/deployments/devnetL1"
             - ".devnet"
+            - ".devnet-standard"
             - ".devnet-l2oo"
-            - ".devnet-altda"
-            - ".devnet-altda-generic"
+            - ".devnet-alt-da"
+            - ".devnet-alt-da-generic"
             - ".devnet-mt-cannon"
+      - notify-failures-on-develop
+
+  check-kontrol-build:
+    docker:
+      - image: <<pipeline.parameters.ci_builder_image>>
+    resource_class: xlarge
+    steps:
+      - checkout
+      - attach_workspace: { at: "." }
+      - install-contracts-dependencies
+      - check-changed:
+          patterns: contracts-bedrock
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - run:
+          name: Run Kontrol build
+          command: just kontrol-summary-full
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: Build Kontrol summary files
+          command: forge build ./test/kontrol/proofs
+          working_directory: packages/contracts-bedrock
       - notify-failures-on-develop
 
   docker-build:
@@ -868,9 +890,14 @@ jobs:
       module:
         description: Go Module Name
         type: string
+      uses_artifacts:
+        description: Uses contract artifacts
+        type: boolean
+        default: false
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: xlarge
+    circleci_ip_ranges: true
     steps:
       - checkout
       - restore_cache:
@@ -881,6 +908,10 @@ jobs:
           keys:
             - golang-build-cache-test-<<parameters.module>>-{{ checksum "go.sum" }}
             - golang-build-cache-test-
+      - when:
+          condition: <<parameters.uses_artifacts>>
+          steps:
+            - attach_workspace: { at: "." }
       - run:
           name: Install components
           command: |
@@ -892,7 +923,7 @@ jobs:
       - run:
           name: run tests
           command: |
-            gotestsum --format=testname --junitfile=/tmp/test-results/<<parameters.module>>.xml --jsonfile=/tmp/testlogs/log.json \
+            ENABLE_ANVIL=true SEPOLIA_RPC_URL="https://ci-sepolia-l1.optimism.io" gotestsum --format=testname --junitfile=/tmp/test-results/<<parameters.module>>.xml --jsonfile=/tmp/testlogs/log.json \
             -- -parallel=8 -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out ./...
           working_directory: <<parameters.module>>
       - save_cache:
@@ -908,9 +939,6 @@ jobs:
 
   go-e2e-test:
     parameters:
-      variant:
-        type: string
-        default: ''
       module:
         description: Go Module Name
         type: string
@@ -929,39 +957,12 @@ jobs:
         description: Slack user or group to mention when notifying of failures
         type: string
         default: ""
-    environment:
-      DEVNET_L2OO: 'false'
-      OP_E2E_USE_L2OO: 'false'
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: xlarge
     parallelism: <<parameters.parallelism>>
     steps:
       - checkout
-      - when:
-          condition:
-            equal: ['-l2oo', <<parameters.variant>>]
-          steps:
-            - run:
-                name: Set DEVNET_L2OO = true
-                command: echo 'export DEVNET_L2OO=true' >> $BASH_ENV
-            - run:
-                name: Set OP_E2E_USE_L2OO = true
-                command: echo 'export OP_E2E_USE_L2OO=true' >> $BASH_ENV
-      - when:
-          condition:
-            equal: ['-altda', <<parameters.variant>>]
-          steps:
-            - run:
-                name: Set OP_E2E_USE_ALTDA = true
-                command: echo 'export OP_E2E_USE_ALTDA=true' >> $BASH_ENV
-      - when:
-          condition:
-            equal: ['-mt-cannon', <<parameters.variant>>]
-          steps:
-            - run:
-                name: Set OP_E2E_USE_MT_CANNON = true
-                command: echo 'export OP_E2E_USE_MT_CANNON=true' >> $BASH_ENV
       - check-changed:
           patterns: op-(.+),cannon,contracts-bedrock
       - run:
@@ -981,12 +982,7 @@ jobs:
           name: Load devnet-allocs and artifacts
           command: |
             mkdir -p .devnet
-            cp /tmp/workspace/.devnet<<parameters.variant>>/allocs-l2-delta.json .devnet/allocs-l2-delta.json
-            cp /tmp/workspace/.devnet<<parameters.variant>>/allocs-l2-ecotone.json .devnet/allocs-l2-ecotone.json
-            cp /tmp/workspace/.devnet<<parameters.variant>>/allocs-l2-fjord.json .devnet/allocs-l2-fjord.json
-            cp /tmp/workspace/.devnet<<parameters.variant>>/allocs-l2-granite.json .devnet/allocs-l2-granite.json
-            cp /tmp/workspace/.devnet<<parameters.variant>>/allocs-l1.json .devnet/allocs-l1.json
-            cp /tmp/workspace/.devnet<<parameters.variant>>/addresses.json .devnet/addresses.json
+            cp -r /tmp/workspace/.devnet* .
             cp -r /tmp/workspace/packages/contracts-bedrock/forge-artifacts packages/contracts-bedrock/forge-artifacts
             cp /tmp/workspace/packages/contracts-bedrock/deploy-config/devnetL1.json packages/contracts-bedrock/deploy-config/devnetL1.json
             cp -r /tmp/workspace/packages/contracts-bedrock/deployments/devnetL1 packages/contracts-bedrock/deployments/devnetL1
@@ -1004,7 +1000,7 @@ jobs:
             # want it to.
             export OP_E2E_CANNON_ENABLED="false"
             # Note: We don't use circle CI test splits because we need to split by test name, not by package. There is an additional
-            # constraint that gotestsum does not currently (nor likely will) accept files from different pacakges when building.
+            # constraint that gotestsum does not currently (nor likely will) accept files from different packages when building.
             JUNIT_FILE=/tmp/test-results/<<parameters.module>>_<<parameters.target>>.xml JSON_LOG_FILE=/testlogs/test.log make <<parameters.target>>
           working_directory: <<parameters.module>>
       - store_artifacts:
@@ -1210,7 +1206,7 @@ jobs:
           # --timeout (in seconds) limits the time per rule and file.
           #   SEMGREP_TIMEOUT is the same, but docs have conflicting defaults (5s in CLI flag, 1800 in some places)
           #    https://semgrep.dev/docs/troubleshooting/semgrep-app#if-the-job-is-aborted-due-to-taking-too-long
-          command: semgrep ci --timeout=100 --no-suppress-errors
+          command: semgrep ci --timeout=100
           # If semgrep hangs, stop the scan after 20m, to prevent a useless 5h job
           no_output_timeout: 20m
       - notify-failures-on-develop
@@ -1389,6 +1385,9 @@ workflows:
       - contracts-bedrock-build:
           # Build with just core + script contracts.
           skip_pattern: test
+      - check-kontrol-build:
+          requires:
+            - contracts-bedrock-build
       - contracts-bedrock-tests:
           # Test everything except PreimageOracle.t.sol since it's slow.
           name: contracts-bedrock-tests
@@ -1451,7 +1450,6 @@ workflows:
             parameters:
               module:
                 - op-batcher
-                - op-chain-ops
                 - op-node
                 - op-proposer
                 - op-challenger
@@ -1463,6 +1461,13 @@ workflows:
       - go-test:
           name: semver-natspec-tests
           module: packages/contracts-bedrock/scripts/checks/semver-natspec
+      - go-test:
+          name: op-chain-ops-tests
+          module: op-chain-ops
+          uses_artifacts: true
+          requires:
+            - go-mod-download
+            - contracts-bedrock-build
       - go-test-kurtosis:
           name: op-chain-ops-integration
           module: op-chain-ops
@@ -1470,21 +1475,15 @@ workflows:
           uses_artifacts: true
           requires: ["contracts-bedrock-build"]
       - go-e2e-test:
-          name: op-e2e-HTTP-tests<< matrix.variant >>
-          matrix:
-            parameters:
-              variant: ["", "-l2oo"]
+          name: op-e2e-HTTP-tests
           module: op-e2e
           target: test-http
-          parallelism: 4
+          parallelism: 8
           requires:
             - go-mod-download
             - contracts-bedrock-build
       - go-e2e-test:
-          name: op-e2e-action-tests<< matrix.variant >>
-          matrix:
-            parameters:
-              variant: ["", "-l2oo", "-altda"]
+          name: op-e2e-action-tests
           module: op-e2e
           target: test-actions
           parallelism: 1
@@ -1526,7 +1525,6 @@ workflows:
             - op-e2e-HTTP-tests
             - op-e2e-fault-proof-tests
             - op-e2e-action-tests
-            - op-e2e-action-tests-altda
             # Not needed for the devnet but we want to make sure they build successfully
             - cannon-docker-build
             - op-dispute-mon-docker-build
@@ -1717,13 +1715,10 @@ workflows:
           context:
             - slack
       - go-e2e-test:
-          name: op-e2e-cannon-tests<< matrix.variant >>
-          matrix:
-            parameters:
-              variant: ["", "-mt-cannon"]
+          name: op-e2e-cannon-tests
           module: op-e2e
           target: test-cannon
-          parallelism: 4
+          parallelism: 8
           notify: true
           mentions: "@proofs-squad"
           requires:

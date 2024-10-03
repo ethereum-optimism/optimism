@@ -252,7 +252,7 @@ func (r *Runner) run(ctx context.Context, l1Head common.Hash, agreedBlockInfo et
 }
 
 func runFaultProofProgram(ctx context.Context, args []string) error {
-	ctx, cancel := context.WithTimeout(ctx, 60*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Hour)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "./bin/op-program", args...)
 	cmd.Stdout = os.Stdout

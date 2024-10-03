@@ -16,6 +16,7 @@ High-level information about these contracts can be found within this README and
 - [Contributing](#contributing)
   - [Contributing Guide](#contributing-guide)
   - [Style Guide](#style-guide)
+  - [Solidity Versioning](#solidity-versioning)
 - [Deployment](#deployment)
   - [Deploying Production Networks](#deploying-production-networks)
 - [Generating L2 Genesis Allocs](#generating-l2-genesis-allocs)
@@ -70,6 +71,12 @@ Please refer to the [CONTRIBUTING.md](https://github.com/ethereum-optimism/optim
 
 OP Stack smart contracts should be written according to the [STYLE_GUIDE.md](./STYLE_GUIDE.md) found within this repository.
 Maintaining a consistent code style makes code easier to review and maintain, ultimately making the development process safer.
+
+### Solidity Versioning
+
+OP Stack smart contracts are designed to utilize a single, consistent Solidity version. Please
+refer to [SOLIDITY_UPGRADES.md](./SOLIDITY_UPGRADES.md) to understand the process for updating to
+newer Solidity versions.
 
 ## Deployment
 

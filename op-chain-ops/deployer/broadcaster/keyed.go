@@ -6,9 +6,10 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 	"github.com/ethereum/go-ethereum/common"
@@ -31,12 +32,11 @@ type KeyedBroadcaster struct {
 }
 
 type KeyedBroadcasterOpts struct {
-	Logger          log.Logger
-	ChainID         *big.Int
-	Client          *ethclient.Client
-	Signer          opcrypto.SignerFn
-	From            common.Address
-	TXManagerLogger log.Logger
+	Logger  log.Logger
+	ChainID *big.Int
+	Client  *ethclient.Client
+	Signer  opcrypto.SignerFn
+	From    common.Address
 }
 
 func NewKeyedBroadcaster(cfg KeyedBroadcasterOpts) (*KeyedBroadcaster, error) {
@@ -51,6 +51,7 @@ func NewKeyedBroadcaster(cfg KeyedBroadcasterOpts) (*KeyedBroadcaster, error) {
 		SafeAbortNonceTooLowCount: 3,
 		Signer:                    cfg.Signer,
 		From:                      cfg.From,
+		GasPriceEstimatorFn:       DeployerGasPriceEstimator,
 	}
 
 	minTipCap, err := eth.GweiToWei(1.0)
@@ -68,14 +69,9 @@ func NewKeyedBroadcaster(cfg KeyedBroadcasterOpts) (*KeyedBroadcaster, error) {
 	mgrCfg.MinTipCap.Store(minTipCap)
 	mgrCfg.MinBaseFee.Store(minBaseFee)
 
-	txmLogger := log.NewLogger(log.DiscardHandler())
-	if cfg.TXManagerLogger != nil {
-		txmLogger = cfg.TXManagerLogger
-	}
-
 	mgr, err := txmgr.NewSimpleTxManagerFromConfig(
 		"transactor",
-		txmLogger,
+		cfg.Logger,
 		&metrics.NoopTxMetrics{},
 		mgrCfg,
 	)
