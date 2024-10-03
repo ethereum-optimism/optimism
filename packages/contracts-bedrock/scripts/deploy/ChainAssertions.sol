@@ -363,7 +363,11 @@ library ChainAssertions {
         view
     {
         IOptimismPortal2 portal = IOptimismPortal2(payable(_contracts.OptimismPortal2));
-        console.log("Running chain assertions on the OptimismPortal2 at %s", address(portal));
+        console.log(
+            "Running chain assertions on the OptimismPortal2 %s at %s",
+            _isProxy ? "proxy" : "implementation",
+            address(portal)
+        );
         require(address(portal) != address(0), "CHECK-OP2-10");
 
         // Check that the contract is initialized
@@ -401,20 +405,25 @@ library ChainAssertions {
         internal
         view
     {
-        console.log("Running chain assertions on the ProtocolVersions");
         IProtocolVersions versions = IProtocolVersions(_contracts.ProtocolVersions);
+        console.log(
+            "Running chain assertions on the ProtocolVersions %s at %s",
+            _isProxy ? "proxy" : "implementation",
+            address(versions)
+        );
+        require(address(versions) != address(0), "CHECK-PV-10");
 
         // Check that the contract is initialized
         assertSlotValueIsOne({ _contractAddress: address(versions), _slot: 0, _offset: 0 });
 
         if (_isProxy) {
-            require(versions.owner() == _cfg.finalSystemOwner());
-            require(ProtocolVersion.unwrap(versions.required()) == _cfg.requiredProtocolVersion());
-            require(ProtocolVersion.unwrap(versions.recommended()) == _cfg.recommendedProtocolVersion());
+            require(versions.owner() == _cfg.finalSystemOwner(), "CHECK-PV-20");
+            require(ProtocolVersion.unwrap(versions.required()) == _cfg.requiredProtocolVersion(), "CHECK-PV-30");
+            require(ProtocolVersion.unwrap(versions.recommended()) == _cfg.recommendedProtocolVersion(), "CHECK-PV-40");
         } else {
-            require(versions.owner() == address(0xdead));
-            require(ProtocolVersion.unwrap(versions.required()) == 0);
-            require(ProtocolVersion.unwrap(versions.recommended()) == 0);
+            require(versions.owner() == address(0xdead), "CHECK-PV-50");
+            require(ProtocolVersion.unwrap(versions.required()) == 0, "CHECK-PV-60");
+            require(ProtocolVersion.unwrap(versions.recommended()) == 0, "CHECK-PV-70");
         }
     }
 
@@ -428,18 +437,23 @@ library ChainAssertions {
         internal
         view
     {
-        console.log("Running chain assertions on the SuperchainConfig");
         ISuperchainConfig superchainConfig = ISuperchainConfig(_contracts.SuperchainConfig);
+        console.log(
+            "Running chain assertions on the SuperchainConfig %s at %s",
+            _isProxy ? "proxy" : "implementation",
+            address(superchainConfig)
+        );
+        require(address(superchainConfig) != address(0), "CHECK-SC-10");
 
         // Check that the contract is initialized
         assertSlotValueIsOne({ _contractAddress: address(superchainConfig), _slot: 0, _offset: 0 });
 
         if (_isProxy) {
-            require(superchainConfig.guardian() == _cfg.superchainConfigGuardian());
-            require(superchainConfig.paused() == _isPaused);
+            require(superchainConfig.guardian() == _cfg.superchainConfigGuardian(), "CHECK-SC-20");
+            require(superchainConfig.paused() == _isPaused, "CHECK-SC-30");
         } else {
-            require(superchainConfig.guardian() == address(0));
-            require(superchainConfig.paused() == false);
+            require(superchainConfig.guardian() == address(0), "CHECK-SC-40");
+            require(superchainConfig.paused() == false, "CHECK-SC-50");
         }
     }
 
