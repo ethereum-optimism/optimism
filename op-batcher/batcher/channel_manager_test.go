@@ -612,9 +612,7 @@ func TestChannelManager_TxData(t *testing.T) {
 // TestChannelManager_Requeue seeds the channel manager with blocks,
 // takes a state snapshot, triggers the blocks->channels pipeline,
 // and then calls Requeue. Finally, it asserts the channel manager's
-// state is equal to the snapshot. It repeats this for a channel
-// which has a pending transaction and verifies that Requeue is then
-// a noop.
+// state is equal to the snapshot.
 func TestChannelManager_Requeue(t *testing.T) {
 	l := testlog.Logger(t, log.LevelCrit)
 	cfg := channelManagerTestConfig(100, derive.SingularBatchType)
@@ -645,26 +643,4 @@ func TestChannelManager_Requeue(t *testing.T) {
 	// Ensure we got back to the state above
 	require.Equal(t, m.blocks, stateSnapshot)
 	require.Empty(t, m.channelQueue)
-
-	// Trigger the blocks -> channelQueue data pipelining again
-	require.NoError(t, m.ensureChannelWithSpace(eth.BlockID{}))
-	require.NotEmpty(t, m.channelQueue)
-	require.NoError(t, m.processBlocks())
-
-	// Assert that at least one block was processed into the channel
-	require.NotContains(t, m.blocks, blockA)
-
-	// Now mark the 0th channel in the queue as already
-	// starting to send on chain
-	channel0 := m.channelQueue[0]
-	channel0.pendingTransactions["foo"] = txData{}
-	require.False(t, channel0.NoneSubmitted())
-
-	// Call the function we are testing
-	m.Requeue(m.defaultCfg)
-
-	// The requeue shouldn't affect the pending channel
-	require.Contains(t, m.channelQueue, channel0)
-
-	require.NotContains(t, m.blocks, blockA)
 }

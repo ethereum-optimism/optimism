@@ -478,28 +478,24 @@ func (s *channelManager) Close() error {
 	return nil
 }
 
-// Requeue rebuilds the channel manager state by
-// rewinding blocks back from the channel queue, and setting the defaultCfg.
+// Requeue rewinds blocks back from the current channel
+// and sets the defaultCfg.
+// Should only be called when the channel in question
+// exists and has not started to submit data.
 func (s *channelManager) Requeue(newCfg ChannelConfig) {
-	newChannelQueue := []*channel{}
-	blocksToRequeue := []*types.Block{}
-	for _, channel := range s.channelQueue {
-		if !channel.NoneSubmitted() {
-			newChannelQueue = append(newChannelQueue, channel)
-			continue
-		}
-		blocksToRequeue = append(blocksToRequeue, channel.channelBuilder.Blocks()...)
+
+	// Remove the current channel from the back of the queue
+	channelToDiscard := s.channelQueue[len(s.channelQueue)-1]
+	if channelToDiscard != s.currentChannel {
+		panic("current channel is not at the back of the channel queue")
 	}
+	s.channelQueue = s.channelQueue[:len(s.channelQueue)-1]
 
 	// We put the blocks back at the front of the queue:
-	s.blocks.Prepend(blocksToRequeue...)
-
-	for _, b := range blocksToRequeue {
-		s.metr.RecordL2BlockInPendingQueue(b)
-	}
-
-	// Channels which where already being submitted are put back
-	s.channelQueue = newChannelQueue
+	// Here it is safe to prepend because we know nothing can have
+	// dequeued anything since we dequeued blocksToRequeue,
+	// therefore the block ordering will be preserved
+	s.blocks.Prepend(channelToDiscard.channelBuilder.Blocks()...)
 	s.currentChannel = nil
 	// Setting the defaultCfg will cause new channels
 	// to pick up the new ChannelConfig
