@@ -6,6 +6,8 @@ import (
 	"path"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/config"
+
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
 	upgradesHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/upgrades/helpers"
 	"github.com/ethereum/go-ethereum/common"
@@ -55,7 +57,7 @@ func TestReorgBatchType(t *testing.T) {
 
 func ReorgOrphanBlock(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := actionsHelpers.NewDefaultTesting(gt)
-	sd, _, miner, sequencer, _, verifier, verifierEng, batcher := actionsHelpers.SetupReorgTest(t, actionsHelpers.DefaultRollupTestParams, deltaTimeOffset)
+	sd, _, miner, sequencer, _, verifier, verifierEng, batcher := actionsHelpers.SetupReorgTest(t, actionsHelpers.DefaultRollupTestParams(), deltaTimeOffset)
 	verifEngClient := verifierEng.EngineClient(t, sd.RollupCfg)
 
 	sequencer.ActL2PipelineFull(t)
@@ -123,7 +125,7 @@ func ReorgOrphanBlock(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 
 func ReorgFlipFlop(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := actionsHelpers.NewDefaultTesting(gt)
-	sd, _, miner, sequencer, _, verifier, verifierEng, batcher := actionsHelpers.SetupReorgTest(t, actionsHelpers.DefaultRollupTestParams, deltaTimeOffset)
+	sd, _, miner, sequencer, _, verifier, verifierEng, batcher := actionsHelpers.SetupReorgTest(t, actionsHelpers.DefaultRollupTestParams(), deltaTimeOffset)
 	minerCl := miner.L1Client(t, sd.RollupCfg)
 	verifEngClient := verifierEng.EngineClient(t, sd.RollupCfg)
 	checkVerifEngine := func() {
@@ -344,6 +346,7 @@ func DeepReorg(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 		SequencerWindowSize: 20,
 		ChannelTimeout:      120,
 		L1BlockTime:         4,
+		AllocType:           config.AllocTypeStandard,
 	}, deltaTimeOffset)
 	minerCl := miner.L1Client(t, sd.RollupCfg)
 	l2Client := seqEngine.EthClient()
@@ -363,7 +366,7 @@ func DeepReorg(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 		AddressCorpora: addresses,
 		Bindings:       actionsHelpers.NewL2Bindings(t, l2Client, seqEngine.GethClient()),
 	}
-	alice := actionsHelpers.NewCrossLayerUser(log, dp.Secrets.Alice, rand.New(rand.NewSource(0xa57b)))
+	alice := actionsHelpers.NewCrossLayerUser(log, dp.Secrets.Alice, rand.New(rand.NewSource(0xa57b)), config.AllocTypeStandard)
 	alice.L2.SetUserEnv(l2UserEnv)
 
 	// Run one iteration of the L2 derivation pipeline
@@ -579,7 +582,7 @@ func RestartOpGeth(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 		nodeCfg.DataDir = dbPath
 		return nil
 	}
-	dp := e2eutils.MakeDeployParams(t, actionsHelpers.DefaultRollupTestParams)
+	dp := e2eutils.MakeDeployParams(t, actionsHelpers.DefaultRollupTestParams())
 	upgradesHelpers.ApplyDeltaTimeOffset(dp, deltaTimeOffset)
 	sd := e2eutils.Setup(t, dp, actionsHelpers.DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
@@ -667,7 +670,7 @@ func RestartOpGeth(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 // the alt block is not synced by the verifier, in unsafe and safe sync modes.
 func ConflictingL2Blocks(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := actionsHelpers.NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, actionsHelpers.DefaultRollupTestParams)
+	dp := e2eutils.MakeDeployParams(t, actionsHelpers.DefaultRollupTestParams())
 	upgradesHelpers.ApplyDeltaTimeOffset(dp, deltaTimeOffset)
 	sd := e2eutils.Setup(t, dp, actionsHelpers.DefaultAlloc)
 	log := testlog.Logger(t, log.LevelDebug)
@@ -694,7 +697,7 @@ func ConflictingL2Blocks(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 		AddressCorpora: addresses,
 		Bindings:       actionsHelpers.NewL2Bindings(t, l2Cl, altSeqEng.GethClient()),
 	}
-	alice := actionsHelpers.NewCrossLayerUser(log, dp.Secrets.Alice, rand.New(rand.NewSource(1234)))
+	alice := actionsHelpers.NewCrossLayerUser(log, dp.Secrets.Alice, rand.New(rand.NewSource(1234)), config.AllocTypeStandard)
 	alice.L2.SetUserEnv(l2UserEnv)
 
 	sequencer.ActL2PipelineFull(t)
@@ -779,6 +782,7 @@ func SyncAfterReorg(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 		SequencerWindowSize: 4,
 		ChannelTimeout:      2,
 		L1BlockTime:         12,
+		AllocType:           config.AllocTypeStandard,
 	}
 	sd, dp, miner, sequencer, seqEngine, verifier, _, batcher := actionsHelpers.SetupReorgTest(t, &testingParams, deltaTimeOffset)
 	l2Client := seqEngine.EthClient()
@@ -790,7 +794,7 @@ func SyncAfterReorg(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 		AddressCorpora: addresses,
 		Bindings:       actionsHelpers.NewL2Bindings(t, l2Client, seqEngine.GethClient()),
 	}
-	alice := actionsHelpers.NewCrossLayerUser(log, dp.Secrets.Alice, rand.New(rand.NewSource(0xa57b)))
+	alice := actionsHelpers.NewCrossLayerUser(log, dp.Secrets.Alice, rand.New(rand.NewSource(0xa57b)), config.AllocTypeStandard)
 	alice.L2.SetUserEnv(l2UserEnv)
 
 	sequencer.ActL2PipelineFull(t)

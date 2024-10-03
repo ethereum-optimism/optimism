@@ -11,8 +11,8 @@ library MIPSState {
         uint32 hi;
     }
 
-    function assertExitedIsValid(uint32 exited) internal pure {
-        if (exited > 1) {
+    function assertExitedIsValid(uint32 _exited) internal pure {
+        if (_exited > 1) {
             revert InvalidExitedValue();
         }
     }

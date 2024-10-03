@@ -30,7 +30,7 @@ make cannon
 
 # Transform MIPS op-program client binary into first VM state.
 # This outputs state.json (VM state) and meta.json (for debug symbols).
-./bin/cannon load-elf --path=../op-program/bin/op-program-client.elf
+./bin/cannon load-elf --type singlethreaded --path=../op-program/bin/op-program-client.elf
 
 # Run cannon emulator (with example inputs)
 # Note that the server-mode op-program command is passed into cannon (after the --),

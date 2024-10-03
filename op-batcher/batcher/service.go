@@ -53,7 +53,7 @@ type BatcherService struct {
 	Metrics          metrics.Metricer
 	L1Client         *ethclient.Client
 	EndpointProvider dial.L2EndpointProvider
-	TxManager        *txmgr.SimpleTxManager
+	TxManager        txmgr.TxManager
 	AltDA            *altda.DAClient
 
 	BatcherConfig

@@ -7,8 +7,12 @@ import (
 	"os"
 	"sync"
 
+	"github.com/ethereum/go-ethereum/log"
+
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
+
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // HeadTracker records the current chain head pointers for a single chain.
@@ -18,9 +22,95 @@ type HeadTracker struct {
 	path string
 
 	current *Heads
+
+	logger log.Logger
 }
 
-func NewHeadTracker(path string) (*HeadTracker, error) {
+func (t *HeadTracker) CrossUnsafe(id types.ChainID) HeadPointer {
+	return t.current.Get(id).CrossUnsafe
+}
+
+func (t *HeadTracker) CrossSafe(id types.ChainID) HeadPointer {
+	return t.current.Get(id).CrossSafe
+}
+
+func (t *HeadTracker) CrossFinalized(id types.ChainID) HeadPointer {
+	return t.current.Get(id).CrossFinalized
+}
+
+func (t *HeadTracker) LocalUnsafe(id types.ChainID) HeadPointer {
+	return t.current.Get(id).Unsafe
+}
+
+func (t *HeadTracker) LocalSafe(id types.ChainID) HeadPointer {
+	return t.current.Get(id).LocalSafe
+}
+
+func (t *HeadTracker) LocalFinalized(id types.ChainID) HeadPointer {
+	return t.current.Get(id).LocalFinalized
+}
+
+func (t *HeadTracker) UpdateCrossUnsafe(id types.ChainID, pointer HeadPointer) error {
+	return t.Apply(OperationFn(func(heads *Heads) error {
+		t.logger.Info("Cross-unsafe update", "pointer", pointer)
+		h := heads.Get(id)
+		h.CrossUnsafe = pointer
+		heads.Put(id, h)
+		return nil
+	}))
+}
+
+func (t *HeadTracker) UpdateCrossSafe(id types.ChainID, pointer HeadPointer) error {
+	return t.Apply(OperationFn(func(heads *Heads) error {
+		t.logger.Info("Cross-safe update", "pointer", pointer)
+		h := heads.Get(id)
+		h.CrossSafe = pointer
+		heads.Put(id, h)
+		return nil
+	}))
+}
+
+func (t *HeadTracker) UpdateCrossFinalized(id types.ChainID, pointer HeadPointer) error {
+	return t.Apply(OperationFn(func(heads *Heads) error {
+		t.logger.Info("Cross-finalized update", "pointer", pointer)
+		h := heads.Get(id)
+		h.CrossFinalized = pointer
+		heads.Put(id, h)
+		return nil
+	}))
+}
+
+func (t *HeadTracker) UpdateLocalUnsafe(id types.ChainID, pointer HeadPointer) error {
+	return t.Apply(OperationFn(func(heads *Heads) error {
+		t.logger.Info("Local-unsafe update", "pointer", pointer)
+		h := heads.Get(id)
+		h.Unsafe = pointer
+		heads.Put(id, h)
+		return nil
+	}))
+}
+
+func (t *HeadTracker) UpdateLocalSafe(id types.ChainID, pointer HeadPointer) error {
+	return t.Apply(OperationFn(func(heads *Heads) error {
+		t.logger.Info("Local-safe update", "pointer", pointer)
+		h := heads.Get(id)
+		h.LocalSafe = pointer
+		heads.Put(id, h)
+		return nil
+	}))
+}
+
+func (t *HeadTracker) UpdateLocalFinalized(id types.ChainID, pointer HeadPointer) error {
+	return t.Apply(OperationFn(func(heads *Heads) error {
+		t.logger.Info("Local-finalized update", "pointer", pointer)
+		h := heads.Get(id)
+		h.LocalFinalized = pointer
+		heads.Put(id, h)
+		return nil
+	}))
+}
+
+func NewHeadTracker(logger log.Logger, path string) (*HeadTracker, error) {
 	current := NewHeads()
 	if data, err := os.ReadFile(path); errors.Is(err, os.ErrNotExist) {
 		// No existing file, just use empty heads
@@ -34,6 +124,7 @@ func NewHeadTracker(path string) (*HeadTracker, error) {
 	return &HeadTracker{
 		path:    path,
 		current: current,
+		logger:  logger,
 	}, nil
 }
 

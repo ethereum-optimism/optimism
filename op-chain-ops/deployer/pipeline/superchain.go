@@ -4,17 +4,16 @@ import (
 	"context"
 	"fmt"
 	"math/big"
-	"os"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opsm"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
 
-func DeploySuperchain(ctx context.Context, env *Env, intent *state.Intent, st *state.State) error {
+func DeploySuperchain(ctx context.Context, env *Env, artifactsFS foundry.StatDirFs, intent *state.Intent, st *state.State) error {
 	lgr := env.Logger.New("stage", "deploy-superchain")
 
 	if !shouldDeploySuperchain(intent, st) {
@@ -24,17 +23,9 @@ func DeploySuperchain(ctx context.Context, env *Env, intent *state.Intent, st *s
 
 	lgr.Info("deploying superchain")
 
-	var artifactsFS foundry.StatDirFs
-	var err error
-	if intent.ContractArtifactsURL.Scheme == "file" {
-		fs := os.DirFS(intent.ContractArtifactsURL.Path)
-		artifactsFS = fs.(foundry.StatDirFs)
-	} else {
-		return fmt.Errorf("only file:// artifacts URLs are supported")
-	}
-
 	var dump *foundry.ForgeAllocs
-	var dso opsm.DeploySuperchainOutput
+	var dso opcm.DeploySuperchainOutput
+	var err error
 	err = CallScriptBroadcast(
 		ctx,
 		CallScriptBroadcastOpts{
@@ -46,10 +37,10 @@ func DeploySuperchain(ctx context.Context, env *Env, intent *state.Intent, st *s
 			Client:      env.L1Client,
 			Broadcaster: KeyedBroadcaster,
 			Handler: func(host *script.Host) error {
-				dso, err = opsm.DeploySuperchain(
+				dso, err = opcm.DeploySuperchain(
 					host,
-					opsm.DeploySuperchainInput{
-						ProxyAdminOwner:            intent.SuperchainRoles.ProxyAdminOwner,
+					opcm.DeploySuperchainInput{
+						SuperchainProxyAdminOwner:  intent.SuperchainRoles.ProxyAdminOwner,
 						ProtocolVersionsOwner:      intent.SuperchainRoles.ProtocolVersionsOwner,
 						Guardian:                   intent.SuperchainRoles.Guardian,
 						Paused:                     false,

@@ -4,15 +4,15 @@ import (
 	"context"
 	"fmt"
 	"math/big"
-	"os"
+	"strings"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opsm"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 )
 
-func DeployImplementations(ctx context.Context, env *Env, intent *state.Intent, st *state.State) error {
+func DeployImplementations(ctx context.Context, env *Env, artifactsFS foundry.StatDirFs, intent *state.Intent, st *state.State) error {
 	lgr := env.Logger.New("stage", "deploy-implementations")
 
 	if !shouldDeployImplementations(intent, st) {
@@ -22,17 +22,17 @@ func DeployImplementations(ctx context.Context, env *Env, intent *state.Intent, 
 
 	lgr.Info("deploying implementations")
 
-	var artifactsFS foundry.StatDirFs
+	var standardVersionsTOML string
 	var err error
-	if intent.ContractArtifactsURL.Scheme == "file" {
-		fs := os.DirFS(intent.ContractArtifactsURL.Path)
-		artifactsFS = fs.(foundry.StatDirFs)
-	} else {
-		return fmt.Errorf("only file:// artifacts URLs are supported")
+	if strings.HasPrefix(intent.ContractsRelease, "op-contracts") {
+		standardVersionsTOML, err = opcm.StandardVersionsFor(intent.L1ChainID)
+		if err != nil {
+			return fmt.Errorf("error getting standard versions TOML: %w", err)
+		}
 	}
 
 	var dump *foundry.ForgeAllocs
-	var dio opsm.DeployImplementationsOutput
+	var dio opcm.DeployImplementationsOutput
 	err = CallScriptBroadcast(
 		ctx,
 		CallScriptBroadcastOpts{
@@ -44,20 +44,22 @@ func DeployImplementations(ctx context.Context, env *Env, intent *state.Intent, 
 			Client:      env.L1Client,
 			Broadcaster: KeyedBroadcaster,
 			Handler: func(host *script.Host) error {
-				host.SetEnvVar("IMPL_SALT", st.Create2Salt.Hex()[2:])
 				host.ImportState(st.SuperchainDeployment.StateDump)
-				dio, err = opsm.DeployImplementations(
+
+				dio, err = opcm.DeployImplementations(
 					host,
-					opsm.DeployImplementationsInput{
+					opcm.DeployImplementationsInput{
+						Salt:                            st.Create2Salt,
 						WithdrawalDelaySeconds:          big.NewInt(604800),
 						MinProposalSizeBytes:            big.NewInt(126000),
 						ChallengePeriodSeconds:          big.NewInt(86400),
 						ProofMaturityDelaySeconds:       big.NewInt(604800),
 						DisputeGameFinalityDelaySeconds: big.NewInt(302400),
-						Release:                         "op-contracts/v1.6.0",
+						Release:                         intent.ContractsRelease,
 						SuperchainConfigProxy:           st.SuperchainDeployment.SuperchainConfigProxyAddress,
 						ProtocolVersionsProxy:           st.SuperchainDeployment.ProtocolVersionsProxyAddress,
-						SuperchainProxyAdmin:            st.SuperchainDeployment.ProxyAdminAddress,
+						OpcmProxyOwner:                  st.SuperchainDeployment.ProxyAdminAddress,
+						StandardVersionsToml:            standardVersionsTOML,
 						UseInterop:                      false,
 					},
 				)
@@ -77,7 +79,7 @@ func DeployImplementations(ctx context.Context, env *Env, intent *state.Intent, 
 	}
 
 	st.ImplementationsDeployment = &state.ImplementationsDeployment{
-		OpsmProxyAddress:                        dio.OpsmProxy,
+		OpcmProxyAddress:                        dio.OpcmProxy,
 		DelayedWETHImplAddress:                  dio.DelayedWETHImpl,
 		OptimismPortalImplAddress:               dio.OptimismPortalImpl,
 		PreimageOracleSingletonAddress:          dio.PreimageOracleSingleton,

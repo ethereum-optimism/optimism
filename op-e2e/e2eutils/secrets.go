@@ -8,7 +8,6 @@ import (
 	hdwallet "github.com/ethereum-optimism/go-ethereum-hdwallet"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -132,18 +131,6 @@ type Secrets struct {
 
 	// Share the wallet to be able to generate more accounts
 	Wallet *hdwallet.Wallet
-}
-
-// EncodePrivKey encodes the given private key in 32 bytes
-func EncodePrivKey(priv *ecdsa.PrivateKey) hexutil.Bytes {
-	privkey := make([]byte, 32)
-	blob := priv.D.Bytes()
-	copy(privkey[32-len(blob):], blob)
-	return privkey
-}
-
-func EncodePrivKeyToString(priv *ecdsa.PrivateKey) string {
-	return hexutil.Encode(EncodePrivKey(priv))
 }
 
 // Addresses computes the ethereum address of each account,

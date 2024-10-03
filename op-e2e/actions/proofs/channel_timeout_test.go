@@ -17,6 +17,11 @@ func runChannelTimeoutTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	env := helpers.NewL2FaultProofEnv(t, testCfg, tp, helpers.NewBatcherCfg())
 	channelTimeout := env.Sd.ChainSpec.ChannelTimeout(0)
 
+	var timedOutChannels uint
+	env.Sequencer.DerivationMetricsTracer().FnRecordChannelTimedOut = func() {
+		timedOutChannels++
+	}
+
 	const NumL2Blocks = 10
 
 	// Build NumL2Blocks empty blocks on L2
@@ -62,6 +67,9 @@ func runChannelTimeoutTest(gt *testing.T, testCfg *helpers.TestCfg[any]) {
 	l2SafeHead = env.Engine.L2Chain().CurrentSafeBlock()
 	require.Equal(t, uint64(0), l2SafeHead.Number.Uint64())
 
+	// Ensure that the channel was timed out.
+	require.EqualValues(t, 1, timedOutChannels)
+
 	// Instruct the batcher to submit the blocks to L1 in a new channel,
 	// submitted across 2 transactions.
 	for i := 0; i < 2; i++ {
@@ -102,6 +110,11 @@ func runChannelTimeoutTest_CloseChannelLate(gt *testing.T, testCfg *helpers.Test
 	tp := helpers.NewTestParams()
 	env := helpers.NewL2FaultProofEnv(t, testCfg, tp, helpers.NewBatcherCfg())
 	channelTimeout := env.Sd.ChainSpec.ChannelTimeout(0)
+
+	var timedOutChannels uint
+	env.Sequencer.DerivationMetricsTracer().FnRecordChannelTimedOut = func() {
+		timedOutChannels++
+	}
 
 	const NumL2Blocks = 10
 
@@ -147,6 +160,9 @@ func runChannelTimeoutTest_CloseChannelLate(gt *testing.T, testCfg *helpers.Test
 	// Ensure the safe head has still not advanced.
 	l2SafeHead = env.Engine.L2Chain().CurrentSafeBlock()
 	require.Equal(t, uint64(0), l2SafeHead.Number.Uint64())
+
+	// Ensure that the channel was timed out.
+	require.EqualValues(t, 1, timedOutChannels)
 
 	// Cache the second and final frame of the channel from the batcher, but do not submit it yet.
 	for i := 0; i < NumL2Blocks/2; i++ {

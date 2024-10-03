@@ -10,7 +10,6 @@ import { NextImpl } from "test/mocks/NextImpl.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 // Contracts
-import { Proxy } from "src/universal/Proxy.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 
 // Libraries
@@ -29,6 +28,7 @@ import { IL1Block } from "src/L2/interfaces/IL1Block.sol";
 import { IOptimismPortal2 } from "src/L1/interfaces/IOptimismPortal2.sol";
 import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
 import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
+import { IProxy } from "src/universal/interfaces/IProxy.sol";
 
 contract OptimismPortal2_Test is CommonTest {
     address depositor;
@@ -1422,10 +1422,10 @@ contract OptimismPortal2_Upgradeable_Test is CommonTest {
         vm.startPrank(EIP1967Helper.getAdmin(address(optimismPortal2)));
         // The value passed to the initialize must be larger than the last value
         // that initialize was called with.
-        Proxy(payable(address(optimismPortal2))).upgradeToAndCall(
+        IProxy(payable(address(optimismPortal2))).upgradeToAndCall(
             address(nextImpl), abi.encodeWithSelector(NextImpl.initialize.selector, 2)
         );
-        assertEq(Proxy(payable(address(optimismPortal2))).implementation(), address(nextImpl));
+        assertEq(IProxy(payable(address(optimismPortal2))).implementation(), address(nextImpl));
 
         // Verify that the NextImpl contract initialized its values according as expected
         bytes32 slot21After = vm.load(address(optimismPortal2), bytes32(uint256(21)));

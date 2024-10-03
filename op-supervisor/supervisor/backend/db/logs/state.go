@@ -9,7 +9,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/heads"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // logContext is a buffer on top of the DB,
@@ -32,14 +33,14 @@ import (
 //
 // Types (<type> = 1 byte):
 // type 0: "checkpoint" <type><uint64 block number: 8 bytes><uint32 logsSince count: 4 bytes><uint64 timestamp: 8 bytes> = 21 bytes
-// type 1: "canonical hash" <type><parent blockhash truncated: 20 bytes> = 21 bytes
-// type 2: "initiating event" <type><event flags: 1 byte><event-hash: 20 bytes> = 22 bytes
+// type 1: "canonical hash" <type><parent blockhash: 32 bytes> = 33 bytes
+// type 2: "initiating event" <type><event flags: 1 byte><event-hash: 32 bytes> = 34 bytes
 // type 3: "executing link" <type><chain: 4 bytes><blocknum: 8 bytes><event index: 3 bytes><uint64 timestamp: 8 bytes> = 24 bytes
-// type 4: "executing check" <type><event-hash: 20 bytes> = 21 bytes
-// type 5: "padding" <type><padding: 23 bytes> = 24 bytes
+// type 4: "executing check" <type><event-hash: 32 bytes> = 33 bytes
+// type 5: "padding" <type><padding: 33 bytes> = 34 bytes
 // other types: future compat. E.g. for linking to L1, registering block-headers as a kind of initiating-event, tracking safe-head progression, etc.
 //
-// Right-pad each entry that is not 24 bytes.
+// Right-pad each entry that is not 34 bytes.
 //
 // We insert a checkpoint for every search interval and block sealing event,
 // and these may overlap as the same thing.
@@ -55,7 +56,7 @@ type logContext struct {
 	// blockHash of the last sealed block.
 	// A block is not considered sealed until we know its block hash.
 	// While we process logs we keep the parent-block of said logs around as sealed block.
-	blockHash types.TruncatedHash
+	blockHash common.Hash
 	// blockNum of the last sealed block
 	blockNum uint64
 	// timestamp of the last sealed block
@@ -65,7 +66,7 @@ type logContext struct {
 	logsSince uint32
 
 	// payload-hash of the log-event that was last processed. (may not be fully processed, see doneLog)
-	logHash types.TruncatedHash
+	logHash common.Hash
 
 	// executing message that might exist for the current log event.
 	// Might be incomplete; if !logDone while we already processed the initiating event,
@@ -91,9 +92,9 @@ func (l *logContext) NextIndex() entrydb.EntryIdx {
 }
 
 // SealedBlock returns the block that we are building on top of, and if it is sealed.
-func (l *logContext) SealedBlock() (hash types.TruncatedHash, num uint64, ok bool) {
+func (l *logContext) SealedBlock() (hash common.Hash, num uint64, ok bool) {
 	if !l.hasCompleteBlock() {
-		return types.TruncatedHash{}, 0, false
+		return common.Hash{}, 0, false
 	}
 	return l.blockHash, l.blockNum, true
 }
@@ -111,9 +112,9 @@ func (l *logContext) hasReadableLog() bool {
 }
 
 // InitMessage returns the current initiating message, if any is available.
-func (l *logContext) InitMessage() (hash types.TruncatedHash, logIndex uint32, ok bool) {
+func (l *logContext) InitMessage() (hash common.Hash, logIndex uint32, ok bool) {
 	if !l.hasReadableLog() {
-		return types.TruncatedHash{}, 0, false
+		return common.Hash{}, 0, false
 	}
 	return l.logHash, l.logsSince - 1, true
 }
@@ -124,6 +125,18 @@ func (l *logContext) ExecMessage() *types.ExecutingMessage {
 		return l.execMsg
 	}
 	return nil
+}
+
+func (l *logContext) HeadPointer() (heads.HeadPointer, error) {
+	if l.need != 0 {
+		return heads.HeadPointer{}, errors.New("cannot provide head pointer while state is incomplete")
+	}
+	return heads.HeadPointer{
+		LastSealedBlockHash: l.blockHash,
+		LastSealedBlockNum:  l.blockNum,
+		LastSealedTimestamp: l.timestamp,
+		LogsSince:           l.logsSince,
+	}, nil
 }
 
 // ApplyEntry applies an entry on top of the current state.
@@ -150,13 +163,13 @@ func (l *logContext) processEntry(entry entrydb.Entry) error {
 			return err
 		}
 		l.blockNum = current.blockNum
-		l.blockHash = types.TruncatedHash{}
+		l.blockHash = common.Hash{}
 		l.logsSince = current.logsSince // TODO this is bumping the logsSince?
 		l.timestamp = current.timestamp
 		l.need.Add(entrydb.FlagCanonicalHash)
 		// Log data after the block we are sealing remains to be seen
 		if l.logsSince == 0 {
-			l.logHash = types.TruncatedHash{}
+			l.logHash = common.Hash{}
 			l.execMsg = nil
 		}
 	case entrydb.TypeCanonicalHash:
@@ -201,7 +214,7 @@ func (l *logContext) processEntry(entry entrydb.Entry) error {
 			BlockNum:  link.blockNum,
 			LogIdx:    link.logIdx,
 			Timestamp: link.timestamp,
-			Hash:      types.TruncatedHash{}, // not known yet
+			Hash:      common.Hash{}, // not known yet
 		}
 		l.need.Remove(entrydb.FlagExecutingLink)
 		l.need.Add(entrydb.FlagExecutingCheck)
@@ -331,12 +344,12 @@ func (l *logContext) forceBlock(upd eth.BlockID, timestamp uint64) error {
 	if l.nextEntryIndex != 0 {
 		return errors.New("can only bootstrap on top of an empty state")
 	}
-	l.blockHash = types.TruncateHash(upd.Hash)
+	l.blockHash = upd.Hash
 	l.blockNum = upd.Number
 	l.timestamp = timestamp
 	l.logsSince = 0
 	l.execMsg = nil
-	l.logHash = types.TruncatedHash{}
+	l.logHash = common.Hash{}
 	l.need = 0
 	l.out = nil
 	return l.inferFull() // apply to the state as much as possible
@@ -350,29 +363,29 @@ func (l *logContext) SealBlock(parent common.Hash, upd eth.BlockID, timestamp ui
 		if err := l.inferFull(); err != nil { // ensure we can start applying
 			return err
 		}
-		if l.blockHash != types.TruncateHash(parent) {
+		if l.blockHash != parent {
 			return fmt.Errorf("%w: cannot apply block %s (parent %s) on top of %s", ErrConflict, upd, parent, l.blockHash)
 		}
-		if l.blockHash != (types.TruncatedHash{}) && l.blockNum+1 != upd.Number {
+		if l.blockHash != (common.Hash{}) && l.blockNum+1 != upd.Number {
 			return fmt.Errorf("%w: cannot apply block %d on top of %d", ErrConflict, upd.Number, l.blockNum)
 		}
 		if l.timestamp > timestamp {
 			return fmt.Errorf("%w: block timestamp %d must be equal or larger than current timestamp %d", ErrConflict, timestamp, l.timestamp)
 		}
 	}
-	l.blockHash = types.TruncateHash(upd.Hash)
+	l.blockHash = upd.Hash
 	l.blockNum = upd.Number
 	l.timestamp = timestamp
 	l.logsSince = 0
 	l.execMsg = nil
-	l.logHash = types.TruncatedHash{}
+	l.logHash = common.Hash{}
 	l.need.Add(entrydb.FlagSearchCheckpoint)
 	return l.inferFull() // apply to the state as much as possible
 }
 
 // ApplyLog applies a log on top of the current state.
 // The parent-block that the log comes after must be applied with ApplyBlock first.
-func (l *logContext) ApplyLog(parentBlock eth.BlockID, logIdx uint32, logHash types.TruncatedHash, execMsg *types.ExecutingMessage) error {
+func (l *logContext) ApplyLog(parentBlock eth.BlockID, logIdx uint32, logHash common.Hash, execMsg *types.ExecutingMessage) error {
 	if parentBlock == (eth.BlockID{}) {
 		return fmt.Errorf("genesis does not have logs: %w", ErrLogOutOfOrder)
 	}
@@ -387,7 +400,7 @@ func (l *logContext) ApplyLog(parentBlock eth.BlockID, logIdx uint32, logHash ty
 		}
 	}
 	// check parent block
-	if l.blockHash != types.TruncateHash(parentBlock.Hash) {
+	if l.blockHash != parentBlock.Hash {
 		return fmt.Errorf("%w: log builds on top of block %s, but have block %s", ErrLogOutOfOrder, parentBlock, l.blockHash)
 	}
 	if l.blockNum != parentBlock.Number {

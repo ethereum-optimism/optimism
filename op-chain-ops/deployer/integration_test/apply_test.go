@@ -6,9 +6,14 @@ import (
 	"log/slog"
 	"math/big"
 	"net/url"
+	"os"
 	"path"
 	"runtime"
 	"testing"
+	"time"
+
+	"github.com/ethereum-optimism/optimism/op-service/testutils/anvil"
+	crypto "github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 	"github.com/holiman/uint256"
@@ -27,6 +32,9 @@ import (
 const TestParams = `
 participants:
   - el_type: geth
+    el_extra_params:
+      - "--gcmode=archive"
+      - "--rpc.txfeecap=0"
     cl_type: lighthouse
 network_params:
   prefunded_accounts: '{ "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266": { "balance": "1000000ETH" } }'
@@ -41,6 +49,7 @@ network_params:
   }'
   network_id: "77799777"
   seconds_per_slot: 3
+  genesis_delay: 0
 `
 
 type deployerKey struct{}
@@ -56,15 +65,10 @@ func (d *deployerKey) String() string {
 func TestEndToEndApply(t *testing.T) {
 	kurtosisutil.Test(t)
 
-	lgr := testlog.Logger(t, slog.LevelInfo)
+	lgr := testlog.Logger(t, slog.LevelDebug)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
-	_, testFilename, _, ok := runtime.Caller(0)
-	require.Truef(t, ok, "failed to get test filename")
-	monorepoDir := path.Join(path.Dir(testFilename), "..", "..", "..")
-	artifactsDir := path.Join(monorepoDir, "packages", "contracts-bedrock", "forge-artifacts")
 
 	enclaveCtx := kurtosisutil.StartEnclave(t, ctx, lgr, "github.com/ethpandaops/ethereum-package", TestParams)
 
@@ -77,9 +81,6 @@ func TestEndToEndApply(t *testing.T) {
 	l1Client, err := ethclient.Dial(rpcURL)
 	require.NoError(t, err)
 
-	artifactsURL, err := url.Parse(fmt.Sprintf("file://%s", artifactsDir))
-	require.NoError(t, err)
-
 	depKey := new(deployerKey)
 	l1ChainID := big.NewInt(77799777)
 	dk, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
@@ -90,18 +91,110 @@ func TestEndToEndApply(t *testing.T) {
 
 	id := uint256.NewInt(1)
 
+	deployerAddr, err := dk.Address(depKey)
+	require.NoError(t, err)
+
+	env := &pipeline.Env{
+		Workdir:  t.TempDir(),
+		L1Client: l1Client,
+		Signer:   signer,
+		Deployer: deployerAddr,
+		Logger:   lgr,
+	}
+
+	t.Run("initial chain", func(t *testing.T) {
+		intent, st := makeIntent(t, l1ChainID, dk, id)
+
+		require.NoError(t, deployer.ApplyPipeline(
+			ctx,
+			env,
+			intent,
+			st,
+		))
+
+		addrs := []struct {
+			name string
+			addr common.Address
+		}{
+			{"SuperchainProxyAdmin", st.SuperchainDeployment.ProxyAdminAddress},
+			{"SuperchainConfigProxy", st.SuperchainDeployment.SuperchainConfigProxyAddress},
+			{"SuperchainConfigImpl", st.SuperchainDeployment.SuperchainConfigImplAddress},
+			{"ProtocolVersionsProxy", st.SuperchainDeployment.ProtocolVersionsProxyAddress},
+			{"ProtocolVersionsImpl", st.SuperchainDeployment.ProtocolVersionsImplAddress},
+			{"OpcmProxy", st.ImplementationsDeployment.OpcmProxyAddress},
+			{"DelayedWETHImpl", st.ImplementationsDeployment.DelayedWETHImplAddress},
+			{"OptimismPortalImpl", st.ImplementationsDeployment.OptimismPortalImplAddress},
+			{"PreimageOracleSingleton", st.ImplementationsDeployment.PreimageOracleSingletonAddress},
+			{"MipsSingleton", st.ImplementationsDeployment.MipsSingletonAddress},
+			{"SystemConfigImpl", st.ImplementationsDeployment.SystemConfigImplAddress},
+			{"L1CrossDomainMessengerImpl", st.ImplementationsDeployment.L1CrossDomainMessengerImplAddress},
+			{"L1ERC721BridgeImpl", st.ImplementationsDeployment.L1ERC721BridgeImplAddress},
+			{"L1StandardBridgeImpl", st.ImplementationsDeployment.L1StandardBridgeImplAddress},
+			{"OptimismMintableERC20FactoryImpl", st.ImplementationsDeployment.OptimismMintableERC20FactoryImplAddress},
+			{"DisputeGameFactoryImpl", st.ImplementationsDeployment.DisputeGameFactoryImplAddress},
+		}
+		for _, addr := range addrs {
+			t.Run(addr.name, func(t *testing.T) {
+				code, err := l1Client.CodeAt(ctx, addr.addr, nil)
+				require.NoError(t, err)
+				require.NotEmpty(t, code, "contracts %s at %s has no code", addr.name, addr.addr)
+			})
+		}
+
+		validateOPChainDeployment(t, ctx, l1Client, st)
+	})
+
+	t.Run("subsequent chain", func(t *testing.T) {
+		newID := uint256.NewInt(2)
+		intent, st := makeIntent(t, l1ChainID, dk, newID)
+		env.Workdir = t.TempDir()
+
+		require.NoError(t, deployer.ApplyPipeline(
+			ctx,
+			env,
+			intent,
+			st,
+		))
+
+		addrs := []struct {
+			name string
+			addr common.Address
+		}{
+			{"SuperchainConfigProxy", st.SuperchainDeployment.SuperchainConfigProxyAddress},
+			{"ProtocolVersionsProxy", st.SuperchainDeployment.ProtocolVersionsProxyAddress},
+			{"OpcmProxy", st.ImplementationsDeployment.OpcmProxyAddress},
+		}
+		for _, addr := range addrs {
+			t.Run(addr.name, func(t *testing.T) {
+				code, err := l1Client.CodeAt(ctx, addr.addr, nil)
+				require.NoError(t, err)
+				require.NotEmpty(t, code, "contracts %s at %s has no code", addr.name, addr.addr)
+			})
+		}
+
+		validateOPChainDeployment(t, ctx, l1Client, st)
+	})
+}
+
+func makeIntent(
+	t *testing.T,
+	l1ChainID *big.Int,
+	dk *devkeys.MnemonicDevKeys,
+	l2ChainID *uint256.Int,
+) (*state.Intent, *state.State) {
+	_, testFilename, _, ok := runtime.Caller(0)
+	require.Truef(t, ok, "failed to get test filename")
+	monorepoDir := path.Join(path.Dir(testFilename), "..", "..", "..")
+	artifactsDir := path.Join(monorepoDir, "packages", "contracts-bedrock", "forge-artifacts")
+	artifactsURL, err := url.Parse(fmt.Sprintf("file://%s", artifactsDir))
+	require.NoError(t, err)
+
 	addrFor := func(key devkeys.Key) common.Address {
 		addr, err := dk.Address(key)
 		require.NoError(t, err)
 		return addr
 	}
-	env := &pipeline.Env{
-		Workdir:  t.TempDir(),
-		L1Client: l1Client,
-		Signer:   signer,
-		Deployer: addrFor(depKey),
-		Logger:   lgr,
-	}
+
 	intent := &state.Intent{
 		L1ChainID: l1ChainID.Uint64(),
 		SuperchainRoles: state.SuperchainRoles{
@@ -109,12 +202,12 @@ func TestEndToEndApply(t *testing.T) {
 			ProtocolVersionsOwner: addrFor(devkeys.SuperchainDeployerKey.Key(l1ChainID)),
 			Guardian:              addrFor(devkeys.SuperchainConfigGuardianKey.Key(l1ChainID)),
 		},
-		UseFaultProofs:       true,
 		FundDevAccounts:      true,
 		ContractArtifactsURL: (*state.ArtifactsURL)(artifactsURL),
+		ContractsRelease:     "dev",
 		Chains: []*state.ChainIntent{
 			{
-				ID: id.Bytes32(),
+				ID: l2ChainID.Bytes32(),
 				Roles: state.ChainRoles{
 					ProxyAdminOwner:      addrFor(devkeys.L2ProxyAdminOwnerRole.Key(l1ChainID)),
 					SystemConfigOwner:    addrFor(devkeys.SystemConfigOwner.Key(l1ChainID)),
@@ -130,43 +223,10 @@ func TestEndToEndApply(t *testing.T) {
 	st := &state.State{
 		Version: 1,
 	}
+	return intent, st
+}
 
-	require.NoError(t, deployer.ApplyPipeline(
-		ctx,
-		env,
-		intent,
-		st,
-	))
-
-	addrs := []struct {
-		name string
-		addr common.Address
-	}{
-		{"SuperchainProxyAdmin", st.SuperchainDeployment.ProxyAdminAddress},
-		{"SuperchainConfigProxy", st.SuperchainDeployment.SuperchainConfigProxyAddress},
-		{"SuperchainConfigImpl", st.SuperchainDeployment.SuperchainConfigImplAddress},
-		{"ProtocolVersionsProxy", st.SuperchainDeployment.ProtocolVersionsProxyAddress},
-		{"ProtocolVersionsImpl", st.SuperchainDeployment.ProtocolVersionsImplAddress},
-		{"OpsmProxy", st.ImplementationsDeployment.OpsmProxyAddress},
-		{"DelayedWETHImpl", st.ImplementationsDeployment.DelayedWETHImplAddress},
-		{"OptimismPortalImpl", st.ImplementationsDeployment.OptimismPortalImplAddress},
-		{"PreimageOracleSingleton", st.ImplementationsDeployment.PreimageOracleSingletonAddress},
-		{"MipsSingleton", st.ImplementationsDeployment.MipsSingletonAddress},
-		{"SystemConfigImpl", st.ImplementationsDeployment.SystemConfigImplAddress},
-		{"L1CrossDomainMessengerImpl", st.ImplementationsDeployment.L1CrossDomainMessengerImplAddress},
-		{"L1ERC721BridgeImpl", st.ImplementationsDeployment.L1ERC721BridgeImplAddress},
-		{"L1StandardBridgeImpl", st.ImplementationsDeployment.L1StandardBridgeImplAddress},
-		{"OptimismMintableERC20FactoryImpl", st.ImplementationsDeployment.OptimismMintableERC20FactoryImplAddress},
-		{"DisputeGameFactoryImpl", st.ImplementationsDeployment.DisputeGameFactoryImplAddress},
-	}
-	for _, addr := range addrs {
-		t.Run(addr.name, func(t *testing.T) {
-			code, err := l1Client.CodeAt(ctx, addr.addr, nil)
-			require.NoError(t, err)
-			require.NotEmpty(t, code, "contracts %s at %s has no code", addr.name, addr.addr)
-		})
-	}
-
+func validateOPChainDeployment(t *testing.T, ctx context.Context, l1Client *ethclient.Client, st *state.State) {
 	for _, chainState := range st.Chains {
 		chainAddrs := []struct {
 			name string
@@ -182,14 +242,17 @@ func TestEndToEndApply(t *testing.T) {
 			{"OptimismPortalProxyAddress", chainState.OptimismPortalProxyAddress},
 			{"DisputeGameFactoryProxyAddress", chainState.DisputeGameFactoryProxyAddress},
 			{"AnchorStateRegistryProxyAddress", chainState.AnchorStateRegistryProxyAddress},
-			{"AnchorStateRegistryImplAddress", chainState.AnchorStateRegistryImplAddress},
 			{"FaultDisputeGameAddress", chainState.FaultDisputeGameAddress},
 			{"PermissionedDisputeGameAddress", chainState.PermissionedDisputeGameAddress},
 			{"DelayedWETHPermissionedGameProxyAddress", chainState.DelayedWETHPermissionedGameProxyAddress},
-			{"DelayedWETHPermissionlessGameProxyAddress", chainState.DelayedWETHPermissionlessGameProxyAddress},
+			// {"DelayedWETHPermissionlessGameProxyAddress", chainState.DelayedWETHPermissionlessGameProxyAddress},
 		}
 		for _, addr := range chainAddrs {
-			t.Run(fmt.Sprintf("chain %s - %s", chainState.ID, addr.name), func(t *testing.T) {
+			// TODO Delete this `if`` block once FaultDisputeGameAddress is deployed.
+			if addr.name == "FaultDisputeGameAddress" {
+				continue
+			}
+			t.Run(addr.name, func(t *testing.T) {
 				code, err := l1Client.CodeAt(ctx, addr.addr, nil)
 				require.NoError(t, err)
 				require.NotEmpty(t, code, "contracts %s at %s for chain %s has no code", addr.name, addr.addr, chainState.ID)
@@ -197,7 +260,66 @@ func TestEndToEndApply(t *testing.T) {
 		}
 
 		t.Run("l2 genesis", func(t *testing.T) {
-			require.Greater(t, len(chainState.Genesis), 0)
+			require.Greater(t, len(chainState.Allocs), 0)
 		})
 	}
+}
+
+func TestApplyExistingOPCM(t *testing.T) {
+	anvil.Test(t)
+
+	forkRPCUrl := os.Getenv("SEPOLIA_RPC_URL")
+	if forkRPCUrl == "" {
+		t.Skip("no fork RPC URL provided")
+	}
+
+	lgr := testlog.Logger(t, slog.LevelDebug)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	runner, err := anvil.New(
+		forkRPCUrl,
+		lgr,
+	)
+	require.NoError(t, err)
+
+	require.NoError(t, runner.Start(ctx))
+	t.Cleanup(func() {
+		require.NoError(t, runner.Stop())
+	})
+
+	l1Client, err := ethclient.Dial(runner.RPCUrl())
+	require.NoError(t, err)
+
+	l1ChainID := big.NewInt(11155111)
+	dk, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
+	require.NoError(t, err)
+	// index 0 from Anvil's test set
+	priv, err := crypto.HexToECDSA("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
+	require.NoError(t, err)
+	signer := opcrypto.SignerFnFromBind(opcrypto.PrivateKeySignerFn(priv, l1ChainID))
+	deployerAddr := common.HexToAddress("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266")
+
+	l2ChainID := uint256.NewInt(1)
+
+	env := &pipeline.Env{
+		Workdir:  t.TempDir(),
+		L1Client: l1Client,
+		Signer:   signer,
+		Deployer: deployerAddr,
+		Logger:   lgr,
+	}
+
+	intent, st := makeIntent(t, l1ChainID, dk, l2ChainID)
+	intent.ContractsRelease = "op-contracts/v1.6.0"
+
+	require.NoError(t, deployer.ApplyPipeline(
+		ctx,
+		env,
+		intent,
+		st,
+	))
+
+	validateOPChainDeployment(t, ctx, l1Client, st)
 }

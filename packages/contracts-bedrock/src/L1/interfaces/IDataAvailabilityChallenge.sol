@@ -44,20 +44,20 @@ interface IDataAvailabilityChallenge {
 
     function balances(address) external view returns (uint256);
     function bondSize() external view returns (uint256);
-    function challenge(uint256 challengedBlockNumber, bytes memory challengedCommitment) external payable;
+    function challenge(uint256 _challengedBlockNumber, bytes memory _challengedCommitment) external payable;
     function challengeWindow() external view returns (uint256);
     function deposit() external payable;
     function fixedResolutionCost() external view returns (uint256);
     function getChallenge(
-        uint256 challengedBlockNumber,
-        bytes memory challengedCommitment
+        uint256 _challengedBlockNumber,
+        bytes memory _challengedCommitment
     )
         external
         view
         returns (Challenge memory);
     function getChallengeStatus(
-        uint256 challengedBlockNumber,
-        bytes memory challengedCommitment
+        uint256 _challengedBlockNumber,
+        bytes memory _challengedCommitment
     )
         external
         view
@@ -73,18 +73,18 @@ interface IDataAvailabilityChallenge {
     function owner() external view returns (address);
     function renounceOwnership() external;
     function resolve(
-        uint256 challengedBlockNumber,
-        bytes memory challengedCommitment,
-        bytes memory resolveData
+        uint256 _challengedBlockNumber,
+        bytes memory _challengedCommitment,
+        bytes memory _resolveData
     )
         external;
     function resolveWindow() external view returns (uint256);
     function resolverRefundPercentage() external view returns (uint256);
     function setBondSize(uint256 _bondSize) external;
     function setResolverRefundPercentage(uint256 _resolverRefundPercentage) external;
-    function transferOwnership(address newOwner) external;
-    function unlockBond(uint256 challengedBlockNumber, bytes memory challengedCommitment) external;
-    function validateCommitment(bytes memory commitment) external pure;
+    function transferOwnership(address newOwner) external; // nosemgrep
+    function unlockBond(uint256 _challengedBlockNumber, bytes memory _challengedCommitment) external;
+    function validateCommitment(bytes memory _commitment) external pure;
     function variableResolutionCost() external view returns (uint256);
     function variableResolutionCostPrecision() external view returns (uint256);
     function version() external view returns (string memory);

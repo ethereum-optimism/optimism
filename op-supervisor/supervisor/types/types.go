@@ -13,6 +13,14 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
+type ExecutingMessage struct {
+	Chain     uint32 // same as ChainID for now, but will be indirect, i.e. translated to full ID, later
+	BlockNum  uint64
+	LogIdx    uint32
+	Timestamp uint64
+	Hash      common.Hash
+}
+
 type Message struct {
 	Identifier  Identifier  `json:"identifier"`
 	PayloadHash common.Hash `json:"payloadHash"`
@@ -65,7 +73,7 @@ func (lvl SafetyLevel) String() string {
 
 func (lvl SafetyLevel) Valid() bool {
 	switch lvl {
-	case Finalized, Safe, CrossUnsafe, Unsafe:
+	case Finalized, CrossSafe, LocalSafe, CrossUnsafe, LocalUnsafe:
 		return true
 	default:
 		return false
@@ -93,10 +101,10 @@ func (lvl *SafetyLevel) AtLeastAsSafe(min SafetyLevel) bool {
 	switch min {
 	case Invalid:
 		return true
-	case Unsafe:
+	case CrossUnsafe:
 		return *lvl != Invalid
-	case Safe:
-		return *lvl == Safe || *lvl == Finalized
+	case CrossSafe:
+		return *lvl == CrossSafe || *lvl == Finalized
 	case Finalized:
 		return *lvl == Finalized
 	default:
@@ -105,13 +113,26 @@ func (lvl *SafetyLevel) AtLeastAsSafe(min SafetyLevel) bool {
 }
 
 const (
-	CrossFinalized SafetyLevel = "cross-finalized"
-	Finalized      SafetyLevel = "finalized"
-	CrossSafe      SafetyLevel = "cross-safe"
-	Safe           SafetyLevel = "safe"
-	CrossUnsafe    SafetyLevel = "cross-unsafe"
-	Unsafe         SafetyLevel = "unsafe"
-	Invalid        SafetyLevel = "invalid"
+	// Finalized is CrossSafe, with the additional constraint that every
+	// dependency is derived only from finalized L1 input data.
+	// This matches RPC label "finalized".
+	Finalized SafetyLevel = "finalized"
+	// CrossSafe is as safe as LocalSafe, with all its dependencies
+	// also fully verified to be reproducible from L1.
+	// This matches RPC label "safe".
+	CrossSafe SafetyLevel = "safe"
+	// LocalSafe is verified to be reproducible from L1,
+	// without any verified cross-L2 dependencies.
+	// This does not have an RPC label.
+	LocalSafe SafetyLevel = "local-safe"
+	// CrossUnsafe is as safe as LocalUnsafe,
+	// but with verified cross-L2 dependencies that are at least CrossUnsafe.
+	// This does not have an RPC label.
+	CrossUnsafe SafetyLevel = "cross-unsafe"
+	// LocalUnsafe is the safety of the tip of the chain. This matches RPC label "unsafe".
+	LocalUnsafe SafetyLevel = "unsafe"
+	// Invalid is the safety of when the message or block is not matching the expected data.
+	Invalid SafetyLevel = "invalid"
 )
 
 type ChainID uint256.Int

@@ -9,7 +9,8 @@ type L1Deployment struct {
 }
 
 type Implementations struct {
-	OpsmProxy                        common.Address `json:"OPSMProxy"`
+	OpcmProxy                        common.Address `json:"OPCMProxy"`
+	OpcmImpl                         common.Address `json:"OPCMImpl"`
 	DelayedWETHImpl                  common.Address `json:"DelayedWETHImpl"`
 	OptimismPortalImpl               common.Address `json:"OptimismPortalImpl"`
 	PreimageOracleSingleton          common.Address `json:"PreimageOracleSingleton"`

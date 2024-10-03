@@ -80,7 +80,7 @@ type DriverSetup struct {
 	Metr             metrics.Metricer
 	RollupConfig     *rollup.Config
 	Config           BatcherConfig
-	Txmgr            *txmgr.SimpleTxManager
+	Txmgr            txmgr.TxManager
 	L1Client         L1Client
 	EndpointProvider dial.L2EndpointProvider
 	ChannelConfig    ChannelConfigProvider
@@ -190,10 +190,11 @@ func (l *BatchSubmitter) StopBatchSubmitting(ctx context.Context) error {
 
 // loadBlocksIntoState loads all blocks since the previous stored block
 // It does the following:
-// 1. Fetch the sync status of the sequencer
-// 2. Check if the sync status is valid or if we are all the way up to date
-// 3. Check if it needs to initialize state OR it is lagging (todo: lagging just means race condition?)
-// 4. Load all new blocks into the local state.
+//  1. Fetch the sync status of the sequencer
+//  2. Check if the sync status is valid or if we are all the way up to date
+//  3. Check if it needs to initialize state OR it is lagging (todo: lagging just means race condition?)
+//  4. Load all new blocks into the local state.
+//
 // If there is a reorg, it will reset the last stored block but not clear the internal state so
 // the state can be flushed to L1.
 func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context) error {

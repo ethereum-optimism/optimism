@@ -49,8 +49,9 @@ type L2Verifier struct {
 	drainer event.Drainer
 
 	// L2 rollup
-	engine     *engine.EngineController
-	derivation *derive.DerivationPipeline
+	engine            *engine.EngineController
+	derivationMetrics *testutils.TestDerivationMetrics
+	derivation        *derive.DerivationPipeline
 
 	safeHeadListener rollup.SafeHeadListener
 	syncCfg          *sync.Config
@@ -88,7 +89,8 @@ type safeDB interface {
 func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 	blobsSrc derive.L1BlobsFetcher, altDASrc driver.AltDAIface,
 	eng L2API, cfg *rollup.Config, syncCfg *sync.Config, safeHeadListener safeDB,
-	interopBackend interop.InteropBackend) *L2Verifier {
+	interopBackend interop.InteropBackend,
+) *L2Verifier {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
@@ -162,6 +164,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher,
 		log:               log,
 		Eng:               eng,
 		engine:            ec,
+		derivationMetrics: metrics,
 		derivation:        pipeline,
 		safeHeadListener:  safeHeadListener,
 		syncCfg:           syncCfg,
@@ -236,6 +239,14 @@ func (s *l2VerifierBackend) OverrideLeader(ctx context.Context) error {
 
 func (s *l2VerifierBackend) OnUnsafeL2Payload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) error {
 	return nil
+}
+
+func (s *l2VerifierBackend) ConductorEnabled(ctx context.Context) (bool, error) {
+	return false, nil
+}
+
+func (s *L2Verifier) DerivationMetricsTracer() *testutils.TestDerivationMetrics {
+	return s.derivationMetrics
 }
 
 func (s *L2Verifier) L2Finalized() eth.L2BlockRef {

@@ -48,7 +48,7 @@ type frameData struct {
 // size approximation.
 type ChannelBuilder struct {
 	cfg       ChannelConfig
-	rollupCfg rollup.Config
+	rollupCfg *rollup.Config
 
 	// L1 block number timeout of combined
 	// - channel duration timeout,
@@ -85,22 +85,8 @@ type ChannelBuilder struct {
 // NewChannelBuilder creates a new channel builder or returns an error if the
 // channel out could not be created.
 // it acts as a factory for either a span or singular channel out
-func NewChannelBuilder(cfg ChannelConfig, rollupCfg rollup.Config, latestL1OriginBlockNum uint64) (*ChannelBuilder, error) {
-	c, err := cfg.CompressorConfig.NewCompressor()
-	if err != nil {
-		return nil, err
-	}
-
-	chainSpec := rollup.NewChainSpec(&rollupCfg)
-	var co derive.ChannelOut
-	if cfg.BatchType == derive.SpanBatchType {
-		co, err = derive.NewSpanChannelOut(
-			rollupCfg.Genesis.L2Time, rollupCfg.L2ChainID,
-			cfg.CompressorConfig.TargetOutputSize, cfg.CompressorConfig.CompressionAlgo,
-			chainSpec, derive.WithMaxBlocksPerSpanBatch(cfg.MaxBlocksPerSpanBatch))
-	} else {
-		co, err = derive.NewSingularChannelOut(c, chainSpec)
-	}
+func NewChannelBuilder(cfg ChannelConfig, rollupCfg *rollup.Config, latestL1OriginBlockNum uint64) (*ChannelBuilder, error) {
+	co, err := newChannelOut(cfg, rollupCfg)
 	if err != nil {
 		return nil, fmt.Errorf("creating channel out: %w", err)
 	}
@@ -114,6 +100,21 @@ func NewChannelBuilder(cfg ChannelConfig, rollupCfg rollup.Config, latestL1Origi
 	cb.updateDurationTimeout(latestL1OriginBlockNum)
 
 	return cb, nil
+}
+
+// newChannelOut creates a new channel out based on the given configuration.
+func newChannelOut(cfg ChannelConfig, rollupCfg *rollup.Config) (derive.ChannelOut, error) {
+	spec := rollup.NewChainSpec(rollupCfg)
+	if cfg.BatchType == derive.SpanBatchType {
+		return derive.NewSpanChannelOut(
+			cfg.CompressorConfig.TargetOutputSize, cfg.CompressorConfig.CompressionAlgo,
+			spec, derive.WithMaxBlocksPerSpanBatch(cfg.MaxBlocksPerSpanBatch))
+	}
+	comp, err := cfg.CompressorConfig.NewCompressor()
+	if err != nil {
+		return nil, err
+	}
+	return derive.NewSingularChannelOut(comp, spec)
 }
 
 func (c *ChannelBuilder) ID() derive.ChannelID {
@@ -177,7 +178,7 @@ func (c *ChannelBuilder) AddBlock(block *types.Block) (*derive.L1BlockInfo, erro
 		return nil, c.FullErr()
 	}
 
-	batch, l1info, err := derive.BlockToSingularBatch(&c.rollupCfg, block)
+	batch, l1info, err := derive.BlockToSingularBatch(c.rollupCfg, block)
 	if err != nil {
 		return l1info, fmt.Errorf("converting block to batch: %w", err)
 	}
@@ -416,12 +417,12 @@ func (c *ChannelBuilder) HasFrame() bool {
 }
 
 // PendingFrames returns the number of pending frames in the frames queue.
-// It is larger zero iff HasFrames() returns true.
+// It is larger zero iff HasFrame() returns true.
 func (c *ChannelBuilder) PendingFrames() int {
 	return len(c.frames)
 }
 
-// NextFrame returns the next available frame.
+// NextFrame dequeues the next available frame.
 // HasFrame must be called prior to check if there's a next frame available.
 // Panics if called when there's no next frame.
 func (c *ChannelBuilder) NextFrame() frameData {

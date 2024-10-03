@@ -11,26 +11,30 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/source/contracts"
-	backendTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
-	supTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 type LogStorage interface {
-	SealBlock(chain supTypes.ChainID, parentHash common.Hash, block eth.BlockID, timestamp uint64) error
-	AddLog(chain supTypes.ChainID, logHash backendTypes.TruncatedHash, parentBlock eth.BlockID, logIdx uint32, execMsg *backendTypes.ExecutingMessage) error
+	SealBlock(chain types.ChainID, block eth.BlockRef) error
+	AddLog(chain types.ChainID, logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *types.ExecutingMessage) error
+}
+
+type ChainsDBClientForLogProcessor interface {
+	SealBlock(chain types.ChainID, block eth.BlockRef) error
+	AddLog(chain types.ChainID, logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *types.ExecutingMessage) error
 }
 
 type EventDecoder interface {
-	DecodeExecutingMessageLog(log *ethTypes.Log) (backendTypes.ExecutingMessage, error)
+	DecodeExecutingMessageLog(log *ethTypes.Log) (types.ExecutingMessage, error)
 }
 
 type logProcessor struct {
-	chain        supTypes.ChainID
+	chain        types.ChainID
 	logStore     LogStorage
 	eventDecoder EventDecoder
 }
 
-func newLogProcessor(chain supTypes.ChainID, logStore LogStorage) *logProcessor {
+func newLogProcessor(chain types.ChainID, logStore LogStorage) *logProcessor {
 	return &logProcessor{
 		chain:        chain,
 		logStore:     logStore,
@@ -40,12 +44,12 @@ func newLogProcessor(chain supTypes.ChainID, logStore LogStorage) *logProcessor 
 
 // ProcessLogs processes logs from a block and stores them in the log storage
 // for any logs that are related to executing messages, they are decoded and stored
-func (p *logProcessor) ProcessLogs(_ context.Context, block eth.L1BlockRef, rcpts ethTypes.Receipts) error {
+func (p *logProcessor) ProcessLogs(_ context.Context, block eth.BlockRef, rcpts ethTypes.Receipts) error {
 	for _, rcpt := range rcpts {
 		for _, l := range rcpt.Logs {
 			// log hash represents the hash of *this* log as a potentially initiating message
 			logHash := logToLogHash(l)
-			var execMsg *backendTypes.ExecutingMessage
+			var execMsg *types.ExecutingMessage
 			msg, err := p.eventDecoder.DecodeExecutingMessageLog(l)
 			if err != nil && !errors.Is(err, contracts.ErrEventNotFound) {
 				return fmt.Errorf("failed to decode executing message log: %w", err)
@@ -61,7 +65,7 @@ func (p *logProcessor) ProcessLogs(_ context.Context, block eth.L1BlockRef, rcpt
 			}
 		}
 	}
-	if err := p.logStore.SealBlock(p.chain, block.ParentHash, block.ID(), block.Time); err != nil {
+	if err := p.logStore.SealBlock(p.chain, block); err != nil {
 		return fmt.Errorf("failed to seal block %s: %w", block.ID(), err)
 	}
 	return nil
@@ -72,7 +76,7 @@ func (p *logProcessor) ProcessLogs(_ context.Context, block eth.L1BlockRef, rcpt
 // which is then hashed again. This is the hash that is stored in the log storage.
 // The address is hashed into the payload hash to save space in the log storage,
 // and because they represent paired data.
-func logToLogHash(l *ethTypes.Log) backendTypes.TruncatedHash {
+func logToLogHash(l *ethTypes.Log) common.Hash {
 	payloadHash := crypto.Keccak256(logToMessagePayload(l))
 	return payloadHashToLogHash(common.Hash(payloadHash), l.Address)
 }
@@ -94,9 +98,9 @@ func logToMessagePayload(l *ethTypes.Log) []byte {
 // which is then hashed. This is the hash that is stored in the log storage.
 // The logHash can then be used to traverse from the executing message
 // to the log the referenced initiating message.
-func payloadHashToLogHash(payloadHash common.Hash, addr common.Address) backendTypes.TruncatedHash {
+func payloadHashToLogHash(payloadHash common.Hash, addr common.Address) common.Hash {
 	msg := make([]byte, 0, 2*common.HashLength)
 	msg = append(msg, addr.Bytes()...)
 	msg = append(msg, payloadHash.Bytes()...)
-	return backendTypes.TruncateHash(crypto.Keccak256Hash(msg))
+	return crypto.Keccak256Hash(msg)
 }

@@ -7,18 +7,17 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
-	backendTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
-	supTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum/go-ethereum/common"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 )
 
-var logProcessorChainID = supTypes.ChainIDFromUInt64(4)
+var logProcessorChainID = types.ChainIDFromUInt64(4)
 
 func TestLogProcessor(t *testing.T) {
 	ctx := context.Background()
-	block1 := eth.L1BlockRef{
+	block1 := eth.BlockRef{
 		ParentHash: common.Hash{0x42},
 		Number:     100,
 		Hash:       common.Hash{0x11},
@@ -108,16 +107,16 @@ func TestLogProcessor(t *testing.T) {
 				},
 			},
 		}
-		execMsg := backendTypes.ExecutingMessage{
+		execMsg := types.ExecutingMessage{
 			Chain:     4,
 			BlockNum:  6,
 			LogIdx:    8,
 			Timestamp: 10,
-			Hash:      backendTypes.TruncatedHash{0xaa},
+			Hash:      common.Hash{0xaa},
 		}
 		store := &stubLogStorage{}
-		processor := newLogProcessor(supTypes.ChainID{4}, store)
-		processor.eventDecoder = EventDecoderFn(func(l *ethTypes.Log) (backendTypes.ExecutingMessage, error) {
+		processor := newLogProcessor(types.ChainID{4}, store)
+		processor.eventDecoder = EventDecoderFn(func(l *ethTypes.Log) (types.ExecutingMessage, error) {
 			require.Equal(t, rcpts[0].Logs[0], l)
 			return execMsg, nil
 		})
@@ -182,7 +181,7 @@ func TestToLogHash(t *testing.T) {
 	refHash := logToLogHash(mkLog())
 	// The log hash is stored in the database so test that it matches the actual value.
 	// If this changes, compatibility with existing databases may be affected
-	expectedRefHash := backendTypes.TruncateHash(common.HexToHash("0x4e1dc08fddeb273275f787762cdfe945cf47bb4e80a1fabbc7a825801e81b73f"))
+	expectedRefHash := common.HexToHash("0x4e1dc08fddeb273275f787762cdfe945cf47bb4e80a1fabbc7a825801e81b73f")
 	require.Equal(t, expectedRefHash, refHash, "reference hash changed, check that database compatibility is not broken")
 
 	// Check that the hash is changed when any data it should include changes
@@ -206,19 +205,19 @@ type stubLogStorage struct {
 	seals []storedSeal
 }
 
-func (s *stubLogStorage) SealBlock(chainID supTypes.ChainID, parentHash common.Hash, block eth.BlockID, timestamp uint64) error {
+func (s *stubLogStorage) SealBlock(chainID types.ChainID, block eth.BlockRef) error {
 	if logProcessorChainID != chainID {
 		return fmt.Errorf("chain id mismatch, expected %v but got %v", logProcessorChainID, chainID)
 	}
 	s.seals = append(s.seals, storedSeal{
-		parent:    parentHash,
-		block:     block,
-		timestamp: timestamp,
+		parent:    block.ParentHash,
+		block:     block.ID(),
+		timestamp: block.Time,
 	})
 	return nil
 }
 
-func (s *stubLogStorage) AddLog(chainID supTypes.ChainID, logHash backendTypes.TruncatedHash, parentBlock eth.BlockID, logIdx uint32, execMsg *backendTypes.ExecutingMessage) error {
+func (s *stubLogStorage) AddLog(chainID types.ChainID, logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *types.ExecutingMessage) error {
 	if logProcessorChainID != chainID {
 		return fmt.Errorf("chain id mismatch, expected %v but got %v", logProcessorChainID, chainID)
 	}
@@ -240,12 +239,12 @@ type storedSeal struct {
 type storedLog struct {
 	parent  eth.BlockID
 	logIdx  uint32
-	logHash backendTypes.TruncatedHash
-	execMsg *backendTypes.ExecutingMessage
+	logHash common.Hash
+	execMsg *types.ExecutingMessage
 }
 
-type EventDecoderFn func(*ethTypes.Log) (backendTypes.ExecutingMessage, error)
+type EventDecoderFn func(*ethTypes.Log) (types.ExecutingMessage, error)
 
-func (f EventDecoderFn) DecodeExecutingMessageLog(log *ethTypes.Log) (backendTypes.ExecutingMessage, error) {
+func (f EventDecoderFn) DecodeExecutingMessageLog(log *ethTypes.Log) (types.ExecutingMessage, error) {
 	return f(log)
 }

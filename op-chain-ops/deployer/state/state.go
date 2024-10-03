@@ -61,11 +61,11 @@ type SuperchainDeployment struct {
 	SuperchainConfigImplAddress  common.Address       `json:"superchainConfigImplAddress"`
 	ProtocolVersionsProxyAddress common.Address       `json:"protocolVersionsProxyAddress"`
 	ProtocolVersionsImplAddress  common.Address       `json:"protocolVersionsImplAddress"`
-	StateDump                    *foundry.ForgeAllocs `json:"stateDump"`
+	StateDump                    *foundry.ForgeAllocs `json:"-"`
 }
 
 type ImplementationsDeployment struct {
-	OpsmProxyAddress                        common.Address       `json:"opsmProxyAddress"`
+	OpcmProxyAddress                        common.Address       `json:"opcmProxyAddress"`
 	DelayedWETHImplAddress                  common.Address       `json:"delayedWETHImplAddress"`
 	OptimismPortalImplAddress               common.Address       `json:"optimismPortalImplAddress"`
 	PreimageOracleSingletonAddress          common.Address       `json:"preimageOracleSingletonAddress"`
@@ -76,7 +76,7 @@ type ImplementationsDeployment struct {
 	L1StandardBridgeImplAddress             common.Address       `json:"l1StandardBridgeImplAddress"`
 	OptimismMintableERC20FactoryImplAddress common.Address       `json:"optimismMintableERC20FactoryImplAddress"`
 	DisputeGameFactoryImplAddress           common.Address       `json:"disputeGameFactoryImplAddress"`
-	StateDump                               *foundry.ForgeAllocs `json:"stateDump"`
+	StateDump                               *foundry.ForgeAllocs `json:"-"`
 }
 
 type ChainState struct {
@@ -98,13 +98,13 @@ type ChainState struct {
 	DelayedWETHPermissionedGameProxyAddress   common.Address `json:"delayedWETHPermissionedGameProxyAddress"`
 	DelayedWETHPermissionlessGameProxyAddress common.Address `json:"delayedWETHPermissionlessGameProxyAddress"`
 
-	Genesis Base64Bytes `json:"genesis"`
+	Allocs Base64Bytes `json:"allocs"`
 
 	StartBlock *types.Header `json:"startBlock"`
 }
 
-func (c *ChainState) UnmarshalGenesis() (*foundry.ForgeAllocs, error) {
-	gr, err := gzip.NewReader(bytes.NewReader(c.Genesis))
+func (c *ChainState) UnmarshalAllocs() (*foundry.ForgeAllocs, error) {
+	gr, err := gzip.NewReader(bytes.NewReader(c.Allocs))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gzip reader: %w", err)
 	}
@@ -112,7 +112,7 @@ func (c *ChainState) UnmarshalGenesis() (*foundry.ForgeAllocs, error) {
 
 	var allocs foundry.ForgeAllocs
 	if err := json.NewDecoder(gr).Decode(&allocs); err != nil {
-		return nil, fmt.Errorf("failed to decode genesis: %w", err)
+		return nil, fmt.Errorf("failed to decode allocs: %w", err)
 	}
 
 	return &allocs, nil

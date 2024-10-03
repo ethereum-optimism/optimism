@@ -136,13 +136,23 @@ func (s *L2Batcher) SubmittingData() bool {
 	return s.l2Submitting
 }
 
+// Reset the batcher state, clearing any buffered data.
+func (s *L2Batcher) Reset() {
+	s.L2ChannelOut = nil
+	s.l2Submitting = false
+	s.L2BufferedBlock = eth.L2BlockRef{}
+	s.l2SubmittedBlock = eth.L2BlockRef{}
+}
+
 // ActL2BatchBuffer adds the next L2 block to the batch buffer.
 // If the buffer is being submitted, the buffer is wiped.
 func (s *L2Batcher) ActL2BatchBuffer(t Testing) {
 	require.NoError(t, s.Buffer(t), "failed to add block to channel")
 }
 
-func (s *L2Batcher) Buffer(t Testing) error {
+type BlockModifier = func(block *types.Block)
+
+func (s *L2Batcher) Buffer(t Testing, opts ...BlockModifier) error {
 	if s.l2Submitting { // break ongoing submitting work if necessary
 		s.L2ChannelOut = nil
 		s.l2Submitting = false
@@ -175,6 +185,7 @@ func (s *L2Batcher) Buffer(t Testing) error {
 			return nil
 		}
 	}
+
 	block, err := s.l2.BlockByNumber(t.Ctx(), big.NewInt(int64(s.L2BufferedBlock.Number+1)))
 	require.NoError(t, err, "need l2 block %d from sync status", s.l2SubmittedBlock.Number+1)
 	if block.ParentHash() != s.L2BufferedBlock.Hash {
@@ -183,6 +194,12 @@ func (s *L2Batcher) Buffer(t Testing) error {
 		s.L2BufferedBlock = syncStatus.SafeL2
 		s.L2ChannelOut = nil
 	}
+
+	// Apply modifications to the block
+	for _, f := range opts {
+		f(block)
+	}
+
 	// Create channel if we don't have one yet
 	if s.L2ChannelOut == nil {
 		var ch ChannelOutIface
@@ -202,7 +219,7 @@ func (s *L2Batcher) Buffer(t Testing) error {
 				chainSpec := rollup.NewChainSpec(s.rollupCfg)
 				// use span batch if we're forcing it or if we're at/beyond delta
 				if s.l2BatcherCfg.ForceSubmitSpanBatch || s.rollupCfg.IsDelta(block.Time()) {
-					ch, err = derive.NewSpanChannelOut(s.rollupCfg.Genesis.L2Time, s.rollupCfg.L2ChainID, target, derive.Zlib, chainSpec)
+					ch, err = derive.NewSpanChannelOut(target, derive.Zlib, chainSpec)
 					// use singular batches in all other cases
 				} else {
 					ch, err = derive.NewSingularChannelOut(c, chainSpec)
@@ -329,8 +346,8 @@ func (s *L2Batcher) ActL2BatchSubmitMultiBlob(t Testing, numBlobs int) {
 	if s.l2BatcherCfg.DataAvailabilityType != batcherFlags.BlobsType {
 		t.InvalidAction("ActL2BatchSubmitMultiBlob only available for Blobs DA type")
 		return
-	} else if numBlobs > 6 || numBlobs < 1 {
-		t.InvalidAction("invalid number of blobs %d, must be within [1,6]", numBlobs)
+	} else if numBlobs > eth.MaxBlobsPerBlobTx || numBlobs < 1 {
+		t.InvalidAction("invalid number of blobs %d, must be within [1,%d]", numBlobs, eth.MaxBlobsPerBlobTx)
 	}
 
 	// Don't run this action if there's no data to submit
