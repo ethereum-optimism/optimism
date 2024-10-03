@@ -55,7 +55,7 @@ func TestEVM_MT_LL(t *testing.T) {
 				// Set up state
 				state.GetCurrentThread().Cpu.PC = pc
 				state.GetCurrentThread().Cpu.NextPC = pc + 4
-				state.GetMemory().SetMemory(pc, insn)
+				state.GetMemory().SetUint32(pc, insn)
 				state.GetMemory().SetWord(c.effAddr, c.value)
 				state.GetRegistersRef()[baseReg] = c.base
 				if withExistingReservation {
@@ -151,7 +151,7 @@ func TestEVM_MT_SC(t *testing.T) {
 				state.GetCurrentThread().ThreadId = c.threadId
 				state.GetCurrentThread().Cpu.PC = pc
 				state.GetCurrentThread().Cpu.NextPC = pc + 4
-				state.GetMemory().SetMemory(pc, insn)
+				state.GetMemory().SetUint32(pc, insn)
 				state.GetRegistersRef()[baseReg] = c.base
 				state.GetRegistersRef()[rtReg] = c.value
 				state.LLReservationActive = v.llReservationActive
@@ -265,11 +265,11 @@ func TestEVM_MT_SysRead_Preimage(t *testing.T) {
 				state.GetRegistersRef()[4] = exec.FdPreimageRead
 				state.GetRegistersRef()[5] = c.addr
 				state.GetRegistersRef()[6] = c.count
-				state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
+				state.GetMemory().SetUint32(state.GetPC(), syscallInsn)
 				state.LLReservationActive = v.llReservationActive
 				state.LLAddress = llAddress
 				state.LLOwnerThread = llOwnerThread
-				state.GetMemory().SetMemory(effAddr, c.prestateMem)
+				state.GetMemory().SetUint32(effAddr, c.prestateMem)
 
 				// Setup expectations
 				expected := mttestutil.NewExpectedMTState(state)
@@ -363,8 +363,8 @@ func TestEVM_MT_StoreOpsClearMemReservation(t *testing.T) {
 				state.GetCurrentThread().Cpu.NextPC = pc + 4
 				state.GetRegistersRef()[rtReg] = rt
 				state.GetRegistersRef()[baseReg] = c.base
-				state.GetMemory().SetMemory(state.GetPC(), insn)
-				state.GetMemory().SetMemory(c.effAddr, c.preMem)
+				state.GetMemory().SetUint32(state.GetPC(), insn)
+				state.GetMemory().SetUint32(c.effAddr, c.preMem)
 				state.LLReservationActive = v.llReservationActive
 				state.LLAddress = llAddress
 				state.LLOwnerThread = llOwnerThread
@@ -413,7 +413,7 @@ func TestEVM_SysClone_FlagHandling(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			state := multithreaded.CreateEmptyState()
-			state.Memory.SetMemory(state.GetPC(), syscallInsn)
+			state.Memory.SetUint32(state.GetPC(), syscallInsn)
 			state.GetRegistersRef()[2] = arch.SysClone // Set syscall number
 			state.GetRegistersRef()[4] = c.flags       // Set first argument
 			curStep := state.Step
@@ -466,7 +466,7 @@ func TestEVM_SysClone_Successful(t *testing.T) {
 
 			goVm, state, contracts := setup(t, i, nil)
 			mttestutil.InitializeSingleThread(i*333, state, c.traverseRight)
-			state.Memory.SetMemory(state.GetPC(), syscallInsn)
+			state.Memory.SetUint32(state.GetPC(), syscallInsn)
 			state.GetRegistersRef()[2] = arch.SysClone        // the syscall number
 			state.GetRegistersRef()[4] = exec.ValidCloneFlags // a0 - first argument, clone flags
 			state.GetRegistersRef()[5] = stackPtr             // a1 - the stack pointer
@@ -529,7 +529,7 @@ func TestEVM_SysGetTID(t *testing.T) {
 			mttestutil.InitializeSingleThread(i*789, state, false)
 
 			state.GetCurrentThread().ThreadId = c.threadId
-			state.Memory.SetMemory(state.GetPC(), syscallInsn)
+			state.Memory.SetUint32(state.GetPC(), syscallInsn)
 			state.GetRegistersRef()[2] = arch.SysGetTID // Set syscall number
 			step := state.Step
 
@@ -572,7 +572,7 @@ func TestEVM_SysExit(t *testing.T) {
 			goVm, state, contracts := setup(t, i*133, nil)
 			mttestutil.SetupThreads(int64(i*1111), state, i%2 == 0, c.threadCount, 0)
 
-			state.Memory.SetMemory(state.GetPC(), syscallInsn)
+			state.Memory.SetUint32(state.GetPC(), syscallInsn)
 			state.GetRegistersRef()[2] = arch.SysExit   // Set syscall number
 			state.GetRegistersRef()[4] = Word(exitCode) // The first argument (exit code)
 			step := state.Step
@@ -680,7 +680,7 @@ func TestEVM_SysFutex_WaitPrivate(t *testing.T) {
 			goVm, state, contracts := setup(t, i*1234, nil)
 			step := state.GetStep()
 
-			state.Memory.SetMemory(state.GetPC(), syscallInsn)
+			state.Memory.SetUint32(state.GetPC(), syscallInsn)
 			state.Memory.SetWord(c.effAddr, c.actualValue)
 			state.GetRegistersRef()[2] = arch.SysFutex // Set syscall number
 			state.GetRegistersRef()[4] = c.addressParam
@@ -751,7 +751,7 @@ func TestEVM_SysFutex_WakePrivate(t *testing.T) {
 			mttestutil.SetupThreads(int64(i*2244), state, c.traverseRight, c.activeThreadCount, c.inactiveThreadCount)
 			step := state.Step
 
-			state.Memory.SetMemory(state.GetPC(), syscallInsn)
+			state.Memory.SetUint32(state.GetPC(), syscallInsn)
 			state.GetRegistersRef()[2] = arch.SysFutex // Set syscall number
 			state.GetRegistersRef()[4] = c.addressParam
 			state.GetRegistersRef()[5] = exec.FutexWakePrivate
@@ -836,7 +836,7 @@ func TestEVM_SysFutex_UnsupportedOp(t *testing.T) {
 			goVm, state, contracts := setup(t, int(op), nil)
 			step := state.GetStep()
 
-			state.Memory.SetMemory(state.GetPC(), syscallInsn)
+			state.Memory.SetUint32(state.GetPC(), syscallInsn)
 			state.GetRegistersRef()[2] = arch.SysFutex // Set syscall number
 			state.GetRegistersRef()[5] = op
 
@@ -891,7 +891,7 @@ func runPreemptSyscall(t *testing.T, syscallName string, syscallNum uint32) {
 				goVm, state, contracts := setup(t, i*789, nil)
 				mttestutil.SetupThreads(int64(i*3259), state, traverseRight, c.activeThreads, c.inactiveThreads)
 
-				state.Memory.SetMemory(state.GetPC(), syscallInsn)
+				state.Memory.SetUint32(state.GetPC(), syscallInsn)
 				state.GetRegistersRef()[2] = Word(syscallNum) // Set syscall number
 				step := state.Step
 
@@ -921,7 +921,7 @@ func TestEVM_SysOpen(t *testing.T) {
 
 	goVm, state, contracts := setup(t, 5512, nil)
 
-	state.Memory.SetMemory(state.GetPC(), syscallInsn)
+	state.Memory.SetUint32(state.GetPC(), syscallInsn)
 	state.GetRegistersRef()[2] = arch.SysOpen // Set syscall number
 	step := state.Step
 
@@ -946,7 +946,7 @@ func TestEVM_SysGetPID(t *testing.T) {
 	var tracer *tracing.Hooks
 	goVm, state, contracts := setup(t, 1929, nil)
 
-	state.Memory.SetMemory(state.GetPC(), syscallInsn)
+	state.Memory.SetUint32(state.GetPC(), syscallInsn)
 	state.GetRegistersRef()[2] = arch.SysGetpid // Set syscall number
 	step := state.Step
 
@@ -1029,7 +1029,7 @@ func testEVM_SysClockGettime(t *testing.T, clkid Word) {
 					llOwnerThread = state.GetCurrentThread().ThreadId + 1
 				}
 
-				state.Memory.SetMemory(state.GetPC(), syscallInsn)
+				state.Memory.SetUint32(state.GetPC(), syscallInsn)
 				state.GetRegistersRef()[2] = arch.SysClockGetTime // Set syscall number
 				state.GetRegistersRef()[4] = clkid                // a0
 				state.GetRegistersRef()[5] = c.timespecAddr       // a1
@@ -1073,7 +1073,7 @@ func TestEVM_SysClockGettimeNonMonotonic(t *testing.T) {
 	goVm, state, contracts := setup(t, 2101, nil)
 
 	timespecAddr := Word(0x1000)
-	state.Memory.SetMemory(state.GetPC(), syscallInsn)
+	state.Memory.SetUint32(state.GetPC(), syscallInsn)
 	state.GetRegistersRef()[2] = arch.SysClockGetTime // Set syscall number
 	state.GetRegistersRef()[4] = 0xDEAD               // a0 - invalid clockid
 	state.GetRegistersRef()[5] = timespecAddr         // a1
@@ -1134,7 +1134,7 @@ func TestEVM_NoopSyscall(t *testing.T) {
 		t.Run(noopName, func(t *testing.T) {
 			goVm, state, contracts := setup(t, int(noopVal), nil)
 
-			state.Memory.SetMemory(state.GetPC(), syscallInsn)
+			state.Memory.SetUint32(state.GetPC(), syscallInsn)
 			state.GetRegistersRef()[2] = Word(noopVal) // Set syscall number
 			step := state.Step
 
@@ -1181,7 +1181,7 @@ func TestEVM_UnsupportedSyscall(t *testing.T) {
 			t.Parallel()
 			goVm, state, contracts := setup(t, i*3434, nil)
 			// Setup basic getThreadId syscall instruction
-			state.Memory.SetMemory(state.GetPC(), syscallInsn)
+			state.Memory.SetUint32(state.GetPC(), syscallInsn)
 			state.GetRegistersRef()[2] = Word(syscallNum)
 
 			// Set up post-state expectations
@@ -1476,7 +1476,7 @@ func TestEVM_SchedQuantumThreshold(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			goVm, state, contracts := setup(t, i*789, nil)
 			// Setup basic getThreadId syscall instruction
-			state.Memory.SetMemory(state.GetPC(), syscallInsn)
+			state.Memory.SetUint32(state.GetPC(), syscallInsn)
 			state.GetRegistersRef()[2] = arch.SysGetTID // Set syscall number
 			state.StepsSinceLastContextSwitch = c.stepsSinceLastContextSwitch
 			step := state.Step

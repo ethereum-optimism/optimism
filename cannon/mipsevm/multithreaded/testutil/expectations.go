@@ -120,7 +120,7 @@ func (e *ExpectedMTState) ExpectStep() {
 }
 
 func (e *ExpectedMTState) ExpectMemoryWrite(addr arch.Word, val uint32) {
-	e.expectedMemory.SetMemory(addr, val)
+	e.expectedMemory.SetUint32(addr, val)
 	e.MemoryRoot = e.expectedMemory.MerkleRoot()
 }
 
@@ -130,8 +130,8 @@ func (e *ExpectedMTState) ExpectMemoryWordWrite(addr arch.Word, val arch.Word) {
 }
 
 func (e *ExpectedMTState) ExpectMemoryWriteMultiple(addr arch.Word, val uint32, addr2 arch.Word, val2 uint32) {
-	e.expectedMemory.SetMemory(addr, val)
-	e.expectedMemory.SetMemory(addr2, val2)
+	e.expectedMemory.SetUint32(addr, val)
+	e.expectedMemory.SetUint32(addr2, val2)
 	e.MemoryRoot = e.expectedMemory.MerkleRoot()
 }
 
