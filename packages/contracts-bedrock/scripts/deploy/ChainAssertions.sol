@@ -362,9 +362,9 @@ library ChainAssertions {
         internal
         view
     {
-        console.log("Running chain assertions on the OptimismPortal2");
-
         IOptimismPortal2 portal = IOptimismPortal2(payable(_contracts.OptimismPortal2));
+        console.log("Running chain assertions on the OptimismPortal2 at %s", address(portal));
+        require(address(portal) != address(0), "CHECK-OP2-10");
 
         // Check that the contract is initialized
         assertSlotValueIsOne({ _contractAddress: address(portal), _slot: 0, _offset: 0 });
@@ -375,21 +375,21 @@ library ChainAssertions {
         }
 
         if (_isProxy) {
-            require(address(portal.disputeGameFactory()) == _contracts.DisputeGameFactory);
-            require(address(portal.systemConfig()) == _contracts.SystemConfig);
-            require(portal.guardian() == guardian);
-            require(address(portal.superchainConfig()) == address(_contracts.SuperchainConfig));
-            require(portal.paused() == ISuperchainConfig(_contracts.SuperchainConfig).paused());
-            require(portal.l2Sender() == Constants.DEFAULT_L2_SENDER);
+            require(address(portal.disputeGameFactory()) == _contracts.DisputeGameFactory, "CHECK-OP2-20");
+            require(address(portal.systemConfig()) == _contracts.SystemConfig, "CHECK-OP2-30");
+            require(portal.guardian() == guardian, "CHECK-OP2-40");
+            require(address(portal.superchainConfig()) == address(_contracts.SuperchainConfig), "CHECK-OP2-50");
+            require(portal.paused() == ISuperchainConfig(_contracts.SuperchainConfig).paused(), "CHECK-OP2-60");
+            require(portal.l2Sender() == Constants.DEFAULT_L2_SENDER, "CHECK-OP2-70");
         } else {
-            require(address(portal.disputeGameFactory()) == address(0));
-            require(address(portal.systemConfig()) == address(0));
-            require(address(portal.superchainConfig()) == address(0));
-            require(portal.l2Sender() == Constants.DEFAULT_L2_SENDER);
+            require(address(portal.disputeGameFactory()) == address(0), "CHECK-OP2-80");
+            require(address(portal.systemConfig()) == address(0), "CHECK-OP2-90");
+            require(address(portal.superchainConfig()) == address(0), "CHECK-OP2-100");
+            require(portal.l2Sender() == Constants.DEFAULT_L2_SENDER, "CHECK-OP2-110");
         }
         // This slot is the custom gas token _balance and this check ensures
         // that it stays unset for forwards compatibility with custom gas token.
-        require(vm.load(address(portal), bytes32(uint256(61))) == bytes32(0));
+        require(vm.load(address(portal), bytes32(uint256(61))) == bytes32(0), "CHECK-OP2-120");
     }
 
     /// @notice Asserts that the ProtocolVersions is setup correctly
