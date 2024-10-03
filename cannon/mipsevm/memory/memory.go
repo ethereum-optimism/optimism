@@ -192,7 +192,7 @@ func (m *Memory) pageLookup(pageIndex Word) (*CachedPage, bool) {
 	return p, ok
 }
 
-func (m *Memory) SetMemory(addr Word, v uint32) {
+func (m *Memory) SetUint32(addr Word, v uint32) {
 	// addr must be aligned to WordSizeBytes bytes
 	if addr&arch.ExtMask != 0 {
 		panic(fmt.Errorf("unaligned memory access: %x", addr))

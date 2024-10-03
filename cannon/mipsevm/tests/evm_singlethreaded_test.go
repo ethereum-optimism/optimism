@@ -42,7 +42,7 @@ func TestEVM_LL(t *testing.T) {
 			insn := uint32((0b11_0000 << 26) | (baseReg & 0x1F << 21) | (rtReg & 0x1F << 16) | (0xFFFF & c.offset))
 			goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPC(pc), testutil.WithNextPC(pc+4))
 			state := goVm.GetState()
-			state.GetMemory().SetMemory(pc, insn)
+			state.GetMemory().SetUint32(pc, insn)
 			state.GetMemory().SetWord(c.effAddr, c.value)
 			state.GetRegistersRef()[baseReg] = c.base
 			step := state.GetStep()
@@ -92,7 +92,7 @@ func TestEVM_SC(t *testing.T) {
 			insn := uint32((0b11_1000 << 26) | (baseReg & 0x1F << 21) | (rtReg & 0x1F << 16) | (0xFFFF & c.offset))
 			goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPC(pc), testutil.WithNextPC(pc+4))
 			state := goVm.GetState()
-			state.GetMemory().SetMemory(pc, insn)
+			state.GetMemory().SetUint32(pc, insn)
 			state.GetRegistersRef()[baseReg] = c.base
 			state.GetRegistersRef()[rtReg] = c.value
 			step := state.GetStep()
@@ -103,7 +103,7 @@ func TestEVM_SC(t *testing.T) {
 			expected.PC = pc + 4
 			expected.NextPC = pc + 8
 			expectedMemory := memory.NewMemory()
-			expectedMemory.SetMemory(pc, insn)
+			expectedMemory.SetUint32(pc, insn)
 			expectedMemory.SetWord(c.effAddr, c.value)
 			expected.MemoryRoot = expectedMemory.MerkleRoot()
 			if rtReg != 0 {
@@ -170,8 +170,8 @@ func TestEVM_SysRead_Preimage(t *testing.T) {
 			state.GetRegistersRef()[4] = exec.FdPreimageRead
 			state.GetRegistersRef()[5] = c.addr
 			state.GetRegistersRef()[6] = c.count
-			state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
-			state.GetMemory().SetMemory(effAddr, c.prestateMem)
+			state.GetMemory().SetUint32(state.GetPC(), syscallInsn)
+			state.GetMemory().SetUint32(effAddr, c.prestateMem)
 
 			// Setup expectations
 			expected := testutil.NewExpectedState(state)
