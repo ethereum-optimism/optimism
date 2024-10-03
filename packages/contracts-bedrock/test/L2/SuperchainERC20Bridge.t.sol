@@ -12,6 +12,7 @@ import { IL2ToL2CrossDomainMessenger } from "src/L2/interfaces/IL2ToL2CrossDomai
 import { ISuperchainERC20Bridge } from "src/L2/interfaces/ISuperchainERC20Bridge.sol";
 import { ISuperchainERC20 } from "src/L2/interfaces/ISuperchainERC20.sol";
 import { IOptimismSuperchainERC20Factory } from "src/L2/interfaces/IOptimismSuperchainERC20Factory.sol";
+import { IERC20 } from "@openzeppelin/contracts/interfaces/IERC20.sol";
 
 /// @title SuperchainERC20BridgeTest
 /// @notice Contract for testing the SuperchainERC20Bridge contract.
@@ -67,11 +68,11 @@ contract SuperchainERC20BridgeTest is Bridge_Initializer {
 
         // Mint some tokens to the sender so then they can be sent
         vm.prank(Predeploys.SUPERCHAIN_ERC20_BRIDGE);
-        superchainERC20.__superchainMint(_sender, _amount);
+        superchainERC20.__crosschainMint(_sender, _amount);
 
         // Get the total supply and balance of `_sender` before the send to compare later on the assertions
-        uint256 _totalSupplyBefore = superchainERC20.totalSupply();
-        uint256 _senderBalanceBefore = superchainERC20.balanceOf(_sender);
+        uint256 _totalSupplyBefore = IERC20(address(superchainERC20)).totalSupply();
+        uint256 _senderBalanceBefore = IERC20(address(superchainERC20)).balanceOf(_sender);
 
         // Look for the emit of the `Transfer` event
         vm.expectEmit(address(superchainERC20));
@@ -97,8 +98,8 @@ contract SuperchainERC20BridgeTest is Bridge_Initializer {
         superchainERC20Bridge.sendERC20(address(superchainERC20), _to, _amount, _chainId);
 
         // Check the total supply and balance of `_sender` after the send were updated correctly
-        assertEq(superchainERC20.totalSupply(), _totalSupplyBefore - _amount);
-        assertEq(superchainERC20.balanceOf(_sender), _senderBalanceBefore - _amount);
+        assertEq(IERC20(address(superchainERC20)).totalSupply(), _totalSupplyBefore - _amount);
+        assertEq(IERC20(address(superchainERC20)).balanceOf(_sender), _senderBalanceBefore - _amount);
     }
 
     /// @notice Tests the `relayERC20` function reverts when the caller is not the L2ToL2CrossDomainMessenger.
@@ -167,8 +168,8 @@ contract SuperchainERC20BridgeTest is Bridge_Initializer {
         );
 
         // Get the total supply and balance of `_to` before the relay to compare later on the assertions
-        uint256 _totalSupplyBefore = superchainERC20.totalSupply();
-        uint256 _toBalanceBefore = superchainERC20.balanceOf(_to);
+        uint256 _totalSupplyBefore = IERC20(address(superchainERC20)).totalSupply();
+        uint256 _toBalanceBefore = IERC20(address(superchainERC20)).balanceOf(_to);
 
         // Look for the emit of the `Transfer` event
         vm.expectEmit(address(superchainERC20));
@@ -183,7 +184,7 @@ contract SuperchainERC20BridgeTest is Bridge_Initializer {
         superchainERC20Bridge.relayERC20(address(superchainERC20), _from, _to, _amount);
 
         // Check the total supply and balance of `_to` after the relay were updated correctly
-        assertEq(superchainERC20.totalSupply(), _totalSupplyBefore + _amount);
-        assertEq(superchainERC20.balanceOf(_to), _toBalanceBefore + _amount);
+        assertEq(IERC20(address(superchainERC20)).totalSupply(), _totalSupplyBefore + _amount);
+        assertEq(IERC20(address(superchainERC20)).balanceOf(_to), _toBalanceBefore + _amount);
     }
 }

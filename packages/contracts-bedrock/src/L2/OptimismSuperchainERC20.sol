@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.25;
 
-import { IOptimismSuperchainERC20Extension } from "src/L2/interfaces/IOptimismSuperchainERC20.sol";
+import { IOptimismSuperchainERC20 } from "src/L2/interfaces/IOptimismSuperchainERC20.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { ERC165 } from "@openzeppelin/contracts-v5/utils/introspection/ERC165.sol";
 import { SuperchainERC20 } from "src/L2/SuperchainERC20.sol";
@@ -15,7 +15,7 @@ import { Initializable } from "@openzeppelin/contracts-v5/proxy/utils/Initializa
 ///         OptimismSuperchainERC20 token, turning it fungible and interoperable across the superchain. Likewise, it
 ///         also enables the inverse conversion path.
 ///         Moreover, it builds on top of the L2ToL2CrossDomainMessenger for both replay protection and domain binding.
-contract OptimismSuperchainERC20 is SuperchainERC20, Initializable, ERC165, IOptimismSuperchainERC20Extension {
+contract OptimismSuperchainERC20 is SuperchainERC20, Initializable, ERC165, IOptimismSuperchainERC20 {
     /// @notice Storage slot that the OptimismSuperchainERC20Metadata struct is stored at.
     /// keccak256(abi.encode(uint256(keccak256("optimismSuperchainERC20.metadata")) - 1)) & ~bytes32(uint256(0xff));
     bytes32 internal constant OPTIMISM_SUPERCHAIN_ERC20_METADATA_SLOT =
@@ -130,7 +130,6 @@ contract OptimismSuperchainERC20 is SuperchainERC20, Initializable, ERC165, IOpt
     /// @param _interfaceId Interface ID to check.
     /// @return Whether or not the interface is supported by this contract.
     function supportsInterface(bytes4 _interfaceId) public view virtual override returns (bool) {
-        return
-            _interfaceId == type(IOptimismSuperchainERC20Extension).interfaceId || super.supportsInterface(_interfaceId);
+        return _interfaceId == type(IOptimismSuperchainERC20).interfaceId || super.supportsInterface(_interfaceId);
     }
 }

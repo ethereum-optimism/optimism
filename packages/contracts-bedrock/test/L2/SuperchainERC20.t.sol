@@ -16,8 +16,9 @@ import { IBeacon } from "@openzeppelin/contracts-v5/proxy/beacon/IBeacon.sol";
 import { BeaconProxy } from "@openzeppelin/contracts-v5/proxy/beacon/BeaconProxy.sol";
 
 // Target contract
-import { SuperchainERC20, ISuperchainERC20Extension } from "src/L2/SuperchainERC20.sol";
-import { ISuperchainERC20Errors } from "src/L2/interfaces/ISuperchainERC20.sol";
+import { SuperchainERC20 } from "src/L2/SuperchainERC20.sol";
+import { ICrosschainERC20 } from "src/L2/interfaces/ICrosschainERC20.sol";
+import { ISuperchainERC20 } from "src/L2/interfaces/ISuperchainERC20.sol";
 import { SuperchainERC20Implementation_MockContract } from "test/mocks/SuperchainERC20Implementation.sol";
 
 /// @title SuperchainERC20Test
@@ -41,20 +42,20 @@ contract SuperchainERC20Test is Test {
     }
 
     /// @notice Tests the `mint` function reverts when the caller is not the bridge.
-    function testFuzz___superchainMint_callerNotBridge_reverts(address _caller, address _to, uint256 _amount) public {
+    function testFuzz___crosschainMint_callerNotBridge_reverts(address _caller, address _to, uint256 _amount) public {
         // Ensure the caller is not the bridge
         vm.assume(_caller != SUPERCHAIN_ERC20_BRIDGE);
 
         // Expect the revert with `OnlySuperchainERC20Bridge` selector
-        vm.expectRevert(ISuperchainERC20Errors.OnlySuperchainERC20Bridge.selector);
+        vm.expectRevert(ISuperchainERC20.OnlySuperchainERC20Bridge.selector);
 
         // Call the `mint` function with the non-bridge caller
         vm.prank(_caller);
-        superchainERC20.__superchainMint(_to, _amount);
+        superchainERC20.__crosschainMint(_to, _amount);
     }
 
     /// @notice Tests the `mint` succeeds and emits the `Mint` event.
-    function testFuzz___superchainMint_succeeds(address _to, uint256 _amount) public {
+    function testFuzz___crosschainMint_succeeds(address _to, uint256 _amount) public {
         // Ensure `_to` is not the zero address
         vm.assume(_to != ZERO_ADDRESS);
 
@@ -66,13 +67,13 @@ contract SuperchainERC20Test is Test {
         vm.expectEmit(address(superchainERC20));
         emit IERC20.Transfer(ZERO_ADDRESS, _to, _amount);
 
-        // Look for the emit of the `SuperchainMinted` event
+        // Look for the emit of the `CrosschainMinted` event
         vm.expectEmit(address(superchainERC20));
-        emit ISuperchainERC20Extension.SuperchainMinted(_to, _amount);
+        emit ICrosschainERC20.CrosschainMinted(_to, _amount);
 
         // Call the `mint` function with the bridge caller
         vm.prank(SUPERCHAIN_ERC20_BRIDGE);
-        superchainERC20.__superchainMint(_to, _amount);
+        superchainERC20.__crosschainMint(_to, _amount);
 
         // Check the total supply and balance of `_to` after the mint were updated correctly
         assertEq(superchainERC20.totalSupply(), _totalSupplyBefore + _amount);
@@ -80,7 +81,7 @@ contract SuperchainERC20Test is Test {
     }
 
     /// @notice Tests the `burn` function reverts when the caller is not the bridge.
-    function testFuzz___superchainBurn_callerNotBridge_reverts(
+    function testFuzz___crosschainBurn_callerNotBridge_reverts(
         address _caller,
         address _from,
         uint256 _amount
@@ -91,21 +92,21 @@ contract SuperchainERC20Test is Test {
         vm.assume(_caller != SUPERCHAIN_ERC20_BRIDGE);
 
         // Expect the revert with `OnlySuperchainERC20Bridge` selector
-        vm.expectRevert(ISuperchainERC20Errors.OnlySuperchainERC20Bridge.selector);
+        vm.expectRevert(ISuperchainERC20.OnlySuperchainERC20Bridge.selector);
 
         // Call the `burn` function with the non-bridge caller
         vm.prank(_caller);
-        superchainERC20.__superchainBurn(_from, _amount);
+        superchainERC20.__crosschainBurn(_from, _amount);
     }
 
-    /// @notice Tests the `burn` burns the amount and emits the `SuperchainBurnt` event.
-    function testFuzz___superchainBurn_succeeds(address _from, uint256 _amount) public {
+    /// @notice Tests the `burn` burns the amount and emits the `CrosschainBurnt` event.
+    function testFuzz___crosschainBurn_succeeds(address _from, uint256 _amount) public {
         // Ensure `_from` is not the zero address
         vm.assume(_from != ZERO_ADDRESS);
 
         // Mint some tokens to `_from` so then they can be burned
         vm.prank(SUPERCHAIN_ERC20_BRIDGE);
-        superchainERC20.__superchainMint(_from, _amount);
+        superchainERC20.__crosschainMint(_from, _amount);
 
         // Get the total supply and balance of `_from` before the burn to compare later on the assertions
         uint256 _totalSupplyBefore = superchainERC20.totalSupply();
@@ -115,13 +116,13 @@ contract SuperchainERC20Test is Test {
         vm.expectEmit(address(superchainERC20));
         emit IERC20.Transfer(_from, ZERO_ADDRESS, _amount);
 
-        // Look for the emit of the `SuperchainBurnt` event
+        // Look for the emit of the `CrosschainBurnt` event
         vm.expectEmit(address(superchainERC20));
-        emit ISuperchainERC20Extension.SuperchainBurnt(_from, _amount);
+        emit ICrosschainERC20.CrosschainBurnt(_from, _amount);
 
         // Call the `burn` function with the bridge caller
         vm.prank(SUPERCHAIN_ERC20_BRIDGE);
-        superchainERC20.__superchainBurn(_from, _amount);
+        superchainERC20.__crosschainBurn(_from, _amount);
 
         // Check the total supply and balance of `_from` after the burn were updated correctly
         assertEq(superchainERC20.totalSupply(), _totalSupplyBefore - _amount);
