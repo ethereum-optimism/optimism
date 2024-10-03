@@ -391,6 +391,8 @@ func (l *BatchSubmitter) loop() {
 			if !l.checkTxpool(queue, receiptsCh) {
 				continue
 			}
+			// TODO TODO have this function dequeue / trim the channel manager blocks queue
+			// if we know that the blocks within are now safe
 			if err := l.loadBlocksIntoState(l.shutdownCtx); errors.Is(err, ErrReorg) {
 				err := l.state.Close()
 				if err != nil {
