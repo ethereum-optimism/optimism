@@ -137,9 +137,10 @@ type SimpleTxManager struct {
 	name    string
 	chainID *big.Int
 
-	backend ETHBackend
-	l       log.Logger
-	metr    metrics.TxMetricer
+	backend             ETHBackend
+	l                   log.Logger
+	metr                metrics.TxMetricer
+	gasPriceEstimatorFn GasPriceEstimatorFn
 
 	nonce     *uint64
 	nonceLock sync.RWMutex
@@ -163,13 +164,15 @@ func NewSimpleTxManagerFromConfig(name string, l log.Logger, m metrics.TxMetrice
 	if err := conf.Check(); err != nil {
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}
+
 	return &SimpleTxManager{
-		chainID: conf.ChainID,
-		name:    name,
-		cfg:     conf,
-		backend: conf.Backend,
-		l:       l.New("service", name),
-		metr:    m,
+		chainID:             conf.ChainID,
+		name:                name,
+		cfg:                 conf,
+		backend:             conf.Backend,
+		l:                   l.New("service", name),
+		metr:                m,
+		gasPriceEstimatorFn: conf.GasPriceEstimatorFn,
 	}, nil
 }
 
@@ -876,26 +879,17 @@ func (m *SimpleTxManager) increaseGasPrice(ctx context.Context, tx *types.Transa
 func (m *SimpleTxManager) SuggestGasPriceCaps(ctx context.Context) (*big.Int, *big.Int, *big.Int, error) {
 	cCtx, cancel := context.WithTimeout(ctx, m.cfg.NetworkTimeout)
 	defer cancel()
-	tip, err := m.backend.SuggestGasTipCap(cCtx)
-	if err != nil {
-		m.metr.RPCError()
-		return nil, nil, nil, fmt.Errorf("failed to fetch the suggested gas tip cap: %w", err)
-	} else if tip == nil {
-		return nil, nil, nil, errors.New("the suggested tip was nil")
-	}
-	cCtx, cancel = context.WithTimeout(ctx, m.cfg.NetworkTimeout)
-	defer cancel()
-	head, err := m.backend.HeaderByNumber(cCtx, nil)
-	if err != nil {
-		m.metr.RPCError()
-		return nil, nil, nil, fmt.Errorf("failed to fetch the suggested base fee: %w", err)
-	} else if head.BaseFee == nil {
-		return nil, nil, nil, errors.New("txmgr does not support pre-london blocks that do not have a base fee")
+
+	estimatorFn := m.gasPriceEstimatorFn
+	if estimatorFn == nil {
+		estimatorFn = DefaultGasPriceEstimatorFn
 	}
 
-	baseFee := head.BaseFee
-	m.metr.RecordBaseFee(baseFee)
-	m.metr.RecordTipCap(tip)
+	tip, baseFee, blobFee, err := estimatorFn(cCtx, m.backend)
+	if err != nil {
+		m.metr.RPCError()
+		return nil, nil, nil, fmt.Errorf("failed to get gas price estimates: %w", err)
+	}
 
 	// Enforce minimum base fee and tip cap
 	minTipCap := m.cfg.MinTipCap.Load()
@@ -910,11 +904,6 @@ func (m *SimpleTxManager) SuggestGasPriceCaps(ctx context.Context) (*big.Int, *b
 		baseFee = new(big.Int).Set(minBaseFee)
 	}
 
-	var blobFee *big.Int
-	if head.ExcessBlobGas != nil {
-		blobFee = eip4844.CalcBlobFee(*head.ExcessBlobGas)
-		m.metr.RecordBlobBaseFee(blobFee)
-	}
 	return tip, baseFee, blobFee, nil
 }
 

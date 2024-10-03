@@ -6,9 +6,14 @@ import (
 	"log/slog"
 	"math/big"
 	"net/url"
+	"os"
 	"path"
 	"runtime"
 	"testing"
+	"time"
+
+	"github.com/ethereum-optimism/optimism/op-service/testutils/anvil"
+	crypto "github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 	"github.com/holiman/uint256"
@@ -29,6 +34,7 @@ participants:
   - el_type: geth
     el_extra_params:
       - "--gcmode=archive"
+      - "--rpc.txfeecap=0"
     cl_type: lighthouse
 network_params:
   prefunded_accounts: '{ "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266": { "balance": "1000000ETH" } }'
@@ -64,11 +70,6 @@ func TestEndToEndApply(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	_, testFilename, _, ok := runtime.Caller(0)
-	require.Truef(t, ok, "failed to get test filename")
-	monorepoDir := path.Join(path.Dir(testFilename), "..", "..", "..")
-	artifactsDir := path.Join(monorepoDir, "packages", "contracts-bedrock", "forge-artifacts")
-
 	enclaveCtx := kurtosisutil.StartEnclave(t, ctx, lgr, "github.com/ethpandaops/ethereum-package", TestParams)
 
 	service, err := enclaveCtx.GetServiceContext("el-1-geth-lighthouse")
@@ -78,9 +79,6 @@ func TestEndToEndApply(t *testing.T) {
 	ports := service.GetPublicPorts()
 	rpcURL := fmt.Sprintf("http://%s:%d", ip, ports["rpc"].GetNumber())
 	l1Client, err := ethclient.Dial(rpcURL)
-	require.NoError(t, err)
-
-	artifactsURL, err := url.Parse(fmt.Sprintf("file://%s", artifactsDir))
 	require.NoError(t, err)
 
 	depKey := new(deployerKey)
@@ -105,7 +103,7 @@ func TestEndToEndApply(t *testing.T) {
 	}
 
 	t.Run("initial chain", func(t *testing.T) {
-		intent, st := makeIntent(t, l1ChainID, artifactsURL, dk, id)
+		intent, st := makeIntent(t, l1ChainID, dk, id)
 
 		require.NoError(t, deployer.ApplyPipeline(
 			ctx,
@@ -148,7 +146,7 @@ func TestEndToEndApply(t *testing.T) {
 
 	t.Run("subsequent chain", func(t *testing.T) {
 		newID := uint256.NewInt(2)
-		intent, st := makeIntent(t, l1ChainID, artifactsURL, dk, newID)
+		intent, st := makeIntent(t, l1ChainID, dk, newID)
 		env.Workdir = t.TempDir()
 
 		require.NoError(t, deployer.ApplyPipeline(
@@ -181,10 +179,16 @@ func TestEndToEndApply(t *testing.T) {
 func makeIntent(
 	t *testing.T,
 	l1ChainID *big.Int,
-	artifactsURL *url.URL,
 	dk *devkeys.MnemonicDevKeys,
 	l2ChainID *uint256.Int,
 ) (*state.Intent, *state.State) {
+	_, testFilename, _, ok := runtime.Caller(0)
+	require.Truef(t, ok, "failed to get test filename")
+	monorepoDir := path.Join(path.Dir(testFilename), "..", "..", "..")
+	artifactsDir := path.Join(monorepoDir, "packages", "contracts-bedrock", "forge-artifacts")
+	artifactsURL, err := url.Parse(fmt.Sprintf("file://%s", artifactsDir))
+	require.NoError(t, err)
+
 	addrFor := func(key devkeys.Key) common.Address {
 		addr, err := dk.Address(key)
 		require.NoError(t, err)
@@ -259,4 +263,122 @@ func validateOPChainDeployment(t *testing.T, ctx context.Context, l1Client *ethc
 			require.Greater(t, len(chainState.Allocs), 0)
 		})
 	}
+}
+
+func TestApplyExistingOPCM(t *testing.T) {
+	anvil.Test(t)
+
+	forkRPCUrl := os.Getenv("SEPOLIA_RPC_URL")
+	if forkRPCUrl == "" {
+		t.Skip("no fork RPC URL provided")
+	}
+
+	lgr := testlog.Logger(t, slog.LevelDebug)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	runner, err := anvil.New(
+		forkRPCUrl,
+		lgr,
+	)
+	require.NoError(t, err)
+
+	require.NoError(t, runner.Start(ctx))
+	t.Cleanup(func() {
+		require.NoError(t, runner.Stop())
+	})
+
+	l1Client, err := ethclient.Dial(runner.RPCUrl())
+	require.NoError(t, err)
+
+	l1ChainID := big.NewInt(11155111)
+	dk, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
+	require.NoError(t, err)
+	// index 0 from Anvil's test set
+	priv, err := crypto.HexToECDSA("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
+	require.NoError(t, err)
+	signer := opcrypto.SignerFnFromBind(opcrypto.PrivateKeySignerFn(priv, l1ChainID))
+	deployerAddr := common.HexToAddress("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266")
+
+	l2ChainID := uint256.NewInt(1)
+
+	env := &pipeline.Env{
+		Workdir:  t.TempDir(),
+		L1Client: l1Client,
+		Signer:   signer,
+		Deployer: deployerAddr,
+		Logger:   lgr,
+	}
+
+	intent, st := makeIntent(t, l1ChainID, dk, l2ChainID)
+	intent.ContractsRelease = "op-contracts/v1.6.0"
+
+	require.NoError(t, deployer.ApplyPipeline(
+		ctx,
+		env,
+		intent,
+		st,
+	))
+
+	validateOPChainDeployment(t, ctx, l1Client, st)
+}
+
+func TestL2BlockTimeOverride(t *testing.T) {
+	kurtosisutil.Test(t)
+
+	lgr := testlog.Logger(t, slog.LevelDebug)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	enclaveCtx := kurtosisutil.StartEnclave(t, ctx, lgr, "github.com/ethpandaops/ethereum-package", TestParams)
+
+	service, err := enclaveCtx.GetServiceContext("el-1-geth-lighthouse")
+	require.NoError(t, err)
+
+	ip := service.GetMaybePublicIPAddress()
+	ports := service.GetPublicPorts()
+	rpcURL := fmt.Sprintf("http://%s:%d", ip, ports["rpc"].GetNumber())
+	l1Client, err := ethclient.Dial(rpcURL)
+	require.NoError(t, err)
+
+	depKey := new(deployerKey)
+	l1ChainID := big.NewInt(77799777)
+	dk, err := devkeys.NewMnemonicDevKeys(devkeys.TestMnemonic)
+	require.NoError(t, err)
+	pk, err := dk.Secret(depKey)
+	require.NoError(t, err)
+	signer := opcrypto.SignerFnFromBind(opcrypto.PrivateKeySignerFn(pk, l1ChainID))
+
+	id := uint256.NewInt(1)
+
+	deployerAddr, err := dk.Address(depKey)
+	require.NoError(t, err)
+
+	env := &pipeline.Env{
+		Workdir:  t.TempDir(),
+		L1Client: l1Client,
+		Signer:   signer,
+		Deployer: deployerAddr,
+		Logger:   lgr,
+	}
+
+	intent, st := makeIntent(t, l1ChainID, dk, id)
+
+	intent.GlobalDeployOverrides = map[string]interface{}{
+		"l2BlockTime": float64(3),
+	}
+
+	require.NoError(t, deployer.ApplyPipeline(
+		ctx,
+		env,
+		intent,
+		st,
+	))
+
+	cfg, err := state.CombineDeployConfig(intent, &state.ChainIntent{}, st, st.Chains[0])
+	require.NoError(t, err)
+
+	require.Equal(t, uint64(3), cfg.L2InitializationConfig.L2CoreDeployConfig.L2BlockTime, "L2 block time should be 3 seconds")
 }

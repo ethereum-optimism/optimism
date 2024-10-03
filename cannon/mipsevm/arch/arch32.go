@@ -31,6 +31,61 @@ const (
 	HighMemoryStart = 0x7f_ff_d0_00
 )
 
+// 32-bit Syscall codes
+const (
+	SysMmap         = 4090
+	SysBrk          = 4045
+	SysClone        = 4120
+	SysExitGroup    = 4246
+	SysRead         = 4003
+	SysWrite        = 4004
+	SysFcntl        = 4055
+	SysExit         = 4001
+	SysSchedYield   = 4162
+	SysGetTID       = 4222
+	SysFutex        = 4238
+	SysOpen         = 4005
+	SysNanosleep    = 4166
+	SysClockGetTime = 4263
+	SysGetpid       = 4020
+)
+
+// Noop Syscall codes
+const (
+	SysMunmap        = 4091
+	SysGetAffinity   = 4240
+	SysMadvise       = 4218
+	SysRtSigprocmask = 4195
+	SysSigaltstack   = 4206
+	SysRtSigaction   = 4194
+	SysPrlimit64     = 4338
+	SysClose         = 4006
+	SysPread64       = 4200
+	SysFstat         = 4108
+	SysFstat64       = 4215
+	SysOpenAt        = 4288
+	SysReadlink      = 4085
+	SysReadlinkAt    = 4298
+	SysIoctl         = 4054
+	SysEpollCreate1  = 4326
+	SysPipe2         = 4328
+	SysEpollCtl      = 4249
+	SysEpollPwait    = 4313
+	SysGetRandom     = 4353
+	SysUname         = 4122
+	SysStat64        = 4213
+	SysGetuid        = 4024
+	SysGetgid        = 4047
+	SysLlseek        = 4140
+	SysMinCore       = 4217
+	SysTgkill        = 4266
+	// Profiling-related syscalls
+	SysSetITimer    = 4104
+	SysTimerCreate  = 4257
+	SysTimerSetTime = 4258
+	SysTimerDelete  = 4261
+)
+
 var ByteOrderWord = byteOrder32{}
 
 type byteOrder32 struct{}

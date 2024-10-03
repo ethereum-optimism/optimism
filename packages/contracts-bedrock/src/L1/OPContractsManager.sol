@@ -60,6 +60,13 @@ contract OPContractsManager is ISemver, Initializable {
         // The salt mixer is used as part of making the resulting salt unique.
         string saltMixer;
         uint64 gasLimit;
+        // Configurable dispute game parameters.
+        GameType disputeGameType;
+        Claim disputeAbsolutePrestate;
+        uint256 disputeMaxGameDepth;
+        uint256 disputeSplitDepth;
+        Duration disputeClockExtension;
+        Duration disputeMaxClockDuration;
     }
 
     /// @notice The full set of outputs from deploying a new OP Stack chain.
@@ -122,8 +129,8 @@ contract OPContractsManager is ISemver, Initializable {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 1.0.0-beta.19
-    string public constant version = "1.0.0-beta.19";
+    /// @custom:semver 1.0.0-beta.20
+    string public constant version = "1.0.0-beta.20";
 
     /// @notice Represents the interface version so consumers know how to decode the DeployOutput struct
     /// that's emitted in the `Deployed` event. Whenever that struct changes, a new version should be used.
@@ -586,12 +593,12 @@ contract OPContractsManager is ISemver, Initializable {
         returns (bytes memory)
     {
         return abi.encode(
-            GameType.wrap(1), // Permissioned Cannon
-            Claim.wrap(bytes32(hex"038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c")), // absolutePrestate
-            73, // maxGameDepth
-            30, // splitDepth
-            Duration.wrap(3 hours), // clockExtension
-            Duration.wrap(3.5 days), // maxClockDuration
+            _input.disputeGameType,
+            _input.disputeAbsolutePrestate,
+            _input.disputeMaxGameDepth,
+            _input.disputeSplitDepth,
+            _input.disputeClockExtension,
+            _input.disputeMaxClockDuration,
             IBigStepper(getLatestImplementation("MIPS").logic),
             IDelayedWETH(payable(address(_output.delayedWETHPermissionedGameProxy))),
             IAnchorStateRegistry(address(_output.anchorStateRegistryProxy)),

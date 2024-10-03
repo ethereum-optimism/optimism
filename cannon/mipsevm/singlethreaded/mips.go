@@ -20,23 +20,23 @@ func (m *InstrumentedState) handleSyscall() error {
 
 	//fmt.Printf("syscall: %d\n", syscallNum)
 	switch syscallNum {
-	case exec.SysMmap:
+	case arch.SysMmap:
 		var newHeap Word
 		v0, v1, newHeap = exec.HandleSysMmap(a0, a1, m.state.Heap)
 		m.state.Heap = newHeap
-	case exec.SysBrk:
+	case arch.SysBrk:
 		v0 = arch.ProgramBreak
-	case exec.SysClone: // clone (not supported)
+	case arch.SysClone: // clone (not supported)
 		v0 = 1
-	case exec.SysExitGroup:
+	case arch.SysExitGroup:
 		m.state.Exited = true
 		m.state.ExitCode = uint8(a0)
 		return nil
-	case exec.SysRead:
+	case arch.SysRead:
 		var newPreimageOffset Word
 		v0, v1, newPreimageOffset, _, _ = exec.HandleSysRead(a0, a1, a2, m.state.PreimageKey, m.state.PreimageOffset, m.preimageOracle, m.state.Memory, m.memoryTracker)
 		m.state.PreimageOffset = newPreimageOffset
-	case exec.SysWrite:
+	case arch.SysWrite:
 		var newLastHint hexutil.Bytes
 		var newPreimageKey common.Hash
 		var newPreimageOffset Word
@@ -44,7 +44,7 @@ func (m *InstrumentedState) handleSyscall() error {
 		m.state.LastHint = newLastHint
 		m.state.PreimageKey = newPreimageKey
 		m.state.PreimageOffset = newPreimageOffset
-	case exec.SysFcntl:
+	case arch.SysFcntl:
 		v0, v1 = exec.HandleSysFcntl(a0, a1)
 	}
 

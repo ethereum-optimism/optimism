@@ -32,7 +32,7 @@ packages/contracts-bedrock/scripts/libraries/Solarray.sol
 
 # Contracts: vendor interfaces
 packages/contracts-bedrock/scripts/interfaces/IGnosisSafe.sol
-packages/contracts-bedrock/src/EAS/
+packages/contracts-bedrock/src/vendor/eas/
 
 # Contracts: deliberate exclusions
 packages/contracts-bedrock/src/universal/WETH98.sol

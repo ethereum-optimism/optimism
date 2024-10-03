@@ -346,7 +346,7 @@ func TestEVM_MMap(t *testing.T) {
 				state := goVm.GetState()
 
 				state.GetMemory().SetUint32(state.GetPC(), syscallInsn)
-				state.GetRegistersRef()[2] = exec.SysMmap
+				state.GetRegistersRef()[2] = arch.SysMmap
 				state.GetRegistersRef()[4] = c.address
 				state.GetRegistersRef()[5] = c.size
 				step := state.GetStep()
@@ -546,7 +546,7 @@ func TestEVMSysWriteHint(t *testing.T) {
 				oracle := testutil.HintTrackingOracle{}
 				goVm := v.VMFactory(&oracle, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithLastHint(tt.lastHint))
 				state := goVm.GetState()
-				state.GetRegistersRef()[2] = exec.SysWrite
+				state.GetRegistersRef()[2] = arch.SysWrite
 				state.GetRegistersRef()[4] = exec.FdHintWrite
 				state.GetRegistersRef()[5] = arch.Word(tt.memOffset)
 				state.GetRegistersRef()[6] = arch.Word(tt.bytesToWrite)
