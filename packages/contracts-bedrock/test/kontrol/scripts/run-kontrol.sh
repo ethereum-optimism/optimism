@@ -36,7 +36,7 @@ kontrol_prove() {
     $break_on_calls \
     $break_every_step \
     $tests \
-    --init-node-from $state_diff \
+    --init-node-from-diff $state_diff \
     --kore-rpc-command 'kore-rpc-booster --equation-max-recursion 100' \
     --xml-test-report
   return $?
