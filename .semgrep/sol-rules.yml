@@ -1,0 +1,19 @@
+rules:
+  - id: sol-safety-deployutils-args
+    pattern-regex: DeployUtils\.(create1|create2|create1AndSave|create2AndSave)\s*\(\s*\{[^}]*?_args\s*:\s*(?!\s*DeployUtils\.encodeConstructor\()\s*[^}]*?\}\s*\)
+    message: _args parameter should be wrapped with DeployUtils.encodeConstructor
+    severity: ERROR
+    languages:
+      - solidity
+  - id: sol-style-input-arg-fmt
+    pattern-regex: function\s+\w+\s*\(\s*([^)]*?\b\w+\s+(?!_)(?!memory\b)(?!calldata\b)(?!storage\b)(?!payable\b)\w+\s*(?=,|\)))
+    message: Named inputs to functions must be prepended with an underscore
+    severity: WARNING
+    languages:
+      - solidity
+  - id: sol-style-return-arg-fmt
+    pattern-regex: returns\s*(\w+\s*)?\(\s*([^)]*?\b\w+\s+(?!memory\b)(?!calldata\b)(?!storage\b)(?!payable\b)\w+(?<!_)\s*(?=,|\)))
+    message: Named return arguments to functions must be appended with an underscore
+    severity: WARNING
+    languages:
+      - solidity

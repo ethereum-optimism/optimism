@@ -1170,6 +1170,22 @@ jobs:
       - notify-failures-on-develop:
           mentions: "@proofs-squad"
 
+  semgrep-scan-local:
+    docker:
+      - image: returntocorp/semgrep
+    resource_class: xlarge
+    steps:
+      - checkout
+      - run:
+          name: "Semgrep scan"
+          # --timeout (in seconds) limits the time per rule and file.
+          #   SEMGREP_TIMEOUT is the same, but docs have conflicting defaults (5s in CLI flag, 1800 in some places)
+          #    https://semgrep.dev/docs/troubleshooting/semgrep-app#if-the-job-is-aborted-due-to-taking-too-long
+          command: semgrep scan --timeout=100 --config=./.semgrep
+          # If semgrep hangs, stop the scan after 20m, to prevent a useless 5h job
+          no_output_timeout: 20m
+      - notify-failures-on-develop
+
   semgrep-scan:
     parameters:
       diff_branch:
@@ -1415,6 +1431,7 @@ workflows:
           requires:
             - contracts-bedrock-build
       - semgrep-scan
+      - semgrep-scan-local
       - go-lint:
           requires:
             - go-mod-download
