@@ -31,6 +31,7 @@ import { IDisputeGameFactory } from "src/dispute/interfaces/IDisputeGameFactory.
 import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 import { IOptimismMintableERC20Factory } from "src/universal/interfaces/IOptimismMintableERC20Factory.sol";
 import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
+import { IMIPS } from "src/cannon/interfaces/IMIPS.sol";
 
 library ChainAssertions {
     Vm internal constant vm = Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
@@ -250,6 +251,14 @@ library ChainAssertions {
 
         require(_oracle.minProposalSize() == _cfg.preimageOracleMinProposalSize(), "CHECK-PIO-30");
         require(_oracle.challengePeriod() == _cfg.preimageOracleChallengePeriod(), "CHECK-PIO-40");
+    }
+
+    /// @notice Asserts that the MIPs contract is setup correctly
+    function checkMIPS(IMIPS _mips, IPreimageOracle _oracle) internal view {
+        console.log("Running chain assertions on the MIPS %s at %s", address(_mips));
+        require(address(_mips) != address(0), "CHECK-MIPS-10");
+
+        require(_mips.oracle() == _oracle, "CHECK-MIPS-20");
     }
 
     /// @notice Asserts that the DelayedWETH is setup correctly

@@ -58,6 +58,7 @@ import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol"
 import { IPermissionedDisputeGame } from "src/dispute/interfaces/IPermissionedDisputeGame.sol";
 import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistry.sol";
+import { IMIPS } from "src/cannon/interfaces/IMIPS.sol";
 import { IMIPS2 } from "src/cannon/interfaces/IMIPS2.sol";
 import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
 import { IOptimismMintableERC20Factory } from "src/universal/interfaces/IOptimismMintableERC20Factory.sol";
@@ -434,6 +435,8 @@ contract Deploy is Deployer {
 
         Types.ContractSet memory contracts = _impls();
         ChainAssertions.checkL1CrossDomainMessenger({ _contracts: contracts, _vm: vm, _isProxy: false });
+        ChainAssertions.checkL1StandardBridge({ _contracts: contracts, _isProxy: false });
+        ChainAssertions.checkL1ERC721Bridge({ _contracts: contracts, _isProxy: false });
         ChainAssertions.checkOptimismPortal2({ _contracts: contracts, _cfg: cfg, _isProxy: false });
         ChainAssertions.checkOptimismMintableERC20Factory({ _contracts: contracts, _isProxy: false });
         ChainAssertions.checkDisputeGameFactory({ _contracts: contracts, _expectedOwner: address(0), _isProxy: false });
@@ -446,6 +449,10 @@ contract Deploy is Deployer {
         ChainAssertions.checkPreimageOracle({
             _oracle: IPreimageOracle(address(dio.preimageOracleSingleton())),
             _cfg: cfg
+        });
+        ChainAssertions.checkMIPS({
+            _mips: IMIPS(address(dio.mipsSingleton())),
+            _oracle: IPreimageOracle(address(dio.preimageOracleSingleton()))
         });
         if (_isInterop) {
             ChainAssertions.checkSystemConfigInterop({ _contracts: contracts, _cfg: cfg, _isProxy: false });
