@@ -66,7 +66,7 @@ type ChannelBuilder struct {
 	// current channel
 	co derive.ChannelOut
 	// list of blocks in the channel. Saved in case the channel must be rebuilt
-	blocks []*types.Block
+	blocks queue.Queue[*types.Block]
 	// latestL1Origin is the latest L1 origin of all the L2 blocks that have been added to the channel
 	latestL1Origin eth.BlockID
 	// oldestL1Origin is the oldest L1 origin of all the L2 blocks that have been added to the channel
@@ -191,7 +191,7 @@ func (c *ChannelBuilder) AddBlock(block *types.Block) (*derive.L1BlockInfo, erro
 		return l1info, fmt.Errorf("adding block to channel out: %w", err)
 	}
 
-	c.blocks = append(c.blocks, block)
+	c.blocks.Enqueue(block)
 	c.updateSwTimeout(batch)
 
 	if l1info.Number > c.latestL1Origin.Number {
