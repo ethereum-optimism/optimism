@@ -99,7 +99,7 @@ func (m *Memory) invalidate(addr Word) {
 	}
 
 	// find the gindex of the first page covering the address: i.e. ((1 << WordSize) | addr) >> PageAddrSize
-	// Avoid 64-bit overflow by expanding the rsh over the OR.
+	// Avoid 64-bit overflow by distributing the right shift across the OR.
 	gindex := (uint64(1) << (WordSize - PageAddrSize)) | uint64(addr>>PageAddrSize)
 
 	for gindex > 0 {
