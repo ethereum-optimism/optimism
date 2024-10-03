@@ -757,7 +757,7 @@ contract Deploy is Deployer {
         // `DisputeGameFactory` implementation alongside dependent contracts, which are always proxies.
         Types.ContractSet memory contracts = _proxiesUnstrict();
         contracts.DisputeGameFactory = address(factory);
-        ChainAssertions.checkDisputeGameFactory({ _contracts: contracts, _expectedOwner: address(0) });
+        ChainAssertions.checkDisputeGameFactory({ _contracts: contracts, _expectedOwner: address(0), _isProxy: true });
 
         addr_ = address(factory);
     }
@@ -957,7 +957,11 @@ contract Deploy is Deployer {
         string memory version = IDisputeGameFactory(disputeGameFactoryProxy).version();
         console.log("DisputeGameFactory version: %s", version);
 
-        ChainAssertions.checkDisputeGameFactory({ _contracts: _proxiesUnstrict(), _expectedOwner: msg.sender });
+        ChainAssertions.checkDisputeGameFactory({
+            _contracts: _proxiesUnstrict(),
+            _expectedOwner: msg.sender,
+            _isProxy: true
+        });
     }
 
     function initializeDelayedWETH() public broadcast {
@@ -1345,7 +1349,11 @@ contract Deploy is Deployer {
             disputeGameFactory.transferOwnership(finalSystemOwner);
             console.log("DisputeGameFactory ownership transferred to final system owner at: %s", finalSystemOwner);
         }
-        ChainAssertions.checkDisputeGameFactory({ _contracts: _proxiesUnstrict(), _expectedOwner: finalSystemOwner });
+        ChainAssertions.checkDisputeGameFactory({
+            _contracts: _proxiesUnstrict(),
+            _expectedOwner: finalSystemOwner,
+            _isProxy: true
+        });
     }
 
     /// @notice Transfer ownership of the DelayedWETH contract to the final system owner
