@@ -569,14 +569,7 @@ library ChainAssertions {
     }
 
     /// @notice Asserts that the SuperchainConfig is setup correctly
-    function checkOPContractsManager(
-        Types.ContractSet memory _contracts,
-        DeployConfig _cfg,
-        bool _isProxy
-    )
-        internal
-        view
-    {
+    function checkOPContractsManager(Types.ContractSet memory _contracts, bool _isProxy) internal view {
         OPContractsManager opcm = OPContractsManager(_contracts.OPContractsManager);
         console.log(
             "Running chain assertions on the OPContractsManager %s at %s",
