@@ -10,7 +10,7 @@ import {
     DelegatedAttestationRequest,
     DelegatedRevocationRequest,
     RevocationRequestData
-} from "src/EAS/IEAS.sol";
+} from "src/vendor/eas/IEAS.sol";
 
 import {
     DeadlineExpired,
@@ -20,7 +20,7 @@ import {
     MAX_GAP,
     stringToBytes32,
     bytes32ToString
-} from "src/EAS/Common.sol";
+} from "src/vendor/eas/Common.sol";
 
 /// @title EIP1271Verifier
 /// @notice EIP1271Verifier typed signatures verifier for EAS delegated attestations.
