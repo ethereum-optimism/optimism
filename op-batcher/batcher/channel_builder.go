@@ -405,7 +405,7 @@ func (c *ChannelBuilder) TotalFrames() int {
 }
 
 // HasFrame returns whether there's any available frame. If true, it can be
-// popped using NextFrame().
+// dequeued using NextFrame().
 //
 // Call OutputFrames before to create new frames from the channel out
 // compression pipeline.
@@ -430,9 +430,9 @@ func (c *ChannelBuilder) NextFrame() frameData {
 	return f
 }
 
-// PushFrames adds the frames back to the internal frames queue. Panics if not of
+// EnqueueFrames enqueues the frames back to the internal frames queue. Panics if not of
 // the same channel.
-func (c *ChannelBuilder) PushFrames(frames ...frameData) {
+func (c *ChannelBuilder) EnqueueFrames(frames ...frameData) {
 	for _, f := range frames {
 		if f.id.chID != c.ID() {
 			panic("wrong channel")
