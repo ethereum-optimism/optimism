@@ -397,6 +397,8 @@ contract Deploy is Deployer {
 
     /// @notice Deploy all of the implementations
     function deployImplementations(bool _isInterop) public {
+        require(_isInterop == cfg.useInterop(), "Deploy: Interop setting mismatch.");
+
         console.log("Deploying implementations");
         DeployImplementations di = new DeployImplementations();
         (DeployImplementationsInput dii, DeployImplementationsOutput dio) = di.etchIOContracts();
