@@ -890,9 +890,14 @@ jobs:
       module:
         description: Go Module Name
         type: string
+      uses_artifacts:
+        description: Uses contract artifacts
+        type: boolean
+        default: false
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: xlarge
+    circleci_ip_ranges: true
     steps:
       - checkout
       - restore_cache:
@@ -903,6 +908,10 @@ jobs:
           keys:
             - golang-build-cache-test-<<parameters.module>>-{{ checksum "go.sum" }}
             - golang-build-cache-test-
+      - when:
+          condition: <<parameters.uses_artifacts>>
+          steps:
+            - attach_workspace: { at: "." }
       - run:
           name: Install components
           command: |
@@ -914,7 +923,7 @@ jobs:
       - run:
           name: run tests
           command: |
-            gotestsum --format=testname --junitfile=/tmp/test-results/<<parameters.module>>.xml --jsonfile=/tmp/testlogs/log.json \
+            ENABLE_ANVIL=true SEPOLIA_RPC_URL="https://ci-sepolia-l1.optimism.io" gotestsum --format=testname --junitfile=/tmp/test-results/<<parameters.module>>.xml --jsonfile=/tmp/testlogs/log.json \
             -- -parallel=8 -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out ./...
           working_directory: <<parameters.module>>
       - save_cache:
@@ -1441,7 +1450,6 @@ workflows:
             parameters:
               module:
                 - op-batcher
-                - op-chain-ops
                 - op-node
                 - op-proposer
                 - op-challenger
@@ -1453,6 +1461,13 @@ workflows:
       - go-test:
           name: semver-natspec-tests
           module: packages/contracts-bedrock/scripts/checks/semver-natspec
+      - go-test:
+          name: op-chain-ops-tests
+          module: op-chain-ops
+          uses_artifacts: true
+          requires:
+            - go-mod-download
+            - contracts-bedrock-build
       - go-test-kurtosis:
           name: op-chain-ops-integration
           module: op-chain-ops
