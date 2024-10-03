@@ -10,14 +10,9 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
-	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
-	"github.com/ethereum-optimism/optimism/op-service/serialize"
 )
-
-var asteriscWitnessLen = 362
 
 // The state struct will be read from json.
 // other fields included in json are specific to FPVM implementation, and not required for trace provider.
@@ -27,49 +22,6 @@ type VMState struct {
 	Step      uint64        `json:"step"`
 	Witness   hexutil.Bytes `json:"witness"`
 	StateHash common.Hash   `json:"stateHash"`
-}
-
-func (state *VMState) validateStateHash() error {
-	exitCode := state.StateHash[0]
-	if exitCode >= 4 {
-		return fmt.Errorf("invalid stateHash: unknown exitCode %d", exitCode)
-	}
-	if (state.Exited && exitCode == mipsevm.VMStatusUnfinished) || (!state.Exited && exitCode != mipsevm.VMStatusUnfinished) {
-		return fmt.Errorf("invalid stateHash: invalid exitCode %d", exitCode)
-	}
-	return nil
-}
-
-func (state *VMState) validateWitness() error {
-	witnessLen := len(state.Witness)
-	if witnessLen != asteriscWitnessLen {
-		return fmt.Errorf("invalid witness: Length must be 362 but got %d", witnessLen)
-	}
-	return nil
-}
-
-// validateState performs verification of state; it is not perfect.
-// It does not recalculate whether witness nor stateHash is correctly set from state.
-func (state *VMState) validateState() error {
-	if err := state.validateStateHash(); err != nil {
-		return err
-	}
-	if err := state.validateWitness(); err != nil {
-		return err
-	}
-	return nil
-}
-
-// parseState parses state from json and goes on state validation
-func parseState(path string) (*VMState, error) {
-	state, err := LoadVMStateFromFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("invalid asterisc VM state %w", err)
-	}
-	if err := state.validateState(); err != nil {
-		return nil, fmt.Errorf("invalid asterisc VM state %w", err)
-	}
-	return state, nil
 }
 
 type StateConverter struct {
@@ -103,13 +55,6 @@ func (c *StateConverter) ConvertStateToProof(ctx context.Context, statePath stri
 		OracleValue:  nil,
 		OracleOffset: 0,
 	}, data.Step, data.Exited, nil
-}
-
-func LoadVMStateFromFile(path string) (*VMState, error) {
-	if !serialize.IsBinaryFile(path) {
-		return jsonutil.LoadJSON[VMState](path)
-	}
-	return serialize.LoadSerializedBinary[VMState](path)
 }
 
 func runCmd(ctx context.Context, binary string, args ...string) (stdOut string, stdErr string, err error) {

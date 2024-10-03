@@ -23,6 +23,7 @@ import (
 
 //go:embed test_data
 var testData embed.FS
+var asteriscWitnessLen = 362
 
 func PositionFromTraceIndex(provider *AsteriscTraceProvider, idx *big.Int) types.Position {
 	return types.NewPosition(provider.gameDepth, idx)
