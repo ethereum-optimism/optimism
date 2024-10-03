@@ -156,9 +156,9 @@ library ChainAssertions {
         if (_isProxy) {
             // TODO: this is not being set in the deployment, nor is a config value.
             // Update this when it has an entry in hardhat.json
-            require(config.dependencyManager() == address(0), "CHECK-SCFG-10");
+            require(config.dependencyManager() == address(0), "CHECK-SCFGI-10");
         } else {
-            require(config.dependencyManager() == address(0), "CHECK-SCFG-20");
+            require(config.dependencyManager() == address(0), "CHECK-SCFGI-20");
         }
     }
 
