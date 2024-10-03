@@ -182,7 +182,7 @@ contract Deploy is Deployer {
             AnchorStateRegistry: getAddress("AnchorStateRegistry"),
             OptimismMintableERC20Factory: getAddress("OptimismMintableERC20Factory"),
             OptimismPortal: getAddress("OptimismPortal"),
-            OptimismPortal2: getAddress("OptimismPortal"),
+            OptimismPortal2: getAddress("OptimismPortal2"),
             SystemConfig: getAddress("SystemConfig"),
             L1ERC721Bridge: getAddress("L1ERC721Bridge"),
             ProtocolVersions: getAddress("ProtocolVersions"),
@@ -436,6 +436,7 @@ contract Deploy is Deployer {
         ChainAssertions.checkL1CrossDomainMessenger({ _contracts: contracts, _vm: vm, _isProxy: false });
         ChainAssertions.checkOptimismPortal2({ _contracts: contracts, _cfg: cfg, _isProxy: false });
         ChainAssertions.checkOptimismMintableERC20Factory({ _contracts: contracts, _isProxy: false });
+        ChainAssertions.checkSystemConfig({ _contracts: contracts, _cfg: cfg, _isProxy: false });
     }
 
     /// @notice Initialize all of the proxies in an OP Chain by upgrading to the correct proxy and calling the
