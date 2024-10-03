@@ -11,6 +11,7 @@ import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
 import { GuardManager } from "safe-contracts/base/GuardManager.sol";
 import { Enum as SafeOps } from "safe-contracts/common/Enum.sol";
 
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Deployer } from "scripts/deploy/Deployer.sol";
 
 import { LivenessGuard } from "src/safe/LivenessGuard.sol";
@@ -315,6 +316,22 @@ contract DeployOwnership is Deploy {
         addr_ = deploySafe({ _name: "GuardianSafe", _owners: owners, _threshold: 1, _keepDeployer: true });
 
         console.log("Deployed and configured the Guardian Safe!");
+    }
+
+    /// @notice Deploy the SuperchainConfig contract
+    function deploySuperchainConfig() public broadcast {
+        ISuperchainConfig superchainConfig = ISuperchainConfig(
+            DeployUtils.create2AndSave({
+                _save: this,
+                _salt: _implSalt(),
+                _name: "SuperchainConfig",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(ISuperchainConfig.__constructor__, ()))
+            })
+        );
+
+        require(superchainConfig.guardian() == address(0));
+        bytes32 initialized = vm.load(address(superchainConfig), bytes32(0));
+        require(initialized != 0);
     }
 
     /// @notice Configure the Guardian Safe with the DeputyGuardianModule.

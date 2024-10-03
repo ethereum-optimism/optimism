@@ -613,22 +613,6 @@ contract Deploy is Deployer {
     //             Implementation Deployment Functions            //
     ////////////////////////////////////////////////////////////////
 
-    /// @notice Deploy the SuperchainConfig contract
-    function deploySuperchainConfig() public broadcast {
-        ISuperchainConfig superchainConfig = ISuperchainConfig(
-            DeployUtils.create2AndSave({
-                _save: this,
-                _salt: _implSalt(),
-                _name: "SuperchainConfig",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(ISuperchainConfig.__constructor__, ()))
-            })
-        );
-
-        require(superchainConfig.guardian() == address(0));
-        bytes32 initialized = vm.load(address(superchainConfig), bytes32(0));
-        require(initialized != 0);
-    }
-
     /// @notice Deploy the OptimismPortal
     function deployOptimismPortal() public broadcast returns (address addr_) {
         if (cfg.useInterop()) {
