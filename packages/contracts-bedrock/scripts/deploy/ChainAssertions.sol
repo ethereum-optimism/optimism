@@ -30,6 +30,7 @@ import { ProtocolVersion, IProtocolVersions } from "src/L1/interfaces/IProtocolV
 import { IDisputeGameFactory } from "src/dispute/interfaces/IDisputeGameFactory.sol";
 import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 import { IOptimismMintableERC20Factory } from "src/universal/interfaces/IOptimismMintableERC20Factory.sol";
+import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
 
 library ChainAssertions {
     Vm internal constant vm = Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
@@ -240,6 +241,15 @@ library ChainAssertions {
 
         // The same check is made for both proxy and implementation
         require(factory.owner() == _expectedOwner, "CHECK-DG-20");
+    }
+
+    /// @notice Asserts that the PreimageOracle is setup correctly
+    function checkPreimageOracle(IPreimageOracle _oracle, DeployConfig _cfg) internal view {
+        console.log("Running chain assertions on the PreimageOracle %s at %s", address(_oracle));
+        require(address(_oracle) != address(0), "CHECK-PIO-10");
+
+        require(_oracle.minProposalSize() == _cfg.preimageOracleMinProposalSize(), "CHECK-PIO-30");
+        require(_oracle.challengePeriod() == _cfg.preimageOracleChallengePeriod(), "CHECK-PIO-40");
     }
 
     /// @notice Asserts that the DelayedWETH is setup correctly

@@ -437,6 +437,17 @@ contract Deploy is Deployer {
         ChainAssertions.checkOptimismPortal2({ _contracts: contracts, _cfg: cfg, _isProxy: false });
         ChainAssertions.checkOptimismMintableERC20Factory({ _contracts: contracts, _isProxy: false });
         ChainAssertions.checkSystemConfig({ _contracts: contracts, _cfg: cfg, _isProxy: false });
+        ChainAssertions.checkDisputeGameFactory({ _contracts: contracts, _expectedOwner: address(0), _isProxy: false });
+        ChainAssertions.checkDelayedWETH({
+            _contracts: contracts,
+            _cfg: cfg,
+            _isProxy: false,
+            _expectedOwner: address(0)
+        });
+        ChainAssertions.checkPreimageOracle({
+            _oracle: IPreimageOracle(address(dio.preimageOracleSingleton())),
+            _cfg: cfg
+        });
     }
 
     /// @notice Initialize all of the proxies in an OP Chain by upgrading to the correct proxy and calling the
@@ -658,71 +669,6 @@ contract Deploy is Deployer {
         });
 
         addr_ = address(oracle);
-    }
-
-    /// @notice Deploy the DisputeGameFactory
-    function deployDisputeGameFactory() public broadcast returns (address addr_) {
-        IDisputeGameFactory factory = IDisputeGameFactory(
-            DeployUtils.create2AndSave({
-                _save: this,
-                _salt: _implSalt(),
-                _name: "DisputeGameFactory",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IDisputeGameFactory.__constructor__, ()))
-            })
-        );
-
-        // Override the `DisputeGameFactory` contract to the deployed implementation. This is necessary to check the
-        // `DisputeGameFactory` implementation alongside dependent contracts, which are always proxies.
-        Types.ContractSet memory contracts = _proxiesUnstrict();
-        contracts.DisputeGameFactory = address(factory);
-        ChainAssertions.checkDisputeGameFactory({ _contracts: contracts, _expectedOwner: address(0), _isProxy: true });
-
-        addr_ = address(factory);
-    }
-
-    function deployDelayedWETH() public broadcast returns (address addr_) {
-        IDelayedWETH weth = IDelayedWETH(
-            DeployUtils.create2AndSave({
-                _save: this,
-                _salt: _implSalt(),
-                _name: "DelayedWETH",
-                _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(IDelayedWETH.__constructor__, (cfg.faultGameWithdrawalDelay()))
-                )
-            })
-        );
-
-        // Override the `DelayedWETH` contract to the deployed implementation. This is necessary
-        // to check the `DelayedWETH` implementation alongside dependent contracts, which are
-        // always proxies.
-        Types.ContractSet memory contracts = _proxiesUnstrict();
-        contracts.DelayedWETH = address(weth);
-        ChainAssertions.checkDelayedWETH({
-            _contracts: contracts,
-            _cfg: cfg,
-            _isProxy: false,
-            _expectedOwner: address(0)
-        });
-
-        addr_ = address(weth);
-    }
-
-    /// @notice Deploy the PreimageOracle
-    function deployPreimageOracle() public broadcast returns (address addr_) {
-        IPreimageOracle preimageOracle = IPreimageOracle(
-            DeployUtils.create2AndSave({
-                _save: this,
-                _salt: _implSalt(),
-                _name: "PreimageOracle",
-                _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(
-                        IPreimageOracle.__constructor__,
-                        (cfg.preimageOracleMinProposalSize(), cfg.preimageOracleChallengePeriod())
-                    )
-                )
-            })
-        );
-        addr_ = address(preimageOracle);
     }
 
     /// @notice Deploy Mips VM. Deploys either MIPS or MIPS2 depending on the environment
