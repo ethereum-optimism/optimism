@@ -172,7 +172,7 @@ contract FPACOPS is Deploy, StdAssertions {
         address dgfProxyAddr = mustGetAddress("DisputeGameFactoryProxy");
         IDisputeGameFactory dgfProxy = IDisputeGameFactory(dgfProxyAddr);
         assertEq(address(uint160(uint256(vm.load(dgfProxyAddr, Constants.PROXY_OWNER_ADDRESS)))), _proxyAdmin);
-        ChainAssertions.checkDisputeGameFactory(contracts, _finalSystemOwner);
+        ChainAssertions.checkDisputeGameFactory(contracts, _finalSystemOwner, true);
         address wethProxyAddr = mustGetAddress("DelayedWETHProxy");
         assertEq(address(uint160(uint256(vm.load(wethProxyAddr, Constants.PROXY_OWNER_ADDRESS)))), _proxyAdmin);
         ChainAssertions.checkDelayedWETH(contracts, cfg, true, _finalSystemOwner);

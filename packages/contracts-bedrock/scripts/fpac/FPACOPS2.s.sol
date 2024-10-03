@@ -224,7 +224,7 @@ contract FPACOPS2 is Deploy, StdAssertions {
         assertEq(address(uint160(uint256(vm.load(soyWethProxyAddr, Constants.PROXY_OWNER_ADDRESS)))), _proxyAdmin);
 
         // Run standard assertions for DGF and DelayedWETH.
-        ChainAssertions.checkDisputeGameFactory(contracts, _finalSystemOwner);
+        ChainAssertions.checkDisputeGameFactory(contracts, _finalSystemOwner, true);
         ChainAssertions.checkDelayedWETH(contracts, cfg, true, _finalSystemOwner);
         ChainAssertions.checkPermissionedDelayedWETH(contracts, cfg, true, _finalSystemOwner);
 

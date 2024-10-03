@@ -178,14 +178,27 @@ library ChainAssertions {
     }
 
     /// @notice Asserts that the DisputeGameFactory is setup correctly
-    function checkDisputeGameFactory(Types.ContractSet memory _contracts, address _expectedOwner) internal view {
-        console.log("Running chain assertions on the DisputeGameFactory");
+    function checkDisputeGameFactory(
+        Types.ContractSet memory _contracts,
+        address _expectedOwner,
+        bool _isProxy
+    )
+        internal
+        view
+    {
         IDisputeGameFactory factory = IDisputeGameFactory(_contracts.DisputeGameFactory);
+        console.log(
+            "Running chain assertions on the DisputeGameFactory %s at %s",
+            _isProxy ? "proxy" : "implementation",
+            address(factory)
+        );
+        require(address(factory) != address(0), "CHECK-DG-10");
 
         // Check that the contract is initialized
         assertSlotValueIsOne({ _contractAddress: address(factory), _slot: 0, _offset: 0 });
 
-        require(factory.owner() == _expectedOwner);
+        // The same check is made for both proxy and implementation
+        require(factory.owner() == _expectedOwner, "CHECK-DG-20");
     }
 
     /// @notice Asserts that the DelayedWETH is setup correctly
