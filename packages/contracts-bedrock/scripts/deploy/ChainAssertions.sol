@@ -32,6 +32,7 @@ import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 import { IOptimismMintableERC20Factory } from "src/universal/interfaces/IOptimismMintableERC20Factory.sol";
 import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
 import { IMIPS } from "src/cannon/interfaces/IMIPS.sol";
+import { OPContractsManager } from "src/L1/OPContractsManager.sol";
 
 library ChainAssertions {
     Vm internal constant vm = Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
@@ -565,5 +566,25 @@ library ChainAssertions {
             uint8((uint256(slotVal) >> (_offset * 8)) & 0xFF) == uint8(1),
             "Storage value is not 1 at the given slot and offset"
         );
+    }
+
+    /// @notice Asserts that the SuperchainConfig is setup correctly
+    function checkOPContractsManager(Types.ContractSet memory _contracts, bool _isProxy) internal view {
+        OPContractsManager opcm = OPContractsManager(_contracts.OPContractsManager);
+        console.log(
+            "Running chain assertions on the OPContractsManager %s at %s",
+            _isProxy ? "proxy" : "implementation",
+            address(opcm)
+        );
+        require(address(opcm) != address(0), "CHECK-OPCM-10");
+
+        // Check that the contract is initialized
+        assertSlotValueIsOne({ _contractAddress: address(opcm), _slot: 0, _offset: 0 });
+
+        // These values are immutable so are shared by the proxy and implementation
+        require(address(opcm.superchainConfig()) == address(_contracts.SuperchainConfig), "CHECK-OPCM-30");
+        require(address(opcm.protocolVersions()) == address(_contracts.ProtocolVersions), "CHECK-OPCM-40");
+
+        // TODO: Add assertions for blueprints and setters?
     }
 }

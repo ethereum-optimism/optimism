@@ -167,7 +167,8 @@ contract Deploy is Deployer {
             SystemConfig: getAddress("SystemConfigProxy"),
             L1ERC721Bridge: getAddress("L1ERC721BridgeProxy"),
             ProtocolVersions: getAddress("ProtocolVersionsProxy"),
-            SuperchainConfig: getAddress("SuperchainConfigProxy")
+            SuperchainConfig: getAddress("SuperchainConfigProxy"),
+            OPContractsManager: getAddress("OPContractsManagerProxy")
         });
     }
 
@@ -187,7 +188,8 @@ contract Deploy is Deployer {
             SystemConfig: getAddress("SystemConfig"),
             L1ERC721Bridge: getAddress("L1ERC721Bridge"),
             ProtocolVersions: getAddress("ProtocolVersions"),
-            SuperchainConfig: getAddress("SuperchainConfig")
+            SuperchainConfig: getAddress("SuperchainConfig"),
+            OPContractsManager: getAddress("OPContractsManager")
         });
     }
 
@@ -355,46 +357,6 @@ contract Deploy is Deployer {
         ChainAssertions.checkSuperchainConfig({ _contracts: contracts, _cfg: cfg, _isPaused: false, _isProxy: false });
     }
 
-    /// @notice Deploy all of the OP Chain specific contracts
-    function deployOpChain() public {
-        console.log("Deploying OP Chain");
-        deployAddressManager();
-        deployProxyAdmin();
-        transferAddressManagerOwnership(); // to the ProxyAdmin
-
-        // Ensure that the requisite contracts are deployed
-        mustGetAddress("SuperchainConfigProxy");
-        mustGetAddress("AddressManager");
-        mustGetAddress("ProxyAdmin");
-
-        deployERC1967Proxy("OptimismPortalProxy");
-        deployERC1967Proxy("SystemConfigProxy");
-        deployL1StandardBridgeProxy();
-        deployL1CrossDomainMessengerProxy();
-        deployERC1967Proxy("OptimismMintableERC20FactoryProxy");
-        deployERC1967Proxy("L1ERC721BridgeProxy");
-
-        // Both the DisputeGameFactory and L2OutputOracle proxies are deployed regardless of whether fault proofs is
-        // enabled to prevent a nastier refactor to the deploy scripts. In the future, the L2OutputOracle will be
-        // removed. If fault proofs are not enabled, the DisputeGameFactory proxy will be unused.
-        deployERC1967Proxy("DisputeGameFactoryProxy");
-        deployERC1967Proxy("DelayedWETHProxy");
-        deployERC1967Proxy("PermissionedDelayedWETHProxy");
-        deployERC1967Proxy("AnchorStateRegistryProxy");
-
-        deployAnchorStateRegistry();
-
-        initializeOpChain();
-
-        setAlphabetFaultGameImplementation({ _allowUpgrade: false });
-        setFastFaultGameImplementation({ _allowUpgrade: false });
-        setCannonFaultGameImplementation({ _allowUpgrade: false });
-        setPermissionedCannonFaultGameImplementation({ _allowUpgrade: false });
-
-        transferDisputeGameFactoryOwnership();
-        transferDelayedWETHOwnership();
-    }
-
     /// @notice Deploy all of the implementations
     function deployImplementations(bool _isInterop) public {
         require(_isInterop == cfg.useInterop(), "Deploy: Interop setting mismatch.");
@@ -434,6 +396,8 @@ contract Deploy is Deployer {
         save("DelayedWETH", address(dio.delayedWETHImpl()));
         save("PreimageOracle", address(dio.preimageOracleSingleton()));
         save("Mips", address(dio.mipsSingleton()));
+        save("OPContractsManagerProxy", address(dio.opcmProxy()));
+        save("OPContractsManager", address(dio.opcmImpl()));
 
         Types.ContractSet memory contracts = _impls();
         ChainAssertions.checkL1CrossDomainMessenger({ _contracts: contracts, _vm: vm, _isProxy: false });
@@ -461,6 +425,46 @@ contract Deploy is Deployer {
         } else {
             ChainAssertions.checkSystemConfig({ _contracts: contracts, _cfg: cfg, _isProxy: false });
         }
+    }
+
+    /// @notice Deploy all of the OP Chain specific contracts
+    function deployOpChain() public {
+        console.log("Deploying OP Chain");
+        deployAddressManager();
+        deployProxyAdmin();
+        transferAddressManagerOwnership(); // to the ProxyAdmin
+
+        // Ensure that the requisite contracts are deployed
+        mustGetAddress("SuperchainConfigProxy");
+        mustGetAddress("AddressManager");
+        mustGetAddress("ProxyAdmin");
+
+        deployERC1967Proxy("OptimismPortalProxy");
+        deployERC1967Proxy("SystemConfigProxy");
+        deployL1StandardBridgeProxy();
+        deployL1CrossDomainMessengerProxy();
+        deployERC1967Proxy("OptimismMintableERC20FactoryProxy");
+        deployERC1967Proxy("L1ERC721BridgeProxy");
+
+        // Both the DisputeGameFactory and L2OutputOracle proxies are deployed regardless of whether fault proofs is
+        // enabled to prevent a nastier refactor to the deploy scripts. In the future, the L2OutputOracle will be
+        // removed. If fault proofs are not enabled, the DisputeGameFactory proxy will be unused.
+        deployERC1967Proxy("DisputeGameFactoryProxy");
+        deployERC1967Proxy("DelayedWETHProxy");
+        deployERC1967Proxy("PermissionedDelayedWETHProxy");
+        deployERC1967Proxy("AnchorStateRegistryProxy");
+
+        deployAnchorStateRegistry();
+
+        initializeOpChain();
+
+        setAlphabetFaultGameImplementation({ _allowUpgrade: false });
+        setFastFaultGameImplementation({ _allowUpgrade: false });
+        setCannonFaultGameImplementation({ _allowUpgrade: false });
+        setPermissionedCannonFaultGameImplementation({ _allowUpgrade: false });
+
+        transferDisputeGameFactoryOwnership();
+        transferDelayedWETHOwnership();
     }
 
     /// @notice Initialize all of the proxies in an OP Chain by upgrading to the correct proxy and calling the
