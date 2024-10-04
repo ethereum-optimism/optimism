@@ -77,7 +77,10 @@ type ChannelBuilder struct {
 	oldestL2 eth.BlockID
 	// frames data queue, to be send as txs
 	frames queue.Queue[frameData]
-	// frameCursor is an index into the frames data queue, points at the next frame
+	// frameCursor tracks which frames in the queue were submitted
+	// frames[frameCursor] is the next unsubmitted frame
+	// frameCursor = len(frames) is reserved for when
+	// there are no pending (next unsubmitted) frames
 	frameCursor int
 	// total frames counter
 	numFrames int
@@ -401,7 +404,6 @@ func (c *ChannelBuilder) Close() {
 }
 
 // TotalFrames returns the total number of frames that were created in this channel so far.
-// It does not decrease when the frames queue is being emptied.
 func (c *ChannelBuilder) TotalFrames() int {
 	return c.numFrames
 }
@@ -412,24 +414,22 @@ func (c *ChannelBuilder) TotalFrames() int {
 // Call OutputFrames before to create new frames from the channel out
 // compression pipeline.
 func (c *ChannelBuilder) HasFrame() bool {
-	return c.frames.Len() > 0
+	return c.frames.Len() > 0 && c.frameCursor < c.frames.Len()
 }
 
 // PendingFrames returns the number of pending frames in the frames queue.
 // It is larger zero iff HasFrame() returns true.
 func (c *ChannelBuilder) PendingFrames() int {
-	return c.frames.Len()
+	return c.frames.Len() - c.frameCursor
 }
 
 // NextFrame returns the next available frame and increments the frameCursor
 // HasFrame must be called prior to check if there's a next frame available.
 // Panics if called when there's no next frame.
 func (c *ChannelBuilder) NextFrame() frameData {
-	if len(c.frames) <= c.frameCursor {
-		panic("no next frame")
-	}
+	f := c.frames[c.frameCursor]
 	c.frameCursor++
-	return c.frames[c.frameCursor]
+	return f
 }
 
 // Rewind decrements the frameCursor to point at the supplied frame.
