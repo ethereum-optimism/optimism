@@ -23,11 +23,7 @@ contract SuperchainERC20Bridge is ISuperchainERC20Bridge {
     /// @custom:semver 1.0.0-beta.1
     string public constant version = "1.0.0-beta.1";
 
-    /// @notice Sends tokens to some target address on another chain.
-    /// @param _token   Token to send.
-    /// @param _to      Address to send tokens to.
-    /// @param _amount  Amount of tokens to send.
-    /// @param _chainId Chain ID of the destination chain.
+    /// @inheritdoc ISuperchainERC20Bridge
     function sendERC20(address _token, address _to, uint256 _amount, uint256 _chainId) external {
         if (_to == address(0)) revert ZeroAddress();
 
@@ -39,11 +35,7 @@ contract SuperchainERC20Bridge is ISuperchainERC20Bridge {
         emit SendERC20(_token, msg.sender, _to, _amount, _chainId);
     }
 
-    /// @notice Relays tokens received from another chain.
-    /// @param _token  Token to relay.
-    /// @param _from   Address of the msg.sender of sendERC20 on the source chain.
-    /// @param _to     Address to relay tokens to.
-    /// @param _amount Amount of tokens to relay.
+    /// @inheritdoc ISuperchainERC20Bridge
     function relayERC20(address _token, address _from, address _to, uint256 _amount) external {
         if (msg.sender != MESSENGER) revert CallerNotL2ToL2CrossDomainMessenger();
 
