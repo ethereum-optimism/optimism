@@ -370,6 +370,8 @@ contract DeployOPChain_TestBase is Test {
     OPContractsManager opcm = OPContractsManager(address(0));
     string saltMixer = "defaultSaltMixer";
     uint64 gasLimit = 30_000_000;
+    uint32 eip1559Denominator = 50;
+    uint32 eip1559Elasticity = 6;
     // Configurable dispute game parameters.
     uint32 disputeGameType = GameType.unwrap(GameTypes.PERMISSIONED_CANNON);
     bytes32 disputeAbsolutePrestate = hex"038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c";
@@ -497,6 +499,8 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         doi.set(doi.opcmProxy.selector, address(opcm)); // Not fuzzed since it must be an actual instance.
         doi.set(doi.saltMixer.selector, saltMixer);
         doi.set(doi.gasLimit.selector, gasLimit);
+        doi.set(doi.eip1559Denominator.selector, eip1559Denominator);
+        doi.set(doi.eip1559Elasticity.selector, eip1559Elasticity);
         doi.set(doi.disputeGameType.selector, disputeGameType);
         doi.set(doi.disputeAbsolutePrestate.selector, disputeAbsolutePrestate);
         doi.set(doi.disputeMaxGameDepth.selector, disputeMaxGameDepth);
@@ -520,12 +524,14 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         assertEq(l2ChainId, doi.l2ChainId(), "900");
         assertEq(saltMixer, doi.saltMixer(), "1000");
         assertEq(gasLimit, doi.gasLimit(), "1100");
-        assertEq(disputeGameType, GameType.unwrap(doi.disputeGameType()), "1200");
-        assertEq(disputeAbsolutePrestate, Claim.unwrap(doi.disputeAbsolutePrestate()), "1300");
-        assertEq(disputeMaxGameDepth, doi.disputeMaxGameDepth(), "1400");
-        assertEq(disputeSplitDepth, doi.disputeSplitDepth(), "1500");
-        assertEq(disputeClockExtension, Duration.unwrap(doi.disputeClockExtension()), "1600");
-        assertEq(disputeMaxClockDuration, Duration.unwrap(doi.disputeMaxClockDuration()), "1700");
+        assertEq(eip1559Denominator, doi.eip1559Denominator(), "1200");
+        assertEq(eip1559Elasticity, doi.eip1559Elasticity(), "1300");
+        assertEq(disputeGameType, GameType.unwrap(doi.disputeGameType()), "1400");
+        assertEq(disputeAbsolutePrestate, Claim.unwrap(doi.disputeAbsolutePrestate()), "1500");
+        assertEq(disputeMaxGameDepth, doi.disputeMaxGameDepth(), "1600");
+        assertEq(disputeSplitDepth, doi.disputeSplitDepth(), "1700");
+        assertEq(disputeClockExtension, Duration.unwrap(doi.disputeClockExtension()), "1800");
+        assertEq(disputeMaxClockDuration, Duration.unwrap(doi.disputeMaxClockDuration()), "1900");
 
         // Assert inputs were properly passed through to the contract initializers.
         assertEq(address(doo.opChainProxyAdmin().owner()), opChainProxyAdminOwner, "2100");

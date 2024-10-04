@@ -369,24 +369,26 @@ contract DeployImplementationsOutput is BaseDeployIO {
         require(systemConfig.blobbasefeeScalar() == 0, "SYSCON-50");
         require(systemConfig.batcherHash() == bytes32(0), "SYSCON-60");
         require(systemConfig.gasLimit() == 1, "SYSCON-70");
-        require(systemConfig.unsafeBlockSigner() == address(0), "SYSCON-80");
+        require(systemConfig.eip1559Denominator() == 1, "SYSCON-80");
+        require(systemConfig.eip1559Elasticity() == 1, "SYSCON-90");
+        require(systemConfig.unsafeBlockSigner() == address(0), "SYSCON-100");
 
         IResourceMetering.ResourceConfig memory resourceConfig = systemConfig.resourceConfig();
-        require(resourceConfig.maxResourceLimit == 1, "SYSCON-90");
-        require(resourceConfig.elasticityMultiplier == 1, "SYSCON-100");
-        require(resourceConfig.baseFeeMaxChangeDenominator == 2, "SYSCON-110");
-        require(resourceConfig.systemTxMaxGas == 0, "SYSCON-120");
-        require(resourceConfig.minimumBaseFee == 0, "SYSCON-130");
-        require(resourceConfig.maximumBaseFee == 0, "SYSCON-140");
+        require(resourceConfig.maxResourceLimit == 1, "SYSCON-110");
+        require(resourceConfig.elasticityMultiplier == 1, "SYSCON-120");
+        require(resourceConfig.baseFeeMaxChangeDenominator == 2, "SYSCON-130");
+        require(resourceConfig.systemTxMaxGas == 0, "SYSCON-140");
+        require(resourceConfig.minimumBaseFee == 0, "SYSCON-150");
+        require(resourceConfig.maximumBaseFee == 0, "SYSCON-160");
 
-        require(systemConfig.startBlock() == type(uint256).max, "SYSCON-150");
-        require(systemConfig.batchInbox() == address(0), "SYSCON-160");
-        require(systemConfig.l1CrossDomainMessenger() == address(0), "SYSCON-170");
-        require(systemConfig.l1ERC721Bridge() == address(0), "SYSCON-180");
-        require(systemConfig.l1StandardBridge() == address(0), "SYSCON-190");
-        require(systemConfig.disputeGameFactory() == address(0), "SYSCON-200");
-        require(systemConfig.optimismPortal() == address(0), "SYSCON-210");
-        require(systemConfig.optimismMintableERC20Factory() == address(0), "SYSCON-220");
+        require(systemConfig.startBlock() == type(uint256).max, "SYSCON-170");
+        require(systemConfig.batchInbox() == address(0), "SYSCON-180");
+        require(systemConfig.l1CrossDomainMessenger() == address(0), "SYSCON-190");
+        require(systemConfig.l1ERC721Bridge() == address(0), "SYSCON-200");
+        require(systemConfig.l1StandardBridge() == address(0), "SYSCON-210");
+        require(systemConfig.disputeGameFactory() == address(0), "SYSCON-220");
+        require(systemConfig.optimismPortal() == address(0), "SYSCON-230");
+        require(systemConfig.optimismMintableERC20Factory() == address(0), "SYSCON-240");
     }
 
     function assertValidL1CrossDomainMessengerImpl(DeployImplementationsInput) internal view {

@@ -59,6 +59,8 @@ interface ISystemConfigInterop {
         uint32 _blobbasefeeScalar,
         bytes32 _batcherHash,
         uint64 _gasLimit,
+        uint32 _eip1559Denominator,
+        uint32 _eip1559Elasticity,
         address _unsafeBlockSigner,
         IResourceMetering.ResourceConfig memory _config,
         address _batchInbox,
