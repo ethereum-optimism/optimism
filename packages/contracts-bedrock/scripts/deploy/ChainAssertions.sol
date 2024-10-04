@@ -559,14 +559,6 @@ library ChainAssertions {
         }
     }
 
-    /// @dev Asserts that for a given contract the value of a storage slot at an offset is 1 or 0xff.
-    ///      A call to `initialize` will set it to 1 and a call to _disableInitializers will set it to 0xff.
-    function assertInitializedSlotIsSet(address _contractAddress, uint256 _slot, uint256 _offset) internal view {
-        bytes32 slotVal = vm.load(_contractAddress, bytes32(_slot));
-        uint8 val = uint8((uint256(slotVal) >> (_offset * 8)) & 0xFF);
-        require(val == uint8(1) || val == uint8(0xff), "Storage value is not 1 or 0xff at the given slot and offset");
-    }
-
     /// @notice Asserts that the SuperchainConfig is setup correctly
     function checkOPContractsManager(Types.ContractSet memory _contracts, bool _isProxy) internal view {
         OPContractsManager opcm = OPContractsManager(_contracts.OPContractsManager);
@@ -578,12 +570,20 @@ library ChainAssertions {
         require(address(opcm) != address(0), "CHECK-OPCM-10");
 
         // Check that the contract is initialized
-        assertSlotValueIsOne({ _contractAddress: address(opcm), _slot: 0, _offset: 0 });
+        assertInitializedSlotIsSet(_contractAddress, _slot, _offset);({ _contractAddress: address(opcm), _slot: 0, _offset: 0 });
 
         // These values are immutable so are shared by the proxy and implementation
         require(address(opcm.superchainConfig()) == address(_contracts.SuperchainConfig), "CHECK-OPCM-30");
         require(address(opcm.protocolVersions()) == address(_contracts.ProtocolVersions), "CHECK-OPCM-40");
 
         // TODO: Add assertions for blueprints and setters?
+    }
+
+    /// @dev Asserts that for a given contract the value of a storage slot at an offset is 1 or 0xff.
+    ///      A call to `initialize` will set it to 1 and a call to _disableInitializers will set it to 0xff.
+    function assertInitializedSlotIsSet(address _contractAddress, uint256 _slot, uint256 _offset) internal view {
+        bytes32 slotVal = vm.load(_contractAddress, bytes32(_slot));
+        uint8 val = uint8((uint256(slotVal) >> (_offset * 8)) & 0xFF);
+        require(val == uint8(1) || val == uint8(0xff), "Storage value is not 1 or 0xff at the given slot and offset");
     }
 }
