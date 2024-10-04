@@ -209,6 +209,8 @@ func DeployL2ToL1(l1Host *script.Host, superCfg *SuperchainConfig, superDeployme
 		OpcmProxy:               superDeployment.OpcmProxy,
 		SaltMixer:               cfg.SaltMixer,
 		GasLimit:                cfg.GasLimit,
+		EIP1559Denominator:      uint32(cfg.EIP1559Denominator),
+		EIP1559Elasticity:       uint32(cfg.EIP1559Elasticity),
 		DisputeGameType:         cfg.DisputeGameType,
 		DisputeAbsolutePrestate: cfg.DisputeAbsolutePrestate,
 		DisputeMaxGameDepth:     cfg.DisputeMaxGameDepth,

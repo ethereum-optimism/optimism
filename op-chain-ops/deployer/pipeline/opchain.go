@@ -41,6 +41,8 @@ func DeployOPChain(ctx context.Context, env *Env, artifactsFS foundry.StatDirFs,
 		OpcmProxy:               st.ImplementationsDeployment.OpcmProxyAddress,
 		SaltMixer:               st.Create2Salt.String(), // passing through salt generated at state initialization
 		GasLimit:                30_000_000,
+		EIP1559Denominator:      250,
+		EIP1559Elasticity:       6,
 		DisputeGameType:         1, // PERMISSIONED_CANNON Game Type
 		DisputeAbsolutePrestate: common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
 		DisputeMaxGameDepth:     73,

@@ -30,12 +30,14 @@ type DeployOPChainInput struct {
 	Proposer               common.Address
 	Challenger             common.Address
 
-	BasefeeScalar     uint32
-	BlobBaseFeeScalar uint32
-	L2ChainId         *big.Int
-	OpcmProxy         common.Address
-	SaltMixer         string
-	GasLimit          uint64
+	BasefeeScalar      uint32
+	BlobBaseFeeScalar  uint32
+	L2ChainId          *big.Int
+	OpcmProxy          common.Address
+	SaltMixer          string
+	GasLimit           uint64
+	EIP1559Denominator uint32
+	EIP1559Elasticity  uint32
 
 	DisputeGameType         uint32
 	DisputeAbsolutePrestate common.Hash
@@ -133,6 +135,8 @@ type opcmDeployInput struct {
 	StartingAnchorRoots     []byte
 	SaltMixer               string
 	GasLimit                uint64
+	EIP1559Denominator      uint32
+	EIP1559Elasticity       uint32
 	DisputeGameType         uint32
 	DisputeAbsolutePrestate common.Hash
 	DisputeMaxGameDepth     *big.Int
@@ -259,6 +263,8 @@ func DeployOPChainRaw(
 		StartingAnchorRoots:     input.StartingAnchorRoots(),
 		SaltMixer:               input.SaltMixer,
 		GasLimit:                input.GasLimit,
+		EIP1559Denominator:      input.EIP1559Denominator,
+		EIP1559Elasticity:       input.EIP1559Elasticity,
 		DisputeGameType:         input.DisputeGameType,
 		DisputeAbsolutePrestate: input.DisputeAbsolutePrestate,
 		DisputeMaxGameDepth:     new(big.Int).SetUint64(input.DisputeMaxGameDepth),
