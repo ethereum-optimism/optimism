@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"errors"
+	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
+	"github.com/ethereum/go-ethereum/log"
 	"io"
 	"math/big"
 
@@ -66,6 +68,40 @@ func (s *LocalSigner) Sign(ctx context.Context, domain [32]byte, chainID *big.In
 
 func (s *LocalSigner) Close() error {
 	s.priv = nil
+	return nil
+}
+
+type RemoteSigner struct {
+	client *opsigner.SignerClient
+	hasher func(domain [32]byte, chainID *big.Int, payloadBytes []byte) (common.Hash, error)
+}
+
+func NewRemoteSigner(logger log.Logger, config opsigner.CLIConfig) (*RemoteSigner, error) {
+	signerClient, err := opsigner.NewSignerClientFromConfig(logger, config)
+	if err != nil {
+		return nil, err
+	}
+	return &RemoteSigner{signerClient, SigningHash}, nil
+}
+
+func (s *RemoteSigner) Sign(ctx context.Context, domain [32]byte, chainID *big.Int, encodedMsg []byte) (sig *[65]byte, err error) {
+	if s.client == nil {
+		return nil, errors.New("signer is closed")
+	}
+	signingHash, err := s.hasher(domain, chainID, encodedMsg)
+	if err != nil {
+		return nil, err
+	}
+
+	signature, err := s.client.SignBlockPayload(ctx, signingHash)
+	if err != nil {
+		return nil, err
+	}
+	return &signature, nil
+}
+
+func (s *RemoteSigner) Close() error {
+	s.client = nil
 	return nil
 }
 

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
 	"io"
 	"math/big"
 	"testing"
@@ -94,6 +95,59 @@ func TestVerifyBlockSignature(t *testing.T) {
 	t.Run("NoSequencer", func(t *testing.T) {
 		runCfg := &testutils.MockRuntimeConfig{}
 		signer := &PreparedSigner{Signer: NewLocalSigner(secrets.SequencerP2P)}
+		sig, err := signer.Sign(context.Background(), SigningDomainBlocksV1, cfg.L2ChainID, msg)
+		require.NoError(t, err)
+		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig[:65], msg)
+		require.Equal(t, pubsub.ValidationIgnore, result)
+	})
+}
+
+func TestVerifyBlockSignatureWithRemoteSigner(t *testing.T) {
+	t.Skipf("Implement mocking of client rpc calls")
+
+	logger := testlog.Logger(t, log.LevelCrit)
+	cfg := &rollup.Config{
+		L2ChainID: big.NewInt(100),
+	}
+	peerId := peer.ID("foo")
+	secrets, err := e2eutils.DefaultMnemonicConfig.Secrets()
+	require.NoError(t, err)
+	msg := []byte("any msg")
+
+	t.Run("Valid", func(t *testing.T) {
+		runCfg := &testutils.MockRuntimeConfig{P2PSeqAddress: crypto.PubkeyToAddress(secrets.SequencerP2P.PublicKey)}
+		remoteSigner, err := NewRemoteSigner(logger, opsigner.NewCLIConfig())
+		require.NoError(t, err)
+		signer := &PreparedSigner{Signer: remoteSigner}
+		sig, err := signer.Sign(context.Background(), SigningDomainBlocksV1, cfg.L2ChainID, msg)
+		require.NoError(t, err)
+		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig[:65], msg)
+		require.Equal(t, pubsub.ValidationAccept, result)
+	})
+
+	t.Run("WrongSigner", func(t *testing.T) {
+		runCfg := &testutils.MockRuntimeConfig{P2PSeqAddress: common.HexToAddress("0x1234")}
+		remoteSigner, err := NewRemoteSigner(logger, opsigner.NewCLIConfig())
+		require.NoError(t, err)
+		signer := &PreparedSigner{Signer: remoteSigner}
+		sig, err := signer.Sign(context.Background(), SigningDomainBlocksV1, cfg.L2ChainID, msg)
+		require.NoError(t, err)
+		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig[:65], msg)
+		require.Equal(t, pubsub.ValidationReject, result)
+	})
+
+	t.Run("InvalidSignature", func(t *testing.T) {
+		runCfg := &testutils.MockRuntimeConfig{P2PSeqAddress: crypto.PubkeyToAddress(secrets.SequencerP2P.PublicKey)}
+		sig := make([]byte, 65)
+		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig, msg)
+		require.Equal(t, pubsub.ValidationReject, result)
+	})
+
+	t.Run("NoSequencer", func(t *testing.T) {
+		runCfg := &testutils.MockRuntimeConfig{}
+		remoteSigner, err := NewRemoteSigner(logger, opsigner.NewCLIConfig())
+		require.NoError(t, err)
+		signer := &PreparedSigner{Signer: remoteSigner}
 		sig, err := signer.Sign(context.Background(), SigningDomainBlocksV1, cfg.L2ChainID, msg)
 		require.NoError(t, err)
 		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig[:65], msg)
