@@ -26,8 +26,9 @@ contract OptimismMintableERC721Factory_Test is Bridge_Initializer {
 
         // Create the token.
         vm.prank(alice);
-        OptimismMintableERC721 created =
-            OptimismMintableERC721(l2OptimismMintableERC721Factory.createOptimismMintableERC721(remote, "L2Token", "L2T"));
+        OptimismMintableERC721 created = OptimismMintableERC721(
+            l2OptimismMintableERC721Factory.createOptimismMintableERC721(remote, "L2Token", "L2T")
+        );
 
         // Token address should be correct.
         assertEq(address(created), local);
@@ -70,10 +71,13 @@ contract OptimismMintableERC721Factory_Test is Bridge_Initializer {
         view
         returns (address)
     {
-        bytes memory constructorArgs = abi.encode(address(l2ERC721Bridge), deploy.cfg().l1ChainID(), _remote, _name, _symbol);
+        bytes memory constructorArgs =
+            abi.encode(address(l2ERC721Bridge), deploy.cfg().l1ChainID(), _remote, _name, _symbol);
         bytes memory bytecode = abi.encodePacked(type(OptimismMintableERC721).creationCode, constructorArgs);
         bytes32 salt = keccak256(abi.encode(_remote, _name, _symbol));
-        bytes32 hash = keccak256(abi.encodePacked(bytes1(0xff), address(l2OptimismMintableERC721Factory), salt, keccak256(bytecode)));
+        bytes32 hash = keccak256(
+            abi.encodePacked(bytes1(0xff), address(l2OptimismMintableERC721Factory), salt, keccak256(bytecode))
+        );
         return address(uint160(uint256(hash)));
     }
 }
