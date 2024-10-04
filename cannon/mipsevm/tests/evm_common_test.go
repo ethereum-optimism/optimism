@@ -516,7 +516,9 @@ func TestEVMFault(t *testing.T) {
 				state := goVm.GetState()
 				state.GetMemory().SetMemory(0, tt.insn)
 				statePCs := []uint32{state.GetPC()}
-				// TODO: Hardcode here to achieve the expected result. Future improvements might involve having the Go VM indicate attempted memory accesses and caching this info to generate proofs for the solidity VM.
+				// TODO: Hardcode here to achieve the expected result.
+				// Future improvements might involve having the Go VM indicate attempted memory accesses
+				// and caching this info to generate proofs for the solidity VM.
 				if tt.errMsg == "invalid instruction" {
 					statePCs = append(statePCs, 0xa7ef00cc)
 				}

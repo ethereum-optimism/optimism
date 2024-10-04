@@ -77,22 +77,22 @@ type VersionedVMTestCase struct {
 
 func GetSingleThreadedTestCase(t require.TestingT) VersionedVMTestCase {
 	return VersionedVMTestCase{
-		Name:         "single-threaded",
-		Contracts:    testutil.TestContractsSetup(t, testutil.MipsSingleThreaded),
-		StateHashFn:  singlethreaded.GetStateHashFn(),
-		VMFactory:    singleThreadedVmFactory,
-		ElfVMFactory: singleThreadElfVmFactory,
+		Name:               "single-threaded",
+		Contracts:          testutil.TestContractsSetup(t, testutil.MipsSingleThreaded),
+		StateHashFn:        singlethreaded.GetStateHashFn(),
+		VMFactory:          singleThreadedVmFactory,
+		ElfVMFactory:       singleThreadElfVmFactory,
 		ThreadProofEncoder: singalThreadProofEncoder,
 	}
 }
 
 func GetMultiThreadedTestCase(t require.TestingT) VersionedVMTestCase {
 	return VersionedVMTestCase{
-		Name:         "multi-threaded",
-		Contracts:    testutil.TestContractsSetup(t, testutil.MipsMultithreaded),
-		StateHashFn:  multithreaded.GetStateHashFn(),
-		VMFactory:    multiThreadedVmFactory,
-		ElfVMFactory: multiThreadElfVmFactory,
+		Name:               "multi-threaded",
+		Contracts:          testutil.TestContractsSetup(t, testutil.MipsMultithreaded),
+		StateHashFn:        multithreaded.GetStateHashFn(),
+		VMFactory:          multiThreadedVmFactory,
+		ElfVMFactory:       multiThreadElfVmFactory,
 		ThreadProofEncoder: multiThreadProofEncoder,
 	}
 }
