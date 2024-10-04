@@ -519,11 +519,11 @@ func TestEVMFault(t *testing.T) {
 				// TODO: Hardcode here to achieve the expected result.
 				// Future improvements might involve having the Go VM indicate attempted memory accesses
 				// and caching this info to generate proofs for the solidity VM.
-				proofOffset := uint32(0)
+				memoryProofAddress := uint32(0)
 				if tt.errMsg == "invalid instruction" {
-					proofOffset = 0xa7ef00cc
+					memoryProofAddress = 0xa7ef00cc
 				}
-				proofData := v.ProofGenerator(t, goVm.GetState(), proofOffset)
+				proofData := v.ProofGenerator(t, goVm.GetState(), memoryProofAddress)
 				require.Panics(t, func() { _, _ = goVm.Step(true) })
 				testutil.AssertEVMReverts(t, state, v.Contracts, tracer, proofData, &tt.errMsg)
 			})
