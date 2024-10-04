@@ -403,6 +403,7 @@ func (l *BatchSubmitter) loop() {
 				l.Log.Warn("could not prune safe blocks from state", "err", err)
 				continue
 			}
+			l.state.pruneChannels(syncStatus.SafeL2)
 
 			if err := l.loadBlocksIntoState(*syncStatus, l.shutdownCtx); errors.Is(err, ErrReorg) {
 				err := l.state.Close()
