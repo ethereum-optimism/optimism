@@ -197,17 +197,14 @@ func AssertEVMReverts(t *testing.T, state mipsevm.FPVMState, contracts *Contract
 	ret, _, err := env.Call(vm.AccountRef(sender), contracts.Addresses.MIPS, input, startingGas, common.U2560)
 	require.EqualValues(t, err, vm.ErrExecutionReverted)
 
-	require.NotNil(t, expectedReason, "expectedReason should not be nil")
+	require.NotNil(t, expectedReason, "ExpectedReason should not be nil")
 
-	reason := ""
-	if len(ret) > 4 { // 4 bytes for the error selector
-		unpacked, decodeErr := abi.UnpackRevert(ret)
-		if decodeErr == nil {
-			reason = unpacked
-		}
-	}
+	require.Greater(t, len(ret), 4, "Return data length should be greater than 4 bytes")
 
-	require.Equal(t, *expectedReason, reason, "Revert reason mismatch")
+	unpacked, decodeErr := abi.UnpackRevert(ret)
+	require.NoError(t, decodeErr, "Failed to unpack revert reason")
+
+	require.Equal(t, *expectedReason, unpacked, "Revert reason mismatch")
 
 	logs := evmState.Logs()
 	require.Equal(t, 0, len(logs))
