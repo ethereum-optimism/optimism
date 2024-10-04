@@ -499,10 +499,12 @@ func (s *channelManager) Requeue(newCfg ChannelConfig) {
 	}
 	s.channelQueue = s.channelQueue[:len(s.channelQueue)-1]
 
-	blockHash := channelToDiscard.channelBuilder.blocks[0].Hash()
-	for i, b := range s.blocks {
-		if b.Hash() == blockHash {
-			s.blockCursor = i
+	if len(channelToDiscard.channelBuilder.blocks) > 0 {
+		blockHash := channelToDiscard.channelBuilder.blocks[0].Hash()
+		for i, b := range s.blocks {
+			if b.Hash() == blockHash {
+				s.blockCursor = i
+			}
 		}
 	}
 	s.currentChannel = nil
