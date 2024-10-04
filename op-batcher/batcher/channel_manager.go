@@ -285,7 +285,7 @@ func (s *channelManager) ensureChannelWithSpace(l1Head eth.BlockID) error {
 		"id", pc.ID(),
 		"l1Head", l1Head,
 		"l1OriginLastClosedChannel", s.l1OriginLastClosedChannel,
-		"blocks_pending", s.blocks.Len(),
+		"blocks_pending", s.blocks.Len()-s.blockCursor,
 		"batch_type", cfg.BatchType,
 		"compression_algo", cfg.CompressorConfig.CompressionAlgo,
 		"target_num_frames", cfg.TargetNumFrames,
@@ -500,6 +500,10 @@ func (s *channelManager) Requeue(newCfg ChannelConfig) {
 	s.channelQueue = s.channelQueue[:len(s.channelQueue)-1]
 
 	if len(channelToDiscard.channelBuilder.blocks) > 0 {
+		// This is usually true, but there is an edge case
+		// where a channel timed out before any blocks got added.
+		// In that case we end up with an empty frame (header only),
+		// and there are no blocks to requeue.
 		blockHash := channelToDiscard.channelBuilder.blocks[0].Hash()
 		for i, b := range s.blocks {
 			if b.Hash() == blockHash {
