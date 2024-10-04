@@ -24,13 +24,16 @@ import {
     DeployImplementationsInterop,
     DeployImplementationsOutput
 } from "scripts/DeployImplementations.s.sol";
+import { DeployOPChainInput, DeployOPChain, DeployOPChainOutput } from "scripts/DeployOPChain.s.sol";
 
 // Contracts
 import { AddressManager } from "src/legacy/AddressManager.sol";
 import { StorageSetter } from "src/universal/StorageSetter.sol";
+import { OPContractsManager } from "src/L1/OPContractsManager.sol";
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
+import { Constants as ScriptConstants } from "scripts/libraries/Constants.sol";
 import { Types } from "scripts/libraries/Types.sol";
 import { Duration } from "src/dispute/lib/LibUDT.sol";
 import "src/dispute/lib/Types.sol";
@@ -430,33 +433,34 @@ contract Deploy is Deployer {
     /// @notice Deploy all of the OP Chain specific contracts
     function deployOpChain() public {
         console.log("Deploying OP Chain");
-        deployAddressManager();
-        deployProxyAdmin();
-        transferAddressManagerOwnership(); // to the ProxyAdmin
-
         // Ensure that the requisite contracts are deployed
-        mustGetAddress("SuperchainConfigProxy");
-        mustGetAddress("AddressManager");
-        mustGetAddress("ProxyAdmin");
+        address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
+        OPContractsManager opcm = OPContractsManager(mustGetAddress("OPContractsManagerProxy"));
 
-        deployERC1967Proxy("OptimismPortalProxy");
-        deployERC1967Proxy("SystemConfigProxy");
-        deployL1StandardBridgeProxy();
-        deployL1CrossDomainMessengerProxy();
-        deployERC1967Proxy("OptimismMintableERC20FactoryProxy");
-        deployERC1967Proxy("L1ERC721BridgeProxy");
+        OPContractsManager.DeployInput memory deployInput = getDeployInput();
+        OPContractsManager.DeployOutput memory deployOutput = opcm.deploy(deployInput);
+
+        // deployAddressManager();
+        save("AddressManager", address(deployOutput.addressManager));
+        // deployProxyAdmin();
+        save("ProxyAdmin", address(deployOutput.opChainProxyAdmin));
+        // transferAddressManagerOwnership(); // to the ProxyAdmin
+
+        save("OptimismPortalProxy", address(deployOutput.optimismPortalProxy));
+        save("SystemConfigProxy", address(deployOutput.systemConfigProxy));
+        save("L1StandardBridgeProxy", address(deployOutput.l1StandardBridgeProxy));
+        save("L1CrossDomainMessengerProxy", address(deployOutput.l1CrossDomainMessengerProxy));
+        save("OptimismMintableERC20FactoryProxy", address(deployOutput.optimismMintableERC20FactoryProxy));
+        save("L1ERC721BridgeProxy", address(deployOutput.l1ERC721BridgeProxy));
 
         // Both the DisputeGameFactory and L2OutputOracle proxies are deployed regardless of whether fault proofs is
         // enabled to prevent a nastier refactor to the deploy scripts. In the future, the L2OutputOracle will be
         // removed. If fault proofs are not enabled, the DisputeGameFactory proxy will be unused.
-        deployERC1967Proxy("DisputeGameFactoryProxy");
-        deployERC1967Proxy("DelayedWETHProxy");
-        deployERC1967Proxy("PermissionedDelayedWETHProxy");
-        deployERC1967Proxy("AnchorStateRegistryProxy");
+        save("DisputeGameFactoryProxy", address(deployOutput.disputeGameFactoryProxy));
+        save("PermissionedDelayedWETHProxy", address(deployOutput.delayedWETHPermissionedGameProxy));
 
-        deployAnchorStateRegistry();
-
-        initializeOpChain();
+        save("AnchorStateRegistryProxy", address(deployOutput.anchorStateRegistryProxy));
+        save("AnchorStateRegistry", address(deployOutput.anchorStateRegistryImpl));
 
         setAlphabetFaultGameImplementation({ _allowUpgrade: false });
         setFastFaultGameImplementation({ _allowUpgrade: false });
@@ -1532,5 +1536,32 @@ contract Deploy is Deployer {
         require(dac.resolveWindow() == daResolveWindow);
         require(dac.bondSize() == daBondSize);
         require(dac.resolverRefundPercentage() == daResolverRefundPercentage);
+    }
+
+    /// @notice Get the DeployInput struct to use for testing
+    function getDeployInput() public view returns (OPContractsManager.DeployInput memory) {
+        string memory saltMixer = "salt mixer";
+        return OPContractsManager.DeployInput({
+            roles: OPContractsManager.Roles({
+                opChainProxyAdminOwner: msg.sender,
+                systemConfigOwner: cfg.finalSystemOwner(),
+                batcher: cfg.batchSenderAddress(),
+                unsafeBlockSigner: cfg.p2pSequencerAddress(),
+                proposer: cfg.l2OutputOracleProposer(),
+                challenger: cfg.l2OutputOracleChallenger()
+            }),
+            basefeeScalar: cfg.basefeeScalar(),
+            blobBasefeeScalar: cfg.blobbasefeeScalar(),
+            l2ChainId: cfg.l2ChainID(),
+            startingAnchorRoots: abi.encode(ScriptConstants.DEFAULT_STARTING_ANCHOR_ROOTS()),
+            saltMixer: saltMixer,
+            gasLimit: uint64(cfg.l2GenesisBlockGasLimit()),
+            disputeGameType: GameTypes.PERMISSIONED_CANNON,
+            disputeAbsolutePrestate: Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate())),
+            disputeMaxGameDepth: cfg.faultGameMaxDepth(),
+            disputeSplitDepth: cfg.faultGameSplitDepth(),
+            disputeClockExtension: Duration.wrap(uint64(cfg.faultGameClockExtension())),
+            disputeMaxClockDuration: Duration.wrap(uint64(cfg.faultGameMaxClockDuration()))
+        });
     }
 }
