@@ -25,6 +25,8 @@ contract SystemConfig_GasLimitBoundaries_Invariant is Test {
                     1000000, // scalar
                     bytes32(hex"abcd"), // batcher hash
                     30_000_000, // gas limit
+                    50, // eip1559Denominator
+                    6, // eip1559Elasticity
                     address(1), // unsafe block signer
                     Constants.DEFAULT_RESOURCE_CONFIG(),
                     address(0), // _batchInbox

@@ -27,6 +27,8 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
     address owner;
     bytes32 batcherHash;
     uint64 gasLimit;
+    uint32 eip1559Denominator;
+    uint32 eip1559Elasticity;
     address unsafeBlockSigner;
     address systemConfigImpl;
     address optimismMintableERC20Factory;
@@ -41,6 +43,8 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
         blobbasefeeScalar = deploy.cfg().blobbasefeeScalar();
         batcherHash = bytes32(uint256(uint160(deploy.cfg().batchSenderAddress())));
         gasLimit = uint64(deploy.cfg().l2GenesisBlockGasLimit());
+        eip1559Denominator = uint32(deploy.cfg().eip1559Denominator());
+        eip1559Elasticity = uint32(deploy.cfg().eip1559Elasticity());
         unsafeBlockSigner = deploy.cfg().p2pSequencerAddress();
         systemConfigImpl = deploy.mustGetAddress("SystemConfig");
         optimismMintableERC20Factory = deploy.mustGetAddress("OptimismMintableERC20FactoryProxy");
@@ -54,6 +58,8 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
         assertEq(impl.scalar(), uint256(0x01) << 248);
         assertEq(impl.batcherHash(), bytes32(0));
         assertEq(impl.gasLimit(), 1);
+        assertEq(impl.eip1559Denominator(), 1);
+        assertEq(impl.eip1559Elasticity(), 1);
         assertEq(impl.unsafeBlockSigner(), address(0));
         assertEq(impl.basefeeScalar(), 0);
         assertEq(impl.blobbasefeeScalar(), 0);
@@ -86,6 +92,8 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
         assertEq(systemConfig.scalar() >> 248, 1);
         assertEq(systemConfig.batcherHash(), batcherHash);
         assertEq(systemConfig.gasLimit(), gasLimit);
+        assertEq(systemConfig.eip1559Denominator(), eip1559Denominator);
+        assertEq(systemConfig.eip1559Elasticity(), eip1559Elasticity);
         assertEq(systemConfig.unsafeBlockSigner(), unsafeBlockSigner);
         assertEq(systemConfig.basefeeScalar(), basefeeScalar);
         assertEq(systemConfig.blobbasefeeScalar(), blobbasefeeScalar);
@@ -134,6 +142,8 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
             _blobbasefeeScalar: blobbasefeeScalar,
             _batcherHash: bytes32(hex"abcd"),
             _gasLimit: minimumGasLimit - 1,
+            _eip1559Denominator: eip1559Denominator,
+            _eip1559Elasticity: eip1559Elasticity,
             _unsafeBlockSigner: address(1),
             _config: Constants.DEFAULT_RESOURCE_CONFIG(),
             _batchInbox: address(0),
@@ -164,6 +174,8 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
             _blobbasefeeScalar: blobbasefeeScalar,
             _batcherHash: bytes32(hex"abcd"),
             _gasLimit: gasLimit,
+            _eip1559Denominator: eip1559Denominator,
+            _eip1559Elasticity: eip1559Elasticity,
             _unsafeBlockSigner: address(1),
             _config: Constants.DEFAULT_RESOURCE_CONFIG(),
             _batchInbox: address(0),
@@ -195,6 +207,8 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
             _blobbasefeeScalar: blobbasefeeScalar,
             _batcherHash: bytes32(hex"abcd"),
             _gasLimit: gasLimit,
+            _eip1559Denominator: eip1559Denominator,
+            _eip1559Elasticity: eip1559Elasticity,
             _unsafeBlockSigner: address(1),
             _config: Constants.DEFAULT_RESOURCE_CONFIG(),
             _batchInbox: address(0),
@@ -290,6 +304,8 @@ contract SystemConfig_Init_ResourceConfig is SystemConfig_Init {
             _blobbasefeeScalar: 0,
             _batcherHash: bytes32(0),
             _gasLimit: gasLimit,
+            _eip1559Denominator: 0,
+            _eip1559Elasticity: 0,
             _unsafeBlockSigner: address(0),
             _config: config,
             _batchInbox: address(0),
@@ -329,6 +345,8 @@ contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
             _blobbasefeeScalar: 1000000,
             _batcherHash: bytes32(hex"abcd"),
             _gasLimit: 30_000_000,
+            _eip1559Denominator: 50,
+            _eip1559Elasticity: 6,
             _unsafeBlockSigner: address(1),
             _config: Constants.DEFAULT_RESOURCE_CONFIG(),
             _batchInbox: address(0),
@@ -512,6 +530,12 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Init {
         systemConfig.setUnsafeBlockSigner(address(0x20));
     }
 
+    /// @dev Tests that `setEIP1559Params` reverts if the caller is not the owner.
+    function test_setEIP1559Params_notOwner_reverts() external {
+        vm.expectRevert("Ownable: caller is not the owner");
+        systemConfig.setEIP1559Params(uint32(0), uint32(0));
+    }
+
     /// @dev Tests that `setGasLimit` reverts if the gas limit is too low.
     function test_setGasLimit_lowGasLimit_reverts() external {
         uint64 minimumGasLimit = systemConfig.minimumGasLimit();
@@ -583,6 +607,21 @@ contract SystemConfig_Setters_Test is SystemConfig_Init {
         vm.prank(systemConfig.owner());
         systemConfig.setGasLimit(newGasLimit);
         assertEq(systemConfig.gasLimit(), newGasLimit);
+    }
+
+    /// @dev Tests that `setEIP1559Params` updates the EIP-1559 parameters successfully.
+    function testFuzz_setEIP1559Params_succeeds(uint32 _denominator, uint32 _elasticity) external {
+        vm.expectEmit(address(systemConfig));
+        emit ConfigUpdate(
+            0,
+            ISystemConfig.UpdateType.EIP_1559_PARAMS,
+            abi.encode(uint64(uint64(_denominator) << 32 | uint64(_elasticity)))
+        );
+
+        vm.prank(systemConfig.owner());
+        systemConfig.setEIP1559Params(_denominator, _elasticity);
+        assertEq(systemConfig.eip1559Denominator(), _denominator);
+        assertEq(systemConfig.eip1559Elasticity(), _elasticity);
     }
 
     /// @dev Tests that `setUnsafeBlockSigner` updates the block signer successfully.

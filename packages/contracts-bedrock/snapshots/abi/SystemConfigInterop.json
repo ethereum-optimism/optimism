@@ -222,6 +222,32 @@
   },
   {
     "inputs": [],
+    "name": "eip1559Denominator",
+    "outputs": [
+      {
+        "internalType": "uint32",
+        "name": "",
+        "type": "uint32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "eip1559Elasticity",
+    "outputs": [
+      {
+        "internalType": "uint32",
+        "name": "",
+        "type": "uint32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "gasLimit",
     "outputs": [
       {
@@ -303,6 +329,16 @@
         "internalType": "uint64",
         "name": "_gasLimit",
         "type": "uint64"
+      },
+      {
+        "internalType": "uint32",
+        "name": "_eip1559Denominator",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint32",
+        "name": "_eip1559Elasticity",
+        "type": "uint32"
       },
       {
         "internalType": "address",
@@ -430,6 +466,16 @@
         "internalType": "uint64",
         "name": "_gasLimit",
         "type": "uint64"
+      },
+      {
+        "internalType": "uint32",
+        "name": "_eip1559Denominator",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint32",
+        "name": "_eip1559Elasticity",
+        "type": "uint32"
       },
       {
         "internalType": "address",
@@ -743,6 +789,24 @@
       }
     ],
     "name": "setBatcherHash",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint32",
+        "name": "_denominator",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint32",
+        "name": "_elasticity",
+        "type": "uint32"
+      }
+    ],
+    "name": "setEIP1559Params",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

@@ -27,11 +27,13 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     /// @custom:value GAS_LIMIT            Represents an update to gas limit on L2.
     /// @custom:value UNSAFE_BLOCK_SIGNER  Represents an update to the signer key for unsafe
     ///                                    block distrubution.
+    /// @custom:value EIP_1559_PARAMS      Represents an update to the EIP-1559 parameters.
     enum UpdateType {
         BATCHER,
         GAS_CONFIG,
         GAS_LIMIT,
-        UNSAFE_BLOCK_SIGNER
+        UNSAFE_BLOCK_SIGNER,
+        EIP_1559_PARAMS
     }
 
     /// @notice Struct representing the addresses of L1 system contracts. These should be the
@@ -123,6 +125,12 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     ///         Set as internal with a getter so that the struct is returned instead of a tuple.
     IResourceMetering.ResourceConfig internal _resourceConfig;
 
+    /// @notice The EIP-1559 base fee max change denominator.
+    uint32 public eip1559Denominator;
+
+    /// @notice The elasticity multiplier for the EIP-1559 market.
+    uint32 public eip1559Elasticity;
+
     /// @notice Emitted when configuration is updated.
     /// @param version    SystemConfig version.
     /// @param updateType Type of update.
@@ -148,6 +156,8 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
             _blobbasefeeScalar: 0,
             _batcherHash: bytes32(0),
             _gasLimit: 1,
+            _eip1559Denominator: 1,
+            _eip1559Elasticity: 1,
             _unsafeBlockSigner: address(0),
             _config: IResourceMetering.ResourceConfig({
                 maxResourceLimit: 1,
@@ -172,22 +182,26 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
 
     /// @notice Initializer.
     ///         The resource config must be set before the require check.
-    /// @param _owner             Initial owner of the contract.
-    /// @param _basefeeScalar     Initial basefee scalar value.
-    /// @param _blobbasefeeScalar Initial blobbasefee scalar value.
-    /// @param _batcherHash       Initial batcher hash.
-    /// @param _gasLimit          Initial gas limit.
-    /// @param _unsafeBlockSigner Initial unsafe block signer address.
-    /// @param _config            Initial ResourceConfig.
-    /// @param _batchInbox        Batch inbox address. An identifier for the op-node to find
-    ///                           canonical data.
-    /// @param _addresses         Set of L1 contract addresses. These should be the proxies.
+    /// @param _owner              Initial owner of the contract.
+    /// @param _basefeeScalar      Initial basefee scalar value.
+    /// @param _blobbasefeeScalar  Initial blobbasefee scalar value.
+    /// @param _batcherHash        Initial batcher hash.
+    /// @param _gasLimit           Initial gas limit.
+    /// @param _eip1559Denominator Initial EIP-1559 base fee max change denominator.
+    /// @param _eip1559Elasticity  Initial EIP-1559 elasticity multiplier.
+    /// @param _unsafeBlockSigner  Initial unsafe block signer address.
+    /// @param _config             Initial ResourceConfig.
+    /// @param _batchInbox         Batch inbox address. An identifier for the op-node to find
+    ///                            canonical data.
+    /// @param _addresses          Set of L1 contract addresses. These should be the proxies.
     function initialize(
         address _owner,
         uint32 _basefeeScalar,
         uint32 _blobbasefeeScalar,
         bytes32 _batcherHash,
         uint64 _gasLimit,
+        uint32 _eip1559Denominator,
+        uint32 _eip1559Elasticity,
         address _unsafeBlockSigner,
         IResourceMetering.ResourceConfig memory _config,
         address _batchInbox,
@@ -203,6 +217,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         _setBatcherHash(_batcherHash);
         _setGasConfigEcotone({ _basefeeScalar: _basefeeScalar, _blobbasefeeScalar: _blobbasefeeScalar });
         _setGasLimit(_gasLimit);
+        _setEIP1559Params(_eip1559Denominator, _eip1559Elasticity);
 
         Storage.setAddress(UNSAFE_BLOCK_SIGNER_SLOT, _unsafeBlockSigner);
         Storage.setAddress(BATCH_INBOX_SLOT, _batchInbox);
@@ -418,6 +433,22 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
 
         bytes memory data = abi.encode(_gasLimit);
         emit ConfigUpdate(VERSION, UpdateType.GAS_LIMIT, data);
+    }
+
+    /// @notice Updates the EIP-1559 parameters of the chain. Can only be called by the owner.
+    /// @param _denominator EIP-1559 base fee max change denominator.
+    /// @param _elasticity  EIP-1559 elasticity multiplier.
+    function setEIP1559Params(uint32 _denominator, uint32 _elasticity) external onlyOwner {
+        _setEIP1559Params(_denominator, _elasticity);
+    }
+
+    /// @notice Internal function for updating the EIP-1559 parameters.
+    function _setEIP1559Params(uint32 _denominator, uint32 _elasticity) internal {
+        eip1559Denominator = _denominator;
+        eip1559Elasticity = _elasticity;
+
+        bytes memory data = abi.encode(uint64(uint64(_denominator) << 32 | uint64(_elasticity)));
+        emit ConfigUpdate(VERSION, UpdateType.EIP_1559_PARAMS, data);
     }
 
     /// @notice Sets the start block in a backwards compatible way. Proxies

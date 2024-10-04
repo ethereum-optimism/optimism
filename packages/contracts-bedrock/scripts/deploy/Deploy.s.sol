@@ -1080,6 +1080,15 @@ contract Deploy is Deployer {
         }
 
         IProxyAdmin proxyAdmin = IProxyAdmin(payable(mustGetAddress("ProxyAdmin")));
+        ISystemConfig.Addresses memory addresses = ISystemConfig.Addresses({
+            l1CrossDomainMessenger: mustGetAddress("L1CrossDomainMessengerProxy"),
+            l1ERC721Bridge: mustGetAddress("L1ERC721BridgeProxy"),
+            l1StandardBridge: mustGetAddress("L1StandardBridgeProxy"),
+            disputeGameFactory: mustGetAddress("DisputeGameFactoryProxy"),
+            optimismPortal: mustGetAddress("OptimismPortalProxy"),
+            optimismMintableERC20Factory: mustGetAddress("OptimismMintableERC20FactoryProxy"),
+            gasPayingToken: customGasTokenAddress
+        });
         proxyAdmin.upgradeAndCall({
             _proxy: payable(systemConfigProxy),
             _implementation: systemConfig,
@@ -1091,18 +1100,12 @@ contract Deploy is Deployer {
                     cfg.blobbasefeeScalar(),
                     batcherHash,
                     uint64(cfg.l2GenesisBlockGasLimit()),
+                    uint32(cfg.eip1559Denominator()),
+                    uint32(cfg.eip1559Elasticity()),
                     cfg.p2pSequencerAddress(),
                     Constants.DEFAULT_RESOURCE_CONFIG(),
                     cfg.batchInboxAddress(),
-                    ISystemConfig.Addresses({
-                        l1CrossDomainMessenger: mustGetAddress("L1CrossDomainMessengerProxy"),
-                        l1ERC721Bridge: mustGetAddress("L1ERC721BridgeProxy"),
-                        l1StandardBridge: mustGetAddress("L1StandardBridgeProxy"),
-                        disputeGameFactory: mustGetAddress("DisputeGameFactoryProxy"),
-                        optimismPortal: mustGetAddress("OptimismPortalProxy"),
-                        optimismMintableERC20Factory: mustGetAddress("OptimismMintableERC20FactoryProxy"),
-                        gasPayingToken: customGasTokenAddress
-                    })
+                    addresses
                 )
             )
         });

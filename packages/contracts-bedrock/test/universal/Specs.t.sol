@@ -431,6 +431,8 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "SystemConfig", _sel: _getSel("VERSION()") });
         _addSpec({ _name: "SystemConfig", _sel: _getSel("batcherHash()") });
         _addSpec({ _name: "SystemConfig", _sel: _getSel("gasLimit()") });
+        _addSpec({ _name: "SystemConfig", _sel: _getSel("eip1559Denominator()") });
+        _addSpec({ _name: "SystemConfig", _sel: _getSel("eip1559Elasticity()") });
         _addSpec({ _name: "SystemConfig", _sel: ISystemConfig.initialize.selector });
         _addSpec({ _name: "SystemConfig", _sel: ISystemConfig.minimumGasLimit.selector });
         _addSpec({ _name: "SystemConfig", _sel: _getSel("overhead()") });
@@ -441,6 +443,7 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "SystemConfig", _sel: ISystemConfig.setBatcherHash.selector, _auth: Role.SYSTEMCONFIGOWNER });
         _addSpec({ _name: "SystemConfig", _sel: ISystemConfig.setGasConfig.selector, _auth: Role.SYSTEMCONFIGOWNER });
         _addSpec({ _name: "SystemConfig", _sel: ISystemConfig.setGasLimit.selector, _auth: Role.SYSTEMCONFIGOWNER });
+        _addSpec({ _name: "SystemConfig", _sel: ISystemConfig.setEIP1559Params.selector, _auth: Role.SYSTEMCONFIGOWNER });
         _addSpec({
             _name: "SystemConfig",
             _sel: ISystemConfig.setUnsafeBlockSigner.selector,
