@@ -18,16 +18,7 @@ import { BeaconProxy } from "@openzeppelin/contracts-v5/proxy/beacon/BeaconProxy
 // Target contract
 import { SuperchainERC20, ISuperchainERC20Extension } from "src/L2/SuperchainERC20.sol";
 import { ISuperchainERC20Errors } from "src/L2/interfaces/ISuperchainERC20.sol";
-
-contract SuperchainERC20Implementation is SuperchainERC20 {
-    function name() public pure override returns (string memory) {
-        return "SuperchainERC20";
-    }
-
-    function symbol() public pure override returns (string memory) {
-        return "SCE";
-    }
-}
+import { SuperchainERC20Implementation_MockContract } from "test/mocks/SuperchainERC20Implementation.sol";
 
 /// @title SuperchainERC20Test
 /// @notice Contract for testing the SuperchainERC20 contract.
@@ -40,7 +31,7 @@ contract SuperchainERC20Test is Test {
 
     /// @notice Sets up the test suite.
     function setUp() public {
-        superchainERC20 = new SuperchainERC20Implementation();
+        superchainERC20 = new SuperchainERC20Implementation_MockContract();
     }
 
     /// @notice Helper function to setup a mock and expect a call to it.
