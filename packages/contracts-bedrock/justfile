@@ -19,9 +19,12 @@ dep-status:
 prebuild:
   ./scripts/checks/check-foundry-install.sh
 
-# Builds the contracts.
-build: prebuild
+# Core forge build command
+forge-build:
   forge build
+
+# Builds the contracts.
+build: prebuild lint-fix-no-fail forge-build interfaces-check-no-build
 
 # Builds the go-ffi tool for contract tests.
 build-go-ffi:
@@ -137,7 +140,7 @@ snapshots-check:
 
 # Checks interface correctness without building.
 interfaces-check-no-build:
-  ./scripts/checks/check-interfaces.sh
+  go run ./scripts/checks/interfaces
 
 # Checks that all interfaces are appropriately named and accurately reflect the corresponding
 # contract that they're meant to represent. We run "clean" before building because leftover
@@ -218,6 +221,12 @@ pre-pr-no-build: build-go-ffi build lint gas-snapshot-no-build snapshots-no-buil
 # Fixes linting errors.
 lint-fix:
   forge fmt
+
+# Fixes linting errors but doesn't fail if there are syntax errors. Useful for build command
+# because the output of forge fmt can sometimes be difficult to understand but if there's a syntax
+# error the build will fail anyway and provide more context about what's wrong.
+lint-fix-no-fail:
+  forge fmt || true
 
 # Fixes linting errors and checks that the code is correctly formatted.
 lint: lint-fix lint-check
