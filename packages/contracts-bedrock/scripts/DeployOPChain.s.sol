@@ -161,15 +161,10 @@ contract DeployOPChainInput is BaseDeployIO {
         // because to to update to the permissionless game, we will need to update its starting
         // anchor root and deploy a new permissioned dispute game contract anyway.
         //
-        // You can `console.logBytes(abi.encode(defaultStartingAnchorRoots))` to get the bytes that
+        // You can `console.logBytes(abi.encode(Constants.DEFAULT_STARTING_ANCHOR_ROOTS()))` to get the bytes that
         // are hardcoded into `op-chain-ops/deployer/opcm/opchain.go`
-        IAnchorStateRegistry.StartingAnchorRoot[] memory defaultStartingAnchorRoots =
-            new IAnchorStateRegistry.StartingAnchorRoot[](1);
-        defaultStartingAnchorRoots[0] = IAnchorStateRegistry.StartingAnchorRoot({
-            gameType: GameTypes.PERMISSIONED_CANNON,
-            outputRoot: OutputRoot({ root: Hash.wrap(bytes32(hex"dead")), l2BlockNumber: 0 })
-        });
-        return abi.encode(defaultStartingAnchorRoots);
+
+        return abi.encode(Constants.DEFAULT_STARTING_ANCHOR_ROOTS());
     }
 
     function opcmProxy() public returns (OPContractsManager) {
