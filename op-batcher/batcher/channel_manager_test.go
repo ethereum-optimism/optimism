@@ -154,15 +154,14 @@ func ChannelManager_Clear(t *testing.T, batchType uint) {
 
 	// Process the blocks
 	// We should have a pending channel with 1 frame
-	// and no more blocks since processBlocks consumes
-	// the list
+
 	require.NoError(m.processBlocks())
 	require.NoError(m.currentChannel.channelBuilder.co.Flush())
 	require.NoError(m.outputFrames())
 	_, err := m.nextTxData(m.currentChannel)
 	require.NoError(err)
 	require.NotNil(m.l1OriginLastClosedChannel)
-	require.Len(m.blocks, 0)
+	require.Equal(m.blockCursor, len(m.blocks))
 	require.Equal(newL1Tip, m.tip)
 	require.Len(m.currentChannel.pendingTransactions, 1)
 
@@ -173,7 +172,7 @@ func ChannelManager_Clear(t *testing.T, batchType uint) {
 		ParentHash: a.Hash(),
 	}, nil, nil, nil)
 	require.NoError(m.AddL2Block(b))
-	require.Len(m.blocks, 1)
+	require.Equal(m.blockCursor, len(m.blocks)-1)
 	require.Equal(b.Hash(), m.tip)
 
 	safeL1Origin := eth.BlockID{
@@ -430,7 +429,7 @@ func ChannelManagerCloseAllTxsFailed(t *testing.T, batchType uint) {
 	// fails and the channel manager is not closed
 	txdatas1 := drainTxData()
 	require.NotEmpty(txdatas)
-	require.ElementsMatch(txdatas, txdatas1, "expected same txdatas on re-attempt")
+	require.Equal(txdatas, txdatas1, "expected same txdatas on re-attempt")
 
 	for _, txdata := range txdatas1 {
 		m.TxFailed(txdata.ID())
