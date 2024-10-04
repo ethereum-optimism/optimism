@@ -13,6 +13,8 @@ func main() {
 		FuzzTrie()
 	case "merkle":
 		DiffMerkle()
+	case "bundle":
+		EncodeBundleTransactions()
 	default:
 		log.Fatal("Must pass a subcommand")
 	}

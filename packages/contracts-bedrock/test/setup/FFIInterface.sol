@@ -370,4 +370,14 @@ contract FFIInterface {
         bytes memory result = Process.run(cmds);
         return abi.decode(result, (bytes));
     }
+
+    function encodeBundleTransactions(string memory _bundleJsonPath) external returns (bytes memory) {
+        string[] memory cmds = new string[](3);
+        cmds[0] = "scripts/go-ffi/go-ffi";
+        cmds[1] = "bundle";
+        cmds[2] = _bundleJsonPath;
+
+        bytes memory result = Process.run(cmds);
+        return result;
+    }
 }
