@@ -12,7 +12,7 @@ contract DeployVariations_Test is CommonTest {
     }
 
     // Enable features which should be possible to enable or disable regardless of other options.
-    function enableAddOns(bool _enableCGT, bool _enableAltDa, bool _unusedVarInATest) public {
+    function enableAddOns(bool _enableCGT, bool _enableAltDa) public {
         if (_enableCGT) {
             ERC20 token = new ERC20("Silly", "SIL");
             super.enableCustomGasToken(address(token));
@@ -24,14 +24,14 @@ contract DeployVariations_Test is CommonTest {
 
     /// @dev It should be possible to enable Fault Proofs with any mix of CGT and Alt-DA.
     function testFuzz_enableFaultProofs(bool _enableCGT, bool _enableAltDa) public virtual {
-        enableAddOns(_enableCGT, _enableAltDa, false);
+        enableAddOns(_enableCGT, _enableAltDa);
         super.enableFaultProofs();
         super.setUp();
     }
 
     /// @dev It should be possible to enable Fault Proofs and Interop with any mix of CGT and Alt-DA.
     function test_enableInteropAndFaultProofs(bool _enableCGT, bool _enableAltDa) public virtual {
-        enableAddOns(_enableCGT, _enableAltDa, false);
+        enableAddOns(_enableCGT, _enableAltDa);
         super.enableInterop();
         super.enableFaultProofs();
         super.setUp();
