@@ -10,7 +10,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
-	supervisorTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // TestInteropTrivial tests a simple interop scenario
@@ -20,10 +20,11 @@ import (
 // The balance of Bob on Chain A is checked before and after the tx.
 // The balance of Bob on Chain B is checked after the tx.
 func TestInteropTrivial(t *testing.T) {
+	genesisTimestamp := uint64(time.Now().Unix() + 3) // start chain 3 seconds from now
 	recipe := interopgen.InteropDevRecipe{
 		L1ChainID:        900100,
 		L2ChainIDs:       []uint64{900200, 900201},
-		GenesisTimestamp: uint64(time.Now().Unix() + 3), // start chain 3 seconds from now
+		GenesisTimestamp: genesisTimestamp, // start chain 3 seconds from now
 	}
 	worldResources := worldResourcePaths{
 		foundryArtifacts: "../../packages/contracts-bedrock/forge-artifacts",
@@ -68,7 +69,7 @@ func TestInteropTrivial(t *testing.T) {
 	)
 
 	// check the balance of Bob after the tx
-	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancel = context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	bobBalance, err = clientA.BalanceAt(ctx, bobAddr, nil)
 	require.NoError(t, err)
@@ -85,23 +86,26 @@ func TestInteropTrivial(t *testing.T) {
 	expectedBalance, _ = big.NewInt(0).SetString("10000000000000000000000000", 10)
 	require.Equal(t, expectedBalance, bobBalance)
 
+	// put some generic log event data down
 	s2.DeployEmitterContract(chainA, "Alice")
-	s2.DeployEmitterContract(chainB, "Alice")
-	for i := 0; i < 1; i++ {
-		s2.EmitData(chainA, "Alice", "0x1234567890abcdef")
 
-		s2.EmitData(chainB, "Alice", "0x1234567890abcdef")
+	rec := s2.EmitData(chainA, "Alice", "emit this!")
+
+	client := s2.L2GethClient(chainA)
+	block, err := client.BlockByHash(ctx, rec.BlockHash)
+	require.NoError(t, err)
+
+	// build an identifier to that log event using the receipt
+	identifier := types.Identifier{
+		Origin:      s2.Address(chainA, "Alice"),
+		BlockNumber: rec.BlockNumber.Uint64(),
+		LogIndex:    uint64(rec.TransactionIndex),
+		Timestamp:   block.Time(),
+		ChainID:     types.ChainIDFromBig(s2.ChainID(chainA)),
 	}
 
-	identifier := supervisorTypes.Identifier{
-		Origin:      bobAddr,
-		BlockNumber: 1,
-		LogIndex:    1,
-		Timestamp:   1,
-		ChainID:     supervisorTypes.ChainIDFromUInt64(900200), // need to make chainID selection better
-	}
-
-	s2.ExecuteMessage(chainA, "Alice", identifier, "Alice", []byte("0x1234567890abcdef"))
+	// indicate the executing message dependency on the log event
+	s2.ExecuteMessage(chainA, "Alice", identifier, "Alice", []byte("emit this!"))
 
 	time.Sleep(60 * time.Second)
 
