@@ -499,24 +499,29 @@ func TestEVMFault(t *testing.T) {
 		name   string
 		nextPC uint32
 		insn   uint32
+		errMsg string
 	}{
-		{"illegal instruction", 0, 0xFF_FF_FF_FF},
-		{"branch in delay-slot", 8, 0x11_02_00_03},
-		{"jump in delay-slot", 8, 0x0c_00_00_0c},
+		{"illegal instruction", 0, 0xFF_FF_FF_FF, "invalid instruction"},
+		{"branch in delay-slot", 8, 0x11_02_00_03, "branch in delay slot"},
+		{"jump in delay-slot", 8, 0x0c_00_00_0c, "jump in delay slot"},
 	}
 
 	for _, v := range versions {
 		for _, tt := range cases {
 			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
 			t.Run(testName, func(t *testing.T) {
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithNextPC(tt.nextPC))
+				// set the return address ($ra) to jump into when test completes
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithNextPC(tt.nextPC), testutil.WithRegisters(31, testutil.EndAddr))
+				proofData := v.ThreadProofEncoder(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithNextPC(tt.nextPC), testutil.WithRegisters(31, testutil.EndAddr))
 				state := goVm.GetState()
 				state.GetMemory().SetMemory(0, tt.insn)
-				// set the return address ($ra) to jump into when test completes
-				state.GetRegistersRef()[31] = testutil.EndAddr
-
+				statePCs := []uint32{state.GetPC()}
+				// TODO: Hardcode here to achieve the expected result. Future improvements might involve having the Go VM indicate attempted memory accesses and caching this info to generate proofs for the solidity VM.
+				if tt.errMsg == "invalid instruction" {
+					statePCs = append(statePCs, 0xa7ef00cc)
+				}
 				require.Panics(t, func() { _, _ = goVm.Step(true) })
-				testutil.AssertEVMReverts(t, state, v.Contracts, tracer)
+				testutil.AssertEVMReverts(t, state, v.Contracts, tracer, statePCs, proofData, &tt.errMsg)
 			})
 		}
 	}

@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -181,12 +182,15 @@ func ValidateEVM(t *testing.T, stepWitness *mipsevm.StepWitness, step uint64, go
 }
 
 // AssertEVMReverts runs a single evm step from an FPVM prestate and asserts that the VM panics
-func AssertEVMReverts(t *testing.T, state mipsevm.FPVMState, contracts *ContractMetadata, tracer *tracing.Hooks) {
-	insnProof := state.GetMemory().MerkleProof(state.GetPC())
+func AssertEVMReverts(t *testing.T, state mipsevm.FPVMState, contracts *ContractMetadata, tracer *tracing.Hooks, statePCs []uint32, ProofData []byte, expectedReason *string) {
+	for _, pc := range statePCs {
+		proof := state.GetMemory().MerkleProof(pc)
+		ProofData = append(ProofData, proof[:]...)
+	}
 	encodedWitness, _ := state.EncodeWitness()
 	stepWitness := &mipsevm.StepWitness{
 		State:     encodedWitness,
-		ProofData: insnProof[:],
+		ProofData: ProofData,
 	}
 	input := EncodeStepInput(t, stepWitness, mipsevm.LocalContext{}, contracts.Artifacts.MIPS)
 	startingGas := uint64(30_000_000)
@@ -194,8 +198,21 @@ func AssertEVMReverts(t *testing.T, state mipsevm.FPVMState, contracts *Contract
 	env, evmState := NewEVMEnv(contracts)
 	env.Config.Tracer = tracer
 	sender := common.Address{0x13, 0x37}
-	_, _, err := env.Call(vm.AccountRef(sender), contracts.Addresses.MIPS, input, startingGas, common.U2560)
+	ret, _, err := env.Call(vm.AccountRef(sender), contracts.Addresses.MIPS, input, startingGas, common.U2560)
 	require.EqualValues(t, err, vm.ErrExecutionReverted)
+
+	if expectedReason != nil {
+		reason := ""
+		if len(ret) > 4 { // 4 bytes for the error selector
+			unpacked, decodeErr := abi.UnpackRevert(ret)
+			if decodeErr == nil {
+				reason = unpacked
+			}
+		}
+
+		require.Equal(t, *expectedReason, reason, "Revert reason mismatch")
+	}
+
 	logs := evmState.Logs()
 	require.Equal(t, 0, len(logs))
 }

@@ -50,12 +50,29 @@ func multiThreadElfVmFactory(t require.TestingT, elfFile string, po mipsevm.Prei
 	return fpvm
 }
 
+type ThreadProofEncoder func(po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger, opts ...testutil.StateOption) []byte
+
+func singalThreadProofEncoder(po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger, opts ...testutil.StateOption) []byte {
+	return nil
+}
+
+func multiThreadProofEncoder(po mipsevm.PreimageOracle, stdOut, stdErr io.Writer, log log.Logger, opts ...testutil.StateOption) []byte {
+	state := multithreaded.CreateEmptyState()
+	mutator := mttestutil.NewStateMutatorMultiThreaded(state)
+	for _, opt := range opts {
+		opt(mutator)
+	}
+	proofData := state.EncodeThreadProof()
+	return proofData
+}
+
 type VersionedVMTestCase struct {
-	Name         string
-	Contracts    *testutil.ContractMetadata
-	StateHashFn  mipsevm.HashFn
-	VMFactory    VMFactory
-	ElfVMFactory ElfVMFactory
+	Name               string
+	Contracts          *testutil.ContractMetadata
+	StateHashFn        mipsevm.HashFn
+	VMFactory          VMFactory
+	ElfVMFactory       ElfVMFactory
+	ThreadProofEncoder ThreadProofEncoder
 }
 
 func GetSingleThreadedTestCase(t require.TestingT) VersionedVMTestCase {
@@ -65,6 +82,7 @@ func GetSingleThreadedTestCase(t require.TestingT) VersionedVMTestCase {
 		StateHashFn:  singlethreaded.GetStateHashFn(),
 		VMFactory:    singleThreadedVmFactory,
 		ElfVMFactory: singleThreadElfVmFactory,
+		ThreadProofEncoder: singalThreadProofEncoder,
 	}
 }
 
@@ -75,6 +93,7 @@ func GetMultiThreadedTestCase(t require.TestingT) VersionedVMTestCase {
 		StateHashFn:  multithreaded.GetStateHashFn(),
 		VMFactory:    multiThreadedVmFactory,
 		ElfVMFactory: multiThreadElfVmFactory,
+		ThreadProofEncoder: multiThreadProofEncoder,
 	}
 }
 
