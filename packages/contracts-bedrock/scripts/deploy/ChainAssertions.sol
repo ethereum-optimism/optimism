@@ -570,7 +570,7 @@ library ChainAssertions {
         require(address(opcm) != address(0), "CHECK-OPCM-10");
 
         // Check that the contract is initialized
-        assertInitializedSlotIsSet(({ _contractAddress: address(opcm), _slot: 0, _offset: 0 });
+        assertInitializedSlotIsSet({ _contractAddress: address(opcm), _slot: 0, _offset: 0 });
 
         // These values are immutable so are shared by the proxy and implementation
         require(address(opcm.superchainConfig()) == address(_contracts.SuperchainConfig), "CHECK-OPCM-30");
