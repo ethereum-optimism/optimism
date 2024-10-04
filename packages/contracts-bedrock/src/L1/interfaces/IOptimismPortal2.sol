@@ -113,6 +113,7 @@ interface IOptimismPortal2 {
     function superchainConfig() external view returns (ISuperchainConfig);
     function systemConfig() external view returns (ISystemConfig);
     function version() external pure returns (string memory);
+    function setConfig(Types.ConfigType _type, bytes calldata _value) external;
 
     function __constructor__(uint256 _proofMaturityDelaySeconds, uint256 _disputeGameFinalityDelaySeconds) external;
 }

@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { GasPayingToken, IGasToken } from "src/libraries/GasPayingToken.sol";
+import { Types } from "src/libraries/Types.sol";
 import "src/libraries/L1BlockErrors.sol";
 
 /// @custom:proxied true
@@ -167,6 +168,12 @@ contract L1Block is ISemver, IGasToken {
             sstore(batcherHash.slot, calldataload(132)) // bytes32
         }
     }
+
+    /// @notice Sets configuration options for the L2 system. Can only be called by the special
+    ///         depositor account.
+    /// @param _type  The type of configuration to set.
+    /// @param _value The encoded value with which to set the configuration.
+    function setConfig(Types.ConfigType _type, bytes calldata _value) external virtual {}
 
     /// @notice Sets the gas paying token for the L2 system. Can only be called by the special
     ///         depositor account. This function is not called on every L2 block but instead

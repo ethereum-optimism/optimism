@@ -4,6 +4,30 @@ pragma solidity ^0.8.0;
 /// @title Types
 /// @notice Contains various types used throughout the Optimism contract system.
 library Types {
+    /// @notice Enum representing different types of configurations that can be set on L1BlockInterop.
+    /// @custom:value SET_GAS_PAYING_TOKEN                  Represents the config type for setting the gas paying token.
+    /// @custom:value SET_BASE_FEE_VAULT_CONFIG             Represents the config type for setting the base fee vault config.
+    /// @custom:value SET_L1_FEE_VAULT_CONFIG               Represents the config type for setting the L1 fee vault config.
+    /// @custom:value SET_SEQUENCER_FEE_VAULT_CONFIG        Represents the config type for setting the sequencer fee vault config.
+    /// @custom:value SET_L1_CROSS_DOMAIN_MESSENGER_ADDRESS Represents the config type for setting the L1 cross domain messenger address.
+    /// @custom:value SET_L1_ERC_721_BRIDGE_ADDRESS         Represents the config type for setting the L1 ERC721 bridge address.
+    /// @custom:value SET_L1_STANDARD_BRIDGE_ADDRESS        Represents the config type for setting the L1 standard bridge address.
+    /// @custom:value SET_REMOTE_CHAIN_ID                   Represents the config type for setting the remote chain ID.
+    /// @custom:value ADD_DEPENDENCY                        Represents the config type for adding a chain to the interop dependency set.
+    /// @custom:value REMOVE_DEPENDENCY                     Represents the config type for removing a chain from the interop dependency set.
+    enum ConfigType {
+        SET_GAS_PAYING_TOKEN,
+        SET_BASE_FEE_VAULT_CONFIG,
+        SET_L1_FEE_VAULT_CONFIG,
+        SET_SEQUENCER_FEE_VAULT_CONFIG,
+        SET_L1_CROSS_DOMAIN_MESSENGER_ADDRESS,
+        SET_L1_ERC_721_BRIDGE_ADDRESS,
+        SET_L1_STANDARD_BRIDGE_ADDRESS,
+        SET_REMOTE_CHAIN_ID,
+        ADD_DEPENDENCY,
+        REMOVE_DEPENDENCY
+    }
+
     /// @notice OutputProposal represents a commitment to the L2 state. The timestamp is the L1
     ///         timestamp that the output root is posted. This timestamp is used to verify that the
     ///         finalization period has passed since the output root was submitted.

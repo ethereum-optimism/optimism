@@ -3,10 +3,11 @@ pragma solidity 0.8.15;
 
 // Contracts
 import { OptimismPortal2 } from "src/L1/OptimismPortal2.sol";
-import { L1BlockInterop, ConfigType } from "src/L2/L1BlockInterop.sol";
+import { L1BlockInterop } from "src/L2/L1BlockInterop.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Types } from "src/libraries/Types.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import "src/libraries/PortalErrors.sol";
 
@@ -31,7 +32,7 @@ contract OptimismPortalInterop is OptimismPortal2 {
     /// @notice Sets static configuration options for the L2 system.
     /// @param _type  Type of configuration to set.
     /// @param _value Encoded value of the configuration.
-    function setConfig(ConfigType _type, bytes memory _value) external {
+    function setConfig(Types.ConfigType _type, bytes memory _value) external override {
         if (msg.sender != address(systemConfig)) revert Unauthorized();
 
         // Set L2 deposit gas as used without paying burning gas. Ensures that deposits cannot use too much L2 gas.

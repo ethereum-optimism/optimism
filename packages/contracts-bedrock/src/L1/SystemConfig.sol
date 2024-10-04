@@ -9,6 +9,7 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { Storage } from "src/libraries/Storage.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { GasPayingToken, IGasToken } from "src/libraries/GasPayingToken.sol";
+import { Types } from "src/libraries/Types.sol";
 
 // Interfaces
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
@@ -135,39 +136,13 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         return "2.3.0-beta.3";
     }
 
-    /// @notice Constructs the SystemConfig contract. Cannot set
-    ///         the owner to `address(0)` due to the Ownable contract's
-    ///         implementation, so set it to `address(0xdEaD)`
+    /// @notice Constructs the SystemConfig contract. Uses `_disableInitializers` to prevent
+    ///         external calls during deployment.
     /// @dev    START_BLOCK_SLOT is set to type(uint256).max here so that it will be a dead value
     ///         in the singleton and is skipped by initialize when setting the start block.
     constructor() {
         Storage.setUint(START_BLOCK_SLOT, type(uint256).max);
-        initialize({
-            _owner: address(0xdEaD),
-            _basefeeScalar: 0,
-            _blobbasefeeScalar: 0,
-            _batcherHash: bytes32(0),
-            _gasLimit: 1,
-            _unsafeBlockSigner: address(0),
-            _config: IResourceMetering.ResourceConfig({
-                maxResourceLimit: 1,
-                elasticityMultiplier: 1,
-                baseFeeMaxChangeDenominator: 2,
-                minimumBaseFee: 0,
-                systemTxMaxGas: 0,
-                maximumBaseFee: 0
-            }),
-            _batchInbox: address(0),
-            _addresses: SystemConfig.Addresses({
-                l1CrossDomainMessenger: address(0),
-                l1ERC721Bridge: address(0),
-                l1StandardBridge: address(0),
-                disputeGameFactory: address(0),
-                optimismPortal: address(0),
-                optimismMintableERC20Factory: address(0),
-                gasPayingToken: address(0)
-            })
-        });
+        _disableInitializers();
     }
 
     /// @notice Initializer.
@@ -206,18 +181,37 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
 
         Storage.setAddress(UNSAFE_BLOCK_SIGNER_SLOT, _unsafeBlockSigner);
         Storage.setAddress(BATCH_INBOX_SLOT, _batchInbox);
-        Storage.setAddress(L1_CROSS_DOMAIN_MESSENGER_SLOT, _addresses.l1CrossDomainMessenger);
-        Storage.setAddress(L1_ERC_721_BRIDGE_SLOT, _addresses.l1ERC721Bridge);
-        Storage.setAddress(L1_STANDARD_BRIDGE_SLOT, _addresses.l1StandardBridge);
         Storage.setAddress(DISPUTE_GAME_FACTORY_SLOT, _addresses.disputeGameFactory);
         Storage.setAddress(OPTIMISM_PORTAL_SLOT, _addresses.optimismPortal);
         Storage.setAddress(OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT, _addresses.optimismMintableERC20Factory);
+        _setAddress(L1_CROSS_DOMAIN_MESSENGER_SLOT, _addresses.l1CrossDomainMessenger, Types.ConfigType.SET_L1_CROSS_DOMAIN_MESSENGER_ADDRESS);
+        _setAddress(L1_ERC_721_BRIDGE_SLOT, _addresses.l1ERC721Bridge, Types.ConfigType.SET_L1_ERC_721_BRIDGE_ADDRESS);
+        _setAddress(L1_STANDARD_BRIDGE_SLOT, _addresses.l1StandardBridge, Types.ConfigType.SET_L1_STANDARD_BRIDGE_ADDRESS);
 
+        _setRemoteChainID();
         _setStartBlock();
         _setGasPayingToken(_addresses.gasPayingToken);
 
         _setResourceConfig(_config);
         require(_gasLimit >= minimumGasLimit(), "SystemConfig: gas limit too low");
+    }
+
+    /// @notice Sets the address of a contract into a storage slot and passes
+    ///         along the information to the OptimismPortal to be deposited into L2.
+    function _setAddress(bytes32 _slot, address _addr, Types.ConfigType _type) internal {
+        Storage.setAddress(_slot, _addr);
+        IOptimismPortal(payable(optimismPortal())).setConfig({
+            _type: _type,
+            _value: abi.encode(_addr)
+        });
+    }
+
+    /// @notice Passes along the chain ID to the OptimismPortal to be deposited into L2.
+    function _setRemoteChainID() internal {
+        IOptimismPortal(payable(optimismPortal())).setConfig({
+            _type: Types.ConfigType.SET_REMOTE_CHAIN_ID,
+            _value: abi.encode(block.chainid)
+        });
     }
 
     /// @notice Returns the minimum L2 gas limit that can be safely set for the system to
