@@ -57,7 +57,7 @@ func (i *CrossL2Inbox) ExecuteMessage(
 		BlockNumber *big.Int
 		LogIndex    *big.Int
 		Timestamp   *big.Int
-		chainId     *big.Int
+		ChainId     *big.Int
 	}
 
 	chainIDBig, err := identifier.ChainID.ToUInt32()
@@ -70,7 +70,7 @@ func (i *CrossL2Inbox) ExecuteMessage(
 		BlockNumber: big.NewInt(int64(identifier.BlockNumber)),
 		LogIndex:    big.NewInt(int64(identifier.LogIndex)),
 		Timestamp:   big.NewInt(int64(identifier.Timestamp)),
-		chainId:     big.NewInt(int64(chainIDBig)),
+		ChainId:     big.NewInt(int64(chainIDBig)),
 	}
 
 	return i.contract.Call("executeMessage",
