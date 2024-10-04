@@ -12,8 +12,8 @@ import { BaseDeployIO } from "scripts/utils/BaseDeployIO.sol";
 import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
 import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
 import { IBigStepper } from "src/dispute/interfaces/IBigStepper.sol";
-import { Constants } from "src/libraries/Constants.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Constants } from "scripts/libraries/Constants.sol";
 
 import { IProxyAdmin } from "src/universal/interfaces/IProxyAdmin.sol";
 import { IProxy } from "src/universal/interfaces/IProxy.sol";

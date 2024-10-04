@@ -52,14 +52,4 @@ library Constants {
         });
         return config;
     }
-
-    function DEFAULT_STARTING_ANCHOR_ROOTS() internal pure returns (IAnchorStateRegistry.StartingAnchorRoot[] memory) {
-        IAnchorStateRegistry.StartingAnchorRoot[] memory defaultStartingAnchorRoots =
-            new IAnchorStateRegistry.StartingAnchorRoot[](1);
-        defaultStartingAnchorRoots[0] = IAnchorStateRegistry.StartingAnchorRoot({
-            gameType: GameTypes.PERMISSIONED_CANNON,
-            outputRoot: OutputRoot({ root: Hash.wrap(bytes32(hex"dead")), l2BlockNumber: 0 })
-        });
-        return defaultStartingAnchorRoots;
-    }
 }
