@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 )
@@ -97,7 +98,7 @@ func EncodeStepInput(t *testing.T, wit *mipsevm.StepWitness, localContext mipsev
 	return input
 }
 
-func (m *MIPSEVM) encodePreimageOracleInput(t *testing.T, preimageKey [32]byte, preimageValue []byte, preimageOffset uint32, localContext mipsevm.LocalContext) ([]byte, error) {
+func (m *MIPSEVM) encodePreimageOracleInput(t *testing.T, preimageKey [32]byte, preimageValue []byte, preimageOffset arch.Word, localContext mipsevm.LocalContext) ([]byte, error) {
 	if preimageKey == ([32]byte{}) {
 		return nil, errors.New("cannot encode pre-image oracle input, witness has no pre-image to proof")
 	}
@@ -151,7 +152,7 @@ func (m *MIPSEVM) encodePreimageOracleInput(t *testing.T, preimageKey [32]byte, 
 	}
 }
 
-func (m *MIPSEVM) assertPreimageOracleReverts(t *testing.T, preimageKey [32]byte, preimageValue []byte, preimageOffset uint32) {
+func (m *MIPSEVM) assertPreimageOracleReverts(t *testing.T, preimageKey [32]byte, preimageValue []byte, preimageOffset arch.Word) {
 	poInput, err := m.encodePreimageOracleInput(t, preimageKey, preimageValue, preimageOffset, mipsevm.LocalContext{})
 	require.NoError(t, err, "encode preimage oracle input")
 	_, _, evmErr := m.env.Call(m.sender, m.addrs.Oracle, poInput, m.startingGas, common.U2560)
@@ -200,7 +201,7 @@ func AssertEVMReverts(t *testing.T, state mipsevm.FPVMState, contracts *Contract
 	require.Equal(t, 0, len(logs))
 }
 
-func AssertPreimageOracleReverts(t *testing.T, preimageKey [32]byte, preimageValue []byte, preimageOffset uint32, contracts *ContractMetadata, tracer *tracing.Hooks) {
+func AssertPreimageOracleReverts(t *testing.T, preimageKey [32]byte, preimageValue []byte, preimageOffset arch.Word, contracts *ContractMetadata, tracer *tracing.Hooks) {
 	evm := NewMIPSEVM(contracts)
 	evm.SetTracer(tracer)
 	LogStepFailureAtCleanup(t, evm)

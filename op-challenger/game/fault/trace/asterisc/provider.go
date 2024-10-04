@@ -49,7 +49,7 @@ func NewTraceProvider(logger log.Logger, m vm.Metricer, cfg vm.Config, vmCfg vm.
 			return kvstore.NewDiskKV(logger, vm.PreimageDir(dir), kvtypes.DataFormatFile)
 		}),
 		PrestateProvider: prestateProvider,
-		stateConverter:   NewStateConverter(),
+		stateConverter:   NewStateConverter(cfg),
 		cfg:              cfg,
 	}
 }
@@ -173,7 +173,7 @@ func NewTraceProviderForTest(logger log.Logger, m vm.Metricer, cfg *config.Confi
 		preimageLoader: utils.NewPreimageLoader(func() (utils.PreimageSource, error) {
 			return kvstore.NewDiskKV(logger, vm.PreimageDir(dir), kvtypes.DataFormatFile)
 		}),
-		stateConverter: NewStateConverter(),
+		stateConverter: NewStateConverter(cfg.Asterisc),
 		cfg:            cfg.Asterisc,
 	}
 	return &AsteriscTraceProviderForTest{p}

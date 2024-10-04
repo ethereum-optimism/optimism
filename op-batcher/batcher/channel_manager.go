@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/queue"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -32,7 +33,7 @@ type channelManager struct {
 	rollupCfg   *rollup.Config
 
 	// All blocks since the last request for new tx data.
-	blocks []*types.Block
+	blocks queue.Queue[*types.Block]
 	// The latest L1 block from all the L2 blocks in the most recently closed channel
 	l1OriginLastClosedChannel eth.BlockID
 	// The default ChannelConfig to use for the next channel
@@ -68,7 +69,7 @@ func (s *channelManager) Clear(l1OriginLastClosedChannel eth.BlockID) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.log.Trace("clearing channel manager state")
-	s.blocks = s.blocks[:0]
+	s.blocks.Clear()
 	s.l1OriginLastClosedChannel = l1OriginLastClosedChannel
 	s.tip = common.Hash{}
 	s.closed = false
@@ -106,9 +107,11 @@ func (s *channelManager) TxConfirmed(_id txID, inclusionBlock eth.BlockID) {
 	if channel, ok := s.txChannels[id]; ok {
 		delete(s.txChannels, id)
 		done, blocks := channel.TxConfirmed(id, inclusionBlock)
-		s.blocks = append(blocks, s.blocks...)
 		if done {
 			s.removePendingChannel(channel)
+			if len(blocks) > 0 {
+				s.blocks.Prepend(blocks...)
+			}
 		}
 	} else {
 		s.log.Warn("transaction from unknown channel marked as confirmed", "id", id)
@@ -208,7 +211,7 @@ func (s *channelManager) getReadyChannel(l1Head eth.BlockID) (*channel, error) {
 	}
 
 	dataPending := firstWithTxData != nil
-	s.log.Debug("Requested tx data", "l1Head", l1Head, "txdata_pending", dataPending, "blocks_pending", len(s.blocks))
+	s.log.Debug("Requested tx data", "l1Head", l1Head, "txdata_pending", dataPending, "blocks_pending", s.blocks.Len())
 
 	// Short circuit if there is pending tx data or the channel manager is closed
 	if dataPending {
@@ -222,7 +225,7 @@ func (s *channelManager) getReadyChannel(l1Head eth.BlockID) (*channel, error) {
 	// No pending tx data, so we have to add new blocks to the channel
 
 	// If we have no saved blocks, we will not be able to create valid frames
-	if len(s.blocks) == 0 {
+	if s.blocks.Len() == 0 {
 		return nil, io.EOF
 	}
 
@@ -274,14 +277,14 @@ func (s *channelManager) ensureChannelWithSpace(l1Head eth.BlockID) error {
 		"id", pc.ID(),
 		"l1Head", l1Head,
 		"l1OriginLastClosedChannel", s.l1OriginLastClosedChannel,
-		"blocks_pending", len(s.blocks),
+		"blocks_pending", s.blocks.Len(),
 		"batch_type", cfg.BatchType,
 		"compression_algo", cfg.CompressorConfig.CompressionAlgo,
 		"target_num_frames", cfg.TargetNumFrames,
 		"max_frame_size", cfg.MaxFrameSize,
 		"use_blobs", cfg.UseBlobs,
 	)
-	s.metr.RecordChannelOpened(pc.ID(), len(s.blocks))
+	s.metr.RecordChannelOpened(pc.ID(), s.blocks.Len())
 
 	return nil
 }
@@ -304,7 +307,13 @@ func (s *channelManager) processBlocks() error {
 		_chFullErr  *ChannelFullError // throw away, just for type checking
 		latestL2ref eth.L2BlockRef
 	)
-	for i, block := range s.blocks {
+
+	for i := 0; ; i++ {
+		block, ok := s.blocks.PeekN(i)
+		if !ok {
+			break
+		}
+
 		l1info, err := s.currentChannel.AddBlock(block)
 		if errors.As(err, &_chFullErr) {
 			// current block didn't get added because channel is already full
@@ -323,22 +332,16 @@ func (s *channelManager) processBlocks() error {
 		}
 	}
 
-	if blocksAdded == len(s.blocks) {
-		// all blocks processed, reuse slice
-		s.blocks = s.blocks[:0]
-	} else {
-		// remove processed blocks
-		s.blocks = s.blocks[blocksAdded:]
-	}
+	_, _ = s.blocks.DequeueN(blocksAdded)
 
 	s.metr.RecordL2BlocksAdded(latestL2ref,
 		blocksAdded,
-		len(s.blocks),
+		s.blocks.Len(),
 		s.currentChannel.InputBytes(),
 		s.currentChannel.ReadyBytes())
 	s.log.Debug("Added blocks to channel",
 		"blocks_added", blocksAdded,
-		"blocks_pending", len(s.blocks),
+		"blocks_pending", s.blocks.Len(),
 		"channel_full", s.currentChannel.IsFull(),
 		"input_bytes", s.currentChannel.InputBytes(),
 		"ready_bytes", s.currentChannel.ReadyBytes(),
@@ -363,7 +366,7 @@ func (s *channelManager) outputFrames() error {
 	inBytes, outBytes := s.currentChannel.InputBytes(), s.currentChannel.OutputBytes()
 	s.metr.RecordChannelClosed(
 		s.currentChannel.ID(),
-		len(s.blocks),
+		s.blocks.Len(),
 		s.currentChannel.TotalFrames(),
 		inBytes,
 		outBytes,
@@ -377,7 +380,7 @@ func (s *channelManager) outputFrames() error {
 
 	s.log.Info("Channel closed",
 		"id", s.currentChannel.ID(),
-		"blocks_pending", len(s.blocks),
+		"blocks_pending", s.blocks.Len(),
 		"num_frames", s.currentChannel.TotalFrames(),
 		"input_bytes", inBytes,
 		"output_bytes", outBytes,
@@ -404,7 +407,7 @@ func (s *channelManager) AddL2Block(block *types.Block) error {
 	}
 
 	s.metr.RecordL2BlockInPendingQueue(block)
-	s.blocks = append(s.blocks, block)
+	s.blocks.Enqueue(block)
 	s.tip = block.Hash()
 
 	return nil
@@ -489,7 +492,7 @@ func (s *channelManager) Requeue(newCfg ChannelConfig) {
 	}
 
 	// We put the blocks back at the front of the queue:
-	s.blocks = append(blocksToRequeue, s.blocks...)
+	s.blocks.Prepend(blocksToRequeue...)
 	// Channels which where already being submitted are put back
 	s.channelQueue = newChannelQueue
 	s.currentChannel = nil

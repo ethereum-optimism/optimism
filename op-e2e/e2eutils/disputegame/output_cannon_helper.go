@@ -35,7 +35,7 @@ type OutputCannonGameHelper struct {
 
 func (g *OutputCannonGameHelper) StartChallenger(ctx context.Context, name string, options ...challenger.Option) *challenger.Helper {
 	opts := []challenger.Option{
-		challenger.WithCannon(g.T, g.System.RollupCfg(), g.System.L2Genesis()),
+		challenger.WithCannon(g.T, g.System),
 		challenger.WithFactoryAddress(g.FactoryAddr),
 		challenger.WithGameAddress(g.Addr),
 	}
@@ -331,7 +331,7 @@ func (g *OutputCannonGameHelper) createCannonTraceProvider(ctx context.Context, 
 
 func (g *OutputCannonGameHelper) defaultChallengerOptions() []challenger.Option {
 	return []challenger.Option{
-		challenger.WithCannon(g.T, g.System.RollupCfg(), g.System.L2Genesis()),
+		challenger.WithCannon(g.T, g.System),
 		challenger.WithFactoryAddress(g.FactoryAddr),
 		challenger.WithGameAddress(g.Addr),
 	}

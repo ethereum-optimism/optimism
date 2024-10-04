@@ -20,7 +20,6 @@ func vmFactory(state *State, po mipsevm.PreimageOracle, stdOut, stdErr io.Writer
 
 func TestInstrumentedState_OpenMips(t *testing.T) {
 	t.Parallel()
-	// TODO: Add mt-specific tests here
 	testutil.RunVMTests_OpenMips(t, CreateEmptyState, vmFactory, "clone.bin")
 }
 
@@ -79,10 +78,11 @@ func TestInstrumentedState_Alloc(t *testing.T) {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			state, _ := testutil.LoadELFProgram(t, "../../testdata/example/bin/alloc.elf", CreateInitialState, false)
+			state, meta := testutil.LoadELFProgram(t, "../../testdata/example/bin/alloc.elf", CreateInitialState, false)
 			oracle := testutil.AllocOracle(t, test.numAllocs, test.allocSize)
 
-			us := NewInstrumentedState(state, oracle, os.Stdout, os.Stderr, testutil.CreateLogger(), nil)
+			us := NewInstrumentedState(state, oracle, os.Stdout, os.Stderr, testutil.CreateLogger(), meta)
+			require.NoError(t, us.InitDebug())
 			// emulation shouldn't take more than 20 B steps
 			for i := 0; i < 20_000_000_000; i++ {
 				if us.GetState().GetExited() {

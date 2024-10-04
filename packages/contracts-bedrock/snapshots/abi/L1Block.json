@@ -79,32 +79,6 @@
   },
   {
     "inputs": [],
-    "name": "eip1559Denominator",
-    "outputs": [
-      {
-        "internalType": "uint64",
-        "name": "",
-        "type": "uint64"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "eip1559Elasticity",
-    "outputs": [
-      {
-        "internalType": "uint64",
-        "name": "",
-        "type": "uint64"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "gasPayingToken",
     "outputs": [
       {
@@ -304,13 +278,6 @@
   {
     "inputs": [],
     "name": "setL1BlockValuesEcotone",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "setL1BlockValuesHolocene",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

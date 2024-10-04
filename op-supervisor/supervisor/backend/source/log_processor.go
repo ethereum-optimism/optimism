@@ -15,12 +15,12 @@ import (
 )
 
 type LogStorage interface {
-	SealBlock(chain types.ChainID, block eth.L2BlockRef) error
+	SealBlock(chain types.ChainID, block eth.BlockRef) error
 	AddLog(chain types.ChainID, logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *types.ExecutingMessage) error
 }
 
 type ChainsDBClientForLogProcessor interface {
-	SealBlock(chain types.ChainID, block eth.L2BlockRef) error
+	SealBlock(chain types.ChainID, block eth.BlockRef) error
 	AddLog(chain types.ChainID, logHash common.Hash, parentBlock eth.BlockID, logIdx uint32, execMsg *types.ExecutingMessage) error
 }
 
@@ -44,7 +44,7 @@ func newLogProcessor(chain types.ChainID, logStore LogStorage) *logProcessor {
 
 // ProcessLogs processes logs from a block and stores them in the log storage
 // for any logs that are related to executing messages, they are decoded and stored
-func (p *logProcessor) ProcessLogs(_ context.Context, block eth.L2BlockRef, rcpts ethTypes.Receipts) error {
+func (p *logProcessor) ProcessLogs(_ context.Context, block eth.BlockRef, rcpts ethTypes.Receipts) error {
 	for _, rcpt := range rcpts {
 		for _, l := range rcpt.Logs {
 			// log hash represents the hash of *this* log as a potentially initiating message

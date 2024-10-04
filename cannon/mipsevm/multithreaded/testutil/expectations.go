@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
 )
@@ -15,11 +16,11 @@ import (
 // to define an expected post-state.  The post-state is then validated with ExpectedMTState.Validate(t, postState)
 type ExpectedMTState struct {
 	PreimageKey         common.Hash
-	PreimageOffset      uint32
-	Heap                uint32
+	PreimageOffset      arch.Word
+	Heap                arch.Word
 	LLReservationActive bool
-	LLAddress           uint32
-	LLOwnerThread       uint32
+	LLAddress           arch.Word
+	LLOwnerThread       arch.Word
 	ExitCode            uint8
 	Exited              bool
 	Step                uint64
@@ -28,37 +29,37 @@ type ExpectedMTState struct {
 	expectedMemory      *memory.Memory
 	// Threading-related expectations
 	StepsSinceLastContextSwitch uint64
-	Wakeup                      uint32
+	Wakeup                      arch.Word
 	TraverseRight               bool
-	NextThreadId                uint32
+	NextThreadId                arch.Word
 	ThreadCount                 int
 	RightStackSize              int
 	LeftStackSize               int
-	prestateActiveThreadId      uint32
+	prestateActiveThreadId      arch.Word
 	prestateActiveThreadOrig    ExpectedThreadState // Cached for internal use
-	ActiveThreadId              uint32
-	threadExpectations          map[uint32]*ExpectedThreadState
+	ActiveThreadId              arch.Word
+	threadExpectations          map[arch.Word]*ExpectedThreadState
 }
 
 type ExpectedThreadState struct {
-	ThreadId         uint32
+	ThreadId         arch.Word
 	ExitCode         uint8
 	Exited           bool
-	FutexAddr        uint32
-	FutexVal         uint32
+	FutexAddr        arch.Word
+	FutexVal         arch.Word
 	FutexTimeoutStep uint64
-	PC               uint32
-	NextPC           uint32
-	HI               uint32
-	LO               uint32
-	Registers        [32]uint32
+	PC               arch.Word
+	NextPC           arch.Word
+	HI               arch.Word
+	LO               arch.Word
+	Registers        [32]arch.Word
 	Dropped          bool
 }
 
 func NewExpectedMTState(fromState *multithreaded.State) *ExpectedMTState {
 	currentThread := fromState.GetCurrentThread()
 
-	expectedThreads := make(map[uint32]*ExpectedThreadState)
+	expectedThreads := make(map[arch.Word]*ExpectedThreadState)
 	for _, t := range GetAllThreads(fromState) {
 		expectedThreads[t.ThreadId] = newExpectedThreadState(t)
 	}
@@ -118,14 +119,19 @@ func (e *ExpectedMTState) ExpectStep() {
 	e.StepsSinceLastContextSwitch += 1
 }
 
-func (e *ExpectedMTState) ExpectMemoryWrite(addr uint32, val uint32) {
-	e.expectedMemory.SetMemory(addr, val)
+func (e *ExpectedMTState) ExpectMemoryWrite(addr arch.Word, val uint32) {
+	e.expectedMemory.SetUint32(addr, val)
 	e.MemoryRoot = e.expectedMemory.MerkleRoot()
 }
 
-func (e *ExpectedMTState) ExpectMemoryWriteMultiple(addr uint32, val uint32, addr2 uint32, val2 uint32) {
-	e.expectedMemory.SetMemory(addr, val)
-	e.expectedMemory.SetMemory(addr2, val2)
+func (e *ExpectedMTState) ExpectMemoryWordWrite(addr arch.Word, val arch.Word) {
+	e.expectedMemory.SetWord(addr, val)
+	e.MemoryRoot = e.expectedMemory.MerkleRoot()
+}
+
+func (e *ExpectedMTState) ExpectMemoryWriteMultiple(addr arch.Word, val uint32, addr2 arch.Word, val2 uint32) {
+	e.expectedMemory.SetUint32(addr, val)
+	e.expectedMemory.SetUint32(addr2, val2)
 	e.MemoryRoot = e.expectedMemory.MerkleRoot()
 }
 
@@ -166,7 +172,7 @@ func (e *ExpectedMTState) PrestateActiveThread() *ExpectedThreadState {
 	return e.threadExpectations[e.prestateActiveThreadId]
 }
 
-func (e *ExpectedMTState) Thread(threadId uint32) *ExpectedThreadState {
+func (e *ExpectedMTState) Thread(threadId arch.Word) *ExpectedThreadState {
 	return e.threadExpectations[threadId]
 }
 

@@ -1017,6 +1017,10 @@ func (d *L1Deployments) Check(deployConfig *DeployConfig) error {
 				name == "DisputeGameFactoryProxy") {
 			continue
 		}
+		if deployConfig.UseFaultProofs &&
+			(name == "OptimismPortal" || name == "L2OutputOracle" || name == "L2OutputOracleProxy") {
+			continue
+		}
 		if !deployConfig.UseAltDA &&
 			(name == "DataAvailabilityChallenge" ||
 				name == "DataAvailabilityChallengeProxy") {

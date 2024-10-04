@@ -57,8 +57,8 @@ contract MIPS2 is ISemver {
     }
 
     /// @notice The semantic version of the MIPS2 contract.
-    /// @custom:semver 1.0.0-beta.13
-    string public constant version = "1.0.0-beta.13";
+    /// @custom:semver 1.0.0-beta.14
+    string public constant version = "1.0.0-beta.14";
 
     /// @notice The preimage oracle contract.
     IPreimageOracle internal immutable ORACLE;
@@ -534,7 +534,7 @@ contract MIPS2 is ISemver {
                 // ignored
             } else if (syscall_no == sys.SYS_PREAD64) {
                 // ignored
-            } else if (syscall_no == sys.SYS_FSTAT64) {
+            } else if (syscall_no == sys.SYS_FSTAT) {
                 // ignored
             } else if (syscall_no == sys.SYS_OPENAT) {
                 // ignored
@@ -556,13 +556,9 @@ contract MIPS2 is ISemver {
                 // ignored
             } else if (syscall_no == sys.SYS_UNAME) {
                 // ignored
-            } else if (syscall_no == sys.SYS_STAT64) {
-                // ignored
             } else if (syscall_no == sys.SYS_GETUID) {
                 // ignored
             } else if (syscall_no == sys.SYS_GETGID) {
-                // ignored
-            } else if (syscall_no == sys.SYS_LLSEEK) {
                 // ignored
             } else if (syscall_no == sys.SYS_MINCORE) {
                 // ignored
@@ -577,7 +573,11 @@ contract MIPS2 is ISemver {
             } else if (syscall_no == sys.SYS_TIMERDELETE) {
                 // ignored
             } else {
-                revert("MIPS2: unimplemented syscall");
+                if (syscall_no == sys.SYS_FSTAT64 || syscall_no == sys.SYS_STAT64 || syscall_no == sys.SYS_LLSEEK) {
+                    // noop
+                } else {
+                    revert("MIPS2: unimplemented syscall");
+                }
             }
 
             st.CpuScalars memory cpu = getCpuScalars(thread);
