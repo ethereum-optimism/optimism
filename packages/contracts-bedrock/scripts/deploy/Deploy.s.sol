@@ -292,6 +292,7 @@ contract Deploy is Deployer {
         deployOpChain();
 
         // Deploy and setup the legacy (pre-faultproofs) contracts
+        // TODO: Can I move this into the block below?
         deployERC1967Proxy("L2OutputOracleProxy");
         deployL2OutputOracle();
         initializeL2OutputOracle();
@@ -300,6 +301,7 @@ contract Deploy is Deployer {
         // deployOPChain. So we only need to deploy the legacy OptimismPortal implementation and initialize with it
         // when Fault Proofs are disabled.
         if (!cfg.useFaultProofs()) {
+            deployERC1967Proxy("OptimismPortalProxy");
             deployOptimismPortal();
             initializeOptimismPortal();
         }
@@ -440,26 +442,30 @@ contract Deploy is Deployer {
         OPContractsManager.DeployInput memory deployInput = getDeployInput();
         OPContractsManager.DeployOutput memory deployOutput = opcm.deploy(deployInput);
 
-        // deployAddressManager();
-        save("AddressManager", address(deployOutput.addressManager));
-        // deployProxyAdmin();
+        // Save all deploy outputs from the OPCM, in the order they are declared in the DeployOutput struct
         save("ProxyAdmin", address(deployOutput.opChainProxyAdmin));
-        // transferAddressManagerOwnership(); // to the ProxyAdmin
-
-        save("OptimismPortalProxy", address(deployOutput.optimismPortalProxy));
+        save("AddressManager", address(deployOutput.addressManager));
+        save("L1ERC721BridgeProxy", address(deployOutput.l1ERC721BridgeProxy));
         save("SystemConfigProxy", address(deployOutput.systemConfigProxy));
+        save("OptimismMintableERC20FactoryProxy", address(deployOutput.optimismMintableERC20FactoryProxy));
         save("L1StandardBridgeProxy", address(deployOutput.l1StandardBridgeProxy));
         save("L1CrossDomainMessengerProxy", address(deployOutput.l1CrossDomainMessengerProxy));
-        save("OptimismMintableERC20FactoryProxy", address(deployOutput.optimismMintableERC20FactoryProxy));
-        save("L1ERC721BridgeProxy", address(deployOutput.l1ERC721BridgeProxy));
 
-        // Both the DisputeGameFactory and L2OutputOracle proxies are deployed regardless of whether fault proofs is
-        // enabled to prevent a nastier refactor to the deploy scripts. In the future, the L2OutputOracle will be
-        // removed. If fault proofs are not enabled, the DisputeGameFactory proxy will be unused.
+        // Fault Proof contracts
         save("DisputeGameFactoryProxy", address(deployOutput.disputeGameFactoryProxy));
         save("PermissionedDelayedWETHProxy", address(deployOutput.delayedWETHPermissionedGameProxy));
+        save("AnchorStateRegistryProxy", address(deployOutput.anchorStateRegistryProxy));
+        save("AnchorStateRegistry", address(deployOutput.anchorStateRegistryImpl));
+        save("PermissionedDisputeGame", address(deployOutput.permissionedDisputeGame));
+        if(cfg.useFaultProofs()){
+            // Otherwise we use the OptimismPortalProxy deployed in _run()
+            save("OptimismPortalProxy", address(deployOutput.optimismPortalProxy));
+        }
+
 
         // Deploy and setup the PermissionlessDelayedWeth not provided by the OPCM
+        // TODO: replace the block below with when the OPCM switches to deploying the PermissionlessGame
+        // save("PermissionlessDelayedWETHProxy", address(deployOutput.delayedWETHPermissionlessGameProxy));
         address delayedWETHImpl = mustGetAddress("DelayedWETH");
         address delayedWETHPermissionlessGameProxy = deployERC1967ProxyWithOwner("DelayedWETHProxy", msg.sender);
         vm.broadcast(msg.sender);
@@ -467,16 +473,11 @@ contract Deploy is Deployer {
             _implementation: delayedWETHImpl,
             _data: abi.encodeCall(IDelayedWETH.initialize, (msg.sender, ISuperchainConfig(superchainConfigProxy)))
         });
-        // vm.stopBroadcast(); // why does this error when I don't use it?
-        // TODO: transfer ownership (both of the ProxyAdmin and the DelayedWeth Owner)
-
-        save("AnchorStateRegistryProxy", address(deployOutput.anchorStateRegistryProxy));
-        save("AnchorStateRegistry", address(deployOutput.anchorStateRegistryImpl));
+        // vm.stopBroadcast(); // why does this error when I include it? use it?
 
         setAlphabetFaultGameImplementation({ _allowUpgrade: false });
         setFastFaultGameImplementation({ _allowUpgrade: false });
         setCannonFaultGameImplementation({ _allowUpgrade: false });
-        setPermissionedCannonFaultGameImplementation({ _allowUpgrade: false });
 
         transferDisputeGameFactoryOwnership();
         transferDelayedWETHOwnership();
@@ -1344,7 +1345,7 @@ contract Deploy is Deployer {
         IDisputeGameFactory factory = IDisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
         IDelayedWETH weth = IDelayedWETH(mustGetAddress("PermissionedDelayedWETHProxy"));
 
-        // Set the Cannon FaultDisputeGame implementation in the factory.
+        // Deploys and sets the Permissioned FaultDisputeGame implementation in the factory.
         _setFaultGameImplementation({
             _factory: factory,
             _allowUpgrade: _allowUpgrade,
@@ -1551,6 +1552,32 @@ contract Deploy is Deployer {
 
     /// @notice Get the DeployInput struct to use for testing
     function getDeployInput() public view returns (OPContractsManager.DeployInput memory) {
+        OutputRoot memory testOutputRoot = OutputRoot({
+            root: Hash.wrap(cfg.faultGameGenesisOutputRoot()),
+            l2BlockNumber: cfg.faultGameGenesisBlock()
+        });
+        IAnchorStateRegistry.StartingAnchorRoot[] memory startingAnchorRoots =
+            new IAnchorStateRegistry.StartingAnchorRoot[](5);
+        startingAnchorRoots[0] = IAnchorStateRegistry.StartingAnchorRoot({
+            gameType: GameTypes.CANNON,
+            outputRoot: testOutputRoot
+        });
+        startingAnchorRoots[1] = IAnchorStateRegistry.StartingAnchorRoot({
+            gameType: GameTypes.PERMISSIONED_CANNON,
+            outputRoot: testOutputRoot
+        });
+        startingAnchorRoots[2] = IAnchorStateRegistry.StartingAnchorRoot({
+            gameType: GameTypes.ASTERISC,
+            outputRoot: testOutputRoot
+        });
+        startingAnchorRoots[3] = IAnchorStateRegistry.StartingAnchorRoot({
+            gameType: GameTypes.FAST,
+            outputRoot: testOutputRoot
+        });
+        startingAnchorRoots[4] = IAnchorStateRegistry.StartingAnchorRoot({
+            gameType: GameTypes.ALPHABET,
+            outputRoot: testOutputRoot
+        });
         string memory saltMixer = "salt mixer";
         return OPContractsManager.DeployInput({
             roles: OPContractsManager.Roles({
@@ -1564,7 +1591,7 @@ contract Deploy is Deployer {
             basefeeScalar: cfg.basefeeScalar(),
             blobBasefeeScalar: cfg.blobbasefeeScalar(),
             l2ChainId: cfg.l2ChainID(),
-            startingAnchorRoots: abi.encode(ScriptConstants.DEFAULT_STARTING_ANCHOR_ROOTS()),
+            startingAnchorRoots: abi.encode(startingAnchorRoots),
             saltMixer: saltMixer,
             gasLimit: uint64(cfg.l2GenesisBlockGasLimit()),
             disputeGameType: GameTypes.PERMISSIONED_CANNON,
