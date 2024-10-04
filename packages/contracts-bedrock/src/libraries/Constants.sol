@@ -2,8 +2,6 @@
 pragma solidity ^0.8.0;
 
 import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
-import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistry.sol";
-import { GameTypes, OutputRoot, Hash } from "src/dispute/lib/Types.sol";
 
 /// @title Constants
 /// @notice Constants is a library for storing constants. Simple! Don't put everything in here, just
