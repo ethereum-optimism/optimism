@@ -49,6 +49,8 @@ contract DeployOPChainInput is BaseDeployIO {
     OPContractsManager internal _opcmProxy;
     string internal _saltMixer;
     uint64 internal _gasLimit;
+    uint32 internal _eip1559Denominator;
+    uint32 internal _eip1559Elasticity;
 
     // Configurable dispute game inputs
     GameType internal _disputeGameType;
@@ -80,6 +82,10 @@ contract DeployOPChainInput is BaseDeployIO {
             _l2ChainId = _value;
         } else if (_sel == this.gasLimit.selector) {
             _gasLimit = SafeCast.toUint64(_value);
+        } else if (_sel == this.eip1559Denominator.selector) {
+            _eip1559Denominator = SafeCast.toUint32(_value);
+        } else if (_sel == this.eip1559Elasticity.selector) {
+            _eip1559Elasticity = SafeCast.toUint32(_value);
         } else if (_sel == this.disputeGameType.selector) {
             _disputeGameType = GameType.wrap(SafeCast.toUint32(_value));
         } else if (_sel == this.disputeMaxGameDepth.selector) {
@@ -185,6 +191,14 @@ contract DeployOPChainInput is BaseDeployIO {
 
     function gasLimit() public view returns (uint64) {
         return _gasLimit;
+    }
+
+    function eip1559Denominator() public view returns (uint32) {
+        return _eip1559Denominator;
+    }
+
+    function eip1559Elasticity() public view returns (uint32) {
+        return _eip1559Elasticity;
     }
 
     function disputeGameType() public view returns (GameType) {
@@ -570,6 +584,8 @@ contract DeployOPChain is Script {
             startingAnchorRoots: _doi.startingAnchorRoots(),
             saltMixer: _doi.saltMixer(),
             gasLimit: _doi.gasLimit(),
+            eip1559Denominator: _doi.eip1559Denominator(),
+            eip1559Elasticity: _doi.eip1559Elasticity(),
             disputeGameType: _doi.disputeGameType(),
             disputeAbsolutePrestate: _doi.disputeAbsolutePrestate(),
             disputeMaxGameDepth: _doi.disputeMaxGameDepth(),

@@ -78,6 +78,8 @@ contract OPContractsManager_Deploy_Test is DeployOPChain_TestBase {
             startingAnchorRoots: _doi.startingAnchorRoots(),
             saltMixer: _doi.saltMixer(),
             gasLimit: _doi.gasLimit(),
+            eip1559Denominator: _doi.eip1559Denominator(),
+            eip1559Elasticity: _doi.eip1559Elasticity(),
             disputeGameType: _doi.disputeGameType(),
             disputeAbsolutePrestate: _doi.disputeAbsolutePrestate(),
             disputeMaxGameDepth: _doi.disputeMaxGameDepth(),

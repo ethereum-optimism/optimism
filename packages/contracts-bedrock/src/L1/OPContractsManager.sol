@@ -60,6 +60,8 @@ contract OPContractsManager is ISemver, Initializable {
         // The salt mixer is used as part of making the resulting salt unique.
         string saltMixer;
         uint64 gasLimit;
+        uint32 eip1559Denominator;
+        uint32 eip1559Elasticity;
         // Configurable dispute game parameters.
         GameType disputeGameType;
         Claim disputeAbsolutePrestate;
@@ -129,8 +131,8 @@ contract OPContractsManager is ISemver, Initializable {
 
     // -------- Constants and Variables --------
 
-    /// @custom:semver 1.0.0-beta.20
-    string public constant version = "1.0.0-beta.20";
+    /// @custom:semver 1.0.0-beta.21
+    string public constant version = "1.0.0-beta.21";
 
     /// @notice Represents the interface version so consumers know how to decode the DeployOutput struct
     /// that's emitted in the `Deployed` event. Whenever that struct changes, a new version should be used.
@@ -485,6 +487,7 @@ contract OPContractsManager is ISemver, Initializable {
                 ISystemConfig.Addresses memory opChainAddrs
             ) = defaultSystemConfigParams(_selector, _input, _output);
 
+            address batchInboxAddress = chainIdToBatchInboxAddress(_input.l2ChainId);
             return abi.encodeWithSelector(
                 _selector,
                 _input.roles.systemConfigOwner,
@@ -492,9 +495,11 @@ contract OPContractsManager is ISemver, Initializable {
                 _input.blobBasefeeScalar,
                 bytes32(uint256(uint160(_input.roles.batcher))), // batcherHash
                 _input.gasLimit,
+                _input.eip1559Denominator,
+                _input.eip1559Elasticity,
                 _input.roles.unsafeBlockSigner,
                 referenceResourceConfig,
-                chainIdToBatchInboxAddress(_input.l2ChainId),
+                batchInboxAddress,
                 opChainAddrs
             );
         }

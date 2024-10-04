@@ -447,7 +447,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         eip1559Denominator = _denominator;
         eip1559Elasticity = _elasticity;
 
-        bytes memory data = abi.encode(uint64(uint64(_denominator) << 32 | uint64(_elasticity)));
+        bytes memory data = abi.encode(uint64(_denominator) << 32 | uint64(_elasticity));
         emit ConfigUpdate(VERSION, UpdateType.EIP_1559_PARAMS, data);
     }
 

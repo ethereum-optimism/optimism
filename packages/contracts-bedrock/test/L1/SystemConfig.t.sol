@@ -613,9 +613,7 @@ contract SystemConfig_Setters_Test is SystemConfig_Init {
     function testFuzz_setEIP1559Params_succeeds(uint32 _denominator, uint32 _elasticity) external {
         vm.expectEmit(address(systemConfig));
         emit ConfigUpdate(
-            0,
-            ISystemConfig.UpdateType.EIP_1559_PARAMS,
-            abi.encode(uint64(uint64(_denominator) << 32 | uint64(_elasticity)))
+            0, ISystemConfig.UpdateType.EIP_1559_PARAMS, abi.encode(uint64(_denominator) << 32 | uint64(_elasticity))
         );
 
         vm.prank(systemConfig.owner());
