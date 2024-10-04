@@ -35,7 +35,8 @@ type channelManager struct {
 	// All blocks since the last request for new tx data.
 	blocks queue.Queue[*types.Block]
 	// blockCursor is an index into blocks queue. It points at the next block
-	// to build a channel with
+	// to build a channel with. blockCursor = len(blocks) is reserved for when
+	// there are no blocks ready to build with.
 	blockCursor int
 	// The latest L1 block from all the L2 blocks in the most recently closed channel
 	l1OriginLastClosedChannel eth.BlockID
