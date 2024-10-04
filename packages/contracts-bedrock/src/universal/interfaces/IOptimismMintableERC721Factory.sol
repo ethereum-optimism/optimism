@@ -18,5 +18,5 @@ interface IOptimismMintableERC721Factory {
     function remoteChainID() external view returns (uint256);
     function version() external view returns (string memory);
 
-    function __constructor__(address _bridge, uint256 remoteChainId) external;
+    function __constructor__(address _bridge, uint256 _remoteChainId) external;
 }
