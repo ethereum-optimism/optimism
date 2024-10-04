@@ -30,7 +30,7 @@
         "type": "uint256"
       }
     ],
-    "name": "__superchainBurn",
+    "name": "__crosschainBurn",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -48,7 +48,7 @@
         "type": "uint256"
       }
     ],
-    "name": "__superchainMint",
+    "name": "__crosschainMint",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -427,7 +427,7 @@
       {
         "indexed": true,
         "internalType": "address",
-        "name": "account",
+        "name": "from",
         "type": "address"
       },
       {
@@ -438,6 +438,44 @@
       }
     ],
     "name": "Burn",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "from",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "CrosschainBurnt",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "to",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "CrosschainMinted",
     "type": "event"
   },
   {
@@ -459,7 +497,7 @@
       {
         "indexed": true,
         "internalType": "address",
-        "name": "account",
+        "name": "to",
         "type": "address"
       },
       {
@@ -470,44 +508,6 @@
       }
     ],
     "name": "Mint",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "account",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      }
-    ],
-    "name": "SuperchainBurnt",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "account",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      }
-    ],
-    "name": "SuperchainMinted",
     "type": "event"
   },
   {

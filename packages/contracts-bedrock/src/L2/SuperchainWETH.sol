@@ -14,6 +14,8 @@ import { IL1Block } from "src/L2/interfaces/IL1Block.sol";
 import { IETHLiquidity } from "src/L2/interfaces/IETHLiquidity.sol";
 import { ISuperchainWETH } from "src/L2/interfaces/ISuperchainWETH.sol";
 
+/// @custom:proxied true
+/// @custom:predeploy 0x4200000000000000000000000000000000000024
 /// @title SuperchainWETH
 /// @notice SuperchainWETH is a version of WETH that can be freely transfrered between chains
 ///         within the superchain. SuperchainWETH can be converted into native ETH on chains that

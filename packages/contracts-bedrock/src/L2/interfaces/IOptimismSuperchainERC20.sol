@@ -2,31 +2,26 @@
 pragma solidity ^0.8.0;
 
 // Interfaces
-import { ISuperchainERC20, ISuperchainERC20Extension } from "src/L2/interfaces/ISuperchainERC20.sol";
-import { IERC20Solady } from "src/vendor/interfaces/IERC20Solady.sol";
+import { ISuperchainERC20 } from "src/L2/interfaces/ISuperchainERC20.sol";
 
-/// @title IOptimismSuperchainERC20Errors
-/// @notice Interface containing the errors added in the OptimismSuperchainERC20 implementation.
-interface IOptimismSuperchainERC20Errors {
+/// @title IOptimismSuperchainERC20
+/// @notice This interface is available on the OptimismSuperchainERC20 contract.
+interface IOptimismSuperchainERC20 is ISuperchainERC20 {
     /// @notice Thrown when attempting to perform an operation and the account is the zero address.
     error ZeroAddress();
 
     /// @notice Thrown when attempting to mint or burn tokens and the function caller is not the L2StandardBridge
     error OnlyL2StandardBridge();
-}
 
-/// @title IOptimismSuperchainERC20Extension
-/// @notice This interface is available on the OptimismSuperchainERC20 contract.
-interface IOptimismSuperchainERC20Extension is ISuperchainERC20Extension, IOptimismSuperchainERC20Errors {
     /// @notice Emitted whenever tokens are minted for an account.
-    /// @param account Address of the account tokens are being minted for.
+    /// @param to Address of the account tokens are being minted for.
     /// @param amount  Amount of tokens minted.
-    event Mint(address indexed account, uint256 amount);
+    event Mint(address indexed to, uint256 amount);
 
     /// @notice Emitted whenever tokens are burned from an account.
-    /// @param account Address of the account tokens are being burned from.
+    /// @param from Address of the account tokens are being burned from.
     /// @param amount  Amount of tokens burned.
-    event Burn(address indexed account, uint256 amount);
+    event Burn(address indexed from, uint256 amount);
 
     /// @notice Allows the L2StandardBridge and SuperchainERC20Bridge to mint tokens.
     /// @param _to     Address to mint tokens to.
@@ -41,7 +36,3 @@ interface IOptimismSuperchainERC20Extension is ISuperchainERC20Extension, IOptim
     /// @notice Returns the address of the corresponding version of this token on the remote chain.
     function remoteToken() external view returns (address);
 }
-
-/// @title IOptimismSuperchainERC20
-/// @notice Combines Solady's ERC20 interface with the IOptimismSuperchainERC20Extension interface.
-interface IOptimismSuperchainERC20 is IERC20Solady, IOptimismSuperchainERC20Extension { }

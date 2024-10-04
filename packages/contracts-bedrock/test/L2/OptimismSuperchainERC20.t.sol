@@ -16,10 +16,7 @@ import { BeaconProxy } from "@openzeppelin/contracts-v5/proxy/beacon/BeaconProxy
 
 // Target contract
 import { OptimismSuperchainERC20 } from "src/L2/OptimismSuperchainERC20.sol";
-import {
-    IOptimismSuperchainERC20Extension,
-    IOptimismSuperchainERC20Errors
-} from "src/L2/interfaces/IOptimismSuperchainERC20.sol";
+import { IOptimismSuperchainERC20 } from "src/L2/interfaces/IOptimismSuperchainERC20.sol";
 
 /// @title OptimismSuperchainERC20Test
 /// @notice Contract for testing the OptimismSuperchainERC20 contract.
@@ -122,7 +119,7 @@ contract OptimismSuperchainERC20Test is Test {
         vm.assume(_caller != L2_BRIDGE);
 
         // Expect the revert with `OnlyL2StandardBridge` selector
-        vm.expectRevert(IOptimismSuperchainERC20Errors.OnlyL2StandardBridge.selector);
+        vm.expectRevert(IOptimismSuperchainERC20.OnlyL2StandardBridge.selector);
 
         // Call the `mint` function with the non-bridge caller
         vm.prank(_caller);
@@ -132,7 +129,7 @@ contract OptimismSuperchainERC20Test is Test {
     /// @notice Tests the `mint` function reverts when the amount is zero.
     function testFuzz_mint_zeroAddressTo_reverts(uint256 _amount) public {
         // Expect the revert with `ZeroAddress` selector
-        vm.expectRevert(IOptimismSuperchainERC20Errors.ZeroAddress.selector);
+        vm.expectRevert(IOptimismSuperchainERC20.ZeroAddress.selector);
 
         // Call the `mint` function with the zero address
         vm.prank(L2_BRIDGE);
@@ -145,8 +142,8 @@ contract OptimismSuperchainERC20Test is Test {
         vm.assume(_to != ZERO_ADDRESS);
 
         // Get the total supply and balance of `_to` before the mint to compare later on the assertions
-        uint256 _totalSupplyBefore = optimismSuperchainERC20.totalSupply();
-        uint256 _toBalanceBefore = optimismSuperchainERC20.balanceOf(_to);
+        uint256 _totalSupplyBefore = IERC20(address(optimismSuperchainERC20)).totalSupply();
+        uint256 _toBalanceBefore = IERC20(address(optimismSuperchainERC20)).balanceOf(_to);
 
         // Look for the emit of the `Transfer` event
         vm.expectEmit(address(optimismSuperchainERC20));
@@ -154,7 +151,7 @@ contract OptimismSuperchainERC20Test is Test {
 
         // Look for the emit of the `Mint` event
         vm.expectEmit(address(optimismSuperchainERC20));
-        emit IOptimismSuperchainERC20Extension.Mint(_to, _amount);
+        emit IOptimismSuperchainERC20.Mint(_to, _amount);
 
         // Call the `mint` function with the bridge caller
         vm.prank(L2_BRIDGE);
@@ -171,7 +168,7 @@ contract OptimismSuperchainERC20Test is Test {
         vm.assume(_caller != L2_BRIDGE);
 
         // Expect the revert with `OnlyL2StandardBridge` selector
-        vm.expectRevert(IOptimismSuperchainERC20Errors.OnlyL2StandardBridge.selector);
+        vm.expectRevert(IOptimismSuperchainERC20.OnlyL2StandardBridge.selector);
 
         // Call the `burn` function with the non-bridge caller
         vm.prank(_caller);
@@ -181,7 +178,7 @@ contract OptimismSuperchainERC20Test is Test {
     /// @notice Tests the `burn` function reverts when the amount is zero.
     function testFuzz_burn_zeroAddressFrom_reverts(uint256 _amount) public {
         // Expect the revert with `ZeroAddress` selector
-        vm.expectRevert(IOptimismSuperchainERC20Errors.ZeroAddress.selector);
+        vm.expectRevert(IOptimismSuperchainERC20.ZeroAddress.selector);
 
         // Call the `burn` function with the zero address
         vm.prank(L2_BRIDGE);
@@ -207,7 +204,7 @@ contract OptimismSuperchainERC20Test is Test {
 
         // Look for the emit of the `Burn` event
         vm.expectEmit(address(optimismSuperchainERC20));
-        emit IOptimismSuperchainERC20Extension.Burn(_from, _amount);
+        emit IOptimismSuperchainERC20.Burn(_from, _amount);
 
         // Call the `burn` function with the bridge caller
         vm.prank(L2_BRIDGE);
@@ -245,14 +242,14 @@ contract OptimismSuperchainERC20Test is Test {
     /// @notice Tests that the `supportsInterface` function returns true for the `ISuperchainERC20` interface.
     function test_supportInterface_succeeds() public view {
         assertTrue(optimismSuperchainERC20.supportsInterface(type(IERC165).interfaceId));
-        assertTrue(optimismSuperchainERC20.supportsInterface(type(IOptimismSuperchainERC20Extension).interfaceId));
+        assertTrue(optimismSuperchainERC20.supportsInterface(type(IOptimismSuperchainERC20).interfaceId));
     }
 
     /// @notice Tests that the `supportsInterface` function returns false for any other interface than the
     /// `ISuperchainERC20` one.
     function testFuzz_supportInterface_returnFalse(bytes4 _interfaceId) public view {
         vm.assume(_interfaceId != type(IERC165).interfaceId);
-        vm.assume(_interfaceId != type(IOptimismSuperchainERC20Extension).interfaceId);
+        vm.assume(_interfaceId != type(IOptimismSuperchainERC20).interfaceId);
         assertFalse(optimismSuperchainERC20.supportsInterface(_interfaceId));
     }
 }
