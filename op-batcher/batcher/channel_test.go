@@ -33,7 +33,7 @@ func TestChannelTimeout(t *testing.T) {
 		CompressorConfig: compressor.Config{
 			CompressionAlgo: derive.Zlib,
 		},
-	}, &rollup.Config{})
+	}, &rollup.Config{}, nil)
 	m.Clear(eth.BlockID{})
 
 	// Pending channel is nil so is cannot be timed out
@@ -41,7 +41,7 @@ func TestChannelTimeout(t *testing.T) {
 
 	// Set the pending channel
 	require.NoError(t, m.ensureChannelWithSpace(eth.BlockID{}))
-	channel := m.currentChannel
+	channel := m.currentChannel.(*channel)
 	require.NotNil(t, channel)
 
 	// There are no confirmed transactions so
@@ -53,7 +53,7 @@ func TestChannelTimeout(t *testing.T) {
 	// To avoid other methods clearing state
 	channel.confirmedTransactions[zeroFrameTxID(0).String()] = eth.BlockID{Number: 0}
 	channel.confirmedTransactions[zeroFrameTxID(1).String()] = eth.BlockID{Number: 99}
-	channel.confirmedTxUpdated = true
+	channel.updateInclusionBlocks()
 
 	// Since the ChannelTimeout is 100, the
 	// pending channel should not be timed out
@@ -65,7 +65,7 @@ func TestChannelTimeout(t *testing.T) {
 	channel.confirmedTransactions[zeroFrameTxID(2).String()] = eth.BlockID{
 		Number: 101,
 	}
-	channel.confirmedTxUpdated = true
+	channel.updateInclusionBlocks()
 
 	// Now the pending channel should be timed out
 	timeout = channel.isTimedOut()
@@ -77,7 +77,7 @@ func TestChannelManager_NextTxData(t *testing.T) {
 	log := testlog.Logger(t, log.LevelCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{CompressorConfig: compressor.Config{
 		CompressionAlgo: derive.Zlib,
-	}}, &rollup.Config{})
+	}}, &rollup.Config{}, nil)
 	m.Clear(eth.BlockID{})
 
 	// Nil pending channel should return EOF
@@ -89,7 +89,7 @@ func TestChannelManager_NextTxData(t *testing.T) {
 	// The nextTxData function should still return io.EOF
 	// since the current channel has no frames
 	require.NoError(t, m.ensureChannelWithSpace(eth.BlockID{}))
-	channel := m.currentChannel
+	channel := m.currentChannel.(*channel)
 	require.NotNil(t, channel)
 	returnedTxData, err = m.nextTxData(channel)
 	require.ErrorIs(t, err, io.EOF)
@@ -217,13 +217,14 @@ func TestChannelTxConfirmed(t *testing.T) {
 		CompressorConfig: compressor.Config{
 			CompressionAlgo: derive.Zlib,
 		},
-	}, &rollup.Config{})
+	}, &rollup.Config{}, nil)
 	m.Clear(eth.BlockID{})
 
 	// Let's add a valid pending transaction to the channel manager
 	// So we can demonstrate that TxConfirmed's correctness
 	require.NoError(t, m.ensureChannelWithSpace(eth.BlockID{}))
-	channelID := m.currentChannel.ID()
+	currentChannel := m.currentChannel.(*channel)
+	channelID := currentChannel.ID()
 	frame := frameData{
 		data: []byte{},
 		id: frameID{
@@ -231,35 +232,34 @@ func TestChannelTxConfirmed(t *testing.T) {
 			frameNumber: uint16(0),
 		},
 	}
-	m.currentChannel.channelBuilder.PushFrames(frame)
-	require.Equal(t, 1, m.currentChannel.PendingFrames())
-	returnedTxData, err := m.nextTxData(m.currentChannel)
+	currentChannel.channelBuilder.PushFrames(frame)
+	require.Equal(t, 1, currentChannel.PendingFrames())
+	returnedTxData, err := m.nextTxData(currentChannel)
 	expectedTxData := singleFrameTxData(frame)
 	expectedChannelID := expectedTxData.ID()
 	require.NoError(t, err)
 	require.Equal(t, expectedTxData, returnedTxData)
-	require.Equal(t, 0, m.currentChannel.PendingFrames())
-	require.Equal(t, expectedTxData, m.currentChannel.pendingTransactions[expectedChannelID.String()])
-	require.Len(t, m.currentChannel.pendingTransactions, 1)
+	require.Equal(t, 0, currentChannel.PendingFrames())
+	require.Equal(t, expectedTxData, currentChannel.pendingTransactions[expectedChannelID.String()])
+	require.Len(t, currentChannel.pendingTransactions, 1)
 
 	// An unknown pending transaction should not be marked as confirmed
 	// and should not be removed from the pending transactions map
-	actualChannelID := m.currentChannel.ID()
 	unknownChannelID := derive.ChannelID([derive.ChannelIDLength]byte{0x69})
-	require.NotEqual(t, actualChannelID, unknownChannelID)
+	require.NotEqual(t, channelID, unknownChannelID)
 	unknownTxID := singleFrameTxID(unknownChannelID, 0)
 	blockID := eth.BlockID{Number: 0, Hash: common.Hash{0x69}}
 	m.TxConfirmed(unknownTxID, blockID)
-	require.Empty(t, m.currentChannel.confirmedTransactions)
-	require.Len(t, m.currentChannel.pendingTransactions, 1)
+	require.Empty(t, currentChannel.confirmedTransactions)
+	require.Len(t, currentChannel.pendingTransactions, 1)
 
 	// Now let's mark the pending transaction as confirmed
 	// and check that it is removed from the pending transactions map
 	// and added to the confirmed transactions map
 	m.TxConfirmed(expectedChannelID, blockID)
-	require.Empty(t, m.currentChannel.pendingTransactions)
-	require.Len(t, m.currentChannel.confirmedTransactions, 1)
-	require.Equal(t, blockID, m.currentChannel.confirmedTransactions[expectedChannelID.String()])
+	require.Empty(t, currentChannel.pendingTransactions)
+	require.Len(t, currentChannel.confirmedTransactions, 1)
+	require.Equal(t, blockID, currentChannel.confirmedTransactions[expectedChannelID.String()])
 }
 
 // TestChannelTxFailed checks the [ChannelManager.TxFailed] function.
@@ -268,13 +268,14 @@ func TestChannelTxFailed(t *testing.T) {
 	log := testlog.Logger(t, log.LevelCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{CompressorConfig: compressor.Config{
 		CompressionAlgo: derive.Zlib,
-	}}, &rollup.Config{})
+	}}, &rollup.Config{}, nil)
 	m.Clear(eth.BlockID{})
 
 	// Let's add a valid pending transaction to the channel
 	// manager so we can demonstrate correctness
 	require.NoError(t, m.ensureChannelWithSpace(eth.BlockID{}))
-	channelID := m.currentChannel.ID()
+	currentChannel := m.currentChannel.(*channel)
+	channelID := currentChannel.ID()
 	frame := frameData{
 		data: []byte{},
 		id: frameID{
@@ -282,27 +283,27 @@ func TestChannelTxFailed(t *testing.T) {
 			frameNumber: uint16(0),
 		},
 	}
-	m.currentChannel.channelBuilder.PushFrames(frame)
-	require.Equal(t, 1, m.currentChannel.PendingFrames())
-	returnedTxData, err := m.nextTxData(m.currentChannel)
+	currentChannel.channelBuilder.PushFrames(frame)
+	require.Equal(t, 1, currentChannel.PendingFrames())
+	returnedTxData, err := m.nextTxData(currentChannel)
 	expectedTxData := singleFrameTxData(frame)
 	expectedChannelID := expectedTxData.ID()
 	require.NoError(t, err)
 	require.Equal(t, expectedTxData, returnedTxData)
-	require.Equal(t, 0, m.currentChannel.PendingFrames())
-	require.Equal(t, expectedTxData, m.currentChannel.pendingTransactions[expectedChannelID.String()])
-	require.Len(t, m.currentChannel.pendingTransactions, 1)
+	require.Equal(t, 0, currentChannel.PendingFrames())
+	require.Equal(t, expectedTxData, currentChannel.pendingTransactions[expectedChannelID.String()])
+	require.Len(t, currentChannel.pendingTransactions, 1)
 
 	// Trying to mark an unknown pending transaction as failed
 	// shouldn't modify state
 	m.TxFailed(zeroFrameTxID(0))
-	require.Equal(t, 0, m.currentChannel.PendingFrames())
-	require.Equal(t, expectedTxData, m.currentChannel.pendingTransactions[expectedChannelID.String()])
+	require.Equal(t, 0, currentChannel.PendingFrames())
+	require.Equal(t, expectedTxData, currentChannel.pendingTransactions[expectedChannelID.String()])
 
 	// Now we still have a pending transaction
 	// Let's mark it as failed
 	m.TxFailed(expectedChannelID)
-	require.Empty(t, m.currentChannel.pendingTransactions)
+	require.Empty(t, currentChannel.pendingTransactions)
 	// There should be a frame in the pending channel now
-	require.Equal(t, 1, m.currentChannel.PendingFrames())
+	require.Equal(t, 1, currentChannel.PendingFrames())
 }

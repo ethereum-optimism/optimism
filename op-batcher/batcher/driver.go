@@ -85,6 +85,7 @@ type DriverSetup struct {
 	EndpointProvider dial.L2EndpointProvider
 	ChannelConfig    ChannelConfigProvider
 	AltDA            *altda.DAClient
+	ChannelFactory   ChannelFactory
 }
 
 // BatchSubmitter encapsulates a service responsible for submitting L2 tx
@@ -117,7 +118,7 @@ type BatchSubmitter struct {
 func NewBatchSubmitter(setup DriverSetup) *BatchSubmitter {
 	return &BatchSubmitter{
 		DriverSetup: setup,
-		state:       NewChannelManager(setup.Log, setup.Metr, setup.ChannelConfig, setup.RollupConfig),
+		state:       NewChannelManager(setup.Log, setup.Metr, setup.ChannelConfig, setup.RollupConfig, setup.ChannelFactory),
 	}
 }
 

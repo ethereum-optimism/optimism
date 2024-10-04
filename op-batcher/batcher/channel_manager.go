@@ -18,6 +18,8 @@ import (
 
 var ErrReorg = errors.New("block does not extend existing chain")
 
+type ChannelFactory func(log log.Logger, metr metrics.Metricer, cfg ChannelConfig, rollupCfg *rollup.Config, latestL1OriginBlockNum uint64) (Channel, error)
+
 // channelManager stores a contiguous set of blocks & turns them into channels.
 // Upon receiving tx confirmation (or a tx failure), it does channel error handling.
 //
@@ -31,6 +33,7 @@ type channelManager struct {
 	metr        metrics.Metricer
 	cfgProvider ChannelConfigProvider
 	rollupCfg   *rollup.Config
+	chFactory   ChannelFactory
 
 	// All blocks since the last request for new tx data.
 	blocks queue.Queue[*types.Block]
@@ -42,24 +45,28 @@ type channelManager struct {
 	tip common.Hash
 
 	// channel to write new block data to
-	currentChannel *channel
+	currentChannel Channel
 	// channels to read frame data from, for writing batches onchain
-	channelQueue []*channel
+	channelQueue []Channel
 	// used to lookup channels by tx ID upon tx success / failure
-	txChannels map[string]*channel
+	txChannels map[string]Channel
 
 	// if set to true, prevents production of any new channel frames
 	closed bool
 }
 
-func NewChannelManager(log log.Logger, metr metrics.Metricer, cfgProvider ChannelConfigProvider, rollupCfg *rollup.Config) *channelManager {
+func NewChannelManager(log log.Logger, metr metrics.Metricer, cfgProvider ChannelConfigProvider, rollupCfg *rollup.Config, chFactory ChannelFactory) *channelManager {
+	if chFactory == nil {
+		chFactory = NewChannel
+	}
 	return &channelManager{
 		log:         log,
 		metr:        metr,
 		cfgProvider: cfgProvider,
 		defaultCfg:  cfgProvider.ChannelConfig(),
 		rollupCfg:   rollupCfg,
-		txChannels:  make(map[string]*channel),
+		chFactory:   chFactory,
+		txChannels:  make(map[string]Channel),
 	}
 }
 
@@ -75,7 +82,7 @@ func (s *channelManager) Clear(l1OriginLastClosedChannel eth.BlockID) {
 	s.closed = false
 	s.currentChannel = nil
 	s.channelQueue = nil
-	s.txChannels = make(map[string]*channel)
+	s.txChannels = make(map[string]Channel)
 }
 
 // TxFailed records a transaction as failed. It will attempt to resubmit the data
@@ -121,7 +128,7 @@ func (s *channelManager) TxConfirmed(_id txID, inclusionBlock eth.BlockID) {
 }
 
 // removePendingChannel removes the given completed channel from the manager's state.
-func (s *channelManager) removePendingChannel(channel *channel) {
+func (s *channelManager) removePendingChannel(channel Channel) {
 	if s.currentChannel == channel {
 		s.currentChannel = nil
 	}
@@ -141,7 +148,7 @@ func (s *channelManager) removePendingChannel(channel *channel) {
 
 // nextTxData dequeues frames from the channel and returns them encoded in a transaction.
 // It also updates the internal tx -> channels mapping
-func (s *channelManager) nextTxData(channel *channel) (txData, error) {
+func (s *channelManager) nextTxData(channel Channel) (txData, error) {
 	if channel == nil || !channel.HasTxData() {
 		s.log.Trace("no next tx data")
 		return txData{}, io.EOF // TODO: not enough data error instead
@@ -201,8 +208,8 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 // to the current channel and generates frames for it.
 // Always returns nil and the io.EOF sentinel error when
 // there is no channel with txData
-func (s *channelManager) getReadyChannel(l1Head eth.BlockID) (*channel, error) {
-	var firstWithTxData *channel
+func (s *channelManager) getReadyChannel(l1Head eth.BlockID) (Channel, error) {
+	var firstWithTxData Channel
 	for _, ch := range s.channelQueue {
 		if ch.HasTxData() {
 			firstWithTxData = ch
@@ -265,7 +272,7 @@ func (s *channelManager) ensureChannelWithSpace(l1Head eth.BlockID) error {
 	// This will be reassessed at channel submission-time,
 	// but this is our best guess at the appropriate values for now.
 	cfg := s.defaultCfg
-	pc, err := newChannel(s.log, s.metr, cfg, s.rollupCfg, s.l1OriginLastClosedChannel.Number)
+	pc, err := s.chFactory(s.log, s.metr, cfg, s.rollupCfg, s.l1OriginLastClosedChannel.Number)
 	if err != nil {
 		return fmt.Errorf("creating new channel: %w", err)
 	}
@@ -449,7 +456,7 @@ func (s *channelManager) Close() error {
 			s.log.Info("Channel has no past or pending submission - dropping", "id", ch.ID())
 			s.removePendingChannel(ch)
 		} else {
-			s.log.Info("Channel is in-flight and will need to be submitted after close", "id", ch.ID(), "confirmed", len(ch.confirmedTransactions), "pending", len(ch.pendingTransactions))
+			s.log.Info("Channel is in-flight and will need to be submitted after close", "id", ch.ID(), "confirmed", ch.ConfirmedLen(), "pending", ch.PendingLen())
 		}
 	}
 	s.log.Info("Reviewed all pending channels on close", "remaining", len(s.channelQueue))
@@ -481,14 +488,14 @@ func (s *channelManager) Close() error {
 // Requeue rebuilds the channel manager state by
 // rewinding blocks back from the channel queue, and setting the defaultCfg.
 func (s *channelManager) Requeue(newCfg ChannelConfig) {
-	newChannelQueue := []*channel{}
+	newChannelQueue := []Channel{}
 	blocksToRequeue := []*types.Block{}
 	for _, channel := range s.channelQueue {
 		if !channel.NoneSubmitted() {
 			newChannelQueue = append(newChannelQueue, channel)
 			continue
 		}
-		blocksToRequeue = append(blocksToRequeue, channel.channelBuilder.Blocks()...)
+		blocksToRequeue = append(blocksToRequeue, channel.Blocks()...)
 	}
 
 	// We put the blocks back at the front of the queue:

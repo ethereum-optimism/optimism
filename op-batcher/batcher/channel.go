@@ -12,6 +12,35 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+type Channel interface {
+	ID() derive.ChannelID
+	Timeout() uint64
+	CheckTimeout(l1BlockNum uint64)
+	AddBlock(block *types.Block) (*derive.L1BlockInfo, error)
+	Blocks() []*types.Block
+	HasTxData() bool
+	NextTxData() txData
+	IsFull() bool
+	FullErr() error
+	InputBytes() int
+	ReadyBytes() int
+	OutputBytes() int
+	TotalFrames() int
+	PendingFrames() int
+	OutputFrames() error
+	NoneSubmitted() bool
+	IsFullySubmitted() bool
+	LatestL1Origin() eth.BlockID
+	OldestL1Origin() eth.BlockID
+	LatestL2() eth.BlockID
+	OldestL2() eth.BlockID
+	PendingLen() int
+	ConfirmedLen() int
+	TxConfirmed(id string, inclusionBlock eth.BlockID) (bool, []*types.Block)
+	TxFailed(id string)
+	Close()
+}
+
 // channel is a lightweight wrapper around a ChannelBuilder which keeps track of pending
 // and confirmed transactions for a single channel.
 type channel struct {
@@ -26,12 +55,14 @@ type channel struct {
 	// Set of confirmed txID -> inclusion block. For determining if the channel is timed out
 	confirmedTransactions map[string]eth.BlockID
 
-	// True if confirmed TX list is updated. Set to false after updated min/max inclusion blocks.
-	confirmedTxUpdated bool
 	// Inclusion block number of first confirmed TX
 	minInclusionBlock uint64
 	// Inclusion block number of last confirmed TX
 	maxInclusionBlock uint64
+}
+
+func NewChannel(log log.Logger, metr metrics.Metricer, cfg ChannelConfig, rollupCfg *rollup.Config, latestL1OriginBlockNum uint64) (Channel, error) {
+	return newChannel(log, metr, cfg, rollupCfg, latestL1OriginBlockNum)
 }
 
 func newChannel(log log.Logger, metr metrics.Metricer, cfg ChannelConfig, rollupCfg *rollup.Config, latestL1OriginBlockNum uint64) (*channel, error) {
@@ -82,8 +113,10 @@ func (s *channel) TxConfirmed(id string, inclusionBlock eth.BlockID) (bool, []*t
 	}
 	delete(s.pendingTransactions, id)
 	s.confirmedTransactions[id] = inclusionBlock
-	s.confirmedTxUpdated = true
 	s.channelBuilder.FramePublished(inclusionBlock.Number)
+
+	// Update min/max inclusion blocks for timeout check
+	s.updateInclusionBlocks()
 
 	// If this channel timed out, put the pending blocks back into the local saved blocks
 	// and then reset this state so it can try to build a new channel.
@@ -93,7 +126,7 @@ func (s *channel) TxConfirmed(id string, inclusionBlock eth.BlockID) (bool, []*t
 		return true, s.channelBuilder.Blocks()
 	}
 	// If we are done with this channel, record that.
-	if s.isFullySubmitted() {
+	if s.IsFullySubmitted() {
 		s.metr.RecordChannelFullySubmitted(s.ID())
 		s.log.Info("Channel is fully submitted", "id", s.ID(), "min_inclusion_block", s.minInclusionBlock, "max_inclusion_block", s.maxInclusionBlock)
 		return true, nil
@@ -109,41 +142,26 @@ func (s *channel) Timeout() uint64 {
 
 // updateInclusionBlocks finds the first & last confirmed tx and saves its inclusion numbers
 func (s *channel) updateInclusionBlocks() {
-	if len(s.confirmedTransactions) == 0 || !s.confirmedTxUpdated {
-		return
-	}
-	// If there are confirmed transactions, find the first + last confirmed block numbers
-	min := uint64(math.MaxUint64)
-	max := uint64(0)
+	s.minInclusionBlock = uint64(math.MaxUint64)
+	s.maxInclusionBlock = uint64(0)
 	for _, inclusionBlock := range s.confirmedTransactions {
-		if inclusionBlock.Number < min {
-			min = inclusionBlock.Number
-		}
-		if inclusionBlock.Number > max {
-			max = inclusionBlock.Number
-		}
+		s.minInclusionBlock = min(s.minInclusionBlock, inclusionBlock.Number)
+		s.maxInclusionBlock = max(s.maxInclusionBlock, inclusionBlock.Number)
 	}
-	s.minInclusionBlock = min
-	s.maxInclusionBlock = max
-	s.confirmedTxUpdated = false
 }
 
 // pendingChannelIsTimedOut returns true if submitted channel has timed out.
 // A channel has timed out if the difference in L1 Inclusion blocks between
 // the first & last included block is greater than or equal to the channel timeout.
 func (s *channel) isTimedOut() bool {
-	// Update min/max inclusion blocks for timeout check
-	s.updateInclusionBlocks()
 	// Prior to the granite hard fork activating, the use of the shorter ChannelTimeout here may cause the batcher
 	// to believe the channel timed out when it was valid. It would then resubmit the blocks needlessly.
 	// This wastes batcher funds but doesn't cause any problems for the chain progressing safe head.
 	return s.maxInclusionBlock-s.minInclusionBlock >= s.cfg.ChannelTimeout
 }
 
-// pendingChannelIsFullySubmitted returns true if the channel has been fully submitted.
-func (s *channel) isFullySubmitted() bool {
-	// Update min/max inclusion blocks for timeout check
-	s.updateInclusionBlocks()
+// IsFullySubmitted returns true if the channel has been fully submitted.
+func (s *channel) IsFullySubmitted() bool {
 	return s.IsFull() && len(s.pendingTransactions)+s.PendingFrames() == 0
 }
 
@@ -201,6 +219,10 @@ func (s *channel) AddBlock(block *types.Block) (*derive.L1BlockInfo, error) {
 	return s.channelBuilder.AddBlock(block)
 }
 
+func (s *channel) Blocks() []*types.Block {
+	return s.channelBuilder.Blocks()
+}
+
 func (s *channel) InputBytes() int {
 	return s.channelBuilder.InputBytes()
 }
@@ -226,23 +248,33 @@ func (s *channel) OutputFrames() error {
 }
 
 // LatestL1Origin returns the latest L1 block origin from all the L2 blocks that have been added to the channel
-func (c *channel) LatestL1Origin() eth.BlockID {
-	return c.channelBuilder.LatestL1Origin()
+func (s *channel) LatestL1Origin() eth.BlockID {
+	return s.channelBuilder.LatestL1Origin()
 }
 
 // OldestL1Origin returns the oldest L1 block origin from all the L2 blocks that have been added to the channel
-func (c *channel) OldestL1Origin() eth.BlockID {
-	return c.channelBuilder.OldestL1Origin()
+func (s *channel) OldestL1Origin() eth.BlockID {
+	return s.channelBuilder.OldestL1Origin()
 }
 
 // LatestL2 returns the latest L2 block from all the L2 blocks that have been added to the channel
-func (c *channel) LatestL2() eth.BlockID {
-	return c.channelBuilder.LatestL2()
+func (s *channel) LatestL2() eth.BlockID {
+	return s.channelBuilder.LatestL2()
 }
 
 // OldestL2 returns the oldest L2 block from all the L2 blocks that have been added to the channel
-func (c *channel) OldestL2() eth.BlockID {
-	return c.channelBuilder.OldestL2()
+func (s *channel) OldestL2() eth.BlockID {
+	return s.channelBuilder.OldestL2()
+}
+
+// PendingLen returns the number of pending transactions in the channel
+func (s *channel) PendingLen() int {
+	return len(s.pendingTransactions)
+}
+
+// ConfirmedLen returns the number of confirmed transactions in the channel
+func (s *channel) ConfirmedLen() int {
+	return len(s.confirmedTransactions)
 }
 
 func (s *channel) Close() {

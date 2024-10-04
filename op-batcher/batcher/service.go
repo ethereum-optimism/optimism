@@ -55,6 +55,7 @@ type BatcherService struct {
 	EndpointProvider dial.L2EndpointProvider
 	TxManager        txmgr.TxManager
 	AltDA            *altda.DAClient
+	ChannelFactory   ChannelFactory
 
 	BatcherConfig
 
@@ -75,11 +76,16 @@ type BatcherService struct {
 	NotSubmittingOnStart bool
 }
 
+type Option func(service *BatcherService, cfg *CLIConfig)
+
 // BatcherServiceFromCLIConfig creates a new BatcherService from a CLIConfig.
 // The service components are fully started, except for the driver,
 // which will not be submitting batches (if it was configured to) until the Start part of the lifecycle.
-func BatcherServiceFromCLIConfig(ctx context.Context, version string, cfg *CLIConfig, log log.Logger) (*BatcherService, error) {
+func BatcherServiceFromCLIConfig(ctx context.Context, version string, cfg *CLIConfig, log log.Logger, opts ...Option) (*BatcherService, error) {
 	var bs BatcherService
+	for _, opt := range opts {
+		opt(&bs, cfg)
+	}
 	if err := bs.initFromCLIConfig(ctx, version, cfg, log); err != nil {
 		return nil, errors.Join(err, bs.Stop(ctx)) // try to clean up our failed initialization attempt
 	}
@@ -326,6 +332,7 @@ func (bs *BatcherService) initDriver() {
 		EndpointProvider: bs.EndpointProvider,
 		ChannelConfig:    bs.ChannelConfig,
 		AltDA:            bs.AltDA,
+		ChannelFactory:   bs.ChannelFactory,
 	})
 }
 
