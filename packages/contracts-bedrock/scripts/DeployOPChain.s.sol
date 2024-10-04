@@ -13,7 +13,8 @@ import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
 import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
 import { IBigStepper } from "src/dispute/interfaces/IBigStepper.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { Constants } from "scripts/libraries/Constants.sol";
+import { Constants } from "src/libraries/Constants.sol";
+import { Constants as ScriptConstants } from "scripts/libraries/Constants.sol";
 
 import { IProxyAdmin } from "src/universal/interfaces/IProxyAdmin.sol";
 import { IProxy } from "src/universal/interfaces/IProxy.sol";
@@ -161,10 +162,10 @@ contract DeployOPChainInput is BaseDeployIO {
         // because to to update to the permissionless game, we will need to update its starting
         // anchor root and deploy a new permissioned dispute game contract anyway.
         //
-        // You can `console.logBytes(abi.encode(Constants.DEFAULT_STARTING_ANCHOR_ROOTS()))` to get the bytes that
+        // You can `console.logBytes(abi.encode(ScriptConstants.DEFAULT_STARTING_ANCHOR_ROOTS()))` to get the bytes that
         // are hardcoded into `op-chain-ops/deployer/opcm/opchain.go`
 
-        return abi.encode(Constants.DEFAULT_STARTING_ANCHOR_ROOTS());
+        return abi.encode(ScriptConstants.DEFAULT_STARTING_ANCHOR_ROOTS());
     }
 
     function opcmProxy() public returns (OPContractsManager) {
