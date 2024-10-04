@@ -73,6 +73,7 @@ func (s *channelManager) Clear(l1OriginLastClosedChannel eth.BlockID) {
 	defer s.mu.Unlock()
 	s.log.Trace("clearing channel manager state")
 	s.blocks.Clear()
+	s.blockCursor = 0
 	s.l1OriginLastClosedChannel = l1OriginLastClosedChannel
 	s.tip = common.Hash{}
 	s.closed = false
@@ -507,4 +508,29 @@ func (s *channelManager) Requeue(newCfg ChannelConfig) {
 	// Setting the defaultCfg will cause new channels
 	// to pick up the new ChannelConfig
 	s.defaultCfg = newCfg
+}
+
+// pruneSafeBlocks dequeues blocks from the internal blocks queue
+// if they have now become safe.
+func (s *channelManager) pruneSafeBlocks(newSafeHead eth.L2BlockRef) error {
+	if oldSafeHead, ok := s.blocks.Peek(); ok {
+		if newSafeHead.Number < oldSafeHead.Number().Uint64() {
+			return errors.New("new safe head behind existing safe head")
+		}
+		numBlocksToDequeue := newSafeHead.Number - oldSafeHead.Number().Uint64()
+		if s.blocks[numBlocksToDequeue-1].Hash() != newSafeHead.Hash {
+			// This indicates a safe chain reorg
+			// TODO should this have a different error type?
+			return ErrReorg
+		}
+		_, ok := s.blocks.DequeueN(int(numBlocksToDequeue))
+		if !ok {
+			return errors.New("safe head moved beyond internal blocks range")
+		}
+		s.blockCursor -= int(numBlocksToDequeue)
+		if s.blockCursor < 0 {
+			panic("blockCursor got into bad state")
+		}
+	}
+	return nil
 }
