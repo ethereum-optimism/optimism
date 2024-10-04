@@ -9,6 +9,7 @@ import { console2 as console } from "forge-std/console2.sol";
 import { DeployConfig } from "scripts/deploy/DeployConfig.s.sol";
 import { Deployer } from "scripts/deploy/Deployer.sol";
 import { ISystemConfigV0 } from "scripts/interfaces/ISystemConfigV0.sol";
+import { ISystemConfigInterop } from "src/L1/interfaces/ISystemConfigInterop.sol";
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
@@ -29,6 +30,8 @@ import { ProtocolVersion, IProtocolVersions } from "src/L1/interfaces/IProtocolV
 import { IDisputeGameFactory } from "src/dispute/interfaces/IDisputeGameFactory.sol";
 import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 import { IOptimismMintableERC20Factory } from "src/universal/interfaces/IOptimismMintableERC20Factory.sol";
+import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
+import { IMIPS } from "src/cannon/interfaces/IMIPS.sol";
 
 library ChainAssertions {
     Vm internal constant vm = Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
@@ -134,6 +137,32 @@ library ChainAssertions {
         }
     }
 
+    /// @notice Asserts that the SystemConfigInterop is setup correctly
+    function checkSystemConfigInterop(
+        Types.ContractSet memory _contracts,
+        DeployConfig _cfg,
+        bool _isProxy
+    )
+        internal
+        view
+    {
+        ISystemConfigInterop config = ISystemConfigInterop(_contracts.SystemConfig);
+        console.log(
+            "Running chain assertions on the SystemConfigInterop %s at %s",
+            _isProxy ? "proxy" : "implementation",
+            address(config)
+        );
+
+        checkSystemConfig(_contracts, _cfg, _isProxy);
+        if (_isProxy) {
+            // TODO: this is not being set in the deployment, nor is a config value.
+            // Update this when it has an entry in hardhat.json
+            require(config.dependencyManager() == address(0), "CHECK-SCFGI-10");
+        } else {
+            require(config.dependencyManager() == address(0), "CHECK-SCFGI-20");
+        }
+    }
+
     /// @notice Asserts that the L1CrossDomainMessenger is setup correctly
     function checkL1CrossDomainMessenger(Types.ContractSet memory _contracts, Vm _vm, bool _isProxy) internal view {
         IL1CrossDomainMessenger messenger = IL1CrossDomainMessenger(_contracts.L1CrossDomainMessenger);
@@ -213,6 +242,23 @@ library ChainAssertions {
 
         // The same check is made for both proxy and implementation
         require(factory.owner() == _expectedOwner, "CHECK-DG-20");
+    }
+
+    /// @notice Asserts that the PreimageOracle is setup correctly
+    function checkPreimageOracle(IPreimageOracle _oracle, DeployConfig _cfg) internal view {
+        console.log("Running chain assertions on the PreimageOracle %s at %s", address(_oracle));
+        require(address(_oracle) != address(0), "CHECK-PIO-10");
+
+        require(_oracle.minProposalSize() == _cfg.preimageOracleMinProposalSize(), "CHECK-PIO-30");
+        require(_oracle.challengePeriod() == _cfg.preimageOracleChallengePeriod(), "CHECK-PIO-40");
+    }
+
+    /// @notice Asserts that the MIPs contract is setup correctly
+    function checkMIPS(IMIPS _mips, IPreimageOracle _oracle) internal view {
+        console.log("Running chain assertions on the MIPS %s at %s", address(_mips));
+        require(address(_mips) != address(0), "CHECK-MIPS-10");
+
+        require(_mips.oracle() == _oracle, "CHECK-MIPS-20");
     }
 
     /// @notice Asserts that the DelayedWETH is setup correctly
