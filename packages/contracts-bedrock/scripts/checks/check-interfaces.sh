@@ -65,12 +65,12 @@ EXCLUDE_CONTRACTS=(
     "IOptimismSuperchainERC20"
 
     # Doesn't start with "I"
-    "MintableAndBurnable"
     "KontrolCheatsBase"
 
     # Currently inherit from interface, needs to be fixed.
     "IWETH"
     "IDelayedWETH"
+    "ISuperchainWETH"
     "IL2ToL2CrossDomainMessenger"
     "ICrossL2Inbox"
     "ISystemConfigInterop"

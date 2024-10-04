@@ -62,9 +62,18 @@ contract SuperchainERC20BridgeTest is Bridge_Initializer {
 
     /// @notice Tests the `sendERC20` function burns the sender tokens, sends the message, and emits the `SendERC20`
     /// event.
-    function testFuzz_sendERC20_succeeds(address _sender, address _to, uint256 _amount, uint256 _chainId) external {
-        // Ensure `_sender` is not the zero address
+    function testFuzz_sendERC20_succeeds(
+        address _sender,
+        address _to,
+        uint256 _amount,
+        uint256 _chainId,
+        bytes32 _msgHash
+    )
+        external
+    {
+        // Ensure `_sender` and `_to` is not the zero address
         vm.assume(_sender != ZERO_ADDRESS);
+        vm.assume(_to != ZERO_ADDRESS);
 
         // Mint some tokens to the sender so then they can be sent
         vm.prank(Predeploys.SUPERCHAIN_ERC20_BRIDGE);
@@ -90,12 +99,15 @@ contract SuperchainERC20BridgeTest is Bridge_Initializer {
             abi.encodeWithSelector(
                 IL2ToL2CrossDomainMessenger.sendMessage.selector, _chainId, address(superchainERC20Bridge), _message
             ),
-            abi.encode("")
+            abi.encode(_msgHash)
         );
 
         // Call the `sendERC20` function
         vm.prank(_sender);
-        superchainERC20Bridge.sendERC20(address(superchainERC20), _to, _amount, _chainId);
+        bytes32 _returnedMsgHash = superchainERC20Bridge.sendERC20(address(superchainERC20), _to, _amount, _chainId);
+
+        // Check the message hash was generated correctly
+        assertEq(_msgHash, _returnedMsgHash);
 
         // Check the total supply and balance of `_sender` after the send were updated correctly
         assertEq(IERC20(address(superchainERC20)).totalSupply(), _totalSupplyBefore - _amount);

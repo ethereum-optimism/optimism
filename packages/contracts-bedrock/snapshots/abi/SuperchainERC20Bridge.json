@@ -51,7 +51,13 @@
       }
     ],
     "name": "sendERC20",
-    "outputs": [],
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "msgHash_",
+        "type": "bytes32"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "function"
   },

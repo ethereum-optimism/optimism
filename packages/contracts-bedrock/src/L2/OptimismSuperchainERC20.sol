@@ -15,7 +15,23 @@ import { Initializable } from "@openzeppelin/contracts-v5/proxy/utils/Initializa
 ///         OptimismSuperchainERC20 token, turning it fungible and interoperable across the superchain. Likewise, it
 ///         also enables the inverse conversion path.
 ///         Moreover, it builds on top of the L2ToL2CrossDomainMessenger for both replay protection and domain binding.
-contract OptimismSuperchainERC20 is SuperchainERC20, Initializable, ERC165, IOptimismSuperchainERC20 {
+contract OptimismSuperchainERC20 is SuperchainERC20, Initializable, ERC165 {
+    /// @notice Thrown when attempting to perform an operation and the account is the zero address.
+    error ZeroAddress();
+
+    /// @notice Thrown when attempting to mint or burn tokens and the function caller is not the L2StandardBridge
+    error OnlyL2StandardBridge();
+
+    /// @notice Emitted whenever tokens are minted for an account.
+    /// @param to Address of the account tokens are being minted for.
+    /// @param amount  Amount of tokens minted.
+    event Mint(address indexed to, uint256 amount);
+
+    /// @notice Emitted whenever tokens are burned from an account.
+    /// @param from Address of the account tokens are being burned from.
+    /// @param amount  Amount of tokens burned.
+    event Burn(address indexed from, uint256 amount);
+
     /// @notice Storage slot that the OptimismSuperchainERC20Metadata struct is stored at.
     /// keccak256(abi.encode(uint256(keccak256("optimismSuperchainERC20.metadata")) - 1)) & ~bytes32(uint256(0xff));
     bytes32 internal constant OPTIMISM_SUPERCHAIN_ERC20_METADATA_SLOT =
@@ -102,7 +118,7 @@ contract OptimismSuperchainERC20 is SuperchainERC20, Initializable, ERC165, IOpt
     }
 
     /// @notice Returns the address of the corresponding version of this token on the remote chain.
-    function remoteToken() public view override returns (address) {
+    function remoteToken() public view returns (address) {
         return _getStorage().remoteToken;
     }
 
