@@ -535,3 +535,16 @@ func (s *channelManager) pruneSafeBlocks(newSafeHead eth.L2BlockRef) error {
 	}
 	return nil
 }
+
+// pruneChannels dequeues channels from the internal channels queue
+// if they were built using blocks which are now safe
+func (s *channelManager) pruneChannels(newSafeHead eth.L2BlockRef) {
+	i := 0
+	for _, ch := range s.channelQueue {
+		if ch.channelBuilder.blocks[len(ch.channelBuilder.blocks)].Number().Uint64() > newSafeHead.Number {
+			break
+		}
+		i++
+	}
+	s.channelQueue = s.channelQueue[i:]
+}
