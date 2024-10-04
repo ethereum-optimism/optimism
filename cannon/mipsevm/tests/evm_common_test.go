@@ -510,20 +510,22 @@ func TestEVMFault(t *testing.T) {
 		for _, tt := range cases {
 			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
 			t.Run(testName, func(t *testing.T) {
-				// set the return address ($ra) to jump into when test completes
-				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithNextPC(tt.nextPC), testutil.WithRegisters(31, testutil.EndAddr))
-				proofData := v.ThreadProofEncoder(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithNextPC(tt.nextPC), testutil.WithRegisters(31, testutil.EndAddr))
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithNextPC(tt.nextPC))
 				state := goVm.GetState()
 				state.GetMemory().SetMemory(0, tt.insn)
-				statePCs := []uint32{state.GetPC()}
+				// set the return address ($ra) to jump into when test completes
+				state.GetRegistersRef()[31] = testutil.EndAddr
+
 				// TODO: Hardcode here to achieve the expected result.
 				// Future improvements might involve having the Go VM indicate attempted memory accesses
 				// and caching this info to generate proofs for the solidity VM.
+				proofOffset := uint32(0)
 				if tt.errMsg == "invalid instruction" {
-					statePCs = append(statePCs, 0xa7ef00cc)
+					proofOffset = 0xa7ef00cc
 				}
+				proofData := v.ProofGenerator(t, goVm.GetState(), proofOffset)
 				require.Panics(t, func() { _, _ = goVm.Step(true) })
-				testutil.AssertEVMReverts(t, state, v.Contracts, tracer, statePCs, proofData, &tt.errMsg)
+				testutil.AssertEVMReverts(t, state, v.Contracts, tracer, proofData, &tt.errMsg)
 			})
 		}
 	}

@@ -182,11 +182,7 @@ func ValidateEVM(t *testing.T, stepWitness *mipsevm.StepWitness, step uint64, go
 }
 
 // AssertEVMReverts runs a single evm step from an FPVM prestate and asserts that the VM panics
-func AssertEVMReverts(t *testing.T, state mipsevm.FPVMState, contracts *ContractMetadata, tracer *tracing.Hooks, statePCs []uint32, ProofData []byte, expectedReason *string) {
-	for _, pc := range statePCs {
-		proof := state.GetMemory().MerkleProof(pc)
-		ProofData = append(ProofData, proof[:]...)
-	}
+func AssertEVMReverts(t *testing.T, state mipsevm.FPVMState, contracts *ContractMetadata, tracer *tracing.Hooks, ProofData []byte, expectedReason *string) {
 	encodedWitness, _ := state.EncodeWitness()
 	stepWitness := &mipsevm.StepWitness{
 		State:     encodedWitness,

@@ -43,7 +43,6 @@ type StateMutator interface {
 	SetExited(val bool)
 	SetStep(val uint64)
 	SetLastHint(val hexutil.Bytes)
-	SetRegisters(index uint32, val uint32)
 	Randomize(randSeed int64)
 }
 
@@ -101,12 +100,6 @@ func WithStep(step uint64) StateOption {
 func WithRandomization(seed int64) StateOption {
 	return func(mut StateMutator) {
 		mut.Randomize(seed)
-	}
-}
-
-func WithRegisters(index uint32, val uint32) StateOption {
-	return func(state StateMutator) {
-		state.SetRegisters(index, val)
 	}
 }
 
