@@ -147,7 +147,7 @@ contract Setup {
         optimismPortal2 = IOptimismPortal2(deploy.mustGetAddress("OptimismPortalProxy"));
         disputeGameFactory = IDisputeGameFactory(deploy.mustGetAddress("DisputeGameFactoryProxy"));
         delayedWeth = IDelayedWETH(deploy.mustGetAddress("DelayedWETHProxy"));
-        l2OutputOracle = IL2OutputOracle(deploy.mustGetAddress("L2OutputOracleProxy"));
+        l2OutputOracle = IL2OutputOracle(deploy.getAddress("L2OutputOracleProxy"));
         systemConfig = ISystemConfig(deploy.mustGetAddress("SystemConfigProxy"));
         l1StandardBridge = IL1StandardBridge(deploy.mustGetAddress("L1StandardBridgeProxy"));
         l1CrossDomainMessenger = IL1CrossDomainMessenger(deploy.mustGetAddress("L1CrossDomainMessengerProxy"));
@@ -160,7 +160,7 @@ contract Setup {
         anchorStateRegistry = IAnchorStateRegistry(deploy.mustGetAddress("AnchorStateRegistryProxy"));
 
         vm.label(address(l2OutputOracle), "L2OutputOracle");
-        vm.label(deploy.mustGetAddress("L2OutputOracleProxy"), "L2OutputOracleProxy");
+        vm.label(deploy.getAddress("L2OutputOracleProxy"), "L2OutputOracleProxy");
         vm.label(address(optimismPortal), "OptimismPortal");
         vm.label(deploy.mustGetAddress("OptimismPortalProxy"), "OptimismPortalProxy");
         vm.label(address(disputeGameFactory), "DisputeGameFactory");

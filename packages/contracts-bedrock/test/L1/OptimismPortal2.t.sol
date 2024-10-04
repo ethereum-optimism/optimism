@@ -307,6 +307,7 @@ contract OptimismPortal2_Test is CommonTest {
     )
         external
     {
+        bytes memory data = abi.encode(_token, _decimals, _name, _symbol);
         vm.expectEmit(address(optimismPortal2));
         emit TransactionDeposited(
             0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAd0001,
@@ -317,12 +318,12 @@ contract OptimismPortal2_Test is CommonTest {
                 uint256(0), // value
                 uint64(200_000), // gasLimit
                 false, // isCreation,
-                abi.encodeCall(IL1Block.setGasPayingToken, (_token, _decimals, _name, _symbol))
+                abi.encodeCall(IL1Block.setConfig, (Types.ConfigType.SET_GAS_PAYING_TOKEN, data))
             )
         );
 
         vm.prank(address(systemConfig));
-        optimismPortal2.setGasPayingToken({ _token: _token, _decimals: _decimals, _name: _name, _symbol: _symbol });
+        optimismPortal2.setConfig(Types.ConfigType.SET_GAS_PAYING_TOKEN, data);
     }
 
     /// @notice Ensures that the deposit event is correct for the `setGasPayingToken`
@@ -341,10 +342,12 @@ contract OptimismPortal2_Test is CommonTest {
         bytes32 name = GasPayingToken.sanitize(_name);
         bytes32 symbol = GasPayingToken.sanitize(_symbol);
 
+        bytes memory data = abi.encode(_token, 18, name, symbol);
+
         vm.recordLogs();
 
         vm.prank(address(systemConfig));
-        optimismPortal2.setGasPayingToken({ _token: _token, _decimals: 18, _name: name, _symbol: symbol });
+        optimismPortal2.setConfig(Types.ConfigType.SET_GAS_PAYING_TOKEN, data);
 
         vm.prank(Constants.DEPOSITOR_ACCOUNT, Constants.DEPOSITOR_ACCOUNT);
         optimismPortal2.depositTransaction({
@@ -352,7 +355,7 @@ contract OptimismPortal2_Test is CommonTest {
             _value: 0,
             _gasLimit: 200_000,
             _isCreation: false,
-            _data: abi.encodeCall(IL1Block.setGasPayingToken, (_token, 18, name, symbol))
+            _data: abi.encodeCall(IL1Block.setConfig, (Types.ConfigType.SET_GAS_PAYING_TOKEN, data))
         });
 
         VmSafe.Log[] memory logs = vm.getRecordedLogs();
@@ -375,7 +378,7 @@ contract OptimismPortal2_Test is CommonTest {
         vm.assume(_caller != address(systemConfig));
         vm.prank(_caller);
         vm.expectRevert(Unauthorized.selector);
-        optimismPortal2.setGasPayingToken({ _token: address(0), _decimals: 0, _name: "", _symbol: "" });
+        optimismPortal2.setConfig(Types.ConfigType.SET_GAS_PAYING_TOKEN, abi.encode(address(0), 18, bytes32(0), bytes32(0)));
     }
 
     /// @dev Tests that `depositERC20Transaction` reverts when the gas paying token is ether.
