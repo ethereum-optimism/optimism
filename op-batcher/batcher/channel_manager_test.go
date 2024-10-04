@@ -553,7 +553,7 @@ func TestChannelManager_TxData(t *testing.T) {
 	tt := []TestCase{
 		{"blobs->blobs", true, true, 2},
 		{"calldata->calldata", false, false, 2},
-		{"blobs->calldata", true, false, 2},
+		{"blobs->calldata", true, false, 3},
 		{"calldata->blobs", false, true, 3},
 	}
 
@@ -591,7 +591,7 @@ func TestChannelManager_TxData(t *testing.T) {
 			// we get some data to submit
 			var data txData
 			for {
-				m.blocks = []*types.Block{blockA}
+				m.blocks = append(m.blocks, blockA)
 				data, err = m.TxData(eth.BlockID{})
 				if err == nil && data.Len() > 0 {
 					break
@@ -635,7 +635,7 @@ func TestChannelManager_Requeue(t *testing.T) {
 	require.NoError(t, m.processBlocks())
 
 	// Assert that at least one block was processed into the channel
-	require.NotContains(t, m.blocks, blockA)
+	require.Equal(t, 1, m.blockCursor)
 
 	// Call the function we are testing
 	m.Requeue(m.defaultCfg)
