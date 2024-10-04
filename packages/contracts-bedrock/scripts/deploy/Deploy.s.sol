@@ -459,6 +459,17 @@ contract Deploy is Deployer {
         save("DisputeGameFactoryProxy", address(deployOutput.disputeGameFactoryProxy));
         save("PermissionedDelayedWETHProxy", address(deployOutput.delayedWETHPermissionedGameProxy));
 
+        // Deploy and setup the PermissionlessDelayedWeth not provided by the OPCM
+        address delayedWETHImpl = mustGetAddress("DelayedWETH");
+        address delayedWETHPermissionlessGameProxy = deployERC1967ProxyWithOwner("DelayedWETHProxy", msg.sender);
+        vm.broadcast(msg.sender);
+        IProxy(payable(delayedWETHPermissionlessGameProxy)).upgradeToAndCall({
+            _implementation: delayedWETHImpl,
+            _data: abi.encodeCall(IDelayedWETH.initialize, (msg.sender, ISuperchainConfig(superchainConfigProxy)))
+        });
+        // vm.stopBroadcast(); // why does this error when I don't use it?
+        // TODO: transfer ownership (both of the ProxyAdmin and the DelayedWeth Owner)
+
         save("AnchorStateRegistryProxy", address(deployOutput.anchorStateRegistryProxy));
         save("AnchorStateRegistry", address(deployOutput.anchorStateRegistryImpl));
 
