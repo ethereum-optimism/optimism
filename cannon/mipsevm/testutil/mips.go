@@ -201,17 +201,17 @@ func AssertEVMReverts(t *testing.T, state mipsevm.FPVMState, contracts *Contract
 	ret, _, err := env.Call(vm.AccountRef(sender), contracts.Addresses.MIPS, input, startingGas, common.U2560)
 	require.EqualValues(t, err, vm.ErrExecutionReverted)
 
-	if expectedReason != nil {
-		reason := ""
-		if len(ret) > 4 { // 4 bytes for the error selector
-			unpacked, decodeErr := abi.UnpackRevert(ret)
-			if decodeErr == nil {
-				reason = unpacked
-			}
-		}
+	require.NotNil(t, expectedReason, "expectedReason should not be nil")
 
-		require.Equal(t, *expectedReason, reason, "Revert reason mismatch")
+	reason := ""
+	if len(ret) > 4 { // 4 bytes for the error selector
+		unpacked, decodeErr := abi.UnpackRevert(ret)
+		if decodeErr == nil {
+			reason = unpacked
+		}
 	}
+
+	require.Equal(t, *expectedReason, reason, "Revert reason mismatch")
 
 	logs := evmState.Logs()
 	require.Equal(t, 0, len(logs))
