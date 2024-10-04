@@ -427,12 +427,16 @@ func (c *ChannelBuilder) PendingFrames() int {
 // HasFrame must be called prior to check if there's a next frame available.
 // Panics if called when there's no next frame.
 func (c *ChannelBuilder) NextFrame() frameData {
+	if len(c.frames) <= c.frameCursor {
+		panic("no next frame")
+	}
 	f := c.frames[c.frameCursor]
 	c.frameCursor++
 	return f
 }
 
-// Rewind decrements the frameCursor to point at the supplied frame.
+// Rewind moves the frameCursor to point at the supplied frame
+// only if it is ahead of it.
 // Panics if the frame is not in this channel.
 func (c *ChannelBuilder) Rewind(frame frameData) {
 	for i, f := range c.frames {
@@ -440,7 +444,9 @@ func (c *ChannelBuilder) Rewind(frame frameData) {
 			panic("wrong channel")
 		}
 		if f.id.frameNumber == frame.id.frameNumber {
-			c.frameCursor = i
+			if c.frameCursor > i {
+				c.frameCursor = i
+			}
 			return
 		}
 	}
