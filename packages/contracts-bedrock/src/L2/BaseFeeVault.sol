@@ -12,7 +12,7 @@ import { IFeeVault } from "src/L2/interfaces/IFeeVault.sol";
 /// @notice The BaseFeeVault accumulates the base fee that is paid by transactions.
 contract BaseFeeVault is FeeVault, ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 1.5.0-beta.2
+    /// @custom:semver 1.5.0-beta.3
     string public constant version = "1.5.0-beta.3";
 
     /// @notice Constructs the BaseFeeVault contract.
