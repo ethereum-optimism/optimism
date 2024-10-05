@@ -2,6 +2,9 @@
 pragma solidity ^0.8.0;
 
 interface IFeeVault {
+    /// @notice Enum representing where the FeeVault withdraws funds to.
+    /// @custom:value L1 FeeVault withdraws funds to L1.
+    /// @custom:value L2 FeeVault withdraws funds to L2.
     enum WithdrawalNetwork {
         L1,
         L2

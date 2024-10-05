@@ -4,8 +4,8 @@ pragma solidity 0.8.15;
 // Testing utilities
 import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
 
-// Target contract
-import { FeeVault } from "src/universal/FeeVault.sol";
+// Interfaces
+import { IFeeVault } from "src/L2/interfaces/IFeeVault.sol";
 
 // Test the implementations of the FeeVault
 contract FeeVault_Test is Bridge_Initializer {
@@ -15,8 +15,8 @@ contract FeeVault_Test is Bridge_Initializer {
         assertEq(l1FeeVault.recipient(), deploy.cfg().l1FeeVaultRecipient());
         assertEq(l1FeeVault.MIN_WITHDRAWAL_AMOUNT(), deploy.cfg().l1FeeVaultMinimumWithdrawalAmount());
         assertEq(l1FeeVault.minWithdrawalAmount(), deploy.cfg().l1FeeVaultMinimumWithdrawalAmount());
-        assertEq(uint8(l1FeeVault.WITHDRAWAL_NETWORK()), uint8(FeeVault.WithdrawalNetwork.L1));
-        assertEq(uint8(l1FeeVault.withdrawalNetwork()), uint8(FeeVault.WithdrawalNetwork.L1));
+        assertEq(uint8(l1FeeVault.WITHDRAWAL_NETWORK()), uint8(IFeeVault.WithdrawalNetwork.L1));
+        assertEq(uint8(l1FeeVault.withdrawalNetwork()), uint8(IFeeVault.WithdrawalNetwork.L1));
     }
 
     /// @dev Tests that the constructor sets the correct values.
@@ -25,7 +25,7 @@ contract FeeVault_Test is Bridge_Initializer {
         assertEq(baseFeeVault.recipient(), deploy.cfg().baseFeeVaultRecipient());
         assertEq(baseFeeVault.MIN_WITHDRAWAL_AMOUNT(), deploy.cfg().baseFeeVaultMinimumWithdrawalAmount());
         assertEq(baseFeeVault.minWithdrawalAmount(), deploy.cfg().baseFeeVaultMinimumWithdrawalAmount());
-        assertEq(uint8(baseFeeVault.WITHDRAWAL_NETWORK()), uint8(FeeVault.WithdrawalNetwork.L1));
-        assertEq(uint8(baseFeeVault.withdrawalNetwork()), uint8(FeeVault.WithdrawalNetwork.L1));
+        assertEq(uint8(baseFeeVault.WITHDRAWAL_NETWORK()), uint8(IFeeVault.WithdrawalNetwork.L1));
+        assertEq(uint8(baseFeeVault.withdrawalNetwork()), uint8(IFeeVault.WithdrawalNetwork.L1));
     }
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { IFeeVault } from "src/universal/interfaces/IFeeVault.sol";
+import { IFeeVault } from "src/L2/interfaces/IFeeVault.sol";
 
 interface IBaseFeeVault {
     event Withdrawal(uint256 value, address to, address from);

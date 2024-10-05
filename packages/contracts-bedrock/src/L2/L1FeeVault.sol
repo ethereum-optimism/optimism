@@ -2,7 +2,9 @@
 pragma solidity 0.8.15;
 
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
-import { FeeVault } from "src/universal/FeeVault.sol";
+import { FeeVault } from "src/L2/FeeVault.sol";
+
+import { IFeeVault } from "src/L2/interfaces/IFeeVault.sol";
 
 /// @custom:proxied true
 /// @custom:predeploy 0x420000000000000000000000000000000000001A
@@ -20,7 +22,7 @@ contract L1FeeVault is FeeVault, ISemver {
     constructor(
         address _recipient,
         uint256 _minWithdrawalAmount,
-        WithdrawalNetwork _withdrawalNetwork
+        IFeeVault.WithdrawalNetwork _withdrawalNetwork
     )
         FeeVault(_recipient, _minWithdrawalAmount, _withdrawalNetwork)
     { }
