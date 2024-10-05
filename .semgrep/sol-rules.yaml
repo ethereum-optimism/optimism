@@ -67,4 +67,16 @@ rules:
         - packages/contracts-bedrock/src/cannon/MIPS.sol
         - packages/contracts-bedrock/src/cannon/MIPS2.sol
         - packages/contracts-bedrock/src/cannon/libraries/MIPSMemory.sol
+
+  - id: sol-style-malformed-revert
+    languages: [solidity]
+    severity: ERROR
+    message: Revert statement style is malformed
+    patterns:
+      - pattern: revert($MSG);
+      - pattern-not: revert $ERR(...);
+      - focus-metavariable: $MSG
+      - pattern-not-regex: \"(\w+:\s[^"]+)\"
+    paths:
+      exclude:
         - packages/contracts-bedrock/src/cannon/libraries/MIPSInstructions.sol
