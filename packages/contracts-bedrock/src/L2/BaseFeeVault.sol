@@ -13,7 +13,7 @@ import { IFeeVault } from "src/L2/interfaces/IFeeVault.sol";
 contract BaseFeeVault is FeeVault, ISemver {
     /// @notice Semantic version.
     /// @custom:semver 1.5.0-beta.2
-    string public constant version = "1.5.0-beta.2";
+    string public constant version = "1.5.0-beta.3";
 
     /// @notice Constructs the BaseFeeVault contract.
     /// @param _recipient           Wallet that will receive the fees.

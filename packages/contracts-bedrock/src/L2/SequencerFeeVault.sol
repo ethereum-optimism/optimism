@@ -13,7 +13,7 @@ import { IFeeVault } from "src/L2/interfaces/IFeeVault.sol";
 ///         transaction processing and block production.
 contract SequencerFeeVault is FeeVault, ISemver {
     /// @custom:semver 1.5.0-beta.2
-    string public constant version = "1.5.0-beta.2";
+    string public constant version = "1.5.0-beta.3";
 
     /// @notice Constructs the SequencerFeeVault contract.
     /// @param _recipient           Wallet that will receive the fees.
