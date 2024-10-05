@@ -236,8 +236,8 @@ contract Deploy is Deployer {
     )
         public
     {
-        require(_superchainConfigProxy != address(0), "must specify address for superchain config proxy");
-        require(_protocolVersionsProxy != address(0), "must specify address for protocol versions proxy");
+        require(_superchainConfigProxy != address(0), "Deploy: must specify address for superchain config proxy");
+        require(_protocolVersionsProxy != address(0), "Deploy: must specify address for protocol versions proxy");
 
         vm.chainId(cfg.l1ChainID());
 

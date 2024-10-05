@@ -192,8 +192,10 @@ contract DeploySuperchainOutput is BaseDeployIO {
         address actualProtocolVersionsImpl = IProxy(payable(address(_protocolVersionsProxy))).implementation();
         vm.stopPrank();
 
-        require(actualSuperchainConfigImpl == address(_superchainConfigImpl), "100");
-        require(actualProtocolVersionsImpl == address(_protocolVersionsImpl), "200");
+        require(actualSuperchainConfigImpl == address(_superchainConfigImpl), "100"); // nosemgrep:
+            // sol-style-malformed-require
+        require(actualProtocolVersionsImpl == address(_protocolVersionsImpl), "200"); // nosemgrep:
+            // sol-style-malformed-require
 
         assertValidDeploy(_dsi);
     }

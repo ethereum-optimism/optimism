@@ -584,6 +584,9 @@ library ChainAssertions {
     function assertInitializedSlotIsSet(address _contractAddress, uint256 _slot, uint256 _offset) internal view {
         bytes32 slotVal = vm.load(_contractAddress, bytes32(_slot));
         uint8 val = uint8((uint256(slotVal) >> (_offset * 8)) & 0xFF);
-        require(val == uint8(1) || val == uint8(0xff), "Storage value is not 1 or 0xff at the given slot and offset");
+        require(
+            val == uint8(1) || val == uint8(0xff),
+            "ChainAssertions: storage value is not 1 or 0xff at the given slot and offset"
+        );
     }
 }
