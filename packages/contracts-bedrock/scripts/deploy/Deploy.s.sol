@@ -643,7 +643,8 @@ contract Deploy is Deployer {
         if (cfg.useFaultProofs()) {
             // Could also verify this inside DeployConfig but doing it here is a bit more reliable.
             require(
-                uint32(cfg.respectedGameType()) == cfg.respectedGameType(), "Deploy: respectedGameType must fit into uint32"
+                uint32(cfg.respectedGameType()) == cfg.respectedGameType(),
+                "Deploy: respectedGameType must fit into uint32"
             );
 
             addr_ = DeployUtils.create2AndSave({
