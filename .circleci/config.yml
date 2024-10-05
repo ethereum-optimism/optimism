@@ -665,7 +665,7 @@ jobs:
             MATCH_PATH="./test/{$(echo "$TEST_FILES" | paste -sd "," -)}"
             export FOUNDRY_INVARIANT_RUNS=<<parameters.test_invariant_runs>>
             export FOUNDRY_INVARIANT_DEPTH=<<parameters.test_invariant_depth>>
-            forge test --deny-warnings --fuzz-runs <<parameters.test_fuzz_runs>> --match-path "$MATCH_PATH"
+            forge test --fuzz-runs <<parameters.test_fuzz_runs>> --match-path "$MATCH_PATH"
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
