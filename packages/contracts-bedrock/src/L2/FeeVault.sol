@@ -7,7 +7,9 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 
 // Interfaces
 import { IL2ToL1MessagePasser } from "src/L2/interfaces/IL2ToL1MessagePasser.sol";
-import { IFeeVault } from "src/L2/interfaces/IFeeVault.sol";
+
+// Libraries
+import { Types } from "src/libraries/Types.sol";
 
 /// @title FeeVault
 /// @notice The FeeVault contract contains the basic logic for the various different vault contracts
@@ -29,7 +31,7 @@ abstract contract FeeVault {
     ///         Use the `withdrawalNetwork()` getter as this is deprecated
     ///         and is subject to be removed in the future.
     /// @custom:legacy
-    IFeeVault.WithdrawalNetwork public immutable WITHDRAWAL_NETWORK;
+    Types.WithdrawalNetwork public immutable WITHDRAWAL_NETWORK;
 
     /// @notice The minimum gas limit for the FeeVault withdrawal transaction.
     uint32 internal constant WITHDRAWAL_MIN_GAS = 400_000;
@@ -52,12 +54,12 @@ abstract contract FeeVault {
     /// @param to                Address that the funds were sent to.
     /// @param from              Address that triggered the withdrawal.
     /// @param withdrawalNetwork Network which the to address will receive funds on.
-    event Withdrawal(uint256 value, address to, address from, IFeeVault.WithdrawalNetwork withdrawalNetwork);
+    event Withdrawal(uint256 value, address to, address from, Types.WithdrawalNetwork withdrawalNetwork);
 
     /// @param _recipient           Wallet that will receive the fees.
     /// @param _minWithdrawalAmount Minimum balance for withdrawals.
     /// @param _withdrawalNetwork   Network which the recipient will receive fees on.
-    constructor(address _recipient, uint256 _minWithdrawalAmount, IFeeVault.WithdrawalNetwork _withdrawalNetwork) {
+    constructor(address _recipient, uint256 _minWithdrawalAmount, Types.WithdrawalNetwork _withdrawalNetwork) {
         RECIPIENT = _recipient;
         MIN_WITHDRAWAL_AMOUNT = _minWithdrawalAmount;
         WITHDRAWAL_NETWORK = _withdrawalNetwork;
@@ -77,7 +79,7 @@ abstract contract FeeVault {
     }
 
     /// @notice Network which the recipient will receive fees on.
-    function withdrawalNetwork() public view returns (IFeeVault.WithdrawalNetwork network_) {
+    function withdrawalNetwork() public view returns (Types.WithdrawalNetwork network_) {
         network_ = WITHDRAWAL_NETWORK;
     }
 
@@ -94,7 +96,7 @@ abstract contract FeeVault {
         emit Withdrawal(value, RECIPIENT, msg.sender);
         emit Withdrawal(value, RECIPIENT, msg.sender, WITHDRAWAL_NETWORK);
 
-        if (WITHDRAWAL_NETWORK == IFeeVault.WithdrawalNetwork.L2) {
+        if (WITHDRAWAL_NETWORK == Types.WithdrawalNetwork.L2) {
             bool success = SafeCall.send(RECIPIENT, value);
             require(success, "FeeVault: failed to send ETH to L2 fee recipient");
         } else {

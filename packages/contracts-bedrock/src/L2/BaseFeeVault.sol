@@ -4,7 +4,7 @@ pragma solidity 0.8.15;
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { FeeVault } from "src/L2/FeeVault.sol";
 
-import { IFeeVault } from "src/L2/interfaces/IFeeVault.sol";
+import { Types } from "src/libraries/Types.sol";
 
 /// @custom:proxied true
 /// @custom:predeploy 0x4200000000000000000000000000000000000019
@@ -22,7 +22,7 @@ contract BaseFeeVault is FeeVault, ISemver {
     constructor(
         address _recipient,
         uint256 _minWithdrawalAmount,
-        IFeeVault.WithdrawalNetwork _withdrawalNetwork
+        Types.WithdrawalNetwork _withdrawalNetwork
     )
         FeeVault(_recipient, _minWithdrawalAmount, _withdrawalNetwork)
     { }

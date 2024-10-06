@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
 import "src/dispute/lib/Types.sol";
 
-import { IFeeVault } from "src/L2/interfaces/IFeeVault.sol";
+import { Types } from "src/libraries/Types.sol";
 
 /// @title Events
 /// @dev Contains various events that are tested against. This contract needs to
@@ -53,7 +53,7 @@ contract Events {
     event OutputsDeleted(uint256 indexed prevNextOutputIndex, uint256 indexed newNextOutputIndex);
 
     event Withdrawal(uint256 value, address to, address from);
-    event Withdrawal(uint256 value, address to, address from, IFeeVault.WithdrawalNetwork withdrawalNetwork);
+    event Withdrawal(uint256 value, address to, address from, Types.WithdrawalNetwork withdrawalNetwork);
 
     event ETHDepositInitiated(address indexed from, address indexed to, uint256 amount, bytes data);
 

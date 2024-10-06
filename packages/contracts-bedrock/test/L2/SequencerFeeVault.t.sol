@@ -9,13 +9,11 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 // Contracts
 import { SequencerFeeVault } from "src/L2/SequencerFeeVault.sol";
 
-// Interfaces
-import { IFeeVault } from "src/L2/interfaces/IFeeVault.sol";
-
 // Libraries
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Types } from "src/libraries/Types.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Types as ITypes } from "src/L2/interfaces/ISequencerFeeVault.sol";
 
 contract SequencerFeeVault_Test is CommonTest {
     address recipient;
@@ -33,8 +31,8 @@ contract SequencerFeeVault_Test is CommonTest {
         assertEq(sequencerFeeVault.recipient(), recipient);
         assertEq(sequencerFeeVault.MIN_WITHDRAWAL_AMOUNT(), deploy.cfg().sequencerFeeVaultMinimumWithdrawalAmount());
         assertEq(sequencerFeeVault.minWithdrawalAmount(), deploy.cfg().sequencerFeeVaultMinimumWithdrawalAmount());
-        assertEq(uint8(sequencerFeeVault.WITHDRAWAL_NETWORK()), uint8(IFeeVault.WithdrawalNetwork.L1));
-        assertEq(uint8(sequencerFeeVault.withdrawalNetwork()), uint8(IFeeVault.WithdrawalNetwork.L1));
+        assertEq(ITypes.WithdrawalNetwork.unwrap(sequencerFeeVault.WITHDRAWAL_NETWORK()), uint8(Types.WithdrawalNetwork.L1));
+        assertEq(ITypes.WithdrawalNetwork.unwrap(sequencerFeeVault.withdrawalNetwork()), uint8(Types.WithdrawalNetwork.L1));
     }
 
     /// @dev Tests that the fee vault is able to receive ETH.
@@ -68,7 +66,7 @@ contract SequencerFeeVault_Test is CommonTest {
         vm.expectEmit(address(Predeploys.SEQUENCER_FEE_WALLET));
         emit Withdrawal(address(sequencerFeeVault).balance, recipient, address(this));
         vm.expectEmit(address(Predeploys.SEQUENCER_FEE_WALLET));
-        emit Withdrawal(address(sequencerFeeVault).balance, recipient, address(this), IFeeVault.WithdrawalNetwork.L1);
+        emit Withdrawal(address(sequencerFeeVault).balance, recipient, address(this), Types.WithdrawalNetwork.L1);
 
         // The entire vault's balance is withdrawn
         vm.expectCall(Predeploys.L2_TO_L1_MESSAGE_PASSER, address(sequencerFeeVault).balance, hex"");
@@ -118,7 +116,7 @@ contract SequencerFeeVault_L2Withdrawal_Test is CommonTest {
                 new SequencerFeeVault(
                     deploy.cfg().sequencerFeeVaultRecipient(),
                     deploy.cfg().sequencerFeeVaultMinimumWithdrawalAmount(),
-                    IFeeVault.WithdrawalNetwork.L2
+                    Types.WithdrawalNetwork.L2
                 )
             ).code
         );
@@ -141,7 +139,7 @@ contract SequencerFeeVault_L2Withdrawal_Test is CommonTest {
             address(sequencerFeeVault).balance,
             sequencerFeeVault.RECIPIENT(),
             address(this),
-            IFeeVault.WithdrawalNetwork.L2
+            Types.WithdrawalNetwork.L2
         );
 
         // The entire vault's balance is withdrawn
