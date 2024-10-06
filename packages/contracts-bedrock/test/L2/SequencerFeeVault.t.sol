@@ -31,8 +31,12 @@ contract SequencerFeeVault_Test is CommonTest {
         assertEq(sequencerFeeVault.recipient(), recipient);
         assertEq(sequencerFeeVault.MIN_WITHDRAWAL_AMOUNT(), deploy.cfg().sequencerFeeVaultMinimumWithdrawalAmount());
         assertEq(sequencerFeeVault.minWithdrawalAmount(), deploy.cfg().sequencerFeeVaultMinimumWithdrawalAmount());
-        assertEq(ITypes.WithdrawalNetwork.unwrap(sequencerFeeVault.WITHDRAWAL_NETWORK()), uint8(Types.WithdrawalNetwork.L1));
-        assertEq(ITypes.WithdrawalNetwork.unwrap(sequencerFeeVault.withdrawalNetwork()), uint8(Types.WithdrawalNetwork.L1));
+        assertEq(
+            ITypes.WithdrawalNetwork.unwrap(sequencerFeeVault.WITHDRAWAL_NETWORK()), uint8(Types.WithdrawalNetwork.L1)
+        );
+        assertEq(
+            ITypes.WithdrawalNetwork.unwrap(sequencerFeeVault.withdrawalNetwork()), uint8(Types.WithdrawalNetwork.L1)
+        );
     }
 
     /// @dev Tests that the fee vault is able to receive ETH.
@@ -136,10 +140,7 @@ contract SequencerFeeVault_L2Withdrawal_Test is CommonTest {
         emit Withdrawal(address(sequencerFeeVault).balance, sequencerFeeVault.RECIPIENT(), address(this));
         vm.expectEmit(address(Predeploys.SEQUENCER_FEE_WALLET));
         emit Withdrawal(
-            address(sequencerFeeVault).balance,
-            sequencerFeeVault.RECIPIENT(),
-            address(this),
-            Types.WithdrawalNetwork.L2
+            address(sequencerFeeVault).balance, sequencerFeeVault.RECIPIENT(), address(this), Types.WithdrawalNetwork.L2
         );
 
         // The entire vault's balance is withdrawn
