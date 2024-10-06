@@ -2,7 +2,6 @@
 pragma solidity ^0.8.0;
 
 import { console2 as console } from "forge-std/console2.sol";
-import { stdJson } from "forge-std/StdJson.sol";
 
 import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import { GnosisSafeProxyFactory as SafeProxyFactory } from "safe-contracts/proxies/GnosisSafeProxyFactory.sol";

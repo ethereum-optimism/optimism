@@ -6,7 +6,6 @@ import { ERC721Bridge } from "src/universal/ERC721Bridge.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { Constants } from "src/libraries/Constants.sol";
 
 // Interfaces
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
@@ -29,8 +28,8 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
     ISuperchainConfig public superchainConfig;
 
     /// @notice Semantic version.
-    /// @custom:semver 2.1.1-beta.3
-    string public constant version = "2.1.1-beta.3";
+    /// @custom:semver 2.1.1-beta.4
+    string public constant version = "2.1.1-beta.4";
 
     /// @notice Constructs the L1ERC721Bridge contract.
     constructor() ERC721Bridge() {

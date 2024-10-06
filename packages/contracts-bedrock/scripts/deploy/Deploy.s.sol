@@ -3,7 +3,6 @@ pragma solidity ^0.8.0;
 
 // Testing
 import { VmSafe } from "forge-std/Vm.sol";
-import { Script } from "forge-std/Script.sol";
 import { console2 as console } from "forge-std/console2.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
@@ -40,17 +39,15 @@ import { IProxy } from "src/universal/interfaces/IProxy.sol";
 import { IProxyAdmin } from "src/universal/interfaces/IProxyAdmin.sol";
 import { IOptimismPortal } from "src/L1/interfaces/IOptimismPortal.sol";
 import { IOptimismPortal2 } from "src/L1/interfaces/IOptimismPortal2.sol";
-import { IOptimismPortalInterop } from "src/L1/interfaces/IOptimismPortalInterop.sol";
 import { ICrossDomainMessenger } from "src/universal/interfaces/ICrossDomainMessenger.sol";
 import { IL1CrossDomainMessenger } from "src/L1/interfaces/IL1CrossDomainMessenger.sol";
 import { IL2OutputOracle } from "src/L1/interfaces/IL2OutputOracle.sol";
 import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
 import { ISystemConfig } from "src/L1/interfaces/ISystemConfig.sol";
-import { ISystemConfigInterop } from "src/L1/interfaces/ISystemConfigInterop.sol";
 import { IDataAvailabilityChallenge } from "src/L1/interfaces/IDataAvailabilityChallenge.sol";
 import { IL1ERC721Bridge } from "src/L1/interfaces/IL1ERC721Bridge.sol";
 import { IL1StandardBridge } from "src/L1/interfaces/IL1StandardBridge.sol";
-import { IProtocolVersions, ProtocolVersion } from "src/L1/interfaces/IProtocolVersions.sol";
+import { ProtocolVersion } from "src/L1/interfaces/IProtocolVersions.sol";
 import { IBigStepper } from "src/dispute/interfaces/IBigStepper.sol";
 import { IDisputeGameFactory } from "src/dispute/interfaces/IDisputeGameFactory.sol";
 import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";

@@ -14,7 +14,6 @@ import "src/dispute/lib/Errors.sol";
 // Interfaces
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
-import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
 import { IBigStepper, IPreimageOracle } from "src/dispute/interfaces/IBigStepper.sol";
 import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistry.sol";
 
@@ -104,8 +103,8 @@ contract FaultDisputeGame is Clone, ISemver {
     uint256 internal constant HEADER_BLOCK_NUMBER_INDEX = 8;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.3.1-beta.3
-    string public constant version = "1.3.1-beta.3";
+    /// @custom:semver 1.3.1-beta.4
+    string public constant version = "1.3.1-beta.4";
 
     /// @notice The starting timestamp of the game
     Timestamp public createdAt;

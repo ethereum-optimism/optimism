@@ -2,15 +2,12 @@
 pragma solidity 0.8.15;
 
 // Testing
-import { Script } from "forge-std/Script.sol";
 import { console2 as console } from "forge-std/console2.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 // Scripts
 import { Deployer } from "scripts/deploy/Deployer.sol";
 import { Config, OutputMode, OutputModeUtils, Fork, ForkUtils, LATEST_FORK } from "scripts/libraries/Config.sol";
-import { Artifacts } from "scripts/Artifacts.s.sol";
-import { DeployConfig } from "scripts/deploy/DeployConfig.s.sol";
 import { Process } from "scripts/libraries/Process.sol";
 import { SetPreinstalls } from "scripts/SetPreinstalls.s.sol";
 

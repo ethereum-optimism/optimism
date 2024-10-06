@@ -6,12 +6,10 @@ import { console2 as console } from "forge-std/console2.sol";
 import { Vm } from "forge-std/Vm.sol";
 
 // Scripts
-import { DeployConfig } from "scripts/deploy/DeployConfig.s.sol";
 import { Deploy } from "scripts/deploy/Deploy.s.sol";
 import { Fork, LATEST_FORK } from "scripts/libraries/Config.sol";
 import { L2Genesis, L1Dependencies } from "scripts/L2Genesis.s.sol";
 import { OutputMode, Fork, ForkUtils } from "scripts/libraries/Config.sol";
-import { Executables } from "scripts/libraries/Executables.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";

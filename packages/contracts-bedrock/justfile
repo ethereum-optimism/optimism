@@ -84,10 +84,6 @@ gas-snapshot-no-build:
 # Generates a gas snapshot.
 gas-snapshot: build-go-ffi gas-snapshot-no-build
 
-# Checks that the state diff is up to date.
-statediff:
-  ./scripts/utils/statediff.sh && git diff --exit-code
-
 # Generates default Kontrol summary.
 kontrol-summary:
   ./test/kontrol/scripts/make-summary-deployment.sh
@@ -176,6 +172,13 @@ lint-forge-tests-check:
 lint-check:
   forge fmt --check
 
+# Checks for unused imports in Solidity contracts. Does not build contracts.
+unused-imports-check-no-build:
+  go run ./scripts/checks/unused-imports
+
+# Checks for unused imports in Solidity contracts.
+unused-imports-check: build unused-imports-check-no-build
+
 # Checks that the deploy configs are valid.
 validate-deploy-configs:
   ./scripts/checks/check-deploy-configs.sh
@@ -189,8 +192,17 @@ validate-spacers: build validate-spacers-no-build
 
 # TODO: Also run lint-forge-tests-check but we need to fix the test names first.
 # Runs all checks.
-check: gas-snapshot-check-no-build kontrol-deployment-check snapshots-check-no-build lint-check semver-diff-check-no-build semver-natspec-check-no-build validate-deploy-configs validate-spacers-no-build interfaces-check-no-build
-
+check:
+  @just gas-snapshot-check-no-build \
+  unused-imports-check-no-build \
+  kontrol-deployment-check \
+  snapshots-check-no-build \
+  lint-check \
+  semver-diff-check-no-build \
+  semver-natspec-check-no-build \
+  validate-deploy-configs \
+  validate-spacers-no-build \
+  interfaces-check-no-build
 
 ########################################################
 #                      DEV TOOLS                       #

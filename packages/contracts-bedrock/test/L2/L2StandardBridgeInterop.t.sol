@@ -4,10 +4,6 @@ pragma solidity 0.8.15;
 // Testing
 import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
 
-// Libraries
-// TODO: Replace Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY with optimismSuperchainERC20Factory
-import { Predeploys } from "src/libraries/Predeploys.sol";
-
 // Interfaces
 import { IL2StandardBridgeInterop, IMintableAndBurnable } from "src/L2/interfaces/IL2StandardBridgeInterop.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";

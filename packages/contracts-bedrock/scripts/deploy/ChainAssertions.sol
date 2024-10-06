@@ -7,8 +7,6 @@ import { console2 as console } from "forge-std/console2.sol";
 
 // Scripts
 import { DeployConfig } from "scripts/deploy/DeployConfig.s.sol";
-import { Deployer } from "scripts/deploy/Deployer.sol";
-import { ISystemConfigV0 } from "scripts/interfaces/ISystemConfigV0.sol";
 import { ISystemConfigInterop } from "src/L1/interfaces/ISystemConfigInterop.sol";
 
 // Libraries

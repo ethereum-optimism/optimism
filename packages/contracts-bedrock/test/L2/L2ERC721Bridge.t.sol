@@ -2,7 +2,6 @@
 pragma solidity 0.8.15;
 
 // Testing
-import { console } from "forge-std/console.sol";
 import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
 
 // Contracts
