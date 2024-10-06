@@ -75,6 +75,12 @@ EXCLUDE_CONTRACTS=(
     "ICrossL2Inbox"
     "ISystemConfigInterop"
 
+    # Enums need to be normalized
+    "ISequencerFeeVault"
+    "IBaseFeeVault"
+    "IL1FeeVault"
+    "IFeeVault"
+
     # Solidity complains about receive but contract doens't have it.
     "IResolvedDelegateProxy"
 )
