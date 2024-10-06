@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { RLPWriter } from "src/libraries/rlp/RLPWriter.sol";
+import { UnsafeCast } from "src/libraries/errors/CommonErrors.sol";
 
 /// @title Encoding
 /// @notice Encoding handles Optimism's various different encoding schemes.
@@ -132,6 +133,25 @@ library Encoding {
             version := shr(240, _nonce)
         }
         return (nonce, version);
+    }
+
+    /// @notice Encodes a fee vault configuration into a single bytes32 value.
+    /// @param _recipient Address of the recipient of the fee vault.
+    /// @param _amount    Minimum withdrawal amount of the fee vault.
+    /// @param _network   Withdrawal network for the fee vault.
+    function encodeFeeVaultConfig(address _recipient, uint256 _amount, Types.WithdrawalNetwork _network) internal pure returns (bytes32) {
+        if (_amount > type(uint88).max) revert UnsafeCast();
+        return bytes32(uint256(_network) << 248 | _amount << 160 | uint256(uint160(_recipient)));
+    }
+
+    /// @notice Decodes a fee vault configuration from a single bytes32 value.
+    /// @return recipient_ Address of the recipient of the fee vault.
+    /// @return amount_    Minimum withdrawal amount of the fee vault.
+    /// @return network_   Withdrawal network for the fee vault.
+    function decodeFeeVaultConfig(bytes32 _data) internal pure returns (address recipient_, uint256 amount_, Types.WithdrawalNetwork network_) {
+        recipient_ = address(uint160(uint256(_data) & uint256(type(uint160).max)));
+        amount_ = (uint256(_data) & uint256(type(uint88).max) << 160) >> 160;
+        network_ = Types.WithdrawalNetwork(uint8(uint256(_data >> 248)));
     }
 
     /// @notice Returns an appropriately encoded call to L1Block.setL1BlockValuesEcotone

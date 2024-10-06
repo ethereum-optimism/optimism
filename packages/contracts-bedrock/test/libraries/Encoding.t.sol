@@ -93,4 +93,22 @@ contract Encoding_Test is CommonTest {
 
         assertEq(txn, _txn);
     }
+
+    /// @notice Roundtrip test for fee vault encoding.
+    //          A boolean is used to determine which network should be used.
+    function testFuzz_encodeFeeVaultConfig_succeeds(
+        address _recipient,
+        uint88 _amount,
+        bool _network
+    )
+        public
+        pure
+    {
+        Types.WithdrawalNetwork _withdrawalNetwork = _network ? Types.WithdrawalNetwork.L2 : Types.WithdrawalNetwork.L1;
+        bytes32 encoded = Encoding.encodeFeeVaultConfig(_recipient, uint256(_amount), _withdrawalNetwork);
+        (address recipient, uint256 amount, Types.WithdrawalNetwork withdrawalNetwork) = Encoding.decodeFeeVaultConfig(encoded);
+        assertEq(_recipient, recipient, "bad recipient");
+        assertEq(uint256(_amount), amount, "bad amount");
+        assertEq(uint256(withdrawalNetwork), uint256(withdrawalNetwork), "bad network");
+    }
 }
