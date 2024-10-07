@@ -53,7 +53,7 @@ func TestChannelTimeout(t *testing.T) {
 	// To avoid other methods clearing state
 	channel.confirmedTransactions[zeroFrameTxID(0).String()] = eth.BlockID{Number: 0}
 	channel.confirmedTransactions[zeroFrameTxID(1).String()] = eth.BlockID{Number: 99}
-	channel.confirmedTxUpdated = true
+	channel.updateInclusionBlocks()
 
 	// Since the ChannelTimeout is 100, the
 	// pending channel should not be timed out
@@ -65,7 +65,7 @@ func TestChannelTimeout(t *testing.T) {
 	channel.confirmedTransactions[zeroFrameTxID(2).String()] = eth.BlockID{
 		Number: 101,
 	}
-	channel.confirmedTxUpdated = true
+	channel.updateInclusionBlocks()
 
 	// Now the pending channel should be timed out
 	timeout = channel.isTimedOut()
