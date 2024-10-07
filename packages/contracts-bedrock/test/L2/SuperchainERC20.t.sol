@@ -19,20 +19,20 @@ import { BeaconProxy } from "@openzeppelin/contracts-v5/proxy/beacon/BeaconProxy
 import { SuperchainERC20 } from "src/L2/SuperchainERC20.sol";
 import { ICrosschainERC20 } from "src/L2/interfaces/ICrosschainERC20.sol";
 import { ISuperchainERC20 } from "src/L2/interfaces/ISuperchainERC20.sol";
-import { SuperchainERC20Implementation_MockContract } from "test/mocks/SuperchainERC20Implementation.sol";
+import { SuperchainERC20Implementation_mock } from "test/mocks/SuperchainERC20Implementation.sol";
 
 /// @title SuperchainERC20Test
 /// @notice Contract for testing the SuperchainERC20 contract.
 contract SuperchainERC20Test is Test {
     address internal constant ZERO_ADDRESS = address(0);
-    address internal constant SUPERCHAIN_ERC20_BRIDGE = Predeploys.SUPERCHAIN_ERC20_BRIDGE;
+    address internal constant SUPERCHAIN_TOKEN_BRIDGE = Predeploys.SUPERCHAIN_TOKEN_BRIDGE;
     address internal constant MESSENGER = Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER;
 
     SuperchainERC20 public superchainERC20;
 
     /// @notice Sets up the test suite.
     function setUp() public {
-        superchainERC20 = new SuperchainERC20Implementation_MockContract();
+        superchainERC20 = new SuperchainERC20Implementation_mock();
     }
 
     /// @notice Helper function to setup a mock and expect a call to it.
@@ -44,10 +44,10 @@ contract SuperchainERC20Test is Test {
     /// @notice Tests the `mint` function reverts when the caller is not the bridge.
     function testFuzz___crosschainMint_callerNotBridge_reverts(address _caller, address _to, uint256 _amount) public {
         // Ensure the caller is not the bridge
-        vm.assume(_caller != SUPERCHAIN_ERC20_BRIDGE);
+        vm.assume(_caller != SUPERCHAIN_TOKEN_BRIDGE);
 
-        // Expect the revert with `OnlySuperchainERC20Bridge` selector
-        vm.expectRevert(ISuperchainERC20.OnlySuperchainERC20Bridge.selector);
+        // Expect the revert with `OnlySuperchainTokenBridge` selector
+        vm.expectRevert(ISuperchainERC20.OnlySuperchainTokenBridge.selector);
 
         // Call the `mint` function with the non-bridge caller
         vm.prank(_caller);
@@ -72,7 +72,7 @@ contract SuperchainERC20Test is Test {
         emit ICrosschainERC20.CrosschainMinted(_to, _amount);
 
         // Call the `mint` function with the bridge caller
-        vm.prank(SUPERCHAIN_ERC20_BRIDGE);
+        vm.prank(SUPERCHAIN_TOKEN_BRIDGE);
         superchainERC20.__crosschainMint(_to, _amount);
 
         // Check the total supply and balance of `_to` after the mint were updated correctly
@@ -89,10 +89,10 @@ contract SuperchainERC20Test is Test {
         public
     {
         // Ensure the caller is not the bridge
-        vm.assume(_caller != SUPERCHAIN_ERC20_BRIDGE);
+        vm.assume(_caller != SUPERCHAIN_TOKEN_BRIDGE);
 
-        // Expect the revert with `OnlySuperchainERC20Bridge` selector
-        vm.expectRevert(ISuperchainERC20.OnlySuperchainERC20Bridge.selector);
+        // Expect the revert with `OnlySuperchainTokenBridge` selector
+        vm.expectRevert(ISuperchainERC20.OnlySuperchainTokenBridge.selector);
 
         // Call the `burn` function with the non-bridge caller
         vm.prank(_caller);
@@ -105,7 +105,7 @@ contract SuperchainERC20Test is Test {
         vm.assume(_from != ZERO_ADDRESS);
 
         // Mint some tokens to `_from` so then they can be burned
-        vm.prank(SUPERCHAIN_ERC20_BRIDGE);
+        vm.prank(SUPERCHAIN_TOKEN_BRIDGE);
         superchainERC20.__crosschainMint(_from, _amount);
 
         // Get the total supply and balance of `_from` before the burn to compare later on the assertions
@@ -121,7 +121,7 @@ contract SuperchainERC20Test is Test {
         emit ICrosschainERC20.CrosschainBurnt(_from, _amount);
 
         // Call the `burn` function with the bridge caller
-        vm.prank(SUPERCHAIN_ERC20_BRIDGE);
+        vm.prank(SUPERCHAIN_TOKEN_BRIDGE);
         superchainERC20.__crosschainBurn(_from, _amount);
 
         // Check the total supply and balance of `_from` after the burn were updated correctly

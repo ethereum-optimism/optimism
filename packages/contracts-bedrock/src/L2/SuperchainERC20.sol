@@ -8,15 +8,15 @@ import { ERC20 } from "@solady/tokens/ERC20.sol";
 
 /// @title SuperchainERC20
 /// @notice SuperchainERC20 is a standard extension of the base ERC20 token contract that unifies ERC20 token
-///         bridging to make it fungible across the Superchain. This construction allows the SuperchainERC20Bridge to
+///         bridging to make it fungible across the Superchain. This construction allows the SuperchainTokenBridge to
 ///         burn and mint tokens.
 abstract contract SuperchainERC20 is ERC20, ICrosschainERC20, ISemver {
-    /// @notice Thrown when attempting to mint or burn tokens and the function caller is not the SuperchainERC20Bridge.
-    error OnlySuperchainERC20Bridge();
+    /// @notice Thrown when attempting to mint or burn tokens and the function caller is not the SuperchainTokenBridge.
+    error OnlySuperchainTokenBridge();
 
-    /// @notice A modifier that only allows the SuperchainERC20Bridge to call
-    modifier onlySuperchainERC20Bridge() {
-        if (msg.sender != Predeploys.SUPERCHAIN_ERC20_BRIDGE) revert OnlySuperchainERC20Bridge();
+    /// @notice A modifier that only allows the SuperchainTokenBridge to call
+    modifier onlySuperchainTokenBridge() {
+        if (msg.sender != Predeploys.SUPERCHAIN_TOKEN_BRIDGE) revert OnlySuperchainTokenBridge();
         _;
     }
 
@@ -26,19 +26,19 @@ abstract contract SuperchainERC20 is ERC20, ICrosschainERC20, ISemver {
         return "1.0.0-beta.1";
     }
 
-    /// @notice Allows the SuperchainERC20Bridge to mint tokens.
+    /// @notice Allows the SuperchainTokenBridge to mint tokens.
     /// @param _to     Address to mint tokens to.
     /// @param _amount Amount of tokens to mint.
-    function __crosschainMint(address _to, uint256 _amount) external virtual onlySuperchainERC20Bridge {
+    function __crosschainMint(address _to, uint256 _amount) external virtual onlySuperchainTokenBridge {
         _mint(_to, _amount);
 
         emit CrosschainMinted(_to, _amount);
     }
 
-    /// @notice Allows the SuperchainERC20Bridge to burn tokens.
+    /// @notice Allows the SuperchainTokenBridge to burn tokens.
     /// @param _from   Address to burn tokens from.
     /// @param _amount Amount of tokens to burn.
-    function __crosschainBurn(address _from, uint256 _amount) external virtual onlySuperchainERC20Bridge {
+    function __crosschainBurn(address _from, uint256 _amount) external virtual onlySuperchainTokenBridge {
         _burn(_from, _amount);
 
         emit CrosschainBurnt(_from, _amount);

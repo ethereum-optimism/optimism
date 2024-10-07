@@ -3,9 +3,9 @@ pragma solidity ^0.8.0;
 
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
 
-/// @title ISuperchainERC20Bridge
-/// @notice Interface for the SuperchainERC20Bridge contract.
-interface ISuperchainERC20Bridge is ISemver {
+/// @title ISuperchainTokenBridge
+/// @notice Interface for the SuperchainTokenBridge contract.
+interface ISuperchainTokenBridge is ISemver {
     error ZeroAddress();
     error CallerNotL2ToL2CrossDomainMessenger();
     error InvalidCrossDomainSender();

@@ -10,11 +10,11 @@ import { IL2ToL2CrossDomainMessenger } from "src/L2/interfaces/IL2ToL2CrossDomai
 
 /// @custom:proxied true
 /// @custom:predeploy 0x4200000000000000000000000000000000000028
-/// @title SuperchainERC20Bridge
-/// @notice The SuperchainERC20Bridge allows for the bridging of ERC20 tokens to make them fungible across the
+/// @title SuperchainTokenBridge
+/// @notice The SuperchainTokenBridge allows for the bridging of ERC20 tokens to make them fungible across the
 ///         Superchain. It builds on top of the L2ToL2CrossDomainMessenger for both replay protection and domain
 ///         binding.
-contract SuperchainERC20Bridge {
+contract SuperchainTokenBridge {
     /// @notice Thrown when attempting to perform an operation and the account is the zero address.
     error ZeroAddress();
 
@@ -23,7 +23,7 @@ contract SuperchainERC20Bridge {
     error CallerNotL2ToL2CrossDomainMessenger();
 
     /// @notice Thrown when attempting to relay a message and the cross domain message sender is not the
-    /// SuperchainERC20Bridge.
+    /// SuperchainTokenBridge.
     error InvalidCrossDomainSender();
 
     /// @notice Emitted when tokens are sent from one chain to another.

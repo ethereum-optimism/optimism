@@ -9,7 +9,7 @@ import { ISemver } from "src/universal/interfaces/ISemver.sol";
 /// @title ISuperchainERC20
 /// @notice This interface is available on the SuperchainERC20 contract.
 interface ISuperchainERC20 is ICrosschainERC20, IERC20Solady, ISemver {
-    error OnlySuperchainERC20Bridge();
+    error OnlySuperchainTokenBridge();
 
     function __constructor__() external;
 }

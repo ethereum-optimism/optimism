@@ -105,8 +105,8 @@ library Predeploys {
     /// @notice Arbitrary address of the OptimismSuperchainERC20 implementation contract.
     address internal constant OPTIMISM_SUPERCHAIN_ERC20 = 0xB9415c6cA93bdC545D4c5177512FCC22EFa38F28;
 
-    /// @notice Address of the SuperchainERC20Bridge predeploy.
-    address internal constant SUPERCHAIN_ERC20_BRIDGE = 0x4200000000000000000000000000000000000028;
+    /// @notice Address of the SuperchainTokenBridge predeploy.
+    address internal constant SUPERCHAIN_TOKEN_BRIDGE = 0x4200000000000000000000000000000000000028;
 
     /// @notice Returns the name of the predeploy at the given address.
     function getName(address _addr) internal pure returns (string memory out_) {
@@ -138,7 +138,7 @@ library Predeploys {
         if (_addr == ETH_LIQUIDITY) return "ETHLiquidity";
         if (_addr == OPTIMISM_SUPERCHAIN_ERC20_FACTORY) return "OptimismSuperchainERC20Factory";
         if (_addr == OPTIMISM_SUPERCHAIN_ERC20_BEACON) return "OptimismSuperchainERC20Beacon";
-        if (_addr == SUPERCHAIN_ERC20_BRIDGE) return "SuperchainERC20Bridge";
+        if (_addr == SUPERCHAIN_TOKEN_BRIDGE) return "SuperchainTokenBridge";
         revert("Predeploys: unnamed predeploy");
     }
 
@@ -159,7 +159,7 @@ library Predeploys {
             || (_useInterop && _addr == SUPERCHAIN_WETH) || (_useInterop && _addr == ETH_LIQUIDITY)
             || (_useInterop && _addr == OPTIMISM_SUPERCHAIN_ERC20_FACTORY)
             || (_useInterop && _addr == OPTIMISM_SUPERCHAIN_ERC20_BEACON)
-            || (_useInterop && _addr == SUPERCHAIN_ERC20_BRIDGE);
+            || (_useInterop && _addr == SUPERCHAIN_TOKEN_BRIDGE);
     }
 
     function isPredeployNamespace(address _addr) internal pure returns (bool) {

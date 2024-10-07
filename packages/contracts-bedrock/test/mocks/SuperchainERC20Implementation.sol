@@ -5,7 +5,7 @@ import { SuperchainERC20 } from "src/L2/SuperchainERC20.sol";
 
 /// @title SuperchainERC20Implementation Mock contract
 /// @notice Mock contract just to create tests over an implementation of the SuperchainERC20 abstract contract.
-contract SuperchainERC20Implementation_MockContract is SuperchainERC20 {
+contract SuperchainERC20Implementation_mock is SuperchainERC20 {
     /// @notice Semantic version.
     /// @custom:semver 1.0.0-beta.1
     string public constant override version = "1.0.0-beta.1";

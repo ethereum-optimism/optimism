@@ -49,7 +49,7 @@ import { IETHLiquidity } from "src/L2/interfaces/IETHLiquidity.sol";
 import { IWETH } from "src/universal/interfaces/IWETH.sol";
 import { IGovernanceToken } from "src/governance/interfaces/IGovernanceToken.sol";
 import { ILegacyMessagePasser } from "src/legacy/interfaces/ILegacyMessagePasser.sol";
-import { ISuperchainERC20Bridge } from "src/L2/interfaces/ISuperchainERC20Bridge.sol";
+import { ISuperchainTokenBridge } from "src/L2/interfaces/ISuperchainTokenBridge.sol";
 
 /// @title Setup
 /// @dev This contact is responsible for setting up the contracts in state. It currently
@@ -107,7 +107,7 @@ contract Setup {
     IWETH weth = IWETH(payable(Predeploys.WETH));
     ISuperchainWETHERC20 superchainWeth = ISuperchainWETHERC20(payable(Predeploys.SUPERCHAIN_WETH));
     IETHLiquidity ethLiquidity = IETHLiquidity(Predeploys.ETH_LIQUIDITY);
-    ISuperchainERC20Bridge superchainERC20Bridge = ISuperchainERC20Bridge(Predeploys.SUPERCHAIN_ERC20_BRIDGE);
+    ISuperchainTokenBridge superchainTokenBridge = ISuperchainTokenBridge(Predeploys.SUPERCHAIN_TOKEN_BRIDGE);
     IOptimismSuperchainERC20Factory l2OptimismSuperchainERC20Factory =
         IOptimismSuperchainERC20Factory(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY);
 
@@ -231,7 +231,7 @@ contract Setup {
         labelPredeploy(Predeploys.ETH_LIQUIDITY);
         labelPredeploy(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY);
         labelPredeploy(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON);
-        labelPredeploy(Predeploys.SUPERCHAIN_ERC20_BRIDGE);
+        labelPredeploy(Predeploys.SUPERCHAIN_TOKEN_BRIDGE);
 
         // L2 Preinstalls
         labelPreinstall(Preinstalls.MultiCall3);
