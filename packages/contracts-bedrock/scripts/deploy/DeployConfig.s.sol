@@ -202,7 +202,9 @@ contract DeployConfig is Script {
                 } catch { }
             }
         }
-        revert("l1StartingBlockTag must be a bytes32, string or uint256 or cannot fetch l1StartingBlockTag");
+        revert(
+            "DeployConfig: l1StartingBlockTag must be a bytes32, string or uint256 or cannot fetch l1StartingBlockTag"
+        );
     }
 
     function l2OutputOracleStartingTimestamp() public returns (uint256) {
