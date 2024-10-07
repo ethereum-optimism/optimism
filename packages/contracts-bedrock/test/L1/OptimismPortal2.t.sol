@@ -463,6 +463,8 @@ contract OptimismPortal2_FinalizeWithdrawal_Test is CommonTest {
     /// @dev Setup the system for a ready-to-use state.
     function setUp() public virtual override {
         _proposedBlockNumber = 0xFF;
+        vm.prank(superchainConfig.guardian());
+        optimismPortal2.setRespectedGameType(GameTypes.CANNON);
         game = IFaultDisputeGame(
             payable(
                 address(

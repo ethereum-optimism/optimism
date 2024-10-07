@@ -1548,6 +1548,7 @@ contract Deploy is Deployer {
         string memory saltMixer = "salt mixer";
         return OPContractsManager.DeployInput({
             roles: OPContractsManager.Roles({
+                // todo: replace this with cfg.finalSystemOwner()
                 opChainProxyAdminOwner: msg.sender,
                 systemConfigOwner: cfg.finalSystemOwner(),
                 batcher: cfg.batchSenderAddress(),
