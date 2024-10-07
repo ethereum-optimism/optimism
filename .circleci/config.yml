@@ -721,6 +721,8 @@ jobs:
           command: interfaces-check-no-build
       - run-contracts-check:
           command: size-check
+      - run-contracts-check:
+          command: unused-imports-check-no-build
 
   contracts-bedrock-validate-spacers:
     docker:
