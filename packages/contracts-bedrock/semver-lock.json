@@ -212,8 +212,8 @@
     "sourceCodeHash": "0x5ea7c1b0cef5609f25c4193f5795fc9ce8f3ae08dbbf2945afe38e5af58f32c3"
   },
   "src/universal/OptimismMintableERC721Factory.sol": {
-    "initCodeHash": "0x1e247d46b5ac3cc8ac6b51193917cd5b88ff00fbea7bf768c65fa35a115f8607",
-    "sourceCodeHash": "0x1c4bc4727f08d80e8364561b49397ee57bb485072cb004b7a430559cbfa019a6"
+    "initCodeHash": "0x63d2ceafd3f3b3b54e31749574563e8022fef9c6da7bb8c7a113b3dbf571cfa2",
+    "sourceCodeHash": "0x705e270925fcad14e805b5ec1bbbb9e78b5b44e3b128f284b0113a4d68c82ef6"
   },
   "src/universal/StorageSetter.sol": {
     "initCodeHash": "0x21b3059e9b13b330f76d02b61f61dcfa3abf3517a0b56afa0895c4b8291740bf",
