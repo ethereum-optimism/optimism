@@ -1179,9 +1179,7 @@ func TestEVM_UnsupportedSyscall(t *testing.T) {
 			// Setup basic getThreadId syscall instruction
 			state.Memory.SetMemory(state.GetPC(), syscallInsn)
 			state.GetRegistersRef()[2] = syscallNum
-			proofData := state.EncodeThreadProof()
-			insnProof := state.GetMemory().MerkleProof(state.GetPC())
-			proofData = append(proofData, insnProof[:]...)
+			proofData := multiThreadedProofGenerator(t, state)
 			// Set up post-state expectations
 			require.Panics(t, func() { _, _ = goVm.Step(true) })
 
