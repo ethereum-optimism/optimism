@@ -17,7 +17,7 @@
 // Based on WETH9 by Dapphub.
 // Modified by OP Labs.
 
-pragma solidity 0.8.15;
+pragma solidity 0.8.25;
 
 import { IWETH } from "src/universal/interfaces/IWETH.sol";
 

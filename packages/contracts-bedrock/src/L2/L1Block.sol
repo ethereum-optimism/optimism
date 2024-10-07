@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.25;
 
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { Constants } from "src/libraries/Constants.sol";
@@ -57,9 +57,9 @@ contract L1Block is ISemver, IGasToken {
     /// @notice The latest L1 blob base fee.
     uint256 public blobBaseFee;
 
-    /// @custom:semver 1.5.1-beta.2
+    /// @custom:semver 1.5.1-beta.3
     function version() public pure virtual returns (string memory) {
-        return "1.5.1-beta.2";
+        return "1.5.1-beta.3";
     }
 
     /// @notice Returns the gas paying token, its decimals, name and symbol.

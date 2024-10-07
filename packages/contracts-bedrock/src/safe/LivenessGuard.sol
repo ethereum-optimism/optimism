@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.25;
 
 import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import { Guard as BaseGuard } from "safe-contracts/base/GuardManager.sol";
@@ -25,8 +25,8 @@ contract LivenessGuard is ISemver, BaseGuard {
     event OwnerRecorded(address owner);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.1-beta.2
-    string public constant version = "1.0.1-beta.2";
+    /// @custom:semver 1.0.1-beta.3
+    string public constant version = "1.0.1-beta.3";
 
     /// @notice The safe account for which this contract will be the guard.
     Safe internal immutable SAFE;

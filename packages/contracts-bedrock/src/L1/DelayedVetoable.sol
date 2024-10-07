@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.25;
 
 // Interfaces
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
@@ -69,8 +69,8 @@ contract DelayedVetoable is ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.1-beta.2
-    string public constant version = "1.0.1-beta.2";
+    /// @custom:semver 1.0.1-beta.3
+    string public constant version = "1.0.1-beta.3";
 
     /// @notice Sets the target admin during contract deployment.
     /// @param _vetoer Address of the vetoer.

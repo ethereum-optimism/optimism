@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.25;
 
 import { stdJson } from "forge-std/StdJson.sol";
 import { VmSafe } from "forge-std/Vm.sol";

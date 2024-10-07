@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.25;
 
 // Contracts
 import { L2StandardBridge } from "src/L2/L2StandardBridge.sol";
@@ -47,9 +47,9 @@ contract L2StandardBridgeInterop is L2StandardBridge {
     event Converted(address indexed from, address indexed to, address indexed caller, uint256 amount);
 
     /// @notice Semantic version.
-    /// @custom:semver +interop
+    /// @custom:semver +interop.1
     function version() public pure override returns (string memory) {
-        return string.concat(super.version(), "+interop");
+        return string.concat(super.version(), "+interop.1");
     }
 
     /// @notice Converts `amount` of `from` token to `to` token.

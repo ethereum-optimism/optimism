@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.25;
 
 import { IBeacon } from "@openzeppelin/contracts/proxy/beacon/IBeacon.sol";
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
@@ -13,8 +13,8 @@ contract OptimismSuperchainERC20Beacon is IBeacon, ISemver {
     address internal immutable IMPLEMENTATION;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.1
-    string public constant version = "1.0.0-beta.1";
+    /// @custom:semver 1.0.0-beta.2
+    string public constant version = "1.0.0-beta.2";
 
     constructor(address _implementation) {
         IMPLEMENTATION = _implementation;
