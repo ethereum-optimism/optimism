@@ -1438,72 +1438,39 @@ contract Deploy is Deployer {
 
         // Redefine _param variable to avoid stack too deep error during compilation
         FaultDisputeGameParams memory _params_ = _params;
-        if (rawGameType != GameTypes.PERMISSIONED_CANNON.raw()) {
-            _factory.setImplementation(
-                _params_.gameType,
-                IDisputeGame(
-                    DeployUtils.create2AndSave({
-                        _save: this,
-                        _salt: _implSalt(),
-                        _name: "FaultDisputeGame",
-                        _nick: string.concat("FaultDisputeGame_", vm.toString(rawGameType)),
-                        _args: DeployUtils.encodeConstructor(
-                            abi.encodeCall(
-                                IFaultDisputeGame.__constructor__,
-                                (
-                                    _params_.gameType,
-                                    _params_.absolutePrestate,
-                                    _params_.maxGameDepth,
-                                    cfg.faultGameSplitDepth(),
-                                    Duration.wrap(uint64(cfg.faultGameClockExtension())),
-                                    _params_.maxClockDuration,
-                                    _params_.faultVm,
-                                    _params_.weth,
-                                    IAnchorStateRegistry(mustGetAddress("AnchorStateRegistryProxy")),
-                                    cfg.l2ChainID()
-                                )
+        require(rawGameType != GameTypes.PERMISSIONED_CANNON.raw(), "Deploy: Permissioned Game should be deployed by OPCM");
+        _factory.setImplementation(
+            _params_.gameType,
+            IDisputeGame(
+                DeployUtils.create2AndSave({
+                    _save: this,
+                    _salt: _implSalt(),
+                    _name: "FaultDisputeGame",
+                    _nick: string.concat("FaultDisputeGame_", vm.toString(rawGameType)),
+                    _args: DeployUtils.encodeConstructor(
+                        abi.encodeCall(
+                            IFaultDisputeGame.__constructor__,
+                            (
+                                _params_.gameType,
+                                _params_.absolutePrestate,
+                                _params_.maxGameDepth,
+                                cfg.faultGameSplitDepth(),
+                                Duration.wrap(uint64(cfg.faultGameClockExtension())),
+                                _params_.maxClockDuration,
+                                _params_.faultVm,
+                                _params_.weth,
+                                IAnchorStateRegistry(mustGetAddress("AnchorStateRegistryProxy")),
+                                cfg.l2ChainID()
                             )
                         )
-                    })
-                )
-            );
-        } else {
-            _factory.setImplementation(
-                _params_.gameType,
-                IDisputeGame(
-                    DeployUtils.create2AndSave({
-                        _save: this,
-                        _salt: _implSalt(),
-                        _name: "PermissionedDisputeGame",
-                        _args: DeployUtils.encodeConstructor(
-                            abi.encodeCall(
-                                IPermissionedDisputeGame.__constructor__,
-                                (
-                                    _params_.gameType,
-                                    _params_.absolutePrestate,
-                                    _params_.maxGameDepth,
-                                    cfg.faultGameSplitDepth(),
-                                    Duration.wrap(uint64(cfg.faultGameClockExtension())),
-                                    _params_.maxClockDuration,
-                                    _params_.faultVm,
-                                    _params_.weth,
-                                    _params_.anchorStateRegistry,
-                                    cfg.l2ChainID(),
-                                    cfg.l2OutputOracleProposer(),
-                                    cfg.l2OutputOracleChallenger()
-                                )
-                            )
-                        )
-                    })
-                )
-            );
-        }
+                    )
+                })
+            )
+        );
 
         string memory gameTypeString;
         if (rawGameType == GameTypes.CANNON.raw()) {
             gameTypeString = "Cannon";
-        } else if (rawGameType == GameTypes.PERMISSIONED_CANNON.raw()) {
-            gameTypeString = "PermissionedCannon";
         } else if (rawGameType == GameTypes.ALPHABET.raw()) {
             gameTypeString = "Alphabet";
         } else {
