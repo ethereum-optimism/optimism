@@ -580,10 +580,10 @@ func TestEVMFault(t *testing.T) {
 
 	versions := GetMipsVersionTestCases(t)
 	cases := []struct {
-		name   string
-		nextPC arch.Word
-		insn   uint32
-		errMsg string
+		name                 string
+		nextPC               arch.Word
+		insn                 uint32
+		errMsg               string
 		memoryProofAddresses []uint32
 	}{
 		{"illegal instruction", 0, 0xFF_FF_FF_FF, "invalid instruction", []uint32{0xa7ef00cc}},
