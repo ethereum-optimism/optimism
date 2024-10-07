@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
 	"io"
 	"math/big"
 	"testing"
@@ -14,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/golang/snappy"
 
+	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
 	// "github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"

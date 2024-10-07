@@ -4,15 +4,15 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"errors"
-	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
-	"github.com/ethereum/go-ethereum/log"
 	"io"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
 )
 
 var SigningDomainBlocksV1 = [32]byte{}

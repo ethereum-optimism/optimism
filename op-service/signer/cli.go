@@ -50,17 +50,14 @@ func (c CLIConfig) Check() error {
 	if err := c.TLSConfig.Check(); err != nil {
 		return err
 	}
-	if !((c.Endpoint == "" && c.Address == "") || (c.Endpoint != "" && c.Address != "")) {
+	if !((c.Endpoint == "" && c.Address == "") || (c.Endpoint != "")) {
 		return errors.New("signer endpoint and address must both be set or not set")
 	}
 	return nil
 }
 
 func (c CLIConfig) Enabled() bool {
-	if c.Endpoint != "" && c.Address != "" {
-		return true
-	}
-	return false
+	return c.Endpoint != ""
 }
 
 func ReadCLIConfig(ctx *cli.Context) CLIConfig {

@@ -121,7 +121,7 @@ func (s *SignerClient) SignBlockPayload(ctx context.Context, signingHash common.
 	}
 
 	if len(result) < 65 {
-		return [65]byte{}, fmt.Errorf("invalid signature", result)
+		return [65]byte{}, fmt.Errorf("invalid signature: %s", result.String())
 	}
 
 	var signature [65]byte
