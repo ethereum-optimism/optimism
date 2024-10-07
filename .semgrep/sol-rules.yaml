@@ -2,14 +2,14 @@ rules:
   - id: sol-safety-deployutils-args
     languages: [solidity]
     severity: ERROR
-    pattern-regex: DeployUtils\.(create1|create2|create1AndSave|create2AndSave)\s*\(\s*\{[^}]*?_args\s*:\s*(?!\s*DeployUtils\.encodeConstructor\()\s*[^}]*?\}\s*\)
     message: _args parameter should be wrapped with DeployUtils.encodeConstructor
+    pattern-regex: DeployUtils\.(create1|create2|create1AndSave|create2AndSave)\s*\(\s*\{[^}]*?_args\s*:\s*(?!\s*DeployUtils\.encodeConstructor\()\s*[^}]*?\}\s*\)
 
   - id: sol-style-input-arg-fmt
     languages: [solidity]
     severity: ERROR
-    pattern-regex: function\s+\w+\s*\(\s*([^)]*?\b\w+\s+(?!_)(?!memory\b)(?!calldata\b)(?!storage\b)(?!payable\b)\w+\s*(?=,|\)))
     message: Named inputs to functions must be prepended with an underscore
+    pattern-regex: function\s+\w+\s*\(\s*([^)]*?\b\w+\s+(?!_)(?!memory\b)(?!calldata\b)(?!storage\b)(?!payable\b)\w+\s*(?=,|\)))
     paths:
       exclude:
         - op-chain-ops/script/testdata/scripts/ScriptExample.s.sol
@@ -25,8 +25,8 @@ rules:
   - id: sol-style-return-arg-fmt
     languages: [solidity]
     severity: ERROR
-    pattern-regex: returns\s*(\w+\s*)?\(\s*([^)]*?\b\w+\s+(?!memory\b)(?!calldata\b)(?!storage\b)(?!payable\b)\w+(?<!_)\s*(?=,|\)))
     message: Named return arguments to functions must be appended with an underscore
+    pattern-regex: returns\s*(\w+\s*)?\(\s*([^)]*?\b\w+\s+(?!memory\b)(?!calldata\b)(?!storage\b)(?!payable\b)\w+(?<!_)\s*(?=,|\)))
     paths:
       exclude:
         - op-chain-ops/script/testdata/scripts/ScriptExample.s.sol
@@ -47,3 +47,24 @@ rules:
     message: vm.expectRevert() must specify the revert reason
     patterns:
       - pattern: vm.expectRevert()
+
+  - id: sol-style-malformed-require
+    languages: [solidity]
+    severity: ERROR
+    message: Require statement style is malformed
+    patterns:
+      - pattern: require(..., $ERR);
+      - pattern-not: require($ERR);
+      - focus-metavariable: $ERR
+      - pattern-not-regex: \"(\w+:\s[^"]+)\"
+      - pattern-not-regex: string\.concat\(\"(\w+:\s[^"]+)\"\,[^"]+\)
+      - pattern-not-regex: \"([a-zA-Z0-9\s]+-[a-zA-Z0-9\s]+)\"
+      - pattern-not-regex: \"([a-zA-Z0-9\s]+-[a-zA-Z0-9\s]+-[a-zA-Z0-9\s]+)\"
+    paths:
+      exclude:
+        - packages/contracts-bedrock/src/libraries/Bytes.sol
+        - packages/contracts-bedrock/src/legacy/LegacyMintableERC20.sol
+        - packages/contracts-bedrock/src/cannon/MIPS.sol
+        - packages/contracts-bedrock/src/cannon/MIPS2.sol
+        - packages/contracts-bedrock/src/cannon/libraries/MIPSMemory.sol
+        - packages/contracts-bedrock/src/cannon/libraries/MIPSInstructions.sol

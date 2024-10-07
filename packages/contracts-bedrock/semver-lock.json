@@ -140,8 +140,8 @@
     "sourceCodeHash": "0x16614cc0e6abf7e81e1e5dc2c0773ee7101cb38af40e0907a8800ca7eddd3b5a"
   },
   "src/cannon/PreimageOracle.sol": {
-    "initCodeHash": "0xa0b19e18561da9990c95ebea9750dd901f73147b32b8b234eca0f35073c5a970",
-    "sourceCodeHash": "0x6235d602f84c4173e7a58666791e3db4c9e9651eaccb20db5aed2f898b76e896"
+    "initCodeHash": "0x64ea814bf9769257c91da57928675d3f8462374b0c23bdf860ccfc79f41f7801",
+    "sourceCodeHash": "0xac290a77986d54efe404c73ee58d11429e1b1fb47e4d06d4c38b6ecc20751d78"
   },
   "src/dispute/AnchorStateRegistry.sol": {
     "initCodeHash": "0x13d00eef8c3f769863fc766180acc8586f5da309ca0a098e67d4d90bd3243341",

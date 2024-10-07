@@ -374,7 +374,7 @@ contract DeployOwnership is Deploy {
         address[] memory owners = safe.getOwners();
         require(
             safe.getThreshold() == LivenessModule(livenessModule).getRequiredThreshold(owners.length),
-            "Safe threshold must be equal to the LivenessModule's required threshold"
+            "DeployOwnership: safe threshold must be equal to the LivenessModule's required threshold"
         );
 
         addr_ = address(safe);
