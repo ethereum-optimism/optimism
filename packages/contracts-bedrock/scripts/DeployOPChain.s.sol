@@ -389,6 +389,7 @@ contract DeployOPChainOutput is BaseDeployIO {
         require(game.l2ChainId() == _doi.l2ChainId(), "DPG-60");
         require(game.l2BlockNumber() == 0, "DPG-70");
         require(Duration.unwrap(game.clockExtension()) == 10800, "DPG-80");
+        require(Duration.unwrap(game.maxClockDuration()) == 302400, "DPG-110");
         require(game.splitDepth() == 30, "DPG-90");
         require(game.maxGameDepth() == 73, "DPG-100");
     }

@@ -553,8 +553,9 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
             "3100"
         );
         assertEq(Duration.unwrap(doo.permissionedDisputeGame().clockExtension()), 10800, "3200");
-        assertEq(doo.permissionedDisputeGame().splitDepth(), 30, "3300");
-        assertEq(doo.permissionedDisputeGame().maxGameDepth(), 73, "3400");
+        assertEq(Duration.unwrap(doo.permissionedDisputeGame().maxClockDuration()), 302400, "3300");
+        assertEq(doo.permissionedDisputeGame().splitDepth(), 30, "3400");
+        assertEq(doo.permissionedDisputeGame().maxGameDepth(), 73, "3500");
 
         // Most architecture assertions are handled within the OP Contracts Manager itself and therefore
         // we only assert on the things that are not visible onchain.
