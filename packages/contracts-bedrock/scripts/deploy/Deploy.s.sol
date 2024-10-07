@@ -460,8 +460,10 @@ contract Deploy is Deployer {
         if(cfg.useFaultProofs()){
             // Otherwise we use the OptimismPortalProxy deployed in _run()
             save("OptimismPortalProxy", address(deployOutput.optimismPortalProxy));
-        }
 
+            vm.prank(ISuperchainConfig(superchainConfigProxy).guardian());
+            deployOutput.optimismPortalProxy.setRespectedGameType(GameTypes.CANNON);
+        }
 
         // Deploy and setup the PermissionlessDelayedWeth not provided by the OPCM
         // TODO: replace the block below with when the OPCM switches to deploying the PermissionlessGame
