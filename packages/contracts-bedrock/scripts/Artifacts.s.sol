@@ -4,7 +4,6 @@ pragma solidity ^0.8.0;
 import { console2 as console } from "forge-std/console2.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { Vm } from "forge-std/Vm.sol";
-import { Executables } from "scripts/libraries/Executables.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Config } from "scripts/libraries/Config.sol";
 import { StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";

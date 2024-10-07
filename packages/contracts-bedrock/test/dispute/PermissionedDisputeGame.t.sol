@@ -3,7 +3,6 @@ pragma solidity ^0.8.15;
 
 // Testing
 import { Test } from "forge-std/Test.sol";
-import { Vm } from "forge-std/Vm.sol";
 import { DisputeGameFactory_Init } from "test/dispute/DisputeGameFactory.t.sol";
 import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 
@@ -13,12 +12,11 @@ import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
 import { DelayedWETH } from "src/dispute/DelayedWETH.sol";
 
 // Libraries
-import { Types } from "src/libraries/Types.sol";
 import "src/dispute/lib/Types.sol";
 import "src/dispute/lib/Errors.sol";
 
 // Interfaces
-import { IBigStepper, IPreimageOracle } from "src/dispute/interfaces/IBigStepper.sol";
+import { IPreimageOracle } from "src/dispute/interfaces/IBigStepper.sol";
 import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 import { IPermissionedDisputeGame } from "src/dispute/interfaces/IPermissionedDisputeGame.sol";
 

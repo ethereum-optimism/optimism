@@ -25,7 +25,7 @@ import { IDisputeGameFactory } from "src/dispute/interfaces/IDisputeGameFactory.
 import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistry.sol";
 import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
 import { IPermissionedDisputeGame } from "src/dispute/interfaces/IPermissionedDisputeGame.sol";
-import { Claim, Duration, GameType, GameTypes, Hash, OutputRoot } from "src/dispute/lib/Types.sol";
+import { Claim, Duration, GameType, GameTypes, Hash } from "src/dispute/lib/Types.sol";
 
 import { OPContractsManager } from "src/L1/OPContractsManager.sol";
 import { IOptimismPortal2 } from "src/L1/interfaces/IOptimismPortal2.sol";

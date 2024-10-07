@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { ISemver } from "src/universal/interfaces/ISemver.sol";
-
 /// @title IDeployerWhitelist
 /// @notice Interface for the DeployerWhitelist contract.
 interface IDeployerWhitelist {

@@ -3,7 +3,6 @@ pragma solidity 0.8.15;
 
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { IPreimageOracle } from "./interfaces/IPreimageOracle.sol";
-import { PreimageKeyLib } from "./PreimageKeyLib.sol";
 import { MIPSInstructions as ins } from "src/cannon/libraries/MIPSInstructions.sol";
 import { MIPSSyscalls as sys } from "src/cannon/libraries/MIPSSyscalls.sol";
 import { MIPSState as st } from "src/cannon/libraries/MIPSState.sol";
@@ -45,8 +44,8 @@ contract MIPS is ISemver {
     }
 
     /// @notice The semantic version of the MIPS contract.
-    /// @custom:semver 1.2.1-beta.2
-    string public constant version = "1.2.1-beta.2";
+    /// @custom:semver 1.2.1-beta.3
+    string public constant version = "1.2.1-beta.3";
 
     /// @notice The preimage oracle contract.
     IPreimageOracle internal immutable ORACLE;

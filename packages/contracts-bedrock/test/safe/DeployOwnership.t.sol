@@ -13,7 +13,6 @@ import { Test } from "forge-std/Test.sol";
 
 import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
-import { GuardManager } from "safe-contracts/base/GuardManager.sol";
 
 import { LivenessGuard } from "src/safe/LivenessGuard.sol";
 import { LivenessModule } from "src/safe/LivenessModule.sol";
