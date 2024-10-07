@@ -1,7 +1,6 @@
 package batcher
 
 import (
-	"fmt"
 	"math"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
@@ -34,12 +33,8 @@ type channel struct {
 	maxInclusionBlock uint64
 }
 
-func newChannel(log log.Logger, metr metrics.Metricer, cfg ChannelConfig, rollupCfg *rollup.Config, latestL1OriginBlockNum uint64, channelOut derive.ChannelOut) (*channel, error) {
-	cb, err := NewChannelBuilder(cfg, rollupCfg, latestL1OriginBlockNum, channelOut)
-	if err != nil {
-		return nil, fmt.Errorf("creating new channel: %w", err)
-	}
-
+func newChannel(log log.Logger, metr metrics.Metricer, cfg ChannelConfig, rollupCfg *rollup.Config, latestL1OriginBlockNum uint64, channelOut derive.ChannelOut) *channel {
+	cb := NewChannelBuilderWithChannelOut(cfg, rollupCfg, latestL1OriginBlockNum, channelOut)
 	return &channel{
 		log:                   log,
 		metr:                  metr,
@@ -47,7 +42,7 @@ func newChannel(log log.Logger, metr metrics.Metricer, cfg ChannelConfig, rollup
 		channelBuilder:        cb,
 		pendingTransactions:   make(map[string]txData),
 		confirmedTransactions: make(map[string]eth.BlockID),
-	}, nil
+	}
 }
 
 // TxFailed records a transaction as failed. It will attempt to resubmit the data

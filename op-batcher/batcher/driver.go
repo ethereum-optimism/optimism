@@ -116,9 +116,13 @@ type BatchSubmitter struct {
 
 // NewBatchSubmitter initializes the BatchSubmitter driver from a preconfigured DriverSetup
 func NewBatchSubmitter(setup DriverSetup) *BatchSubmitter {
+	state := NewChannelManager(setup.Log, setup.Metr, setup.ChannelConfig, setup.RollupConfig)
+	if setup.ChannelOutFactory != nil {
+		state.SetChannelOutFactory(setup.ChannelOutFactory)
+	}
 	return &BatchSubmitter{
 		DriverSetup: setup,
-		state:       NewChannelManager(setup.Log, setup.Metr, setup.ChannelConfig, setup.RollupConfig, setup.ChannelOutFactory),
+		state:       state,
 	}
 }
 

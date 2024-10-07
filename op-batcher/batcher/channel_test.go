@@ -29,7 +29,7 @@ func newChannelWithChannelOut(log log.Logger, metr metrics.Metricer, cfg Channel
 	if err != nil {
 		return nil, fmt.Errorf("creating channel out: %w", err)
 	}
-	return newChannel(log, metr, cfg, rollupCfg, latestL1OriginBlockNum, channelOut)
+	return newChannel(log, metr, cfg, rollupCfg, latestL1OriginBlockNum, channelOut), nil
 }
 
 // TestChannelTimeout tests that the channel manager
@@ -42,7 +42,7 @@ func TestChannelTimeout(t *testing.T) {
 		CompressorConfig: compressor.Config{
 			CompressionAlgo: derive.Zlib,
 		},
-	}, &rollup.Config{}, nil)
+	}, &rollup.Config{})
 	m.Clear(eth.BlockID{})
 
 	// Pending channel is nil so is cannot be timed out
@@ -86,7 +86,7 @@ func TestChannelManager_NextTxData(t *testing.T) {
 	log := testlog.Logger(t, log.LevelCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{CompressorConfig: compressor.Config{
 		CompressionAlgo: derive.Zlib,
-	}}, &rollup.Config{}, nil)
+	}}, &rollup.Config{})
 	m.Clear(eth.BlockID{})
 
 	// Nil pending channel should return EOF
@@ -226,7 +226,7 @@ func TestChannelTxConfirmed(t *testing.T) {
 		CompressorConfig: compressor.Config{
 			CompressionAlgo: derive.Zlib,
 		},
-	}, &rollup.Config{}, nil)
+	}, &rollup.Config{})
 	m.Clear(eth.BlockID{})
 
 	// Let's add a valid pending transaction to the channel manager
@@ -277,7 +277,7 @@ func TestChannelTxFailed(t *testing.T) {
 	log := testlog.Logger(t, log.LevelCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{CompressorConfig: compressor.Config{
 		CompressionAlgo: derive.Zlib,
-	}}, &rollup.Config{}, nil)
+	}}, &rollup.Config{})
 	m.Clear(eth.BlockID{})
 
 	// Let's add a valid pending transaction to the channel

@@ -56,33 +56,20 @@ type channelManager struct {
 	closed bool
 }
 
-func NewChannelManager(log log.Logger, metr metrics.Metricer, cfgProvider ChannelConfigProvider, rollupCfg *rollup.Config, outFactory ChannelOutFactory) *channelManager {
-	if outFactory == nil {
-		outFactory = NewChannelOut
-	}
+func NewChannelManager(log log.Logger, metr metrics.Metricer, cfgProvider ChannelConfigProvider, rollupCfg *rollup.Config) *channelManager {
 	return &channelManager{
 		log:         log,
 		metr:        metr,
 		cfgProvider: cfgProvider,
 		defaultCfg:  cfgProvider.ChannelConfig(),
 		rollupCfg:   rollupCfg,
-		outFactory:  outFactory,
+		outFactory:  NewChannelOut,
 		txChannels:  make(map[string]*channel),
 	}
 }
 
-func NewChannelOut(cfg ChannelConfig, rollupCfg *rollup.Config) (derive.ChannelOut, error) {
-	spec := rollup.NewChainSpec(rollupCfg)
-	if cfg.BatchType == derive.SpanBatchType {
-		return derive.NewSpanChannelOut(
-			cfg.CompressorConfig.TargetOutputSize, cfg.CompressorConfig.CompressionAlgo,
-			spec, derive.WithMaxBlocksPerSpanBatch(cfg.MaxBlocksPerSpanBatch))
-	}
-	comp, err := cfg.CompressorConfig.NewCompressor()
-	if err != nil {
-		return nil, err
-	}
-	return derive.NewSingularChannelOut(comp, spec)
+func (s *channelManager) SetChannelOutFactory(outFactory ChannelOutFactory) {
+	s.outFactory = outFactory
 }
 
 // Clear clears the entire state of the channel manager.
@@ -293,10 +280,7 @@ func (s *channelManager) ensureChannelWithSpace(l1Head eth.BlockID) error {
 		return fmt.Errorf("creating channel out: %w", err)
 	}
 
-	pc, err := newChannel(s.log, s.metr, cfg, s.rollupCfg, s.l1OriginLastClosedChannel.Number, channelOut)
-	if err != nil {
-		return fmt.Errorf("creating new channel: %w", err)
-	}
+	pc := newChannel(s.log, s.metr, cfg, s.rollupCfg, s.l1OriginLastClosedChannel.Number, channelOut)
 
 	s.currentChannel = pc
 	s.channelQueue = append(s.channelQueue, pc)
