@@ -387,6 +387,11 @@ contract DeployOPChainOutput is BaseDeployIO {
         require(address(game.weth()) == address(delayedWETHPermissionedGameProxy()), "DPG-40");
         require(address(game.anchorStateRegistry()) == address(anchorStateRegistryProxy()), "DPG-50");
         require(game.l2ChainId() == _doi.l2ChainId(), "DPG-60");
+        require(game.l2BlockNumber() == 0, "DPG-70");
+        require(Duration.unwrap(game.clockExtension()) == 10800, "DPG-80");
+        require(Duration.unwrap(game.maxClockDuration()) == 302400, "DPG-110");
+        require(game.splitDepth() == 30, "DPG-90");
+        require(game.maxGameDepth() == 73, "DPG-100");
     }
 
     function assertValidAnchorStateRegistryProxy(DeployOPChainInput) internal {
@@ -405,6 +410,10 @@ contract DeployOPChainOutput is BaseDeployIO {
         require(
             address(anchorStateRegistryProxy().disputeGameFactory()) == address(disputeGameFactoryProxy()), "ANCHORP-30"
         );
+
+        (Hash actualRoot,) = anchorStateRegistryProxy().anchors(GameTypes.PERMISSIONED_CANNON);
+        bytes32 expectedRoot = 0xdead000000000000000000000000000000000000000000000000000000000000;
+        require(Hash.unwrap(actualRoot) == expectedRoot, "ANCHORP-40");
     }
 
     function assertValidAnchorStateRegistryImpl(DeployOPChainInput) internal view {

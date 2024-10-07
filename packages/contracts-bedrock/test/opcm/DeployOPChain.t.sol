@@ -544,6 +544,19 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         assertEq(doo.disputeGameFactoryProxy().initBonds(GameTypes.CANNON), 0, "2700");
         assertEq(doo.disputeGameFactoryProxy().initBonds(GameTypes.PERMISSIONED_CANNON), 0, "2800");
 
+        (Hash actualRoot,) = doo.anchorStateRegistryProxy().anchors(GameTypes.PERMISSIONED_CANNON);
+        assertEq(Hash.unwrap(actualRoot), 0xdead000000000000000000000000000000000000000000000000000000000000, "2900");
+        assertEq(doo.permissionedDisputeGame().l2BlockNumber(), 0, "3000");
+        assertEq(
+            Claim.unwrap(doo.permissionedDisputeGame().absolutePrestate()),
+            0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c,
+            "3100"
+        );
+        assertEq(Duration.unwrap(doo.permissionedDisputeGame().clockExtension()), 10800, "3200");
+        assertEq(Duration.unwrap(doo.permissionedDisputeGame().maxClockDuration()), 302400, "3300");
+        assertEq(doo.permissionedDisputeGame().splitDepth(), 30, "3400");
+        assertEq(doo.permissionedDisputeGame().maxGameDepth(), 73, "3500");
+
         // Most architecture assertions are handled within the OP Contracts Manager itself and therefore
         // we only assert on the things that are not visible onchain.
         // TODO add these assertions: AddressManager, Proxy, ProxyAdmin, etc.
