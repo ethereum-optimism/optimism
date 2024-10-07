@@ -543,6 +543,9 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         // Verify that the initial bonds are zero.
         assertEq(doo.disputeGameFactoryProxy().initBonds(GameTypes.CANNON), 0, "2700");
         assertEq(doo.disputeGameFactoryProxy().initBonds(GameTypes.PERMISSIONED_CANNON), 0, "2800");
+        bytes32 expectedRoot = 0xdead000000000000000000000000000000000000000000000000000000000000;
+        (Hash actualRoot, ) = doo.anchorStateRegistryProxy().anchors(GameTypes.PERMISSIONED_CANNON);
+        assertEq(Hash.unwrap(actualRoot), expectedRoot, "2900");
 
         // Most architecture assertions are handled within the OP Contracts Manager itself and therefore
         // we only assert on the things that are not visible onchain.
