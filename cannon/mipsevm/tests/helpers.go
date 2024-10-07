@@ -53,18 +53,13 @@ func multiThreadElfVmFactory(t require.TestingT, elfFile string, po mipsevm.Prei
 type ProofGenerator func(t require.TestingT, state mipsevm.FPVMState, memoryProofAddresses ...uint32) []byte
 
 func singalThreadedProofGenerator(t require.TestingT, state mipsevm.FPVMState, memoryProofAddresses ...uint32) []byte {
-	stState, ok := state.(*singlethreaded.State)
-	if !ok {
-		require.Fail(t, "Failed to cast FPVMState to singlethreaded State type")
-	}
-
 	var proofData []byte
 
-	insnProof := stState.GetMemory().MerkleProof(stState.GetPC())
+	insnProof := state.GetMemory().MerkleProof(state.GetPC())
 	proofData = append(proofData, insnProof[:]...)
 
 	for _, addr := range memoryProofAddresses {
-		memProof := stState.GetMemory().MerkleProof(addr)
+		memProof := state.GetMemory().MerkleProof(addr)
 		proofData = append(proofData, memProof[:]...)
 	}
 
