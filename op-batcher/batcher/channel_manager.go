@@ -83,6 +83,10 @@ func (s *channelManager) Clear(l1OriginLastClosedChannel eth.BlockID) {
 	s.txChannels = make(map[string]*channel)
 }
 
+func (s *channelManager) pendingBlocks() int {
+	return s.blocks.Len() - s.blockCursor
+}
+
 // TxFailed records a transaction as failed. It will attempt to resubmit the data
 // in the failed transaction.
 func (s *channelManager) TxFailed(_id txID) {
@@ -233,7 +237,7 @@ func (s *channelManager) getReadyChannel(l1Head eth.BlockID) (*channel, error) {
 	// No pending tx data, so we have to add new blocks to the channel
 
 	// If we have no saved blocks, we will not be able to create valid frames
-	if s.blocks.Len() == 0 {
+	if s.pendingBlocks() == 0 {
 		return nil, io.EOF
 	}
 
@@ -349,7 +353,7 @@ func (s *channelManager) processBlocks() error {
 		s.currentChannel.ReadyBytes())
 	s.log.Debug("Added blocks to channel",
 		"blocks_added", blocksAdded,
-		"blocks_pending", s.blocks.Len(),
+		"blocks_pending", s.pendingBlocks(),
 		"channel_full", s.currentChannel.IsFull(),
 		"input_bytes", s.currentChannel.InputBytes(),
 		"ready_bytes", s.currentChannel.ReadyBytes(),
@@ -374,7 +378,7 @@ func (s *channelManager) outputFrames() error {
 	inBytes, outBytes := s.currentChannel.InputBytes(), s.currentChannel.OutputBytes()
 	s.metr.RecordChannelClosed(
 		s.currentChannel.ID(),
-		s.blocks.Len(),
+		s.pendingBlocks(),
 		s.currentChannel.TotalFrames(),
 		inBytes,
 		outBytes,
@@ -388,7 +392,7 @@ func (s *channelManager) outputFrames() error {
 
 	s.log.Info("Channel closed",
 		"id", s.currentChannel.ID(),
-		"blocks_pending", s.blocks.Len(),
+		"blocks_pending", s.pendingBlocks(),
 		"num_frames", s.currentChannel.TotalFrames(),
 		"input_bytes", inBytes,
 		"output_bytes", outBytes,
