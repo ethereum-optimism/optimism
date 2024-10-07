@@ -524,25 +524,43 @@ func (s *channelManager) Requeue(newCfg ChannelConfig) {
 // pruneSafeBlocks dequeues blocks from the internal blocks queue
 // if they have now become safe.
 func (s *channelManager) pruneSafeBlocks(newSafeHead eth.L2BlockRef) error {
-	if oldSafeHead, ok := s.blocks.Peek(); ok {
-		if newSafeHead.Number < oldSafeHead.Number().Uint64() {
-			return errors.New("new safe head behind existing safe head")
-		}
-		numBlocksToDequeue := newSafeHead.Number - oldSafeHead.Number().Uint64()
-		if s.blocks[numBlocksToDequeue-1].Hash() != newSafeHead.Hash {
-			// This indicates a safe chain reorg
-			// TODO should this have a different error type?
-			return ErrReorg
-		}
-		_, ok := s.blocks.DequeueN(int(numBlocksToDequeue))
-		if !ok {
-			return errors.New("safe head moved beyond internal blocks range")
-		}
-		s.blockCursor -= int(numBlocksToDequeue)
-		if s.blockCursor < 0 {
-			panic("blockCursor got into bad state")
-		}
+
+	oldestBlock, ok := s.blocks.Peek()
+	if !ok {
+		// no blocks to prune
+		return nil
 	}
+	oldSafeHeadNumber := oldestBlock.NumberU64() - 1
+
+	if newSafeHead.Number == oldSafeHeadNumber {
+		// no blocks to prune
+		return nil
+	}
+
+	if newSafeHead.Number < oldSafeHeadNumber {
+		return errors.New("new safe head behind existing safe head")
+	}
+
+	numBlocksToDequeue := newSafeHead.Number - oldSafeHeadNumber
+
+	if numBlocksToDequeue >= uint64(s.blocks.Len()) {
+		return errors.New("tried to dequeue more blocks than we had")
+	}
+
+	if s.blocks[numBlocksToDequeue-1].Hash() != newSafeHead.Hash {
+		// This indicates a safe chain reorg
+		// TODO should this have a different error type?
+		return ErrReorg
+	}
+	_, ok = s.blocks.DequeueN(int(numBlocksToDequeue))
+	if !ok {
+		return errors.New("safe head moved beyond internal blocks range")
+	}
+	s.blockCursor -= int(numBlocksToDequeue)
+	if s.blockCursor < 0 {
+		panic("blockCursor got into bad state")
+	}
+
 	return nil
 }
 
@@ -551,7 +569,7 @@ func (s *channelManager) pruneSafeBlocks(newSafeHead eth.L2BlockRef) error {
 func (s *channelManager) pruneChannels(newSafeHead eth.L2BlockRef) {
 	i := 0
 	for _, ch := range s.channelQueue {
-		if ch.channelBuilder.blocks[len(ch.channelBuilder.blocks)].Number().Uint64() > newSafeHead.Number {
+		if ch.channelBuilder.blocks[len(ch.channelBuilder.blocks)-1].Number().Uint64() > newSafeHead.Number {
 			break
 		}
 		i++
