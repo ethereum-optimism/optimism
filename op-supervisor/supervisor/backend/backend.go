@@ -232,6 +232,6 @@ func (su *SupervisorBackend) DerivedFrom(
 	chainID types.ChainID,
 	blockHash common.Hash,
 	blockNumber uint64) (eth.BlockRef, error) {
-	// TODO
+	// TODO(#12358): attach to backend
 	return eth.BlockRef{}, nil
 }

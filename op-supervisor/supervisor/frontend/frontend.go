@@ -53,22 +53,22 @@ func (q *QueryFrontend) CheckMessages(
 }
 
 func (q *QueryFrontend) UnsafeView(ctx context.Context, chainID types.ChainID, unsafe types.ReferenceView) (types.ReferenceView, error) {
-	// TODO
+	// TODO(#12358): attach to backend
 	return types.ReferenceView{}, nil
 }
 
 func (q *QueryFrontend) SafeView(ctx context.Context, chainID types.ChainID, safe types.ReferenceView) (types.ReferenceView, error) {
-	// TODO
+	// TODO(#12358): attach to backend
 	return types.ReferenceView{}, nil
 }
 
 func (q *QueryFrontend) Finalized(ctx context.Context, chainID types.ChainID) (eth.BlockID, error) {
-	// TODO
+	// TODO(#12358): attach to backend
 	return eth.BlockID{}, nil
 }
 
 func (q *QueryFrontend) DerivedFrom(ctx context.Context, chainID types.ChainID, blockHash common.Hash, blockNumber uint64) (eth.BlockRef, error) {
-	// TODO
+	// TODO(#12358): attach to backend
 	return eth.BlockRef{}, nil
 }
 
