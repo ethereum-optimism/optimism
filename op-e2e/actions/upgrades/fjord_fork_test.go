@@ -31,7 +31,7 @@ var (
 
 func TestFjordNetworkUpgradeTransactions(gt *testing.T) {
 	t := helpers.NewDefaultTesting(gt)
-	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams)
+	dp := e2eutils.MakeDeployParams(t, helpers.DefaultRollupTestParams())
 	genesisBlock := hexutil.Uint64(0)
 	fjordOffset := hexutil.Uint64(2)
 

@@ -369,7 +369,7 @@ func DiffTestUtils() {
 		checkErr(err, "Error decoding addr")
 		insn, err := strconv.ParseUint(args[2], 10, 32)
 		checkErr(err, "Error decoding insn")
-		mem.SetMemory(uint32(pc), uint32(insn))
+		mem.SetUint32(uint32(pc), uint32(insn))
 
 		var insnProof, memProof [896]byte
 		if len(args) >= 5 {
@@ -377,7 +377,7 @@ func DiffTestUtils() {
 			checkErr(err, "Error decoding memAddr")
 			memValue, err := strconv.ParseUint(args[4], 10, 32)
 			checkErr(err, "Error decoding memValue")
-			mem.SetMemory(uint32(memAddr), uint32(memValue))
+			mem.SetUint32(uint32(memAddr), uint32(memValue))
 			memProof = mem.MerkleProof(uint32(memAddr))
 		}
 		if len(args) == 7 {
@@ -385,7 +385,7 @@ func DiffTestUtils() {
 			checkErr(err, "Error decoding memAddr")
 			memValue, err := strconv.ParseUint(args[6], 10, 32)
 			checkErr(err, "Error decoding memValue")
-			mem.SetMemory(uint32(memAddr), uint32(memValue))
+			mem.SetUint32(uint32(memAddr), uint32(memValue))
 			memProof = mem.MerkleProof(uint32(memAddr))
 		}
 		insnProof = mem.MerkleProof(uint32(pc))
@@ -411,14 +411,14 @@ func DiffTestUtils() {
 		checkErr(err, "Error decoding addr")
 		insn, err := strconv.ParseUint(args[2], 10, 32)
 		checkErr(err, "Error decoding insn")
-		mem.SetMemory(uint32(pc), uint32(insn))
+		mem.SetUint32(uint32(pc), uint32(insn))
 
 		var memProof [896]byte
 		memAddr, err := strconv.ParseUint(args[3], 10, 32)
 		checkErr(err, "Error decoding memAddr")
 		memValue, err := strconv.ParseUint(args[4], 10, 32)
 		checkErr(err, "Error decoding memValue")
-		mem.SetMemory(uint32(memAddr), uint32(memValue))
+		mem.SetUint32(uint32(memAddr), uint32(memValue))
 
 		memAddr2, err := strconv.ParseUint(args[5], 10, 32)
 		checkErr(err, "Error decoding memAddr")
@@ -444,14 +444,14 @@ func DiffTestUtils() {
 		checkErr(err, "Error decoding addr")
 		insn, err := strconv.ParseUint(args[2], 10, 32)
 		checkErr(err, "Error decoding insn")
-		mem.SetMemory(uint32(pc), uint32(insn))
+		mem.SetUint32(uint32(pc), uint32(insn))
 
 		var insnProof, memProof [896]byte
 		memAddr, err := strconv.ParseUint(args[3], 10, 32)
 		checkErr(err, "Error decoding memAddr")
 		memValue, err := strconv.ParseUint(args[4], 10, 32)
 		checkErr(err, "Error decoding memValue")
-		mem.SetMemory(uint32(memAddr), uint32(memValue))
+		mem.SetUint32(uint32(memAddr), uint32(memValue))
 
 		// Compute a valid proof for the root, but for the wrong leaves.
 		memProof = mem.MerkleProof(uint32(memAddr + 32))

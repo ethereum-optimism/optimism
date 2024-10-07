@@ -40,7 +40,7 @@ FROM --platform=linux/amd64 debian:bullseye-slim as go-build
 
 RUN apt-get update && apt-get install -y curl ca-certificates jq binutils
 
-ENV GO_VERSION=1.21.1
+ENV GO_VERSION=1.22.7
 
 # Fetch go manually, rather than using a Go base image, so we can copy the installation into the final stage
 RUN curl -sL https://go.dev/dl/go$GO_VERSION.linux-amd64.tar.gz -o go$GO_VERSION.linux-amd64.tar.gz && \

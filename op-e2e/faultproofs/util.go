@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/e2esys"
 	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
 
@@ -46,6 +47,12 @@ func WithEcotone() faultDisputeConfigOpts {
 func WithSequencerWindowSize(size uint64) faultDisputeConfigOpts {
 	return func(cfg *e2esys.SystemConfig) {
 		cfg.DeployConfig.SequencerWindowSize = size
+	}
+}
+
+func WithAllocType(allocType config.AllocType) faultDisputeConfigOpts {
+	return func(cfg *e2esys.SystemConfig) {
+		cfg.AllocType = allocType
 	}
 }
 

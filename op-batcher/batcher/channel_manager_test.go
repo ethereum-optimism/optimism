@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	derivetest "github.com/ethereum-optimism/optimism/op-node/rollup/derive/test"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/queue"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -87,7 +88,7 @@ func ChannelManagerReturnsErrReorg(t *testing.T, batchType uint) {
 	require.NoError(t, m.AddL2Block(c))
 	require.ErrorIs(t, m.AddL2Block(x), ErrReorg)
 
-	require.Equal(t, []*types.Block{a, b, c}, m.blocks)
+	require.Equal(t, queue.Queue[*types.Block]{a, b, c}, m.blocks)
 }
 
 // ChannelManagerReturnsErrReorgWhenDrained ensures that the channel manager
@@ -626,7 +627,7 @@ func TestChannelManager_Requeue(t *testing.T) {
 
 	// This is the snapshot of channel manager state we want to reinstate
 	// when we requeue
-	stateSnapshot := []*types.Block{blockA, blockB}
+	stateSnapshot := queue.Queue[*types.Block]{blockA, blockB}
 	m.blocks = stateSnapshot
 	require.Empty(t, m.channelQueue)
 
@@ -664,5 +665,6 @@ func TestChannelManager_Requeue(t *testing.T) {
 
 	// The requeue shouldn't affect the pending channel
 	require.Contains(t, m.channelQueue, channel0)
+
 	require.NotContains(t, m.blocks, blockA)
 }

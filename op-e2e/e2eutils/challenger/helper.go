@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	e2econfig "github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-service/crypto"
 
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -23,7 +24,6 @@ import (
 	challenger "github.com/ethereum-optimism/optimism/op-challenger"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
@@ -38,6 +38,11 @@ type EndpointProvider interface {
 	L1BeaconEndpoint() endpoint.RestHTTP
 }
 
+type System interface {
+	RollupCfg() *rollup.Config
+	L2Genesis() *core.Genesis
+	AllocType() e2econfig.AllocType
+}
 type Helper struct {
 	log     log.Logger
 	t       *testing.T
@@ -115,16 +120,16 @@ func FindMonorepoRoot(t *testing.T) string {
 	return ""
 }
 
-func applyCannonConfig(c *config.Config, t *testing.T, rollupCfg *rollup.Config, l2Genesis *core.Genesis) {
+func applyCannonConfig(c *config.Config, t *testing.T, rollupCfg *rollup.Config, l2Genesis *core.Genesis, allocType e2econfig.AllocType) {
 	require := require.New(t)
 	root := FindMonorepoRoot(t)
 	c.Cannon.VmBin = root + "cannon/bin/cannon"
 	c.Cannon.Server = root + "op-program/bin/op-program"
-	if e2eutils.UseMTCannon() {
+	if allocType == e2econfig.AllocTypeMTCannon {
 		t.Log("Using MT-Cannon absolute prestate")
 		c.CannonAbsolutePreState = root + "op-program/bin/prestate-mt.bin.gz"
 	} else {
-		c.CannonAbsolutePreState = root + "op-program/bin/prestate.json"
+		c.CannonAbsolutePreState = root + "op-program/bin/prestate.bin.gz"
 	}
 	c.Cannon.SnapshotFreq = 10_000_000
 
@@ -141,17 +146,17 @@ func applyCannonConfig(c *config.Config, t *testing.T, rollupCfg *rollup.Config,
 	c.Cannon.RollupConfigPath = rollupFile
 }
 
-func WithCannon(t *testing.T, rollupCfg *rollup.Config, l2Genesis *core.Genesis) Option {
+func WithCannon(t *testing.T, system System) Option {
 	return func(c *config.Config) {
 		c.TraceTypes = append(c.TraceTypes, types.TraceTypeCannon)
-		applyCannonConfig(c, t, rollupCfg, l2Genesis)
+		applyCannonConfig(c, t, system.RollupCfg(), system.L2Genesis(), system.AllocType())
 	}
 }
 
-func WithPermissioned(t *testing.T, rollupCfg *rollup.Config, l2Genesis *core.Genesis) Option {
+func WithPermissioned(t *testing.T, system System) Option {
 	return func(c *config.Config) {
 		c.TraceTypes = append(c.TraceTypes, types.TraceTypePermissioned)
-		applyCannonConfig(c, t, rollupCfg, l2Genesis)
+		applyCannonConfig(c, t, system.RollupCfg(), system.L2Genesis(), system.AllocType())
 	}
 }
 

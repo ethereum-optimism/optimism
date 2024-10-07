@@ -134,7 +134,7 @@ reproducible-prestate:   ## Builds reproducible-prestate binary
 .PHONY: reproducible-prestate
 
 # Include any files required for the devnet to build and run.
-DEVNET_CANNON_PRESTATE_FILES := op-program/bin/prestate-proof.json op-program/bin/prestate.json op-program/bin/prestate-proof-mt.json op-program/bin/prestate-mt.bin.gz
+DEVNET_CANNON_PRESTATE_FILES := op-program/bin/prestate-proof.json op-program/bin/prestate.bin.gz op-program/bin/prestate-proof-mt.json op-program/bin/prestate-mt.bin.gz
 
 
 $(DEVNET_CANNON_PRESTATE_FILES):
@@ -142,8 +142,8 @@ $(DEVNET_CANNON_PRESTATE_FILES):
 	make cannon-prestate-mt
 
 cannon-prestate: op-program cannon ## Generates prestate using cannon and op-program
-	./cannon/bin/cannon load-elf --type singlethreaded --path op-program/bin/op-program-client.elf --out op-program/bin/prestate.json --meta op-program/bin/meta.json
-	./cannon/bin/cannon run --proof-at '=0'  --stop-at '=1' --input op-program/bin/prestate.json --meta op-program/bin/meta.json --proof-fmt 'op-program/bin/%d.json' --output ""
+	./cannon/bin/cannon load-elf --type singlethreaded-2 --path op-program/bin/op-program-client.elf --out op-program/bin/prestate.bin.gz --meta op-program/bin/meta.json
+	./cannon/bin/cannon run --proof-at '=0'  --stop-at '=1' --input op-program/bin/prestate.bin.gz --meta op-program/bin/meta.json --proof-fmt 'op-program/bin/%d.json' --output ""
 	mv op-program/bin/0.json op-program/bin/prestate-proof.json
 .PHONY: cannon-prestate
 
@@ -205,6 +205,19 @@ devnet-clean: ## Cleans up local devnet environment
 devnet-allocs: pre-devnet ## Generates allocations for the local devnet
 	PYTHONPATH=./bedrock-devnet $(PYTHON) ./bedrock-devnet/main.py --monorepo-dir=. --allocs
 .PHONY: devnet-allocs
+
+devnet-allocs-tests:
+	DEVNET_L2OO=true make devnet-allocs
+	cp -r .devnet/ .devnet-l2oo/
+	DEVNET_ALTDA=true make devnet-allocs
+	cp -r .devnet/ .devnet-alt-da/
+	DEVNET_ALTDA=false GENERIC_ALTDA=true make devnet-allocs
+	cp -r .devnet/ .devnet-alt-da-generic/
+	USE_MT_CANNON=true make devnet-allocs
+	cp -r .devnet/ .devnet-mt-cannon
+	make devnet-allocs
+	cp -r .devnet/ .devnet-standard/
+.PHONY: devnet-allocs-tests
 
 devnet-logs: ## Displays logs for the local devnet
 	@(cd ./ops-bedrock && docker compose logs -f)

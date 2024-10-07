@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/ethereum-optimism/optimism/cannon/serialize"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
+	"github.com/ethereum-optimism/optimism/op-service/serialize"
 )
 
 func DetectVersion(path string) (StateVersion, error) {
@@ -27,7 +27,7 @@ func DetectVersion(path string) (StateVersion, error) {
 	}
 
 	switch ver {
-	case VersionSingleThreaded, VersionMultiThreaded:
+	case VersionSingleThreaded, VersionMultiThreaded, VersionSingleThreaded2, VersionMultiThreaded64:
 		return ver, nil
 	default:
 		return 0, fmt.Errorf("%w: %d", ErrUnknownVersion, ver)

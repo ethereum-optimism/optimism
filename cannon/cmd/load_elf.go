@@ -11,10 +11,10 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/singlethreaded"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
-	"github.com/ethereum-optimism/optimism/cannon/serialize"
 	openum "github.com/ethereum-optimism/optimism/op-service/enum"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
+	"github.com/ethereum-optimism/optimism/op-service/serialize"
 )
 
 var (
@@ -25,7 +25,7 @@ var (
 	}
 	LoadELFPathFlag = &cli.PathFlag{
 		Name:      "path",
-		Usage:     "Path to 32-bit big-endian MIPS ELF file",
+		Usage:     "Path to 32/64-bit big-endian MIPS ELF file",
 		TakesFile: true,
 		Required:  true,
 	}
@@ -69,7 +69,7 @@ func LoadELF(ctx *cli.Context) error {
 		return err
 	}
 	switch ver {
-	case versions.VersionSingleThreaded:
+	case versions.VersionSingleThreaded2:
 		createInitialState = func(f *elf.File) (mipsevm.FPVMState, error) {
 			return program.LoadELF(f, singlethreaded.CreateInitialState)
 		}
@@ -80,7 +80,7 @@ func LoadELF(ctx *cli.Context) error {
 			}
 			return program.PatchStack(state)
 		}
-	case versions.VersionMultiThreaded:
+	case versions.VersionMultiThreaded, versions.VersionMultiThreaded64:
 		createInitialState = func(f *elf.File) (mipsevm.FPVMState, error) {
 			return program.LoadELF(f, multithreaded.CreateInitialState)
 		}

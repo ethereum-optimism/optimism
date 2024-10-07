@@ -15,7 +15,7 @@ type View struct {
 	iter logs.Iterator
 
 	localView        heads.HeadPointer
-	localDerivedFrom eth.L1BlockRef
+	localDerivedFrom eth.BlockRef
 
 	validWithinView func(l1View uint64, execMsg *types.ExecutingMessage) error
 }
@@ -31,7 +31,7 @@ func (vi *View) Local() (heads.HeadPointer, error) {
 	return vi.localView, nil
 }
 
-func (vi *View) UpdateLocal(at eth.L1BlockRef, ref eth.L2BlockRef) error {
+func (vi *View) UpdateLocal(at eth.BlockRef, ref eth.BlockRef) error {
 	vi.localView = heads.HeadPointer{
 		LastSealedBlockHash: ref.Hash,
 		LastSealedBlockNum:  ref.Number,
@@ -66,7 +66,7 @@ func (vi *View) Process() error {
 			return logs.ErrFuture
 		}
 		// check if it is an executing message. If so, check the dependency
-		if execMsg := state.ExecMessage(); execMsg == nil {
+		if execMsg := state.ExecMessage(); execMsg != nil {
 			// Check if executing message is within cross L2 view,
 			// relative to the L1 view of current message.
 			// And check if the message is valid to execute at all

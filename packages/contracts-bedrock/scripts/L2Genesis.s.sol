@@ -20,12 +20,12 @@ import { BaseFeeVault } from "src/L2/BaseFeeVault.sol";
 import { L1FeeVault } from "src/L2/L1FeeVault.sol";
 import { OptimismSuperchainERC20Beacon } from "src/L2/OptimismSuperchainERC20Beacon.sol";
 import { OptimismMintableERC721Factory } from "src/universal/OptimismMintableERC721Factory.sol";
-import { FeeVault } from "src/universal/FeeVault.sol";
 import { GovernanceToken } from "src/governance/GovernanceToken.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Preinstalls } from "src/libraries/Preinstalls.sol";
+import { Types } from "src/libraries/Types.sol";
 
 // Interfaces
 import { IOptimismMintableERC20Factory } from "src/universal/interfaces/IOptimismMintableERC20Factory.sol";
@@ -344,7 +344,7 @@ contract L2Genesis is Deployer {
         SequencerFeeVault vault = new SequencerFeeVault({
             _recipient: cfg.sequencerFeeVaultRecipient(),
             _minWithdrawalAmount: cfg.sequencerFeeVaultMinimumWithdrawalAmount(),
-            _withdrawalNetwork: FeeVault.WithdrawalNetwork(cfg.sequencerFeeVaultWithdrawalNetwork())
+            _withdrawalNetwork: Types.WithdrawalNetwork(cfg.sequencerFeeVaultWithdrawalNetwork())
         });
 
         address impl = Predeploys.predeployToCodeNamespace(Predeploys.SEQUENCER_FEE_WALLET);
@@ -428,7 +428,7 @@ contract L2Genesis is Deployer {
         BaseFeeVault vault = new BaseFeeVault({
             _recipient: cfg.baseFeeVaultRecipient(),
             _minWithdrawalAmount: cfg.baseFeeVaultMinimumWithdrawalAmount(),
-            _withdrawalNetwork: FeeVault.WithdrawalNetwork(cfg.baseFeeVaultWithdrawalNetwork())
+            _withdrawalNetwork: Types.WithdrawalNetwork(cfg.baseFeeVaultWithdrawalNetwork())
         });
 
         address impl = Predeploys.predeployToCodeNamespace(Predeploys.BASE_FEE_VAULT);
@@ -445,7 +445,7 @@ contract L2Genesis is Deployer {
         L1FeeVault vault = new L1FeeVault({
             _recipient: cfg.l1FeeVaultRecipient(),
             _minWithdrawalAmount: cfg.l1FeeVaultMinimumWithdrawalAmount(),
-            _withdrawalNetwork: FeeVault.WithdrawalNetwork(cfg.l1FeeVaultWithdrawalNetwork())
+            _withdrawalNetwork: Types.WithdrawalNetwork(cfg.l1FeeVaultWithdrawalNetwork())
         });
 
         address impl = Predeploys.predeployToCodeNamespace(Predeploys.L1_FEE_VAULT);

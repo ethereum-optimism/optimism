@@ -6,7 +6,6 @@ import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
 import { IProtocolVersions } from "src/L1/interfaces/IProtocolVersions.sol";
 import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
 import { ISystemConfig } from "src/L1/interfaces/ISystemConfig.sol";
-import { ISystemConfigInterop } from "src/L1/interfaces/ISystemConfigInterop.sol";
 
 /// @custom:proxied true
 contract OPContractsManagerInterop is OPContractsManager {
@@ -46,7 +45,7 @@ contract OPContractsManagerInterop is OPContractsManager {
             _input.basefeeScalar,
             _input.blobBasefeeScalar,
             bytes32(uint256(uint160(_input.roles.batcher))), // batcherHash
-            30_000_000, // gasLimit TODO make this configurable?
+            _input.gasLimit,
             _input.roles.unsafeBlockSigner,
             referenceResourceConfig,
             chainIdToBatchInboxAddress(_input.l2ChainId),

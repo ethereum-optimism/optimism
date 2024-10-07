@@ -129,7 +129,7 @@ func TestUpdateState(t *testing.T) {
 	genesisBlock := l2Genesis.MustCommit(db, trieDB)
 	assertStateDataAvailable(t, db, l2Genesis, genesisBlock)
 
-	statedb, err := state.New(genesisBlock.Root(), state.NewDatabase(rawdb.NewDatabase(db)), nil)
+	statedb, err := state.New(genesisBlock.Root(), state.NewDatabase(triedb.NewDatabase(rawdb.NewDatabase(db), nil), nil))
 	require.NoError(t, err)
 	statedb.MakeSinglethreaded()
 	statedb.SetBalance(userAccount, uint256.NewInt(50), tracing.BalanceChangeUnspecified)
@@ -148,7 +148,7 @@ func TestUpdateState(t *testing.T) {
 	err = statedb.Database().TrieDB().Commit(newRoot, true)
 	require.NoError(t, err)
 
-	statedb, err = state.New(newRoot, state.NewDatabase(rawdb.NewDatabase(db)), nil)
+	statedb, err = state.New(newRoot, state.NewDatabase(triedb.NewDatabase(rawdb.NewDatabase(db), nil), nil))
 	require.NoError(t, err)
 	statedb.MakeSinglethreaded()
 	require.Equal(t, uint256.NewInt(50), statedb.GetBalance(userAccount))
@@ -183,7 +183,7 @@ func createGenesis() *core.Genesis {
 }
 
 func assertStateDataAvailable(t *testing.T, db ethdb.KeyValueStore, l2Genesis *core.Genesis, genesisBlock *types.Block) {
-	statedb, err := state.New(genesisBlock.Root(), state.NewDatabase(rawdb.NewDatabase(db)), nil)
+	statedb, err := state.New(genesisBlock.Root(), state.NewDatabase(triedb.NewDatabase(rawdb.NewDatabase(db), nil), nil))
 	require.NoError(t, err)
 
 	for address, account := range l2Genesis.Alloc {

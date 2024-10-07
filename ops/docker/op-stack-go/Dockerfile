@@ -7,10 +7,10 @@
 
 # All target images use this as base image, and add the final build results.
 # It will default to the target platform.
-ARG TARGET_BASE_IMAGE=alpine:3.18
+ARG TARGET_BASE_IMAGE=alpine:3.20
 
 # We may be cross-building for another platform. Specify which platform we need as builder.
-FROM --platform=$BUILDPLATFORM golang:1.21.3-alpine3.18 AS builder
+FROM --platform=$BUILDPLATFORM golang:1.22.7-alpine3.20 AS builder
 
 RUN apk add --no-cache make gcc musl-dev linux-headers git jq bash
 
@@ -47,14 +47,11 @@ ARG TARGETARCH
 # The "id" defaults to the value of "target", the cache will thus be reused during this build.
 # "sharing" defaults to "shared", the cache will thus be available to other concurrent docker builds.
 
-# For now fetch the v1 cannon binary from the op-challenger image
-#FROM --platform=$BUILDPLATFORM us-docker.pkg.dev/oplabs-tools-artifacts/images/op-challenger:v1.1.0 AS cannon-builder-0
+FROM --platform=$BUILDPLATFORM us-docker.pkg.dev/oplabs-tools-artifacts/images/cannon:v1.0.0-alpha.3 AS cannon-builder-0
 
 FROM --platform=$BUILDPLATFORM builder AS cannon-builder
 ARG CANNON_VERSION=v0.0.0
-# uncomment these lines once there's a new Cannon version available
-#COPY --from=cannon-builder-0 /usr/local/bin/cannon ./cannon/multicannon/embeds/cannon-0
-#COPY --from=cannon-builder-0 /usr/local/bin/cannon ./cannon/multicannon/embeds/cannon-1
+COPY --from=cannon-builder-0 /usr/local/bin/cannon ./cannon/multicannon/embeds/cannon-0
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build cd cannon && make cannon  \
   GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$CANNON_VERSION"
 

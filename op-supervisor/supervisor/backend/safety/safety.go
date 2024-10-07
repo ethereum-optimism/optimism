@@ -14,9 +14,9 @@ import (
 
 type SafetyIndex interface {
 	// Updaters for the latest local safety status of each chain
-	UpdateLocalUnsafe(chainID types.ChainID, ref eth.L2BlockRef) error
-	UpdateLocalSafe(chainID types.ChainID, at eth.L1BlockRef, ref eth.L2BlockRef) error
-	UpdateFinalizeL1(ref eth.L1BlockRef) error
+	UpdateLocalUnsafe(chainID types.ChainID, ref eth.BlockRef) error
+	UpdateLocalSafe(chainID types.ChainID, at eth.BlockRef, ref eth.BlockRef) error
+	UpdateFinalizeL1(ref eth.BlockRef) error
 
 	// Getters for the latest safety status of each chain
 	UnsafeL2(chainID types.ChainID) (heads.HeadPointer, error)
@@ -42,10 +42,10 @@ type safetyIndex struct {
 	finalized map[types.ChainID]eth.BlockID
 
 	// remember what each non-finalized L2 block is derived from
-	derivedFrom map[types.ChainID]map[common.Hash]eth.L1BlockRef
+	derivedFrom map[types.ChainID]map[common.Hash]eth.BlockRef
 
 	// the last received L1 finality signal.
-	finalizedL1 eth.L1BlockRef
+	finalizedL1 eth.BlockRef
 }
 
 func NewSafetyIndex(log log.Logger, chains ChainsDBClient) *safetyIndex {
@@ -55,12 +55,12 @@ func NewSafetyIndex(log log.Logger, chains ChainsDBClient) *safetyIndex {
 		unsafe:      make(map[types.ChainID]*View),
 		safe:        make(map[types.ChainID]*View),
 		finalized:   make(map[types.ChainID]eth.BlockID),
-		derivedFrom: make(map[types.ChainID]map[common.Hash]eth.L1BlockRef),
+		derivedFrom: make(map[types.ChainID]map[common.Hash]eth.BlockRef),
 	}
 }
 
 // UpdateLocalUnsafe updates the local-unsafe view for the given chain, and advances the cross-unsafe status.
-func (r *safetyIndex) UpdateLocalUnsafe(chainID types.ChainID, ref eth.L2BlockRef) error {
+func (r *safetyIndex) UpdateLocalUnsafe(chainID types.ChainID, ref eth.BlockRef) error {
 	view, ok := r.safe[chainID]
 	if !ok {
 		iter, err := r.chains.IteratorStartingAt(chainID, ref.Number, 0)
@@ -76,11 +76,11 @@ func (r *safetyIndex) UpdateLocalUnsafe(chainID types.ChainID, ref eth.L2BlockRe
 				LastSealedTimestamp: ref.Time,
 				LogsSince:           0,
 			},
-			localDerivedFrom: eth.L1BlockRef{},
+			localDerivedFrom: eth.BlockRef{},
 			validWithinView:  r.ValidWithinUnsafeView,
 		}
 		r.unsafe[chainID] = view
-	} else if err := view.UpdateLocal(eth.L1BlockRef{}, ref); err != nil {
+	} else if err := view.UpdateLocal(eth.BlockRef{}, ref); err != nil {
 		return fmt.Errorf("failed to update local-unsafe: %w", err)
 	}
 	local, _ := r.unsafe[chainID].Local()
@@ -102,7 +102,7 @@ func (r *safetyIndex) advanceCrossUnsafe() {
 
 // UpdateLocalSafe updates the local-safe view for the given chain, and advances the cross-safe status.
 func (r *safetyIndex) UpdateLocalSafe(
-	chainID types.ChainID, at eth.L1BlockRef, ref eth.L2BlockRef) error {
+	chainID types.ChainID, at eth.BlockRef, ref eth.BlockRef) error {
 	view, ok := r.safe[chainID]
 	if !ok {
 		iter, err := r.chains.IteratorStartingAt(chainID, ref.Number, 0)
@@ -129,7 +129,7 @@ func (r *safetyIndex) UpdateLocalSafe(
 	// register what this L2 block is derived from
 	m, ok := r.derivedFrom[chainID]
 	if !ok {
-		m = make(map[common.Hash]eth.L1BlockRef)
+		m = make(map[common.Hash]eth.BlockRef)
 		r.derivedFrom[chainID] = m
 	}
 	m[ref.Hash] = at
@@ -152,7 +152,7 @@ func (r *safetyIndex) advanceCrossSafe() {
 }
 
 // UpdateFinalizeL1 updates the finalized L1 block, and advances the finalized safety status.
-func (r *safetyIndex) UpdateFinalizeL1(ref eth.L1BlockRef) error {
+func (r *safetyIndex) UpdateFinalizeL1(ref eth.BlockRef) error {
 	if ref.Number <= r.finalizedL1.Number {
 		return fmt.Errorf("ignoring old L1 finality signal of %s, already have %s", ref, r.finalizedL1)
 	}

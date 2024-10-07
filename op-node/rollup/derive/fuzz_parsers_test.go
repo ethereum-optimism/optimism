@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/core/tracing"
+	"github.com/ethereum/go-ethereum/triedb"
 	"github.com/google/go-cmp/cmp"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -244,7 +245,7 @@ func FuzzUnmarshallLogEvent(f *testing.F) {
 	}
 
 	// Set the EVM state up once to fuzz against
-	state, err := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
+	state, err := state.New(common.Hash{}, state.NewDatabase(triedb.NewDatabase(rawdb.NewMemoryDatabase(), nil), nil))
 	require.NoError(f, err)
 	state.SetBalance(from, uint256.MustFromBig(BytesToBigInt([]byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff})), tracing.BalanceChangeUnspecified)
 	_, addr, _, err := runtime.Create(common.FromHex(bindings.OptimismPortalMetaData.Bin), &runtime.Config{

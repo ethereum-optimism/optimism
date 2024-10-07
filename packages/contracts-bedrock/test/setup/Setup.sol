@@ -29,6 +29,7 @@ import { IDataAvailabilityChallenge } from "src/L1/interfaces/IDataAvailabilityC
 import { IL1StandardBridge } from "src/L1/interfaces/IL1StandardBridge.sol";
 import { IProtocolVersions } from "src/L1/interfaces/IProtocolVersions.sol";
 import { IL1ERC721Bridge } from "src/L1/interfaces/IL1ERC721Bridge.sol";
+import { IOptimismMintableERC721Factory } from "src/universal/interfaces/IOptimismMintableERC721Factory.sol";
 import { IDisputeGameFactory } from "src/dispute/interfaces/IDisputeGameFactory.sol";
 import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistry.sol";
@@ -96,6 +97,8 @@ contract Setup {
     IOptimismMintableERC20Factory l2OptimismMintableERC20Factory =
         IOptimismMintableERC20Factory(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY);
     IL2ERC721Bridge l2ERC721Bridge = IL2ERC721Bridge(Predeploys.L2_ERC721_BRIDGE);
+    IOptimismMintableERC721Factory l2OptimismMintableERC721Factory =
+        IOptimismMintableERC721Factory(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY);
     IBaseFeeVault baseFeeVault = IBaseFeeVault(payable(Predeploys.BASE_FEE_VAULT));
     ISequencerFeeVault sequencerFeeVault = ISequencerFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET));
     IL1FeeVault l1FeeVault = IL1FeeVault(payable(Predeploys.L1_FEE_VAULT));
@@ -147,7 +150,6 @@ contract Setup {
         optimismPortal2 = IOptimismPortal2(deploy.mustGetAddress("OptimismPortalProxy"));
         disputeGameFactory = IDisputeGameFactory(deploy.mustGetAddress("DisputeGameFactoryProxy"));
         delayedWeth = IDelayedWETH(deploy.mustGetAddress("DelayedWETHProxy"));
-        l2OutputOracle = IL2OutputOracle(deploy.mustGetAddress("L2OutputOracleProxy"));
         systemConfig = ISystemConfig(deploy.mustGetAddress("SystemConfigProxy"));
         l1StandardBridge = IL1StandardBridge(deploy.mustGetAddress("L1StandardBridgeProxy"));
         l1CrossDomainMessenger = IL1CrossDomainMessenger(deploy.mustGetAddress("L1CrossDomainMessengerProxy"));
@@ -159,8 +161,6 @@ contract Setup {
         superchainConfig = ISuperchainConfig(deploy.mustGetAddress("SuperchainConfigProxy"));
         anchorStateRegistry = IAnchorStateRegistry(deploy.mustGetAddress("AnchorStateRegistryProxy"));
 
-        vm.label(address(l2OutputOracle), "L2OutputOracle");
-        vm.label(deploy.mustGetAddress("L2OutputOracleProxy"), "L2OutputOracleProxy");
         vm.label(address(optimismPortal), "OptimismPortal");
         vm.label(deploy.mustGetAddress("OptimismPortalProxy"), "OptimismPortalProxy");
         vm.label(address(disputeGameFactory), "DisputeGameFactory");
@@ -183,6 +183,12 @@ contract Setup {
         vm.label(address(superchainConfig), "SuperchainConfig");
         vm.label(deploy.mustGetAddress("SuperchainConfigProxy"), "SuperchainConfigProxy");
         vm.label(AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger)), "L1CrossDomainMessenger_aliased");
+
+        if (!deploy.cfg().useFaultProofs()) {
+            l2OutputOracle = IL2OutputOracle(deploy.mustGetAddress("L2OutputOracleProxy"));
+            vm.label(address(l2OutputOracle), "L2OutputOracle");
+            vm.label(deploy.mustGetAddress("L2OutputOracleProxy"), "L2OutputOracleProxy");
+        }
 
         if (deploy.cfg().useAltDA()) {
             dataAvailabilityChallenge =
@@ -218,6 +224,7 @@ contract Setup {
         labelPredeploy(Predeploys.L2_TO_L1_MESSAGE_PASSER);
         labelPredeploy(Predeploys.SEQUENCER_FEE_WALLET);
         labelPredeploy(Predeploys.L2_ERC721_BRIDGE);
+        labelPredeploy(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY);
         labelPredeploy(Predeploys.BASE_FEE_VAULT);
         labelPredeploy(Predeploys.L1_FEE_VAULT);
         labelPredeploy(Predeploys.L1_BLOCK_ATTRIBUTES);

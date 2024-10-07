@@ -56,7 +56,7 @@ type OpGeth struct {
 func NewOpGeth(t testing.TB, ctx context.Context, cfg *e2esys.SystemConfig) (*OpGeth, error) {
 	logger := testlog.Logger(t, log.LevelCrit)
 
-	l1Genesis, err := genesis.BuildL1DeveloperGenesis(cfg.DeployConfig, config.L1Allocs, config.L1Deployments)
+	l1Genesis, err := genesis.BuildL1DeveloperGenesis(cfg.DeployConfig, config.L1Allocs(config.AllocTypeStandard), config.L1Deployments(config.AllocTypeStandard))
 	require.NoError(t, err)
 	l1Block := l1Genesis.ToBlock()
 
@@ -69,7 +69,7 @@ func NewOpGeth(t testing.TB, ctx context.Context, cfg *e2esys.SystemConfig) (*Op
 	} else if ecotoneTime := cfg.DeployConfig.EcotoneTime(l1Block.Time()); ecotoneTime != nil && *ecotoneTime <= 0 {
 		allocsMode = genesis.L2AllocsEcotone
 	}
-	l2Allocs := config.L2Allocs(allocsMode)
+	l2Allocs := config.L2Allocs(config.AllocTypeStandard, allocsMode)
 	l2Genesis, err := genesis.BuildL2Genesis(cfg.DeployConfig, l2Allocs, l1Block.Header())
 	require.NoError(t, err)
 	l2GenesisBlock := l2Genesis.ToBlock()
@@ -88,20 +88,10 @@ func NewOpGeth(t testing.TB, ctx context.Context, cfg *e2esys.SystemConfig) (*Op
 	}
 
 	var node services.EthInstance
-	if cfg.ExternalL2Shim == "" {
-		gethNode, err := geth.InitL2("l2", l2Genesis, cfg.JWTFilePath)
-		require.NoError(t, err)
-		require.NoError(t, gethNode.Node.Start())
-		node = gethNode
-	} else {
-		externalNode := (&e2esys.ExternalRunner{
-			Name:    "l2",
-			BinPath: cfg.ExternalL2Shim,
-			Genesis: l2Genesis,
-			JWTPath: cfg.JWTFilePath,
-		}).Run(t)
-		node = externalNode
-	}
+	gethNode, err := geth.InitL2("l2", l2Genesis, cfg.JWTFilePath)
+	require.NoError(t, err)
+	require.NoError(t, gethNode.Node.Start())
+	node = gethNode
 
 	auth := rpc.WithHTTPAuth(gn.NewJWTAuth(cfg.JWTSecret))
 	l2Node, err := client.NewRPC(ctx, logger, node.AuthRPC().RPC(), client.WithGethRPCOptions(auth))
