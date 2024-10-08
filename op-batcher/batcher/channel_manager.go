@@ -529,13 +529,12 @@ func (s *channelManager) pruneSafeBlocks(newSafeHead eth.L2BlockRef) {
 		return
 	}
 
-	oldSafeHeadNumber := oldestBlock.NumberU64() - 1
-	if newSafeHead.Number == oldSafeHeadNumber {
+	if newSafeHead.Number+1 == oldestBlock.NumberU64() {
 		// no blocks to prune
 		return
 	}
 
-	if newSafeHead.Number < oldSafeHeadNumber {
+	if newSafeHead.Number+1 < oldestBlock.NumberU64() {
 		// This could happen if there was an L1 reorg.
 		// We should restart work from the new safe head,
 		// and therefore prune all the blocks.
@@ -543,7 +542,7 @@ func (s *channelManager) pruneSafeBlocks(newSafeHead eth.L2BlockRef) {
 		return
 	}
 
-	numBlocksToDequeue := newSafeHead.Number - oldSafeHeadNumber
+	numBlocksToDequeue := newSafeHead.Number + 1 - oldestBlock.NumberU64()
 
 	if numBlocksToDequeue > uint64(s.blocks.Len()) {
 		// This could happen if the batcher restarted.
