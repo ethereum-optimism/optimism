@@ -1425,7 +1425,9 @@ contract Deploy is Deployer {
 
         // Redefine _param variable to avoid stack too deep error during compilation
         FaultDisputeGameParams memory _params_ = _params;
-        require(rawGameType != GameTypes.PERMISSIONED_CANNON.raw(), "Deploy: Permissioned Game should be deployed by OPCM");
+        require(
+            rawGameType != GameTypes.PERMISSIONED_CANNON.raw(), "Deploy: Permissioned Game should be deployed by OPCM"
+        );
         _factory.setImplementation(
             _params_.gameType,
             IDisputeGame(
@@ -1512,26 +1514,18 @@ contract Deploy is Deployer {
         });
         IAnchorStateRegistry.StartingAnchorRoot[] memory startingAnchorRoots =
             new IAnchorStateRegistry.StartingAnchorRoot[](5);
-        startingAnchorRoots[0] = IAnchorStateRegistry.StartingAnchorRoot({
-            gameType: GameTypes.CANNON,
-            outputRoot: testOutputRoot
-        });
+        startingAnchorRoots[0] =
+            IAnchorStateRegistry.StartingAnchorRoot({ gameType: GameTypes.CANNON, outputRoot: testOutputRoot });
         startingAnchorRoots[1] = IAnchorStateRegistry.StartingAnchorRoot({
             gameType: GameTypes.PERMISSIONED_CANNON,
             outputRoot: testOutputRoot
         });
-        startingAnchorRoots[2] = IAnchorStateRegistry.StartingAnchorRoot({
-            gameType: GameTypes.ASTERISC,
-            outputRoot: testOutputRoot
-        });
-        startingAnchorRoots[3] = IAnchorStateRegistry.StartingAnchorRoot({
-            gameType: GameTypes.FAST,
-            outputRoot: testOutputRoot
-        });
-        startingAnchorRoots[4] = IAnchorStateRegistry.StartingAnchorRoot({
-            gameType: GameTypes.ALPHABET,
-            outputRoot: testOutputRoot
-        });
+        startingAnchorRoots[2] =
+            IAnchorStateRegistry.StartingAnchorRoot({ gameType: GameTypes.ASTERISC, outputRoot: testOutputRoot });
+        startingAnchorRoots[3] =
+            IAnchorStateRegistry.StartingAnchorRoot({ gameType: GameTypes.FAST, outputRoot: testOutputRoot });
+        startingAnchorRoots[4] =
+            IAnchorStateRegistry.StartingAnchorRoot({ gameType: GameTypes.ALPHABET, outputRoot: testOutputRoot });
         string memory saltMixer = "salt mixer";
         return OPContractsManager.DeployInput({
             roles: OPContractsManager.Roles({
