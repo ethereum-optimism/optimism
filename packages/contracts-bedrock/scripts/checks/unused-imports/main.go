@@ -81,42 +81,15 @@ func run() error {
 	return nil
 }
 
-func removeMultiLineComments(content string) string {
-	var result strings.Builder
-	inComment := false
-	lines := strings.Split(content, "\n")
-
-	for _, line := range lines {
-		if inComment {
-			if strings.Contains(line, "*/") {
-				inComment = false
-				result.WriteString(strings.SplitN(line, "*/", 2)[1])
-				result.WriteString("\n")
-			}
-		} else {
-			if strings.Contains(line, "/*") {
-				inComment = true
-				result.WriteString(strings.SplitN(line, "/*", 2)[0])
-			} else {
-				result.WriteString(line)
-				result.WriteString("\n")
-			}
-		}
-	}
-
-	return result.String()
-}
-
 func processFile(filePath string, fail func(string, ...any)) {
 	content, err := os.ReadFile(filePath)
 	if err != nil {
 		fail("%s: failed to read file: %v", filePath, err)
 		return
 	}
-	cleanedContent := removeMultiLineComments(string(content))
 
-	imports := findImports(cleanedContent)
-	unusedImports := checkUnusedImports(imports, cleanedContent)
+	imports := findImports(string(content))
+	unusedImports := checkUnusedImports(imports, string(content))
 
 	if len(unusedImports) > 0 {
 		fail("File: %s\nUnused imports:", filePath)
