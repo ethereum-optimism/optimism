@@ -19,57 +19,49 @@ func OPSepoliaChainConfig() *params.ChainConfig {
 //go:embed configs/*json
 var customChainConfigFS embed.FS
 
-var CustomChainConfig *params.ChainConfig
-var CustomRollupConfig rollup.Config
+func RollupConfigByChainID(chainID uint64) (*rollup.Config, error) {
+	config, err := rollup.LoadOPStackRollupConfig(chainID)
+	if err == nil {
+		return config, err
+	}
+	return rollupConfigByChainID(chainID, customChainConfigFS)
+}
 
-func init() {
-	// Load custom l2 genesis and rollup config from embed FS
-	data, err := customChainConfigFS.ReadFile("configs/genesis-l2.json")
+func rollupConfigByChainID(chainID uint64, customChainFS embed.FS) (*rollup.Config, error) {
+	// Load custom rollup configs from embed FS
+	file, err := customChainFS.Open(fmt.Sprintf("configs/%d-rollup.json", chainID))
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("failed to get rollup config for chain ID %d: %w", chainID, err)
+	}
+	dec := json.NewDecoder(file)
+	dec.DisallowUnknownFields()
+	var customRollupConfig rollup.Config
+	if err := dec.Decode(&customRollupConfig); err != nil {
+		return nil, fmt.Errorf("failed to parse rollup config for chain ID %d: %w", chainID, err)
+	}
+	return &customRollupConfig, nil
+}
+
+func ChainConfigByChainID(chainID uint64) (*params.ChainConfig, error) {
+	config, err := params.LoadOPStackChainConfig(chainID)
+	if err == nil {
+		return config, err
+	}
+	return chainConfigByChainID(chainID, customChainConfigFS)
+}
+
+func chainConfigByChainID(chainID uint64, customChainFS embed.FS) (*params.ChainConfig, error) {
+	// Load from custom chain configs from embed FS
+	data, err := customChainFS.ReadFile(fmt.Sprintf("configs/%d-genesis-l2.json", chainID))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get chain config for chain ID %d: %w", chainID, err)
 	}
 	var genesis core.Genesis
 	err = json.Unmarshal(data, &genesis)
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("failed to parse chain config for chain ID %d: %w", chainID, err)
 	}
-	CustomChainConfig = genesis.Config
-
-	file, err := customChainConfigFS.Open("configs/rollup.json")
-	if err != nil {
-		panic(err)
-	}
-	dec := json.NewDecoder(file)
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&CustomRollupConfig); err != nil {
-		panic(err)
-	}
-	// Both configs must have the same L2 chainID
-	if CustomChainConfig.ChainID.Uint64() != CustomRollupConfig.L2ChainID.Uint64() {
-		panic(fmt.Errorf("mismatched genesis-l2.json chainid %d vs rollup.json chainid %d", CustomChainConfig.ChainID.Uint64(), CustomRollupConfig.L2ChainID.Uint64()))
-	}
-	// Do not override existing superchain registered configs
-	if _, err := params.LoadOPStackChainConfig(CustomChainConfig.ChainID.Uint64()); err == nil {
-		panic(fmt.Errorf("cannot override existing superchain registered config"))
-	}
-}
-
-func RollupConfigByChainID(chainID uint64) (*rollup.Config, error) {
-	if chainID == CustomRollupConfig.L2ChainID.Uint64() {
-		return &CustomRollupConfig, nil
-	}
-	config, err := rollup.LoadOPStackRollupConfig(chainID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get rollup config for chain ID %d: %w", chainID, err)
-	}
-	return config, nil
-}
-
-func ChainConfigByChainID(chainID uint64) (*params.ChainConfig, error) {
-	if chainID == CustomChainConfig.ChainID.Uint64() {
-		return CustomChainConfig, nil
-	}
-	return params.LoadOPStackChainConfig(chainID)
+	return genesis.Config, nil
 }
 
 func mustLoadChainConfig(name string) *params.ChainConfig {
