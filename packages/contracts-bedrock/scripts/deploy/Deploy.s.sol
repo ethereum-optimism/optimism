@@ -492,28 +492,6 @@ contract Deploy is Deployer {
         transferDelayedWETHOwnership();
     }
 
-    /// @notice Initialize all of the proxies in an OP Chain by upgrading to the correct proxy and calling the
-    /// initialize function
-    function initializeOpChain() public {
-        console.log("Initializing Op Chain proxies");
-        // The OptimismPortal Proxy is shared between the legacy and current deployment path, so we should initialize
-        // the OptimismPortal2 only if using FaultProofs.
-        if (cfg.useFaultProofs()) {
-            console.log("Fault proofs enabled. Initializing the OptimismPortal proxy with the OptimismPortal2.");
-            initializeOptimismPortal2();
-        }
-
-        initializeSystemConfig();
-        initializeL1StandardBridge();
-        initializeL1ERC721Bridge();
-        initializeOptimismMintableERC20Factory();
-        initializeL1CrossDomainMessenger();
-        initializeDisputeGameFactory();
-        initializeDelayedWETH();
-        initializePermissionedDelayedWETH();
-        initializeAnchorStateRegistry();
-    }
-
     /// @notice Add AltDA setup to the OP chain
     function setupOpAltDA() public {
         console.log("Deploying OP AltDA");
