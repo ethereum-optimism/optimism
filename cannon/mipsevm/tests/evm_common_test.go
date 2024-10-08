@@ -29,8 +29,8 @@ func TestEVM(t *testing.T) {
 
 	cases := GetMipsVersionTestCases(t)
 	skippedTests := map[string][]string{
-		"multi-threaded":  []string{"clone.bin"},
-		"single-threaded": []string{},
+		"multi-threaded":  {"clone.bin"},
+		"single-threaded": {},
 	}
 
 	for _, c := range cases {
@@ -313,6 +313,69 @@ func TestEVMSingleStep_LoadStore(t *testing.T) {
 			})
 		}
 	}
+}
+
+func TestEVMSingleStep_MovzMovn(t *testing.T) {
+	var tracer *tracing.Hooks
+	versions := GetMipsVersionTestCases(t)
+	cases := []struct {
+		name  string
+		funct uint32
+	}{
+		{name: "movz", funct: uint32(0xa)},
+		{name: "movn", funct: uint32(0xb)},
+	}
+	for _, v := range versions {
+		for i, tt := range cases {
+			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
+			t.Run(testName, func(t *testing.T) {
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPC(0), testutil.WithNextPC(4))
+				state := goVm.GetState()
+				rsReg := uint32(9)
+				rtReg := uint32(10)
+				rdReg := uint32(8)
+				insn := rsReg<<21 | rtReg<<16 | rdReg<<11 | tt.funct
+				var t2 Word
+				if tt.funct == 0xa {
+					t2 = 0x0
+				} else {
+					t2 = 0x1
+				}
+				state.GetRegistersRef()[rtReg] = t2
+				state.GetRegistersRef()[rsReg] = Word(0xb)
+				state.GetRegistersRef()[rdReg] = Word(0xa)
+				state.GetMemory().SetUint32(0, insn)
+				step := state.GetStep()
+				// Setup expectations
+				expected := testutil.NewExpectedState(state)
+				expected.ExpectStep()
+				expected.Registers[rdReg] = state.GetRegistersRef()[rsReg]
+
+				stepWitness, err := goVm.Step(true)
+				require.NoError(t, err)
+				// Check expectations
+				expected.Validate(t, state)
+				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, tracer)
+
+				if tt.funct == 0xa {
+					t2 = 0x1
+				} else {
+					t2 = 0x0
+				}
+				state.GetRegistersRef()[rtReg] = t2
+				expected.ExpectStep()
+				expected.Registers[rtReg] = t2
+				expected.Registers[rdReg] = state.GetRegistersRef()[rdReg]
+
+				stepWitness, err = goVm.Step(true)
+				require.NoError(t, err)
+				// Check expectations
+				expected.Validate(t, state)
+				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, tracer)
+			})
+		}
+	}
+
 }
 
 func TestEVM_MMap(t *testing.T) {
