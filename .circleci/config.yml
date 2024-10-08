@@ -1369,7 +1369,7 @@ jobs:
           name: Build contracts
           environment:
             FOUNDRY_PROFILE: ci
-          command: just build
+          command: just forge-build
           working_directory: packages/contracts-bedrock
       - run:
           name: Publish artifacts
