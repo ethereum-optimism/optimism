@@ -643,3 +643,35 @@ func TestChannelManager_Requeue(t *testing.T) {
 	require.Equal(t, m.blocks, stateSnapshot)
 	require.Empty(t, m.channelQueue)
 }
+
+func TestChannelManager_Prune(t *testing.T) {
+	l := testlog.Logger(t, log.LevelCrit)
+	cfg := channelManagerTestConfig(100, derive.SingularBatchType)
+	m := NewChannelManager(l, metrics.NoopMetrics, cfg, defaultTestRollupConfig)
+
+	a := types.NewBlock(&types.Header{
+		Number: big.NewInt(0),
+	}, nil, nil, nil)
+	b := types.NewBlock(&types.Header{ // This will shortly become the safe head
+		Number:     big.NewInt(1),
+		ParentHash: a.Hash(),
+	}, nil, nil, nil)
+	c := types.NewBlock(&types.Header{
+		Number:     big.NewInt(2),
+		ParentHash: b.Hash(),
+	}, nil, nil, nil)
+
+	require.NoError(t, m.AddL2Block(a))
+	m.blockCursor += 1
+	require.NoError(t, m.AddL2Block(b))
+	m.blockCursor += 1
+	require.NoError(t, m.AddL2Block(c))
+	m.blockCursor += 1
+
+	m.pruneSafeBlocks(eth.L2BlockRef{
+		Hash:   b.Hash(),
+		Number: b.NumberU64(),
+	})
+
+	require.Equal(t, queue.Queue[*types.Block]{c}, m.blocks)
+}
