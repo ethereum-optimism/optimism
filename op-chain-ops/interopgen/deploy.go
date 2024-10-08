@@ -166,6 +166,7 @@ func DeploySuperchainToL1(l1Host *script.Host, superCfg *SuperchainConfig) (*Sup
 		ChallengePeriodSeconds:          superCfg.Implementations.FaultProof.ChallengePeriodSeconds,
 		ProofMaturityDelaySeconds:       superCfg.Implementations.FaultProof.ProofMaturityDelaySeconds,
 		DisputeGameFinalityDelaySeconds: superCfg.Implementations.FaultProof.DisputeGameFinalityDelaySeconds,
+		MipsVersion:                     superCfg.Implementations.FaultProof.MipsVersion,
 		Release:                         superCfg.Implementations.Release,
 		SuperchainConfigProxy:           superDeployment.SuperchainConfigProxy,
 		ProtocolVersionsProxy:           superDeployment.ProtocolVersionsProxy,

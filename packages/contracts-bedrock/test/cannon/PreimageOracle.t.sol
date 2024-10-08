@@ -24,7 +24,7 @@ contract PreimageOracle_Test is Test {
     /// @param _challengePeriod The challenge period to test.
     function testFuzz_constructor_challengePeriodTooLarge_reverts(uint256 _challengePeriod) public {
         _challengePeriod = bound(_challengePeriod, uint256(type(uint64).max) + 1, type(uint256).max);
-        vm.expectRevert("challenge period too large");
+        vm.expectRevert("PreimageOracle: challenge period too large");
         new PreimageOracle(0, _challengePeriod);
     }
 
@@ -860,6 +860,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
 
     /// @notice Tests that squeezing a large preimage proposal after the challenge period has passed always succeeds and
     ///         persists the correct data.
+    /// forge-config: ciheavy.fuzz.runs = 512
     function testFuzz_squeezeLPP_succeeds(uint256 _numBlocks, uint32 _partOffset) public {
         _numBlocks = bound(_numBlocks, 1, 2 ** 8);
         _partOffset = uint32(bound(_partOffset, 0, _numBlocks * LibKeccak.BLOCK_SIZE_BYTES + 8 - 1));
@@ -1057,6 +1058,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
 
     /// @notice Tests that challenging the first divergence in a large preimage proposal at an arbitrary location
     ///         in the leaf values always succeeds.
+    /// forge-config: ciheavy.fuzz.runs = 512
     function testFuzz_challenge_arbitraryLocation_succeeds(uint256 _lastCorrectLeafIdx, uint256 _numBlocks) public {
         _numBlocks = bound(_numBlocks, 1, 2 ** 8);
         _lastCorrectLeafIdx = bound(_lastCorrectLeafIdx, 0, _numBlocks - 1);
@@ -1109,6 +1111,7 @@ contract PreimageOracle_LargePreimageProposals_Test is Test {
     }
 
     /// @notice Tests that challenging the a divergence in a large preimage proposal at the first leaf always succeeds.
+    /// forge-config: ciheavy.fuzz.runs = 1024
     function testFuzz_challengeFirst_succeeds(uint256 _numBlocks) public {
         _numBlocks = bound(_numBlocks, 1, 2 ** 8);
 

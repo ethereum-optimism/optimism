@@ -5,12 +5,10 @@ pragma solidity 0.8.15;
 import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
 
 // Libraries
-import { Predeploys } from "src/libraries/Predeploys.sol";
 import { CREATE3, Bytes32AddressLib } from "@rari-capital/solmate/src/utils/CREATE3.sol";
 
 // Target contract
 import { IOptimismSuperchainERC20 } from "src/L2/interfaces/IOptimismSuperchainERC20.sol";
-import { IOptimismSuperchainERC20Factory } from "src/L2/interfaces/IOptimismSuperchainERC20Factory.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/interfaces/IERC20Metadata.sol";
 
 /// @title OptimismSuperchainERC20FactoryTest

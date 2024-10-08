@@ -2,7 +2,6 @@
 pragma solidity ^0.8.0;
 
 import { console2 as console } from "forge-std/console2.sol";
-import { stdJson } from "forge-std/StdJson.sol";
 
 import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import { GnosisSafeProxyFactory as SafeProxyFactory } from "safe-contracts/proxies/GnosisSafeProxyFactory.sol";
@@ -11,6 +10,7 @@ import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
 import { GuardManager } from "safe-contracts/base/GuardManager.sol";
 import { Enum as SafeOps } from "safe-contracts/common/Enum.sol";
 
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Deployer } from "scripts/deploy/Deployer.sol";
 
 import { LivenessGuard } from "src/safe/LivenessGuard.sol";
@@ -317,6 +317,22 @@ contract DeployOwnership is Deploy {
         console.log("Deployed and configured the Guardian Safe!");
     }
 
+    /// @notice Deploy the SuperchainConfig contract
+    function deploySuperchainConfig() public broadcast {
+        ISuperchainConfig superchainConfig = ISuperchainConfig(
+            DeployUtils.create2AndSave({
+                _save: this,
+                _salt: _implSalt(),
+                _name: "SuperchainConfig",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(ISuperchainConfig.__constructor__, ()))
+            })
+        );
+
+        require(superchainConfig.guardian() == address(0));
+        bytes32 initialized = vm.load(address(superchainConfig), bytes32(0));
+        require(initialized != 0);
+    }
+
     /// @notice Configure the Guardian Safe with the DeputyGuardianModule.
     function configureGuardianSafe() public broadcast returns (address addr_) {
         addr_ = mustGetAddress("GuardianSafe");
@@ -357,7 +373,7 @@ contract DeployOwnership is Deploy {
         address[] memory owners = safe.getOwners();
         require(
             safe.getThreshold() == LivenessModule(livenessModule).getRequiredThreshold(owners.length),
-            "Safe threshold must be equal to the LivenessModule's required threshold"
+            "DeployOwnership: safe threshold must be equal to the LivenessModule's required threshold"
         );
 
         addr_ = address(safe);

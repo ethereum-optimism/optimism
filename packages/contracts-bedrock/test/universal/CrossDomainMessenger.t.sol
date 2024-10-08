@@ -4,7 +4,6 @@ pragma solidity 0.8.15;
 // Testing utilities
 import { Test } from "forge-std/Test.sol";
 import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
-import { CallerCaller, Reverter } from "test/mocks/Callers.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";

@@ -86,7 +86,7 @@ func TestEVM(t *testing.T) {
 					if exitGroup && goVm.GetState().GetExited() {
 						break
 					}
-					insn := state.GetMemory().GetMemory(state.GetPC())
+					insn := state.GetMemory().GetUint32(state.GetPC())
 					t.Logf("step: %4d pc: 0x%08x insn: 0x%08x", state.GetStep(), state.GetPC(), insn)
 
 					stepWitness, err := goVm.Step(true)
@@ -107,9 +107,9 @@ func TestEVM(t *testing.T) {
 				} else {
 					require.Equal(t, arch.Word(testutil.EndAddr), state.GetPC(), "must reach end")
 					// inspect test result
-					done, result := state.GetMemory().GetMemory(testutil.BaseAddrEnd+4), state.GetMemory().GetMemory(testutil.BaseAddrEnd+8)
-					require.Equal(t, done, uint32(1), "must be done")
-					require.Equal(t, result, uint32(1), "must have success result")
+					done, result := state.GetMemory().GetWord(testutil.BaseAddrEnd+4), state.GetMemory().GetWord(testutil.BaseAddrEnd+8)
+					require.Equal(t, done, Word(1), "must be done")
+					require.Equal(t, result, Word(1), "must have success result")
 				}
 			})
 		}
@@ -140,7 +140,7 @@ func TestEVMSingleStep_Jump(t *testing.T) {
 			t.Run(testName, func(t *testing.T) {
 				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPC(tt.pc), testutil.WithNextPC(tt.nextPC))
 				state := goVm.GetState()
-				state.GetMemory().SetMemory(tt.pc, tt.insn)
+				state.GetMemory().SetUint32(tt.pc, tt.insn)
 				step := state.GetStep()
 
 				// Setup expectations
@@ -217,7 +217,7 @@ func TestEVMSingleStep_Operators(t *testing.T) {
 					state.GetRegistersRef()[baseReg] = tt.rs
 					state.GetRegistersRef()[rtReg] = tt.rt
 				}
-				state.GetMemory().SetMemory(0, insn)
+				state.GetMemory().SetUint32(0, insn)
 				step := state.GetStep()
 
 				// Setup expectations
@@ -291,8 +291,8 @@ func TestEVMSingleStep_LoadStore(t *testing.T) {
 				state.GetRegistersRef()[rtReg] = tt.rt
 				state.GetRegistersRef()[baseReg] = t1
 
-				state.GetMemory().SetMemory(0, insn)
-				state.GetMemory().SetMemory(t1+4, tt.memVal)
+				state.GetMemory().SetUint32(0, insn)
+				state.GetMemory().SetUint32(t1+4, tt.memVal)
 				step := state.GetStep()
 
 				// Setup expectations
@@ -345,7 +345,7 @@ func TestEVM_MMap(t *testing.T) {
 				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithHeap(c.heap))
 				state := goVm.GetState()
 
-				state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
+				state.GetMemory().SetUint32(state.GetPC(), syscallInsn)
 				state.GetRegistersRef()[2] = arch.SysMmap
 				state.GetRegistersRef()[4] = c.address
 				state.GetRegistersRef()[5] = c.size
@@ -553,7 +553,7 @@ func TestEVMSysWriteHint(t *testing.T) {
 
 				err := state.GetMemory().SetMemoryRange(arch.Word(tt.memOffset), bytes.NewReader(tt.hintData))
 				require.NoError(t, err)
-				state.GetMemory().SetMemory(state.GetPC(), insn)
+				state.GetMemory().SetUint32(state.GetPC(), insn)
 				step := state.GetStep()
 
 				expected := testutil.NewExpectedState(state)
@@ -595,7 +595,7 @@ func TestEVMFault(t *testing.T) {
 			t.Run(testName, func(t *testing.T) {
 				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithNextPC(tt.nextPC))
 				state := goVm.GetState()
-				state.GetMemory().SetMemory(0, tt.insn)
+				state.GetMemory().SetUint32(0, tt.insn)
 				// set the return address ($ra) to jump into when test completes
 				state.GetRegistersRef()[31] = testutil.EndAddr
 
@@ -630,7 +630,7 @@ func TestHelloEVM(t *testing.T) {
 				if goVm.GetState().GetExited() {
 					break
 				}
-				insn := state.GetMemory().GetMemory(state.GetPC())
+				insn := state.GetMemory().GetUint32(state.GetPC())
 				if i%1000 == 0 { // avoid spamming test logs, we are executing many steps
 					t.Logf("step: %4d pc: 0x%08x insn: 0x%08x", state.GetStep(), state.GetPC(), insn)
 				}
@@ -683,7 +683,7 @@ func TestClaimEVM(t *testing.T) {
 					break
 				}
 
-				insn := state.GetMemory().GetMemory(state.GetPC())
+				insn := state.GetMemory().GetUint32(state.GetPC())
 				if i%1000 == 0 { // avoid spamming test logs, we are executing many steps
 					t.Logf("step: %4d pc: 0x%08x insn: 0x%08x", state.GetStep(), state.GetPC(), insn)
 				}
@@ -731,7 +731,7 @@ func TestEntryEVM(t *testing.T) {
 				if goVm.GetState().GetExited() {
 					break
 				}
-				insn := state.GetMemory().GetMemory(state.GetPC())
+				insn := state.GetMemory().GetUint32(state.GetPC())
 				if i%10_000 == 0 { // avoid spamming test logs, we are executing many steps
 					t.Logf("step: %4d pc: 0x%08x insn: 0x%08x", state.GetStep(), state.GetPC(), insn)
 				}

@@ -15,10 +15,10 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
-	"github.com/ethereum-optimism/optimism/cannon/serialize"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
+	"github.com/ethereum-optimism/optimism/op-service/serialize"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
@@ -410,7 +410,7 @@ func Run(ctx *cli.Context) error {
 			l.Info("processing",
 				"step", step,
 				"pc", mipsevm.HexU32(state.GetPC()),
-				"insn", mipsevm.HexU32(state.GetMemory().GetMemory(state.GetPC())),
+				"insn", mipsevm.HexU32(state.GetMemory().GetUint32(state.GetPC())),
 				"ips", float64(step-startStep)/(float64(delta)/float64(time.Second)),
 				"pages", state.GetMemory().PageCount(),
 				"mem", state.GetMemory().Usage(),
