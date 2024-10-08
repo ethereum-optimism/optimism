@@ -2,7 +2,6 @@
 pragma solidity ^0.8.0;
 
 import { console2 as console } from "forge-std/console2.sol";
-import { stdJson } from "forge-std/StdJson.sol";
 
 import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import { GnosisSafeProxyFactory as SafeProxyFactory } from "safe-contracts/proxies/GnosisSafeProxyFactory.sol";
@@ -374,7 +373,7 @@ contract DeployOwnership is Deploy {
         address[] memory owners = safe.getOwners();
         require(
             safe.getThreshold() == LivenessModule(livenessModule).getRequiredThreshold(owners.length),
-            "Safe threshold must be equal to the LivenessModule's required threshold"
+            "DeployOwnership: safe threshold must be equal to the LivenessModule's required threshold"
         );
 
         addr_ = address(safe);

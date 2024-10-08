@@ -2,7 +2,6 @@
 pragma solidity 0.8.25;
 
 import { IOptimismSuperchainERC20Extension } from "src/L2/interfaces/IOptimismSuperchainERC20.sol";
-import { IL2ToL2CrossDomainMessenger } from "src/L2/interfaces/IL2ToL2CrossDomainMessenger.sol";
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { ERC20 } from "@solady/tokens/ERC20.sol";
@@ -63,8 +62,8 @@ contract OptimismSuperchainERC20 is
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.4
-    string public constant version = "1.0.0-beta.4";
+    /// @custom:semver 1.0.0-beta.5
+    string public constant version = "1.0.0-beta.5";
 
     /// @notice Constructs the OptimismSuperchainERC20 contract.
     constructor() {

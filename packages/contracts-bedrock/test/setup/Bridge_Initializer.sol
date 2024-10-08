@@ -19,6 +19,7 @@ contract Bridge_Initializer is CommonTest {
     OptimismMintableERC20 RemoteL1Token;
 
     function setUp() public virtual override {
+        enableFaultProofs();
         super.setUp();
 
         L1Token = new ERC20("Native L1 Token", "L1T");

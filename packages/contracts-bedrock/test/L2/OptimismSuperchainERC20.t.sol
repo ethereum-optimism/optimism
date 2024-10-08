@@ -9,7 +9,6 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { IERC20 } from "@openzeppelin/contracts-v5/token/ERC20/IERC20.sol";
 import { IL2ToL2CrossDomainMessenger } from "src/L2/interfaces/IL2ToL2CrossDomainMessenger.sol";
-import { ERC1967Proxy } from "@openzeppelin/contracts-v5/proxy/ERC1967/ERC1967Proxy.sol";
 import { Initializable } from "@openzeppelin/contracts-v5/proxy/utils/Initializable.sol";
 import { IERC165 } from "@openzeppelin/contracts-v5/utils/introspection/IERC165.sol";
 import { IBeacon } from "@openzeppelin/contracts-v5/proxy/beacon/IBeacon.sol";

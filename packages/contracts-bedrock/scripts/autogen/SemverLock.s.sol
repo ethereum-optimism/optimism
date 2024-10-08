@@ -48,7 +48,7 @@ contract SemverLock is Script {
             string memory artifactFiles = string(Process.run(commands));
 
             string[] memory files = stdJson.readStringArray(artifactFiles, "");
-            require(files.length > 0, string.concat("No artifacts found for ", contractName));
+            require(files.length > 0, string.concat("SemverLock: no artifacts found for ", contractName));
             string memory fileName = files[0];
 
             // Parse the artifact to get the contract's initcode hash.

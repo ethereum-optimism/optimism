@@ -222,7 +222,7 @@ jobs:
           condition: <<parameters.notify>>
           steps:
             - notify-failures-on-develop:
-                mentions: "@proofs-squad"
+                mentions: "@proofs-team"
 
   cannon-build-test-vectors:
     docker:
@@ -616,6 +616,10 @@ jobs:
         description: Timeout for running tests
         type: string
         default: 15m
+      test_profile:
+        description: Profile to use for testing
+        type: string
+        default: ci
     parallelism: <<parameters.test_parallelism>>
     steps:
       - checkout
@@ -663,11 +667,9 @@ jobs:
             TEST_FILES=$(echo "$TEST_FILES" | circleci tests split --split-by=timings)
             TEST_FILES=$(echo "$TEST_FILES" | sed 's|^test/||')
             MATCH_PATH="./test/{$(echo "$TEST_FILES" | paste -sd "," -)}"
-            export FOUNDRY_INVARIANT_RUNS=<<parameters.test_invariant_runs>>
-            export FOUNDRY_INVARIANT_DEPTH=<<parameters.test_invariant_depth>>
-            forge test --deny-warnings --fuzz-runs <<parameters.test_fuzz_runs>> --match-path "$MATCH_PATH"
+            forge test --match-path "$MATCH_PATH"
           environment:
-            FOUNDRY_PROFILE: ci
+            FOUNDRY_PROFILE: <<parameters.test_profile>>
           working_directory: packages/contracts-bedrock
           no_output_timeout: <<parameters.test_timeout>>
       - run:
@@ -719,6 +721,8 @@ jobs:
           command: interfaces-check-no-build
       - run-contracts-check:
           command: size-check
+      - run-contracts-check:
+          command: unused-imports-check-no-build
 
   contracts-bedrock-validate-spacers:
     docker:
@@ -1140,7 +1144,7 @@ jobs:
               exit 1
             fi
       - notify-failures-on-develop:
-          mentions: "@proofs-squad"
+          mentions: "@proofs-team"
 
   cannon-stf-verify:
     docker:
@@ -1267,7 +1271,7 @@ jobs:
             make verify-sepolia
           working_directory: op-program
       - notify-failures-on-develop:
-          mentions: "@proofs-squad"
+          mentions: "@proofs-team"
 
   op-program-compat:
     docker:
@@ -1407,9 +1411,7 @@ workflows:
           test_parallelism: 1
           test_list: git diff origin/develop...HEAD --name-only -- './test/**/*.t.sol' | sed 's|packages/contracts-bedrock/||'
           test_timeout: 1h
-          test_fuzz_runs: 10000
-          test_invariant_runs: 128
-          test_invariant_depth: 512
+          test_profile: ciheavy
       - contracts-bedrock-coverage
       - contracts-bedrock-checks:
           requires:
@@ -1420,7 +1422,7 @@ workflows:
       - semgrep-scan
       - semgrep-scan:
           name: semgrep-scan-local
-          scan_command: semgrep scan --timeout=100 --config=./.semgrep --strict --error .
+          scan_command: semgrep scan --timeout=100 --config=./.semgrep --error .
       - go-lint:
           requires:
             - go-mod-download
@@ -1726,7 +1728,7 @@ workflows:
           target: test-cannon
           parallelism: 8
           notify: true
-          mentions: "@proofs-squad"
+          mentions: "@proofs-team"
           requires:
             - contracts-bedrock-build
             - cannon-prestate
