@@ -248,31 +248,31 @@ func TestEVMSingleStep_LoadStore(t *testing.T) {
 	versions := GetMipsVersionTestCases(t)
 	cases := []struct {
 		name         string
-		rs           uint32
-		rt           uint32
+		rs           Word
+		rt           Word
 		isUnAligned  bool
 		opcode       uint32
-		memVal       uint32
-		expectMemVal uint32
-		expectRes    uint32
+		memVal       Word
+		expectMemVal Word
+		expectRes    Word
 	}{
-		{name: "lb", opcode: uint32(0x20), memVal: uint32(0x12_00_00_00), expectRes: uint32(0x12)},                                                                           // lb $t0, 4($t1)
-		{name: "lh", opcode: uint32(0x21), memVal: uint32(0x12_23_00_00), expectRes: uint32(0x12_23)},                                                                        // lh $t0, 4($t1)
-		{name: "lw", opcode: uint32(0x23), memVal: uint32(0x12_23_45_67), expectRes: uint32(0x12_23_45_67)},                                                                  // lw $t0, 4($t1)
-		{name: "lbu", opcode: uint32(0x24), memVal: uint32(0x12_23_00_00), expectRes: uint32(0x12)},                                                                          // lbu $t0, 4($t1)
-		{name: "lhu", opcode: uint32(0x25), memVal: uint32(0x12_23_00_00), expectRes: uint32(0x12_23)},                                                                       // lhu $t0, 4($t1)
-		{name: "lwl", opcode: uint32(0x22), rt: uint32(0xaa_bb_cc_dd), memVal: uint32(0x12_34_56_78), expectRes: uint32(0x12_34_56_78)},                                      // lwl $t0, 4($t1)
-		{name: "lwl unaligned address", opcode: uint32(0x22), rt: uint32(0xaa_bb_cc_dd), isUnAligned: true, memVal: uint32(0x12_34_56_78), expectRes: uint32(0x34_56_78_dd)}, // lwl $t0, 5($t1)
-		{name: "lwr", opcode: uint32(0x26), rt: uint32(0xaa_bb_cc_dd), memVal: uint32(0x12_34_56_78), expectRes: uint32(0xaa_bb_cc_12)},                                      // lwr $t0, 4($t1)
-		{name: "lwr unaligned address", opcode: uint32(0x26), rt: uint32(0xaa_bb_cc_dd), isUnAligned: true, memVal: uint32(0x12_34_56_78), expectRes: uint32(0xaa_bb_12_34)}, // lwr $t0, 5($t1)
-		{name: "sb", opcode: uint32(0x28), rt: uint32(0xaa_bb_cc_dd), expectMemVal: uint32(0xdd_00_00_00)},                                                                   // sb $t0, 4($t1)
-		{name: "sh", opcode: uint32(0x29), rt: uint32(0xaa_bb_cc_dd), expectMemVal: uint32(0xcc_dd_00_00)},                                                                   // sh $t0, 4($t1)
-		{name: "swl", opcode: uint32(0x2a), rt: uint32(0xaa_bb_cc_dd), expectMemVal: uint32(0xaa_bb_cc_dd)},                                                                  //  swl $t0, 4($t1)
-		{name: "sw", opcode: uint32(0x2b), rt: uint32(0xaa_bb_cc_dd), expectMemVal: uint32(0xaa_bb_cc_dd)},                                                                   // sw $t0, 4($t1)
-		{name: "swr unaligned address", opcode: uint32(0x2e), rt: uint32(0xaa_bb_cc_dd), isUnAligned: true, expectMemVal: uint32(0xcc_dd_00_00)},                             // swr $t0, 5($t1)
+		{name: "lb", opcode: uint32(0x20), memVal: Word(0x12_00_00_00), expectRes: Word(0x12)},                                                                         // lb $t0, 4($t1)
+		{name: "lh", opcode: uint32(0x21), memVal: Word(0x12_23_00_00), expectRes: Word(0x12_23)},                                                                      // lh $t0, 4($t1)
+		{name: "lw", opcode: uint32(0x23), memVal: Word(0x12_23_45_67), expectRes: Word(0x12_23_45_67)},                                                                // lw $t0, 4($t1)
+		{name: "lbu", opcode: uint32(0x24), memVal: Word(0x12_23_00_00), expectRes: Word(0x12)},                                                                        // lbu $t0, 4($t1)
+		{name: "lhu", opcode: uint32(0x25), memVal: Word(0x12_23_00_00), expectRes: Word(0x12_23)},                                                                     // lhu $t0, 4($t1)
+		{name: "lwl", opcode: uint32(0x22), rt: Word(0xaa_bb_cc_dd), memVal: Word(0x12_34_56_78), expectRes: Word(0x12_34_56_78)},                                      // lwl $t0, 4($t1)
+		{name: "lwl unaligned address", opcode: uint32(0x22), rt: Word(0xaa_bb_cc_dd), isUnAligned: true, memVal: Word(0x12_34_56_78), expectRes: Word(0x34_56_78_dd)}, // lwl $t0, 5($t1)
+		{name: "lwr", opcode: uint32(0x26), rt: Word(0xaa_bb_cc_dd), memVal: Word(0x12_34_56_78), expectRes: Word(0xaa_bb_cc_12)},                                      // lwr $t0, 4($t1)
+		{name: "lwr unaligned address", opcode: uint32(0x26), rt: Word(0xaa_bb_cc_dd), isUnAligned: true, memVal: Word(0x12_34_56_78), expectRes: Word(0xaa_bb_12_34)}, // lwr $t0, 5($t1)
+		{name: "sb", opcode: uint32(0x28), rt: Word(0xaa_bb_cc_dd), expectMemVal: Word(0xdd_00_00_00)},                                                                 // sb $t0, 4($t1)
+		{name: "sh", opcode: uint32(0x29), rt: Word(0xaa_bb_cc_dd), expectMemVal: Word(0xcc_dd_00_00)},                                                                 // sh $t0, 4($t1)
+		{name: "swl", opcode: uint32(0x2a), rt: Word(0xaa_bb_cc_dd), expectMemVal: Word(0xaa_bb_cc_dd)},                                                                //  swl $t0, 4($t1)
+		{name: "sw", opcode: uint32(0x2b), rt: Word(0xaa_bb_cc_dd), expectMemVal: Word(0xaa_bb_cc_dd)},                                                                 // sw $t0, 4($t1)
+		{name: "swr unaligned address", opcode: uint32(0x2e), rt: Word(0xaa_bb_cc_dd), isUnAligned: true, expectMemVal: Word(0xcc_dd_00_00)},                           // swr $t0, 5($t1)
 	}
 
-	var t1 uint32 = 0x100
+	var t1 Word = 0x100
 	var baseReg uint32 = 9
 	var rtReg uint32 = 8
 	for _, v := range versions {
@@ -292,7 +292,7 @@ func TestEVMSingleStep_LoadStore(t *testing.T) {
 				state.GetRegistersRef()[baseReg] = t1
 
 				state.GetMemory().SetUint32(0, insn)
-				state.GetMemory().SetUint32(t1+4, tt.memVal)
+				state.GetMemory().SetWord(t1+4, tt.memVal)
 				step := state.GetStep()
 
 				// Setup expectations
@@ -300,7 +300,7 @@ func TestEVMSingleStep_LoadStore(t *testing.T) {
 				expected.ExpectStep()
 
 				if tt.expectMemVal != 0 {
-					expected.ExpectMemoryWrite(t1+4, tt.expectMemVal)
+					expected.ExpectMemoryWriteWord(t1+4, tt.expectMemVal)
 				} else {
 					expected.Registers[rtReg] = tt.expectRes
 				}
