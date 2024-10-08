@@ -55,6 +55,7 @@ func DeployImplementations(ctx context.Context, env *Env, artifactsFS foundry.St
 						ChallengePeriodSeconds:          big.NewInt(86400),
 						ProofMaturityDelaySeconds:       big.NewInt(604800),
 						DisputeGameFinalityDelaySeconds: big.NewInt(302400),
+						MipsVersion:                     big.NewInt(1),
 						Release:                         intent.ContractsRelease,
 						SuperchainConfigProxy:           st.SuperchainDeployment.SuperchainConfigProxyAddress,
 						ProtocolVersionsProxy:           st.SuperchainDeployment.ProtocolVersionsProxyAddress,

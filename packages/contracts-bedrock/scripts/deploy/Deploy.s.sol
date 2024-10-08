@@ -354,6 +354,7 @@ contract Deploy is Deployer {
         dii.set(dii.challengePeriodSeconds.selector, cfg.preimageOracleChallengePeriod());
         dii.set(dii.proofMaturityDelaySeconds.selector, cfg.proofMaturityDelaySeconds());
         dii.set(dii.disputeGameFinalityDelaySeconds.selector, cfg.disputeGameFinalityDelaySeconds());
+        dii.set(dii.mipsVersion.selector, Config.useMultithreadedCannon() ? 2 : 1);
         string memory release = "dev";
         dii.set(dii.release.selector, release);
         dii.set(

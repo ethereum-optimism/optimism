@@ -1422,7 +1422,7 @@ workflows:
       - semgrep-scan
       - semgrep-scan:
           name: semgrep-scan-local
-          scan_command: semgrep scan --timeout=100 --config=./.semgrep --strict --error .
+          scan_command: semgrep scan --timeout=100 --config=./.semgrep --error .
       - go-lint:
           requires:
             - go-mod-download

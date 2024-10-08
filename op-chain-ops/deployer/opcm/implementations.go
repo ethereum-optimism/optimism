@@ -16,6 +16,7 @@ type DeployImplementationsInput struct {
 	ChallengePeriodSeconds          *big.Int
 	ProofMaturityDelaySeconds       *big.Int
 	DisputeGameFinalityDelaySeconds *big.Int
+	MipsVersion                     *big.Int
 	// Release version to set OPCM implementations for, of the format `op-contracts/vX.Y.Z`.
 	Release               string
 	SuperchainConfigProxy common.Address
