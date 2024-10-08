@@ -29,6 +29,14 @@ var Flags = []cli.Flag{
 
 var Commands = []*cli.Command{
 	{
+		Name:      "l1",
+		Usage:     "outputs all L1 contract addresses for an L2 chain",
+		Args:      true,
+		ArgsUsage: "<chain-id>",
+		Action:    L1CLI,
+		Flags:     Flags,
+	},
+	{
 		Name:      "genesis",
 		Usage:     "outputs the genesis for an L2 chain",
 		Args:      true,
