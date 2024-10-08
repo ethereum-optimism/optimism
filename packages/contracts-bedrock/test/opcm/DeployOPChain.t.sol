@@ -146,10 +146,11 @@ contract DeployOPChainOutput_Test is Test {
         vm.etch(address(anchorStateRegistryImpl), hex"01");
         vm.etch(address(faultDisputeGame), hex"01");
         vm.etch(address(permissionedDisputeGame), hex"01");
+        // TODO: Eventually switch from Permissioned to Permissionless.
+        // (IProxy delayedWETHPermissionlessGameProxy) =
+        // DeployUtils.buildERC1967ProxyWithImpl("delayedWETHPermissionlessGameProxy");
         (IProxy delayedWETHPermissionedGameProxy) =
             DeployUtils.buildERC1967ProxyWithImpl("delayedWETHPermissionedGameProxy");
-        // TODO: Eventually switch from Permissioned to Permissionless.
-        // vm.etch(address(delayedWETHPermissionlessGameProxy), hex"01");
 
         doo.set(doo.opChainProxyAdmin.selector, address(opChainProxyAdmin));
         doo.set(doo.addressManager.selector, address(addressManager));
