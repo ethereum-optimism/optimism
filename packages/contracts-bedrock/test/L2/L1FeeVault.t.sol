@@ -6,7 +6,6 @@ import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
 
 // Libraries
 import { Types } from "src/libraries/Types.sol";
-import { Types as ITypes } from "src/L2/interfaces/IL1FeeVault.sol";
 
 // Test the implementations of the FeeVault
 contract FeeVault_Test is Bridge_Initializer {
@@ -16,7 +15,7 @@ contract FeeVault_Test is Bridge_Initializer {
         assertEq(l1FeeVault.recipient(), deploy.cfg().l1FeeVaultRecipient());
         assertEq(l1FeeVault.MIN_WITHDRAWAL_AMOUNT(), deploy.cfg().l1FeeVaultMinimumWithdrawalAmount());
         assertEq(l1FeeVault.minWithdrawalAmount(), deploy.cfg().l1FeeVaultMinimumWithdrawalAmount());
-        assertEq(ITypes.WithdrawalNetwork.unwrap(l1FeeVault.WITHDRAWAL_NETWORK()), uint8(Types.WithdrawalNetwork.L1));
-        assertEq(ITypes.WithdrawalNetwork.unwrap(l1FeeVault.withdrawalNetwork()), uint8(Types.WithdrawalNetwork.L1));
+        assertEq(uint8(l1FeeVault.WITHDRAWAL_NETWORK()), uint8(Types.WithdrawalNetwork.L1));
+        assertEq(uint8(l1FeeVault.withdrawalNetwork()), uint8(Types.WithdrawalNetwork.L1));
     }
 }

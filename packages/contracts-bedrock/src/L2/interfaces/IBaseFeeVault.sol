@@ -2,7 +2,10 @@
 pragma solidity ^0.8.0;
 
 library Types {
-    type WithdrawalNetwork is uint8;
+    enum WithdrawalNetwork {
+        L1,
+        L2
+    }
 }
 
 interface IBaseFeeVault {
