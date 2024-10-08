@@ -495,7 +495,6 @@ func (s *channelManager) Close() error {
 // Should only be called when the channel in question
 // exists and has not started to submit data.
 func (s *channelManager) Requeue(newCfg ChannelConfig) {
-
 	// Remove the current channel from the back of the queue
 	channelToDiscard := s.channelQueue[len(s.channelQueue)-1]
 	if channelToDiscard != s.currentChannel {
@@ -523,45 +522,48 @@ func (s *channelManager) Requeue(newCfg ChannelConfig) {
 
 // pruneSafeBlocks dequeues blocks from the internal blocks queue
 // if they have now become safe.
-func (s *channelManager) pruneSafeBlocks(newSafeHead eth.L2BlockRef) error {
-
+func (s *channelManager) pruneSafeBlocks(newSafeHead eth.L2BlockRef) {
 	oldestBlock, ok := s.blocks.Peek()
 	if !ok {
 		// no blocks to prune
-		return nil
+		return
 	}
-	oldSafeHeadNumber := oldestBlock.NumberU64() - 1
 
+	oldSafeHeadNumber := oldestBlock.NumberU64() - 1
 	if newSafeHead.Number == oldSafeHeadNumber {
 		// no blocks to prune
-		return nil
+		return
 	}
 
 	if newSafeHead.Number < oldSafeHeadNumber {
-		return errors.New("new safe head behind existing safe head")
+		// This could happen if there was an L1 reorg.
+		// We should restart work from the new safe head,
+		// and therefore prune all the blocks.
+		s.Clear(eth.BlockID{})
+		return
 	}
 
 	numBlocksToDequeue := newSafeHead.Number - oldSafeHeadNumber
 
-	if numBlocksToDequeue >= uint64(s.blocks.Len()) {
-		return errors.New("tried to dequeue more blocks than we had")
+	if numBlocksToDequeue > uint64(s.blocks.Len()) {
+		// This could happen if the batcher restarted.
+		// A previous batcher instance had the blocks in memory
+		// But now they are gone.
+		numBlocksToDequeue = uint64(s.blocks.Len())
 	}
 
 	if s.blocks[numBlocksToDequeue-1].Hash() != newSafeHead.Hash {
-		// This indicates a safe chain reorg
-		// TODO should this have a different error type?
-		return ErrReorg
+		panic("safe chain reorg")
 	}
-	_, ok = s.blocks.DequeueN(int(numBlocksToDequeue))
-	if !ok {
-		return errors.New("safe head moved beyond internal blocks range")
-	}
+
+	// This shouldn't return an error because
+	// We already checked numBlocksToDequeue <= s.blocks.Len()
+	_, _ = s.blocks.DequeueN(int(numBlocksToDequeue))
 	s.blockCursor -= int(numBlocksToDequeue)
+
 	if s.blockCursor < 0 {
 		panic("blockCursor got into bad state")
 	}
-
-	return nil
 }
 
 // pruneChannels dequeues channels from the internal channels queue
