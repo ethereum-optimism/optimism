@@ -229,7 +229,7 @@ contract DeployImplementationsOutput is BaseDeployIO {
 
     function opcmProxy() public returns (OPContractsManager) {
         DeployUtils.assertValidContractAddress(address(_opcmProxy));
-        DeployUtils.assertImplementationSet(address(_opcmProxy));
+        DeployUtils.assertERC1967ImplementationSet(address(_opcmProxy));
         return _opcmProxy;
     }
 
