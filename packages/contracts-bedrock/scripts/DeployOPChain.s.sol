@@ -20,7 +20,6 @@ import { IProxyAdmin } from "src/universal/interfaces/IProxyAdmin.sol";
 import { IProxy } from "src/universal/interfaces/IProxy.sol";
 
 import { IAddressManager } from "src/legacy/interfaces/IAddressManager.sol";
-import { IL1ChugSplashProxy } from "src/legacy/interfaces/IL1ChugSplashProxy.sol";
 import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 import { IDisputeGameFactory } from "src/dispute/interfaces/IDisputeGameFactory.sol";
 import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistry.sol";
