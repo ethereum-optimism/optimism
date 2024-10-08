@@ -292,13 +292,14 @@ contract Deploy is Deployer {
         // The OptimismPortalProxy contract is used both with and without Fault Proofs enabled, and is deployed by
         // deployOPChain. If Fault Proofs are disabled, then we need to reinitialize the OptimismPortalProxy
         // as the legacy OptimismPortal.
-        if (!cfg.useFaultProofs()) {
+        if (cfg.useFaultProofs()) {
+            vm.prank(ISuperchainConfig(mustGetAddress("SuperchainConfigProxy")).guardian());
+            IOptimismPortal2(mustGetAddress("OptimismPortalProxy")).setRespectedGameType(GameTypes.CANNON);
+        } else {
             deployERC1967Proxy("L2OutputOracleProxy");
-            deployL2OutputOracle();
             initializeL2OutputOracle();
 
             resetInitializedProxy("OptimismPortal");
-            deployOptimismPortal();
             initializeOptimismPortal();
         }
         if (cfg.useCustomGasToken()) {
@@ -466,15 +467,6 @@ contract Deploy is Deployer {
         save("AnchorStateRegistry", address(deployOutput.anchorStateRegistryImpl));
         save("PermissionedDisputeGame", address(deployOutput.permissionedDisputeGame));
         save("OptimismPortalProxy", address(deployOutput.optimismPortalProxy));
-
-        // TODO: Replace the useFaultProofs flag with useLegacy, so that FaultProofs become the default
-        if (cfg.useFaultProofs()) {
-            vm.prank(ISuperchainConfig(superchainConfigProxy).guardian());
-            deployOutput.optimismPortalProxy.setRespectedGameType(GameTypes.CANNON);
-        } else {
-            // Deploy and setup the legacy (pre-faultproofs) contracts
-            deployERC1967Proxy("L2OutputOracleProxy");
-        }
 
         // Deploy and setup the PermissionlessDelayedWeth not provided by the OPCM
         //   TODO: When the OPCM also deploys the PermissionlessGame, we will be able to simply call
@@ -649,50 +641,24 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the OptimismPortal
     function deployOptimismPortal() public broadcast returns (address addr_) {
-        if (cfg.useFaultProofs()) {
-            // Could also verify this inside DeployConfig but doing it here is a bit more reliable.
-            require(
-                uint32(cfg.respectedGameType()) == cfg.respectedGameType(),
-                "Deploy: respectedGameType must fit into uint32"
-            );
-
-            addr_ = DeployUtils.create2AndSave({
-                _save: this,
-                _salt: _implSalt(),
-                _name: "OptimismPortal2",
-                _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(
-                        IOptimismPortal2.__constructor__,
-                        (cfg.proofMaturityDelaySeconds(), cfg.disputeGameFinalityDelaySeconds())
-                    )
-                )
-            });
-
-            // Override the `OptimismPortal2` contract to the deployed implementation. This is necessary
-            // to check the `OptimismPortal2` implementation alongside dependent contracts, which
-            // are always proxies.
-            Types.ContractSet memory contracts = _proxies();
-            contracts.OptimismPortal2 = addr_;
-            ChainAssertions.checkOptimismPortal2({ _contracts: contracts, _cfg: cfg, _isProxy: false });
-        } else {
-            if (cfg.useInterop()) {
-                console.log("Attempting to deploy OptimismPortal with interop, this config is a noop");
-            }
-
-            addr_ = DeployUtils.create2AndSave({
-                _save: this,
-                _salt: _implSalt(),
-                _name: "OptimismPortal",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IOptimismPortal.__constructor__, ()))
-            });
-
-            // Override the `OptimismPortal` contract to the deployed implementation. This is necessary
-            // to check the `OptimismPortal` implementation alongside dependent contracts, which
-            // are always proxies.
-            Types.ContractSet memory contracts = _proxies();
-            contracts.OptimismPortal = addr_;
-            ChainAssertions.checkOptimismPortal({ _contracts: contracts, _cfg: cfg, _isProxy: false });
+        require(!cfg.useFaultProofs(), "Deploy: FaultProofs OptimismPortal is deployed by OPCM");
+        if (cfg.useInterop()) {
+            console.log("Attempting to deploy OptimismPortal with interop, this config is a noop");
         }
+
+        addr_ = DeployUtils.create2AndSave({
+            _save: this,
+            _salt: _implSalt(),
+            _name: "OptimismPortal",
+            _args: DeployUtils.encodeConstructor(abi.encodeCall(IOptimismPortal.__constructor__, ()))
+        });
+
+        // Override the `OptimismPortal` contract to the deployed implementation. This is necessary
+        // to check the `OptimismPortal` implementation alongside dependent contracts, which
+        // are always proxies.
+        Types.ContractSet memory contracts = _proxies();
+        contracts.OptimismPortal = addr_;
+        ChainAssertions.checkOptimismPortal({ _contracts: contracts, _cfg: cfg, _isProxy: false });
     }
 
     /// @notice Deploy the L2OutputOracle
@@ -1161,59 +1127,33 @@ contract Deploy is Deployer {
 
     /// @notice Initialize the OptimismPortal
     function initializeOptimismPortal() public broadcast {
+        console.log("Upgrading and initializing OptimismPortal proxy");
+        require(!cfg.useFaultProofs(), "Deploy: FaultProofs OptimismPortal is initialized by OPCM");
         address optimismPortalProxy = mustGetAddress("OptimismPortalProxy");
         address systemConfigProxy = mustGetAddress("SystemConfigProxy");
         address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
-        if (cfg.useFaultProofs()) {
-            console.log("Upgrading and initializing OptimismPortal2 proxy");
-            address optimismPortal2 = mustGetAddress("OptimismPortal2");
-            address disputeGameFactoryProxy = mustGetAddress("DisputeGameFactoryProxy");
+        address optimismPortal = mustGetAddress("OptimismPortal");
+        address l2OutputOracleProxy = mustGetAddress("L2OutputOracleProxy");
 
-            IProxyAdmin proxyAdmin = IProxyAdmin(payable(mustGetAddress("ProxyAdmin")));
-            proxyAdmin.upgradeAndCall({
-                _proxy: payable(optimismPortalProxy),
-                _implementation: optimismPortal2,
-                _data: abi.encodeCall(
-                    IOptimismPortal2.initialize,
-                    (
-                        IDisputeGameFactory(disputeGameFactoryProxy),
-                        ISystemConfig(systemConfigProxy),
-                        ISuperchainConfig(superchainConfigProxy),
-                        GameType.wrap(uint32(cfg.respectedGameType()))
-                    )
+        IProxyAdmin proxyAdmin = IProxyAdmin(payable(mustGetAddress("ProxyAdmin")));
+        proxyAdmin.upgradeAndCall({
+            _proxy: payable(optimismPortalProxy),
+            _implementation: optimismPortal,
+            _data: abi.encodeCall(
+                IOptimismPortal.initialize,
+                (
+                    IL2OutputOracle(l2OutputOracleProxy),
+                    ISystemConfig(systemConfigProxy),
+                    ISuperchainConfig(superchainConfigProxy)
                 )
-            });
+            )
+        });
 
-            IOptimismPortal2 portal = IOptimismPortal2(payable(optimismPortalProxy));
-            string memory version = portal.version();
-            console.log("OptimismPortal2 version: %s", version);
+        IOptimismPortal portal = IOptimismPortal(payable(optimismPortalProxy));
+        string memory version = portal.version();
+        console.log("OptimismPortal version: %s", version);
 
-            ChainAssertions.checkOptimismPortal2({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
-        } else {
-            console.log("Upgrading and initializing OptimismPortal proxy");
-            address optimismPortal = mustGetAddress("OptimismPortal");
-            address l2OutputOracleProxy = mustGetAddress("L2OutputOracleProxy");
-
-            IProxyAdmin proxyAdmin = IProxyAdmin(payable(mustGetAddress("ProxyAdmin")));
-            proxyAdmin.upgradeAndCall({
-                _proxy: payable(optimismPortalProxy),
-                _implementation: optimismPortal,
-                _data: abi.encodeCall(
-                    IOptimismPortal.initialize,
-                    (
-                        IL2OutputOracle(l2OutputOracleProxy),
-                        ISystemConfig(systemConfigProxy),
-                        ISuperchainConfig(superchainConfigProxy)
-                    )
-                )
-            });
-
-            IOptimismPortal portal = IOptimismPortal(payable(optimismPortalProxy));
-            string memory version = portal.version();
-            console.log("OptimismPortal version: %s", version);
-
-            ChainAssertions.checkOptimismPortal({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
-        }
+        ChainAssertions.checkOptimismPortal({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
     }
 
     /// @notice Transfer ownership of the DisputeGameFactory contract to the final system owner
