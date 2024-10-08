@@ -23,7 +23,6 @@ import {
     DeployImplementationsInterop,
     DeployImplementationsOutput
 } from "scripts/DeployImplementations.s.sol";
-import { DeployOPChainInput, DeployOPChain, DeployOPChainOutput } from "scripts/DeployOPChain.s.sol";
 
 // Contracts
 import { AddressManager } from "src/legacy/AddressManager.sol";
@@ -43,8 +42,6 @@ import { IProxy } from "src/universal/interfaces/IProxy.sol";
 import { IProxyAdmin } from "src/universal/interfaces/IProxyAdmin.sol";
 import { IOptimismPortal } from "src/L1/interfaces/IOptimismPortal.sol";
 import { IOptimismPortal2 } from "src/L1/interfaces/IOptimismPortal2.sol";
-import { ICrossDomainMessenger } from "src/universal/interfaces/ICrossDomainMessenger.sol";
-import { IL1CrossDomainMessenger } from "src/L1/interfaces/IL1CrossDomainMessenger.sol";
 import { IL2OutputOracle } from "src/L1/interfaces/IL2OutputOracle.sol";
 import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
 import { ISystemConfig } from "src/L1/interfaces/ISystemConfig.sol";
@@ -56,13 +53,11 @@ import { IBigStepper } from "src/dispute/interfaces/IBigStepper.sol";
 import { IDisputeGameFactory } from "src/dispute/interfaces/IDisputeGameFactory.sol";
 import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
 import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
-import { IPermissionedDisputeGame } from "src/dispute/interfaces/IPermissionedDisputeGame.sol";
 import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistry.sol";
 import { IMIPS } from "src/cannon/interfaces/IMIPS.sol";
 import { IMIPS2 } from "src/cannon/interfaces/IMIPS2.sol";
 import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
-import { IOptimismMintableERC20Factory } from "src/universal/interfaces/IOptimismMintableERC20Factory.sol";
 import { IAddressManager } from "src/legacy/interfaces/IAddressManager.sol";
 import { IL1ChugSplashProxy } from "src/legacy/interfaces/IL1ChugSplashProxy.sol";
 import { IResolvedDelegateProxy } from "src/legacy/interfaces/IResolvedDelegateProxy.sol";
