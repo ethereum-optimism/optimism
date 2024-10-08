@@ -644,7 +644,7 @@ func TestChannelManager_Requeue(t *testing.T) {
 	require.Empty(t, m.channelQueue)
 }
 
-func TestChannelManager_Prune(t *testing.T) {
+func TestChannelManager_PruneBlocks(t *testing.T) {
 	l := testlog.Logger(t, log.LevelCrit)
 	cfg := channelManagerTestConfig(100, derive.SingularBatchType)
 	m := NewChannelManager(l, metrics.NoopMetrics, cfg, defaultTestRollupConfig)
@@ -705,5 +705,52 @@ func TestChannelManager_Prune(t *testing.T) {
 		Number: c.NumberU64(),
 	})
 	require.Equal(t, queue.Queue[*types.Block]{}, m.blocks)
+}
 
+func TestChannelManager_PruneChannels(t *testing.T) {
+	l := testlog.Logger(t, log.LevelCrit)
+	cfg := channelManagerTestConfig(100, derive.SingularBatchType)
+	cfg.InitNoneCompressor()
+	m := NewChannelManager(l, metrics.NoopMetrics, cfg, defaultTestRollupConfig)
+
+	A, err := newChannel(l, metrics.NoopMetrics, cfg, m.rollupCfg, 0)
+	require.NoError(t, err)
+	B, err := newChannel(l, metrics.NoopMetrics, cfg, m.rollupCfg, 0)
+	require.NoError(t, err)
+	C, err := newChannel(l, metrics.NoopMetrics, cfg, m.rollupCfg, 0)
+	require.NoError(t, err)
+
+	m.channelQueue = []*channel{A, B, C}
+
+	numTx := 1
+	rng := rand.New(rand.NewSource(123))
+	a := derivetest.RandomL2BlockWithChainId(rng, numTx, defaultTestRollupConfig.L2ChainID)
+	a = a.WithSeal(&types.Header{Number: big.NewInt(0)})
+	b := derivetest.RandomL2BlockWithChainId(rng, numTx, defaultTestRollupConfig.L2ChainID)
+	b = b.WithSeal(&types.Header{Number: big.NewInt(1)})
+	c := derivetest.RandomL2BlockWithChainId(rng, numTx, defaultTestRollupConfig.L2ChainID)
+	c = c.WithSeal(&types.Header{Number: big.NewInt(2)})
+	d := derivetest.RandomL2BlockWithChainId(rng, numTx, defaultTestRollupConfig.L2ChainID)
+	d = d.WithSeal(&types.Header{Number: big.NewInt(3)})
+	e := derivetest.RandomL2BlockWithChainId(rng, numTx, defaultTestRollupConfig.L2ChainID)
+	e = e.WithSeal(&types.Header{Number: big.NewInt(4)})
+
+	_, err = A.AddBlock(a)
+	require.NoError(t, err)
+	_, err = A.AddBlock(b)
+	require.NoError(t, err)
+
+	_, err = B.AddBlock(c)
+	require.NoError(t, err)
+	_, err = B.AddBlock(d)
+	require.NoError(t, err)
+
+	_, err = C.AddBlock(e)
+	require.NoError(t, err)
+
+	m.pruneChannels(eth.L2BlockRef{
+		Number: uint64(3),
+	})
+
+	require.Equal(t, []*channel{C}, m.channelQueue)
 }

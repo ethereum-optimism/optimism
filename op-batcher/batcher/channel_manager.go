@@ -569,7 +569,7 @@ func (s *channelManager) pruneSafeBlocks(newSafeHead eth.L2BlockRef) {
 // if they were built using blocks which are now safe
 func (s *channelManager) pruneChannels(newSafeHead eth.L2BlockRef) {
 	i := 0
-	for i, ch := range s.channelQueue {
+	for _, ch := range s.channelQueue {
 		if ch.LatestL2().Number > newSafeHead.Number {
 			break
 		}
