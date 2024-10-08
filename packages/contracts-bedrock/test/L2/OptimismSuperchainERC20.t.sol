@@ -54,7 +54,7 @@ contract OptimismSuperchainERC20Test is Test {
         vm.etch(_impl, vm.getDeployedCode("OptimismSuperchainERC20Beacon.sol:OptimismSuperchainERC20Beacon"));
 
         // Deploy the ERC1967Proxy contract at the Predeploy
-        bytes memory code = vm.getDeployedCode("universal/Proxy.sol:Proxy");
+        bytes memory code = vm.getDeployedCode("forge-artifacts/Proxy.sol/Proxy.json");
         vm.etch(_addr, code);
         EIP1967Helper.setAdmin(_addr, Predeploys.PROXY_ADMIN);
         EIP1967Helper.setImplementation(_addr, _impl);

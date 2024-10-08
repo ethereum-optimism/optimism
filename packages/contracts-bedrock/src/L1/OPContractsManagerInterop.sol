@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.25;
 
 import { OPContractsManager } from "src/L1/OPContractsManager.sol";
 import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";

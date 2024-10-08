@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.25;
 
 // Contracts
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
@@ -94,8 +94,8 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
     event BalanceChanged(address account, uint256 balance);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.1-beta.2
-    string public constant version = "1.0.1-beta.2";
+    /// @custom:semver 1.0.1-beta.3
+    string public constant version = "1.0.1-beta.3";
 
     /// @notice The fixed cost of resolving a challenge.
     /// @dev The value is estimated by measuring the cost of resolving with `bytes(0)`

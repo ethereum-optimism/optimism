@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.25;
 
 // Contracts
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
@@ -134,9 +134,9 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 2.8.1-beta.3
+    /// @custom:semver 2.8.1-beta.4
     function version() public pure virtual returns (string memory) {
-        return "2.8.1-beta.3";
+        return "2.8.1-beta.4";
     }
 
     /// @notice Constructs the OptimismPortal contract.

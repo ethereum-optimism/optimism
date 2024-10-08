@@ -607,7 +607,7 @@ contract Deploy is Deployer {
             DeployUtils.create2AndSave({
                 _save: this,
                 _salt: keccak256(abi.encode(_implSalt(), _name)),
-                _name: "Proxy",
+                _name: "forge-artifacts/Proxy.sol/Proxy.json",
                 _nick: _name,
                 _args: DeployUtils.encodeConstructor(abi.encodeCall(IProxy.__constructor__, (_proxyOwner)))
             })
@@ -623,7 +623,7 @@ contract Deploy is Deployer {
             DeployUtils.create2AndSave({
                 _save: this,
                 _salt: _implSalt(),
-                _name: "Proxy",
+                _name: "forge-artifacts/Proxy.sol/Proxy.json",
                 _nick: "DataAvailabilityChallengeProxy",
                 _args: DeployUtils.encodeConstructor(abi.encodeCall(IProxy.__constructor__, (proxyAdmin)))
             })

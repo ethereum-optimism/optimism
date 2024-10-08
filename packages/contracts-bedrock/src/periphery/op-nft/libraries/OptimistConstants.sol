@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.25;
 
 /// @title  OptimistConstants
 /// @notice Library for storing Optimist related constants that are shared in multiple contracts.

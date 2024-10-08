@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.25;
 
 // Testing
 import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";

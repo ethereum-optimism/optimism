@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.25;
 
 import { OptimistConstants } from "src/periphery/op-nft/libraries/OptimistConstants.sol";
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
@@ -88,8 +88,8 @@ contract OptimistInviter is ISemver, EIP712Upgradeable {
     mapping(address => uint256) public inviteCounts;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.1.1-beta.1
-    string public constant version = "1.1.1-beta.1";
+    /// @custom:semver 1.1.1-beta.2
+    string public constant version = "1.1.1-beta.2";
 
     /// @param _inviteGranter      Address of the invite granter.
     /// @param _attestationStation Address of the AttestationStation contract.

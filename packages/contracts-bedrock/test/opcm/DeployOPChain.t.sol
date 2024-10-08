@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.25;
 
 import { Test } from "forge-std/Test.sol";
 
@@ -58,7 +58,7 @@ contract DeployOPChainInput_Test is Test {
     function buildOpcmProxy() public returns (IProxy opcmProxy) {
         opcmProxy = IProxy(
             DeployUtils.create1({
-                _name: "Proxy",
+                _name: "forge-artifacts/Proxy.sol/Proxy.json",
                 _args: DeployUtils.encodeConstructor(abi.encodeCall(IProxy.__constructor__, (address(0))))
             })
         );

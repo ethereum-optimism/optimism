@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.25;
 
 import { Test, stdStorage, StdStorage } from "forge-std/Test.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
@@ -98,7 +98,7 @@ contract DeployImplementationsOutput_Test is Test {
     function test_set_succeeds() public {
         IProxy proxy = IProxy(
             DeployUtils.create1({
-                _name: "Proxy",
+                _name: "forge-artifacts/Proxy.sol/Proxy.json",
                 _args: DeployUtils.encodeConstructor(abi.encodeCall(IProxy.__constructor__, (address(0))))
             })
         );
@@ -418,7 +418,7 @@ contract DeployImplementations_Test is Test {
         );
         superchainConfigProxy = ISuperchainConfig(
             DeployUtils.create1({
-                _name: "Proxy",
+                _name: "forge-artifacts/Proxy.sol/Proxy.json",
                 _args: DeployUtils.encodeConstructor(
                     abi.encodeCall(IProxy.__constructor__, (address(superchainProxyAdmin)))
                 )

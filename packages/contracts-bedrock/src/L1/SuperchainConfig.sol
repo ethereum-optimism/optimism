@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.25;
 
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
@@ -36,8 +36,8 @@ contract SuperchainConfig is Initializable, ISemver {
     event ConfigUpdate(UpdateType indexed updateType, bytes data);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.1.1-beta.1
-    string public constant version = "1.1.1-beta.1";
+    /// @custom:semver 1.1.1-beta.2
+    string public constant version = "1.1.1-beta.2";
 
     /// @notice Constructs the SuperchainConfig contract.
     constructor() {
