@@ -55,7 +55,7 @@ func NewRunner(l1RpcUrl string, l1RpcKind string, l1BeaconUrl string, l2RpcUrl s
 		return nil, fmt.Errorf("dial L2 client: %w", err)
 	}
 
-	rollupCfg, err := chainconfig.RollupConfigByChainID(chainCfg.ChainID.Uint64())
+	rollupCfg, err := chainconfig.RollupConfigByChainID(chainID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load rollup config: %w", err)
 	}
