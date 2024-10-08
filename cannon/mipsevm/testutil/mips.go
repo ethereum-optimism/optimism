@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -182,12 +183,11 @@ func ValidateEVM(t *testing.T, stepWitness *mipsevm.StepWitness, step uint64, go
 }
 
 // AssertEVMReverts runs a single evm step from an FPVM prestate and asserts that the VM panics
-func AssertEVMReverts(t *testing.T, state mipsevm.FPVMState, contracts *ContractMetadata, tracer *tracing.Hooks) {
-	insnProof := state.GetMemory().MerkleProof(state.GetPC())
+func AssertEVMReverts(t *testing.T, state mipsevm.FPVMState, contracts *ContractMetadata, tracer *tracing.Hooks, ProofData []byte, expectedReason string) {
 	encodedWitness, _ := state.EncodeWitness()
 	stepWitness := &mipsevm.StepWitness{
 		State:     encodedWitness,
-		ProofData: insnProof[:],
+		ProofData: ProofData,
 	}
 	input := EncodeStepInput(t, stepWitness, mipsevm.LocalContext{}, contracts.Artifacts.MIPS)
 	startingGas := uint64(30_000_000)
@@ -195,8 +195,16 @@ func AssertEVMReverts(t *testing.T, state mipsevm.FPVMState, contracts *Contract
 	env, evmState := NewEVMEnv(contracts)
 	env.Config.Tracer = tracer
 	sender := common.Address{0x13, 0x37}
-	_, _, err := env.Call(vm.AccountRef(sender), contracts.Addresses.MIPS, input, startingGas, common.U2560)
+	ret, _, err := env.Call(vm.AccountRef(sender), contracts.Addresses.MIPS, input, startingGas, common.U2560)
 	require.EqualValues(t, err, vm.ErrExecutionReverted)
+
+	require.Greater(t, len(ret), 4, "Return data length should be greater than 4 bytes")
+
+	unpacked, decodeErr := abi.UnpackRevert(ret)
+	require.NoError(t, decodeErr, "Failed to unpack revert reason")
+
+	require.Equal(t, expectedReason, unpacked, "Revert reason mismatch")
+
 	logs := evmState.Logs()
 	require.Equal(t, 0, len(logs))
 }

@@ -580,13 +580,15 @@ func TestEVMFault(t *testing.T) {
 
 	versions := GetMipsVersionTestCases(t)
 	cases := []struct {
-		name   string
-		nextPC arch.Word
-		insn   uint32
+		name                 string
+		nextPC               arch.Word
+		insn                 uint32
+		errMsg               string
+		memoryProofAddresses []uint32
 	}{
-		{"illegal instruction", 0, 0xFF_FF_FF_FF},
-		{"branch in delay-slot", 8, 0x11_02_00_03},
-		{"jump in delay-slot", 8, 0x0c_00_00_0c},
+		{"illegal instruction", 0, 0xFF_FF_FF_FF, "invalid instruction", []uint32{0xa7ef00cc}},
+		{"branch in delay-slot", 8, 0x11_02_00_03, "branch in delay slot", []uint32{0}},
+		{"jump in delay-slot", 8, 0x0c_00_00_0c, "jump in delay slot", []uint32{0}},
 	}
 
 	for _, v := range versions {
@@ -599,8 +601,9 @@ func TestEVMFault(t *testing.T) {
 				// set the return address ($ra) to jump into when test completes
 				state.GetRegistersRef()[31] = testutil.EndAddr
 
+				proofData := v.ProofGenerator(t, goVm.GetState(), tt.memoryProofAddresses...)
 				require.Panics(t, func() { _, _ = goVm.Step(true) })
-				testutil.AssertEVMReverts(t, state, v.Contracts, tracer)
+				testutil.AssertEVMReverts(t, state, v.Contracts, tracer, proofData, tt.errMsg)
 			})
 		}
 	}

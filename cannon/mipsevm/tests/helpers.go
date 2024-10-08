@@ -50,31 +50,68 @@ func multiThreadElfVmFactory(t require.TestingT, elfFile string, po mipsevm.Prei
 	return fpvm
 }
 
+type ProofGenerator func(t require.TestingT, state mipsevm.FPVMState, memoryProofAddresses ...uint32) []byte
+
+func singalThreadedProofGenerator(t require.TestingT, state mipsevm.FPVMState, memoryProofAddresses ...uint32) []byte {
+	var proofData []byte
+
+	insnProof := state.GetMemory().MerkleProof(state.GetPC())
+	proofData = append(proofData, insnProof[:]...)
+
+	for _, addr := range memoryProofAddresses {
+		memProof := state.GetMemory().MerkleProof(addr)
+		proofData = append(proofData, memProof[:]...)
+	}
+
+	return proofData
+}
+
+func multiThreadedProofGenerator(t require.TestingT, state mipsevm.FPVMState, memoryProofAddresses ...uint32) []byte {
+	mtState, ok := state.(*multithreaded.State)
+	if !ok {
+		require.Fail(t, "Failed to cast FPVMState to multithreaded State type")
+	}
+
+	proofData := mtState.EncodeThreadProof()
+	insnProof := mtState.GetMemory().MerkleProof(mtState.GetPC())
+	proofData = append(proofData, insnProof[:]...)
+
+	for _, addr := range memoryProofAddresses {
+		memProof := mtState.GetMemory().MerkleProof(addr)
+		proofData = append(proofData, memProof[:]...)
+	}
+
+	return proofData
+}
+
 type VersionedVMTestCase struct {
-	Name         string
-	Contracts    *testutil.ContractMetadata
-	StateHashFn  mipsevm.HashFn
-	VMFactory    VMFactory
-	ElfVMFactory ElfVMFactory
+	Name           string
+	Contracts      *testutil.ContractMetadata
+	StateHashFn    mipsevm.HashFn
+	VMFactory      VMFactory
+	ElfVMFactory   ElfVMFactory
+	ProofGenerator ProofGenerator
 }
 
 func GetSingleThreadedTestCase(t require.TestingT) VersionedVMTestCase {
 	return VersionedVMTestCase{
-		Name:         "single-threaded",
-		Contracts:    testutil.TestContractsSetup(t, testutil.MipsSingleThreaded),
-		StateHashFn:  singlethreaded.GetStateHashFn(),
-		VMFactory:    singleThreadedVmFactory,
-		ElfVMFactory: singleThreadElfVmFactory,
+		Name:           "single-threaded",
+		Contracts:      testutil.TestContractsSetup(t, testutil.MipsSingleThreaded),
+		StateHashFn:    singlethreaded.GetStateHashFn(),
+		VMFactory:      singleThreadedVmFactory,
+		ElfVMFactory:   singleThreadElfVmFactory,
+		ProofGenerator: singalThreadedProofGenerator,
 	}
 }
 
 func GetMultiThreadedTestCase(t require.TestingT) VersionedVMTestCase {
 	return VersionedVMTestCase{
-		Name:         "multi-threaded",
-		Contracts:    testutil.TestContractsSetup(t, testutil.MipsMultithreaded),
-		StateHashFn:  multithreaded.GetStateHashFn(),
-		VMFactory:    multiThreadedVmFactory,
-		ElfVMFactory: multiThreadElfVmFactory,
+		Name:           "multi-threaded",
+		Contracts:      testutil.TestContractsSetup(t, testutil.MipsMultithreaded),
+		StateHashFn:    multithreaded.GetStateHashFn(),
+		VMFactory:      multiThreadedVmFactory,
+		ElfVMFactory:   multiThreadElfVmFactory,
+		ProofGenerator: multiThreadedProofGenerator,
 	}
 }
 
