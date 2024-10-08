@@ -247,58 +247,55 @@ library DeployUtils {
         assertValidContractAddress(implementation_);
     }
 
-    function buildERC1967ProxyWithImpl(string memory proxyImplName) public returns (IProxy genericProxy) {
-        genericProxy = IProxy(
+    function buildERC1967ProxyWithImpl(string memory _proxyImplName) public returns (IProxy genericProxy_) {
+        genericProxy_ = IProxy(
             create1({
                 _name: "Proxy",
                 _args: DeployUtils.encodeConstructor(abi.encodeCall(IProxy.__constructor__, (address(0))))
             })
         );
-        address implementation = address(vm.addr(uint256(keccak256(abi.encodePacked(proxyImplName)))));
+        address implementation = address(vm.addr(uint256(keccak256(abi.encodePacked(_proxyImplName)))));
         vm.etch(address(implementation), hex"01");
         vm.prank(address(0));
-        genericProxy.upgradeTo(address(implementation));
-        vm.etch(address(genericProxy), address(genericProxy).code);
+        genericProxy_.upgradeTo(address(implementation));
+        vm.etch(address(genericProxy_), address(genericProxy_).code);
     }
 
-    function buildL1ChugSplashProxyWithImpl(string memory proxyImplName)
-        public
-        returns (IL1ChugSplashProxy proxy)
-    {
-        proxy = IL1ChugSplashProxy(
+    function buildL1ChugSplashProxyWithImpl(string memory _proxyImplName) public returns (IL1ChugSplashProxy proxy_) {
+        proxy_ = IL1ChugSplashProxy(
             create1({
                 _name: "L1ChugSplashProxy",
                 _args: DeployUtils.encodeConstructor(abi.encodeCall(IL1ChugSplashProxy.__constructor__, (address(0))))
             })
         );
-        address implementation = address(vm.addr(uint256(keccak256(abi.encodePacked(proxyImplName)))));
+        address implementation = address(vm.addr(uint256(keccak256(abi.encodePacked(_proxyImplName)))));
         vm.etch(address(implementation), hex"01");
         vm.prank(address(0));
-        proxy.setStorage(Constants.PROXY_IMPLEMENTATION_ADDRESS, bytes32(uint256(uint160(implementation))));
+        proxy_.setStorage(Constants.PROXY_IMPLEMENTATION_ADDRESS, bytes32(uint256(uint160(implementation))));
     }
 
     function buildResolvedDelegateProxyWithImpl(
-        IAddressManager addressManager,
-        string memory proxyImplName
+        IAddressManager _addressManager,
+        string memory _proxyImplName
     )
         public
-        returns (IResolvedDelegateProxy proxy)
+        returns (IResolvedDelegateProxy proxy_)
     {
-        proxy = IResolvedDelegateProxy(
+        proxy_ = IResolvedDelegateProxy(
             create1({
                 _name: "ResolvedDelegateProxy",
                 _args: DeployUtils.encodeConstructor(
-                    abi.encodeCall(IResolvedDelegateProxy.__constructor__, (addressManager, proxyImplName))
+                    abi.encodeCall(IResolvedDelegateProxy.__constructor__, (_addressManager, _proxyImplName))
                 )
             })
         );
-        address implementation = address(vm.addr(uint256(keccak256(abi.encodePacked(proxyImplName)))));
+        address implementation = address(vm.addr(uint256(keccak256(abi.encodePacked(_proxyImplName)))));
         vm.etch(address(implementation), hex"01");
-        addressManager.setAddress(proxyImplName, implementation);
+        _addressManager.setAddress(_proxyImplName, implementation);
     }
 
-    function buildAddressManager() public returns (IAddressManager addressManager) {
-        addressManager = IAddressManager(
+    function buildAddressManager() public returns (IAddressManager addressManager_) {
+        addressManager_ = IAddressManager(
             create1({
                 _name: "AddressManager",
                 _args: DeployUtils.encodeConstructor(abi.encodeCall(IAddressManager.__constructor__, ()))
