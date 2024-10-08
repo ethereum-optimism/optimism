@@ -568,8 +568,8 @@ func (s *channelManager) pruneSafeBlocks(newSafeHead eth.L2BlockRef) error {
 // if they were built using blocks which are now safe
 func (s *channelManager) pruneChannels(newSafeHead eth.L2BlockRef) {
 	i := 0
-	for _, ch := range s.channelQueue {
-		if ch.channelBuilder.blocks[len(ch.channelBuilder.blocks)-1].Number().Uint64() > newSafeHead.Number {
+	for i, ch := range s.channelQueue {
+		if ch.LatestL2().Number > newSafeHead.Number {
 			break
 		}
 		i++
