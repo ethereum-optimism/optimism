@@ -12,6 +12,8 @@ import { Bytes } from "src/libraries/Bytes.sol";
 
 // Interfaces
 import { IProxy } from "src/universal/interfaces/IProxy.sol";
+import { IAddressManager } from "src/legacy/interfaces/IAddressManager.sol";
+import { IStaticL1ChugSplashProxy } from "src/legacy/interfaces/IL1ChugSplashProxy.sol";
 
 library DeployUtils {
     Vm internal constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
@@ -217,11 +219,28 @@ library DeployUtils {
 
     /// @notice Asserts that the given proxy has an implementation set.
     /// @param _proxy Proxy to check.
-    function assertImplementationSet(address _proxy) internal {
+    function assertERC1967ImplementationSet(address _proxy) internal returns (address implementation) {
         // We prank as the zero address due to the Proxy's `proxyCallIfNotAdmin` modifier.
         // Pranking inside this function also means it can no longer be considered `view`.
         vm.prank(address(0));
-        address implementation = IProxy(payable(_proxy)).implementation();
+        implementation = IProxy(payable(_proxy)).implementation();
+        assertValidContractAddress(implementation);
+    }
+
+    function assertL1ChugSplashImplementationSet(address _proxy) internal returns (address implementation) {
+        vm.prank(address(0));
+        implementation = IStaticL1ChugSplashProxy(_proxy).getImplementation();
+        assertValidContractAddress(implementation);
+    }
+
+    function assertResolvedDelegateProxyImplementationSet(
+        string memory _implementationName,
+        IAddressManager _addressManager
+    )
+        internal
+        view
+    {
+        address implementation = _addressManager.getAddress(_implementationName);
         assertValidContractAddress(implementation);
     }
 
