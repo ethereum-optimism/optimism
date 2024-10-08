@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
+import { console2 } from "forge-std/console2.sol";
 
 import { DeploySuperchainInput, DeploySuperchain, DeploySuperchainOutput } from "scripts/DeploySuperchain.s.sol";
 import {
@@ -21,6 +22,8 @@ import { IDisputeGameFactory } from "src/dispute/interfaces/IDisputeGameFactory.
 import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistry.sol";
 import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
 import { IPermissionedDisputeGame } from "src/dispute/interfaces/IPermissionedDisputeGame.sol";
+import { IL1ChugSplashProxy } from "src/legacy/interfaces/IL1ChugSplashProxy.sol";
+import { IResolvedDelegateProxy } from "src/legacy/interfaces/IResolvedDelegateProxy.sol";
 
 import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
 import { IProtocolVersions, ProtocolVersion } from "src/L1/interfaces/IProtocolVersions.sol";
@@ -55,20 +58,6 @@ contract DeployOPChainInput_Test is Test {
         doi = new DeployOPChainInput();
     }
 
-    function buildOpcmProxy() public returns (IProxy opcmProxy) {
-        opcmProxy = IProxy(
-            DeployUtils.create1({
-                _name: "Proxy",
-                _args: DeployUtils.encodeConstructor(abi.encodeCall(IProxy.__constructor__, (address(0))))
-            })
-        );
-        OPContractsManager opcmImpl = OPContractsManager(address(makeAddr("opcmImpl")));
-        vm.prank(address(0));
-        opcmProxy.upgradeTo(address(opcmImpl));
-        vm.etch(address(opcmProxy), address(opcmProxy).code);
-        vm.etch(address(opcmImpl), hex"01");
-    }
-
     function test_set_succeeds() public {
         doi.set(doi.opChainProxyAdminOwner.selector, opChainProxyAdminOwner);
         doi.set(doi.systemConfigOwner.selector, systemConfigOwner);
@@ -80,7 +69,7 @@ contract DeployOPChainInput_Test is Test {
         doi.set(doi.blobBaseFeeScalar.selector, blobBaseFeeScalar);
         doi.set(doi.l2ChainId.selector, l2ChainId);
 
-        (IProxy opcmProxy) = buildOpcmProxy();
+        (IProxy opcmProxy) = DeployUtils.buildERC1967ProxyWithImpl("opcmProxy");
         doi.set(doi.opcmProxy.selector, address(opcmProxy));
 
         // Compare the default inputs to the getter methods.
@@ -133,22 +122,22 @@ contract DeployOPChainOutput_Test is Test {
 
     // Define default outputs to set.
     // We set these in storage because doing it locally in test_set_succeeds results in stack too deep.
-    IProxyAdmin opChainProxyAdmin = IProxyAdmin(makeAddr("optimismPortal2Impl"));
-    IAddressManager addressManager = IAddressManager(makeAddr("delayedWETHImpl"));
-    IL1ERC721Bridge l1ERC721BridgeProxy = IL1ERC721Bridge(makeAddr("l1ERC721BridgeProxy"));
-    ISystemConfig systemConfigProxy = ISystemConfig(makeAddr("systemConfigProxy"));
-    IOptimismMintableERC20Factory optimismMintableERC20FactoryProxy =
-        IOptimismMintableERC20Factory(makeAddr("optimismMintableERC20FactoryProxy"));
-    IL1StandardBridge l1StandardBridgeProxy = IL1StandardBridge(payable(makeAddr("l1StandardBridgeProxy")));
-    IL1CrossDomainMessenger l1CrossDomainMessengerProxy =
-        IL1CrossDomainMessenger(makeAddr("l1CrossDomainMessengerProxy"));
-    IOptimismPortal2 optimismPortalProxy = IOptimismPortal2(payable(makeAddr("optimismPortalProxy")));
-    IDisputeGameFactory disputeGameFactoryProxy = IDisputeGameFactory(makeAddr("disputeGameFactoryProxy"));
-    IAnchorStateRegistry anchorStateRegistryProxy = IAnchorStateRegistry(makeAddr("anchorStateRegistryProxy"));
+    IProxyAdmin opChainProxyAdmin = IProxyAdmin(makeAddr("opChainProxyAdmin"));
+    // IL1ERC721Bridge l1ERC721BridgeProxy = IL1ERC721Bridge(makeAddr("l1ERC721BridgeProxy"));
+    // ISystemConfig systemConfigProxy = ISystemConfig(makeAddr("systemConfigProxy"));
+    // IOptimismMintableERC20Factory optimismMintableERC20FactoryProxy =
+    //     IOptimismMintableERC20Factory(makeAddr("optimismMintableERC20FactoryProxy"));
+    // IL1StandardBridge l1StandardBridgeProxy = IL1StandardBridge(payable(makeAddr("l1StandardBridgeProxy")));
+    // IL1CrossDomainMessenger l1CrossDomainMessengerProxy =
+    //     IL1CrossDomainMessenger(makeAddr("l1CrossDomainMessengerProxy"));
+    // IOptimismPortal2 optimismPortalProxy = IOptimismPortal2(payable(makeAddr("optimismPortalProxy")));
+    // IDisputeGameFactory disputeGameFactoryProxy = IDisputeGameFactory(makeAddr("disputeGameFactoryProxy"));
+    // IAnchorStateRegistry anchorStateRegistryProxy = IAnchorStateRegistry(makeAddr("anchorStateRegistryProxy"));
     IAnchorStateRegistry anchorStateRegistryImpl = IAnchorStateRegistry(makeAddr("anchorStateRegistryImpl"));
     IFaultDisputeGame faultDisputeGame = IFaultDisputeGame(makeAddr("faultDisputeGame"));
     IPermissionedDisputeGame permissionedDisputeGame = IPermissionedDisputeGame(makeAddr("permissionedDisputeGame"));
-    IDelayedWETH delayedWETHPermissionedGameProxy = IDelayedWETH(payable(makeAddr("delayedWETHPermissionedGameProxy")));
+    // IDelayedWETH delayedWETHPermissionedGameProxy =
+    // IDelayedWETH(payable(makeAddr("delayedWETHPermissionedGameProxy")));
     // TODO: Eventually switch from Permissioned to Permissionless.
     // DelayedWETH delayedWETHPermissionlessGameProxy =
     //     DelayedWETH(payable(makeAddr("delayedWETHPermissionlessGameProxy")));
@@ -159,19 +148,22 @@ contract DeployOPChainOutput_Test is Test {
 
     function test_set_succeeds() public {
         vm.etch(address(opChainProxyAdmin), hex"01");
-        vm.etch(address(addressManager), hex"01");
-        vm.etch(address(l1ERC721BridgeProxy), hex"01");
-        vm.etch(address(systemConfigProxy), hex"01");
-        vm.etch(address(optimismMintableERC20FactoryProxy), hex"01");
-        vm.etch(address(l1StandardBridgeProxy), hex"01");
-        vm.etch(address(l1CrossDomainMessengerProxy), hex"01");
-        vm.etch(address(optimismPortalProxy), hex"01");
-        vm.etch(address(disputeGameFactoryProxy), hex"01");
-        vm.etch(address(anchorStateRegistryProxy), hex"01");
+        IAddressManager addressManager = DeployUtils.buildAddressManager();
+        (IProxy l1ERC721BridgeProxy) = DeployUtils.buildERC1967ProxyWithImpl("l1ERC721BridgeProxy");
+        (IProxy systemConfigProxy) = DeployUtils.buildERC1967ProxyWithImpl("systemConfigProxy");
+        (IProxy optimismMintableERC20FactoryProxy) =
+            DeployUtils.buildERC1967ProxyWithImpl("optimismMintableERC20FactoryProxy");
+        (IL1ChugSplashProxy l1StandardBridgeProxy) = DeployUtils.buildL1ChugSplashProxyWithImpl("l1StandardBridgeProxy");
+        (IResolvedDelegateProxy l1CrossDomainMessengerProxy) =
+            DeployUtils.buildResolvedDelegateProxyWithImpl(addressManager, "OVM_L1CrossDomainMessenger");
+        (IProxy optimismPortalProxy) = DeployUtils.buildERC1967ProxyWithImpl("optimismPortalProxy");
+        (IProxy disputeGameFactoryProxy) = DeployUtils.buildERC1967ProxyWithImpl("disputeGameFactoryProxy");
+        (IProxy anchorStateRegistryProxy) = DeployUtils.buildERC1967ProxyWithImpl("anchorStateRegistryProxy");
         vm.etch(address(anchorStateRegistryImpl), hex"01");
         vm.etch(address(faultDisputeGame), hex"01");
         vm.etch(address(permissionedDisputeGame), hex"01");
-        vm.etch(address(delayedWETHPermissionedGameProxy), hex"01");
+        (IProxy delayedWETHPermissionedGameProxy) =
+            DeployUtils.buildERC1967ProxyWithImpl("delayedWETHPermissionedGameProxy");
         // TODO: Eventually switch from Permissioned to Permissionless.
         // vm.etch(address(delayedWETHPermissionlessGameProxy), hex"01");
 
