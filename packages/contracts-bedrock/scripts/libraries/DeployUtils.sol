@@ -219,18 +219,18 @@ library DeployUtils {
 
     /// @notice Asserts that the given proxy has an implementation set.
     /// @param _proxy Proxy to check.
-    function assertERC1967ImplementationSet(address _proxy) internal returns (address implementation) {
+    function assertERC1967ImplementationSet(address _proxy) internal returns (address implementation_) {
         // We prank as the zero address due to the Proxy's `proxyCallIfNotAdmin` modifier.
         // Pranking inside this function also means it can no longer be considered `view`.
         vm.prank(address(0));
-        implementation = IProxy(payable(_proxy)).implementation();
-        assertValidContractAddress(implementation);
+        implementation_ = IProxy(payable(_proxy)).implementation();
+        assertValidContractAddress(implementation_);
     }
 
-    function assertL1ChugSplashImplementationSet(address _proxy) internal returns (address implementation) {
+    function assertL1ChugSplashImplementationSet(address _proxy) internal returns (address implementation_) {
         vm.prank(address(0));
-        implementation = IStaticL1ChugSplashProxy(_proxy).getImplementation();
-        assertValidContractAddress(implementation);
+        implementation_ = IStaticL1ChugSplashProxy(_proxy).getImplementation();
+        assertValidContractAddress(implementation_);
     }
 
     function assertResolvedDelegateProxyImplementationSet(
@@ -239,9 +239,10 @@ library DeployUtils {
     )
         internal
         view
+        returns (address implementation_)
     {
-        address implementation = _addressManager.getAddress(_implementationName);
-        assertValidContractAddress(implementation);
+        implementation_ = _addressManager.getAddress(_implementationName);
+        assertValidContractAddress(implementation_);
     }
 
     /// @notice Asserts that the given addresses are valid contract addresses.

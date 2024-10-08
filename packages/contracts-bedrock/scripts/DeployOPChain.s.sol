@@ -573,52 +573,45 @@ contract DeployOPChainOutput is BaseDeployIO {
         require(admin.owner() == _doi.opChainProxyAdminOwner(), "OPCPA-10");
         require(
             admin.getProxyImplementation(address(l1CrossDomainMessengerProxy()))
-                == addressManager().getAddress("OVM_L1CrossDomainMessenger"),
+                == DeployUtils.assertResolvedDelegateProxyImplementationSet("OVM_L1CrossDomainMessenger", addressManager()),
             "OPCPA-20"
         );
         require(address(admin.addressManager()) == address(addressManager()), "OPCPA-30");
-
-        address l1StandardBridge = address(l1StandardBridgeProxy());
-        vm.prank(address(0));
-        address l1StandardBridgeImpl = IL1ChugSplashProxy(payable(l1StandardBridge)).getImplementation();
-        require(admin.getProxyImplementation(l1StandardBridge) == l1StandardBridgeImpl, "OPCPA-40");
-
+        require(
+            admin.getProxyImplementation(address(l1StandardBridgeProxy()))
+                == DeployUtils.assertL1ChugSplashImplementationSet(address(l1StandardBridgeProxy())),
+            "OPCPA-40"
+        );
         require(
             admin.getProxyImplementation(address(l1ERC721BridgeProxy()))
                 == DeployUtils.assertERC1967ImplementationSet(address(l1ERC721BridgeProxy())),
             "OPCPA-50"
         );
-
         require(
             admin.getProxyImplementation(address(optimismPortalProxy()))
                 == DeployUtils.assertERC1967ImplementationSet(address(optimismPortalProxy())),
             "OPCPA-60"
         );
-
         require(
             admin.getProxyImplementation(address(systemConfigProxy()))
                 == DeployUtils.assertERC1967ImplementationSet(address(systemConfigProxy())),
             "OPCPA-70"
         );
-
         require(
             admin.getProxyImplementation(address(optimismMintableERC20FactoryProxy()))
                 == DeployUtils.assertERC1967ImplementationSet(address(optimismMintableERC20FactoryProxy())),
             "OPCPA-80"
         );
-
         require(
             admin.getProxyImplementation(address(disputeGameFactoryProxy()))
                 == DeployUtils.assertERC1967ImplementationSet(address(disputeGameFactoryProxy())),
             "OPCPA-90"
         );
-
         require(
             admin.getProxyImplementation(address(delayedWETHPermissionedGameProxy()))
                 == DeployUtils.assertERC1967ImplementationSet(address(delayedWETHPermissionedGameProxy())),
             "OPCPA-100"
         );
-
         require(
             admin.getProxyImplementation(address(anchorStateRegistryProxy()))
                 == DeployUtils.assertERC1967ImplementationSet(address(anchorStateRegistryProxy())),
