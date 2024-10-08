@@ -31,7 +31,6 @@ import { OPContractsManager } from "src/L1/OPContractsManager.sol";
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
-import { Constants as ScriptConstants } from "scripts/libraries/Constants.sol";
 import { Types } from "scripts/libraries/Types.sol";
 import { Duration } from "src/dispute/lib/LibUDT.sol";
 import { StorageSlot, ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
