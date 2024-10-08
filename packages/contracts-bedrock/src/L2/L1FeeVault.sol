@@ -12,8 +12,8 @@ import { Types } from "src/libraries/Types.sol";
 /// @notice The L1FeeVault accumulates the L1 portion of the transaction fees.
 contract L1FeeVault is FeeVault, ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 1.5.0-beta.3
-    string public constant version = "1.5.0-beta.3";
+    /// @custom:semver 1.5.0-beta.4
+    string public constant version = "1.5.0-beta.4";
 
     /// @notice Constructs the L1FeeVault contract.
     /// @param _recipient           Wallet that will receive the fees.

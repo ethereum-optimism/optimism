@@ -28,8 +28,8 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
     ISuperchainConfig public superchainConfig;
 
     /// @notice Semantic version.
-    /// @custom:semver 2.1.1-beta.4
-    string public constant version = "2.1.1-beta.4";
+    /// @custom:semver 2.1.1-beta.5
+    string public constant version = "2.1.1-beta.5";
 
     /// @notice Constructs the L1ERC721Bridge contract.
     constructor() ERC721Bridge() {

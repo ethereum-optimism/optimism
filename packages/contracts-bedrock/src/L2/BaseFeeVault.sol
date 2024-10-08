@@ -12,8 +12,8 @@ import { Types } from "src/libraries/Types.sol";
 /// @notice The BaseFeeVault accumulates the base fee that is paid by transactions.
 contract BaseFeeVault is FeeVault, ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 1.5.0-beta.3
-    string public constant version = "1.5.0-beta.3";
+    /// @custom:semver 1.5.0-beta.4
+    string public constant version = "1.5.0-beta.4";
 
     /// @notice Constructs the BaseFeeVault contract.
     /// @param _recipient           Wallet that will receive the fees.
