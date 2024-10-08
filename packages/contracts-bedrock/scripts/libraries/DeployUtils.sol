@@ -5,7 +5,6 @@ pragma solidity 0.8.15;
 import { Vm } from "forge-std/Vm.sol";
 import { console2 as console } from "forge-std/console2.sol";
 import { Artifacts } from "scripts/Artifacts.s.sol";
-import { console2 } from "forge-std/console2.sol";
 
 // Libraries
 import { LibString } from "@solady/utils/LibString.sol";
