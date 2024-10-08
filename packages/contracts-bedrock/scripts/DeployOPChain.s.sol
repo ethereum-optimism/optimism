@@ -20,6 +20,7 @@ import { IProxyAdmin } from "src/universal/interfaces/IProxyAdmin.sol";
 import { IProxy } from "src/universal/interfaces/IProxy.sol";
 
 import { IAddressManager } from "src/legacy/interfaces/IAddressManager.sol";
+import { IL1ChugSplashProxy } from "src/legacy/interfaces/IL1ChugSplashProxy.sol";
 import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 import { IDisputeGameFactory } from "src/dispute/interfaces/IDisputeGameFactory.sol";
 import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistry.sol";
@@ -366,6 +367,8 @@ contract DeployOPChainOutput is BaseDeployIO {
         assertValidOptimismPortal(_doi);
         assertValidPermissionedDisputeGame(_doi);
         assertValidSystemConfig(_doi);
+        assertValidAddressManager(_doi);
+        assertValidOPChainProxyAdmin(_doi);
     }
 
     function assertValidPermissionedDisputeGame(DeployOPChainInput _doi) internal {
@@ -550,6 +553,26 @@ contract DeployOPChainOutput is BaseDeployIO {
         vm.prank(address(0));
         address admin = proxy.admin();
         require(admin == address(opChainProxyAdmin()), "DWETH-20");
+    }
+
+    function assertValidAddressManager(DeployOPChainInput) internal view {
+        require(addressManager().owner() == address(opChainProxyAdmin()), "AM-10");
+    }
+
+    function assertValidOPChainProxyAdmin(DeployOPChainInput _doi) internal {
+        IProxyAdmin admin = opChainProxyAdmin();
+        require(admin.owner() == _doi.opChainProxyAdminOwner(), "OPCPA-10");
+        require(
+            admin.getProxyImplementation(address(l1CrossDomainMessengerProxy()))
+                == addressManager().getAddress("OVM_L1CrossDomainMessenger"),
+            "OPCPA-20"
+        );
+        require(address(admin.addressManager()) == address(addressManager()), "OPCPA-30");
+
+        address l1StandardBridge = address(l1StandardBridgeProxy());
+        vm.prank(address(0));
+        address l1StandardBridgeImpl = IL1ChugSplashProxy(payable(l1StandardBridge)).getImplementation();
+        require(admin.getProxyImplementation(l1StandardBridge) == l1StandardBridgeImpl, "OPCPA-40");
     }
 }
 

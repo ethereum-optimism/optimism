@@ -558,9 +558,9 @@ contract DeployOPChain_Test is DeployOPChain_TestBase {
         assertEq(doo.permissionedDisputeGame().splitDepth(), 30, "3400");
         assertEq(doo.permissionedDisputeGame().maxGameDepth(), 73, "3500");
 
-        // Most architecture assertions are handled within the OP Contracts Manager itself and therefore
-        // we only assert on the things that are not visible onchain.
-        // TODO add these assertions: AddressManager, Proxy, ProxyAdmin, etc.
+        assertEq(address(doo.opChainProxyAdmin().addressManager().owner()), address(doo.opChainProxyAdmin()), "3600");
+        assertEq(address(doo.opChainProxyAdmin().addressManager()), address(doo.addressManager()), "3700");
+        assertEq(address(doo.opChainProxyAdmin().owner()), opChainProxyAdminOwner, "3800");
     }
 }
 
