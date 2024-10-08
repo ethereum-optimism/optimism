@@ -25,7 +25,7 @@ build: prebuild
 
 # Builds the go-ffi tool for contract tests.
 build-go-ffi:
-  cd scripts/go-ffi && go build
+  cd ./scripts/go-ffi && go build
 
 # Cleans build artifacts and deployments.
 clean:
