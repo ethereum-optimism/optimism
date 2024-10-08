@@ -289,21 +289,26 @@ contract Deploy is Deployer {
         // Deploy Current OPChain Contracts
         deployOpChain();
 
-        // The OptimismPortalProxy contract is used both with and without Fault Proofs enabled, and is deployed by
-        // deployOPChain. If Fault Proofs are disabled, then we need to reinitialize the OptimismPortalProxy
-        // as the legacy OptimismPortal.
+        // Apply modifications for non-standard configurations not supported by the OPCM deployment
         if (cfg.useFaultProofs()) {
+            // The OPCM doesn't deploy the CANNON game (it is deployed in deployOPChain), but the tests expect it
+            // to be the respected game type.
             vm.prank(ISuperchainConfig(mustGetAddress("SuperchainConfigProxy")).guardian());
             IOptimismPortal2(mustGetAddress("OptimismPortalProxy")).setRespectedGameType(GameTypes.CANNON);
         } else {
+            // The L2OutputOracle is not deployed by the OPCM, we deploy the proxy and initialize it here.
             deployERC1967Proxy("L2OutputOracleProxy");
             initializeL2OutputOracle();
 
+            // The OptimismPortalProxy contract is used both with and without Fault Proofs enabled, and is deployed by
+            // deployOPChain. If Fault Proofs are disabled, then we need to reinitialize the OptimismPortalProxy
+            // as the legacy OptimismPortal.
             resetInitializedProxy("OptimismPortal");
             initializeOptimismPortal();
         }
+
         if (cfg.useCustomGasToken()) {
-            // resetting the systemconfig then reinitializing with the custom gas token
+            // Reset the systemconfig then reinitialize it with the custom gas token
             resetInitializedProxy("SystemConfig");
             initializeSystemConfig();
         }
@@ -1497,7 +1502,6 @@ contract Deploy is Deployer {
         string memory saltMixer = "salt mixer";
         return OPContractsManager.DeployInput({
             roles: OPContractsManager.Roles({
-                // todo: replace this with cfg.finalSystemOwner()
                 opChainProxyAdminOwner: msg.sender,
                 systemConfigOwner: cfg.finalSystemOwner(),
                 batcher: cfg.batchSenderAddress(),
