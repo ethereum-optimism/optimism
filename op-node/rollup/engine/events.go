@@ -229,6 +229,22 @@ func (ev PromoteFinalizedEvent) String() string {
 	return "promote-finalized"
 }
 
+// FinalizedUpdateEvent signals that a block has been marked as finalized.
+type FinalizedUpdateEvent struct {
+	Ref eth.L2BlockRef
+}
+
+func (ev FinalizedUpdateEvent) String() string {
+	return "finalized-update"
+}
+
+// RequestFinalizedUpdateEvent signals that a FinalizedUpdateEvent is needed.
+type RequestFinalizedUpdateEvent struct{}
+
+func (ev RequestFinalizedUpdateEvent) String() string {
+	return "request-finalized-update"
+}
+
 // CrossUpdateRequestEvent triggers update events to be emitted, repeating the current state.
 type CrossUpdateRequestEvent struct {
 	CrossUnsafe bool
@@ -419,8 +435,11 @@ func (d *EngDeriver) OnEvent(ev event.Event) bool {
 			return true
 		}
 		d.ec.SetFinalizedHead(x.Ref)
+		d.emitter.Emit(FinalizedUpdateEvent(x))
 		// Try to apply the forkchoice changes
 		d.emitter.Emit(TryUpdateEngineEvent{})
+	case RequestFinalizedUpdateEvent:
+		d.emitter.Emit(FinalizedUpdateEvent{Ref: d.ec.Finalized()})
 	case CrossUpdateRequestEvent:
 		if x.CrossUnsafe {
 			d.emitter.Emit(CrossUnsafeUpdateEvent{
