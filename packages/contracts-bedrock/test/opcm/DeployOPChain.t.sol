@@ -119,27 +119,13 @@ contract DeployOPChainInput_Test is Test {
 contract DeployOPChainOutput_Test is Test {
     DeployOPChainOutput doo;
 
-    // Define default outputs to set.
-    // We set these in storage because doing it locally in test_set_succeeds results in stack too deep.
+    // We set the non proxy contracts in storage because doing it locally in 'test_set_succeeds' function results in
+    // stack too deep.
+    IAddressManager addressManager = DeployUtils.buildAddressManager();
     IProxyAdmin opChainProxyAdmin = IProxyAdmin(makeAddr("opChainProxyAdmin"));
-    // IL1ERC721Bridge l1ERC721BridgeProxy = IL1ERC721Bridge(makeAddr("l1ERC721BridgeProxy"));
-    // ISystemConfig systemConfigProxy = ISystemConfig(makeAddr("systemConfigProxy"));
-    // IOptimismMintableERC20Factory optimismMintableERC20FactoryProxy =
-    //     IOptimismMintableERC20Factory(makeAddr("optimismMintableERC20FactoryProxy"));
-    // IL1StandardBridge l1StandardBridgeProxy = IL1StandardBridge(payable(makeAddr("l1StandardBridgeProxy")));
-    // IL1CrossDomainMessenger l1CrossDomainMessengerProxy =
-    //     IL1CrossDomainMessenger(makeAddr("l1CrossDomainMessengerProxy"));
-    // IOptimismPortal2 optimismPortalProxy = IOptimismPortal2(payable(makeAddr("optimismPortalProxy")));
-    // IDisputeGameFactory disputeGameFactoryProxy = IDisputeGameFactory(makeAddr("disputeGameFactoryProxy"));
-    // IAnchorStateRegistry anchorStateRegistryProxy = IAnchorStateRegistry(makeAddr("anchorStateRegistryProxy"));
     IAnchorStateRegistry anchorStateRegistryImpl = IAnchorStateRegistry(makeAddr("anchorStateRegistryImpl"));
     IFaultDisputeGame faultDisputeGame = IFaultDisputeGame(makeAddr("faultDisputeGame"));
     IPermissionedDisputeGame permissionedDisputeGame = IPermissionedDisputeGame(makeAddr("permissionedDisputeGame"));
-    // IDelayedWETH delayedWETHPermissionedGameProxy =
-    // IDelayedWETH(payable(makeAddr("delayedWETHPermissionedGameProxy")));
-    // TODO: Eventually switch from Permissioned to Permissionless.
-    // DelayedWETH delayedWETHPermissionlessGameProxy =
-    //     DelayedWETH(payable(makeAddr("delayedWETHPermissionlessGameProxy")));
 
     function setUp() public {
         doo = new DeployOPChainOutput();
@@ -147,7 +133,6 @@ contract DeployOPChainOutput_Test is Test {
 
     function test_set_succeeds() public {
         vm.etch(address(opChainProxyAdmin), hex"01");
-        IAddressManager addressManager = DeployUtils.buildAddressManager();
         (IProxy l1ERC721BridgeProxy) = DeployUtils.buildERC1967ProxyWithImpl("l1ERC721BridgeProxy");
         (IProxy systemConfigProxy) = DeployUtils.buildERC1967ProxyWithImpl("systemConfigProxy");
         (IProxy optimismMintableERC20FactoryProxy) =
