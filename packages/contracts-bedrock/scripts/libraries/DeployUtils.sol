@@ -229,12 +229,17 @@ library DeployUtils {
         assertValidContractAddress(implementation_);
     }
 
+    /// @notice Asserts that the given L1ChugSplashProxy has an implementation set.
+    /// @param _proxy L1ChugSplashProxy to check.
     function assertL1ChugSplashImplementationSet(address _proxy) internal returns (address implementation_) {
         vm.prank(address(0));
         implementation_ = IStaticL1ChugSplashProxy(_proxy).getImplementation();
         assertValidContractAddress(implementation_);
     }
 
+    /// @notice Asserts that the given ResolvedDelegateProxy has an implementation set.
+    /// @param _implementationName Name of the implementation contract.
+    /// @param _addressManager AddressManager contract.
     function assertResolvedDelegateProxyImplementationSet(
         string memory _implementationName,
         IAddressManager _addressManager
@@ -247,6 +252,8 @@ library DeployUtils {
         assertValidContractAddress(implementation_);
     }
 
+    /// @notice Builds an ERC1967 Proxy with a dummy implementation.
+    /// @param _proxyImplName Name of the implementation contract.
     function buildERC1967ProxyWithImpl(string memory _proxyImplName) public returns (IProxy genericProxy_) {
         genericProxy_ = IProxy(
             create1({
@@ -261,6 +268,8 @@ library DeployUtils {
         vm.etch(address(genericProxy_), address(genericProxy_).code);
     }
 
+    /// @notice Builds an L1ChugSplashProxy with a dummy implementation.
+    /// @param _proxyImplName Name of the implementation contract.
     function buildL1ChugSplashProxyWithImpl(string memory _proxyImplName) public returns (IL1ChugSplashProxy proxy_) {
         proxy_ = IL1ChugSplashProxy(
             create1({
@@ -274,6 +283,9 @@ library DeployUtils {
         proxy_.setStorage(Constants.PROXY_IMPLEMENTATION_ADDRESS, bytes32(uint256(uint160(implementation))));
     }
 
+    /// @notice Builds a ResolvedDelegateProxy with a dummy implementation.
+    /// @param _addressManager AddressManager contract.
+    /// @param _proxyImplName Name of the implementation contract.
     function buildResolvedDelegateProxyWithImpl(
         IAddressManager _addressManager,
         string memory _proxyImplName
@@ -294,6 +306,7 @@ library DeployUtils {
         _addressManager.setAddress(_proxyImplName, implementation);
     }
 
+    /// @notice Builds an AddressManager contract.
     function buildAddressManager() public returns (IAddressManager addressManager_) {
         addressManager_ = IAddressManager(
             create1({
