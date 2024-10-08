@@ -36,6 +36,7 @@ import { Constants } from "src/libraries/Constants.sol";
 import { Constants as ScriptConstants } from "scripts/libraries/Constants.sol";
 import { Types } from "scripts/libraries/Types.sol";
 import { Duration } from "src/dispute/lib/LibUDT.sol";
+import { StorageSlot, ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
 import "src/dispute/lib/Types.sol";
 
 // Interfaces
@@ -298,12 +299,17 @@ contract Deploy is Deployer {
         initializeL2OutputOracle();
 
         // The OptimismPortalProxy contract is used both with and without Fault Proofs enabled, and is deployed by
-        // deployOPChain. So we only need to deploy the legacy OptimismPortal implementation and initialize with it
-        // when Fault Proofs are disabled.
+        // deployOPChain. If Fault Proofs are disabled, then we need to reinitialize the OptimismPortalProxy
+        // as the legacy OptimismPortal.
         if (!cfg.useFaultProofs()) {
-            deployERC1967Proxy("OptimismPortalProxy");
+            resetInitializedProxy("OptimismPortal");
             deployOptimismPortal();
             initializeOptimismPortal();
+        }
+        if (cfg.useCustomGasToken()) {
+            // resetting the systemconfig and portal then reinitializing most likely
+            resetInitializedProxy("SystemConfig");
+            initializeSystemConfig();
         }
 
         if (cfg.useAltDA()) {
@@ -457,10 +463,10 @@ contract Deploy is Deployer {
         save("AnchorStateRegistryProxy", address(deployOutput.anchorStateRegistryProxy));
         save("AnchorStateRegistry", address(deployOutput.anchorStateRegistryImpl));
         save("PermissionedDisputeGame", address(deployOutput.permissionedDisputeGame));
-        if(cfg.useFaultProofs()){
-            // Otherwise we use the OptimismPortalProxy deployed in _run()
-            save("OptimismPortalProxy", address(deployOutput.optimismPortalProxy));
+        save("OptimismPortalProxy", address(deployOutput.optimismPortalProxy));
 
+        // TODO: Replace the useFaultProofs flag with useLegacy, so that FaultProofs become the default
+        if (cfg.useFaultProofs()) {
             vm.prank(ISuperchainConfig(superchainConfigProxy).guardian());
             deployOutput.optimismPortalProxy.setRespectedGameType(GameTypes.CANNON);
         }
@@ -475,6 +481,7 @@ contract Deploy is Deployer {
             _implementation: delayedWETHImpl,
             _data: abi.encodeCall(IDelayedWETH.initialize, (msg.sender, ISuperchainConfig(superchainConfigProxy)))
         });
+        // for customGasToken need to deploy a different systemConfig
         // vm.stopBroadcast(); // why does this error when I include it? use it?
 
         setAlphabetFaultGameImplementation({ _allowUpgrade: false });
@@ -1571,5 +1578,16 @@ contract Deploy is Deployer {
             disputeClockExtension: Duration.wrap(uint64(cfg.faultGameClockExtension())),
             disputeMaxClockDuration: Duration.wrap(uint64(cfg.faultGameMaxClockDuration()))
         });
+    }
+
+    function resetInitializedProxy(string memory _contractName) internal {
+        console.log("resetting initialized value on %s Proxy", _contractName);
+        address optimismPortalProxy = mustGetAddress(string.concat(_contractName, "Proxy"));
+        StorageSlot memory slot = ForgeArtifacts.getInitializedSlot(_contractName);
+        bytes32 slotVal = vm.load(optimismPortalProxy, bytes32(vm.parseUint(slot.slot)));
+        uint256 value = uint256(slotVal);
+        value = value & ~(0xFF << (slot.offset * 8));
+        slotVal = bytes32(value);
+        vm.store(optimismPortalProxy, bytes32(vm.parseUint(slot.slot)), slotVal);
     }
 }
