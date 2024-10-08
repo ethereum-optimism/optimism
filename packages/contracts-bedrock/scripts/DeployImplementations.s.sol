@@ -49,6 +49,7 @@ contract DeployImplementationsInput is BaseDeployIO {
     uint256 internal _challengePeriodSeconds;
     uint256 internal _proofMaturityDelaySeconds;
     uint256 internal _disputeGameFinalityDelaySeconds;
+    uint256 internal _mipsVersion;
 
     // The release version to set OPCM implementations for, of the format `op-contracts/vX.Y.Z`.
     string internal _release;
@@ -75,6 +76,8 @@ contract DeployImplementationsInput is BaseDeployIO {
             _proofMaturityDelaySeconds = _value;
         } else if (_sel == this.disputeGameFinalityDelaySeconds.selector) {
             _disputeGameFinalityDelaySeconds = _value;
+        } else if (_sel == this.mipsVersion.selector) {
+            _mipsVersion = _value;
         } else {
             revert("DeployImplementationsInput: unknown selector");
         }
@@ -131,6 +134,11 @@ contract DeployImplementationsInput is BaseDeployIO {
     function disputeGameFinalityDelaySeconds() public view returns (uint256) {
         require(_disputeGameFinalityDelaySeconds != 0, "DeployImplementationsInput: not set");
         return _disputeGameFinalityDelaySeconds;
+    }
+
+    function mipsVersion() public view returns (uint256) {
+        require(_mipsVersion != 0, "DeployImplementationsInput: not set");
+        return _mipsVersion;
     }
 
     function release() public view returns (string memory) {
@@ -959,11 +967,12 @@ contract DeployImplementations is Script {
         if (existingImplementation != address(0)) {
             singleton = IMIPS(payable(existingImplementation));
         } else if (isDevelopRelease(release)) {
+            uint256 mipsVersion = _dii.mipsVersion();
             IPreimageOracle preimageOracle = IPreimageOracle(address(_dio.preimageOracleSingleton()));
             vm.broadcast(msg.sender);
             singleton = IMIPS(
                 DeployUtils.create1({
-                    _name: "MIPS",
+                    _name: mipsVersion == 1 ? "MIPS" : "MIPS2",
                     _args: DeployUtils.encodeConstructor(abi.encodeCall(IMIPS.__constructor__, (preimageOracle)))
                 })
             );

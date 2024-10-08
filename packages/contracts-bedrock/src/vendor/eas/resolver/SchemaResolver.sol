@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.19;
 
-import { IEAS, Attestation } from "src/EAS/IEAS.sol";
-import { AccessDenied, InvalidEAS, InvalidLength, uncheckedInc } from "src/EAS/Common.sol";
+import { IEAS, Attestation } from "src/vendor/eas/IEAS.sol";
+import { AccessDenied, InvalidEAS, InvalidLength, uncheckedInc } from "src/vendor/eas/Common.sol";
 
-import { ISchemaResolver } from "src/EAS/resolver/ISchemaResolver.sol";
+import { ISchemaResolver } from "src/vendor/eas/resolver/ISchemaResolver.sol";
 
 /// @title SchemaResolver
 /// @notice The base schema resolver contract.

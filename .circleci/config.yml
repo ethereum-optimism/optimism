@@ -222,7 +222,7 @@ jobs:
           condition: <<parameters.notify>>
           steps:
             - notify-failures-on-develop:
-                mentions: "@proofs-squad"
+                mentions: "@proofs-team"
 
   cannon-build-test-vectors:
     docker:
@@ -300,6 +300,28 @@ jobs:
             - ".devnet-alt-da"
             - ".devnet-alt-da-generic"
             - ".devnet-mt-cannon"
+      - notify-failures-on-develop
+
+  check-kontrol-build:
+    docker:
+      - image: <<pipeline.parameters.ci_builder_image>>
+    resource_class: xlarge
+    steps:
+      - checkout
+      - attach_workspace: { at: "." }
+      - install-contracts-dependencies
+      - check-changed:
+          patterns: contracts-bedrock
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - run:
+          name: Run Kontrol build
+          command: just kontrol-summary-full
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: Build Kontrol summary files
+          command: forge build ./test/kontrol/proofs
+          working_directory: packages/contracts-bedrock
       - notify-failures-on-develop
 
   docker-build:
@@ -594,6 +616,10 @@ jobs:
         description: Timeout for running tests
         type: string
         default: 15m
+      test_profile:
+        description: Profile to use for testing
+        type: string
+        default: ci
     parallelism: <<parameters.test_parallelism>>
     steps:
       - checkout
@@ -641,11 +667,9 @@ jobs:
             TEST_FILES=$(echo "$TEST_FILES" | circleci tests split --split-by=timings)
             TEST_FILES=$(echo "$TEST_FILES" | sed 's|^test/||')
             MATCH_PATH="./test/{$(echo "$TEST_FILES" | paste -sd "," -)}"
-            export FOUNDRY_INVARIANT_RUNS=<<parameters.test_invariant_runs>>
-            export FOUNDRY_INVARIANT_DEPTH=<<parameters.test_invariant_depth>>
-            forge test --deny-warnings --fuzz-runs <<parameters.test_fuzz_runs>> --match-path "$MATCH_PATH"
+            forge test --match-path "$MATCH_PATH"
           environment:
-            FOUNDRY_PROFILE: ci
+            FOUNDRY_PROFILE: <<parameters.test_profile>>
           working_directory: packages/contracts-bedrock
           no_output_timeout: <<parameters.test_timeout>>
       - run:
@@ -697,6 +721,8 @@ jobs:
           command: interfaces-check-no-build
       - run-contracts-check:
           command: size-check
+      - run-contracts-check:
+          command: unused-imports-check-no-build
 
   contracts-bedrock-validate-spacers:
     docker:
@@ -868,9 +894,14 @@ jobs:
       module:
         description: Go Module Name
         type: string
+      uses_artifacts:
+        description: Uses contract artifacts
+        type: boolean
+        default: false
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: xlarge
+    circleci_ip_ranges: true
     steps:
       - checkout
       - restore_cache:
@@ -881,6 +912,10 @@ jobs:
           keys:
             - golang-build-cache-test-<<parameters.module>>-{{ checksum "go.sum" }}
             - golang-build-cache-test-
+      - when:
+          condition: <<parameters.uses_artifacts>>
+          steps:
+            - attach_workspace: { at: "." }
       - run:
           name: Install components
           command: |
@@ -892,7 +927,7 @@ jobs:
       - run:
           name: run tests
           command: |
-            gotestsum --format=testname --junitfile=/tmp/test-results/<<parameters.module>>.xml --jsonfile=/tmp/testlogs/log.json \
+            ENABLE_ANVIL=true SEPOLIA_RPC_URL="https://ci-sepolia-l1.optimism.io" gotestsum --format=testname --junitfile=/tmp/test-results/<<parameters.module>>.xml --jsonfile=/tmp/testlogs/log.json \
             -- -parallel=8 -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out ./...
           working_directory: <<parameters.module>>
       - save_cache:
@@ -1109,7 +1144,7 @@ jobs:
               exit 1
             fi
       - notify-failures-on-develop:
-          mentions: "@proofs-squad"
+          mentions: "@proofs-team"
 
   cannon-stf-verify:
     docker:
@@ -1144,6 +1179,9 @@ jobs:
       diff_branch:
         type: string
         default: develop
+      scan_command:
+        type: string
+        default: semgrep ci --timeout=100
     environment:
       TEMPORARY_BASELINE_REF: << parameters.diff_branch >>
       SEMGREP_REPO_URL: << pipeline.project.git_url >>
@@ -1175,7 +1213,7 @@ jobs:
           # --timeout (in seconds) limits the time per rule and file.
           #   SEMGREP_TIMEOUT is the same, but docs have conflicting defaults (5s in CLI flag, 1800 in some places)
           #    https://semgrep.dev/docs/troubleshooting/semgrep-app#if-the-job-is-aborted-due-to-taking-too-long
-          command: semgrep ci --timeout=100
+          command: << parameters.scan_command >>
           # If semgrep hangs, stop the scan after 20m, to prevent a useless 5h job
           no_output_timeout: 20m
       - notify-failures-on-develop
@@ -1233,7 +1271,7 @@ jobs:
             make verify-sepolia
           working_directory: op-program
       - notify-failures-on-develop:
-          mentions: "@proofs-squad"
+          mentions: "@proofs-team"
 
   op-program-compat:
     docker:
@@ -1354,6 +1392,9 @@ workflows:
       - contracts-bedrock-build:
           # Build with just core + script contracts.
           skip_pattern: test
+      - check-kontrol-build:
+          requires:
+            - contracts-bedrock-build
       - contracts-bedrock-tests:
           # Test everything except PreimageOracle.t.sol since it's slow.
           name: contracts-bedrock-tests
@@ -1370,9 +1411,7 @@ workflows:
           test_parallelism: 1
           test_list: git diff origin/develop...HEAD --name-only -- './test/**/*.t.sol' | sed 's|packages/contracts-bedrock/||'
           test_timeout: 1h
-          test_fuzz_runs: 10000
-          test_invariant_runs: 128
-          test_invariant_depth: 512
+          test_profile: ciheavy
       - contracts-bedrock-coverage
       - contracts-bedrock-checks:
           requires:
@@ -1381,6 +1420,9 @@ workflows:
           requires:
             - contracts-bedrock-build
       - semgrep-scan
+      - semgrep-scan:
+          name: semgrep-scan-local
+          scan_command: semgrep scan --timeout=100 --config=./.semgrep --error .
       - go-lint:
           requires:
             - go-mod-download
@@ -1416,7 +1458,6 @@ workflows:
             parameters:
               module:
                 - op-batcher
-                - op-chain-ops
                 - op-node
                 - op-proposer
                 - op-challenger
@@ -1428,6 +1469,13 @@ workflows:
       - go-test:
           name: semver-natspec-tests
           module: packages/contracts-bedrock/scripts/checks/semver-natspec
+      - go-test:
+          name: op-chain-ops-tests
+          module: op-chain-ops
+          uses_artifacts: true
+          requires:
+            - go-mod-download
+            - contracts-bedrock-build
       - go-test-kurtosis:
           name: op-chain-ops-integration
           module: op-chain-ops
@@ -1680,7 +1728,7 @@ workflows:
           target: test-cannon
           parallelism: 8
           notify: true
-          mentions: "@proofs-squad"
+          mentions: "@proofs-team"
           requires:
             - contracts-bedrock-build
             - cannon-prestate

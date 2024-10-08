@@ -14,7 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/exec"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
-	"github.com/ethereum-optimism/optimism/cannon/serialize"
+	"github.com/ethereum-optimism/optimism/op-service/serialize"
 )
 
 // STATE_WITNESS_SIZE is the size of the state witness encoding in bytes.

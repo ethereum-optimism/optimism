@@ -12,8 +12,9 @@ import { BaseDeployIO } from "scripts/utils/BaseDeployIO.sol";
 import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
 import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
 import { IBigStepper } from "src/dispute/interfaces/IBigStepper.sol";
-import { Constants } from "src/libraries/Constants.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Constants } from "src/libraries/Constants.sol";
+import { Constants as ScriptConstants } from "scripts/libraries/Constants.sol";
 
 import { IProxyAdmin } from "src/universal/interfaces/IProxyAdmin.sol";
 import { IProxy } from "src/universal/interfaces/IProxy.sol";
@@ -24,7 +25,7 @@ import { IDisputeGameFactory } from "src/dispute/interfaces/IDisputeGameFactory.
 import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistry.sol";
 import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
 import { IPermissionedDisputeGame } from "src/dispute/interfaces/IPermissionedDisputeGame.sol";
-import { Claim, Duration, GameType, GameTypes, Hash, OutputRoot } from "src/dispute/lib/Types.sol";
+import { Claim, Duration, GameType, GameTypes, Hash } from "src/dispute/lib/Types.sol";
 
 import { OPContractsManager } from "src/L1/OPContractsManager.sol";
 import { IOptimismPortal2 } from "src/L1/interfaces/IOptimismPortal2.sol";
@@ -161,15 +162,10 @@ contract DeployOPChainInput is BaseDeployIO {
         // because to to update to the permissionless game, we will need to update its starting
         // anchor root and deploy a new permissioned dispute game contract anyway.
         //
-        // You can `console.logBytes(abi.encode(defaultStartingAnchorRoots))` to get the bytes that
+        // You can `console.logBytes(abi.encode(ScriptConstants.DEFAULT_STARTING_ANCHOR_ROOTS()))` to get the bytes that
         // are hardcoded into `op-chain-ops/deployer/opcm/opchain.go`
-        IAnchorStateRegistry.StartingAnchorRoot[] memory defaultStartingAnchorRoots =
-            new IAnchorStateRegistry.StartingAnchorRoot[](1);
-        defaultStartingAnchorRoots[0] = IAnchorStateRegistry.StartingAnchorRoot({
-            gameType: GameTypes.PERMISSIONED_CANNON,
-            outputRoot: OutputRoot({ root: Hash.wrap(bytes32(hex"dead")), l2BlockNumber: 0 })
-        });
-        return abi.encode(defaultStartingAnchorRoots);
+
+        return abi.encode(ScriptConstants.DEFAULT_STARTING_ANCHOR_ROOTS());
     }
 
     function opcmProxy() public returns (OPContractsManager) {
@@ -391,6 +387,11 @@ contract DeployOPChainOutput is BaseDeployIO {
         require(address(game.weth()) == address(delayedWETHPermissionedGameProxy()), "DPG-40");
         require(address(game.anchorStateRegistry()) == address(anchorStateRegistryProxy()), "DPG-50");
         require(game.l2ChainId() == _doi.l2ChainId(), "DPG-60");
+        require(game.l2BlockNumber() == 0, "DPG-70");
+        require(Duration.unwrap(game.clockExtension()) == 10800, "DPG-80");
+        require(Duration.unwrap(game.maxClockDuration()) == 302400, "DPG-110");
+        require(game.splitDepth() == 30, "DPG-90");
+        require(game.maxGameDepth() == 73, "DPG-100");
     }
 
     function assertValidAnchorStateRegistryProxy(DeployOPChainInput) internal {
@@ -409,6 +410,10 @@ contract DeployOPChainOutput is BaseDeployIO {
         require(
             address(anchorStateRegistryProxy().disputeGameFactory()) == address(disputeGameFactoryProxy()), "ANCHORP-30"
         );
+
+        (Hash actualRoot,) = anchorStateRegistryProxy().anchors(GameTypes.PERMISSIONED_CANNON);
+        bytes32 expectedRoot = 0xdead000000000000000000000000000000000000000000000000000000000000;
+        require(Hash.unwrap(actualRoot) == expectedRoot, "ANCHORP-40");
     }
 
     function assertValidAnchorStateRegistryImpl(DeployOPChainInput) internal view {

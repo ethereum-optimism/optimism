@@ -19,7 +19,7 @@ const (
 )
 
 func GetInstructionDetails(pc Word, memory *memory.Memory) (insn, opcode, fun uint32) {
-	insn = memory.GetMemory(pc)
+	insn = memory.GetUint32(pc)
 	opcode = insn >> 26 // First 6-bits
 	fun = insn & 0x3f   // Last 6-bits
 

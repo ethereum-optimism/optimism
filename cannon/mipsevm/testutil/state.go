@@ -166,7 +166,7 @@ func (e *ExpectedState) ExpectStep() {
 }
 
 func (e *ExpectedState) ExpectMemoryWrite(addr arch.Word, val uint32) {
-	e.expectedMemory.SetMemory(addr, val)
+	e.expectedMemory.SetUint32(addr, val)
 	e.MemoryRoot = e.expectedMemory.MerkleRoot()
 }
 

@@ -204,7 +204,7 @@ library DeployUtils {
     /// @param _data constructor arguments prefixed with a psuedo-constructor function signature
     /// @return encodedData_ constructor arguments without the psuedo-constructor function signature prefix
     function encodeConstructor(bytes memory _data) internal pure returns (bytes memory encodedData_) {
-        require(_data.length >= 4, "encodeConstructor takes in _data of length >= 4");
+        require(_data.length >= 4, "DeployUtils: encodeConstructor takes in _data of length >= 4");
         encodedData_ = Bytes.slice(_data, 4);
     }
 
@@ -238,9 +238,12 @@ library DeployUtils {
         // All addresses should be unique.
         for (uint256 i = 0; i < _addrs.length; i++) {
             for (uint256 j = i + 1; j < _addrs.length; j++) {
-                string memory err =
-                    string.concat("check failed: duplicates at ", LibString.toString(i), ",", LibString.toString(j));
-                require(_addrs[i] != _addrs[j], err);
+                require(
+                    _addrs[i] != _addrs[j],
+                    string.concat(
+                        "DeployUtils: check failed, duplicates at ", LibString.toString(i), ",", LibString.toString(j)
+                    )
+                );
             }
         }
     }
@@ -253,7 +256,7 @@ library DeployUtils {
         uint8 value = uint8((uint256(slotVal) >> (_offset * 8)) & 0xFF);
         require(
             value == 1 || value == type(uint8).max,
-            "Value at the given slot and offset does not indicate initialization"
+            "DeployUtils: value at the given slot and offset does not indicate initialization"
         );
     }
 }

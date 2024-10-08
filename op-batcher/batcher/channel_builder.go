@@ -178,12 +178,8 @@ func (c *ChannelBuilder) AddBlock(block *types.Block) (*derive.L1BlockInfo, erro
 		return nil, c.FullErr()
 	}
 
-	batch, l1info, err := derive.BlockToSingularBatch(c.rollupCfg, block)
-	if err != nil {
-		return l1info, fmt.Errorf("converting block to batch: %w", err)
-	}
-
-	if err = c.co.AddSingularBatch(batch, l1info.SequenceNumber); errors.Is(err, derive.ErrTooManyRLPBytes) || errors.Is(err, derive.ErrCompressorFull) {
+	l1info, err := c.co.AddBlock(c.rollupCfg, block)
+	if errors.Is(err, derive.ErrTooManyRLPBytes) || errors.Is(err, derive.ErrCompressorFull) {
 		c.setFullErr(err)
 		return l1info, c.FullErr()
 	} else if err != nil {
@@ -191,7 +187,7 @@ func (c *ChannelBuilder) AddBlock(block *types.Block) (*derive.L1BlockInfo, erro
 	}
 
 	c.blocks = append(c.blocks, block)
-	c.updateSwTimeout(batch)
+	c.updateSwTimeout(l1info.Number)
 
 	if l1info.Number > c.latestL1Origin.Number {
 		c.latestL1Origin = eth.BlockID{
@@ -252,8 +248,8 @@ func (c *ChannelBuilder) updateDurationTimeout(l1BlockNum uint64) {
 // derived from the batch's origin L1 block. The timeout is only moved forward
 // if the derived sequencer window timeout is earlier than the currently set
 // timeout.
-func (c *ChannelBuilder) updateSwTimeout(batch *derive.SingularBatch) {
-	timeout := uint64(batch.EpochNum) + c.cfg.SeqWindowSize - c.cfg.SubSafetyMargin
+func (c *ChannelBuilder) updateSwTimeout(l1InfoNumber uint64) {
+	timeout := l1InfoNumber + c.cfg.SeqWindowSize - c.cfg.SubSafetyMargin
 	c.updateTimeout(timeout, ErrSeqWindowClose)
 }
 

@@ -493,6 +493,11 @@ func (s *channelManager) Requeue(newCfg ChannelConfig) {
 
 	// We put the blocks back at the front of the queue:
 	s.blocks.Prepend(blocksToRequeue...)
+
+	for _, b := range blocksToRequeue {
+		s.metr.RecordL2BlockInPendingQueue(b)
+	}
+
 	// Channels which where already being submitted are put back
 	s.channelQueue = newChannelQueue
 	s.currentChannel = nil

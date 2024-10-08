@@ -156,7 +156,6 @@ Also, all labels can be seen by visiting the [labels page][labels]
 
 When altering label names or deleting labels there are a few things you must be aware of.
 
-- This may affect the mergify bot's use of labels. See the [mergify config](.github/mergify.yml).
 - If the https://github.com/ethereum-optimism/optimism/labels/S-stale label is altered, the [close-stale](.github/workflows/close-stale.yml) workflow should be updated.
 - If the https://github.com/ethereum-optimism/optimism/labels/M-dependabot label is altered, the [dependabot config](.github/dependabot.yml) file should be adjusted.
 - Saved label filters for project boards will not automatically update. These should be updated if label names change.
