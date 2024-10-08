@@ -603,7 +603,7 @@ func TestEVMFault(t *testing.T) {
 
 				proofData := v.ProofGenerator(t, goVm.GetState(), tt.memoryProofAddresses...)
 				require.Panics(t, func() { _, _ = goVm.Step(true) })
-				testutil.AssertEVMReverts(t, state, v.Contracts, tracer, proofData, &tt.errMsg)
+				testutil.AssertEVMReverts(t, state, v.Contracts, tracer, proofData, tt.errMsg)
 			})
 		}
 	}

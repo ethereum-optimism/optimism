@@ -1188,7 +1188,7 @@ func TestEVM_UnsupportedSyscall(t *testing.T) {
 			require.Panics(t, func() { _, _ = goVm.Step(true) })
 
 			errorMessage := "MIPS2: unimplemented syscall"
-			testutil.AssertEVMReverts(t, state, contracts, tracer, proofData, &errorMessage)
+			testutil.AssertEVMReverts(t, state, contracts, tracer, proofData, errorMessage)
 		})
 	}
 }

@@ -183,7 +183,7 @@ func ValidateEVM(t *testing.T, stepWitness *mipsevm.StepWitness, step uint64, go
 }
 
 // AssertEVMReverts runs a single evm step from an FPVM prestate and asserts that the VM panics
-func AssertEVMReverts(t *testing.T, state mipsevm.FPVMState, contracts *ContractMetadata, tracer *tracing.Hooks, ProofData []byte, expectedReason *string) {
+func AssertEVMReverts(t *testing.T, state mipsevm.FPVMState, contracts *ContractMetadata, tracer *tracing.Hooks, ProofData []byte, expectedReason string) {
 	encodedWitness, _ := state.EncodeWitness()
 	stepWitness := &mipsevm.StepWitness{
 		State:     encodedWitness,
@@ -198,14 +198,12 @@ func AssertEVMReverts(t *testing.T, state mipsevm.FPVMState, contracts *Contract
 	ret, _, err := env.Call(vm.AccountRef(sender), contracts.Addresses.MIPS, input, startingGas, common.U2560)
 	require.EqualValues(t, err, vm.ErrExecutionReverted)
 
-	require.NotNil(t, expectedReason, "ExpectedReason should not be nil")
-
 	require.Greater(t, len(ret), 4, "Return data length should be greater than 4 bytes")
 
 	unpacked, decodeErr := abi.UnpackRevert(ret)
 	require.NoError(t, decodeErr, "Failed to unpack revert reason")
 
-	require.Equal(t, *expectedReason, unpacked, "Revert reason mismatch")
+	require.Equal(t, expectedReason, unpacked, "Revert reason mismatch")
 
 	logs := evmState.Logs()
 	require.Equal(t, 0, len(logs))
