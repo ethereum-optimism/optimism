@@ -6,6 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen"
@@ -97,11 +100,15 @@ func TestInteropTrivial(t *testing.T) {
 	block, err := client.BlockByHash(ctx, rec.BlockHash)
 	require.NoError(t, err)
 
+	logIndex, ok, err := getStartingLogIndex(client, rec.BlockHash, rec.TxHash)
+	require.NoError(t, err, "Getting starting log index")
+	require.True(t, ok, "Transaction not found in block")
+
 	// build an identifier to that log event using the receipt
 	identifier := types.Identifier{
 		Origin:      s2.Address(chainA, "Alice"),
 		BlockNumber: rec.BlockNumber.Uint64(),
-		LogIndex:    uint64(rec.TransactionIndex),
+		LogIndex:    logIndex,
 		Timestamp:   block.Time(),
 		ChainID:     types.ChainIDFromBig(s2.ChainID(chainA)),
 	}
@@ -111,4 +118,28 @@ func TestInteropTrivial(t *testing.T) {
 
 	time.Sleep(60 * time.Second)
 
+}
+
+// getStartingLogIndex returns the block-level index of the first log emitted by the given transaction, and a bool
+// indicating whether the transaction was found in the block.
+// It does not validate that the given transaction actually has logs.
+func getStartingLogIndex(client *ethclient.Client, blockHash common.Hash, txHash common.Hash) (uint64, bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	receipts, err := client.BlockReceipts(ctx, rpc.BlockNumberOrHash{BlockHash: &blockHash})
+	if err != nil {
+		return 0, false, err
+	}
+
+	// Count the logs until we find the tx
+	logCount := uint64(0)
+	txFound := false
+	for _, receipt := range receipts {
+		if receipt.TxHash == txHash {
+			txFound = true
+			break
+		}
+		logCount += uint64(len(receipt.Logs))
+	}
+	return logCount, txFound, nil
 }
