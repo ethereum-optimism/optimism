@@ -118,19 +118,23 @@ func (s *channelManager) TxConfirmed(_id txID, inclusionBlock eth.BlockID) {
 	s.log.Debug("marked transaction as confirmed", "id", id, "block", inclusionBlock)
 }
 
+func (s *channelManager) rewindToBlockWithHash(blockHash common.Hash) {
+	for i, b := range s.blocks {
+		if b.Hash() == blockHash {
+			s.blockCursor = i
+			break
+		}
+	}
+}
+
 // handleChannelTimeout rewinds the channelManager's blockCursor
 // to point at the first block added to the provided channel,
 // and clears the channelQueue and currentChannel.
 func (s *channelManager) handleChannelTimeout(c *channel) {
 	blockHash := c.channelBuilder.blocks[0].Hash()
-	for i, b := range s.blocks {
-		if b.Hash() == blockHash {
-			s.blockCursor = i
-			s.channelQueue = s.channelQueue[:0]
-			s.currentChannel = nil
-			break
-		}
-	}
+	s.rewindToBlockWithHash(blockHash)
+	s.channelQueue = s.channelQueue[:0]
+	s.currentChannel = nil
 }
 
 // removePendingChannel removes the given completed channel from the manager's state.
@@ -512,11 +516,7 @@ func (s *channelManager) Requeue(newCfg ChannelConfig) {
 		// In that case we end up with an empty frame (header only),
 		// and there are no blocks to requeue.
 		blockHash := channelToDiscard.channelBuilder.blocks[0].Hash()
-		for i, b := range s.blocks {
-			if b.Hash() == blockHash {
-				s.blockCursor = i
-			}
-		}
+		s.rewindToBlockWithHash(blockHash)
 	}
 	s.currentChannel = nil
 	// Setting the defaultCfg will cause new channels
