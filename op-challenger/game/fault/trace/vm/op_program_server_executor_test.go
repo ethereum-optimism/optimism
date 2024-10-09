@@ -1,12 +1,16 @@
 package vm
 
 import (
+	"fmt"
+	"log/slog"
 	"math/big"
 	"slices"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -39,8 +43,16 @@ func TestOpProgramFillHostCommand(t *testing.T) {
 		require.True(t, slices.Contains(args, "--l2.blocknumber"))
 	}
 
+	toPairs := func(args []string) map[string]string {
+		pairs := make(map[string]string, len(args)/2)
+		for i := 0; i < len(args); i += 2 {
+			pairs[args[i]] = args[i+1]
+		}
+		return pairs
+	}
+
 	t.Run("NoExtras", func(t *testing.T) {
-		vmConfig := NewOpProgramServerExecutor()
+		vmConfig := NewOpProgramServerExecutor(testlog.Logger(t, log.LvlInfo))
 
 		args, err := vmConfig.OracleCommand(cfg, dir, inputs)
 		require.NoError(t, err)
@@ -50,7 +62,7 @@ func TestOpProgramFillHostCommand(t *testing.T) {
 
 	t.Run("WithNetwork", func(t *testing.T) {
 		cfg.Network = "op-test"
-		vmConfig := NewOpProgramServerExecutor()
+		vmConfig := NewOpProgramServerExecutor(testlog.Logger(t, log.LvlInfo))
 
 		args, err := vmConfig.OracleCommand(cfg, dir, inputs)
 		require.NoError(t, err)
@@ -61,7 +73,7 @@ func TestOpProgramFillHostCommand(t *testing.T) {
 
 	t.Run("WithRollupConfigPath", func(t *testing.T) {
 		cfg.RollupConfigPath = "rollup.config"
-		vmConfig := NewOpProgramServerExecutor()
+		vmConfig := NewOpProgramServerExecutor(testlog.Logger(t, log.LvlInfo))
 
 		args, err := vmConfig.OracleCommand(cfg, dir, inputs)
 		require.NoError(t, err)
@@ -72,7 +84,7 @@ func TestOpProgramFillHostCommand(t *testing.T) {
 
 	t.Run("WithL2GenesisPath", func(t *testing.T) {
 		cfg.L2GenesisPath = "l2.genesis"
-		vmConfig := NewOpProgramServerExecutor()
+		vmConfig := NewOpProgramServerExecutor(testlog.Logger(t, log.LvlInfo))
 
 		args, err := vmConfig.OracleCommand(cfg, dir, inputs)
 		require.NoError(t, err)
@@ -85,7 +97,7 @@ func TestOpProgramFillHostCommand(t *testing.T) {
 		cfg.Network = "op-test"
 		cfg.RollupConfigPath = "rollup.config"
 		cfg.L2GenesisPath = "l2.genesis"
-		vmConfig := NewOpProgramServerExecutor()
+		vmConfig := NewOpProgramServerExecutor(testlog.Logger(t, log.LvlInfo))
 
 		args, err := vmConfig.OracleCommand(cfg, dir, inputs)
 		require.NoError(t, err)
@@ -95,4 +107,29 @@ func TestOpProgramFillHostCommand(t *testing.T) {
 		require.True(t, slices.Contains(args, "--rollup.config"))
 		require.True(t, slices.Contains(args, "--l2.genesis"))
 	})
+
+	logTests := []struct {
+		level slog.Level
+		arg   string
+	}{
+		{log.LevelTrace, "TRACE"},
+		{log.LevelDebug, "DEBUG"},
+		{log.LevelInfo, "INFO"},
+		{log.LevelWarn, "WARN"},
+		{log.LevelError, "ERROR"},
+		{log.LevelCrit, "CRIT"},
+	}
+	for _, logTest := range logTests {
+		logTest := logTest
+		t.Run(fmt.Sprintf("LogLevel-%v", logTest.arg), func(t *testing.T) {
+			vmConfig := NewOpProgramServerExecutor(testlog.Logger(t, logTest.level))
+
+			args, err := vmConfig.OracleCommand(cfg, dir, inputs)
+			require.NoError(t, err)
+
+			validateStandard(t, args)
+
+			require.Equal(t, toPairs(args)["--log.level"], logTest.arg)
+		})
+	}
 }
