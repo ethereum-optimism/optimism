@@ -204,6 +204,7 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 		TargetNumFrames:       cfg.TargetNumFrames,
 		SubSafetyMargin:       cfg.SubSafetyMargin,
 		BatchType:             cfg.BatchType,
+		UseAltDA:              bs.UseAltDA,
 	}
 
 	switch cfg.DataAvailabilityType {
@@ -259,6 +260,7 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 		calldataCC := cc
 		calldataCC.TargetNumFrames = 1
 		calldataCC.MaxFrameSize = 120_000
+		// TODO: change UseBlobs to DaType which can be calldata, blob, or altdalsidjwalLijdiowwqewwwasdwadssdwaswwwwwqwedasd
 		calldataCC.UseBlobs = false
 		calldataCC.ReinitCompressorConfig()
 

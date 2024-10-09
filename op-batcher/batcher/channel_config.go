@@ -49,6 +49,9 @@ type ChannelConfig struct {
 	// UseBlobs indicates that this channel should be sent as a multi-blob
 	// transaction with one blob per frame.
 	UseBlobs bool
+
+	// TODO(samlaf): temporary thing... just testing this out. Not sure if this is the right approach
+	UseAltDA bool
 }
 
 // ChannelConfig returns a copy of the receiver.
@@ -93,7 +96,7 @@ func (cc *ChannelConfig) ReinitCompressorConfig() {
 }
 
 func (cc *ChannelConfig) MaxFramesPerTx() int {
-	if !cc.UseBlobs {
+	if !cc.UseBlobs && !cc.UseAltDA {
 		return 1
 	}
 	return cc.TargetNumFrames
