@@ -137,6 +137,19 @@ func (l *BatchSubmitter) StartBatchSubmitting() error {
 	l.clearState(l.shutdownCtx)
 	l.lastStoredBlock = eth.BlockID{}
 
+	// Check L2 genesis time
+	genesisTime := time.Unix(int64(l.RollupConfig.Genesis.L2Time), 0)
+	now := time.Now()
+	if now.Before(genesisTime) {
+		l.Log.Info("Waiting for L2 genesis", "genesisTime", genesisTime)
+		select {
+		case <-time.After(time.Until(genesisTime)):
+			l.Log.Info("L2 genesis time reached")
+		case <-l.shutdownCtx.Done():
+			return errors.New("batcher stopped while waiting for L2 genesis")
+		}
+	}
+
 	if l.Config.WaitNodeSync {
 		err := l.waitNodeSync()
 		if err != nil {
