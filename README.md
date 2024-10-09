@@ -20,6 +20,7 @@ cargo run -- [OPTIONS]
 - `--rpc-port <PORT>`: Port to run the server on (default: 8081)
 - `--tracing`: Enable tracing (default: false)
 - `--log-level <LEVEL>`: Log level (default: info)
+- `--boost-sync`: Enable syncing the builder with the proposer op-node (default: false)
 
 ### Environment Variables
 
