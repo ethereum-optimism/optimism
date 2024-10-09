@@ -122,18 +122,6 @@ func (l *logContext) ExecMessage() *types.ExecutingMessage {
 	return nil
 }
 
-func (l *logContext) HeadPointer() (types.HeadPointer, error) {
-	if l.need != 0 {
-		return types.HeadPointer{}, fmt.Errorf("cannot provide head pointer while state is incomplete. needs: %v", l.need)
-	}
-	return types.HeadPointer{
-		LastSealedBlockHash: l.blockHash,
-		LastSealedBlockNum:  l.blockNum,
-		LastSealedTimestamp: l.timestamp,
-		LogsSince:           l.logsSince,
-	}, nil
-}
-
 // ApplyEntry applies an entry on top of the current state.
 func (l *logContext) ApplyEntry(entry Entry) error {
 	// Wrap processEntry to add common useful error message info

@@ -44,7 +44,7 @@ type LogStorage interface {
 }
 
 type LocalDerivedFromStorage interface {
-	// TODO
+	AddDerived(derivedFrom eth.BlockRef, derived eth.BlockRef) error
 }
 
 type CrossDerivedFromStorage interface {

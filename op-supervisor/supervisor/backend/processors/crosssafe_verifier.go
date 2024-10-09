@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
@@ -29,7 +28,9 @@ type CrossSafeDBDeps interface {
 	CrossUnsafe(chainID types.ChainID) types.HeadPointer
 
 	Finalized(chainID types.ChainID) (eth.BlockID, error)
-	DerivedFrom(chainID types.ChainID, derived eth.BlockID) (derivedFrom eth.BlockID, err error)
+
+	CrossDerivedFrom(chainID types.ChainID, derived eth.BlockID, logIndex uint32) (derivedFrom eth.BlockID, err error)
+	LocalDerivedFrom(chainID types.ChainID, derived eth.BlockID) (derivedFrom eth.BlockID, err error)
 
 	LogsIteratorAt(chainID types.ChainID, at types.HeadPointer) (logs.Iterator, error)
 	Check(chain types.ChainID, blockNum uint64, logIdx uint32, logHash common.Hash) (includedIn eth.BlockID, err error)
@@ -107,6 +108,25 @@ func (s *CrossSafeVerifier) worker() {
 	}
 }
 
+// cross safe means:
+//    - at L2 block X
+//    - derived from L1 block Y
+//    - with L2 dependencies A, B, C, ...
+//    - each L2 dependency is included in cross-safe view
+//    - intra-block dependencies are a thing too. We have intra-block cross-safe increments.
+//      Transitive dependencies can thus only be resolved if we maintain how many of the logs we have verified in an L2 block.
+//      So we can zig-zag between L2 chains until all dependencies have been resolved.
+//    - each time we look at a dependency, we have to verify it's derived from the same canonical L1 chain, within view
+
+// within local-safe: iterate
+//
+// on executing message:
+// check where it's included              -> events DB lookup
+// check what that is cross-derived from        -> cross DB
+// check that it is within view
+
+var errNeedNextL1Data = errors.New("need next L1 data")
+
 func (s *CrossSafeVerifier) update() error {
 	ctx, cancel := context.WithTimeout(s.ctx, maxCrossUnsafeUpdateDuration)
 	defer cancel()
@@ -116,6 +136,11 @@ func (s *CrossSafeVerifier) update() error {
 	iter, err := s.deps.LogsIteratorAt()
 
 	l1View := eth.BlockID{}
+	// TODO acquire a reorg-lock, so that all operations against the
+	//  chains DB will be with the ensurance of this L1 block.
+	// The acquire might fail if there's a reorg and data is already inconsistent between chains.
+
+	// TODO defer unlock the reorg-lock
 
 	err := s.iter.TraverseConditional(func(state logs.IteratorState) error {
 		// we can stop early, to make some progress, and not indefinitely iterate, when there is a lot of unsafe data.
@@ -123,12 +148,14 @@ func (s *CrossSafeVerifier) update() error {
 			return ctx.Err()
 		}
 
-		hash, num, ok := state.SealedBlock()
+		h, n, ok := state.SealedBlock()
 		if !ok {
-			return entrydb.ErrFuture // maybe a more specific error for no-genesis case?
+			return nil // no readable block
 		}
-		// TODO(#11693): reorg check in the future. To make sure that what we traverse is still canonical.
-		_, _ = hash, num
+		localDerivedFrom, err := s.deps.LocalDerivedFrom(s.chain, eth.BlockID{Hash: h, Number: n})
+		if localDerivedFrom.Number > l1View.Number {
+			return errNeedNextL1Data
+		}
 
 		_, _, ok = state.InitMessage()
 		if !ok {
@@ -139,32 +166,31 @@ func (s *CrossSafeVerifier) update() error {
 		if execMsg := state.ExecMessage(); execMsg != nil {
 			chainID := types.ChainIDFromUInt64(uint64(execMsg.Chain))
 
-			// TODO: go over L1 views, transitive dependencies are a problem
-
 			// Check that the initiating message, which was pulled in by the executing message,
-			// does indeed exist. And in which L2 block it is included in (if any).
+			// does indeed exist in an L2 block.
 			includedIn, err := s.deps.Check(chainID, execMsg.BlockNum, execMsg.LogIdx, execMsg.Hash)
 			if err != nil {
+				// TODO this can be an ErrFuture where we just don't have the data for a definite answer,
+				// but can also be an ErrConflict where we know the message isn't valid, and we have to reorg.
 				return fmt.Errorf("failed to check %s: %w", execMsg, err)
 			}
 
-			// if the executing message falls within the execFinalized range, then nothing to check
-			execFinalized, err := s.deps.Finalized(chainID)
+			// The L2 it was included in must be cross-safe up to and including the message.
+			// But not necessarily fully, since we can go back and forth between chains, intra-block.
+			// The L2 blockhash ensures we are still checking the same log content.
+			crossDerivedFrom, err := s.deps.CrossDerivedFrom(chainID, includedIn, execMsg.LogIdx)
 			if err != nil {
-				return fmt.Errorf("failed to check finalized block: %s", err)
+				// TODO this can be ErrFuture when we don't know the cross-derivation link of the L2 block yet.
+				return fmt.Errorf("failed to inspect cross-derived-from: %w", err)
 			}
-			if execFinalized.Number > execMsg.BlockNum {
-				return nil
-			}
-			// check if the L1 block of the executing message is known
-			derivedFrom, err := s.deps.DerivedFrom(chainID, includedIn)
-			if err != nil {
-				return err
-			}
-			// check if the L1 block is within the view
-			if derivedFrom.Number > l1View.Number {
-				return fmt.Errorf("exec message depends on L2 block %s, derived from L1 block %s, not within view %s yet: %w",
-					includedIn, derivedFrom, l1View, entrydb.ErrFuture)
+
+			// Check if the L1 block is within the view. Even if it exists,
+			// it might not be time to accept safety-promotion of the executing-message yet,
+			// due to the dependency on later L1 data.
+			if crossDerivedFrom.Number > l1View.Number {
+				// The executing message depends on an L2 block which is cross-derived from an L1 block that is not within view yet.
+				// So we need to traverse L1 to bring it into view.
+				return errNeedNextL1Data
 			}
 		}
 		return nil
@@ -173,10 +199,10 @@ func (s *CrossSafeVerifier) update() error {
 		panic("expected reader to complete with an exit-error")
 	}
 
-	crossSafe, err := iter.HeadPointer()
-	if err != nil {
-		return fmt.Errorf("failed to get head pointer: %w", err)
-	}
+	preH, preN, ok := iter.SealedBlock()
+	logsSince, ok := iter.LogsSince()
+
+	// TODO traverse to next block-seal to find post-state hash
 
 	// register the new cross-safe block as cross-safe up to the current L1 view
 	if err := s.deps.UpdateCrossSafe(s.chain, l1View, crossSafe); err != nil {

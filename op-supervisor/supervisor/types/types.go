@@ -178,14 +178,17 @@ func (v ReferenceView) String() string {
 }
 
 type HeadPointer struct {
-	// LastSealedBlockHash is the last fully-processed block
-	LastSealedBlockHash common.Hash
-	LastSealedBlockNum  uint64
-	LastSealedTimestamp uint64
+	// The parent block that we build logs after
+	Pre BlockSeal
 
 	// Number of logs that have been verified since the LastSealedBlock.
 	// These logs are contained in the block that builds on top of the LastSealedBlock.
 	LogsSince uint32
+
+	// The block that contains the logs.
+	// May be zeroed if there is no known post-state seal yet (e.g. during block-building).
+	// Post.Number == Pre.Number+1
+	Post BlockSeal
 }
 
 // WithinRange checks if the given log, in the given block,

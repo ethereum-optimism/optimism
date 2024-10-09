@@ -8,13 +8,11 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/heads"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 type IteratorState interface {
 	NextIndex() entrydb.EntryIdx
-	HeadPointer() (heads.HeadPointer, error)
 	SealedBlock() (hash common.Hash, num uint64, ok bool)
 	InitMessage() (hash common.Hash, logIndex uint32, ok bool)
 	ExecMessage() *types.ExecutingMessage
@@ -165,8 +163,4 @@ func (i *iterator) InitMessage() (hash common.Hash, logIndex uint32, ok bool) {
 // ExecMessage returns the current executing message, if any is available.
 func (i *iterator) ExecMessage() *types.ExecutingMessage {
 	return i.current.ExecMessage()
-}
-
-func (i *iterator) HeadPointer() (heads.HeadPointer, error) {
-	return i.current.HeadPointer()
 }
