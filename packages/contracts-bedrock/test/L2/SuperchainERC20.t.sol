@@ -12,7 +12,7 @@ import { IERC20 } from "@openzeppelin/contracts-v5/token/ERC20/IERC20.sol";
 import { SuperchainERC20 } from "src/L2/SuperchainERC20.sol";
 import { ICrosschainERC20 } from "src/L2/interfaces/ICrosschainERC20.sol";
 import { ISuperchainERC20 } from "src/L2/interfaces/ISuperchainERC20.sol";
-import { SuperchainERC20Implementation_mock } from "test/mocks/SuperchainERC20Implementation.sol";
+import { MockSuperchainERC20Implementation } from "test/mocks/SuperchainERC20Implementation.sol";
 
 /// @title SuperchainERC20Test
 /// @notice Contract for testing the SuperchainERC20 contract.
@@ -25,7 +25,7 @@ contract SuperchainERC20Test is Test {
 
     /// @notice Sets up the test suite.
     function setUp() public {
-        superchainERC20 = new SuperchainERC20Implementation_mock();
+        superchainERC20 = new MockSuperchainERC20Implementation();
     }
 
     /// @notice Helper function to setup a mock and expect a call to it.
