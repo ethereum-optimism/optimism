@@ -37,8 +37,8 @@ type OpChainDeployment struct {
 	AnchorStateRegistryProxyAddress          common.Address `json:"anchorStateRegistryProxyAddress"`
 	AnchorStateRegistryImplAddress           common.Address `json:"anchorStateRegistryImplAddress"`
 	// FaultDisputeGameAddress                  common.Address `json:"faultDisputeGameAddress"`
-	PermissionedDisputeGameAddress           common.Address `json:"permissionedDisputeGameAddress"`
-	DelayedWETHPermissionedGameProxyAddress  common.Address `json:"delayedWETHPermissionedGameProxyAddress"`
+	PermissionedDisputeGameAddress          common.Address `json:"permissionedDisputeGameAddress"`
+	DelayedWETHPermissionedGameProxyAddress common.Address `json:"delayedWETHPermissionedGameProxyAddress"`
 	// DelayedWETHPermissionlessGameProxyAddress common.Address `json:"delayedWETHPermissionlessGameProxyAddress"`
 }
 
@@ -94,8 +94,8 @@ func L1CLI(cliCtx *cli.Context) error {
 			AnchorStateRegistryProxyAddress:          chainState.AnchorStateRegistryProxyAddress,
 			AnchorStateRegistryImplAddress:           chainState.AnchorStateRegistryImplAddress,
 			// FaultDisputeGameAddress:                  chainState.FaultDisputeGameAddress,
-			PermissionedDisputeGameAddress:           chainState.PermissionedDisputeGameAddress,
-			DelayedWETHPermissionedGameProxyAddress:  chainState.DelayedWETHPermissionedGameProxyAddress,
+			PermissionedDisputeGameAddress:          chainState.PermissionedDisputeGameAddress,
+			DelayedWETHPermissionedGameProxyAddress: chainState.DelayedWETHPermissionedGameProxyAddress,
 			// DelayedWETHPermissionlessGameProxyAddress: chainState.DelayedWETHPermissionlessGameProxyAddress,
 		},
 		ImplementationsDeployment: ImplementationsDeployment{
