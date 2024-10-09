@@ -101,32 +101,36 @@ func (s *channelManager) TxFailed(_id txID) {
 	}
 }
 
-// TxConfirmed marks a transaction as confirmed on L1. Unfortunately even if all frames in
-// a channel have been marked as confirmed on L1 the channel may be invalid & need to be
-// resubmitted.
-// This function may reset the pending channel if the pending channel has timed out.
+// TxConfirmed marks a transaction as confirmed on L1.
 func (s *channelManager) TxConfirmed(_id txID, inclusionBlock eth.BlockID) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	id := _id.String()
 	if channel, ok := s.txChannels[id]; ok {
 		delete(s.txChannels, id)
-		_, blocks := channel.TxConfirmed(id, inclusionBlock)
-		timedOut := len(blocks) > 0 // TODO simplify API of channel.TxConfirmed
-		if timedOut {
-			blockHash := channel.channelBuilder.blocks[0].Hash()
-			for i, b := range s.blocks {
-				if b.Hash() == blockHash {
-					s.blockCursor = i
-					s.channelQueue = s.channelQueue[:0]
-				}
-			}
+		if timedOut := channel.TxConfirmed(id, inclusionBlock); timedOut {
+			s.handleChannelTimeout(channel)
 		}
 	} else {
 		s.log.Warn("transaction from unknown channel marked as confirmed", "id", id)
 	}
 	s.metr.RecordBatchTxSubmitted()
 	s.log.Debug("marked transaction as confirmed", "id", id, "block", inclusionBlock)
+}
+
+// handleChannelTimeout rewinds the channelManager's blockCursor
+// to point at the first block added to the provided channel,
+// and clears the channelQueue and currentChannel.
+func (s *channelManager) handleChannelTimeout(c *channel) {
+	blockHash := c.channelBuilder.blocks[0].Hash()
+	for i, b := range s.blocks {
+		if b.Hash() == blockHash {
+			s.blockCursor = i
+			s.channelQueue = s.channelQueue[:0]
+			s.currentChannel = nil
+			break
+		}
+	}
 }
 
 // removePendingChannel removes the given completed channel from the manager's state.

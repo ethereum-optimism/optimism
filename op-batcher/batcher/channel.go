@@ -67,39 +67,36 @@ func (s *channel) TxFailed(id string) {
 	s.metr.RecordBatchTxFailed()
 }
 
-// TxConfirmed marks a transaction as confirmed on L1. Unfortunately even if all frames in
-// a channel have been marked as confirmed on L1 the channel may be invalid & need to be
-// resubmitted.
-// This function may reset the pending channel if the pending channel has timed out.
-func (s *channel) TxConfirmed(id string, inclusionBlock eth.BlockID) (bool, []*types.Block) {
+// TxConfirmed marks a transaction as confirmed on L1. Returns a bool indicating
+// whether the channel timed out on chain.
+func (s *channel) TxConfirmed(id string, inclusionBlock eth.BlockID) bool {
 	s.metr.RecordBatchTxSubmitted()
 	s.log.Debug("marked transaction as confirmed", "id", id, "block", inclusionBlock)
 	if _, ok := s.pendingTransactions[id]; !ok {
 		s.log.Warn("unknown transaction marked as confirmed", "id", id, "block", inclusionBlock)
 		// TODO: This can occur if we clear the channel while there are still pending transactions
 		// We need to keep track of stale transactions instead
-		return false, nil
+		return false
 	}
 	delete(s.pendingTransactions, id)
 	s.confirmedTransactions[id] = inclusionBlock
 	s.confirmedTxUpdated = true
 	s.channelBuilder.FramePublished(inclusionBlock.Number)
 
+	if s.isFullySubmitted() {
+		s.metr.RecordChannelFullySubmitted(s.ID())
+		s.log.Info("Channel is fully submitted", "id", s.ID(), "min_inclusion_block", s.minInclusionBlock, "max_inclusion_block", s.maxInclusionBlock)
+	}
+
 	// If this channel timed out, put the pending blocks back into the local saved blocks
 	// and then reset this state so it can try to build a new channel.
 	if s.isTimedOut() {
 		s.metr.RecordChannelTimedOut(s.ID())
 		s.log.Warn("Channel timed out", "id", s.ID(), "min_inclusion_block", s.minInclusionBlock, "max_inclusion_block", s.maxInclusionBlock)
-		return true, s.channelBuilder.Blocks()
-	}
-	// If we are done with this channel, record that.
-	if s.isFullySubmitted() {
-		s.metr.RecordChannelFullySubmitted(s.ID())
-		s.log.Info("Channel is fully submitted", "id", s.ID(), "min_inclusion_block", s.minInclusionBlock, "max_inclusion_block", s.maxInclusionBlock)
-		return true, nil
+		return true
 	}
 
-	return false, nil
+	return false
 }
 
 // Timeout returns the channel timeout L1 block number. If there is no timeout set, it returns 0.
