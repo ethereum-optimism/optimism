@@ -263,16 +263,37 @@ func (l *BatchSubmitter) calculateL2BlockRangeToStore(ctx context.Context) (eth.
 		return eth.BlockID{}, eth.BlockID{}, fmt.Errorf("getting rollup client: %w", err)
 	}
 
-	cCtx, cancel := context.WithTimeout(ctx, l.Config.NetworkTimeout)
-	defer cancel()
+	var (
+		syncStatus *eth.SyncStatus
+		backoff    = time.Second
+		maxBackoff = time.Minute
+	)
+	for {
+		cCtx, cancel := context.WithTimeout(ctx, l.Config.NetworkTimeout)
+		syncStatus, err = rollupClient.SyncStatus(cCtx)
+		cancel()
 
-	syncStatus, err := rollupClient.SyncStatus(cCtx)
-	// Ensure that we have the sync status
-	if err != nil {
-		return eth.BlockID{}, eth.BlockID{}, fmt.Errorf("failed to get sync status: %w", err)
-	}
-	if syncStatus.HeadL1 == (eth.L1BlockRef{}) {
-		return eth.BlockID{}, eth.BlockID{}, errors.New("empty sync status")
+		// Ensure that we have the sync status
+		if err != nil {
+			return eth.BlockID{}, eth.BlockID{}, fmt.Errorf("failed to get sync status: %w", err)
+		}
+
+		// If we have a head, break out of the loop
+		if syncStatus.HeadL1 != (eth.L1BlockRef{}) {
+			break
+		}
+
+		// Empty sync status, implement backoff
+		l.Log.Info("Received empty sync status, backing off", "backoff", backoff)
+		select {
+		case <-time.After(backoff):
+			backoff *= 2
+			if backoff > maxBackoff {
+				backoff = maxBackoff
+			}
+		case <-ctx.Done():
+			return eth.BlockID{}, eth.BlockID{}, ctx.Err()
+		}
 	}
 
 	// Check last stored to see if it needs to be set on startup OR set if is lagged behind.
