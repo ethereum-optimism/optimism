@@ -1,4 +1,4 @@
-package source
+package processors
 
 import (
 	"context"
@@ -12,7 +12,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
 )
 
-func NewL1Client(ctx context.Context, logger log.Logger, m caching.Metrics, rpc string, rpcClient client.RPC, pollRate time.Duration, trustRPC bool, kind sources.RPCProviderKind) (*sources.L1Client, error) {
+// NewEthClient creates an Eth RPC client for event-log fetching.
+func NewEthClient(ctx context.Context, logger log.Logger, m caching.Metrics, rpc string, rpcClient client.RPC,
+	pollRate time.Duration, trustRPC bool, kind sources.RPCProviderKind) (*sources.L1Client, error) {
 	c, err := client.NewRPCWithClient(ctx, logger, rpc, rpcClient, pollRate)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new RPC client: %w", err)

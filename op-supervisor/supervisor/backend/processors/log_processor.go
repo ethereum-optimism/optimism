@@ -1,4 +1,4 @@
-package source
+package processors
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/source/contracts"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors/contracts"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -34,7 +34,7 @@ type logProcessor struct {
 	eventDecoder EventDecoder
 }
 
-func NewLogProcessor(chain types.ChainID, logStore LogStorage) *logProcessor {
+func NewLogProcessor(chain types.ChainID, logStore LogStorage) LogProcessor {
 	return &logProcessor{
 		chain:        chain,
 		logStore:     logStore,

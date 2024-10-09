@@ -31,7 +31,7 @@ package db
 // - Checkpoints should contain both blocks since last derived-from change, and absolute L2 block num
 //
 // Interface:
-// - AddDerived(derivedFrom eth.BlockID, crossVerified eth.BlockRef) -> whenever a L2 block is derived from a L1 block
+// - AddDerived(derivedFrom eth.BlockID, derived eth.BlockRef) -> whenever a L2 block is derived from a L1 block
 // - SealDerivedFrom(derivedFrom eth.BlockRef)    -> we register every L1 block
 // - Rewind(newHeadBlockNum uint64) error
 //

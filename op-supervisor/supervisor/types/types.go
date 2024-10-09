@@ -171,3 +171,32 @@ type ReferenceView struct {
 func (v ReferenceView) String() string {
 	return fmt.Sprintf("View(local: %s, cross: %s)", v.Local, v.Cross)
 }
+
+type HeadPointer struct {
+	// LastSealedBlockHash is the last fully-processed block
+	LastSealedBlockHash common.Hash
+	LastSealedBlockNum  uint64
+	LastSealedTimestamp uint64
+
+	// Number of logs that have been verified since the LastSealedBlock.
+	// These logs are contained in the block that builds on top of the LastSealedBlock.
+	LogsSince uint32
+}
+
+// WithinRange checks if the given log, in the given block,
+// is within range (i.e. before or equal to the head-pointer).
+// This does not guarantee that the log exists.
+func (ptr *HeadPointer) WithinRange(blockNum uint64, logIdx uint32) bool {
+	if ptr.LastSealedBlockHash == (common.Hash{}) {
+		return false // no block yet
+	}
+	return blockNum <= ptr.LastSealedBlockNum ||
+		(blockNum+1 == ptr.LastSealedBlockNum && logIdx < ptr.LogsSince)
+}
+
+func (ptr *HeadPointer) IsSealed(blockNum uint64) bool {
+	if ptr.LastSealedBlockHash == (common.Hash{}) {
+		return false // no block yet
+	}
+	return blockNum <= ptr.LastSealedBlockNum
+}
