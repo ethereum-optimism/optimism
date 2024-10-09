@@ -4,7 +4,6 @@ pragma solidity ^0.8.0;
 import { ICrossDomainMessenger } from "src/universal/interfaces/ICrossDomainMessenger.sol";
 import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
 import { IOptimismPortal } from "src/L1/interfaces/IOptimismPortal.sol";
-import { ISystemConfig } from "src/L1/interfaces/ISystemConfig.sol";
 
 /// @notice This interface corresponds to the op-contracts/v1.6.0 release of the L1CrossDomainMessenger
 /// contract, which has a semver of 2.3.0 as specified in

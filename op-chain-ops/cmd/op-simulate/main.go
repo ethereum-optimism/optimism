@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/core/tracing"
+	"github.com/ethereum/go-ethereum/triedb"
 	"github.com/holiman/uint256"
 	"github.com/pkg/profile"
 	"github.com/urfave/cli/v2"
@@ -248,8 +249,8 @@ func (d *simChainContext) GetHeader(h common.Hash, n uint64) *types.Header {
 func simulate(ctx context.Context, logger log.Logger, conf *params.ChainConfig,
 	prestatePath string, tx *types.Transaction, header *types.Header, doProfile bool) error {
 	memDB := rawdb.NewMemoryDatabase()
-	stateDB := gstate.NewDatabase(memDB)
-	state, err := gstate.New(types.EmptyRootHash, stateDB, nil)
+	stateDB := gstate.NewDatabase(triedb.NewDatabase(memDB, nil), nil)
+	state, err := gstate.New(types.EmptyRootHash, stateDB)
 	if err != nil {
 		return fmt.Errorf("failed to create in-memory state: %w", err)
 	}

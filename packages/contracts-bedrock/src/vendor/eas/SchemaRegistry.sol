@@ -2,9 +2,9 @@
 pragma solidity 0.8.19;
 
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
-import { ISchemaResolver } from "src/EAS/resolver/ISchemaResolver.sol";
-import { EMPTY_UID, MAX_GAP } from "src/EAS/Common.sol";
-import { ISchemaRegistry, SchemaRecord } from "src/EAS/ISchemaRegistry.sol";
+import { ISchemaResolver } from "src/vendor/eas/resolver/ISchemaResolver.sol";
+import { EMPTY_UID, MAX_GAP } from "src/vendor/eas/Common.sol";
+import { ISchemaRegistry, SchemaRecord } from "src/vendor/eas/ISchemaRegistry.sol";
 
 /// @custom:proxied true
 /// @custom:predeploy 0x4200000000000000000000000000000000000020

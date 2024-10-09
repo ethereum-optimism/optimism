@@ -12,7 +12,6 @@ import { Process } from "scripts/libraries/Process.sol";
 // Libraries
 import { LibString } from "@solady/utils/LibString.sol";
 import { Constants } from "src/libraries/Constants.sol";
-import { GameTypes } from "src/dispute/lib/Types.sol";
 import "src/dispute/lib/Types.sol";
 import "scripts/deploy/Deployer.sol";
 

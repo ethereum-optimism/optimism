@@ -4,7 +4,6 @@ pragma solidity ^0.8.0;
 import { console2 as console } from "forge-std/console2.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { Vm } from "forge-std/Vm.sol";
-import { Executables } from "scripts/libraries/Executables.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Config } from "scripts/libraries/Config.sol";
 import { StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
@@ -158,8 +157,8 @@ abstract contract Artifacts {
             return payable(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY);
         } else if (digest == keccak256(bytes("OptimismSuperchainERC20Beacon"))) {
             return payable(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON);
-        } else if (digest == keccak256(bytes("SuperchainERC20Bridge"))) {
-            return payable(Predeploys.SUPERCHAIN_ERC20_BRIDGE);
+        } else if (digest == keccak256(bytes("SuperchainTokenBridge"))) {
+            return payable(Predeploys.SUPERCHAIN_TOKEN_BRIDGE);
         }
         return payable(address(0));
     }

@@ -577,7 +577,7 @@
   },
   {
     "inputs": [],
-    "name": "OnlySuperchainERC20Bridge",
+    "name": "OnlySuperchainTokenBridge",
     "type": "error"
   },
   {

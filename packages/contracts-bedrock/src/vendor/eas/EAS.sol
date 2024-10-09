@@ -4,8 +4,8 @@ pragma solidity 0.8.19;
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { EIP1271Verifier } from "src/EAS/eip1271/EIP1271Verifier.sol";
-import { ISchemaResolver } from "src/EAS/resolver/ISchemaResolver.sol";
+import { EIP1271Verifier } from "src/vendor/eas/eip1271/EIP1271Verifier.sol";
+import { ISchemaResolver } from "src/vendor/eas/resolver/ISchemaResolver.sol";
 
 import {
     AccessDenied,
@@ -16,7 +16,7 @@ import {
     NotFound,
     NO_EXPIRATION_TIME,
     uncheckedInc
-} from "src/EAS/Common.sol";
+} from "src/vendor/eas/Common.sol";
 
 import {
     Attestation,
@@ -31,9 +31,9 @@ import {
     MultiRevocationRequest,
     RevocationRequest,
     RevocationRequestData
-} from "src/EAS/IEAS.sol";
+} from "src/vendor/eas/IEAS.sol";
 
-import { ISchemaRegistry, SchemaRecord } from "src/EAS/ISchemaRegistry.sol";
+import { ISchemaRegistry, SchemaRecord } from "src/vendor/eas/ISchemaRegistry.sol";
 
 struct AttestationsResult {
     uint256 usedValue; // Total ETH amount that was sent to resolvers.

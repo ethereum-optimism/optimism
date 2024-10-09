@@ -1018,7 +1018,7 @@ func (d *L1Deployments) Check(deployConfig *DeployConfig) error {
 			continue
 		}
 		if deployConfig.UseFaultProofs &&
-			(name == "OptimismPortal") {
+			(name == "OptimismPortal" || name == "L2OutputOracle" || name == "L2OutputOracleProxy") {
 			continue
 		}
 		if !deployConfig.UseAltDA &&
