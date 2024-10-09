@@ -661,6 +661,9 @@ jobs:
           command: just build-go-ffi
           working_directory: packages/contracts-bedrock
       - run:
+          name: Build kontrol-summary-full
+          command: just kontrol-summary-full
+      - run:
           name: Run tests
           command: |
             TEST_FILES=$(<<parameters.test_list>>)
