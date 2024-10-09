@@ -452,15 +452,6 @@ func TestChannelManager_PruneBlocks(t *testing.T) {
 	require.NoError(t, m.AddL2Block(c))
 	m.blockCursor += 1
 
-	// Wrong hash, indicative of safe chain reorg
-	// or derivation bug
-	require.Panics(t, func() {
-		m.pruneSafeBlocks(eth.L2BlockRef{
-			Hash:   c.Hash(),
-			Number: b.NumberU64(),
-		})
-	})
-
 	// Normal path
 	m.pruneSafeBlocks(eth.L2BlockRef{
 		Hash:   b.Hash(),
@@ -489,6 +480,23 @@ func TestChannelManager_PruneBlocks(t *testing.T) {
 		Number: c.NumberU64(),
 	})
 	require.Equal(t, queue.Queue[*types.Block]{}, m.blocks)
+
+	// Put another block in
+	d := types.NewBlock(&types.Header{
+		Number:     big.NewInt(3),
+		ParentHash: c.Hash(),
+	}, nil, nil, nil)
+	require.NoError(t, m.AddL2Block(d))
+	m.blockCursor += 1
+
+	// Safe chain reorg
+	// state should be cleared
+	m.pruneSafeBlocks(eth.L2BlockRef{
+		Hash:   a.Hash(),
+		Number: uint64(3),
+	})
+	require.Equal(t, queue.Queue[*types.Block]{}, m.blocks)
+
 }
 
 func TestChannelManager_PruneChannels(t *testing.T) {
