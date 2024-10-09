@@ -40,11 +40,11 @@ clean:
 ########################################################
 
 # Runs standard contract tests.
-test: build-go-ffi
+test: build-go-ffi kontrol-summary-full
   forge test
 
 # Runs standard contract tests with rerun flag.
-test-rerun: build-go-ffi
+test-rerun: build-go-ffi kontrol-summary-full
   forge test --rerun -vvv
 
 # Run Kontrol tests and build all dependencies.
