@@ -193,6 +193,10 @@ validate-spacers-no-build:
 # Checks that spacer variables are correctly inserted.
 validate-spacers: build validate-spacers-no-build
 
+# Runs semgrep on the contracts.
+semgrep:
+  cd ../../ && semgrep scan --config=.semgrep ./packages/contracts-bedrock
+
 # TODO: Also run lint-forge-tests-check but we need to fix the test names first.
 # Runs all checks.
 check:

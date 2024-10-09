@@ -3,7 +3,7 @@ version: 2.1
 parameters:
   ci_builder_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:v0.53.0
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:v0.54.0
   ci_builder_rust_image:
     type: string
     default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder-rust:latest
@@ -701,6 +701,8 @@ jobs:
       - run:
           name: print forge version
           command: forge --version
+      - run-contracts-check:
+          command: semgrep
       - run-contracts-check:
           command: semver-lock
       - run-contracts-check:
