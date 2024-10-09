@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -211,8 +210,7 @@ func (su *SupervisorBackend) CheckMessage(identifier types.Identifier, payloadHa
 	if err != nil {
 		return types.Invalid, fmt.Errorf("failed to check log: %w", err)
 	}
-	safest := su.db.Safest(chainID, blockNum, uint32(logIdx))
-	return safest, nil
+	return su.db.Safest(chainID, blockNum, uint32(logIdx))
 }
 
 func (su *SupervisorBackend) CheckMessages(
@@ -236,47 +234,24 @@ func (su *SupervisorBackend) CheckMessages(
 	return nil
 }
 
-// CheckBlock checks if the block is safe according to the safety level
-// The block is considered safe if all logs in the block are safe
-// this is decided by finding the last log in the block and
-func (su *SupervisorBackend) CheckBlock(chainID *hexutil.U256, blockHash common.Hash, blockNumber hexutil.Uint64) (types.SafetyLevel, error) {
-	su.mu.RLock()
-	defer su.mu.RUnlock()
-
-	// find the last log index in the block
-	id := eth.BlockID{Hash: blockHash, Number: uint64(blockNumber)}
-	_, err := su.db.FindSealedBlock(types.ChainID(*chainID), id)
-	if errors.Is(err, entrydb.ErrFuture) {
-		return types.LocalUnsafe, nil
-	}
-	if errors.Is(err, entrydb.ErrConflict) {
-		return types.Invalid, nil
-	}
-	if err != nil {
-		su.logger.Error("failed to scan block", "err", err)
-		return "", err
-	}
-	safest := su.db.Safest(types.ChainID(*chainID), uint64(blockNumber), 0)
-	return safest, nil
-}
-
 func (su *SupervisorBackend) UnsafeView(ctx context.Context, chainID types.ChainID, unsafe types.ReferenceView) (types.ReferenceView, error) {
 	su.mu.RLock()
 	defer su.mu.RUnlock()
 
-	u, xu, err := su.db.UnsafeView(chainID, unsafe)
+	head, err := su.db.LocalUnsafe(chainID)
 	if err != nil {
-		return types.ReferenceView{}, fmt.Errorf("failed to get unsafe view: %w", err)
+		return types.ReferenceView{}, fmt.Errorf("failed to get local-unsafe head: %w", err)
 	}
+	cross, err := su.db.CrossUnsafe(chainID)
+	if err != nil {
+		return types.ReferenceView{}, fmt.Errorf("failed to get cross-unsafe head: %w", err)
+	}
+
+	// TODO check `unsafe` input to detect reorg conflicts
+
 	return types.ReferenceView{
-		Local: eth.BlockID{
-			Hash:   u.LastSealedBlockHash,
-			Number: u.LastSealedBlockNum,
-		},
-		Cross: eth.BlockID{
-			Hash:   xu.LastSealedBlockHash,
-			Number: xu.LastSealedBlockNum,
-		},
+		Local: eth.BlockID{Hash: head.LastSealedBlockHash, Number: head.LastSealedBlockNum},
+		Cross: eth.BlockID{Hash: cross.LastSealedBlockHash, Number: cross.LastSealedBlockNum},
 	}, nil
 }
 
@@ -284,19 +259,20 @@ func (su *SupervisorBackend) SafeView(ctx context.Context, chainID types.ChainID
 	su.mu.RLock()
 	defer su.mu.RUnlock()
 
-	s, xs, err := su.db.SafeView(chainID, safe)
+	_, localSafe, err := su.db.LocalSafe(chainID)
 	if err != nil {
-		return types.ReferenceView{}, fmt.Errorf("failed to get safe view: %w", err)
+		return types.ReferenceView{}, fmt.Errorf("failed to get local-safe head: %w", err)
 	}
+	_, crossSafe, err := su.db.CrossSafe(chainID)
+	if err != nil {
+		return types.ReferenceView{}, fmt.Errorf("failed to get cross-safe head: %w", err)
+	}
+
+	// TODO check `safe` input to detect reorg conflicts
+
 	return types.ReferenceView{
-		Local: eth.BlockID{
-			Hash:   s.LastSealedBlockHash,
-			Number: s.LastSealedBlockNum,
-		},
-		Cross: eth.BlockID{
-			Hash:   xs.LastSealedBlockHash,
-			Number: xs.LastSealedBlockNum,
-		},
+		Local: localSafe,
+		Cross: crossSafe,
 	}, nil
 }
 

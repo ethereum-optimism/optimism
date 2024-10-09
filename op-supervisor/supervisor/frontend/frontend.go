@@ -3,11 +3,9 @@ package frontend
 import (
 	"context"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 type AdminBackend interface {
@@ -19,7 +17,6 @@ type AdminBackend interface {
 type QueryBackend interface {
 	CheckMessage(identifier types.Identifier, payloadHash common.Hash) (types.SafetyLevel, error)
 	CheckMessages(messages []types.Message, minSafety types.SafetyLevel) error
-	CheckBlock(chainID *hexutil.U256, blockHash common.Hash, blockNumber hexutil.Uint64) (types.SafetyLevel, error)
 	DerivedFrom(ctx context.Context, chainID types.ChainID, derived eth.BlockID) (derivedFrom eth.BlockID, err error)
 	UnsafeView(ctx context.Context, chainID types.ChainID, unsafe types.ReferenceView) (types.ReferenceView, error)
 	SafeView(ctx context.Context, chainID types.ChainID, safe types.ReferenceView) (types.ReferenceView, error)

@@ -6,12 +6,10 @@ import (
 	"io"
 	"sync/atomic"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/frontend"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 type MockBackend struct {
@@ -50,10 +48,6 @@ func (m *MockBackend) CheckMessage(identifier types.Identifier, payloadHash comm
 
 func (m *MockBackend) CheckMessages(messages []types.Message, minSafety types.SafetyLevel) error {
 	return nil
-}
-
-func (m *MockBackend) CheckBlock(chainID *hexutil.U256, blockHash common.Hash, blockNumber hexutil.Uint64) (types.SafetyLevel, error) {
-	return types.CrossUnsafe, nil
 }
 
 func (m *MockBackend) DerivedFrom(ctx context.Context, t types.ChainID, parentHash common.Hash, n uint64) (eth.BlockRef, error) {

@@ -2,13 +2,12 @@ package db
 
 import (
 	"fmt"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
 
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/heads"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -37,40 +36,72 @@ func (db *ChainsDB) LatestBlockNum(chain types.ChainID) (num uint64, ok bool) {
 	return logDB.LatestSealedBlockNum()
 }
 
-func (db *ChainsDB) UnsafeView(chainID types.ChainID, unsafe types.ReferenceView) (heads.HeadPointer, heads.HeadPointer, error) {
+func (db *ChainsDB) LocalUnsafe(chainID types.ChainID) (types.HeadPointer, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
 	eventsDB, ok := db.logDBs[chainID]
 	if !ok {
-		return heads.HeadPointer{}, heads.HeadPointer{}, ErrUnknownChain
+		return types.HeadPointer{}, ErrUnknownChain
 	}
-	// TODO fetch cross-unsafe
-	return heads.HeadPointer{}, heads.HeadPointer{}, nil
+	// TODO get tip of events DB
+	return types.HeadPointer{}, nil
 }
 
-func (db *ChainsDB) SafeView(chainID types.ChainID, safe types.ReferenceView) (heads.HeadPointer, heads.HeadPointer, error) {
+func (db *ChainsDB) CrossUnsafe(chainID types.ChainID) (types.HeadPointer, error) {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
+
+	result, ok := db.crossUnsafe[chainID]
+	if !ok {
+		return types.HeadPointer{}, ErrUnknownChain
+	}
+	return result, nil
+}
+
+func (db *ChainsDB) LocalSafe(chainID types.ChainID) (derivedFrom eth.BlockID, derived eth.BlockID, err error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
 	localDB, ok := db.localDBs[chainID]
 	if !ok {
-		return heads.HeadPointer{}, heads.HeadPointer{}, ErrUnknownChain
+		return eth.BlockID{}, eth.BlockID{}, ErrUnknownChain
 	}
-	// TODO tip of localDB = local safe head
+	// TODO get tip of local DB
+	return eth.BlockID{}, eth.BlockID{}, nil
+}
+
+func (db *ChainsDB) CrossSafe(chainID types.ChainID) (derivedFrom eth.BlockID, derived eth.BlockID, err error) {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
+
 	crossDB, ok := db.crossDBs[chainID]
 	if !ok {
-		return heads.HeadPointer{}, heads.HeadPointer{}, ErrUnknownChain
+		return eth.BlockID{}, eth.BlockID{}, ErrUnknownChain
 	}
-	// TODO tip of crossDB = cross safe head
-	return heads.HeadPointer{}, heads.HeadPointer{}, nil
+	// TODO get tip of cross DB
+	return eth.BlockID{}, eth.BlockID{}, nil
 }
 
 func (db *ChainsDB) Finalized(chainID types.ChainID) (eth.BlockID, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
+	finalizedL1 := db.finalizedL1
+	derived, err := db.LastDerivedFrom(chainID, finalizedL1.ID())
+	if err != nil {
+		return eth.BlockID{}, fmt.Errorf("could not find what was last derived from the finalized L1 block")
+	}
+	return derived, nil
+}
+
+func (db *ChainsDB) LastDerivedFrom(chainID types.ChainID, derivedFrom eth.BlockID) (derived eth.BlockID, err error) {
+	crossDB, ok := db.crossDBs[chainID]
+	if !ok {
+		return eth.BlockID{}, ErrUnknownChain
+	}
 	// TODO
+	crossDB.LastDerived()
 }
 
 func (db *ChainsDB) DerivedFrom(chainID types.ChainID, derived eth.BlockID) (derivedFrom eth.BlockID, err error) {
@@ -81,6 +112,7 @@ func (db *ChainsDB) DerivedFrom(chainID types.ChainID, derived eth.BlockID) (der
 	if !ok {
 		return eth.BlockRef{}, ErrUnknownChain
 	}
+	// TODO
 	localDB.DerivedFrom()
 }
 
@@ -103,27 +135,39 @@ func (db *ChainsDB) Check(chain types.ChainID, blockNum uint64, logIdx uint32, l
 }
 
 // Safest returns the strongest safety level that can be guaranteed for the given log entry.
-// it assumes the log entry has already been checked and is valid, this funcion only checks safety levels.
-func (db *ChainsDB) Safest(chainID types.ChainID, blockNum uint64, index uint32) (safest types.SafetyLevel) {
+// it assumes the log entry has already been checked and is valid, this function only checks safety levels.
+// Cross-safety levels are all considered to be more safe than any form of local-safety.
+func (db *ChainsDB) Safest(chainID types.ChainID, blockNum uint64, index uint32) (safest types.SafetyLevel, err error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
-	safest = types.LocalUnsafe
-	if crossUnsafe, err := db.safetyIndex.CrossUnsafeL2(chainID); err == nil && crossUnsafe.WithinRange(blockNum, index) {
-		safest = types.CrossUnsafe
-	}
-	if localSafe, err := db.safetyIndex.LocalSafeL2(chainID); err == nil && localSafe.WithinRange(blockNum, index) {
-		safest = types.LocalSafe
-	}
-	if crossSafe, err := db.safetyIndex.LocalSafeL2(chainID); err == nil && crossSafe.WithinRange(blockNum, index) {
-		safest = types.CrossSafe
-	}
-	if finalized, err := db.safetyIndex.FinalizedL2(chainID); err == nil {
+	if finalized, err := db.Finalized(chainID); err == nil {
 		if finalized.Number >= blockNum {
-			safest = types.Finalized
+			return types.Finalized, nil
 		}
 	}
-	return
+	_, crossSafe, err := db.CrossSafe(chainID)
+	if err != nil {
+		return types.Invalid, err
+	}
+	if crossSafe.Number >= blockNum {
+		return types.CrossSafe, nil
+	}
+	crossUnsafe, err := db.CrossUnsafe(chainID)
+	if err != nil {
+		return types.Invalid, err
+	}
+	if crossUnsafe.WithinRange(blockNum, index) {
+		return types.CrossUnsafe, nil
+	}
+	_, localSafe, err := db.LocalSafe(chainID)
+	if err != nil {
+		return types.Invalid, err
+	}
+	if localSafe.Number >= blockNum {
+		return types.LocalSafe, nil
+	}
+	return types.LocalUnsafe, nil
 }
 
 func (db *ChainsDB) IteratorStartingAt(chain types.ChainID, sealedNum uint64, logIndex uint32) (logs.Iterator, error) {
