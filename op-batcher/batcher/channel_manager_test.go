@@ -755,4 +755,17 @@ func TestChannelManager_PruneChannels(t *testing.T) {
 	})
 
 	require.Equal(t, []*channel{C}, m.channelQueue)
+
+	m.pruneChannels(eth.L2BlockRef{
+		Number: uint64(4),
+	})
+
+	require.Equal(t, []*channel{}, m.channelQueue)
+
+	m.pruneChannels(eth.L2BlockRef{
+		Number: uint64(4),
+	})
+
+	require.Equal(t, []*channel{}, m.channelQueue)
+
 }
