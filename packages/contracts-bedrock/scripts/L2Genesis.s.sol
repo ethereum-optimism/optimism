@@ -10,14 +10,7 @@ import { Deployer } from "scripts/deploy/Deployer.sol";
 import { Config, OutputMode, OutputModeUtils, Fork, ForkUtils, LATEST_FORK } from "scripts/libraries/Config.sol";
 import { Process } from "scripts/libraries/Process.sol";
 import { SetPreinstalls } from "scripts/SetPreinstalls.s.sol";
-
-// Contracts
-import { SequencerFeeVault } from "src/L2/SequencerFeeVault.sol";
-import { BaseFeeVault } from "src/L2/BaseFeeVault.sol";
-import { L1FeeVault } from "src/L2/L1FeeVault.sol";
-import { OptimismSuperchainERC20Beacon } from "src/L2/OptimismSuperchainERC20Beacon.sol";
-import { OptimismMintableERC721Factory } from "src/universal/OptimismMintableERC721Factory.sol";
-import { GovernanceToken } from "src/governance/GovernanceToken.sol";
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -25,6 +18,12 @@ import { Preinstalls } from "src/libraries/Preinstalls.sol";
 import { Types } from "src/libraries/Types.sol";
 
 // Interfaces
+import { ISequencerFeeVault } from "src/L2/interfaces/ISequencerFeeVault.sol";
+import { IBaseFeeVault } from "src/L2/interfaces/IBaseFeeVault.sol";
+import { IL1FeeVault } from "src/L2/interfaces/IL1FeeVault.sol";
+import { IOptimismSuperchainERC20Beacon } from "src/L2/interfaces/IOptimismSuperchainERC20Beacon.sol";
+import { IOptimismMintableERC721Factory } from "src/universal/interfaces/IOptimismMintableERC721Factory.sol";
+import { IGovernanceToken } from "src/governance/interfaces/IGovernanceToken.sol";
 import { IOptimismMintableERC20Factory } from "src/universal/interfaces/IOptimismMintableERC20Factory.sol";
 import { IL2StandardBridge } from "src/L2/interfaces/IL2StandardBridge.sol";
 import { IL2ERC721Bridge } from "src/L2/interfaces/IL2ERC721Bridge.sol";
@@ -338,11 +337,21 @@ contract L2Genesis is Deployer {
 
     /// @notice This predeploy is following the safety invariant #2,
     function setSequencerFeeVault() public {
-        SequencerFeeVault vault = new SequencerFeeVault({
-            _recipient: cfg.sequencerFeeVaultRecipient(),
-            _minWithdrawalAmount: cfg.sequencerFeeVaultMinimumWithdrawalAmount(),
-            _withdrawalNetwork: Types.WithdrawalNetwork(cfg.sequencerFeeVaultWithdrawalNetwork())
-        });
+        ISequencerFeeVault vault = ISequencerFeeVault(
+            DeployUtils.create1(
+                "SequencerFeeVault",
+                DeployUtils.encodeConstructor(
+                    abi.encodeCall(
+                        ISequencerFeeVault.__constructor__,
+                        (
+                            cfg.sequencerFeeVaultRecipient(),
+                            cfg.sequencerFeeVaultMinimumWithdrawalAmount(),
+                            Types.WithdrawalNetwork(cfg.sequencerFeeVaultWithdrawalNetwork())
+                        )
+                    )
+                )
+            )
+        );
 
         address impl = Predeploys.predeployToCodeNamespace(Predeploys.SEQUENCER_FEE_WALLET);
         console.log("Setting %s implementation at: %s", "SequencerFeeVault", impl);
@@ -366,8 +375,16 @@ contract L2Genesis is Deployer {
 
     /// @notice This predeploy is following the safety invariant #2,
     function setOptimismMintableERC721Factory() public {
-        OptimismMintableERC721Factory factory =
-            new OptimismMintableERC721Factory({ _bridge: Predeploys.L2_ERC721_BRIDGE, _remoteChainId: cfg.l1ChainID() });
+        IOptimismMintableERC721Factory factory = IOptimismMintableERC721Factory(
+            DeployUtils.create1(
+                "OptimismMintableERC721Factory",
+                DeployUtils.encodeConstructor(
+                    abi.encodeCall(
+                        IOptimismMintableERC721Factory.__constructor__, (Predeploys.L2_ERC721_BRIDGE, cfg.l1ChainID())
+                    )
+                )
+            )
+        );
 
         address impl = Predeploys.predeployToCodeNamespace(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY);
         console.log("Setting %s implementation at: %s", "OptimismMintableERC721Factory", impl);
@@ -422,11 +439,21 @@ contract L2Genesis is Deployer {
 
     /// @notice This predeploy is following the safety invariant #2.
     function setBaseFeeVault() public {
-        BaseFeeVault vault = new BaseFeeVault({
-            _recipient: cfg.baseFeeVaultRecipient(),
-            _minWithdrawalAmount: cfg.baseFeeVaultMinimumWithdrawalAmount(),
-            _withdrawalNetwork: Types.WithdrawalNetwork(cfg.baseFeeVaultWithdrawalNetwork())
-        });
+        IBaseFeeVault vault = IBaseFeeVault(
+            DeployUtils.create1(
+                "BaseFeeVault",
+                DeployUtils.encodeConstructor(
+                    abi.encodeCall(
+                        IBaseFeeVault.__constructor__,
+                        (
+                            cfg.baseFeeVaultRecipient(),
+                            cfg.baseFeeVaultMinimumWithdrawalAmount(),
+                            Types.WithdrawalNetwork(cfg.baseFeeVaultWithdrawalNetwork())
+                        )
+                    )
+                )
+            )
+        );
 
         address impl = Predeploys.predeployToCodeNamespace(Predeploys.BASE_FEE_VAULT);
         console.log("Setting %s implementation at: %s", "BaseFeeVault", impl);
@@ -439,11 +466,21 @@ contract L2Genesis is Deployer {
 
     /// @notice This predeploy is following the safety invariant #2.
     function setL1FeeVault() public {
-        L1FeeVault vault = new L1FeeVault({
-            _recipient: cfg.l1FeeVaultRecipient(),
-            _minWithdrawalAmount: cfg.l1FeeVaultMinimumWithdrawalAmount(),
-            _withdrawalNetwork: Types.WithdrawalNetwork(cfg.l1FeeVaultWithdrawalNetwork())
-        });
+        IL1FeeVault vault = IL1FeeVault(
+            DeployUtils.create1(
+                "L1FeeVault",
+                DeployUtils.encodeConstructor(
+                    abi.encodeCall(
+                        IL1FeeVault.__constructor__,
+                        (
+                            cfg.l1FeeVaultRecipient(),
+                            cfg.l1FeeVaultMinimumWithdrawalAmount(),
+                            Types.WithdrawalNetwork(cfg.l1FeeVaultWithdrawalNetwork())
+                        )
+                    )
+                )
+            )
+        );
 
         address impl = Predeploys.predeployToCodeNamespace(Predeploys.L1_FEE_VAULT);
         console.log("Setting %s implementation at: %s", "L1FeeVault", impl);
@@ -461,7 +498,11 @@ contract L2Genesis is Deployer {
             return;
         }
 
-        GovernanceToken token = new GovernanceToken();
+        IGovernanceToken token = IGovernanceToken(
+            DeployUtils.create1(
+                "GovernanceToken", DeployUtils.encodeConstructor(abi.encodeCall(IGovernanceToken.__constructor__, ()))
+            )
+        );
         console.log("Setting %s implementation at: %s", "GovernanceToken", Predeploys.GOVERNANCE_TOKEN);
         vm.etch(Predeploys.GOVERNANCE_TOKEN, address(token).code);
 
@@ -541,7 +582,15 @@ contract L2Genesis is Deployer {
         console.log("Setting %s implementation at: %s", "OptimismSuperchainERC20", superchainERC20Impl);
         vm.etch(superchainERC20Impl, vm.getDeployedCode("OptimismSuperchainERC20.sol:OptimismSuperchainERC20"));
 
-        OptimismSuperchainERC20Beacon beacon = new OptimismSuperchainERC20Beacon(superchainERC20Impl);
+        IOptimismSuperchainERC20Beacon beacon = IOptimismSuperchainERC20Beacon(
+            DeployUtils.create1(
+                "OptimismSuperchainERC20Beacon",
+                DeployUtils.encodeConstructor(
+                    abi.encodeCall(IOptimismSuperchainERC20Beacon.__constructor__, (superchainERC20Impl))
+                )
+            )
+        );
+
         address beaconImpl = Predeploys.predeployToCodeNamespace(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON);
 
         console.log("Setting %s implementation at: %s", "OptimismSuperchainERC20Beacon", beaconImpl);
