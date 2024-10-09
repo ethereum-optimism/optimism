@@ -378,6 +378,95 @@ func TestEVMSingleStep_MovzMovn(t *testing.T) {
 
 }
 
+func TestEVMSingleStep_MfhiMflo(t *testing.T) {
+	var tracer *tracing.Hooks
+	versions := GetMipsVersionTestCases(t)
+	cases := []struct {
+		name  string
+		funct uint32
+	}{
+		{name: "mflo", funct: uint32(0x12)},
+		{name: "mfhi", funct: uint32(0x10)},
+	}
+	for _, v := range versions {
+		for i, tt := range cases {
+			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
+			t.Run(testName, func(t *testing.T) {
+				var opt testutil.StateOption
+				val := Word(0xdeadbeef)
+				if tt.funct == 0x12 {
+					opt = testutil.WithLO(val)
+				} else {
+					opt = testutil.WithHI(val)
+				}
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPC(0), testutil.WithNextPC(4), opt)
+				state := goVm.GetState()
+				rsReg := uint32(0)
+				rtReg := uint32(0)
+				rdReg := uint32(8)
+				insn := rsReg<<21 | rtReg<<16 | rdReg<<11 | tt.funct
+				state.GetMemory().SetUint32(0, insn)
+				step := state.GetStep()
+				// Setup expectations
+				expected := testutil.NewExpectedState(state)
+				expected.ExpectStep()
+				if tt.funct == 0x12 {
+					expected.Registers[rdReg] = state.GetCpu().LO
+				} else {
+					expected.Registers[rdReg] = state.GetCpu().HI
+				}
+				stepWitness, err := goVm.Step(true)
+				require.NoError(t, err)
+				// Check expectations
+				expected.Validate(t, state)
+				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, tracer)
+			})
+		}
+	}
+}
+
+func TestEVMSingleStep_MthiMtlo(t *testing.T) {
+	var tracer *tracing.Hooks
+	versions := GetMipsVersionTestCases(t)
+	cases := []struct {
+		name  string
+		funct uint32
+	}{
+		{name: "mtlo", funct: uint32(0x13)},
+		{name: "mthi", funct: uint32(0x11)},
+	}
+	for _, v := range versions {
+		for i, tt := range cases {
+			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
+			t.Run(testName, func(t *testing.T) {
+				val := Word(0xdeadbeef)
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPC(0), testutil.WithNextPC(4))
+				state := goVm.GetState()
+				rsReg := uint32(8)
+				rtReg := uint32(0)
+				rdReg := uint32(0)
+				insn := rsReg<<21 | rtReg<<16 | rdReg<<11 | tt.funct
+				state.GetMemory().SetUint32(0, insn)
+				state.GetRegistersRef()[rsReg] = val
+				step := state.GetStep()
+				// Setup expectations
+				expected := testutil.NewExpectedState(state)
+				expected.ExpectStep()
+				if tt.funct == 0x11 {
+					expected.HI = state.GetRegistersRef()[rsReg]
+				} else {
+					expected.LO = state.GetRegistersRef()[rsReg]
+				}
+				stepWitness, err := goVm.Step(true)
+				require.NoError(t, err)
+				// Check expectations
+				expected.Validate(t, state)
+				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, tracer)
+			})
+		}
+	}
+}
+
 func TestEVM_MMap(t *testing.T) {
 	var tracer *tracing.Hooks
 
