@@ -275,7 +275,7 @@ jobs:
       - run:
           name: Generate allocs
           command: |
-            make devnet-allocs-tests
+            make devnet-allocs
       - save_cache:
           name: Save Go modules cache
           key: gomod-contracts-build-{{ checksum "go.sum" }}
