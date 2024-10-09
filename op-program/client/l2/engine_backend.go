@@ -191,19 +191,27 @@ func (o *OracleBackedL2Chain) InsertBlockWithoutSetHead(block *types.Block, make
 			return nil, fmt.Errorf("invalid transaction (%d): %w", i, err)
 		}
 	}
-	expected, err := processor.Assemble()
+	expected, err := o.AssembleAndInsertBlockWithoutSetHead(processor)
 	if err != nil {
 		return nil, fmt.Errorf("invalid block: %w", err)
 	}
 	if expected.Hash() != block.Hash() {
 		return nil, fmt.Errorf("block root mismatch, expected: %v, actual: %v", expected.Hash(), block.Hash())
 	}
+	return nil, nil
+}
+
+func (o *OracleBackedL2Chain) AssembleAndInsertBlockWithoutSetHead(processor *engineapi.BlockProcessor) (*types.Block, error) {
+	block, err := processor.Assemble()
+	if err != nil {
+		return nil, fmt.Errorf("invalid block: %w", err)
+	}
 	err = processor.Commit()
 	if err != nil {
 		return nil, fmt.Errorf("commit block: %w", err)
 	}
 	o.blocks[block.Hash()] = block
-	return nil, nil
+	return block, nil
 }
 
 func (o *OracleBackedL2Chain) SetCanonical(head *types.Block) (common.Hash, error) {
