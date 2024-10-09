@@ -1193,6 +1193,32 @@ func TestEVM_UnsupportedSyscall(t *testing.T) {
 	}
 }
 
+func TestEVM_EmptyThreadStacks(t *testing.T) {
+	t.Parallel()
+	var tracer *tracing.Hooks
+
+	cases := []struct {
+		name            string
+		activeStackSize int
+		otherStackSize  int
+		traverseRight   bool
+	}{
+		{name: "Empty stacks, traverse right", activeStackSize: 0, otherStackSize: 0, traverseRight: true},
+		{name: "Empty stacks, traverse left", activeStackSize: 0, otherStackSize: 0, traverseRight: false},
+	}
+
+	for i, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			_, state, contracts := setup(t, i*123, nil)
+			mttestutil.SetupThreads(int64(i*123), state, c.traverseRight, c.activeStackSize, c.otherStackSize)
+			proofData := emptyThreadedProofGenerator(state)
+
+			errorMessage := "MIPS2: illegal vm state"
+			testutil.AssertEVMReverts(t, state, contracts, tracer, proofData, errorMessage)
+		})
+	}
+}
+
 func TestEVM_NormalTraversalStep_HandleWaitingThread(t *testing.T) {
 	var tracer *tracing.Hooks
 	cases := []struct {
