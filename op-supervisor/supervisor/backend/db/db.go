@@ -67,7 +67,7 @@ type ChainsDB struct {
 
 	// cross-unsafe: how far we have processed the unsafe data.
 	// TODO: not initialized yet. Should just set it to the last known cross-safe block.
-	crossUnsafe types.HeadPointer
+	crossUnsafe map[types.ChainID]types.HeadPointer
 
 	// local-safe: index of what we optimistically know about L2 blocks being derived from L1
 	localDBs map[types.ChainID]LocalDerivedFromStorage

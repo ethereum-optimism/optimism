@@ -85,20 +85,19 @@ func (db *ChainsDB) DerivedFrom(chainID types.ChainID, derived eth.BlockID) (der
 }
 
 // Check calls the underlying logDB to determine if the given log entry is safe with respect to the checker's criteria.
-func (db *ChainsDB) Check(chain types.ChainID, blockNum uint64, logIdx uint32, logHash common.Hash) (common.Hash, error) {
+func (db *ChainsDB) Check(chain types.ChainID, blockNum uint64, logIdx uint32, logHash common.Hash) error {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
 	logDB, ok := db.logDBs[chain]
 	if !ok {
-		return common.Hash{}, fmt.Errorf("%w: %v", ErrUnknownChain, chain)
+		return fmt.Errorf("%w: %v", ErrUnknownChain, chain)
 	}
 	_, err := logDB.Contains(blockNum, logIdx, logHash)
 	if err != nil {
-		return common.Hash{}, err
+		return err
 	}
-	// TODO(#11693): need to get the actual block hash for this log entry for reorg detection
-	return common.Hash{}, nil
+	return nil
 }
 
 // Safest returns the strongest safety level that can be guaranteed for the given log entry.

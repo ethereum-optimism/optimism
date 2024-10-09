@@ -53,6 +53,14 @@ func (db *ChainsDB) UpdateLocalSafe(chain types.ChainID, derivedFrom eth.BlockRe
 	return nil
 }
 
+func (db *ChainsDB) UpdateCrossUnsafe(chain types.ChainID, crossUnsafe types.HeadPointer) error {
+	if _, ok := db.crossUnsafe[chain]; !ok {
+		return fmt.Errorf("%w: %v", ErrUnknownChain, chain)
+	}
+	db.crossUnsafe[chain] = crossUnsafe
+	return nil
+}
+
 func (db *ChainsDB) UpdateFinalizedL1(finalized eth.BlockRef) error {
 	if db.finalizedL1.Number > finalized.Number {
 		return fmt.Errorf("cannot rewind finalized L1 head from %s to %s", db.finalizedL1, finalized)

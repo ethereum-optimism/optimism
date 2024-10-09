@@ -23,6 +23,11 @@ type ExecutingMessage struct {
 	Hash      common.Hash
 }
 
+func (s *ExecutingMessage) String() string {
+	return fmt.Sprintf("ExecMsg(chain: %d, block: %d, log: %d, time: %d, logHash: %s)",
+		s.Chain, s.BlockNum, s.LogIdx, s.Timestamp, s.Hash)
+}
+
 type Message struct {
 	Identifier  Identifier  `json:"identifier"`
 	PayloadHash common.Hash `json:"payloadHash"`
