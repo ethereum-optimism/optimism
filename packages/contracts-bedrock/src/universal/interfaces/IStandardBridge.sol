@@ -61,4 +61,6 @@ interface IStandardBridge {
     function messenger() external view returns (ICrossDomainMessenger);
     function otherBridge() external view returns (IStandardBridge);
     function paused() external view returns (bool);
+
+    function __constructor__() external;
 }

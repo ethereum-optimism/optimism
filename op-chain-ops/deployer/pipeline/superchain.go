@@ -4,17 +4,16 @@ import (
 	"context"
 	"fmt"
 	"math/big"
-	"os"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opsm"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
+
+	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
 
-const DefaultContractsBedrockRepo = "us-docker.pkg.dev/oplabs-tools-artifacts/images/contracts-bedrock"
-
-func DeploySuperchain(ctx context.Context, env *Env, intent *state.Intent, st *state.State) error {
+func DeploySuperchain(ctx context.Context, env *Env, artifactsFS foundry.StatDirFs, intent *state.Intent, st *state.State) error {
 	lgr := env.Logger.New("stage", "deploy-superchain")
 
 	if !shouldDeploySuperchain(intent, st) {
@@ -24,32 +23,40 @@ func DeploySuperchain(ctx context.Context, env *Env, intent *state.Intent, st *s
 
 	lgr.Info("deploying superchain")
 
-	var artifactsFS foundry.StatDirFs
+	var dump *foundry.ForgeAllocs
+	var dso opcm.DeploySuperchainOutput
 	var err error
-	if intent.ContractArtifactsURL.Scheme == "file" {
-		fs := os.DirFS(intent.ContractArtifactsURL.Path)
-		artifactsFS = fs.(foundry.StatDirFs)
-	} else {
-		return fmt.Errorf("only file:// artifacts URLs are supported")
-	}
-
-	dso, err := opsm.DeploySuperchainForge(
+	err = CallScriptBroadcast(
 		ctx,
-		opsm.DeploySuperchainOpts{
-			Input: opsm.DeploySuperchainInput{
-				ProxyAdminOwner:            intent.SuperchainRoles.ProxyAdminOwner,
-				ProtocolVersionsOwner:      intent.SuperchainRoles.ProtocolVersionsOwner,
-				Guardian:                   intent.SuperchainRoles.Guardian,
-				Paused:                     false,
-				RequiredProtocolVersion:    rollup.OPStackSupport,
-				RecommendedProtocolVersion: rollup.OPStackSupport,
-			},
-			ArtifactsFS: artifactsFS,
-			ChainID:     big.NewInt(int64(intent.L1ChainID)),
-			Client:      env.L1Client,
-			Signer:      env.Signer,
-			Deployer:    env.Deployer,
+		CallScriptBroadcastOpts{
+			L1ChainID:   big.NewInt(int64(intent.L1ChainID)),
 			Logger:      lgr,
+			ArtifactsFS: artifactsFS,
+			Deployer:    env.Deployer,
+			Signer:      env.Signer,
+			Client:      env.L1Client,
+			Broadcaster: KeyedBroadcaster,
+			Handler: func(host *script.Host) error {
+				dso, err = opcm.DeploySuperchain(
+					host,
+					opcm.DeploySuperchainInput{
+						SuperchainProxyAdminOwner:  intent.SuperchainRoles.ProxyAdminOwner,
+						ProtocolVersionsOwner:      intent.SuperchainRoles.ProtocolVersionsOwner,
+						Guardian:                   intent.SuperchainRoles.Guardian,
+						Paused:                     false,
+						RequiredProtocolVersion:    rollup.OPStackSupport,
+						RecommendedProtocolVersion: rollup.OPStackSupport,
+					},
+				)
+				if err != nil {
+					return fmt.Errorf("failed to deploy superchain: %w", err)
+				}
+				dump, err = host.StateDump()
+				if err != nil {
+					return fmt.Errorf("error dumping state: %w", err)
+				}
+				return nil
+			},
 		},
 	)
 	if err != nil {
@@ -62,8 +69,8 @@ func DeploySuperchain(ctx context.Context, env *Env, intent *state.Intent, st *s
 		SuperchainConfigImplAddress:  dso.SuperchainConfigImpl,
 		ProtocolVersionsProxyAddress: dso.ProtocolVersionsProxy,
 		ProtocolVersionsImplAddress:  dso.ProtocolVersionsImpl,
+		StateDump:                    dump,
 	}
-
 	if err := env.WriteState(st); err != nil {
 		return err
 	}
@@ -72,13 +79,5 @@ func DeploySuperchain(ctx context.Context, env *Env, intent *state.Intent, st *s
 }
 
 func shouldDeploySuperchain(intent *state.Intent, st *state.State) bool {
-	if st.AppliedIntent == nil {
-		return true
-	}
-
-	if st.SuperchainDeployment == nil {
-		return true
-	}
-
-	return false
+	return st.SuperchainDeployment == nil
 }

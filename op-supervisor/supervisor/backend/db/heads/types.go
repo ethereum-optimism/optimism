@@ -3,23 +3,49 @@ package heads
 import (
 	"encoding/json"
 
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
+type HeadPointer struct {
+	// LastSealedBlockHash is the last fully-processed block
+	LastSealedBlockHash common.Hash
+	LastSealedBlockNum  uint64
+	LastSealedTimestamp uint64
+
+	// Number of logs that have been verified since the LastSealedBlock.
+	// These logs are contained in the block that builds on top of the LastSealedBlock.
+	LogsSince uint32
+}
+
+// WithinRange checks if the given log, in the given block,
+// is within range (i.e. before or equal to the head-pointer).
+// This does not guarantee that the log exists.
+func (ptr *HeadPointer) WithinRange(blockNum uint64, logIdx uint32) bool {
+	if ptr.LastSealedBlockHash == (common.Hash{}) {
+		return false // no block yet
+	}
+	return blockNum <= ptr.LastSealedBlockNum ||
+		(blockNum+1 == ptr.LastSealedBlockNum && logIdx < ptr.LogsSince)
+}
+
+func (ptr *HeadPointer) IsSealed(blockNum uint64) bool {
+	if ptr.LastSealedBlockHash == (common.Hash{}) {
+		return false // no block yet
+	}
+	return blockNum <= ptr.LastSealedBlockNum
+}
+
 // ChainHeads provides the serialization format for the current chain heads.
-// The values here could be block numbers or just the index of entries in the log db.
-// If they're log db entries, we can't detect if things changed because of a reorg though (if the logdb write succeeded and head update failed).
-// So we probably need to store actual block IDs here... but then we don't have the block hash for every block in the log db.
-// Only jumping the head forward on checkpoint blocks doesn't work though...
 type ChainHeads struct {
-	Unsafe         entrydb.EntryIdx `json:"localUnsafe"`
-	CrossUnsafe    entrydb.EntryIdx `json:"crossUnsafe"`
-	LocalSafe      entrydb.EntryIdx `json:"localSafe"`
-	CrossSafe      entrydb.EntryIdx `json:"crossSafe"`
-	LocalFinalized entrydb.EntryIdx `json:"localFinalized"`
-	CrossFinalized entrydb.EntryIdx `json:"crossFinalized"`
+	Unsafe         HeadPointer `json:"localUnsafe"`
+	CrossUnsafe    HeadPointer `json:"crossUnsafe"`
+	LocalSafe      HeadPointer `json:"localSafe"`
+	CrossSafe      HeadPointer `json:"crossSafe"`
+	LocalFinalized HeadPointer `json:"localFinalized"`
+	CrossFinalized HeadPointer `json:"crossFinalized"`
 }
 
 type Heads struct {
@@ -34,6 +60,26 @@ func (h *Heads) Get(id types.ChainID) ChainHeads {
 	chain, ok := h.Chains[id]
 	if !ok {
 		return ChainHeads{}
+	}
+	// init to genesis
+	if chain.LocalFinalized == (HeadPointer{}) && chain.Unsafe.LastSealedBlockNum == 0 {
+		chain.LocalFinalized = chain.Unsafe
+	}
+	// Make sure the data is consistent
+	if chain.LocalSafe == (HeadPointer{}) {
+		chain.LocalSafe = chain.LocalFinalized
+	}
+	if chain.Unsafe == (HeadPointer{}) {
+		chain.Unsafe = chain.LocalSafe
+	}
+	if chain.CrossFinalized == (HeadPointer{}) && chain.LocalFinalized.LastSealedBlockNum == 0 {
+		chain.CrossFinalized = chain.LocalFinalized
+	}
+	if chain.CrossSafe == (HeadPointer{}) {
+		chain.CrossSafe = chain.CrossFinalized
+	}
+	if chain.CrossUnsafe == (HeadPointer{}) {
+		chain.CrossUnsafe = chain.CrossSafe
 	}
 	return chain
 }
@@ -50,7 +96,7 @@ func (h *Heads) Copy() *Heads {
 	return c
 }
 
-func (h Heads) MarshalJSON() ([]byte, error) {
+func (h *Heads) MarshalJSON() ([]byte, error) {
 	data := make(map[hexutil.U256]ChainHeads)
 	for id, heads := range h.Chains {
 		data[hexutil.U256(id)] = heads

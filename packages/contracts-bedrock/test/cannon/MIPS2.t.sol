@@ -1,13 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Testing
 import { CommonTest } from "test/setup/CommonTest.sol";
+
+// Contracts
 import { MIPS2 } from "src/cannon/MIPS2.sol";
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
+
+// Libraries
 import { MIPSSyscalls as sys } from "src/cannon/libraries/MIPSSyscalls.sol";
 import { MIPSInstructions as ins } from "src/cannon/libraries/MIPSInstructions.sol";
-import "src/dispute/lib/Types.sol";
 import { InvalidExitedValue, InvalidMemoryProof, InvalidSecondMemoryProof } from "src/cannon/libraries/CannonErrors.sol";
+import "src/dispute/lib/Types.sol";
+
+// Interfaces
+import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
 
 contract ThreadStack {
     bytes32 internal constant EMPTY_THREAD_ROOT = hex"ad3228b676f7d3cd4284a5443f17f1962b36e491b30a40b2405849e597ba5fb5";
@@ -127,7 +135,7 @@ contract MIPS2_Test is CommonTest {
     function setUp() public virtual override {
         super.setUp();
         oracle = new PreimageOracle(0, 0);
-        mips = new MIPS2(oracle);
+        mips = new MIPS2(IPreimageOracle(address(oracle)));
         threading = new Threading();
         vm.store(address(mips), 0x0, bytes32(abi.encode(address(oracle))));
         vm.label(address(oracle), "PreimageOracle");
@@ -141,9 +149,9 @@ contract MIPS2_Test is CommonTest {
     /// https://github.com/ethereum-optimism/optimism/blob/1f64dd6db5561f3bb76ed1d1ffdaff0cde9b7c4b/cannon/mipsevm/evm_test.go#L80-L80
     function test_mips2_step_debug_succeeds() external {
         bytes memory input =
-            hex"e14ced3200000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000140000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a3df82bcbdf27955e04d467b84d94d0b4662c88a70264d7ea31325bc8d826681ef000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a000000000000000affffffff00cbf05eda4a03d05cc6a14cff1cf2f955bfb253097c296ea96032da307da4f353ad3228b676f7d3cd4284a5443f17f1962b36e491b30a40b2405849e597ba5fb500000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000007c6000000000000ffffffff000000000000000000000000000000280000002c00000000000000000000000000000000000000010000000000000000000000000000000000000000fffffffd00000003000000000000000000000000000000000000000000000000bffffff00000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a7ef00d0ad3228b676f7d3cd4284a5443f17f1962b36e491b30a40b2405849e597ba5fb5ae020008ae11000403e0000800000000000000000000000000000000000000003c10bfff3610fff0341100013c08ffff3508fffd34090003010950212d420001ad3228b676f7d3cd4284a5443f17f1962b36e491b30a40b2405849e597ba5fb5b4c11951957c6f8f642c4af61cd6b24640fec6dc7fc607ee8206a99e92410d3021ddb9a356815c3fac1026b6dec5df3124afbadb485c9ba5a3e3398a04b7ba85e58769b32a1beaf1ea27375a44095a0d1fb664ce2dd358e7fcbfb78c26a193440eb01ebfc9ed27500cd4dfc979272d1f0913cc9f66540d7e8005811109e1cf2d887c22bd8750d34016ac3c66b5ff102dacdd73f6b014e710b51e8022af9a1968ffd70157e48063fc33c97a050f7f640233bf646cc98d9524c6b92bcf3ab56f839867cc5f7f196b93bae1e27e6320742445d290f2263827498b54fec539f756afcefad4e508c098b9a7e1d8feb19955fb02ba9675585078710969d3440f5054e0f9dc3e7fe016e050eff260334f18a5d4fe391d82092319f5964f2e2eb7c1c3a5f8b13a49e282f609c317a833fb8d976d11517c571d1221a265d25af778ecf8923490c6ceeb450aecdc82e28293031d10c7d73bf85e57bf041a97360aa2c5d99cc1df82d9c4b87413eae2ef048f94b4d3554cea73d92b0f7af96e0271c691e2bb5c67add7c6caf302256adedf7ab114da0acfe870d449a3a489f781d659e8beccda7bce9f4e8618b6bd2f4132ce798cdc7a60e7e1460a7299e3c6342a579626d22733e50f526ec2fa19a22b31e8ed50f23cd1fdf94c9154ed3a7609a2f1ff981fe1d3b5c807b281e4683cc6d6315cf95b9ade8641defcb32372f1c126e398ef7a5a2dce0a8a7f68bb74560f8f71837c2c2ebbcbf7fffb42ae1896f13f7c7479a0b46a28b6f55540f89444f63de0378e3d121be09e06cc9ded1c20e65876d36aa0c65e9645644786b620e2dd2ad648ddfcbf4a7e5b1a3a4ecfe7f64667a3f0b7e2f4418588ed35a2458cffeb39b93d26f18d2ab13bdce6aee58e7b99359ec2dfd95a9c16dc00d6ef18b7933a6f8dc65ccb55667138776f7dea101070dc8796e3774df84f40ae0c8229d0d6069e5c8f39a7c299677a09d367fc7b05e3bc380ee652cdc72595f74c7b1043d0e1ffbab734648c838dfb0527d971b602bc216c9619ef0abf5ac974a1ed57f4050aa510dd9c74f508277b39d7973bb2dfccc5eeb0618d4e545be579dc7118fc02cd7b19b704e4710a81bce0cb48bb7e289e403e7c969a00000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000ad3228b676f7d3cd4284a5443f17f1962b36e491b30a40b2405849e597ba5fb5b4c11951957c6f8f642c4af61cd6b24640fec6dc7fc607ee8206a99e92410d3021ddb9a356815c3fac1026b6dec5df3124afbadb485c9ba5a3e3398a04b7ba85e58769b32a1beaf1ea27375a44095a0d1fb664ce2dd358e7fcbfb78c26a193440eb01ebfc9ed27500cd4dfc979272d1f0913cc9f66540d7e8005811109e1cf2d887c22bd8750d34016ac3c66b5ff102dacdd73f6b014e710b51e8022af9a1968ffd70157e48063fc33c97a050f7f640233bf646cc98d9524c6b92bcf3ab56f839867cc5f7f196b93bae1e27e6320742445d290f2263827498b54fec539f756afcefad4e508c098b9a7e1d8feb19955fb02ba9675585078710969d3440f5054e0f9dc3e7fe016e050eff260334f18a5d4fe391d82092319f5964f2e2eb7c1c3a5f8b13a49e282f609c317a833fb8d976d11517c571d1221a265d25af778ecf8923490c6ceeb450aecdc82e28293031d10c7d73bf85e57bf041a97360aa2c5d99cc1df82d9c4b87413eae2ef048f94b4d3554cea73d92b0f7af96e0271c691e2bb5c67add7c6caf302256adedf7ab114da0acfe870d449a3a489f781d659e8beccda7bce9f4e8618b6bd2f4132ce798cdc7a60e7e1460a7299e3c6342a579626d22733e50f526ec2fa19a22b31e8ed50f23cd1fdf94c9154ed3a7609a2f1ff981fe1d3b5c807b281e4683cc6d6315cf95b9ade8641defcb32372f1c126e398ef7a5a2dce0a8a7f68bb74560f8f71837c2c2ebbcbf7fffb42ae1896f13f7c7479a0b46a28b6f55540f89444f63de0378e3d121be09e06cc9ded1c20e65876d36aa0c65e9645644786b620e2dd2ad648ddfcbf4a7e5b1a3a4ecfe7f64667a3f0b7e2f4418588ed35a2458cffeb39b93d26f18d2ab13bdce6aee58e7b99359ec2dfd95a9c16dc00d6ef18b7933a6f8dc65ccb55667138776f7dea101070dc8796e3774df84f40ae0c8229d0d6069e5c8f39a7c299677a09d367fc7b05e3bc380ee652cdc72595f74c7b1043d0e1ffbab734648c838dfb0527d971b602bc216c9619ef0abf5ac974a1ed57f4050aa510dd9c74f508277b39d7973bb2dfccc5eeb0618d6a3e23902bafb21ac312e717f7942f8fd8ae795f67c918083442c2ab253cc66e0000000000000000000000000000000000000000000000000000";
+            hex"e14ced3200000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000140000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000acab5a39c6f974b22302e96dcdef1815483eaf580639bb1ee7ac98267afac2bf1ac041d3ff12045b73c86e4ff95ff662a5eee82abdf44a2d0b75fb180daf48a79e3143a81fa7c3d90b000000000000000000000078fc2ffac2fd940100000000000080c8ffffffff006504aeffb6e08baf3f85da5476a9160fa8f9f188a722fdd29268b0cbaf596736ad3228b676f7d3cd4284a5443f17f1962b36e491b30a40b2405849e597ba5fb500000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000007c6000000000000ffffffff000000000000000000000000f1f85ff4f1f85ff8506d442dbb3938f83eb60825a7ecbff2000010185e1a31f600050f0000000064a7c3d90be5acea102ad7bda149e0bfd0e7111c77d98b335645e665389becadf140ef999cc64fbd7f04799e85c97dadc5cca510bd5b3d97166d1aec28829f3dd43d8cf1f9358e4103b16d09d466e2c7c048ea3ba1aef3141e700270581aa0b75b50e34fc926bb2d83ad3228b676f7d3cd4284a5443f17f1962b36e491b30a40b2405849e597ba5fb500000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000000000000000000000ad3228b676f7d3cd4284a5443f17f1962b36e491b30a40b2405849e597ba5fb5b4c11951957c6f8f642c4af61cd6b24640fec6dc7fc607ee8206a99e92410d3021ddb9a356815c3fac1026b6dec5df3124afbadb485c9ba5a3e3398a04b7ba85e58769b32a1beaf1ea27375a44095a0d1fb664ce2dd358e7fcbfb78c26a193440eb01ebfc9ed27500cd4dfc979272d1f0913cc9f66540d7e8005811109e1cf2d887c22bd8750d34016ac3c66b5ff102dacdd73f6b014e710b51e8022af9a1968ffd70157e48063fc33c97a050f7f640233bf646cc98d9524c6b92bcf3ab56f839867cc5f7f196b93bae1e27e6320742445d290f2263827498b54fec539f756afcefad4e508c098b9a7e1d8feb19955fb02ba9675585078710969d3440f5054e0f9dc3e7fe016e050eff260334f18a5d4fe391d82092319f5964f2e2eb7c1c3a5f8b13a49e282f609c317a833fb8d976d11517c571d1221a265d25af778ecf8923490c6ceeb450aecdc82e28293031d10c7d73bf85e57bf041a97360aa2c5d99cc1df82d9c4b87413eae2ef048f94b4d3554cea73d92b0f7af96e0271c691e2bb5c67add7c6caf302256adedf7ab114da0acfe870d449a3a489f781d659e8beccda7bce9f4e8618b6bd2f4132ce798cdc7a60e7e1460a7299e3c6342a579626d22733e50f526ec2fa19a22b31e8ed50f23cd1fdf94c9154ed3a7609a2f1ff981fe1d3b5c807b281e4683cc6d6315cf95b9ade8641defcb32372f1c126e398ef7a5a2dce0a8a7f68bb74560f8f71837c2c2ebbcbf7fffb42ae1896f13f7c7479a0b46a28b6f55540f89444f63de0378e3d121be09e06cc9ded1c20e65876d36aa0c65e9645644786b620e2dd2ad648ddfcbf4a7e5b1a3a4ecfe7f64667a3f0b7e2f4418588ed35a2458cffeb39b93d26f18d2ab13bdce6aee58e7b99359ec2dfd95a9c16dc00d6ef18b7933a6f8dc65ccb55667138776f7dea101070dc8796e3774df84f40ae0c8229d0d6069e5c8f39a7c299677a09d367fc7b05e3bc380ee652cdc72595f74c7b1043d0e1ffbab734648c838dfb0527d971b602bc216c9619ef0abf5ac974a1ed57f4050aa510dd9c74f508277b39d7973bb2dfccc5eeb0618db8cd74046ff337f0a7bf2c8e03e10f642c1886798d71806ab1e888d9e5ee87d000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
         (bool success, bytes memory retVal) = address(mips).call(input);
-        bytes memory expectedRetVal = hex"03fc952a0bd8aabc407669b857af995eab91ce55c404d8b32eaf8b941a48188c";
+        bytes memory expectedRetVal = hex"0335fe4205f8443eefa7ac4541197874224df35e8536158c2fc2d5c8c2d2adb4";
 
         assertTrue(success);
         assertEq(retVal.length, 32, "Expect a bytes32 hash of the post-state to be returned");
@@ -177,6 +185,9 @@ contract MIPS2_Test is CommonTest {
             preimageKey: bytes32(0),
             preimageOffset: 0,
             heap: 0,
+            llReservationActive: false,
+            llAddress: 0,
+            llOwnerThread: 0,
             exitCode: 0,
             exited: false,
             step: 1,
@@ -211,7 +222,7 @@ contract MIPS2_Test is CommonTest {
             assembly {
                 // Manipulate state data
                 // Push offset by an additional 32 bytes (0x20) to account for length prefix
-                mstore8(add(add(stateData, 0x20), 73), exited)
+                mstore8(add(add(stateData, 0x20), 82), exited)
             }
 
             // Call the step function and expect a revert.
@@ -1992,36 +2003,50 @@ contract MIPS2_Test is CommonTest {
     }
 
     function test_ll_succeeds() public {
-        uint32 t1 = 0x100;
-        uint32 val = 0x12_23_45_67;
-        uint32 insn = encodeitype(0x30, 0x9, 0x8, 0x4); // ll $t0, 4($t1)
+        uint32 base = 0x100;
+        uint32 memVal = 0x12_23_45_67;
+        uint16 offset = 0x4;
+        uint32 effAddr = base + offset;
+        uint32 insn = encodeitype(0x30, 0x9, 0x8, offset); // ll baseReg, rtReg, offset
+
         (MIPS2.State memory state, MIPS2.ThreadState memory thread, bytes memory memProof) =
-            constructMIPSState(0, insn, t1 + 4, val);
-        thread.registers[8] = 0; // t0
-        thread.registers[9] = t1;
+            constructMIPSState(0, insn, effAddr, memVal);
+        thread.registers[8] = 0; // rtReg
+        thread.registers[9] = base;
         bytes memory threadWitness = abi.encodePacked(encodeThread(thread), EMPTY_THREAD_ROOT);
         updateThreadStacks(state, thread);
 
-        thread.registers[8] = val; // t0
-        MIPS2.State memory expect = arithmeticPostState(state, thread, 8, /* t0 */ thread.registers[8]);
+        MIPS2.State memory expect = arithmeticPostState(state, thread, 8, memVal);
+        expect.llReservationActive = true;
+        expect.llAddress = effAddr;
+        expect.llOwnerThread = thread.threadID;
 
         bytes32 postState = mips.step(encodeState(state), bytes.concat(threadWitness, memProof), 0);
         assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_sc_succeeds() public {
-        uint32 t1 = 0x100;
-        uint32 insn = encodeitype(0x38, 0x9, 0x8, 0x4); // sc $t0, 4($t1)
+        uint32 base = 0x100;
+        uint16 offset = 0x4;
+        uint32 effAddr = base + offset;
+        uint32 writeMemVal = 0xaa_bb_cc_dd;
+        uint32 insn = encodeitype(0x38, 0x9, 0x8, offset); // ll baseReg, rtReg, offset
+
         (MIPS2.State memory state, MIPS2.ThreadState memory thread, bytes memory memProof) =
-            constructMIPSState(0, insn, t1 + 4, 0);
-        thread.registers[8] = 0xaa_bb_cc_dd; // t0
-        thread.registers[9] = t1;
+            constructMIPSState(0, insn, effAddr, 0);
+        state.llReservationActive = true;
+        state.llAddress = effAddr;
+        state.llOwnerThread = thread.threadID;
+        thread.registers[8] = writeMemVal;
+        thread.registers[9] = base;
         bytes memory threadWitness = abi.encodePacked(encodeThread(thread), EMPTY_THREAD_ROOT);
         updateThreadStacks(state, thread);
 
-        thread.registers[8] = 0x1; // t0
-        MIPS2.State memory expect = arithmeticPostState(state, thread, 8, /* t0 */ thread.registers[8]);
-        (expect.memRoot,) = ffi.getCannonMemoryProof(0, insn, t1 + 4, 0xaa_bb_cc_dd);
+        MIPS2.State memory expect = arithmeticPostState(state, thread, 8, 0x1);
+        (expect.memRoot,) = ffi.getCannonMemoryProof(0, insn, effAddr, writeMemVal);
+        expect.llReservationActive = false;
+        expect.llAddress = 0;
+        expect.llOwnerThread = 0;
 
         bytes32 postState = mips.step(encodeState(state), bytes.concat(threadWitness, memProof), 0);
         assertEq(postState, outputState(expect), "unexpected post state");
@@ -2446,8 +2471,209 @@ contract MIPS2_Test is CommonTest {
         assertEq(postState, outputState(expect), "unexpected post state");
     }
 
-    // TODO(client-pod#959): Port over the remaining single-threaded tests from MIPS.t.sol
-    // TODO(client-pod#959): Assert unimplemented syscalls
+    function test_sll_succeeds() external {
+        uint8 shiftamt = 4;
+        uint32 insn = encodespec(0x0, 0x9, 0x8, uint16(shiftamt) << 6); // sll t0, t1, 3
+        (MIPS2.State memory state, MIPS2.ThreadState memory thread, bytes memory memProof) =
+            constructMIPSState(0, insn, 0x4, 0);
+        thread.registers[9] = 0x20; // t1
+        updateThreadStacks(state, thread);
+
+        uint32 result = thread.registers[9] << shiftamt;
+        MIPS2.State memory expect = arithmeticPostState(state, thread, 8, /* t0 */ result);
+
+        bytes32 postState = mips.step(
+            encodeState(state), bytes.concat(abi.encodePacked(encodeThread(thread), EMPTY_THREAD_ROOT), memProof), 0
+        );
+        assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    function test_srl_succeeds() external {
+        uint8 shiftamt = 4;
+        uint32 insn = encodespec(0x0, 0x9, 0x8, uint16(shiftamt) << 6 | 2); // srl t0, t1, 3
+        (MIPS2.State memory state, MIPS2.ThreadState memory thread, bytes memory memProof) =
+            constructMIPSState(0, insn, 0x4, 0);
+        thread.registers[9] = 0x20; // t1
+        updateThreadStacks(state, thread);
+
+        uint32 result = thread.registers[9] >> shiftamt;
+        MIPS2.State memory expect = arithmeticPostState(state, thread, 8, /* t0 */ result);
+
+        bytes32 postState = mips.step(
+            encodeState(state), bytes.concat(abi.encodePacked(encodeThread(thread), EMPTY_THREAD_ROOT), memProof), 0
+        );
+        assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    function test_sra_succeeds() external {
+        uint8 shiftamt = 4;
+        uint32 insn = encodespec(0x0, 0x9, 0x8, uint16(shiftamt) << 6 | 3); // sra t0, t1, 3
+        (MIPS2.State memory state, MIPS2.ThreadState memory thread, bytes memory memProof) =
+            constructMIPSState(0, insn, 0x4, 0);
+        thread.registers[9] = 0x80_00_00_20; // t1
+        updateThreadStacks(state, thread);
+
+        uint32 result = 0xF8_00_00_02; // 4 shifts while preserving sign bit
+        MIPS2.State memory expect = arithmeticPostState(state, thread, 8, /* t0 */ result);
+
+        bytes32 postState = mips.step(
+            encodeState(state), bytes.concat(abi.encodePacked(encodeThread(thread), EMPTY_THREAD_ROOT), memProof), 0
+        );
+        assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    function test_sllv_succeeds() external {
+        uint32 insn = encodespec(0xa, 0x9, 0x8, 4); // sllv t0, t1, t2
+        (MIPS2.State memory state, MIPS2.ThreadState memory thread, bytes memory memProof) =
+            constructMIPSState(0, insn, 0x4, 0);
+        thread.registers[9] = 0x20; // t1
+        thread.registers[10] = 4; // t2
+        updateThreadStacks(state, thread);
+
+        uint32 result = thread.registers[9] << thread.registers[10];
+        MIPS2.State memory expect = arithmeticPostState(state, thread, 8, /* t0 */ result);
+
+        bytes32 postState = mips.step(
+            encodeState(state), bytes.concat(abi.encodePacked(encodeThread(thread), EMPTY_THREAD_ROOT), memProof), 0
+        );
+        assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    function test_srlv_succeeds() external {
+        uint32 insn = encodespec(0xa, 0x9, 0x8, 6); // srlv t0, t1, t2
+        (MIPS2.State memory state, MIPS2.ThreadState memory thread, bytes memory memProof) =
+            constructMIPSState(0, insn, 0x4, 0);
+        thread.registers[9] = 0x20_00; // t1
+        thread.registers[10] = 4; // t2
+        updateThreadStacks(state, thread);
+
+        uint32 result = thread.registers[9] >> thread.registers[10];
+        MIPS2.State memory expect = arithmeticPostState(state, thread, 8, /* t0 */ result);
+
+        bytes32 postState = mips.step(
+            encodeState(state), bytes.concat(abi.encodePacked(encodeThread(thread), EMPTY_THREAD_ROOT), memProof), 0
+        );
+        assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    function test_lui_succeeds() external {
+        uint32 insn = encodeitype(0xf, 0x0, 0x8, 0x4); // lui $t0, 0x04
+        (MIPS2.State memory state, MIPS2.ThreadState memory thread, bytes memory memProof) =
+            constructMIPSState(0, insn, 0x4, 0);
+        updateThreadStacks(state, thread);
+
+        MIPS2.State memory expect = arithmeticPostState(state, thread, 8, /* t0 */ 0x00_04_00_00);
+        bytes32 postState = mips.step(
+            encodeState(state), bytes.concat(abi.encodePacked(encodeThread(thread), EMPTY_THREAD_ROOT), memProof), 0
+        );
+        assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    function test_clo_succeeds() external {
+        uint32 insn = encodespec2(0x9, 0x0, 0x8, 0x21); // clo t0, t1
+        (MIPS2.State memory state, MIPS2.ThreadState memory thread, bytes memory memProof) =
+            constructMIPSState(0, insn, 0x4, 0);
+        thread.registers[9] = 0xFF_00_00_00; // t1
+        updateThreadStacks(state, thread);
+
+        MIPS2.State memory expect = arithmeticPostState(state, thread, 8, /* t0 */ 8);
+        bytes32 postState = mips.step(
+            encodeState(state), bytes.concat(abi.encodePacked(encodeThread(thread), EMPTY_THREAD_ROOT), memProof), 0
+        );
+        assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    function test_clz_succeeds() external {
+        uint32 insn = encodespec2(0x9, 0x0, 0x8, 0x20); // clz t0, t1
+        (MIPS2.State memory state, MIPS2.ThreadState memory thread, bytes memory memProof) =
+            constructMIPSState(0, insn, 0x4, 0);
+        thread.registers[9] = 0x00_00_F0_00; // t1
+        updateThreadStacks(state, thread);
+
+        MIPS2.State memory expect = arithmeticPostState(state, thread, 8, /* t0 */ 16);
+        bytes32 postState = mips.step(
+            encodeState(state), bytes.concat(abi.encodePacked(encodeThread(thread), EMPTY_THREAD_ROOT), memProof), 0
+        );
+        assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    function test_preimage_read_succeeds() external {
+        uint32 pc = 0x0;
+        uint32 insn = 0x0000000c; // syscall
+        uint32 a1 = 0x4;
+        uint32 a1_val = 0x0000abba;
+        (MIPS2.State memory state, MIPS2.ThreadState memory thread, bytes memory memProof) =
+            constructMIPSState(0, insn, a1, a1_val);
+        state.preimageKey = bytes32(uint256(1) << 248 | 0x01);
+        state.preimageOffset = 8; // start reading past the pre-image length prefix
+        thread.registers[2] = 4003; // read syscall
+        thread.registers[4] = 5; // fd
+        thread.registers[5] = a1; // addr
+        thread.registers[6] = 4; // count
+        threading.createThread();
+        threading.replaceCurrent(thread);
+        bytes memory threadWitness = threading.witness();
+        finalizeThreadingState(threading, state);
+
+        MIPS2.ThreadState memory expectThread = copyThread(thread);
+        expectThread.pc = thread.nextPC;
+        expectThread.nextPC = thread.nextPC + 4;
+        expectThread.registers[2] = 4; // return
+        expectThread.registers[7] = 0; // errno
+        threading.replaceCurrent(expectThread);
+
+        // prime the pre-image oracle
+        bytes32 word = bytes32(uint256(0xdeadbeef) << 224);
+        uint8 size = 4;
+        uint8 partOffset = 8;
+        oracle.loadLocalData(uint256(state.preimageKey), 0, word, size, partOffset);
+
+        MIPS2.State memory expect = copyState(state);
+        expect.preimageOffset += 4;
+        expect.step = state.step + 1;
+        expect.stepsSinceLastContextSwitch = state.stepsSinceLastContextSwitch + 1;
+        // recompute merkle root of written pre-image
+        (expect.memRoot,) = ffi.getCannonMemoryProof(pc, insn, a1, 0xdeadbeef);
+        finalizeThreadingState(threading, expect);
+
+        bytes32 postState = mips.step(encodeState(state), bytes.concat(threadWitness, memProof), 0);
+        assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    function test_preimage_write_succeeds() external {
+        uint32 insn = 0x0000000c; // syscall
+        uint32 a1 = 0x4;
+        uint32 a1_val = 0x0000abba;
+        (MIPS2.State memory state, MIPS2.ThreadState memory thread, bytes memory memProof) =
+            constructMIPSState(0, insn, a1, a1_val);
+        state.preimageKey = bytes32(0);
+        state.preimageOffset = 1;
+        thread.registers[2] = 4004; // write syscall
+        thread.registers[4] = 6; // fd
+        thread.registers[5] = a1; // addr
+        thread.registers[6] = 4; // count
+        threading.createThread();
+        threading.replaceCurrent(thread);
+        bytes memory threadWitness = threading.witness();
+        finalizeThreadingState(threading, state);
+
+        MIPS2.ThreadState memory expectThread = copyThread(thread);
+        expectThread.pc = thread.nextPC;
+        expectThread.nextPC = thread.nextPC + 4;
+        expectThread.registers[2] = 4; // return
+        expectThread.registers[7] = 0; // errno
+        threading.replaceCurrent(expectThread);
+
+        MIPS2.State memory expect = copyState(state);
+        expect.preimageKey = bytes32(uint256(0xabba));
+        expect.preimageOffset = 0;
+        expect.step = state.step + 1;
+        expect.stepsSinceLastContextSwitch = state.stepsSinceLastContextSwitch + 1;
+        finalizeThreadingState(threading, expect);
+
+        bytes32 postState = mips.step(encodeState(state), bytes.concat(threadWitness, memProof), 0);
+        assertEq(postState, outputState(expect), "unexpected post state");
+    }
 
     /// @dev Modifies the MIPS2 State based on threading state
     function finalizeThreadingState(Threading _threading, MIPS2.State memory _state) internal view {
@@ -2528,21 +2754,31 @@ contract MIPS2_Test is CommonTest {
     }
 
     function encodeState(MIPS2.State memory _state) internal pure returns (bytes memory) {
+        // Split up encoding to get around stack-too-deep error
+        return abi.encodePacked(encodeStateA(_state), encodeStateB(_state));
+    }
+
+    function encodeStateA(MIPS2.State memory _state) internal pure returns (bytes memory) {
         return abi.encodePacked(
             _state.memRoot,
             _state.preimageKey,
             _state.preimageOffset,
             _state.heap,
+            _state.llReservationActive,
+            _state.llAddress,
+            _state.llOwnerThread,
             _state.exitCode,
             _state.exited,
             _state.step,
             _state.stepsSinceLastContextSwitch,
             _state.wakeup,
             _state.traverseRight,
-            _state.leftThreadStack,
-            _state.rightThreadStack,
-            _state.nextThreadID
+            _state.leftThreadStack
         );
+    }
+
+    function encodeStateB(MIPS2.State memory _state) internal pure returns (bytes memory) {
+        return abi.encodePacked(_state.rightThreadStack, _state.nextThreadID);
     }
 
     function copyState(MIPS2.State memory _state) internal pure returns (MIPS2.State memory out_) {

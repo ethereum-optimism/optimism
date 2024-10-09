@@ -11,11 +11,13 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/beacon"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/stateless"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/triedb"
 )
 
 type OracleBackedL2Chain struct {
@@ -170,7 +172,7 @@ func (o *OracleBackedL2Chain) Engine() consensus.Engine {
 }
 
 func (o *OracleBackedL2Chain) StateAt(root common.Hash) (*state.StateDB, error) {
-	stateDB, err := state.New(root, state.NewDatabase(rawdb.NewDatabase(o.db)), nil)
+	stateDB, err := state.New(root, state.NewDatabase(triedb.NewDatabase(rawdb.NewDatabase(o.db), nil), nil))
 	if err != nil {
 		return nil, err
 	}
@@ -178,30 +180,30 @@ func (o *OracleBackedL2Chain) StateAt(root common.Hash) (*state.StateDB, error) 
 	return stateDB, nil
 }
 
-func (o *OracleBackedL2Chain) InsertBlockWithoutSetHead(block *types.Block) error {
+func (o *OracleBackedL2Chain) InsertBlockWithoutSetHead(block *types.Block, makeWitness bool) (*stateless.Witness, error) {
 	processor, err := engineapi.NewBlockProcessorFromHeader(o, block.Header())
 	if err != nil {
-		return err
+		return nil, err
 	}
 	for i, tx := range block.Transactions() {
 		err = processor.AddTx(tx)
 		if err != nil {
-			return fmt.Errorf("invalid transaction (%d): %w", i, err)
+			return nil, fmt.Errorf("invalid transaction (%d): %w", i, err)
 		}
 	}
 	expected, err := processor.Assemble()
 	if err != nil {
-		return fmt.Errorf("invalid block: %w", err)
+		return nil, fmt.Errorf("invalid block: %w", err)
 	}
 	if expected.Hash() != block.Hash() {
-		return fmt.Errorf("block root mismatch, expected: %v, actual: %v", expected.Hash(), block.Hash())
+		return nil, fmt.Errorf("block root mismatch, expected: %v, actual: %v", expected.Hash(), block.Hash())
 	}
 	err = processor.Commit()
 	if err != nil {
-		return fmt.Errorf("commit block: %w", err)
+		return nil, fmt.Errorf("commit block: %w", err)
 	}
 	o.blocks[block.Hash()] = block
-	return nil
+	return nil, nil
 }
 
 func (o *OracleBackedL2Chain) SetCanonical(head *types.Block) (common.Hash, error) {

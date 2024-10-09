@@ -3,6 +3,7 @@ package state
 import (
 	"fmt"
 	"math/big"
+	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
@@ -16,29 +17,48 @@ type Intent struct {
 
 	SuperchainRoles SuperchainRoles `json:"superchainRoles" toml:"superchainRoles"`
 
-	UseFaultProofs bool `json:"useFaultProofs" toml:"useFaultProofs"`
-
-	UseAltDA bool `json:"useAltDA" toml:"useAltDA"`
-
 	FundDevAccounts bool `json:"fundDevAccounts" toml:"fundDevAccounts"`
 
 	ContractArtifactsURL *ArtifactsURL `json:"contractArtifactsURL" toml:"contractArtifactsURL"`
 
-	Chains []Chain `json:"chains" toml:"chains"`
+	ContractsRelease string `json:"contractsRelease" toml:"contractsRelease"`
+
+	Chains []*ChainIntent `json:"chains" toml:"chains"`
+
+	GlobalDeployOverrides map[string]any `json:"globalDeployOverrides" toml:"globalDeployOverrides"`
 }
 
-func (c Intent) L1ChainIDBig() *big.Int {
+func (c *Intent) L1ChainIDBig() *big.Int {
 	return big.NewInt(int64(c.L1ChainID))
 }
-func (c Intent) Check() error {
+
+func (c *Intent) Check() error {
 	if c.L1ChainID == 0 {
 		return fmt.Errorf("l1ChainID must be set")
 	}
 
-	if c.UseFaultProofs && c.UseAltDA {
-		return fmt.Errorf("cannot use both fault proofs and alt-DA")
+	if c.ContractsRelease == "dev" {
+		return c.checkDev()
 	}
 
+	return c.checkProd()
+}
+
+func (c *Intent) Chain(id common.Hash) (*ChainIntent, error) {
+	for i := range c.Chains {
+		if c.Chains[i].ID == id {
+			return c.Chains[i], nil
+		}
+	}
+
+	return nil, fmt.Errorf("chain %d not found", id)
+}
+
+func (c *Intent) WriteToFile(path string) error {
+	return jsonutil.WriteTOML(c, ioutil.ToAtomicFile(path, 0o755))
+}
+
+func (c *Intent) checkDev() error {
 	if c.SuperchainRoles.ProxyAdminOwner == emptyAddress {
 		return fmt.Errorf("proxyAdminOwner must be set")
 	}
@@ -52,28 +72,18 @@ func (c Intent) Check() error {
 	}
 
 	if c.ContractArtifactsURL == nil {
-		return fmt.Errorf("contractArtifactsURL must be set")
-	}
-
-	if c.ContractArtifactsURL.Scheme != "file" {
-		return fmt.Errorf("contractArtifactsURL must be a file URL")
+		return fmt.Errorf("contractArtifactsURL must be set in dev mode")
 	}
 
 	return nil
 }
 
-func (c Intent) Chain(id uint64) (Chain, error) {
-	for i := range c.Chains {
-		if c.Chains[i].ID == id {
-			return c.Chains[i], nil
-		}
+func (c *Intent) checkProd() error {
+	if !strings.HasPrefix(c.ContractsRelease, "op-contracts/") {
+		return fmt.Errorf("contractsVersion must be either the literal \"dev\" or start with \"op-contracts/\"")
 	}
 
-	return Chain{}, fmt.Errorf("chain %d not found", id)
-}
-
-func (c Intent) WriteToFile(path string) error {
-	return jsonutil.WriteTOML(c, ioutil.ToAtomicFile(path, 0o755))
+	return nil
 }
 
 type SuperchainRoles struct {
@@ -84,32 +94,33 @@ type SuperchainRoles struct {
 	Guardian common.Address `json:"guardian" toml:"guardian"`
 }
 
-type Chain struct {
-	ID uint64 `json:"id"`
+type ChainIntent struct {
+	ID common.Hash `json:"id" toml:"id"`
 
-	Roles ChainRoles `json:"roles"`
+	Roles ChainRoles `json:"roles" toml:"roles"`
 
-	Overrides map[string]any `json:"overrides"`
+	DeployOverrides map[string]any `json:"deployOverrides" toml:"deployOverrides"`
 }
 
 type ChainRoles struct {
-	ProxyAdminOwner common.Address `json:"proxyAdminOwner"`
+	ProxyAdminOwner common.Address `json:"proxyAdminOwner" toml:"proxyAdminOwner"`
 
-	SystemConfigOwner common.Address `json:"systemConfigOwner"`
+	SystemConfigOwner common.Address `json:"systemConfigOwner" toml:"systemConfigOwner"`
 
-	GovernanceTokenOwner common.Address `json:"governanceTokenOwner"`
+	GovernanceTokenOwner common.Address `json:"governanceTokenOwner" toml:"governanceTokenOwner"`
 
-	UnsafeBlockSigner common.Address `json:"unsafeBlockSigner"`
+	UnsafeBlockSigner common.Address `json:"unsafeBlockSigner" toml:"unsafeBlockSigner"`
 
-	Batcher common.Address `json:"batcher"`
+	Batcher common.Address `json:"batcher" toml:"batcher"`
 
-	Proposer common.Address `json:"proposer"`
+	Proposer common.Address `json:"proposer" toml:"proposer"`
 
-	Challenger common.Address `json:"challenger"`
+	Challenger common.Address `json:"challenger" toml:"challenger"`
 }
 
-func (c *Chain) Check() error {
-	if c.ID == 0 {
+func (c *ChainIntent) Check() error {
+	var emptyHash common.Hash
+	if c.ID == emptyHash {
 		return fmt.Errorf("id must be set")
 	}
 

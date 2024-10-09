@@ -6,6 +6,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
+
+	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/pipeline"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
@@ -92,7 +96,6 @@ func Apply(ctx context.Context, cfg ApplyConfig) error {
 
 	env := &pipeline.Env{
 		Workdir:  cfg.Workdir,
-		L1RPCUrl: cfg.L1RPCUrl,
 		L1Client: l1Client,
 		Logger:   cfg.Logger,
 		Signer:   signer,
@@ -113,22 +116,73 @@ func Apply(ctx context.Context, cfg ApplyConfig) error {
 		return err
 	}
 
-	pline := []struct {
-		name  string
-		stage pipeline.Stage
-	}{
-		{"init", pipeline.Init},
-		{"deploy-superchain", pipeline.DeploySuperchain},
-	}
-	for _, stage := range pline {
-		if err := stage.stage(ctx, env, intent, st); err != nil {
-			return fmt.Errorf("error in pipeline stage: %w", err)
-		}
+	if err := ApplyPipeline(ctx, env, intent, st); err != nil {
+		return err
 	}
 
 	st.AppliedIntent = intent
 	if err := env.WriteState(st); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+type pipelineStage struct {
+	name  string
+	apply pipeline.Stage
+}
+
+func ApplyPipeline(
+	ctx context.Context,
+	env *pipeline.Env,
+	intent *state.Intent,
+	st *state.State,
+) error {
+	progressor := func(curr, total int64) {
+		env.Logger.Info("artifacts download progress", "current", curr, "total", total)
+	}
+
+	artifactsFS, cleanup, err := pipeline.DownloadArtifacts(ctx, intent.ContractArtifactsURL, progressor)
+	if err != nil {
+		return fmt.Errorf("failed to download artifacts: %w", err)
+	}
+	defer func() {
+		if err := cleanup(); err != nil {
+			env.Logger.Warn("failed to clean up artifacts", "err", err)
+		}
+	}()
+
+	pline := []pipelineStage{
+		{"init", pipeline.Init},
+		{"deploy-superchain", pipeline.DeploySuperchain},
+		{"deploy-implementations", pipeline.DeployImplementations},
+	}
+
+	for _, chain := range intent.Chains {
+		chainID := chain.ID
+		pline = append(pline, pipelineStage{
+			fmt.Sprintf("deploy-opchain-%s", chainID.Hex()),
+			func(ctx context.Context, env *pipeline.Env, artifactsFS foundry.StatDirFs, intent *state.Intent, st *state.State) error {
+				return pipeline.DeployOPChain(ctx, env, artifactsFS, intent, st, chainID)
+			},
+		}, pipelineStage{
+			fmt.Sprintf("generate-l2-genesis-%s", chainID.Hex()),
+			func(ctx context.Context, env *pipeline.Env, artifactsFS foundry.StatDirFs, intent *state.Intent, st *state.State) error {
+				return pipeline.GenerateL2Genesis(ctx, env, artifactsFS, intent, st, chainID)
+			},
+		})
+	}
+
+	for _, stage := range pline {
+		if err := stage.apply(ctx, env, artifactsFS, intent, st); err != nil {
+			return fmt.Errorf("error in pipeline stage apply: %w", err)
+		}
+	}
+
+	st.AppliedIntent = intent
+	if err := env.WriteState(st); err != nil {
+		return fmt.Errorf("failed to write state: %w", err)
 	}
 
 	return nil

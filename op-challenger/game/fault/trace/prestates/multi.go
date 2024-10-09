@@ -1,6 +1,7 @@
 package prestates
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -8,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
@@ -35,7 +37,7 @@ func NewMultiPrestateProvider(baseUrl *url.URL, dataDir string, stateConverter v
 	}
 }
 
-func (m *MultiPrestateProvider) PrestatePath(hash common.Hash) (string, error) {
+func (m *MultiPrestateProvider) PrestatePath(ctx context.Context, hash common.Hash) (string, error) {
 	// First try to find a previously downloaded prestate
 	for _, fileType := range supportedFileTypes {
 		path := filepath.Join(m.dataDir, hash.Hex()+fileType)
@@ -51,7 +53,7 @@ func (m *MultiPrestateProvider) PrestatePath(hash common.Hash) (string, error) {
 	var combinedErr error // Keep a track of each download attempt so we can report them if none work
 	for _, fileType := range supportedFileTypes {
 		path := filepath.Join(m.dataDir, hash.Hex()+fileType)
-		if err := m.fetchPrestate(hash, fileType, path); errors.Is(err, ErrPrestateUnavailable) {
+		if err := m.fetchPrestate(ctx, hash, fileType, path); errors.Is(err, ErrPrestateUnavailable) {
 			combinedErr = errors.Join(combinedErr, err)
 			continue // Didn't find prestate in this format, try the next
 		} else if err != nil {
@@ -62,12 +64,18 @@ func (m *MultiPrestateProvider) PrestatePath(hash common.Hash) (string, error) {
 	return "", errors.Join(ErrPrestateUnavailable, combinedErr)
 }
 
-func (m *MultiPrestateProvider) fetchPrestate(hash common.Hash, fileType string, dest string) error {
+func (m *MultiPrestateProvider) fetchPrestate(ctx context.Context, hash common.Hash, fileType string, dest string) error {
 	if err := os.MkdirAll(m.dataDir, 0755); err != nil {
 		return fmt.Errorf("error creating prestate dir: %w", err)
 	}
 	prestateUrl := m.baseUrl.JoinPath(hash.Hex() + fileType)
-	resp, err := http.Get(prestateUrl.String())
+	tCtx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+	req, err := http.NewRequestWithContext(tCtx, "GET", prestateUrl.String(), nil)
+	if err != nil {
+		return fmt.Errorf("failed to create prestate request: %w", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to fetch prestate from %v: %w", prestateUrl, err)
 	}
@@ -75,8 +83,8 @@ func (m *MultiPrestateProvider) fetchPrestate(hash common.Hash, fileType string,
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("%w from url %v: status %v", ErrPrestateUnavailable, prestateUrl, resp.StatusCode)
 	}
-	tmpFile := dest + ".tmp" + fileType // Preserve the file type extension so compression is applied correctly
-	out, err := ioutil.NewAtomicWriterCompressed(tmpFile, 0o644)
+	tmpFile := dest + ".tmp" + fileType // Preserve the file type extension so state decoding is applied correctly
+	out, err := ioutil.NewAtomicWriter(tmpFile, 0o644)
 	if err != nil {
 		return fmt.Errorf("failed to open atomic writer for %v: %w", dest, err)
 	}
@@ -91,7 +99,7 @@ func (m *MultiPrestateProvider) fetchPrestate(hash common.Hash, fileType string,
 		return fmt.Errorf("failed to close file %v: %w", dest, err)
 	}
 	// Verify the prestate actually matches the expected hash before moving it into the final destination
-	proof, _, _, err := m.stateConverter.ConvertStateToProof(tmpFile)
+	proof, _, _, err := m.stateConverter.ConvertStateToProof(ctx, tmpFile)
 	if err != nil || proof.ClaimValue != hash {
 		// Treat invalid prestates as unavailable. Often servers return a 404 page with 200 status code
 		_ = os.Remove(tmpFile) // Best effort attempt to clean up the temporary file

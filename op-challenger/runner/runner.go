@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sync"
@@ -16,8 +17,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	contractMetrics "github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts/metrics"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/utils"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/vm"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
@@ -28,23 +29,28 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+const mtCannonType = "mt-cannon"
+
 var (
 	ErrUnexpectedStatusCode = errors.New("unexpected status code")
 )
 
 type Metricer interface {
-	vm.Metricer
 	contractMetrics.ContractMetricer
 
-	RecordFailure(vmType types.TraceType)
-	RecordInvalid(vmType types.TraceType)
-	RecordSuccess(vmType types.TraceType)
+	RecordVmExecutionTime(vmType string, t time.Duration)
+	RecordVmMemoryUsed(vmType string, memoryUsed uint64)
+	RecordFailure(vmType string)
+	RecordInvalid(vmType string)
+	RecordSuccess(vmType string)
 }
 
 type Runner struct {
-	log log.Logger
-	cfg *config.Config
-	m   Metricer
+	log                    log.Logger
+	cfg                    *config.Config
+	addMTCannonPrestate    common.Hash
+	addMTCannonPrestateURL *url.URL
+	m                      Metricer
 
 	running    atomic.Bool
 	ctx        context.Context
@@ -53,11 +59,13 @@ type Runner struct {
 	metricsSrv *httputil.HTTPServer
 }
 
-func NewRunner(logger log.Logger, cfg *config.Config) *Runner {
+func NewRunner(logger log.Logger, cfg *config.Config, mtCannonPrestate common.Hash, mtCannonPrestateURL *url.URL) *Runner {
 	return &Runner{
-		log: logger,
-		cfg: cfg,
-		m:   NewMetrics(),
+		log:                    logger,
+		cfg:                    cfg,
+		addMTCannonPrestate:    mtCannonPrestate,
+		addMTCannonPrestateURL: mtCannonPrestateURL,
+		m:                      NewMetrics(),
 	}
 }
 
@@ -97,16 +105,7 @@ func (r *Runner) loop(ctx context.Context, traceType types.TraceType, client *so
 	t := time.NewTicker(1 * time.Minute)
 	defer t.Stop()
 	for {
-		if err := r.runOnce(ctx, traceType, client, caller); errors.Is(err, ErrUnexpectedStatusCode) {
-			r.log.Error("Incorrect status code", "type", traceType, "err", err)
-			r.m.RecordInvalid(traceType)
-		} else if err != nil {
-			r.log.Error("Failed to run", "type", traceType, "err", err)
-			r.m.RecordFailure(traceType)
-		} else {
-			r.log.Info("Successfully verified output root", "type", traceType)
-			r.m.RecordSuccess(traceType)
-		}
+		r.runAndRecordOnce(ctx, traceType, client, caller)
 		select {
 		case <-t.C:
 		case <-ctx.Done():
@@ -115,22 +114,65 @@ func (r *Runner) loop(ctx context.Context, traceType types.TraceType, client *so
 	}
 }
 
-func (r *Runner) runOnce(ctx context.Context, traceType types.TraceType, client *sources.RollupClient, caller *batching.MultiCaller) error {
+func (r *Runner) runAndRecordOnce(ctx context.Context, traceType types.TraceType, client *sources.RollupClient, caller *batching.MultiCaller) {
+	recordError := func(err error, traceType string, m Metricer, log log.Logger) {
+		if errors.Is(err, ErrUnexpectedStatusCode) {
+			log.Error("Incorrect status code", "type", traceType, "err", err)
+			m.RecordInvalid(traceType)
+		} else if err != nil {
+			log.Error("Failed to run", "type", traceType, "err", err)
+			m.RecordFailure(traceType)
+		} else {
+			log.Info("Successfully verified output root", "type", traceType)
+			m.RecordSuccess(traceType)
+		}
+	}
+
 	prestateHash, err := r.getPrestateHash(ctx, traceType, caller)
 	if err != nil {
-		return err
+		recordError(err, traceType.String(), r.m, r.log)
+		return
 	}
 
 	localInputs, err := r.createGameInputs(ctx, client)
 	if err != nil {
-		return err
+		recordError(err, traceType.String(), r.m, r.log)
+		return
 	}
-	dir, err := r.prepDatadir(traceType)
-	if err != nil {
-		return err
+
+	inputsLogger := r.log.New("l1", localInputs.L1Head, "l2", localInputs.L2Head, "l2Block", localInputs.L2BlockNumber, "claim", localInputs.L2Claim)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		dir, err := r.prepDatadir(traceType.String())
+		if err != nil {
+			recordError(err, traceType.String(), r.m, r.log)
+			return
+		}
+		err = r.runOnce(ctx, inputsLogger.With("type", traceType), traceType, prestateHash, localInputs, dir)
+		recordError(err, traceType.String(), r.m, r.log)
+	}()
+
+	if traceType == types.TraceTypeCannon && r.addMTCannonPrestate != (common.Hash{}) && r.addMTCannonPrestateURL != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			dir, err := r.prepDatadir(mtCannonType)
+			if err != nil {
+				recordError(err, mtCannonType, r.m, r.log)
+				return
+			}
+			logger := inputsLogger.With("type", mtCannonType)
+			err = r.runMTOnce(ctx, logger, localInputs, dir)
+			recordError(err, mtCannonType, r.m, r.log.With(mtCannonType, true))
+		}()
 	}
-	logger := r.log.New("l1", localInputs.L1Head, "l2", localInputs.L2Head, "l2Block", localInputs.L2BlockNumber, "claim", localInputs.L2Claim, "type", traceType)
-	provider, err := createTraceProvider(logger, r.m, r.cfg, prestateHash, traceType, localInputs, dir)
+	wg.Wait()
+}
+
+func (r *Runner) runOnce(ctx context.Context, logger log.Logger, traceType types.TraceType, prestateHash common.Hash, localInputs utils.LocalGameInputs, dir string) error {
+	provider, err := createTraceProvider(ctx, logger, metrics.NewVmMetrics(r.m, traceType.String()), r.cfg, prestateHash, traceType, localInputs, dir)
 	if err != nil {
 		return fmt.Errorf("failed to create trace provider: %w", err)
 	}
@@ -144,8 +186,23 @@ func (r *Runner) runOnce(ctx context.Context, traceType types.TraceType, client 
 	return nil
 }
 
-func (r *Runner) prepDatadir(traceType types.TraceType) (string, error) {
-	dir := filepath.Join(r.cfg.Datadir, traceType.String())
+func (r *Runner) runMTOnce(ctx context.Context, logger log.Logger, localInputs utils.LocalGameInputs, dir string) error {
+	provider, err := createMTTraceProvider(ctx, logger, metrics.NewVmMetrics(r.m, mtCannonType), r.cfg.Cannon, r.addMTCannonPrestate, r.addMTCannonPrestateURL, localInputs, dir)
+	if err != nil {
+		return fmt.Errorf("failed to create trace provider: %w", err)
+	}
+	hash, err := provider.Get(ctx, types.RootPosition)
+	if err != nil {
+		return fmt.Errorf("failed to execute trace provider: %w", err)
+	}
+	if hash[0] != mipsevm.VMStatusValid {
+		return fmt.Errorf("%w: %v", ErrUnexpectedStatusCode, hash)
+	}
+	return nil
+}
+
+func (r *Runner) prepDatadir(traceType string) (string, error) {
+	dir := filepath.Join(r.cfg.Datadir, traceType)
 	if err := os.RemoveAll(dir); err != nil {
 		return "", fmt.Errorf("failed to remove old dir: %w", err)
 	}

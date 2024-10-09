@@ -11,19 +11,19 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/versions"
-	"github.com/ethereum-optimism/optimism/cannon/serialize"
+	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
+	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
+	"github.com/ethereum-optimism/optimism/op-service/serialize"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/pkg/profile"
 	"github.com/urfave/cli/v2"
-
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/program"
-	preimage "github.com/ethereum-optimism/optimism/op-preimage"
-	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 )
 
 var (
@@ -128,7 +128,7 @@ type Proof struct {
 
 	OracleKey    hexutil.Bytes `json:"oracle-key,omitempty"`
 	OracleValue  hexutil.Bytes `json:"oracle-value,omitempty"`
-	OracleOffset uint32        `json:"oracle-offset,omitempty"`
+	OracleOffset arch.Word     `json:"oracle-offset,omitempty"`
 }
 
 type rawHint string
@@ -248,7 +248,8 @@ func (p *ProcessPreimageOracle) Close() error {
 func (p *ProcessPreimageOracle) wait() {
 	err := p.cmd.Wait()
 	var waitErr error
-	if err, ok := err.(*exec.ExitError); !ok || !err.Success() {
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) && !exitErr.Success() {
 		waitErr = err
 	}
 	p.cancelIO(fmt.Errorf("%w: pre-image server has exited", waitErr))
@@ -287,7 +288,7 @@ func Run(ctx *cli.Context) error {
 
 	stopAtAnyPreimage := false
 	var stopAtPreimageKeyPrefix []byte
-	stopAtPreimageOffset := uint32(0)
+	stopAtPreimageOffset := arch.Word(0)
 	if ctx.IsSet(RunStopAtPreimageFlag.Name) {
 		val := ctx.String(RunStopAtPreimageFlag.Name)
 		parts := strings.Split(val, "@")
@@ -296,11 +297,11 @@ func Run(ctx *cli.Context) error {
 		}
 		stopAtPreimageKeyPrefix = common.FromHex(parts[0])
 		if len(parts) == 2 {
-			x, err := strconv.ParseUint(parts[1], 10, 32)
+			x, err := strconv.ParseUint(parts[1], 10, arch.WordSize)
 			if err != nil {
 				return fmt.Errorf("invalid preimage offset: %w", err)
 			}
-			stopAtPreimageOffset = uint32(x)
+			stopAtPreimageOffset = arch.Word(x)
 		}
 	} else {
 		switch ctx.String(RunStopAtPreimageTypeFlag.Name) {
@@ -372,6 +373,7 @@ func Run(ctx *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to load state: %w", err)
 	}
+	l.Info("Loaded input state", "version", state.Version)
 	vm := state.CreateVM(l, po, outLog, errLog, meta)
 	debugProgram := ctx.Bool(RunDebugFlag.Name)
 	if debugProgram {
@@ -408,7 +410,7 @@ func Run(ctx *cli.Context) error {
 			l.Info("processing",
 				"step", step,
 				"pc", mipsevm.HexU32(state.GetPC()),
-				"insn", mipsevm.HexU32(state.GetMemory().GetMemory(state.GetPC())),
+				"insn", mipsevm.HexU32(state.GetMemory().GetUint32(state.GetPC())),
 				"ips", float64(step-startStep)/(float64(delta)/float64(time.Second)),
 				"pages", state.GetMemory().PageCount(),
 				"mem", state.GetMemory().Usage(),
@@ -461,7 +463,7 @@ func Run(ctx *cli.Context) error {
 		}
 
 		lastPreimageKey, lastPreimageValue, lastPreimageOffset := vm.LastPreimage()
-		if lastPreimageOffset != ^uint32(0) {
+		if lastPreimageOffset != ^arch.Word(0) {
 			if stopAtAnyPreimage {
 				l.Info("Stopping at preimage read")
 				break
@@ -495,26 +497,30 @@ func Run(ctx *cli.Context) error {
 	return nil
 }
 
-var RunCommand = &cli.Command{
-	Name:        "run",
-	Usage:       "Run VM step(s) and generate proof data to replicate onchain.",
-	Description: "Run VM step(s) and generate proof data to replicate onchain. See flags to match when to output a proof, a snapshot, or to stop early.",
-	Action:      Run,
-	Flags: []cli.Flag{
-		RunInputFlag,
-		RunOutputFlag,
-		RunProofAtFlag,
-		RunProofFmtFlag,
-		RunSnapshotAtFlag,
-		RunSnapshotFmtFlag,
-		RunStopAtFlag,
-		RunStopAtPreimageFlag,
-		RunStopAtPreimageTypeFlag,
-		RunStopAtPreimageLargerThanFlag,
-		RunMetaFlag,
-		RunInfoAtFlag,
-		RunPProfCPU,
-		RunDebugFlag,
-		RunDebugInfoFlag,
-	},
+func CreateRunCommand(action cli.ActionFunc) *cli.Command {
+	return &cli.Command{
+		Name:        "run",
+		Usage:       "Run VM step(s) and generate proof data to replicate onchain.",
+		Description: "Run VM step(s) and generate proof data to replicate onchain. See flags to match when to output a proof, a snapshot, or to stop early.",
+		Action:      action,
+		Flags: []cli.Flag{
+			RunInputFlag,
+			RunOutputFlag,
+			RunProofAtFlag,
+			RunProofFmtFlag,
+			RunSnapshotAtFlag,
+			RunSnapshotFmtFlag,
+			RunStopAtFlag,
+			RunStopAtPreimageFlag,
+			RunStopAtPreimageTypeFlag,
+			RunStopAtPreimageLargerThanFlag,
+			RunMetaFlag,
+			RunInfoAtFlag,
+			RunPProfCPU,
+			RunDebugFlag,
+			RunDebugInfoFlag,
+		},
+	}
 }
+
+var RunCommand = CreateRunCommand(Run)

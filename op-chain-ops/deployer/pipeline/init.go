@@ -2,7 +2,16 @@ package pipeline
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
+	"strings"
+
+	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opcm"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
+
+	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
+
+	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
 )
@@ -11,13 +20,48 @@ func IsSupportedStateVersion(version int) bool {
 	return version == 1
 }
 
-func Init(ctx context.Context, env *Env, intent *state.Intent, st *state.State) error {
+func Init(ctx context.Context, env *Env, _ foundry.StatDirFs, intent *state.Intent, st *state.State) error {
 	lgr := env.Logger.New("stage", "init")
 	lgr.Info("initializing pipeline")
 
 	// Ensure the state version is supported.
 	if !IsSupportedStateVersion(st.Version) {
 		return fmt.Errorf("unsupported state version: %d", st.Version)
+	}
+
+	if st.Create2Salt == (common.Hash{}) {
+		_, err := rand.Read(st.Create2Salt[:])
+		if err != nil {
+			return fmt.Errorf("failed to generate CREATE2 salt: %w", err)
+		}
+	}
+
+	if strings.HasPrefix(intent.ContractsRelease, "op-contracts") {
+		superCfg, err := opcm.SuperchainFor(intent.L1ChainID)
+		if err != nil {
+			return fmt.Errorf("error getting superchain config: %w", err)
+		}
+
+		proxyAdmin, err := opcm.ManagerOwnerAddrFor(intent.L1ChainID)
+		if err != nil {
+			return fmt.Errorf("error getting superchain proxy admin address: %w", err)
+		}
+
+		// Have to do this weird pointer thing below because the Superchain Registry defines its
+		// own Address type.
+		st.SuperchainDeployment = &state.SuperchainDeployment{
+			ProxyAdminAddress:            proxyAdmin,
+			ProtocolVersionsProxyAddress: common.Address(*superCfg.Config.ProtocolVersionsAddr),
+			SuperchainConfigProxyAddress: common.Address(*superCfg.Config.SuperchainConfigAddr),
+		}
+
+		opcmProxy, err := opcm.ManagerImplementationAddrFor(intent.L1ChainID)
+		if err != nil {
+			return fmt.Errorf("error getting OPCM proxy address: %w", err)
+		}
+		st.ImplementationsDeployment = &state.ImplementationsDeployment{
+			OpcmProxyAddress: opcmProxy,
+		}
 	}
 
 	// If the state has never been applied, we don't need to perform
@@ -30,14 +74,6 @@ func Init(ctx context.Context, env *Env, intent *state.Intent, st *state.State) 
 	// fields have changed.
 	if st.AppliedIntent.L1ChainID != intent.L1ChainID {
 		return immutableErr("L1ChainID", st.AppliedIntent.L1ChainID, intent.L1ChainID)
-	}
-
-	if st.AppliedIntent.UseFaultProofs != intent.UseFaultProofs {
-		return immutableErr("useFaultProofs", st.AppliedIntent.UseFaultProofs, intent.UseFaultProofs)
-	}
-
-	if st.AppliedIntent.UseAltDA != intent.UseAltDA {
-		return immutableErr("useAltDA", st.AppliedIntent.UseAltDA, intent.UseAltDA)
 	}
 
 	if st.AppliedIntent.FundDevAccounts != intent.FundDevAccounts {
@@ -53,7 +89,15 @@ func Init(ctx context.Context, env *Env, intent *state.Intent, st *state.State) 
 		return fmt.Errorf("L1 chain ID mismatch: got %d, expected %d", l1ChainID, intent.L1ChainID)
 	}
 
-	// TODO: validate individual L2s
+	deployerCode, err := env.L1Client.CodeAt(ctx, script.DeterministicDeployerAddress, nil)
+	if err != nil {
+		return fmt.Errorf("failed to get deployer code: %w", err)
+	}
+	if len(deployerCode) == 0 {
+		return fmt.Errorf("deterministic deployer is not deployed on this chain - please deploy it first")
+	}
+
+	// TODO: validate individual
 
 	return nil
 }

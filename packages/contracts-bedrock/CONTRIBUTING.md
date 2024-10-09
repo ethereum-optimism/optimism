@@ -39,7 +39,7 @@ If you have any questions about the smart contracts, please feel free to ask the
 
 #### How Do I Submit a Good Enhancement Suggestion?
 
-Enhancement suggestions are tracked as [GitHub issues](/issues).
+Enhancement suggestions are tracked as [GitHub issues](https://github.com/ethereum-optimism/optimism/issues).
 
 - Use a **clear and descriptive title** for the issue to identify the suggestion.
 - Provide a **step-by-step** description of the suggested enhancement in as many details as possible.
@@ -68,7 +68,6 @@ You can run `just -l` to list them all, some of the key ones are:
 1  `just gas-snapshot` Generates the gas snapshot for the smart contracts.
 1. `just semver-lock` Generates the semver lockfile.
 1. `just snapshots` Generates the storage and ABI snapshots.
-1. `just autogen-invariant-docs` Generates the invariant test documentation.
 1. `just clean` Removes all build artifacts for `forge` and `go` compilations.
 1. `just validate-spacers` Validates the positions of the storage slot spacers.
 1. `just validate-deploy-configs` Validates the deployment configurations in `deploy-config`

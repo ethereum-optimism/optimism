@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
 )
@@ -14,62 +15,68 @@ import (
 // ExpectedMTState is a test utility that basically stores a copy of a state that can be explicitly mutated
 // to define an expected post-state.  The post-state is then validated with ExpectedMTState.Validate(t, postState)
 type ExpectedMTState struct {
-	PreimageKey    common.Hash
-	PreimageOffset uint32
-	Heap           uint32
-	ExitCode       uint8
-	Exited         bool
-	Step           uint64
-	LastHint       hexutil.Bytes
-	MemoryRoot     common.Hash
+	PreimageKey         common.Hash
+	PreimageOffset      arch.Word
+	Heap                arch.Word
+	LLReservationActive bool
+	LLAddress           arch.Word
+	LLOwnerThread       arch.Word
+	ExitCode            uint8
+	Exited              bool
+	Step                uint64
+	LastHint            hexutil.Bytes
+	MemoryRoot          common.Hash
+	expectedMemory      *memory.Memory
 	// Threading-related expectations
 	StepsSinceLastContextSwitch uint64
-	Wakeup                      uint32
+	Wakeup                      arch.Word
 	TraverseRight               bool
-	NextThreadId                uint32
+	NextThreadId                arch.Word
 	ThreadCount                 int
 	RightStackSize              int
 	LeftStackSize               int
-	prestateActiveThreadId      uint32
+	prestateActiveThreadId      arch.Word
 	prestateActiveThreadOrig    ExpectedThreadState // Cached for internal use
-	ActiveThreadId              uint32
-	threadExpectations          map[uint32]*ExpectedThreadState
-	memoryExpectations          *memory.Memory
+	ActiveThreadId              arch.Word
+	threadExpectations          map[arch.Word]*ExpectedThreadState
 }
 
 type ExpectedThreadState struct {
-	ThreadId         uint32
+	ThreadId         arch.Word
 	ExitCode         uint8
 	Exited           bool
-	FutexAddr        uint32
-	FutexVal         uint32
+	FutexAddr        arch.Word
+	FutexVal         arch.Word
 	FutexTimeoutStep uint64
-	PC               uint32
-	NextPC           uint32
-	HI               uint32
-	LO               uint32
-	Registers        [32]uint32
+	PC               arch.Word
+	NextPC           arch.Word
+	HI               arch.Word
+	LO               arch.Word
+	Registers        [32]arch.Word
 	Dropped          bool
 }
 
 func NewExpectedMTState(fromState *multithreaded.State) *ExpectedMTState {
 	currentThread := fromState.GetCurrentThread()
 
-	expectedThreads := make(map[uint32]*ExpectedThreadState)
+	expectedThreads := make(map[arch.Word]*ExpectedThreadState)
 	for _, t := range GetAllThreads(fromState) {
 		expectedThreads[t.ThreadId] = newExpectedThreadState(t)
 	}
 
 	return &ExpectedMTState{
 		// General Fields
-		PreimageKey:    fromState.GetPreimageKey(),
-		PreimageOffset: fromState.GetPreimageOffset(),
-		Heap:           fromState.GetHeap(),
-		ExitCode:       fromState.GetExitCode(),
-		Exited:         fromState.GetExited(),
-		Step:           fromState.GetStep(),
-		LastHint:       fromState.GetLastHint(),
-		MemoryRoot:     fromState.GetMemory().MerkleRoot(),
+		PreimageKey:         fromState.GetPreimageKey(),
+		PreimageOffset:      fromState.GetPreimageOffset(),
+		Heap:                fromState.GetHeap(),
+		LLReservationActive: fromState.LLReservationActive,
+		LLAddress:           fromState.LLAddress,
+		LLOwnerThread:       fromState.LLOwnerThread,
+		ExitCode:            fromState.GetExitCode(),
+		Exited:              fromState.GetExited(),
+		Step:                fromState.GetStep(),
+		LastHint:            fromState.GetLastHint(),
+		MemoryRoot:          fromState.GetMemory().MerkleRoot(),
 		// Thread-related global fields
 		StepsSinceLastContextSwitch: fromState.StepsSinceLastContextSwitch,
 		Wakeup:                      fromState.Wakeup,
@@ -83,7 +90,7 @@ func NewExpectedMTState(fromState *multithreaded.State) *ExpectedMTState {
 		prestateActiveThreadOrig: *newExpectedThreadState(currentThread), // Cache prestate thread for internal use
 		ActiveThreadId:           currentThread.ThreadId,
 		threadExpectations:       expectedThreads,
-		memoryExpectations:       fromState.Memory.Copy(),
+		expectedMemory:           fromState.Memory.Copy(),
 	}
 }
 
@@ -112,15 +119,20 @@ func (e *ExpectedMTState) ExpectStep() {
 	e.StepsSinceLastContextSwitch += 1
 }
 
-func (e *ExpectedMTState) ExpectMemoryWrite(addr uint32, val uint32) {
-	e.memoryExpectations.SetMemory(addr, val)
-	e.MemoryRoot = e.memoryExpectations.MerkleRoot()
+func (e *ExpectedMTState) ExpectMemoryWrite(addr arch.Word, val uint32) {
+	e.expectedMemory.SetUint32(addr, val)
+	e.MemoryRoot = e.expectedMemory.MerkleRoot()
 }
 
-func (e *ExpectedMTState) ExpectMemoryWriteMultiple(addr uint32, val uint32, addr2 uint32, val2 uint32) {
-	e.memoryExpectations.SetMemory(addr, val)
-	e.memoryExpectations.SetMemory(addr2, val)
-	e.MemoryRoot = e.memoryExpectations.MerkleRoot()
+func (e *ExpectedMTState) ExpectMemoryWordWrite(addr arch.Word, val arch.Word) {
+	e.expectedMemory.SetWord(addr, val)
+	e.MemoryRoot = e.expectedMemory.MerkleRoot()
+}
+
+func (e *ExpectedMTState) ExpectMemoryWriteMultiple(addr arch.Word, val uint32, addr2 arch.Word, val2 uint32) {
+	e.expectedMemory.SetUint32(addr, val)
+	e.expectedMemory.SetUint32(addr2, val2)
+	e.MemoryRoot = e.expectedMemory.MerkleRoot()
 }
 
 func (e *ExpectedMTState) ExpectPreemption(preState *multithreaded.State) {
@@ -160,7 +172,7 @@ func (e *ExpectedMTState) PrestateActiveThread() *ExpectedThreadState {
 	return e.threadExpectations[e.prestateActiveThreadId]
 }
 
-func (e *ExpectedMTState) Thread(threadId uint32) *ExpectedThreadState {
+func (e *ExpectedMTState) Thread(threadId arch.Word) *ExpectedThreadState {
 	return e.threadExpectations[threadId]
 }
 
@@ -168,6 +180,9 @@ func (e *ExpectedMTState) Validate(t require.TestingT, actualState *multithreade
 	require.Equalf(t, e.PreimageKey, actualState.GetPreimageKey(), "Expect preimageKey = %v", e.PreimageKey)
 	require.Equalf(t, e.PreimageOffset, actualState.GetPreimageOffset(), "Expect preimageOffset = %v", e.PreimageOffset)
 	require.Equalf(t, e.Heap, actualState.GetHeap(), "Expect heap = 0x%x", e.Heap)
+	require.Equalf(t, e.LLReservationActive, actualState.LLReservationActive, "Expect LLReservationActive = %v", e.LLReservationActive)
+	require.Equalf(t, e.LLAddress, actualState.LLAddress, "Expect LLAddress = 0x%x", e.LLAddress)
+	require.Equalf(t, e.LLOwnerThread, actualState.LLOwnerThread, "Expect LLOwnerThread = %v", e.LLOwnerThread)
 	require.Equalf(t, e.ExitCode, actualState.GetExitCode(), "Expect exitCode = 0x%x", e.ExitCode)
 	require.Equalf(t, e.Exited, actualState.GetExited(), "Expect exited = %v", e.Exited)
 	require.Equalf(t, e.Step, actualState.GetStep(), "Expect step = %d", e.Step)

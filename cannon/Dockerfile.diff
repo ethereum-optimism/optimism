@@ -1,0 +1,34 @@
+FROM golang:1.22.7-alpine3.20 as builder
+
+RUN apk add --no-cache make bash
+
+COPY ./go.mod /app/go.mod
+COPY ./go.sum /app/go.sum
+
+WORKDIR /app
+
+RUN echo "go mod cache: $(go env GOMODCACHE)"
+RUN echo "go build cache: $(go env GOCACHE)"
+
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build go mod download
+
+COPY . /app
+
+# We avoid copying the full .git dir into the build for just some metadata.
+# Instead, specify:
+# --build-arg GIT_COMMIT=$(git rev-parse HEAD)
+# --build-arg GIT_DATE=$(git show -s --format='%ct')
+ARG GIT_COMMIT
+ARG GIT_DATE
+
+ARG TARGETOS TARGETARCH
+
+FROM --platform=$BUILDPLATFORM us-docker.pkg.dev/oplabs-tools-artifacts/images/cannon:v1.1.0-alpha.1 AS cannon-v2
+
+FROM --platform=$BUILDPLATFORM builder as cannon-verify
+COPY --from=cannon-v2 /usr/local/bin/cannon /usr/local/bin/cannon-v2
+# verify the latest singlethreaded VM behavior against cannon-v2
+RUN cd cannon && make diff-singlethreaded-2-cannon -e OTHER_CANNON=/usr/local/bin/cannon-v2
+RUN --mount=type=cache,target=/root/.cache/go-build cd cannon && \
+  make diff-singlethreaded-2-cannon -e OTHER_CANNON=/usr/local/bin/cannon-v2 \
+  GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE

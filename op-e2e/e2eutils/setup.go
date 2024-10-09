@@ -39,6 +39,7 @@ type DeployParams struct {
 	MnemonicConfig *MnemonicConfig
 	Secrets        *Secrets
 	Addresses      *Addresses
+	AllocType      config.AllocType
 }
 
 // TestParams parametrizes the most essential rollup configuration parameters
@@ -48,6 +49,7 @@ type TestParams struct {
 	ChannelTimeout      uint64
 	L1BlockTime         uint64
 	UseAltDA            bool
+	AllocType           config.AllocType
 }
 
 func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
@@ -56,7 +58,7 @@ func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
 	require.NoError(t, err)
 	addresses := secrets.Addresses()
 
-	deployConfig := config.DeployConfig.Copy()
+	deployConfig := config.DeployConfig(tp.AllocType)
 	deployConfig.MaxSequencerDrift = tp.MaxSequencerDrift
 	deployConfig.SequencerWindowSize = tp.SequencerWindowSize
 	deployConfig.ChannelTimeoutBedrock = tp.ChannelTimeout
@@ -75,6 +77,7 @@ func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
 		MnemonicConfig: mnemonicCfg,
 		Secrets:        secrets,
 		Addresses:      addresses,
+		AllocType:      tp.AllocType,
 	}
 }
 
@@ -110,10 +113,14 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 	logger := log.NewLogger(log.DiscardHandler())
 	require.NoError(t, deployConf.Check(logger))
 
-	l1Deployments := config.L1Deployments.Copy()
+	l1Deployments := config.L1Deployments(deployParams.AllocType)
 	require.NoError(t, l1Deployments.Check(deployConf))
 
-	l1Genesis, err := genesis.BuildL1DeveloperGenesis(deployConf, config.L1Allocs, l1Deployments)
+	l1Genesis, err := genesis.BuildL1DeveloperGenesis(
+		deployConf,
+		config.L1Allocs(deployParams.AllocType),
+		l1Deployments,
+	)
 	require.NoError(t, err, "failed to create l1 genesis")
 	if alloc.PrefundTestUsers {
 		for _, addr := range deployParams.Addresses.All() {
@@ -133,8 +140,8 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 	if ecotoneTime := deployConf.EcotoneTime(l1Block.Time()); ecotoneTime != nil && *ecotoneTime == 0 {
 		allocsMode = genesis.L2AllocsEcotone
 	}
-	l2Allocs := config.L2Allocs(allocsMode)
-	l2Genesis, err := genesis.BuildL2Genesis(deployConf, l2Allocs, l1Block)
+	l2Allocs := config.L2Allocs(deployParams.AllocType, allocsMode)
+	l2Genesis, err := genesis.BuildL2Genesis(deployConf, l2Allocs, l1Block.Header())
 	require.NoError(t, err, "failed to create l2 genesis")
 	if alloc.PrefundTestUsers {
 		for _, addr := range deployParams.Addresses.All() {
@@ -234,18 +241,4 @@ func ApplyDeployConfigForks(deployConfig *genesis.DeployConfig) {
 	// Canyon and lower is activated by default
 	deployConfig.L2GenesisCanyonTimeOffset = new(hexutil.Uint64)
 	deployConfig.L2GenesisRegolithTimeOffset = new(hexutil.Uint64)
-}
-
-func UseFaultProofs() bool {
-	return !UseL2OO()
-}
-
-func UseL2OO() bool {
-	return (os.Getenv("OP_E2E_USE_L2OO") == "true" ||
-		os.Getenv("DEVNET_L2OO") == "true")
-}
-
-func UseAltDA() bool {
-	return (os.Getenv("OP_E2E_USE_ALTDA") == "true" ||
-		os.Getenv("DEVNET_ALTDA") == "true")
 }

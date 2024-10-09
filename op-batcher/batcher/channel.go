@@ -35,7 +35,7 @@ type channel struct {
 }
 
 func newChannel(log log.Logger, metr metrics.Metricer, cfg ChannelConfig, rollupCfg *rollup.Config, latestL1OriginBlockNum uint64) (*channel, error) {
-	cb, err := NewChannelBuilder(cfg, *rollupCfg, latestL1OriginBlockNum)
+	cb, err := NewChannelBuilder(cfg, rollupCfg, latestL1OriginBlockNum)
 	if err != nil {
 		return nil, fmt.Errorf("creating new channel: %w", err)
 	}
@@ -155,9 +155,9 @@ func (s *channel) ID() derive.ChannelID {
 	return s.channelBuilder.ID()
 }
 
-// NextTxData returns the next tx data packet.
-// If cfg.MultiFrameTxs is false, it returns txData with a single frame.
-// If cfg.MultiFrameTxs is true, it will read frames from its channel builder
+// NextTxData dequeues the next frames from the channel and returns them encoded in a tx data packet.
+// If cfg.UseBlobs is false, it returns txData with a single frame.
+// If cfg.UseBlobs is true, it will read frames from its channel builder
 // until it either doesn't have more frames or the target number of frames is reached.
 //
 // NextTxData should only be called after HasTxData returned true.
@@ -177,10 +177,11 @@ func (s *channel) NextTxData() txData {
 }
 
 func (s *channel) HasTxData() bool {
-	if s.IsFull() || !s.cfg.UseBlobs {
+	if s.IsFull() || // If the channel is full, we should start to submit it
+		!s.cfg.UseBlobs { // If using calldata, we only send one frame per tx
 		return s.channelBuilder.HasFrame()
 	}
-	// collect enough frames if channel is not full yet
+	// Collect enough frames if channel is not full yet
 	return s.channelBuilder.PendingFrames() >= int(s.cfg.MaxFramesPerTx())
 }
 

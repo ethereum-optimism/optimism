@@ -104,7 +104,7 @@ func startPayload(ctx context.Context, eng ExecEngine, fc eth.ForkchoiceState, a
 	}
 
 	switch fcRes.PayloadStatus.Status {
-	// TODO(proto): snap sync - specify explicit different error type if node is syncing
+	// TODO: snap sync - specify explicit different error type if node is syncing
 	case eth.ExecutionInvalid, eth.ExecutionInvalidBlockHash:
 		return eth.PayloadID{}, BlockInsertPayloadErr, eth.ForkchoiceUpdateErr(fcRes.PayloadStatus)
 	case eth.ExecutionValid:

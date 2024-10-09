@@ -86,8 +86,8 @@ func TestChannelManager_NextTxData(t *testing.T) {
 	require.Equal(t, txData{}, returnedTxData)
 
 	// Set the pending channel
-	// The nextTxData function should still return EOF
-	// since the pending channel has no frames
+	// The nextTxData function should still return io.EOF
+	// since the current channel has no frames
 	require.NoError(t, m.ensureChannelWithSpace(eth.BlockID{}))
 	channel := m.currentChannel
 	require.NotNil(t, channel)
@@ -160,7 +160,7 @@ func TestChannel_NextTxData_singleFrameTx(t *testing.T) {
 
 func TestChannel_NextTxData_multiFrameTx(t *testing.T) {
 	require := require.New(t)
-	const n = 6
+	const n = eth.MaxBlobsPerBlobTx
 	lgr := testlog.Logger(t, log.LevelWarn)
 	ch, err := newChannel(lgr, metrics.NoopMetrics, ChannelConfig{
 		UseBlobs:        true,

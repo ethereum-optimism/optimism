@@ -7,7 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
-	backendTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/types"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/snapshots"
 	"github.com/ethereum/go-ethereum/common"
 	ethTypes "github.com/ethereum/go-ethereum/core/types"
@@ -19,7 +19,7 @@ func TestDecodeExecutingMessageEvent(t *testing.T) {
 	inbox := NewCrossL2Inbox()
 	payload := bytes.Repeat([]byte{0xaa, 0xbb}, 50)
 	payloadHash := crypto.Keccak256Hash(payload)
-	expected := backendTypes.ExecutingMessage{
+	expected := types.ExecutingMessage{
 		Chain:     42424,
 		BlockNum:  12345,
 		LogIdx:    98,

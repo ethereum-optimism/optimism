@@ -117,8 +117,8 @@ func TestScriptBroadcast(t *testing.T) {
 			Nonce:   0, // first action of 0x123456
 		},
 		{
-			From:    cafeAddr,
-			To:      crypto.CreateAddress2(cafeAddr, salt, crypto.Keccak256(expectedInitCode)),
+			From:    DeterministicDeployerAddress,
+			To:      crypto.CreateAddress2(DeterministicDeployerAddress, salt, crypto.Keccak256(expectedInitCode)),
 			Input:   expectedInitCode,
 			Value:   (*hexutil.U256)(uint256.NewInt(0)),
 			Type:    BroadcastCreate2,
@@ -141,7 +141,7 @@ func TestScriptBroadcast(t *testing.T) {
 	hook := func(broadcast Broadcast) {
 		broadcasts = append(broadcasts, broadcast)
 	}
-	h := NewHost(logger, af, nil, DefaultContext, WithBroadcastHook(hook))
+	h := NewHost(logger, af, nil, DefaultContext, WithBroadcastHook(hook), WithCreate2Deployer())
 	addr, err := h.LoadContract("ScriptExample.s.sol", "ScriptExample")
 	require.NoError(t, err)
 
@@ -164,5 +164,7 @@ func TestScriptBroadcast(t *testing.T) {
 	require.EqualValues(t, 0, h.GetNonce(senderAddr))
 	require.EqualValues(t, 3, h.GetNonce(scriptAddr))
 	require.EqualValues(t, 2, h.GetNonce(coffeeAddr))
+	// This is one because we still need to bump the nonce of the
+	// address that will perform the send to the Create2Deployer.
 	require.EqualValues(t, 1, h.GetNonce(cafeAddr))
 }

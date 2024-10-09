@@ -32,7 +32,7 @@ type ConductorClient struct {
 var _ conductor.SequencerConductor = &ConductorClient{}
 
 // NewConductorClient returns a new conductor client for the op-conductor RPC service.
-func NewConductorClient(cfg *Config, log log.Logger, metrics *metrics.Metrics) *ConductorClient {
+func NewConductorClient(cfg *Config, log log.Logger, metrics *metrics.Metrics) conductor.SequencerConductor {
 	return &ConductorClient{
 		cfg:     cfg,
 		metrics: metrics,
@@ -51,6 +51,11 @@ func (c *ConductorClient) initialize() error {
 	}
 	c.apiClient = conductorRpc.NewAPIClient(conductorRpcClient)
 	return nil
+}
+
+// Enabled returns true if the conductor is enabled, and since the conductor client is initialized, the conductor is always enabled.
+func (c *ConductorClient) Enabled(ctx context.Context) bool {
+	return true
 }
 
 // Leader returns true if this node is the leader sequencer.
@@ -86,12 +91,11 @@ func (c *ConductorClient) CommitUnsafePayload(ctx context.Context, payload *eth.
 	ctx, cancel := context.WithTimeout(ctx, c.cfg.ConductorRpcTimeout)
 	defer cancel()
 
-	// extra bool return value is required for the generic, can be ignored.
-	_, err := retry.Do(ctx, 2, retry.Fixed(50*time.Millisecond), func() (bool, error) {
+	err := retry.Do0(ctx, 2, retry.Fixed(50*time.Millisecond), func() error {
 		record := c.metrics.RecordRPCClientRequest("conductor_commitUnsafePayload")
 		err := c.apiClient.CommitUnsafePayload(ctx, payload)
 		record(err)
-		return true, err
+		return err
 	})
 	return err
 }

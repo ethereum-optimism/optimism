@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-program/chainconfig"
 	"github.com/ethereum-optimism/optimism/op-program/host"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -26,6 +28,8 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
+const runInProcess = false
+
 type Runner struct {
 	l1RpcUrl    string
 	l1RpcKind   string
@@ -40,7 +44,7 @@ type Runner struct {
 	rollupCfg   *rollup.Config
 }
 
-func NewRunner(l1RpcUrl string, l1RpcKind string, l1BeaconUrl string, l2RpcUrl string, dataDir string, network string, chainCfg *params.ChainConfig) (*Runner, error) {
+func NewRunner(l1RpcUrl string, l1RpcKind string, l1BeaconUrl string, l2RpcUrl string, dataDir string, network string, chainID uint64) (*Runner, error) {
 	ctx := context.Background()
 	logCfg := oplog.DefaultCLIConfig()
 	logCfg.Level = log.LevelDebug
@@ -52,9 +56,14 @@ func NewRunner(l1RpcUrl string, l1RpcKind string, l1BeaconUrl string, l2RpcUrl s
 		return nil, fmt.Errorf("dial L2 client: %w", err)
 	}
 
-	rollupCfg, err := rollup.LoadOPStackRollupConfig(chainCfg.ChainID.Uint64())
+	rollupCfg, err := rollup.LoadOPStackRollupConfig(chainID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load rollup config: %w", err)
+	}
+
+	chainCfg, err := chainconfig.ChainConfigByChainID(chainID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load chain config: %w", err)
 	}
 
 	l2ClientCfg := sources.L2ClientDefaultConfig(rollupCfg, false)
@@ -99,7 +108,7 @@ func (r *Runner) RunBetweenBlocks(ctx context.Context, l1Head common.Hash, start
 		return fmt.Errorf("failed to find ending block info: %w", err)
 	}
 
-	return r.run(l1Head, agreedBlockInfo, agreedOutputRoot, claimedOutputRoot, claimedBlockInfo)
+	return r.run(ctx, l1Head, agreedBlockInfo, agreedOutputRoot, claimedOutputRoot, claimedBlockInfo)
 }
 
 func (r *Runner) createL2Client(ctx context.Context) (*sources.L2Client, error) {
@@ -157,10 +166,10 @@ func (r *Runner) RunToFinalized(ctx context.Context) error {
 		return fmt.Errorf("failed to find ending block info: %w", err)
 	}
 
-	return r.run(l1Head.Hash(), agreedBlockInfo, agreedOutputRoot, claimedOutputRoot, claimedBlockInfo)
+	return r.run(ctx, l1Head.Hash(), agreedBlockInfo, agreedOutputRoot, claimedOutputRoot, claimedBlockInfo)
 }
 
-func (r *Runner) run(l1Head common.Hash, agreedBlockInfo eth.BlockInfo, agreedOutputRoot common.Hash, claimedOutputRoot common.Hash, claimedBlockInfo eth.BlockInfo) error {
+func (r *Runner) run(ctx context.Context, l1Head common.Hash, agreedBlockInfo eth.BlockInfo, agreedOutputRoot common.Hash, claimedOutputRoot common.Hash, claimedBlockInfo eth.BlockInfo) error {
 	var err error
 	if r.dataDir == "" {
 		r.dataDir, err = os.MkdirTemp("", "oracledata")
@@ -199,29 +208,62 @@ func (r *Runner) run(l1Head common.Hash, agreedBlockInfo eth.BlockInfo, agreedOu
 	}
 	fmt.Printf("Configuration: %s\n", argsStr)
 
-	offlineCfg := config.NewConfig(
-		r.rollupCfg, r.chainCfg, l1Head, agreedBlockInfo.Hash(), agreedOutputRoot, claimedOutputRoot, claimedBlockInfo.NumberU64())
-	offlineCfg.DataDir = r.dataDir
-	onlineCfg := *offlineCfg
-	onlineCfg.L1URL = r.l1RpcUrl
-	onlineCfg.L1BeaconURL = r.l1BeaconUrl
-	onlineCfg.L2URL = r.l2RpcUrl
-	if r.l1RpcKind != "" {
-		onlineCfg.L1RPCKind = sources.RPCProviderKind(r.l1RpcKind)
-	}
+	if runInProcess {
+		offlineCfg := config.NewConfig(
+			r.rollupCfg, r.chainCfg, l1Head, agreedBlockInfo.Hash(), agreedOutputRoot, claimedOutputRoot, claimedBlockInfo.NumberU64())
+		offlineCfg.DataDir = r.dataDir
 
-	fmt.Println("Running in online mode")
-	err = host.Main(oplog.NewLogger(os.Stderr, r.logCfg), &onlineCfg)
-	if err != nil {
-		return fmt.Errorf("online mode failed: %w", err)
-	}
+		onlineCfg := *offlineCfg
+		onlineCfg.L1URL = r.l1RpcUrl
+		onlineCfg.L1BeaconURL = r.l1BeaconUrl
+		onlineCfg.L2URL = r.l2RpcUrl
+		if r.l1RpcKind != "" {
+			onlineCfg.L1RPCKind = sources.RPCProviderKind(r.l1RpcKind)
+		}
 
-	fmt.Println("Running in offline mode")
-	err = host.Main(oplog.NewLogger(os.Stderr, r.logCfg), offlineCfg)
-	if err != nil {
-		return fmt.Errorf("offline mode failed: %w", err)
+		fmt.Println("Running in online mode")
+		err = host.Main(oplog.NewLogger(os.Stderr, r.logCfg), &onlineCfg)
+		if err != nil {
+			return fmt.Errorf("online mode failed: %w", err)
+		}
+
+		fmt.Println("Running in offline mode")
+		err = host.Main(oplog.NewLogger(os.Stderr, r.logCfg), offlineCfg)
+		if err != nil {
+			return fmt.Errorf("offline mode failed: %w", err)
+		}
+	} else {
+		fmt.Println("Running in online mode")
+		onlineArgs := make([]string, len(args))
+		copy(onlineArgs, args)
+		onlineArgs = append(onlineArgs,
+			"--l1", r.l1RpcUrl,
+			"--l1.beacon", r.l1BeaconUrl,
+			"--l2", r.l2RpcUrl)
+		if r.l1RpcKind != "" {
+			onlineArgs = append(onlineArgs, "--l1.rpckind", r.l1RpcKind)
+		}
+		err = runFaultProofProgram(ctx, onlineArgs)
+		if err != nil {
+			return fmt.Errorf("online mode failed: %w", err)
+		}
+
+		fmt.Println("Running in offline mode")
+		err = runFaultProofProgram(ctx, args)
+		if err != nil {
+			return fmt.Errorf("offline mode failed: %w", err)
+		}
 	}
 	return nil
+}
+
+func runFaultProofProgram(ctx context.Context, args []string) error {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Hour)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "./bin/op-program", args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
 
 func outputAtBlockNum(ctx context.Context, l2Client *sources.L2Client, blockNum uint64) (eth.BlockInfo, common.Hash, error) {

@@ -5,16 +5,16 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ethereum/go-ethereum/log"
+
 	"github.com/ethereum-optimism/optimism/op-service/client"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 // TODO(optimism#11032) Make these configurable and a sensible default
-const epochPollInterval = 30 * time.Second
+const epochPollInterval = 3 * time.Second
 const pollInterval = 2 * time.Second
 const trustRpc = false
 const rpcKind = sources.RPCKindStandard
@@ -24,16 +24,17 @@ type Metrics interface {
 }
 
 type Storage interface {
-	LogStorage
+	ChainsDBClientForLogProcessor
 	DatabaseRewinder
-	LatestBlockNum(chainID types.ChainID) uint64
+	LatestBlockNum(chainID types.ChainID) (num uint64, ok bool)
 }
 
 // ChainMonitor monitors a source L2 chain, retrieving the data required to populate the database and perform
 // interop consolidation. It detects and notifies when reorgs occur.
 type ChainMonitor struct {
-	log         log.Logger
-	headMonitor *HeadMonitor
+	log            log.Logger
+	headMonitor    *HeadMonitor
+	chainProcessor *ChainProcessor
 }
 
 func NewChainMonitor(ctx context.Context, logger log.Logger, m Metrics, chainID types.ChainID, rpc string, client client.RPC, store Storage) (*ChainMonitor, error) {
@@ -43,21 +44,19 @@ func NewChainMonitor(ctx context.Context, logger log.Logger, m Metrics, chainID 
 		return nil, err
 	}
 
-	startingHead := eth.L1BlockRef{
-		Number: store.LatestBlockNum(chainID),
-	}
-
+	// Create the log processor and fetcher
 	processLogs := newLogProcessor(chainID, store)
-	fetchReceipts := newLogFetcher(cl, processLogs)
-	unsafeBlockProcessor := NewChainProcessor(logger, cl, chainID, startingHead, fetchReceipts, store)
+	unsafeBlockProcessor := NewChainProcessor(logger, cl, chainID, processLogs, store)
 
 	unsafeProcessors := []HeadProcessor{unsafeBlockProcessor}
+
 	callback := newHeadUpdateProcessor(logger, unsafeProcessors, nil, nil)
 	headMonitor := NewHeadMonitor(logger, epochPollInterval, cl, callback)
 
 	return &ChainMonitor{
-		log:         logger,
-		headMonitor: headMonitor,
+		log:            logger,
+		headMonitor:    headMonitor,
+		chainProcessor: unsafeBlockProcessor,
 	}, nil
 }
 
@@ -67,6 +66,7 @@ func (c *ChainMonitor) Start() error {
 }
 
 func (c *ChainMonitor) Stop() error {
+	c.chainProcessor.Close()
 	return c.headMonitor.Stop()
 }
 

@@ -230,9 +230,9 @@ type GasPriceOracleDeployConfig struct {
 	// Deprecated: Since Ecotone, this field is superseded by GasPriceOracleBaseFeeScalar and GasPriceOracleBlobBaseFeeScalar.
 	GasPriceOracleScalar uint64 `json:"gasPriceOracleScalar"`
 	// GasPriceOracleBaseFeeScalar represents the value of the base fee scalar used for fee calculations.
-	GasPriceOracleBaseFeeScalar uint32 `json:"gasPriceOracleBaseFeeScalar"`
+	GasPriceOracleBaseFeeScalar uint32 `json:"gasPriceOracleBaseFeeScalar" evm:"basefeeScalar"`
 	// GasPriceOracleBlobBaseFeeScalar represents the value of the blob base fee scalar used for fee calculations.
-	GasPriceOracleBlobBaseFeeScalar uint32 `json:"gasPriceOracleBlobBaseFeeScalar"`
+	GasPriceOracleBlobBaseFeeScalar uint32 `json:"gasPriceOracleBlobBaseFeeScalar" evm:"blobbasefeeScalar"`
 }
 
 var _ ConfigChecker = (*GasPriceOracleDeployConfig)(nil)
@@ -282,7 +282,7 @@ func (d *GasTokenDeployConfig) Check(log log.Logger) error {
 // OperatorDeployConfig configures the hot-key addresses for operations such as sequencing and batch-submission.
 type OperatorDeployConfig struct {
 	// P2PSequencerAddress is the address of the key the sequencer uses to sign blocks on the P2P layer.
-	P2PSequencerAddress common.Address `json:"p2pSequencerAddress"`
+	P2PSequencerAddress common.Address `json:"p2pSequencerAddress" evm:"p2pSequencerAddress"`
 	// BatchSenderAddress represents the initial sequencer account that authorizes batches.
 	// Transactions sent from this account to the batch inbox address are considered valid.
 	BatchSenderAddress common.Address `json:"batchSenderAddress"`
@@ -627,7 +627,7 @@ type OutputOracleDeployConfig struct {
 	L2OutputOracleSubmissionInterval uint64 `json:"l2OutputOracleSubmissionInterval"`
 	// L2OutputOracleStartingTimestamp is the starting timestamp for the L2OutputOracle.
 	// MUST be the same as the timestamp of the L2OO start block.
-	L2OutputOracleStartingTimestamp int `json:"l2OutputOracleStartingTimestamp"`
+	L2OutputOracleStartingTimestamp int64 `json:"l2OutputOracleStartingTimestamp"`
 	// L2OutputOracleStartingBlockNumber is the starting block number for the L2OutputOracle.
 	// Must be greater than or equal to the first Bedrock block. The first L2 output will correspond
 	// to this value plus the submission interval.
@@ -732,6 +732,8 @@ type L1DependenciesConfig struct {
 
 	// DAChallengeProxy represents the L1 address of the DataAvailabilityChallenge contract.
 	DAChallengeProxy common.Address `json:"daChallengeProxy"`
+
+	ProtocolVersionsProxy common.Address `json:"protocolVersionsProxy"`
 }
 
 // DependencyContext is the contextual configuration needed to verify the L1 dependencies,
@@ -808,7 +810,7 @@ type DeployConfig struct {
 	// The L2 genesis timestamp does not affect the initial L2 account state:
 	// the storage of the L1Block contract at genesis is zeroed, since the adoption of
 	// the L2-genesis allocs-generation through solidity script.
-	L1StartingBlockTag *MarshalableRPCBlockNumberOrHash `json:"l1StartingBlockTag"`
+	L1StartingBlockTag *MarshalableRPCBlockNumberOrHash `json:"l1StartingBlockTag" evm:"-"`
 
 	// L1 contracts configuration.
 	// The deployer of the contracts chooses which sub-systems to deploy.
@@ -820,7 +822,7 @@ type DeployConfig struct {
 	L1DependenciesConfig
 
 	// Legacy, ignored, here for strict-JSON decoding to be accepted.
-	LegacyDeployConfig
+	LegacyDeployConfig `evm:"-"`
 }
 
 // Copy will deeply copy the DeployConfig. This does a JSON roundtrip to copy
@@ -877,7 +879,7 @@ func (d *DeployConfig) SetDeployments(deployments *L1Deployments) {
 
 // RollupConfig converts a DeployConfig to a rollup.Config. If Ecotone is active at genesis, the
 // Overhead value is considered a noop.
-func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHash common.Hash, l2GenesisBlockNumber uint64) (*rollup.Config, error) {
+func (d *DeployConfig) RollupConfig(l1StartBlock *types.Header, l2GenesisBlockHash common.Hash, l2GenesisBlockNumber uint64) (*rollup.Config, error) {
 	if d.OptimismPortalProxy == (common.Address{}) {
 		return nil, errors.New("OptimismPortalProxy cannot be address(0)")
 	}
@@ -894,17 +896,19 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 		}
 	}
 
+	l1StartTime := l1StartBlock.Time
+
 	return &rollup.Config{
 		Genesis: rollup.Genesis{
 			L1: eth.BlockID{
 				Hash:   l1StartBlock.Hash(),
-				Number: l1StartBlock.NumberU64(),
+				Number: l1StartBlock.Number.Uint64(),
 			},
 			L2: eth.BlockID{
 				Hash:   l2GenesisBlockHash,
 				Number: l2GenesisBlockNumber,
 			},
-			L2Time: l1StartBlock.Time(),
+			L2Time: l1StartBlock.Time,
 			SystemConfig: eth.SystemConfig{
 				BatcherAddr: d.BatchSenderAddress,
 				Overhead:    eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(d.GasPriceOracleOverhead))),
@@ -912,23 +916,24 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 				GasLimit:    uint64(d.L2GenesisBlockGasLimit),
 			},
 		},
-		BlockTime:              d.L2BlockTime,
-		MaxSequencerDrift:      d.MaxSequencerDrift,
-		SeqWindowSize:          d.SequencerWindowSize,
-		ChannelTimeoutBedrock:  d.ChannelTimeoutBedrock,
-		L1ChainID:              new(big.Int).SetUint64(d.L1ChainID),
-		L2ChainID:              new(big.Int).SetUint64(d.L2ChainID),
-		BatchInboxAddress:      d.BatchInboxAddress,
-		DepositContractAddress: d.OptimismPortalProxy,
-		L1SystemConfigAddress:  d.SystemConfigProxy,
-		RegolithTime:           d.RegolithTime(l1StartBlock.Time()),
-		CanyonTime:             d.CanyonTime(l1StartBlock.Time()),
-		DeltaTime:              d.DeltaTime(l1StartBlock.Time()),
-		EcotoneTime:            d.EcotoneTime(l1StartBlock.Time()),
-		FjordTime:              d.FjordTime(l1StartBlock.Time()),
-		GraniteTime:            d.GraniteTime(l1StartBlock.Time()),
-		InteropTime:            d.InteropTime(l1StartBlock.Time()),
-		AltDAConfig:            altDA,
+		BlockTime:               d.L2BlockTime,
+		MaxSequencerDrift:       d.MaxSequencerDrift,
+		SeqWindowSize:           d.SequencerWindowSize,
+		ChannelTimeoutBedrock:   d.ChannelTimeoutBedrock,
+		L1ChainID:               new(big.Int).SetUint64(d.L1ChainID),
+		L2ChainID:               new(big.Int).SetUint64(d.L2ChainID),
+		BatchInboxAddress:       d.BatchInboxAddress,
+		DepositContractAddress:  d.OptimismPortalProxy,
+		L1SystemConfigAddress:   d.SystemConfigProxy,
+		RegolithTime:            d.RegolithTime(l1StartTime),
+		CanyonTime:              d.CanyonTime(l1StartTime),
+		DeltaTime:               d.DeltaTime(l1StartTime),
+		EcotoneTime:             d.EcotoneTime(l1StartTime),
+		FjordTime:               d.FjordTime(l1StartTime),
+		GraniteTime:             d.GraniteTime(l1StartTime),
+		InteropTime:             d.InteropTime(l1StartTime),
+		ProtocolVersionsAddress: d.ProtocolVersionsProxy,
+		AltDAConfig:             altDA,
 	}, nil
 }
 
@@ -1010,6 +1015,10 @@ func (d *L1Deployments) Check(deployConfig *DeployConfig) error {
 		if !deployConfig.UseFaultProofs &&
 			(name == "DisputeGameFactory" ||
 				name == "DisputeGameFactoryProxy") {
+			continue
+		}
+		if deployConfig.UseFaultProofs &&
+			(name == "OptimismPortal" || name == "L2OutputOracle" || name == "L2OutputOracleProxy") {
 			continue
 		}
 		if !deployConfig.UseAltDA &&

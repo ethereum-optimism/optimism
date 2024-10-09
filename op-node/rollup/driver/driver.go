@@ -150,8 +150,14 @@ type SequencerStateListener interface {
 	SequencerStopped() error
 }
 
+type Drain interface {
+	Drain() error
+}
+
 // NewDriver composes an events handler that tracks L1 state, triggers L2 Derivation, and optionally sequences new L2 blocks.
 func NewDriver(
+	sys event.Registry,
+	drain Drain,
 	driverCfg *Config,
 	cfg *rollup.Config,
 	l2 L2Chain,
@@ -169,17 +175,6 @@ func NewDriver(
 	altDA AltDAIface,
 ) *Driver {
 	driverCtx, driverCancel := context.WithCancel(context.Background())
-
-	var executor event.Executor
-	var drain func() error
-	// This instantiation will be one of more options: soon there will be a parallel events executor
-	{
-		s := event.NewGlobalSynchronous(driverCtx)
-		executor = s
-		drain = s.Drain
-	}
-	sys := event.NewSystem(log, executor)
-	sys.AddTracer(event.NewMetricsTracer(metrics))
 
 	opts := event.DefaultRegisterOpts()
 
@@ -236,7 +231,7 @@ func NewDriver(
 		L2:             l2,
 		Log:            log,
 		Ctx:            driverCtx,
-		Drain:          drain,
+		Drain:          drain.Drain,
 	}
 	sys.Register("sync", syncDeriver, opts)
 
@@ -250,7 +245,8 @@ func NewDriver(
 		asyncGossiper := async.NewAsyncGossiper(driverCtx, network, log, metrics)
 		attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1, l2)
 		sequencerConfDepth := confdepth.NewConfDepth(driverCfg.SequencerConfDepth, statusTracker.L1Head, l1)
-		findL1Origin := sequencing.NewL1OriginSelector(log, cfg, sequencerConfDepth)
+		findL1Origin := sequencing.NewL1OriginSelector(driverCtx, log, cfg, sequencerConfDepth)
+		sys.Register("origin-selector", findL1Origin, opts)
 		sequencer = sequencing.NewSequencer(driverCtx, log, cfg, attrBuilder, findL1Origin,
 			sequencerStateListener, sequencerConductor, asyncGossiper, metrics)
 		sys.Register("sequencer", sequencer, opts)
@@ -260,12 +256,11 @@ func NewDriver(
 
 	driverEmitter := sys.Register("driver", nil, opts)
 	driver := &Driver{
-		eventSys:         sys,
 		statusTracker:    statusTracker,
 		SyncDeriver:      syncDeriver,
 		sched:            schedDeriv,
 		emitter:          driverEmitter,
-		drain:            drain,
+		drain:            drain.Drain,
 		stateReq:         make(chan chan struct{}),
 		forceReset:       make(chan chan struct{}, 10),
 		driverConfig:     driverCfg,
