@@ -7,7 +7,7 @@ run the following commands from the root of the repository:
 ```bash
 make install-geth
 make cannon-prestate
-make devnet-allocs
+make devnet-allocs-tests
 ```
 
 This will leave artifacts in the `.devnet` directory that will be
