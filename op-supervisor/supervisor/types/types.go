@@ -205,3 +205,17 @@ func (ptr *HeadPointer) IsSealed(blockNum uint64) bool {
 	}
 	return blockNum <= ptr.LastSealedBlockNum
 }
+
+type BlockSeal struct {
+	Hash      common.Hash
+	Number    uint64
+	Timestamp uint64
+}
+
+func (s BlockSeal) String() string {
+	return fmt.Sprintf("")
+}
+
+func (s BlockSeal) ID() eth.BlockID {
+	return eth.BlockID{Hash: s.Hash, Number: s.Number}
+}

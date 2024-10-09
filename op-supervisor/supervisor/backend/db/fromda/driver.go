@@ -2,8 +2,9 @@ package fromda
 
 import (
 	"errors"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
+
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 type driver struct {
@@ -21,9 +22,11 @@ func (d driver) Copy(src, dst *state) {
 func (d driver) NewState(nextIndex entrydb.EntryIdx) *state {
 	return &state{
 		nextEntryIndex: nextIndex,
-		derivedFrom:    eth.BlockID{},
-		derived:        eth.BlockID{},
-		need:           FlagSearchCheckpoint | FlagCanonicalHash,
+		derivedFrom:    types.BlockSeal{},
+		derivedUntil:   0,
+		derivedSince:   0,
+		derived:        types.BlockSeal{},
+		need:           FlagSearchCheckpoint,
 		out:            nil,
 	}
 }
@@ -36,7 +39,7 @@ func (d driver) KeyFromCheckpoint(e Entry) (Key, error) {
 	if err != nil {
 		return Key{}, err
 	}
-	return Key{DerivedFrom: p.blockNum, Derived: p.lastDerived}, nil
+	return Key{DerivedFrom: p.blockNum, Derived: p.derivedUntil + uint64(p.derivedSince)}, nil
 }
 
 func (d driver) ValidEnd(e Entry) bool {

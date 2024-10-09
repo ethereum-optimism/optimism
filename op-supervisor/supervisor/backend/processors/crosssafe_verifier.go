@@ -139,6 +139,8 @@ func (s *CrossSafeVerifier) update() error {
 		if execMsg := state.ExecMessage(); execMsg != nil {
 			chainID := types.ChainIDFromUInt64(uint64(execMsg.Chain))
 
+			// TODO: go over L1 views, transitive dependencies are a problem
+
 			// Check that the initiating message, which was pulled in by the executing message,
 			// does indeed exist. And in which L2 block it is included in (if any).
 			includedIn, err := s.deps.Check(chainID, execMsg.BlockNum, execMsg.LogIdx, execMsg.Hash)
