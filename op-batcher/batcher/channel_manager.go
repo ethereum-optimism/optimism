@@ -473,7 +473,14 @@ func (s *channelManager) pruneSafeBlocks(newSafeHead eth.L2BlockRef) {
 	}
 
 	if s.blocks[numBlocksToDequeue-1].Hash() != newSafeHead.Hash {
-		panic("safe chain reorg")
+		ref, _ := derive.L2BlockToBlockRef(s.rollupCfg, s.blocks[numBlocksToDequeue-1])
+		s.log.Error("safe chain reorg",
+			"existingBlock", ref,
+			"newSafeBlock", newSafeHead)
+		// We should restart work from the new safe head,
+		// and therefore prune all the blocks.
+		s.Clear(eth.BlockID{})
+		return
 	}
 
 	// This shouldn't return an error because
