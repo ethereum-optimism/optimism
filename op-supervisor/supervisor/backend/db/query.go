@@ -84,20 +84,22 @@ func (db *ChainsDB) DerivedFrom(chainID types.ChainID, derived eth.BlockID) (der
 	localDB.DerivedFrom()
 }
 
-// Check calls the underlying logDB to determine if the given log entry is safe with respect to the checker's criteria.
-func (db *ChainsDB) Check(chain types.ChainID, blockNum uint64, logIdx uint32, logHash common.Hash) error {
+// Check calls the underlying logDB to determine if the given log entry exists at the given location.
+// If the block-seal of the block that includes the log is known, it is returned. It is fully zeroed otherwise, if the block is in-progress.
+func (db *ChainsDB) Check(chain types.ChainID, blockNum uint64, logIdx uint32, logHash common.Hash) (includedIn eth.BlockID, err error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
 	logDB, ok := db.logDBs[chain]
 	if !ok {
-		return fmt.Errorf("%w: %v", ErrUnknownChain, chain)
+		return eth.BlockID{}, fmt.Errorf("%w: %v", ErrUnknownChain, chain)
 	}
 	_, err := logDB.Contains(blockNum, logIdx, logHash)
 	if err != nil {
-		return err
+		return eth.BlockID{}, err
 	}
-	return nil
+	// TODO fix this for cross-safe to work
+	return eth.BlockID{}, nil
 }
 
 // Safest returns the strongest safety level that can be guaranteed for the given log entry.

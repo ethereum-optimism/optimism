@@ -2,9 +2,11 @@ package db
 
 import (
 	"fmt"
+
+	"github.com/ethereum/go-ethereum/common"
+
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
-	"github.com/ethereum/go-ethereum/common"
 )
 
 func (db *ChainsDB) AddLog(
@@ -29,17 +31,13 @@ func (db *ChainsDB) SealBlock(chain types.ChainID, block eth.BlockRef) error {
 	if err != nil {
 		return fmt.Errorf("failed to seal block %v: %w", block, err)
 	}
-	err = db.safetyIndex.UpdateLocalUnsafe(chain, block)
-	if err != nil {
-		return fmt.Errorf("failed to update local-unsafe: %w", err)
-	}
 	return nil
 }
 
 func (db *ChainsDB) Rewind(chain types.ChainID, headBlockNum uint64) error {
 	logDB, ok := db.logDBs[chain]
 	if !ok {
-		return fmt.Errorf("%w: %v", ErrUnknownChain, chain)
+		return fmt.Errorf("%w: %s", ErrUnknownChain, chain)
 	}
 	return logDB.Rewind(headBlockNum)
 }
@@ -47,7 +45,7 @@ func (db *ChainsDB) Rewind(chain types.ChainID, headBlockNum uint64) error {
 func (db *ChainsDB) UpdateLocalSafe(chain types.ChainID, derivedFrom eth.BlockRef, lastDerived eth.BlockRef) error {
 	localDB, ok := db.localDBs[chain]
 	if !ok {
-		return ErrUnknownChain
+		return fmt.Errorf("%w: %v", ErrUnknownChain, chain)
 	}
 	//TODO feed derived-from link into localDB.
 	return nil
@@ -55,9 +53,18 @@ func (db *ChainsDB) UpdateLocalSafe(chain types.ChainID, derivedFrom eth.BlockRe
 
 func (db *ChainsDB) UpdateCrossUnsafe(chain types.ChainID, crossUnsafe types.HeadPointer) error {
 	if _, ok := db.crossUnsafe[chain]; !ok {
-		return fmt.Errorf("%w: %v", ErrUnknownChain, chain)
+		return fmt.Errorf("%w: %s", ErrUnknownChain, chain)
 	}
 	db.crossUnsafe[chain] = crossUnsafe
+	return nil
+}
+
+func (db *ChainsDB) UpdateCrossSafe(chain types.ChainID, l1View eth.BlockID, crossUnsafe types.HeadPointer) error {
+	crossDB, ok := db.crossDBs[chain]
+	if !ok {
+		return fmt.Errorf("%w: %s", ErrUnknownChain, chain)
+	}
+	// TODO feed derived-from link into DB
 	return nil
 }
 

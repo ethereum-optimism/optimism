@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -43,11 +42,8 @@ type CrossUnsafeVerifier struct {
 	// current cross-unsafe logs-DB iterator
 	iter logs.Iterator
 
-	// the last known local-safe head. May be 0 if not known.
-	lastHead atomic.Uint64
-
 	// channel with capacity of 1, full if there is work to do
-	newHead chan struct{}
+	poke chan struct{}
 
 	// channel with capacity of 1, to signal work complete if running in synchroneous mode
 	out chan struct{}
@@ -61,13 +57,13 @@ type CrossUnsafeVerifier struct {
 func NewCrossUnsafeVerifier(log log.Logger, chain types.ChainID, deps CrossUnsafeDBDeps) *CrossUnsafeVerifier {
 	ctx, cancel := context.WithCancel(context.Background())
 	out := &CrossUnsafeVerifier{
-		log:     log,
-		chain:   chain,
-		deps:    deps,
-		newHead: make(chan struct{}, 1),
-		out:     make(chan struct{}, 1),
-		ctx:     ctx,
-		cancel:  cancel,
+		log:    log,
+		chain:  chain,
+		deps:   deps,
+		poke:   make(chan struct{}, 1),
+		out:    make(chan struct{}, 1),
+		ctx:    ctx,
+		cancel: cancel,
 	}
 	out.wg.Add(1)
 	go out.worker()
@@ -96,11 +92,11 @@ func (s *CrossUnsafeVerifier) worker() {
 		case <-s.ctx.Done():
 			delay.Stop()
 			return
-		case <-s.newHead:
-			s.log.Debug("Responding to new head signal")
+		case <-s.poke:
+			s.log.Debug("Continuing cross-unsafe verification after hint of new data")
 			continue
 		case <-delay.C:
-			s.log.Debug("Checking for updates")
+			s.log.Debug("Checking for cross-unsafe updates")
 			continue
 		}
 	}
