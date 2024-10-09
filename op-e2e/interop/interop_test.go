@@ -92,6 +92,8 @@ func TestInteropTrivial(t *testing.T) {
 	rec := s2.EmitData(chainA, "Alice", "emit this!")
 
 	client := s2.L2GethClient(chainA)
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
 	block, err := client.BlockByHash(ctx, rec.BlockHash)
 	require.NoError(t, err)
 
