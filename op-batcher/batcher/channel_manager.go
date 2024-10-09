@@ -51,9 +51,6 @@ type channelManager struct {
 	channelQueue []*channel
 	// used to lookup channels by tx ID upon tx success / failure
 	txChannels map[string]*channel
-
-	// if set to true, prevents production of any new channel frames
-	closed bool
 }
 
 func NewChannelManager(log log.Logger, metr metrics.Metricer, cfgProvider ChannelConfigProvider, rollupCfg *rollup.Config) *channelManager {
@@ -77,7 +74,6 @@ func (s *channelManager) Clear(l1OriginLastClosedChannel eth.BlockID) {
 	s.blockCursor = 0
 	s.l1OriginLastClosedChannel = l1OriginLastClosedChannel
 	s.tip = common.Hash{}
-	s.closed = false
 	s.currentChannel = nil
 	s.channelQueue = nil
 	s.txChannels = make(map[string]*channel)
@@ -135,28 +131,6 @@ func (s *channelManager) handleChannelTimeout(c *channel) {
 	s.rewindToBlockWithHash(blockHash)
 	s.channelQueue = s.channelQueue[:0]
 	s.currentChannel = nil
-}
-
-// removePendingChannel removes the given completed channel from the manager's state.
-// We only do this on Close or when the blocks in the channel became safe
-// (being confirmed on L1 is insufficient, we may need to resubmit the channel to
-// meet strict ordering rules).
-func (s *channelManager) removePendingChannel(channel *channel) {
-	if s.currentChannel == channel {
-		s.currentChannel = nil
-	}
-	index := -1
-	for i, c := range s.channelQueue {
-		if c == channel {
-			index = i
-			break
-		}
-	}
-	if index < 0 {
-		s.log.Warn("channel not found in channel queue", "id", channel.ID())
-		return
-	}
-	s.channelQueue = append(s.channelQueue[:index], s.channelQueue[index+1:]...)
 }
 
 // nextTxData dequeues frames from the channel and returns them encoded in a transaction.
@@ -238,12 +212,7 @@ func (s *channelManager) getReadyChannel(l1Head eth.BlockID) (*channel, error) {
 		return firstWithTxData, nil
 	}
 
-	if s.closed {
-		return nil, io.EOF
-	}
-
 	// No pending tx data, so we have to add new blocks to the channel
-
 	// If we have no saved blocks, we will not be able to create valid frames
 	if s.pendingBlocks() == 0 {
 		return nil, io.EOF
@@ -445,58 +414,6 @@ func l2BlockRefFromBlockAndL1Info(block *types.Block, l1info *derive.L1BlockInfo
 }
 
 var ErrPendingAfterClose = errors.New("pending channels remain after closing channel-manager")
-
-// Close clears any pending channels that are not in-flight already, to leave a clean derivation state.
-// Close then marks the remaining current open channel, if any, as "full" so it can be submitted as well.
-// Close does NOT immediately output frames for the current remaining channel:
-// as this might error, due to limitations on a single channel.
-// Instead, this is part of the pending-channel submission work: after closing,
-// the caller SHOULD drain pending channels by generating TxData repeatedly until there is none left (io.EOF).
-// A ErrPendingAfterClose error will be returned if there are any remaining pending channels to submit.
-func (s *channelManager) Close() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.closed {
-		return nil
-	}
-
-	s.closed = true
-	s.log.Info("Channel manager is closing")
-
-	// Any pending state can be proactively cleared if there are no submitted transactions
-	for _, ch := range s.channelQueue {
-		if ch.NoneSubmitted() {
-			s.log.Info("Channel has no past or pending submission - dropping", "id", ch.ID())
-			s.removePendingChannel(ch)
-		} else {
-			s.log.Info("Channel is in-flight and will need to be submitted after close", "id", ch.ID(), "confirmed", len(ch.confirmedTransactions), "pending", len(ch.pendingTransactions))
-		}
-	}
-	s.log.Info("Reviewed all pending channels on close", "remaining", len(s.channelQueue))
-
-	if s.currentChannel == nil {
-		return nil
-	}
-
-	// If the channel is already full, we don't need to close it or output frames.
-	// This would already have happened in TxData.
-	if !s.currentChannel.IsFull() {
-		// Force-close the remaining open channel early (if not already closed):
-		// it will be marked as "full" due to service termination.
-		s.currentChannel.Close()
-
-		// Final outputFrames call in case there was unflushed data in the compressor.
-		if err := s.outputFrames(); err != nil {
-			return fmt.Errorf("outputting frames during close: %w", err)
-		}
-	}
-
-	if s.currentChannel.HasTxData() {
-		// Make it clear to the caller that there is remaining pending work.
-		return ErrPendingAfterClose
-	}
-	return nil
-}
 
 // Requeue rewinds blocks back from the current channel
 // and sets the defaultCfg.
