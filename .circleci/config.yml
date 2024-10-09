@@ -266,6 +266,12 @@ jobs:
           name: Pull artifacts
           command: bash scripts/ops/pull-artifacts.sh
           working_directory: packages/contracts-bedrock
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - run:
+          name: Build kontrol-summary-full
+          command: just kontrol-summary-full
+          working_directory: packages/contracts-bedrock
       - run:
           name: Build contracts
           command: forge build --deny-warnings --skip <<parameters.skip_pattern>>
@@ -574,6 +580,12 @@ jobs:
           name: print forge version
           command: forge --version
           working_directory: packages/contracts-bedrock
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - run:
+          name: Run Kontrol build
+          command: just kontrol-summary-full
+          working_directory: packages/contracts-bedrock
       # We do not use the pre-built contracts becuase forge coverage uses different optimizer settings
       - run:
           name: test and generate coverage
@@ -660,9 +672,12 @@ jobs:
           name: Build go-ffi
           command: just build-go-ffi
           working_directory: packages/contracts-bedrock
+      - setup_remote_docker:
+          docker_layer_caching: true
       - run:
-          name: Build kontrol-summary-full
+          name: Run Kontrol build
           command: just kontrol-summary-full
+          working_directory: packages/contracts-bedrock
       - run:
           name: Run tests
           command: |
@@ -704,6 +719,12 @@ jobs:
       - run:
           name: print forge version
           command: forge --version
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - run:
+          name: Run Kontrol build
+          command: just kontrol-summary-full
+          working_directory: packages/contracts-bedrock
       - run-contracts-check:
           command: semver-lock
       - run-contracts-check:
