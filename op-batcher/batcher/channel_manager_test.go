@@ -542,17 +542,19 @@ func TestChannelManager_TxData(t *testing.T) {
 
 		// * One when the channelManager was created
 		// * One when the channel is about to be submitted
-		// * Potentially one more if the replacement channel is about to be submitted,
-		//   this only happens when going from calldata->blobs because
-		//   the channel is no longer ready to send until more data
-		//   is added.
+		// * Potentially one more when the replacement channel
+		//   is not immediately ready to be submitted, but later
+		//   becomes ready after more data is added.
+		//   This only happens when going from calldata->blobs because
+		//   the channel is not immediately ready to send until more data
+		//   is added due to blob channels having greater capacity.
 		numExpectedAssessments int
 	}
 
 	tt := []TestCase{
 		{"blobs->blobs", true, true, 2},
 		{"calldata->calldata", false, false, 2},
-		{"blobs->calldata", true, false, 3},
+		{"blobs->calldata", true, false, 2},
 		{"calldata->blobs", false, true, 3},
 	}
 
