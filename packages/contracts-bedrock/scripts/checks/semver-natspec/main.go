@@ -130,13 +130,13 @@ func run() error {
 			}
 
 			// Skip mock contracts
-			if strings.Contains(contractName, "_mock") {
+			if strings.HasPrefix(contractName, "Mock") {
 				return
 			}
 
 			contractPath := contractFiles[contractName]
 			if contractPath == "" {
-				fail("%s: Source file not found (For test mock contracts, suffix the name with '_mock' to ignore this warning)", contractName)
+				fail("%s: Source file not found (For test mock contracts, prefix the name with 'Mock' to ignore this warning)", contractName)
 				return
 			}
 

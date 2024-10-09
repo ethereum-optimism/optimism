@@ -6,6 +6,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { ERC165 } from "@openzeppelin/contracts-v5/utils/introspection/ERC165.sol";
 import { SuperchainERC20 } from "src/L2/SuperchainERC20.sol";
 import { Initializable } from "@openzeppelin/contracts-v5/proxy/utils/Initializable.sol";
+import { ZeroAddress } from "src/libraries/errors/CommonErrors.sol";
 
 /// @custom:proxied true
 /// @title OptimismSuperchainERC20
@@ -16,9 +17,6 @@ import { Initializable } from "@openzeppelin/contracts-v5/proxy/utils/Initializa
 ///         also enables the inverse conversion path.
 ///         Moreover, it builds on top of the L2ToL2CrossDomainMessenger for both replay protection and domain binding.
 contract OptimismSuperchainERC20 is SuperchainERC20, Initializable, ERC165 {
-    /// @notice Thrown when attempting to perform an operation and the account is the zero address.
-    error ZeroAddress();
-
     /// @notice Thrown when attempting to mint or burn tokens and the function caller is not the L2StandardBridge
     error OnlyL2StandardBridge();
 

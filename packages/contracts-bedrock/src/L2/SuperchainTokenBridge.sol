@@ -3,6 +3,7 @@ pragma solidity 0.8.25;
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { ZeroAddress } from "src/libraries/errors/CommonErrors.sol";
 
 // Interfaces
 import { ISuperchainERC20 } from "src/L2/interfaces/ISuperchainERC20.sol";
@@ -15,9 +16,6 @@ import { IL2ToL2CrossDomainMessenger } from "src/L2/interfaces/IL2ToL2CrossDomai
 ///         Superchain. It builds on top of the L2ToL2CrossDomainMessenger for both replay protection and domain
 ///         binding.
 contract SuperchainTokenBridge {
-    /// @notice Thrown when attempting to perform an operation and the account is the zero address.
-    error ZeroAddress();
-
     /// @notice Thrown when attempting to relay a message and the function caller (msg.sender) is not
     /// L2ToL2CrossDomainMessenger.
     error CallerNotL2ToL2CrossDomainMessenger();

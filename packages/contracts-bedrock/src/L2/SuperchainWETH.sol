@@ -22,8 +22,8 @@ import { ISuperchainWETH } from "src/L2/interfaces/ISuperchainWETH.sol";
 ///         do not use a custom gas token.
 contract SuperchainWETH is WETH98, ISuperchainWETH, ISemver {
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.7
-    string public constant version = "1.0.0-beta.7";
+    /// @custom:semver 1.0.0-beta.6
+    string public constant version = "1.0.0-beta.6";
 
     /// @inheritdoc WETH98
     function deposit() public payable override {
