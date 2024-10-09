@@ -64,8 +64,8 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
     uint16 public constant messageVersion = uint16(0);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.7
-    string public constant version = "1.0.0-beta.7";
+    /// @custom:semver 1.0.0-beta.8
+    string public constant version = "1.0.0-beta.8";
 
     /// @notice Mapping of message hashes to boolean receipt values. Note that a message will only be present in this
     ///         mapping if it has successfully been relayed on this chain, and can therefore not be relayed again.
@@ -110,6 +110,16 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
     /// @return source_ Chain ID of the source of the current cross domain message.
     function crossDomainMessageSource() external view onlyEntered returns (uint256 source_) {
         assembly {
+            source_ := tload(CROSS_DOMAIN_MESSAGE_SOURCE_SLOT)
+        }
+    }
+
+    /// @notice Retrieves the context of the current cross domain message. If not entered, reverts.
+    /// @return sender_ Address of the sender of the current cross domain message.
+    /// @return source_ Chain ID of the source of the current cross domain message.
+    function crossDomainMessageContext() external view onlyEntered returns (address sender_, uint256 source_) {
+        assembly {
+            sender_ := tload(CROSS_DOMAIN_MESSAGE_SENDER_SLOT)
             source_ := tload(CROSS_DOMAIN_MESSAGE_SOURCE_SLOT)
         }
     }
