@@ -309,6 +309,6 @@ contract DeployConfig is Script {
         view
         returns (string memory)
     {
-        return vm.keyExists(_jsonInp, _key) ? _jsonInp.readString(_key) : _defaultValue;
+        return vm.keyExistsJson(_jsonInp, _key) ? _jsonInp.readString(_key) : _defaultValue;
     }
 }
