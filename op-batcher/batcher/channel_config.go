@@ -46,12 +46,12 @@ type ChannelConfig struct {
 	// BatchType indicates whether the channel uses SingularBatch or SpanBatch.
 	BatchType uint
 
-	// UseBlobs indicates that this channel should be sent as a multi-blob
-	// transaction with one blob per frame.
-	UseBlobs bool
+	// DaType indicates how the frames in this channel should be sent to the L1.
+	DaType DaType
+}
 
-	// TODO(samlaf): temporary thing... just testing this out. Not sure if this is the right approach
-	UseAltDA bool
+func (cc ChannelConfig) UseBlobs() bool {
+	return cc.DaType == DaTypeBlob
 }
 
 // ChannelConfig returns a copy of the receiver.
@@ -96,7 +96,7 @@ func (cc *ChannelConfig) ReinitCompressorConfig() {
 }
 
 func (cc *ChannelConfig) MaxFramesPerTx() int {
-	if !cc.UseBlobs && !cc.UseAltDA {
+	if cc.DaType == DaTypeCalldata {
 		return 1
 	}
 	return cc.TargetNumFrames

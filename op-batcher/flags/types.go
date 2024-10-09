@@ -11,7 +11,6 @@ const (
 	AutoType     DataAvailabilityType = "auto"
 )
 
-// TODO: add altda as a type here?
 var DataAvailabilityTypes = []DataAvailabilityType{
 	CalldataType,
 	BlobsType,
