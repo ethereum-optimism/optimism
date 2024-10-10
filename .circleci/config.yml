@@ -665,8 +665,9 @@ jobs:
           command: just build-go-ffi
           working_directory: packages/contracts-bedrock
       - run:
-          name: Build kontrol-summary-full
-          command: just kontrol-summary-full
+          name: Build Kontrol dummy deploy
+          command: just kontrol-dummy-summary
+          working_directory: packages/contracts-bedrock
       - run:
           name: Run tests
           command: |
