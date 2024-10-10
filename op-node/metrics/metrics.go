@@ -35,6 +35,7 @@ type Metricer interface {
 	RecordRPCClientRequest(method string) func(err error)
 	RecordRPCClientResponse(method string, err error)
 	SetDerivationIdle(status bool)
+	SetSequencerState(active bool)
 	RecordPipelineReset()
 	RecordSequencingError()
 	RecordPublishingError()
@@ -94,6 +95,7 @@ type Metrics struct {
 	DerivationErrors *metrics.Event
 	SequencingErrors *metrics.Event
 	PublishingErrors *metrics.Event
+	SequencerActive  prometheus.Gauge
 
 	EmittedEvents   *prometheus.CounterVec
 	ProcessedEvents *prometheus.CounterVec
@@ -209,6 +211,11 @@ func NewMetrics(procName string) *Metrics {
 		DerivationErrors: metrics.NewEvent(factory, ns, "", "derivation_errors", "derivation errors"),
 		SequencingErrors: metrics.NewEvent(factory, ns, "", "sequencing_errors", "sequencing errors"),
 		PublishingErrors: metrics.NewEvent(factory, ns, "", "publishing_errors", "p2p publishing errors"),
+		SequencerActive: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "sequencer_active",
+			Help:      "1 if sequencer active, 0 otherwise",
+		}),
 
 		EmittedEvents: factory.NewCounterVec(
 			prometheus.CounterOpts{
@@ -470,6 +477,14 @@ func (m *Metrics) SetDerivationIdle(status bool) {
 	m.DerivationIdle.Set(val)
 }
 
+func (m *Metrics) SetSequencerState(active bool) {
+	var val float64
+	if active {
+		val = 1
+	}
+	m.SequencerActive.Set(val)
+}
+
 func (m *Metrics) RecordPipelineReset() {
 	m.PipelineResets.Record()
 }
@@ -684,6 +699,9 @@ func (n *noopMetricer) RecordUp() {
 }
 
 func (n *noopMetricer) SetDerivationIdle(status bool) {
+}
+
+func (m *noopMetricer) SetSequencerState(active bool) {
 }
 
 func (n *noopMetricer) RecordPipelineReset() {
