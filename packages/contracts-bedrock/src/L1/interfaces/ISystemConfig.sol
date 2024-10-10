@@ -7,7 +7,7 @@ import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
 interface ISystemConfig {
     enum UpdateType {
         BATCHER,
-        GAS_CONFIG,
+        FEE_SCALARS,
         GAS_LIMIT,
         UNSAFE_BLOCK_SIGNER
     }

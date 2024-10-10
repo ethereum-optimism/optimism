@@ -443,6 +443,7 @@ contract Deploy is Deployer {
     /// @notice Deploy all of the OP Chain specific contracts
     function deployOpChain() public {
         console.log("Deploying OP Chain");
+
         // Ensure that the requisite contracts are deployed
         address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
         OPContractsManager opcm = OPContractsManager(mustGetAddress("OPContractsManagerProxy"));
