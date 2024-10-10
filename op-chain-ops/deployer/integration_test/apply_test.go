@@ -9,11 +9,9 @@ import (
 	"os"
 	"path"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
-
-	"github.com/ethereum-optimism/optimism/op-service/testutils/anvil"
-	crypto "github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 	"github.com/holiman/uint256"
@@ -23,8 +21,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/testutils/anvil"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/kurtosisutil"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
 )
@@ -222,6 +223,8 @@ func makeIntent(
 		BaseFeeVaultRecipient:      addrFor(devkeys.BaseFeeVaultRecipientRole.Key(l1ChainID)),
 		L1FeeVaultRecipient:        addrFor(devkeys.L1FeeVaultRecipientRole.Key(l1ChainID)),
 		SequencerFeeVaultRecipient: addrFor(devkeys.SequencerFeeVaultRecipientRole.Key(l1ChainID)),
+		Eip1559Denominator:         50,
+		Eip1559Elasticity:          6,
 	}
 	st := &state.State{
 		Version: 1,
@@ -264,8 +267,29 @@ func validateOPChainDeployment(t *testing.T, ctx context.Context, l1Client *ethc
 
 		t.Run("l2 genesis", func(t *testing.T) {
 			require.Greater(t, len(chainState.Allocs), 0)
+			l2Allocs, _ := chainState.UnmarshalAllocs()
+			alloc := l2Allocs.Copy().Accounts
+
+			checkImmutable(t, alloc, "BaseFeeVault", "0xC0d3c0D3c0d3C0D3C0D3C0d3c0D3C0D3c0d30019", st.AppliedIntent.BaseFeeVaultRecipient.Hex())
+			checkImmutable(t, alloc, "L1FeeVault", "0xc0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3001a", st.AppliedIntent.L1FeeVaultRecipient.Hex())
+			checkImmutable(t, alloc, "SequencerFeeVault", "0xC0D3C0d3c0d3c0d3C0D3c0d3C0D3c0d3c0D30011", st.AppliedIntent.SequencerFeeVaultRecipient.Hex())
+
+			require.Equal(t, int(st.AppliedIntent.Eip1559Denominator), 50, "EIP1559Denominator should be set")
+			require.Equal(t, int(st.AppliedIntent.Eip1559Elasticity), 6, "EIP1559Elasticity should be set")
 		})
 	}
+}
+
+func checkImmutable(t *testing.T, accounts types.GenesisAlloc, vaultName, vaultAddress, recipientHex string) {
+	account, ok := accounts[common.HexToAddress(vaultAddress)]
+	require.True(t, ok, "%s at %s not found in allocations", vaultName, vaultAddress)
+	require.NotEmpty(t, account.Code, "%s Impl should have code", vaultName)
+	require.Contains(
+		t,
+		strings.ToLower(common.Bytes2Hex(account.Code)),
+		strings.ToLower(strings.TrimPrefix(recipientHex, "0x")),
+		"%s Impl should contain %s immutable", vaultName, vaultName+"Recipient",
+	)
 }
 
 func TestApplyExistingOPCM(t *testing.T) {

@@ -32,6 +32,10 @@ type Intent struct {
 	L1FeeVaultRecipient common.Address `json:"l1FeeVaultRecipient" toml:"l1FeeVaultRecipient"`
 
 	SequencerFeeVaultRecipient common.Address `json:"sequencerFeeVaultRecipient" toml:"sequencerFeeVaultRecipient"`
+
+	Eip1559Denominator uint64 `json:"eip1559Denominator" toml:"eip1559Denominator"`
+
+	Eip1559Elasticity uint64 `json:"eip1559Elasticity" toml:"eip1559Elasticity"`
 }
 
 func (c *Intent) L1ChainIDBig() *big.Int {
