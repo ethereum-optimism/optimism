@@ -16,7 +16,6 @@ import { Hashing } from "src/libraries/Hashing.sol";
 import { SecureMerkleTrie } from "src/libraries/trie/SecureMerkleTrie.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
-import { ConfigType } from "src/libraries/StaticConfig.sol";
 import "src/libraries/PortalErrors.sol";
 import "src/dispute/lib/Types.sol";
 
@@ -592,7 +591,7 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
     /// @notice Sets static configuration options for the L2 system.
     /// @param _type  Type of configuration to set.
     /// @param _value Encoded value of the configuration.
-    function setConfig(ConfigType _type, bytes memory _value) external {
+    function setConfig(Types.ConfigType _type, bytes memory _value) external {
         if (msg.sender != address(systemConfig)) revert Unauthorized();
 
         // Set L2 deposit gas as used without paying burning gas. Ensures that deposits cannot use too much L2 gas.

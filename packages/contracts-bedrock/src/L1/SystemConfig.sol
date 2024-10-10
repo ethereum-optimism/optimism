@@ -5,7 +5,7 @@ pragma solidity 0.8.15;
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { IFeeVault } from "src/L2/interfaces/IFeeVault.sol";
-import { StaticConfig, ConfigType } from "src/libraries/StaticConfig.sol";
+import { StaticConfig } from "src/libraries/StaticConfig.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 
 // Libraries
@@ -202,10 +202,12 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         _setAddress(
             L1_CROSS_DOMAIN_MESSENGER_SLOT,
             _addresses.l1CrossDomainMessenger,
-            ConfigType.SET_L1_CROSS_DOMAIN_MESSENGER_ADDRESS
+            Types.ConfigType.SET_L1_CROSS_DOMAIN_MESSENGER_ADDRESS
         );
-        _setAddress(L1_ERC_721_BRIDGE_SLOT, _addresses.l1ERC721Bridge, ConfigType.SET_L1_ERC_721_BRIDGE_ADDRESS);
-        _setAddress(L1_STANDARD_BRIDGE_SLOT, _addresses.l1StandardBridge, ConfigType.SET_L1_STANDARD_BRIDGE_ADDRESS);
+        _setAddress(L1_ERC_721_BRIDGE_SLOT, _addresses.l1ERC721Bridge, Types.ConfigType.SET_L1_ERC_721_BRIDGE_ADDRESS);
+        _setAddress(
+            L1_STANDARD_BRIDGE_SLOT, _addresses.l1StandardBridge, Types.ConfigType.SET_L1_STANDARD_BRIDGE_ADDRESS
+        );
 
         _setRemoteChainID();
         _setStartBlock();
@@ -216,7 +218,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     }
 
     /// @notice
-    function _setAddress(bytes32 _slot, address _addr, ConfigType _type) internal {
+    function _setAddress(bytes32 _slot, address _addr, Types.ConfigType _type) internal {
         Storage.setAddress(_slot, _addr);
         IOptimismPortal(payable(optimismPortal())).setConfig({
             _type: _type,
@@ -228,7 +230,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     /// TODO: probably don't need encode/decode for simple abi encode of a single value
     function _setRemoteChainID() internal {
         IOptimismPortal(payable(optimismPortal())).setConfig({
-            _type: ConfigType.SET_REMOTE_CHAIN_ID,
+            _type: Types.ConfigType.SET_REMOTE_CHAIN_ID,
             _value: StaticConfig.encodeSetRemoteChainId(block.chainid)
         });
     }
@@ -350,7 +352,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
             // Set the gas paying token in storage and call the OptimismPortal.
             GasPayingToken.set({ _token: _token, _decimals: GAS_PAYING_TOKEN_DECIMALS, _name: name, _symbol: symbol });
             IOptimismPortal(payable(optimismPortal())).setConfig(
-                ConfigType.SET_GAS_PAYING_TOKEN,
+                Types.ConfigType.SET_GAS_PAYING_TOKEN,
                 StaticConfig.encodeSetGasPayingToken({
                     _token: _token,
                     _decimals: GAS_PAYING_TOKEN_DECIMALS,
@@ -447,7 +449,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         external
         onlyOwner
     {
-        _setFeeVaultConfig(ConfigType.SET_BASE_FEE_VAULT_CONFIG, _recipient, _min, _network);
+        _setFeeVaultConfig(Types.ConfigType.SET_BASE_FEE_VAULT_CONFIG, _recipient, _min, _network);
     }
 
     /// @notice
@@ -459,7 +461,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         external
         onlyOwner
     {
-        _setFeeVaultConfig(ConfigType.SET_L1_FEE_VAULT_CONFIG, _recipient, _min, _network);
+        _setFeeVaultConfig(Types.ConfigType.SET_L1_FEE_VAULT_CONFIG, _recipient, _min, _network);
     }
 
     /// @notice
@@ -471,7 +473,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         external
         onlyOwner
     {
-        _setFeeVaultConfig(ConfigType.SET_SEQUENCER_FEE_VAULT_CONFIG, _recipient, _min, _network);
+        _setFeeVaultConfig(Types.ConfigType.SET_SEQUENCER_FEE_VAULT_CONFIG, _recipient, _min, _network);
     }
 
     /// @notice

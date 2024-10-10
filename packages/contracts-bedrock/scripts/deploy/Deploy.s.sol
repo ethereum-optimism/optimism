@@ -820,13 +820,17 @@ contract Deploy is Deployer {
     function initializeSuperchainConfig() public broadcast {
         address payable superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
         address payable superchainConfig = mustGetAddress("SuperchainConfig");
-        _upgradeAndCallViaSafe({
+        IProxyAdmin proxyAdmin = IProxyAdmin(payable(mustGetAddress("ProxyAdmin")));
+
+        proxyAdmin.upgradeAndCall({
             _proxy: superchainConfigProxy,
             _implementation: superchainConfig,
-            _innerCallData: abi.encodeCall(ISuperchainConfig.initialize, (cfg.superchainConfigGuardian(), cfg.superchainConfigGuardian(), false))
+            _data: abi.encodeCall(
+                ISuperchainConfig.initialize, (cfg.superchainConfigGuardian(), cfg.superchainConfigGuardian(), false)
+            )
         });
 
-        ChainAssertions.checkSuperchainConfig({ _contracts: _proxiesUnstrict(), _cfg: cfg, _isPaused: false });
+        ChainAssertions.checkSuperchainConfig({ _contracts: _proxies(), _cfg: cfg, _isPaused: false, _isProxy: true });
     }
 
     /// @notice Initialize the DisputeGameFactory
@@ -985,8 +989,7 @@ contract Deploy is Deployer {
                         disputeGameFactory: mustGetAddress("DisputeGameFactoryProxy"),
                         optimismPortal: mustGetAddress("OptimismPortalProxy"),
                         optimismMintableERC20Factory: mustGetAddress("OptimismMintableERC20FactoryProxy"),
-                        gasPayingToken: customGasTokenAddress,
-                        superchainConfig: mustGetAddress("SuperchainConfigProxy")
+                        gasPayingToken: customGasTokenAddress
                     })
                 )
             )

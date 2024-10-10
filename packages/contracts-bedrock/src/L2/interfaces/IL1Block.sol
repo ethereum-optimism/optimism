@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { ConfigType } from "src/libraries/StaticConfig.sol";
 import { Types } from "src/libraries/Types.sol";
 
 interface IL1Block {
@@ -24,7 +23,7 @@ interface IL1Block {
     function l1FeeScalar() external view returns (uint256);
     function number() external view returns (uint64);
     function sequenceNumber() external view returns (uint64);
-    function setConfig(ConfigType _type, bytes memory _value) external;
+    function setConfig(Types.ConfigType _type, bytes memory _value) external;
     function setGasPayingToken(address _token, uint8 _decimals, bytes32 _name, bytes32 _symbol) external;
     function setL1BlockValues(
         uint64 _number,

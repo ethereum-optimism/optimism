@@ -110,7 +110,6 @@ contract L1StandardBridge is StandardBridge, ISemver {
         superchainConfig = _superchainConfig;
         systemConfig = _systemConfig;
         crossDomainMessenger = _messenger;
-        __StandardBridge_init();
     }
 
     /// @notice

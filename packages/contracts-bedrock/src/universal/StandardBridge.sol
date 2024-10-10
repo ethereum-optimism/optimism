@@ -109,7 +109,8 @@ abstract contract StandardBridge is Initializable {
     modifier onlyOtherBridge() {
         ICrossDomainMessenger crossDomainMessenger = messenger();
         require(
-            msg.sender == address(crossDomainMessenger) && crossDomainMessenger.xDomainMessageSender() == address(otherBridge()),
+            msg.sender == address(crossDomainMessenger)
+                && crossDomainMessenger.xDomainMessageSender() == address(otherBridge()),
             "StandardBridge: function can only be called from the other bridge"
         );
         _;
@@ -129,7 +130,7 @@ abstract contract StandardBridge is Initializable {
     }
 
     /// @notice
-    function messenger() public virtual view returns (ICrossDomainMessenger);
+    function messenger() public view virtual returns (ICrossDomainMessenger);
 
     /// @notice Getter for messenger contract.
     ///         Public getter is legacy and will be removed in the future. Use `messenger` instead.

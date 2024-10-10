@@ -5,7 +5,7 @@ import { Types } from "src/libraries/Types.sol";
 import { ISystemConfig } from "src/L1/interfaces/ISystemConfig.sol";
 import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
 import { IL2OutputOracle } from "src/L1/interfaces/IL2OutputOracle.sol";
-import { ConfigType } from "src/libraries/StaticConfig.sol";
+import { Types } from "src/libraries/Types.sol";
 
 interface IOptimismPortal {
     error BadTarget();
@@ -81,7 +81,7 @@ interface IOptimismPortal {
         returns (bytes32 outputRoot, uint128 timestamp, uint128 l2OutputIndex); // nosemgrep
     function superchainConfig() external view returns (ISuperchainConfig);
     function systemConfig() external view returns (ISystemConfig);
-    function setConfig(ConfigType _type, bytes memory _value) external;
+    function setConfig(Types.ConfigType _type, bytes memory _value) external;
     function version() external pure returns (string memory);
 
     function __constructor__() external;

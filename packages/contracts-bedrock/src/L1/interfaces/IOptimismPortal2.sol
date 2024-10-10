@@ -7,7 +7,7 @@ import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
 import { IDisputeGameFactory } from "src/dispute/interfaces/IDisputeGameFactory.sol";
 import { ISystemConfig } from "src/L1/interfaces/ISystemConfig.sol";
 import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
-import { ConfigType } from "src/libraries/StaticConfig.sol";
+import { Types } from "src/libraries/Types.sol";
 
 interface IOptimismPortal2 {
     error AlreadyFinalized();
@@ -113,7 +113,7 @@ interface IOptimismPortal2 {
     function superchainConfig() external view returns (ISuperchainConfig);
     function systemConfig() external view returns (ISystemConfig);
     function version() external pure returns (string memory);
-    function setConfig(ConfigType _type, bytes memory _value) external;
+    function setConfig(Types.ConfigType _type, bytes memory _value) external;
     function upgrade(address payable _proxy, address _implementation) external;
 
     function __constructor__(uint256 _proofMaturityDelaySeconds, uint256 _disputeGameFinalityDelaySeconds) external;

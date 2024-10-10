@@ -31,7 +31,7 @@ contract L2ERC721Bridge is ERC721Bridge, ISemver {
     string public constant version = "1.7.1-beta.3";
 
     /// @notice
-    function messenger() public override view returns (ICrossDomainMessenger) {
+    function messenger() public view override returns (ICrossDomainMessenger) {
         return ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
     }
 

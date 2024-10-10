@@ -5,13 +5,13 @@ pragma solidity 0.8.15;
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { IOptimismPortalInterop as IOptimismPortal } from "src/L1/interfaces/IOptimismPortalInterop.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
-import { ConfigType } from "src/L2/L1BlockInterop.sol";
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
 import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
 import { StaticConfig } from "src/libraries/StaticConfig.sol";
 import { Storage } from "src/libraries/Storage.sol";
+import { Types } from "src/libraries/Types.sol";
 
 // Interfaces
 import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
@@ -78,7 +78,7 @@ contract SystemConfigInterop is SystemConfig {
     function addDependency(uint256 _chainId) external {
         require(msg.sender == dependencyManager(), "SystemConfig: caller is not the dependency manager");
         IOptimismPortal(payable(optimismPortal())).setConfig(
-            ConfigType.ADD_DEPENDENCY, StaticConfig.encodeAddDependency(_chainId)
+            Types.ConfigType.ADD_DEPENDENCY, StaticConfig.encodeAddDependency(_chainId)
         );
     }
 
@@ -87,7 +87,7 @@ contract SystemConfigInterop is SystemConfig {
     function removeDependency(uint256 _chainId) external {
         require(msg.sender == dependencyManager(), "SystemConfig: caller is not the dependency manager");
         IOptimismPortal(payable(optimismPortal())).setConfig(
-            ConfigType.REMOVE_DEPENDENCY, StaticConfig.encodeRemoveDependency(_chainId)
+            Types.ConfigType.REMOVE_DEPENDENCY, StaticConfig.encodeRemoveDependency(_chainId)
         );
     }
 

@@ -16,8 +16,8 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Preinstalls } from "src/libraries/Preinstalls.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { Constants } from "src/libraries/Constants.sol";
-import { ConfigType } from "src/libraries/StaticConfig.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
+import { Types } from "src/libraries/Types.sol";
 
 // Interfaces
 import { IOptimismPortal } from "src/L1/interfaces/IOptimismPortal.sol";
@@ -51,7 +51,6 @@ import { IETHLiquidity } from "src/L2/interfaces/IETHLiquidity.sol";
 import { IWETH } from "src/universal/interfaces/IWETH.sol";
 import { IGovernanceToken } from "src/governance/interfaces/IGovernanceToken.sol";
 import { ILegacyMessagePasser } from "src/legacy/interfaces/ILegacyMessagePasser.sol";
-import { IOptimismMintableERC721Factory } from "src/L2/interfaces/IOptimismMintableERC721Factory.sol";
 import { IFeeVault } from "src/L2/interfaces/IFeeVault.sol";
 
 /// @title Setup
@@ -228,17 +227,17 @@ contract Setup {
         // translates TransactionDeposited and ConfigUpdate events into the appropriate calls
         // TODO: sort out using StaticTypes library vs abi.encode
         vm.startPrank(Constants.DEPOSITOR_ACCOUNT);
-        l1Block.setConfig(ConfigType.SET_L1_ERC_721_BRIDGE_ADDRESS, abi.encode(l1ERC721Bridge));
-        l1Block.setConfig(ConfigType.SET_REMOTE_CHAIN_ID, abi.encode(deploy.cfg().l1ChainID()));
-        l1Block.setConfig(ConfigType.SET_L1_CROSS_DOMAIN_MESSENGER_ADDRESS, abi.encode(l1CrossDomainMessenger));
-        l1Block.setConfig(ConfigType.SET_L1_STANDARD_BRIDGE_ADDRESS, abi.encode(l1StandardBridge));
+        l1Block.setConfig(Types.ConfigType.SET_L1_ERC_721_BRIDGE_ADDRESS, abi.encode(l1ERC721Bridge));
+        l1Block.setConfig(Types.ConfigType.SET_REMOTE_CHAIN_ID, abi.encode(deploy.cfg().l1ChainID()));
+        l1Block.setConfig(Types.ConfigType.SET_L1_CROSS_DOMAIN_MESSENGER_ADDRESS, abi.encode(l1CrossDomainMessenger));
+        l1Block.setConfig(Types.ConfigType.SET_L1_STANDARD_BRIDGE_ADDRESS, abi.encode(l1StandardBridge));
 
         bytes32 sequencerFeeVaultConfig = Encoding.encodeFeeVaultConfig({
             _recipient: deploy.cfg().sequencerFeeVaultRecipient(),
             _amount: deploy.cfg().sequencerFeeVaultMinimumWithdrawalAmount(),
-            _network: IFeeVault.WithdrawalNetwork(deploy.cfg().sequencerFeeVaultWithdrawalNetwork())
+            _network: Types.WithdrawalNetwork(deploy.cfg().sequencerFeeVaultWithdrawalNetwork())
         });
-        l1Block.setConfig(ConfigType.SET_SEQUENCER_FEE_VAULT_CONFIG, abi.encode(sequencerFeeVaultConfig));
+        l1Block.setConfig(Types.ConfigType.SET_SEQUENCER_FEE_VAULT_CONFIG, abi.encode(sequencerFeeVaultConfig));
 
         // TODO: set other fee vault configs
 

@@ -7,8 +7,9 @@ import { L1Block } from "src/L2/L1Block.sol";
 // Libraries
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
-import { StaticConfig, ConfigType } from "src/libraries/StaticConfig.sol";
+import { StaticConfig } from "src/libraries/StaticConfig.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Types } from "src/libraries/Types.sol";
 import "src/libraries/L1BlockErrors.sol";
 
 /// @custom:proxied true
@@ -87,12 +88,12 @@ contract L1BlockInterop is L1Block {
     ///         depositor account.
     /// @param _type  The type of configuration to set.
     /// @param _value The encoded value with which to set the configuration.
-    function setConfig(ConfigType _type, bytes calldata _value) public override {
+    function setConfig(Types.ConfigType _type, bytes calldata _value) public override {
         super.setConfig(_type, _value);
 
-        if (_type == ConfigType.ADD_DEPENDENCY) {
+        if (_type == Types.ConfigType.ADD_DEPENDENCY) {
             _addDependency(_value);
-        } else if (_type == ConfigType.REMOVE_DEPENDENCY) {
+        } else if (_type == Types.ConfigType.REMOVE_DEPENDENCY) {
             _removeDependency(_value);
         }
     }

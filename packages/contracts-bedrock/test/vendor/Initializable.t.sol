@@ -198,8 +198,7 @@ contract Initializer_Test is Bridge_Initializer {
                             disputeGameFactory: address(0),
                             optimismPortal: address(0),
                             optimismMintableERC20Factory: address(0),
-                            gasPayingToken: Constants.ETHER,
-                            superchainConfig: address(0)
+                            gasPayingToken: Constants.ETHER
                         })
                     )
                 )
@@ -235,8 +234,7 @@ contract Initializer_Test is Bridge_Initializer {
                             disputeGameFactory: address(0),
                             optimismPortal: address(0),
                             optimismMintableERC20Factory: address(0),
-                            gasPayingToken: Constants.ETHER,
-                            superchainConfig: address(0)
+                            gasPayingToken: Constants.ETHER
                         })
                     )
                 )

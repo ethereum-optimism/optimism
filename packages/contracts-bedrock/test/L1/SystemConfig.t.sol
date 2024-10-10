@@ -11,7 +11,8 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
-import { StaticConfig, ConfigType } from "src/libraries/StaticConfig.sol";
+import { StaticConfig } from "src/libraries/StaticConfig.sol";
+import { Types } from "src/libraries/Types.sol";
 
 // Interfaces
 import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
@@ -144,8 +145,7 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
                 disputeGameFactory: address(0),
                 optimismPortal: address(0),
                 optimismMintableERC20Factory: address(0),
-                gasPayingToken: Constants.ETHER,
-                superchainConfig: address(0)
+                gasPayingToken: Constants.ETHER
             })
         });
     }
@@ -175,8 +175,7 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
                 disputeGameFactory: address(0),
                 optimismPortal: address(0),
                 optimismMintableERC20Factory: address(0),
-                gasPayingToken: Constants.ETHER,
-                superchainConfig: address(0)
+                gasPayingToken: Constants.ETHER
             })
         });
         assertEq(systemConfig.startBlock(), block.number);
@@ -207,8 +206,7 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
                 disputeGameFactory: address(0),
                 optimismPortal: address(0),
                 optimismMintableERC20Factory: address(0),
-                gasPayingToken: Constants.ETHER,
-                superchainConfig: address(0)
+                gasPayingToken: Constants.ETHER
             })
         });
         assertEq(systemConfig.startBlock(), 1);
@@ -303,8 +301,7 @@ contract SystemConfig_Init_ResourceConfig is SystemConfig_Init {
                 disputeGameFactory: address(0),
                 optimismPortal: address(0),
                 optimismMintableERC20Factory: address(0),
-                gasPayingToken: address(0),
-                superchainConfig: address(0)
+                gasPayingToken: address(0)
             })
         });
     }
@@ -343,8 +340,7 @@ contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
                 l1StandardBridge: address(0),
                 optimismPortal: address(optimismPortal),
                 optimismMintableERC20Factory: address(0),
-                gasPayingToken: _gasPayingToken,
-                superchainConfig: address(0)
+                gasPayingToken: _gasPayingToken
             })
         });
 
@@ -352,7 +348,8 @@ contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
         // vm.roll(block.number + 1);
         // Reset the OptimismPortal resource config gas used
         //bytes32 slot = vm.load(address(optimismPortal), bytes32(uint256(1)));
-        //vm.store(address(optimismPortal), bytes32(uint256(1)), bytes32(uint256(slot) & ~(uint256(type(uint64).max) << 64)));
+        //vm.store(address(optimismPortal), bytes32(uint256(1)), bytes32(uint256(slot) & ~(uint256(type(uint64).max) <<
+        // 64)));
     }
 
     /// @dev Tests that initialization sets the correct values and getters work.
@@ -472,7 +469,7 @@ contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
 
         vm.expectCall(
             address(optimismPortal),
-            abi.encodeCall(optimismPortal.setConfig, (ConfigType.SET_GAS_PAYING_TOKEN, data))
+            abi.encodeCall(optimismPortal.setConfig, (Types.ConfigType.SET_GAS_PAYING_TOKEN, data))
         );
 
         vm.expectEmit(address(optimismPortal));
