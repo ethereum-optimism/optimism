@@ -162,8 +162,10 @@ contract MIPS2 is ISemver {
                 return outputState();
             }
 
-            if ((state.leftThreadStack == EMPTY_THREAD_ROOT && !state.traverseRight) ||
-                (state.rightThreadStack == EMPTY_THREAD_ROOT && state.traverseRight)) {
+            if (
+                (state.leftThreadStack == EMPTY_THREAD_ROOT && !state.traverseRight)
+                    || (state.rightThreadStack == EMPTY_THREAD_ROOT && state.traverseRight)
+            ) {
                 revert("MIPS2: active thread stack is empty");
             }
 
