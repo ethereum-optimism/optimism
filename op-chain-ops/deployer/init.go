@@ -75,10 +75,13 @@ func Init(cfg InitConfig) error {
 	}
 
 	intent := &state.Intent{
-		L1ChainID:            cfg.L1ChainID,
-		FundDevAccounts:      true,
-		ContractsRelease:     "op-contracts/v1.6.0",
-		ContractArtifactsURL: V160ArtifactsURL,
+		L1ChainID:                  cfg.L1ChainID,
+		FundDevAccounts:            true,
+		ContractsRelease:           "op-contracts/v1.6.0",
+		ContractArtifactsURL:       V160ArtifactsURL,
+		BaseFeeVaultRecipient:      common.Address{},
+		L1FeeVaultRecipient:        common.Address{},
+		SequencerFeeVaultRecipient: common.Address{},
 	}
 
 	l1ChainIDBig := intent.L1ChainIDBig()

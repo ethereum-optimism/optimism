@@ -26,6 +26,12 @@ type Intent struct {
 	Chains []*ChainIntent `json:"chains" toml:"chains"`
 
 	GlobalDeployOverrides map[string]any `json:"globalDeployOverrides" toml:"globalDeployOverrides"`
+
+	BaseFeeVaultRecipient common.Address `json:"baseFeeVaultRecipient" toml:"baseFeeVaultRecipient"`
+
+	L1FeeVaultRecipient common.Address `json:"l1FeeVaultRecipient" toml:"l1FeeVaultRecipient"`
+
+	SequencerFeeVaultRecipient common.Address `json:"sequencerFeeVaultRecipient" toml:"sequencerFeeVaultRecipient"`
 }
 
 func (c *Intent) L1ChainIDBig() *big.Int {

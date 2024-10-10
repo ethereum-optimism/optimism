@@ -219,6 +219,9 @@ func makeIntent(
 				},
 			},
 		},
+		BaseFeeVaultRecipient:      addrFor(devkeys.BaseFeeVaultRecipientRole.Key(l1ChainID)),
+		L1FeeVaultRecipient:        addrFor(devkeys.L1FeeVaultRecipientRole.Key(l1ChainID)),
+		SequencerFeeVaultRecipient: addrFor(devkeys.SequencerFeeVaultRecipientRole.Key(l1ChainID)),
 	}
 	st := &state.State{
 		Version: 1,
