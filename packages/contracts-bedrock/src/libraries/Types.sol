@@ -75,4 +75,23 @@ library Types {
         L1,
         L2
     }
+
+    /// @notice Enum representing different types of configurations that can be set on L1BlockIsthmus.
+    /// @custom:value SET_GAS_PAYING_TOKEN  Represents the config type for setting the gas paying token.
+    /// @custom:value
+    /// @custom:value ADD_DEPENDENCY        Represents the config type for adding a chain to the interop dependency set.
+    /// @custom:value REMOVE_DEPENDENCY     Represents the config type for removing a chain from the interop dependency
+    /// set.
+    enum ConfigType {
+        SET_GAS_PAYING_TOKEN,
+        SET_BASE_FEE_VAULT_CONFIG,
+        SET_L1_FEE_VAULT_CONFIG,
+        SET_SEQUENCER_FEE_VAULT_CONFIG,
+        SET_L1_CROSS_DOMAIN_MESSENGER_ADDRESS,
+        SET_L1_ERC_721_BRIDGE_ADDRESS,
+        SET_L1_STANDARD_BRIDGE_ADDRESS,
+        SET_REMOTE_CHAIN_ID,
+        ADD_DEPENDENCY,
+        REMOVE_DEPENDENCY
+    }
 }

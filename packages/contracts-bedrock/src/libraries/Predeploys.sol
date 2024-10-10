@@ -122,7 +122,7 @@ library Predeploys {
         if (_addr == L1_BLOCK_ATTRIBUTES) return "L1Block";
         if (_addr == L2_TO_L1_MESSAGE_PASSER) return "L2ToL1MessagePasser";
         if (_addr == OPTIMISM_MINTABLE_ERC721_FACTORY) return "OptimismMintableERC721Factory";
-        if (_addr == PROXY_ADMIN) return "ProxyAdmin";
+        if (_addr == PROXY_ADMIN) return "L2ProxyAdmin";
         if (_addr == BASE_FEE_VAULT) return "BaseFeeVault";
         if (_addr == L1_FEE_VAULT) return "L1FeeVault";
         if (_addr == SCHEMA_REGISTRY) return "SchemaRegistry";

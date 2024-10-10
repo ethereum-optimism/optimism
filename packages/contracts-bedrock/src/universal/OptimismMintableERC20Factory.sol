@@ -6,6 +6,11 @@ import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { IOptimismERC20Factory } from "src/L2/interfaces/IOptimismERC20Factory.sol";
 
+// TODO: this needs an update and the specs do not specify it.
+//       figure out solution and update specs
+//       we want to move the state out and into a compile time constant
+//       so no call to initialize is needed for an upgrade
+
 /// @custom:proxied true
 /// @custom:predeployed 0x4200000000000000000000000000000000000012
 /// @title OptimismMintableERC20Factory

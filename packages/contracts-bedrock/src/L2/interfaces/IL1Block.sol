@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+import { Types } from "src/libraries/Types.sol";
+
 interface IL1Block {
     error NotDepositor();
 
@@ -21,6 +23,7 @@ interface IL1Block {
     function l1FeeScalar() external view returns (uint256);
     function number() external view returns (uint64);
     function sequenceNumber() external view returns (uint64);
+    function setConfig(Types.ConfigType _type, bytes memory _value) external;
     function setGasPayingToken(address _token, uint8 _decimals, bytes32 _name, bytes32 _symbol) external;
     function setL1BlockValues(
         uint64 _number,
@@ -36,6 +39,22 @@ interface IL1Block {
     function setL1BlockValuesEcotone() external;
     function timestamp() external view returns (uint64);
     function version() external pure returns (string memory);
+    function baseFeeVaultConfig()
+        external
+        view
+        returns (address recipient, uint256 amount, Types.WithdrawalNetwork network);
+    function l1FeeVaultConfig()
+        external
+        view
+        returns (address recipient, uint256 amount, Types.WithdrawalNetwork network);
+    function sequencerFeeVaultConfig()
+        external
+        view
+        returns (address recipient, uint256 amount, Types.WithdrawalNetwork network);
+    function l1CrossDomainMessenger() external view returns (address);
+    function l1StandardBridge() external view returns (address);
+    function l1ERC721Bridge() external view returns (address);
+    function remoteChainId() external view returns (uint256);
 
     function __constructor__() external;
 }

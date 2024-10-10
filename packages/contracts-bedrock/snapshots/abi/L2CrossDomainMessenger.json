@@ -165,13 +165,7 @@
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "contract CrossDomainMessenger",
-        "name": "_l1CrossDomainMessenger",
-        "type": "address"
-      }
-    ],
+    "inputs": [],
     "name": "initialize",
     "outputs": [],
     "stateMutability": "nonpayable",

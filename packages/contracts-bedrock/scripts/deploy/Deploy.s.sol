@@ -816,6 +816,23 @@ contract Deploy is Deployer {
     //                    Initialize Functions                    //
     ////////////////////////////////////////////////////////////////
 
+    /// @notice Initialize the SuperchainConfig
+    function initializeSuperchainConfig() public broadcast {
+        address payable superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
+        address payable superchainConfig = mustGetAddress("SuperchainConfig");
+        IProxyAdmin proxyAdmin = IProxyAdmin(payable(mustGetAddress("ProxyAdmin")));
+
+        proxyAdmin.upgradeAndCall({
+            _proxy: superchainConfigProxy,
+            _implementation: superchainConfig,
+            _data: abi.encodeCall(
+                ISuperchainConfig.initialize, (cfg.superchainConfigGuardian(), cfg.superchainConfigGuardian(), false)
+            )
+        });
+
+        ChainAssertions.checkSuperchainConfig({ _contracts: _proxies(), _cfg: cfg, _isPaused: false, _isProxy: true });
+    }
+
     /// @notice Initialize the DisputeGameFactory
     function initializeDisputeGameFactory() public broadcast {
         console.log("Upgrading and initializing DisputeGameFactory proxy");

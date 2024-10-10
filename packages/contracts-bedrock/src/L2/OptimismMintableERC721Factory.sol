@@ -3,18 +3,17 @@ pragma solidity 0.8.15;
 
 import { OptimismMintableERC721 } from "src/universal/OptimismMintableERC721.sol";
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
+import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import { IL1Block } from "src/L2/interfaces/IL1Block.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
 
 /// @title OptimismMintableERC721Factory
 /// @notice Factory contract for creating OptimismMintableERC721 contracts.
+///         This contract could in theory live on both L1 and L2 but it is not widely
+///         used and is therefore set up to work on L2. This could be abstracted in the
+///         future to be deployable on L1 as well.
 contract OptimismMintableERC721Factory is ISemver {
-    /// @custom:legacy true
-    /// @notice Address of the ERC721 bridge on this network.
-    address public immutable BRIDGE;
-
-    /// @custom:legacy true
-    /// @notice Chain ID for the remote network.
-    uint256 public immutable REMOTE_CHAIN_ID;
-
+    // TODO: check storage layout
     /// @notice Tracks addresses created by this factory.
     mapping(address => bool) public isOptimismMintableERC721;
 
@@ -26,26 +25,30 @@ contract OptimismMintableERC721Factory is ISemver {
 
     /// @notice Semantic version.
     /// @custom:semver 1.4.1-beta.3
-    string public constant version = "1.4.1-beta.3";
-
-    /// @notice The semver MUST be bumped any time that there is a change in
+    ///         The semver MUST be bumped any time that there is a change in
     ///         the OptimismMintableERC721 token contract since this contract
     ///         is responsible for deploying OptimismMintableERC721 contracts.
-    /// @param _bridge Address of the ERC721 bridge on this network.
-    /// @param _remoteChainId Chain ID for the remote network.
-    constructor(address _bridge, uint256 _remoteChainId) {
-        BRIDGE = _bridge;
-        REMOTE_CHAIN_ID = _remoteChainId;
+    /// @custom:semver 1.4.1-beta.2
+    string public constant version = "1.4.1-beta.3";
+
+    /// @notice TODO: call L1Block
+    function REMOTE_CHAIN_ID() external view returns (uint256) {
+        return remoteChainId();
     }
 
-    /// @notice Address of the ERC721 bridge on this network.
-    function bridge() external view returns (address) {
-        return BRIDGE;
+    /// @notice
+    function remoteChainId() public view returns (uint256) {
+        return IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).remoteChainId();
     }
 
-    /// @notice Chain ID for the remote network.
-    function remoteChainID() external view returns (uint256) {
-        return REMOTE_CHAIN_ID;
+    /// @notice TODO: type should be more strict
+    function BRIDGE() external pure returns (address) {
+        return bridge();
+    }
+
+    /// @notice TODO: stronger type
+    function bridge() public pure returns (address) {
+        return Predeploys.L2_ERC721_BRIDGE;
     }
 
     /// @notice Creates an instance of the standard ERC721.
@@ -64,7 +67,7 @@ contract OptimismMintableERC721Factory is ISemver {
 
         bytes32 salt = keccak256(abi.encode(_remoteToken, _name, _symbol));
         address localToken =
-            address(new OptimismMintableERC721{ salt: salt }(BRIDGE, REMOTE_CHAIN_ID, _remoteToken, _name, _symbol));
+            address(new OptimismMintableERC721{ salt: salt }(bridge(), remoteChainId(), _remoteToken, _name, _symbol));
 
         isOptimismMintableERC721[localToken] = true;
         emit OptimismMintableERC721Created(localToken, _remoteToken, msg.sender);

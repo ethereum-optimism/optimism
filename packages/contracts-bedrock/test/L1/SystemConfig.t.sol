@@ -11,6 +11,8 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
+import { StaticConfig } from "src/libraries/StaticConfig.sol";
+import { Types } from "src/libraries/Types.sol";
 
 // Interfaces
 import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
@@ -341,6 +343,13 @@ contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
                 gasPayingToken: _gasPayingToken
             })
         });
+
+        // TODO
+        // vm.roll(block.number + 1);
+        // Reset the OptimismPortal resource config gas used
+        //bytes32 slot = vm.load(address(optimismPortal), bytes32(uint256(1)));
+        //vm.store(address(optimismPortal), bytes32(uint256(1)), bytes32(uint256(slot) & ~(uint256(type(uint64).max) <<
+        // 64)));
     }
 
     /// @dev Tests that initialization sets the correct values and getters work.
@@ -451,9 +460,16 @@ contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
 
     /// @dev Tests that initialization works with OptimismPortal.
     function test_initialize_customGasTokenCall_succeeds() external {
+        bytes memory data = StaticConfig.encodeSetGasPayingToken({
+            _token: address(token),
+            _decimals: 18,
+            _name: bytes32("Silly"),
+            _symbol: bytes32("SIL")
+        });
+
         vm.expectCall(
             address(optimismPortal),
-            abi.encodeCall(optimismPortal.setGasPayingToken, (address(token), 18, bytes32("Silly"), bytes32("SIL")))
+            abi.encodeCall(optimismPortal.setConfig, (Types.ConfigType.SET_GAS_PAYING_TOKEN, data))
         );
 
         vm.expectEmit(address(optimismPortal));

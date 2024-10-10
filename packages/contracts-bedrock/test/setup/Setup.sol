@@ -15,6 +15,9 @@ import { OutputMode, Fork, ForkUtils } from "scripts/libraries/Config.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Preinstalls } from "src/libraries/Preinstalls.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
+import { Constants } from "src/libraries/Constants.sol";
+import { Encoding } from "src/libraries/Encoding.sol";
+import { Types } from "src/libraries/Types.sol";
 
 // Interfaces
 import { IOptimismPortal } from "src/L1/interfaces/IOptimismPortal.sol";
@@ -48,6 +51,7 @@ import { IETHLiquidity } from "src/L2/interfaces/IETHLiquidity.sol";
 import { IWETH } from "src/universal/interfaces/IWETH.sol";
 import { IGovernanceToken } from "src/governance/interfaces/IGovernanceToken.sol";
 import { ILegacyMessagePasser } from "src/legacy/interfaces/ILegacyMessagePasser.sol";
+import { IFeeVault } from "src/L2/interfaces/IFeeVault.sol";
 
 /// @title Setup
 /// @dev This contact is responsible for setting up the contracts in state. It currently
@@ -210,14 +214,44 @@ contract Setup {
             })
         );
 
+        // TODO: Prank using depositor address to set the L2 network specific config
+
         // Set the governance token's owner to be the final system owner
         address finalSystemOwner = deploy.cfg().finalSystemOwner();
         vm.startPrank(governanceToken.owner());
         governanceToken.transferOwnership(finalSystemOwner);
         vm.stopPrank();
 
+        // These calls by the depositor account simulate the SystemConfig setting setting the
+        // network specific configuration into L2. Ideally there is a library that automatically
+        // translates TransactionDeposited and ConfigUpdate events into the appropriate calls
+        // TODO: sort out using StaticTypes library vs abi.encode
+        vm.startPrank(Constants.DEPOSITOR_ACCOUNT);
+        l1Block.setConfig(Types.ConfigType.SET_L1_ERC_721_BRIDGE_ADDRESS, abi.encode(l1ERC721Bridge));
+        l1Block.setConfig(Types.ConfigType.SET_REMOTE_CHAIN_ID, abi.encode(deploy.cfg().l1ChainID()));
+        l1Block.setConfig(Types.ConfigType.SET_L1_CROSS_DOMAIN_MESSENGER_ADDRESS, abi.encode(l1CrossDomainMessenger));
+        l1Block.setConfig(Types.ConfigType.SET_L1_STANDARD_BRIDGE_ADDRESS, abi.encode(l1StandardBridge));
+
+        bytes32 sequencerFeeVaultConfig = Encoding.encodeFeeVaultConfig({
+            _recipient: deploy.cfg().sequencerFeeVaultRecipient(),
+            _amount: deploy.cfg().sequencerFeeVaultMinimumWithdrawalAmount(),
+            _network: Types.WithdrawalNetwork(deploy.cfg().sequencerFeeVaultWithdrawalNetwork())
+        });
+        l1Block.setConfig(Types.ConfigType.SET_SEQUENCER_FEE_VAULT_CONFIG, abi.encode(sequencerFeeVaultConfig));
+
+        // TODO: set other fee vault configs
+
+        vm.stopPrank();
+
+        // Reset the ResourceConfig gas used to 0
+        bytes32 slot = vm.load(address(optimismPortal), bytes32(uint256(1)));
+        slot = bytes32(uint256(slot) & ~(uint256(type(uint64).max) << 128));
+        vm.store(address(optimismPortal), bytes32(uint256(1)), slot);
+        vm.store(address(optimismPortal2), bytes32(uint256(1)), slot);
+
         // L2 predeploys
         labelPredeploy(Predeploys.L2_STANDARD_BRIDGE);
+        labelPredeploy(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY);
         labelPredeploy(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
         labelPredeploy(Predeploys.L2_TO_L1_MESSAGE_PASSER);
         labelPredeploy(Predeploys.SEQUENCER_FEE_WALLET);
@@ -232,6 +266,7 @@ contract Setup {
         labelPredeploy(Predeploys.EAS);
         labelPredeploy(Predeploys.SCHEMA_REGISTRY);
         labelPredeploy(Predeploys.WETH);
+        labelPredeploy(Predeploys.L2_ERC721_BRIDGE);
         labelPredeploy(Predeploys.SUPERCHAIN_WETH);
         labelPredeploy(Predeploys.ETH_LIQUIDITY);
         labelPredeploy(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY);
@@ -258,7 +293,11 @@ contract Setup {
     }
 
     function labelPredeploy(address _addr) internal {
-        vm.label(_addr, Predeploys.getName(_addr));
+        string memory name = Predeploys.getName(_addr);
+        vm.label(_addr, name);
+        if (!Predeploys.notProxied(_addr)) {
+            vm.label(Predeploys.predeployToCodeNamespace(_addr), string.concat(name, "Implementation"));
+        }
     }
 
     function labelPreinstall(address _addr) internal {

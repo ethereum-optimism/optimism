@@ -84,6 +84,9 @@ contract L1StandardBridge is StandardBridge, ISemver {
     /// @notice Address of the SystemConfig contract.
     ISystemConfig public systemConfig;
 
+    /// @notice
+    ICrossDomainMessenger internal crossDomainMessenger;
+
     /// @notice Constructs the L1StandardBridge contract.
     constructor() StandardBridge() {
         initialize({
@@ -106,10 +109,17 @@ contract L1StandardBridge is StandardBridge, ISemver {
     {
         superchainConfig = _superchainConfig;
         systemConfig = _systemConfig;
-        __StandardBridge_init({
-            _messenger: _messenger,
-            _otherBridge: StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE))
-        });
+        crossDomainMessenger = _messenger;
+    }
+
+    /// @notice
+    function otherBridge() public pure override returns (StandardBridge) {
+        return StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE));
+    }
+
+    // TODO:
+    function messenger() public view override returns (ICrossDomainMessenger) {
+        return ICrossDomainMessenger(crossDomainMessenger);
     }
 
     /// @inheritdoc StandardBridge
@@ -241,8 +251,8 @@ contract L1StandardBridge is StandardBridge, ISemver {
     /// @custom:legacy
     /// @notice Retrieves the access of the corresponding L2 bridge contract.
     /// @return Address of the corresponding L2 bridge contract.
-    function l2TokenBridge() external view returns (address) {
-        return address(otherBridge);
+    function l2TokenBridge() external pure returns (address) {
+        return address(otherBridge());
     }
 
     /// @notice Internal function for initiating an ETH deposit.

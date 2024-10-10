@@ -5,6 +5,8 @@ pragma solidity 0.8.15;
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 
+import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
+
 // Libraries
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { SafeCall } from "src/libraries/SafeCall.sol";
@@ -586,17 +588,17 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         emit TransactionDeposited(from, _to, DEPOSIT_VERSION, opaqueData);
     }
 
-    /// @notice Sets the gas paying token for the L2 system. This token is used as the
-    ///         L2 native asset. Only the SystemConfig contract can call this function.
-    function setGasPayingToken(address _token, uint8 _decimals, bytes32 _name, bytes32 _symbol) external {
+    /// @notice Sets static configuration options for the L2 system.
+    /// @param _type  Type of configuration to set.
+    /// @param _value Encoded value of the configuration.
+    function setConfig(Types.ConfigType _type, bytes memory _value) external {
         if (msg.sender != address(systemConfig)) revert Unauthorized();
 
         // Set L2 deposit gas as used without paying burning gas. Ensures that deposits cannot use too much L2 gas.
-        // This value must be large enough to cover the cost of calling `L1Block.setGasPayingToken`.
+        // This value must be large enough to cover the cost of calling `L1Block.setConfig`.
         useGas(SYSTEM_DEPOSIT_GAS_LIMIT);
 
-        // Emit the special deposit transaction directly that sets the gas paying
-        // token in the L1Block predeploy contract.
+        // Emit the special deposit transaction directly that sets the config in the L1Block predeploy contract.
         emit TransactionDeposited(
             Constants.DEPOSITOR_ACCOUNT,
             Predeploys.L1_BLOCK_ATTRIBUTES,
@@ -606,7 +608,31 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
                 uint256(0), // value
                 uint64(SYSTEM_DEPOSIT_GAS_LIMIT), // gasLimit
                 false, // isCreation,
-                abi.encodeCall(IL1Block.setGasPayingToken, (_token, _decimals, _name, _symbol))
+                abi.encodeCall(IL1Block.setConfig, (_type, _value))
+            )
+        );
+    }
+
+    /// @notice Updates a L2 predeploy
+    ///         TODO: can skip system config likely and just
+    ///         if (msg.sender != ISuperchainConfig.upgrader()) revert Unauthorized();
+    ///         this removes the need to have the system config know about the superchain config
+    function upgrade(address payable _proxy, address _implementation) external {
+        if (msg.sender != address(systemConfig)) revert Unauthorized();
+
+        useGas(SYSTEM_DEPOSIT_GAS_LIMIT);
+
+        // Emit the special deposit transaction directly that sets the config in the L1Block predeploy contract.
+        emit TransactionDeposited(
+            Constants.DEPOSITOR_ACCOUNT,
+            Predeploys.PROXY_ADMIN,
+            DEPOSIT_VERSION,
+            abi.encodePacked(
+                uint256(0), // mint
+                uint256(0), // value
+                uint64(SYSTEM_DEPOSIT_GAS_LIMIT), // gasLimit
+                false, // isCreation,
+                abi.encodeCall(ProxyAdmin.upgrade, (_proxy, _implementation))
             )
         );
     }

@@ -16,7 +16,8 @@ import { SequencerFeeVault } from "src/L2/SequencerFeeVault.sol";
 import { BaseFeeVault } from "src/L2/BaseFeeVault.sol";
 import { L1FeeVault } from "src/L2/L1FeeVault.sol";
 import { OptimismSuperchainERC20Beacon } from "src/L2/OptimismSuperchainERC20Beacon.sol";
-import { OptimismMintableERC721Factory } from "src/universal/OptimismMintableERC721Factory.sol";
+import { OptimismMintableERC721Factory } from "src/L2/OptimismMintableERC721Factory.sol";
+import { IFeeVault } from "src/L2/interfaces/IFeeVault.sol";
 import { GovernanceToken } from "src/governance/GovernanceToken.sol";
 
 // Libraries
@@ -43,6 +44,24 @@ struct L1Dependencies {
     address payable l1StandardBridgeProxy;
     address payable l1ERC721BridgeProxy;
 }
+
+/// Note:
+/// There are a 2 main options for how to do genesis
+/// - git tag based where you must use a specific git tag to create a genesis
+///   for a release. this would mean that we only support a single hardfork in
+///   the L2Genesis script
+/// - flag for creating an arbitrary L2 genesis. This would look like a library
+///   per contracts release that contains the released bytecode and then there is
+///   a call to `vm.etch` with different bytecode per hardfork
+///
+///   The flag approach i think will be better, it means that improvements to the overall
+///   deploy script will apply to previous hardforks as well, also decouples the dependency
+///   on a particular version of foundry, ie if a feature is removed then we don't need to go
+///   back and backport fixes to old tags.
+///   Therefore the genesis script should work as follows:
+///   - check to see if a fork is configured
+///   - if no, use dev bytecode with vm.getDeployedCode
+///   - if yes, use the library to get the hardcoded bytecode
 
 /// @title L2Genesis
 /// @notice Generates the genesis state for the L2 network.
@@ -253,14 +272,14 @@ contract L2Genesis is Deployer {
         setDeployerWhitelist(); // 2
         // 3,4,5: legacy, not used in OP-Stack.
         setWETH(); // 6: WETH (not behind a proxy)
-        setL2CrossDomainMessenger(_l1Dependencies.l1CrossDomainMessengerProxy); // 7
+        setL2CrossDomainMessenger(); // 7
         // 8,9,A,B,C,D,E: legacy, not used in OP-Stack.
         setGasPriceOracle(); // f
-        setL2StandardBridge(_l1Dependencies.l1StandardBridgeProxy); // 10
+        setL2StandardBridge(); // 10
         setSequencerFeeVault(); // 11
         setOptimismMintableERC20Factory(); // 12
         setL1BlockNumber(); // 13
-        setL2ERC721Bridge(_l1Dependencies.l1ERC721BridgeProxy); // 14
+        setL2ERC721Bridge(); // 14
         setL1Block(); // 15
         setL2ToL1MessagePasser(); // 16
         setOptimismMintableERC721Factory(); // 17
@@ -284,13 +303,8 @@ contract L2Genesis is Deployer {
     function setProxyAdmin() public {
         // Note the ProxyAdmin implementation itself is behind a proxy that owns itself.
         address impl = _setImplementationCode(Predeploys.PROXY_ADMIN);
-
-        bytes32 _ownerSlot = bytes32(0);
-
-        // there is no initialize() function, so we just set the storage manually.
-        vm.store(Predeploys.PROXY_ADMIN, _ownerSlot, bytes32(uint256(uint160(cfg.proxyAdminOwner()))));
         // update the proxy to not be uninitialized (although not standard initialize pattern)
-        vm.store(impl, _ownerSlot, bytes32(uint256(uint160(cfg.proxyAdminOwner()))));
+        vm.store(impl, bytes32(0), bytes32(uint256(0xdead)));
     }
 
     function setL2ToL1MessagePasser() public {
@@ -298,18 +312,16 @@ contract L2Genesis is Deployer {
     }
 
     /// @notice This predeploy is following the safety invariant #1.
-    function setL2CrossDomainMessenger(address payable _l1CrossDomainMessengerProxy) public {
+    function setL2CrossDomainMessenger() public {
         address impl = _setImplementationCode(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
 
-        IL2CrossDomainMessenger(impl).initialize({ _l1CrossDomainMessenger: ICrossDomainMessenger(address(0)) });
+        IL2CrossDomainMessenger(impl).initialize();
 
-        IL2CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).initialize({
-            _l1CrossDomainMessenger: ICrossDomainMessenger(_l1CrossDomainMessengerProxy)
-        });
+        IL2CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).initialize();
     }
 
     /// @notice This predeploy is following the safety invariant #1.
-    function setL2StandardBridge(address payable _l1StandardBridgeProxy) public {
+    function setL2StandardBridge() public {
         address impl;
         if (cfg.useInterop()) {
             string memory cname = "L2StandardBridgeInterop";
@@ -320,29 +332,24 @@ contract L2Genesis is Deployer {
             impl = _setImplementationCode(Predeploys.L2_STANDARD_BRIDGE);
         }
 
-        IL2StandardBridge(payable(impl)).initialize({ _otherBridge: IStandardBridge(payable(address(0))) });
+        // TODO: interfaces also need an update
+        IL2StandardBridge(payable(impl)).initialize();
 
-        IL2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).initialize({
-            _otherBridge: IStandardBridge(_l1StandardBridgeProxy)
-        });
+        IL2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).initialize();
     }
 
     /// @notice This predeploy is following the safety invariant #1.
-    function setL2ERC721Bridge(address payable _l1ERC721BridgeProxy) public {
+    function setL2ERC721Bridge() public {
         address impl = _setImplementationCode(Predeploys.L2_ERC721_BRIDGE);
 
-        IL2ERC721Bridge(impl).initialize({ _l1ERC721Bridge: payable(address(0)) });
+        IL2ERC721Bridge(impl).initialize();
 
-        IL2ERC721Bridge(Predeploys.L2_ERC721_BRIDGE).initialize({ _l1ERC721Bridge: payable(_l1ERC721BridgeProxy) });
+        IL2ERC721Bridge(Predeploys.L2_ERC721_BRIDGE).initialize();
     }
 
     /// @notice This predeploy is following the safety invariant #2,
     function setSequencerFeeVault() public {
-        SequencerFeeVault vault = new SequencerFeeVault({
-            _recipient: cfg.sequencerFeeVaultRecipient(),
-            _minWithdrawalAmount: cfg.sequencerFeeVaultMinimumWithdrawalAmount(),
-            _withdrawalNetwork: Types.WithdrawalNetwork(cfg.sequencerFeeVaultWithdrawalNetwork())
-        });
+        SequencerFeeVault vault = new SequencerFeeVault();
 
         address impl = Predeploys.predeployToCodeNamespace(Predeploys.SEQUENCER_FEE_WALLET);
         console.log("Setting %s implementation at: %s", "SequencerFeeVault", impl);
@@ -366,8 +373,7 @@ contract L2Genesis is Deployer {
 
     /// @notice This predeploy is following the safety invariant #2,
     function setOptimismMintableERC721Factory() public {
-        OptimismMintableERC721Factory factory =
-            new OptimismMintableERC721Factory({ _bridge: Predeploys.L2_ERC721_BRIDGE, _remoteChainId: cfg.l1ChainID() });
+        OptimismMintableERC721Factory factory = new OptimismMintableERC721Factory();
 
         address impl = Predeploys.predeployToCodeNamespace(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY);
         console.log("Setting %s implementation at: %s", "OptimismMintableERC721Factory", impl);
@@ -422,11 +428,7 @@ contract L2Genesis is Deployer {
 
     /// @notice This predeploy is following the safety invariant #2.
     function setBaseFeeVault() public {
-        BaseFeeVault vault = new BaseFeeVault({
-            _recipient: cfg.baseFeeVaultRecipient(),
-            _minWithdrawalAmount: cfg.baseFeeVaultMinimumWithdrawalAmount(),
-            _withdrawalNetwork: Types.WithdrawalNetwork(cfg.baseFeeVaultWithdrawalNetwork())
-        });
+        BaseFeeVault vault = new BaseFeeVault();
 
         address impl = Predeploys.predeployToCodeNamespace(Predeploys.BASE_FEE_VAULT);
         console.log("Setting %s implementation at: %s", "BaseFeeVault", impl);
@@ -439,11 +441,7 @@ contract L2Genesis is Deployer {
 
     /// @notice This predeploy is following the safety invariant #2.
     function setL1FeeVault() public {
-        L1FeeVault vault = new L1FeeVault({
-            _recipient: cfg.l1FeeVaultRecipient(),
-            _minWithdrawalAmount: cfg.l1FeeVaultMinimumWithdrawalAmount(),
-            _withdrawalNetwork: Types.WithdrawalNetwork(cfg.l1FeeVaultWithdrawalNetwork())
-        });
+        L1FeeVault vault = new L1FeeVault();
 
         address impl = Predeploys.predeployToCodeNamespace(Predeploys.L1_FEE_VAULT);
         console.log("Setting %s implementation at: %s", "L1FeeVault", impl);
