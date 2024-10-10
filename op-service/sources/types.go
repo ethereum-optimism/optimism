@@ -143,9 +143,6 @@ func (hdr *RPCHeader) checkPostMerge() error {
 	if hdr.Number != 0 && (*big.Int)(&hdr.Difficulty).Cmp(common.Big0) != 0 {
 		return fmt.Errorf("post-merge block header requires zeroed difficulty field, but got: %s", &hdr.Difficulty)
 	}
-	if hdr.Nonce != (types.BlockNonce{}) {
-		return fmt.Errorf("post-merge block header requires zeroed block nonce field, but got: %s", hdr.Nonce)
-	}
 	if hdr.BaseFee == nil {
 		return fmt.Errorf("post-merge block header requires EIP-1559 base fee field, but got %s", hdr.BaseFee)
 	}
@@ -155,6 +152,7 @@ func (hdr *RPCHeader) checkPostMerge() error {
 	if hdr.UncleHash != types.EmptyUncleHash {
 		return fmt.Errorf("post-merge block header requires uncle hash to be of empty uncle list, but got %s", hdr.UncleHash)
 	}
+	// Note that we no longer check for 0 nonce, since the Holocene upgrade uses nonce to encode 1559 parameters.
 	return nil
 }
 

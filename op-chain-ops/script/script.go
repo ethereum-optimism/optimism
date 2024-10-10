@@ -206,6 +206,7 @@ func NewHost(
 		EcotoneTime:  nil,
 		FjordTime:    nil,
 		GraniteTime:  nil,
+		HoloceneTime: nil,
 		InteropTime:  nil,
 		Optimism:     nil,
 	}
