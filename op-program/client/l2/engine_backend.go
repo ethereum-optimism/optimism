@@ -40,7 +40,9 @@ type OracleBackedL2Chain struct {
 	db     ethdb.KeyValueStore
 }
 
-var _ engineapi.EngineBackend = (*OracleBackedL2Chain)(nil)
+// Must implement CachingEngineBackend, not just EngineBackend to ensure that blocks are stored when they are created
+// and don't need to be re-executed when sent back via execution_newPayload.
+var _ engineapi.CachingEngineBackend = (*OracleBackedL2Chain)(nil)
 
 func NewOracleBackedL2Chain(logger log.Logger, oracle Oracle, precompileOracle engineapi.PrecompileOracle, chainCfg *params.ChainConfig, l2OutputRoot common.Hash) (*OracleBackedL2Chain, error) {
 	output := oracle.OutputByRoot(l2OutputRoot)
