@@ -288,7 +288,9 @@ contract Deploy is Deployer {
             // The OPCM doesn't deploy the CANNON game (it is deployed in deployOPChain), but the tests expect it
             // to be the respected game type.
             vm.prank(ISuperchainConfig(mustGetAddress("SuperchainConfigProxy")).guardian());
-            IOptimismPortal2(mustGetAddress("OptimismPortalProxy")).setRespectedGameType(GameTypes.CANNON);
+            IOptimismPortal2(mustGetAddress("OptimismPortalProxy")).setRespectedGameType(
+                GameType.wrap(uint32(cfg.respectedGameType()))
+            );
         } else {
             // The L2OutputOracle is not deployed by the OPCM, we deploy the proxy and initialize it here.
             deployERC1967Proxy("L2OutputOracleProxy");
