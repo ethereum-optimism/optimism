@@ -84,19 +84,6 @@ func multiThreadedProofGenerator(t require.TestingT, state mipsevm.FPVMState, me
 	return proofData
 }
 
-func emptyThreadedProofGenerator(state mipsevm.FPVMState, memoryProofAddresses ...uint32) []byte {
-	proofData := make([]byte, 0)
-	insnProof := state.GetMemory().MerkleProof(0)
-	proofData = append(proofData, insnProof[:]...)
-
-	for _, addr := range memoryProofAddresses {
-		memProof := state.GetMemory().MerkleProof(addr)
-		proofData = append(proofData, memProof[:]...)
-	}
-
-	return proofData
-}
-
 type VersionedVMTestCase struct {
 	Name           string
 	Contracts      *testutil.ContractMetadata
