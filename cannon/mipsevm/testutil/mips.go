@@ -172,6 +172,12 @@ func LogStepFailureAtCleanup(t *testing.T, mipsEvm *MIPSEVM) {
 
 // ValidateEVM runs a single evm step and validates against an FPVM poststate
 func ValidateEVM(t *testing.T, stepWitness *mipsevm.StepWitness, step uint64, goVm mipsevm.FPVM, hashFn mipsevm.HashFn, contracts *ContractMetadata, tracer *tracing.Hooks) {
+	if !arch.IsMips32 {
+		// TODO(#12250) Re-enable EVM validation once 64-bit MIPS contracts are completed
+		t.Logf("WARNING: Skipping EVM validation for 64-bit MIPS")
+		return
+	}
+
 	evm := NewMIPSEVM(contracts)
 	evm.SetTracer(tracer)
 	LogStepFailureAtCleanup(t, evm)
