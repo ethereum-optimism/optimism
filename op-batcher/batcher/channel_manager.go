@@ -97,7 +97,8 @@ func (s *channelManager) TxFailed(_id txID) {
 	}
 }
 
-// TxConfirmed marks a transaction as confirmed on L1.
+// TxConfirmed marks a transaction as confirmed on L1. Only if the channel timed out
+// the channelManager's state is modified.
 func (s *channelManager) TxConfirmed(_id txID, inclusionBlock eth.BlockID) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

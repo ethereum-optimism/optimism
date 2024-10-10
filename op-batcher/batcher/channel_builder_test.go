@@ -385,7 +385,7 @@ func ChannelBuilder_OutputWrongFramePanic(t *testing.T, batchType uint) {
 			},
 			data: buf.Bytes(),
 		}
-		cb.Rewind(frame)
+		cb.RewindFrameCursor(frame)
 	})
 }
 

@@ -435,10 +435,10 @@ func (c *ChannelBuilder) NextFrame() frameData {
 	return f
 }
 
-// Rewind moves the frameCursor to point at the supplied frame
+// RewindFrameCursor moves the frameCursor to point at the supplied frame
 // only if it is ahead of it.
 // Panics if the frame is not in this channel.
-func (c *ChannelBuilder) Rewind(frame frameData) {
+func (c *ChannelBuilder) RewindFrameCursor(frame frameData) {
 	for i, f := range c.frames {
 		if f.id.chID != frame.id.chID {
 			panic("wrong channel")
