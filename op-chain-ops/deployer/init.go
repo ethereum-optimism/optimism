@@ -79,9 +79,9 @@ func Init(cfg InitConfig) error {
 		FundDevAccounts:            true,
 		ContractsRelease:           "op-contracts/v1.6.0",
 		ContractArtifactsURL:       V160ArtifactsURL,
-		BaseFeeVaultRecipient:      common.Address{},
-		L1FeeVaultRecipient:        common.Address{},
-		SequencerFeeVaultRecipient: common.Address{},
+		BaseFeeVaultRecipient:      common.HexToAddress("0x4200000000000000000000000000000000000019"),
+		L1FeeVaultRecipient:        common.HexToAddress("0x420000000000000000000000000000000000001A"),
+		SequencerFeeVaultRecipient: common.HexToAddress("0x4200000000000000000000000000000000000011"),
 	}
 
 	l1ChainIDBig := intent.L1ChainIDBig()
