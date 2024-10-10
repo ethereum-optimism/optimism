@@ -526,6 +526,12 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Init {
         vm.expectRevert("SystemConfig: gas limit too high");
         systemConfig.setGasLimit(maximumGasLimit + 1);
     }
+
+    /// @dev Tests that `setGasLimit` reverts if the caller is not the owner.
+    function test_setEIP1559Params_notOwner_reverts() external {
+        vm.expectRevert("Ownable: caller is not the owner");
+        systemConfig.setEIP1559Params(1, 1);
+    }
 }
 
 contract SystemConfig_Setters_Test is SystemConfig_Init {
