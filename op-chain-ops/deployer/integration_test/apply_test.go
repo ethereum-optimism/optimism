@@ -19,7 +19,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
+	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/anvil"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/kurtosisutil"
@@ -270,9 +272,9 @@ func validateOPChainDeployment(t *testing.T, ctx context.Context, l1Client *ethc
 			l2Allocs, _ := chainState.UnmarshalAllocs()
 			alloc := l2Allocs.Copy().Accounts
 
-			checkImmutable(t, alloc, "BaseFeeVault", "0xC0d3c0D3c0d3C0D3C0D3C0d3c0D3C0D3c0d30019", st.AppliedIntent.BaseFeeVaultRecipient.Hex())
-			checkImmutable(t, alloc, "L1FeeVault", "0xc0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3001a", st.AppliedIntent.L1FeeVaultRecipient.Hex())
-			checkImmutable(t, alloc, "SequencerFeeVault", "0xC0D3C0d3c0d3c0d3C0D3c0d3C0D3c0d3c0D30011", st.AppliedIntent.SequencerFeeVaultRecipient.Hex())
+			checkImmutable(t, alloc, predeploys.BaseFeeVaultAddr, st.AppliedIntent.BaseFeeVaultRecipient)
+			checkImmutable(t, alloc, predeploys.L1FeeVaultAddr, st.AppliedIntent.L1FeeVaultRecipient)
+			checkImmutable(t, alloc, predeploys.SequencerFeeVaultAddr, st.AppliedIntent.SequencerFeeVaultRecipient)
 
 			require.Equal(t, int(st.AppliedIntent.Eip1559Denominator), 50, "EIP1559Denominator should be set")
 			require.Equal(t, int(st.AppliedIntent.Eip1559Elasticity), 6, "EIP1559Elasticity should be set")
@@ -280,15 +282,23 @@ func validateOPChainDeployment(t *testing.T, ctx context.Context, l1Client *ethc
 	}
 }
 
-func checkImmutable(t *testing.T, accounts types.GenesisAlloc, vaultName, vaultAddress, recipientHex string) {
-	account, ok := accounts[common.HexToAddress(vaultAddress)]
-	require.True(t, ok, "%s at %s not found in allocations", vaultName, vaultAddress)
-	require.NotEmpty(t, account.Code, "%s Impl should have code", vaultName)
+func getEIP1967ImplementationAddress(t *testing.T, allocations types.GenesisAlloc, proxyAddress common.Address) common.Address {
+	storage := allocations[proxyAddress].Storage
+	storageValue := storage[genesis.ImplementationSlot]
+	require.NotEmpty(t, storageValue, "Implementation address for %s should be set", proxyAddress)
+	return common.HexToAddress(storageValue.Hex())
+}
+
+func checkImmutable(t *testing.T, allocations types.GenesisAlloc, proxyContract common.Address, feeRecipient common.Address) {
+	implementationAddress := getEIP1967ImplementationAddress(t, allocations, proxyContract)
+	account, ok := allocations[implementationAddress]
+	require.True(t, ok, "%s not found in allocations", implementationAddress.Hex())
+	require.NotEmpty(t, account.Code, "%s should have code", implementationAddress.Hex())
 	require.Contains(
 		t,
 		strings.ToLower(common.Bytes2Hex(account.Code)),
-		strings.ToLower(strings.TrimPrefix(recipientHex, "0x")),
-		"%s Impl should contain %s immutable", vaultName, vaultName+"Recipient",
+		strings.ToLower(strings.TrimPrefix(feeRecipient.Hex(), "0x")),
+		"%s code should contain %s immutable", implementationAddress.Hex(), feeRecipient.Hex(),
 	)
 }
 
