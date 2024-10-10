@@ -5,18 +5,16 @@ import { ICrosschainERC20 } from "src/L2/interfaces/ICrosschainERC20.sol";
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { ERC20 } from "@solady/tokens/ERC20.sol";
+import { Unauthorized } from "src/libraries/errors/CommonErrors.sol";
 
 /// @title SuperchainERC20
 /// @notice SuperchainERC20 is a standard extension of the base ERC20 token contract that unifies ERC20 token
 ///         bridging to make it fungible across the Superchain. This construction allows the SuperchainTokenBridge to
 ///         burn and mint tokens.
 abstract contract SuperchainERC20 is ERC20, ICrosschainERC20, ISemver {
-    /// @notice Thrown when attempting to mint or burn tokens and the function caller is not the SuperchainTokenBridge.
-    error OnlySuperchainTokenBridge();
-
     /// @notice A modifier that only allows the SuperchainTokenBridge to call
     modifier onlySuperchainTokenBridge() {
-        if (msg.sender != Predeploys.SUPERCHAIN_TOKEN_BRIDGE) revert OnlySuperchainTokenBridge();
+        if (msg.sender != Predeploys.SUPERCHAIN_TOKEN_BRIDGE) revert Unauthorized();
         _;
     }
 

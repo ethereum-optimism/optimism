@@ -572,22 +572,17 @@
   },
   {
     "inputs": [],
-    "name": "OnlyL2StandardBridge",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "OnlySuperchainTokenBridge",
-    "type": "error"
-  },
-  {
-    "inputs": [],
     "name": "PermitExpired",
     "type": "error"
   },
   {
     "inputs": [],
     "name": "TotalSupplyOverflow",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "Unauthorized",
     "type": "error"
   },
   {

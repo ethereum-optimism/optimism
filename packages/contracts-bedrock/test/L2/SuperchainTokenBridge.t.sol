@@ -126,8 +126,8 @@ contract SuperchainTokenBridgeTest is Bridge_Initializer {
         // Ensure the caller is not the messenger
         vm.assume(_caller != Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
 
-        // Expect the revert with `CallerNotL2ToL2CrossDomainMessenger` selector
-        vm.expectRevert(ISuperchainTokenBridge.CallerNotL2ToL2CrossDomainMessenger.selector);
+        // Expect the revert with `Unauthorized` selector
+        vm.expectRevert(ISuperchainTokenBridge.Unauthorized.selector);
 
         // Call the `relayERC20` function with the non-messenger caller
         vm.prank(_caller);

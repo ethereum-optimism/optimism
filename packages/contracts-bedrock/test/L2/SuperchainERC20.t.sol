@@ -39,8 +39,8 @@ contract SuperchainERC20Test is Test {
         // Ensure the caller is not the bridge
         vm.assume(_caller != SUPERCHAIN_TOKEN_BRIDGE);
 
-        // Expect the revert with `OnlySuperchainTokenBridge` selector
-        vm.expectRevert(ISuperchainERC20.OnlySuperchainTokenBridge.selector);
+        // Expect the revert with `Unauthorized` selector
+        vm.expectRevert(ISuperchainERC20.Unauthorized.selector);
 
         // Call the `mint` function with the non-bridge caller
         vm.prank(_caller);
@@ -84,8 +84,8 @@ contract SuperchainERC20Test is Test {
         // Ensure the caller is not the bridge
         vm.assume(_caller != SUPERCHAIN_TOKEN_BRIDGE);
 
-        // Expect the revert with `OnlySuperchainTokenBridge` selector
-        vm.expectRevert(ISuperchainERC20.OnlySuperchainTokenBridge.selector);
+        // Expect the revert with `Unauthorized` selector
+        vm.expectRevert(ISuperchainERC20.Unauthorized.selector);
 
         // Call the `burn` function with the non-bridge caller
         vm.prank(_caller);

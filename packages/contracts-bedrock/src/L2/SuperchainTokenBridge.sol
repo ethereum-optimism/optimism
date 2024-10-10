@@ -3,7 +3,7 @@ pragma solidity 0.8.25;
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { ZeroAddress } from "src/libraries/errors/CommonErrors.sol";
+import { ZeroAddress, Unauthorized } from "src/libraries/errors/CommonErrors.sol";
 
 // Interfaces
 import { ISuperchainERC20 } from "src/L2/interfaces/ISuperchainERC20.sol";
@@ -16,10 +16,6 @@ import { IL2ToL2CrossDomainMessenger } from "src/L2/interfaces/IL2ToL2CrossDomai
 ///         Superchain. It builds on top of the L2ToL2CrossDomainMessenger for both replay protection and domain
 ///         binding.
 contract SuperchainTokenBridge {
-    /// @notice Thrown when attempting to relay a message and the function caller (msg.sender) is not
-    /// L2ToL2CrossDomainMessenger.
-    error CallerNotL2ToL2CrossDomainMessenger();
-
     /// @notice Thrown when attempting to relay a message and the cross domain message sender is not the
     /// SuperchainTokenBridge.
     error InvalidCrossDomainSender();
@@ -82,7 +78,7 @@ contract SuperchainTokenBridge {
     /// @param _to      Address to relay tokens to.
     /// @param _amount  Amount of tokens to relay.
     function relayERC20(address _token, address _from, address _to, uint256 _amount) external {
-        if (msg.sender != MESSENGER) revert CallerNotL2ToL2CrossDomainMessenger();
+        if (msg.sender != MESSENGER) revert Unauthorized();
 
         if (IL2ToL2CrossDomainMessenger(MESSENGER).crossDomainMessageSender() != address(this)) {
             revert InvalidCrossDomainSender();

@@ -12,6 +12,7 @@ import { Initializable } from "@openzeppelin/contracts-v5/proxy/utils/Initializa
 import { IERC165 } from "@openzeppelin/contracts-v5/utils/introspection/IERC165.sol";
 import { IBeacon } from "@openzeppelin/contracts-v5/proxy/beacon/IBeacon.sol";
 import { BeaconProxy } from "@openzeppelin/contracts-v5/proxy/beacon/BeaconProxy.sol";
+import { Unauthorized } from "src/libraries/errors/CommonErrors.sol";
 
 // Target contract
 import { OptimismSuperchainERC20 } from "src/L2/OptimismSuperchainERC20.sol";
@@ -117,8 +118,8 @@ contract OptimismSuperchainERC20Test is Test {
         // Ensure the caller is not the bridge
         vm.assume(_caller != L2_BRIDGE);
 
-        // Expect the revert with `OnlyL2StandardBridge` selector
-        vm.expectRevert(IOptimismSuperchainERC20.OnlyL2StandardBridge.selector);
+        // Expect the revert with `Unauthorized` selector
+        vm.expectRevert(Unauthorized.selector);
 
         // Call the `mint` function with the non-bridge caller
         vm.prank(_caller);
@@ -166,8 +167,8 @@ contract OptimismSuperchainERC20Test is Test {
         // Ensure the caller is not the bridge
         vm.assume(_caller != L2_BRIDGE);
 
-        // Expect the revert with `OnlyL2StandardBridge` selector
-        vm.expectRevert(IOptimismSuperchainERC20.OnlyL2StandardBridge.selector);
+        // Expect the revert with `Unauthorized` selector
+        vm.expectRevert(Unauthorized.selector);
 
         // Call the `burn` function with the non-bridge caller
         vm.prank(_caller);

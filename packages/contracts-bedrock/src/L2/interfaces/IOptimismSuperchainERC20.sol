@@ -8,7 +8,6 @@ import { ISuperchainERC20 } from "src/L2/interfaces/ISuperchainERC20.sol";
 /// @notice This interface is available on the OptimismSuperchainERC20 contract.
 interface IOptimismSuperchainERC20 is ISuperchainERC20 {
     error ZeroAddress();
-    error OnlyL2StandardBridge();
 
     event Mint(address indexed to, uint256 amount);
 
