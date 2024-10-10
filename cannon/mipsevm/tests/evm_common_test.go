@@ -647,11 +647,11 @@ func TestEVMFault(t *testing.T) {
 		nextPC               arch.Word
 		insn                 uint32
 		errMsg               string
-		memoryProofAddresses []uint32
+		memoryProofAddresses []Word
 	}{
-		{"illegal instruction", 0, 0xFF_FF_FF_FF, "invalid instruction", []uint32{0xa7ef00cc}},
-		{"branch in delay-slot", 8, 0x11_02_00_03, "branch in delay slot", []uint32{0}},
-		{"jump in delay-slot", 8, 0x0c_00_00_0c, "jump in delay slot", []uint32{0}},
+		{"illegal instruction", 0, 0xFF_FF_FF_FF, "invalid instruction", []Word{0xa7ef00cc}},
+		{"branch in delay-slot", 8, 0x11_02_00_03, "branch in delay slot", []Word{}},
+		{"jump in delay-slot", 8, 0x0c_00_00_0c, "jump in delay slot", []Word{}},
 	}
 
 	for _, v := range versions {
@@ -665,7 +665,7 @@ func TestEVMFault(t *testing.T) {
 				state.GetRegistersRef()[31] = testutil.EndAddr
 
 				proofData := v.ProofGenerator(t, goVm.GetState(), tt.memoryProofAddresses...)
-				require.Panics(t, func() { _, _ = goVm.Step(true) })
+				require.Panics(t, func() { _, _ = goVm.Step(false) })
 				testutil.AssertEVMReverts(t, state, v.Contracts, tracer, proofData, tt.errMsg)
 			})
 		}
