@@ -36,6 +36,7 @@ func TestInvalidConfig(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			cfg := NewCLIConfig()
+			cfg.Enabled = true
 			test.configChange(&cfg)
 			err := cfg.Check()
 			require.ErrorContains(t, err, "all tls flags must be set if at least one is set")
