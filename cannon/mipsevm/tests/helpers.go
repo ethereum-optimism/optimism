@@ -53,7 +53,7 @@ func multiThreadElfVmFactory(t require.TestingT, elfFile string, po mipsevm.Prei
 
 type ProofGenerator func(t require.TestingT, state mipsevm.FPVMState, memoryProofAddresses ...arch.Word) []byte
 
-func singalThreadedProofGenerator(t require.TestingT, state mipsevm.FPVMState, memoryProofAddresses ...arch.Word) []byte {
+func singleThreadedProofGenerator(t require.TestingT, state mipsevm.FPVMState, memoryProofAddresses ...arch.Word) []byte {
 	var proofData []byte
 
 	insnProof := state.GetMemory().MerkleProof(state.GetPC())
@@ -101,7 +101,7 @@ func GetSingleThreadedTestCase(t require.TestingT) VersionedVMTestCase {
 		StateHashFn:    singlethreaded.GetStateHashFn(),
 		VMFactory:      singleThreadedVmFactory,
 		ElfVMFactory:   singleThreadElfVmFactory,
-		ProofGenerator: singalThreadedProofGenerator,
+		ProofGenerator: singleThreadedProofGenerator,
 	}
 }
 
