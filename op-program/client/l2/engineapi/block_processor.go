@@ -51,6 +51,15 @@ func NewBlockProcessorFromPayloadAttributes(provider BlockDataProvider, parent c
 		Nonce:            types.EncodeNonce(0),
 		ParentBeaconRoot: attrs.ParentBeaconBlockRoot,
 	}
+	if attrs.EIP1559Params != nil {
+		// Do we need to check if holocene is active?
+		d, e := eip1559.DecodeHolocene1559Params(attrs.EIP1559Params[:])
+		if d == 0 {
+			d = provider.Config().BaseFeeChangeDenominator(header.Time)
+			e = provider.Config().ElasticityMultiplier()
+		}
+		header.Extra = eip1559.EncodeHoloceneExtraData(uint32(d), uint32(e))
+	}
 
 	return NewBlockProcessorFromHeader(provider, header)
 }
