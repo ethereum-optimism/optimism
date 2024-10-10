@@ -28,23 +28,25 @@ func TestEVM_MT_LL(t *testing.T) {
 	var tracer *tracing.Hooks
 
 	cases := []struct {
-		name    string
-		base    Word
-		offset  int
-		value   Word
-		effAddr Word
-		rtReg   int
+		name   string
+		base   Word
+		offset int
+		value  Word
+		addr   Word
+		rtReg  int
 	}{
-		{name: "Aligned effAddr", base: 0x00_00_00_01, offset: 0x0133, value: 0xABCD, effAddr: 0x00_00_01_34, rtReg: 5},
-		{name: "Aligned effAddr, signed extended", base: 0x00_00_00_01, offset: 0xFF33, value: 0xABCD, effAddr: 0xFF_FF_FF_34, rtReg: 5},
-		{name: "Unaligned effAddr", base: 0xFF_12_00_01, offset: 0x3401, value: 0xABCD, effAddr: 0xFF_12_34_00, rtReg: 5},
-		{name: "Unaligned effAddr, sign extended w overflow", base: 0xFF_12_00_01, offset: 0x8401, value: 0xABCD, effAddr: 0xFF_11_84_00, rtReg: 5},
-		{name: "Return register set to 0", base: 0xFF_12_00_01, offset: 0x8401, value: 0xABCD, effAddr: 0xFF_11_84_00, rtReg: 0},
+		{name: "Aligned addr", base: 0x00_00_00_01, offset: 0x0133, value: 0xABCD, addr: 0x00_00_01_34, rtReg: 5},
+		{name: "Aligned addr, signed extended", base: 0x00_00_00_01, offset: 0xFF33, value: 0xABCD, addr: 0xFF_FF_FF_34, rtReg: 5},
+		{name: "Unaligned addr", base: 0xFF_12_00_01, offset: 0x3401, value: 0xABCD, addr: 0xFF_12_34_02, rtReg: 5},
+		{name: "Unaligned addr, sign extended w overflow", base: 0xFF_12_00_01, offset: 0x8401, value: 0xABCD, addr: 0xFF_11_84_02, rtReg: 5},
+		{name: "Return register set to 0", base: 0xFF_12_00_01, offset: 0x8401, value: 0xABCD, addr: 0xFF_11_84_02, rtReg: 0},
 	}
 	for i, c := range cases {
 		for _, withExistingReservation := range []bool{true, false} {
 			tName := fmt.Sprintf("%v (withExistingReservation = %v)", c.name, withExistingReservation)
 			t.Run(tName, func(t *testing.T) {
+				effAddr := arch.AddressMask & c.addr
+
 				rtReg := c.rtReg
 				baseReg := 6
 				pc := Word(0x44)
@@ -56,11 +58,11 @@ func TestEVM_MT_LL(t *testing.T) {
 				state.GetCurrentThread().Cpu.PC = pc
 				state.GetCurrentThread().Cpu.NextPC = pc + 4
 				state.GetMemory().SetUint32(pc, insn)
-				state.GetMemory().SetWord(c.effAddr, c.value)
+				state.GetMemory().SetWord(effAddr, c.value)
 				state.GetRegistersRef()[baseReg] = c.base
 				if withExistingReservation {
 					state.LLReservationActive = true
-					state.LLAddress = c.effAddr + Word(4)
+					state.LLAddress = c.addr + 1
 					state.LLOwnerThread = 123
 				} else {
 					state.LLReservationActive = false
@@ -72,7 +74,7 @@ func TestEVM_MT_LL(t *testing.T) {
 				expected := mttestutil.NewExpectedMTState(state)
 				expected.ExpectStep()
 				expected.LLReservationActive = true
-				expected.LLAddress = c.effAddr
+				expected.LLAddress = c.addr
 				expected.LLOwnerThread = state.GetCurrentThread().ThreadId
 				if rtReg != 0 {
 					expected.ActiveThread().Registers[rtReg] = c.value
@@ -96,14 +98,14 @@ func TestEVM_MT_SC(t *testing.T) {
 		name                string
 		llReservationActive bool
 		matchThreadId       bool
-		matchEffAddr        bool
+		matchAddr           bool
 		shouldSucceed       bool
 	}{
-		{name: "should succeed", llReservationActive: true, matchThreadId: true, matchEffAddr: true, shouldSucceed: true},
-		{name: "mismatch addr", llReservationActive: true, matchThreadId: false, matchEffAddr: true, shouldSucceed: false},
-		{name: "mismatched thread", llReservationActive: true, matchThreadId: true, matchEffAddr: false, shouldSucceed: false},
-		{name: "mismatched addr & thread", llReservationActive: true, matchThreadId: false, matchEffAddr: false, shouldSucceed: false},
-		{name: "no active reservation", llReservationActive: false, matchThreadId: true, matchEffAddr: true, shouldSucceed: false},
+		{name: "should succeed", llReservationActive: true, matchThreadId: true, matchAddr: true, shouldSucceed: true},
+		{name: "mismatch addr", llReservationActive: true, matchThreadId: false, matchAddr: true, shouldSucceed: false},
+		{name: "mismatched thread", llReservationActive: true, matchThreadId: true, matchAddr: false, shouldSucceed: false},
+		{name: "mismatched addr & thread", llReservationActive: true, matchThreadId: false, matchAddr: false, shouldSucceed: false},
+		{name: "no active reservation", llReservationActive: false, matchThreadId: true, matchAddr: true, shouldSucceed: false},
 	}
 
 	cases := []struct {
@@ -111,21 +113,22 @@ func TestEVM_MT_SC(t *testing.T) {
 		base     Word
 		offset   int
 		value    Word
-		effAddr  Word
+		addr     Word
 		rtReg    int
 		threadId Word
 	}{
-		{name: "Aligned effAddr", base: 0x00_00_00_01, offset: 0x0133, value: 0xABCD, effAddr: 0x00_00_01_34, rtReg: 5, threadId: 4},
-		{name: "Aligned effAddr, signed extended", base: 0x00_00_00_01, offset: 0xFF33, value: 0xABCD, effAddr: 0xFF_FF_FF_34, rtReg: 5, threadId: 4},
-		{name: "Unaligned effAddr", base: 0xFF_12_00_01, offset: 0x3401, value: 0xABCD, effAddr: 0xFF_12_34_00, rtReg: 5, threadId: 4},
-		{name: "Unaligned effAddr, sign extended w overflow", base: 0xFF_12_00_01, offset: 0x8401, value: 0xABCD, effAddr: 0xFF_11_84_00, rtReg: 5, threadId: 4},
-		{name: "Return register set to 0", base: 0xFF_12_00_01, offset: 0x8401, value: 0xABCD, effAddr: 0xFF_11_84_00, rtReg: 0, threadId: 4},
-		{name: "Zero valued ll args", base: 0x00_00_00_00, offset: 0x0, value: 0xABCD, effAddr: 0x00_00_00_00, rtReg: 5, threadId: 0},
+		{name: "Aligned addr", base: 0x00_00_00_01, offset: 0x0133, value: 0xABCD, addr: 0x00_00_01_34, rtReg: 5, threadId: 4},
+		{name: "Aligned addr, signed extended", base: 0x00_00_00_01, offset: 0xFF33, value: 0xABCD, addr: 0xFF_FF_FF_34, rtReg: 5, threadId: 4},
+		{name: "Unaligned addr", base: 0xFF_12_00_01, offset: 0x3401, value: 0xABCD, addr: 0xFF_12_34_02, rtReg: 5, threadId: 4},
+		{name: "Unaligned addr, sign extended w overflow", base: 0xFF_12_00_01, offset: 0x8401, value: 0xABCD, addr: 0xFF_11_84_02, rtReg: 5, threadId: 4},
+		{name: "Return register set to 0", base: 0xFF_12_00_01, offset: 0x8401, value: 0xABCD, addr: 0xFF_11_84_02, rtReg: 0, threadId: 4},
+		{name: "Zero valued ll args", base: 0x00_00_00_00, offset: 0x0, value: 0xABCD, addr: 0x00_00_00_00, rtReg: 5, threadId: 0},
 	}
 	for i, c := range cases {
 		for _, v := range llVariations {
 			tName := fmt.Sprintf("%v (%v)", c.name, v.name)
 			t.Run(tName, func(t *testing.T) {
+				effAddr := arch.AddressMask & c.addr
 				rtReg := c.rtReg
 				baseReg := 6
 				pc := Word(0x44)
@@ -136,10 +139,10 @@ func TestEVM_MT_SC(t *testing.T) {
 
 				// Define LL-related params
 				var llAddress, llOwnerThread Word
-				if v.matchEffAddr {
-					llAddress = c.effAddr
+				if v.matchAddr {
+					llAddress = c.addr
 				} else {
-					llAddress = c.effAddr + 4
+					llAddress = c.addr + 1
 				}
 				if v.matchThreadId {
 					llOwnerThread = c.threadId
@@ -164,7 +167,7 @@ func TestEVM_MT_SC(t *testing.T) {
 				var retVal Word
 				if v.shouldSucceed {
 					retVal = 1
-					expected.ExpectMemoryWordWrite(c.effAddr, c.value)
+					expected.ExpectMemoryWordWrite(effAddr, c.value)
 					expected.LLReservationActive = false
 					expected.LLAddress = 0
 					expected.LLOwnerThread = 0

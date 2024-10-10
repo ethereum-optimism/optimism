@@ -325,7 +325,7 @@ func (m *InstrumentedState) mipsStep() error {
 }
 
 func (m *InstrumentedState) handleMemoryUpdate(memAddr Word) {
-	if memAddr == m.state.LLAddress {
+	if memAddr == (arch.AddressMask & m.state.LLAddress) {
 		// Reserved address was modified, clear the reservation
 		m.clearLLMemoryReservation()
 	}
@@ -343,30 +343,37 @@ func (m *InstrumentedState) handleRMWOps(insn, opcode uint32) error {
 	base := m.state.GetRegistersRef()[baseReg]
 	rtReg := Word((insn >> 16) & 0x1F)
 	offset := exec.SignExtendImmediate(insn)
-
-	effAddr := (base + offset) & arch.AddressMask
-	m.memoryTracker.TrackMemAccess(effAddr)
-	mem := m.state.Memory.GetWord(effAddr)
+	addr := base + offset
 
 	var retVal Word
 	threadId := m.state.GetCurrentThread().ThreadId
 	if opcode == exec.OpLoadLinked || opcode == exec.OpLoadLinked64 {
-		retVal = mem
+		var subwordSizeBytes Word
+		if opcode == exec.OpLoadLinked {
+			subwordSizeBytes = 4
+		} else {
+			subwordSizeBytes = 8
+		}
+		retVal = exec.LoadSubWord(m.state.GetMemory(), addr, subwordSizeBytes, false, m.memoryTracker)
+
 		m.state.LLReservationActive = true
-		m.state.LLAddress = effAddr
+		m.state.LLAddress = addr
 		m.state.LLOwnerThread = threadId
 	} else if opcode == exec.OpStoreConditional || opcode == exec.OpStoreConditional64 {
-		// TODO(#12205): Determine bits affected by coherence stores on 64-bits
-		// Check if our memory reservation is still intact
-		if m.state.LLReservationActive && m.state.LLOwnerThread == threadId && m.state.LLAddress == effAddr {
+		if m.state.LLReservationActive && m.state.LLOwnerThread == threadId && m.state.LLAddress == addr {
 			// Complete atomic update: set memory and return 1 for success
 			m.clearLLMemoryReservation()
-			rt := m.state.GetRegistersRef()[rtReg]
+
+			var subwordSizeBytes Word
 			if opcode == exec.OpStoreConditional {
-				m.state.Memory.SetUint32(effAddr, uint32(rt))
+				subwordSizeBytes = 4
 			} else {
-				m.state.Memory.SetWord(effAddr, rt)
+				subwordSizeBytes = 8
 			}
+
+			memWriteVal := m.state.GetRegistersRef()[rtReg]
+			exec.StoreSubWord(m.state.GetMemory(), addr, subwordSizeBytes, memWriteVal, m.memoryTracker)
+
 			retVal = 1
 		} else {
 			// Atomic update failed, return 0 for failure
