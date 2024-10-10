@@ -49,7 +49,7 @@ type Metricer interface {
 	RecordL2Ref(name string, ref eth.L2BlockRef)
 	RecordUnsafePayloadsBuffer(length uint64, memSize uint64, next eth.BlockID)
 	RecordDerivedBatches(batchType string)
-	CountSequencedTxs(count int)
+	CountSequencedTxsInBlock(txns int, deposits int)
 	RecordL1ReorgDepth(d uint64)
 	RecordSequencerInconsistentL1Origin(from eth.BlockID, to eth.BlockID)
 	RecordSequencerReset()
@@ -135,7 +135,7 @@ type Metrics struct {
 
 	L1ReorgDepth prometheus.Histogram
 
-	TransactionsSequencedTotal prometheus.Counter
+	TransactionsSequencedTotal *prometheus.CounterVec
 
 	AltDAMetrics altda.Metricer
 
@@ -268,12 +268,11 @@ func NewMetrics(procName string) *Metrics {
 			Help:      "Histogram of L1 Reorg Depths",
 		}),
 
-		TransactionsSequencedTotal: factory.NewGauge(prometheus.GaugeOpts{
+		TransactionsSequencedTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: ns,
 			Name:      "transactions_sequenced_total",
 			Help:      "Count of total transactions sequenced",
-		}),
-
+		}, []string{"type"}),
 		PeerCount: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
 			Subsystem: "p2p",
@@ -531,8 +530,10 @@ func (m *Metrics) RecordDerivedBatches(batchType string) {
 	m.DerivedBatches.Record(batchType)
 }
 
-func (m *Metrics) CountSequencedTxs(count int) {
-	m.TransactionsSequencedTotal.Add(float64(count))
+func (m *Metrics) CountSequencedTxsInBlock(txns int, deposits int) {
+	m.TransactionsSequencedTotal.WithLabelValues("l1_info_deposit").Add(1)
+	m.TransactionsSequencedTotal.WithLabelValues("deposits").Add(float64(deposits - 1))
+	m.TransactionsSequencedTotal.WithLabelValues("txns").Add(float64(txns - deposits))
 }
 
 func (m *Metrics) RecordL1ReorgDepth(d uint64) {
@@ -743,7 +744,7 @@ func (n *noopMetricer) RecordUnsafePayloadsBuffer(length uint64, memSize uint64,
 func (n *noopMetricer) RecordDerivedBatches(batchType string) {
 }
 
-func (n *noopMetricer) CountSequencedTxs(count int) {
+func (n *noopMetricer) CountSequencedTxsInBlock(txns int, deposits int) {
 }
 
 func (n *noopMetricer) RecordL1ReorgDepth(d uint64) {
