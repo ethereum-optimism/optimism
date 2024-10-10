@@ -9,9 +9,10 @@ import (
 	"slices"
 	"sort"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum/go-ethereum/crypto"
 	"golang.org/x/exp/maps"
+
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 )
 
 // Note: 2**12 = 4 KiB, the min phys page size in the Go runtime.
@@ -193,8 +194,8 @@ func (m *Memory) pageLookup(pageIndex Word) (*CachedPage, bool) {
 }
 
 func (m *Memory) SetUint32(addr Word, v uint32) {
-	// addr must be aligned to WordSizeBytes bytes
-	if addr&arch.ExtMask != 0 {
+	// addr must be aligned to 4-byte (32-bit) boundaries
+	if addr&3 != 0 {
 		panic(fmt.Errorf("unaligned memory access: %x", addr))
 	}
 
