@@ -101,7 +101,7 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 				Topics: []common.Hash{
 					ConfigUpdateEventABIHash,
 					ConfigUpdateEventVersion0,
-					SystemConfigUpdateGasConfig,
+					SystemConfigUpdateFeeScalars,
 				},
 			},
 			hook: func(t *testing.T, log *types.Log) *types.Log {
@@ -151,7 +151,7 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 				Topics: []common.Hash{
 					ConfigUpdateEventABIHash,
 					ConfigUpdateEventVersion0,
-					SystemConfigUpdateGasConfig,
+					SystemConfigUpdateFeeScalars,
 				},
 			},
 			hook: func(t *testing.T, log *types.Log) *types.Log {
@@ -184,6 +184,28 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 			},
 			config: eth.SystemConfig{},
 			err:    true,
+		},
+		{
+			name: "SystemConfigUpdateEIP1559Params",
+			log: &types.Log{
+				Topics: []common.Hash{
+					ConfigUpdateEventABIHash,
+					ConfigUpdateEventVersion0,
+					SystemConfigUpdateEIP1559Params,
+				},
+			},
+			hook: func(t *testing.T, log *types.Log) *types.Log {
+				numberData, err := oneUint256.Pack(big.NewInt(123456789))
+				require.NoError(t, err)
+				data, err := bytesArgs.Pack(numberData)
+				require.NoError(t, err)
+				log.Data = data
+				return log
+			},
+			config: eth.SystemConfig{
+				EIP1559Params: 123456789,
+			},
+			err: false,
 		},
 	}
 

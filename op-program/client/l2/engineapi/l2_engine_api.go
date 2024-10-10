@@ -100,6 +100,9 @@ func computePayloadId(headBlockHash common.Hash, attrs *eth.PayloadAttributes) e
 		hasher.Write(tx)
 	}
 	_ = binary.Write(hasher, binary.BigEndian, *attrs.GasLimit)
+	if attrs.EIP1559Params != nil {
+		hasher.Write(attrs.EIP1559Params[:])
+	}
 	var out engine.PayloadID
 	copy(out[:], hasher.Sum(nil)[:8])
 	return out
@@ -155,6 +158,7 @@ func (ea *L2EngineAPI) startBlock(parent common.Hash, attrs *eth.PayloadAttribut
 	if err != nil {
 		return err
 	}
+
 	ea.blockProcessor = processor
 	ea.pendingIndices = make(map[common.Address]uint64)
 	ea.l2ForceEmpty = attrs.NoTxPool
