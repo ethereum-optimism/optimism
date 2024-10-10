@@ -134,10 +134,6 @@ func (b *BlockProcessor) Assemble() (*types.Block, error) {
 	body := types.Body{
 		Transactions: b.transactions,
 	}
-	if b.dataProvider.Config().IsShanghai(b.header.Number, b.header.Time) {
-		body.Withdrawals = make([]*types.Withdrawal, 0)
-		b.header.WithdrawalsHash = &types.EmptyWithdrawalsHash
-	}
 
 	return b.dataProvider.Engine().FinalizeAndAssemble(b.dataProvider, b.header, b.state, &body, b.receipts)
 }
