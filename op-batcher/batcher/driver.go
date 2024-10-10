@@ -381,7 +381,6 @@ func (l *BatchSubmitter) loop() {
 			l.state.pruneSafeBlocks(syncStatus.SafeL2)
 			l.state.pruneChannels(syncStatus.SafeL2)
 			if err := l.loadBlocksIntoState(*syncStatus, l.shutdownCtx); errors.Is(err, ErrReorg) {
-				l.clearState(l.shutdownCtx)
 				// Wait for any in flight transactions
 				// to be ingested by the node before
 				// we start loading blocks again.
@@ -389,6 +388,7 @@ func (l *BatchSubmitter) loop() {
 				if err != nil {
 					l.Log.Warn("error waiting for node sync", "err", err)
 				}
+				l.clearState(l.shutdownCtx)
 				continue
 			}
 			l.publishStateToL1(queue, receiptsCh, daGroup)
