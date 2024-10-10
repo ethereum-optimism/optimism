@@ -162,8 +162,9 @@ contract MIPS2 is ISemver {
                 return outputState();
             }
 
-            if (state.leftThreadStack == EMPTY_THREAD_ROOT && state.rightThreadStack == EMPTY_THREAD_ROOT) {
-                revert("MIPS2: illegal vm state");
+            if ((state.leftThreadStack == EMPTY_THREAD_ROOT && !state.traverseRight) ||
+                (state.rightThreadStack == EMPTY_THREAD_ROOT && state.traverseRight)) {
+                revert("MIPS2: active thread stack is empty");
             }
 
             state.step += 1;

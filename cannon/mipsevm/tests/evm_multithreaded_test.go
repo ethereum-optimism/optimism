@@ -1202,20 +1202,24 @@ func TestEVM_EmptyThreadStacks(t *testing.T) {
 		otherStackSize int
 		traverseRight  bool
 	}{
-		{name: "Empty stacks, traverse right", otherStackSize: 0, traverseRight: true},
-		{name: "Empty stacks, traverse left", otherStackSize: 0, traverseRight: false},
+		{name: "Traverse right with empty stacks", otherStackSize: 0, traverseRight: true},
+		{name: "Traverse left with empty stacks", otherStackSize: 0, traverseRight: false},
+		{name: "Traverse right with one non-empty stack on the other side", otherStackSize: 1, traverseRight: true},
+		{name: "Traverse left with one non-empty stack on the other side", otherStackSize: 1, traverseRight: false},
 	}
 
 	for i, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			goVm, state, contracts := setup(t, i*123, nil)
 			mttestutil.SetupThreads(int64(i*123), state, c.traverseRight, 0, c.otherStackSize)
-			proofData := emptyThreadedProofGenerator(state)
 
+			// Since the verification of the proof is always performed after the active thread check,
+			// it is sufficient to pass a dummy proof here.
+			dummyProof := multiThreadedProofGenerator(t, multithreaded.CreateEmptyState())
 			require.PanicsWithValue(t, "Active thread stack is empty", func() { _, _ = goVm.Step(false) })
 
-			errorMessage := "MIPS2: illegal vm state"
-			testutil.AssertEVMReverts(t, state, contracts, tracer, proofData, errorMessage)
+			errorMessage := "MIPS2: active thread stack is empty"
+			testutil.AssertEVMReverts(t, state, contracts, tracer, dummyProof, errorMessage)
 		})
 	}
 }
