@@ -196,13 +196,11 @@ func AssertEVMReverts(t *testing.T, state mipsevm.FPVMState, contracts *Contract
 	env.Config.Tracer = tracer
 	sender := common.Address{0x13, 0x37}
 	ret, _, err := env.Call(vm.AccountRef(sender), contracts.Addresses.MIPS, input, startingGas, common.U2560)
+
 	require.EqualValues(t, err, vm.ErrExecutionReverted)
-
 	require.Greater(t, len(ret), 4, "Return data length should be greater than 4 bytes")
-
 	unpacked, decodeErr := abi.UnpackRevert(ret)
 	require.NoError(t, decodeErr, "Failed to unpack revert reason")
-
 	require.Equal(t, expectedReason, unpacked, "Revert reason mismatch")
 
 	logs := evmState.Logs()
