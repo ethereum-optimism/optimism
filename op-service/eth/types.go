@@ -83,6 +83,30 @@ func (b Bytes32) TerminalString() string {
 	return fmt.Sprintf("%x..%x", b[:3], b[29:])
 }
 
+type Bytes8 [8]byte
+
+func (b *Bytes8) UnmarshalJSON(text []byte) error {
+	return hexutil.UnmarshalFixedJSON(reflect.TypeOf(b), text, b[:])
+}
+
+func (b *Bytes8) UnmarshalText(text []byte) error {
+	return hexutil.UnmarshalFixedText("Bytes8", text, b[:])
+}
+
+func (b Bytes8) MarshalText() ([]byte, error) {
+	return hexutil.Bytes(b[:]).MarshalText()
+}
+
+func (b Bytes8) String() string {
+	return hexutil.Encode(b[:])
+}
+
+// TerminalString implements log.TerminalStringer, formatting a string for console
+// output during logging.
+func (b Bytes8) TerminalString() string {
+	return fmt.Sprintf("%x", b[:])
+}
+
 type Bytes96 [96]byte
 
 func (b *Bytes96) UnmarshalJSON(text []byte) error {
@@ -329,6 +353,8 @@ type PayloadAttributes struct {
 	NoTxPool bool `json:"noTxPool,omitempty"`
 	// GasLimit override
 	GasLimit *Uint64Quantity `json:"gasLimit,omitempty"`
+	// EIP-1559 parameters, to be specified only post-Holocene
+	EIP1559Params *Bytes8 `json:"eip1559Params,omitempty"`
 }
 
 type ExecutePayloadStatus string
@@ -390,6 +416,10 @@ type SystemConfig struct {
 	Scalar Bytes32 `json:"scalar"`
 	// GasLimit identifies the L2 block gas limit
 	GasLimit uint64 `json:"gasLimit"`
+	// EIP1559Params contains the Holocene-encoded EIP-1559 parameters. This
+	// value will be 0 if Holocene is not active, or if derivation has yet to
+	// process any EIP_1559_PARAMS system config update events.
+	EIP1559Params Bytes8 `json:"eip1559Params"`
 	// More fields can be added for future SystemConfig versions.
 }
 
@@ -473,7 +503,7 @@ func (b *Bytes48) UnmarshalJSON(text []byte) error {
 }
 
 func (b *Bytes48) UnmarshalText(text []byte) error {
-	return hexutil.UnmarshalFixedText("Bytes32", text, b[:])
+	return hexutil.UnmarshalFixedText("Bytes48", text, b[:])
 }
 
 func (b Bytes48) MarshalText() ([]byte, error) {
