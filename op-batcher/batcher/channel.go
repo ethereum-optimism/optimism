@@ -120,9 +120,11 @@ func (s *channel) updateInclusionBlocks() {
 	}
 }
 
-// pendingChannelIsTimedOut returns true if submitted channel has timed out.
+// isTimedOut returns true if submitted channel has timed out.
 // A channel has timed out if the difference in L1 Inclusion blocks between
 // the first & last included block is greater than or equal to the channel timeout.
+// Note: if any transactions have been confirmed, updateInclusionBlocks() must be called
+// prior to calling this method to ensure the min/max inclusion blocks are up-to-date.
 func (s *channel) isTimedOut() bool {
 	// Prior to the granite hard fork activating, the use of the shorter ChannelTimeout here may cause the batcher
 	// to believe the channel timed out when it was valid. It would then resubmit the blocks needlessly.
