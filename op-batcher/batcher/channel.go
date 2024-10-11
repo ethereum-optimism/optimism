@@ -203,23 +203,23 @@ func (s *channel) OutputFrames() error {
 }
 
 // LatestL1Origin returns the latest L1 block origin from all the L2 blocks that have been added to the channel
-func (s *channel) LatestL1Origin() eth.BlockID {
-	return s.channelBuilder.LatestL1Origin()
+func (c *channel) LatestL1Origin() eth.BlockID {
+	return c.channelBuilder.LatestL1Origin()
 }
 
 // OldestL1Origin returns the oldest L1 block origin from all the L2 blocks that have been added to the channel
-func (s *channel) OldestL1Origin() eth.BlockID {
-	return s.channelBuilder.OldestL1Origin()
+func (c *channel) OldestL1Origin() eth.BlockID {
+	return c.channelBuilder.OldestL1Origin()
 }
 
 // LatestL2 returns the latest L2 block from all the L2 blocks that have been added to the channel
-func (s *channel) LatestL2() eth.BlockID {
-	return s.channelBuilder.LatestL2()
+func (c *channel) LatestL2() eth.BlockID {
+	return c.channelBuilder.LatestL2()
 }
 
 // OldestL2 returns the oldest L2 block from all the L2 blocks that have been added to the channel
-func (s *channel) OldestL2() eth.BlockID {
-	return s.channelBuilder.OldestL2()
+func (c *channel) OldestL2() eth.BlockID {
+	return c.channelBuilder.OldestL2()
 }
 
 func (s *channel) Close() {
