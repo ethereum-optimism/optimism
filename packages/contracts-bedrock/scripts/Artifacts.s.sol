@@ -183,6 +183,7 @@ abstract contract Artifacts {
     /// @param _name The name of the deployment.
     /// @param _deployed The address of the deployment.
     function save(string memory _name, address _deployed) public {
+        console.log("Saving %s: %s", _name, _deployed);
         if (bytes(_name).length == 0) {
             revert InvalidDeployment("EmptyName");
         }
@@ -190,7 +191,6 @@ abstract contract Artifacts {
             revert InvalidDeployment("AlreadyExists");
         }
 
-        console.log("Saving %s: %s", _name, _deployed);
         Deployment memory deployment = Deployment({ name: _name, addr: payable(_deployed) });
         _namedDeployments[_name] = deployment;
         _newDeployments.push(deployment);

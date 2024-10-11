@@ -86,24 +86,28 @@ type ChannelBuilder struct {
 // channel out could not be created.
 // it acts as a factory for either a span or singular channel out
 func NewChannelBuilder(cfg ChannelConfig, rollupCfg *rollup.Config, latestL1OriginBlockNum uint64) (*ChannelBuilder, error) {
-	co, err := newChannelOut(cfg, rollupCfg)
+	co, err := NewChannelOut(cfg, rollupCfg)
 	if err != nil {
 		return nil, fmt.Errorf("creating channel out: %w", err)
 	}
 
+	return NewChannelBuilderWithChannelOut(cfg, rollupCfg, latestL1OriginBlockNum, co), nil
+}
+
+func NewChannelBuilderWithChannelOut(cfg ChannelConfig, rollupCfg *rollup.Config, latestL1OriginBlockNum uint64, channelOut derive.ChannelOut) *ChannelBuilder {
 	cb := &ChannelBuilder{
 		cfg:       cfg,
 		rollupCfg: rollupCfg,
-		co:        co,
+		co:        channelOut,
 	}
 
 	cb.updateDurationTimeout(latestL1OriginBlockNum)
 
-	return cb, nil
+	return cb
 }
 
-// newChannelOut creates a new channel out based on the given configuration.
-func newChannelOut(cfg ChannelConfig, rollupCfg *rollup.Config) (derive.ChannelOut, error) {
+// NewChannelOut creates a new channel out based on the given configuration.
+func NewChannelOut(cfg ChannelConfig, rollupCfg *rollup.Config) (derive.ChannelOut, error) {
 	spec := rollup.NewChainSpec(rollupCfg)
 	if cfg.BatchType == derive.SpanBatchType {
 		return derive.NewSpanChannelOut(

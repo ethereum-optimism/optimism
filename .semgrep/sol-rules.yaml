@@ -67,6 +67,7 @@ rules:
         - packages/contracts-bedrock/src/cannon/MIPS.sol
         - packages/contracts-bedrock/src/cannon/MIPS2.sol
         - packages/contracts-bedrock/src/cannon/libraries/MIPSMemory.sol
+        - packages/contracts-bedrock/src/cannon/libraries/MIPSInstructions.sol
 
   - id: sol-style-malformed-revert
     languages: [solidity]

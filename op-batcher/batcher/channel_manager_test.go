@@ -668,3 +668,25 @@ func TestChannelManager_Requeue(t *testing.T) {
 
 	require.NotContains(t, m.blocks, blockA)
 }
+func TestChannelManager_ChannelOutFactory(t *testing.T) {
+	type ChannelOutWrapper struct {
+		derive.ChannelOut
+	}
+
+	l := testlog.Logger(t, log.LevelCrit)
+	cfg := channelManagerTestConfig(100, derive.SingularBatchType)
+	m := NewChannelManager(l, metrics.NoopMetrics, cfg, defaultTestRollupConfig)
+	m.SetChannelOutFactory(func(cfg ChannelConfig, rollupCfg *rollup.Config) (derive.ChannelOut, error) {
+		co, err := NewChannelOut(cfg, rollupCfg)
+		if err != nil {
+			return nil, err
+		}
+		// return a wrapper type, to validate that the factory was correctly used by checking the type below
+		return &ChannelOutWrapper{
+			ChannelOut: co,
+		}, nil
+	})
+	require.NoError(t, m.ensureChannelWithSpace(eth.BlockID{}))
+
+	require.IsType(t, &ChannelOutWrapper{}, m.currentChannel.channelBuilder.co)
+}

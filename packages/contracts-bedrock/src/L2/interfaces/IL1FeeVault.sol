@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-library Types {
-    type WithdrawalNetwork is uint8;
-}
+import { Types } from "src/libraries/Types.sol";
 
 interface IL1FeeVault {
     event Withdrawal(uint256 value, address to, address from);

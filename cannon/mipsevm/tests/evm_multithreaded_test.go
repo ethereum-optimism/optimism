@@ -1183,11 +1183,46 @@ func TestEVM_UnsupportedSyscall(t *testing.T) {
 			// Setup basic getThreadId syscall instruction
 			state.Memory.SetUint32(state.GetPC(), syscallInsn)
 			state.GetRegistersRef()[2] = Word(syscallNum)
-
+			proofData := multiThreadedProofGenerator(t, state)
 			// Set up post-state expectations
 			require.Panics(t, func() { _, _ = goVm.Step(true) })
-			testutil.AssertEVMReverts(t, state, contracts, tracer)
+
+			errorMessage := "MIPS2: unimplemented syscall"
+			testutil.AssertEVMReverts(t, state, contracts, tracer, proofData, errorMessage)
 		})
+	}
+}
+
+func TestEVM_EmptyThreadStacks(t *testing.T) {
+	t.Parallel()
+	var tracer *tracing.Hooks
+
+	cases := []struct {
+		name           string
+		otherStackSize int
+		traverseRight  bool
+	}{
+		{name: "Traverse right with empty stacks", otherStackSize: 0, traverseRight: true},
+		{name: "Traverse left with empty stacks", otherStackSize: 0, traverseRight: false},
+		{name: "Traverse right with one non-empty stack on the other side", otherStackSize: 1, traverseRight: true},
+		{name: "Traverse left with one non-empty stack on the other side", otherStackSize: 1, traverseRight: false},
+	}
+	// Generate proof variations
+	proofVariations := GenerateEmptyThreadProofVariations(t)
+
+	for i, c := range cases {
+		for _, proofCase := range proofVariations {
+			testName := fmt.Sprintf("%v (proofCase=%v)", c.name, proofCase.Name)
+			t.Run(testName, func(t *testing.T) {
+				goVm, state, contracts := setup(t, i*123, nil)
+				mttestutil.SetupThreads(int64(i*123), state, c.traverseRight, 0, c.otherStackSize)
+
+				require.PanicsWithValue(t, "Active thread stack is empty", func() { _, _ = goVm.Step(false) })
+
+				errorMessage := "MIPS2: active thread stack is empty"
+				testutil.AssertEVMReverts(t, state, contracts, tracer, proofCase.Proof, errorMessage)
+			})
+		}
 	}
 }
 
