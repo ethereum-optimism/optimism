@@ -258,7 +258,7 @@ func (envelope *ExecutionPayloadEnvelope) CheckBlockHash() (actual common.Hash, 
 	return blockHash, blockHash == payload.BlockHash
 }
 
-func BlockAsPayload(bl *types.Block, canyonForkTime *uint64) (*ExecutionPayload, error) {
+func BlockAsPayload(bl *types.Block, shanghaiTime *uint64) (*ExecutionPayload, error) {
 	baseFee, overflow := uint256.FromBig(bl.BaseFee())
 	if overflow {
 		return nil, fmt.Errorf("invalid base fee in block: %s", bl.BaseFee())
@@ -291,15 +291,15 @@ func BlockAsPayload(bl *types.Block, canyonForkTime *uint64) (*ExecutionPayload,
 		BlobGasUsed:   (*Uint64Quantity)(bl.BlobGasUsed()),
 	}
 
-	if canyonForkTime != nil && uint64(payload.Timestamp) >= *canyonForkTime {
+	if shanghaiTime != nil && uint64(payload.Timestamp) >= *shanghaiTime {
 		payload.Withdrawals = &types.Withdrawals{}
 	}
 
 	return payload, nil
 }
 
-func BlockAsPayloadEnv(bl *types.Block, canyonForkTime *uint64) (*ExecutionPayloadEnvelope, error) {
-	payload, err := BlockAsPayload(bl, canyonForkTime)
+func BlockAsPayloadEnv(bl *types.Block, shanghaiTime *uint64) (*ExecutionPayloadEnvelope, error) {
+	payload, err := BlockAsPayload(bl, shanghaiTime)
 	if err != nil {
 		return nil, err
 	}

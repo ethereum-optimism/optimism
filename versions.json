@@ -9,5 +9,6 @@
   "slither": "0.10.2",
   "kontrol": "0.1.316",
   "just": "1.34.0",
-  "binary_signer": "1.0.4"
+  "binary_signer": "1.0.4",
+  "semgrep": "1.90.0"
 }
