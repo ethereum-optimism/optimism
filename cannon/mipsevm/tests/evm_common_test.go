@@ -378,6 +378,84 @@ func TestEVMSingleStep_MovzMovn(t *testing.T) {
 
 }
 
+func TestEVMSingleStep_MfhiMflo(t *testing.T) {
+	var tracer *tracing.Hooks
+	versions := GetMipsVersionTestCases(t)
+	cases := []struct {
+		name  string
+		funct uint32
+		hi    Word
+		lo    Word
+	}{
+		{name: "mflo", funct: uint32(0x12), lo: Word(0xdeadbeef), hi: Word(0x0)},
+		{name: "mfhi", funct: uint32(0x10), lo: Word(0x0), hi: Word(0xdeadbeef)},
+	}
+	expect := Word(0xdeadbeef)
+	for _, v := range versions {
+		for i, tt := range cases {
+			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
+			t.Run(testName, func(t *testing.T) {
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithLO(tt.lo), testutil.WithHI(tt.hi))
+				state := goVm.GetState()
+				rdReg := uint32(8)
+				insn := rdReg<<11 | tt.funct
+				state.GetMemory().SetUint32(state.GetPC(), insn)
+				step := state.GetStep()
+				// Setup expectations
+				expected := testutil.NewExpectedState(state)
+				expected.ExpectStep()
+				expected.Registers[rdReg] = expect
+				stepWitness, err := goVm.Step(true)
+				require.NoError(t, err)
+				// Check expectations
+				expected.Validate(t, state)
+				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, tracer)
+			})
+		}
+	}
+}
+
+func TestEVMSingleStep_MthiMtlo(t *testing.T) {
+	var tracer *tracing.Hooks
+	versions := GetMipsVersionTestCases(t)
+	cases := []struct {
+		name  string
+		funct uint32
+	}{
+		{name: "mtlo", funct: uint32(0x13)},
+		{name: "mthi", funct: uint32(0x11)},
+	}
+	val := Word(0xdeadbeef)
+	for _, v := range versions {
+		for i, tt := range cases {
+			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
+			t.Run(testName, func(t *testing.T) {
+
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)))
+				state := goVm.GetState()
+				rsReg := uint32(8)
+				insn := rsReg<<21 | tt.funct
+				state.GetMemory().SetUint32(state.GetPC(), insn)
+				state.GetRegistersRef()[rsReg] = val
+				step := state.GetStep()
+				// Setup expectations
+				expected := testutil.NewExpectedState(state)
+				expected.ExpectStep()
+				if tt.funct == 0x11 {
+					expected.HI = state.GetRegistersRef()[rsReg]
+				} else {
+					expected.LO = state.GetRegistersRef()[rsReg]
+				}
+				stepWitness, err := goVm.Step(true)
+				require.NoError(t, err)
+				// Check expectations
+				expected.Validate(t, state)
+				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, tracer)
+			})
+		}
+	}
+}
+
 func TestEVM_MMap(t *testing.T) {
 	var tracer *tracing.Hooks
 
