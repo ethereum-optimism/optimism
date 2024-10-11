@@ -57,8 +57,8 @@ contract MIPS2 is ISemver {
     }
 
     /// @notice The semantic version of the MIPS2 contract.
-    /// @custom:semver 1.0.0-beta.14
-    string public constant version = "1.0.0-beta.14";
+    /// @custom:semver 1.0.0-beta.15
+    string public constant version = "1.0.0-beta.15";
 
     /// @notice The preimage oracle contract.
     IPreimageOracle internal immutable ORACLE;
@@ -162,8 +162,11 @@ contract MIPS2 is ISemver {
                 return outputState();
             }
 
-            if (state.leftThreadStack == EMPTY_THREAD_ROOT && state.rightThreadStack == EMPTY_THREAD_ROOT) {
-                revert("MIPS2: illegal vm state");
+            if (
+                (state.leftThreadStack == EMPTY_THREAD_ROOT && !state.traverseRight)
+                    || (state.rightThreadStack == EMPTY_THREAD_ROOT && state.traverseRight)
+            ) {
+                revert("MIPS2: active thread stack is empty");
             }
 
             state.step += 1;
