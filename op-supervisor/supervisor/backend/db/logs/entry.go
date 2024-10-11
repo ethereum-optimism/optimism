@@ -2,16 +2,35 @@ package logs
 
 import (
 	"fmt"
+	"io"
 	"strings"
-
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
 )
 
 type EntryObj interface {
 	encode() Entry
 }
 
-type Entry = entrydb.Entry[EntryType]
+const EntrySize = 34
+
+type Entry [EntrySize]byte
+
+func (e Entry) Type() EntryType {
+	return EntryType(e[0])
+}
+
+type EntryBinary struct{}
+
+func (t EntryBinary) Append(dest []byte, e *Entry) []byte {
+	return append(dest, e[:]...)
+}
+
+func (t EntryBinary) ReadAt(dest *Entry, r io.ReaderAt, at int64) (n int, err error) {
+	return r.ReadAt(dest[:], at)
+}
+
+func (t EntryBinary) EntrySize() int {
+	return EntrySize
+}
 
 type EntryTypeFlag uint8
 

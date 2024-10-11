@@ -51,7 +51,7 @@ type DB struct {
 }
 
 func NewFromFile(logger log.Logger, m Metrics, path string, trimToLastSealed bool) (*DB, error) {
-	store, err := entrydb.NewEntryDB[EntryType](logger, path)
+	store, err := entrydb.NewEntryDB[EntryType, Entry, EntryBinary](logger, path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open DB: %w", err)
 	}
