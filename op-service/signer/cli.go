@@ -14,21 +14,23 @@ const (
 	AddressFlagName  = "signer.address"
 )
 
-func CLIFlags(envPrefix string) []cli.Flag {
+func CLIFlags(envPrefix string, category string) []cli.Flag {
 	envPrefix += "_SIGNER"
 	flags := []cli.Flag{
 		&cli.StringFlag{
-			Name:    EndpointFlagName,
-			Usage:   "Signer endpoint the client will connect to",
-			EnvVars: opservice.PrefixEnvVar(envPrefix, "ENDPOINT"),
+			Name:     EndpointFlagName,
+			Usage:    "Signer endpoint the client will connect to",
+			EnvVars:  opservice.PrefixEnvVar(envPrefix, "ENDPOINT"),
+			Category: category,
 		},
 		&cli.StringFlag{
-			Name:    AddressFlagName,
-			Usage:   "Address the signer is signing transactions for",
-			EnvVars: opservice.PrefixEnvVar(envPrefix, "ADDRESS"),
+			Name:     AddressFlagName,
+			Usage:    "Address the signer is signing requests for",
+			EnvVars:  opservice.PrefixEnvVar(envPrefix, "ADDRESS"),
+			Category: category,
 		},
 	}
-	flags = append(flags, optls.CLIFlagsWithFlagPrefix(envPrefix, "signer")...)
+	flags = append(flags, optls.CLIFlagsWithFlagPrefix(envPrefix, "signer", category)...)
 	return flags
 }
 
@@ -48,17 +50,14 @@ func (c CLIConfig) Check() error {
 	if err := c.TLSConfig.Check(); err != nil {
 		return err
 	}
-	if !((c.Endpoint == "" && c.Address == "") || (c.Endpoint != "" && c.Address != "")) {
+	if !((c.Endpoint == "" && c.Address == "") || (c.Endpoint != "")) {
 		return errors.New("signer endpoint and address must both be set or not set")
 	}
 	return nil
 }
 
 func (c CLIConfig) Enabled() bool {
-	if c.Endpoint != "" && c.Address != "" {
-		return true
-	}
-	return false
+	return c.Endpoint != ""
 }
 
 func ReadCLIConfig(ctx *cli.Context) CLIConfig {
