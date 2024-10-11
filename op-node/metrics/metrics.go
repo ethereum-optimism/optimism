@@ -75,6 +75,7 @@ type Metricer interface {
 	RecordDial(allow bool)
 	RecordAccept(allow bool)
 	ReportProtocolVersions(local, engine, recommended, required params.ProtocolVersion)
+	RecordBlockBuildingHealthCheck(status string)
 }
 
 // Metrics tracks all the metrics for the op-node.
@@ -161,8 +162,9 @@ type Metrics struct {
 	// ProtocolVersions is pseudo-metric to report the exact protocol version info
 	ProtocolVersions *prometheus.GaugeVec
 
-	registry *prometheus.Registry
-	factory  metrics.Factory
+	registry                  *prometheus.Registry
+	factory                   metrics.Factory
+	BlockBuildingHealthChecks *prometheus.CounterVec
 }
 
 var _ Metricer = (*Metrics)(nil)
@@ -426,6 +428,11 @@ func NewMetrics(procName string) *Metrics {
 		}),
 
 		AltDAMetrics: altda.MakeMetrics(ns, factory),
+		BlockBuildingHealthChecks: factory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: Namespace,
+			Name:      "block_building_health_checks_total",
+			Help:      "Total number of block building health checks performed",
+		}, []string{"status"}),
 
 		registry: registry,
 		factory:  factory,
@@ -669,6 +676,10 @@ func (m *Metrics) ReportProtocolVersions(local, engine, recommended, required pa
 	m.ProtocolVersionDelta.WithLabelValues("engine_recommended").Set(float64(engine.Compare(recommended)))
 	m.ProtocolVersionDelta.WithLabelValues("engine_required").Set(float64(engine.Compare(required)))
 	m.ProtocolVersions.WithLabelValues(local.String(), engine.String(), recommended.String(), required.String()).Set(1)
+}
+
+func (m *Metrics) RecordBlockBuildingHealthCheck(status string) {
+	m.BlockBuildingHealthChecks.WithLabelValues(status).Inc()
 }
 
 type noopMetricer struct {

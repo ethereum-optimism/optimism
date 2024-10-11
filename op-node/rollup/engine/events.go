@@ -19,6 +19,7 @@ type Metrics interface {
 
 	RecordSequencerBuildingDiffTime(duration time.Duration)
 	RecordSequencerSealingTime(duration time.Duration)
+	RecordBlockBuildingHealthCheck(status string)
 }
 
 // ForkchoiceRequestEvent signals to the engine that it should emit an artificial
@@ -266,8 +267,6 @@ func (d *EngDeriver) AttachEmitter(em event.Emitter) {
 	d.emitter = em
 }
 
-const blockTimeThreshold uint64 = 2
-
 func (d *EngDeriver) OnEvent(ev event.Event) bool {
 	switch x := ev.(type) {
 	case TryBackupUnsafeReorgEvent:
@@ -326,26 +325,30 @@ func (d *EngDeriver) OnEvent(ev event.Event) bool {
 		} else {
 			d.log.Info("successfully processed payload", "ref", ref, "txs", len(x.Envelope.ExecutionPayload.Transactions))
 			payload := x.Envelope.ExecutionPayload
+			blockBuildingThreshold := d.cfg.BlockBuildingThreshold
+
 			if payload != nil {
 				latestBlockTimeStamp := uint64(payload.Timestamp)
-
 				currentTime := uint64(time.Now().Unix())
 
 				if latestBlockTimeStamp <= currentTime {
-					timeDiff := currentTime - latestBlockTimeStamp
+					timeDiff := time.Duration(currentTime-latestBlockTimeStamp) * time.Second
 
-					if timeDiff < blockTimeThreshold {
+					if timeDiff < blockBuildingThreshold {
 						// Node is healthy
 						d.log.Info("Node is healthy, time difference within threshold",
-							"time_diff", timeDiff, "threshold", blockTimeThreshold)
+							"time_diff", timeDiff, "threshold", blockBuildingThreshold)
+						d.metrics.RecordBlockBuildingHealthCheck("healthy")
 					} else {
 						// Node is stale
 						d.log.Warn("Node is stale, time difference exceeds threshold",
-							"time_diff", timeDiff, "threshold", blockTimeThreshold)
+							"time_diff", timeDiff, "threshold", blockBuildingThreshold)
+						d.metrics.RecordBlockBuildingHealthCheck("stale")
 					}
 				} else {
 					d.log.Info("Cannot compute time difference, block timestamp is in the future",
 						"current_timestamp", currentTime, "block_timestamp", latestBlockTimeStamp)
+					d.metrics.RecordBlockBuildingHealthCheck("future_timestamp")
 				}
 			}
 		}
