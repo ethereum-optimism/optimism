@@ -13,7 +13,6 @@ import { SequencerFeeVault } from "src/L2/SequencerFeeVault.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Types } from "src/libraries/Types.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { Types as ITypes } from "src/L2/interfaces/ISequencerFeeVault.sol";
 
 contract SequencerFeeVault_Test is CommonTest {
     address recipient;
@@ -31,12 +30,8 @@ contract SequencerFeeVault_Test is CommonTest {
         assertEq(sequencerFeeVault.recipient(), recipient);
         assertEq(sequencerFeeVault.MIN_WITHDRAWAL_AMOUNT(), deploy.cfg().sequencerFeeVaultMinimumWithdrawalAmount());
         assertEq(sequencerFeeVault.minWithdrawalAmount(), deploy.cfg().sequencerFeeVaultMinimumWithdrawalAmount());
-        assertEq(
-            ITypes.WithdrawalNetwork.unwrap(sequencerFeeVault.WITHDRAWAL_NETWORK()), uint8(Types.WithdrawalNetwork.L1)
-        );
-        assertEq(
-            ITypes.WithdrawalNetwork.unwrap(sequencerFeeVault.withdrawalNetwork()), uint8(Types.WithdrawalNetwork.L1)
-        );
+        assertEq(uint8(sequencerFeeVault.WITHDRAWAL_NETWORK()), uint8(Types.WithdrawalNetwork.L1));
+        assertEq(uint8(sequencerFeeVault.withdrawalNetwork()), uint8(Types.WithdrawalNetwork.L1));
     }
 
     /// @dev Tests that the fee vault is able to receive ETH.

@@ -6,7 +6,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { ERC165 } from "@openzeppelin/contracts-v5/utils/introspection/ERC165.sol";
 import { SuperchainERC20 } from "src/L2/SuperchainERC20.sol";
 import { Initializable } from "@openzeppelin/contracts-v5/proxy/utils/Initializable.sol";
-import { ZeroAddress } from "src/libraries/errors/CommonErrors.sol";
+import { ZeroAddress, Unauthorized } from "src/libraries/errors/CommonErrors.sol";
 
 /// @custom:proxied true
 /// @title OptimismSuperchainERC20
@@ -17,9 +17,6 @@ import { ZeroAddress } from "src/libraries/errors/CommonErrors.sol";
 ///         also enables the inverse conversion path.
 ///         Moreover, it builds on top of the L2ToL2CrossDomainMessenger for both replay protection and domain binding.
 contract OptimismSuperchainERC20 is SuperchainERC20, Initializable, ERC165 {
-    /// @notice Thrown when attempting to mint or burn tokens and the function caller is not the L2StandardBridge
-    error OnlyL2StandardBridge();
-
     /// @notice Emitted whenever tokens are minted for an account.
     /// @param to Address of the account tokens are being minted for.
     /// @param amount  Amount of tokens minted.
@@ -57,9 +54,7 @@ contract OptimismSuperchainERC20 is SuperchainERC20, Initializable, ERC165 {
 
     /// @notice A modifier that only allows the L2StandardBridge to call
     modifier onlyL2StandardBridge() {
-        if (msg.sender != Predeploys.L2_STANDARD_BRIDGE) {
-            revert OnlyL2StandardBridge();
-        }
+        if (msg.sender != Predeploys.L2_STANDARD_BRIDGE) revert Unauthorized();
         _;
     }
 

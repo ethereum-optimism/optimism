@@ -15,7 +15,7 @@ var emptyAddress common.Address
 type Intent struct {
 	L1ChainID uint64 `json:"l1ChainID" toml:"l1ChainID"`
 
-	SuperchainRoles SuperchainRoles `json:"superchainRoles" toml:"superchainRoles"`
+	SuperchainRoles SuperchainRoles `json:"superchainRoles" toml:"-"`
 
 	FundDevAccounts bool `json:"fundDevAccounts" toml:"fundDevAccounts"`
 

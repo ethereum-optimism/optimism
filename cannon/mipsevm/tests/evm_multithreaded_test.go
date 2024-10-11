@@ -1183,10 +1183,12 @@ func TestEVM_UnsupportedSyscall(t *testing.T) {
 			// Setup basic getThreadId syscall instruction
 			state.Memory.SetUint32(state.GetPC(), syscallInsn)
 			state.GetRegistersRef()[2] = Word(syscallNum)
-
+			proofData := multiThreadedProofGenerator(t, state)
 			// Set up post-state expectations
 			require.Panics(t, func() { _, _ = goVm.Step(true) })
-			testutil.AssertEVMReverts(t, state, contracts, tracer)
+
+			errorMessage := "MIPS2: unimplemented syscall"
+			testutil.AssertEVMReverts(t, state, contracts, tracer, proofData, errorMessage)
 		})
 	}
 }

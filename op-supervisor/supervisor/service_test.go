@@ -5,12 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-supervisor/config"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-service/dial"
@@ -19,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-supervisor/config"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -62,8 +60,14 @@ func TestSupervisorService(t *testing.T) {
 		require.NoError(t, err)
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 		var dest types.SafetyLevel
-		err = cl.CallContext(ctx, &dest, "supervisor_checkBlock",
-			(*hexutil.U256)(uint256.NewInt(1)), common.Hash{0xab}, hexutil.Uint64(123))
+		err = cl.CallContext(ctx, &dest, "supervisor_checkMessage",
+			types.Identifier{
+				Origin:      common.Address{0xaa},
+				BlockNumber: 123,
+				LogIndex:    42,
+				Timestamp:   1234567,
+				ChainID:     types.ChainID{0xbb},
+			}, common.Hash{0xcc})
 		cancel()
 		require.NoError(t, err)
 		require.Equal(t, types.CrossUnsafe, dest, "expecting mock to return cross-unsafe")

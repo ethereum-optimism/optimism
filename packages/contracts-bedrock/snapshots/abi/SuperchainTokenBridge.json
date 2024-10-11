@@ -150,12 +150,12 @@
   },
   {
     "inputs": [],
-    "name": "CallerNotL2ToL2CrossDomainMessenger",
+    "name": "InvalidCrossDomainSender",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "InvalidCrossDomainSender",
+    "name": "Unauthorized",
     "type": "error"
   },
   {
