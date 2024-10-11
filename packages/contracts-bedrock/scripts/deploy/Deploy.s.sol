@@ -476,7 +476,7 @@ contract Deploy is Deployer {
         // If the following require statement is hit, you can delete the block of code after it.
         require(
             permissionlessGameImpl == address(0),
-            "The PermissionlessDelayedWETH is already set by the OPCM, it is no longer necessary to deploy it separately."
+            "Deploy: The PermissionlessDelayedWETH is already set by the OPCM, it is no longer necessary to deploy it separately."
         );
         address delayedWETHImpl = mustGetAddress("DelayedWETH");
         address delayedWETHPermissionlessGameProxy = deployERC1967ProxyWithOwner("DelayedWETHProxy", msg.sender);
