@@ -813,3 +813,6 @@ func (n *noopMetricer) RecordAccept(allow bool) {
 }
 func (n *noopMetricer) ReportProtocolVersions(local, engine, recommended, required params.ProtocolVersion) {
 }
+
+func (n *noopMetricer) RecordBlockBuildingHealthCheck(status string) {
+}
