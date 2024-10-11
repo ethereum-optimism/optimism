@@ -45,6 +45,7 @@ func newChannel(log log.Logger, metr metrics.Metricer, cfg ChannelConfig, rollup
 		channelBuilder:        cb,
 		pendingTransactions:   make(map[string]txData),
 		confirmedTransactions: make(map[string]eth.BlockID),
+		minInclusionBlock:     uint64(math.MaxUint64),
 	}, nil
 }
 
@@ -83,7 +84,8 @@ func (s *channel) TxConfirmed(id string, inclusionBlock eth.BlockID) (bool, []*t
 	s.channelBuilder.FramePublished(inclusionBlock.Number)
 
 	// Update min/max inclusion blocks for timeout check
-	s.updateInclusionBlocks()
+	s.minInclusionBlock = min(s.minInclusionBlock, inclusionBlock.Number)
+	s.maxInclusionBlock = max(s.maxInclusionBlock, inclusionBlock.Number)
 
 	// If this channel timed out, put the pending blocks back into the local saved blocks
 	// and then reset this state so it can try to build a new channel.
@@ -107,24 +109,9 @@ func (s *channel) Timeout() uint64 {
 	return s.channelBuilder.Timeout()
 }
 
-// updateInclusionBlocks finds the first & last confirmed tx and saves its inclusion numbers
-func (s *channel) updateInclusionBlocks() {
-	if len(s.confirmedTransactions) == 0 {
-		return
-	}
-	s.minInclusionBlock = uint64(math.MaxUint64)
-	s.maxInclusionBlock = uint64(0)
-	for _, inclusionBlock := range s.confirmedTransactions {
-		s.minInclusionBlock = min(s.minInclusionBlock, inclusionBlock.Number)
-		s.maxInclusionBlock = max(s.maxInclusionBlock, inclusionBlock.Number)
-	}
-}
-
 // isTimedOut returns true if submitted channel has timed out.
 // A channel has timed out if the difference in L1 Inclusion blocks between
 // the first & last included block is greater than or equal to the channel timeout.
-// Note: if any transactions have been confirmed, updateInclusionBlocks() must be called
-// prior to calling this method to ensure the min/max inclusion blocks are up-to-date.
 func (s *channel) isTimedOut() bool {
 	// Prior to the granite hard fork activating, the use of the shorter ChannelTimeout here may cause the batcher
 	// to believe the channel timed out when it was valid. It would then resubmit the blocks needlessly.
