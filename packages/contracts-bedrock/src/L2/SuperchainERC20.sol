@@ -27,7 +27,7 @@ abstract contract SuperchainERC20 is ERC20, ICrosschainERC20, ISemver {
     /// @notice Allows the SuperchainTokenBridge to mint tokens.
     /// @param _to     Address to mint tokens to.
     /// @param _amount Amount of tokens to mint.
-    function __crosschainMint(address _to, uint256 _amount) external virtual onlySuperchainTokenBridge {
+    function crosschainMint(address _to, uint256 _amount) external onlySuperchainTokenBridge {
         _mint(_to, _amount);
 
         emit CrosschainMinted(_to, _amount);
@@ -36,7 +36,7 @@ abstract contract SuperchainERC20 is ERC20, ICrosschainERC20, ISemver {
     /// @notice Allows the SuperchainTokenBridge to burn tokens.
     /// @param _from   Address to burn tokens from.
     /// @param _amount Amount of tokens to burn.
-    function __crosschainBurn(address _from, uint256 _amount) external virtual onlySuperchainTokenBridge {
+    function crosschainBurn(address _from, uint256 _amount) external onlySuperchainTokenBridge {
         _burn(_from, _amount);
 
         emit CrosschainBurnt(_from, _amount);

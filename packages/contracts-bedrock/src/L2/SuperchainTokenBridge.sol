@@ -63,7 +63,7 @@ contract SuperchainTokenBridge {
     {
         if (_to == address(0)) revert ZeroAddress();
 
-        ISuperchainERC20(_token).__crosschainBurn(msg.sender, _amount);
+        ISuperchainERC20(_token).crosschainBurn(msg.sender, _amount);
 
         bytes memory message = abi.encodeCall(this.relayERC20, (_token, msg.sender, _to, _amount));
         msgHash_ = IL2ToL2CrossDomainMessenger(MESSENGER).sendMessage(_chainId, address(this), message);
@@ -86,7 +86,7 @@ contract SuperchainTokenBridge {
 
         uint256 source = IL2ToL2CrossDomainMessenger(MESSENGER).crossDomainMessageSource();
 
-        ISuperchainERC20(_token).__crosschainMint(_to, _amount);
+        ISuperchainERC20(_token).crosschainMint(_to, _amount);
 
         emit RelayERC20(_token, _from, _to, _amount, source);
     }
