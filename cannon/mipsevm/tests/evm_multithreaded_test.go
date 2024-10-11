@@ -136,7 +136,17 @@ func TestEVM_MT_SC(t *testing.T) {
 		for _, v := range llVariations {
 			tName := fmt.Sprintf("%v (%v)", c.name, v.name)
 			t.Run(tName, func(t *testing.T) {
-				effAddr := arch.AddressMask & c.addr
+				// Perform some calculations for 64-bit compatibility
+				// Calculate address
+				addr := c.base + testutil.SignExtend(Word(c.offset), 16)
+				effAddr := arch.AddressMask & addr
+				// Calculate memory value
+				wordOffset := addr & ^Word(arch.AddressMask) & 0x4
+				maxWordByteOffset := Word(arch.WordSizeBytes - 4)
+				memBitOffset := (maxWordByteOffset - wordOffset) * 8
+				memVal := c.value << memBitOffset
+
+				// Setup
 				rtReg := c.rtReg
 				baseReg := 6
 				pc := Word(0x44)
@@ -148,9 +158,9 @@ func TestEVM_MT_SC(t *testing.T) {
 				// Define LL-related params
 				var llAddress, llOwnerThread Word
 				if v.matchAddr {
-					llAddress = c.addr
+					llAddress = addr
 				} else {
-					llAddress = c.addr + 1
+					llAddress = addr + 1
 				}
 				if v.matchThreadId {
 					llOwnerThread = c.threadId
@@ -175,7 +185,7 @@ func TestEVM_MT_SC(t *testing.T) {
 				var retVal Word
 				if v.shouldSucceed {
 					retVal = 1
-					expected.ExpectMemoryWordWrite(effAddr, c.value)
+					expected.ExpectMemoryWordWrite(effAddr, memVal)
 					expected.LLReservationActive = false
 					expected.LLAddress = 0
 					expected.LLOwnerThread = 0
