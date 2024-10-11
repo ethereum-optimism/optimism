@@ -53,6 +53,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	supervisorConfig "github.com/ethereum-optimism/optimism/op-supervisor/config"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/source/contracts"
+	supervisorTypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // SuperSystem is an interface for the system (collection of connected resources)
@@ -62,38 +64,41 @@ import (
 // for example, interopE2ESystem is the default implementation, but a shim to
 // kurtosis or another testing framework could be implemented
 type SuperSystem interface {
-	// get the supervisor
 	Supervisor() *supervisor.SupervisorService
-	// get the supervisor client
 	SupervisorClient() *sources.SupervisorClient
-	// get the batcher for a network
-	Batcher(network string) *bss.BatcherService
-	// get the proposer for a network
-	Proposer(network string) *l2os.ProposerService
-	// get the opnode for a network
-	OpNode(network string) *opnode.Opnode
-	// get the geth instance for a network
-	L2Geth(network string) *geth.GethInstance
-	// get the L2 geth client for a network
-	L2GethClient(network string) *ethclient.Client
-	// get the secret for a network and role
-	L2OperatorKey(network string, role devkeys.ChainOperatorRole) ecdsa.PrivateKey
-	// get the list of network IDs
+	L2sSystem
+	UserSystem
+	ContractSystem
+}
+
+type L2sSystem interface {
 	L2IDs() []string
-	// register a username to an account on all L2s
-	AddUser(username string)
-	// get the user key for a user on an L2
-	UserKey(id, username string) ecdsa.PrivateKey
-	// send a transaction on an L2 on the given network, from the given user
+	ChainID(network string) *big.Int
 	SendL2Tx(network string, username string, applyTxOpts helpers.TxOptsFn) *types.Receipt
-	// get the address for a user on an L2
+	Batcher(network string) *bss.BatcherService
+	Proposer(network string) *l2os.ProposerService
+	OpNode(network string) *opnode.Opnode
+	L2Geth(network string) *geth.GethInstance
+	L2GethClient(network string) *ethclient.Client
+	L2OperatorKey(network string, role devkeys.ChainOperatorRole) ecdsa.PrivateKey
+}
+
+type UserSystem interface {
+	AddUser(username string)
+	UserKey(id, username string) ecdsa.PrivateKey
 	Address(network string, username string) common.Address
-	// Deploy the Emitter Contract, which emits Event Logs
-	DeployEmitterContract(network string, username string) common.Address
-	// Use the Emitter Contract to emit an Event Log
-	EmitData(network string, username string, data string) *types.Receipt
-	// Access a contract on a network by name
+}
+
+// ContractSystem is an interface for interacting with contracts of the system
+type ContractSystem interface {
+	// Contract returns the contract for the network and contract name
 	Contract(network string, contractName string) interface{}
+	// DeployEmitterContract deploys an emitter contract on the network
+	DeployEmitterContract(network string, username string) common.Address
+	// EmitData emits data on the network, using the emitter contract
+	EmitData(network string, username string, data string) *types.Receipt
+	// ExecuteMessage executes a message on the network using the CrossL2Inbox contract
+	ExecuteMessage(network string, sender string, identifier supervisorTypes.Identifier, address string, payload []byte) *types.Receipt
 }
 
 // NewSuperSystem creates a new SuperSystem from a recipe. It creates an interopE2ESystem.
@@ -410,7 +415,9 @@ func (s *interopE2ESystem) newL2(id string, l2Out *interopgen.L2Output) l2Set {
 		batcher:      batcher,
 		operatorKeys: operatorKeys,
 		userKeys:     make(map[string]ecdsa.PrivateKey),
-		contracts:    make(map[string]interface{}),
+		contracts: map[string]interface{}{
+			"CrossL2Inbox": contracts.NewCrossL2Inbox(),
+		},
 	}
 }
 
@@ -592,6 +599,13 @@ func (s *interopE2ESystem) L2IDs() []string {
 	return ids
 }
 
+// ChainID returns the chain ID for an L2
+func (s *interopE2ESystem) ChainID(id string) *big.Int {
+	l2, ok := s.l2s[id]
+	require.True(s.t, ok, "no L2 found for id %s", id)
+	return l2.chainID
+}
+
 // SendL2Tx sends an L2 transaction to the L2 with the given ID.
 // it acts as a wrapper around op-e2e.SendL2TxWithID
 // and uses the L2's chain ID, username key, and geth client.
@@ -631,6 +645,29 @@ func (s *interopE2ESystem) DeployEmitterContract(
 	require.NoError(s.t, err)
 	s.l2s[id].contracts["emitter"] = contract
 	return address
+}
+
+func (s *interopE2ESystem) ExecuteMessage(
+	// id is the chain this transaction will occur on
+	id string,
+	// sender is the user who is sending the transaction
+	sender string,
+	// identifier, address, payload are arguments to the ExecuteMessage function
+	identifier supervisorTypes.Identifier,
+	address string,
+	payload []byte,
+) *types.Receipt {
+	addr := s.Address(id, address)
+	contract := s.l2s[id].contracts["CrossL2Inbox"].(*contracts.CrossL2Inbox)
+	candidate, err := contract.ExecuteMessage(identifier, addr, payload)
+	require.NoError(s.t, err)
+	// rough estimate of gas cost for the transaction, because the candidate doesn't have one
+	gasEstimate := 24000 + len(candidate.TxData)*10
+	return s.SendL2Tx(id, sender, func(opts *helpers.TxOpts) {
+		opts.Gas = uint64(gasEstimate)
+		opts.ToAddr = candidate.To
+		opts.Data = candidate.TxData
+	})
 }
 
 func (s *interopE2ESystem) EmitData(
