@@ -32,7 +32,7 @@ func CLIFlags(envPrefix string) []cli.Flag {
 		},
 		&cli.StringSliceFlag{
 			Name:    HeadersFlagName,
-			Usage:   "Request headers",
+			Usage:   "Headers to pass to the remote signer. Format `key=value`. Value can contain any character allowed in a HTTP header. When using env vars, split with commas. When using flags one key value pair per flag.",
 			EnvVars: opservice.PrefixEnvVar(envPrefix, "HEADER"),
 		},
 	}
