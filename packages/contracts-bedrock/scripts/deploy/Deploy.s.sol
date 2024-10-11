@@ -285,8 +285,6 @@ contract Deploy is Deployer {
 
         // Apply modifications for non-standard configurations not supported by the OPCM deployment
         if (cfg.useFaultProofs()) {
-            // The OPCM doesn't deploy the CANNON game (it is deployed in deployOPChain), but the tests expect it
-            // to be the respected game type.
             vm.startPrank(ISuperchainConfig(mustGetAddress("SuperchainConfigProxy")).guardian());
             IOptimismPortal2(mustGetAddress("OptimismPortalProxy")).setRespectedGameType(
                 GameType.wrap(uint32(cfg.respectedGameType()))
@@ -645,9 +643,7 @@ contract Deploy is Deployer {
     /// @notice Deploy the OptimismPortal
     function deployOptimismPortal() public broadcast returns (address addr_) {
         require(!cfg.useFaultProofs(), "Deploy: FaultProofs OptimismPortal is deployed by OPCM");
-        if (cfg.useInterop()) {
-            console.log("Attempting to deploy OptimismPortal with interop, this config is a noop");
-        }
+        require(!cfg.useInterop(), "Deploy: The legacy OptimismPortal does not support interop");
 
         addr_ = DeployUtils.create2AndSave({
             _save: this,
