@@ -3,7 +3,9 @@ package chainconfig
 import (
 	"embed"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"os"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -55,7 +57,9 @@ func ChainConfigByChainID(chainID uint64) (*params.ChainConfig, error) {
 func chainConfigByChainID(chainID uint64, customChainFS embed.FS) (*params.ChainConfig, error) {
 	// Load from custom chain configs from embed FS
 	data, err := customChainFS.ReadFile(fmt.Sprintf("configs/%d-genesis-l2.json", chainID))
-	if err != nil {
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("no chain config available for chain ID: %d", chainID)
+	} else if err != nil {
 		return nil, fmt.Errorf("failed to get chain config for chain ID %d: %w", chainID, err)
 	}
 	var genesis core.Genesis
