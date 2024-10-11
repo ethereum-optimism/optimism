@@ -468,9 +468,16 @@ contract Deploy is Deployer {
         save("PermissionedDisputeGame", address(deployOutput.permissionedDisputeGame));
         save("OptimismPortalProxy", address(deployOutput.optimismPortalProxy));
 
-        // Deploy and setup the PermissionlessDelayedWeth not provided by the OPCM
-        //   TODO: When the OPCM also deploys the PermissionlessGame, we will be able to simply call
-        //   save("PermissionlessDelayedWETHProxy", address(deployOutput.delayedWETHPermissionlessGameProxy));
+        // Check if the permissionless game implementation is already set
+        IDisputeGameFactory factory = IDisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
+        address permissionlessGameImpl = address(factory.gameImpls(GameTypes.CANNON));
+
+        // Deploy and setup the PermissionlessDelayedWeth not provided by the OPCM.
+        // If the following require statement is hit, you can delete the block of code after it.
+        require(
+            permissionlessGameImpl == address(0),
+            "The PermissionlessDelayedWETH is already set by the OPCM, it is no longer necessary to deploy it separately."
+        );
         address delayedWETHImpl = mustGetAddress("DelayedWETH");
         address delayedWETHPermissionlessGameProxy = deployERC1967ProxyWithOwner("DelayedWETHProxy", msg.sender);
         vm.broadcast(msg.sender);
