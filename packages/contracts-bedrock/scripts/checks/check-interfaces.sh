@@ -62,7 +62,6 @@ EXCLUDE_CONTRACTS=(
     "ILegacyMintableERC20"
     "IOptimismMintableERC20"
     "IOptimismMintableERC721"
-    "IOptimismSuperchainERC20"
 
     # Doesn't start with "I"
     "KontrolCheatsBase"
