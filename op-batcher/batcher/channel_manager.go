@@ -18,6 +18,8 @@ import (
 
 var ErrReorg = errors.New("block does not extend existing chain")
 
+type ChannelOutFactory func(cfg ChannelConfig, rollupCfg *rollup.Config) (derive.ChannelOut, error)
+
 // channelManager stores a contiguous set of blocks & turns them into channels.
 // Upon receiving tx confirmation (or a tx failure), it does channel error handling.
 //
@@ -31,6 +33,8 @@ type channelManager struct {
 	metr        metrics.Metricer
 	cfgProvider ChannelConfigProvider
 	rollupCfg   *rollup.Config
+
+	outFactory ChannelOutFactory
 
 	// All blocks since the last request for new tx data.
 	blocks queue.Queue[*types.Block]
@@ -59,8 +63,13 @@ func NewChannelManager(log log.Logger, metr metrics.Metricer, cfgProvider Channe
 		cfgProvider: cfgProvider,
 		defaultCfg:  cfgProvider.ChannelConfig(),
 		rollupCfg:   rollupCfg,
+		outFactory:  NewChannelOut,
 		txChannels:  make(map[string]*channel),
 	}
+}
+
+func (s *channelManager) SetChannelOutFactory(outFactory ChannelOutFactory) {
+	s.outFactory = outFactory
 }
 
 // Clear clears the entire state of the channel manager.
@@ -265,10 +274,13 @@ func (s *channelManager) ensureChannelWithSpace(l1Head eth.BlockID) error {
 	// This will be reassessed at channel submission-time,
 	// but this is our best guess at the appropriate values for now.
 	cfg := s.defaultCfg
-	pc, err := newChannel(s.log, s.metr, cfg, s.rollupCfg, s.l1OriginLastClosedChannel.Number)
+
+	channelOut, err := s.outFactory(cfg, s.rollupCfg)
 	if err != nil {
-		return fmt.Errorf("creating new channel: %w", err)
+		return fmt.Errorf("creating channel out: %w", err)
 	}
+
+	pc := newChannel(s.log, s.metr, cfg, s.rollupCfg, s.l1OriginLastClosedChannel.Number, channelOut)
 
 	s.currentChannel = pc
 	s.channelQueue = append(s.channelQueue, pc)
