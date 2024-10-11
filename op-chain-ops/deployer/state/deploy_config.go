@@ -18,7 +18,7 @@ var (
 	vaultMinWithdrawalAmount = mustHexBigFromHex("0x8ac7230489e80000")
 )
 
-func DefaultDeployConfig() genesis.DeployConfig {
+func DefaultDeployConfig(chainIntent *ChainIntent) genesis.DeployConfig {
 	return genesis.DeployConfig{
 		L2InitializationConfig: genesis.L2InitializationConfig{
 			L2GenesisBlockDeployConfig: genesis.L2GenesisBlockDeployConfig{
@@ -32,6 +32,9 @@ func DefaultDeployConfig() genesis.DeployConfig {
 				SequencerFeeVaultMinimumWithdrawalAmount: vaultMinWithdrawalAmount,
 				BaseFeeVaultMinimumWithdrawalAmount:      vaultMinWithdrawalAmount,
 				L1FeeVaultMinimumWithdrawalAmount:        vaultMinWithdrawalAmount,
+				BaseFeeVaultRecipient:                    chainIntent.BaseFeeVaultRecipient,
+				L1FeeVaultRecipient:                      chainIntent.L1FeeVaultRecipient,
+				SequencerFeeVaultRecipient:               chainIntent.SequencerFeeVaultRecipient,
 			},
 			GovernanceDeployConfig: genesis.GovernanceDeployConfig{
 				EnableGovernance:      true,
@@ -43,9 +46,9 @@ func DefaultDeployConfig() genesis.DeployConfig {
 				GasPriceOracleBlobBaseFeeScalar: 810949,
 			},
 			EIP1559DeployConfig: genesis.EIP1559DeployConfig{
-				EIP1559Denominator:       50,
+				EIP1559Denominator:       chainIntent.Eip1559Denominator,
 				EIP1559DenominatorCanyon: 250,
-				EIP1559Elasticity:        6,
+				EIP1559Elasticity:        chainIntent.Eip1559Elasticity,
 			},
 			UpgradeScheduleDeployConfig: genesis.UpgradeScheduleDeployConfig{
 				L2GenesisRegolithTimeOffset: u64UtilPtr(0),
@@ -76,7 +79,8 @@ func DefaultDeployConfig() genesis.DeployConfig {
 }
 
 func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State, chainState *ChainState) (genesis.DeployConfig, error) {
-	cfg := DefaultDeployConfig()
+	firstChainIntent := intent.Chains[0]
+	cfg := DefaultDeployConfig(firstChainIntent)
 
 	var err error
 	if len(intent.GlobalDeployOverrides) > 0 {

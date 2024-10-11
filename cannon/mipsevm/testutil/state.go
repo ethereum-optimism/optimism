@@ -68,6 +68,18 @@ func WithPCAndNextPC(pc arch.Word) StateOption {
 	}
 }
 
+func WithHI(hi arch.Word) StateOption {
+	return func(state StateMutator) {
+		state.SetHI(hi)
+	}
+}
+
+func WithLO(lo arch.Word) StateOption {
+	return func(state StateMutator) {
+		state.SetLO(lo)
+	}
+}
+
 func WithHeap(addr arch.Word) StateOption {
 	return func(state StateMutator) {
 		state.SetHeap(addr)
@@ -167,6 +179,11 @@ func (e *ExpectedState) ExpectStep() {
 
 func (e *ExpectedState) ExpectMemoryWrite(addr arch.Word, val uint32) {
 	e.expectedMemory.SetUint32(addr, val)
+	e.MemoryRoot = e.expectedMemory.MerkleRoot()
+}
+
+func (e *ExpectedState) ExpectMemoryWriteWord(addr arch.Word, val arch.Word) {
+	e.expectedMemory.SetWord(addr, val)
 	e.MemoryRoot = e.expectedMemory.MerkleRoot()
 }
 

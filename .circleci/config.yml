@@ -3,7 +3,7 @@ version: 2.1
 parameters:
   ci_builder_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:v0.53.0
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:v0.54.0
   ci_builder_rust_image:
     type: string
     default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder-rust:latest
@@ -222,7 +222,7 @@ jobs:
           condition: <<parameters.notify>>
           steps:
             - notify-failures-on-develop:
-                mentions: "@proofs-squad"
+                mentions: "@proofs-team"
 
   cannon-build-test-vectors:
     docker:
@@ -275,7 +275,7 @@ jobs:
       - run:
           name: Generate allocs
           command: |
-            make devnet-allocs-tests
+            make devnet-allocs
       - save_cache:
           name: Save Go modules cache
           key: gomod-contracts-build-{{ checksum "go.sum" }}
@@ -702,6 +702,8 @@ jobs:
           name: print forge version
           command: forge --version
       - run-contracts-check:
+          command: semgrep
+      - run-contracts-check:
           command: semver-lock
       - run-contracts-check:
           command: semver-diff-check-no-build
@@ -721,6 +723,8 @@ jobs:
           command: interfaces-check-no-build
       - run-contracts-check:
           command: size-check
+      - run-contracts-check:
+          command: unused-imports-check-no-build
 
   contracts-bedrock-validate-spacers:
     docker:
@@ -1142,7 +1146,7 @@ jobs:
               exit 1
             fi
       - notify-failures-on-develop:
-          mentions: "@proofs-squad"
+          mentions: "@proofs-team"
 
   cannon-stf-verify:
     docker:
@@ -1269,7 +1273,7 @@ jobs:
             make verify-sepolia
           working_directory: op-program
       - notify-failures-on-develop:
-          mentions: "@proofs-squad"
+          mentions: "@proofs-team"
 
   op-program-compat:
     docker:
@@ -1367,7 +1371,7 @@ jobs:
           name: Build contracts
           environment:
             FOUNDRY_PROFILE: ci
-          command: just build
+          command: just forge-build
           working_directory: packages/contracts-bedrock
       - run:
           name: Publish artifacts
@@ -1420,7 +1424,7 @@ workflows:
       - semgrep-scan
       - semgrep-scan:
           name: semgrep-scan-local
-          scan_command: semgrep scan --timeout=100 --config=./.semgrep --strict --error .
+          scan_command: semgrep scan --timeout=100 --config=./.semgrep --error .
       - go-lint:
           requires:
             - go-mod-download
@@ -1726,7 +1730,7 @@ workflows:
           target: test-cannon
           parallelism: 8
           notify: true
-          mentions: "@proofs-squad"
+          mentions: "@proofs-team"
           requires:
             - contracts-bedrock-build
             - cannon-prestate

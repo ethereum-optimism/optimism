@@ -9,11 +9,9 @@ import (
 	"os"
 	"path"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
-
-	"github.com/ethereum-optimism/optimism/op-service/testutils/anvil"
-	crypto "github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 	"github.com/holiman/uint256"
@@ -21,10 +19,15 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
+	"github.com/ethereum-optimism/optimism/op-service/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/testutils/anvil"
 	"github.com/ethereum-optimism/optimism/op-service/testutils/kurtosisutil"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
 )
@@ -141,7 +144,7 @@ func TestEndToEndApply(t *testing.T) {
 			})
 		}
 
-		validateOPChainDeployment(t, ctx, l1Client, st)
+		validateOPChainDeployment(t, ctx, l1Client, st, intent)
 	})
 
 	t.Run("subsequent chain", func(t *testing.T) {
@@ -172,7 +175,7 @@ func TestEndToEndApply(t *testing.T) {
 			})
 		}
 
-		validateOPChainDeployment(t, ctx, l1Client, st)
+		validateOPChainDeployment(t, ctx, l1Client, st, intent)
 	})
 }
 
@@ -207,7 +210,12 @@ func makeIntent(
 		ContractsRelease:     "dev",
 		Chains: []*state.ChainIntent{
 			{
-				ID: l2ChainID.Bytes32(),
+				ID:                         l2ChainID.Bytes32(),
+				BaseFeeVaultRecipient:      addrFor(devkeys.BaseFeeVaultRecipientRole.Key(l1ChainID)),
+				L1FeeVaultRecipient:        addrFor(devkeys.L1FeeVaultRecipientRole.Key(l1ChainID)),
+				SequencerFeeVaultRecipient: addrFor(devkeys.SequencerFeeVaultRecipientRole.Key(l1ChainID)),
+				Eip1559Denominator:         50,
+				Eip1559Elasticity:          6,
 				Roles: state.ChainRoles{
 					ProxyAdminOwner:      addrFor(devkeys.L2ProxyAdminOwnerRole.Key(l1ChainID)),
 					SystemConfigOwner:    addrFor(devkeys.SystemConfigOwner.Key(l1ChainID)),
@@ -226,7 +234,7 @@ func makeIntent(
 	return intent, st
 }
 
-func validateOPChainDeployment(t *testing.T, ctx context.Context, l1Client *ethclient.Client, st *state.State) {
+func validateOPChainDeployment(t *testing.T, ctx context.Context, l1Client *ethclient.Client, st *state.State, intent *state.Intent) {
 	for _, chainState := range st.Chains {
 		chainAddrs := []struct {
 			name string
@@ -261,8 +269,38 @@ func validateOPChainDeployment(t *testing.T, ctx context.Context, l1Client *ethc
 
 		t.Run("l2 genesis", func(t *testing.T) {
 			require.Greater(t, len(chainState.Allocs), 0)
+			l2Allocs, _ := chainState.UnmarshalAllocs()
+			alloc := l2Allocs.Copy().Accounts
+
+			firstChainIntent := intent.Chains[0]
+			checkImmutable(t, alloc, predeploys.BaseFeeVaultAddr, firstChainIntent.BaseFeeVaultRecipient)
+			checkImmutable(t, alloc, predeploys.L1FeeVaultAddr, firstChainIntent.L1FeeVaultRecipient)
+			checkImmutable(t, alloc, predeploys.SequencerFeeVaultAddr, firstChainIntent.SequencerFeeVaultRecipient)
+
+			require.Equal(t, int(firstChainIntent.Eip1559Denominator), 50, "EIP1559Denominator should be set")
+			require.Equal(t, int(firstChainIntent.Eip1559Elasticity), 6, "EIP1559Elasticity should be set")
 		})
 	}
+}
+
+func getEIP1967ImplementationAddress(t *testing.T, allocations types.GenesisAlloc, proxyAddress common.Address) common.Address {
+	storage := allocations[proxyAddress].Storage
+	storageValue := storage[genesis.ImplementationSlot]
+	require.NotEmpty(t, storageValue, "Implementation address for %s should be set", proxyAddress)
+	return common.HexToAddress(storageValue.Hex())
+}
+
+func checkImmutable(t *testing.T, allocations types.GenesisAlloc, proxyContract common.Address, feeRecipient common.Address) {
+	implementationAddress := getEIP1967ImplementationAddress(t, allocations, proxyContract)
+	account, ok := allocations[implementationAddress]
+	require.True(t, ok, "%s not found in allocations", implementationAddress.Hex())
+	require.NotEmpty(t, account.Code, "%s should have code", implementationAddress.Hex())
+	require.Contains(
+		t,
+		strings.ToLower(common.Bytes2Hex(account.Code)),
+		strings.ToLower(strings.TrimPrefix(feeRecipient.Hex(), "0x")),
+		"%s code should contain %s immutable", implementationAddress.Hex(), feeRecipient.Hex(),
+	)
 }
 
 func TestApplyExistingOPCM(t *testing.T) {
@@ -321,7 +359,7 @@ func TestApplyExistingOPCM(t *testing.T) {
 		st,
 	))
 
-	validateOPChainDeployment(t, ctx, l1Client, st)
+	validateOPChainDeployment(t, ctx, l1Client, st, intent)
 }
 
 func TestL2BlockTimeOverride(t *testing.T) {

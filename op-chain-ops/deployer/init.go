@@ -55,11 +55,17 @@ func InitCLI() func(ctx *cli.Context) error {
 			l2ChainIDs[i] = id
 		}
 
-		return Init(InitConfig{
+		err := Init(InitConfig{
 			L1ChainID:  l1ChainID,
 			Outdir:     outdir,
 			L2ChainIDs: l2ChainIDs,
 		})
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("Successfully initialized op-deployer intent in directory: %s\n", outdir)
+		return nil
 	}
 }
 
@@ -99,7 +105,12 @@ func Init(cfg InitConfig) error {
 	for _, l2ChainID := range cfg.L2ChainIDs {
 		l2ChainIDBig := l2ChainID.Big()
 		intent.Chains = append(intent.Chains, &state.ChainIntent{
-			ID: l2ChainID,
+			ID:                         l2ChainID,
+			BaseFeeVaultRecipient:      common.Address{},
+			L1FeeVaultRecipient:        common.Address{},
+			SequencerFeeVaultRecipient: common.Address{},
+			Eip1559Denominator:         50,
+			Eip1559Elasticity:          6,
 			Roles: state.ChainRoles{
 				ProxyAdminOwner:      addrFor(devkeys.L2ProxyAdminOwnerRole.Key(l2ChainIDBig)),
 				SystemConfigOwner:    addrFor(devkeys.SystemConfigOwner.Key(l2ChainIDBig)),
