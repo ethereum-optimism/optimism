@@ -30,7 +30,9 @@ func RollupConfigByChainID(chainID uint64) (*rollup.Config, error) {
 func rollupConfigByChainID(chainID uint64, customChainFS embed.FS) (*rollup.Config, error) {
 	// Load custom rollup configs from embed FS
 	file, err := customChainFS.Open(fmt.Sprintf("configs/%d-rollup.json", chainID))
-	if err != nil {
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("no rollup config available for chain ID: %d", chainID)
+	} else if err != nil {
 		return nil, fmt.Errorf("failed to get rollup config for chain ID %d: %w", chainID, err)
 	}
 	dec := json.NewDecoder(file)
