@@ -246,6 +246,7 @@ func TestEVMSingleStep_LoadStore(t *testing.T) {
 	var tracer *tracing.Hooks
 
 	loadMemVal := Word(0x11_22_33_44)
+	loadMemValNeg := Word(0xF1_F2_F3_F4)
 	rtVal := Word(0xaa_bb_cc_dd)
 	versions := GetMipsVersionTestCases(t)
 	cases := []struct {
@@ -258,33 +259,41 @@ func TestEVMSingleStep_LoadStore(t *testing.T) {
 		expectMemVal Word
 		expectRes    Word
 	}{
-		{name: "lb", opcode: uint32(0x20), base: 0x100, imm: 0x20, memVal: loadMemVal, expectRes: Word(0x11)},
-		{name: "lb", opcode: uint32(0x20), base: 0x100, imm: 0x1, memVal: loadMemVal, expectRes: Word(0x22)},
-		{name: "lb", opcode: uint32(0x20), base: 0x100, imm: 0x2, memVal: loadMemVal, expectRes: Word(0x33)},
-		{name: "lb", opcode: uint32(0x20), base: 0x102, imm: 0x20, memVal: loadMemVal, expectRes: Word(0x33)},
-		{name: "lb", opcode: uint32(0x20), base: 0x103, imm: 0x0, memVal: loadMemVal, expectRes: Word(0x44)},
-		{name: "lh", opcode: uint32(0x21), base: 0x100, imm: 0x20, memVal: loadMemVal, expectRes: Word(0x11_22)},
-		{name: "lh", opcode: uint32(0x21), base: 0x101, imm: 0x20, memVal: loadMemVal, expectRes: Word(0x11_22)},
-		{name: "lh", opcode: uint32(0x21), base: 0x102, imm: 0x20, memVal: loadMemVal, expectRes: Word(0x33_44)},
-		{name: "lh", opcode: uint32(0x21), base: 0x102, imm: 0x1, memVal: loadMemVal, expectRes: Word(0x33_44)},
-		{name: "lw", opcode: uint32(0x23), base: 0x100, imm: 0x20, memVal: loadMemVal, expectRes: Word(0x11_22_33_44)},
-		{name: "lbu", opcode: uint32(0x24), base: 0x100, imm: 0x20, memVal: loadMemVal, expectRes: Word(0x11)},
-		{name: "lhu", opcode: uint32(0x25), base: 0x100, imm: 0x20, memVal: loadMemVal, expectRes: Word(0x11_22)},
+		{name: "lb", opcode: uint32(0x20), base: 0x100, imm: 0x20, memVal: loadMemVal, expectRes: 0x11},
+		{name: "lb", opcode: uint32(0x20), base: 0x100, imm: 0x1, memVal: loadMemVal, expectRes: 0x22},
+		{name: "lb", opcode: uint32(0x20), base: 0x100, imm: 0x2, memVal: loadMemVal, expectRes: 0x33},
+		{name: "lb", opcode: uint32(0x20), base: 0x102, imm: 0x20, memVal: loadMemVal, expectRes: 0x33},
+		{name: "lb", opcode: uint32(0x20), base: 0x103, imm: 0x0, memVal: loadMemVal, expectRes: 0x44},
+		{name: "lb, negative", opcode: uint32(0x20), base: 0x100, imm: 0x0, memVal: loadMemValNeg, expectRes: 0xFF_FF_FF_F1},
+		{name: "lb, negative", opcode: uint32(0x20), base: 0x101, imm: 0x0, memVal: loadMemValNeg, expectRes: 0xFF_FF_FF_F2},
+		{name: "lb, negative", opcode: uint32(0x20), base: 0x102, imm: 0x0, memVal: loadMemValNeg, expectRes: 0xFF_FF_FF_F3},
+		{name: "lb, negative", opcode: uint32(0x20), base: 0x103, imm: 0x0, memVal: loadMemValNeg, expectRes: 0xFF_FF_FF_F4},
+		{name: "lh", opcode: uint32(0x21), base: 0x100, imm: 0x20, memVal: loadMemVal, expectRes: 0x11_22},
+		{name: "lh", opcode: uint32(0x21), base: 0x101, imm: 0x20, memVal: loadMemVal, expectRes: 0x11_22},
+		{name: "lh", opcode: uint32(0x21), base: 0x102, imm: 0x20, memVal: loadMemVal, expectRes: 0x33_44},
+		{name: "lh", opcode: uint32(0x21), base: 0x102, imm: 0x1, memVal: loadMemVal, expectRes: 0x33_44},
+		{name: "lh, negative", opcode: uint32(0x21), base: 0x100, imm: 0x20, memVal: loadMemValNeg, expectRes: 0xFF_FF_F1_F2},
+		{name: "lh, negative", opcode: uint32(0x21), base: 0x102, imm: 0x1, memVal: loadMemValNeg, expectRes: 0xFF_FF_F3_F4},
+		{name: "lw", opcode: uint32(0x23), base: 0x100, imm: 0x20, memVal: loadMemVal, expectRes: 0x11_22_33_44},
+		{name: "lbu", opcode: uint32(0x24), base: 0x100, imm: 0x20, memVal: loadMemVal, expectRes: 0x11},
+		{name: "lbu, negative", opcode: uint32(0x24), base: 0x100, imm: 0x20, memVal: loadMemValNeg, expectRes: 0xF1},
+		{name: "lhu", opcode: uint32(0x25), base: 0x100, imm: 0x20, memVal: loadMemVal, expectRes: 0x11_22},
+		{name: "lhu, negative", opcode: uint32(0x25), base: 0x100, imm: 0x20, memVal: loadMemValNeg, expectRes: 0xF1_F2},
 		{name: "lwl", opcode: uint32(0x22), base: 0x100, imm: 0x20, rt: rtVal, memVal: loadMemVal, expectRes: loadMemVal},
-		{name: "lwl unaligned", opcode: uint32(0x22), base: 0x100, imm: 0x1, rt: rtVal, memVal: loadMemVal, expectRes: Word(0x22_33_44_dd)},
-		{name: "lwr", opcode: uint32(0x26), base: 0x100, imm: 0x20, rt: rtVal, memVal: loadMemVal, expectRes: Word(0xaa_bb_cc_11)},
-		{name: "lwr unaligned", opcode: uint32(0x26), base: 0x100, imm: 0x1, rt: rtVal, memVal: loadMemVal, expectRes: Word(0xaa_bb_11_22)},
-		{name: "sb", opcode: uint32(0x28), base: 0x100, imm: 0x20, rt: rtVal, expectMemVal: Word(0xdd_00_00_00)},
-		{name: "sb", opcode: uint32(0x28), base: 0x100, imm: 0x21, rt: rtVal, expectMemVal: Word(0x00_dd_00_00)},
-		{name: "sb", opcode: uint32(0x28), base: 0x102, imm: 0x20, rt: rtVal, expectMemVal: Word(0x00_00_dd_00)},
-		{name: "sb", opcode: uint32(0x28), base: 0x103, imm: 0x20, rt: rtVal, expectMemVal: Word(0x00_00_00_dd)},
-		{name: "sh", opcode: uint32(0x29), base: 0x100, imm: 0x20, rt: rtVal, expectMemVal: Word(0xcc_dd_00_00)},
-		{name: "sh", opcode: uint32(0x29), base: 0x100, imm: 0x21, rt: rtVal, expectMemVal: Word(0xcc_dd_00_00)},
-		{name: "sh", opcode: uint32(0x29), base: 0x102, imm: 0x20, rt: rtVal, expectMemVal: Word(0x00_00_cc_dd)},
-		{name: "sh", opcode: uint32(0x29), base: 0x102, imm: 0x21, rt: rtVal, expectMemVal: Word(0x00_00_cc_dd)},
-		{name: "swl", opcode: uint32(0x2a), base: 0x100, imm: 0x20, rt: rtVal, expectMemVal: Word(0xaa_bb_cc_dd)},
-		{name: "sw", opcode: uint32(0x2b), base: 0x100, imm: 0x20, rt: rtVal, expectMemVal: Word(0xaa_bb_cc_dd)},
-		{name: "swr unaligned", opcode: uint32(0x2e), base: 0x100, imm: 0x1, rt: rtVal, expectMemVal: Word(0xcc_dd_00_00)},
+		{name: "lwl unaligned", opcode: uint32(0x22), base: 0x100, imm: 0x1, rt: rtVal, memVal: loadMemVal, expectRes: 0x22_33_44_dd},
+		{name: "lwr", opcode: uint32(0x26), base: 0x100, imm: 0x20, rt: rtVal, memVal: loadMemVal, expectRes: 0xaa_bb_cc_11},
+		{name: "lwr unaligned", opcode: uint32(0x26), base: 0x100, imm: 0x1, rt: rtVal, memVal: loadMemVal, expectRes: 0xaa_bb_11_22},
+		{name: "sb", opcode: uint32(0x28), base: 0x100, imm: 0x20, rt: rtVal, expectMemVal: 0xdd_00_00_00},
+		{name: "sb", opcode: uint32(0x28), base: 0x100, imm: 0x21, rt: rtVal, expectMemVal: 0x00_dd_00_00},
+		{name: "sb", opcode: uint32(0x28), base: 0x102, imm: 0x20, rt: rtVal, expectMemVal: 0x00_00_dd_00},
+		{name: "sb", opcode: uint32(0x28), base: 0x103, imm: 0x20, rt: rtVal, expectMemVal: 0x00_00_00_dd},
+		{name: "sh", opcode: uint32(0x29), base: 0x100, imm: 0x20, rt: rtVal, expectMemVal: 0xcc_dd_00_00},
+		{name: "sh", opcode: uint32(0x29), base: 0x100, imm: 0x21, rt: rtVal, expectMemVal: 0xcc_dd_00_00},
+		{name: "sh", opcode: uint32(0x29), base: 0x102, imm: 0x20, rt: rtVal, expectMemVal: 0x00_00_cc_dd},
+		{name: "sh", opcode: uint32(0x29), base: 0x102, imm: 0x21, rt: rtVal, expectMemVal: 0x00_00_cc_dd},
+		{name: "swl", opcode: uint32(0x2a), base: 0x100, imm: 0x20, rt: rtVal, expectMemVal: 0xaa_bb_cc_dd},
+		{name: "sw", opcode: uint32(0x2b), base: 0x100, imm: 0x20, rt: rtVal, expectMemVal: 0xaa_bb_cc_dd},
+		{name: "swr unaligned", opcode: uint32(0x2e), base: 0x100, imm: 0x1, rt: rtVal, expectMemVal: 0xcc_dd_00_00},
 	}
 
 	var baseReg uint32 = 9
