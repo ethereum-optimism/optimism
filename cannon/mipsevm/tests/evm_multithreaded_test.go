@@ -28,24 +28,32 @@ func TestEVM_MT_LL(t *testing.T) {
 	var tracer *tracing.Hooks
 
 	cases := []struct {
-		name   string
-		base   Word
-		offset int
-		value  Word
-		addr   Word
-		rtReg  int
+		name                 string
+		base                 Word
+		offset               int
+		targetWord           Word
+		rtReg                int
+		shouldSignExtendAddr bool
 	}{
-		{name: "Aligned addr", base: 0x00_00_00_01, offset: 0x0133, value: 0xABCD, addr: 0x00_00_01_34, rtReg: 5},
-		{name: "Aligned addr, signed extended", base: 0x00_00_00_01, offset: 0xFF33, value: 0xABCD, addr: 0xFF_FF_FF_34, rtReg: 5},
-		{name: "Unaligned addr", base: 0xFF_12_00_01, offset: 0x3401, value: 0xABCD, addr: 0xFF_12_34_02, rtReg: 5},
-		{name: "Unaligned addr, sign extended w overflow", base: 0xFF_12_00_01, offset: 0x8401, value: 0xABCD, addr: 0xFF_11_84_02, rtReg: 5},
-		{name: "Return register set to 0", base: 0xFF_12_00_01, offset: 0x8401, value: 0xABCD, addr: 0xFF_11_84_02, rtReg: 0},
+		{name: "Aligned addr", base: 0x00_00_00_01, offset: 0x0133, targetWord: 0xABCD, rtReg: 5},
+		{name: "Aligned addr, signed extended", base: 0x00_00_00_01, offset: 0xFF37, targetWord: 0xABCD, rtReg: 5, shouldSignExtendAddr: true},
+		{name: "Unaligned addr", base: 0xFF_12_00_01, offset: 0x3401, targetWord: 0xABCD, rtReg: 5},
+		{name: "Unaligned addr, sign extended w overflow", base: 0xFF_12_00_01, offset: 0x8401, targetWord: 0xABCD, rtReg: 5, shouldSignExtendAddr: true},
+		{name: "Return register set to 0", base: 0xFF_12_00_01, offset: 0x8401, targetWord: 0xABCD, rtReg: 0},
 	}
 	for i, c := range cases {
 		for _, withExistingReservation := range []bool{true, false} {
 			tName := fmt.Sprintf("%v (withExistingReservation = %v)", c.name, withExistingReservation)
 			t.Run(tName, func(t *testing.T) {
-				effAddr := arch.AddressMask & c.addr
+				// Perform some calculations for 64-bit compatibility
+				// Calculate address
+				addr := c.base + testutil.SignExtend(Word(c.offset), 16)
+				effAddr := arch.AddressMask & addr
+				// Calculate memory value
+				wordOffset := addr & ^Word(arch.AddressMask) & 0x4
+				maxWordByteOffset := Word(arch.WordSizeBytes - 4)
+				memBitOffset := (maxWordByteOffset - wordOffset) * 8
+				memVal := c.targetWord << memBitOffset
 
 				rtReg := c.rtReg
 				baseReg := 6
@@ -58,11 +66,11 @@ func TestEVM_MT_LL(t *testing.T) {
 				state.GetCurrentThread().Cpu.PC = pc
 				state.GetCurrentThread().Cpu.NextPC = pc + 4
 				state.GetMemory().SetUint32(pc, insn)
-				state.GetMemory().SetWord(effAddr, c.value)
+				state.GetMemory().SetWord(effAddr, memVal)
 				state.GetRegistersRef()[baseReg] = c.base
 				if withExistingReservation {
 					state.LLReservationActive = true
-					state.LLAddress = c.addr + 1
+					state.LLAddress = addr + 1
 					state.LLOwnerThread = 123
 				} else {
 					state.LLReservationActive = false
@@ -74,10 +82,10 @@ func TestEVM_MT_LL(t *testing.T) {
 				expected := mttestutil.NewExpectedMTState(state)
 				expected.ExpectStep()
 				expected.LLReservationActive = true
-				expected.LLAddress = c.addr
+				expected.LLAddress = addr
 				expected.LLOwnerThread = state.GetCurrentThread().ThreadId
 				if rtReg != 0 {
-					expected.ActiveThread().Registers[rtReg] = c.value
+					expected.ActiveThread().Registers[rtReg] = c.targetWord
 				}
 
 				stepWitness, err := goVm.Step(true)
