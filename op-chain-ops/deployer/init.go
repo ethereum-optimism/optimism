@@ -55,11 +55,17 @@ func InitCLI() func(ctx *cli.Context) error {
 			l2ChainIDs[i] = id
 		}
 
-		return Init(InitConfig{
+		err := Init(InitConfig{
 			L1ChainID:  l1ChainID,
 			Outdir:     outdir,
 			L2ChainIDs: l2ChainIDs,
 		})
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("Successfully initialized op-deployer intent in directory: %s\n", outdir)
+		return nil
 	}
 }
 

@@ -48,8 +48,14 @@ func (s *LocalPreimageSource) Get(key common.Hash) ([]byte, error) {
 		}
 		return binary.BigEndian.AppendUint64(nil, chainID), nil
 	case l2ChainConfigKey:
+		if !s.config.IsCustomChainConfig {
+			return nil, ErrNotFound
+		}
 		return json.Marshal(s.config.L2ChainConfig)
 	case rollupKey:
+		if !s.config.IsCustomChainConfig {
+			return nil, ErrNotFound
+		}
 		return json.Marshal(s.config.Rollup)
 	default:
 		return nil, ErrNotFound

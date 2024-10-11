@@ -170,6 +170,11 @@ func (e *ExpectedState) ExpectMemoryWrite(addr arch.Word, val uint32) {
 	e.MemoryRoot = e.expectedMemory.MerkleRoot()
 }
 
+func (e *ExpectedState) ExpectMemoryWriteWord(addr arch.Word, val arch.Word) {
+	e.expectedMemory.SetWord(addr, val)
+	e.MemoryRoot = e.expectedMemory.MerkleRoot()
+}
+
 func (e *ExpectedState) Validate(t testing.TB, actualState mipsevm.FPVMState) {
 	require.Equal(t, e.PreimageKey, actualState.GetPreimageKey(), fmt.Sprintf("Expect preimageKey = %v", e.PreimageKey))
 	require.Equal(t, e.PreimageOffset, actualState.GetPreimageOffset(), fmt.Sprintf("Expect preimageOffset = %v", e.PreimageOffset))
