@@ -29,14 +29,30 @@ func (c *Contract) ProtocolVersions(ctx context.Context) (common.Address, error)
 }
 
 func (c *Contract) getAddress(ctx context.Context, name string) (common.Address, error) {
+	return c.callContractMethod(ctx, name, abi.Arguments{})
+}
+
+// Used to call getAddress(string) on legacy ResolvedDelegateProxy contract
+func (c *Contract) GetAddressByName(ctx context.Context, name string) (common.Address, error) {
+	inputs := abi.Arguments{
+		abi.Argument{
+			Name:    "_name",
+			Type:    mustType("string"),
+			Indexed: false,
+		},
+	}
+	return c.callContractMethod(ctx, "getAddress", inputs, name)
+}
+
+func (c *Contract) callContractMethod(ctx context.Context, methodName string, inputs abi.Arguments, args ...interface{}) (common.Address, error) {
 	method := abi.NewMethod(
-		name,
-		name,
+		methodName,
+		methodName,
 		abi.Function,
 		"view",
 		true,
 		false,
-		abi.Arguments{},
+		inputs,
 		abi.Arguments{
 			abi.Argument{
 				Name:    "address",
@@ -46,7 +62,7 @@ func (c *Contract) getAddress(ctx context.Context, name string) (common.Address,
 		},
 	)
 
-	calldata, err := method.Inputs.Pack()
+	calldata, err := method.Inputs.Pack(args...)
 	if err != nil {
 		return common.Address{}, fmt.Errorf("failed to pack inputs: %w", err)
 	}

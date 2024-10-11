@@ -2,14 +2,18 @@ package pipeline
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	state2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
 )
 
 func DeployOPChain(ctx context.Context, env *Env, bundle ArtifactsBundle, intent *state2.Intent, st *state2.State, chainID common.Hash) error {
@@ -91,10 +95,42 @@ func DeployOPChain(ctx context.Context, env *Env, bundle ArtifactsBundle, intent
 		DelayedWETHPermissionlessGameProxyAddress: dco.DelayedWETHPermissionlessGameProxy,
 	})
 
+	currentBlock, _ := env.L1Client.BlockNumber(ctx)
+	block, _ := env.L1Client.BlockByNumber(ctx, big.NewInt(int64(currentBlock)))
+	currentBlockHash := block.Hash()
+
+	// If any of the implementations addresses (excluding OpcmProxy) are empty,
+	// we need to set them using the addresses of the corresponding proxies.
+	// The reason these might be empty is because we're only invoking DeployOPChain.s.sol as part of the pipeline.
+	// TODO: Need to initialize 'mipsSingletonAddress' and 'preimageOracleSingletonAddress'
+	setEIP1967ImplementationAddress(ctx, env.L1Client, dco.DelayedWETHPermissionedGameProxy, currentBlockHash, &st.ImplementationsDeployment.DelayedWETHImplAddress)
+	setEIP1967ImplementationAddress(ctx, env.L1Client, dco.OptimismPortalProxy, currentBlockHash, &st.ImplementationsDeployment.OptimismPortalImplAddress)
+	setEIP1967ImplementationAddress(ctx, env.L1Client, dco.SystemConfigProxy, currentBlockHash, &st.ImplementationsDeployment.SystemConfigImplAddress)
+	setRDPImplementationAddress(ctx, env.L1Client, dco.AddressManager, &st.ImplementationsDeployment.L1CrossDomainMessengerImplAddress)
+	setEIP1967ImplementationAddress(ctx, env.L1Client, dco.L1ERC721BridgeProxy, currentBlockHash, &st.ImplementationsDeployment.L1ERC721BridgeImplAddress)
+	setEIP1967ImplementationAddress(ctx, env.L1Client, dco.L1StandardBridgeProxy, currentBlockHash, &st.ImplementationsDeployment.L1StandardBridgeImplAddress)
+	setEIP1967ImplementationAddress(ctx, env.L1Client, dco.OptimismMintableERC20FactoryProxy, currentBlockHash, &st.ImplementationsDeployment.OptimismMintableERC20FactoryImplAddress)
+	setEIP1967ImplementationAddress(ctx, env.L1Client, dco.DisputeGameFactoryProxy, currentBlockHash, &st.ImplementationsDeployment.DisputeGameFactoryImplAddress)
+
 	return nil
 }
 
-func shouldDeployOPChain(intent *state2.Intent, st *state2.State, chainID common.Hash) bool {
+func setRDPImplementationAddress(ctx context.Context, client *ethclient.Client, addressManager common.Address, implAddress *common.Address) {
+	if *implAddress == (common.Address{}) {
+		contract := opcm.NewContract(addressManager, client)
+		address, _ := contract.GetAddressByName(ctx, "OVM_L1CrossDomainMessenger")
+		*implAddress = address
+	}
+}
+
+func setEIP1967ImplementationAddress(ctx context.Context, client *ethclient.Client, proxy common.Address, currentBlockHash common.Hash, implAddress *common.Address) {
+	if *implAddress == (common.Address{}) {
+		storageValue, _ := client.StorageAtHash(ctx, proxy, genesis.ImplementationSlot, currentBlockHash)
+		*implAddress = common.HexToAddress(hex.EncodeToString(storageValue))
+	}
+}
+
+func shouldDeployOPChain(intent *state.Intent, st *state.State, chainID common.Hash) bool {
 	for _, chain := range st.Chains {
 		if chain.ID == chainID {
 			return false
