@@ -144,7 +144,7 @@ func TestEndToEndApply(t *testing.T) {
 			})
 		}
 
-		validateOPChainDeployment(t, ctx, l1Client, st)
+		validateOPChainDeployment(t, ctx, l1Client, st, intent)
 	})
 
 	t.Run("subsequent chain", func(t *testing.T) {
@@ -175,7 +175,7 @@ func TestEndToEndApply(t *testing.T) {
 			})
 		}
 
-		validateOPChainDeployment(t, ctx, l1Client, st)
+		validateOPChainDeployment(t, ctx, l1Client, st, intent)
 	})
 }
 
@@ -210,7 +210,12 @@ func makeIntent(
 		ContractsRelease:     "dev",
 		Chains: []*state.ChainIntent{
 			{
-				ID: l2ChainID.Bytes32(),
+				ID:                         l2ChainID.Bytes32(),
+				BaseFeeVaultRecipient:      addrFor(devkeys.BaseFeeVaultRecipientRole.Key(l1ChainID)),
+				L1FeeVaultRecipient:        addrFor(devkeys.L1FeeVaultRecipientRole.Key(l1ChainID)),
+				SequencerFeeVaultRecipient: addrFor(devkeys.SequencerFeeVaultRecipientRole.Key(l1ChainID)),
+				Eip1559Denominator:         50,
+				Eip1559Elasticity:          6,
 				Roles: state.ChainRoles{
 					ProxyAdminOwner:      addrFor(devkeys.L2ProxyAdminOwnerRole.Key(l1ChainID)),
 					SystemConfigOwner:    addrFor(devkeys.SystemConfigOwner.Key(l1ChainID)),
@@ -222,11 +227,6 @@ func makeIntent(
 				},
 			},
 		},
-		BaseFeeVaultRecipient:      addrFor(devkeys.BaseFeeVaultRecipientRole.Key(l1ChainID)),
-		L1FeeVaultRecipient:        addrFor(devkeys.L1FeeVaultRecipientRole.Key(l1ChainID)),
-		SequencerFeeVaultRecipient: addrFor(devkeys.SequencerFeeVaultRecipientRole.Key(l1ChainID)),
-		Eip1559Denominator:         50,
-		Eip1559Elasticity:          6,
 	}
 	st := &state.State{
 		Version: 1,
@@ -234,7 +234,7 @@ func makeIntent(
 	return intent, st
 }
 
-func validateOPChainDeployment(t *testing.T, ctx context.Context, l1Client *ethclient.Client, st *state.State) {
+func validateOPChainDeployment(t *testing.T, ctx context.Context, l1Client *ethclient.Client, st *state.State, intent *state.Intent) {
 	for _, chainState := range st.Chains {
 		chainAddrs := []struct {
 			name string
@@ -272,12 +272,13 @@ func validateOPChainDeployment(t *testing.T, ctx context.Context, l1Client *ethc
 			l2Allocs, _ := chainState.UnmarshalAllocs()
 			alloc := l2Allocs.Copy().Accounts
 
-			checkImmutable(t, alloc, predeploys.BaseFeeVaultAddr, st.AppliedIntent.BaseFeeVaultRecipient)
-			checkImmutable(t, alloc, predeploys.L1FeeVaultAddr, st.AppliedIntent.L1FeeVaultRecipient)
-			checkImmutable(t, alloc, predeploys.SequencerFeeVaultAddr, st.AppliedIntent.SequencerFeeVaultRecipient)
+			firstChainIntent := intent.Chains[0]
+			checkImmutable(t, alloc, predeploys.BaseFeeVaultAddr, firstChainIntent.BaseFeeVaultRecipient)
+			checkImmutable(t, alloc, predeploys.L1FeeVaultAddr, firstChainIntent.L1FeeVaultRecipient)
+			checkImmutable(t, alloc, predeploys.SequencerFeeVaultAddr, firstChainIntent.SequencerFeeVaultRecipient)
 
-			require.Equal(t, int(st.AppliedIntent.Eip1559Denominator), 50, "EIP1559Denominator should be set")
-			require.Equal(t, int(st.AppliedIntent.Eip1559Elasticity), 6, "EIP1559Elasticity should be set")
+			require.Equal(t, int(firstChainIntent.Eip1559Denominator), 50, "EIP1559Denominator should be set")
+			require.Equal(t, int(firstChainIntent.Eip1559Elasticity), 6, "EIP1559Elasticity should be set")
 		})
 	}
 }
@@ -358,7 +359,7 @@ func TestApplyExistingOPCM(t *testing.T) {
 		st,
 	))
 
-	validateOPChainDeployment(t, ctx, l1Client, st)
+	validateOPChainDeployment(t, ctx, l1Client, st, intent)
 }
 
 func TestL2BlockTimeOverride(t *testing.T) {
