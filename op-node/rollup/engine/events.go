@@ -336,7 +336,7 @@ func (d *EngDeriver) OnEvent(ev event.Event) bool {
 
 					if timeDiff < blockBuildingThreshold {
 						// Node is healthy
-						d.log.Info("Node is healthy, time difference within threshold",
+						d.log.Debug("Node is healthy, time difference within threshold",
 							"time_diff", timeDiff, "threshold", blockBuildingThreshold)
 						d.metrics.RecordBlockBuildingHealthCheck("healthy")
 					} else {
@@ -346,7 +346,7 @@ func (d *EngDeriver) OnEvent(ev event.Event) bool {
 						d.metrics.RecordBlockBuildingHealthCheck("stale")
 					}
 				} else {
-					d.log.Info("Cannot compute time difference, block timestamp is in the future",
+					d.log.Debug("Cannot compute time difference, block timestamp is in the future",
 						"current_timestamp", currentTime, "block_timestamp", latestBlockTimeStamp)
 					d.metrics.RecordBlockBuildingHealthCheck("future_timestamp")
 				}
