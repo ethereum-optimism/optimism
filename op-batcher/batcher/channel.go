@@ -45,7 +45,7 @@ func newChannel(log log.Logger, metr metrics.Metricer, cfg ChannelConfig, rollup
 		channelBuilder:        cb,
 		pendingTransactions:   make(map[string]txData),
 		confirmedTransactions: make(map[string]eth.BlockID),
-		minInclusionBlock:     uint64(math.MaxUint64),
+		minInclusionBlock:     math.MaxUint64,
 	}, nil
 }
 
@@ -116,7 +116,7 @@ func (s *channel) isTimedOut() bool {
 	// Prior to the granite hard fork activating, the use of the shorter ChannelTimeout here may cause the batcher
 	// to believe the channel timed out when it was valid. It would then resubmit the blocks needlessly.
 	// This wastes batcher funds but doesn't cause any problems for the chain progressing safe head.
-	return s.maxInclusionBlock-s.minInclusionBlock >= s.cfg.ChannelTimeout
+	return len(s.confirmedTransactions) > 0 && s.maxInclusionBlock-s.minInclusionBlock >= s.cfg.ChannelTimeout
 }
 
 // isFullySubmitted returns true if the channel has been fully submitted.
