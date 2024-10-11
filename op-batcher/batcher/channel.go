@@ -119,7 +119,7 @@ func (s *channel) isTimedOut() bool {
 	return len(s.confirmedTransactions) > 0 && s.maxInclusionBlock-s.minInclusionBlock >= s.cfg.ChannelTimeout
 }
 
-// isFullySubmitted returns true if the channel has been fully submitted.
+// isFullySubmitted returns true if the channel has been fully submitted (all transactions are confirmed).
 func (s *channel) isFullySubmitted() bool {
 	return s.IsFull() && len(s.pendingTransactions)+s.PendingFrames() == 0
 }
