@@ -681,6 +681,7 @@ func TestChannelManager_ChannelOutFactory(t *testing.T) {
 		if err != nil {
 			return nil, err
 		}
+		// return a wrapper type, to validate that the factory was correctly used by checking the type below
 		return &ChannelOutWrapper{
 			ChannelOut: co,
 		}, nil
