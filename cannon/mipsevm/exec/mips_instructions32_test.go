@@ -1,3 +1,4 @@
+// These tests target architectures that are 32-bit or larger
 package exec
 
 import (
