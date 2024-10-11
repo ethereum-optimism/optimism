@@ -7,7 +7,7 @@ import { ISemver } from "src/universal/interfaces/ISemver.sol";
 /// @notice Interface for the SuperchainTokenBridge contract.
 interface ISuperchainTokenBridge is ISemver {
     error ZeroAddress();
-    error CallerNotL2ToL2CrossDomainMessenger();
+    error Unauthorized();
     error InvalidCrossDomainSender();
 
     event SendERC20(

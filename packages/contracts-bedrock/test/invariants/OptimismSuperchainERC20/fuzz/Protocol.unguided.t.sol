@@ -17,7 +17,7 @@ contract ProtocolUnguided is ProtocolHandler, CompatibleAssert {
         bytes32 salt = MESSENGER.superTokenInitDeploySalts(token);
         amount = bound(amount, 0, type(uint256).max - OptimismSuperchainERC20(token).totalSupply());
         vm.prank(sender);
-        try OptimismSuperchainERC20(token).__crosschainMint(to, amount) {
+        try OptimismSuperchainERC20(token).crosschainMint(to, amount) {
             compatibleAssert(sender == BRIDGE);
             (, uint256 currentValue) = ghost_totalSupplyAcrossChains.tryGet(salt);
             ghost_totalSupplyAcrossChains.set(salt, currentValue + amount);
@@ -33,7 +33,7 @@ contract ProtocolUnguided is ProtocolHandler, CompatibleAssert {
         bytes32 salt = MESSENGER.superTokenInitDeploySalts(token);
         uint256 senderBalance = OptimismSuperchainERC20(token).balanceOf(sender);
         vm.prank(sender);
-        try OptimismSuperchainERC20(token).__crosschainBurn(from, amount) {
+        try OptimismSuperchainERC20(token).crosschainBurn(from, amount) {
             compatibleAssert(sender == BRIDGE);
             (, uint256 currentValue) = ghost_totalSupplyAcrossChains.tryGet(salt);
             ghost_totalSupplyAcrossChains.set(salt, currentValue - amount);

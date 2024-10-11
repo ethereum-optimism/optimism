@@ -108,16 +108,16 @@
     "sourceCodeHash": "0xe8d99e4702d90814089c4a80e259c891a95f6d4750c7220fc6b2672c26ef2700"
   },
   "src/L2/OptimismSuperchainERC20.sol": {
-    "initCodeHash": "0xadeaebb33c1d758d88d7aadd0ad654c9a1f2d59824c5dad19e1d9cf05ea3e516",
-    "sourceCodeHash": "0xacf5ca4cdebd7e1d52f691db0f873cc026c6336a9ea309af1364a46aba723180"
+    "initCodeHash": "0xd5c84e45746fd741d541a917ddc1cc0c7043c6b21d5c18040d4bc999d6a7b2db",
+    "sourceCodeHash": "0xf32130f0b46333daba062c50ff6dcfadce1f177ff753bed2374d499ea9c2d98a"
   },
   "src/L2/OptimismSuperchainERC20Beacon.sol": {
     "initCodeHash": "0x99ce8095b23c124850d866cbc144fee6cee05dbc6bb5d83acadfe00b90cf42c7",
     "sourceCodeHash": "0x5e58b7c867fafa49fe39d68d83875425e9cf94f05f2835bdcdaa08fc8bc6b68e"
   },
   "src/L2/OptimismSuperchainERC20Factory.sol": {
-    "initCodeHash": "0x43ec413140b05bfb83ec453b0d4f82b33a2d560bf8c76405d08de17565b87053",
-    "sourceCodeHash": "0xf50cb5566da50883cc320b90e5ca117dcbb3f6d0dc2afa01db4f400d882319dc"
+    "initCodeHash": "0x18a362c57f08b611db98dfde96121385e938f995c84e3547c1c03fd49f9db2fd",
+    "sourceCodeHash": "0x450cd89d0aae7bbc85ff57a14a6d3468c24c6743f25943f6d895d34b1456c456"
   },
   "src/L2/SequencerFeeVault.sol": {
     "initCodeHash": "0xcaadbf08057b5d47f7704257e9385a29e42a7a08c818646d109c5952d3d35218",
@@ -125,11 +125,11 @@
   },
   "src/L2/SuperchainERC20.sol": {
     "initCodeHash": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
-    "sourceCodeHash": "0x19f598d3b3e77963f9af395b0102dd9acea0e76f7a0ed6eb937d94d3c054137e"
+    "sourceCodeHash": "0x75d061633a141af11a19b86e599a1725dfae8d245dcddfb6bb244a50d5e53f96"
   },
   "src/L2/SuperchainTokenBridge.sol": {
-    "initCodeHash": "0xa7fee12c67f6e7275b460b47b9ed37496ef12e0f85ae3b15cfbd91c2db1b00e7",
-    "sourceCodeHash": "0x6be996b96499d33fbf3729d1ae5f94476ef3cdde70d1b82fcdaae80c7657cde2"
+    "initCodeHash": "0x07fc1d495928d9c13bd945a049d17e1d105d01c2082a7719e5d18cbc0e1c7d9e",
+    "sourceCodeHash": "0xaf2458e48dcadcafa8940cde7368549eae2280eef91247600d864ddac20f5d82"
   },
   "src/L2/SuperchainWETH.sol": {
     "initCodeHash": "0x50f6ea9bfe650fcf792e98e44b1bf66c036fd0e6d4b753da680253d7d8609816",

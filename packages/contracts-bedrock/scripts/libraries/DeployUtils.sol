@@ -9,9 +9,13 @@ import { Artifacts } from "scripts/Artifacts.s.sol";
 // Libraries
 import { LibString } from "@solady/utils/LibString.sol";
 import { Bytes } from "src/libraries/Bytes.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 // Interfaces
 import { IProxy } from "src/universal/interfaces/IProxy.sol";
+import { IAddressManager } from "src/legacy/interfaces/IAddressManager.sol";
+import { IL1ChugSplashProxy, IStaticL1ChugSplashProxy } from "src/legacy/interfaces/IL1ChugSplashProxy.sol";
+import { IResolvedDelegateProxy } from "src/legacy/interfaces/IResolvedDelegateProxy.sol";
 
 library DeployUtils {
     Vm internal constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
@@ -217,12 +221,99 @@ library DeployUtils {
 
     /// @notice Asserts that the given proxy has an implementation set.
     /// @param _proxy Proxy to check.
-    function assertImplementationSet(address _proxy) internal {
+    function assertERC1967ImplementationSet(address _proxy) internal returns (address implementation_) {
         // We prank as the zero address due to the Proxy's `proxyCallIfNotAdmin` modifier.
         // Pranking inside this function also means it can no longer be considered `view`.
         vm.prank(address(0));
-        address implementation = IProxy(payable(_proxy)).implementation();
-        assertValidContractAddress(implementation);
+        implementation_ = IProxy(payable(_proxy)).implementation();
+        assertValidContractAddress(implementation_);
+    }
+
+    /// @notice Asserts that the given L1ChugSplashProxy has an implementation set.
+    /// @param _proxy L1ChugSplashProxy to check.
+    function assertL1ChugSplashImplementationSet(address _proxy) internal returns (address implementation_) {
+        vm.prank(address(0));
+        implementation_ = IStaticL1ChugSplashProxy(_proxy).getImplementation();
+        assertValidContractAddress(implementation_);
+    }
+
+    /// @notice Asserts that the given ResolvedDelegateProxy has an implementation set.
+    /// @param _implementationName Name of the implementation contract.
+    /// @param _addressManager AddressManager contract.
+    function assertResolvedDelegateProxyImplementationSet(
+        string memory _implementationName,
+        IAddressManager _addressManager
+    )
+        internal
+        view
+        returns (address implementation_)
+    {
+        implementation_ = _addressManager.getAddress(_implementationName);
+        assertValidContractAddress(implementation_);
+    }
+
+    /// @notice Builds an ERC1967 Proxy with a dummy implementation.
+    /// @param _proxyImplName Name of the implementation contract.
+    function buildERC1967ProxyWithImpl(string memory _proxyImplName) public returns (IProxy genericProxy_) {
+        genericProxy_ = IProxy(
+            create1({
+                _name: "Proxy",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IProxy.__constructor__, (address(0))))
+            })
+        );
+        address implementation = address(vm.addr(uint256(keccak256(abi.encodePacked(_proxyImplName)))));
+        vm.etch(address(implementation), hex"01");
+        vm.prank(address(0));
+        genericProxy_.upgradeTo(address(implementation));
+        vm.etch(address(genericProxy_), address(genericProxy_).code);
+    }
+
+    /// @notice Builds an L1ChugSplashProxy with a dummy implementation.
+    /// @param _proxyImplName Name of the implementation contract.
+    function buildL1ChugSplashProxyWithImpl(string memory _proxyImplName) public returns (IL1ChugSplashProxy proxy_) {
+        proxy_ = IL1ChugSplashProxy(
+            create1({
+                _name: "L1ChugSplashProxy",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IL1ChugSplashProxy.__constructor__, (address(0))))
+            })
+        );
+        address implementation = address(vm.addr(uint256(keccak256(abi.encodePacked(_proxyImplName)))));
+        vm.etch(address(implementation), hex"01");
+        vm.prank(address(0));
+        proxy_.setStorage(Constants.PROXY_IMPLEMENTATION_ADDRESS, bytes32(uint256(uint160(implementation))));
+    }
+
+    /// @notice Builds a ResolvedDelegateProxy with a dummy implementation.
+    /// @param _addressManager AddressManager contract.
+    /// @param _proxyImplName Name of the implementation contract.
+    function buildResolvedDelegateProxyWithImpl(
+        IAddressManager _addressManager,
+        string memory _proxyImplName
+    )
+        public
+        returns (IResolvedDelegateProxy proxy_)
+    {
+        proxy_ = IResolvedDelegateProxy(
+            create1({
+                _name: "ResolvedDelegateProxy",
+                _args: DeployUtils.encodeConstructor(
+                    abi.encodeCall(IResolvedDelegateProxy.__constructor__, (_addressManager, _proxyImplName))
+                )
+            })
+        );
+        address implementation = address(vm.addr(uint256(keccak256(abi.encodePacked(_proxyImplName)))));
+        vm.etch(address(implementation), hex"01");
+        _addressManager.setAddress(_proxyImplName, implementation);
+    }
+
+    /// @notice Builds an AddressManager contract.
+    function buildAddressManager() public returns (IAddressManager addressManager_) {
+        addressManager_ = IAddressManager(
+            create1({
+                _name: "AddressManager",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IAddressManager.__constructor__, ()))
+            })
+        );
     }
 
     /// @notice Asserts that the given addresses are valid contract addresses.

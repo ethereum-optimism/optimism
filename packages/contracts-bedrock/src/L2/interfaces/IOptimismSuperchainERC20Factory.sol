@@ -5,7 +5,7 @@ import { IOptimismERC20Factory } from "src/L2/interfaces/IOptimismERC20Factory.s
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
 
 /// @title IOptimismSuperchainERC20Factory
-/// @notice Interface for OptimismSuperchainERC20Factory.
+/// @notice Interface for the OptimismSuperchainERC20Factory contract
 interface IOptimismSuperchainERC20Factory is IOptimismERC20Factory, ISemver {
     event OptimismSuperchainERC20Created(
         address indexed superchainToken, address indexed remoteToken, address deployer
