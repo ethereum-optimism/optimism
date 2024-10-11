@@ -354,7 +354,7 @@ func (m *InstrumentedState) handleRMWOps(insn, opcode uint32) error {
 		} else {
 			subwordSizeBytes = 8
 		}
-		retVal = exec.LoadSubWord(m.state.GetMemory(), addr, subwordSizeBytes, false, m.memoryTracker)
+		retVal = exec.LoadSubWord(m.state.GetMemory(), addr, subwordSizeBytes, true, m.memoryTracker)
 
 		m.state.LLReservationActive = true
 		m.state.LLAddress = addr
