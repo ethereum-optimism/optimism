@@ -1,3 +1,4 @@
+// These tests target architectures that are 64-bit or larger
 package tests
 
 import (
@@ -121,16 +122,15 @@ func TestEVM_MT_SC(t *testing.T) {
 		base     Word
 		offset   int
 		value    Word
-		addr     Word
 		rtReg    int
 		threadId Word
 	}{
-		{name: "Aligned addr", base: 0x00_00_00_01, offset: 0x0133, value: 0xABCD, addr: 0x00_00_01_34, rtReg: 5, threadId: 4},
-		{name: "Aligned addr, signed extended", base: 0x00_00_00_01, offset: 0xFF33, value: 0xABCD, addr: 0xFF_FF_FF_34, rtReg: 5, threadId: 4},
-		{name: "Unaligned addr", base: 0xFF_12_00_01, offset: 0x3401, value: 0xABCD, addr: 0xFF_12_34_02, rtReg: 5, threadId: 4},
-		{name: "Unaligned addr, sign extended w overflow", base: 0xFF_12_00_01, offset: 0x8401, value: 0xABCD, addr: 0xFF_11_84_02, rtReg: 5, threadId: 4},
-		{name: "Return register set to 0", base: 0xFF_12_00_01, offset: 0x8401, value: 0xABCD, addr: 0xFF_11_84_02, rtReg: 0, threadId: 4},
-		{name: "Zero valued ll args", base: 0x00_00_00_00, offset: 0x0, value: 0xABCD, addr: 0x00_00_00_00, rtReg: 5, threadId: 0},
+		{name: "Aligned addr", base: 0x00_00_00_01, offset: 0x0133, value: 0xABCD, rtReg: 5, threadId: 4},
+		{name: "Aligned addr, signed extended", base: 0x00_00_00_01, offset: 0xFF33, value: 0xABCD, rtReg: 5, threadId: 4},
+		{name: "Unaligned addr", base: 0xFF_12_00_01, offset: 0x3401, value: 0xABCD, rtReg: 5, threadId: 4},
+		{name: "Unaligned addr, sign extended w overflow", base: 0xFF_12_00_01, offset: 0x8401, value: 0xABCD, rtReg: 5, threadId: 4},
+		{name: "Return register set to 0", base: 0xFF_12_00_01, offset: 0x8401, value: 0xABCD, rtReg: 0, threadId: 4},
+		{name: "Zero valued ll args", base: 0x00_00_00_00, offset: 0x0, value: 0xABCD, rtReg: 5, threadId: 0},
 	}
 	for i, c := range cases {
 		for _, v := range llVariations {
