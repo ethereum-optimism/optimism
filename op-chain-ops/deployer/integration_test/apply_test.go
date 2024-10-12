@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 	"github.com/holiman/uint256"
 
@@ -66,6 +68,7 @@ func (d *deployerKey) String() string {
 }
 
 func TestEndToEndApply(t *testing.T) {
+	op_e2e.InitParallel(t)
 	kurtosisutil.Test(t)
 
 	lgr := testlog.Logger(t, slog.LevelDebug)
@@ -363,6 +366,7 @@ func TestApplyExistingOPCM(t *testing.T) {
 }
 
 func TestL2BlockTimeOverride(t *testing.T) {
+	op_e2e.InitParallel(t)
 	kurtosisutil.Test(t)
 
 	lgr := testlog.Logger(t, slog.LevelDebug)
