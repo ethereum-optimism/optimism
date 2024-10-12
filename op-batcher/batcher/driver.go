@@ -137,17 +137,8 @@ func (l *BatchSubmitter) StartBatchSubmitting() error {
 	l.clearState(l.shutdownCtx)
 	l.lastStoredBlock = eth.BlockID{}
 
-	// Check L2 genesis time
-	genesisTime := time.Unix(int64(l.RollupConfig.Genesis.L2Time), 0)
-	now := time.Now()
-	if now.Before(genesisTime) {
-		l.Log.Info("Waiting for L2 genesis", "genesisTime", genesisTime)
-		select {
-		case <-time.After(time.Until(genesisTime)):
-			l.Log.Info("L2 genesis time reached")
-		case <-l.shutdownCtx.Done():
-			return errors.New("batcher stopped while waiting for L2 genesis")
-		}
+	if err := l.waitForL2Genesis(); err != nil {
+		return fmt.Errorf("error waiting for L2 genesis: %w", err)
 	}
 
 	if l.Config.WaitNodeSync {
@@ -162,6 +153,34 @@ func (l *BatchSubmitter) StartBatchSubmitting() error {
 
 	l.Log.Info("Batch Submitter started")
 	return nil
+}
+
+// waitForL2Genesis waits for the L2 genesis time to be reached.
+func (l *BatchSubmitter) waitForL2Genesis() error {
+	genesisTime := time.Unix(int64(l.RollupConfig.Genesis.L2Time), 0)
+	now := time.Now()
+	if now.After(genesisTime) {
+		return nil
+	}
+
+	l.Log.Info("Waiting for L2 genesis", "genesisTime", genesisTime)
+
+	// Create a ticker that fires every 30 seconds
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			remaining := time.Until(genesisTime)
+			l.Log.Info("Waiting for L2 genesis", "remainingTime", remaining.Round(time.Second))
+		case <-time.After(time.Until(genesisTime)):
+			l.Log.Info("L2 genesis time reached")
+			return nil
+		case <-l.shutdownCtx.Done():
+			return errors.New("batcher stopped")
+		}
+	}
 }
 
 func (l *BatchSubmitter) StopBatchSubmittingIfRunning(ctx context.Context) error {
