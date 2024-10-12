@@ -60,7 +60,7 @@ func (m *InstrumentedState) handleSyscall() error {
 		newThread.Registers[29] = a1
 		// the child will perceive a 0 value as returned value instead, and no error
 		newThread.Registers[exec.RegSyscallRet1] = 0
-		newThread.Registers[exec.RegSyscallResult] = 0
+		newThread.Registers[exec.RegSyscallError] = 0
 		m.state.NextThreadId++
 
 		// Preempt this thread for the new one. But not before updating PCs

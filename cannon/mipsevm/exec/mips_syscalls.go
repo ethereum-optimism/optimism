@@ -282,7 +282,7 @@ func HandleSysFcntl(a0, a1 Word) (v0, v1 Word) {
 
 func HandleSyscallUpdates(cpu *mipsevm.CpuScalars, registers *[32]Word, v0, v1 Word) {
 	registers[RegSyscallRet1] = v0
-	registers[RegSyscallResult] = v1
+	registers[RegSyscallError] = v1
 
 	cpu.PC = cpu.NextPC
 	cpu.NextPC = cpu.NextPC + 4
