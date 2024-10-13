@@ -203,7 +203,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
             L1_STANDARD_BRIDGE_SLOT, _addresses.l1StandardBridge, Types.ConfigType.SET_L1_STANDARD_BRIDGE_ADDRESS
         );
 
-        _setRemoteChainID();
+        _setRemoteChainId();
         _setStartBlock();
         _setGasPayingToken(_addresses.gasPayingToken);
 
@@ -216,16 +216,16 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         Storage.setAddress(_slot, _addr);
         IOptimismPortal(payable(optimismPortal())).setConfig({
             _type: _type,
-            _value: StaticConfig.encodeSetAddress(_addr)
+            _value: abi.encode(_addr)
         });
     }
 
     /// @notice
     /// TODO: probably don't need encode/decode for simple abi encode of a single value
-    function _setRemoteChainID() internal {
+    function _setRemoteChainId() internal {
         IOptimismPortal(payable(optimismPortal())).setConfig({
             _type: Types.ConfigType.SET_REMOTE_CHAIN_ID,
-            _value: StaticConfig.encodeSetRemoteChainId(block.chainid)
+            _value: abi.encode(block.chainid)
         });
     }
 

@@ -4,7 +4,6 @@ pragma solidity 0.8.15;
 import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
 import { OptimismMintableERC721 } from "src/universal/OptimismMintableERC721.sol";
-import { IOptimismMintableERC721Factory } from "src/L2/interfaces/IOptimismMintableERC721Factory.sol";
 
 contract OptimismMintableERC721Factory_Test is Bridge_Initializer {
     event OptimismMintableERC721Created(address indexed localToken, address indexed remoteToken, address deployer);
@@ -13,7 +12,7 @@ contract OptimismMintableERC721Factory_Test is Bridge_Initializer {
         assertEq(l2OptimismMintableERC721Factory.BRIDGE(), address(l2ERC721Bridge));
         assertEq(l2OptimismMintableERC721Factory.bridge(), address(l2ERC721Bridge));
         assertEq(l2OptimismMintableERC721Factory.REMOTE_CHAIN_ID(), deploy.cfg().l1ChainID());
-        assertEq(l2OptimismMintableERC721Factory.remoteChainID(), deploy.cfg().l1ChainID());
+        assertEq(l2OptimismMintableERC721Factory.remoteChainId(), deploy.cfg().l1ChainID());
     }
 
     function test_createOptimismMintableERC721_succeeds() external {

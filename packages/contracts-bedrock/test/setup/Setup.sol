@@ -30,7 +30,7 @@ import { IDataAvailabilityChallenge } from "src/L1/interfaces/IDataAvailabilityC
 import { IL1StandardBridge } from "src/L1/interfaces/IL1StandardBridge.sol";
 import { IProtocolVersions } from "src/L1/interfaces/IProtocolVersions.sol";
 import { IL1ERC721Bridge } from "src/L1/interfaces/IL1ERC721Bridge.sol";
-import { IOptimismMintableERC721Factory } from "src/universal/interfaces/IOptimismMintableERC721Factory.sol";
+import { IOptimismMintableERC721Factory } from "src/L2/interfaces/IOptimismMintableERC721Factory.sol";
 import { IDisputeGameFactory } from "src/dispute/interfaces/IDisputeGameFactory.sol";
 import { IDelayedWETH } from "src/dispute/interfaces/IDelayedWETH.sol";
 import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistry.sol";
