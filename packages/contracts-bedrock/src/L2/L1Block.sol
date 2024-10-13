@@ -205,7 +205,9 @@ contract L1Block is ISemver, IGasToken {
         if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
 
         if (_type == Types.ConfigType.SET_GAS_PAYING_TOKEN) {
-            _setGasPayingToken(_value);
+            (address token, uint8 decimals, bytes32 name, bytes32 symbol) = StaticConfig.decodeSetGasPayingToken(_value);
+            GasPayingToken.set({ _token: token, _decimals: decimals, _name: name, _symbol: symbol });
+            emit GasPayingTokenSet({ token: token, decimals: decimals, name: name, symbol: symbol });
         } else if (_type == Types.ConfigType.SET_BASE_FEE_VAULT_CONFIG) {
             Storage.setBytes32(BASE_FEE_VAULT_CONFIG_SLOT, abi.decode(_value, (bytes32)));
         } else if (_type == Types.ConfigType.SET_L1_FEE_VAULT_CONFIG) {
@@ -227,7 +229,7 @@ contract L1Block is ISemver, IGasToken {
     function getConfig(Types.ConfigType _type) public virtual returns (bytes memory data_) {
         if (_type == Types.ConfigType.SET_GAS_PAYING_TOKEN) {
             (address addr, uint8 decimals) = gasPayingToken();
-            data_ = abi.encode(addr, decimals, gasPayingTokenName(), gasPayingTokenSymbol());
+            data_ = abi.encode(addr, decimals, GasPayingToken.sanitize(gasPayingTokenName()), GasPayingToken.sanitize(gasPayingTokenSymbol()));
         } else if (_type == Types.ConfigType.SET_BASE_FEE_VAULT_CONFIG) {
             data_ = abi.encode(Storage.getBytes32(BASE_FEE_VAULT_CONFIG_SLOT));
         } else if (_type == Types.ConfigType.SET_L1_ERC_721_BRIDGE_ADDRESS) {
@@ -245,23 +247,14 @@ contract L1Block is ISemver, IGasToken {
         }
     }
 
-    /// @notice Internal method to set the gas paying token.
-    /// @param _value The encoded value with which to set the gas paying token.
-    function _setGasPayingToken(bytes calldata _value) internal {
-        (address token, uint8 decimals, bytes32 name, bytes32 symbol) = StaticConfig.decodeSetGasPayingToken(_value);
-
-        GasPayingToken.set({ _token: token, _decimals: decimals, _name: name, _symbol: symbol });
-
-        emit GasPayingTokenSet({ token: token, decimals: decimals, name: name, symbol: symbol });
-    }
-
     /// @notice Sets the gas paying token for the L2 system. Can only be called by the special
     ///         depositor account, initiated by a deposit transaction from L1.
+    ///         This is a legacy setter that exists to give compabilitity with the legacy SystemConfig.
+    ///         Custom gas token can now be set using `setConfig`. This can be removed in the future.
     function setGasPayingToken(address _token, uint8 _decimals, bytes32 _name, bytes32 _symbol) external {
         if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
 
         GasPayingToken.set({ _token: _token, _decimals: _decimals, _name: _name, _symbol: _symbol });
-
         emit GasPayingTokenSet({ token: _token, decimals: _decimals, name: _name, symbol: _symbol });
     }
 

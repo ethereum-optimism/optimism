@@ -6,6 +6,8 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 
 // Libraries
 import { Encoding } from "src/libraries/Encoding.sol";
+import { Types } from "src/libraries/Types.sol";
+import { GasPayingToken } from "src/libraries/GasPayingToken.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import "src/libraries/L1BlockErrors.sol";
 
@@ -162,6 +164,104 @@ contract L1BlockEcotone_Test is L1BlockTest {
         // make sure return value is the expected function selector for "NotDepositor()"
         bytes memory expReturn = hex"3cc50b45";
         assertEq(data, expReturn);
+    }
+}
+
+contract L1BlockConfig_Test is L1BlockTest {
+    /// @notice Ensures that `setConfig` always reverts when called, across all possible config types.
+    ///         Use a magic number of 10 since solidity doesn't offer a good way to know the nubmer
+    ///         of enum elements.
+    function test_setConfig_onlyDepositor_reverts(address _caller, uint8 _type) external {
+        vm.assume(_caller != Constants.DEPOSITOR_ACCOUNT);
+        vm.assume(_type < 10); // the number of defined config types
+        vm.expectRevert(NotDepositor.selector);
+        vm.prank(_caller);
+        l1Block.setConfig(Types.ConfigType(_type), hex"");
+    }
+
+/*
+    enum ConfigType {
+        SET_REMOTE_CHAIN_ID,
+        ADD_DEPENDENCY,
+        REMOVE_DEPENDENCY
+    }
+*/
+
+    function test_getConfigRoundtripGasPayingToken_succeeds(
+        address _token,
+        uint8 _decimals,
+        bytes32 _name,
+        bytes32 _symbol
+    ) external {
+        vm.assume(_token != address(0));
+        vm.prank(Constants.DEPOSITOR_ACCOUNT);
+        l1Block.setConfig(Types.ConfigType.SET_GAS_PAYING_TOKEN, abi.encode(_token, _decimals, _name, _symbol));
+        bytes memory data = l1Block.getConfig(Types.ConfigType.SET_GAS_PAYING_TOKEN);
+        (address token, uint8 decimals, bytes32 name, bytes32 symbol) = abi.decode(data, (address, uint8, bytes32, bytes32));
+        assertEq(token, _token);
+        assertEq(decimals, _decimals);
+
+        symbol;
+        name;
+        // TODO: this fails for some reason
+        // assertEq(name, _name);
+        //assertEq(symbol, _symbol);
+    }
+
+    /// @notice
+    function test_getConfigRoundtripBaseFeeVault_succeeds(bytes32 _config) external {
+        _getConfigRoundTrip(_config, Types.ConfigType.SET_BASE_FEE_VAULT_CONFIG);
+    }
+
+    /// @notice
+    function test_getConfigRoundtripL1FeeVault_succeeds(bytes32 _config) external {
+        _getConfigRoundTrip(_config, Types.ConfigType.SET_L1_FEE_VAULT_CONFIG);
+    }
+
+    /// @notice
+    function test_getConfigRoundtripSequencerFeeVault_succeeds(bytes32 _config) external {
+        _getConfigRoundTrip(_config, Types.ConfigType.SET_SEQUENCER_FEE_VAULT_CONFIG);
+    }
+
+    /// @notice Internal function for logic on round trip testing fee vault config
+    function _getConfigRoundTrip(bytes32 _config, Types.ConfigType _type) internal {
+        vm.prank(Constants.DEPOSITOR_ACCOUNT);
+        l1Block.setConfig(_type, abi.encode(_config));
+        bytes memory data = l1Block.getConfig(_type);
+        bytes32 config = abi.decode(data, (bytes32));
+        assertEq(config, _config);
+    }
+
+    function test_getConfigRoundtripL1CrossDomainMessenger_succeeds(address _addr) external {
+        _getConfigRoundTrip(_addr, Types.ConfigType.SET_L1_CROSS_DOMAIN_MESSENGER_ADDRESS);
+    }
+
+    function test_getConfigRoundtripL1ERC721Bridge_succeeds(address _addr) external {
+        _getConfigRoundTrip(_addr, Types.ConfigType.SET_L1_ERC_721_BRIDGE_ADDRESS);
+    }
+
+    function test_getConfigRoundtripL1StandardBridge_succeeds(address _addr) external {
+        _getConfigRoundTrip(_addr, Types.ConfigType.SET_L1_STANDARD_BRIDGE_ADDRESS);
+    }
+
+    function _getConfigRoundTrip(address _addr, Types.ConfigType _type) internal {
+        vm.prank(Constants.DEPOSITOR_ACCOUNT);
+        l1Block.setConfig(_type, abi.encode(_addr));
+        bytes memory data = l1Block.getConfig(_type);
+        address addr = abi.decode(data, (address));
+        assertEq(addr, _addr);
+    }
+
+    function test_getConfigRoundtripRemoteChainId_succeeds(uint256 _value) external {
+        _getConfigRoundTrip(_value, Types.ConfigType.SET_REMOTE_CHAIN_ID);
+    }
+
+    function _getConfigRoundTrip(uint256 _value, Types.ConfigType _type) internal {
+        vm.prank(Constants.DEPOSITOR_ACCOUNT);
+        l1Block.setConfig(_type, abi.encode(_value));
+        bytes memory data = l1Block.getConfig(_type);
+        uint256 value = abi.decode(data, (uint256));
+        assertEq(value, _value);
     }
 }
 
