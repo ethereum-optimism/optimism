@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { FeeVault } from "src/L2/FeeVault.sol";
 import { Types } from "src/libraries/Types.sol";
+import { Encoding } from "src/libraries/Encoding.sol";
 
 /// @custom:proxied true
 /// @custom:predeploy 0x420000000000000000000000000000000000001A
@@ -24,6 +25,7 @@ contract L1FeeVault is FeeVault, ISemver {
         override
         returns (address recipient_, uint256 amount_, Types.WithdrawalNetwork withdrawalNetwork_)
     {
-        (recipient_, amount_, withdrawalNetwork_) = L1_BLOCK().l1FeeVaultConfig();
+        bytes memory data = L1_BLOCK().getConfig(Types.ConfigType.SET_L1_FEE_VAULT_CONFIG);
+        (recipient_, amount_, withdrawalNetwork_) = Encoding.decodeFeeVaultConfig(abi.decode(data, (bytes32)));
     }
 }

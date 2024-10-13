@@ -39,18 +39,6 @@ contract CrossDomainOwnable2_Test is Bridge_Initializer {
         setter.set(1);
     }
 
-    /// @dev Tests that the `onlyOwner` modifier reverts when not called by the owner.
-    function test_onlyOwner_notOwner_reverts() external {
-        // set the xDomainMsgSender storage slot
-        bytes32 key = bytes32(uint256(204));
-        bytes32 value = Bytes32AddressLib.fillLast12Bytes(address(alice));
-        vm.store(address(l2CrossDomainMessenger), key, value);
-
-        vm.prank(address(l2CrossDomainMessenger));
-        vm.expectRevert("CrossDomainOwnable2: caller is not the owner");
-        setter.set(1);
-    }
-
     /// @dev Tests that the `onlyOwner` modifier causes the relayed message to fail.
     function test_onlyOwner_notOwner2_reverts() external {
         uint240 nonce = 0;

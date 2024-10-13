@@ -7,6 +7,7 @@ import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 // Libraries
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Types } from "src/libraries/Types.sol";
 
 // Interfaces
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
@@ -25,7 +26,8 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, ISemver {
 
     /// @notice Getter for the remote chain's messenger.
     function otherMessenger() public view override returns (CrossDomainMessenger) {
-        return CrossDomainMessenger(IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).l1CrossDomainMessenger());
+        bytes memory data = IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).getConfig(Types.ConfigType.SET_L1_CROSS_DOMAIN_MESSENGER_ADDRESS);
+        return CrossDomainMessenger(abi.decode(data, (address)));
     }
 
     /// @notice Legay getter for the remote chain's messenger.

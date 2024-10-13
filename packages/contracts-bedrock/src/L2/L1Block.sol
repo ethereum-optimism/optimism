@@ -204,7 +204,6 @@ contract L1Block is ISemver, IGasToken {
     function setConfig(Types.ConfigType _type, bytes calldata _value) public virtual {
         if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
 
-        // TODO: sort out StaticType library encoding/decoding vs just using abi.encode/decode
         if (_type == Types.ConfigType.SET_GAS_PAYING_TOKEN) {
             _setGasPayingToken(_value);
         } else if (_type == Types.ConfigType.SET_BASE_FEE_VAULT_CONFIG) {
@@ -222,11 +221,25 @@ contract L1Block is ISemver, IGasToken {
         }
     }
 
-    /*
-    function getConfig() public virtual returns (bytes memory) {
-
+    /// TODO: remove SET prefix on the ConfigType values
+    function getConfig(Types.ConfigType _type) public virtual returns (bytes memory data_) {
+        if (_type == Types.ConfigType.SET_GAS_PAYING_TOKEN) {
+        } else if (_type == Types.ConfigType.SET_BASE_FEE_VAULT_CONFIG) {
+            data_ = abi.encode(Storage.getBytes32(BASE_FEE_VAULT_CONFIG_SLOT));
+        } else if (_type == Types.ConfigType.SET_L1_ERC_721_BRIDGE_ADDRESS) {
+            data_ = abi.encode(Storage.getAddress(L1_ERC_721_BRIDGE_ADDRESS_SLOT));
+        } else if (_type == Types.ConfigType.SET_REMOTE_CHAIN_ID) {
+            data_ = abi.encode(Storage.getUint(REMOTE_CHAIN_ID_SLOT));
+        } else if (_type == Types.ConfigType.SET_L1_CROSS_DOMAIN_MESSENGER_ADDRESS) {
+            data_ = abi.encode(Storage.getAddress(L1_CROSS_DOMAIN_MESSENGER_ADDRESS_SLOT));
+        } else if (_type == Types.ConfigType.SET_L1_STANDARD_BRIDGE_ADDRESS) {
+            data_ = abi.encode(Storage.getAddress(L1_STANDARD_BRIDGE_ADDRESS_SLOT));
+        } else if (_type == Types.ConfigType.SET_SEQUENCER_FEE_VAULT_CONFIG) {
+            data_ = abi.encode(Storage.getBytes32(SEQUENCER_FEE_VAULT_CONFIG_SLOT));
+        } else if (_type == Types.ConfigType.SET_L1_FEE_VAULT_CONFIG) {
+            data_ = abi.encode(Storage.getBytes32(L1_FEE_VAULT_CONFIG_SLOT));
+        }
     }
-    */
 
     /// @notice Internal method to set the gas paying token.
     /// @param _value The encoded value with which to set the gas paying token.
@@ -253,9 +266,9 @@ contract L1Block is ISemver, IGasToken {
         if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
         // TODO set holocene activation to true
 
-        Storage.setBytes32(BASE_FEE_VAULT_CONFIG_SLOT, _feeVaultConfig(Predeploys.BASE_FEE_VAULT));
-        Storage.setBytes32(L1_FEE_VAULT_CONFIG_SLOT, _feeVaultConfig(Predeploys.L1_FEE_VAULT));
-        Storage.setBytes32(SEQUENCER_FEE_VAULT_CONFIG_SLOT, _feeVaultConfig(Predeploys.SEQUENCER_FEE_WALLET));
+        Storage.setBytes32(BASE_FEE_VAULT_CONFIG_SLOT, _migrateFeeVaultConfig(Predeploys.BASE_FEE_VAULT));
+        Storage.setBytes32(L1_FEE_VAULT_CONFIG_SLOT, _migrateFeeVaultConfig(Predeploys.L1_FEE_VAULT));
+        Storage.setBytes32(SEQUENCER_FEE_VAULT_CONFIG_SLOT, _migrateFeeVaultConfig(Predeploys.SEQUENCER_FEE_WALLET));
         Storage.setAddress(
             L1_CROSS_DOMAIN_MESSENGER_ADDRESS_SLOT,
             address(ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).otherMessenger())
@@ -272,57 +285,9 @@ contract L1Block is ISemver, IGasToken {
         );
     }
 
-    /// @notice
-    function baseFeeVaultConfig()
-        public
-        view
-        returns (address recipient_, uint256 amount_, Types.WithdrawalNetwork network_)
-    {
-        (recipient_, amount_, network_) = Encoding.decodeFeeVaultConfig(Storage.getBytes32(BASE_FEE_VAULT_CONFIG_SLOT));
-    }
-
-    /// @notice
-    function l1FeeVaultConfig()
-        public
-        view
-        returns (address recipient_, uint256 amount_, Types.WithdrawalNetwork network_)
-    {
-        (recipient_, amount_, network_) = Encoding.decodeFeeVaultConfig(Storage.getBytes32(L1_FEE_VAULT_CONFIG_SLOT));
-    }
-
-    /// @notice
-    function sequencerFeeVaultConfig()
-        public
-        view
-        returns (address recipient_, uint256 amount_, Types.WithdrawalNetwork network_)
-    {
-        (recipient_, amount_, network_) =
-            Encoding.decodeFeeVaultConfig(Storage.getBytes32(SEQUENCER_FEE_VAULT_CONFIG_SLOT));
-    }
-
-    /// @notice
-    function l1CrossDomainMessenger() public view returns (address) {
-        return Storage.getAddress(L1_CROSS_DOMAIN_MESSENGER_ADDRESS_SLOT);
-    }
-
-    /// @notice
-    function l1StandardBridge() public view returns (address) {
-        return Storage.getAddress(L1_STANDARD_BRIDGE_ADDRESS_SLOT);
-    }
-
-    /// @notice
-    function l1ERC721Bridge() public view returns (address) {
-        return Storage.getAddress(L1_ERC_721_BRIDGE_ADDRESS_SLOT);
-    }
-
-    /// @notice
-    function remoteChainId() public view returns (uint256) {
-        return Storage.getUint(REMOTE_CHAIN_ID_SLOT);
-    }
-
-    /// @notice perhaps rename this to something migration related
-    function _feeVaultConfig(address _addr) internal view returns (bytes32) {
-        // compiler issue with type here
+    /// @notice Helper function for migrating deploy config.
+    ///         TODO: may need to make 3 calls for legacy purposes, the config abi doesn't yet exist
+    function _migrateFeeVaultConfig(address _addr) internal view returns (bytes32) {
         (address recipient, uint256 amount, ITypes.WithdrawalNetwork network) = IFeeVault(payable(_addr)).config();
         return Encoding.encodeFeeVaultConfig(recipient, amount, Types.WithdrawalNetwork(uint8(network)));
     }

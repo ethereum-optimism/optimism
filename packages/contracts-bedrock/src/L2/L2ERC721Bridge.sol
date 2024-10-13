@@ -8,6 +8,7 @@ import { ERC721Bridge } from "src/universal/ERC721Bridge.sol";
 import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Types } from "src/libraries/Types.sol";
 
 // Interfaces
 import { IL1ERC721Bridge } from "src/L1/interfaces/IL1ERC721Bridge.sol";
@@ -38,7 +39,8 @@ contract L2ERC721Bridge is ERC721Bridge, ISemver {
 
     /// @notice
     function otherBridge() public view override returns (ERC721Bridge) {
-        return ERC721Bridge(IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).l1ERC721Bridge());
+        bytes memory data = IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).getConfig(Types.ConfigType.SET_L1_ERC_721_BRIDGE_ADDRESS);
+        return ERC721Bridge(abi.decode(data, (address)));
     }
 
     /// @notice Completes an ERC721 bridge from the other domain and sends the ERC721 token to the

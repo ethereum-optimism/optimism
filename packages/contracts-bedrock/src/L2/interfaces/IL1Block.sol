@@ -24,6 +24,7 @@ interface IL1Block {
     function number() external view returns (uint64);
     function sequenceNumber() external view returns (uint64);
     function setConfig(Types.ConfigType _type, bytes memory _value) external;
+    function getConfig(Types.ConfigType _type) external view returns (bytes memory);
     function setGasPayingToken(address _token, uint8 _decimals, bytes32 _name, bytes32 _symbol) external;
     function setL1BlockValues(
         uint64 _number,
@@ -39,22 +40,6 @@ interface IL1Block {
     function setL1BlockValuesEcotone() external;
     function timestamp() external view returns (uint64);
     function version() external pure returns (string memory);
-    function baseFeeVaultConfig()
-        external
-        view
-        returns (address recipient, uint256 amount, Types.WithdrawalNetwork network);
-    function l1FeeVaultConfig()
-        external
-        view
-        returns (address recipient, uint256 amount, Types.WithdrawalNetwork network);
-    function sequencerFeeVaultConfig()
-        external
-        view
-        returns (address recipient, uint256 amount, Types.WithdrawalNetwork network);
-    function l1CrossDomainMessenger() external view returns (address);
-    function l1StandardBridge() external view returns (address);
-    function l1ERC721Bridge() external view returns (address);
-    function remoteChainId() external view returns (uint256);
 
     function __constructor__() external;
 }

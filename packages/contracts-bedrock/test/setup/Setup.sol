@@ -231,6 +231,13 @@ contract Setup {
         });
         l1Block.setConfig(Types.ConfigType.SET_SEQUENCER_FEE_VAULT_CONFIG, abi.encode(sequencerFeeVaultConfig));
 
+        bytes32 baseFeeVaultConfig = Encoding.encodeFeeVaultConfig({
+            _recipient: deploy.cfg().baseFeeVaultRecipient(),
+            _amount: deploy.cfg().baseFeeVaultMinimumWithdrawalAmount(),
+            _network: Types.WithdrawalNetwork(deploy.cfg().baseFeeVaultWithdrawalNetwork())
+        });
+        l1Block.setConfig(Types.ConfigType.SET_BASE_FEE_VAULT_CONFIG, abi.encode(baseFeeVaultConfig));
+
         // TODO: set other fee vault configs
 
         vm.stopPrank();

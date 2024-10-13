@@ -7,6 +7,7 @@ import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Types } from "src/libraries/Types.sol";
 
 // Interfaces
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
@@ -66,7 +67,8 @@ contract L2StandardBridge is StandardBridge, ISemver {
     /// @notice
     /// TODO: this should be IStandardBridge
     function otherBridge() public view override returns (StandardBridge) {
-        return StandardBridge(payable(IL1Block(payable(Predeploys.L1_BLOCK_ATTRIBUTES)).l1StandardBridge()));
+        bytes memory data = IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).getConfig(Types.ConfigType.SET_L1_STANDARD_BRIDGE_ADDRESS);
+        return StandardBridge(abi.decode(data, (address)));
     }
 
     /// @notice

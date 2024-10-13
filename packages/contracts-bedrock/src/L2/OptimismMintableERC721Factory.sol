@@ -6,6 +6,7 @@ import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { IL1Block } from "src/L2/interfaces/IL1Block.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Types } from "src/libraries/Types.sol";
 
 /// @title OptimismMintableERC721Factory
 /// @notice Factory contract for creating OptimismMintableERC721 contracts.
@@ -31,14 +32,15 @@ contract OptimismMintableERC721Factory is ISemver {
     /// @custom:semver 1.4.1-beta.2
     string public constant version = "1.4.1-beta.3";
 
-    /// @notice TODO: call L1Block
+    /// @notice Returns the remote chain id
     function REMOTE_CHAIN_ID() external view returns (uint256) {
         return remoteChainId();
     }
 
     /// @notice
     function remoteChainId() public view returns (uint256) {
-        return IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).remoteChainId();
+        bytes memory data = IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).getConfig(Types.ConfigType.SET_REMOTE_CHAIN_ID);
+        return abi.decode(data, (uint256));
     }
 
     /// @notice TODO: type should be more strict
