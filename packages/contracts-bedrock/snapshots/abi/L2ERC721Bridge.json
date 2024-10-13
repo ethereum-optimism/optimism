@@ -1,11 +1,6 @@
 [
   {
     "inputs": [],
-    "stateMutability": "nonpayable",
-    "type": "constructor"
-  },
-  {
-    "inputs": [],
     "name": "MESSENGER",
     "outputs": [
       {
@@ -135,19 +130,6 @@
       }
     ],
     "name": "finalizeBridgeERC721",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address payable",
-        "name": "_l1ERC721Bridge",
-        "type": "address"
-      }
-    ],
-    "name": "initialize",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

@@ -105,19 +105,6 @@
   },
   {
     "inputs": [],
-    "name": "SUPERCHAIN_CONFIG_SLOT",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "UNSAFE_BLOCK_SIGNER_SLOT",
     "outputs": [
       {
@@ -400,11 +387,6 @@
             "internalType": "address",
             "name": "gasPayingToken",
             "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "superchainConfig",
-            "type": "address"
           }
         ],
         "internalType": "struct SystemConfig.Addresses",
@@ -531,11 +513,6 @@
           {
             "internalType": "address",
             "name": "gasPayingToken",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "superchainConfig",
             "type": "address"
           }
         ],
@@ -770,7 +747,7 @@
         "type": "uint256"
       },
       {
-        "internalType": "enum FeeVault.WithdrawalNetwork",
+        "internalType": "enum Types.WithdrawalNetwork",
         "name": "_network",
         "type": "uint8"
       }
@@ -855,7 +832,7 @@
         "type": "uint256"
       },
       {
-        "internalType": "enum FeeVault.WithdrawalNetwork",
+        "internalType": "enum Types.WithdrawalNetwork",
         "name": "_network",
         "type": "uint8"
       }
@@ -878,7 +855,7 @@
         "type": "uint256"
       },
       {
-        "internalType": "enum FeeVault.WithdrawalNetwork",
+        "internalType": "enum Types.WithdrawalNetwork",
         "name": "_network",
         "type": "uint8"
       }
@@ -915,19 +892,6 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "superchainConfig",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "addr_",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "internalType": "address",
@@ -951,24 +915,6 @@
       }
     ],
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address payable",
-        "name": "_proxy",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_implementation",
-        "type": "address"
-      }
-    ],
-    "name": "upgrade",
-    "outputs": [],
-    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -1043,7 +989,7 @@
   },
   {
     "inputs": [],
-    "name": "Unauthorized",
+    "name": "UnsafeCast",
     "type": "error"
   }
 ]

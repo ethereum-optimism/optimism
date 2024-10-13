@@ -370,19 +370,19 @@ contract DeployImplementationsOutput is BaseDeployIO {
 
         DeployUtils.assertInitialized({ _contractAddress: address(systemConfig), _slot: 0, _offset: 0 });
 
-        require(systemConfig.owner() == address(0xdead), "SYSCON-10");
+        require(systemConfig.owner() == address(0), "SYSCON-10");
         require(systemConfig.overhead() == 0, "SYSCON-20");
-        require(systemConfig.scalar() == uint256(0x01) << 248, "SYSCON-30");
+        require(systemConfig.scalar() == 0, "SYSCON-30");
         require(systemConfig.basefeeScalar() == 0, "SYSCON-40");
         require(systemConfig.blobbasefeeScalar() == 0, "SYSCON-50");
         require(systemConfig.batcherHash() == bytes32(0), "SYSCON-60");
-        require(systemConfig.gasLimit() == 1, "SYSCON-70");
+        require(systemConfig.gasLimit() == 0, "SYSCON-70");
         require(systemConfig.unsafeBlockSigner() == address(0), "SYSCON-80");
 
         IResourceMetering.ResourceConfig memory resourceConfig = systemConfig.resourceConfig();
-        require(resourceConfig.maxResourceLimit == 1, "SYSCON-90");
-        require(resourceConfig.elasticityMultiplier == 1, "SYSCON-100");
-        require(resourceConfig.baseFeeMaxChangeDenominator == 2, "SYSCON-110");
+        require(resourceConfig.maxResourceLimit == 0, "SYSCON-90");
+        require(resourceConfig.elasticityMultiplier == 0, "SYSCON-100");
+        require(resourceConfig.baseFeeMaxChangeDenominator == 0, "SYSCON-110");
         require(resourceConfig.systemTxMaxGas == 0, "SYSCON-120");
         require(resourceConfig.minimumBaseFee == 0, "SYSCON-130");
         require(resourceConfig.maximumBaseFee == 0, "SYSCON-140");

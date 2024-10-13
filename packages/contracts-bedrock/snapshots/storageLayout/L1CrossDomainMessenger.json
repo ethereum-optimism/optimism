@@ -7,18 +7,11 @@
     "type": "address"
   },
   {
-    "bytes": "1",
-    "label": "_initialized",
+    "bytes": "12",
+    "label": "spacer_0_20_12",
     "offset": 20,
     "slot": "0",
-    "type": "uint8"
-  },
-  {
-    "bytes": "1",
-    "label": "_initializing",
-    "offset": 21,
-    "slot": "0",
-    "type": "bool"
+    "type": "bytes12"
   },
   {
     "bytes": "1600",
@@ -92,10 +85,10 @@
   },
   {
     "bytes": "20",
-    "label": "xDomainMsgSender",
+    "label": "spacer_204_0_20",
     "offset": 0,
     "slot": "204",
-    "type": "address"
+    "type": "bytes20"
   },
   {
     "bytes": "30",
@@ -127,23 +120,44 @@
   },
   {
     "bytes": "20",
-    "label": "superchainConfig",
+    "label": "xDomainMsgSender",
     "offset": 0,
     "slot": "251",
+    "type": "address"
+  },
+  {
+    "bytes": "1",
+    "label": "_initialized",
+    "offset": 20,
+    "slot": "251",
+    "type": "uint8"
+  },
+  {
+    "bytes": "1",
+    "label": "_initializing",
+    "offset": 21,
+    "slot": "251",
+    "type": "bool"
+  },
+  {
+    "bytes": "20",
+    "label": "superchainConfig",
+    "offset": 0,
+    "slot": "252",
     "type": "contract ISuperchainConfig"
   },
   {
     "bytes": "20",
     "label": "portal",
     "offset": 0,
-    "slot": "252",
+    "slot": "253",
     "type": "contract IOptimismPortal"
   },
   {
     "bytes": "20",
     "label": "systemConfig",
     "offset": 0,
-    "slot": "253",
+    "slot": "254",
     "type": "contract ISystemConfig"
   }
 ]

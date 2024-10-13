@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 // Contracts
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
+import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -18,7 +19,7 @@ import { IOptimismPortal } from "src/L1/interfaces/IOptimismPortal.sol";
 /// @notice The L1CrossDomainMessenger is a message passing interface between L1 and L2 responsible
 ///         for sending and receiving data on the L1 side. Users are encouraged to use this
 ///         interface instead of interacting with lower-level contracts directly.
-contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
+contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver, Initializable {
     /// @notice Contract of the SuperchainConfig.
     ISuperchainConfig public superchainConfig;
 
@@ -35,11 +36,7 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
 
     /// @notice Constructs the L1CrossDomainMessenger contract.
     constructor() CrossDomainMessenger() {
-        initialize({
-            _superchainConfig: ISuperchainConfig(address(0)),
-            _portal: IOptimismPortal(payable(address(0))),
-            _systemConfig: ISystemConfig(address(0))
-        });
+        _disableInitializers();
     }
 
     /// @notice Initializes the contract.
@@ -57,7 +54,6 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
         superchainConfig = _superchainConfig;
         portal = _portal;
         systemConfig = _systemConfig;
-        __CrossDomainMessenger_init();
     }
 
     /// @notice

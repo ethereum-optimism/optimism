@@ -36,10 +36,10 @@
   },
   {
     "bytes": "20",
-    "label": "messenger",
+    "label": "spacer_3_0_20",
     "offset": 0,
     "slot": "3",
-    "type": "contract ICrossDomainMessenger"
+    "type": "address"
   },
   {
     "bytes": "20",
@@ -68,5 +68,12 @@
     "offset": 0,
     "slot": "51",
     "type": "contract ISystemConfig"
+  },
+  {
+    "bytes": "20",
+    "label": "crossDomainMessenger",
+    "offset": 0,
+    "slot": "52",
+    "type": "contract ICrossDomainMessenger"
   }
 ]

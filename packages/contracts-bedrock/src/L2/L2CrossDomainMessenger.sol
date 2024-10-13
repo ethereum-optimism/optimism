@@ -23,22 +23,12 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, ISemver {
     /// @custom:semver 2.1.1-beta.4
     string public constant version = "2.1.1-beta.4";
 
-    /// @notice Constructs the L2CrossDomainMessenger contract.
-    constructor() CrossDomainMessenger() {
-        _disableInitializers();
-    }
-
-    /// @notice Initializer.
-    function initialize() public initializer {
-        __CrossDomainMessenger_init();
-    }
-
-    /// @notice
+    /// @notice Getter for the remote chain's messenger.
     function otherMessenger() public view override returns (CrossDomainMessenger) {
         return CrossDomainMessenger(IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).l1CrossDomainMessenger());
     }
 
-    /// @notice Getter for the remote messenger.
+    /// @notice Legay getter for the remote chain's messenger.
     ///         Public getter is legacy and will be removed in the future. Use `otherMessenger()` instead.
     /// @return L1CrossDomainMessenger contract.
     /// @custom:legacy

@@ -22,10 +22,10 @@
   },
   {
     "bytes": "20",
-    "label": "messenger",
+    "label": "spacer_1_0_20",
     "offset": 0,
     "slot": "1",
-    "type": "contract ICrossDomainMessenger"
+    "type": "address"
   },
   {
     "bytes": "20",
@@ -54,5 +54,12 @@
     "offset": 0,
     "slot": "50",
     "type": "contract ISuperchainConfig"
+  },
+  {
+    "bytes": "20",
+    "label": "crossDomainMessenger",
+    "offset": 0,
+    "slot": "51",
+    "type": "contract ICrossDomainMessenger"
   }
 ]

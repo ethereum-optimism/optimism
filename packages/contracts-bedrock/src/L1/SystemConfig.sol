@@ -19,7 +19,6 @@ import { Types } from "src/libraries/Types.sol";
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "src/L1/interfaces/IOptimismPortal2.sol";
 import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
-import { ISuperchainConfig } from "src/L1/interfaces/ISuperchainConfig.sol";
 
 /// @custom:proxied true
 /// @title SystemConfig
@@ -51,7 +50,6 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         address optimismPortal;
         address optimismMintableERC20Factory;
         address gasPayingToken;
-        address superchainConfig;
     }
 
     /// @notice Version identifier, used for upgrades.
@@ -93,9 +91,6 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     /// @notice Storage slot for the DisputeGameFactory address.
     bytes32 public constant DISPUTE_GAME_FACTORY_SLOT =
         bytes32(uint256(keccak256("systemconfig.disputegamefactory")) - 1);
-
-    /// @notice Storage slot for the SuperchainConfig address.
-    bytes32 public constant SUPERCHAIN_CONFIG_SLOT = bytes32(uint256(keccak256("systemconfig.superchainconfig")) - 1);
 
     /// @notice The number of decimals that the gas paying token has.
     uint8 internal constant GAS_PAYING_TOKEN_DECIMALS = 18;
@@ -197,7 +192,6 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         Storage.setAddress(OPTIMISM_PORTAL_SLOT, _addresses.optimismPortal);
         Storage.setAddress(DISPUTE_GAME_FACTORY_SLOT, _addresses.disputeGameFactory);
         Storage.setAddress(OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT, _addresses.optimismMintableERC20Factory);
-        Storage.setAddress(SUPERCHAIN_CONFIG_SLOT, _addresses.superchainConfig);
 
         _setAddress(
             L1_CROSS_DOMAIN_MESSENGER_SLOT,
@@ -233,14 +227,6 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
             _type: Types.ConfigType.SET_REMOTE_CHAIN_ID,
             _value: StaticConfig.encodeSetRemoteChainId(block.chainid)
         });
-    }
-
-    /// @notice
-    function upgrade(address payable _proxy, address _implementation) public {
-        address upgrader = ISuperchainConfig(superchainConfig()).upgrader();
-        if (msg.sender != upgrader) revert Unauthorized();
-
-        IOptimismPortal(payable(optimismPortal())).upgrade({ _proxy: _proxy, _implementation: _implementation });
     }
 
     /// @notice Returns the minimum L2 gas limit that can be safely set for the system to
@@ -302,11 +288,6 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     /// @notice Getter for the BatchInbox address.
     function batchInbox() external view returns (address addr_) {
         addr_ = Storage.getAddress(BATCH_INBOX_SLOT);
-    }
-
-    /// @notice Getter for the SuperchainConfig address.
-    function superchainConfig() public view returns (address addr_) {
-        addr_ = Storage.getAddress(SUPERCHAIN_CONFIG_SLOT);
     }
 
     /// @notice Getter for the StartBlock number.

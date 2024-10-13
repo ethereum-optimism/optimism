@@ -9,7 +9,7 @@
         "type": "address"
       }
     ],
-    "stateMutability": "view",
+    "stateMutability": "pure",
     "type": "function"
   },
   {
@@ -35,7 +35,7 @@
         "type": "address"
       }
     ],
-    "stateMutability": "view",
+    "stateMutability": "pure",
     "type": "function"
   },
   {
@@ -88,22 +88,6 @@
   },
   {
     "inputs": [],
-<<<<<<< HEAD
-    "name": "remoteChainID",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-||||||| parent of 1eb9745c8 (progress)
-=======
     "name": "remoteChainId",
     "outputs": [
       {
@@ -117,7 +101,6 @@
   },
   {
     "inputs": [],
->>>>>>> 1eb9745c8 (progress)
     "name": "version",
     "outputs": [
       {

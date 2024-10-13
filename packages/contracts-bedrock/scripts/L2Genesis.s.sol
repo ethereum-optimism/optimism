@@ -313,38 +313,24 @@ contract L2Genesis is Deployer {
 
     /// @notice This predeploy is following the safety invariant #1.
     function setL2CrossDomainMessenger() public {
-        address impl = _setImplementationCode(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
-
-        IL2CrossDomainMessenger(impl).initialize();
-
-        IL2CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).initialize();
+        _setImplementationCode(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
     }
 
     /// @notice This predeploy is following the safety invariant #1.
     function setL2StandardBridge() public {
-        address impl;
         if (cfg.useInterop()) {
             string memory cname = "L2StandardBridgeInterop";
-            impl = Predeploys.predeployToCodeNamespace(Predeploys.L2_STANDARD_BRIDGE);
+            address impl = Predeploys.predeployToCodeNamespace(Predeploys.L2_STANDARD_BRIDGE);
             console.log("Setting %s implementation at: %s", cname, impl);
             vm.etch(impl, vm.getDeployedCode(string.concat(cname, ".sol:", cname)));
         } else {
-            impl = _setImplementationCode(Predeploys.L2_STANDARD_BRIDGE);
+            _setImplementationCode(Predeploys.L2_STANDARD_BRIDGE);
         }
-
-        // TODO: interfaces also need an update
-        IL2StandardBridge(payable(impl)).initialize();
-
-        IL2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).initialize();
     }
 
     /// @notice This predeploy is following the safety invariant #1.
     function setL2ERC721Bridge() public {
-        address impl = _setImplementationCode(Predeploys.L2_ERC721_BRIDGE);
-
-        IL2ERC721Bridge(impl).initialize();
-
-        IL2ERC721Bridge(Predeploys.L2_ERC721_BRIDGE).initialize();
+        _setImplementationCode(Predeploys.L2_ERC721_BRIDGE);
     }
 
     /// @notice This predeploy is following the safety invariant #2,

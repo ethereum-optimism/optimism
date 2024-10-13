@@ -31,17 +31,17 @@
     "outputs": [
       {
         "internalType": "address",
-        "name": "recipient",
+        "name": "recipient_",
         "type": "address"
       },
       {
         "internalType": "uint256",
-        "name": "amount",
+        "name": "amount_",
         "type": "uint256"
       },
       {
-        "internalType": "enum IFeeVault.WithdrawalNetwork",
-        "name": "network",
+        "internalType": "enum Types.WithdrawalNetwork",
+        "name": "network_",
         "type": "uint8"
       }
     ],
@@ -280,17 +280,17 @@
     "outputs": [
       {
         "internalType": "address",
-        "name": "recipient",
+        "name": "recipient_",
         "type": "address"
       },
       {
         "internalType": "uint256",
-        "name": "amount",
+        "name": "amount_",
         "type": "uint256"
       },
       {
-        "internalType": "enum IFeeVault.WithdrawalNetwork",
-        "name": "network",
+        "internalType": "enum Types.WithdrawalNetwork",
+        "name": "network_",
         "type": "uint8"
       }
     ],
@@ -355,17 +355,17 @@
     "outputs": [
       {
         "internalType": "address",
-        "name": "recipient",
+        "name": "recipient_",
         "type": "address"
       },
       {
         "internalType": "uint256",
-        "name": "amount",
+        "name": "amount_",
         "type": "uint256"
       },
       {
-        "internalType": "enum IFeeVault.WithdrawalNetwork",
-        "name": "network",
+        "internalType": "enum Types.WithdrawalNetwork",
+        "name": "network_",
         "type": "uint8"
       }
     ],
@@ -375,7 +375,7 @@
   {
     "inputs": [
       {
-        "internalType": "enum ConfigType",
+        "internalType": "enum Types.ConfigType",
         "name": "_type",
         "type": "uint8"
       },

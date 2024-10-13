@@ -75,54 +75,5 @@
     "offset": 0,
     "slot": "202",
     "type": "mapping(bytes32 => bool)"
-  },
-  {
-    "bytes": "32",
-    "label": "successfulMessages",
-    "offset": 0,
-    "slot": "203",
-    "type": "mapping(bytes32 => bool)"
-  },
-  {
-    "bytes": "20",
-    "label": "spacer_204_0_20",
-    "offset": 0,
-    "slot": "204",
-    "type": "bytes20"
-  },
-  {
-    "bytes": "30",
-    "label": "msgNonce",
-    "offset": 0,
-    "slot": "205",
-    "type": "uint240"
-  },
-  {
-    "bytes": "32",
-    "label": "failedMessages",
-    "offset": 0,
-    "slot": "206",
-    "type": "mapping(bytes32 => bool)"
-  },
-  {
-    "bytes": "20",
-    "label": "spacer_207_0_20",
-    "offset": 0,
-    "slot": "207",
-    "type": "address"
-  },
-  {
-    "bytes": "1376",
-    "label": "__gap",
-    "offset": 0,
-    "slot": "208",
-    "type": "uint256[43]"
-  },
-  {
-    "bytes": "20",
-    "label": "xDomainMsgSender",
-    "offset": 0,
-    "slot": "251",
-    "type": "address"
   }
 ]
