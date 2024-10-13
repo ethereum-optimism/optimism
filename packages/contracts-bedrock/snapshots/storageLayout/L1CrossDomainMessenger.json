@@ -126,38 +126,52 @@
     "type": "address"
   },
   {
-    "bytes": "1",
-    "label": "_initialized",
+    "bytes": "12",
+    "label": "spacer_251_20_12",
     "offset": 20,
     "slot": "251",
+    "type": "bytes12"
+  },
+  {
+    "bytes": "1",
+    "label": "_initialized",
+    "offset": 0,
+    "slot": "252",
     "type": "uint8"
   },
   {
     "bytes": "1",
     "label": "_initializing",
-    "offset": 21,
-    "slot": "251",
+    "offset": 1,
+    "slot": "252",
     "type": "bool"
+  },
+  {
+    "bytes": "1600",
+    "label": "__gap",
+    "offset": 0,
+    "slot": "253",
+    "type": "uint256[50]"
   },
   {
     "bytes": "20",
     "label": "superchainConfig",
     "offset": 0,
-    "slot": "252",
+    "slot": "303",
     "type": "contract ISuperchainConfig"
   },
   {
     "bytes": "20",
     "label": "portal",
     "offset": 0,
-    "slot": "253",
+    "slot": "304",
     "type": "contract IOptimismPortal"
   },
   {
     "bytes": "20",
     "label": "systemConfig",
     "offset": 0,
-    "slot": "254",
+    "slot": "305",
     "type": "contract ISystemConfig"
   }
 ]

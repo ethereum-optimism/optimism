@@ -145,6 +145,9 @@ abstract contract CrossDomainMessenger is CrossDomainMessengerLegacySpacer {
     ///         Use the xDomainMessageSender getter which will throw an error if this is the case.
     address private xDomainMsgSender;
 
+    /// @notice Spacer to ensure that there is no collision with the xDomainMsgSender slot.
+    bytes12 private spacer_251_20_12;
+
     /// @notice Emitted whenever a message is sent to the other chain.
     /// @param target       Address of the recipient of the message.
     /// @param sender       Address of the sender of the message.

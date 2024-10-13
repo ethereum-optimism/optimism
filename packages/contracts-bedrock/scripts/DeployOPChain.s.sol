@@ -477,7 +477,7 @@ contract DeployOPChainOutput is BaseDeployIO {
     function assertValidL1CrossDomainMessenger(DeployOPChainInput _doi) internal {
         IL1CrossDomainMessenger messenger = l1CrossDomainMessengerProxy();
 
-        DeployUtils.assertInitialized({ _contractAddress: address(messenger), _slot: 0, _offset: 20 });
+        DeployUtils.assertInitialized({ _contractAddress: address(messenger), _slot: 252, _offset: 0 });
 
         require(address(messenger.OTHER_MESSENGER()) == Predeploys.L2_CROSS_DOMAIN_MESSENGER, "L1xDM-10");
         require(address(messenger.otherMessenger()) == Predeploys.L2_CROSS_DOMAIN_MESSENGER, "L1xDM-20");
@@ -485,9 +485,6 @@ contract DeployOPChainOutput is BaseDeployIO {
         require(address(messenger.PORTAL()) == address(optimismPortalProxy()), "L1xDM-30");
         require(address(messenger.portal()) == address(optimismPortalProxy()), "L1xDM-40");
         require(address(messenger.superchainConfig()) == address(_doi.opcmProxy().superchainConfig()), "L1xDM-50");
-
-        bytes32 xdmSenderSlot = vm.load(address(messenger), bytes32(uint256(204)));
-        require(address(uint160(uint256(xdmSenderSlot))) == Constants.DEFAULT_L2_SENDER, "L1xDM-60");
     }
 
     function assertValidL1StandardBridge(DeployOPChainInput _doi) internal {
@@ -506,7 +503,7 @@ contract DeployOPChainOutput is BaseDeployIO {
     function assertValidOptimismMintableERC20Factory(DeployOPChainInput) internal {
         IOptimismMintableERC20Factory factory = optimismMintableERC20FactoryProxy();
 
-        DeployUtils.assertInitialized({ _contractAddress: address(factory), _slot: 0, _offset: 0 });
+        DeployUtils.assertInitialized({ _contractAddress: address(factory), _slot: 51, _offset: 0 });
 
         require(factory.BRIDGE() == address(l1StandardBridgeProxy()), "MERC20F-10");
         require(factory.bridge() == address(l1StandardBridgeProxy()), "MERC20F-20");
@@ -515,7 +512,7 @@ contract DeployOPChainOutput is BaseDeployIO {
     function assertValidL1ERC721Bridge(DeployOPChainInput _doi) internal {
         IL1ERC721Bridge bridge = l1ERC721BridgeProxy();
 
-        DeployUtils.assertInitialized({ _contractAddress: address(bridge), _slot: 0, _offset: 0 });
+        DeployUtils.assertInitialized({ _contractAddress: address(bridge) });
 
         require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_ERC721_BRIDGE, "L721B-10");
         require(address(bridge.otherBridge()) == Predeploys.L2_ERC721_BRIDGE, "L721B-20");
