@@ -662,14 +662,14 @@
   {
     "inputs": [
       {
-        "internalType": "address payable",
-        "name": "_proxy",
-        "type": "address"
+        "internalType": "uint32",
+        "name": "_gasLimit",
+        "type": "uint32"
       },
       {
-        "internalType": "address",
-        "name": "_implementation",
-        "type": "address"
+        "internalType": "bytes",
+        "name": "_calldata",
+        "type": "bytes"
       }
     ],
     "name": "upgrade",

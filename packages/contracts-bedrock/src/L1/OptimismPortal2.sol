@@ -613,14 +613,13 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
         );
     }
 
-    /// @notice Updates a L2 predeploy
-    ///         TODO: can skip system config likely and just
-    ///         if (msg.sender != ISuperchainConfig.upgrader()) revert Unauthorized();
-    ///         this removes the need to have the system config know about the superchain config
-    function upgrade(address payable _proxy, address _implementation) external {
-        if (msg.sender != address(systemConfig)) revert Unauthorized();
+    /// @notice Calls the L2ProxyAdmin as the DEPOSITOR_ACCOUNT. This function can be used
+    ///         to upgrade the predeploys on L2. Only callable by the upgrader role on the
+    ///         SuperchainConfig.
+    function upgrade(uint32 _gasLimit, bytes memory _calldata) external {
+        if (msg.sender != superchainConfig.upgrader()) revert Unauthorized();
 
-        useGas(SYSTEM_DEPOSIT_GAS_LIMIT);
+        useGas(_gasLimit);
 
         // Emit the special deposit transaction directly that sets the config in the L1Block predeploy contract.
         emit TransactionDeposited(
@@ -630,9 +629,9 @@ contract OptimismPortal2 is Initializable, ResourceMetering, ISemver {
             abi.encodePacked(
                 uint256(0), // mint
                 uint256(0), // value
-                uint64(SYSTEM_DEPOSIT_GAS_LIMIT), // gasLimit
+                uint64(_gasLimit), // gasLimit
                 false, // isCreation,
-                abi.encodeCall(ProxyAdmin.upgrade, (_proxy, _implementation))
+                _calldata // data
             )
         );
     }

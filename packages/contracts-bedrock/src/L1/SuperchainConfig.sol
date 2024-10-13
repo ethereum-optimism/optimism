@@ -105,6 +105,9 @@ contract SuperchainConfig is Initializable, ISemver {
         emit ConfigUpdate(UpdateType.GUARDIAN, abi.encode(_guardian));
     }
 
+    /// @notice Sets the upgrader address. This is only callable during initialization, so an upgrade
+    ///         will be required to change the upgrader.
+    /// @param _upgrader The new upgrader address.
     function _setUpgrader(address _upgrader) internal {
         Storage.setAddress(UPGRADER_SLOT, _upgrader);
         emit ConfigUpdate(UpdateType.UPGRADER, abi.encode(_upgrader));

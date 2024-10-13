@@ -222,6 +222,12 @@ contract L1Block is ISemver, IGasToken {
         }
     }
 
+    /*
+    function getConfig() public virtual returns (bytes memory) {
+
+    }
+    */
+
     /// @notice Internal method to set the gas paying token.
     /// @param _value The encoded value with which to set the gas paying token.
     function _setGasPayingToken(bytes calldata _value) internal {

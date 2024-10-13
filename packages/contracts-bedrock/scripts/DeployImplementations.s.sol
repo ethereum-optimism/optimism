@@ -412,7 +412,7 @@ contract DeployImplementationsOutput is BaseDeployIO {
     function assertValidL1ERC721BridgeImpl(DeployImplementationsInput) internal view {
         IL1ERC721Bridge bridge = l1ERC721BridgeImpl();
 
-        DeployUtils.assertInitialized({ _contractAddress: address(bridge), _slot: 0, _offset: 0 });
+        DeployUtils.assertInitialized({ _contractAddress: address(bridge) });
 
         require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_ERC721_BRIDGE, "L721B-10");
         require(address(bridge.otherBridge()) == Predeploys.L2_ERC721_BRIDGE, "L721B-20");
@@ -436,7 +436,7 @@ contract DeployImplementationsOutput is BaseDeployIO {
     function assertValidOptimismMintableERC20FactoryImpl(DeployImplementationsInput) internal view {
         IOptimismMintableERC20Factory factory = optimismMintableERC20FactoryImpl();
 
-        DeployUtils.assertInitialized({ _contractAddress: address(factory), _slot: 0, _offset: 0 });
+        DeployUtils.assertInitialized({ _contractAddress: address(factory), _slot: 51, _offset: 0 });
 
         require(address(factory.BRIDGE()) == address(0), "MERC20F-10");
         require(address(factory.bridge()) == address(0), "MERC20F-20");
@@ -777,7 +777,7 @@ contract DeployImplementations is Script {
     {
         string memory release = _dii.release();
         string memory stdVerToml = _dii.standardVersionsToml();
-        string memory contractName = "optimism_mintable_erc20_factory";
+        string memory contractName = "l1_optimism_mintable_erc20_factory";
         IOptimismMintableERC20Factory impl;
 
         address existingImplementation = getReleaseAddress(release, contractName, stdVerToml);
@@ -787,7 +787,7 @@ contract DeployImplementations is Script {
             vm.broadcast(msg.sender);
             impl = IOptimismMintableERC20Factory(
                 DeployUtils.create1({
-                    _name: "OptimismMintableERC20Factory",
+                    _name: "L1OptimismMintableERC20Factory",
                     _args: DeployUtils.encodeConstructor(abi.encodeCall(IOptimismMintableERC20Factory.__constructor__, ()))
                 })
             );
@@ -795,7 +795,7 @@ contract DeployImplementations is Script {
             revert(string.concat("DeployImplementations: failed to deploy release ", release));
         }
 
-        vm.label(address(impl), "OptimismMintableERC20FactoryImpl");
+        vm.label(address(impl), "L1OptimismMintableERC20FactoryImpl");
         _dio.set(_dio.optimismMintableERC20FactoryImpl.selector, address(impl));
     }
 
