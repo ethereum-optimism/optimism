@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.25;
 
 // Contracts
 import { ERC721Bridge } from "src/universal/ERC721Bridge.sol";
 
 // Libraries
 import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
+import { Constants } from "src/libraries/Constants.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 
 // Interfaces
@@ -27,11 +28,11 @@ import { ISemver } from "src/universal/interfaces/ISemver.sol";
 ///         wait for the one-week challenge period to elapse before their Optimism-native NFT
 ///         can be refunded on L2.
 contract L2ERC721Bridge is ERC721Bridge, ISemver {
-    /// @custom:semver 1.7.1-beta.3
-    string public constant version = "1.7.1-beta.3";
+    /// @custom:semver 1.7.1-beta.2
+    string public constant version = "1.7.1-beta.2";
 
     /// @notice
-    function messenger() public view override returns (ICrossDomainMessenger) {
+    function messenger() public pure override returns (ICrossDomainMessenger) {
         return ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
     }
 

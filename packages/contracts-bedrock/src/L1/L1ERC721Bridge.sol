@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.25;
 
 // Contracts
 import { ERC721Bridge } from "src/universal/ERC721Bridge.sol";
+import { Initializable } from "@openzeppelin/contracts-v5/proxy/utils/Initializable.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 // Interfaces
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
@@ -19,7 +21,7 @@ import { IL2ERC721Bridge } from "src/L2/interfaces/IL2ERC721Bridge.sol";
 /// @notice The L1 ERC721 bridge is a contract which works together with the L2 ERC721 bridge to
 ///         make it possible to transfer ERC721 tokens from Ethereum to Optimism. This contract
 ///         acts as an escrow for ERC721 tokens deposited into L2.
-contract L1ERC721Bridge is ERC721Bridge, ISemver {
+contract L1ERC721Bridge is ERC721Bridge, Initializable, ISemver {
     /// @notice Mapping of L1 token to L2 token to ID to boolean, indicating if the given L1 token
     ///         by ID was deposited for a given L2 token.
     mapping(address => mapping(address => mapping(uint256 => bool))) public deposits;
@@ -31,12 +33,12 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
     ICrossDomainMessenger internal crossDomainMessenger;
 
     /// @notice Semantic version.
-    /// @custom:semver 2.1.1-beta.4
-    string public constant version = "2.1.1-beta.4";
+    /// @custom:semver 2.1.1-beta.3
+    string public constant version = "2.1.1-beta.3";
 
     /// @notice Constructs the L1ERC721Bridge contract.
     constructor() ERC721Bridge() {
-        initialize({ _messenger: ICrossDomainMessenger(address(0)), _superchainConfig: ISuperchainConfig(address(0)) });
+        _disableInitializers();
     }
 
     /// @notice Initializes the contract.
@@ -45,7 +47,6 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
     function initialize(ICrossDomainMessenger _messenger, ISuperchainConfig _superchainConfig) public initializer {
         superchainConfig = _superchainConfig;
         crossDomainMessenger = _messenger;
-        __ERC721Bridge_init();
     }
 
     /// @notice

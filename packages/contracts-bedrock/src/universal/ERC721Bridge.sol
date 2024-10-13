@@ -1,16 +1,15 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.25;
 
 import { ICrossDomainMessenger } from "src/universal/interfaces/ICrossDomainMessenger.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
-import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 /// @title ERC721Bridge
 /// @notice ERC721Bridge is a base contract for the L1 and L2 ERC721 bridges.
-abstract contract ERC721Bridge is Initializable {
+abstract contract ERC721Bridge {
     /// @custom:spacer ERC721Bridge's initializer slot spacing
-    /// @notice Spacer to avoid packing into the initializer slot
-    bytes30 private spacer_0_2_30;
+    /// @notice Spacer for legacy initializable slot
+    bytes32 private spacer_0_2_32;
 
     /// @custom:legacy
     /// @custom:spacer messenger
@@ -67,9 +66,6 @@ abstract contract ERC721Bridge is Initializable {
         );
         _;
     }
-
-    /// @notice Initializer.
-    function __ERC721Bridge_init() internal onlyInitializing { }
 
     /// @notice
     function messenger() public view virtual returns (ICrossDomainMessenger);
