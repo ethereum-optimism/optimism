@@ -13,7 +13,6 @@ interface IL2ERC721Bridge is IERC721Bridge {
         bytes memory _extraData
     )
         external;
-    function initialize() external;
     function version() external view returns (string memory);
 
     function __constructor__() external;

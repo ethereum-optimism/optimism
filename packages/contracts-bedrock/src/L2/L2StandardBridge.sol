@@ -63,12 +63,14 @@ contract L2StandardBridge is StandardBridge, ISemver {
         return "1.11.1-beta.2";
     }
 
+    /// @notice
+    /// TODO: this should be IStandardBridge
     function otherBridge() public view override returns (StandardBridge) {
         return StandardBridge(payable(IL1Block(payable(Predeploys.L1_BLOCK_ATTRIBUTES)).l1StandardBridge()));
     }
 
     /// @notice
-    function messenger() public view override returns (ICrossDomainMessenger) {
+    function messenger() public pure override returns (ICrossDomainMessenger) {
         return ICrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
     }
 

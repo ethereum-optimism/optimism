@@ -23,7 +23,6 @@ interface IL2StandardBridge is IStandardBridge {
 
     receive() external payable;
 
-    function initialize() external;
     function l1TokenBridge() external view returns (address);
     function version() external pure returns (string memory);
     function withdraw(

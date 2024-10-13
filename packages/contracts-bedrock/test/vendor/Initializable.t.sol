@@ -260,14 +260,6 @@ contract Initializer_Test is Bridge_Initializer {
                 )
             })
         );
-        // L2CrossDomainMessenger
-        contracts.push(
-            InitializeableContract({
-                name: "L2CrossDomainMessenger",
-                target: address(l2CrossDomainMessenger),
-                initCalldata: abi.encodeCall(l2CrossDomainMessenger.initialize, ())
-            })
-        );
         // L1StandardBridgeImpl
         contracts.push(
             InitializeableContract({
@@ -318,14 +310,6 @@ contract Initializer_Test is Bridge_Initializer {
                 name: "L1ERC721BridgeProxy",
                 target: address(l1ERC721Bridge),
                 initCalldata: abi.encodeCall(l1ERC721Bridge.initialize, (l1CrossDomainMessenger, superchainConfig))
-            })
-        );
-        // L2ERC721Bridge
-        contracts.push(
-            InitializeableContract({
-                name: "L2ERC721Bridge",
-                target: address(l2ERC721Bridge),
-                initCalldata: abi.encodeCall(l2ERC721Bridge.initialize, ())
             })
         );
         // OptimismMintableERC20FactoryImpl

@@ -5,7 +5,6 @@ import { ICrossDomainMessenger } from "src/universal/interfaces/ICrossDomainMess
 
 interface IL2CrossDomainMessenger is ICrossDomainMessenger {
     function MESSAGE_VERSION() external view returns (uint16);
-    function initialize() external;
     function l1CrossDomainMessenger() external view returns (ICrossDomainMessenger);
     function version() external view returns (string memory);
 

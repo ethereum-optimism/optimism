@@ -177,7 +177,7 @@ contract L2Genesis is Deployer {
 
         dealEthToPrecompiles();
         setPredeployProxies();
-        setPredeployImplementations(_l1Dependencies);
+        setPredeployImplementations();
         setPreinstalls();
         if (cfg.fundDevAccounts()) {
             fundDevAccounts();
@@ -262,11 +262,7 @@ contract L2Genesis is Deployer {
     /// @notice Sets all the implementations for the predeploy proxies. For contracts without proxies,
     ///      sets the deployed bytecode at their expected predeploy address.
     ///      LEGACY_ERC20_ETH and L1_MESSAGE_SENDER are deprecated and are not set.
-    function setPredeployImplementations(L1Dependencies memory _l1Dependencies) internal {
-        console.log("Setting predeploy implementations with L1 contract dependencies:");
-        console.log("- L1CrossDomainMessengerProxy: %s", _l1Dependencies.l1CrossDomainMessengerProxy);
-        console.log("- L1StandardBridgeProxy: %s", _l1Dependencies.l1StandardBridgeProxy);
-        console.log("- L1ERC721BridgeProxy: %s", _l1Dependencies.l1ERC721BridgeProxy);
+    function setPredeployImplementations() internal {
         setLegacyMessagePasser(); // 0
         // 01: legacy, not used in OP-Stack
         setDeployerWhitelist(); // 2

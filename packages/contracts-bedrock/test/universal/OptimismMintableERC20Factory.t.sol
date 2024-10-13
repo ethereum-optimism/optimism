@@ -18,13 +18,6 @@ contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
     event StandardL2TokenCreated(address indexed remoteToken, address indexed localToken);
     event OptimismMintableERC20Created(address indexed localToken, address indexed remoteToken, address deployer);
 
-    /// @notice Tests that the constructor is initialized correctly.
-    function test_constructor_succeeds() external {
-        IOptimismMintableERC20Factory impl = IOptimismMintableERC20Factory(address(new OptimismMintableERC20Factory()));
-        assertEq(address(impl.BRIDGE()), address(0));
-        assertEq(address(impl.bridge()), address(0));
-    }
-
     /// @notice Tests that the proxy is initialized correctly.
     function test_initialize_succeeds() external view {
         assertEq(address(l1OptimismMintableERC20Factory.BRIDGE()), address(l1StandardBridge));
