@@ -391,7 +391,7 @@ contract Deploy is Deployer {
         save("OPContractsManager", address(dio.opcmImpl()));
 
         Types.ContractSet memory contracts = _impls();
-        ChainAssertions.checkL1CrossDomainMessenger({ _contracts: contracts, _vm: vm, _isProxy: false });
+        ChainAssertions.checkL1CrossDomainMessenger({ _contracts: contracts, _isProxy: false });
         ChainAssertions.checkL1StandardBridge({ _contracts: contracts, _isProxy: false });
         ChainAssertions.checkL1ERC721Bridge({ _contracts: contracts, _isProxy: false });
         ChainAssertions.checkOptimismPortal2({ _contracts: contracts, _cfg: cfg, _isProxy: false });
@@ -1126,7 +1126,7 @@ contract Deploy is Deployer {
         string memory version = messenger.version();
         console.log("L1CrossDomainMessenger version: %s", version);
 
-        ChainAssertions.checkL1CrossDomainMessenger({ _contracts: _proxies(), _vm: vm, _isProxy: true });
+        ChainAssertions.checkL1CrossDomainMessenger({ _contracts: _proxies(), _isProxy: true });
     }
 
     /// @notice Initialize the L2OutputOracle

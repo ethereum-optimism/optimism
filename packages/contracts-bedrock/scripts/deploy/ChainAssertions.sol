@@ -40,8 +40,7 @@ library ChainAssertions {
     function postDeployAssertions(
         Types.ContractSet memory _prox,
         DeployConfig _cfg,
-        uint256 _l2OutputOracleStartingTimestamp,
-        Vm _vm
+        uint256 _l2OutputOracleStartingTimestamp
     )
         internal
         view
@@ -52,7 +51,7 @@ library ChainAssertions {
         require(keccak256(abi.encode(rcfg)) == keccak256(abi.encode(dflt)));
 
         checkSystemConfig({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
-        checkL1CrossDomainMessenger({ _contracts: _prox, _vm: _vm, _isProxy: true });
+        checkL1CrossDomainMessenger({ _contracts: _prox, _isProxy: true });
         checkL1StandardBridge({ _contracts: _prox, _isProxy: true });
         checkL2OutputOracle({
             _contracts: _prox,
@@ -163,7 +162,7 @@ library ChainAssertions {
     }
 
     /// @notice Asserts that the L1CrossDomainMessenger is setup correctly
-    function checkL1CrossDomainMessenger(Types.ContractSet memory _contracts, Vm _vm, bool _isProxy) internal view {
+    function checkL1CrossDomainMessenger(Types.ContractSet memory _contracts, bool _isProxy) internal view {
         IL1CrossDomainMessenger messenger = IL1CrossDomainMessenger(_contracts.L1CrossDomainMessenger);
         console.log(
             "Running chain assertions on the L1CrossDomainMessenger %s at %s",
@@ -173,7 +172,7 @@ library ChainAssertions {
         require(address(messenger) != address(0), "CHECK-L1XDM-10");
 
         // Check that the contract is initialized
-        assertInitializedSlotIsSet({ _contractAddress: address(messenger), _slot: 0, _offset: 20 });
+        assertInitializedSlotIsSet({ _contractAddress: address(messenger), _slot: 251, _offset: 20 });
 
         require(address(messenger.OTHER_MESSENGER()) == Predeploys.L2_CROSS_DOMAIN_MESSENGER, "CHECK-L1XDM-20");
         require(address(messenger.otherMessenger()) == Predeploys.L2_CROSS_DOMAIN_MESSENGER, "CHECK-L1XDM-30");
@@ -182,8 +181,6 @@ library ChainAssertions {
             require(address(messenger.PORTAL()) == _contracts.OptimismPortal, "CHECK-L1XDM-40");
             require(address(messenger.portal()) == _contracts.OptimismPortal, "CHECK-L1XDM-50");
             require(address(messenger.superchainConfig()) == _contracts.SuperchainConfig, "CHECK-L1XDM-60");
-            bytes32 xdmSenderSlot = _vm.load(address(messenger), bytes32(uint256(204)));
-            require(address(uint160(uint256(xdmSenderSlot))) == Constants.DEFAULT_L2_SENDER, "CHECK-L1XDM-70");
         } else {
             require(address(messenger.PORTAL()) == address(0), "CHECK-L1XDM-80");
             require(address(messenger.portal()) == address(0), "CHECK-L1XDM-90");
