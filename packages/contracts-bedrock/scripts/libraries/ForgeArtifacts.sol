@@ -5,6 +5,7 @@ import { Vm } from "forge-std/Vm.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { LibString } from "@solady/utils/LibString.sol";
 import { Executables } from "scripts/libraries/Executables.sol";
+import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { Process } from "scripts/libraries/Process.sol";
 
 /// @notice Contains information about a storage slot. Mirrors the layout of the storage
@@ -189,6 +190,19 @@ library ForgeArtifacts {
     /// @notice Pulls the `_initialized` storage slot information from the Forge artifacts for a given contract.
     function getInitializedSlot(string memory _contractName) internal returns (StorageSlot memory slot_) {
         string memory storageLayout = getStorageLayout(_contractName);
+
+        // Contracts that use oz v5 should be here
+        if (LibString.eq(_contractName, "L1ERC721Bridge")) {
+            StorageSlot memory slot = StorageSlot({
+                astId: 0,
+                _contract: _contractName,
+                label: "_initialized",
+                offset: 0,
+                slot: vm.toString(DeployUtils.INITIALIZABLE_STORAGE),
+                _type: "bool"
+            });
+            return slot;
+        }
 
         // FaultDisputeGame and PermissionedDisputeGame use a different name for the initialized storage slot.
         string memory slotName = "_initialized";

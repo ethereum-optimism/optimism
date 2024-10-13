@@ -238,8 +238,12 @@ contract Setup {
         });
         l1Block.setConfig(Types.ConfigType.SET_BASE_FEE_VAULT_CONFIG, abi.encode(baseFeeVaultConfig));
 
-        // TODO: set other fee vault configs
-
+        bytes32 l1FeeVaultConfig = Encoding.encodeFeeVaultConfig({
+            _recipient: deploy.cfg().l1FeeVaultRecipient(),
+            _amount: deploy.cfg().l1FeeVaultMinimumWithdrawalAmount(),
+            _network: Types.WithdrawalNetwork(deploy.cfg().l1FeeVaultWithdrawalNetwork())
+        });
+        l1Block.setConfig(Types.ConfigType.SET_L1_FEE_VAULT_CONFIG, abi.encode(l1FeeVaultConfig));
         vm.stopPrank();
 
         // Reset the ResourceConfig gas used to 0
