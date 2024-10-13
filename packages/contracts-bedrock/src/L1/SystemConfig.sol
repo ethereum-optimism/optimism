@@ -20,6 +20,12 @@ import { ISemver } from "src/universal/interfaces/ISemver.sol";
 import { IOptimismPortal2 as IOptimismPortal } from "src/L1/interfaces/IOptimismPortal2.sol";
 import { IResourceMetering } from "src/L1/interfaces/IResourceMetering.sol";
 
+// TODO: need rbac construction for being able to set the fee vault config to keep
+//       the roles 1:1 as today. today the L2 proxy admin owner is the only entity
+//       that can modify the fee vault config, in practice this means that its the
+//       security council/foundation. do we want to source the value from the
+//       superchain config for simplicity?
+
 /// @custom:proxied true
 /// @title SystemConfig
 /// @notice The SystemConfig contract is used to manage configuration of an Optimism network.
@@ -211,7 +217,10 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         require(_gasLimit >= minimumGasLimit(), "SystemConfig: gas limit too low");
     }
 
-    /// @notice
+    /// @notice Internal setter for L1 system addresses that need to be legible from within L2.
+    /// @param _slot The local storage slot that the address should be stored in.
+    /// @param _addr The address of the L1 based system address.
+    /// @param _type The ConfigType that represents what the address is.
     function _setAddress(bytes32 _slot, address _addr, Types.ConfigType _type) internal {
         Storage.setAddress(_slot, _addr);
         IOptimismPortal(payable(optimismPortal())).setConfig({
@@ -220,8 +229,9 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         });
     }
 
-    /// @notice
-    /// TODO: probably don't need encode/decode for simple abi encode of a single value
+    /// @notice Internal setter for the base chain's chain id. This allows for the
+    ///         base chain's chain id to be legible from within the parent chain.
+    ///         In the case of an L2, this would be the L1 chain id.
     function _setRemoteChainId() internal {
         IOptimismPortal(payable(optimismPortal())).setConfig({
             _type: Types.ConfigType.SET_REMOTE_CHAIN_ID,
@@ -421,7 +431,10 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         _setGasLimit(_gasLimit);
     }
 
-    /// @notice
+    /// @notice Setter for the BaseFeeVault predeploy configuration.
+    /// @param _recipient Address that should receive the funds.
+    /// @param _min Minimum withdrawal amount allowed to be processed.
+    /// @param _network The network in which the fees should be withdrawn to.
     function setBaseFeeVaultConfig(
         address _recipient,
         uint256 _min,
@@ -433,7 +446,10 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         _setFeeVaultConfig(Types.ConfigType.SET_BASE_FEE_VAULT_CONFIG, _recipient, _min, _network);
     }
 
-    /// @notice
+    /// @notice Setter for the L1FeeVault predeploy configuration.
+    /// @param _recipient Address that should receive the funds.
+    /// @param _min Minimum withdrawal amount allowed to be processed.
+    /// @param _network The network in which the fees should be withdrawn to.
     function setL1FeeVaultConfig(
         address _recipient,
         uint256 _min,
@@ -445,7 +461,10 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         _setFeeVaultConfig(Types.ConfigType.SET_L1_FEE_VAULT_CONFIG, _recipient, _min, _network);
     }
 
-    /// @notice
+    /// @notice Setter for the SequencerFeeVault predeploy configuration.
+    /// @param _recipient Address that should receive the funds.
+    /// @param _min Minimum withdrawal amount allowed to be processed.
+    /// @param _network The network in which the fees should be withdrawn to.
     function setSequencerFeeVaultConfig(
         address _recipient,
         uint256 _min,
@@ -457,7 +476,11 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
         _setFeeVaultConfig(Types.ConfigType.SET_SEQUENCER_FEE_VAULT_CONFIG, _recipient, _min, _network);
     }
 
-    /// @notice
+    /// @notice Internal function for setting the FeeVault config by type.
+    /// @param _type The FeeVault type
+    /// @param _recipient Address that should receive the funds.
+    /// @param _min Minimum withdrawal amount allowed to be processed.
+    /// @param _network The network in which the fees should be withdrawn to.
     function _setFeeVaultConfig(
         Types.ConfigType _type,
         address _recipient,

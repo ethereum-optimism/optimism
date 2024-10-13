@@ -208,6 +208,8 @@ contract L1Block is ISemver, IGasToken {
             _setGasPayingToken(_value);
         } else if (_type == Types.ConfigType.SET_BASE_FEE_VAULT_CONFIG) {
             Storage.setBytes32(BASE_FEE_VAULT_CONFIG_SLOT, abi.decode(_value, (bytes32)));
+        } else if (_type == Types.ConfigType.SET_L1_FEE_VAULT_CONFIG) {
+            Storage.setBytes32(L1_FEE_VAULT_CONFIG_SLOT, abi.decode(_value, (bytes32)));
         } else if (_type == Types.ConfigType.SET_L1_ERC_721_BRIDGE_ADDRESS) {
             Storage.setAddress(L1_ERC_721_BRIDGE_ADDRESS_SLOT, abi.decode(_value, (address)));
         } else if (_type == Types.ConfigType.SET_REMOTE_CHAIN_ID) {
@@ -224,6 +226,8 @@ contract L1Block is ISemver, IGasToken {
     /// TODO: remove SET prefix on the ConfigType values
     function getConfig(Types.ConfigType _type) public virtual returns (bytes memory data_) {
         if (_type == Types.ConfigType.SET_GAS_PAYING_TOKEN) {
+            (address addr, uint8 decimals) = gasPayingToken();
+            data_ = abi.encode(addr, decimals, gasPayingTokenName(), gasPayingTokenSymbol());
         } else if (_type == Types.ConfigType.SET_BASE_FEE_VAULT_CONFIG) {
             data_ = abi.encode(Storage.getBytes32(BASE_FEE_VAULT_CONFIG_SLOT));
         } else if (_type == Types.ConfigType.SET_L1_ERC_721_BRIDGE_ADDRESS) {
