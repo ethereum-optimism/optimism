@@ -158,7 +158,7 @@ contract Deploy is Deployer {
             DelayedWETH: getAddress("DelayedWETHProxy"),
             PermissionedDelayedWETH: getAddress("PermissionedDelayedWETHProxy"),
             AnchorStateRegistry: getAddress("AnchorStateRegistryProxy"),
-            OptimismMintableERC20Factory: getAddress("OptimismMintableERC20FactoryProxy"),
+            OptimismMintableERC20Factory: getAddress("L1OptimismMintableERC20FactoryProxy"),
             OptimismPortal: getAddress("OptimismPortalProxy"),
             OptimismPortal2: getAddress("OptimismPortalProxy"),
             SystemConfig: getAddress("SystemConfigProxy"),
@@ -376,7 +376,9 @@ contract Deploy is Deployer {
         }
 
         save("L1CrossDomainMessenger", address(dio.l1CrossDomainMessengerImpl()));
+        // Save under both sames for backwards compatibility
         save("OptimismMintableERC20Factory", address(dio.optimismMintableERC20FactoryImpl()));
+        save("L1OptimismMintableERC20Factory", address(dio.optimismMintableERC20FactoryImpl()));
         save("SystemConfig", address(dio.systemConfigImpl()));
         save("L1StandardBridge", address(dio.l1StandardBridgeImpl()));
         save("L1ERC721Bridge", address(dio.l1ERC721BridgeImpl()));
@@ -434,7 +436,9 @@ contract Deploy is Deployer {
         deployERC1967Proxy("SystemConfigProxy");
         deployL1StandardBridgeProxy();
         deployL1CrossDomainMessengerProxy();
-        deployERC1967Proxy("OptimismMintableERC20FactoryProxy");
+        // handle backwards compatiblity
+        address factoryProxy = deployERC1967Proxy("L1OptimismMintableERC20FactoryProxy");
+        save("OptimismMintableERC20FactoryProxy", factoryProxy);
         deployERC1967Proxy("L1ERC721BridgeProxy");
 
         // Both the DisputeGameFactory and L2OutputOracle proxies are deployed regardless of whether fault proofs is
@@ -988,7 +992,7 @@ contract Deploy is Deployer {
                         l1StandardBridge: mustGetAddress("L1StandardBridgeProxy"),
                         disputeGameFactory: mustGetAddress("DisputeGameFactoryProxy"),
                         optimismPortal: mustGetAddress("OptimismPortalProxy"),
-                        optimismMintableERC20Factory: mustGetAddress("OptimismMintableERC20FactoryProxy"),
+                        optimismMintableERC20Factory: mustGetAddress("L1OptimismMintableERC20FactoryProxy"),
                         gasPayingToken: customGasTokenAddress
                     })
                 )
@@ -1065,7 +1069,7 @@ contract Deploy is Deployer {
     /// @notice Initialize the OptimismMintableERC20Factory
     function initializeOptimismMintableERC20Factory() public broadcast {
         console.log("Upgrading and initializing OptimismMintableERC20Factory proxy");
-        address optimismMintableERC20FactoryProxy = mustGetAddress("OptimismMintableERC20FactoryProxy");
+        address optimismMintableERC20FactoryProxy = mustGetAddress("L1OptimismMintableERC20FactoryProxy");
         address optimismMintableERC20Factory = mustGetAddress("OptimismMintableERC20Factory");
         address l1StandardBridgeProxy = mustGetAddress("L1StandardBridgeProxy");
 

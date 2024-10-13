@@ -7,12 +7,19 @@ import { ISystemConfig } from "src/L1/interfaces/ISystemConfig.sol";
 import { Proxy } from "src/universal/Proxy.sol";
 import { Constants } from "src/libraries/Constants.sol";
 
+contract ConfigSetter {
+    function setConfig(uint8, bytes calldata) external {
+        // noop
+    }
+}
+
 contract SystemConfig_GasLimitBoundaries_Invariant is Test {
     ISystemConfig public config;
 
     function setUp() external {
         Proxy proxy = new Proxy(msg.sender);
         ISystemConfig configImpl = ISystemConfig(address(new SystemConfig()));
+        ConfigSetter setter = new ConfigSetter();
 
         vm.prank(msg.sender);
         proxy.upgradeToAndCall(
@@ -33,7 +40,7 @@ contract SystemConfig_GasLimitBoundaries_Invariant is Test {
                         l1ERC721Bridge: address(0),
                         l1StandardBridge: address(0),
                         disputeGameFactory: address(0),
-                        optimismPortal: address(0),
+                        optimismPortal: address(setter),
                         optimismMintableERC20Factory: address(0),
                         gasPayingToken: Constants.ETHER
                     })

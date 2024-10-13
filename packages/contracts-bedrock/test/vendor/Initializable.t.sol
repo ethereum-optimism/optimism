@@ -28,6 +28,10 @@ import { IAnchorStateRegistry } from "src/dispute/interfaces/IAnchorStateRegistr
 ///      deepest contract in the inheritance chain for setting up the system contracts.
 ///      For each L1 contract both the implementation and the proxy are tested.
 contract Initializer_Test is Bridge_Initializer {
+    /// @notice Error used by openzeppelin v5 initializable.
+    ///         The contract is already initialized.
+    error InvalidInitialization();
+
     /// @notice Contains the address of an `Initializable` contract and the calldata
     ///         used to initialize it.
     struct InitializeableContract {
@@ -280,22 +284,6 @@ contract Initializer_Test is Bridge_Initializer {
                 )
             })
         );
-        // L2StandardBridge
-        contracts.push(
-            InitializeableContract({
-                name: "L2StandardBridge",
-                target: address(l2StandardBridge),
-                initCalldata: abi.encodeCall(l2StandardBridge.initialize, (l1StandardBridge))
-            })
-        );
-        // L2StandardBridgeInterop
-        contracts.push(
-            InitializeableContract({
-                name: "L2StandardBridgeInterop",
-                target: address(l2StandardBridge),
-                initCalldata: abi.encodeCall(l2StandardBridge.initialize, (l1StandardBridge))
-            })
-        );
         // L1ERC721BridgeImpl
         contracts.push(
             InitializeableContract({
@@ -479,7 +467,7 @@ contract Initializer_Test is Bridge_Initializer {
             // Then, attempt to re-initialize the contract. This should fail.
             (bool success, bytes memory returnData) = _contract.target.call(_contract.initCalldata);
             assertFalse(success);
-            assertEq(_extractErrorString(returnData), "Initializable: contract is already initialized");
+            assertErrorString(returnData);
         }
     }
 
@@ -501,10 +489,12 @@ contract Initializer_Test is Bridge_Initializer {
         real_ = bytes(nicknames[_name]).length > 0 ? nicknames[_name] : _name;
     }
 
-    /// @dev Extracts the revert string from returndata encoded in the form of `Error(string)`.
-    function _extractErrorString(bytes memory _returnData) internal pure returns (string memory error_) {
-        // The first 4 bytes of the return data should be the selector for `Error(string)`. If not, revert.
-        if (bytes4(_returnData) == 0x08c379a0) {
+    /// @dev Asserts the expected revert from the returndata
+    function assertErrorString(bytes memory _returnData) internal pure returns (string memory error_) {
+        if (bytes4(_returnData) == InvalidInitialization.selector) {
+            // do nothing as this is the correct 4byte returndata
+        } else if (bytes4(_returnData) == 0x08c379a0) {
+            // The first 4 bytes of the return data should be the selector for `Error(string)`. If not, revert.
             // Extract the error string from the returndata. The error string is located 68 bytes after
             // the pointer to `returnData`.
             //
@@ -515,6 +505,7 @@ contract Initializer_Test is Bridge_Initializer {
             assembly {
                 error_ := add(_returnData, 0x44)
             }
+            assertEq(error_, "Initializable: contract is already initialized");
         } else {
             revert("Initializer_Test: Invalid returndata format. Expected `Error(string)`");
         }

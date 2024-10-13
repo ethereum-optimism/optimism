@@ -615,7 +615,7 @@ contract DeployImplementations is Script {
         });
         setters[2] = opcmSystemConfigSetter(_dii, _dio);
         setters[3] = OPContractsManager.ImplementationSetter({
-            name: "OptimismMintableERC20Factory",
+            name: "OptimismMintableERC20Factory", // TODO: rename?
             info: OPContractsManager.Implementation(
                 address(_dio.optimismMintableERC20FactoryImpl()), IOptimismMintableERC20Factory.initialize.selector
             )

@@ -143,7 +143,7 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
                 l1ERC721Bridge: address(0),
                 l1StandardBridge: address(0),
                 disputeGameFactory: address(0),
-                optimismPortal: address(0),
+                optimismPortal: address(optimismPortal),
                 optimismMintableERC20Factory: address(0),
                 gasPayingToken: Constants.ETHER
             })
@@ -173,7 +173,7 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
                 l1ERC721Bridge: address(0),
                 l1StandardBridge: address(0),
                 disputeGameFactory: address(0),
-                optimismPortal: address(0),
+                optimismPortal: address(optimismPortal),
                 optimismMintableERC20Factory: address(0),
                 gasPayingToken: Constants.ETHER
             })
@@ -204,7 +204,7 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
                 l1ERC721Bridge: address(0),
                 l1StandardBridge: address(0),
                 disputeGameFactory: address(0),
-                optimismPortal: address(0),
+                optimismPortal: address(optimismPortal),
                 optimismMintableERC20Factory: address(0),
                 gasPayingToken: Constants.ETHER
             })
@@ -299,7 +299,7 @@ contract SystemConfig_Init_ResourceConfig is SystemConfig_Init {
                 l1ERC721Bridge: address(0),
                 l1StandardBridge: address(0),
                 disputeGameFactory: address(0),
-                optimismPortal: address(0),
+                optimismPortal: address(optimismPortal),
                 optimismMintableERC20Factory: address(0),
                 gasPayingToken: address(0)
             })
@@ -482,7 +482,7 @@ contract SystemConfig_Init_CustomGasToken is SystemConfig_Init {
                 uint256(0), // value
                 uint64(200_000), // gasLimit
                 false, // isCreation,
-                abi.encodeCall(IL1Block.setGasPayingToken, (address(token), 18, bytes32("Silly"), bytes32("SIL")))
+                abi.encodeCall(IL1Block.setConfig, (Types.ConfigType.SET_GAS_PAYING_TOKEN, data))
             )
         );
 
