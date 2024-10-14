@@ -30,7 +30,7 @@ func createTraceProvider(
 ) (types.TraceProvider, error) {
 	switch traceType {
 	case types.TraceTypeCannon:
-		serverExecutor := vm.NewOpProgramServerExecutor()
+		serverExecutor := vm.NewOpProgramServerExecutor(logger)
 		stateConverter := cannon.NewStateConverter(cfg.Cannon)
 		prestate, err := getPrestate(ctx, prestateHash, cfg.CannonAbsolutePreStateBaseURL, cfg.CannonAbsolutePreState, dir, stateConverter)
 		if err != nil {
@@ -39,7 +39,7 @@ func createTraceProvider(
 		prestateProvider := vm.NewPrestateProvider(prestate, stateConverter)
 		return cannon.NewTraceProvider(logger, m, cfg.Cannon, serverExecutor, prestateProvider, prestate, localInputs, dir, 42), nil
 	case types.TraceTypeAsterisc:
-		serverExecutor := vm.NewOpProgramServerExecutor()
+		serverExecutor := vm.NewOpProgramServerExecutor(logger)
 		stateConverter := asterisc.NewStateConverter(cfg.Asterisc)
 		prestate, err := getPrestate(ctx, prestateHash, cfg.AsteriscAbsolutePreStateBaseURL, cfg.AsteriscAbsolutePreState, dir, stateConverter)
 		if err != nil {
@@ -70,7 +70,7 @@ func createMTTraceProvider(
 	localInputs utils.LocalGameInputs,
 	dir string,
 ) (types.TraceProvider, error) {
-	executor := vm.NewOpProgramServerExecutor()
+	executor := vm.NewOpProgramServerExecutor(logger)
 	stateConverter := cannon.NewStateConverter(vmConfig)
 
 	prestateSource := prestates.NewMultiPrestateProvider(absolutePrestateBaseURL, filepath.Join(dir, "prestates"), stateConverter)
