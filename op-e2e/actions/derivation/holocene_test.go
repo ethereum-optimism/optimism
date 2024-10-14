@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -18,15 +17,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// A1,A0 frame order should result in :
-// pre-Holocene: channel being processed in the derivation pipeline
-// post-Holocene: frames are just dropped, safe head would not move
+// TestOutOfOrderFrames uses batcher.ActL2BatchSubmitOutOfOrder
+// To buffer an entire channel and submit it in reverse order. The
+// surrounding test ensures that the safe head either does or does
+// not progress, depending on whether Holocene is activated in the
+// verifier node.
 func TestOutOfOrderFrames(gt *testing.T) {
 	t := actionsHelpers.NewDefaultTesting(gt)
 	p := actionsHelpers.DefaultRollupTestParams()
 	dp := e2eutils.MakeDeployParams(t, p)
-	deltaTimeOffset := hexutil.Uint64(0)
-	upgradesHelpers.ApplyDeltaTimeOffset(dp, &deltaTimeOffset)
+	upgradesHelpers.ApplyDeltaTimeOffset(dp, nil) // disable span bacthes for now
 
 	sd := e2eutils.Setup(t, dp, actionsHelpers.DefaultAlloc)
 	log := testlog.Logger(t, log.LevelInfo)
@@ -82,11 +82,12 @@ func TestOutOfOrderFrames(gt *testing.T) {
 
 	// Ensure that the L2 safe head has an L1 Origin at genesis before any
 	// batches are submitted.
-	require.Equal(t, uint64(0), sequencer.L2Safe().L1Origin.Number)
+	require.Equal(t, uint64(0), verifier.L2Safe().Number)
 
+	// Here's where we trigger the unusual behaviour on the batcher
 	batcher.ActBufferAll(t)
 	batcher.ActL2ChannelClose(t)
-	batcher.ActL2BatchSubmitOutOfOrder(t) // Here's where we mess up the ordering.
+	batcher.ActL2BatchSubmitOutOfOrder(t)
 
 	// build L1 blocks until we're out of txs
 	txs, _ := miner.Eth.TxPool().ContentFrom(dp.Addresses.Batcher)
@@ -122,14 +123,11 @@ func TestOutOfOrderFrames(gt *testing.T) {
 	if holocene {
 		// NOT marked as safe due to the out of order frame submission. The safe head should
 		// still have an L1 Origin at genesis.
-		require.Equal(t, uint64(0), verifier.L2Safe().L1Origin.Number)
-		require.Equal(t, uint64(2), sequencer.L2Unsafe().L1Origin.Number)
+		require.Equal(t, uint64(0), verifier.L2Safe().Number)
 	} else {
 		// Marked as safe due to the derivation pipeline buffering frames
 		// which arrive  out of order. The safe head should
 		// advance.
-		require.Equal(t, uint64(2), verifier.L2Safe().L1Origin.Number)
-		require.Equal(t, uint64(2), sequencer.L2Unsafe().L1Origin.Number)
+		require.Equal(t, uint64(1), verifier.L2Safe().Number)
 	}
-
 }

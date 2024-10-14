@@ -288,7 +288,9 @@ func (s *L2Batcher) ActL2BatchSubmitOutOfOrder(t Testing, txOpts ...func(tx *typ
 		data := new(bytes.Buffer)
 		data.WriteByte(derive.DerivationVersion0)
 		// subtract one, to account for the version byte
-		if _, err := s.L2ChannelOut.OutputFrame(data, s.l2BatcherCfg.MaxL1TxSize-1); err == io.EOF {
+		_, err := s.L2ChannelOut.OutputFrame(data, s.l2BatcherCfg.MaxL1TxSize-1)
+		frames = append([][]byte{data.Bytes()}, frames...) // Build up frames in reverse order
+		if err == io.EOF {
 			s.L2ChannelOut = nil
 			s.l2Submitting = false
 			break
@@ -296,18 +298,18 @@ func (s *L2Batcher) ActL2BatchSubmitOutOfOrder(t Testing, txOpts ...func(tx *typ
 			s.l2Submitting = false
 			t.Fatalf("failed to output channel data to frame: %v", err)
 		}
-		frames = append([][]byte{data.Bytes()}, frames...) // Build up frames in reverse order
+
 	}
 	if len(frames) < 2 {
 		t.InvalidAction("need at least two frames to submit out of order")
 		return
 	}
-	f, err := derive.ParseFrames(frames[len(frames)-1])
+	f, err := derive.ParseFrames(frames[0])
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
-	if f[0].IsLast != true {
-		t.Error("expected to have queued the last frame first")
+	if !f[0].IsLast || f[0].FrameNumber == 0 {
+		t.InvalidAction("expected to have queued the last frame first", "frame", f[0])
 	}
 	t.Log("buffered frames to send out of order", "numFrames", len(frames), "channelId", channelID)
 
