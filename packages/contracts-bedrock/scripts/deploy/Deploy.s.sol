@@ -238,6 +238,9 @@ contract Deploy is Deployer {
 
         console.log("Deploying a fresh OP Stack with existing SuperchainConfig and ProtocolVersions");
 
+        // Set msg.sender to zero address because the proxies will return implementation only for
+        // zero address or admin.
+        vm.startPrank(0x0000000000000000000000000000000000000000);
         IProxy scProxy = IProxy(_superchainConfigProxy);
         save("SuperchainConfig", scProxy.implementation());
         save("SuperchainConfigProxy", _superchainConfigProxy);
@@ -245,6 +248,7 @@ contract Deploy is Deployer {
         IProxy pvProxy = IProxy(_protocolVersionsProxy);
         save("ProtocolVersions", pvProxy.implementation());
         save("ProtocolVersionsProxy", _protocolVersionsProxy);
+        vm.stopPrank();
 
         _run(false);
 
