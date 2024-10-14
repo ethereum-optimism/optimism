@@ -214,7 +214,9 @@ func NewRollupConfigFromCLI(log log.Logger, ctx *cli.Context) (*rollup.Config, e
 		log.Warn("The beta.extra-networks flag is deprecated and can be omitted safely.")
 	}
 	blockBuildingThreshold := ctx.Uint64(flags.BlockBuildingThresholdFlag.Name)
+	log.Info("***111 the block building threshold is set to", "threshold", blockBuildingThreshold)
 	rollupConfig, err := NewRollupConfig(log, network, rollupConfigPath, blockBuildingThreshold)
+	log.Info("***222 the block building threshold is set to", "threshold", rollupConfig.BlockBuildingThreshold)
 	if err != nil {
 		return nil, err
 	}
