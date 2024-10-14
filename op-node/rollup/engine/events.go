@@ -331,7 +331,7 @@ func (d *EngDeriver) OnEvent(ev event.Event) bool {
 				latestBlockTimeStamp := uint64(payload.Timestamp)
 				currentTime := uint64(time.Now().Unix())
 
-				if latestBlockTimeStamp <= currentTime {
+				if latestBlockTimeStamp <= currentTime+1 {
 					timeDiff := time.Duration(currentTime-latestBlockTimeStamp) * time.Second
 
 					if timeDiff < blockBuildingThreshold {
