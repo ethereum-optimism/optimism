@@ -60,28 +60,6 @@ func createTraceProvider(
 	return nil, errors.New("invalid trace type")
 }
 
-func createMTTraceProvider(
-	ctx context.Context,
-	logger log.Logger,
-	m vm.Metricer,
-	vmConfig vm.Config,
-	prestateHash common.Hash,
-	absolutePrestateBaseURL *url.URL,
-	localInputs utils.LocalGameInputs,
-	dir string,
-) (types.TraceProvider, error) {
-	executor := vm.NewOpProgramServerExecutor(logger)
-	stateConverter := cannon.NewStateConverter(vmConfig)
-
-	prestateSource := prestates.NewMultiPrestateProvider(absolutePrestateBaseURL, filepath.Join(dir, "prestates"), stateConverter)
-	prestatePath, err := prestateSource.PrestatePath(ctx, prestateHash)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get prestate %v: %w", prestateHash, err)
-	}
-	prestateProvider := vm.NewPrestateProvider(prestatePath, stateConverter)
-	return cannon.NewTraceProvider(logger, m, vmConfig, executor, prestateProvider, prestatePath, localInputs, dir, 42), nil
-}
-
 func getPrestate(ctx context.Context, prestateHash common.Hash, prestateBaseUrl *url.URL, prestatePath string, dataDir string, stateConverter vm.StateConverter) (string, error) {
 	prestateSource := prestates.NewPrestateSource(
 		prestateBaseUrl,
