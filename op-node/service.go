@@ -251,6 +251,7 @@ Conflicting configuration is deprecated, and will stop the op-node from starting
 	if err := dec.Decode(&rollupConfig); err != nil {
 		return nil, fmt.Errorf("failed to decode rollup config: %w", err)
 	}
+	log.Info("***333 the block building threshold is set to", "threshold", time.Duration(blockBuidlingThreshold)*time.Second)
 	rollupConfig.BlockBuildingThreshold = time.Duration(blockBuidlingThreshold) * time.Second
 	return &rollupConfig, nil
 }
