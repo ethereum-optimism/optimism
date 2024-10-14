@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/queue"
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
@@ -65,7 +66,7 @@ type ChannelBuilder struct {
 	// current channel
 	co derive.ChannelOut
 	// list of blocks in the channel. Saved in case the channel must be rebuilt
-	blocks []*types.Block
+	blocks queue.Queue[*types.Block]
 	// latestL1Origin is the latest L1 origin of all the L2 blocks that have been added to the channel
 	latestL1Origin eth.BlockID
 	// oldestL1Origin is the oldest L1 origin of all the L2 blocks that have been added to the channel
@@ -75,7 +76,12 @@ type ChannelBuilder struct {
 	// oldestL2 is the oldest L2 block of all the L2 blocks that have been added to the channel
 	oldestL2 eth.BlockID
 	// frames data queue, to be send as txs
-	frames []frameData
+	frames queue.Queue[frameData]
+	// frameCursor tracks which frames in the queue were submitted
+	// frames[frameCursor] is the next unsubmitted frame
+	// frameCursor = len(frames) is reserved for when
+	// there are no pending (next unsubmitted) frames
+	frameCursor int
 	// total frames counter
 	numFrames int
 	// total amount of output data of all frames created yet
@@ -190,7 +196,7 @@ func (c *ChannelBuilder) AddBlock(block *types.Block) (*derive.L1BlockInfo, erro
 		return l1info, fmt.Errorf("adding block to channel out: %w", err)
 	}
 
-	c.blocks = append(c.blocks, block)
+	c.blocks.Enqueue(block)
 	c.updateSwTimeout(l1info.Number)
 
 	if l1info.Number > c.latestL1Origin.Number {
@@ -387,7 +393,7 @@ func (c *ChannelBuilder) outputFrame() error {
 		id:   frameID{chID: c.co.ID(), frameNumber: fn},
 		data: buf.Bytes(),
 	}
-	c.frames = append(c.frames, frame)
+	c.frames.Enqueue(frame)
 	c.numFrames++
 	c.outputBytes += len(frame.data)
 	return err // possibly io.EOF (last frame)
@@ -402,46 +408,51 @@ func (c *ChannelBuilder) Close() {
 }
 
 // TotalFrames returns the total number of frames that were created in this channel so far.
-// It does not decrease when the frames queue is being emptied.
 func (c *ChannelBuilder) TotalFrames() int {
 	return c.numFrames
 }
 
 // HasFrame returns whether there's any available frame. If true, it can be
-// popped using NextFrame().
+// dequeued using NextFrame().
 //
 // Call OutputFrames before to create new frames from the channel out
 // compression pipeline.
 func (c *ChannelBuilder) HasFrame() bool {
-	return len(c.frames) > 0
+	return c.frames.Len() > 0 && c.frameCursor < c.frames.Len()
 }
 
 // PendingFrames returns the number of pending frames in the frames queue.
 // It is larger zero iff HasFrame() returns true.
 func (c *ChannelBuilder) PendingFrames() int {
-	return len(c.frames)
+	return c.frames.Len() - c.frameCursor
 }
 
-// NextFrame dequeues the next available frame.
+// NextFrame returns the next available frame and increments the frameCursor
 // HasFrame must be called prior to check if there's a next frame available.
 // Panics if called when there's no next frame.
 func (c *ChannelBuilder) NextFrame() frameData {
-	if len(c.frames) == 0 {
+	if len(c.frames) <= c.frameCursor {
 		panic("no next frame")
 	}
-
-	f := c.frames[0]
-	c.frames = c.frames[1:]
+	f := c.frames[c.frameCursor]
+	c.frameCursor++
 	return f
 }
 
-// PushFrames adds the frames back to the internal frames queue. Panics if not of
-// the same channel.
-func (c *ChannelBuilder) PushFrames(frames ...frameData) {
-	for _, f := range frames {
-		if f.id.chID != c.ID() {
+// RewindFrameCursor moves the frameCursor to point at the supplied frame
+// only if it is ahead of it.
+// Panics if the frame is not in this channel.
+func (c *ChannelBuilder) RewindFrameCursor(frame frameData) {
+	for i, f := range c.frames {
+		if f.id.chID != frame.id.chID {
 			panic("wrong channel")
 		}
-		c.frames = append(c.frames, f)
+		if f.id.frameNumber == frame.id.frameNumber {
+			if c.frameCursor > i {
+				c.frameCursor = i
+			}
+			return
+		}
 	}
+	panic("frame not found")
 }
