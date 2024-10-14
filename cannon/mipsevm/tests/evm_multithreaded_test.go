@@ -29,18 +29,18 @@ func TestEVM_MT_LL(t *testing.T) {
 	var tracer *tracing.Hooks
 
 	cases := []struct {
-		name                 string
-		base                 Word
-		offset               int
-		targetWord           Word
-		rtReg                int
-		shouldSignExtendAddr bool
+		name                   string
+		base                   Word
+		offset                 int
+		targetWord             Word
+		rtReg                  int
+		shouldSignExtendOffset bool
 	}{
 		{name: "Aligned addr", base: 0x00_00_00_01, offset: 0x0133, targetWord: 0xABCD, rtReg: 5},
-		{name: "Aligned addr, signed extended", base: 0x00_00_00_01, offset: 0xFF37, targetWord: 0xABCD, rtReg: 5, shouldSignExtendAddr: true},
+		{name: "Aligned addr, signed extended", base: 0x00_00_00_01, offset: 0xFF37, targetWord: 0xABCD, rtReg: 5, shouldSignExtendOffset: true},
 		{name: "Unaligned addr", base: 0xFF_12_00_01, offset: 0x3401, targetWord: 0xABCD, rtReg: 5},
-		{name: "Unaligned addr, sign extended w overflow", base: 0xFF_12_00_01, offset: 0x8401, targetWord: 0xABCD, rtReg: 5, shouldSignExtendAddr: true},
-		{name: "Return register set to 0", base: 0xFF_12_00_01, offset: 0x8401, targetWord: 0xABCD, rtReg: 0},
+		{name: "Unaligned addr, sign extended w overflow", base: 0xFF_12_00_01, offset: 0x8401, targetWord: 0xABCD, rtReg: 5, shouldSignExtendOffset: true},
+		{name: "Return register set to 0", base: 0xFF_12_00_01, offset: 0x7401, targetWord: 0xABCD, rtReg: 0},
 	}
 	for i, c := range cases {
 		for _, withExistingReservation := range []bool{true, false} {
@@ -48,13 +48,12 @@ func TestEVM_MT_LL(t *testing.T) {
 			t.Run(tName, func(t *testing.T) {
 				// Perform some calculations for 64-bit compatibility
 				// Calculate address
-				addr := c.base + testutil.SignExtend(Word(c.offset), 16)
+				addrOffset, signExtended := testutil.SignExtendImmediate(Word(c.offset))
+				require.Equal(t, signExtended, c.shouldSignExtendOffset)
+				addr := c.base + addrOffset
 				effAddr := arch.AddressMask & addr
 				// Calculate memory value
-				wordOffset := addr & ^Word(arch.AddressMask) & 0x4
-				maxWordByteOffset := Word(arch.WordSizeBytes - 4)
-				memBitOffset := (maxWordByteOffset - wordOffset) * 8
-				memVal := c.targetWord << memBitOffset
+				memVal := testutil.PlaceUint32InWord(addr, c.targetWord)
 
 				rtReg := c.rtReg
 				baseReg := 6
@@ -118,18 +117,19 @@ func TestEVM_MT_SC(t *testing.T) {
 	}
 
 	cases := []struct {
-		name     string
-		base     Word
-		offset   int
-		value    Word
-		rtReg    int
-		threadId Word
+		name                   string
+		base                   Word
+		offset                 int
+		value                  Word
+		rtReg                  int
+		threadId               Word
+		shouldSignExtendOffset bool
 	}{
 		{name: "Aligned addr", base: 0x00_00_00_01, offset: 0x0133, value: 0xABCD, rtReg: 5, threadId: 4},
-		{name: "Aligned addr, signed extended", base: 0x00_00_00_01, offset: 0xFF33, value: 0xABCD, rtReg: 5, threadId: 4},
+		{name: "Aligned addr, signed extended", base: 0x00_00_00_01, offset: 0xFF33, value: 0xABCD, rtReg: 5, threadId: 4, shouldSignExtendOffset: true},
 		{name: "Unaligned addr", base: 0xFF_12_00_01, offset: 0x3401, value: 0xABCD, rtReg: 5, threadId: 4},
-		{name: "Unaligned addr, sign extended w overflow", base: 0xFF_12_00_01, offset: 0x8401, value: 0xABCD, rtReg: 5, threadId: 4},
-		{name: "Return register set to 0", base: 0xFF_12_00_01, offset: 0x8401, value: 0xABCD, rtReg: 0, threadId: 4},
+		{name: "Unaligned addr, sign extended w overflow", base: 0xFF_12_00_01, offset: 0x8401, value: 0xABCD, rtReg: 5, threadId: 4, shouldSignExtendOffset: true},
+		{name: "Return register set to 0", base: 0xFF_12_00_01, offset: 0x7401, value: 0xABCD, rtReg: 0, threadId: 4},
 		{name: "Zero valued ll args", base: 0x00_00_00_00, offset: 0x0, value: 0xABCD, rtReg: 5, threadId: 0},
 	}
 	for i, c := range cases {
@@ -138,13 +138,12 @@ func TestEVM_MT_SC(t *testing.T) {
 			t.Run(tName, func(t *testing.T) {
 				// Perform some calculations for 64-bit compatibility
 				// Calculate address
-				addr := c.base + testutil.SignExtend(Word(c.offset), 16)
+				addrOffset, signExtended := testutil.SignExtendImmediate(Word(c.offset))
+				require.Equal(t, signExtended, c.shouldSignExtendOffset)
+				addr := c.base + addrOffset
 				effAddr := arch.AddressMask & addr
 				// Calculate memory value
-				wordOffset := addr & ^Word(arch.AddressMask) & 0x4
-				maxWordByteOffset := Word(arch.WordSizeBytes - 4)
-				memBitOffset := (maxWordByteOffset - wordOffset) * 8
-				memVal := c.value << memBitOffset
+				memVal := testutil.PlaceUint32InWord(addr, c.value)
 
 				// Setup
 				rtReg := c.rtReg
