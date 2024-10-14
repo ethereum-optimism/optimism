@@ -69,11 +69,11 @@ func TestEVM_MT_LL(t *testing.T) {
 				state.GetMemory().SetWord(effAddr, memVal)
 				state.GetRegistersRef()[baseReg] = c.base
 				if withExistingReservation {
-					state.LLReservationActive = true
+					state.LLReservationStatus = multithreaded.LLStatusActive32bit
 					state.LLAddress = addr + 1
 					state.LLOwnerThread = 123
 				} else {
-					state.LLReservationActive = false
+					state.LLReservationStatus = multithreaded.LLStatusNone
 					state.LLAddress = 0
 					state.LLOwnerThread = 0
 				}
@@ -81,7 +81,7 @@ func TestEVM_MT_LL(t *testing.T) {
 				// Set up expectations
 				expected := mttestutil.NewExpectedMTState(state)
 				expected.ExpectStep()
-				expected.LLReservationActive = true
+				expected.LLReservationStatus = multithreaded.LLStatusActive32bit
 				expected.LLAddress = addr
 				expected.LLOwnerThread = state.GetCurrentThread().ThreadId
 				if rtReg != 0 {
@@ -104,16 +104,17 @@ func TestEVM_MT_SC(t *testing.T) {
 
 	llVariations := []struct {
 		name                string
-		llReservationActive bool
+		llReservationStatus multithreaded.LLReservationStatus
 		matchThreadId       bool
 		matchAddr           bool
 		shouldSucceed       bool
 	}{
-		{name: "should succeed", llReservationActive: true, matchThreadId: true, matchAddr: true, shouldSucceed: true},
-		{name: "mismatch addr", llReservationActive: true, matchThreadId: false, matchAddr: true, shouldSucceed: false},
-		{name: "mismatched thread", llReservationActive: true, matchThreadId: true, matchAddr: false, shouldSucceed: false},
-		{name: "mismatched addr & thread", llReservationActive: true, matchThreadId: false, matchAddr: false, shouldSucceed: false},
-		{name: "no active reservation", llReservationActive: false, matchThreadId: true, matchAddr: true, shouldSucceed: false},
+		{name: "should succeed", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: true, matchAddr: true, shouldSucceed: true},
+		{name: "mismatch addr", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: false, matchAddr: true, shouldSucceed: false},
+		{name: "mismatched thread", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: true, matchAddr: false, shouldSucceed: false},
+		{name: "mismatched addr & thread", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: false, matchAddr: false, shouldSucceed: false},
+		{name: "mismatched status", llReservationStatus: multithreaded.LLStatusActive64bit, matchThreadId: true, matchAddr: true, shouldSucceed: false},
+		{name: "no active reservation", llReservationStatus: multithreaded.LLStatusNone, matchThreadId: true, matchAddr: true, shouldSucceed: false},
 	}
 
 	cases := []struct {
@@ -174,7 +175,7 @@ func TestEVM_MT_SC(t *testing.T) {
 				state.GetMemory().SetUint32(pc, insn)
 				state.GetRegistersRef()[baseReg] = c.base
 				state.GetRegistersRef()[rtReg] = c.value
-				state.LLReservationActive = v.llReservationActive
+				state.LLReservationStatus = v.llReservationStatus
 				state.LLAddress = llAddress
 				state.LLOwnerThread = llOwnerThread
 
@@ -185,7 +186,7 @@ func TestEVM_MT_SC(t *testing.T) {
 				if v.shouldSucceed {
 					retVal = 1
 					expected.ExpectMemoryWordWrite(effAddr, memVal)
-					expected.LLReservationActive = false
+					expected.LLReservationStatus = multithreaded.LLStatusNone
 					expected.LLAddress = 0
 					expected.LLOwnerThread = 0
 				} else {
@@ -215,17 +216,17 @@ func TestEVM_MT_SysRead_Preimage(t *testing.T) {
 
 	llVariations := []struct {
 		name                   string
-		llReservationActive    bool
+		llReservationStatus    multithreaded.LLReservationStatus
 		matchThreadId          bool
 		matchEffAddr           bool
 		shouldClearReservation bool
 	}{
-		{name: "matching reservation", llReservationActive: true, matchThreadId: true, matchEffAddr: true, shouldClearReservation: true},
-		{name: "matching reservation, diff thread", llReservationActive: true, matchThreadId: false, matchEffAddr: true, shouldClearReservation: true},
-		{name: "mismatched reservation", llReservationActive: true, matchThreadId: true, matchEffAddr: false, shouldClearReservation: false},
-		{name: "mismatched reservation", llReservationActive: true, matchThreadId: false, matchEffAddr: false, shouldClearReservation: false},
-		{name: "no reservation, matching addr", llReservationActive: false, matchThreadId: true, matchEffAddr: true, shouldClearReservation: true},
-		{name: "no reservation, mismatched addr", llReservationActive: false, matchThreadId: true, matchEffAddr: false, shouldClearReservation: false},
+		{name: "matching reservation", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: true, matchEffAddr: true, shouldClearReservation: true},
+		{name: "matching reservation, diff thread", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: false, matchEffAddr: true, shouldClearReservation: true},
+		{name: "mismatched reservation", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: true, matchEffAddr: false, shouldClearReservation: false},
+		{name: "mismatched reservation", llReservationStatus: multithreaded.LLStatusActive64bit, matchThreadId: false, matchEffAddr: false, shouldClearReservation: false},
+		{name: "no reservation, matching addr", llReservationStatus: multithreaded.LLStatusNone, matchThreadId: true, matchEffAddr: true, shouldClearReservation: true},
+		{name: "no reservation, mismatched addr", llReservationStatus: multithreaded.LLStatusNone, matchThreadId: true, matchEffAddr: false, shouldClearReservation: false},
 	}
 
 	cases := []struct {
@@ -286,7 +287,7 @@ func TestEVM_MT_SysRead_Preimage(t *testing.T) {
 				state.GetRegistersRef()[5] = c.addr
 				state.GetRegistersRef()[6] = c.count
 				state.GetMemory().SetUint32(state.GetPC(), syscallInsn)
-				state.LLReservationActive = v.llReservationActive
+				state.LLReservationStatus = v.llReservationStatus
 				state.LLAddress = llAddress
 				state.LLOwnerThread = llOwnerThread
 				state.GetMemory().SetUint32(effAddr, c.prestateMem)
@@ -299,7 +300,7 @@ func TestEVM_MT_SysRead_Preimage(t *testing.T) {
 				expected.PreimageOffset += c.writeLen
 				expected.ExpectMemoryWrite(effAddr, c.postateMem)
 				if v.shouldClearReservation {
-					expected.LLReservationActive = false
+					expected.LLReservationStatus = multithreaded.LLStatusNone
 					expected.LLAddress = 0
 					expected.LLOwnerThread = 0
 				}
@@ -325,17 +326,19 @@ func TestEVM_MT_StoreOpsClearMemReservation(t *testing.T) {
 
 	llVariations := []struct {
 		name                   string
-		llReservationActive    bool
+		llReservationStatus    multithreaded.LLReservationStatus
 		matchThreadId          bool
 		matchEffAddr           bool
 		shouldClearReservation bool
 	}{
-		{name: "matching reservation", llReservationActive: true, matchThreadId: true, matchEffAddr: true, shouldClearReservation: true},
-		{name: "matching reservation, diff thread", llReservationActive: true, matchThreadId: false, matchEffAddr: true, shouldClearReservation: true},
-		{name: "mismatched reservation", llReservationActive: true, matchThreadId: true, matchEffAddr: false, shouldClearReservation: false},
-		{name: "mismatched reservation, diff thread", llReservationActive: true, matchThreadId: false, matchEffAddr: false, shouldClearReservation: false},
-		{name: "no reservation, matching addr", llReservationActive: false, matchThreadId: true, matchEffAddr: true, shouldClearReservation: true},
-		{name: "no reservation, mismatched addr", llReservationActive: false, matchThreadId: true, matchEffAddr: false, shouldClearReservation: false},
+		{name: "matching reservation", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: true, matchEffAddr: true, shouldClearReservation: true},
+		{name: "matching reservation, 64-bit", llReservationStatus: multithreaded.LLStatusActive64bit, matchThreadId: true, matchEffAddr: true, shouldClearReservation: true},
+		{name: "matching reservation, diff thread", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: false, matchEffAddr: true, shouldClearReservation: true},
+		{name: "matching reservation, diff thread, 64-bit", llReservationStatus: multithreaded.LLStatusActive64bit, matchThreadId: false, matchEffAddr: true, shouldClearReservation: true},
+		{name: "mismatched reservation", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: true, matchEffAddr: false, shouldClearReservation: false},
+		{name: "mismatched reservation, diff thread", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: false, matchEffAddr: false, shouldClearReservation: false},
+		{name: "no reservation, matching addr", llReservationStatus: multithreaded.LLStatusNone, matchThreadId: true, matchEffAddr: true, shouldClearReservation: true},
+		{name: "no reservation, mismatched addr", llReservationStatus: multithreaded.LLStatusNone, matchThreadId: true, matchEffAddr: false, shouldClearReservation: false},
 	}
 
 	pc := Word(0x04)
@@ -385,7 +388,7 @@ func TestEVM_MT_StoreOpsClearMemReservation(t *testing.T) {
 				state.GetRegistersRef()[baseReg] = c.base
 				state.GetMemory().SetUint32(state.GetPC(), insn)
 				state.GetMemory().SetUint32(c.effAddr, c.preMem)
-				state.LLReservationActive = v.llReservationActive
+				state.LLReservationStatus = v.llReservationStatus
 				state.LLAddress = llAddress
 				state.LLOwnerThread = llOwnerThread
 
@@ -394,7 +397,7 @@ func TestEVM_MT_StoreOpsClearMemReservation(t *testing.T) {
 				expected.ExpectStep()
 				expected.ExpectMemoryWrite(c.effAddr, c.postMem)
 				if v.shouldClearReservation {
-					expected.LLReservationActive = false
+					expected.LLReservationStatus = multithreaded.LLStatusNone
 					expected.LLAddress = 0
 					expected.LLOwnerThread = 0
 				}
@@ -1000,21 +1003,23 @@ func testEVM_SysClockGettime(t *testing.T, clkid Word) {
 
 	llVariations := []struct {
 		name                   string
-		llReservationActive    bool
+		llReservationStatus    multithreaded.LLReservationStatus
 		matchThreadId          bool
 		matchEffAddr           bool
 		matchEffAddr2          bool
 		shouldClearReservation bool
 	}{
-		{name: "matching reservation", llReservationActive: true, matchThreadId: true, matchEffAddr: true, shouldClearReservation: true},
-		{name: "matching reservation, 2nd word", llReservationActive: true, matchThreadId: true, matchEffAddr2: true, shouldClearReservation: true},
-		{name: "matching reservation, diff thread", llReservationActive: true, matchThreadId: false, matchEffAddr: true, shouldClearReservation: true},
-		{name: "matching reservation, diff thread, 2nd word", llReservationActive: true, matchThreadId: false, matchEffAddr2: true, shouldClearReservation: true},
-		{name: "mismatched reservation", llReservationActive: true, matchThreadId: true, matchEffAddr: false, shouldClearReservation: false},
-		{name: "mismatched reservation, diff thread", llReservationActive: true, matchThreadId: false, matchEffAddr: false, shouldClearReservation: false},
-		{name: "no reservation, matching addr", llReservationActive: false, matchThreadId: true, matchEffAddr: true, shouldClearReservation: true},
-		{name: "no reservation, matching addr2", llReservationActive: false, matchThreadId: true, matchEffAddr2: true, shouldClearReservation: true},
-		{name: "no reservation, mismatched addr", llReservationActive: false, matchThreadId: true, matchEffAddr: false, shouldClearReservation: false},
+		{name: "matching reservation", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: true, matchEffAddr: true, shouldClearReservation: true},
+		{name: "matching reservation, 64-bit", llReservationStatus: multithreaded.LLStatusActive64bit, matchThreadId: true, matchEffAddr: true, shouldClearReservation: true},
+		{name: "matching reservation, 2nd word", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: true, matchEffAddr2: true, shouldClearReservation: true},
+		{name: "matching reservation, 2nd word, 64-bit", llReservationStatus: multithreaded.LLStatusActive64bit, matchThreadId: true, matchEffAddr2: true, shouldClearReservation: true},
+		{name: "matching reservation, diff thread", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: false, matchEffAddr: true, shouldClearReservation: true},
+		{name: "matching reservation, diff thread, 2nd word", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: false, matchEffAddr2: true, shouldClearReservation: true},
+		{name: "mismatched reservation", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: true, matchEffAddr: false, shouldClearReservation: false},
+		{name: "mismatched reservation, diff thread", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: false, matchEffAddr: false, shouldClearReservation: false},
+		{name: "no reservation, matching addr", llReservationStatus: multithreaded.LLStatusNone, matchThreadId: true, matchEffAddr: true, shouldClearReservation: true},
+		{name: "no reservation, matching addr2", llReservationStatus: multithreaded.LLStatusNone, matchThreadId: true, matchEffAddr2: true, shouldClearReservation: true},
+		{name: "no reservation, mismatched addr", llReservationStatus: multithreaded.LLStatusNone, matchThreadId: true, matchEffAddr: false, shouldClearReservation: false},
 	}
 
 	cases := []struct {
@@ -1053,7 +1058,7 @@ func testEVM_SysClockGettime(t *testing.T, clkid Word) {
 				state.GetRegistersRef()[2] = arch.SysClockGetTime // Set syscall number
 				state.GetRegistersRef()[4] = clkid                // a0
 				state.GetRegistersRef()[5] = c.timespecAddr       // a1
-				state.LLReservationActive = v.llReservationActive
+				state.LLReservationStatus = v.llReservationStatus
 				state.LLAddress = llAddress
 				state.LLOwnerThread = llOwnerThread
 
@@ -1070,7 +1075,7 @@ func testEVM_SysClockGettime(t *testing.T, clkid Word) {
 				expected.ExpectMemoryWordWrite(effAddr, secs)
 				expected.ExpectMemoryWordWrite(effAddr2, nsecs)
 				if v.shouldClearReservation {
-					expected.LLReservationActive = false
+					expected.LLReservationStatus = multithreaded.LLStatusNone
 					expected.LLAddress = 0
 					expected.LLOwnerThread = 0
 				}

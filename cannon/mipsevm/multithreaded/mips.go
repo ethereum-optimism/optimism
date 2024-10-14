@@ -332,7 +332,7 @@ func (m *InstrumentedState) handleMemoryUpdate(memAddr Word) {
 }
 
 func (m *InstrumentedState) clearLLMemoryReservation() {
-	m.state.LLReservationActive = false
+	m.state.LLReservationStatus = LLStatusNone
 	m.state.LLAddress = 0
 	m.state.LLOwnerThread = 0
 }
@@ -345,41 +345,38 @@ func (m *InstrumentedState) handleRMWOps(insn, opcode uint32) error {
 	offset := exec.SignExtendImmediate(insn)
 	addr := base + offset
 
+	// Determine some opcode-specific parameters
+	targetStatus := LLStatusActive32bit
+	byteLength := Word(4)
+	if opcode == exec.OpLoadLinked64 || opcode == exec.OpStoreConditional64 {
+		// Use 64-bit params
+		targetStatus = LLStatusActive64bit
+		byteLength = Word(8)
+	}
+
 	var retVal Word
 	threadId := m.state.GetCurrentThread().ThreadId
-	if opcode == exec.OpLoadLinked || opcode == exec.OpLoadLinked64 {
-		var subwordSizeBytes Word
-		if opcode == exec.OpLoadLinked {
-			subwordSizeBytes = 4
-		} else {
-			subwordSizeBytes = 8
-		}
-		retVal = exec.LoadSubWord(m.state.GetMemory(), addr, subwordSizeBytes, true, m.memoryTracker)
+	switch opcode {
+	case exec.OpLoadLinked, exec.OpLoadLinked64:
+		retVal = exec.LoadSubWord(m.state.GetMemory(), addr, byteLength, true, m.memoryTracker)
 
-		m.state.LLReservationActive = true
+		m.state.LLReservationStatus = targetStatus
 		m.state.LLAddress = addr
 		m.state.LLOwnerThread = threadId
-	} else if opcode == exec.OpStoreConditional || opcode == exec.OpStoreConditional64 {
-		if m.state.LLReservationActive && m.state.LLOwnerThread == threadId && m.state.LLAddress == addr {
+	case exec.OpStoreConditional, exec.OpStoreConditional64:
+		if m.state.LLReservationStatus == targetStatus && m.state.LLOwnerThread == threadId && m.state.LLAddress == addr {
 			// Complete atomic update: set memory and return 1 for success
 			m.clearLLMemoryReservation()
 
-			var subwordSizeBytes Word
-			if opcode == exec.OpStoreConditional {
-				subwordSizeBytes = 4
-			} else {
-				subwordSizeBytes = 8
-			}
-
 			memWriteVal := m.state.GetRegistersRef()[rtReg]
-			exec.StoreSubWord(m.state.GetMemory(), addr, subwordSizeBytes, memWriteVal, m.memoryTracker)
+			exec.StoreSubWord(m.state.GetMemory(), addr, byteLength, memWriteVal, m.memoryTracker)
 
 			retVal = 1
 		} else {
 			// Atomic update failed, return 0 for failure
 			retVal = 0
 		}
-	} else {
+	default:
 		panic(fmt.Sprintf("Invalid instruction passed to handleRMWOps (opcode %08x)", opcode))
 	}
 

@@ -63,11 +63,11 @@ func TestEVM_MT64_LL(t *testing.T) {
 				state.GetMemory().SetWord(effAddr, c.memVal)
 				state.GetRegistersRef()[baseReg] = c.base
 				if withExistingReservation {
-					state.LLReservationActive = true
+					state.LLReservationStatus = multithreaded.LLStatusActive32bit
 					state.LLAddress = c.addr + 1
 					state.LLOwnerThread = 123
 				} else {
-					state.LLReservationActive = false
+					state.LLReservationStatus = multithreaded.LLStatusNone
 					state.LLAddress = 0
 					state.LLOwnerThread = 0
 				}
@@ -75,7 +75,7 @@ func TestEVM_MT64_LL(t *testing.T) {
 				// Set up expectations
 				expected := mttestutil.NewExpectedMTState(state)
 				expected.ExpectStep()
-				expected.LLReservationActive = true
+				expected.LLReservationStatus = multithreaded.LLStatusActive32bit
 				expected.LLAddress = c.addr
 				expected.LLOwnerThread = state.GetCurrentThread().ThreadId
 				if retReg != 0 {
@@ -98,16 +98,17 @@ func TestEVM_MT64_SC(t *testing.T) {
 
 	llVariations := []struct {
 		name                string
-		llReservationActive bool
+		llReservationStatus multithreaded.LLReservationStatus
 		matchThreadId       bool
 		matchAddr           bool
 		shouldSucceed       bool
 	}{
-		{name: "should succeed", llReservationActive: true, matchThreadId: true, matchAddr: true, shouldSucceed: true},
-		{name: "mismatch addr", llReservationActive: true, matchThreadId: false, matchAddr: true, shouldSucceed: false},
-		{name: "mismatched thread", llReservationActive: true, matchThreadId: true, matchAddr: false, shouldSucceed: false},
-		{name: "mismatched addr & thread", llReservationActive: true, matchThreadId: false, matchAddr: false, shouldSucceed: false},
-		{name: "no active reservation", llReservationActive: false, matchThreadId: true, matchAddr: true, shouldSucceed: false},
+		{name: "should succeed", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: true, matchAddr: true, shouldSucceed: true},
+		{name: "mismatch addr", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: false, matchAddr: true, shouldSucceed: false},
+		{name: "mismatched thread", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: true, matchAddr: false, shouldSucceed: false},
+		{name: "mismatched addr & thread", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: false, matchAddr: false, shouldSucceed: false},
+		{name: "mismatched reservation status", llReservationStatus: multithreaded.LLStatusActive64bit, matchThreadId: true, matchAddr: true, shouldSucceed: false},
+		{name: "no active reservation", llReservationStatus: multithreaded.LLStatusNone, matchThreadId: true, matchAddr: true, shouldSucceed: false},
 	}
 
 	cases := []struct {
@@ -166,7 +167,7 @@ func TestEVM_MT64_SC(t *testing.T) {
 				state.GetMemory().SetUint32(pc, insn)
 				state.GetRegistersRef()[baseReg] = c.base
 				state.GetRegistersRef()[rtReg] = c.value
-				state.LLReservationActive = v.llReservationActive
+				state.LLReservationStatus = v.llReservationStatus
 				state.LLAddress = llAddress
 				state.LLOwnerThread = llOwnerThread
 
@@ -177,7 +178,7 @@ func TestEVM_MT64_SC(t *testing.T) {
 				if v.shouldSucceed {
 					retVal = 1
 					expected.ExpectMemoryWordWrite(effAddr, c.expectedMemVal)
-					expected.LLReservationActive = false
+					expected.LLReservationStatus = multithreaded.LLStatusNone
 					expected.LLAddress = 0
 					expected.LLOwnerThread = 0
 				} else {
@@ -244,11 +245,11 @@ func TestEVM_MT64_LLD(t *testing.T) {
 				state.GetMemory().SetWord(effAddr, c.memVal)
 				state.GetRegistersRef()[baseReg] = c.base
 				if withExistingReservation {
-					state.LLReservationActive = true
+					state.LLReservationStatus = multithreaded.LLStatusActive64bit
 					state.LLAddress = c.addr + 1
 					state.LLOwnerThread = 123
 				} else {
-					state.LLReservationActive = false
+					state.LLReservationStatus = multithreaded.LLStatusNone
 					state.LLAddress = 0
 					state.LLOwnerThread = 0
 				}
@@ -256,7 +257,7 @@ func TestEVM_MT64_LLD(t *testing.T) {
 				// Set up expectations
 				expected := mttestutil.NewExpectedMTState(state)
 				expected.ExpectStep()
-				expected.LLReservationActive = true
+				expected.LLReservationStatus = multithreaded.LLStatusActive64bit
 				expected.LLAddress = c.addr
 				expected.LLOwnerThread = state.GetCurrentThread().ThreadId
 				if retReg != 0 {
@@ -280,16 +281,17 @@ func TestEVM_MT64_SCD(t *testing.T) {
 	value := Word(0x11223344_55667788)
 	llVariations := []struct {
 		name                string
-		llReservationActive bool
+		llReservationStatus multithreaded.LLReservationStatus
 		matchThreadId       bool
 		matchAddr           bool
 		shouldSucceed       bool
 	}{
-		{name: "should succeed", llReservationActive: true, matchThreadId: true, matchAddr: true, shouldSucceed: true},
-		{name: "mismatch addr", llReservationActive: true, matchThreadId: false, matchAddr: true, shouldSucceed: false},
-		{name: "mismatched thread", llReservationActive: true, matchThreadId: true, matchAddr: false, shouldSucceed: false},
-		{name: "mismatched addr & thread", llReservationActive: true, matchThreadId: false, matchAddr: false, shouldSucceed: false},
-		{name: "no active reservation", llReservationActive: false, matchThreadId: true, matchAddr: true, shouldSucceed: false},
+		{name: "should succeed", llReservationStatus: multithreaded.LLStatusActive64bit, matchThreadId: true, matchAddr: true, shouldSucceed: true},
+		{name: "mismatch addr", llReservationStatus: multithreaded.LLStatusActive64bit, matchThreadId: false, matchAddr: true, shouldSucceed: false},
+		{name: "mismatched thread", llReservationStatus: multithreaded.LLStatusActive64bit, matchThreadId: true, matchAddr: false, shouldSucceed: false},
+		{name: "mismatched addr & thread", llReservationStatus: multithreaded.LLStatusActive64bit, matchThreadId: false, matchAddr: false, shouldSucceed: false},
+		{name: "mismatched status", llReservationStatus: multithreaded.LLStatusActive32bit, matchThreadId: true, matchAddr: true, shouldSucceed: false},
+		{name: "no active reservation", llReservationStatus: multithreaded.LLStatusNone, matchThreadId: true, matchAddr: true, shouldSucceed: false},
 	}
 
 	cases := []struct {
@@ -348,7 +350,7 @@ func TestEVM_MT64_SCD(t *testing.T) {
 				state.GetMemory().SetUint32(pc, insn)
 				state.GetRegistersRef()[baseReg] = c.base
 				state.GetRegistersRef()[rtReg] = value
-				state.LLReservationActive = v.llReservationActive
+				state.LLReservationStatus = v.llReservationStatus
 				state.LLAddress = llAddress
 				state.LLOwnerThread = llOwnerThread
 
@@ -359,7 +361,7 @@ func TestEVM_MT64_SCD(t *testing.T) {
 				if v.shouldSucceed {
 					retVal = 1
 					expected.ExpectMemoryWordWrite(effAddr, value)
-					expected.LLReservationActive = false
+					expected.LLReservationStatus = multithreaded.LLStatusNone
 					expected.LLAddress = 0
 					expected.LLOwnerThread = 0
 				} else {

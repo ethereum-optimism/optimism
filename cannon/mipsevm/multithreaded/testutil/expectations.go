@@ -18,7 +18,7 @@ type ExpectedMTState struct {
 	PreimageKey         common.Hash
 	PreimageOffset      arch.Word
 	Heap                arch.Word
-	LLReservationActive bool
+	LLReservationStatus multithreaded.LLReservationStatus
 	LLAddress           arch.Word
 	LLOwnerThread       arch.Word
 	ExitCode            uint8
@@ -69,7 +69,7 @@ func NewExpectedMTState(fromState *multithreaded.State) *ExpectedMTState {
 		PreimageKey:         fromState.GetPreimageKey(),
 		PreimageOffset:      fromState.GetPreimageOffset(),
 		Heap:                fromState.GetHeap(),
-		LLReservationActive: fromState.LLReservationActive,
+		LLReservationStatus: fromState.LLReservationStatus,
 		LLAddress:           fromState.LLAddress,
 		LLOwnerThread:       fromState.LLOwnerThread,
 		ExitCode:            fromState.GetExitCode(),
@@ -180,7 +180,7 @@ func (e *ExpectedMTState) Validate(t require.TestingT, actualState *multithreade
 	require.Equalf(t, e.PreimageKey, actualState.GetPreimageKey(), "Expect preimageKey = %v", e.PreimageKey)
 	require.Equalf(t, e.PreimageOffset, actualState.GetPreimageOffset(), "Expect preimageOffset = %v", e.PreimageOffset)
 	require.Equalf(t, e.Heap, actualState.GetHeap(), "Expect heap = 0x%x", e.Heap)
-	require.Equalf(t, e.LLReservationActive, actualState.LLReservationActive, "Expect LLReservationActive = %v", e.LLReservationActive)
+	require.Equalf(t, e.LLReservationStatus, actualState.LLReservationStatus, "Expect LLReservationStatus = %v", e.LLReservationStatus)
 	require.Equalf(t, e.LLAddress, actualState.LLAddress, "Expect LLAddress = 0x%x", e.LLAddress)
 	require.Equalf(t, e.LLOwnerThread, actualState.LLOwnerThread, "Expect LLOwnerThread = %v", e.LLOwnerThread)
 	require.Equalf(t, e.ExitCode, actualState.GetExitCode(), "Expect exitCode = 0x%x", e.ExitCode)
