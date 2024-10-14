@@ -100,6 +100,12 @@ var (
 		Usage:   "List of addresses to claim bonds for, in addition to the configured transaction sender",
 		EnvVars: prefixEnvVars("ADDITIONAL_BOND_CLAIMANTS"),
 	}
+	PreStatesURLFlag = &cli.StringFlag{
+		Name: "prestates-url",
+		Usage: "Base URL to absolute prestates to use when generating trace data. " +
+			"Prestates in this directory should be name as <commitment>.json",
+		EnvVars: prefixEnvVars("PRESTATES_URL"),
+	}
 	CannonNetworkFlag = &cli.StringFlag{
 		Name:    "cannon-network",
 		Usage:   fmt.Sprintf("Deprecated: Use %v instead", flags.NetworkFlagName),
@@ -256,6 +262,7 @@ var optionalFlags = []cli.Flag{
 	HTTPPollInterval,
 	AdditionalBondClaimants,
 	GameAllowlistFlag,
+	PreStatesURLFlag,
 	CannonNetworkFlag,
 	CannonRollupConfigFlag,
 	CannonL2GenesisFlag,
@@ -321,8 +328,8 @@ func CheckCannonFlags(ctx *cli.Context) error {
 	if !ctx.IsSet(CannonServerFlag.Name) {
 		return fmt.Errorf("flag %s is required", CannonServerFlag.Name)
 	}
-	if !ctx.IsSet(CannonPreStateFlag.Name) && !ctx.IsSet(CannonPreStatesURLFlag.Name) {
-		return fmt.Errorf("flag %s or %s is required", CannonPreStatesURLFlag.Name, CannonPreStateFlag.Name)
+	if !ctx.IsSet(PreStatesURLFlag.Name) && !ctx.IsSet(CannonPreStateFlag.Name) && !ctx.IsSet(CannonPreStatesURLFlag.Name) {
+		return fmt.Errorf("flag %s or %s is required", PreStatesURLFlag.Name, CannonPreStateFlag.Name)
 	}
 	return nil
 }
@@ -360,8 +367,8 @@ func CheckAsteriscFlags(ctx *cli.Context) error {
 	if !ctx.IsSet(AsteriscServerFlag.Name) {
 		return fmt.Errorf("flag %s is required", AsteriscServerFlag.Name)
 	}
-	if !ctx.IsSet(AsteriscPreStateFlag.Name) && !ctx.IsSet(AsteriscPreStatesURLFlag.Name) {
-		return fmt.Errorf("flag %s or %s is required", AsteriscPreStatesURLFlag.Name, AsteriscPreStateFlag.Name)
+	if !ctx.IsSet(PreStatesURLFlag.Name) && !ctx.IsSet(AsteriscPreStateFlag.Name) && !ctx.IsSet(AsteriscPreStatesURLFlag.Name) {
+		return fmt.Errorf("flag %s or %s is required", PreStatesURLFlag.Name, AsteriscPreStateFlag.Name)
 	}
 	return nil
 }
@@ -373,8 +380,8 @@ func CheckAsteriscKonaFlags(ctx *cli.Context) error {
 	if !ctx.IsSet(AsteriscKonaServerFlag.Name) {
 		return fmt.Errorf("flag %s is required", AsteriscKonaServerFlag.Name)
 	}
-	if !ctx.IsSet(AsteriscKonaPreStateFlag.Name) && !ctx.IsSet(AsteriscKonaPreStatesURLFlag.Name) {
-		return fmt.Errorf("flag %s or %s is required", AsteriscKonaPreStatesURLFlag.Name, AsteriscKonaPreStateFlag.Name)
+	if !ctx.IsSet(PreStatesURLFlag.Name) && !ctx.IsSet(AsteriscKonaPreStateFlag.Name) && !ctx.IsSet(AsteriscKonaPreStatesURLFlag.Name) {
+		return fmt.Errorf("flag %s or %s is required", PreStatesURLFlag.Name, AsteriscKonaPreStateFlag.Name)
 	}
 	return nil
 }
@@ -513,7 +520,15 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 			claimants = append(claimants, claimant)
 		}
 	}
-	var cannonPrestatesURL *url.URL
+	var prestatesURL *url.URL
+	if ctx.IsSet(PreStatesURLFlag.Name) {
+		parsed, err := url.Parse(ctx.String(PreStatesURLFlag.Name))
+		if err != nil {
+			return nil, fmt.Errorf("invalid prestates url (%v): %w", ctx.String(PreStatesURLFlag.Name), err)
+		}
+		prestatesURL = parsed
+	}
+	cannonPrestatesURL := prestatesURL
 	if ctx.IsSet(CannonPreStatesURLFlag.Name) {
 		parsed, err := url.Parse(ctx.String(CannonPreStatesURLFlag.Name))
 		if err != nil {
@@ -521,7 +536,7 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 		}
 		cannonPrestatesURL = parsed
 	}
-	var asteriscPreStatesURL *url.URL
+	asteriscPreStatesURL := prestatesURL
 	if ctx.IsSet(AsteriscPreStatesURLFlag.Name) {
 		parsed, err := url.Parse(ctx.String(AsteriscPreStatesURLFlag.Name))
 		if err != nil {
@@ -529,7 +544,7 @@ func NewConfigFromCLI(ctx *cli.Context, logger log.Logger) (*config.Config, erro
 		}
 		asteriscPreStatesURL = parsed
 	}
-	var asteriscKonaPreStatesURL *url.URL
+	asteriscKonaPreStatesURL := prestatesURL
 	if ctx.IsSet(AsteriscKonaPreStatesURLFlag.Name) {
 		parsed, err := url.Parse(ctx.String(AsteriscKonaPreStatesURLFlag.Name))
 		if err != nil {
