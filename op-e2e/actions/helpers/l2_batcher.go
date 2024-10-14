@@ -273,6 +273,50 @@ func (s *L2Batcher) ActL2BatchSubmit(t Testing, txOpts ...func(tx *types.Dynamic
 	s.ActL2BatchSubmitRaw(t, s.ReadNextOutputFrame(t), txOpts...)
 }
 
+// read two frames and then submit them in reverse order
+func (s *L2Batcher) ActL2BatchSubmitOutOfOrder(t Testing, txOpts ...func(tx *types.DynamicFeeTx)) {
+	// Don't run this action if there's no data to submit
+	if s.L2ChannelOut == nil {
+		t.InvalidAction("need to buffer data first, cannot batch submit with empty buffer")
+		return
+	}
+
+	channelID := s.L2ChannelOut.ID()
+	frames := [][]byte{}
+	for {
+		// Collect the output frame
+		data := new(bytes.Buffer)
+		data.WriteByte(derive.DerivationVersion0)
+		// subtract one, to account for the version byte
+		if _, err := s.L2ChannelOut.OutputFrame(data, s.l2BatcherCfg.MaxL1TxSize-1); err == io.EOF {
+			s.L2ChannelOut = nil
+			s.l2Submitting = false
+			break
+		} else if err != nil {
+			s.l2Submitting = false
+			t.Fatalf("failed to output channel data to frame: %v", err)
+		}
+		frames = append([][]byte{data.Bytes()}, frames...) // Build up frames in reverse order
+	}
+	if len(frames) < 2 {
+		t.InvalidAction("need at least two frames to submit out of order")
+		return
+	}
+	f, err := derive.ParseFrames(frames[len(frames)-1])
+	if err != nil {
+		t.Error(err)
+	}
+	if f[0].IsLast != true {
+		t.Error("expected to have queued the last frame first")
+	}
+	t.Log("buffered frames to send out of order", "numFrames", len(frames), "channelId", channelID)
+
+	for _, frame := range frames {
+		s.ActL2BatchSubmitRaw(t, frame, txOpts...)
+	}
+
+}
+
 func (s *L2Batcher) ActL2BatchSubmitRaw(t Testing, payload []byte, txOpts ...func(tx *types.DynamicFeeTx)) {
 	if s.l2BatcherCfg.UseAltDA {
 		comm, err := s.l2BatcherCfg.AltDA.SetInput(t.Ctx(), payload)
