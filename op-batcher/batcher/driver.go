@@ -169,12 +169,14 @@ func (l *BatchSubmitter) waitForL2Genesis() error {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 
+	genesisTrigger := time.After(time.Until(genesisTime))
+
 	for {
 		select {
 		case <-ticker.C:
 			remaining := time.Until(genesisTime)
 			l.Log.Info("Waiting for L2 genesis", "remainingTime", remaining.Round(time.Second))
-		case <-time.After(time.Until(genesisTime)):
+		case <-genesisTrigger:
 			l.Log.Info("L2 genesis time reached")
 			return nil
 		case <-l.shutdownCtx.Done():
@@ -298,7 +300,7 @@ func (l *BatchSubmitter) calculateL2BlockRangeToStore(ctx context.Context) (eth.
 	var (
 		syncStatus *eth.SyncStatus
 		backoff    = time.Second
-		maxBackoff = time.Minute
+		maxBackoff = 30 * time.Second
 	)
 	for {
 		cCtx, cancel := context.WithTimeout(ctx, l.Config.NetworkTimeout)
