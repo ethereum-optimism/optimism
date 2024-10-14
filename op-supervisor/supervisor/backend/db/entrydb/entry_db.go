@@ -9,6 +9,15 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+type EntryStore[T EntryType, E Entry[T]] interface {
+	Size() int64
+	LastEntryIdx() EntryIdx
+	Read(idx EntryIdx) (E, error)
+	Append(entries ...E) error
+	Truncate(idx EntryIdx) error
+	Close() error
+}
+
 type EntryIdx int64
 
 type EntryType interface {

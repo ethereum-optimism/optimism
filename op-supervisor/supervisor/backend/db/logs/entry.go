@@ -20,15 +20,15 @@ func (e Entry) Type() EntryType {
 
 type EntryBinary struct{}
 
-func (t EntryBinary) Append(dest []byte, e *Entry) []byte {
+func (EntryBinary) Append(dest []byte, e *Entry) []byte {
 	return append(dest, e[:]...)
 }
 
-func (t EntryBinary) ReadAt(dest *Entry, r io.ReaderAt, at int64) (n int, err error) {
+func (EntryBinary) ReadAt(dest *Entry, r io.ReaderAt, at int64) (n int, err error) {
 	return r.ReadAt(dest[:], at)
 }
 
-func (t EntryBinary) EntrySize() int {
+func (EntryBinary) EntrySize() int {
 	return EntrySize
 }
 

@@ -25,15 +25,6 @@ type Metrics interface {
 	RecordDBSearchEntriesRead(count int64)
 }
 
-type EntryStore interface {
-	Size() int64
-	LastEntryIdx() entrydb.EntryIdx
-	Read(idx entrydb.EntryIdx) (Entry, error)
-	Append(entries ...Entry) error
-	Truncate(idx entrydb.EntryIdx) error
-	Close() error
-}
-
 // DB implements an append only database for log data and cross-chain dependencies.
 //
 // To keep the append-only format, reduce data size, and support reorg detection and registering of executing-messages:
@@ -44,7 +35,7 @@ type EntryStore interface {
 type DB struct {
 	log    log.Logger
 	m      Metrics
-	store  EntryStore
+	store  entrydb.EntryStore[EntryType, Entry]
 	rwLock sync.RWMutex
 
 	lastEntryContext logContext
@@ -58,7 +49,7 @@ func NewFromFile(logger log.Logger, m Metrics, path string, trimToLastSealed boo
 	return NewFromEntryStore(logger, m, store, trimToLastSealed)
 }
 
-func NewFromEntryStore(logger log.Logger, m Metrics, store EntryStore, trimToLastSealed bool) (*DB, error) {
+func NewFromEntryStore(logger log.Logger, m Metrics, store entrydb.EntryStore[EntryType, Entry], trimToLastSealed bool) (*DB, error) {
 	db := &DB{
 		log:   logger,
 		m:     m,

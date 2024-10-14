@@ -32,15 +32,15 @@ func (t TestEntry) Type() TestEntryType {
 
 type TestEntryBinary struct{}
 
-func (t TestEntryBinary) Append(dest []byte, e *TestEntry) []byte {
+func (TestEntryBinary) Append(dest []byte, e *TestEntry) []byte {
 	return append(dest, e[:]...)
 }
 
-func (t TestEntryBinary) ReadAt(dest *TestEntry, r io.ReaderAt, at int64) (n int, err error) {
+func (TestEntryBinary) ReadAt(dest *TestEntry, r io.ReaderAt, at int64) (n int, err error) {
 	return r.ReadAt(dest[:], at)
 }
 
-func (t TestEntryBinary) EntrySize() int {
+func (TestEntryBinary) EntrySize() int {
 	return TestEntrySize
 }
 

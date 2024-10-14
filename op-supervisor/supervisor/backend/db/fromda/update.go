@@ -12,13 +12,8 @@ func (db *DB) AddDerived(derivedFrom eth.BlockRef, derived eth.BlockRef) error {
 	db.rwLock.Lock()
 	defer db.rwLock.Unlock()
 
-	lastDerivedFrom, lastDerived, err := db.Latest()
-	if err != nil {
-		return err
-	}
-
 	// If we don't have any entries yet, allow any block to start things off
-	if db.store.Size() != 0 {
+	if db.store.Size() == 0 {
 		link := LinkEntry{
 			derivedFrom: types.BlockSeal{
 				Hash:      derivedFrom.Hash,
@@ -32,7 +27,16 @@ func (db *DB) AddDerived(derivedFrom eth.BlockRef, derived eth.BlockRef) error {
 			},
 		}
 		e := link.encode()
-		return db.store.Append(e)
+		if err := db.store.Append(e); err != nil {
+			return err
+		}
+		db.m.RecordDBDerivedEntryCount(db.store.Size())
+		return nil
+	}
+
+	lastDerivedFrom, lastDerived, err := db.latest()
+	if err != nil {
+		return err
 	}
 
 	if lastDerived.ID() == derived.ID() && lastDerivedFrom.ID() == derivedFrom.ID() {
@@ -78,7 +82,7 @@ func (db *DB) AddDerived(derivedFrom eth.BlockRef, derived eth.BlockRef) error {
 		}
 	} else if lastDerivedFrom.Number+1 < derivedFrom.Number {
 		// adding block that is derived from something too far into the future
-		return fmt.Errorf("cannot add block %s as derived from %s, still deriving from %s: %s",
+		return fmt.Errorf("cannot add block %s as derived from %s, still deriving from %s: %w",
 			derived, derivedFrom, lastDerivedFrom, entrydb.ErrOutOfOrder)
 	} else {
 		// adding block that is derived from something too old

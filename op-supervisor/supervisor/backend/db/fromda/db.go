@@ -50,6 +50,7 @@ func NewFromEntryStore(logger log.Logger, m Metrics, store EntryStore) (*DB, err
 		m:     m,
 		store: store,
 	}
+	db.m.RecordDBDerivedEntryCount(db.store.Size())
 	return db, nil
 }
 
@@ -73,6 +74,11 @@ func (db *DB) Rewind(derivedFrom uint64) error {
 func (db *DB) Latest() (derivedFrom types.BlockSeal, derived types.BlockSeal, err error) {
 	db.rwLock.Lock()
 	defer db.rwLock.Unlock()
+	return db.latest()
+}
+
+// latest is like Latest, but without lock, for internal use.
+func (db *DB) latest() (derivedFrom types.BlockSeal, derived types.BlockSeal, err error) {
 	lastIndex := db.store.LastEntryIdx()
 	if lastIndex < 0 {
 		return types.BlockSeal{}, types.BlockSeal{}, entrydb.ErrFuture
@@ -120,7 +126,7 @@ func (db *DB) LastDerivedAt(derivedFrom eth.BlockID) (derived types.BlockSeal, e
 	defer db.rwLock.RUnlock()
 	_, link, err := db.lastDerivedAt(derivedFrom.Number)
 	if err != nil {
-		return types.BlockSeal{}, nil
+		return types.BlockSeal{}, err
 	}
 	if link.derivedFrom.ID() != derivedFrom {
 		return types.BlockSeal{}, fmt.Errorf("searched for last derived-from %s but found %s: %w",
@@ -136,7 +142,7 @@ func (db *DB) DerivedFrom(derived eth.BlockID) (derivedFrom types.BlockSeal, err
 	defer db.rwLock.RUnlock()
 	_, link, err := db.firstDerivedFrom(derived.Number)
 	if err != nil {
-		return types.BlockSeal{}, nil
+		return types.BlockSeal{}, err
 	}
 	if link.derived.ID() != derived {
 		return types.BlockSeal{}, fmt.Errorf("searched for first derived %s but found %s: %w",
@@ -184,7 +190,11 @@ func (db *DB) find(reverse bool, cmpFn func(link LinkEntry) int) (entrydb.EntryI
 		return -1, LinkEntry{}, fmt.Errorf("failed to search: %w", searchErr)
 	}
 	if result == int(n) {
-		return -1, LinkEntry{}, fmt.Errorf("no entry found: %w", entrydb.ErrFuture)
+		if reverse {
+			return -1, LinkEntry{}, fmt.Errorf("no entry found: %w", entrydb.ErrSkipped)
+		} else {
+			return -1, LinkEntry{}, fmt.Errorf("no entry found: %w", entrydb.ErrFuture)
+		}
 	}
 	if reverse {
 		result = int(n) - 1 - result
@@ -193,8 +203,12 @@ func (db *DB) find(reverse bool, cmpFn func(link LinkEntry) int) (entrydb.EntryI
 	if err != nil {
 		return -1, LinkEntry{}, fmt.Errorf("failed to read final result entry %d: %w", result, err)
 	}
-	if cmpFn(link) < 0 {
-		return -1, LinkEntry{}, fmt.Errorf("lowest entry %s is too high: %w", link, entrydb.ErrSkipped)
+	if cmpFn(link) != 0 {
+		if reverse {
+			return -1, LinkEntry{}, fmt.Errorf("lowest entry %s is too high: %w", link, entrydb.ErrFuture)
+		} else {
+			return -1, LinkEntry{}, fmt.Errorf("lowest entry %s is too high: %w", link, entrydb.ErrSkipped)
+		}
 	}
 	if cmpFn(link) != 0 {
 		// Search should have returned lowest entry >= the target.
@@ -212,4 +226,10 @@ func (db *DB) readAt(i entrydb.EntryIdx) (LinkEntry, error) {
 	var out LinkEntry
 	err = out.decode(entry)
 	return out, err
+}
+
+func (db *DB) Close() error {
+	db.rwLock.Lock()
+	defer db.rwLock.Unlock()
+	return db.store.Close()
 }

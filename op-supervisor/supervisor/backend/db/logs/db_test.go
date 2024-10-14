@@ -2,7 +2,6 @@ package logs
 
 import (
 	"encoding/binary"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -782,16 +781,16 @@ func requireExecutingMessage(t *testing.T, db *DB, blockNum uint64, logIdx uint3
 }
 
 func TestRecoverOnCreate(t *testing.T) {
-	createDb := func(t *testing.T, store *stubEntryStore) (*DB, *stubMetrics, error) {
+	createDb := func(t *testing.T, store *entrydb.MemEntryStore[EntryType, Entry]) (*DB, *stubMetrics, error) {
 		logger := testlog.Logger(t, log.LvlInfo)
 		m := &stubMetrics{}
 		db, err := NewFromEntryStore(logger, m, store, true)
 		return db, m, err
 	}
 
-	storeWithEvents := func(evts ...Entry) *stubEntryStore {
-		store := &stubEntryStore{}
-		store.entries = append(store.entries, evts...)
+	storeWithEvents := func(evts ...Entry) *entrydb.MemEntryStore[EntryType, Entry] {
+		store := &entrydb.MemEntryStore[EntryType, Entry]{}
+		_ = store.Append(evts...)
 		return store
 	}
 	t.Run("NoTruncateWhenLastEntryIsLogWithNoExecMessageSealed", func(t *testing.T) {
@@ -1116,37 +1115,4 @@ func (s *stubMetrics) RecordDBSearchEntriesRead(count int64) {
 
 var _ Metrics = (*stubMetrics)(nil)
 
-type stubEntryStore struct {
-	entries []Entry
-}
-
-func (s *stubEntryStore) Size() int64 {
-	return int64(len(s.entries))
-}
-
-func (s *stubEntryStore) LastEntryIdx() entrydb.EntryIdx {
-	return entrydb.EntryIdx(s.Size() - 1)
-}
-
-func (s *stubEntryStore) Read(idx entrydb.EntryIdx) (Entry, error) {
-	if idx < entrydb.EntryIdx(len(s.entries)) {
-		return s.entries[idx], nil
-	}
-	return Entry{}, io.EOF
-}
-
-func (s *stubEntryStore) Append(entries ...Entry) error {
-	s.entries = append(s.entries, entries...)
-	return nil
-}
-
-func (s *stubEntryStore) Truncate(idx entrydb.EntryIdx) error {
-	s.entries = s.entries[:min(s.Size()-1, int64(idx+1))]
-	return nil
-}
-
-func (s *stubEntryStore) Close() error {
-	return nil
-}
-
-var _ EntryStore = (*stubEntryStore)(nil)
+var _ entrydb.EntryStore[EntryType, Entry] = (*entrydb.MemEntryStore[EntryType, Entry])(nil)

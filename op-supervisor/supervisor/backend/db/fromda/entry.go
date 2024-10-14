@@ -34,15 +34,15 @@ func (s EntryType) String() string {
 
 type EntryBinary struct{}
 
-func (t EntryBinary) Append(dest []byte, e *Entry) []byte {
+func (EntryBinary) Append(dest []byte, e *Entry) []byte {
 	return append(dest, e[:]...)
 }
 
-func (t EntryBinary) ReadAt(dest *Entry, r io.ReaderAt, at int64) (n int, err error) {
+func (EntryBinary) ReadAt(dest *Entry, r io.ReaderAt, at int64) (n int, err error) {
 	return r.ReadAt(dest[:], at)
 }
 
-func (t EntryBinary) EntrySize() int {
+func (EntryBinary) EntrySize() int {
 	return EntrySize
 }
 
@@ -51,9 +51,16 @@ type LinkEntry struct {
 	derived     types.BlockSeal
 }
 
+func (d LinkEntry) String() string {
+	return fmt.Sprintf("LinkEntry(derivedFrom: %s, derived: %s)", d.derivedFrom, d.derived)
+}
+
 func (d *LinkEntry) decode(e Entry) error {
 	if e.Type() != DerivedFromV0 {
 		return fmt.Errorf("%w: unexpected entry type: %s", entrydb.ErrDataCorruption, e.Type())
+	}
+	if [3]byte(e[1:4]) != ([3]byte{}) {
+		return fmt.Errorf("%w: expected empty data, to pad entry size to round number: %x", entrydb.ErrDataCorruption, e[1:4])
 	}
 	offset := 4
 	d.derivedFrom.Number = binary.BigEndian.Uint64(e[offset : offset+8])
