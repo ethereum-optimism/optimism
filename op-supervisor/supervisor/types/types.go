@@ -168,6 +168,20 @@ func (id ChainID) ToUInt32() (uint32, error) {
 	return uint32(v64), nil
 }
 
+func (id ChainID) MarshalText() ([]byte, error) {
+	return []byte(id.String()), nil
+}
+
+func (id *ChainID) UnmarshalText(data []byte) error {
+	var x uint256.Int
+	err := x.UnmarshalText(data)
+	if err != nil {
+		return err
+	}
+	*id = ChainID(x)
+	return nil
+}
+
 type ReferenceView struct {
 	Local eth.BlockID `json:"local"`
 	Cross eth.BlockID `json:"cross"`

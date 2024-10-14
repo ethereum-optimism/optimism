@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/frontend"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
@@ -34,6 +35,8 @@ type SupervisorBackend struct {
 	// Read = any chain may be used and mutated.
 	// Write = set of chains is changing.
 	mu sync.RWMutex
+
+	depSet depset.DependencySet
 
 	// db holds on to the DB indices for each chain
 	db *db.ChainsDB
@@ -52,6 +55,12 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger, m Metrics, cfg
 		return nil, err
 	}
 
+	// Load the dependency set
+	depSet, err := cfg.DependencySetSource.LoadDependencySet(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load dependency set: %w", err)
+	}
+
 	// create the chains db
 	chainsDB := db.NewChainsDB(logger)
 
@@ -63,6 +72,7 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger, m Metrics, cfg
 		logger:          logger,
 		m:               m,
 		dataDir:         cfg.Datadir,
+		depSet:          depSet,
 		chainProcessors: chainProcessors,
 		db:              chainsDB,
 	}
