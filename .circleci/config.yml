@@ -832,51 +832,45 @@ jobs:
       module:
         description: Go Module Name
         type: string
-      uses_artifacts:
-        description: Uses contract artifacts
-        type: boolean
-        default: false
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: xlarge
-    circleci_ip_ranges: true
+    machine: true
+    resource_class: ethereum-optimism/latitude-1
     steps:
       - checkout
-      - restore_cache:
-          name: Restore Go modules cache
-          key: gomod-{{ checksum "go.sum" }}
-      - restore_cache:
-          name: Restore Go build cache
-          keys:
-            - golang-build-cache-test-<<parameters.module>>-{{ checksum "go.sum" }}
-            - golang-build-cache-test-
-      - when:
-          condition: <<parameters.uses_artifacts>>
-          steps:
-            - attach_workspace: { at: "." }
-      - run:
-          name: Install components
-          command: |
-            go version
-            go install gotest.tools/gotestsum@v1.11.0
-      - run:
-          name: prep results dir
-          command: mkdir -p /tmp/test-results && mkdir -p /tmp/testlogs
       - run:
           name: run tests
           command: |
-            ENABLE_ANVIL=true SEPOLIA_RPC_URL="https://ci-sepolia-l1.optimism.io" gotestsum --format=testname --junitfile=/tmp/test-results/<<parameters.module>>.xml --jsonfile=/tmp/testlogs/log.json \
-            -- -parallel=8 -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out ./...
-          working_directory: <<parameters.module>>
-      - save_cache:
-          name: Save Go build cache
-          key: golang-build-cache-test-<<parameters.module>>-{{ checksum "go.sum" }}
-          paths:
-            - "/root/.cache/go-build"
+            mkdir -p ./tmp/test-results && mkdir -p ./tmp/testlogs
+            
+            packages=(
+              op-batcher
+              op-chain-ops
+              op-node
+              op-proposer
+              op-challenger
+              op-dispute-mon
+              op-conductor
+              op-program
+              op-service
+              op-supervisor
+              packages/contracts-bedrock/scripts/checks/semver-natspec
+            )
+            formatted_packages=""
+            for package in "${packages[@]}"; do
+              formatted_packages="$formatted_packages ./$package/..."
+            done
+            
+            export ENABLE_ANVIL=true
+            export SEPOLIA_RPC_URL="https://ci-sepolia-l1.optimism.io"
+            
+            gotestsum --format=testname \
+              --junitfile=./tmp/test-results/results.xml \
+              --jsonfile=./tmp/testlogs/log.json \
+              -- -coverpkg=github.com/ethereum-optimism/optimism/... \
+              -coverprofile=coverage.out "$formatted_packages"
       - store_test_results:
-          path: /tmp/test-results
+          path: ./tmp/test-results
       - store_artifacts:
-          path: /tmp/testlogs
+          path: ./tmp/testlogs
           when: always
 
   go-e2e-test:
@@ -1355,30 +1349,8 @@ workflows:
           uses_artifacts: true
           requires: ["go-mod-download", "contracts-bedrock-build"]
       - go-test:
-          name: <<matrix.module>>-tests
+          name: go-test-all
           requires:
-            - go-mod-download
-          matrix:
-            parameters:
-              module:
-                - op-batcher
-                - op-node
-                - op-proposer
-                - op-challenger
-                - op-dispute-mon
-                - op-conductor
-                - op-program
-                - op-service
-                - op-supervisor
-      - go-test:
-          name: semver-natspec-tests
-          module: packages/contracts-bedrock/scripts/checks/semver-natspec
-      - go-test:
-          name: op-chain-ops-tests
-          module: op-chain-ops
-          uses_artifacts: true
-          requires:
-            - go-mod-download
             - contracts-bedrock-build
       - go-test-kurtosis:
           name: op-chain-ops-integration
@@ -1418,17 +1390,8 @@ workflows:
             - check-generated-mocks-op-service
             - go-mod-download
             - op-batcher-tests
-            - op-chain-ops-tests
             - op-chain-ops-integration
-            - op-node-tests
-            - op-proposer-tests
-            - op-challenger-tests
-            - op-dispute-mon-tests
-            - op-conductor-tests
-            - op-program-tests
             - op-program-compat
-            - op-service-tests
-            - op-supervisor-tests
             - op-e2e-HTTP-tests
             - op-e2e-fault-proof-tests
             - op-e2e-action-tests
@@ -1438,6 +1401,7 @@ workflows:
             - op-program-docker-build
             - op-supervisor-docker-build
             - proofs-tools-docker-build
+            - go-test-all
       - docker-build:
           name: <<matrix.docker_name>>-docker-build
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
