@@ -322,9 +322,7 @@ func (l *BatchSubmitter) calculateL2BlockRangeToStore(ctx context.Context) (eth.
 		select {
 		case <-time.After(backoff):
 			backoff *= 2
-			if backoff > maxBackoff {
-				backoff = maxBackoff
-			}
+			backoff = min(backoff, maxBackoff)
 		case <-ctx.Done():
 			return eth.BlockID{}, eth.BlockID{}, ctx.Err()
 		}
