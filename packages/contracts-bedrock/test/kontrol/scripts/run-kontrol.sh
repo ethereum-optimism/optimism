@@ -44,7 +44,7 @@ kontrol_prove() {
     --assume-defined \
     --no-log-rewrites \
     --smt-timeout 16000 \
-    --smt-retry-limit 0
+    --smt-retry-limit 0 \
     --no-stack-checks
   return $?
 }
@@ -114,6 +114,7 @@ lemmas=test/kontrol/pausability-lemmas.md
 base_module=PAUSABILITY-LEMMAS
 module=OptimismPortalKontrol:$base_module
 rekompile=--rekompile
+# shellcheck disable=SC2034
 rekompile=
 regen=--regen
 # shellcheck disable=SC2034
