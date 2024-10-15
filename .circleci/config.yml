@@ -1373,9 +1373,7 @@ workflows:
           requires:
             - contracts-bedrock-build
             - cannon-prestate
-      - op-program-compat:
-          requires:
-            - op-program-tests
+      - op-program-compat
       - bedrock-go-tests:
           requires:
             - go-mod-download
