@@ -368,8 +368,8 @@ func (m *InstrumentedState) handleRMWOps(insn, opcode uint32) error {
 			// Complete atomic update: set memory and return 1 for success
 			m.clearLLMemoryReservation()
 
-			memWriteVal := m.state.GetRegistersRef()[rtReg]
-			exec.StoreSubWord(m.state.GetMemory(), addr, byteLength, memWriteVal, m.memoryTracker)
+			val := m.state.GetRegistersRef()[rtReg]
+			exec.StoreSubWord(m.state.GetMemory(), addr, byteLength, val, m.memoryTracker)
 
 			retVal = 1
 		} else {
