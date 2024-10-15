@@ -136,17 +136,17 @@ func testCustomGasToken(t *testing.T, allocType config.AllocType) {
 	t.Run("token name and symbol", func(t *testing.T) {
 		op_e2e.InitParallel(t)
 		gto := setup()
-		checkL1TokenNameAndSymbol(t, gto, false)
-		checkL2TokenNameAndSymbol(t, gto, false)
-		checkWETHTokenNameAndSymbol(t, gto, false)
+		checkL1TokenNameAndSymbol(t, gto, gto.disabledExpectations)
+		checkL2TokenNameAndSymbol(t, gto, gto.disabledExpectations)
+		checkWETHTokenNameAndSymbol(t, gto, gto.disabledExpectations)
 		setCustomGasToken(t, gto.cfg, gto.sys, gto.weth9Address)
-		checkL1TokenNameAndSymbol(t, gto, true)
-		checkL2TokenNameAndSymbol(t, gto, true)
-		checkWETHTokenNameAndSymbol(t, gto, true)
+		checkL1TokenNameAndSymbol(t, gto, gto.enabledExpectations)
+		checkL2TokenNameAndSymbol(t, gto, gto.enabledExpectations)
+		checkWETHTokenNameAndSymbol(t, gto, gto.enabledExpectations)
 	})
 }
 
-// setCustomGasToeken enables the Custom Gas Token feature on a chain where it wasn't enabled at genesis.
+// setCustomGasToken enables the Custom Gas Token feature on a chain where it wasn't enabled at genesis.
 // It reads existing parameters from the SystemConfig contract, inserts the supplied cgtAddress and reinitializes that contract.
 // To do this it uses the ProxyAdmin and StorageSetter from the supplied cfg.
 func setCustomGasToken(t *testing.T, cfg e2esys.SystemConfig, sys *e2esys.System, cgtAddress common.Address) {
@@ -558,11 +558,9 @@ func checkFeeWithdrawal(t *testing.T, gto gasTokenTestOpts, enabled bool) {
 	require.Equal(t, recipientBalanceAfter, new(big.Int).Add(recipientBalanceBefore, withdrawnAmount))
 }
 
-func checkL1TokenNameAndSymbol(t *testing.T, gto gasTokenTestOpts, enabled bool) {
+func checkL1TokenNameAndSymbol(t *testing.T, gto gasTokenTestOpts, expectations cgtTestExpectations) {
 	l1Client := gto.sys.NodeClient("l1")
 	cfg := gto.cfg
-	enabledExpectations := gto.enabledExpectations
-	disabledExpectations := gto.disabledExpectations
 
 	systemConfig, err := bindings.NewSystemConfig(cfg.L1Deployments.SystemConfigProxy, l1Client)
 	require.NoError(t, err)
@@ -576,23 +574,14 @@ func checkL1TokenNameAndSymbol(t *testing.T, gto gasTokenTestOpts, enabled bool)
 	symbol, err := systemConfig.GasPayingTokenSymbol(&bind.CallOpts{})
 	require.NoError(t, err)
 
-	if enabled {
-		require.Equal(t, enabledExpectations.tokenAddress, token.Addr)
-		require.Equal(t, enabledExpectations.tokenDecimals, token.Decimals)
-		require.Equal(t, enabledExpectations.tokenName, name)
-		require.Equal(t, enabledExpectations.tokenSymbol, symbol)
-	} else {
-		require.Equal(t, disabledExpectations.tokenAddress, token.Addr)
-		require.Equal(t, disabledExpectations.tokenDecimals, token.Decimals)
-		require.Equal(t, disabledExpectations.tokenName, name)
-		require.Equal(t, disabledExpectations.tokenSymbol, symbol)
-	}
+	require.Equal(t, expectations.tokenAddress, token.Addr)
+	require.Equal(t, expectations.tokenDecimals, token.Decimals)
+	require.Equal(t, expectations.tokenName, name)
+	require.Equal(t, expectations.tokenSymbol, symbol)
 }
 
-func checkL2TokenNameAndSymbol(t *testing.T, gto gasTokenTestOpts, enabled bool) {
+func checkL2TokenNameAndSymbol(t *testing.T, gto gasTokenTestOpts, enabledExpectations cgtTestExpectations) {
 	l2Client := gto.sys.NodeClient("sequencer")
-	enabledExpectations := gto.enabledExpectations
-	disabledExpectations := gto.disabledExpectations
 
 	l1Block, err := bindings.NewL1Block(predeploys.L1BlockAddr, l2Client)
 	require.NoError(t, err)
@@ -606,23 +595,14 @@ func checkL2TokenNameAndSymbol(t *testing.T, gto gasTokenTestOpts, enabled bool)
 	symbol, err := l1Block.GasPayingTokenSymbol(&bind.CallOpts{})
 	require.NoError(t, err)
 
-	if enabled {
-		require.Equal(t, enabledExpectations.tokenAddress, token.Addr)
-		require.Equal(t, enabledExpectations.tokenDecimals, token.Decimals)
-		require.Equal(t, enabledExpectations.tokenName, name)
-		require.Equal(t, enabledExpectations.tokenSymbol, symbol)
-	} else {
-		require.Equal(t, disabledExpectations.tokenAddress, token.Addr)
-		require.Equal(t, disabledExpectations.tokenDecimals, token.Decimals)
-		require.Equal(t, disabledExpectations.tokenName, name)
-		require.Equal(t, disabledExpectations.tokenSymbol, symbol)
-	}
+	require.Equal(t, enabledExpectations.tokenAddress, token.Addr)
+	require.Equal(t, enabledExpectations.tokenDecimals, token.Decimals)
+	require.Equal(t, enabledExpectations.tokenName, name)
+	require.Equal(t, enabledExpectations.tokenSymbol, symbol)
 }
 
-func checkWETHTokenNameAndSymbol(t *testing.T, gto gasTokenTestOpts, enabled bool) {
+func checkWETHTokenNameAndSymbol(t *testing.T, gto gasTokenTestOpts, expectations cgtTestExpectations) {
 	l2Client := gto.sys.NodeClient("sequencer")
-	enabledExpectations := gto.enabledExpectations
-	disabledExpectations := gto.disabledExpectations
 
 	// Check name and symbol in WETH predeploy
 	weth, err := bindings.NewWETH(predeploys.WETHAddr, l2Client)
@@ -634,11 +614,6 @@ func checkWETHTokenNameAndSymbol(t *testing.T, gto gasTokenTestOpts, enabled boo
 	symbol, err := weth.Symbol(&bind.CallOpts{})
 	require.NoError(t, err)
 
-	if enabled {
-		require.Equal(t, "Wrapped "+enabledExpectations.tokenName, name)
-		require.Equal(t, "W"+enabledExpectations.tokenSymbol, symbol)
-	} else {
-		require.Equal(t, "Wrapped "+disabledExpectations.tokenName, name)
-		require.Equal(t, "W"+disabledExpectations.tokenSymbol, symbol)
-	}
+	require.Equal(t, "Wrapped "+expectations.tokenName, name)
+	require.Equal(t, "W"+expectations.tokenSymbol, symbol)
 }
