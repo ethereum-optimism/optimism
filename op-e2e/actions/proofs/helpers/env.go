@@ -63,7 +63,7 @@ func NewL2FaultProofEnv[c any](t helpers.Testing, testCfg *TestCfg[c], tp *e2eut
 			dp.DeployConfig.L2GenesisGraniteTimeOffset = &genesisBlock
 		case Holocene:
 			// TODO
-			// dp.DeployConfig.L2GenesisHoloceneTimeOffset = &genesisBlock
+			dp.DeployConfig.L2GenesisGraniteTimeOffset = &genesisBlock // TODO replace this with dp.DeployConfig.L2GenesisHoloceneTimeOffset = &genesisBlock
 		}
 	})
 	sd := e2eutils.Setup(t, dp, helpers.DefaultAlloc)
