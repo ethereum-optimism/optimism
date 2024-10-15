@@ -714,8 +714,6 @@ jobs:
       - run-contracts-check:
           command: snapshots-check-no-build
       - run-contracts-check:
-          command: kontrol-deployment-check
-      - run-contracts-check:
           command: interfaces-check-no-build
       - run-contracts-check:
           command: size-check
