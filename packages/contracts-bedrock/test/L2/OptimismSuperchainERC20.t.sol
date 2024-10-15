@@ -290,7 +290,7 @@ contract OptimismSuperchainERC20Test is Test {
     /// @notice Tests that `transferFrom` works when the caller (spender) is Permit2, without any explicit approval.
     /// @param _owner The funds owner.
     /// @param _recipient The address of the recipient.
-    /// @param _amount The amount of WETH to transfer.
+    /// @param _amount The amount of tokens to transfer.
     function testFuzz_transferFrom_whenPermit2IsCaller_succeeds(
         address _owner,
         address _recipient,
