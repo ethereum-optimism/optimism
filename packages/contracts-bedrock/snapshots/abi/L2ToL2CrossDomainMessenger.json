@@ -1,6 +1,24 @@
 [
   {
     "inputs": [],
+    "name": "crossDomainMessageContext",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "sender_",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "source_",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "crossDomainMessageSender",
     "outputs": [
       {

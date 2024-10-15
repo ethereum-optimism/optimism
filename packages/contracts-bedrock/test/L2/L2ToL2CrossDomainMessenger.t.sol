@@ -744,4 +744,34 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         // Call `crossDomainMessageSource` to provoke revert
         l2ToL2CrossDomainMessenger.crossDomainMessageSource();
     }
+
+    /// @dev Tests that the `crossDomainMessageContext` function returns the correct value.
+    function testFuzz_crossDomainMessageContext_succeeds(address _sender, uint256 _source) external {
+        // Set `entered` to non-zero value to prevent NotEntered revert
+        l2ToL2CrossDomainMessenger.setEntered(1);
+        // Ensure that the contract is now entered
+        assertEq(l2ToL2CrossDomainMessenger.entered(), true);
+
+        // Set cross domain message source in the transient storage
+        l2ToL2CrossDomainMessenger.setCrossDomainMessageSender(_sender);
+        l2ToL2CrossDomainMessenger.setCrossDomainMessageSource(_source);
+
+        // Check that the `crossDomainMessageContext` function returns the correct value
+        (address crossDomainContextSender, uint256 crossDomainContextSource) =
+            l2ToL2CrossDomainMessenger.crossDomainMessageContext();
+        assertEq(crossDomainContextSender, _sender);
+        assertEq(crossDomainContextSource, _source);
+    }
+
+    /// @dev Tests that the `crossDomainMessageContext` function reverts when not entered.
+    function test_crossDomainMessageContext_notEntered_reverts() external {
+        // Ensure that the contract is not entered
+        assertEq(l2ToL2CrossDomainMessenger.entered(), false);
+
+        // Expect a revert with the NotEntered selector
+        vm.expectRevert(NotEntered.selector);
+
+        // Call `crossDomainMessageContext` to provoke revert
+        l2ToL2CrossDomainMessenger.crossDomainMessageContext();
+    }
 }

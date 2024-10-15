@@ -27,6 +27,11 @@ interface IL2ToL2CrossDomainMessenger {
     /// @return source_ Chain ID of the source of the current cross domain message.
     function crossDomainMessageSource() external view returns (uint256 source_);
 
+    /// @notice Retrieves the context of the current cross domain message. If not entered, reverts.
+    /// @return sender_ Address of the sender of the current cross domain message.
+    /// @return source_ Chain ID of the source of the current cross domain message.
+    function crossDomainMessageContext() external view returns (address sender_, uint256 source_);
+
     /// @notice Sends a message to some target address on a destination chain. Note that if the call
     ///         always reverts, then the message will be unrelayable, and any ETH sent will be
     ///         permanently locked. The same will occur if the target on the other chain is
