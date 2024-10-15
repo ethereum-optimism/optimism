@@ -832,6 +832,8 @@ jobs:
     resource_class: ethereum-optimism/latitude-1
     steps:
       - checkout
+      - attach_workspace:
+          at: "."
       - run:
           name: run tests
           command: |
