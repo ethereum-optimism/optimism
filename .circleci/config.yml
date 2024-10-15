@@ -862,7 +862,7 @@ jobs:
               --junitfile=./tmp/test-results/results.xml \
               --jsonfile=./tmp/testlogs/log.json \
               -- -coverpkg=github.com/ethereum-optimism/optimism/... \
-              -coverprofile=coverage.out "$formatted_packages"
+              -coverprofile=coverage.out $formatted_packages
       - store_test_results:
           path: ./tmp/test-results
       - store_artifacts:
