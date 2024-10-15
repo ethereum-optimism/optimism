@@ -37,7 +37,7 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "_superchainToken",
+        "name": "_localToken",
         "type": "address"
       }
     ],

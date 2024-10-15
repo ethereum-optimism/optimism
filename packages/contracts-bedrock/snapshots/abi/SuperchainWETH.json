@@ -410,12 +410,17 @@
   },
   {
     "inputs": [],
-    "name": "NotCustomGasToken",
+    "name": "CallerNotL2ToL2CrossDomainMessenger",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "Unauthorized",
+    "name": "InvalidCrossDomainSender",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotCustomGasToken",
     "type": "error"
   }
 ]

@@ -37,17 +37,18 @@ import { IL2ToL1MessagePasser } from "src/L2/interfaces/IL2ToL1MessagePasser.sol
 import { IL2ERC721Bridge } from "src/L2/interfaces/IL2ERC721Bridge.sol";
 import { IOptimismMintableERC20Factory } from "src/universal/interfaces/IOptimismMintableERC20Factory.sol";
 import { IAddressManager } from "src/legacy/interfaces/IAddressManager.sol";
-import { IOptimismERC20Factory } from "src/L2/interfaces/IOptimismERC20Factory.sol";
+import { IOptimismSuperchainERC20Factory } from "src/L2/interfaces/IOptimismSuperchainERC20Factory.sol";
 import { IBaseFeeVault } from "src/L2/interfaces/IBaseFeeVault.sol";
 import { ISequencerFeeVault } from "src/L2/interfaces/ISequencerFeeVault.sol";
 import { IL1FeeVault } from "src/L2/interfaces/IL1FeeVault.sol";
 import { IGasPriceOracle } from "src/L2/interfaces/IGasPriceOracle.sol";
 import { IL1Block } from "src/L2/interfaces/IL1Block.sol";
-import { ISuperchainWETH } from "src/L2/interfaces/ISuperchainWETH.sol";
+import { ISuperchainWETHERC20 } from "src/L2/interfaces/ISuperchainWETH.sol";
 import { IETHLiquidity } from "src/L2/interfaces/IETHLiquidity.sol";
 import { IWETH } from "src/universal/interfaces/IWETH.sol";
 import { IGovernanceToken } from "src/governance/interfaces/IGovernanceToken.sol";
 import { ILegacyMessagePasser } from "src/legacy/interfaces/ILegacyMessagePasser.sol";
+import { ISuperchainTokenBridge } from "src/L2/interfaces/ISuperchainTokenBridge.sol";
 
 /// @title Setup
 /// @dev This contact is responsible for setting up the contracts in state. It currently
@@ -105,12 +106,11 @@ contract Setup {
     IGovernanceToken governanceToken = IGovernanceToken(Predeploys.GOVERNANCE_TOKEN);
     ILegacyMessagePasser legacyMessagePasser = ILegacyMessagePasser(Predeploys.LEGACY_MESSAGE_PASSER);
     IWETH weth = IWETH(payable(Predeploys.WETH));
-    ISuperchainWETH superchainWeth = ISuperchainWETH(payable(Predeploys.SUPERCHAIN_WETH));
+    ISuperchainWETHERC20 superchainWeth = ISuperchainWETHERC20(payable(Predeploys.SUPERCHAIN_WETH));
     IETHLiquidity ethLiquidity = IETHLiquidity(Predeploys.ETH_LIQUIDITY);
-
-    // TODO: Replace with OptimismSuperchainERC20Factory when updating pragmas
-    IOptimismERC20Factory l2OptimismSuperchainERC20Factory =
-        IOptimismERC20Factory(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY);
+    ISuperchainTokenBridge superchainTokenBridge = ISuperchainTokenBridge(Predeploys.SUPERCHAIN_TOKEN_BRIDGE);
+    IOptimismSuperchainERC20Factory l2OptimismSuperchainERC20Factory =
+        IOptimismSuperchainERC20Factory(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY);
 
     /// @dev Deploys the Deploy contract without including its bytecode in the bytecode
     ///      of this contract by fetching the bytecode dynamically using `vm.getCode()`.
@@ -236,6 +236,7 @@ contract Setup {
         labelPredeploy(Predeploys.ETH_LIQUIDITY);
         labelPredeploy(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_FACTORY);
         labelPredeploy(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON);
+        labelPredeploy(Predeploys.SUPERCHAIN_TOKEN_BRIDGE);
 
         // L2 Preinstalls
         labelPreinstall(Preinstalls.MultiCall3);
