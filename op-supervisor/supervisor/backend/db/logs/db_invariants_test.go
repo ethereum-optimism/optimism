@@ -8,8 +8,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
 )
 
 type statInvariant func(stat os.FileInfo, m *stubMetrics) error
@@ -31,11 +29,11 @@ func checkDBInvariants(t *testing.T, dbPath string, m *stubMetrics) {
 	// Read all entries as binary blobs
 	file, err := os.OpenFile(dbPath, os.O_RDONLY, 0o644)
 	require.NoError(t, err)
-	entries := make([]Entry, stat.Size()/entrydb.EntrySize)
+	entries := make([]Entry, stat.Size()/EntrySize)
 	for i := range entries {
 		n, err := io.ReadFull(file, entries[i][:])
 		require.NoErrorf(t, err, "failed to read entry %v", i)
-		require.EqualValuesf(t, entrydb.EntrySize, n, "read wrong length for entry %v", i)
+		require.EqualValuesf(t, EntrySize, n, "read wrong length for entry %v", i)
 	}
 
 	entryInvariants := []entryInvariant{
@@ -67,16 +65,16 @@ func fmtEntries(entries []Entry) string {
 
 func invariantFileSizeMultipleOfEntrySize(stat os.FileInfo, _ *stubMetrics) error {
 	size := stat.Size()
-	if size%entrydb.EntrySize != 0 {
-		return fmt.Errorf("expected file size to be a multiple of entry size (%v) but was %v", entrydb.EntrySize, size)
+	if size%EntrySize != 0 {
+		return fmt.Errorf("expected file size to be a multiple of entry size (%v) but was %v", EntrySize, size)
 	}
 	return nil
 }
 
 func invariantFileSizeMatchesEntryCountMetric(stat os.FileInfo, m *stubMetrics) error {
 	size := stat.Size()
-	if m.entryCount*entrydb.EntrySize != size {
-		return fmt.Errorf("expected file size to be entryCount (%v) * entrySize (%v) = %v but was %v", m.entryCount, entrydb.EntrySize, m.entryCount*entrydb.EntrySize, size)
+	if m.entryCount*EntrySize != size {
+		return fmt.Errorf("expected file size to be entryCount (%v) * entrySize (%v) = %v but was %v", m.entryCount, EntrySize, m.entryCount*EntrySize, size)
 	}
 	return nil
 }
