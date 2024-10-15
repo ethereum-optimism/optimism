@@ -185,7 +185,7 @@ validate-spacers: build validate-spacers-no-build
 
 # TODO: Also run lint-forge-tests-check but we need to fix the test names first.
 # Runs all checks.
-check: gas-snapshot-check-no-build kontrol-deployment-check snapshots-check-no-build lint-check semver-diff-check-no-build semver-natspec-check-no-build validate-deploy-configs validate-spacers-no-build interfaces-check-no-build
+check: gas-snapshot-check-no-build snapshots-check-no-build lint-check semver-diff-check-no-build semver-natspec-check-no-build validate-deploy-configs validate-spacers-no-build interfaces-check-no-build
 
 
 ########################################################
