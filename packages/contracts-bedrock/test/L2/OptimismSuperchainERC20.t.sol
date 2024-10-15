@@ -258,10 +258,10 @@ contract OptimismSuperchainERC20Test is Test {
     /// @notice Tests that the allowance function returns the max uint256 value when the spender is Permit.
     /// @param _randomCaller The address that will call the function - used to fuzz better since the behaviour should be
     ///                       the same regardless of the caller.
-    /// @param _src The funds owner.
-    function testFuzz_allowance_fromPermit2_succeeds(address _randomCaller, address _src) public {
+    /// @param _owner The funds owner.
+    function testFuzz_allowance_fromPermit2_succeeds(address _randomCaller, address _owner) public {
         vm.prank(_randomCaller);
-        uint256 _allowance = optimismSuperchainERC20.allowance(_src, Preinstalls.Permit2);
+        uint256 _allowance = optimismSuperchainERC20.allowance(_owner, Preinstalls.Permit2);
 
         assertEq(_allowance, type(uint256).max);
     }
@@ -269,43 +269,49 @@ contract OptimismSuperchainERC20Test is Test {
     /// @notice Tests that the allowance function returns the correct allowance when the spender is not Permit.
     /// @param _randomCaller The address that will call the function - used to fuzz better
     ///                       since the behaviour should be the same regardless of the caller.
-    /// @param _src The funds owner.
+    /// @param _owner The funds owner.
     /// @param _guy The address of the spender - It cannot be Permit2.
-    function testFuzz_allowance_succeeds(address _randomCaller, address _src, address _guy, uint256 _wad) public {
+    function testFuzz_allowance_succeeds(address _randomCaller, address _owner, address _guy, uint256 _amount) public {
         // Assume
         vm.assume(_guy != Preinstalls.Permit2);
 
         // Arrange
-        vm.prank(_src);
-        optimismSuperchainERC20.approve(_guy, _wad);
+        vm.prank(_owner);
+        optimismSuperchainERC20.approve(_guy, _amount);
 
         // Act
         vm.prank(_randomCaller);
-        uint256 _allowance = optimismSuperchainERC20.allowance(_src, _guy);
+        uint256 _allowance = optimismSuperchainERC20.allowance(_owner, _guy);
 
         // Assert
-        assertEq(_allowance, _wad);
+        assertEq(_allowance, _amount);
     }
 
     /// @notice Tests that `transferFrom` works when the caller (spender) is Permit2, without any explicit approval.
-    /// @param _src The funds owner.
-    /// @param _dst The address of the recipient.
-    /// @param _wad The amount of WETH to transfer.
-    function testFuzz_transferFrom_whenPermit2IsCaller_succeeds(address _src, address _dst, uint256 _wad) public {
+    /// @param _owner The funds owner.
+    /// @param _recipient The address of the recipient.
+    /// @param _amount The amount of WETH to transfer.
+    function testFuzz_transferFrom_whenPermit2IsCaller_succeeds(
+        address _owner,
+        address _recipient,
+        uint256 _amount
+    )
+        public
+    {
         // Arrange
-        deal(address(optimismSuperchainERC20), _src, _wad);
+        deal(address(optimismSuperchainERC20), _owner, _amount);
 
         vm.expectEmit(address(optimismSuperchainERC20));
-        emit IERC20Solady.Transfer(_src, _dst, _wad);
+        emit IERC20Solady.Transfer(_owner, _recipient, _amount);
 
         // Act
         vm.prank(Preinstalls.Permit2);
-        optimismSuperchainERC20.transferFrom(_src, _dst, _wad);
+        optimismSuperchainERC20.transferFrom(_owner, _recipient, _amount);
 
         // Assert
-        assertEq(optimismSuperchainERC20.balanceOf(_dst), _wad);
+        assertEq(optimismSuperchainERC20.balanceOf(_recipient), _amount);
         // Handle the case where the source and destination are the same to check the source balance.
-        if (_src != _dst) assertEq(optimismSuperchainERC20.balanceOf(_src), 0);
-        else assertEq(optimismSuperchainERC20.balanceOf(_src), _wad);
+        if (_owner != _recipient) assertEq(optimismSuperchainERC20.balanceOf(_owner), 0);
+        else assertEq(optimismSuperchainERC20.balanceOf(_owner), _amount);
     }
 }
