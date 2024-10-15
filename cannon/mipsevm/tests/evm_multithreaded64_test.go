@@ -34,13 +34,13 @@ func TestEVM_MT64_LL(t *testing.T) {
 		{name: "8-byte-aligned addr", base: 0x01, offset: 0x0107, addr: 0x0108, memVal: memVal, retVal: 0x11223344, retReg: 5},
 		{name: "8-byte-aligned addr, neg value", base: 0x01, offset: 0x0107, addr: 0x0108, memVal: memValNeg, retVal: 0xFFFFFFFF_F1223344, retReg: 5},
 		{name: "8-byte-aligned addr, extra bits", base: 0x01, offset: 0x0109, addr: 0x010A, memVal: memVal, retVal: 0x11223344, retReg: 5},
-		{name: "8-byte-aligned addr, signed extended", base: 0x01, offset: 0xFF37, addr: 0xFFFF_FFFF_FFFF_FF38, memVal: memVal, retVal: 0x11223344, retReg: 5},
-		{name: "8-byte-aligned addr, signed extended w overflow", base: 0x1000_0001, offset: 0xFF07, addr: 0x0000_0000_0FFF_FF08, memVal: memVal, retVal: 0x11223344, retReg: 5},
+		{name: "8-byte-aligned addr, addr signed extended", base: 0x01, offset: 0xFF37, addr: 0xFFFF_FFFF_FFFF_FF38, memVal: memVal, retVal: 0x11223344, retReg: 5},
+		{name: "8-byte-aligned addr, addr signed extended w overflow", base: 0x1000_0001, offset: 0xFF07, addr: 0x0000_0000_0FFF_FF08, memVal: memVal, retVal: 0x11223344, retReg: 5},
 		{name: "4-byte-aligned addr", base: 0x01, offset: 0x0103, addr: 0x0104, memVal: memVal, retVal: 0x55667788, retReg: 5},
 		{name: "4-byte-aligned addr, neg value", base: 0x01, offset: 0x0104, addr: 0x0105, memVal: memValNeg, retVal: 0xFFFFFFFF_F5667788, retReg: 5},
 		{name: "4-byte-aligned addr, extra bits", base: 0x01, offset: 0x0105, addr: 0x0106, memVal: memVal, retVal: 0x55667788, retReg: 5},
-		{name: "4-byte-aligned addr, signed extended", base: 0x01, offset: 0xFF33, addr: 0xFFFF_FFFF_FFFF_FF34, memVal: memVal, retVal: 0x55667788, retReg: 5},
-		{name: "4-byte-aligned addr, signed extended w overflow", base: 0x1000_0001, offset: 0xFF03, addr: 0x0000_0000_0FFF_FF04, memVal: memVal, retVal: 0x55667788, retReg: 5},
+		{name: "4-byte-aligned addr, addr signed extended", base: 0x01, offset: 0xFF33, addr: 0xFFFF_FFFF_FFFF_FF34, memVal: memVal, retVal: 0x55667788, retReg: 5},
+		{name: "4-byte-aligned addr, addr signed extended w overflow", base: 0x1000_0001, offset: 0xFF03, addr: 0x0000_0000_0FFF_FF04, memVal: memVal, retVal: 0x55667788, retReg: 5},
 		{name: "Return register set to 0", base: 0x01, offset: 0x0107, addr: 0x0108, memVal: memVal, retVal: 0x11223344, retReg: 0},
 	}
 	for i, c := range cases {
