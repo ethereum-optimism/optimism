@@ -711,7 +711,7 @@ func TestGetBlockInfo(t *testing.T) {
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				_, err := db.FindSealedBlock(10)
 				require.ErrorIs(t, err, entrydb.ErrFuture)
-				_, err := db.FindSealedBlock(10)
+				_, err = db.FindSealedBlock(10)
 				require.ErrorIs(t, err, entrydb.ErrFuture)
 			})
 	})
@@ -728,7 +728,7 @@ func TestGetBlockInfo(t *testing.T) {
 				// if the DB starts at 11, then shouldn't find 10
 				_, err := db.FindSealedBlock(10)
 				require.ErrorIs(t, err, entrydb.ErrSkipped)
-				_, err := db.FindSealedBlock(10)
+				_, err = db.FindSealedBlock(10)
 				require.ErrorIs(t, err, entrydb.ErrSkipped)
 			})
 	})
@@ -740,7 +740,8 @@ func TestGetBlockInfo(t *testing.T) {
 				require.NoError(t, db.SealBlock(common.Hash{}, block, 500))
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
-				seal, err := db.FindSealedBlock(block.Number)
+				_, err := db.FindSealedBlock(block.Number)
+				require.NoError(t, err)
 				seal, err := db.FindSealedBlock(block.Number)
 				require.NoError(t, err)
 				require.Equal(t, block, seal.ID())
