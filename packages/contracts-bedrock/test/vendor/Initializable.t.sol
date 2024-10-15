@@ -6,7 +6,7 @@ import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
 
 // Scripts
 import { Executables } from "scripts/libraries/Executables.sol";
-import { ForgeArtifacts, StorageSlot } from "scripts/libraries/ForgeArtifacts.sol";
+import { ForgeArtifacts } from "scripts/libraries/ForgeArtifacts.sol";
 import { Process } from "scripts/libraries/Process.sol";
 
 // Libraries
