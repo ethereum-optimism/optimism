@@ -85,13 +85,13 @@ func runHoloceneFrameTest(gt *testing.T, testCfg *helpers.TestCfg[ordering]) {
 	orderedFrames := [][]byte{env.Batcher.ReadNextOutputFrame(t)}
 
 	// Buffer the second third of L2 blocks in the batcher.
-	for i := 0; i < NumL2Blocks/2; i++ {
+	for i := 0; i < NumL2Blocks/3; i++ {
 		env.Batcher.ActL2BatchBuffer(t)
 	}
 	orderedFrames = append(orderedFrames, env.Batcher.ReadNextOutputFrame(t))
 
 	// Buffer the final third of L2 blocks in the batcher.
-	for i := 0; i < NumL2Blocks/2; i++ {
+	for i := 0; i < NumL2Blocks/3; i++ {
 		env.Batcher.ActL2BatchBuffer(t)
 	}
 	env.Batcher.ActL2ChannelClose(t)
