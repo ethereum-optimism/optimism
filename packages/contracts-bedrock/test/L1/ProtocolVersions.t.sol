@@ -5,9 +5,6 @@ pragma solidity 0.8.15;
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
-// Libraries
-import { Constants } from "src/libraries/Constants.sol";
-
 // Interfaces
 import { IProxy } from "src/universal/interfaces/IProxy.sol";
 import { IProtocolVersions, ProtocolVersion } from "src/L1/interfaces/IProtocolVersions.sol";

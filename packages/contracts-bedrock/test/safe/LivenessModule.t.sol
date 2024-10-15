@@ -4,7 +4,6 @@ pragma solidity 0.8.15;
 import { Test } from "forge-std/Test.sol";
 import { GnosisSafe as Safe } from "safe-contracts/GnosisSafe.sol";
 import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
-import { Enum } from "safe-contracts/common/Enum.sol";
 import "test/safe-tools/SafeTestTools.sol";
 
 import { LivenessModule } from "src/safe/LivenessModule.sol";

@@ -7,8 +7,6 @@ import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 // Libraries
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { Constants } from "src/libraries/Constants.sol";
-import { Predeploys } from "src/libraries/Predeploys.sol";
 
 // Interfaces
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
@@ -22,8 +20,8 @@ import { IL1Block } from "src/L2/interfaces/IL1Block.sol";
 ///         L2 on the L2 side. Users are generally encouraged to use this contract instead of lower
 ///         level message passing contracts.
 contract L2CrossDomainMessenger is CrossDomainMessenger, ISemver {
-    /// @custom:semver 2.1.1-beta.3
-    string public constant version = "2.1.1-beta.3";
+    /// @custom:semver 2.1.1-beta.4
+    string public constant version = "2.1.1-beta.4";
 
     /// @notice Constructs the L2CrossDomainMessenger contract.
     constructor() CrossDomainMessenger() {

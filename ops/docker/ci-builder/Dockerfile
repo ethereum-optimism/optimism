@@ -105,6 +105,7 @@ RUN /bin/sh -c set -eux; \
   apt-get install -y docker-ce-cli; \
   ln -s /usr/local/go/bin/gofmt /usr/local/bin/gofmt; \
   pip install capstone pyelftools; \
+  pip install semgrep==$(jq -r .semgrep < versions.json); \
   curl -fLSs https://raw.githubusercontent.com/CircleCI-Public/circleci-cli/master/install.sh | bash; \
   apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false; \
   rm -rf /var/lib/apt/lists/*; \

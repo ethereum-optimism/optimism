@@ -3,10 +3,6 @@ pragma solidity 0.8.15;
 
 import { CommonTest } from "test/setup/CommonTest.sol";
 
-// Libraries
-import { Types } from "src/libraries/Types.sol";
-import { Hashing } from "src/libraries/Hashing.sol";
-
 // Target contract dependencies
 import { Proxy } from "src/universal/Proxy.sol";
 

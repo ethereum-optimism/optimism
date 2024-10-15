@@ -16,7 +16,7 @@ import { CREATE3 } from "@rari-capital/solmate/src/utils/CREATE3.sol";
 contract OptimismSuperchainERC20Factory is IOptimismERC20Factory, ISemver {
     /// @notice Mapping of the deployed OptimismSuperchainERC20 to the remote token address.
     ///         This is used to keep track of the token deployments.
-    mapping(address superchainToken => address remoteToken) public deployments;
+    mapping(address _superchainToken => address remoteToken_) public deployments;
 
     /// @notice Emitted when an OptimismSuperchainERC20 is deployed.
     /// @param superchainToken  Address of the SuperchainERC20 deployment.
@@ -27,8 +27,8 @@ contract OptimismSuperchainERC20Factory is IOptimismERC20Factory, ISemver {
     );
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.2
-    string public constant version = "1.0.0-beta.2";
+    /// @custom:semver 1.0.0-beta.3
+    string public constant version = "1.0.0-beta.3";
 
     /// @notice Deploys a OptimismSuperchainERC20 Beacon Proxy using CREATE3.
     /// @param _remoteToken      Address of the remote token.

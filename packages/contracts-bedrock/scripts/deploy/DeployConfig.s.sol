@@ -6,7 +6,6 @@ import { console2 as console } from "forge-std/console2.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { Executables } from "scripts/libraries/Executables.sol";
 import { Process } from "scripts/libraries/Process.sol";
-import { Chains } from "scripts/libraries/Chains.sol";
 import { Config, Fork, ForkUtils } from "scripts/libraries/Config.sol";
 
 /// @title DeployConfig
@@ -97,7 +96,7 @@ contract DeployConfig is Script {
         try vm.readFile(_path) returns (string memory data_) {
             _json = data_;
         } catch {
-            require(false, string.concat("Cannot find deploy config file at ", _path));
+            require(false, string.concat("DeployConfig: cannot find deploy config file at ", _path));
         }
 
         finalSystemOwner = stdJson.readAddress(_json, "$.finalSystemOwner");
@@ -202,7 +201,9 @@ contract DeployConfig is Script {
                 } catch { }
             }
         }
-        revert("l1StartingBlockTag must be a bytes32, string or uint256 or cannot fetch l1StartingBlockTag");
+        revert(
+            "DeployConfig: l1StartingBlockTag must be a bytes32, string or uint256 or cannot fetch l1StartingBlockTag"
+        );
     }
 
     function l2OutputOracleStartingTimestamp() public returns (uint256) {
@@ -267,7 +268,7 @@ contract DeployConfig is Script {
     }
 
     function _readOr(string memory _jsonInp, string memory _key, bool _defaultValue) internal view returns (bool) {
-        return vm.keyExistsJson(_jsonInp, _key) ? _jsonInp.readBool(_key) : _defaultValue;
+        return _jsonInp.readBoolOr(_key, _defaultValue);
     }
 
     function _readOr(
@@ -291,7 +292,7 @@ contract DeployConfig is Script {
         view
         returns (address)
     {
-        return vm.keyExistsJson(_jsonInp, _key) ? _jsonInp.readAddress(_key) : _defaultValue;
+        return _jsonInp.readAddressOr(_key, _defaultValue);
     }
 
     function _isNull(string memory _jsonInp, string memory _key) internal pure returns (bool) {
@@ -308,6 +309,6 @@ contract DeployConfig is Script {
         view
         returns (string memory)
     {
-        return vm.keyExists(_jsonInp, _key) ? _jsonInp.readString(_key) : _defaultValue;
+        return _jsonInp.readStringOr(_key, _defaultValue);
     }
 }

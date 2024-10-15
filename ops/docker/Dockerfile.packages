@@ -31,7 +31,7 @@ COPY .gitmodules ./.gitmodules
 
 RUN git submodule update --init --recursive \
     && cd packages/contracts-bedrock \
-    && just build \
+    && just forge-build \
     && echo $(git rev-parse HEAD) > .gitcommit
 
 FROM --platform=linux/amd64 debian:bookworm-20240812-slim as contracts-bedrock
