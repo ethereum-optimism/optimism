@@ -185,6 +185,7 @@ abstract contract Artifacts {
     /// @param _name The name of the deployment.
     /// @param _deployed The address of the deployment.
     function save(string memory _name, address _deployed) public {
+        console.log("Saving %s: %s", _name, _deployed);
         if (bytes(_name).length == 0) {
             revert InvalidDeployment("EmptyName");
         }
@@ -192,7 +193,6 @@ abstract contract Artifacts {
             revert InvalidDeployment("AlreadyExists");
         }
 
-        console.log("Saving %s: %s", _name, _deployed);
         Deployment memory deployment = Deployment({ name: _name, addr: payable(_deployed) });
         _namedDeployments[_name] = deployment;
         _newDeployments.push(deployment);
@@ -218,13 +218,6 @@ abstract contract Artifacts {
 
     /// @notice Returns the value of the internal `_initialized` storage slot for a given contract.
     function loadInitializedSlot(string memory _contractName) public returns (uint8 initialized_) {
-        // FaultDisputeGame and PermissionedDisputeGame are initializable but cannot be loaded with
-        // this function yet because they are not properly labeled in the deploy script.
-        // TODO: Remove this restriction once the deploy script is fixed.
-        if (LibString.eq(_contractName, "FaultDisputeGame") || LibString.eq(_contractName, "PermissionedDisputeGame")) {
-            revert UnsupportedInitializableContract(_contractName);
-        }
-
         address contractAddress;
         // Check if the contract name ends with `Proxy` and, if so, get the implementation address
         if (LibString.endsWith(_contractName, "Proxy")) {

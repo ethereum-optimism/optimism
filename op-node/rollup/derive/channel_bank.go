@@ -89,7 +89,7 @@ func (cb *ChannelBank) IngestFrame(f Frame) {
 			cb.metrics.RecordHeadChannelOpened()
 		}
 		// create new channel if it doesn't exist yet
-		currentCh = NewChannel(f.ID, origin)
+		currentCh = NewChannel(f.ID, origin, false)
 		cb.channels[f.ID] = currentCh
 		cb.channelQueue = append(cb.channelQueue, f.ID)
 		log.Info("created new channel")

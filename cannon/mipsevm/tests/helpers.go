@@ -129,3 +129,20 @@ func GetMipsVersionTestCases(t require.TestingT) []VersionedVMTestCase {
 		}
 	}
 }
+
+type threadProofTestcase struct {
+	Name  string
+	Proof []byte
+}
+
+func GenerateEmptyThreadProofVariations(t require.TestingT) []threadProofTestcase {
+	defaultThreadProof := multiThreadedProofGenerator(t, multithreaded.CreateEmptyState())
+	zeroBytesThreadProof := make([]byte, multithreaded.THREAD_WITNESS_SIZE)
+	copy(zeroBytesThreadProof[multithreaded.SERIALIZED_THREAD_SIZE:], defaultThreadProof[multithreaded.SERIALIZED_THREAD_SIZE:])
+	nilBytesThreadProof := defaultThreadProof[multithreaded.SERIALIZED_THREAD_SIZE:]
+	return []threadProofTestcase{
+		{Name: "default thread proof", Proof: defaultThreadProof},
+		{Name: "zeroed thread bytes proof", Proof: zeroBytesThreadProof},
+		{Name: "nil thread bytes proof", Proof: nilBytesThreadProof},
+	}
+}
