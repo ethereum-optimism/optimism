@@ -19,6 +19,7 @@ kontrol_build() {
     --verbose \
     --require $lemmas \
     --module-import $module \
+    --no-metadata \
     $rekompile
   return $?
 }
@@ -37,9 +38,15 @@ kontrol_prove() {
     $break_every_step \
     $tests \
     --init-node-from-diff $state_diff \
-    --kore-rpc-command 'kore-rpc-booster --equation-max-recursion 100' \
+    --kore-rpc-command 'kore-rpc-booster --no-post-exec-simplify --equation-max-recursion 100 --equation-max-iterations 1000' \
     --xml-test-report \
-    --bmc-depth 1
+    --verbose \
+    --max-frontier-parallel 4 \
+    --maintenance-rate 64 \
+    --assume-defined \
+    --no-log-rewrites \
+    --smt-timeout 16000 \
+    --smt-retry-limit 0
   return $?
 }
 
@@ -163,7 +170,7 @@ done
 max_depth=10000
 max_iterations=10000
 smt_timeout=100000
-max_workers=16 # Set to 16 since there are 16 proofs to run
+max_workers=4 # Set to 16 since there are 16 proofs to run
 # workers is the minimum between max_workers and the length of test_list unless
 # no test arguments are provided, in which case we default to max_workers
 if [ "$CUSTOM_TESTS" == 0 ] && [ "$SCRIPT_TESTS" == false ]; then
