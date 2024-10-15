@@ -268,7 +268,7 @@ contract DeployConfig is Script {
     }
 
     function _readOr(string memory _jsonInp, string memory _key, bool _defaultValue) internal view returns (bool) {
-        return vm.keyExistsJson(_jsonInp, _key) ? _jsonInp.readBool(_key) : _defaultValue;
+        return _jsonInp.readBoolOr(_key, _defaultValue);
     }
 
     function _readOr(
@@ -292,7 +292,7 @@ contract DeployConfig is Script {
         view
         returns (address)
     {
-        return vm.keyExistsJson(_jsonInp, _key) ? _jsonInp.readAddress(_key) : _defaultValue;
+        return _jsonInp.readAddressOr(_key, _defaultValue);
     }
 
     function _isNull(string memory _jsonInp, string memory _key) internal pure returns (bool) {
@@ -309,6 +309,6 @@ contract DeployConfig is Script {
         view
         returns (string memory)
     {
-        return vm.keyExists(_jsonInp, _key) ? _jsonInp.readString(_key) : _defaultValue;
+        return _jsonInp.readStringOr(_key, _defaultValue);
     }
 }

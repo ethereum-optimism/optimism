@@ -245,69 +245,90 @@ func TestEVMSingleStep_Operators(t *testing.T) {
 func TestEVMSingleStep_LoadStore(t *testing.T) {
 	var tracer *tracing.Hooks
 
+	loadMemVal := Word(0x11_22_33_44)
+	loadMemValNeg := Word(0xF1_F2_F3_F4)
+	rtVal := Word(0xaa_bb_cc_dd)
 	versions := GetMipsVersionTestCases(t)
 	cases := []struct {
 		name         string
-		rs           Word
 		rt           Word
-		isUnAligned  bool
+		base         Word
+		imm          uint32
 		opcode       uint32
 		memVal       Word
 		expectMemVal Word
 		expectRes    Word
 	}{
-		{name: "lb", opcode: uint32(0x20), memVal: Word(0x12_00_00_00), expectRes: Word(0x12)},                                                                         // lb $t0, 4($t1)
-		{name: "lh", opcode: uint32(0x21), memVal: Word(0x12_23_00_00), expectRes: Word(0x12_23)},                                                                      // lh $t0, 4($t1)
-		{name: "lw", opcode: uint32(0x23), memVal: Word(0x12_23_45_67), expectRes: Word(0x12_23_45_67)},                                                                // lw $t0, 4($t1)
-		{name: "lbu", opcode: uint32(0x24), memVal: Word(0x12_23_00_00), expectRes: Word(0x12)},                                                                        // lbu $t0, 4($t1)
-		{name: "lhu", opcode: uint32(0x25), memVal: Word(0x12_23_00_00), expectRes: Word(0x12_23)},                                                                     // lhu $t0, 4($t1)
-		{name: "lwl", opcode: uint32(0x22), rt: Word(0xaa_bb_cc_dd), memVal: Word(0x12_34_56_78), expectRes: Word(0x12_34_56_78)},                                      // lwl $t0, 4($t1)
-		{name: "lwl unaligned address", opcode: uint32(0x22), rt: Word(0xaa_bb_cc_dd), isUnAligned: true, memVal: Word(0x12_34_56_78), expectRes: Word(0x34_56_78_dd)}, // lwl $t0, 5($t1)
-		{name: "lwr", opcode: uint32(0x26), rt: Word(0xaa_bb_cc_dd), memVal: Word(0x12_34_56_78), expectRes: Word(0xaa_bb_cc_12)},                                      // lwr $t0, 4($t1)
-		{name: "lwr unaligned address", opcode: uint32(0x26), rt: Word(0xaa_bb_cc_dd), isUnAligned: true, memVal: Word(0x12_34_56_78), expectRes: Word(0xaa_bb_12_34)}, // lwr $t0, 5($t1)
-		{name: "sb", opcode: uint32(0x28), rt: Word(0xaa_bb_cc_dd), expectMemVal: Word(0xdd_00_00_00)},                                                                 // sb $t0, 4($t1)
-		{name: "sh", opcode: uint32(0x29), rt: Word(0xaa_bb_cc_dd), expectMemVal: Word(0xcc_dd_00_00)},                                                                 // sh $t0, 4($t1)
-		{name: "swl", opcode: uint32(0x2a), rt: Word(0xaa_bb_cc_dd), expectMemVal: Word(0xaa_bb_cc_dd)},                                                                //  swl $t0, 4($t1)
-		{name: "sw", opcode: uint32(0x2b), rt: Word(0xaa_bb_cc_dd), expectMemVal: Word(0xaa_bb_cc_dd)},                                                                 // sw $t0, 4($t1)
-		{name: "swr unaligned address", opcode: uint32(0x2e), rt: Word(0xaa_bb_cc_dd), isUnAligned: true, expectMemVal: Word(0xcc_dd_00_00)},                           // swr $t0, 5($t1)
+		{name: "lb, offset=0", opcode: uint32(0x20), base: 0x100, imm: 0x20, memVal: loadMemVal, expectRes: 0x11},
+		{name: "lb, offset=1", opcode: uint32(0x20), base: 0x100, imm: 0x1, memVal: loadMemVal, expectRes: 0x22},
+		{name: "lb, offset=2", opcode: uint32(0x20), base: 0x100, imm: 0x2, memVal: loadMemVal, expectRes: 0x33},
+		{name: "lb, offset=2, variation", opcode: uint32(0x20), base: 0x102, imm: 0x20, memVal: loadMemVal, expectRes: 0x33},
+		{name: "lb, offset=4", opcode: uint32(0x20), base: 0x103, imm: 0x0, memVal: loadMemVal, expectRes: 0x44},
+		{name: "lb, negative, offset=0", opcode: uint32(0x20), base: 0x100, imm: 0x0, memVal: loadMemValNeg, expectRes: 0xFF_FF_FF_F1},
+		{name: "lb, negative, offset=1", opcode: uint32(0x20), base: 0x101, imm: 0x0, memVal: loadMemValNeg, expectRes: 0xFF_FF_FF_F2},
+		{name: "lb, negative, offset=2", opcode: uint32(0x20), base: 0x102, imm: 0x0, memVal: loadMemValNeg, expectRes: 0xFF_FF_FF_F3},
+		{name: "lb, negative, offset=3", opcode: uint32(0x20), base: 0x103, imm: 0x0, memVal: loadMemValNeg, expectRes: 0xFF_FF_FF_F4},
+		{name: "lh, offset=0", opcode: uint32(0x21), base: 0x100, imm: 0x20, memVal: loadMemVal, expectRes: 0x11_22},
+		{name: "lh, offset=1", opcode: uint32(0x21), base: 0x101, imm: 0x20, memVal: loadMemVal, expectRes: 0x11_22},
+		{name: "lh, offset=2", opcode: uint32(0x21), base: 0x102, imm: 0x20, memVal: loadMemVal, expectRes: 0x33_44},
+		{name: "lh, offset=3", opcode: uint32(0x21), base: 0x102, imm: 0x1, memVal: loadMemVal, expectRes: 0x33_44},
+		{name: "lh, negative, offset=0", opcode: uint32(0x21), base: 0x100, imm: 0x20, memVal: loadMemValNeg, expectRes: 0xFF_FF_F1_F2},
+		{name: "lh, negative, offset=3", opcode: uint32(0x21), base: 0x102, imm: 0x1, memVal: loadMemValNeg, expectRes: 0xFF_FF_F3_F4},
+		{name: "lw", opcode: uint32(0x23), base: 0x100, imm: 0x20, memVal: loadMemVal, expectRes: 0x11_22_33_44},
+		{name: "lbu", opcode: uint32(0x24), base: 0x100, imm: 0x20, memVal: loadMemVal, expectRes: 0x11},
+		{name: "lbu, negative", opcode: uint32(0x24), base: 0x100, imm: 0x20, memVal: loadMemValNeg, expectRes: 0xF1},
+		{name: "lhu", opcode: uint32(0x25), base: 0x100, imm: 0x20, memVal: loadMemVal, expectRes: 0x11_22},
+		{name: "lhu, negative", opcode: uint32(0x25), base: 0x100, imm: 0x20, memVal: loadMemValNeg, expectRes: 0xF1_F2},
+		{name: "lwl", opcode: uint32(0x22), base: 0x100, imm: 0x20, rt: rtVal, memVal: loadMemVal, expectRes: loadMemVal},
+		{name: "lwl unaligned", opcode: uint32(0x22), base: 0x100, imm: 0x1, rt: rtVal, memVal: loadMemVal, expectRes: 0x22_33_44_dd},
+		{name: "lwr", opcode: uint32(0x26), base: 0x100, imm: 0x20, rt: rtVal, memVal: loadMemVal, expectRes: 0xaa_bb_cc_11},
+		{name: "lwr unaligned", opcode: uint32(0x26), base: 0x100, imm: 0x1, rt: rtVal, memVal: loadMemVal, expectRes: 0xaa_bb_11_22},
+		{name: "sb, offset=0", opcode: uint32(0x28), base: 0x100, imm: 0x20, rt: rtVal, expectMemVal: 0xdd_00_00_00},
+		{name: "sb, offset=1", opcode: uint32(0x28), base: 0x100, imm: 0x21, rt: rtVal, expectMemVal: 0x00_dd_00_00},
+		{name: "sb, offset=2", opcode: uint32(0x28), base: 0x102, imm: 0x20, rt: rtVal, expectMemVal: 0x00_00_dd_00},
+		{name: "sb, offset=3", opcode: uint32(0x28), base: 0x103, imm: 0x20, rt: rtVal, expectMemVal: 0x00_00_00_dd},
+		{name: "sh, offset=0", opcode: uint32(0x29), base: 0x100, imm: 0x20, rt: rtVal, expectMemVal: 0xcc_dd_00_00},
+		{name: "sh, offset=1", opcode: uint32(0x29), base: 0x100, imm: 0x21, rt: rtVal, expectMemVal: 0xcc_dd_00_00},
+		{name: "sh, offset=2", opcode: uint32(0x29), base: 0x102, imm: 0x20, rt: rtVal, expectMemVal: 0x00_00_cc_dd},
+		{name: "sh, offset=3", opcode: uint32(0x29), base: 0x102, imm: 0x21, rt: rtVal, expectMemVal: 0x00_00_cc_dd},
+		{name: "swl", opcode: uint32(0x2a), base: 0x100, imm: 0x20, rt: rtVal, expectMemVal: 0xaa_bb_cc_dd},
+		{name: "sw", opcode: uint32(0x2b), base: 0x100, imm: 0x20, rt: rtVal, expectMemVal: 0xaa_bb_cc_dd},
+		{name: "swr unaligned", opcode: uint32(0x2e), base: 0x100, imm: 0x1, rt: rtVal, expectMemVal: 0xcc_dd_00_00},
 	}
 
-	var t1 Word = 0x100
 	var baseReg uint32 = 9
 	var rtReg uint32 = 8
-	for _, v := range versions {
-		for i, tt := range cases {
+	for i, tt := range cases {
+		for _, v := range versions {
 			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
 			t.Run(testName, func(t *testing.T) {
+				addr := tt.base + Word(tt.imm)
+				effAddr := arch.AddressMask & addr
+
+				// Setup
 				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPC(0), testutil.WithNextPC(4))
 				state := goVm.GetState()
-				var insn uint32
-				imm := uint32(0x4)
-				if tt.isUnAligned {
-					imm = uint32(0x5)
-				}
-
-				insn = tt.opcode<<26 | baseReg<<21 | rtReg<<16 | imm
+				insn := tt.opcode<<26 | baseReg<<21 | rtReg<<16 | tt.imm
 				state.GetRegistersRef()[rtReg] = tt.rt
-				state.GetRegistersRef()[baseReg] = t1
-
+				state.GetRegistersRef()[baseReg] = tt.base
 				state.GetMemory().SetUint32(0, insn)
-				state.GetMemory().SetWord(t1+4, tt.memVal)
+				state.GetMemory().SetWord(effAddr, tt.memVal)
 				step := state.GetStep()
 
 				// Setup expectations
 				expected := testutil.NewExpectedState(state)
 				expected.ExpectStep()
-
 				if tt.expectMemVal != 0 {
-					expected.ExpectMemoryWriteWord(t1+4, tt.expectMemVal)
+					expected.ExpectMemoryWriteWord(effAddr, tt.expectMemVal)
 				} else {
 					expected.Registers[rtReg] = tt.expectRes
 				}
+
+				// Run vm
 				stepWitness, err := goVm.Step(true)
 				require.NoError(t, err)
 
-				// Check expectations
+				// Validate
 				expected.Validate(t, state)
 				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, tracer)
 			})
@@ -376,6 +397,84 @@ func TestEVMSingleStep_MovzMovn(t *testing.T) {
 		}
 	}
 
+}
+
+func TestEVMSingleStep_MfhiMflo(t *testing.T) {
+	var tracer *tracing.Hooks
+	versions := GetMipsVersionTestCases(t)
+	cases := []struct {
+		name  string
+		funct uint32
+		hi    Word
+		lo    Word
+	}{
+		{name: "mflo", funct: uint32(0x12), lo: Word(0xdeadbeef), hi: Word(0x0)},
+		{name: "mfhi", funct: uint32(0x10), lo: Word(0x0), hi: Word(0xdeadbeef)},
+	}
+	expect := Word(0xdeadbeef)
+	for _, v := range versions {
+		for i, tt := range cases {
+			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
+			t.Run(testName, func(t *testing.T) {
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithLO(tt.lo), testutil.WithHI(tt.hi))
+				state := goVm.GetState()
+				rdReg := uint32(8)
+				insn := rdReg<<11 | tt.funct
+				state.GetMemory().SetUint32(state.GetPC(), insn)
+				step := state.GetStep()
+				// Setup expectations
+				expected := testutil.NewExpectedState(state)
+				expected.ExpectStep()
+				expected.Registers[rdReg] = expect
+				stepWitness, err := goVm.Step(true)
+				require.NoError(t, err)
+				// Check expectations
+				expected.Validate(t, state)
+				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, tracer)
+			})
+		}
+	}
+}
+
+func TestEVMSingleStep_MthiMtlo(t *testing.T) {
+	var tracer *tracing.Hooks
+	versions := GetMipsVersionTestCases(t)
+	cases := []struct {
+		name  string
+		funct uint32
+	}{
+		{name: "mtlo", funct: uint32(0x13)},
+		{name: "mthi", funct: uint32(0x11)},
+	}
+	val := Word(0xdeadbeef)
+	for _, v := range versions {
+		for i, tt := range cases {
+			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
+			t.Run(testName, func(t *testing.T) {
+
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)))
+				state := goVm.GetState()
+				rsReg := uint32(8)
+				insn := rsReg<<21 | tt.funct
+				state.GetMemory().SetUint32(state.GetPC(), insn)
+				state.GetRegistersRef()[rsReg] = val
+				step := state.GetStep()
+				// Setup expectations
+				expected := testutil.NewExpectedState(state)
+				expected.ExpectStep()
+				if tt.funct == 0x11 {
+					expected.HI = state.GetRegistersRef()[rsReg]
+				} else {
+					expected.LO = state.GetRegistersRef()[rsReg]
+				}
+				stepWitness, err := goVm.Step(true)
+				require.NoError(t, err)
+				// Check expectations
+				expected.Validate(t, state)
+				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, tracer)
+			})
+		}
+	}
 }
 
 func TestEVM_MMap(t *testing.T) {

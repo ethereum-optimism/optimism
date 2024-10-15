@@ -68,6 +68,18 @@ func WithPCAndNextPC(pc arch.Word) StateOption {
 	}
 }
 
+func WithHI(hi arch.Word) StateOption {
+	return func(state StateMutator) {
+		state.SetHI(hi)
+	}
+}
+
+func WithLO(lo arch.Word) StateOption {
+	return func(state StateMutator) {
+		state.SetLO(lo)
+	}
+}
+
 func WithHeap(addr arch.Word) StateOption {
 	return func(state StateMutator) {
 		state.SetHeap(addr)
