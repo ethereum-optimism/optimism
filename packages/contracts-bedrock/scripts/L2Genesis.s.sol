@@ -21,7 +21,6 @@ import { Types } from "src/libraries/Types.sol";
 import { ISequencerFeeVault } from "src/L2/interfaces/ISequencerFeeVault.sol";
 import { IBaseFeeVault } from "src/L2/interfaces/IBaseFeeVault.sol";
 import { IL1FeeVault } from "src/L2/interfaces/IL1FeeVault.sol";
-import { IOptimismSuperchainERC20Beacon } from "src/L2/interfaces/IOptimismSuperchainERC20Beacon.sol";
 import { IOptimismMintableERC721Factory } from "src/universal/interfaces/IOptimismMintableERC721Factory.sol";
 import { IGovernanceToken } from "src/governance/interfaces/IGovernanceToken.sol";
 import { IOptimismMintableERC20Factory } from "src/universal/interfaces/IOptimismMintableERC20Factory.sol";
