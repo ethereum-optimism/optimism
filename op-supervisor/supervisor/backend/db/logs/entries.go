@@ -109,7 +109,7 @@ func (i initiatingEvent) encode() Entry {
 }
 
 type executingLink struct {
-	chain     uint32
+	chain     uint32 // chain index, not a chain ID
 	blockNum  uint64
 	logIdx    uint32
 	timestamp uint64
@@ -120,7 +120,7 @@ func newExecutingLink(msg types.ExecutingMessage) (executingLink, error) {
 		return executingLink{}, fmt.Errorf("log idx is too large (%v)", msg.LogIdx)
 	}
 	return executingLink{
-		chain:     msg.Chain,
+		chain:     uint32(msg.Chain),
 		blockNum:  msg.BlockNum,
 		logIdx:    msg.LogIdx,
 		timestamp: msg.Timestamp,
