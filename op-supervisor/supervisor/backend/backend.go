@@ -157,7 +157,8 @@ func (su *SupervisorBackend) Stop(ctx context.Context) error {
 		return errAlreadyStopped
 	}
 	// close all processors
-	for _, processor := range su.chainProcessors {
+	for id, processor := range su.chainProcessors {
+		su.logger.Info("stopping chain processor", "chainID", id)
 		processor.Close()
 	}
 	clear(su.chainProcessors)
