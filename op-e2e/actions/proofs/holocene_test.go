@@ -12,17 +12,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type ordering []uint
+type ordering struct {
+	blocks []uint
+	frames []uint
+}
 
 // badOrderings is a list of orderings for
-// a three frame channel which are all
+// a three block, three frame channel
+// which are all
 // valid pre-Holocene but are invalid
 // post-Holocene.
-// The correct ordering is {0,1,2}
+// The correct ordering is {1,2,3} for
+// blocks and {0,1,2} for frames
 var badOrderings = []ordering{
-	{0, 2, 1},
-	{2, 1, 0},
-	{0, 1, 0, 2},
+	{blocks: []uint{1, 2, 3}, frames: []uint{0, 1, 2}},
+	{blocks: []uint{1, 2, 3}, frames: []uint{2, 1, 0}},
+	{blocks: []uint{1, 2, 3}, frames: []uint{0, 1, 0, 2}},
 }
 
 func Test_ProgramAction_HoloceneFrameRules(gt *testing.T) {
@@ -71,34 +76,30 @@ func runHoloceneFrameTest(gt *testing.T, testCfg *helpers.TestCfg[ordering]) {
 		env.Sequencer.ActL2PipelineFull(t)
 	}
 
-	const NumL2Blocks = 15
+	env.Batcher.ActCreateChannel(t, env.Sequencer.RollupCfg.IsDelta(0)) // TODO use the current time?
+
+	const NumL2Blocks = 3
 	// Build NumL2Blocks empty blocks on L2
 	for i := 0; i < NumL2Blocks; i++ {
 		env.Sequencer.ActL2StartBlock(t)
 		env.Sequencer.ActL2EndBlock(t)
 	}
 
-	// Buffer the first third of L2 blocks in the batcher, and submit it.
-	for i := 0; i < NumL2Blocks/3; i++ {
-		env.Batcher.ActL2BatchBuffer(t)
-	}
+	// Buffer the first L2 block in the batcher.
+	env.Batcher.ActAddBlocksByNumber(t, []int64{int64(testCfg.Custom.blocks[0])})
 	orderedFrames := [][]byte{env.Batcher.ReadNextOutputFrame(t)}
 
-	// Buffer the second third of L2 blocks in the batcher.
-	for i := 0; i < NumL2Blocks/3; i++ {
-		env.Batcher.ActL2BatchBuffer(t)
-	}
+	// Buffer the second L2 block in the batcher.
+	env.Batcher.ActAddBlocksByNumber(t, []int64{int64(testCfg.Custom.blocks[1])})
 	orderedFrames = append(orderedFrames, env.Batcher.ReadNextOutputFrame(t))
 
-	// Buffer the final third of L2 blocks in the batcher.
-	for i := 0; i < NumL2Blocks/3; i++ {
-		env.Batcher.ActL2BatchBuffer(t)
-	}
+	// Buffer the third and final L2 block in the batcher.
+	env.Batcher.ActAddBlocksByNumber(t, []int64{int64(testCfg.Custom.blocks[2])})
 	env.Batcher.ActL2ChannelClose(t)
 	orderedFrames = append(orderedFrames, env.Batcher.ReadNextOutputFrame(t))
 
 	// Submit frames out of order
-	for _, j := range testCfg.Custom {
+	for _, j := range testCfg.Custom.frames {
 		env.Batcher.ActL2BatchSubmitRaw(t, orderedFrames[j])
 		includeBatchTx()
 	}
