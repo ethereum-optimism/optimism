@@ -828,10 +828,6 @@ jobs:
           when: always
 
   go-test:
-    parameters:
-      module:
-        description: Go Module Name
-        type: string
     machine: true
     resource_class: ethereum-optimism/latitude-1
     steps:
