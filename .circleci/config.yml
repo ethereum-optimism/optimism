@@ -856,7 +856,7 @@ jobs:
             done
             
             export ENABLE_ANVIL=true
-            export SEPOLIA_RPC_URL="https://ci-sepolia-l1.optimism.io"
+            export SEPOLIA_RPC_URL="https://ci-sepolia-l1-archive.optimism.io"
             
             gotestsum --format=testname \
               --junitfile=./tmp/test-results/results.xml \
