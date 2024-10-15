@@ -13,29 +13,33 @@ import (
 )
 
 type ordering struct {
-	blocks []uint
-	frames []uint
+	blocks              []uint
+	frames              []uint
+	safeHeadPreHolocene uint64
+	safeHeadHolocene    uint64
 }
 
-// badOrderings is a list of orderings for
+// orderings is a list of orderings for
 // a three block, three frame channel
 // which are all
 // valid pre-Holocene but are invalid
 // post-Holocene.
 // The correct ordering is {1,2,3} for
 // blocks and {0,1,2} for frames
-var badOrderings = []ordering{
-	{blocks: []uint{2, 1, 3}, frames: []uint{0, 1, 2}},
-	{blocks: []uint{1, 2, 3}, frames: []uint{0, 1, 2}},
-	{blocks: []uint{1, 2, 3}, frames: []uint{2, 1, 0}},
-	{blocks: []uint{1, 2, 3}, frames: []uint{0, 1, 0, 2}},
+var orderings = []ordering{
+	{blocks: []uint{2, 1, 3}, frames: []uint{0, 1, 2}, safeHeadPreHolocene: 3, safeHeadHolocene: 0},
+	{blocks: []uint{2, 2, 1, 3}, frames: []uint{0, 1, 2}, safeHeadPreHolocene: 3, safeHeadHolocene: 0}, // This fails, the safe head goes to 2 not 3
+	{blocks: []uint{1, 2, 3}, frames: []uint{0, 1, 2}, safeHeadPreHolocene: 3, safeHeadHolocene: 0},
+	{blocks: []uint{1, 2, 3}, frames: []uint{0, 1, 2}, safeHeadPreHolocene: 3, safeHeadHolocene: 0},
+	{blocks: []uint{1, 2, 3}, frames: []uint{2, 1, 0}, safeHeadPreHolocene: 3, safeHeadHolocene: 0},
+	{blocks: []uint{1, 2, 3}, frames: []uint{0, 1, 0, 2}, safeHeadPreHolocene: 3, safeHeadHolocene: 0},
 }
 
 func Test_ProgramAction_HoloceneFrameRules(gt *testing.T) {
 	matrix := helpers.NewMatrix[ordering]()
 	defer matrix.Run(gt)
 
-	for _, ordering := range badOrderings {
+	for _, ordering := range orderings {
 		matrix.AddTestCase(
 			fmt.Sprintf("HonestClaim-%v", ordering),
 			ordering,
@@ -77,11 +81,10 @@ func runHoloceneFrameTest(gt *testing.T, testCfg *helpers.TestCfg[ordering]) {
 		env.Sequencer.ActL2PipelineFull(t)
 	}
 
-	env.Batcher.ActCreateChannel(t, true) // TODO avoid span batches for now, the derivation library code will panic if blocks are added out of order
+	env.Batcher.ActCreateChannel(t, false) // TODO avoid span batches for now, the derivation library code will panic if blocks are added out of order
 
-	const NumL2Blocks = 3
-	// Build NumL2Blocks empty blocks on L2
-	for i := 0; i < NumL2Blocks; i++ {
+	const targetHeadNumber = uint64(3)
+	for env.Engine.L2Chain().CurrentBlock().Number.Uint64() < targetHeadNumber {
 		env.Sequencer.ActL2StartBlock(t)
 		env.Sequencer.ActL2EndBlock(t)
 	}
@@ -110,14 +113,17 @@ func runHoloceneFrameTest(gt *testing.T, testCfg *helpers.TestCfg[ordering]) {
 	if testCfg.Hardfork.Precedence < helpers.Holocene.Precedence {
 		// The safe head should have still advanced, since Holocene rules are not activated yet
 		// and the entire channel was submitted
-		require.Equal(t, uint64(NumL2Blocks), l2SafeHead.Number.Uint64())
+		require.Equal(t, testCfg.Custom.safeHeadPreHolocene, l2SafeHead.Number.Uint64())
+		expectedHash := env.Engine.L2Chain().GetBlockByNumber(testCfg.Custom.safeHeadPreHolocene).Hash()
+		require.Equal(t, expectedHash, l2SafeHead.Hash())
+
 	} else {
 		// The safe head should not have advanced, since the Holocene rules were
 		// violated (no contiguous and complete run of frames from the channel)
 		t.Log("Holocene derivation rules not yet implemented")
-		// require.Equal(t, uint64(0), l2SafeHead.Number.Uint64()) // TODO activate this line
+		// require.Equal(t, testCfg.Custom.safeHeadHolocene, l2SafeHead.Number.Uint64()) // TODO activate this line
 	}
 
 	// Run the FPP on L2 block # NumL2Blocks.
-	env.RunFaultProofProgram(t, NumL2Blocks, testCfg.CheckResult, testCfg.InputParams...)
+	env.RunFaultProofProgram(t, targetHeadNumber, testCfg.CheckResult, testCfg.InputParams...)
 }
