@@ -20,7 +20,8 @@ kontrol_build() {
     --require $lemmas \
     --module-import $module \
     --no-metadata \
-    $rekompile
+    --rekompile \
+    --regen
   return $?
 }
 
