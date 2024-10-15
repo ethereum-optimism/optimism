@@ -76,10 +76,7 @@ func TestEmptyDB(t *testing.T) {
 			_, _, err := db.Latest()
 			require.ErrorIs(t, err, entrydb.ErrFuture)
 
-			_, err = db.LatestDerived()
-			require.ErrorIs(t, err, entrydb.ErrFuture)
-
-			_, err = db.LatestDerivedFrom()
+			_, _, err = db.Latest()
 			require.ErrorIs(t, err, entrydb.ErrFuture)
 
 			_, err = db.LastDerivedAt(eth.BlockID{})
@@ -132,14 +129,6 @@ func TestSingleEntryDB(t *testing.T) {
 			require.Equal(t, expectedDerivedFrom, derivedFrom)
 			require.Equal(t, expectedDerived, derived)
 
-			derived, err = db.LatestDerived()
-			require.NoError(t, err)
-			require.Equal(t, expectedDerived, derived)
-
-			derivedFrom, err = db.LatestDerivedFrom()
-			require.NoError(t, err)
-			require.Equal(t, expectedDerivedFrom, derivedFrom)
-
 			derived, err = db.LastDerivedAt(expectedDerivedFrom.ID())
 			require.NoError(t, err)
 			require.Equal(t, expectedDerived, derived)
@@ -175,14 +164,6 @@ func TestTwoEntryDB(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, l1Block2, derivedFrom)
 		require.Equal(t, l2Block2, derived)
-
-		derived, err = db.LatestDerived()
-		require.NoError(t, err)
-		require.Equal(t, l2Block2, derived)
-
-		derivedFrom, err = db.LatestDerivedFrom()
-		require.NoError(t, err)
-		require.Equal(t, l1Block2, derivedFrom)
 
 		derived, err = db.LastDerivedAt(l1Block2.ID())
 		require.NoError(t, err)

@@ -40,6 +40,14 @@ func (db *DB) AddDerived(derivedFrom eth.BlockRef, derived eth.BlockRef) error {
 	}
 
 	if lastDerived.ID() == derived.ID() && lastDerivedFrom.ID() == derivedFrom.ID() {
+		// it shouldn't be possible, but the ID component of a block ref doesn't include the timestamp
+		// so if the timestampt doesn't match, still return no error to the caller, but at least log a warning
+		if lastDerived.Timestamp != derived.Time {
+			db.log.Warn("Derived block already exists with different timestamp", "derived", derived, "lastDerived", lastDerived)
+		}
+		if lastDerivedFrom.Timestamp != derivedFrom.Time {
+			db.log.Warn("Derived-from block already exists with different timestamp", "derivedFrom", derivedFrom, "lastDerivedFrom", lastDerivedFrom)
+		}
 		// Repeat of same information. No entries to be written.
 		// But we can silently ignore and not return an error, as that brings the caller
 		// in a consistent state, after which it can insert the actual new derived-from information.

@@ -90,36 +90,6 @@ func (db *DB) latest() (derivedFrom types.BlockSeal, derived types.BlockSeal, er
 	return last.derivedFrom, last.derived, nil
 }
 
-// LatestDerivedFrom returns the last known primary key (the L1 block)
-func (db *DB) LatestDerivedFrom() (ref types.BlockSeal, err error) {
-	db.rwLock.RLock()
-	defer db.rwLock.RUnlock()
-	lastIndex := db.store.LastEntryIdx()
-	if lastIndex < 0 {
-		return types.BlockSeal{}, entrydb.ErrFuture
-	}
-	last, err := db.readAt(lastIndex)
-	if err != nil {
-		return types.BlockSeal{}, fmt.Errorf("failed to read last derived-from data: %w", err)
-	}
-	return last.derivedFrom, nil
-}
-
-// LatestDerived returns the last known value (the L2 block that was derived)
-func (db *DB) LatestDerived() (ref types.BlockSeal, err error) {
-	db.rwLock.RLock()
-	defer db.rwLock.RUnlock()
-	lastIndex := db.store.LastEntryIdx()
-	if lastIndex < 0 {
-		return types.BlockSeal{}, entrydb.ErrFuture
-	}
-	last, err := db.readAt(lastIndex)
-	if err != nil {
-		return types.BlockSeal{}, fmt.Errorf("failed to read last derived data: %w", err)
-	}
-	return last.derived, nil
-}
-
 // LastDerivedAt returns the last L2 block derived from the given L1 block.
 func (db *DB) LastDerivedAt(derivedFrom eth.BlockID) (derived types.BlockSeal, err error) {
 	db.rwLock.RLock()
