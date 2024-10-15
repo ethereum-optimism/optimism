@@ -17,6 +17,7 @@ remappings = [
   '@rari-capital/solmate/=lib/solmate',
   '@lib-keccak/=lib/lib-keccak/contracts/lib',
   '@solady/=lib/solady/src',
+  '@solady-v0.0.245/=lib/solady-v0.0.245/src',
   'forge-std/=lib/forge-std/src',
   'ds-test/=lib/forge-std/lib/ds-test/src',
   'safe-contracts/=lib/safe-contracts/contracts',
