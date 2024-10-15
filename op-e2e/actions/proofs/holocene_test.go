@@ -77,7 +77,7 @@ func runHoloceneFrameTest(gt *testing.T, testCfg *helpers.TestCfg[ordering]) {
 		env.Sequencer.ActL2PipelineFull(t)
 	}
 
-	env.Batcher.ActCreateChannel(t, false) // TODO avoid span batches, they seem to panic the op-node if they are not ordered
+	env.Batcher.ActCreateChannel(t, true) // TODO avoid span batches for now, the derivation library code will panic if blocks are added out of order
 
 	const NumL2Blocks = 3
 	// Build NumL2Blocks empty blocks on L2
