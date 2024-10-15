@@ -316,7 +316,7 @@ func TestAsteriscOpProgramRequiredArgs(t *testing.T) {
 		})
 
 		t.Run("Invalid", func(t *testing.T) {
-			verifyArgsInvalid(t, "invalid prestates url (:foo/bar)", addRequiredArgsExceptArr(traceType, allPrestateOptions, "--prestates-url=:foo/bar"))
+			verifyArgsInvalid(t, "invalid prestates-url (:foo/bar)", addRequiredArgsExceptArr(traceType, allPrestateOptions, "--prestates-url=:foo/bar"))
 		})
 
 		t.Run("Valid", func(t *testing.T) {
@@ -408,7 +408,7 @@ func TestAsteriscKonaRequiredArgs(t *testing.T) {
 		})
 
 		t.Run("Invalid", func(t *testing.T) {
-			verifyArgsInvalid(t, "invalid prestates url (:foo/bar)", addRequiredArgsExceptArr(traceType, allPrestateOptions, "--prestates-url=:foo/bar"))
+			verifyArgsInvalid(t, "invalid prestates-url (:foo/bar)", addRequiredArgsExceptArr(traceType, allPrestateOptions, "--prestates-url=:foo/bar"))
 		})
 
 		t.Run("Valid", func(t *testing.T) {
@@ -681,7 +681,7 @@ func TestCannonRequiredArgs(t *testing.T) {
 			})
 
 			t.Run("Invalid", func(t *testing.T) {
-				verifyArgsInvalid(t, "invalid prestates url (:foo/bar)", addRequiredArgsExceptArr(traceType, allPrestateOptions, "--prestates-url=:foo/bar"))
+				verifyArgsInvalid(t, "invalid prestates-url (:foo/bar)", addRequiredArgsExceptArr(traceType, allPrestateOptions, "--prestates-url=:foo/bar"))
 			})
 
 			t.Run("Valid", func(t *testing.T) {
