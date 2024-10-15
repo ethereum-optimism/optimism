@@ -71,12 +71,8 @@ func (s *AltDADataSource) Next(ctx context.Context) (eth.Data, error) {
 	}
 	// use the commitment to fetch the input from the AltDA provider.
 	data, err := s.fetcher.GetInput(ctx, s.l1, s.comm, s.id)
-	// GetInput may call for a reorg if the pipeline is stalled and the AltDA manager
-	// continued syncing origins detached from the pipeline origin.
-	if errors.Is(err, altda.ErrReorgRequired) {
-		// challenge for a new previously derived commitment expired.
-		return nil, NewResetError(err)
-	} else if errors.Is(err, altda.ErrExpiredChallenge) {
+
+	if errors.Is(err, altda.ErrExpiredChallenge) {
 		// this commitment was challenged and the challenge expired.
 		s.log.Warn("challenge expired, skipping batch", "comm", s.comm)
 		s.comm = nil
