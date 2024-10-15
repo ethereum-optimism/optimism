@@ -8,7 +8,7 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-type FlagCreator func(name string, envVars []string, vm types.TraceType) cli.Flag
+type FlagCreator func(name string, envVars []string, traceTypeInfo string) cli.Flag
 
 // VMFlag defines a set of flags to set a VM specific option. Provides a flag to set the default plus flags to
 // override the default on a per VM basis.
@@ -36,7 +36,7 @@ func (f *VMFlag) Flags() []cli.Flag {
 	for _, vm := range f.vms {
 		name := f.flagName(vm)
 		envVar := opservice.FlagNameToEnvVarName(name, f.envVarPrefix)
-		flags = append(flags, f.flagCreator(name, []string{envVar}, vm))
+		flags = append(flags, f.flagCreator(name, []string{envVar}, fmt.Sprintf("(%v trace type only)", vm)))
 	}
 	return flags
 }

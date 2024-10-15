@@ -101,11 +101,12 @@ var (
 		Usage:   "List of addresses to claim bonds for, in addition to the configured transaction sender",
 		EnvVars: prefixEnvVars("ADDITIONAL_BOND_CLAIMANTS"),
 	}
-	PreStatesURLFlag = NewVMFlag("prestates-url", EnvVarPrefix, faultDisputeVMs, func(name string, envVars []string, vm types.TraceType) cli.Flag {
+	PreStatesURLFlag = NewVMFlag("prestates-url", EnvVarPrefix, faultDisputeVMs, func(name string, envVars []string, traceTypeInfo string) cli.Flag {
 		return &cli.StringFlag{
 			Name: name,
 			Usage: "Base URL to absolute prestates to use when generating trace data. " +
-				"Prestates in this directory should be name as <commitment>.json",
+				"Prestates in this directory should be name as <commitment>.bin.gz <commitment>.json.gz or <commitment>.json " +
+				traceTypeInfo,
 			EnvVars: envVars,
 		}
 	})
