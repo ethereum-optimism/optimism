@@ -11,6 +11,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 type ExecutingMessage struct {
@@ -159,4 +161,13 @@ func (id ChainID) ToUInt32() (uint32, error) {
 		return 0, fmt.Errorf("ChainID too large for uint32: %v", id)
 	}
 	return uint32(v64), nil
+}
+
+type ReferenceView struct {
+	Local eth.BlockID `json:"local"`
+	Cross eth.BlockID `json:"cross"`
+}
+
+func (v ReferenceView) String() string {
+	return fmt.Sprintf("View(local: %s, cross: %s)", v.Local, v.Cross)
 }

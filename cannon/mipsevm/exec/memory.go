@@ -15,9 +15,9 @@ type MemoryTrackerImpl struct {
 	lastMemAccess   Word
 	memProofEnabled bool
 	// proof of first unique memory access
-	memProof [memory.MEM_PROOF_SIZE]byte
+	memProof [memory.MemProofSize]byte
 	// proof of second unique memory access
-	memProof2 [memory.MEM_PROOF_SIZE]byte
+	memProof2 [memory.MemProofSize]byte
 }
 
 func NewMemoryTracker(memory *memory.Memory) *MemoryTrackerImpl {
@@ -49,10 +49,10 @@ func (m *MemoryTrackerImpl) Reset(enableProof bool) {
 	m.lastMemAccess = ^Word(0)
 }
 
-func (m *MemoryTrackerImpl) MemProof() [memory.MEM_PROOF_SIZE]byte {
+func (m *MemoryTrackerImpl) MemProof() [memory.MemProofSize]byte {
 	return m.memProof
 }
 
-func (m *MemoryTrackerImpl) MemProof2() [memory.MEM_PROOF_SIZE]byte {
+func (m *MemoryTrackerImpl) MemProof2() [memory.MemProofSize]byte {
 	return m.memProof2
 }

@@ -16,6 +16,7 @@ import (
 
 // Note: 2**12 = 4 KiB, the min phys page size in the Go runtime.
 const (
+	WordSize          = arch.WordSize
 	PageAddrSize      = arch.PageAddrSize
 	PageKeySize       = arch.PageKeySize
 	PageSize          = 1 << PageAddrSize
@@ -23,9 +24,8 @@ const (
 	MaxPageCount      = 1 << PageKeySize
 	PageKeyMask       = MaxPageCount - 1
 	MemProofLeafCount = arch.MemProofLeafCount
+	MemProofSize      = arch.MemProofSize
 )
-
-const MEM_PROOF_SIZE = arch.MemProofSize
 
 type Word = arch.Word
 
@@ -98,8 +98,9 @@ func (m *Memory) invalidate(addr Word) {
 		return
 	}
 
-	// find the gindex of the first page covering the address
-	gindex := ((uint64(1) << 32) | uint64(addr)) >> PageAddrSize
+	// find the gindex of the first page covering the address: i.e. ((1 << WordSize) | addr) >> PageAddrSize
+	// Avoid 64-bit overflow by distributing the right shift across the OR.
+	gindex := (uint64(1) << (WordSize - PageAddrSize)) | uint64(addr>>PageAddrSize)
 
 	for gindex > 0 {
 		m.nodes[gindex] = nil
@@ -137,7 +138,7 @@ func (m *Memory) MerkleizeSubtree(gindex uint64) [32]byte {
 	return r
 }
 
-func (m *Memory) MerkleProof(addr Word) (out [MEM_PROOF_SIZE]byte) {
+func (m *Memory) MerkleProof(addr Word) (out [MemProofSize]byte) {
 	proof := m.traverseBranch(1, addr, 0)
 	// encode the proof
 	for i := 0; i < MemProofLeafCount; i++ {
@@ -147,17 +148,17 @@ func (m *Memory) MerkleProof(addr Word) (out [MEM_PROOF_SIZE]byte) {
 }
 
 func (m *Memory) traverseBranch(parent uint64, addr Word, depth uint8) (proof [][32]byte) {
-	if depth == 32-5 {
-		proof = make([][32]byte, 0, 32-5+1)
+	if depth == WordSize-5 {
+		proof = make([][32]byte, 0, WordSize-5+1)
 		proof = append(proof, m.MerkleizeSubtree(parent))
 		return
 	}
-	if depth > 32-5 {
+	if depth > WordSize-5 {
 		panic("traversed too deep")
 	}
 	self := parent << 1
 	sibling := self | 1
-	if addr&(1<<(31-depth)) != 0 {
+	if addr&(1<<((WordSize-1)-depth)) != 0 {
 		self, sibling = sibling, self
 	}
 	proof = m.traverseBranch(self, addr, depth+1)
@@ -191,8 +192,8 @@ func (m *Memory) pageLookup(pageIndex Word) (*CachedPage, bool) {
 	return p, ok
 }
 
-func (m *Memory) SetMemory(addr Word, v uint32) {
-	// addr must be aligned to 4 bytes
+func (m *Memory) SetUint32(addr Word, v uint32) {
+	// addr must be aligned to WordSizeBytes bytes
 	if addr&arch.ExtMask != 0 {
 		panic(fmt.Errorf("unaligned memory access: %x", addr))
 	}
@@ -230,10 +231,10 @@ func (m *Memory) SetWord(addr Word, v Word) {
 	arch.ByteOrderWord.PutWord(p.Data[pageAddr:pageAddr+arch.WordSizeBytes], v)
 }
 
-// GetMemory reads the 32-bit value located at the specified address.
-func (m *Memory) GetMemory(addr Word) uint32 {
+// GetUint32 returns the first 32 bits located at the specified location.
+func (m *Memory) GetUint32(addr Word) uint32 {
 	// addr must be aligned to 4 bytes
-	if addr&arch.ExtMask != 0 {
+	if addr&3 != 0 {
 		panic(fmt.Errorf("unaligned memory access: %x", addr))
 	}
 	p, ok := m.pageLookup(addr >> PageAddrSize)
@@ -245,7 +246,7 @@ func (m *Memory) GetMemory(addr Word) uint32 {
 }
 
 // GetWord reads the maximum sized value, [arch.Word], located at the specified address.
-// Note: Also known by the MIPS64 specification as a "double-word" memory access.
+// Note: Also referred to by the MIPS64 specification as a "double-word" memory access.
 func (m *Memory) GetWord(addr Word) Word {
 	// addr must be word aligned
 	if addr&arch.ExtMask != 0 {

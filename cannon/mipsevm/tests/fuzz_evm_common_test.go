@@ -28,7 +28,7 @@ func FuzzStateSyscallBrk(f *testing.F) {
 				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(seed))
 				state := goVm.GetState()
 				state.GetRegistersRef()[2] = arch.SysBrk
-				state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
+				state.GetMemory().SetUint32(state.GetPC(), syscallInsn)
 				step := state.GetStep()
 
 				expected := testutil.NewExpectedState(state)
@@ -68,7 +68,7 @@ func FuzzStateSyscallMmap(f *testing.F) {
 				state.GetRegistersRef()[2] = arch.SysMmap
 				state.GetRegistersRef()[4] = addr
 				state.GetRegistersRef()[5] = siz
-				state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
+				state.GetMemory().SetUint32(state.GetPC(), syscallInsn)
 
 				expected := testutil.NewExpectedState(state)
 				expected.Step += 1
@@ -114,7 +114,7 @@ func FuzzStateSyscallExitGroup(f *testing.F) {
 				state := goVm.GetState()
 				state.GetRegistersRef()[2] = arch.SysExitGroup
 				state.GetRegistersRef()[4] = Word(exitCode)
-				state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
+				state.GetMemory().SetUint32(state.GetPC(), syscallInsn)
 				step := state.GetStep()
 
 				expected := testutil.NewExpectedState(state)
@@ -144,7 +144,7 @@ func FuzzStateSyscallFcntl(f *testing.F) {
 				state.GetRegistersRef()[2] = arch.SysFcntl
 				state.GetRegistersRef()[4] = fd
 				state.GetRegistersRef()[5] = cmd
-				state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
+				state.GetMemory().SetUint32(state.GetPC(), syscallInsn)
 				step := state.GetStep()
 
 				expected := testutil.NewExpectedState(state)
@@ -205,7 +205,7 @@ func FuzzStateHintRead(f *testing.F) {
 				state.GetRegistersRef()[4] = exec.FdHintRead
 				state.GetRegistersRef()[5] = addr
 				state.GetRegistersRef()[6] = count
-				state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
+				state.GetMemory().SetUint32(state.GetPC(), syscallInsn)
 				step := state.GetStep()
 
 				expected := testutil.NewExpectedState(state)
@@ -249,8 +249,8 @@ func FuzzStatePreimageRead(f *testing.F) {
 				state.GetRegistersRef()[4] = exec.FdPreimageRead
 				state.GetRegistersRef()[5] = addr
 				state.GetRegistersRef()[6] = count
-				state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
-				state.GetMemory().SetMemory(effAddr, binary.BigEndian.Uint32(preexistingMemoryVal[:]))
+				state.GetMemory().SetUint32(state.GetPC(), syscallInsn)
+				state.GetMemory().SetUint32(effAddr, binary.BigEndian.Uint32(preexistingMemoryVal[:]))
 				step := state.GetStep()
 
 				alignment := addr & arch.ExtMask
@@ -331,7 +331,7 @@ func FuzzStateHintWrite(f *testing.F) {
 				step := state.GetStep()
 				err := state.GetMemory().SetMemoryRange(addr, bytes.NewReader(hintData[int(lastHintLen):]))
 				require.NoError(t, err)
-				state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
+				state.GetMemory().SetUint32(state.GetPC(), syscallInsn)
 
 				// Set up expectations
 				expected := testutil.NewExpectedState(state)
@@ -394,8 +394,8 @@ func FuzzStatePreimageWrite(f *testing.F) {
 				state.GetRegistersRef()[4] = exec.FdPreimageWrite
 				state.GetRegistersRef()[5] = addr
 				state.GetRegistersRef()[6] = count
-				state.GetMemory().SetMemory(state.GetPC(), syscallInsn)
-				state.GetMemory().SetMemory(effAddr, binary.BigEndian.Uint32(preexistingMemoryVal[:]))
+				state.GetMemory().SetUint32(state.GetPC(), syscallInsn)
+				state.GetMemory().SetUint32(effAddr, binary.BigEndian.Uint32(preexistingMemoryVal[:]))
 				step := state.GetStep()
 
 				expectBytesWritten := count

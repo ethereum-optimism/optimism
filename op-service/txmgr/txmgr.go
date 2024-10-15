@@ -891,6 +891,10 @@ func (m *SimpleTxManager) SuggestGasPriceCaps(ctx context.Context) (*big.Int, *b
 		return nil, nil, nil, fmt.Errorf("failed to get gas price estimates: %w", err)
 	}
 
+	m.metr.RecordTipCap(tip)
+	m.metr.RecordBaseFee(baseFee)
+	m.metr.RecordBlobBaseFee(blobFee)
+
 	// Enforce minimum base fee and tip cap
 	minTipCap := m.cfg.MinTipCap.Load()
 	minBaseFee := m.cfg.MinBaseFee.Load()

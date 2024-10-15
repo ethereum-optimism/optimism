@@ -19,13 +19,16 @@ dep-status:
 prebuild:
   ./scripts/checks/check-foundry-install.sh
 
-# Builds the contracts.
-build: prebuild
+# Core forge build command
+forge-build:
   forge build
+
+# Builds the contracts.
+build: prebuild lint-fix-no-fail forge-build interfaces-check-no-build
 
 # Builds the go-ffi tool for contract tests.
 build-go-ffi:
-  cd scripts/go-ffi && go build
+  cd ./scripts/go-ffi && go build
 
 # Cleans build artifacts and deployments.
 clean:
@@ -84,10 +87,6 @@ gas-snapshot-no-build:
 # Generates a gas snapshot.
 gas-snapshot: build-go-ffi gas-snapshot-no-build
 
-# Checks that the state diff is up to date.
-statediff:
-  ./scripts/utils/statediff.sh && git diff --exit-code
-
 # Generates default Kontrol summary.
 kontrol-summary:
   ./test/kontrol/scripts/make-summary-deployment.sh
@@ -137,7 +136,7 @@ snapshots-check:
 
 # Checks interface correctness without building.
 interfaces-check-no-build:
-  ./scripts/checks/check-interfaces.sh
+  go run ./scripts/checks/interfaces
 
 # Checks that all interfaces are appropriately named and accurately reflect the corresponding
 # contract that they're meant to represent. We run "clean" before building because leftover
@@ -172,6 +171,13 @@ lint-forge-tests-check:
 lint-check:
   forge fmt --check
 
+# Checks for unused imports in Solidity contracts. Does not build contracts.
+unused-imports-check-no-build:
+  go run ./scripts/checks/unused-imports
+
+# Checks for unused imports in Solidity contracts.
+unused-imports-check: build unused-imports-check-no-build
+
 # Checks that the deploy configs are valid.
 validate-deploy-configs:
   ./scripts/checks/check-deploy-configs.sh
@@ -183,10 +189,22 @@ validate-spacers-no-build:
 # Checks that spacer variables are correctly inserted.
 validate-spacers: build validate-spacers-no-build
 
+# Runs semgrep on the contracts.
+semgrep:
+  cd ../../ && semgrep scan --config=.semgrep ./packages/contracts-bedrock
+
 # TODO: Also run lint-forge-tests-check but we need to fix the test names first.
 # Runs all checks.
-check: gas-snapshot-check-no-build snapshots-check-no-build lint-check semver-diff-check-no-build semver-natspec-check-no-build validate-deploy-configs validate-spacers-no-build interfaces-check-no-build
-
+check:
+  @just gas-snapshot-check-no-build \
+  unused-imports-check-no-build \
+  snapshots-check-no-build \
+  lint-check \
+  semver-diff-check-no-build \
+  semver-natspec-check-no-build \
+  validate-deploy-configs \
+  validate-spacers-no-build \
+  interfaces-check-no-build
 
 ########################################################
 #                      DEV TOOLS                       #
@@ -202,6 +220,12 @@ pre-pr-no-build: build-go-ffi build lint gas-snapshot-no-build snapshots-no-buil
 # Fixes linting errors.
 lint-fix:
   forge fmt
+
+# Fixes linting errors but doesn't fail if there are syntax errors. Useful for build command
+# because the output of forge fmt can sometimes be difficult to understand but if there's a syntax
+# error the build will fail anyway and provide more context about what's wrong.
+lint-fix-no-fail:
+  forge fmt || true
 
 # Fixes linting errors and checks that the code is correctly formatted.
 lint: lint-fix lint-check

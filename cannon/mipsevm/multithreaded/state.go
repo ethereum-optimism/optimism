@@ -234,7 +234,6 @@ func (s *State) EncodeThreadProof() []byte {
 	out := make([]byte, 0, THREAD_WITNESS_SIZE)
 	out = append(out, threadBytes[:]...)
 	out = append(out, otherThreadsWitness[:]...)
-
 	return out
 }
 

@@ -6,7 +6,6 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 import { console2 as console } from "forge-std/console2.sol";
 
 // Scripts
-import { Executables } from "scripts/libraries/Executables.sol";
 import { ForgeArtifacts, Abi, AbiEntry } from "scripts/libraries/ForgeArtifacts.sol";
 
 // Contracts

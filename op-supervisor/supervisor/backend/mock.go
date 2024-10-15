@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/frontend"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
@@ -53,6 +54,10 @@ func (m *MockBackend) CheckMessages(messages []types.Message, minSafety types.Sa
 
 func (m *MockBackend) CheckBlock(chainID *hexutil.U256, blockHash common.Hash, blockNumber hexutil.Uint64) (types.SafetyLevel, error) {
 	return types.CrossUnsafe, nil
+}
+
+func (m *MockBackend) DerivedFrom(ctx context.Context, t types.ChainID, parentHash common.Hash, n uint64) (eth.BlockRef, error) {
+	return eth.BlockRef{}, nil
 }
 
 func (m *MockBackend) Close() error {

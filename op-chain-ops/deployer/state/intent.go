@@ -15,7 +15,7 @@ var emptyAddress common.Address
 type Intent struct {
 	L1ChainID uint64 `json:"l1ChainID" toml:"l1ChainID"`
 
-	SuperchainRoles SuperchainRoles `json:"superchainRoles" toml:"superchainRoles"`
+	SuperchainRoles SuperchainRoles `json:"superchainRoles" toml:"-"`
 
 	FundDevAccounts bool `json:"fundDevAccounts" toml:"fundDevAccounts"`
 
@@ -96,6 +96,16 @@ type SuperchainRoles struct {
 
 type ChainIntent struct {
 	ID common.Hash `json:"id" toml:"id"`
+
+	BaseFeeVaultRecipient common.Address `json:"baseFeeVaultRecipient" toml:"baseFeeVaultRecipient"`
+
+	L1FeeVaultRecipient common.Address `json:"l1FeeVaultRecipient" toml:"l1FeeVaultRecipient"`
+
+	SequencerFeeVaultRecipient common.Address `json:"sequencerFeeVaultRecipient" toml:"sequencerFeeVaultRecipient"`
+
+	Eip1559Denominator uint64 `json:"eip1559Denominator" toml:"eip1559Denominator"`
+
+	Eip1559Elasticity uint64 `json:"eip1559Elasticity" toml:"eip1559Elasticity"`
 
 	Roles ChainRoles `json:"roles" toml:"roles"`
 

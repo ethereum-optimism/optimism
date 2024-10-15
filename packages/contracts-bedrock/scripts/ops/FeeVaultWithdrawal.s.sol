@@ -5,7 +5,7 @@ import { console } from "forge-std/console.sol";
 import { Script } from "forge-std/Script.sol";
 import { IMulticall3 } from "forge-std/interfaces/IMulticall3.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { FeeVault } from "src/universal/FeeVault.sol";
+import { IFeeVault } from "src/L2/interfaces/IFeeVault.sol";
 
 /// @title FeeVaultWithdrawal
 /// @notice A script to make it very simple to withdraw from the fee vaults.
@@ -35,11 +35,11 @@ contract FeeVaultWithdrawal is Script {
                     IMulticall3.Call3({
                         target: vault,
                         allowFailure: false,
-                        callData: abi.encodeWithSelector(FeeVault.withdraw.selector)
+                        callData: abi.encodeWithSelector(IFeeVault.withdraw.selector)
                     })
                 );
 
-                address recipient = FeeVault(payable(vault)).RECIPIENT();
+                address recipient = IFeeVault(payable(vault)).RECIPIENT();
                 uint256 balance = vault.balance;
                 log(balance, recipient, vault);
             } else {
@@ -59,7 +59,7 @@ contract FeeVaultWithdrawal is Script {
     /// @notice Checks whether or not a FeeVault can be withdrawn. The balance of the account must
     ///         be larger than the `MIN_WITHDRAWAL_AMOUNT`.
     function canWithdrawal(address _vault) internal view returns (bool) {
-        uint256 minWithdrawalAmount = FeeVault(payable(_vault)).MIN_WITHDRAWAL_AMOUNT();
+        uint256 minWithdrawalAmount = IFeeVault(payable(_vault)).MIN_WITHDRAWAL_AMOUNT();
         uint256 balance = _vault.balance;
         return balance >= minWithdrawalAmount;
     }

@@ -33,8 +33,8 @@ contract PreimageOracle is ISemver {
     uint256 public constant PRECOMPILE_CALL_RESERVED_GAS = 100_000;
 
     /// @notice The semantic version of the Preimage Oracle contract.
-    /// @custom:semver 1.1.3-beta.4
-    string public constant version = "1.1.3-beta.4";
+    /// @custom:semver 1.1.3-beta.5
+    string public constant version = "1.1.3-beta.5";
 
     ////////////////////////////////////////////////////////////////
     //                 Authorized Preimage Parts                  //
@@ -97,7 +97,7 @@ contract PreimageOracle is ISemver {
         // Make sure challenge period fits within uint64 so that it can safely be used within the
         // FaultDisputeGame contract to compute clock extensions. Adding this check is simpler than
         // changing the existing contract ABI.
-        require(_challengePeriod <= type(uint64).max, "challenge period too large");
+        require(_challengePeriod <= type(uint64).max, "PreimageOracle: challenge period too large");
 
         // Compute hashes in empty sparse Merkle tree. The first hash is not set, and kept as zero as the identity.
         for (uint256 height = 0; height < KECCAK_TREE_DEPTH - 1; height++) {

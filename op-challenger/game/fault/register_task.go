@@ -85,7 +85,7 @@ func NewCannonRegisterTask(gameType faultTypes.GameType, cfg *config.Config, m c
 }
 
 func NewAsteriscRegisterTask(gameType faultTypes.GameType, cfg *config.Config, m caching.Metrics, serverExecutor vm.OracleServerExecutor) *RegisterTask {
-	stateConverter := asterisc.NewStateConverter()
+	stateConverter := asterisc.NewStateConverter(cfg.Asterisc)
 	return &RegisterTask{
 		gameType: gameType,
 		getPrestateProvider: cachePrestates(
@@ -117,7 +117,7 @@ func NewAsteriscRegisterTask(gameType faultTypes.GameType, cfg *config.Config, m
 }
 
 func NewAsteriscKonaRegisterTask(gameType faultTypes.GameType, cfg *config.Config, m caching.Metrics, serverExecutor vm.OracleServerExecutor) *RegisterTask {
-	stateConverter := asterisc.NewStateConverter()
+	stateConverter := asterisc.NewStateConverter(cfg.Asterisc)
 	return &RegisterTask{
 		gameType: gameType,
 		getPrestateProvider: cachePrestates(
