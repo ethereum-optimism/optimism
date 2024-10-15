@@ -19,8 +19,8 @@ kontrol_build() {
     --require $lemmas \
     --module-import $module \
     --no-metadata \
-    --rekompile \
-    --regen
+    ${rekompile} \
+    ${regen}
   return $?
 }
 
@@ -45,6 +45,7 @@ kontrol_prove() {
     --no-log-rewrites \
     --smt-timeout 16000 \
     --smt-retry-limit 0 \
+    --verbose \
     --no-stack-checks
   return $?
 }
@@ -114,11 +115,9 @@ lemmas=test/kontrol/pausability-lemmas.md
 base_module=PAUSABILITY-LEMMAS
 module=OptimismPortalKontrol:$base_module
 rekompile=--rekompile
-# shellcheck disable=SC2034
-rekompile=
+# rekompile=
 regen=--regen
-# shellcheck disable=SC2034
-regen=
+# regen=
 
 #################################
 # Tests to symbolically execute #
