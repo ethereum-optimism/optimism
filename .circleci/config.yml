@@ -1383,7 +1383,6 @@ workflows:
             - check-generated-mocks-op-node
             - check-generated-mocks-op-service
             - go-mod-download
-            - op-batcher-tests
             - op-chain-ops-integration
             - op-program-compat
             - op-e2e-HTTP-tests
