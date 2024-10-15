@@ -91,10 +91,35 @@ func (s *ChainProcessor) nextNum() uint64 {
 	return headNum + 1
 }
 
+// worker is the main loop of the chain processor's worker
+// it manages work by request or on a timer, and watches for shutdown
 func (s *ChainProcessor) worker() {
 	defer s.wg.Done()
 
 	delay := time.NewTicker(time.Second * 5)
+	for {
+		// await next time we process, or detect shutdown
+		select {
+		case <-s.ctx.Done():
+			delay.Stop()
+			return
+		case <-s.newHead:
+			s.log.Debug("Responding to new head signal")
+			s.work()
+			// if this chain processor is synchronous, signal completion
+			// to be picked up by the caller (ChainProcessor.OnNewHead)
+			if s.synchronous {
+				s.out <- struct{}{}
+			}
+		case <-delay.C:
+			s.log.Debug("Checking for updates")
+			s.work()
+		}
+	}
+}
+
+// work processes the next block in the chain repeatedly until it reaches the head
+func (s *ChainProcessor) work() {
 	for {
 		if s.ctx.Err() != nil { // check if we are closing down
 			return
@@ -104,27 +129,12 @@ func (s *ChainProcessor) worker() {
 			s.log.Error("Failed to process new block", "err", err)
 			// idle until next update trigger
 		} else if x := s.lastHead.Load(); target+1 <= x {
-			s.log.Debug("Continuing with next block",
-				"newTarget", target+1, "lastHead", x)
+			s.log.Debug("Continuing with next block", "newTarget", target+1, "lastHead", x)
 			continue // instantly continue processing, no need to idle
 		} else {
 			s.log.Debug("Idling block-processing, reached latest block", "head", target)
 		}
-		if s.synchronous {
-			s.out <- struct{}{}
-		}
-		// await next time we process, or detect shutdown
-		select {
-		case <-s.ctx.Done():
-			delay.Stop()
-			return
-		case <-s.newHead:
-			s.log.Debug("Responding to new head signal")
-			continue
-		case <-delay.C:
-			s.log.Debug("Checking for updates")
-			continue
-		}
+		return
 	}
 }
 

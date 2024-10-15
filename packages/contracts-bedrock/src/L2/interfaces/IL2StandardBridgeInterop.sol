@@ -1,14 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IStandardBridge } from "src/universal/interfaces/IStandardBridge.sol";
 import { ICrossDomainMessenger } from "src/universal/interfaces/ICrossDomainMessenger.sol";
-
-interface IMintableAndBurnable is IERC20 {
-    function mint(address, uint256) external;
-    function burn(address, uint256) external;
-}
 
 interface IL2StandardBridgeInterop is IStandardBridge {
     error InvalidDecimals();

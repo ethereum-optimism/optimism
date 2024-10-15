@@ -1,6 +1,7 @@
 package db
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -90,11 +91,11 @@ func (db *ChainsDB) Finalized(chainID types.ChainID) (eth.BlockID, error) {
 
 	finalizedL1 := db.finalizedL1
 	if finalizedL1 == (eth.L1BlockRef{}) {
-		return eth.BlockID{}, fmt.Errorf("no finalized L1 signal, cannot determine L2 finality yet")
+		return eth.BlockID{}, errors.New("no finalized L1 signal, cannot determine L2 finality yet")
 	}
 	derived, err := db.LastDerivedFrom(chainID, finalizedL1.ID())
 	if err != nil {
-		return eth.BlockID{}, fmt.Errorf("could not find what was last derived from the finalized L1 block")
+		return eth.BlockID{}, errors.New("could not find what was last derived from the finalized L1 block")
 	}
 	return derived, nil
 }

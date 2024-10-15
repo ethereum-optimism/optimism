@@ -289,9 +289,6 @@ func (db *DB) newIteratorAt(blockNum uint64, logIndex uint32) (*iterator, error)
 	// The iterator did not consume the checkpoint yet, it's positioned right at it.
 	// So we can call NextBlock() and get the checkpoint itself as first entry.
 	iter := db.newIterator(searchCheckpointIndex)
-	if err != nil {
-		return nil, err
-	}
 	iter.current.need.Add(FlagCanonicalHash)
 	defer func() {
 		db.m.RecordDBSearchEntriesRead(iter.entriesRead)
