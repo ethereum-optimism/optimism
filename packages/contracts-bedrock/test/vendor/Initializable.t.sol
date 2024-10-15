@@ -473,19 +473,9 @@ contract Initializer_Test is Bridge_Initializer {
             InitializeableContract memory _contract = contracts[i];
             string memory name = _getRealContractName(_contract.name);
 
-            // Grab the value of the "initialized" storage slot. Must handle special case for the
-            // FaultDisputeGame and PermissionedDisputeGame contracts since these have a different
-            // name for the "initialized" storage slot and are currently not properly labeled in
-            // the deployment script.
-            // TODO: Update deployment script to properly label the dispute game contracts.
+            // Grab the value of the "initialized" storage slot.
             uint8 initializedSlotVal;
-            if (LibString.eq(name, "FaultDisputeGame") || LibString.eq(name, "PermissionedDisputeGame")) {
-                StorageSlot memory slot = ForgeArtifacts.getInitializedSlot(name);
-                bytes32 slotVal = vm.load(_contract.target, bytes32(vm.parseUint(slot.slot)));
-                initializedSlotVal = uint8((uint256(slotVal) >> (slot.offset * 8)) & 0xFF);
-            } else {
-                initializedSlotVal = deploy.loadInitializedSlot(name);
-            }
+            initializedSlotVal = deploy.loadInitializedSlot(name);
 
             // Assert that the contract is already initialized.
             assertTrue(

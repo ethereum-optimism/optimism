@@ -216,13 +216,6 @@ abstract contract Artifacts {
 
     /// @notice Returns the value of the internal `_initialized` storage slot for a given contract.
     function loadInitializedSlot(string memory _contractName) public returns (uint8 initialized_) {
-        // FaultDisputeGame and PermissionedDisputeGame are initializable but cannot be loaded with
-        // this function yet because they are not properly labeled in the deploy script.
-        // TODO: Remove this restriction once the deploy script is fixed.
-        if (LibString.eq(_contractName, "FaultDisputeGame") || LibString.eq(_contractName, "PermissionedDisputeGame")) {
-            revert UnsupportedInitializableContract(_contractName);
-        }
-
         address contractAddress;
         // Check if the contract name ends with `Proxy` and, if so, get the implementation address
         if (LibString.endsWith(_contractName, "Proxy")) {
