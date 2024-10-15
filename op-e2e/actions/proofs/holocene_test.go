@@ -25,6 +25,7 @@ type ordering struct {
 // The correct ordering is {1,2,3} for
 // blocks and {0,1,2} for frames
 var badOrderings = []ordering{
+	{blocks: []uint{2, 1, 3}, frames: []uint{0, 1, 2}},
 	{blocks: []uint{1, 2, 3}, frames: []uint{0, 1, 2}},
 	{blocks: []uint{1, 2, 3}, frames: []uint{2, 1, 0}},
 	{blocks: []uint{1, 2, 3}, frames: []uint{0, 1, 0, 2}},
@@ -76,7 +77,7 @@ func runHoloceneFrameTest(gt *testing.T, testCfg *helpers.TestCfg[ordering]) {
 		env.Sequencer.ActL2PipelineFull(t)
 	}
 
-	env.Batcher.ActCreateChannel(t, env.Sequencer.RollupCfg.IsDelta(0)) // TODO use the current time?
+	env.Batcher.ActCreateChannel(t, false) // TODO avoid span batches, they seem to panic the op-node if they are not ordered
 
 	const NumL2Blocks = 3
 	// Build NumL2Blocks empty blocks on L2
