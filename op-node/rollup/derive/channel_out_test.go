@@ -450,7 +450,7 @@ func testSpanChannelOut_MaxBlocksPerSpanBatch(t *testing.T, tt maxBlocksTest) {
 	require.NoError(t, frame.UnmarshalBinary(&frameBuf))
 	require.True(t, frame.IsLast)
 	spec := rollup.NewChainSpec(&rollupCfg)
-	ch := NewChannel(frame.ID, l1Origin)
+	ch := NewChannel(frame.ID, l1Origin, false)
 	require.False(t, ch.IsReady())
 	require.NoError(t, ch.AddFrame(frame, l1Origin))
 	require.True(t, ch.IsReady())
