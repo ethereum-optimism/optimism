@@ -64,6 +64,17 @@ func ListClaims(ctx *cli.Context) error {
 	return listClaims(ctx.Context, contract, ctx.Bool(VerboseFlag.Name))
 }
 
+// listClaims retrieves and displays information about all claims in the Fault Dispute Game contract.
+// It provides detailed information such as claimants, trace indices, bonds, chess clock time, and resolution status.
+// This function also supports a verbose mode that provides additional details.
+//
+// Parameters:
+// - ctx: The context.Context for managing request deadlines, cancellations, etc.
+// - game: The FaultDisputeGameContract instance that provides methods to interact with the on-chain contract.
+// - verbose: A boolean flag that determines whether to display detailed claim information (verbose output).
+//
+// Returns:
+// - error: An error if any retrievals (metadata, claims, etc.) fail, or nil if successful.
 func listClaims(ctx context.Context, game contracts.FaultDisputeGameContract, verbose bool) error {
 	metadata, err := game.GetGameMetadata(ctx, rpcblock.Latest)
 	if err != nil {

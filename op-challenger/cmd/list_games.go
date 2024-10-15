@@ -88,6 +88,9 @@ type gameInfo struct {
 	err        error
 }
 
+// listGames retrieves and displays a list of dispute games from the DisputeGameFactoryContract.
+// It fetches games that were created after a specified time window, retrieves metadata for each game, and sorts the results
+// based on the selected sorting criteria (e.g., time, claim count, L2 block number).
 func listGames(ctx context.Context, caller *batching.MultiCaller, factory *contracts.DisputeGameFactoryContract, block common.Hash, gameWindow time.Duration, sortBy, sortOrder string) error {
 	earliestTimestamp := clock.MinCheckedTimestamp(clock.SystemClock, gameWindow)
 	games, err := factory.GetGamesAtOrAfter(ctx, block, earliestTimestamp)

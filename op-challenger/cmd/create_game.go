@@ -36,6 +36,20 @@ var (
 	}
 )
 
+// CreateGame is a CLI command handler function that creates a new game in the dispute game factory contract.
+// The game creation requires an output root hash, trace type, and L2 block number as inputs.
+// It interacts with an on-chain smart contract using the provided transaction manager to create the game.
+//
+// Parameters:
+// - ctx: The CLI context (cli.Context), which provides access to the command-line flags and arguments.
+//
+// Command-line flags used:
+// - OutputRootFlag: A flag that provides the output root as a hexadecimal string, converted to a hash.
+// - TraceTypeFlag: A flag that provides the trace type as a uint64 value.
+// - L2BlockNumFlag: A flag that provides the L2 block number as a uint64 value.
+//
+// Returns:
+// - error: An error if the game creation fails, or nil if the operation is successful.
 func CreateGame(ctx *cli.Context) error {
 	outputRoot := common.HexToHash(ctx.String(OutputRootFlag.Name))
 	traceType := ctx.Uint64(TraceTypeFlag.Name)

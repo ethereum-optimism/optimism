@@ -48,6 +48,16 @@ func ListCredits(ctx *cli.Context) error {
 	return listCredits(ctx.Context, contract)
 }
 
+// listCredits retrieves and displays information about claims and withdrawals from the Fault Dispute Game contract.
+// This function collects data on all claims in the game, the metadata, and the balance information of the contract,
+// and then displays relevant credit information such as claimants, the amount of ETH, and unlock times.
+//
+// Parameters:
+// - ctx: The context.Context for managing request deadlines, cancellations, etc.
+// - game: The FaultDisputeGameContract instance that provides methods to interact with the on-chain contract.
+//
+// Returns:
+// - error: An error if any of the retrievals (claims, metadata, balance, withdrawals) fail, or nil if successful.
 func listCredits(ctx context.Context, game contracts.FaultDisputeGameContract) error {
 	claims, err := game.GetAllClaims(ctx, rpcblock.Latest)
 	if err != nil {

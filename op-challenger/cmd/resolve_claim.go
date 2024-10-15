@@ -20,6 +20,11 @@ var (
 	}
 )
 
+// ResolveClaim resolves a specific claim in the Fault Dispute Game contract.
+// It interacts with the on-chain contract to mark a claim as resolved and sends the transaction to the network.
+//
+// Parameters:
+// - ctx: The cli.Context that provides access to the command-line flags and arguments, including the claim index.
 func ResolveClaim(ctx *cli.Context) error {
 	if !ctx.IsSet(ClaimIdxFlag.Name) {
 		return fmt.Errorf("must specify %v flag", ClaimIdxFlag.Name)
