@@ -16,7 +16,6 @@ kontrol_build() {
   notif "Kontrol Build"
   # shellcheck disable=SC2086
   run kontrol build \
-    --verbose \
     --require $lemmas \
     --module-import $module \
     --no-metadata \
@@ -41,12 +40,12 @@ kontrol_prove() {
     --init-node-from-diff $state_diff \
     --kore-rpc-command 'kore-rpc-booster --no-post-exec-simplify --equation-max-recursion 100 --equation-max-iterations 1000' \
     --xml-test-report \
-    --verbose \
     --maintenance-rate 16 \
     --assume-defined \
     --no-log-rewrites \
     --smt-timeout 16000 \
     --smt-retry-limit 0
+    --no-stack-checks
   return $?
 }
 
