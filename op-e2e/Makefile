@@ -1,9 +1,11 @@
+num_cores := $(shell nproc)
+
 # Generally, JUNIT_FILE is set in CI but may be specified to an arbitrary file location to emulate CI locally
 # If JUNIT_FILE is set, JSON_LOG_FILE should also be set
 ifdef JUNIT_FILE
 	go_test = OP_TESTLOG_DISABLE_COLOR=true OP_E2E_DISABLE_PARALLEL=false gotestsum --format=testname --junitfile=$(JUNIT_FILE) --jsonfile=$(JSON_LOG_FILE) -- -failfast
   # Note: -parallel must be set to match the number of cores in the resource class
-	go_test_flags = -timeout=60m -parallel=8
+	go_test_flags = -timeout=60m -parallel=$(num_cores)
 else
 	go_test = go test
 	go_test_flags = -v
