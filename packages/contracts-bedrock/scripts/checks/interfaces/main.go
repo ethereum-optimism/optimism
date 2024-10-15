@@ -26,7 +26,7 @@ var excludeContracts = []string{
 	"IEAS", "ISchemaResolver", "ISchemaRegistry",
 
 	// TODO: Interfaces that need to be fixed
-	"IInitializable", "IPreimageOracle", "ILegacyMintableERC20", "IOptimismMintableERC20",
+	"IInitializable", "ILegacyMintableERC20", "IOptimismMintableERC20",
 	"IOptimismMintableERC721", "KontrolCheatsBase", "IWETH", "IDelayedWETH", "ISuperchainWETH",
 	"IL2ToL2CrossDomainMessenger", "ICrossL2Inbox", "ISystemConfigInterop", "IResolvedDelegateProxy",
 }
