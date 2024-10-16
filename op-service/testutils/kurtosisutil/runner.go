@@ -35,8 +35,10 @@ func StartEnclave(t *testing.T, ctx context.Context, lgr log.Logger, pkg string,
 		defer cancel()
 		err = kurtosisCtx.DestroyEnclave(cancelCtx, enclaveID)
 		if err != nil {
-			lgr.Error("Error destroying enclave", "err", err)
+			lgr.Error("Error destroying enclave", "err", err, "id", enclaveID)
+			return
 		}
+		lgr.Info("Enclave destroyed", "enclave", enclaveID)
 	})
 
 	logKurtosisOutput := func(msg string) {
