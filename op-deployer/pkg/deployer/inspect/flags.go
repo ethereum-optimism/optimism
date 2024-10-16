@@ -3,9 +3,10 @@ package inspect
 import (
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
+
 	op_service "github.com/ethereum-optimism/optimism/op-service"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/urfave/cli/v2"
 )

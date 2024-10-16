@@ -5,19 +5,19 @@ import (
 	"crypto/rand"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opcm"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	state2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 
 	"github.com/ethereum/go-ethereum/common"
-
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
 )
 
 func IsSupportedStateVersion(version int) bool {
 	return version == 1
 }
 
-func Init(ctx context.Context, env *Env, _ ArtifactsBundle, intent *state.Intent, st *state.State) error {
+func Init(ctx context.Context, env *Env, _ ArtifactsBundle, intent *state2.Intent, st *state2.State) error {
 	lgr := env.Logger.New("stage", "init")
 	lgr.Info("initializing pipeline")
 
@@ -46,7 +46,7 @@ func Init(ctx context.Context, env *Env, _ ArtifactsBundle, intent *state.Intent
 
 		// Have to do this weird pointer thing below because the Superchain Registry defines its
 		// own Address type.
-		st.SuperchainDeployment = &state.SuperchainDeployment{
+		st.SuperchainDeployment = &state2.SuperchainDeployment{
 			ProxyAdminAddress:            proxyAdmin,
 			ProtocolVersionsProxyAddress: common.Address(*superCfg.Config.ProtocolVersionsAddr),
 			SuperchainConfigProxyAddress: common.Address(*superCfg.Config.SuperchainConfigAddr),
@@ -56,7 +56,7 @@ func Init(ctx context.Context, env *Env, _ ArtifactsBundle, intent *state.Intent
 		if err != nil {
 			return fmt.Errorf("error getting OPCM proxy address: %w", err)
 		}
-		st.ImplementationsDeployment = &state.ImplementationsDeployment{
+		st.ImplementationsDeployment = &state2.ImplementationsDeployment{
 			OpcmProxyAddress: opcmProxy,
 		}
 	}

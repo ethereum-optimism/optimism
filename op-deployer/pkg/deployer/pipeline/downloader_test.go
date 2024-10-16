@@ -9,7 +9,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opcm"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 
 	"github.com/stretchr/testify/require"
 )

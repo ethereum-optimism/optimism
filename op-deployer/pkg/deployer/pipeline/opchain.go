@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/broadcaster"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	state2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opcm"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
 	"github.com/ethereum/go-ethereum/common"
 )
 
-func DeployOPChain(ctx context.Context, env *Env, bundle ArtifactsBundle, intent *state.Intent, st *state.State, chainID common.Hash) error {
+func DeployOPChain(ctx context.Context, env *Env, bundle ArtifactsBundle, intent *state2.Intent, st *state2.State, chainID common.Hash) error {
 	lgr := env.Logger.New("stage", "deploy-opchain")
 
 	if !shouldDeployOPChain(intent, st, chainID) {
@@ -72,7 +72,7 @@ func DeployOPChain(ctx context.Context, env *Env, bundle ArtifactsBundle, intent
 		return fmt.Errorf("error deploying OP chain: %w", err)
 	}
 
-	st.Chains = append(st.Chains, &state.ChainState{
+	st.Chains = append(st.Chains, &state2.ChainState{
 		ID:                                        chainID,
 		ProxyAdminAddress:                         dco.OpChainProxyAdmin,
 		AddressManagerAddress:                     dco.AddressManager,
@@ -94,7 +94,7 @@ func DeployOPChain(ctx context.Context, env *Env, bundle ArtifactsBundle, intent
 	return nil
 }
 
-func shouldDeployOPChain(intent *state.Intent, st *state.State, chainID common.Hash) bool {
+func shouldDeployOPChain(intent *state2.Intent, st *state2.State, chainID common.Hash) bool {
 	for _, chain := range st.Chains {
 		if chain.ID == chainID {
 			return false

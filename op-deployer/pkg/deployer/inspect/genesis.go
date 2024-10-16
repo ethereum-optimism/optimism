@@ -3,8 +3,9 @@ package inspect
 import (
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/pipeline"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
+	state2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum/core"
@@ -38,7 +39,7 @@ func GenesisCLI(cliCtx *cli.Context) error {
 	return nil
 }
 
-func GenesisAndRollup(globalState *state.State, chainID common.Hash) (*core.Genesis, *rollup.Config, error) {
+func GenesisAndRollup(globalState *state2.State, chainID common.Hash) (*core.Genesis, *rollup.Config, error) {
 	if globalState.AppliedIntent == nil {
 		return nil, nil, fmt.Errorf("chain state is not applied - run op-deployer apply")
 	}
@@ -58,7 +59,7 @@ func GenesisAndRollup(globalState *state.State, chainID common.Hash) (*core.Gene
 		return nil, nil, fmt.Errorf("failed to unmarshal genesis: %w", err)
 	}
 
-	config, err := state.CombineDeployConfig(
+	config, err := state2.CombineDeployConfig(
 		globalState.AppliedIntent,
 		chainIntent,
 		globalState,

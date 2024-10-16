@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opcm"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 	"github.com/ethereum/go-ethereum/common"

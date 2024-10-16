@@ -4,14 +4,13 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/bootstrap"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/bootstrap"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/inspect"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/version"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/version"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/inspect"
-
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/urfave/cli/v2"
 )

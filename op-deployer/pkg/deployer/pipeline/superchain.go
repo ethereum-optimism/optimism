@@ -5,15 +5,16 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	state2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opcm"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
 
-func DeploySuperchain(ctx context.Context, env *Env, bundle ArtifactsBundle, intent *state.Intent, st *state.State) error {
+func DeploySuperchain(ctx context.Context, env *Env, bundle ArtifactsBundle, intent *state2.Intent, st *state2.State) error {
 	lgr := env.Logger.New("stage", "deploy-superchain")
 
 	if !shouldDeploySuperchain(intent, st) {
@@ -63,7 +64,7 @@ func DeploySuperchain(ctx context.Context, env *Env, bundle ArtifactsBundle, int
 		return fmt.Errorf("error deploying superchain: %w", err)
 	}
 
-	st.SuperchainDeployment = &state.SuperchainDeployment{
+	st.SuperchainDeployment = &state2.SuperchainDeployment{
 		ProxyAdminAddress:            dso.SuperchainProxyAdmin,
 		SuperchainConfigProxyAddress: dso.SuperchainConfigProxy,
 		SuperchainConfigImplAddress:  dso.SuperchainConfigImpl,
@@ -75,6 +76,6 @@ func DeploySuperchain(ctx context.Context, env *Env, bundle ArtifactsBundle, int
 	return nil
 }
 
-func shouldDeploySuperchain(intent *state.Intent, st *state.State) bool {
+func shouldDeploySuperchain(intent *state2.Intent, st *state2.State) bool {
 	return st.SuperchainDeployment == nil
 }
