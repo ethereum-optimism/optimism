@@ -275,6 +275,16 @@ func validateOPChainDeployment(t *testing.T, ctx context.Context, l1Client *ethc
 			})
 		}
 
+		require.NotEmpty(t, st.ImplementationsDeployment.DelayedWETHImplAddress, "DelayedWETHImplAddress should be set")
+		require.NotEmpty(t, st.ImplementationsDeployment.OptimismPortalImplAddress, "OptimismPortalImplAddress should be set")
+		require.NotEmpty(t, st.ImplementationsDeployment.SystemConfigImplAddress, "SystemConfigImplAddress should be set")
+		require.NotEmpty(t, st.ImplementationsDeployment.L1CrossDomainMessengerImplAddress, "L1CrossDomainMessengerImplAddress should be set")
+		require.NotEmpty(t, st.ImplementationsDeployment.L1ERC721BridgeImplAddress, "L1ERC721BridgeImplAddress should be set")
+		require.NotEmpty(t, st.ImplementationsDeployment.L1StandardBridgeImplAddress, "L1StandardBridgeImplAddress should be set")
+		require.NotEmpty(t, st.ImplementationsDeployment.OptimismMintableERC20FactoryImplAddress, "OptimismMintableERC20FactoryImplAddress should be set")
+		require.NotEmpty(t, st.ImplementationsDeployment.DisputeGameFactoryImplAddress, "DisputeGameFactoryImplAddress should be set")
+		// TODO: Need to check that 'mipsSingletonAddress' and 'preimageOracleSingletonAddress' are set
+
 		t.Run("l2 genesis", func(t *testing.T) {
 			require.Greater(t, len(chainState.Allocs), 0)
 			l2Allocs, _ := chainState.UnmarshalAllocs()

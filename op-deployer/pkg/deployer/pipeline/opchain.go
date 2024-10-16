@@ -2,14 +2,17 @@ package pipeline
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	state2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
 )
 
 func DeployOPChain(ctx context.Context, env *Env, bundle ArtifactsBundle, intent *state2.Intent, st *state2.State, chainID common.Hash) error {
@@ -91,10 +94,88 @@ func DeployOPChain(ctx context.Context, env *Env, bundle ArtifactsBundle, intent
 		DelayedWETHPermissionlessGameProxyAddress: dco.DelayedWETHPermissionlessGameProxy,
 	})
 
+	currentBlock, _ := env.L1Client.BlockNumber(ctx)
+	block, _ := env.L1Client.BlockByNumber(ctx, big.NewInt(int64(currentBlock)))
+	currentBlockHash := block.Hash()
+
+	errCh := make(chan error, 8)
+
+	// If any of the implementations addresses (excluding OpcmProxy) are empty,
+	// we need to set them using the implementation address read from their corresponding proxy.
+	// The reason these might be empty is because we're only invoking DeployOPChain.s.sol as part of the pipeline.
+	// TODO: Need to initialize 'mipsSingletonAddress' and 'preimageOracleSingletonAddress'
+	setImplementationAddressTasks := []func(){
+		func() {
+			setEIP1967ImplementationAddress(ctx, env.L1Client, errCh, dco.DelayedWETHPermissionedGameProxy, currentBlockHash, &st.ImplementationsDeployment.DelayedWETHImplAddress)
+		},
+		func() {
+			setEIP1967ImplementationAddress(ctx, env.L1Client, errCh, dco.OptimismPortalProxy, currentBlockHash, &st.ImplementationsDeployment.OptimismPortalImplAddress)
+		},
+		func() {
+			setEIP1967ImplementationAddress(ctx, env.L1Client, errCh, dco.SystemConfigProxy, currentBlockHash, &st.ImplementationsDeployment.SystemConfigImplAddress)
+		},
+		func() {
+			setRDPImplementationAddress(ctx, env.L1Client, errCh, dco.AddressManager, &st.ImplementationsDeployment.L1CrossDomainMessengerImplAddress)
+		},
+		func() {
+			setEIP1967ImplementationAddress(ctx, env.L1Client, errCh, dco.L1ERC721BridgeProxy, currentBlockHash, &st.ImplementationsDeployment.L1ERC721BridgeImplAddress)
+		},
+		func() {
+			setEIP1967ImplementationAddress(ctx, env.L1Client, errCh, dco.L1StandardBridgeProxy, currentBlockHash, &st.ImplementationsDeployment.L1StandardBridgeImplAddress)
+		},
+		func() {
+			setEIP1967ImplementationAddress(ctx, env.L1Client, errCh, dco.OptimismMintableERC20FactoryProxy, currentBlockHash, &st.ImplementationsDeployment.OptimismMintableERC20FactoryImplAddress)
+		},
+		func() {
+			setEIP1967ImplementationAddress(ctx, env.L1Client, errCh, dco.DisputeGameFactoryProxy, currentBlockHash, &st.ImplementationsDeployment.DisputeGameFactoryImplAddress)
+		},
+	}
+	for _, task := range setImplementationAddressTasks {
+		go task()
+	}
+
+	var lastTaskErr error
+	for i := 0; i < len(setImplementationAddressTasks); i++ {
+		taskErr := <-errCh
+		if lastTaskErr != nil {
+			lastTaskErr = taskErr
+		}
+	}
+	if lastTaskErr != nil {
+		return fmt.Errorf("failed to set implementation addresses: %w", lastTaskErr)
+	}
+
 	return nil
 }
 
-func shouldDeployOPChain(intent *state2.Intent, st *state2.State, chainID common.Hash) bool {
+func setRDPImplementationAddress(ctx context.Context, client *ethclient.Client, errCh chan error, addressManager common.Address, implAddress *common.Address) {
+	if *implAddress != (common.Address{}) {
+		errCh <- nil
+		return
+	}
+
+	contract := opcm.NewContract(addressManager, client)
+	address, err := contract.GetAddressByName(ctx, "OVM_L1CrossDomainMessenger")
+	if err == nil {
+		*implAddress = address
+	}
+	errCh <- err
+}
+
+func setEIP1967ImplementationAddress(ctx context.Context, client *ethclient.Client, errCh chan error, proxy common.Address, currentBlockHash common.Hash, implAddress *common.Address) {
+	if *implAddress != (common.Address{}) {
+		errCh <- nil
+		return
+	}
+
+	storageValue, err := client.StorageAtHash(ctx, proxy, genesis.ImplementationSlot, currentBlockHash)
+	if err == nil {
+		*implAddress = common.HexToAddress(hex.EncodeToString(storageValue))
+	}
+	errCh <- err
+}
+
+func shouldDeployOPChain(intent *state.Intent, st *state.State, chainID common.Hash) bool {
 	for _, chain := range st.Chains {
 		if chain.ID == chainID {
 			return false
