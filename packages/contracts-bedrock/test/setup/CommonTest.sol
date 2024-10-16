@@ -35,6 +35,7 @@ contract CommonTest is Test, Setup, Events {
         if (useAltDAOverride) {
             deploy.cfg().setUseAltDA(true);
         }
+        // We default to fault proofs unless explicitly disabled by useLegacyContracts
         if (!useLegacyContracts) {
             deploy.cfg().setUseFaultProofs(true);
         }
