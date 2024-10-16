@@ -19,13 +19,11 @@ contract CommonTest is Test, Setup, Events {
     FFIInterface constant ffi = FFIInterface(address(uint160(uint256(keccak256(abi.encode("optimism.ffi"))))));
 
     bool useAltDAOverride;
-    bool useFaultProofs;
+    bool useLegacyContracts;
     address customGasToken;
     bool useInteropOverride;
 
     function setUp() public virtual override {
-        useFaultProofs = true;
-
         alice = makeAddr("alice");
         bob = makeAddr("bob");
         vm.deal(alice, 10000 ether);
@@ -37,7 +35,7 @@ contract CommonTest is Test, Setup, Events {
         if (useAltDAOverride) {
             deploy.cfg().setUseAltDA(true);
         }
-        if (useFaultProofs) {
+        if (!useLegacyContracts) {
             deploy.cfg().setUseFaultProofs(true);
         }
         if (customGasToken != address(0)) {
@@ -111,14 +109,14 @@ contract CommonTest is Test, Setup, Events {
         l2OutputOracle.proposeL2Output(proposedOutput2, nextBlockNumber, 0, 0);
     }
 
-    function disableFaultProofs() public {
+    function enableLegacyContracts() public {
         // Check if the system has already been deployed, based off of the heuristic that alice and bob have not been
         // set by the `setUp` function yet.
         if (!(alice == address(0) && bob == address(0))) {
             revert("CommonTest: Cannot enable fault proofs after deployment. Consider overriding `setUp`.");
         }
 
-        useFaultProofs = false;
+        useLegacyContracts = true;
     }
 
     function enableAltDA() public {
@@ -149,7 +147,6 @@ contract CommonTest is Test, Setup, Events {
             revert("CommonTest: Cannot enable interop after deployment. Consider overriding `setUp`.");
         }
 
-        useFaultProofs = true;
         useInteropOverride = true;
     }
 }

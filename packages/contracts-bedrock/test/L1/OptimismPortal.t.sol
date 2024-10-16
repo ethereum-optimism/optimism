@@ -34,7 +34,7 @@ contract OptimismPortal_Test is CommonTest {
     /// @notice Marked virtual to be overridden in
     ///         test/kontrol/deployment/DeploymentSummary.t.sol
     function setUp() public virtual override {
-        super.disableFaultProofs();
+        enableLegacyContracts();
         super.setUp();
         depositor = makeAddr("depositor");
     }
