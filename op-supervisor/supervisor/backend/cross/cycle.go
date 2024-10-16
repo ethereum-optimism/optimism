@@ -12,7 +12,10 @@ type msgKey struct {
 	logIndex   uint32
 }
 
-var ErrCycle = errors.New("cycle detected")
+var (
+	ErrCycle     = errors.New("cycle detected")
+	ErrOpenBlock = errors.New("failed to open block")
+)
 
 type CycleCheckDeps interface {
 	OpenBlock(chainID types.ChainID, blockNum uint64) (seal types.BlockSeal, logCount uint32, execMsgs []*types.ExecutingMessage, err error)
@@ -41,7 +44,7 @@ func HazardCycleChecks(d CycleCheckDeps, inTimestamp uint64, hazards map[types.C
 		hazardChainID := types.ChainIDFromUInt64(uint64(hazardChainIndex))
 		bl, logCount, msgs, err := d.OpenBlock(hazardChainID, hazardBlock.Number)
 		if err != nil {
-			// TODO
+			return fmt.Errorf("tried to open block %s of chain %s, but failed: %w", hazardBlock, hazardChainID, bl)
 		}
 		if bl != hazardBlock {
 			return fmt.Errorf("tried to open block %s of chain %s, but got different block %s than expected, use a reorg lock for consistency", hazardBlock, hazardChainID, bl)
