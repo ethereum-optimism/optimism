@@ -5,14 +5,12 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/big"
-	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	state2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
@@ -100,69 +98,81 @@ func DeployOPChain(ctx context.Context, env *Env, bundle ArtifactsBundle, intent
 	block, _ := env.L1Client.BlockByNumber(ctx, big.NewInt(int64(currentBlock)))
 	currentBlockHash := block.Hash()
 
+	errCh := make(chan error, 8)
+
 	// If any of the implementations addresses (excluding OpcmProxy) are empty,
 	// we need to set them using the implementation address read from their corresponding proxy.
 	// The reason these might be empty is because we're only invoking DeployOPChain.s.sol as part of the pipeline.
 	// TODO: Need to initialize 'mipsSingletonAddress' and 'preimageOracleSingletonAddress'
 	setImplementationAddressTasks := []func(){
 		func() {
-			setEIP1967ImplementationAddress(ctx, env.L1Client, dco.DelayedWETHPermissionedGameProxy, currentBlockHash, &st.ImplementationsDeployment.DelayedWETHImplAddress)
+			setEIP1967ImplementationAddress(ctx, env.L1Client, errCh, dco.DelayedWETHPermissionedGameProxy, currentBlockHash, &st.ImplementationsDeployment.DelayedWETHImplAddress)
 		},
 		func() {
-			setEIP1967ImplementationAddress(ctx, env.L1Client, dco.OptimismPortalProxy, currentBlockHash, &st.ImplementationsDeployment.OptimismPortalImplAddress)
+			setEIP1967ImplementationAddress(ctx, env.L1Client, errCh, dco.OptimismPortalProxy, currentBlockHash, &st.ImplementationsDeployment.OptimismPortalImplAddress)
 		},
 		func() {
-			setEIP1967ImplementationAddress(ctx, env.L1Client, dco.SystemConfigProxy, currentBlockHash, &st.ImplementationsDeployment.SystemConfigImplAddress)
+			setEIP1967ImplementationAddress(ctx, env.L1Client, errCh, dco.SystemConfigProxy, currentBlockHash, &st.ImplementationsDeployment.SystemConfigImplAddress)
 		},
 		func() {
-			setRDPImplementationAddress(ctx, env.L1Client, dco.AddressManager, &st.ImplementationsDeployment.L1CrossDomainMessengerImplAddress)
+			setRDPImplementationAddress(ctx, env.L1Client, errCh, dco.AddressManager, &st.ImplementationsDeployment.L1CrossDomainMessengerImplAddress)
 		},
 		func() {
-			setEIP1967ImplementationAddress(ctx, env.L1Client, dco.L1ERC721BridgeProxy, currentBlockHash, &st.ImplementationsDeployment.L1ERC721BridgeImplAddress)
+			setEIP1967ImplementationAddress(ctx, env.L1Client, errCh, dco.L1ERC721BridgeProxy, currentBlockHash, &st.ImplementationsDeployment.L1ERC721BridgeImplAddress)
 		},
 		func() {
-			setEIP1967ImplementationAddress(ctx, env.L1Client, dco.L1StandardBridgeProxy, currentBlockHash, &st.ImplementationsDeployment.L1StandardBridgeImplAddress)
+			setEIP1967ImplementationAddress(ctx, env.L1Client, errCh, dco.L1StandardBridgeProxy, currentBlockHash, &st.ImplementationsDeployment.L1StandardBridgeImplAddress)
 		},
 		func() {
-			setEIP1967ImplementationAddress(ctx, env.L1Client, dco.OptimismMintableERC20FactoryProxy, currentBlockHash, &st.ImplementationsDeployment.OptimismMintableERC20FactoryImplAddress)
+			setEIP1967ImplementationAddress(ctx, env.L1Client, errCh, dco.OptimismMintableERC20FactoryProxy, currentBlockHash, &st.ImplementationsDeployment.OptimismMintableERC20FactoryImplAddress)
 		},
 		func() {
-			setEIP1967ImplementationAddress(ctx, env.L1Client, dco.DisputeGameFactoryProxy, currentBlockHash, &st.ImplementationsDeployment.DisputeGameFactoryImplAddress)
+			setEIP1967ImplementationAddress(ctx, env.L1Client, errCh, dco.DisputeGameFactoryProxy, currentBlockHash, &st.ImplementationsDeployment.DisputeGameFactoryImplAddress)
 		},
 	}
+	for _, task := range setImplementationAddressTasks {
+		go task()
+	}
 
-	// Execute all set implementation address tasks concurrently
-	executeTasksConcurrently(setImplementationAddressTasks)
+	var lastTaskErr error
+	for i := 0; i < len(setImplementationAddressTasks); i++ {
+		taskErr := <-errCh
+		if lastTaskErr != nil {
+			lastTaskErr = taskErr
+		}
+	}
+	if lastTaskErr != nil {
+		return fmt.Errorf("failed to set implementation addresses: %w", lastTaskErr)
+	}
 
 	return nil
 }
 
-// Helper function to execute tasks concurrently
-func executeTasksConcurrently(tasks []func()) {
-	var wg sync.WaitGroup
-	for _, task := range tasks {
-		wg.Add(1)
-		go func(t func()) {
-			defer wg.Done()
-			t()
-		}(task)
+func setRDPImplementationAddress(ctx context.Context, client *ethclient.Client, errCh chan error, addressManager common.Address, implAddress *common.Address) {
+	if *implAddress != (common.Address{}) {
+		errCh <- nil
+		return
 	}
-	wg.Wait()
-}
 
-func setRDPImplementationAddress(ctx context.Context, client *ethclient.Client, addressManager common.Address, implAddress *common.Address) {
-	if *implAddress == (common.Address{}) {
-		contract := opcm.NewContract(addressManager, client)
-		address, _ := contract.GetAddressByName(ctx, "OVM_L1CrossDomainMessenger")
+	contract := opcm.NewContract(addressManager, client)
+	address, err := contract.GetAddressByName(ctx, "OVM_L1CrossDomainMessenger")
+	if err == nil {
 		*implAddress = address
 	}
+	errCh <- err
 }
 
-func setEIP1967ImplementationAddress(ctx context.Context, client *ethclient.Client, proxy common.Address, currentBlockHash common.Hash, implAddress *common.Address) {
-	if *implAddress == (common.Address{}) {
-		storageValue, _ := client.StorageAtHash(ctx, proxy, genesis.ImplementationSlot, currentBlockHash)
+func setEIP1967ImplementationAddress(ctx context.Context, client *ethclient.Client, errCh chan error, proxy common.Address, currentBlockHash common.Hash, implAddress *common.Address) {
+	if *implAddress != (common.Address{}) {
+		errCh <- nil
+		return
+	}
+
+	storageValue, err := client.StorageAtHash(ctx, proxy, genesis.ImplementationSlot, currentBlockHash)
+	if err == nil {
 		*implAddress = common.HexToAddress(hex.EncodeToString(storageValue))
 	}
+	errCh <- err
 }
 
 func shouldDeployOPChain(intent *state.Intent, st *state.State, chainID common.Hash) bool {
