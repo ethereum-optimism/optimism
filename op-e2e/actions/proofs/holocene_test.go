@@ -39,7 +39,7 @@ var orderings = []ordering{
 	{blocks: []uint{1, 2, 3}, frames: []uint{0, 1, 0, 2}, safeHeadPreHolocene: 3, safeHeadHolocene: 0},    // duplicate frames
 }
 
-func Test_ProgramAction_HoloceneFrameRules(gt *testing.T) {
+func Test_ProgramAction_HoloceneDerivationRules(gt *testing.T) {
 	matrix := helpers.NewMatrix[ordering]()
 	defer matrix.Run(gt)
 
