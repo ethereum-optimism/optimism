@@ -192,7 +192,7 @@ func makeIntent(
 ) (*state2.Intent, *state2.State) {
 	_, testFilename, _, ok := runtime.Caller(0)
 	require.Truef(t, ok, "failed to get test filename")
-	monorepoDir := path.Join(path.Dir(testFilename), "..", "..", "..")
+	monorepoDir := path.Join(path.Dir(testFilename), "..", "..", "..", "..")
 	artifactsDir := path.Join(monorepoDir, "packages", "contracts-bedrock", "forge-artifacts")
 	artifactsURL, err := url.Parse(fmt.Sprintf("file://%s", artifactsDir))
 	require.NoError(t, err)
