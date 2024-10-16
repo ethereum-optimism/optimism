@@ -1,5 +1,4 @@
 {
   "editorconfig.generateAuto": false,
-  "files.trimTrailingWhitespace": true,
-  "makefile.configureOnOpen": false
+  "files.trimTrailingWhitespace": true
 }
