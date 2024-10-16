@@ -24,6 +24,8 @@ contract CommonTest is Test, Setup, Events {
     bool useInteropOverride;
 
     function setUp() public virtual override {
+        useFaultProofs = true;
+
         alice = makeAddr("alice");
         bob = makeAddr("bob");
         vm.deal(alice, 10000 ether);
@@ -109,14 +111,14 @@ contract CommonTest is Test, Setup, Events {
         l2OutputOracle.proposeL2Output(proposedOutput2, nextBlockNumber, 0, 0);
     }
 
-    function enableFaultProofs() public {
+    function disableFaultProofs() public {
         // Check if the system has already been deployed, based off of the heuristic that alice and bob have not been
         // set by the `setUp` function yet.
         if (!(alice == address(0) && bob == address(0))) {
             revert("CommonTest: Cannot enable fault proofs after deployment. Consider overriding `setUp`.");
         }
 
-        useFaultProofs = true;
+        useFaultProofs = false;
     }
 
     function enableAltDA() public {

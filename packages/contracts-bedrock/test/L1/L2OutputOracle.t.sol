@@ -18,6 +18,11 @@ import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { IL2OutputOracle } from "src/L1/interfaces/IL2OutputOracle.sol";
 
 contract L2OutputOracle_constructor_Test is CommonTest {
+    function setUp() public override {
+        super.disableFaultProofs();
+        super.setUp();
+    }
+
     /// @dev Tests that constructor sets the initial values correctly.
     function test_constructor_succeeds() external {
         IL2OutputOracle oracleImpl = IL2OutputOracle(address(new L2OutputOracle()));
