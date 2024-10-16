@@ -1,33 +1,42 @@
+// This file contains utils for setting up forward-compatible tests for 32- and 64-bit MIPS VMs
+
 package testutil
 
-import "github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
+import (
+	"bytes"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
+)
 
 type Word = arch.Word
 
-// PlaceUint32InWord places a uint32 value into a Word based on the architecture and address.
-// For example, in 64-bit architectures, a 32-bit value written to address 0x04 is
-// written to the rightmost 32-bits of the word at address 0x00, while a 32-bit value written to address 0x08
-// is written to the leftmost 32-bits of the 64-bit Word at address 0x08
-func PlaceUint32InWord(addr, value Word) Word {
-	offsetMask := Word(arch.ExtMask) & 0x4
-	wordOffset := addr & offsetMask
-	maxWordByteOffset := Word(arch.WordSizeBytes - 4)
-	memBitOffset := (maxWordByteOffset - wordOffset) * 8
+// SetMemoryUint64 sets 8 bytes of memory (1 or 2 Words depending on architecture) and enforces the use of addresses
+// that are compatible across 32- and 64-bit architectures
+func SetMemoryUint64(t require.TestingT, mem *memory.Memory, addr Word, value uint64) {
+	// We are setting 8 bytes of data, so mask addr to align with 8-byte boundaries in memory
+	addrMask := ^Word(0) & ^Word(7)
+	targetAddr := addr & addrMask
 
-	return (value & 0xFFFF_FFFF) << memBitOffset
-}
+	data := Uint64ToBytes(value)
+	err := mem.SetMemoryRange(targetAddr, bytes.NewReader(data))
+	require.NoError(t, err)
 
-// SignExtendImmediate takes a 16-bit value and sign- or zero- extends it up to the arch.Word size
-func SignExtendImmediate(imm Word) (Word, bool) {
-	signExtended := false
-	immediateMask := Word(0xFFFF)
-	imm = imm & immediateMask
-
-	if imm>>15 == 0x01 {
-		// Sign extend
-		imm = imm | ^immediateMask
-		signExtended = true
+	// Sanity check
+	if addr&0x04 != 0x04 {
+		// In order to write tests that run seamlessly across both 32- and 64-bit architectures,
+		// we need to use a memory address that is a multiple of 4, but not a multiple of 8.
+		// This allows us to expect a consistent value when getting a 32-bit memory value at the given address.
+		// For example, if memory contains [0x00: 0x1111_2222, 0x04: 0x3333_4444]:
+		// - the 64-bit MIPS VM will get effAddr 0x00, pulling the rightmost (lower-order) 32-bit value
+		// - the 32-bit MIPS VM will get effAddr 0x04, pulling the same 32-bit value
+		t.Errorf("Invalid address used to set uint64 memory value: %016x", addr)
+		t.FailNow()
 	}
-
-	return imm, signExtended
+	// Give the above addr check, memory access should return the same value across architectures
+	effAddr := addr & arch.AddressMask
+	actual := mem.GetWord(effAddr)
+	require.Equal(t, Word(value), actual)
 }

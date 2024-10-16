@@ -51,15 +51,12 @@ func TestEVM_MT64_LL(t *testing.T) {
 
 				retReg := c.retReg
 				baseReg := 6
-				pc := Word(0x44)
 				insn := uint32((0b11_0000 << 26) | (baseReg & 0x1F << 21) | (retReg & 0x1F << 16) | (0xFFFF & c.offset))
-				goVm, state, contracts := setup(t, i, nil)
+				goVm, state, contracts := setup(t, i, nil, testutil.WithPCAndNextPC(0x40))
 				step := state.GetStep()
 
 				// Set up state
-				state.GetCurrentThread().Cpu.PC = pc
-				state.GetCurrentThread().Cpu.NextPC = pc + 4
-				state.GetMemory().SetUint32(pc, insn)
+				state.GetMemory().SetUint32(state.GetPC(), insn)
 				state.GetMemory().SetWord(effAddr, c.memVal)
 				state.GetRegistersRef()[baseReg] = c.base
 				if withExistingReservation {
@@ -141,10 +138,9 @@ func TestEVM_MT64_SC(t *testing.T) {
 				// Setup
 				rtReg := c.rtReg
 				baseReg := 6
-				pc := Word(0x44)
 				insn := uint32((0b11_1000 << 26) | (baseReg & 0x1F << 21) | (rtReg & 0x1F << 16) | (0xFFFF & c.offset))
 				goVm, state, contracts := setup(t, i, nil)
-				mttestutil.InitializeSingleThread(i*23456, state, i%2 == 1)
+				mttestutil.InitializeSingleThread(i*23456, state, i%2 == 1, testutil.WithPCAndNextPC(0x40))
 				step := state.GetStep()
 
 				// Define LL-related params
@@ -162,9 +158,7 @@ func TestEVM_MT64_SC(t *testing.T) {
 
 				// Setup state
 				state.GetCurrentThread().ThreadId = c.threadId
-				state.GetCurrentThread().Cpu.PC = pc
-				state.GetCurrentThread().Cpu.NextPC = pc + 4
-				state.GetMemory().SetUint32(pc, insn)
+				state.GetMemory().SetUint32(state.GetPC(), insn)
 				state.GetRegistersRef()[baseReg] = c.base
 				state.GetRegistersRef()[rtReg] = c.value
 				state.LLReservationStatus = v.llReservationStatus
@@ -233,15 +227,12 @@ func TestEVM_MT64_LLD(t *testing.T) {
 
 				retReg := c.retReg
 				baseReg := 6
-				pc := Word(0x44)
 				insn := uint32((0b11_0100 << 26) | (baseReg & 0x1F << 21) | (retReg & 0x1F << 16) | (0xFFFF & c.offset))
-				goVm, state, contracts := setup(t, i, nil)
+				goVm, state, contracts := setup(t, i, nil, testutil.WithPCAndNextPC(0x40))
 				step := state.GetStep()
 
 				// Set up state
-				state.GetCurrentThread().Cpu.PC = pc
-				state.GetCurrentThread().Cpu.NextPC = pc + 4
-				state.GetMemory().SetUint32(pc, insn)
+				state.GetMemory().SetUint32(state.GetPC(), insn)
 				state.GetMemory().SetWord(effAddr, c.memVal)
 				state.GetRegistersRef()[baseReg] = c.base
 				if withExistingReservation {
@@ -324,10 +315,9 @@ func TestEVM_MT64_SCD(t *testing.T) {
 				// Setup
 				rtReg := c.rtReg
 				baseReg := 6
-				pc := Word(0x44)
 				insn := uint32((0b11_1100 << 26) | (baseReg & 0x1F << 21) | (rtReg & 0x1F << 16) | (0xFFFF & c.offset))
 				goVm, state, contracts := setup(t, i, nil)
-				mttestutil.InitializeSingleThread(i*23456, state, i%2 == 1)
+				mttestutil.InitializeSingleThread(i*23456, state, i%2 == 1, testutil.WithPCAndNextPC(0x40))
 				step := state.GetStep()
 
 				// Define LL-related params
@@ -345,9 +335,7 @@ func TestEVM_MT64_SCD(t *testing.T) {
 
 				// Setup state
 				state.GetCurrentThread().ThreadId = c.threadId
-				state.GetCurrentThread().Cpu.PC = pc
-				state.GetCurrentThread().Cpu.NextPC = pc + 4
-				state.GetMemory().SetUint32(pc, insn)
+				state.GetMemory().SetUint32(state.GetPC(), insn)
 				state.GetRegistersRef()[baseReg] = c.base
 				state.GetRegistersRef()[rtReg] = value
 				state.LLReservationStatus = v.llReservationStatus

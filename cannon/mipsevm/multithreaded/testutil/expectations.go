@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"bytes"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -10,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/multithreaded"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm/testutil"
 )
 
 // ExpectedMTState is a test utility that basically stores a copy of a state that can be explicitly mutated
@@ -119,8 +121,15 @@ func (e *ExpectedMTState) ExpectStep() {
 	e.StepsSinceLastContextSwitch += 1
 }
 
-func (e *ExpectedMTState) ExpectMemoryWrite(addr arch.Word, val uint32) {
-	e.expectedMemory.SetUint32(addr, val)
+func (e *ExpectedMTState) ExpectMemoryWriteUint32(t require.TestingT, addr arch.Word, val uint32) {
+	// Align address to 4-byte boundaries
+	addr = addr & ^arch.Word(3)
+
+	// Set 4 bytes at addr
+	data := testutil.Uint32ToBytes(val)
+	err := e.expectedMemory.SetMemoryRange(addr, bytes.NewReader(data))
+	require.NoError(t, err)
+
 	e.MemoryRoot = e.expectedMemory.MerkleRoot()
 }
 

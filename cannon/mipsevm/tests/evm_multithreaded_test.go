@@ -28,49 +28,46 @@ type Word = arch.Word
 func TestEVM_MT_LL(t *testing.T) {
 	var tracer *tracing.Hooks
 
+	// Set up some test values that will be reused
+	posValue := uint64(0xAAAA_BBBB_1122_3344)
+	posValueRet := uint64(0x1122_3344)
+	negValue := uint64(0x1111_1111_8877_6655)
+	negRetValue := uint64(0xFFFF_FFFF_8877_6655) // Sign extended version of negValue
+
+	// Note: parameters are written as 64-bit values. For 32-bit architectures, these values are downcast to 32-bit
 	cases := []struct {
-		name                   string
-		base                   Word
-		offset                 int
-		targetWord             Word
-		rtReg                  int
-		shouldSignExtendOffset bool
+		name         string
+		base         uint64
+		offset       int
+		expectedAddr uint64
+		memValue     uint64
+		retVal       uint64
+		rtReg        int
 	}{
-		{name: "Aligned addr", base: 0x00_00_00_01, offset: 0x0133, targetWord: 0xABCD, rtReg: 5},
-		{name: "Aligned addr, signed extended", base: 0x00_00_00_01, offset: 0xFF37, targetWord: 0xABCD, rtReg: 5, shouldSignExtendOffset: true},
-		{name: "Unaligned addr", base: 0xFF_12_00_01, offset: 0x3401, targetWord: 0xABCD, rtReg: 5},
-		{name: "Unaligned addr, sign extended w overflow", base: 0xFF_12_00_01, offset: 0x8401, targetWord: 0xABCD, rtReg: 5, shouldSignExtendOffset: true},
-		{name: "Return register set to 0", base: 0xFF_12_00_01, offset: 0x7401, targetWord: 0xABCD, rtReg: 0},
+		{name: "Aligned addr", base: 0x01, offset: 0x0133, expectedAddr: 0x0134, memValue: posValue, retVal: posValueRet, rtReg: 5},
+		{name: "Aligned addr, negative value", base: 0x01, offset: 0x0133, expectedAddr: 0x0134, memValue: negValue, retVal: negRetValue, rtReg: 5},
+		{name: "Aligned addr, addr signed extended", base: 0x01, offset: 0xFF33, expectedAddr: 0xFFFF_FFFF_FFFF_FF34, memValue: posValue, retVal: posValueRet, rtReg: 5},
+		{name: "Unaligned addr", base: 0xFF12_0001, offset: 0x3405, expectedAddr: 0xFF12_3406, memValue: posValue, retVal: posValueRet, rtReg: 5},
+		{name: "Unaligned addr, addr sign extended w overflow", base: 0xFF12_0001, offset: 0x8405, expectedAddr: 0xFF11_8406, memValue: posValue, retVal: posValueRet, rtReg: 5},
+		{name: "Return register set to 0", base: 0xFF12_0001, offset: 0x7404, expectedAddr: 0xFF12_7405, memValue: posValue, retVal: 0, rtReg: 0},
 	}
 	for i, c := range cases {
 		for _, withExistingReservation := range []bool{true, false} {
 			tName := fmt.Sprintf("%v (withExistingReservation = %v)", c.name, withExistingReservation)
 			t.Run(tName, func(t *testing.T) {
-				// Perform some calculations for 64-bit compatibility
-				// Calculate address
-				addrOffset, signExtended := testutil.SignExtendImmediate(Word(c.offset))
-				require.Equal(t, signExtended, c.shouldSignExtendOffset)
-				addr := c.base + addrOffset
-				effAddr := arch.AddressMask & addr
-				// Calculate memory value
-				memVal := testutil.PlaceUint32InWord(addr, c.targetWord)
-
 				rtReg := c.rtReg
 				baseReg := 6
-				pc := Word(0x44)
 				insn := uint32((0b11_0000 << 26) | (baseReg & 0x1F << 21) | (rtReg & 0x1F << 16) | (0xFFFF & c.offset))
-				goVm, state, contracts := setup(t, i, nil)
+				goVm, state, contracts := setup(t, i, nil, testutil.WithPCAndNextPC(0x40))
 				step := state.GetStep()
 
 				// Set up state
-				state.GetCurrentThread().Cpu.PC = pc
-				state.GetCurrentThread().Cpu.NextPC = pc + 4
-				state.GetMemory().SetUint32(pc, insn)
-				state.GetMemory().SetWord(effAddr, memVal)
-				state.GetRegistersRef()[baseReg] = c.base
+				testutil.SetMemoryUint64(t, state.GetMemory(), Word(c.expectedAddr), c.memValue)
+				state.GetMemory().SetUint32(state.GetPC(), insn)
+				state.GetRegistersRef()[baseReg] = Word(c.base)
 				if withExistingReservation {
 					state.LLReservationStatus = multithreaded.LLStatusActive32bit
-					state.LLAddress = addr + 1
+					state.LLAddress = Word(c.expectedAddr + 1)
 					state.LLOwnerThread = 123
 				} else {
 					state.LLReservationStatus = multithreaded.LLStatusNone
@@ -82,10 +79,10 @@ func TestEVM_MT_LL(t *testing.T) {
 				expected := mttestutil.NewExpectedMTState(state)
 				expected.ExpectStep()
 				expected.LLReservationStatus = multithreaded.LLStatusActive32bit
-				expected.LLAddress = addr
+				expected.LLAddress = Word(c.expectedAddr)
 				expected.LLOwnerThread = state.GetCurrentThread().ThreadId
 				if rtReg != 0 {
-					expected.ActiveThread().Registers[rtReg] = c.targetWord
+					expected.ActiveThread().Registers[rtReg] = Word(c.retVal)
 				}
 
 				stepWitness, err := goVm.Step(true)
@@ -102,6 +99,9 @@ func TestEVM_MT_LL(t *testing.T) {
 func TestEVM_MT_SC(t *testing.T) {
 	var tracer *tracing.Hooks
 
+	// Set up some test values that will be reused
+	memValue := uint64(0x1122_3344_5566_7788)
+
 	llVariations := []struct {
 		name                string
 		llReservationStatus multithreaded.LLReservationStatus
@@ -117,50 +117,39 @@ func TestEVM_MT_SC(t *testing.T) {
 		{name: "no active reservation", llReservationStatus: multithreaded.LLStatusNone, matchThreadId: true, matchAddr: true, shouldSucceed: false},
 	}
 
+	// Note: Some parameters are written as 64-bit values. For 32-bit architectures, these values are downcast to 32-bit
 	cases := []struct {
-		name                   string
-		base                   Word
-		offset                 int
-		value                  Word
-		rtReg                  int
-		threadId               Word
-		shouldSignExtendOffset bool
+		name         string
+		base         Word
+		offset       int
+		expectedAddr uint64
+		storeValue   uint32
+		rtReg        int
+		threadId     Word
 	}{
-		{name: "Aligned addr", base: 0x00_00_00_01, offset: 0x0133, value: 0xABCD, rtReg: 5, threadId: 4},
-		{name: "Aligned addr, signed extended", base: 0x00_00_00_01, offset: 0xFF33, value: 0xABCD, rtReg: 5, threadId: 4, shouldSignExtendOffset: true},
-		{name: "Unaligned addr", base: 0xFF_12_00_01, offset: 0x3401, value: 0xABCD, rtReg: 5, threadId: 4},
-		{name: "Unaligned addr, sign extended w overflow", base: 0xFF_12_00_01, offset: 0x8401, value: 0xABCD, rtReg: 5, threadId: 4, shouldSignExtendOffset: true},
-		{name: "Return register set to 0", base: 0xFF_12_00_01, offset: 0x7401, value: 0xABCD, rtReg: 0, threadId: 4},
-		{name: "Zero valued ll args", base: 0x00_00_00_00, offset: 0x0, value: 0xABCD, rtReg: 5, threadId: 0},
+		{name: "Aligned addr", base: 0x01, offset: 0x0133, expectedAddr: 0x0134, storeValue: 0xAABB_CCDD, rtReg: 5, threadId: 4},
+		{name: "Aligned addr, signed extended", base: 0x01, offset: 0xFF33, expectedAddr: 0xFFFF_FFFF_FFFF_FF34, storeValue: 0xAABB_CCDD, rtReg: 5, threadId: 4},
+		{name: "Unaligned addr", base: 0xFF12_0001, offset: 0x3404, expectedAddr: 0xFF12_3405, storeValue: 0xAABB_CCDD, rtReg: 5, threadId: 4},
+		{name: "Unaligned addr, sign extended w overflow", base: 0xFF12_0001, offset: 0x8404, expectedAddr: 0xFF_11_8405, storeValue: 0xAABB_CCDD, rtReg: 5, threadId: 4},
+		{name: "Return register set to 0", base: 0xFF12_0001, offset: 0x7403, expectedAddr: 0xFF12_7404, storeValue: 0xAABB_CCDD, rtReg: 0, threadId: 4},
 	}
 	for i, c := range cases {
 		for _, v := range llVariations {
 			tName := fmt.Sprintf("%v (%v)", c.name, v.name)
 			t.Run(tName, func(t *testing.T) {
-				// Perform some calculations for 64-bit compatibility
-				// Calculate address
-				addrOffset, signExtended := testutil.SignExtendImmediate(Word(c.offset))
-				require.Equal(t, signExtended, c.shouldSignExtendOffset)
-				addr := c.base + addrOffset
-				effAddr := arch.AddressMask & addr
-				// Calculate memory value
-				memVal := testutil.PlaceUint32InWord(addr, c.value)
-
-				// Setup
 				rtReg := c.rtReg
 				baseReg := 6
-				pc := Word(0x44)
 				insn := uint32((0b11_1000 << 26) | (baseReg & 0x1F << 21) | (rtReg & 0x1F << 16) | (0xFFFF & c.offset))
 				goVm, state, contracts := setup(t, i, nil)
-				mttestutil.InitializeSingleThread(i*23456, state, i%2 == 1)
+				mttestutil.InitializeSingleThread(i*23456, state, i%2 == 1, testutil.WithPCAndNextPC(0x40))
 				step := state.GetStep()
 
 				// Define LL-related params
 				var llAddress, llOwnerThread Word
 				if v.matchAddr {
-					llAddress = addr
+					llAddress = Word(c.expectedAddr)
 				} else {
-					llAddress = addr + 1
+					llAddress = Word(c.expectedAddr) + 1
 				}
 				if v.matchThreadId {
 					llOwnerThread = c.threadId
@@ -169,12 +158,11 @@ func TestEVM_MT_SC(t *testing.T) {
 				}
 
 				// Setup state
+				testutil.SetMemoryUint64(t, state.GetMemory(), Word(c.expectedAddr), memValue)
 				state.GetCurrentThread().ThreadId = c.threadId
-				state.GetCurrentThread().Cpu.PC = pc
-				state.GetCurrentThread().Cpu.NextPC = pc + 4
-				state.GetMemory().SetUint32(pc, insn)
+				state.GetMemory().SetUint32(state.GetPC(), insn)
 				state.GetRegistersRef()[baseReg] = c.base
-				state.GetRegistersRef()[rtReg] = c.value
+				state.GetRegistersRef()[rtReg] = Word(c.storeValue)
 				state.LLReservationStatus = v.llReservationStatus
 				state.LLAddress = llAddress
 				state.LLOwnerThread = llOwnerThread
@@ -185,7 +173,7 @@ func TestEVM_MT_SC(t *testing.T) {
 				var retVal Word
 				if v.shouldSucceed {
 					retVal = 1
-					expected.ExpectMemoryWordWrite(effAddr, memVal)
+					expected.ExpectMemoryWriteUint32(t, Word(c.expectedAddr), c.storeValue)
 					expected.LLReservationStatus = multithreaded.LLStatusNone
 					expected.LLAddress = 0
 					expected.LLOwnerThread = 0
@@ -298,7 +286,7 @@ func TestEVM_MT_SysRead_Preimage(t *testing.T) {
 				expected.ActiveThread().Registers[2] = c.writeLen
 				expected.ActiveThread().Registers[7] = 0 // no error
 				expected.PreimageOffset += c.writeLen
-				expected.ExpectMemoryWrite(effAddr, c.postateMem)
+				expected.ExpectMemoryWriteUint32(t, effAddr, c.postateMem)
 				if v.shouldClearReservation {
 					expected.LLReservationStatus = multithreaded.LLStatusNone
 					expected.LLAddress = 0
@@ -341,7 +329,6 @@ func TestEVM_MT_StoreOpsClearMemReservation(t *testing.T) {
 		{name: "no reservation, mismatched addr", llReservationStatus: multithreaded.LLStatusNone, matchThreadId: true, matchEffAddr: false, shouldClearReservation: false},
 	}
 
-	pc := Word(0x04)
 	rt := Word(0x12_34_56_78)
 	baseReg := 5
 	rtReg := 6
@@ -365,7 +352,7 @@ func TestEVM_MT_StoreOpsClearMemReservation(t *testing.T) {
 			tName := fmt.Sprintf("%v (%v)", c.name, v.name)
 			t.Run(tName, func(t *testing.T) {
 				insn := uint32((c.opcode << 26) | (baseReg & 0x1F << 21) | (rtReg & 0x1F << 16) | (0xFFFF & c.offset))
-				goVm, state, contracts := setup(t, i, nil)
+				goVm, state, contracts := setup(t, i, nil, testutil.WithPCAndNextPC(0x08))
 				step := state.GetStep()
 
 				// Define LL-related params
@@ -382,8 +369,6 @@ func TestEVM_MT_StoreOpsClearMemReservation(t *testing.T) {
 				}
 
 				// Setup state
-				state.GetCurrentThread().Cpu.PC = pc
-				state.GetCurrentThread().Cpu.NextPC = pc + 4
 				state.GetRegistersRef()[rtReg] = rt
 				state.GetRegistersRef()[baseReg] = c.base
 				state.GetMemory().SetUint32(state.GetPC(), insn)
@@ -395,7 +380,7 @@ func TestEVM_MT_StoreOpsClearMemReservation(t *testing.T) {
 				// Setup expectations
 				expected := mttestutil.NewExpectedMTState(state)
 				expected.ExpectStep()
-				expected.ExpectMemoryWrite(c.effAddr, c.postMem)
+				expected.ExpectMemoryWriteUint32(t, c.effAddr, c.postMem)
 				if v.shouldClearReservation {
 					expected.LLReservationStatus = multithreaded.LLStatusNone
 					expected.LLAddress = 0
@@ -1566,9 +1551,10 @@ func TestEVM_SchedQuantumThreshold(t *testing.T) {
 	}
 }
 
-func setup(t require.TestingT, randomSeed int, preimageOracle mipsevm.PreimageOracle) (mipsevm.FPVM, *multithreaded.State, *testutil.ContractMetadata) {
+func setup(t require.TestingT, randomSeed int, preimageOracle mipsevm.PreimageOracle, opts ...testutil.StateOption) (mipsevm.FPVM, *multithreaded.State, *testutil.ContractMetadata) {
 	v := GetMultiThreadedTestCase(t)
-	vm := v.VMFactory(preimageOracle, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(randomSeed)))
+	allOpts := append([]testutil.StateOption{testutil.WithRandomization(int64(randomSeed))}, opts...)
+	vm := v.VMFactory(preimageOracle, os.Stdout, os.Stderr, testutil.CreateLogger(), allOpts...)
 	state := mttestutil.GetMtState(t, vm)
 
 	return vm, state, v.Contracts
