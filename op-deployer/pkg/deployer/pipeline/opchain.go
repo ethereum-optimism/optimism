@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/big"
+	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
@@ -103,16 +104,50 @@ func DeployOPChain(ctx context.Context, env *Env, bundle ArtifactsBundle, intent
 	// we need to set them using the implementation address read from their corresponding proxy.
 	// The reason these might be empty is because we're only invoking DeployOPChain.s.sol as part of the pipeline.
 	// TODO: Need to initialize 'mipsSingletonAddress' and 'preimageOracleSingletonAddress'
-	setEIP1967ImplementationAddress(ctx, env.L1Client, dco.DelayedWETHPermissionedGameProxy, currentBlockHash, &st.ImplementationsDeployment.DelayedWETHImplAddress)
-	setEIP1967ImplementationAddress(ctx, env.L1Client, dco.OptimismPortalProxy, currentBlockHash, &st.ImplementationsDeployment.OptimismPortalImplAddress)
-	setEIP1967ImplementationAddress(ctx, env.L1Client, dco.SystemConfigProxy, currentBlockHash, &st.ImplementationsDeployment.SystemConfigImplAddress)
-	setRDPImplementationAddress(ctx, env.L1Client, dco.AddressManager, &st.ImplementationsDeployment.L1CrossDomainMessengerImplAddress)
-	setEIP1967ImplementationAddress(ctx, env.L1Client, dco.L1ERC721BridgeProxy, currentBlockHash, &st.ImplementationsDeployment.L1ERC721BridgeImplAddress)
-	setEIP1967ImplementationAddress(ctx, env.L1Client, dco.L1StandardBridgeProxy, currentBlockHash, &st.ImplementationsDeployment.L1StandardBridgeImplAddress)
-	setEIP1967ImplementationAddress(ctx, env.L1Client, dco.OptimismMintableERC20FactoryProxy, currentBlockHash, &st.ImplementationsDeployment.OptimismMintableERC20FactoryImplAddress)
-	setEIP1967ImplementationAddress(ctx, env.L1Client, dco.DisputeGameFactoryProxy, currentBlockHash, &st.ImplementationsDeployment.DisputeGameFactoryImplAddress)
+	setImplementationAddressTasks := []func(){
+		func() {
+			setEIP1967ImplementationAddress(ctx, env.L1Client, dco.DelayedWETHPermissionedGameProxy, currentBlockHash, &st.ImplementationsDeployment.DelayedWETHImplAddress)
+		},
+		func() {
+			setEIP1967ImplementationAddress(ctx, env.L1Client, dco.OptimismPortalProxy, currentBlockHash, &st.ImplementationsDeployment.OptimismPortalImplAddress)
+		},
+		func() {
+			setEIP1967ImplementationAddress(ctx, env.L1Client, dco.SystemConfigProxy, currentBlockHash, &st.ImplementationsDeployment.SystemConfigImplAddress)
+		},
+		func() {
+			setRDPImplementationAddress(ctx, env.L1Client, dco.AddressManager, &st.ImplementationsDeployment.L1CrossDomainMessengerImplAddress)
+		},
+		func() {
+			setEIP1967ImplementationAddress(ctx, env.L1Client, dco.L1ERC721BridgeProxy, currentBlockHash, &st.ImplementationsDeployment.L1ERC721BridgeImplAddress)
+		},
+		func() {
+			setEIP1967ImplementationAddress(ctx, env.L1Client, dco.L1StandardBridgeProxy, currentBlockHash, &st.ImplementationsDeployment.L1StandardBridgeImplAddress)
+		},
+		func() {
+			setEIP1967ImplementationAddress(ctx, env.L1Client, dco.OptimismMintableERC20FactoryProxy, currentBlockHash, &st.ImplementationsDeployment.OptimismMintableERC20FactoryImplAddress)
+		},
+		func() {
+			setEIP1967ImplementationAddress(ctx, env.L1Client, dco.DisputeGameFactoryProxy, currentBlockHash, &st.ImplementationsDeployment.DisputeGameFactoryImplAddress)
+		},
+	}
+
+	// Execute all set implementation address tasks concurrently
+	executeTasksConcurrently(setImplementationAddressTasks)
 
 	return nil
+}
+
+// Helper function to execute tasks concurrently
+func executeTasksConcurrently(tasks []func()) {
+	var wg sync.WaitGroup
+	for _, task := range tasks {
+		wg.Add(1)
+		go func(t func()) {
+			defer wg.Done()
+			t()
+		}(task)
+	}
+	wg.Wait()
 }
 
 func setRDPImplementationAddress(ctx context.Context, client *ethclient.Client, addressManager common.Address, implAddress *common.Address) {
