@@ -100,7 +100,7 @@ func DeployOPChain(ctx context.Context, env *Env, bundle ArtifactsBundle, intent
 	currentBlockHash := block.Hash()
 
 	// If any of the implementations addresses (excluding OpcmProxy) are empty,
-	// we need to set them using the addresses of the corresponding proxies.
+	// we need to set them using the implementation address read from their corresponding proxy.
 	// The reason these might be empty is because we're only invoking DeployOPChain.s.sol as part of the pipeline.
 	// TODO: Need to initialize 'mipsSingletonAddress' and 'preimageOracleSingletonAddress'
 	setEIP1967ImplementationAddress(ctx, env.L1Client, dco.DelayedWETHPermissionedGameProxy, currentBlockHash, &st.ImplementationsDeployment.DelayedWETHImplAddress)
