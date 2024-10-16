@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"math/big"
 
-	opcm2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
-	state2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 )
 
-func DeployImplementations(ctx context.Context, env *Env, bundle ArtifactsBundle, intent *state2.Intent, st *state2.State) error {
+func DeployImplementations(ctx context.Context, env *Env, bundle ArtifactsBundle, intent *state.Intent, st *state.State) error {
 	lgr := env.Logger.New("stage", "deploy-implementations")
 
 	if !shouldDeployImplementations(intent, st) {
@@ -26,7 +26,7 @@ func DeployImplementations(ctx context.Context, env *Env, bundle ArtifactsBundle
 	var contractsRelease string
 	var err error
 	if intent.L1ContractsLocator.IsTag() {
-		standardVersionsTOML, err = opcm2.StandardL1VersionsDataFor(intent.L1ChainID)
+		standardVersionsTOML, err = opcm.StandardL1VersionsDataFor(intent.L1ChainID)
 		if err != nil {
 			return fmt.Errorf("error getting standard versions TOML: %w", err)
 		}
@@ -36,7 +36,7 @@ func DeployImplementations(ctx context.Context, env *Env, bundle ArtifactsBundle
 	}
 
 	var dump *foundry.ForgeAllocs
-	var dio opcm2.DeployImplementationsOutput
+	var dio opcm.DeployImplementationsOutput
 	err = CallScriptBroadcast(
 		ctx,
 		CallScriptBroadcastOpts{
@@ -50,9 +50,9 @@ func DeployImplementations(ctx context.Context, env *Env, bundle ArtifactsBundle
 			Handler: func(host *script.Host) error {
 				host.ImportState(st.SuperchainDeployment.StateDump)
 
-				dio, err = opcm2.DeployImplementations(
+				dio, err = opcm.DeployImplementations(
 					host,
-					opcm2.DeployImplementationsInput{
+					opcm.DeployImplementationsInput{
 						Salt:                            st.Create2Salt,
 						WithdrawalDelaySeconds:          big.NewInt(604800),
 						MinProposalSizeBytes:            big.NewInt(126000),
@@ -83,7 +83,7 @@ func DeployImplementations(ctx context.Context, env *Env, bundle ArtifactsBundle
 		return fmt.Errorf("error deploying implementations: %w", err)
 	}
 
-	st.ImplementationsDeployment = &state2.ImplementationsDeployment{
+	st.ImplementationsDeployment = &state.ImplementationsDeployment{
 		OpcmProxyAddress:                        dio.OpcmProxy,
 		DelayedWETHImplAddress:                  dio.DelayedWETHImpl,
 		OptimismPortalImplAddress:               dio.OptimismPortalImpl,
@@ -101,6 +101,6 @@ func DeployImplementations(ctx context.Context, env *Env, bundle ArtifactsBundle
 	return nil
 }
 
-func shouldDeployImplementations(intent *state2.Intent, st *state2.State) bool {
+func shouldDeployImplementations(intent *state.Intent, st *state.State) bool {
 	return st.ImplementationsDeployment == nil
 }
