@@ -29,15 +29,14 @@ type ordering struct {
 // The test assumes one frame per block
 // so do not specify a frame index which
 // is greater than the number of blocks
-// or the test will panic
+// or the test will panic.
 var orderings = []ordering{
-	{blocks: []uint{1, 2, 3}, frames: []uint{0, 1, 2}, safeHeadPreHolocene: 3, safeHeadHolocene: 3}, // regular case
-	{blocks: []uint{2, 1, 3}, frames: []uint{0, 1, 2}, safeHeadPreHolocene: 3, safeHeadHolocene: 0},
-	{blocks: []uint{2, 2, 1, 3}, frames: []uint{0, 1, 2, 3}, safeHeadPreHolocene: 3, safeHeadHolocene: 3},
-	{blocks: []uint{1, 2, 3}, frames: []uint{0, 1, 2}, safeHeadPreHolocene: 3, safeHeadHolocene: 0},
-	{blocks: []uint{1, 2, 3}, frames: []uint{0, 1, 2}, safeHeadPreHolocene: 3, safeHeadHolocene: 0},
-	{blocks: []uint{1, 2, 3}, frames: []uint{2, 1, 0}, safeHeadPreHolocene: 3, safeHeadHolocene: 0},
-	{blocks: []uint{1, 2, 3}, frames: []uint{0, 1, 0, 2}, safeHeadPreHolocene: 3, safeHeadHolocene: 0},
+	{blocks: []uint{1, 2, 3}, frames: []uint{0, 1, 2}, safeHeadPreHolocene: 3, safeHeadHolocene: 3},       // regular case
+	{blocks: []uint{2, 1, 3}, frames: []uint{0, 1, 2}, safeHeadPreHolocene: 3, safeHeadHolocene: 0},       // out-of-order blocks
+	{blocks: []uint{2, 2, 1, 3}, frames: []uint{0, 1, 2, 3}, safeHeadPreHolocene: 3, safeHeadHolocene: 3}, // duplicate block
+	{blocks: []uint{1, 2, 3}, frames: []uint{0, 1, 2}, safeHeadPreHolocene: 3, safeHeadHolocene: 0},       // frames reveresed
+	{blocks: []uint{1, 2, 3}, frames: []uint{2, 1, 0}, safeHeadPreHolocene: 3, safeHeadHolocene: 0},       // bad frame ordering
+	{blocks: []uint{1, 2, 3}, frames: []uint{0, 1, 0, 2}, safeHeadPreHolocene: 3, safeHeadHolocene: 0},    // duplicate frames
 }
 
 func Test_ProgramAction_HoloceneFrameRules(gt *testing.T) {
@@ -88,8 +87,18 @@ func runHoloceneFrameTest(gt *testing.T, testCfg *helpers.TestCfg[ordering]) {
 
 	env.Batcher.ActCreateChannel(t, false) // TODO avoid span batches for now, the derivation library code will panic if blocks are added out of order
 
-	const targetHeadNumber = uint64(3)
-	for env.Engine.L2Chain().CurrentBlock().Number.Uint64() < targetHeadNumber {
+	max := func(input []uint) uint {
+		max := uint(0)
+		for _, val := range input {
+			if val > max {
+				max = val
+			}
+		}
+		return max
+	}
+
+	targetHeadNumber := max(testCfg.Custom.blocks)
+	for env.Engine.L2Chain().CurrentBlock().Number.Uint64() < uint64(targetHeadNumber) {
 		env.Sequencer.ActL2StartBlock(t)
 		env.Sequencer.ActL2EndBlock(t)
 	}
@@ -131,5 +140,5 @@ func runHoloceneFrameTest(gt *testing.T, testCfg *helpers.TestCfg[ordering]) {
 	}
 
 	// Run the FPP on L2 block
-	env.RunFaultProofProgram(t, targetHeadNumber, testCfg.CheckResult, testCfg.InputParams...)
+	env.RunFaultProofProgram(t, uint64(targetHeadNumber), testCfg.CheckResult, testCfg.InputParams...)
 }
