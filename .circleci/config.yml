@@ -1457,12 +1457,12 @@ workflows:
   go-release-deployer:
     jobs:
       - go-release:
-          tags:
-            only: /^op-deployer.*/
-          branches:
-            ignore: /.*/
+          filters:
+            tags:
+              only: /^op-deployer.*/
+            branches:
+              ignore: /.*/
           module: op-deployer
-
 
   release:
     when:
