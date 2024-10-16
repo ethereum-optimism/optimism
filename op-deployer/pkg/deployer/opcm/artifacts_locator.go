@@ -45,7 +45,7 @@ func (a *ArtifactsLocator) MarshalText() ([]byte, error) {
 	}
 
 	if a.Tag != "" {
-		return []byte(a.Tag), nil
+		return []byte("tag://" + a.Tag), nil
 	}
 
 	return nil, fmt.Errorf("no URL, path or tag set")
