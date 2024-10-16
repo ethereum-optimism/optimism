@@ -40,7 +40,7 @@ func HazardUnsafeFrontierChecks(d UnsafeFrontierCheckDeps, inL1DerivedFrom eth.B
 					if err != nil {
 
 					}
-					if err := d.IsCrossUnsafe(hazardChainID, hazardBlock.ID()); err != nil {
+					if err := d.IsCrossUnsafe(hazardChainID, parent); err != nil {
 
 					}
 				}
