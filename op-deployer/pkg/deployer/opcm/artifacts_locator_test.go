@@ -79,6 +79,10 @@ func TestArtifactsLocator_Marshaling(t *testing.T) {
 			}
 			require.NoError(t, err)
 			require.Equal(t, tt.out, &a)
+
+			marshalled, err := a.MarshalText()
+			require.NoError(t, err)
+			require.Equal(t, tt.in, string(marshalled))
 		})
 	}
 }
