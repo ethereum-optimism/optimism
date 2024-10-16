@@ -2,8 +2,9 @@ package state
 
 import (
 	"fmt"
-	opcm2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"math/big"
+
+	opcm2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"

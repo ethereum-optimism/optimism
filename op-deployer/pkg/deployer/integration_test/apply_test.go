@@ -3,10 +3,6 @@ package integration_test
 import (
 	"context"
 	"fmt"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
-	opcm2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
-	state2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"log/slog"
 	"math/big"
 	"net/url"
@@ -16,6 +12,11 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
+	opcm2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
+	state2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 

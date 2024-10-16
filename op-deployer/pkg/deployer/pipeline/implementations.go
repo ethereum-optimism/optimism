@@ -3,9 +3,10 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"math/big"
+
 	opcm2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	state2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"

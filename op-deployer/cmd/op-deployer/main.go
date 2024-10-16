@@ -2,11 +2,12 @@ package main
 
 import (
 	"fmt"
+	"os"
+
 	deployer2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/bootstrap"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/inspect"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/version"
-	"os"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 

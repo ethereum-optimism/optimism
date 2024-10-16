@@ -2,6 +2,7 @@ package inspect
 
 import (
 	"fmt"
+
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 
 	op_service "github.com/ethereum-optimism/optimism/op-service"

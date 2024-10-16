@@ -3,10 +3,11 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"math/big"
+
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	state2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 )

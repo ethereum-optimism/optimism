@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	state2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 

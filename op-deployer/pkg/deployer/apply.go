@@ -4,9 +4,10 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
+	"strings"
+
 	pipeline2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	state2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	"strings"
 
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"

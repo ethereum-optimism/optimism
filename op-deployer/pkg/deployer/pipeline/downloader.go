@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	opcm2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"io"
 	"net/http"
 	"net/url"
@@ -15,6 +14,8 @@ import (
 	"path"
 	"strings"
 	"time"
+
+	opcm2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 )

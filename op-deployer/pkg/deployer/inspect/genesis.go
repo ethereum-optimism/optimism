@@ -2,6 +2,7 @@ package inspect
 
 import (
 	"fmt"
+
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	state2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 

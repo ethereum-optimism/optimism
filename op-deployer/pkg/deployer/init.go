@@ -3,11 +3,12 @@ package deployer
 import (
 	"errors"
 	"fmt"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
-	state2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"os"
 	"path"
 	"strings"
+
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	state2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 
 	op_service "github.com/ethereum-optimism/optimism/op-service"
 

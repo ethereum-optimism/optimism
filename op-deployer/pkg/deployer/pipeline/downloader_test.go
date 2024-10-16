@@ -2,13 +2,14 @@ package pipeline
 
 import (
 	"context"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"testing"
+
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 
 	"github.com/stretchr/testify/require"
 )

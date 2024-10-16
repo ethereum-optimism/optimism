@@ -3,8 +3,9 @@ package pipeline
 import (
 	"context"
 	"fmt"
-	state2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"path"
+
+	state2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 
