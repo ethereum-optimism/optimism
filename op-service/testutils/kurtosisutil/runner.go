@@ -17,7 +17,7 @@ func StartEnclave(t *testing.T, ctx context.Context, lgr log.Logger, pkg string,
 	kurtosisCtx, err := kurtosis_context.NewKurtosisContextFromLocalEngine()
 	require.NoError(t, err)
 
-	enclaveID := fmt.Sprintf("kurtosis-%s", t.Name())
+	enclaveID := fmt.Sprintf("kurtosis-%s-%d", t.Name(), time.Now().UnixNano())
 	enclaveCtx, err := kurtosisCtx.CreateEnclave(ctx, enclaveID)
 	require.NoError(t, err)
 

@@ -79,7 +79,7 @@ contract ProtocolHandler is TestBase, StdUtils, Actors {
         index = bound(index, 0, allSuperTokens.length - 1);
         address addr = allSuperTokens[index];
         vm.prank(BRIDGE);
-        OptimismSuperchainERC20(addr).mint(currentActor(), amount);
+        OptimismSuperchainERC20(addr).crosschainMint(currentActor(), amount);
         // currentValue will be zero if key is not present
         (, uint256 currentValue) = ghost_totalSupplyAcrossChains.tryGet(MESSENGER.superTokenInitDeploySalts(addr));
         ghost_totalSupplyAcrossChains.set(MESSENGER.superTokenInitDeploySalts(addr), currentValue + amount);
@@ -164,7 +164,7 @@ contract ProtocolHandler is TestBase, StdUtils, Actors {
         bytes32 hackySalt = keccak256(abi.encode(remoteToken, name, symbol, decimals, chainId));
         supertoken = OptimismSuperchainERC20(
             address(
-                // TODO: Use the SuperchainERC20 Beacon Proxy
+                // TODO: Use the OptimismSuperchainERC20 Beacon Proxy
                 new ERC1967Proxy{ salt: hackySalt }(
                     address(superchainERC20Impl),
                     abi.encodeCall(OptimismSuperchainERC20.initialize, (remoteToken, name, symbol, decimals))

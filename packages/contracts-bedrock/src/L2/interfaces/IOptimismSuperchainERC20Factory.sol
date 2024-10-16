@@ -11,8 +11,6 @@ interface IOptimismSuperchainERC20Factory is IOptimismERC20Factory, ISemver {
         address indexed superchainToken, address indexed remoteToken, address deployer
     );
 
-    function deployments(address _superchainToken) external view override returns (address remoteToken_);
-    function version() external view override returns (string memory);
     function deploy(
         address _remoteToken,
         string memory _name,

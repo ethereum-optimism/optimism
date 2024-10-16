@@ -3,11 +3,9 @@ package frontend
 import (
 	"context"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 type AdminBackend interface {
@@ -19,19 +17,22 @@ type AdminBackend interface {
 type QueryBackend interface {
 	CheckMessage(identifier types.Identifier, payloadHash common.Hash) (types.SafetyLevel, error)
 	CheckMessages(messages []types.Message, minSafety types.SafetyLevel) error
-	CheckBlock(chainID *hexutil.U256, blockHash common.Hash, blockNumber hexutil.Uint64) (types.SafetyLevel, error)
-	DerivedFrom(ctx context.Context, chainID types.ChainID, blockHash common.Hash, blockNumber uint64) (eth.BlockRef, error)
+	DerivedFrom(ctx context.Context, chainID types.ChainID, derived eth.BlockID) (derivedFrom eth.BlockID, err error)
+	UnsafeView(ctx context.Context, chainID types.ChainID, unsafe types.ReferenceView) (types.ReferenceView, error)
+	SafeView(ctx context.Context, chainID types.ChainID, safe types.ReferenceView) (types.ReferenceView, error)
+	Finalized(ctx context.Context, chainID types.ChainID) (eth.BlockID, error)
 }
 
 type UpdatesBackend interface {
-	UpdateLocalUnsafe(chainID types.ChainID, head eth.BlockRef)
-	UpdateLocalSafe(chainID types.ChainID, derivedFrom eth.BlockRef, lastDerived eth.BlockRef)
-	UpdateFinalizedL1(chainID types.ChainID, finalized eth.BlockRef)
+	UpdateLocalUnsafe(chainID types.ChainID, head eth.BlockRef) error
+	UpdateLocalSafe(chainID types.ChainID, derivedFrom eth.BlockRef, lastDerived eth.BlockRef) error
+	UpdateFinalizedL1(chainID types.ChainID, finalized eth.BlockRef) error
 }
 
 type Backend interface {
 	AdminBackend
 	QueryBackend
+	UpdatesBackend
 }
 
 type QueryFrontend struct {
@@ -53,23 +54,19 @@ func (q *QueryFrontend) CheckMessages(
 }
 
 func (q *QueryFrontend) UnsafeView(ctx context.Context, chainID types.ChainID, unsafe types.ReferenceView) (types.ReferenceView, error) {
-	// TODO(#12358): attach to backend
-	return types.ReferenceView{}, nil
+	return q.Supervisor.UnsafeView(ctx, chainID, unsafe)
 }
 
 func (q *QueryFrontend) SafeView(ctx context.Context, chainID types.ChainID, safe types.ReferenceView) (types.ReferenceView, error) {
-	// TODO(#12358): attach to backend
-	return types.ReferenceView{}, nil
+	return q.Supervisor.SafeView(ctx, chainID, safe)
 }
 
 func (q *QueryFrontend) Finalized(ctx context.Context, chainID types.ChainID) (eth.BlockID, error) {
-	// TODO(#12358): attach to backend
-	return eth.BlockID{}, nil
+	return q.Supervisor.Finalized(ctx, chainID)
 }
 
-func (q *QueryFrontend) DerivedFrom(ctx context.Context, chainID types.ChainID, blockHash common.Hash, blockNumber uint64) (eth.BlockRef, error) {
-	// TODO(#12358): attach to backend
-	return eth.BlockRef{}, nil
+func (q *QueryFrontend) DerivedFrom(ctx context.Context, chainID types.ChainID, derived eth.BlockID) (derivedFrom eth.BlockID, err error) {
+	return q.Supervisor.DerivedFrom(ctx, chainID, derived)
 }
 
 type AdminFrontend struct {
@@ -95,14 +92,14 @@ type UpdatesFrontend struct {
 	Supervisor UpdatesBackend
 }
 
-func (u *UpdatesFrontend) UpdateLocalUnsafe(chainID types.ChainID, head eth.BlockRef) {
-	u.Supervisor.UpdateLocalUnsafe(chainID, head)
+func (u *UpdatesFrontend) UpdateLocalUnsafe(chainID types.ChainID, head eth.BlockRef) error {
+	return u.Supervisor.UpdateLocalUnsafe(chainID, head)
 }
 
-func (u *UpdatesFrontend) UpdateLocalSafe(chainID types.ChainID, derivedFrom eth.BlockRef, lastDerived eth.BlockRef) {
-	u.Supervisor.UpdateLocalSafe(chainID, derivedFrom, lastDerived)
+func (u *UpdatesFrontend) UpdateLocalSafe(chainID types.ChainID, derivedFrom eth.BlockRef, lastDerived eth.BlockRef) error {
+	return u.Supervisor.UpdateLocalSafe(chainID, derivedFrom, lastDerived)
 }
 
-func (u *UpdatesFrontend) UpdateFinalizedL1(chainID types.ChainID, finalized eth.BlockRef) {
-	u.Supervisor.UpdateFinalizedL1(chainID, finalized)
+func (u *UpdatesFrontend) UpdateFinalizedL1(chainID types.ChainID, finalized eth.BlockRef) error {
+	return u.Supervisor.UpdateFinalizedL1(chainID, finalized)
 }
