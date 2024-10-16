@@ -29,8 +29,11 @@ func TestDownloadArtifacts(t *testing.T) {
 	ctx := context.Background()
 	artifactsURL, err := url.Parse(ts.URL)
 	require.NoError(t, err)
+	loc := &opcm.ArtifactsLocator{
+		URL: artifactsURL,
+	}
 
-	fs, cleanup, err := DownloadArtifacts(ctx, (*opcm.ArtifactsURL)(artifactsURL), nil)
+	fs, cleanup, err := DownloadArtifacts(ctx, loc, nil)
 	require.NoError(t, err)
 	require.NotNil(t, fs)
 	defer func() {
