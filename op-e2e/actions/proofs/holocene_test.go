@@ -50,21 +50,21 @@ func Test_ProgramAction_HoloceneDerivationRules(gt *testing.T) {
 			fmt.Sprintf("HonestClaim-%v", ordering),
 			ordering,
 			helpers.NewForkMatrix(helpers.Granite, helpers.LatestFork),
-			runHoloceneFrameTest,
+			runHoloceneDerivationTest,
 			helpers.ExpectNoError(),
 		)
 		matrix.AddTestCase(
 			fmt.Sprintf("JunkClaim-%v", ordering),
 			ordering,
 			helpers.NewForkMatrix(helpers.Granite, helpers.LatestFork),
-			runHoloceneFrameTest,
+			runHoloceneDerivationTest,
 			helpers.ExpectError(claim.ErrClaimNotValid),
 			helpers.WithL2Claim(common.HexToHash("0xdeadbeef")),
 		)
 	}
 }
 
-func runHoloceneFrameTest(gt *testing.T, testCfg *helpers.TestCfg[ordering]) {
+func runHoloceneDerivationTest(gt *testing.T, testCfg *helpers.TestCfg[ordering]) {
 	t := actionsHelpers.NewDefaultTesting(gt)
 	tp := helpers.NewTestParams(func(tp *e2eutils.TestParams) {
 		// Set the channel timeout to 10 blocks, 12x lower than the sequencing window.
