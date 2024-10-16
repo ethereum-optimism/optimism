@@ -1455,12 +1455,12 @@ workflows:
             ./packages/contracts-bedrock/lib
 
   go-release-deployer:
-    tags:
-      only: /^op-deployer.*/
-    branches:
-      ignore: /.*/
     jobs:
       - go-release:
+          tags:
+            only: /^op-deployer.*/
+          branches:
+            ignore: /.*/
           module: op-deployer
 
 
