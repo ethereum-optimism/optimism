@@ -15,7 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-func GenerateL2Genesis(ctx context.Context, env *Env, artifactsFS foundry.StatDirFs, intent *state.Intent, st *state.State, chainID common.Hash) error {
+func GenerateL2Genesis(ctx context.Context, env *Env, bundle ArtifactsBundle, intent *state.Intent, st *state.State, chainID common.Hash) error {
 	lgr := env.Logger.New("stage", "generate-l2-genesis")
 
 	lgr.Info("generating L2 genesis", "id", chainID.Hex())
@@ -41,7 +41,7 @@ func GenerateL2Genesis(ctx context.Context, env *Env, artifactsFS foundry.StatDi
 		CallScriptBroadcastOpts{
 			L1ChainID:   big.NewInt(int64(intent.L1ChainID)),
 			Logger:      lgr,
-			ArtifactsFS: artifactsFS,
+			ArtifactsFS: bundle.L2,
 			Deployer:    env.Deployer,
 			Signer:      env.Signer,
 			Client:      env.L1Client,
@@ -88,10 +88,6 @@ func GenerateL2Genesis(ctx context.Context, env *Env, artifactsFS foundry.StatDi
 		return fmt.Errorf("failed to get start block: %w", err)
 	}
 	thisChainState.StartBlock = startHeader
-
-	if err := env.WriteState(st); err != nil {
-		return fmt.Errorf("failed to write state: %w", err)
-	}
 
 	return nil
 }

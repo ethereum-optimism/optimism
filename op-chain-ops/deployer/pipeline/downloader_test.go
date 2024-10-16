@@ -9,7 +9,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opcm"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -28,8 +29,11 @@ func TestDownloadArtifacts(t *testing.T) {
 	ctx := context.Background()
 	artifactsURL, err := url.Parse(ts.URL)
 	require.NoError(t, err)
+	loc := &opcm.ArtifactsLocator{
+		URL: artifactsURL,
+	}
 
-	fs, cleanup, err := DownloadArtifacts(ctx, (*state.ArtifactsURL)(artifactsURL), nil)
+	fs, cleanup, err := DownloadArtifacts(ctx, loc, nil)
 	require.NoError(t, err)
 	require.NotNil(t, fs)
 	defer func() {

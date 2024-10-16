@@ -13,7 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
 
-func DeploySuperchain(ctx context.Context, env *Env, artifactsFS foundry.StatDirFs, intent *state.Intent, st *state.State) error {
+func DeploySuperchain(ctx context.Context, env *Env, bundle ArtifactsBundle, intent *state.Intent, st *state.State) error {
 	lgr := env.Logger.New("stage", "deploy-superchain")
 
 	if !shouldDeploySuperchain(intent, st) {
@@ -31,7 +31,7 @@ func DeploySuperchain(ctx context.Context, env *Env, artifactsFS foundry.StatDir
 		CallScriptBroadcastOpts{
 			L1ChainID:   big.NewInt(int64(intent.L1ChainID)),
 			Logger:      lgr,
-			ArtifactsFS: artifactsFS,
+			ArtifactsFS: bundle.L1,
 			Deployer:    env.Deployer,
 			Signer:      env.Signer,
 			Client:      env.L1Client,
@@ -70,9 +70,6 @@ func DeploySuperchain(ctx context.Context, env *Env, artifactsFS foundry.StatDir
 		ProtocolVersionsProxyAddress: dso.ProtocolVersionsProxy,
 		ProtocolVersionsImplAddress:  dso.ProtocolVersionsImpl,
 		StateDump:                    dump,
-	}
-	if err := env.WriteState(st); err != nil {
-		return err
 	}
 
 	return nil

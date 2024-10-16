@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math/big"
-	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
@@ -12,7 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 )
 
-func DeployImplementations(ctx context.Context, env *Env, artifactsFS foundry.StatDirFs, intent *state.Intent, st *state.State) error {
+func DeployImplementations(ctx context.Context, env *Env, bundle ArtifactsBundle, intent *state.Intent, st *state.State) error {
 	lgr := env.Logger.New("stage", "deploy-implementations")
 
 	if !shouldDeployImplementations(intent, st) {
@@ -23,12 +22,16 @@ func DeployImplementations(ctx context.Context, env *Env, artifactsFS foundry.St
 	lgr.Info("deploying implementations")
 
 	var standardVersionsTOML string
+	var contractsRelease string
 	var err error
-	if strings.HasPrefix(intent.ContractsRelease, "op-contracts") {
-		standardVersionsTOML, err = opcm.StandardVersionsFor(intent.L1ChainID)
+	if intent.L1ContractsLocator.IsTag() {
+		standardVersionsTOML, err = opcm.StandardL1VersionsDataFor(intent.L1ChainID)
 		if err != nil {
 			return fmt.Errorf("error getting standard versions TOML: %w", err)
 		}
+		contractsRelease = intent.L1ContractsLocator.Tag
+	} else {
+		contractsRelease = "dev"
 	}
 
 	var dump *foundry.ForgeAllocs
@@ -38,7 +41,7 @@ func DeployImplementations(ctx context.Context, env *Env, artifactsFS foundry.St
 		CallScriptBroadcastOpts{
 			L1ChainID:   big.NewInt(int64(intent.L1ChainID)),
 			Logger:      lgr,
-			ArtifactsFS: artifactsFS,
+			ArtifactsFS: bundle.L1,
 			Deployer:    env.Deployer,
 			Signer:      env.Signer,
 			Client:      env.L1Client,
@@ -56,7 +59,7 @@ func DeployImplementations(ctx context.Context, env *Env, artifactsFS foundry.St
 						ProofMaturityDelaySeconds:       big.NewInt(604800),
 						DisputeGameFinalityDelaySeconds: big.NewInt(302400),
 						MipsVersion:                     big.NewInt(1),
-						Release:                         intent.ContractsRelease,
+						Release:                         contractsRelease,
 						SuperchainConfigProxy:           st.SuperchainDeployment.SuperchainConfigProxyAddress,
 						ProtocolVersionsProxy:           st.SuperchainDeployment.ProtocolVersionsProxyAddress,
 						OpcmProxyOwner:                  st.SuperchainDeployment.ProxyAdminAddress,
@@ -92,9 +95,6 @@ func DeployImplementations(ctx context.Context, env *Env, artifactsFS foundry.St
 		OptimismMintableERC20FactoryImplAddress: dio.OptimismMintableERC20FactoryImpl,
 		DisputeGameFactoryImplAddress:           dio.DisputeGameFactoryImpl,
 		StateDump:                               dump,
-	}
-	if err := env.WriteState(st); err != nil {
-		return err
 	}
 
 	return nil

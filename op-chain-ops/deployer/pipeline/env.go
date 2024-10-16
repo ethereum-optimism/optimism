@@ -23,8 +23,8 @@ type Env struct {
 	Logger   log.Logger
 }
 
-func (e *Env) ReadIntent() (*state.Intent, error) {
-	intentPath := path.Join(e.Workdir, "intent.toml")
+func ReadIntent(workdir string) (*state.Intent, error) {
+	intentPath := path.Join(workdir, "intent.toml")
 	intent, err := jsonutil.LoadTOML[state.Intent](intentPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read intent file: %w", err)
@@ -32,8 +32,8 @@ func (e *Env) ReadIntent() (*state.Intent, error) {
 	return intent, nil
 }
 
-func (e *Env) ReadState() (*state.State, error) {
-	statePath := path.Join(e.Workdir, "state.json")
+func ReadState(workdir string) (*state.State, error) {
+	statePath := path.Join(workdir, "state.json")
 	st, err := jsonutil.LoadJSON[state.State](statePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read state file: %w", err)
@@ -41,9 +41,14 @@ func (e *Env) ReadState() (*state.State, error) {
 	return st, nil
 }
 
-func (e *Env) WriteState(st *state.State) error {
-	statePath := path.Join(e.Workdir, "state.json")
+func WriteState(workdir string, st *state.State) error {
+	statePath := path.Join(workdir, "state.json")
 	return st.WriteToFile(statePath)
 }
 
-type Stage func(ctx context.Context, env *Env, artifactsFS foundry.StatDirFs, intent *state.Intent, state2 *state.State) error
+type ArtifactsBundle struct {
+	L1 foundry.StatDirFs
+	L2 foundry.StatDirFs
+}
+
+type Stage func(ctx context.Context, env *Env, bundle ArtifactsBundle, intent *state.Intent, st *state.State) error

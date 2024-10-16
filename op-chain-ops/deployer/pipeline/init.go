@@ -4,11 +4,8 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
-	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opcm"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
-
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -20,7 +17,7 @@ func IsSupportedStateVersion(version int) bool {
 	return version == 1
 }
 
-func Init(ctx context.Context, env *Env, _ foundry.StatDirFs, intent *state.Intent, st *state.State) error {
+func Init(ctx context.Context, env *Env, _ ArtifactsBundle, intent *state.Intent, st *state.State) error {
 	lgr := env.Logger.New("stage", "init")
 	lgr.Info("initializing pipeline")
 
@@ -36,7 +33,7 @@ func Init(ctx context.Context, env *Env, _ foundry.StatDirFs, intent *state.Inte
 		}
 	}
 
-	if strings.HasPrefix(intent.ContractsRelease, "op-contracts") {
+	if intent.L1ContractsLocator.IsTag() {
 		superCfg, err := opcm.SuperchainFor(intent.L1ChainID)
 		if err != nil {
 			return fmt.Errorf("error getting superchain config: %w", err)
@@ -64,6 +61,23 @@ func Init(ctx context.Context, env *Env, _ foundry.StatDirFs, intent *state.Inte
 		}
 	}
 
+	l1ChainID, err := env.L1Client.ChainID(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get L1 chain ID: %w", err)
+	}
+
+	if l1ChainID.Cmp(intent.L1ChainIDBig()) != 0 {
+		return fmt.Errorf("l1 chain ID mismatch: got %d, expected %d", l1ChainID, intent.L1ChainID)
+	}
+
+	deployerCode, err := env.L1Client.CodeAt(ctx, script.DeterministicDeployerAddress, nil)
+	if err != nil {
+		return fmt.Errorf("failed to get deployer code: %w", err)
+	}
+	if len(deployerCode) == 0 {
+		return fmt.Errorf("deterministic deployer is not deployed on this chain - please deploy it first")
+	}
+
 	// If the state has never been applied, we don't need to perform
 	// any additional checks.
 	if st.AppliedIntent == nil {
@@ -78,23 +92,6 @@ func Init(ctx context.Context, env *Env, _ foundry.StatDirFs, intent *state.Inte
 
 	if st.AppliedIntent.FundDevAccounts != intent.FundDevAccounts {
 		return immutableErr("fundDevAccounts", st.AppliedIntent.FundDevAccounts, intent.FundDevAccounts)
-	}
-
-	l1ChainID, err := env.L1Client.ChainID(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get L1 chain ID: %w", err)
-	}
-
-	if l1ChainID.Cmp(intent.L1ChainIDBig()) != 0 {
-		return fmt.Errorf("L1 chain ID mismatch: got %d, expected %d", l1ChainID, intent.L1ChainID)
-	}
-
-	deployerCode, err := env.L1Client.CodeAt(ctx, script.DeterministicDeployerAddress, nil)
-	if err != nil {
-		return fmt.Errorf("failed to get deployer code: %w", err)
-	}
-	if len(deployerCode) == 0 {
-		return fmt.Errorf("deterministic deployer is not deployed on this chain - please deploy it first")
 	}
 
 	// TODO: validate individual

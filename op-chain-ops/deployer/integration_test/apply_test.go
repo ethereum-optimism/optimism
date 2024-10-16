@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opcm"
+
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
@@ -194,6 +196,9 @@ func makeIntent(
 	artifactsDir := path.Join(monorepoDir, "packages", "contracts-bedrock", "forge-artifacts")
 	artifactsURL, err := url.Parse(fmt.Sprintf("file://%s", artifactsDir))
 	require.NoError(t, err)
+	artifactsLocator := &opcm.ArtifactsLocator{
+		URL: artifactsURL,
+	}
 
 	addrFor := func(key devkeys.Key) common.Address {
 		addr, err := dk.Address(key)
@@ -208,9 +213,9 @@ func makeIntent(
 			ProtocolVersionsOwner: addrFor(devkeys.SuperchainDeployerKey.Key(l1ChainID)),
 			Guardian:              addrFor(devkeys.SuperchainConfigGuardianKey.Key(l1ChainID)),
 		},
-		FundDevAccounts:      true,
-		ContractArtifactsURL: (*state.ArtifactsURL)(artifactsURL),
-		ContractsRelease:     "dev",
+		FundDevAccounts:    true,
+		L1ContractsLocator: artifactsLocator,
+		L2ContractsLocator: artifactsLocator,
 		Chains: []*state.ChainIntent{
 			{
 				ID:                         l2ChainID.Bytes32(),
@@ -353,7 +358,8 @@ func TestApplyExistingOPCM(t *testing.T) {
 	}
 
 	intent, st := makeIntent(t, l1ChainID, dk, l2ChainID)
-	intent.ContractsRelease = "op-contracts/v1.6.0"
+	intent.L1ContractsLocator = opcm.DefaultL1ContractsLocator
+	intent.L2ContractsLocator = opcm.DefaultL2ContractsLocator
 
 	require.NoError(t, deployer.ApplyPipeline(
 		ctx,
