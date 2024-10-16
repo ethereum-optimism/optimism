@@ -479,7 +479,7 @@ contract DeployOPChain is Script {
         require(game.maxGameDepth() == 73, "DPG-100");
     }
 
-    function assertValidAnchorStateRegistryProxy(DeployOPChainInput _doi, DeployOPChainOutput _doo) internal {
+    function assertValidAnchorStateRegistryProxy(DeployOPChainInput, DeployOPChainOutput _doo) internal {
         // First we check the proxy as itself.
         IProxy proxy = IProxy(payable(address(_doo.anchorStateRegistryProxy())));
         vm.prank(address(0));
@@ -506,7 +506,7 @@ contract DeployOPChain is Script {
         require(Hash.unwrap(actualRoot) == expectedRoot, "ANCHORP-40");
     }
 
-    function assertValidAnchorStateRegistryImpl(DeployOPChainInput _doi, DeployOPChainOutput _doo) internal {
+    function assertValidAnchorStateRegistryImpl(DeployOPChainInput, DeployOPChainOutput _doo) internal {
         IAnchorStateRegistry registry = _doo.anchorStateRegistryImpl();
 
         DeployUtils.assertInitialized({ _contractAddress: address(registry), _slot: 0, _offset: 0 });
@@ -644,7 +644,7 @@ contract DeployOPChain is Script {
         require(admin == address(_doo.opChainProxyAdmin()), "DWETH-20");
     }
 
-    function assertValidAddressManager(DeployOPChainInput _doi, DeployOPChainOutput _doo) internal {
+    function assertValidAddressManager(DeployOPChainInput, DeployOPChainOutput _doo) internal view {
         require(_doo.addressManager().owner() == address(_doo.opChainProxyAdmin()), "AM-10");
     }
 
