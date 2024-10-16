@@ -2,8 +2,9 @@ package interopgen
 
 import (
 	"fmt"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"math/big"
+
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"

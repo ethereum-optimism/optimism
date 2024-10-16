@@ -3,8 +3,9 @@ package interopgen
 import (
 	"errors"
 	"fmt"
-	opcm2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"math/big"
+
+	opcm2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
