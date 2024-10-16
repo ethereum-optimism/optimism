@@ -276,6 +276,7 @@ contract L2Genesis is Deployer {
             setETHLiquidity(); // 25
             setOptimismSuperchainERC20Factory(); // 26
             setOptimismSuperchainERC20Beacon(); // 27
+            setSuperchainTokenBridge(); // 28
         }
     }
 
@@ -583,6 +584,12 @@ contract L2Genesis is Deployer {
         vm.etch(superchainERC20Impl, vm.getDeployedCode("OptimismSuperchainERC20.sol:OptimismSuperchainERC20"));
 
         _setImplementationCode(Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON);
+    }
+
+    /// @notice This predeploy is following the safety invariant #1.
+    ///         This contract has no initializer.
+    function setSuperchainTokenBridge() internal {
+        _setImplementationCode(Predeploys.SUPERCHAIN_TOKEN_BRIDGE);
     }
 
     /// @notice Sets all the preinstalls.
