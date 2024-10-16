@@ -3,6 +3,7 @@ package opcm
 import (
 	"embed"
 	"fmt"
+	"net/url"
 
 	"github.com/BurntSushi/toml"
 
@@ -16,15 +17,23 @@ var StandardVersionsMainnetData string
 //go:embed standard-versions-sepolia.toml
 var StandardVersionsSepoliaData string
 
-var StandardVersionsSepolia StandardVersions
+var StandardL1VersionsSepolia StandardL1Versions
 
-var StandardVersionsMainnet StandardVersions
+var StandardL1VersionsMainnet StandardL1Versions
 
-type StandardVersions struct {
-	Releases map[string]StandardVersionsReleases `toml:"releases"`
+var DefaultL1ContractsLocator = &ArtifactsLocator{
+	Tag: "op-contracts/v1.6.0",
 }
 
-type StandardVersionsReleases struct {
+var DefaultL2ContractsLocator = &ArtifactsLocator{
+	Tag: "op-contracts/v1.7.0-beta.1+l2-contracts",
+}
+
+type StandardL1Versions struct {
+	Releases map[string]StandardL1VersionsReleases `toml:"releases"`
+}
+
+type StandardL1VersionsReleases struct {
 	OptimismPortal               StandardVersionRelease `toml:"optimism_portal"`
 	SystemConfig                 StandardVersionRelease `toml:"system_config"`
 	AnchorStateRegistry          StandardVersionRelease `toml:"anchor_state_registry"`
@@ -48,7 +57,7 @@ type StandardVersionRelease struct {
 
 var _ embed.FS
 
-func StandardVersionsFor(chainID uint64) (string, error) {
+func StandardL1VersionsDataFor(chainID uint64) (string, error) {
 	switch chainID {
 	case 1:
 		return StandardVersionsMainnetData, nil
@@ -56,6 +65,17 @@ func StandardVersionsFor(chainID uint64) (string, error) {
 		return StandardVersionsSepoliaData, nil
 	default:
 		return "", fmt.Errorf("unsupported chain ID: %d", chainID)
+	}
+}
+
+func StandardL1VersionsFor(chainID uint64) (StandardL1Versions, error) {
+	switch chainID {
+	case 1:
+		return StandardL1VersionsMainnet, nil
+	case 11155111:
+		return StandardL1VersionsSepolia, nil
+	default:
+		return StandardL1Versions{}, fmt.Errorf("unsupported chain ID: %d", chainID)
 	}
 }
 
@@ -93,14 +113,29 @@ func ManagerOwnerAddrFor(chainID uint64) (common.Address, error) {
 	}
 }
 
+func StandardArtifactsURLForTag(tag string) (*url.URL, error) {
+	switch tag {
+	case "op-contracts/v1.6.0":
+		return url.Parse(standardArtifactsURL("ee07c78c3d8d4cd8f7a933c050f5afeebaa281b57b226cc6f092b19de2a8d61f"))
+	case "op-contracts/v1.7.0-beta.1+l2-contracts":
+		return url.Parse(standardArtifactsURL("40ca65dc738f0f5fbb05ec9ec953d9be94bc1c02a09fd871a36b152f6b36c1fe"))
+	default:
+		return nil, fmt.Errorf("unsupported tag: %s", tag)
+	}
+}
+
+func standardArtifactsURL(checksum string) string {
+	return fmt.Sprintf("https://storage.googleapis.com/oplabs-contract-artifacts/artifacts-v1-%s.tar.gz", checksum)
+}
+
 func init() {
-	StandardVersionsMainnet = StandardVersions{}
-	if err := toml.Unmarshal([]byte(StandardVersionsMainnetData), &StandardVersionsMainnet); err != nil {
+	StandardL1VersionsMainnet = StandardL1Versions{}
+	if err := toml.Unmarshal([]byte(StandardVersionsMainnetData), &StandardL1VersionsMainnet); err != nil {
 		panic(err)
 	}
 
-	StandardVersionsSepolia = StandardVersions{}
-	if err := toml.Unmarshal([]byte(StandardVersionsSepoliaData), &StandardVersionsSepolia); err != nil {
+	StandardL1VersionsSepolia = StandardL1Versions{}
+	if err := toml.Unmarshal([]byte(StandardVersionsSepoliaData), &StandardL1VersionsSepolia); err != nil {
 		panic(err)
 	}
 }

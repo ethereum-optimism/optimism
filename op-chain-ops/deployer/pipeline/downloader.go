@@ -15,7 +15,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opcm"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 )
 
@@ -27,10 +28,21 @@ type CleanupFunc func() error
 
 var noopCleanup = func() error { return nil }
 
-func DownloadArtifacts(ctx context.Context, artifactsURL *state.ArtifactsURL, progress DownloadProgressor) (foundry.StatDirFs, CleanupFunc, error) {
-	switch artifactsURL.Scheme {
+func DownloadArtifacts(ctx context.Context, loc *opcm.ArtifactsLocator, progress DownloadProgressor) (foundry.StatDirFs, CleanupFunc, error) {
+	var u *url.URL
+	var err error
+	if loc.IsTag() {
+		u, err = opcm.StandardArtifactsURLForTag(loc.Tag)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get standard artifacts URL for tag %s: %w", loc.Tag, err)
+		}
+	} else {
+		u = loc.URL
+	}
+
+	switch u.Scheme {
 	case "http", "https":
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, (*url.URL)(artifactsURL).String(), nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to create request: %w", err)
 		}
@@ -73,7 +85,7 @@ func DownloadArtifacts(ctx context.Context, artifactsURL *state.ArtifactsURL, pr
 		}
 		return fs.(foundry.StatDirFs), cleanup, nil
 	case "file":
-		fs := os.DirFS(artifactsURL.Path)
+		fs := os.DirFS(u.Path)
 		return fs.(foundry.StatDirFs), noopCleanup, nil
 	default:
 		return nil, nil, ErrUnsupportedArtifactsScheme

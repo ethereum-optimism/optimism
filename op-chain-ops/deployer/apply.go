@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
-
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/pipeline"
@@ -94,6 +92,16 @@ func Apply(ctx context.Context, cfg ApplyConfig) error {
 	signer := opcrypto.SignerFnFromBind(opcrypto.PrivateKeySignerFn(cfg.privateKeyECDSA, chainID))
 	deployer := crypto.PubkeyToAddress(cfg.privateKeyECDSA.PublicKey)
 
+	intent, err := pipeline.ReadIntent(cfg.Workdir)
+	if err != nil {
+		return fmt.Errorf("failed to read intent: %w", err)
+	}
+
+	st, err := pipeline.ReadState(cfg.Workdir)
+	if err != nil {
+		return fmt.Errorf("failed to read state: %w", err)
+	}
+
 	env := &pipeline.Env{
 		Workdir:  cfg.Workdir,
 		L1Client: l1Client,
@@ -102,26 +110,7 @@ func Apply(ctx context.Context, cfg ApplyConfig) error {
 		Deployer: deployer,
 	}
 
-	intent, err := env.ReadIntent()
-	if err != nil {
-		return err
-	}
-
-	if err := intent.Check(); err != nil {
-		return fmt.Errorf("invalid intent: %w", err)
-	}
-
-	st, err := env.ReadState()
-	if err != nil {
-		return err
-	}
-
 	if err := ApplyPipeline(ctx, env, intent, st); err != nil {
-		return err
-	}
-
-	st.AppliedIntent = intent
-	if err := env.WriteState(st); err != nil {
 		return err
 	}
 
@@ -143,15 +132,30 @@ func ApplyPipeline(
 		env.Logger.Info("artifacts download progress", "current", curr, "total", total)
 	}
 
-	artifactsFS, cleanup, err := pipeline.DownloadArtifacts(ctx, intent.ContractArtifactsURL, progressor)
+	l1ArtifactsFS, cleanupL1, err := pipeline.DownloadArtifacts(ctx, intent.L1ContractsLocator, progressor)
 	if err != nil {
-		return fmt.Errorf("failed to download artifacts: %w", err)
+		return fmt.Errorf("failed to download L1 artifacts: %w", err)
 	}
 	defer func() {
-		if err := cleanup(); err != nil {
-			env.Logger.Warn("failed to clean up artifacts", "err", err)
+		if err := cleanupL1(); err != nil {
+			env.Logger.Warn("failed to clean up L1 artifacts", "err", err)
 		}
 	}()
+
+	l2ArtifactsFS, cleanupL2, err := pipeline.DownloadArtifacts(ctx, intent.L2ContractsLocator, progressor)
+	if err != nil {
+		return fmt.Errorf("failed to download L2 artifacts: %w", err)
+	}
+	defer func() {
+		if err := cleanupL2(); err != nil {
+			env.Logger.Warn("failed to clean up L2 artifacts", "err", err)
+		}
+	}()
+
+	bundle := pipeline.ArtifactsBundle{
+		L1: l1ArtifactsFS,
+		L2: l2ArtifactsFS,
+	}
 
 	pline := []pipelineStage{
 		{"init", pipeline.Init},
@@ -163,25 +167,28 @@ func ApplyPipeline(
 		chainID := chain.ID
 		pline = append(pline, pipelineStage{
 			fmt.Sprintf("deploy-opchain-%s", chainID.Hex()),
-			func(ctx context.Context, env *pipeline.Env, artifactsFS foundry.StatDirFs, intent *state.Intent, st *state.State) error {
-				return pipeline.DeployOPChain(ctx, env, artifactsFS, intent, st, chainID)
+			func(ctx context.Context, env *pipeline.Env, bundle pipeline.ArtifactsBundle, intent *state.Intent, st *state.State) error {
+				return pipeline.DeployOPChain(ctx, env, bundle, intent, st, chainID)
 			},
 		}, pipelineStage{
 			fmt.Sprintf("generate-l2-genesis-%s", chainID.Hex()),
-			func(ctx context.Context, env *pipeline.Env, artifactsFS foundry.StatDirFs, intent *state.Intent, st *state.State) error {
-				return pipeline.GenerateL2Genesis(ctx, env, artifactsFS, intent, st, chainID)
+			func(ctx context.Context, env *pipeline.Env, bundle pipeline.ArtifactsBundle, intent *state.Intent, st *state.State) error {
+				return pipeline.GenerateL2Genesis(ctx, env, bundle, intent, st, chainID)
 			},
 		})
 	}
 
 	for _, stage := range pline {
-		if err := stage.apply(ctx, env, artifactsFS, intent, st); err != nil {
+		if err := stage.apply(ctx, env, bundle, intent, st); err != nil {
 			return fmt.Errorf("error in pipeline stage apply: %w", err)
+		}
+		if err := pipeline.WriteState(env.Workdir, st); err != nil {
+			return fmt.Errorf("failed to write state: %w", err)
 		}
 	}
 
 	st.AppliedIntent = intent
-	if err := env.WriteState(st); err != nil {
+	if err := pipeline.WriteState(env.Workdir, st); err != nil {
 		return fmt.Errorf("failed to write state: %w", err)
 	}
 

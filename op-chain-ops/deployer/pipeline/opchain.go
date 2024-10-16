@@ -9,11 +9,10 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum/go-ethereum/common"
 )
 
-func DeployOPChain(ctx context.Context, env *Env, artifactsFS foundry.StatDirFs, intent *state.Intent, st *state.State, chainID common.Hash) error {
+func DeployOPChain(ctx context.Context, env *Env, bundle ArtifactsBundle, intent *state.Intent, st *state.State, chainID common.Hash) error {
 	lgr := env.Logger.New("stage", "deploy-opchain")
 
 	if !shouldDeployOPChain(intent, st, chainID) {
@@ -66,7 +65,7 @@ func DeployOPChain(ctx context.Context, env *Env, artifactsFS foundry.StatDirFs,
 		env.L1Client,
 		bcaster,
 		env.Deployer,
-		artifactsFS,
+		bundle.L1,
 		input,
 	)
 	if err != nil {
@@ -91,9 +90,6 @@ func DeployOPChain(ctx context.Context, env *Env, artifactsFS foundry.StatDirFs,
 		DelayedWETHPermissionedGameProxyAddress:   dco.DelayedWETHPermissionedGameProxy,
 		DelayedWETHPermissionlessGameProxyAddress: dco.DelayedWETHPermissionlessGameProxy,
 	})
-	if err := env.WriteState(st); err != nil {
-		return err
-	}
 
 	return nil
 }

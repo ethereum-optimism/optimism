@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/pipeline"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
@@ -30,7 +29,7 @@ type OPCMConfig struct {
 	L1RPCUrl         string
 	PrivateKey       string
 	Logger           log.Logger
-	ArtifactsURL     *state.ArtifactsURL
+	ArtifactsLocator *opcm.ArtifactsLocator
 	ContractsRelease string
 
 	privateKeyECDSA *ecdsa.PrivateKey
@@ -55,8 +54,8 @@ func (c *OPCMConfig) Check() error {
 		return fmt.Errorf("logger must be specified")
 	}
 
-	if c.ArtifactsURL == nil {
-		return fmt.Errorf("artifacts URL must be specified")
+	if c.ArtifactsLocator == nil {
+		return fmt.Errorf("artifacts locator must be specified")
 	}
 
 	if c.ContractsRelease == "" {
@@ -74,8 +73,8 @@ func OPCMCLI(cliCtx *cli.Context) error {
 	l1RPCUrl := cliCtx.String(deployer.L1RPCURLFlagName)
 	privateKey := cliCtx.String(deployer.PrivateKeyFlagName)
 	artifactsURLStr := cliCtx.String(ArtifactsURLFlagName)
-	artifactsURL := new(state.ArtifactsURL)
-	if err := artifactsURL.UnmarshalText([]byte(artifactsURLStr)); err != nil {
+	artifactsLocator := new(opcm.ArtifactsLocator)
+	if err := artifactsLocator.UnmarshalText([]byte(artifactsURLStr)); err != nil {
 		return fmt.Errorf("failed to parse artifacts URL: %w", err)
 	}
 	contractsRelease := cliCtx.String(ContractsReleaseFlagName)
@@ -86,7 +85,7 @@ func OPCMCLI(cliCtx *cli.Context) error {
 		L1RPCUrl:         l1RPCUrl,
 		PrivateKey:       privateKey,
 		Logger:           l,
-		ArtifactsURL:     artifactsURL,
+		ArtifactsLocator: artifactsLocator,
 		ContractsRelease: contractsRelease,
 	})
 }
@@ -101,7 +100,7 @@ func OPCM(ctx context.Context, cfg OPCMConfig) error {
 		lgr.Info("artifacts download progress", "current", curr, "total", total)
 	}
 
-	artifactsFS, cleanup, err := pipeline.DownloadArtifacts(ctx, cfg.ArtifactsURL, progressor)
+	artifactsFS, cleanup, err := pipeline.DownloadArtifacts(ctx, cfg.ArtifactsLocator, progressor)
 	if err != nil {
 		return fmt.Errorf("failed to download artifacts: %w", err)
 	}
@@ -126,7 +125,7 @@ func OPCM(ctx context.Context, cfg OPCMConfig) error {
 	if err != nil {
 		return fmt.Errorf("error getting superchain config: %w", err)
 	}
-	standardVersionsTOML, err := opcm.StandardVersionsFor(chainIDU64)
+	standardVersionsTOML, err := opcm.StandardL1VersionsDataFor(chainIDU64)
 	if err != nil {
 		return fmt.Errorf("error getting standard versions TOML: %w", err)
 	}

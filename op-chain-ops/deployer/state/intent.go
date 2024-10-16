@@ -3,8 +3,8 @@ package state
 import (
 	"fmt"
 	"math/big"
-	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 	"github.com/ethereum/go-ethereum/common"
@@ -19,9 +19,9 @@ type Intent struct {
 
 	FundDevAccounts bool `json:"fundDevAccounts" toml:"fundDevAccounts"`
 
-	ContractArtifactsURL *ArtifactsURL `json:"contractArtifactsURL" toml:"contractArtifactsURL"`
+	L1ContractsLocator *opcm.ArtifactsLocator `json:"l1ContractsLocator" toml:"l1ContractsLocator"`
 
-	ContractsRelease string `json:"contractsRelease" toml:"contractsRelease"`
+	L2ContractsLocator *opcm.ArtifactsLocator `json:"l2ContractsLocator" toml:"l2ContractsLocator"`
 
 	Chains []*ChainIntent `json:"chains" toml:"chains"`
 
@@ -37,11 +37,31 @@ func (c *Intent) Check() error {
 		return fmt.Errorf("l1ChainID must be set")
 	}
 
-	if c.ContractsRelease == "dev" {
-		return c.checkDev()
+	if c.L1ContractsLocator == nil {
+		c.L1ContractsLocator = opcm.DefaultL1ContractsLocator
 	}
 
-	return c.checkProd()
+	if c.L2ContractsLocator == nil {
+		c.L2ContractsLocator = opcm.DefaultL2ContractsLocator
+	}
+
+	var err error
+	if c.L1ContractsLocator.IsTag() {
+		err = c.checkL1Prod()
+	} else {
+		err = c.checkL1Dev()
+	}
+	if err != nil {
+		return err
+	}
+
+	if c.L2ContractsLocator.IsTag() {
+		if err := c.checkL2Prod(); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (c *Intent) Chain(id common.Hash) (*ChainIntent, error) {
@@ -58,7 +78,20 @@ func (c *Intent) WriteToFile(path string) error {
 	return jsonutil.WriteTOML(c, ioutil.ToAtomicFile(path, 0o755))
 }
 
-func (c *Intent) checkDev() error {
+func (c *Intent) checkL1Prod() error {
+	versions, err := opcm.StandardL1VersionsFor(c.L1ChainID)
+	if err != nil {
+		return err
+	}
+
+	if _, ok := versions.Releases[c.L1ContractsLocator.Tag]; !ok {
+		return fmt.Errorf("tag '%s' not found in standard versions", c.L1ContractsLocator.Tag)
+	}
+
+	return nil
+}
+
+func (c *Intent) checkL1Dev() error {
 	if c.SuperchainRoles.ProxyAdminOwner == emptyAddress {
 		return fmt.Errorf("proxyAdminOwner must be set")
 	}
@@ -71,19 +104,12 @@ func (c *Intent) checkDev() error {
 		c.SuperchainRoles.Guardian = c.SuperchainRoles.ProxyAdminOwner
 	}
 
-	if c.ContractArtifactsURL == nil {
-		return fmt.Errorf("contractArtifactsURL must be set in dev mode")
-	}
-
 	return nil
 }
 
-func (c *Intent) checkProd() error {
-	if !strings.HasPrefix(c.ContractsRelease, "op-contracts/") {
-		return fmt.Errorf("contractsVersion must be either the literal \"dev\" or start with \"op-contracts/\"")
-	}
-
-	return nil
+func (c *Intent) checkL2Prod() error {
+	_, err := opcm.StandardArtifactsURLForTag(c.L2ContractsLocator.Tag)
+	return err
 }
 
 type SuperchainRoles struct {

@@ -7,6 +7,8 @@ import (
 	"path"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opcm"
+
 	op_service "github.com/ethereum-optimism/optimism/op-service"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
@@ -14,8 +16,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/urfave/cli/v2"
 )
-
-var V160ArtifactsURL = state.MustParseArtifactsURL("https://storage.googleapis.com/oplabs-contract-artifacts/artifacts-v1-ee07c78c3d8d4cd8f7a933c050f5afeebaa281b57b226cc6f092b19de2a8d61f.tar.gz")
 
 type InitConfig struct {
 	L1ChainID  uint64
@@ -75,10 +75,10 @@ func Init(cfg InitConfig) error {
 	}
 
 	intent := &state.Intent{
-		L1ChainID:            cfg.L1ChainID,
-		FundDevAccounts:      true,
-		ContractsRelease:     "op-contracts/v1.6.0",
-		ContractArtifactsURL: V160ArtifactsURL,
+		L1ChainID:          cfg.L1ChainID,
+		FundDevAccounts:    true,
+		L1ContractsLocator: opcm.DefaultL1ContractsLocator,
+		L2ContractsLocator: opcm.DefaultL2ContractsLocator,
 	}
 
 	l1ChainIDBig := intent.L1ChainIDBig()

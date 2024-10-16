@@ -15,8 +15,7 @@ func RollupCLI(cliCtx *cli.Context) error {
 		return err
 	}
 
-	env := &pipeline.Env{Workdir: cfg.Workdir}
-	globalState, err := env.ReadState()
+	globalState, err := pipeline.ReadState(cfg.Workdir)
 	if err != nil {
 		return fmt.Errorf("failed to read intent: %w", err)
 	}
