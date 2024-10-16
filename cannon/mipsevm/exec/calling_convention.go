@@ -18,6 +18,7 @@ const (
 
 const (
 	RegSyscallNum    = RegV0
+	RegSyscallErrno  = RegA3
 	RegSyscallRet1   = RegV0
 	RegSyscallParam1 = RegA0
 	RegSyscallParam2 = RegA1
