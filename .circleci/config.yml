@@ -1460,6 +1460,8 @@ workflows:
     branches:
       ignore: /.*/
     jobs:
+      - go-release:
+          module: op-deployer
 
 
   release:
