@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	deployer2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/bootstrap"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/inspect"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/version"
@@ -28,19 +28,19 @@ func main() {
 	app.Version = VersionWithMeta
 	app.Name = "op-deployer"
 	app.Usage = "Tool to configure and deploy OP Chains."
-	app.Flags = cliapp.ProtectFlags(deployer2.GlobalFlags)
+	app.Flags = cliapp.ProtectFlags(deployer.GlobalFlags)
 	app.Commands = []*cli.Command{
 		{
 			Name:   "init",
 			Usage:  "initializes a chain intent and state file",
-			Flags:  cliapp.ProtectFlags(deployer2.InitFlags),
-			Action: deployer2.InitCLI(),
+			Flags:  cliapp.ProtectFlags(deployer.InitFlags),
+			Action: deployer.InitCLI(),
 		},
 		{
 			Name:   "apply",
 			Usage:  "applies a chain intent to the chain",
-			Flags:  cliapp.ProtectFlags(deployer2.ApplyFlags),
-			Action: deployer2.ApplyCLI(),
+			Flags:  cliapp.ProtectFlags(deployer.ApplyFlags),
+			Action: deployer.ApplyCLI(),
 		},
 		{
 			Name:        "bootstrap",
