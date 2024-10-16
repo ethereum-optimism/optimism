@@ -25,4 +25,7 @@ type DependencySet interface {
 	// This may return an error if the query temporarily cannot be answered.
 	// E.g. if the DependencySet is syncing new changes.
 	CanInitiateAt(chainID types.ChainID, initTimestamp uint64) (bool, error)
+
+	// Chains returns the list of chains that are part of the dependency set.
+	Chains() []types.ChainID
 }

@@ -46,3 +46,11 @@ func (ds *StaticConfigDependencySet) CanInitiateAt(chainID types.ChainID, initTi
 	}
 	return initTimestamp >= dep.HistoryMinTime, nil
 }
+
+func (ds *StaticConfigDependencySet) Chains() []types.ChainID {
+	var out []types.ChainID
+	for chainID := range ds.Dependencies {
+		out = append(out, chainID)
+	}
+	return out
+}

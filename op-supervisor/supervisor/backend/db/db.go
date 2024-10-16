@@ -104,7 +104,12 @@ func (db *ChainsDB) AddLogDB(chain types.ChainID, logDB LogStorage) {
 	if db.logDBs[chain] != nil {
 		log.Warn("overwriting existing logDB for chain", "chain", chain)
 	}
+
 	db.logDBs[chain] = logDB
+	// TODO: Add derived-from storage
+	//db.localDBs[chain] =
+	//db.crossDBs[chain] =
+	// db.crossUnsafe[chain] = types.BlockSeal{}
 }
 
 // ResumeFromLastSealedBlock prepares the chains db to resume recording events after a restart.
