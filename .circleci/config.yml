@@ -1433,7 +1433,6 @@ workflows:
                 - op-conductor
                 - da-server
                 - op-supervisor
-                - op-deployer
                 - cannon
       - cannon-prestate
       - check-generated-mocks-op-node
@@ -1534,7 +1533,6 @@ workflows:
             - da-server-docker-release
             - op-ufm-docker-release
             - op-supervisor-docker-release
-            - op-deployer-docker-release
             - cannon-docker-release
       # Standard (xlarge) AMD-only docker images go here
       - docker-build:
