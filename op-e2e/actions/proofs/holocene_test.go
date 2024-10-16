@@ -64,8 +64,6 @@ func Test_ProgramAction_HoloceneFrameRules(gt *testing.T) {
 }
 
 func runHoloceneFrameTest(gt *testing.T, testCfg *helpers.TestCfg[ordering]) {
-
-	// TODO ensure we are using the NoneCompressor and a very small frame size
 	t := actionsHelpers.NewDefaultTesting(gt)
 	tp := helpers.NewTestParams(func(tp *e2eutils.TestParams) {
 		// Set the channel timeout to 10 blocks, 12x lower than the sequencing window.
@@ -97,8 +95,6 @@ func runHoloceneFrameTest(gt *testing.T, testCfg *helpers.TestCfg[ordering]) {
 	}
 
 	// Build up a local list of frames
-	// TODO how to ensure we get the right number?
-	// TODO check that the frame is not empty
 	orderedFrames := make([][]byte, 0, len(testCfg.Custom.frames))
 
 	// Buffer the blocks in the batcher.
@@ -134,8 +130,6 @@ func runHoloceneFrameTest(gt *testing.T, testCfg *helpers.TestCfg[ordering]) {
 		// require.Equal(t, testCfg.Custom.safeHeadHolocene, l2SafeHead.Number.Uint64()) // TODO activate this line
 	}
 
-	// Run the FPP on L2 block # NumL2Blocks.
-	// env.RunFaultProofProgram(t, targetHeadNumber, testCfg.CheckResult, testCfg.InputParams...)
-
-	// TODO last step will be to make sure kona runs as well
+	// Run the FPP on L2 block
+	env.RunFaultProofProgram(t, targetHeadNumber, testCfg.CheckResult, testCfg.InputParams...)
 }
