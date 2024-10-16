@@ -56,6 +56,7 @@ func (a *ArtifactsLocator) IsTag() bool {
 }
 
 func unmarshalTag(tag string) (*ArtifactsLocator, error) {
+	tag = strings.TrimPrefix(tag, "tag://")
 	if !strings.HasPrefix(tag, "op-contracts/") {
 		return nil, fmt.Errorf("invalid tag: %s", tag)
 	}
