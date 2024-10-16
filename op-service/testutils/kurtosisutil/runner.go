@@ -17,15 +17,12 @@ func StartEnclave(t *testing.T, ctx context.Context, lgr log.Logger, pkg string,
 	kurtosisCtx, err := kurtosis_context.NewKurtosisContextFromLocalEngine()
 	require.NoError(t, err)
 
-	runCtx, runCancel := context.WithCancel(ctx)
-	defer runCancel()
-
 	enclaveID := fmt.Sprintf("kurtosis-%s-%d", t.Name(), time.Now().UnixNano())
 	enclaveCtx, err := kurtosisCtx.CreateEnclave(ctx, enclaveID)
 	require.NoError(t, err)
 
 	stream, _, err := enclaveCtx.RunStarlarkRemotePackage(
-		runCtx,
+		ctx,
 		pkg,
 		&starlark_run_config.StarlarkRunConfig{
 			SerializedParams: params,
@@ -34,7 +31,7 @@ func StartEnclave(t *testing.T, ctx context.Context, lgr log.Logger, pkg string,
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		cancelCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		cancelCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		err = kurtosisCtx.DestroyEnclave(cancelCtx, enclaveID)
 		if err != nil {
