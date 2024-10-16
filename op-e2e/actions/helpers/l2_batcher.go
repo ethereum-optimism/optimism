@@ -151,7 +151,7 @@ func (s *L2Batcher) ActL2BatchBuffer(t Testing) {
 }
 
 // ActCreateChannel creates a channel if we don't have one yet.
-func (s *L2Batcher) ActCreateChannel(t Testing, isDelta bool) {
+func (s *L2Batcher) ActCreateChannel(t Testing, useSpanChannelOut bool) {
 	var err error
 	if s.L2ChannelOut == nil {
 		var ch ChannelOutIface
@@ -170,7 +170,7 @@ func (s *L2Batcher) ActCreateChannel(t Testing, isDelta bool) {
 			} else {
 				chainSpec := rollup.NewChainSpec(s.rollupCfg)
 				// use span batch if we're forcing it or if we're at/beyond delta
-				if s.l2BatcherCfg.ForceSubmitSpanBatch || isDelta {
+				if s.l2BatcherCfg.ForceSubmitSpanBatch || useSpanChannelOut {
 					ch, err = derive.NewSpanChannelOut(target, derive.Zlib, chainSpec)
 					// use singular batches in all other cases
 				} else {
@@ -244,19 +244,17 @@ func (s *L2Batcher) Buffer(t Testing, opts ...BlockModifier) error {
 	return nil
 }
 
-// ActAddBlocksByNumber adds the provided blocks to the channel out,
-// in the order they are provided. Does not update L2BufferedBlock.
-func (s *L2Batcher) ActAddBlocksByNumber(t Testing, blockNumbers []int64) {
-	for _, bn := range blockNumbers {
-		block, err := s.l2.BlockByNumber(t.Ctx(), big.NewInt(bn))
-		require.NoError(t, err)
-		require.NotNil(t, block)
-		_, err = s.L2ChannelOut.AddBlock(s.rollupCfg, block)
-		require.NoError(t, err)
-		ref, err := s.engCl.L2BlockRefByHash(t.Ctx(), block.Hash())
-		require.NoError(t, err, "failed to get L2BlockRef")
-		s.L2BufferedBlock = ref
-	}
+// ActAddBlockByNumber causes the batcher to pull the block with the provided
+// number, and add it to its ChannelOut.
+func (s *L2Batcher) ActAddBlockByNumber(t Testing, blockNumber int64) {
+	block, err := s.l2.BlockByNumber(t.Ctx(), big.NewInt(blockNumber))
+	require.NoError(t, err)
+	require.NotNil(t, block)
+	_, err = s.L2ChannelOut.AddBlock(s.rollupCfg, block)
+	require.NoError(t, err)
+	ref, err := s.engCl.L2BlockRefByHash(t.Ctx(), block.Hash())
+	require.NoError(t, err, "failed to get L2BlockRef")
+	s.L2BufferedBlock = ref
 }
 
 func (s *L2Batcher) ActL2ChannelClose(t Testing) {

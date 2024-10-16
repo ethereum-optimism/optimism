@@ -14,6 +14,7 @@ import (
 
 type ordering struct {
 	blocks              []uint // could enhance this to declare either singular or span batches or a mixture
+	isSpanBatch         bool
 	frames              []uint
 	safeHeadPreHolocene uint64
 	safeHeadHolocene    uint64
@@ -32,6 +33,7 @@ type ordering struct {
 // or the test will panic.
 var orderings = []ordering{
 	{blocks: []uint{1, 2, 3}, frames: []uint{0, 1, 2}, safeHeadPreHolocene: 3, safeHeadHolocene: 3},       // regular case
+	{blocks: []uint{1, 3, 2}, frames: []uint{0, 1, 2}, safeHeadPreHolocene: 3, safeHeadHolocene: 0},       // out-of-order blocks
 	{blocks: []uint{2, 1, 3}, frames: []uint{0, 1, 2}, safeHeadPreHolocene: 3, safeHeadHolocene: 0},       // out-of-order blocks
 	{blocks: []uint{2, 2, 1, 3}, frames: []uint{0, 1, 2, 3}, safeHeadPreHolocene: 3, safeHeadHolocene: 3}, // duplicate block
 	{blocks: []uint{1, 2, 3}, frames: []uint{0, 1, 2}, safeHeadPreHolocene: 3, safeHeadHolocene: 0},       // frames reveresed
@@ -85,7 +87,7 @@ func runHoloceneFrameTest(gt *testing.T, testCfg *helpers.TestCfg[ordering]) {
 		env.Sequencer.ActL2PipelineFull(t)
 	}
 
-	env.Batcher.ActCreateChannel(t, false) // TODO avoid span batches for now, the derivation library code will panic if blocks are added out of order
+	env.Batcher.ActCreateChannel(t, testCfg.Custom.isSpanBatch)
 
 	max := func(input []uint) uint {
 		max := uint(0)
@@ -108,7 +110,7 @@ func runHoloceneFrameTest(gt *testing.T, testCfg *helpers.TestCfg[ordering]) {
 
 	// Buffer the blocks in the batcher.
 	for i, blockNum := range testCfg.Custom.blocks {
-		env.Batcher.ActAddBlocksByNumber(t, []int64{int64(blockNum)})
+		env.Batcher.ActAddBlockByNumber(t, int64(blockNum))
 		if i == len(testCfg.Custom.blocks)-1 {
 			env.Batcher.ActL2ChannelClose(t)
 		}
