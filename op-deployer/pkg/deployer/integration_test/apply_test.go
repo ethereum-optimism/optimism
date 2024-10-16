@@ -3,6 +3,10 @@ package integration_test
 import (
 	"context"
 	"fmt"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
+	opcm2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
+	state2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"log/slog"
 	"math/big"
 	"net/url"
@@ -13,15 +17,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opcm"
-
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 	"github.com/holiman/uint256"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/pipeline"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
@@ -189,14 +188,14 @@ func makeIntent(
 	l1ChainID *big.Int,
 	dk *devkeys.MnemonicDevKeys,
 	l2ChainID *uint256.Int,
-) (*state.Intent, *state.State) {
+) (*state2.Intent, *state2.State) {
 	_, testFilename, _, ok := runtime.Caller(0)
 	require.Truef(t, ok, "failed to get test filename")
 	monorepoDir := path.Join(path.Dir(testFilename), "..", "..", "..")
 	artifactsDir := path.Join(monorepoDir, "packages", "contracts-bedrock", "forge-artifacts")
 	artifactsURL, err := url.Parse(fmt.Sprintf("file://%s", artifactsDir))
 	require.NoError(t, err)
-	artifactsLocator := &opcm.ArtifactsLocator{
+	artifactsLocator := &opcm2.ArtifactsLocator{
 		URL: artifactsURL,
 	}
 
@@ -206,9 +205,9 @@ func makeIntent(
 		return addr
 	}
 
-	intent := &state.Intent{
+	intent := &state2.Intent{
 		L1ChainID: l1ChainID.Uint64(),
-		SuperchainRoles: state.SuperchainRoles{
+		SuperchainRoles: state2.SuperchainRoles{
 			ProxyAdminOwner:       addrFor(devkeys.L1ProxyAdminOwnerRole.Key(l1ChainID)),
 			ProtocolVersionsOwner: addrFor(devkeys.SuperchainDeployerKey.Key(l1ChainID)),
 			Guardian:              addrFor(devkeys.SuperchainConfigGuardianKey.Key(l1ChainID)),
@@ -216,7 +215,7 @@ func makeIntent(
 		FundDevAccounts:    true,
 		L1ContractsLocator: artifactsLocator,
 		L2ContractsLocator: artifactsLocator,
-		Chains: []*state.ChainIntent{
+		Chains: []*state2.ChainIntent{
 			{
 				ID:                         l2ChainID.Bytes32(),
 				BaseFeeVaultRecipient:      addrFor(devkeys.BaseFeeVaultRecipientRole.Key(l1ChainID)),
@@ -224,7 +223,7 @@ func makeIntent(
 				SequencerFeeVaultRecipient: addrFor(devkeys.SequencerFeeVaultRecipientRole.Key(l1ChainID)),
 				Eip1559Denominator:         50,
 				Eip1559Elasticity:          6,
-				Roles: state.ChainRoles{
+				Roles: state2.ChainRoles{
 					ProxyAdminOwner:      addrFor(devkeys.L2ProxyAdminOwnerRole.Key(l1ChainID)),
 					SystemConfigOwner:    addrFor(devkeys.SystemConfigOwner.Key(l1ChainID)),
 					GovernanceTokenOwner: addrFor(devkeys.L2ProxyAdminOwnerRole.Key(l1ChainID)),
@@ -236,13 +235,13 @@ func makeIntent(
 			},
 		},
 	}
-	st := &state.State{
+	st := &state2.State{
 		Version: 1,
 	}
 	return intent, st
 }
 
-func validateOPChainDeployment(t *testing.T, ctx context.Context, l1Client *ethclient.Client, st *state.State, intent *state.Intent) {
+func validateOPChainDeployment(t *testing.T, ctx context.Context, l1Client *ethclient.Client, st *state2.State, intent *state2.Intent) {
 	for _, chainState := range st.Chains {
 		chainAddrs := []struct {
 			name string
@@ -358,8 +357,8 @@ func TestApplyExistingOPCM(t *testing.T) {
 	}
 
 	intent, st := makeIntent(t, l1ChainID, dk, l2ChainID)
-	intent.L1ContractsLocator = opcm.DefaultL1ContractsLocator
-	intent.L2ContractsLocator = opcm.DefaultL2ContractsLocator
+	intent.L1ContractsLocator = opcm2.DefaultL1ContractsLocator
+	intent.L2ContractsLocator = opcm2.DefaultL2ContractsLocator
 
 	require.NoError(t, deployer.ApplyPipeline(
 		ctx,
@@ -425,7 +424,7 @@ func TestL2BlockTimeOverride(t *testing.T) {
 		st,
 	))
 
-	cfg, err := state.CombineDeployConfig(intent, &state.ChainIntent{}, st, st.Chains[0])
+	cfg, err := state2.CombineDeployConfig(intent, &state2.ChainIntent{}, st, st.Chains[0])
 	require.NoError(t, err)
 
 	require.Equal(t, uint64(3), cfg.L2InitializationConfig.L2CoreDeployConfig.L2BlockTime, "L2 block time should be 3 seconds")

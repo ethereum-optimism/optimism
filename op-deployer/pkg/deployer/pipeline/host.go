@@ -3,9 +3,9 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	broadcaster2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
@@ -14,10 +14,10 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-type BroadcasterFactory func(opts CallScriptBroadcastOpts) (broadcaster.Broadcaster, error)
+type BroadcasterFactory func(opts CallScriptBroadcastOpts) (broadcaster2.Broadcaster, error)
 
-func KeyedBroadcaster(opts CallScriptBroadcastOpts) (broadcaster.Broadcaster, error) {
-	return broadcaster.NewKeyedBroadcaster(broadcaster.KeyedBroadcasterOpts{
+func KeyedBroadcaster(opts CallScriptBroadcastOpts) (broadcaster2.Broadcaster, error) {
+	return broadcaster2.NewKeyedBroadcaster(broadcaster2.KeyedBroadcasterOpts{
 		Logger:  opts.Logger,
 		ChainID: opts.L1ChainID,
 		Client:  opts.Client,
@@ -26,8 +26,8 @@ func KeyedBroadcaster(opts CallScriptBroadcastOpts) (broadcaster.Broadcaster, er
 	})
 }
 
-func DiscardBroadcaster(opts CallScriptBroadcastOpts) (broadcaster.Broadcaster, error) {
-	return broadcaster.DiscardBroadcaster(), nil
+func DiscardBroadcaster(opts CallScriptBroadcastOpts) (broadcaster2.Broadcaster, error) {
+	return broadcaster2.DiscardBroadcaster(), nil
 }
 
 type CallScriptBroadcastOpts struct {

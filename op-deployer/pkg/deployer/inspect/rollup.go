@@ -2,8 +2,8 @@ package inspect
 
 import (
 	"fmt"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum-optimism/optimism/op-service/jsonutil"
 	"github.com/urfave/cli/v2"

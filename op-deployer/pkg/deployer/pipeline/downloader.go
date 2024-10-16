@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	opcm2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"io"
 	"net/http"
 	"net/url"
@@ -14,8 +15,6 @@ import (
 	"path"
 	"strings"
 	"time"
-
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opcm"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 )
@@ -28,11 +27,11 @@ type CleanupFunc func() error
 
 var noopCleanup = func() error { return nil }
 
-func DownloadArtifacts(ctx context.Context, loc *opcm.ArtifactsLocator, progress DownloadProgressor) (foundry.StatDirFs, CleanupFunc, error) {
+func DownloadArtifacts(ctx context.Context, loc *opcm2.ArtifactsLocator, progress DownloadProgressor) (foundry.StatDirFs, CleanupFunc, error) {
 	var u *url.URL
 	var err error
 	if loc.IsTag() {
-		u, err = opcm.StandardArtifactsURLForTag(loc.Tag)
+		u, err = opcm2.StandardArtifactsURLForTag(loc.Tag)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to get standard artifacts URL for tag %s: %w", loc.Tag, err)
 		}

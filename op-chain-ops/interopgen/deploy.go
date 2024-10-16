@@ -3,6 +3,7 @@ package interopgen
 import (
 	"errors"
 	"fmt"
+	opcm2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -10,7 +11,6 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/beacondeposit"
@@ -148,7 +148,7 @@ func PrepareInitialL1(l1Host *script.Host, cfg *L1Config) (*L1Deployment, error)
 func DeploySuperchainToL1(l1Host *script.Host, superCfg *SuperchainConfig) (*SuperchainDeployment, error) {
 	l1Host.SetTxOrigin(superCfg.Deployer)
 
-	superDeployment, err := opcm.DeploySuperchain(l1Host, opcm.DeploySuperchainInput{
+	superDeployment, err := opcm2.DeploySuperchain(l1Host, opcm2.DeploySuperchainInput{
 		SuperchainProxyAdminOwner:  superCfg.ProxyAdminOwner,
 		ProtocolVersionsOwner:      superCfg.ProtocolVersionsOwner,
 		Guardian:                   superCfg.SuperchainConfigGuardian,
@@ -160,7 +160,7 @@ func DeploySuperchainToL1(l1Host *script.Host, superCfg *SuperchainConfig) (*Sup
 		return nil, fmt.Errorf("failed to deploy Superchain contracts: %w", err)
 	}
 
-	implementationsDeployment, err := opcm.DeployImplementations(l1Host, opcm.DeployImplementationsInput{
+	implementationsDeployment, err := opcm2.DeployImplementations(l1Host, opcm2.DeployImplementationsInput{
 		WithdrawalDelaySeconds:          superCfg.Implementations.FaultProof.WithdrawalDelaySeconds,
 		MinProposalSizeBytes:            superCfg.Implementations.FaultProof.MinProposalSizeBytes,
 		ChallengePeriodSeconds:          superCfg.Implementations.FaultProof.ChallengePeriodSeconds,
@@ -172,7 +172,7 @@ func DeploySuperchainToL1(l1Host *script.Host, superCfg *SuperchainConfig) (*Sup
 		ProtocolVersionsProxy:           superDeployment.ProtocolVersionsProxy,
 		OpcmProxyOwner:                  superDeployment.SuperchainProxyAdmin,
 		UseInterop:                      superCfg.Implementations.UseInterop,
-		StandardVersionsToml:            opcm.StandardVersionsMainnetData,
+		StandardVersionsToml:            opcm2.StandardVersionsMainnetData,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to deploy Implementations contracts: %w", err)
@@ -197,7 +197,7 @@ func DeployL2ToL1(l1Host *script.Host, superCfg *SuperchainConfig, superDeployme
 
 	l1Host.SetTxOrigin(cfg.Deployer)
 
-	output, err := opcm.DeployOPChain(l1Host, opcm.DeployOPChainInput{
+	output, err := opcm2.DeployOPChain(l1Host, opcm2.DeployOPChainInput{
 		OpChainProxyAdminOwner:  cfg.ProxyAdminOwner,
 		SystemConfigOwner:       cfg.SystemConfigOwner,
 		Batcher:                 cfg.BatchSenderAddress,
@@ -228,8 +228,8 @@ func DeployL2ToL1(l1Host *script.Host, superCfg *SuperchainConfig, superDeployme
 }
 
 func GenesisL2(l2Host *script.Host, cfg *L2Config, deployment *L2Deployment) error {
-	if err := opcm.L2Genesis(l2Host, &opcm.L2GenesisInput{
-		L1Deployments: opcm.L1Deployments{
+	if err := opcm2.L2Genesis(l2Host, &opcm2.L2GenesisInput{
+		L1Deployments: opcm2.L1Deployments{
 			L1CrossDomainMessengerProxy: deployment.L1CrossDomainMessengerProxy,
 			L1StandardBridgeProxy:       deployment.L1StandardBridgeProxy,
 			L1ERC721BridgeProxy:         deployment.L1ERC721BridgeProxy,

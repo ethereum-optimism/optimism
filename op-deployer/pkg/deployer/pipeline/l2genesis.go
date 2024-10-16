@@ -6,16 +6,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	state2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opcm"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	"github.com/ethereum/go-ethereum/common"
 )
 
-func GenerateL2Genesis(ctx context.Context, env *Env, bundle ArtifactsBundle, intent *state.Intent, st *state.State, chainID common.Hash) error {
+func GenerateL2Genesis(ctx context.Context, env *Env, bundle ArtifactsBundle, intent *state2.Intent, st *state2.State, chainID common.Hash) error {
 	lgr := env.Logger.New("stage", "generate-l2-genesis")
 
 	lgr.Info("generating L2 genesis", "id", chainID.Hex())
@@ -30,7 +30,7 @@ func GenerateL2Genesis(ctx context.Context, env *Env, bundle ArtifactsBundle, in
 		return fmt.Errorf("failed to get chain state: %w", err)
 	}
 
-	initCfg, err := state.CombineDeployConfig(intent, thisIntent, st, thisChainState)
+	initCfg, err := state2.CombineDeployConfig(intent, thisIntent, st, thisChainState)
 	if err != nil {
 		return fmt.Errorf("failed to combine L2 init config: %w", err)
 	}

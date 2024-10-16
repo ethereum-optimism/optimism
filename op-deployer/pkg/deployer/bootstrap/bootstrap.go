@@ -5,12 +5,12 @@ import (
 	"crypto/ecdsa"
 	"crypto/rand"
 	"fmt"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
+	opcm2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	pipeline2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 	"math/big"
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opcm"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/pipeline"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
@@ -29,7 +29,7 @@ type OPCMConfig struct {
 	L1RPCUrl         string
 	PrivateKey       string
 	Logger           log.Logger
-	ArtifactsLocator *opcm.ArtifactsLocator
+	ArtifactsLocator *opcm2.ArtifactsLocator
 	ContractsRelease string
 
 	privateKeyECDSA *ecdsa.PrivateKey
@@ -73,7 +73,7 @@ func OPCMCLI(cliCtx *cli.Context) error {
 	l1RPCUrl := cliCtx.String(deployer.L1RPCURLFlagName)
 	privateKey := cliCtx.String(deployer.PrivateKeyFlagName)
 	artifactsURLStr := cliCtx.String(ArtifactsURLFlagName)
-	artifactsLocator := new(opcm.ArtifactsLocator)
+	artifactsLocator := new(opcm2.ArtifactsLocator)
 	if err := artifactsLocator.UnmarshalText([]byte(artifactsURLStr)); err != nil {
 		return fmt.Errorf("failed to parse artifacts URL: %w", err)
 	}
@@ -100,7 +100,7 @@ func OPCM(ctx context.Context, cfg OPCMConfig) error {
 		lgr.Info("artifacts download progress", "current", curr, "total", total)
 	}
 
-	artifactsFS, cleanup, err := pipeline.DownloadArtifacts(ctx, cfg.ArtifactsLocator, progressor)
+	artifactsFS, cleanup, err := pipeline2.DownloadArtifacts(ctx, cfg.ArtifactsLocator, progressor)
 	if err != nil {
 		return fmt.Errorf("failed to download artifacts: %w", err)
 	}
@@ -121,15 +121,15 @@ func OPCM(ctx context.Context, cfg OPCMConfig) error {
 	}
 	chainIDU64 := chainID.Uint64()
 
-	superCfg, err := opcm.SuperchainFor(chainIDU64)
+	superCfg, err := opcm2.SuperchainFor(chainIDU64)
 	if err != nil {
 		return fmt.Errorf("error getting superchain config: %w", err)
 	}
-	standardVersionsTOML, err := opcm.StandardL1VersionsDataFor(chainIDU64)
+	standardVersionsTOML, err := opcm2.StandardL1VersionsDataFor(chainIDU64)
 	if err != nil {
 		return fmt.Errorf("error getting standard versions TOML: %w", err)
 	}
-	opcmProxyOwnerAddr, err := opcm.ManagerOwnerAddrFor(chainIDU64)
+	opcmProxyOwnerAddr, err := opcm2.ManagerOwnerAddrFor(chainIDU64)
 	if err != nil {
 		return fmt.Errorf("error getting superchain proxy admin: %w", err)
 	}
@@ -139,17 +139,17 @@ func OPCM(ctx context.Context, cfg OPCMConfig) error {
 
 	lgr.Info("deploying OPCM", "release", cfg.ContractsRelease)
 
-	var dio opcm.DeployImplementationsOutput
-	err = pipeline.CallScriptBroadcast(
+	var dio opcm2.DeployImplementationsOutput
+	err = pipeline2.CallScriptBroadcast(
 		ctx,
-		pipeline.CallScriptBroadcastOpts{
+		pipeline2.CallScriptBroadcastOpts{
 			L1ChainID:   chainID,
 			Logger:      lgr,
 			ArtifactsFS: artifactsFS,
 			Deployer:    chainDeployer,
 			Signer:      signer,
 			Client:      l1Client,
-			Broadcaster: pipeline.KeyedBroadcaster,
+			Broadcaster: pipeline2.KeyedBroadcaster,
 			Handler: func(host *script.Host) error {
 				// We need to etch the Superchain addresses so that they have nonzero code
 				// and the checks in the OPCM constructor pass.
@@ -171,9 +171,9 @@ func OPCM(ctx context.Context, cfg OPCMConfig) error {
 					return fmt.Errorf("failed to generate CREATE2 salt: %w", err)
 				}
 
-				dio, err = opcm.DeployImplementations(
+				dio, err = opcm2.DeployImplementations(
 					host,
-					opcm.DeployImplementationsInput{
+					opcm2.DeployImplementationsInput{
 						Salt:                            salt,
 						WithdrawalDelaySeconds:          big.NewInt(604800),
 						MinProposalSizeBytes:            big.NewInt(126000),

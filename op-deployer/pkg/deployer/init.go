@@ -3,15 +3,14 @@ package deployer
 import (
 	"errors"
 	"fmt"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
+	state2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"os"
 	"path"
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/opcm"
-
 	op_service "github.com/ethereum-optimism/optimism/op-service"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer/state"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/urfave/cli/v2"
@@ -74,7 +73,7 @@ func Init(cfg InitConfig) error {
 		return fmt.Errorf("invalid config for init: %w", err)
 	}
 
-	intent := &state.Intent{
+	intent := &state2.Intent{
 		L1ChainID:          cfg.L1ChainID,
 		FundDevAccounts:    true,
 		L1ContractsLocator: opcm.DefaultL1ContractsLocator,
@@ -96,7 +95,7 @@ func Init(cfg InitConfig) error {
 		}
 		return addr
 	}
-	intent.SuperchainRoles = state.SuperchainRoles{
+	intent.SuperchainRoles = state2.SuperchainRoles{
 		ProxyAdminOwner:       addrFor(devkeys.L1ProxyAdminOwnerRole.Key(l1ChainIDBig)),
 		ProtocolVersionsOwner: addrFor(devkeys.SuperchainProtocolVersionsOwner.Key(l1ChainIDBig)),
 		Guardian:              addrFor(devkeys.SuperchainConfigGuardianKey.Key(l1ChainIDBig)),
@@ -104,14 +103,14 @@ func Init(cfg InitConfig) error {
 
 	for _, l2ChainID := range cfg.L2ChainIDs {
 		l2ChainIDBig := l2ChainID.Big()
-		intent.Chains = append(intent.Chains, &state.ChainIntent{
+		intent.Chains = append(intent.Chains, &state2.ChainIntent{
 			ID:                         l2ChainID,
 			BaseFeeVaultRecipient:      common.Address{},
 			L1FeeVaultRecipient:        common.Address{},
 			SequencerFeeVaultRecipient: common.Address{},
 			Eip1559Denominator:         50,
 			Eip1559Elasticity:          6,
-			Roles: state.ChainRoles{
+			Roles: state2.ChainRoles{
 				ProxyAdminOwner:      addrFor(devkeys.L2ProxyAdminOwnerRole.Key(l2ChainIDBig)),
 				SystemConfigOwner:    addrFor(devkeys.SystemConfigOwner.Key(l2ChainIDBig)),
 				GovernanceTokenOwner: addrFor(devkeys.L2ProxyAdminOwnerRole.Key(l2ChainIDBig)),
@@ -123,7 +122,7 @@ func Init(cfg InitConfig) error {
 		})
 	}
 
-	st := &state.State{
+	st := &state2.State{
 		Version: 1,
 	}
 

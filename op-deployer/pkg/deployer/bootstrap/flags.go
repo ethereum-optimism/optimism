@@ -1,7 +1,7 @@
 package bootstrap
 
 import (
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/urfave/cli/v2"
 )
