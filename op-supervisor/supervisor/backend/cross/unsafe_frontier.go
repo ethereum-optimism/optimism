@@ -22,9 +22,11 @@ type UnsafeFrontierCheckDeps interface {
 //     local-unsafe block, after the cross-unsafe block.
 func HazardUnsafeFrontierChecks(d UnsafeFrontierCheckDeps, inL1DerivedFrom eth.BlockID, hazards map[types.ChainIndex]types.BlockSeal) error {
 	for hazardChainIndex, hazardBlock := range hazards {
-		// TODO(#11105): translate chain index to chain ID
-		hazardChainID := types.ChainIDFromUInt64(uint64(hazardChainIndex))
-		err := d.IsCrossUnsafe(hazardChainID, hazardBlock.ID())
+		hazardChainID, err := types.ChainIDFromIndex(hazardChainIndex)
+		if err != nil {
+			return err
+		}
+		err = d.IsCrossUnsafe(hazardChainID, hazardBlock.ID())
 		if err != nil {
 			if errors.Is(err, entrydb.ErrFuture) {
 				err = d.IsLocalUnsafe(hazardChainID, hazardBlock.ID())
