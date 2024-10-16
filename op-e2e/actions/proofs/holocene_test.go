@@ -2,6 +2,7 @@ package proofs
 
 import (
 	"fmt"
+	"math/big"
 	"testing"
 
 	actionsHelpers "github.com/ethereum-optimism/optimism/op-e2e/actions/helpers"
@@ -9,15 +10,28 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-program/client/claim"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 )
 
 type ordering struct {
 	blocks              []uint // could enhance this to declare either singular or span batches or a mixture
 	isSpanBatch         bool
+	blockModifiers      []actionsHelpers.BlockModifier
 	frames              []uint
 	safeHeadPreHolocene uint64
 	safeHeadHolocene    uint64
+}
+
+// blockFudger invalidates the signature for the second transaction in the block
+var blockFudger = func(block *types.Block) {
+	alice := types.NewCancunSigner(big.NewInt(901))
+	txs := block.Transactions()
+	newTx, err := txs[1].WithSignature(alice, make([]byte, 65))
+	if err != nil {
+		panic(err)
+	}
+	txs[1] = newTx
 }
 
 // orderings is a list of orderings for
@@ -39,6 +53,18 @@ var orderings = []ordering{
 	{blocks: []uint{1, 2, 3}, frames: []uint{0, 1, 2}, safeHeadPreHolocene: 3, safeHeadHolocene: 0},       // frames reveresed
 	{blocks: []uint{1, 2, 3}, frames: []uint{2, 1, 0}, safeHeadPreHolocene: 3, safeHeadHolocene: 0},       // bad frame ordering
 	{blocks: []uint{1, 2, 3}, frames: []uint{0, 1, 0, 2}, safeHeadPreHolocene: 3, safeHeadHolocene: 0},    // duplicate frames
+	{blocks: []uint{1, 2, 3}, frames: []uint{0, 1, 2}, safeHeadPreHolocene: 0, safeHeadHolocene: 1,
+		isSpanBatch: true, blockModifiers: []actionsHelpers.BlockModifier{nil, blockFudger, nil}}, // partially invalid span batch
+}
+
+func max(input []uint) uint {
+	max := uint(0)
+	for _, val := range input {
+		if val > max {
+			max = val
+		}
+	}
+	return max
 }
 
 func Test_ProgramAction_HoloceneDerivationRules(gt *testing.T) {
@@ -89,28 +115,33 @@ func runHoloceneDerivationTest(gt *testing.T, testCfg *helpers.TestCfg[ordering]
 
 	env.Batcher.ActCreateChannel(t, testCfg.Custom.isSpanBatch)
 
-	max := func(input []uint) uint {
-		max := uint(0)
-		for _, val := range input {
-			if val > max {
-				max = val
-			}
-		}
-		return max
-	}
-
 	targetHeadNumber := max(testCfg.Custom.blocks)
 	for env.Engine.L2Chain().CurrentBlock().Number.Uint64() < uint64(targetHeadNumber) {
+		// Build a block on L2 with 1 tx.
+		env.Alice.L2.ActResetTxOpts(t)
+		env.Alice.L2.ActSetTxToAddr(&env.Dp.Addresses.Bob)
+		env.Alice.L2.ActMakeTx(t)
 		env.Sequencer.ActL2StartBlock(t)
+		env.Engine.ActL2IncludeTx(env.Alice.Address())(t)
 		env.Sequencer.ActL2EndBlock(t)
+		env.Alice.L2.ActCheckReceiptStatusOfLastTx(true)(t)
 	}
 
 	// Build up a local list of frames
 	orderedFrames := make([][]byte, 0, len(testCfg.Custom.frames))
 
+	blockLogger := func(block *types.Block) {
+		t.Log("added block", "num", block.Number(), "txs", block.Transactions())
+	}
+
 	// Buffer the blocks in the batcher.
 	for i, blockNum := range testCfg.Custom.blocks {
-		env.Batcher.ActAddBlockByNumber(t, int64(blockNum))
+
+		var blockModifier actionsHelpers.BlockModifier
+		if len(testCfg.Custom.blockModifiers) > i {
+			blockModifier = testCfg.Custom.blockModifiers[i]
+		}
+		env.Batcher.ActAddBlockByNumber(t, int64(blockNum), blockModifier, blockLogger)
 		if i == len(testCfg.Custom.blocks)-1 {
 			env.Batcher.ActL2ChannelClose(t)
 		}
@@ -133,14 +164,16 @@ func runHoloceneDerivationTest(gt *testing.T, testCfg *helpers.TestCfg[ordering]
 		require.Equal(t, testCfg.Custom.safeHeadPreHolocene, l2SafeHead.Number.Uint64())
 		expectedHash := env.Engine.L2Chain().GetBlockByNumber(testCfg.Custom.safeHeadPreHolocene).Hash()
 		require.Equal(t, expectedHash, l2SafeHead.Hash())
-
 	} else {
 		// The safe head should not have advanced, since the Holocene rules were
 		// violated (no contiguous and complete run of frames from the channel)
 		t.Log("Holocene derivation rules not yet implemented")
 		// require.Equal(t, testCfg.Custom.safeHeadHolocene, l2SafeHead.Number.Uint64()) // TODO activate this line
+		// env.RunFaultProofProgram(t, testCfg.Custom.safeHeadHolocene, testCfg.CheckResult, testCfg.InputParams...)
 	}
 
-	// Run the FPP on L2 block
-	env.RunFaultProofProgram(t, uint64(targetHeadNumber), testCfg.CheckResult, testCfg.InputParams...)
+	if safeHeadNumber := l2SafeHead.Number.Uint64(); safeHeadNumber > 0 {
+		env.RunFaultProofProgram(t, safeHeadNumber, testCfg.CheckResult, testCfg.InputParams...)
+	}
+
 }

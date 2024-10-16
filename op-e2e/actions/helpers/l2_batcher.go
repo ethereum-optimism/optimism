@@ -230,7 +230,9 @@ func (s *L2Batcher) Buffer(t Testing, opts ...BlockModifier) error {
 
 	// Apply modifications to the block
 	for _, f := range opts {
-		f(block)
+		if f != nil {
+			f(block)
+		}
 	}
 
 	s.ActCreateChannel(t, s.rollupCfg.IsDelta(block.Time()))
@@ -246,10 +248,18 @@ func (s *L2Batcher) Buffer(t Testing, opts ...BlockModifier) error {
 
 // ActAddBlockByNumber causes the batcher to pull the block with the provided
 // number, and add it to its ChannelOut.
-func (s *L2Batcher) ActAddBlockByNumber(t Testing, blockNumber int64) {
+func (s *L2Batcher) ActAddBlockByNumber(t Testing, blockNumber int64, opts ...BlockModifier) {
 	block, err := s.l2.BlockByNumber(t.Ctx(), big.NewInt(blockNumber))
 	require.NoError(t, err)
 	require.NotNil(t, block)
+
+	// Apply modifications to the block
+	for _, f := range opts {
+		if f != nil {
+			f(block)
+		}
+	}
+
 	_, err = s.L2ChannelOut.AddBlock(s.rollupCfg, block)
 	require.NoError(t, err)
 	ref, err := s.engCl.L2BlockRefByHash(t.Ctx(), block.Hash())
