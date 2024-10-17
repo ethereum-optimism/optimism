@@ -796,9 +796,22 @@ jobs:
         description: Test directory
         type: string
         default: "./..."
-    machine: true
-    resource_class: ethereum-optimism/latitude-1
+    machine:
+      image: <<pipeline.parameters.base_image>>
+    resource_class: xlarge
     steps:
+      - run:
+          name: Install components
+          command: |
+            go version
+            go install gotest.tools/gotestsum@v1.11.0
+      - run:
+          name: Install Kurtosis
+          command: |
+            echo "deb [trusted=yes] https://apt.fury.io/kurtosis-tech/ /" | sudo tee /etc/apt/sources.list.d/kurtosis.list
+            sudo apt update
+            sudo apt install kurtosis-cli=1.3.0
+            kurtosis engine start
       - checkout
       - when:
           condition: <<parameters.uses_artifacts>>
@@ -850,6 +863,7 @@ jobs:
               op-program
               op-service
               op-supervisor
+              op-deployer
               packages/contracts-bedrock/scripts/checks/semver-natspec
             )
             formatted_packages=""
@@ -1274,6 +1288,24 @@ jobs:
           command: bash scripts/ops/publish-artifacts.sh
           working_directory: packages/contracts-bedrock
 
+  go-release:
+    parameters:
+      module:
+        description: Go Module Name
+        type: string
+      filename:
+        description: Goreleaser config file
+        default: .goreleaser.yaml
+        type: string
+    machine: true
+    resource_class: ethereum-optimism/latitude-1
+    steps:
+      - checkout
+      - run:
+          name: Run goreleaser
+          command: |
+            ./bin/goreleaser release --clean -f ./<<parameters.module>>/<<parameters.filename>>
+
 workflows:
   main:
     when:
@@ -1351,9 +1383,9 @@ workflows:
           requires:
             - contracts-bedrock-build
       - go-test-kurtosis:
-          name: op-chain-ops-integration
-          module: op-chain-ops
-          test_directory: ./deployer/integration_test
+          name: op-deployer-integration
+          module: op-deployer
+          test_directory: ./pkg/deployer/integration_test
           uses_artifacts: true
           requires: ["contracts-bedrock-build"]
       - go-e2e-test:
@@ -1385,7 +1417,7 @@ workflows:
             - check-generated-mocks-op-node
             - check-generated-mocks-op-service
             - go-mod-download
-            - op-chain-ops-integration
+            - op-deployer-integration
             - op-program-compat
             - op-e2e-HTTP-tests
             - op-e2e-fault-proof-tests
@@ -1414,7 +1446,6 @@ workflows:
                 - op-conductor
                 - da-server
                 - op-supervisor
-                - op-deployer
                 - cannon
       - cannon-prestate
       - check-generated-mocks-op-node
@@ -1434,6 +1465,16 @@ workflows:
           dir: .
           ignore-dirs:
             ./packages/contracts-bedrock/lib
+
+  go-release-deployer:
+    jobs:
+      - go-release:
+          filters:
+            tags:
+              only: /^op-deployer.*/
+            branches:
+              ignore: /.*/
+          module: op-deployer
 
   release:
     when:
@@ -1505,7 +1546,6 @@ workflows:
             - da-server-docker-release
             - op-ufm-docker-release
             - op-supervisor-docker-release
-            - op-deployer-docker-release
             - cannon-docker-release
       # Standard (xlarge) AMD-only docker images go here
       - docker-build:
