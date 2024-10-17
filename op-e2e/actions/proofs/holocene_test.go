@@ -23,11 +23,13 @@ type ordering struct {
 	safeHeadHolocene    uint64
 }
 
-// blockFudger invalidates the signature for the second transaction in the block
+// blockFudger invalidates the signature for the second transaction in the block.
+// This should result in an invalid payload in the engine queue.
 var blockFudger = func(block *types.Block) {
 	alice := types.NewCancunSigner(big.NewInt(901))
 	txs := block.Transactions()
 	newTx, err := txs[1].WithSignature(alice, make([]byte, 65))
+	newTx.IsDepositTx()
 	if err != nil {
 		panic(err)
 	}
@@ -51,7 +53,9 @@ var orderings = []ordering{
 	{blocks: []uint{1, 2, 3}, frames: []uint{2, 1, 0}, safeHeadPreHolocene: 3, safeHeadHolocene: 0},       // bad frame ordering
 	{blocks: []uint{1, 2, 3}, frames: []uint{0, 1, 0, 2}, safeHeadPreHolocene: 3, safeHeadHolocene: 0},    // duplicate frames
 	{blocks: []uint{1, 2, 3}, frames: []uint{0, 1, 2}, safeHeadPreHolocene: 0, safeHeadHolocene: 1,
-		isSpanBatch: true, blockModifiers: []actionsHelpers.BlockModifier{nil, blockFudger, nil}}, // partially invalid span batch
+		isSpanBatch: true, blockModifiers: []actionsHelpers.BlockModifier{nil, blockFudger, nil}}, // partially invalid span batch (invalid payload)
+	// {blocks: []uint{1, 2, 3}, frames: []uint{0, 1, 2}, safeHeadPreHolocene: 0, safeHeadHolocene: 1,
+	// 	isSpanBatch: true, blockModifiers: []actionsHelpers.BlockModifier{nil, blockFudger, nil}}, // partially invalid span batch (invalid batch?)
 }
 
 func max(input []uint) uint {
@@ -93,6 +97,7 @@ func runHoloceneDerivationTest(gt *testing.T, testCfg *helpers.TestCfg[ordering]
 		// Set the channel timeout to 10 blocks, 12x lower than the sequencing window.
 		tp.ChannelTimeout = 10
 	})
+
 	env := helpers.NewL2FaultProofEnv(t, testCfg, tp, helpers.NewBatcherCfg())
 
 	includeBatchTx := func() {
