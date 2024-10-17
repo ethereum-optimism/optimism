@@ -23,6 +23,11 @@ type ExecutingMessage struct {
 	Hash      common.Hash
 }
 
+func (s *ExecutingMessage) String() string {
+	return fmt.Sprintf("ExecMsg(chain: %d, block: %d, log: %d, time: %d, logHash: %s)",
+		s.Chain, s.BlockNum, s.LogIdx, s.Timestamp, s.Hash)
+}
+
 type Message struct {
 	Identifier  Identifier  `json:"identifier"`
 	PayloadHash common.Hash `json:"payloadHash"`
@@ -163,6 +168,20 @@ func (id ChainID) ToUInt32() (uint32, error) {
 	return uint32(v64), nil
 }
 
+func (id ChainID) MarshalText() ([]byte, error) {
+	return []byte(id.String()), nil
+}
+
+func (id *ChainID) UnmarshalText(data []byte) error {
+	var x uint256.Int
+	err := x.UnmarshalText(data)
+	if err != nil {
+		return err
+	}
+	*id = ChainID(x)
+	return nil
+}
+
 type ReferenceView struct {
 	Local eth.BlockID `json:"local"`
 	Cross eth.BlockID `json:"cross"`
@@ -170,4 +189,18 @@ type ReferenceView struct {
 
 func (v ReferenceView) String() string {
 	return fmt.Sprintf("View(local: %s, cross: %s)", v.Local, v.Cross)
+}
+
+type BlockSeal struct {
+	Hash      common.Hash
+	Number    uint64
+	Timestamp uint64
+}
+
+func (s BlockSeal) String() string {
+	return fmt.Sprintf("BlockSeal(hash:%s, number:%d, time:%d)", s.Hash, s.Number, s.Timestamp)
+}
+
+func (s BlockSeal) ID() eth.BlockID {
+	return eth.BlockID{Hash: s.Hash, Number: s.Number}
 }
