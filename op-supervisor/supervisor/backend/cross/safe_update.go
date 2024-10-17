@@ -3,7 +3,6 @@ package cross
 import (
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -15,7 +14,7 @@ type CrossSafeDeps interface {
 	SafeStartDeps
 }
 
-func CrossSafeUpdate(chainID types.ChainID, d CrossSafeDeps, scopeDerivedFrom eth.BlockID) error {
+func CrossSafeUpdate(chainID types.ChainID, d CrossSafeDeps) error {
 	// TODO establish L1 reorg-lock of scopeDerivedFrom
 	// defer unlock once we are done checking the chain
 
@@ -24,6 +23,9 @@ func CrossSafeUpdate(chainID types.ChainID, d CrossSafeDeps, scopeDerivedFrom et
 	if err != nil {
 		// TODO handle genesis case
 	}
+
+	// TODO: this might not be right, just pulling scopeDerivedFrom out of the signature
+	scopeDerivedFrom, err := d.CrossDerivedFrom(chainID, crossSafe.ID())
 
 	// open block N+1
 	candidate, _, execMsgs, err := d.OpenBlock(chainID, crossSafe.Number+1)
