@@ -29,6 +29,10 @@ type Config struct {
 	// MockRun runs the service with a mock backend
 	MockRun bool
 
+	// SynchronousProcessors disables background-workers,
+	// requiring manual triggers for the backend to process anything.
+	SynchronousProcessors bool
+
 	L2RPCs  []string
 	Datadir string
 }
