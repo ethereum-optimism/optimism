@@ -13,6 +13,7 @@ rules:
     paths:
       exclude:
         - op-chain-ops/script/testdata/scripts/ScriptExample.s.sol
+        - packages/contracts-bedrock/test
         - packages/contracts-bedrock/scripts/libraries/Solarray.sol
         - packages/contracts-bedrock/scripts/interfaces/IGnosisSafe.sol
         - packages/contracts-bedrock/src/universal/interfaces/IWETH.sol
@@ -30,6 +31,7 @@ rules:
     paths:
       exclude:
         - op-chain-ops/script/testdata/scripts/ScriptExample.s.sol
+        - packages/contracts-bedrock/test
         - packages/contracts-bedrock/scripts/libraries/Solarray.sol
         - packages/contracts-bedrock/scripts/interfaces/IGnosisSafe.sol
         - packages/contracts-bedrock/src/dispute/interfaces/IPermissionedDisputeGame.sol
@@ -40,6 +42,9 @@ rules:
     severity: ERROR
     message: Javadoc-style comments are not allowed, use `///` style doc comments instead
     pattern-regex: (\/\*\*\n(\s+\*\s.*\n)+\s+\*\/)
+    paths:
+      exclude:
+        - packages/contracts-bedrock/test
 
   - id: sol-expectrevert-no-args
     languages: [solidity]
@@ -47,6 +52,9 @@ rules:
     message: vm.expectRevert() must specify the revert reason
     patterns:
       - pattern: vm.expectRevert()
+    paths:
+      exclude:
+        - packages/contracts-bedrock/test
 
   - id: sol-style-malformed-require
     languages: [solidity]
@@ -62,6 +70,7 @@ rules:
       - pattern-not-regex: \"([a-zA-Z0-9\s]+-[a-zA-Z0-9\s]+-[a-zA-Z0-9\s]+)\"
     paths:
       exclude:
+        - packages/contracts-bedrock/test
         - packages/contracts-bedrock/src/libraries/Bytes.sol
         - packages/contracts-bedrock/src/legacy/LegacyMintableERC20.sol
         - packages/contracts-bedrock/src/cannon/MIPS.sol
@@ -80,4 +89,5 @@ rules:
       - pattern-not-regex: \"(\w+:\s[^"]+)\"
     paths:
       exclude:
+        - packages/contracts-bedrock/test
         - packages/contracts-bedrock/src/cannon/libraries/MIPSInstructions.sol
