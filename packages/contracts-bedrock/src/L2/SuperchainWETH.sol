@@ -9,10 +9,10 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 
 // Interfaces
 import { ISemver } from "src/universal/interfaces/ISemver.sol";
-import { IL2ToL2CrossDomainMessenger } from "src/L2/interfaces/IL2ToL2CrossDomainMessenger.sol";
 import { IL1Block } from "src/L2/interfaces/IL1Block.sol";
 import { IETHLiquidity } from "src/L2/interfaces/IETHLiquidity.sol";
-import { ISuperchainWETH } from "src/L2/interfaces/ISuperchainWETH.sol";
+import { ICrosschainERC20 } from "src/L2/interfaces/ICrosschainERC20.sol";
+import { Unauthorized, NotCustomGasToken } from "src/libraries/errors/CommonErrors.sol";
 
 /// @custom:proxied true
 /// @custom:predeploy 0x4200000000000000000000000000000000000024
@@ -20,10 +20,16 @@ import { ISuperchainWETH } from "src/L2/interfaces/ISuperchainWETH.sol";
 /// @notice SuperchainWETH is a version of WETH that can be freely transfrered between chains
 ///         within the superchain. SuperchainWETH can be converted into native ETH on chains that
 ///         do not use a custom gas token.
-contract SuperchainWETH is WETH98, ISuperchainWETH, ISemver {
+contract SuperchainWETH is WETH98, ICrosschainERC20, ISemver {
+    /// @notice A modifier that only allows the SuperchainTokenBridge to call
+    modifier onlySuperchainTokenBridge() {
+        if (msg.sender != Predeploys.SUPERCHAIN_TOKEN_BRIDGE) revert Unauthorized();
+        _;
+    }
+
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.6
-    string public constant version = "1.0.0-beta.6";
+    /// @custom:semver 1.0.0-beta.7
+    string public constant version = "1.0.0-beta.7";
 
     /// @inheritdoc WETH98
     function deposit() public payable override {
@@ -37,63 +43,48 @@ contract SuperchainWETH is WETH98, ISuperchainWETH, ISemver {
         super.withdraw(wad);
     }
 
-    /// @inheritdoc ISuperchainWETH
-    function sendERC20(address dst, uint256 wad, uint256 chainId) public {
-        // Burn from user's balance.
-        _burn(msg.sender, wad);
-
-        // Burn to ETHLiquidity contract.
-        if (!IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isCustomGasToken()) {
-            IETHLiquidity(Predeploys.ETH_LIQUIDITY).burn{ value: wad }();
-        }
-
-        // Send message to other chain.
-        IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER).sendMessage({
-            _destination: chainId,
-            _target: address(this),
-            _message: abi.encodeCall(this.relayERC20, (msg.sender, dst, wad))
-        });
-
-        // Emit event.
-        emit SendERC20(msg.sender, dst, wad, chainId);
-    }
-
-    /// @inheritdoc ISuperchainWETH
-    function relayERC20(address from, address dst, uint256 wad) external {
-        // Receive message from other chain.
-        IL2ToL2CrossDomainMessenger messenger = IL2ToL2CrossDomainMessenger(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
-        if (msg.sender != address(messenger)) revert CallerNotL2ToL2CrossDomainMessenger();
-        if (messenger.crossDomainMessageSender() != address(this)) revert InvalidCrossDomainSender();
-
-        // Mint from ETHLiquidity contract.
-        if (!IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isCustomGasToken()) {
-            IETHLiquidity(Predeploys.ETH_LIQUIDITY).mint(wad);
-        }
-
-        // Get source chain ID.
-        uint256 source = messenger.crossDomainMessageSource();
-
-        // Mint to user's balance.
-        _mint(dst, wad);
-
-        // Emit event.
-        emit RelayERC20(from, dst, wad, source);
-    }
-
     /// @notice Mints WETH to an address.
-    /// @param guy The address to mint WETH to.
-    /// @param wad The amount of WETH to mint.
-    function _mint(address guy, uint256 wad) internal {
-        balanceOf[guy] += wad;
-        emit Transfer(address(0), guy, wad);
+    /// @param _guy The address to mint WETH to.
+    /// @param _wad The amount of WETH to mint.
+    function _mint(address _guy, uint256 _wad) internal {
+        balanceOf[_guy] += _wad;
+        emit Transfer(address(0), _guy, _wad);
     }
 
     /// @notice Burns WETH from an address.
-    /// @param guy The address to burn WETH from.
-    /// @param wad The amount of WETH to burn.
-    function _burn(address guy, uint256 wad) internal {
-        require(balanceOf[guy] >= wad);
-        balanceOf[guy] -= wad;
-        emit Transfer(guy, address(0), wad);
+    /// @param _guy The address to burn WETH from.
+    /// @param _wad The amount of WETH to burn.
+    function _burn(address _guy, uint256 _wad) internal {
+        require(balanceOf[_guy] >= _wad);
+        balanceOf[_guy] -= _wad;
+        emit Transfer(_guy, address(0), _wad);
+    }
+
+    /// @notice Allows the SuperchainTokenBridge to mint tokens.
+    /// @param _to     Address to mint tokens to.
+    /// @param _amount Amount of tokens to mint.
+    function crosschainMint(address _to, uint256 _amount) external onlySuperchainTokenBridge {
+        _mint(_to, _amount);
+
+        // Mint from ETHLiquidity contract.
+        if (!IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isCustomGasToken()) {
+            IETHLiquidity(Predeploys.ETH_LIQUIDITY).mint(_amount);
+        }
+
+        emit CrosschainMinted(_to, _amount);
+    }
+
+    /// @notice Allows the SuperchainTokenBridge to burn tokens.
+    /// @param _from   Address to burn tokens from.
+    /// @param _amount Amount of tokens to burn.
+    function crosschainBurn(address _from, uint256 _amount) external onlySuperchainTokenBridge {
+        _burn(_from, _amount);
+
+        // Burn to ETHLiquidity contract.
+        if (!IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isCustomGasToken()) {
+            IETHLiquidity(Predeploys.ETH_LIQUIDITY).burn{ value: _amount }();
+        }
+
+        emit CrosschainBurnt(_from, _amount);
     }
 }
