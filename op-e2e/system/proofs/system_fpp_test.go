@@ -99,7 +99,7 @@ func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool, spanBatchActi
 	delete(cfg.Nodes, "verifier")
 	// Use a small sequencer window size to avoid test timeout while waiting for empty blocks
 	// But not too small to ensure that our claim and subsequent state change is published
-	cfg.DeployConfig.SequencerWindowSize = 16
+	cfg.DeployConfig.SequencerWindowSize = 30
 	applySpanBatchActivation(spanBatchActivated, cfg.DeployConfig)
 
 	sys, err := cfg.Start(t)
