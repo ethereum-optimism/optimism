@@ -159,17 +159,14 @@ func runHoloceneDerivationTest(gt *testing.T, testCfg *helpers.TestCfg[ordering]
 	l2SafeHead := env.Engine.L2Chain().CurrentSafeBlock()
 
 	if testCfg.Hardfork.Precedence < helpers.Holocene.Precedence {
-		// The safe head should have still advanced, since Holocene rules are not activated yet
-		// and the entire channel was submitted
 		require.Equal(t, testCfg.Custom.safeHeadPreHolocene, l2SafeHead.Number.Uint64())
 		expectedHash := env.Engine.L2Chain().GetBlockByNumber(testCfg.Custom.safeHeadPreHolocene).Hash()
 		require.Equal(t, expectedHash, l2SafeHead.Hash())
 	} else {
-		// The safe head should not have advanced, since the Holocene rules were
-		// violated (no contiguous and complete run of frames from the channel)
 		t.Log("Holocene derivation rules not yet implemented")
 		// require.Equal(t, testCfg.Custom.safeHeadHolocene, l2SafeHead.Number.Uint64()) // TODO activate this line
-		// env.RunFaultProofProgram(t, testCfg.Custom.safeHeadHolocene, testCfg.CheckResult, testCfg.InputParams...)
+		// expectedHash := env.Engine.L2Chain().GetBlockByNumber(testCfg.Custom.safeHeadHolocene).Hash() // TODO activate this line
+		// require.Equal(t, expectedHash, l2SafeHead.Hash()) // TODO activate this line
 	}
 
 	if safeHeadNumber := l2SafeHead.Number.Uint64(); safeHeadNumber > 0 {
