@@ -10,10 +10,6 @@ import (
 	"testing"
 	"time"
 
-	emit "github.com/ethereum-optimism/optimism/op-e2e/interop/contracts"
-	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
-
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -30,11 +26,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/opnode"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/services"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/setuputils"
+	emit "github.com/ethereum-optimism/optimism/op-e2e/interop/contracts"
+	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
 	"github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -53,6 +52,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	supervisorConfig "github.com/ethereum-optimism/optimism/op-supervisor/config"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
+	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // SuperSystem is an interface for the system (collection of connected resources)
@@ -437,9 +438,18 @@ func (s *interopE2ESystem) prepareSupervisor() *supervisor.SupervisorService {
 		L2RPCs:  []string{},
 		Datadir: path.Join(s.t.TempDir(), "supervisor"),
 	}
+	depSet := &depset.StaticConfigDependencySet{
+		Dependencies: make(map[supervisortypes.ChainID]*depset.StaticConfigDependency),
+	}
 	for id := range s.l2s {
 		cfg.L2RPCs = append(cfg.L2RPCs, s.l2s[id].l2Geth.UserRPC().RPC())
+		chainID := supervisortypes.ChainIDFromBig(s.l2s[id].chainID)
+		depSet.Dependencies[chainID] = &depset.StaticConfigDependency{
+			ActivationTime: 0,
+			HistoryMinTime: 0,
+		}
 	}
+	cfg.DependencySetSource = depSet
 	// Create the supervisor with the configuration
 	super, err := supervisor.SupervisorFromConfig(context.Background(), &cfg, logger)
 	require.NoError(s.t, err)

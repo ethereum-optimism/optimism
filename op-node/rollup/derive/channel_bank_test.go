@@ -30,6 +30,9 @@ func (f *fakeChannelBankInput) Origin() eth.L1BlockRef {
 }
 
 func (f *fakeChannelBankInput) NextFrame(_ context.Context) (Frame, error) {
+	if len(f.data) == 0 {
+		return Frame{}, io.EOF
+	}
 	out := f.data[0]
 	f.data = f.data[1:]
 	return out.frame, out.err
@@ -58,8 +61,12 @@ type testFrame string
 
 func (tf testFrame) ChannelID() ChannelID {
 	parts := strings.Split(string(tf), ":")
+	return strChannelID(parts[0])
+}
+
+func strChannelID(s string) ChannelID {
 	var chID ChannelID
-	copy(chID[:], parts[0])
+	copy(chID[:], s)
 	return chID
 }
 
@@ -98,7 +105,6 @@ func TestChannelBankSimple(t *testing.T) {
 	input := &fakeChannelBankInput{origin: a}
 	input.AddFrames("a:0:first", "a:2:third!")
 	input.AddFrames("a:1:second")
-	input.AddFrame(Frame{}, io.EOF)
 
 	cfg := &rollup.Config{ChannelTimeoutBedrock: 10}
 
@@ -142,7 +148,6 @@ func TestChannelBankInterleavedPreCanyon(t *testing.T) {
 	input.AddFrames("b:1:deux", "a:2:third!")
 	input.AddFrames("b:0:premiere")
 	input.AddFrames("a:1:second")
-	input.AddFrame(Frame{}, io.EOF)
 
 	cfg := &rollup.Config{ChannelTimeoutBedrock: 10, CanyonTime: nil}
 
@@ -206,7 +211,6 @@ func TestChannelBankInterleaved(t *testing.T) {
 	input.AddFrames("b:1:deux", "a:2:third!")
 	input.AddFrames("b:0:premiere")
 	input.AddFrames("a:1:second")
-	input.AddFrame(Frame{}, io.EOF)
 
 	ct := uint64(0)
 	cfg := &rollup.Config{ChannelTimeoutBedrock: 10, CanyonTime: &ct}
@@ -267,7 +271,6 @@ func TestChannelBankDuplicates(t *testing.T) {
 	input.AddFrames("a:0:first", "a:2:third!")
 	input.AddFrames("a:0:altfirst", "a:2:altthird!")
 	input.AddFrames("a:1:second")
-	input.AddFrame(Frame{}, io.EOF)
 
 	cfg := &rollup.Config{ChannelTimeoutBedrock: 10}
 

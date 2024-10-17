@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-conductor/consensus"
@@ -232,9 +233,45 @@ func TestSequencerFailover_DisasterRecovery_OverrideLeader(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, active, "Expected sequencer to be active")
 
-	err = conductors[Sequencer3Name].client.OverrideLeader(ctx)
+	err = conductors[Sequencer3Name].client.OverrideLeader(ctx, true)
 	require.NoError(t, err)
 	leader, err := conductors[Sequencer3Name].client.Leader(ctx)
 	require.NoError(t, err)
 	require.True(t, leader, "Expected conductor to return leader true after override")
+	overridden, err := conductors[Sequencer3Name].client.LeaderOverridden(ctx)
+	require.NoError(t, err)
+	require.True(t, overridden, "Expected conductor to return leader overridden true after override")
+
+	// make sure all proxied method are working correctly.
+	proxy, err := rpc.DialContext(ctx, conductors[Sequencer3Name].RPCEndpoint())
+	require.NoError(t, err)
+	err = proxy.CallContext(ctx, &active, "admin_sequencerActive")
+	require.NoError(t, err)
+	require.True(t, active, "Expected sequencer to be active")
+	err = proxy.CallContext(ctx, nil, "optimism_syncStatus")
+	require.NoError(t, err)
+	var block map[string]any
+	err = proxy.CallContext(ctx, &block, "eth_getBlockByNumber", "latest", false)
+	require.NoError(t, err)
+	err = proxy.CallContext(ctx, nil, "optimism_outputAtBlock", block["number"])
+	require.NoError(t, err)
+	err = proxy.CallContext(ctx, nil, "optimism_rollupConfig")
+	require.NoError(t, err)
+
+	err = conductors[Sequencer3Name].client.OverrideLeader(ctx, false)
+	require.NoError(t, err)
+	overridden, err = conductors[Sequencer3Name].client.LeaderOverridden(ctx)
+	require.NoError(t, err)
+	require.False(t, overridden, "Expected conductor to return leader overridden false after override")
+
+	err = proxy.CallContext(ctx, &active, "admin_sequencerActive")
+	require.ErrorContains(t, err, "refusing to proxy request to non-leader sequencer", "Expected sequencer to fail to get active status")
+	err = proxy.CallContext(ctx, nil, "optimism_syncStatus")
+	require.ErrorContains(t, err, "refusing to proxy request to non-leader sequencer", "Expected sequencer to fail to get sync status")
+	err = proxy.CallContext(ctx, nil, "eth_getBlockByNumber", "latest", false)
+	require.ErrorContains(t, err, "refusing to proxy request to non-leader sequencer", "Expected sequencer to fail to get block by number")
+	err = proxy.CallContext(ctx, nil, "optimism_outputAtBlock", block["number"])
+	require.ErrorContains(t, err, "refusing to proxy request to non-leader sequencer", "Expected sequencer to fail to get output at block")
+	err = proxy.CallContext(ctx, nil, "optimism_rollupConfig")
+	require.ErrorContains(t, err, "refusing to proxy request to non-leader sequencer", "Expected sequencer to fail to get rollup config")
 }

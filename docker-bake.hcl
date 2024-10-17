@@ -206,9 +206,9 @@ target "proofs-tools" {
   dockerfile = "./ops/docker/proofs-tools/Dockerfile"
   context = "."
   args = {
-    CHALLENGER_VERSION="v1.1.2-rc.1"
+    CHALLENGER_VERSION="e7085e537b4a0c95d41b048cfcfdd7ad24808337"
     KONA_VERSION="kona-client-v0.1.0-alpha.3"
-    ASTERISC_VERSION="v1.0.2"
+    ASTERISC_VERSION="v1.0.3-alpha1"
   }
   target="proofs-tools"
   platforms = split(",", PLATFORMS)

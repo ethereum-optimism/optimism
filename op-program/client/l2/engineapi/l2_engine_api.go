@@ -46,6 +46,11 @@ type EngineBackend interface {
 	consensus.ChainHeaderReader
 }
 
+type CachingEngineBackend interface {
+	EngineBackend
+	AssembleAndInsertBlockWithoutSetHead(processor *BlockProcessor) (*types.Block, error)
+}
+
 // L2EngineAPI wraps an engine actor, and implements the RPC backend required to serve the engine API.
 // This re-implements some of the Geth API work, but changes the API backend so we can deterministically
 // build and control the L2 block contents to reach very specific edge cases as desired for testing.
@@ -177,7 +182,18 @@ func (ea *L2EngineAPI) endBlock() (*types.Block, error) {
 	processor := ea.blockProcessor
 	ea.blockProcessor = nil
 
-	block, err := processor.Assemble()
+	var block *types.Block
+	var err error
+	// If the backend supports it, write the newly created block to the database without making it canonical.
+	// This avoids needing to reprocess the block if it is sent back via newPayload.
+	// The block is not made canonical so if it is never sent back via newPayload worst case it just wastes some storage
+	// In the context of the OP Stack derivation, the created block is always immediately imported so it makes sense to
+	// optimise.
+	if cachingBackend, ok := ea.backend.(CachingEngineBackend); ok {
+		block, err = cachingBackend.AssembleAndInsertBlockWithoutSetHead(processor)
+	} else {
+		block, err = processor.Assemble()
+	}
 	if err != nil {
 		return nil, fmt.Errorf("assemble block: %w", err)
 	}
@@ -317,7 +333,7 @@ func (ea *L2EngineAPI) getPayload(_ context.Context, payloadId eth.PayloadID) (*
 		return nil, engine.UnknownPayload
 	}
 
-	return eth.BlockAsPayloadEnv(bl, ea.config().CanyonTime)
+	return eth.BlockAsPayloadEnv(bl, ea.config().ShanghaiTime)
 }
 
 func (ea *L2EngineAPI) forkchoiceUpdated(_ context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
@@ -471,17 +487,17 @@ func (ea *L2EngineAPI) newPayload(_ context.Context, payload *eth.ExecutionPaylo
 	// If we already have the block locally, ignore the entire execution and just
 	// return a fake success.
 	if block := ea.backend.GetBlock(payload.BlockHash, uint64(payload.BlockNumber)); block != nil {
-		ea.log.Warn("Ignoring already known beacon payload", "number", payload.BlockNumber, "hash", payload.BlockHash, "age", common.PrettyAge(time.Unix(int64(block.Time()), 0)))
+		ea.log.Info("Using existing beacon payload", "number", payload.BlockNumber, "hash", payload.BlockHash, "age", common.PrettyAge(time.Unix(int64(block.Time()), 0)))
 		hash := block.Hash()
 		return &eth.PayloadStatusV1{Status: eth.ExecutionValid, LatestValidHash: &hash}, nil
 	}
 
-	// TODO: skipping invalid ancestor check (i.e. not remembering previously failed blocks)
+	// Skip invalid ancestor check (i.e. not remembering previously failed blocks)
 
 	parent := ea.backend.GetBlock(block.ParentHash(), block.NumberU64()-1)
 	if parent == nil {
 		ea.remotes[block.Hash()] = block
-		// TODO: hack, saying we accepted if we don't know the parent block. Might want to return critical error if we can't actually sync.
+		// Return accepted if we don't know the parent block. Note that there's no actual sync to activate.
 		return &eth.PayloadStatusV1{Status: eth.ExecutionAccepted, LatestValidHash: nil}, nil
 	}
 
@@ -497,7 +513,7 @@ func (ea *L2EngineAPI) newPayload(_ context.Context, payload *eth.ExecutionPaylo
 	log.Trace("Inserting block without sethead", "hash", block.Hash(), "number", block.Number)
 	if _, err := ea.backend.InsertBlockWithoutSetHead(block, false); err != nil {
 		ea.log.Warn("NewPayloadV1: inserting block failed", "error", err)
-		// TODO not remembering the payload as invalid
+		// Skip remembering the block was invalid, but do return the invalid response.
 		return ea.invalid(err, parent.Header()), nil
 	}
 	hash := block.Hash()
