@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/big"
 
@@ -19,13 +20,13 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/triedb"
 	"github.com/ethereum/go-ethereum/triedb/hashdb"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/script/forking"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/srcmap"
 )
 
@@ -72,9 +73,12 @@ type Host struct {
 	af       *foundry.ArtifactsFS
 	chainCfg *params.ChainConfig
 	env      *vm.EVM
-	state    *state.StateDB
-	stateDB  state.Database
-	rawDB    ethdb.Database
+
+	state     *forking.ForkableState
+	baseState *state.StateDB
+
+	// only known contracts may utilize cheatcodes and logging
+	allowedCheatcodes map[common.Address]struct{}
 
 	cheatcodes *Precompile[*CheatCodesPrecompile]
 	console    *Precompile[*ConsolePrecompile]
@@ -117,11 +121,18 @@ type BroadcastHook func(broadcast Broadcast)
 
 type Hooks struct {
 	OnBroadcast BroadcastHook
+	OnFork      ForkHook
 }
 
 func WithBroadcastHook(hook BroadcastHook) HostOption {
 	return func(h *Host) {
 		h.hooks.OnBroadcast = hook
+	}
+}
+
+func WithForkHook(hook ForkHook) HostOption {
+	return func(h *Host) {
+		h.hooks.OnFork = hook
 	}
 }
 
@@ -167,7 +178,11 @@ func NewHost(
 		srcMaps:          make(map[common.Address]*srcmap.SourceMap),
 		hooks: &Hooks{
 			OnBroadcast: func(broadcast Broadcast) {},
+			OnFork: func(opts *ForkConfig) (forking.ForkSource, error) {
+				return nil, errors.New("no forking configured")
+			},
 		},
+		allowedCheatcodes: make(map[common.Address]struct{}),
 	}
 
 	for _, opt := range options {
@@ -211,18 +226,19 @@ func NewHost(
 	}
 
 	// Create an in-memory database, to host our temporary script state changes
-	h.rawDB = rawdb.NewMemoryDatabase()
-	h.stateDB = state.NewDatabase(triedb.NewDatabase(h.rawDB, &triedb.Config{
+	rawDB := rawdb.NewMemoryDatabase()
+	stateDB := state.NewDatabase(triedb.NewDatabase(rawDB, &triedb.Config{
 		Preimages: true, // To be able to iterate the state we need the Preimages
 		IsVerkle:  false,
 		HashDB:    hashdb.Defaults,
 		PathDB:    nil,
 	}), nil)
 	var err error
-	h.state, err = state.New(types.EmptyRootHash, h.stateDB)
+	h.baseState, err = state.New(types.EmptyRootHash, stateDB)
 	if err != nil {
 		panic(fmt.Errorf("failed to create memory state db: %w", err))
 	}
+	h.state = forking.NewForkableState(h.baseState)
 
 	// Initialize a block-context for the EVM to access environment variables.
 	// The block context (after embedding inside of the EVM environment) may be mutated later.
@@ -251,7 +267,7 @@ func NewHost(
 		GasPrice:     big.NewInt(0),
 		BlobHashes:   executionContext.BlobHashes,
 		BlobFeeCap:   big.NewInt(0),
-		AccessEvents: state.NewAccessEvents(h.stateDB.PointCache()),
+		AccessEvents: state.NewAccessEvents(h.baseState.PointCache()),
 	}
 
 	// Hook up the Host to capture the EVM environment changes
@@ -275,6 +291,18 @@ func NewHost(
 	h.env = vm.NewEVM(blockContext, txContext, h.state, h.chainCfg, vmCfg)
 
 	return h
+}
+
+// AllowCheatcodes allows the given address to utilize the cheatcodes and logging precompiles
+func (h *Host) AllowCheatcodes(addr common.Address) {
+	h.log.Debug("Allowing cheatcodes", "address", addr, "label", h.labels[addr])
+	h.allowedCheatcodes[addr] = struct{}{}
+}
+
+// AllowedCheatcodes returns whether the given address is allowed to use cheatcodes
+func (h *Host) AllowedCheatcodes(addr common.Address) bool {
+	_, ok := h.allowedCheatcodes[addr]
+	return ok
 }
 
 // EnableCheats enables the Forge/HVM cheat-codes precompile and the Hardhat-style console2 precompile.
@@ -413,7 +441,7 @@ func (h *Host) ImportAccount(addr common.Address, account types.Account) {
 // getPrecompile overrides any accounts during runtime, to insert special precompiles, if activated.
 func (h *Host) getPrecompile(rules params.Rules, original vm.PrecompiledContract, addr common.Address) vm.PrecompiledContract {
 	if p, ok := h.precompiles[addr]; ok {
-		return p
+		return &AccessControlledPrecompile{h: h, inner: p}
 	}
 	return original
 }
@@ -555,6 +583,13 @@ func (h *Host) unwindCallstack(depth int) {
 func (h *Host) onOpcode(pc uint64, op byte, gas, cost uint64, scope tracing.OpContext, rData []byte, depth int, err error) {
 	h.unwindCallstack(depth)
 	scopeCtx := scope.(*vm.ScopeContext)
+	if scopeCtx.Contract.IsDeployment {
+		// If we are not yet allowed access to cheatcodes, but if the caller is,
+		// and if this is a contract-creation, then we are automatically granted cheatcode access.
+		if !h.AllowedCheatcodes(scopeCtx.Address()) && h.AllowedCheatcodes(scopeCtx.Caller()) {
+			h.AllowCheatcodes(scopeCtx.Address())
+		}
+	}
 	// Check if we are entering a new depth, add it to the call-stack if so.
 	// We do this here, instead of onEnter, to capture an initialized scope.
 	if len(h.callStack) == 0 || h.callStack[len(h.callStack)-1].Depth < depth {
@@ -603,11 +638,11 @@ func (h *Host) onLog(ev *types.Log) {
 
 // CurrentCall returns the top of the callstack. Or zeroed if there was no call frame yet.
 // If zeroed, the call-frame has a nil scope context.
-func (h *Host) CurrentCall() CallFrame {
+func (h *Host) CurrentCall() *CallFrame {
 	if len(h.callStack) == 0 {
-		return CallFrame{}
+		return &CallFrame{}
 	}
-	return *h.callStack[len(h.callStack)-1]
+	return h.callStack[len(h.callStack)-1]
 }
 
 // MsgSender returns the msg.sender of the current active EVM call-frame,
@@ -646,23 +681,27 @@ func (h *Host) SetEnvVar(key string, value string) {
 // After flushing the EVM state also cannot revert to a previous snapshot state:
 // the state should not be dumped within contract-execution that needs to revert.
 func (h *Host) StateDump() (*foundry.ForgeAllocs, error) {
+	if id, ok := h.state.ActiveFork(); ok {
+		return nil, fmt.Errorf("cannot state-dump while fork %s is active", id)
+	}
+	baseState := h.baseState
 	// We have to commit the existing state to the trie,
 	// for all the state-changes to be captured by the trie iterator.
-	root, err := h.state.Commit(h.env.Context.BlockNumber.Uint64(), true)
+	root, err := baseState.Commit(h.env.Context.BlockNumber.Uint64(), true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to commit state: %w", err)
 	}
 	// We need a state object around the state DB
-	st, err := state.New(root, h.stateDB)
+	st, err := state.New(root, baseState.Database())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create state object for state-dumping: %w", err)
 	}
 	// After Commit we cannot reuse the old State, so we update the host to use the new one
-	h.state = st
-	h.env.StateDB = st
+	h.baseState = st
+	h.state.SubstituteBaseState(st)
 
 	var allocs foundry.ForgeAllocs
-	allocs.FromState(st)
+	allocs.FromState(baseState) // use the old committed-to state (see FromState docs)
 
 	// Sanity check we have no lingering scripts.
 	for i := uint64(0); i <= allocs.Accounts[ScriptDeployer].Nonce; i++ {
