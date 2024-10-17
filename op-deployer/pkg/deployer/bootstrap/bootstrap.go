@@ -8,11 +8,12 @@ import (
 	"math/big"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
+
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/pipeline"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/script"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/ctxinterrupt"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
@@ -138,63 +139,78 @@ func OPCM(ctx context.Context, cfg OPCMConfig) error {
 	signer := opcrypto.SignerFnFromBind(opcrypto.PrivateKeySignerFn(cfg.privateKeyECDSA, chainID))
 	chainDeployer := crypto.PubkeyToAddress(cfg.privateKeyECDSA.PublicKey)
 
+	bcaster, err := broadcaster.NewKeyedBroadcaster(broadcaster.KeyedBroadcasterOpts{
+		Logger:  lgr,
+		ChainID: chainID,
+		Client:  l1Client,
+		Signer:  signer,
+		From:    chainDeployer,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create broadcaster: %w", err)
+	}
+
+	nonce, err := l1Client.NonceAt(ctx, chainDeployer, nil)
+	if err != nil {
+		return fmt.Errorf("failed to get starting nonce: %w", err)
+	}
+
+	host, err := pipeline.DefaultScriptHost(
+		bcaster,
+		lgr,
+		chainDeployer,
+		artifactsFS,
+		nonce,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create script host: %w", err)
+	}
+
 	lgr.Info("deploying OPCM", "release", cfg.ContractsRelease)
 
-	var dio opcm.DeployImplementationsOutput
-	err = pipeline.CallScriptBroadcast(
-		ctx,
-		pipeline.CallScriptBroadcastOpts{
-			L1ChainID:   chainID,
-			Logger:      lgr,
-			ArtifactsFS: artifactsFS,
-			Deployer:    chainDeployer,
-			Signer:      signer,
-			Client:      l1Client,
-			Broadcaster: pipeline.KeyedBroadcaster,
-			Handler: func(host *script.Host) error {
-				// We need to etch the Superchain addresses so that they have nonzero code
-				// and the checks in the OPCM constructor pass.
-				superchainConfigAddr := common.Address(*superCfg.Config.SuperchainConfigAddr)
-				protocolVersionsAddr := common.Address(*superCfg.Config.ProtocolVersionsAddr)
-				addresses := []common.Address{
-					superchainConfigAddr,
-					protocolVersionsAddr,
-				}
-				for _, addr := range addresses {
-					host.ImportAccount(addr, types.Account{
-						Code: []byte{0x00},
-					})
-				}
+	// We need to etch the Superchain addresses so that they have nonzero code
+	// and the checks in the OPCM constructor pass.
+	superchainConfigAddr := common.Address(*superCfg.Config.SuperchainConfigAddr)
+	protocolVersionsAddr := common.Address(*superCfg.Config.ProtocolVersionsAddr)
+	addresses := []common.Address{
+		superchainConfigAddr,
+		protocolVersionsAddr,
+	}
+	for _, addr := range addresses {
+		host.ImportAccount(addr, types.Account{
+			Code: []byte{0x00},
+		})
+	}
 
-				var salt common.Hash
-				_, err = rand.Read(salt[:])
-				if err != nil {
-					return fmt.Errorf("failed to generate CREATE2 salt: %w", err)
-				}
+	var salt common.Hash
+	_, err = rand.Read(salt[:])
+	if err != nil {
+		return fmt.Errorf("failed to generate CREATE2 salt: %w", err)
+	}
 
-				dio, err = opcm.DeployImplementations(
-					host,
-					opcm.DeployImplementationsInput{
-						Salt:                            salt,
-						WithdrawalDelaySeconds:          big.NewInt(604800),
-						MinProposalSizeBytes:            big.NewInt(126000),
-						ChallengePeriodSeconds:          big.NewInt(86400),
-						ProofMaturityDelaySeconds:       big.NewInt(604800),
-						DisputeGameFinalityDelaySeconds: big.NewInt(302400),
-						Release:                         cfg.ContractsRelease,
-						SuperchainConfigProxy:           superchainConfigAddr,
-						ProtocolVersionsProxy:           protocolVersionsAddr,
-						OpcmProxyOwner:                  opcmProxyOwnerAddr,
-						StandardVersionsToml:            standardVersionsTOML,
-						UseInterop:                      false,
-					},
-				)
-				return err
-			},
+	dio, err := opcm.DeployImplementations(
+		host,
+		opcm.DeployImplementationsInput{
+			Salt:                            salt,
+			WithdrawalDelaySeconds:          big.NewInt(604800),
+			MinProposalSizeBytes:            big.NewInt(126000),
+			ChallengePeriodSeconds:          big.NewInt(86400),
+			ProofMaturityDelaySeconds:       big.NewInt(604800),
+			DisputeGameFinalityDelaySeconds: big.NewInt(302400),
+			Release:                         cfg.ContractsRelease,
+			SuperchainConfigProxy:           superchainConfigAddr,
+			ProtocolVersionsProxy:           protocolVersionsAddr,
+			OpcmProxyOwner:                  opcmProxyOwnerAddr,
+			StandardVersionsToml:            standardVersionsTOML,
+			UseInterop:                      false,
 		},
 	)
 	if err != nil {
 		return fmt.Errorf("error deploying implementations: %w", err)
+	}
+
+	if _, err := bcaster.Broadcast(ctx); err != nil {
+		return fmt.Errorf("failed to broadcast: %w", err)
 	}
 
 	lgr.Info("deployed implementations")

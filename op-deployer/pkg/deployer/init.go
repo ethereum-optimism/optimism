@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
-	state2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
+	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 
 	op_service "github.com/ethereum-optimism/optimism/op-service"
 
@@ -18,12 +18,17 @@ import (
 )
 
 type InitConfig struct {
-	L1ChainID  uint64
-	Outdir     string
-	L2ChainIDs []common.Hash
+	DeploymentStrategy state.DeploymentStrategy
+	L1ChainID          uint64
+	Outdir             string
+	L2ChainIDs         []common.Hash
 }
 
 func (c *InitConfig) Check() error {
+	if err := c.DeploymentStrategy.Check(); err != nil {
+		return err
+	}
+
 	if c.L1ChainID == 0 {
 		return fmt.Errorf("l1ChainID must be specified")
 	}
@@ -41,9 +46,9 @@ func (c *InitConfig) Check() error {
 
 func InitCLI() func(ctx *cli.Context) error {
 	return func(ctx *cli.Context) error {
+		deploymentStrategy := ctx.String(DeploymentStrategyFlagName)
 		l1ChainID := ctx.Uint64(L1ChainIDFlagName)
 		outdir := ctx.String(OutdirFlagName)
-
 		l2ChainIDsRaw := ctx.String(L2ChainIDsFlagName)
 		l2ChainIDsStr := strings.Split(strings.TrimSpace(l2ChainIDsRaw), ",")
 		l2ChainIDs := make([]common.Hash, len(l2ChainIDsStr))
@@ -56,9 +61,10 @@ func InitCLI() func(ctx *cli.Context) error {
 		}
 
 		err := Init(InitConfig{
-			L1ChainID:  l1ChainID,
-			Outdir:     outdir,
-			L2ChainIDs: l2ChainIDs,
+			DeploymentStrategy: state.DeploymentStrategy(deploymentStrategy),
+			L1ChainID:          l1ChainID,
+			Outdir:             outdir,
+			L2ChainIDs:         l2ChainIDs,
 		})
 		if err != nil {
 			return err
@@ -74,7 +80,8 @@ func Init(cfg InitConfig) error {
 		return fmt.Errorf("invalid config for init: %w", err)
 	}
 
-	intent := &state2.Intent{
+	intent := &state.Intent{
+		DeploymentStrategy: state.DeploymentStrategyLive,
 		L1ChainID:          cfg.L1ChainID,
 		FundDevAccounts:    true,
 		L1ContractsLocator: opcm.DefaultL1ContractsLocator,
@@ -96,7 +103,7 @@ func Init(cfg InitConfig) error {
 		}
 		return addr
 	}
-	intent.SuperchainRoles = state2.SuperchainRoles{
+	intent.SuperchainRoles = state.SuperchainRoles{
 		ProxyAdminOwner:       addrFor(devkeys.L1ProxyAdminOwnerRole.Key(l1ChainIDBig)),
 		ProtocolVersionsOwner: addrFor(devkeys.SuperchainProtocolVersionsOwner.Key(l1ChainIDBig)),
 		Guardian:              addrFor(devkeys.SuperchainConfigGuardianKey.Key(l1ChainIDBig)),
@@ -104,14 +111,14 @@ func Init(cfg InitConfig) error {
 
 	for _, l2ChainID := range cfg.L2ChainIDs {
 		l2ChainIDBig := l2ChainID.Big()
-		intent.Chains = append(intent.Chains, &state2.ChainIntent{
+		intent.Chains = append(intent.Chains, &state.ChainIntent{
 			ID:                         l2ChainID,
 			BaseFeeVaultRecipient:      common.Address{},
 			L1FeeVaultRecipient:        common.Address{},
 			SequencerFeeVaultRecipient: common.Address{},
 			Eip1559Denominator:         50,
 			Eip1559Elasticity:          6,
-			Roles: state2.ChainRoles{
+			Roles: state.ChainRoles{
 				ProxyAdminOwner:      addrFor(devkeys.L2ProxyAdminOwnerRole.Key(l2ChainIDBig)),
 				SystemConfigOwner:    addrFor(devkeys.SystemConfigOwner.Key(l2ChainIDBig)),
 				GovernanceTokenOwner: addrFor(devkeys.L2ProxyAdminOwnerRole.Key(l2ChainIDBig)),
@@ -123,7 +130,7 @@ func Init(cfg InitConfig) error {
 		})
 	}
 
-	st := &state2.State{
+	st := &state.State{
 		Version: 1,
 	}
 
