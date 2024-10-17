@@ -6,6 +6,7 @@ broadcast
 kout-deployment
 kout-proofs
 test/kontrol/logs
+test/kontrol/proofs/utils/DeploymentSummary*.sol
 
 # Metrics
 coverage.out
