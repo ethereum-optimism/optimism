@@ -10,10 +10,6 @@ import (
 	"testing"
 	"time"
 
-	emit "github.com/ethereum-optimism/optimism/op-e2e/interop/contracts"
-	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
-
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -30,11 +26,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/devkeys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/foundry"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/interopgen"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/opnode"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/services"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/setuputils"
+	emit "github.com/ethereum-optimism/optimism/op-e2e/interop/contracts"
+	"github.com/ethereum-optimism/optimism/op-e2e/system/helpers"
 	"github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -53,6 +52,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	supervisorConfig "github.com/ethereum-optimism/optimism/op-supervisor/config"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
+	supervisortypes "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
 // SuperSystem is an interface for the system (collection of connected resources)
@@ -418,7 +419,7 @@ func (s *interopE2ESystem) newL2(id string, l2Out *interopgen.L2Output) l2Set {
 func (s *interopE2ESystem) prepareSupervisor() *supervisor.SupervisorService {
 	// Be verbose with op-supervisor, it's in early test phase
 	logger := testlog.Logger(s.t, log.LevelDebug).New("role", "supervisor")
-	cfg := supervisorConfig.Config{
+	cfg := &supervisorConfig.Config{
 		MetricsConfig: metrics.CLIConfig{
 			Enabled: false,
 		},
@@ -437,11 +438,20 @@ func (s *interopE2ESystem) prepareSupervisor() *supervisor.SupervisorService {
 		L2RPCs:  []string{},
 		Datadir: path.Join(s.t.TempDir(), "supervisor"),
 	}
-	for id := range s.l2s {
-		cfg.L2RPCs = append(cfg.L2RPCs, s.l2s[id].l2Geth.UserRPC().RPC())
+	depSet := &depset.StaticConfigDependencySet{
+		Dependencies: make(map[supervisortypes.ChainID]*depset.StaticConfigDependency),
 	}
+	// Iterate over the L2 chain configs. The L2 nodes don't exist yet.
+	for _, l2Out := range s.worldOutput.L2s {
+		chainID := supervisortypes.ChainIDFromBig(l2Out.Genesis.Config.ChainID)
+		depSet.Dependencies[chainID] = &depset.StaticConfigDependency{
+			ActivationTime: 0,
+			HistoryMinTime: 0,
+		}
+	}
+	cfg.DependencySetSource = depSet
 	// Create the supervisor with the configuration
-	super, err := supervisor.SupervisorFromConfig(context.Background(), &cfg, logger)
+	super, err := supervisor.SupervisorFromConfig(context.Background(), cfg, logger)
 	require.NoError(s.t, err)
 	// Start the supervisor
 	err = super.Start(context.Background())
@@ -485,7 +495,7 @@ func (s *interopE2ESystem) prepare(t *testing.T, w worldResourcePaths) {
 	ctx := context.Background()
 	for _, l2 := range s.l2s {
 		err := s.SupervisorClient().AddL2RPC(ctx, l2.l2Geth.UserRPC().RPC())
-		require.NoError(s.t, err, "failed to add L2 RPC to supervisor", "error", err)
+		require.NoError(s.t, err, "failed to add L2 RPC to supervisor")
 	}
 }
 

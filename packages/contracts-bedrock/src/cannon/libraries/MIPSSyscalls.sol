@@ -128,6 +128,23 @@ library MIPSSyscalls {
     uint32 internal constant VALID_SYS_CLONE_FLAGS =
         CLONE_VM | CLONE_FS | CLONE_FILES | CLONE_SIGHAND | CLONE_SYSVSEM | CLONE_THREAD;
 
+    // FYI: https://en.wikibooks.org/wiki/MIPS_Assembly/Register_File
+    //      https://refspecs.linuxfoundation.org/elf/mipsabi.pdf
+    uint32 internal constant REG_V0 = 2;
+    uint32 internal constant REG_A0 = 4;
+    uint32 internal constant REG_A1 = 5;
+    uint32 internal constant REG_A2 = 6;
+    uint32 internal constant REG_A3 = 7;
+
+    // FYI: https://web.archive.org/web/20231223163047/https://www.linux-mips.org/wiki/Syscall
+    uint32 internal constant REG_SYSCALL_NUM = REG_V0;
+    uint32 internal constant REG_SYSCALL_ERRNO = REG_A3;
+    uint32 internal constant REG_SYSCALL_RET1 = REG_V0;
+    uint32 internal constant REG_SYSCALL_PARAM1 = REG_A0;
+    uint32 internal constant REG_SYSCALL_PARAM2 = REG_A1;
+    uint32 internal constant REG_SYSCALL_PARAM3 = REG_A2;
+    uint32 internal constant REG_SYSCALL_PARAM4 = REG_A3;
+
     /// @notice Extract syscall num and arguments from registers.
     /// @param _registers The cpu registers.
     /// @return sysCallNum_ The syscall number.
@@ -141,12 +158,12 @@ library MIPSSyscalls {
         returns (uint32 sysCallNum_, uint32 a0_, uint32 a1_, uint32 a2_, uint32 a3_)
     {
         unchecked {
-            sysCallNum_ = _registers[2];
+            sysCallNum_ = _registers[REG_SYSCALL_NUM];
 
-            a0_ = _registers[4];
-            a1_ = _registers[5];
-            a2_ = _registers[6];
-            a3_ = _registers[7];
+            a0_ = _registers[REG_SYSCALL_PARAM1];
+            a1_ = _registers[REG_SYSCALL_PARAM2];
+            a2_ = _registers[REG_SYSCALL_PARAM3];
+            a3_ = _registers[REG_SYSCALL_PARAM4];
 
             return (sysCallNum_, a0_, a1_, a2_, a3_);
         }
@@ -397,8 +414,8 @@ library MIPSSyscalls {
     {
         unchecked {
             // Write the results back to the state registers
-            _registers[2] = _v0;
-            _registers[7] = _v1;
+            _registers[REG_SYSCALL_RET1] = _v0;
+            _registers[REG_SYSCALL_ERRNO] = _v1;
 
             // Update the PC and nextPC
             _cpu.pc = _cpu.nextPC;

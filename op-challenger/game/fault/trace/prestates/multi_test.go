@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDownloadPrestate(t *testing.T) {
+func TestDownloadPrestateHTTP(t *testing.T) {
 	for _, ext := range supportedFileTypes {
 		t.Run(ext, func(t *testing.T) {
 			dir := t.TempDir()
@@ -34,6 +34,28 @@ func TestDownloadPrestate(t *testing.T) {
 			content, err := io.ReadAll(in)
 			require.NoError(t, err)
 			require.Equal(t, "/"+hash.Hex()+ext, string(content))
+		})
+	}
+}
+
+func TestDownloadPrestateFile(t *testing.T) {
+	for _, ext := range supportedFileTypes {
+		t.Run(ext, func(t *testing.T) {
+			sourceDir := t.TempDir()
+			dir := t.TempDir()
+			hash := common.Hash{0xaa}
+			sourcePath := filepath.Join(sourceDir, hash.Hex()+ext)
+			expectedContent := "/" + hash.Hex() + ext
+			require.NoError(t, os.WriteFile(sourcePath, []byte(expectedContent), 0600))
+			provider := NewMultiPrestateProvider(parseURL(t, "file:"+sourceDir), dir, &stubStateConverter{hash: hash})
+			path, err := provider.PrestatePath(context.Background(), hash)
+			require.NoError(t, err)
+			in, err := os.Open(path)
+			require.NoError(t, err)
+			defer in.Close()
+			content, err := io.ReadAll(in)
+			require.NoError(t, err)
+			require.Equal(t, expectedContent, string(content))
 		})
 	}
 }
