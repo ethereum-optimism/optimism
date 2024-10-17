@@ -142,6 +142,10 @@ func (l *BatchSubmitter) StartBatchSubmitting() error {
 	l.clearState(l.shutdownCtx)
 	l.lastStoredBlock = eth.BlockID{}
 
+	if err := l.waitForL2Genesis(); err != nil {
+		return fmt.Errorf("error waiting for L2 genesis: %w", err)
+	}
+
 	if l.Config.WaitNodeSync {
 		err := l.waitNodeSync()
 		if err != nil {
@@ -154,6 +158,36 @@ func (l *BatchSubmitter) StartBatchSubmitting() error {
 
 	l.Log.Info("Batch Submitter started")
 	return nil
+}
+
+// waitForL2Genesis waits for the L2 genesis time to be reached.
+func (l *BatchSubmitter) waitForL2Genesis() error {
+	genesisTime := time.Unix(int64(l.RollupConfig.Genesis.L2Time), 0)
+	now := time.Now()
+	if now.After(genesisTime) {
+		return nil
+	}
+
+	l.Log.Info("Waiting for L2 genesis", "genesisTime", genesisTime)
+
+	// Create a ticker that fires every 30 seconds
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	genesisTrigger := time.After(time.Until(genesisTime))
+
+	for {
+		select {
+		case <-ticker.C:
+			remaining := time.Until(genesisTime)
+			l.Log.Info("Waiting for L2 genesis", "remainingTime", remaining.Round(time.Second))
+		case <-genesisTrigger:
+			l.Log.Info("L2 genesis time reached")
+			return nil
+		case <-l.shutdownCtx.Done():
+			return errors.New("batcher stopped")
+		}
+	}
 }
 
 func (l *BatchSubmitter) StopBatchSubmittingIfRunning(ctx context.Context) error {
@@ -268,16 +302,40 @@ func (l *BatchSubmitter) calculateL2BlockRangeToStore(ctx context.Context) (eth.
 		return eth.BlockID{}, eth.BlockID{}, fmt.Errorf("getting rollup client: %w", err)
 	}
 
-	cCtx, cancel := context.WithTimeout(ctx, l.Config.NetworkTimeout)
-	defer cancel()
+	var (
+		syncStatus *eth.SyncStatus
+		backoff    = time.Second
+		maxBackoff = 30 * time.Second
+	)
+	timer := time.NewTimer(backoff)
+	defer timer.Stop()
 
-	syncStatus, err := rollupClient.SyncStatus(cCtx)
-	// Ensure that we have the sync status
-	if err != nil {
-		return eth.BlockID{}, eth.BlockID{}, fmt.Errorf("failed to get sync status: %w", err)
-	}
-	if syncStatus.HeadL1 == (eth.L1BlockRef{}) {
-		return eth.BlockID{}, eth.BlockID{}, errors.New("empty sync status")
+	for {
+		cCtx, cancel := context.WithTimeout(ctx, l.Config.NetworkTimeout)
+		syncStatus, err = rollupClient.SyncStatus(cCtx)
+		cancel()
+
+		// Ensure that we have the sync status
+		if err != nil {
+			return eth.BlockID{}, eth.BlockID{}, fmt.Errorf("failed to get sync status: %w", err)
+		}
+
+		// If we have a head, break out of the loop
+		if syncStatus.HeadL1 != (eth.L1BlockRef{}) {
+			break
+		}
+
+		// Empty sync status, implement backoff
+		l.Log.Info("Received empty sync status, backing off", "backoff", backoff)
+		select {
+		case <-timer.C:
+			backoff *= 2
+			backoff = min(backoff, maxBackoff)
+			// Reset timer to tick of the new backoff time again
+			timer.Reset(backoff)
+		case <-ctx.Done():
+			return eth.BlockID{}, eth.BlockID{}, ctx.Err()
+		}
 	}
 
 	// Check last stored to see if it needs to be set on startup OR set if is lagged behind.
