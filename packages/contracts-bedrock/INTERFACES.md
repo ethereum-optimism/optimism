@@ -36,7 +36,7 @@ contract MyContract {
 You can use an interface:
 
 ```solidity
-import "./interfaces/IComplexContract.sol";`
+import "./interfaces/IComplexContract.sol";
 
 contract MyContract {
     IComplexContract public complexContract;
