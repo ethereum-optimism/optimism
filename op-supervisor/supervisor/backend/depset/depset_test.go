@@ -36,6 +36,12 @@ func TestDependencySet(t *testing.T) {
 	result, err := loader.LoadDependencySet(context.Background())
 	require.NoError(t, err)
 
+	chainIDs := result.Chains()
+	require.Equal(t, []types.ChainID{
+		types.ChainIDFromUInt64(900),
+		types.ChainIDFromUInt64(901),
+	}, chainIDs)
+
 	v, err := result.CanExecuteAt(types.ChainIDFromUInt64(900), 42)
 	require.NoError(t, err)
 	require.True(t, v)
