@@ -20,14 +20,14 @@ func TestDecodeExecutingMessageEvent(t *testing.T) {
 	payload := bytes.Repeat([]byte{0xaa, 0xbb}, 50)
 	payloadHash := crypto.Keccak256Hash(payload)
 	expected := types.ExecutingMessage{
-		Chain:     42424,
+		Chain:     42424, // TODO(#11105): translate chain ID to chain index
 		BlockNum:  12345,
 		LogIdx:    98,
 		Timestamp: 9578295,
 	}
 	contractIdent := contractIdentifier{
 		Origin:      common.Address{0xbb, 0xcc},
-		ChainId:     new(big.Int).SetUint64(uint64(expected.Chain)),
+		ChainId:     new(big.Int).SetUint64(uint64(expected.Chain)), // TODO(#11105): translate chain ID to chain index
 		BlockNumber: new(big.Int).SetUint64(expected.BlockNum),
 		Timestamp:   new(big.Int).SetUint64(expected.Timestamp),
 		LogIndex:    new(big.Int).SetUint64(uint64(expected.LogIdx)),

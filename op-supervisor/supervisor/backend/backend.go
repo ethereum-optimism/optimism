@@ -77,15 +77,22 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger, m Metrics, cfg
 		db:              chainsDB,
 	}
 
-	// from the RPC strings, have the supervisor backend create a chain monitor
-	// don't start the monitor yet, as we will start all monitors at once when Start is called
+	if err := super.initBackgroundProcessors(ctx, logger, cfg); err != nil {
+		return nil, fmt.Errorf("failed to initialize background processors: %w", err)
+	}
+
+	return super, nil
+}
+
+// initBackgroundProcessors initializes chain processors and adds them to the backend.
+func (su *SupervisorBackend) initBackgroundProcessors(ctx context.Context, logger log.Logger, cfg *config.Config) error {
 	for _, rpc := range cfg.L2RPCs {
-		err := super.addFromRPC(ctx, logger, rpc, false)
+		err := su.addFromRPC(ctx, logger, rpc, false)
 		if err != nil {
-			return nil, fmt.Errorf("failed to add chain monitor for rpc %v: %w", rpc, err)
+			return fmt.Errorf("failed to add chain monitor for rpc %v: %w", rpc, err)
 		}
 	}
-	return super, nil
+	return nil
 }
 
 // addFromRPC adds a chain monitor to the supervisor backend from an rpc endpoint
@@ -155,8 +162,8 @@ func (su *SupervisorBackend) Start(ctx context.Context) error {
 	if err := su.db.ResumeFromLastSealedBlock(); err != nil {
 		return fmt.Errorf("failed to resume chains db: %w", err)
 	}
-	// TODO(#12423): init background processors, de-dup with constructor
-	return nil
+
+	return su.initBackgroundProcessors(ctx, su.logger, &config.Config{})
 }
 
 func (su *SupervisorBackend) Stop(ctx context.Context) error {

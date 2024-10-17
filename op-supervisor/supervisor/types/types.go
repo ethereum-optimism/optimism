@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"strconv"
 
 	"github.com/holiman/uint256"
 
@@ -13,10 +14,48 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	chain_index_mapping "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types/chain-index-mapping"
 )
 
+var chainIndexMap *chain_index_mapping.Map
+
+// InitializeChainIndexMap initializes the global chain index map with the provided chain IDs.
+func InitializeChainIndexMap(chainIDs []*big.Int) {
+	chainIndexMap = chain_index_mapping.NewFromIDs(chainIDs)
+}
+
+// ChainIndexFromID converts a ChainID to a ChainIndex.
+func ChainIndexFromID(id ChainID) (ChainIndex, error) {
+	return chainIndexMap.GetIndex(id)
+}
+
+// ChainIDFromIndex converts a ChainIndex to a ChainID.
+func ChainIDFromIndex(index ChainIndex) (ChainID, error) {
+	return chainIndexMap.GetID(index)
+}
+
+// ChainIndex represents the lifetime of a chain in a dependency set.
+type ChainIndex uint32
+
+func (ci ChainIndex) String() string {
+	return strconv.FormatUint(uint64(ci), 10)
+}
+
+func (ci ChainIndex) MarshalText() ([]byte, error) {
+	return []byte(ci.String()), nil
+}
+
+func (ci *ChainIndex) UnmarshalText(data []byte) error {
+	v, err := strconv.ParseUint(string(data), 10, 32)
+	if err != nil {
+		return err
+	}
+	*ci = ChainIndex(v)
+	return nil
+}
+
 type ExecutingMessage struct {
-	Chain     uint32 // same as ChainID for now, but will be indirect, i.e. translated to full ID, later
+	Chain     ChainIndex // same as ChainID for now, but will be indirect, i.e. translated to full ID, later
 	BlockNum  uint64
 	LogIdx    uint32
 	Timestamp uint64
@@ -24,7 +63,7 @@ type ExecutingMessage struct {
 }
 
 func (s *ExecutingMessage) String() string {
-	return fmt.Sprintf("ExecMsg(chain: %d, block: %d, log: %d, time: %d, logHash: %s)",
+	return fmt.Sprintf("ExecMsg(chainIndex: %s, block: %d, log: %d, time: %d, logHash: %s)",
 		s.Chain, s.BlockNum, s.LogIdx, s.Timestamp, s.Hash)
 }
 
