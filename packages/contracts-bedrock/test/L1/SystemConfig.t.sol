@@ -544,7 +544,7 @@ contract SystemConfig_Setters_Test is SystemConfig_Init {
         // always zero out most significant byte
         newScalar = (newScalar << 16) >> 16;
         vm.expectEmit(address(systemConfig));
-        emit ConfigUpdate(0, ISystemConfig.UpdateType.GAS_CONFIG, abi.encode(newOverhead, newScalar));
+        emit ConfigUpdate(0, ISystemConfig.UpdateType.FEE_SCALARS, abi.encode(newOverhead, newScalar));
 
         vm.prank(systemConfig.owner());
         systemConfig.setGasConfig(newOverhead, newScalar);
@@ -557,7 +557,7 @@ contract SystemConfig_Setters_Test is SystemConfig_Init {
             ffi.encodeScalarEcotone({ _basefeeScalar: _basefeeScalar, _blobbasefeeScalar: _blobbasefeeScalar });
 
         vm.expectEmit(address(systemConfig));
-        emit ConfigUpdate(0, ISystemConfig.UpdateType.GAS_CONFIG, abi.encode(systemConfig.overhead(), encoded));
+        emit ConfigUpdate(0, ISystemConfig.UpdateType.FEE_SCALARS, abi.encode(systemConfig.overhead(), encoded));
 
         vm.prank(systemConfig.owner());
         systemConfig.setGasConfigEcotone({ _basefeeScalar: _basefeeScalar, _blobbasefeeScalar: _blobbasefeeScalar });
