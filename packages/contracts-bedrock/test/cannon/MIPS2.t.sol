@@ -185,7 +185,7 @@ contract MIPS2_Test is CommonTest {
             preimageKey: bytes32(0),
             preimageOffset: 0,
             heap: 0,
-            llReservationActive: false,
+            llReservationStatus: 0,
             llAddress: 0,
             llOwnerThread: 0,
             exitCode: 0,
@@ -2017,7 +2017,7 @@ contract MIPS2_Test is CommonTest {
         updateThreadStacks(state, thread);
 
         MIPS2.State memory expect = arithmeticPostState(state, thread, 8, memVal);
-        expect.llReservationActive = true;
+        expect.llReservationStatus = 1;
         expect.llAddress = effAddr;
         expect.llOwnerThread = thread.threadID;
 
@@ -2034,7 +2034,7 @@ contract MIPS2_Test is CommonTest {
 
         (MIPS2.State memory state, MIPS2.ThreadState memory thread, bytes memory memProof) =
             constructMIPSState(0, insn, effAddr, 0);
-        state.llReservationActive = true;
+        state.llReservationStatus = 1;
         state.llAddress = effAddr;
         state.llOwnerThread = thread.threadID;
         thread.registers[8] = writeMemVal;
@@ -2044,7 +2044,7 @@ contract MIPS2_Test is CommonTest {
 
         MIPS2.State memory expect = arithmeticPostState(state, thread, 8, 0x1);
         (expect.memRoot,) = ffi.getCannonMemoryProof(0, insn, effAddr, writeMemVal);
-        expect.llReservationActive = false;
+        expect.llReservationStatus = 0;
         expect.llAddress = 0;
         expect.llOwnerThread = 0;
 
@@ -2764,7 +2764,7 @@ contract MIPS2_Test is CommonTest {
             _state.preimageKey,
             _state.preimageOffset,
             _state.heap,
-            _state.llReservationActive,
+            _state.llReservationStatus,
             _state.llAddress,
             _state.llOwnerThread,
             _state.exitCode,

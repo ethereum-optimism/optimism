@@ -2,6 +2,9 @@ package depset
 
 import (
 	"context"
+	"sort"
+
+	"golang.org/x/exp/maps"
 
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
@@ -45,4 +48,17 @@ func (ds *StaticConfigDependencySet) CanInitiateAt(chainID types.ChainID, initTi
 		return false, nil
 	}
 	return initTimestamp >= dep.HistoryMinTime, nil
+}
+
+func (ds *StaticConfigDependencySet) Chains() []types.ChainID {
+	out := maps.Keys(ds.Dependencies)
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].Cmp(out[j]) < 0
+	})
+	return out
+}
+
+func (ds *StaticConfigDependencySet) HasChain(chainID types.ChainID) bool {
+	_, ok := ds.Dependencies[chainID]
+	return ok
 }

@@ -419,7 +419,7 @@ func (s *interopE2ESystem) newL2(id string, l2Out *interopgen.L2Output) l2Set {
 func (s *interopE2ESystem) prepareSupervisor() *supervisor.SupervisorService {
 	// Be verbose with op-supervisor, it's in early test phase
 	logger := testlog.Logger(s.t, log.LevelDebug).New("role", "supervisor")
-	cfg := supervisorConfig.Config{
+	cfg := &supervisorConfig.Config{
 		MetricsConfig: metrics.CLIConfig{
 			Enabled: false,
 		},
@@ -441,9 +441,9 @@ func (s *interopE2ESystem) prepareSupervisor() *supervisor.SupervisorService {
 	depSet := &depset.StaticConfigDependencySet{
 		Dependencies: make(map[supervisortypes.ChainID]*depset.StaticConfigDependency),
 	}
-	for id := range s.l2s {
-		cfg.L2RPCs = append(cfg.L2RPCs, s.l2s[id].l2Geth.UserRPC().RPC())
-		chainID := supervisortypes.ChainIDFromBig(s.l2s[id].chainID)
+	// Iterate over the L2 chain configs. The L2 nodes don't exist yet.
+	for _, l2Out := range s.worldOutput.L2s {
+		chainID := supervisortypes.ChainIDFromBig(l2Out.Genesis.Config.ChainID)
 		depSet.Dependencies[chainID] = &depset.StaticConfigDependency{
 			ActivationTime: 0,
 			HistoryMinTime: 0,
@@ -451,7 +451,7 @@ func (s *interopE2ESystem) prepareSupervisor() *supervisor.SupervisorService {
 	}
 	cfg.DependencySetSource = depSet
 	// Create the supervisor with the configuration
-	super, err := supervisor.SupervisorFromConfig(context.Background(), &cfg, logger)
+	super, err := supervisor.SupervisorFromConfig(context.Background(), cfg, logger)
 	require.NoError(s.t, err)
 	// Start the supervisor
 	err = super.Start(context.Background())
@@ -495,7 +495,7 @@ func (s *interopE2ESystem) prepare(t *testing.T, w worldResourcePaths) {
 	ctx := context.Background()
 	for _, l2 := range s.l2s {
 		err := s.SupervisorClient().AddL2RPC(ctx, l2.l2Geth.UserRPC().RPC())
-		require.NoError(s.t, err, "failed to add L2 RPC to supervisor", "error", err)
+		require.NoError(s.t, err, "failed to add L2 RPC to supervisor")
 	}
 }
 

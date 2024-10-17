@@ -60,61 +60,69 @@ func (db *ChainsDB) CrossUnsafe(chainID types.ChainID) (types.BlockSeal, error) 
 	if !ok {
 		return types.BlockSeal{}, ErrUnknownChain
 	}
+	// Fall back to cross-safe if cross-unsafe is not known yet
+	if result == (types.BlockSeal{}) {
+		_, crossSafe, err := db.CrossSafe(chainID)
+		if err != nil {
+			return types.BlockSeal{}, fmt.Errorf("no cross-unsafe known for chain %s, and failed to fall back to cross-safe value: %w", chainID, err)
+		}
+		return crossSafe, nil
+	}
 	return result, nil
 }
 
-func (db *ChainsDB) LocalSafe(chainID types.ChainID) (derivedFrom eth.BlockRef, derived eth.BlockRef, err error) {
+func (db *ChainsDB) LocalSafe(chainID types.ChainID) (derivedFrom types.BlockSeal, derived types.BlockSeal, err error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
 	localDB, ok := db.localDBs[chainID]
 	if !ok {
-		return eth.BlockRef{}, eth.BlockRef{}, ErrUnknownChain
+		return types.BlockSeal{}, types.BlockSeal{}, ErrUnknownChain
 	}
-	return localDB.Last()
+	return localDB.Latest()
 }
 
-func (db *ChainsDB) CrossSafe(chainID types.ChainID) (derivedFrom eth.BlockRef, derived eth.BlockRef, err error) {
+func (db *ChainsDB) CrossSafe(chainID types.ChainID) (derivedFrom types.BlockSeal, derived types.BlockSeal, err error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
 	crossDB, ok := db.crossDBs[chainID]
 	if !ok {
-		return eth.BlockRef{}, eth.BlockRef{}, ErrUnknownChain
+		return types.BlockSeal{}, types.BlockSeal{}, ErrUnknownChain
 	}
-	return crossDB.Last()
+	return crossDB.Latest()
 }
 
-func (db *ChainsDB) Finalized(chainID types.ChainID) (eth.BlockID, error) {
+func (db *ChainsDB) Finalized(chainID types.ChainID) (types.BlockSeal, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
 	finalizedL1 := db.finalizedL1
 	if finalizedL1 == (eth.L1BlockRef{}) {
-		return eth.BlockID{}, errors.New("no finalized L1 signal, cannot determine L2 finality yet")
+		return types.BlockSeal{}, errors.New("no finalized L1 signal, cannot determine L2 finality yet")
 	}
 	derived, err := db.LastDerivedFrom(chainID, finalizedL1.ID())
 	if err != nil {
-		return eth.BlockID{}, errors.New("could not find what was last derived from the finalized L1 block")
+		return types.BlockSeal{}, errors.New("could not find what was last derived from the finalized L1 block")
 	}
 	return derived, nil
 }
 
-func (db *ChainsDB) LastDerivedFrom(chainID types.ChainID, derivedFrom eth.BlockID) (derived eth.BlockID, err error) {
+func (db *ChainsDB) LastDerivedFrom(chainID types.ChainID, derivedFrom eth.BlockID) (derived types.BlockSeal, err error) {
 	crossDB, ok := db.crossDBs[chainID]
 	if !ok {
-		return eth.BlockID{}, ErrUnknownChain
+		return types.BlockSeal{}, ErrUnknownChain
 	}
-	return crossDB.LastDerived(derivedFrom)
+	return crossDB.LastDerivedAt(derivedFrom)
 }
 
-func (db *ChainsDB) DerivedFrom(chainID types.ChainID, derived eth.BlockID) (derivedFrom eth.BlockID, err error) {
+func (db *ChainsDB) DerivedFrom(chainID types.ChainID, derived eth.BlockID) (derivedFrom types.BlockSeal, err error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
 	localDB, ok := db.localDBs[chainID]
 	if !ok {
-		return eth.BlockID{}, ErrUnknownChain
+		return types.BlockSeal{}, ErrUnknownChain
 	}
 	return localDB.DerivedFrom(derived)
 }
