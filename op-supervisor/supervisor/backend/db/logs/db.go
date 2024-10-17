@@ -295,7 +295,7 @@ func (db *DB) newIteratorAt(blockNum uint64, logIndex uint32) (*iterator, error)
 	}()
 	// First walk up to the block that we are sealed up to (incl.)
 	for {
-		if _, n, _ := iter.SealedBlock(); n == blockNum { // we may already have it exactly
+		if _, n, ok := iter.SealedBlock(); ok && n == blockNum { // we may already have it exactly
 			break
 		}
 		if err := iter.NextBlock(); errors.Is(err, entrydb.ErrFuture) {

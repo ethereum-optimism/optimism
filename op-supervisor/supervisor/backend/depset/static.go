@@ -57,3 +57,8 @@ func (ds *StaticConfigDependencySet) Chains() []types.ChainID {
 	})
 	return out
 }
+
+func (ds *StaticConfigDependencySet) HasChain(chainID types.ChainID) (bool, error) {
+	_, ok := ds.Dependencies[chainID]
+	return ok, nil
+}

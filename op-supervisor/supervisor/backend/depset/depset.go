@@ -28,4 +28,8 @@ type DependencySet interface {
 
 	// Chains returns the list of chains that are part of the dependency set.
 	Chains() []types.ChainID
+
+	// HasChain determines if a chain is being tracked for interop purposes.
+	// See CanExecuteAt and CanInitiateAt to check if a chain may message at a given time.
+	HasChain(chainID types.ChainID) (bool, error)
 }

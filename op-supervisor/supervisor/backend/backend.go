@@ -44,6 +44,10 @@ type SupervisorBackend struct {
 	// chainProcessors are notified of new unsafe blocks, and add the unsafe log events data into the events DB
 	chainProcessors map[types.ChainID]*processors.ChainProcessor
 
+	// synchronousProcessors disables background-workers,
+	// requiring manual triggers for the backend to process anything.
+	synchronousProcessors bool
+
 	// chainMetrics are used to track metrics for each chain
 	// they are reused for processors and databases of the same chain
 	chainMetrics map[types.ChainID]*chainMetrics
@@ -80,6 +84,8 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger, m Metrics, cfg
 		chainDBs:        chainsDBs,
 		chainProcessors: chainProcessors,
 		chainMetrics:    chainMetrics,
+		// For testing we can avoid running the processors.
+		synchronousProcessors: cfg.SynchronousProcessors,
 	}
 
 	// Initialize the resources of the supervisor backend.
@@ -105,10 +111,16 @@ func (su *SupervisorBackend) initResources(ctx context.Context, cfg *config.Conf
 		}
 	}
 
-	// the config has some RPC connections to add,
-	// but we won't know which chains they are for until we connect
+	// for each chain initialize a chain processor service
+	for _, chainID := range chains {
+		logProcessor := processors.NewLogProcessor(chainID, su.chainDBs)
+		chainProcessor := processors.NewChainProcessor(su.logger, chainID, logProcessor, su.chainDBs)
+		su.chainProcessors[chainID] = chainProcessor
+	}
+
+	// the config has some RPC connections to attach to the chain-processors
 	for _, rpc := range cfg.L2RPCs {
-		err := su.addProcessorFromRPC(ctx, su.logger, rpc)
+		err := su.attachRPC(ctx, rpc)
 		if err != nil {
 			return fmt.Errorf("failed to add chain monitor for rpc %v: %w", rpc, err)
 		}
@@ -145,34 +157,23 @@ func (su *SupervisorBackend) openChainDBs(chainID types.ChainID) error {
 	return nil
 }
 
-// checkProcessorCoverage logs a warning for any chain that does not have a processor
-func (su *SupervisorBackend) checkProcessorCoverage() {
-	// check that all chains have a processor
-	for _, chainID := range su.depSet.Chains() {
-		if su.chainProcessors[chainID] == nil {
-			su.logger.Warn("chain has no processor", "chainID", chainID)
-		}
-	}
-}
+func (su *SupervisorBackend) attachRPC(ctx context.Context, rpc string) error {
+	su.logger.Info("attaching RPC to chain processor", "rpc", rpc)
 
-func (su *SupervisorBackend) addProcessorFromRPC(ctx context.Context, logger log.Logger, rpc string) error {
-	su.logger.Info("adding processor for chain from rpc", "rpc", rpc)
+	logger := su.logger.New("rpc", rpc)
 	// create the rpc client, which yields the chain id
 	rpcClient, chainID, err := clientForL2(ctx, logger, rpc)
 	if err != nil {
 		return err
 	}
-	if su.chainProcessors[chainID] != nil {
-		return fmt.Errorf("processor for chain %v already exists", chainID)
-	}
 	cm, ok := su.chainMetrics[chainID]
 	if !ok {
 		return fmt.Errorf("failed to find metrics for chain %v", chainID)
 	}
-	// create a client like the monitor would have
+	// create an RPC client that the processor can use
 	cl, err := processors.NewEthClient(
 		ctx,
-		logger,
+		logger.New("chain", chainID),
 		cm,
 		rpc,
 		rpcClient, 2*time.Second,
@@ -181,9 +182,18 @@ func (su *SupervisorBackend) addProcessorFromRPC(ctx context.Context, logger log
 	if err != nil {
 		return err
 	}
-	logProcessor := processors.NewLogProcessor(chainID, su.chainDBs)
-	chainProcessor := processors.NewChainProcessor(logger, cl, chainID, logProcessor, su.chainDBs)
-	su.chainProcessors[chainID] = chainProcessor
+	return su.AttachProcessorSource(chainID, cl)
+}
+
+func (su *SupervisorBackend) AttachProcessorSource(chainID types.ChainID, src processors.Source) error {
+	su.mu.RLock()
+	defer su.mu.RUnlock()
+
+	proc, ok := su.chainProcessors[chainID]
+	if !ok {
+		return fmt.Errorf("unknown chain %s, cannot attach RPC to processor", chainID)
+	}
+	proc.SetSource(src)
 	return nil
 }
 
@@ -214,9 +224,12 @@ func (su *SupervisorBackend) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to resume chains db: %w", err)
 	}
 
-	// Check that all chains have a processor, but ignore the error.
-	// Callers can establish new processors later.
-	su.checkProcessorCoverage()
+	if !su.synchronousProcessors {
+		// Make all the chain-processors run automatic background processing
+		for _, processor := range su.chainProcessors {
+			processor.StartBackground()
+		}
+	}
 
 	return nil
 }
@@ -238,14 +251,13 @@ func (su *SupervisorBackend) Stop(ctx context.Context) error {
 	return su.chainDBs.Close()
 }
 
-// AddL2RPC adds a new L2 chain to the supervisor backend
-// it stops and restarts the backend to add the new chain
+// AddL2RPC attaches an RPC as the RPC for the given chain, overriding the previous RPC source, if any.
 func (su *SupervisorBackend) AddL2RPC(ctx context.Context, rpc string) error {
-	su.mu.Lock()
-	defer su.mu.Unlock()
+	su.mu.RLock() // read-lock: we only modify an existing chain, we don't add/remove chains
+	defer su.mu.RUnlock()
 
 	// start the monitor immediately, as the backend is assumed to already be running
-	return su.addProcessorFromRPC(ctx, su.logger, rpc)
+	return su.attachRPC(ctx, rpc)
 }
 
 // Query methods
