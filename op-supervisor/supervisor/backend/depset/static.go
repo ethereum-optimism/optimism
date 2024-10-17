@@ -58,7 +58,7 @@ func (ds *StaticConfigDependencySet) Chains() []types.ChainID {
 	return out
 }
 
-func (ds *StaticConfigDependencySet) HasChain(chainID types.ChainID) (bool, error) {
+func (ds *StaticConfigDependencySet) HasChain(chainID types.ChainID) bool {
 	_, ok := ds.Dependencies[chainID]
-	return ok, nil
+	return ok
 }

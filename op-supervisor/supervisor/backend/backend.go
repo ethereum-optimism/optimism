@@ -166,6 +166,9 @@ func (su *SupervisorBackend) attachRPC(ctx context.Context, rpc string) error {
 	if err != nil {
 		return err
 	}
+	if !su.depSet.HasChain(chainID) {
+		return fmt.Errorf("chain %s is not part of the interop dependency set: %w", chainID, db.ErrUnknownChain)
+	}
 	cm, ok := su.chainMetrics[chainID]
 	if !ok {
 		return fmt.Errorf("failed to find metrics for chain %v", chainID)
