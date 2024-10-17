@@ -94,14 +94,9 @@ func DeployOPChain(ctx context.Context, env *Env, bundle ArtifactsBundle, intent
 		DelayedWETHPermissionlessGameProxyAddress: dco.DelayedWETHPermissionlessGameProxy,
 	})
 
-	currentBlock, err := env.L1Client.BlockNumber(ctx)
+	block, err := env.L1Client.BlockByNumber(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("failed to get current block number: %w", err)
-	}
-
-	block, err := env.L1Client.BlockByNumber(ctx, big.NewInt(int64(currentBlock)))
-	if err != nil {
-		return fmt.Errorf("failed to get block by number: %w", err)
+		return fmt.Errorf("failed to get latest block by number: %w", err)
 	}
 	currentBlockHash := block.Hash()
 
