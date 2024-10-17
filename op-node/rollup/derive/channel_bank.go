@@ -40,18 +40,24 @@ type ChannelBank struct {
 	prev NextFrameProvider
 }
 
-var _ ResettableStage = (*ChannelBank)(nil)
+var _ RawChannelProvider = (*ChannelBank)(nil)
 
 // NewChannelBank creates a ChannelBank, which should be Reset(origin) before use.
-func NewChannelBank(log log.Logger, cfg *rollup.Config, prev NextFrameProvider, m Metrics) *ChannelBank {
+func NewChannelBank(log log.Logger, spec *rollup.ChainSpec, prev NextFrameProvider, m Metrics) *ChannelBank {
 	return &ChannelBank{
 		log:          log,
-		spec:         rollup.NewChainSpec(cfg),
+		spec:         spec,
 		metrics:      m,
 		channels:     make(map[ChannelID]*Channel),
 		channelQueue: make([]ChannelID, 0, 10),
 		prev:         prev,
 	}
+}
+
+func (cb *ChannelBank) TransformHolocene() *ChannelAssembler {
+	cb.log.Info("ChannelBank: transforming to Holocene")
+	// We return a new ChannelAssembler, throwing away the old channel queue.
+	return NewChannelAssembler(cb.log, cb.spec, cb.prev, cb.metrics)
 }
 
 func (cb *ChannelBank) Origin() eth.L1BlockRef {
@@ -170,12 +176,12 @@ func (cb *ChannelBank) tryReadChannelAtIndex(i int) (data []byte, err error) {
 	return data, nil
 }
 
-// NextData pulls the next piece of data from the channel bank.
+// NextRawChannel pulls the next piece of data from the channel bank.
 // Note that it attempts to pull data out of the channel bank prior to
 // loading data in (unlike most other stages). This is to ensure maintain
 // consistency around channel bank pruning which depends upon the order
 // of operations.
-func (cb *ChannelBank) NextData(ctx context.Context) ([]byte, error) {
+func (cb *ChannelBank) NextRawChannel(ctx context.Context) ([]byte, error) {
 	// Do the read from the channel bank first
 	data, err := cb.Read()
 	if err == io.EOF {
