@@ -259,7 +259,6 @@ func (su *SupervisorBackend) AddL2RPC(ctx context.Context, rpc string) error {
 	su.mu.RLock() // read-lock: we only modify an existing chain, we don't add/remove chains
 	defer su.mu.RUnlock()
 
-	// start the monitor immediately, as the backend is assumed to already be running
 	return su.attachRPC(ctx, rpc)
 }
 
