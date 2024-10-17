@@ -25,7 +25,6 @@ import {
 } from "scripts/DeployImplementations.s.sol";
 
 // Contracts
-import { AddressManager } from "src/legacy/AddressManager.sol";
 import { StorageSetter } from "src/universal/StorageSetter.sol";
 import { OPContractsManager } from "src/L1/OPContractsManager.sol";
 
@@ -509,12 +508,16 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the AddressManager
     function deployAddressManager() public broadcast returns (address addr_) {
-        console.log("Deploying AddressManager");
-        AddressManager manager = new AddressManager();
+        // Use create instead of create2 because we need the owner to be set to msg.sender but
+        // forge will automatically use the create2 factory which messes up the sender.
+        IAddressManager manager = IAddressManager(
+            DeployUtils.create1AndSave({
+                _save: this,
+                _name: "AddressManager",
+                _args: DeployUtils.encodeConstructor(abi.encodeCall(IAddressManager.__constructor__, ()))
+            })
+        );
         require(manager.owner() == msg.sender);
-
-        save("AddressManager", address(manager));
-        console.log("AddressManager deployed at %s", address(manager));
         addr_ = address(manager);
     }
 
