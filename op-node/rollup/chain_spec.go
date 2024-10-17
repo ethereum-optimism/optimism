@@ -80,6 +80,11 @@ func (s *ChainSpec) IsCanyon(t uint64) bool {
 	return s.config.IsCanyon(t)
 }
 
+// IsHolocene returns true if t >= holocene_time
+func (s *ChainSpec) IsHolocene(t uint64) bool {
+	return s.config.IsHolocene(t)
+}
+
 // MaxChannelBankSize returns the maximum number of bytes the can allocated inside the channel bank
 // before pruning occurs at the given timestamp.
 func (s *ChainSpec) MaxChannelBankSize(t uint64) uint64 {
