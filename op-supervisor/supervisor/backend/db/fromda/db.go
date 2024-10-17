@@ -13,10 +13,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
-type Metrics interface {
-	RecordDBDerivedEntryCount(count int64)
-}
-
 type EntryStore interface {
 	Size() int64
 	LastEntryIdx() entrydb.EntryIdx
