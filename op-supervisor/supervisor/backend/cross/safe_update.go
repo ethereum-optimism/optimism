@@ -10,7 +10,7 @@ import (
 type CrossSafeDeps interface {
 	CrossSafe(chainID types.ChainID) (types.BlockSeal, error)
 
-	CycleCheckDeps
+	//CycleCheckDeps
 	SafeFrontierCheckDeps
 	SafeStartDeps
 }
@@ -45,9 +45,9 @@ func CrossSafeUpdate(chainID types.ChainID, d CrossSafeDeps, scopeDerivedFrom et
 	if err := HazardSafeFrontierChecks(d, scopeDerivedFrom, hazards); err != nil {
 		// TODO
 	}
-	if err := HazardCycleChecks(d, candidate.Timestamp, hazards); err != nil {
-		// TODO
-	}
+	//if err := HazardCycleChecks(d, candidate.Timestamp, hazards); err != nil {
+	// TODO
+	//}
 	// TODO promote the candidate block to cross-safe
 	return nil
 }

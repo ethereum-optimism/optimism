@@ -9,7 +9,7 @@ import (
 type CrossUnsafeDeps interface {
 	CrossUnsafe(chainID types.ChainID) (types.BlockSeal, error)
 
-	CycleCheckDeps
+	//CycleCheckDeps
 }
 
 func CrossUnsafeUpdate(chainID types.ChainID, d CrossUnsafeDeps) error {
@@ -32,9 +32,9 @@ func CrossUnsafeUpdate(chainID types.ChainID, d CrossUnsafeDeps) error {
 	if err := HazardUnsafeFrontierChecks(d, hazards); err != nil {
 		// TODO
 	}
-	if err := HazardCycleChecks(d, candidate.Timestamp, hazards); err != nil {
-		// TODO
-	}
+	//if err := HazardCycleChecks(d, candidate.Timestamp, hazards); err != nil {
+	//// TODO
+	//}
 	// TODO promote the candidate block to cross-unsafe
 	return nil
 }

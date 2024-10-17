@@ -41,7 +41,7 @@ func HazardSafeFrontierChecks(d SafeFrontierCheckDeps, inL1DerivedFrom eth.Block
 				// If it doesn't have a parent block, then there is no prior block required to be cross-safe
 				if hazardBlock.Number > 0 {
 					// Check that parent of hazardBlockID is cross-safe within view
-					parent, err := d.ParentBlock(hazardChainID, hazardBlock.ID())
+					_, err := d.ParentBlock(hazardChainID, hazardBlock.ID())
 					if err != nil {
 						return fmt.Errorf("%w for chain %s: %v", ErrParentBlock, hazardChainID, err)
 					}
