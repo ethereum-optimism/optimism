@@ -34,17 +34,14 @@ var blockFudger = func(block *types.Block) {
 	txs[1] = newTx
 }
 
-// orderings is a list of orderings for
-// a three block, three frame channel
-// which are all
-// valid pre-Holocene but are invalid
-// post-Holocene.
-// The correct ordering is {1,2,3} for
-// blocks and {0,1,2} for frames.
-// The test assumes one frame per block
-// so do not specify a frame index which
-// is greater than the number of blocks
-// or the test will panic.
+// orderings is a list of orderings which each specify
+// an ordered list of blocks (by number) to add to a single channel
+// and an ordered list of frames to read from the channel and submit
+// on L1. There will be one frame per block.
+// Depending on these lists, whether the channel is built as
+// as span batch channel, and whether the blocks are modified / invalidated
+// we expect a different progression of the safe head under Holocene
+// derivation rules, compared with pre Holocene.
 var orderings = []ordering{
 	{blocks: []uint{1, 2, 3}, frames: []uint{0, 1, 2}, safeHeadPreHolocene: 3, safeHeadHolocene: 3},       // regular case
 	{blocks: []uint{1, 3, 2}, frames: []uint{0, 1, 2}, safeHeadPreHolocene: 3, safeHeadHolocene: 0},       // out-of-order blocks
@@ -150,7 +147,7 @@ func runHoloceneDerivationTest(gt *testing.T, testCfg *helpers.TestCfg[ordering]
 		orderedFrames = append(orderedFrames, frame)
 	}
 
-	// Submit frames out of order
+	// Submit frames in specified order order
 	for _, j := range testCfg.Custom.frames {
 		env.Batcher.ActL2BatchSubmitRaw(t, orderedFrames[j])
 		includeBatchTx()
