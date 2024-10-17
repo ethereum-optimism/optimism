@@ -51,7 +51,7 @@ test:
 verify-sepolia: op-program-host op-program-client
 	env GO111MODULE=on go run ./verify/sepolia/cmd/sepolia.go --l1 $$SEPOLIA_L1URL --l1.beacon $$SEPOLIA_BEACON_URL --l2 $$SEPOLIA_L2URL --datadir /tmp/test-sepolia
 
-verify-devnet:
+verify-devnet: op-program-host op-program-client
 	env GO111MODULE=on go run ./verify/devnet/cmd/devnet.go --l1 http://localhost:8545 --l1.beacon http://localhost:5052 --l2 http://localhost:9545 --datadir /tmp/test-devnet
 
 capture-mainnet-genesis: op-program-host op-program-client
