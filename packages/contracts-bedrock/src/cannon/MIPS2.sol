@@ -34,6 +34,9 @@ contract MIPS2 is ISemver {
         uint32[32] registers;
     }
 
+    uint8 internal constant LL_STATUS_NONE = 0;
+    uint8 internal constant LL_STATUS_ACTIVE = 1;
+
     /// @notice Stores the VM state.
     ///         Total state size: 32 + 32 + 4 + 4 + 1 + 4 + 4 + 1 + 1 + 8 + 8 + 4 + 1 + 32 + 32 + 4 = 172 bytes
     ///         If nextPC != pc + 4, then the VM is executing a branch/jump delay slot.
@@ -42,7 +45,7 @@ contract MIPS2 is ISemver {
         bytes32 preimageKey;
         uint32 preimageOffset;
         uint32 heap;
-        bool llReservationActive;
+        uint8 llReservationStatus;
         uint32 llAddress;
         uint32 llOwnerThread;
         uint8 exitCode;
@@ -57,8 +60,8 @@ contract MIPS2 is ISemver {
     }
 
     /// @notice The semantic version of the MIPS2 contract.
-    /// @custom:semver 1.0.0-beta.15
-    string public constant version = "1.0.0-beta.15";
+    /// @custom:semver 1.0.0-beta.16
+    string public constant version = "1.0.0-beta.16";
 
     /// @notice The preimage oracle contract.
     IPreimageOracle internal immutable ORACLE;
@@ -141,7 +144,7 @@ contract MIPS2 is ISemver {
                 c, m := putField(c, m, 32) // preimageKey
                 c, m := putField(c, m, 4) // preimageOffset
                 c, m := putField(c, m, 4) // heap
-                c, m := putField(c, m, 1) // llReservationActive
+                c, m := putField(c, m, 1) // llReservationStatus
                 c, m := putField(c, m, 4) // llAddress
                 c, m := putField(c, m, 4) // llOwnerThread
                 c, m := putField(c, m, 1) // exitCode
@@ -269,14 +272,14 @@ contract MIPS2 is ISemver {
     }
 
     function handleMemoryUpdate(State memory _state, uint32 _memAddr) internal pure {
-        if (_memAddr == _state.llAddress) {
+        if (_memAddr == (0xFFFFFFFC & _state.llAddress)) {
             // Reserved address was modified, clear the reservation
             clearLLMemoryReservation(_state);
         }
     }
 
     function clearLLMemoryReservation(State memory _state) internal pure {
-        _state.llReservationActive = false;
+        _state.llReservationStatus = LL_STATUS_NONE;
         _state.llAddress = 0;
         _state.llOwnerThread = 0;
     }
@@ -295,25 +298,28 @@ contract MIPS2 is ISemver {
             uint32 base = _thread.registers[baseReg];
             uint32 rtReg = (_insn >> 16) & 0x1F;
             uint32 offset = ins.signExtendImmediate(_insn);
-
-            uint32 effAddr = (base + offset) & 0xFFFFFFFC;
-            uint256 memProofOffset = MIPSMemory.memoryProofOffset(MEM_PROOF_OFFSET, 1);
-            uint32 mem = MIPSMemory.readMem(_state.memRoot, effAddr, memProofOffset);
+            uint32 addr = base + offset;
 
             uint32 retVal = 0;
             uint32 threadId = _thread.threadID;
             if (_opcode == ins.OP_LOAD_LINKED) {
-                retVal = mem;
-                _state.llReservationActive = true;
-                _state.llAddress = effAddr;
+                retVal = loadWord(_state, addr);
+
+                _state.llReservationStatus = LL_STATUS_ACTIVE;
+                _state.llAddress = addr;
                 _state.llOwnerThread = threadId;
             } else if (_opcode == ins.OP_STORE_CONDITIONAL) {
                 // Check if our memory reservation is still intact
-                if (_state.llReservationActive && _state.llOwnerThread == threadId && _state.llAddress == effAddr) {
+                if (
+                    _state.llReservationStatus == LL_STATUS_ACTIVE && _state.llOwnerThread == threadId
+                        && _state.llAddress == addr
+                ) {
                     // Complete atomic update: set memory and return 1 for success
                     clearLLMemoryReservation(_state);
+
                     uint32 val = _thread.registers[rtReg];
-                    _state.memRoot = MIPSMemory.writeMem(effAddr, memProofOffset, val);
+                    storeWord(_state, addr, val);
+
                     retVal = 1;
                 } else {
                     // Atomic update failed, return 0 for failure
@@ -330,6 +336,18 @@ contract MIPS2 is ISemver {
 
             return outputState();
         }
+    }
+
+    function loadWord(State memory _state, uint32 _addr) internal pure returns (uint32 val_) {
+        uint32 effAddr = _addr & 0xFFFFFFFC;
+        uint256 memProofOffset = MIPSMemory.memoryProofOffset(MEM_PROOF_OFFSET, 1);
+        val_ = MIPSMemory.readMem(_state.memRoot, effAddr, memProofOffset);
+    }
+
+    function storeWord(State memory _state, uint32 _addr, uint32 _val) internal pure {
+        uint32 effAddr = _addr & 0xFFFFFFFC;
+        uint256 memProofOffset = MIPSMemory.memoryProofOffset(MEM_PROOF_OFFSET, 1);
+        _state.memRoot = MIPSMemory.writeMem(effAddr, memProofOffset, _val);
     }
 
     function handleSyscall(bytes32 _localContext) internal returns (bytes32 out_) {
@@ -632,7 +650,7 @@ contract MIPS2 is ISemver {
             from, to := copyMem(from, to, 32) // preimageKey
             from, to := copyMem(from, to, 4) // preimageOffset
             from, to := copyMem(from, to, 4) // heap
-            from, to := copyMem(from, to, 1) // llReservationActive
+            from, to := copyMem(from, to, 1) // llReservationStatus
             from, to := copyMem(from, to, 4) // llAddress
             from, to := copyMem(from, to, 4) // llOwnerThread
             let exitCode := mload(from)
