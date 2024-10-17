@@ -4,14 +4,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/fromda"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/safety"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -31,58 +31,128 @@ type LogStorage interface {
 
 	LatestSealedBlockNum() (n uint64, ok bool)
 
-	// FindSealedBlock finds the requested block, to check if it exists,
-	// returning the next index after it where things continue from.
-	// returns ErrFuture if the block is too new to be able to tell
-	// returns ErrDifferent if the known block does not match
-	FindSealedBlock(block eth.BlockID) (nextEntry entrydb.EntryIdx, err error)
+	// FindSealedBlock finds the requested block by number, to check if it exists,
+	// returning the block seal if it was found.
+	// returns ErrFuture if the block is too new to be able to tell.
+	FindSealedBlock(number uint64) (block types.BlockSeal, err error)
 
 	IteratorStartingAt(sealedNum uint64, logsSince uint32) (logs.Iterator, error)
 
-	// returns ErrConflict if the log does not match the canonical chain.
-	// returns ErrFuture if the log is out of reach.
-	// returns nil if the log is known and matches the canonical chain.
-	Contains(blockNum uint64, logIdx uint32, logHash common.Hash) (nextIndex entrydb.EntryIdx, err error)
+	// Contains returns no error iff the specified logHash is recorded in the specified blockNum and logIdx.
+	// If the log is out of reach, then ErrFuture is returned.
+	// If the log is determined to conflict with the canonical chain, then ErrConflict is returned.
+	// logIdx is the index of the log in the array of all logs in the block.
+	// This can be used to check the validity of cross-chain interop events.
+	// The block-seal of the blockNum block, that the log was included in, is returned.
+	// This seal may be fully zeroed, without error, if the block isn't fully known yet.
+	Contains(blockNum uint64, logIdx uint32, logHash common.Hash) (includedIn types.BlockSeal, err error)
+}
+
+type LocalDerivedFromStorage interface {
+	Latest() (derivedFrom types.BlockSeal, derived types.BlockSeal, err error)
+	AddDerived(derivedFrom eth.BlockRef, derived eth.BlockRef) error
+	LastDerivedAt(derivedFrom eth.BlockID) (derived types.BlockSeal, err error)
+	DerivedFrom(derived eth.BlockID) (derivedFrom types.BlockSeal, err error)
+}
+
+var _ LocalDerivedFromStorage = (*fromda.DB)(nil)
+
+type CrossDerivedFromStorage interface {
+	LocalDerivedFromStorage
+	// This will start to differ with reorg support
 }
 
 var _ LogStorage = (*logs.DB)(nil)
 
-// ChainsDB is a database that stores logs and heads for multiple chains.
+// ChainsDB is a database that stores logs and derived-from data for multiple chains.
 // it implements the ChainsStorage interface.
 type ChainsDB struct {
-	logDBs      map[types.ChainID]LogStorage
-	safetyIndex safety.SafetyIndex
-	logger      log.Logger
+	// RW mutex:
+	// Read = chains can be read / mutated.
+	// Write = set of chains is changing.
+	mu sync.RWMutex
+
+	// unsafe info: the sequence of block seals and events
+	logDBs map[types.ChainID]LogStorage
+
+	// cross-unsafe: how far we have processed the unsafe data.
+	// If present but set to a zeroed value the cross-unsafe will fallback to cross-safe.
+	crossUnsafe map[types.ChainID]types.BlockSeal
+
+	// local-safe: index of what we optimistically know about L2 blocks being derived from L1
+	localDBs map[types.ChainID]LocalDerivedFromStorage
+
+	// cross-safe: index of L2 blocks we know to only have cross-L2 valid dependencies
+	crossDBs map[types.ChainID]CrossDerivedFromStorage
+
+	// finalized: the L1 finality progress. This can be translated into what may be considered as finalized in L2.
+	// It is initially zeroed, and the L2 finality query will return
+	// an error until it has this L1 finality to work with.
+	finalizedL1 eth.L1BlockRef
+
+	logger log.Logger
 }
 
-func NewChainsDB(logDBs map[types.ChainID]LogStorage, l log.Logger) *ChainsDB {
-	ret := &ChainsDB{
-		logDBs: logDBs,
-		logger: l,
+func NewChainsDB(l log.Logger) *ChainsDB {
+	return &ChainsDB{
+		logDBs:      make(map[types.ChainID]LogStorage),
+		logger:      l,
+		localDBs:    make(map[types.ChainID]LocalDerivedFromStorage),
+		crossDBs:    make(map[types.ChainID]CrossDerivedFromStorage),
+		crossUnsafe: make(map[types.ChainID]types.BlockSeal),
 	}
-	ret.safetyIndex = safety.NewSafetyIndex(l, ret)
-	return ret
 }
 
-func (db *ChainsDB) AddLogDB(chain types.ChainID, logDB LogStorage) {
-	if db.logDBs[chain] != nil {
-		log.Warn("overwriting existing logDB for chain", "chain", chain)
+func (db *ChainsDB) AddLogDB(chainID types.ChainID, logDB LogStorage) {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	if _, ok := db.logDBs[chainID]; ok {
+		db.logger.Warn("overwriting existing log DB for chain", "chain", chainID)
 	}
-	db.logDBs[chain] = logDB
+
+	db.logDBs[chainID] = logDB
 }
 
-func (db *ChainsDB) IteratorStartingAt(chain types.ChainID, sealedNum uint64, logIndex uint32) (logs.Iterator, error) {
-	logDB, ok := db.logDBs[chain]
-	if !ok {
-		return nil, fmt.Errorf("%w: %v", ErrUnknownChain, chain)
+func (db *ChainsDB) AddLocalDerivedFromDB(chainID types.ChainID, dfDB LocalDerivedFromStorage) {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	if _, ok := db.localDBs[chainID]; ok {
+		db.logger.Warn("overwriting existing local derived-from DB for chain", "chain", chainID)
 	}
-	return logDB.IteratorStartingAt(sealedNum, logIndex)
+
+	db.localDBs[chainID] = dfDB
+}
+
+func (db *ChainsDB) AddCrossDerivedFromDB(chainID types.ChainID, dfDB CrossDerivedFromStorage) {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	if _, ok := db.crossDBs[chainID]; ok {
+		db.logger.Warn("overwriting existing cross derived-from DB for chain", "chain", chainID)
+	}
+
+	db.crossDBs[chainID] = dfDB
+}
+
+func (db *ChainsDB) AddCrossUnsafeTracker(chainID types.ChainID) {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	if _, ok := db.crossUnsafe[chainID]; ok {
+		db.logger.Warn("overwriting existing cross-unsafe tracker for chain", "chain", chainID)
+	}
+	db.crossUnsafe[chainID] = types.BlockSeal{}
 }
 
 // ResumeFromLastSealedBlock prepares the chains db to resume recording events after a restart.
 // It rewinds the database to the last block that is guaranteed to have been fully recorded to the database,
 // to ensure it can resume recording from the first log of the next block.
 func (db *ChainsDB) ResumeFromLastSealedBlock() error {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
+
 	for chain, logStore := range db.logDBs {
 		headNum, ok := logStore.LatestSealedBlockNum()
 		if !ok {
@@ -98,100 +168,10 @@ func (db *ChainsDB) ResumeFromLastSealedBlock() error {
 	return nil
 }
 
-// Check calls the underlying logDB to determine if the given log entry is safe with respect to the checker's criteria.
-func (db *ChainsDB) Check(chain types.ChainID, blockNum uint64, logIdx uint32, logHash common.Hash) (common.Hash, error) {
-	logDB, ok := db.logDBs[chain]
-	if !ok {
-		return common.Hash{}, fmt.Errorf("%w: %v", ErrUnknownChain, chain)
-	}
-	_, err := logDB.Contains(blockNum, logIdx, logHash)
-	if err != nil {
-		return common.Hash{}, err
-	}
-	// TODO(#11693): need to get the actual block hash for this log entry for reorg detection
-	return common.Hash{}, nil
-}
-
-// Safest returns the strongest safety level that can be guaranteed for the given log entry.
-// it assumes the log entry has already been checked and is valid, this funcion only checks safety levels.
-func (db *ChainsDB) Safest(chainID types.ChainID, blockNum uint64, index uint32) (safest types.SafetyLevel) {
-	safest = types.LocalUnsafe
-	if crossUnsafe, err := db.safetyIndex.CrossUnsafeL2(chainID); err == nil && crossUnsafe.WithinRange(blockNum, index) {
-		safest = types.CrossUnsafe
-	}
-	if localSafe, err := db.safetyIndex.LocalSafeL2(chainID); err == nil && localSafe.WithinRange(blockNum, index) {
-		safest = types.LocalSafe
-	}
-	if crossSafe, err := db.safetyIndex.LocalSafeL2(chainID); err == nil && crossSafe.WithinRange(blockNum, index) {
-		safest = types.CrossSafe
-	}
-	if finalized, err := db.safetyIndex.FinalizedL2(chainID); err == nil {
-		if finalized.Number >= blockNum {
-			safest = types.Finalized
-		}
-	}
-	return
-}
-
-func (db *ChainsDB) FindSealedBlock(chain types.ChainID, block eth.BlockID) (nextEntry entrydb.EntryIdx, err error) {
-	logDB, ok := db.logDBs[chain]
-	if !ok {
-		return 0, fmt.Errorf("%w: %v", ErrUnknownChain, chain)
-	}
-	return logDB.FindSealedBlock(block)
-}
-
-// LatestBlockNum returns the latest fully-sealed block number that has been recorded to the logs db
-// for the given chain. It does not contain safety guarantees.
-// The block number might not be available (empty database, or non-existent chain).
-func (db *ChainsDB) LatestBlockNum(chain types.ChainID) (num uint64, ok bool) {
-	logDB, knownChain := db.logDBs[chain]
-	if !knownChain {
-		return 0, false
-	}
-	return logDB.LatestSealedBlockNum()
-}
-
-func (db *ChainsDB) AddLog(
-	chain types.ChainID,
-	logHash common.Hash,
-	parentBlock eth.BlockID,
-	logIdx uint32,
-	execMsg *types.ExecutingMessage) error {
-	logDB, ok := db.logDBs[chain]
-	if !ok {
-		return fmt.Errorf("%w: %v", ErrUnknownChain, chain)
-	}
-	return logDB.AddLog(logHash, parentBlock, logIdx, execMsg)
-}
-
-func (db *ChainsDB) SealBlock(
-	chain types.ChainID,
-	block eth.BlockRef) error {
-	logDB, ok := db.logDBs[chain]
-	if !ok {
-		return fmt.Errorf("%w: %v", ErrUnknownChain, chain)
-	}
-	err := logDB.SealBlock(block.ParentHash, block.ID(), block.Time)
-	if err != nil {
-		return fmt.Errorf("failed to seal block %v: %w", block, err)
-	}
-	err = db.safetyIndex.UpdateLocalUnsafe(chain, block)
-	if err != nil {
-		return fmt.Errorf("failed to update local-unsafe: %w", err)
-	}
-	return nil
-}
-
-func (db *ChainsDB) Rewind(chain types.ChainID, headBlockNum uint64) error {
-	logDB, ok := db.logDBs[chain]
-	if !ok {
-		return fmt.Errorf("%w: %v", ErrUnknownChain, chain)
-	}
-	return logDB.Rewind(headBlockNum)
-}
-
 func (db *ChainsDB) Close() error {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
 	var combined error
 	for id, logDB := range db.logDBs {
 		if err := logDB.Close(); err != nil {

@@ -15,10 +15,14 @@ var ErrNotLeader = errors.New("refusing to proxy request to non-leader sequencer
 
 // API defines the interface for the op-conductor API.
 type API interface {
-	// OverrideLeader is used to override the leader status, this is only used to return true for Leader() & LeaderWithID() calls.
+	// OverrideLeader is used to override or clear override for the leader status.
 	// It does not impact the actual raft consensus leadership status. It is supposed to be used when the cluster is unhealthy
 	// and the node is the only one up, to allow batcher to be able to connect to the node, so that it could download blocks from the manually started sequencer.
-	OverrideLeader(ctx context.Context) error
+	// override: true => force current conductor to be treated as leader regardless of the actual leadership status in raft.
+	// override: false => clear the override, return the actual leadership status in raft.
+	OverrideLeader(ctx context.Context, override bool) error
+	// LeaderOverridden returns true if the leader status is overridden.
+	LeaderOverridden(ctx context.Context) (bool, error)
 	// Pause pauses op-conductor.
 	Pause(ctx context.Context) error
 	// Resume resumes op-conductor.

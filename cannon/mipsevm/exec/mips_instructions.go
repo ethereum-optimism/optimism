@@ -569,3 +569,47 @@ func HandleRd(cpu *mipsevm.CpuScalars, registers *[32]Word, storeReg Word, val W
 	cpu.NextPC = cpu.NextPC + 4
 	return nil
 }
+
+func LoadSubWord(memory *memory.Memory, addr Word, byteLength Word, signExtend bool, memoryTracker MemTracker) Word {
+	// Pull data from memory
+	effAddr := (addr) & arch.AddressMask
+	memoryTracker.TrackMemAccess(effAddr)
+	mem := memory.GetWord(effAddr)
+
+	// Extract a sub-word based on the low-order bits in addr
+	dataMask, bitOffset, bitLength := calculateSubWordMaskAndOffset(addr, byteLength)
+	retVal := (mem >> bitOffset) & dataMask
+	if signExtend {
+		retVal = SignExtend(retVal, bitLength)
+	}
+
+	return retVal
+}
+
+func StoreSubWord(memory *memory.Memory, addr Word, byteLength Word, value Word, memoryTracker MemTracker) {
+	// Pull data from memory
+	effAddr := (addr) & arch.AddressMask
+	memoryTracker.TrackMemAccess(effAddr)
+	mem := memory.GetWord(effAddr)
+
+	// Modify isolated sub-word within mem
+	dataMask, bitOffset, _ := calculateSubWordMaskAndOffset(addr, byteLength)
+	subWordValue := dataMask & value
+	memUpdateMask := dataMask << bitOffset
+	newMemVal := subWordValue<<bitOffset | (^memUpdateMask)&mem
+
+	memory.SetWord(effAddr, newMemVal)
+}
+
+func calculateSubWordMaskAndOffset(addr Word, byteLength Word) (dataMask, bitOffset, bitLength Word) {
+	bitLength = byteLength << 3
+	dataMask = ^Word(0) >> (arch.WordSize - bitLength)
+
+	// Figure out sub-word index based on the low-order bits in addr
+	byteIndexMask := addr & arch.ExtMask & ^(byteLength - 1)
+	maxByteShift := arch.WordSizeBytes - byteLength
+	byteIndex := addr & byteIndexMask
+	bitOffset = (maxByteShift - byteIndex) << 3
+
+	return dataMask, bitOffset, bitLength
+}

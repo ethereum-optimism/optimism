@@ -47,7 +47,7 @@ ARG TARGETARCH
 # The "id" defaults to the value of "target", the cache will thus be reused during this build.
 # "sharing" defaults to "shared", the cache will thus be available to other concurrent docker builds.
 
-FROM --platform=$BUILDPLATFORM us-docker.pkg.dev/oplabs-tools-artifacts/images/cannon:v1.0.0-alpha.3 AS cannon-builder-0
+FROM --platform=$BUILDPLATFORM us-docker.pkg.dev/oplabs-tools-artifacts/images/cannon:v1.0.0 AS cannon-builder-0
 
 FROM --platform=$BUILDPLATFORM builder AS cannon-builder
 ARG CANNON_VERSION=v0.0.0
