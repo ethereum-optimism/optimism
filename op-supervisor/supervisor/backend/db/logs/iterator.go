@@ -49,7 +49,7 @@ func (i *iterator) End() error {
 	}
 }
 
-// NextInitMsg returns the next initiating message in the iterator.
+// NextInitMsg advances the iterator until it reads the next Initiating Message into the current state.
 // It scans forward until it finds and fully reads an initiating event, skipping any blocks.
 func (i *iterator) NextInitMsg() error {
 	seenLog := false
@@ -73,9 +73,8 @@ func (i *iterator) NextInitMsg() error {
 	}
 }
 
-// NextExecMsg returns the next executing message in the iterator.
+// NextExecMsg advances the iterator until it reads the next Executing Message into the current state.
 // It scans forward until it finds and fully reads an initiating event, skipping any blocks.
-// This does not stay at the executing message of the current initiating message, if there is any.
 func (i *iterator) NextExecMsg() error {
 	for {
 		err := i.NextInitMsg()
@@ -88,7 +87,7 @@ func (i *iterator) NextExecMsg() error {
 	}
 }
 
-// NextBlock returns the next block in the iterator.
+// NextBlock advances the iterator until it reads the next block into the current state.
 // It scans forward until it finds and fully reads a block, skipping any events.
 func (i *iterator) NextBlock() error {
 	seenBlock := false

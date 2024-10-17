@@ -140,6 +140,45 @@ func (db *ChainsDB) Check(chain types.ChainID, blockNum uint64, logIdx uint32, l
 	return logDB.Contains(blockNum, logIdx, logHash)
 }
 
+// OpenBlock returns the Executing Messages for the block at the given number on the given chain.
+// it routes the request to the appropriate logDB.
+func (db *ChainsDB) OpenBlock(chain types.ChainID, blockNum uint64) (eth.BlockID, eth.BlockID, []types.ExecutingMessage, error) {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
+
+	logDB, ok := db.logDBs[chain]
+	if !ok {
+		return eth.BlockID{}, eth.BlockID{}, nil, ErrUnknownChain
+	}
+	return logDB.OpenBlock(blockNum)
+}
+
+// LocalDerivedFrom returns the block that the given block was derived from, if it exists in the local derived-from storage.
+// it routes the request to the appropriate localDB.
+func (db *ChainsDB) LocalDerivedFrom(chain types.ChainID, derived eth.BlockID) (derivedFrom eth.BlockID, err error) {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	lDB, ok := db.localDBs[chain]
+	if !ok {
+		return eth.BlockID{}, ErrUnknownChain
+	}
+	return lDB.DerivedFrom(derived)
+}
+
+// CrossDerivedFrom returns the block that the given block was derived from, if it exists in the cross derived-from storage.
+// it routes the request to the appropriate crossDB.
+func (db *ChainsDB) CrossDerivedFrom(chain types.ChainID, derived eth.BlockID) (derivedFrom eth.BlockID, err error) {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	xDB, ok := db.crossDBs[chain]
+	if !ok {
+		return eth.BlockID{}, ErrUnknownChain
+	}
+	return xDB.DerivedFrom(derived)
+}
+
 // Safest returns the strongest safety level that can be guaranteed for the given log entry.
 // it assumes the log entry has already been checked and is valid, this function only checks safety levels.
 // Cross-safety levels are all considered to be more safe than any form of local-safety.
