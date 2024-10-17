@@ -21,7 +21,7 @@ const (
 )
 
 type Metrics interface {
-	RecordDBEntryCount(count int64)
+	RecordDBEntryCount(kind string, count int64)
 	RecordDBSearchEntriesRead(count int64)
 }
 
@@ -122,7 +122,7 @@ func (db *DB) trimToLastSealed() error {
 }
 
 func (db *DB) updateEntryCountMetric() {
-	db.m.RecordDBEntryCount(db.store.Size())
+	db.m.RecordDBEntryCount("log", db.store.Size())
 }
 
 func (db *DB) IteratorStartingAt(sealedNum uint64, logsSince uint32) (Iterator, error) {

@@ -182,6 +182,10 @@ func (id *ChainID) UnmarshalText(data []byte) error {
 	return nil
 }
 
+func (id ChainID) Cmp(other ChainID) int {
+	return (*uint256.Int)(&id).Cmp((*uint256.Int)(&other))
+}
+
 type ReferenceView struct {
 	Local eth.BlockID `json:"local"`
 	Cross eth.BlockID `json:"cross"`

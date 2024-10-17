@@ -18,7 +18,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/config"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/processors"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/frontend"
@@ -56,7 +55,7 @@ var errAlreadyStopped = errors.New("already stopped")
 
 func NewSupervisorBackend(ctx context.Context, logger log.Logger, m Metrics, cfg *config.Config) (*SupervisorBackend, error) {
 	// attempt to prepare the data directory
-	if err := prepDataDir(cfg.Datadir); err != nil {
+	if err := db.PrepDataDir(cfg.Datadir); err != nil {
 		return nil, err
 	}
 
@@ -83,60 +82,77 @@ func NewSupervisorBackend(ctx context.Context, logger log.Logger, m Metrics, cfg
 		chainMetrics:    chainMetrics,
 	}
 
-	// for each chain known to the dependency set, create the necessary resources
-	for _, chainID := range chains {
-		// create metrics and a logdb for the chain
-		chainMetrics[chainID] = newChainMetrics(chainID, super.m)
-		// add the logdb for each chain
-		super.addLogDB(logger, chainID)
+	// Initialize the resources of the supervisor backend.
+	// Stop the supervisor if any of the resources fails to be initialized.
+	if err := super.initResources(ctx, cfg); err != nil {
+		err = fmt.Errorf("failed to init resources: %w", err)
+		return nil, errors.Join(err, super.Stop(ctx))
 	}
-	// the config has some RPC connections to add,
-	// but we won't know which chains they are for until we connect
-	for _, rpc := range cfg.L2RPCs {
-		err := super.addProcessorFromRPC(ctx, logger, rpc)
-		if err != nil {
-			return nil, fmt.Errorf("failed to add chain monitor for rpc %v: %w", rpc, err)
-		}
-	}
-
-	// check that all chains have a processor, but ignore the error
-	// callers can establish new processors later
-	super.checkProcessorCoverage()
 
 	return super, nil
 }
 
-// checkProcessorCoverage logs a warning for any chain that does not have a processor
-func (su *SupervisorBackend) checkProcessorCoverage() error {
-	missing := []types.ChainID{}
-	// check that all chains have a processor
-	for _, chainID := range su.depSet.Chains() {
-		if su.chainProcessors[chainID] == nil {
-			su.logger.Warn("chain has no processor", "chainID", chainID)
-			missing = append(missing, chainID)
+// initResources initializes all the resources, such as DBs and processors for chains.
+// An error may returned, without closing the thus-far initialized resources.
+// Upon error the caller should call Stop() on the supervisor backend to clean up and release resources.
+func (su *SupervisorBackend) initResources(ctx context.Context, cfg *config.Config) error {
+	chains := su.depSet.Chains()
+
+	// for each chain known to the dependency set, create the necessary DB resources
+	for _, chainID := range chains {
+		if err := su.openChainDBs(chainID); err != nil {
+			return fmt.Errorf("failed to open chain %s: %w", chainID, err)
 		}
 	}
-	if len(missing) > 0 {
-		return fmt.Errorf("some chains have no processor: %v", missing)
+
+	// the config has some RPC connections to add,
+	// but we won't know which chains they are for until we connect
+	for _, rpc := range cfg.L2RPCs {
+		err := su.addProcessorFromRPC(ctx, su.logger, rpc)
+		if err != nil {
+			return fmt.Errorf("failed to add chain monitor for rpc %v: %w", rpc, err)
+		}
 	}
 	return nil
 }
 
-func (su *SupervisorBackend) addLogDB(logger log.Logger, chainID types.ChainID) error {
-	path, err := prepLogDBPath(chainID, su.dataDir)
+// openChainDBs initializes all the DB resources of a specific chain.
+// It is a sub-task of initResources.
+func (su *SupervisorBackend) openChainDBs(chainID types.ChainID) error {
+	cm := newChainMetrics(chainID, su.m)
+	// create metrics and a logdb for the chain
+	su.chainMetrics[chainID] = cm
+
+	logDB, err := db.OpenLogDB(su.logger, chainID, su.dataDir, cm)
 	if err != nil {
-		return fmt.Errorf("failed to create datadir for chain %v: %w", chainID, err)
-	}
-	cm, ok := su.chainMetrics[chainID]
-	if !ok {
-		return fmt.Errorf("failed to find metrics for chain %v", chainID)
-	}
-	logDB, err := logs.NewFromFile(logger, cm, path, true)
-	if err != nil {
-		return fmt.Errorf("failed to create logdb for chain %v at %v: %w", chainID, path, err)
+		return fmt.Errorf("failed to open logDB of chain %s: %w", chainID, err)
 	}
 	su.chainDBs.AddLogDB(chainID, logDB)
+
+	localDB, err := db.OpenLocalDerivedFromDB(su.logger, chainID, su.dataDir, cm)
+	if err != nil {
+		return fmt.Errorf("failed to open local derived-from DB of chain %s: %w", chainID, err)
+	}
+	su.chainDBs.AddLocalDerivedFromDB(chainID, localDB)
+
+	crossDB, err := db.OpenCrossDerivedFromDB(su.logger, chainID, su.dataDir, cm)
+	if err != nil {
+		return fmt.Errorf("failed to open cross derived-from DB of chain %s: %w", chainID, err)
+	}
+	su.chainDBs.AddCrossDerivedFromDB(chainID, crossDB)
+
+	su.chainDBs.AddCrossUnsafeTracker(chainID)
 	return nil
+}
+
+// checkProcessorCoverage logs a warning for any chain that does not have a processor
+func (su *SupervisorBackend) checkProcessorCoverage() {
+	// check that all chains have a processor
+	for _, chainID := range su.depSet.Chains() {
+		if su.chainProcessors[chainID] == nil {
+			su.logger.Warn("chain has no processor", "chainID", chainID)
+		}
+	}
 }
 
 func (su *SupervisorBackend) addProcessorFromRPC(ctx context.Context, logger log.Logger, rpc string) error {
@@ -191,12 +207,17 @@ func (su *SupervisorBackend) Start(ctx context.Context) error {
 	if !su.started.CompareAndSwap(false, true) {
 		return errors.New("already started")
 	}
+
 	// initiate "ResumeFromLastSealedBlock" on the chains db,
 	// which rewinds the database to the last block that is guaranteed to have been fully recorded
 	if err := su.chainDBs.ResumeFromLastSealedBlock(); err != nil {
 		return fmt.Errorf("failed to resume chains db: %w", err)
 	}
-	// TODO(#12423): init background processors, de-dup with constructor
+
+	// Check that all chains have a processor, but ignore the error.
+	// Callers can establish new processors later.
+	su.checkProcessorCoverage()
+
 	return nil
 }
 
@@ -317,14 +338,22 @@ func (su *SupervisorBackend) Finalized(ctx context.Context, chainID types.ChainI
 	su.mu.RLock()
 	defer su.mu.RUnlock()
 
-	return su.chainDBs.Finalized(chainID)
+	v, err := su.chainDBs.Finalized(chainID)
+	if err != nil {
+		return eth.BlockID{}, err
+	}
+	return v.ID(), nil
 }
 
 func (su *SupervisorBackend) DerivedFrom(ctx context.Context, chainID types.ChainID, derived eth.BlockID) (derivedFrom eth.BlockID, err error) {
 	su.mu.RLock()
 	defer su.mu.RUnlock()
 
-	return su.chainDBs.DerivedFrom(chainID, derived)
+	v, err := su.chainDBs.DerivedFrom(chainID, derived)
+	if err != nil {
+		return eth.BlockID{}, err
+	}
+	return v.ID(), nil
 }
 
 // Update methods
