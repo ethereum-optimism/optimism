@@ -25,7 +25,7 @@ type ordering struct {
 
 // blockFudger invalidates the signature for the second transaction in the block.
 // This should result in an invalid payload in the engine queue.
-var blockFudger = func(block *types.Block) {
+var blockFudger = func(block *types.Block) *types.Block {
 	alice := types.NewCancunSigner(big.NewInt(901))
 	txs := block.Transactions()
 	newTx, err := txs[1].WithSignature(alice, make([]byte, 65))
@@ -34,6 +34,7 @@ var blockFudger = func(block *types.Block) {
 		panic(err)
 	}
 	txs[1] = newTx
+	return block
 }
 
 // orderings is a list of orderings which each specify
@@ -132,8 +133,9 @@ func runHoloceneDerivationTest(gt *testing.T, testCfg *helpers.TestCfg[ordering]
 	// Build up a local list of frames
 	orderedFrames := make([][]byte, 0, len(testCfg.Custom.frames))
 
-	blockLogger := func(block *types.Block) {
+	blockLogger := func(block *types.Block) *types.Block {
 		t.Log("added block", "num", block.Number(), "txs", block.Transactions())
+		return block
 	}
 
 	// Buffer the blocks in the batcher.

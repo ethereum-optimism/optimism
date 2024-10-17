@@ -183,7 +183,7 @@ func (s *L2Batcher) ActCreateChannel(t Testing, useSpanChannelOut bool) {
 	}
 }
 
-type BlockModifier = func(block *types.Block)
+type BlockModifier = func(block *types.Block) *types.Block
 
 func (s *L2Batcher) Buffer(t Testing, opts ...BlockModifier) error {
 	if s.l2Submitting { // break ongoing submitting work if necessary
@@ -231,7 +231,7 @@ func (s *L2Batcher) Buffer(t Testing, opts ...BlockModifier) error {
 	// Apply modifications to the block
 	for _, f := range opts {
 		if f != nil {
-			f(block)
+			block = f(block)
 		}
 	}
 
@@ -256,7 +256,7 @@ func (s *L2Batcher) ActAddBlockByNumber(t Testing, blockNumber int64, opts ...Bl
 	// Apply modifications to the block
 	for _, f := range opts {
 		if f != nil {
-			f(block)
+			block = f(block)
 		}
 	}
 
