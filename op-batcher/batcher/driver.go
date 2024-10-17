@@ -302,6 +302,9 @@ func (l *BatchSubmitter) calculateL2BlockRangeToStore(ctx context.Context) (eth.
 		backoff    = time.Second
 		maxBackoff = 30 * time.Second
 	)
+	timer := time.NewTimer(backoff)
+	defer timer.Stop()
+
 	for {
 		cCtx, cancel := context.WithTimeout(ctx, l.Config.NetworkTimeout)
 		syncStatus, err = rollupClient.SyncStatus(cCtx)
@@ -320,9 +323,11 @@ func (l *BatchSubmitter) calculateL2BlockRangeToStore(ctx context.Context) (eth.
 		// Empty sync status, implement backoff
 		l.Log.Info("Received empty sync status, backing off", "backoff", backoff)
 		select {
-		case <-time.After(backoff):
+		case <-timer.C:
 			backoff *= 2
 			backoff = min(backoff, maxBackoff)
+			// Reset timer to tick of the new backoff time again
+			timer.Reset(backoff)
 		case <-ctx.Done():
 			return eth.BlockID{}, eth.BlockID{}, ctx.Err()
 		}
