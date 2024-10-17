@@ -172,6 +172,10 @@ func LogStepFailureAtCleanup(t *testing.T, mipsEvm *MIPSEVM) {
 
 // ValidateEVM runs a single evm step and validates against an FPVM poststate
 func ValidateEVM(t *testing.T, stepWitness *mipsevm.StepWitness, step uint64, goVm mipsevm.FPVM, hashFn mipsevm.HashFn, contracts *ContractMetadata, tracer *tracing.Hooks) {
+	if !arch.IsMips32 {
+		// TODO(#12250): Remove this once the cannon64 solidity VM is complete
+		return
+	}
 	evm := NewMIPSEVM(contracts)
 	evm.SetTracer(tracer)
 	LogStepFailureAtCleanup(t, evm)

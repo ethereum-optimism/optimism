@@ -2,13 +2,11 @@ package exec
 
 import (
 	"fmt"
+	"math/bits"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/arch"
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm/memory"
-
-	// TODO(#12205): MIPS64 port. Replace with a custom library
-	u128 "lukechampine.com/uint128"
 )
 
 const (
@@ -16,6 +14,8 @@ const (
 	OpStoreConditional   = 0x38
 	OpLoadLinked64       = 0x34
 	OpStoreConditional64 = 0x3c
+	OpLoadDoubleLeft     = 0x1A
+	OpLoadDoubleRight    = 0x1B
 )
 
 func GetInstructionDetails(pc Word, memory *memory.Memory) (insn, opcode, fun uint32) {
@@ -85,7 +85,7 @@ func ExecMipsCoreStepLogic(cpu *mipsevm.CpuScalars, registers *[32]Word, memory 
 	// memory fetch (all I-type)
 	// we do the load for stores also
 	mem := Word(0)
-	if opcode >= 0x20 {
+	if opcode >= 0x20 || opcode == OpLoadDoubleLeft || opcode == OpLoadDoubleRight {
 		// M[R[rs]+SignExtImm]
 		rs += SignExtendImmediate(insn)
 		addr := rs & arch.AddressMask
@@ -311,10 +311,10 @@ func ExecuteMipsInstruction(insn uint32, opcode uint32, fun uint32, rs, rt, mem 
 		case 0x3C: // dsll32
 			assertMips64(insn)
 			return rt << (((insn >> 6) & 0x1f) + 32)
-		case 0x3E: // dsll32
+		case 0x3E: // dsrl32
 			assertMips64(insn)
 			return rt >> (((insn >> 6) & 0x1f) + 32)
-		case 0x3F: // dsll32
+		case 0x3F: // dsra32
 			assertMips64(insn)
 			return Word(int64(rt) >> (((insn >> 6) & 0x1f) + 32))
 		default:
@@ -347,13 +347,24 @@ func ExecuteMipsInstruction(insn uint32, opcode uint32, fun uint32, rs, rt, mem 
 			mask := Word(arch.ExtMask - 1)
 			return SignExtend((mem>>(msb-uint32(rs&mask)*8))&0xFFFF, 16)
 		case 0x22: // lwl
-			val := mem << ((rs & 3) * 8)
-			mask := Word(uint32(0xFFFFFFFF) << ((rs & 3) * 8))
-			return SignExtend(((rt & ^mask)|val)&0xFFFFFFFF, 32)
+			if arch.IsMips32 {
+				val := mem << ((rs & 3) * 8)
+				mask := Word(uint32(0xFFFFFFFF) << ((rs & 3) * 8))
+				return SignExtend(((rt & ^mask)|val)&0xFFFFFFFF, 32)
+			} else {
+				// similar to the above mips32 implementation but loads are constrained to the nearest 4-byte memory word
+				shift := 32 - (((rs >> 2) & 0x1) << 5)
+				w := uint32(mem >> shift)
+				val := uint64(w << ((rs & 3) * 8))
+				mask := Word(uint32(0xFFFFFFFF) << ((rs & 3) * 8))
+				return SignExtend(((rt & ^mask)|Word(val))&0xFFFFFFFF, 32)
+			}
 		case 0x23: // lw
-			// TODO(#12205): port to MIPS64
-			return mem
-			//return SignExtend((mem>>(32-((rs&0x4)<<3)))&0xFFFFFFFF, 32)
+			if arch.IsMips32 {
+				return mem
+			} else {
+				return SignExtend((mem>>(32-((rs&0x4)<<3)))&0xFFFFFFFF, 32)
+			}
 		case 0x24: // lbu
 			msb := uint32(arch.WordSize - 8) // 24 for 32-bit and 56 for 64-bit
 			return (mem >> (msb - uint32(rs&arch.ExtMask)*8)) & 0xFF
@@ -362,9 +373,25 @@ func ExecuteMipsInstruction(insn uint32, opcode uint32, fun uint32, rs, rt, mem 
 			mask := Word(arch.ExtMask - 1)
 			return (mem >> (msb - uint32(rs&mask)*8)) & 0xFFFF
 		case 0x26: //  lwr
-			val := mem >> (24 - (rs&3)*8)
-			mask := Word(uint32(0xFFFFFFFF) >> (24 - (rs&3)*8))
-			return SignExtend(((rt & ^mask)|val)&0xFFFFFFFF, 32)
+			if arch.IsMips32 {
+				val := mem >> (24 - (rs&3)*8)
+				mask := Word(uint32(0xFFFFFFFF) >> (24 - (rs&3)*8))
+				return SignExtend(((rt & ^mask)|val)&0xFFFFFFFF, 32)
+			} else {
+				// similar to the above mips32 implementation but constrained to the nearest 4-byte memory word
+				shift := 32 - (((rs >> 2) & 0x1) << 5)
+				w := uint32(mem >> shift)
+				val := w >> (24 - (rs&3)*8)
+				mask := uint32(0xFFFFFFFF) >> (24 - (rs&3)*8)
+				lwrResult := ((uint32(rt) & ^mask) | val) & 0xFFFFFFFF
+				if rs&3 == 3 { // loaded bit 31
+					return SignExtend(Word(lwrResult), 32)
+				} else {
+					// NOTE: cannon64 implementation specific: We leave the upper word untouched
+					rtMask := uint64(0xFF_FF_FF_FF_00_00_00_00)
+					return (rt & Word(rtMask)) | Word(lwrResult)
+				}
+			}
 		case 0x28: //  sb
 			msb := uint32(arch.WordSize - 8) // 24 for 32-bit and 56 for 64-bit
 			val := (rt & 0xFF) << (msb - uint32(rs&arch.ExtMask)*8)
@@ -378,18 +405,45 @@ func ExecuteMipsInstruction(insn uint32, opcode uint32, fun uint32, rs, rt, mem 
 			mask := ^Word(0) ^ Word(0xFFFF<<sl)
 			return (mem & mask) | val
 		case 0x2a: //  swl
-			// TODO(#12205): port to MIPS64
-			val := rt >> ((rs & 3) * 8)
-			mask := uint32(0xFFFFFFFF) >> ((rs & 3) * 8)
-			return (mem & Word(^mask)) | val
+			if arch.IsMips32 {
+				val := rt >> ((rs & 3) * 8)
+				mask := uint32(0xFFFFFFFF) >> ((rs & 3) * 8)
+				return (mem & Word(^mask)) | val
+			} else {
+				sr := (rs & 3) << 3
+				val := ((rt & 0xFFFFFFFF) >> sr) << (32 - ((rs & 0x4) << 3))
+				mask := (uint64(0xFFFFFFFF) >> sr) << (32 - ((rs & 0x4) << 3))
+				return (mem & Word(^mask)) | val
+			}
 		case 0x2b: //  sw
-			// TODO(#12205): port to MIPS64
-			return rt
+			if arch.IsMips32 {
+				return rt
+			} else {
+				sl := 32 - ((rs & 0x4) << 3)
+				val := (rt & 0xFFFFFFFF) << sl
+				mask := Word(0xFFFFFFFFFFFFFFFF ^ uint64(0xFFFFFFFF<<sl))
+				return Word(mem&mask) | Word(val)
+			}
 		case 0x2e: //  swr
-			// TODO(#12205): port to MIPS64
-			val := rt << (24 - (rs&3)*8)
-			mask := uint32(0xFFFFFFFF) << (24 - (rs&3)*8)
-			return (mem & Word(^mask)) | val
+			if arch.IsMips32 {
+				val := rt << (24 - (rs&3)*8)
+				mask := uint32(0xFFFFFFFF) << (24 - (rs&3)*8)
+				return (mem & Word(^mask)) | val
+			} else {
+				// similar to the above mips32 implementation but constrained to the nearest 4-byte memory word
+				shift := 32 - (((rs >> 2) & 0x1) << 5)
+				w := uint32(mem >> shift)
+				val := rt << (24 - (rs&3)*8)
+				mask := uint32(0xFFFFFFFF) << (24 - (rs&3)*8)
+				swrResult := (w & ^mask) | uint32(val)
+				// merge with the untouched bytes in mem
+				if shift > 0 {
+					return (Word(swrResult) << 32) | (mem & Word(^uint32(0))) // nolint: staticcheck
+				} else {
+					memMask := uint64(0xFF_FF_FF_FF_00_00_00_00)
+					return (mem & Word(memMask)) | Word(swrResult & ^uint32(0))
+				}
+			}
 
 		// MIPS64
 		case 0x1A: // ldl
@@ -480,6 +534,7 @@ func HandleBranch(cpu *mipsevm.CpuScalars, registers *[32]Word, opcode uint32, i
 	return nil
 }
 
+// HandleHiLo handles instructions that modify HI and LO registers. It also additionally handles doubleword variable shift operations
 func HandleHiLo(cpu *mipsevm.CpuScalars, registers *[32]Word, fun uint32, rs Word, rt Word, storeReg Word) error {
 	val := Word(0)
 	switch fun {
@@ -515,16 +570,15 @@ func HandleHiLo(cpu *mipsevm.CpuScalars, registers *[32]Word, fun uint32, rs Wor
 		assertMips64Fun(fun)
 		val = Word(int64(rt) >> (rs & 0x3F))
 	case 0x1c: // dmult
-		// TODO(#12205): port to MIPS64. Is signed multiply needed for dmult
 		assertMips64Fun(fun)
-		acc := u128.From64(uint64(rs)).Mul(u128.From64(uint64(rt)))
-		cpu.HI = Word(acc.Hi)
-		cpu.LO = Word(acc.Lo)
+		hi, lo := bits.Mul64(uint64(rs), uint64(rt))
+		cpu.HI = Word(hi)
+		cpu.LO = Word(lo)
 	case 0x1d: // dmultu
 		assertMips64Fun(fun)
-		acc := u128.From64(uint64(rs)).Mul(u128.From64(uint64(rt)))
-		cpu.HI = Word(acc.Hi)
-		cpu.LO = Word(acc.Lo)
+		hi, lo := bits.Mul64(uint64(rs), uint64(rt))
+		cpu.HI = Word(hi)
+		cpu.LO = Word(lo)
 	case 0x1e: // ddiv
 		assertMips64Fun(fun)
 		cpu.HI = Word(int64(rs) % int64(rt))
