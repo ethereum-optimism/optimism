@@ -42,6 +42,7 @@ type BatcherConfig struct {
 	// maximum number of concurrent blob put requests to the DA server
 	MaxConcurrentDARequests uint64
 
+	VerifierL1Confs     uint64
 	WaitNodeSync        bool
 	CheckRecentTxsDepth int
 }
@@ -98,6 +99,7 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 	bs.MaxConcurrentDARequests = cfg.AltDA.MaxConcurrentRequests
 	bs.NetworkTimeout = cfg.TxMgrConfig.NetworkTimeout
 	bs.CheckRecentTxsDepth = cfg.CheckRecentTxsDepth
+	bs.VerifierL1Confs = cfg.VerifierL1Confs
 	bs.WaitNodeSync = cfg.WaitNodeSync
 	if err := bs.initRPCClients(ctx, cfg); err != nil {
 		return err

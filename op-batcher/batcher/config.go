@@ -79,6 +79,9 @@ type CLIConfig struct {
 	// Batching needs to be started via an admin RPC.
 	Stopped bool
 
+	// Assumed number of L1 blocks verifiers will hold back from the L1 head before deriving L2 data.
+	VerifierL1Confs uint64
+
 	// Whether to wait for the sequencer to sync to a recent block at startup.
 	WaitNodeSync bool
 
@@ -185,6 +188,7 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		CompressionAlgo:              derive.CompressionAlgo(ctx.String(flags.CompressionAlgoFlag.Name)),
 		Stopped:                      ctx.Bool(flags.StoppedFlag.Name),
 		WaitNodeSync:                 ctx.Bool(flags.WaitNodeSyncFlag.Name),
+		VerifierL1Confs:              ctx.Uint64(flags.VerifierL1Confs.Name),
 		CheckRecentTxsDepth:          ctx.Int(flags.CheckRecentTxsDepthFlag.Name),
 		BatchType:                    ctx.Uint(flags.BatchTypeFlag.Name),
 		DataAvailabilityType:         flags.DataAvailabilityType(ctx.String(flags.DataAvailabilityTypeFlag.Name)),

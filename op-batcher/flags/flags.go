@@ -156,6 +156,12 @@ var (
 		Value:   false,
 		EnvVars: prefixEnvVars("WAIT_NODE_SYNC"),
 	}
+	VerifierL1Confs = &cli.Uint64Flag{
+		Name:    "verifier.l1-confs",
+		Usage:   "Assumed number of L1 blocks verifiers will hold back from the L1 head before deriving L2 data.",
+		EnvVars: prefixEnvVars("VERIFIER_L1_CONFS"),
+		Value:   0,
+	}
 	// Legacy Flags
 	SequencerHDPathFlag = txmgr.SequencerHDPathFlag
 )
@@ -167,6 +173,7 @@ var requiredFlags = []cli.Flag{
 }
 
 var optionalFlags = []cli.Flag{
+	VerifierL1Confs,
 	WaitNodeSyncFlag,
 	CheckRecentTxsDepthFlag,
 	SubSafetyMarginFlag,
