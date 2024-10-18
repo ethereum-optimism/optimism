@@ -1,7 +1,10 @@
 package cross
 
 import (
+	"context"
 	"fmt"
+
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
@@ -15,7 +18,7 @@ type CrossSafeDeps interface {
 	OpenBlock(chainID types.ChainID, blockNum uint64) (seal types.BlockSeal, logCount uint32, execMsgs []*types.ExecutingMessage, err error)
 }
 
-func CrossSafeUpdate(chainID types.ChainID, d CrossSafeDeps) error {
+func CrossSafeUpdate(ctx context.Context, logger log.Logger, chainID types.ChainID, d CrossSafeDeps) error {
 	// TODO establish L1 reorg-lock of scopeDerivedFrom
 	// defer unlock once we are done checking the chain
 
@@ -45,12 +48,19 @@ func CrossSafeUpdate(chainID types.ChainID, d CrossSafeDeps) error {
 	if err != nil {
 		// TODO
 	}
-	if err := HazardSafeFrontierChecks(d, scopeDerivedFrom, hazards); err != nil {
-		// TODO
-	}
+	_ = hazards
+	//if err := HazardSafeFrontierChecks(d, scopeDerivedFrom, hazards); err != nil {
+	//	// TODO
+	//}
 	//if err := HazardCycleChecks(d, candidate.Timestamp, hazards); err != nil {
 	// TODO
 	//}
 	// TODO promote the candidate block to cross-safe
 	return nil
+}
+
+func NewCrossSafeWorker(logger log.Logger, chainID types.ChainID, d CrossSafeDeps) *Worker {
+	return NewWorker(logger, func(ctx context.Context) error {
+		return CrossSafeUpdate(ctx, logger, chainID, d)
+	})
 }
