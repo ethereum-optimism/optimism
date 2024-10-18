@@ -43,7 +43,22 @@ func DeployOPChainLiveStrategy(ctx context.Context, env *Env, bundle ArtifactsBu
 
 	st.Chains = append(st.Chains, makeChainState(chainID, dco))
 
-	block, err := env.L1Client.BlockByNumber(ctx, nil)
+	err = conditionallySetImplementationAddresses(ctx, env.L1Client, intent, st, dco, opcmProxyAddress)
+	if err != nil {
+		return fmt.Errorf("failed to set implementation addresses: %w", err)
+	}
+
+	return nil
+}
+
+// Only try to set the implementation addresses if we reused existing implementations from a release tag.
+// The reason why these addresses could be empty is because only DeployOPChain.s.sol is invoked as part of the pipeline.
+func conditionallySetImplementationAddresses(ctx context.Context, client *ethclient.Client, intent *state2.Intent, st *state.State, dco opcm.DeployOPChainOutput, opcmProxyAddress common.Address) error {
+	if !intent.L1ContractsLocator.IsTag() {
+		return nil
+	}
+
+	block, err := client.BlockByNumber(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to get latest block by number: %w", err)
 	}
@@ -51,36 +66,37 @@ func DeployOPChainLiveStrategy(ctx context.Context, env *Env, bundle ArtifactsBu
 
 	errCh := make(chan error, 8)
 
-	// If any of the implementations addresses (excluding OpcmProxy) are empty,
-	// we need to set them using the implementation address read from their corresponding proxy.
-	// The reason these might be empty is because we're only invoking DeployOPChain.s.sol as part of the pipeline.
-	// TODO: Need to initialize 'mipsSingletonAddress' and 'preimageOracleSingletonAddress'
 	setImplementationAddressTasks := []func(){
 		func() {
-			setEIP1967ImplementationAddress(ctx, env.L1Client, errCh, dco.DelayedWETHPermissionedGameProxy, currentBlockHash, &st.ImplementationsDeployment.DelayedWETHImplAddress)
+			setEIP1967ImplementationAddress(ctx, client, errCh, dco.DelayedWETHPermissionedGameProxy, currentBlockHash, &st.ImplementationsDeployment.DelayedWETHImplAddress)
 		},
 		func() {
-			setEIP1967ImplementationAddress(ctx, env.L1Client, errCh, dco.OptimismPortalProxy, currentBlockHash, &st.ImplementationsDeployment.OptimismPortalImplAddress)
+			setEIP1967ImplementationAddress(ctx, client, errCh, dco.OptimismPortalProxy, currentBlockHash, &st.ImplementationsDeployment.OptimismPortalImplAddress)
 		},
 		func() {
-			setEIP1967ImplementationAddress(ctx, env.L1Client, errCh, dco.SystemConfigProxy, currentBlockHash, &st.ImplementationsDeployment.SystemConfigImplAddress)
+			setEIP1967ImplementationAddress(ctx, client, errCh, dco.SystemConfigProxy, currentBlockHash, &st.ImplementationsDeployment.SystemConfigImplAddress)
 		},
 		func() {
-			setRDPImplementationAddress(ctx, env.L1Client, errCh, dco.AddressManager, &st.ImplementationsDeployment.L1CrossDomainMessengerImplAddress)
+			setRDPImplementationAddress(ctx, client, errCh, dco.AddressManager, &st.ImplementationsDeployment.L1CrossDomainMessengerImplAddress, "OVM_L1CrossDomainMessenger")
 		},
 		func() {
-			setEIP1967ImplementationAddress(ctx, env.L1Client, errCh, dco.L1ERC721BridgeProxy, currentBlockHash, &st.ImplementationsDeployment.L1ERC721BridgeImplAddress)
+			setEIP1967ImplementationAddress(ctx, client, errCh, dco.L1ERC721BridgeProxy, currentBlockHash, &st.ImplementationsDeployment.L1ERC721BridgeImplAddress)
 		},
 		func() {
-			setEIP1967ImplementationAddress(ctx, env.L1Client, errCh, dco.L1StandardBridgeProxy, currentBlockHash, &st.ImplementationsDeployment.L1StandardBridgeImplAddress)
+			setEIP1967ImplementationAddress(ctx, client, errCh, dco.L1StandardBridgeProxy, currentBlockHash, &st.ImplementationsDeployment.L1StandardBridgeImplAddress)
 		},
 		func() {
-			setEIP1967ImplementationAddress(ctx, env.L1Client, errCh, dco.OptimismMintableERC20FactoryProxy, currentBlockHash, &st.ImplementationsDeployment.OptimismMintableERC20FactoryImplAddress)
+			setEIP1967ImplementationAddress(ctx, client, errCh, dco.OptimismMintableERC20FactoryProxy, currentBlockHash, &st.ImplementationsDeployment.OptimismMintableERC20FactoryImplAddress)
 		},
 		func() {
-			setEIP1967ImplementationAddress(ctx, env.L1Client, errCh, dco.DisputeGameFactoryProxy, currentBlockHash, &st.ImplementationsDeployment.DisputeGameFactoryImplAddress)
+			setEIP1967ImplementationAddress(ctx, client, errCh, dco.DisputeGameFactoryProxy, currentBlockHash, &st.ImplementationsDeployment.DisputeGameFactoryImplAddress)
+		},
+		func() {
+			setMipsSingletonAddress(ctx, client, intent.L1ContractsLocator, errCh, opcmProxyAddress, &st.ImplementationsDeployment.MipsSingletonAddress)
+			setPreimageOracleAddress(ctx, client, errCh, st.ImplementationsDeployment.MipsSingletonAddress, &st.ImplementationsDeployment.PreimageOracleSingletonAddress)
 		},
 	}
+
 	for _, task := range setImplementationAddressTasks {
 		go task()
 	}
