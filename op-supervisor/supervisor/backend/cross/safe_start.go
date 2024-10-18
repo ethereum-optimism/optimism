@@ -55,7 +55,7 @@ func CrossSafeHazards(d SafeStartDeps, chainID types.ChainID, inL1DerivedFrom et
 			}
 			if initDerivedFrom.Number > inL1DerivedFrom.Number {
 				return nil, fmt.Errorf("msg %s was included in block %s derived from %s which is not in cross-safe scope %s: %w",
-					msg, includedIn, initDerivedFrom, inL1DerivedFrom, ErrOutOfDerivedScope)
+					msg, includedIn, initDerivedFrom, inL1DerivedFrom, types.ErrOutOfScope)
 			}
 		} else if msg.Timestamp == candidate.Timestamp {
 			// If timestamp is equal: we have to inspect ordering of individual

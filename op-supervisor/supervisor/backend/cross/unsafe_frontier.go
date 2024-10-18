@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
@@ -33,7 +32,7 @@ func HazardUnsafeFrontierChecks(d UnsafeFrontierCheckDeps, hazards map[types.Cha
 		// Anything we depend on in this timestamp must be cross-unsafe already, or the first block after.
 		err = d.IsCrossUnsafe(hazardChainID, hazardBlock.ID())
 		if err != nil {
-			if errors.Is(err, entrydb.ErrFuture) {
+			if errors.Is(err, types.ErrFuture) {
 				// Not already cross-unsafe, so we check if the block is local-unsafe
 				// (a sanity check if part of the canonical chain).
 				err = d.IsLocalUnsafe(hazardChainID, hazardBlock.ID())

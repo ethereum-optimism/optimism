@@ -15,7 +15,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -74,16 +73,16 @@ func TestEmptyDB(t *testing.T) {
 		func(t *testing.T, db *DB, m *stubMetrics) {},
 		func(t *testing.T, db *DB, m *stubMetrics) {
 			_, _, err := db.Latest()
-			require.ErrorIs(t, err, entrydb.ErrFuture)
+			require.ErrorIs(t, err, types.ErrFuture)
 
 			_, _, err = db.Latest()
-			require.ErrorIs(t, err, entrydb.ErrFuture)
+			require.ErrorIs(t, err, types.ErrFuture)
 
 			_, err = db.LastDerivedAt(eth.BlockID{})
-			require.ErrorIs(t, err, entrydb.ErrFuture)
+			require.ErrorIs(t, err, types.ErrFuture)
 
 			_, err = db.DerivedFrom(eth.BlockID{})
-			require.ErrorIs(t, err, entrydb.ErrFuture)
+			require.ErrorIs(t, err, types.ErrFuture)
 		})
 }
 
@@ -134,14 +133,14 @@ func TestSingleEntryDB(t *testing.T) {
 			require.Equal(t, expectedDerived, derived)
 
 			_, err = db.LastDerivedAt(eth.BlockID{Hash: common.Hash{0xaa}, Number: expectedDerivedFrom.Number})
-			require.ErrorIs(t, err, entrydb.ErrConflict)
+			require.ErrorIs(t, err, types.ErrConflict)
 
 			derivedFrom, err = db.DerivedFrom(expectedDerived.ID())
 			require.NoError(t, err)
 			require.Equal(t, expectedDerivedFrom, derivedFrom)
 
 			_, err = db.DerivedFrom(eth.BlockID{Hash: common.Hash{0xbb}, Number: expectedDerived.Number})
-			require.ErrorIs(t, err, entrydb.ErrConflict)
+			require.ErrorIs(t, err, types.ErrConflict)
 		})
 }
 
@@ -170,14 +169,14 @@ func TestTwoEntryDB(t *testing.T) {
 		require.Equal(t, l2Block2, derived)
 
 		_, err = db.LastDerivedAt(eth.BlockID{Hash: common.Hash{0xaa}, Number: l1Block2.Number})
-		require.ErrorIs(t, err, entrydb.ErrConflict)
+		require.ErrorIs(t, err, types.ErrConflict)
 
 		derivedFrom, err = db.DerivedFrom(l2Block2.ID())
 		require.NoError(t, err)
 		require.Equal(t, l1Block2, derivedFrom)
 
 		_, err = db.DerivedFrom(eth.BlockID{Hash: common.Hash{0xbb}, Number: l2Block2.Number})
-		require.ErrorIs(t, err, entrydb.ErrConflict)
+		require.ErrorIs(t, err, types.ErrConflict)
 
 		derived, err = db.LastDerivedAt(l1Block1.ID())
 		require.NoError(t, err)
@@ -378,17 +377,17 @@ func testManyEntryDB(t *testing.T, offsetL1 uint64, offsetL2 uint64) {
 		// if not started at genesis, try to read older data, assert it's unavailable.
 		if offsetL1 > 0 {
 			_, err := db.LastDerivedAt(mockL1(0).ID())
-			require.ErrorIs(t, err, entrydb.ErrSkipped)
+			require.ErrorIs(t, err, types.ErrSkipped)
 
 			_, err = db.LastDerivedAt(mockL1(offsetL1 - 1).ID())
-			require.ErrorIs(t, err, entrydb.ErrSkipped)
+			require.ErrorIs(t, err, types.ErrSkipped)
 		}
 		if offsetL2 > 0 {
 			_, err := db.DerivedFrom(mockL2(0).ID())
-			require.ErrorIs(t, err, entrydb.ErrSkipped)
+			require.ErrorIs(t, err, types.ErrSkipped)
 
 			_, err = db.DerivedFrom(mockL2(offsetL2 - 1).ID())
-			require.ErrorIs(t, err, entrydb.ErrSkipped)
+			require.ErrorIs(t, err, types.ErrSkipped)
 		}
 	})
 }
@@ -425,7 +424,7 @@ func TestRewind(t *testing.T) {
 		require.Equal(t, l2Block2, derived)
 
 		// Rewind to the future
-		require.ErrorIs(t, db.Rewind(6), entrydb.ErrFuture)
+		require.ErrorIs(t, db.Rewind(6), types.ErrFuture)
 
 		// Rewind to the exact block we're at
 		require.NoError(t, db.Rewind(l1Block5.Number))

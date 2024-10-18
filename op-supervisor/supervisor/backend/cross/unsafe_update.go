@@ -7,7 +7,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -27,7 +26,7 @@ func CrossUnsafeUpdate(ctx context.Context, logger log.Logger, chainID types.Cha
 	// fetch cross-head
 	crossSafe, err := d.CrossUnsafe(chainID)
 	if err != nil {
-		if errors.Is(err, entrydb.ErrFuture) {
+		if errors.Is(err, types.ErrFuture) {
 			// If genesis / no cross-safe block yet, then start with block 0
 			// TODO
 		} else {

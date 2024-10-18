@@ -15,10 +15,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
-var (
-	ErrUnknownChain = errors.New("unknown chain")
-)
-
 type LogStorage interface {
 	io.Closer
 

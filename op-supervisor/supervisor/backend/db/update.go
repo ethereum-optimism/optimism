@@ -20,7 +20,7 @@ func (db *ChainsDB) AddLog(
 
 	logDB, ok := db.logDBs[chain]
 	if !ok {
-		return fmt.Errorf("cannot AddLog: %w: %v", ErrUnknownChain, chain)
+		return fmt.Errorf("cannot AddLog: %w: %v", types.ErrUnknownChain, chain)
 	}
 	return logDB.AddLog(logHash, parentBlock, logIdx, execMsg)
 }
@@ -31,7 +31,7 @@ func (db *ChainsDB) SealBlock(chain types.ChainID, block eth.BlockRef) error {
 
 	logDB, ok := db.logDBs[chain]
 	if !ok {
-		return fmt.Errorf("cannot SealBlock: %w: %v", ErrUnknownChain, chain)
+		return fmt.Errorf("cannot SealBlock: %w: %v", types.ErrUnknownChain, chain)
 	}
 	err := logDB.SealBlock(block.ParentHash, block.ID(), block.Time)
 	if err != nil {
@@ -46,7 +46,7 @@ func (db *ChainsDB) Rewind(chain types.ChainID, headBlockNum uint64) error {
 
 	logDB, ok := db.logDBs[chain]
 	if !ok {
-		return fmt.Errorf("cannot Rewind: %w: %s", ErrUnknownChain, chain)
+		return fmt.Errorf("cannot Rewind: %w: %s", types.ErrUnknownChain, chain)
 	}
 	return logDB.Rewind(headBlockNum)
 }
@@ -57,7 +57,7 @@ func (db *ChainsDB) UpdateLocalSafe(chain types.ChainID, derivedFrom eth.BlockRe
 
 	localDB, ok := db.localDBs[chain]
 	if !ok {
-		return fmt.Errorf("cannot UpdateLocalSafe: %w: %v", ErrUnknownChain, chain)
+		return fmt.Errorf("cannot UpdateLocalSafe: %w: %v", types.ErrUnknownChain, chain)
 	}
 	return localDB.AddDerived(derivedFrom, lastDerived)
 }
@@ -67,7 +67,7 @@ func (db *ChainsDB) UpdateCrossUnsafe(chain types.ChainID, crossUnsafe types.Blo
 	defer db.mu.RUnlock()
 
 	if _, ok := db.crossUnsafe[chain]; !ok {
-		return fmt.Errorf("cannot UpdateCrossUnsafe: %w: %s", ErrUnknownChain, chain)
+		return fmt.Errorf("cannot UpdateCrossUnsafe: %w: %s", types.ErrUnknownChain, chain)
 	}
 	db.crossUnsafe[chain] = crossUnsafe
 	return nil
@@ -79,7 +79,7 @@ func (db *ChainsDB) UpdateCrossSafe(chain types.ChainID, l1View eth.BlockRef, la
 
 	crossDB, ok := db.crossDBs[chain]
 	if !ok {
-		return fmt.Errorf("cannot UpdateCrossSafe: %w: %s", ErrUnknownChain, chain)
+		return fmt.Errorf("cannot UpdateCrossSafe: %w: %s", types.ErrUnknownChain, chain)
 	}
 	return crossDB.AddDerived(l1View, lastCrossDerived)
 }

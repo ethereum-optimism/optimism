@@ -41,7 +41,7 @@ type traverseConditionalFn func(state IteratorState) error
 func (i *iterator) End() error {
 	for {
 		_, err := i.next()
-		if errors.Is(err, entrydb.ErrFuture) {
+		if errors.Is(err, types.ErrFuture) {
 			return nil
 		} else if err != nil {
 			return err
@@ -133,7 +133,7 @@ func (i *iterator) next() (EntryType, error) {
 	entry, err := i.db.store.Read(index)
 	if err != nil {
 		if errors.Is(err, io.EOF) {
-			return 0, entrydb.ErrFuture
+			return 0, types.ErrFuture
 		}
 		return 0, fmt.Errorf("failed to read entry %d: %w", index, err)
 	}

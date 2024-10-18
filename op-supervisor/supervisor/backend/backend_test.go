@@ -21,7 +21,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum-optimism/optimism/op-supervisor/config"
 	"github.com/ethereum-optimism/optimism/op-supervisor/metrics"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
@@ -92,7 +91,7 @@ func TestBackendLifetime(t *testing.T) {
 	t.Log("started!")
 
 	_, err = b.UnsafeView(context.Background(), chainA, types.ReferenceView{})
-	require.ErrorIs(t, err, entrydb.ErrFuture, "no data yet, need local-unsafe")
+	require.ErrorIs(t, err, types.ErrFuture, "no data yet, need local-unsafe")
 
 	src.ExpectL1BlockRefByNumber(0, blockX, nil)
 	src.ExpectFetchReceipts(blockX.Hash, &testutils.MockBlockInfo{
@@ -121,7 +120,7 @@ func TestBackendLifetime(t *testing.T) {
 	b.chainProcessors[chainA].ProcessToHead()
 
 	_, err = b.UnsafeView(context.Background(), chainA, types.ReferenceView{})
-	require.ErrorIs(t, err, entrydb.ErrFuture, "still no data yet, need cross-unsafe")
+	require.ErrorIs(t, err, types.ErrFuture, "still no data yet, need cross-unsafe")
 
 	err = b.chainDBs.UpdateCrossUnsafe(chainA, types.BlockSeal{
 		Hash:      blockX.Hash,

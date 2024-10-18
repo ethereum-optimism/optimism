@@ -7,7 +7,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
@@ -18,7 +17,7 @@ func (db *ChainsDB) FindSealedBlock(chain types.ChainID, number uint64) (seal ty
 
 	logDB, ok := db.logDBs[chain]
 	if !ok {
-		return types.BlockSeal{}, fmt.Errorf("%w: %v", ErrUnknownChain, chain)
+		return types.BlockSeal{}, fmt.Errorf("%w: %v", types.ErrUnknownChain, chain)
 	}
 	return logDB.FindSealedBlock(number)
 }
@@ -43,11 +42,11 @@ func (db *ChainsDB) LocalUnsafe(chainID types.ChainID) (types.BlockSeal, error) 
 
 	eventsDB, ok := db.logDBs[chainID]
 	if !ok {
-		return types.BlockSeal{}, ErrUnknownChain
+		return types.BlockSeal{}, types.ErrUnknownChain
 	}
 	n, ok := eventsDB.LatestSealedBlockNum()
 	if !ok {
-		return types.BlockSeal{}, entrydb.ErrFuture
+		return types.BlockSeal{}, types.ErrFuture
 	}
 	return eventsDB.FindSealedBlock(n)
 }
@@ -58,7 +57,7 @@ func (db *ChainsDB) CrossUnsafe(chainID types.ChainID) (types.BlockSeal, error) 
 
 	result, ok := db.crossUnsafe[chainID]
 	if !ok {
-		return types.BlockSeal{}, ErrUnknownChain
+		return types.BlockSeal{}, types.ErrUnknownChain
 	}
 	// Fall back to cross-safe if cross-unsafe is not known yet
 	if result == (types.BlockSeal{}) {
@@ -77,7 +76,7 @@ func (db *ChainsDB) LocalSafe(chainID types.ChainID) (derivedFrom types.BlockSea
 
 	localDB, ok := db.localDBs[chainID]
 	if !ok {
-		return types.BlockSeal{}, types.BlockSeal{}, ErrUnknownChain
+		return types.BlockSeal{}, types.BlockSeal{}, types.ErrUnknownChain
 	}
 	return localDB.Latest()
 }
@@ -88,7 +87,7 @@ func (db *ChainsDB) CrossSafe(chainID types.ChainID) (derivedFrom types.BlockSea
 
 	crossDB, ok := db.crossDBs[chainID]
 	if !ok {
-		return types.BlockSeal{}, types.BlockSeal{}, ErrUnknownChain
+		return types.BlockSeal{}, types.BlockSeal{}, types.ErrUnknownChain
 	}
 	return crossDB.Latest()
 }
@@ -111,7 +110,7 @@ func (db *ChainsDB) Finalized(chainID types.ChainID) (types.BlockSeal, error) {
 func (db *ChainsDB) LastDerivedFrom(chainID types.ChainID, derivedFrom eth.BlockID) (derived types.BlockSeal, err error) {
 	crossDB, ok := db.crossDBs[chainID]
 	if !ok {
-		return types.BlockSeal{}, ErrUnknownChain
+		return types.BlockSeal{}, types.ErrUnknownChain
 	}
 	return crossDB.LastDerivedAt(derivedFrom)
 }
@@ -122,7 +121,7 @@ func (db *ChainsDB) DerivedFrom(chainID types.ChainID, derived eth.BlockID) (der
 
 	localDB, ok := db.localDBs[chainID]
 	if !ok {
-		return types.BlockSeal{}, ErrUnknownChain
+		return types.BlockSeal{}, types.ErrUnknownChain
 	}
 	return localDB.DerivedFrom(derived)
 }
@@ -135,7 +134,7 @@ func (db *ChainsDB) Check(chain types.ChainID, blockNum uint64, logIdx uint32, l
 
 	logDB, ok := db.logDBs[chain]
 	if !ok {
-		return types.BlockSeal{}, fmt.Errorf("%w: %v", ErrUnknownChain, chain)
+		return types.BlockSeal{}, fmt.Errorf("%w: %v", types.ErrUnknownChain, chain)
 	}
 	return logDB.Contains(blockNum, logIdx, logHash)
 }
@@ -148,7 +147,7 @@ func (db *ChainsDB) OpenBlock(chain types.ChainID, blockNum uint64) (eth.BlockID
 
 	logDB, ok := db.logDBs[chain]
 	if !ok {
-		return eth.BlockID{}, eth.BlockID{}, nil, ErrUnknownChain
+		return eth.BlockID{}, eth.BlockID{}, nil, types.ErrUnknownChain
 	}
 	return logDB.OpenBlock(blockNum)
 }
@@ -161,7 +160,7 @@ func (db *ChainsDB) LocalDerivedFrom(chain types.ChainID, derived eth.BlockID) (
 
 	lDB, ok := db.localDBs[chain]
 	if !ok {
-		return types.BlockSeal{}, ErrUnknownChain
+		return types.BlockSeal{}, types.ErrUnknownChain
 	}
 	return lDB.DerivedFrom(derived)
 }
@@ -174,7 +173,7 @@ func (db *ChainsDB) CrossDerivedFrom(chain types.ChainID, derived eth.BlockID) (
 
 	xDB, ok := db.crossDBs[chain]
 	if !ok {
-		return types.BlockSeal{}, ErrUnknownChain
+		return types.BlockSeal{}, types.ErrUnknownChain
 	}
 	return xDB.DerivedFrom(derived)
 }
@@ -220,7 +219,7 @@ func (db *ChainsDB) Safest(chainID types.ChainID, blockNum uint64, index uint32)
 func (db *ChainsDB) IteratorStartingAt(chain types.ChainID, sealedNum uint64, logIndex uint32) (logs.Iterator, error) {
 	logDB, ok := db.logDBs[chain]
 	if !ok {
-		return nil, fmt.Errorf("%w: %v", ErrUnknownChain, chain)
+		return nil, fmt.Errorf("%w: %v", types.ErrUnknownChain, chain)
 	}
 	return logDB.IteratorStartingAt(sealedNum, logIndex)
 }

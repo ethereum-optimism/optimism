@@ -5,15 +5,8 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
-)
-
-var (
-	ErrLocalDerivedFrom = errors.New("failed to get local derived from")
-	ErrParentBlock      = errors.New("failed to get parent block")
-	ErrCrossDerivedFrom = errors.New("failed to get cross derived from")
 )
 
 type SafeFrontierCheckDeps interface {
@@ -39,7 +32,7 @@ func HazardSafeFrontierChecks(d SafeFrontierCheckDeps, inL1DerivedFrom eth.Block
 		}
 		initDerivedFrom, err := d.CrossDerivedFrom(hazardChainID, hazardBlock.ID())
 		if err != nil {
-			if errors.Is(err, entrydb.ErrFuture) {
+			if errors.Is(err, types.ErrFuture) {
 				initDerivedFrom, err = d.LocalDerivedFrom(hazardChainID, hazardBlock.ID())
 				if err != nil {
 					return fmt.Errorf("hazard block %s (chain %d) is not local-safe: %w", hazardBlock, hazardChainID, err)
@@ -57,7 +50,7 @@ func HazardSafeFrontierChecks(d SafeFrontierCheckDeps, inL1DerivedFrom eth.Block
 					}
 					if initDerivedFrom.Number > inL1DerivedFrom.Number {
 						return fmt.Errorf("local-safe hazard block %s derived from L1 block %s is after scope %s: %w",
-							hazardBlock.ID(), initDerivedFrom, inL1DerivedFrom, ErrOutOfDerivedScope)
+							hazardBlock.ID(), initDerivedFrom, inL1DerivedFrom, types.ErrOutOfScope)
 					}
 				}
 			} else {
@@ -65,7 +58,7 @@ func HazardSafeFrontierChecks(d SafeFrontierCheckDeps, inL1DerivedFrom eth.Block
 			}
 		} else if initDerivedFrom.Number > inL1DerivedFrom.Number {
 			return fmt.Errorf("cross-safe hazard block %s derived from L1 block %s is after scope %s: %w",
-				hazardBlock.ID(), initDerivedFrom, inL1DerivedFrom, ErrOutOfDerivedScope)
+				hazardBlock.ID(), initDerivedFrom, inL1DerivedFrom, types.ErrOutOfScope)
 		}
 	}
 	return nil

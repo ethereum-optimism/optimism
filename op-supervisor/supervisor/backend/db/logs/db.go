@@ -139,8 +139,8 @@ func (db *DB) FindSealedBlock(number uint64) (seal types.BlockSeal, err error) {
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
 	iter, err := db.newIteratorAt(number, 0)
-	if errors.Is(err, entrydb.ErrFuture) {
-		return types.BlockSeal{}, fmt.Errorf("block %d is not known yet: %w", number, entrydb.ErrFuture)
+	if errors.Is(err, types.ErrFuture) {
+		return types.BlockSeal{}, fmt.Errorf("block %d is not known yet: %w", number, types.ErrFuture)
 	} else if err != nil {
 		return types.BlockSeal{}, fmt.Errorf("failed to find sealed block %d: %w", number, err)
 	}
@@ -278,21 +278,21 @@ func (db *DB) Contains(blockNum uint64, logIdx uint32, logHash common.Hash) (typ
 			return nil
 		}
 		if n == blockNum {
-			return entrydb.ErrStop
+			return types.ErrStop
 		}
 		if n > blockNum {
-			return entrydb.ErrDataCorruption
+			return types.ErrDataCorruption
 		}
 		return nil
 	})
 	if err == nil {
 		panic("expected iterator to stop with error")
 	}
-	if errors.Is(err, entrydb.ErrFuture) {
+	if errors.Is(err, types.ErrFuture) {
 		// Log is known, but as part of an unsealed block.
 		return types.BlockSeal{}, nil
 	}
-	if errors.Is(err, entrydb.ErrStop) {
+	if errors.Is(err, types.ErrStop) {
 		h, n, _ := iter.SealedBlock()
 		timestamp, _ := iter.SealedTimestamp()
 		return types.BlockSeal{
@@ -306,12 +306,12 @@ func (db *DB) Contains(blockNum uint64, logIdx uint32, logHash common.Hash) (typ
 
 func (db *DB) findLogInfo(blockNum uint64, logIdx uint32) (common.Hash, Iterator, error) {
 	if blockNum == 0 {
-		return common.Hash{}, nil, entrydb.ErrConflict // no logs in block 0
+		return common.Hash{}, nil, types.ErrConflict // no logs in block 0
 	}
 	// blockNum-1, such that we find a log that came after the parent num-1 was sealed.
 	// logIdx, such that all entries before logIdx can be skipped, but logIdx itself is still readable.
 	iter, err := db.newIteratorAt(blockNum-1, logIdx)
-	if errors.Is(err, entrydb.ErrFuture) {
+	if errors.Is(err, types.ErrFuture) {
 		db.log.Trace("Could not find log yet", "blockNum", blockNum, "logIdx", logIdx)
 		return common.Hash{}, nil, err
 	} else if err != nil {
@@ -326,7 +326,7 @@ func (db *DB) findLogInfo(blockNum uint64, logIdx uint32) (common.Hash, Iterator
 	} else if x < blockNum-1 {
 		panic(fmt.Errorf("bug in newIteratorAt, expected to have found parent block %d but got %d", blockNum-1, x))
 	} else if x > blockNum-1 {
-		return common.Hash{}, nil, fmt.Errorf("log does not exist, found next block already: %w", entrydb.ErrConflict)
+		return common.Hash{}, nil, fmt.Errorf("log does not exist, found next block already: %w", types.ErrConflict)
 	}
 	logHash, x, ok := iter.InitMessage()
 	if !ok {
@@ -347,7 +347,7 @@ func (db *DB) newIteratorAt(blockNum uint64, logIndex uint32) (*iterator, error)
 	searchCheckpointIndex, err := db.searchCheckpoint(blockNum, logIndex)
 	if errors.Is(err, io.EOF) {
 		// Did not find a checkpoint to start reading from so the log cannot be present.
-		return nil, entrydb.ErrFuture
+		return nil, types.ErrFuture
 	} else if err != nil {
 		return nil, err
 	}
@@ -363,9 +363,9 @@ func (db *DB) newIteratorAt(blockNum uint64, logIndex uint32) (*iterator, error)
 		if _, n, ok := iter.SealedBlock(); ok && n == blockNum { // we may already have it exactly
 			break
 		}
-		if err := iter.NextBlock(); errors.Is(err, entrydb.ErrFuture) {
+		if err := iter.NextBlock(); errors.Is(err, types.ErrFuture) {
 			db.log.Trace("ran out of data, could not find block", "nextIndex", iter.NextIndex(), "target", blockNum)
-			return nil, entrydb.ErrFuture
+			return nil, types.ErrFuture
 		} else if err != nil {
 			db.log.Error("failed to read next block", "nextIndex", iter.NextIndex(), "target", blockNum, "err", err)
 			return nil, err
@@ -379,7 +379,7 @@ func (db *DB) newIteratorAt(blockNum uint64, logIndex uint32) (*iterator, error)
 			continue
 		}
 		if num != blockNum { // block does not contain
-			return nil, fmt.Errorf("looking for %d, but already at %d: %w", blockNum, num, entrydb.ErrConflict)
+			return nil, fmt.Errorf("looking for %d, but already at %d: %w", blockNum, num, types.ErrConflict)
 		}
 		break
 	}
@@ -388,7 +388,7 @@ func (db *DB) newIteratorAt(blockNum uint64, logIndex uint32) (*iterator, error)
 	// so two logs before quiting (and not 3 to then quit after).
 	for iter.current.logsSince < logIndex {
 		if err := iter.NextInitMsg(); err == io.EOF {
-			return nil, entrydb.ErrFuture
+			return nil, types.ErrFuture
 		} else if err != nil {
 			return nil, err
 		}
@@ -398,7 +398,7 @@ func (db *DB) newIteratorAt(blockNum uint64, logIndex uint32) (*iterator, error)
 		}
 		if num > blockNum {
 			// we overshot, the block did not contain as many seen log events as requested
-			return nil, entrydb.ErrConflict
+			return nil, types.ErrConflict
 		}
 		_, idx, ok := iter.InitMessage()
 		if !ok {
@@ -432,7 +432,7 @@ func (db *DB) newIterator(index entrydb.EntryIdx) *iterator {
 // Returns the index of the searchCheckpoint to begin reading from or an error.
 func (db *DB) searchCheckpoint(sealedBlockNum uint64, logsSince uint32) (entrydb.EntryIdx, error) {
 	if db.lastEntryContext.nextEntryIndex == 0 {
-		return 0, entrydb.ErrFuture // empty DB, everything is in the future
+		return 0, types.ErrFuture // empty DB, everything is in the future
 	}
 	n := (db.lastEntryIdx() / searchCheckpointFrequency) + 1
 	// Define: x is the array of known checkpoints
@@ -469,7 +469,7 @@ func (db *DB) searchCheckpoint(sealedBlockNum uint64, logsSince uint32) (entrydb
 	if checkpoint.blockNum > sealedBlockNum ||
 		(checkpoint.blockNum == sealedBlockNum && checkpoint.logsSince > logsSince) {
 		return 0, fmt.Errorf("missing data, earliest search checkpoint is %d with %d logs, cannot find something before or at %d with %d logs: %w",
-			checkpoint.blockNum, checkpoint.logsSince, sealedBlockNum, logsSince, entrydb.ErrSkipped)
+			checkpoint.blockNum, checkpoint.logsSince, sealedBlockNum, logsSince, types.ErrSkipped)
 	}
 	return result, nil
 }

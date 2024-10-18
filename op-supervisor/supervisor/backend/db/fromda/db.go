@@ -77,7 +77,7 @@ func (db *DB) Latest() (derivedFrom types.BlockSeal, derived types.BlockSeal, er
 func (db *DB) latest() (derivedFrom types.BlockSeal, derived types.BlockSeal, err error) {
 	lastIndex := db.store.LastEntryIdx()
 	if lastIndex < 0 {
-		return types.BlockSeal{}, types.BlockSeal{}, entrydb.ErrFuture
+		return types.BlockSeal{}, types.BlockSeal{}, types.ErrFuture
 	}
 	last, err := db.readAt(lastIndex)
 	if err != nil {
@@ -96,7 +96,7 @@ func (db *DB) LastDerivedAt(derivedFrom eth.BlockID) (derived types.BlockSeal, e
 	}
 	if link.derivedFrom.ID() != derivedFrom {
 		return types.BlockSeal{}, fmt.Errorf("searched for last derived-from %s but found %s: %w",
-			derivedFrom, link.derivedFrom, entrydb.ErrConflict)
+			derivedFrom, link.derivedFrom, types.ErrConflict)
 	}
 	return link.derived, nil
 }
@@ -112,7 +112,7 @@ func (db *DB) DerivedFrom(derived eth.BlockID) (derivedFrom types.BlockSeal, err
 	}
 	if link.derived.ID() != derived {
 		return types.BlockSeal{}, fmt.Errorf("searched for first derived %s but found %s: %w",
-			derived, link.derived, entrydb.ErrConflict)
+			derived, link.derived, types.ErrConflict)
 	}
 	return link.derivedFrom, nil
 }
@@ -136,7 +136,7 @@ func (db *DB) lastDerivedAt(derivedFrom uint64) (entrydb.EntryIdx, LinkEntry, er
 func (db *DB) find(reverse bool, cmpFn func(link LinkEntry) int) (entrydb.EntryIdx, LinkEntry, error) {
 	n := db.store.Size()
 	if n == 0 {
-		return -1, LinkEntry{}, entrydb.ErrFuture
+		return -1, LinkEntry{}, types.ErrFuture
 	}
 	var searchErr error
 	// binary-search for the smallest index i for which cmp(i) >= 0
@@ -157,9 +157,9 @@ func (db *DB) find(reverse bool, cmpFn func(link LinkEntry) int) (entrydb.EntryI
 	}
 	if result == int(n) {
 		if reverse {
-			return -1, LinkEntry{}, fmt.Errorf("no entry found: %w", entrydb.ErrSkipped)
+			return -1, LinkEntry{}, fmt.Errorf("no entry found: %w", types.ErrSkipped)
 		} else {
-			return -1, LinkEntry{}, fmt.Errorf("no entry found: %w", entrydb.ErrFuture)
+			return -1, LinkEntry{}, fmt.Errorf("no entry found: %w", types.ErrFuture)
 		}
 	}
 	if reverse {
@@ -171,9 +171,9 @@ func (db *DB) find(reverse bool, cmpFn func(link LinkEntry) int) (entrydb.EntryI
 	}
 	if cmpFn(link) != 0 {
 		if reverse {
-			return -1, LinkEntry{}, fmt.Errorf("lowest entry %s is too high: %w", link, entrydb.ErrFuture)
+			return -1, LinkEntry{}, fmt.Errorf("lowest entry %s is too high: %w", link, types.ErrFuture)
 		} else {
-			return -1, LinkEntry{}, fmt.Errorf("lowest entry %s is too high: %w", link, entrydb.ErrSkipped)
+			return -1, LinkEntry{}, fmt.Errorf("lowest entry %s is too high: %w", link, types.ErrSkipped)
 		}
 	}
 	if cmpFn(link) != 0 {

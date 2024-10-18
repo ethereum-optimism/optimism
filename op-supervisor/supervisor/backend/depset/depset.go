@@ -2,14 +2,8 @@ package depset
 
 import (
 	"context"
-	"errors"
 
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
-)
-
-var (
-	ErrChainIndexNotFound = errors.New("no index found for chain ID")
-	ErrChainIDNotFound    = errors.New("no chain ID found for index")
 )
 
 type DependencySetSource interface {
