@@ -17,6 +17,8 @@ type CrossUnsafeDeps interface {
 	UnsafeFrontierCheckDeps
 
 	OpenBlock(chainID types.ChainID, blockNum uint64) (seal types.BlockSeal, logCount uint32, execMsgs []*types.ExecutingMessage, err error)
+
+	UpdateCrossUnsafe(chain types.ChainID, crossUnsafe types.BlockSeal) error
 }
 
 func CrossUnsafeUpdate(ctx context.Context, logger log.Logger, chainID types.ChainID, d CrossUnsafeDeps) error {
@@ -48,15 +50,18 @@ func CrossUnsafeUpdate(ctx context.Context, logger log.Logger, chainID types.Cha
 		// and other errors (e.g. DB issues) are identifier by remaining error kinds.
 		return fmt.Errorf("failed to check for cross-chain hazards: %w", err)
 	}
-	// TODO apply hazard checks
-	_ = hazards
-	//if err := HazardUnsafeFrontierChecks(d, hazards); err != nil {
-	//	// TODO
-	//}
+
+	if err := HazardUnsafeFrontierChecks(d, hazards); err != nil {
+		return fmt.Errorf("failed to verify block %s in cross-unsafe frontier: %w", candidate, err)
+	}
 	//if err := HazardCycleChecks(d, candidate.Timestamp, hazards); err != nil {
 	//// TODO
 	//}
-	// TODO promote the candidate block to cross-unsafe
+
+	// promote the candidate block to cross-unsafe
+	if err := d.UpdateCrossUnsafe(chainID, candidate); err != nil {
+		return fmt.Errorf("failed to update cross-unsafe head to %s: %w", candidate, err)
+	}
 	return nil
 }
 
