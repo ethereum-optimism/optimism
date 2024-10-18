@@ -206,6 +206,24 @@ func (db *ChainsDB) CandidateCrossSafe(chain types.ChainID) (derivedFromScope, c
 	return lDB.FirstAfter(crossDerivedFrom.ID(), crossDerived.ID())
 }
 
+func (db *ChainsDB) AfterDerivedFrom(chain types.ChainID, derivedFrom eth.BlockID) (after types.BlockSeal, err error) {
+	lDB, ok := db.localDBs[chain]
+	if !ok {
+		return types.BlockSeal{}, types.ErrUnknownChain
+	}
+	// This is the last L2 block derived from the given L1 block.
+	// So after it, we should find the next L1 block that we're looking for
+	lastDerived, err := lDB.LastDerivedAt(derivedFrom)
+	if err != nil {
+		return types.BlockSeal{}, err
+	}
+	nextDerivedFrom, _, err := lDB.FirstAfter(derivedFrom, lastDerived.ID())
+	if err != nil {
+		return types.BlockSeal{}, err
+	}
+	return nextDerivedFrom, nil
+}
+
 // Safest returns the strongest safety level that can be guaranteed for the given log entry.
 // it assumes the log entry has already been checked and is valid, this function only checks safety levels.
 // Cross-safety levels are all considered to be more safe than any form of local-safety.

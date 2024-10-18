@@ -18,6 +18,7 @@ type CrossSafeDeps interface {
 	SafeStartDeps
 
 	CandidateCrossSafe(chain types.ChainID) (derivedFromScope, crossSafe types.BlockSeal, err error)
+	AfterDerivedFrom(chain types.ChainID, derivedFrom eth.BlockID) (after types.BlockSeal, err error)
 
 	OpenBlock(chainID types.ChainID, blockNum uint64) (seal types.BlockSeal, logCount uint32, execMsgs []*types.ExecutingMessage, err error)
 
@@ -35,7 +36,20 @@ func CrossSafeUpdate(ctx context.Context, logger log.Logger, chainID types.Chain
 
 	if err := scopedCrossSafeUpdate(candidateScope, candidate, chainID, d); err != nil {
 		if errors.Is(err, types.ErrOutOfScope) {
-			// TODO bump the L1 scope up, and repeat the prev L2 block, not the candidate
+			// bump the L1 scope up, and repeat the prev L2 block, not the candidate
+			newScope, err := d.AfterDerivedFrom(chainID, candidateScope.ID())
+			if err != nil {
+				return fmt.Errorf("failed to identify new L1 scope to expand to after %s: %w", candidateScope, err)
+			}
+			currentCrossSafe, err := d.CrossSafe(chainID)
+			if err != nil {
+				// TODO: if genesis isn't cross-safe by default, then we can't register something as cross-safe here
+				return fmt.Errorf("failed to identify cross-safe scope to repeat: %w", err)
+			}
+			if err := d.UpdateCrossSafe(chainID, newScope, currentCrossSafe); err != nil {
+				return fmt.Errorf("failed to update cross-safe head with L1 scope increment to %s and repeat of L2 block %s: %w", candidateScope, candidate, err)
+			}
+			return nil
 		} else {
 			return err
 		}

@@ -150,7 +150,6 @@ func (db *DB) FirstAfter(derivedFrom, derived eth.BlockID) (nextDerivedFrom, nex
 	}
 	next, err := db.readAt(selfIndex + 1)
 	if err != nil {
-
 		return types.BlockSeal{}, types.BlockSeal{}, err
 	}
 	return next.derivedFrom, next.derived, nil
