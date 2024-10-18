@@ -62,10 +62,10 @@ var orderings = []ordering{
 	{blocks: []uint{1, 2, 3}, frames: []uint{0, 1, 0, 2}, safeHeadPreHolocene: 3, safeHeadHolocene: 0},    // duplicate frames
 	{blocks: []uint{1, 2, 3}, frames: []uint{0, 1, 2}, safeHeadPreHolocene: 0, safeHeadHolocene: 1,
 		isSpanBatch: true, blockModifiers: []actionsHelpers.BlockModifier{nil, blockFudger, nil}}, // partially invalid span batch (invalid payload)
-	{blocks: []uint{1, 2, 3}, frames: []uint{0, 1, 2}, safeHeadPreHolocene: 0, safeHeadHolocene: 1,
-		isSpanBatch: false, blockModifiers: []actionsHelpers.BlockModifier{nil, blockSpudger, nil}}, // partially invalid span batch (invalid batch?)
-	{blocks: []uint{1, 2, 3}, frames: []uint{0, 1, 2}, safeHeadPreHolocene: 0, safeHeadHolocene: 1,
-		isSpanBatch: false, blockModifiers: []actionsHelpers.BlockModifier{nil, blockSpudger, nil}}, // partially invalid span batch (invalid batch?)
+	{blocks: []uint{1, 2, 3}, frames: []uint{0, 1, 2}, safeHeadPreHolocene: 1, safeHeadHolocene: 1,
+		isSpanBatch: false, blockModifiers: []actionsHelpers.BlockModifier{nil, blockSpudger, nil}}, // partially invalid singular batch channel (invalid batch)
+	{blocks: []uint{1, 2, 3}, frames: []uint{0, 1, 2}, safeHeadPreHolocene: 3, safeHeadHolocene: 1,
+		isSpanBatch: true, blockModifiers: []actionsHelpers.BlockModifier{nil, blockSpudger, nil}}, // partially invalid span batch (invalid batch?)
 }
 
 func max(input []uint) uint {
