@@ -21,7 +21,7 @@ func DeployImplementations(env *Env, intent *state.Intent, st *state.State) erro
 	var standardVersionsTOML string
 	var contractsRelease string
 	var err error
-	if intent.L1ContractsLocator.IsTag() {
+	if intent.L1ContractsLocator.IsTag() && intent.DeploymentStrategy == state.DeploymentStrategyLive {
 		standardVersionsTOML, err = opcm.StandardL1VersionsDataFor(intent.L1ChainID)
 		if err != nil {
 			return fmt.Errorf("error getting standard versions TOML: %w", err)

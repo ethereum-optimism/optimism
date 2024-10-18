@@ -106,12 +106,16 @@ func initCommonChecks(st *state.State) error {
 	return nil
 }
 
-func InitGenesisStrategy(env *Env, st *state.State) error {
+func InitGenesisStrategy(env *Env, intent *state.Intent, st *state.State) error {
 	lgr := env.Logger.New("stage", "init", "strategy", "genesis")
 	lgr.Info("initializing pipeline")
 
 	if err := initCommonChecks(st); err != nil {
 		return err
+	}
+
+	if intent.SuperchainRoles == nil {
+		return fmt.Errorf("superchain roles must be set for genesis strategy")
 	}
 
 	// Mostly a stub for now.

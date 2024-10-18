@@ -50,12 +50,17 @@ func InitCLI() func(ctx *cli.Context) error {
 		l1ChainID := ctx.Uint64(L1ChainIDFlagName)
 		outdir := ctx.String(OutdirFlagName)
 		l2ChainIDsRaw := ctx.String(L2ChainIDsFlagName)
+
+		if len(l2ChainIDsRaw) == 0 {
+			return fmt.Errorf("must specify at least one L2 chain ID")
+		}
+
 		l2ChainIDsStr := strings.Split(strings.TrimSpace(l2ChainIDsRaw), ",")
 		l2ChainIDs := make([]common.Hash, len(l2ChainIDsStr))
 		for i, idStr := range l2ChainIDsStr {
 			id, err := op_service.Parse256BitChainID(idStr)
 			if err != nil {
-				return fmt.Errorf("invalid chain ID: %w", err)
+				return fmt.Errorf("invalid L2 chain ID '%s': %w", idStr, err)
 			}
 			l2ChainIDs[i] = id
 		}
@@ -81,7 +86,7 @@ func Init(cfg InitConfig) error {
 	}
 
 	intent := &state.Intent{
-		DeploymentStrategy: state.DeploymentStrategyLive,
+		DeploymentStrategy: cfg.DeploymentStrategy,
 		L1ChainID:          cfg.L1ChainID,
 		FundDevAccounts:    true,
 		L1ContractsLocator: opcm.DefaultL1ContractsLocator,
@@ -103,7 +108,7 @@ func Init(cfg InitConfig) error {
 		}
 		return addr
 	}
-	intent.SuperchainRoles = state.SuperchainRoles{
+	intent.SuperchainRoles = &state.SuperchainRoles{
 		ProxyAdminOwner:       addrFor(devkeys.L1ProxyAdminOwnerRole.Key(l1ChainIDBig)),
 		ProtocolVersionsOwner: addrFor(devkeys.SuperchainProtocolVersionsOwner.Key(l1ChainIDBig)),
 		Guardian:              addrFor(devkeys.SuperchainConfigGuardianKey.Key(l1ChainIDBig)),

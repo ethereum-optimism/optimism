@@ -107,15 +107,7 @@ func TestEndToEndApply(t *testing.T) {
 	deployerAddr, err := dk.Address(depKey)
 	require.NoError(t, err)
 
-	_, testFilename, _, ok := runtime.Caller(0)
-	require.Truef(t, ok, "failed to get test filename")
-	monorepoDir := path.Join(path.Dir(testFilename), "..", "..", "..", "..")
-	artifactsDir := path.Join(monorepoDir, "packages", "contracts-bedrock", "forge-artifacts")
-	artifactsURL, err := url.Parse(fmt.Sprintf("file://%s", artifactsDir))
-	require.NoError(t, err)
-	loc := &opcm.ArtifactsLocator{
-		URL: artifactsURL,
-	}
+	loc := localArtifacsLocator(t)
 
 	bcaster, err := broadcaster.NewKeyedBroadcaster(broadcaster.KeyedBroadcasterOpts{
 		Logger:  log.NewLogger(log.DiscardHandler()),
@@ -159,6 +151,19 @@ func TestEndToEndApply(t *testing.T) {
 
 		validateOPChainDeployment(t, cg, st, intent)
 	})
+}
+
+func localArtifacsLocator(t *testing.T) *opcm.ArtifactsLocator {
+	_, testFilename, _, ok := runtime.Caller(0)
+	require.Truef(t, ok, "failed to get test filename")
+	monorepoDir := path.Join(path.Dir(testFilename), "..", "..", "..", "..")
+	artifactsDir := path.Join(monorepoDir, "packages", "contracts-bedrock", "forge-artifacts")
+	artifactsURL, err := url.Parse(fmt.Sprintf("file://%s", artifactsDir))
+	require.NoError(t, err)
+	loc := &opcm.ArtifactsLocator{
+		URL: artifactsURL,
+	}
+	return loc
 }
 
 func createEnv(
@@ -228,7 +233,7 @@ func newIntent(
 	intent := &state.Intent{
 		DeploymentStrategy: state.DeploymentStrategyLive,
 		L1ChainID:          l1ChainID.Uint64(),
-		SuperchainRoles: state.SuperchainRoles{
+		SuperchainRoles: &state.SuperchainRoles{
 			ProxyAdminOwner:       addrFor(t, dk, devkeys.L1ProxyAdminOwnerRole.Key(l1ChainID)),
 			ProtocolVersionsOwner: addrFor(t, dk, devkeys.SuperchainDeployerKey.Key(l1ChainID)),
 			Guardian:              addrFor(t, dk, devkeys.SuperchainConfigGuardianKey.Key(l1ChainID)),
@@ -494,6 +499,8 @@ func TestL2BlockTimeOverride(t *testing.T) {
 	deployerAddr, err := dk.Address(depKey)
 	require.NoError(t, err)
 
+	loc := localArtifacsLocator(t)
+
 	bcaster, err := broadcaster.NewKeyedBroadcaster(broadcaster.KeyedBroadcasterOpts{
 		Logger:  lgr,
 		ChainID: l1ChainID,
@@ -510,8 +517,8 @@ func TestL2BlockTimeOverride(t *testing.T) {
 		l1ChainID,
 		dk,
 		l2ChainID,
-		opcm.DefaultL1ContractsLocator,
-		opcm.DefaultL2ContractsLocator,
+		loc,
+		loc,
 	)
 
 	intent.GlobalDeployOverrides = map[string]interface{}{

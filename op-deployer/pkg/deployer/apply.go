@@ -209,7 +209,7 @@ func ApplyPipeline(
 			if intent.DeploymentStrategy == state.DeploymentStrategyLive {
 				return pipeline.InitLiveStrategy(ctx, env, intent, st)
 			} else {
-				return pipeline.InitGenesisStrategy(env, st)
+				return pipeline.InitGenesisStrategy(env, intent, st)
 			}
 		}},
 		{"deploy-superchain", func() error {
