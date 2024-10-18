@@ -1304,7 +1304,7 @@ jobs:
       - run:
           name: Run goreleaser
           command: |
-            ./bin/goreleaser release --clean -f ./<<parameters.module>>/<<parameters.filename>>
+            goreleaser release --clean -f ./<<parameters.module>>/<<parameters.filename>>
 
 workflows:
   main:
