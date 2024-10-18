@@ -200,7 +200,7 @@ func (l *logContext) processEntry(entry Entry) error {
 			return err
 		}
 		l.execMsg = &types.ExecutingMessage{
-			Chain:     link.chain,
+			Chain:     types.ChainIndex(link.chain), // TODO(#11105): translate chain ID to chain index
 			BlockNum:  link.blockNum,
 			LogIdx:    link.logIdx,
 			Timestamp: link.timestamp,
@@ -352,13 +352,13 @@ func (l *logContext) SealBlock(parent common.Hash, upd eth.BlockID, timestamp ui
 			return err
 		}
 		if l.blockHash != parent {
-			return fmt.Errorf("%w: cannot apply block %s (parent %s) on top of %s", entrydb.ErrConflict, upd, parent, l.blockHash)
+			return fmt.Errorf("%w: cannot apply block %s (parent %s) on top of %s", types.ErrConflict, upd, parent, l.blockHash)
 		}
 		if l.blockHash != (common.Hash{}) && l.blockNum+1 != upd.Number {
-			return fmt.Errorf("%w: cannot apply block %d on top of %d", entrydb.ErrConflict, upd.Number, l.blockNum)
+			return fmt.Errorf("%w: cannot apply block %d on top of %d", types.ErrConflict, upd.Number, l.blockNum)
 		}
 		if l.timestamp > timestamp {
-			return fmt.Errorf("%w: block timestamp %d must be equal or larger than current timestamp %d", entrydb.ErrConflict, timestamp, l.timestamp)
+			return fmt.Errorf("%w: block timestamp %d must be equal or larger than current timestamp %d", types.ErrConflict, timestamp, l.timestamp)
 		}
 	}
 	l.blockHash = upd.Hash
@@ -375,28 +375,28 @@ func (l *logContext) SealBlock(parent common.Hash, upd eth.BlockID, timestamp ui
 // The parent-block that the log comes after must be applied with ApplyBlock first.
 func (l *logContext) ApplyLog(parentBlock eth.BlockID, logIdx uint32, logHash common.Hash, execMsg *types.ExecutingMessage) error {
 	if parentBlock == (eth.BlockID{}) {
-		return fmt.Errorf("genesis does not have logs: %w", entrydb.ErrOutOfOrder)
+		return fmt.Errorf("genesis does not have logs: %w", types.ErrOutOfOrder)
 	}
 	if err := l.inferFull(); err != nil { // ensure we can start applying
 		return err
 	}
 	if !l.hasCompleteBlock() {
 		if l.blockNum == 0 {
-			return fmt.Errorf("%w: should not have logs in block 0", entrydb.ErrOutOfOrder)
+			return fmt.Errorf("%w: should not have logs in block 0", types.ErrOutOfOrder)
 		} else {
 			return errors.New("cannot append log before last known block is sealed")
 		}
 	}
 	// check parent block
 	if l.blockHash != parentBlock.Hash {
-		return fmt.Errorf("%w: log builds on top of block %s, but have block %s", entrydb.ErrOutOfOrder, parentBlock, l.blockHash)
+		return fmt.Errorf("%w: log builds on top of block %s, but have block %s", types.ErrOutOfOrder, parentBlock, l.blockHash)
 	}
 	if l.blockNum != parentBlock.Number {
-		return fmt.Errorf("%w: log builds on top of block %d, but have block %d", entrydb.ErrOutOfOrder, parentBlock.Number, l.blockNum)
+		return fmt.Errorf("%w: log builds on top of block %d, but have block %d", types.ErrOutOfOrder, parentBlock.Number, l.blockNum)
 	}
 	// check if log fits on top. The length so far == the index of the next log.
 	if logIdx != l.logsSince {
-		return fmt.Errorf("%w: expected event index %d, cannot append %d", entrydb.ErrOutOfOrder, l.logsSince, logIdx)
+		return fmt.Errorf("%w: expected event index %d, cannot append %d", types.ErrOutOfOrder, l.logsSince, logIdx)
 	}
 	l.logHash = logHash
 	l.execMsg = execMsg

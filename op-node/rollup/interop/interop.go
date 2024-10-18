@@ -3,6 +3,7 @@ package interop
 import (
 	"context"
 	"fmt"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"sync"
 	"time"
 
@@ -87,6 +88,9 @@ func (d *InteropDeriver) OnEvent(ev event.Event) bool {
 		d.onLocalSafeUpdate(x)
 	case finality.FinalizeL1Event:
 		d.onFinalizedL1(x)
+	case derive.DeriverL1StatusEvent:
+		// TODO: helper func & timeout
+		_ = d.backend.UpdateLocalSafe(d.driverCtx, d.chainID, x.Origin, x.LastL2)
 	case engine.CrossUnsafeUpdateEvent:
 		if err := d.onCrossUnsafe(x); err != nil {
 			d.log.Error("Failed to process cross-unsafe update", "err", err)
