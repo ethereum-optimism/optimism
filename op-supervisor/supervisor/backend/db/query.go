@@ -195,6 +195,17 @@ func (db *ChainsDB) CandidateCrossSafe(chain types.ChainID) (derivedFromScope, c
 		return types.BlockSeal{}, types.BlockSeal{}, types.ErrUnknownChain
 	}
 
+	// Example:
+	// A B C D      <- L1
+	// 1     2      <- L2
+	// return:
+	// (A, 0) -> initial scope, no L2 block yet. Genesis found to be cross-safe
+	// (A, 1) -> 1 is determined cross-safe, won't be a candidate anymore after. 2 is the new candidate
+	// (B, 2) -> 2 is out of scope, go to B
+	// (C, 2) -> 2 is out of scope, go to C
+	// (D, 2) -> 2 is in scope, stay on D, promote candidate to cross-safe
+	// (D, 3) -> look at 3 next, see if we have to bump L1 yet, try with same L1 scope first
+
 	crossDerivedFrom, crossDerived, err := xDB.Latest()
 	if err != nil {
 		if errors.Is(err, types.ErrFuture) {
@@ -203,25 +214,32 @@ func (db *ChainsDB) CandidateCrossSafe(chain types.ChainID) (derivedFromScope, c
 		}
 		return types.BlockSeal{}, types.BlockSeal{}, err
 	}
-	return lDB.FirstAfter(crossDerivedFrom.ID(), crossDerived.ID())
+	// Find the local-safe block that comes right after the last seen cross-safe block.
+	// Just L2 block by block traversal, conditional on being local-safe.
+	// This will be the candidate L2 block to promote.
+
+	// While the local-safe block isn't cross-safe given limited L1 scope, we'll keep bumping the L1 scope,
+	// And update cross-safe accordingly.
+	// This method will keep returning the latest known scope that has been verified to be cross-safe.
+	candidateFrom, candidate, err := lDB.NextDerived(crossDerived.ID())
+	if err != nil {
+		return types.BlockSeal{}, types.BlockSeal{}, err
+	}
+	// Allow increment of DA by 1, if we know the floor (due to local safety) is 1 ahead of the current cross-safe L1 scope.
+	if candidateFrom.Number > crossDerivedFrom.Number+1 {
+		return types.BlockSeal{}, types.BlockSeal{},
+			fmt.Errorf("candidate is from %s, while current scope is %s: %w",
+				candidateFrom, crossDerivedFrom, types.ErrOutOfScope)
+	}
+	return candidateFrom, candidate, nil
 }
 
-func (db *ChainsDB) AfterDerivedFrom(chain types.ChainID, derivedFrom eth.BlockID) (after types.BlockSeal, err error) {
+func (db *ChainsDB) NextDerivedFrom(chain types.ChainID, derivedFrom eth.BlockID) (after types.BlockSeal, err error) {
 	lDB, ok := db.localDBs[chain]
 	if !ok {
 		return types.BlockSeal{}, types.ErrUnknownChain
 	}
-	// This is the last L2 block derived from the given L1 block.
-	// So after it, we should find the next L1 block that we're looking for
-	lastDerived, err := lDB.LastDerivedAt(derivedFrom)
-	if err != nil {
-		return types.BlockSeal{}, err
-	}
-	nextDerivedFrom, _, err := lDB.FirstAfter(derivedFrom, lastDerived.ID())
-	if err != nil {
-		return types.BlockSeal{}, err
-	}
-	return nextDerivedFrom, nil
+	return lDB.NextDerivedFrom(derivedFrom)
 }
 
 // Safest returns the strongest safety level that can be guaranteed for the given log entry.

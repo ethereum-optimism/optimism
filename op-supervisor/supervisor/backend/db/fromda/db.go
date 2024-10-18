@@ -117,6 +117,25 @@ func (db *DB) LastDerivedAt(derivedFrom eth.BlockID) (derived types.BlockSeal, e
 	return link.derived, nil
 }
 
+// NextDerived finds the next L2 block after derived, and what it was derived from
+func (db *DB) NextDerived(derived eth.BlockID) (derivedFrom types.BlockSeal, nextDerived types.BlockSeal, err error) {
+	db.rwLock.RLock()
+	defer db.rwLock.RUnlock()
+	// get the last time this L2 block was seen.
+	selfIndex, self, err := db.lastDerivedFrom(nextDerived.Number)
+	if err != nil {
+		return types.BlockSeal{}, types.BlockSeal{}, fmt.Errorf("failed to find derived %d: %w", derived.Number, err)
+	}
+	if self.derived.ID() != derived {
+		return types.BlockSeal{}, types.BlockSeal{}, fmt.Errorf("found %s, but expected %s: %w", self.derived, derived, types.ErrConflict)
+	}
+	next, err := db.readAt(selfIndex + 1)
+	if err != nil {
+		return types.BlockSeal{}, types.BlockSeal{}, fmt.Errorf("cannot find next derived after %s: %w", derived, err)
+	}
+	return next.derivedFrom, next.derived, nil
+}
+
 // DerivedFrom determines where a L2 block was first derived from.
 // (a L2 block may repeat if the following L1 blocks are empty and don't produce additional L2 blocks)
 func (db *DB) DerivedFrom(derived eth.BlockID) (derivedFrom types.BlockSeal, err error) {
@@ -131,6 +150,24 @@ func (db *DB) DerivedFrom(derived eth.BlockID) (derivedFrom types.BlockSeal, err
 			derived, link.derived, types.ErrConflict)
 	}
 	return link.derivedFrom, nil
+}
+
+// NextDerivedFrom finds the next L1 block after derivedFrom
+func (db *DB) NextDerivedFrom(derivedFrom eth.BlockID) (nextDerivedFrom types.BlockSeal, err error) {
+	db.rwLock.RLock()
+	defer db.rwLock.RUnlock()
+	selfIndex, self, err := db.lastDerivedAt(derivedFrom.Number)
+	if err != nil {
+		return types.BlockSeal{}, fmt.Errorf("failed to find derived-from %d: %w", derivedFrom.Number, err)
+	}
+	if self.derivedFrom.ID() != derivedFrom {
+		return types.BlockSeal{}, fmt.Errorf("found %s, but expected %s: %w", self.derivedFrom, derivedFrom, types.ErrConflict)
+	}
+	next, err := db.readAt(selfIndex + 1)
+	if err != nil {
+		return types.BlockSeal{}, fmt.Errorf("cannot find next derived-from after %s: %w", derivedFrom, err)
+	}
+	return next.derivedFrom, nil
 }
 
 // FirstAfter determines the next entry after the given pair of derivedFrom, derived.
@@ -153,6 +190,12 @@ func (db *DB) FirstAfter(derivedFrom, derived eth.BlockID) (nextDerivedFrom, nex
 		return types.BlockSeal{}, types.BlockSeal{}, err
 	}
 	return next.derivedFrom, next.derived, nil
+}
+
+func (db *DB) lastDerivedFrom(derived uint64) (entrydb.EntryIdx, LinkEntry, error) {
+	return db.find(true, func(link LinkEntry) int {
+		return cmp.Compare(derived, link.derived.Number)
+	})
 }
 
 func (db *DB) firstDerivedFrom(derived uint64) (entrydb.EntryIdx, LinkEntry, error) {
