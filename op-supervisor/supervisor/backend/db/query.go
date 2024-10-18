@@ -155,8 +155,8 @@ func (db *ChainsDB) OpenBlock(chain types.ChainID, blockNum uint64) (eth.BlockID
 // LocalDerivedFrom returns the block that the given block was derived from, if it exists in the local derived-from storage.
 // it routes the request to the appropriate localDB.
 func (db *ChainsDB) LocalDerivedFrom(chain types.ChainID, derived eth.BlockID) (derivedFrom types.BlockSeal, err error) {
-	db.mu.Lock()
-	defer db.mu.Unlock()
+	db.mu.RLock()
+	defer db.mu.RUnlock()
 
 	lDB, ok := db.localDBs[chain]
 	if !ok {
@@ -168,14 +168,42 @@ func (db *ChainsDB) LocalDerivedFrom(chain types.ChainID, derived eth.BlockID) (
 // CrossDerivedFrom returns the block that the given block was derived from, if it exists in the cross derived-from storage.
 // it routes the request to the appropriate crossDB.
 func (db *ChainsDB) CrossDerivedFrom(chain types.ChainID, derived eth.BlockID) (derivedFrom types.BlockSeal, err error) {
-	db.mu.Lock()
-	defer db.mu.Unlock()
+	db.mu.RLock()
+	defer db.mu.RUnlock()
 
 	xDB, ok := db.crossDBs[chain]
 	if !ok {
 		return types.BlockSeal{}, types.ErrUnknownChain
 	}
 	return xDB.DerivedFrom(derived)
+}
+
+// CandidateCrossSafe returns the candidate local-safe block that may become cross-safe.
+// This returns ErrFuture if no block is known yet.
+// Or ErrConflict if there is an inconsistency between the local-safe and cross-safe DB.
+func (db *ChainsDB) CandidateCrossSafe(chain types.ChainID) (derivedFromScope, crossSafe types.BlockSeal, err error) {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
+
+	xDB, ok := db.crossDBs[chain]
+	if !ok {
+		return types.BlockSeal{}, types.BlockSeal{}, types.ErrUnknownChain
+	}
+
+	lDB, ok := db.localDBs[chain]
+	if !ok {
+		return types.BlockSeal{}, types.BlockSeal{}, types.ErrUnknownChain
+	}
+
+	crossDerivedFrom, crossDerived, err := xDB.Latest()
+	if err != nil {
+		if errors.Is(err, types.ErrFuture) {
+			// If we do not have any cross-safe block yet, then return the first local-safe block.
+			return lDB.First()
+		}
+		return types.BlockSeal{}, types.BlockSeal{}, err
+	}
+	return lDB.FirstAfter(crossDerivedFrom.ID(), crossDerived.ID())
 }
 
 // Safest returns the strongest safety level that can be guaranteed for the given log entry.

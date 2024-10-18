@@ -27,6 +27,9 @@ func HazardUnsafeFrontierChecks(d UnsafeFrontierCheckDeps, hazards map[types.Cha
 	for hazardChainIndex, hazardBlock := range hazards {
 		hazardChainID, err := depSet.ChainIDFromIndex(hazardChainIndex)
 		if err != nil {
+			if errors.Is(err, types.ErrUnknownChain) {
+				err = fmt.Errorf("cannot cross-unsafe verify block %s of unknown chain index %s: %w", hazardBlock, hazardChainIndex, types.ErrConflict)
+			}
 			return err
 		}
 		// Anything we depend on in this timestamp must be cross-unsafe already, or the first block after.

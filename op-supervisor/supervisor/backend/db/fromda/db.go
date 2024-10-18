@@ -3,6 +3,7 @@ package fromda
 import (
 	"cmp"
 	"fmt"
+	"io"
 	"sort"
 	"sync"
 
@@ -64,6 +65,21 @@ func (db *DB) Rewind(derivedFrom uint64) error {
 	return nil
 }
 
+// First returns the first known values, alike to Latest.
+func (db *DB) First() (derivedFrom types.BlockSeal, derived types.BlockSeal, err error) {
+	db.rwLock.Lock()
+	defer db.rwLock.Unlock()
+	lastIndex := db.store.LastEntryIdx()
+	if lastIndex < 0 {
+		return types.BlockSeal{}, types.BlockSeal{}, types.ErrFuture
+	}
+	last, err := db.readAt(0)
+	if err != nil {
+		return types.BlockSeal{}, types.BlockSeal{}, fmt.Errorf("failed to read first derivation data: %w", err)
+	}
+	return last.derivedFrom, last.derived, nil
+}
+
 // Latest returns the last known values:
 // derivedFrom: the L1 block that the L2 block is safe for (not necessarily the first, multiple L2 blocks may be derived from the same L1 block).
 // derived: the L2 block that was derived (not necessarily the first, the L1 block may have been empty and repeated the last safe L2 block).
@@ -117,9 +133,42 @@ func (db *DB) DerivedFrom(derived eth.BlockID) (derivedFrom types.BlockSeal, err
 	return link.derivedFrom, nil
 }
 
+// FirstAfter determines the next entry after the given pair of derivedFrom, derived.
+// Either one or both of the two entries will be an increment by 1
+func (db *DB) FirstAfter(derivedFrom, derived eth.BlockID) (nextDerivedFrom, nextDerived types.BlockSeal, err error) {
+	db.rwLock.RLock()
+	defer db.rwLock.RUnlock()
+	selfIndex, selfLink, err := db.lookup(derivedFrom.Number, derived.Number)
+	if err != nil {
+		return types.BlockSeal{}, types.BlockSeal{}, err
+	}
+	if selfLink.derivedFrom.ID() != derivedFrom {
+		return types.BlockSeal{}, types.BlockSeal{}, fmt.Errorf("DB has derived-from %s but expected %s: %w", selfLink.derivedFrom, derivedFrom, types.ErrConflict)
+	}
+	if selfLink.derived.ID() != derived {
+		return types.BlockSeal{}, types.BlockSeal{}, fmt.Errorf("DB has derived %s but expected %s: %w", selfLink.derived, derived, types.ErrConflict)
+	}
+	next, err := db.readAt(selfIndex + 1)
+	if err != nil {
+
+		return types.BlockSeal{}, types.BlockSeal{}, err
+	}
+	return next.derivedFrom, next.derived, nil
+}
+
 func (db *DB) firstDerivedFrom(derived uint64) (entrydb.EntryIdx, LinkEntry, error) {
 	return db.find(false, func(link LinkEntry) int {
 		return cmp.Compare(link.derived.Number, derived)
+	})
+}
+
+func (db *DB) lookup(derivedFrom, derived uint64) (entrydb.EntryIdx, LinkEntry, error) {
+	return db.find(false, func(link LinkEntry) int {
+		res := cmp.Compare(link.derived.Number, derived)
+		if res == 0 {
+			return cmp.Compare(link.derivedFrom.Number, derivedFrom)
+		}
+		return res
 	})
 }
 
@@ -187,6 +236,9 @@ func (db *DB) find(reverse bool, cmpFn func(link LinkEntry) int) (entrydb.EntryI
 func (db *DB) readAt(i entrydb.EntryIdx) (LinkEntry, error) {
 	entry, err := db.store.Read(i)
 	if err != nil {
+		if err == io.EOF {
+			return LinkEntry{}, types.ErrFuture
+		}
 		return LinkEntry{}, err
 	}
 	var out LinkEntry

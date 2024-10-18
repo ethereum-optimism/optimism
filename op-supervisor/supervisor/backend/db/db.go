@@ -48,10 +48,12 @@ type LogStorage interface {
 }
 
 type LocalDerivedFromStorage interface {
+	First() (derivedFrom types.BlockSeal, derived types.BlockSeal, err error)
 	Latest() (derivedFrom types.BlockSeal, derived types.BlockSeal, err error)
 	AddDerived(derivedFrom eth.BlockRef, derived eth.BlockRef) error
 	LastDerivedAt(derivedFrom eth.BlockID) (derived types.BlockSeal, err error)
 	DerivedFrom(derived eth.BlockID) (derivedFrom types.BlockSeal, err error)
+	FirstAfter(derivedFrom, derived eth.BlockID) (nextDerivedFrom, nextDerived types.BlockSeal, err error)
 }
 
 var _ LocalDerivedFromStorage = (*fromda.DB)(nil)

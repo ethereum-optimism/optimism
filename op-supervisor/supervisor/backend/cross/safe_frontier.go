@@ -10,10 +10,9 @@ import (
 )
 
 type SafeFrontierCheckDeps interface {
-	ParentBlock(chainID types.ChainID, parentOf eth.BlockID) (parent eth.BlockID, err error)
+	CandidateCrossSafe(chain types.ChainID) (derivedFromScope, crossSafe types.BlockSeal, err error)
 
 	CrossDerivedFrom(chainID types.ChainID, derived eth.BlockID) (derivedFrom eth.BlockID, err error)
-	LocalDerivedFrom(chainID types.ChainID, derived eth.BlockID) (derivedFrom eth.BlockID, err error)
 
 	DependencySet() depset.DependencySet
 }
@@ -27,31 +26,26 @@ func HazardSafeFrontierChecks(d SafeFrontierCheckDeps, inL1DerivedFrom eth.Block
 	for hazardChainIndex, hazardBlock := range hazards {
 		hazardChainID, err := depSet.ChainIDFromIndex(hazardChainIndex)
 		if err != nil {
-			// TODO: translate unknown chain -> conflict error
+			if errors.Is(err, types.ErrUnknownChain) {
+				err = fmt.Errorf("cannot cross-safe verify block %s of unknown chain index %s: %w", hazardBlock, hazardChainIndex, types.ErrConflict)
+			}
 			return err
 		}
 		initDerivedFrom, err := d.CrossDerivedFrom(hazardChainID, hazardBlock.ID())
 		if err != nil {
 			if errors.Is(err, types.ErrFuture) {
-				initDerivedFrom, err = d.LocalDerivedFrom(hazardChainID, hazardBlock.ID())
+				// If not in cross-safe scope, then check if it's the candidate cross-safe block.
+				initDerivedFrom, initSelf, err := d.CandidateCrossSafe(hazardChainID)
 				if err != nil {
-					return fmt.Errorf("hazard block %s (chain %d) is not local-safe: %w", hazardBlock, hazardChainID, err)
+					return fmt.Errorf("failed to determine cross-safe candidate block of hazard dependency %s (chain %s): %w", hazardBlock, hazardChainID, err)
 				}
-				// If it doesn't have a parent block, then there is no prior block required to be cross-safe
-				if hazardBlock.Number > 0 {
-					// Check that parent of hazardBlockID is cross-safe within view
-					parent, err := d.ParentBlock(hazardChainID, hazardBlock.ID())
-					if err != nil {
-						return fmt.Errorf("failed to retrieve parent-block of hazard block %s (chain %s): %w", hazardBlock, hazardChainID, err)
-					}
-					initDerivedFrom, err := d.CrossDerivedFrom(hazardChainID, parent)
-					if err != nil {
-						return fmt.Errorf("cannot rely on hazard-block %s (chain %s), parent block %s is not cross-unsafe: %w", hazardBlock, hazardChainID, parent, err)
-					}
-					if initDerivedFrom.Number > inL1DerivedFrom.Number {
-						return fmt.Errorf("local-safe hazard block %s derived from L1 block %s is after scope %s: %w",
-							hazardBlock.ID(), initDerivedFrom, inL1DerivedFrom, types.ErrOutOfScope)
-					}
+				if initSelf.Number == hazardBlock.Number && initSelf != hazardBlock {
+					return fmt.Errorf("expected block %s (chain %d) does not match candidate local-safe block %s: %w",
+						hazardBlock, hazardChainID, initSelf, types.ErrConflict)
+				}
+				if initDerivedFrom.Number > inL1DerivedFrom.Number {
+					return fmt.Errorf("local-safe hazard block %s derived from L1 block %s is after scope %s: %w",
+						hazardBlock.ID(), initDerivedFrom, inL1DerivedFrom, types.ErrOutOfScope)
 				}
 			} else {
 				return fmt.Errorf("failed to determine cross-derived of hazard block %s (chain %s): %w", hazardBlock, hazardChainID, err)

@@ -15,43 +15,32 @@ type CrossSafeDeps interface {
 	SafeFrontierCheckDeps
 	SafeStartDeps
 
+	CandidateCrossSafe(chain types.ChainID) (derivedFromScope, crossSafe types.BlockSeal, err error)
+
 	OpenBlock(chainID types.ChainID, blockNum uint64) (seal types.BlockSeal, logCount uint32, execMsgs []*types.ExecutingMessage, err error)
 }
 
 func CrossSafeUpdate(ctx context.Context, logger log.Logger, chainID types.ChainID, d CrossSafeDeps) error {
-	// TODO establish L1 reorg-lock of scopeDerivedFrom
+	// TODO(#11693): establish L1 reorg-lock of scopeDerivedFrom
 	// defer unlock once we are done checking the chain
 
-	// fetch cross-head
-	crossSafe, err := d.CrossSafe(chainID)
+	candidateScope, candidate, err := d.CandidateCrossSafe(chainID)
 	if err != nil {
-		// TODO handle genesis case
+		return fmt.Errorf("failed to determine candidate block for cross-safe: %w", err)
 	}
 
-	// TODO: this might not be right, just pulling scopeDerivedFrom out of the signature
-	scopeDerivedFrom, err := d.CrossDerivedFrom(chainID, crossSafe.ID())
-
-	// open block N+1
-	candidate, _, execMsgs, err := d.OpenBlock(chainID, crossSafe.Number+1)
+	candidate, _, execMsgs, err := d.OpenBlock(chainID, candidate.Number)
 	if err != nil {
-		return fmt.Errorf("failed to open block %d: %w", crossSafe.Number+1, err)
-	}
-	derivedFrom, err := d.LocalDerivedFrom(chainID, candidate.ID())
-	if err != nil {
-		// TODO
-	}
-	if derivedFrom.Number > scopeDerivedFrom.Number {
-		return fmt.Errorf("next candidate block %s is derived from %s, outside of scope %s", candidate, derivedFrom, scopeDerivedFrom)
+		return fmt.Errorf("failed to open block %s: %w", candidate, err)
 	}
 
-	hazards, err := CrossSafeHazards(d, chainID, scopeDerivedFrom, candidate, execMsgs)
+	hazards, err := CrossSafeHazards(d, chainID, candidateScope.ID(), candidate, execMsgs)
 	if err != nil {
-		// TODO
+		return fmt.Errorf("failed to determine dependencies of cross-safe candidate %s: %w", candidate, err)
 	}
-	_ = hazards
-	//if err := HazardSafeFrontierChecks(d, scopeDerivedFrom, hazards); err != nil {
-	//	// TODO
-	//}
+	if err := HazardSafeFrontierChecks(d, candidateScope.ID(), hazards); err != nil {
+		return fmt.Errorf("failed to verify block %s in cross-safe frontier: %w", candidate, err)
+	}
 	//if err := HazardCycleChecks(d, candidate.Timestamp, hazards); err != nil {
 	// TODO
 	//}
