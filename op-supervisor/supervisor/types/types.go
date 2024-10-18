@@ -229,3 +229,15 @@ func (s BlockSeal) String() string {
 func (s BlockSeal) ID() eth.BlockID {
 	return eth.BlockID{Hash: s.Hash, Number: s.Number}
 }
+
+func (s BlockSeal) WithParent(parent eth.BlockID) eth.BlockRef {
+	if s.Number != parent.Number+1 {
+		panic(fmt.Errorf("invalid parent block %s to combine with %s", parent, s))
+	}
+	return eth.BlockRef{
+		Hash:       s.Hash,
+		Number:     s.Number,
+		ParentHash: parent.Hash,
+		Time:       s.Timestamp,
+	}
+}

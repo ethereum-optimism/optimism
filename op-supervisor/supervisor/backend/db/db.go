@@ -56,6 +56,8 @@ type LocalDerivedFromStorage interface {
 	FirstAfter(derivedFrom, derived eth.BlockID) (nextDerivedFrom, nextDerived types.BlockSeal, err error)
 	NextDerivedFrom(derivedFrom eth.BlockID) (nextDerivedFrom types.BlockSeal, err error)
 	NextDerived(derived eth.BlockID) (derivedFrom types.BlockSeal, nextDerived types.BlockSeal, err error)
+	PreviousDerivedFrom(derivedFrom eth.BlockID) (prevDerivedFrom types.BlockSeal, err error)
+	PreviousDerived(derived eth.BlockID) (prevDerived types.BlockSeal, err error)
 }
 
 var _ LocalDerivedFromStorage = (*fromda.DB)(nil)

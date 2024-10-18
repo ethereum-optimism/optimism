@@ -10,7 +10,7 @@ import (
 )
 
 type SafeFrontierCheckDeps interface {
-	CandidateCrossSafe(chain types.ChainID) (derivedFromScope, crossSafe types.BlockSeal, err error)
+	CandidateCrossSafe(chain types.ChainID) (derivedFromScope, crossSafe eth.BlockRef, err error)
 
 	CrossDerivedFrom(chainID types.ChainID, derived eth.BlockID) (derivedFrom eth.BlockID, err error)
 
@@ -39,7 +39,7 @@ func HazardSafeFrontierChecks(d SafeFrontierCheckDeps, inL1DerivedFrom eth.Block
 				if err != nil {
 					return fmt.Errorf("failed to determine cross-safe candidate block of hazard dependency %s (chain %s): %w", hazardBlock, hazardChainID, err)
 				}
-				if initSelf.Number == hazardBlock.Number && initSelf != hazardBlock {
+				if initSelf.Number == hazardBlock.Number && initSelf.ID() != hazardBlock.ID() {
 					return fmt.Errorf("expected block %s (chain %d) does not match candidate local-safe block %s: %w",
 						hazardBlock, hazardChainID, initSelf, types.ErrConflict)
 				}

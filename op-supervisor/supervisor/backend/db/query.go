@@ -181,18 +181,18 @@ func (db *ChainsDB) CrossDerivedFrom(chain types.ChainID, derived eth.BlockID) (
 // CandidateCrossSafe returns the candidate local-safe block that may become cross-safe.
 // This returns ErrFuture if no block is known yet.
 // Or ErrConflict if there is an inconsistency between the local-safe and cross-safe DB.
-func (db *ChainsDB) CandidateCrossSafe(chain types.ChainID) (derivedFromScope, crossSafe types.BlockSeal, err error) {
+func (db *ChainsDB) CandidateCrossSafe(chain types.ChainID) (derivedFromScope, crossSafe eth.BlockRef, err error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
 	xDB, ok := db.crossDBs[chain]
 	if !ok {
-		return types.BlockSeal{}, types.BlockSeal{}, types.ErrUnknownChain
+		return eth.BlockRef{}, eth.BlockRef{}, types.ErrUnknownChain
 	}
 
 	lDB, ok := db.localDBs[chain]
 	if !ok {
-		return types.BlockSeal{}, types.BlockSeal{}, types.ErrUnknownChain
+		return eth.BlockRef{}, eth.BlockRef{}, types.ErrUnknownChain
 	}
 
 	// Example:
@@ -210,9 +210,15 @@ func (db *ChainsDB) CandidateCrossSafe(chain types.ChainID) (derivedFromScope, c
 	if err != nil {
 		if errors.Is(err, types.ErrFuture) {
 			// If we do not have any cross-safe block yet, then return the first local-safe block.
-			return lDB.First()
+			derivedFrom, derived, err := lDB.First()
+			if err != nil {
+				return eth.BlockRef{}, eth.BlockRef{}, fmt.Errorf("failed to find first local-safe block: %w", err)
+			}
+			// First block has no parent
+			return derivedFrom.WithParent(eth.BlockID{}),
+				derived.WithParent(eth.BlockID{}), nil
 		}
-		return types.BlockSeal{}, types.BlockSeal{}, err
+		return eth.BlockRef{}, eth.BlockRef{}, err
 	}
 	// Find the local-safe block that comes right after the last seen cross-safe block.
 	// Just L2 block by block traversal, conditional on being local-safe.
@@ -223,23 +229,56 @@ func (db *ChainsDB) CandidateCrossSafe(chain types.ChainID) (derivedFromScope, c
 	// This method will keep returning the latest known scope that has been verified to be cross-safe.
 	candidateFrom, candidate, err := lDB.NextDerived(crossDerived.ID())
 	if err != nil {
-		return types.BlockSeal{}, types.BlockSeal{}, err
+		return eth.BlockRef{}, eth.BlockRef{}, err
 	}
+
+	candidateRef := candidate.WithParent(crossDerived.ID())
 	// Allow increment of DA by 1, if we know the floor (due to local safety) is 1 ahead of the current cross-safe L1 scope.
 	if candidateFrom.Number > crossDerivedFrom.Number+1 {
-		return types.BlockSeal{}, types.BlockSeal{},
+		return eth.BlockRef{}, eth.BlockRef{},
 			fmt.Errorf("candidate is from %s, while current scope is %s: %w",
 				candidateFrom, crossDerivedFrom, types.ErrOutOfScope)
 	}
-	return candidateFrom, candidate, nil
+	parentDerivedFrom, err := lDB.PreviousDerivedFrom(candidateFrom.ID())
+	if err != nil {
+		return eth.BlockRef{}, eth.BlockRef{}, fmt.Errorf("failed to find parent-block of derived-from %s: %w", candidateFrom, err)
+	}
+	candidateFromRef := candidateFrom.WithParent(parentDerivedFrom.ID())
+	return candidateFromRef, candidateRef, nil
 }
 
-func (db *ChainsDB) NextDerivedFrom(chain types.ChainID, derivedFrom eth.BlockID) (after types.BlockSeal, err error) {
+func (db *ChainsDB) PreviousDerived(chain types.ChainID, derived eth.BlockID) (prevDerived types.BlockSeal, err error) {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
 	lDB, ok := db.localDBs[chain]
 	if !ok {
 		return types.BlockSeal{}, types.ErrUnknownChain
 	}
-	return lDB.NextDerivedFrom(derivedFrom)
+	return lDB.PreviousDerived(derived)
+}
+
+func (db *ChainsDB) PreviousDerivedFrom(chain types.ChainID, derivedFrom eth.BlockID) (prevDerivedFrom types.BlockSeal, err error) {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
+	lDB, ok := db.localDBs[chain]
+	if !ok {
+		return types.BlockSeal{}, types.ErrUnknownChain
+	}
+	return lDB.PreviousDerivedFrom(derivedFrom)
+}
+
+func (db *ChainsDB) NextDerivedFrom(chain types.ChainID, derivedFrom eth.BlockID) (after eth.BlockRef, err error) {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
+	lDB, ok := db.localDBs[chain]
+	if !ok {
+		return eth.BlockRef{}, types.ErrUnknownChain
+	}
+	v, err := lDB.NextDerivedFrom(derivedFrom)
+	if err != nil {
+		return eth.BlockRef{}, err
+	}
+	return v.WithParent(derivedFrom), nil
 }
 
 // Safest returns the strongest safety level that can be guaranteed for the given log entry.

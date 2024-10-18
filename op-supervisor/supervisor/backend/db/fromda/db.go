@@ -80,12 +80,33 @@ func (db *DB) First() (derivedFrom types.BlockSeal, derived types.BlockSeal, err
 	return last.derivedFrom, last.derived, nil
 }
 
+func (db *DB) PreviousDerived(derived eth.BlockID) (prevDerived types.BlockSeal, err error) {
+	db.rwLock.RLock()
+	defer db.rwLock.RUnlock()
+	// get the last time this L2 block was seen.
+	selfIndex, self, err := db.lastDerivedFrom(derived.Number)
+	if err != nil {
+		return types.BlockSeal{}, fmt.Errorf("failed to find derived %d: %w", derived.Number, err)
+	}
+	if self.derived.ID() != derived {
+		return types.BlockSeal{}, fmt.Errorf("found %s, but expected %s: %w", self.derived, derived, types.ErrConflict)
+	}
+	if selfIndex == 0 { // genesis block has a zeroed block as parent block
+		return types.BlockSeal{}, nil
+	}
+	prev, err := db.readAt(selfIndex - 1)
+	if err != nil {
+		return types.BlockSeal{}, fmt.Errorf("cannot find previous derived before %s: %w", derived, err)
+	}
+	return prev.derived, nil
+}
+
 // Latest returns the last known values:
 // derivedFrom: the L1 block that the L2 block is safe for (not necessarily the first, multiple L2 blocks may be derived from the same L1 block).
 // derived: the L2 block that was derived (not necessarily the first, the L1 block may have been empty and repeated the last safe L2 block).
 func (db *DB) Latest() (derivedFrom types.BlockSeal, derived types.BlockSeal, err error) {
-	db.rwLock.Lock()
-	defer db.rwLock.Unlock()
+	db.rwLock.RLock()
+	defer db.rwLock.RUnlock()
 	return db.latest()
 }
 
@@ -122,7 +143,7 @@ func (db *DB) NextDerived(derived eth.BlockID) (derivedFrom types.BlockSeal, nex
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
 	// get the last time this L2 block was seen.
-	selfIndex, self, err := db.lastDerivedFrom(nextDerived.Number)
+	selfIndex, self, err := db.lastDerivedFrom(derived.Number)
 	if err != nil {
 		return types.BlockSeal{}, types.BlockSeal{}, fmt.Errorf("failed to find derived %d: %w", derived.Number, err)
 	}
@@ -150,6 +171,27 @@ func (db *DB) DerivedFrom(derived eth.BlockID) (derivedFrom types.BlockSeal, err
 			derived, link.derived, types.ErrConflict)
 	}
 	return link.derivedFrom, nil
+}
+
+func (db *DB) PreviousDerivedFrom(derivedFrom eth.BlockID) (prevDerivedFrom types.BlockSeal, err error) {
+	db.rwLock.RLock()
+	defer db.rwLock.RUnlock()
+	// get the last time this L1 block was seen.
+	selfIndex, self, err := db.lastDerivedFrom(derivedFrom.Number)
+	if err != nil {
+		return types.BlockSeal{}, fmt.Errorf("failed to find derived %d: %w", derivedFrom.Number, err)
+	}
+	if self.derivedFrom.ID() != derivedFrom {
+		return types.BlockSeal{}, fmt.Errorf("found %s, but expected %s: %w", self.derivedFrom, derivedFrom, types.ErrConflict)
+	}
+	if selfIndex == 0 { // genesis block has a zeroed block as parent block
+		return types.BlockSeal{}, nil
+	}
+	prev, err := db.readAt(selfIndex - 1)
+	if err != nil {
+		return types.BlockSeal{}, fmt.Errorf("cannot find previous derived before %s: %w", derivedFrom, err)
+	}
+	return prev.derivedFrom, nil
 }
 
 // NextDerivedFrom finds the next L1 block after derivedFrom
