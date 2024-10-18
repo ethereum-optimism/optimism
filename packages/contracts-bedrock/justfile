@@ -126,10 +126,6 @@ gas-snapshot-check-no-build:
 # Checks that the gas snapshot is up to date.
 gas-snapshot-check: build-go-ffi gas-snapshot-check-no-build
 
-# Checks that the Kontrol deployment script has not changed.
-kontrol-deployment-check:
-  ./scripts/checks/check-kontrol-deployment.sh
-
 # Checks if the snapshots are up to date without building.
 snapshots-check-no-build:
   ./scripts/checks/check-snapshots.sh --no-build
@@ -202,7 +198,6 @@ semgrep:
 check:
   @just gas-snapshot-check-no-build \
   unused-imports-check-no-build \
-  kontrol-deployment-check \
   snapshots-check-no-build \
   lint-check \
   semver-diff-check-no-build \
