@@ -186,10 +186,6 @@ devnet-up: pre-devnet ## Starts the local devnet
 	PYTHONPATH=./bedrock-devnet $(PYTHON) ./bedrock-devnet/main.py --monorepo-dir=.
 .PHONY: devnet-up
 
-devnet-test: pre-devnet ## Runs tests on the local devnet
-	make -C op-e2e test-devnet
-.PHONY: devnet-test
-
 devnet-down: ## Stops the local devnet
 	@(cd ./ops-bedrock && GENESIS_TIMESTAMP=$(shell date +%s) docker compose stop)
 .PHONY: devnet-down
