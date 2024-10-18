@@ -253,6 +253,9 @@ func (s *L2Batcher) ActAddBlockByNumber(t Testing, blockNumber int64, opts ...Bl
 	require.NoError(t, err)
 	require.NotNil(t, block)
 
+	// cache block hash before we modify the block
+	blockHash := block.Hash()
+
 	// Apply modifications to the block
 	for _, f := range opts {
 		if f != nil {
@@ -262,7 +265,7 @@ func (s *L2Batcher) ActAddBlockByNumber(t Testing, blockNumber int64, opts ...Bl
 
 	_, err = s.L2ChannelOut.AddBlock(s.rollupCfg, block)
 	require.NoError(t, err)
-	ref, err := s.engCl.L2BlockRefByHash(t.Ctx(), block.Hash())
+	ref, err := s.engCl.L2BlockRefByHash(t.Ctx(), blockHash)
 	require.NoError(t, err, "failed to get L2BlockRef")
 	s.L2BufferedBlock = ref
 }
