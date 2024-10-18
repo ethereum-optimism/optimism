@@ -7,7 +7,7 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { IERC20Solady } from "src/vendor/interfaces/IERC20Solady.sol";
+import { IERC20Solady as IERC20 } from "src/vendor/interfaces/IERC20Solady.sol";
 
 import { Initializable } from "@openzeppelin/contracts-v5/proxy/utils/Initializable.sol";
 import { IERC165 } from "@openzeppelin/contracts-v5/utils/introspection/IERC165.sol";
@@ -144,12 +144,12 @@ contract OptimismSuperchainERC20Test is Test {
         vm.assume(_to != ZERO_ADDRESS);
 
         // Get the total supply and balance of `_to` before the mint to compare later on the assertions
-        uint256 _totalSupplyBefore = IERC20Solady(address(optimismSuperchainERC20)).totalSupply();
-        uint256 _toBalanceBefore = IERC20Solady(address(optimismSuperchainERC20)).balanceOf(_to);
+        uint256 _totalSupplyBefore = IERC20(address(optimismSuperchainERC20)).totalSupply();
+        uint256 _toBalanceBefore = IERC20(address(optimismSuperchainERC20)).balanceOf(_to);
 
         // Look for the emit of the `Transfer` event
         vm.expectEmit(address(optimismSuperchainERC20));
-        emit IERC20Solady.Transfer(ZERO_ADDRESS, _to, _amount);
+        emit IERC20.Transfer(ZERO_ADDRESS, _to, _amount);
 
         // Look for the emit of the `Mint` event
         vm.expectEmit(address(optimismSuperchainERC20));
@@ -202,7 +202,7 @@ contract OptimismSuperchainERC20Test is Test {
 
         // Look for the emit of the `Transfer` event
         vm.expectEmit(address(optimismSuperchainERC20));
-        emit IERC20Solady.Transfer(_from, ZERO_ADDRESS, _amount);
+        emit IERC20.Transfer(_from, ZERO_ADDRESS, _amount);
 
         // Look for the emit of the `Burn` event
         vm.expectEmit(address(optimismSuperchainERC20));
@@ -302,7 +302,7 @@ contract OptimismSuperchainERC20Test is Test {
         deal(address(optimismSuperchainERC20), _owner, _amount);
 
         vm.expectEmit(address(optimismSuperchainERC20));
-        emit IERC20Solady.Transfer(_owner, _recipient, _amount);
+        emit IERC20.Transfer(_owner, _recipient, _amount);
 
         // Act
         vm.prank(Preinstalls.Permit2);

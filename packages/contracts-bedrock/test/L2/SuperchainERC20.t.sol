@@ -6,7 +6,7 @@ import { Test } from "forge-std/Test.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
-import { IERC20Solady } from "src/vendor/interfaces/IERC20Solady.sol";
+import { IERC20Solady as IERC20 } from "src/vendor/interfaces/IERC20Solady.sol";
 
 // Target contract
 import { SuperchainERC20 } from "src/L2/SuperchainERC20.sol";
@@ -58,7 +58,7 @@ contract SuperchainERC20Test is Test {
 
         // Look for the emit of the `Transfer` event
         vm.expectEmit(address(superchainERC20));
-        emit IERC20Solady.Transfer(ZERO_ADDRESS, _to, _amount);
+        emit IERC20.Transfer(ZERO_ADDRESS, _to, _amount);
 
         // Look for the emit of the `CrosschainMinted` event
         vm.expectEmit(address(superchainERC20));
@@ -101,7 +101,7 @@ contract SuperchainERC20Test is Test {
 
         // Look for the emit of the `Transfer` event
         vm.expectEmit(address(superchainERC20));
-        emit IERC20Solady.Transfer(_from, ZERO_ADDRESS, _amount);
+        emit IERC20.Transfer(_from, ZERO_ADDRESS, _amount);
 
         // Look for the emit of the `CrosschainBurnt` event
         vm.expectEmit(address(superchainERC20));
