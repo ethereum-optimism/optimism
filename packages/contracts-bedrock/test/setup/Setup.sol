@@ -43,7 +43,7 @@ import { ISequencerFeeVault } from "src/L2/interfaces/ISequencerFeeVault.sol";
 import { IL1FeeVault } from "src/L2/interfaces/IL1FeeVault.sol";
 import { IGasPriceOracle } from "src/L2/interfaces/IGasPriceOracle.sol";
 import { IL1Block } from "src/L2/interfaces/IL1Block.sol";
-import { ISuperchainWETHERC20 } from "src/L2/interfaces/ISuperchainWETH.sol";
+import { ISuperchainWETH } from "src/L2/interfaces/ISuperchainWETH.sol";
 import { IETHLiquidity } from "src/L2/interfaces/IETHLiquidity.sol";
 import { IWETH } from "src/universal/interfaces/IWETH.sol";
 import { IGovernanceToken } from "src/governance/interfaces/IGovernanceToken.sol";
@@ -106,7 +106,7 @@ contract Setup {
     IGovernanceToken governanceToken = IGovernanceToken(Predeploys.GOVERNANCE_TOKEN);
     ILegacyMessagePasser legacyMessagePasser = ILegacyMessagePasser(Predeploys.LEGACY_MESSAGE_PASSER);
     IWETH weth = IWETH(payable(Predeploys.WETH));
-    ISuperchainWETHERC20 superchainWeth = ISuperchainWETHERC20(payable(Predeploys.SUPERCHAIN_WETH));
+    ISuperchainWETH superchainWeth = ISuperchainWETH(payable(Predeploys.SUPERCHAIN_WETH));
     IETHLiquidity ethLiquidity = IETHLiquidity(Predeploys.ETH_LIQUIDITY);
     ISuperchainTokenBridge superchainTokenBridge = ISuperchainTokenBridge(Predeploys.SUPERCHAIN_TOKEN_BRIDGE);
     IOptimismSuperchainERC20Factory l2OptimismSuperchainERC20Factory =
