@@ -92,9 +92,12 @@ func SuperchainFor(chainID uint64) (*superchain.Superchain, error) {
 
 func ManagerImplementationAddrFor(chainID uint64) (common.Address, error) {
 	switch chainID {
+	case 1:
+		// Generated using the bootstrap command on 10/18/2024.
+		return common.HexToAddress("0x18cec91779995ad14c880e4095456b9147160790"), nil
 	case 11155111:
-		// Generated using the bootstrap command on 10/02/2024.
-		return common.HexToAddress("0x0f29118caed0f72873701bcc079398c594b6f8e4"), nil
+		// Generated using the bootstrap command on 10/18/2024.
+		return common.HexToAddress("0xf564eea7960ea244bfebcbbb17858748606147bf"), nil
 	default:
 		return common.Address{}, fmt.Errorf("unsupported chain ID: %d", chainID)
 	}
