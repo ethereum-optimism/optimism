@@ -261,6 +261,13 @@ func (su *SupervisorBackend) AddL2RPC(ctx context.Context, rpc string) error {
 	return su.attachRPC(ctx, rpc)
 }
 
+// Internal methods, for processors
+// ----------------------------
+
+func (su *SupervisorBackend) DependencySet() depset.DependencySet {
+	return su.depSet
+}
+
 // Query methods
 // ----------------------------
 
