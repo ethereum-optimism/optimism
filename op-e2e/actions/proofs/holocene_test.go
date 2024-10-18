@@ -37,6 +37,13 @@ var blockFudger = func(block *types.Block) *types.Block {
 	return block
 }
 
+// blockSpudger invalidates the parentHash of the block
+var blockSpudger = func(block *types.Block) *types.Block {
+	headerCopy := block.Header()
+	headerCopy.ParentHash = common.MaxHash
+	return block.WithSeal(headerCopy)
+}
+
 // orderings is a list of orderings which each specify
 // an ordered list of blocks (by number) to add to a single channel
 // and an ordered list of frames to read from the channel and submit
@@ -55,8 +62,10 @@ var orderings = []ordering{
 	{blocks: []uint{1, 2, 3}, frames: []uint{0, 1, 0, 2}, safeHeadPreHolocene: 3, safeHeadHolocene: 0},    // duplicate frames
 	{blocks: []uint{1, 2, 3}, frames: []uint{0, 1, 2}, safeHeadPreHolocene: 0, safeHeadHolocene: 1,
 		isSpanBatch: true, blockModifiers: []actionsHelpers.BlockModifier{nil, blockFudger, nil}}, // partially invalid span batch (invalid payload)
-	// {blocks: []uint{1, 2, 3}, frames: []uint{0, 1, 2}, safeHeadPreHolocene: 0, safeHeadHolocene: 1,
-	// 	isSpanBatch: true, blockModifiers: []actionsHelpers.BlockModifier{nil, blockFudger, nil}}, // partially invalid span batch (invalid batch?)
+	{blocks: []uint{1, 2, 3}, frames: []uint{0, 1, 2}, safeHeadPreHolocene: 0, safeHeadHolocene: 1,
+		isSpanBatch: false, blockModifiers: []actionsHelpers.BlockModifier{nil, blockSpudger, nil}}, // partially invalid span batch (invalid batch?)
+	{blocks: []uint{1, 2, 3}, frames: []uint{0, 1, 2}, safeHeadPreHolocene: 0, safeHeadHolocene: 1,
+		isSpanBatch: false, blockModifiers: []actionsHelpers.BlockModifier{nil, blockSpudger, nil}}, // partially invalid span batch (invalid batch?)
 }
 
 func max(input []uint) uint {
