@@ -32,24 +32,27 @@ func TestBackendLifetime(t *testing.T) {
 	dataDir := t.TempDir()
 	chainA := types.ChainIDFromUInt64(900)
 	chainB := types.ChainIDFromUInt64(901)
-	cfg := &config.Config{
-		Version:       "test",
-		LogConfig:     oplog.CLIConfig{},
-		MetricsConfig: opmetrics.CLIConfig{},
-		PprofConfig:   oppprof.CLIConfig{},
-		RPC:           oprpc.CLIConfig{},
-		DependencySetSource: &depset.StaticConfigDependencySet{
-			Dependencies: map[types.ChainID]*depset.StaticConfigDependency{
-				chainA: {
-					ActivationTime: 42,
-					HistoryMinTime: 100,
-				},
-				chainB: {
-					ActivationTime: 30,
-					HistoryMinTime: 20,
-				},
+	depSet, err := depset.NewStaticConfigDependencySet(
+		map[types.ChainID]*depset.StaticConfigDependency{
+			chainA: {
+				ChainIndex:     900,
+				ActivationTime: 42,
+				HistoryMinTime: 100,
 			},
-		},
+			chainB: {
+				ChainIndex:     901,
+				ActivationTime: 30,
+				HistoryMinTime: 20,
+			},
+		})
+	require.NoError(t, err)
+	cfg := &config.Config{
+		Version:               "test",
+		LogConfig:             oplog.CLIConfig{},
+		MetricsConfig:         opmetrics.CLIConfig{},
+		PprofConfig:           oppprof.CLIConfig{},
+		RPC:                   oprpc.CLIConfig{},
+		DependencySetSource:   depSet,
 		SynchronousProcessors: true,
 		MockRun:               false,
 		L2RPCs:                nil,

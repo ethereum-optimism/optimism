@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
+
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
@@ -14,15 +16,18 @@ type UnsafeFrontierCheckDeps interface {
 
 	IsCrossUnsafe(chainID types.ChainID, block eth.BlockID) error
 	IsLocalUnsafe(chainID types.ChainID, block eth.BlockID) error
+
+	DependencySet() depset.DependencySet
 }
 
 // HazardUnsafeFrontierChecks verifies all the hazard blocks are either:
 //   - already cross-unsafe.
 //   - the first (if not first: local blocks to verify before proceeding)
 //     local-unsafe block, after the cross-unsafe block.
-func HazardUnsafeFrontierChecks(d UnsafeFrontierCheckDeps, inL1DerivedFrom eth.BlockID, hazards map[types.ChainIndex]types.BlockSeal) error {
+func HazardUnsafeFrontierChecks(d UnsafeFrontierCheckDeps, hazards map[types.ChainIndex]types.BlockSeal) error {
+	depSet := d.DependencySet()
 	for hazardChainIndex, hazardBlock := range hazards {
-		hazardChainID, err := types.ChainIDFromIndex(hazardChainIndex)
+		hazardChainID, err := depSet.ChainIDFromIndex(hazardChainIndex)
 		if err != nil {
 			return err
 		}

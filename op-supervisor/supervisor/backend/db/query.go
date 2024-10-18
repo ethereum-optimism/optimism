@@ -142,7 +142,7 @@ func (db *ChainsDB) Check(chain types.ChainID, blockNum uint64, logIdx uint32, l
 
 // OpenBlock returns the Executing Messages for the block at the given number on the given chain.
 // it routes the request to the appropriate logDB.
-func (db *ChainsDB) OpenBlock(chain types.ChainID, blockNum uint64) (eth.BlockID, eth.BlockID, []types.ExecutingMessage, error) {
+func (db *ChainsDB) OpenBlock(chain types.ChainID, blockNum uint64) (eth.BlockID, eth.BlockID, []*types.ExecutingMessage, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
@@ -155,26 +155,26 @@ func (db *ChainsDB) OpenBlock(chain types.ChainID, blockNum uint64) (eth.BlockID
 
 // LocalDerivedFrom returns the block that the given block was derived from, if it exists in the local derived-from storage.
 // it routes the request to the appropriate localDB.
-func (db *ChainsDB) LocalDerivedFrom(chain types.ChainID, derived eth.BlockID) (derivedFrom eth.BlockID, err error) {
+func (db *ChainsDB) LocalDerivedFrom(chain types.ChainID, derived eth.BlockID) (derivedFrom types.BlockSeal, err error) {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
 	lDB, ok := db.localDBs[chain]
 	if !ok {
-		return eth.BlockID{}, ErrUnknownChain
+		return types.BlockSeal{}, ErrUnknownChain
 	}
 	return lDB.DerivedFrom(derived)
 }
 
 // CrossDerivedFrom returns the block that the given block was derived from, if it exists in the cross derived-from storage.
 // it routes the request to the appropriate crossDB.
-func (db *ChainsDB) CrossDerivedFrom(chain types.ChainID, derived eth.BlockID) (derivedFrom eth.BlockID, err error) {
+func (db *ChainsDB) CrossDerivedFrom(chain types.ChainID, derived eth.BlockID) (derivedFrom types.BlockSeal, err error) {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
 	xDB, ok := db.crossDBs[chain]
 	if !ok {
-		return eth.BlockID{}, ErrUnknownChain
+		return types.BlockSeal{}, ErrUnknownChain
 	}
 	return xDB.DerivedFrom(derived)
 }

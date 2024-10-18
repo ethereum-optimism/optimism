@@ -9,7 +9,10 @@ import (
 type CrossUnsafeDeps interface {
 	CrossUnsafe(chainID types.ChainID) (types.BlockSeal, error)
 
-	//CycleCheckDeps
+	UnsafeStartDeps
+	UnsafeFrontierCheckDeps
+
+	OpenBlock(chainID types.ChainID, blockNum uint64) (seal types.BlockSeal, logCount uint32, execMsgs []*types.ExecutingMessage, err error)
 }
 
 func CrossUnsafeUpdate(chainID types.ChainID, d CrossUnsafeDeps) error {

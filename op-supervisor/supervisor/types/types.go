@@ -14,25 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	chain_index_mapping "github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types/chain-index-mapping"
 )
-
-var chainIndexMap *chain_index_mapping.Map
-
-// InitializeChainIndexMap initializes the global chain index map with the provided chain IDs.
-func InitializeChainIndexMap(chainIDs []*big.Int) {
-	chainIndexMap = chain_index_mapping.NewFromIDs(chainIDs)
-}
-
-// ChainIndexFromID converts a ChainID to a ChainIndex.
-func ChainIndexFromID(id ChainID) (ChainIndex, error) {
-	return chainIndexMap.GetIndex(id)
-}
-
-// ChainIDFromIndex converts a ChainIndex to a ChainID.
-func ChainIDFromIndex(index ChainIndex) (ChainID, error) {
-	return chainIndexMap.GetID(index)
-}
 
 // ChainIndex represents the lifetime of a chain in a dependency set.
 type ChainIndex uint32

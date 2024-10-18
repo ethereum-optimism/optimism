@@ -2,8 +2,14 @@ package depset
 
 import (
 	"context"
+	"errors"
 
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
+)
+
+var (
+	ErrChainIndexNotFound = errors.New("no index found for chain ID")
+	ErrChainIDNotFound    = errors.New("no chain ID found for index")
 )
 
 type DependencySetSource interface {
@@ -32,4 +38,10 @@ type DependencySet interface {
 	// HasChain determines if a chain is being tracked for interop purposes.
 	// See CanExecuteAt and CanInitiateAt to check if a chain may message at a given time.
 	HasChain(chainID types.ChainID) bool
+
+	// ChainIndexFromID converts a ChainID to a ChainIndex.
+	ChainIndexFromID(id types.ChainID) (types.ChainIndex, error)
+
+	// ChainIDFromIndex converts a ChainIndex to a ChainID.
+	ChainIDFromIndex(index types.ChainIndex) (types.ChainID, error)
 }
