@@ -24,6 +24,8 @@ var ErrUnsupportedArtifactsScheme = errors.New("unsupported artifacts URL scheme
 
 type DownloadProgressor func(current, total int64)
 
+func NoopDownloadProgressor(current, total int64) {}
+
 type CleanupFunc func() error
 
 var noopCleanup = func() error { return nil }
