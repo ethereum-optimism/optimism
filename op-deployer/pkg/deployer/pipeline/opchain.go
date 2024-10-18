@@ -3,6 +3,7 @@ package pipeline
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
@@ -42,7 +43,7 @@ func DeployOPChainLiveStrategy(ctx context.Context, env *Env, bundle ArtifactsBu
 	}
 
 	st.Chains = append(st.Chains, makeChainState(chainID, dco))
-
+	opcmProxyAddress := st.ImplementationsDeployment.OpcmProxyAddress
 	err = conditionallySetImplementationAddresses(ctx, env.L1Client, intent, st, dco, opcmProxyAddress)
 	if err != nil {
 		return fmt.Errorf("failed to set implementation addresses: %w", err)
@@ -53,7 +54,7 @@ func DeployOPChainLiveStrategy(ctx context.Context, env *Env, bundle ArtifactsBu
 
 // Only try to set the implementation addresses if we reused existing implementations from a release tag.
 // The reason why these addresses could be empty is because only DeployOPChain.s.sol is invoked as part of the pipeline.
-func conditionallySetImplementationAddresses(ctx context.Context, client *ethclient.Client, intent *state2.Intent, st *state.State, dco opcm.DeployOPChainOutput, opcmProxyAddress common.Address) error {
+func conditionallySetImplementationAddresses(ctx context.Context, client *ethclient.Client, intent *state.Intent, st *state.State, dco opcm.DeployOPChainOutput, opcmProxyAddress common.Address) error {
 	if !intent.L1ContractsLocator.IsTag() {
 		return nil
 	}
@@ -113,6 +114,29 @@ func conditionallySetImplementationAddresses(ctx context.Context, client *ethcli
 	}
 
 	return nil
+}
+
+func setMipsSingletonAddress(ctx context.Context, client *ethclient.Client, l1ArtifactsLocator *opcm.ArtifactsLocator, errCh chan error, opcmProxyAddress common.Address, singletonAddress *common.Address) {
+	if !l1ArtifactsLocator.IsTag() {
+		errCh <- errors.New("L1 contracts locator is not a tag, cannot set MIPS singleton address")
+		return
+	}
+	opcmContract := opcm.NewContract(opcmProxyAddress, client)
+	mipsSingletonAddress, err := opcmContract.GetOPCMImplementationAddress(ctx, l1ArtifactsLocator.Tag, "MIPS")
+
+	if err == nil {
+		*singletonAddress = mipsSingletonAddress
+	}
+	errCh <- err
+}
+
+func setPreimageOracleAddress(ctx context.Context, client *ethclient.Client, errCh chan error, mipsSingletonAddress common.Address, preimageOracleAddress *common.Address) {
+	opcmContract := opcm.NewContract(mipsSingletonAddress, client)
+	preimageOracle, err := opcmContract.GenericAddressGetter(ctx, "oracle")
+	if err == nil {
+		*preimageOracleAddress = preimageOracle
+	}
+	errCh <- err
 }
 
 func DeployOPChainGenesisStrategy(env *Env, intent *state.Intent, st *state.State, chainID common.Hash) error {
@@ -191,14 +215,14 @@ func makeChainState(chainID common.Hash, dco opcm.DeployOPChainOutput) *state.Ch
 	}
 }
 
-func setRDPImplementationAddress(ctx context.Context, client *ethclient.Client, errCh chan error, addressManager common.Address, implAddress *common.Address) {
+func setRDPImplementationAddress(ctx context.Context, client *ethclient.Client, errCh chan error, addressManager common.Address, implAddress *common.Address, getNameArg string) {
 	if *implAddress != (common.Address{}) {
 		errCh <- nil
 		return
 	}
 
-	contract := opcm.NewContract(addressManager, client)
-	address, err := contract.GetAddressByName(ctx, "OVM_L1CrossDomainMessenger")
+	addressManagerContract := opcm.NewContract(addressManager, client)
+	address, err := addressManagerContract.GetAddressByNameViaAddressManager(ctx, getNameArg)
 	if err == nil {
 		*implAddress = address
 	}
