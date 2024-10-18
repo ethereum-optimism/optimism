@@ -31,7 +31,6 @@ type OPCMConfig struct {
 	PrivateKey       string
 	Logger           log.Logger
 	ArtifactsLocator *opcm.ArtifactsLocator
-	ContractsRelease string
 
 	privateKeyECDSA *ecdsa.PrivateKey
 }
@@ -59,10 +58,6 @@ func (c *OPCMConfig) Check() error {
 		return fmt.Errorf("artifacts locator must be specified")
 	}
 
-	if c.ContractsRelease == "" {
-		return fmt.Errorf("contracts release must be specified")
-	}
-
 	return nil
 }
 
@@ -73,12 +68,11 @@ func OPCMCLI(cliCtx *cli.Context) error {
 
 	l1RPCUrl := cliCtx.String(deployer.L1RPCURLFlagName)
 	privateKey := cliCtx.String(deployer.PrivateKeyFlagName)
-	artifactsURLStr := cliCtx.String(ArtifactsURLFlagName)
+	artifactsURLStr := cliCtx.String(ArtifactsLocatorFlagName)
 	artifactsLocator := new(opcm.ArtifactsLocator)
 	if err := artifactsLocator.UnmarshalText([]byte(artifactsURLStr)); err != nil {
 		return fmt.Errorf("failed to parse artifacts URL: %w", err)
 	}
-	contractsRelease := cliCtx.String(ContractsReleaseFlagName)
 
 	ctx := ctxinterrupt.WithCancelOnInterrupt(cliCtx.Context)
 
@@ -87,7 +81,6 @@ func OPCMCLI(cliCtx *cli.Context) error {
 		PrivateKey:       privateKey,
 		Logger:           l,
 		ArtifactsLocator: artifactsLocator,
-		ContractsRelease: contractsRelease,
 	})
 }
 
@@ -138,7 +131,14 @@ func OPCM(ctx context.Context, cfg OPCMConfig) error {
 	signer := opcrypto.SignerFnFromBind(opcrypto.PrivateKeySignerFn(cfg.privateKeyECDSA, chainID))
 	chainDeployer := crypto.PubkeyToAddress(cfg.privateKeyECDSA.PublicKey)
 
-	lgr.Info("deploying OPCM", "release", cfg.ContractsRelease)
+	var release string
+	if cfg.ArtifactsLocator.IsTag() {
+		release = cfg.ArtifactsLocator.Tag
+	} else {
+		release = "dev"
+	}
+
+	lgr.Info("deploying OPCM", "release", release)
 
 	var dio opcm.DeployImplementationsOutput
 	err = pipeline.CallScriptBroadcast(
@@ -181,7 +181,7 @@ func OPCM(ctx context.Context, cfg OPCMConfig) error {
 						ChallengePeriodSeconds:          big.NewInt(86400),
 						ProofMaturityDelaySeconds:       big.NewInt(604800),
 						DisputeGameFinalityDelaySeconds: big.NewInt(302400),
-						Release:                         cfg.ContractsRelease,
+						Release:                         release,
 						SuperchainConfigProxy:           superchainConfigAddr,
 						ProtocolVersionsProxy:           protocolVersionsAddr,
 						OpcmProxyOwner:                  opcmProxyOwnerAddr,
