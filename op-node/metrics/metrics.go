@@ -430,8 +430,8 @@ func NewMetrics(procName string) *Metrics {
 		AltDAMetrics: altda.MakeMetrics(ns, factory),
 		BlockBuildingHealthChecks: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: Namespace,
-			Name:      "block_building_health_checks_total",
-			Help:      "Total number of block building health checks performed",
+			Name:      "block_building_health_checks",
+			Help:      "Number of healthy/unhealthy block building for each node",
 		}, []string{"status"}),
 
 		registry: registry,
