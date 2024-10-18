@@ -30,6 +30,9 @@ func WithScript[B any](h *Host, name string, contract string) (b *B, cleanup fun
 	deployNonce := h.state.GetNonce(deployer)
 	// compute address of script contract to be deployed
 	addr := crypto.CreateAddress(deployer, deployNonce)
+	h.Label(addr, contract)
+	h.AllowCheatcodes(addr)      // before constructor execution, give our script cheatcode access
+	h.state.MakePersistent(addr) // scripts are persistent across forks
 
 	// init bindings (with ABI check)
 	bindings, err := MakeBindings[B](h.ScriptBackendFn(addr), func(abiDef string) bool {
@@ -51,7 +54,6 @@ func WithScript[B any](h *Host, name string, contract string) (b *B, cleanup fun
 		return nil, nil, fmt.Errorf("deployed to unexpected address %s, expected %s", deployedAddr, addr)
 	}
 	h.RememberArtifact(addr, artifact, contract)
-	h.Label(addr, contract)
 	return bindings, func() {
 		h.Wipe(addr)
 	}, nil
