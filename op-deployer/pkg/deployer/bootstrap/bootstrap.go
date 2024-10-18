@@ -159,14 +159,14 @@ func OPCM(ctx context.Context, cfg OPCMConfig) error {
 		return fmt.Errorf("failed to create script host: %w", err)
 	}
 
-    var release string
+	var release string
 	if cfg.ArtifactsLocator.IsTag() {
 		release = cfg.ArtifactsLocator.Tag
 	} else {
 		release = "dev"
 	}
 
-	lgr.Info("deploying OPCM", "release", cfg.ContractsRelease)
+	lgr.Info("deploying OPCM", "release", release)
 
 	// We need to etch the Superchain addresses so that they have nonzero code
 	// and the checks in the OPCM constructor pass.

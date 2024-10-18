@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
