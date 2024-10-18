@@ -239,7 +239,7 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "wad",
+        "name": "_amount",
         "type": "uint256"
       }
     ],

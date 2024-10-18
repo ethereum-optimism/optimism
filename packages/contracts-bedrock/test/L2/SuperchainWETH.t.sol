@@ -323,4 +323,60 @@ contract SuperchainWETH_Test is CommonTest {
         assertEq(_from.balance, 0);
         assertEq(superchainWeth.balanceOf(_from), _amount);
     }
+
+    /// @notice Test that the internal mint function reverts to protect against accidentally changing the visibility.
+    function testFuzz_calling_internal_mint_function_reverts(address _caller, address _to, uint256 _amount) public {
+        // Arrange
+        bytes memory _calldata = abi.encodeWithSignature("_mint(address,uint256)", _to, _amount);
+        vm.expectRevert();
+
+        // Act
+        vm.prank(_caller);
+        (bool success,) = address(superchainWeth).call(_calldata);
+
+        // Assert
+        assertFalse(success);
+    }
+
+    /// @notice Test that the mint function reverts to protect against accidentally changing the visibility.
+    function testFuzz_calling_mint_function_reverts(address _caller, address _to, uint256 _amount) public {
+        // Arrange
+        bytes memory _calldata = abi.encodeWithSignature("mint(address,uint256)", _to, _amount);
+        vm.expectRevert();
+
+        // Act
+        vm.prank(_caller);
+        (bool success,) = address(superchainWeth).call(_calldata);
+
+        // Assert
+        assertFalse(success);
+    }
+
+    /// @notice Test that the internal burn function reverts to protect against accidentally changing the visibility.
+    function testFuzz_calling_internal_burn_function_reverts(address _caller, address _from, uint256 _amount) public {
+        // Arrange
+        bytes memory _calldata = abi.encodeWithSignature("_burn(address,uint256)", _from, _amount);
+        vm.expectRevert();
+
+        // Act
+        vm.prank(_caller);
+        (bool success,) = address(superchainWeth).call(_calldata);
+
+        // Assert
+        assertFalse(success);
+    }
+
+    /// @notice Test that the burn function reverts to protect against accidentally changing the visibility.
+    function testFuzz_calling_burn_function_reverts(address _caller, address _from, uint256 _amount) public {
+        // Arrange
+        bytes memory _calldata = abi.encodeWithSignature("burn(address,uint256)", _from, _amount);
+        vm.expectRevert();
+
+        // Act
+        vm.prank(_caller);
+        (bool success,) = address(superchainWeth).call(_calldata);
+
+        // Assert
+        assertFalse(success);
+    }
 }

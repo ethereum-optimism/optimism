@@ -21,12 +21,6 @@ import { Unauthorized, NotCustomGasToken } from "src/libraries/errors/CommonErro
 ///         within the superchain. SuperchainWETH can be converted into native ETH on chains that
 ///         do not use a custom gas token.
 contract SuperchainWETH is WETH98, ICrosschainERC20, ISemver {
-    /// @notice A modifier that only allows the SuperchainTokenBridge to call
-    modifier onlySuperchainTokenBridge() {
-        if (msg.sender != Predeploys.SUPERCHAIN_TOKEN_BRIDGE) revert Unauthorized();
-        _;
-    }
-
     /// @notice Semantic version.
     /// @custom:semver 1.0.0-beta.7
     string public constant version = "1.0.0-beta.7";
@@ -38,32 +32,33 @@ contract SuperchainWETH is WETH98, ICrosschainERC20, ISemver {
     }
 
     /// @inheritdoc WETH98
-    function withdraw(uint256 wad) public override {
+    function withdraw(uint256 _amount) public override {
         if (IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).isCustomGasToken()) revert NotCustomGasToken();
-        super.withdraw(wad);
+        super.withdraw(_amount);
     }
 
     /// @notice Mints WETH to an address.
-    /// @param _guy The address to mint WETH to.
-    /// @param _wad The amount of WETH to mint.
-    function _mint(address _guy, uint256 _wad) internal {
-        balanceOf[_guy] += _wad;
-        emit Transfer(address(0), _guy, _wad);
+    /// @param _to The address to mint WETH to.
+    /// @param _amount The amount of WETH to mint.
+    function _mint(address _to, uint256 _amount) internal {
+        balanceOf[_to] += _amount;
+        emit Transfer(address(0), _to, _amount);
     }
 
     /// @notice Burns WETH from an address.
-    /// @param _guy The address to burn WETH from.
-    /// @param _wad The amount of WETH to burn.
-    function _burn(address _guy, uint256 _wad) internal {
-        require(balanceOf[_guy] >= _wad);
-        balanceOf[_guy] -= _wad;
-        emit Transfer(_guy, address(0), _wad);
+    /// @param _from The address to burn WETH from.
+    /// @param _amount The amount of WETH to burn.
+    function _burn(address _from, uint256 _amount) internal {
+        balanceOf[_from] -= _amount;
+        emit Transfer(_from, address(0), _amount);
     }
 
     /// @notice Allows the SuperchainTokenBridge to mint tokens.
     /// @param _to     Address to mint tokens to.
     /// @param _amount Amount of tokens to mint.
-    function crosschainMint(address _to, uint256 _amount) external onlySuperchainTokenBridge {
+    function crosschainMint(address _to, uint256 _amount) external {
+        if (msg.sender != Predeploys.SUPERCHAIN_TOKEN_BRIDGE) revert Unauthorized();
+
         _mint(_to, _amount);
 
         // Mint from ETHLiquidity contract.
@@ -77,7 +72,9 @@ contract SuperchainWETH is WETH98, ICrosschainERC20, ISemver {
     /// @notice Allows the SuperchainTokenBridge to burn tokens.
     /// @param _from   Address to burn tokens from.
     /// @param _amount Amount of tokens to burn.
-    function crosschainBurn(address _from, uint256 _amount) external onlySuperchainTokenBridge {
+    function crosschainBurn(address _from, uint256 _amount) external {
+        if (msg.sender != Predeploys.SUPERCHAIN_TOKEN_BRIDGE) revert Unauthorized();
+
         _burn(_from, _amount);
 
         // Burn to ETHLiquidity contract.
