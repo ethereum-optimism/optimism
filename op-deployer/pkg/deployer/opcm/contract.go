@@ -50,9 +50,10 @@ func (c *Contract) GenericAddressGetter(ctx context.Context, functionName string
 
 // GetImplementation retrieves the Implementation struct for a given release and contract name.
 func (c *Contract) GetOPCMImplementationAddress(ctx context.Context, release, contractName string) (common.Address, error) {
+	methodName := "implementations"
 	method := abi.NewMethod(
-		"implementations",
-		"implementations",
+		methodName,
+		methodName,
 		abi.Function,
 		"view",
 		true,
@@ -67,7 +68,6 @@ func (c *Contract) GetOPCMImplementationAddress(ctx context.Context, release, co
 		},
 	)
 
-	// Pack the input parameters
 	calldata, err := method.Inputs.Pack(release, contractName)
 	if err != nil {
 		return common.Address{}, fmt.Errorf("failed to pack inputs: %w", err)
