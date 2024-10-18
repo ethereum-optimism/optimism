@@ -1019,7 +1019,7 @@ jobs:
               echo "Unknown prestate version <<parameters.version>>"
               exit 1
             fi
-            echo 'export EXPECTED_PRESTATE_HASH="$prestate_hash"' >> $BASH_ENV
+            echo "export EXPECTED_PRESTATE_HASH=$prestate_hash" >> $BASH_ENV
       - run:
           name: Switch to tag
           command: |
