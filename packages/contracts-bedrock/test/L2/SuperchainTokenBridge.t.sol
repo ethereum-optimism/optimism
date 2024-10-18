@@ -139,6 +139,7 @@ contract SuperchainTokenBridgeTest is Bridge_Initializer {
     function testFuzz_relayERC20_notCrossDomainSender_reverts(
         address _token,
         address _crossDomainMessageSender,
+        uint256 _source,
         address _to,
         uint256 _amount
     )
@@ -146,11 +147,11 @@ contract SuperchainTokenBridgeTest is Bridge_Initializer {
     {
         vm.assume(_crossDomainMessageSender != address(superchainTokenBridge));
 
-        // Mock the call over the `crossDomainMessageSender` function setting a wrong sender
+        // Mock the call over the `crossDomainMessageContext` function setting a wrong sender
         vm.mockCall(
             Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
-            abi.encodeWithSelector(IL2ToL2CrossDomainMessenger.crossDomainMessageSender.selector),
-            abi.encode(_crossDomainMessageSender)
+            abi.encodeWithSelector(IL2ToL2CrossDomainMessenger.crossDomainMessageContext.selector),
+            abi.encode(_crossDomainMessageSender, _source)
         );
 
         // Expect the revert with `InvalidCrossDomainSender` selector
@@ -165,18 +166,11 @@ contract SuperchainTokenBridgeTest is Bridge_Initializer {
     function testFuzz_relayERC20_succeeds(address _from, address _to, uint256 _amount, uint256 _source) public {
         vm.assume(_to != ZERO_ADDRESS);
 
-        // Mock the call over the `crossDomainMessageSender` function setting the same address as value
+        // Mock the call over the `crossDomainMessageContext` function setting the same address as value
         _mockAndExpect(
             Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
-            abi.encodeWithSelector(IL2ToL2CrossDomainMessenger.crossDomainMessageSender.selector),
-            abi.encode(address(superchainTokenBridge))
-        );
-
-        // Mock the call over the `crossDomainMessageSource` function setting the source chain ID as value
-        _mockAndExpect(
-            Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER,
-            abi.encodeWithSelector(IL2ToL2CrossDomainMessenger.crossDomainMessageSource.selector),
-            abi.encode(_source)
+            abi.encodeWithSelector(IL2ToL2CrossDomainMessenger.crossDomainMessageContext.selector),
+            abi.encode(address(superchainTokenBridge), _source)
         );
 
         // Get the total supply and balance of `_to` before the relay to compare later on the assertions

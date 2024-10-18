@@ -2,11 +2,13 @@ package processors
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	gethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -14,6 +16,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
+
+var ErrNoRPCSource = errors.New("no RPC client configured")
 
 type Source interface {
 	L1BlockRefByNumber(ctx context.Context, number uint64) (eth.L1BlockRef, error)
@@ -38,8 +42,10 @@ func (fn BlockProcessorFn) ProcessBlock(ctx context.Context, block eth.BlockRef)
 // ChainProcessor is a HeadProcessor that fills in any skipped blocks between head update events.
 // It ensures that, absent reorgs, every block in the chain is processed even if some head advancements are skipped.
 type ChainProcessor struct {
-	log    log.Logger
-	client Source
+	log log.Logger
+
+	client     Source
+	clientLock sync.Mutex
 
 	chain types.ChainID
 
@@ -51,8 +57,6 @@ type ChainProcessor struct {
 	// channel with capacity of 1, full if there is work to do
 	newHead chan struct{}
 
-	// bool to indicate if calls are synchronous
-	synchronous bool
 	// channel with capacity of 1, to signal work complete if running in synchroneous mode
 	out chan struct{}
 
@@ -62,25 +66,35 @@ type ChainProcessor struct {
 	wg     sync.WaitGroup
 }
 
-func NewChainProcessor(log log.Logger, client Source, chain types.ChainID, processor LogProcessor, rewinder DatabaseRewinder) *ChainProcessor {
+func NewChainProcessor(log log.Logger, chain types.ChainID, processor LogProcessor, rewinder DatabaseRewinder) *ChainProcessor {
 	ctx, cancel := context.WithCancel(context.Background())
 	out := &ChainProcessor{
-		log:       log,
-		client:    client,
+		log:       log.New("chain", chain),
+		client:    nil,
 		chain:     chain,
 		processor: processor,
 		rewinder:  rewinder,
 		newHead:   make(chan struct{}, 1),
-		// default to synchronous because we want other processors to wait for this
-		// in the future we could make this async and have a separate mechanism which forwards the work signal to other processors
-		synchronous: true,
-		out:         make(chan struct{}, 1),
-		ctx:         ctx,
-		cancel:      cancel,
+		out:       make(chan struct{}, 1),
+		ctx:       ctx,
+		cancel:    cancel,
 	}
-	out.wg.Add(1)
-	go out.worker()
 	return out
+}
+
+func (s *ChainProcessor) SetSource(cl Source) {
+	s.clientLock.Lock()
+	defer s.clientLock.Unlock()
+	s.client = cl
+}
+
+func (s *ChainProcessor) StartBackground() {
+	s.wg.Add(1)
+	go s.worker()
+}
+
+func (s *ChainProcessor) ProcessToHead() {
+	s.work()
 }
 
 func (s *ChainProcessor) nextNum() uint64 {
@@ -106,11 +120,6 @@ func (s *ChainProcessor) worker() {
 		case <-s.newHead:
 			s.log.Debug("Responding to new head signal")
 			s.work()
-			// if this chain processor is synchronous, signal completion
-			// to be picked up by the caller (ChainProcessor.OnNewHead)
-			if s.synchronous {
-				s.out <- struct{}{}
-			}
 		case <-delay.C:
 			s.log.Debug("Checking for updates")
 			s.work()
@@ -126,8 +135,14 @@ func (s *ChainProcessor) work() {
 		}
 		target := s.nextNum()
 		if err := s.update(target); err != nil {
-			s.log.Error("Failed to process new block", "err", err)
-			// idle until next update trigger
+			if errors.Is(err, ethereum.NotFound) {
+				s.log.Info("Cannot find next block yet", "target", target)
+			} else if errors.Is(err, ErrNoRPCSource) {
+				s.log.Warn("No RPC source configured, cannot process new blocks")
+			} else {
+				s.log.Error("Failed to process new block", "err", err)
+				// idle until next update trigger
+			}
 		} else if x := s.lastHead.Load(); target+1 <= x {
 			s.log.Debug("Continuing with next block", "newTarget", target+1, "lastHead", x)
 			continue // instantly continue processing, no need to idle
@@ -139,6 +154,13 @@ func (s *ChainProcessor) work() {
 }
 
 func (s *ChainProcessor) update(nextNum uint64) error {
+	s.clientLock.Lock()
+	defer s.clientLock.Unlock()
+
+	if s.client == nil {
+		return ErrNoRPCSource
+	}
+
 	ctx, cancel := context.WithTimeout(s.ctx, time.Second*10)
 	nextL1, err := s.client.L1BlockRefByNumber(ctx, nextNum)
 	next := eth.BlockRef{
@@ -184,10 +206,6 @@ func (s *ChainProcessor) OnNewHead(head eth.BlockRef) error {
 	case s.newHead <- struct{}{}:
 	default:
 		// already requested an update
-	}
-	// if we are running synchronously, wait for the work to complete
-	if s.synchronous {
-		<-s.out
 	}
 	return nil
 }

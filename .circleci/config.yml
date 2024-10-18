@@ -1475,6 +1475,8 @@ workflows:
             branches:
               ignore: /.*/
           module: op-deployer
+          context:
+            - oplabs-gcr-release
 
   release:
     when:

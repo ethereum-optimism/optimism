@@ -44,8 +44,10 @@ func DeployOPChainLiveStrategy(ctx context.Context, env *Env, bundle ArtifactsBu
 
 	st.Chains = append(st.Chains, makeChainState(chainID, dco))
 
-	currentBlock, _ := env.L1Client.BlockNumber(ctx)
-	block, _ := env.L1Client.BlockByNumber(ctx, big.NewInt(int64(currentBlock)))
+	block, err := env.L1Client.BlockByNumber(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to get latest block by number: %w", err)
+	}
 	currentBlockHash := block.Hash()
 
 	errCh := make(chan error, 8)
@@ -87,7 +89,7 @@ func DeployOPChainLiveStrategy(ctx context.Context, env *Env, bundle ArtifactsBu
 	var lastTaskErr error
 	for i := 0; i < len(setImplementationAddressTasks); i++ {
 		taskErr := <-errCh
-		if lastTaskErr != nil {
+		if taskErr != nil {
 			lastTaskErr = taskErr
 		}
 	}
@@ -143,7 +145,7 @@ func makeDCI(thisIntent *state.ChainIntent, chainID common.Hash, st *state.State
 		L2ChainId:               chainID.Big(),
 		OpcmProxy:               st.ImplementationsDeployment.OpcmProxyAddress,
 		SaltMixer:               st.Create2Salt.String(), // passing through salt generated at state initialization
-		GasLimit:                30_000_000,
+		GasLimit:                60_000_000,
 		DisputeGameType:         1, // PERMISSIONED_CANNON Game Type
 		DisputeAbsolutePrestate: common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
 		DisputeMaxGameDepth:     73,
