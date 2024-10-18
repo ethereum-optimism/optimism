@@ -1005,12 +1005,6 @@ jobs:
       - checkout
       - setup_remote_docker
       - run:
-          name: Switch to tag
-          command: |
-            git fetch
-            git checkout "op-program/v<<parameters.version>>"
-            git submodule update --init --recursive
-      - run:
           name: Set expected prestate hash
           command: |
             find_prestate_hash() {
@@ -1026,6 +1020,12 @@ jobs:
               exit 1
             fi
             echo 'export EXPECTED_PRESTATE_HASH="$prestate_hash"' >> $BASH_ENV
+      - run:
+          name: Switch to tag
+          command: |
+            git fetch
+            git checkout "op-program/v<<parameters.version>>"
+            git submodule update --init --recursive
       - run:
           name: Build prestate
           command: make reproducible-prestate
