@@ -19,6 +19,7 @@ type Metrics interface {
 
 	RecordSequencerBuildingDiffTime(duration time.Duration)
 	RecordSequencerSealingTime(duration time.Duration)
+	RecordBlockBuildingHealthCheck(status string)
 }
 
 // ForkchoiceRequestEvent signals to the engine that it should emit an artificial
@@ -339,6 +340,33 @@ func (d *EngDeriver) OnEvent(ev event.Event) bool {
 			}
 		} else {
 			d.log.Info("successfully processed payload", "ref", ref, "txs", len(x.Envelope.ExecutionPayload.Transactions))
+			payload := x.Envelope.ExecutionPayload
+			blockBuildingThreshold := d.cfg.BlockBuildingThreshold
+
+			if payload != nil {
+				latestBlockTimeStamp := uint64(payload.Timestamp)
+				currentTime := uint64(time.Now().Unix())
+
+				if latestBlockTimeStamp <= currentTime+1 {
+					timeDiff := time.Duration(currentTime-latestBlockTimeStamp) * time.Second
+
+					if timeDiff < blockBuildingThreshold {
+						// Node is healthy
+						d.log.Debug("Node is healthy, time difference within threshold",
+							"time_diff", timeDiff, "threshold", blockBuildingThreshold)
+						d.metrics.RecordBlockBuildingHealthCheck("healthy")
+					} else {
+						// Node is stale
+						d.log.Warn("Node is stale, time difference exceeds threshold",
+							"time_diff", timeDiff, "threshold", blockBuildingThreshold)
+						d.metrics.RecordBlockBuildingHealthCheck("stale")
+					}
+				} else {
+					d.log.Debug("Cannot compute time difference, block timestamp is in the future",
+						"current_timestamp", currentTime, "block_timestamp", latestBlockTimeStamp)
+					d.metrics.RecordBlockBuildingHealthCheck("future_timestamp")
+				}
+			}
 		}
 	case ForkchoiceRequestEvent:
 		d.emitter.Emit(ForkchoiceUpdateEvent{
