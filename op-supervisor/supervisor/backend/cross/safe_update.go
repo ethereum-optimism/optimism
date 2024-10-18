@@ -2,6 +2,7 @@ package cross
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -17,6 +18,8 @@ type CrossSafeDeps interface {
 
 	OpenBlock(chainID types.ChainID, blockNum uint64) (seal types.BlockSeal, logCount uint32, execMsgs []*types.ExecutingMessage, err error)
 }
+
+var ErrOutOfDerivedScope = errors.New("out of derived scope")
 
 func CrossSafeUpdate(ctx context.Context, logger log.Logger, chainID types.ChainID, d CrossSafeDeps) error {
 	// TODO establish L1 reorg-lock of scopeDerivedFrom

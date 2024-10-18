@@ -6,6 +6,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -13,6 +14,8 @@ type SafeStartDeps interface {
 	Check(chain types.ChainID, blockNum uint64, logIdx uint32, logHash common.Hash) (includedIn types.BlockSeal, err error)
 
 	CrossDerivedFrom(chainID types.ChainID, derived eth.BlockID) (derivedFrom eth.BlockID, err error)
+
+	DependencySet() depset.DependencySet
 }
 
 // CrossSafeHazards checks if the given messages all exist and pass invariants.
@@ -30,22 +33,29 @@ func CrossSafeHazards(d SafeStartDeps, chainID types.ChainID, inL1DerivedFrom et
 	// which then depends on a block of the original chain,
 	// all with the same timestamp, without message cycles.
 
+	depSet := d.DependencySet()
+
 	// check all executing messages
 	for _, msg := range execMsgs {
-		execChainID := types.ChainIDFromUInt64(uint64(msg.Chain)) // TODO(#11105): translate chain index to chain ID
+		execChainID, err := depSet.ChainIDFromIndex(msg.Chain)
+		if err != nil {
+			// TODO: translate unknown chain -> conflict error
+			return nil, err
+		}
 		if msg.Timestamp < candidate.Timestamp {
 			// If timestamp is older: invariant ensures non-cyclic ordering relative to other messages.
 			// Check that the block that they are included in is cross-safe already.
 			includedIn, err := d.Check(execChainID, msg.BlockNum, msg.LogIdx, msg.Hash)
 			if err != nil {
-				// TODO
+				return nil, fmt.Errorf("executing msg %s failed check: %w", msg, err)
 			}
 			initDerivedFrom, err := d.CrossDerivedFrom(execChainID, includedIn.ID())
 			if err != nil {
-
+				return nil, fmt.Errorf("msg %s included in non-cross-safe block %s: %w", msg, includedIn, err)
 			}
 			if initDerivedFrom.Number > inL1DerivedFrom.Number {
-				// TODO outside of scope
+				return nil, fmt.Errorf("msg %s was included in block %s derived from %s which is not in cross-safe scope %s: %w",
+					msg, includedIn, initDerivedFrom, inL1DerivedFrom, ErrOutOfDerivedScope)
 			}
 		} else if msg.Timestamp == candidate.Timestamp {
 			// If timestamp is equal: we have to inspect ordering of individual
@@ -56,10 +66,10 @@ func CrossSafeHazards(d SafeStartDeps, chainID types.ChainID, inL1DerivedFrom et
 			// to ensure the local block we depend on is becoming cross-safe also.
 			includedIn, err := d.Check(execChainID, msg.BlockNum, msg.LogIdx, msg.Hash)
 			if err != nil {
-				// TODO
+				return nil, fmt.Errorf("executing msg %s failed check: %w", msg, err)
 			}
-
-			// TODO
+			// As a hazard block, it will be checked to be included in a cross-safe block,
+			// or right after a cross-safe block in a local-safe block, in HazardSafeFrontierChecks.
 			if existing, ok := hazards[msg.Chain]; ok {
 				if existing != includedIn {
 					return nil, fmt.Errorf("found dependency on %s (chain %d), but already depend on %s", includedIn, execChainID, chainID)

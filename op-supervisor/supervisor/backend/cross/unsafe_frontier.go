@@ -4,10 +4,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
-
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -31,22 +30,26 @@ func HazardUnsafeFrontierChecks(d UnsafeFrontierCheckDeps, hazards map[types.Cha
 		if err != nil {
 			return err
 		}
+		// Anything we depend on in this timestamp must be cross-unsafe already, or the first block after.
 		err = d.IsCrossUnsafe(hazardChainID, hazardBlock.ID())
 		if err != nil {
 			if errors.Is(err, entrydb.ErrFuture) {
+				// Not already cross-unsafe, so we check if the block is local-unsafe
+				// (a sanity check if part of the canonical chain).
 				err = d.IsLocalUnsafe(hazardChainID, hazardBlock.ID())
 				if err != nil {
-
+					// can be ErrFuture (missing data) or ErrConflict (non-canonical)
+					return fmt.Errorf("hazard block %s (chain %d) is not local-unsafe: %w", hazardBlock, hazardChainID, err)
 				}
 				// If it doesn't have a parent block, then there is no prior block required to be cross-safe
 				if hazardBlock.Number > 0 {
 					// Check that parent of hazardBlockID is cross-safe within view
 					parent, err := d.ParentBlock(hazardChainID, hazardBlock.ID())
 					if err != nil {
-
+						return fmt.Errorf("failed to retrieve parent-block of hazard block %s (chain %s): %w", hazardBlock, hazardChainID, err)
 					}
 					if err := d.IsCrossUnsafe(hazardChainID, parent); err != nil {
-
+						return fmt.Errorf("cannot rely on hazard-block %s (chain %s), parent block %s is not cross-unsafe: %w", hazardBlock, hazardChainID, parent, err)
 					}
 				}
 			} else {

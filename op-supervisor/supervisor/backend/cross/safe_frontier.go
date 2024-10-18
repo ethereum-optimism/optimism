@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -13,7 +14,6 @@ var (
 	ErrLocalDerivedFrom = errors.New("failed to get local derived from")
 	ErrParentBlock      = errors.New("failed to get parent block")
 	ErrCrossDerivedFrom = errors.New("failed to get cross derived from")
-	ErrOutOfScope       = errors.New("block is out of scope")
 )
 
 type SafeFrontierCheckDeps interface {
@@ -21,6 +21,8 @@ type SafeFrontierCheckDeps interface {
 
 	CrossDerivedFrom(chainID types.ChainID, derived eth.BlockID) (derivedFrom eth.BlockID, err error)
 	LocalDerivedFrom(chainID types.ChainID, derived eth.BlockID) (derivedFrom eth.BlockID, err error)
+
+	DependencySet() depset.DependencySet
 }
 
 // HazardSafeFrontierChecks verifies all the hazard blocks are either:
@@ -28,39 +30,42 @@ type SafeFrontierCheckDeps interface {
 //   - the first (if not first: local blocks to verify before proceeding)
 //     local-safe block, after the cross-safe block.
 func HazardSafeFrontierChecks(d SafeFrontierCheckDeps, inL1DerivedFrom eth.BlockID, hazards map[types.ChainIndex]types.BlockSeal) error {
+	depSet := d.DependencySet()
 	for hazardChainIndex, hazardBlock := range hazards {
-		// TODO(#11105): translate chain index to chain ID
-		hazardChainID := types.ChainIDFromUInt64(uint64(hazardChainIndex))
+		hazardChainID, err := depSet.ChainIDFromIndex(hazardChainIndex)
+		if err != nil {
+			// TODO: translate unknown chain -> conflict error
+			return err
+		}
 		initDerivedFrom, err := d.CrossDerivedFrom(hazardChainID, hazardBlock.ID())
 		if err != nil {
 			if errors.Is(err, entrydb.ErrFuture) {
 				initDerivedFrom, err = d.LocalDerivedFrom(hazardChainID, hazardBlock.ID())
 				if err != nil {
-					return fmt.Errorf("%w for chain %s: %v", ErrLocalDerivedFrom, hazardChainID, err)
+					return fmt.Errorf("hazard block %s (chain %d) is not local-safe: %w", hazardBlock, hazardChainID, err)
 				}
 				// If it doesn't have a parent block, then there is no prior block required to be cross-safe
 				if hazardBlock.Number > 0 {
 					// Check that parent of hazardBlockID is cross-safe within view
-					_, err := d.ParentBlock(hazardChainID, hazardBlock.ID())
+					parent, err := d.ParentBlock(hazardChainID, hazardBlock.ID())
 					if err != nil {
-						return fmt.Errorf("%w for chain %s: %v", ErrParentBlock, hazardChainID, err)
+						return fmt.Errorf("failed to retrieve parent-block of hazard block %s (chain %s): %w", hazardBlock, hazardChainID, err)
 					}
-					initDerivedFrom, err := d.CrossDerivedFrom(hazardChainID, hazardBlock.ID())
+					initDerivedFrom, err := d.CrossDerivedFrom(hazardChainID, parent)
 					if err != nil {
-						return fmt.Errorf("%w for chain %s: %v", ErrCrossDerivedFrom, hazardChainID, err)
+						return fmt.Errorf("cannot rely on hazard-block %s (chain %s), parent block %s is not cross-unsafe: %w", hazardBlock, hazardChainID, parent, err)
 					}
 					if initDerivedFrom.Number > inL1DerivedFrom.Number {
-						return fmt.Errorf("%w: hazard block %s derived from L1 block %s is after scope %s",
-							ErrOutOfScope, hazardBlock.ID(), initDerivedFrom, inL1DerivedFrom)
+						return fmt.Errorf("local-safe hazard block %s derived from L1 block %s is after scope %s: %w",
+							hazardBlock.ID(), initDerivedFrom, inL1DerivedFrom, ErrOutOfDerivedScope)
 					}
 				}
 			} else {
 				return fmt.Errorf("failed to determine cross-derived of hazard block %s (chain %s): %w", hazardBlock, hazardChainID, err)
 			}
-		}
-		if initDerivedFrom.Number > inL1DerivedFrom.Number {
-			return fmt.Errorf("%w: hazard block %s derived from L1 block %s is after scope %s",
-				ErrOutOfScope, hazardBlock.ID(), initDerivedFrom, inL1DerivedFrom)
+		} else if initDerivedFrom.Number > inL1DerivedFrom.Number {
+			return fmt.Errorf("cross-safe hazard block %s derived from L1 block %s is after scope %s: %w",
+				hazardBlock.ID(), initDerivedFrom, inL1DerivedFrom, ErrOutOfDerivedScope)
 		}
 	}
 	return nil
