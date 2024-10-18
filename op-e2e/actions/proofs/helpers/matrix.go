@@ -89,9 +89,9 @@ var (
 	Granite  = &Hardfork{Name: "Granite", Precedence: 6}
 	Holocene = &Hardfork{Name: "Holocene", Precedence: 7}
 )
-var Hardforks = ForkMatrix{Regolith, Canyon, Delta, Ecotone, Fjord, Granite, Holocene}
-
-var LatestForkOnly = ForkMatrix{Hardforks[len(Hardforks)-1]}
+var Hardforks = ForkMatrix{Regolith, Canyon, Delta, Fjord, Ecotone, Granite, Holocene}
+var LatestFork = Hardforks[len(Hardforks)-1]
+var LatestForkOnly = ForkMatrix{LatestFork}
 
 func NewForkMatrix(forks ...*Hardfork) ForkMatrix {
 	return append(ForkMatrix{}, forks...)
