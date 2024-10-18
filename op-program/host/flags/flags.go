@@ -158,6 +158,9 @@ func CheckRequired(ctx *cli.Context) error {
 	if network == "" && ctx.String(L2GenesisPath.Name) == "" {
 		return fmt.Errorf("flag %s is required for custom networks", L2GenesisPath.Name)
 	}
+	if ctx.String(L2GenesisPath.Name) != "" && network != "" {
+		return fmt.Errorf("cannot specify both %s and %s", L2GenesisPath.Name, Network.Name)
+	}
 	for _, flag := range requiredFlags {
 		if !ctx.IsSet(flag.Names()[0]) {
 			return fmt.Errorf("flag %s is required", flag.Names()[0])
