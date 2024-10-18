@@ -36,7 +36,7 @@ type Metrics interface {
 	RecordSequencerInconsistentL1Origin(from eth.BlockID, to eth.BlockID)
 	RecordSequencerReset()
 	RecordSequencingError()
-	RecordBlockBuildingHealth(status string)
+	RecordBlockBuildingHealthCheck(status string)
 }
 
 type SequencerStateListener interface {
@@ -343,18 +343,18 @@ func (d *Sequencer) onPayloadSuccess(x engine.PayloadSuccessEvent) {
 				// Node is healthy
 				d.log.Debug("Node is healthy, time difference within threshold",
 					"time_diff", timeDiff, "threshold", blockBuildingThreshold)
-				d.metrics.RecordBlockBuildingHealth("healthy")
+				d.metrics.RecordBlockBuildingHealthCheck("healthy")
 			} else {
 				// Node is stale
 				d.log.Warn("Node is stale, time difference exceeds threshold",
 					"time_diff", timeDiff, "threshold", blockBuildingThreshold)
-				d.metrics.RecordBlockBuildingHealth("stale")
+				d.metrics.RecordBlockBuildingHealthCheck("stale")
 			}
 		} else {
 			// TODO: remove this log once we know why the latestBlockTimeStamp is in the future
 			d.log.Debug("Cannot compute time difference, block timestamp is in the future",
 				"current_timestamp", currentTime, "block_timestamp", latestBlockTimeStamp)
-			d.metrics.RecordBlockBuildingHealth("future_timestamp")
+			d.metrics.RecordBlockBuildingHealthCheck("future_timestamp")
 		}
 	}
 	// The payload was already published upon sealing.
