@@ -171,6 +171,10 @@ func conditionallySetImplementationAddresses(ctx context.Context, client *ethcli
 }
 
 func setMipsSingletonAddress(ctx context.Context, client *ethclient.Client, l1ArtifactsLocator *opcm.ArtifactsLocator, errCh chan error, opcmProxyAddress common.Address, singletonAddress *common.Address) {
+	if !l1ArtifactsLocator.IsTag() {
+		errCh <- fmt.Errorf("L1 contracts locator is not a tag, cannot set MIPS singleton address")
+		return
+	}
 	opcmContract := opcm.NewContract(opcmProxyAddress, client)
 	mipsSingletonAddress, err := opcmContract.GetOPCMImplementationAddress(ctx, l1ArtifactsLocator.Tag, "MIPS")
 
