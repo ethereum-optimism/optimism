@@ -1,11 +1,13 @@
 package prestates
 
 import (
+	_ "embed"
 	"encoding/json"
 	"fmt"
-	"io"
-	"os"
 )
+
+//go:embed standard.json
+var standardJSON []byte
 
 type Release struct {
 	Version string `json:"version"`
@@ -14,17 +16,8 @@ type Release struct {
 
 // Reads the contents of the standard.json file
 func GetStandardReleases() ([]Release, error) {
-	filepath := "standard.json"
-	file, err := os.Open(filepath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open file: %w", err)
-	}
-	defer file.Close()
-
-	byteValue, _ := io.ReadAll(file)
-
 	var releases []Release
-	err = json.Unmarshal(byteValue, &releases)
+	err := json.Unmarshal(standardJSON, &releases)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse JSON: %w", err)
 	}
