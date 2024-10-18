@@ -1,6 +1,7 @@
 package cross
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -35,21 +36,36 @@ func CrossUnsafeHazards(d UnsafeStartDeps, chainID types.ChainID,
 
 	depSet := d.DependencySet()
 
+	if len(execMsgs) > 0 {
+		if ok, err := depSet.CanExecuteAt(chainID, candidate.Timestamp); err != nil {
+			return nil, fmt.Errorf("cannot check message execution of block %s (chain %s): %w", candidate, chainID, err)
+		} else if !ok {
+			return nil, fmt.Errorf("cannot execute messages in block %s (chain %s): %w", candidate, chainID, types.ErrConflict)
+		}
+	}
+
 	// check all executing messages
 	for _, msg := range execMsgs {
-		execChainID, err := depSet.ChainIDFromIndex(msg.Chain)
+		initChainID, err := depSet.ChainIDFromIndex(msg.Chain)
 		if err != nil {
-			// TODO: translate unknown chain -> conflict error
+			if errors.Is(err, types.ErrUnknownChain) {
+				err = fmt.Errorf("msg %s may not execute from unknown chain %s: %w", msg, msg.Chain, types.ErrConflict)
+			}
 			return nil, err
+		}
+		if ok, err := depSet.CanInitiateAt(initChainID, msg.Timestamp); err != nil {
+			return nil, fmt.Errorf("cannot check message initiation of msg %s (chain %s): %w", msg, chainID, err)
+		} else if !ok {
+			return nil, fmt.Errorf("cannot allow initiating message %s (chain %s): %w", msg, chainID, types.ErrConflict)
 		}
 		if msg.Timestamp < candidate.Timestamp {
 			// If timestamp is older: invariant ensures non-cyclic ordering relative to other messages.
 			// Check that the block that they are included in is cross-safe already.
-			includedIn, err := d.Check(execChainID, msg.BlockNum, msg.LogIdx, msg.Hash)
+			includedIn, err := d.Check(initChainID, msg.BlockNum, msg.LogIdx, msg.Hash)
 			if err != nil {
 				return nil, fmt.Errorf("executing msg %s failed check: %w", msg, err)
 			}
-			if err := d.IsCrossUnsafe(execChainID, includedIn.ID()); err != nil {
+			if err := d.IsCrossUnsafe(initChainID, includedIn.ID()); err != nil {
 				return nil, fmt.Errorf("msg %s included in non-cross-unsafe block %s: %w", msg, includedIn, err)
 			}
 		} else if msg.Timestamp == candidate.Timestamp {
@@ -59,7 +75,7 @@ func CrossUnsafeHazards(d UnsafeStartDeps, chainID types.ChainID,
 			// Thus check that it was included in a local-unsafe block,
 			// and then proceed with transitive block checks,
 			// to ensure the local block we depend on is becoming cross-unsafe also.
-			includedIn, err := d.Check(execChainID, msg.BlockNum, msg.LogIdx, msg.Hash)
+			includedIn, err := d.Check(initChainID, msg.BlockNum, msg.LogIdx, msg.Hash)
 			if err != nil {
 				return nil, fmt.Errorf("executing msg %s failed check: %w", msg, err)
 			}
@@ -68,7 +84,7 @@ func CrossUnsafeHazards(d UnsafeStartDeps, chainID types.ChainID,
 			// or right after a cross-unsafe block, in HazardUnsafeFrontierChecks.
 			if existing, ok := hazards[msg.Chain]; ok {
 				if existing != includedIn {
-					return nil, fmt.Errorf("found dependency on %s (chain %d), but already depend on %s", includedIn, execChainID, chainID)
+					return nil, fmt.Errorf("found dependency on %s (chain %d), but already depend on %s", includedIn, initChainID, chainID)
 				}
 			} else {
 				// Mark it as hazard block
