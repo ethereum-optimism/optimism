@@ -34,6 +34,8 @@ import { IL1CrossDomainMessenger } from "src/L1/interfaces/IL1CrossDomainMesseng
 import { IL1ERC721Bridge } from "src/L1/interfaces/IL1ERC721Bridge.sol";
 import { IL1StandardBridge } from "src/L1/interfaces/IL1StandardBridge.sol";
 import { IOptimismMintableERC20Factory } from "src/universal/interfaces/IOptimismMintableERC20Factory.sol";
+import { IMIPS } from "src/cannon/interfaces/IMIPS.sol";
+import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
 
 contract DeployOPChainInput is BaseDeployIO {
     address internal _opChainProxyAdminOwner;
@@ -224,6 +226,8 @@ contract DeployOPChainOutput is BaseDeployIO {
     IPermissionedDisputeGame internal _permissionedDisputeGame;
     IDelayedWETH internal _delayedWETHPermissionedGameProxy;
     IDelayedWETH internal _delayedWETHPermissionlessGameProxy;
+    IMIPS internal _mipsSingleton; // Not deployed by DeployOPChain.s.sol
+    IPreimageOracle internal _preimageOracleSingleton; // Not deployed by DeployOPChain.s.sol
 
     function set(bytes4 _sel, address _addr) public {
         require(_addr != address(0), "DeployOPChainOutput: cannot set zero address");
@@ -243,6 +247,8 @@ contract DeployOPChainOutput is BaseDeployIO {
         else if (_sel == this.permissionedDisputeGame.selector) _permissionedDisputeGame = IPermissionedDisputeGame(_addr) ;
         else if (_sel == this.delayedWETHPermissionedGameProxy.selector) _delayedWETHPermissionedGameProxy = IDelayedWETH(payable(_addr)) ;
         else if (_sel == this.delayedWETHPermissionlessGameProxy.selector) _delayedWETHPermissionlessGameProxy = IDelayedWETH(payable(_addr)) ;
+        else if (_sel == this.mipsSingleton.selector) _mipsSingleton = IMIPS(_addr) ;
+        else if (_sel == this.preimageOracleSingleton.selector) _preimageOracleSingleton = IPreimageOracle(_addr) ;
         else revert("DeployOPChainOutput: unknown selector");
         // forgefmt: disable-end
     }
@@ -330,6 +336,16 @@ contract DeployOPChainOutput is BaseDeployIO {
         // TODO: Eventually switch from Permissioned to Permissionless. Add this check back in.
         // DeployUtils.assertValidContractAddress(address(_delayedWETHPermissionlessGameProxy));
         return _delayedWETHPermissionlessGameProxy;
+    }
+
+    function mipsSingleton() public view returns (IMIPS) {
+        DeployUtils.assertValidContractAddress(address(_mipsSingleton));
+        return _mipsSingleton;
+    }
+
+    function preimageOracleSingleton() public view returns (IPreimageOracle) {
+        DeployUtils.assertValidContractAddress(address(_preimageOracleSingleton));
+        return _preimageOracleSingleton;
     }
 }
 
@@ -451,6 +467,8 @@ contract DeployOPChain is Script {
         assertValidSystemConfig(_doi, _doo);
         assertValidAddressManager(_doi, _doo);
         assertValidOPChainProxyAdmin(_doi, _doo);
+        assertValidMIPSSingleton(_doi, _doo);
+        assertValidPreimageOracleSingleton(_doi, _doo);
     }
 
     function assertValidPermissionedDisputeGame(DeployOPChainInput _doi, DeployOPChainOutput _doo) internal {
@@ -699,6 +717,20 @@ contract DeployOPChain is Script {
                 == DeployUtils.assertERC1967ImplementationSet(address(_doo.anchorStateRegistryProxy())),
             "OPCPA-110"
         );
+    }
+
+    function assertValidMIPSSingleton(DeployOPChainInput, DeployOPChainOutput _doo) internal view {
+        IMIPS mips = _doo.mipsSingleton();
+        require(address(mips.oracle()) == address(_doo.preimageOracleSingleton()), "MIPS-10");
+    }
+
+    function assertValidPreimageOracleSingleton(DeployOPChainInput, DeployOPChainOutput _doo) internal view {
+        IPreimageOracle oracle = _doo.preimageOracleSingleton();
+
+        // TODO: Make these checks more stringent like in DeployImplementations.s.sol - actual values not available in
+        // this context.
+        require(oracle.minProposalSize() != 0, "PO-10");
+        require(oracle.challengePeriod() != 0, "PO-20");
     }
 
     // -------- Utilities --------
