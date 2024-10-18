@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	altda "github.com/ethereum-optimism/optimism/op-alt-da"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
@@ -212,7 +213,8 @@ func NewRollupConfigFromCLI(log log.Logger, ctx *cli.Context) (*rollup.Config, e
 	if ctx.Bool(flags.BetaExtraNetworks.Name) {
 		log.Warn("The beta.extra-networks flag is deprecated and can be omitted safely.")
 	}
-	rollupConfig, err := NewRollupConfig(log, network, rollupConfigPath)
+	blockBuildingThreshold := ctx.Uint64(flags.BlockBuildingThresholdFlag.Name)
+	rollupConfig, err := NewRollupConfig(log, network, rollupConfigPath, blockBuildingThreshold)
 	if err != nil {
 		return nil, err
 	}
@@ -220,7 +222,7 @@ func NewRollupConfigFromCLI(log log.Logger, ctx *cli.Context) (*rollup.Config, e
 	return rollupConfig, nil
 }
 
-func NewRollupConfig(log log.Logger, network string, rollupConfigPath string) (*rollup.Config, error) {
+func NewRollupConfig(log log.Logger, network string, rollupConfigPath string, blockBuidlingThreshold uint64) (*rollup.Config, error) {
 	if network != "" {
 		if rollupConfigPath != "" {
 			log.Error(`Cannot configure network and rollup-config at the same time.
@@ -232,6 +234,7 @@ Conflicting configuration is deprecated, and will stop the op-node from starting
 		if err != nil {
 			return nil, err
 		}
+		rollupConfig.BlockBuildingThreshold = time.Duration(blockBuidlingThreshold) * time.Second
 		return rollupConfig, nil
 	}
 
@@ -247,6 +250,7 @@ Conflicting configuration is deprecated, and will stop the op-node from starting
 	if err := dec.Decode(&rollupConfig); err != nil {
 		return nil, fmt.Errorf("failed to decode rollup config: %w", err)
 	}
+	rollupConfig.BlockBuildingThreshold = time.Duration(blockBuidlingThreshold) * time.Second
 	return &rollupConfig, nil
 }
 
