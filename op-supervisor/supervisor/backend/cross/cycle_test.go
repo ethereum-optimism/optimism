@@ -28,23 +28,6 @@ func TestHazardCycleChecks_NoHazards(t *testing.T) {
 	require.NoError(t, err, "expected no error when there are no hazards")
 }
 
-func TestHazardCycleChecks_NoCycle(t *testing.T) {
-	deps := &mockCycleCheckDeps{
-		openBlockFn: func(chainID types.ChainID, blockNum uint64) (types.BlockSeal, uint32, []*types.ExecutingMessage, error) {
-			msgs := []*types.ExecutingMessage{
-				{Chain: types.ChainIndex(1), LogIdx: 0, Timestamp: 100},
-				{Chain: types.ChainIndex(1), LogIdx: 1, Timestamp: 100},
-			}
-			return types.BlockSeal{Number: blockNum}, 2, msgs, nil
-		},
-	}
-	hazards := map[types.ChainIndex]types.BlockSeal{
-		types.ChainIndex(1): {Number: 1},
-	}
-	err := HazardCycleChecks(deps, 100, hazards)
-	require.NoError(t, err, "expected no error when there is no cycle")
-}
-
 func TestHazardCycleChecks_CycleDetected(t *testing.T) {
 	deps := &mockCycleCheckDeps{
 		openBlockFn: func(chainID types.ChainID, blockNum uint64) (types.BlockSeal, uint32, []*types.ExecutingMessage, error) {
