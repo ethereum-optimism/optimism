@@ -32,8 +32,8 @@ func (c *Contract) getAddress(ctx context.Context, name string) (common.Address,
 	return c.callContractMethod(ctx, name, abi.Arguments{})
 }
 
-// Used to call getAddress(string) on legacy ResolvedDelegateProxy contract
-func (c *Contract) GetAddressByNameViaResolvedDelegateProxy(ctx context.Context, name string) (common.Address, error) {
+// Used to call getAddress(string) on legacy AddressManager contract
+func (c *Contract) GetAddressByNameViaAddressManager(ctx context.Context, name string) (common.Address, error) {
 	inputs := abi.Arguments{
 		abi.Argument{
 			Name:    "_name",

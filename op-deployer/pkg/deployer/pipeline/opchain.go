@@ -200,8 +200,8 @@ func setRDPImplementationAddress(ctx context.Context, client *ethclient.Client, 
 		return
 	}
 
-	contract := opcm.NewContract(addressManager, client)
-	address, err := contract.GetAddressByNameViaResolvedDelegateProxy(ctx, getNameArg)
+	addressManagerContract := opcm.NewContract(addressManager, client)
+	address, err := addressManagerContract.GetAddressByNameViaAddressManager(ctx, getNameArg)
 	if err == nil {
 		*implAddress = address
 	}
