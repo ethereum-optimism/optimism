@@ -162,22 +162,41 @@ func resetVars() {
 }
 
 func main() {
-	contractsBase, _ := os.Getwd()
-	if contractsBase == "" {
-		fmt.Println("CONTRACTS_BASE environment variable is not set")
+	contractsBase, err := os.Getwd()
+	if err != nil {
+		fmt.Println("Error getting working directory:", err)
 		os.Exit(1)
 	}
 
 	// Find contract files
-	l1ContractFiles := findContractFiles(filepath.Join(contractsBase, "src", "L1"), "interfaces")
-	l2ContractFiles := findContractFiles(filepath.Join(contractsBase, "src", "L2"), "interfaces")
-	cannonContractFiles := findContractFiles(filepath.Join(contractsBase, "src", "cannon"), "interfaces", "libraries")
-	disputeContractFiles := findContractFiles(filepath.Join(contractsBase, "src", "dispute"), "interfaces", "lib")
-	governanceContractFiles := findContractFiles(filepath.Join(contractsBase, "src", "governance"), "interfaces")
+	l1ContractFiles, err := findContractFiles(filepath.Join(contractsBase, "src", "L1"), "interfaces")
+	if err != nil {
+		fmt.Println("Error finding L1 contract files:", err)
+	}
+	l2ContractFiles, err := findContractFiles(filepath.Join(contractsBase, "src", "L2"), "interfaces")
+	if err != nil {
+		fmt.Println("Error finding L2 contract files:", err)
+	}
+	cannonContractFiles, err := findContractFiles(filepath.Join(contractsBase, "src", "cannon"), "interfaces", "libraries")
+	if err != nil {
+		fmt.Println("Error finding cannon contract files:", err)
+	}
+	disputeContractFiles, err := findContractFiles(filepath.Join(contractsBase, "src", "dispute"), "interfaces", "lib")
+	if err != nil {
+		fmt.Println("Error finding dispute contract files:", err)
+	}
+	governanceContractFiles, err := findContractFiles(filepath.Join(contractsBase, "src", "governance"), "interfaces")
+	if err != nil {
+		fmt.Println("Error finding governance contract files:", err)
+	}
 
 	// Create interface directories
 	interfaceDir := filepath.Join(contractsBase, "src", "interfaces")
-	createDirs(interfaceDir, "L1", "L2", "cannon", "dispute", "governance")
+	err = createDirs(interfaceDir, "L1", "L2", "cannon", "dispute", "governance")
+	if err != nil {
+		fmt.Println("Error creating directories:", err)
+		os.Exit(1)
+	}
 
 	// Combine all contract files into a single list
 	all := make([]string, 0, len(l1ContractFiles)+len(l2ContractFiles)+len(cannonContractFiles)+len(disputeContractFiles)+len(governanceContractFiles))
@@ -420,7 +439,10 @@ func process_parameter_type(parameters TypeObject) (string, error) {
 		var v = strings.Split(p, ".")
 		if v[0] == contractName {
 			if internalType == p {
-				processType(v[1], _type, ThisContract)
+				err = processType(v[1], _type, ThisContract)
+				if err != nil {
+					return "", err
+				}
 			}
 			return v[1], err
 		} else {
@@ -436,7 +458,10 @@ func process_parameter_type(parameters TypeObject) (string, error) {
 		} else {
 			// Check if p is a file-level defined user-defined type
 			if isUserDefinedType(p) {
-				processType(p, _type, ThisFile)
+				err = processType(p, _type, ThisFile)
+				if err != nil {
+					return "", err
+				}
 			}
 			// If not, it's a built-in type
 			return p, err
@@ -464,7 +489,11 @@ func processStruct(parameter TypeObject, name string) (string, TypeOwner, error)
 	var err error
 	var structure string = ""
 
-	var typeOwner TypeOwner = isImported(name)
+	var typeOwner TypeOwner
+	typeOwner, err = isImported(name)
+	if err != nil {
+		return "", typeOwner, err
+	}
 	if typeOwner == Imported {
 		err = processImport(strings.Split(name, ".")[0])
 		if err != nil {
@@ -504,9 +533,13 @@ func processStruct(parameter TypeObject, name string) (string, TypeOwner, error)
 }
 
 func processEnum(name string) error {
-	var err error = nil
+	var err error
 
-	var typeOwner TypeOwner = isImported(name)
+	var typeOwner TypeOwner
+	typeOwner, err = isImported(name)
+	if err != nil {
+		return err
+	}
 	if typeOwner == Imported {
 		err = processImport(strings.Split(name, ".")[0])
 		if err != nil {
@@ -535,7 +568,10 @@ func processEnum(name string) error {
 	for _, _node := range node.Nodes {
 		if _node.NodeType == "EnumDefinition" && _node.Name == name {
 			found = true
-			writeEnum(name, _node, typeOwner)
+			err = writeEnum(name, _node, typeOwner)
+			if err != nil {
+				return err
+			}
 			break
 		}
 	}
@@ -548,7 +584,10 @@ func processEnum(name string) error {
 			for _, _node := range jsonOutput.Ast.Nodes {
 				if _node.NodeType == "EnumDefinition" && _node.Name == name {
 					found = true
-					writeEnum(name, _node, typeOwner)
+					err = writeEnum(name, _node, typeOwner)
+					if err != nil {
+						return err
+					}
 					break
 				}
 			}
@@ -564,7 +603,9 @@ func processEnum(name string) error {
 	return err
 }
 
-func writeEnum(name string, _node Nodes, typeOwner TypeOwner) {
+func writeEnum(name string, _node Nodes, typeOwner TypeOwner) error {
+	var err error
+
 	var enums string = ""
 	enums += "  enum " + name + " {\n"
 	for i, variant := range _node.Members {
@@ -582,8 +623,10 @@ func writeEnum(name string, _node Nodes, typeOwner TypeOwner) {
 	} else if typeOwner == ThisFile {
 		FILE_ENUMS += enums
 	} else {
-		panic("unreachable:invalid type owner: " + typeOwner)
+		err = fmt.Errorf("unreachable:invalid type owner: %v", typeOwner)
 	}
+
+	return err
 }
 
 func processImport(name string) error {
@@ -657,9 +700,11 @@ func checkInheritedContractsForImports(name string, oldJsonOutput JsonOutput, __
 	return fmt.Errorf("import not found")
 }
 
-func processType(internalType string, _type string, typeOwner TypeOwner) {
+func processType(internalType string, _type string, typeOwner TypeOwner) error {
+	var err error
+
 	if detectedTypes[internalType] {
-		return
+		return err
 	}
 
 	internalType = strings.Split(internalType, "[")[0]
@@ -670,10 +715,13 @@ func processType(internalType string, _type string, typeOwner TypeOwner) {
 	} else if typeOwner == ThisFile {
 		FILE_TYPES += " type " + internalType + " is " + _type + ";\n"
 	} else {
-		panic("unreachable:invalid type owner: " + typeOwner)
+		err = fmt.Errorf("unreachable:invalid type owner: %v", typeOwner)
+		return err
 	}
 
 	detectedTypes[internalType] = true
+
+	return err
 }
 
 func getJsonOutput(__contractName string) (JsonOutput, error) {
@@ -686,7 +734,6 @@ func getJsonOutput(__contractName string) (JsonOutput, error) {
 	}
 	err = json.Unmarshal(data, &newJsonOutput)
 	if err != nil {
-		fmt.Println("Error unmarshaling JSON: " + err.Error())
 		return JsonOutput{}, err
 	}
 	return newJsonOutput, nil
@@ -764,32 +811,35 @@ func combineSections() {
 	// Note: We don't add a newline after RECEIVE as it's the last section
 }
 
-func isImported(name string) TypeOwner {
+func isImported(name string) (TypeOwner, error) {
+	var err error
+
 	if strings.Contains(name, ".") {
 		var v = strings.Split(name, ".")
 		if !(len(v) > 1) {
-			panic("unreachable:invalid import: " + name)
+			return ThisFile, fmt.Errorf("unreachable:invalid import: %s", name)
 		}
 		if (v[0] != contractName) && (v[0] != "I"+contractName) {
-			return Imported
+			return Imported, err
 		} else {
-			return ThisContract
+			return ThisContract, err
 		}
 	}
-	return ThisFile
+	return ThisFile, err
 }
 
-func createDirs(baseDir string, dirs ...string) {
+func createDirs(baseDir string, dirs ...string) error {
 	for _, dir := range dirs {
 		path := filepath.Join(baseDir, dir)
 		err := os.MkdirAll(path, os.ModePerm)
 		if err != nil {
-			fmt.Printf("Error creating directory %s: %v\n", path, err)
+			return fmt.Errorf("error creating directory %s: %w", path, err)
 		}
 	}
+	return nil
 }
 
-func findContractFiles(dir string, excludeDirs ...string) []string {
+func findContractFiles(dir string, excludeDirs ...string) ([]string, error) {
 	var files []string
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -809,9 +859,9 @@ func findContractFiles(dir string, excludeDirs ...string) []string {
 		return nil
 	})
 	if err != nil {
-		fmt.Printf("Error walking the path %v: %v\n", dir, err)
+		return []string{}, fmt.Errorf("error walking the path %v: %w", dir, err)
 	}
-	return files
+	return files, err
 }
 
 func checkForLooseImports(newJsonOutput JsonOutput) []string {
