@@ -180,7 +180,7 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 		if chainID, err = strconv.ParseUint(networkName, 10, 64); err != nil {
 			ch := chaincfg.ChainByName(networkName)
 			if ch == nil {
-				return nil, fmt.Errorf("flag %s is required for network %s", flags.L2GenesisPath.Name, networkName)
+				return nil, fmt.Errorf("invalid network: %q", networkName)
 			}
 			chainID = ch.ChainID
 		}
