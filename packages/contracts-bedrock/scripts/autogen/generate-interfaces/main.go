@@ -212,7 +212,7 @@ func generateInterfaces() (string, error) {
 	// Initialize the interface with the license, pragma, and interface definition
 	var NEW_INTERFACE string = "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.0;\n\n"
 	var INTERFACE_DEFINITION string = "interface I" + contractName + " {\n"
-	var err error = nil
+	var err error
 
 	// Get the JSON output for the contract
 	jsonOutput, err = getJsonOutput(contractName)
@@ -223,7 +223,8 @@ func generateInterfaces() (string, error) {
 	// Check for loose imports, if any are found, return an error.
 	unusedImports := checkForLooseImports(jsonOutput)
 	if len(unusedImports) > 0 {
-		return "", fmt.Errorf("loose imports: " + strings.Join(unusedImports, ", "))
+		err = fmt.Errorf("loose imports: %s", strings.Join(unusedImports, ", "))
+		return "", err
 	}
 
 	// process the ABI
@@ -252,12 +253,12 @@ func generateInterfaces() (string, error) {
 			err = processError(abiObj)
 		default:
 			{
-				err = fmt.Errorf("invalid abiObjType, error: " + abiObjType)
+				err = fmt.Errorf("invalid abiObjType, error: %s", abiObjType)
 				return "", err
 			}
 		}
 		if err != nil {
-			err = fmt.Errorf("error processing abiObjType: " + err.Error())
+			err = fmt.Errorf("error processing abiObjType: %s", err.Error())
 			return "", err
 		}
 	}
@@ -274,7 +275,7 @@ func generateInterfaces() (string, error) {
 }
 
 func processFunction(abiObj ABI) error {
-	var err error = nil
+	var err error
 
 	var name string = abiObj.Name
 	var stateMutability string = handleStateMutability(abiObj.StateMutability)
@@ -335,7 +336,10 @@ func processParameters(parameters []TypeObject, isOutput bool, isLocalVar bool) 
 
 	var stringParameters string = ""
 	for i, parameter := range parameters {
-		var p string = process_parameter_type(parameter)
+		p, err := process_parameter_type(parameter)
+		if err != nil {
+			return "", err
+		}
 
 		// if its a local variable, add the memory annotation if needed
 		if isLocalVar {
@@ -360,14 +364,16 @@ func processParameters(parameters []TypeObject, isOutput bool, isLocalVar bool) 
 	return stringParameters, err
 }
 
-func process_parameter_type(parameters TypeObject) string {
+func process_parameter_type(parameters TypeObject) (string, error) {
+	var err error
+
 	internalType := parameters.InternalType
 	_type := parameters.Type
 
 	// Regex pattern to match struct, enum and contract types
 	var pattern = regexp.MustCompile(`^(struct|enum|contract)\s+(.+)$`)
 
-	var p string = ""
+	var p string
 
 	// Check for struct, enum, and contract types, if so, process them.
 	var match = pattern.FindStringSubmatch(internalType)
@@ -375,10 +381,18 @@ func process_parameter_type(parameters TypeObject) string {
 		var v = strings.Split(internalType, " ")
 		switch v[0] {
 		case "enum":
-			processEnum(v[1])
+			{
+				err = processEnum(v[1])
+				if err != nil {
+					return "", err
+				}
+			}
 		case "struct":
 			{
-				structs, structTypeOwner := processStruct(parameters, v[1])
+				structs, structTypeOwner, err := processStruct(parameters, v[1])
+				if err != nil {
+					return "", err
+				}
 				if structTypeOwner == ThisContract {
 					STRUCTS += structs
 				} else if structTypeOwner == ThisFile {
@@ -388,7 +402,10 @@ func process_parameter_type(parameters TypeObject) string {
 		case "contract":
 			{
 				if v[1] != contractName {
-					processImport(v[1])
+					err = processImport(v[1])
+					if err != nil {
+						return "", err
+					}
 				}
 			}
 		}
@@ -405,21 +422,24 @@ func process_parameter_type(parameters TypeObject) string {
 			if internalType == p {
 				processType(v[1], _type, ThisContract)
 			}
-			return v[1]
+			return v[1], err
 		} else {
-			processImport(v[0])
-			return p
+			err = processImport(v[0])
+			if err != nil {
+				return "", err
+			}
+			return p, err
 		}
 	} else {
 		if match != nil {
-			return p
+			return p, err
 		} else {
 			// Check if p is a file-level defined user-defined type
 			if isUserDefinedType(p) {
 				processType(p, _type, ThisFile)
 			}
 			// If not, it's a built-in type
-			return p
+			return p, err
 		}
 	}
 }
@@ -440,39 +460,47 @@ func processError(abiObj ABI) error {
 	return err
 }
 
-func processStruct(parameter TypeObject, name string) (string, TypeOwner) {
+func processStruct(parameter TypeObject, name string) (string, TypeOwner, error) {
+	var err error
 	var structure string = ""
 
 	var typeOwner TypeOwner = isImported(name)
 	if typeOwner == Imported {
-		processImport(strings.Split(name, ".")[0])
-		return structure, typeOwner
+		err = processImport(strings.Split(name, ".")[0])
+		if err != nil {
+			return "", typeOwner, err
+		}
+		return structure, typeOwner, err
 	}
 	var s = strings.Split(name, ".")
 	name = s[len(s)-1]
 	name = strings.Split(name, "[")[0]
 
 	if detectedStructs[name] {
-		return structure, typeOwner
+		return structure, typeOwner, err
 	}
 
 	// check imports for struct definition
 	if typeOwner == ThisFile {
 		var err = processImport(name)
 		if err == nil {
-			return "", typeOwner
+			return "", typeOwner, err
 		}
 	}
 
 	structure += "  struct " + name + " {\n"
 	for _, component := range parameter.Components {
-		structure += "      " + process_parameter_type(component) + " " + component.Name + ";\n"
+		p, err := process_parameter_type(component)
+		if err != nil {
+			return "", typeOwner, err
+		}
+		structure += "      " + p + " " + component.Name + ";\n"
 	}
 	structure += "  }\n"
 
 	detectedStructs[name] = true
 
-	return structure, typeOwner
+	return structure, typeOwner, err
 }
 
 func processEnum(name string) error {
@@ -480,7 +508,10 @@ func processEnum(name string) error {
 
 	var typeOwner TypeOwner = isImported(name)
 	if typeOwner == Imported {
-		processImport(strings.Split(name, ".")[0])
+		err = processImport(strings.Split(name, ".")[0])
+		if err != nil {
+			return err
+		}
 		return err
 	}
 
@@ -522,7 +553,7 @@ func processEnum(name string) error {
 				}
 			}
 			if !found {
-				err = fmt.Errorf("enum not found: " + name)
+				err = fmt.Errorf("enum not found: %s", name)
 				return err
 			}
 		}
@@ -582,7 +613,7 @@ func processImportWith(name string, newJsonOutput JsonOutput, __contractName str
 	if from == "" {
 		err = checkInheritedContractsForImports(name, newJsonOutput, __contractName)
 		if err != nil {
-			return fmt.Errorf("import not found: " + name)
+			return fmt.Errorf("import not found: %s", name)
 		} else {
 			return nil
 		}
