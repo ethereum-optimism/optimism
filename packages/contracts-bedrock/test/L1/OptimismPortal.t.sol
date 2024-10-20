@@ -607,6 +607,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
 
     /// @dev Setup the system for a ready-to-use state.
     function setUp() public virtual override {
+        super.enableLegacyContracts();
         // Configure the oracle to return the output root we've prepared.
         vm.warp(l2OutputOracle.computeL2Timestamp(_proposedBlockNumber) + 1);
         vm.prank(l2OutputOracle.PROPOSER());
@@ -1280,6 +1281,7 @@ contract OptimismPortalWithMockERC20_Test is OptimismPortal_FinalizeWithdrawal_T
     MockERC20 token;
 
     function setUp() public override {
+        enableLegacyContracts();
         super.setUp();
         token = new MockERC20("Test", "TST", 18);
     }
