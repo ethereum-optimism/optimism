@@ -1281,7 +1281,6 @@ contract OptimismPortalWithMockERC20_Test is OptimismPortal_FinalizeWithdrawal_T
     MockERC20 token;
 
     function setUp() public override {
-        super.enableLegacyContracts();
         super.setUp();
         token = new MockERC20("Test", "TST", 18);
     }
