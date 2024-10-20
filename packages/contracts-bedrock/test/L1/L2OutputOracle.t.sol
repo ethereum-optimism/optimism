@@ -19,7 +19,7 @@ import { IL2OutputOracle } from "src/L1/interfaces/IL2OutputOracle.sol";
 
 contract L2OutputOracle_TestBase is CommonTest {
     function setUp() public override {
-        enableLegacyContracts();
+        super.enableLegacyContracts();
         super.setUp();
     }
 

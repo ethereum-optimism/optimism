@@ -34,7 +34,7 @@ contract OptimismPortal_Test is CommonTest {
     /// @notice Marked virtual to be overridden in
     ///         test/kontrol/deployment/DeploymentSummary.t.sol
     function setUp() public virtual override {
-        enableLegacyContracts();
+        super.enableLegacyContracts();
         super.setUp();
         depositor = makeAddr("depositor");
     }
@@ -581,6 +581,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
 
     // Use a constructor to set the storage vars above, so as to minimize the number of ffi calls.
     constructor() {
+        super.enableLegacyContracts();
         super.setUp();
         _defaultTx = Types.WithdrawalTransaction({
             nonce: 0,
@@ -607,7 +608,6 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
 
     /// @dev Setup the system for a ready-to-use state.
     function setUp() public virtual override {
-        super.enableLegacyContracts();
         // Configure the oracle to return the output root we've prepared.
         vm.warp(l2OutputOracle.computeL2Timestamp(_proposedBlockNumber) + 1);
         vm.prank(l2OutputOracle.PROPOSER());
@@ -1281,7 +1281,7 @@ contract OptimismPortalWithMockERC20_Test is OptimismPortal_FinalizeWithdrawal_T
     MockERC20 token;
 
     function setUp() public override {
-        enableLegacyContracts();
+        super.enableLegacyContracts();
         super.setUp();
         token = new MockERC20("Test", "TST", 18);
     }
