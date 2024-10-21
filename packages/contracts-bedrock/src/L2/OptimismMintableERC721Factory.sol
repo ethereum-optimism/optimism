@@ -25,11 +25,10 @@ contract OptimismMintableERC721Factory is ISemver {
     event OptimismMintableERC721Created(address indexed localToken, address indexed remoteToken, address deployer);
 
     /// @notice Semantic version.
+    ///     The semver MUST be bumped any time that there is a change in
+    ///     the OptimismMintableERC721 token contract since this contract
+    ///     is responsible for deploying OptimismMintableERC721 contracts.
     /// @custom:semver 1.4.1-beta.3
-    ///         The semver MUST be bumped any time that there is a change in
-    ///         the OptimismMintableERC721 token contract since this contract
-    ///         is responsible for deploying OptimismMintableERC721 contracts.
-    /// @custom:semver 1.4.1-beta.2
     string public constant version = "1.4.1-beta.3";
 
     /// @notice Returns the remote chain id
