@@ -240,7 +240,7 @@ contract Deploy is Deployer {
 
         // Set msg.sender to zero address because the proxies will return implementation only for
         // zero address or admin.
-        vm.startPrank(0x0000000000000000000000000000000000000000);
+        vm.startPrank(address(0));
         IProxy scProxy = IProxy(_superchainConfigProxy);
         save("SuperchainConfig", scProxy.implementation());
         save("SuperchainConfigProxy", _superchainConfigProxy);
