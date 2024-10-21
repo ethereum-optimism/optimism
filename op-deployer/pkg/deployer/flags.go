@@ -1,6 +1,7 @@
 package deployer
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
