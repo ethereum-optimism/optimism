@@ -9,7 +9,7 @@ import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 abstract contract ERC721Bridge {
     /// @custom:spacer ERC721Bridge's initializer slot spacing
     /// @notice Spacer for legacy initializable slot
-    bytes32 private spacer_0_2_32;
+    bytes32 private spacer_0_0_32;
 
     /// @custom:legacy
     /// @custom:spacer messenger
