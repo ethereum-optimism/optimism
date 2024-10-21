@@ -5,71 +5,35 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/broadcaster"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/opcm"
 	"github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
-	state2 "github.com/ethereum-optimism/optimism/op-deployer/pkg/deployer/state"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
-func DeployOPChain(ctx context.Context, env *Env, bundle ArtifactsBundle, intent *state2.Intent, st *state2.State, chainID common.Hash) error {
-	lgr := env.Logger.New("stage", "deploy-opchain")
+func DeployOPChainLiveStrategy(ctx context.Context, env *Env, bundle ArtifactsBundle, intent *state.Intent, st *state.State, chainID common.Hash) error {
+	lgr := env.Logger.New("stage", "deploy-opchain", "strategy", "live")
 
 	if !shouldDeployOPChain(st, chainID) {
 		lgr.Info("opchain deployment not needed")
 		return nil
 	}
 
-	lgr.Info("deploying OP chain", "id", chainID.Hex())
-
 	thisIntent, err := intent.Chain(chainID)
 	if err != nil {
 		return fmt.Errorf("failed to get chain intent: %w", err)
 	}
 
-	opcmProxyAddress := st.ImplementationsDeployment.OpcmProxyAddress
-
-	input := opcm.DeployOPChainInput{
-		OpChainProxyAdminOwner:  thisIntent.Roles.ProxyAdminOwner,
-		SystemConfigOwner:       thisIntent.Roles.SystemConfigOwner,
-		Batcher:                 thisIntent.Roles.Batcher,
-		UnsafeBlockSigner:       thisIntent.Roles.UnsafeBlockSigner,
-		Proposer:                thisIntent.Roles.Proposer,
-		Challenger:              thisIntent.Roles.Challenger,
-		BasefeeScalar:           1368,
-		BlobBaseFeeScalar:       801949,
-		L2ChainId:               chainID.Big(),
-		OpcmProxy:               opcmProxyAddress,
-		SaltMixer:               st.Create2Salt.String(), // passing through salt generated at state initialization
-		GasLimit:                60_000_000,
-		DisputeGameType:         1, // PERMISSIONED_CANNON Game Type
-		DisputeAbsolutePrestate: common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
-		DisputeMaxGameDepth:     73,
-		DisputeSplitDepth:       30,
-		DisputeClockExtension:   10800,  // 3 hours (input in seconds)
-		DisputeMaxClockDuration: 302400, // 3.5 days (input in seconds)
-	}
+	input := makeDCI(thisIntent, chainID, st)
 
 	var dco opcm.DeployOPChainOutput
-	lgr.Info("deploying using existing OPCM", "address", opcmProxyAddress.Hex())
-	bcaster, err := broadcaster.NewKeyedBroadcaster(broadcaster.KeyedBroadcasterOpts{
-		Logger:  lgr,
-		ChainID: big.NewInt(int64(intent.L1ChainID)),
-		Client:  env.L1Client,
-		Signer:  env.Signer,
-		From:    env.Deployer,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to create broadcaster: %w", err)
-	}
+	lgr.Info("deploying OP chain using existing OPCM", "id", chainID.Hex(), "opcmAddress", st.ImplementationsDeployment.OpcmProxyAddress.Hex())
 	dco, err = opcm.DeployOPChainRaw(
 		ctx,
 		env.L1Client,
-		bcaster,
+		env.Broadcaster,
 		env.Deployer,
 		bundle.L1,
 		input,
@@ -78,25 +42,8 @@ func DeployOPChain(ctx context.Context, env *Env, bundle ArtifactsBundle, intent
 		return fmt.Errorf("error deploying OP chain: %w", err)
 	}
 
-	st.Chains = append(st.Chains, &state2.ChainState{
-		ID:                                        chainID,
-		ProxyAdminAddress:                         dco.OpChainProxyAdmin,
-		AddressManagerAddress:                     dco.AddressManager,
-		L1ERC721BridgeProxyAddress:                dco.L1ERC721BridgeProxy,
-		SystemConfigProxyAddress:                  dco.SystemConfigProxy,
-		OptimismMintableERC20FactoryProxyAddress:  dco.OptimismMintableERC20FactoryProxy,
-		L1StandardBridgeProxyAddress:              dco.L1StandardBridgeProxy,
-		L1CrossDomainMessengerProxyAddress:        dco.L1CrossDomainMessengerProxy,
-		OptimismPortalProxyAddress:                dco.OptimismPortalProxy,
-		DisputeGameFactoryProxyAddress:            dco.DisputeGameFactoryProxy,
-		AnchorStateRegistryProxyAddress:           dco.AnchorStateRegistryProxy,
-		AnchorStateRegistryImplAddress:            dco.AnchorStateRegistryImpl,
-		FaultDisputeGameAddress:                   dco.FaultDisputeGame,
-		PermissionedDisputeGameAddress:            dco.PermissionedDisputeGame,
-		DelayedWETHPermissionedGameProxyAddress:   dco.DelayedWETHPermissionedGameProxy,
-		DelayedWETHPermissionlessGameProxyAddress: dco.DelayedWETHPermissionlessGameProxy,
-	})
-
+	st.Chains = append(st.Chains, makeChainState(chainID, dco))
+	opcmProxyAddress := st.ImplementationsDeployment.OpcmProxyAddress
 	err = conditionallySetImplementationAddresses(ctx, env.L1Client, intent, st, dco, opcmProxyAddress)
 	if err != nil {
 		return fmt.Errorf("failed to set implementation addresses: %w", err)
@@ -107,7 +54,7 @@ func DeployOPChain(ctx context.Context, env *Env, bundle ArtifactsBundle, intent
 
 // Only try to set the implementation addresses if we reused existing implementations from a release tag.
 // The reason why these addresses could be empty is because only DeployOPChain.s.sol is invoked as part of the pipeline.
-func conditionallySetImplementationAddresses(ctx context.Context, client *ethclient.Client, intent *state2.Intent, st *state.State, dco opcm.DeployOPChainOutput, opcmProxyAddress common.Address) error {
+func conditionallySetImplementationAddresses(ctx context.Context, client *ethclient.Client, intent *state.Intent, st *state.State, dco opcm.DeployOPChainOutput, opcmProxyAddress common.Address) error {
 	if !intent.L1ContractsLocator.IsTag() {
 		return nil
 	}
@@ -166,8 +113,6 @@ func conditionallySetImplementationAddresses(ctx context.Context, client *ethcli
 		return fmt.Errorf("failed to set implementation addresses: %w", lastTaskErr)
 	}
 
-	fmt.Printf("st.ImplementationsDeployment: %+v\n", st.ImplementationsDeployment)
-
 	return nil
 }
 
@@ -192,6 +137,82 @@ func setPreimageOracleAddress(ctx context.Context, client *ethclient.Client, err
 		*preimageOracleAddress = preimageOracle
 	}
 	errCh <- err
+}
+
+func DeployOPChainGenesisStrategy(env *Env, intent *state.Intent, st *state.State, chainID common.Hash) error {
+	lgr := env.Logger.New("stage", "deploy-opchain", "strategy", "genesis")
+
+	if !shouldDeployOPChain(st, chainID) {
+		lgr.Info("opchain deployment not needed")
+		return nil
+	}
+
+	thisIntent, err := intent.Chain(chainID)
+	if err != nil {
+		return fmt.Errorf("failed to get chain intent: %w", err)
+	}
+
+	input := makeDCI(thisIntent, chainID, st)
+
+	env.L1ScriptHost.ImportState(st.L1StateDump.Data)
+
+	var dco opcm.DeployOPChainOutput
+	lgr.Info("deploying OP chain using local allocs", "id", chainID.Hex())
+	dco, err = opcm.DeployOPChain(
+		env.L1ScriptHost,
+		input,
+	)
+	if err != nil {
+		return fmt.Errorf("error deploying OP chain: %w", err)
+	}
+
+	st.Chains = append(st.Chains, makeChainState(chainID, dco))
+
+	return nil
+}
+
+func makeDCI(thisIntent *state.ChainIntent, chainID common.Hash, st *state.State) opcm.DeployOPChainInput {
+	return opcm.DeployOPChainInput{
+		OpChainProxyAdminOwner:  thisIntent.Roles.ProxyAdminOwner,
+		SystemConfigOwner:       thisIntent.Roles.SystemConfigOwner,
+		Batcher:                 thisIntent.Roles.Batcher,
+		UnsafeBlockSigner:       thisIntent.Roles.UnsafeBlockSigner,
+		Proposer:                thisIntent.Roles.Proposer,
+		Challenger:              thisIntent.Roles.Challenger,
+		BasefeeScalar:           1368,
+		BlobBaseFeeScalar:       801949,
+		L2ChainId:               chainID.Big(),
+		OpcmProxy:               st.ImplementationsDeployment.OpcmProxyAddress,
+		SaltMixer:               st.Create2Salt.String(), // passing through salt generated at state initialization
+		GasLimit:                60_000_000,
+		DisputeGameType:         1, // PERMISSIONED_CANNON Game Type
+		DisputeAbsolutePrestate: common.HexToHash("0x038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c"),
+		DisputeMaxGameDepth:     73,
+		DisputeSplitDepth:       30,
+		DisputeClockExtension:   10800,  // 3 hours (input in seconds)
+		DisputeMaxClockDuration: 302400, // 3.5 days (input in seconds)
+	}
+}
+
+func makeChainState(chainID common.Hash, dco opcm.DeployOPChainOutput) *state.ChainState {
+	return &state.ChainState{
+		ID:                                        chainID,
+		ProxyAdminAddress:                         dco.OpChainProxyAdmin,
+		AddressManagerAddress:                     dco.AddressManager,
+		L1ERC721BridgeProxyAddress:                dco.L1ERC721BridgeProxy,
+		SystemConfigProxyAddress:                  dco.SystemConfigProxy,
+		OptimismMintableERC20FactoryProxyAddress:  dco.OptimismMintableERC20FactoryProxy,
+		L1StandardBridgeProxyAddress:              dco.L1StandardBridgeProxy,
+		L1CrossDomainMessengerProxyAddress:        dco.L1CrossDomainMessengerProxy,
+		OptimismPortalProxyAddress:                dco.OptimismPortalProxy,
+		DisputeGameFactoryProxyAddress:            dco.DisputeGameFactoryProxy,
+		AnchorStateRegistryProxyAddress:           dco.AnchorStateRegistryProxy,
+		AnchorStateRegistryImplAddress:            dco.AnchorStateRegistryImpl,
+		FaultDisputeGameAddress:                   dco.FaultDisputeGame,
+		PermissionedDisputeGameAddress:            dco.PermissionedDisputeGame,
+		DelayedWETHPermissionedGameProxyAddress:   dco.DelayedWETHPermissionedGameProxy,
+		DelayedWETHPermissionlessGameProxyAddress: dco.DelayedWETHPermissionlessGameProxy,
+	}
 }
 
 func setRDPImplementationAddress(ctx context.Context, client *ethclient.Client, errCh chan error, addressManager common.Address, implAddress *common.Address, getNameArg string) {

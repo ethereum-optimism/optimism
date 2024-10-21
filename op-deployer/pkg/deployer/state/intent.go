@@ -11,12 +11,30 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
+type DeploymentStrategy string
+
+const (
+	DeploymentStrategyLive    DeploymentStrategy = "live"
+	DeploymentStrategyGenesis DeploymentStrategy = "genesis"
+)
+
+func (d DeploymentStrategy) Check() error {
+	switch d {
+	case DeploymentStrategyLive, DeploymentStrategyGenesis:
+		return nil
+	default:
+		return fmt.Errorf("deployment strategy must be 'live' or 'genesis'")
+	}
+}
+
 var emptyAddress common.Address
 
 type Intent struct {
+	DeploymentStrategy DeploymentStrategy `json:"deploymentStrategy" toml:"deploymentStrategy"`
+
 	L1ChainID uint64 `json:"l1ChainID" toml:"l1ChainID"`
 
-	SuperchainRoles SuperchainRoles `json:"superchainRoles" toml:"-"`
+	SuperchainRoles *SuperchainRoles `json:"superchainRoles" toml:"superchainRoles,omitempty"`
 
 	FundDevAccounts bool `json:"fundDevAccounts" toml:"fundDevAccounts"`
 
@@ -34,6 +52,10 @@ func (c *Intent) L1ChainIDBig() *big.Int {
 }
 
 func (c *Intent) Check() error {
+	if c.DeploymentStrategy != DeploymentStrategyLive && c.DeploymentStrategy != DeploymentStrategyGenesis {
+		return fmt.Errorf("deploymentStrategy must be 'live' or 'local'")
+	}
+
 	if c.L1ChainID == 0 {
 		return fmt.Errorf("l1ChainID must be set")
 	}
