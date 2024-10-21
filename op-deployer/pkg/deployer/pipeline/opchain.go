@@ -173,7 +173,7 @@ func DeployOPChainGenesisStrategy(env *Env, intent *state.Intent, st *state.Stat
 
 func makeDCI(thisIntent *state.ChainIntent, chainID common.Hash, st *state.State) opcm.DeployOPChainInput {
 	return opcm.DeployOPChainInput{
-		OpChainProxyAdminOwner:  thisIntent.Roles.ProxyAdminOwner,
+		OpChainProxyAdminOwner:  thisIntent.Roles.L1ProxyAdminOwner,
 		SystemConfigOwner:       thisIntent.Roles.SystemConfigOwner,
 		Batcher:                 thisIntent.Roles.Batcher,
 		UnsafeBlockSigner:       thisIntent.Roles.UnsafeBlockSigner,

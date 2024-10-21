@@ -124,13 +124,13 @@ func Init(cfg InitConfig) error {
 			Eip1559Denominator:         50,
 			Eip1559Elasticity:          6,
 			Roles: state.ChainRoles{
-				ProxyAdminOwner:      addrFor(devkeys.L2ProxyAdminOwnerRole.Key(l2ChainIDBig)),
-				SystemConfigOwner:    addrFor(devkeys.SystemConfigOwner.Key(l2ChainIDBig)),
-				GovernanceTokenOwner: addrFor(devkeys.L2ProxyAdminOwnerRole.Key(l2ChainIDBig)),
-				UnsafeBlockSigner:    addrFor(devkeys.SequencerP2PRole.Key(l2ChainIDBig)),
-				Batcher:              addrFor(devkeys.BatcherRole.Key(l2ChainIDBig)),
-				Proposer:             addrFor(devkeys.ProposerRole.Key(l2ChainIDBig)),
-				Challenger:           addrFor(devkeys.ChallengerRole.Key(l2ChainIDBig)),
+				L1ProxyAdminOwner: addrFor(devkeys.L1ProxyAdminOwnerRole.Key(l2ChainIDBig)),
+				L2ProxyAdminOwner: addrFor(devkeys.L2ProxyAdminOwnerRole.Key(l2ChainIDBig)),
+				SystemConfigOwner: addrFor(devkeys.SystemConfigOwner.Key(l2ChainIDBig)),
+				UnsafeBlockSigner: addrFor(devkeys.SequencerP2PRole.Key(l2ChainIDBig)),
+				Batcher:           addrFor(devkeys.BatcherRole.Key(l2ChainIDBig)),
+				Proposer:          addrFor(devkeys.ProposerRole.Key(l2ChainIDBig)),
+				Challenger:        addrFor(devkeys.ChallengerRole.Key(l2ChainIDBig)),
 			},
 		})
 	}
