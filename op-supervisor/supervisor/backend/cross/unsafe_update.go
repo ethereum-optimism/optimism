@@ -17,7 +17,7 @@ type CrossUnsafeDeps interface {
 	UnsafeStartDeps
 	UnsafeFrontierCheckDeps
 
-	OpenBlock(chainID types.ChainID, blockNum uint64) (block eth.BlockRef, logCount uint32, execMsgs []*types.ExecutingMessage, err error)
+	OpenBlock(chainID types.ChainID, blockNum uint64) (block eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, err error)
 
 	UpdateCrossUnsafe(chain types.ChainID, crossUnsafe types.BlockSeal) error
 }
@@ -46,7 +46,7 @@ func CrossUnsafeUpdate(ctx context.Context, logger log.Logger, chainID types.Cha
 			return fmt.Errorf("cannot use block %s, it does not build on cross-unsafe block %s: %w", bl, crossUnsafe, types.ErrConflict)
 		}
 		candidate = types.BlockSealFromRef(bl)
-		execMsgs = msgs
+		execMsgs = sliceOfExecMsgs(msgs)
 	}
 
 	hazards, err := CrossUnsafeHazards(d, chainID, candidate, execMsgs)

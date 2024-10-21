@@ -193,7 +193,7 @@ func (db *ChainsDB) Check(chain types.ChainID, blockNum uint64, logIdx uint32, l
 
 // OpenBlock returns the Executing Messages for the block at the given number on the given chain.
 // it routes the request to the appropriate logDB.
-func (db *ChainsDB) OpenBlock(chainID types.ChainID, blockNum uint64) (seal eth.BlockRef, logCount uint32, execMsgs []*types.ExecutingMessage, err error) {
+func (db *ChainsDB) OpenBlock(chainID types.ChainID, blockNum uint64) (seal eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, err error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 

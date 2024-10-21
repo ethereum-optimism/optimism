@@ -181,7 +181,7 @@ func (db *DB) StartingBlock() (seal types.BlockSeal, err error) {
 
 // OpenBlock returns the Executing Messages for the block at the given number.
 // it returns identification of the block, the parent block, and the executing messages.
-func (db *DB) OpenBlock(blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs []*types.ExecutingMessage, retErr error) {
+func (db *DB) OpenBlock(blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, retErr error) {
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
 
@@ -215,14 +215,14 @@ func (db *DB) OpenBlock(blockNum uint64) (ref eth.BlockRef, logCount uint32, exe
 	}
 	// walk to the end of the block, and remember what we see in the block.
 	logCount = 0
-	execMsgs = make([]*types.ExecutingMessage, 0, 1)
+	execMsgs = make(map[uint32]*types.ExecutingMessage, 0)
 	retErr = blockIter.TraverseConditional(func(state IteratorState) error {
 		_, logIndex, ok := state.InitMessage()
 		if ok {
 			logCount = logIndex + 1
 		}
 		if m := state.ExecMessage(); m != nil {
-			execMsgs = append(execMsgs, m)
+			execMsgs[logIndex] = m
 		}
 		h, n, ok := state.SealedBlock()
 		if !ok {

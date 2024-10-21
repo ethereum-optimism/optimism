@@ -45,7 +45,7 @@ type LogStorage interface {
 	Contains(blockNum uint64, logIdx uint32, logHash common.Hash) (includedIn types.BlockSeal, err error)
 
 	// OpenBlock accumulates the ExecutingMessage events for a block and returns them
-	OpenBlock(blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs []*types.ExecutingMessage, err error)
+	OpenBlock(blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs map[uint32]*types.ExecutingMessage, err error)
 }
 
 type LocalDerivedFromStorage interface {
