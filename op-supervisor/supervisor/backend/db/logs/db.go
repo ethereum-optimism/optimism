@@ -21,7 +21,7 @@ const (
 )
 
 type Metrics interface {
-	RecordDBEntryCount(count int64)
+	RecordDBEntryCount(kind string, count int64)
 	RecordDBSearchEntriesRead(count int64)
 }
 
@@ -122,7 +122,7 @@ func (db *DB) trimToLastSealed() error {
 }
 
 func (db *DB) updateEntryCountMetric() {
-	db.m.RecordDBEntryCount(db.store.Size())
+	db.m.RecordDBEntryCount("log", db.store.Size())
 }
 
 func (db *DB) IteratorStartingAt(sealedNum uint64, logsSince uint32) (Iterator, error) {
@@ -295,7 +295,7 @@ func (db *DB) newIteratorAt(blockNum uint64, logIndex uint32) (*iterator, error)
 	}()
 	// First walk up to the block that we are sealed up to (incl.)
 	for {
-		if _, n, _ := iter.SealedBlock(); n == blockNum { // we may already have it exactly
+		if _, n, ok := iter.SealedBlock(); ok && n == blockNum { // we may already have it exactly
 			break
 		}
 		if err := iter.NextBlock(); errors.Is(err, entrydb.ErrFuture) {

@@ -119,7 +119,7 @@ func WithRandomization(seed int64) StateOption {
 func AlignPC(pc arch.Word) arch.Word {
 	// Memory-align random pc and leave room for nextPC
 	pc = pc & arch.AddressMask // Align address
-	if pc >= arch.AddressMask && arch.IsMips32 {
+	if pc >= arch.AddressMask {
 		// Leave room to set and then increment nextPC
 		pc = arch.AddressMask - 8
 	}

@@ -31,7 +31,7 @@ contract PredeploysBaseTest is CommonTest {
     function _usesImmutables(address _addr) internal pure returns (bool) {
         return _addr == Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY || _addr == Predeploys.SEQUENCER_FEE_WALLET
             || _addr == Predeploys.BASE_FEE_VAULT || _addr == Predeploys.L1_FEE_VAULT || _addr == Predeploys.EAS
-            || _addr == Predeploys.GOVERNANCE_TOKEN || _addr == Predeploys.OPTIMISM_SUPERCHAIN_ERC20_BEACON;
+            || _addr == Predeploys.GOVERNANCE_TOKEN;
     }
 
     function test_predeployToCodeNamespace() external pure {

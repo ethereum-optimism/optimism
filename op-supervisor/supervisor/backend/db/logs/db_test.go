@@ -1133,7 +1133,7 @@ type stubMetrics struct {
 	entriesReadForSearch int64
 }
 
-func (s *stubMetrics) RecordDBEntryCount(count int64) {
+func (s *stubMetrics) RecordDBEntryCount(kind string, count int64) {
 	s.entryCount = count
 }
 

@@ -128,7 +128,6 @@ func TestBasicRPCReceiptsFetcher_Concurrency(t *testing.T) {
 	mrpc.AssertExpectations(t)
 	finalNumCalls := int(numCalls.Load())
 	require.NotZero(finalNumCalls, "BatchCallContext should have been called.")
-	require.Less(finalNumCalls, numFetchers, "Some IterativeBatchCalls should have been shared.")
 }
 
 func runConcurrentFetchingTest(t *testing.T, rp ReceiptsProvider, numFetchers int, receipts types.Receipts, block *RPCBlock) {

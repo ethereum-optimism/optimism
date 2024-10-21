@@ -38,6 +38,9 @@ error MessageAlreadyRelayed();
 /// @notice Thrown when a reentrant call is detected.
 error ReentrantCall();
 
+/// @notice Thrown when a call to the target contract during message relay fails.
+error TargetCallFailed();
+
 /// @custom:proxied true
 /// @custom:predeploy 0x4200000000000000000000000000000000000023
 /// @title L2ToL2CrossDomainMessenger
@@ -64,8 +67,8 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
     uint16 public constant messageVersion = uint16(0);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.7
-    string public constant version = "1.0.0-beta.7";
+    /// @custom:semver 1.0.0-beta.9
+    string public constant version = "1.0.0-beta.9";
 
     /// @notice Mapping of message hashes to boolean receipt values. Note that a message will only be present in this
     ///         mapping if it has successfully been relayed on this chain, and can therefore not be relayed again.
@@ -92,12 +95,6 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
     /// @param messageHash  Hash of the message that was relayed.
     event RelayedMessage(uint256 indexed source, uint256 indexed messageNonce, bytes32 indexed messageHash);
 
-    /// @notice Emitted whenever a message fails to be relayed on this chain.
-    /// @param source       Chain ID of the source chain.
-    /// @param messageNonce Nonce associated with the messsage sent
-    /// @param messageHash  Hash of the message that failed to be relayed.
-    event FailedRelayedMessage(uint256 indexed source, uint256 indexed messageNonce, bytes32 indexed messageHash);
-
     /// @notice Retrieves the sender of the current cross domain message. If not entered, reverts.
     /// @return sender_ Address of the sender of the current cross domain message.
     function crossDomainMessageSender() external view onlyEntered returns (address sender_) {
@@ -110,6 +107,16 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
     /// @return source_ Chain ID of the source of the current cross domain message.
     function crossDomainMessageSource() external view onlyEntered returns (uint256 source_) {
         assembly {
+            source_ := tload(CROSS_DOMAIN_MESSAGE_SOURCE_SLOT)
+        }
+    }
+
+    /// @notice Retrieves the context of the current cross domain message. If not entered, reverts.
+    /// @return sender_ Address of the sender of the current cross domain message.
+    /// @return source_ Chain ID of the source of the current cross domain message.
+    function crossDomainMessageContext() external view onlyEntered returns (address sender_, uint256 source_) {
+        assembly {
+            sender_ := tload(CROSS_DOMAIN_MESSAGE_SENDER_SLOT)
             source_ := tload(CROSS_DOMAIN_MESSAGE_SOURCE_SLOT)
         }
     }
@@ -190,12 +197,12 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
 
         bool success = SafeCall.call(target, msg.value, message);
 
-        if (success) {
-            successfulMessages[messageHash] = true;
-            emit RelayedMessage(source, nonce, messageHash);
-        } else {
-            emit FailedRelayedMessage(source, nonce, messageHash);
+        if (!success) {
+            revert TargetCallFailed();
         }
+
+        successfulMessages[messageHash] = true;
+        emit RelayedMessage(source, nonce, messageHash);
 
         _storeMessageMetadata(0, address(0));
     }

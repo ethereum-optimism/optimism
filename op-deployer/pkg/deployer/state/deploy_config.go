@@ -22,7 +22,7 @@ func DefaultDeployConfig(chainIntent *ChainIntent) genesis.DeployConfig {
 	return genesis.DeployConfig{
 		L2InitializationConfig: genesis.L2InitializationConfig{
 			L2GenesisBlockDeployConfig: genesis.L2GenesisBlockDeployConfig{
-				L2GenesisBlockGasLimit:      30_000_000,
+				L2GenesisBlockGasLimit:      60_000_000,
 				L2GenesisBlockBaseFeePerGas: &l2GenesisBlockBaseFeePerGas,
 			},
 			L2VaultsDeployConfig: genesis.L2VaultsDeployConfig{

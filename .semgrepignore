@@ -8,11 +8,6 @@ vendor/
 .tox/
 *.min.js
 
-# Common test paths
-# TODO: Tests should conform to semgrep too.
-test/
-tests/
-
 # Semgrep rules folder
 .semgrep
 

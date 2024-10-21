@@ -338,7 +338,7 @@ contract DeployOPChain_TestBase is Test {
     IAnchorStateRegistry.StartingAnchorRoot[] startingAnchorRoots;
     OPContractsManager opcm = OPContractsManager(address(0));
     string saltMixer = "defaultSaltMixer";
-    uint64 gasLimit = 30_000_000;
+    uint64 gasLimit = 60_000_000;
     // Configurable dispute game parameters.
     uint32 disputeGameType = GameType.unwrap(GameTypes.PERMISSIONED_CANNON);
     bytes32 disputeAbsolutePrestate = hex"038512e02c4c3f7bdaec27d00edf55b7155e0905301e1a88083e4e0a6764d54c";

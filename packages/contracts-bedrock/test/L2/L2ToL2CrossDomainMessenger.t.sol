@@ -22,7 +22,8 @@ import {
     MessageTargetCrossL2Inbox,
     MessageTargetL2ToL2CrossDomainMessenger,
     MessageAlreadyRelayed,
-    ReentrantCall
+    ReentrantCall,
+    TargetCallFailed
 } from "src/L2/L2ToL2CrossDomainMessenger.sol";
 
 /// @title L2ToL2CrossDomainMessengerWithModifiableTransientStorage
@@ -402,12 +403,6 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         address target = address(this);
         bytes memory message = abi.encodeWithSelector(this.mockTargetReentrant.selector, _source2, _nonce, _sender2);
 
-        // Look for correct emitted event
-        vm.expectEmit(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
-        emit L2ToL2CrossDomainMessenger.FailedRelayedMessage(
-            _source1, _nonce, keccak256(abi.encode(block.chainid, _source1, _nonce, _sender1, target, message))
-        );
-
         // Ensure the target contract is called with the correct parameters
         vm.expectCall({ callee: target, msgValue: _value, data: message });
 
@@ -426,6 +421,8 @@ contract L2ToL2CrossDomainMessengerTest is Test {
             returnData: ""
         });
 
+        // Expect a revert with the TargetCallFailed selector
+        vm.expectRevert(TargetCallFailed.selector);
         hoax(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, _value);
         l2ToL2CrossDomainMessenger.relayMessage{ value: _value }(id, sentMessage);
 
@@ -673,12 +670,6 @@ contract L2ToL2CrossDomainMessengerTest is Test {
         // Ensure that the target contract reverts
         vm.mockCallRevert({ callee: _target, msgValue: _value, data: _message, revertData: abi.encode(false) });
 
-        // Look for correct emitted event
-        vm.expectEmit(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER);
-        emit L2ToL2CrossDomainMessenger.FailedRelayedMessage(
-            _source, _nonce, keccak256(abi.encode(block.chainid, _source, _nonce, _sender, _target, _message))
-        );
-
         ICrossL2Inbox.Identifier memory id =
             ICrossL2Inbox.Identifier(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, _blockNum, _logIndex, _time, _source);
         bytes memory sentMessage = abi.encodePacked(
@@ -693,6 +684,8 @@ contract L2ToL2CrossDomainMessengerTest is Test {
             returnData: ""
         });
 
+        // Expect a revert with the TargetCallFailed selector
+        vm.expectRevert(TargetCallFailed.selector);
         hoax(Predeploys.L2_TO_L2_CROSS_DOMAIN_MESSENGER, _value);
         l2ToL2CrossDomainMessenger.relayMessage{ value: _value }(id, sentMessage);
     }
@@ -743,5 +736,35 @@ contract L2ToL2CrossDomainMessengerTest is Test {
 
         // Call `crossDomainMessageSource` to provoke revert
         l2ToL2CrossDomainMessenger.crossDomainMessageSource();
+    }
+
+    /// @dev Tests that the `crossDomainMessageContext` function returns the correct value.
+    function testFuzz_crossDomainMessageContext_succeeds(address _sender, uint256 _source) external {
+        // Set `entered` to non-zero value to prevent NotEntered revert
+        l2ToL2CrossDomainMessenger.setEntered(1);
+        // Ensure that the contract is now entered
+        assertEq(l2ToL2CrossDomainMessenger.entered(), true);
+
+        // Set cross domain message source in the transient storage
+        l2ToL2CrossDomainMessenger.setCrossDomainMessageSender(_sender);
+        l2ToL2CrossDomainMessenger.setCrossDomainMessageSource(_source);
+
+        // Check that the `crossDomainMessageContext` function returns the correct value
+        (address crossDomainContextSender, uint256 crossDomainContextSource) =
+            l2ToL2CrossDomainMessenger.crossDomainMessageContext();
+        assertEq(crossDomainContextSender, _sender);
+        assertEq(crossDomainContextSource, _source);
+    }
+
+    /// @dev Tests that the `crossDomainMessageContext` function reverts when not entered.
+    function test_crossDomainMessageContext_notEntered_reverts() external {
+        // Ensure that the contract is not entered
+        assertEq(l2ToL2CrossDomainMessenger.entered(), false);
+
+        // Expect a revert with the NotEntered selector
+        vm.expectRevert(NotEntered.selector);
+
+        // Call `crossDomainMessageContext` to provoke revert
+        l2ToL2CrossDomainMessenger.crossDomainMessageContext();
     }
 }
