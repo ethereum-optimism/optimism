@@ -57,7 +57,7 @@ var (
 	}
 	DeploymentStrategyFlag = &cli.StringFlag{
 		Name:    DeploymentStrategyFlagName,
-		Usage:   "Deployment strategy to use.",
+		Usage:   fmt.Sprintf("Deployment strategy to use. Options: %s, %s", state.DeploymentStrategyLive, state.DeploymentStrategyGenesis),
 		EnvVars: PrefixEnvVar("DEPLOYMENT_STRATEGY"),
 		Value:   string(state.DeploymentStrategyLive),
 	}
