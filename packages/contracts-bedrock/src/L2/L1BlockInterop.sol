@@ -58,7 +58,7 @@ contract L1BlockInterop is L1Block {
     /// @notice This function is only callable by the CrossL2Inbox contract.
     function isDeposit() external view returns (bool isDeposit_) {
         if (msg.sender != Predeploys.CROSS_L2_INBOX) revert NotCrossL2Inbox();
-        assembly {
+        assembly ("memory-safe") {
             isDeposit_ := sload(IS_DEPOSIT_SLOT)
         }
     }
@@ -82,7 +82,7 @@ contract L1BlockInterop is L1Block {
     ///         It forwards the calldata to the internally-used `setL1BlockValuesEcotone` function.
     function setL1BlockValuesInterop() external {
         // Set the isDeposit flag to true.
-        assembly {
+        assembly ("memory-safe") {
             sstore(IS_DEPOSIT_SLOT, 1)
         }
 
@@ -95,7 +95,7 @@ contract L1BlockInterop is L1Block {
         if (msg.sender != DEPOSITOR_ACCOUNT()) revert NotDepositor();
 
         // Set the isDeposit flag to false.
-        assembly {
+        assembly ("memory-safe") {
             sstore(IS_DEPOSIT_SLOT, 0)
         }
     }

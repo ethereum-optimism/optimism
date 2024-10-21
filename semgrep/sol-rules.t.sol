@@ -120,6 +120,20 @@ contract SemgrepTest__sol_safety_expectrevert_no_args {
     }
 }
 
+contract SemgrepTest__sol_safety_memory_safe_asm {
+    function test() {
+        // TODO: We cannot test the negative case for this rule because Semgrep currently has a bug
+        // and cannot parse the "memory-safe" annotation properly. Semgrep rule still works
+        // correctly but you'll just have to take my word for it until the issue is fixed.
+        // Semgrep issue: https://github.com/semgrep/semgrep/issues/10617
+
+        // ruleid: sol-safety-memory-safe-asm
+        assembly {
+            // ...
+        }
+    }
+}
+
 contract SemgrepTest__sol_style_input_arg_fmt {
     // ok: sol-style-input-arg-fmt
     event Test(address indexed src, address indexed guy, uint256 wad);

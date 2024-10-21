@@ -26,7 +26,7 @@ library DeployUtils {
     /// @return addr_ Address of the deployed contract.
     function create1(string memory _name, bytes memory _args) internal returns (address payable addr_) {
         bytes memory bytecode = abi.encodePacked(vm.getCode(_name), _args);
-        assembly {
+        assembly ("memory-safe") {
             addr_ := create(0, add(bytecode, 0x20), mload(bytecode))
         }
         assertValidContractAddress(addr_);
@@ -101,7 +101,7 @@ library DeployUtils {
         bytes memory initCode = abi.encodePacked(vm.getCode(_name), _args);
         address preComputedAddress = vm.computeCreate2Address(_salt, keccak256(initCode));
         require(preComputedAddress.code.length == 0, "DeployUtils: contract already deployed");
-        assembly {
+        assembly ("memory-safe") {
             addr_ := create2(0, add(initCode, 0x20), mload(initCode), _salt)
             if iszero(addr_) {
                 let size := returndatasize()

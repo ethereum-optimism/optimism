@@ -151,7 +151,7 @@ contract L1Block is ISemver, IGasToken {
     ///   9. _batcherHash        Versioned hash to authenticate batcher by.
     function _setL1BlockValuesEcotone() internal {
         address depositor = DEPOSITOR_ACCOUNT();
-        assembly {
+        assembly ("memory-safe") {
             // Revert if the caller is not the depositor account.
             if xor(caller(), depositor) {
                 mstore(0x00, 0x3cc50b45) // 0x3cc50b45 is the 4-byte selector of "NotDepositor()"

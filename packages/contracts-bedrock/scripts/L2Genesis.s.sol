@@ -537,7 +537,7 @@ contract L2Genesis is Deployer {
         bytes memory code = vm.getCode(string.concat(cname, ".sol:", cname));
 
         address eas;
-        assembly {
+        assembly ("memory-safe") {
             eas := create(0, add(code, 0x20), mload(code))
         }
 

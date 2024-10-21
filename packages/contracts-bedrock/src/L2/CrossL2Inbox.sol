@@ -65,8 +65,8 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
     address internal constant DEPOSITOR_ACCOUNT = 0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAd0001;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.8
-    string public constant version = "1.0.0-beta.8";
+    /// @custom:semver 1.0.0-beta.9
+    string public constant version = "1.0.0-beta.9";
 
     /// @notice Emitted when a cross chain message is being executed.
     /// @param msgHash Hash of message payload being executed.
@@ -83,7 +83,7 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
         if (interopStart() != 0) revert InteropStartAlreadySet();
 
         // Set Interop Start to block.timestamp
-        assembly {
+        assembly ("memory-safe") {
             sstore(INTEROP_START_SLOT, timestamp())
         }
     }
@@ -91,7 +91,7 @@ contract CrossL2Inbox is ICrossL2Inbox, ISemver, TransientReentrancyAware {
     /// @notice Returns the interop start timestamp.
     /// @return interopStart_ interop start timestamp.
     function interopStart() public view returns (uint256 interopStart_) {
-        assembly {
+        assembly ("memory-safe") {
             interopStart_ := sload(INTEROP_START_SLOT)
         }
     }

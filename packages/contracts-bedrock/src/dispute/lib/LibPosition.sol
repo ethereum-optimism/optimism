@@ -22,7 +22,7 @@ library LibPosition {
     /// @param _indexAtDepth The index at the depth of the position.
     /// @return position_ The computed generalized index.
     function wrap(uint8 _depth, uint128 _indexAtDepth) internal pure returns (Position position_) {
-        assembly {
+        assembly ("memory-safe") {
             // gindex = 2^{_depth} + _indexAtDepth
             position_ := add(shl(_depth, 1), _indexAtDepth)
         }
@@ -34,7 +34,7 @@ library LibPosition {
     /// @custom:attribution Solady <https://github.com/Vectorized/Solady>
     function depth(Position _position) internal pure returns (uint8 depth_) {
         // Return the most significant bit offset, which signifies the depth of the gindex.
-        assembly {
+        assembly ("memory-safe") {
             depth_ := or(depth_, shl(6, lt(0xffffffffffffffff, shr(depth_, _position))))
             depth_ := or(depth_, shl(5, lt(0xffffffff, shr(depth_, _position))))
 
@@ -67,7 +67,7 @@ library LibPosition {
         // Return bits p_{msb-1}...p_{0}. This effectively pulls the 2^{depth} out of the gindex,
         // leaving only the `indexAtDepth`.
         uint256 msb = depth(_position);
-        assembly {
+        assembly ("memory-safe") {
             indexAtDepth_ := sub(_position, shl(msb, 1))
         }
     }
@@ -76,7 +76,7 @@ library LibPosition {
     /// @param _position The position to get the left position of.
     /// @return left_ The position to the left of `position`.
     function left(Position _position) internal pure returns (Position left_) {
-        assembly {
+        assembly ("memory-safe") {
             left_ := shl(1, _position)
         }
     }
@@ -85,7 +85,7 @@ library LibPosition {
     /// @param _position The position to get the right position of.
     /// @return right_ The position to the right of `position`.
     function right(Position _position) internal pure returns (Position right_) {
-        assembly {
+        assembly ("memory-safe") {
             right_ := or(1, shl(1, _position))
         }
     }
@@ -94,7 +94,7 @@ library LibPosition {
     /// @param _position The position to get the parent position of.
     /// @return parent_ The parent position of `position`.
     function parent(Position _position) internal pure returns (Position parent_) {
-        assembly {
+        assembly ("memory-safe") {
             parent_ := shr(1, _position)
         }
     }
@@ -106,7 +106,7 @@ library LibPosition {
     /// @return rightIndex_ The deepest, right most gindex relative to the `position`.
     function rightIndex(Position _position, uint256 _maxDepth) internal pure returns (Position rightIndex_) {
         uint256 msb = depth(_position);
-        assembly {
+        assembly ("memory-safe") {
             let remaining := sub(_maxDepth, msb)
             rightIndex_ := or(shl(remaining, _position), sub(shl(remaining, 1), 1))
         }
@@ -120,7 +120,7 @@ library LibPosition {
     /// @return traceIndex_ The trace index relative to the `position`.
     function traceIndex(Position _position, uint256 _maxDepth) internal pure returns (uint256 traceIndex_) {
         uint256 msb = depth(_position);
-        assembly {
+        assembly ("memory-safe") {
             let remaining := sub(_maxDepth, msb)
             traceIndex_ := sub(or(shl(remaining, _position), sub(shl(remaining, 1), 1)), shl(_maxDepth, 1))
         }
@@ -133,14 +133,14 @@ library LibPosition {
     function traceAncestor(Position _position) internal pure returns (Position ancestor_) {
         // Create a field with only the lowest unset bit of `_position` set.
         Position lsb;
-        assembly {
+        assembly ("memory-safe") {
             lsb := and(not(_position), add(_position, 1))
         }
         // Find the index of the lowest unset bit within the field.
         uint256 msb = depth(lsb);
         // The highest ancestor that commits to the same trace index is the original position
         // shifted right by the index of the lowest unset bit.
-        assembly {
+        assembly ("memory-safe") {
             let a := shr(msb, _position)
             // Bound the ancestor to the minimum gindex, 1.
             ancestor_ := or(a, iszero(a))
@@ -163,7 +163,7 @@ library LibPosition {
     {
         // This function only works for positions that are below the upper bound.
         if (_position.depth() <= _upperBoundExclusive) {
-            assembly {
+            assembly ("memory-safe") {
                 // Revert with `ClaimAboveSplit()`
                 mstore(0x00, 0xb34b5c22)
                 revert(0x1C, 0x04)
@@ -188,7 +188,7 @@ library LibPosition {
     /// @param _isAttack Whether or not the move is an attack move.
     /// @return move_ The move position relative to `position`.
     function move(Position _position, bool _isAttack) internal pure returns (Position move_) {
-        assembly {
+        assembly ("memory-safe") {
             move_ := shl(1, or(iszero(_isAttack), _position))
         }
     }
@@ -197,7 +197,7 @@ library LibPosition {
     /// @param _position The position to get the value of.
     /// @return raw_ The value of the `position` as a uint128 type.
     function raw(Position _position) internal pure returns (uint128 raw_) {
-        assembly {
+        assembly ("memory-safe") {
             raw_ := _position
         }
     }

@@ -67,8 +67,8 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
     uint16 public constant messageVersion = uint16(0);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0-beta.9
-    string public constant version = "1.0.0-beta.9";
+    /// @custom:semver 1.0.0-beta.10
+    string public constant version = "1.0.0-beta.10";
 
     /// @notice Mapping of message hashes to boolean receipt values. Note that a message will only be present in this
     ///         mapping if it has successfully been relayed on this chain, and can therefore not be relayed again.
@@ -98,7 +98,7 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
     /// @notice Retrieves the sender of the current cross domain message. If not entered, reverts.
     /// @return sender_ Address of the sender of the current cross domain message.
     function crossDomainMessageSender() external view onlyEntered returns (address sender_) {
-        assembly {
+        assembly ("memory-safe") {
             sender_ := tload(CROSS_DOMAIN_MESSAGE_SENDER_SLOT)
         }
     }
@@ -106,7 +106,7 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
     /// @notice Retrieves the source of the current cross domain message. If not entered, reverts.
     /// @return source_ Chain ID of the source of the current cross domain message.
     function crossDomainMessageSource() external view onlyEntered returns (uint256 source_) {
-        assembly {
+        assembly ("memory-safe") {
             source_ := tload(CROSS_DOMAIN_MESSAGE_SOURCE_SLOT)
         }
     }
@@ -115,7 +115,7 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
     /// @return sender_ Address of the sender of the current cross domain message.
     /// @return source_ Chain ID of the source of the current cross domain message.
     function crossDomainMessageContext() external view onlyEntered returns (address sender_, uint256 source_) {
-        assembly {
+        assembly ("memory-safe") {
             sender_ := tload(CROSS_DOMAIN_MESSAGE_SENDER_SLOT)
             source_ := tload(CROSS_DOMAIN_MESSAGE_SOURCE_SLOT)
         }
@@ -218,7 +218,7 @@ contract L2ToL2CrossDomainMessenger is IL2ToL2CrossDomainMessenger, ISemver, Tra
     /// @param _source Chain ID of the source chain.
     /// @param _sender Address of the sender of the message.
     function _storeMessageMetadata(uint256 _source, address _sender) internal {
-        assembly {
+        assembly ("memory-safe") {
             tstore(CROSS_DOMAIN_MESSAGE_SENDER_SLOT, _sender)
             tstore(CROSS_DOMAIN_MESSAGE_SOURCE_SLOT, _source)
         }

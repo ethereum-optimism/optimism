@@ -274,7 +274,7 @@ contract DeployPeriphery is Script, Artifacts {
             }
             addr_ = preComputedAddress;
         } else {
-            assembly {
+            assembly ("memory-safe") {
                 addr_ := create2(0, add(initCode, 0x20), mload(initCode), salt)
             }
             require(addr_ != address(0), "DeployPeriphery: deployment failed");

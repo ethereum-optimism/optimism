@@ -47,7 +47,7 @@ contract OptimismSuperchainERC20 is SuperchainERC20, Initializable, ERC165 {
 
     /// @notice Returns the storage for the OptimismSuperchainERC20Metadata.
     function _getStorage() private pure returns (OptimismSuperchainERC20Metadata storage storage_) {
-        assembly {
+        assembly ("memory-safe") {
             storage_.slot := OPTIMISM_SUPERCHAIN_ERC20_METADATA_SLOT
         }
     }

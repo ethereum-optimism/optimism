@@ -69,8 +69,8 @@ contract DelayedVetoable is ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.1-beta.2
-    string public constant version = "1.0.1-beta.2";
+    /// @custom:semver 1.0.1-beta.3
+    string public constant version = "1.0.1-beta.3";
 
     /// @notice Sets the target admin during contract deployment.
     /// @param _vetoer Address of the vetoer.
@@ -181,11 +181,11 @@ contract DelayedVetoable is ISemver {
         emit Forwarded(_callHash, msg.data);
         (bool success, bytes memory returndata) = TARGET.call(msg.data);
         if (success == true) {
-            assembly {
+            assembly ("memory-safe") {
                 return(add(returndata, 0x20), mload(returndata))
             }
         } else {
-            assembly {
+            assembly ("memory-safe") {
                 revert(add(returndata, 0x20), mload(returndata))
             }
         }

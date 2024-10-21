@@ -22,7 +22,7 @@ library console {
     function _castLogPayloadViewToPure(
         function(bytes memory) internal view fnIn
     ) internal pure returns (function(bytes memory) internal pure fnOut) {
-        assembly {
+        assembly ("memory-safe") {
             fnOut := fnIn
         }
     }
@@ -34,8 +34,7 @@ library console {
     function _sendLogPayloadView(bytes memory payload) private view {
         uint256 payloadLength = payload.length;
         address consoleAddress = CONSOLE_ADDRESS;
-        /// @solidity memory-safe-assembly
-        assembly {
+        assembly ("memory-safe") {
             let payloadStart := add(payload, 32)
             let r := staticcall(gas(), consoleAddress, payloadStart, payloadLength, 0, 0)
         }

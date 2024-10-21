@@ -294,7 +294,7 @@ contract FaultDisputeGame is Clone, ISemver {
         // - 0x20 l1 head
         // - 0x20 extraData
         // - 0x02 CWIA bytes
-        assembly {
+        assembly ("memory-safe") {
             if iszero(eq(calldatasize(), 0x7A)) {
                 // Store the selector for `BadExtraData()` & revert
                 mstore(0x00, 0x9824bdab)
