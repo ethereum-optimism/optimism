@@ -193,6 +193,7 @@ func RegolithSystemConfig(t *testing.T, regolithTimeOffset *hexutil.Uint64, opts
 	cfg.DeployConfig.L2GenesisEcotoneTimeOffset = nil
 	cfg.DeployConfig.L2GenesisFjordTimeOffset = nil
 	cfg.DeployConfig.L2GenesisGraniteTimeOffset = nil
+	cfg.DeployConfig.L2GenesisHoloceneTimeOffset = nil
 	// ADD NEW FORKS HERE!
 	return cfg
 }
@@ -226,6 +227,12 @@ func FjordSystemConfig(t *testing.T, fjordTimeOffset *hexutil.Uint64, opts ...Sy
 func GraniteSystemConfig(t *testing.T, graniteTimeOffset *hexutil.Uint64, opts ...SystemConfigOpt) SystemConfig {
 	cfg := FjordSystemConfig(t, &genesisTime, opts...)
 	cfg.DeployConfig.L2GenesisGraniteTimeOffset = graniteTimeOffset
+	return cfg
+}
+
+func HoloceneSystemConfig(t *testing.T, holoceneTimeOffset *hexutil.Uint64, opts ...SystemConfigOpt) SystemConfig {
+	cfg := GraniteSystemConfig(t, &genesisTime, opts...)
+	cfg.DeployConfig.L2GenesisHoloceneTimeOffset = holoceneTimeOffset
 	return cfg
 }
 
@@ -606,6 +613,7 @@ func (cfg SystemConfig) Start(t *testing.T, startOpts ...StartOption) (*System, 
 			EcotoneTime:             cfg.DeployConfig.EcotoneTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 			FjordTime:               cfg.DeployConfig.FjordTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 			GraniteTime:             cfg.DeployConfig.GraniteTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
+			HoloceneTime:            cfg.DeployConfig.HoloceneTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 			InteropTime:             cfg.DeployConfig.InteropTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 			ProtocolVersionsAddress: cfg.L1Deployments.ProtocolVersionsProxy,
 			AltDAConfig:             rollupAltDAConfig,
