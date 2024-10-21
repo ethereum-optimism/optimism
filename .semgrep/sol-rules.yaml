@@ -5,6 +5,15 @@ rules:
     message: _args parameter should be wrapped with DeployUtils.encodeConstructor
     pattern-regex: DeployUtils\.(create1|create2|create1AndSave|create2AndSave)\s*\(\s*\{[^}]*?_args\s*:\s*(?!\s*DeployUtils\.encodeConstructor\()\s*[^}]*?\}\s*\)
 
+  - id: sol-safety-memory-safe-asm
+    languages: [solidity]
+    severity: ERROR
+    message: Assembly blocks must be memory safe
+    patterns:
+      - pattern-regex: assembly (?P<ARGS>.*) \{
+      - focus-metavariable: $ARGS
+      - pattern-not-regex: "memory-safe"
+
   - id: sol-style-input-arg-fmt
     languages: [solidity]
     severity: ERROR
