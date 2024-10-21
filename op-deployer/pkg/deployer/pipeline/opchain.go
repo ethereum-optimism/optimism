@@ -16,7 +16,7 @@ import (
 func DeployOPChainLiveStrategy(ctx context.Context, env *Env, bundle ArtifactsBundle, intent *state.Intent, st *state.State, chainID common.Hash) error {
 	lgr := env.Logger.New("stage", "deploy-opchain", "strategy", "live")
 
-	if !shouldDeployOPChain(intent, st, chainID) {
+	if !shouldDeployOPChain(st, chainID) {
 		lgr.Info("opchain deployment not needed")
 		return nil
 	}
@@ -142,7 +142,7 @@ func setPreimageOracleAddress(ctx context.Context, client *ethclient.Client, err
 func DeployOPChainGenesisStrategy(env *Env, intent *state.Intent, st *state.State, chainID common.Hash) error {
 	lgr := env.Logger.New("stage", "deploy-opchain", "strategy", "genesis")
 
-	if !shouldDeployOPChain(intent, st, chainID) {
+	if !shouldDeployOPChain(st, chainID) {
 		lgr.Info("opchain deployment not needed")
 		return nil
 	}
@@ -242,7 +242,7 @@ func setEIP1967ImplementationAddress(ctx context.Context, client *ethclient.Clie
 	errCh <- err
 }
 
-func shouldDeployOPChain(intent *state.Intent, st *state.State, chainID common.Hash) bool {
+func shouldDeployOPChain(st *state.State, chainID common.Hash) bool {
 	for _, chain := range st.Chains {
 		if chain.ID == chainID {
 			return false
