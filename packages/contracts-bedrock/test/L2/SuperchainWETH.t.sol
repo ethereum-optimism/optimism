@@ -224,7 +224,7 @@ contract SuperchainWETH_Test is CommonTest {
         superchainWeth.deposit{ value: _amount }();
 
         // Act
-        vm.expectRevert();
+        vm.expectRevert(); // nosemgrep: sol-safety-expectrevert-no-args
         superchainWeth.sendERC20(bob, _amount + 1, _chainId);
 
         // Assert

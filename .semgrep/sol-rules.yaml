@@ -5,6 +5,16 @@ rules:
     message: _args parameter should be wrapped with DeployUtils.encodeConstructor
     pattern-regex: DeployUtils\.(create1|create2|create1AndSave|create2AndSave)\s*\(\s*\{[^}]*?_args\s*:\s*(?!\s*DeployUtils\.encodeConstructor\()\s*[^}]*?\}\s*\)
 
+  - id: sol-safety-expectrevert-no-args
+    languages: [solidity]
+    severity: ERROR
+    message: vm.expectRevert() must specify the revert reason
+    patterns:
+      - pattern: vm.expectRevert()
+    paths:
+      exclude:
+        - packages/contracts-bedrock/test/dispute/WETH98.t.sol
+
   - id: sol-style-input-arg-fmt
     languages: [solidity]
     severity: ERROR
@@ -42,16 +52,6 @@ rules:
     severity: ERROR
     message: Javadoc-style comments are not allowed, use `///` style doc comments instead
     pattern-regex: (\/\*\*\n(\s+\*\s.*\n)+\s+\*\/)
-    paths:
-      exclude:
-        - packages/contracts-bedrock/test
-
-  - id: sol-expectrevert-no-args
-    languages: [solidity]
-    severity: ERROR
-    message: vm.expectRevert() must specify the revert reason
-    patterns:
-      - pattern: vm.expectRevert()
     paths:
       exclude:
         - packages/contracts-bedrock/test
