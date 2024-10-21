@@ -313,8 +313,7 @@ func validateSuperchainDeployment(t *testing.T, st *state.State, cg codeGetter) 
 
 func validateOPChainDeployment(t *testing.T, cg codeGetter, st *state.State, intent *state.Intent) {
 	// Validate that the implementation addresses are always set, even in subsequent deployments
-	// that pull from an existing OPCM deployment. Some singleton contracts (e.g. MIPS, etc.) are
-	// excluded for now.
+	// that pull from an existing OPCM deployment.
 	implAddrs := []struct {
 		name string
 		addr common.Address
@@ -327,6 +326,8 @@ func validateOPChainDeployment(t *testing.T, cg codeGetter, st *state.State, int
 		{"L1StandardBridgeImplAddress", st.ImplementationsDeployment.L1StandardBridgeImplAddress},
 		{"OptimismMintableERC20FactoryImplAddress", st.ImplementationsDeployment.OptimismMintableERC20FactoryImplAddress},
 		{"DisputeGameFactoryImplAddress", st.ImplementationsDeployment.DisputeGameFactoryImplAddress},
+		{"MipsSingletonAddress", st.ImplementationsDeployment.MipsSingletonAddress},
+		{"PreimageOracleSingletonAddress", st.ImplementationsDeployment.PreimageOracleSingletonAddress},
 	}
 	for _, addr := range implAddrs {
 		require.NotEmpty(t, addr.addr, "%s should be set", addr.name)
@@ -362,8 +363,6 @@ func validateOPChainDeployment(t *testing.T, cg codeGetter, st *state.State, int
 			code := cg(t, addr.addr)
 			require.NotEmpty(t, code, "contract %s at %s for chain %s has no code", addr.name, addr.addr, chainState.ID)
 		}
-
-		// TODO: Need to check that 'mipsSingletonAddress' and 'preimageOracleSingletonAddress' are set
 
 		alloc := chainState.Allocs.Data.Accounts
 
