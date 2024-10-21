@@ -151,7 +151,7 @@ contract ProtocolHandler is TestBase, StdUtils, Actors {
         uint256 chainId
     )
         internal
-        returns (OptimismSuperchainERC20 supertoken)
+        returns (OptimismSuperchainERC20 supertoken_)
     {
         // this salt would be used in production. Tokens sharing it will be bridgable with each other
         bytes32 realSalt = keccak256(abi.encode(remoteToken, name, symbol, decimals));
@@ -162,7 +162,7 @@ contract ProtocolHandler is TestBase, StdUtils, Actors {
         // what we use in the tests to walk around two contracts needing two different addresses
         // tbf we could be using CREATE1, but this feels more verbose
         bytes32 hackySalt = keccak256(abi.encode(remoteToken, name, symbol, decimals, chainId));
-        supertoken = OptimismSuperchainERC20(
+        supertoken_ = OptimismSuperchainERC20(
             address(
                 // TODO: Use the OptimismSuperchainERC20 Beacon Proxy
                 new ERC1967Proxy{ salt: hackySalt }(
@@ -171,7 +171,7 @@ contract ProtocolHandler is TestBase, StdUtils, Actors {
                 )
             )
         );
-        MESSENGER.registerSupertoken(realSalt, chainId, address(supertoken));
-        allSuperTokens.push(address(supertoken));
+        MESSENGER.registerSupertoken(realSalt, chainId, address(supertoken_));
+        allSuperTokens.push(address(supertoken_));
     }
 }

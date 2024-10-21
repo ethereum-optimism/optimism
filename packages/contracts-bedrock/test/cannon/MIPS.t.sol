@@ -1801,22 +1801,22 @@ contract MIPS_Test is CommonTest {
         uint32 val
     )
         internal
-        returns (IMIPS.State memory state, bytes memory proof)
+        returns (IMIPS.State memory state_, bytes memory proof_)
     {
-        (state.memRoot, proof) = ffi.getCannonMemoryProof(pc, insn, addr, val);
-        state.pc = pc;
-        state.nextPC = pc + 4;
+        (state_.memRoot, proof_) = ffi.getCannonMemoryProof(pc, insn, addr, val);
+        state_.pc = pc;
+        state_.nextPC = pc + 4;
     }
 
-    function encodeitype(uint8 opcode, uint8 rs, uint8 rt, uint16 imm) internal pure returns (uint32 insn) {
-        insn = uint32(opcode) << 26 | uint32(rs) << 21 | uint32(rt) << 16 | imm;
+    function encodeitype(uint8 opcode, uint8 rs, uint8 rt, uint16 imm) internal pure returns (uint32 insn_) {
+        insn_ = uint32(opcode) << 26 | uint32(rs) << 21 | uint32(rt) << 16 | imm;
     }
 
-    function encodespec(uint8 rs, uint8 rt, uint8 rd, uint16 funct) internal pure returns (uint32 insn) {
-        insn = uint32(rs) << 21 | uint32(rt) << 16 | uint32(rd) << 11 | uint32(funct);
+    function encodespec(uint8 rs, uint8 rt, uint8 rd, uint16 funct) internal pure returns (uint32 insn_) {
+        insn_ = uint32(rs) << 21 | uint32(rt) << 16 | uint32(rd) << 11 | uint32(funct);
     }
 
-    function encodespec2(uint8 rs, uint8 rt, uint8 rd, uint8 funct) internal pure returns (uint32 insn) {
-        insn = uint32(28) << 26 | uint32(rs) << 21 | uint32(rt) << 16 | uint32(rd) << 11 | uint32(funct);
+    function encodespec2(uint8 rs, uint8 rt, uint8 rd, uint8 funct) internal pure returns (uint32 insn_) {
+        insn_ = uint32(28) << 26 | uint32(rs) << 21 | uint32(rt) << 16 | uint32(rd) << 11 | uint32(funct);
     }
 }
