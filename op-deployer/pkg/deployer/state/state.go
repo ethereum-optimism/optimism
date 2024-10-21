@@ -39,7 +39,7 @@ type State struct {
 	Chains []*ChainState `json:"opChainDeployments"`
 
 	// L1StateDump contains the complete L1 state dump of the deployment.
-	L1StateDump *GzipData[foundry.ForgeAllocs] `json:"stateDump"`
+	L1StateDump *GzipData[foundry.ForgeAllocs] `json:"l1StateDump"`
 }
 
 func (s *State) WriteToFile(path string) error {
