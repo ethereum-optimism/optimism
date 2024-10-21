@@ -17,6 +17,7 @@ import { Process } from "scripts/libraries/Process.sol";
 import { ChainAssertions } from "scripts/deploy/ChainAssertions.sol";
 import { DeployUtils } from "scripts/libraries/DeployUtils.sol";
 import { DeploySuperchainInput, DeploySuperchain, DeploySuperchainOutput } from "scripts/DeploySuperchain.s.sol";
+import { DeployOPChain } from "scripts/DeployOPChain.s.sol"; // generates required artifacts for op-e2e/interop tests
 import {
     DeployImplementationsInput,
     DeployImplementations,
@@ -443,6 +444,12 @@ contract Deploy is Deployer {
     /// @notice Deploy all of the OP Chain specific contracts
     function deployOpChain() public {
         console.log("Deploying OP Chain");
+
+        // The lines below are only to prevent unused import error for DeployOPChain.sol which forces generation
+        // of the DeployOPChain.sol artifact needed by op-e2e interop tests.
+        DeployOPChain dop = new DeployOPChain();
+        dop.etchIOContracts();
+
         // Ensure that the requisite contracts are deployed
         address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
         OPContractsManager opcm = OPContractsManager(mustGetAddress("OPContractsManagerProxy"));
