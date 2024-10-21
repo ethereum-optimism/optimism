@@ -60,7 +60,7 @@ rules:
     pattern-regex: (\/\*\*\n(\s+\*\s.*\n)+\s+\*\/)
     paths:
       exclude:
-        - packages/contracts-bedrock/test
+        - packages/contracts-bedrock/test/safe-tools/CompatibilityFallbackHandler_1_3_0.sol
 
   - id: sol-expectrevert-no-args
     languages: [solidity]
