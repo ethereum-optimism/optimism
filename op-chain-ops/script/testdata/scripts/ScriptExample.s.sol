@@ -13,6 +13,9 @@ interface Vm {
     function startBroadcast(address msgSender) external;
     function startBroadcast() external;
     function stopBroadcast() external;
+    function getDeployedCode(string calldata artifactPath) external view returns (bytes memory runtimeBytecode);
+    function etch(address target, bytes calldata newRuntimeBytecode) external;
+    function allowCheatcodes(address account) external;
 }
 
 // console is a minimal version of the console2 lib.
@@ -95,6 +98,13 @@ contract ScriptExample {
         vm.stopPrank();
         this.hello("from original again");
 
+        // vm.etch should not give cheatcode access, unless allowed to afterwards
+        address tmpNonceGetter = address(uint160(uint256(keccak256("temp nonce test getter"))));
+        vm.etch(tmpNonceGetter, vm.getDeployedCode("ScriptExample.s.sol:NonceGetter"));
+        vm.allowCheatcodes(tmpNonceGetter);
+        uint256 v = NonceGetter(tmpNonceGetter).getNonce(address(this));
+        console.log("nonce from nonce getter, no explicit access required with vm.etch:", v);
+
         console.log("done!");
     }
 
@@ -174,5 +184,15 @@ contract FooBar {
 
     constructor(uint256 v) {
         foo = v;
+    }
+}
+
+contract NonceGetter {
+
+    address internal constant VM_ADDRESS = address(uint160(uint256(keccak256("hevm cheat code"))));
+    Vm internal constant vm = Vm(VM_ADDRESS);
+
+    function getNonce(address _addr) public view returns (uint256) {
+        return vm.getNonce(_addr);
     }
 }

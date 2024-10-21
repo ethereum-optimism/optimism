@@ -29,10 +29,12 @@ func TestScript(t *testing.T) {
 
 	scriptContext := DefaultContext
 	h := NewHost(logger, af, nil, scriptContext)
+	require.NoError(t, h.EnableCheats())
+
 	addr, err := h.LoadContract("ScriptExample.s.sol", "ScriptExample")
 	require.NoError(t, err)
-
-	require.NoError(t, h.EnableCheats())
+	h.AllowCheatcodes(addr)
+	t.Logf("allowing %s to access cheatcodes", addr)
 
 	h.SetEnvVar("EXAMPLE_BOOL", "true")
 	input := bytes4("run()")
@@ -142,10 +144,11 @@ func TestScriptBroadcast(t *testing.T) {
 		broadcasts = append(broadcasts, broadcast)
 	}
 	h := NewHost(logger, af, nil, DefaultContext, WithBroadcastHook(hook), WithCreate2Deployer())
+	require.NoError(t, h.EnableCheats())
+
 	addr, err := h.LoadContract("ScriptExample.s.sol", "ScriptExample")
 	require.NoError(t, err)
-
-	require.NoError(t, h.EnableCheats())
+	h.AllowCheatcodes(addr)
 
 	input := bytes4("runBroadcast()")
 	returnData, _, err := h.Call(senderAddr, addr, input[:], DefaultFoundryGasLimit, uint256.NewInt(0))
