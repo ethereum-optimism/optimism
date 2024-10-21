@@ -95,7 +95,7 @@ func PayloadToSystemConfig(rollupCfg *rollup.Config, payload *eth.ExecutionPaylo
 			return eth.SystemConfig{}, err
 		}
 		d, e := eip1559.DecodeHoloceneExtraData(payload.ExtraData)
-		copy(r.EIP1559Params[:], eip1559.EncodeHolocene1559Params(uint32(d), uint32(e)))
+		copy(r.EIP1559Params[:], eip1559.EncodeHolocene1559Params(d, e))
 	}
 	return r, nil
 }
