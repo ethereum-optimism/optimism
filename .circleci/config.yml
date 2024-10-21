@@ -252,6 +252,10 @@ jobs:
           command: bash scripts/ops/pull-artifacts.sh
           working_directory: packages/contracts-bedrock
       - run:
+          name: Run Kontrol dummy deploy
+          command: just kontrol-dummy-summary
+          working_directory: packages/contracts-bedrock
+      - run:
           name: Build contracts
           command: forge build --deny-warnings --skip <<parameters.skip_pattern>>
           environment:
@@ -634,6 +638,10 @@ jobs:
       - run:
           name: Build go-ffi
           command: just build-go-ffi
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: Build Kontrol dummy deploy
+          command: just kontrol-dummy-summary
           working_directory: packages/contracts-bedrock
       - run:
           name: Run tests
