@@ -58,3 +58,4 @@ check-semgrep:
 
 upgrade-semgrep:
   jq '.semgrep = $v' --arg v $(just print-semgrep) <<<$(cat versions.json) > versions.json
+
