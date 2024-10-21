@@ -15,7 +15,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/entrydb"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -74,16 +73,31 @@ func TestEmptyDB(t *testing.T) {
 		func(t *testing.T, db *DB, m *stubMetrics) {},
 		func(t *testing.T, db *DB, m *stubMetrics) {
 			_, _, err := db.Latest()
-			require.ErrorIs(t, err, entrydb.ErrFuture)
+			require.ErrorIs(t, err, types.ErrFuture)
 
-			_, _, err = db.Latest()
-			require.ErrorIs(t, err, entrydb.ErrFuture)
+			_, _, err = db.First()
+			require.ErrorIs(t, err, types.ErrFuture)
 
 			_, err = db.LastDerivedAt(eth.BlockID{})
-			require.ErrorIs(t, err, entrydb.ErrFuture)
+			require.ErrorIs(t, err, types.ErrFuture)
 
 			_, err = db.DerivedFrom(eth.BlockID{})
-			require.ErrorIs(t, err, entrydb.ErrFuture)
+			require.ErrorIs(t, err, types.ErrFuture)
+
+			_, err = db.PreviousDerived(eth.BlockID{})
+			require.ErrorIs(t, err, types.ErrFuture)
+
+			_, _, err = db.NextDerived(eth.BlockID{})
+			require.ErrorIs(t, err, types.ErrFuture)
+
+			_, err = db.PreviousDerivedFrom(eth.BlockID{})
+			require.ErrorIs(t, err, types.ErrFuture)
+
+			_, err = db.NextDerivedFrom(eth.BlockID{})
+			require.ErrorIs(t, err, types.ErrFuture)
+
+			_, _, err = db.FirstAfter(eth.BlockID{}, eth.BlockID{})
+			require.ErrorIs(t, err, types.ErrFuture)
 		})
 }
 
@@ -129,23 +143,63 @@ func TestSingleEntryDB(t *testing.T) {
 			require.Equal(t, expectedDerivedFrom, derivedFrom)
 			require.Equal(t, expectedDerived, derived)
 
+			derivedFrom, derived, err = db.First()
+			require.NoError(t, err)
+			require.Equal(t, expectedDerivedFrom, derivedFrom)
+			require.Equal(t, expectedDerived, derived)
+
 			derived, err = db.LastDerivedAt(expectedDerivedFrom.ID())
 			require.NoError(t, err)
 			require.Equal(t, expectedDerived, derived)
 
 			_, err = db.LastDerivedAt(eth.BlockID{Hash: common.Hash{0xaa}, Number: expectedDerivedFrom.Number})
-			require.ErrorIs(t, err, entrydb.ErrConflict)
+			require.ErrorIs(t, err, types.ErrConflict)
+
+			// No block known, yet, after the given block pair
+			_, _, err = db.FirstAfter(derivedFrom.ID(), derived.ID())
+			require.ErrorIs(t, err, types.ErrFuture)
+
+			// Not after a non-existent block pair
+			_, _, err = db.FirstAfter(eth.BlockID{Hash: common.Hash{0xaa}, Number: expectedDerivedFrom.Number}, expectedDerived.ID())
+			require.ErrorIs(t, err, types.ErrConflict)
+			_, _, err = db.FirstAfter(expectedDerivedFrom.ID(), eth.BlockID{Hash: common.Hash{0xaa}, Number: expectedDerived.Number})
+			require.ErrorIs(t, err, types.ErrConflict)
 
 			derivedFrom, err = db.DerivedFrom(expectedDerived.ID())
 			require.NoError(t, err)
 			require.Equal(t, expectedDerivedFrom, derivedFrom)
 
 			_, err = db.DerivedFrom(eth.BlockID{Hash: common.Hash{0xbb}, Number: expectedDerived.Number})
-			require.ErrorIs(t, err, entrydb.ErrConflict)
+			require.ErrorIs(t, err, types.ErrConflict)
+
+			prev, err := db.PreviousDerived(expectedDerived.ID())
+			require.NoError(t, err)
+			require.Equal(t, types.BlockSeal{}, prev, "zeroed seal before first entry")
+
+			_, _, err = db.NextDerived(expectedDerived.ID())
+			require.ErrorIs(t, err, types.ErrFuture)
+
+			// if 1 was the first inserted entry, then we skipped 0
+			_, _, err = db.NextDerived(mockL2(0).ID())
+			require.ErrorIs(t, err, types.ErrSkipped)
+
+			prev, err = db.PreviousDerivedFrom(expectedDerivedFrom.ID())
+			require.NoError(t, err)
+			require.Equal(t, types.BlockSeal{}, prev, "zeroed seal before first entry")
+
+			_, err = db.NextDerivedFrom(expectedDerivedFrom.ID())
+			require.ErrorIs(t, err, types.ErrFuture)
+
+			// if 1 was the first inserted entry, then we skipped 0
+			_, err = db.NextDerivedFrom(mockL1(0).ID())
+			require.ErrorIs(t, err, types.ErrSkipped)
+
+			_, _, err = db.FirstAfter(expectedDerivedFrom.ID(), expectedDerived.ID())
+			require.ErrorIs(t, err, types.ErrFuture)
 		})
 }
 
-func TestTwoEntryDB(t *testing.T) {
+func TestThreeEntryDB(t *testing.T) {
 	l1Block0 := mockL1(0)
 	l1Block1 := mockL1(1)
 	l1Block2 := mockL1(2)
@@ -165,19 +219,24 @@ func TestTwoEntryDB(t *testing.T) {
 		require.Equal(t, l1Block2, derivedFrom)
 		require.Equal(t, l2Block2, derived)
 
+		derivedFrom, derived, err = db.First()
+		require.NoError(t, err)
+		require.Equal(t, l1Block0, derivedFrom)
+		require.Equal(t, l2Block0, derived)
+
 		derived, err = db.LastDerivedAt(l1Block2.ID())
 		require.NoError(t, err)
 		require.Equal(t, l2Block2, derived)
 
 		_, err = db.LastDerivedAt(eth.BlockID{Hash: common.Hash{0xaa}, Number: l1Block2.Number})
-		require.ErrorIs(t, err, entrydb.ErrConflict)
+		require.ErrorIs(t, err, types.ErrConflict)
 
 		derivedFrom, err = db.DerivedFrom(l2Block2.ID())
 		require.NoError(t, err)
 		require.Equal(t, l1Block2, derivedFrom)
 
 		_, err = db.DerivedFrom(eth.BlockID{Hash: common.Hash{0xbb}, Number: l2Block2.Number})
-		require.ErrorIs(t, err, entrydb.ErrConflict)
+		require.ErrorIs(t, err, types.ErrConflict)
 
 		derived, err = db.LastDerivedAt(l1Block1.ID())
 		require.NoError(t, err)
@@ -194,6 +253,67 @@ func TestTwoEntryDB(t *testing.T) {
 		derivedFrom, err = db.DerivedFrom(l2Block0.ID())
 		require.NoError(t, err)
 		require.Equal(t, l1Block0, derivedFrom)
+
+		derived, err = db.PreviousDerived(l2Block0.ID())
+		require.NoError(t, err)
+		require.Equal(t, types.BlockSeal{}, derived)
+
+		derived, err = db.PreviousDerived(l2Block1.ID())
+		require.NoError(t, err)
+		require.Equal(t, l2Block0, derived)
+
+		derived, err = db.PreviousDerived(l2Block2.ID())
+		require.NoError(t, err)
+		require.Equal(t, l2Block1, derived)
+
+		derivedFrom, derived, err = db.NextDerived(l2Block0.ID())
+		require.NoError(t, err)
+		require.Equal(t, l2Block1, derived)
+		require.Equal(t, l1Block1, derivedFrom)
+
+		derivedFrom, derived, err = db.NextDerived(l2Block1.ID())
+		require.NoError(t, err)
+		require.Equal(t, l2Block2, derived)
+		require.Equal(t, l1Block2, derivedFrom)
+
+		_, _, err = db.NextDerived(l2Block2.ID())
+		require.ErrorIs(t, err, types.ErrFuture)
+
+		derivedFrom, err = db.PreviousDerivedFrom(l1Block0.ID())
+		require.NoError(t, err)
+		require.Equal(t, types.BlockSeal{}, derivedFrom)
+
+		derivedFrom, err = db.PreviousDerivedFrom(l1Block1.ID())
+		require.NoError(t, err)
+		require.Equal(t, l1Block0, derivedFrom)
+
+		derivedFrom, err = db.PreviousDerivedFrom(l1Block2.ID())
+		require.NoError(t, err)
+		require.Equal(t, l1Block1, derivedFrom)
+
+		derivedFrom, err = db.NextDerivedFrom(l1Block0.ID())
+		require.NoError(t, err)
+		require.Equal(t, l1Block1, derivedFrom)
+
+		derivedFrom, err = db.NextDerivedFrom(l1Block1.ID())
+		require.NoError(t, err)
+		require.Equal(t, l1Block2, derivedFrom)
+
+		_, err = db.NextDerivedFrom(l1Block2.ID())
+		require.ErrorIs(t, err, types.ErrFuture)
+
+		_, _, err = db.FirstAfter(l1Block2.ID(), l2Block2.ID())
+		require.ErrorIs(t, err, types.ErrFuture)
+
+		derivedFrom, derived, err = db.FirstAfter(l1Block0.ID(), l2Block0.ID())
+		require.NoError(t, err)
+		require.Equal(t, l1Block1, derivedFrom)
+		require.Equal(t, l2Block1, derived)
+
+		derivedFrom, derived, err = db.FirstAfter(l1Block1.ID(), l2Block1.ID())
+		require.NoError(t, err)
+		require.Equal(t, l1Block2, derivedFrom)
+		require.Equal(t, l2Block2, derived)
 	})
 }
 
@@ -249,6 +369,65 @@ func TestFastL2Batcher(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, l2Block4, derived)
 
+		derived, err = db.PreviousDerived(l2Block5.ID())
+		require.NoError(t, err)
+		require.Equal(t, l2Block4, derived)
+		derived, err = db.PreviousDerived(l2Block4.ID())
+		require.NoError(t, err)
+		require.Equal(t, l2Block3, derived)
+		derived, err = db.PreviousDerived(l2Block3.ID())
+		require.NoError(t, err)
+		require.Equal(t, l2Block2, derived)
+		derived, err = db.PreviousDerived(l2Block2.ID())
+		require.NoError(t, err)
+		require.Equal(t, l2Block1, derived)
+		derived, err = db.PreviousDerived(l2Block1.ID())
+		require.NoError(t, err)
+		require.Equal(t, l2Block0, derived)
+
+		derivedFrom, derived, err = db.NextDerived(l2Block0.ID())
+		require.NoError(t, err)
+		require.Equal(t, l1Block1, derivedFrom)
+		require.Equal(t, l2Block1, derived)
+		derivedFrom, derived, err = db.NextDerived(l2Block1.ID())
+		require.NoError(t, err)
+		require.Equal(t, l1Block1, derivedFrom)
+		require.Equal(t, l2Block2, derived)
+		derivedFrom, derived, err = db.NextDerived(l2Block2.ID())
+		require.NoError(t, err)
+		require.Equal(t, l1Block1, derivedFrom)
+		require.Equal(t, l2Block3, derived)
+		derivedFrom, derived, err = db.NextDerived(l2Block3.ID())
+		require.NoError(t, err)
+		require.Equal(t, l1Block1, derivedFrom)
+		require.Equal(t, l2Block4, derived)
+		derivedFrom, derived, err = db.NextDerived(l2Block4.ID())
+		require.NoError(t, err)
+		require.Equal(t, l1Block2, derivedFrom) // derived from later L1 block
+		require.Equal(t, l2Block5, derived)
+		_, _, err = db.NextDerived(l2Block5.ID())
+		require.ErrorIs(t, err, types.ErrFuture)
+
+		derivedFrom, err = db.PreviousDerivedFrom(l1Block2.ID())
+		require.NoError(t, err)
+		require.Equal(t, l1Block1, derivedFrom)
+		derivedFrom, err = db.PreviousDerivedFrom(l1Block1.ID())
+		require.NoError(t, err)
+		require.Equal(t, l1Block0, derivedFrom)
+
+		derivedFrom, err = db.NextDerivedFrom(l1Block0.ID())
+		require.NoError(t, err)
+		require.Equal(t, l1Block1, derivedFrom)
+		derivedFrom, err = db.NextDerivedFrom(l1Block1.ID())
+		require.NoError(t, err)
+		require.Equal(t, l1Block2, derivedFrom)
+		_, err = db.NextDerivedFrom(l1Block2.ID())
+		require.ErrorIs(t, err, types.ErrFuture)
+
+		derivedFrom, derived, err = db.FirstAfter(l1Block1.ID(), l2Block2.ID())
+		require.NoError(t, err)
+		require.Equal(t, l1Block1, derivedFrom) // no increment in L1 yet, the next after is L2 block 3
+		require.Equal(t, l2Block3, derived)
 	})
 }
 
@@ -299,6 +478,60 @@ func TestSlowL2Batcher(t *testing.T) {
 		derivedFrom, err = db.DerivedFrom(l2Block1.ID())
 		require.NoError(t, err)
 		require.Equal(t, l1Block1, derivedFrom)
+
+		derived, err = db.PreviousDerived(l2Block2.ID())
+		require.NoError(t, err)
+		require.Equal(t, l2Block1, derived)
+		derived, err = db.PreviousDerived(l2Block1.ID())
+		require.NoError(t, err)
+		require.Equal(t, l2Block0, derived)
+
+		derivedFrom, derived, err = db.NextDerived(l2Block0.ID())
+		require.NoError(t, err)
+		require.Equal(t, l1Block1, derivedFrom)
+		require.Equal(t, l2Block1, derived)
+		derivedFrom, derived, err = db.NextDerived(l2Block1.ID())
+		require.NoError(t, err)
+		require.Equal(t, l1Block5, derivedFrom)
+		require.Equal(t, l2Block2, derived)
+		_, _, err = db.NextDerived(l2Block2.ID())
+		require.ErrorIs(t, err, types.ErrFuture)
+
+		derivedFrom, err = db.PreviousDerivedFrom(l1Block5.ID())
+		require.NoError(t, err)
+		require.Equal(t, l1Block4, derivedFrom)
+		derivedFrom, err = db.PreviousDerivedFrom(l1Block4.ID())
+		require.NoError(t, err)
+		require.Equal(t, l1Block3, derivedFrom)
+		derivedFrom, err = db.PreviousDerivedFrom(l1Block3.ID())
+		require.NoError(t, err)
+		require.Equal(t, l1Block2, derivedFrom)
+		derivedFrom, err = db.PreviousDerivedFrom(l1Block2.ID())
+		require.NoError(t, err)
+		require.Equal(t, l1Block1, derivedFrom)
+		derivedFrom, err = db.PreviousDerivedFrom(l1Block1.ID())
+		require.NoError(t, err)
+		require.Equal(t, l1Block0, derivedFrom)
+
+		derivedFrom, err = db.NextDerivedFrom(l1Block0.ID())
+		require.NoError(t, err)
+		require.Equal(t, l1Block1, derivedFrom)
+		derivedFrom, err = db.NextDerivedFrom(l1Block1.ID())
+		require.NoError(t, err)
+		require.Equal(t, l1Block2, derivedFrom)
+		derivedFrom, err = db.NextDerivedFrom(l1Block2.ID())
+		require.NoError(t, err)
+		require.Equal(t, l1Block3, derivedFrom)
+		derivedFrom, err = db.NextDerivedFrom(l1Block4.ID())
+		require.NoError(t, err)
+		require.Equal(t, l1Block5, derivedFrom)
+		_, err = db.NextDerivedFrom(l1Block5.ID())
+		require.ErrorIs(t, err, types.ErrFuture)
+
+		derivedFrom, derived, err = db.FirstAfter(l1Block2.ID(), l2Block1.ID())
+		require.NoError(t, err)
+		require.Equal(t, l1Block3, derivedFrom)
+		require.Equal(t, l2Block1, derived) // no increment in L2 yet, the next after is L1 block 3
 	})
 }
 
@@ -378,17 +611,17 @@ func testManyEntryDB(t *testing.T, offsetL1 uint64, offsetL2 uint64) {
 		// if not started at genesis, try to read older data, assert it's unavailable.
 		if offsetL1 > 0 {
 			_, err := db.LastDerivedAt(mockL1(0).ID())
-			require.ErrorIs(t, err, entrydb.ErrSkipped)
+			require.ErrorIs(t, err, types.ErrSkipped)
 
 			_, err = db.LastDerivedAt(mockL1(offsetL1 - 1).ID())
-			require.ErrorIs(t, err, entrydb.ErrSkipped)
+			require.ErrorIs(t, err, types.ErrSkipped)
 		}
 		if offsetL2 > 0 {
 			_, err := db.DerivedFrom(mockL2(0).ID())
-			require.ErrorIs(t, err, entrydb.ErrSkipped)
+			require.ErrorIs(t, err, types.ErrSkipped)
 
 			_, err = db.DerivedFrom(mockL2(offsetL2 - 1).ID())
-			require.ErrorIs(t, err, entrydb.ErrSkipped)
+			require.ErrorIs(t, err, types.ErrSkipped)
 		}
 	})
 }
@@ -425,7 +658,7 @@ func TestRewind(t *testing.T) {
 		require.Equal(t, l2Block2, derived)
 
 		// Rewind to the future
-		require.ErrorIs(t, db.Rewind(6), entrydb.ErrFuture)
+		require.ErrorIs(t, db.Rewind(6), types.ErrFuture)
 
 		// Rewind to the exact block we're at
 		require.NoError(t, db.Rewind(l1Block5.Number))

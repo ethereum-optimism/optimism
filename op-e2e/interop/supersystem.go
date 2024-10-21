@@ -438,18 +438,23 @@ func (s *interopE2ESystem) prepareSupervisor() *supervisor.SupervisorService {
 		L2RPCs:  []string{},
 		Datadir: path.Join(s.t.TempDir(), "supervisor"),
 	}
-	depSet := &depset.StaticConfigDependencySet{
-		Dependencies: make(map[supervisortypes.ChainID]*depset.StaticConfigDependency),
-	}
+	depSet := make(map[supervisortypes.ChainID]*depset.StaticConfigDependency)
+
 	// Iterate over the L2 chain configs. The L2 nodes don't exist yet.
 	for _, l2Out := range s.worldOutput.L2s {
 		chainID := supervisortypes.ChainIDFromBig(l2Out.Genesis.Config.ChainID)
-		depSet.Dependencies[chainID] = &depset.StaticConfigDependency{
+		index, err := chainID.ToUInt32()
+		require.NoError(s.t, err)
+		depSet[chainID] = &depset.StaticConfigDependency{
+			ChainIndex:     supervisortypes.ChainIndex(index),
 			ActivationTime: 0,
 			HistoryMinTime: 0,
 		}
 	}
-	cfg.DependencySetSource = depSet
+	stDepSet, err := depset.NewStaticConfigDependencySet(depSet)
+	require.NoError(s.t, err)
+	cfg.DependencySetSource = stDepSet
+
 	// Create the supervisor with the configuration
 	super, err := supervisor.SupervisorFromConfig(context.Background(), cfg, logger)
 	require.NoError(s.t, err)

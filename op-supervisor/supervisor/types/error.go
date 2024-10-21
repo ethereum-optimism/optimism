@@ -1,4 +1,4 @@
-package entrydb
+package types
 
 import "errors"
 
@@ -17,4 +17,11 @@ var (
 	ErrConflict = errors.New("conflicting data")
 	// ErrStop can be used in iterators to indicate iteration has to stop
 	ErrStop = errors.New("iter stop")
+	// ErrOutOfScope is when data is accessed, but access is not allowed, because of a limited scope.
+	// E.g. when limiting scope to L2 blocks derived from a specific subset of the L1 chain.
+	ErrOutOfScope = errors.New("out of scope")
+	// ErrUnknownChain is when a chain is unknown, not in the dependency set.
+	ErrUnknownChain = errors.New("unknown chain")
+	// ErrNoRPCSource happens when a sub-service needs an RPC data source, but is not configured with one.
+	ErrNoRPCSource = errors.New("no RPC client configured")
 )
