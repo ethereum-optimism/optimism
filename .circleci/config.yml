@@ -1011,10 +1011,7 @@ jobs:
               jq -r --arg version "<<parameters.version>>" '.[] | select(.version == $version) | .hash' "$1"
             }
 
-            prestate_hash=$(find_prestate_hash "op-program/prestates/standard.json")
-            if [ -z "$prestate_hash" ]; then
-              prestate_hash=$(find_prestate_hash "op-program/prestates/candidates.json")
-            fi
+            prestate_hash=$(find_prestate_hash "op-program/prestates/releases.json")
             if [ -z "$prestate_hash" ]; then
               echo "Unknown prestate version <<parameters.version>>"
               exit 1
