@@ -231,7 +231,9 @@ func (s BlockSeal) ID() eth.BlockID {
 }
 
 func (s BlockSeal) WithParent(parent eth.BlockID) eth.BlockRef {
-	if s.Number != parent.Number+1 {
+	// prevent parent attachment if the parent is not the previous block,
+	// and the block is not the genesis block
+	if s.Number != parent.Number+1 && s.Number != 0 {
 		panic(fmt.Errorf("invalid parent block %s to combine with %s", parent, s))
 	}
 	return eth.BlockRef{
