@@ -241,3 +241,11 @@ func (s BlockSeal) WithParent(parent eth.BlockID) eth.BlockRef {
 		Time:       s.Timestamp,
 	}
 }
+
+func BlockSealFromRef(ref eth.BlockRef) BlockSeal {
+	return BlockSeal{
+		Hash:      ref.Hash,
+		Number:    ref.Number,
+		Timestamp: ref.Time,
+	}
+}

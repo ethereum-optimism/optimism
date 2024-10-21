@@ -21,7 +21,7 @@ type CrossSafeDeps interface {
 	NextDerivedFrom(chain types.ChainID, derivedFrom eth.BlockID) (after eth.BlockRef, err error)
 	PreviousDerived(chain types.ChainID, derived eth.BlockID) (prevDerived types.BlockSeal, err error)
 
-	OpenBlock(chainID types.ChainID, blockNum uint64) (seal types.BlockSeal, logCount uint32, execMsgs []*types.ExecutingMessage, err error)
+	OpenBlock(chainID types.ChainID, blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs []*types.ExecutingMessage, err error)
 
 	UpdateCrossSafe(chain types.ChainID, l1View eth.BlockRef, lastCrossDerived eth.BlockRef) error
 }
@@ -69,7 +69,7 @@ func scopedCrossSafeUpdate(chainID types.ChainID, d CrossSafeDeps) (scope eth.Bl
 	if opened.ID() != candidate.ID() {
 		return eth.BlockRef{}, fmt.Errorf("unsafe L2 DB has %s, but candidate cross-safe was %s: %w", opened, candidate, types.ErrConflict)
 	}
-	hazards, err := CrossSafeHazards(d, chainID, candidateScope.ID(), opened, execMsgs)
+	hazards, err := CrossSafeHazards(d, chainID, candidateScope.ID(), types.BlockSealFromRef(opened), execMsgs)
 	if err != nil {
 		return eth.BlockRef{}, fmt.Errorf("failed to determine dependencies of cross-safe candidate %s: %w", candidate, err)
 	}
@@ -88,6 +88,7 @@ func scopedCrossSafeUpdate(chainID types.ChainID, d CrossSafeDeps) (scope eth.Bl
 }
 
 func NewCrossSafeWorker(logger log.Logger, chainID types.ChainID, d CrossSafeDeps) *Worker {
+	logger = logger.New("chain", chainID)
 	return NewWorker(logger, func(ctx context.Context) error {
 		return CrossSafeUpdate(ctx, logger, chainID, d)
 	})

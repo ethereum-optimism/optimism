@@ -14,7 +14,7 @@ import (
 type SafeStartDeps interface {
 	Check(chain types.ChainID, blockNum uint64, logIdx uint32, logHash common.Hash) (includedIn types.BlockSeal, err error)
 
-	CrossDerivedFrom(chainID types.ChainID, derived eth.BlockID) (derivedFrom eth.BlockID, err error)
+	CrossDerivedFrom(chainID types.ChainID, derived eth.BlockID) (derivedFrom types.BlockSeal, err error)
 
 	DependencySet() depset.DependencySet
 }

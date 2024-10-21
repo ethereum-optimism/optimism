@@ -36,6 +36,58 @@ func (db *ChainsDB) LatestBlockNum(chain types.ChainID) (num uint64, ok bool) {
 	return logDB.LatestSealedBlockNum()
 }
 
+func (db *ChainsDB) IsCrossUnsafe(chainID types.ChainID, block eth.BlockID) error {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
+	v, ok := db.crossUnsafe[chainID]
+	if !ok {
+		return types.ErrUnknownChain
+	}
+	if v == (types.BlockSeal{}) {
+		return types.ErrFuture
+	}
+	if block.Number > v.Number {
+		return types.ErrFuture
+	}
+	// TODO(#11693): make cross-unsafe reorg safe
+	return nil
+}
+
+func (db *ChainsDB) ParentBlock(chainID types.ChainID, parentOf eth.BlockID) (parent eth.BlockID, err error) {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
+	logDB, ok := db.logDBs[chainID]
+	if !ok {
+		return eth.BlockID{}, types.ErrUnknownChain
+	}
+	if parentOf.Number == 0 {
+		return eth.BlockID{}, nil
+	}
+	// TODO(#11693): make parent-lookup reorg safe
+	got, err := logDB.FindSealedBlock(parentOf.Number - 1)
+	if err != nil {
+		return eth.BlockID{}, err
+	}
+	return got.ID(), nil
+}
+
+func (db *ChainsDB) IsLocalUnsafe(chainID types.ChainID, block eth.BlockID) error {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
+	logDB, ok := db.logDBs[chainID]
+	if !ok {
+		return types.ErrUnknownChain
+	}
+	got, err := logDB.FindSealedBlock(block.Number)
+	if err != nil {
+		return err
+	}
+	if got.ID() != block {
+		return fmt.Errorf("found %s but was looking for unsafe block %s: %w", got, block, types.ErrConflict)
+	}
+	return nil
+}
+
 func (db *ChainsDB) LocalUnsafe(chainID types.ChainID) (types.BlockSeal, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
@@ -141,13 +193,13 @@ func (db *ChainsDB) Check(chain types.ChainID, blockNum uint64, logIdx uint32, l
 
 // OpenBlock returns the Executing Messages for the block at the given number on the given chain.
 // it routes the request to the appropriate logDB.
-func (db *ChainsDB) OpenBlock(chain types.ChainID, blockNum uint64) (eth.BlockID, eth.BlockID, []*types.ExecutingMessage, error) {
+func (db *ChainsDB) OpenBlock(chainID types.ChainID, blockNum uint64) (seal eth.BlockRef, logCount uint32, execMsgs []*types.ExecutingMessage, err error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
-	logDB, ok := db.logDBs[chain]
+	logDB, ok := db.logDBs[chainID]
 	if !ok {
-		return eth.BlockID{}, eth.BlockID{}, nil, types.ErrUnknownChain
+		return eth.BlockRef{}, 0, nil, types.ErrUnknownChain
 	}
 	return logDB.OpenBlock(blockNum)
 }

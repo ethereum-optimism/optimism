@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/fromda"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/db/logs"
+	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/backend/depset"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -44,7 +45,7 @@ type LogStorage interface {
 	Contains(blockNum uint64, logIdx uint32, logHash common.Hash) (includedIn types.BlockSeal, err error)
 
 	// OpenBlock accumulates the ExecutingMessage events for a block and returns them
-	OpenBlock(blockNum uint64) (eth.BlockID, eth.BlockID, []*types.ExecutingMessage, error)
+	OpenBlock(blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs []*types.ExecutingMessage, err error)
 }
 
 type LocalDerivedFromStorage interface {
@@ -70,7 +71,7 @@ type CrossDerivedFromStorage interface {
 var _ LogStorage = (*logs.DB)(nil)
 
 // ChainsDB is a database that stores logs and derived-from data for multiple chains.
-// it implements the ChainsStorage interface.
+// it implements the LogStorage interface, as well as several DB interfaces needed by the cross package.
 type ChainsDB struct {
 	// RW mutex:
 	// Read = chains can be read / mutated.
@@ -95,16 +96,21 @@ type ChainsDB struct {
 	// an error until it has this L1 finality to work with.
 	finalizedL1 eth.L1BlockRef
 
+	// depSet is the dependency set, used to determine what may be tracked,
+	// what is missing, and to provide it to DB users.
+	depSet depset.DependencySet
+
 	logger log.Logger
 }
 
-func NewChainsDB(l log.Logger) *ChainsDB {
+func NewChainsDB(l log.Logger, depSet depset.DependencySet) *ChainsDB {
 	return &ChainsDB{
 		logDBs:      make(map[types.ChainID]LogStorage),
 		logger:      l,
 		localDBs:    make(map[types.ChainID]LocalDerivedFromStorage),
 		crossDBs:    make(map[types.ChainID]CrossDerivedFromStorage),
 		crossUnsafe: make(map[types.ChainID]types.BlockSeal),
+		depSet:      depSet,
 	}
 }
 
@@ -171,6 +177,10 @@ func (db *ChainsDB) ResumeFromLastSealedBlock() error {
 		}
 	}
 	return nil
+}
+
+func (db *ChainsDB) DependencySet() depset.DependencySet {
+	return db.depSet
 }
 
 func (db *ChainsDB) Close() error {
