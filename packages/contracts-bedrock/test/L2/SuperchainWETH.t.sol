@@ -328,7 +328,7 @@ contract SuperchainWETH_Test is CommonTest {
     function testFuzz_calling_internal_mint_function_reverts(address _caller, address _to, uint256 _amount) public {
         // Arrange
         bytes memory _calldata = abi.encodeWithSignature("_mint(address,uint256)", _to, _amount);
-        vm.expectRevert();
+        vm.expectRevert(bytes(""));
 
         // Act
         vm.prank(_caller);
@@ -342,7 +342,7 @@ contract SuperchainWETH_Test is CommonTest {
     function testFuzz_calling_mint_function_reverts(address _caller, address _to, uint256 _amount) public {
         // Arrange
         bytes memory _calldata = abi.encodeWithSignature("mint(address,uint256)", _to, _amount);
-        vm.expectRevert();
+        vm.expectRevert(bytes(""));
 
         // Act
         vm.prank(_caller);
@@ -356,7 +356,7 @@ contract SuperchainWETH_Test is CommonTest {
     function testFuzz_calling_internal_burn_function_reverts(address _caller, address _from, uint256 _amount) public {
         // Arrange
         bytes memory _calldata = abi.encodeWithSignature("_burn(address,uint256)", _from, _amount);
-        vm.expectRevert();
+        vm.expectRevert(bytes(""));
 
         // Act
         vm.prank(_caller);
@@ -370,7 +370,7 @@ contract SuperchainWETH_Test is CommonTest {
     function testFuzz_calling_burn_function_reverts(address _caller, address _from, uint256 _amount) public {
         // Arrange
         bytes memory _calldata = abi.encodeWithSignature("burn(address,uint256)", _from, _amount);
-        vm.expectRevert();
+        vm.expectRevert(bytes(""));
 
         // Act
         vm.prank(_caller);
