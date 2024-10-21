@@ -436,6 +436,79 @@ func TestEVMSingleStep_MfhiMflo(t *testing.T) {
 	}
 }
 
+func TestEVMSingleStep_MulDiv(t *testing.T) {
+	var tracer *tracing.Hooks
+
+	versions := GetMipsVersionTestCases(t)
+	cases := []struct {
+		name         string
+		rs           Word
+		rt           Word
+		funct        uint32
+		opcode       uint32
+		expectHi     Word
+		expectLo     Word
+		expectRes    Word
+		rdReg        uint32
+		expectRevert bool
+		errMsg       string
+	}{
+		{name: "mul", funct: uint32(0x2), rs: Word(5), rt: Word(2), opcode: uint32(28), rdReg: uint32(0x8), expectRes: Word(10), expectRevert: false},                                                // mul t0, t1, t2
+		{name: "mult", funct: uint32(0x18), rs: Word(0x0F_FF_00_00), rt: Word(100), rdReg: uint32(0x0), opcode: uint32(0), expectHi: Word(0x6), expectLo: Word(0x3F_9C_00_00), expectRevert: false},  // mult t1, t2
+		{name: "multu", funct: uint32(0x19), rs: Word(0x0F_FF_00_00), rt: Word(100), rdReg: uint32(0x0), opcode: uint32(0), expectHi: Word(0x6), expectLo: Word(0x3F_9C_00_00), expectRevert: false}, // multu t1, t2
+		{name: "div", funct: uint32(0x1a), rs: Word(5), rt: Word(2), rdReg: uint32(0x0), opcode: uint32(0), expectHi: Word(1), expectLo: Word(2), expectRevert: false},                               // div t1, t2
+		{name: "div by zero", funct: uint32(0x1a), rs: Word(5), rt: Word(0), rdReg: uint32(0x0), opcode: uint32(0), expectRevert: true, errMsg: "MIPS: division by zero"},                            // div t1, t2
+		{name: "divu", funct: uint32(0x1b), rs: Word(5), rt: Word(2), rdReg: uint32(0x0), opcode: uint32(0), expectHi: Word(1), expectLo: Word(2), expectRevert: false},                              // divu t1, t2
+		{name: "divu by zero", funct: uint32(0x1b), rs: Word(5), rt: Word(0), rdReg: uint32(0x0), opcode: uint32(0), expectRevert: true, errMsg: "MIPS: division by zero"},                           // divu t1, t2
+	}
+
+	for _, v := range versions {
+		for i, tt := range cases {
+			testName := fmt.Sprintf("%v (%v)", tt.name, v.Name)
+			t.Run(testName, func(t *testing.T) {
+				goVm := v.VMFactory(nil, os.Stdout, os.Stderr, testutil.CreateLogger(), testutil.WithRandomization(int64(i)), testutil.WithPC(0), testutil.WithNextPC(4))
+				state := goVm.GetState()
+				var insn uint32
+				baseReg := uint32(0x9)
+				rtReg := uint32(0xa)
+
+				insn = tt.opcode<<26 | baseReg<<21 | rtReg<<16 | tt.rdReg<<11 | tt.funct
+				state.GetRegistersRef()[rtReg] = tt.rt
+				state.GetRegistersRef()[baseReg] = tt.rs
+				state.GetMemory().SetUint32(0, insn)
+
+				if tt.expectRevert {
+					proofData := v.ProofGenerator(t, goVm.GetState())
+					require.Panics(t, func() {
+						_, _ = goVm.Step(
+							false)
+					})
+					testutil.AssertEVMReverts(t, state, v.Contracts, tracer, proofData, tt.errMsg)
+					return
+				}
+
+				step := state.GetStep()
+				// Setup expectations
+				expected := testutil.NewExpectedState(state)
+				expected.ExpectStep()
+				if tt.expectRes != 0 {
+					expected.Registers[tt.rdReg] = tt.expectRes
+				} else {
+					expected.HI = tt.expectHi
+					expected.LO = tt.expectLo
+				}
+
+				stepWitness, err := goVm.Step(true)
+				require.NoError(t, err)
+
+				// Check expectations
+				expected.Validate(t, state)
+				testutil.ValidateEVM(t, stepWitness, step, goVm, v.StateHashFn, v.Contracts, tracer)
+			})
+		}
+	}
+}
+
 func TestEVMSingleStep_MthiMtlo(t *testing.T) {
 	var tracer *tracing.Hooks
 	versions := GetMipsVersionTestCases(t)
