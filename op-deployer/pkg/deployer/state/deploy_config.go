@@ -57,6 +57,7 @@ func DefaultDeployConfig(chainIntent *ChainIntent) genesis.DeployConfig {
 				L2GenesisEcotoneTimeOffset:  u64UtilPtr(0),
 				L2GenesisFjordTimeOffset:    u64UtilPtr(0),
 				L2GenesisGraniteTimeOffset:  u64UtilPtr(0),
+				L2GenesisHoloceneTimeOffset: u64UtilPtr(0),
 				UseInterop:                  false,
 			},
 			L2CoreDeployConfig: genesis.L2CoreDeployConfig{

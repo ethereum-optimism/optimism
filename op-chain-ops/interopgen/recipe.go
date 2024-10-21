@@ -232,6 +232,7 @@ func InteropL2DevConfig(l1ChainID, l2ChainID uint64, addrs devkeys.Addresses) (*
 				L2GenesisEcotoneTimeOffset:  new(hexutil.Uint64),
 				L2GenesisFjordTimeOffset:    new(hexutil.Uint64),
 				L2GenesisGraniteTimeOffset:  new(hexutil.Uint64),
+				L2GenesisHoloceneTimeOffset: new(hexutil.Uint64),
 				L2GenesisInteropTimeOffset:  new(hexutil.Uint64),
 				L1CancunTimeOffset:          new(hexutil.Uint64),
 				UseInterop:                  true,

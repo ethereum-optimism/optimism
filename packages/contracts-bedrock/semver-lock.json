@@ -48,12 +48,12 @@
     "sourceCodeHash": "0x39489a85bc3a5c8560f82d41b31bf7fe22f5b648f4ed538f61695a73092ea9eb"
   },
   "src/L1/SystemConfig.sol": {
-    "initCodeHash": "0x2fc36af5b3c493a423a19e0b597f6ff230b756b861b68099f3192d69b6088dc0",
-    "sourceCodeHash": "0x06a50ac992175fdb434b13e8461893e83862c23ce399e697e6e8109728ad1a3d"
+    "initCodeHash": "0xbe40fde9ebea4cd0820dc7f1b1a5c8c1f5ace448baacdafb3068d16d55218180",
+    "sourceCodeHash": "0x7c0366afeb116516d2de0d29456efea82ccdf643b1fcea215e3585d109c314a7"
   },
   "src/L1/SystemConfigInterop.sol": {
-    "initCodeHash": "0x7515e5ed1266412a8c2d27d99aba6266fda2fc9068c20f0b7e6b555ee5073c91",
-    "sourceCodeHash": "0x441d1e3e8e987f829f55996b5b6c850da8c59ad48f09cf7e0a69a1fa559d42a2"
+    "initCodeHash": "0x9fe11f6086be055e9abfc6d38037ba2af5a9644b4a4b3fd66a6cbdb55f17c1e1",
+    "sourceCodeHash": "0x53de72f7057d459da79207f560b3bf1d057e901ec38f515ea7d29d7e323063e1"
   },
   "src/L2/BaseFeeVault.sol": {
     "initCodeHash": "0xbf49824cf37e201181484a8a423fcad8f504dc925921a2b28e83398197858dec",
