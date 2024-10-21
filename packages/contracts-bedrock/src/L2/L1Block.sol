@@ -229,7 +229,12 @@ contract L1Block is ISemver, IGasToken {
     function getConfig(Types.ConfigType _type) public virtual returns (bytes memory data_) {
         if (_type == Types.ConfigType.SET_GAS_PAYING_TOKEN) {
             (address addr, uint8 decimals) = gasPayingToken();
-            data_ = abi.encode(addr, decimals, GasPayingToken.sanitize(gasPayingTokenName()), GasPayingToken.sanitize(gasPayingTokenSymbol()));
+            data_ = abi.encode(
+                addr,
+                decimals,
+                GasPayingToken.sanitize(gasPayingTokenName()),
+                GasPayingToken.sanitize(gasPayingTokenSymbol())
+            );
         } else if (_type == Types.ConfigType.SET_BASE_FEE_VAULT_CONFIG) {
             data_ = abi.encode(Storage.getBytes32(BASE_FEE_VAULT_CONFIG_SLOT));
         } else if (_type == Types.ConfigType.SET_L1_ERC_721_BRIDGE_ADDRESS) {

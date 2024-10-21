@@ -223,10 +223,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver, IGasToken {
     /// @param _type The ConfigType that represents what the address is.
     function _setAddress(bytes32 _slot, address _addr, Types.ConfigType _type) internal {
         Storage.setAddress(_slot, _addr);
-        IOptimismPortal(payable(optimismPortal())).setConfig({
-            _type: _type,
-            _value: abi.encode(_addr)
-        });
+        IOptimismPortal(payable(optimismPortal())).setConfig({ _type: _type, _value: abi.encode(_addr) });
     }
 
     /// @notice Internal setter for the base chain's chain id. This allows for the

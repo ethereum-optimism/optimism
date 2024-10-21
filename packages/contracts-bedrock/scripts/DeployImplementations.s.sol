@@ -29,7 +29,8 @@ import { ISystemConfig } from "src/L1/interfaces/ISystemConfig.sol";
 import { IL1CrossDomainMessenger } from "src/L1/interfaces/IL1CrossDomainMessenger.sol";
 import { IL1ERC721Bridge } from "src/L1/interfaces/IL1ERC721Bridge.sol";
 import { IL1StandardBridge } from "src/L1/interfaces/IL1StandardBridge.sol";
-import { IL1OptimismMintableERC20Factory as IOptimismMintableERC20Factory } from "src/L1/interfaces/IL1OptimismMintableERC20Factory.sol";
+import { IL1OptimismMintableERC20Factory as IOptimismMintableERC20Factory } from
+    "src/L1/interfaces/IL1OptimismMintableERC20Factory.sol";
 
 import { OPContractsManagerInterop } from "src/L1/OPContractsManagerInterop.sol";
 import { IOptimismPortalInterop } from "src/L1/interfaces/IOptimismPortalInterop.sol";

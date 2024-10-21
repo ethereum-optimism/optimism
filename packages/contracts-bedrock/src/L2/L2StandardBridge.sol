@@ -67,7 +67,8 @@ contract L2StandardBridge is StandardBridge, ISemver {
     /// @notice
     /// TODO: this should be IStandardBridge
     function otherBridge() public view override returns (StandardBridge) {
-        bytes memory data = IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).getConfig(Types.ConfigType.SET_L1_STANDARD_BRIDGE_ADDRESS);
+        bytes memory data =
+            IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).getConfig(Types.ConfigType.SET_L1_STANDARD_BRIDGE_ADDRESS);
         return StandardBridge(abi.decode(data, (address)));
     }
 

@@ -39,7 +39,8 @@ contract L2ERC721Bridge is ERC721Bridge, ISemver {
 
     /// @notice
     function otherBridge() public view override returns (ERC721Bridge) {
-        bytes memory data = IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).getConfig(Types.ConfigType.SET_L1_ERC_721_BRIDGE_ADDRESS);
+        bytes memory data =
+            IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).getConfig(Types.ConfigType.SET_L1_ERC_721_BRIDGE_ADDRESS);
         return ERC721Bridge(abi.decode(data, (address)));
     }
 

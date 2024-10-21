@@ -26,7 +26,8 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, ISemver {
 
     /// @notice Getter for the remote chain's messenger.
     function otherMessenger() public view override returns (CrossDomainMessenger) {
-        bytes memory data = IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).getConfig(Types.ConfigType.SET_L1_CROSS_DOMAIN_MESSENGER_ADDRESS);
+        bytes memory data =
+            IL1Block(Predeploys.L1_BLOCK_ATTRIBUTES).getConfig(Types.ConfigType.SET_L1_CROSS_DOMAIN_MESSENGER_ADDRESS);
         return CrossDomainMessenger(abi.decode(data, (address)));
     }
 

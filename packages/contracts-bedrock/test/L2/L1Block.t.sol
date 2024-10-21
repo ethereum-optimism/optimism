@@ -179,25 +179,28 @@ contract L1BlockConfig_Test is L1BlockTest {
         l1Block.setConfig(Types.ConfigType(_type), hex"");
     }
 
-/*
+    /*
     enum ConfigType {
         SET_REMOTE_CHAIN_ID,
         ADD_DEPENDENCY,
         REMOVE_DEPENDENCY
     }
-*/
+    */
 
     function test_getConfigRoundtripGasPayingToken_succeeds(
         address _token,
         uint8 _decimals,
         bytes32 _name,
         bytes32 _symbol
-    ) external {
+    )
+        external
+    {
         vm.assume(_token != address(0));
         vm.prank(Constants.DEPOSITOR_ACCOUNT);
         l1Block.setConfig(Types.ConfigType.SET_GAS_PAYING_TOKEN, abi.encode(_token, _decimals, _name, _symbol));
         bytes memory data = l1Block.getConfig(Types.ConfigType.SET_GAS_PAYING_TOKEN);
-        (address token, uint8 decimals, bytes32 name, bytes32 symbol) = abi.decode(data, (address, uint8, bytes32, bytes32));
+        (address token, uint8 decimals, bytes32 name, bytes32 symbol) =
+            abi.decode(data, (address, uint8, bytes32, bytes32));
         assertEq(token, _token);
         assertEq(decimals, _decimals);
 

@@ -391,9 +391,18 @@ contract Specification_Test is CommonTest {
         // L1OptimismMintableERC20Factory
         _addSpec({ _name: "L1OptimismMintableERC20Factory", _sel: _getSel("BRIDGE()") });
         _addSpec({ _name: "L1OptimismMintableERC20Factory", _sel: _getSel("bridge()") });
-        _addSpec({ _name: "L1OptimismMintableERC20Factory", _sel: _getSel("createOptimismMintableERC20(address,string,string)") });
-        _addSpec({ _name: "L1OptimismMintableERC20Factory", _sel: _getSel("createOptimismMintableERC20WithDecimals(address,string,string,uint8)") });
-        _addSpec({ _name: "L1OptimismMintableERC20Factory", _sel: _getSel("createStandardL2Token(address,string,string)") });
+        _addSpec({
+            _name: "L1OptimismMintableERC20Factory",
+            _sel: _getSel("createOptimismMintableERC20(address,string,string)")
+        });
+        _addSpec({
+            _name: "L1OptimismMintableERC20Factory",
+            _sel: _getSel("createOptimismMintableERC20WithDecimals(address,string,string,uint8)")
+        });
+        _addSpec({
+            _name: "L1OptimismMintableERC20Factory",
+            _sel: _getSel("createStandardL2Token(address,string,string)")
+        });
         _addSpec({ _name: "L1OptimismMintableERC20Factory", _sel: _getSel("deployments(address)") });
         _addSpec({ _name: "L1OptimismMintableERC20Factory", _sel: _getSel("version()") });
         _addSpec({ _name: "L1OptimismMintableERC20Factory", _sel: _getSel("initialize(address)") });
@@ -486,18 +495,9 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "SystemConfig", _sel: _getSel("basefeeScalar()") });
         _addSpec({ _name: "SystemConfig", _sel: _getSel("blobbasefeeScalar()") });
         _addSpec({ _name: "SystemConfig", _sel: _getSel("maximumGasLimit()") });
-        _addSpec({
-            _name: "SystemConfig",
-            _sel: _getSel("setBaseFeeVaultConfig(address,uint256,uint8)")
-        });
-        _addSpec({
-            _name: "SystemConfig",
-            _sel: _getSel("setL1FeeVaultConfig(address,uint256,uint8)")
-        });
-        _addSpec({
-            _name: "SystemConfig",
-            _sel: _getSel("setSequencerFeeVaultConfig(address,uint256,uint8)")
-        });
+        _addSpec({ _name: "SystemConfig", _sel: _getSel("setBaseFeeVaultConfig(address,uint256,uint8)") });
+        _addSpec({ _name: "SystemConfig", _sel: _getSel("setL1FeeVaultConfig(address,uint256,uint8)") });
+        _addSpec({ _name: "SystemConfig", _sel: _getSel("setSequencerFeeVaultConfig(address,uint256,uint8)") });
 
         // SystemConfigInterop
         _addSpec({ _name: "SystemConfigInterop", _sel: _getSel("UNSAFE_BLOCK_SIGNER_SLOT()") });
@@ -579,18 +579,9 @@ contract Specification_Test is CommonTest {
                 "initialize(address,uint32,uint32,bytes32,uint64,address,(uint32,uint8,uint8,uint32,uint32,uint128),address,(address,address,address,address,address,address,address),address)"
             )
         });
-        _addSpec({
-            _name: "SystemConfigInterop",
-            _sel: _getSel("setBaseFeeVaultConfig(address,uint256,uint8)")
-        });
-        _addSpec({
-            _name: "SystemConfigInterop",
-            _sel: _getSel("setL1FeeVaultConfig(address,uint256,uint8)")
-        });
-        _addSpec({
-            _name: "SystemConfigInterop",
-            _sel: _getSel("setSequencerFeeVaultConfig(address,uint256,uint8)")
-        });
+        _addSpec({ _name: "SystemConfigInterop", _sel: _getSel("setBaseFeeVaultConfig(address,uint256,uint8)") });
+        _addSpec({ _name: "SystemConfigInterop", _sel: _getSel("setL1FeeVaultConfig(address,uint256,uint8)") });
+        _addSpec({ _name: "SystemConfigInterop", _sel: _getSel("setSequencerFeeVaultConfig(address,uint256,uint8)") });
 
         // ProxyAdmin
         _addSpec({ _name: "ProxyAdmin", _sel: _getSel("addressManager()") });
