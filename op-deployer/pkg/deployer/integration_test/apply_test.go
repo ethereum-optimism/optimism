@@ -377,7 +377,9 @@ func validateOPChainDeployment(t *testing.T, cg codeGetter, st *state.State, int
 		// slot 0
 		ownerSlot := common.Hash{}
 		checkStorageSlot(t, alloc, predeploys.ProxyAdminAddr, ownerSlot, addrAsSlot)
-		checkStorageSlot(t, alloc, predeploys.GovernanceTokenAddr, ownerSlot, common.Hash{})
+		var defaultGovOwner common.Hash
+		defaultGovOwner.SetBytes(common.HexToAddress("0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAdDEad").Bytes())
+		checkStorageSlot(t, alloc, predeploys.GovernanceTokenAddr, common.Hash{31: 0x0a}, defaultGovOwner)
 
 		require.Equal(t, int(chainIntent.Eip1559Denominator), 50, "EIP1559Denominator should be set")
 		require.Equal(t, int(chainIntent.Eip1559Elasticity), 6, "EIP1559Elasticity should be set")
