@@ -5,6 +5,22 @@ rules:
     message: _args parameter should be wrapped with DeployUtils.encodeConstructor
     pattern-regex: DeployUtils\.(create1|create2|create1AndSave|create2AndSave)\s*\(\s*\{[^}]*?_args\s*:\s*(?!\s*DeployUtils\.encodeConstructor\()\s*[^}]*?\}\s*\)
 
+  - id: sol-safety-expectrevert-before-ll-call
+    languages: [solidity]
+    severity: ERROR
+    message: vm.expectRevert is followed by a low-level call but not followed by assertion expecting revert
+    patterns:
+      - pattern: |
+          vm.expectRevert(...);
+          $CALL;
+          $CHECK;
+      - metavariable-pattern:
+          metavariable: $CALL
+          patterns:
+            - pattern-regex: \.call\(.*\)|\.delegatecall\(.*\)
+      - focus-metavariable: $CHECK
+      - pattern-not-regex: assertTrue\(revertsAsExpected\)
+
   - id: sol-style-input-arg-fmt
     languages: [solidity]
     severity: ERROR
