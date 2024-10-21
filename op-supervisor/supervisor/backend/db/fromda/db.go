@@ -67,8 +67,8 @@ func (db *DB) Rewind(derivedFrom uint64) error {
 
 // First returns the first known values, alike to Latest.
 func (db *DB) First() (derivedFrom types.BlockSeal, derived types.BlockSeal, err error) {
-	db.rwLock.Lock()
-	defer db.rwLock.Unlock()
+	db.rwLock.RLock()
+	defer db.rwLock.RUnlock()
 	lastIndex := db.store.LastEntryIdx()
 	if lastIndex < 0 {
 		return types.BlockSeal{}, types.BlockSeal{}, types.ErrFuture
@@ -84,7 +84,7 @@ func (db *DB) PreviousDerived(derived eth.BlockID) (prevDerived types.BlockSeal,
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
 	// get the last time this L2 block was seen.
-	selfIndex, self, err := db.lastDerivedFrom(derived.Number)
+	selfIndex, self, err := db.firstDerivedFrom(derived.Number)
 	if err != nil {
 		return types.BlockSeal{}, fmt.Errorf("failed to find derived %d: %w", derived.Number, err)
 	}
@@ -177,7 +177,7 @@ func (db *DB) PreviousDerivedFrom(derivedFrom eth.BlockID) (prevDerivedFrom type
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
 	// get the last time this L1 block was seen.
-	selfIndex, self, err := db.lastDerivedFrom(derivedFrom.Number)
+	selfIndex, self, err := db.firstDerivedAt(derivedFrom.Number)
 	if err != nil {
 		return types.BlockSeal{}, fmt.Errorf("failed to find derived %d: %w", derivedFrom.Number, err)
 	}
@@ -260,6 +260,12 @@ func (db *DB) lastDerivedAt(derivedFrom uint64) (entrydb.EntryIdx, LinkEntry, er
 	// Reverse: prioritize the last entry.
 	return db.find(true, func(link LinkEntry) int {
 		return cmp.Compare(derivedFrom, link.derivedFrom.Number)
+	})
+}
+
+func (db *DB) firstDerivedAt(derivedFrom uint64) (entrydb.EntryIdx, LinkEntry, error) {
+	return db.find(false, func(link LinkEntry) int {
+		return cmp.Compare(link.derivedFrom.Number, derivedFrom)
 	})
 }
 
