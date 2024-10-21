@@ -146,21 +146,7 @@ func NewL1Genesis(config *DeployConfig) (*core.Genesis, error) {
 	}
 
 	extraData := make([]byte, 0)
-	if config.L1UseClique {
-		// warning: clique has an overly strict block header timestamp check against the system wallclock,
-		// causing blocks to get scheduled as "future block" and not get mined instantly when produced.
-		chainConfig.Clique = &params.CliqueConfig{
-			Period: config.L1BlockTime,
-			Epoch:  30000,
-		}
-		extraData = append(append(make([]byte, 32), config.CliqueSignerAddress[:]...), make([]byte, crypto.SignatureLength)...)
-	} else {
-		chainConfig.MergeNetsplitBlock = big.NewInt(0)
-		chainConfig.TerminalTotalDifficulty = big.NewInt(0)
-		chainConfig.TerminalTotalDifficultyPassed = true
-		chainConfig.ShanghaiTime = u64ptr(0)
-		chainConfig.CancunTime = u64ptr(0)
-	}
+	
 
 	gasLimit := config.L1GenesisBlockGasLimit
 	if gasLimit == 0 {
