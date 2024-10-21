@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -146,7 +145,7 @@ func NewL1Genesis(config *DeployConfig) (*core.Genesis, error) {
 	}
 
 	extraData := make([]byte, 0)
-	
+
 
 	gasLimit := config.L1GenesisBlockGasLimit
 	if gasLimit == 0 {
