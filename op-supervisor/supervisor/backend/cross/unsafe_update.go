@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-supervisor/supervisor/types"
 )
 
@@ -16,7 +17,7 @@ type CrossUnsafeDeps interface {
 	UnsafeStartDeps
 	UnsafeFrontierCheckDeps
 
-	OpenBlock(chainID types.ChainID, blockNum uint64) (seal types.BlockSeal, logCount uint32, execMsgs []*types.ExecutingMessage, err error)
+	OpenBlock(chainID types.ChainID, blockNum uint64) (block eth.BlockRef, logCount uint32, execMsgs []*types.ExecutingMessage, err error)
 
 	UpdateCrossUnsafe(chain types.ChainID, crossUnsafe types.BlockSeal) error
 }
@@ -25,22 +26,27 @@ func CrossUnsafeUpdate(ctx context.Context, logger log.Logger, chainID types.Cha
 	var candidate types.BlockSeal
 	var execMsgs []*types.ExecutingMessage
 
-	// fetch cross-head
-	crossSafe, err := d.CrossUnsafe(chainID)
-	if err != nil {
+	// fetch cross-head to determine next cross-unsafe candidate
+	if crossUnsafe, err := d.CrossUnsafe(chainID); err != nil {
 		if errors.Is(err, types.ErrFuture) {
-			// If genesis / no cross-safe block yet, then start with block 0
-			// TODO
+			// If genesis / no cross-safe block yet, then defer update
+			logger.Debug("No cross-unsafe starting point yet")
+			return nil
 		} else {
 			return err
 		}
 	} else {
 		// Open block N+1: this is a local-unsafe block,
 		// just after cross-safe, that can be promoted if it passes the dependency checks.
-		candidate, _, execMsgs, err = d.OpenBlock(chainID, crossSafe.Number+1)
+		bl, _, msgs, err := d.OpenBlock(chainID, crossUnsafe.Number+1)
 		if err != nil {
-			return fmt.Errorf("failed to open block %d: %w", crossSafe.Number+1, err)
+			return fmt.Errorf("failed to open block %d: %w", crossUnsafe.Number+1, err)
 		}
+		if bl.ParentHash != crossUnsafe.Hash {
+			return fmt.Errorf("cannot use block %s, it does not build on cross-unsafe block %s: %w", bl, crossUnsafe, types.ErrConflict)
+		}
+		candidate = types.BlockSealFromRef(bl)
+		execMsgs = msgs
 	}
 
 	hazards, err := CrossUnsafeHazards(d, chainID, candidate, execMsgs)
@@ -66,6 +72,7 @@ func CrossUnsafeUpdate(ctx context.Context, logger log.Logger, chainID types.Cha
 }
 
 func NewCrossUnsafeWorker(logger log.Logger, chainID types.ChainID, d CrossUnsafeDeps) *Worker {
+	logger = logger.New("chain", chainID)
 	return NewWorker(logger, func(ctx context.Context) error {
 		return CrossUnsafeUpdate(ctx, logger, chainID, d)
 	})

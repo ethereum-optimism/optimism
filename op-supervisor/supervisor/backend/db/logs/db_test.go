@@ -107,6 +107,14 @@ func TestLatestSealedBlockNum(t *testing.T) {
 				idx, err := db.searchCheckpoint(0, 0)
 				require.NoError(t, err)
 				require.Zero(t, idx, "genesis block as checkpoint 0")
+
+				// Test if we can open the genesis block
+				ref, logCount, execMsgs, err := db.OpenBlock(0)
+				require.NoError(t, err)
+				require.Empty(t, execMsgs)
+				require.Zero(t, logCount)
+				require.Equal(t, genesis, ref.ID())
+				require.Equal(t, uint64(5000), ref.Time)
 			})
 	})
 	t.Run("Later genesis case", func(t *testing.T) {
@@ -125,6 +133,14 @@ func TestLatestSealedBlockNum(t *testing.T) {
 				_, err = db.searchCheckpoint(0, 0)
 				require.ErrorIs(t, err, types.ErrSkipped, "no checkpoint before genesis")
 				require.ErrorIs(t, err, types.ErrSkipped, "no checkpoint before genesis")
+
+				// Test if we can open the starting block
+				_, _, _, err = db.OpenBlock(genesis.Number)
+				// no data to find the parent-hash.
+				// OpenBlock cannot start from the first entry, when not 0.
+				// To start at a non-zero block, index the seal of the parent-block block before it,
+				// and then that parent-hash will be available.
+				require.ErrorIs(t, err, types.ErrSkipped)
 			})
 	})
 	t.Run("Block 1 case", func(t *testing.T) {
@@ -142,6 +158,22 @@ func TestLatestSealedBlockNum(t *testing.T) {
 				idx, err := db.searchCheckpoint(block1.Number, 0)
 				require.NoError(t, err)
 				require.Equal(t, entrydb.EntryIdx(0), idx, "checkpoint 0 still for block 1")
+
+				// Test if we can open the starting block
+				ref, logCount, execMsgs, err := db.OpenBlock(genesis.Number)
+				require.NoError(t, err)
+				require.Empty(t, execMsgs)
+				require.Zero(t, logCount)
+				require.Equal(t, genesis, ref.ID())
+				require.Equal(t, uint64(5000), ref.Time)
+
+				// Test if we can open the first block after genesis
+				ref, logCount, execMsgs, err = db.OpenBlock(block1.Number)
+				require.NoError(t, err)
+				require.Empty(t, execMsgs)
+				require.Zero(t, logCount)
+				require.Equal(t, block1, ref.ID())
+				require.Equal(t, uint64(5001), ref.Time)
 			})
 	})
 	t.Run("Using checkpoint case", func(t *testing.T) {
@@ -151,7 +183,7 @@ func TestLatestSealedBlockNum(t *testing.T) {
 				require.NoError(t, db.SealBlock(common.Hash{}, genesis, 5000), "seal genesis")
 				for i := 1; i <= 260; i++ {
 					id := eth.BlockID{Hash: createHash(i), Number: uint64(i)}
-					require.NoError(t, db.SealBlock(createHash(i-1), id, 5001), "seal block %d", i)
+					require.NoError(t, db.SealBlock(createHash(i-1), id, 5000+uint64(i)), "seal block %d", i)
 				}
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
@@ -164,6 +196,14 @@ func TestLatestSealedBlockNum(t *testing.T) {
 				// It costs 2 entries per block, so if we add more than 1 checkpoint worth of blocks,
 				// then we get to checkpoint 2
 				require.Equal(t, entrydb.EntryIdx(searchCheckpointFrequency*2), idx, "checkpoint 1 reached")
+
+				// Test if we can open the block
+				ref, logCount, execMsgs, err := db.OpenBlock(n)
+				require.NoError(t, err)
+				require.Empty(t, execMsgs)
+				require.Zero(t, logCount)
+				require.Equal(t, createHash(int(n)), ref.Hash)
+				require.Equal(t, uint64(5000)+n, ref.Time)
 			})
 	})
 }
@@ -192,6 +232,12 @@ func TestAddLog(t *testing.T) {
 			},
 			func(t *testing.T, db *DB, m *stubMetrics) {
 				requireContains(t, db, 16, 0, createHash(1))
+
+				ref, logCount, execMsgs, err := db.OpenBlock(16)
+				require.NoError(t, err)
+				require.Empty(t, execMsgs)
+				require.Equal(t, uint32(1), logCount)
+				require.Equal(t, eth.BlockRef{Hash: createHash(16), Number: 16, ParentHash: createHash(15), Time: 5001}, ref)
 			})
 	})
 
@@ -221,6 +267,18 @@ func TestAddLog(t *testing.T) {
 				requireContains(t, db, 16, 0, createHash(1))
 				requireContains(t, db, 16, 1, createHash(2))
 				requireContains(t, db, 16, 2, createHash(3))
+
+				ref, logCount, execMsgs, err := db.OpenBlock(13)
+				require.NoError(t, err)
+				require.Empty(t, execMsgs)
+				require.Equal(t, uint32(0), logCount)
+				require.Equal(t, eth.BlockRef{Hash: createHash(13), Number: 13, ParentHash: createHash(12), Time: 5013}, ref)
+
+				ref, logCount, execMsgs, err = db.OpenBlock(16)
+				require.NoError(t, err)
+				require.Empty(t, execMsgs)
+				require.Equal(t, uint32(3), logCount)
+				require.Equal(t, eth.BlockRef{Hash: createHash(16), Number: 16, ParentHash: createHash(15), Time: 5016}, ref)
 			})
 	})
 
@@ -701,6 +759,13 @@ func TestExecutes(t *testing.T) {
 
 			// 51 only contained 3 logs, not 4
 			requireConflicts(t, db, 51, 3, createHash(2))
+
+			// 51 contains an executing message, and 2 other non-executing logs
+			ref, logCount, execMsgs, err := db.OpenBlock(51)
+			require.NoError(t, err)
+			require.Equal(t, []*types.ExecutingMessage{&execMsg1}, execMsgs)
+			require.Equal(t, uint32(3), logCount)
+			require.Equal(t, eth.BlockRef{Hash: createHash(51), Number: 51, ParentHash: createHash(50), Time: 5001}, ref)
 		})
 }
 

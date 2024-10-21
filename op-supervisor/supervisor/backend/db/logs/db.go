@@ -162,67 +162,85 @@ func (db *DB) FindSealedBlock(number uint64) (seal types.BlockSeal, err error) {
 	}, nil
 }
 
+// StartingBlock returns the first block seal in the DB, if any.
+func (db *DB) StartingBlock() (seal types.BlockSeal, err error) {
+	db.rwLock.RLock()
+	defer db.rwLock.RUnlock()
+	iter := db.newIterator(0)
+	if err := iter.NextBlock(); err != nil {
+		return types.BlockSeal{}, err
+	}
+	h, n, _ := iter.SealedBlock()
+	t, _ := iter.SealedTimestamp()
+	return types.BlockSeal{
+		Hash:      h,
+		Number:    n,
+		Timestamp: t,
+	}, err
+}
+
 // OpenBlock returns the Executing Messages for the block at the given number.
 // it returns identification of the block, the parent block, and the executing messages.
-func (db *DB) OpenBlock(blockNum uint64) (
-	block eth.BlockID,
-	parent eth.BlockID,
-	execMsgs []*types.ExecutingMessage,
-	retErr error) {
-
+func (db *DB) OpenBlock(blockNum uint64) (ref eth.BlockRef, logCount uint32, execMsgs []*types.ExecutingMessage, retErr error) {
 	db.rwLock.RLock()
 	defer db.rwLock.RUnlock()
 
-	// begin an iterator at the block before the requested block
-	// this iterator is dedicated to block info,
-	// its easier to handle the blocks/messages with separate iterators than managing them together
+	if blockNum == 0 {
+		seal, err := db.StartingBlock()
+		if err != nil {
+			retErr = err
+			return
+		}
+		ref = eth.BlockRef{
+			Hash:       seal.Hash,
+			Number:     seal.Number,
+			ParentHash: common.Hash{},
+			Time:       seal.Timestamp,
+		}
+		logCount = 0
+		execMsgs = nil
+		return
+	}
+
+	// start at the first log (if any) after the block-seal of the parent block
 	blockIter, err := db.newIteratorAt(blockNum-1, 0)
 	if err != nil {
 		retErr = err
 		return
 	}
-	// set the parent hash based on the current iterator state
-	// if there is no parent, (ie the block is the genesis block), parentHash will not be set
-	parentHash, parentNum, ok := blockIter.SealedBlock()
+	// register the parent block
+	parentHash, _, ok := blockIter.SealedBlock()
 	if ok {
-		parent = eth.BlockID{Hash: parentHash, Number: parentNum}
+		ref.ParentHash = parentHash
 	}
-	// advance to the next block
-	// if the next block from the parent (the queried block) is not found, then the block is not sealed yet
-	// and we can't confirm that all messages are available
-	err = blockIter.NextBlock()
-	if err != nil {
-		retErr = err
-		return
-	}
-
-	// begin a new iterator at the requested block
-	// this iterator is dedicated to messages
-	iter, err := db.newIteratorAt(blockNum-1, 0)
-	if err != nil {
-		retErr = err
-		return
-	}
-	// prepare a slice to collect the executing messages
+	// walk to the end of the block, and remember what we see in the block.
+	logCount = 0
 	execMsgs = make([]*types.ExecutingMessage, 0, 1)
-	// collect all executing messages until the next block seal is reached
-	for {
-		err := iter.NextExecMsg()
-		if err == io.EOF {
-			break
+	retErr = blockIter.TraverseConditional(func(state IteratorState) error {
+		_, logIndex, ok := state.InitMessage()
+		if ok {
+			logCount = logIndex + 1
 		}
-		if err != nil {
-			retErr = fmt.Errorf("failed to read executing message: %w", err)
-			return
+		if m := state.ExecMessage(); m != nil {
+			execMsgs = append(execMsgs, m)
 		}
-		// now we are at the next executing message, need to see if it's part of the block we are opening
-		exec := iter.ExecMessage()
-		// if the executing message is part of a future block, then we are done
-		if exec.BlockNum != blockNum {
-			break
+		h, n, ok := state.SealedBlock()
+		if !ok {
+			return nil
 		}
-		// now we know the executing message is part of the block we are opening
-		execMsgs = append(execMsgs, exec)
+		if n == blockNum {
+			ref.Number = n
+			ref.Hash = h
+			ref.Time, _ = state.SealedTimestamp()
+			return types.ErrStop
+		}
+		if n > blockNum {
+			return fmt.Errorf("expected to run into block %d, but did not find it, found %d: %w", blockNum, n, types.ErrDataCorruption)
+		}
+		return nil
+	})
+	if errors.Is(retErr, types.ErrStop) {
+		retErr = nil
 	}
 	return
 }
