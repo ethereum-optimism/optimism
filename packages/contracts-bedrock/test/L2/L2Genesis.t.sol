@@ -170,7 +170,7 @@ contract L2GenesisTest is Test {
     }
 
     /// @notice Creates mock L1Dependencies for testing purposes.
-    function _dummyL1Deps() internal pure returns (L1Dependencies memory _deps) {
+    function _dummyL1Deps() internal pure returns (L1Dependencies memory deps_) {
         return L1Dependencies({
             l1CrossDomainMessengerProxy: payable(address(0x100000)),
             l1StandardBridgeProxy: payable(address(0x100001)),
