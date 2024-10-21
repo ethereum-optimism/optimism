@@ -162,11 +162,11 @@ type ChainIntent struct {
 }
 
 type ChainRoles struct {
-	ProxyAdminOwner common.Address `json:"proxyAdminOwner" toml:"proxyAdminOwner"`
+	L1ProxyAdminOwner common.Address `json:"l1ProxyAdminOwner" toml:"l1ProxyAdminOwner"`
+
+	L2ProxyAdminOwner common.Address `json:"l2ProxyAdminOwner" toml:"l2ProxyAdminOwner"`
 
 	SystemConfigOwner common.Address `json:"systemConfigOwner" toml:"systemConfigOwner"`
-
-	GovernanceTokenOwner common.Address `json:"governanceTokenOwner" toml:"governanceTokenOwner"`
 
 	UnsafeBlockSigner common.Address `json:"unsafeBlockSigner" toml:"unsafeBlockSigner"`
 
@@ -183,16 +183,16 @@ func (c *ChainIntent) Check() error {
 		return fmt.Errorf("id must be set")
 	}
 
-	if c.Roles.ProxyAdminOwner == emptyAddress {
+	if c.Roles.L1ProxyAdminOwner == emptyAddress {
 		return fmt.Errorf("proxyAdminOwner must be set")
 	}
 
 	if c.Roles.SystemConfigOwner == emptyAddress {
-		c.Roles.SystemConfigOwner = c.Roles.ProxyAdminOwner
+		c.Roles.SystemConfigOwner = c.Roles.L1ProxyAdminOwner
 	}
 
-	if c.Roles.GovernanceTokenOwner == emptyAddress {
-		c.Roles.GovernanceTokenOwner = c.Roles.ProxyAdminOwner
+	if c.Roles.L2ProxyAdminOwner == emptyAddress {
+		return fmt.Errorf("l2ProxyAdminOwner must be set")
 	}
 
 	if c.Roles.UnsafeBlockSigner == emptyAddress {

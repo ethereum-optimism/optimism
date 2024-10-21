@@ -112,6 +112,10 @@ func CombineDeployConfig(intent *Intent, chainIntent *ChainIntent, state *State,
 		BatchSenderAddress:  chainIntent.Roles.Batcher,
 		P2PSequencerAddress: chainIntent.Roles.UnsafeBlockSigner,
 	}
+	cfg.OwnershipDeployConfig = genesis.OwnershipDeployConfig{
+		ProxyAdminOwner:  chainIntent.Roles.L2ProxyAdminOwner,
+		FinalSystemOwner: chainIntent.Roles.L1ProxyAdminOwner,
+	}
 	cfg.BatchInboxAddress = calculateBatchInboxAddr(chainState.ID)
 	cfg.L1ChainID = intent.L1ChainID
 

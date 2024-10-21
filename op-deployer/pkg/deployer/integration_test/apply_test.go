@@ -260,13 +260,13 @@ func newChainIntent(t *testing.T, dk *devkeys.MnemonicDevKeys, l1ChainID *big.In
 		Eip1559Denominator:         50,
 		Eip1559Elasticity:          6,
 		Roles: state.ChainRoles{
-			ProxyAdminOwner:      addrFor(t, dk, devkeys.L2ProxyAdminOwnerRole.Key(l1ChainID)),
-			SystemConfigOwner:    addrFor(t, dk, devkeys.SystemConfigOwner.Key(l1ChainID)),
-			GovernanceTokenOwner: addrFor(t, dk, devkeys.L2ProxyAdminOwnerRole.Key(l1ChainID)),
-			UnsafeBlockSigner:    addrFor(t, dk, devkeys.SequencerP2PRole.Key(l1ChainID)),
-			Batcher:              addrFor(t, dk, devkeys.BatcherRole.Key(l1ChainID)),
-			Proposer:             addrFor(t, dk, devkeys.ProposerRole.Key(l1ChainID)),
-			Challenger:           addrFor(t, dk, devkeys.ChallengerRole.Key(l1ChainID)),
+			L1ProxyAdminOwner: addrFor(t, dk, devkeys.L2ProxyAdminOwnerRole.Key(l1ChainID)),
+			L2ProxyAdminOwner: addrFor(t, dk, devkeys.L2ProxyAdminOwnerRole.Key(l1ChainID)),
+			SystemConfigOwner: addrFor(t, dk, devkeys.SystemConfigOwner.Key(l1ChainID)),
+			UnsafeBlockSigner: addrFor(t, dk, devkeys.SequencerP2PRole.Key(l1ChainID)),
+			Batcher:           addrFor(t, dk, devkeys.BatcherRole.Key(l1ChainID)),
+			Proposer:          addrFor(t, dk, devkeys.ProposerRole.Key(l1ChainID)),
+			Challenger:        addrFor(t, dk, devkeys.ChallengerRole.Key(l1ChainID)),
 		},
 	}
 }
@@ -335,7 +335,7 @@ func validateOPChainDeployment(t *testing.T, cg codeGetter, st *state.State, int
 		require.NotEmpty(t, code, "contract %s at %s has no code", addr.name, addr.addr)
 	}
 
-	for _, chainState := range st.Chains {
+	for i, chainState := range st.Chains {
 		chainAddrs := []struct {
 			name string
 			addr common.Address
@@ -366,13 +366,21 @@ func validateOPChainDeployment(t *testing.T, cg codeGetter, st *state.State, int
 
 		alloc := chainState.Allocs.Data.Accounts
 
-		firstChainIntent := intent.Chains[0]
-		checkImmutable(t, alloc, predeploys.BaseFeeVaultAddr, firstChainIntent.BaseFeeVaultRecipient)
-		checkImmutable(t, alloc, predeploys.L1FeeVaultAddr, firstChainIntent.L1FeeVaultRecipient)
-		checkImmutable(t, alloc, predeploys.SequencerFeeVaultAddr, firstChainIntent.SequencerFeeVaultRecipient)
+		chainIntent := intent.Chains[i]
+		checkImmutable(t, alloc, predeploys.BaseFeeVaultAddr, chainIntent.BaseFeeVaultRecipient)
+		checkImmutable(t, alloc, predeploys.L1FeeVaultAddr, chainIntent.L1FeeVaultRecipient)
+		checkImmutable(t, alloc, predeploys.SequencerFeeVaultAddr, chainIntent.SequencerFeeVaultRecipient)
 
-		require.Equal(t, int(firstChainIntent.Eip1559Denominator), 50, "EIP1559Denominator should be set")
-		require.Equal(t, int(firstChainIntent.Eip1559Elasticity), 6, "EIP1559Elasticity should be set")
+		// ownership slots
+		var addrAsSlot common.Hash
+		addrAsSlot.SetBytes(chainIntent.Roles.L1ProxyAdminOwner.Bytes())
+		// slot 0
+		ownerSlot := common.Hash{}
+		checkStorageSlot(t, alloc, predeploys.ProxyAdminAddr, ownerSlot, addrAsSlot)
+		checkStorageSlot(t, alloc, predeploys.GovernanceTokenAddr, ownerSlot, common.Hash{})
+
+		require.Equal(t, int(chainIntent.Eip1559Denominator), 50, "EIP1559Denominator should be set")
+		require.Equal(t, int(chainIntent.Eip1559Elasticity), 6, "EIP1559Elasticity should be set")
 	}
 }
 
@@ -394,6 +402,18 @@ func checkImmutable(t *testing.T, allocations types.GenesisAlloc, proxyContract 
 		strings.ToLower(strings.TrimPrefix(feeRecipient.Hex(), "0x")),
 		"%s code should contain %s immutable", implementationAddress.Hex(), feeRecipient.Hex(),
 	)
+}
+
+func checkStorageSlot(t *testing.T, allocs types.GenesisAlloc, address common.Address, slot common.Hash, expected common.Hash) {
+	account, ok := allocs[address]
+	require.True(t, ok, "account not found for address %s", address)
+	value, ok := account.Storage[slot]
+	if expected == (common.Hash{}) {
+		require.False(t, ok, "slot %s for account %s should not be set", slot, address)
+		return
+	}
+	require.True(t, ok, "slot %s not found for account %s", slot, address)
+	require.Equal(t, expected, value, "slot %s for account %s should be %s", slot, address, expected)
 }
 
 func TestApplyExistingOPCM(t *testing.T) {
