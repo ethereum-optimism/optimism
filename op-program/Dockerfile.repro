@@ -26,7 +26,7 @@ ARG OP_PROGRAM_VERSION=v0.0.0
 
 ARG TARGETOS TARGETARCH
 
-# Build the cannon, op-program, and op-program-client.elf binaries.
+# Build the cannon and op-program-client.elf binaries.
 RUN --mount=type=cache,target=/root/.cache/go-build cd cannon && make cannon  \
   GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$CANNON_VERSION"
 RUN --mount=type=cache,target=/root/.cache/go-build cd op-program && make op-program-client-mips  \
