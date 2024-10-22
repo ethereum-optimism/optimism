@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/log"
 	"io"
 	"net/http"
 	"net/url"
@@ -29,6 +30,12 @@ func NoopDownloadProgressor(current, total int64) {}
 type CleanupFunc func() error
 
 var noopCleanup = func() error { return nil }
+
+func LogProgressor(lgr log.Logger) DownloadProgressor {
+	return func(curr, total int64) {
+		lgr.Info("artifacts download progress", "current", curr, "total", total)
+	}
+}
 
 func DownloadArtifacts(ctx context.Context, loc *opcm.ArtifactsLocator, progress DownloadProgressor) (foundry.StatDirFs, CleanupFunc, error) {
 	var u *url.URL
