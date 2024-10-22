@@ -608,10 +608,16 @@ func HandleHiLo(cpu *mipsevm.CpuScalars, registers *[32]Word, fun uint32, rs Wor
 		cpu.LO = Word(lo)
 	case 0x1e: // ddiv
 		assertMips64Fun(fun)
+		if rt == 0 {
+			panic("instruction divide by zero")
+		}
 		cpu.HI = Word(int64(rs) % int64(rt))
 		cpu.LO = Word(int64(rs) / int64(rt))
 	case 0x1f: // ddivu
 		assertMips64Fun(fun)
+		if rt == 0 {
+			panic("instruction divide by zero")
+		}
 		cpu.HI = rs % rt
 		cpu.LO = rs / rt
 	}
